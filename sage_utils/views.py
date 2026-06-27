@@ -927,11 +927,19 @@ def object_button_image(obj) -> list:
 
 
 def portrait_mapped_images(obj) -> list:
-    """The object's portrait `MappedImage`s — its `SelectPortrait`, else its `ButtonImage`
-    (the next-best icon for structures/summons). A horde carries no portrait of its own, so
-    the contained unit's is used. Empty when neither resolves."""
-    target = horde_member_object(obj) or obj
-    return select_portrait_image(target) or object_button_image(target)
+    """The object's portrait `MappedImage`s, tried in order: its own `SelectPortrait`, a horde
+    member's `SelectPortrait`, then either's `ButtonImage` (the next-best icon for
+    structures/summons). A horde may carry the portrait on its shell or only on the contained
+    unit — some define it on one, some on the other — so both are consulted. Empty when none
+    resolves."""
+    member = horde_member_object(obj)
+    sources = [obj] if member is None else [obj, member]
+    for resolve in (select_portrait_image, object_button_image):
+        for source in sources:
+            images = resolve(source)
+            if images:
+                return images
+    return []
 
 
 def command_button_images(game, command_set) -> list[dict]:

@@ -1502,6 +1502,75 @@ def test_building_stats_are_computed_per_level():
     assert "health" not in fields  # a leveled building uses the suffixed columns only
 
 
+# An economy building that levels the Wirtschaftssystem-4.0 way (Edain's AmrothLighthouse): two
+# globally-researched upgrades each level it up (a LevelUpUpgrade) and grant the per-level stats
+# (a paired AttributeModifierUpgrade). It also carries a one-off buff (a hero's gift) that grants
+# only an AttributeModifierUpgrade — that must NOT count as a level.
+ECONOMY_LEVEL_FIXTURE = """
+ModifierList EconStepOne
+  Modifier = HEALTH 500
+End
+ModifierList EconStepTwo
+  Modifier = HEALTH 500
+End
+ModifierList HeroGift
+  Modifier = PRODUCTION 120%
+End
+Upgrade Upgrade_EconOne
+End
+Upgrade Upgrade_EconTwo
+End
+Upgrade Upgrade_HeroGift
+End
+Object EconomyLighthouse
+  KindOf = STRUCTURE SELECTABLE
+  Side = Men
+  BuildCost = 300
+  BuildTime = 30
+  Behavior = ActiveBody ModuleTag_Body
+    MaxHealth = 1000
+  End
+  Behavior = LevelUpUpgrade ModuleTag_LvlOne
+    TriggeredBy  = Upgrade_EconOne
+    LevelsToGain = 1
+    LevelCap     = 3
+  End
+  Behavior = AttributeModifierUpgrade ModuleTag_ModOne
+    TriggeredBy       = Upgrade_EconOne
+    AttributeModifier = EconStepOne
+  End
+  Behavior = LevelUpUpgrade ModuleTag_LvlTwo
+    TriggeredBy  = Upgrade_EconTwo
+    LevelsToGain = 1
+    LevelCap     = 3
+  End
+  Behavior = AttributeModifierUpgrade ModuleTag_ModTwo
+    TriggeredBy       = Upgrade_EconTwo
+    AttributeModifier = EconStepTwo
+  End
+  Behavior = AttributeModifierUpgrade ModuleTag_HeroGift
+    TriggeredBy       = Upgrade_HeroGift
+    AttributeModifier = HeroGift
+  End
+End
+"""
+
+
+def test_economy_building_levels_count_only_the_level_up_upgrades():
+    # Two level-granting economy upgrades → three levels (base + one step each). The hero-gift
+    # buff has no LevelUpUpgrade, so it is not a fourth level.
+    levels = building_levels(load(ECONOMY_LEVEL_FIXTURE).objects["EconomyLighthouse"])
+    assert len(levels) == 3
+
+
+def test_economy_building_stats_step_with_each_level_upgrade():
+    fields = computed_fields(load(ECONOMY_LEVEL_FIXTURE).objects["EconomyLighthouse"])
+    assert fields["health1"] == "1000"  # base
+    assert fields["health2"] == "1500"  # + EconStepOne 500
+    assert fields["health3"] == "2000"  # + EconStepOne (500) + EconStepTwo (500)
+    assert "health4" not in fields  # the hero-gift buff is no extra level
+
+
 # A structure that levels purely through its ExperienceLevel ladder — rank is earned by
 # RequiredExperience, with no LevelUpUpgrade pushing it (Edain's Dol Guldur / Morgul outpost
 # fortresses). The per-rank HEALTH modifiers carry the gain, the same as the ladder above.

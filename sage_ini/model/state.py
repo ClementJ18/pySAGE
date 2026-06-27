@@ -400,13 +400,30 @@ LEVEL_MODIFIER_KEYS = frozenset({"HEALTH", "PRODUCTION"})
 
 
 def economy_level_upgrades(obj) -> list[str]:
-    """The upgrades that step a building through its levels, in level order, deduplicated. A
-    leveled economy building gains per-level health/production from `AttributeModifierUpgrade`s
-    whose `ModifierList` carries a HEALTH or PRODUCTION modifier; the upgrade triggering each
-    is a level step. Empty for a non-leveled object."""
-    names: list[str] = []
+    """The upgrades that step an economy building through its levels, in level order,
+    deduplicated. Edain's economy buildings (Wirtschaftssystem 4.0) level from globally-researched
+    upgrades: each level-granting upgrade triggers a `LevelUpUpgrade` (`LevelsToGain`/`LevelCap`)
+    and a paired `AttributeModifierUpgrade` whose `ModifierList` carries the per-level HEALTH or
+    PRODUCTION gain. Both signals are required:
+
+    - the `AttributeModifierUpgrade` proves the per-level stats live on the object (not on a
+      veterancy `ExperienceLevel` ladder — those go through `RankSelector` instead);
+    - the `LevelUpUpgrade` proves the upgrade is a level step, not a one-off buff (a hero's gift
+      grants only an `AttributeModifierUpgrade`, so it must not count as a level).
+
+    Capped at the `LevelUpUpgrade`'s `LevelCap` (base level plus one step per upgrade). Empty for
+    a non-economy or unleveled object."""
+    level_triggers: set[str] = set()  # upgrades that grant a level (a LevelUpUpgrade trigger)
+    cap: int | None = None  # the highest LevelCap, the building's level ceiling
+    names: list[str] = []  # upgrades whose AttributeModifierUpgrade carries the per-level stats
     for owner in _climb(obj):
         for module in owner.modules:
+            if isinstance(module, LevelUpUpgrade):
+                level_triggers.update(_tokens(module._fields.get("TriggeredBy")))
+                module_cap = _module_int(getattr(module, "_game", None), module, "LevelCap", None)
+                if module_cap is not None:
+                    cap = module_cap if cap is None else max(cap, module_cap)
+                continue
             if not isinstance(module, AttributeModifierUpgrade):
                 continue
             modifier_list = _attribute_modifier_list(module)
@@ -417,7 +434,10 @@ def economy_level_upgrades(obj) -> list[str]:
                 triggers = _tokens(module._fields.get("TriggeredBy"))
                 if triggers and triggers[0] not in names:
                     names.append(triggers[0])
-    return names
+    ordered = [name for name in names if name in level_triggers]
+    if cap is not None:
+        ordered = ordered[: max(cap - 1, 0)]  # base is level 1, +1 per upgrade, ceiling LevelCap
+    return ordered
 
 
 def modifier_entries(modifier_list) -> list[tuple[str, str, list[str]]]:

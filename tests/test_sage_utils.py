@@ -40,6 +40,7 @@ from sage_utils.views import (
     mounted_template,
     object_button_image,
     playable_factions,
+    portrait_mapped_images,
     resource_production_view,
     select_portrait_image,
     special_power_view,
@@ -464,6 +465,47 @@ def test_object_portrait_and_button_images_resolve():
     # ...and an object without either carries an empty list.
     assert select_portrait_image(objects["NoPortraitUnit"]) == []
     assert object_button_image(objects["NoPortraitUnit"]) == []
+
+
+HORDE_PORTRAIT_FIXTURE = """
+MappedImage UPShellPortrait
+  Texture = INGameUI.tga
+  Coords = Left:0 Top:0 Right:64 Bottom:64
+End
+MappedImage UPMemberPortrait
+  Texture = INGameUI.tga
+  Coords = Left:0 Top:0 Right:64 Bottom:64
+End
+Object ShellPortraitMember
+End
+Object ShellPortraitHorde
+  SelectPortrait = UPShellPortrait
+  Behavior = HordeContain ModuleTag_Horde
+    InitialPayload = ShellPortraitMember 4
+  End
+End
+Object MemberPortraitMember
+  SelectPortrait = UPMemberPortrait
+End
+Object MemberPortraitHorde
+  Behavior = HordeContain ModuleTag_Horde
+    InitialPayload = MemberPortraitMember 4
+  End
+End
+"""
+
+
+def test_horde_portrait_falls_to_shell_or_member():
+    game = Game()
+    result = parse(HORDE_PORTRAIT_FIXTURE, file="t.ini")
+    assert not result.diagnostics
+    game.load_document(result.document)
+    objects, images = game.objects, game.mappedimages
+    # A horde whose portrait lives on the shell (the member defines none) uses the shell's —
+    # the case the member-first lookup used to miss, returning nothing.
+    assert portrait_mapped_images(objects["ShellPortraitHorde"]) == [images["UPShellPortrait"]]
+    # A horde whose portrait lives only on the contained unit still uses the member's.
+    assert portrait_mapped_images(objects["MemberPortraitHorde"]) == [images["UPMemberPortrait"]]
 
 
 SPECIAL_POWERS_FIXTURE = """
