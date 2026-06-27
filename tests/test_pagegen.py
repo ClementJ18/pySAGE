@@ -5,6 +5,7 @@ import pytest
 import sage_ini.model.definitions  # noqa: F401  (register classes)
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse
+from sage_wiki.links import build_linker
 from sage_wiki.mapping import building_levels, computed_fields
 from sage_wiki.pagegen import (
     _clean_tooltip,
@@ -434,6 +435,19 @@ def test_generate_page_assembles_hero_sections():
     assert "{{Heavy Armor|Gondor}}" in page  # mapped from the "Purchase Heavy Armor" button
     assert "{{Gondor Navbox}}" in page
     assert "|type=Hero" in page
+
+
+def test_generate_page_prefills_the_portrait_image():
+    game = hero_game()
+    page = generate_page(game, game.objects["TestHero"], "Gondor")
+    # The infobox image is pre-filled with the portrait filename the uploader produces.
+    assert "|image=TestHero.png" in page
+
+
+def test_generate_building_page_prefills_the_portrait_image():
+    game = recruit_game()
+    page = generate_page(game, game.objects["TestBarracks"], "Gondor")
+    assert "|image=TestBarracks.png" in page
 
 
 def test_generate_page_without_faction_leaves_navbox_placeholder():
@@ -1594,6 +1608,41 @@ def test_generate_building_page_has_recruitment_and_hero_tables():
     assert "| Alpha\n|\n|\n| 1100\n|" in page
     # Abilities/upgrades still render for a building.
     assert "== Abilities ==" in page
+
+
+def test_generate_page_hyperlinks_recruited_names_that_have_a_page():
+    game = recruit_game()
+    # The wiki has pages for Soldiers and Alpha, but not Pikemen or Beta.
+    linker = build_linker(game, {"Soldiers", "Alpha"})
+    page = generate_page(game, game.objects["TestBarracks"], "Gondor", linker=linker)
+    # The unit and hero name cells link only where a page exists; the rest stay plain.
+    assert "| [[Soldiers]]\n" in page
+    assert "| Pikemen\n" in page
+    assert "| [[Alpha]]\n" in page
+    assert "| Beta\n" in page
+
+
+def test_building_units_links_known_names_only():
+    game = recruit_game()
+    linker = build_linker(game, {"Soldiers"})
+    rows = building_units(game, game.objects["TestBarracks"], linker)
+    assert rows[0][0] == "[[Soldiers]]"  # has a page
+    assert rows[1][0] == "Pikemen"  # no page, left plain
+
+
+def test_ability_block_hyperlinks_units_named_in_the_description():
+    game = recruit_game()
+    linker = build_linker(game, {"Soldiers"})
+    entry = {
+        "name": "Rally",
+        "image": "",
+        "shortcut": None,
+        "level": None,
+        "requirement": None,
+        "description": "Summons Soldiers to the front.",
+        "cooldown": None,
+    }
+    assert "|description=Summons [[Soldiers]] to the front." in ability_block(entry, linker)
 
 
 def test_active_upgrade_swaps_command_set():

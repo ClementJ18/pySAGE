@@ -34,7 +34,7 @@ from sage_utils.views import (
     display_name,
     localize,
 )
-from sage_wiki.images import command_icon_names
+from sage_wiki.images import command_icon_names, portrait_filename
 from sage_wiki.mapping import computed_fields
 
 # Command types that make a button a usable ability or a purchasable upgrade. Every
@@ -114,14 +114,15 @@ def _lore_prose(text: str) -> str:
     return _join_segments(kept)
 
 
-def _intro(game, obj) -> str:
+def _intro(game, obj, linker=None) -> str:
     """The page's opening prose, from the object's `RecruitText` (preferred) or
-    `Description`, falling back to a placeholder comment when neither has any."""
+    `Description`, falling back to a placeholder comment when neither has any. With a `linker`,
+    mentions of other units/heroes that have a wiki page are hyperlinked."""
     prose = _lore_prose(localize(game, _safe(lambda: obj.RecruitText))) or _lore_prose(
         localize(game, _safe(lambda: obj.Description))
     )
     if prose:
-        return prose
+        return linker.linkify(prose) if linker is not None else prose
     return "<!-- Intro paragraph: describe the unit and its role. -->"
 
 
@@ -238,11 +239,12 @@ def button_ability_block(game, button_name: str, image: str = "") -> str:
     return ability_block(entry) if entry is not None else ""
 
 
-def ability_block(entry: dict) -> str:
+def ability_block(entry: dict, linker=None) -> str:
     """One ability rendered as a `{{Ability}}` invocation (only set params emitted). `image`
     is pre-filled with the icon's filename, blank only when the button names none. A recharge
     is appended as `Cooldown: XX` (after closing the description's last sentence with a period),
-    unless the tooltip already states it."""
+    unless the tooltip already states it. With a `linker`, units/heroes named in the description
+    are hyperlinked."""
     lines = ["{{Ability", f"|image={entry.get('image', '')}"]
     if entry["level"] is not None:
         lines.append(f"|level={entry['level']}")
@@ -252,6 +254,8 @@ def ability_block(entry: dict) -> str:
     if entry["shortcut"]:
         lines.append(f"|shortcut={entry['shortcut']}")
     description = entry["description"]
+    if linker is not None:
+        description = linker.linkify(description)
     cooldown = entry.get("cooldown")
     if cooldown is not None and "cooldown" not in description.lower():
         if description and description[-1] not in _SENTENCE_END:
@@ -340,11 +344,11 @@ def _article_table(headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join(lines)
 
 
-def building_units(game, obj) -> list[list[str]]:
+def building_units(game, obj, linker=None) -> list[list[str]]:
     """The units a building recruits: each UNIT_BUILD button across its command sets as a
     `[name, type, cost, command_points, shortcut]` row (type left blank for the editor).
     De-duplicated by display name — a sub-faction's cheaper variant shares the base unit's
-    name — in first-seen slot order."""
+    name — in first-seen slot order. With a `linker`, a name with a wiki page is hyperlinked."""
     seen: set[str] = set()
     rows: list[list[str]] = []
     for set_name in command_set_names(obj):
@@ -364,8 +368,9 @@ def building_units(game, obj) -> list[list[str]]:
             seen.add(key)
             _, shortcut = _split_name(localize(game, _safe(lambda b=button: b.TextLabel)))
             cost = build_cost_view(target)
+            cell = linker.link(name) if linker is not None else name
             rows.append(
-                [name, "", _fmt(cost["BuildCost"]), _fmt(cost["CommandPoints"]), shortcut or ""]
+                [cell, "", _fmt(cost["BuildCost"]), _fmt(cost["CommandPoints"]), shortcut or ""]
             )
     return rows
 
@@ -428,11 +433,12 @@ def building_heroes(game, obj) -> list:
     return [game.objects[name] for name in recruited if name in game.objects]
 
 
-def recruitment_section(game, obj) -> str:
+def recruitment_section(game, obj, linker=None) -> str:
     """The building's recruitment section: a unit table for its UNIT_BUILD buttons and a hero
     table for its REVIVE recruits (derivable cells filled, editorial columns blank). Empty
-    when the building produces neither."""
-    units = building_units(game, obj)
+    when the building produces neither. With a `linker`, each recruit's name is hyperlinked to
+    its page when one exists."""
+    units = building_units(game, obj, linker)
     heroes = building_heroes(game, obj)
     if not units and not heroes:
         return ""
@@ -441,10 +447,11 @@ def recruitment_section(game, obj) -> str:
         unit_table = _article_table(["Name", "Type", "Cost", "CP Cost", "Shortcut"], units)
         blocks.append("This structure produces the following units:\n\n" + unit_table)
     if heroes:
-        rows = [
-            [display_name(game, h) or h.name, "", "", _fmt(build_cost_view(h)["BuildCost"]), ""]
-            for h in heroes
-        ]
+        rows = []
+        for h in heroes:
+            name = display_name(game, h) or h.name
+            cell = linker.link(name) if linker is not None else name
+            rows.append([cell, "", "", _fmt(build_cost_view(h)["BuildCost"]), ""])
         hero_table = _article_table(["Name", "Weapon(s)", "Role", "Cost", "Importance"], rows)
         lead = (
             "It can also recruit the following heroes:"
@@ -538,12 +545,14 @@ def _building_level_count(computed: dict[str, str]) -> int:
     return max(highest, _BUILDING_LEVELS)
 
 
-def _building_infobox(computed: dict[str, str], faction: str) -> str:
+def _building_infobox(computed: dict[str, str], faction: str, image: str = "") -> str:
     """The Building infobox skeleton: the full field set, blank where the object has no value.
     Object-level stats fill the top block; per-level stats fill the `#levelN` columns (an
-    unleveled building's single set of stats lands in level 1)."""
+    unleveled building's single set of stats lands in level 1). `image` pre-fills the portrait
+    filename."""
     top = {
         "faction": faction,
+        "image": image,
         "object": computed.get("object_name", ""),
         "cost": computed.get("cost", ""),
         "time": computed.get("time", ""),
@@ -641,12 +650,15 @@ def _horde_size(obj) -> int | None:
     return None
 
 
-def infobox_block(obj, kind: str, faction: str, active_upgrades=frozenset()) -> str:
-    """The object's infobox for its type, derived stats first, manual placeholders last."""
+def infobox_block(
+    obj, kind: str, faction: str, active_upgrades=frozenset(), image: str = ""
+) -> str:
+    """The object's infobox for its type, derived stats first, manual placeholders last. `image`
+    pre-fills the portrait filename in the `image` field (blank leaves it for the editor)."""
     computed = computed_fields(obj, active_upgrades)
     if kind == "building":
         # The Building infobox is emitted as a full skeleton (every field, blank if need be).
-        return _building_infobox(computed, faction)
+        return _building_infobox(computed, faction, image)
     manual = list(_MANUAL_FIELDS[kind])
     pairs: list[tuple[str, str]] = []
     param_map = _HERO_PARAMS if kind == "hero" else _UNIT_PARAMS
@@ -664,9 +676,10 @@ def infobox_block(obj, kind: str, faction: str, active_upgrades=frozenset()) -> 
             pairs.append(("size", str(size)))
             manual = [field for field in manual if field != "size"]
 
+    defaults = {**_MANUAL_DEFAULTS, "image": image}
     lines = [f"{{{{{_TEMPLATE[kind]}", f"|faction={faction}"]
     lines += [f"|{param}={value}" for param, value in pairs]
-    lines += [f"|{field}={_MANUAL_DEFAULTS.get(field, '')}" for field in manual]
+    lines += [f"|{field}={defaults.get(field, '')}" for field in manual]
     lines.append("}}")
     return "\n".join(lines)
 
@@ -677,10 +690,12 @@ def available_upgrades(obj) -> list[str]:
     return find_upgrades(obj)
 
 
-def generate_page(game, obj, faction: str = "", active_upgrades=frozenset()) -> str:
+def generate_page(game, obj, faction: str = "", active_upgrades=frozenset(), linker=None) -> str:
     """A full wiki page draft for `obj`: infobox, quote, abilities, upgrades, navbox. `faction`
     fills the infobox/navbox/category template (blank leaves them for the editor);
-    `active_upgrades` resolves the page as the object is after taking them."""
+    `active_upgrades` resolves the page as the object is after taking them. With a `linker`,
+    unit/hero names in the recruitment tables, abilities and intro are hyperlinked to their
+    wiki pages (best-effort, only where a page exists)."""
     kind = _object_kind(obj)
     entries = command_entries(game, obj, active_upgrades)
     abilities = [e for e in entries if e["kind"] == "ability"]
@@ -688,20 +703,20 @@ def generate_page(game, obj, faction: str = "", active_upgrades=frozenset()) -> 
     dated = date.today().strftime("%B %Y")
 
     parts = [
-        infobox_block(obj, kind, faction, active_upgrades),
+        infobox_block(obj, kind, faction, active_upgrades, portrait_filename(obj)),
         "{{Quote||}}",
-        _intro(game, obj),
+        _intro(game, obj, linker),
     ]
     # A building's recruitment (UNIT_BUILD units and REVIVE-indexed heroes) leads its body,
     # ahead of the abilities/upgrades every object shares.
     if kind == "building":
-        section = recruitment_section(game, obj)
+        section = recruitment_section(game, obj, linker)
         if section:
             parts.append(section)
 
     parts.append("== Abilities ==")
     if abilities:
-        parts.append("\n\n".join(ability_block(e) for e in abilities))
+        parts.append("\n\n".join(ability_block(e, linker) for e in abilities))
     else:
         parts.append("<!-- No abilities detected. -->")
 

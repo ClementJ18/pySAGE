@@ -38,11 +38,29 @@ python -m sage_ini lint <paths...>
 # What a definition references, and what references it
 python -m sage_ini xref <dir> GondorFighter
 
+# Where a name or macro is defined (file:line); a file's #include edges
+python -m sage_ini resolve <dir> GondorFighter
+python -m sage_ini includes <dir> <file>
+
+# One-shot briefing of a single file (defs, references, includes, macros)
+python -m sage_ini brief <dir> <file> [name]
+
 # Reformat ini files to the canonical style (--check to dry-run)
 python -m sage_lint format <paths...>
 
 # Assemble a game and report problems (facts + judgment rules)
 python -m sage_lint lint <dir> [--base <base-game>] [--ignore CODE] [--fix]
+```
+
+### For an LLM coding agent
+
+`sage_ini` ships a compact, model-derived primer and a Claude Code skill so an agent can
+understand a mod's ini and know where to chase references:
+
+```sh
+python -m sage_ini primer                 # lean schema digest (tables + modules + legend)
+python -m sage_ini primer expand Object   # one kind's full field schema, on demand
+python -m sage_ini install-skill          # install the bundled bfme-ini skill (~/.claude/skills)
 ```
 
 ## Library use

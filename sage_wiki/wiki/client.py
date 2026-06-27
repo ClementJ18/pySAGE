@@ -60,6 +60,7 @@ class WikiClient:
         self._scheme = scheme
         self._user_agent = user_agent
         self._site: mwclient.Site | None = None
+        self._all_titles: set[str] | None = None  # cached article-title index for link validation
 
     @property
     def site(self) -> mwclient.Site:
@@ -139,6 +140,18 @@ class WikiClient:
             return []
         pages = self.site.allpages(prefix=prefix, namespace="0", max_items=limit)
         return [page.name for page in pages]
+
+    def all_titles(self) -> set[str]:
+        """Every main-namespace article title on the wiki, fetched once and cached. Used to
+        validate the internal links a page draft guesses, so a single bulk query stands in
+        for one existence check per candidate name."""
+        if self._all_titles is None:
+            try:
+                pages = self.site.allpages(namespace="0", max_items=None)
+                self._all_titles = {page.name for page in pages}
+            except APIError as exc:
+                raise WikiError(f"could not list page titles: {exc}") from exc
+        return self._all_titles
 
     def category_members(self, category: str, namespace: str = "0") -> list[str]:
         """Article titles belonging directly to `category` (prefix optional, main namespace

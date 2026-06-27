@@ -80,6 +80,7 @@ from sage_wiki.images import (  # noqa: E402
     render_portrait_png,
 )
 from sage_wiki.infobox import parse_infobox, parse_infoboxes  # noqa: E402
+from sage_wiki.links import build_linker  # noqa: E402
 from sage_wiki.pagegen import (  # noqa: E402
     ability_overlay_kind,
     available_upgrades,
@@ -104,6 +105,8 @@ class WikiUpdater(QMainWindow):
         self.resize(1700, 1040)
         self.game = None
         self.client = WikiClient()
+        self._linker = None  # validated wiki-link resolver, built lazily per loaded game
+        self._linker_game = None
         self._texture_source: TextureSource | None = None  # indexed image sources
         self._portrait_background = default_background()  # parchment behind portraits
         # The object the images card currently shows, so auto-load skips redundant reloads.
@@ -436,6 +439,21 @@ class WikiUpdater(QMainWindow):
         self._update_pagegen_upgrades_header()
         self._auto_load_images(obj)  # fill its images when textures are loaded
 
+    def _page_linker(self):
+        """A wiki-link resolver for the loaded game, built once per game from the wiki's
+        article titles and cached. Returns None when the titles can't be fetched (e.g. offline),
+        so page generation falls back to plain unlinked text rather than failing."""
+        if self.game is None:
+            return None
+        if self._linker is None or self._linker_game is not self.game:
+            try:
+                titles = self.client.all_titles()
+            except WikiError:
+                return None
+            self._linker = build_linker(self.game, titles)
+            self._linker_game = self.game
+        return self._linker
+
     def _generate_page(self) -> None:
         if self.game is None:
             self.pagegen_status.setText("Load a data source first.")
@@ -452,7 +470,9 @@ class WikiUpdater(QMainWindow):
             for upgrade, toggle in self.pagegen_upgrade_toggles.items()
             if toggle.isChecked()
         )
-        self.pagegen_preview.setPlainText(generate_page(self.game, obj, faction, active))
+        self.pagegen_preview.setPlainText(
+            generate_page(self.game, obj, faction, active, self._page_linker())
+        )
         detail = f" with {len(active)} upgrade(s)" if active else ""
         self.pagegen_status.setText(f"Generated draft for {obj.name}{detail}.")
         self._auto_load_images(obj)  # fill the portrait/icons when textures are loaded
@@ -1215,9 +1235,9 @@ class WikiUpdater(QMainWindow):
 
     def _portrait_object(self, game):
         """The object whose portrait to use — the images card's own object box, else the
-        Page-and-object override, both without a fetch, else the page's infobox object id.
-        Raises `WikiError` with a usable message."""
-        for box in (self.portrait_object_search, self.object_search):
+        Page-and-object override or the page-generation object, all without a fetch, else the
+        page's infobox object id. Raises `WikiError` with a usable message."""
+        for box in (self.portrait_object_search, self.object_search, self.pagegen_object):
             name = box.text().strip()
             if name:
                 obj = game.objects.get(name)
@@ -1587,7 +1607,7 @@ class WikiUpdater(QMainWindow):
         layout.addWidget(self.summary_field)
 
         button_row = QHBoxLayout()
-        self.skip_button = QPushButton("Skip / Next")
+        self.skip_button = QPushButton("Skip")
         self.skip_button.setEnabled(False)  # only active during a category run
         self.skip_button.clicked.connect(self._skip)
         button_row.addWidget(self.skip_button)
@@ -1595,6 +1615,13 @@ class WikiUpdater(QMainWindow):
         self.goto_button.setToolTip("Open the current page title in your web browser.")
         self.goto_button.clicked.connect(self._go_to_page)
         button_row.addWidget(self.goto_button)
+        self.linkify_button = QPushButton("Linkify")
+        self.linkify_button.setToolTip(
+            "Add internal links to the page text: wrap unit/hero names that have a wiki page "
+            "in [[links]], leaving existing links, templates and refs untouched."
+        )
+        self.linkify_button.clicked.connect(self._linkify_page)
+        button_row.addWidget(self.linkify_button)
         button_row.addStretch(1)
         self.apply_button = QPushButton("Apply to wiki")
         self.apply_button.setObjectName("primary")
@@ -1620,6 +1647,40 @@ class WikiUpdater(QMainWindow):
             self.status.setText("Enter a page title to open it in the browser.")
             return
         webbrowser.open(self.client.page_url(title))
+
+    def _linkify_page(self) -> None:
+        """Add validated internal links to the editor's text: unit/hero names that have a wiki
+        page are wrapped in `[[links]]`, with existing links, templates and refs left alone. The
+        title fetch runs on a worker so the UI doesn't block; the edit is left for review."""
+        if self.game is None:
+            self.status.setText("Load a data source first.")
+            return
+        text = self.wikitext_editor.toPlainText()
+        if not text.strip():
+            self.status.setText("No page text to linkify.")
+            return
+        self.linkify_button.setEnabled(False)
+        self.status.setText("Adding internal links…")
+
+        def task():
+            linker = self._page_linker()
+            if linker is None:
+                raise WikiError("could not fetch wiki page titles to validate links")
+            return linker.linkify_wikitext(text)
+
+        self._run(task, lambda linked: self._on_linkified(text, linked), self._on_linkify_failed)
+
+    def _on_linkified(self, original: str, linked: str) -> None:
+        self.linkify_button.setEnabled(True)
+        if linked == original:
+            self.status.setText("Linkify: no new links to add.")
+            return
+        self.wikitext_editor.setPlainText(linked)
+        self.status.setText("Linkify: added internal links — review before applying.")
+
+    def _on_linkify_failed(self, message: str) -> None:
+        self.linkify_button.setEnabled(True)
+        self.status.setText(f"Linkify failed — {message}")
 
     def _generate_diff(self) -> None:
         title = self.page_field.text().strip()
@@ -1703,7 +1764,7 @@ class WikiUpdater(QMainWindow):
             # Also generate a fresh draft for the primary object, so content can be copied
             # between the live page and the scaffold. A draft failure must not break the diff.
             try:
-                draft = generate_page(game, primary_obj, faction, frozenset())
+                draft = generate_page(game, primary_obj, faction, frozenset(), self._page_linker())
             except Exception as exc:  # noqa: BLE001 — keep the diff even if generation fails
                 draft = f"<!-- page generation failed: {exc} -->"
             return primary_obj.name, groups, new_text, draft, image_value
@@ -1733,6 +1794,9 @@ class WikiUpdater(QMainWindow):
         self.wikitext_editor.setPlainText(new_text)  # full page, every infobox's changes applied
         # Show the draft for the primary object alongside, so content can be copied between them.
         self.pagegen_object.setText(object_name)
+        # setText doesn't fire editingFinished, so refresh the upgrade toggles by hand — else the
+        # ACTIVE UPGRADES section stays hidden and the object's upgrades can't be selected.
+        self._refresh_pagegen_upgrades()
         self.pagegen_preview.setPlainText(draft)
         self.pagegen_status.setText(f"Draft for {object_name}, generated alongside the diff.")
         if not self.pagegen_body.isVisible():
