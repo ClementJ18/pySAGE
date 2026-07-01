@@ -3,7 +3,10 @@
 - `factions <dir>` — list the playable factions in a mod.
 - `explore <dir> <faction>` — print (or `--json`) the faction's ownership graph: its spellbook,
   start points, base structures, and the units / heroes / upgrades they produce.
+- `report <dir> <faction>` — render that graph as a Markdown digest (stat tables and all): the
+  agent-facing view, meant to be read and critiqued. Omit the faction for a roster comparison.
 - `serve <dir> <faction>` — open a small web UI (sage_edain/ui) to traverse that graph.
+- `install-skill` — install the bundled `bfme-faction` Claude Code skill.
 
 `<dir>` is the mod's ini root (e.g. `_mod/data/ini`). Pass `--bases` (the mod's `bases/` folder) to
 decompose castle/camp layouts into their citadel + foundations + prebuilt structures (needs the
@@ -12,6 +15,7 @@ decompose castle/camp layouts into their citadel + foundations + prebuilt struct
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from sage_edain.graph import (
@@ -21,6 +25,8 @@ from sage_edain.graph import (
     playable_factions,
 )
 from sage_edain.model import FactionGraph
+from sage_edain.report import render_report, render_roster_table
+from sage_edain.skill_install import default_skills_dir, install_skill
 from sage_ini.loader import load_game
 
 
@@ -147,6 +153,41 @@ def _run_explore(root: Path, faction_name, base: list[Path], bases_dir, as_json:
     return 0
 
 
+def _run_report(root: Path, faction_name, base: list[Path], bases_dir, out: Path | None) -> int:
+    graphs = _build_graphs(root, faction_name, base, bases_dir)
+    if graphs is None:
+        return 1
+    if faction_name is None:
+        # No faction picked: a roster comparison table, plus a per-faction report under it so the
+        # whole mod is still one readable document.
+        sections = [render_roster_table(graphs), *(render_report(g) for g in graphs)]
+        text = "\n---\n\n".join(sections)
+    else:
+        text = render_report(graphs[0])
+    if out is not None:
+        out.write_text(text, encoding="utf-8")
+        print(f"wrote {out}")
+    else:
+        # Display names can be non-ASCII (Lothlórien, Éomer); carry them on stdout as UTF-8 rather
+        # than letting a Windows console's default code page mangle them when an agent captures it.
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+        except (AttributeError, ValueError):
+            pass
+        print(text)
+    return 0
+
+
+def _run_install_skill(dest: Path | None, force: bool) -> int:
+    try:
+        installed = install_skill(dest, force=force)
+    except FileExistsError as exc:
+        print(f"{exc} already exists; pass --force to overwrite")
+        return 1
+    print(f"installed skill to {installed}")
+    return 0
+
+
 def _run_serve(root, faction_name, base, bases_dir, port, open_browser) -> int:
     from sage_edain.server import serve  # noqa: PLC0415 — only needed for `serve`
 
@@ -181,6 +222,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     explore.add_argument("--json", action="store_true", help="emit the graph as JSON")
 
+    report = subparsers.add_parser("report", help="render a faction's graph as a Markdown digest")
+    report.add_argument("root", type=Path, help="the mod folder (e.g. _mod)")
+    report.add_argument(
+        "faction",
+        nargs="?",
+        default=None,
+        help="faction template name or Side token; omit for a roster table + every faction",
+    )
+    report.add_argument("--base", type=Path, action="append", default=[], help="base-game ini")
+    report.add_argument("--bases", type=Path, default=None, help="the mod's bases/ folder")
+    report.add_argument(
+        "--out", type=Path, default=None, help="write the report to this file instead of stdout"
+    )
+
     serve = subparsers.add_parser("serve", help="open a web UI to traverse a faction's graph")
     serve.add_argument("root", type=Path, help="the mod folder (e.g. _mod)")
     serve.add_argument(
@@ -194,6 +249,15 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--port", type=int, default=8765, help="localhost port (default: 8765)")
     serve.add_argument("--no-browser", action="store_true", help="do not open a browser")
 
+    install = subparsers.add_parser("install-skill", help="install the bundled bfme-faction skill")
+    install.add_argument(
+        "--dest",
+        type=Path,
+        default=None,
+        help=f"skills directory to install into (default: {default_skills_dir()})",
+    )
+    install.add_argument("--force", action="store_true", help="overwrite an existing install")
+
     args = parser.parse_args(argv)
 
     if args.command == "factions":
@@ -206,12 +270,20 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"not a directory: {args.root}")
         return _run_explore(args.root, args.faction, args.base, args.bases, args.json)
 
+    if args.command == "report":
+        if not args.root.is_dir():
+            parser.error(f"not a directory: {args.root}")
+        return _run_report(args.root, args.faction, args.base, args.bases, args.out)
+
     if args.command == "serve":
         if not args.root.is_dir():
             parser.error(f"not a directory: {args.root}")
         return _run_serve(
             args.root, args.faction, args.base, args.bases, args.port, not args.no_browser
         )
+
+    if args.command == "install-skill":
+        return _run_install_skill(args.dest, args.force)
 
     return 0
 

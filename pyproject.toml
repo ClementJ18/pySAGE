@@ -70,7 +70,7 @@ include = ["sage_ini*", "sage_lint*", "sage_map*", "sage_utils*", "sage_wiki*", 
 
 [tool.setuptools.package-data]
 sage_ini = ["py.typed", "skill_assets/**/*"]
-sage_edain = ["ui/*"]
+sage_edain = ["ui/*", "skill_assets/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

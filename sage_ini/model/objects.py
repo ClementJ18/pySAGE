@@ -169,6 +169,16 @@ class IniObject:
     # `unknown-attribute` coverage rule does not flag the numbered slots, which can never be
     # declared as Python annotations.
     numbered_slots: bool = False
+    # The Game table the digit-keyed slots reference, when `numbered_slots` is on (CommandSet,
+    # ButtonSet … list command buttons). The slots are dynamic, so no typed field carries them;
+    # the cross-reference graph reads this to count `1 = Command_X` as an edge to the button,
+    # without which every button only a command set names would read as unreferenced.
+    numbered_slot_ref: str | None = None
+    # Whether this block can be written as a bare one-line directive with no body or `End`
+    # (`ClearNuggets`), not just the usual `Header ... End` form. The parser already keeps such a
+    # name from opening a block (it is a bare value key); `from_block` then routes the resulting
+    # bare attribute into the right nested group as a body-less instance of this class.
+    bare_directive: bool = False
     # Real INI keys that are not valid Python identifiers (e.g. `HoleHealthRegen%PerSecond`),
     # mapped to the annotation that types them. A subclass declares these; the stored field is
     # renamed to the annotation on load, so conversion, attribute access and the coverage rule
@@ -285,6 +295,20 @@ class IniObject:
         """Raw, unconverted field values as read from the block."""
         return dict(self._fields)
 
+    def numbered_slot_targets(self):
+        """The registered objects this block's digit-keyed slots (`1 = Command_X`) reference,
+        resolved through `numbered_slot_ref` (None when the block has no such slots). The
+        cross-reference graph reads this so a command button a command set names counts as
+        referenced; a slot naming nothing known is skipped."""
+        if not self.numbered_slots or self.numbered_slot_ref is None:
+            return
+        for slot, name in self._fields.items():
+            if not slot.isdigit() or not isinstance(name, str):
+                continue
+            obj, _ = self._game.lookup(self.numbered_slot_ref, name)
+            if obj is not None:
+                yield obj
+
     @classmethod
     def object_name(cls, block: Block) -> str:
         if block.label is None:
@@ -328,6 +352,17 @@ class IniObject:
         return None
 
     @classmethod
+    def _bare_directive_group(cls, key: str) -> 'tuple[type["IniObject"], str] | None':
+        """`(class, nested-group)` when `key` names a registered bare one-line directive block
+        (`ClearNuggets`) that belongs to one of this block's nested groups, else None — so a
+        body-less directive routes to the same group its `... End` form would."""
+        directive_cls = REGISTRY.get(key)
+        if directive_cls is None or not getattr(directive_cls, "bare_directive", False):
+            return None
+        group = cls._group_for(key, directive_cls, key)
+        return (directive_cls, group) if group is not None else None
+
+    @classmethod
     def from_block(cls, game, block: Block) -> "IniObject":
         fields: dict[str, object] = {}
         field_spans: dict[str, object] = {}
@@ -352,6 +387,18 @@ class IniObject:
                     item = marker_grouped[group][-1]
                     _store_field(item.fields, key, child.value)
                     item.field_spans.setdefault(key, child.span)
+                    continue
+                directive = cls._bare_directive_group(key)
+                if directive is not None:
+                    # A bare one-line directive block (`ClearNuggets`): build a body-less instance
+                    # and route it into its nested group, the same place its `... End` form lands.
+                    directive_cls, group = directive
+                    nested_data[group].append(
+                        directive_cls.from_block(
+                            game,
+                            Block(name=key, label=None, uses_equals=False, span=child.span),
+                        )
+                    )
                     continue
                 _store_field(fields, key, child.value)
                 field_spans.setdefault(key, child.span)

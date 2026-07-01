@@ -142,6 +142,10 @@ class Xref:
                 except (ValueError, KeyError, TypeError, IndexError):
                     continue  # a bad value is the validate/lint pass's diagnostic
                 found.update(_referenced_objects(value, self.game, set()))
+            # Digit-keyed slots (`1 = Command_X`) are dynamic, so no typed field carries them;
+            # fold their resolved targets in directly (a command set's buttons are real edges).
+            for target in node.numbered_slot_targets():
+                found.update(_referenced_objects(target, self.game, set()))
         found.discard(root)
         return found
 

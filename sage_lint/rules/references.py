@@ -20,6 +20,7 @@ from sage_ini.model.types import KeyedRecord, Reference
 from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_ini.suggest import suggestion_hint
 from sage_ini.walk import walk_objects
+from sage_lint.ruleconfig import sentinels
 from sage_lint.rules.base import Rule
 
 # Asset-reference tables this rule does not check. Their names resolve in ways a single-table
@@ -87,6 +88,14 @@ def _iter_refs(value, converter, game: Game) -> Iterator[tuple[str, str]]:
                 )
 
 
+def _is_sentinel(name: str) -> bool:
+    """Whether `name` is an "intentionally nothing" token the engine treats as no target, so a
+    miss is by design, not dangling. `None`/`NONE`/empty are always sentinels; a project adds
+    more (e.g. `NoSound`) via the `sentinels` config (`sage_lint.ruleconfig`)."""
+    lowered = name.lower()
+    return lowered in ("", "none") or lowered in sentinels()
+
+
 def _iter_candidates(game: Game) -> Iterator[tuple[object, str, str, str]]:
     """`(obj, field, table_key, name)` for every unresolved reference in the game's typed
     fields — the shared front half of the dangling-reference checks. A name with a space or a
@@ -102,7 +111,7 @@ def _iter_candidates(game: Game) -> Iterator[tuple[object, str, str, str]]:
             except (ValueError, KeyError, TypeError, IndexError):
                 continue  # a bad value is the conversion pass's own diagnostic
             for table_key, name in _iter_refs(value, converter, game):
-                if name.lower() == "none" or " " in name or ":" in name:
+                if _is_sentinel(name) or " " in name or ":" in name:
                     continue
                 yield obj, key, table_key, name
 

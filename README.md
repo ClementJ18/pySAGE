@@ -45,12 +45,36 @@ python -m sage_ini includes <dir> <file>
 # One-shot briefing of a single file (defs, references, includes, macros)
 python -m sage_ini brief <dir> <file> [name]
 
+# Structure-aware 3-way merge: match definitions by name and merge by field, so
+# independent edits never collide (git merge driver / conflict-marker resolver)
+python -m sage_ini merge <base> <ours> <theirs> [-o out.ini]
+python -m sage_ini merge --resolve <conflicted.ini>   # shrink existing conflicts
+python -m sage_ini merge --install [--global]         # register as a git merge driver
+
 # Reformat ini files to the canonical style (--check to dry-run)
 python -m sage_lint format <paths...>
 
 # Assemble a game and report problems (facts + judgment rules)
 python -m sage_lint lint <dir> [--base <base-game>] [--ignore CODE] [--fix]
 ```
+
+### As a git merge driver
+
+Git merges ini files line by line, so two branches that touch the same long
+definition — or merely add objects next to each other — collide spuriously. The
+`merge` command instead matches definitions by name and merges field by field:
+independent edits apply silently, and a conflict is raised only around the fields
+both sides changed differently. Wire it into a repository once:
+
+```sh
+python -m sage_ini merge --install     # adds the 'sage-ini' driver to .git/config
+printf '*.ini merge=sage-ini\n*.inc merge=sage-ini\n' >> .gitattributes
+```
+
+After that, `git merge`/`git rebase` route ini files through it automatically. For a
+file that already carries conflict markers, `merge --resolve <file>` re-merges
+structurally and collapses the conflicts git raised between independent definitions
+(richest when `merge.conflictStyle = zdiff3` records the common ancestor).
 
 ### For an LLM coding agent
 

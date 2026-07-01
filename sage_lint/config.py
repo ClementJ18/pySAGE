@@ -8,7 +8,11 @@ to lint, a single path resolved relative to the config file's own directory), `b
 path to a baseline file of accepted diagnostics, resolved the same way), `suggest` (a bool
 turning on "did you mean" hints), `assets` (a bool enabling the opt-in missing-texture/model/map
 file rules, mirrors --assets), `maps` (a bool, default false, also linting the binary `.map`
-layouts against the assembled game; mirrors --maps), `ignore`, `select`, `exclude`, `base`,
+layouts against the assembled game; mirrors --maps), `sentinels` (extra "intentionally nothing"
+reference tokens — e.g. `NoSound` — never reported as dangling; `None`/empty are always treated
+this way), `always_referenced` (definition kinds — block type names like `PlayerAIType` — the
+unused-definition rule never flags, for kinds reached in ways the ini graph cannot see),
+`ignore`, `select`, `exclude`, `base`,
 `assets_base` (extra base sources loaded only when `assets` is on — the large texture/model
 archives only those rules need; mirrors --assets-base), and `maps_base` (extra base sources loaded
 only when `maps` is on; mirrors --maps-base). The `format`
@@ -30,7 +34,17 @@ CONFIG_NAME = ".sagelint"
 LOCAL_CONFIG_NAME = ".sagelint.local"
 
 _LEVELS = {"ERROR", "WARNING", "INFO"}
-_LIST_KEYS = ("ignore", "select", "exclude", "base", "assets_base", "maps_base", "align_exclude")
+_LIST_KEYS = (
+    "ignore",
+    "select",
+    "exclude",
+    "base",
+    "assets_base",
+    "maps_base",
+    "align_exclude",
+    "sentinels",
+    "always_referenced",
+)
 _BOOL_KEYS = ("suggest", "align_equals", "assets", "maps")
 _KNOWN_KEYS = {"level", "root", "baseline", *_BOOL_KEYS, *_LIST_KEYS}
 
@@ -59,6 +73,11 @@ class Config:
     # load the large texture/model archives or base-game data those checks alone need.
     assets_base: list[str] = field(default_factory=list)
     maps_base: list[str] = field(default_factory=list)
+    # Extra "intentionally nothing" reference tokens (e.g. NoSound) never flagged as dangling;
+    # None/empty are always treated this way regardless. Definition kinds (block type names) the
+    # unused-definition rule never flags, for kinds reached outside the ini reference graph.
+    sentinels: list[str] = field(default_factory=list)
+    always_referenced: list[str] = field(default_factory=list)
     # Human-readable problems found while loading (bad TOML, unknown keys, wrong types).
     warnings: list[str] = field(default_factory=list)
 

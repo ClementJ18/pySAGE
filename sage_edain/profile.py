@@ -104,8 +104,11 @@ def build_profile(game, obj, faction_upgrades=frozenset()) -> Profile:
     state = UnitState(combat, rank_targets=(obj,) if member is not None else ())
     cost = build_cost_view(obj)
     # Effective HP per damage type, trimmed to the toughest and weakest few so the UI can say what
-    # the object is strong / weak against without a wall of engine-internal types.
-    ranked = sorted(effective_health(state).items(), key=lambda item: item[1], reverse=True)
+    # the object is strong / weak against without a wall of engine-internal types. Guarded: a
+    # dangling armor reference makes `effective_health` raise, and a missing defense table just
+    # leaves the object with no resilience line rather than sinking the whole walk.
+    by_type = _safe(lambda: effective_health(state), {})
+    ranked = sorted(by_type.items(), key=lambda item: item[1], reverse=True)
     defenses = ranked[:3] + ranked[-3:] if len(ranked) > 6 else ranked
     return Profile(
         health=_safe(lambda: state.max_health),

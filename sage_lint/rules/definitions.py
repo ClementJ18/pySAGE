@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from sage_ini.model.game import Game
 from sage_ini.model.xref import Xref, referenceable_keys
 from sage_ini.parser.diagnostics import Diagnostic, Severity
+from sage_lint.ruleconfig import always_referenced
 from sage_lint.rules.base import Rule
 from sage_lint.rules.references import _ASSET_TABLES
 
@@ -18,12 +19,29 @@ from sage_lint.rules.references import _ASSET_TABLES
 _UNUSED_DEFINITION_EXCLUDES = frozenset({"objects", "factions"}) | _ASSET_TABLES
 
 
+def _overrides_existing(game: Game, key: str, name: str) -> bool:
+    """Whether this game's definition `(key, name)` redefines one already built elsewhere — i.e.
+    it sits in a context (a per-map build) layered over a reference fallback that already holds
+    the name. Such a definition overrides what the engine reaches by that name, so the original
+    (referenced where it lives) is what counts; flagging the override as unused is a false
+    positive (e.g. a map.ini re-tuning a base-game `Science`)."""
+    fallback = getattr(game, "_reference_fallback", None)
+    return fallback is not None and fallback.lookup(key, name)[0] is not None
+
+
 def _unused(game: Game, key: str) -> Iterator[tuple[object, str]]:
-    """`(obj, name)` for each definition in table `key` that nothing in the game references."""
+    """`(obj, name)` for each definition in table `key` that nothing in the game references.
+    A kind named in the `always_referenced` config, and a definition overriding one built
+    elsewhere, are skipped — both are reached in ways the in-memory reference graph cannot see."""
+    always = always_referenced()
     xref = Xref.for_game(game)
     for obj in game.tables.get(key, {}).values():
         name = getattr(obj, "name", None)
         if not isinstance(name, str) or getattr(obj, "span", None) is None:
+            continue
+        if type(obj).__name__.lower() in always or key in always:
+            continue
+        if _overrides_existing(game, key, name):
             continue
         if not xref.is_referenced(obj):
             yield obj, name

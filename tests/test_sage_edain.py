@@ -25,6 +25,7 @@ from sage_edain import (
 )
 from sage_edain.__main__ import _payload
 from sage_edain.bases import BaseLayout, find_base_file, resolve_base_layout
+from sage_edain.report import _clean, render_report, render_roster_table
 from sage_edain.server import _Handler
 from sage_ini.loader import load_game
 from sage_ini.model.game import Game
@@ -349,6 +350,43 @@ def test_to_dict_is_json_safe(graph):
     data = graph.to_dict()
     json.dumps(data)  # StrEnum roles/kinds must serialize as plain strings
     assert data["start_points"][0]["kind"] == "settlement"
+
+
+# The Markdown report is the agent-facing view: a single document covering every part of the graph.
+
+
+def test_report_covers_every_section(graph):
+    report = render_report(graph)
+    assert report.startswith("# FactionTest - faction report")
+    # Roster tally, then a section per part of the graph.
+    assert "**Roster:** 5 structures - 1 units" in report
+    assert "## Spellbook - TestSpellBook" in report
+    assert "**SpecialPowerTest**" in report and "summons: TestSummonedUnit" in report
+    assert "## Start points" in report
+    assert "## Structures (5)" in report and "`TestBarracks`" in report
+    # The unit/hero/upgrade tables list their leaves with a built-at column.
+    assert "## Units (1)" in report and "| TestSoldier |" in report
+    assert "## Heroes (1)" in report and "| TestHero1 |" in report
+    assert "## Upgrades (2)" in report and "| Upgrade_Test |" in report
+
+
+def test_report_is_pure_ascii(graph):
+    # Rendered to stdout on a Windows console, so the template stays ASCII (display names may not).
+    render_report(graph).encode("ascii")
+
+
+def test_clean_collapses_engine_linebreaks():
+    # In-game text uses literal "\n" markers and real newlines; both collapse to single spaces so a
+    # description sits on one Markdown line.
+    assert _clean("Repairs buildings \\n\\n Left click on\nthe target") == (
+        "Repairs buildings Left click on the target"
+    )
+
+
+def test_roster_table_has_a_row_per_faction(graph):
+    table = render_roster_table([graph])
+    assert "| Faction | Side |" in table
+    assert "| FactionTest | TestSide | 5 | 1 | 1 | 2 | 1 |" in table
 
 
 # --- web UI server ---------------------------------------------------------------------------

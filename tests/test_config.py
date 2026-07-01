@@ -69,6 +69,20 @@ class TestLoadConfig:
         (tmp_path / ".sagelint").write_text('maps_base = ["bfme2/ini"]\n', encoding="utf-8")
         assert load_config(tmp_path).maps_base == ["bfme2/ini"]
 
+    def test_reads_the_sentinels_list_key(self, tmp_path):
+        assert load_config(tmp_path).sentinels == []  # default empty
+        (tmp_path / ".sagelint").write_text(
+            'sentinels = ["NoSound", "NoWeapon"]\n', encoding="utf-8"
+        )
+        assert load_config(tmp_path).sentinels == ["NoSound", "NoWeapon"]
+
+    def test_reads_the_always_referenced_list_key(self, tmp_path):
+        assert load_config(tmp_path).always_referenced == []
+        (tmp_path / ".sagelint").write_text(
+            'always_referenced = ["PlayerAIType"]\n', encoding="utf-8"
+        )
+        assert load_config(tmp_path).always_referenced == ["PlayerAIType"]
+
     def test_local_overrides_shared_per_key(self, tmp_path):
         (tmp_path / ".sagelint").write_text(
             'level = "WARNING"\nignore = ["enum-case"]\n', encoding="utf-8"

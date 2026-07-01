@@ -55,6 +55,20 @@ class TestLintFileCached:
         lint_file_cached(cache, root / "hero.ini", include_root=root)
         assert len(cache.tables["objects"]) == before
 
+    def test_does_not_flag_an_override_of_a_cached_definition_as_unused(self, tmp_path):
+        # A map.ini that re-tunes a Science already built in the main mod overrides what the
+        # engine reaches by that name; the original is what's referenced, so the override is
+        # not "unused" even though nothing local names it.
+        root = _mod(tmp_path)
+        (root / "science.ini").write_text("Science SCIENCE_Gandalf\nEnd\n", encoding="utf-8")
+        cache = load_game(root).game
+        override = root / "map.ini"
+        override.write_text(
+            "Science SCIENCE_Gandalf\n    SciencePurchasePointCost = 1\nEnd\n", encoding="utf-8"
+        )
+        cached = lint_file_cached(cache, override, include_root=root)
+        assert not [d for d in cached if d.code == "unused-definition"]
+
 
 class TestBaseGameInclude:
     """A mod file `#include`ing a file that lives only in the base game (the ROTWK ini.big,

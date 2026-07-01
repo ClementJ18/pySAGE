@@ -149,7 +149,9 @@ class SpecialModelConditionNugget(WeaponEffectNugget):
 
 
 class ClearNuggets(Nugget):
-    pass
+    # Written as a bare one-liner (`ClearNuggets`) with no body — it wipes the nuggets defined
+    # so far when a weapon is re-opened, taking no fields of its own.
+    bare_directive = True
 
 
 class DamageFieldNugget(WeaponEffectNugget):

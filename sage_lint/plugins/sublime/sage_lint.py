@@ -734,7 +734,7 @@ def _module_doc_html(name, fields):
     """An HTML popup body listing a block's fields and their types (the typed schema sage_ini
     converts against), styled to match the editor's colour variables."""
     rows = "".join(
-        f'<div class="row"><span class="field">{html.escape(field)}</span>'
+        f'<div class="row"><span class="field">{html.escape(field)} </span>'
         f'<span class="type">{html.escape(_field_type_label(info))}</span></div>'
         for field, info in sorted(fields.items())
     )

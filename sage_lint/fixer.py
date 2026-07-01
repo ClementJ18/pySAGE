@@ -1,5 +1,5 @@
-"""Automated, opt-in fixes for a subset of lint diagnostics (`lint --fix`). Three
-diagnostics are auto-fixable, all behaviour-preserving against the engine:
+"""Automated, opt-in fixes for a subset of lint diagnostics (`lint --fix`). Every fix below
+is behaviour-preserving against the engine — it changes only what the engine already ignores:
 
 - ``enum-case``: rewrite a miscased enum token to its canonical name (the engine
   matches enums case-insensitively, so only spelling changes).
@@ -7,8 +7,14 @@ diagnostics are auto-fixable, all behaviour-preserving against the engine:
   engine resolves names case-insensitively, so only spelling changes). When the token
   reached the field through a macro (`Field = MACRO`), the use site does not hold it, so
   the rewrite follows it back to the `#define` body in the same file.
-- ``repeated-field``: a scalar set more than once keeps only its last value, so the
-  earlier occurrences are deleted.
+- ``macro-case``: rewrite a macro reference to the `#define`'s casing (macros are matched
+  case-insensitively too) — the same token rewrite as the two above.
+- ``repeated-field`` / ``repeated-flag-field``: a scalar (or whole-set flag) field set more
+  than once keeps only its last value, so the earlier occurrences are deleted.
+- ``redundant-nullification``: a CommandButton field nulled to its already-default `None` is
+  dead clutter, so the line is deleted.
+- ``spurious-block-label``: a block header written `Block = Tag` where the engine wants
+  `Block Tag` — the `=` does nothing, so it is removed.
 
 Fixes are line-level edits on the original text (never an AST reprint), computed
 against the original line numbering and applied in one pass so they don't shift.
@@ -25,12 +31,31 @@ from sage_ini.parser.io import read_text_with_encoding, writeback_encoding
 from sage_ini.parser.lexer import _find_comment_start, split_comment
 
 # Diagnostic codes this module knows how to fix.
-FIXABLE: frozenset[str] = frozenset({"enum-case", "reference-case", "repeated-field"})
+FIXABLE: frozenset[str] = frozenset(
+    {
+        "enum-case",
+        "reference-case",
+        "macro-case",
+        "repeated-field",
+        "repeated-flag-field",
+        "redundant-nullification",
+        "spurious-block-label",
+    }
+)
 
 # Codes fixed by rewriting a miscased token to its canonical spelling — the same line edit
-# for an enum value and a cross-reference, differing only in what supplied the casing. Both
-# carry `given`/`canonical` in their diagnostic `extra`.
-_CASE_REWRITE: frozenset[str] = frozenset({"enum-case", "reference-case"})
+# for an enum value, a cross-reference and a macro reference, differing only in what supplied
+# the casing. All carry `given`/`canonical` in their diagnostic `extra`.
+_CASE_REWRITE: frozenset[str] = frozenset({"enum-case", "reference-case", "macro-case"})
+
+# Codes fixed by deleting the earlier, superseded occurrences of a repeated field — a plain
+# scalar (`repeated-field`) or a whole-set flag list (`repeated-flag-field`); only the last set
+# takes effect either way. The field name is in `extra["key"]` or `extra["field"]`.
+_REPEATED: frozenset[str] = frozenset({"repeated-field", "repeated-flag-field"})
+
+# The None/NONE/empty sentinels a redundant CommandButton nullification resolves to (mirrors
+# `commandbutton._NONE_SENTINELS`), used to confirm the line a fix deletes really nulls the field.
+_NONE_SENTINELS: frozenset[str] = frozenset({"", "none"})
 
 # A `#define NAME body…` directive, capturing the body (group 1) the macro expands to — where
 # a miscased token lives when a field reaches it through the macro rather than spelling it out.
@@ -68,17 +93,36 @@ def _fix_file(path: str, diags: list[Diagnostic]) -> list[Diagnostic]:
 
     deletes: set[int] = set()
     replaces: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    dequals: set[int] = set()  # header lines whose spurious `=` is to be removed
     applied: list[Diagnostic] = []
 
-    repeated = [d for d in diags if d.code == "repeated-field"]
-    document = parse(text, file=path).document if repeated else None
-    for diag in repeated:
-        key = diag.extra.get("key")
+    # A document parse is needed to locate a block's repeated/nulled occurrences; build it once
+    # if any structural fix is present.
+    structural = [d for d in diags if d.code in _REPEATED or d.code == "redundant-nullification"]
+    document = parse(text, file=path).document if structural else None
+
+    for diag in (d for d in diags if d.code in _REPEATED):
+        key = diag.extra.get("key") or diag.extra.get("field")
         if not key:
             continue
         targets = _repeated_delete_lines(document, diag.span.line_start, key, lines)
         if targets:
             deletes.update(targets)
+            applied.append(diag)
+
+    for diag in (d for d in diags if d.code == "redundant-nullification"):
+        key = diag.extra.get("key")
+        if not key:
+            continue
+        targets = _nullification_delete_lines(document, diag.span.line_start, key, lines)
+        if targets:
+            deletes.update(targets)
+            applied.append(diag)
+
+    for diag in (d for d in diags if d.code == "spurious-block-label"):
+        line_no = diag.span.line_start
+        if 1 <= line_no <= len(lines) and _line_has_spurious_equals(lines[line_no - 1]):
+            dequals.add(line_no)
             applied.append(diag)
 
     for diag in diags:
@@ -101,7 +145,7 @@ def _fix_file(path: str, diags: list[Diagnostic]) -> list[Diagnostic]:
         replaces[target].append((given, canonical))
         applied.append(diag)
 
-    if not deletes and not replaces:
+    if not deletes and not replaces and not dequals:
         return []
 
     out: list[str] = []
@@ -110,6 +154,8 @@ def _fix_file(path: str, diags: list[Diagnostic]) -> list[Diagnostic]:
             continue
         if number in replaces:
             line = _apply_replacements(line, replaces[number])
+        if number in dequals:
+            line = _remove_header_equals(line)
         out.append(line)
 
     Path(path).write_text("\n".join(out).replace("\n", newline), encoding=encoding, newline="")
@@ -135,6 +181,47 @@ def _repeated_delete_lines(document, first_line: int, key: str, lines: list[str]
         if attr.span.line_end == line_no and _line_is_only_attr(lines, line_no, key):
             targets.append(line_no)
     return targets
+
+
+def _nullification_delete_lines(document, first_line: int, key: str, lines: list[str]) -> list[int]:
+    """Lines of `key` that null the field to its already-default `None`, to delete.
+
+    Locates the block whose own attribute sits at `first_line`, then returns each `key`
+    occurrence whose value is a None/NONE/empty sentinel — only single-statement lines, so a
+    rare shared line is left for a human. A non-sentinel occurrence (the field set to a real
+    value) is never touched, so deleting the redundant null never removes a meaningful set."""
+    siblings = _block_children_with_attr_at(document.children, first_line)
+    if siblings is None:
+        return []
+    targets = []
+    for child in siblings:
+        if not (isinstance(child, Attribute) and child.key == key):
+            continue
+        if str(child.value).strip().lower() not in _NONE_SENTINELS:
+            continue
+        line_no = child.span.line_start
+        if child.span.line_end == line_no and _line_is_only_attr(lines, line_no, key):
+            targets.append(line_no)
+    return targets
+
+
+def _line_has_spurious_equals(line: str) -> bool:
+    """Whether `line` is a `Block = Tag` header whose `=` can be removed: an `=` before any
+    comment with a token on each side. Guards the rewrite against a line that holds no `=` (e.g.
+    a multi-line block already flagged on a different physical line)."""
+    content, _ = split_comment(line)
+    return re.match(r"^\s*\S+\s*=\s*\S", content) is not None
+
+
+def _remove_header_equals(line: str) -> str:
+    """Rewrite a `Block = Tag` header to the engine's plain `Block Tag` form, dropping only the
+    `=` (and the padding around it), and leaving indentation and any trailing comment intact."""
+    comment_start = _find_comment_start(line)
+    if comment_start == -1:
+        comment_start = len(line)
+    head, comment = line[:comment_start], line[comment_start:]
+    head = re.sub(r"^(\s*\S+)\s*=\s*", r"\1 ", head, count=1)
+    return head + comment
 
 
 def _block_children_with_attr_at(nodes: list[Node], line: int) -> list[Node] | None:

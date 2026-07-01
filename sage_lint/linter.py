@@ -256,6 +256,26 @@ def build_cache(
     return loaded.game, diagnostics, base_layer
 
 
+def assemble_with_bases(
+    root: str | Path, bases: tuple[tuple[str, str], ...] = ()
+) -> tuple[LoadedGame, BaseLayer | None]:
+    """Assemble the game under `root` with `bases` (folder / `.big` sources) merged beneath it,
+    without running any lint rules — the loaded game and the `BaseLayer` (or None) it merged into.
+    For consumers that only need the assembled, base-resolved `Game` (e.g. the `diff` command),
+    where `build_cache`'s rule and map-lint passes would be wasted work. **Caller owns
+    `BaseLayer.cleanup()`.**"""
+    base_layer = _prepare_base(root, bases)
+    try:
+        if base_layer is None:
+            return load_game(root), None
+        loaded = load_game(root, bases=(base_layer.root,))
+        return loaded, base_layer
+    except BaseException:
+        if base_layer is not None:
+            base_layer.cleanup()
+        raise
+
+
 def lint_folder(
     root: str | Path,
     rules: Iterable[type[Rule]] | None = None,

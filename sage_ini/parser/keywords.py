@@ -76,6 +76,7 @@ BARE_VALUE_KEYS: frozenset[str] = frozenset(
         "ButtonBorderBuildColor",
         "ButtonBorderSystemColor",
         "ButtonBorderUpgradeColor",
+        "ClearNuggets",
         "CommandBarBorderColor",
         "ConflictsWith",
         "CrewPrepareInterval",

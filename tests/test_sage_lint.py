@@ -2,6 +2,7 @@
 
 import io
 import json
+import subprocess
 from argparse import Namespace
 from pathlib import Path
 
@@ -505,6 +506,77 @@ class TestCli:
 
         assert main(["lint", str(tmp_path), "--exclude", str(wip), "--fix"]) == 0
         assert draft.read_text(encoding="utf-8") == original
+
+    def test_fix_rewrites_macro_case(self, tmp_path, capsys):
+        # A macro reference matched a #define only by ignoring case; --fix aligns the use site
+        # to the #define's spelling (the same token rewrite as reference/enum case).
+        path = tmp_path / "a.ini"
+        path.write_text(
+            "#define MY_DAMAGE 2000\nWeapon Foo\n    PrimaryDamage = my_damage   ; keep me\nEnd\n",
+            encoding="utf-8",
+        )
+
+        assert main(["lint", str(tmp_path), "--fix", "--select", "macro-case"]) == 0
+        assert "fixed 1 issue(s)" in capsys.readouterr().out
+        assert path.read_text(encoding="utf-8") == (
+            "#define MY_DAMAGE 2000\nWeapon Foo\n    PrimaryDamage = MY_DAMAGE   ; keep me\nEnd\n"
+        )
+
+    def test_fix_removes_a_redundant_nullification(self, tmp_path, capsys):
+        # A CommandButton field nulled to its already-default None is dead clutter; --fix
+        # deletes the line and leaves the rest of the button intact.
+        path = tmp_path / "a.ini"
+        path.write_text(
+            "CommandButton Command_Foo\n    Command = PLAYER_UPGRADE\n    Object = None\nEnd\n",
+            encoding="utf-8",
+        )
+
+        assert main(["lint", str(tmp_path), "--fix", "--select", "redundant-nullification"]) == 0
+        assert "fixed 1 issue(s)" in capsys.readouterr().out
+        assert path.read_text(encoding="utf-8") == (
+            "CommandButton Command_Foo\n    Command = PLAYER_UPGRADE\nEnd\n"
+        )
+
+    def test_fix_removes_earlier_repeated_flag_field(self, tmp_path, capsys):
+        # A whole-set flag field (EditorSorting) set twice keeps only the last; --fix deletes
+        # the earlier set, exactly as it does a repeated scalar.
+        path = tmp_path / "a.ini"
+        path.write_text(
+            "Object Foo\n"
+            "    EditorSorting = STRUCTURE\n"
+            "    EditorSorting = SYSTEM   ; the one that wins\n"
+            "End\n",
+            encoding="utf-8",
+        )
+
+        assert main(["lint", str(tmp_path), "--fix", "--select", "repeated-flag-field"]) == 0
+        assert "fixed 1 issue(s)" in capsys.readouterr().out
+        assert path.read_text(encoding="utf-8") == (
+            "Object Foo\n    EditorSorting = SYSTEM   ; the one that wins\nEnd\n"
+        )
+
+    def test_fix_removes_spurious_block_label_equals(self, tmp_path, capsys):
+        # A ThreatBreakdown header written `= Tag` parses, but the engine ignores the `=`;
+        # --fix rewrites it to the plain `Block Tag` header form.
+        path = tmp_path / "a.ini"
+        path.write_text(
+            "Object Foo\n"
+            "    ThreatBreakdown = Foo_Detail   ; keep me\n"
+            "        AIThreatNumberOfTimes = 1\n"
+            "    End\n"
+            "End\n",
+            encoding="utf-8",
+        )
+
+        assert main(["lint", str(tmp_path), "--fix", "--select", "spurious-block-label"]) == 0
+        assert "fixed 1 issue(s)" in capsys.readouterr().out
+        assert path.read_text(encoding="utf-8") == (
+            "Object Foo\n"
+            "    ThreatBreakdown Foo_Detail   ; keep me\n"
+            "        AIThreatNumberOfTimes = 1\n"
+            "    End\n"
+            "End\n"
+        )
 
     def test_lint_dedups_identical_diagnostics_from_a_shared_include(self, tmp_path, capsys):
         (tmp_path / "snippet.inc").write_text(
@@ -1055,3 +1127,70 @@ class TestBaseBigIndexing:
         rc = main(["lint", str(mod), "--assets", "--assets-base", str(big), "--no-config"])
         assert "Tex_001" not in capsys.readouterr().out
         assert rc == 0
+
+
+class TestDiffCommand:
+    """`sage_lint diff`: a config-aware, base-resolved changelog between two git refs."""
+
+    def _git(self, repo, *args):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True)
+
+    def _repo(self, tmp_path, sagelint, first, second, mod_rel="mod"):
+        """A git repo with a `.sagelint`, a mod folder at `mod_rel`, and two commits whose mod
+        ini is `first` then `second`. Returns the repo path."""
+        repo = tmp_path / "repo"
+        mod = repo / mod_rel
+        mod.mkdir(parents=True)
+        (repo / ".sagelint").write_text(sagelint, encoding="utf-8")
+        data = mod / "data.ini"
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True, text=True)
+        self._git(repo, "config", "user.email", "t@t.t")
+        self._git(repo, "config", "user.name", "t")
+        data.write_text(first, encoding="utf-8")
+        self._git(repo, "add", "-A")
+        self._git(repo, "commit", "-q", "-m", "v1")
+        data.write_text(second, encoding="utf-8")
+        self._git(repo, "add", "-A")
+        self._git(repo, "commit", "-q", "-m", "v2")
+        return repo
+
+    def test_changelog_uses_config_root(self, tmp_path, capsys):
+        repo = self._repo(
+            tmp_path,
+            'root = "mod"\n',
+            "Object Soldier\n    BuildCost = 100\nEnd\n",
+            "Object Soldier\n    BuildCost = 150\nEnd\n",
+        )
+        assert main(["diff", "HEAD~1", "HEAD", str(repo)]) == 0
+        assert "BuildCost: 100 -> 150" in capsys.readouterr().out
+
+    def test_base_definitions_cancel_out(self, tmp_path, capsys):
+        # A base-game definition present (identically) beneath both refs must not show up as a
+        # change — the base merge applies to both sides and cancels.
+        base = tmp_path / "base" / "data" / "ini"
+        base.mkdir(parents=True)
+        (base / "base.ini").write_text(
+            "Object BaseUnit\n    BuildCost = 5\nEnd\n", encoding="utf-8"
+        )
+        repo = self._repo(
+            tmp_path,
+            'root = "mod"\n',
+            "Object ModUnit\n    BuildCost = 100\nEnd\n",
+            "Object ModUnit\n    BuildCost = 150\nEnd\n",
+        )
+        assert main(["diff", "HEAD~1", "HEAD", str(repo), "--base", str(base)]) == 0
+        out = capsys.readouterr().out
+        assert "BuildCost: 100 -> 150" in out
+        assert "BaseUnit" not in out  # base content is identical on both refs, so it cancels
+
+    def test_no_config_diffs_repo_root(self, tmp_path, capsys):
+        # With --no-config the config root is ignored; diff the repo root itself.
+        repo = self._repo(
+            tmp_path,
+            'root = "mod"\n',
+            "Object A\n    BuildCost = 1\nEnd\n",
+            "Object A\n    BuildCost = 2\nEnd\n",
+            mod_rel=".",
+        )
+        assert main(["diff", "HEAD~1", "HEAD", str(repo), "--no-config"]) == 0
+        assert "BuildCost: 1 -> 2" in capsys.readouterr().out

@@ -25,6 +25,29 @@ includes, and the macros it uses (with their origin). For a large catalog file (
 definition `name` to focus on a single entry. Start here; drop to the steps below when you need
 field-level schema detail or to chase a specific name further.
 
+## Changelog between two versions
+
+`sage-ini diff <old> <new>` reports what game data changed between two assembled mods as a
+human-readable changelog, not a text diff: definitions are matched by table and name, fields by
+key, and sub-modules (behaviors, draws, nuggets, nested states) recursively — so a buried
+`MaxHealth` edit surfaces as `ActiveBody ModuleTag_01 > MaxHealth: 300 -> 350`, not a line hunk.
+
+- `<old>`/`<new>` are two ini folders, **or** two git refs with `--repo <repo>` (each ref is
+  checked out into a throwaway worktree; `--path <subdir>` points at the ini folder inside it).
+- Output groups by table, then by definition: `+ Name` added, `- Name` removed, `~ Name` changed
+  with its field/module edits indented beneath. `#define` macro changes are reported too; pass
+  `--strings` to also include `.str`/`.csv` display-string changes.
+
+Use it to answer "what changed between these two commits" — read the changelog, then drop to
+`brief`/`xref`/`resolve` to explain any one entry in depth.
+
+For a real mod whose files `#include` the base game, prefer **`sage-lint diff <oldRef> <newRef>
+[repo]`** instead: it reads the mod's `.sagelint`/`.sagelint.local` (root + base archives), so
+each ref assembles with the base game merged in and base `#include`s resolve. The base-game
+definitions are identical on both sides and cancel, leaving only the mod's real changes — without
+the base, unresolved includes do not corrupt the diff (base content is simply absent on both
+sides), but `sage-lint diff` is the faithful, config-aware path.
+
 ## Workflow for insight into a single file
 
 1. **Load the maps (lean, ~3K tokens).** Run `sage-ini primer`. It prints:

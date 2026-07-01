@@ -120,6 +120,20 @@ base = [
     # "C:/Games/BFME2/lotr.big",
 ]
 
+# -- sentinels --------------------------------------------------------------
+# Extra "intentionally nothing" reference tokens, never reported as dangling.
+# `None`/`NONE`/empty are ALWAYS treated this way; list any other names your mod
+# uses to mean "no target" (e.g. a `NoSound` audio reference). Applies to both
+# dangling-reference and dangling-asset-reference. Matching is case-insensitive.
+# sentinels = ["NoSound", "NoWeapon"]
+
+# -- always_referenced ------------------------------------------------------
+# Definition KINDS (block type names) the unused-definition rule must never flag,
+# for kinds the engine reaches in ways the ini reference graph cannot see (e.g. a
+# `PlayerAIType` the engine selects by name, or anything a binary `.map` script
+# spawns). Case-insensitive; names the block type, not a single definition.
+# always_referenced = ["PlayerAIType"]
+
 # -----------------------------------------------------------------------------
 # Valid codes for `ignore` / `select`
 #

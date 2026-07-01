@@ -1,7 +1,9 @@
 """Command-line entry point: `python -m sage_lint <command>`. `format` rewrites ini
 files to the canonical style (or reports them with `--check`, or formats stdin);
 `lint` assembles a game from a folder and reports its problems. Both can emit JSON
-(`--output-format json`) for an editor plugin.
+(`--output-format json`) for an editor plugin. `diff` assembles the mod at two git refs
+(config-aware, with the base game merged in) and reports a human-readable changelog of the
+game-data changes between them.
 """
 
 import argparse
@@ -9,12 +11,15 @@ import enum
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
+from contextlib import ExitStack
 from dataclasses import replace
 from fnmatch import fnmatch
 from pathlib import Path
 
+from sage_ini.diff import diff_games, format_game_diff, git_worktree
 from sage_ini.model.objects import (
     REGISTRY,
     IniObject,
@@ -39,7 +44,14 @@ from sage_lint.baseline import (
 from sage_lint.config import CONFIG_NAME, Config, init_project, load_config
 from sage_lint.fixer import fix_diagnostics
 from sage_lint.formatter import FormatResult, format_file, format_text
-from sage_lint.linter import build_cache, lint_file, lint_file_cached, lint_folder
+from sage_lint.linter import (
+    assemble_with_bases,
+    build_cache,
+    lint_file,
+    lint_file_cached,
+    lint_folder,
+)
+from sage_lint.ruleconfig import rule_options, set_options
 from sage_lint.rules.base import RULES
 
 # Diagnostic codes emitted outside the rule framework (parser, loader, conversion)
@@ -109,7 +121,11 @@ def _write_back(result: FormatResult) -> None:
 _FIX_LABELS: dict[str, str] = {
     "reference-case": "reference casing",
     "enum-case": "enum value casing",
+    "macro-case": "macro reference casing",
     "repeated-field": "duplicate field",
+    "repeated-flag-field": "duplicate flag field",
+    "redundant-nullification": "redundant nullification",
+    "spurious-block-label": "spurious block `=`",
 }
 
 
@@ -725,8 +741,12 @@ def _run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> in
     rules = _resolve_rule_set(selected, include_assets)
 
     # Suggestions are opt-in (they fuzzy-match every miss against the whole name table); enable
-    # them only for the build/validate that produces this report.
-    with suggestions_enabled(args.suggest or config.suggest):
+    # them only for the build/validate that produces this report. The reference/unused rules read
+    # the project's `sentinels`/`always_referenced` from process state for the same window.
+    with (
+        suggestions_enabled(args.suggest or config.suggest),
+        rule_options(sentinels=config.sentinels, always_referenced=config.always_referenced),
+    ):
         if args.file is not None:
             # Save-time fast path: lint just one file, resolving includes against the positional
             # root (the project folder) when given, else the file's directory. Base sources are
@@ -939,6 +959,43 @@ def _run_lint_maps(args: argparse.Namespace, config: Config, root: Path) -> int:
     return 0 if args.exit_zero else (1 if shown else 0)
 
 
+def _run_diff(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Changelog of game-data changes between two git refs, assembled the way `lint` builds a
+    game: the `.sagelint` config (root, base) is read from the repo working dir, then each ref is
+    checked out into a temp worktree and assembled WITH the base-game archives merged in, so an
+    `#include` into the base resolves on both sides and the diff reports real changes, not
+    unresolved-include load artifacts."""
+    config_dir = (args.dir or Path.cwd()).resolve()
+    config = Config() if args.no_config else load_config(config_dir)
+    for warning in config.warnings:
+        print(warning, file=sys.stderr)
+
+    bases = list(args.base) if args.base else [_config_path(config_dir, b) for b in config.base]
+    base_sources = tuple(_base_source(Path(b)) for b in bases)
+    rel_root = config.root if config.root and not Path(config.root).is_absolute() else None
+
+    def game_at(ref: str, stack: ExitStack):
+        tree = stack.enter_context(git_worktree(config_dir, ref))
+        root = tree / rel_root if rel_root else tree
+        if not root.is_dir():
+            parser.error(f"root {root.name!r} not found at ref {ref!r}")
+        loaded, base_layer = assemble_with_bases(root, base_sources)
+        if base_layer is not None:
+            stack.callback(base_layer.cleanup)
+        return loaded.game
+
+    try:
+        with ExitStack() as stack:
+            old_game = game_at(args.old, stack)
+            new_game = game_at(args.new, stack)
+            diff = diff_games(old_game, new_game, strings=args.strings)
+            print(format_game_diff(diff, args.old, args.new), end="")
+    except subprocess.CalledProcessError as exc:
+        print(f"git failed: {exc.stderr or exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
 def _select_and_summarize(
     items, selected: set[str], ignored: set[str], level_name: str | None
 ) -> tuple[list[Diagnostic], dict[str, int]]:
@@ -1013,8 +1070,10 @@ def _run_serve(args: argparse.Namespace) -> int:
         _emit({"type": "error", "message": f"not a directory: {root}"})
         return 2
 
-    # Opt-in for the daemon's lifetime: every build and re-lint then carries hints.
+    # Opt-in for the daemon's lifetime: every build and re-lint then carries hints, and the
+    # reference/unused rules read the project's sentinels/always-referenced from process state.
     set_suggestions_enabled(args.suggest or config.suggest)
+    set_options(sentinels=config.sentinels, always_referenced=config.always_referenced)
 
     base_dir = root
     include_assets = args.assets or config.assets
@@ -1331,8 +1390,9 @@ def main(argv: list[str] | None = None) -> int:
     lint.add_argument(
         "--fix",
         action="store_true",
-        help="rewrite source files to resolve the auto-fixable diagnostics "
-        "(enum-case, reference-case, repeated-field) before reporting the rest",
+        help="rewrite source files to resolve the auto-fixable diagnostics (enum-case, "
+        "reference-case, macro-case, repeated-field, repeated-flag-field, "
+        "redundant-nullification, spurious-block-label) before reporting the rest",
     )
     lint.add_argument(
         "--baseline",
@@ -1503,6 +1563,43 @@ def main(argv: list[str] | None = None) -> int:
         help="overwrite an existing .sagelint / .sagelint.local instead of leaving it in place",
     )
 
+    diff = subparsers.add_parser(
+        "diff",
+        help="changelog of game-data changes between two git refs (config-aware, base-resolved)",
+        description="Assemble the mod at two git refs the way `lint` builds a game — reading "
+        "root/base from .sagelint so includes into the base game resolve — and report the "
+        "added / removed / changed definitions, fields and modules between them as a "
+        "human-readable changelog.",
+    )
+    diff.add_argument("old", help="old git ref (commit, tag, or branch)")
+    diff.add_argument("new", help="new git ref")
+    diff.add_argument(
+        "dir",
+        type=Path,
+        nargs="?",
+        default=None,
+        help="the mod repo working dir holding .sagelint / .sagelint.local (default: current "
+        "dir); its config 'root' and 'base' are used and the two refs are checked out from it",
+    )
+    diff.add_argument(
+        "--base",
+        type=Path,
+        action="append",
+        default=[],
+        help="base-game source (folder or .big) merged beneath the mod so base includes "
+        "resolve; overrides the config 'base' (repeatable, highest priority first)",
+    )
+    diff.add_argument(
+        "--no-config",
+        action="store_true",
+        help="ignore .sagelint / .sagelint.local; diff the repo root with no base (pass --base)",
+    )
+    diff.add_argument(
+        "--strings",
+        action="store_true",
+        help="also report .str / .csv display-string changes (off by default)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "format":
@@ -1549,6 +1646,9 @@ def main(argv: list[str] | None = None) -> int:
         if not root.is_dir():
             parser.error(f"not a directory: {root}")
         return _run_lint_maps(args, config, root)
+
+    if args.command == "diff":
+        return _run_diff(args, parser)
 
     if args.command == "serve":
         return _run_serve(args)

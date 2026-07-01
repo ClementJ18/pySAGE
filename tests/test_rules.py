@@ -8,6 +8,7 @@ from sage_ini.parser.blockparser import parse
 from sage_ini.parser.diagnostics import Diagnostics, Severity
 from sage_ini.suggest import suggestions_enabled
 from sage_lint.linter import lint_folder, lint_game
+from sage_lint.ruleconfig import rule_options
 from sage_lint.rules.assets import (
     MapFolderNameRule,
     MissingMapFileRule,
@@ -351,6 +352,24 @@ class TestUnusedDefinitionRule:
         game = _load("Upgrade Lonely\nEnd\n")
         assert any(d.code == "unused-definition" for d in run_rules(game))
 
+    def test_does_not_flag_a_command_button_a_command_set_lists(self):
+        # A command set names its buttons in digit-keyed slots (`1 = Command_X`), which are
+        # dynamic and carry no typed field; the xref graph reads them so the button is reached.
+        game = _load(
+            "CommandButton Command_Build\n    Command = UNIT_BUILD\nEnd\n"
+            "CommandSet RallyPointCommandSet\n    1 = Command_Build\nEnd\n"
+        )
+        names = {d.extra["name"] for d in run_rules(game, [UnusedDefinitionRule])}
+        assert "Command_Build" not in names
+
+    def test_always_referenced_config_suppresses_a_kind(self):
+        game = _load("PlayerAIType Multiplayer_Human\nEnd\n")
+        # By default a PlayerAIType the data never names is flagged; the config exempts the kind.
+        default = run_rules(game, [UnusedDefinitionRule])
+        assert any(d.extra["name"] == "Multiplayer_Human" for d in default)
+        with rule_options(always_referenced=["PlayerAIType"]):
+            assert not list(run_rules(game, [UnusedDefinitionRule]))
+
 
 class TestUnusedObjectRule:
     def test_is_off_by_default(self):
@@ -451,6 +470,14 @@ class TestDanglingReferenceRule:
 
     def test_skips_the_none_sentinel(self):
         assert not list(run_rules(_load(self._rider("None")), [DanglingReferenceRule]))
+
+    def test_skips_a_configured_sentinel(self):
+        # A project-configured sentinel (e.g. NoSound) is treated like None: an intentional
+        # "nothing", never reported as dangling.
+        game = _load(self._rider("OCL_Nothing"))
+        assert list(run_rules(game, [DanglingReferenceRule]))  # flagged by default
+        with rule_options(sentinels=["OCL_Nothing"]):
+            assert not list(run_rules(game, [DanglingReferenceRule]))
 
     def test_skipped_when_the_kind_is_unmodelled(self):
         # No OCL is declared, so the objectcreationlists table is empty and every name

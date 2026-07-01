@@ -406,6 +406,7 @@ class CommandSet(IniObject):
     key = "commandsets"
 
     numbered_slots = True  # `1 = Command_X` ... button slots, read via `CommandButtons`
+    numbered_slot_ref = "commandbuttons"  # the slots reference CommandButtons (for the xref graph)
 
     InitialVisible: Int
 

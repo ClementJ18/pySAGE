@@ -38,7 +38,7 @@ from sage_ini.model.ini_objects import (
     Upgrade,
     Weapon,
 )
-from sage_ini.model.nuggets import DamageNugget
+from sage_ini.model.nuggets import ClearNuggets, DamageNugget
 from sage_ini.model.objects import Draw, get_class
 from sage_ini.parser.ast import Block
 from sage_ini.parser.blockparser import parse
@@ -92,6 +92,27 @@ def test_weapon_with_nuggets():
     nugget = weapon.Nuggets[0]
     assert isinstance(nugget, DamageNugget)
     assert nugget.Damage == 100
+
+
+def test_clear_nuggets_one_liner_parses_and_is_a_nugget():
+    # ClearNuggets is written as a bare one-liner with no body/End; it must not open a block
+    # (which would swallow the following nugget and leave the weapon unclosed), and it lands in
+    # the weapon's Nuggets list as a body-less ClearNuggets, not an unknown attribute.
+    game = load(
+        """\
+        Weapon EagleClawWyrmAttack
+            ClearNuggets
+            DamageNugget
+                Damage = 2000
+                DamageType = HERO
+            End
+        End
+        """
+    )
+    weapon = game.weapons["EagleClawWyrmAttack"]
+    assert [type(n).__name__ for n in weapon.Nuggets] == ["ClearNuggets", "DamageNugget"]
+    assert isinstance(weapon.Nuggets[0], ClearNuggets)
+    assert "ClearNuggets" not in weapon.fields  # routed to the group, not stored as a field
 
 
 def test_object_with_behaviors_and_weaponset():
