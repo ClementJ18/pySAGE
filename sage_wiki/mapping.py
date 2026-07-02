@@ -32,11 +32,11 @@ from sage_ini.model.state import (
     select_weapon_set,
 )
 from sage_utils.views import (
-    _find_behavior,
-    _safe,
     armorset_view,
     build_cost_view,
+    find_behavior,
     resource_production_view,
+    safe,
     weapon_attack_interval,
     weapon_radius,
     weapon_top_nugget,
@@ -104,7 +104,7 @@ def _primary_of(weapon_set):
     special-ability weapons in other slots, which would inflate the listed damage/range."""
     if weapon_set is None:
         return None
-    weapons = _safe(lambda: weapon_set.Weapon, []) or []
+    weapons = safe(lambda: weapon_set.Weapon, []) or []
     for slot, weapon in weapons:
         if getattr(slot, "name", str(slot)) == "PRIMARY":
             return weapon
@@ -179,7 +179,7 @@ def _attack_speed(c: FieldContext) -> str | None:
 def _range(c: FieldContext) -> str | None:
     """The reach of the unit's basic (PRIMARY) attack."""
     weapon = _primary_weapon(c.unit_state)
-    reach = _safe(lambda: float(weapon.AttackRange)) if weapon is not None else None
+    reach = safe(lambda: float(weapon.AttackRange)) if weapon is not None else None
     return _fmt_number(reach)
 
 
@@ -197,7 +197,7 @@ def _speed(c: FieldContext) -> str | None:
     locomotor_set = c.source_state.locomotor_set
     if locomotor_set is None:
         return None
-    return _fmt_number(_safe(lambda: float(locomotor_set.Speed)))
+    return _fmt_number(safe(lambda: float(locomotor_set.Speed)))
 
 
 def _resources(c: FieldContext) -> str | None:
@@ -243,7 +243,7 @@ def _melee_ranged_weapons(unit, state: UnitState, toggle_flag: str):
     weapons = [w for w in (untoggled, toggled) if w is not None]
     if not weapons:
         return None, None
-    weapons.sort(key=lambda w: _safe(lambda w=w: float(w.AttackRange)) or 0.0)
+    weapons.sort(key=lambda w: safe(lambda w=w: float(w.AttackRange)) or 0.0)
     return weapons[0], weapons[-1]
 
 
@@ -263,7 +263,7 @@ def _weapon_stats(weapon, state: UnitState) -> dict[str, str | None]:
     return {
         "damage": _weapon_damage_summary(weapon, state),
         "damage_type": str(damage_type) if damage_type else None,
-        "range": _fmt_number(_safe(lambda: float(weapon.AttackRange))),
+        "range": _fmt_number(safe(lambda: float(weapon.AttackRange))),
         "radius": _fmt_number(weapon_radius(weapon, state)),
         "attack_speed": f"{int(cycle)} ms" if cycle else None,
     }
@@ -297,7 +297,7 @@ def _iter_mount_targets(unit):
         for module in getattr(owner, "modules", ()):
             if not isinstance(module, ToggleMountedSpecialAbilityUpdate):
                 continue
-            name = getattr(_safe(lambda m=module: m.MountedTemplate), "name", None)
+            name = getattr(safe(lambda m=module: m.MountedTemplate), "name", None)
             if name and game is not None:
                 target = game.objects.get(name)
                 if target is not None:
@@ -330,16 +330,16 @@ def _flying_mount(unit):
 def _giant_bird(obj) -> bool:
     """Whether `obj` flies — it carries `GiantBirdAIUpdate` (an eagle). A flyer's combat
     stats belong in the Hero infobox's `_flying` column rather than `_mounted`."""
-    return _find_behavior(obj, GiantBirdAIUpdate) is not None
+    return find_behavior(obj, GiantBirdAIUpdate) is not None
 
 
 def _summon_timer(obj) -> str | None:
     """A summoned object's lifespan in seconds (its `LifetimeUpdate.MaxLifetime`, the Hero
     infobox's summon `timer`), or None for a permanent object."""
-    module = _find_behavior(obj, LifetimeUpdate)
+    module = find_behavior(obj, LifetimeUpdate)
     if module is None:
         return None
-    milliseconds = _safe(lambda: module.MaxLifetime) or _safe(lambda: module.MinLifetime)
+    milliseconds = safe(lambda: module.MaxLifetime) or safe(lambda: module.MinLifetime)
     if not milliseconds:
         return None
     return _fmt_number(float(milliseconds) / 1000)
@@ -365,9 +365,7 @@ def _mounted_stats(unit, state: UnitState, mounted_obj) -> dict[str, str | None]
     armor_name = armorset_view(armor_set)["armor"] if armor_set is not None else None
     stats["armor"] = armor_name.lower() if armor_name else None
     stats["speed"] = (
-        _fmt_number(_safe(lambda: float(locomotor_set.Speed)))
-        if locomotor_set is not None
-        else None
+        _fmt_number(safe(lambda: float(locomotor_set.Speed))) if locomotor_set is not None else None
     )
     stats["trample_damage"] = (
         _fmt_number(_weapon_top_damage(crush, m_state)) if crush is not None else None
@@ -443,7 +441,7 @@ def computed_fields(obj, active_upgrades=frozenset()) -> dict[str, str]:
         return FieldContext(obj=obj, unit=unit, unit_state=unit_state, source_state=source_state)
 
     def emit(result: dict[str, str], param: str, derive, context: FieldContext) -> None:
-        value = _safe(lambda: derive(context))
+        value = safe(lambda: derive(context))
         if value is not None and str(value) != "":
             result[param] = str(value)
 

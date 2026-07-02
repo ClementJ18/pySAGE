@@ -60,15 +60,15 @@ class DuplicateDefinitionRule(Rule):
             yield Diagnostic(
                 code=self.code,
                 message=(
-                    f"{redef.name} is defined again here; the earlier definition at "
-                    f"line {redef.first.line_start} is overwritten (last wins)"
+                    f"{redef.name} is redefined at line {redef.second.line_start}; this earlier "
+                    f"definition is overwritten (last wins)"
                 ),
-                span=redef.second,
+                span=redef.first,
                 severity=Severity.WARNING,
                 extra={
                     "key": redef.key,
                     "name": redef.name,
-                    "first_line": redef.first.line_start,
+                    "second_line": redef.second.line_start,
                 },
             )
 

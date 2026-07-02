@@ -7,14 +7,15 @@ builds, every structure grouped by role with what it produces, and stat tables f
 heroes and upgrades. It is deterministic data extraction - the agent layers judgment (critique,
 comparison, a written profile) on top of it.
 
-Nothing here resolves anything; it only formats the dataclasses from `sage_edain.model`.
+Nothing here resolves anything; it only formats the dataclasses from
+`sage_utils.factiongraph.model`.
 """
 
 from __future__ import annotations
 
 import re
 
-from sage_edain.model import (
+from sage_utils.factiongraph.model import (
     FactionGraph,
     Power,
     Profile,
@@ -259,12 +260,13 @@ def _upgrades_section(graph: FactionGraph) -> list[str]:
     lines = [
         f"## Upgrades ({len(graph.upgrades)})",
         "",
-        "| Upgrade | Cost | Researched at |",
-        "| --- | --- | --- |",
+        "| Upgrade | Cost | Researched at | Affects |",
+        "| --- | --- | --- | --- |",
     ]
     for upgrade in graph.upgrades.values():
         researched_at = ", ".join(sorted({p.structure for p in upgrade.producers})) or "-"
-        lines.append(f"| {upgrade.display} | {_num(upgrade.cost)} | {researched_at} |")
+        affects = ", ".join(_dedupe([display for _, display in upgrade.affects])) or "-"
+        lines.append(f"| {upgrade.display} | {_num(upgrade.cost)} | {researched_at} | {affects} |")
     lines.append("")
     return lines
 

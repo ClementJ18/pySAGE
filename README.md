@@ -45,6 +45,10 @@ python -m sage_ini includes <dir> <file>
 # One-shot briefing of a single file (defs, references, includes, macros)
 python -m sage_ini brief <dir> <file> [name]
 
+# Machine-readable output for agents and tool builders: the query commands
+# (lint, xref, resolve, brief, diff) all accept --json
+python -m sage_ini xref <dir> GondorFighter --json
+
 # Structure-aware 3-way merge: match definitions by name and merge by field, so
 # independent edits never collide (git merge driver / conflict-marker resolver)
 python -m sage_ini merge <base> <ours> <theirs> [-o out.ini]

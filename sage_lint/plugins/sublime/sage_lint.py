@@ -606,17 +606,36 @@ def _has_index():
     return bool(_definitions or _macros or _strings)
 
 
+def _name_variants(name):
+    """The names to try for a symbol lookup, most specific first: the raw token, then with a
+    leading `+`/`-` operator stripped (a `#define` value like `+ElvenVigilantEnt` references the
+    object `ElvenVigilantEnt`), then with the `NAMESPACE:key` string-label colon removed, then
+    both. Duplicates and empties are dropped so the caller tries each key once."""
+    variants = []
+    for candidate in (
+        name,
+        name.lstrip("+-"),
+        name.replace(":", ""),
+        name.lstrip("+-").replace(":", ""),
+    ):
+        if candidate and candidate not in variants:
+            variants.append(candidate)
+    return variants
+
+
 def _lookup_symbol(name):
     """`(category, payload)` for `name`, matched case-insensitively, where category is one of
     `definition` (payload: list of entries), `macro` or `string` (payload: one entry); or None
-    when the name is not indexed."""
-    key = name.lower()
-    if key in _definitions:
-        return "definition", _definitions[key]
-    if key in _macros:
-        return "macro", _macros[key]
-    if key in _strings:
-        return "string", _strings[key]
+    when the name is not indexed. A leading `+`/`-` operator and the string-label colon are
+    tolerated (see `_name_variants`), so navigating from a `#define`'s `+token` resolves."""
+    for candidate in _name_variants(name):
+        key = candidate.lower()
+        if key in _definitions:
+            return "definition", _definitions[key]
+        if key in _macros:
+            return "macro", _macros[key]
+        if key in _strings:
+            return "string", _strings[key]
     return None
 
 
@@ -1008,8 +1027,6 @@ class SageLintGotoDefinitionCommand(sublime_plugin.TextCommand):
             sublime.status_message("sage_lint: no symbol under the caret")
             return
         found = _lookup_symbol(word)
-        if found is None and ":" in word:
-            found = _lookup_symbol(word.replace(":", ""))
         if found is None:
             sublime.status_message(f"sage_lint: no definition for {word!r}")
             return

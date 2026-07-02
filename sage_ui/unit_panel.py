@@ -28,8 +28,6 @@ from sage_ini.model.state import (
 from sage_ui.layout import clear_layout
 from sage_utils.textures import crop_mapped_image, render_portrait
 from sage_utils.views import (
-    _fmt,
-    _safe,
     armorset_view,
     build_cost_view,
     builders_of,
@@ -40,12 +38,14 @@ from sage_utils.views import (
     display_name,
     effective_health,
     effective_health_against,
+    fmt_stat,
     modifier_view,
     mounted_template,
     object_button_image,
     object_detail,
     percent,
     resource_production_view,
+    safe,
     select_portrait_image,
     special_power_view,
     upgrade_label,
@@ -511,7 +511,7 @@ class UnitPanel(QWidget):
             rows.append(("Bounty value", view["BountyValue"]))
         for row, (name, value) in enumerate(rows):
             grid.addWidget(QLabel(name), row, 0)
-            value_label = QLabel(_fmt(value))
+            value_label = QLabel(fmt_stat(value))
             value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
             if value is None:
                 value_label.setObjectName("muted")
@@ -616,7 +616,7 @@ class UnitPanel(QWidget):
         grid.setVerticalSpacing(3)
         for row, (name, value) in enumerate(rows):
             grid.addWidget(QLabel(name), row, 0)
-            value_label = QLabel(_fmt(value))
+            value_label = QLabel(fmt_stat(value))
             value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
             if value is None:
                 value_label.setObjectName("muted")
@@ -747,9 +747,9 @@ class UnitPanel(QWidget):
                 continue
             modified = base * multiplier
             interval = view[interval_key]
-            suffix = f"  /  {_fmt(interval)}s" if interval is not None else ""
+            suffix = f"  /  {fmt_stat(interval)}s" if interval is not None else ""
             grid.addWidget(QLabel(label), row, 0)
-            value = self._stat_label(f"{_fmt(modified)}{suffix}", modified, base)
+            value = self._stat_label(f"{fmt_stat(modified)}{suffix}", modified, base)
             value.setAlignment(Qt.AlignmentFlag.AlignRight)
             grid.addWidget(value, row, 1)
             row += 1
@@ -801,7 +801,7 @@ class UnitPanel(QWidget):
         if weapon_set is None:
             return None
         best = None
-        for entry in _safe(lambda ws=weapon_set: ws.Weapon, []) or []:
+        for entry in safe(lambda ws=weapon_set: ws.Weapon, []) or []:
             _slot, weapon = entry
             if weapon is None:
                 continue
@@ -840,12 +840,12 @@ class UnitPanel(QWidget):
     def _refresh_health(self) -> None:
         self._empty(self._hp_box)
         modified, base = self._unit_state.max_health, self._unit_state.base_max_health
-        self._hp_box.addWidget(self._stat_label(_fmt(modified), modified, base))
+        self._hp_box.addWidget(self._stat_label(fmt_stat(modified), modified, base))
 
     def _refresh_vision(self) -> None:
         self._empty(self._vision_box)
         modified, base = self._unit_state.vision, self._unit_state.base_vision
-        self._vision_box.addWidget(self._stat_label(_fmt(modified), modified, base))
+        self._vision_box.addWidget(self._stat_label(fmt_stat(modified), modified, base))
 
     def _refresh_weapons(self) -> None:
         """(Re)build the weapon list from the engine's active WeaponSet."""
@@ -881,7 +881,7 @@ class UnitPanel(QWidget):
             label.setObjectName("muted")
         else:
             label = self._stat_label(
-                _fmt(modified), modified, self._source_state.base_speed, default_name="objName"
+                fmt_stat(modified), modified, self._source_state.base_speed, default_name="objName"
             )
         self._loco_box.addWidget(label)
 
@@ -942,7 +942,7 @@ class UnitPanel(QWidget):
             button["power_view"] = view
             base_text = button["text"]
             if view["cooldown"] is not None:
-                base_text = f"{base_text}  ·  {_fmt(view['cooldown'])}s"
+                base_text = f"{base_text}  ·  {fmt_stat(view['cooldown'])}s"
             if (
                 view["kind"] == "modifier"
                 and view["modifier"] is not None
@@ -1044,8 +1044,8 @@ class UnitPanel(QWidget):
             self._detail_rows(
                 [
                     ("Upgrade", info["name"]),
-                    ("Build cost", _fmt(info["cost"])),
-                    ("Build time", _fmt(info["time"])),
+                    ("Build cost", fmt_stat(info["cost"])),
+                    ("Build time", fmt_stat(info["time"])),
                 ]
             )
         )
@@ -1194,7 +1194,7 @@ class UnitPanel(QWidget):
         if base_range is not None and not weapon["melee"]:
             multiplier = self._unit_state.range_multiplier
             modified = base_range * multiplier
-            row = self._stat_label(f"Range: {_fmt(modified)}", modified, base_range)
+            row = self._stat_label(f"Range: {fmt_stat(modified)}", modified, base_range)
             box.addWidget(row)
 
         nuggets = weapon["nuggets"]
@@ -1216,7 +1216,7 @@ class UnitPanel(QWidget):
             interval_s = interval_ms / 1000
             dps = per_shot / interval_s
             box.addWidget(
-                QLabel(f"<b>DPS {_fmt(dps)}</b>    ·    attacks every {_fmt(interval_s)}s")
+                QLabel(f"<b>DPS {fmt_stat(dps)}</b>    ·    attacks every {fmt_stat(interval_s)}s")
             )
 
         grid = QGridLayout()
@@ -1234,8 +1234,8 @@ class UnitPanel(QWidget):
             cells = (
                 QLabel(n["type"]),
                 QLabel(n["damage_type"] or "—"),
-                self._stat_label(_fmt(damage), damage, base_damage),
-                QLabel("—" if n["radius"] is None else _fmt(n["radius"])),
+                self._stat_label(fmt_stat(damage), damage, base_damage),
+                QLabel("—" if n["radius"] is None else fmt_stat(n["radius"])),
             )
             for col, widget in enumerate(cells):
                 grid.addWidget(widget, row, col)

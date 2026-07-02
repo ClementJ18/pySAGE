@@ -7,7 +7,6 @@ from sage_lint.rules.assets import (
     MissingTextureFileRule,
 )
 from sage_lint.rules.base import RULES, Rule, run_rules
-from sage_lint.rules.commandbutton import RedundantNullificationRule
 from sage_lint.rules.commandset import CommandSetButtonRule
 from sage_lint.rules.definitions import (
     DuplicateDefinitionRule,
@@ -43,7 +42,6 @@ __all__ = [
     "ModuleOperationRule",
     "ModuleTagReferenceRule",
     "OutOfRangeRule",
-    "RedundantNullificationRule",
     "RepeatedScalarFieldRule",
     "RespawnLevelRule",
     "RespawnOrderRule",

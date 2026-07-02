@@ -7,7 +7,6 @@ from pathlib import Path
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QFrame,
     QGridLayout,
@@ -31,19 +30,20 @@ from sage_ui.registry import (
     detect_installed_games,
     registry_read_paths_bfme2,
     registry_read_paths_rotwk,
+    vanilla_archives,
 )
 from sage_ui.unit_panel import UnitPanel
+from sage_utils.factiongraph import build_faction_graphs
 from sage_utils.sources import (
     load_saved_sources,
     load_sources,
     save_sources,
 )
-from sage_utils.styles import DARK_STYLE, LIGHT_STYLE
 from sage_utils.textures import TextureSource, default_background
 from sage_utils.views import (
-    _fmt,
     display_name,
     display_name_index,
+    fmt_stat,
     playable_factions,
 )
 from sage_utils.widgets import (
@@ -51,6 +51,7 @@ from sage_utils.widgets import (
 )
 from sage_utils.widgets import (
     SourcesPanel,
+    ThemeToggle,
     Worker,
     card,
     make_completer,
@@ -71,7 +72,13 @@ class Browser(QMainWindow):
         self.panel_a: UnitPanel | None = None  # primary unit
         self.panel_b: UnitPanel | None = None  # comparison unit (optional)
         self.object_browser: ObjectBrowser | None = None  # floating tree above this window
-        self._dark = True
+        # The faction ownership graphs, built once per load on a worker the first time the
+        # Faction Info card or the browser's By-faction tab wants them; callbacks queue
+        # while a build is in flight.
+        self._faction_graphs: list | None = None
+        self._faction_graphs_loading = False
+        self._faction_graph_callbacks: list[tuple] = []
+        self._faction_tallies: dict[str, QLabel] = {}
         # Indexed image sources for the inline portraits / button icons (None until loaded),
         # with the parchment portrait background.
         self._texture_source: TextureSource | None = None
@@ -105,12 +112,10 @@ class Browser(QMainWindow):
         )
         self.extract_button.clicked.connect(self._open_extract)
         header.addWidget(self.extract_button, 0, Qt.AlignmentFlag.AlignTop)
-        self.theme_button = QPushButton()
+        self.theme_button = ThemeToggle()
         self.theme_button.setToolTip("Switch between dark and light mode")
-        self.theme_button.clicked.connect(self._toggle_theme)
         header.addWidget(self.theme_button, 0, Qt.AlignmentFlag.AlignTop)
         root.addLayout(header)
-        self._update_theme_button()
 
         self.sources_panel = SourcesPanel(
             title="SOURCES",
@@ -197,17 +202,6 @@ class Browser(QMainWindow):
             self.sources_panel.add_source("folder", str(Path("data").resolve()))
         self._show_initial_state()
 
-    def _toggle_theme(self) -> None:
-        self._dark = not self._dark
-        app = QApplication.instance()
-        if app is not None:
-            app.setStyleSheet(DARK_STYLE if self._dark else LIGHT_STYLE)
-        self._update_theme_button()
-
-    def _update_theme_button(self) -> None:
-        """Label the toggle with the mode it switches to."""
-        self.theme_button.setText("☀  Light" if self._dark else "🌙  Dark")
-
     def _open_object_browser(self) -> None:
         """Open (or re-focus) the floating object browser, rebuilt from the current game
         so it reflects the latest load."""
@@ -276,6 +270,39 @@ class Browser(QMainWindow):
             self.sources_panel.add_source("big", str(archive))
         self._load()
 
+    def _load_vanilla(self, label: str) -> None:
+        """One-click load of a detected vanilla install: its ini.big plus its language
+        archives (for display names), with BfMe II layered beneath RotWK the way the
+        engine loads the expansion. Texture archives are remembered as the image sources,
+        like the Edain load."""
+        installed = detect_installed_games()
+        roots: list[Path] = []
+        if label == "RotWK" and "BfMe II" in installed:
+            roots.append(Path(installed["BfMe II"]))
+        if label in installed:
+            roots.append(Path(installed[label]))
+        data: list[Path] = []
+        textures: list[Path] = []
+        for root in roots:
+            found_data, found_textures = vanilla_archives(root)
+            data += found_data
+            textures += found_textures
+        if not data:
+            QMessageBox.warning(
+                self,
+                "No archives found",
+                "No ini.big was found under:\n\n" + "\n".join(str(r) for r in roots),
+            )
+            return
+        if textures:
+            texture_sources = [("big", str(p)) for p in textures]
+            save_sources(texture_sources, TEXTURE_SOURCES_APP)
+            self._load_textures(texture_sources)
+        self.sources_panel.clear()
+        for archive in data:
+            self.sources_panel.add_source("big", str(archive))
+        self._load()
+
     def _load(self) -> None:
         sources = self.sources_panel.sources()
         if not sources:
@@ -294,9 +321,53 @@ class Browser(QMainWindow):
         self.loader.failed.connect(self._on_failed)
         self.loader.start()
 
+    def ensure_faction_graphs(self, on_ready, on_failed=None) -> None:
+        """Hand `on_ready` the faction ownership graphs — immediately when cached, else
+        once the background build finishes. Callers queue while a build is in flight, so
+        the Faction Info card and the object browser share one build per load."""
+        if self.game is None:
+            return
+        if self._faction_graphs is not None:
+            on_ready(self._faction_graphs)
+            return
+        self._faction_graph_callbacks.append((on_ready, on_failed))
+        if self._faction_graphs_loading:
+            return
+        self._faction_graphs_loading = True
+        game = self.game
+        run_worker(
+            self,
+            lambda: (game, build_faction_graphs(game)),
+            self._on_faction_graphs,
+            self._on_faction_graphs_failed,
+        )
+
+    def _on_faction_graphs(self, result) -> None:
+        game, graphs = result
+        if game is not self.game:
+            # A reload superseded this build; leave the queue to the current build.
+            return
+        self._faction_graphs_loading = False
+        self._faction_graphs = graphs
+        callbacks, self._faction_graph_callbacks = self._faction_graph_callbacks, []
+        for on_ready, _on_failed in callbacks:
+            on_ready(graphs)
+
+    def _on_faction_graphs_failed(self, message: str) -> None:
+        self._faction_graphs_loading = False
+        callbacks, self._faction_graph_callbacks = self._faction_graph_callbacks, []
+        self.status.setText(f"Faction roster failed — {message}")
+        for _on_ready, on_failed in callbacks:
+            if on_failed is not None:
+                on_failed(message)
+
     def _on_loaded(self, result) -> None:
         self.game, names = result
         self._object_names = names
+        # A new game invalidates the faction graphs; they rebuild on next demand.
+        self._faction_graphs = None
+        self._faction_graphs_loading = False
+        self._faction_graph_callbacks = []
         self._display_names, self._display_index = display_name_index(self.game, names)
         self.string_search_toggle.setEnabled(True)
         self._rebuild_completers()
@@ -486,10 +557,20 @@ class Browser(QMainWindow):
             note.setObjectName("muted")
             note.setWordWrap(True)
             layout.addWidget(note)
-            edain = QPushButton("Load Edain  (auto-detect)")
-            edain.setObjectName("primary")
-            edain.clicked.connect(self._load_edain)
-            layout.addWidget(edain, 0, Qt.AlignmentFlag.AlignLeft)
+            buttons = QHBoxLayout()
+            # One click per detected game (RotWK layers BfMe II beneath it automatically);
+            # Edain lives in the RotWK folder, so its button appears only when RotWK does.
+            for label in installed:
+                load_game_button = QPushButton(f"Load {label}")
+                load_game_button.clicked.connect(lambda _=False, g=label: self._load_vanilla(g))
+                buttons.addWidget(load_game_button)
+            if "RotWK" in installed:
+                edain = QPushButton("Load Edain")
+                edain.setObjectName("primary")
+                edain.clicked.connect(self._load_edain)
+                buttons.addWidget(edain)
+            buttons.addStretch(1)
+            layout.addLayout(buttons)
             footer = QLabel("…or add your own folders / .big files in SOURCES above, then Load.")
         else:
             note = QLabel(
@@ -532,6 +613,7 @@ class Browser(QMainWindow):
             self.faction_info = None
             self._faction_body = None
             self._faction_header = None
+        self._faction_tallies = {}
         factions = playable_factions(self.game)
         if not factions:
             return
@@ -575,6 +657,32 @@ class Browser(QMainWindow):
     def _toggle_faction_info(self) -> None:
         self._faction_body.setVisible(not self._faction_body.isVisible())
         self._update_faction_header()
+        # First expand kicks the background roster build; the tally lines fill in when done.
+        # (`isHidden` reads the visibility flag itself, correct even before the window shows.)
+        if not self._faction_body.isHidden() and self._faction_graphs is None:
+            for tally in self._faction_tallies.values():
+                tally.setText("computing roster…")
+            self.ensure_faction_graphs(self._apply_faction_tallies, self._tallies_failed)
+
+    def _apply_faction_tallies(self, graphs) -> None:
+        """Fill each faction block's roster line from its built graph."""
+        for graph in graphs:
+            tally = self._faction_tallies.get(graph.name)
+            if tally is None:
+                continue
+            parts = [
+                f"{len(graph.structures)} structures",
+                f"{len(graph.units)} units",
+                f"{len(graph.heroes)} heroes",
+                f"{len(graph.upgrades)} upgrades",
+            ]
+            if graph.spellbook is not None and graph.spellbook.powers:
+                parts.append(f"{len(graph.spellbook.powers)} powers")
+            tally.setText("  ·  ".join(parts))
+
+    def _tallies_failed(self, _message: str) -> None:
+        for tally in self._faction_tallies.values():
+            tally.setText("")
 
     def _collapse_faction_info(self) -> None:
         """Collapse the section (used after one of its links is followed)."""
@@ -583,21 +691,43 @@ class Browser(QMainWindow):
             self._update_faction_header()
 
     def _faction_block(self, faction: dict) -> QWidget:
-        """One faction's heroes (a grid of links) and its spellbook link."""
+        """One faction's block: name + roster tally (filled from the ownership graph once
+        it is built), the spellbook link, its heroes collapsed under one toggle, and a
+        link into the object browser's By-faction drill-down."""
         block = QWidget()
         block.setStyleSheet("QWidget { background: transparent; }")
         column = QVBoxLayout(block)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(6)
 
+        header = QHBoxLayout()
         name = QLabel(faction["display"])
         name.setObjectName("objName")
-        column.addWidget(name)
+        header.addWidget(name)
+        header.addStretch(1)
+        browse = QPushButton("Browse roster  →")
+        browse.setToolTip("Open this faction in the Object Browser's By-faction view")
+        browse.clicked.connect(lambda _=False, d=faction["display"]: self._browse_faction(d))
+        header.addWidget(browse)
+        column.addLayout(header)
+
+        tally = QLabel("")
+        tally.setObjectName("muted")
+        tally.setWordWrap(True)
+        self._faction_tallies[faction["name"]] = tally
+        column.addWidget(tally)
+        if self._faction_graphs is not None:  # card rebuilt with the graphs already cached
+            self._apply_faction_tallies(self._faction_graphs)
 
         if faction["spellbook"]:
             column.addWidget(self._faction_nav_button(faction["spellbook"], prefix="Spellbook: "))
 
         if faction["heroes"]:
+            # All heroes under one collapsible section, collapsed by default — an Edain
+            # faction lists a dozen, which otherwise dominates the card.
+            toggle = QPushButton()
+            toggle.setObjectName("sectionHeader")
+            toggle.setCursor(Qt.CursorShape.PointingHandCursor)
             grid_wrap = QWidget()
             grid = QGridLayout(grid_wrap)
             grid.setContentsMargins(0, 0, 0, 0)
@@ -605,8 +735,30 @@ class Browser(QMainWindow):
             grid.setVerticalSpacing(6)
             for i, hero in enumerate(faction["heroes"]):
                 grid.addWidget(self._faction_nav_button(hero), i // 3, i % 3)
+            grid_wrap.setVisible(False)
+            hero_count = len(faction["heroes"])
+
+            # `isHidden` reads the visibility flag itself, so the arrow and the flip are
+            # right even while the window is not yet shown.
+            def update_toggle(wrap=grid_wrap, button=toggle, count=hero_count):
+                arrow = "▾" if not wrap.isHidden() else "▸"
+                button.setText(f"{arrow}  Heroes ({count})")
+
+            def flip(_=False, wrap=grid_wrap, refresh=update_toggle):
+                wrap.setVisible(wrap.isHidden())
+                refresh()
+
+            toggle.clicked.connect(flip)
+            update_toggle()
+            column.addWidget(toggle)
             column.addWidget(grid_wrap)
         return block
+
+    def _browse_faction(self, display: str) -> None:
+        """Jump from a Faction Info block into the object browser's By-faction view."""
+        self._collapse_faction_info()
+        self._open_object_browser()
+        self.object_browser.focus_faction(display)
 
     def _faction_nav_button(self, name: str, *, prefix: str = "") -> QPushButton:
         """A link that opens `name` as the primary unit (disabled when not loaded)."""
@@ -785,7 +937,7 @@ class Browser(QMainWindow):
             grid.addWidget(QLabel(label), row, 0)
             a_name, b_name = self._compare_names(a_val, b_val, higher)
             for col, (value, name) in enumerate(((a_val, a_name), (b_val, b_name)), start=1):
-                cell = QLabel(_fmt(value))
+                cell = QLabel(fmt_stat(value))
                 cell.setAlignment(Qt.AlignmentFlag.AlignRight)
                 if name:
                     cell.setObjectName(name)
@@ -799,7 +951,7 @@ class Browser(QMainWindow):
         grid.addWidget(QLabel("Time to defeat (s)"), ttk_row, 0)
         a_name, b_name = self._compare_names(a_ttk, b_ttk, higher_is_better=False)
         for col, (value, name) in enumerate(((a_ttk, a_name), (b_ttk, b_name)), start=1):
-            cell = QLabel(_fmt(value))
+            cell = QLabel(fmt_stat(value))
             cell.setAlignment(Qt.AlignmentFlag.AlignRight)
             if name:
                 cell.setObjectName(name)

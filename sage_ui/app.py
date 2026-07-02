@@ -2,17 +2,11 @@
 and see its stats. The entry point; the UI is split across `browser.py` (main window),
 `unit_panel.py` (stat view), `registry.py` (game-folder lookup) and `layout.py`.
 
-Run from the repo root:
-    .venv/Scripts/python sage_ui/app.py
+Run with `sage-ui` (installed with the `ui` extra) or `python -m sage_ui.app`.
 """
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root on path
-
-from sage_ui.browser import ICON_FILE, Browser  # noqa: E402
-from sage_utils.widgets import run_app  # noqa: E402
+from sage_ui.browser import ICON_FILE, Browser
+from sage_utils.widgets import run_app
 
 
 def main() -> None:

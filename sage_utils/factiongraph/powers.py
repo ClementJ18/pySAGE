@@ -11,11 +11,11 @@ unclassified (`kind == ""`) and render from their description alone, per the pro
 
 from __future__ import annotations
 
-from sage_edain.model import Power, Weapon
+from sage_utils.factiongraph.model import Power, Weapon
 from sage_utils.views import (
-    _safe,
     display_name,
     modifier_view,
+    safe,
     special_power_cooldown,
     special_power_view,
 )
@@ -129,7 +129,7 @@ def resolve_power(game, obj, name: str, display: str, effect: str = "") -> Power
     elif view["kind"] == "weapon" and view["weapon"] is not None:
         power.weapon = _weapon_summary(view["weapon"])
     elif view["kind"] == "modifier" and view["modifier"] is not None:
-        power.modifiers = _safe(lambda: _modifier_rows(view["modifier"]), [])
+        power.modifiers = safe(lambda: _modifier_rows(view["modifier"]), [])
     _resolve_extra(game, obj, name, power)
     power.kind = _primary_kind(power)
     return power

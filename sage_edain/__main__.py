@@ -5,6 +5,9 @@
   start points, base structures, and the units / heroes / upgrades they produce.
 - `report <dir> <faction>` — render that graph as a Markdown digest (stat tables and all): the
   agent-facing view, meant to be read and critiqued. Omit the faction for a roster comparison.
+- `diff <old> <new> [faction]` — faction-level changelog between two versions of the mod
+  (roster and stat moves in player terms; `--json` for programs).
+- `schema [graph | diff]` — describe the JSON shapes `explore --json` / `diff --json` emit.
 - `serve <dir> <faction>` — open a small web UI (sage_edain/ui) to traverse that graph.
 - `install-skill` — install the bundled `bfme-faction` Claude Code skill.
 
@@ -15,19 +18,26 @@ decompose castle/camp layouts into their citadel + foundations + prebuilt struct
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
+from sage_edain.diff import diff_graphs, format_mod_diff
 from sage_edain.graph import (
     build_faction_graph,
     build_faction_graphs,
     find_faction,
     playable_factions,
 )
-from sage_edain.model import FactionGraph
 from sage_edain.report import render_report, render_roster_table
-from sage_edain.skill_install import default_skills_dir, install_skill
+from sage_edain.schema import render_schema
+from sage_edain.skill_install import install_skill
 from sage_ini.loader import load_game
+from sage_utils.cli import (
+    add_install_skill_parser,
+    existing_dir,
+    run_install_skill,
+    utf8_stdout,
+)
+from sage_utils.factiongraph import FactionGraph
 
 
 def _load(root: Path, base: list[Path]):
@@ -164,27 +174,34 @@ def _run_report(root: Path, faction_name, base: list[Path], bases_dir, out: Path
         text = "\n---\n\n".join(sections)
     else:
         text = render_report(graphs[0])
+    _write_or_print(text, out)
+    return 0
+
+
+def _write_or_print(text: str, out: Path | None) -> None:
     if out is not None:
         out.write_text(text, encoding="utf-8")
         print(f"wrote {out}")
     else:
-        # Display names can be non-ASCII (Lothlórien, Éomer); carry them on stdout as UTF-8 rather
-        # than letting a Windows console's default code page mangle them when an agent captures it.
-        try:
-            sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
-        except (AttributeError, ValueError):
-            pass
         print(text)
-    return 0
 
 
-def _run_install_skill(dest: Path | None, force: bool) -> int:
-    try:
-        installed = install_skill(dest, force=force)
-    except FileExistsError as exc:
-        print(f"{exc} already exists; pass --force to overwrite")
+def _run_diff(old_root, new_root, faction_name, base, as_json, out) -> int:
+    """Faction-level changelog between two mod versions (two checkouts/folders). Each side's
+    graphs are built the same way `explore` builds them (bases auto-detected per root), then
+    compared in player terms — roster and stat moves, not raw ini fields."""
+    old_graphs = _build_graphs(old_root, faction_name, base, None)
+    if old_graphs is None:
         return 1
-    print(f"installed skill to {installed}")
+    new_graphs = _build_graphs(new_root, faction_name, base, None)
+    if new_graphs is None:
+        return 1
+    diff = diff_graphs(old_graphs, new_graphs)
+    if as_json:
+        payload = {"old": str(old_root), "new": str(new_root), **diff.to_dict()}
+        _write_or_print(json.dumps(payload, indent=2), out)
+    else:
+        _write_or_print(format_mod_diff(diff, str(old_root), str(new_root)), out)
     return 0
 
 
@@ -201,15 +218,16 @@ def _run_serve(root, faction_name, base, bases_dir, port, open_browser) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    utf8_stdout()
     parser = argparse.ArgumentParser(prog="sage_edain")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     factions = subparsers.add_parser("factions", help="list a mod's playable factions")
-    factions.add_argument("root", type=Path, help="the mod's ini root (e.g. _mod/data/ini)")
+    factions.add_argument("root", type=existing_dir, help="the mod's ini root (e.g. _mod/data/ini)")
     factions.add_argument("--base", type=Path, action="append", default=[], help="base-game ini")
 
     explore = subparsers.add_parser("explore", help="print a faction's ownership graph")
-    explore.add_argument("root", type=Path, help="the mod folder (e.g. _mod)")
+    explore.add_argument("root", type=existing_dir, help="the mod folder (e.g. _mod)")
     explore.add_argument(
         "faction",
         nargs="?",
@@ -223,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
     explore.add_argument("--json", action="store_true", help="emit the graph as JSON")
 
     report = subparsers.add_parser("report", help="render a faction's graph as a Markdown digest")
-    report.add_argument("root", type=Path, help="the mod folder (e.g. _mod)")
+    report.add_argument("root", type=existing_dir, help="the mod folder (e.g. _mod)")
     report.add_argument(
         "faction",
         nargs="?",
@@ -236,8 +254,25 @@ def main(argv: list[str] | None = None) -> int:
         "--out", type=Path, default=None, help="write the report to this file instead of stdout"
     )
 
+    diff = subparsers.add_parser(
+        "diff", help="faction-level changelog between two versions of the mod"
+    )
+    diff.add_argument("old", type=existing_dir, help="the old version's mod folder")
+    diff.add_argument("new", type=existing_dir, help="the new version's mod folder")
+    diff.add_argument(
+        "faction",
+        nargs="?",
+        default=None,
+        help="faction template name or Side token; omit to diff every playable faction",
+    )
+    diff.add_argument("--base", type=Path, action="append", default=[], help="base-game ini")
+    diff.add_argument("--json", action="store_true", help="emit the changelog as JSON")
+    diff.add_argument(
+        "--out", type=Path, default=None, help="write the changelog to this file instead of stdout"
+    )
+
     serve = subparsers.add_parser("serve", help="open a web UI to traverse a faction's graph")
-    serve.add_argument("root", type=Path, help="the mod folder (e.g. _mod)")
+    serve.add_argument("root", type=existing_dir, help="the mod folder (e.g. _mod)")
     serve.add_argument(
         "faction",
         nargs="?",
@@ -249,41 +284,44 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--port", type=int, default=8765, help="localhost port (default: 8765)")
     serve.add_argument("--no-browser", action="store_true", help="do not open a browser")
 
-    install = subparsers.add_parser("install-skill", help="install the bundled bfme-faction skill")
-    install.add_argument(
-        "--dest",
-        type=Path,
-        default=None,
-        help=f"skills directory to install into (default: {default_skills_dir()})",
+    schema = subparsers.add_parser(
+        "schema", help="describe the JSON shapes explore/diff emit (for agents)"
     )
-    install.add_argument("--force", action="store_true", help="overwrite an existing install")
+    schema.add_argument(
+        "which",
+        nargs="?",
+        choices=["graph", "diff"],
+        default="graph",
+        help="the explore --json payload (graph, default) or the diff --json payload",
+    )
+
+    add_install_skill_parser(subparsers, "bfme-faction")
 
     args = parser.parse_args(argv)
 
+    if args.command == "schema":
+        print(render_schema(args.which), end="")
+        return 0
+
     if args.command == "factions":
-        if not args.root.is_dir():
-            parser.error(f"not a directory: {args.root}")
         return _run_factions(args.root, args.base)
 
     if args.command == "explore":
-        if not args.root.is_dir():
-            parser.error(f"not a directory: {args.root}")
         return _run_explore(args.root, args.faction, args.base, args.bases, args.json)
 
     if args.command == "report":
-        if not args.root.is_dir():
-            parser.error(f"not a directory: {args.root}")
         return _run_report(args.root, args.faction, args.base, args.bases, args.out)
 
+    if args.command == "diff":
+        return _run_diff(args.old, args.new, args.faction, args.base, args.json, args.out)
+
     if args.command == "serve":
-        if not args.root.is_dir():
-            parser.error(f"not a directory: {args.root}")
         return _run_serve(
             args.root, args.faction, args.base, args.bases, args.port, not args.no_browser
         )
 
     if args.command == "install-skill":
-        return _run_install_skill(args.dest, args.force)
+        return run_install_skill(install_skill, args.dest, args.force)
 
     return 0
 

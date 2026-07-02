@@ -10,17 +10,21 @@
 - `diff <old> <new>` — a human-readable changelog between two ini folders (or two git refs).
 - `primer [full | expand <Kind> | enum <Name>]` — the compact model digest for an LLM agent.
 - `install-skill` — install the bundled `bfme-ini` Claude Code skill.
+
+The query commands (`lint`, `xref`, `resolve`, `brief`, `diff`) accept `--json` to emit the
+same facts as machine-readable JSON for agents and tool builders.
 - `merge` — structure-aware 3-way merge: a git merge driver, a conflict-marker resolver,
   and a git-config installer.
 """
 
 import argparse
 import codecs
+import json
 import subprocess
 from pathlib import Path
 
 from sage_ini import primer as primer_module
-from sage_ini.brief import build_brief, format_brief
+from sage_ini.brief import brief_to_dict, build_brief, format_brief
 from sage_ini.diff import diff_folders, diff_refs, format_game_diff
 from sage_ini.loader import load_game
 from sage_ini.merge import ConflictLabels, merge_documents, resolve_markers
@@ -31,9 +35,16 @@ from sage_ini.parser.blockparser import parse, parse_file
 from sage_ini.parser.diagnostics import Diagnostics, Severity
 from sage_ini.parser.io import ENCODINGS
 from sage_ini.parser.location import Span
-from sage_ini.skill_install import default_skills_dir, install_skill
+from sage_ini.skill_install import install_skill
 from sage_ini.stats import compute_scoreboard, format_scoreboard
-from sage_ini.suggest import did_you_mean
+from sage_ini.suggest import closest_names, did_you_mean
+from sage_utils.cli import (
+    add_install_skill_parser,
+    existing_dir,
+    existing_file,
+    run_install_skill,
+    utf8_stdout,
+)
 
 
 def _lint_paths(paths: list[Path]) -> Diagnostics:
@@ -56,17 +67,39 @@ def _lint_paths(paths: list[Path]) -> Diagnostics:
     return diagnostics
 
 
-def _run_lint(paths: list[Path]) -> int:
+def _run_lint(paths: list[Path], as_json: bool = False) -> int:
     diagnostics = list(_lint_paths(paths))
     diagnostics.sort(key=lambda d: (d.span.file, d.span.line_start))
+    errors = sum(1 for d in diagnostics if d.severity is Severity.ERROR)
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "diagnostics": [d.to_dict() for d in diagnostics],
+                    "summary": {"errors": errors, "others": len(diagnostics) - errors},
+                },
+                indent=2,
+            )
+        )
+        return 1 if errors else 0
     for diagnostic in diagnostics:
         print(diagnostic)
-    errors = sum(1 for d in diagnostics if d.severity is Severity.ERROR)
     print(f"{errors} error(s), {len(diagnostics) - errors} other(s)")
     return 1 if errors else 0
 
 
-def _run_xref(root: Path, name: str) -> int:
+def _xref_entry(obj) -> dict:
+    """One graph neighbour as JSON-ready data, with its definition site when recorded."""
+    span = getattr(obj, "span", None)
+    return {
+        "name": str(obj.name),
+        "table": obj.key,
+        "file": span.file if span is not None else None,
+        "line": span.line_start if span is not None else None,
+    }
+
+
+def _run_xref(root: Path, name: str, as_json: bool = False) -> int:
     xref = Xref(load_game(root).game)
     matches = [
         (key, obj)
@@ -75,8 +108,36 @@ def _run_xref(root: Path, name: str) -> int:
         if obj_name == name
     ]
     if not matches:
-        print(f"no definition named {name!r} under {root}")
+        if as_json:
+            print(json.dumps({"name": name, "matches": []}, indent=2))
+        else:
+            print(f"no definition named {name!r} under {root}")
         return 1
+    if as_json:
+        payload = {
+            "name": name,
+            "matches": [
+                {
+                    "name": name,
+                    "table": key,
+                    "references": [
+                        _xref_entry(target)
+                        for target in sorted(
+                            xref.references(obj), key=lambda o: (o.key or "", o.name)
+                        )
+                    ],
+                    "referenced_by": [
+                        _xref_entry(source)
+                        for source in sorted(
+                            xref.referenced_by(obj), key=lambda o: (o.key or "", o.name)
+                        )
+                    ],
+                }
+                for key, obj in matches
+            ],
+        }
+        print(json.dumps(payload, indent=2))
+        return 0
     for key, obj in matches:
         print(f"{name} [{key}]")
         print("  references:")
@@ -88,17 +149,47 @@ def _run_xref(root: Path, name: str) -> int:
     return 0
 
 
-def _run_resolve(root: Path, name: str) -> int:
+def _run_resolve(root: Path, name: str, as_json: bool = False) -> int:
     index = ModIndex(root)
 
     def site(span) -> str:
         return f"{index.rel(Path(span.file))}:{span.line_start}"
 
+    definitions = list(index.resolve(name))
+    macro = index.macro(name)
+
+    if as_json:
+        payload: dict = {
+            "name": name,
+            "definitions": [
+                {
+                    "name": str(definition.name),
+                    "table": definition.table,
+                    "file": str(index.rel(Path(definition.span.file))),
+                    "line": definition.span.line_start,
+                }
+                for definition in definitions
+            ],
+            "macro": None,
+            "suggestions": [],
+        }
+        if macro is not None:
+            payload["macro"] = {
+                "name": macro.name,
+                "value": macro.value,
+                "file": str(index.rel(Path(macro.span.file))) if macro.span is not None else None,
+                "line": macro.span.line_start if macro.span is not None else None,
+            }
+        if not definitions and macro is None:
+            names = {n for table in index.game.tables.values() for n in table}
+            payload["suggestions"] = closest_names(name, names | set(index.game.macros))
+        print(json.dumps(payload, indent=2))
+        return 0 if (definitions or macro is not None) else 1
+
     found = False
-    for definition in index.resolve(name):
+    for definition in definitions:
         print(f"{definition.name} [{definition.table}]  {site(definition.span)}")
         found = True
-    macro = index.macro(name)
     if macro is not None:
         where = f"  {site(macro.span)}" if macro.span is not None else "  (no recorded site)"
         print(f"#define {macro.name} = {macro.value}{where}")
@@ -111,19 +202,13 @@ def _run_resolve(root: Path, name: str) -> int:
     return 0
 
 
-def _run_install_skill(dest: Path | None, force: bool) -> int:
-    try:
-        installed = install_skill(dest, force=force)
-    except FileExistsError as exc:
-        print(f"{exc} already exists; pass --force to overwrite")
-        return 1
-    print(f"installed skill to {installed}")
-    return 0
-
-
-def _run_brief(root: Path, file: Path, name: str | None) -> int:
+def _run_brief(root: Path, file: Path, name: str | None, as_json: bool = False) -> int:
     index = ModIndex(root)
-    print(format_brief(build_brief(index, file, focus=name), index.rel))
+    brief = build_brief(index, file, focus=name)
+    if as_json:
+        print(json.dumps(brief_to_dict(brief, index.rel), indent=2))
+    else:
+        print(format_brief(brief, index.rel))
     return 0
 
 
@@ -147,7 +232,10 @@ def _run_diff(args: argparse.Namespace) -> int:
                 return 2
         diff = diff_folders(old_dir, new_dir, strings=args.strings, overlays=overlays)
         old_label, new_label = str(old_dir), str(new_dir)
-    print(format_game_diff(diff, old_label, new_label), end="")
+    if args.json:
+        print(json.dumps({"old": old_label, "new": new_label, **diff.to_dict()}, indent=2))
+    else:
+        print(format_game_diff(diff, old_label, new_label), end="")
     return 0
 
 
@@ -272,11 +360,12 @@ def _run_merge(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    utf8_stdout()
     parser = argparse.ArgumentParser(prog="sage_ini")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     stats = subparsers.add_parser("stats", help="print the corpus parse-rate scoreboard")
-    stats.add_argument("root", type=Path, help="directory to scan for ini/inc/bhav files")
+    stats.add_argument("root", type=existing_dir, help="directory to scan for ini/inc/bhav files")
     stats.add_argument(
         "--overlay",
         type=Path,
@@ -287,23 +376,27 @@ def main(argv: list[str] | None = None) -> int:
 
     lint = subparsers.add_parser("lint", help="report parse/load/conversion problems")
     lint.add_argument("paths", type=Path, nargs="+", help="ini files or folders to assemble")
+    lint.add_argument("--json", action="store_true", help="emit the report as JSON")
 
     xref = subparsers.add_parser("xref", help="show a definition's references, both directions")
-    xref.add_argument("root", type=Path, help="folder of ini files to assemble")
+    xref.add_argument("root", type=existing_dir, help="folder of ini files to assemble")
     xref.add_argument("name", help="definition name to look up (e.g. GondorFighter)")
+    xref.add_argument("--json", action="store_true", help="emit the graph neighbours as JSON")
 
     resolve = subparsers.add_parser("resolve", help="where a name or macro is defined (file:line)")
-    resolve.add_argument("root", type=Path, help="folder of ini files to assemble")
+    resolve.add_argument("root", type=existing_dir, help="folder of ini files to assemble")
     resolve.add_argument("name", help="definition or macro name to locate")
+    resolve.add_argument("--json", action="store_true", help="emit the definition sites as JSON")
 
     includes = subparsers.add_parser("includes", help="a file's include edges, both directions")
-    includes.add_argument("root", type=Path, help="folder of ini files to assemble")
-    includes.add_argument("file", type=Path, help="the ini file to inspect")
+    includes.add_argument("root", type=existing_dir, help="folder of ini files to assemble")
+    includes.add_argument("file", type=existing_file, help="the ini file to inspect")
 
     brief = subparsers.add_parser("brief", help="a file's defs, references, includes, and macros")
-    brief.add_argument("root", type=Path, help="folder of ini files to assemble")
-    brief.add_argument("file", type=Path, help="the ini file to brief")
+    brief.add_argument("root", type=existing_dir, help="folder of ini files to assemble")
+    brief.add_argument("file", type=existing_file, help="the ini file to brief")
     brief.add_argument("name", nargs="?", help="narrow to one definition in the file")
+    brief.add_argument("--json", action="store_true", help="emit the briefing as JSON (uncapped)")
 
     diff = subparsers.add_parser(
         "diff", help="human-readable changelog between two ini folders (or two git refs)"
@@ -331,15 +424,9 @@ def main(argv: list[str] | None = None) -> int:
     diff.add_argument(
         "--strings", action="store_true", help="also report .str/.csv display-string changes"
     )
+    diff.add_argument("--json", action="store_true", help="emit the changelog as JSON")
 
-    install = subparsers.add_parser("install-skill", help="install the bundled bfme-ini skill")
-    install.add_argument(
-        "--dest",
-        type=Path,
-        default=None,
-        help=f"skills directory to install into (default: {default_skills_dir()})",
-    )
-    install.add_argument("--force", action="store_true", help="overwrite an existing install")
+    add_install_skill_parser(subparsers, "bfme-ini")
 
     merge = subparsers.add_parser(
         "merge", help="structure-aware 3-way merge (git merge driver / conflict resolver)"
@@ -387,8 +474,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "stats":
-        if not args.root.is_dir():
-            parser.error(f"not a directory: {args.root}")
         print(format_scoreboard(compute_scoreboard(args.root, overlays=tuple(args.overlay))))
         return 0
 
@@ -396,37 +481,25 @@ def main(argv: list[str] | None = None) -> int:
         missing = [p for p in args.paths if not p.exists()]
         if missing:
             parser.error(f"no such file or directory: {missing[0]}")
-        return _run_lint(args.paths)
+        return _run_lint(args.paths, args.json)
 
     if args.command == "xref":
-        if not args.root.is_dir():
-            parser.error(f"not a directory: {args.root}")
-        return _run_xref(args.root, args.name)
+        return _run_xref(args.root, args.name, args.json)
 
     if args.command == "resolve":
-        if not args.root.is_dir():
-            parser.error(f"not a directory: {args.root}")
-        return _run_resolve(args.root, args.name)
+        return _run_resolve(args.root, args.name, args.json)
 
     if args.command == "includes":
-        if not args.root.is_dir():
-            parser.error(f"not a directory: {args.root}")
-        if not args.file.is_file():
-            parser.error(f"not a file: {args.file}")
         return _run_includes(args.root, args.file)
 
     if args.command == "brief":
-        if not args.root.is_dir():
-            parser.error(f"not a directory: {args.root}")
-        if not args.file.is_file():
-            parser.error(f"not a file: {args.file}")
-        return _run_brief(args.root, args.file, args.name)
+        return _run_brief(args.root, args.file, args.name, args.json)
 
     if args.command == "diff":
         return _run_diff(args)
 
     if args.command == "install-skill":
-        return _run_install_skill(args.dest, args.force)
+        return run_install_skill(install_skill, args.dest, args.force)
 
     if args.command == "merge":
         if not args.install and args.resolve is None:

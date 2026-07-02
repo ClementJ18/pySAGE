@@ -16,8 +16,8 @@ from pathlib import Path
 from PIL import Image
 from pyBIG import InDiskArchive
 
-from sage_utils.sources import _norm  # source-relative path → lowercase forward-slash key
-from sage_utils.views import _safe, portrait_mapped_images
+from sage_utils.sources import norm_key  # source-relative path → lowercase forward-slash key
+from sage_utils.views import portrait_mapped_images, safe
 
 # A `Texture` names the source `.tga`, but the shipped file is the compiled `.dds`;
 # the authored extension is ignored on lookup, `.dds` preferred over a `.tga` fallback.
@@ -48,13 +48,13 @@ class TextureSource:
     def _index_folder(self, base: Path) -> None:
         for path in base.rglob("*"):
             if path.is_file() and path.suffix.lower() in TEXTURE_SUFFIXES:
-                self._add(_norm(path.relative_to(base)), path.read_bytes)
+                self._add(norm_key(path.relative_to(base)), path.read_bytes)
 
     def _index_big(self, big_path: str) -> None:
         archive = InDiskArchive(str(big_path))
         for name in archive.file_list():
             if Path(name).suffix.lower() in TEXTURE_SUFFIXES:
-                self._add(_norm(name), lambda n=name: archive.read_file(n))
+                self._add(norm_key(name), lambda n=name: archive.read_file(n))
 
     def __len__(self) -> int:
         return len(self._loaders)
@@ -90,7 +90,7 @@ def _coords_box(image, width: int, height: int) -> tuple[int, int, int, int] | N
     Coords are offsets into the texture as authored at TextureWidth x TextureHeight;
     when the .dds was compiled at a different size the box is scaled so the crop lines up.
     """
-    coords = _safe(lambda: image.Coords) or {}
+    coords = safe(lambda: image.Coords) or {}
     try:
         left = int(float(coords["Left"]))
         top = int(float(coords["Top"]))
@@ -98,8 +98,8 @@ def _coords_box(image, width: int, height: int) -> tuple[int, int, int, int] | N
         bottom = int(float(coords["Bottom"]))
     except (KeyError, TypeError, ValueError):
         return None
-    tw = _safe(lambda: image.TextureWidth)
-    th = _safe(lambda: image.TextureHeight)
+    tw = safe(lambda: image.TextureWidth)
+    th = safe(lambda: image.TextureHeight)
     if tw and th and (tw != width or th != height):
         sx, sy = width / tw, height / th
         left, right = round(left * sx), round(right * sx)
@@ -118,7 +118,7 @@ def crop_mapped_image(source: TextureSource, image) -> Image.Image | None:
     With no usable Coords the whole texture is returned. Always RGBA so it saves to
     PNG with transparency and renders in Qt without per-format handling.
     """
-    data = source.texture_bytes(_safe(lambda: image.Texture))
+    data = source.texture_bytes(safe(lambda: image.Texture))
     if data is None:
         return None
     try:

@@ -44,12 +44,18 @@ class FieldChange:
     old: str | None  # None when the field was added
     new: str | None  # None when the field was removed
 
+    def to_dict(self) -> dict:
+        return {"key": self.key, "old": self.old, "new": self.new}
+
 
 @dataclass(frozen=True, slots=True)
 class ChildChange:
     slot: str  # where the sub-object lives ("module", a nested group, a marker group)
     label: str  # the sub-object's descriptor (its name, which carries a module's tag)
     diff: "ObjectDiff"
+
+    def to_dict(self) -> dict:
+        return {"slot": self.slot, "label": self.label, "diff": self.diff.to_dict()}
 
 
 @dataclass(slots=True)
@@ -67,6 +73,14 @@ class ObjectDiff:
             self.fields or self.added_children or self.removed_children or self.changed_children
         )
 
+    def to_dict(self) -> dict:
+        return {
+            "fields": [change.to_dict() for change in self.fields],
+            "added_children": [{"slot": s, "label": n} for s, n in self.added_children],
+            "removed_children": [{"slot": s, "label": n} for s, n in self.removed_children],
+            "changed_children": [change.to_dict() for change in self.changed_children],
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class TableDiff:
@@ -74,6 +88,14 @@ class TableDiff:
     added: list[str]  # names present only in the new game
     removed: list[str]  # names present only in the old game
     changed: list[tuple[str, ObjectDiff]]  # name -> what changed inside it
+
+    def to_dict(self) -> dict:
+        return {
+            "key": self.key,
+            "added": list(self.added),
+            "removed": list(self.removed),
+            "changed": [{"name": name, "diff": diff.to_dict()} for name, diff in self.changed],
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,12 +109,32 @@ class DictDiff:
     def is_empty(self) -> bool:
         return not (self.added or self.removed or self.changed)
 
+    def to_dict(self) -> dict:
+        return {
+            "added": [{"name": n, "value": v} for n, v in self.added],
+            "removed": [{"name": n, "value": v} for n, v in self.removed],
+            "changed": [{"name": n, "old": o, "new": w} for n, o, w in self.changed],
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class GameDiff:
     tables: list[TableDiff]
     macros: DictDiff
     strings: DictDiff | None  # None unless string comparison was requested
+
+    def to_dict(self) -> dict:
+        """The whole diff as JSON-ready data. Tables with no changes are dropped, mirroring
+        the text report; `strings` is None unless string comparison was requested."""
+        return {
+            "tables": [
+                table.to_dict()
+                for table in self.tables
+                if table.added or table.removed or table.changed
+            ],
+            "macros": self.macros.to_dict(),
+            "strings": self.strings.to_dict() if self.strings is not None else None,
+        }
 
 
 def _norm(value) -> tuple[str, ...] | str:

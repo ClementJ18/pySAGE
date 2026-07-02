@@ -16,7 +16,6 @@ from sage_lint.rules.assets import (
     MissingTextureFileRule,
 )
 from sage_lint.rules.base import Rule, run_rules
-from sage_lint.rules.commandbutton import RedundantNullificationRule
 from sage_lint.rules.commandset import CommandSetButtonRule
 from sage_lint.rules.definitions import (
     DuplicateDefinitionRule,
@@ -290,6 +289,8 @@ class TestDuplicateDefinitionRule:
         assert diags[0].code == "duplicate-definition"
         assert diags[0].severity is Severity.WARNING
         assert "Foo" in diags[0].message
+        # The discarded first definition is the duplicate, so the warning lands there.
+        assert diags[0].span.line_start == 1
 
     def test_does_not_flag_a_single_definition(self):
         game = _load("Object Foo\nEnd\n")
@@ -792,40 +793,6 @@ class TestMacroCase:
         warning = next(d for d in diags if d.code == "macro-case")
         assert warning.severity is Severity.WARNING
         assert "'MY_DAMAGE'" in warning.message
-
-
-class TestRedundantNullificationRule:
-    def test_flags_object_set_to_none(self):
-        game = _load("CommandButton Foo\n    Command = OBJECT_UPGRADE\n    Object = None\nEnd\n")
-        diags = list(run_rules(game, [RedundantNullificationRule]))
-
-        assert len(diags) == 1
-        assert diags[0].code == "redundant-nullification"
-        assert diags[0].severity is Severity.WARNING
-        assert diags[0].extra == {"type": "CommandButton", "key": "Object", "name": "Foo"}
-
-    def test_flags_special_power_set_to_none_case_insensitively(self):
-        game = _load("CommandButton Foo\n    SpecialPower = NONE\nEnd\n")
-        diags = list(run_rules(game, [RedundantNullificationRule]))
-
-        assert [d.extra["key"] for d in diags] == ["SpecialPower"]
-
-    def test_none_value_is_allowed_not_a_conversion_error(self):
-        # The field stays valid: setting None must not raise a conversion-error diagnostic.
-        game = _load("CommandButton Foo\n    Object = None\n    SpecialPower = None\nEnd\n")
-        assert not [d for d in game.validate() if d.code == "conversion-error"]
-
-    def test_does_not_flag_a_real_reference(self):
-        game = _load(
-            "Object Hero\nEnd\n"
-            "SpecialPower SpecialAbilityFoo\nEnd\n"
-            "CommandButton Foo\n    Object = Hero\n    SpecialPower = SpecialAbilityFoo\nEnd\n"
-        )
-        assert not list(run_rules(game, [RedundantNullificationRule]))
-
-    def test_does_not_flag_an_absent_field(self):
-        game = _load("CommandButton Foo\n    Command = OBJECT_UPGRADE\nEnd\n")
-        assert not list(run_rules(game, [RedundantNullificationRule]))
 
 
 class TestUnrecognizedBlockRule:

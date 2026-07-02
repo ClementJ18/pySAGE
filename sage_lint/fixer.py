@@ -11,8 +11,6 @@ is behaviour-preserving against the engine — it changes only what the engine a
   case-insensitively too) — the same token rewrite as the two above.
 - ``repeated-field`` / ``repeated-flag-field``: a scalar (or whole-set flag) field set more
   than once keeps only its last value, so the earlier occurrences are deleted.
-- ``redundant-nullification``: a CommandButton field nulled to its already-default `None` is
-  dead clutter, so the line is deleted.
 - ``spurious-block-label``: a block header written `Block = Tag` where the engine wants
   `Block Tag` — the `=` does nothing, so it is removed.
 
@@ -38,7 +36,6 @@ FIXABLE: frozenset[str] = frozenset(
         "macro-case",
         "repeated-field",
         "repeated-flag-field",
-        "redundant-nullification",
         "spurious-block-label",
     }
 )
@@ -52,10 +49,6 @@ _CASE_REWRITE: frozenset[str] = frozenset({"enum-case", "reference-case", "macro
 # scalar (`repeated-field`) or a whole-set flag list (`repeated-flag-field`); only the last set
 # takes effect either way. The field name is in `extra["key"]` or `extra["field"]`.
 _REPEATED: frozenset[str] = frozenset({"repeated-field", "repeated-flag-field"})
-
-# The None/NONE/empty sentinels a redundant CommandButton nullification resolves to (mirrors
-# `commandbutton._NONE_SENTINELS`), used to confirm the line a fix deletes really nulls the field.
-_NONE_SENTINELS: frozenset[str] = frozenset({"", "none"})
 
 # A `#define NAME body…` directive, capturing the body (group 1) the macro expands to — where
 # a miscased token lives when a field reaches it through the macro rather than spelling it out.
@@ -96,9 +89,9 @@ def _fix_file(path: str, diags: list[Diagnostic]) -> list[Diagnostic]:
     dequals: set[int] = set()  # header lines whose spurious `=` is to be removed
     applied: list[Diagnostic] = []
 
-    # A document parse is needed to locate a block's repeated/nulled occurrences; build it once
+    # A document parse is needed to locate a block's repeated occurrences; build it once
     # if any structural fix is present.
-    structural = [d for d in diags if d.code in _REPEATED or d.code == "redundant-nullification"]
+    structural = [d for d in diags if d.code in _REPEATED]
     document = parse(text, file=path).document if structural else None
 
     for diag in (d for d in diags if d.code in _REPEATED):
@@ -106,15 +99,6 @@ def _fix_file(path: str, diags: list[Diagnostic]) -> list[Diagnostic]:
         if not key:
             continue
         targets = _repeated_delete_lines(document, diag.span.line_start, key, lines)
-        if targets:
-            deletes.update(targets)
-            applied.append(diag)
-
-    for diag in (d for d in diags if d.code == "redundant-nullification"):
-        key = diag.extra.get("key")
-        if not key:
-            continue
-        targets = _nullification_delete_lines(document, diag.span.line_start, key, lines)
         if targets:
             deletes.update(targets)
             applied.append(diag)
@@ -179,28 +163,6 @@ def _repeated_delete_lines(document, first_line: int, key: str, lines: list[str]
     for attr in occurrences[:-1]:
         line_no = attr.span.line_start
         if attr.span.line_end == line_no and _line_is_only_attr(lines, line_no, key):
-            targets.append(line_no)
-    return targets
-
-
-def _nullification_delete_lines(document, first_line: int, key: str, lines: list[str]) -> list[int]:
-    """Lines of `key` that null the field to its already-default `None`, to delete.
-
-    Locates the block whose own attribute sits at `first_line`, then returns each `key`
-    occurrence whose value is a None/NONE/empty sentinel — only single-statement lines, so a
-    rare shared line is left for a human. A non-sentinel occurrence (the field set to a real
-    value) is never touched, so deleting the redundant null never removes a meaningful set."""
-    siblings = _block_children_with_attr_at(document.children, first_line)
-    if siblings is None:
-        return []
-    targets = []
-    for child in siblings:
-        if not (isinstance(child, Attribute) and child.key == key):
-            continue
-        if str(child.value).strip().lower() not in _NONE_SENTINELS:
-            continue
-        line_no = child.span.line_start
-        if child.span.line_end == line_no and _line_is_only_attr(lines, line_no, key):
             targets.append(line_no)
     return targets
 

@@ -24,12 +24,14 @@ from sage_edain import (
     playable_factions,
 )
 from sage_edain.__main__ import _payload
-from sage_edain.bases import BaseLayout, find_base_file, resolve_base_layout
+from sage_edain.__main__ import main as cli_main
+from sage_edain.diff import diff_graphs, format_mod_diff
 from sage_edain.report import _clean, render_report, render_roster_table
 from sage_edain.server import _Handler
 from sage_ini.loader import load_game
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse
+from sage_utils.factiongraph.bases import BaseLayout, find_base_file, resolve_base_layout
 from sage_utils.views import recruited_hero_names
 
 # A faction whose settlement flag drops a single citadel; the citadel constructs a barracks that
@@ -154,6 +156,21 @@ End
 
 Object TestSoldier
     KindOf = INFANTRY
+    WeaponSet
+        Conditions = None
+        Weapon = PRIMARY TestSoldierSword
+    End
+End
+Weapon TestSoldierSword
+    DamageNugget
+        Damage = 20
+        DamageType = SLASH
+    End
+    DamageNugget
+        Damage = 10
+        DamageType = SLASH
+        RequiredUpgradeNames = Upgrade_Test
+    End
 End
 Object TestHero1
 End
@@ -318,6 +335,23 @@ def test_upgrade_is_researchable(graph):
     assert graph.upgrades["Upgrade_Test"].producers[0].structure == "TestCitadel"
 
 
+def test_upgrade_affects_names_the_gated_unit(graph):
+    # TestSoldier's second weapon nugget is gated on Upgrade_Test, so the upgrade's `affects`
+    # names it; the house upgrade gates nothing in the roster, so its list stays empty.
+    affected = [name for name, _display in graph.upgrades["Upgrade_Test"].affects]
+    assert affected == ["TestSoldier"]
+    assert graph.upgrades["Upgrade_House"].affects == []
+    assert graph.to_dict()["upgrades"]["Upgrade_Test"]["affects"] == [
+        {"name": "TestSoldier", "display": "TestSoldier"}
+    ]
+
+
+def test_report_upgrades_table_lists_affects(graph):
+    report = render_report(graph)
+    lines = [line for line in report.splitlines() if "Upgrade_Test" in line and "|" in line]
+    assert lines and "TestSoldier" in lines[0]
+
+
 def test_build_shell_resolves_variation(graph):
     # TestHouse is a build shell (no Body, only BuildVariations); its real command set lives on
     # TestHouse01, so its researched upgrade is read from there and the variation is recorded.
@@ -336,6 +370,120 @@ def test_build_faction_graphs_covers_all_playable():
     game = load(FIXTURE)
     graphs = build_faction_graphs(game)
     assert [g.name for g in graphs] == ["FactionTest"]
+
+
+class TestFactionDiff:
+    """Faction-level changelog between two versions (sage_edain.diff)."""
+
+    def _graphs(self, text: str):
+        game = load(text)
+        faction = find_faction(game, "TestSide")
+        return [build_faction_graph(game, faction, start_flags=_FIXTURE_FLAGS)]
+
+    def test_identical_versions_are_empty(self):
+        diff = diff_graphs(self._graphs(FIXTURE), self._graphs(FIXTURE))
+        assert diff.is_empty()
+        assert "No faction-level differences" in format_mod_diff(diff, "a", "b")
+
+    def test_stat_and_roster_changes_are_reported(self):
+        # New version: the upgrade gets a cost, the soldier's sword hits harder, and the
+        # barracks trains a second unit.
+        new_text = (
+            FIXTURE.replace(
+                "Upgrade Upgrade_Test\nEnd",
+                "Upgrade Upgrade_Test\n    BuildCost = 300\nEnd",
+            )
+            .replace(
+                "CommandSet TestBarracksCS\n    1 = Command_TrainSoldier\nEnd",
+                "CommandSet TestBarracksCS\n"
+                "    1 = Command_TrainSoldier\n"
+                "    2 = Command_TrainArcher\n"
+                "End\n"
+                "CommandButton Command_TrainArcher\n"
+                "    Command = UNIT_BUILD\n"
+                "    Object = TestArcher\n"
+                "End\n"
+                "Object TestArcher\n"
+                "    KindOf = INFANTRY\n"
+                "End",
+            )
+            .replace("Damage = 20", "Damage = 30")
+        )
+
+        diff = diff_graphs(self._graphs(FIXTURE), self._graphs(new_text))
+        assert not diff.is_empty()
+        (faction,) = diff.factions_changed
+
+        assert [name for name, _ in faction.units.added] == ["TestArcher"]
+        (changed_upgrade,) = faction.upgrades.changed
+        assert changed_upgrade.name == "Upgrade_Test"
+        assert [(c.stat, c.old, c.new) for c in changed_upgrade.changes] == [("cost", 0, 300)]
+        (changed_unit,) = faction.units.changed
+        assert changed_unit.name == "TestSoldier"
+        assert any(c.stat == "weapon damage" and c.new == 30.0 for c in changed_unit.changes)
+
+        text = format_mod_diff(diff, "v1", "v2")
+        assert "TestArcher" in text and "weapon damage 20 → 30" in text
+
+        payload = diff.to_dict()
+        (faction_payload,) = payload["factions_changed"]
+        assert faction_payload["units"]["added"] == [
+            {"name": "TestArcher", "display": "TestArcher"}
+        ]
+
+    def test_removed_faction_is_reported(self):
+        no_faction = FIXTURE.replace("PlayableSide = Yes", "PlayableSide = No")
+        game = load(no_faction)
+        diff = diff_graphs(self._graphs(FIXTURE), build_faction_graphs(game))
+        assert [name for name, _ in diff.factions_removed] == ["FactionTest"]
+
+
+class TestSchemaCommand:
+    def test_graph_schema_documents_every_model_class(self, capsys):
+        assert cli_main(["schema"]) == 0
+        out = capsys.readouterr().out
+        for name in (
+            "FactionGraph",
+            "Spellbook",
+            "StartPoint",
+            "Structure",
+            "ProducedUnit",
+            "RecruitedHero",
+            "ResearchableUpgrade",
+            "Power",
+            "Weapon",
+            "Profile",
+            "Producer",
+            "CreatedObject",
+        ):
+            assert f"{name}:" in out
+        assert "affects: [{name, display}]" in out
+        assert '"castle" | "camp"' in out  # enums list their tokens
+
+    def test_diff_schema_documents_the_changelog(self, capsys):
+        assert cli_main(["schema", "diff"]) == 0
+        out = capsys.readouterr().out
+        assert "ModDiff:" in out and "RosterDiff:" in out and "StatChange:" in out
+
+
+class TestDiffCommand:
+    def _write(self, folder: Path, text: str) -> Path:
+        folder.mkdir(exist_ok=True)
+        (folder / "data.ini").write_text(text, encoding="utf-8")
+        return folder
+
+    def test_diff_command_json(self, tmp_path, capsys):
+        # The CLI walks the canonical Edain start flags, which the synthetic fixture doesn't
+        # use, so assert on a spellbook change — resolved regardless of start plots.
+        old = self._write(tmp_path / "old", FIXTURE)
+        new = self._write(
+            tmp_path / "new", FIXTURE.replace("ReloadTime = 30000", "ReloadTime = 60000")
+        )
+        assert cli_main(["diff", "--json", str(old), str(new), "TestSide"]) == 0
+        payload = json.loads(capsys.readouterr().out)
+        (faction,) = payload["factions_changed"]
+        (power,) = faction["spellbook"]["changed"]
+        assert power["changes"] == [{"stat": "cooldown", "old": 30.0, "new": 60.0}]
 
 
 def test_payload_single_vs_multi(graph):

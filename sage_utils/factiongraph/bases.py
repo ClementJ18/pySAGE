@@ -8,8 +8,13 @@ gates — are the structures a player actually sees once the base unpacks.
 
 So this module bridges `sagemap` (which parses the `.bse`) and the loaded `Game` (which knows each
 placed template's KindOf): it finds the layout file, reads the distinct placed templates, and
-classifies them into citadel / foundation / prebuilt by KindOf. `sagemap` is an optional dependency
-(the `[map]` extra); without it base decomposition degrades to empty rather than failing.
+classifies them into citadel / foundation / prebuilt by KindOf. `sagemap` is an optional
+dependency; without it base decomposition degrades to empty rather than failing.
+
+Two consumption paths: `resolve_base_layout` reads a mod checkout's `bases/` folder on demand
+(the `sage-edain` CLI), and `collect_base_layouts` sweeps every `.bse` under a root once — the
+source loader calls it on the merged tree extracted from `.big` archives, so a game loaded from
+archives carries its layouts (`game.base_layouts`) for the graph to use.
 """
 
 from __future__ import annotations
@@ -86,16 +91,11 @@ def _placed_templates(base_file: Path) -> list[str]:
     return names
 
 
-def resolve_base_layout(game, bases_dir: Path | None, base_name: str) -> BaseLayout:
-    """The `BaseLayout` for `base_name`: parse its `.bse` (under `bases_dir`) and classify each
-    distinct placed template against `game` by KindOf. Degrades to an empty layout (name only) when
-    `bases_dir` is None, the file is missing, or sagemap is not installed."""
+def layout_from_file(game, base_file: Path, base_name: str) -> BaseLayout:
+    """The `BaseLayout` for one `.bse` file: parse it and classify each distinct placed
+    template against `game` by KindOf. Degrades to an empty layout (name only) when sagemap
+    is not installed or the file cannot be parsed."""
     layout = BaseLayout(name=base_name)
-    if bases_dir is None:
-        return layout
-    base_file = find_base_file(bases_dir, base_name)
-    if base_file is None:
-        return layout
     for template in _placed_templates(base_file):
         if template in _IGNORE_TEMPLATES:
             continue
@@ -109,3 +109,41 @@ def resolve_base_layout(game, bases_dir: Path | None, base_name: str) -> BaseLay
         elif has_kindof(obj, _STRUCTURE_KIND):
             layout.prebuilt.append(template)
     return layout
+
+
+def resolve_base_layout(game, bases_dir: Path | None, base_name: str) -> BaseLayout:
+    """The `BaseLayout` for `base_name`: parse its `.bse` (under `bases_dir`) and classify each
+    distinct placed template against `game` by KindOf. Degrades to an empty layout (name only) when
+    `bases_dir` is None, the file is missing, or sagemap is not installed."""
+    if bases_dir is None:
+        return BaseLayout(name=base_name)
+    base_file = find_base_file(bases_dir, base_name)
+    if base_file is None:
+        return BaseLayout(name=base_name)
+    return layout_from_file(game, base_file, base_name)
+
+
+def collect_base_layouts(game, root: Path) -> dict[str, BaseLayout]:
+    """Every base layout under `root`, keyed by its lower-cased base name (the file stem —
+    the same token a `CastleToUnpackForFaction` row uses, matched case-insensitively). One
+    sweep at load time, so a game assembled from `.big` archives can answer layout lookups
+    without the archives on disk. Empty when sagemap is not installed or no `.bse` exists;
+    an unparsable file contributes an empty layout rather than aborting the load."""
+    layouts: dict[str, BaseLayout] = {}
+    for path in sorted(root.rglob("*.bse")):
+        name = path.stem
+        key = name.casefold()
+        if key not in layouts:
+            layouts[key] = layout_from_file(game, path, name)
+    return layouts
+
+
+def game_base_layout(game, base_name: str) -> BaseLayout | None:
+    """The layout `base_name` resolves to from the table a loader attached to the game
+    (`game.base_layouts`, written by `sage_utils.sources.load_sources`), or None when the
+    game carries no layouts or doesn't know this one — the default resolver the faction
+    graph uses when no `bases/` folder is at hand."""
+    layouts = getattr(game, "base_layouts", None)
+    if not layouts:
+        return None
+    return layouts.get(str(base_name).casefold())

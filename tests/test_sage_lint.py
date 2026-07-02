@@ -10,7 +10,8 @@ import pytest
 
 from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_ini.parser.location import Span
-from sage_lint.cli import _base_paths, _resolve_rule_set, main
+from sage_lint.cli import main
+from sage_lint.commands.common import base_paths, resolve_rule_set
 from sage_lint.config import Config
 from sage_lint.fixer import fix_diagnostics
 from sage_lint.formatter import format_file, format_text
@@ -522,21 +523,6 @@ class TestCli:
             "#define MY_DAMAGE 2000\nWeapon Foo\n    PrimaryDamage = MY_DAMAGE   ; keep me\nEnd\n"
         )
 
-    def test_fix_removes_a_redundant_nullification(self, tmp_path, capsys):
-        # A CommandButton field nulled to its already-default None is dead clutter; --fix
-        # deletes the line and leaves the rest of the button intact.
-        path = tmp_path / "a.ini"
-        path.write_text(
-            "CommandButton Command_Foo\n    Command = PLAYER_UPGRADE\n    Object = None\nEnd\n",
-            encoding="utf-8",
-        )
-
-        assert main(["lint", str(tmp_path), "--fix", "--select", "redundant-nullification"]) == 0
-        assert "fixed 1 issue(s)" in capsys.readouterr().out
-        assert path.read_text(encoding="utf-8") == (
-            "CommandButton Command_Foo\n    Command = PLAYER_UPGRADE\nEnd\n"
-        )
-
     def test_fix_removes_earlier_repeated_flag_field(self, tmp_path, capsys):
         # A whole-set flag field (EditorSorting) set twice keeps only the last; --fix deletes
         # the earlier set, exactly as it does a repeated scalar.
@@ -969,22 +955,22 @@ class TestLintIncludesMaps:
 
 
 class TestBasePaths:
-    """`_base_paths` loads `assets_base`/`maps_base` only when the matching check is on."""
+    """`base_paths` loads `assets_base`/`maps_base` only when the matching check is on."""
 
     def test_conditional_bases_added_only_when_their_check_is_on(self, tmp_path):
         args = Namespace(base=[], assets_base=[], maps_base=[])
         config = Config(base=["b"], assets_base=["ab"], maps_base=["mb"])
-        assert _base_paths(args, config, tmp_path, include_assets=False) == [tmp_path / "b"]
-        assert _base_paths(args, config, tmp_path, include_assets=True) == [
+        assert base_paths(args, config, tmp_path, include_assets=False) == [tmp_path / "b"]
+        assert base_paths(args, config, tmp_path, include_assets=True) == [
             tmp_path / "b",
             tmp_path / "ab",
         ]
-        assert _base_paths(args, config, tmp_path, include_assets=True, include_maps=True) == [
+        assert base_paths(args, config, tmp_path, include_assets=True, include_maps=True) == [
             tmp_path / "b",
             tmp_path / "ab",
             tmp_path / "mb",
         ]
-        assert _base_paths(args, config, tmp_path, include_assets=False, include_maps=True) == [
+        assert base_paths(args, config, tmp_path, include_assets=False, include_maps=True) == [
             tmp_path / "b",
             tmp_path / "mb",
         ]
@@ -992,7 +978,7 @@ class TestBasePaths:
     def test_cli_lists_override_config(self, tmp_path):
         args = Namespace(base=[Path("X")], assets_base=[Path("Y")], maps_base=[Path("Z")])
         config = Config(base=["b"], assets_base=["ab"], maps_base=["mb"])
-        assert _base_paths(args, config, tmp_path, include_assets=True, include_maps=True) == [
+        assert base_paths(args, config, tmp_path, include_assets=True, include_maps=True) == [
             Path("X"),
             Path("Y"),
             Path("Z"),
@@ -1038,13 +1024,13 @@ class TestRuleSetResolution:
         return {rule.code for rule in (rules if rules is not None else [])}
 
     def test_assets_adds_only_the_asset_group(self):
-        codes = self._codes(_resolve_rule_set(set(), include_assets=True))
+        codes = self._codes(resolve_rule_set(set(), include_assets=True))
         assert "missing-texture-file" in codes
         assert "unused-object" not in codes  # opt-in, but not part of the asset group
         assert "unused-definition" in codes  # on by default
 
     def test_select_can_still_name_unused_object(self):
-        codes = self._codes(_resolve_rule_set({"unused-object"}, include_assets=True))
+        codes = self._codes(resolve_rule_set({"unused-object"}, include_assets=True))
         assert codes == {"unused-object"}
 
 

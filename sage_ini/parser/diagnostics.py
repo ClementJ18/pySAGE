@@ -31,6 +31,18 @@ class Diagnostic:
     def __str__(self) -> str:
         return f"{self.span}: {self.severity.value}: {self.message} [{self.code}]"
 
+    def to_dict(self) -> dict[str, object]:
+        """A JSON-serializable view, flat for easy machine parsing — the shape every JSON
+        report (`sage-ini … --json`, `sage-lint --output-format json`) carries."""
+        return {
+            "code": self.code,
+            "severity": self.severity.value,
+            "message": self.message,
+            "file": self.span.file,
+            "line_start": self.span.line_start,
+            "line_end": self.span.line_end,
+        }
+
 
 @dataclass(slots=True)
 class Diagnostics:

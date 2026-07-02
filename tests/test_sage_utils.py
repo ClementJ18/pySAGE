@@ -11,6 +11,13 @@ from sage_ini.model.state import UnitState, has_kindof
 from sage_ini.parser.blockparser import parse
 from sage_ini.parser.io import ASSET_SUFFIXES, MAP_SUFFIXES
 from sage_ini.suggest import closest_names
+from sage_utils.factiongraph import (
+    StructureRole,
+    build_faction_graph,
+    find_faction,
+    plot_flags,
+    start_points,
+)
 from sage_utils.sources import (
     LOAD_SUFFIXES,
     big_member_basenames,
@@ -178,6 +185,27 @@ def test_save_and_load_sources_round_trip(tmp_path, monkeypatch):
 
     assert load_saved_sources(app="sage_test") == sources
     assert load_saved_sources(app="other_app") == []
+
+
+def test_load_sources_carries_base_layouts(tmp_path: Path):
+    """`.bse` files ride along with a load and land in `game.base_layouts` — an unparsable
+    one (this fake) degrades to an empty layout rather than aborting the load."""
+    (tmp_path / "units.ini").write_bytes(b"Object Fighter\nEnd\n")
+    (tmp_path / "bases").mkdir()
+    (tmp_path / "bases" / "gondor_castle.bse").write_bytes(b"not a real bse")
+
+    game, _names = load_sources([("folder", str(tmp_path))])
+
+    assert set(game.base_layouts) == {"gondor_castle"}
+    layout = game.base_layouts["gondor_castle"]
+    assert layout.name == "gondor_castle"
+    assert layout.citadel is None and layout.foundations == []
+
+
+def test_load_sources_without_bse_leaves_empty_table(tmp_path: Path):
+    (tmp_path / "units.ini").write_bytes(b"Object Fighter\nEnd\n")
+    game, _names = load_sources([("folder", str(tmp_path))])
+    assert game.base_layouts == {}
 
 
 VIEWS_FIXTURE = """
@@ -1202,3 +1230,107 @@ def test_upgrade_toggle_labels_keep_a_unique_name_clean():
     # When only one upgrade carries the shared display name, no disambiguation is added.
     labels = upgrade_toggle_labels(game, ["Upgrade_FireArrows", "Upgrade_NoLabel"])
     assert labels["Upgrade_FireArrows"] == "Fire Arrows"
+
+
+# The shared faction graph (sage_utils.factiongraph): a vanilla-style faction whose base is
+# erected by a builder unit (no plot flags), plus a discovered plot flag with an orientation
+# variant to exercise generic flag discovery and its target dedupe.
+VANILLA_FIXTURE = """
+PlayerTemplate FactionVanilla
+    PlayableSide = Yes
+    Side = VanillaSide
+    StartingBuilding = VanillaFortress
+    StartingUnit0 = VanillaPorter
+End
+Object VanillaFortress
+    Side = VanillaSide
+    KindOf = STRUCTURE CASTLE_KEEP
+    CommandSet = FortressCS
+End
+CommandSet FortressCS
+    1 = Command_TrainPorter
+End
+CommandButton Command_TrainPorter
+    Command = UNIT_BUILD
+    Object = VanillaPorter
+End
+Object VanillaPorter
+    KindOf = DOZER
+    CommandSet = PorterCS
+End
+CommandSet PorterCS
+    1 = Command_BuildBarracks
+End
+CommandButton Command_BuildBarracks
+    Command = DOZER_CONSTRUCT
+    Object = VanillaBarracks
+End
+Object VanillaBarracks
+    Side = VanillaSide
+    KindOf = STRUCTURE
+    CommandSet = BarracksCS
+End
+CommandSet BarracksCS
+    1 = Command_TrainSwordsman
+End
+CommandButton Command_TrainSwordsman
+    Command = UNIT_BUILD
+    Object = VanillaSwordsman
+End
+Object VanillaSwordsman
+    KindOf = INFANTRY
+End
+
+Object MyCastleFlag
+    Behavior = CastleBehavior ModuleTag_C
+        CastleToUnpackForFaction = VanillaSide PlotKeep 300
+    End
+End
+Object MyCastleFlagNW
+    Behavior = CastleBehavior ModuleTag_C
+        CastleToUnpackForFaction = VanillaSide PlotKeep 300
+    End
+End
+Object PlotKeep
+    Side = VanillaSide
+    KindOf = STRUCTURE CASTLE_KEEP
+End
+"""
+
+
+def _vanilla_game() -> Game:
+    game = Game()
+    result = parse(VANILLA_FIXTURE, file="v.ini")
+    assert not result.diagnostics
+    game.load_document(result.document)
+    return game
+
+
+class TestFactionGraphSeeding:
+    def test_builder_based_faction_resolves_without_plots(self):
+        game = _vanilla_game()
+        graph = build_faction_graph(game, find_faction(game, "VanillaSide"))
+
+        # StartingBuilding seeds the fortress; the porter it trains erects the barracks.
+        assert graph.structures["VanillaFortress"].role is StructureRole.CITADEL
+        assert "VanillaBarracks" in graph.structures
+        assert "VanillaPorter" in graph.units
+        assert "VanillaSwordsman" in graph.units
+
+    def test_plot_flags_are_discovered_and_deduped(self):
+        game = _vanilla_game()
+
+        assert plot_flags(game, "VanillaSide") == ["MyCastleFlag", "MyCastleFlagNW"]
+        points = start_points(game, "VanillaSide")
+        # The orientation variant unpacks the same target, so only one start point remains.
+        assert [p.flag for p in points] == ["MyCastleFlag"]
+        assert points[0].structure == "PlotKeep"
+        assert points[0].cost == 300.0
+
+        graph = build_faction_graph(game, find_faction(game, "VanillaSide"))
+        assert "PlotKeep" in graph.structures  # discovered plots seed the walk too
+
+    def test_named_flags_override_discovery(self):
+        game = _vanilla_game()
+        points = start_points(game, "VanillaSide", start_flags=("MyCastleFlagNW",))
+        assert [p.flag for p in points] == ["MyCastleFlagNW"]

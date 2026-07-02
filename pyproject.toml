@@ -17,9 +17,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Topic :: Games/Entertainment",
 ]
-dependencies = [
-    "regex",
-]
+dependencies = []
 
 [project.urls]
 Repository = "https://github.com/ClementJ18/ini_parser"
@@ -29,17 +27,22 @@ sage-lint = "sage_lint.cli:main"
 sage-ini = "sage_ini.__main__:main"
 sage-edain = "sage_edain.__main__:main"
 
+# Desktop apps; each needs its extra installed (ui / wiki / lint-ui).
+[project.gui-scripts]
+sage-ui = "sage_ui.app:main"
+sage-wiki = "sage_wiki.app:main"
+sage-lint-ui = "sage_lint.plugins.ui.app:main"
+
 [project.optional-dependencies]
 ui = [
     "PyQt6>=6.6",
     "pybig>=0.6",
-    "pillow>=10",  
-    "pyinstaller>=6",
+    "pillow>=10",
+    "sagemap>=0.8.1",  # decomposes plot-based (.bse) castle/camp layouts in the faction view
 ]
 
 lint-ui = [
     "PyQt6>=6.6",
-    "pyinstaller>=6",  
 ]
 
 wiki = [
@@ -63,6 +66,7 @@ dev = [
     "pytest",
     "ruff",
     "mypy",
+    "pyinstaller>=6",  # builds the desktop .exe bundles (the *.spec files); not a runtime dep
 ]
 
 [tool.setuptools.packages.find]
@@ -107,15 +111,16 @@ select = [
 
 [tool.mypy]
 python_version = "3.13"
-files = ["sage_ini", "sage_map", "sage_edain"]
+files = ["sage_ini", "sage_map", "sage_edain", "sage_utils"]
 disable_error_code = ["annotation-unchecked"]
 
 [[tool.mypy.overrides]]
-module = "sagemap.*"
+module = ["sagemap.*", "PyQt6.*", "pyBIG.*", "PIL.*"]
 ignore_missing_imports = true
 
-# sage_utils is a peripheral package outside the type-checked set; sage_edain imports its read
-# helpers, so mypy follows it but should not gate on its (pre-existing) annotation gaps.
+# The Qt half of sage_utils (and the texture/source layer built on optional deps) is outside
+# the type-checked set: it needs the [ui] extras installed and predates annotations. The
+# Qt-free helpers (config, views, skill, cli) are checked like the core packages.
 [[tool.mypy.overrides]]
-module = "sage_utils.*"
+module = ["sage_utils.widgets", "sage_utils.styles", "sage_utils.textures", "sage_utils.sources"]
 ignore_errors = true

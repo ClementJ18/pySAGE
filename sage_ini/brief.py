@@ -21,7 +21,16 @@ from sage_ini.parser.blockparser import parse_file
 from sage_ini.parser.location import Span
 from sage_ini.walk import walk_nodes
 
-__all__ = ["Defined", "TargetRef", "SourceRefs", "MacroUse", "Brief", "build_brief", "format_brief"]
+__all__ = [
+    "Brief",
+    "Defined",
+    "MacroUse",
+    "SourceRefs",
+    "TargetRef",
+    "brief_to_dict",
+    "build_brief",
+    "format_brief",
+]
 
 # Identifier-shaped tokens, so a macro name is found even glued inside a `#MULTIPLY( NAME 2 )`.
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -147,6 +156,31 @@ def build_brief(index: ModIndex, file: str | Path, focus: str | None = None) -> 
         ref_table_counts=dict(table_counts.most_common()),
         macros=_macros_used(target, index, line_range),
     )
+
+
+def brief_to_dict(brief: Brief, index_rel) -> dict:
+    """A `Brief` as JSON-ready data, uncapped (the cap exists to keep the *text* report
+    readable; a program can filter for itself). `index_rel` maps a path to the same short
+    display form the text report uses, so `file`/`includes` stay mod-relative."""
+    return {
+        "file": str(index_rel(brief.file)),
+        "focus": brief.focus,
+        "defines": [{"name": d.name, "table": d.table, "line": d.line} for d in brief.defines],
+        "includes": [str(index_rel(path)) for path in brief.includes],
+        "references": [
+            {
+                "name": source.name,
+                "table": source.table,
+                "targets": [
+                    {"name": ref.name, "table": ref.table, "site": ref.site}
+                    for ref in source.targets
+                ],
+            }
+            for source in brief.references
+        ],
+        "ref_table_counts": dict(brief.ref_table_counts),
+        "macros": [{"name": m.name, "value": m.value, "site": m.site} for m in brief.macros],
+    }
 
 
 def _capped(lines: list[str], items: list[str], note: str) -> None:

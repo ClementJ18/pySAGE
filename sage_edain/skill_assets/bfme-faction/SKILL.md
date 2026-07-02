@@ -41,7 +41,9 @@ What the digest contains:
 - **Units / Heroes** stat tables — cost, command points, health, primary attack
   (`melee 95 SPECIALIST (47.5 dps)`), resilience (what it is tough vs / weak vs), and where it is
   built. Unit and hero abilities are listed beneath their table.
-- **Upgrades** — cost and which structures research them.
+- **Upgrades** — cost, which structures research them, and **which units / heroes / structures
+  each upgrade affects** (whose weapons, armor or modules are gated on it) — the "what does
+  Forged Blades actually do to this roster" column.
 
 ## Workflow: visualise then critique
 
@@ -69,8 +71,15 @@ What the digest contains:
 
 - **Compare factions.** Run `report` with no faction for the roster table, then generate two
   factions' digests and contrast their tables directly.
+- **Compare versions.** `sage-edain diff <old-mod-folder> <new-mod-folder> [faction]` is the
+  balance changelog between two checkouts of the mod: units/heroes/upgrades/structures added or
+  removed per faction, and each surviving entity's stat moves (cost, health, per-weapon
+  damage/dps, effective armor, power cooldowns). `--json` for the structured form, `--out FILE`
+  to write the Markdown.
 - **Programmatic detail.** `sage-edain explore <mod-folder> <faction> --json` emits the full graph
   (every `Producer` edge, full profiles) as JSON when you need a field the digest summarises.
+  `sage-edain schema` documents that payload's exact shape (`schema diff` for the changelog's), so
+  read it before writing code against the JSON.
 - **Base layouts.** Pass `--bases <mod>/bases` (needs the `edain` extra) so castle/camp/outpost
   start points decompose into their citadel + foundations + prebuilt structures.
 - **A field's meaning or a raw reference.** The digest is faction-level. To chase what a specific

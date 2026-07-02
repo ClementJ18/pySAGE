@@ -9,19 +9,19 @@ Every read is guarded — lazy field conversion can raise, and a missing stat ju
 
 from __future__ import annotations
 
-from sage_edain.model import Power, Profile, Weapon
-from sage_edain.powers import resolve_power
 from sage_ini.model.state import (
     UnitState,
     horde_member_object,
     select_command_set,
     select_weapon_set,
 )
+from sage_utils.factiongraph.model import Power, Profile, Weapon
+from sage_utils.factiongraph.powers import resolve_power
 from sage_utils.views import (
-    _safe,
     build_cost_view,
     command_buttons_view,
     effective_health,
+    safe,
     weapon_damage_per_shot,
     weapon_dps,
     weapon_top_nugget,
@@ -37,7 +37,7 @@ def _primary_weapon(weapon_set):
     """The unit's main attack — the PRIMARY slot's weapon, else the first slot's. Other slots carry
     special-ability weapons (bombards, one-off salvos) that would read as extra attacks; those
     surface as abilities instead."""
-    entries = _safe(lambda: weapon_set.Weapon, []) or []
+    entries = safe(lambda: weapon_set.Weapon, []) or []
     for entry in entries:
         slot = entry[0] if isinstance(entry, (tuple, list)) else None
         if getattr(slot, "name", "") == "PRIMARY" and _entry_weapon(entry) is not None:
@@ -61,14 +61,14 @@ def _weapons(state, combat) -> list[Weapon]:
     damage = weapon_damage_per_shot(weapon, state)
     if not damage:
         return []
-    melee = bool(_safe(lambda: weapon.MeleeWeapon))
+    melee = bool(safe(lambda: weapon.MeleeWeapon))
     _, damage_type = weapon_top_nugget(weapon, state)
     return [
         Weapon(
             kind="melee" if melee else "ranged",
             damage=damage,
             damage_type=damage_type,
-            range=None if melee else _safe(lambda: float(weapon.AttackRange)),
+            range=None if melee else safe(lambda: float(weapon.AttackRange)),
             dps=weapon_dps(weapon, state),
         )
     ]
@@ -107,13 +107,13 @@ def build_profile(game, obj, faction_upgrades=frozenset()) -> Profile:
     # the object is strong / weak against without a wall of engine-internal types. Guarded: a
     # dangling armor reference makes `effective_health` raise, and a missing defense table just
     # leaves the object with no resilience line rather than sinking the whole walk.
-    by_type = _safe(lambda: effective_health(state), {})
+    by_type = safe(lambda: effective_health(state), {})
     ranked = sorted(by_type.items(), key=lambda item: item[1], reverse=True)
     defenses = ranked[:3] + ranked[-3:] if len(ranked) > 6 else ranked
     return Profile(
-        health=_safe(lambda: state.max_health),
-        speed=_safe(lambda: state.speed),
-        vision=_safe(lambda: state.vision),
+        health=safe(lambda: state.max_health),
+        speed=safe(lambda: state.speed),
+        vision=safe(lambda: state.vision),
         build_cost=cost["BuildCost"],
         build_time=cost["BuildTime"],
         command_points=cost["CommandPoints"],

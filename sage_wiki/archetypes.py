@@ -24,7 +24,7 @@ from collections import Counter
 
 from sage_ini.model.nuggets import DamageNugget
 from sage_utils.sources import load_sources
-from sage_utils.views import _safe, filter_signature
+from sage_utils.views import filter_signature, safe
 
 # An archetype key is the `(included, excluded)` pair of a filter's object/kindof names.
 # Label the common ones discovered by `discovery_report`; the empty pair is the unscoped
@@ -151,10 +151,10 @@ def _iter_damage_scalars(game):
     """Every `(weapon, DamageNugget, scaled_filter)` across the game's weapons. Limited to
     DamageNuggets — the in-scope nugget for the weapon summary."""
     for weapon in game.weapons.values():
-        for nugget in _safe(lambda w=weapon: w.Nuggets, []) or []:
+        for nugget in safe(lambda w=weapon: w.Nuggets, []) or []:
             if not isinstance(nugget, DamageNugget):
                 continue
-            for scaled in _safe(lambda n=nugget: n.DamageScalar, []) or []:
+            for scaled in safe(lambda n=nugget: n.DamageScalar, []) or []:
                 yield weapon, nugget, scaled
 
 

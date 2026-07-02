@@ -3,6 +3,7 @@ folder picker when the read fails (game not installed, or a non-standard layout)
 
 import os
 import winreg
+from pathlib import Path
 
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
@@ -55,6 +56,20 @@ def detect_installed_games() -> dict[str, str]:
         if path:
             found[label] = path
     return found
+
+
+def vanilla_archives(root: Path) -> tuple[list[Path], list[Path]]:
+    """The `(data archives, texture archives)` present under one game install: `ini.big`
+    plus whatever `lang/*.big` archives exist (an installer ships only the installed
+    language, so globbing adds exactly the right string tables), and the `textures*.big`
+    the portraits / button icons are cropped from. Everything is probed — a missing
+    archive is simply not offered — so the one-click vanilla load never errors."""
+    data = [path for path in (root / "ini.big",) if path.is_file()]
+    lang = root / "lang"
+    if lang.is_dir():
+        data += sorted(lang.glob("*.big"))
+    textures = sorted(root.glob("textures*.big"))
+    return data, textures
 
 
 def registry_read_paths_rotwk() -> str:

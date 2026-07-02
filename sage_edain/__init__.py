@@ -10,14 +10,15 @@ It is an orchestration layer: resolution lives in `sage_ini.model.state` and `sa
 this package only assembles those primitives into the `FactionGraph` shape.
 """
 
-from sage_edain.bases import BaseLayout, resolve_base_layout
+from sage_edain.diff import FactionDiff, ModDiff, diff_faction, diff_graphs, format_mod_diff
 from sage_edain.graph import (
     build_faction_graph,
     build_faction_graphs,
     find_faction,
     playable_factions,
 )
-from sage_edain.model import (
+from sage_utils.factiongraph import (
+    BaseLayout,
     FactionGraph,
     Power,
     ProducedUnit,
@@ -29,11 +30,14 @@ from sage_edain.model import (
     StartPointKind,
     Structure,
     StructureRole,
+    resolve_base_layout,
 )
 
 __all__ = [
     "BaseLayout",
+    "FactionDiff",
     "FactionGraph",
+    "ModDiff",
     "Power",
     "ProducedUnit",
     "Producer",
@@ -46,7 +50,10 @@ __all__ = [
     "StructureRole",
     "build_faction_graph",
     "build_faction_graphs",
+    "diff_faction",
+    "diff_graphs",
     "find_faction",
+    "format_mod_diff",
     "playable_factions",
     "resolve_base_layout",
 ]

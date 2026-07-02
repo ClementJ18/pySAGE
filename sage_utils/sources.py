@@ -16,10 +16,16 @@ from sage_ini.parser.io import read_text
 from sage_ini.stats import ini_root, root_files
 from sage_ini.strings import parse_str  # re-exported: the canonical .str parser
 from sage_utils.config import read_json, write_json
+from sage_utils.factiongraph.bases import collect_base_layouts
 
 INI_SUFFIXES = frozenset({".ini", ".inc", ".bhav"})
 STR_SUFFIX = ".str"
 LOAD_SUFFIXES = INI_SUFFIXES | {STR_SUFFIX}
+# Base layouts (`.bse`) ride along with a full source load so the faction graph can
+# decompose castle/camp plots; the narrower LOAD_SUFFIXES stays for callers (the linter's
+# base layers) that don't want them.
+BSE_SUFFIX = ".bse"
+GAME_SUFFIXES = LOAD_SUFFIXES | {BSE_SUFFIX}
 
 SOURCES_FILE = "sources.json"
 
@@ -39,7 +45,7 @@ def load_saved_sources(app: str = "sage_ui") -> list[tuple[str, str]]:
     return sources
 
 
-def _norm(path) -> str:
+def norm_key(path) -> str:
     """A source-relative path normalized to a lowercase forward-slash key."""
     return str(path).replace("\\", "/").lstrip("/").lower()
 
@@ -51,7 +57,7 @@ def loadable_files(folder: Path, suffixes: frozenset[str] = LOAD_SUFFIXES):
     base = Path(folder)
     for path in base.rglob("*"):
         if path.is_file() and path.suffix.lower() in suffixes:
-            yield _norm(path.relative_to(base)), path
+            yield norm_key(path.relative_to(base)), path
 
 
 def extract_big(big_path: str, dest: Path, suffixes: frozenset[str] = LOAD_SUFFIXES) -> Path:
@@ -90,7 +96,12 @@ def source_root(
     return extract_big(path, workdir / f"big_{index}", suffixes)
 
 
-def build_merged(sources: list[tuple[str, str]], workdir: Path, progress=None) -> Path:
+def build_merged(
+    sources: list[tuple[str, str]],
+    workdir: Path,
+    progress=None,
+    suffixes: frozenset[str] = LOAD_SUFFIXES,
+) -> Path:
     """Copy every source's loadable files into one folder, later sources overwriting
     earlier ones at the same path. `progress`, if given, is called with a status
     string before each source (extracting a .big is the slow step)."""
@@ -99,8 +110,8 @@ def build_merged(sources: list[tuple[str, str]], workdir: Path, progress=None) -
     for index, (kind, path) in enumerate(sources):
         if progress is not None:
             progress(f"Loading {Path(path).name}…")
-        root = source_root(kind, path, workdir, index)
-        for rel, file_path in loadable_files(root):
+        root = source_root(kind, path, workdir, index, suffixes)
+        for rel, file_path in loadable_files(root, suffixes):
             dest = merged / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(file_path, dest)
@@ -137,11 +148,16 @@ def merge_shadowed(
 def load_sources(sources: list[tuple[str, str]], progress=None) -> tuple[Game, list[str]]:
     """Build the merged folder (extracting any .big) and load it into a Game, so the
     root/include machinery can resolve `#include`s across all sources; the temp tree
-    is removed afterwards. `progress`, if given, gets status strings as work proceeds."""
+    is removed afterwards. `progress`, if given, gets status strings as work proceeds.
+
+    Base layouts (`bases/*.bse`) are carried along and resolved once the game is built,
+    attached as `game.base_layouts` — the faction graph reads them to decompose a plot
+    flag's castle/camp base into its citadel and foundations (needs sagemap; without it
+    the table is simply empty)."""
     game = Game()
     workdir = Path(tempfile.mkdtemp(prefix="sage_sources_"))
     try:
-        merged = build_merged(sources, workdir, progress=progress)
+        merged = build_merged(sources, workdir, progress=progress, suffixes=GAME_SUFFIXES)
 
         if progress is not None:
             progress("Parsing game data…")
@@ -161,6 +177,12 @@ def load_sources(sources: list[tuple[str, str]], progress=None) -> tuple[Game, l
                 game.strings.update(parse_str(read_text(str_path)))
             except Exception:  # noqa: BLE001
                 pass
+
+        # Classification is KindOf-based, so the layouts resolve only after the game is
+        # loaded — and must resolve before the merged tree is deleted.
+        if progress is not None:
+            progress("Reading base layouts…")
+        game.base_layouts = collect_base_layouts(game, merged)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 

@@ -27,11 +27,11 @@ from sage_ini.model.state import (
     select_command_set,
 )
 from sage_utils.views import (
-    _safe,
     build_cost_view,
     display_name,
     localize,
     recruited_hero_names,
+    safe,
 )
 from sage_wiki.images import command_icon_names, portrait_filename
 from sage_wiki.mapping import computed_fields
@@ -117,8 +117,8 @@ def _intro(game, obj, linker=None) -> str:
     """The page's opening prose, from the object's `RecruitText` (preferred) or
     `Description`, falling back to a placeholder comment when neither has any. With a `linker`,
     mentions of other units/heroes that have a wiki page are hyperlinked."""
-    prose = _lore_prose(localize(game, _safe(lambda: obj.RecruitText))) or _lore_prose(
-        localize(game, _safe(lambda: obj.Description))
+    prose = _lore_prose(localize(game, safe(lambda: obj.RecruitText))) or _lore_prose(
+        localize(game, safe(lambda: obj.Description))
     )
     if prose:
         return linker.linkify(prose) if linker is not None else prose
@@ -141,14 +141,14 @@ def _is_visible(slot: int, button) -> bool:
     """Whether the player ever sees this button: the first six slots (the palantir) when
     `InPalantir` is set, any later slot (the radial menu) when `Radial` is set."""
     visible_field = "InPalantir" if slot <= 6 else "Radial"
-    return bool(_safe(lambda: getattr(button, visible_field)))
+    return bool(safe(lambda: getattr(button, visible_field)))
 
 
 def _cooldown(button) -> int | None:
     """The button's special-power recharge in whole seconds (its `SpecialPower.ReloadTime`),
     or None. A sub-second reload is an engine click-debounce, not a cooldown, so it yields None."""
-    power = _safe(lambda: button.SpecialPower)
-    reload_ms = _safe(lambda: power.ReloadTime) if power is not None else None
+    power = safe(lambda: button.SpecialPower)
+    reload_ms = safe(lambda: power.ReloadTime) if power is not None else None
     if not reload_ms or int(reload_ms) < 1000:
         return None
     return round(int(reload_ms) / 1000)
@@ -158,11 +158,11 @@ def _button_entry(game, button, kind: str, image: str) -> dict | None:
     """The command entry dict for one button (`{kind, name, image, shortcut, level,
     requirement, description, cooldown}`), or None when it has no usable name. `image` is the
     icon's wiki filename."""
-    name, shortcut = _split_name(localize(game, _safe(lambda: button.TextLabel)))
+    name, shortcut = _split_name(localize(game, safe(lambda: button.TextLabel)))
     if not name:
         return None
     level, requirement, description = _clean_tooltip(
-        localize(game, _safe(lambda: button.DescriptLabel))
+        localize(game, safe(lambda: button.DescriptLabel))
     )
     return {
         "kind": kind,
@@ -179,12 +179,12 @@ def _button_entry(game, button, kind: str, image: str) -> dict | None:
 def _button_kind(button) -> str | None:
     """Whether a button is an `"ability"`, an `"upgrade"`, or None (engine plumbing). A
     typeless button that still carries a tooltip is treated as a passive ability."""
-    command = _safe(lambda: button.Command)
+    command = safe(lambda: button.Command)
     if command in ABILITY_COMMANDS:
         return "ability"
     if command in UPGRADE_COMMANDS:
         return "upgrade"
-    if command is None and bool(_safe(lambda: button.DescriptLabel)):
+    if command is None and bool(safe(lambda: button.DescriptLabel)):
         return "ability"
     return None
 
@@ -196,10 +196,10 @@ def ability_overlay_kind(button) -> str | None:
     power" is a passive leadership aura, so it stays passive."""
     if _button_kind(button) != "ability":
         return None
-    power = _safe(lambda: button.SpecialPower)
+    power = safe(lambda: button.SpecialPower)
     if power is None:
         return "passive"
-    if _safe(lambda: power.Enum) == SpecialPowerType.SPECIAL_FAKE_LEADERSHIP_BUTTON:
+    if safe(lambda: power.Enum) == SpecialPowerType.SPECIAL_FAKE_LEADERSHIP_BUTTON:
         return "passive"
     return "active"
 
@@ -355,9 +355,9 @@ def building_units(game, obj, linker=None) -> list[list[str]]:
         if command_set is None:
             continue
         for _slot, _button_name, button in _command_buttons(game, command_set):
-            if getattr(_safe(lambda b=button: b.Command), "name", None) != "UNIT_BUILD":
+            if getattr(safe(lambda b=button: b.Command), "name", None) != "UNIT_BUILD":
                 continue
-            target = _safe(lambda b=button: b.Object)
+            target = safe(lambda b=button: b.Object)
             if target is None:
                 continue
             name = display_name(game, target) or target.name
@@ -365,7 +365,7 @@ def building_units(game, obj, linker=None) -> list[list[str]]:
             if key in seen:
                 continue
             seen.add(key)
-            _, shortcut = _split_name(localize(game, _safe(lambda b=button: b.TextLabel)))
+            _, shortcut = _split_name(localize(game, safe(lambda b=button: b.TextLabel)))
             cost = build_cost_view(target)
             cell = linker.link(name) if linker is not None else name
             rows.append(
@@ -592,7 +592,7 @@ def _horde_size(obj) -> int | None:
     """A horde's battalion size — its ``HordeContain`` ``Slots`` — or None for a lone unit."""
     for module in getattr(obj, "_modules", ()):
         if isinstance(module, ContainBehavior):
-            slots = _safe(lambda m=module: m.Slots)
+            slots = safe(lambda m=module: m.Slots)
             if slots:
                 return int(slots)
     return None

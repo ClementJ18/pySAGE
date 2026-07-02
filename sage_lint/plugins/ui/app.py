@@ -3,17 +3,12 @@ command line. Point it at a mod folder, set a few options, press Check, and brow
 errors and warnings in a searchable, sortable table. The window lives in `window.py`; the
 lint runs the CLI in-process (see `runner.py`).
 
-Run from the repo root:
-    .venv/Scripts/python sage_lint/plugins/ui/app.py
+Run with `sage-lint-ui` (installed with the `lint-ui` extra) or
+`python -m sage_lint.plugins.ui`.
 """
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # repo root on path
-
-from sage_lint.plugins.ui.window import APP_NAME, ICON_FILE, LintWindow  # noqa: E402
-from sage_utils.widgets import run_app  # noqa: E402
+from sage_lint.plugins.ui.window import APP_NAME, ICON_FILE, LintWindow
+from sage_utils.widgets import run_app
 
 
 def main() -> None:
