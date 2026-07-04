@@ -71,7 +71,7 @@ def _placed_templates(base_file: Path) -> list[str]:
     """Distinct placed object template names in a `.bse`, in first-seen order. Returns empty when
     sagemap is unavailable or the file has no object list."""
     try:
-        from sagemap import parse_map_from_path  # noqa: PLC0415 — lazy: [edain] extra is optional
+        from sage_map import parse_map_from_path  # noqa: PLC0415 — lazy: [edain] extra is optional
     except ImportError:
         return []
     try:

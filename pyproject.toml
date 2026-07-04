@@ -26,6 +26,8 @@ Repository = "https://github.com/ClementJ18/ini_parser"
 sage-lint = "sage_lint.cli:main"
 sage-ini = "sage_ini.__main__:main"
 sage-edain = "sage_edain.__main__:main"
+sage-replay = "sage_replay.__main__:main"
+sage-apt = "sage_apt.__main__:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui).
 [project.gui-scripts]
@@ -38,7 +40,7 @@ ui = [
     "PyQt6>=6.6",
     "pybig>=0.6",
     "pillow>=10",
-    "sagemap>=0.8.1",  # decomposes plot-based (.bse) castle/camp layouts in the faction view
+    "reversebox>=0.84",  # refpack decompression for sage_map's binary .map/.bse layer
 ]
 
 lint-ui = [
@@ -54,11 +56,11 @@ wiki = [
 ]
 
 map = [
-    "sagemap>=0.8.1",
+    "reversebox>=0.84",
 ]
 
 edain = [
-    "sagemap>=0.8.1",
+    "reversebox>=0.84",
 ]
 
 [dependency-groups]
@@ -70,10 +72,12 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_ini*", "sage_lint*", "sage_map*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_edain*"]
+include = ["sage_apt*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_edain*"]
 
 [tool.setuptools.package-data]
+sage_apt = ["assets/*.html"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
+sage_map = ["py.typed"]
 sage_edain = ["ui/*", "skill_assets/**/*"]
 
 [tool.pytest.ini_options]
@@ -106,16 +110,18 @@ select = [
 "sage_ini/model/behaviors.py" = ["F821"]
 "sage_ini/model/nuggets.py" = ["F821"]
 "sage_ini/model/data_blocks.py" = ["F821"]
+# The embedded single-page HTML/CSS/JS template carries lines longer than the Python limit.
+"sage_apt/viewer.py" = ["E501"]
 
 [tool.ruff.format]
 
 [tool.mypy]
 python_version = "3.13"
-files = ["sage_ini", "sage_map", "sage_edain", "sage_utils"]
+files = ["sage_ini", "sage_map", "sage_edain", "sage_replay", "sage_utils"]
 disable_error_code = ["annotation-unchecked"]
 
 [[tool.mypy.overrides]]
-module = ["sagemap.*", "PyQt6.*", "pyBIG.*", "PIL.*"]
+module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*"]
 ignore_missing_imports = true
 
 # The Qt half of sage_utils (and the texture/source layer built on optional deps) is outside

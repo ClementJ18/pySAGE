@@ -1,4 +1,4 @@
-# sage_ini
+# pySAGE
 
 A typed, comment-preserving parser and linter for **SAGE-engine** (Battle for
 Middle-earth) `.ini` files.

@@ -87,3 +87,11 @@ def tokenize_path(path: str | Path) -> list[Line]:
     lines = tokenize(read_text(path), file=key)
     _FILE_CACHE[key] = (sig, lines)
     return lines
+
+
+def forget_path(path: str | Path) -> None:
+    """Drop a file's cached tokens so the next `tokenize_path` re-reads it. An in-process writer
+    (the linter's fixer) must call this after rewriting a file: a case-only edit keeps the same
+    size, and a rewrite landing in the same mtime tick keeps the same `st_mtime_ns`, so the
+    `(mtime, size)` signature alone would miss the change and serve stale lines."""
+    _FILE_CACHE.pop(str(path), None)

@@ -26,7 +26,7 @@ from sage_ini.parser.ast import Attribute, Block, Node
 from sage_ini.parser.blockparser import parse
 from sage_ini.parser.diagnostics import Diagnostic
 from sage_ini.parser.io import read_text_with_encoding, writeback_encoding
-from sage_ini.parser.lexer import _find_comment_start, split_comment
+from sage_ini.parser.lexer import _find_comment_start, forget_path, split_comment
 
 # Diagnostic codes this module knows how to fix.
 FIXABLE: frozenset[str] = frozenset(
@@ -143,6 +143,10 @@ def _fix_file(path: str, diags: list[Diagnostic]) -> list[Diagnostic]:
         out.append(line)
 
     Path(path).write_text("\n".join(out).replace("\n", newline), encoding=encoding, newline="")
+    # Drop the tokenizer's cached copy: a case-only fix keeps the file's size, and a rewrite in
+    # the same mtime tick keeps its mtime, so the cache's (mtime, size) signature would otherwise
+    # miss this edit and a re-lint would re-flag what we just fixed.
+    forget_path(path)
     return applied
 
 

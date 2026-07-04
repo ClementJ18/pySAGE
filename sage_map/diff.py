@@ -2,7 +2,7 @@
 the map files one git commit touches.
 
 A `.map` is binary, so `git show` can only say "binary files differ". This module parses both
-sides with `sagemap` and compares the *content* the way a mapper thinks about it: placed objects
+sides and compares the *content* the way a mapper thinks about it: placed objects
 (matched by their script name where one is set, otherwise grouped by template with counts, so an
 inserted object does not shift-flood the report), teams and players by name, scripts rendered as
 `if/do/else` sentences and line-diffed, trigger areas, map settings, and a terrain summary
@@ -27,10 +27,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from sagemap import Map, parse_map, parse_map_from_path
-from sagemap.assets.player_scripts import Script, ScriptDerived
-
 from sage_ini.parser.io import MAP_SUFFIXES
+from sage_map.assets.player_scripts import Script, ScriptDerived
+from sage_map.map import Map, parse_map, parse_map_from_path
 from sage_map.model import _all_teams, _iter_scripts, _prop
 from sage_map.scripts import typed_value
 
@@ -115,7 +114,7 @@ def _fmt(value: object) -> str:
 
 
 def _props(asset: Any) -> dict[str, object]:
-    """The bare `name -> value` view of a sagemap properties dict (dropping the type wrapper)."""
+    """The bare `name -> value` view of a map asset properties dict (dropping the type wrapper)."""
     if asset is None:
         return {}
     return {key: prop["value"] for key, prop in asset.properties.items()}
@@ -380,10 +379,9 @@ def _diff_areas(old: Map, new: Map) -> SectionDiff:
 def _derived_text(item: ScriptDerived) -> str:
     """One action or condition as a readable call: `MoveTeamTo('TeamA', 'WP_1')`. The name comes
     from the binary's own internal-name record when present (a `(type, index, name)` property-key
-    tuple in current sagemap, annotated as `str`), else the numeric action id."""
-    name = item.internal_name
-    if isinstance(name, tuple):
-        name = name[2]
+    tuple), else the numeric action id."""
+    internal_name = item.internal_name
+    name = internal_name[2] if isinstance(internal_name, tuple) else internal_name
     if not name:
         name = f"<action {item.content_type}>"
     args = []

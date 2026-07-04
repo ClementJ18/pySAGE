@@ -126,6 +126,7 @@ dmypy.json
 .pyre/
 
 data
+Replays
 .claude/settings.local.json
 parser.sublime-project
 parser.sublime-workspace
@@ -145,3 +146,5 @@ OpenSAGE-master
 # `*.ini`/`*.txt` ignores above (the `data/` corpus stays ignored).
 !tests/fixtures/
 !tests/fixtures/**
+object_ids.*.json
+docs/apt_guidelines.pdf

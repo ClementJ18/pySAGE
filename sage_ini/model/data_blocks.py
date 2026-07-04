@@ -319,8 +319,51 @@ class MouseCursor(IniObject):
     Directions: Int
 
 
+class LivingWorldIconObject(NestedAttribute):
+    """A drawable sub-object of a strategic-map icon (`LivingWorldBuildingIcon`,
+    `LivingWorldArmyIcon`, `LivingWorldBuildPlotIcon`): its own model, placement and fade
+    behaviour. Shares the `Object` keyword with a game `Object` but is not one — it names an art
+    layer (`Building`, `Scaffold`, `SelectedGlow`, …), not a battle unit, so it is held on its
+    parent icon and never registers into `game.objects`."""
+
+    key = None
+
+    Model: Opaque
+    SubObjects: Opaque
+    AnimMode: Opaque
+    ZOffset: Float
+    OrientAngle: Float
+    Scale: Float
+    Clickable: Bool
+    Pickbox: Opaque
+    Shadow: Opaque
+    HideWhenUnderConstruction: Bool
+    HideWhenNotUnderConstruction: Bool
+    HideWhenUnhilighted: Bool
+    HideWhenUnselected: Bool
+    HideWhenNotProducing: Bool
+    ShowOnlyForAllies: Bool
+    FadeMethod: Opaque
+    FadeTypeForHilighting: Opaque
+    FadeTypeForUnhilighting: Opaque
+    FadeTypeForSelection: Opaque
+    FadeTypeForShowing: Opaque
+    FadeTypeForHiding: Opaque
+    FadeHoldPercent: Float
+    FadeInTime: Float
+    FadeOutTime: Float
+    # LivingWorldArmyIcon adds these to the shared drawable shape.
+    DisplayAtRallyPoint: Bool
+    ShowOnlyAfterMoveOrder: Bool
+    UseHouseColor: Bool
+    VisibleArmySizes: Opaque
+
+
 class LivingWorldArmyIcon(IniObject):
     key = "livingworldarmyicons"
+
+    nested_attributes = {"Object": ["LivingWorldIconObject"]}
+    subblock_overrides = {"Object": LivingWorldIconObject}
 
     OnSelectedSound: Sound
     OnMovePlannedSound: Sound
@@ -330,7 +373,6 @@ class LivingWorldArmyIcon(IniObject):
     DisbandUnitSound: Sound
     RetreatTeleportToHomeRegionEvaEvent: Opaque
     RetreatTeleportToNonHomeRegionEvaEvent: Opaque
-    Object: t.ObjectRef
     OnMoveSound: t.Opaque
 
 
@@ -435,10 +477,12 @@ class LivingWorldBuilding(IniObject):
 class LivingWorldBuildingIcon(IniObject):
     key = "livingworldbuildingicons"
 
+    nested_attributes = {"Object": ["LivingWorldIconObject"]}
+    subblock_overrides = {"Object": LivingWorldIconObject}
+
     OnSelectedSound: Sound
     OnConstructionBegunSound: Sound
     OnConstructionFinishedSound: Sound
-    Object: t.ObjectRef
 
 
 class AmbientStream(IniObject):
@@ -577,9 +621,11 @@ class BannerType(IniObject):
 class LivingWorldBuildPlotIcon(IniObject):
     key = "livingworldbuildploticons"
 
+    nested_attributes = {"Object": ["LivingWorldIconObject"]}
+    subblock_overrides = {"Object": LivingWorldIconObject}
+
     OnSelectedSound: Sound
     OnBuildingDestroyedSound: Sound
-    Object: t.ObjectRef
 
 
 class SpawnArmy(IniObject):

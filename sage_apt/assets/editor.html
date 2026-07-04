@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>APT Editor</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#111122;color:#ccd;font:12px/1.4 'Segoe UI',sans-serif;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100%}
+
+/* toolbar */
+#toolbar{display:flex;align-items:center;gap:8px;padding:6px 12px;
+         background:#0d0d1e;border-bottom:1px solid #2a2a44;flex-shrink:0}
+#fn{font-size:13px;color:#aaccff;font-weight:500;margin-right:4px}
+#status{font-size:11px;color:#778;margin-left:auto}
+#status.ok{color:#5d5}
+#status.err{color:#d55}
+button{background:#1e1e35;color:#aac;border:1px solid #3a3a5a;padding:4px 12px;
+       border-radius:3px;cursor:pointer;font-size:11px}
+button:hover{background:#2a2a50}
+button:disabled{opacity:0.5;cursor:default}
+#unsaved-dot{display:none;width:7px;height:7px;border-radius:50%;background:#e8a;margin-left:4px}
+#unsaved-dot.show{display:inline-block}
+
+/* main area */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* stage takes all remaining space */
+#stage-wrap{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+#stage-toolbar{padding:4px 10px;background:#0d0d1e;border-bottom:1px solid #222240;
+               display:flex;align-items:center;gap:8px;font-size:11px;color:#667;flex-shrink:0}
+#stage-container{flex:1;overflow:hidden;position:relative;cursor:crosshair}
+svg#stage{display:block;width:100%;height:100%}
+svg#stage .apt-elem{cursor:pointer}
+svg#stage .apt-elem > rect{transition:filter 0.1s}
+svg#stage .apt-elem:hover > rect,
+svg#stage .apt-elem:hover > line{filter:brightness(2)}
+svg#stage .apt-elem.selected > rect{filter:brightness(2.5);stroke-width:2.5!important}
+svg#stage .apt-elem.selected > line{filter:brightness(2.5)}
+#stage-tip{position:absolute;pointer-events:none;display:none;background:#1a1a30;
+           border:1px solid #446;padding:3px 8px;font-size:10px;color:#dde;
+           border-radius:3px;z-index:9;max-width:260px;white-space:nowrap}
+
+/* panel sidebar (fixed width, collapsible) */
+#panel{width:300px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;
+       border-left:1px solid #2a2a44;transition:width 0.2s}
+#panel.collapsed{width:0;border-left:none}
+#panel-header{padding:6px 10px;background:#0d0d1e;border-bottom:1px solid #222240;
+              font-size:11px;color:#88aacc;letter-spacing:.5px;text-transform:uppercase;
+              display:flex;align-items:center;white-space:nowrap;flex-shrink:0}
+#panel-toggle{margin-left:auto;cursor:pointer;color:#446;font-size:14px;line-height:1;
+              padding:0 2px;user-select:none}
+#panel-toggle:hover{color:#88aacc}
+#panel-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:10px 12px;min-width:0}
+#panel-hint{color:#445;font-size:12px;margin-top:20px;text-align:center}
+
+/* element browser */
+#elem-list{margin-bottom:8px}
+.elem-row{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:3px;
+          cursor:pointer;font-size:11px}
+.elem-row:hover{background:#1e1e35}
+.elem-row.active{background:#1a2a40;color:#adf}
+.elem-tag{font-size:9px;padding:1px 4px;border-radius:2px;font-weight:600;
+          min-width:44px;text-align:center}
+.tag-shape{background:#1a3350;color:#5599cc}
+.tag-image{background:#3a2a10;color:#cc8833}
+.tag-edittext{background:#0a2a0a;color:#44cc66}
+.tag-button{background:#2a0a15;color:#ee4466}
+.tag-sprite{background:#1a0a2a;color:#9966cc}
+.tag-placeobject{background:#1a1a30;color:#8899bb}
+
+/* props sections */
+.section{margin-bottom:14px}
+.section-title{font-size:10px;text-transform:uppercase;letter-spacing:.8px;
+               color:#667;margin-bottom:6px;padding-bottom:3px;
+               border-bottom:1px solid #222240}
+.field-row{display:flex;align-items:center;margin-bottom:5px;gap:6px}
+.field-label{width:80px;flex-shrink:0;font-size:11px;color:#889;text-align:right}
+.field-input{flex:1;background:#0d0d1e;border:1px solid #334;color:#dde;
+             padding:3px 6px;border-radius:3px;font-size:11px;font-family:monospace}
+.field-input:focus{outline:none;border-color:#558;background:#111128}
+.field-input.changed{border-color:#585;background:#0a1a0a}
+.field-display{flex:1;font-size:11px;color:#556;font-family:monospace;padding:3px 0}
+.field-wide{width:100%}
+.color-row{display:flex;gap:4px;align-items:center}
+.color-swatch{width:20px;height:20px;border:1px solid #334;border-radius:2px;cursor:pointer;flex-shrink:0}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.badge{display:inline-block;background:#1a1a30;border:1px solid #334;
+       border-radius:2px;padding:1px 5px;font-size:10px;color:#667;
+       font-family:monospace;margin-right:2px}
+.field-note{color:#668;font-size:10px;margin-top:2px;line-height:1.4}
+#apply-btn{width:100%;margin-top:8px;padding:5px;background:#1a2a1a;
+           border-color:#3a5a3a;color:#8c8}
+#apply-btn:hover{background:#1e3a1e}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- toolbar -->
+  <div id="toolbar">
+    <span id="fn">loading...</span>
+    <span id="unsaved-dot" title="Unsaved changes"></span>
+    <button id="reload-btn" title="Reload XML from disk">&#8635; Reload</button>
+    <button id="save-btn">&#128190; Save XML</button>
+    <button id="convert-btn">&#9881; Export APT</button>
+    <span id="status">ready</span>
+  </div>
+
+  <div id="main">
+
+    <!-- SVG stage -->
+    <div id="stage-wrap">
+      <div id="stage-toolbar">
+        <span>stage  1024 &times; 768</span>
+        <span style="margin-left:auto;opacity:0.6">wheel: zoom &nbsp;&bull;&nbsp; drag: pan &nbsp;&bull;&nbsp; click: select</span>
+        <button id="panel-show-btn" style="display:none;padding:2px 8px;font-size:10px" title="Show properties">&#x276E; Props</button>
+      </div>
+      <div id="stage-container">
+        <svg id="stage" viewBox="0 0 1024 768" preserveAspectRatio="xMidYMid meet"
+             xmlns="http://www.w3.org/2000/svg">
+          <rect id="stage-bg" width="1024" height="768" fill="#111"/>
+          <g id="stage-grid" opacity="0.04" stroke="#fff" stroke-width="0.5"></g>
+          <!-- rendered elements injected here -->
+        </svg>
+        <div id="stage-tip"></div>
+      </div>
+    </div>
+
+    <!-- properties panel -->
+    <div id="panel">
+      <div id="panel-header">Properties<span id="panel-toggle" title="Hide panel">&#x276F;</span></div>
+      <div id="panel-body">
+        <div id="panel-hint">Click an element on the stage to edit its properties</div>
+        <div id="panel-content" style="display:none">
+
+          <!-- element path / context -->
+          <div class="section">
+            <div class="section-title">Selected</div>
+            <div id="sel-breadcrumb" style="font-size:11px;color:#aac;margin-bottom:4px"></div>
+            <div id="sel-tags"></div>
+          </div>
+
+          <!-- placeobject section -->
+          <div class="section" id="po-section">
+            <div class="section-title">Placement (placeobject)</div>
+            <div class="field-row">
+              <span class="field-label">tx</span>
+              <input class="field-input" id="po-tx" type="number" step="0.5"/>
+            </div>
+            <div class="field-row">
+              <span class="field-label">ty</span>
+              <input class="field-input" id="po-ty" type="number" step="0.5"/>
+            </div>
+            <div class="two-col" style="margin-bottom:5px">
+              <div class="field-row" title="rotm00 — X scale">
+                <span class="field-label" style="width:40px">scaleX</span>
+                <input class="field-input" id="po-m00" type="number" step="0.01"/>
+              </div>
+              <div class="field-row" title="rotm11 — Y scale">
+                <span class="field-label" style="width:40px">scaleY</span>
+                <input class="field-input" id="po-m11" type="number" step="0.01"/>
+              </div>
+              <div class="field-row" title="rotm01 — shear/rotation">
+                <span class="field-label" style="width:40px">m01</span>
+                <input class="field-input" id="po-m01" type="number" step="0.01"/>
+              </div>
+              <div class="field-row" title="rotm10 — shear/rotation">
+                <span class="field-label" style="width:40px">m10</span>
+                <input class="field-input" id="po-m10" type="number" step="0.01"/>
+              </div>
+            </div>
+            <div class="section-title" style="margin-top:6px">Color transform (0-255)</div>
+            <div class="color-row">
+              <div class="color-swatch" id="color-swatch" onclick="openColorPicker()"></div>
+              <div class="two-col" style="flex:1">
+                <div class="field-row">
+                  <span class="field-label" style="width:30px">R</span>
+                  <input class="field-input" id="po-red"   type="number" min="0" max="255" step="1"/>
+                </div>
+                <div class="field-row">
+                  <span class="field-label" style="width:30px">G</span>
+                  <input class="field-input" id="po-green" type="number" min="0" max="255" step="1"/>
+                </div>
+                <div class="field-row">
+                  <span class="field-label" style="width:30px">B</span>
+                  <input class="field-input" id="po-blue"  type="number" min="0" max="255" step="1"/>
+                </div>
+                <div class="field-row">
+                  <span class="field-label" style="width:30px">A</span>
+                  <input class="field-input" id="po-alpha" type="number" min="0" max="255" step="1"/>
+                </div>
+              </div>
+            </div>
+            <input type="color" id="color-picker" style="display:none" oninput="colorPickerChange(this.value)"/>
+            <div class="field-row" style="margin-top:4px">
+              <span class="field-label">depth</span>
+              <input class="field-input" id="po-depth" type="number" step="1"/>
+            </div>
+            <div class="field-row">
+              <span class="field-label">name</span>
+              <input class="field-input" id="po-name" type="text"/>
+            </div>
+            <div class="field-row">
+              <span class="field-label">character</span>
+              <span class="field-display" id="po-char-display"></span>
+            </div>
+            <div class="field-row">
+              <span class="field-label">poflags</span>
+              <span class="field-display" id="po-flags-display" style="font-size:10px;word-break:break-all"></span>
+            </div>
+            <div class="field-note">
+              On Apply, <b>HasMatrix</b> is added only when a matrix/translation field
+              (tx, ty, scaleX/Y, m01, m10) changed, and <b>HasColorTransform</b> only
+              when a colour field (R/G/B/A) changed. Flags already present are kept.
+            </div>
+          </div>
+
+          <!-- character section -->
+          <div class="section" id="char-section">
+            <div class="section-title">Character &mdash; <span id="char-type-label"></span> id=<span id="char-id-label"></span></div>
+            <div id="char-fields"></div>
+          </div>
+
+          <button id="apply-btn" onclick="applyAndRender()">Apply Changes &#9654;</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// global state
+var xmlDoc      = null;
+var chars       = {};
+var poRegistry  = new Map();   // uid -> XML placeobject node
+var charReg     = new Map();   // uid -> XML character node
+var svgElems    = new Map();   // uid -> [SVG <g> ...]  (multiple visuals per uid)
+var uidCtr      = 0;
+var selUid      = null;
+var dirty       = false;
+var renderTimer = null;
+var SW = 1024, SH = 768;
+
+// status
+function setStatus(msg, isErr) {
+  var s = document.getElementById('status');
+  s.textContent = msg;
+  s.className = isErr ? 'err' : (msg === 'ready' ? '' : 'ok');
+}
+function markDirty() {
+  dirty = true;
+  document.getElementById('unsaved-dot').className = 'show';
+}
+function markClean() {
+  dirty = false;
+  document.getElementById('unsaved-dot').className = '';
+}
+
+// API
+function loadXML() {
+  setStatus('Loading...');
+  fetch('/api/xml').then(function(r){ return r.json(); }).then(function(d) {
+    document.getElementById('fn').textContent = d.filename;
+    xmlDoc = new DOMParser().parseFromString(d.content, 'text/xml');
+    buildCharMap();
+    renderSVG();
+    markClean();
+    setStatus('ready');
+  }).catch(function(e){ setStatus('Load error: ' + e, true); });
+}
+
+function saveXML() {
+  setStatus('Saving...');
+  var content = new XMLSerializer().serializeToString(xmlDoc);
+  fetch('/api/xml', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: content})
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) { markClean(); setStatus('Saved.'); }
+    else setStatus('Save error: ' + d.msg, true);
+  });
+}
+
+function convertToAPT() {
+  setStatus('Saving...');
+  var content = new XMLSerializer().serializeToString(xmlDoc);
+  fetch('/api/xml', {method:'POST', headers:{'Content-Type':'application/json'},
+                     body: JSON.stringify({content:content})})
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { setStatus('Save error: ' + d.msg, true); return; }
+      markClean();
+      setStatus('Converting...');
+      return fetch('/api/convert', {method:'POST',
+                                    headers:{'Content-Type':'application/json'},
+                                    body:'{}'});
+    })
+    .then(function(r){ if (r) return r.json(); })
+    .then(function(d) { if (d) setStatus(d.msg, !d.ok); });
+}
+
+// character map
+function buildCharMap() {
+  chars = {};
+  var root = xmlDoc.documentElement;
+  for (var i = 0; i < root.children.length; i++) {
+    var ch = root.children[i];
+    var id = ch.getAttribute('id');
+    if (id !== null) chars[parseInt(id)] = ch;
+  }
+}
+
+// frame utilities (mirrors the Python viewer.py logic)
+function getFrameData(spriteElem) {
+  var framesElem = null;
+  for (var i = 0; i < spriteElem.children.length; i++) {
+    if (spriteElem.children[i].tagName === 'frames') {
+      framesElem = spriteElem.children[i]; break;
+    }
+  }
+  if (!framesElem) return {labelIdx:{}, frames:[]};
+  var frames = Array.from(framesElem.children);
+  var labelIdx = {};
+  frames.forEach(function(f, fi) {
+    for (var j = 0; j < f.children.length; j++) {
+      var c = f.children[j];
+      if (c.tagName === 'framelabel') {
+        var lbl = c.getAttribute('label');
+        if (lbl && !(lbl in labelIdx)) labelIdx[lbl] = fi;
+      }
+    }
+  });
+  return {labelIdx:labelIdx, frames:frames};
+}
+
+function accumulateTo(frames, targetIdx) {
+  var state = {};
+  for (var i = 0; i <= targetIdx && i < frames.length; i++) {
+    for (var j = 0; j < frames[i].children.length; j++) {
+      var item = frames[i].children[j];
+      if (item.tagName !== 'placeobject') continue;
+      var depth   = parseInt(item.getAttribute('depth'));
+      var charId  = parseInt(item.getAttribute('character'));
+      if (charId < 0) delete state[depth];
+      else state[depth] = item;
+    }
+  }
+  return Object.keys(state).sort(function(a,b){return a-b;}).map(function(d){return state[d];});
+}
+
+function bestFrameItems(spriteElem) {
+  var fd = getFrameData(spriteElem);
+  if (!fd.frames.length) return [];
+  var prefs = ['_fade_in','_on','_active','_purchased'];
+  for (var p = 0; p < prefs.length; p++) {
+    var lbl = prefs[p];
+    if (lbl in fd.labelIdx) {
+      var items = accumulateTo(fd.frames, fd.labelIdx[lbl]);
+      if (items.length) return items;
+    }
+  }
+  return accumulateTo(fd.frames, 0);
+}
+
+// matrix utilities
+function matCompose(P, C) {
+  return [
+    P[0]*C[0]+P[2]*C[1], P[1]*C[0]+P[3]*C[1],
+    P[0]*C[2]+P[2]*C[3], P[1]*C[2]+P[3]*C[3],
+    P[0]*C[4]+P[2]*C[5]+P[4],
+    P[1]*C[4]+P[3]*C[5]+P[5]
+  ];
+}
+function poLocal(po) {
+  return [
+    parseFloat(po.getAttribute('rotm00')||'1'),
+    parseFloat(po.getAttribute('rotm01')||'0'),
+    parseFloat(po.getAttribute('rotm10')||'0'),
+    parseFloat(po.getAttribute('rotm11')||'1'),
+    parseFloat(po.getAttribute('tx')||'0'),
+    parseFloat(po.getAttribute('ty')||'0')
+  ];
+}
+function matStr(m) {
+  return 'matrix('+m[0].toFixed(4)+','+m[1].toFixed(4)+','+
+                   m[2].toFixed(4)+','+m[3].toFixed(4)+','+
+                   m[4].toFixed(2)+','+m[5].toFixed(2)+')';
+}
+
+// SVG renderer
+var SVG_NS = 'http://www.w3.org/2000/svg';
+var STYLE = {
+  shape:    ['#5599cc','#aaddff',0.12],
+  image:    ['#cc8833','#ffddaa',0.50],
+  edittext: ['#44cc66','#aaffcc',0.45],
+  button:   ['#ee4466','#ffccdd',0.45]
+};
+var VISITED = new Set();
+
+function renderSVG() {
+  var stage = document.getElementById('stage');
+  // remove previously rendered elements
+  var toRemove = Array.from(stage.querySelectorAll('.apt-elem'));
+  toRemove.forEach(function(el){ el.parentNode.removeChild(el); });
+
+  poRegistry.clear();
+  charReg.clear();
+  svgElems.clear();
+  uidCtr = 0;
+  VISITED.clear();
+
+  if (!xmlDoc) return;
+  var root = xmlDoc.documentElement;
+  var mc = null;
+  for (var i = 0; i < root.children.length; i++) {
+    if (root.children[i].tagName === 'movieclip') { mc = root.children[i]; break; }
+  }
+  if (!mc) return;
+
+  var framesEl = null;
+  for (var i = 0; i < mc.children.length; i++) {
+    if (mc.children[i].tagName === 'frames') { framesEl = mc.children[i]; break; }
+  }
+  if (!framesEl || !framesEl.children.length) return;
+  var frame0 = framesEl.children[0];
+  for (var j = 0; j < frame0.children.length; j++) {
+    var po = frame0.children[j];
+    if (po.tagName !== 'placeobject') continue;
+    var cid = parseInt(po.getAttribute('character'));
+    if (cid >= 0) renderChar(cid, poLocal(po), po, stage, 0, null);
+  }
+}
+
+// ownerUid: uid of the sprite instance that contains this element (null if top-level)
+function renderChar(charId, worldT, poNode, stage, depth, ownerUid) {
+  if (depth > 12) return;
+  var ch = chars[charId];
+  if (!ch) return;
+  var tag = ch.tagName;
+
+  if (tag === 'sprite') {
+    var key = charId+','+Math.round(worldT[4])+','+Math.round(worldT[5]);
+    if (VISITED.has(key)) return;
+    VISITED.add(key);
+    // Each sprite INSTANCE gets its own uid pointing to its outer placeobject.
+    // This makes each placed sprite independently selectable.
+    var spriteUid = ++uidCtr;
+    poRegistry.set(spriteUid, poNode);
+    charReg.set(spriteUid, ch);
+    svgElems.set(spriteUid, []);
+    var items = bestFrameItems(ch);
+    for (var i = 0; i < items.length; i++) {
+      var po2 = items[i];
+      var cid2 = parseInt(po2.getAttribute('character'));
+      if (cid2 < 0) continue;
+      // Pass spriteUid so leaves inside inherit this sprite's uid
+      renderChar(cid2, matCompose(worldT, poLocal(po2)), po2, stage, depth+1, spriteUid);
+    }
+    VISITED.delete(key);
+    return;
+  }
+
+  // leaf element
+  if (!(tag in STYLE)) return;
+  // If inside a sprite, inherit its uid (so clicking this leaf selects the sprite instance).
+  // Otherwise create a new uid for a standalone leaf.
+  var uid = (ownerUid !== null) ? ownerUid : ++uidCtr;
+  if (!poRegistry.has(uid)) {
+    poRegistry.set(uid, poNode);
+    charReg.set(uid, ch);
+    svgElems.set(uid, []);
+  }
+
+  var g = document.createElementNS(SVG_NS, 'g');
+  g.setAttribute('transform', matStr(worldT));
+  g.setAttribute('class', 'apt-elem');
+  g.dataset.uid = uid;
+  g.dataset.type = tag;
+  g.dataset.charId = charId;
+  svgElems.get(uid).push(g);
+
+  var style = STYLE[tag];
+  var stroke = style[0], fill = style[1], fop = style[2];
+
+  if (tag === 'shape' || tag === 'button') {
+    var l  = parseFloat(ch.getAttribute('left')||'0');
+    var t  = parseFloat(ch.getAttribute('top')||'0');
+    var r  = parseFloat(ch.getAttribute('right')||'0');
+    var b  = parseFloat(ch.getAttribute('bottom')||'0');
+    var rc = document.createElementNS(SVG_NS, 'rect');
+    rc.setAttribute('x', l); rc.setAttribute('y', t);
+    rc.setAttribute('width', r-l); rc.setAttribute('height', b-t);
+    rc.setAttribute('stroke', stroke); rc.setAttribute('stroke-width','1.5');
+    rc.setAttribute('fill', fill); rc.setAttribute('fill-opacity', fop);
+    if (tag === 'button') rc.setAttribute('rx','4');
+    g.appendChild(rc);
+
+    if ((r-l) > 25 && (b-t) > 10) {
+      var pn2 = poNode.querySelector('poname');
+      var lbl = pn2 ? (pn2.getAttribute('name')||'') : '';
+      if (lbl) {
+        var tx2 = document.createElementNS(SVG_NS, 'text');
+        tx2.setAttribute('x', (l+r)/2); tx2.setAttribute('y', (t+b)/2+4);
+        tx2.setAttribute('text-anchor','middle');
+        tx2.setAttribute('font-size', Math.min(10, (b-t)*0.3));
+        tx2.setAttribute('fill', stroke); tx2.setAttribute('pointer-events','none');
+        tx2.textContent = lbl.substring(0,20);
+        g.appendChild(tx2);
+      }
+    }
+
+  } else if (tag === 'image') {
+    var half = 36;
+    var rc2 = document.createElementNS(SVG_NS, 'rect');
+    rc2.setAttribute('x',-half); rc2.setAttribute('y',-half);
+    rc2.setAttribute('width',half*2); rc2.setAttribute('height',half*2);
+    rc2.setAttribute('stroke',stroke); rc2.setAttribute('stroke-width','1.5');
+    rc2.setAttribute('fill',fill); rc2.setAttribute('fill-opacity',fop);
+    rc2.setAttribute('stroke-dasharray','5 2');
+    var ln1 = document.createElementNS(SVG_NS,'line');
+    ln1.setAttribute('x1',-half);ln1.setAttribute('y1',-half);
+    ln1.setAttribute('x2',half);ln1.setAttribute('y2',half);
+    ln1.setAttribute('stroke',stroke);ln1.setAttribute('stroke-width','0.8');ln1.setAttribute('opacity','0.4');
+    var ln2 = document.createElementNS(SVG_NS,'line');
+    ln2.setAttribute('x1',half);ln2.setAttribute('y1',-half);
+    ln2.setAttribute('x2',-half);ln2.setAttribute('y2',half);
+    ln2.setAttribute('stroke',stroke);ln2.setAttribute('stroke-width','0.8');ln2.setAttribute('opacity','0.4');
+    var imgTxt = document.createElementNS(SVG_NS,'text');
+    imgTxt.setAttribute('x','0'); imgTxt.setAttribute('y','4');
+    imgTxt.setAttribute('text-anchor','middle'); imgTxt.setAttribute('font-size','9');
+    imgTxt.setAttribute('fill',stroke); imgTxt.setAttribute('pointer-events','none');
+    imgTxt.textContent = 'img'+ch.getAttribute('image');
+    g.appendChild(rc2); g.appendChild(ln1); g.appendChild(ln2); g.appendChild(imgTxt);
+
+  } else if (tag === 'edittext') {
+    var el = parseFloat(ch.getAttribute('left')||'0');
+    var et2 = parseFloat(ch.getAttribute('top')||'0');
+    var er2 = parseFloat(ch.getAttribute('right')||'0');
+    var eb  = parseFloat(ch.getAttribute('bottom')||'0');
+    var rc3 = document.createElementNS(SVG_NS,'rect');
+    rc3.setAttribute('x',el); rc3.setAttribute('y',et2);
+    rc3.setAttribute('width',er2-el); rc3.setAttribute('height',eb-et2);
+    rc3.setAttribute('stroke',stroke); rc3.setAttribute('stroke-width','1');
+    rc3.setAttribute('fill','#081408'); rc3.setAttribute('fill-opacity','0.7');
+    var ettextEl = ch.querySelector('ettext');
+    var txt = ettextEl ? (ettextEl.getAttribute('text')||'') : '';
+    var er3 = parseInt(ch.getAttribute('red')||'255');
+    var eg3 = parseInt(ch.getAttribute('green')||'255');
+    var eb3 = parseInt(ch.getAttribute('blue')||'255');
+    var fh  = Math.min(parseFloat(ch.getAttribute('height')||'12'), (eb-et2)*0.8, 12);
+    var txEl = document.createElementNS(SVG_NS,'text');
+    txEl.setAttribute('x', el+2); txEl.setAttribute('y', et2+fh);
+    txEl.setAttribute('font-size', fh);
+    txEl.setAttribute('fill','rgb('+er3+','+eg3+','+eb3+')');
+    txEl.setAttribute('font-family','sans-serif');
+    txEl.setAttribute('pointer-events','none');
+    txEl.textContent = txt.substring(0,40);
+    g.appendChild(rc3); g.appendChild(txEl);
+  }
+
+  // hover tooltip — show the registered (sprite instance) po info
+  g.addEventListener('mouseenter', function(e) {
+    var tip = document.getElementById('stage-tip');
+    var regPo = poRegistry.get(uid);
+    var regCh = charReg.get(uid);
+    var pnEl = regPo ? regPo.querySelector('poname') : null;
+    var nm = pnEl ? (pnEl.getAttribute('name')||'') : '';
+    var rTag = regCh ? regCh.tagName : tag;
+    var rId  = regCh ? regCh.getAttribute('id') : charId;
+    tip.textContent = rTag + ' id=' + rId + (nm ? '  "' + nm + '"' : '') +
+                      '  tx=' + (regPo ? regPo.getAttribute('tx') : '?') +
+                      ' ty=' + (regPo ? regPo.getAttribute('ty') : '?');
+    tip.style.display = 'block';
+  });
+  g.addEventListener('mousemove', function(e) {
+    var wrap = document.getElementById('stage-container');
+    var r = wrap.getBoundingClientRect();
+    var tip = document.getElementById('stage-tip');
+    tip.style.left = (e.clientX-r.left+12)+'px';
+    tip.style.top  = (e.clientY-r.top+12)+'px';
+  });
+  g.addEventListener('mouseleave', function() {
+    document.getElementById('stage-tip').style.display = 'none';
+  });
+  g.addEventListener('click', function(e) {
+    e.stopPropagation();
+    selectElem(uid);
+  });
+
+  stage.appendChild(g);
+}
+
+// element selection
+function selectElem(uid) {
+  document.querySelectorAll('.apt-elem.selected').forEach(function(el) {
+    el.classList.remove('selected');
+  });
+  selUid = uid;
+  var gs = svgElems.get(uid) || [];
+  gs.forEach(function(g) { g.classList.add('selected'); });
+  buildPropertiesPanel(uid);
+}
+
+function clearSelection() {
+  document.querySelectorAll('.apt-elem.selected').forEach(function(el){
+    el.classList.remove('selected');
+  });
+  selUid = null;
+  document.getElementById('panel-hint').style.display = '';
+  document.getElementById('panel-content').style.display = 'none';
+}
+
+// properties panel
+function buildPropertiesPanel(uid) {
+  var poNode  = poRegistry.get(uid);
+  var chNode  = charReg.get(uid);
+  if (!poNode || !chNode) return;
+
+  document.getElementById('panel-hint').style.display = 'none';
+  document.getElementById('panel-content').style.display = '';
+
+  var tag = chNode.tagName;
+  var charId = chNode.getAttribute('id');
+
+  // breadcrumb
+  var pnEl = poNode.querySelector('poname');
+  var nm   = pnEl ? (pnEl.getAttribute('name')||'') : '';
+  document.getElementById('sel-breadcrumb').textContent =
+    (nm ? '"' + nm + '"  ' : '') + tag + ' id=' + charId;
+
+  // tag badge
+  document.getElementById('sel-tags').innerHTML =
+    '<span class="badge">' + tag + '</span>' +
+    '<span class="badge">id=' + charId + '</span>' +
+    (nm ? '<span class="badge">"' + nm + '"</span>' : '');
+
+  // placeobject fields
+  setField('po-tx',    poNode.getAttribute('tx')    || '0');
+  setField('po-ty',    poNode.getAttribute('ty')    || '0');
+  setField('po-m00',   poNode.getAttribute('rotm00')|| '1');
+  setField('po-m11',   poNode.getAttribute('rotm11')|| '1');
+  setField('po-m01',   poNode.getAttribute('rotm01')|| '0');
+  setField('po-m10',   poNode.getAttribute('rotm10')|| '0');
+  setField('po-red',   poNode.getAttribute('red')   || '255');
+  setField('po-green', poNode.getAttribute('green') || '255');
+  setField('po-blue',  poNode.getAttribute('blue')  || '255');
+  setField('po-alpha', poNode.getAttribute('alpha') || '255');
+  setField('po-depth', poNode.getAttribute('depth') || '0');
+  setField('po-name',  nm);
+  document.getElementById('po-char-display').textContent =
+    poNode.getAttribute('character') + '  (' + tag + ')';
+  var poflagsEl = poNode.querySelector('poflags');
+  document.getElementById('po-flags-display').textContent =
+    poflagsEl ? (poflagsEl.getAttribute('value') || '(none)') : '(none)';
+  updateColorSwatch();
+
+  // character section
+  document.getElementById('char-type-label').textContent = tag;
+  document.getElementById('char-id-label').textContent   = charId || '?';
+  buildCharFields(chNode);
+}
+
+function setField(id, val) {
+  var el = document.getElementById(id);
+  if (el) { el.value = val; el.classList.remove('changed'); }
+}
+
+function buildCharFields(chNode) {
+  var tag  = chNode.tagName;
+  var html = '';
+
+  if (tag === 'edittext') {
+    var ettextEl = chNode.querySelector('ettext');
+    var txt  = ettextEl ? (ettextEl.getAttribute('text')||'') : '';
+    var etvarEl = chNode.querySelector('etvar');
+    var varName = etvarEl ? (etvarEl.getAttribute('variable')||'') : '';
+    html += fieldRow('text', txt, 'et-text', 'text');
+    html += fieldRow('variable', varName, 'et-var', 'text');
+    html += fieldRow('left',   chNode.getAttribute('left')||'0',   'et-left',   'number');
+    html += fieldRow('top',    chNode.getAttribute('top')||'0',    'et-top',    'number');
+    html += fieldRow('right',  chNode.getAttribute('right')||'0',  'et-right',  'number');
+    html += fieldRow('bottom', chNode.getAttribute('bottom')||'0', 'et-bottom', 'number');
+    html += fieldRow('height', chNode.getAttribute('height')||'12','et-height', 'number');
+    html += fieldRow('align',  chNode.getAttribute('alignment')||'0','et-align','number');
+    html += displayRow('font', chNode.getAttribute('font')||'0');
+    html += '<div style="color:#a85;font-size:10px;margin-top:4px;line-height:1.4">' +
+            '&#9888; edittext color attrs are swapped:<br>red=alpha &nbsp;green=red &nbsp;blue=green &nbsp;alpha=blue</div>';
+
+  } else if (tag === 'shape') {
+    html += fieldRow('left',   chNode.getAttribute('left')||'0',   'sh-left',   'number');
+    html += fieldRow('top',    chNode.getAttribute('top')||'0',    'sh-top',    'number');
+    html += fieldRow('right',  chNode.getAttribute('right')||'0',  'sh-right',  'number');
+    html += fieldRow('bottom', chNode.getAttribute('bottom')||'0', 'sh-bottom', 'number');
+    html += displayRow('geometry', chNode.getAttribute('geometry')||'0');
+
+  } else if (tag === 'image') {
+    html += fieldRow('texture id', chNode.getAttribute('image')||'0', 'img-id', 'number');
+
+  } else if (tag === 'button') {
+    html += displayRow('left',   chNode.getAttribute('left')||'0');
+    html += displayRow('top',    chNode.getAttribute('top')||'0');
+    html += displayRow('right',  chNode.getAttribute('right')||'0');
+    html += displayRow('bottom', chNode.getAttribute('bottom')||'0');
+    var recs = chNode.querySelectorAll('buttonrecord');
+    html += displayRow('records', String(recs.length));
+    var acts = chNode.querySelectorAll('buttonaction');
+    if (acts.length) {
+      var actLines = [];
+      var BA_LABELS = {
+        'Key:right':          'mouse down',
+        'Key:end':            'mouse up',
+        'CondOverDownToIdle': 'hover (no click)',
+        'Key:left':           'leave area'
+      };
+      Array.from(acts).forEach(function(a) {
+        var f = a.getAttribute('flags') || '';
+        var lbl = BA_LABELS[f] || f;
+        actLines.push('<span class="badge" title="'+escAttr(f)+'">'+escHtml(lbl)+'</span>');
+      });
+      html += '<div class="field-row" style="flex-wrap:wrap;gap:3px"><span class="field-label">actions</span>' +
+              '<div style="flex:1">'+actLines.join('')+'</div></div>';
+    }
+
+  } else if (tag === 'sprite') {
+    var fd = getFrameData(chNode);
+    html += displayRow('frames', String(fd.frames.length));
+    var labels = Object.keys(fd.labelIdx).sort().join(', ');
+    html += displayRow('labels', labels || '(none)');
+
+  } else {
+    html = '<div style="color:#445;font-size:11px">No editable attributes for ' + tag + '</div>';
+  }
+
+  document.getElementById('char-fields').innerHTML = html;
+
+  // attach oninput → markDirty
+  document.querySelectorAll('#char-fields .field-input').forEach(function(inp) {
+    inp.addEventListener('input', function(){ inp.classList.add('changed'); markDirty(); });
+  });
+}
+
+function fieldRow(label, value, id, type) {
+  var step = (type === 'number') ? ' step="any"' : '';
+  return '<div class="field-row">' +
+    '<span class="field-label">' + label + '</span>' +
+    '<input class="field-input" id="' + id + '" type="' + type + '" value="' + escAttr(value) + '"' + step + '/>' +
+    '</div>';
+}
+function displayRow(label, value) {
+  return '<div class="field-row">' +
+    '<span class="field-label">' + label + '</span>' +
+    '<span class="field-display">' + escHtml(value) + '</span>' +
+    '</div>';
+}
+function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+// color swatch
+function updateColorSwatch() {
+  var r = parseInt(document.getElementById('po-red').value)  || 0;
+  var g = parseInt(document.getElementById('po-green').value)|| 0;
+  var b = parseInt(document.getElementById('po-blue').value) || 0;
+  document.getElementById('color-swatch').style.background =
+    'rgb('+r+','+g+','+b+')';
+}
+function openColorPicker() {
+  var r = parseInt(document.getElementById('po-red').value)||0;
+  var g = parseInt(document.getElementById('po-green').value)||0;
+  var b = parseInt(document.getElementById('po-blue').value)||0;
+  var hex = '#' + ('00'+r.toString(16)).slice(-2) +
+                  ('00'+g.toString(16)).slice(-2) +
+                  ('00'+b.toString(16)).slice(-2);
+  var cp = document.getElementById('color-picker');
+  cp.value = hex;
+  cp.click();
+}
+function colorPickerChange(hex) {
+  var r = parseInt(hex.slice(1,3),16);
+  var g = parseInt(hex.slice(3,5),16);
+  var b = parseInt(hex.slice(5,7),16);
+  document.getElementById('po-red').value   = r;
+  document.getElementById('po-green').value = g;
+  document.getElementById('po-blue').value  = b;
+  // mark the colour inputs changed so Apply knows to add HasColorTransform
+  ['po-red','po-green','po-blue'].forEach(function(id){
+    document.getElementById(id).classList.add('changed');
+  });
+  updateColorSwatch();
+  markDirty();
+}
+
+// has this placeobject field been edited since it was loaded / last applied?
+function fieldChanged(id) {
+  var el = document.getElementById(id);
+  return !!(el && el.classList.contains('changed'));
+}
+
+// apply changes to XML DOM
+function applyAndRender() {
+  if (selUid === null) return;
+  var poNode = poRegistry.get(selUid);
+  var chNode = charReg.get(selUid);
+  if (!poNode || !chNode) return;
+
+  // placeobject attrs
+  setAttr(poNode, 'tx',     getVal('po-tx'));
+  setAttr(poNode, 'ty',     getVal('po-ty'));
+  setAttr(poNode, 'rotm00', getVal('po-m00'));
+  setAttr(poNode, 'rotm11', getVal('po-m11'));
+  setAttr(poNode, 'rotm01', getVal('po-m01'));
+  setAttr(poNode, 'rotm10', getVal('po-m10'));
+  setAttr(poNode, 'red',    getVal('po-red'));
+  setAttr(poNode, 'green',  getVal('po-green'));
+  setAttr(poNode, 'blue',   getVal('po-blue'));
+  setAttr(poNode, 'alpha',  getVal('po-alpha'));
+  setAttr(poNode, 'depth',  getVal('po-depth'));
+
+  // poname
+  var newName = getVal('po-name');
+  var pnEl = poNode.querySelector('poname');
+  if (newName) {
+    if (!pnEl) {
+      pnEl = xmlDoc.createElement('poname');
+      poNode.appendChild(pnEl);
+    }
+    pnEl.setAttribute('name', newName);
+  } else if (pnEl) {
+    poNode.removeChild(pnEl);
+  }
+
+  // update poflags: add a matrix/colour flag only when its own fields were actually
+  // edited (using the .changed marker), and never remove a flag that was already
+  // present. Only HasName is toggled from the name field.
+  (function() {
+    var pofEl = poNode.querySelector('poflags');
+    if (!pofEl) return;
+    var cur = pofEl.getAttribute('value') || '';
+    var flags = cur.split('|').map(function(f){ return f.trim(); }).filter(Boolean);
+    function hasFlag(f) { return flags.indexOf(f) >= 0; }
+    function addFlag(f) { if (!hasFlag(f)) flags.push(f); }
+    function removeFlag(f) { flags = flags.filter(function(x){ return x !== f; }); }
+
+    // HasMatrix: add only if a matrix/translation field changed (kept if already set)
+    var matrixIds = ['po-tx','po-ty','po-m00','po-m11','po-m01','po-m10'];
+    if (matrixIds.some(fieldChanged)) addFlag('HasMatrix');
+
+    // HasColorTransform: add only if a colour field changed (kept if already set)
+    var colorIds = ['po-red','po-green','po-blue','po-alpha'];
+    if (colorIds.some(fieldChanged)) addFlag('HasColorTransform');
+
+    // HasName: required when a name is set, must be absent when name is empty
+    var nm = getVal('po-name');
+    if (nm) addFlag('HasName');
+    else removeFlag('HasName');
+
+    var ORDER = ['HasCharacter','HasClipActions','HasClipDepth','HasColorTransform',
+                 'HasMatrix','HasName','HasRatio','Move'];
+    flags.sort(function(a,b){
+      var ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
+      if (ia < 0) ia = 99; if (ib < 0) ib = 99;
+      return ia - ib;
+    });
+    pofEl.setAttribute('value', flags.join('|'));
+    document.getElementById('po-flags-display').textContent = flags.join('|');
+  })();
+
+  // character fields
+  var tag = chNode.tagName;
+  if (tag === 'edittext') {
+    var eid = document.getElementById('et-text');
+    if (eid) {
+      var ettextEl = chNode.querySelector('ettext');
+      if (!ettextEl) { ettextEl = xmlDoc.createElement('ettext'); chNode.appendChild(ettextEl); }
+       ettextEl.setAttribute('text', eid.value);
+    }
+    var varEl = document.getElementById('et-var');
+    if (varEl) {
+      var etvarEl = chNode.querySelector('etvar');
+      if (!etvarEl) { etvarEl = xmlDoc.createElement('etvar'); chNode.appendChild(etvarEl); }
+      etvarEl.setAttribute('variable', varEl.value);
+    }
+    setAttrIf(chNode, 'left',      'et-left');
+    setAttrIf(chNode, 'top',       'et-top');
+    setAttrIf(chNode, 'right',     'et-right');
+    setAttrIf(chNode, 'bottom',    'et-bottom');
+    setAttrIf(chNode, 'height',    'et-height');
+    setAttrIf(chNode, 'alignment', 'et-align');
+  } else if (tag === 'shape') {
+    setAttrIf(chNode, 'left',   'sh-left');
+    setAttrIf(chNode, 'top',    'sh-top');
+    setAttrIf(chNode, 'right',  'sh-right');
+    setAttrIf(chNode, 'bottom', 'sh-bottom');
+  } else if (tag === 'image') {
+    setAttrIf(chNode, 'image', 'img-id');
+  }
+
+  markDirty();
+  // re-render and re-select
+  var savedPoNode = poNode;
+  renderSVG();
+  // find uid for same poNode after re-render
+  poRegistry.forEach(function(pn, uid) {
+    if (pn === savedPoNode) selectElem(uid);
+  });
+  setStatus('Applied.');
+}
+
+function setAttr(node, attr, val) {
+  if (val !== null && val !== '') node.setAttribute(attr, val);
+}
+function setAttrIf(node, attr, inputId) {
+  var el = document.getElementById(inputId);
+  if (el && el.classList.contains('changed')) node.setAttribute(attr, el.value);
+}
+function getVal(id) {
+  var el = document.getElementById(id);
+  return el ? el.value : '';
+}
+
+// stage pan/zoom
+(function() {
+  var stage = document.getElementById('stage');
+  var vx = 0, vy = 0, vw = SW, vh = SH;
+  function applyView() { stage.setAttribute('viewBox', vx+' '+vy+' '+vw+' '+vh); }
+
+  stage.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var f = e.deltaY > 0 ? 0.88 : 1.14;
+    var r = stage.getBoundingClientRect();
+    var mx = (e.clientX-r.left)/r.width*vw+vx;
+    var my = (e.clientY-r.top)/r.height*vh+vy;
+    vw/=f; vh/=f; vx=mx-(mx-vx)/f; vy=my-(my-vy)/f;
+    applyView();
+  }, {passive:false});
+
+  var drag = null;
+  stage.addEventListener('mousedown', function(e) {
+    if (e.target === stage || e.target.id === 'stage-bg') {
+      drag = {x:e.clientX, y:e.clientY, vx:vx, vy:vy};
+      clearSelection();
+    }
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!drag) return;
+    var r = stage.getBoundingClientRect();
+    vx = drag.vx-(e.clientX-drag.x)*vw/r.width;
+    vy = drag.vy-(e.clientY-drag.y)*vh/r.height;
+    applyView();
+  });
+  window.addEventListener('mouseup', function() { drag=null; });
+})();
+
+// draw grid
+(function() {
+  var g = document.getElementById('stage-grid');
+  var s = '';
+  for (var x=0; x<=SW; x+=64) s += '<line x1="'+x+'" y1="0" x2="'+x+'" y2="'+SH+'"/>';
+  for (var y=0; y<=SH; y+=64) s += '<line x1="0" y1="'+y+'" x2="'+SW+'" y2="'+y+'"/>';
+  g.innerHTML = s;
+})();
+
+// po-field live dirty-mark
+['po-tx','po-ty','po-m00','po-m11','po-m01','po-m10',
+ 'po-red','po-green','po-blue','po-alpha','po-depth','po-name'].forEach(function(id) {
+  var el = document.getElementById(id);
+  if (el) el.addEventListener('input', function(){
+    el.classList.add('changed');
+    markDirty();
+    if (id === 'po-red' || id === 'po-green' || id === 'po-blue') updateColorSwatch();
+  });
+});
+
+// toolbar buttons
+document.getElementById('reload-btn').addEventListener('click', function() {
+  if (dirty && !confirm('Unsaved changes will be lost. Reload?')) return;
+  loadXML();
+});
+document.getElementById('save-btn').addEventListener('click', saveXML);
+document.getElementById('convert-btn').addEventListener('click', convertToAPT);
+document.getElementById('apply-btn').addEventListener('click', applyAndRender);
+
+// panel toggle
+document.getElementById('panel-toggle').addEventListener('click', function() {
+  document.getElementById('panel').classList.add('collapsed');
+  document.getElementById('panel-show-btn').style.display = '';
+});
+document.getElementById('panel-show-btn').addEventListener('click', function() {
+  document.getElementById('panel').classList.remove('collapsed');
+  document.getElementById('panel-show-btn').style.display = 'none';
+});
+
+// keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey||e.metaKey) && e.key === 's') { e.preventDefault(); saveXML(); }
+  if ((e.ctrlKey||e.metaKey) && e.key === 'Enter') { e.preventDefault(); applyAndRender(); }
+  if (e.key === 'Escape') clearSelection();
+});
+
+// init
+loadXML();
+</script>
+</body>
+</html>

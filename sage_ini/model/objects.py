@@ -184,6 +184,11 @@ class IniObject:
     # renamed to the annotation on load, so conversion, attribute access and the coverage rule
     # all see one canonical name. Accumulated down the MRO into `_field_aliases`.
     field_aliases: dict[str, str] = {}
+    # Child block names this block claims for a specific class, overriding the name-keyed
+    # classification. A nested `Object … End` inside a `LivingWorldBuildingIcon` is a drawable
+    # sub-object, not the global `Object` type it shares a keyword with; mapping it here keeps it
+    # from registering into `game.objects`. Read by `from_block` before `classify_subblock`.
+    subblock_overrides: dict[str, type["IniObject"]] = {}
     _header_extras: tuple = ()
     _uses_equals: bool = False  # whether the header was written `Name = Label` (see from_block)
 
@@ -405,6 +410,15 @@ class IniObject:
                 field_span_lists.setdefault(key, []).append(child.span)
                 continue
             if isinstance(child, Block):
+                override = cls.subblock_overrides.get(child.name)
+                if override is not None:
+                    # A context-sensitive child: build it as the class this parent declares for
+                    # the keyword, so it never registers as the unrelated global type of the same
+                    # name (e.g. a building icon's drawable `Object`, not a game `Object`).
+                    sub = override.from_block(game, child)
+                    group = cls._group_for(child.name, override, child.name)
+                    (nested_data[group] if group is not None else modules).append(sub)
+                    continue
                 type_name, sub_cls = classify_subblock(child)
                 if sub_cls is not None:
                     sub = sub_cls.from_block(game, child)

@@ -1,6 +1,6 @@
 """What each script argument *means*, keyed by the `ScriptArgumentType` the binary already records.
 
-A `sagemap` `ScriptArgument` carries its own type tag (`OBJECT_TYPE`, `TEAM_NAME`, `SCIENCE_NAME`,
+A parsed `ScriptArgument` carries its own type tag (`OBJECT_TYPE`, `TEAM_NAME`, `SCIENCE_NAME`,
 ...) and three payload slots (`int_value`, `float_value`, `string_value`) plus a `position_value`.
 That tag is enough to type every argument independently of the enclosing action's id: the action's
 `content_type` says *what* runs, but each argument self-describes what it holds. `ARG_SPECS` is the
@@ -25,7 +25,7 @@ rather than guessed at — a wrong scope is a false positive, an absent one is m
 from dataclasses import dataclass
 from enum import Enum
 
-from sagemap.assets.player_scripts import ScriptArgument, ScriptArgumentType
+from sage_map.assets.player_scripts import ScriptArgument, ScriptArgumentType
 
 T = ScriptArgumentType  # local shorthand for the dense table below
 

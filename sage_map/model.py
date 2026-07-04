@@ -18,9 +18,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from sagemap import Map, parse_map_from_path
-from sagemap.assets.player_scripts import Script, ScriptGroup
-
+from sage_map.assets.player_scripts import Script, ScriptGroup
+from sage_map.map import Map, parse_map_from_path
 from sage_map.scripts import ResolvedArg, Scope, typed_value
 
 # Object-property keys the harvest reads (see the probe in docs/sage_map_plan.md history).
@@ -33,7 +32,7 @@ _WAYPOINT_PATH_LABELS = ("waypointPathLabel1", "waypointPathLabel2", "waypointPa
 
 
 def _prop(obj: Any, key: str) -> Any:
-    """A sagemap object property value, or None when the property is absent."""
+    """A map object property value, or None when the property is absent."""
     prop = obj.properties.get(key)
     return prop["value"] if prop is not None else None
 

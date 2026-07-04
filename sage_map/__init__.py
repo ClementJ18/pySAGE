@@ -1,17 +1,21 @@
-"""Game-aware typed overlay over the `sagemap` binary `.map` parser.
+"""Reader, writer and game-aware typed model for SAGE WorldBuilder `.map` files.
 
-`sagemap` parses a WorldBuilder `.map` into dataclasses, but its script arguments and object
-references are only weakly typed: an argument knows it is a string, not that the string must name
-a defined Object, Science or map-local team. This package attaches that meaning — mapping each
-value to the scope it must resolve against (a definition in the assembled `Game`, a symbol the map
-itself defines, or a closed enum) — so a map can be linted the way `sage_lint` lints ini files.
+`sage_map.map` (with `sage_map.assets`) parses a binary `.map` into dataclasses and writes it
+back. On top of that the overlay modules attach game meaning: the parsed script arguments and
+object references are only weakly typed — an argument knows it is a string, not that the string
+must name a defined Object, Science or map-local team. `sage_map.model` / `sage_map.scripts` map
+each value to the scope it must resolve against (a definition in the assembled `Game`, a symbol
+the map itself defines, or a closed enum) — so a map can be linted the way `sage_lint` lints ini
+files.
 
-v1 covers script-argument and object references only; object-property typing and the
-`content_type` action table are deferred. See docs/sage_map_plan.md.
+The overlay's v1 covers script-argument and object references only; object-property typing and
+the `content_type` action table are deferred. See docs/sage_map_plan.md.
 
 `sage_map.diff` adds a human-readable content diff of two maps (or of the map files a git commit
 touches), reporting moved objects, script edits and terrain summaries where git can only say
-"binary files differ".
+"binary files differ". `sage_map.checks` is the architecture for standalone (no game data) map
+checks — findings, rule-runner, terrain helpers; the Edain rule set lives in
+`sage_edain.map_checks`.
 """
 
 from sage_map.diff import (
@@ -30,6 +34,13 @@ from sage_map.diff import (
     resolve_range,
 )
 from sage_map.linter import lint_map, lint_map_file, lint_maps
+from sage_map.map import (
+    Map,
+    parse_map,
+    parse_map_from_path,
+    write_map,
+    write_map_to_path,
+)
 from sage_map.model import (
     MapModel,
     MapSymbols,
@@ -49,6 +60,7 @@ from sage_map.scripts import (
 __all__ = [
     "ARG_SPECS",
     "ArgSpec",
+    "Map",
     "MapDiff",
     "MapFileChange",
     "MapFileDiff",
@@ -73,5 +85,9 @@ __all__ = [
     "lint_map",
     "lint_map_file",
     "lint_maps",
+    "parse_map",
+    "parse_map_from_path",
     "typed_value",
+    "write_map",
+    "write_map_to_path",
 ]

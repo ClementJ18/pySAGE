@@ -508,7 +508,6 @@ def _building_infobox(computed: dict[str, str], faction: str, image: str = "") -
     lines = [f"{{{{{_TEMPLATE['building']}"]
     lines += [f"|{param}={top.get(param, '')}" for param in _BUILDING_TOP]
     for level in range(1, _building_level_count(computed) + 1):
-        lines.append(f"#level{level}")
         for param, source in _BUILDING_LEVEL_FIELDS.items():
             value = ""
             if source is not None:
