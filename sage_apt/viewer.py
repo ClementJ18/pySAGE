@@ -1,12 +1,16 @@
 """Static, self-contained HTML/SVG visualisation of an APT XML file: the movieclip's
-first frame rendered to scale with per-type colouring, hover tooltips, pan/zoom, and
-side panels for imports and sprite frame labels. Sprites are recursed into at their
-best display frame (a preferred label such as `_on`, else frame 0)."""
+frame rendered to scale with per-type colouring, hover tooltips, pan/zoom, and side
+panels for imports and sprite frame labels. The root frame is frame 0 by default and
+can be picked by index (`--frame`) or by a root frame label (`--label`); the same label
+also biases which display frame each sprite recurses into (a preferred label such as
+`_on`, else frame 0)."""
 
 import html as html_mod
 from collections import Counter
 from pathlib import Path
 from xml.etree import ElementTree as ET
+
+from sage_apt.geometry import invert_matrix
 
 SCREEN_W = 1024
 SCREEN_H = 768
@@ -68,6 +72,16 @@ def best_frame_items(sprite_elem, preferred_labels=PREFERRED_LABELS):
     return _accumulate_to(frames, 0), ""
 
 
+def _resolve_target_frame(label_idx, frames, frame, label):
+    """The root frame index to render: an explicit `frame` (clamped) wins, else a `label`
+    that names a root frame, else frame 0."""
+    if frame is not None:
+        return max(0, min(int(frame), len(frames) - 1))
+    if label is not None and label in label_idx:
+        return label_idx[label]
+    return 0
+
+
 def mat_compose(parent, child):
     p00, p01, p10, p11, ptx, pty = parent
     c00, c01, c10, c11, ctx, cty = child
@@ -101,36 +115,92 @@ def get_po_name(item):
     return pn.get("name") if pn is not None else ""
 
 
-def render_viewer_html(xml_path) -> str:
-    """Render `xml_path` (APT XML) to a self-contained HTML page."""
+def _tri_points(tri):
+    return f"{tri[0]:.2f},{tri[1]:.2f} {tri[2]:.2f},{tri[3]:.2f} {tri[4]:.2f},{tri[5]:.2f}"
+
+
+def _shape_fills_svg(fills, mat, char_id, name, tip, textures, defs_list, atlas_defs, clip_defs):
+    """SVG for a shape drawn from its geometry fills: solid fills as coloured triangles,
+    textured fills as the atlas clipped to their triangles and mapped by the fill's inverse
+    matrix. The atlas `<image>` is added to `defs` once per texture and shared via `<use>`;
+    returns "" when nothing textured/solid could be drawn."""
+    body = []
+    for fi, fill in enumerate(fills):
+        if fill.kind == "solid":
+            r, g, b, a = fill.color
+            col = f"rgba({r},{g},{b},{a / 255:.3f})"
+            for tri in fill.triangles:
+                body.append(f'<polygon points="{_tri_points(tri)}" fill="{col}"/>')
+        elif fill.kind == "textured" and fill.image_id is not None and fill.matrix is not None:
+            uri = textures.atlas_data_uri(fill.image_id)
+            size = textures.atlas_size(fill.image_id)
+            inv = invert_matrix(fill.matrix)
+            if uri is None or size is None or inv is None:
+                continue
+            tex_id = textures.image_map.texture_of(fill.image_id)
+            atlas_id = f"apt_atlas_{tex_id}"
+            if tex_id not in atlas_defs:
+                atlas_defs.add(tex_id)
+                defs_list.append(
+                    f'<image id="{atlas_id}" href="{uri}" width="{size[0]}" height="{size[1]}"/>'
+                )
+            clip_id = f"gclip_{char_id}_{fi}"
+            if clip_id not in clip_defs:
+                clip_defs.add(clip_id)
+                polys = "".join(f'<polygon points="{_tri_points(t)}"/>' for t in fill.triangles)
+                defs_list.append(f'<clipPath id="{clip_id}">{polys}</clipPath>')
+            xform = "matrix({:.6f},{:.6f},{:.6f},{:.6f},{:.4f},{:.4f})".format(*inv)
+            body.append(
+                f'<g clip-path="url(#{clip_id})"><use href="#{atlas_id}" transform="{xform}"/></g>'
+            )
+    if not body:
+        return ""
+    return (
+        f'<g transform="{mat}" class="apt-elem" data-type="shape" data-id="{char_id}"'
+        f' data-name="{html_mod.escape(name)}"><title>{tip}</title>{"".join(body)}</g>'
+    )
+
+
+def render_viewer_html(xml_path, frame=None, label=None, textures=None) -> str:
+    """Render `xml_path` (APT XML) to a self-contained HTML page. `frame` / `label` pick
+    which root frame to draw (index, or a root frame label); `label` also biases which
+    display frame each recursed sprite shows, so `--label _on` vs `_off` renders the
+    matching state where a sprite declares those labels. `textures`, when given, is an
+    `AptTextureResolver`: `image` characters it resolves are drawn as inlined artwork
+    instead of crossed-box placeholders."""
     xml_path = Path(xml_path)
     root = ET.parse(xml_path).getroot()
 
     chars = {}
     for ch in root:
-        cid = ch.get("id")
-        if cid is not None:
-            chars[int(cid)] = ch
+        cid_attr = ch.get("id")
+        if cid_attr is not None:
+            chars[int(cid_attr)] = ch
 
     mc = root.find("movieclip")
     if mc is None:
         raise ValueError(f"{xml_path.name}: no <movieclip> element")
-    frames_elem = mc.find("frames")
-    frame0 = frames_elem.find("frame") if frames_elem is not None else None
-    if frame0 is None:
+    root_label_idx, root_frames = _frame_index_map(mc)
+    if not root_frames:
         raise ValueError(f"{xml_path.name}: movieclip has no frames")
+    target_idx = _resolve_target_frame(root_label_idx, root_frames, frame, label)
 
-    # Background color
+    # A requested label biases every sprite's display frame toward that state first.
+    sprite_prefs = (label, *PREFERRED_LABELS) if label else PREFERRED_LABELS
+
+    # Background color: last one set up to and including the target frame.
     bg_raw = 0xFF5E5566
-    for item in frame0:
-        if item.tag == "background":
-            bg_raw = int(item.get("color", "0"))
-            break
+    for f in root_frames[: target_idx + 1]:
+        for item in f:
+            if item.tag == "background":
+                bg_raw = int(item.get("color", "0"))
     bg_css = f"rgb({bg_raw & 0xFF},{(bg_raw >> 8) & 0xFF},{(bg_raw >> 16) & 0xFF})"
 
     layers = []  # (z-sort-key, svg fragment)
-    defs_list = []
+    defs_list: list[str] = []
     visited = set()
+    atlas_defs: set[int] = set()  # texture ids whose atlas <image> is already in defs
+    clip_defs: set[str] = set()  # geometry clipPath ids already in defs
 
     def render(char_id, world_t, name="", vdepth=0):
         if vdepth > 14:
@@ -142,6 +212,17 @@ def render_viewer_html(xml_path) -> str:
         mat = svg_mat(world_t)
         stroke, fill, fop, lc = TYPE_STYLE.get(tag, ("#999", "#ddd", 0.2, "#bbb"))
         tip = html_mod.escape(f"id={char_id}  type={tag}  name={name}")
+
+        if tag == "shape" and textures is not None:
+            gid = int(ch.get("geometry")) if ch.get("geometry") else -1
+            fills = textures.shape_fills(gid)
+            if fills:
+                frag = _shape_fills_svg(
+                    fills, mat, char_id, name, tip, textures, defs_list, atlas_defs, clip_defs
+                )
+                if frag:
+                    layers.append((vdepth * 100, frag))
+                    return
 
         if tag in ("shape", "button"):
             left = float(ch.get("left", 0))
@@ -172,24 +253,37 @@ def render_viewer_html(xml_path) -> str:
 
         elif tag == "image":
             img_id = int(ch.get("image", char_id))
-            label = (name or f"img{img_id}")[:18]
-            half = 36
-            s = (
-                f'<g transform="{mat}" class="apt-elem" data-type="image" data-id="{char_id}"'
-                f' data-name="{html_mod.escape(name)}">'
-                f"<title>{tip}</title>"
-                f'<rect x="{-half}" y="{-half}" width="{half * 2}" height="{half * 2}" '
-                f'stroke="{stroke}" stroke-width="1.5" fill="{fill}" '
-                f'fill-opacity="{fop:.2f}" stroke-dasharray="5 2"/>'
-                f'<line x1="{-half}" y1="{-half}" x2="{half}" y2="{half}" '
-                f'stroke="{stroke}" stroke-width="0.8" opacity="0.4"/>'
-                f'<line x1="{half}" y1="{-half}" x2="{-half}" y2="{half}" '
-                f'stroke="{stroke}" stroke-width="0.8" opacity="0.4"/>'
-                f'<text x="0" y="5" text-anchor="middle" font-size="10" '
-                f'fill="{lc}">{html_mod.escape(label)}</text>'
-                "</g>"
-            )
-            layers.append((vdepth * 100 + 5, s))
+            data_uri = textures.image_data_uri(img_id) if textures is not None else None
+            if data_uri is not None:
+                x, y, w, h = textures.rect_of(img_id)
+                s = (
+                    f'<g transform="{mat}" class="apt-elem" data-type="image"'
+                    f' data-id="{char_id}" data-name="{html_mod.escape(name)}">'
+                    f"<title>{tip}</title>"
+                    f'<image x="0" y="0" width="{w}" height="{h}" href="{data_uri}"'
+                    f' preserveAspectRatio="none"/>'
+                    "</g>"
+                )
+                layers.append((vdepth * 100 + 5, s))
+            else:
+                label = (name or f"img{img_id}")[:18]
+                half = 36
+                s = (
+                    f'<g transform="{mat}" class="apt-elem" data-type="image" data-id="{char_id}"'
+                    f' data-name="{html_mod.escape(name)}">'
+                    f"<title>{tip}</title>"
+                    f'<rect x="{-half}" y="{-half}" width="{half * 2}" height="{half * 2}" '
+                    f'stroke="{stroke}" stroke-width="1.5" fill="{fill}" '
+                    f'fill-opacity="{fop:.2f}" stroke-dasharray="5 2"/>'
+                    f'<line x1="{-half}" y1="{-half}" x2="{half}" y2="{half}" '
+                    f'stroke="{stroke}" stroke-width="0.8" opacity="0.4"/>'
+                    f'<line x1="{half}" y1="{-half}" x2="{-half}" y2="{half}" '
+                    f'stroke="{stroke}" stroke-width="0.8" opacity="0.4"/>'
+                    f'<text x="0" y="5" text-anchor="middle" font-size="10" '
+                    f'fill="{lc}">{html_mod.escape(label)}</text>'
+                    "</g>"
+                )
+                layers.append((vdepth * 100 + 5, s))
 
         elif tag == "edittext":
             left = float(ch.get("left", 0))
@@ -225,7 +319,7 @@ def render_viewer_html(xml_path) -> str:
             if key in visited:
                 return
             visited.add(key)
-            items, _lbl = best_frame_items(ch)
+            items, _lbl = best_frame_items(ch, sprite_prefs)
             for item in items:
                 child_id = int(item.get("character", -1))
                 if child_id < 0:
@@ -235,9 +329,7 @@ def render_viewer_html(xml_path) -> str:
                 )
             visited.discard(key)
 
-    for item in frame0:
-        if item.tag != "placeobject":
-            continue
+    for item in _accumulate_to(root_frames, target_idx):
         render(int(item.get("character", -1)), po_to_local(item), get_po_name(item), 0)
 
     layers.sort(key=lambda x: x[0])
@@ -256,6 +348,10 @@ def render_viewer_html(xml_path) -> str:
 
     char_counts = Counter(ch.tag for ch in chars.values())
     char_summary = " · ".join(f"{v} {k}" for k, v in sorted(char_counts.items()))
+    if label:
+        char_summary += f" · label {label}"
+    elif target_idx:
+        char_summary += f" · frame {target_idx}"
 
     # Frame-label panel: the labelled sprites, richest first
     labelled = []
@@ -292,11 +388,16 @@ def render_viewer_html(xml_path) -> str:
     )
 
 
-def write_viewer_html(xml_path, out_path=None) -> Path:
-    """Render `xml_path` and write the page next to it (or to `out_path`)."""
+def write_viewer_html(xml_path, out_path=None, frame=None, label=None, textures=None) -> Path:
+    """Render `xml_path` and write the page next to it (or to `out_path`). `frame`/`label`
+    select which frame is drawn and `textures` resolves real artwork (see
+    `render_viewer_html`)."""
     xml_path = Path(xml_path)
     out = Path(out_path) if out_path else xml_path.with_suffix(".html")
-    out.write_text(render_viewer_html(xml_path), encoding="utf-8")
+    out.write_text(
+        render_viewer_html(xml_path, frame=frame, label=label, textures=textures),
+        encoding="utf-8",
+    )
     return out
 
 

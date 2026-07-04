@@ -63,6 +63,10 @@ edain = [
     "reversebox>=0.84",
 ]
 
+apt = [
+    "pybig>=0.6",  # reading a .const (or .apt) out of a .big archive; the core stays stdlib-only
+]
+
 [dependency-groups]
 dev = [
     "pytest",
@@ -75,7 +79,7 @@ dev = [
 include = ["sage_apt*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_edain*"]
 
 [tool.setuptools.package-data]
-sage_apt = ["assets/*.html"]
+sage_apt = ["assets/*.html", "py.typed"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
 sage_edain = ["ui/*", "skill_assets/**/*"]
@@ -117,7 +121,7 @@ select = [
 
 [tool.mypy]
 python_version = "3.13"
-files = ["sage_ini", "sage_map", "sage_edain", "sage_replay", "sage_utils"]
+files = ["sage_apt", "sage_ini", "sage_map", "sage_edain", "sage_replay", "sage_utils"]
 disable_error_code = ["annotation-unchecked"]
 
 [[tool.mypy.overrides]]

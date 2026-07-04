@@ -1,7 +1,7 @@
 """Flag bit-field conversions for PlaceObject, Button, and ButtonAction flags."""
 
 
-def _split_flags(flagstr):
+def _split_flags(flagstr: str) -> list[str]:
     return [f.strip().lower() for f in flagstr.split("|") if f.strip()]
 
 
@@ -39,12 +39,12 @@ _PO_ORDER = [
 ]
 
 
-def get_po_flags_str(flagint):
+def get_po_flags_str(flagint: int) -> str:
     parts = [name for name in _PO_ORDER if flagint & _PO_BITS[name.lower()]]
     return "|".join(parts)
 
 
-def get_po_flags_int(flagstr):
+def get_po_flags_int(flagstr: str) -> int:
     result = 0
     for part in _split_flags(flagstr):
         if part in _PO_BITS:
@@ -64,12 +64,12 @@ _BUT_BITS = {
 _BUT_ORDER = ["ButtonStateDown", "ButtonStateHitTest", "ButtonStateOver", "ButtonStateUp"]
 
 
-def get_but_flags_str(flagint):
+def get_but_flags_str(flagint: int) -> str:
     parts = [name for name in _BUT_ORDER if flagint & _BUT_BITS[name.lower()]]
     return "|".join(parts)
 
 
-def get_but_flags_int(flagstr):
+def get_but_flags_int(flagstr: str) -> int:
     result = 0
     for part in _split_flags(flagstr):
         if part in _BUT_BITS:
@@ -136,7 +136,7 @@ _BA_COND_ORDER = [
 ]
 
 
-def get_but_action_flags_str(flagint):
+def get_but_action_flags_str(flagint: int) -> str:
     parts = []
     key_press = (flagint >> 1) & 0x7F
     if key_press:
@@ -153,7 +153,7 @@ def get_but_action_flags_str(flagint):
     return result
 
 
-def get_but_action_flags_int(flagstr):
+def get_but_action_flags_int(flagstr: str) -> int:
     result = 0
     for raw in flagstr.split("|"):
         raw = raw.strip()

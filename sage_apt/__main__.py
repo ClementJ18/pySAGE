@@ -17,12 +17,27 @@ from sage_apt.aptfile import AptError, apt_to_xml, xml_to_apt
 from sage_apt.check import OK, check_paths
 from sage_apt.editor import serve
 from sage_apt.viewer import write_viewer_html
-from sage_utils.cli import existing_file, utf8_stdout
+from sage_utils.cli import existing_dir, existing_file, utf8_stdout
+
+
+def _build_texture_resolver(path, game_dir):
+    """Build an `AptTextureResolver` for real-artwork rendering, or None. Returns None
+    (placeholders) when no `--game-dir` was given or the `[apt]`/`[ui]` extras (Pillow +
+    pyBIG) are not installed; the resolver code is imported lazily so the core needs no
+    extra."""
+    if not game_dir:
+        return None
+    try:
+        from sage_apt.textures import build_resolver  # noqa: PLC0415 — lazy: needs [apt]/[ui]
+    except ImportError:
+        print("note: install the [apt] or [ui] extra for real textures", file=sys.stderr)
+        return None
+    return build_resolver(path, game_dir)
 
 
 def _run_to_xml(args: argparse.Namespace) -> int:
     try:
-        xml_path = apt_to_xml(args.apt)
+        xml_path = apt_to_xml(args.apt, game_dir=args.game_dir)
     except AptError as exc:
         print(exc, file=sys.stderr)
         return 1
@@ -65,13 +80,17 @@ def _run_check(args: argparse.Namespace) -> int:
 
 
 def _run_view(args: argparse.Namespace) -> int:
-    out = write_viewer_html(args.xml, args.out)
+    textures = _build_texture_resolver(args.xml, args.game_dir)
+    out = write_viewer_html(
+        args.xml, args.out, frame=args.frame, label=args.label, textures=textures
+    )
     print(f"wrote {out}")
     return 0
 
 
 def _run_edit(args: argparse.Namespace) -> int:
-    serve(args.xml, port=args.port, open_browser=not args.no_browser)
+    resolver = _build_texture_resolver(args.xml, args.game_dir)
+    serve(args.xml, port=args.port, open_browser=not args.no_browser, resolver=resolver)
     return 0
 
 
@@ -81,7 +100,13 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     to_xml = subparsers.add_parser("to-xml", help="decompile .apt/.const to .xml")
-    to_xml.add_argument("apt", type=existing_file, help=".apt (or .const) file")
+    to_xml.add_argument("apt", type=Path, help=".apt (or .const) file")
+    to_xml.add_argument(
+        "--game-dir",
+        type=existing_dir,
+        default=None,
+        help="game directory to search for a .const (or the .apt) packed in a .big",
+    )
     to_xml.set_defaults(func=_run_to_xml)
 
     to_apt = subparsers.add_parser("to-apt", help="compile .xml back to .apt/.const")
@@ -103,12 +128,32 @@ def main(argv: list[str] | None = None) -> int:
     view = subparsers.add_parser("view", help="write an HTML/SVG visualisation of the XML")
     view.add_argument("xml", type=existing_file)
     view.add_argument("--out", default=None, help="output path (default: alongside the XML)")
+    view.add_argument(
+        "--frame", type=int, default=None, help="root frame index to render (default: 0)"
+    )
+    view.add_argument(
+        "--label",
+        default=None,
+        help="render this frame label (root frame + biases each sprite's display state)",
+    )
+    view.add_argument(
+        "--game-dir",
+        type=existing_dir,
+        default=None,
+        help="texture directory for real artwork instead of placeholders (needs [apt]/[ui])",
+    )
     view.set_defaults(func=_run_view)
 
     edit = subparsers.add_parser("edit", help="open the browser editor for the XML")
     edit.add_argument("xml", type=existing_file)
     edit.add_argument("--port", type=int, default=8080)
     edit.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
+    edit.add_argument(
+        "--game-dir",
+        type=existing_dir,
+        default=None,
+        help="texture directory for real artwork instead of placeholders (needs [apt]/[ui])",
+    )
     edit.set_defaults(func=_run_edit)
 
     args = parser.parse_args(argv)

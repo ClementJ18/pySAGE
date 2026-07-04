@@ -28,10 +28,12 @@ def reformat_xml(xml_str):
 
 
 class _EditorHandler(BaseHTTPRequestHandler):
-    """Serves the editor page plus the JSON API. `xml_path` is set per server by
-    `serve` on a subclass, since http.server instantiates the handler itself."""
+    """Serves the editor page plus the JSON API. `xml_path` (and the optional texture
+    `resolver`) are set per server by `serve` on a subclass, since http.server
+    instantiates the handler itself."""
 
     xml_path: Path
+    resolver = None  # AptTextureResolver | None — real-artwork lookup when a game dir is set
 
     def log_message(self, *_):
         pass
@@ -56,8 +58,48 @@ class _EditorHandler(BaseHTTPRequestHandler):
             self._json(
                 {"content": self.xml_path.read_text("utf-8"), "filename": self.xml_path.name}
             )
+        elif path == "/api/textures":
+            # Manifest of image ids that resolve to real artwork, with each rect's size.
+            manifest = {}
+            if self.resolver is not None:
+                for image_id in self.resolver.image_map.rects:
+                    if self.resolver.image_png(image_id) is not None:
+                        _x, _y, w, h = self.resolver.rect_of(image_id)
+                        manifest[str(image_id)] = [w, h]
+            self._json(manifest)
+        elif path.startswith("/api/texture/"):
+            self._serve_texture(path.rsplit("/", 1)[-1])
+        elif path == "/api/geometry":
+            manifest = self.resolver.geometry_manifest() if self.resolver is not None else {}
+            self._json(manifest)
+        elif path.startswith("/api/atlas/"):
+            self._serve_atlas(path.rsplit("/", 1)[-1])
         else:
             self._send(404, "text/plain", "Not found")
+
+    def _serve_atlas(self, id_str):
+        png = None
+        if self.resolver is not None:
+            try:
+                png = self.resolver.atlas_png_by_texture(int(id_str))
+            except ValueError:
+                png = None
+        if png is None:
+            self._send(404, "text/plain", "no atlas")
+        else:
+            self._send(200, "image/png", png)
+
+    def _serve_texture(self, id_str):
+        png = None
+        if self.resolver is not None:
+            try:
+                png = self.resolver.image_png(int(id_str))
+            except ValueError:
+                png = None
+        if png is None:
+            self._send(404, "text/plain", "no texture")
+        else:
+            self._send(200, "image/png", png)
 
     def do_POST(self):
         path = urlparse(self.path).path
@@ -85,9 +127,15 @@ class _EditorHandler(BaseHTTPRequestHandler):
             self._send(404, "text/plain", "Not found")
 
 
-def serve(xml_path: Path, port: int = 8080, open_browser: bool = True) -> None:
-    """Serve the editor for `xml_path` on localhost:`port` until interrupted."""
-    handler = type("EditorHandler", (_EditorHandler,), {"xml_path": Path(xml_path)})
+def serve(xml_path: Path, port: int = 8080, open_browser: bool = True, resolver=None) -> None:
+    """Serve the editor for `xml_path` on localhost:`port` until interrupted. `resolver`,
+    when given (an `AptTextureResolver`), backs `/api/texture/<id>` so `image` characters
+    render as real artwork instead of placeholders."""
+    handler = type(
+        "EditorHandler",
+        (_EditorHandler,),
+        {"xml_path": Path(xml_path), "resolver": resolver},
+    )
     server = HTTPServer(("127.0.0.1", port), handler)
     url = f"http://127.0.0.1:{port}/"
     print(f"APT editor   {url}")

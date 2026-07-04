@@ -125,20 +125,49 @@ def _fmt_float(v):
 # APT → XML
 
 
-def apt_to_xml(filename):
+def _read_from_bigs(basename, game_dir):
+    """The bytes of the first `.big` member under `game_dir` whose basename matches
+    `basename` (case-insensitive), or None. pyBIG is imported lazily so the core stays
+    stdlib-only — reading out of a `.big` needs the optional `[apt]` extra."""
+    from pyBIG import InDiskArchive  # noqa: PLC0415 — lazy: the [apt] extra is optional
+
+    target = basename.lower()
+    for big in sorted(Path(game_dir).rglob("*.big")):
+        try:
+            archive = InDiskArchive(str(big))
+        except Exception:  # noqa: BLE001 — a corrupt/locked .big shouldn't abort the search
+            continue
+        for name in archive.file_list():
+            if name.replace("\\", "/").rsplit("/", 1)[-1].lower() == target:
+                return archive.read_file(name)
+    return None
+
+
+def _resolve_source(path, game_dir, reason):
+    """Read `path`'s bytes, mirroring the game's load order: the loose file beside the
+    `.apt` first, then the same basename fished out of a `.big` under `game_dir`. Raises
+    `AptError(path, reason)` when neither resolves."""
+    if path.exists():
+        return path.read_bytes()
+    if game_dir is not None:
+        data = _read_from_bigs(path.name, game_dir)
+        if data is not None:
+            return data
+    raise AptError(path, reason)
+
+
+def apt_to_xml(filename, game_dir=None):
     """Decompile the `.apt`/`.const` pair at `filename` to XML. Returns the written
-    `.xml` path; raises `AptError` if either input file is missing."""
+    `.xml` path; raises `AptError` if either input file is missing. Each half is resolved
+    loose-file-first, then — when `game_dir` is given — out of the `.big` archives beneath
+    it, so a `.apt` whose `.const` (or the `.apt` itself) only lives inside a `.big` still
+    decompiles."""
     apt_path = Path(filename)
     const_path = apt_path.with_suffix(".const")
     xml_path = apt_path.with_suffix(".xml")
 
-    if not apt_path.exists():
-        raise AptError(apt_path, "file is missing")
-    if not const_path.exists():
-        raise AptError(const_path, "companion .const file is missing")
-
-    constbuf = const_path.read_bytes()
-    aptbuf = apt_path.read_bytes()
+    aptbuf = _resolve_source(apt_path, game_dir, "file is missing")
+    constbuf = _resolve_source(const_path, game_dir, "companion .const file is missing")
 
     # Parse .const
     off = 0x14  # skip header

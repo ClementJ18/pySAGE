@@ -101,6 +101,8 @@ svg#stage .apt-elem.selected > line{filter:brightness(2.5)}
   <div id="toolbar">
     <span id="fn">loading...</span>
     <span id="unsaved-dot" title="Unsaved changes"></span>
+    <button id="undo-btn" title="Undo (Ctrl+Z)" disabled>&#8630; Undo</button>
+    <button id="redo-btn" title="Redo (Ctrl+Y)" disabled>&#8631; Redo</button>
     <button id="reload-btn" title="Reload XML from disk">&#8635; Reload</button>
     <button id="save-btn">&#128190; Save XML</button>
     <button id="convert-btn">&#9881; Export APT</button>
@@ -113,12 +115,25 @@ svg#stage .apt-elem.selected > line{filter:brightness(2.5)}
     <div id="stage-wrap">
       <div id="stage-toolbar">
         <span>stage  1024 &times; 768</span>
-        <span style="margin-left:auto;opacity:0.6">wheel: zoom &nbsp;&bull;&nbsp; drag: pan &nbsp;&bull;&nbsp; click: select</span>
+        <label style="margin-left:12px;color:#778" title="Render sprites in this frame-label state">
+          state
+          <select id="label-select" style="background:#0d0d1e;color:#adf;border:1px solid #334;border-radius:3px;font-size:11px;padding:1px 4px;margin-left:4px">
+            <option value="">default</option>
+          </select>
+        </label>
+        <span style="margin-left:12px;display:flex;align-items:center;gap:4px">
+          <select id="add-char-select" title="Character to place" style="background:#0d0d1e;color:#8fb;border:1px solid #334;border-radius:3px;font-size:11px;padding:1px 4px;max-width:150px"></select>
+          <button id="add-btn" style="padding:2px 8px;font-size:10px" title="Add a placeobject for the selected character to this frame">&#43; Add</button>
+          <button id="dup-btn" style="padding:2px 8px;font-size:10px" title="Duplicate selected (Ctrl+D)" disabled>&#10697; Dup</button>
+          <button id="del-btn" style="padding:2px 8px;font-size:10px" title="Delete selected (Del)" disabled>&#128465; Del</button>
+        </span>
+        <span style="margin-left:auto;opacity:0.6">wheel: zoom &nbsp;&bull;&nbsp; drag element: move &nbsp;&bull;&nbsp; drag bg: pan</span>
         <button id="panel-show-btn" style="display:none;padding:2px 8px;font-size:10px" title="Show properties">&#x276E; Props</button>
       </div>
       <div id="stage-container">
         <svg id="stage" viewBox="0 0 1024 768" preserveAspectRatio="xMidYMid meet"
-             xmlns="http://www.w3.org/2000/svg">
+             xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+          <defs id="stage-defs"></defs>
           <rect id="stage-bg" width="1024" height="768" fill="#111"/>
           <g id="stage-grid" opacity="0.04" stroke="#fff" stroke-width="0.5"></g>
           <!-- rendered elements injected here -->
@@ -243,6 +258,13 @@ var uidCtr      = 0;
 var selUid      = null;
 var dirty       = false;
 var renderTimer = null;
+var forcedLabel = '';          // frame-label state to render sprites in ('' = default heuristic)
+var textureManifest = {};      // image id -> [w,h] for images the server can render as artwork
+var geometryData = {};         // geometry id -> [fill,...] for textured/solid shape rendering
+var clipCounter = 0;           // unique ids for per-fill clipPaths, reset each render
+var undoStack   = [];          // serialized-XML snapshots, newest last
+var redoStack   = [];
+var elemDrag    = null;        // in-progress drag-to-move of the selected element
 var SW = 1024, SH = 768;
 
 // status
@@ -266,10 +288,22 @@ function loadXML() {
   fetch('/api/xml').then(function(r){ return r.json(); }).then(function(d) {
     document.getElementById('fn').textContent = d.filename;
     xmlDoc = new DOMParser().parseFromString(d.content, 'text/xml');
+    undoStack = []; redoStack = []; updateUndoButtons();
     buildCharMap();
-    renderSVG();
-    markClean();
-    setStatus('ready');
+    populateLabelSelect();
+    populateAddCharSelect();
+    // Fetch the real-artwork manifests (empty unless the server was given a game dir),
+    // then render — shapes with geometry draw as textures, images with a rect too.
+    Promise.all([
+      fetch('/api/textures').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
+      fetch('/api/geometry').then(function(r){ return r.json(); }).catch(function(){ return {}; })
+    ]).then(function(res) {
+      textureManifest = res[0] || {};
+      geometryData = res[1] || {};
+      renderSVG();
+      markClean();
+      setStatus('ready');
+    });
   }).catch(function(e){ setStatus('Load error: ' + e, true); });
 }
 
@@ -357,6 +391,7 @@ function bestFrameItems(spriteElem) {
   var fd = getFrameData(spriteElem);
   if (!fd.frames.length) return [];
   var prefs = ['_fade_in','_on','_active','_purchased'];
+  if (forcedLabel) prefs = [forcedLabel].concat(prefs);
   for (var p = 0; p < prefs.length; p++) {
     var lbl = prefs[p];
     if (lbl in fd.labelIdx) {
@@ -404,9 +439,12 @@ var VISITED = new Set();
 
 function renderSVG() {
   var stage = document.getElementById('stage');
-  // remove previously rendered elements
+  // remove previously rendered elements + any per-fill clip defs
   var toRemove = Array.from(stage.querySelectorAll('.apt-elem'));
   toRemove.forEach(function(el){ el.parentNode.removeChild(el); });
+  var defs = document.getElementById('stage-defs');
+  if (defs) defs.innerHTML = '';
+  clipCounter = 0;
 
   poRegistry.clear();
   charReg.clear();
@@ -422,18 +460,81 @@ function renderSVG() {
   }
   if (!mc) return;
 
-  var framesEl = null;
-  for (var i = 0; i < mc.children.length; i++) {
-    if (mc.children[i].tagName === 'frames') { framesEl = mc.children[i]; break; }
-  }
-  if (!framesEl || !framesEl.children.length) return;
-  var frame0 = framesEl.children[0];
-  for (var j = 0; j < frame0.children.length; j++) {
-    var po = frame0.children[j];
-    if (po.tagName !== 'placeobject') continue;
+  // Root frame: default frame 0, or the frame a chosen label names on the root timeline.
+  var fd = getFrameData(mc);
+  if (!fd.frames.length) return;
+  var targetIdx = (forcedLabel && (forcedLabel in fd.labelIdx)) ? fd.labelIdx[forcedLabel] : 0;
+  var rootItems = accumulateTo(fd.frames, targetIdx);
+  for (var j = 0; j < rootItems.length; j++) {
+    var po = rootItems[j];
     var cid = parseInt(po.getAttribute('character'));
     if (cid >= 0) renderChar(cid, poLocal(po), po, stage, 0, null);
   }
+}
+
+// Populate the state dropdown with every frame label the movie declares (root + sprites).
+function populateLabelSelect() {
+  var sel = document.getElementById('label-select');
+  if (!xmlDoc) return;
+  var labels = {};
+  var root = xmlDoc.documentElement;
+  for (var i = 0; i < root.children.length; i++) {
+    var ch = root.children[i];
+    if (ch.tagName === 'movieclip' || ch.tagName === 'sprite') {
+      var fd = getFrameData(ch);
+      Object.keys(fd.labelIdx).forEach(function(l){ labels[l] = true; });
+    }
+  }
+  var names = Object.keys(labels).sort();
+  sel.innerHTML = '<option value="">default</option>' +
+    names.map(function(l){
+      return '<option value="'+escAttr(l)+'"'+(l===forcedLabel?' selected':'')+'>'+escHtml(l)+'</option>';
+    }).join('');
+}
+
+// Draw a shape from its geometry fills: solid fills as coloured triangles, textured fills
+// as the atlas (served at /api/atlas/<tex>) clipped to their triangles and mapped uv->pos
+// by the fill's inverse matrix. Mirrors viewer.py's _shape_fills_svg.
+function polyPoints(t) {
+  return t[0]+','+t[1]+' '+t[2]+','+t[3]+' '+t[4]+','+t[5];
+}
+function renderShapeFills(g, fills) {
+  var defs = document.getElementById('stage-defs');
+  fills.forEach(function(fill) {
+    if (fill.kind === 'solid') {
+      var c = fill.color;
+      fill.tris.forEach(function(t) {
+        var poly = document.createElementNS(SVG_NS, 'polygon');
+        poly.setAttribute('points', polyPoints(t));
+        poly.setAttribute('fill', 'rgba('+c[0]+','+c[1]+','+c[2]+','+(c[3]/255)+')');
+        g.appendChild(poly);
+      });
+    } else if (fill.kind === 'textured') {
+      var clipId = 'gclip_' + (clipCounter++);
+      var cp = document.createElementNS(SVG_NS, 'clipPath');
+      cp.setAttribute('id', clipId);
+      cp.setAttribute('clipPathUnits', 'userSpaceOnUse');
+      fill.tris.forEach(function(t) {
+        var poly = document.createElementNS(SVG_NS, 'polygon');
+        poly.setAttribute('points', polyPoints(t));
+        cp.appendChild(poly);
+      });
+      if (defs) defs.appendChild(cp);
+      var wrap = document.createElementNS(SVG_NS, 'g');
+      wrap.setAttribute('clip-path', 'url(#' + clipId + ')');
+      var im = document.createElementNS(SVG_NS, 'image');
+      im.setAttribute('x', '0'); im.setAttribute('y', '0');
+      im.setAttribute('width', fill.w); im.setAttribute('height', fill.h);
+      im.setAttribute('preserveAspectRatio', 'none');
+      var m = fill.inv;
+      im.setAttribute('transform', 'matrix('+m[0]+','+m[1]+','+m[2]+','+m[3]+','+m[4]+','+m[5]+')');
+      var href = '/api/atlas/' + fill.tex;
+      im.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
+      im.setAttribute('href', href);
+      wrap.appendChild(im);
+      g.appendChild(wrap);
+    }
+  });
 }
 
 // ownerUid: uid of the sprite instance that contains this element (null if top-level)
@@ -488,54 +589,72 @@ function renderChar(charId, worldT, poNode, stage, depth, ownerUid) {
   var stroke = style[0], fill = style[1], fop = style[2];
 
   if (tag === 'shape' || tag === 'button') {
-    var l  = parseFloat(ch.getAttribute('left')||'0');
-    var t  = parseFloat(ch.getAttribute('top')||'0');
-    var r  = parseFloat(ch.getAttribute('right')||'0');
-    var b  = parseFloat(ch.getAttribute('bottom')||'0');
-    var rc = document.createElementNS(SVG_NS, 'rect');
-    rc.setAttribute('x', l); rc.setAttribute('y', t);
-    rc.setAttribute('width', r-l); rc.setAttribute('height', b-t);
-    rc.setAttribute('stroke', stroke); rc.setAttribute('stroke-width','1.5');
-    rc.setAttribute('fill', fill); rc.setAttribute('fill-opacity', fop);
-    if (tag === 'button') rc.setAttribute('rx','4');
-    g.appendChild(rc);
+    var gid = ch.getAttribute('geometry');
+    if (tag === 'shape' && gid !== null && geometryData[gid]) {
+      renderShapeFills(g, geometryData[gid]);
+    } else {
+      var l  = parseFloat(ch.getAttribute('left')||'0');
+      var t  = parseFloat(ch.getAttribute('top')||'0');
+      var r  = parseFloat(ch.getAttribute('right')||'0');
+      var b  = parseFloat(ch.getAttribute('bottom')||'0');
+      var rc = document.createElementNS(SVG_NS, 'rect');
+      rc.setAttribute('x', l); rc.setAttribute('y', t);
+      rc.setAttribute('width', r-l); rc.setAttribute('height', b-t);
+      rc.setAttribute('stroke', stroke); rc.setAttribute('stroke-width','1.5');
+      rc.setAttribute('fill', fill); rc.setAttribute('fill-opacity', fop);
+      if (tag === 'button') rc.setAttribute('rx','4');
+      g.appendChild(rc);
 
-    if ((r-l) > 25 && (b-t) > 10) {
-      var pn2 = poNode.querySelector('poname');
-      var lbl = pn2 ? (pn2.getAttribute('name')||'') : '';
-      if (lbl) {
-        var tx2 = document.createElementNS(SVG_NS, 'text');
-        tx2.setAttribute('x', (l+r)/2); tx2.setAttribute('y', (t+b)/2+4);
-        tx2.setAttribute('text-anchor','middle');
-        tx2.setAttribute('font-size', Math.min(10, (b-t)*0.3));
-        tx2.setAttribute('fill', stroke); tx2.setAttribute('pointer-events','none');
-        tx2.textContent = lbl.substring(0,20);
-        g.appendChild(tx2);
+      if ((r-l) > 25 && (b-t) > 10) {
+        var pn2 = poNode.querySelector('poname');
+        var lbl = pn2 ? (pn2.getAttribute('name')||'') : '';
+        if (lbl) {
+          var tx2 = document.createElementNS(SVG_NS, 'text');
+          tx2.setAttribute('x', (l+r)/2); tx2.setAttribute('y', (t+b)/2+4);
+          tx2.setAttribute('text-anchor','middle');
+          tx2.setAttribute('font-size', Math.min(10, (b-t)*0.3));
+          tx2.setAttribute('fill', stroke); tx2.setAttribute('pointer-events','none');
+          tx2.textContent = lbl.substring(0,20);
+          g.appendChild(tx2);
+        }
       }
     }
 
   } else if (tag === 'image') {
-    var half = 36;
-    var rc2 = document.createElementNS(SVG_NS, 'rect');
-    rc2.setAttribute('x',-half); rc2.setAttribute('y',-half);
-    rc2.setAttribute('width',half*2); rc2.setAttribute('height',half*2);
-    rc2.setAttribute('stroke',stroke); rc2.setAttribute('stroke-width','1.5');
-    rc2.setAttribute('fill',fill); rc2.setAttribute('fill-opacity',fop);
-    rc2.setAttribute('stroke-dasharray','5 2');
-    var ln1 = document.createElementNS(SVG_NS,'line');
-    ln1.setAttribute('x1',-half);ln1.setAttribute('y1',-half);
-    ln1.setAttribute('x2',half);ln1.setAttribute('y2',half);
-    ln1.setAttribute('stroke',stroke);ln1.setAttribute('stroke-width','0.8');ln1.setAttribute('opacity','0.4');
-    var ln2 = document.createElementNS(SVG_NS,'line');
-    ln2.setAttribute('x1',half);ln2.setAttribute('y1',-half);
-    ln2.setAttribute('x2',-half);ln2.setAttribute('y2',half);
-    ln2.setAttribute('stroke',stroke);ln2.setAttribute('stroke-width','0.8');ln2.setAttribute('opacity','0.4');
-    var imgTxt = document.createElementNS(SVG_NS,'text');
-    imgTxt.setAttribute('x','0'); imgTxt.setAttribute('y','4');
-    imgTxt.setAttribute('text-anchor','middle'); imgTxt.setAttribute('font-size','9');
-    imgTxt.setAttribute('fill',stroke); imgTxt.setAttribute('pointer-events','none');
-    imgTxt.textContent = 'img'+ch.getAttribute('image');
-    g.appendChild(rc2); g.appendChild(ln1); g.appendChild(ln2); g.appendChild(imgTxt);
+    var imgId = ch.getAttribute('image');
+    if (imgId !== null && (imgId in textureManifest)) {
+      // real artwork: draw the cropped texture at its atlas-rect size
+      var dims = textureManifest[imgId];
+      var im = document.createElementNS(SVG_NS, 'image');
+      im.setAttribute('x','0'); im.setAttribute('y','0');
+      im.setAttribute('width', dims[0]); im.setAttribute('height', dims[1]);
+      im.setAttribute('preserveAspectRatio','none');
+      im.setAttributeNS('http://www.w3.org/1999/xlink','href','/api/texture/'+imgId);
+      im.setAttribute('href','/api/texture/'+imgId);
+      g.appendChild(im);
+    } else {
+      var half = 36;
+      var rc2 = document.createElementNS(SVG_NS, 'rect');
+      rc2.setAttribute('x',-half); rc2.setAttribute('y',-half);
+      rc2.setAttribute('width',half*2); rc2.setAttribute('height',half*2);
+      rc2.setAttribute('stroke',stroke); rc2.setAttribute('stroke-width','1.5');
+      rc2.setAttribute('fill',fill); rc2.setAttribute('fill-opacity',fop);
+      rc2.setAttribute('stroke-dasharray','5 2');
+      var ln1 = document.createElementNS(SVG_NS,'line');
+      ln1.setAttribute('x1',-half);ln1.setAttribute('y1',-half);
+      ln1.setAttribute('x2',half);ln1.setAttribute('y2',half);
+      ln1.setAttribute('stroke',stroke);ln1.setAttribute('stroke-width','0.8');ln1.setAttribute('opacity','0.4');
+      var ln2 = document.createElementNS(SVG_NS,'line');
+      ln2.setAttribute('x1',half);ln2.setAttribute('y1',-half);
+      ln2.setAttribute('x2',-half);ln2.setAttribute('y2',half);
+      ln2.setAttribute('stroke',stroke);ln2.setAttribute('stroke-width','0.8');ln2.setAttribute('opacity','0.4');
+      var imgTxt = document.createElementNS(SVG_NS,'text');
+      imgTxt.setAttribute('x','0'); imgTxt.setAttribute('y','4');
+      imgTxt.setAttribute('text-anchor','middle'); imgTxt.setAttribute('font-size','9');
+      imgTxt.setAttribute('fill',stroke); imgTxt.setAttribute('pointer-events','none');
+      imgTxt.textContent = 'img'+ch.getAttribute('image');
+      g.appendChild(rc2); g.appendChild(ln1); g.appendChild(ln2); g.appendChild(imgTxt);
+    }
 
   } else if (tag === 'edittext') {
     var el = parseFloat(ch.getAttribute('left')||'0');
@@ -587,9 +706,12 @@ function renderChar(charId, worldT, poNode, stage, depth, ownerUid) {
   g.addEventListener('mouseleave', function() {
     document.getElementById('stage-tip').style.display = 'none';
   });
+  g.addEventListener('mousedown', function(e) {
+    if (e.button === 0) beginElemDrag(e, uid);
+  });
   g.addEventListener('click', function(e) {
     e.stopPropagation();
-    selectElem(uid);
+    if (elemDrag === null) selectElem(uid);
   });
 
   stage.appendChild(g);
@@ -604,6 +726,7 @@ function selectElem(uid) {
   var gs = svgElems.get(uid) || [];
   gs.forEach(function(g) { g.classList.add('selected'); });
   buildPropertiesPanel(uid);
+  updateEditButtons();
 }
 
 function clearSelection() {
@@ -613,6 +736,7 @@ function clearSelection() {
   selUid = null;
   document.getElementById('panel-hint').style.display = '';
   document.getElementById('panel-content').style.display = 'none';
+  updateEditButtons();
 }
 
 // properties panel
@@ -807,6 +931,8 @@ function applyAndRender() {
   var chNode = charReg.get(selUid);
   if (!poNode || !chNode) return;
 
+  pushUndo();
+
   // placeobject attrs
   setAttr(poNode, 'tx',     getVal('po-tx'));
   setAttr(poNode, 'ty',     getVal('po-ty'));
@@ -922,6 +1048,175 @@ function getVal(id) {
   return el ? el.value : '';
 }
 
+// ---- editing: undo/redo, add/duplicate/delete, drag-to-move ----
+
+function snapshotDoc() { return new XMLSerializer().serializeToString(xmlDoc); }
+function pushUndo() {
+  undoStack.push(snapshotDoc());
+  if (undoStack.length > 80) undoStack.shift();
+  redoStack.length = 0;
+  updateUndoButtons();
+}
+function restoreDoc(str) {
+  xmlDoc = new DOMParser().parseFromString(str, 'text/xml');
+  buildCharMap();
+  populateLabelSelect();
+  populateAddCharSelect();
+  clearSelection();
+  renderSVG();
+}
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(snapshotDoc());
+  restoreDoc(undoStack.pop());
+  markDirty(); updateUndoButtons();
+}
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(snapshotDoc());
+  restoreDoc(redoStack.pop());
+  markDirty(); updateUndoButtons();
+}
+function updateUndoButtons() {
+  document.getElementById('undo-btn').disabled = !undoStack.length;
+  document.getElementById('redo-btn').disabled = !redoStack.length;
+}
+function updateEditButtons() {
+  var has = selUid !== null;
+  document.getElementById('dup-btn').disabled = !has;
+  document.getElementById('del-btn').disabled = !has;
+}
+
+// the movieclip child that is the root <frames> node
+function movieClipEl() {
+  if (!xmlDoc) return null;
+  var root = xmlDoc.documentElement;
+  for (var i = 0; i < root.children.length; i++) {
+    if (root.children[i].tagName === 'movieclip') return root.children[i];
+  }
+  return null;
+}
+// the root frame currently on screen (frame 0, or the frame the state dropdown names)
+function currentRootFrame() {
+  var mc = movieClipEl();
+  if (!mc) return null;
+  var fd = getFrameData(mc);
+  if (!fd.frames.length) return null;
+  var idx = (forcedLabel && (forcedLabel in fd.labelIdx)) ? fd.labelIdx[forcedLabel] : 0;
+  return fd.frames[idx] || null;
+}
+function maxDepth(frameNode) {
+  var m = -1;
+  for (var i = 0; i < frameNode.children.length; i++) {
+    var c = frameNode.children[i];
+    if (c.tagName === 'placeobject') {
+      var d = parseInt(c.getAttribute('depth'));
+      if (!isNaN(d) && d > m) m = d;
+    }
+  }
+  return m;
+}
+function selectByNode(poNode) {
+  poRegistry.forEach(function(pn, uid) { if (pn === poNode) selectElem(uid); });
+}
+
+function populateAddCharSelect() {
+  var sel = document.getElementById('add-char-select');
+  if (!sel || !xmlDoc) return;
+  var PLACEABLE = {sprite:1, shape:1, button:1, image:1, edittext:1, text:1};
+  var opts = Object.keys(chars).map(Number).sort(function(a,b){return a-b;})
+    .filter(function(id){ return chars[id].tagName in PLACEABLE; })
+    .map(function(id){ return '<option value="'+id+'">'+id+' '+chars[id].tagName+'</option>'; });
+  sel.innerHTML = opts.join('') || '<option value="">(none)</option>';
+}
+
+function addPlaceobject() {
+  var sel = document.getElementById('add-char-select');
+  var charId = sel ? sel.value : '';
+  if (charId === '') return;
+  var frame = currentRootFrame();
+  if (!frame) { setStatus('no frame to add to', true); return; }
+  pushUndo();
+  var po = xmlDoc.createElement('placeobject');
+  po.setAttribute('depth', maxDepth(frame) + 1);
+  po.setAttribute('character', charId);
+  po.setAttribute('rotm00', '1'); po.setAttribute('rotm11', '1');
+  po.setAttribute('tx', (SW/2).toFixed(1)); po.setAttribute('ty', (SH/2).toFixed(1));
+  var pf = xmlDoc.createElement('poflags');
+  pf.setAttribute('value', 'HasCharacter|HasMatrix');
+  po.appendChild(pf);
+  frame.appendChild(po);
+  markDirty(); renderSVG(); selectByNode(po);
+  setStatus('Added placeobject.');
+}
+
+function duplicateSelected() {
+  if (selUid === null) return;
+  var po = poRegistry.get(selUid);
+  if (!po || !po.parentNode) return;
+  pushUndo();
+  var clone = po.cloneNode(true);
+  clone.setAttribute('depth', maxDepth(po.parentNode) + 1);
+  clone.setAttribute('tx', (parseFloat(po.getAttribute('tx')||'0') + 8).toFixed(2));
+  clone.setAttribute('ty', (parseFloat(po.getAttribute('ty')||'0') + 8).toFixed(2));
+  po.parentNode.insertBefore(clone, po.nextSibling);
+  markDirty(); renderSVG(); selectByNode(clone);
+  setStatus('Duplicated.');
+}
+
+function deleteSelected() {
+  if (selUid === null) return;
+  var po = poRegistry.get(selUid);
+  if (!po || !po.parentNode) return;
+  pushUndo();
+  po.parentNode.removeChild(po);
+  clearSelection(); markDirty(); renderSVG();
+  setStatus('Deleted.');
+}
+
+// drag-to-move: begun from an element's mousedown (see renderChar)
+function beginElemDrag(e, uid) {
+  var po = poRegistry.get(uid);
+  if (!po) return;
+  selectElem(uid);
+  elemDrag = {
+    poNode: po, sx: e.clientX, sy: e.clientY, dux: 0, duy: 0, moved: false,
+    startTx: parseFloat(po.getAttribute('tx')||'0'),
+    startTy: parseFloat(po.getAttribute('ty')||'0'),
+    gs: (svgElems.get(uid)||[]).map(function(g){ return {g: g, base: g.getAttribute('transform')}; })
+  };
+  e.stopPropagation();
+  e.preventDefault();
+}
+window.addEventListener('mousemove', function(e) {
+  if (!elemDrag) return;
+  var stage = document.getElementById('stage');
+  var ctm = stage.getScreenCTM();
+  if (!ctm) return;
+  elemDrag.dux = (e.clientX - elemDrag.sx) / ctm.a;   // screen px -> root user units (no rotation)
+  elemDrag.duy = (e.clientY - elemDrag.sy) / ctm.d;
+  if (!elemDrag.moved && Math.abs(e.clientX-elemDrag.sx) + Math.abs(e.clientY-elemDrag.sy) > 2) {
+    elemDrag.moved = true;
+    pushUndo();  // snapshot the pre-drag state once, on the first real movement
+  }
+  if (elemDrag.moved) {
+    elemDrag.gs.forEach(function(o) {
+      o.g.setAttribute('transform', 'translate('+elemDrag.dux.toFixed(2)+','+elemDrag.duy.toFixed(2)+') '+o.base);
+    });
+  }
+});
+window.addEventListener('mouseup', function() {
+  var d = elemDrag;
+  elemDrag = null;
+  if (d && d.moved) {
+    // commit the delta into the placeobject's own tx/ty (root-space delta; exact for
+    // top-level elements, approximate under a scaled/rotated parent sprite)
+    d.poNode.setAttribute('tx', (d.startTx + d.dux).toFixed(2));
+    d.poNode.setAttribute('ty', (d.startTy + d.duy).toFixed(2));
+    markDirty(); renderSVG(); selectByNode(d.poNode);
+  }
+});
+
 // stage pan/zoom
 (function() {
   var stage = document.getElementById('stage');
@@ -983,6 +1278,19 @@ document.getElementById('reload-btn').addEventListener('click', function() {
 document.getElementById('save-btn').addEventListener('click', saveXML);
 document.getElementById('convert-btn').addEventListener('click', convertToAPT);
 document.getElementById('apply-btn').addEventListener('click', applyAndRender);
+document.getElementById('undo-btn').addEventListener('click', undo);
+document.getElementById('redo-btn').addEventListener('click', redo);
+document.getElementById('add-btn').addEventListener('click', addPlaceobject);
+document.getElementById('dup-btn').addEventListener('click', duplicateSelected);
+document.getElementById('del-btn').addEventListener('click', deleteSelected);
+
+// frame-label state dropdown: re-render sprites in the chosen state, keep the selection
+document.getElementById('label-select').addEventListener('change', function() {
+  forcedLabel = this.value;
+  var savedPo = (selUid !== null) ? poRegistry.get(selUid) : null;
+  renderSVG();
+  if (savedPo) poRegistry.forEach(function(pn, uid){ if (pn === savedPo) selectElem(uid); });
+});
 
 // panel toggle
 document.getElementById('panel-toggle').addEventListener('click', function() {
@@ -996,8 +1304,21 @@ document.getElementById('panel-show-btn').addEventListener('click', function() {
 
 // keyboard shortcuts
 document.addEventListener('keydown', function(e) {
-  if ((e.ctrlKey||e.metaKey) && e.key === 's') { e.preventDefault(); saveXML(); }
-  if ((e.ctrlKey||e.metaKey) && e.key === 'Enter') { e.preventDefault(); applyAndRender(); }
+  var t = e.target;
+  var inField = t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA');
+  var ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.key === 's') { e.preventDefault(); saveXML(); return; }
+  if (ctrl && e.key === 'Enter') { e.preventDefault(); applyAndRender(); return; }
+  if (ctrl && (e.key === 'z' || e.key === 'Z')) {
+    e.preventDefault();
+    if (e.shiftKey) redo(); else undo();
+    return;
+  }
+  if (ctrl && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
+  if (ctrl && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); duplicateSelected(); return; }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && !inField) {
+    e.preventDefault(); deleteSelected(); return;
+  }
   if (e.key === 'Escape') clearSelection();
 });
 
