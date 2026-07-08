@@ -73,7 +73,7 @@ The status bar reports whether a config was found and loaded.
 
 ```
 pip install -e .[lint-ui]
-pyinstaller sage-lint-ui.spec
+pyinstaller sage_lint/sage-lint-ui.spec
 ```
 
 This produces `dist/SAGE Lint.exe` — a single file you can hand to a teammate. The window icon

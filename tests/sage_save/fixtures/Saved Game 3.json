@@ -1,0 +1,3479 @@
+{
+  "container": {
+    "id": "EALA RTS2",
+    "values": [
+      1,
+      0
+    ]
+  },
+  "chunks": [
+    {
+      "name": "CHUNK_LivingWorldLogic",
+      "version": 6,
+      "size": 22
+    },
+    {
+      "name": "CHUNK_Audio",
+      "version": 4,
+      "size": 405
+    },
+    {
+      "name": "CHUNK_GameState",
+      "version": 1,
+      "size": 99
+    },
+    {
+      "name": "CHUNK_Campaign",
+      "version": 1,
+      "size": 2
+    },
+    {
+      "name": "CHUNK_Palantir",
+      "version": 4,
+      "size": 137
+    },
+    {
+      "name": "CHUNK_GameStateMap",
+      "version": 2,
+      "size": 569018
+    },
+    {
+      "name": "CHUNK_TerrainLogic",
+      "version": 1,
+      "size": 31195
+    },
+    {
+      "name": "CHUNK_TeamFactory",
+      "version": 3,
+      "size": 17489
+    },
+    {
+      "name": "CHUNK_Players",
+      "version": 1,
+      "size": 169460
+    },
+    {
+      "name": "CHUNK_GameLogic",
+      "version": 8,
+      "size": 2241675
+    },
+    {
+      "name": "CHUNK_Radar",
+      "version": 3,
+      "size": 7140
+    },
+    {
+      "name": "CHUNK_ScriptEngine",
+      "version": 5,
+      "size": 23328
+    },
+    {
+      "name": "CHUNK_SidesList",
+      "version": 1,
+      "size": 11452
+    },
+    {
+      "name": "CHUNK_TacticalView",
+      "version": 3,
+      "size": 146
+    },
+    {
+      "name": "CHUNK_GameClient",
+      "version": 4,
+      "size": 565827
+    },
+    {
+      "name": "CHUNK_InGameUI",
+      "version": 2,
+      "size": 20
+    },
+    {
+      "name": "CHUNK_Partition",
+      "version": 1,
+      "size": 2
+    },
+    {
+      "name": "CHUNK_Shroud",
+      "version": 1,
+      "size": 2578755
+    },
+    {
+      "name": "CHUNK_Collision",
+      "version": 1,
+      "size": 2
+    },
+    {
+      "name": "CHUNK_ParticleSystem",
+      "version": 2,
+      "size": 9834
+    },
+    {
+      "name": "CHUNK_TerrainVisual",
+      "version": 1,
+      "size": 869030
+    },
+    {
+      "name": "CHUNK_GhostObject",
+      "version": 1,
+      "size": 18341
+    },
+    {
+      "name": "CHUNK_VictorySystem",
+      "version": 1,
+      "size": 30921
+    },
+    {
+      "name": "CHUNK_TaintManager",
+      "version": 1,
+      "size": 149846
+    },
+    {
+      "name": "CHUNK_WeatherSystem",
+      "version": 4,
+      "size": 66
+    },
+    {
+      "name": "CHUNK_SkirmishAISystem",
+      "version": 2,
+      "size": 10724
+    },
+    {
+      "name": "CHUNK_MineshaftPortalNetworkManager",
+      "version": 1,
+      "size": 1
+    },
+    {
+      "name": "CHUNK_AiOrdersManager",
+      "version": 1,
+      "size": 1340
+    },
+    {
+      "name": "CHUNK_SpellStore",
+      "version": 1,
+      "size": 2
+    },
+    {
+      "name": "CHUNK_ObjectivesMenu",
+      "version": 1,
+      "size": 2
+    },
+    {
+      "name": "CHUNK_MissionObjectives",
+      "version": 1,
+      "size": 2
+    },
+    {
+      "name": "CHUNK_FireLogicSystem",
+      "version": 2,
+      "size": 2733233
+    }
+  ],
+  "game_state": {
+    "version": 1,
+    "description": "Saved Game 3",
+    "saved_at": "2026-07-05T11:37:43.282000",
+    "map_name": "maps\\map wor arnor\\map wor arnor.map",
+    "user_name": "Clem"
+  },
+  "game_state_map": {
+    "version": 2,
+    "save_map_name": "save\\map wor arnor.map",
+    "pristine_map_name": "maps\\map wor arnor\\map wor arnor.map",
+    "game_mode": 2,
+    "embedded_map_bytes": 566706
+  },
+  "campaign": {
+    "version": 1,
+    "current_campaign": ""
+  },
+  "game_logic": {
+    "version": 8,
+    "frame": 2,
+    "template_count": 103,
+    "object_count": 485,
+    "templates": {
+      "1": "WallHubTemplate",
+      "2": "WaterReflectionSkydome_GapOfRohan",
+      "3": "GondorBuildingGenericNew04Snow",
+      "4": "GondorBuildingGenericNew01Snow",
+      "5": "GondorBuildingGenericNew05Snow",
+      "6": "OsgiliathRuin08Snow",
+      "7": "GondorBuildingGenericNew08Snow",
+      "8": "GondorBuildingGenericNew03Snow",
+      "9": "OsgiliathRuin12Snow",
+      "10": "GondorBuildingGenericNew02Snow",
+      "11": "GondorBuildingGenericNew07Snow",
+      "12": "CaptureFlag",
+      "13": "FarmTemplate",
+      "14": "SkirmishSpawnPoint",
+      "15": "SnowyRock16",
+      "16": "SnowyRock09",
+      "17": "Wolf",
+      "18": "AnimalWanderPoint",
+      "19": "SnowyRock08",
+      "20": "SnowyRock04",
+      "21": "OsgiliathRuin22Snow",
+      "22": "OsgiliathRuin20Snow",
+      "23": "SnowyRock05",
+      "24": "SignalFire",
+      "25": "CaveTrollLairSnow",
+      "26": "TheOneTree",
+      "27": "TheNonInteractableTree",
+      "28": "TheGrabbableTree",
+      "29": "TheHarvestableTree",
+      "30": "ElvenFortress",
+      "31": "ElvenPorter",
+      "32": "MenFortress",
+      "33": "MenPorter",
+      "34": "IsengardFortress",
+      "35": "IsengardPorter",
+      "36": "MordorFortress",
+      "37": "MordorPorter",
+      "38": "ElvesSpellBook",
+      "39": "MenSpellBook",
+      "40": "IsengardSpellBook",
+      "41": "MordorSpellBook",
+      "42": "NeutralGollum_RingHero",
+      "43": "CaveTroll_Slaved",
+      "44": "ElvenFortressExpansionPadCorner",
+      "45": "ElvenCitadel",
+      "46": "MenFortressExpansionPadSide",
+      "47": "MenFortressExpansionPadCorner",
+      "48": "MenFortressCitadel",
+      "49": "IsengardFortressExpansionPadCorner",
+      "50": "IsengardFortressCitadel",
+      "51": "MordorFortressExpansionPadCorner",
+      "52": "MordorFortressCitadel",
+      "53": "GondorBarracks",
+      "54": "IsengardUrukPit",
+      "55": "MordorOrcPit",
+      "56": "GondorArcherRange",
+      "57": "MordorHaradrimPalace",
+      "58": "ElvenMallornTree",
+      "59": "ElvenGreenPasture",
+      "60": "GondorFarm",
+      "61": "MordorTavern",
+      "62": "GondorArcherHorde",
+      "63": "GondorArcher",
+      "64": "ElvenGlorfindel",
+      "65": "MordorArcherHorde",
+      "66": "MordorArcher",
+      "67": "IsengardFurnace",
+      "68": "ElvenRivendellLancerHorde",
+      "69": "ElvenRivendellLancer",
+      "70": "MordorSlaughterHouse",
+      "71": "IsengardUrukCrossbowHorde",
+      "72": "IsengardUrukCrossbow",
+      "73": "ElvenBarracks",
+      "74": "IsengardFighterHorde",
+      "75": "IsengardFighter",
+      "76": "IsengardWargPit",
+      "77": "MordorTrollCage",
+      "78": "IsengardArmory",
+      "79": "GondorStable",
+      "80": "ElvenLorienArcherHorde",
+      "81": "ElvenLorienArcher",
+      "82": "ElvenFortressWorkerNoSelect",
+      "83": "GondorTowerShieldGuardHorde",
+      "84": "GondorTowerShieldGuard",
+      "85": "ElvenBanner",
+      "86": "ElvenMirrorOfGaladriel",
+      "87": "GondorWorkshop",
+      "88": "GondorFighterHorde",
+      "89": "GondorFighter",
+      "90": "ElvenLorienWarriorHorde",
+      "91": "ElvenLorienWarrior",
+      "92": "IsengardPikemanHorde",
+      "93": "IsengardPikeman",
+      "94": "GondorRangerHorde",
+      "95": "GondorRanger",
+      "96": "ElvenHaldir",
+      "97": "MordorCorsairsOfUmbarHorde",
+      "98": "MordorCorsairsOfUmbar",
+      "99": "GondorTrebuchet",
+      "100": "IsengardWargRiderHorde",
+      "101": "IsengardWargRider",
+      "102": "ElvenRivendellLancerBanner",
+      "103": "GoodFactionArrow"
+    },
+    "objects": [
+      {
+        "object_id": 1,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 2,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 3,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 4,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 5,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 6,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 7,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 8,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 9,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 10,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 11,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 12,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 13,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 14,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 15,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 16,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 17,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 18,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 19,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 20,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 21,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 22,
+        "template_id": 1,
+        "template": "WallHubTemplate"
+      },
+      {
+        "object_id": 23,
+        "template_id": 2,
+        "template": "WaterReflectionSkydome_GapOfRohan"
+      },
+      {
+        "object_id": 24,
+        "template_id": 3,
+        "template": "GondorBuildingGenericNew04Snow"
+      },
+      {
+        "object_id": 25,
+        "template_id": 4,
+        "template": "GondorBuildingGenericNew01Snow"
+      },
+      {
+        "object_id": 26,
+        "template_id": 5,
+        "template": "GondorBuildingGenericNew05Snow"
+      },
+      {
+        "object_id": 27,
+        "template_id": 6,
+        "template": "OsgiliathRuin08Snow"
+      },
+      {
+        "object_id": 28,
+        "template_id": 7,
+        "template": "GondorBuildingGenericNew08Snow"
+      },
+      {
+        "object_id": 29,
+        "template_id": 8,
+        "template": "GondorBuildingGenericNew03Snow"
+      },
+      {
+        "object_id": 30,
+        "template_id": 8,
+        "template": "GondorBuildingGenericNew03Snow"
+      },
+      {
+        "object_id": 31,
+        "template_id": 9,
+        "template": "OsgiliathRuin12Snow"
+      },
+      {
+        "object_id": 32,
+        "template_id": 4,
+        "template": "GondorBuildingGenericNew01Snow"
+      },
+      {
+        "object_id": 33,
+        "template_id": 5,
+        "template": "GondorBuildingGenericNew05Snow"
+      },
+      {
+        "object_id": 34,
+        "template_id": 10,
+        "template": "GondorBuildingGenericNew02Snow"
+      },
+      {
+        "object_id": 35,
+        "template_id": 7,
+        "template": "GondorBuildingGenericNew08Snow"
+      },
+      {
+        "object_id": 36,
+        "template_id": 3,
+        "template": "GondorBuildingGenericNew04Snow"
+      },
+      {
+        "object_id": 37,
+        "template_id": 11,
+        "template": "GondorBuildingGenericNew07Snow"
+      },
+      {
+        "object_id": 38,
+        "template_id": 12,
+        "template": "CaptureFlag"
+      },
+      {
+        "object_id": 39,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 40,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 41,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 42,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 43,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 44,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 45,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 46,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 47,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 48,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 49,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 50,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 51,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 52,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 53,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 54,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 55,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 56,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 57,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 58,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 59,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 60,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 61,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 62,
+        "template_id": 13,
+        "template": "FarmTemplate"
+      },
+      {
+        "object_id": 63,
+        "template_id": 14,
+        "template": "SkirmishSpawnPoint"
+      },
+      {
+        "object_id": 64,
+        "template_id": 14,
+        "template": "SkirmishSpawnPoint"
+      },
+      {
+        "object_id": 65,
+        "template_id": 14,
+        "template": "SkirmishSpawnPoint"
+      },
+      {
+        "object_id": 66,
+        "template_id": 14,
+        "template": "SkirmishSpawnPoint"
+      },
+      {
+        "object_id": 67,
+        "template_id": 15,
+        "template": "SnowyRock16"
+      },
+      {
+        "object_id": 68,
+        "template_id": 15,
+        "template": "SnowyRock16"
+      },
+      {
+        "object_id": 69,
+        "template_id": 15,
+        "template": "SnowyRock16"
+      },
+      {
+        "object_id": 70,
+        "template_id": 15,
+        "template": "SnowyRock16"
+      },
+      {
+        "object_id": 71,
+        "template_id": 16,
+        "template": "SnowyRock09"
+      },
+      {
+        "object_id": 72,
+        "template_id": 16,
+        "template": "SnowyRock09"
+      },
+      {
+        "object_id": 73,
+        "template_id": 15,
+        "template": "SnowyRock16"
+      },
+      {
+        "object_id": 74,
+        "template_id": 15,
+        "template": "SnowyRock16"
+      },
+      {
+        "object_id": 75,
+        "template_id": 17,
+        "template": "Wolf"
+      },
+      {
+        "object_id": 76,
+        "template_id": 18,
+        "template": "AnimalWanderPoint"
+      },
+      {
+        "object_id": 77,
+        "template_id": 17,
+        "template": "Wolf"
+      },
+      {
+        "object_id": 78,
+        "template_id": 18,
+        "template": "AnimalWanderPoint"
+      },
+      {
+        "object_id": 79,
+        "template_id": 17,
+        "template": "Wolf"
+      },
+      {
+        "object_id": 80,
+        "template_id": 18,
+        "template": "AnimalWanderPoint"
+      },
+      {
+        "object_id": 81,
+        "template_id": 17,
+        "template": "Wolf"
+      },
+      {
+        "object_id": 82,
+        "template_id": 18,
+        "template": "AnimalWanderPoint"
+      },
+      {
+        "object_id": 83,
+        "template_id": 17,
+        "template": "Wolf"
+      },
+      {
+        "object_id": 84,
+        "template_id": 18,
+        "template": "AnimalWanderPoint"
+      },
+      {
+        "object_id": 85,
+        "template_id": 17,
+        "template": "Wolf"
+      },
+      {
+        "object_id": 86,
+        "template_id": 18,
+        "template": "AnimalWanderPoint"
+      },
+      {
+        "object_id": 87,
+        "template_id": 17,
+        "template": "Wolf"
+      },
+      {
+        "object_id": 88,
+        "template_id": 18,
+        "template": "AnimalWanderPoint"
+      },
+      {
+        "object_id": 89,
+        "template_id": 17,
+        "template": "Wolf"
+      },
+      {
+        "object_id": 90,
+        "template_id": 18,
+        "template": "AnimalWanderPoint"
+      },
+      {
+        "object_id": 91,
+        "template_id": 19,
+        "template": "SnowyRock08"
+      },
+      {
+        "object_id": 92,
+        "template_id": 19,
+        "template": "SnowyRock08"
+      },
+      {
+        "object_id": 93,
+        "template_id": 19,
+        "template": "SnowyRock08"
+      },
+      {
+        "object_id": 94,
+        "template_id": 19,
+        "template": "SnowyRock08"
+      },
+      {
+        "object_id": 95,
+        "template_id": 20,
+        "template": "SnowyRock04"
+      },
+      {
+        "object_id": 96,
+        "template_id": 20,
+        "template": "SnowyRock04"
+      },
+      {
+        "object_id": 97,
+        "template_id": 20,
+        "template": "SnowyRock04"
+      },
+      {
+        "object_id": 98,
+        "template_id": 20,
+        "template": "SnowyRock04"
+      },
+      {
+        "object_id": 99,
+        "template_id": 20,
+        "template": "SnowyRock04"
+      },
+      {
+        "object_id": 100,
+        "template_id": 20,
+        "template": "SnowyRock04"
+      },
+      {
+        "object_id": 101,
+        "template_id": 20,
+        "template": "SnowyRock04"
+      },
+      {
+        "object_id": 102,
+        "template_id": 20,
+        "template": "SnowyRock04"
+      },
+      {
+        "object_id": 103,
+        "template_id": 16,
+        "template": "SnowyRock09"
+      },
+      {
+        "object_id": 104,
+        "template_id": 16,
+        "template": "SnowyRock09"
+      },
+      {
+        "object_id": 105,
+        "template_id": 16,
+        "template": "SnowyRock09"
+      },
+      {
+        "object_id": 106,
+        "template_id": 16,
+        "template": "SnowyRock09"
+      },
+      {
+        "object_id": 107,
+        "template_id": 16,
+        "template": "SnowyRock09"
+      },
+      {
+        "object_id": 108,
+        "template_id": 16,
+        "template": "SnowyRock09"
+      },
+      {
+        "object_id": 109,
+        "template_id": 16,
+        "template": "SnowyRock09"
+      },
+      {
+        "object_id": 110,
+        "template_id": 16,
+        "template": "SnowyRock09"
+      },
+      {
+        "object_id": 111,
+        "template_id": 21,
+        "template": "OsgiliathRuin22Snow"
+      },
+      {
+        "object_id": 112,
+        "template_id": 21,
+        "template": "OsgiliathRuin22Snow"
+      },
+      {
+        "object_id": 113,
+        "template_id": 9,
+        "template": "OsgiliathRuin12Snow"
+      },
+      {
+        "object_id": 114,
+        "template_id": 6,
+        "template": "OsgiliathRuin08Snow"
+      },
+      {
+        "object_id": 115,
+        "template_id": 21,
+        "template": "OsgiliathRuin22Snow"
+      },
+      {
+        "object_id": 116,
+        "template_id": 22,
+        "template": "OsgiliathRuin20Snow"
+      },
+      {
+        "object_id": 117,
+        "template_id": 23,
+        "template": "SnowyRock05"
+      },
+      {
+        "object_id": 118,
+        "template_id": 23,
+        "template": "SnowyRock05"
+      },
+      {
+        "object_id": 119,
+        "template_id": 23,
+        "template": "SnowyRock05"
+      },
+      {
+        "object_id": 120,
+        "template_id": 23,
+        "template": "SnowyRock05"
+      },
+      {
+        "object_id": 121,
+        "template_id": 23,
+        "template": "SnowyRock05"
+      },
+      {
+        "object_id": 122,
+        "template_id": 23,
+        "template": "SnowyRock05"
+      },
+      {
+        "object_id": 123,
+        "template_id": 23,
+        "template": "SnowyRock05"
+      },
+      {
+        "object_id": 124,
+        "template_id": 23,
+        "template": "SnowyRock05"
+      },
+      {
+        "object_id": 125,
+        "template_id": 21,
+        "template": "OsgiliathRuin22Snow"
+      },
+      {
+        "object_id": 126,
+        "template_id": 21,
+        "template": "OsgiliathRuin22Snow"
+      },
+      {
+        "object_id": 127,
+        "template_id": 9,
+        "template": "OsgiliathRuin12Snow"
+      },
+      {
+        "object_id": 128,
+        "template_id": 24,
+        "template": "SignalFire"
+      },
+      {
+        "object_id": 129,
+        "template_id": 25,
+        "template": "CaveTrollLairSnow"
+      },
+      {
+        "object_id": 99999999,
+        "template_id": 26,
+        "template": "TheOneTree"
+      },
+      {
+        "object_id": 99999998,
+        "template_id": 27,
+        "template": "TheNonInteractableTree"
+      },
+      {
+        "object_id": 99999996,
+        "template_id": 28,
+        "template": "TheGrabbableTree"
+      },
+      {
+        "object_id": 99999997,
+        "template_id": 29,
+        "template": "TheHarvestableTree"
+      },
+      {
+        "object_id": 131,
+        "template_id": 30,
+        "template": "ElvenFortress"
+      },
+      {
+        "object_id": 132,
+        "template_id": 31,
+        "template": "ElvenPorter"
+      },
+      {
+        "object_id": 133,
+        "template_id": 31,
+        "template": "ElvenPorter"
+      },
+      {
+        "object_id": 134,
+        "template_id": 32,
+        "template": "MenFortress"
+      },
+      {
+        "object_id": 135,
+        "template_id": 33,
+        "template": "MenPorter"
+      },
+      {
+        "object_id": 136,
+        "template_id": 33,
+        "template": "MenPorter"
+      },
+      {
+        "object_id": 137,
+        "template_id": 34,
+        "template": "IsengardFortress"
+      },
+      {
+        "object_id": 138,
+        "template_id": 35,
+        "template": "IsengardPorter"
+      },
+      {
+        "object_id": 139,
+        "template_id": 35,
+        "template": "IsengardPorter"
+      },
+      {
+        "object_id": 140,
+        "template_id": 36,
+        "template": "MordorFortress"
+      },
+      {
+        "object_id": 141,
+        "template_id": 37,
+        "template": "MordorPorter"
+      },
+      {
+        "object_id": 142,
+        "template_id": 37,
+        "template": "MordorPorter"
+      },
+      {
+        "object_id": 143,
+        "template_id": 38,
+        "template": "ElvesSpellBook"
+      },
+      {
+        "object_id": 144,
+        "template_id": 39,
+        "template": "MenSpellBook"
+      },
+      {
+        "object_id": 145,
+        "template_id": 40,
+        "template": "IsengardSpellBook"
+      },
+      {
+        "object_id": 146,
+        "template_id": 41,
+        "template": "MordorSpellBook"
+      },
+      {
+        "object_id": 147,
+        "template_id": 42,
+        "template": "NeutralGollum_RingHero"
+      },
+      {
+        "object_id": 148,
+        "template_id": 43,
+        "template": "CaveTroll_Slaved"
+      },
+      {
+        "object_id": 150,
+        "template_id": 44,
+        "template": "ElvenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 151,
+        "template_id": 44,
+        "template": "ElvenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 152,
+        "template_id": 44,
+        "template": "ElvenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 153,
+        "template_id": 44,
+        "template": "ElvenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 154,
+        "template_id": 44,
+        "template": "ElvenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 155,
+        "template_id": 44,
+        "template": "ElvenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 156,
+        "template_id": 44,
+        "template": "ElvenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 157,
+        "template_id": 45,
+        "template": "ElvenCitadel"
+      },
+      {
+        "object_id": 159,
+        "template_id": 46,
+        "template": "MenFortressExpansionPadSide"
+      },
+      {
+        "object_id": 160,
+        "template_id": 46,
+        "template": "MenFortressExpansionPadSide"
+      },
+      {
+        "object_id": 161,
+        "template_id": 47,
+        "template": "MenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 162,
+        "template_id": 47,
+        "template": "MenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 163,
+        "template_id": 47,
+        "template": "MenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 164,
+        "template_id": 47,
+        "template": "MenFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 165,
+        "template_id": 48,
+        "template": "MenFortressCitadel"
+      },
+      {
+        "object_id": 167,
+        "template_id": 49,
+        "template": "IsengardFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 168,
+        "template_id": 49,
+        "template": "IsengardFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 169,
+        "template_id": 49,
+        "template": "IsengardFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 170,
+        "template_id": 49,
+        "template": "IsengardFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 171,
+        "template_id": 49,
+        "template": "IsengardFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 172,
+        "template_id": 49,
+        "template": "IsengardFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 173,
+        "template_id": 49,
+        "template": "IsengardFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 174,
+        "template_id": 50,
+        "template": "IsengardFortressCitadel"
+      },
+      {
+        "object_id": 176,
+        "template_id": 51,
+        "template": "MordorFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 177,
+        "template_id": 51,
+        "template": "MordorFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 178,
+        "template_id": 51,
+        "template": "MordorFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 179,
+        "template_id": 51,
+        "template": "MordorFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 180,
+        "template_id": 51,
+        "template": "MordorFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 181,
+        "template_id": 51,
+        "template": "MordorFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 182,
+        "template_id": 51,
+        "template": "MordorFortressExpansionPadCorner"
+      },
+      {
+        "object_id": 183,
+        "template_id": 52,
+        "template": "MordorFortressCitadel"
+      },
+      {
+        "object_id": 185,
+        "template_id": 53,
+        "template": "GondorBarracks"
+      },
+      {
+        "object_id": 186,
+        "template_id": 54,
+        "template": "IsengardUrukPit"
+      },
+      {
+        "object_id": 187,
+        "template_id": 55,
+        "template": "MordorOrcPit"
+      },
+      {
+        "object_id": 188,
+        "template_id": 56,
+        "template": "GondorArcherRange"
+      },
+      {
+        "object_id": 189,
+        "template_id": 57,
+        "template": "MordorHaradrimPalace"
+      },
+      {
+        "object_id": 190,
+        "template_id": 58,
+        "template": "ElvenMallornTree"
+      },
+      {
+        "object_id": 191,
+        "template_id": 59,
+        "template": "ElvenGreenPasture"
+      },
+      {
+        "object_id": 192,
+        "template_id": 60,
+        "template": "GondorFarm"
+      },
+      {
+        "object_id": 193,
+        "template_id": 53,
+        "template": "GondorBarracks"
+      },
+      {
+        "object_id": 194,
+        "template_id": 58,
+        "template": "ElvenMallornTree"
+      },
+      {
+        "object_id": 195,
+        "template_id": 61,
+        "template": "MordorTavern"
+      },
+      {
+        "object_id": 198,
+        "template_id": 62,
+        "template": "GondorArcherHorde"
+      },
+      {
+        "object_id": 227,
+        "template_id": 63,
+        "template": "GondorArcher"
+      },
+      {
+        "object_id": 236,
+        "template_id": 64,
+        "template": "ElvenGlorfindel"
+      },
+      {
+        "object_id": 245,
+        "template_id": 58,
+        "template": "ElvenMallornTree"
+      },
+      {
+        "object_id": 246,
+        "template_id": 58,
+        "template": "ElvenMallornTree"
+      },
+      {
+        "object_id": 247,
+        "template_id": 65,
+        "template": "MordorArcherHorde"
+      },
+      {
+        "object_id": 248,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 249,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 250,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 251,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 252,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 254,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 256,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 258,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 260,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 262,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 264,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 266,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 268,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 270,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 272,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 274,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 276,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 278,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 280,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 282,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 316,
+        "template_id": 67,
+        "template": "IsengardFurnace"
+      },
+      {
+        "object_id": 327,
+        "template_id": 68,
+        "template": "ElvenRivendellLancerHorde"
+      },
+      {
+        "object_id": 330,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 333,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 336,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 339,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 342,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 344,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 345,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 346,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 347,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 348,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 349,
+        "template_id": 70,
+        "template": "MordorSlaughterHouse"
+      },
+      {
+        "object_id": 350,
+        "template_id": 71,
+        "template": "IsengardUrukCrossbowHorde"
+      },
+      {
+        "object_id": 351,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 352,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 353,
+        "template_id": 58,
+        "template": "ElvenMallornTree"
+      },
+      {
+        "object_id": 354,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 355,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 356,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 357,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 358,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 359,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 360,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 361,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 362,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 363,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 364,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 365,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 366,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 367,
+        "template_id": 67,
+        "template": "IsengardFurnace"
+      },
+      {
+        "object_id": 368,
+        "template_id": 58,
+        "template": "ElvenMallornTree"
+      },
+      {
+        "object_id": 369,
+        "template_id": 68,
+        "template": "ElvenRivendellLancerHorde"
+      },
+      {
+        "object_id": 370,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 371,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 372,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 373,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 375,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 376,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 378,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 415,
+        "template_id": 65,
+        "template": "MordorArcherHorde"
+      },
+      {
+        "object_id": 417,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 419,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 422,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 424,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 426,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 429,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 431,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 433,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 435,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 438,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 440,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 442,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 445,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 447,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 448,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 449,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 450,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 452,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 453,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 454,
+        "template_id": 66,
+        "template": "MordorArcher"
+      },
+      {
+        "object_id": 464,
+        "template_id": 58,
+        "template": "ElvenMallornTree"
+      },
+      {
+        "object_id": 466,
+        "template_id": 71,
+        "template": "IsengardUrukCrossbowHorde"
+      },
+      {
+        "object_id": 467,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 468,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 469,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 470,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 471,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 472,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 473,
+        "template_id": 67,
+        "template": "IsengardFurnace"
+      },
+      {
+        "object_id": 474,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 475,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 476,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 477,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 478,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 479,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 480,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 481,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 482,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 483,
+        "template_id": 73,
+        "template": "ElvenBarracks"
+      },
+      {
+        "object_id": 484,
+        "template_id": 60,
+        "template": "GondorFarm"
+      },
+      {
+        "object_id": 492,
+        "template_id": 74,
+        "template": "IsengardFighterHorde"
+      },
+      {
+        "object_id": 493,
+        "template_id": 75,
+        "template": "IsengardFighter"
+      },
+      {
+        "object_id": 495,
+        "template_id": 75,
+        "template": "IsengardFighter"
+      },
+      {
+        "object_id": 496,
+        "template_id": 75,
+        "template": "IsengardFighter"
+      },
+      {
+        "object_id": 502,
+        "template_id": 75,
+        "template": "IsengardFighter"
+      },
+      {
+        "object_id": 504,
+        "template_id": 75,
+        "template": "IsengardFighter"
+      },
+      {
+        "object_id": 509,
+        "template_id": 75,
+        "template": "IsengardFighter"
+      },
+      {
+        "object_id": 511,
+        "template_id": 75,
+        "template": "IsengardFighter"
+      },
+      {
+        "object_id": 527,
+        "template_id": 76,
+        "template": "IsengardWargPit"
+      },
+      {
+        "object_id": 528,
+        "template_id": 77,
+        "template": "MordorTrollCage"
+      },
+      {
+        "object_id": 530,
+        "template_id": 78,
+        "template": "IsengardArmory"
+      },
+      {
+        "object_id": 532,
+        "template_id": 55,
+        "template": "MordorOrcPit"
+      },
+      {
+        "object_id": 533,
+        "template_id": 71,
+        "template": "IsengardUrukCrossbowHorde"
+      },
+      {
+        "object_id": 534,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 535,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 536,
+        "template_id": 60,
+        "template": "GondorFarm"
+      },
+      {
+        "object_id": 537,
+        "template_id": 58,
+        "template": "ElvenMallornTree"
+      },
+      {
+        "object_id": 538,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 539,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 540,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 541,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 542,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 543,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 544,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 545,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 546,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 547,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 548,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 549,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 550,
+        "template_id": 72,
+        "template": "IsengardUrukCrossbow"
+      },
+      {
+        "object_id": 551,
+        "template_id": 79,
+        "template": "GondorStable"
+      },
+      {
+        "object_id": 558,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 563,
+        "template_id": 80,
+        "template": "ElvenLorienArcherHorde"
+      },
+      {
+        "object_id": 565,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 566,
+        "template_id": 82,
+        "template": "ElvenFortressWorkerNoSelect"
+      },
+      {
+        "object_id": 568,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 570,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 571,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 572,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 574,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 575,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 576,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 578,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 579,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 580,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 582,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 583,
+        "template_id": 35,
+        "template": "IsengardPorter"
+      },
+      {
+        "object_id": 584,
+        "template_id": 37,
+        "template": "MordorPorter"
+      },
+      {
+        "object_id": 590,
+        "template_id": 54,
+        "template": "IsengardUrukPit"
+      },
+      {
+        "object_id": 596,
+        "template_id": 83,
+        "template": "GondorTowerShieldGuardHorde"
+      },
+      {
+        "object_id": 597,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 607,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 613,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 616,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 618,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 619,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 620,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 622,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 623,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 634,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 639,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 641,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 643,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 645,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 646,
+        "template_id": 84,
+        "template": "GondorTowerShieldGuard"
+      },
+      {
+        "object_id": 668,
+        "template_id": 33,
+        "template": "MenPorter"
+      },
+      {
+        "object_id": 803,
+        "template_id": 85,
+        "template": "ElvenBanner"
+      },
+      {
+        "object_id": 810,
+        "template_id": 86,
+        "template": "ElvenMirrorOfGaladriel"
+      },
+      {
+        "object_id": 831,
+        "template_id": 87,
+        "template": "GondorWorkshop"
+      },
+      {
+        "object_id": 840,
+        "template_id": 35,
+        "template": "IsengardPorter"
+      },
+      {
+        "object_id": 858,
+        "template_id": 80,
+        "template": "ElvenLorienArcherHorde"
+      },
+      {
+        "object_id": 860,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 861,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 862,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 864,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 865,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 866,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 868,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 869,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 870,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 872,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 873,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 874,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 876,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 877,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 878,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 962,
+        "template_id": 88,
+        "template": "GondorFighterHorde"
+      },
+      {
+        "object_id": 1000,
+        "template_id": 89,
+        "template": "GondorFighter"
+      },
+      {
+        "object_id": 1002,
+        "template_id": 89,
+        "template": "GondorFighter"
+      },
+      {
+        "object_id": 1034,
+        "template_id": 90,
+        "template": "ElvenLorienWarriorHorde"
+      },
+      {
+        "object_id": 1035,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1037,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1038,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1044,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1050,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1051,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1052,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1053,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1054,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1055,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1056,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1057,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1058,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1059,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1060,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1121,
+        "template_id": 58,
+        "template": "ElvenMallornTree"
+      },
+      {
+        "object_id": 1286,
+        "template_id": 70,
+        "template": "MordorSlaughterHouse"
+      },
+      {
+        "object_id": 1310,
+        "template_id": 70,
+        "template": "MordorSlaughterHouse"
+      },
+      {
+        "object_id": 1311,
+        "template_id": 58,
+        "template": "ElvenMallornTree"
+      },
+      {
+        "object_id": 1312,
+        "template_id": 92,
+        "template": "IsengardPikemanHorde"
+      },
+      {
+        "object_id": 1322,
+        "template_id": 93,
+        "template": "IsengardPikeman"
+      },
+      {
+        "object_id": 1324,
+        "template_id": 93,
+        "template": "IsengardPikeman"
+      },
+      {
+        "object_id": 1325,
+        "template_id": 69,
+        "template": "ElvenRivendellLancer"
+      },
+      {
+        "object_id": 1327,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1329,
+        "template_id": 93,
+        "template": "IsengardPikeman"
+      },
+      {
+        "object_id": 1330,
+        "template_id": 94,
+        "template": "GondorRangerHorde"
+      },
+      {
+        "object_id": 1331,
+        "template_id": 93,
+        "template": "IsengardPikeman"
+      },
+      {
+        "object_id": 1333,
+        "template_id": 93,
+        "template": "IsengardPikeman"
+      },
+      {
+        "object_id": 1336,
+        "template_id": 95,
+        "template": "GondorRanger"
+      },
+      {
+        "object_id": 1339,
+        "template_id": 95,
+        "template": "GondorRanger"
+      },
+      {
+        "object_id": 1343,
+        "template_id": 95,
+        "template": "GondorRanger"
+      },
+      {
+        "object_id": 1376,
+        "template_id": 90,
+        "template": "ElvenLorienWarriorHorde"
+      },
+      {
+        "object_id": 1377,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1378,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1379,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1381,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1382,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1383,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1384,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1385,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1386,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1387,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1388,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1389,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1390,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1391,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1392,
+        "template_id": 91,
+        "template": "ElvenLorienWarrior"
+      },
+      {
+        "object_id": 1437,
+        "template_id": 85,
+        "template": "ElvenBanner"
+      },
+      {
+        "object_id": 1447,
+        "template_id": 96,
+        "template": "ElvenHaldir"
+      },
+      {
+        "object_id": 1508,
+        "template_id": 80,
+        "template": "ElvenLorienArcherHorde"
+      },
+      {
+        "object_id": 1509,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1510,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1511,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1518,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1528,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1529,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1530,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1531,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1532,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1533,
+        "template_id": 97,
+        "template": "MordorCorsairsOfUmbarHorde"
+      },
+      {
+        "object_id": 1534,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1535,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1536,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1537,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1538,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1539,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1540,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1541,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1542,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1543,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1544,
+        "template_id": 81,
+        "template": "ElvenLorienArcher"
+      },
+      {
+        "object_id": 1550,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1559,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1566,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1567,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1568,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1570,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1571,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1572,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1574,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1575,
+        "template_id": 98,
+        "template": "MordorCorsairsOfUmbar"
+      },
+      {
+        "object_id": 1761,
+        "template_id": 99,
+        "template": "GondorTrebuchet"
+      },
+      {
+        "object_id": 1775,
+        "template_id": 100,
+        "template": "IsengardWargRiderHorde"
+      },
+      {
+        "object_id": 1776,
+        "template_id": 101,
+        "template": "IsengardWargRider"
+      },
+      {
+        "object_id": 1778,
+        "template_id": 101,
+        "template": "IsengardWargRider"
+      },
+      {
+        "object_id": 1779,
+        "template_id": 101,
+        "template": "IsengardWargRider"
+      },
+      {
+        "object_id": 1780,
+        "template_id": 101,
+        "template": "IsengardWargRider"
+      },
+      {
+        "object_id": 1781,
+        "template_id": 101,
+        "template": "IsengardWargRider"
+      },
+      {
+        "object_id": 1782,
+        "template_id": 101,
+        "template": "IsengardWargRider"
+      },
+      {
+        "object_id": 1783,
+        "template_id": 101,
+        "template": "IsengardWargRider"
+      },
+      {
+        "object_id": 1784,
+        "template_id": 101,
+        "template": "IsengardWargRider"
+      },
+      {
+        "object_id": 1785,
+        "template_id": 101,
+        "template": "IsengardWargRider"
+      },
+      {
+        "object_id": 1786,
+        "template_id": 101,
+        "template": "IsengardWargRider"
+      },
+      {
+        "object_id": 1789,
+        "template_id": 102,
+        "template": "ElvenRivendellLancerBanner"
+      },
+      {
+        "object_id": 1793,
+        "template_id": 103,
+        "template": "GoodFactionArrow"
+      }
+    ]
+  },
+  "references": [
+    {
+      "kind": "object_template",
+      "name": "WallHubTemplate",
+      "count": 22,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "WaterReflectionSkydome_GapOfRohan",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorBuildingGenericNew04Snow",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorBuildingGenericNew01Snow",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorBuildingGenericNew05Snow",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "OsgiliathRuin08Snow",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorBuildingGenericNew08Snow",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorBuildingGenericNew03Snow",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "OsgiliathRuin12Snow",
+      "count": 3,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorBuildingGenericNew02Snow",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorBuildingGenericNew07Snow",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "CaptureFlag",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "FarmTemplate",
+      "count": 24,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "SkirmishSpawnPoint",
+      "count": 4,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "SnowyRock16",
+      "count": 6,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "SnowyRock09",
+      "count": 10,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "Wolf",
+      "count": 8,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "AnimalWanderPoint",
+      "count": 8,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "SnowyRock08",
+      "count": 4,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "SnowyRock04",
+      "count": 8,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "OsgiliathRuin22Snow",
+      "count": 5,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "OsgiliathRuin20Snow",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "SnowyRock05",
+      "count": 8,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "SignalFire",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "CaveTrollLairSnow",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "TheOneTree",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "TheNonInteractableTree",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "TheGrabbableTree",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "TheHarvestableTree",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenFortress",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenPorter",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MenFortress",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MenPorter",
+      "count": 3,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardFortress",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardPorter",
+      "count": 4,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorFortress",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorPorter",
+      "count": 3,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvesSpellBook",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MenSpellBook",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardSpellBook",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorSpellBook",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "NeutralGollum_RingHero",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "CaveTroll_Slaved",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenFortressExpansionPadCorner",
+      "count": 7,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenCitadel",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MenFortressExpansionPadSide",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MenFortressExpansionPadCorner",
+      "count": 4,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MenFortressCitadel",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardFortressExpansionPadCorner",
+      "count": 7,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardFortressCitadel",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorFortressExpansionPadCorner",
+      "count": 7,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorFortressCitadel",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorBarracks",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardUrukPit",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorOrcPit",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorArcherRange",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorHaradrimPalace",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenMallornTree",
+      "count": 10,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenGreenPasture",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorFarm",
+      "count": 3,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorTavern",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorArcherHorde",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorArcher",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenGlorfindel",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorArcherHorde",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorArcher",
+      "count": 40,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardFurnace",
+      "count": 3,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenRivendellLancerHorde",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenRivendellLancer",
+      "count": 19,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorSlaughterHouse",
+      "count": 3,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardUrukCrossbowHorde",
+      "count": 3,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardUrukCrossbow",
+      "count": 45,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenBarracks",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardFighterHorde",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardFighter",
+      "count": 7,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardWargPit",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorTrollCage",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardArmory",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorStable",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenLorienArcherHorde",
+      "count": 3,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenLorienArcher",
+      "count": 43,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenFortressWorkerNoSelect",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorTowerShieldGuardHorde",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorTowerShieldGuard",
+      "count": 15,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenBanner",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenMirrorOfGaladriel",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorWorkshop",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorFighterHorde",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorFighter",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenLorienWarriorHorde",
+      "count": 2,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenLorienWarrior",
+      "count": 30,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardPikemanHorde",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardPikeman",
+      "count": 5,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorRangerHorde",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorRanger",
+      "count": 3,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenHaldir",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorCorsairsOfUmbarHorde",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "MordorCorsairsOfUmbar",
+      "count": 15,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GondorTrebuchet",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardWargRiderHorde",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "IsengardWargRider",
+      "count": 10,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "ElvenRivendellLancerBanner",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "object_template",
+      "name": "GoodFactionArrow",
+      "count": 1,
+      "fatal": false
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_ElfFaction",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_GondorBarracksLevel3",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_GondorBarracksLevel2",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_GondorArcheryRangeLevel2",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_MenFaction",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_IsengardArmoryLevel3",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_IsengardArmoryLevel2",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_IsengardUrukPitLevel2",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_IsengardFaction",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_EvilDualEconomyChoice",
+      "count": 2,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_IsengardDualEconomyChoice",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_MordorTavernLevel3",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_MordorTavernLevel2",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_MordorFaction",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "upgrade",
+      "name": "Upgrade_MordorDualEconomyChoice",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "science",
+      "name": "SCIENCE_ELVES",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "science",
+      "name": "SCIENCE_Heal",
+      "count": 2,
+      "fatal": true
+    },
+    {
+      "kind": "science",
+      "name": "SCIENCE_MEN",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "science",
+      "name": "SCIENCE_ISENGARD",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "science",
+      "name": "SCIENCE_Crebain",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "science",
+      "name": "SCIENCE_MORDOR",
+      "count": 1,
+      "fatal": true
+    },
+    {
+      "kind": "science",
+      "name": "SCIENCE_Taint",
+      "count": 1,
+      "fatal": true
+    }
+  ]
+}

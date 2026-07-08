@@ -1,6 +1,6 @@
 """Test harness for the sage_ini suite.
 
-Two tiers of tests (PLAN.md, docs/test_suite_triage.md):
+Two tiers of tests:
 - **core**: the fast, data-free unit suite for `sage_ini` + `sage_lint`. A bare
   `pytest` runs only this — the inner loop while implementing a feature.
 - **full**: core plus the `full`-marked tests (the corpus acceptance gates and

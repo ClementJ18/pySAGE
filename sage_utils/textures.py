@@ -155,8 +155,8 @@ def default_background() -> Image.Image | None:
     return _asset_image("background.png")
 
 
-# The frame drawn around an ability icon: the active frame for an activated power, the
-# passive frame for a passive ability. Keyed by `ability_overlay_kind`'s return values.
+# The frame drawn around a command icon: the active frame for a pressable button, the
+# passive frame for a non-pressable one. Keyed by `button_overlay_kind`'s return values.
 _OVERLAY_FILES = {"active": "active_overlay.png", "passive": "passive_overlay.png"}
 
 

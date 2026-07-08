@@ -39,6 +39,45 @@ class TestFormatText:
 
         assert once == twice
 
+    def test_commandset_slots_pad_to_two_columns(self):
+        # Single-digit slots pad on the right so the `=` line up on a two-digit assumption.
+        result = format_text(
+            "CommandSet Bar\n    1 = Command_A\n    13 = Command_B\nEnd\n", file="commandset.ini"
+        )
+
+        assert result.formatted == ("CommandSet Bar\n    1  = Command_A\n    13 = Command_B\nEnd\n")
+
+    def test_commandset_lifts_attributes_above_a_blank_line(self):
+        # A non-slot attribute is pulled to the top and separated from the button slots by one
+        # blank line, wherever it appeared in the source.
+        result = format_text(
+            "CommandSet Foo\n    1 = Command_A\n    InitialVisible = 3\n    2 = Command_B\nEnd\n",
+            file="commandset.ini",
+        )
+
+        assert result.formatted == (
+            "CommandSet Foo\n"
+            "    InitialVisible = 3\n"
+            "\n"
+            "    1  = Command_A\n"
+            "    2  = Command_B\n"
+            "End\n"
+        )
+
+    def test_commandset_layout_is_idempotent(self):
+        once = format_text(
+            "CommandSet Foo\n    1 = Command_A\n    InitialVisible = 3\n\n    2 = Command_B\nEnd\n",
+            file="commandset.ini",
+        ).formatted
+        twice = format_text(once, file="commandset.ini").formatted
+
+        assert once == twice
+
+    def test_commandset_layout_only_applies_to_command_sets(self):
+        # A plain Object with a digit-keyed attribute is not a CommandSet: no padding, no reorder.
+        text = "Object Foo\n    1 = X\n    Name = Y\nEnd\n"
+        assert format_text(text, file="t.ini").formatted == text
+
     def test_blank_lines_are_preserved(self):
         text = "Object Foo\n    A = 1\n\n    B = 2\nEnd\n"
         result = format_text(text, file="t.ini")

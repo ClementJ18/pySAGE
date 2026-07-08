@@ -1,4 +1,4 @@
-"""Corpus-wide acceptance gates (PLAN.md scoreboard).
+"""Corpus-wide acceptance gates.
 
 Each phase strengthens the assertions here:
 - Phase 0: every file reads with a supported encoding.

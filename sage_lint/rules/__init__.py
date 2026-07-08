@@ -7,7 +7,7 @@ from sage_lint.rules.assets import (
     MissingTextureFileRule,
 )
 from sage_lint.rules.base import RULES, Rule, run_rules
-from sage_lint.rules.commandset import CommandSetButtonRule
+from sage_lint.rules.commandset import CommandSetButtonRule, DuplicateReviveButtonRule
 from sage_lint.rules.definitions import (
     DuplicateDefinitionRule,
     UnusedDefinitionRule,
@@ -34,6 +34,7 @@ __all__ = [
     "DanglingAssetReferenceRule",
     "DanglingReferenceRule",
     "DuplicateDefinitionRule",
+    "DuplicateReviveButtonRule",
     "MapBareModuleRule",
     "MapFolderNameRule",
     "MissingMapFileRule",

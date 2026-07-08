@@ -18,7 +18,7 @@ import re
 from datetime import date
 
 from sage_ini.model.behaviors import ContainBehavior
-from sage_ini.model.enums import CommandTypes, SpecialPowerType
+from sage_ini.model.enums import CommandTypes, Options
 from sage_ini.model.state import (
     command_set_names,
     find_upgrades,
@@ -189,19 +189,12 @@ def _button_kind(button) -> str | None:
     return None
 
 
-def ability_overlay_kind(button) -> str | None:
-    """Which frame an icon for `button` takes: `"active"` for an ability that fires a real
-    special power, `"passive"` for any other ability, or None when the button isn't an
-    ability (an upgrade or engine plumbing — those get no frame). A fake-leadership "special
-    power" is a passive leadership aura, so it stays passive."""
-    if _button_kind(button) != "ability":
-        return None
-    power = safe(lambda: button.SpecialPower)
-    if power is None:
-        return "passive"
-    if safe(lambda: power.Enum) == SpecialPowerType.SPECIAL_FAKE_LEADERSHIP_BUTTON:
-        return "passive"
-    return "active"
+def button_overlay_kind(button) -> str:
+    """Which frame an icon for `button` takes: `"passive"` for a non-pressable button (a
+    display-only aura the player can't click, flagged with the `NONPRESSABLE` option), and
+    `"active"` for every other button. Every command icon is framed."""
+    options = safe(lambda: button.Options) or ()
+    return "passive" if Options.NONPRESSABLE in options else "active"
 
 
 def command_entries(game, obj, active_upgrades=frozenset()) -> list[dict]:

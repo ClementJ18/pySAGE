@@ -6,7 +6,7 @@ tagged with a logic-frame timecode and the issuing player. The header layouts di
 per game; the chunk stream is shared. The Generals path follows OpenSAGE's ReplayFile
 implementation; the BFME2 path was validated against a corpus of real replays (every
 chunk stream parses exactly to end-of-file and the header timecode count matches the
-last chunk). Open questions live in TODO.md.
+last chunk).
 """
 
 from __future__ import annotations
@@ -60,8 +60,7 @@ class OrderArgumentType(IntEnum):
 
 class GeneralsOrderType(IntEnum):
     """Order-type ids as named by OpenSAGE — for **Generals** replays. BFME2 reuses the
-    same numeric range with different meanings (see TODO.md), so BFME chunks keep the
-    raw integer."""
+    same numeric range with different meanings, so BFME chunks keep the raw integer."""
 
     EndGame = 27
     SetSelection = 1001
@@ -283,7 +282,7 @@ class ReplayHeader:
     start_time: datetime
     end_time: datetime
     num_timecodes: int
-    unknown1: bytes  # Generals: 12 zero bytes; BFME/BFME2: 17 bytes (see TODO.md)
+    unknown1: bytes  # Generals: 12 zero bytes; BFME/BFME2: 17 bytes
     filename: str
     timestamp: ReplayTimestamp
     version: str
@@ -450,14 +449,14 @@ def _read_argument(stream: BinaryStream, argument_type: OrderArgumentType) -> ob
             return tuple(stream.readInt32() for _ in range(4))
         case _:
             # Unknown4/5/9/10 — four opaque bytes each. Validated for Unknown9 on
-            # BFME2 (the stream then lands exactly on end-of-file); see TODO.md.
+            # BFME2 (the stream then lands exactly on end-of-file).
             return stream.readBytes(4)
 
 
 # Chunk player numbers are offset from the metadata slot list: the first occupied slot
 # issues orders as number 3 (numbers 0-2 presumably belong to the engine's built-in
 # players). Validated on BFME2 replays with 2, 4 and 5 humans/AIs; the Generals offset
-# is unknown (see TODO.md), so no entry for it.
+# is unknown, so no entry for it.
 _FIRST_SLOT_NUMBER = {
     ReplayGameType.Bfme: 3,
     ReplayGameType.Bfme2: 3,
@@ -472,6 +471,13 @@ class ReplayFile:
     @property
     def game_type(self) -> ReplayGameType:
         return self.header.game_type
+
+    @property
+    def seconds_per_frame(self) -> float:
+        """Real seconds per logic frame, taken from the header's wall-clock span and
+        timecode count (so clocks match the recording rather than an assumed tick rate)."""
+        span = (self.header.end_time - self.header.start_time).total_seconds()
+        return span / self.header.num_timecodes if self.header.num_timecodes and span > 0 else 0.0
 
     def slot_index(self, chunk: ReplayChunk) -> int | None:
         """Index into `header.metadata.players` of the slot that issued this chunk's

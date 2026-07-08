@@ -148,3 +148,12 @@ OpenSAGE-master
 !tests/fixtures/**
 object_ids.*.json
 docs/apt_guidelines.pdf
+
+# Per-package planning / working notes are local scratch, not committed.
+PLAN.md
+TODO.md
+HANDOVER.md
+corpus_wishlist.md
+ToFix.md
+gpl_xfer_reference.md
+sav_format.md

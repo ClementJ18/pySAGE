@@ -40,8 +40,8 @@ from sage_wiki.images import (
 from sage_wiki.infobox import parse_infobox
 from sage_wiki.meta import TEXTURE_SOURCES_APP
 from sage_wiki.pagegen import (
-    ability_overlay_kind,
     button_ability_block,
+    button_overlay_kind,
 )
 from sage_wiki.wiki import WikiError
 
@@ -435,12 +435,12 @@ class ImagesCardMixin:
                 target = obj if obj is not None else self._portrait_object(game)
                 set_name, source_rows = object_command_icon_rows(game, target)
             # Crop every icon up front (None when unresolvable); upload reuses these bytes.
-            # Ability icons are framed with their active/passive overlay so the frame is in
-            # both the preview and the uploaded file.
+            # Every icon is framed with its active/passive overlay so the frame is in both the
+            # preview and the uploaded file.
             rows = []
             for r in source_rows:
                 button = game.commandbuttons.get(r["button"])
-                overlay = ability_overlay(ability_overlay_kind(button))
+                overlay = ability_overlay(button_overlay_kind(button))
                 rows.append(
                     {
                         "name": r["name"],

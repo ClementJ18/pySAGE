@@ -412,7 +412,7 @@ def run_lint_maps(args: argparse.Namespace, config: Config, root: Path) -> int:
         from sage_map import lint_maps  # noqa: PLC0415 — lazy: the [map] extra is optional
     except ImportError:
         print(
-            "sage_lint: map linting needs the optional 'map' extra (pip install 'sage_ini[map]')",
+            "sage_lint: map linting needs the optional 'map' extra (pip install 'pysage[map]')",
             file=sys.stderr,
         )
         return 2

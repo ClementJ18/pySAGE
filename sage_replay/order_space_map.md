@@ -3,7 +3,7 @@
 Single source of truth for **what every BFME2 replay order type means and how its ids resolve
 to game definitions.** Supersedes the scattered per-replay findings in
 [`object_id_mapping_plan.md`](object_id_mapping_plan.md) for *status* (that file keeps the
-narrative of how each was found). Header/metadata unknowns live in [`TODO.md`](TODO.md).
+narrative of how each was found).
 
 Scope note: the order *meanings* below are validated on **vanilla BFME2 1.06**; the id-space
 *offsets* are noted per game (they differ between vanilla BFME2 and merged RotWK/Edain).
@@ -89,8 +89,27 @@ definitions. Lower priority than section A.
 | `0x462` | (Integer, Boolean) | ❓ | ❓ |
 | `0x3EC` | (Boolean) | ❓ toggle/confirm (recurs before actions) | ❓ |
 | `0x419` | (Integer, Position, Float) | start-of-game unit placement | ✅ known (noise for id-mapping) |
-| `0x44A` | (hash-like) | periodic checksum, every ~100 frames | ✅ known noise |
-| `0x1D`  | — | end-of-game marker | ✅ known |
+| `0x44A` | (hash-like) | **per-client checksum heartbeat**, every ~100 frames — only humans emit any orders (AI players are completely silent), so a heartbeat going quiet marks that client's departure | ✅ |
+| `0x448` | (Boolean) | voluntary **leave-game** — a player's final order when they exit mid-game, the recorder's own exit included; exiting from the post-game victory/defeat screen emits none (only `True` observed so far) | ✅ meaning |
+| `0x1D`  | — | **end-of-recording marker** — issued once, at the last timecode, attributed to the player whose client wrote the file: it identifies the replay's **point of view** | ✅ |
+
+### Session-end shapes → winner inference
+
+The three signals above make match endings legible ([`winner.py`](winner.py) /
+`python -m sage_replay winner <replay>`), validated on a ground-truth 1v1 (the `0x448`
+issuer had indeed lost) plus the fixture corpus:
+
+- **Concession** — an opposing human's `0x448`, recorder plays on to `0x1D`. When every
+  human on all-but-one side leaves, the surviving side won (`decided`).
+- **PoV quit** — the recorder's own `0x448` immediately before `0x1D` while others still
+  heartbeat. The recorder conceded; everyone else's fate lies beyond the recording
+  (`recorder_left`) — a replay is one client's log and can be *incomplete* this way.
+- **Elimination** — no `0x448` anywhere, all heartbeats run to the end, recording closes
+  from the post-game screen. The input stream never records the elimination itself, so
+  the verdict is `undetermined` (see OPEN item on the elimination signature).
+
+Sides containing AI players can never be shown to have departed (AIs emit nothing), so
+vs-AI outcomes are also `undetermined` unless the humans quit.
 
 ---
 
@@ -149,3 +168,8 @@ match (`python -m sage_replay narrate <replay> --game <install>`).
 8. **⬜ Runtime ObjectId → template** (`0x3E9`, `0x457` targets, `0x412` object targets): track
    object creation through the stream to name selections/targets — needed to narrate *who/what* a
    power targets, not just the power. Then confirm the control orders `0x42F`/`0x469`/`0x462`/`0x3EC`.
+9. **⬜ Elimination signature.** A game that ends by fortress-kill leaves no `0x448` — the
+   recording just closes from the post-game screen, so `winner` returns `undetermined` for
+   fought-to-the-end games. Needs one controlled game ending in a destroyed fortress to diff the
+   tail; candidates: the rare late orders `0x3F9`/`0x3FA`/`0x468`/`0x469` seen near a known
+   game end, or a behaviour change in the defeated client's heartbeat.

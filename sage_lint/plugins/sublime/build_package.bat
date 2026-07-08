@@ -21,7 +21,7 @@ set "PY=python"
 if exist "%ROOT%\.venv\Scripts\python.exe" set "PY=%ROOT%\.venv\Scripts\python.exe"
 
 echo === [1/4] Building the standalone sage_lint binary ===
-"%PY%" -m PyInstaller sage-lint-cli.spec --noconfirm ^
+"%PY%" -m PyInstaller sage_lint\sage-lint-cli.spec --noconfirm ^
     --distpath "%ROOT%\dist" --workpath "%ROOT%\build\sagelint-cli-build"
 if errorlevel 1 (echo [error] PyInstaller build failed ^(is it installed? pip install -e .[lint-ui]^) & popd & exit /b 1)
 if not exist "%ROOT%\dist\sage_lint.exe" (echo [error] binary missing after build & popd & exit /b 1)

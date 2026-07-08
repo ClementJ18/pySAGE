@@ -13,6 +13,9 @@
   / special-power / spellbook / upgrade ids against a loaded game. `--game` takes an
   extracted `data/ini` tree or a live install folder (its `.big` archives are mounted
   automatically into a cache).
+- `winner <replay>` — infer the outcome from session-end signals (leave-game orders,
+  checksum heartbeats, the end-of-recording marker); a concession heuristic, so the
+  verdict may be `undetermined` (see `winner.py`).
 
 All accept `--json` for machine-readable output.
 """
@@ -45,6 +48,7 @@ from sage_replay.replay import (
     ReplaySlotType,
     parse_replay_from_path,
 )
+from sage_replay.winner import PlayerSession, infer_winner
 from sage_utils.cli import existing_file, utf8_stdout
 
 
@@ -385,6 +389,75 @@ def _run_narrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _clock(seconds: float) -> str:
+    return f"{int(seconds) // 60:d}:{int(seconds) % 60:02d}"
+
+
+def _session_status(session: PlayerSession, end: int, spf: float) -> str:
+    """One human session's ending, in words, for the `winner` text output."""
+    departed = session.departed_at(end)
+    if session.left_at is not None:
+        when = f" ({_clock(session.left_at * spf)})" if spf else ""
+        return f"left the game at frame {session.left_at}{when}"
+    if departed is not None:
+        when = f" ({_clock(departed * spf)})" if spf else ""
+        return f"went silent at frame {departed}{when} — likely dropped"
+    parts = []
+    if session.last_order is not None:
+        parts.append(f"last order -{end - session.last_order}")
+    if session.last_heartbeat is not None:
+        parts.append(f"last heartbeat -{end - session.last_heartbeat}")
+    return f"present at end ({', '.join(parts)} frames)" if parts else "present at end"
+
+
+def _run_winner(args: argparse.Namespace) -> int:
+    replay = parse_replay_from_path(args.replay)
+    verdict = infer_winner(replay)
+    end = replay.chunks[-1].timecode if replay.chunks else 0
+    spf = replay.seconds_per_frame
+
+    if args.json:
+        payload = {
+            "outcome": verdict.outcome,
+            "winner": verdict.winner,
+            "winner_names": verdict.winner_names,
+            "confidence": verdict.confidence,
+            "reason": verdict.reason,
+            "recorder": verdict.recorder,
+            "sessions": [
+                {
+                    "slot_index": s.slot_index,
+                    "name": s.name,
+                    "team": s.slot.team,
+                    "last_order": s.last_order,
+                    "last_heartbeat": s.last_heartbeat,
+                    "left_at": s.left_at,
+                    "departed_at": s.departed_at(end),
+                    "is_recorder": s.is_recorder,
+                }
+                for s in verdict.sessions
+            ],
+        }
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    if verdict.recorder:
+        print(f"PoV:      {verdict.recorder} (wrote the recording)")
+    print("Sessions:")
+    for session in verdict.sessions:
+        print(
+            f"  {session.name:20s} team={session.slot.team:>2}  "
+            f"{_session_status(session, end, spf)}"
+        )
+    if verdict.outcome == "decided":
+        verb = "wins" if len(verdict.winner_names) == 1 else "win"
+        who = ", ".join(verdict.winner_names)
+        print(f"Verdict:  {who} {verb} — {verdict.reason} (confidence: {verdict.confidence})")
+    else:
+        print(f"Verdict:  {verdict.outcome} — {verdict.reason}")
+    return 0
+
+
 def _add_id_arguments(parser: argparse.ArgumentParser) -> None:
     """The player / integer-argument selectors shared by `ids` and `align`."""
     parser.add_argument("--player", type=int, default=None, help="only this slot index")
@@ -471,6 +544,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     narrate_parser.add_argument("--json", action="store_true")
     narrate_parser.set_defaults(func=_run_narrate)
+
+    winner_parser = subparsers.add_parser(
+        "winner", help="infer the outcome from session-end signals (concession heuristic)"
+    )
+    winner_parser.add_argument("replay", type=existing_file)
+    winner_parser.add_argument("--json", action="store_true")
+    winner_parser.set_defaults(func=_run_winner)
 
     args = parser.parse_args(argv)
     return args.func(args)

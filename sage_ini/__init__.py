@@ -1,7 +1,7 @@
 """Generic, lossless parser for SAGE-engine (BFME) ini files.
 
-See PLAN.md for the roadmap and CONVENTIONS.md for the coding rules; `docs/cookbook.md`
-for task-oriented recipes against the public API.
+See CONVENTIONS.md (repo root) for the coding rules and `docs/cookbook.md` for
+task-oriented recipes against the public API.
 
 ## Public API & stability
 

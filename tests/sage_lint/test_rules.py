@@ -16,7 +16,7 @@ from sage_lint.rules.assets import (
     MissingTextureFileRule,
 )
 from sage_lint.rules.base import Rule, run_rules
-from sage_lint.rules.commandset import CommandSetButtonRule
+from sage_lint.rules.commandset import CommandSetButtonRule, DuplicateReviveButtonRule
 from sage_lint.rules.definitions import (
     DuplicateDefinitionRule,
     UnusedDefinitionRule,
@@ -748,6 +748,46 @@ class TestCommandSetButtonRule:
 
         assert diags[0].extra["suggestion"] == "Command_Real"
         assert "Did you mean 'Command_Real'?" in diags[0].message
+
+
+class TestDuplicateReviveButtonRule:
+    _BUTTONS = (
+        "CommandButton Command_Rev\n    Command = REVIVE\nEnd\n"
+        "CommandButton Command_Rev2\n    Command = REVIVE\nEnd\n"
+        "CommandButton Command_Plain\n    Command = TOGGLE_STANCE\nEnd\n"
+    )
+
+    def _run(self, body: str) -> list:
+        game = _load(self._BUTTONS + f"CommandSet Set\n{body}End\n")
+        return list(run_rules(game, [DuplicateReviveButtonRule]))
+
+    def test_flags_a_revive_button_wired_into_two_slots(self):
+        diags = self._run("    5 = Command_Rev\n    9 = Command_Rev\n")
+
+        assert len(diags) == 1
+        assert diags[0].code == "duplicate-revive-button"
+        assert diags[0].severity is Severity.WARNING
+        assert diags[0].extra["slots"] == ["5", "9"]
+        assert "Command_Rev" in diags[0].message
+
+    def test_collapses_many_slots_into_one_diagnostic(self):
+        diags = self._run("    5 = Command_Rev\n    6 = Command_Rev\n    7 = Command_Rev\n")
+
+        assert len(diags) == 1
+        assert diags[0].extra["slots"] == ["5", "6", "7"]
+
+    def test_does_not_flag_two_distinct_revive_buttons(self):
+        assert not self._run("    5 = Command_Rev\n    9 = Command_Rev2\n")
+
+    def test_does_not_flag_a_repeated_non_revive_button(self):
+        # Only REVIVE buttons are index-bound; a stance toggle in two slots is harmless.
+        assert not self._run("    5 = Command_Plain\n    9 = Command_Plain\n")
+
+    def test_matches_case_insensitively(self):
+        diags = self._run("    5 = Command_Rev\n    9 = command_rev\n")
+
+        assert len(diags) == 1
+        assert diags[0].extra["name"] == "Command_Rev"  # the first spelling is reported
 
 
 class TestModuleTagReferenceRule:

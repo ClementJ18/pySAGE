@@ -16,32 +16,6 @@ from sage_utils.views import display_name_index
 # is too often an ordinary word to wrap blindly. A table cell still links it exactly via `link`.
 _MIN_PROSE_LEN = 4
 
-# The start of a wikitext construct `linkify_wikitext` must step over rather than link into:
-# a comment, an opening/closing `<ref>`, a template, a wikilink, or an external link.
-_CONSTRUCT_START = re.compile(r"<!--|</?ref\b|\{\{|\[\[|\[(?=https?://)", re.IGNORECASE)
-# A whole `<ref>` element: self-closing, a paired open/close, or a stray single tag.
-_REF_TAG = re.compile(
-    r"<ref\b[^>]*/>|<ref\b[^>]*>.*?</ref>|</?ref\b[^>]*>", re.IGNORECASE | re.DOTALL
-)
-
-
-def _skip_balanced(text: str, start: int, opener: str, closer: str) -> int:
-    """The index just past the `opener`…`closer` pair beginning at `start`, counting nesting so
-    `{{A|{{B}}}}` is consumed whole. An unbalanced run is taken to the end of the text."""
-    depth, index, step = 0, start, len(opener)
-    while index < len(text):
-        if text.startswith(opener, index):
-            depth += 1
-            index += step
-        elif text.startswith(closer, index):
-            depth -= 1
-            index += step
-            if depth == 0:
-                return index
-        else:
-            index += 1
-    return len(text)
-
 
 class PageLinker:
     """Resolves object display names to `[[wiki page]]` links, given the set of titles that
@@ -88,8 +62,7 @@ class PageLinker:
 
     def _linkify_segment(self, text: str, linked: set[str]) -> str:
         """Link the first un-linked mention of each known object in `text`. `linked` carries the
-        names already linked earlier on the page (and is updated), so the once-per-page rule
-        holds across the protected regions `linkify_wikitext` splits the page into."""
+        names already linked earlier (and is updated), so the once-per-page rule holds."""
         if not text or self._pattern is None:
             return text
 
@@ -103,48 +76,6 @@ class PageLinker:
             return self._wrap(surface, entry[1])
 
         return self._pattern.sub(replace, text)
-
-    def linkify_wikitext(self, text: str) -> str:
-        """Like `linkify`, but safe to run over a whole wiki page: existing links, templates,
-        comments and `<ref>` tags are stepped over verbatim, so an infobox parameter or an
-        already-linked name is never touched (no `[[[[…]]]]`, no mangled templates). A name a
-        page already links anywhere is recorded, so a later bare mention isn't linked twice."""
-        if not text or self._pattern is None:
-            return text
-        linked: set[str] = set()
-        out: list[str] = []
-        pos, length = 0, len(text)
-        while pos < length:
-            match = _CONSTRUCT_START.search(text, pos)
-            if match is None:
-                out.append(self._linkify_segment(text[pos:], linked))
-                break
-            if match.start() > pos:  # free prose before the construct
-                out.append(self._linkify_segment(text[pos : match.start()], linked))
-            out.append(self._skip_construct(text, match.start(), match.group(0), linked))
-            pos = match.start() + len(out[-1])
-        return "".join(out)
-
-    def _skip_construct(self, text: str, start: int, token: str, linked: set[str]) -> str:
-        """The wikitext construct beginning at `start` (a comment, `<ref>`, template, link or
-        external link), returned verbatim. The targets of an existing `[[link]]` are added to
-        `linked` so the same name isn't linked again elsewhere on the page."""
-        low = token.lower()
-        if token == "<!--":
-            end = text.find("-->", start)
-            return text[start:] if end == -1 else text[start : end + 3]
-        if low.startswith("<ref") or low.startswith("</ref"):
-            ref = _REF_TAG.match(text, start)
-            return ref.group(0) if ref else text[start : start + len(token)]
-        if token == "{{":
-            return text[start : _skip_balanced(text, start, "{{", "}}")]
-        if token == "[[":
-            end = _skip_balanced(text, start, "[[", "]]")
-            for part in text[start + 2 : max(start + 2, end - 2)].split("|"):
-                linked.add(part.strip().casefold())  # don't re-link a name the page already links
-            return text[start:end]
-        end = text.find("]", start)  # an external link [http...]
-        return text[start:] if end == -1 else text[start : end + 1]
 
 
 def build_linker(game, titles, object_names=None) -> PageLinker:

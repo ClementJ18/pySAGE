@@ -224,14 +224,6 @@ class NarrationEvent:
         return f"{int(self.seconds) // 60:d}:{int(self.seconds) % 60:02d}"
 
 
-def _seconds_per_frame(replay: ReplayFile) -> float:
-    """Real seconds per logic frame, taken from the header's wall-clock span and timecode
-    count (so the clock matches the recording rather than assuming a fixed tick rate)."""
-    header = replay.header
-    span = (header.end_time - header.start_time).total_seconds()
-    return span / header.num_timecodes if header.num_timecodes and span > 0 else 0.0
-
-
 def _player_label(replay: ReplayFile, chunk: ReplayChunk) -> str:
     slot = replay.slot_for(chunk)
     if slot is None:
@@ -244,7 +236,7 @@ def _player_label(replay: ReplayFile, chunk: ReplayChunk) -> str:
 def narrate(replay: ReplayFile, data: GameData) -> list[NarrationEvent]:
     """Every content-bearing order as a `NarrationEvent`, in replay order, with consecutive
     identical actions by the same player collapsed (`recruits 3x Orc Warriors`)."""
-    spf = _seconds_per_frame(replay)
+    spf = replay.seconds_per_frame
     events: list[NarrationEvent] = []
     for chunk in replay.chunks:
         text = _describe(chunk, data)

@@ -1,19 +1,24 @@
 """The diff-review workflow: generate the infobox-vs-game diff for a page, review the
-changes table and editable wikitext (with linkify), and apply the result to the wiki."""
+changes table and editable wikitext (linking selected text to a page), and apply the result
+to the wiki."""
 
 import webbrowser
 
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
     QHBoxLayout,
     QHeaderView,
     QInputDialog,
     QLabel,
     QLineEdit,
+    QListWidget,
     QPlainTextEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -34,6 +39,64 @@ from sage_wiki.pagegen import (
     generate_page,
 )
 from sage_wiki.wiki import WikiError
+
+# Cap the number of titles shown at once so a bare search doesn't try to list the whole wiki.
+_MAX_LINK_RESULTS = 200
+
+
+class PageSearchDialog(QDialog):
+    """Pick a wiki page to link some selected text to. Filters the wiki's article titles live
+    as the user types (case-insensitive substring); `chosen_title` is the picked title, or None
+    when cancelled."""
+
+    def __init__(self, parent: QWidget, titles: set[str], initial: str) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Link to page")
+        self._titles = sorted(titles)
+        self._chosen: str | None = None
+
+        layout = QVBoxLayout(self)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search for a page…")
+        self.search.setText(initial)
+        self.search.textChanged.connect(self._refilter)
+        layout.addWidget(self.search)
+
+        self.results = QListWidget()
+        self.results.itemDoubleClicked.connect(lambda _item: self._accept_selection())
+        layout.addWidget(self.results, 1)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept_selection)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self._refilter(initial)
+        self.search.setFocus()
+        self.search.selectAll()  # so a typed page name replaces the prefilled selection
+
+    def _refilter(self, text: str) -> None:
+        needle = text.strip().casefold()
+        matches = (
+            [title for title in self._titles if needle in title.casefold()]
+            if needle
+            else self._titles
+        )
+        self.results.clear()
+        self.results.addItems(matches[:_MAX_LINK_RESULTS])
+        if self.results.count():
+            self.results.setCurrentRow(0)  # so Enter/OK links to the top match
+
+    def _accept_selection(self) -> None:
+        item = self.results.currentItem()
+        if item is not None:
+            self._chosen = item.text()
+            self.accept()
+
+    def chosen_title(self) -> str | None:
+        return self._chosen
 
 
 class DiffReviewMixin:
@@ -73,13 +136,13 @@ class DiffReviewMixin:
         self.goto_button.setToolTip("Open the current page title in your web browser.")
         self.goto_button.clicked.connect(self._go_to_page)
         button_row.addWidget(self.goto_button)
-        self.linkify_button = QPushButton("Linkify")
-        self.linkify_button.setToolTip(
-            "Add internal links to the page text: wrap unit/hero names that have a wiki page "
-            "in [[links]], leaving existing links, templates and refs untouched."
+        self.link_button = QPushButton("Link")
+        self.link_button.setToolTip(
+            "Wrap the selected text in an internal link: search for the wiki page to point at, "
+            "then insert [[Page]] (or [[Page|selection]] when the text differs from the title)."
         )
-        self.linkify_button.clicked.connect(self._linkify_page)
-        button_row.addWidget(self.linkify_button)
+        self.link_button.clicked.connect(self._link_selection)
+        button_row.addWidget(self.link_button)
         button_row.addStretch(1)
         self.apply_button = QPushButton("Apply to wiki")
         self.apply_button.setObjectName("primary")
@@ -106,39 +169,40 @@ class DiffReviewMixin:
             return
         webbrowser.open(self.client.page_url(title))
 
-    def _linkify_page(self) -> None:
-        """Add validated internal links to the editor's text: unit/hero names that have a wiki
-        page are wrapped in `[[links]]`, with existing links, templates and refs left alone. The
-        title fetch runs on a worker so the UI doesn't block; the edit is left for review."""
-        if self.game is None:
-            self.status.setText("Load a data source first.")
+    def _link_selection(self) -> None:
+        """Wrap the text selected in the editor in a link to a page the user picks from a search
+        dialog. The wiki's article titles are fetched on a worker (so the UI doesn't block), then
+        the dialog opens on the main thread where a modal is safe."""
+        cursor = self.wikitext_editor.textCursor()
+        selected = cursor.selectedText().strip()
+        if not selected:
+            self.status.setText("Select the text to link first.")
             return
-        text = self.wikitext_editor.toPlainText()
-        if not text.strip():
-            self.status.setText("No page text to linkify.")
+        self.link_button.setEnabled(False)
+        self.status.setText("Fetching page titles…")
+        self._run(
+            self.client.all_titles,
+            lambda titles: self._on_link_titles(cursor, selected, titles),
+            self._on_link_failed,
+        )
+
+    def _on_link_titles(self, cursor, selected: str, titles: set[str]) -> None:
+        """Open the page-search dialog and, on a pick, replace the selection with the link:
+        `[[Title]]` when the selection already is the title, else `[[Title|selection]]`."""
+        self.link_button.setEnabled(True)
+        dialog = PageSearchDialog(self, titles, selected)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            self.status.setText("Link cancelled.")
             return
-        self.linkify_button.setEnabled(False)
-        self.status.setText("Adding internal links…")
-
-        def task():
-            linker = self._page_linker()
-            if linker is None:
-                raise WikiError("could not fetch wiki page titles to validate links")
-            return linker.linkify_wikitext(text)
-
-        self._run(task, lambda linked: self._on_linkified(text, linked), self._on_linkify_failed)
-
-    def _on_linkified(self, original: str, linked: str) -> None:
-        self.linkify_button.setEnabled(True)
-        if linked == original:
-            self.status.setText("Linkify: no new links to add.")
+        title = dialog.chosen_title()
+        if not title:
             return
-        self.wikitext_editor.setPlainText(linked)
-        self.status.setText("Linkify: added internal links — review before applying.")
+        cursor.insertText(f"[[{title}]]" if selected == title else f"[[{title}|{selected}]]")
+        self.status.setText(f"Linked selection to “{title}”.")
 
-    def _on_linkify_failed(self, message: str) -> None:
-        self.linkify_button.setEnabled(True)
-        self.status.setText(f"Linkify failed — {message}")
+    def _on_link_failed(self, message: str) -> None:
+        self.link_button.setEnabled(True)
+        self.status.setText(f"Link failed — {message}")
 
     def _generate_diff(self) -> None:
         title = self.page_field.text().strip()

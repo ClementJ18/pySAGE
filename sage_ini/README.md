@@ -1,0 +1,113 @@
+# sage_ini
+
+A typed, comment-preserving parser for **SAGE-engine** (Battle for Middle-earth)
+`.ini` files.
+
+`sage_ini` reads the game's ini data into a tree that round-trips losslessly
+(comments included), then layers a typed object model on top: a block becomes an
+`IniObject` whose annotated fields convert lazily on access — numbers, enums,
+macros (`#define`/`#MULTIPLY( … )`), and cross-references resolved through the
+loaded game. It is the library the rest of pySAGE builds on: the parser, the
+comment-preserving AST, the typed model, the whole-game loader, the cross-reference
+graph (`model/xref.py`), and the `validate` "does it convert?" pass.
+
+## Command line
+
+```sh
+# Parse-rate scoreboard over a folder of game data
+python -m sage_ini stats <dir>
+
+# Parse + load + conversion facts for files or a folder
+python -m sage_ini lint <paths...>
+
+# What a definition references, and what references it
+python -m sage_ini xref <dir> GondorFighter
+
+# Where a name or macro is defined (file:line); a file's #include edges
+python -m sage_ini resolve <dir> GondorFighter
+python -m sage_ini includes <dir> <file>
+
+# One-shot briefing of a single file (defs, references, includes, macros)
+python -m sage_ini brief <dir> <file> [name]
+
+# Machine-readable output for agents and tool builders: the query commands
+# (lint, xref, resolve, brief, diff) all accept --json
+python -m sage_ini xref <dir> GondorFighter --json
+
+# Structure-aware 3-way merge: match definitions by name and merge by field, so
+# independent edits never collide (git merge driver / conflict-marker resolver)
+python -m sage_ini merge <base> <ours> <theirs> [-o out.ini]
+python -m sage_ini merge --resolve <conflicted.ini>   # shrink existing conflicts
+python -m sage_ini merge --install [--global]         # register as a git merge driver
+```
+
+### As a git merge driver
+
+Git merges ini files line by line, so two branches that touch the same long
+definition — or merely add objects next to each other — collide spuriously. The
+`merge` command instead matches definitions by name and merges field by field:
+independent edits apply silently, and a conflict is raised only around the fields
+both sides changed differently. Wire it into a repository once:
+
+```sh
+python -m sage_ini merge --install     # adds the 'sage-ini' driver to .git/config
+printf '*.ini merge=sage-ini\n*.inc merge=sage-ini\n' >> .gitattributes
+```
+
+After that, `git merge`/`git rebase` route ini files through it automatically. For a
+file that already carries conflict markers, `merge --resolve <file>` re-merges
+structurally and collapses the conflicts git raised between independent definitions
+(richest when `merge.conflictStyle = zdiff3` records the common ancestor).
+
+### For an LLM coding agent
+
+`sage_ini` ships a compact, model-derived primer and a Claude Code skill so an agent can
+understand a mod's ini and know where to chase references:
+
+```sh
+python -m sage_ini primer                 # lean schema digest (tables + modules + legend)
+python -m sage_ini primer expand Object   # one kind's full field schema, on demand
+python -m sage_ini install-skill          # install the bundled bfme-ini skill (~/.claude/skills)
+```
+
+## Library use
+
+```python
+from pathlib import Path
+from sage_ini.loader import load_game
+from sage_ini.model.xref import Xref
+
+game = load_game(Path("data")).game
+fighter = game.objects["GondorFighter"]
+print(fighter.BuildCost)                       # fields convert on access
+
+xref = Xref(game)
+print({o.name for o in xref.referenced_by(fighter)})  # e.g. GondorFighterHorde
+```
+
+More in **[../docs/cookbook.md](../docs/cookbook.md)**: walking objects by KindOf, resolving
+macros, following references, editing-then-reprinting losslessly, and writing your own
+checker against the model.
+
+## Public API & stability
+
+The supported surface is what `sage_ini` re-exports at the top level (and lists in its
+`__all__`): the loader, the typed `Game` / `IniObject` model, the comment-preserving
+`parse` / `print_document`, the `walk` / `Xref` traversal helpers, and the `Diagnostic`
+types tool authors build checkers against. Every public module declares its own `__all__`;
+anything not exported — and every `_`-prefixed name — is internal and may change without
+notice.
+
+```python
+from sage_ini import (
+    load_game, Game, IniObject, Xref,
+    parse, parse_file, print_document,
+    walk_objects, Diagnostic, Diagnostics, Severity, Span,
+)
+```
+
+The package ships a `py.typed` marker, so the model's field typing surfaces in a consumer's
+type checker and IDE. Semantic versioning applies **to that public surface**: within a major
+version the exported names and their documented behaviour stay backward-compatible (the
+game-schema model classes only grow new fields, which is additive). It is pre-1.0, so the
+surface may still shift between minor versions until it settles.

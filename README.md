@@ -1,137 +1,58 @@
 # pySAGE
 
-A typed, comment-preserving parser and linter for **SAGE-engine** (Battle for
-Middle-earth) `.ini` files.
+A collection of Python tools for reading, editing, linting and visualising the data
+formats of the **SAGE engine** — the engine behind *Command & Conquer: Generals* and
+*The Battle for Middle-earth*. It grew out of an ini parser and now spans ini game data,
+binary maps, replays, and UI, with a domain overlay for the Edain mod.
 
-`sage_ini` reads the game's ini data into a tree that round-trips losslessly
-(comments included), then layers a typed object model on top: a block becomes an
-`IniObject` whose annotated fields convert lazily on access — numbers, enums,
-macros (`#define`/`#MULTIPLY( … )`), and cross-references resolved through the
-loaded game. `sage_lint` builds on it to format files and report problems.
+Everything installs as one package with optional extras (see [Install](#install)). Each
+subproject has its own README with the details; this page is the map.
 
-## Packages
+## Projects
 
-- **`sage_ini`** — the library: parser, comment-preserving AST, typed model,
-  whole-game loader, the cross-reference graph (`model/xref.py`), and the
-  `validate` "does it convert?" pass.
-- **`sage_lint`** — the formatter and linter: canonical reprint, and judgment
-  rules (repeated fields, unknown/dangling references, out-of-range values,
-  duplicate definitions, undefined macros, …) plus meta-analysis
-  (`analysis.py`: per-faction stats, cost curves, mod-vs-base diffs).
+### Ini game data
+
+| Project | What it is |
+| --- | --- |
+| [`sage_ini`](sage_ini/README.md) | The foundation: a typed, comment-preserving `.ini` parser, a whole-game loader, the cross-reference graph, and a lossless AST. Everything else builds on it. |
+| [`sage_lint`](sage_lint/README.md) | Formatter and linter over `sage_ini` — canonical reprint plus judgment rules (dangling references, out-of-range values, duplicates, unused definitions) and meta-analysis. |
+
+### Binary formats
+
+| Project | What it is |
+| --- | --- |
+| [`sage_map`](sage_map/README.md) | Reader/writer for BFME `.map` files, plus a game-aware overlay that resolves script arguments and object references and lints maps. |
+| [`sage_replay`](sage_replay/README.md) | Reader for SAGE replay files (Generals `.rep`, BFME / BFME2 / RotWK) — the recorded order stream, decoded into build orders, APM and command timing. |
+| [`sage_apt`](sage_apt/README.md) | Converter, viewer and editor for `.apt` UI movies (the Flash-derived format behind BFME's menus and HUD). |
+
+### Domain overlays & apps
+
+| Project | What it is |
+| --- | --- |
+| [`sage_edain`](sage_edain/README.md) | Edain-mod overlay: builds a faction ownership graph (spellbook → base → structures → units/heroes/upgrades) and renders, diffs or serves it. |
+| [`sage_wiki`](sage_wiki/README.md) | Desktop tool that updates Edain wiki infoboxes from parsed game data through the MediaWiki API. |
+| [`sage_ui`](sage_ui/README.md) | PyQt6 desktop browser for SAGE game data: load sources, search an object, see its resolved stats. |
+
+### Shared
+
+| Project | What it is |
+| --- | --- |
+| [`sage_utils`](sage_utils/README.md) | Helpers shared by more than one front end: the Qt-free data layer (sources, textures, views, the faction-graph types) and the shared Qt chrome. |
 
 ## Install
 
 ```sh
 pip install -e .            # core library + linter (Python ≥ 3.13)
-pip install -e ".[wiki,ui]" # optional peripheral tools
+pip install -e ".[ui]"      # + the PyQt6 desktop apps (sage-ui)
+pip install -e ".[wiki]"    # + the wiki updater
+pip install -e ".[edain]"   # + Edain base-layout decompilation
+pip install -e ".[apt]"     # + reading .const/.apt out of .big archives
 ```
 
-## Command line
-
-```sh
-# Parse-rate scoreboard over a folder of game data
-python -m sage_ini stats <dir>
-
-# Parse + load + conversion facts for files or a folder
-python -m sage_ini lint <paths...>
-
-# What a definition references, and what references it
-python -m sage_ini xref <dir> GondorFighter
-
-# Where a name or macro is defined (file:line); a file's #include edges
-python -m sage_ini resolve <dir> GondorFighter
-python -m sage_ini includes <dir> <file>
-
-# One-shot briefing of a single file (defs, references, includes, macros)
-python -m sage_ini brief <dir> <file> [name]
-
-# Machine-readable output for agents and tool builders: the query commands
-# (lint, xref, resolve, brief, diff) all accept --json
-python -m sage_ini xref <dir> GondorFighter --json
-
-# Structure-aware 3-way merge: match definitions by name and merge by field, so
-# independent edits never collide (git merge driver / conflict-marker resolver)
-python -m sage_ini merge <base> <ours> <theirs> [-o out.ini]
-python -m sage_ini merge --resolve <conflicted.ini>   # shrink existing conflicts
-python -m sage_ini merge --install [--global]         # register as a git merge driver
-
-# Reformat ini files to the canonical style (--check to dry-run)
-python -m sage_lint format <paths...>
-
-# Assemble a game and report problems (facts + judgment rules)
-python -m sage_lint lint <dir> [--base <base-game>] [--ignore CODE] [--fix]
-```
-
-### As a git merge driver
-
-Git merges ini files line by line, so two branches that touch the same long
-definition — or merely add objects next to each other — collide spuriously. The
-`merge` command instead matches definitions by name and merges field by field:
-independent edits apply silently, and a conflict is raised only around the fields
-both sides changed differently. Wire it into a repository once:
-
-```sh
-python -m sage_ini merge --install     # adds the 'sage-ini' driver to .git/config
-printf '*.ini merge=sage-ini\n*.inc merge=sage-ini\n' >> .gitattributes
-```
-
-After that, `git merge`/`git rebase` route ini files through it automatically. For a
-file that already carries conflict markers, `merge --resolve <file>` re-merges
-structurally and collapses the conflicts git raised between independent definitions
-(richest when `merge.conflictStyle = zdiff3` records the common ancestor).
-
-### For an LLM coding agent
-
-`sage_ini` ships a compact, model-derived primer and a Claude Code skill so an agent can
-understand a mod's ini and know where to chase references:
-
-```sh
-python -m sage_ini primer                 # lean schema digest (tables + modules + legend)
-python -m sage_ini primer expand Object   # one kind's full field schema, on demand
-python -m sage_ini install-skill          # install the bundled bfme-ini skill (~/.claude/skills)
-```
-
-## Library use
-
-```python
-from pathlib import Path
-from sage_ini.loader import load_game
-from sage_ini.model.xref import Xref
-
-game = load_game(Path("data")).game
-fighter = game.objects["GondorFighter"]
-print(fighter.BuildCost)                       # fields convert on access
-
-xref = Xref(game)
-print({o.name for o in xref.referenced_by(fighter)})  # e.g. GondorFighterHorde
-```
-
-More in **[docs/cookbook.md](docs/cookbook.md)**: walking objects by KindOf, resolving
-macros, following references, editing-then-reprinting losslessly, and writing your own
-checker against the model.
-
-## Public API & stability
-
-The supported surface is what `sage_ini` re-exports at the top level (and lists in its
-`__all__`): the loader, the typed `Game` / `IniObject` model, the comment-preserving
-`parse` / `print_document`, the `walk` / `Xref` traversal helpers, and the `Diagnostic`
-types tool authors build checkers against. Every public module declares its own `__all__`;
-anything not exported — and every `_`-prefixed name — is internal and may change without
-notice.
-
-```python
-from sage_ini import (
-    load_game, Game, IniObject, Xref,
-    parse, parse_file, print_document,
-    walk_objects, Diagnostic, Diagnostics, Severity, Span,
-)
-```
-
-The package ships a `py.typed` marker, so the model's field typing surfaces in a consumer's
-type checker and IDE. Semantic versioning applies **to that public surface**: within a major
-version the exported names and their documented behaviour stay backward-compatible (the
-game-schema model classes only grow new fields, which is additive). It is pre-1.0, so the
-surface may still shift between minor versions until it settles.
+The extras (`ui`, `lint-ui`, `wiki`, `map`, `edain`, `apt`) pull in the optional
+dependencies each peripheral tool needs; the core parser and linter stay dependency-free.
+Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-edain`,
+`sage-replay`, `sage-apt` (and the GUI scripts `sage-ui`, `sage-wiki`, `sage-lint-ui`).
 
 ## Tests
 
@@ -139,3 +60,11 @@ surface may still shift between minor versions until it settles.
 pytest            # fast, data-free core suite
 pytest --full     # + corpus acceptance gates and peripheral-package suites
 ```
+
+## Contributing
+
+Contributions are welcome — bug reports, fixes, new checks and rules, format coverage, and
+documentation all help. See **[CONTRIBUTING.md](CONTRIBUTING.md)** to get set up and
+**[CONVENTIONS.md](CONVENTIONS.md)** for the coding rules. AI-assisted contributions are
+welcome too, with one expectation: you have read, understood, and can stand behind every
+line you submit.

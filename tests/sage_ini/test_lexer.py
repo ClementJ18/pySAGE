@@ -1,6 +1,6 @@
 """Unit tests for sage_ini.parser.lexer.
 
-Comment grammar (engine-faithful, see PLAN.md corpus findings): `;`, `//`, and
+Comment grammar (engine-faithful): `;`, `//`, and
 `--` each start a comment at any position in a line; the first marker wins;
 there is no quote or URL awareness. Every rule here is pinned by a real line
 shape from the game-data corpus.

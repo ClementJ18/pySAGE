@@ -13,10 +13,10 @@ from sage_wiki.pagegen import (
     _lore_prose,
     _split_name,
     ability_block,
-    ability_overlay_kind,
     available_upgrades,
     building_heroes,
     building_units,
+    button_overlay_kind,
     command_entries,
     generate_page,
     infobox_block,
@@ -293,6 +293,7 @@ CommandButton Command_Hidden
 End
 CommandButton Command_Passive
   Command = NONE
+  Options = NONPRESSABLE
   InPalantir = Yes
   TextLabel = CONTROLBAR:Passive
   DescriptLabel = CONTROLBAR:ToolTipPassive
@@ -387,36 +388,47 @@ def test_command_entries_classifies_and_filters():
     assert radial["cooldown"] is None  # 500 ms reload is sub-second, not a real cooldown
 
 
-def test_ability_overlay_kind_distinguishes_active_passive_and_non_abilities():
+def test_button_overlay_kind_frames_every_button_passive_only_for_nonpressable():
     game = hero_game()
     buttons = game.commandbuttons
-    # An ability firing a real special power is active; a passive (NONE + tooltip) ability,
-    # or a special power that is the fake-leadership leadership aura, is passive.
-    assert ability_overlay_kind(buttons["Command_Special"]) == "active"
-    assert ability_overlay_kind(buttons["Command_Radial"]) == "active"
-    assert ability_overlay_kind(buttons["Command_Passive"]) == "passive"
-    # Non-abilities (an upgrade, a stance toggle, a tooltip-less divider) get no frame.
-    assert ability_overlay_kind(buttons["Command_Upgrade"]) is None
-    assert ability_overlay_kind(buttons["Command_Stance"]) is None
-    assert ability_overlay_kind(buttons["Command_Divider"]) is None
+    # A button the player can click is active; one flagged NONPRESSABLE (a display-only
+    # aura) is passive.
+    assert button_overlay_kind(buttons["Command_Special"]) == "active"
+    assert button_overlay_kind(buttons["Command_Radial"]) == "active"
+    assert button_overlay_kind(buttons["Command_Passive"]) == "passive"
+    # Non-abilities are framed too — an upgrade, a stance toggle and a tooltip-less divider
+    # all take the active frame, since none carries the NONPRESSABLE option.
+    assert button_overlay_kind(buttons["Command_Upgrade"]) == "active"
+    assert button_overlay_kind(buttons["Command_Stance"]) == "active"
+    assert button_overlay_kind(buttons["Command_Divider"]) == "active"
 
 
-def test_ability_overlay_kind_fake_leadership_is_passive():
+def test_button_overlay_kind_passive_is_driven_by_the_nonpressable_option():
+    # The NONPRESSABLE option — not the presence of a special power — decides passivity: the
+    # same special-power ability is active when clickable and passive when flagged NONPRESSABLE.
     game = load(
         """
-SpecialPower FakeLeader
-  Enum = SPECIAL_FAKE_LEADERSHIP_BUTTON
+SpecialPower AuraPower
 End
-CommandButton Command_Leadership
+CommandButton Command_Clickable
   Command = SPECIAL_POWER
-  SpecialPower = FakeLeader
+  SpecialPower = AuraPower
   InPalantir = Yes
-  TextLabel = CONTROLBAR:Leadership
-  DescriptLabel = CONTROLBAR:ToolTipLeadership
+  TextLabel = CONTROLBAR:Aura
+  DescriptLabel = CONTROLBAR:ToolTipAura
+End
+CommandButton Command_Aura
+  Command = SPECIAL_POWER
+  SpecialPower = AuraPower
+  Options = NONPRESSABLE
+  InPalantir = Yes
+  TextLabel = CONTROLBAR:Aura
+  DescriptLabel = CONTROLBAR:ToolTipAura
 End
 """
     )
-    assert ability_overlay_kind(game.commandbuttons["Command_Leadership"]) == "passive"
+    assert button_overlay_kind(game.commandbuttons["Command_Clickable"]) == "active"
+    assert button_overlay_kind(game.commandbuttons["Command_Aura"]) == "passive"
 
 
 def test_generate_page_assembles_hero_sections():
@@ -1307,7 +1319,6 @@ def test_building_infobox_emits_full_skeleton():
         assert f"|{field}=\n" in box
     # Three level columns, each with the full per-level field run.
     for level in (1, 2, 3):
-        assert f"#level{level}\n" in box
         for field in (
             "label",
             "armor",

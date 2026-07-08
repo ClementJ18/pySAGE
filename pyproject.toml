@@ -3,15 +3,15 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sage_ini"
+name = "pysage"
 version = "0.1.0"
-description = "A typed, comment-preserving parser and linter for SAGE-engine (BFME) ini files."
+description = "Python tools for the data formats of the SAGE engine (Battle for Middle-earth): ini game data, binary maps, replays, and UI movies."
 readme = "README.md"
 requires-python = ">=3.13"
 authors = [
     { name = "Clement Julia", email = "clement.julia13@gmail.com" },
 ]
-keywords = ["sage", "bfme", "ini", "parser", "linter", "modding"]
+keywords = ["sage", "bfme", "ini", "parser", "linter", "map", "replay", "modding"]
 classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries",
@@ -28,6 +28,7 @@ sage-ini = "sage_ini.__main__:main"
 sage-edain = "sage_edain.__main__:main"
 sage-replay = "sage_replay.__main__:main"
 sage-apt = "sage_apt.__main__:main"
+sage-save = "sage_save.__main__:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui).
 [project.gui-scripts]
@@ -76,12 +77,13 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_apt*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_edain*"]
+include = ["sage_apt*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_edain*"]
 
 [tool.setuptools.package-data]
 sage_apt = ["assets/*.html", "py.typed"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
+sage_save = ["py.typed"]
 sage_edain = ["ui/*", "skill_assets/**/*"]
 
 [tool.pytest.ini_options]
@@ -121,7 +123,7 @@ select = [
 
 [tool.mypy]
 python_version = "3.13"
-files = ["sage_apt", "sage_ini", "sage_map", "sage_edain", "sage_replay", "sage_utils"]
+files = ["sage_apt", "sage_ini", "sage_map", "sage_edain", "sage_replay", "sage_save", "sage_utils"]
 disable_error_code = ["annotation-unchecked"]
 
 [[tool.mypy.overrides]]

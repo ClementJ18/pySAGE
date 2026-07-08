@@ -76,7 +76,7 @@ def run_diff_maps(args: argparse.Namespace) -> int:
         )
     except ImportError:
         print(
-            "sage_lint: map diffing needs the optional 'map' extra (pip install 'sage_ini[map]')",
+            "sage_lint: map diffing needs the optional 'map' extra (pip install 'pysage[map]')",
             file=sys.stderr,
         )
         return 2

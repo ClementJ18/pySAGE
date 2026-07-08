@@ -120,7 +120,10 @@ def format_text(
         )
 
     formatted = print_document(
-        result.document, align_equals=align_equals, align_exclude=align_exclude
+        result.document,
+        align_equals=align_equals,
+        align_exclude=align_exclude,
+        commandset_layout=True,
     )
     # Newline style is preserved on write-back, so it is not a formatting
     # difference: compare content with newlines normalized.

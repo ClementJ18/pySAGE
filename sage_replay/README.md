@@ -15,8 +15,7 @@ The Generals parsing path follows the OpenSAGE C# implementation
 reverse-engineered against a corpus of real RotWK 2.01 replays (vanilla and Edain,
 1v1 through 2v3 and vs-AI) — validated by every chunk stream parsing exactly to
 end-of-file with the header's timecode count matching the last chunk. Orders map
-back to player slots via `ReplayFile.slot_for`. Remaining unknowns are tracked in
-[TODO.md](TODO.md).
+back to player slots via `ReplayFile.slot_for`.
 
 ## Example
 
@@ -42,9 +41,25 @@ python -m sage_replay info <replay>
 # Dump the order stream (--limit N, --player N, --order 0x415 to filter)
 python -m sage_replay orders <replay> --limit 50
 
+# Infer the outcome from session-end signals (see below)
+python -m sage_replay winner <replay>
+
 # Machine-readable output
 python -m sage_replay info <replay> --json
 ```
+
+## Who won?
+
+The outcome is never stored — a replay is inputs, and eliminations happen inside the
+simulation. But how each human session *ends* is recorded: `0x448` is the voluntary
+leave-game action, `0x1D` marks the end of the recording (attributed to the player whose
+client wrote the file — the replay's point of view), and the `0x44A` checksum heartbeat
+stops when a client drops. `winner` applies a concession heuristic over those signals
+and answers honestly: `decided` when every human on all-but-one side left, `recorder_left`
+when the recording player quit first (they conceded; the rest of the game lies beyond the
+recording), and `undetermined` for elimination endings or surviving AI opposition (AI
+players emit no orders at all). Details in
+[order_space_map.md](order_space_map.md#session-end-shapes--winner-inference).
 
 ## Mapping order ids to mod objects
 

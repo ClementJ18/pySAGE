@@ -1,4 +1,4 @@
-"""Corpus scan that bootstraps/validates sage_ini.parser.keywords (PLAN.md step 1.2).
+"""Corpus scan that bootstraps/validates sage_ini.parser.keywords.
 
 Parses every corpus file and reports diagnostics with source context, so a
 missing block-opening keyword (which surfaces as stray-end / unclosed-block)
