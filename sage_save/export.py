@@ -1,11 +1,11 @@
 """Convert a parsed save into a JSON-serializable dict (`save_to_dict`) or JSON text
 (`save_to_json`).
 
-The export gathers everything the decoders currently understand — the container header and
+The export gathers everything the decoders currently understand - the container header and
 chunk table, the `GameState` browser header, the `GameStateMap` map summary, `Campaign`, the
 `GameLogic` frame + template table + object index + behavior-module-tag frequency, the
 `GameClient` frame + drawable count with its attached/unattached split, the `TacticalView`
-camera, and the harvested cross-reference names (object templates, upgrades, sciences) — into one
+camera, and the harvested cross-reference names (object templates, upgrades, sciences) - into one
 plain structure. The embedded map is summarised by size only, never
 inlined; pass `include_objects=False` for a compact export that drops the per-object list
 (keeping the counts, the module-tag summary and the reference summary).
@@ -194,7 +194,7 @@ def save_to_dict(save: SaveFile, *, include_objects: bool = True) -> dict[str, A
             # `LWA:*` are living-world army-type references, distinctive enough to split out;
             # `object_templates` are the army rosters' units/heroes (the `02 01`-signature subset
             # that resolves as ini objects); the rest of the roster (players, army instances, icons,
-            # banners, regions) is a flat name view — the record structure isn't walked yet.
+            # banners, regions) is a flat name view - the record structure isn't walked yet.
             data["living_world"] = {
                 "version": lwl.version,
                 "name_count": len(lwl.names),

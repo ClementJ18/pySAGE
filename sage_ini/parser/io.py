@@ -71,7 +71,7 @@ def iter_ini_files(root: str | Path) -> Iterator[Path]:
 
 
 def iter_asset_files(root: str | Path) -> Iterator[Path]:
-    """Yield every asset file (ASSET_SUFFIXES) under `root`, sorted, recursively — the same
+    """Yield every asset file (ASSET_SUFFIXES) under `root`, sorted, recursively - the same
     crawl as `iter_ini_files`, for the texture/model files the linter checks references against."""
     root = Path(root)
     yield from sorted(
@@ -80,7 +80,7 @@ def iter_asset_files(root: str | Path) -> Iterator[Path]:
 
 
 def iter_map_files(root: str | Path) -> Iterator[Path]:
-    """Yield every WorldBuilder layout file (MAP_SUFFIXES — `.map`/`.bse`) under `root`, sorted,
+    """Yield every WorldBuilder layout file (MAP_SUFFIXES - `.map`/`.bse`) under `root`, sorted,
     recursively. Each ships as `<name>/<name>.ext` under `maps\\`, `bases\\` or `libraries\\`;
     the engine loads it by folder name, so the linter both indexes these for `MapFile`
     reference checks and flags a file whose stem does not match its folder."""

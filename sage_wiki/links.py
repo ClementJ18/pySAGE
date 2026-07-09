@@ -1,5 +1,5 @@
 """Best-guess internal wiki links for a page draft. The wiki names a unit/hero page after the
-object's in-game display name, so a name resolves to a page when that title actually exists —
+object's in-game display name, so a name resolves to a page when that title actually exists -
 which is the validation this does, against the wiki's full article-title index (one bulk fetch).
 
 A `PageLinker` covers the two places a draft can carry a link: a table cell that already holds

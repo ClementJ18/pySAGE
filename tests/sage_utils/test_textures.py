@@ -64,7 +64,7 @@ def test_texture_source_falls_back_to_tga_when_no_dds(tmp_path):
 
 
 def test_texture_source_prefers_dds_over_tga(tmp_path):
-    # Both extensions present — the compiled .dds wins (8x8 vs the .tga's 4x4).
+    # Both extensions present - the compiled .dds wins (8x8 vs the .tga's 4x4).
     _write_image(tmp_path / "art" / "compiledtextures" / "in" / "INGameUI.dds", (8, 8))
     _write_image(tmp_path / "art" / "compiledtextures" / "in" / "INGameUI.tga", (4, 4))
     source = TextureSource([("folder", str(tmp_path))])
@@ -89,7 +89,7 @@ def test_crop_mapped_image_crops_to_coords(tmp_path):
 
 
 def test_crop_scales_coords_to_actual_texture_size(tmp_path):
-    # Authored against a 200x160 texture but compiled at half that — coords scale.
+    # Authored against a 200x160 texture but compiled at half that - coords scale.
     _write_dds(tmp_path / "art" / "compiledtextures" / "te" / "Tex.dds", (100, 80))
     source = TextureSource([("folder", str(tmp_path))])
     image = _mapped_image(

@@ -1,15 +1,15 @@
 """Command-line entry point: `python -m sage_edain <command>` (or `sage-edain`).
 
-- `factions <dir>` — list the playable factions in a mod.
-- `explore <dir> <faction>` — print (or `--json`) the faction's ownership graph: its spellbook,
+- `factions <dir>` - list the playable factions in a mod.
+- `explore <dir> <faction>` - print (or `--json`) the faction's ownership graph: its spellbook,
   start points, base structures, and the units / heroes / upgrades they produce.
-- `report <dir> <faction>` — render that graph as a Markdown digest (stat tables and all): the
+- `report <dir> <faction>` - render that graph as a Markdown digest (stat tables and all): the
   agent-facing view, meant to be read and critiqued. Omit the faction for a roster comparison.
-- `diff <old> <new> [faction]` — faction-level changelog between two versions of the mod
+- `diff <old> <new> [faction]` - faction-level changelog between two versions of the mod
   (roster and stat moves in player terms; `--json` for programs).
-- `schema [graph | diff]` — describe the JSON shapes `explore --json` / `diff --json` emit.
-- `serve <dir> <faction>` — open a small web UI (sage_edain/ui) to traverse that graph.
-- `install-skill` — install the bundled `bfme-faction` Claude Code skill.
+- `schema [graph | diff]` - describe the JSON shapes `explore --json` / `diff --json` emit.
+- `serve <dir> <faction>` - open a small web UI (sage_edain/ui) to traverse that graph.
+- `install-skill` - install the bundled `bfme-faction` Claude Code skill.
 
 `<dir>` is the mod's ini root (e.g. `_mod/data/ini`). Pass `--bases` (the mod's `bases/` folder) to
 decompose castle/camp layouts into their citadel + foundations + prebuilt structures (needs the
@@ -46,12 +46,12 @@ def _load(root: Path, base: list[Path]):
     Point `root` at the **mod folder** (e.g. `_mod`): the loader scans it recursively for ini *and*
     for the localization table (`Lotr.csv` / `.str`), so display names resolve to their in-game
     text. Passing the deeper ini folder (`_mod/data/ini`) still works but misses the string table,
-    which lives above it — names then fall back to raw template ids."""
+    which lives above it - names then fall back to raw template ids."""
     return load_game(root, bases=tuple(base)).game
 
 
 def _default_bases_dir(root: Path) -> Path | None:
-    """Find the mod's `bases/` folder relative to `root` — `root/bases` when `root` is the mod
+    """Find the mod's `bases/` folder relative to `root` - `root/bases` when `root` is the mod
     folder, else the nearest ancestor that holds one."""
     for folder in (root, *root.parents):
         candidate = folder / "bases"
@@ -189,7 +189,7 @@ def _write_or_print(text: str, out: Path | None) -> None:
 def _run_diff(old_root, new_root, faction_name, base, as_json, out) -> int:
     """Faction-level changelog between two mod versions (two checkouts/folders). Each side's
     graphs are built the same way `explore` builds them (bases auto-detected per root), then
-    compared in player terms — roster and stat moves, not raw ini fields."""
+    compared in player terms - roster and stat moves, not raw ini fields."""
     old_graphs = _build_graphs(old_root, faction_name, base, None)
     if old_graphs is None:
         return 1
@@ -206,7 +206,7 @@ def _run_diff(old_root, new_root, faction_name, base, as_json, out) -> int:
 
 
 def _run_serve(root, faction_name, base, bases_dir, port, open_browser) -> int:
-    from sage_edain.server import serve  # noqa: PLC0415 — only needed for `serve`
+    from sage_edain.server import serve  # noqa: PLC0415 - only needed for `serve`
 
     graphs = _build_graphs(root, faction_name, base, bases_dir)
     if graphs is None:

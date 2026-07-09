@@ -1,4 +1,4 @@
-"""What an object *instance property* references, by property key — the object-side companion to
+"""What an object *instance property* references, by property key - the object-side companion to
 `scripts.ARG_SPECS`.
 
 A placed object carries a dict of properties; most are scalars (health, enabled, scale), but a few
@@ -31,7 +31,7 @@ OBJECT_PROPERTY_SPECS: dict[str, PropertySpec] = {
     # The team that owns a placed object, written in the qualified `<owner>/<team>` form teams are
     # harvested under (the neutral owner is the bare `/team`).
     "originalOwner": PropertySpec(Scope.MAP, "teams"),
-    # The upgrades a placed object starts already owning — a space-separated list of Upgrade names
+    # The upgrades a placed object starts already owning - a space-separated list of Upgrade names
     # (e.g. `Upgrade_StructureLevel1 Upgrade_StructureLevel2`).
     "objectUpgradesList": PropertySpec(Scope.GAME, "upgrades", multi=True),
     # deferred: objectInitialStance -> a stance enum (value validation, not yet done). Audio/name

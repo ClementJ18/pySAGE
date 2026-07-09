@@ -1,10 +1,10 @@
-"""Task 1 — the `CHUNK_GameClient` drawable index.
+"""Task 1 - the `CHUNK_GameClient` drawable index.
 
 `CHUNK_GameClient` is the client-side mirror of `CHUNK_GameLogic`: a render frame, a drawable
 template TOC (the same `u32 count + name/u16-id` shape `GameLogic` writes), and one drawable per
 live object, each a `KOLB` block opening with the `u32` object id it renders. These tests pin the
-headline invariant — every drawable joins back to a live `GameLogic` object (or is the
-`0xFFFFFFFF` unattached sentinel) — plus clean template/module names, corpus-wide. The two small
+headline invariant - every drawable joins back to a live `GameLogic` object (or is the
+`0xFFFFFFFF` unattached sentinel) - plus clean template/module names, corpus-wide. The two small
 between-missions campaign saves carry no `CHUNK_GameClient` (no live drawables yet); those skip.
 """
 
@@ -60,7 +60,7 @@ def test_game_client_decodes():
 @pytest.mark.parametrize("path", FULL_SAVES, ids=fixture_id)
 def test_drawables_join_to_logic_objects(path):
     # The headline invariant: every drawable's object_id is a live GameLogic object id, or the
-    # 0xFFFFFFFF unattached sentinel — never a dangling id.
+    # 0xFFFFFFFF unattached sentinel - never a dangling id.
     client, save = _client(path)
     logic = decode_game_logic(save.chunk("CHUNK_GameLogic"))
     logic_ids = {o.object_id for o in logic.objects}

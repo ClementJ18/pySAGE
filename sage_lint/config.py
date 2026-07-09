@@ -1,7 +1,7 @@
 """Per-project lint config: the `lint` command reads `<root>/.sagelint` (committed, the
 shared rules for a mod) overlaid with `<root>/.sagelint.local` (gitignored, machine paths
 and personal overrides). Both are TOML. The local file overrides the shared one per key,
-and explicit CLI flags override both — the CLI stays the final say.
+and explicit CLI flags override both - the CLI stays the final say.
 
 Recognised keys (all optional): `level` ("ERROR" | "WARNING" | "INFO"), `root` (the folder
 to lint, a single path resolved relative to the config file's own directory), `baseline` (a
@@ -9,11 +9,11 @@ path to a baseline file of accepted diagnostics, resolved the same way), `sugges
 turning on "did you mean" hints), `assets` (a bool enabling the opt-in missing-texture/model/map
 file rules, mirrors --assets), `maps` (a bool, default false, also linting the binary `.map`
 layouts against the assembled game; mirrors --maps), `sentinels` (extra "intentionally nothing"
-reference tokens — e.g. `NoSound` — never reported as dangling; `None`/empty are always treated
-this way), `always_referenced` (definition kinds — block type names like `PlayerAIType` — the
+reference tokens - e.g. `NoSound` - never reported as dangling; `None`/empty are always treated
+this way), `always_referenced` (definition kinds - block type names like `PlayerAIType` - the
 unused-definition rule never flags, for kinds reached in ways the ini graph cannot see),
 `ignore`, `select`, `exclude`, `base`,
-`assets_base` (extra base sources loaded only when `assets` is on — the large texture/model
+`assets_base` (extra base sources loaded only when `assets` is on - the large texture/model
 archives only those rules need; mirrors --assets-base), and `maps_base` (extra base sources loaded
 only when `maps` is on; mirrors --maps-base). The `format`
 command reads two more: `align_equals` (a bool, mirrors --align-equals) and `align_exclude`
@@ -158,7 +158,7 @@ def load_config(directory: str | Path) -> Config:
 # The committed `.sagelint` written by `init`: the folder to lint plus suggestions on, the
 # two settings a fresh project almost always wants. Comments point at the rest.
 _DEFAULT_CONFIG_TEXT = """\
-# sage_lint project config — committed; shared by everyone editing this mod.
+# sage_lint project config - committed; shared by everyone editing this mod.
 # Run `sage_lint lint --list-codes` to see the codes `ignore`/`select` accept.
 
 # Folder to lint, relative to this file. "." is this folder; includes and string
@@ -172,7 +172,7 @@ suggest = true
 # The gitignored `.sagelint.local`: machine paths, written commented-out so a freshly
 # scaffolded project has the placeholder ready to fill rather than a silent gap.
 _LOCAL_CONFIG_TEXT = """\
-# sage_lint local overrides — machine-specific paths; do NOT commit (add to .gitignore).
+# sage_lint local overrides - machine-specific paths; do NOT commit (add to .gitignore).
 # Point `base` at your unmodified base-game data so references into it resolve instead of
 # being reported as dangling. A folder or a .big archive; repeatable, highest priority first.
 # base = ["C:/Program Files (x86)/Electronic Arts/.../BFME2"]

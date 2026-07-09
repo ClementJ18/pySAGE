@@ -2,15 +2,15 @@
 
 Each project folder gets a long-lived `sage_lint serve` daemon: it assembles the whole game
 once, reports it, then re-lints individual files against that cache on save (or, with
-`lint_on_idle`, while typing) in milliseconds — so cross-file references resolve without
+`lint_on_idle`, while typing) in milliseconds - so cross-file references resolve without
 re-parsing the folder every keystroke. Diagnostics are line-level (sage_lint spans carry no
 column), so each is drawn as a squiggly underline under the offending line, a gutter icon,
 and the message on its own phantom line below the code (`diagnostic_display` switches this
 to a right-aligned annotation, or off); the full message also shows in the status bar when
 the caret is on the line, and on hover with the code's description.
 
-The cache refreshes on the initial build, on **Lint Folder** (a daemon rebuild), and — with
-`auto_rebuild` — automatically (debounced) when a save adds or removes definitions, so a
+The cache refreshes on the initial build, on **Lint Folder** (a daemon rebuild), and - with
+`auto_rebuild` - automatically (debounced) when a save adds or removes definitions, so a
 brand new definition resolves from sibling files and references to a deleted one re-flag
 without a manual rebuild. While a build is in flight, per-file lints are deferred and re-run
 against the fresh cache when it lands (never reported from stale state), and a lint result
@@ -18,7 +18,7 @@ that arrives after further edits is dropped rather than drawn on the wrong lines
 
 The same daemon also serves a **symbol index** from the assembled game (an `index` request
 after every build): every definition with its source span, the macro and string tables, and
-each module's typed field schema. That index — the real parse, not a separate regex pass —
+each module's typed field schema. That index - the real parse, not a separate regex pass -
 backs Go to Definition, Browse Symbols, the per-file defined/referenced symbol lists, the
 module-documentation popups, hover previews and name/module/field completions.
 
@@ -29,7 +29,7 @@ Documentation, Symbols in File, Referenced Symbols, Edit Macro Values.
 
 Install with the bundled `install.sh`, or copy this folder into Sublime's `Packages`
 directory. Configure the interpreter and the checkout path in `SageLint.sublime-settings`
-— see the README.
+- see the README.
 """
 
 import html
@@ -86,7 +86,7 @@ _code_desc_cache = None
 _lock = threading.Lock()
 
 # Build-state bookkeeping: roots (normalised) whose daemon is mid-(re)build, and the per-file
-# lints deferred until that build's folder report lands — a request queued behind a build
+# lints deferred until that build's folder report lands - a request queued behind a build
 # would be answered seconds late, against content the user has since edited. Guarded by
 # `_state_lock` (touched from the main thread and Sublime's async worker alike).
 _building = set()
@@ -97,7 +97,7 @@ _state_lock = threading.Lock()
 
 def _log(message):
     """Print a one-line note to the Sublime console (View > Show Console) so each action
-    leaves a trace — the status bar is transient, the console is a scrollback."""
+    leaves a trace - the status bar is transient, the console is a scrollback."""
     print("SAGE Lint: " + message)
 
 
@@ -154,7 +154,7 @@ _NO_LINTER = (
 
 def _bundled_binary():
     """Path to a standalone `sage_lint` binary shipped inside the package, or None. This is
-    what makes the package self-contained — no Python or checkout needed. Looked for beside
+    what makes the package self-contained - no Python or checkout needed. Looked for beside
     this file as `bin/<name>` and `bin/<platform>/<name>`, so a package can carry one binary
     or one per OS (win32 / darwin / linux)."""
     name = "sage_lint.exe" if sys.platform == "win32" else "sage_lint"
@@ -171,7 +171,7 @@ def _bundled_binary():
 def _linter_command():
     """How to invoke sage_lint, as `(prefix, cwd)`. Prefers a bundled standalone binary (the
     package is then self-contained); otherwise falls back to `python -m sage_lint` run from
-    the checkout. `cwd` matters only for the module fallback — the binary carries its own
+    the checkout. `cwd` matters only for the module fallback - the binary carries its own
     everything. Returns `(None, None)` when neither is available, so callers report `_NO_LINTER`."""
     binary = _bundled_binary()
     if binary is not None:
@@ -294,7 +294,7 @@ def _defer_lint(root, file_name):
 
 def _flush_deferred(root):
     """Re-lint the files whose lints were deferred during `root`'s build, now against the
-    fresh cache — a still-dirty buffer is sent as content, so nothing saved or typed during
+    fresh cache - a still-dirty buffer is sent as content, so nothing saved or typed during
     the build is reported from stale state."""
     with _state_lock:
         paths = list(_deferred.pop(_normcase(root), {}).values())
@@ -309,7 +309,7 @@ def _flush_deferred(root):
 
 def _daemon_send(root, command):
     """Send one command to `root`'s daemon, starting it if needed. A `rebuild` is dropped
-    while a build is already in flight — including the initial build of a fresh daemon —
+    while a build is already in flight - including the initial build of a fresh daemon -
     since that build's folder report already reflects the current disk state."""
     rebuild = command.get("cmd") == "rebuild"
     if rebuild and _is_building(root):
@@ -357,7 +357,7 @@ def _on_daemon_exit(key, root):
         if proc is not None and proc.poll() is not None:
             _daemons.pop(key, None)
     # The daemon died mid-flight: clear its build state (a fresh daemon rebuilds from scratch)
-    # and drop the lints deferred on it — the next save re-lints against the new cache.
+    # and drop the lints deferred on it - the next save re-lints against the new cache.
     _mark_building(root, False)
     with _state_lock:
         _deferred.pop(key, None)
@@ -480,7 +480,7 @@ def _lint_folder_async(window, root):
 def _gate_lint(root, file_name):
     """Whether to defer this file's lint because `root`'s cache is (re)building. A request
     queued behind a build would be answered seconds late, against content the user has since
-    edited; deferring it re-lints once — against the fresh cache — when the build lands."""
+    edited; deferring it re-lints once - against the fresh cache - when the build lands."""
     if root is None or not _is_building(root):
         return False
     _defer_lint(root, file_name)
@@ -573,8 +573,8 @@ def _truncate(text):
 
 
 def _merged_diagnostics(diags):
-    """Diagnostics grouped as `(severity, line) -> [messages]` — one region/message block per
-    line and severity, so several issues on a line render as one joined placement — plus the
+    """Diagnostics grouped as `(severity, line) -> [messages]` - one region/message block per
+    line and severity, so several issues on a line render as one joined placement - plus the
     file's error/warning counts for the status bar."""
     merged = {}
     errors = warnings = 0
@@ -593,7 +593,7 @@ def _merged_diagnostics(diags):
 
 def _phantom_html(view, severity, messages, indent):
     """One message per line, each wrapped in Python to the columns the viewport can show at
-    the line's indent — minihtml does not wrap a phantom itself, it would just widen the
+    the line's indent - minihtml does not wrap a phantom itself, it would just widen the
     layout and scroll out of view like the annotations did."""
     color = SEVERITY_STYLE.get(severity, SEVERITY_STYLE["error"])[2]
     em = view.em_width() or 8
@@ -651,7 +651,7 @@ def _render_view(view):
         return
     diags = _diagnostics.get(_normcase(file_name), [])
     merged, errors, warnings = _merged_diagnostics(diags)
-    # Where the message text goes: "phantom" (a line under the code — always visible),
+    # Where the message text goes: "phantom" (a line under the code - always visible),
     # "annotation" (right-aligned inline, can sit past the viewport on long lines), or
     # "none" (squiggle/gutter/status/hover only). The squiggle and gutter icon always draw.
     display = _settings().get("diagnostic_display", "phantom")
@@ -766,7 +766,7 @@ _keyed_by_label_lower = {}  # lower-cased class name -> canonical
 # reference-typed field can offer exactly the names its target table holds.
 _defs_by_table = {}  # table key -> sorted list of definition names
 # Ordered include-resolution roots from the daemon (mod ini root, then any merged base game),
-# so an `#include` resolves the way the linter does — base-game includes included by a mod file
+# so an `#include` resolves the way the linter does - base-game includes included by a mod file
 # are found rather than reported missing. Empty until the first index arrives.
 _include_roots = []
 
@@ -899,7 +899,7 @@ def _block_decl(line):
 
 
 def _enclosing_block(view, point):
-    """The block class whose body contains `point` — a module slot or a top-level/named block —
+    """The block class whose body contains `point` - a module slot or a top-level/named block -
     found by scanning upward to the nearest shallower-indented block opener (stopping at an `End`
     that closes a sibling block), or None when the caret is not inside a modelled block."""
     target = view.line(point)
@@ -933,7 +933,7 @@ def _is_within(path, base):
 def _resolve_include(view, include_path):
     """Absolute path an `#include "..."` resolves to, mirroring the linter (sage_ini's
     `resolve_include`): when the including file sits under a known include root, anchor the
-    target there and try every root — the mod's ini root *and* the merged base game — so a
+    target there and try every root - the mod's ini root *and* the merged base game - so a
     base-game-only include resolves; otherwise fall back to a path relative to the file. None
     only when the file is unsaved. Existence is the caller's to check."""
     current = view.file_name()
@@ -962,7 +962,7 @@ def _resolve_include(view, include_path):
 
 def _field_type_label(info):
     """The display type for a field_info dict (or a bare label string, for resilience). An
-    enum/reference field shows what it expects — `enum: A | B | …` or `ref: <table>` — so the
+    enum/reference field shows what it expects - `enum: A | B | …` or `ref: <table>` - so the
     documentation popup hints what its value autocomplete will offer."""
     if not isinstance(info, dict):
         return str(info)
@@ -1000,7 +1000,7 @@ def _module_doc_html(name, fields):
 
 
 class SageLintAboutCommand(sublime_plugin.ApplicationCommand):
-    """SAGE Lint: About — show the plugin version and description."""
+    """SAGE Lint: About - show the plugin version and description."""
 
     def run(self):
         _log(f"about (v{__version__})")
@@ -1008,7 +1008,7 @@ class SageLintAboutCommand(sublime_plugin.ApplicationCommand):
 
 
 class SageLintFolderCommand(sublime_plugin.WindowCommand):
-    """SAGE Lint: Lint Folder — re-lint the whole project folder."""
+    """SAGE Lint: Lint Folder - re-lint the whole project folder."""
 
     def run(self):
         root = _project_root(self.window)
@@ -1025,7 +1025,7 @@ class SageLintFolderCommand(sublime_plugin.WindowCommand):
 
 
 class SageLintFormatCommand(sublime_plugin.TextCommand):
-    """SAGE Lint: Format File — reprint the buffer in sage_lint's canonical style."""
+    """SAGE Lint: Format File - reprint the buffer in sage_lint's canonical style."""
 
     def run(self, edit):
         view = self.view
@@ -1059,7 +1059,7 @@ class SageLintFormatCommand(sublime_plugin.TextCommand):
 
 
 class SageLintFixCommand(sublime_plugin.WindowCommand):
-    """SAGE Lint: Fix File / Fix Folder — apply the auto-fixable diagnostics in place."""
+    """SAGE Lint: Fix File / Fix Folder - apply the auto-fixable diagnostics in place."""
 
     def run(self, scope="file"):
         if scope == "file":
@@ -1124,7 +1124,7 @@ class SageLintFixCommand(sublime_plugin.WindowCommand):
 
 
 class SageLintShowDiagnosticsCommand(sublime_plugin.WindowCommand):
-    """SAGE Lint: Show Diagnostics — list issues in a quick panel; pick one to jump to it."""
+    """SAGE Lint: Show Diagnostics - list issues in a quick panel; pick one to jump to it."""
 
     def run(self, current_file_only=False):
         active = self.window.active_view()
@@ -1170,7 +1170,7 @@ class SageLintShowDiagnosticsCommand(sublime_plugin.WindowCommand):
 
 
 class SageLintGotoCommand(sublime_plugin.TextCommand):
-    """SAGE Lint: Next / Previous Diagnostic — move the caret to the next issue line."""
+    """SAGE Lint: Next / Previous Diagnostic - move the caret to the next issue line."""
 
     def run(self, edit, forward=True):
         view = self.view
@@ -1194,7 +1194,7 @@ class SageLintGotoCommand(sublime_plugin.TextCommand):
 
 
 class SageLintCopyMessageCommand(sublime_plugin.TextCommand):
-    """SAGE Lint: Copy Message — copy the diagnostic(s) on the caret's line to the clipboard,
+    """SAGE Lint: Copy Message - copy the diagnostic(s) on the caret's line to the clipboard,
     each as `path:line: [code] message`, so it can be pasted into a report or jumped to."""
 
     def run(self, edit):
@@ -1230,7 +1230,7 @@ class SageLintCopyMessageCommand(sublime_plugin.TextCommand):
 
 
 class SageLintGotoDefinitionCommand(sublime_plugin.TextCommand):
-    """Sage Lint: Go to Definition — jump to the definition of the symbol under the caret
+    """Sage Lint: Go to Definition - jump to the definition of the symbol under the caret
     (object, macro, `#include`, or string label), resolved against the indexed game. A string
     defined only in the base game has no recorded location, so its value is shown instead."""
 
@@ -1245,7 +1245,7 @@ class SageLintGotoDefinitionCommand(sublime_plugin.TextCommand):
             return
 
         if not _has_index():
-            sublime.status_message("sage_lint: index not ready — run Sage Lint: Lint Folder")
+            sublime.status_message("sage_lint: index not ready - run Sage Lint: Lint Folder")
             return
 
         word = _word_at(view, sel)
@@ -1312,13 +1312,13 @@ class SageLintGotoDefinitionCommand(sublime_plugin.TextCommand):
 
 
 class SageLintBrowseSymbolsCommand(sublime_plugin.WindowCommand):
-    """Sage Lint: Browse Symbols — a searchable list of every indexed definition, macro and
+    """Sage Lint: Browse Symbols - a searchable list of every indexed definition, macro and
     string; pick one to jump to it (a base-game-only string, lacking a location, shows its
     value)."""
 
     def run(self):
         if not _has_index():
-            sublime.status_message("sage_lint: index not ready — run Sage Lint: Lint Folder")
+            sublime.status_message("sage_lint: index not ready - run Sage Lint: Lint Folder")
             return
         self._entries = []  # (display detail, file or None, line or None, status)
         with _index_lock:
@@ -1377,7 +1377,7 @@ class SageLintBrowseSymbolsCommand(sublime_plugin.WindowCommand):
 
 
 class SageLintModuleDocCommand(sublime_plugin.TextCommand):
-    """Sage Lint: Show Module Documentation — pop up the typed field schema of the module
+    """Sage Lint: Show Module Documentation - pop up the typed field schema of the module
     named under the caret (or declared on the current `Behavior =`/`Body =`/… line)."""
 
     def run(self, edit):
@@ -1406,7 +1406,7 @@ class SageLintModuleDocCommand(sublime_plugin.TextCommand):
 
 
 class SageLintFileSymbolsCommand(sublime_plugin.WindowCommand):
-    """Sage Lint: Symbols in File — list the definitions and macros declared in the active
+    """Sage Lint: Symbols in File - list the definitions and macros declared in the active
     file; pick one to jump to it."""
 
     def run(self):
@@ -1416,7 +1416,7 @@ class SageLintFileSymbolsCommand(sublime_plugin.WindowCommand):
             sublime.status_message("sage_lint: no file open")
             return
         if not _has_index():
-            sublime.status_message("sage_lint: index not ready — run Sage Lint: Lint Folder")
+            sublime.status_message("sage_lint: index not ready - run Sage Lint: Lint Folder")
             return
         key = _normcase(current)
         self._entries = []
@@ -1452,7 +1452,7 @@ class SageLintFileSymbolsCommand(sublime_plugin.WindowCommand):
 
 
 class SageLintReferencedSymbolsCommand(sublime_plugin.WindowCommand):
-    """Sage Lint: Referenced Symbols — list the symbols defined elsewhere that the active
+    """Sage Lint: Referenced Symbols - list the symbols defined elsewhere that the active
     file mentions; pick one to jump to its usage or its definition."""
 
     def run(self):
@@ -1462,7 +1462,7 @@ class SageLintReferencedSymbolsCommand(sublime_plugin.WindowCommand):
             sublime.status_message("sage_lint: no file open")
             return
         if not _has_index():
-            sublime.status_message("sage_lint: index not ready — run Sage Lint: Lint Folder")
+            sublime.status_message("sage_lint: index not ready - run Sage Lint: Lint Folder")
             return
         key = _normcase(current)
         # Candidate external symbols: definitions (and located macros) not declared in this file.
@@ -1542,7 +1542,7 @@ class SageLintReferencedSymbolsCommand(sublime_plugin.WindowCommand):
 
 
 class SageLintEditDefineCommand(sublime_plugin.TextCommand):
-    """Sage Lint: Edit Macro Values — add, subtract, remove or list the `+token`/`-token`
+    """Sage Lint: Edit Macro Values - add, subtract, remove or list the `+token`/`-token`
     values of the `#define` on the current line. Add/subtract offer indexed symbol names as
     candidates (or free entry); edits rewrite the line in place."""
 
@@ -1689,7 +1689,7 @@ class SageLintEventListener(sublime_plugin.EventListener):
     @staticmethod
     def _refresh_caret_phantoms(view):
         """With `phantom_scope` "caret-line", the shown phantom follows the caret: redraw when
-        the caret changes row (and only then — `_render_phantoms` records the row it drew for)."""
+        the caret changes row (and only then - `_render_phantoms` records the row it drew for)."""
         if _settings().get("diagnostic_display", "phantom") != "phantom":
             return
         if _settings().get("phantom_scope", "all") != "caret-line":
@@ -1810,7 +1810,7 @@ class SageLintEventListener(sublime_plugin.EventListener):
             )
         else:
             entry = payload[0]
-            body = "<b>{}</b><br><i>{}</i> — {}".format(
+            body = "<b>{}</b><br><i>{}</i> - {}".format(
                 html.escape(entry["name"]),
                 html.escape(entry["kind"]),
                 html.escape(os.path.basename(entry["file"])),
@@ -1824,8 +1824,8 @@ class SageLintEventListener(sublime_plugin.EventListener):
 
     @staticmethod
     def _value_completions(info, lowered):
-        """A `CompletionList` of the values a field accepts — its enum members (static values)
-        or, for a reference, the names of its target table (dynamic values) — filtered by the
+        """A `CompletionList` of the values a field accepts - its enum members (static values)
+        or, for a reference, the names of its target table (dynamic values) - filtered by the
         typed prefix, or None when the field has no completable value kind. A field with a known
         kind is strict: only its own values are offered (never the generic symbol list), so a
         wrong-kind name is conspicuously absent."""
@@ -1878,7 +1878,7 @@ class SageLintEventListener(sublime_plugin.EventListener):
             values = self._value_completions(info, lowered) if info else None
             if values is not None:
                 return values
-            # `Behavior = Au…` — the value of a module slot names a module class.
+            # `Behavior = Au…` - the value of a module slot names a module class.
             if re.match(r"^\s*\w+\s*=\s*\w*$", before):
                 with _index_lock:
                     names = [n for n in _module_slots if n.lower().startswith(lowered)]
@@ -1909,7 +1909,7 @@ class SageLintEventListener(sublime_plugin.EventListener):
                         )
                     )
 
-        # Symbol names (definitions, macros, strings) — capped so a huge game stays responsive.
+        # Symbol names (definitions, macros, strings) - capped so a huge game stays responsive.
         if len(prefix) >= 2:
             with _index_lock:
                 for entries in _definitions.values():

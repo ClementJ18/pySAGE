@@ -4,7 +4,7 @@ Each `ExperienceLevel` whose `TargetNames` names the unit is a rung on its rank
 ladder; reaching a rank grants that level's `Upgrades` and applies its
 `AttributeModifiers`. Because the granted upgrades feed back into the upgrade
 machinery, raising the rank also fires whatever armor/weapon/locomotor upgrades
-those levels trigger — all of it resolved by `UnitState.set_rank`.
+those levels trigger - all of it resolved by `UnitState.set_rank`.
 
 Run from the repo root:  .venv/Scripts/python examples/rank_levels.py
 """
@@ -56,7 +56,7 @@ def report(game: Game, name: str) -> None:
 def main() -> None:
     root = Path(__file__).resolve().parent.parent / "data"
     if not root.exists():
-        print("corpus not present (data/ is gitignored) — nothing to show")
+        print("corpus not present (data/ is gitignored) - nothing to show")
         return
     game = load_game(root)
     for name in ("GondorGandalf", "MordorWitchKing", "MordorTavern"):

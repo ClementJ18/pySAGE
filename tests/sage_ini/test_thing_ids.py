@@ -2,7 +2,7 @@
 
 Two anchor sets, both recorded from controlled BFME2 replays: `ANCHORS` are recruit ids (`0x417`,
 one unit per faction, `Replay 2`, ids 2002–2863); `BUILD_ANCHORS` are build ids (`0x41A`, one
-structure per faction, `Replay 4`) — the finished-building template mapped to its build integer.
+structure per faction, `Replay 4`) - the finished-building template mapped to its build integer.
 Both spaces are the same `thing_template_order` index + 1, so every anchor must land at
 `thing_template_order(...).index(name) + 1`. The build anchors in particular pin the engine's
 `INI::loadDirectory` two-pass file order (an earlier files-before-subdirs walk put the structures

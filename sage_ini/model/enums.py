@@ -22,7 +22,7 @@ class BFMEEnum(enum.Enum, metaclass=BFMEEnumMeta):
 
     @classmethod
     def _case_insensitive(cls, key):
-        """The member whose name matches `key` ignoring case, or None — the engine treats
+        """The member whose name matches `key` ignoring case, or None - the engine treats
         enum tokens case-insensitively, so we accept the mismatch but flag it."""
         upper = key.upper()
         for member_name, member in cls.__members__.items():
@@ -56,7 +56,7 @@ def _unprefixed(name):
 
 
 class CaseInsensitiveEnum(BFMEEnum):
-    """A `BFMEEnum` that accepts any case *silently* — it still validates membership (an
+    """A `BFMEEnum` that accepts any case *silently* - it still validates membership (an
     unknown token raises), but matches case-insensitively without emitting `enum-case`. For
     token sets the corpus writes in mixed/lower case with no canonical spelling to enforce
     (the audio flags: `world`/`voice`/`music`), where a case warning is pure noise."""
@@ -72,7 +72,7 @@ class CaseInsensitiveEnum(BFMEEnum):
 
 
 class GeometryType(BFMEEnum):
-    """The primitive an object's collision/footprint shape uses — the value of a
+    """The primitive an object's collision/footprint shape uses - the value of a
     `Geometry`/`AdditionalGeometry` line."""
 
     SPHERE = 0
@@ -97,7 +97,7 @@ class MomentEnum(BFMEEnum):
 
 
 class SlowDeathPhase(BFMEEnum):
-    """When a SlowDeath stage fires — like `MomentEnum` plus the `HIT_GROUND` phase a falling
+    """When a SlowDeath stage fires - like `MomentEnum` plus the `HIT_GROUND` phase a falling
     death triggers when the body lands."""
 
     INITIAL = 0
@@ -210,7 +210,7 @@ class EmotionTypes(BFMEEnum):
 
 
 class FactionSide:
-    """A faction side, kept open (mods define their own) — any token passes through as the
+    """A faction side, kept open (mods define their own) - any token passes through as the
     raw name; `sides()` exposes the live set declared by the game's `PlayerTemplate`s."""
 
     @staticmethod
@@ -564,7 +564,7 @@ class DeathFlags(BFMEEnum):
 
 
 class MappedImageStatus(BFMEEnum):
-    """A `MappedImage.Status` flag — how the source texture region is oriented when blitted.
+    """A `MappedImage.Status` flag - how the source texture region is oriented when blitted.
     `NONE` maps to `None` via the metaclass."""
 
     ROTATED_90_CLOCKWISE = 0
@@ -588,7 +588,7 @@ class InvisibilityOptions(BFMEEnum):
 
 
 class ParticleSystemType(BFMEEnum):
-    """An FX particle `System.Type` — the renderer/primitive a particle system uses. Members
+    """An FX particle `System.Type` - the renderer/primitive a particle system uses. Members
     surveyed from the corpus."""
 
     DRAWABLE = 0
@@ -600,7 +600,7 @@ class ParticleSystemType(BFMEEnum):
 
 
 class CombatChainUnitType(BFMEEnum):
-    """A `CombatChainDefinition.Unit` category — the unit class an auto-resolve combat chain
+    """A `CombatChainDefinition.Unit` category - the unit class an auto-resolve combat chain
     targets. Members surveyed from the corpus."""
 
     INFANTRY = 0
@@ -1844,8 +1844,8 @@ class WeaponPrefireType(BFMEEnum):
     """Weapon.PreAttackType: when the pre-attack delay is applied.
 
     The engine reads the type from the first token and ignores the rest of the
-    line, so a trailing marker — seen in the corpus as ``PreAttackType =
-    PER_SHOT *`` — is valid and resolves to the leading member.
+    line, so a trailing marker - seen in the corpus as ``PreAttackType =
+    PER_SHOT *`` - is valid and resolves to the leading member.
     """
 
     PER_ATTACK = 0  # delay each time a new target is attacked
@@ -2048,7 +2048,7 @@ class AudioControlFlags(CaseInsensitiveEnum):
 
 
 class AudioPriority(CaseInsensitiveEnum):
-    """An audio event's `Priority` — how readily the mixer drops it when channels run short.
+    """An audio event's `Priority` - how readily the mixer drops it when channels run short.
     The corpus writes these upper-cased; the engine tokens are lower-case, so match either."""
 
     LOWEST = enum.auto()
@@ -2129,7 +2129,7 @@ class DamageFXType(BFMEEnum):
 
 
 class ObjectShadowType(BFMEEnum):
-    """How an object casts its `Shadow` — volume, decal, or one of the non-self/alpha variants."""
+    """How an object casts its `Shadow` - volume, decal, or one of the non-self/alpha variants."""
 
     NONE = enum.auto()
     SHADOW_VOLUME = enum.auto()
@@ -2163,13 +2163,13 @@ class BodyDamageType(BFMEEnum):
 
 
 class TerrainLod(BFMEEnum):
-    """`GameData.TerrainLOD` — the engine only recognises `DISABLE` here."""
+    """`GameData.TerrainLOD` - the engine only recognises `DISABLE` here."""
 
     DISABLE = enum.auto()
 
 
 class MapWeatherType(BFMEEnum):
-    """`GameData.Weather` — the map's base weather."""
+    """`GameData.Weather` - the map's base weather."""
 
     NORMAL = enum.auto()
     SNOWY = enum.auto()

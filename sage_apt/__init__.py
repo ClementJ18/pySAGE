@@ -1,6 +1,6 @@
 """Tooling for SAGE `.apt` UI movies (the engine's Flash-derived menu/HUD format).
 
-An APT ships as a binary pair — `.apt` (structure, characters, ActionScript bytecode)
+An APT ships as a binary pair - `.apt` (structure, characters, ActionScript bytecode)
 plus `.const` (constant pool). `sage_apt.aptfile` converts the pair to an editable XML
 form and compiles the XML back; `sage_apt.viewer` renders the XML to a self-contained
 HTML/SVG page; `sage_apt.editor` serves a browser editor over it. The `sage-apt` CLI

@@ -1,6 +1,6 @@
 """Edain map linting: the Edain rule set on the `sage_map.checks` architecture.
 
-`lint_map` parses nothing itself — hand it a `sage_map` `Map` and it runs the Edain mapping
+`lint_map` parses nothing itself - hand it a `sage_map` `Map` and it runs the Edain mapping
 conventions over it, returning ordinary `sage_ini` `Diagnostics` (one stable MAP-xxx code per
 convention, see `findings.FINDINGS`). `python -m sage_edain.map_checks <map>` is the
 command-line front end.

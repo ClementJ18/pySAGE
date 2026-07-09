@@ -368,7 +368,7 @@ def test_command_entries_classifies_and_filters():
     # Kept: visible abilities/upgrades, including a passive (NONE + tooltip) and a
     # radial-menu power. Dropped: the stance toggle (not an ability), the divider (NONE,
     # no tooltip), the slot-4 power with no InPalantir, and the capture power on a high
-    # slot without Radial — all invisible or non-ability.
+    # slot without Radial - all invisible or non-ability.
     assert [(e["kind"], e["name"]) for e in entries] == [
         ("ability", "Battle Cry"),
         ("upgrade", "Purchase Heavy Armor"),
@@ -396,7 +396,7 @@ def test_button_overlay_kind_frames_every_button_passive_only_for_nonpressable()
     assert button_overlay_kind(buttons["Command_Special"]) == "active"
     assert button_overlay_kind(buttons["Command_Radial"]) == "active"
     assert button_overlay_kind(buttons["Command_Passive"]) == "passive"
-    # Non-abilities are framed too — an upgrade, a stance toggle and a tooltip-less divider
+    # Non-abilities are framed too - an upgrade, a stance toggle and a tooltip-less divider
     # all take the active frame, since none carries the NONPRESSABLE option.
     assert button_overlay_kind(buttons["Command_Upgrade"]) == "active"
     assert button_overlay_kind(buttons["Command_Stance"]) == "active"
@@ -404,7 +404,7 @@ def test_button_overlay_kind_frames_every_button_passive_only_for_nonpressable()
 
 
 def test_button_overlay_kind_passive_is_driven_by_the_nonpressable_option():
-    # The NONPRESSABLE option — not the presence of a special power — decides passivity: the
+    # The NONPRESSABLE option - not the presence of a special power - decides passivity: the
     # same special-power ability is active when clickable and passive when flagged NONPRESSABLE.
     game = load(
         """
@@ -596,7 +596,7 @@ def test_toggle_hero_duplicates_shared_stats_and_keeps_health_single():
     assert "armor" not in fields and "health_melee" not in fields
 
 
-# A non-hero toggle unit (the Galadhrim's bow/sword) — the switch is wired without a
+# A non-hero toggle unit (the Galadhrim's bow/sword) - the switch is wired without a
 # TOGGLE_WEAPONSET button, so detection rests on the WEAPONSET_TOGGLE_1 weapon set.
 TOGGLE_UNIT_FIXTURE = """
 Weapon UnitBow
@@ -900,7 +900,7 @@ def test_summoned_hero_timer_comes_from_its_lifetime():
 
 
 # A hero that mounts a separate flying template (mounts an eagle): its on-foot stats are
-# `_melee`, and the eagle mount's — because the mount carries GiantBirdAIUpdate — go to
+# `_melee`, and the eagle mount's - because the mount carries GiantBirdAIUpdate - go to
 # `_flying` rather than `_mounted`.
 EAGLE_MOUNT_FIXTURE = """
 Weapon FootSword
@@ -993,7 +993,7 @@ def test_mountable_hero_with_flying_mount_uses_the_flying_column():
 
 # A hero with both a ground mount and a flying one (the Dark Marshal's Ring Hunter form:
 # on foot, on a horse, or on a fell beast). The in-place MOUNTED weapon/armor/locomotor give
-# the `_mounted` column, and the GiantBird mount template gives `_flying` — all three stances
+# the `_mounted` column, and the GiantBird mount template gives `_flying` - all three stances
 # emitted together.
 THREE_STANCE_FIXTURE = """
 Weapon FootSword
@@ -1499,7 +1499,7 @@ def recruit_game() -> Game:
 
 def test_building_levels_detect_a_veterancy_rank_ladder():
     # The building levels through a LevelUpUpgrade rank ladder, not economy upgrades, so each
-    # level is a rank (no extra upgrade) — three of them.
+    # level is a rank (no extra upgrade) - three of them.
     levels = building_levels(load(BUILDING_RECRUIT_FIXTURE).objects["TestBarracks"])
     assert [rank for _active, rank in levels] == [1, 2, 3]
 
@@ -1516,7 +1516,7 @@ def test_building_stats_are_computed_per_level():
 # An economy building that levels the Wirtschaftssystem-4.0 way (Edain's AmrothLighthouse): two
 # globally-researched upgrades each level it up (a LevelUpUpgrade) and grant the per-level stats
 # (a paired AttributeModifierUpgrade). It also carries a one-off buff (a hero's gift) that grants
-# only an AttributeModifierUpgrade — that must NOT count as a level.
+# only an AttributeModifierUpgrade - that must NOT count as a level.
 ECONOMY_LEVEL_FIXTURE = """
 ModifierList EconStepOne
   Modifier = HEALTH 500
@@ -1582,7 +1582,7 @@ def test_economy_building_stats_step_with_each_level_upgrade():
     assert "health4" not in fields  # the hero-gift buff is no extra level
 
 
-# A structure that levels purely through its ExperienceLevel ladder — rank is earned by
+# A structure that levels purely through its ExperienceLevel ladder - rank is earned by
 # RequiredExperience, with no LevelUpUpgrade pushing it (Edain's Dol Guldur / Morgul outpost
 # fortresses). The per-rank HEALTH modifiers carry the gain, the same as the ladder above.
 EXP_LEVELED_FIXTURE = """

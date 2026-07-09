@@ -1,7 +1,7 @@
 """Signature harvest of the *fatal* ini-name classes in `CHUNK_Players` (and object bodies).
 
 `sage_save.chunks.decode_players` now walks each player record structurally down to the team
-vector — the upgrade masks it decodes are these same structures — but each record's *tail*
+vector - the upgrade masks it decodes are these same structures - but each record's *tail*
 (the acquired-science vector, hero roster, build lists) is still opaque bytes, so this scan
 remains the harvest that reaches them. It extracts the two name-bearing structures by their
 exact on-wire signature: the **upgrade mask** (`xferUpgradeMask`: `u8 version=1 + u16 count +
@@ -13,7 +13,7 @@ versa): a divergence between the two is a test failure, not a silent drift.
 
 Names in these lists are **fatal** cross-references: unlike the skip-tolerated object templates,
 a dangling upgrade or science is `XFER_UNKNOWN_STRING` and aborts the load. Limitation: a list
-whose entries all lack the conventional prefix is not recognised — walking the record tail
+whose entries all lack the conventional prefix is not recognised - walking the record tail
 (the remaining Task 5 slice) would retire the heuristic entirely. See sav_format.md.
 """
 

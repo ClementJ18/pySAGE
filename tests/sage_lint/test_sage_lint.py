@@ -99,7 +99,7 @@ class TestFormatText:
 
     def test_tabs_inside_a_script_body_are_not_flagged(self):
         # The printer reproduces a BeginScript/EndScript body verbatim, so its tabs can
-        # never be reformatted — flagging them would be an un-fixable warning. Tabs outside
+        # never be reformatted - flagging them would be an un-fixable warning. Tabs outside
         # the body are still reported and fixed.
         text = (
             "Object Foo\n"
@@ -821,7 +821,7 @@ class TestFixerTokenGuard:
 
         fixed_by_file, applied = fix_diagnostics([self._enum_case(path, 2, "Yes", "YES")])
 
-        assert applied == []  # nothing applied — the token isn't on the reported line
+        assert applied == []  # nothing applied - the token isn't on the reported line
         assert fixed_by_file == {}
         assert path.read_text(encoding="utf-8") == text  # file untouched, so no re-trigger
 
@@ -1079,7 +1079,7 @@ class TestBaseBigIndexing:
     and indexed. Otherwise a real base-game texture (e.g. HeroUI_001) is wrongly flagged missing."""
 
     def _big(self, directory, dest):
-        from pyBIG import Archive  # noqa: PLC0415 — only this test needs the .big writer
+        from pyBIG import Archive  # noqa: PLC0415 - only this test needs the .big writer
 
         Archive.from_directory(str(directory)).save(str(dest))
         return dest
@@ -1191,7 +1191,7 @@ class TestDiffCommand:
 
     def test_base_definitions_cancel_out(self, tmp_path, capsys):
         # A base-game definition present (identically) beneath both refs must not show up as a
-        # change — the base merge applies to both sides and cancels.
+        # change - the base merge applies to both sides and cancels.
         base = tmp_path / "base" / "data" / "ini"
         base.mkdir(parents=True)
         (base / "base.ini").write_text(

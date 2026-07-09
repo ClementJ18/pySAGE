@@ -1,7 +1,7 @@
 """The `diff` command: a human-readable changelog of game-data changes between two git refs,
 each assembled the way `lint` builds a game (config-aware, base game merged in). Also the
 `diff-maps` command: a content changelog of the binary `.map`/`.bse` files one commit touches,
-parsed straight out of the object store — no game assembly or config involved.
+parsed straight out of the object store - no game assembly or config involved.
 """
 
 import argparse
@@ -61,13 +61,13 @@ def run_diff(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
 
 def run_diff_maps(args: argparse.Namespace) -> int:
-    """Changelog of the `.map`/`.bse` files `commit` touches — a single commit diffed against
-    its parent, or a git range (`old..new` / `old...new`) diffed endpoint against endpoint —
+    """Changelog of the `.map`/`.bse` files `commit` touches - a single commit diffed against
+    its parent, or a git range (`old..new` / `old...new`) diffed endpoint against endpoint -
     each side parsed out of git and compared structurally (objects, teams, scripts, terrain),
     the report git's binary-file diff cannot give. `sage_map` is imported lazily so `sage_lint`
     runs without the optional `[map]` extra installed."""
     try:
-        from sage_map.diff import (  # noqa: PLC0415 — lazy: the [map] extra is optional
+        from sage_map.diff import (  # noqa: PLC0415 - lazy: the [map] extra is optional
             diff_commit_maps,
             diff_range_maps,
             format_map_file_diffs,

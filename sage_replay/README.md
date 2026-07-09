@@ -4,7 +4,7 @@ A Python library for reading SAGE-engine replay files: Generals `.rep`, BFME
 `.BfMEReplay`, and BFME2 / RotWK `.BfME2Replay`.
 
 A replay is a header (timestamps, game version, and an ASCII metadata string carrying
-the map and player slots) followed by the recorded order stream — one chunk per issued
+the map and player slots) followed by the recorded order stream - one chunk per issued
 command, tagged with its logic-frame timecode, the issuing player, and typed arguments
 (object ids, world positions, screen rectangles, ...). Replays are inputs, not state:
 reconstructing what *happened* requires re-simulating the game, but the order stream
@@ -13,7 +13,7 @@ alone already yields build orders, APM, selections, and command timing.
 The Generals parsing path follows the OpenSAGE C# implementation
 (https://github.com/OpenSAGE/OpenSAGE). The BFME2 header layout diverges and was
 reverse-engineered against a corpus of real RotWK 2.01 replays (vanilla and Edain,
-1v1 through 2v3 and vs-AI) — validated by every chunk stream parsing exactly to
+1v1 through 2v3 and vs-AI) - validated by every chunk stream parsing exactly to
 end-of-file with the header's timecode count matching the last chunk. Orders map
 back to player slots via `ReplayFile.slot_for`.
 
@@ -50,10 +50,10 @@ python -m sage_replay info <replay> --json
 
 ## Who won?
 
-The outcome is never stored — a replay is inputs, and eliminations happen inside the
+The outcome is never stored - a replay is inputs, and eliminations happen inside the
 simulation. But how each human session *ends* is recorded: `0x448` is the voluntary
 leave-game action, `0x1D` marks the end of the recording (attributed to the player whose
-client wrote the file — the replay's point of view), and the `0x44A` checksum heartbeat
+client wrote the file - the replay's point of view), and the `0x44A` checksum heartbeat
 stops when a client drops. `winner` applies a concession heuristic over those signals
 and answers honestly: `decided` when every human on all-but-one side left, `recorder_left`
 when the recording player quit first (they conceded; the rest of the game lies beyond the

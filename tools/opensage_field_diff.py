@@ -40,7 +40,7 @@ _TABLE = re.compile(r"new\s+IniParseTable<(\w+)>|IniParseTable<(\w+)>\s+\w+\s*=\
 _ENTRY = re.compile(r'\{\s*"([^"]+)"\s*,\s*\(parser,\s*x\)\s*=>\s*(.*?)\}\s*,?', re.DOTALL)
 _PARSEFN = re.compile(r"parser\.(Parse\w+)")
 _TYPECALL = re.compile(r"(\w+)\.Parse\(parser")
-# `= SomeBase.FieldParseTable.Concat(new IniParseTable<This>{...})` — the parse
+# `= SomeBase.FieldParseTable.Concat(new IniParseTable<This>{...})` - the parse
 # table is built by extending a base class's table.
 _CONCAT_BASE = re.compile(r"(\w+)\.FieldParseTable\s*\.\s*Concat\s*\(\s*$")
 
@@ -217,7 +217,7 @@ def main() -> None:
     w("")
     w("> Note: a few keywords show as *OpenSAGE-only* because OpenSAGE lists them as")
     w("> explicit parse-table entries while sage_ini handles them structurally rather")
-    w("> than as declared fields — generic module slots on an object (`Behavior`,")
+    w("> than as declared fields - generic module slots on an object (`Behavior`,")
     w("> `Body`, `ClientUpdate`, `Locomotor`). These are parsed by both, not real gaps.")
     w("")
 
@@ -246,17 +246,17 @@ def main() -> None:
         w(f"### {s_name} → {os_name}")
         w("")
         if s_only:
-            w(f"**sage-only ({len(s_only)})** — parsed by sage_ini, not by OpenSAGE:")
+            w(f"**sage-only ({len(s_only)})** - parsed by sage_ini, not by OpenSAGE:")
             w("")
             w("> " + ", ".join(s_only))
             w("")
         if o_only:
-            w(f"**OpenSAGE-only ({len(o_only)})** — in OpenSAGE, not modeled by sage_ini:")
+            w(f"**OpenSAGE-only ({len(o_only)})** - in OpenSAGE, not modeled by sage_ini:")
             w("")
             w("> " + ", ".join(o_only))
             w("")
         if case_only:
-            w(f"**case mismatches ({len(case_only)})** — sage / OpenSAGE:")
+            w(f"**case mismatches ({len(case_only)})** - sage / OpenSAGE:")
             w("")
             w("> " + ", ".join(f"{a}/{b}" for a, b in case_only))
             w("")

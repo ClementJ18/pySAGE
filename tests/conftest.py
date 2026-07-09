@@ -2,7 +2,7 @@
 
 Two tiers of tests:
 - **core**: the fast, data-free unit suite for `sage_ini` + `sage_lint`. A bare
-  `pytest` runs only this — the inner loop while implementing a feature.
+  `pytest` runs only this - the inner loop while implementing a feature.
 - **full**: core plus the `full`-marked tests (the corpus acceptance gates and
   the peripheral-package suites). These run only with `--full`; without the flag
   they are deselected, so a default run stays sub-second.
@@ -40,7 +40,7 @@ def pytest_addoption(parser):
 def pytest_collection_modifyitems(config, items):
     """Deselect `full`-marked tests unless `--full` was passed.
 
-    Deselection (not skip) keeps a core run's output clean — the full tier shows
+    Deselection (not skip) keeps a core run's output clean - the full tier shows
     only as a deselected count, not thousands of skip lines.
     """
     if config.getoption("--full"):
@@ -93,7 +93,7 @@ def _parametrize(metafunc: pytest.Metafunc, name: str, per_root):
     ids = []
     # Enumerating the corpus walks every root directory; skip it entirely in a
     # core run (no --full) so collection stays instant. The corpus tests are
-    # `full`-marked and would be deselected anyway — here we just avoid paying
+    # `full`-marked and would be deselected anyway - here we just avoid paying
     # for thousands of params we are about to drop.
     if metafunc.config.getoption("--full"):
         for label, root in corpus_roots().items():

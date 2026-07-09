@@ -5,7 +5,7 @@
 // cross-reference (a producer, a trained unit, a recruited hero) is a link that selects its target.
 
 let DATA = null;
-let CURRENT = null; // { type, key } — or { type:"group", groupType, key:display }
+let CURRENT = null; // { type, key } - or { type:"group", groupType, key:display }
 let FACTIONS = null; // when a {factions:[...]} payload is loaded, the list of faction graphs
 let GROUPS = {}; // category type -> Map(display name -> entries[]), rebuilt per faction
 const HISTORY = [];
@@ -24,7 +24,7 @@ const el = (tag, props = {}, children = []) => {
 };
 
 const byId = (id) => document.getElementById(id);
-const fmtNum = (v) => (v == null ? "—" : (Math.round(v * 100) / 100).toString());
+const fmtNum = (v) => (v == null ? "-" : (Math.round(v * 100) / 100).toString());
 
 // --- navigation -------------------------------------------------------------------------------
 
@@ -95,7 +95,7 @@ function descriptionBlock(text) {
     return text ? el("p", { className: "description" }, text) : null;
 }
 
-// "CAVALRY_RANGED" -> "Cavalry Ranged" — a readable damage-type name.
+// "CAVALRY_RANGED" -> "Cavalry Ranged" - a readable damage-type name.
 function prettyType(type) {
     return String(type).toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -147,7 +147,7 @@ function durabilityBlock(defenses, health) {
     return el("section", { className: "block" }, [el("h3", {}, "Durability"), el("ul", { className: "refs" }, lines)]);
 }
 
-// A link to whichever graph category holds `name` (unit/hero/structure/upgrade), else plain text —
+// A link to whichever graph category holds `name` (unit/hero/structure/upgrade), else plain text -
 // so a created object or transform form is navigable when it is itself a graph node.
 function anyRef(name, label) {
     for (const type of ["unit", "hero", "structure", "upgrade", "created"]) {
@@ -208,7 +208,7 @@ const DETAIL = {
     overview() {
         const sp = DATA.start_points || [];
         const wrap = el("div", {}, [
-            header("Faction", DATA.display || DATA.name, `${DATA.name} · side: ${DATA.side ?? "—"}`),
+            header("Faction", DATA.display || DATA.name, `${DATA.name} · side: ${DATA.side ?? "-"}`),
             el("div", { className: "facts" }, [
                 fact("Structures", String(Object.keys(DATA.structures || {}).length)),
                 fact("Units", String(Object.keys(DATA.units || {}).length)),
@@ -299,7 +299,7 @@ DETAIL.group = function () {
     const members = (GROUPS[type] && GROUPS[type].get(display)) || [];
     return el("div", {}, [
         header(`${type} · ${members.length} variants`, display),
-        el("p", { className: "muted" }, "Several objects share this name — pick a variant:"),
+        el("p", { className: "muted" }, "Several objects share this name - pick a variant:"),
         el("ul", { className: "refs" }, members.map((member) =>
             el("li", {}, memberRow(type, member)))),
     ]);
@@ -379,7 +379,7 @@ function renderSidebar() {
     highlightSidebar();
 }
 
-// The display name of whatever is selected — the key the sidebar groups on — so the matching button
+// The display name of whatever is selected - the key the sidebar groups on - so the matching button
 // highlights whether a single object, one of a group's variants, or the group page itself is open.
 function currentDisplay() {
     if (!CURRENT) return null;
@@ -426,7 +426,7 @@ function loadPayload(payload) {
 function setupFactionPicker() {
     const select = byId("faction-select");
     select.innerHTML = "";
-    select.append(el("option", { value: "", textContent: "— Select faction —" }));
+    select.append(el("option", { value: "", textContent: "- Select faction -" }));
     FACTIONS.forEach((faction, index) => {
         select.append(el("option", { value: String(index), textContent: faction.display || faction.name }));
     });
@@ -443,7 +443,7 @@ function renderFactionChooser() {
     byId("faction-side").textContent = "";
     byId("back").disabled = true;
     HISTORY.length = 0;
-    document.title = "sage_edain — choose a faction";
+    document.title = "sage_edain - choose a faction";
     const grid = el("div", { className: "faction-grid" }, FACTIONS.map((faction, index) =>
         el("button", { className: "faction-card", onclick: () => selectFaction(index) }, [
             el("div", { className: "name" }, faction.display || faction.name),
@@ -468,7 +468,7 @@ function loadSingle(data) {
     HISTORY.length = 0;
     byId("faction-name").textContent = data.display || data.name || "faction";
     byId("faction-side").textContent = data.side ? `· ${data.side}` : "";
-    document.title = `${data.display || data.name} — sage_edain`;
+    document.title = `${data.display || data.name} - sage_edain`;
     renderSidebar();
     select("overview", "", false);
 }

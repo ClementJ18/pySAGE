@@ -1,4 +1,4 @@
-"""FXParticleSystem sub-blocks. A particle system's body is a fixed set of named blocks —
+"""FXParticleSystem sub-blocks. A particle system's body is a fixed set of named blocks -
 `System` (emitter + lifetime), `Color`/`Alpha` (keyframed tint and fade), `Update`/`Physics`
 (per-particle motion), `EmissionVelocity`/`EmissionVolume` (where/how fast particles spawn)
 and `Wind`. Each `= <variant>` block is typed by its name with the variant token as its key
@@ -17,7 +17,7 @@ from sage_ini.model.objects import NestedAttribute
 
 class System(NestedAttribute):
     """The `System` block: the emitter, the particle texture and the system/particle
-    lifetimes — the spine every FXParticleSystem opens with."""
+    lifetimes - the spine every FXParticleSystem opens with."""
 
     keyed_by_label = True
 

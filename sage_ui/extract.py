@@ -59,8 +59,8 @@ class ExtractImageDialog(QDialog):
 
         self.sources_panel = SourcesPanel(
             title="IMAGE SOURCES",
-            expanded_hint="IMAGE SOURCES — texture folders / .big archives with the .dds files",
-            item_label=lambda kind, path: f"[{kind}]  {Path(path).name}  —  {path}",
+            expanded_hint="IMAGE SOURCES - texture folders / .big archives with the .dds files",
+            item_label=lambda kind, path: f"[{kind}]  {Path(path).name}  -  {path}",
             list_max_height=120,
             show_status=True,
         )
@@ -155,7 +155,7 @@ class ExtractImageDialog(QDialog):
 
     def _on_textures_failed(self, message: str) -> None:
         self.sources_panel.load_button.setEnabled(True)
-        self.status.setText(f"Could not index the image sources — {message}")
+        self.status.setText(f"Could not index the image sources - {message}")
 
     def _current_entry(self) -> dict | None:
         item = self.button_list.currentItem()

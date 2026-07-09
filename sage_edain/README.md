@@ -12,7 +12,7 @@ supplies the Edain-specific knowledge and assembles the pieces into task-shaped 
 
 ## Faction ownership graph
 
-The flagship tool turns a loaded game into an explicit **faction ownership graph** — the
+The flagship tool turns a loaded game into an explicit **faction ownership graph** - the
 link between a faction and everything a player of it can see. An Edain faction is a
 `PlayerTemplate` with `PlayableSide = Yes`; from it hang a spellbook, the starting plot
 flags that unpack a base (citadel + foundations) or a single structure, the buildings
@@ -57,7 +57,7 @@ python -m sage_edain.map_checks --help     # list codes / exclude specific check
 
 ## Claude Code skill
 
-The `bfme-faction` skill packages the faction graph as an agent-facing tool — read,
+The `bfme-faction` skill packages the faction graph as an agent-facing tool - read,
 critique, and compare Edain factions from within Claude Code:
 
 ```sh

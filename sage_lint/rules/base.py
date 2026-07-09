@@ -3,7 +3,7 @@ subclass with a `code` auto-registers; `run_rules` isolates a faulty rule so it 
 abort the rest of the run.
 
 A rule may opt out of the default run by setting `default = False`: it then runs only when the
-caller asks for it (the CLI's `--assets`/`--select`). The missing-file rules use this — without
+caller asks for it (the CLI's `--assets`/`--select`). The missing-file rules use this - without
 the base-game archives loaded they would report every base asset as missing, so they are opt-in
 rather than flooding a plain `lint`.
 

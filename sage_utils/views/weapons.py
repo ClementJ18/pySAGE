@@ -116,7 +116,7 @@ def weapon_damage_breakdown(weapon, state, _seen=None) -> dict:
 
 
 class FilterSignature(NamedTuple):
-    """A hashable, canonical reduction of an `ObjectFilter` — the join key between a parsed
+    """A hashable, canonical reduction of an `ObjectFilter` - the join key between a parsed
     filter and a hand-labeled archetype registry (see `sage_wiki.archetypes`). `inclusion`
     and `exclusion` are the `+`/`-` object/kindof names; `descriptor` is ANY/ALL/NONE;
     `relations` are ENEMIES/ALLIES/… . Names, not objects, so two filters that mention the
@@ -129,7 +129,7 @@ class FilterSignature(NamedTuple):
 
 
 def _filter_member_name(member) -> str:
-    """One filter member's name — a KindOf flag's name, an Object's name, or the raw token
+    """One filter member's name - a KindOf flag's name, an Object's name, or the raw token
     when it never resolved to either."""
     return getattr(member, "name", None) or str(member)
 
@@ -241,7 +241,7 @@ def weapon_attack_interval(weapon) -> float | None:
     mean delay between shots), falling back to `ClipReloadTime` for a clip-reload
     weapon whose cycle is zero. None when neither resolves."""
     cycle = safe(lambda: float(weapon.AttackSpeed))
-    if not cycle:  # 0 or None — a clip-reload weapon times by its reload, not the cycle
+    if not cycle:  # 0 or None - a clip-reload weapon times by its reload, not the cycle
         cycle = clip_reload_time(weapon)
     return cycle or None
 
@@ -275,7 +275,7 @@ def weapon_radius(weapon, state):
 
 
 def weapon_damage_per_shot(weapon, state) -> float | None:
-    """Total modified damage of one shot — the sum of `weapon`'s active damage
+    """Total modified damage of one shot - the sum of `weapon`'s active damage
     nuggets (warheads descended into), or None when it deals no nugget damage."""
     total, found = 0.0, False
     for nugget in weapon_nuggets(weapon, state.effective_upgrades):

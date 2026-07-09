@@ -2,7 +2,7 @@
 
 Crops the object's portrait `MappedImage` (its `SelectPortrait`, else `ButtonImage`; a
 horde's comes from its contained unit) to a PNG and works out how the page's `image`
-parameter should point at the uploaded file —
+parameter should point at the uploaded file -
 the headless, Qt-/network-free half of the upload tool (the upload itself is the wiki
 client's job). Files are named after the object's internal id, stable across display-name
 changes.
@@ -31,7 +31,7 @@ IMAGE_PARAM = "image"
 
 
 def portrait_filename(obj) -> str:
-    """The wiki filename for the object's portrait — its internal id plus ``.png``."""
+    """The wiki filename for the object's portrait - its internal id plus ``.png``."""
     return f"{obj.name}.png"
 
 
@@ -68,7 +68,7 @@ def render_icon_png(
 
 
 def icon_filename(name: str) -> str:
-    """The wiki filename for a button icon — the command button's name plus ``.png``."""
+    """The wiki filename for a button icon - the command button's name plus ``.png``."""
     return f"{name}.png"
 
 
@@ -104,7 +104,7 @@ def command_set_icon_rows(game, command_set) -> list[dict]:
 
 
 def command_icon_names(game, command_set) -> dict[str, str]:
-    """Map each button name in `command_set` to the wiki filename its icon uploads as — the
+    """Map each button name in `command_set` to the wiki filename its icon uploads as - the
     button's `ButtonImage` name (the loaded `MappedImage`'s, else the raw token) plus `.png`.
     Buttons with no `ButtonImage` are left out."""
     names: dict[str, str] = {}

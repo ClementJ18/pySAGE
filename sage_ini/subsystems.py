@@ -3,7 +3,7 @@ template exactly (no per-game offset).
 
 A replay recruit order carries a ThingTemplate id: the dense, 1-based index the engine assigns
 each `Object`/`ChildObject`/`ObjectReskin` as it is parsed. The parse order is *not* an
-alphabetical walk of `data/ini` — it follows the subsystem load list in
+alphabetical walk of `data/ini` - it follows the subsystem load list in
 `Data\\INI\\Default\\SubsystemLegend.ini`. For objects that is `LoadSubsystem TheThingFactory`:
 
     InitFile = Data\\INI\\Default\\Object.ini      ; DefaultThingTemplate first (id 1)
@@ -11,14 +11,14 @@ alphabetical walk of `data/ini` — it follows the subsystem load list in
     IncludePathCinematics = Data\\INI\\Object\\Cinematic\\   ; -cinematics only, skipped in a game
     ExcludePath = ...                              ; pruned during the InitPath walk
 
-Reproducing that — the engine's `INI::loadDirectory` two-pass file order (top-level files first,
+Reproducing that - the engine's `INI::loadDirectory` two-pass file order (top-level files first,
 then all subdirectory files as one flat path-sorted list; see `_walk`), cinematic path excluded,
-`#include`s expanded, ids numbered from 1 — makes `replay_id == thing_template_order(...).index(n)
+`#include`s expanded, ids numbered from 1 - makes `replay_id == thing_template_order(...).index(n)
 + 1` for every recruitable unit (36/36 across all six factions) and every built structure (27/27,
 `0x41A` builds), ids 2002–2863.
 
 `thing_template_order` walks *every* subsystem in legend order, so objects declared outside the
-main object tree (crates, formation icons) land at their true — higher — ids too.
+main object tree (crates, formation icons) land at their true - higher - ids too.
 """
 
 import argparse
@@ -126,7 +126,7 @@ def _game_rel(path: Path, root: Path) -> str:
 
 def _walk(directory: Path, root: Path, pruned: Sequence[str]) -> Iterator[Path]:
     """`.ini` files under `directory` in the engine's `INI::loadDirectory` order: a two-pass
-    enumeration of one flat, path-sorted set — first the files sitting directly in `directory`
+    enumeration of one flat, path-sorted set - first the files sitting directly in `directory`
     (alphabetical), then every file in a subdirectory *at any depth* as a single flat list
     sorted by full path (backslash-separated, lowercased, matching the engine's sorted
     `FilenameList`). This is **not** recursive files-before-subdirs: below the top level, files

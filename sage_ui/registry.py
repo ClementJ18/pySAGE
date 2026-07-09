@@ -35,7 +35,7 @@ def _read_game_path_from_registry(registry_key: str, game_name: str) -> str:
 
 
 def _registry_install_path(registry_key: str) -> str | None:
-    """A game's InstallPath read straight from the registry, or None when it isn't there — a
+    """A game's InstallPath read straight from the registry, or None when it isn't there - a
     silent probe with no folder-picker fallback, for deciding whether to show onboarding."""
     try:
         with winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE) as hkey:
@@ -62,8 +62,8 @@ def vanilla_archives(root: Path) -> tuple[list[Path], list[Path]]:
     """The `(data archives, texture archives)` present under one game install: `ini.big`
     plus whatever `lang/*.big` archives exist (an installer ships only the installed
     language, so globbing adds exactly the right string tables), and the `textures*.big`
-    the portraits / button icons are cropped from. Everything is probed — a missing
-    archive is simply not offered — so the one-click vanilla load never errors."""
+    the portraits / button icons are cropped from. Everything is probed - a missing
+    archive is simply not offered - so the one-click vanilla load never errors."""
     data = [path for path in (root / "ini.big",) if path.is_file()]
     lang = root / "lang"
     if lang.is_dir():

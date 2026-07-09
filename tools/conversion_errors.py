@@ -2,7 +2,7 @@
 
 The companion to `missing_attributes.py`: once a field is *typed*, a wrong converter
 turns a real corpus value into a `conversion-error`. This builds the corpus and groups
-those failures by the field that raised them, with a sample bad value each — the signal
+those failures by the field that raised them, with a sample bad value each - the signal
 that a freshly typed field needs a looser converter (e.g. `String` instead of `Float`).
 
 Usage: python tools/conversion_errors.py <root> [<root> ...] [--filter Substr]

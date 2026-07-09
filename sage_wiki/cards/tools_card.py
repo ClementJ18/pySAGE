@@ -43,7 +43,7 @@ class ToolDialogsMixin:
         body.setSpacing(8)
 
         note = QLabel(
-            "Write every loaded armor set onto its Armor Sets/<letter> page — "
+            "Write every loaded armor set onto its Armor Sets/<letter> page - "
             "refreshing each set's values in place and appending ones the page lacks."
         )
         note.setObjectName("muted")
@@ -106,7 +106,7 @@ class ToolDialogsMixin:
     def _on_armor_ported(self, result) -> None:
         total, changed, errors = result
         self.armor_button.setEnabled(True)
-        message = f"Armor sets ported — {changed} of {total} page(s) updated"
+        message = f"Armor sets ported - {changed} of {total} page(s) updated"
         message += " (already current)." if changed == 0 and not errors else "."
         if errors:
             message += f" {len(errors)} failed: " + "; ".join(errors[:3])
@@ -114,7 +114,7 @@ class ToolDialogsMixin:
 
     def _on_armor_failed(self, message: str) -> None:
         self.armor_button.setEnabled(True)
-        self.armor_status.setText(f"Porting failed — {message}")
+        self.armor_status.setText(f"Porting failed - {message}")
 
     def _build_versions_card(self) -> QWidget:
         frame, layout = card()
@@ -194,7 +194,7 @@ class ToolDialogsMixin:
         for title, value in values.items():
             self.version_fields[title].setText(value)
         self._version_baseline = dict(values)
-        self.versions_status.setText("Loaded current values — edit and apply.")
+        self.versions_status.setText("Loaded current values - edit and apply.")
 
     def _apply_versions(self) -> None:
         if not self.client.logged_in:
@@ -206,7 +206,7 @@ class ToolDialogsMixin:
             if field.text().strip() != self._version_baseline.get(title, "")
         }
         if not edited:
-            self.versions_status.setText("No changes to apply — fetch and edit a value first.")
+            self.versions_status.setText("No changes to apply - fetch and edit a value first.")
             return
         self.versions_apply_button.setEnabled(False)
         self.versions_status.setText(f"Saving {len(edited)} template(s)…")
@@ -231,7 +231,7 @@ class ToolDialogsMixin:
     def _on_versions_failed(self, message: str) -> None:
         self.versions_fetch_button.setEnabled(True)
         self.versions_apply_button.setEnabled(True)
-        self.versions_status.setText(f"Failed — {message}")
+        self.versions_status.setText(f"Failed - {message}")
 
     def _build_login_card(self) -> QWidget:
         # Auto-collapses once logged in to step out of the way.
@@ -290,7 +290,7 @@ class ToolDialogsMixin:
 
     def _update_login_header(self) -> None:
         arrow = "▾" if self.login_body.isVisible() else "▸"
-        suffix = f" — {self._login_summary}" if self._login_summary else ""
+        suffix = f" - {self._login_summary}" if self._login_summary else ""
         self.login_toggle.setText(f"{arrow}  WIKI LOGIN{suffix}")
 
     def _toggle_password(self, shown: bool) -> None:
@@ -331,4 +331,4 @@ class ToolDialogsMixin:
 
     def _on_login_failed(self, message: str) -> None:
         self.login_button.setEnabled(True)
-        self.login_status.setText(f"Login failed — {message}")
+        self.login_status.setText(f"Login failed - {message}")

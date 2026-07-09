@@ -5,7 +5,7 @@ side-effect free, so the linter and UI share one implementation.
 Upgrade-driven selections are modelled for ArmorSet, WeaponSet and LocomotorSet (the
 flag-subset machinery below). On top sits the experience rank: the `ExperienceLevel`s whose
 `TargetNames` name the object form its ladder; reaching a rank attains every level up to it,
-each granting its `Upgrades` and `AttributeModifiers` — which feed back into the upgrade
+each granting its `Upgrades` and `AttributeModifiers` - which feed back into the upgrade
 machinery (`RankSelector`, `UnitState.set_rank`). Flags are compared as upper-case name
 tokens, which sidesteps the partial flag enums and stays lossless.
 """
@@ -211,7 +211,7 @@ def select_locomotor_set(obj, condition: str):
     return by_condition.get(condition) or by_condition.get(LOCOMOTOR_NORMAL)
 
 
-# CommandSet — the button palette, replaced by an active CommandSetUpgrade
+# CommandSet - the button palette, replaced by an active CommandSetUpgrade
 def _own_field(obj, field: str):
     """The nearest value of a raw field up the parent chain (own value wins)."""
     for owner in _climb(obj):
@@ -247,7 +247,7 @@ def select_command_set(obj, active_upgrades: set[str]):
 
 
 def command_set_names(obj) -> list[str]:
-    """Every CommandSet name `obj` can display — its own palette plus any a `CommandSetUpgrade`
+    """Every CommandSet name `obj` can display - its own palette plus any a `CommandSetUpgrade`
     can swap in (active or not), in first-seen order. Used to find what an object can build, so
     every set it could ever show is included."""
     names: list[str] = []
@@ -265,7 +265,7 @@ def command_set_names(obj) -> list[str]:
     return names
 
 
-# Hordes — a unit's cost often lives on the horde that fields it
+# Hordes - a unit's cost often lives on the horde that fields it
 def _tokens_each(raw) -> list[str]:
     """A repeated raw field's values as a list of strings (one string, or a list when the key
     repeated)."""
@@ -301,7 +301,7 @@ def horde_members(obj) -> list[str]:
 def horde_member_object(obj):
     """The first member object `obj` fields through its horde-contain modules, or None for a
     non-horde (or a horde whose members aren't loaded). A horde carries no combat stats or
-    portrait of its own — both come from this contained unit."""
+    portrait of its own - both come from this contained unit."""
     game = getattr(obj, "_game", None)
     if game is None:
         return None
@@ -330,7 +330,7 @@ def hordes_containing(game, member_name: str) -> list:
     return hordes
 
 
-# Attribute modifiers — AttributeModifierUpgrade grants a ModifierList
+# Attribute modifiers - AttributeModifierUpgrade grants a ModifierList
 def _number(game, token: str):
     """A modifier value token (`200`, `20%`, or a #define macro) as a float."""
     resolved = game.get_macro(token) if game is not None else token
@@ -359,7 +359,7 @@ def _find_body(obj):
 
 
 def find_body(obj):
-    """The `Body` module governing `obj` (own or inherited), or None — a build-shell object
+    """The `Body` module governing `obj` (own or inherited), or None - a build-shell object
     that only places `BuildVariations` has none, so None marks it as needing a variation."""
     return _find_body(obj)
 
@@ -407,7 +407,7 @@ def economy_level_upgrades(obj) -> list[str]:
     PRODUCTION gain. Both signals are required:
 
     - the `AttributeModifierUpgrade` proves the per-level stats live on the object (not on a
-      veterancy `ExperienceLevel` ladder — those go through `RankSelector` instead);
+      veterancy `ExperienceLevel` ladder - those go through `RankSelector` instead);
     - the `LevelUpUpgrade` proves the upgrade is a level step, not a one-off buff (a hero's gift
       grants only an `AttributeModifierUpgrade`, so it must not count as a level).
 
@@ -441,7 +441,7 @@ def economy_level_upgrades(obj) -> list[str]:
 
 
 def modifier_entries(modifier_list) -> list[tuple[str, str, list[str]]]:
-    """The (KEY, value, [extra tokens]) of each `Modifier =` line in one list — the public
+    """The (KEY, value, [extra tokens]) of each `Modifier =` line in one list - the public
     single-list view used to show what a ModifierList grants. KEY and the scoping damage types
     are enum names; value is the raw amount token (resolved for display by the caller)."""
     return [
@@ -453,7 +453,7 @@ def modifier_entries(modifier_list) -> list[tuple[str, str, list[str]]]:
 
 def _iter_modifiers(modifier_lists):
     """Yield (modifier_list, ModifierEntry) per `Modifier =` line. A list whose `Modifier`
-    field cannot be converted is skipped — a malformed line is the validate pass's concern."""
+    field cannot be converted is skipped - a malformed line is the validate pass's concern."""
     for modifier_list in modifier_lists:
         try:
             entries = modifier_list.Modifier or []
@@ -487,7 +487,7 @@ ARMOR_MAX_BONUS_DEFAULT = 0.75
 
 
 def armor_scalar_bonus(modifier_lists, damage_type: str) -> float:
-    """Sum of ARMOR modifier fractions applying to a damage type (untyped apply to all) — the
+    """Sum of ARMOR modifier fractions applying to a damage type (untyped apply to all) - the
     bonus `v` the engine feeds into `1/(1-v)`. Clamped to the game's max bonus by
     `UnitState.armor_scalar` before it is applied."""
     total = 0.0
@@ -501,7 +501,7 @@ def armor_scalar_bonus(modifier_lists, damage_type: str) -> float:
 
 
 def armor_max_bonus(game) -> float:
-    """The cap on the summed ARMOR modifier bonus fraction — `GameData`'s
+    """The cap on the summed ARMOR modifier bonus fraction - `GameData`'s
     `AttributeModifierArmorMaxBonus` (the +300% effective-armor ceiling), defaulting to
     `ARMOR_MAX_BONUS_DEFAULT` when none declares it."""
     if game is not None:
@@ -516,7 +516,7 @@ def armor_max_bonus(game) -> float:
     return ARMOR_MAX_BONUS_DEFAULT
 
 
-# Experience ranks — ExperienceLevels grant upgrades and modifiers per rank
+# Experience ranks - ExperienceLevels grant upgrades and modifiers per rank
 def expand_target_names(game, raw) -> set[str]:
     """The flattened set of object-template names an `ExperienceLevel.TargetNames` names (a
     token may be a `#define` list macro that expands to several)."""
@@ -583,7 +583,7 @@ def level_modifier_lists(game, levels) -> list:
     return lists
 
 
-# LevelUpUpgrade — an acquired upgrade that raises veterancy rank (gain, capped)
+# LevelUpUpgrade - an acquired upgrade that raises veterancy rank (gain, capped)
 def _module_int(game, module, field, default):
     """An integer field of a module (`LevelsToGain`, `LevelCap`), macros resolved."""
     raw = module._fields.get(field)
@@ -708,7 +708,7 @@ class RankSelector:
         return level_modifier_lists(self.game, self.attained_levels)
 
 
-# State holder — the resolved view a caller mutates as upgrades toggle
+# State holder - the resolved view a caller mutates as upgrades toggle
 class UnitState:
     """An object plus the upgrades active on it; reading a resolved property (`armor`,
     `weapon_set`, …) takes them into account. The active set combines directly-toggled
@@ -867,7 +867,7 @@ class UnitState:
 
     @property
     def production_multiplier(self) -> float:
-        """Resource-output multiplier from the multiplicative PRODUCTION modifiers — what
+        """Resource-output multiplier from the multiplicative PRODUCTION modifiers - what
         makes a leveled economy building produce more at higher levels."""
         return modifier_product(self.modifier_lists, "PRODUCTION")
 

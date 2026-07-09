@@ -51,7 +51,7 @@ class ParseResult:
 
 
 def _normalize_value(value: str) -> str:
-    """Collapse internal whitespace runs in an attribute value to single spaces — alignment
+    """Collapse internal whitespace runs in an attribute value to single spaces - alignment
     is never meaningful, so this keeps token-splitting converters robust to a tab between
     tokens and lets the formatter canonicalize the value."""
     return " ".join(value.split())
@@ -89,8 +89,8 @@ def include_target(content: str) -> str | None:
 
 
 # Resolved include targets, keyed by (target, source, layers). The same `#include` is
-# resolved once per root that pulls it in — the same handful of shared headers across hundreds
-# of roots — so memoizing collapses the repeated filesystem probing. Like the tokenize cache,
+# resolved once per root that pulls it in - the same handful of shared headers across hundreds
+# of roots - so memoizing collapses the repeated filesystem probing. Like the tokenize cache,
 # this assumes the file tree is stable for the run; clear it if includes are added on disk.
 _INCLUDE_CACHE: dict[tuple[str, str, tuple[str, ...]], Path | None] = {}
 
@@ -218,7 +218,7 @@ def parse_lines(
 
         if not line.content:
             flush_blank()
-            # Reaching here means a non-blank line with no content — i.e. comment-only — so
+            # Reaching here means a non-blank line with no content - i.e. comment-only - so
             # `line.comment` is set; `or ""` only satisfies the type narrower.
             children().append(Comment(text=line.comment or "", span=line.span))
             continue

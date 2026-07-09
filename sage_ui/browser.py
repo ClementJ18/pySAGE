@@ -119,8 +119,8 @@ class Browser(QMainWindow):
 
         self.sources_panel = SourcesPanel(
             title="SOURCES",
-            expanded_hint="SOURCES — loaded top to bottom; lower entries override upper",
-            item_label=lambda kind, path: f"[{kind}]  {Path(path).name}  —  {path}",
+            expanded_hint="SOURCES - loaded top to bottom; lower entries override upper",
+            item_label=lambda kind, path: f"[{kind}]  {Path(path).name}  -  {path}",
             list_max_height=140,
             show_status=True,
         )
@@ -236,7 +236,7 @@ class Browser(QMainWindow):
         bfme2 = registry_read_paths_bfme2()
         rotwk = registry_read_paths_rotwk()
         if not bfme2 or not rotwk:
-            self.status.setText("Edain load cancelled — a game folder was not selected.")
+            self.status.setText("Edain load cancelled - a game folder was not selected.")
             return
 
         archives = [
@@ -322,7 +322,7 @@ class Browser(QMainWindow):
         self.loader.start()
 
     def ensure_faction_graphs(self, on_ready, on_failed=None) -> None:
-        """Hand `on_ready` the faction ownership graphs — immediately when cached, else
+        """Hand `on_ready` the faction ownership graphs - immediately when cached, else
         once the background build finishes. Callers queue while a build is in flight, so
         the Faction Info card and the object browser share one build per load."""
         if self.game is None:
@@ -356,7 +356,7 @@ class Browser(QMainWindow):
     def _on_faction_graphs_failed(self, message: str) -> None:
         self._faction_graphs_loading = False
         callbacks, self._faction_graph_callbacks = self._faction_graph_callbacks, []
-        self.status.setText(f"Faction roster failed — {message}")
+        self.status.setText(f"Faction roster failed - {message}")
         for _on_ready, on_failed in callbacks:
             if on_failed is not None:
                 on_failed(message)
@@ -392,7 +392,7 @@ class Browser(QMainWindow):
 
     def _on_failed(self, message: str) -> None:
         self.sources_panel.load_button.setEnabled(True)
-        self.status.setText(f"Load failed — {message}")
+        self.status.setText(f"Load failed - {message}")
         self._set_message("Load failed. Check the sources and try again.")
 
     def _load_textures(self, sources: list[tuple[str, str]]) -> None:
@@ -415,7 +415,7 @@ class Browser(QMainWindow):
 
     def _on_textures_failed(self, message: str) -> None:
         # A texture-index failure is non-fatal: the data still loads, just without images.
-        self.status.setText(f"Image sources could not be indexed — {message}")
+        self.status.setText(f"Image sources could not be indexed - {message}")
 
     def _rebuild_completers(self) -> None:
         """Point both search boxes' completers at the active name list (display names or
@@ -476,7 +476,7 @@ class Browser(QMainWindow):
             self._show_suggestions(text, matches, self._pick_primary)
 
     def _show_suggestions(self, typed: str, matches: list[str], on_pick) -> None:
-        """Replace the results area with a "no match — did you mean" card: one clickable
+        """Replace the results area with a "no match - did you mean" card: one clickable
         button per fuzzy match (each opens via `on_pick`), or a gentle nudge when nothing is
         close enough."""
         self._reset_results()
@@ -526,7 +526,7 @@ class Browser(QMainWindow):
         """The pre-load state: a one-line prompt once sources are queued, otherwise the
         onboarding card (a fresh user with nothing added yet)."""
         if self.sources_panel.count():
-            self._set_message("Sources ready — press Load in SOURCES above to read them.")
+            self._set_message("Sources ready - press Load in SOURCES above to read them.")
         else:
             self._set_onboarding()
 
@@ -552,7 +552,7 @@ class Browser(QMainWindow):
 
         installed = detect_installed_games()
         if installed:
-            found = "; ".join(f"{label} — {path}" for label, path in installed.items())
+            found = "; ".join(f"{label} - {path}" for label, path in installed.items())
             note = QLabel(f"Found your install: {found}")
             note.setObjectName("muted")
             note.setWordWrap(True)
@@ -574,7 +574,7 @@ class Browser(QMainWindow):
             footer = QLabel("…or add your own folders / .big files in SOURCES above, then Load.")
         else:
             note = QLabel(
-                "No Battle for Middle-earth II / RotWK install was detected automatically — "
+                "No Battle for Middle-earth II / RotWK install was detected automatically - "
                 "point the tool at your game files instead:"
             )
             note.setObjectName("muted")
@@ -723,7 +723,7 @@ class Browser(QMainWindow):
             column.addWidget(self._faction_nav_button(faction["spellbook"], prefix="Spellbook: "))
 
         if faction["heroes"]:
-            # All heroes under one collapsible section, collapsed by default — an Edain
+            # All heroes under one collapsible section, collapsed by default - an Edain
             # faction lists a dozen, which otherwise dominates the card.
             toggle = QPushButton()
             toggle.setObjectName("sectionHeader")

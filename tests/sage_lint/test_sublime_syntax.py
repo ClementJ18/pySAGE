@@ -1,5 +1,5 @@
 """The Sublime `.sublime-syntax` generator: its keyword lists come from sage_ini's class
-registry, and its output must stay valid `.sublime-syntax` — in particular the `{{var}}`
+registry, and its output must stay valid `.sublime-syntax` - in particular the `{{var}}`
 variable references the f-string templating is easy to get wrong."""
 
 import importlib.util

@@ -1,35 +1,35 @@
 """Command-line entry point: `python -m sage_save <command>` (or `sage-save`).
 
-- `info <save>` — the file header, the decoded `CHUNK_GameState` header (description, date,
+- `info <save>` - the file header, the decoded `CHUNK_GameState` header (description, date,
   map, profile) and `CHUNK_GameStateMap` summary, then the full chunk table with versions
   and payload sizes. `--coverage` swaps the chunk table for a decoding-coverage report
   (decoded-vs-opaque bytes per chunk, and the whole-save total).
-- `extract-map <save>` — write the embedded `.map` out (`--out`, default `<save>.map`); every
+- `extract-map <save>` - write the embedded `.map` out (`--out`, default `<save>.map`); every
   `sage_map` tool then runs on it.
-- `objects <save>` — the live objects from `CHUNK_GameLogic`, grouped by ini template name with
+- `objects <save>` - the live objects from `CHUNK_GameLogic`, grouped by ini template name with
   counts (`--list` for one row per object with its runtime id). `--modules` instead reports the
   objects' behavior-module tags (a frequency table, or per-object with `--list`).
-- `json <save>` — everything decoded (header, chunks, game state, map summary, objects, and the
+- `json <save>` - everything decoded (header, chunks, game state, map summary, objects, and the
   harvested reference names) as one JSON document (`--out` to a file, `--no-objects` to omit the
   per-object list, `--compact` for a single line).
-- `edit <save> <edits.json> --out <new.sav>` — apply the editable fields of a JSON document (the
+- `edit <save> <edits.json> --out <new.sav>` - apply the editable fields of a JSON document (the
   `game_state` / `game_state_map` / `campaign` sections of a `json` export) back onto a save.
   Edits must preserve each chunk's byte length (timestamp, game mode, same-length rename).
-- `check <save> --game <root>` — resolve the save's ini-names (object templates, the fatal
+- `check <save> --game <root>` - resolve the save's ini-names (object templates, the fatal
   upgrade/science names, and the campaign hero carry-over roster) against a loaded game and report
   the danglers: a missing object template drops the object on load, a missing upgrade/science or
   carried-over hero fails the load / carry-over outright.
-- `diagnose <save> [--game <root>]` — explain why a save might fail to load: runs every check
-  (container integrity, per-chunk decode, chunk-version drift, unknown chunks, and — with
-  `--game` — the dangling fatal-reference check) and prints the findings ranked fatal → warning
+- `diagnose <save> [--game <root>]` - explain why a save might fail to load: runs every check
+  (container integrity, per-chunk decode, chunk-version drift, unknown chunks, and - with
+  `--game` - the dangling fatal-reference check) and prints the findings ranked fatal → warning
   → info. Exit code is non-zero when a fatal problem is found. The go-to command for a save the
   game refuses to load.
-- `scan <dir>` — the chunk-name/version inventory across a folder of saves: per file, plus an
+- `scan <dir>` - the chunk-name/version inventory across a folder of saves: per file, plus an
   aggregate of every chunk name seen and the versions it appears at. Answers "which chunks does
   this game/save-kind write" without decoding any of them.
-- `tree <save>` — the nested-`KOLB`-block tree of a chunk (`--chunk NAME` for one chunk's full
+- `tree <save>` - the nested-`KOLB`-block tree of a chunk (`--chunk NAME` for one chunk's full
   tree, else per-chunk block counts). A reversing aid for the still-opaque chunks.
-- `diff <a> <b>` — the first byte at which each shared chunk diverges between two saves, with an
+- `diff <a> <b>` - the first byte at which each shared chunk diverges between two saves, with an
   aligned hex window. The tool for pinning single-sample ambiguities as the corpus grows.
 
 `info`, `objects`, `check` and `scan` accept `--json` for machine-readable output.
@@ -100,7 +100,7 @@ def _header_lines(save: SaveFile) -> list[str]:
     logic = save.chunk("CHUNK_GameLogic")
     if logic is not None:
         # A header line must never take the whole command down: a GameLogic the BFME2 model
-        # can't decode (a corrupt or unmodelled-engine payload) is reported inline, not raised —
+        # can't decode (a corrupt or unmodelled-engine payload) is reported inline, not raised -
         # this is the one place `info`/`diagnose` render a save we already suspect is broken.
         try:
             logic_state = decode_game_logic(logic)
@@ -314,7 +314,7 @@ def _run_edit(args: argparse.Namespace) -> int:
 
 def _resolve_game_root(game: Path, cache: Path | None) -> Path:
     """Return an ini tree to load. `game` may hold a `data/ini` subtree, be an ini root
-    directly (a mod's `data/ini`), or be a live install holding `.big` archives — those are
+    directly (a mod's `data/ini`), or be a live install holding `.big` archives - those are
     mounted into `cache` (default: a per-install folder under the system temp dir), cached
     across runs."""
     if (game / "data" / "ini").is_dir() or (game / "default" / "subsystemlegend.ini").is_file():
@@ -364,7 +364,7 @@ def _run_check(args: argparse.Namespace) -> int:
     for line in format_findings(findings):
         print(line)
     if fatal:
-        print(f"\n{len(fatal)} fatal — this save would not load under the given game")
+        print(f"\n{len(fatal)} fatal - this save would not load under the given game")
     return 1 if missing else 0
 
 
@@ -396,7 +396,7 @@ def _run_diagnose(args: argparse.Namespace) -> int:
             print(json.dumps(payload, indent=2))
         else:
             print("Diagnosis: 1 fatal, 0 warning, 0 info")
-            print("This save's container is damaged — it does not parse at all.\n")
+            print("This save's container is damaged - it does not parse at all.\n")
             print(f"  FATAL   container did not parse: {exc}")
         return 1
 
@@ -611,7 +611,7 @@ def main(argv: list[str] | None = None) -> int:
         "--game",
         type=Path,
         default=None,
-        help="a data/ini tree or install to resolve names against — enables the dangling-"
+        help="a data/ini tree or install to resolve names against - enables the dangling-"
         "reference check (the most common load-failure cause)",
     )
     diagnose.add_argument(

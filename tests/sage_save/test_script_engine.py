@@ -1,9 +1,9 @@
-"""Task 4 — the `CHUNK_ScriptEngine` decode.
+"""Task 4 - the `CHUNK_ScriptEngine` decode.
 
 The layout was cracked with the session3 `zztest.map` save, whose script symbols are all
 distinctive `ZZ*` grep-anchors: the counter/flag records turned out to carry an always-present
-player-scope string (empty for globals) — the discriminator the earlier byte-reversing pass
-could not recover — and the rest of the chunk follows the ZH v5 section order with BFME2's
+player-scope string (empty for globals) - the discriminator the earlier byte-reversing pass
+could not recover - and the rest of the chunk follows the ZH v5 section order with BFME2's
 systematic changes (u32 list counts, name-hash pairs). These tests pin the zztest anchors, the
 named-object join against the GameLogic object index (the save<->map symbol-consistency input),
 the per-player science vectors (the third fatal xref source), and the corpus-wide invariants
@@ -144,7 +144,7 @@ def test_script_engine_decodes_corpus_wide(path):
     for _name, object_id in state.named_objects:
         assert object_id == 0 or object_id in object_ids
     # counter/flag scopes are either global or a script player *name* ("Player_1",
-    # "PlyrCreeps", ...) — never garbage bytes
+    # "PlyrCreeps", ...) - never garbage bytes
     for record in [*state.counters, *state.flags]:
         assert all(32 <= ord(ch) < 127 for ch in record.scope)
         assert len(record.scope) < 32

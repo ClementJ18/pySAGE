@@ -3,8 +3,8 @@ Edain's semicolon-delimited `Lotr.csv` (`label;German;English`). Either populate
 `Game.strings`.
 
 Strings live outside the ini object model, so they carry no parse span the way objects and
-macros do. `load_string_locations` recovers one — the `LABEL`/row line each label is defined
-on — by re-reading the same files with line tracking, so an editor can jump to a string's
+macros do. `load_string_locations` recovers one - the `LABEL`/row line each label is defined
+on - by re-reading the same files with line tracking, so an editor can jump to a string's
 definition (see `Game.string_definitions`).
 """
 
@@ -66,7 +66,7 @@ def _iter_csv(text: str):
         columns = line.split(";")
         label = columns[0].strip()
         if ":" not in label:
-            continue  # header row or malformed line — a real label is `NAMESPACE:key`
+            continue  # header row or malformed line - a real label is `NAMESPACE:key`
         yield label, columns[-1].strip(), number
 
 
@@ -93,7 +93,7 @@ def parse_csv_spans(text: str, file: str) -> dict[str, Span]:
 
 def _string_files(base: Path):
     """Every global `.str` file and any `Lotr.csv` under `base`, recursively. Map-scoped
-    tables (`maps/.../map.str`) are skipped — not part of the global string table."""
+    tables (`maps/.../map.str`) are skipped - not part of the global string table."""
     if not base.is_dir():
         return
     for path in base.rglob("*"):
@@ -106,7 +106,7 @@ def _string_files(base: Path):
 
 def string_files(root: str | Path) -> list[Path]:
     """Every localization table file (`.str` or `Lotr.csv`) under `root`, map-scoped tables
-    excluded — a public view of the loader's file scan. `sage_lint init` uses it to tell the
+    excluded - a public view of the loader's file scan. `sage_lint init` uses it to tell the
     user whether a string table will be found, since the string-label rule no-ops without one."""
     return list(_string_files(Path(root)))
 
@@ -131,7 +131,7 @@ def load_string_locations(root: str | Path) -> dict[str, Span]:
     """`label -> Span` of where each label is defined, for the string files directly under
     `root`. Scans only `root` (not base/overlay layers): a base-game string reaches the build
     through a merged temp folder that is later removed, so its location would not point at a
-    file the user can open — those labels keep their value-only fallback in the editor. The
+    file the user can open - those labels keep their value-only fallback in the editor. The
     first file to define a label wins, matching `load_strings`' merge order under one root."""
     locations: dict[str, Span] = {}
     for path in _string_files(Path(root)):

@@ -47,7 +47,7 @@ def _archives(game_dir: Path) -> list[Path]:
 
 def _first_wins_index(archives: list[Path]) -> dict[str, tuple[Path, str]]:
     """Map each `data/ini/**` entry (keyed by its lowercased, backslash-separated path) to the
-    archive that owns it and the entry's *original-case* name — the first-mounted archive wins,
+    archive that owns it and the entry's *original-case* name - the first-mounted archive wins,
     matching the engine's first-registration rule. The original name is kept because the archive
     index is case-sensitive on read."""
     index: dict[str, tuple[Path, str]] = {}

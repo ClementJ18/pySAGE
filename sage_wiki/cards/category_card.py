@@ -136,7 +136,7 @@ class CategoryRunMixin:
         return self._batch_running
 
     def _category_titles(self) -> list[str]:
-        """The page titles currently in the Pages list, in order — the live walk queue."""
+        """The page titles currently in the Pages list, in order - the live walk queue."""
         return [
             self.category_pages_list.item(row).text()
             for row in range(self.category_pages_list.count())
@@ -221,7 +221,7 @@ class CategoryRunMixin:
 
     def _on_category_failed(self, message: str) -> None:
         self.category_button.setEnabled(True)
-        self.category_status.setText(f"Category failed — {message}")
+        self.category_status.setText(f"Category failed - {message}")
 
     def _load_batch_title(self, title: str) -> None:
         """Make `title` the page under review: highlight it, load it and diff it."""
@@ -267,7 +267,7 @@ class CategoryRunMixin:
         total = self.category_pages_list.count()
         self._batch_running = False
         self._batch_current = None
-        self.category_status.setText(f"Category run complete — {total} page(s) in the list.")
+        self.category_status.setText(f"Category run complete - {total} page(s) in the list.")
         self._update_skip_enabled()
 
     def _skip(self) -> None:

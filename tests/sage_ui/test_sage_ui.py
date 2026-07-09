@@ -206,7 +206,7 @@ class TestFactionTree:
         assert "[foundation building]" in barracks["label"]
         labels = [child["label"] for child in barracks["children"]]
         assert "Test Soldier  (Soldier)" in labels
-        assert "research: Forged Blades — 300" in labels
+        assert "research: Forged Blades - 300" in labels
         research = next(c for c in barracks["children"] if c["label"].startswith("research"))
         assert research["object"] is None  # upgrades are info lines, not loadable objects
         assert "Affects: Test Soldier" in research["tooltip"]

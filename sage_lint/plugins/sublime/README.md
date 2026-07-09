@@ -1,18 +1,18 @@
-# SAGE Lint — Sublime Text 4 plugin
+# SAGE Lint - Sublime Text 4 plugin
 
-**Version 0.2.0** — Lint and format SAGE-engine (BFME) ini files inline with `sage_lint`.
+**Version 0.2.0** - Lint and format SAGE-engine (BFME) ini files inline with `sage_lint`.
 
 Lints SAGE `.ini` / `.inc` / `.bhav` files with `sage_lint` and shows the errors and
 warnings inline in Sublime Text 4.
 
 - Opening a project folder lints the whole folder and spreads each diagnostic onto the
   file and line it belongs to.
-- Saving a file — or, with `lint_on_idle`, pausing while typing — re-lints **only that
+- Saving a file - or, with `lint_on_idle`, pausing while typing - re-lints **only that
   file**, so neither re-parses the whole folder. When a save adds or removes definitions
   (things sibling files may reference), a debounced folder rebuild follows automatically,
   so new names resolve everywhere and references to deleted ones re-flag without a manual
   **Lint Folder** (`auto_rebuild`). While a build is in flight, per-file lints wait for it
-  and re-run against the fresh cache — never reported from stale state.
+  and re-run against the fresh cache - never reported from stale state.
 - Each diagnostic is drawn as a squiggly underline under the offending line, a gutter
   icon, and its message on a phantom line below the code, where it stays visible no matter
   how long the line is (`diagnostic_display` switches to right-aligned annotations or
@@ -21,35 +21,35 @@ warnings inline in Sublime Text 4.
   together with the diagnostic code's description. A per-file `SAGE E:n W:m` counter sits
   in the status bar.
 - Format the buffer in `sage_lint`'s canonical style on demand or on save, apply the
-  auto-fixable diagnostics, and jump between issues — see Commands below.
+  auto-fixable diagnostics, and jump between issues - see Commands below.
 - **Syntax highlighting** for SAGE ini. A `Sage Lint` syntax colours block headers, field
   keys, the module class after a `Behavior =` / `Body =` slot, numbers, booleans, strings,
   comments and `#` directives. Class names are only highlighted in value position, so words
-  that double as class names (`Fire`, `Road`, `Color`) stay plain elsewhere — the colouring
-  stays quiet. Its keyword lists are generated from `sage_ini`'s class registry — the same
-  source the parser uses — so they stay complete as the model grows. Pick it from the syntax
+  that double as class names (`Fire`, `Road`, `Color`) stay plain elsewhere - the colouring
+  stays quiet. Its keyword lists are generated from `sage_ini`'s class registry - the same
+  source the parser uses - so they stay complete as the model grows. Pick it from the syntax
   menu (bottom-right, or
   `View > Syntax > Sage Lint`); it keeps the conventional `source.ini` scope, so the
   package's key bindings and any colour scheme apply unchanged.
 - **Navigate the game like a code base.** The same daemon that lints also serves a symbol
-  index built from the real `sage_ini` parse — every definition with its source location and
+  index built from the real `sage_ini` parse - every definition with its source location and
   game table, the macro and string tables, and every block's typed field schema. From it you
   get Go to Definition, a symbol browser, per-file defined/referenced symbol lists, hover
-  previews (macro values, field types, include targets) and context-aware autocomplete — all
+  previews (macro values, field types, include targets) and context-aware autocomplete - all
   under the right-click **Sage Lint** menu and the Command Palette. No separate index to
   build: it refreshes with every folder lint.
-- **Context-aware autocomplete.** Inside any block — a top-level `Object`/`Weapon`/`Armor`/
-  `CommandSet`/`CommandButton`/`Upgrade`/… or a module slot — typing at the start of a line
+- **Context-aware autocomplete.** Inside any block - a top-level `Object`/`Weapon`/`Armor`/
+  `CommandSet`/`CommandButton`/`Upgrade`/… or a module slot - typing at the start of a line
   suggests that block's **attribute names**; the module class after a `Behavior =`/`Body =`
   slot is offered too. On the value side of a field, you get **its values**: an enum field
   suggests its members (static values), and a reference field suggests exactly the names of
-  its target table (dynamic values — objects, weapons, command buttons, command sets, …),
+  its target table (dynamic values - objects, weapons, command buttons, command sets, …),
   filtered to that kind so a wrong-kind name never appears.
 
 ## Install
 
 Quickest: run `bash install.sh` from this folder. It syntax-checks the plugin, copies it
-into Sublime's `Packages/SageLint`, and — on first install only — writes
+into Sublime's `Packages/SageLint`, and - on first install only - writes
 `SageLint.sublime-settings` with `linter_cwd` pre-filled to this checkout. Override the
 destination with `SUBLIME_PACKAGES=/path/to/Packages` and the interpreter with `PYTHON=...`.
 You will usually still want to set `python` to the interpreter that has `sage_ini` installed.
@@ -60,8 +60,8 @@ Manual install:
 2. Copy this `sublime` folder into it (rename it to e.g. `SageLint` if you like).
 3. Open `Preferences > Package Settings`… or just edit `SageLint.sublime-settings` in the
    copied folder and set:
-   - `python` — the interpreter that can run `python -m sage_lint` (a venv path is fine).
-   - `linter_cwd` — the absolute path to your `ini_parser` checkout. This can be left
+   - `python` - the interpreter that can run `python -m sage_lint` (a venv path is fine).
+   - `linter_cwd` - the absolute path to your `ini_parser` checkout. This can be left
      empty only if you load the plugin from inside the checkout (e.g. via a symlink).
 
 ## Standalone package (no Python, no checkout)
@@ -74,7 +74,7 @@ it falls back to `python -m sage_lint` from the checkout, so a dev checkout keep
 
 ### One step (Windows)
 
-Run [build_package.bat](build_package.bat) — it freezes the binary, stages the plugin with it
+Run [build_package.bat](build_package.bat) - it freezes the binary, stages the plugin with it
 in `bin/`, and zips a `.sublime-package`, all into `dist/` (needs PyInstaller:
 `pip install -e .[lint-ui]`):
 
@@ -83,18 +83,18 @@ sage_lint\plugins\sublime\build_package.bat
 ```
 
 Output: `dist\SageLint\` (drop into the `Packages` directory) and `dist\SageLint.sublime-package`.
-Build once per OS — PyInstaller binaries aren't cross-platform.
+Build once per OS - PyInstaller binaries aren't cross-platform.
 
 **For a bundled binary, install the folder, not the zip.** Sublime never extracts a
 `.sublime-package` to disk, so a binary inside one has no filesystem path and can't be
-`exec`'d — the plugin would report "no sage_lint found" and fall back to `python -m sage_lint`.
+`exec`'d - the plugin would report "no sage_lint found" and fall back to `python -m sage_lint`.
 The `.sublime-package` is only useful when installed **through Package Control**, which honors
 the bundled `.no-sublime-package` marker and unpacks it into `Packages/SageLint` (giving the
 binary a real path). A manual install must use the `dist\SageLint\` folder.
 
 ### By hand
 
-1. **Build the binary** (needs PyInstaller — `pip install -e .[lint-ui]` brings it in), from
+1. **Build the binary** (needs PyInstaller - `pip install -e .[lint-ui]` brings it in), from
    the repo root:
 
    ```
@@ -112,11 +112,11 @@ binary a real path). A manual install must use the `dist\SageLint\` folder.
      bin/sage_lint(.exe)            # one binary, the host's OS
    ```
 
-   To ship all platforms in one package, use per-OS subfolders instead — `bin/win32/`,
-   `bin/darwin/`, `bin/linux/` — the plugin checks both `bin/<name>` and `bin/<platform>/<name>`.
+   To ship all platforms in one package, use per-OS subfolders instead - `bin/win32/`,
+   `bin/darwin/`, `bin/linux/` - the plugin checks both `bin/<name>` and `bin/<platform>/<name>`.
 
 3. **Distribute.** Give the teammate the whole `SageLint/` folder to drop in
-   `Preferences > Browse Packages…`. No Python, no checkout, no settings — the project's
+   `Preferences > Browse Packages…`. No Python, no checkout, no settings - the project's
    `.sagelint` is still read from the linted folder at runtime as usual. Do **not** hand them a
    zipped `.sublime-package` for a bundled-binary build: Sublime won't extract it, so the
    binary won't be found (see the note above). The `.no-sublime-package` marker in this folder
@@ -129,7 +129,7 @@ pays that startup only once per project.
 ## Settings
 
 These settings cover how the editor *runs* the linter. What the linter *reports* (severity
-level, ignored codes, base-game sources) is project configuration — see **Project config**
+level, ignored codes, base-game sources) is project configuration - see **Project config**
 below.
 
 | Key              | Default                      | Meaning                                                  |
@@ -148,12 +148,12 @@ below.
 ## Project config (`.sagelint`)
 
 Lint *rules* live with the mod, not the editor, so the `sage_lint` CLI reads them from the
-linted folder — which means the plugin, the command line and CI all behave identically.
+linted folder - which means the plugin, the command line and CI all behave identically.
 Two TOML files, both optional, sitting in the folder you lint:
 
-- **`.sagelint`** — shared rules, meant to be committed so everyone working on the mod
+- **`.sagelint`** - shared rules, meant to be committed so everyone working on the mod
   lints the same way.
-- **`.sagelint.local`** — machine-specific paths and personal overrides; **gitignore this
+- **`.sagelint.local`** - machine-specific paths and personal overrides; **gitignore this
   one**. It overrides `.sagelint` per key.
 
 ```toml
@@ -182,33 +182,33 @@ too (the cache is shared by the whole-folder report and every per-file re-lint).
 
 All under the Command Palette as **SAGE Lint: ...**
 
-- **Lint Folder** — rebuild the daemon's whole-game cache and re-report. A daemon also
+- **Lint Folder** - rebuild the daemon's whole-game cache and re-report. A daemon also
   starts automatically on load and builds the cache once.
-- **Format File** — reprint the buffer in `sage_lint`'s canonical style.
-- **Fix File / Fix Folder (auto-fixable)** — apply the auto-fixable diagnostics
+- **Format File** - reprint the buffer in `sage_lint`'s canonical style.
+- **Fix File / Fix Folder (auto-fixable)** - apply the auto-fixable diagnostics
   (`enum-case`, `reference-case`, `repeated-field`) in place, then re-lint.
-- **Show Diagnostics (Project / Current File)** — a quick panel of issues; pick one to jump.
-- **Next / Previous Diagnostic** — move the caret between issue lines in the current file.
-- **Copy Message (Current Line)** — copy the diagnostic(s) on the caret's line to the
+- **Show Diagnostics (Project / Current File)** - a quick panel of issues; pick one to jump.
+- **Next / Previous Diagnostic** - move the caret between issue lines in the current file.
+- **Copy Message (Current Line)** - copy the diagnostic(s) on the caret's line to the
   clipboard as `path:line: [code] message`, ready to paste into a report.
-- **Go to Definition** — jump to the definition of the symbol under the caret: an object,
+- **Go to Definition** - jump to the definition of the symbol under the caret: an object,
   a macro, an `#include` target, or a string label (to its `.str` / `Lotr.csv` line). A
   string defined only in the base game has no location to jump to, so it shows its value.
-- **Browse Symbols** — a searchable list of every indexed definition, macro and string;
+- **Browse Symbols** - a searchable list of every indexed definition, macro and string;
   pick one to jump to it.
-- **Show Module Documentation** — pop up the typed field schema of the block under the
+- **Show Module Documentation** - pop up the typed field schema of the block under the
   caret (a module, or a top-level block like `Object` / `Weapon` / `CommandSet`), with each
   field's type and, where known, its enum members or referenced table.
-- **Symbols in File** — list the definitions and macros declared in the active file.
-- **Referenced Symbols** — list the symbols defined elsewhere that the active file mentions;
+- **Symbols in File** - list the definitions and macros declared in the active file.
+- **Referenced Symbols** - list the symbols defined elsewhere that the active file mentions;
   pick one to jump to its usage or its definition.
-- **Edit Macro Values** — add / subtract / remove / list the `+token` / `-token` values of
+- **Edit Macro Values** - add / subtract / remove / list the `+token` / `-token` values of
   the `#define` on the current line, with indexed symbol names offered as candidates.
-- **About** — show the plugin version and description.
+- **About** - show the plugin version and description.
 
 **Go to Definition** and **Browse Symbols** sit at the top level of the right-click menu (as
 `Sage Lint: …`); the rest are grouped under a **Sage Lint** submenu. They need the index,
-which the daemon builds on load and refreshes on every folder lint — **Lint Folder** doubles
+which the daemon builds on load and refreshes on every folder lint - **Lint Folder** doubles
 as a reindex. Until the first build finishes they report "index not ready".
 
 ## Default key bindings
@@ -232,7 +232,7 @@ package to change them.
 
 The plugin runs a long-lived **daemon** per project folder and shells out for the rest:
 
-- Daemon: `python -m sage_lint serve <folder>` — builds the game once, then takes
+- Daemon: `python -m sage_lint serve <folder>` - builds the game once, then takes
   newline-delimited JSON commands on stdin (`lint_file` on save/idle, `rebuild` on
   Lint Folder, `index` after each build) and answers with `folder` / `file` / `index` JSON
   messages. This is what gives save-time lints full cross-file reference resolution at
@@ -243,7 +243,7 @@ The plugin runs a long-lived **daemon** per project folder and shells out for th
 The level, ignored codes, exclude dirs and base sources come from the project's `.sagelint`
 (see **Project config**); the daemon reads them from `<folder>/.sagelint`, and its `root`
 key can scope the build to a subfolder. The cache is rebuilt on the initial build and on
-**Lint Folder** — a brand new definition is only visible to other files after a rebuild.
+**Lint Folder** - a brand new definition is only visible to other files after a rebuild.
 
 The `--file` mode parses one file plus its includes instead of assembling the whole
 folder, which is what keeps saves and on-idle linting fast. Two trade-offs follow from it:

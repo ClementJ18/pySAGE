@@ -1,7 +1,7 @@
 """Phase 3: flag dangling references in a `.map`, resolved against the assembled game.
 
-Every script argument that names something — an object template, a science, a map-local team, a
-localization label — is resolved the way the engine would: GAME-scope names against the built
+Every script argument that names something - an object template, a science, a map-local team, a
+localization label - is resolved the way the engine would: GAME-scope names against the built
 `Game` (via `Game.lookup`, case-insensitive), MAP-scope names against the map's own symbols, and
 STRINGS against `Game.strings`. A name that resolves to nothing is reported: the engine silently
 no-ops the action, so the script does not do what its author meant.
@@ -9,8 +9,8 @@ no-ops the action, so the script does not do what its author meant.
 Two guards keep the check honest, mirroring sage_lint's missing-asset rule:
 
 * engine sentinels (`<All Players>`, `<This Object>`, `NONE`, empty) are left alone; and
-* a GAME table (or the strings table) that was never populated — a map linted without building its
-  mod — is skipped rather than flagged wholesale, since the miss would be the build's fault.
+* a GAME table (or the strings table) that was never populated - a map linted without building its
+  mod - is skipped rather than flagged wholesale, since the miss would be the build's fault.
 
 A `.map` is binary, so a diagnostic's `Span` points at the file with the offending argument's
 logical address (`<ScriptName>/if_true[2]/arg[1]`) carried in the message and `extra`.
@@ -28,7 +28,7 @@ from sage_map.model import MapModel, ScriptArgRef
 from sage_map.properties import OBJECT_PROPERTY_SPECS
 from sage_map.scripts import Scope
 
-# Distinct codes per check, so each is separately `--select`/`--ignore`-able — the object checks
+# Distinct codes per check, so each is separately `--select`/`--ignore`-able - the object checks
 # are the GAME-scope ones that flood without the base archives loaded, so a user can silence them
 # alone while keeping the reliable map-local script-argument checks.
 CODE = "map-dangling-reference"  # a script argument naming something undefined
@@ -121,8 +121,8 @@ def _check(
 def _check_object_types(model: MapModel, game: Game, map_path: str) -> list[Diagnostic]:
     """Every placed object names an Object template; one the game does not define silently fails to
     spawn. Resolved against the `objects` table the way the engine looks it up (case-insensitive,
-    `Game.lookup`). Reported once per distinct missing type with the count of placed instances —
-    not once per object — so a single bad template name does not flood the report. Skipped when the
+    `Game.lookup`). Reported once per distinct missing type with the count of placed instances -
+    not once per object - so a single bad template name does not flood the report. Skipped when the
     objects table was not built (the empty-table guard); engine sentinels and the WorldBuilder
     internal categories (`*Waypoints/Waypoint`, `*Lights/...`) are left alone."""
     objects_list = model.raw.objects_list
@@ -158,8 +158,8 @@ def _check_object_types(model: MapModel, game: Game, map_path: str) -> list[Diag
 
 def _check_object_properties(model: MapModel, game: Game, map_path: str) -> list[Diagnostic]:
     """Object instance properties that name another entity (`originalOwner` -> the owning team,
-    ...; see `OBJECT_PROPERTY_SPECS`). Resolved like the script-argument references — MAP-scope
-    against the map's own symbols, GAME-scope against the game — and reported once per distinct
+    ...; see `OBJECT_PROPERTY_SPECS`). Resolved like the script-argument references - MAP-scope
+    against the map's own symbols, GAME-scope against the game - and reported once per distinct
     `(property, value)` with the placed-instance count, so a single bad value does not flood. A
     MAP target the map declares none of (no teams at all) is skipped, the same empty-set guard the
     GAME checks use."""
@@ -254,7 +254,7 @@ def lint_maps(
     for map_path in map_paths:
         try:
             diagnostics.items.extend(lint_map_file(map_path, game).items)
-        except Exception as exc:  # noqa: BLE001 — any failure on one binary map must not abort the batch
+        except Exception as exc:  # noqa: BLE001 - any failure on one binary map must not abort the batch
             diagnostics.add(
                 PARSE_ERROR_CODE,
                 f"failed to parse map: {exc}",

@@ -1,7 +1,7 @@
 """Breakdown of unmodeled (`unknown-attribute`) fields by their parent block.
 
 Builds the corpus, runs the `unknown-attribute` rule, and groups every still-untyped
-field by the block that carries it — the schema-coverage to-do list, biggest gaps
+field by the block that carries it - the schema-coverage to-do list, biggest gaps
 first. Each block lists its distinct missing attributes with how often each appears,
 so the highest-leverage fields to model next are the ones at the top.
 

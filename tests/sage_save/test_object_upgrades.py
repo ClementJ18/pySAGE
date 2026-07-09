@@ -1,11 +1,11 @@
-"""Step 6 — the fatal upgrade masks carried by live objects in CHUNK_GameLogic.
+"""Step 6 - the fatal upgrade masks carried by live objects in CHUNK_GameLogic.
 
 `harvest_object_upgrade_references` scans the object bodies for the same `version=1 + u16 count +
 Upgrade_ names` mask signature the player harvest uses, adding the *applied* upgrades (veterancy,
 hero abilities, structure/object levels) the per-player faction masks omit. The two classes the
 plan reserved for Step 6 turned out not to apply to BFME saves: kind-of flags are non-fatal (an
 unknown one is silently ignored per GPL `Xfer::xferKindOf`) and command-button names are never
-serialized — so this upgrade source is the real Step-6 win, and these tests pin it down."""
+serialized - so this upgrade source is the real Step-6 win, and these tests pin it down."""
 
 from pathlib import Path
 
@@ -51,7 +51,7 @@ def test_merged_harvest_dedups_and_includes_object_upgrades():
     assert len(keys) == len(set(keys))  # no duplicate (kind, name) across chunks
     names = {r.name for r in refs if r.kind == "upgrade"}
     assert "Upgrade_StructureLevel1" in names  # object-body upgrade
-    assert "Upgrade_ElfFaction" in names  # player upgrade — both present, merged
+    assert "Upgrade_ElfFaction" in names  # player upgrade - both present, merged
 
 
 def test_no_command_button_class_is_serialized():

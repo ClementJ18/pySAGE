@@ -192,7 +192,7 @@ def _enum_members(cls: type[enum.Enum]) -> list[str]:
 
 
 def expand_kind(name: str) -> str:
-    """The full field schema of one kind plus the enums it names — the on-demand detail the
+    """The full field schema of one kind plus the enums it names - the on-demand detail the
     core digest omits for non-core kinds."""
     cls = REGISTRY.get(name)
     if cls is None:

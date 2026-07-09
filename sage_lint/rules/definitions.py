@@ -10,17 +10,22 @@ from sage_lint.rules.base import Rule
 from sage_lint.rules.references import _ASSET_TABLES
 
 # Table keys the unused-definition rule never reports. `objects` has its own opt-in rule
-# (`unused-object`), and the asset/audio tables are left to the asset checks — their names
+# (`unused-object`), and the asset/audio tables are left to the asset checks - their names
 # resolve in ways the in-memory reference graph does not see (a sound across several tables,
 # an FX named inside a colon-keyed record), so a missing reverse edge there is not "unused".
+# `fxlists`/`particlesystems` are validated as real *forward* references now, but a reverse
+# edge to them is still unreliable (colon-keyed `FXList:` records, or a particle named from a
+# draw module or binary map), so they stay excluded here to avoid false "unused" findings.
 # `factions` (PlayerTemplate) is referenceable in the schema but is really an engine entry point
-# the game loads directly — most factions are named by nothing in the data, so flagging the
+# the game loads directly - most factions are named by nothing in the data, so flagging the
 # unreferenced ones is noise, not a finding.
-_UNUSED_DEFINITION_EXCLUDES = frozenset({"objects", "factions"}) | _ASSET_TABLES
+_UNUSED_DEFINITION_EXCLUDES = (
+    frozenset({"objects", "factions", "fxlists", "particlesystems"}) | _ASSET_TABLES
+)
 
 
 def _overrides_existing(game: Game, key: str, name: str) -> bool:
-    """Whether this game's definition `(key, name)` redefines one already built elsewhere — i.e.
+    """Whether this game's definition `(key, name)` redefines one already built elsewhere - i.e.
     it sits in a context (a per-map build) layered over a reference fallback that already holds
     the name. Such a definition overrides what the engine reaches by that name, so the original
     (referenced where it lives) is what counts; flagging the override as unused is a false
@@ -32,7 +37,7 @@ def _overrides_existing(game: Game, key: str, name: str) -> bool:
 def _createahero_injected(obj: object) -> bool:
     """Whether this definition is a create-a-hero button: any `CreateAHeroUI*` field marks
     one. The engine injects such buttons into a custom hero's command set at runtime, so no
-    command set in the data names them — a missing reverse edge is not "unused"."""
+    command set in the data names them - a missing reverse edge is not "unused"."""
     fields = getattr(obj, "fields", None)
     if not isinstance(fields, dict):
         return False
@@ -42,7 +47,7 @@ def _createahero_injected(obj: object) -> bool:
 def _unused(game: Game, key: str) -> Iterator[tuple[object, str]]:
     """`(obj, name)` for each definition in table `key` that nothing in the game references.
     A kind named in the `always_referenced` config, a definition overriding one built
-    elsewhere, and a create-a-hero button are skipped — all are reached in ways the
+    elsewhere, and a create-a-hero button are skipped - all are reached in ways the
     in-memory reference graph cannot see."""
     always = always_referenced()
     xref = Xref.for_game(game)
@@ -90,7 +95,7 @@ class UnusedDefinitionRule(Rule):
     """A top-level definition of a *referenceable* kind (a weapon, upgrade, command set or
     button, locomotor, OCL, science, armor set, ...) that nothing in the loaded game names. The
     engine reaches such a definition only through a reference another definition holds, so an
-    unreferenced one is dead data — built, then never used.
+    unreferenced one is dead data - built, then never used.
 
     Scope is deliberately narrow to stay useful rather than noisy. Engine entry-point kinds (a
     faction, the game data, a terrain, the living-world singletons) are loaded by the engine
@@ -123,7 +128,7 @@ class UnusedDefinitionRule(Rule):
 
 
 class UnusedObjectRule(Rule):
-    """An `Object` definition that nothing in the loaded game references — no OCL, command
+    """An `Object` definition that nothing in the loaded game references - no OCL, command
     button, horde member list or other field names it. Split from `unused-definition` and
     **off by default** (opt-in via `--select unused-object`) because objects are routinely
     reached in ways the ini reference graph cannot see: spawned by a binary `.map` script,

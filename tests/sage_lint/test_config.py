@@ -8,7 +8,7 @@ from sage_lint.cli import main
 from sage_lint.config import init_project, load_config
 
 # A file with a repeated field (warning), a miscased enum (warning) and an unknown
-# attribute (info) — one of every reportable severity, reused across the CLI tests.
+# attribute (info) - one of every reportable severity, reused across the CLI tests.
 _MIXED = (
     "Object Foo\n"
     "    BuildCost = 1\n"
@@ -119,7 +119,7 @@ class TestLoadConfig:
         assert load_config(tmp_path).root == "gamedata"
 
     def test_invalid_root_warns_and_is_ignored(self, tmp_path):
-        # `root` is a single path, not a list — a non-string value is rejected.
+        # `root` is a single path, not a list - a non-string value is rejected.
         (tmp_path / ".sagelint").write_text("root = 5\n", encoding="utf-8")
         config = load_config(tmp_path)
 

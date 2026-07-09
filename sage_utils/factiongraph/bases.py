@@ -1,10 +1,10 @@
 """Resolving a base layout (`.bse`) into the structures it places.
 
-A faction's castle/camp/outpost does not name its buildings in the ini — the start flag's
+A faction's castle/camp/outpost does not name its buildings in the ini - the start flag's
 `CastleBehavior` names a *base layout* (`CastleToUnpackForFaction = Men gondor_castle …`), and the
 layout itself is a binary WorldBuilder file under the mod's `bases/` folder (`gondor_castle.bse`).
-The placed objects in that file — the citadel keep, the build foundations, the prebuilt walls and
-gates — are the structures a player actually sees once the base unpacks.
+The placed objects in that file - the citadel keep, the build foundations, the prebuilt walls and
+gates - are the structures a player actually sees once the base unpacks.
 
 So this module bridges `sagemap` (which parses the `.bse`) and the loaded `Game` (which knows each
 placed template's KindOf): it finds the layout file, reads the distinct placed templates, and
@@ -12,7 +12,7 @@ classifies them into citadel / foundation / prebuilt by KindOf. `sagemap` is an 
 dependency; without it base decomposition degrades to empty rather than failing.
 
 Two consumption paths: `resolve_base_layout` reads a mod checkout's `bases/` folder on demand
-(the `sage-edain` CLI), and `collect_base_layouts` sweeps every `.bse` under a root once — the
+(the `sage-edain` CLI), and `collect_base_layouts` sweeps every `.bse` under a root once - the
 source loader calls it on the merged tree extracted from `.big` archives, so a game loaded from
 archives carries its layouts (`game.base_layouts`) for the graph to use.
 """
@@ -30,7 +30,7 @@ _KEEP_KINDS = ("CASTLE_KEEP", "COMMANDCENTER")
 _FOUNDATION_KIND = "BASE_FOUNDATION"
 _STRUCTURE_KIND = "STRUCTURE"
 
-# Placed templates to drop outright — engine markers that classify as structures/foundations but are
+# Placed templates to drop outright - engine markers that classify as structures/foundations but are
 # not buildings the player sees (the base-center bone carries BASE_FOUNDATION but builds nothing).
 _IGNORE_TEMPLATES = frozenset({"BaseCenterGeneric"})
 
@@ -71,12 +71,12 @@ def _placed_templates(base_file: Path) -> list[str]:
     """Distinct placed object template names in a `.bse`, in first-seen order. Returns empty when
     sagemap is unavailable or the file has no object list."""
     try:
-        from sage_map import parse_map_from_path  # noqa: PLC0415 — lazy: [edain] extra is optional
+        from sage_map import parse_map_from_path  # noqa: PLC0415 - lazy: [edain] extra is optional
     except ImportError:
         return []
     try:
         raw = parse_map_from_path(str(base_file))
-    except Exception:  # noqa: BLE001 — a failure on one binary base must not abort the graph
+    except Exception:  # noqa: BLE001 - a failure on one binary base must not abort the graph
         return []
     objects_list = getattr(raw, "objects_list", None)
     if objects_list is None:
@@ -124,7 +124,7 @@ def resolve_base_layout(game, bases_dir: Path | None, base_name: str) -> BaseLay
 
 
 def collect_base_layouts(game, root: Path) -> dict[str, BaseLayout]:
-    """Every base layout under `root`, keyed by its lower-cased base name (the file stem —
+    """Every base layout under `root`, keyed by its lower-cased base name (the file stem -
     the same token a `CastleToUnpackForFaction` row uses, matched case-insensitively). One
     sweep at load time, so a game assembled from `.big` archives can answer layout lookups
     without the archives on disk. Empty when sagemap is not installed or no `.bse` exists;
@@ -141,7 +141,7 @@ def collect_base_layouts(game, root: Path) -> dict[str, BaseLayout]:
 def game_base_layout(game, base_name: str) -> BaseLayout | None:
     """The layout `base_name` resolves to from the table a loader attached to the game
     (`game.base_layouts`, written by `sage_utils.sources.load_sources`), or None when the
-    game carries no layouts or doesn't know this one — the default resolver the faction
+    game carries no layouts or doesn't know this one - the default resolver the faction
     graph uses when no `bases/` folder is at hand."""
     layouts = getattr(game, "base_layouts", None)
     if not layouts:

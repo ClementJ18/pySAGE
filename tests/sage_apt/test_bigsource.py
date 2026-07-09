@@ -1,6 +1,6 @@
 """`to-xml` resolving a `.const` (or the `.apt`) out of a `.big` archive.
 
-Mirrors the game's load order — loose file beside the `.apt` first, then the same
+Mirrors the game's load order - loose file beside the `.apt` first, then the same
 basename fished out of a `.big` under `--game-dir`. Needs the optional `[apt]` extra
 (pyBIG); skipped cleanly when it isn't installed."""
 
@@ -12,7 +12,7 @@ import pytest
 from sage_apt import apt_to_xml
 
 pytest.importorskip("pyBIG", reason="the [apt] extra (pyBIG) is not installed")
-from pyBIG import Archive  # noqa: E402 — after the importorskip guard
+from pyBIG import Archive  # noqa: E402 - after the importorskip guard
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

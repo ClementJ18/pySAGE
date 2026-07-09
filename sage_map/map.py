@@ -370,7 +370,7 @@ def parse_map(file: BinaryIO) -> Map:
 
     try:
         decompressed_data = RefpackHandler().decompress_data(compressed_data)
-    except Exception:  # noqa: BLE001 — not refpack-compressed; treat the bytes as raw
+    except Exception:  # noqa: BLE001 - not refpack-compressed; treat the bytes as raw
         decompressed_data = compressed_data
 
     logger = logging.getLogger("sage_map")

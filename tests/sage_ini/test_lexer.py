@@ -112,7 +112,7 @@ class TestCommentMarkers:
         assert line.comment == ";//When the AI decides"
 
     def test_url_is_truncated_like_the_engine_does(self):
-        # corpus: webpages.ini — the engine has no URL awareness
+        # corpus: webpages.ini - the engine has no URL awareness
         line = single("URL = http://www.ea.com")
 
         assert line.content == "URL = http:"

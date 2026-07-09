@@ -29,14 +29,14 @@ pytestmark = pytest.mark.full
 # Block types whose typed construction the Phase 2.1 gate exercises.
 GATE_TYPES = ("Object", "ChildObject", "Weapon")
 
-# Diagnostics that mean the parser mis-structured the file — its own
+# Diagnostics that mean the parser mis-structured the file - its own
 # correctness claim, which must be zero on real game data.
 STRUCTURAL_CODES = frozenset({"stray-end", "unclosed-block", "unclosed-script"})
 
 # Diagnostics about missing or cyclic include files: a data-completeness gap
 # in a given corpus pairing (e.g. a mod whose anim .inc files are absent), not
 # a parse failure. Absent content could itself contain block opens/closes, so
-# structural balance is unverifiable for such a file — recorded, not asserted.
+# structural balance is unverifiable for such a file - recorded, not asserted.
 ENVIRONMENTAL_CODES = frozenset({"unresolved-include", "include-cycle"})
 
 

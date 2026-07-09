@@ -1,7 +1,7 @@
 """Structure-aware diff between two assembled games: given two mod ini folders (or two git
 refs of one repo), report what definitions were added, removed, or changed, and for a changed
 definition which fields and sub-modules moved. The intent is a human-readable changelog of game
-data — "GondorFighter BuildCost 100 -> 150", "ActiveBody MaxHealth 300 -> 350" — rather than a
+data - "GondorFighter BuildCost 100 -> 150", "ActiveBody MaxHealth 300 -> 350" - rather than a
 textual diff of the source.
 
 Comparison runs on the loaded `Game` model, not the text: definitions are matched by table and
@@ -275,7 +275,7 @@ def _clean_git_env() -> dict[str, str]:
 @contextmanager
 def git_worktree(repo: str | Path, ref: str):
     """Check `ref` out into a throwaway detached worktree of `repo`, yield its path, then remove
-    it — so two commits can be diffed without disturbing the working tree. The worktree is a real
+    it - so two commits can be diffed without disturbing the working tree. The worktree is a real
     checkout of the whole repo; point at the ini subfolder within it."""
     repo = str(repo)
     env = _clean_git_env()

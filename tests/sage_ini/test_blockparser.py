@@ -135,7 +135,7 @@ class TestBlockShapes:
         assert cost.key == "BuildCost"
 
     def test_misplaced_equals_in_block_header(self):
-        # corpus: mumakil.ini `Behavior SubObjectsUpgrade = FadeInTheHodwah` —
+        # corpus: mumakil.ini `Behavior SubObjectsUpgrade = FadeInTheHodwah` -
         # the engine treats '=' as a skippable token wherever it appears
         doc = parse_clean(
             """\
@@ -157,7 +157,7 @@ class TestBlockShapes:
         assert [block.label for block in doc.children] == ["A", "B"]
 
     def test_stray_punctuation_after_end_is_not_a_block(self):
-        # corpus: unitchronicles.ini `End        "` — junk token preserved as
+        # corpus: unitchronicles.ini `End        "` - junk token preserved as
         # a value line, never an opener
         doc = parse_clean('Object A\n    TransitionState = T\n    End "\nEnd\n')
 
@@ -167,7 +167,7 @@ class TestBlockShapes:
         assert junk == Attribute(key='"', value="", uses_equals=False, span=obj.span)
 
     def test_end_followed_by_statement_on_same_line(self):
-        # corpus: cinematicobjects.ini `End   StateName = Sword` — the engine
+        # corpus: cinematicobjects.ini `End   StateName = Sword` - the engine
         # is token-based; End closes the block and the rest is the next field
         doc = parse_clean(
             """\
@@ -268,7 +268,7 @@ class TestBareValueLines:
 
 class TestScriptBlocks:
     def test_script_body_is_opaque(self):
-        # corpus: createaheroanims.inc — Lua bodies contain `end`, which must
+        # corpus: createaheroanims.inc - Lua bodies contain `end`, which must
         # not close ini blocks
         doc = parse_clean(
             """\

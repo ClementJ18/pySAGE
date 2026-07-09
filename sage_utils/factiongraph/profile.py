@@ -1,10 +1,10 @@
-"""A non-technical stat/weapon/ability snapshot of an object — the same facts sage_ui's UnitPanel
+"""A non-technical stat/weapon/ability snapshot of an object - the same facts sage_ui's UnitPanel
 shows (health, armor-derived durability, weapons, speed, vision, cost, abilities), but as plain
 serialisable data for the web UI.
 
 Resolved at base state: no upgrades toggled, lowest experience rank. A horde's combat stats come
 from its contained unit while its cost comes from the horde (mirroring `UnitPanel._init_sources`).
-Every read is guarded — lazy field conversion can raise, and a missing stat just stays None.
+Every read is guarded - lazy field conversion can raise, and a missing stat just stays None.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def _entry_weapon(entry):
 
 
 def _primary_weapon(weapon_set):
-    """The unit's main attack — the PRIMARY slot's weapon, else the first slot's. Other slots carry
+    """The unit's main attack - the PRIMARY slot's weapon, else the first slot's. Other slots carry
     special-ability weapons (bombards, one-off salvos) that would read as extra attacks; those
     surface as abilities instead."""
     entries = safe(lambda: weapon_set.Weapon, []) or []
@@ -50,7 +50,7 @@ def _primary_weapon(weapon_set):
 
 def _weapons(state, combat) -> list[Weapon]:
     """The unit's main attack as a single melee/ranged summary (empty when it has no damaging
-    weapon). Only the primary weapon is shown — non-technical readers want "the attack", not the
+    weapon). Only the primary weapon is shown - non-technical readers want "the attack", not the
     full multi-slot ability arsenal."""
     weapon_set = select_weapon_set(combat, state.weapon_flags)
     if weapon_set is None:

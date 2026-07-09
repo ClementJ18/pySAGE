@@ -3,7 +3,7 @@ references resolve. Root files (those nothing `#include`s) are parsed with their
 expanded, in mod-over-base overlay order; a file that fails to construct becomes a
 `load-error` diagnostic rather than aborting the run.
 
-Map files (`maps/.../map.ini`) are excluded — each is a per-map context (`load_map`).
+Map files (`maps/.../map.ini`) are excluded - each is a per-map context (`load_map`).
 """
 
 from dataclasses import dataclass
@@ -28,7 +28,7 @@ class LoadedGame:
 
 def _load_into(game: Game, diagnostics: Diagnostics | None, path: Path, layers) -> None:
     """Parse one root file (includes expanded) and build it into `game`. `diagnostics` None
-    builds it silently — how base sources load, since they only resolve the mod's references."""
+    builds it silently - how base sources load, since they only resolve the mod's references."""
     result = parse_file(path, resolve_includes=True, include_layers=layers)
     if diagnostics is not None:
         diagnostics.items.extend(result.diagnostics.items)
@@ -101,7 +101,13 @@ def load_map(
     layers = (ini_root(root), *(ini_root(overlay) for overlay in overlays))
 
     loaded = load_game(root, overlays)
-    _load_into(loaded.game, loaded.diagnostics, map_path, layers)
+    # The map layer patches the global objects it re-opens rather than replacing them (the
+    # engine's map override), so flag the build while it loads; see `Game.register`.
+    loaded.game._map_override = True
+    try:
+        _load_into(loaded.game, loaded.diagnostics, map_path, layers)
+    finally:
+        loaded.game._map_override = False
     loaded.game.strings.update(load_strings(map_path.parent))
     loaded.game.string_definitions.update(load_string_locations(map_path.parent))
 

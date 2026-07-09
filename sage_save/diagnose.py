@@ -2,26 +2,26 @@
 
 A BFME save refuses to load for a small number of reasons, and this module tests for each:
 
-- **A dangling *fatal* name reference** — an `Upgrade_*`, `SCIENCE_*`, object template or
+- **A dangling *fatal* name reference** - an `Upgrade_*`, `SCIENCE_*`, object template or
   carried-over campaign hero the save names but the loaded ini/mod tree no longer defines. The
   engine hits `XFER_UNKNOWN_STRING` and aborts. This is the single most common cause; it is only
   checkable with a `--game` tree to resolve names against (`sage_save.xref.check_save`).
-- **A truncated or corrupt chunk** — a chunk whose bytes don't match its format. The container
+- **A truncated or corrupt chunk** - a chunk whose bytes don't match its format. The container
   parse catches gross damage; the per-chunk decode of the 18 modelled chunks catches subtler
   drift (a decode that raises is a prime suspect for a save known to fail).
-- **A chunk-version bump** — a subsystem serialized at a version the target engine doesn't
+- **A chunk-version bump** - a subsystem serialized at a version the target engine doesn't
   support (e.g. a mod or a different title). Every chunk carries a `u8` version; we compare it
   to the vanilla-BFME2 baseline.
-- **An unknown / unexpected chunk** — a chunk name outside the known set (a mod-added subsystem,
+- **An unknown / unexpected chunk** - a chunk name outside the known set (a mod-added subsystem,
   or a different title's layout).
 
 `diagnose_save` returns a ranked `list[Diagnostic]` (fatal → warning → info). It never raises on
 a decodable container: a chunk that fails to decode becomes a diagnostic, not an exception, so a
 broken save still produces a report. The container parse itself is the caller's responsibility
-(`parse_save` raises `ValueError` on a damaged container — the CLI turns that into a fatal
+(`parse_save` raises `ValueError` on a damaged container - the CLI turns that into a fatal
 diagnostic of its own).
 
-**Honest framing**: a chunk failing to decode here is a *suspect*, not a proof — it can equally
+**Honest framing**: a chunk failing to decode here is a *suspect*, not a proof - it can equally
 mean the save is from an engine/mod whose layout we don't model. The value is triage: for a save
 you already know won't load, this narrows "it won't load" to a short, concrete list.
 """
@@ -34,7 +34,7 @@ from sage_save.xref import SupportsLookup, check_save
 
 # The chunk versions every vanilla-BFME2 save writes (derived from the whole fixture corpus;
 # each chunk appears at exactly one version). A version other than this is not necessarily a
-# failure — a mod or another title legitimately differs — but it is worth surfacing.
+# failure - a mod or another title legitimately differs - but it is worth surfacing.
 KNOWN_CHUNK_VERSIONS: dict[str, int] = {
     "CHUNK_AiOrdersManager": 1,
     "CHUNK_Audio": 4,
@@ -76,9 +76,9 @@ _SEVERITY_RANK = {"fatal": 0, "warning": 1, "info": 2}
 
 @dataclass(frozen=True)
 class Diagnostic:
-    """One finding about a save. `severity` is `fatal` (will prevent the load — a dangling fatal
-    reference or an unparseable container), `warning` (a plausible cause worth investigating — a
-    chunk that won't decode, a version bump, an unknown chunk), or `info` (notable but benign — a
+    """One finding about a save. `severity` is `fatal` (will prevent the load - a dangling fatal
+    reference or an unparseable container), `warning` (a plausible cause worth investigating - a
+    chunk that won't decode, a version bump, an unknown chunk), or `info` (notable but benign - a
     non-fatal dropped-object reference, a case-only mismatch). `chunk` is the chunk it concerns
     (None for whole-save findings)."""
 
@@ -100,7 +100,7 @@ def _check_chunk_inventory(save: SaveFile) -> list[Diagnostic]:
                 Diagnostic(
                     "warning",
                     "chunk-inventory",
-                    "unknown chunk (not written by vanilla BFME2 — a mod-added subsystem or a "
+                    "unknown chunk (not written by vanilla BFME2 - a mod-added subsystem or a "
                     "different title/engine)",
                     chunk.name,
                 )
@@ -111,7 +111,7 @@ def _check_chunk_inventory(save: SaveFile) -> list[Diagnostic]:
                 Diagnostic(
                     "warning",
                     "chunk-inventory",
-                    f"appears {count} times — a duplicated chunk usually means a corrupt stream",
+                    f"appears {count} times - a duplicated chunk usually means a corrupt stream",
                     name,
                 )
             )
@@ -128,7 +128,7 @@ def _check_chunk_versions(save: SaveFile) -> list[Diagnostic]:
                 Diagnostic(
                     "warning",
                     "chunk-version",
-                    f"version {chunk.version} — vanilla BFME2 writes version {expected}; a "
+                    f"version {chunk.version} - vanilla BFME2 writes version {expected}; a "
                     "different version can be rejected by an engine that doesn't support it "
                     "(normal if this save is from a mod or another title)",
                     chunk.name,
@@ -148,12 +148,12 @@ def _check_chunk_decodes(save: SaveFile) -> list[Diagnostic]:
             continue
         try:
             codec.decode(chunk)
-        except Exception as exc:  # noqa: BLE001 — any decode error is a reportable suspect
+        except Exception as exc:  # noqa: BLE001 - any decode error is a reportable suspect
             found.append(
                 Diagnostic(
                     "warning",
                     "chunk-decode",
-                    f"did not decode with the BFME2 model ({type(exc).__name__}: {exc}) — the "
+                    f"did not decode with the BFME2 model ({type(exc).__name__}: {exc}) - the "
                     "bytes may be truncated/corrupt, or from an engine layout we don't model",
                     chunk.name,
                 )
@@ -172,7 +172,7 @@ def _check_references(save: SaveFile, game: SupportsLookup) -> list[Diagnostic]:
             Diagnostic(
                 "warning",
                 "reference",
-                f"could not harvest references ({type(exc).__name__}: {exc}) — a decode failure "
+                f"could not harvest references ({type(exc).__name__}: {exc}) - a decode failure "
                 "above likely blocked the name scan",
             )
         ]
@@ -184,7 +184,7 @@ def _check_references(save: SaveFile, game: SupportsLookup) -> list[Diagnostic]:
                 Diagnostic(
                     "fatal",
                     "reference",
-                    f"{ref.kind} {ref.name!r} is undefined in the game — a dangling fatal "
+                    f"{ref.kind} {ref.name!r} is undefined in the game - a dangling fatal "
                     f"reference aborts the load ({ref.count} occurrence(s))",
                 )
             )
@@ -193,7 +193,7 @@ def _check_references(save: SaveFile, game: SupportsLookup) -> list[Diagnostic]:
                 Diagnostic(
                     "info",
                     "reference",
-                    f"{ref.kind} {ref.name!r} is undefined — non-fatal, drops "
+                    f"{ref.kind} {ref.name!r} is undefined - non-fatal, drops "
                     f"{ref.count} object(s) on load",
                 )
             )
@@ -211,7 +211,7 @@ def _check_references(save: SaveFile, game: SupportsLookup) -> list[Diagnostic]:
 
 def diagnose_save(save: SaveFile, game: SupportsLookup | None = None) -> list[Diagnostic]:
     """Every check we can run on a parsed save, ranked fatal → warning → info. Pass `game` (a
-    loaded `sage_ini` `Game`) to include the dangling-reference check — the most common and most
+    loaded `sage_ini` `Game`) to include the dangling-reference check - the most common and most
     definitive load-failure cause. Without it, only the structural checks run (still useful:
     corruption, version drift, unknown chunks)."""
     diagnostics: list[Diagnostic] = []
@@ -230,12 +230,12 @@ def format_diagnosis(diagnostics: list[Diagnostic], *, checked_references: bool)
     lines: list[str] = []
     if not diagnostics:
         lines.append(
-            "No anomalies found — the container parses, every modelled chunk decodes, "
+            "No anomalies found - the container parses, every modelled chunk decodes, "
             "and all chunk versions match the BFME2 baseline."
         )
         if not checked_references:
             lines.append(
-                "(reference check skipped — pass --game <root> to test for dangling "
+                "(reference check skipped - pass --game <root> to test for dangling "
                 "upgrade/science/template names, the most common load-failure cause.)"
             )
         return lines
@@ -246,8 +246,8 @@ def format_diagnosis(diagnostics: list[Diagnostic], *, checked_references: bool)
         lines.append("This save carries a fatal problem and would not load under the given game.")
     elif not checked_references:
         lines.append(
-            "(no --game given: the dangling-reference check — the most common load "
-            "cause — was not run. Re-run with --game <root> to include it.)"
+            "(no --game given: the dangling-reference check - the most common load "
+            "cause - was not run. Re-run with --game <root> to include it.)"
         )
     lines.append("")
     label = {"fatal": "FATAL  ", "warning": "WARNING", "info": "INFO   "}

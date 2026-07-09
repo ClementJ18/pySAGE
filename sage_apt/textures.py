@@ -19,8 +19,8 @@ from sage_utils.textures import TextureSource
 
 
 class AptTextureResolver:
-    """Crops `image` characters out of a movie's `apt_<Movie>_<id>` atlas textures, and —
-    when a `_geometry` directory was loaded — supplies the per-shape textured/solid fills
+    """Crops `image` characters out of a movie's `apt_<Movie>_<id>` atlas textures, and -
+    when a `_geometry` directory was loaded - supplies the per-shape textured/solid fills
     plus the whole atlas so `shape` characters can be drawn with real artwork.
 
     `movie` is the movie base name (e.g. `FactionFrame`); `image_map` supplies the
@@ -51,7 +51,7 @@ class AptTextureResolver:
                     picture = Image.open(io.BytesIO(data))
                     picture.load()
                     picture = picture.convert("RGBA")
-                except Exception:  # noqa: BLE001 — an undecodable atlas just disables its images
+                except Exception:  # noqa: BLE001 - an undecodable atlas just disables its images
                     picture = None
             self._atlas[texture_id] = picture
         return self._atlas[texture_id]
@@ -85,7 +85,7 @@ class AptTextureResolver:
         return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
 
     def rect_of(self, image_id: int) -> tuple[int, int, int, int] | None:
-        """The image's on-screen (x, y, w, h) — passthrough to the image map."""
+        """The image's on-screen (x, y, w, h) - passthrough to the image map."""
         return self.image_map.rect_of(image_id)
 
     # --- shape geometry ---
@@ -162,7 +162,7 @@ def build_resolver(apt_or_xml_path, game_dir) -> AptTextureResolver | None:
     """Build a resolver for the movie at `apt_or_xml_path`, sourcing textures from
     `game_dir` (a folder scanned for `.dds`/`.tga`, including `compiledtextures`). Returns
     None when `game_dir` is falsy, the `.dat` image map yields nothing usable, or no
-    matching atlas texture is found — the caller then keeps its placeholder rendering.
+    matching atlas texture is found - the caller then keeps its placeholder rendering.
 
     Imported lazily by the CLI/editor so `import sage_apt` never needs the `[apt]` extra."""
     if not game_dir:

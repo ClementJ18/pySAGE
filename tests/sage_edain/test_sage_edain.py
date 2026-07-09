@@ -474,7 +474,7 @@ class TestDiffCommand:
 
     def test_diff_command_json(self, tmp_path, capsys):
         # The CLI walks the canonical Edain start flags, which the synthetic fixture doesn't
-        # use, so assert on a spellbook change — resolved regardless of start plots.
+        # use, so assert on a spellbook change - resolved regardless of start plots.
         old = self._write(tmp_path / "old", FIXTURE)
         new = self._write(
             tmp_path / "new", FIXTURE.replace("ReloadTime = 30000", "ReloadTime = 60000")

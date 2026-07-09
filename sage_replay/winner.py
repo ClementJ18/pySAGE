@@ -4,23 +4,23 @@ A replay records inputs, not state: eliminations are computed by the simulation 
 written to the stream, so no chunk says who won. What the stream does record is how each
 human session *ended*, and those shapes carry a verdict whenever somebody conceded:
 
-- `0x448` (Boolean) — the voluntary **leave-game** action, a player's final order when
+- `0x448` (Boolean) - the voluntary **leave-game** action, a player's final order when
   they exit mid-game (the recording player's own exit included). Exiting from the
   post-game victory/defeat screen emits none.
-- `0x1D` — the **end-of-recording** marker: issued once, at the last timecode, attributed
-  to the player whose client wrote the file — it identifies the replay's point of view.
-- `0x44A` — the per-client checksum **heartbeat** (~100 frames). Only humans emit orders
+- `0x1D` - the **end-of-recording** marker: issued once, at the last timecode, attributed
+  to the player whose client wrote the file - it identifies the replay's point of view.
+- `0x44A` - the per-client checksum **heartbeat** (~100 frames). Only humans emit orders
   of any kind (AI players leave no trace at all), so a heartbeat going silent long before
   the recording ends marks a drop even without a leave order.
 
-The inference is a concession heuristic, not a simulation — it assumes leaving mid-game
+The inference is a concession heuristic, not a simulation - it assumes leaving mid-game
 concedes. Its honest outcomes:
 
-- ``decided`` — exactly one side still present at the end and every opposing human
+- ``decided`` - exactly one side still present at the end and every opposing human
   observably gone (left or dropped).
-- ``recorder_left`` — the recording player quit first. They conceded, but everyone
+- ``recorder_left`` - the recording player quit first. They conceded, but everyone
   else's fate lies beyond the end of the recording (an incomplete point of view).
-- ``undetermined`` — nobody left before the recording ended (an elimination ending,
+- ``undetermined`` - nobody left before the recording ended (an elimination ending,
   which the input stream does not record), or the surviving opposition includes AI
   players, whose fate is invisible.
 
@@ -75,7 +75,7 @@ class PlayerSession:
 
 @dataclass(slots=True)
 class Side:
-    """One team — or a solo player where the metadata carries no team — plus its AI
+    """One team - or a solo player where the metadata carries no team - plus its AI
     count. AI players issue no orders and no heartbeats, so a side with any AI on it
     can never be shown to have fully departed."""
 
@@ -138,7 +138,7 @@ def infer_winner(replay: ReplayFile) -> WinnerVerdict:
     end = replay.chunks[-1].timecode
     sides = _build_sides(replay, sessions)
 
-    # A side survives while any of its humans is still present — or while it has AI
+    # A side survives while any of its humans is still present - or while it has AI
     # players at all, since their departure (or death) is unobservable.
     surviving = [
         side
@@ -166,7 +166,7 @@ def infer_winner(replay: ReplayFile) -> WinnerVerdict:
         return WinnerVerdict(
             outcome="recorder_left",
             reason=(
-                "the recording player left mid-game — a concession in practice; "
+                "the recording player left mid-game - a concession in practice; "
                 "everyone else's fate lies beyond the end of this recording"
             ),
             recorder=recorder_name,
@@ -175,7 +175,7 @@ def infer_winner(replay: ReplayFile) -> WinnerVerdict:
 
     if all(s.departed_at(end) is None for s in sessions):
         reason = (
-            "nobody left before the recording ended — the game likely finished by "
+            "nobody left before the recording ended - the game likely finished by "
             "elimination, which the input stream does not record"
         )
     elif any(side.ai_count > 0 and not side.humans for side in surviving):

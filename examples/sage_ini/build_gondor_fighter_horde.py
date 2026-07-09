@@ -1,7 +1,7 @@
 """Build a unit from scratch in Python: a GondorFighter horde, its members,
 their weapon, and the command buttons that drive it.
 
-`sage_ini`'s model is parse-driven — a typed `Object`/`Weapon`/`CommandButton`
+`sage_ini`'s model is parse-driven - a typed `Object`/`Weapon`/`CommandButton`
 is built from an AST `Block`, not from a constructor. So "creating a unit purely
 from Python" means assembling the AST yourself and feeding it to the same two
 public entry points the loader uses:
@@ -11,7 +11,7 @@ public entry points the loader uses:
 
 The two tiny helpers below (`attr`, `block`) hide the boilerplate of building
 `Attribute`/`Block` nodes (every node carries a `Span`; for hand-built content a
-single placeholder span is fine — spans only matter for diagnostics pointing at
+single placeholder span is fine - spans only matter for diagnostics pointing at
 real files).
 
 Run from the repo root:  .venv/Scripts/python examples/build_gondor_fighter_horde.py
@@ -207,7 +207,7 @@ def build_document() -> IniDocument:
 def main() -> None:
     doc = build_document()
 
-    # 1) Emit canonical .ini text — paste this straight into a mod's ini folder.
+    # 1) Emit canonical .ini text - paste this straight into a mod's ini folder.
     print("=" * 70)
     print("GENERATED .INI")
     print("=" * 70)

@@ -64,7 +64,7 @@ def duel(game: Game, name_a: str, name_b: str) -> str:
         print(f"{n}: {hp[n]:.0f} HP, {dmg[n]:.0f}/hit every {interval[n]:.0f}ms")
 
     if dmg[name_a] <= 0 and dmg[name_b] <= 0:
-        print("  neither can damage the other — stalemate.")
+        print("  neither can damage the other - stalemate.")
         return ""
 
     while hp[name_a] > 0 and hp[name_b] > 0:
@@ -81,7 +81,7 @@ def duel(game: Game, name_a: str, name_b: str) -> str:
 
     dead = [n for n in units if hp[n] <= 0]
     if len(dead) == 2:
-        print(f"  both fall at t={t:.0f}ms — draw.")
+        print(f"  both fall at t={t:.0f}ms - draw.")
         return ""
     loser = dead[0]
     winner = other[loser]

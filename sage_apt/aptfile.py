@@ -128,14 +128,14 @@ def _fmt_float(v):
 def _read_from_bigs(basename, game_dir):
     """The bytes of the first `.big` member under `game_dir` whose basename matches
     `basename` (case-insensitive), or None. pyBIG is imported lazily so the core stays
-    stdlib-only — reading out of a `.big` needs the optional `[apt]` extra."""
-    from pyBIG import InDiskArchive  # noqa: PLC0415 — lazy: the [apt] extra is optional
+    stdlib-only - reading out of a `.big` needs the optional `[apt]` extra."""
+    from pyBIG import InDiskArchive  # noqa: PLC0415 - lazy: the [apt] extra is optional
 
     target = basename.lower()
     for big in sorted(Path(game_dir).rglob("*.big")):
         try:
             archive = InDiskArchive(str(big))
-        except Exception:  # noqa: BLE001 — a corrupt/locked .big shouldn't abort the search
+        except Exception:  # noqa: BLE001 - a corrupt/locked .big shouldn't abort the search
             continue
         for name in archive.file_list():
             if name.replace("\\", "/").rsplit("/", 1)[-1].lower() == target:
@@ -159,7 +159,7 @@ def _resolve_source(path, game_dir, reason):
 def apt_to_xml(filename, game_dir=None):
     """Decompile the `.apt`/`.const` pair at `filename` to XML. Returns the written
     `.xml` path; raises `AptError` if either input file is missing. Each half is resolved
-    loose-file-first, then — when `game_dir` is given — out of the `.big` archives beneath
+    loose-file-first, then - when `game_dir` is given - out of the `.big` archives beneath
     it, so a `.apt` whose `.const` (or the `.apt` itself) only lives inside a `.big` still
     decompiles."""
     apt_path = Path(filename)

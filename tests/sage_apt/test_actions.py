@@ -42,7 +42,7 @@ def _compile(children_xml):
     return ab
 
 
-# Phase 2 — pushregister (0xB9)
+# Phase 2 - pushregister (0xB9)
 
 
 def test_pushregister_reads_operand_byte():
@@ -71,7 +71,7 @@ def test_pushregister_round_trip_identity():
     ]
 
 
-# Phase 2 — pushwordconstant (0xA3)
+# Phase 2 - pushwordconstant (0xA3)
 
 
 def test_pushwordconstant_reads_single_u16():
@@ -101,7 +101,7 @@ def test_pushwordconstant_round_trip_identity():
     ]
 
 
-# Phase 3 — recomputed definefunction body sizes
+# Phase 3 - recomputed definefunction body sizes
 
 
 def _def_size_field(buf, size_offset):
@@ -146,7 +146,7 @@ def test_nested_definefunction_sizes_enclose_inner():
     assert [c.tag for c in inner.find("body")] == ["pushbyte", "trace"]
 
 
-# Phase 4 — label-based branches
+# Phase 4 - label-based branches
 
 
 def test_forward_and_backward_branches_resolve_to_labels():

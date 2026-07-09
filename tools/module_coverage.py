@@ -2,7 +2,7 @@
 
 For every `Behavior`/`ClientBehavior`/`Body`/`Draw`/... header, report how many
 distinct module types resolve to a typed class versus stay generic, and list
-the most common still-generic types — the input to typed-coverage decisions.
+the most common still-generic types - the input to typed-coverage decisions.
 
 Usage: python tools/module_coverage.py <root> [<root> ...]
 """

@@ -8,8 +8,8 @@ task-oriented recipes against the public API.
 The names re-exported here (and listed in `__all__`) are the supported surface: the
 loader, the typed `Game`/`IniObject` model, the comment-preserving parser and printer, the
 `walk`/`Xref` traversal helpers, and the `Diagnostic` types a tool author builds checkers
-against. Each public module also declares its own `__all__`; anything not exported — and
-every `_`-prefixed name — is internal and may change without notice.
+against. Each public module also declares its own `__all__`; anything not exported - and
+every `_`-prefixed name - is internal and may change without notice.
 
 `sage_ini` ships a `py.typed` marker, so the field typing on the model surfaces in a
 consumer's type checker and IDE. The package follows semantic versioning **on that public

@@ -188,7 +188,7 @@ def test_save_and_load_sources_round_trip(tmp_path, monkeypatch):
 
 
 def test_load_sources_carries_base_layouts(tmp_path: Path):
-    """`.bse` files ride along with a load and land in `game.base_layouts` — an unparsable
+    """`.bse` files ride along with a load and land in `game.base_layouts` - an unparsable
     one (this fake) degrades to an empty layout rather than aborting the load."""
     (tmp_path / "units.ini").write_bytes(b"Object Fighter\nEnd\n")
     (tmp_path / "bases").mkdir()
@@ -438,7 +438,7 @@ def test_command_button_images_pairs_buttons_with_mapped_images():
     entries = command_button_images(game, game.commandsets["IconSet"])
 
     # In slot order, every slot present (incl. the button with no icon and the
-    # unloaded one), paired with its resolved MappedImage(s) — a list, since the
+    # unloaded one), paired with its resolved MappedImage(s) - a list, since the
     # button's ButtonImage may name several layered images.
     assert [e["name"] for e in entries] == [
         "Command_Build",
@@ -529,7 +529,7 @@ def test_horde_portrait_falls_to_shell_or_member():
     assert not result.diagnostics
     game.load_document(result.document)
     objects, images = game.objects, game.mappedimages
-    # A horde whose portrait lives on the shell (the member defines none) uses the shell's —
+    # A horde whose portrait lives on the shell (the member defines none) uses the shell's -
     # the case the member-first lookup used to miss, returning nothing.
     assert portrait_mapped_images(objects["ShellPortraitHorde"]) == [images["UPShellPortrait"]]
     # A horde whose portrait lives only on the contained unit still uses the member's.
@@ -600,7 +600,7 @@ def test_special_power_view_resolves_each_module_kind():
     game = _special_powers_game()
     hero = game.objects["HeroUnit"]
 
-    # WeaponFireSpecialAbilityUpdate — the fired SpecialWeapon, as a weapon entry.
+    # WeaponFireSpecialAbilityUpdate - the fired SpecialWeapon, as a weapon entry.
     # The power is also wired by an enabler and a paused starter sharing its
     # template; the weapon-fire module (the real effect) must win over them.
     fire = special_power_view(game, hero, "SpecialPower_Fire")
@@ -613,12 +613,12 @@ def test_special_power_view_resolves_each_module_kind():
     # A power that declares no ReloadTime has no cooldown.
     assert special_power_view(game, hero, "SpecialPower_Buff")["cooldown"] is None
 
-    # SpecialPowerModule — its AttributeModifier ModifierList (toggled on the unit).
+    # SpecialPowerModule - its AttributeModifier ModifierList (toggled on the unit).
     buff = special_power_view(game, hero, "SpecialPower_Buff")
     assert buff["kind"] == "modifier"
     assert buff["modifier"] is game.modifiers["Buff_Modifiers"]
 
-    # OCLSpecialPower — the objects its ObjectCreationList summons. A directly
+    # OCLSpecialPower - the objects its ObjectCreationList summons. A directly
     # summoned real object is a leaf (nothing nested under it).
     summon = special_power_view(game, hero, "SpecialPower_Summon")
     assert summon["kind"] == "summon"
@@ -1139,7 +1139,7 @@ def test_filter_signature_canonicalizes_damage_scalars():
 
 
 def test_filter_signature_is_none_for_an_unscoped_multiplier():
-    # A bare `DamageScalar = 50%` scopes to nothing — the signature is None ("everything").
+    # A bare `DamageScalar = 50%` scopes to nothing - the signature is None ("everything").
     game = Game()
     result = parse(
         "Weapon Flat\n  DamageNugget\n    Damage = 10\n    DamageScalar = 50%\n  End\nEnd\n",
@@ -1173,7 +1173,7 @@ def test_closest_names_finds_a_misspelled_unit():
     assert closest_names("Gondr Knight", names)[0] == "Gondor Knight"
     # Nothing close enough yields no suggestion rather than a misleading one.
     assert closest_names("zzzzzzzz", names) == []
-    # Not gated by the global suggestion flag — an interactive caller always gets matches.
+    # Not gated by the global suggestion flag - an interactive caller always gets matches.
     assert closest_names("Tower Gaurd", names) == ["Tower Guard"]
 
 

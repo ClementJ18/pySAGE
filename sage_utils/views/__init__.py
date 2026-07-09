@@ -2,10 +2,10 @@
 renders. Lazy conversion can raise, so every getter degrades to a default (`safe`)
 rather than abort the view.
 
-Split by subject — `weapons` (damage/DPS/armor), `powers` (special powers, summon
+Split by subject - `weapons` (damage/DPS/armor), `powers` (special powers, summon
 chains, modifiers), `text` (localization/display names), `buttons` (command buttons,
 sets and their images), `factions` (playable factions, hero recruitment, the builder
-index), `objects` (economy and detail summaries) — over the shared primitives in
+index), `objects` (economy and detail summaries) - over the shared primitives in
 `base`. Everything public is re-exported here; import from `sage_utils.views`.
 """
 

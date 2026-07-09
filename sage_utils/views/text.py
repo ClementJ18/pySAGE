@@ -35,7 +35,7 @@ def clean_text(text: str | None) -> str | None:
 def localize(game, label) -> str:
     """A string-table label resolved to its display text (the raw label if absent). Only
     the first of a toggle button's several labels is used; resolution falls back to a
-    case-insensitive lookup. Returns raw text — a display caller flattens it via `clean_text`."""
+    case-insensitive lookup. Returns raw text - a display caller flattens it via `clean_text`."""
     if isinstance(label, list):
         label = label[0] if label else None
     if not label:
@@ -92,7 +92,7 @@ def display_name_index(game, names) -> tuple[list[str], dict[str, str]]:
 
 def upgrade_label(game, name: str) -> str:
     """An upgrade's localized DisplayName, or its raw template name when it declares none or
-    isn't loaded — the friendly label for an upgrade/ability toggle ("Fire Arrows", not
+    isn't loaded - the friendly label for an upgrade/ability toggle ("Fire Arrows", not
     `Upgrade_FireArrows`)."""
     upgrade = game.upgrades.get(name)
     if upgrade is None:

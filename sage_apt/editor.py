@@ -33,7 +33,7 @@ class _EditorHandler(BaseHTTPRequestHandler):
     instantiates the handler itself."""
 
     xml_path: Path
-    resolver = None  # AptTextureResolver | None — real-artwork lookup when a game dir is set
+    resolver = None  # AptTextureResolver | None - real-artwork lookup when a game dir is set
 
     def log_message(self, *_):
         pass
@@ -111,7 +111,7 @@ class _EditorHandler(BaseHTTPRequestHandler):
                 pretty = reformat_xml(body["content"])
                 self.xml_path.write_bytes(pretty)
                 self._json({"ok": True})
-            except Exception as e:  # noqa: BLE001 — report to the browser, keep serving
+            except Exception as e:  # noqa: BLE001 - report to the browser, keep serving
                 self._json({"ok": False, "msg": str(e)})
 
         elif path == "/api/convert":
@@ -120,7 +120,7 @@ class _EditorHandler(BaseHTTPRequestHandler):
                 self._json({"ok": True, "msg": "Exported " + apt_path.name})
             except AptError as e:
                 self._json({"ok": False, "msg": str(e)})
-            except Exception as e:  # noqa: BLE001 — report to the browser, keep serving
+            except Exception as e:  # noqa: BLE001 - report to the browser, keep serving
                 self._json({"ok": False, "msg": str(e)})
 
         else:

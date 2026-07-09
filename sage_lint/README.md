@@ -3,7 +3,7 @@
 A formatter and linter for SAGE ini game data, built on [`sage_ini`](../sage_ini).
 
 It canonically reprints files (preserving comments and intentional blank lines) and
-assembles a whole game to report problems — the parse/load/conversion facts from
+assembles a whole game to report problems - the parse/load/conversion facts from
 `sage_ini` plus judgment rules: repeated fields, unknown or dangling references,
 out-of-range values, duplicate definitions, undefined macros, unused definitions, and
 more. `analysis.py` layers meta-analysis on top (per-faction stats, cost curves,

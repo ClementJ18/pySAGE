@@ -1,6 +1,6 @@
 """Step 0 infrastructure: the decoder registry, the coverage report, and the reversing aids.
 
-The registry test is the payoff of `CHUNK_CODECS` — one parametrized case round-trips every
+The registry test is the payoff of `CHUNK_CODECS` - one parametrized case round-trips every
 registered encoder over every fixture, so a new decoder is regression-tested for free. Coverage
 and the reversing helpers (`nested_block_tree`, `first_difference`) get focused tests, mostly on
 synthetic bytes so they don't depend on which fixtures are present."""
@@ -51,7 +51,7 @@ def test_registry_membership():
         "CHUNK_TacticalView",
         "CHUNK_TeamFactory",
     } <= set(CHUNK_CODECS)
-    # every registered codec now carries an exact-inverse encoder — including GameLogic and
+    # every registered codec now carries an exact-inverse encoder - including GameLogic and
     # GameClient, whose object/drawable bodies stay opaque but round-trip verbatim (their KOLB
     # end-offsets are recomputed from each object's stored body offset)
     assert all(codec.encode is not None for codec in CHUNK_CODECS.values())

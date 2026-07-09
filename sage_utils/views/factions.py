@@ -14,7 +14,7 @@ _HERO_PLACEHOLDERS = frozenset({"CreateAHero", "RingHeroDummy"})
 
 def playable_faction_objects(game) -> list:
     """The playable `PlayerTemplate`s (a faction with `PlayableSide = Yes`), in faction-table
-    order — the raw objects, for callers that walk the model themselves."""
+    order - the raw objects, for callers that walk the model themselves."""
     return [f for f in game.factions.values() if safe(lambda f=f: f.PlayableSide)]
 
 
@@ -22,10 +22,10 @@ def playable_factions(game) -> list[dict]:
     """Playable factions (a `PlayerTemplate` with `PlayableSide = Yes`) in faction-table
     order, for the Faction Info panel. Each entry carries:
 
-    - `name` / `display` — the raw template name and its localized DisplayName.
-    - `heroes` — buildable heroes (`BuildableHeroesMP` then `BuildableRingHeroesMP`),
+    - `name` / `display` - the raw template name and its localized DisplayName.
+    - `heroes` - buildable heroes (`BuildableHeroesMP` then `BuildableRingHeroesMP`),
       de-duplicated, with the `CreateAHero`/`RingHeroDummy` placeholders dropped.
-    - `spellbook` — the faction-specific `SpellBookMp`, else the shared `SpellBook`, or None.
+    - `spellbook` - the faction-specific `SpellBookMp`, else the shared `SpellBook`, or None.
     """
     factions = []
     for faction in playable_faction_objects(game):
@@ -65,14 +65,14 @@ def faction_for_side(game, side):
 
 
 def building_faction(game, obj):
-    """The playable faction a building belongs to — matched on its `Side` field — or None."""
+    """The playable faction a building belongs to - matched on its `Side` field - or None."""
     raw = obj._fields.get("Side")
     side = str(raw[-1] if isinstance(raw, list) else raw) if raw else None
     return faction_for_side(game, side)
 
 
 def revive_order(faction) -> list[str]:
-    """A faction's heroes in REVIVE-slot order — its ring heroes then its regular buildable
+    """A faction's heroes in REVIVE-slot order - its ring heroes then its regular buildable
     heroes, raw and in declaration order. The `CreateAHero`/`RingHeroDummy` placeholders are
     kept so each entry's index lines up with a command set's revive slots."""
     order: list[str] = []

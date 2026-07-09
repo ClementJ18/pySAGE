@@ -15,6 +15,7 @@ from sage_lint.rules.definitions import (
 )
 from sage_lint.rules.macros import UndefinedMacroRule
 from sage_lint.rules.map_ini import MapBareModuleRule
+from sage_lint.rules.modifier_fx import ModifierFxDurationRule
 from sage_lint.rules.module_ops import ModuleOperationRule
 from sage_lint.rules.module_refs import ModuleTagReferenceRule
 from sage_lint.rules.modules import UnrecognizedBlockRule
@@ -26,7 +27,7 @@ from sage_lint.rules.schema import (
     SpuriousBlockLabelRule,
     UnknownAttributeRule,
 )
-from sage_lint.rules.strings import UnknownStringLabelRule
+from sage_lint.rules.strings import MapLocalStringRule, UnknownStringLabelRule
 
 __all__ = [
     "RULES",
@@ -37,9 +38,11 @@ __all__ = [
     "DuplicateReviveButtonRule",
     "MapBareModuleRule",
     "MapFolderNameRule",
+    "MapLocalStringRule",
     "MissingMapFileRule",
     "MissingModelFileRule",
     "MissingTextureFileRule",
+    "ModifierFxDurationRule",
     "ModuleOperationRule",
     "ModuleTagReferenceRule",
     "OutOfRangeRule",

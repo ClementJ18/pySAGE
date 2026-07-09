@@ -45,7 +45,7 @@ class TestXref:
         assert not xref.is_referenced(game.upgrades["Lonely"])
 
     def test_a_dangling_reference_is_not_an_edge(self):
-        # The target does not resolve to a registered object, so it is no edge —
+        # The target does not resolve to a registered object, so it is no edge -
         # a dangling reference is the validate/lint pass's concern, not the graph's.
         game = _load("CommandButton Command_Bar\n    Upgrade = Missing\nEnd\n")
         xref = Xref(game)
@@ -102,5 +102,5 @@ def test_corpus_reverse_reference_is_discoverable():
 
     fighter = game.objects["GondorFighter"]
     referrers = {obj.name for obj in xref.referenced_by(fighter)}
-    # The fighter's horde fields it as a member — a known corpus fact.
+    # The fighter's horde fields it as a member - a known corpus fact.
     assert "GondorFighterHorde" in referrers

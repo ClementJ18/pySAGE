@@ -1,16 +1,16 @@
 """Phase 2: a game-aware view over a parsed `.map`.
 
-Harvests the symbols a map declares for itself — teams, players, waypoints and their paths,
-trigger areas, scripts, named units — keyed by the same `target` names the MAP-scope entries in
+Harvests the symbols a map declares for itself - teams, players, waypoints and their paths,
+trigger areas, scripts, named units - keyed by the same `target` names the MAP-scope entries in
 `ARG_SPECS` use. The Phase 3 rules ask `MapSymbols.resolve(target, name)` to tell a dangling
 map-local reference (a script targeting a team the map never defines) from a valid one.
 
-Counters, flags and boundaries are referenced by scripts but never *declared* — the engine creates
-them on first use — so they are deliberately untracked: a reference to one cannot be dangling, and
+Counters, flags and boundaries are referenced by scripts but never *declared* - the engine creates
+them on first use - so they are deliberately untracked: a reference to one cannot be dangling, and
 `resolve` returns `None` (skip) for those targets rather than a membership answer.
 
 `iter_script_arguments` walks the script tree and pairs every argument with its `ResolvedArg`
-(`sage_map.scripts`) and a logical address — `<ScriptName>/if_true[2]/arg[1]` — that names where in
+(`sage_map.scripts`) and a logical address - `<ScriptName>/if_true[2]/arg[1]` - that names where in
 the binary it lives, since a `.map` has no text line for a Diagnostic to point at.
 """
 
@@ -42,7 +42,7 @@ class MapSymbols:
     """The names a map defines, grouped by the `ARG_SPECS` MAP-scope target they answer for.
 
     Membership is case-insensitive (the engine interns names loosely, as `Game.lookup` does for
-    ini definitions). A target absent from `_tables` is untracked — `resolve` returns `None` so a
+    ini definitions). A target absent from `_tables` is untracked - `resolve` returns `None` so a
     rule skips it instead of flagging a reference that was never meant to be declared.
     """
 
@@ -58,7 +58,7 @@ class MapSymbols:
         # `units` and `scripts` are harvested but intentionally *not* resolvable. Units are also
         # created by scripts at runtime, and a `SCRIPT_NAME`/`SUBROUTINE_NAME` reference often
         # targets a subroutine (a script or a *script group*) imported from a library map that is
-        # merged only at runtime — so a name absent from this map's own set is not necessarily
+        # merged only at runtime - so a name absent from this map's own set is not necessarily
         # dangling. The same reason counters/flags/attack-priority-sets are untracked.
         return {
             "teams": self.teams,
@@ -80,7 +80,7 @@ class MapSymbols:
 
     def names(self, target: str) -> set[str] | None:
         """The set of names tracked for `target`, or None when the target is not resolved at all.
-        An empty set means a tracked kind the map happens to declare none of — a caller can skip
+        An empty set means a tracked kind the map happens to declare none of - a caller can skip
         resolving against it rather than flag everything."""
         return self._table(target)
 
@@ -167,7 +167,7 @@ def _walk_items(items: list) -> Iterator[_ScriptRef]:
 
 
 def script_names(map_obj: Map) -> set[str]:
-    """Lower-cased names of the leaf scripts the map defines (informational only — script
+    """Lower-cased names of the leaf scripts the map defines (informational only - script
     references are not resolved; see `MapSymbols._table`)."""
     return {ref.script_name.lower() for ref in _iter_scripts(map_obj)}
 
@@ -193,7 +193,7 @@ def iter_script_arguments(map_obj: Map) -> Iterator[ScriptArgRef]:
 
 @dataclass
 class MapModel:
-    """A parsed `.map` plus the symbols it declares — the unit the Phase 3 rules lint."""
+    """A parsed `.map` plus the symbols it declares - the unit the Phase 3 rules lint."""
 
     raw: Map
     symbols: MapSymbols
@@ -211,7 +211,7 @@ class MapModel:
         return iter_script_arguments(self.raw)
 
     def references(self) -> Iterator[ScriptArgRef]:
-        """Only the arguments that name something resolvable — GAME, MAP or STRINGS scope — which
+        """Only the arguments that name something resolvable - GAME, MAP or STRINGS scope - which
         is the subset the Phase 3 reference rules act on."""
         for ref in self.script_arguments():
             if ref.resolved.spec.scope in (Scope.GAME, Scope.MAP, Scope.STRINGS):

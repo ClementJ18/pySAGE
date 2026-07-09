@@ -168,19 +168,19 @@ svg#stage .apt-elem.selected > line{filter:brightness(2.5)}
               <input class="field-input" id="po-ty" type="number" step="0.5"/>
             </div>
             <div class="two-col" style="margin-bottom:5px">
-              <div class="field-row" title="rotm00 — X scale">
+              <div class="field-row" title="rotm00 - X scale">
                 <span class="field-label" style="width:40px">scaleX</span>
                 <input class="field-input" id="po-m00" type="number" step="0.01"/>
               </div>
-              <div class="field-row" title="rotm11 — Y scale">
+              <div class="field-row" title="rotm11 - Y scale">
                 <span class="field-label" style="width:40px">scaleY</span>
                 <input class="field-input" id="po-m11" type="number" step="0.01"/>
               </div>
-              <div class="field-row" title="rotm01 — shear/rotation">
+              <div class="field-row" title="rotm01 - shear/rotation">
                 <span class="field-label" style="width:40px">m01</span>
                 <input class="field-input" id="po-m01" type="number" step="0.01"/>
               </div>
-              <div class="field-row" title="rotm10 — shear/rotation">
+              <div class="field-row" title="rotm10 - shear/rotation">
                 <span class="field-label" style="width:40px">m10</span>
                 <input class="field-input" id="po-m10" type="number" step="0.01"/>
               </div>
@@ -293,7 +293,7 @@ function loadXML() {
     populateLabelSelect();
     populateAddCharSelect();
     // Fetch the real-artwork manifests (empty unless the server was given a game dir),
-    // then render — shapes with geometry draw as textures, images with a rect too.
+    // then render - shapes with geometry draw as textures, images with a rect too.
     Promise.all([
       fetch('/api/textures').then(function(r){ return r.json(); }).catch(function(){ return {}; }),
       fetch('/api/geometry').then(function(r){ return r.json(); }).catch(function(){ return {}; })
@@ -682,7 +682,7 @@ function renderChar(charId, worldT, poNode, stage, depth, ownerUid) {
     g.appendChild(rc3); g.appendChild(txEl);
   }
 
-  // hover tooltip — show the registered (sprite instance) po info
+  // hover tooltip - show the registered (sprite instance) po info
   g.addEventListener('mouseenter', function(e) {
     var tip = document.getElementById('stage-tip');
     var regPo = poRegistry.get(uid);

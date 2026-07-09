@@ -1,7 +1,7 @@
 """Reader for SAGE replay files (`.rep`, `.BfMEReplay`, `.BfME2Replay`).
 
 A replay is a header (timestamps, game version, the ASCII metadata string carrying the
-map and player slots) followed by a stream of order chunks — one per issued command,
+map and player slots) followed by a stream of order chunks - one per issued command,
 tagged with a logic-frame timecode and the issuing player. The header layouts diverge
 per game; the chunk stream is shared. The Generals path follows OpenSAGE's ReplayFile
 implementation; the BFME2 path was validated against a corpus of real replays (every
@@ -59,7 +59,7 @@ class OrderArgumentType(IntEnum):
 
 
 class GeneralsOrderType(IntEnum):
-    """Order-type ids as named by OpenSAGE — for **Generals** replays. BFME2 reuses the
+    """Order-type ids as named by OpenSAGE - for **Generals** replays. BFME2 reuses the
     same numeric range with different meanings, so BFME chunks keep the raw integer."""
 
     EndGame = 27
@@ -145,7 +145,7 @@ class ReplaySlotDifficulty(IntEnum):
 
 @dataclass
 class ReplayTimestamp:
-    """Windows SYSTEMTIME — eight little-endian uint16s."""
+    """Windows SYSTEMTIME - eight little-endian uint16s."""
 
     year: int
     month: int
@@ -234,7 +234,7 @@ class ReplaySlot:
 @dataclass
 class ReplayMetadata:
     """The header's ASCII `key=value;` string. Known keys get typed accessors; every
-    pair (known or not — BFME2 adds `GSID`, `GT`, `SI`, `GR`) survives in `values`."""
+    pair (known or not - BFME2 adds `GSID`, `GT`, `SI`, `GR`) survives in `values`."""
 
     raw: str = ""
     values: dict[str, str] = field(default_factory=dict)
@@ -288,7 +288,7 @@ class ReplayHeader:
     version: str
     build_date: str
     metadata: ReplayMetadata
-    # Generals only — the BFME2 header has a 9-byte block of unknown layout instead
+    # Generals only - the BFME2 header has a 9-byte block of unknown layout instead
     # (kept in unknown2), so no minor/major split is available there.
     version_minor: int | None = None
     version_major: int | None = None
@@ -448,7 +448,7 @@ def _read_argument(stream: BinaryStream, argument_type: OrderArgumentType) -> ob
         case OrderArgumentType.ScreenRectangle:
             return tuple(stream.readInt32() for _ in range(4))
         case _:
-            # Unknown4/5/9/10 — four opaque bytes each. Validated for Unknown9 on
+            # Unknown4/5/9/10 - four opaque bytes each. Validated for Unknown9 on
             # BFME2 (the stream then lands exactly on end-of-file).
             return stream.readBytes(4)
 
@@ -502,7 +502,7 @@ class ReplayFile:
 
 
 def parse_replay(data: bytes, only_header: bool = False) -> ReplayFile:
-    """Parse replay file bytes. With `only_header` the chunk stream is skipped —
+    """Parse replay file bytes. With `only_header` the chunk stream is skipped -
     a cheap peek when only the map/players/version matter."""
     stream = BinaryStream(BytesIO(data))
     header = ReplayHeader.parse(stream)
@@ -516,7 +516,7 @@ def parse_replay(data: bytes, only_header: bool = False) -> ReplayFile:
         replay.chunks.append(ReplayChunk.parse(stream))
 
     # A crashed game never finalizes the header and leaves its timecode count 0
-    # (observed on a real crash replay) — the cross-check only applies when set.
+    # (observed on a real crash replay) - the cross-check only applies when set.
     if replay.chunks and header.num_timecodes not in (0, replay.chunks[-1].timecode):
         raise ValueError(
             f"timecode count mismatch: header says {header.num_timecodes}, "

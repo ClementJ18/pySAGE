@@ -12,7 +12,7 @@ from sage_ini.stats import ini_root
 from sage_lint.commands.serve import _defs_changed
 from sage_lint.linter import lint_file, lint_file_cached, lint_file_cached_game
 
-# A locomotor and an object that references it from a *separate* file — the case a single-file
+# A locomotor and an object that references it from a *separate* file - the case a single-file
 # lint cannot resolve, but a cache-backed re-lint can.
 _LOCO = "Locomotor MyLoco\n    Surfaces = GROUND\nEnd\n"
 _HERO = (
@@ -105,8 +105,8 @@ class TestDefsChanged:
 
     def test_a_cross_file_redefinition_does_not_flag(self, tmp_path):
         # hero.ini gains its own `Locomotor MyLoco`: the name already resolves in the cache
-        # (attributed to locomotor.ini), so the reachable name set — what sibling files can
-        # reference — is unchanged, and saving hero.ini must not rebuild on every save.
+        # (attributed to locomotor.ini), so the reachable name set - what sibling files can
+        # reference - is unchanged, and saving hero.ini must not rebuild on every save.
         root = _mod(tmp_path)
         cache = load_game(root).game
         (root / "hero.ini").write_text(_HERO + _LOCO, encoding="utf-8")

@@ -67,7 +67,7 @@ from sage_ini.model.state import has_kindof
 infantry = [obj.name for obj in walk_objects(game) if has_kindof(obj, "INFANTRY")]
 ```
 
-Filter by model class with the second argument — e.g. only top-level objects:
+Filter by model class with the second argument - e.g. only top-level objects:
 
 ```python
 from sage_ini import walk_objects
@@ -142,7 +142,7 @@ new_text = print_document(doc)   # canonical formatting, BuildCost now 250, rest
 
 Build checks straight against the model instead of shelling out to the linter CLI:
 `walk_objects` to traverse, each object's `.fields` (raw values) or typed attributes to
-inspect, and `Diagnostic` / `Diagnostics` / `Span` to report — the same types the linter and
+inspect, and `Diagnostic` / `Diagnostics` / `Span` to report - the same types the linter and
 its editor integration consume.
 
 ```python

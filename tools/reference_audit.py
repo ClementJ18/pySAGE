@@ -1,5 +1,5 @@
 """Audit reference-typing coverage: every field that is *not* yet typed as a cross-reference
-but whose real values resolve as names in a Game table — i.e. a reference the schema does not
+but whose real values resolve as names in a Game table - i.e. a reference the schema does not
 yet declare as one.
 
 The dangling-reference rule only judges fields the model types as references (a `Reference`
@@ -9,7 +9,7 @@ is an invisible reference: a dangling one there is caught by nothing. This tool 
 
 Like `string_field_audit`, it changes nothing: it inventories the candidate fields (with their
 `file:line` and current annotation from the source AST), samples the real values each takes
-across the corpus, and for each proposes the `Reference(table)` the data supports — with a
+across the corpus, and for each proposes the `Reference(table)` the data supports - with a
 resolution fraction and a confidence flag, and the target table grouped as gameplay vs asset
 (art/audio names routinely live outside the data set, so an asset match is typed but should
 stay out of the rule's flagging). A human corrects the `proposed` column before any retype.
@@ -61,7 +61,7 @@ ASSET_TABLES = frozenset(
 )
 
 # Real (strict) enums: a field already typed as one whose tokens happen to match a table's
-# names (DEFAULT/Low/High/...) is an enum, not a reference — flag those matches as low.
+# names (DEFAULT/Low/High/...) is an enum, not a reference - flag those matches as low.
 _ENUMS = tuple(o for o in vars(_e).values() if isinstance(o, _enum.EnumType) and o.__members__)
 
 # Tables that exist but are never cross-referenced by name: config/LOD singletons whose member

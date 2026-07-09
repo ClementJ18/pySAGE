@@ -1,4 +1,4 @@
-"""A human-readable diff of WorldBuilder `.map` files — between two parsed maps, two paths, or
+"""A human-readable diff of WorldBuilder `.map` files - between two parsed maps, two paths, or
 the map files one git commit touches.
 
 A `.map` is binary, so `git show` can only say "binary files differ". This module parses both
@@ -7,13 +7,13 @@ sides and compares the *content* the way a mapper thinks about it: placed object
 inserted object does not shift-flood the report), teams and players by name, scripts rendered as
 `if/do/else` sentences and line-diffed, trigger areas, map settings, and a terrain summary
 (counting changed heightmap cells rather than printing them). Assets with no curated section are
-still equality-checked — with the `start_pos`/`end_pos` stream offsets stripped, since any earlier
-size change shifts every later offset — and reported as a one-line "changed" note, so nothing is
+still equality-checked - with the `start_pos`/`end_pos` stream offsets stripped, since any earlier
+size change shifts every later offset - and reported as a one-line "changed" note, so nothing is
 silently ignored.
 
 The git entry points (`diff_commit_maps` for one commit against its parent, `diff_range_maps`
 for the net change between two revs) list the `.map`/`.bse` files touched via `git diff-tree`,
-read each side's blob straight out of the object store (no worktree needed — maps are
+read each side's blob straight out of the object store (no worktree needed - maps are
 self-contained, unlike the ini diff), and diff the parsed pair.
 """
 
@@ -255,7 +255,7 @@ def _object_signature(obj: Any) -> tuple:
 def _diff_objects(old: Map, new: Map) -> SectionDiff:
     """Placed objects. Identical placements cancel out first, so only the touched objects remain;
     the leftovers pair by their unique script name (reported as moves / property edits), and the
-    rest — the typical mass of unnamed scenery — is grouped per template with counts."""
+    rest - the typical mass of unnamed scenery - is grouped per template with counts."""
     section = SectionDiff("objects")
 
     def objects(map_obj: Map) -> list:
@@ -328,7 +328,7 @@ def _diff_objects(old: Map, new: Map) -> SectionDiff:
 
 def _diff_areas(old: Map, new: Map) -> SectionDiff:
     """Trigger areas and polygon triggers (water/river surfaces), both keyed by name. Geometry is
-    summarised — an outline's points are coordinates nobody reads line by line."""
+    summarised - an outline's points are coordinates nobody reads line by line."""
 
     def outline_details(old_points: list, new_points: list) -> list[str]:
         if len(old_points) != len(new_points):
@@ -397,8 +397,8 @@ def _derived_text(item: ScriptDerived) -> str:
 
 
 def _script_body(script: Script) -> list[str]:
-    """A script rendered as one sentence per line — `if:` blocks (conditions within a block AND
-    together, blocks OR together), then `do:`/`else:` actions — the unit the body diff compares."""
+    """A script rendered as one sentence per line - `if:` blocks (conditions within a block AND
+    together, blocks OR together), then `do:`/`else:` actions - the unit the body diff compares."""
     lines: list[str] = []
     for index, or_condition in enumerate(script.or_conditions):
         clause = " AND ".join(_derived_text(c) for c in or_condition.conditions)
@@ -468,7 +468,7 @@ def _diff_scripts(old: Map, new: Map) -> SectionDiff:
 
 def _diff_terrain(old: Map, new: Map) -> SectionDiff:
     """The bulk arrays, summarised: cell counts for the heightmap, a one-liner for the texture
-    blend data — a mapper wants to know the terrain was resculpted, not see the cells."""
+    blend data - a mapper wants to know the terrain was resculpted, not see the cells."""
     section = SectionDiff("terrain")
     old_height = getattr(old, "height_map_data", None)
     new_height = getattr(new, "height_map_data", None)
@@ -582,8 +582,8 @@ def format_map_diff(diff: MapDiff, old_label: str, new_label: str) -> str:
 
 @dataclass(frozen=True)
 class MapFileChange:
-    """One map file a commit (or rev range) touches. `status` is the git kind — "A" added,
-    "D" deleted, "M" modified, "R" renamed (`old_path` set) — with copies folded into "A"."""
+    """One map file a commit (or rev range) touches. `status` is the git kind - "A" added,
+    "D" deleted, "M" modified, "R" renamed (`old_path` set) - with copies folded into "A"."""
 
     status: str
     path: str
@@ -591,12 +591,12 @@ class MapFileChange:
 
 
 def _git(repo: str | Path, *args: str) -> bytes:
-    """Run git against `repo` and return raw stdout — bytes, because blob content is binary."""
+    """Run git against `repo` and return raw stdout - bytes, because blob content is binary."""
     return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True).stdout
 
 
 def _list_changes(repo: str | Path, revs: tuple[str, ...]) -> list[MapFileChange]:
-    """The map files `git diff-tree` reports changed — for one commit (against its parents;
+    """The map files `git diff-tree` reports changed - for one commit (against its parents;
     `--root` so an initial commit lists its maps as additions) or between two endpoint revs."""
     out = _git(
         repo, "diff-tree", "-r", "--root", "--no-commit-id", "--name-status", "-M", "-z", *revs
@@ -624,7 +624,7 @@ def commit_map_changes(repo: str | Path, commit: str = "HEAD") -> list[MapFileCh
 
 
 def range_map_changes(repo: str | Path, old: str, new: str) -> list[MapFileChange]:
-    """The `.map`/`.bse` files that differ between two revs — the *net* change over a range, so
+    """The `.map`/`.bse` files that differ between two revs - the *net* change over a range, so
     a map touched by several commits reports once, and one changed then reverted not at all."""
     return _list_changes(repo, (old, new))
 
@@ -706,7 +706,7 @@ def _diff_changes(
                 old = _map_at(repo, old_ref, change.old_path or change.path)
                 new = _map_at(repo, new_ref, change.path)
                 results.append(MapFileDiff(change, diff=diff_maps(old, new)))
-        except Exception as exc:  # noqa: BLE001 — one unreadable binary map must not abort the batch
+        except Exception as exc:  # noqa: BLE001 - one unreadable binary map must not abort the batch
             results.append(MapFileDiff(change, error=str(exc)))
     return results
 
@@ -718,7 +718,7 @@ def diff_commit_maps(repo: str | Path, commit: str = "HEAD") -> list[MapFileDiff
 
 
 def diff_range_maps(repo: str | Path, old: str, new: str) -> list[MapFileDiff]:
-    """Diff every map file that changed between two revs — the net change over the whole
+    """Diff every map file that changed between two revs - the net change over the whole
     range, endpoint against endpoint."""
     return _diff_changes(repo, range_map_changes(repo, old, new), old, new)
 
@@ -777,7 +777,7 @@ def _render_sections_md(diff: MapDiff, lines: list[str], heading: str) -> None:
 
 
 def format_map_file_diffs_md(results: list[MapFileDiff], old_label: str, new_label: str) -> str:
-    """Render a set of per-file map diffs as GitHub-flavoured markdown — the same report as
+    """Render a set of per-file map diffs as GitHub-flavoured markdown - the same report as
     `format_map_file_diffs`, restructured as headed bullet lists with values code-quoted, so it
     pastes cleanly into a PR description or wiki page."""
     lines = [f"# Map diff: {_md(old_label)} -> {_md(new_label)}", ""]

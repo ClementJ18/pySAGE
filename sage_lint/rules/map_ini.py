@@ -2,7 +2,7 @@
 
 A map is a per-map overlay on the global game: it may *edit* an existing object's modules, but
 only through the `AddModule` / `ReplaceModule` / `RemoveModule` keywords. A module declared
-bare — a plain `Behavior =`, `Draw =`, `Body =` directly on the object — is rejected in a map
+bare - a plain `Behavior =`, `Draw =`, `Body =` directly on the object - is rejected in a map
 context, so the change the mapper intended silently does nothing. This flags those.
 """
 
@@ -17,7 +17,7 @@ from sage_lint.rules.base import Rule
 
 
 def _is_map_file(path: str) -> bool:
-    """Whether `path` is map-scoped — under a `maps/` directory (mirrors
+    """Whether `path` is map-scoped - under a `maps/` directory (mirrors
     `sage_ini.stats.is_map_path`, but from the file alone)."""
     return any(part.lower() == "maps" for part in Path(path).parts[:-1])
 

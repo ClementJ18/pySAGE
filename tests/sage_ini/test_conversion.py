@@ -56,7 +56,7 @@ from sage_ini.parser.blockparser import parse
 
 # These public names are typed aliases (`Annotated[PyType, converter]`) so a field declared
 # with them reads as its converted value type. The tests drive the converter behind the alias,
-# which is exactly what the model extracts at access time — so resolve it here, once.
+# which is exactly what the model extracts at access time - so resolve it here, once.
 AttackPriorityTarget = resolve_annotation(AttackPriorityTarget)
 BannerCarrierPosition = resolve_annotation(BannerCarrierPosition)
 FCurveKey = resolve_annotation(FCurveKey)
@@ -204,7 +204,7 @@ class TestRanges:
         assert rv.distribution is DistributionType.UNIFORM
 
     def test_range_duration_min_max_with_macro_operations(self):
-        # corpus: `ClipReloadTime = Min: #MULTIPLY( MIN 2 ) Max:#MULTIPLY( MAX 2 )` — each
+        # corpus: `ClipReloadTime = Min: #MULTIPLY( MIN 2 ) Max:#MULTIPLY( MAX 2 )` - each
         # bound is a spaced `#OP( ... )`, so the whole expression must reach eval_number, not
         # just its leading `#MULTIPLY(` fragment.
         game = Game()
@@ -272,7 +272,7 @@ class TestReference:
 
     def test_resolves_case_insensitively_and_warns(self):
         # The engine interns names case-insensitively, so a reference whose casing differs from
-        # the definition still resolves — but the mismatch is flagged for the linter.
+        # the definition still resolves - but the mismatch is flagged for the linter.
         game = Game()
         marker = _Definition("fxlists", "FX_HealGlow")
         game.register(marker)
@@ -327,7 +327,7 @@ class TestListOfTuple:
 
     def test_repeated_key_flattens_multi_token_lines(self):
         # A repeated scalar list key whose lines each carry several tokens flattens
-        # into one list — `KindOf` written on two lines, not one element per line.
+        # into one list - `KindOf` written on two lines, not one element per line.
         assert List[Int].convert(Game(), ["1 2", "3 4 5"]) == [1, 2, 3, 4, 5]
 
     def test_macro_token_expands_to_its_flags(self):

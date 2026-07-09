@@ -41,7 +41,7 @@ def lint_map[C: LintConfig](
     for rule in rules:
         try:
             found = rule(map_obj, config)
-        except Exception as exc:  # noqa: BLE001 — a crashing rule becomes a finding, not an abort
+        except Exception as exc:  # noqa: BLE001 - a crashing rule becomes a finding, not an abort
             name = getattr(rule, "__name__", repr(rule))
             diagnostics.add("rule-error", f"{name} failed: {exc}", span)
             continue

@@ -189,7 +189,7 @@ def test_untracked_map_target_is_skipped():
 
 def test_script_references_are_not_flagged():
     """SCRIPT_NAME / SUBROUTINE_NAME references can target a subroutine imported from a library
-    merged only at runtime, so they are intentionally not linted — an unknown name never flags."""
+    merged only at runtime, so they are intentionally not linted - an unknown name never flags."""
     m = _map(scripts=[_script("S", _action(_arg(AT.SCRIPT_NAME, "SomeLibrarySubroutine")))])
     assert lint_map(MapModel.from_map(m), Game()).items == []
 

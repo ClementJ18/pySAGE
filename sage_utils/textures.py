@@ -145,7 +145,7 @@ def _asset_image(name: str) -> Image.Image | None:
     try:
         image = Image.open(path)
         image.load()
-    except Exception:  # noqa: BLE001 — a missing/bad asset just disables what uses it
+    except Exception:  # noqa: BLE001 - a missing/bad asset just disables what uses it
         return None
     return image.convert("RGBA")
 
@@ -199,7 +199,7 @@ def composite_on_background(portrait: Image.Image, background: Image.Image) -> I
 def render_portrait(source: TextureSource, obj, background: Image.Image | None = None):
     """The object's portrait cropped from `source`, composited centered on `background`
     when one is given; None when the object defines no portrait or its texture isn't in
-    `source`. The shared core of the desktop portrait preview and the wiki image upload —
+    `source`. The shared core of the desktop portrait preview and the wiki image upload -
     each caller converts the returned Pillow image to a pixmap or PNG."""
     images = portrait_mapped_images(obj)
     if not images:

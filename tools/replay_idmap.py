@@ -10,8 +10,8 @@ offset (reverse-engineered from labelled replays, see sage_replay/object_id_mapp
 The offsets are only constant when the load reproduces the engine's full object set. Edain's
 `_mod` alone is missing the base BFME2/RotWK objects it doesn't redefine, so a mod-only load's
 object indices fall behind and the offset drifts. This tool first rebuilds the engine's merged
-ini tree — base `.big` archives (BFME2 then RotWK, later overriding earlier) with `_mod`
-overlaid on top — then loads it; the object offset is then globally constant (verified across
+ini tree - base `.big` archives (BFME2 then RotWK, later overriding earlier) with `_mod`
+overlaid on top - then loads it; the object offset is then globally constant (verified across
 all replay-confirmed units, Gondor + Rohan + Imladris).
 
 Usage:
@@ -49,7 +49,7 @@ ANCHORS = {
         357: "SpellBookBalrogAllyWild",
     },
     # Offset +1201 is validated for the mid-range unit block (6279–9192). It does NOT hold
-    # at the top of the object list — CPObject (replay id 11120) lands ~1280 positions late
+    # at the top of the object list - CPObject (replay id 11120) lands ~1280 positions late
     # in this load, so the file order still diverges from the engine's for the tail.
     "objects": {
         6279: "GondorFighterHorde",  # lowest confirmed unit
@@ -129,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     tables = {name: generate(game, attr, off) for name, (attr, off) in SPACES.items()}
     problems = check_anchors(tables)
     if problems:
-        print("ANCHOR MISMATCH — offsets no longer hold (mod/base changed?):")
+        print("ANCHOR MISMATCH - offsets no longer hold (mod/base changed?):")
         print("\n".join(problems))
         return 1
     print("anchors OK: sciences (+1), special powers (+1), objects (+1201) all verified")

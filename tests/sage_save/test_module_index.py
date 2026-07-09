@@ -1,7 +1,7 @@
-"""Step 4 — the per-object behavior-module index.
+"""Step 4 - the per-object behavior-module index.
 
 Each `CHUNK_GameLogic` object body is a self-delimiting `ModuleTag_* + KOLB` tree, so
-`object_modules` walks it with the container's own block framing — no per-module `xfer` decode,
+`object_modules` walks it with the container's own block framing - no per-module `xfer` decode,
 no dependence on a forked serializer. These tests pin that the walk yields clean module-tag names
 for every object across the corpus (the guard against false `KOLB` matches) and that the module
 index lines up with the objects it belongs to."""

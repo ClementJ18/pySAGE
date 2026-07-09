@@ -62,7 +62,7 @@ def ini_root(root: str | Path) -> Path:
 
 
 def is_map_path(path: str | Path, root: str | Path) -> bool:
-    """Whether `path` is map-scoped — beneath a `maps/` directory under `root`. A map.ini
+    """Whether `path` is map-scoped - beneath a `maps/` directory under `root`. A map.ini
     is per-map (its definitions never leak to the global game), so whole-game assembly
     excludes these files."""
     root = Path(root)
@@ -89,7 +89,7 @@ def included_files(root: str | Path) -> set[str]:
 
 
 def root_files(root: str | Path) -> list[Path]:
-    """Files that are not included by any other file — the parse units."""
+    """Files that are not included by any other file - the parse units."""
     included = included_files(root)
     return [path for path in iter_ini_files(root) if str(path.resolve()).lower() not in included]
 
@@ -186,7 +186,7 @@ def format_scoreboard(board: Scoreboard) -> str:
     )
     if board.roots_missing_includes:
         lines.append(
-            f"  (+ {board.roots_missing_includes} roots unverifiable — missing include files)"
+            f"  (+ {board.roots_missing_includes} roots unverifiable - missing include files)"
         )
 
     typed_total = board.roots_typed_ok + board.roots_typed_fail

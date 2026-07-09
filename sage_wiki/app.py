@@ -95,7 +95,7 @@ class WikiUpdater(
         root.addWidget(title)
 
         # Three columns (update workflow / editable wikitext / image+page tools), each a
-        # vertical splitter of cards, all under one horizontal splitter — so every column
+        # vertical splitter of cards, all under one horizontal splitter - so every column
         # boundary and every card boundary can be dragged to taste. The whole thing sits in
         # a scroll area so it still scrolls when squeezed below the cards' minimum sizes.
         columns = QSplitter(Qt.Orientation.Horizontal)
@@ -201,7 +201,7 @@ class WikiUpdater(
     def _adjust_splitter_for_panel(self, panel: QWidget) -> None:
         """Move the splitter handle above/below `panel` after it collapses or expands, handing
         the size change to a neighbouring card. Prefers an expandable (uncapped) neighbour over
-        another collapsed one — donating to a collapsed card would just leave the gap. A no-op
+        another collapsed one - donating to a collapsed card would just leave the gap. A no-op
         when the panel isn't a direct child of a splitter (e.g. one nested in a plain layout)."""
         splitter = panel.parentWidget()
         if not isinstance(splitter, QSplitter):
@@ -231,7 +231,7 @@ class WikiUpdater(
     def _on_loaded(self, result) -> None:
         self.game, names = result
         self.object_search.setEnabled(True)
-        self.object_search.setPlaceholderText(f"(optional) override object — {len(names)} loaded")
+        self.object_search.setPlaceholderText(f"(optional) override object - {len(names)} loaded")
         names_model = QStringListModel(names, self)
         for field in (self.object_search, self.pagegen_object, self.portrait_object_search):
             field.setCompleter(make_completer(self, model=names_model))
@@ -247,11 +247,11 @@ class WikiUpdater(
 
     def _on_load_failed(self, message: str) -> None:
         self.sources_panel.load_button.setEnabled(True)
-        self.status.setText(f"Load failed — {message}")
+        self.status.setText(f"Load failed - {message}")
 
     def _build_object_card(self) -> QWidget:
         frame, layout = card("Page and object")
-        # The page is the primary input — its infobox names the object to use.
+        # The page is the primary input - its infobox names the object to use.
         self.page_field = QLineEdit()
         self.page_field.setPlaceholderText("Wiki page title (e.g. Gondor Soldiers)")
         self.page_field.returnPressed.connect(self._generate_diff)

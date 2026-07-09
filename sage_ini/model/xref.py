@@ -24,7 +24,7 @@ def _collect_keys(converter, keys: set[str], seen: set[int]) -> None:
     """Add every Game table key `converter` (or anything nested in it) can reference. Mirrors
     the converter shapes `references.py::_iter_refs` walks: a `Reference` names its target table,
     a field typed directly as a definition class names that class's table, and the list/tuple/
-    nullable wrappers and `KeyedRecord` keys are descended. A definition class is an endpoint —
+    nullable wrappers and `KeyedRecord` keys are descended. A definition class is an endpoint -
     its own fields are visited when `REGISTRY` reaches that class, so descent stops there (which
     also breaks the forward-reference cycle a class field back to its own type would form)."""
     if converter is None or id(converter) in seen:
@@ -58,7 +58,7 @@ def _resolve_into(annotation, keys: set[str], seen: set[int]) -> None:
 
 
 def referenceable_keys() -> frozenset[str]:
-    """Every Game table key some typed field can point at — a `Reference`'s target table, or the
+    """Every Game table key some typed field can point at - a `Reference`'s target table, or the
     table of a field typed directly as a definition class. A definition whose *kind* never appears
     here is an engine entry point that nothing in the data names (a faction, the game data, a
     terrain): the engine loads it directly, so an unused-definition check cannot judge it and must
@@ -103,7 +103,7 @@ def _referenced_objects(value, game: Game, seen: set[int]) -> Iterator[IniObject
 
 def _object_references(root: IniObject, game: Game) -> set[IniObject]:
     """The objects registered in `game` referenced anywhere in `root`'s subtree (not root
-    itself). `game` is the registration authority the endpoints are checked against — usually
+    itself). `game` is the registration authority the endpoints are checked against - usually
     `root`'s own game, but a layered build (a per-map context) passes the game beneath it to
     collect the edges it makes downward."""
     found: set[IniObject] = set()
@@ -129,7 +129,7 @@ def references_into(built: Game, target: Game) -> set[IniObject]:
     """Every object registered in `target` that something in `built` references. A layered
     context (a per-map build) resolves the names it misses through `target` as its reference
     fallback, so its converted values hold `target`'s objects directly; collecting them shows
-    which definitions beneath the layer it reaches — edges `Xref.for_game(target)` alone
+    which definitions beneath the layer it reaches - edges `Xref.for_game(target)` alone
     cannot see, since the layer's objects are not registered in `target`."""
     found: set[IniObject] = set()
     for table in built.tables.values():
@@ -151,7 +151,7 @@ class Xref:
     def for_game(cls, game: Game) -> "Xref":
         """The graph for `game`, built once and cached on it. Several rules ask the same game
         what references what; building the whole graph per rule would walk it repeatedly, so the
-        first caller builds it and the rest reuse it. The cache lives for the game's lifetime —
+        first caller builds it and the rest reuse it. The cache lives for the game's lifetime -
         each lint run assembles a fresh game, so there is nothing stale to invalidate."""
         cached = game.__dict__.get("_xref")
         if cached is None:

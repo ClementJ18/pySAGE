@@ -173,7 +173,7 @@ Float = Annotated[float, _Float]
 
 class Ranged:
     """An integer that converts freely but carries `minimum`/`maximum` bounds for the
-    `out-of-range` lint rule to check — whether a value sits in range is a judgment, not a
+    `out-of-range` lint rule to check - whether a value sits in range is a judgment, not a
     parse fact, so `convert` never rejects it."""
 
     minimum: float
@@ -275,7 +275,7 @@ class _String:
 )
 class Untyped(str):
     """The not-yet-typed text fallback, runtime-identical to a raw token. Deprecated *on purpose*
-    so every remaining `field: Untyped` annotation surfaces as a warning in the IDE — the
+    so every remaining `field: Untyped` annotation surfaces as a warning in the IDE - the
     migration to dedicated types is driven by which of these are actually used. Internal
     converters default to `_String` (no warning); only an explicit field annotation is flagged.
     Once reviewed, a field becomes either a dedicated type or `String` (intentional free text)."""
@@ -288,7 +288,7 @@ class Untyped(str):
 class String(str):
     """Intentional free text: a field reviewed and *deliberately* kept as an opaque text value,
     because no dedicated type applies (an arbitrary name, a comment, a raw spec). Unlike the
-    backlog `Untyped`, this is not deprecated — using it is a positive, reviewed choice, so it
+    backlog `Untyped`, this is not deprecated - using it is a positive, reviewed choice, so it
     does not warn. Subclasses `str` so a value still types as text."""
 
     @staticmethod
@@ -311,7 +311,7 @@ Opaque = Annotated[str, _Opaque]
 class _ModuleTag:
     """A `ModuleTag_*` naming another module on the *same object* (e.g. the module a
     `TriggerSpecialPower` fires). Kept as its raw token: the target is a sibling module, not a
-    Game-table entry, so a converter cannot resolve it — it has no view of the parent object.
+    Game-table entry, so a converter cannot resolve it - it has no view of the parent object.
     The `module-tag-reference` lint rule checks it against the object's own modules; typing it
     here (rather than leaving it `Untyped`) records that intent."""
 
@@ -400,7 +400,7 @@ CoordsList = Annotated[list[list[float]], _CoordsList]
 
 class _RawList(Multivalued):
     """Each occurrence of a repeated key kept verbatim as one string element, with no token
-    splitting — for free-form lines whose internal structure isn't modeled (e.g. a colon-keyed
+    splitting - for free-form lines whose internal structure isn't modeled (e.g. a colon-keyed
     `GeometryOther` spec, which repeats once per extra geometry block)."""
 
     @classmethod
@@ -530,7 +530,7 @@ class _QuotedList(_List):
     """A list whose elements may be `"quote-wrapped"` names containing spaces, so it splits on
     whitespace *outside* quotes rather than at every space (`GameMapToUseOn = "My Map" "<ANY>"`
     is two tokens, not five). Quotes are kept on each token, exactly as a single `MapFile`/`String`
-    keeps them — the asset/reference layers strip them when resolving."""
+    keeps them - the asset/reference layers strip them when resolving."""
 
     def convert(self, game, value):
         element = resolve_annotation(self.element)
@@ -649,7 +649,7 @@ else:
 
 # Reference scalars: a field names a top-level definition of the matching kind, keyed to the
 # game table it registers into. The converter resolves the name to the registered object, or
-# passes the raw name through when it is not (yet) present — hence the `<block> | str` types.
+# passes the raw name through when it is not (yet) present - hence the `<block> | str` types.
 _SoundRef = Reference("audioevents")
 FXList = Annotated["_FXListBlock | str", Reference("fxlists")]
 Sound = Annotated["AudioEvent | str", _SoundRef]
@@ -737,7 +737,7 @@ RegionCampaignRef = Annotated[str, Reference("livingworldregioncampaigns")]
 BuildingIconRef = Annotated[str, Reference("livingworldbuildingicons")]
 DamageFXRef = Annotated[str, Reference("damagefxs")]
 
-# `AnimState:NAME AnimTime:0 TriggerTime:0` — the engine's colon-keyed pair form.
+# `AnimState:NAME AnimTime:0 TriggerTime:0` - the engine's colon-keyed pair form.
 AnimAndDuration = KeyValuePair
 
 
@@ -827,7 +827,7 @@ ScaledObjectFilter = Annotated[list[_ScaledObjectFilter], _ScaledObjectFilter]
 
 
 class _Nullable:
-    """Wraps a converter so a `None`/`NONE`/empty sentinel yields None — many reference
+    """Wraps a converter so a `None`/`NONE`/empty sentinel yields None - many reference
     fields accept the literal `None` to mean "no target" (`CommandButton.Object = NONE`).
     Any other value is delegated to the wrapped converter."""
 
@@ -876,7 +876,7 @@ class KeyedRecord:
     """A single colon-keyed line (`AnimState:DEATH_2 AnimTime:3000 RiderOCL:OCL_Foo`) typed
     declaratively. Each subclass names its keys as annotated fields whose *name is the INI key
     verbatim* (`RiderOCL: ObjectCreationListRef`), so the parsed value reads back under that
-    key (`record.RiderOCL`), converted and validated by the field's converter — the same
+    key (`record.RiderOCL`), converted and validated by the field's converter - the same
     `Annotated[PyType, converter]` aliases that type `IniObject` fields.
 
     An absent key takes its class-body default (`Required: List[...] = []`), else None; a
@@ -957,7 +957,7 @@ def _apply_axis(coord: list[float], token: str) -> None:
 class _ScienceRequirements(Multivalued):
     """A science prerequisite expression (`None` = no requirement). `OR` separates
     alternative groups, whitespace within a group lists all-required sciences, so
-    `A OR B C` parses to `[[A], [B, C]]` — any one group satisfies it."""
+    `A OR B C` parses to `[[A], [B, C]]` - any one group satisfies it."""
 
     @classmethod
     def convert(cls, game, value):
@@ -1132,7 +1132,7 @@ class RangeDuration:
             for key, group in scan_keyed(text):
                 if key and group:
                     # Rejoin the group: a `#MULTIPLY( A 2 )` bound has spaces, so `scan_keyed`
-                    # spreads it across the list — `group[0]` alone is a broken `#MULTIPLY(`.
+                    # spreads it across the list - `group[0]` alone is a broken `#MULTIPLY(`.
                     bounds[key.upper()] = eval_number(game, " ".join(group))
             minimum = bounds.get("MIN")
             return cls(minimum, bounds.get("MAX", minimum))
@@ -1279,7 +1279,7 @@ TimedPosition = Annotated[list[_TimedPosition], _TimedPosition]
 
 class _RankInfo(Multivalued):
     """One rank of a horde's formation: `RankNumber:N UnitType:Obj Position:X:.. Y:.. Position:...`
-    — a rank number, the unit filling it, and one repeating `Position` per slot (each opens a
+    - a rank number, the unit filling it, and one repeating `Position` per slot (each opens a
     coordinate the following axis tokens fill). Repeats, one line per rank, so `Multivalued`."""
 
     RankNumber: int | None
@@ -1323,7 +1323,7 @@ RankInfo = Annotated[list[_RankInfo], _RankInfo]
 
 class _ComboHorde(KeyedRecordList):
     """A horde-combine recipe (repeating): `Target:<horde> Result:<horde> [InitiateVoice:<sound>]`
-    — combining this horde with `Target` produces `Result`. Repeats, one recipe per line."""
+    - combining this horde with `Target` produces `Result`. Repeats, one recipe per line."""
 
     Target: "Object"
     Result: "Object"
@@ -1338,7 +1338,7 @@ class _ModifierEntry(Multivalued):
     (`SPEED 125%`, `ARMOR 25% PIERCE`). `Amount` is the resolved number (an attached `%` becomes
     a fraction, a `#OP( ... )` is evaluated), or `None` when the value is non-numeric; `Value`
     keeps the raw token for display/macro resolution. A detached `%` token (`PRODUCTION 1.25 %`)
-    is dropped — the engine ignores it, taking the value as-is. `DamageTypes` scope
+    is dropped - the engine ignores it, taking the value as-is. `DamageTypes` scope
     `ARMOR`/`INVULNERABLE` to specific types (empty otherwise). Repeats, one entry per line,
     so `Multivalued`."""
 
@@ -1373,7 +1373,7 @@ class _ModifierEntry(Multivalued):
         # Split paren-aware so a `#MULTIPLY( a b )` amount stays a single operand.
         operands = _split_operands(tokens[1])
         # A `%` written as its own token (`PRODUCTION 1.25 %`) is a percent marker the engine
-        # ignores on a detached value — not a damage type. Drop it so the amount reads as-is
+        # ignores on a detached value - not a damage type. Drop it so the amount reads as-is
         # (the macro's plain multiplier) and the trailing operands stay genuine damage types.
         # An attached `%` (`130%`) is left for `eval_number` to scale.
         operands = [operand for operand in operands if operand != "%"]

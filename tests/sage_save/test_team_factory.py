@@ -1,8 +1,8 @@
-"""`CHUNK_TeamFactory` — team prototypes (Step 3, header only).
+"""`CHUNK_TeamFactory` - team prototypes (Step 3, header only).
 
 The GPL `TeamFactory::xfer` header (unique-team-ID counter + prototype count) ports cleanly, and
 each prototype body even *starts* like ZH's `TeamPrototype::xfer` (v2, `owningPlayerIndex`,
-`attackPriorityName`) — but the embedded `TeamTemplateInfo` is BFME2 version 3 (ZH is v1) with
+`attackPriorityName`) - but the embedded `TeamTemplateInfo` is BFME2 version 3 (ZH is v1) with
 undocumented extra fields, so the per-prototype walk (and the team→player attribution it would
 yield) is not completed and the prototype block is kept opaque. These tests pin the decoded
 header; the exact-inverse round-trip is covered by the registry test in test_infra.py."""

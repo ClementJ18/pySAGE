@@ -9,7 +9,7 @@ import io
 import pytest
 
 pytest.importorskip("PIL", reason="the [apt]/[ui] extra (Pillow) is not installed")
-from PIL import Image  # noqa: E402 — after the importorskip guard
+from PIL import Image  # noqa: E402 - after the importorskip guard
 
 from sage_apt.imagemap import parse_image_map  # noqa: E402
 from sage_apt.textures import AptTextureResolver, build_resolver  # noqa: E402

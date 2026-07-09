@@ -1,13 +1,13 @@
 """Fuzzy "did you mean" suggestions. When a token fails to resolve against a closed set
-of known names — a dangling cross-reference, an unknown attribute, a missing macro or
-string — the likeliest intended name is often a near-spelling already in that set. These
+of known names - a dangling cross-reference, an unknown attribute, a missing macro or
+string - the likeliest intended name is often a near-spelling already in that set. These
 helpers surface that guess in a diagnostic message.
 
 Suggestions only: the match is probabilistic, so it is never used to drive an automated
 rewrite (unlike the case fixes in `sage_lint.fixer`); it informs a human, who decides.
 
 Computing a suggestion runs difflib over the *whole* candidate set, and on a large game the
-objects table alone holds ~11k names — matching every unresolved token against it is the
+objects table alone holds ~11k names - matching every unresolved token against it is the
 dominant cost of a full `validate`/lint. So suggestions are **off by default** and produce no
 hint; a caller that wants them (the `lint --suggest` flag, an interactive tool) turns them on
 for the duration with `suggestions_enabled()`.
@@ -73,7 +73,7 @@ def did_you_mean(name: str, candidates, cutoff: float = _CUTOFF) -> str | None:
 def closest_names(
     name: str, candidates, *, count: int = 5, cutoff: float = _SEARCH_CUTOFF
 ) -> list[str]:
-    """Up to `count` candidates most similar to `name`, closest first — the backing for an
+    """Up to `count` candidates most similar to `name`, closest first - the backing for an
     interactive "did you mean" search box. Unlike `did_you_mean`, this is **not** gated by the
     global enable flag (a user typing a search always wants matches) and returns several rather
     than one. Matching ignores case; each candidate's own spelling is returned, the first

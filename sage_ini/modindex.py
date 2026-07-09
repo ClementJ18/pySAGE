@@ -1,5 +1,5 @@
 """Per-mod resolution index (Tier 2 of the LLM primer): given a folder of ini files, answer
-the location questions an agent reading one file needs — where a referenced name or macro is
+the location questions an agent reading one file needs - where a referenced name or macro is
 *defined*, and how files include one another (a file's resolution scope).
 
 The schema digest (`sage_ini.primer`) is mod-independent and says which table a reference

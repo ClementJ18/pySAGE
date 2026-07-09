@@ -376,8 +376,8 @@ def main(argv: list[str] | None = None) -> int:
     diff = subparsers.add_parser(
         "diff",
         help="changelog of game-data changes between two git refs (config-aware, base-resolved)",
-        description="Assemble the mod at two git refs the way `lint` builds a game — reading "
-        "root/base from .sagelint so includes into the base game resolve — and report the "
+        description="Assemble the mod at two git refs the way `lint` builds a game - reading "
+        "root/base from .sagelint so includes into the base game resolve - and report the "
         "added / removed / changed definitions, fields and modules between them as a "
         "human-readable changelog.",
     )
@@ -420,16 +420,16 @@ def main(argv: list[str] | None = None) -> int:
         "diff-maps",
         help="changelog of the binary .map/.bse files a git commit or range touches",
         description="For every WorldBuilder map file the commit (or range) adds, removes, "
-        "modifies or renames, parse both sides out of git and report what actually changed — "
+        "modifies or renames, parse both sides out of git and report what actually changed - "
         "placed objects, teams, players, scripts, trigger areas, map settings, and a terrain "
-        "summary — where git can only say 'binary files differ'. Purely structural: no game "
+        "summary - where git can only say 'binary files differ'. Purely structural: no game "
         "assembly, bases or .sagelint config involved.",
     )
     diff_maps_cmd.add_argument(
         "commit",
         nargs="?",
         default="HEAD",
-        help="a commit (default: HEAD), diffed against its parent — or a git range old..new "
+        help="a commit (default: HEAD), diffed against its parent - or a git range old..new "
         "(net change between the endpoints; old...new diffs from the merge base, like git diff)",
     )
     diff_maps_cmd.add_argument(
@@ -444,7 +444,7 @@ def main(argv: list[str] | None = None) -> int:
         choices=("text", "json", "md"),
         default="text",
         help="report format: human text (default), machine-readable json, or markdown "
-        "(bulleted, code-quoted — pastes cleanly into a PR or wiki page)",
+        "(bulleted, code-quoted - pastes cleanly into a PR or wiki page)",
     )
 
     args = parser.parse_args(argv)

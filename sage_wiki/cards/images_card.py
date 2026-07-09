@@ -64,7 +64,7 @@ class ImagesCardMixin:
 
         note = QLabel(
             "Crop a unit portrait from the image sources below and upload it as <object>.png "
-            "— then copy the file name into the infobox image yourself. Defaults to the Page "
+            "- then copy the file name into the infobox image yourself. Defaults to the Page "
             "and object above; type an object below to preview any other one (e.g. another "
             "form of a complex hero)."
         )
@@ -74,19 +74,19 @@ class ImagesCardMixin:
 
         self.image_sources_panel = SourcesPanel(
             title="IMAGE SOURCES",
-            expanded_hint="IMAGE SOURCES — texture folders / .big archives with the .dds files",
-            item_label=lambda kind, path: f"[{kind}]  {Path(path).name}  —  {path}",
+            expanded_hint="IMAGE SOURCES - texture folders / .big archives with the .dds files",
+            item_label=lambda kind, path: f"[{kind}]  {Path(path).name}  -  {path}",
             list_max_height=120,
         )
         self.image_sources_panel.load_requested.connect(self._load_textures)
         body.addWidget(self.image_sources_panel)
 
         # Optional: a specific object whose portrait (and button icons) to show, overriding the
-        # page's resolved object — handy for a complex hero's other form objects (the fell
+        # page's resolved object - handy for a complex hero's other form objects (the fell
         # beast, ring hunter, …). Enter previews it.
         self.portrait_object_search = QLineEdit()
         self.portrait_object_search.setPlaceholderText(
-            "(optional) object to preview — defaults to the page's"
+            "(optional) object to preview - defaults to the page's"
         )
         self.portrait_object_search.setEnabled(False)
         self.portrait_object_search.returnPressed.connect(self._preview_portrait)
@@ -141,7 +141,7 @@ class ImagesCardMixin:
         # Type a command set to list it directly instead of the object's own (Enter to apply).
         self.commandset_search = QLineEdit()
         self.commandset_search.setPlaceholderText(
-            "(optional) command set to list — defaults to the object's"
+            "(optional) command set to list - defaults to the object's"
         )
         self.commandset_search.setEnabled(False)
         self.commandset_search.returnPressed.connect(self._list_button_icons)
@@ -230,10 +230,10 @@ class ImagesCardMixin:
 
     def _on_textures_failed(self, message: str) -> None:
         self.image_sources_panel.load_button.setEnabled(True)
-        self.image_status.setText(f"Could not index the image sources — {message}")
+        self.image_status.setText(f"Could not index the image sources - {message}")
 
     def _portrait_object(self, game):
-        """The object whose portrait to use — the images card's own object box, else the
+        """The object whose portrait to use - the images card's own object box, else the
         Page-and-object override or the page-generation object, all without a fetch, else the
         page's infobox object id. Raises `WikiError` with a usable message."""
         for box in (self.portrait_object_search, self.object_search, self.pagegen_object):
@@ -320,7 +320,7 @@ class ImagesCardMixin:
         self.image_preview.setPixmap(pixmap)
         # Surface the prospective file name so it can be copied even before upload.
         self.image_name_field.setText(f"{name}.png")
-        self.image_status.setText(f"Preview of {name}.png — review, then upload.")
+        self.image_status.setText(f"Preview of {name}.png - review, then upload.")
 
     def _upload_portrait(self) -> None:
         if self.game is None:
@@ -357,16 +357,16 @@ class ImagesCardMixin:
     def _on_portrait_uploaded(self, filename: str) -> None:
         self.image_upload_button.setEnabled(True)
         self.image_name_field.setText(filename)
-        self.image_status.setText(f"Uploaded {filename} — copy its name into the infobox image.")
+        self.image_status.setText(f"Uploaded {filename} - copy its name into the infobox image.")
 
     def _on_portrait_failed(self, message: str) -> None:
         self.image_preview_button.setEnabled(self._texture_source is not None)
         self.image_upload_button.setEnabled(self._texture_source is not None)
-        self.image_status.setText(f"Portrait failed — {message}")
+        self.image_status.setText(f"Portrait failed - {message}")
 
     def _load_current_image(self, image_value: str | None) -> None:
         """Show the page's current infobox image (from `image_value`) in the Current preview,
-        fetched from the wiki for comparison — independent of the texture sources."""
+        fetched from the wiki for comparison - independent of the texture sources."""
         filename = filename_from_value(image_value)
         if filename is None:
             self.current_image_preview.setPixmap(QPixmap())  # drop any previous page's image
@@ -405,7 +405,7 @@ class ImagesCardMixin:
 
     def _on_current_image_failed(self, message: str) -> None:
         self.current_image_preview.setPixmap(QPixmap())
-        self.current_image_preview.setText(f"Current image failed — {message}")
+        self.current_image_preview.setText(f"Current image failed - {message}")
 
     def _list_button_icons(self) -> None:
         self._start_icon_list()
@@ -470,7 +470,7 @@ class ImagesCardMixin:
         )
 
     def _on_button_icons_failed(self, message: str) -> None:
-        self.image_status.setText(f"Button icons failed — {message}")
+        self.image_status.setText(f"Button icons failed - {message}")
 
     def _clear_icon_rows(self) -> None:
         """Remove every icon row, leaving the trailing stretch in place."""
@@ -572,8 +572,8 @@ class ImagesCardMixin:
     def _on_icon_uploaded(self, filename: str, button: QPushButton) -> None:
         button.setText("Uploaded")
         button.setEnabled(False)
-        self.image_status.setText(f"Uploaded {filename} — copy its name from the field.")
+        self.image_status.setText(f"Uploaded {filename} - copy its name from the field.")
 
     def _on_icon_upload_failed(self, message: str, button: QPushButton) -> None:
         button.setEnabled(True)
-        self.image_status.setText(f"Icon upload failed — {message}")
+        self.image_status.setText(f"Icon upload failed - {message}")

@@ -28,7 +28,7 @@ from sage_ini.model.types import (
 
 if TYPE_CHECKING:
     # Cross-module field types are named as string forward-refs (`List["Upgrade"]`) and
-    # resolved at runtime through the class REGISTRY — importing them for real would create
+    # resolved at runtime through the class REGISTRY - importing them for real would create
     # an import cycle. Under TYPE_CHECKING there is no runtime import, so checkers can resolve
     # the names while the cycle stays broken.
     from sage_ini.model.ini_objects import (
@@ -149,7 +149,7 @@ class SpecialModelConditionNugget(WeaponEffectNugget):
 
 
 class ClearNuggets(Nugget):
-    # Written as a bare one-liner (`ClearNuggets`) with no body — it wipes the nuggets defined
+    # Written as a bare one-liner (`ClearNuggets`) with no body - it wipes the nuggets defined
     # so far when a weapon is re-opened, taking no fields of its own.
     bare_directive = True
 

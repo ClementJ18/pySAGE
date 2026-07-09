@@ -61,7 +61,7 @@ _NONRULE_CODES: dict[str, str] = {
     "rule-error": "a lint rule raised while running (internal)",
 }
 
-# Plain-language nouns for what `--fix` changed, keyed by diagnostic code — for a summary an
+# Plain-language nouns for what `--fix` changed, keyed by diagnostic code - for a summary an
 # audience nervous about a tool rewriting their mod can read at a glance.
 _FIX_LABELS: dict[str, str] = {
     "reference-case": "reference casing",
@@ -100,7 +100,7 @@ def _fix_summary(applied: list[Diagnostic], file_count: int) -> str:
 
 
 def _diag_origin(diag: Diagnostic) -> tuple[str | None, str | None]:
-    """The block type and attribute a diagnostic emerged from, as `(type, attr)` — the
+    """The block type and attribute a diagnostic emerged from, as `(type, attr)` - the
     `type`/`field` (or `key`) structured facts the schema, conversion and rule layers attach.
     Either is None when the diagnostic doesn't name it (e.g. a parser-level problem)."""
     extra = diag.extra
@@ -166,7 +166,7 @@ def _lint_map_files(root: Path, game, excludes: tuple[Path, ...]) -> Diagnostics
     any map in an excluded directory. `sage_map` is imported lazily; when the optional `[map]`
     extra is not installed, map linting is silently skipped (no diagnostics)."""
     try:
-        from sage_map import lint_maps  # noqa: PLC0415 — lazy: the [map] extra is optional
+        from sage_map import lint_maps  # noqa: PLC0415 - lazy: the [map] extra is optional
     except ImportError:
         return Diagnostics()
     excluded = tuple(Path(directory).resolve() for directory in excludes)
@@ -196,7 +196,7 @@ def _print_statistics(remaining: list[Diagnostic]) -> None:
 def _baseline_path(args: argparse.Namespace, config: Config) -> Path | None:
     """The baseline file for this run: `--baseline` if given, else the config's `baseline`
     (resolved against the config dir), else the conventional name beside the config. The path
-    is returned even when it does not exist yet — reading a missing one suppresses nothing, and
+    is returned even when it does not exist yet - reading a missing one suppresses nothing, and
     `--write-baseline` creates it. None only when `--no-config` is set with no `--baseline`."""
     if args.baseline is not None:
         return args.baseline
@@ -229,8 +229,8 @@ def _source_line(diag: Diagnostic) -> str | None:
 def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int:
     # CLI flags override the config file; the config fills in what the flags leave unset.
     # A config's relative exclude/base paths name folders inside the linted tree, so they
-    # resolve against the lint root — not the process working directory (which, run from an
-    # editor, is the linter checkout) — falling back to the config dir on the --file path.
+    # resolve against the lint root - not the process working directory (which, run from an
+    # editor, is the linter checkout) - falling back to the config dir on the --file path.
     base_dir = root if root is not None else config_dir(args)
     include_assets = args.assets or config.assets
     # Maps are a whole-folder concern (off by default), never linted on the single-file path.
@@ -405,11 +405,11 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
 def run_lint_maps(args: argparse.Namespace, config: Config, root: Path) -> int:
     """Lint the binary `.map` layouts under `root` for dangling references, resolved against the
     assembled game. Reuses the same root/base/exclude resolution as `lint`, so GAME-scope checks
-    (object/science/upgrade names) resolve against the *complete* world the `--base` layers build —
+    (object/science/upgrade names) resolve against the *complete* world the `--base` layers build -
     without them only map-local references (teams, waypoints) are reliable. The `sage_map` overlay
     is imported lazily so `sage_lint` runs without the optional `[map]` extra installed."""
     try:
-        from sage_map import lint_maps  # noqa: PLC0415 — lazy: the [map] extra is optional
+        from sage_map import lint_maps  # noqa: PLC0415 - lazy: the [map] extra is optional
     except ImportError:
         print(
             "sage_lint: map linting needs the optional 'map' extra (pip install 'pysage[map]')",

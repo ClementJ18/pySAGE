@@ -1,4 +1,4 @@
-"""Structure-aware 3-way merge for SAGE ini files — the engine behind the `merge`
+"""Structure-aware 3-way merge for SAGE ini files - the engine behind the `merge`
 command (a git merge driver and a conflict-marker resolver).
 
 Git's line-based merge raises spurious conflicts on ini data because definitions are
@@ -15,7 +15,7 @@ Conflicts are rendered as ordinary git markers in the output text (there is no A
 node for them), so a partially-merged file still resolves by hand the usual way.
 Blocks with repeated child keys (multi-slot `WeaponSet`, repeated bare-value lines)
 are not safely key-addressable, so such a block falls back to a textual diff3 of its
-body — still confining the conflict to that one block.
+body - still confining the conflict to that one block.
 """
 
 from collections.abc import Sequence
@@ -86,7 +86,7 @@ class _Unit:
 
 def _render_nodes(nodes: Sequence[Node], depth: int) -> list[str]:
     """Canonically print `nodes` at indentation `depth`. Reuses the public printer at
-    depth 0 and shifts every non-blank line right by `depth` indents — equivalent to
+    depth 0 and shifts every non-blank line right by `depth` indents - equivalent to
     printing at that depth, but touching only the supported printer surface."""
     if not nodes:
         return []
@@ -409,7 +409,7 @@ def merge_documents(
     marker_size: int = 7,
 ) -> MergeResult:
     """3-way merge of parsed ini documents. `base=None` does a 2-way merge (no common
-    ancestor — only identical edits merge silently, everything else conflicts)."""
+    ancestor - only identical edits merge silently, everything else conflicts)."""
     cfg = _Cfg(labels=labels, marker_size=marker_size)
     lines, conflicts = _merge_nodes(
         cfg,

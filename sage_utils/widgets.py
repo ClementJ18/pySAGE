@@ -27,7 +27,7 @@ from sage_utils.config import read_json, write_json
 from sage_utils.styles import DARK_STYLE, LIGHT_STYLE
 
 # The theme preference is shared across every SAGE front end, so it lives under one key
-# rather than per app — toggle dark/light in one and the others open the same way.
+# rather than per app - toggle dark/light in one and the others open the same way.
 _THEME_APP = "sage_utils"
 _THEME_FILE = "theme.json"
 

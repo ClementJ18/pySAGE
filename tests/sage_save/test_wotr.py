@@ -1,21 +1,21 @@
-"""War-of-the-Ring saves (Edain) — battle vs living-world, and the one detectable corruption.
+"""War-of-the-Ring saves (Edain) - battle vs living-world, and the one detectable corruption.
 
 WotR sits outside the auto-discovered corpus (see `corpus.py`): the mode and the Edain mod diverge
 from the BFME2 invariants the corpus-wide tests assert. This module pins what the tooling concludes
 about each kind:
 
-- **Battle saves** (`ang 5`, `Saved Game 4`) are full in-battle snapshots — an embedded map and a
+- **Battle saves** (`ang 5`, `Saved Game 4`) are full in-battle snapshots - an embedded map and a
   live object/drawable index. They exercise the Edain-specific decode: the `CHUNK_GameLogic` object
   table carries Latin-1 template names (German umlauts), and its preamble embeds `Command_*` strings
   that a naive locator mistakes for a one-entry table. The table locator must survive both.
 - **Living-world saves** (`Saved Game 2/3/5/6/7`) are valid, loadable strategic-layer saves that are
   *objectless by nature*: no embedded battle map, no live objects. They are the counter-examples
-  that make "no map + no objects" a normal state, not a corruption signal — so the tooling must
+  that make "no map + no objects" a normal state, not a corruption signal - so the tooling must
   parse them, round-trip them, and report them clean.
 - **`angmar 6`** the game reports corrupt, yet it is structurally an ordinary objectless
   living-world save (parses, re-encodes exactly). The tooling cannot distinguish it from a valid
-  one, and must not pretend to — the only assertion is that it parses and round-trips.
-- **`angmar 7`** is an interrupted write whose container does not parse — the one WotR corruption
+  one, and must not pretend to - the only assertion is that it parses and round-trips.
+- **`angmar 7`** is an interrupted write whose container does not parse - the one WotR corruption
   the tooling can actually detect.
 """
 
@@ -74,7 +74,7 @@ def test_parseable_save_container_round_trips(path):
 @pytest.mark.parametrize("path", WOTR_PARSEABLE, ids=fixture_id)
 def test_game_logic_and_client_re_encode_exactly(path):
     """Object/drawable-index decode is byte-exact whether the save has a live world (battle) or
-    none (living-world) — the objectless case must re-encode to just version + frame + trailing,
+    none (living-world) - the objectless case must re-encode to just version + frame + trailing,
     not an empty table."""
     save = parse_save_from_path(_require(path))
     logic_chunk = _chunk(save, "CHUNK_GameLogic")
@@ -98,7 +98,7 @@ def test_battle_save_has_map_and_live_objects(path):
 
 
 def test_battle_save_decodes_umlaut_template_names():
-    """The Edain object table decodes with its Latin-1 (umlaut) names intact — the regression guard
+    """The Edain object table decodes with its Latin-1 (umlaut) names intact - the regression guard
     for the strict-ASCII locator that used to slide past the real table onto a spurious match."""
     save = parse_save_from_path(_require(WOTR_BATTLE[0]))
     templates = decode_game_logic(_chunk(save, "CHUNK_GameLogic")).templates
@@ -110,7 +110,7 @@ def test_battle_save_decodes_umlaut_template_names():
 
 @pytest.mark.parametrize("path", WOTR_LIVING_WORLD, ids=fixture_id)
 def test_living_world_save_is_objectless(path):
-    """No embedded battle map and no live objects — the normal shape of a strategic-layer save. The
+    """No embedded battle map and no live objects - the normal shape of a strategic-layer save. The
     locator must *not* invent a one-entry table from the `Command_*` strings in the preamble."""
     save = parse_save_from_path(_require(path))
     assert decode_game_state_map(_chunk(save, "CHUNK_GameStateMap")).has_map is False
@@ -120,7 +120,7 @@ def test_living_world_save_is_objectless(path):
 
 @pytest.mark.parametrize("path", WOTR_LIVING_WORLD, ids=fixture_id)
 def test_living_world_save_diagnoses_clean(path):
-    """A valid living-world save must carry no fatal diagnostic — the tooling must not read its
+    """A valid living-world save must carry no fatal diagnostic - the tooling must not read its
     empty world as corruption (the mistake `WOTR_GAME_CORRUPT` would otherwise provoke)."""
     save = parse_save_from_path(_require(path))
     assert not [d for d in diagnose_save(save) if d.severity == "fatal"]
@@ -159,7 +159,7 @@ def test_living_world_logic_round_trips_and_harvests_a_roster(path):
 
 @pytest.mark.parametrize("path", WOTR_BATTLE + WOTR_LIVING_WORLD, ids=fixture_id)
 def test_living_world_army_object_templates_are_harvested(path):
-    """The `02 01` roster-entry signature pulls the army rosters' unit/hero object templates — a
+    """The `02 01` roster-entry signature pulls the army rosters' unit/hero object templates - a
     non-empty set of `object_template` references, all non-fatal, and distinct (no runtime instance
     names like `DurmarthPlayerArmy` leak in)."""
     save = parse_save_from_path(_require(path))
@@ -176,7 +176,7 @@ def test_living_world_army_object_templates_are_harvested(path):
 
 def test_object_template_harvest_excludes_createahero_instance_names():
     """`angmar 6` carries a CreateAHero roster whose entries (`OrcChief01`) are runtime instance
-    names, not ini definitions — they use a separate `00 00 00 0a` framing that the object-template
+    names, not ini definitions - they use a separate `00 00 00 0a` framing that the object-template
     signature (`02 01`) deliberately does not match. `OrcChief01` must appear in the informational
     roster view but never in the harvested object templates, or it would become a false dangling
     reference. This pins the boundary that keeps the CreateAHero list out of the xref surface."""
@@ -187,7 +187,7 @@ def test_object_template_harvest_excludes_createahero_instance_names():
 
 
 def test_living_world_logic_is_empty_in_a_non_wotr_save():
-    """A vanilla skirmish save's `CHUNK_LivingWorldLogic` is the 22-byte no-living-world constant —
+    """A vanilla skirmish save's `CHUNK_LivingWorldLogic` is the 22-byte no-living-world constant -
     the harvest must yield an empty roster, not invent names from the fixed bytes."""
     skirmish = next((p for p in ALL_SKIRMISH if p.is_file()), None)
     if skirmish is None:

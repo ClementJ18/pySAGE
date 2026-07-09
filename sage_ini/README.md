@@ -5,7 +5,7 @@ A typed, comment-preserving parser for **SAGE-engine** (Battle for Middle-earth)
 
 `sage_ini` reads the game's ini data into a tree that round-trips losslessly
 (comments included), then layers a typed object model on top: a block becomes an
-`IniObject` whose annotated fields convert lazily on access — numbers, enums,
+`IniObject` whose annotated fields convert lazily on access - numbers, enums,
 macros (`#define`/`#MULTIPLY( … )`), and cross-references resolved through the
 loaded game. It is the library the rest of pySAGE builds on: the parser, the
 comment-preserving AST, the typed model, the whole-game loader, the cross-reference
@@ -44,7 +44,7 @@ python -m sage_ini merge --install [--global]         # register as a git merge 
 ### As a git merge driver
 
 Git merges ini files line by line, so two branches that touch the same long
-definition — or merely add objects next to each other — collide spuriously. The
+definition - or merely add objects next to each other - collide spuriously. The
 `merge` command instead matches definitions by name and merges field by field:
 independent edits apply silently, and a conflict is raised only around the fields
 both sides changed differently. Wire it into a repository once:
@@ -95,7 +95,7 @@ The supported surface is what `sage_ini` re-exports at the top level (and lists 
 `__all__`): the loader, the typed `Game` / `IniObject` model, the comment-preserving
 `parse` / `print_document`, the `walk` / `Xref` traversal helpers, and the `Diagnostic`
 types tool authors build checkers against. Every public module declares its own `__all__`;
-anything not exported — and every `_`-prefixed name — is internal and may change without
+anything not exported - and every `_`-prefixed name - is internal and may change without
 notice.
 
 ```python

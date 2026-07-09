@@ -1,7 +1,7 @@
 """Single-file briefing for an LLM agent: compose the cross-reference graph and the mod
 resolver into one report for one ini file. It answers, for the definitions in this file alone,
 "what does it declare, what does it point at (and where do those live), what does it include,
-and which macros does it lean on" — the "insight into a single file while knowing where to
+and which macros does it lean on" - the "insight into a single file while knowing where to
 look" the primer is for.
 
 Resolved references come from the tested `Xref` graph (every target is a registered object, so
@@ -111,7 +111,7 @@ def _site(span: Span, index: ModIndex) -> str:
 
 def build_brief(index: ModIndex, file: str | Path, focus: str | None = None) -> Brief:
     """Report on the definitions whose source is `file`, resolved against the loaded `index`.
-    `focus` narrows it to one definition (by name, case-insensitive) — the way to inspect one
+    `focus` narrows it to one definition (by name, case-insensitive) - the way to inspect one
     entry of a large catalog file."""
     game = index.game
     xref = Xref(game)

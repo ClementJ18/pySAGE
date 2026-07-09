@@ -1,6 +1,6 @@
 """A generated description of the JSON shapes the CLI emits (`explore --json`, `diff
 --json`), for an agent or tool builder consuming them. Rendered live from the dataclasses
-by introspection — the same fields `ToDictMixin.to_dict` walks — so it cannot drift from
+by introspection - the same fields `ToDictMixin.to_dict` walks - so it cannot drift from
 the payload. A field serialized through a custom converter documents its shape via a
 `"schema"` note in its `field` metadata.
 """

@@ -1,11 +1,11 @@
 """A floating object browser that stays above the main window, with two views:
 
-- **All objects** — every loaded object grouped by Side then EditorSorting.
-- **By faction** — the `sage_utils.factiongraph` ownership graph as a drill-down: faction →
+- **All objects** - every loaded object grouped by Side then EditorSorting.
+- **By faction** - the `sage_utils.factiongraph` ownership graph as a drill-down: faction →
   spellbook /
   structures → the units, heroes and upgrades each structure produces. This is the
   "explore the game without launching it" path for someone who doesn't know template
-  names — built lazily on a worker the first time the tab is opened, since assembling
+  names - built lazily on a worker the first time the tab is opened, since assembling
   the graphs walks the whole game.
 
 Double-clicking a leaf loads that object as the primary unit; right-clicking loads it as
@@ -71,7 +71,7 @@ def _leaf(display: str, name: str, tooltip: str = "") -> dict:
 
 
 def _grouped_leaves(records) -> list[dict]:
-    """Leaves for unit/hero records, in first-seen order — but records sharing one display
+    """Leaves for unit/hero records, in first-seen order - but records sharing one display
     name (rank/variant duplicates like "Lossarnach Axe Warriors" ×4) collapse under a
     single `display (N)` group that expands to their object names, so the list reads
     clean and every variant stays reachable."""
@@ -117,7 +117,7 @@ def _power_node(power: Power) -> dict:
 
 
 def _structure_node(graph: FactionGraph, structure) -> dict:
-    """A structure with what it produces beneath it — the drill-down's middle layer."""
+    """A structure with what it produces beneath it - the drill-down's middle layer."""
     trained = [graph.units[u] for u in structure.trains_units if u in graph.units]
     recruited = [graph.heroes[h] for h in structure.recruits_heroes if h in graph.heroes]
     children = _grouped_leaves(trained) + _grouped_leaves(recruited)
@@ -125,7 +125,7 @@ def _structure_node(graph: FactionGraph, structure) -> dict:
         upgrade = graph.upgrades.get(upgrade_name)
         if upgrade is None:
             continue
-        cost = f" — {upgrade.cost:g}" if upgrade.cost else ""
+        cost = f" - {upgrade.cost:g}" if upgrade.cost else ""
         affected = ", ".join(display for _n, display in upgrade.affects)
         tooltip = clean_text(upgrade.description) or upgrade.name
         if affected:
@@ -188,8 +188,8 @@ class ObjectBrowser(QWidget):
     the By-faction drill-down, driving the main window's two unit slots from clicks."""
 
     def __init__(self, browser) -> None:
-        # A Tool window floats above its parent (the main window) only — not above other
-        # applications — and is hidden/minimized along with it.
+        # A Tool window floats above its parent (the main window) only - not above other
+        # applications - and is hidden/minimized along with it.
         super().__init__(browser, Qt.WindowType.Tool)
         self._browser = browser
         self.setWindowTitle("Object Browser")
@@ -300,7 +300,7 @@ class ObjectBrowser(QWidget):
         )
 
     def focus_faction(self, display: str) -> None:
-        """Open the By-faction tab on the faction labeled `display`, expanding its node —
+        """Open the By-faction tab on the faction labeled `display`, expanding its node -
         deferred until the tree is built when the cache is still cold."""
         self._pending_focus = display
         self.tabs.setCurrentWidget(self.faction_tree_widget)  # triggers the lazy build
@@ -334,7 +334,7 @@ class ObjectBrowser(QWidget):
     def _on_faction_tree_failed(self, message: str) -> None:
         self._faction_loading = False
         self.faction_tree_widget.clear()
-        self._placeholder(self.faction_tree_widget, f"Faction view failed — {message}")
+        self._placeholder(self.faction_tree_widget, f"Faction view failed - {message}")
 
     def _make_item(self, node: dict) -> QTreeWidgetItem:
         item = QTreeWidgetItem([node["label"]])

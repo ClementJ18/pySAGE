@@ -3,7 +3,7 @@
 # converter runs at access time (see resolve_annotation).
 # When a field's name equals its type's name (`Float: Float`), the field shadows the type for
 # the rest of the class body. Qualify such types through a module alias (`e`=enums, `t`=types,
-# `io`=ini_objects, `n`=nuggets): `Float: t.Float`, `Weapon: io.Weapon` — a field can never
+# `io`=ini_objects, `n`=nuggets): `Float: t.Float`, `Weapon: io.Weapon` - a field can never
 # shadow `t.Float`, so field order no longer matters.
 import sage_ini.model.enums as e
 import sage_ini.model.ini_objects as io

@@ -2,7 +2,7 @@
 are referenced by their localized display name (a special power through the command button
 that grants it), macro operands resolve to the numbers the engine sees, and each change is
 attributed back through the reference graph to the display-named units that use it, grouped
-under their faction — so "SpecialAbilityElvenAmbush ReloadTime 60000 -> 90000" reads as a
+under their faction - so "SpecialAbilityElvenAmbush ReloadTime 60000 -> 90000" reads as a
 cooldown change on "Ambush of the Wood-elves", listed under Lothlorien with the units that
 carry the ability.
 
@@ -53,13 +53,13 @@ _BALANCE_FIELDS = {
 }
 
 # Pseudo-faction buckets, rendered after the real factions. Bugfixes collects changes
-# whose old side was a broken reference (naming nothing) — repairing one is a fix, not a
+# whose old side was a broken reference (naming nothing) - repairing one is a fix, not a
 # balance move, so it reads apart from the faction lists.
 _MULTIPLE = "Multiple factions"
 _OTHER = "Other"
 _BUGFIXES = "Bugfixes"
 
-# What to call a definition that has no display name of its own, per table — it is then
+# What to call a definition that has no display name of its own, per table - it is then
 # described by kind and owner ("Weapon of Faramir") instead of by its code name.
 _KIND_LABELS = {
     "objects": "Unit",
@@ -209,7 +209,7 @@ class _Move(NamedTuple):
 
 
 def _flatten(diff: ObjectDiff) -> list[FieldChange]:
-    """Every field change in the definition's subtree, module nesting flattened away —
+    """Every field change in the definition's subtree, module nesting flattened away -
     the player cares that health moved, not which module holds it."""
     changes = list(diff.fields)
     for child in diff.changed_children:
@@ -281,7 +281,7 @@ def _render_armor_change(
 ) -> _Move | None:
     """An `Armor` change in context: inside an armor-set definition it is the per-type
     table itself; inside an object it is a reference swap to another set, which renders
-    as the effective per-type moves between the two sets — a swap onto a set with the
+    as the effective per-type moves between the two sets - a swap onto a set with the
     same values (a rename) is not a player-visible change. An old reference that names
     no set anywhere was broken (the unit had no armor scaling), so repairing it is a
     bugfix rather than a balance move."""
@@ -301,7 +301,7 @@ def _render_armor_change(
 
 
 def _button_label(view: _View, obj: IniObject) -> str | None:
-    """The localized text of a command button that grants `obj` — the name a player sees
+    """The localized text of a command button that grants `obj` - the name a player sees
     for a special power (or an upgrade without its own display name)."""
     for ref in sorted(view.xref.referenced_by(obj), key=lambda o: str(o.name)):
         if ref.key == "commandbuttons":
@@ -317,7 +317,7 @@ def _anchor_units(
     """Display-named objects that (transitively) use `obj`, as display -> object, plus
     the faction templates the walk reached. It follows reverse reference edges through
     display-less intermediates (a warhead's projectile, a command button, a command set)
-    and stops at the first named object on each path — the unit or structure the player
+    and stops at the first named object on each path - the unit or structure the player
     recognises. A spellbook power reaches no named object at all, only its faction (via
     the spellbook object and the player template), so the factions come back too."""
     seen = {obj}
@@ -356,8 +356,8 @@ def _compose(
     table_key: str, name: str, obj: IniObject, moves: list[str], view: _View
 ) -> _Entry | None:
     """One changelog line for a changed definition: a display-named object speaks for
-    itself; anything else is titled by its granted-button label — or, without one, by
-    kind and owner ("Weapon of Faramir") — and attributed to the units that use it. A
+    itself; anything else is titled by its granted-button label - or, without one, by
+    kind and owner ("Weapon of Faramir") - and attributed to the units that use it. A
     definition no named unit uses but a faction's spellbook carries is attributed to the
     faction directly. Code names never appear; a definition nothing display-named uses
     is internal and yields no entry."""
@@ -546,7 +546,7 @@ def format_player_diff(
             lines.append("- New: " + ", ".join(sorted(added[faction])))
         if faction in removed:
             lines.append("- Removed: " + ", ".join(sorted(removed[faction])))
-        # Without code names, internal variants of one unit render identically — say it once.
+        # Without code names, internal variants of one unit render identically - say it once.
         seen: set[str] = set()
         for entry in sorted(by_faction.get(faction, []), key=lambda e: e.sort):
             if entry.line not in seen:

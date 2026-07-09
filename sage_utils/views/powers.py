@@ -1,5 +1,5 @@
 """Special-power and modifier views: which module drives a power, what it does (fired
-weapon, summon chain — eggs hatched — or attribute modifier), its cooldown, and the
+weapon, summon chain - eggs hatched - or attribute modifier), its cooldown, and the
 mounted-form toggle."""
 
 from sage_ini.model.behaviors import (
@@ -20,8 +20,8 @@ from sage_utils.views.weapons import weapon_nuggets
 def _special_power_modules(obj, name) -> list:
     """Every behavior module on `obj` driven by the SpecialPower `name` (matched on its
     raw `SpecialPowerTemplate` token), in object order. A power is usually wired by
-    several modules sharing the template — an enabler, a paused starter and the module
-    carrying the effect — so the caller picks the one it renders."""
+    several modules sharing the template - an enabler, a paused starter and the module
+    carrying the effect - so the caller picks the one it renders."""
     modules = []
     owner = obj
     while owner is not None:
@@ -69,7 +69,7 @@ def _ocl_created_names(ocl) -> list[str]:
 
 
 def _hatch_ocls(obj) -> list:
-    """The ObjectCreationLists `obj` spawns when it dies — a summon egg's hatch — from a
+    """The ObjectCreationLists `obj` spawns when it dies - a summon egg's hatch - from a
     CreateObjectDie's `CreationList` or a SlowDeathBehavior's `OCL` (grouped by death
     phase)."""
     ocls = []
@@ -140,10 +140,10 @@ def special_power_view(game: Game, obj, name: str) -> dict:
     `obj` the named SpecialPower drives. `kind` selects the UI handling and the matching
     payload field is filled, the rest left empty:
 
-    - "weapon" — a WeaponFireSpecialAbilityUpdate fires `weapon`.
-    - "modifier" — a SpecialPowerModule applies `modifier` (an AttributeModifier).
-    - "summon" — an OCLSpecialPower spawns the `summoned` chain.
-    - "" — nothing resolvable; only `name` is known.
+    - "weapon" - a WeaponFireSpecialAbilityUpdate fires `weapon`.
+    - "modifier" - a SpecialPowerModule applies `modifier` (an AttributeModifier).
+    - "summon" - an OCLSpecialPower spawns the `summoned` chain.
+    - "" - nothing resolvable; only `name` is known.
 
     `cooldown` is the recharge time in seconds, or None.
     """

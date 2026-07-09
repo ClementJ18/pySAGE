@@ -1,19 +1,19 @@
 """Command-line entry point: `python -m sage_replay <command>` (or `sage-replay`).
 
-- `info <replay>` — header summary: game, version, map, players, duration, and the
+- `info <replay>` - header summary: game, version, map, players, duration, and the
   most frequent order types.
-- `orders <replay>` — dump the order stream (`--limit`, `--player`, `--order` to filter).
-- `ids <replay>` — the object-referencing integer ids in the order stream: a per-order
+- `orders <replay>` - dump the order stream (`--limit`, `--player`, `--order` to filter).
+- `ids <replay>` - the object-referencing integer ids in the order stream: a per-order
   summary, or (with `--order`) the timecode-ordered id runs for one order type. The raw
   material for mapping ids to mod objects (see object_id_mapping_plan.md).
-- `align <replay> <labels>` — join a hand-written label log to the id runs of one order
+- `align <replay> <labels>` - join a hand-written label log to the id runs of one order
   type and print the inferred `id -> object` rows; `--out` accumulates them into a JSON
   mapping.
-- `narrate <replay> --game <root>` — retell the match in English, resolving recruit / build
+- `narrate <replay> --game <root>` - retell the match in English, resolving recruit / build
   / special-power / spellbook / upgrade ids against a loaded game. `--game` takes an
   extracted `data/ini` tree or a live install folder (its `.big` archives are mounted
   automatically into a cache).
-- `winner <replay>` — infer the outcome from session-end signals (leave-game orders,
+- `winner <replay>` - infer the outcome from session-end signals (leave-game orders,
   checksum heartbeats, the end-of-recording marker); a concession heuristic, so the
   verdict may be `undetermined` (see `winner.py`).
 
@@ -183,7 +183,7 @@ def _run_info(args: argparse.Namespace) -> int:
         return 0
 
     header = replay.header
-    print(f"{header.game_type.name} replay — {header.version}")
+    print(f"{header.game_type.name} replay - {header.version}")
     print(f"Map:      {header.metadata.map_file}")
     print(
         f"Played:   {header.start_time:%Y-%m-%d %H:%M} UTC, "
@@ -310,7 +310,7 @@ def _run_align(args: argparse.Namespace) -> int:
         print(f"{_order_name(replay, args.order)}  ({len(rows)} rows)")
         for row in rows:
             mark = " " if row.ok else "!"
-            id_text = str(row.id) if row.id is not None else "—"
+            id_text = str(row.id) if row.id is not None else "-"
             print(f" {mark} {id_text:>8s}  {row.name}  ({row.replay_count}/{row.label_count})")
         for warning in warnings:
             print(f"warning: {warning}", file=sys.stderr)
@@ -334,7 +334,7 @@ def _merge_mapping(path: Path, metadata: dict, order_type: int, rows: list) -> l
 
     conflicts = []
     for row in rows:
-        # Only record rows whose run length matched the label — a mismatch means the
+        # Only record rows whose run length matched the label - a mismatch means the
         # alignment slipped and the id is not trustworthy.
         if row.id is None or not row.ok:
             continue
@@ -350,7 +350,7 @@ def _merge_mapping(path: Path, metadata: dict, order_type: int, rows: list) -> l
 
 def _resolve_game_root(game: Path, cache: Path | None) -> Path:
     """Return a `data/ini` tree to load. `game` may already be one (or an extracted corpus),
-    or a live install holding `.big` archives — those are mounted into `cache` (default: a
+    or a live install holding `.big` archives - those are mounted into `cache` (default: a
     per-install folder under the system temp dir), cached across runs."""
     if (game / "data" / "ini").is_dir() or (game / "default" / "subsystemlegend.ini").is_file():
         return game
@@ -401,7 +401,7 @@ def _session_status(session: PlayerSession, end: int, spf: float) -> str:
         return f"left the game at frame {session.left_at}{when}"
     if departed is not None:
         when = f" ({_clock(departed * spf)})" if spf else ""
-        return f"went silent at frame {departed}{when} — likely dropped"
+        return f"went silent at frame {departed}{when} - likely dropped"
     parts = []
     if session.last_order is not None:
         parts.append(f"last order -{end - session.last_order}")
@@ -452,9 +452,9 @@ def _run_winner(args: argparse.Namespace) -> int:
     if verdict.outcome == "decided":
         verb = "wins" if len(verdict.winner_names) == 1 else "win"
         who = ", ".join(verdict.winner_names)
-        print(f"Verdict:  {who} {verb} — {verdict.reason} (confidence: {verdict.confidence})")
+        print(f"Verdict:  {who} {verb} - {verdict.reason} (confidence: {verdict.confidence})")
     else:
-        print(f"Verdict:  {verdict.outcome} — {verdict.reason}")
+        print(f"Verdict:  {verdict.outcome} - {verdict.reason}")
     return 0
 
 

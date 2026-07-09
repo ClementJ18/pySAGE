@@ -107,7 +107,7 @@ def test_flatten_button_images_expands_and_keeps_empty():
         {"name": "A", "text": "Alpha", "image": []},  # no icon -> one row, image None
         {"name": "B", "text": "Beta", "image": ["img"]},  # single -> plain name
         {"name": "C", "text": "Gamma", "image": ["i1", "i2"]},  # multiple -> suffixed
-        # An unresolved ButtonImage: no croppable image, but a known image name —
+        # An unresolved ButtonImage: no croppable image, but a known image name -
         # the row is named after the image, not the button.
         {"name": "D", "text": "Delta", "image": [], "image_names": ["Img_D"]},
     ]
@@ -213,7 +213,7 @@ def test_unresolved_button_image_keeps_its_name():
     # The extract list names the (uncroppable) row after the image, not the button.
     row = command_set_icon_rows(game, command_set)[0]
     assert row["name"] == "DUZerkBeserkGangIcon"
-    assert row["image"] is None  # nothing to crop — the definition isn't loaded
+    assert row["image"] is None  # nothing to crop - the definition isn't loaded
 
 
 def test_command_set_icon_rows_lists_a_chosen_set():

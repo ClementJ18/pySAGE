@@ -2,7 +2,7 @@
 # Build the SAGE Lint window into a single standalone .exe a teammate can run without Python:
 #   pyinstaller sage_lint/sage-lint-ui.spec
 # The result is dist/SAGE Lint.exe. The model registry is populated by ordinary imports from
-# sage_lint.cli, so PyInstaller's static analysis finds it — no hiddenimports needed.
+# sage_lint.cli, so PyInstaller's static analysis finds it - no hiddenimports needed.
 
 import os
 

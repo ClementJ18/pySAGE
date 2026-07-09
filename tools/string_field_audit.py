@@ -4,7 +4,7 @@ The migration away from blanket `String`/`Opaque` annotations is driven by a rev
 table: this tool builds it. It inventories every `String`/`Opaque` field declaration in
 the model (via the source AST, so each row carries its `file:line` and exact current
 annotation), samples the real values each field takes across the given corpus roots, and
-makes a best-guess at the dedicated type the data supports — with a confidence flag so the
+makes a best-guess at the dedicated type the data supports - with a confidence flag so the
 confident rows can be skim-approved and the rest scrutinized.
 
 Nothing is changed: the output is a Markdown table (and a CSV alongside) for a human to
@@ -51,7 +51,7 @@ def consumer_sources() -> dict[str, str]:
 
 
 def consumers_using(field: str, sources: dict[str, str]) -> list[str]:
-    """Which consumer packages reference `field` — as an attribute access (`obj.Field`) or a
+    """Which consumer packages reference `field` - as an attribute access (`obj.Field`) or a
     quoted key (`"Field"`). Bare-name matches are skipped to avoid false hits on common words."""
     pattern = re.compile(rf"""(\.{re.escape(field)}\b|["']{re.escape(field)}["'])""")
     return [pkg for pkg, src in sources.items() if pattern.search(src)]
@@ -64,7 +64,7 @@ ASSET_EXTS = (".w3d", ".tga", ".dds", ".bmp", ".wav", ".mp3", ".bik", ".ini", ".
 def annotation_mentions_target(node: ast.expr) -> str | None:
     """If an annotation expression names `Untyped`/`Opaque` (bare, `t.`-qualified, or inside a
     `List[...]`/`Nullable[...]` subscript), return a short label for it, else None. The clean,
-    intentional `String` is *not* tracked — it is a reviewed choice, not backlog."""
+    intentional `String` is *not* tracked - it is a reviewed choice, not backlog."""
     found: set[str] = set()
     container = ""
 
@@ -194,7 +194,7 @@ def guess_type(field: str, tokens: list[str], games) -> tuple[str, str, str]:
 
     n = len(tokens)
     flat = [t for tok in tokens for t in tok.split()] or tokens
-    # Whether sampled *values* are mostly several tokens — a compound/list field, not a scalar.
+    # Whether sampled *values* are mostly several tokens - a compound/list field, not a scalar.
     # Such a field can't be a bare scalar type, so any scalar guess drops to low confidence.
     multi = sum(1 for tok in tokens if len(tok.split()) > 1) / n > 0.4
     scalar_conf = "low" if multi else "high"

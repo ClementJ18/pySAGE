@@ -122,7 +122,7 @@ class LintWindow(QMainWindow):
 
     def _autoload_startup_config(self) -> None:
         """If a `.sagelint` (or `.sagelint.local`) sits beside the app, pre-select that folder
-        and load its config on launch — so a teammate who drops the exe into their mod folder
+        and load its config on launch - so a teammate who drops the exe into their mod folder
         just presses Check."""
         folder = app_dir()
         if has_project_config(folder):
@@ -248,7 +248,7 @@ class LintWindow(QMainWindow):
         keys (ignore/select/exclude/baseline/base) are applied by the CLI itself at Check time."""
         try:
             config = project_config(self.folder_field.text().strip())
-        except Exception as exc:  # noqa: BLE001 — surface, never crash, on a bad config
+        except Exception as exc:  # noqa: BLE001 - surface, never crash, on a bad config
             self.status.setText(f"Could not read .sagelint: {type(exc).__name__}: {exc}")
             return
         if config is None:
@@ -286,7 +286,7 @@ class LintWindow(QMainWindow):
             return
         names = ", ".join(p.parent.name or p.name for p in self._auto_baselines)
         self.baseline_field.setText(
-            f"{len(self._auto_baselines)} baseline(s) found — merged on Check ({names})"
+            f"{len(self._auto_baselines)} baseline(s) found - merged on Check ({names})"
         )
         self._baseline_is_auto = True
 
@@ -353,7 +353,7 @@ class LintWindow(QMainWindow):
 
     def _on_format_failed(self, message: str) -> None:
         self.format_button.setEnabled(True)
-        self.status.setText(f"Format failed — {message}")
+        self.status.setText(f"Format failed - {message}")
 
     def _on_report(self, report: dict) -> None:
         self.check_button.setEnabled(True)
@@ -374,7 +374,7 @@ class LintWindow(QMainWindow):
 
     def _on_failed(self, message: str) -> None:
         self.check_button.setEnabled(True)
-        self.status.setText(f"Check failed — {message}")
+        self.status.setText(f"Check failed - {message}")
 
     def _populate(self) -> None:
         self.table.setSortingEnabled(False)  # bulk insert, then re-enable to sort
@@ -419,7 +419,7 @@ class LintWindow(QMainWindow):
 
     def _export(self) -> None:
         if not self._diagnostics:
-            self.status.setText("Nothing to export yet — run a check first.")
+            self.status.setText("Nothing to export yet - run a check first.")
             return
         path, _ = QFileDialog.getSaveFileName(self, "Export results", "", "CSV file (*.csv)")
         if not path:

@@ -1,7 +1,7 @@
 """Corpus noise check: a lint rule must not flood the base game (PLAN Step 3.2).
 
 The base game is mostly valid, so a judgment rule that fires on a large fraction
-of it is wrong — its premise is too broad — not a discovery of thousands of bugs.
+of it is wrong - its premise is too broad - not a discovery of thousands of bugs.
 This gate assembles the `data/` base game, runs every registered rule, and holds
 each rule's hit count under a plausibility ceiling, so a future rule that floods
 fails here instead of drowning real findings in a report.
@@ -10,7 +10,7 @@ The exhaustive coverage signals are exempt: `unrecognized-block` (every unmodele
 sub-block) and `unknown-attribute` (every still-untyped field, ~58k of them), both
 raised at ERROR to drive the schema toward 100% coverage. They are meant to fire
 broadly until the schema catches up, so the ceiling applies only to the remaining
-judgment rules — the ones whose firing signals an actual mistake.
+judgment rules - the ones whose firing signals an actual mistake.
 
 Measured on the base game (25,375 objects), for the record:
     duplicate-definition       11      out-of-range                0
@@ -38,7 +38,7 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 FLOOD_FRACTION = 0.05
 
 # Codes that are exhaustive coverage signals by design (one hit per unmodeled element), so
-# the flood ceiling does not apply — they are meant to fire broadly until the schema catches
+# the flood ceiling does not apply - they are meant to fire broadly until the schema catches
 # up: `unrecognized-block` (every unmodeled sub-block) and `unknown-attribute` (every untyped
 # field), both raised at ERROR by request to drive the schema toward 100% coverage.
 _EXHAUSTIVE = {"unrecognized-block", "unknown-attribute"}

@@ -1,5 +1,5 @@
 """Line tokenizer for SAGE ini text. `;`, `//`, and `--` each start a comment anywhere on
-a line (first marker wins, no quote/URL awareness), matching the engine — so an unquoted
+a line (first marker wins, no quote/URL awareness), matching the engine - so an unquoted
 URL truncates at `//`. Directives and in-value expressions are ordinary content here; the
 block parser gives them meaning.
 """
@@ -65,15 +65,15 @@ def tokenize_file(path: str | Path) -> list[Line]:
 
 
 # Tokenized lines per file, keyed by path string -> ((mtime_ns, size), lines). One physical
-# file is tokenized many times in a load — by the root-discovery scan, then by every root that
-# `#include`s it — so caching collapses that to once. Keyed on stat so an edited file
+# file is tokenized many times in a load - by the root-discovery scan, then by every root that
+# `#include`s it - so caching collapses that to once. Keyed on stat so an edited file
 # re-tokenizes; safe for a long-lived process (the linter) without serving stale lines.
 _FILE_CACHE: dict[str, tuple[tuple[int, int], list[Line]]] = {}
 
 
 def tokenize_path(path: str | Path) -> list[Line]:
     """Tokenize a file, caching by (mtime, size). Pass a resolved path so callers reading the
-    same physical file share one entry. The returned list is shared and must not be mutated —
+    same physical file share one entry. The returned list is shared and must not be mutated -
     every consumer only iterates it."""
     key = str(path)
     try:

@@ -1,9 +1,9 @@
 """Assorted nested sub-blocks scattered across the game files (object threat/flammability,
 particle events, melee/sound/production module blocks, AI and formation data, etc.). Each is
 typed by its parent's `nested_attributes`; the parents live in `behaviors`, `data_blocks`,
-`ini_objects` and `particles`. Fields are typed conservatively — voice/sound names as soft
+`ini_objects` and `particles`. Fields are typed conservatively - voice/sound names as soft
 `Sound` references, filters as `ObjectFilter`, plain numbers as Int/Float/Bool, and anything
-uncertain as a raw string — so recognizing a block never introduces a conversion error.
+uncertain as a raw string - so recognizing a block never introduces a conversion error.
 """
 
 from typing import TYPE_CHECKING

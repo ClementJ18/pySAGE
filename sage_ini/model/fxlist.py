@@ -1,5 +1,5 @@
-"""FXList nuggets. An `FXList` is a bag of effect blocks played together — particles, sounds,
-camera shakes, decals, tints — each a named block that may repeat. They are typed by name and
+"""FXList nuggets. An `FXList` is a bag of effect blocks played together - particles, sounds,
+camera shakes, decals, tints - each a named block that may repeat. They are typed by name and
 collected into the per-kind groups declared on `FXList`. None take a label key.
 
 Fields are typed conservatively (soft references for asset names, numbers where clearly

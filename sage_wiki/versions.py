@@ -1,6 +1,6 @@
 """Reading and updating the Edain wiki's version templates (VER_LATEST, VER_STANDALONE,
 VER_UPCOMING). Each is a one-value template whose transcluded version is its
-`<includeonly>` body, or — lacking the tags — the content outside any `<noinclude>`
+`<includeonly>` body, or - lacking the tags - the content outside any `<noinclude>`
 block. `replace_version` swaps the value while leaving the wrappers untouched.
 """
 

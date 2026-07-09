@@ -1,11 +1,11 @@
 """Command-line entry point: `python -m sage_apt <command>` (or `sage-apt`).
 
-- `to-xml <file.apt>` — decompile a `.apt`/`.const` pair to an editable `.xml`.
-- `to-apt <file.xml>` — compile the XML back into the `.apt`/`.const` pair.
-- `check <paths...>` — batch round-trip validator; reports `ok`/`unstable`/`error`
+- `to-xml <file.apt>` - decompile a `.apt`/`.const` pair to an editable `.xml`.
+- `to-apt <file.xml>` - compile the XML back into the `.apt`/`.const` pair.
+- `check <paths...>` - batch round-trip validator; reports `ok`/`unstable`/`error`
   per pair and exits non-zero on any failure (`--json` for machine-readable output).
-- `view <file.xml>` — write a self-contained HTML/SVG visualisation next to the file.
-- `edit <file.xml>` — serve the browser editor for the file (`--port`, `--no-browser`).
+- `view <file.xml>` - write a self-contained HTML/SVG visualisation next to the file.
+- `edit <file.xml>` - serve the browser editor for the file (`--port`, `--no-browser`).
 """
 
 import argparse
@@ -28,7 +28,7 @@ def _build_texture_resolver(path, game_dir):
     if not game_dir:
         return None
     try:
-        from sage_apt.textures import build_resolver  # noqa: PLC0415 — lazy: needs [apt]/[ui]
+        from sage_apt.textures import build_resolver  # noqa: PLC0415 - lazy: needs [apt]/[ui]
     except ImportError:
         print("note: install the [apt] or [ui] extra for real textures", file=sys.stderr)
         return None
@@ -64,7 +64,7 @@ def _run_check(args: argparse.Namespace) -> int:
         for r in results:
             line = f"{r.status:8s} {r.path}"
             if r.message:
-                line += f"  — {r.message}"
+                line += f"  - {r.message}"
             print(line)
         if not results:
             print("no .apt pairs found")

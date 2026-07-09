@@ -1,9 +1,9 @@
-"""Step 1 — the nine small chunks handled by the generic `SmallChunk` codec.
+"""Step 1 - the nine small chunks handled by the generic `SmallChunk` codec.
 
 The exact-inverse round-trip of each is already covered by the registry test in test_infra.py
 (they are in `CHUNK_CODECS`). These tests pin the *reversing conclusions*: which chunks are a
 fixed constant across every fixture (a change would mean a new field to decode), and the two that
-carry real, varying data (`WeatherSystem`, `MissionObjectives`). They double as tripwires — if a
+carry real, varying data (`WeatherSystem`, `MissionObjectives`). They double as tripwires - if a
 future save makes a "constant" chunk vary, the assertion fails and flags it for a fuller decode.
 """
 
@@ -84,7 +84,7 @@ def test_mission_objectives_empty_in_skirmish():
 
 def test_mission_objectives_lists_scripts_in_campaign():
     # In a campaign save the chunk carries the mission's objective/bonus script names (kept in the
-    # opaque body for now — a fuller decode is deferred with the other script-bearing chunks).
+    # opaque body for now - a fuller decode is deferred with the other script-bearing chunks).
     path = FIXTURES / "campaign" / "Saved Game 1.BfME2Campaign"
     save = parse_save_from_path(_require(path))
     chunk = save.chunk("CHUNK_MissionObjectives")

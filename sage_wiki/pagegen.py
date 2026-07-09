@@ -9,7 +9,7 @@ abilities or upgrades. Upgrades are only hinted, since the wiki transcludes them
 hand-curated labels with no algorithmic tie to the ini names.
 
 A building also gets a recruitment section: its UNIT_BUILD buttons become a unit table, and
-its REVIVE buttons a hero table — the revive buttons indexed in slot order against the
+its REVIVE buttons a hero table - the revive buttons indexed in slot order against the
 faction's buildable heroes, with the building recruiting the heroes whose button lacks the
 `NEED_UPGRADE` option. Preview-only; nothing is saved.
 """
@@ -108,7 +108,7 @@ def _lore_prose(text: str) -> str:
         if not segment or segment.lower().startswith(_LORE_METADATA):
             continue
         if segment.startswith("''") and segment.endswith("''"):
-            continue  # flavor quote — the page carries flavor in its {{Quote}}
+            continue  # flavor quote - the page carries flavor in its {{Quote}}
         kept.append(segment)
     return _join_segments(kept)
 
@@ -263,7 +263,7 @@ def upgrade_hints(entries: list[dict]) -> str:
     """The detected upgrades as an HTML-comment hint block, listing what the unit has for
     the editor to wire up by hand (the wiki's upgrade templates have no algorithmic tie)."""
     lines = [
-        "<!-- Detected upgrades — wire each up with the right {{Upgrade|…}} or per-upgrade",
+        "<!-- Detected upgrades - wire each up with the right {{Upgrade|…}} or per-upgrade",
         "     template from https://edain.fandom.com/wiki/Upgrades :",
     ]
     for entry in entries:
@@ -326,7 +326,7 @@ def _fmt(value) -> str:
 
 
 def _article_table(headers: list[str], rows: list[list[str]]) -> str:
-    """A wiki `article-table` with one cell per line — the Edain building pages' convention."""
+    """A wiki `article-table` with one cell per line - the Edain building pages' convention."""
     lines = ['{| class="article-table"']
     lines += [f"! {header}" for header in headers]
     for row in rows:
@@ -339,8 +339,8 @@ def _article_table(headers: list[str], rows: list[list[str]]) -> str:
 def building_units(game, obj, linker=None) -> list[list[str]]:
     """The units a building recruits: each UNIT_BUILD button across its command sets as a
     `[name, type, cost, command_points, shortcut]` row (type left blank for the editor).
-    De-duplicated by display name — a sub-faction's cheaper variant shares the base unit's
-    name — in first-seen slot order. With a `linker`, a name with a wiki page is hyperlinked."""
+    De-duplicated by display name - a sub-faction's cheaper variant shares the base unit's
+    name - in first-seen slot order. With a `linker`, a name with a wiki page is hyperlinked."""
     seen: set[str] = set()
     rows: list[list[str]] = []
     for set_name in command_set_names(obj):
@@ -571,7 +571,7 @@ def _tier_unit(obj):
 
 def _tier(obj) -> str:
     """The unit's wiki tier from its KindOf: Elite (`MADE_OF_METAL`), Heroic (`MADE_OF_DIRT`),
-    else Standard — Edain's otherwise-cosmetic tier flags."""
+    else Standard - Edain's otherwise-cosmetic tier flags."""
     unit = _tier_unit(obj)
     if has_kindof(unit, "MADE_OF_METAL"):
         return "Elite"
@@ -581,7 +581,7 @@ def _tier(obj) -> str:
 
 
 def _horde_size(obj) -> int | None:
-    """A horde's battalion size — its ``HordeContain`` ``Slots`` — or None for a lone unit."""
+    """A horde's battalion size - its ``HordeContain`` ``Slots`` - or None for a lone unit."""
     for module in getattr(obj, "_modules", ()):
         if isinstance(module, ContainBehavior):
             slots = safe(lambda m=module: m.Slots)

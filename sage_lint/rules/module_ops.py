@@ -6,10 +6,10 @@ drops one. Each edit references a `ModuleTag_*` that must (or must not) already 
 inheritance is taken into account, so a typo'd or stale tag silently no-ops in the engine. This
 rule resolves the module set down the parent chain and checks each edit against it:
 
-* `AddModule` — its tag must not already exist on the object or any parent.
-* `ReplaceModule` — the replaced tag must exist; the replacement must be the same module type
+* `AddModule` - its tag must not already exist on the object or any parent.
+* `ReplaceModule` - the replaced tag must exist; the replacement must be the same module type
   and carry a different tag.
-* `RemoveModule` — the removed tag must exist.
+* `RemoveModule` - the removed tag must exist.
 """
 
 from collections.abc import Iterator
@@ -39,11 +39,17 @@ def _local_tagged(obj) -> dict[str, object]:
 
 
 def _parent(obj):
+    # A map.ini override inherits from the definition it patches (its `_override_base`), which
+    # already carries the full parent chain; otherwise a ChildObject inherits from its declared
+    # parent. The override base wins, since a same-name override cannot resolve a parent by name.
+    base = getattr(obj, "_override_base", None)
+    if base is not None:
+        return base
     return obj.parent if isinstance(obj, ChildObject) else None
 
 
 def default_module_tags(game: Game) -> dict[str, object]:
-    """`tag -> module` for the modules every object inherits from `DefaultThingTemplate` — its
+    """`tag -> module` for the modules every object inherits from `DefaultThingTemplate` - its
     own modules plus those wrapped in `InheritableModule` (copied into and kept by every
     object). Seeded into each object's base so a `Replace`/`Remove` of one is not mistaken for
     a missing module."""
@@ -72,7 +78,7 @@ def effective_module_tags(obj, default_tags: dict[str, object]) -> dict[str, obj
 
 
 def resolved_module_tags(obj, default_tags: dict[str, object]) -> dict[str, object]:
-    """`tag -> module` for the object's *final* module set — the default template's modules
+    """`tag -> module` for the object's *final* module set - the default template's modules
     plus everything `_effective_modules` resolves (parent chain, this object's removes,
     replaces, adds and own modules). Unlike `effective_module_tags`, this includes the object's
     own `AddModule`s, so it answers "does this tag exist on the finished object?"."""

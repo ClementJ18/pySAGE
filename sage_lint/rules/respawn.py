@@ -15,7 +15,7 @@ from sage_lint.rules.base import Rule
 
 def _respawn_ladders(game: Game) -> Iterator[tuple]:
     """Yield `(obj, levels)` for each `RespawnUpdate` that lists entries, where `levels` is a
-    list of `(level, span)` in source order — each entry carries the span of its own
+    list of `(level, span)` in source order - each entry carries the span of its own
     `RespawnEntry` line so its diagnostic lands there rather than on the first entry.
     Iterating the object table keeps each module tied to the template whose rank ladder its
     entries must match."""
@@ -38,7 +38,7 @@ def _respawn_ladders(game: Game) -> Iterator[tuple]:
 
 class RespawnLevelRule(Rule):
     """A `RespawnEntry` whose `Level` is not a rank the object is registered for (the
-    `Rank`s of the `ExperienceLevel`s targeting it) — dead data, since the hero can
+    `Rank`s of the `ExperienceLevel`s targeting it) - dead data, since the hero can
     never respawn at a rank it cannot reach."""
 
     code = "respawn-unknown-level"

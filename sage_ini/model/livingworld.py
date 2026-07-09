@@ -3,8 +3,8 @@
 conditions); a region campaign nests `Region`s (with map connections and build restrictions);
 `LivingWorldBuilding` nests `BuildingNugget`s, and `LinearCampaign` nests `Mission`s.
 
-These are deeply nested and largely descriptive, so fields are typed conservatively — labels,
-map/army names and `X:Y:` coordinates as raw strings, plain counts/flags as Int/Bool — and
+These are deeply nested and largely descriptive, so fields are typed conservatively - labels,
+map/army names and `X:Y:` coordinates as raw strings, plain counts/flags as Int/Bool - and
 each container declares its child blocks via `nested_attributes`. The named blocks (`Act One`,
 `Region <name>`) take the token after the keyword as their name. Repeated point/list fields
 are `List`s so they are not mistaken for last-wins scalars.
@@ -329,7 +329,7 @@ class ArmyEntry(NestedAttribute):
 
 class BonusForLevel(NestedAttribute):
     """A per-level bonus tier of an `AutoResolveLeadership`: the multipliers applied once a
-    unit reaches `MinLevel` (kept as raw strings — the values are percentages)."""
+    unit reaches `MinLevel` (kept as raw strings - the values are percentages)."""
 
     MinLevel: t.Int
     WeaponMultiplier: t.Float

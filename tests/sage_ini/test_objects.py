@@ -296,7 +296,7 @@ class TestNesting:
 
     def test_child_without_override_still_registers_globally(self):
         # Without a declared override, a child block keyed to a registered type builds and
-        # registers it as usual — the override is opt-in per parent.
+        # registers it as usual - the override is opt-in per parent.
         class PlainFrame(IniObject):
             key = "plainframes"
 

@@ -64,7 +64,7 @@ def _knockback_fragment(knockback: dict) -> str:
 def _dot_fragment(dot: dict) -> str:
     """A damage-over-time effect as `POISON DoT 20/s for 30s`. The per-second rate is the tick
     damage scaled by the interval (`DamageInterval` ms); the duration is `DamageDuration` ms in
-    seconds. The SpecialObjectFilter is ignored — a DoT is taken to apply to All."""
+    seconds. The SpecialObjectFilter is ignored - a DoT is taken to apply to All."""
     interval = dot["interval"] or 0
     per_second = dot["damage"] * 1000 / interval if interval else dot["damage"]
     prefix = f"{dot['damage_type']} DoT" if dot["damage_type"] else "DoT"

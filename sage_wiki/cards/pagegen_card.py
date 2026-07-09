@@ -1,5 +1,5 @@
-"""The GENERATE PAGE card: scaffold a brand-new page draft from an object — infobox,
-abilities, upgrade toggles, navbox and category — for review and copy; nothing is saved."""
+"""The GENERATE PAGE card: scaffold a brand-new page draft from an object - infobox,
+abilities, upgrade toggles, navbox and category - for review and copy; nothing is saved."""
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -44,7 +44,7 @@ class PagegenCardMixin:
         body.setSpacing(8)
 
         note = QLabel(
-            "Scaffold a whole new page from an object — infobox, abilities, upgrade "
+            "Scaffold a whole new page from an object - infobox, abilities, upgrade "
             "hints, navbox and category. Review and copy the draft; nothing is saved."
         )
         note.setObjectName("muted")
@@ -198,7 +198,7 @@ class PagegenCardMixin:
     def _copy_page(self) -> None:
         text = self.pagegen_preview.toPlainText()
         if not text:
-            self.pagegen_status.setText("Nothing to copy — generate a page first.")
+            self.pagegen_status.setText("Nothing to copy - generate a page first.")
             return
         QApplication.clipboard().setText(text)
         self.pagegen_status.setText("Copied to clipboard.")

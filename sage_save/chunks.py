@@ -3,15 +3,15 @@
 Decoded so far: `CHUNK_GameState` (the browser header), `CHUNK_GameStateMap` (map paths +
 the embedded `.map`), `CHUNK_Campaign` (empty in a skirmish save; in a campaign save the
 current campaign/mission plus the persistent-hero carry-over roster), and `CHUNK_GameLogic`
-down to the object level — its template table and the per-object index (template id,
+down to the object level - its template table and the per-object index (template id,
 object id, and body byte-range) that names every live object on the map (empty in a
 between-missions save, which carries no live objects). Object *bodies* (each behavior
 module's `xfer`) stay opaque, as does the deep per-player/script state of the other chunks.
 Layouts were reversed against real BFME2 skirmish and campaign saves; single-sample regions
 whose meaning is unresolved are kept as raw bytes so nothing is silently lost.
 
-Every registered chunk also has an exact-inverse encoder — `encode(decode(payload)) == payload`
-across the corpus — so edited values can be written back (see `sage_save.edit`). That includes
+Every registered chunk also has an exact-inverse encoder - `encode(decode(payload)) == payload`
+across the corpus - so edited values can be written back (see `sage_save.edit`). That includes
 `CHUNK_GameLogic` and `CHUNK_GameClient`, whose module bodies stay opaque but round-trip
 verbatim: each object/drawable's `KOLB` end-offset is recomputed from its stored body offset, so
 the index reassembles losslessly without decoding a single module's `xfer`.
@@ -33,7 +33,7 @@ from sage_utils.stream import BinaryStream
 
 def _read_systemtime(reader: XferReader) -> datetime | None:
     """The Win32 ``SYSTEMTIME`` the engine writes: year, month, day, dayOfWeek, hour,
-    minute, second, milliseconds — eight uint16s. Returns None if the fields are not a
+    minute, second, milliseconds - eight uint16s. Returns None if the fields are not a
     valid date (defensive; the raw values are otherwise lost)."""
     year, month, day, _weekday, hour, minute, second, millis = (reader.uint16() for _ in range(8))
     try:
@@ -67,11 +67,11 @@ def _write_unicode(stream: BinaryStream, text: str) -> None:
 
 @dataclass
 class GameStateHeader:
-    """`CHUNK_GameState` — the save-browser header (BFME2, version 1).
+    """`CHUNK_GameState` - the save-browser header (BFME2, version 1).
 
     The tail carries **two** unicode strings, not one: a `hero_name` before the profile
     `user_name`. It is empty in an ordinary skirmish/campaign save, but holds the display name of
-    the hero the player brought into the game — a create-a-hero in skirmish (e.g. "Berethor"), or
+    the hero the player brought into the game - a create-a-hero in skirmish (e.g. "Berethor"), or
     the created War-of-the-Ring hero in a WotR save ("The Hidden One"). It was invisible until a
     create-a-hero fixture populated it: with the string empty, its `0x00` length byte read as part
     of the constant region after the map name, so the layout looked like a single trailing name."""
@@ -127,7 +127,7 @@ def encode_game_state(header: GameStateHeader) -> bytes:
 
 @dataclass
 class GameStateMap:
-    """`CHUNK_GameStateMap` — map paths plus the embedded `.map` file (BFME2, version 2).
+    """`CHUNK_GameStateMap` - map paths plus the embedded `.map` file (BFME2, version 2).
 
     A between-missions (mission) save writes only a **stub**: it carries no scratch-map name and
     no embedded map (the next mission boots a fresh map), so `map_data` is empty, `game_mode` is
@@ -169,7 +169,7 @@ def decode_game_state_map(chunk: Chunk) -> GameStateMap:
 def encode_game_state_map(gsm: GameStateMap, original_payload: bytes) -> bytes:
     """Re-encode `CHUNK_GameStateMap` with edited map paths / game mode, keeping the embedded
     map block and everything after it verbatim from `original_payload`. The nested map block
-    stores an *absolute* file offset, so it is copied byte-for-byte rather than rebuilt — an
+    stores an *absolute* file offset, so it is copied byte-for-byte rather than rebuilt - an
     edit that changes the prefix length would move it and invalidate that offset, which the
     caller (`apply_json`) guards against by requiring the payload length to be unchanged."""
     if BLOCK_MARKER not in original_payload:
@@ -194,11 +194,11 @@ def encode_game_state_map(gsm: GameStateMap, original_payload: bytes) -> bytes:
 
 @dataclass
 class TacticalView:
-    """`CHUNK_TacticalView` — the camera (BFME2 version 3).
+    """`CHUNK_TacticalView` - the camera (BFME2 version 3).
 
     Its leading fields are exactly the GPL `View::xfer` (`GameClient/View.cpp`): the camera
-    `angle` and the look-at `position` (a `Coord3D`). Those match the BFME2 bytes — confirmed
-    across the corpus (the position moves between saves as the camera pans) — even though BFME2
+    `angle` and the look-at `position` (a `Coord3D`). Those match the BFME2 bytes - confirmed
+    across the corpus (the position moves between saves as the camera pans) - even though BFME2
     bumped the chunk to version 3 and appended ~130 bytes of version-2/3 camera state (zoom,
     pitch, animation) that its (non-public) `View::xfer` overrides add. Those trailing bytes are
     kept opaque; `angle` and `position` decode and round-trip exactly, so the camera is editable
@@ -232,12 +232,12 @@ def encode_tactical_view(view: TacticalView) -> bytes:
 
 @dataclass
 class TeamFactory:
-    """`CHUNK_TeamFactory` — the team prototypes (BFME2 version 3).
+    """`CHUNK_TeamFactory` - the team prototypes (BFME2 version 3).
 
     Only the header is decoded: the GPL `TeamFactory::xfer` writes a unique-team-ID counter then a
     `uint16` prototype count, and BFME2 matches that. Each prototype body also *starts* like ZH's
-    `TeamPrototype::xfer` (version 2, `owningPlayerIndex`, `attackPriorityName`) — so the
-    team→player attribution is right there — but the embedded `TeamTemplateInfo` is **BFME2 version
+    `TeamPrototype::xfer` (version 2, `owningPlayerIndex`, `attackPriorityName`) - so the
+    team→player attribution is right there - but the embedded `TeamTemplateInfo` is **BFME2 version
     3** where ZH is version 1, with extra fields whose layout is not public. That extra data throws
     off the following `teamInstanceCount`, so the per-prototype walk can't be completed and the
     prototype block is kept opaque in `body`. Reversing BFME2's `TeamTemplateInfo` v3 (the corpus
@@ -286,18 +286,18 @@ class CampaignHero:
 
 @dataclass
 class Campaign:
-    """`CHUNK_Campaign` — the campaign manager (BFME2, version 1).
+    """`CHUNK_Campaign` - the campaign manager (BFME2, version 1).
 
     A skirmish save has no active campaign (`active` is false) and the chunk is just the version
     byte plus that flag. A campaign save carries the current campaign/mission and a persistent-
-    **hero carry-over roster** — the heroes (with earned experience and upgrades) that survive
-    between missions — inside a nested `KOLB` block kept here as `roster` (opaque for an exact
+    **hero carry-over roster** - the heroes (with earned experience and upgrades) that survive
+    between missions - inside a nested `KOLB` block kept here as `roster` (opaque for an exact
     round-trip; `heroes` is the decoded view harvested from it).
 
     `mission_number` is the 1-based mission index, read from the roster block preamble (`u8 6 +
     u32 0-based counter`); it correctly tracks progress across the corpus (mission-1 saves,
     between-mission autosaves for missions 2/3, and mid-mission-2 full saves). The `int32` the
-    engine writes right after the campaign name — decoded as `campaign_flag` — is a constant `1`
+    engine writes right after the campaign name - decoded as `campaign_flag` - is a constant `1`
     across all 20 campaign fixtures (both campaigns, all three missions); its meaning is
     unresolved (plausibly the difficulty, but the corpus has no hard-difficulty save to confirm),
     so it is kept verbatim rather than guessed."""
@@ -370,7 +370,7 @@ def _try_read_hero(data: bytes, offset: int) -> tuple[CampaignHero, int] | None:
 def _harvest_campaign_heroes(roster: bytes) -> list[CampaignHero]:
     """Every hero record in the roster block, found by the record signature. The surrounding
     per-player group framing (which splits the roster differently as the campaign progresses) is
-    not reversed, so records are located by scan rather than a structured walk — the same
+    not reversed, so records are located by scan rather than a structured walk - the same
     signature-harvest strategy `sage_save.players` uses for the fatal `CHUNK_Players` names."""
     heroes: list[CampaignHero] = []
     offset = 0
@@ -426,7 +426,7 @@ def encode_campaign(campaign: Campaign) -> bytes:
 class SaveObject:
     """One live `Object` in `CHUNK_GameLogic`: its template (resolved through the chunk's
     template table), its runtime object id, and its `Object::xfer` body. The body stays opaque,
-    but `object_modules` walks its `ModuleTag_*` nested-block structure — hence `body_offset`, the
+    but `object_modules` walks its `ModuleTag_*` nested-block structure - hence `body_offset`, the
     body's absolute file position, needed to resolve the blocks' absolute end-offsets."""
 
     template_id: int
@@ -441,7 +441,7 @@ class ObjectPrefix:
     """The decoded head of an object's `Object::xfer` scalar prefix (the bytes between the
     body start and the first `ModuleTag_*` block): a version byte (26 for every one of the
     9,320 objects across the corpus), an ascii echo of the object's template name, a u32 echo
-    of its object id, and the 12-float row-major 3x4 transform — rotation columns plus the
+    of its object id, and the 12-float row-major 3x4 transform - rotation columns plus the
     world position. Both echoes are validated against the object index, which makes a
     mis-aligned read structurally impossible. The scalars after the matrix (status flags,
     veterancy, health module state, ...) remain undecoded in the prefix remainder."""
@@ -453,7 +453,7 @@ class ObjectPrefix:
 
     @property
     def position(self) -> tuple[float, float, float]:
-        """The object's world position (x, y, z) — the transform's translation column."""
+        """The object's world position (x, y, z) - the transform's translation column."""
         return (self.matrix[3], self.matrix[7], self.matrix[11])
 
 
@@ -488,7 +488,7 @@ def object_veterancy_level(obj: SaveObject) -> int:
     BFME2 implements veterancy as `Upgrade_ObjectLevelN` upgrades granted at each rank: a level-N
     unit carries `Upgrade_ObjectLevel1..N` (the object prefix's applied-upgrade mask lists them,
     and the parallel `GoodLevelN` experience block names the current rank). This reads the level
-    name-based — the highest `N` present — so it needs no offset walk into the variable prefix; an
+    name-based - the highest `N` present - so it needs no offset walk into the variable prefix; an
     object that carries no such upgrade (a prop, most structures) returns 0. Pinned by the
     "unit full" → "unit vet" delta: a DwarvenGuardian horde and its members go 1 → 2 when the
     horde ranks up, gaining `Upgrade_ObjectLevel2`. The health counterpart lives inside the
@@ -499,7 +499,7 @@ def object_veterancy_level(obj: SaveObject) -> int:
 
 def set_object_position(obj: SaveObject, position: tuple[float, float, float]) -> SaveObject:
     """Return a copy of `obj` with the transform's translation column (world x, y, z) rewritten
-    in place — a length-preserving edit (three f32 overwrites), so it satisfies the absolute-
+    in place - a length-preserving edit (three f32 overwrites), so it satisfies the absolute-
     offset constraint and flows through `encode_game_logic`. The rotation columns are untouched.
     Validates the prefix echoes first (via `decode_object_prefix`) so a mis-indexed object can't
     be silently corrupted."""
@@ -514,7 +514,7 @@ def set_object_position(obj: SaveObject, position: tuple[float, float, float]) -
 
 
 def object_modules(obj: SaveObject) -> list[NestedBlock]:
-    """The behavior-module blocks inside an object's `Object::xfer` body — each `ModuleTag_*`
+    """The behavior-module blocks inside an object's `Object::xfer` body - each `ModuleTag_*`
     (occasionally unnamed) `KOLB` block, with its name, byte range and nesting depth. This is a
     structural x-ray of the object (the same self-delimiting block framing the container uses),
     obtained *without* decoding any module's `xfer`; the scalar `Object::xfer` prefix (team,
@@ -526,7 +526,7 @@ def object_modules(obj: SaveObject) -> list[NestedBlock]:
 
 @dataclass
 class GameLogicState:
-    """`CHUNK_GameLogic` — the logic frame, the object template table, and the object index
+    """`CHUNK_GameLogic` - the logic frame, the object template table, and the object index
     (BFME2, version 8). Object bodies and the surrounding scalar preamble/trailing are kept
     opaque, but reassemble losslessly (see `encode_game_logic`)."""
 
@@ -538,14 +538,14 @@ class GameLogicState:
     trailing: bytes  # opaque bytes after the last object (managers, triggers, timers)
 
 
-# How far into a `CHUNK_GameLogic` payload the object template table can begin — past the
+# How far into a `CHUNK_GameLogic` payload the object template table can begin - past the
 # BFME2 scalar preamble. A real save's table sits within the first couple of KB; a payload
 # smaller than this with no locatable table has been scanned in full (an objectless mission save).
 _TEMPLATE_SEARCH_LIMIT = 0x4000
 
 
 # Validates that the bytes immediately after a candidate template table are the start of a
-# well-formed instance index — the strong signal that separates the real table from a coincidental
+# well-formed instance index - the strong signal that separates the real table from a coincidental
 # name run. `payload[pos:]` begins right after the last table entry; `count` is the table size.
 _IndexValidator = Callable[[bytes, int, int], bool]
 
@@ -553,7 +553,7 @@ _IndexValidator = Callable[[bytes, int, int], bool]
 def _game_logic_index_follows(payload: bytes, pos: int, count: int) -> bool:
     """`CHUNK_GameLogic` object index: `u32 objectCount` then each object `u16 tocId + u32 objId +
     KOLB`. Require at least one object whose tocId is a real table id and whose block opens with the
-    `KOLB` marker — a lone `Command_*` / ini string that happens to carry id=1 has no such index."""
+    `KOLB` marker - a lone `Command_*` / ini string that happens to carry id=1 has no such index."""
     if pos + 4 > len(payload):
         return False
     object_count = struct.unpack_from("<I", payload, pos)[0]
@@ -594,7 +594,7 @@ def _locate_template_table(
     plausible count whose entries all parse as names with sequential ids *and* that is followed
     by a well-formed instance index (`index_follows`).
 
-    Template names are engine ini identifiers written as a length byte + raw bytes — *not*
+    Template names are engine ini identifiers written as a length byte + raw bytes - *not*
     guaranteed 7-bit ASCII: a localized mod embeds its native encoding (the Edain WotR corpus
     names objects with Latin-1 umlauts, e.g. `ArnorPalantirwächterHorde` carrying 0xE4). So a
     name byte is anything printable-or-high (>= 0x20, excluding DEL); rejecting the high range
@@ -663,8 +663,8 @@ def decode_game_logic(chunk: Chunk) -> GameLogicState:
     except ValueError:
         # A mission / between-missions save has no live objects: its `CHUNK_GameLogic` is a
         # tiny frame + opaque tail with no template table (the next mission hasn't started).
-        # Distinguish that from a corrupt large payload — where a missing table is a real
-        # failure — by size: the objectless variant is well under the table search window, so
+        # Distinguish that from a corrupt large payload - where a missing table is a real
+        # failure - by size: the objectless variant is well under the table search window, so
         # a table-less payload that small has been scanned end to end and legitimately has none.
         if len(chunk.payload) <= _TEMPLATE_SEARCH_LIMIT:
             return GameLogicState(version, frame, {}, [], b"", reader.rest())
@@ -686,7 +686,7 @@ def decode_game_logic(chunk: Chunk) -> GameLogicState:
 
 def _write_template_table(stream: BinaryStream, templates: dict[int, str]) -> None:
     """Write the object/drawable template TOC: `u32 count + count × (ascii name + u16 id)`, in
-    the dict's insertion order (which is file order — the decode inserts by id 1..count)."""
+    the dict's insertion order (which is file order - the decode inserts by id 1..count)."""
     stream.writeUInt32(len(templates))
     for template_id, name in templates.items():
         stream.writeString(name)
@@ -732,7 +732,7 @@ class SaveDrawable:
 
 @dataclass
 class GameClientState:
-    """`CHUNK_GameClient` — the client-side mirror of `CHUNK_GameLogic` (BFME2, version 4): a
+    """`CHUNK_GameClient` - the client-side mirror of `CHUNK_GameLogic` (BFME2, version 4): a
     render frame, the drawable template TOC, and the drawable index (one drawable per live object).
     Drawable bodies and the trailing client state (`InGameUI`-adjacent) are kept opaque, but
     reassemble losslessly (see `encode_game_client`)."""
@@ -757,7 +757,7 @@ def decode_game_client(chunk: Chunk) -> GameClientState:
     except ValueError:
         # Objectless save (a between-missions stub, or a WotR strategic-layer save that captured
         # no battle world): no drawables mirror the empty `CHUNK_GameLogic`, so there is no
-        # template table. Same size guard as `decode_game_logic` — a small table-less payload has
+        # template table. Same size guard as `decode_game_logic` - a small table-less payload has
         # been scanned in full and legitimately has none; a large one is a real failure, re-raised.
         if len(chunk.payload) <= _TEMPLATE_SEARCH_LIMIT:
             return GameClientState(version, frame, {}, [], b"", reader.rest())
@@ -803,7 +803,7 @@ def encode_game_client(state: GameClientState) -> bytes:
 
 
 def drawable_modules(drawable: SaveDrawable) -> list[NestedBlock]:
-    """The draw-module blocks inside a drawable's `Drawable::xfer` body — each `ModuleTag_*` (or
+    """The draw-module blocks inside a drawable's `Drawable::xfer` body - each `ModuleTag_*` (or
     ini-tag-named, e.g. `DrawFloorBase`) `KOLB` block, with its name, byte range and nesting depth.
     The twin of `object_modules` on the client side: the same self-delimiting block framing walked
     without decoding any draw module's `xfer`, with the `Drawable::xfer` scalar prefix (object id,
@@ -815,7 +815,7 @@ def drawable_modules(drawable: SaveDrawable) -> list[NestedBlock]:
 @dataclass
 class PlayerUpgrade:
     """One entry in a player's upgrade list (`Upgrade::xfer`): the ini `Upgrade` name and its
-    status — 1 = in progress (researching), 2 = completed. The two upgrade *masks* on the same
+    status - 1 = in progress (researching), 2 = completed. The two upgrade *masks* on the same
     player split the identical names by that status, so list and masks cross-validate."""
 
     name: str
@@ -830,15 +830,15 @@ _PLAYER_RECORD_MAGIC = b"\x0a\x07"
 @dataclass
 class SavePlayer:
     """One player record in `CHUNK_Players` (BFME2 chunk version 1; records are written inline
-    with no framing). The record head is `0a 07` + three u32s — two command-point-like values
-    that vary per campaign mission (constant 100/0 in skirmish) and the **player index** — then
+    with no framing). The record head is `0a 07` + three u32s - two command-point-like values
+    that vary per campaign mission (constant 100/0 in skirmish) and the **player index** - then
     a 16-byte scalar block, a cap-like u32 (50k–100k by lobby in skirmish, small in campaign),
     a flag byte, and `Money::xfer` (version + amount). From there the record follows the ZH v8
     order: upgrade count, preorder flag, the v8 disabled/hidden science vectors (BFME2 u32
     counts), the upgrade list, the 10-byte radar block, the in-progress/completed upgrade masks
     (u16 counts), a 6-byte energy stub, and the team-prototype id vector. Everything after the
-    team ids — build list, AI player, gatherer/tunnel managers, sciences, rank block, hero
-    roster, score — is kept opaque in `tail` (it round-trips verbatim; the science names inside
+    team ids - build list, AI player, gatherer/tunnel managers, sciences, rank block, hero
+    roster, score - is kept opaque in `tail` (it round-trips verbatim; the science names inside
     it are still harvested by signature in `sage_save.players`)."""
 
     index: int  # the record's own player-list index (validates the walk)
@@ -847,7 +847,7 @@ class SavePlayer:
     prefix: bytes  # 16 scalar bytes, unresolved
     cap: int  # u32, lobby-dependent cap (100000/87500/75000/50000 skirmish; small in campaign)
     flag: int  # u8 between cap and money (0; 1 on some campaign records)
-    money: int  # the player's treasury — the HUD money value
+    money: int  # the player's treasury - the HUD money value
     is_preorder: int  # ZH v>=7 u8
     sciences_disabled: list[str]  # ZH v>=8 xferScienceVec (BFME2 u32 count)
     sciences_hidden: list[str]
@@ -862,7 +862,7 @@ class SavePlayer:
 
 @dataclass
 class PlayersState:
-    """`CHUNK_Players` — the player list (BFME2, version 1), decoded per record down to the
+    """`CHUNK_Players` - the player list (BFME2, version 1), decoded per record down to the
     team-prototype vector with the record remainder opaque. Absent from between-missions saves."""
 
     version: int
@@ -885,7 +885,7 @@ def _read_upgrade_mask(reader: XferReader) -> list[str]:
 
 def _find_player_head(payload: bytes, offset: int, expected_index: int) -> int:
     """The offset of the record head for player `expected_index` at/after `offset`. A head is
-    the `0a 07` magic whose player-index u32 (10 bytes in) matches — the index field is what
+    the `0a 07` magic whose player-index u32 (10 bytes in) matches - the index field is what
     rejects chance `0a 07` pairs inside record bodies (observed once, in a campaign save)."""
     while True:
         found = payload.find(_PLAYER_RECORD_MAGIC, offset)
@@ -1019,7 +1019,7 @@ def encode_players(state: PlayersState) -> bytes:
 @dataclass
 class ScriptCounter:
     """One script counter/timer in `CHUNK_ScriptEngine`. BFME2 scopes counters to a player by
-    an always-present scope string — empty for a global counter, `"Player_N"` for a player-scoped
+    an always-present scope string - empty for a global counter, `"Player_N"` for a player-scoped
     one (the ZH record has no scope field; this is the fork's addition, and the reason the record
     layout resisted a name-based discriminator: the scope is a *second* string even when empty)."""
 
@@ -1040,7 +1040,7 @@ class ScriptFlag:
 
 @dataclass
 class AttackPriorityInfo:
-    """One attack-priority set (`AttackPriorityInfo::xfer`, ZH v1 — BFME2 matches): the set
+    """One attack-priority set (`AttackPriorityInfo::xfer`, ZH v1 - BFME2 matches): the set
     name, the default priority, and per-template overrides (ini Object template → priority)."""
 
     name: str
@@ -1086,7 +1086,7 @@ SCRIPT_ENGINE_PLAYER_SLOTS = 20
 
 @dataclass
 class ScriptEngineState:
-    """`CHUNK_ScriptEngine` — the script runtime (BFME2, version 5), fully walked.
+    """`CHUNK_ScriptEngine` - the script runtime (BFME2, version 5), fully walked.
 
     BFME2 forked the ZH v5 serializer but kept its section order: counters, flags, attack
     priorities, end-game timers, the named-object table, screen fade, the special-power maps,
@@ -1095,7 +1095,7 @@ class ScriptEngineState:
     and flag records gained an always-present player-scope string (empty = global), list counts
     widened from u16 to u32 inside versioned lists, and every name-keyed special-power/upgrade
     list became `{u32 key-hash, u32 value}` pairs instead of ascii names. Regions whose field
-    split is not pinned down stay raw bytes (`unknown_*`, `fade_state`, `reveal_unknown`) —
+    split is not pinned down stay raw bytes (`unknown_*`, `fade_state`, `reveal_unknown`) -
     all observed constant or near-constant; see sav_format.md."""
 
     version: int
@@ -1118,7 +1118,7 @@ class ScriptEngineState:
     player_sciences: list[list[str]]  # 20 players x acquired SCIENCE_* names (fatal xref)
     topple_directions: list[ToppleDirection]  # scripted toppling props (campaign only)
     breeze: tuple[float, float, float, float, float, float]  # direction, dir vector x/y,
-    # intensity, lean, randomness — the ZH breeze block verbatim
+    # intensity, lean, randomness - the ZH breeze block verbatim
     breeze_period: int
     breeze_version: int
     difficulty: int  # GameDifficulty enum (1 = normal)
@@ -1133,7 +1133,7 @@ class ScriptEngineState:
 
 
 def _read_pair_list(reader: XferReader, context: str) -> list[tuple[int, int]]:
-    """A BFME2 versioned pair list: `u8 version=1 + u32 count + count x {u32, u32}` — the fork
+    """A BFME2 versioned pair list: `u8 version=1 + u32 count + count x {u32, u32}` - the fork
     of ZH's `xferListAsciiString*` helpers with the names collapsed to key-hashes."""
     version = reader.version(1)
     if version != 1:
@@ -1212,7 +1212,7 @@ def decode_script_engine(chunk: Chunk) -> ScriptEngineState:
         player_sciences.append([reader.ascii_string() for _ in range(reader.uint32())])
 
     # topple directions: versioned list of 16-byte `{u32 key-hash, Coord3D}` records (ZH's
-    # `{ascii, Coord3D}` with the name hashed — the same fork as NamedReveal). Empty except in
+    # `{ascii, Coord3D}` with the name hashed - the same fork as NamedReveal). Empty except in
     # the Ettenmoors campaign saves; there the two records' positions land exactly on the breeze
     # block, confirming the 16-byte item size.
     reader.version(1)
@@ -1417,7 +1417,7 @@ def extract_map(save: SaveFile) -> bytes:
 
 def iter_objects(save: SaveFile) -> list[SaveObject]:
     """Every live object in the save's `CHUNK_GameLogic`, each carrying its resolved ini
-    template name — the raw material for the Phase 3 cross-reference against a `Game`."""
+    template name - the raw material for the Phase 3 cross-reference against a `Game`."""
     chunk = save.chunk("CHUNK_GameLogic")
     if chunk is None:
         raise ValueError("save has no CHUNK_GameLogic")
@@ -1431,9 +1431,9 @@ class SmallChunk:
     version plus a short fixed scalar blob in a skirmish save (`Partition`, `Collision`,
     `SpellStore`, `ObjectivesMenu`, `InGameUI`, `LivingWorldLogic`, `WeatherSystem`, the
     version-only `MineshaftPortalNetworkManager`, and `MissionObjectives`). Their payloads were
-    confirmed constant across every fixture — except `WeatherSystem` (an equal `int32` pair near
-    the end varies per save — a weather seed/offset) and `MissionObjectives` (empty in skirmish
-    but a list of `SCRIPT:OBJECTIVE_*` / `SCRIPT:BONUS_*` names in a campaign save) — so those two
+    confirmed constant across every fixture - except `WeatherSystem` (an equal `int32` pair near
+    the end varies per save - a weather seed/offset) and `MissionObjectives` (empty in skirmish
+    but a list of `SCRIPT:OBJECTIVE_*` / `SCRIPT:BONUS_*` names in a campaign save) - so those two
     keep meaningful data in `body` awaiting a fuller decode; the rest are effectively fully
     understood, just not field-split. `body` is exact, so the chunk round-trips."""
 
@@ -1452,7 +1452,7 @@ def encode_small_chunk(small: SmallChunk) -> bytes:
 
 
 # A living-world roster name: a length byte (3..48) then that many bytes forming an ini-style
-# identifier — letters/digits/underscore, plus `:` for the `LWA:*` army-type refs. Matches the
+# identifier - letters/digits/underscore, plus `:` for the `LWA:*` army-type refs. Matches the
 # players.py harvest philosophy (strict framing + charset), validated on the WotR corpus to pull
 # only real names out of `CHUNK_LivingWorldLogic` (players, armies, heroes, unit templates, icons,
 # banners, regions) with no garbage.
@@ -1465,7 +1465,7 @@ _LWL_NAME_MAX = 48
 # a `u8 kind = 2` + `u8 version = 1`. It precedes *every* living-world army unit/hero template and
 # *no* runtime instance name across the WotR corpus (zero false positives), so it is the
 # self-validating signature that separates ini-backed object templates from instance names
-# (`DurmarthPlayerArmy`, `Player_1`) without walking the heterogeneous record body — the same
+# (`DurmarthPlayerArmy`, `Player_1`) without walking the heterogeneous record body - the same
 # bet players.py makes with the `Upgrade_`/`SCIENCE_` prefixes. (The CreateAHero available-hero
 # list uses a weaker `00 0a` marker; held back as a second signature until it is confirmed
 # structural rather than a common-byte coincidence.)
@@ -1491,7 +1491,7 @@ def _iter_lwl_strings(payload: bytes):
 
 def living_world_names(payload: bytes) -> list[str]:
     """The distinct length-prefixed identifier names in a `CHUNK_LivingWorldLogic` payload, in
-    first-appearance order — the WotR strategic roster (see `LivingWorldLogicState`). Purely a
+    first-appearance order - the WotR strategic roster (see `LivingWorldLogicState`). Purely a
     *view*: a signature scan over the opaque body, not a structural walk, so it never feeds the
     encoder. Empty for the vanilla-skirmish constant (no living world)."""
     seen: dict[str, None] = {}
@@ -1502,7 +1502,7 @@ def living_world_names(payload: bytes) -> list[str]:
 
 def living_world_object_templates(payload: bytes) -> list[str]:
     """The distinct ini `Object` template names carried by the living-world army rosters in a
-    `CHUNK_LivingWorldLogic` payload — the units and heroes each saved army fields — in
+    `CHUNK_LivingWorldLogic` payload - the units and heroes each saved army fields - in
     first-appearance order. Identified by the `_LWL_ARMY_ENTRY_MARKER` (`02 01`) that precedes each
     roster entry's name, which on the WotR corpus selects only names that resolve as `objects` (no
     instance-name false positives). This is the safe subset of the roster to cross-reference; the
@@ -1517,7 +1517,7 @@ def living_world_object_templates(payload: bytes) -> list[str]:
 
 @dataclass
 class LivingWorldLogicState:
-    """`CHUNK_LivingWorldLogic` (version 6) — the War-of-the-Ring strategic layer. In a non-WotR
+    """`CHUNK_LivingWorldLogic` (version 6) - the War-of-the-Ring strategic layer. In a non-WotR
     save this is a 22-byte constant (no living world); in a WotR save it is 22–32 KB holding the
     meta-campaign: the players, their living-world armies (`LWA:*` army-type refs + per-army
     instance names), the heroes and unit templates those armies field, and the region/icon/banner
@@ -1561,13 +1561,13 @@ _SMALL_CHUNK_NAMES = (
 
 @dataclass(frozen=True)
 class ChunkCodec:
-    """How one chunk is decoded, (optionally) re-encoded, and how much of it is understood — the
+    """How one chunk is decoded, (optionally) re-encoded, and how much of it is understood - the
     single registration point so a new decoder joins the round-trip test and coverage report for
     free (see `CHUNK_CODECS`).
 
     - `decode(chunk)` → the typed value for that chunk.
-    - `encode(value, payload)` is its **exact inverse** — `encode(decode(c), c.payload) ==
-      c.payload` for every fixture — or None for a chunk decoded only partially (no lossless
+    - `encode(value, payload)` is its **exact inverse** - `encode(decode(c), c.payload) ==
+      c.payload` for every fixture - or None for a chunk decoded only partially (no lossless
       writer yet). The original payload is passed for decoders that keep an opaque region verbatim
       (e.g. the embedded map); encoders that don't need it ignore it.
     - `opaque_bytes(value)` is how many of the payload's bytes the decode left undecoded (raw
@@ -1583,7 +1583,7 @@ class ChunkCodec:
 # The registry of decoded chunks. Keyed by the exact `CHUNK_*` name the engine writes; the
 # coverage report and the parametrized round-trip test both iterate this, so adding a decoder here
 # is all it takes to enrol it in both. `CHUNK_GameLogic` and `CHUNK_GameClient` are decoded to their
-# object/drawable index only — their module bodies stay opaque — but still carry an exact-inverse
+# object/drawable index only - their module bodies stay opaque - but still carry an exact-inverse
 # encoder: the bodies round-trip verbatim and each `KOLB` end-offset is recomputed from the stored
 # body offset. The nine Step-1 chunks share the generic `SmallChunk` codec (version byte + opaque
 # body).

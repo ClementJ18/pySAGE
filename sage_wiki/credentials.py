@@ -1,6 +1,6 @@
 """Per-session wiki credentials. The username is remembered in a plaintext JSON file;
 the password, when the user opts in, goes to the OS secret store via `keyring`. Every
-keyring call is best effort — with no usable backend it silently does nothing and the
+keyring call is best effort - with no usable backend it silently does nothing and the
 caller keeps the password in memory for the session.
 """
 

@@ -137,7 +137,7 @@ def test_most_specific_armor_set_wins():
 
 def test_armor_upgrade_without_flag_defaults_to_player_upgrade():
     # An ArmorUpgrade with no ArmorSetFlag contributes PLAYER_UPGRADE (the engine
-    # default), so a PLAYER_UPGRADE-conditioned ArmorSet is selected — the
+    # default), so a PLAYER_UPGRADE-conditioned ArmorSet is selected - the
     # GondorArcher heavy-armor case.
     game = load(
         """
@@ -356,8 +356,8 @@ def test_production_is_multiplicative():
 
 
 # A modifier list whose percentage is written as a detached `%` token (`PRODUCTION 1.25 %`),
-# the way Edain's economy-level bonuses are. The whole list used to be dropped — `%` was read
-# as a damage type and the conversion raised — so the building gained none of its bonuses.
+# the way Edain's economy-level bonuses are. The whole list used to be dropped - `%` was read
+# as a damage type and the conversion raised - so the building gained none of its bonuses.
 DETACHED_PERCENT_FIXTURE = """
 ModifierList EconBonus
   Modifier = PRODUCTION 1.25 %
@@ -667,7 +667,7 @@ End
 def test_member_has_no_levels_without_the_horde():
     game = load(HORDE_LEVEL_FIXTURE)
     member = game.objects["Fighter"]
-    # On its own the member is unranked — the levels target only the horde.
+    # On its own the member is unranked - the levels target only the horde.
     assert UnitState(member).ranks.levels == []
 
 
@@ -684,7 +684,7 @@ def test_horde_levels_rank_and_modify_the_member():
 
 
 # A member that runs its own parallel ladder must NOT also inherit the horde's
-# (most do — both reference the same bonus lists, so unioning would double-count).
+# (most do - both reference the same bonus lists, so unioning would double-count).
 OWN_AND_HORDE_LEVEL_FIXTURE = """
 ModifierList SharedRank2Bonus
   Modifier = HEALTH 300
@@ -724,7 +724,7 @@ def test_own_ladder_takes_precedence_over_the_horde():
     member = game.objects["Fighter"]
     horde = game.objects["FighterHorde"]
     state = UnitState(member, rank_targets=[horde])
-    # Only the member's own levels — the horde's identical bonus is not stacked.
+    # Only the member's own levels - the horde's identical bonus is not stacked.
     assert [level.name for level in state.ranks.levels] == ["MemberLevel1", "MemberLevel2"]
     state.set_rank(2)
     assert state.max_health == 500  # 200 + 300 once, not + 600

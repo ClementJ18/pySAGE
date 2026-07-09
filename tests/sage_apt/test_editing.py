@@ -1,9 +1,9 @@
-"""Phase 6.5 editing depth — add / delete a placeobject and prove it survives the writer.
+"""Phase 6.5 editing depth - add / delete a placeobject and prove it survives the writer.
 
 The add/duplicate/delete/drag/undo operations live in the editor's JavaScript (manual
 checklist); what an automated test can pin is that the *shape of XML the JS produces*
 saves through `/api/xml` and compiles through `/api/convert` into a valid `.apt` that
-re-decompiles with the edit intact. That is the risky seam — a hand-built placeobject that
+re-decompiles with the edit intact. That is the risky seam - a hand-built placeobject that
 the compiler rejects would corrupt the export."""
 
 import json

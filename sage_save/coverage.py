@@ -2,7 +2,7 @@
 
 A `.sav` is a flat sequence of chunks; `sage_save.chunks.CHUNK_CODECS` decodes some of them,
 each leaving a known amount of its payload as opaque `bytes`. `chunk_coverage` classifies every
-chunk in a save — decoded / partial / opaque — with its decoded-vs-opaque byte split, and
+chunk in a save - decoded / partial / opaque - with its decoded-vs-opaque byte split, and
 `coverage_summary` rolls that up into the "progress bar for the whole effort": how many of the
 save's chunks carry a decoder and what fraction of its bytes are understood. Because the split
 is computed from each decoder's own opaque-region accounting, a decoder that silently regresses
@@ -29,7 +29,7 @@ class ChunkCoverage:
     @property
     def status(self) -> str:
         """``"opaque"`` (no decoder), ``"partial"`` (decoded but with opaque regions left) or
-        ``"decoded"`` (fully understood — nothing kept as raw bytes)."""
+        ``"decoded"`` (fully understood - nothing kept as raw bytes)."""
         if self.decoded_bytes == 0:
             return "opaque"
         return "decoded" if self.opaque_bytes == 0 else "partial"

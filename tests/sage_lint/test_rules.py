@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from sage_ini.loader import LoadedGame, load_game
+from sage_ini.loader import LoadedGame, load_game, load_map
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse
 from sage_ini.parser.diagnostics import Diagnostics, Severity
@@ -24,6 +24,7 @@ from sage_lint.rules.definitions import (
 )
 from sage_lint.rules.macros import UndefinedMacroRule
 from sage_lint.rules.map_ini import MapBareModuleRule
+from sage_lint.rules.modifier_fx import ModifierFxDurationRule
 from sage_lint.rules.module_ops import ModuleOperationRule
 from sage_lint.rules.module_refs import ModuleTagReferenceRule
 from sage_lint.rules.modules import UnrecognizedBlockRule
@@ -35,7 +36,7 @@ from sage_lint.rules.schema import (
     SpuriousBlockLabelRule,
     UnknownAttributeRule,
 )
-from sage_lint.rules.strings import UnknownStringLabelRule
+from sage_lint.rules.strings import MapLocalStringRule, UnknownStringLabelRule
 
 
 def _load(text: str) -> Game:
@@ -59,12 +60,12 @@ class TestRepeatedScalarFieldRule:
         assert not list(run_rules(game, [RepeatedScalarFieldRule]))
 
     def test_does_not_flag_an_unknown_repeated_field(self):
-        # NotAField is not in the schema, so intent is unknown — stay quiet.
+        # NotAField is not in the schema, so intent is unknown - stay quiet.
         game = _load("Object Foo\n    NotAField = 1\n    NotAField = 2\nEnd\n")
         assert not list(run_rules(game, [RepeatedScalarFieldRule]))
 
     def test_does_not_flag_a_repeated_filter_scoped_field(self):
-        # DamageScalar repeats by design — each occurrence scopes to its own
+        # DamageScalar repeats by design - each occurrence scopes to its own
         # object filter and all take effect, so it is not a clobbered scalar.
         game = _load(
             "Weapon W\n  Damage = 1\n  DamageNugget\n"
@@ -106,7 +107,7 @@ class TestUnknownAttributeRule:
 
     def test_does_not_flag_numbered_slots_on_a_slot_block(self):
         # CommandSet declares `numbered_slots`, so its `1 = ...` button slots are valid keys,
-        # not unknown attributes — but a non-digit unknown key is still flagged.
+        # not unknown attributes - but a non-digit unknown key is still flagged.
         game = _load("CommandSet Foo\n    1 = Command_A\n    2 = Command_B\n    Bogus = 1\nEnd\n")
         diags = list(run_rules(game, [UnknownAttributeRule]))
         keys = {d.extra["key"] for d in diags}
@@ -148,7 +149,7 @@ class TestUnknownStringLabelRule:
         assert "Did you mean 'OBJECT:Present'?" in diags[0].message
 
     def test_skipped_when_no_string_table_loaded(self):
-        # Without a string table, every label would falsely flag — stay silent.
+        # Without a string table, every label would falsely flag - stay silent.
         game = _load("Upgrade Foo\n    DisplayName = OBJECT:Missing\nEnd\n")
         assert not list(run_rules(game, [UnknownStringLabelRule]))
 
@@ -167,6 +168,64 @@ class TestUnknownStringLabelRule:
         # B is flagged (and may suggest the present A); A itself is never the flagged label.
         flagged = {d.extra["label"] for d in diags}
         assert flagged == {"CONTROLBAR:B"}
+
+
+class TestMapLocalStringRule:
+    @staticmethod
+    def _map(tmp_path, ini: str, map_str: str | None = None) -> Game:
+        # Build a map.ini on disk (so the rule can read its adjacent map.str) and parse it under
+        # its real path, the way `_lint_maps` builds a map in its own context.
+        map_dir = tmp_path / "maps" / "MyMap"
+        map_dir.mkdir(parents=True)
+        map_ini = map_dir / "map.ini"
+        map_ini.write_text(ini, encoding="utf-8")
+        if map_str is not None:
+            (map_dir / "map.str").write_text(map_str, encoding="utf-8")
+        game = Game()
+        game.load_document(parse(ini, file=str(map_ini)).document)
+        return game
+
+    def test_flags_a_label_defined_in_the_adjacent_map_str(self, tmp_path):
+        game = self._map(
+            tmp_path,
+            "ChildObject Tweak Base\n    DisplayName = SCRIPT:Local\nEnd\n",
+            'SCRIPT:Local\n"Local"\nEND\n',
+        )
+        diags = list(run_rules(game, [MapLocalStringRule]))
+
+        assert len(diags) == 1
+        assert diags[0].code == "map-local-string"
+        assert diags[0].severity is Severity.WARNING
+        assert diags[0].extra["label"] == "SCRIPT:Local"
+        assert "map.str" in diags[0].message
+
+    def test_resolves_case_insensitively(self, tmp_path):
+        game = self._map(
+            tmp_path,
+            "ChildObject Tweak Base\n    DisplayName = script:local\nEnd\n",
+            'SCRIPT:Local\n"Local"\nEND\n',
+        )
+        diags = list(run_rules(game, [MapLocalStringRule]))
+        assert [d.extra["label"] for d in diags] == ["script:local"]
+
+    def test_does_not_flag_a_label_absent_from_the_map_str(self, tmp_path):
+        # A string the adjacent map.str does not define is not this rule's concern (it belongs
+        # in the global table, which unknown-string-label checks separately).
+        game = self._map(
+            tmp_path,
+            "ChildObject Tweak Base\n    DisplayName = OBJECT:Global\nEnd\n",
+            'SCRIPT:Local\n"Local"\nEND\n',
+        )
+        assert not list(run_rules(game, [MapLocalStringRule]))
+
+    def test_ignores_a_map_with_no_adjacent_str(self, tmp_path):
+        game = self._map(tmp_path, "ChildObject Tweak Base\n    DisplayName = OBJECT:Global\nEnd\n")
+        assert not list(run_rules(game, [MapLocalStringRule]))
+
+    def test_ignores_objects_outside_a_map(self):
+        # A non-map object is never checked, even if a map.str with the label sat beside it.
+        game = _load("Object Foo\n    DisplayName = SCRIPT:Local\nEnd\n")
+        assert not list(run_rules(game, [MapLocalStringRule]))
 
 
 class TestRespawnLevelRule:
@@ -338,7 +397,7 @@ class TestUnusedDefinitionRule:
         assert not list(run_rules(game, [UnusedDefinitionRule]))
 
     def test_does_not_flag_an_asset_definition(self):
-        # FXList lives in an excluded asset table — its references resolve in ways the graph
+        # FXList lives in an excluded asset table - its references resolve in ways the graph
         # cannot see, so a missing reverse edge is not treated as "unused" here.
         game = _load("FXList FX_Boom\nEnd\n")
         assert not list(run_rules(game, [UnusedDefinitionRule]))
@@ -439,7 +498,7 @@ class TestUndefinedMacroRule:
         assert not list(run_rules(game, [UndefinedMacroRule]))
 
     def test_does_not_flag_a_bare_non_arithmetic_value(self):
-        # Outside arithmetic a token may be an enum, a name, or text — not a macro.
+        # Outside arithmetic a token may be an enum, a name, or text - not a macro.
         game = _load("Object Foo\n    KindOf = STRUCTURE SELECTABLE\nEnd\n")
         assert not list(run_rules(game, [UndefinedMacroRule]))
 
@@ -492,16 +551,42 @@ class TestDanglingReferenceRule:
 
     def test_skipped_when_the_kind_is_unmodelled(self):
         # No OCL is declared, so the objectcreationlists table is empty and every name
-        # would falsely dangle — stay silent, mirroring the empty-string-table guard.
+        # would falsely dangle - stay silent, mirroring the empty-string-table guard.
         game = _load(
             "Object Rider\n    Behavior = DetachableRiderUpdate ModuleTag_01\n"
             "        DeathEntry = RiderOCL:OCL_Missing\n    End\nEnd\n"
         )
         assert not list(run_rules(game, [DanglingReferenceRule]))
 
-    def test_does_not_flag_asset_references(self):
-        # A dangling FXList reference is an asset kind, deliberately not checked.
+    def test_flags_a_dangling_fxlist_reference(self):
+        # An FXList is an ordinary ini-defined object, so a reference to a missing one is a real
+        # dangling reference, reported at WARNING (not the INFO asset hint).
         game = _load("FXList FX_Real\nEnd\nWeapon W\n    FireFX = FX_Missing\nEnd\n")
+        diags = list(run_rules(game, [DanglingReferenceRule]))
+
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.WARNING
+        assert diags[0].extra["table"] == "fxlists"
+        assert "FX_Missing" in diags[0].message
+
+    def test_flags_a_dangling_particle_system_reference(self):
+        # A particle system named inside an FXList is likewise a real definition reference.
+        game = _load(
+            "FXParticleSystem PS_Real\nEnd\n"
+            "FXList FX\n    ParticleSystem\n        Name = PS_Missing\n    End\nEnd\n"
+        )
+        diags = list(run_rules(game, [DanglingReferenceRule]))
+
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.WARNING
+        assert diags[0].extra["table"] == "particlesystems"
+
+    def test_does_not_flag_an_audio_reference(self):
+        # Audio is an asset kind, routinely defined outside the data set; left to the INFO rule.
+        game = _load(
+            "AudioEvent Snd_Real\nEnd\n"
+            "CommandButton B\n    SetAutoAbilityUnitSound = Snd_Missing\nEnd\n"
+        )
         assert not list(run_rules(game, [DanglingReferenceRule]))
 
     def test_suggests_a_near_definition(self):
@@ -513,28 +598,20 @@ class TestDanglingReferenceRule:
 
 
 class TestDanglingAssetReferenceRule:
-    def test_flags_a_missing_fxlist_when_some_are_loaded(self):
+    def test_does_not_flag_an_fxlist(self):
+        # FXLists are ini-defined objects handled by the WARNING rule now, not this INFO one.
         game = _load("FXList FX_Real\nEnd\nWeapon W\n    FireFX = FX_Missing\nEnd\n")
-        diags = list(run_rules(game, [DanglingAssetReferenceRule]))
-
-        assert [d.code for d in diags] == ["dangling-asset-reference"]
-        assert diags[0].severity is Severity.INFO  # a hint, not a fatal bug
-        assert "FX_Missing" in diags[0].message
-        assert diags[0].extra["table"] == "fxlists"
-
-    def test_does_not_flag_a_resolved_fxlist(self):
-        game = _load("FXList FX_Real\nEnd\nWeapon W\n    FireFX = FX_Real\nEnd\n")
         assert not list(run_rules(game, [DanglingAssetReferenceRule]))
 
-    def test_skips_when_no_asset_of_that_kind_is_loaded(self):
-        # No FXList declared anywhere: the FX files were not part of this build, so a miss is
+    def test_skips_when_no_audio_loaded(self):
+        # No audio declared anywhere: the audio files were not part of this build, so a miss is
         # meaningless and must not flood the report.
-        game = _load("Weapon W\n    FireFX = FX_Missing\nEnd\n")
+        game = _load("CommandButton B\n    SetAutoAbilityUnitSound = Snd_Missing\nEnd\n")
         assert not list(run_rules(game, [DanglingAssetReferenceRule]))
 
     def test_resolves_a_sound_across_the_audio_table_union(self):
-        # A sound name backed by a DialogEvent resolves the way the engine looks it up — across
-        # every audio table — even though the field type keys to audioevents.
+        # A sound name backed by a DialogEvent resolves the way the engine looks it up - across
+        # every audio table - even though the field type keys to audioevents.
         game = _load(
             "DialogEvent Snd_Real\nEnd\n"
             "CommandButton B\n    SetAutoAbilityUnitSound = Snd_Real\nEnd\n"
@@ -572,7 +649,7 @@ class TestMissingAssetFileRule:
         game = self._game("AMissingTree", "AMissingTree", {"someothertree.w3d"})
         diags = list(run_rules(game, _ASSET_RULES))
 
-        # one code per kind — texture and model misses are reported apart
+        # one code per kind - texture and model misses are reported apart
         assert {d.code for d in diags} == {"missing-texture-file", "missing-model-file"}
         assert all(d.severity is Severity.WARNING for d in diags)
         kinds = {d.extra["kind"] for d in diags}
@@ -590,7 +667,7 @@ class TestMissingAssetFileRule:
 
     def test_opt_in_so_skipped_by_a_default_run(self):
         # The asset rules are off by default (they flood without the base archives loaded), so a
-        # plain run — `run_rules` with no explicit rule list — emits none of their codes; they
+        # plain run - `run_rules` with no explicit rule list - emits none of their codes; they
         # still fire when asked for explicitly.
         assert all(not rule.default for rule in _ASSET_RULES)
         game = self._game("AMissingTree", "AMissingTree", {"someothertree.w3d"})
@@ -830,9 +907,122 @@ class TestModuleTagReferenceRule:
         assert not list(run_rules(game, [ModuleTagReferenceRule]))
 
 
+class TestModifierFxDurationRule:
+    def _mod(self, fx_body: str, duration: str = "3000", fx: str = "FX_Buff") -> str:
+        return (
+            f"FXList FX_Buff\n{fx_body}End\n"
+            f"ModifierList MyMod\n    Duration = {duration}\n    FX = {fx}\nEnd\n"
+        )
+
+    def test_is_off_by_default(self):
+        # Opt-in only: a plain run (no explicit rule list) never emits this code, even on a
+        # clear mismatch — it fires only when named in --select.
+        game = _load(self._mod("    BuffNugget\n        BuffLifeTime = 5000\n    End\n"))
+        assert all(d.code != "modifier-fx-duration" for d in run_rules(game))
+
+    def test_flags_a_bufflifetime_that_differs_from_duration(self):
+        game = _load(self._mod("    BuffNugget\n        BuffLifeTime = 5000\n    End\n"))
+        diags = list(run_rules(game, [ModifierFxDurationRule]))
+
+        assert len(diags) == 1
+        assert diags[0].code == "modifier-fx-duration"
+        assert diags[0].severity is Severity.WARNING
+        assert diags[0].extra == {
+            "modifier": "MyMod",
+            "fx": "FX_Buff",
+            "duration": 3000,
+            "fx_duration": 5000,
+        }
+        assert "outlasts" in diags[0].message  # 5000 > 3000
+
+    def test_does_not_flag_a_matching_bufflifetime(self):
+        game = _load(self._mod("    BuffNugget\n        BuffLifeTime = 3000\n    End\n"))
+        assert not list(run_rules(game, [ModifierFxDurationRule]))
+
+    def test_reports_ends_before_when_the_effect_is_shorter(self):
+        game = _load(self._mod("    BuffNugget\n        BuffLifeTime = 1000\n    End\n"))
+        diags = list(run_rules(game, [ModifierFxDurationRule]))
+        assert "ends before" in diags[0].message
+
+    def test_flags_a_particle_systemlifetime_in_frames(self):
+        # SystemLifetime is counted in 30/sec logic frames: 30 frames = 1000 ms, not 3000.
+        game = _load(
+            "FXParticleSystem PS_Aura\n    SystemLifetime = 30\nEnd\n"
+            + self._mod("    ParticleSystem\n        Name = PS_Aura\n    End\n")
+        )
+        diags = list(run_rules(game, [ModifierFxDurationRule]))
+
+        assert len(diags) == 1
+        assert diags[0].extra["fx_duration"] == 1000
+        assert "SystemLifetime" in diags[0].message
+
+    def test_does_not_flag_a_particle_lifetime_matching_in_frames(self):
+        # 90 frames = 3000 ms, matching Duration exactly.
+        game = _load(
+            "FXParticleSystem PS_Aura\n    SystemLifetime = 90\nEnd\n"
+            + self._mod("    ParticleSystem\n        Name = PS_Aura\n    End\n")
+        )
+        assert not list(run_rules(game, [ModifierFxDurationRule]))
+
+    def test_tolerates_a_difference_within_one_second(self):
+        # 3900 ms buff on a 3000 ms modifier: 900 ms over, within the tolerated one-second window.
+        game = _load(self._mod("    BuffNugget\n        BuffLifeTime = 3900\n    End\n"))
+        assert not list(run_rules(game, [ModifierFxDurationRule]))
+
+    def test_tolerates_a_difference_of_exactly_one_second(self):
+        game = _load(self._mod("    BuffNugget\n        BuffLifeTime = 4000\n    End\n"))
+        assert not list(run_rules(game, [ModifierFxDurationRule]))
+
+    def test_flags_a_difference_beyond_one_second(self):
+        # 4001 ms is 1001 ms over 3000 ms - just past the window, so it is reported.
+        game = _load(self._mod("    BuffNugget\n        BuffLifeTime = 4001\n    End\n"))
+        assert [d.extra["fx_duration"] for d in run_rules(game, [ModifierFxDurationRule])] == [4001]
+
+    def test_skips_an_unbounded_particle_lifetime(self):
+        # SystemLifetime = 0 means the emitter is killed when the modifier ends, never a mismatch.
+        game = _load(
+            "FXParticleSystem PS_Aura\n    SystemLifetime = 0\nEnd\n"
+            + self._mod("    ParticleSystem\n        Name = PS_Aura\n    End\n")
+        )
+        assert not list(run_rules(game, [ModifierFxDurationRule]))
+
+    def test_skips_a_particle_without_a_lifetime(self):
+        # No SystemLifetime declared: the aura relies on external removal, so nothing to compare.
+        game = _load(
+            "FXParticleSystem PS_Aura\nEnd\n"
+            + self._mod("    ParticleSystem\n        Name = PS_Aura\n    End\n")
+        )
+        assert not list(run_rules(game, [ModifierFxDurationRule]))
+
+    def test_skips_a_modifier_without_a_duration(self):
+        # A permanent modifier (no Duration) has no window for the FX to match.
+        game = _load(
+            "FXList FX_Buff\n    BuffNugget\n        BuffLifeTime = 4000\n    End\nEnd\n"
+            "ModifierList MyMod\n    FX = FX_Buff\nEnd\n"
+        )
+        assert not list(run_rules(game, [ModifierFxDurationRule]))
+
+    def test_skips_an_unresolved_fx(self):
+        # The FX names no loaded FXList, so its lifetimes are unknown - the asset rule's concern.
+        game = _load("ModifierList MyMod\n    Duration = 3000\n    FX = FX_Missing\nEnd\n")
+        assert not list(run_rules(game, [ModifierFxDurationRule]))
+
+    def test_skips_a_modifier_lasting_longer_than_an_hour(self):
+        # A Duration past an hour is an effectively-permanent placeholder, not a timed effect.
+        game = _load(
+            self._mod("    BuffNugget\n        BuffLifeTime = 3000\n    End\n", duration="3600001")
+        )
+        assert not list(run_rules(game, [ModifierFxDurationRule]))
+
+    def test_skips_an_effect_lasting_longer_than_an_hour(self):
+        # The modifier is timed, but the buff visual is effectively permanent — leave it alone.
+        game = _load(self._mod("    BuffNugget\n        BuffLifeTime = 3600001\n    End\n"))
+        assert not list(run_rules(game, [ModifierFxDurationRule]))
+
+
 class TestMacroCase:
     def test_case_mismatch_surfaces_as_a_warning_not_an_error(self):
-        # corpus: a `#define`d macro referenced in another casing — resolve it (the engine
+        # corpus: a `#define`d macro referenced in another casing - resolve it (the engine
         # matches loosely) but warn, instead of failing the value as a dangling literal.
         game = _load("#define MY_DAMAGE 150\nWeapon W\n    PrimaryDamage = my_damage\nEnd\n")
         diags = game.validate()
@@ -964,6 +1154,55 @@ class TestModuleOperationRule:
         assert not list(run_rules(game, [ModuleOperationRule]))
 
 
+class TestMapOverrideModulePatch:
+    # A global object carrying a tagged module, and a map.ini that re-opens it to patch.
+    _GLOBAL = "Object Buff\n    Draw = W3DScriptedModelDraw ModuleTag_Buff01\n    End\nEnd\n"
+
+    def _build(self, tmp_path, map_body: str):
+        (tmp_path / "global.ini").write_text(self._GLOBAL, encoding="utf-8")
+        map_dir = tmp_path / "maps" / "MyMap"
+        map_dir.mkdir(parents=True)
+        (map_dir / "map.ini").write_text(map_body, encoding="utf-8")
+        return load_map(map_dir / "map.ini", tmp_path).game
+
+    def test_map_override_inherits_the_patched_objects_modules(self, tmp_path):
+        # The map re-opens `Buff` (a plain Object, not a ChildObject) to swap its draw. The engine
+        # patches the global template in place, so the removed module is present - no false flag.
+        game = self._build(
+            tmp_path,
+            "Object Buff\n"
+            "    RemoveModule ModuleTag_Buff01\n"
+            "    AddModule\n"
+            "        Draw = W3DScriptedModelDraw ModuleTag_Buff01GG\n        End\n    End\n"
+            "End\n",
+        )
+        assert not [
+            d
+            for d in run_rules(game, [ModuleOperationRule])
+            if d.code == "invalid-module-operation"
+        ]
+
+    def test_a_global_reopen_does_not_patch(self, tmp_path):
+        # Merge is map-exclusive: outside a map load a re-opened definition replaces its
+        # predecessor wholesale, with no link back to the shadowed block to inherit through.
+        (tmp_path / "global.ini").write_text(
+            self._GLOBAL + "Object Buff\n    RemoveModule ModuleTag_Buff01\nEnd\n",
+            encoding="utf-8",
+        )
+        game = load_game(tmp_path).game
+        assert game.objects["Buff"]._override_base is None
+
+    def test_reopening_within_one_map_is_still_a_duplicate(self, tmp_path):
+        # Patching is fine, but declaring the same object twice inside the map is a copy-paste slip.
+        game = self._build(
+            tmp_path,
+            "Object Buff\n    RemoveModule ModuleTag_Buff01\nEnd\n"
+            "Object Buff\n    Scale = 2\nEnd\n",
+        )
+        codes = {d.code for d in run_rules(game, [DuplicateDefinitionRule])}
+        assert "duplicate-definition" in codes
+
+
 class TestSpuriousBlockLabelRule:
     def test_flags_the_equals_form(self):
         game = _load(
@@ -979,7 +1218,7 @@ class TestSpuriousBlockLabelRule:
         assert "ThreatBreakdown" in diags[0].message
 
     def test_does_not_flag_the_bare_tag_form(self):
-        # `ThreatBreakdown Tag` (no `=`) is the correct header — only the `=` form is wrong.
+        # `ThreatBreakdown Tag` (no `=`) is the correct header - only the `=` form is wrong.
         game = _load(
             "Object Foo\n"
             "    ThreatBreakdown ThreatBreakdown_Tag\n        AIKindOf = INFANTRY\n    End\n"

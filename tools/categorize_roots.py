@@ -1,7 +1,7 @@
 """Categorize root-file diagnostics for a corpus: structural vs environmental.
 
 Structural codes (parser's job) must be zero; environmental codes
-(unresolved/cyclic includes — missing data in this corpus pairing) are
+(unresolved/cyclic includes - missing data in this corpus pairing) are
 reported separately.
 
 Usage: categorize_roots.py <root> [<overlay> ...]

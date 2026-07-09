@@ -3,7 +3,7 @@
 A `Reference` converter resolves a name to its registered object when present and otherwise
 passes the raw name through unchanged (`types.Reference` defers the strict check here on
 purpose). So after conversion a *resolved* reference is an `IniObject` and a *dangling* one
-is the leftover `str` — the signal this rule keys on. References are found wherever they are
+is the leftover `str` - the signal this rule keys on. References are found wherever they are
 typed: a scalar field, a `List[...]` of them, or a key inside a `KeyedRecord` line (e.g.
 `DetachableRiderUpdate.DeathEntry`'s `RiderOCL`).
 
@@ -23,23 +23,21 @@ from sage_ini.walk import walk_objects
 from sage_lint.ruleconfig import sentinels
 from sage_lint.rules.base import Rule
 
-# Asset-reference tables this rule does not check. Their names resolve in ways a single-table
-# lookup cannot judge: an audio reference resolves across several tables at once
-# (`audioevents`/`dialogevents`/`musictracks`/`multisounds`), and art/UI names (images,
-# cursors, particle systems, FX) are routinely defined in files outside the gameplay data set
-# (or, for some FX fields, carried inside a colon-keyed `Loc:.. FXList:..` record). Checking
-# them here floods the mostly-valid base game with false positives; only gameplay/logic
-# references (objects, OCLs, weapons, upgrades, ...) are authoritative within the data.
+# Reference tables the WARNING rule does not check. Audio resolves across several tables at once
+# (`audioevents`/`dialogevents`/`musictracks`/`multisounds`), and art/UI names (images, cursors,
+# videos, mapped images, ...) are routinely defined in files outside the gameplay data set, so
+# checking them here would flood the mostly-valid base game with false positives. FXLists and
+# particle systems are *not* excluded: they are ordinary ini-defined objects (fxlist.ini,
+# particlesystem.ini), so a reference to a missing one is a real dangling reference judged like
+# any other gameplay/logic reference (objects, OCLs, weapons, upgrades, ...).
 _ASSET_TABLES = frozenset(
     {
         "audioevents",
         "dialogevents",
         "musictracks",
         "multisounds",
-        "fxlists",
         "mappedimages",
         "cursors",
-        "particlesystems",
         "evaevents",
         "videos",
         "ambientstreams",
@@ -47,18 +45,10 @@ _ASSET_TABLES = frozenset(
     }
 )
 
-# A sound reference resolves against any of these tables — the engine tries each, so a name
+# A sound reference resolves against any of these tables - the engine tries each, so a name
 # present in just one is valid. The asset rule must check the union, not a single table, or a
 # `DialogEvent`-backed sound would falsely flag as missing from `audioevents`.
 _AUDIO_TABLES = frozenset({"audioevents", "dialogevents", "musictracks", "multisounds"})
-
-# The non-audio asset tables the (INFO) asset-reference rule does check, with a friendly noun
-# for each; audio is folded in via `_AUDIO_TABLES` below.
-_ASSET_NOUN: dict[str, str] = {
-    "fxlists": "FXList",
-    "particlesystems": "particle system",
-}
-_CHECKED_ASSET_TABLES = frozenset(_ASSET_NOUN) | _AUDIO_TABLES
 
 
 def _iter_refs(value, converter, game: Game) -> Iterator[tuple[str, str]]:
@@ -98,7 +88,7 @@ def _is_sentinel(name: str) -> bool:
 
 def _iter_candidates(game: Game) -> Iterator[tuple[object, str, str, str]]:
     """`(obj, field, table_key, name)` for every unresolved reference in the game's typed
-    fields — the shared front half of the dangling-reference checks. A name with a space or a
+    fields - the shared front half of the dangling-reference checks. A name with a space or a
     colon is dropped here: a reference is one bareword, never a colon-keyed record value."""
     for obj in walk_objects(game):
         fieldspec = type(obj)._fieldspec
@@ -119,10 +109,11 @@ def _iter_candidates(game: Game) -> Iterator[tuple[object, str, str, str]]:
 class DanglingReferenceRule(Rule):
     """A typed gameplay cross-reference (an OCL, object, weapon, upgrade, ...) naming a
     definition the loaded game does not declare: in-game the engine finds nothing under that
-    name, so whatever the field drives silently does not happen — a content bug. Asset/audio
-    kinds are excluded (see `_ASSET_TABLES`, handled by the INFO asset rule below); a kind the
-    corpus does not model leaves its table empty and is skipped; and `None` is the engine's
-    "nothing" sentinel, left alone."""
+    name, so whatever the field drives silently does not happen - a content bug. FXList and
+    particle-system references count here (they are ordinary ini-defined objects); audio and
+    art/UI asset kinds are excluded (see `_ASSET_TABLES`, audio handled by the INFO rule below);
+    a kind the corpus does not model leaves its table empty and is skipped; and `None` is the
+    engine's "nothing" sentinel, left alone."""
 
     code = "dangling-reference"
 
@@ -153,12 +144,12 @@ class DanglingReferenceRule(Rule):
 
 
 class DanglingAssetReferenceRule(Rule):
-    """An FX, particle-system or sound reference naming an asset the loaded game does not
-    declare. Reported at INFO, not WARNING: these asset tables are routinely defined in files
-    outside the gameplay data set, so a miss is a *hint* (often a typo) rather than a certain
-    bug — and the report stays out of the default error/warning view. A table with nothing
-    loaded is skipped wholesale (the asset files simply were not part of this build); a sound
-    is resolved against the whole audio table union, the way the engine looks it up."""
+    """A sound reference naming an audio event the loaded game does not declare. Reported at
+    INFO, not WARNING: audio is routinely defined in files (or archives) outside the gameplay
+    data set, so a miss is a *hint* (often a typo) rather than a certain bug, and stays out of
+    the default error/warning view. With no audio loaded at all the check is skipped wholesale
+    (the audio files simply were not part of this build); a sound is resolved against the whole
+    audio table union, the way the engine looks it up."""
 
     code = "dangling-asset-reference"
 
@@ -169,25 +160,18 @@ class DanglingAssetReferenceRule(Rule):
             for name in game.tables.get(table_key, {})
             if isinstance(name, str)
         ]
+        if not audio_names:
+            return  # no audio loaded: every sound reference would falsely flag
         audio_known = {name.lower() for name in audio_names}
         for obj, key, table_key, name in _iter_candidates(game):
-            if table_key not in _CHECKED_ASSET_TABLES:
-                continue
-            if table_key in _AUDIO_TABLES:
-                if not audio_known or name.lower() in audio_known:
-                    continue  # no audio loaded at all, or the sound resolves somewhere
-                noun, candidates = "audio", audio_names
-            else:
-                table = game.tables.get(table_key)
-                if not table or game.lookup(table_key, name)[0] is not None:
-                    continue
-                noun, candidates = _ASSET_NOUN[table_key], table
-            hint, suggestion = suggestion_hint(name, candidates)
+            if table_key not in _AUDIO_TABLES or name.lower() in audio_known:
+                continue  # not a sound, or it resolves somewhere in the audio union
+            hint, suggestion = suggestion_hint(name, audio_names)
             yield Diagnostic(
                 code=self.code,
                 message=(
                     f"{type(obj).__name__}.{key} references {name!r}, which no loaded "
-                    f"{noun} definition declares.{hint}"
+                    f"audio definition declares.{hint}"
                 ),
                 span=obj._field_spans.get(key, obj.span),
                 severity=Severity.INFO,

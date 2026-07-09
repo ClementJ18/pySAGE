@@ -8,7 +8,7 @@ from sage_utils.views.weapons import weapon_upgrade_triggers
 
 
 def build_cost_view(obj) -> dict:
-    """An object's economy stats — build cost, build time, command points, bounty
+    """An object's economy stats - build cost, build time, command points, bounty
     (resources awarded to the killer). A `BUILD_FOR_FREE` object's build cost is always 0."""
     cost = 0 if has_kindof(obj, "BUILD_FOR_FREE") else safe(lambda: obj.BuildCost)
     return {

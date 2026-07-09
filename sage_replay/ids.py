@@ -148,7 +148,7 @@ class IdRun:
 
 
 def collapse_runs(events: list[IdEvent]) -> list[IdRun]:
-    """Collapse consecutive equal ids into runs — one run per labelled action."""
+    """Collapse consecutive equal ids into runs - one run per labelled action."""
     runs: list[IdRun] = []
     for event in events:
         if runs and runs[-1].id == event.id:
@@ -214,7 +214,7 @@ class AlignRow:
 def align(runs: list[IdRun], actions: list[LabelAction]) -> tuple[list[AlignRow], list[str]]:
     """Pair id runs to labelled actions positionally (both are in performed order).
 
-    Returns the paired rows and human-readable warnings — a length mismatch (noise or a
+    Returns the paired rows and human-readable warnings - a length mismatch (noise or a
     missed action) or a run whose length disagrees with the labelled count.
     """
     rows: list[AlignRow] = []

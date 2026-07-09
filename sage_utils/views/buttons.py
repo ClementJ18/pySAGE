@@ -8,8 +8,8 @@ from sage_utils.views.text import display_name, localize
 
 
 def _button_upgrade_view(game, button) -> dict | None:
-    """The Upgrade an OBJECT_UPGRADE/PLAYER_UPGRADE button grants — its localized name,
-    cost and time — or None when the button names no resolvable upgrade."""
+    """The Upgrade an OBJECT_UPGRADE/PLAYER_UPGRADE button grants - its localized name,
+    cost and time - or None when the button names no resolvable upgrade."""
     upgrade = safe(lambda: button.Upgrade)
     if upgrade is None:
         return None
@@ -25,12 +25,12 @@ def command_button_view(game, name, button) -> dict:
     `text`/`tooltip` and the `command` action name (None when unloaded). The rest are
     filled only for the action the UI acts on, else None:
 
-    - `upgrade` — {name, cost, time} for OBJECT_UPGRADE / PLAYER_UPGRADE.
-    - `object` — the object a UNIT_BUILD button builds.
-    - `special_power` — the SpecialPower of a SPECIAL_POWER* or SPELL_BOOK button.
-    - `weapon_slot` — the SlotTypes name a FIRE_WEAPON button fires.
-    - `toggle_flags` — the WeaponSet flags a TOGGLE_WEAPONSET button flips.
-    - `button_image` — the button's `ButtonImage` as a croppable `MappedImage` list.
+    - `upgrade` - {name, cost, time} for OBJECT_UPGRADE / PLAYER_UPGRADE.
+    - `object` - the object a UNIT_BUILD button builds.
+    - `special_power` - the SpecialPower of a SPECIAL_POWER* or SPELL_BOOK button.
+    - `weapon_slot` - the SlotTypes name a FIRE_WEAPON button fires.
+    - `toggle_flags` - the WeaponSet flags a TOGGLE_WEAPONSET button flips.
+    - `button_image` - the button's `ButtonImage` as a croppable `MappedImage` list.
     """
     text = localize(game, safe(lambda: button.TextLabel)) if button else ""
     tooltip = localize(game, safe(lambda: button.DescriptLabel)) if button else ""
@@ -85,7 +85,7 @@ def command_buttons_view(game, command_set) -> list[dict]:
 
 def command_set_buttons(game, command_set) -> list[tuple[int, str, object]]:
     """`(slot, button_name, CommandButton)` for each *loaded* slot of a CommandSet, in slot
-    order — the lean view that hands back the typed button so a caller can read its `Command`,
+    order - the lean view that hands back the typed button so a caller can read its `Command`,
     `Object`, `Options`, … . Slots whose button isn't loaded are dropped (the hero-recruit
     index counts only resolvable buttons)."""
     table = game.commandbuttons
@@ -131,7 +131,7 @@ def portrait_mapped_images(obj) -> list:
     """The object's portrait `MappedImage`s, tried in order: its own `SelectPortrait`, a horde
     member's `SelectPortrait`, then either's `ButtonImage` (the next-best icon for
     structures/summons). A horde may carry the portrait on its shell or only on the contained
-    unit — some define it on one, some on the other — so both are consulted. Empty when none
+    unit - some define it on one, some on the other - so both are consulted. Empty when none
     resolves."""
     member = horde_member_object(obj)
     sources = [obj] if member is None else [obj, member]

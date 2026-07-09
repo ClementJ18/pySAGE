@@ -10,7 +10,7 @@ from sage_lint.config import CONFIG_NAME, init_project
 
 def run_init(args: argparse.Namespace) -> int:
     """Scaffold a `.sagelint` config in the target folder, reporting what the linter detected
-    so the modder knows the string-label rule will (or won't) fire — the trap a one-shot setup
+    so the modder knows the string-label rule will (or won't) fire - the trap a one-shot setup
     exists to close."""
     directory = args.directory
     if not directory.is_dir():
@@ -24,11 +24,11 @@ def run_init(args: argparse.Namespace) -> int:
     if result.string_files:
         print(
             f"  {len(result.string_files)} string table(s) found "
-            "— the unknown-string-label rule will run"
+            "- the unknown-string-label rule will run"
         )
     else:
         print(
-            "  no string table (.str / Lotr.csv) found — the unknown-string-label rule "
+            "  no string table (.str / Lotr.csv) found - the unknown-string-label rule "
             "will be skipped until one is reachable under the lint root"
         )
     print()

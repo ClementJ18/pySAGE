@@ -11,8 +11,8 @@
     // File extensions that trigger linting on save.
     "extensions": [".ini", ".inc", ".bhav"],
 
-    // Lint rules — severity level, ignored/selected codes, excluded dirs and base-game
-    // sources — are NOT configured here. They belong to the mod being linted: put them in a
+    // Lint rules - severity level, ignored/selected codes, excluded dirs and base-game
+    // sources - are NOT configured here. They belong to the mod being linted: put them in a
     // `.sagelint` (shared, committable) and `.sagelint.local` (gitignored, machine paths)
     // file in the linted folder. The sage_lint CLI reads them, so the plugin, the CLI and
     // CI all behave the same. See the README for the format.
@@ -28,9 +28,9 @@
 
     // Where a diagnostic's message text is drawn (the squiggle, gutter icon, status bar and
     // hover always work):
-    //   "phantom"    — on its own line below the code; visible whatever the line length.
-    //   "annotation" — right-aligned inline; can sit past the viewport on long lines.
-    //   "none"       — no inline text.
+    //   "phantom"    - on its own line below the code; visible whatever the line length.
+    //   "annotation" - right-aligned inline; can sit past the viewport on long lines.
+    //   "none"       - no inline text.
     "diagnostic_display": "phantom",
 
     // Which lines get a phantom message: "all", or "caret-line" for only the line the

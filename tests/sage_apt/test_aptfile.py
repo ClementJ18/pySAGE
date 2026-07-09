@@ -1,4 +1,4 @@
-"""Round-trip tests over the SpellStore fixture (RotWK / Edain spellbook store UI —
+"""Round-trip tests over the SpellStore fixture (RotWK / Edain spellbook store UI -
 a pristine game file, not a re-export) plus data-free unit tests for the flag
 conversions."""
 

@@ -121,7 +121,7 @@ class TestAlignEquals:
         # Aligning is a fixed point: reparse + reprint yields the same text.
         aligned = print_document(doc, align_equals=True)
         assert print_document(parse(aligned).document, align_equals=True) == aligned
-        # The padding is cosmetic — the aligned tree equals the canonical one.
+        # The padding is cosmetic - the aligned tree equals the canonical one.
         assert parse(aligned).document.children == doc.children
 
     def test_blank_lines_reset_the_alignment_group(self):

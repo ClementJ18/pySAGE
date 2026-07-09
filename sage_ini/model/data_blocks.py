@@ -1,7 +1,7 @@
 """Top-level non-`Object` data-definition blocks (art, audio, FX, terrain, UI, AI,
 living-world). Registering each with its table `key` makes it a recognised typed object and
 populates the cross-reference tables the `Reference` converters resolve against. Most carry
-no field annotations — their values stay raw and lossless until a schema is needed.
+no field annotations - their values stay raw and lossless until a schema is needed.
 """
 
 from typing import TYPE_CHECKING
@@ -221,7 +221,7 @@ class SideSound(NestedAttribute):
 class _EvaEventBase(IniObject):
     """Shared shape of the two EVA-event blocks: an announcement's timing/priority plus its
     per-side sounds. `NewEvaEvent` declares a fresh event; `PredefinedEvaEvent` parameterizes
-    a built-in one — both register into `evaevents`."""
+    a built-in one - both register into `evaevents`."""
 
     key = "evaevents"
 
@@ -322,7 +322,7 @@ class MouseCursor(IniObject):
 class LivingWorldIconObject(NestedAttribute):
     """A drawable sub-object of a strategic-map icon (`LivingWorldBuildingIcon`,
     `LivingWorldArmyIcon`, `LivingWorldBuildPlotIcon`): its own model, placement and fade
-    behaviour. Shares the `Object` keyword with a game `Object` but is not one — it names an art
+    behaviour. Shares the `Object` keyword with a game `Object` but is not one - it names an art
     layer (`Building`, `Scaffold`, `SelectedGlow`, …), not a battle unit, so it is held on its
     parent icon and never registers into `game.objects`."""
 

@@ -9,7 +9,7 @@ kinds, one per line (`;`-prefixed lines are comments):
 
 An image with no assignment defaults to texture 1 (the movies observed only ever ship a
 single `apt_<Movie>_1` atlas); an image with no rectangle has no known size, so the viewer
-keeps drawing it as a placeholder. Stdlib-only — decoding the texture itself needs the
+keeps drawing it as a placeholder. Stdlib-only - decoding the texture itself needs the
 optional `[apt]`/`[ui]` extras (see `sage_apt.textures`)."""
 
 from pathlib import Path

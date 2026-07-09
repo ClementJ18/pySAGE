@@ -1,5 +1,5 @@
 """Lint a whole game: assemble it, then merge three diagnostic sources into one report
-— parse/load problems (sage_ini.loader), conversion facts from `Game.validate()`, and
+- parse/load problems (sage_ini.loader), conversion facts from `Game.validate()`, and
 sage_lint `Rule` judgments.
 
 Excluded directories are dropped from the *report*, not the *build*: the whole game is
@@ -34,7 +34,7 @@ from sage_utils.sources import (
 
 # What a base source contributes to the merged folder: the ini/str the engine loads, plus the
 # `.map`/`.bse` layouts so a base-game map both registers in the index and can be parsed/linted.
-# Textures/models are deliberately excluded — they are bulky and only their names are indexed
+# Textures/models are deliberately excluded - they are bulky and only their names are indexed
 # (`_base_asset_names`), never their bytes.
 _BASE_MERGE_SUFFIXES = LOAD_SUFFIXES | MAP_SUFFIXES
 
@@ -43,7 +43,7 @@ _BASE_MERGE_SUFFIXES = LOAD_SUFFIXES | MAP_SUFFIXES
 class BaseLayer:
     """A merged base-game folder built from `(kind, path)` sources (folders and extracted
     `.big`s) and kept on disk, so a daemon can resolve `#include`s that fall through to the
-    base game when re-linting a single file — not only on the initial whole-folder build.
+    base game when re-linting a single file - not only on the initial whole-folder build.
     `root` is the merged folder, `include_root` its include-resolution anchor, `workdir` the
     temp tree to remove via `cleanup()` once the daemon no longer needs it."""
 
@@ -186,7 +186,7 @@ def lint_file_cached_game(
     """Re-lint one file against an already-built `cache` game: parse just this file and build
     only its objects, but resolve cross-references (and macros) against `cache`, so a name a
     sibling file declares resolves instead of dangling. This is the incremental path behind
-    the editor daemon — full-folder accuracy at single-file speed, since only the changed
+    the editor daemon - full-folder accuracy at single-file speed, since only the changed
     file is parsed and validated, not the whole game rebuilt.
 
     `include_bases` are lower-priority include roots (the merged base game) an `#include` may
@@ -231,11 +231,11 @@ def _lint_maps(
     include_bases: tuple[Path, ...] = (),
 ) -> tuple[list[Diagnostic], set[tuple[str, str]]]:
     """Lint each map.ini under `root` in its own context: a map is excluded from the global
-    build, so it is re-linted against `game` as a reference fallback (cheap — no per-map global
+    build, so it is re-linted against `game` as a reference fallback (cheap - no per-map global
     rebuild) and only its own (map-scoped) diagnostics are kept. A map under an excluded
     directory is skipped, never built.
 
-    Also returns the `(table, name)` of every *global* definition some map build references —
+    Also returns the `(table, name)` of every *global* definition some map build references -
     edges the global reference graph cannot see (a campaign map.ini's command set naming a
     base-game button), which `build_cache` uses to retract unused-definition findings."""
     root = Path(root)
@@ -280,7 +280,7 @@ def build_cache(
         else:
             loaded = load_game(root, bases=(base_layer.root,))
             # The base merge only carries loadable ini/str, so a base's *art* (textures/models)
-            # never reaches the asset index — a mod reference to a base-game texture would look
+            # never reaches the asset index - a mod reference to a base-game texture would look
             # missing. Index those names directly: crawl a folder base, read a .big's entry list.
             loaded.game.assets.update(_base_asset_names(bases))
             diagnostics = lint_game(loaded, rules, (*exclude, base_layer.root))
@@ -292,7 +292,7 @@ def build_cache(
             base_layer.cleanup()
         raise
     if map_used:
-        # A definition only a map.ini reaches is not unused — the global graph just cannot
+        # A definition only a map.ini reaches is not unused - the global graph just cannot
         # see the per-map contexts. Retract those findings now that the maps are built.
         diagnostics.items = [d for d in diagnostics.items if not _used_by_a_map(d, map_used)]
     if map_diagnostics:
@@ -305,7 +305,7 @@ def assemble_with_bases(
     root: str | Path, bases: tuple[tuple[str, str], ...] = ()
 ) -> tuple[LoadedGame, BaseLayer | None]:
     """Assemble the game under `root` with `bases` (folder / `.big` sources) merged beneath it,
-    without running any lint rules — the loaded game and the `BaseLayer` (or None) it merged into.
+    without running any lint rules - the loaded game and the `BaseLayer` (or None) it merged into.
     For consumers that only need the assembled, base-resolved `Game` (e.g. the `diff` command),
     where `build_cache`'s rule and map-lint passes would be wasted work. **Caller owns
     `BaseLayer.cleanup()`.**"""

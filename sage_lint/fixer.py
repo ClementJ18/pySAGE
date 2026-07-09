@@ -1,5 +1,5 @@
 """Automated, opt-in fixes for a subset of lint diagnostics (`lint --fix`). Every fix below
-is behaviour-preserving against the engine — it changes only what the engine already ignores:
+is behaviour-preserving against the engine - it changes only what the engine already ignores:
 
 - ``enum-case``: rewrite a miscased enum token to its canonical name (the engine
   matches enums case-insensitively, so only spelling changes).
@@ -8,11 +8,11 @@ is behaviour-preserving against the engine — it changes only what the engine a
   reached the field through a macro (`Field = MACRO`), the use site does not hold it, so
   the rewrite follows it back to the `#define` body in the same file.
 - ``macro-case``: rewrite a macro reference to the `#define`'s casing (macros are matched
-  case-insensitively too) — the same token rewrite as the two above.
+  case-insensitively too) - the same token rewrite as the two above.
 - ``repeated-field`` / ``repeated-flag-field``: a scalar (or whole-set flag) field set more
   than once keeps only its last value, so the earlier occurrences are deleted.
 - ``spurious-block-label``: a block header written `Block = Tag` where the engine wants
-  `Block Tag` — the `=` does nothing, so it is removed.
+  `Block Tag` - the `=` does nothing, so it is removed.
 
 Fixes are line-level edits on the original text (never an AST reprint), computed
 against the original line numbering and applied in one pass so they don't shift.
@@ -40,17 +40,17 @@ FIXABLE: frozenset[str] = frozenset(
     }
 )
 
-# Codes fixed by rewriting a miscased token to its canonical spelling — the same line edit
+# Codes fixed by rewriting a miscased token to its canonical spelling - the same line edit
 # for an enum value, a cross-reference and a macro reference, differing only in what supplied
 # the casing. All carry `given`/`canonical` in their diagnostic `extra`.
 _CASE_REWRITE: frozenset[str] = frozenset({"enum-case", "reference-case", "macro-case"})
 
-# Codes fixed by deleting the earlier, superseded occurrences of a repeated field — a plain
+# Codes fixed by deleting the earlier, superseded occurrences of a repeated field - a plain
 # scalar (`repeated-field`) or a whole-set flag list (`repeated-flag-field`); only the last set
 # takes effect either way. The field name is in `extra["key"]` or `extra["field"]`.
 _REPEATED: frozenset[str] = frozenset({"repeated-field", "repeated-flag-field"})
 
-# A `#define NAME body…` directive, capturing the body (group 1) the macro expands to — where
+# A `#define NAME body…` directive, capturing the body (group 1) the macro expands to - where
 # a miscased token lives when a field reaches it through the macro rather than spelling it out.
 _DEFINE_RE = re.compile(r"^\s*#define\s+\S+\s+(.*)$")
 
@@ -204,7 +204,7 @@ def _block_children_with_attr_at(nodes: list[Node], line: int) -> list[Node] | N
 
 
 def _line_is_only_attr(lines: list[str], line_no: int, key: str) -> bool:
-    """Whether `line_no` holds exactly one attribute statement for `key` and nothing else —
+    """Whether `line_no` holds exactly one attribute statement for `key` and nothing else -
     either the `Key = value` form or the space-delimited `Key value` form (e.g. `Geometry
     nh1_fills`). Guards against a rare shared line (`End  Key = X`) where `key` is not the
     line's first token."""
@@ -219,7 +219,7 @@ def _line_is_only_attr(lines: list[str], line_no: int, key: str) -> bool:
 
 
 def _value_region(line: str) -> tuple[int, int]:
-    """The `(start, comment_start)` slice of `line` holding the value — after the key/`=` and
+    """The `(start, comment_start)` slice of `line` holding the value - after the key/`=` and
     before any trailing comment. The span a case rewrite is allowed to touch."""
     comment_start = _find_comment_start(line)
     if comment_start == -1:
@@ -242,7 +242,7 @@ def _macro_def_line_with_token(lines: list[str], token: str) -> int | None:
 
 
 def _token_in_value(line: str, token: str) -> bool:
-    """Whether `token` appears as a whole word in `line`'s value region — i.e. the rewrite
+    """Whether `token` appears as a whole word in `line`'s value region - i.e. the rewrite
     would actually find it there. Guards against a diagnostic whose span doesn't hold the
     token (a repeated field's earlier line, or a macro-supplied value)."""
     start, comment_start = _value_region(line)

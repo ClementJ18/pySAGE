@@ -1,4 +1,4 @@
-"""The faction ownership graph — the explicit link between a faction and every object a player
+"""The faction ownership graph - the explicit link between a faction and every object a player
 of it can see and interact with.
 
 These are plain dataclasses, deliberately serializable (`to_dict`), forming an owner -> owned
@@ -97,7 +97,7 @@ class ProducedUnit(ToDictMixin):
 
 @dataclass
 class RecruitedHero(ToDictMixin):
-    """A hero a structure recruits — resolved by the index-based REVIVE logic (a faction's
+    """A hero a structure recruits - resolved by the index-based REVIVE logic (a faction's
     buildable-hero order mapped onto a building's revive slots)."""
 
     name: str
@@ -117,8 +117,8 @@ class ResearchableUpgrade(ToDictMixin):
     description: str = ""
     cost: float | None = None
     producers: list[Producer] = field(default_factory=list)
-    # The faction's units/heroes/structures whose stats react to this upgrade — an
-    # upgrade-gated module, armor set, or weapon nugget — as (object name, display) pairs.
+    # The faction's units/heroes/structures whose stats react to this upgrade - an
+    # upgrade-gated module, armor set, or weapon nugget - as (object name, display) pairs.
     affects: list[tuple[str, str]] = field(
         default_factory=list, metadata={"to_dict": _named_pairs, "schema": "[{name, display}]"}
     )
@@ -232,7 +232,7 @@ class StartPoint(ToDictMixin):
 
 @dataclass
 class CreatedObject(ToDictMixin):
-    """An object that exists only because a power makes it — a summoned creature, a transform form —
+    """An object that exists only because a power makes it - a summoned creature, a transform form -
     rather than something built or recruited. Carries the same stat `profile` as any unit so it gets
     its own navigable detail page when a power's `creates`/`transforms_into` links to it."""
 
@@ -253,7 +253,7 @@ class Spellbook(ToDictMixin):
 @dataclass
 class FactionGraph(ToDictMixin):
     """The whole explicit ownership link for one faction. The `start_points` deploy bases whose
-    `structures` produce the `units`, `heroes` and `upgrades` — each leaf de-duplicated and
+    `structures` produce the `units`, `heroes` and `upgrades` - each leaf de-duplicated and
     carrying its `Producer` edges back to the buildings that yield it."""
 
     name: str

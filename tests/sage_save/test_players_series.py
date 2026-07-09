@@ -2,8 +2,8 @@
 progresses (baseline → one science researched → minutes on → two enemies defeated in turn).
 
 These were authored to reverse `CHUNK_Players` (`Player::xfer`). A full byte-exact per-player
-walk is not safely reachable from this corpus — even player 0 varies from byte 35, and the
-records are a heterogeneous field sequence — so `sage_save.players` still harvests the fatal
+walk is not safely reachable from this corpus - even player 0 varies from byte 35, and the
+records are a heterogeneous field sequence - so `sage_save.players` still harvests the fatal
 name lists by signature. What these tests lock in is what the series *did* establish: the
 signature harvest scales to a four-faction FFA, and a controlled single-science experiment
 (save 4 → 5) confirms the science-vec layout structurally (the count incremented and the new

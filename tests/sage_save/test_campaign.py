@@ -1,4 +1,4 @@
-"""End-to-end parsing of the fixture BFME2 *campaign* saves — the two save kinds skirmish
+"""End-to-end parsing of the fixture BFME2 *campaign* saves - the two save kinds skirmish
 fixtures don't exercise: a full in-mission campaign save (32 chunks, single-player mode, a
 `CHUNK_Campaign` carrying the persistent-hero carry-over roster) and a between-missions
 *mission* save (6 chunks, a `CHUNK_GameStateMap` stub with no embedded map, an objectless
@@ -6,7 +6,7 @@ fixtures don't exercise: a full in-mission campaign save (32 chunks, single-play
 
 Four fixtures, all from the BFME2 evil campaign: saves 1 & 2 are two stages of mission 1 (full
 saves); "Auto Save for Evil 2" is the autosave between missions 1 and 2 and "Saved Game 3" is
-the same point saved manually — both mission saves, byte-identical in their campaign/logic
+the same point saved manually - both mission saves, byte-identical in their campaign/logic
 stubs. Tests skip cleanly when a fixture is absent."""
 
 from collections import Counter
@@ -39,8 +39,8 @@ MISSION_SAVES = [
 CAMPAIGN_SAVES = FULL_SAVES + MISSION_SAVES
 
 # The seven persistent heroes the evil-campaign carry-over roster tracks (three Black Riders,
-# one each of the others). The order within the roster differs by save stage — full saves group
-# heroes per owning player, the merged between-missions roster does not — so tests compare as a
+# one each of the others). The order within the roster differs by save stage - full saves group
+# heroes per owning player, the merged between-missions roster does not - so tests compare as a
 # multiset.
 ROSTER_COUNTS = Counter(
     {
@@ -85,7 +85,7 @@ def test_campaign_active_and_roster(any_campaign):
 
 
 def test_campaign_encoder_is_exact_inverse(any_campaign):
-    # The roster block is kept verbatim, so re-encoding reproduces the chunk byte-for-byte —
+    # The roster block is kept verbatim, so re-encoding reproduces the chunk byte-for-byte -
     # including for the skirmish-style empty case and the rich campaign case.
     chunk = parse_save_from_path(any_campaign).chunk("CHUNK_Campaign")
     assert encode_campaign(decode_campaign(chunk)) == chunk.payload
@@ -119,7 +119,7 @@ def test_mission_save_roster_has_earned_upgrades(any_mission):
 
 
 def test_mission_save_chunk_set(any_mission):
-    # A mission save is a small fixed set — not the 32-chunk full save. It keeps GameState and
+    # A mission save is a small fixed set - not the 32-chunk full save. It keeps GameState and
     # Campaign (the load-browser + carry-over), plus the map/logic stubs and the BFME preambles.
     names = [c.name.removeprefix("CHUNK_") for c in parse_save_from_path(any_mission).chunks]
     assert names == [

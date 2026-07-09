@@ -96,7 +96,7 @@ class WikiClient:
         except LoginError as exc:
             detail = f"{exc.code}: {exc.info}" if getattr(exc, "info", None) else str(exc)
             raise WikiError(
-                f"login failed for {username!r} — {detail}.{_BOT_PASSWORD_HINT}"
+                f"login failed for {username!r} - {detail}.{_BOT_PASSWORD_HINT}"
             ) from exc
         if result is not True:
             # clientlogin returned a continuation (captcha, 2FA, Fandom login screen) we
@@ -186,7 +186,7 @@ class WikiClient:
 
     def delete(self, filename: str, reason: str = "") -> None:
         """Delete `File:<filename>`. Requires a prior `login` and the delete right (which a
-        normal account usually lacks — the rejection surfaces as a `WikiError`)."""
+        normal account usually lacks - the rejection surfaces as a `WikiError`)."""
         if not self.logged_in:
             raise WikiError("not logged in; call login() before deleting")
         page = self.site.pages[f"File:{filename}"]

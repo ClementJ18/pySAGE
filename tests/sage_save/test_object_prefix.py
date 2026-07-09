@@ -1,4 +1,4 @@
-"""Task 3 (first slice) — the `Object::xfer` prefix head.
+"""Task 3 (first slice) - the `Object::xfer` prefix head.
 
 The session1 "unit moving" delta bounded it: every object body opens with a version byte
 (26), an ascii echo of its template name, a u32 echo of its object id, and the 12-float 3x4

@@ -70,7 +70,7 @@ def test_write_map(map_path):
 
     try:
         original_decompressed = RefpackHandler().decompress_data(compressed_data)
-    except Exception:  # noqa: BLE001 — not refpack-compressed; use the raw bytes
+    except Exception:  # noqa: BLE001 - not refpack-compressed; use the raw bytes
         original_decompressed = compressed_data
 
     assert written_bytes == original_decompressed, (
@@ -105,7 +105,7 @@ def test_write_map_compressed(map_path):
             is_compressed = True
             f.seek(0)
             original_data = f.read()
-        except Exception:  # noqa: BLE001 — not refpack-compressed
+        except Exception:  # noqa: BLE001 - not refpack-compressed
             is_compressed = False
 
     if is_compressed:

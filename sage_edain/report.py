@@ -46,7 +46,7 @@ def _clean(text: str) -> str:
 
 
 def _dedupe(names: list[str]) -> list[str]:
-    """Display names in first-seen order, dropping repeats — a structure that produces several rank
+    """Display names in first-seen order, dropping repeats - a structure that produces several rank
     variants of one unit would otherwise list the same name many times."""
     seen: set[str] = set()
     out: list[str] = []

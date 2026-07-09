@@ -1,5 +1,5 @@
 """The `serve` command: a long-lived daemon for an editor. Build the game once, then re-lint
-individual files against that cache on demand — full-folder accuracy at single-file speed —
+individual files against that cache on demand - full-folder accuracy at single-file speed -
 and serve the symbol index (definitions, macros, strings, block schemas) the editor's
 navigation and autocomplete read. Speaks newline-delimited JSON on stdin/stdout.
 """
@@ -75,9 +75,9 @@ def _type_label(annotation: object) -> str:
 
 
 def _field_value_info(annotation: object) -> dict[str, object]:
-    """Per-field metadata for the editor's value autocomplete: always a `type` label, plus —
-    when the field's converter (or its list/flag element, or any tuple slot) is an enum — the
-    enum's member names under `enum`, or — when it is a cross-`Reference` — the referenced
+    """Per-field metadata for the editor's value autocomplete: always a `type` label, plus -
+    when the field's converter (or its list/flag element, or any tuple slot) is an enum - the
+    enum's member names under `enum`, or - when it is a cross-`Reference` - the referenced
     table key under `ref`. Mirrors the converter shapes `references.py::_iter_refs` walks, so a
     `List[Weapon]` advertises the same `ref` a bare `Weapon` field does."""
     info: dict[str, object] = {"type": _type_label(annotation)}
@@ -95,7 +95,7 @@ def _field_value_info(annotation: object) -> dict[str, object]:
             info["ref"] = converter.key
             return info
         # A field typed directly as a definition class (e.g. `CommandSet`, `Object`) names a
-        # value in that class's table — the same `key` the object registers under — so it is a
+        # value in that class's table - the same `key` the object registers under - so it is a
         # reference too. Modules and other unstored classes carry `key = None` and are skipped.
         if isinstance(converter, type) and issubclass(converter, IniObject) and converter.key:
             info["ref"] = converter.key
@@ -117,9 +117,9 @@ def _field_value_info(annotation: object) -> dict[str, object]:
 
 
 def _block_schemas() -> dict[str, dict[str, dict[str, object]]]:
-    """`block class name -> {field: field_info}` for every modelled block — top-level objects
+    """`block class name -> {field: field_info}` for every modelled block - top-level objects
     (Object, Weapon, Armor, CommandSet, CommandButton, Upgrade, Science …) and module slots
-    alike — read straight from the typed model's registry (the same `_fieldspec` conversion
+    alike - read straight from the typed model's registry (the same `_fieldspec` conversion
     runs against). Each `field_info` carries a `type` label and, when known, the field's `enum`
     members or referenced `ref` table. Drives module documentation and field/value autocomplete
     without a hand-maintained data table."""
@@ -146,7 +146,7 @@ def _block_schemas() -> dict[str, dict[str, dict[str, object]]]:
 
 
 def _module_slot_names() -> list[str]:
-    """The registered module classes (behaviors, bodies, draws, updates …) — the value tokens
+    """The registered module classes (behaviors, bodies, draws, updates …) - the value tokens
     valid after a `Behavior =`/`Body =`/… slot, for the editor's module-name autocomplete."""
     return sorted(
         name
@@ -173,7 +173,7 @@ def _game_index(game, include_roots: tuple[str, ...] = ()) -> dict[str, object]:
     and string tables. Built from the live typed game, so kinds and locations match the parse.
 
     `include_roots` are the ordered include-resolution roots the linter uses (the mod's ini root,
-    then any merged base-game roots) so the editor can resolve an `#include` the same way — a
+    then any merged base-game roots) so the editor can resolve an `#include` the same way - a
     base-game-only include included by a mod file is found, not reported missing."""
     definitions = []
     for table in game.tables.values():
@@ -225,13 +225,13 @@ def _emit(obj: dict) -> None:
 
 def _lint_request(game, path, content, root, rules, include_bases=()):
     """Re-lint a daemon `lint_file` request against the cache, as `(diagnostics, built)`. With
-    `content` (the live editor buffer), lint that text from a temp file beside the real one —
-    so relative `#include`s resolve identically — and relabel the diagnostics back onto the
+    `content` (the live editor buffer), lint that text from a temp file beside the real one -
+    so relative `#include`s resolve identically - and relabel the diagnostics back onto the
     real path; otherwise lint the file on disk. `include_bases` are the merged base-game
     include roots, so an `#include` that falls through to the base resolves here just as it
     does on the whole-folder build.
 
-    `built` is the file's throwaway single-file build, for the saved-definition diff — None
+    `built` is the file's throwaway single-file build, for the saved-definition diff - None
     for a buffer lint (only what is on disk should trigger a rebuild) or a failed load."""
     if content is None:
         return lint_file_cached_game(
@@ -262,14 +262,14 @@ def _lint_request(game, path, content, root, rules, include_bases=()):
 
 
 def _defs_changed(cache: object, built: object, path: str) -> bool:
-    """Whether saving `path` changed the names it contributes to the assembled game — a
+    """Whether saving `path` changed the names it contributes to the assembled game - a
     definition or `#define` added, removed, or (for a macro) revalued. Such a change affects
     *sibling* files: their references start resolving or dangling, which a single-file re-lint
     against the stale cache cannot show. The editor reacts to the flag by scheduling a
     debounced folder rebuild.
 
     Both sides attribute names to the file by span, and an addition only counts when the cache
-    cannot resolve the name at all — so a definition shadowed by a cross-file override (whose
+    cannot resolve the name at all - so a definition shadowed by a cross-file override (whose
     cached span points at the *other* file) does not re-flag on every save."""
     key = os.path.normcase(str(path))
 
@@ -290,7 +290,7 @@ def _defs_changed(cache: object, built: object, path: str) -> bool:
     if cached - fresh:
         return True
     # A name the cache cannot resolve at all is genuinely new. (An addition it *can* resolve
-    # is a cross-file redefinition — shadowed or shadowing, the reachable name set is intact.)
+    # is a cross-file redefinition - shadowed or shadowing, the reachable name set is intact.)
     if any(cache.lookup(k, n)[0] is None for k, n in fresh - cached):
         return True
 
@@ -317,7 +317,7 @@ def _defs_changed(cache: object, built: object, path: str) -> bool:
 
 def run_serve(args: argparse.Namespace) -> int:
     """Long-lived daemon for an editor: build the game once, then re-lint individual files
-    against that cache on demand — full-folder accuracy at single-file speed. Speaks
+    against that cache on demand - full-folder accuracy at single-file speed. Speaks
     newline-delimited JSON: one `{"type":"folder",...}` message once the build is ready (and
     again after each `rebuild`), one `{"type":"file",...}` per `lint_file` request (carrying
     `defs_changed: true` when a saved file's contributed definitions no longer match the

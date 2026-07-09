@@ -22,7 +22,7 @@ def suggest_opener(text_lines: list[str], end_line: int) -> str | None:
     """For a stray End at 1-based `end_line`, guess the missed opener key.
 
     Walks backward to the nearest `key = value` line that directly follows a
-    blank/comment/End/file-start boundary — the usual shape of a missed
+    blank/comment/End/file-start boundary - the usual shape of a missed
     block-opening attribute.
     """
     from sage_ini.parser.lexer import split_comment  # noqa: PLC0415

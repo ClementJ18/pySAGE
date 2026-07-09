@@ -1,7 +1,7 @@
 # sage_ui
 
 A PyQt6 desktop browser for SAGE game data. Load one or more data sources (loose ini
-folders or `.big` archives), search for an object, and see its resolved stats — the
+folders or `.big` archives), search for an object, and see its resolved stats - the
 graphical counterpart to `sage-ini`'s query commands.
 
 The UI is split across `browser.py` (the main window), `unit_panel.py` (the stat view),

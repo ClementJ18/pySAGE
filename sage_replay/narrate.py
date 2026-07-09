@@ -85,7 +85,7 @@ class GameData:
             sciences=list(game.sciences),
             upgrades=list(game.upgrades),
             # Objects and upgrades carry a localized DisplayName; special powers and sciences do
-            # not, so they fall back to their raw code name (see `label`) — never prettified.
+            # not, so they fall back to their raw code name (see `label`) - never prettified.
             displaynames={**localized(game.objects), **localized(game.upgrades)},
         )
 
@@ -115,7 +115,7 @@ class GameData:
         return self.displaynames.get(name, name) if name is not None else None
 
     def object_label(self, replay_id: int) -> str:
-        """A recruited/built object's label — localized DisplayName or the raw template name (or a
+        """A recruited/built object's label - localized DisplayName or the raw template name (or a
         `<id ?>` marker when the id is out of range)."""
         name = self.object_name(replay_id)
         return (
@@ -125,7 +125,7 @@ class GameData:
 
 def _allegiance(options: int) -> str:
     """The target's permitted allegiance from the `Options` bits, as a word ("enemy"/"friendly"
-    /"" for any) — enemy or neutral reads as enemy; ally-only as friendly (Edain mind-control)."""
+    /"" for any) - enemy or neutral reads as enemy; ally-only as friendly (Edain mind-control)."""
     hostile = options & (_OPT_ENEMY | _OPT_NEUTRAL)
     ally = options & _OPT_ALLY
     if ally and not hostile:
@@ -147,7 +147,7 @@ def _target_phrase(order_type: int, options: int, position, target: int | None) 
         if not target:
             return " (on a target)"
         return f" on {_allegiance(options)}object #{target}"
-    return ""  # 0x410 self / 0x456 global — no target
+    return ""  # 0x410 self / 0x456 global - no target
 
 
 def _integers(chunk: ReplayChunk) -> list[int]:
@@ -197,7 +197,7 @@ def _describe(chunk: ReplayChunk, data: GameData) -> str | None:
         target = _first_of(chunk, OrderArgumentType.ObjectId)
         return f"uses {power}{_target_phrase(order, options, position, target)}"
 
-    if order == 0x414 and len(ints) >= 2:  # spellbook power purchase — id is the 2nd integer
+    if order == 0x414 and len(ints) >= 2:  # spellbook power purchase - id is the 2nd integer
         science = data.label(data.science(ints[1])) or f"science {ints[1]}?"
         return f"acquires the spellbook power {science}"
 
@@ -252,7 +252,7 @@ def narrate(replay: ReplayFile, data: GameData) -> list[NarrationEvent]:
 
 
 def _faction_label(replay: ReplayFile, data: GameData, slot_index: int) -> str:
-    """The engine Side most of a player's recruited units belong to — a data-driven faction
+    """The engine Side most of a player's recruited units belong to - a data-driven faction
     tag (`Mordor`, `Wild`, ...) without hard-coding any mod's faction names."""
     sides: Counter[str] = Counter()
     for chunk in replay.chunks:
@@ -273,7 +273,7 @@ def render(replay: ReplayFile, data: GameData) -> Iterator[str]:
     inferred factions) followed by the timecoded event log."""
     header = replay.header
     duration = header.end_time - header.start_time
-    yield f"{header.game_type.name} replay — {header.metadata.map_file}"
+    yield f"{header.game_type.name} replay - {header.metadata.map_file}"
     yield f"Duration: {duration} ({header.num_timecodes} frames)"
     yield "Players:"
     for index, slot in enumerate(header.metadata.players):

@@ -64,7 +64,7 @@ def extract_big(big_path: str, dest: Path, suffixes: frozenset[str] = LOAD_SUFFI
     """Extract a .big's files whose suffix is in `suffixes` to `dest`, reading entries off disk
     rather than buffering the whole archive in memory. Defaults to the loadable ini/str; the
     linter widens this to include `.map`/`.bse` so a base-game map can be parsed and linted (but
-    never textures/models — those are huge and only their names are indexed, see
+    never textures/models - those are huge and only their names are indexed, see
     `big_member_basenames`)."""
     archive = InDiskArchive(str(big_path))
     wanted = [name for name in archive.file_list() if Path(name).suffix.lower() in suffixes]
@@ -151,7 +151,7 @@ def load_sources(sources: list[tuple[str, str]], progress=None) -> tuple[Game, l
     is removed afterwards. `progress`, if given, gets status strings as work proceeds.
 
     Base layouts (`bases/*.bse`) are carried along and resolved once the game is built,
-    attached as `game.base_layouts` — the faction graph reads them to decompose a plot
+    attached as `game.base_layouts` - the faction graph reads them to decompose a plot
     flag's castle/camp base into its citadel and foundations (needs sagemap; without it
     the table is simply empty)."""
     game = Game()
@@ -179,7 +179,7 @@ def load_sources(sources: list[tuple[str, str]], progress=None) -> tuple[Game, l
                 pass
 
         # Classification is KindOf-based, so the layouts resolve only after the game is
-        # loaded — and must resolve before the merged tree is deleted.
+        # loaded - and must resolve before the merged tree is deleted.
         if progress is not None:
             progress("Reading base layouts…")
         game.base_layouts = collect_base_layouts(game, merged)

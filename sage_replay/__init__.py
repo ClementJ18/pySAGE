@@ -1,4 +1,4 @@
-"""Reader for SAGE replay files — Generals `.rep`, BFME `.BfMEReplay`, BFME2 / RotWK
+"""Reader for SAGE replay files - Generals `.rep`, BFME `.BfMEReplay`, BFME2 / RotWK
 `.BfME2Replay`.
 
 `sage_replay.replay` parses a replay into a header (game, version, map, player slots)

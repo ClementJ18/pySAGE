@@ -85,7 +85,7 @@ def test_api_convert_writes_apt(served):
     assert apt_path.exists()
 
 
-# A 1x1 red PNG, base64-decoded — enough to prove /api/texture streams image bytes.
+# A 1x1 red PNG, base64-decoded - enough to prove /api/texture streams image bytes.
 _PNG_1PX = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
     "890000000d49444154789c63f8cfc0f01f000500010ff6a5a4e40000000049454e44ae426082"

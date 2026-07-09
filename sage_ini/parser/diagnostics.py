@@ -32,7 +32,7 @@ class Diagnostic:
         return f"{self.span}: {self.severity.value}: {self.message} [{self.code}]"
 
     def to_dict(self) -> dict[str, object]:
-        """A JSON-serializable view, flat for easy machine parsing — the shape every JSON
+        """A JSON-serializable view, flat for easy machine parsing - the shape every JSON
         report (`sage-ini … --json`, `sage-lint --output-format json`) carries."""
         return {
             "code": self.code,

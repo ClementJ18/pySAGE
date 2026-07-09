@@ -2,8 +2,8 @@
 
 The replay object id of a template is its registration index + 1. The order follows
 `SubsystemLegend.ini`, not an alphabetical walk: InitFiles before InitPaths, then the engine's
-`INI::loadDirectory` two-pass file order — the files directly in the InitPath first, then every
-subdirectory file (any depth) as one flat path-sorted list — with the `-cinematics` path pruned
+`INI::loadDirectory` two-pass file order - the files directly in the InitPath first, then every
+subdirectory file (any depth) as one flat path-sorted list - with the `-cinematics` path pruned
 and `#include`s expanded. These tests pin that machinery on a tiny synthetic game tree;
 `test_thing_ids.py` validates it against a real BFME2 install.
 """

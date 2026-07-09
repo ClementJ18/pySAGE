@@ -1,7 +1,7 @@
 """A tiny stdlib HTTP server for the faction-explorer web UI.
 
 Serves the static files in `sage_edain/ui/` plus the built graph as `/graph.json`, so the page can
-fetch it on load. No third-party dependency — `python -m sage_edain serve …` opens a browser onto a
+fetch it on load. No third-party dependency - `python -m sage_edain serve …` opens a browser onto a
 live, navigable view of one faction's ownership graph.
 """
 
@@ -23,7 +23,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         self._graph_bytes = graph_bytes
         super().__init__(*args, directory=str(UI_DIR), **kwargs)
 
-    def do_GET(self) -> None:  # noqa: N802 — http.server's required method name
+    def do_GET(self) -> None:  # noqa: N802 - http.server's required method name
         if self.path.split("?", 1)[0] == "/graph.json":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

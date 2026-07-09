@@ -3,7 +3,7 @@
 Macros are referenced by bare name, so most references are indistinguishable from
 enum tokens or free text and are left alone. The exception is an arithmetic operand
 (inside `#MULTIPLY( X 1.1 )` the engine requires a number), so an operand that is
-neither a number nor a defined macro — but looks like a macro name — is an undefined
+neither a number nor a defined macro - but looks like a macro name - is an undefined
 reference. Caught in both field values and `#define` bodies.
 """
 

@@ -2,19 +2,19 @@
 
 A save is a serialized engine snapshot: a 16-byte file header, a flat sequence of named,
 self-delimiting chunks, and an `SG_EOF` token. `sage_save.save` parses that container
-losslessly — every chunk payload stays opaque bytes, so a save round-trips even though the
+losslessly - every chunk payload stays opaque bytes, so a save round-trips even though the
 deep per-object state inside `CHUNK_GameLogic` is not decoded. `sage_save.xfer` implements the
 `Xfer` wire primitives and `sage_save.chunks` builds typed decoders on them: `CHUNK_GameState`
 (the description/date/map header), `CHUNK_GameStateMap` (whose embedded `.map` extracts to a
 plain on-disk map every `sage_map` tool runs on unchanged), `CHUNK_Campaign` (a campaign save's
 current campaign/mission and its persistent-hero carry-over roster), and `CHUNK_GameLogic` down
-to its object template table and per-object index — so `iter_objects` names every live object on
+to its object template table and per-object index - so `iter_objects` names every live object on
 the map. Object bodies and the deeper per-player/script state stay opaque, except that
 `sage_save.players` harvests the fatal upgrade/science names from `CHUNK_Players`.
 `sage_save.xref` (Phase 3) resolves the harvested ini-names against a
-`sage_ini` `Game`, reporting the danglers — "will this save still load under this mod tree".
+`sage_ini` `Game`, reporting the danglers - "will this save still load under this mod tree".
 `sage_save.export` renders a save to JSON and `sage_save.edit` (`apply_json`) writes edited
-JSON attributes back onto a save (length-preserving edits only — see that module).
+JSON attributes back onto a save (length-preserving edits only - see that module).
 
 The layouts here were reversed against the GPL Generals/Zero Hour `XferSave` source and
 confirmed against a real BFME2 skirmish save; see sav_format.md for the full format notes.

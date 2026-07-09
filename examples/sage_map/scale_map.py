@@ -33,7 +33,7 @@ def retile_tiles(tiles, textures, scale):
 
     Destination tiles are processed in 2×2 blocks (the smallest addressable cell
     unit). The entire block's combined source footprint is used for majority vote,
-    so all 4 sub-tiles always get the same texture — preventing sub-cell
+    so all 4 sub-tiles always get the same texture - preventing sub-cell
     fragmentation and checkerboard artefacts at texture boundaries.
     """
     src_rows = len(tiles)

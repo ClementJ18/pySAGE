@@ -4,7 +4,7 @@ An Edain faction is a `PlayerTemplate` with `PlayableSide = Yes`. From it hang a
 starting plot flags that unpack a base (citadel + foundations) or a single structure, the buildings
 constructed on those foundations, and the units / heroes / upgrades those buildings produce.
 `sage_edain` walks the loaded `Game` (and the mod's binary base layouts, via sagemap) into one
-explicit ownership graph — the link between a faction and everything a player of it can see.
+explicit ownership graph - the link between a faction and everything a player of it can see.
 
 It is an orchestration layer: resolution lives in `sage_ini.model.state` and `sage_utils.views`;
 this package only assembles those primitives into the `FactionGraph` shape.

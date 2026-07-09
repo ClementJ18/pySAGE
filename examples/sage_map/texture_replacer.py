@@ -234,7 +234,7 @@ def apply_replacements(map_path: str, mapping: dict, output_path: str = None):
         return
 
     if needs_retile:
-        print("\nCell sizes changed — rebuilding cell_starts, re-tiling, and re-blending...")
+        print("\nCell sizes changed - rebuilding cell_starts, re-tiling, and re-blending...")
 
         # Rebuild cell_start for every texture sequentially.
         cursor = 0

@@ -3,7 +3,7 @@
 Every step of the decoding plan leans on two questions about an undecoded chunk: *what is its
 block structure* and *where do two saves diverge inside it*. `nested_block_tree` answers the
 first by locating the BFME `KOLB` composite blocks in a payload (each `[ascii name] + "KOLB" +
-uint32 absolute-end-offset`) and nesting them by containment — turning a wall of bytes into the
+uint32 absolute-end-offset`) and nesting them by containment - turning a wall of bytes into the
 named tree the format actually is. `first_difference` / `format_divergence` answer the second by
 aligning the same chunk from two saves and showing the first byte that differs, which is how the
 single-sample ambiguities (the `GameState` fixed regions, the `GameLogic` preamble) get pinned
@@ -12,7 +12,7 @@ down as the corpus grows.
 Block detection is deliberately a *heuristic scan* for the `KOLB` marker (validated by a
 plausible in-range end offset), not a grammar-aware walk: it works on chunks no decoder
 understands yet, at the cost of the occasional false marker in binary payloads. That trade is
-right for a reversing tool — it never has to be told the layout first.
+right for a reversing tool - it never has to be told the layout first.
 """
 
 from dataclasses import dataclass
@@ -60,7 +60,7 @@ def nested_block_tree(payload: bytes, base_offset: int) -> list[NestedBlock]:
 
     `base_offset` is the absolute file position of `payload[0]` (a chunk's `payload_offset`),
     needed because the stored end-offsets are absolute. A marker is accepted only when its end
-    offset lands past the marker and within the payload — enough to reject most stray `KOLB`
+    offset lands past the marker and within the payload - enough to reject most stray `KOLB`
     byte sequences in binary data."""
     found: list[tuple[int, str | None, int, int]] = []
     search = 0

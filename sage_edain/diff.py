@@ -1,4 +1,4 @@
-"""Faction-level changelog between two versions of a mod — the balance-review view.
+"""Faction-level changelog between two versions of a mod - the balance-review view.
 
 `sage_ini diff` reports raw definition/field changes; this compares two built
 `FactionGraph`s instead, so the changes read in player terms: which units, heroes,

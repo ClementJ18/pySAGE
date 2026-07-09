@@ -1,4 +1,4 @@
-# .sagelint — shared, committed lint config for a mod.
+# .sagelint - shared, committed lint config for a mod.
 #
 # Copy this file to the root of the folder you lint and rename it to `.sagelint`:
 #   cp .sagelint.template <mod-root>/.sagelint
@@ -7,7 +7,7 @@
 #
 # All keys are optional. A `.sagelint.local` (gitignored) overlays this file per-key,
 # and explicit CLI flags override both. Unknown keys and bad values are reported as
-# warnings, never raised — a typo degrades to a message, not a crash.
+# warnings, never raised - a typo degrades to a message, not a crash.
 #
 # Run `sage_lint lint --list-codes` to print every code accepted by `ignore`/`select`.
 
@@ -15,7 +15,7 @@
 # The folder to lint, resolved relative to THIS file's directory. With it set you can
 # run `sage_lint lint` (no path) from here and it lints that folder. A path given on the
 # command line LOCATES this config (the dir to read `.sagelint` from) and `root` then
-# scopes the build to a subfolder of it — so an editor pointed at the project root still
+# scopes the build to a subfolder of it - so an editor pointed at the project root still
 # lints just this subtree. Single path string.
 # root = "data/ini"
 
@@ -28,7 +28,7 @@ level = "WARNING"
 # align_equals pads attribute names so their `=` line up in a column, per
 # blank-line-delimited group within each block (mirrors --align-equals).
 # align_exclude lists block types to leave unaligned, by header keyword
-# (Object, ArmorSet, Draw) or module subtype (ActiveBody) — mirrors --align-exclude.
+# (Object, ArmorSet, Draw) or module subtype (ActiveBody) - mirrors --align-exclude.
 # align_equals = true
 # align_exclude = ["ArmorSet"]
 
@@ -39,7 +39,7 @@ level = "WARNING"
 # beside this file is picked up automatically if present.
 #
 # Generate or refresh it with `sage_lint lint --write-baseline`, and COMMIT it (unlike
-# .sagelint.local) — it is the shared, checkout-independent record. Matching ignores line
+# .sagelint.local) - it is the shared, checkout-independent record. Matching ignores line
 # numbers (file + code + message + count), so editing files does not resurface old problems.
 # baseline = ".sagelint.baseline"
 
@@ -78,7 +78,7 @@ ignore = [
 # -- assets -----------------------------------------------------------------
 # Run the opt-in missing-texture-file / missing-model-file / missing-map-file
 # rules (off by default; mirrors --assets). They check that a referenced
-# texture, model or map exists on disk — but a base-game asset lives in the
+# texture, model or map exists on disk - but a base-game asset lives in the
 # base archives, so unless you load your unmodified BFME2/RotWK data they report
 # every base reference as missing. Load your bases (see `base` / `assets_base`
 # below), then:
@@ -113,7 +113,7 @@ exclude = [
 # Lower-priority base-game sources (a folder or a .big archive) loaded beneath
 # the mod: build-only, file-shadowed by the mod, and never reported (mirrors
 # --base). Highest priority first. Applied to whole-folder lint/fix only, not
-# the per-file save path. These paths are usually machine-specific — prefer
+# the per-file save path. These paths are usually machine-specific - prefer
 # setting them in `.sagelint.local` instead of here.
 base = [
     # "C:/Games/BFME2/data",
@@ -142,6 +142,8 @@ base = [
 #     duplicate-definition      the same (kind, name) defined twice in one file
 #     invalid-module-operation  an AddModule/ReplaceModule/RemoveModule whose tag is wrong vs inheritance
 #     map-bare-module           a module declared bare in a map.ini (must use AddModule/ReplaceModule)
+#     map-local-string          a map.ini Label whose string is defined only in the adjacent map.str, not the global table
+#     modifier-fx-duration      a ModifierList whose FX buff/particle lifetime differs from its Duration (opt-in; name it in `select`)
 #     out-of-range              a numeric field outside its allowed range
 #     repeated-field            a scalar attribute set more than once (last wins)
 #     respawn-entry-order       RespawnUpdate entries not in ascending level order

@@ -3,7 +3,7 @@
 A Python library for reading SAGE-engine save games: Battle for Middle-earth `.sav`-family
 files (BFME2 `.BfME2Skirmish` and friends). Sibling to `sage_map`.
 
-A save is a serialized engine snapshot — a 16-byte file header, a flat sequence of named,
+A save is a serialized engine snapshot - a 16-byte file header, a flat sequence of named,
 self-delimiting chunks, and an `SG_EOF` token. Each chunk is
 `ascii-name + "KOLB" marker + uint32 end-offset + payload`, where the end-offset is the
 *absolute* file position the chunk ends at. Because every chunk is self-delimiting, the
@@ -15,16 +15,16 @@ On top of the container, `sage_save.xfer` implements the `Xfer` wire primitives 
 `sage_save.chunks` decodes the chunks understood so far: `CHUNK_GameState` (description,
 local timestamp, map, profile), `CHUNK_GameStateMap` (whose embedded map extracts to a
 plain on-disk `.map` that every `sage_map` tool runs on unchanged), `CHUNK_Campaign`, and
-`CHUNK_GameLogic` down to its object template table and per-object index — so `iter_objects`
+`CHUNK_GameLogic` down to its object template table and per-object index - so `iter_objects`
 names every live object on the map. Object bodies and the deeper per-player/script state stay
 opaque.
 
 `sage_save.xref` resolves the harvested ini-names against a `sage_ini` `Game` (`check_save`),
-reporting the danglers — "will this save still load under this mod tree". Two classes are
-harvested: object templates (`CHUNK_GameLogic`), which are *non-fatal* — the engine drops the
-object at load — and the upgrade/science names (`CHUNK_Players`, via `sage_save.players`),
-which are *fatal* — a dangling one aborts the load. The remaining classes (kind-of flags,
-command buttons) await a fuller chunk decode; see "Phase 3 — work still to do" in
+reporting the danglers - "will this save still load under this mod tree". Two classes are
+harvested: object templates (`CHUNK_GameLogic`), which are *non-fatal* - the engine drops the
+object at load - and the upgrade/science names (`CHUNK_Players`, via `sage_save.players`),
+which are *fatal* - a dangling one aborts the load. The remaining classes (kind-of flags,
+command buttons) await a fuller chunk decode; see "Phase 3 - work still to do" in
 [sav_format.md](sav_format.md).
 
 The framing follows the GPL Generals/Zero Hour `XferSave` source
@@ -32,7 +32,7 @@ The framing follows the GPL Generals/Zero Hour `XferSave` source
 per-block `KOLB`/absolute-offset framing, and the chunk layouts were reverse-engineered
 against real BFME2 skirmish saves and cross-validated on three saves across two maps with
 different factions (Dwarves/Wild and Mordor/Men on one map, Elves vs a Mordor/Men/Isengard
-team on another) — all round-trip byte-exact, all maps re-parse under `sage_map`, and the
+team on another) - all round-trip byte-exact, all maps re-parse under `sage_map`, and the
 object/upgrade/science harvests recognise each save's real content. Full format notes:
 [sav_format.md](sav_format.md).
 
@@ -60,7 +60,7 @@ open("embedded.map", "wb").write(extract_map(save))  # a normal on-disk .map
 # Everything decoded as one JSON document
 open("save.json", "w").write(save_to_json(save))
 
-# Edit decoded attributes and write them back (length-preserving edits only — see below)
+# Edit decoded attributes and write them back (length-preserving edits only - see below)
 edited = apply_json(save, {"game_state": {"saved_at": "2030-12-25T09:00:00"}})
 write_save_to_path(edited, "edited.sav")
 
@@ -107,7 +107,7 @@ python -m sage_save info <save> --json
 `apply_json(save, data)` (CLI: `edit`) writes the editable fields of a `json` export back onto
 a save: the `game_state` (description, timestamp, map path, profile), `game_state_map` (map
 paths, game mode) and `campaign` sections. Everything else in the JSON is a read-only view and
-is ignored — the object index, upgrade/science names and the opaque chunk bulk cannot be edited
+is ignored - the object index, upgrade/science names and the opaque chunk bulk cannot be edited
 this way.
 
 Because a save stores **absolute file offsets** inside its nested blocks, an edit that changes a

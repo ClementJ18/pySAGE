@@ -10,7 +10,7 @@ padding is purely visual and the round-trip still holds.
 `commandset_layout` is an opt-in canonical layout for `CommandSet` blocks (the formatter turns
 it on): the block's non-slot attributes are lifted to the top, a blank line separates them from
 the numbered button slots, and the slot numbers are padded to two columns (`1  = ...`,
-`13 = ...`). It reorders and re-spaces content, so it is off by default — the round-trip and
+`13 = ...`). It reorders and re-spaces content, so it is off by default - the round-trip and
 fixed-point contract only holds without it.
 """
 

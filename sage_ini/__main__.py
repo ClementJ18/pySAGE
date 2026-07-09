@@ -1,19 +1,19 @@
 """Command-line entry point: `python -m sage_ini <command>` (or `sage-ini`).
 
-- `stats <dir>`  — the corpus parse-rate scoreboard.
-- `lint <paths>` — assemble files/folders and report parse/load/conversion problems
+- `stats <dir>`  - the corpus parse-rate scoreboard.
+- `lint <paths>` - assemble files/folders and report parse/load/conversion problems
   (the "does it convert?" facts; judgment rules live in `sage_lint`).
-- `xref <dir> <name>` — what a definition references and what references it.
-- `resolve <dir> <name>` — where a name or macro is defined (file:line).
-- `includes <dir> <file>` — the files a file includes, and that include it.
-- `brief <dir> <file>` — a single file's definitions, references, includes, and macros.
-- `diff <old> <new>` — a human-readable changelog between two ini folders (or two git refs).
-- `primer [full | expand <Kind> | enum <Name>]` — the compact model digest for an LLM agent.
-- `install-skill` — install the bundled `bfme-ini` Claude Code skill.
+- `xref <dir> <name>` - what a definition references and what references it.
+- `resolve <dir> <name>` - where a name or macro is defined (file:line).
+- `includes <dir> <file>` - the files a file includes, and that include it.
+- `brief <dir> <file>` - a single file's definitions, references, includes, and macros.
+- `diff <old> <new>` - a human-readable changelog between two ini folders (or two git refs).
+- `primer [full | expand <Kind> | enum <Name>]` - the compact model digest for an LLM agent.
+- `install-skill` - install the bundled `bfme-ini` Claude Code skill.
 
 The query commands (`lint`, `xref`, `resolve`, `brief`, `diff`) accept `--json` to emit the
 same facts as machine-readable JSON for agents and tool builders.
-- `merge` — structure-aware 3-way merge: a git merge driver, a conflict-marker resolver,
+- `merge` - structure-aware 3-way merge: a git merge driver, a conflict-marker resolver,
   and a git-config installer.
 """
 
@@ -286,7 +286,7 @@ def _read_once(path: Path) -> tuple[str, str]:
     Reading exactly once matters for the git merge driver: git's `ort` strategy creates and
     deletes the %O/%A/%B temp files around each driver call (and runs extra inner merges), so a
     second read of the same path can race and fail. A missing file is treated as empty utf-8 so
-    the driver never crashes — a crash would abort the whole merge."""
+    the driver never crashes - a crash would abort the whole merge."""
     try:
         data = path.read_bytes()
     except FileNotFoundError:
@@ -312,7 +312,7 @@ def _read_once(path: Path) -> tuple[str, str]:
 def _write_back(out: Path, text: str, encoding: str) -> None:
     """Write the merged text in the source's encoding, falling back to utf-8 if the merged
     content (e.g. pulled from a utf-8 `theirs`) has characters the source's legacy encoding
-    cannot represent — better a re-encoded file than a crash that aborts the merge."""
+    cannot represent - better a re-encoded file than a crash that aborts the merge."""
     try:
         out.write_text(text, encoding=encoding)
     except UnicodeEncodeError:

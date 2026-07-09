@@ -1,5 +1,5 @@
 """Run the `sage_lint lint` command in-process and return its JSON report, so the desktop
-UI reuses every bit of the CLI's behaviour — config discovery, baseline, filtering, sorting —
+UI reuses every bit of the CLI's behaviour - config discovery, baseline, filtering, sorting -
 rather than reimplementing it. Kept Qt-free so it can run on a worker thread (or headless).
 """
 
@@ -31,7 +31,7 @@ MERGED_BASELINE = "sage_lint_merged.baseline"
 
 
 def app_dir() -> Path:
-    """The folder the app runs from — beside the `.exe` when frozen by PyInstaller, else the
+    """The folder the app runs from - beside the `.exe` when frozen by PyInstaller, else the
     working directory. This is where we look for a config to autoload on launch, so dropping
     the exe into a mod folder makes it ready to Check at once."""
     if getattr(sys, "frozen", False):
@@ -54,7 +54,7 @@ def project_config(folder: str):
 
 
 def _resolve(folder: Path, value: str) -> Path:
-    """A config path resolved against the lint `folder` (an absolute value is kept as-is) —
+    """A config path resolved against the lint `folder` (an absolute value is kept as-is) -
     mirroring how the CLI resolves a relative `base`/`baseline` against the lint root."""
     path = Path(value)
     return path if path.is_absolute() else folder / path
@@ -62,7 +62,7 @@ def _resolve(folder: Path, value: str) -> Path:
 
 def config_bases(config, folder: str) -> list[str]:
     """The config's base-game source(s) as absolute path strings, resolved against the lint
-    folder — so the UI can show and pass them as `--base` rather than rely on the CLI's own
+    folder - so the UI can show and pass them as `--base` rather than rely on the CLI's own
     config lookup (which would resolve a relative value against the wrong directory)."""
     base = Path(folder)
     return [str(_resolve(base, value)) for value in config.base]
@@ -99,7 +99,7 @@ def merge_baselines(paths, root) -> str:
     """Combine the baselines at `paths` into one temp baseline file whose entries are relative
     to `root`, and return its path ('' when nothing valid was found).
 
-    Each baseline stores its files relative to the root it was written against — by convention
+    Each baseline stores its files relative to the root it was written against - by convention
     the folder it sits in (e.g. a `_mod/.sagelint.baseline` covers `_mod`). To use them all
     when linting `root`, every entry is re-rooted: prefixed with the baseline's own directory
     relative to `root`. A baseline sitting directly at `root` needs no prefix; one outside
@@ -162,7 +162,7 @@ def build_argv(
 def build_format_argv(folder: str, *, align_equals: bool = False, align_exclude=()) -> list[str]:
     """The `sage_lint format` argument list to reformat a folder in place. The align options are
     passed explicitly (from the config the UI already read) so they apply even when the config
-    sits above the formatted root — where `format`'s own config lookup would miss it."""
+    sits above the formatted root - where `format`'s own config lookup would miss it."""
     argv = ["format", folder, "--output-format", "json"]
     if align_equals:
         argv.append("--align-equals")

@@ -1,4 +1,4 @@
-"""The full stat view of one SAGE object — one self-contained `UnitPanel` holding its
+"""The full stat view of one SAGE object - one self-contained `UnitPanel` holding its
 own `UnitState`, so its toggles re-resolve only its own stats. `Browser` stacks two
 side by side and wires up the `changed`, `closed` and `navigate` signals."""
 
@@ -165,7 +165,7 @@ class UnitPanel(QWidget):
             if member is not None and member not in members:
                 members.append(member)
 
-        if members:  # obj is a horde — stats from the contained unit
+        if members:  # obj is a horde - stats from the contained unit
             self._unit_obj = members[0]
             self._cost_sources = [(f"Horde · {obj.name}", obj)]
             self._default_source = 0
@@ -320,7 +320,7 @@ class UnitPanel(QWidget):
         alayout.addLayout(self._armor_box)
         self._stats_column.addWidget(armor_card)
 
-        # Effective health — collapsed by default behind a clickable header.
+        # Effective health - collapsed by default behind a clickable header.
         effective_card, elayout = card()
         self._effective_header = QPushButton()
         self._effective_header.setObjectName("sectionHeader")
@@ -353,7 +353,7 @@ class UnitPanel(QWidget):
         self._build_mounted_card()
         self._build_built_by_card()
 
-        # Possible upgrades — the object's own upgrade gates plus the LevelUpUpgrade
+        # Possible upgrades - the object's own upgrade gates plus the LevelUpUpgrade
         # triggers (toggling one raises the veterancy rank).
         upgrade_card, ulayout = card("Possible upgrades")
         upgrade_names = list(o["upgrades"])
@@ -392,7 +392,7 @@ class UnitPanel(QWidget):
         self._refresh_portrait()
 
     def apply_textures(self, texture_source, portrait_background) -> None:
-        """Adopt newly indexed texture sources and (re)render the portrait and button icons —
+        """Adopt newly indexed texture sources and (re)render the portrait and button icons -
         called when image sources finish loading after the panel is already shown."""
         self._texture_source = texture_source
         self._portrait_background = portrait_background
@@ -493,7 +493,7 @@ class UnitPanel(QWidget):
         )
         if self._commands_box is not None:  # built after the cost card; refresh on change
             self._refresh_commands()
-        if self._loco_box is not None:  # likewise — follows the source's locomotor
+        if self._loco_box is not None:  # likewise - follows the source's locomotor
             self._refresh_locomotor()
         view = build_cost_view(self._active_source)
         wrap = QWidget()
@@ -534,7 +534,7 @@ class UnitPanel(QWidget):
 
         picker = QComboBox()
         for level, rank in zip(selector.levels, selector.ranks, strict=True):
-            picker.addItem(f"Rank {rank:g} — {level.name}", rank)
+            picker.addItem(f"Rank {rank:g} - {level.name}", rank)
         picker.setCurrentIndex(selector.index)
         picker.currentIndexChanged.connect(self._on_rank_changed)
         self._rank_picker = picker
@@ -586,7 +586,7 @@ class UnitPanel(QWidget):
         self._aux_column.addWidget(built_by_card)
 
     def _toggle_builders(self, builders: list[str], detail) -> None:
-        """Show/hide the builder list — each a link that opens that structure."""
+        """Show/hide the builder list - each a link that opens that structure."""
         if detail.count():
             clear_layout(detail)
             return
@@ -632,7 +632,7 @@ class UnitPanel(QWidget):
         self._refresh_stats()
 
     def _level_up_objects(self) -> list:
-        """The combat unit plus its cost sources — a horde holds the LevelUpUpgrade."""
+        """The combat unit plus its cost sources - a horde holds the LevelUpUpgrade."""
         objs = [self._unit_obj]
         for _label, source in self._cost_sources:
             if source not in objs:
@@ -660,7 +660,7 @@ class UnitPanel(QWidget):
         return floor
 
     def _apply_rank(self) -> None:
-        """Apply the effective rank — the manual pick raised to the LevelUp floor — to the
+        """Apply the effective rank - the manual pick raised to the LevelUp floor - to the
         unit state and sync the picker to it."""
         floor = self._rank_floor()
         manual = self._manual_rank if self._manual_rank is not None else floor
@@ -770,7 +770,7 @@ class UnitPanel(QWidget):
         self._empty(self._effective_box)
         effective = effective_health(self._unit_state)
         if not effective:
-            none = QLabel("—")
+            none = QLabel("-")
             none.setObjectName("muted")
             self._effective_box.addWidget(none)
             return
@@ -862,7 +862,7 @@ class UnitPanel(QWidget):
         self._weapon_box.addWidget(self._active_label(set_conditions(weapon_set)))
         self._weapon_picker = QComboBox()
         for weapon in self._weapons:
-            self._weapon_picker.addItem(f"{weapon['slot']} — {weapon['name']}")
+            self._weapon_picker.addItem(f"{weapon['slot']} - {weapon['name']}")
         self._nugget_box = QWidget()
         self._nugget_box.setLayout(QVBoxLayout())
         self._nugget_box.layout().setContentsMargins(0, 0, 0, 0)
@@ -877,7 +877,7 @@ class UnitPanel(QWidget):
         self._empty(self._loco_box)
         modified = self._source_state.speed
         if modified is None:
-            label = QLabel("—")
+            label = QLabel("-")
             label.setObjectName("muted")
         else:
             label = self._stat_label(
@@ -911,7 +911,7 @@ class UnitPanel(QWidget):
 
     def _add_command_button(self, button: dict) -> None:
         """One command button: a clickable detail unfurl plus its action. A UNIT_BUILD
-        button is the exception — it stays a link to the object it trains. State-flipping
+        button is the exception - it stays a link to the object it trains. State-flipping
         buttons (a power modifier, a weapon-set toggle) flip their flag on the same click
         and rebuild the palette; the expanded set re-opens the detail afterwards."""
         button["text"] = clean_text(button["text"])
@@ -1141,12 +1141,12 @@ class UnitPanel(QWidget):
         slot = button["weapon_slot"]
         weapon = next((w for w in self._weapons if w["slot"] == slot), None)
         if weapon is None:
-            note = QLabel(f"No weapon in slot {slot or '—'}.")
+            note = QLabel(f"No weapon in slot {slot or '-'}.")
             note.setObjectName("muted")
             detail.addWidget(note)
             return
-        # Heading mirrors the Weapons card picker (slot — name).
-        name = f"{slot} — {weapon['name']}" if slot else weapon["name"]
+        # Heading mirrors the Weapons card picker (slot - name).
+        name = f"{slot} - {weapon['name']}" if slot else weapon["name"]
         self._render_weapon(weapon, detail, name=name)
 
     def _toggle_weaponset(self, button: dict) -> None:
@@ -1173,7 +1173,7 @@ class UnitPanel(QWidget):
 
         view = armorset_view(armor_set)
         self._armor_box.addWidget(self._active_label(set_conditions(armor_set)))
-        self._armor_box.addWidget(QLabel(f"<b>{view['armor'] or '—'}</b>"))
+        self._armor_box.addWidget(QLabel(f"<b>{view['armor'] or '-'}</b>"))
         self._armor_box.addWidget(self._scalar_table(view.get("scalars") or {}))
 
     def _show_nuggets(self, index: int) -> None:
@@ -1233,9 +1233,9 @@ class UnitPanel(QWidget):
                 damage = self._unit_state.weapon_damage(base_damage, n["damage_type"])
             cells = (
                 QLabel(n["type"]),
-                QLabel(n["damage_type"] or "—"),
+                QLabel(n["damage_type"] or "-"),
                 self._stat_label(fmt_stat(damage), damage, base_damage),
-                QLabel("—" if n["radius"] is None else fmt_stat(n["radius"])),
+                QLabel("-" if n["radius"] is None else fmt_stat(n["radius"])),
             )
             for col, widget in enumerate(cells):
                 grid.addWidget(widget, row, col)

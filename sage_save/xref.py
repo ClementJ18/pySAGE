@@ -1,30 +1,30 @@
 """Phase 3: cross-reference the ini-names a save carries against a loaded `sage_ini` `Game`.
 
-A save file is full of names that resolve against ini definitions — deliberately, so that
+A save file is full of names that resolve against ini definitions - deliberately, so that
 ini edits (reordering, insertion) don't invalidate saves. `harvest_references` collects those
 names and `check_references` resolves each through `Game.lookup` (exact match, then the
-engine's case-insensitive fallback), reporting the danglers — the same dangling-reference
+engine's case-insensitive fallback), reporting the danglers - the same dangling-reference
 machinery `sage_lint` applies to maps, now applied to saves ("will this save still load under
 this mod tree", and which definitions a rename would break).
 
 Harvested today: the `CHUNK_GameLogic` object template table (every live object's ini `Object`
-name — **non-fatal**: the engine skips an unknown object-template TOC entry at load, dropping
+name - **non-fatal**: the engine skips an unknown object-template TOC entry at load, dropping
 the object rather than failing); the `CHUNK_Players` **and** `CHUNK_GameLogic` object-body upgrade
 masks and science vectors (**fatal**: a dangling upgrade/science is `XFER_UNKNOWN_STRING`, aborting
-the load) — the object bodies add the per-object *applied* upgrades (veterancy, hero abilities,
+the load) - the object bodies add the per-object *applied* upgrades (veterancy, hero abilities,
 structure/object levels) that the per-player faction masks omit; and the `CHUNK_Campaign` hero
-carry-over roster — the persistent heroes' ini `Object` templates and the `Upgrade_*` names they
+carry-over roster - the persistent heroes' ini `Object` templates and the `Upgrade_*` names they
 earned (**fatal**: the roster is restored by name on the next mission). The roster is the only
 ini-name source in a between-missions save (no live objects, no `CHUNK_Players`). And the
-`CHUNK_LivingWorldLogic` army rosters — the ini `Object` templates a War-of-the-Ring living-world
+`CHUNK_LivingWorldLogic` army rosters - the ini `Object` templates a War-of-the-Ring living-world
 army fields (**non-fatal**, via the `02 01` roster-entry signature), the only object-name source in
 a living-world save (no `CHUNK_GameLogic` objects).
 
 **The fatal xref surface is now essentially complete.** The two classes the plan reserved for a
 later pass turned out not to apply to BFME saves: **kind-of flags** are written by `xferKindOf` as
-a bare ascii name but are **non-fatal** (an unknown name is silently ignored on load — GPL
+a bare ascii name but are **non-fatal** (an unknown name is silently ignored on load - GPL
 `Xfer::xferKindOf`), and **command-button** names are **not serialized by name** anywhere in the
-save (a scan of every chunk finds none — command sets are resolved from ini at runtime). So there
+save (a scan of every chunk finds none - command sets are resolved from ini at runtime). So there
 is no kind-of / command-button dangling-reference class to harvest.
 """
 
@@ -111,7 +111,7 @@ def harvest_object_upgrade_references(save: SaveFile) -> list[Reference]:
     """The **applied upgrade masks** carried by live objects in `CHUNK_GameLogic` (fatal). A
     behavior module writes its `xferUpgradeMask` with the same `u8 version=1 + u16 count + ascii
     Upgrade_ names` signature as the player masks, so it is harvested the same way over the whole
-    chunk payload — the `Upgrade_` prefix makes a false match in the ~2 MB of object bodies
+    chunk payload - the `Upgrade_` prefix makes a false match in the ~2 MB of object bodies
     vanishingly unlikely. This is a *second, richer* fatal-upgrade source than `CHUNK_Players`:
     it catches the veterancy levels, hero-ability, structure/object-level and button-enable
     upgrades actually applied to units (e.g. `Upgrade_DainLeadership`, `Upgrade_StructureLevel2`),
@@ -128,7 +128,7 @@ def harvest_object_upgrade_references(save: SaveFile) -> list[Reference]:
 
 def harvest_campaign_references(save: SaveFile) -> list[Reference]:
     """The `CHUNK_Campaign` hero carry-over roster: each persistent hero's ini `Object` template
-    and the `Upgrade_*` names it earned. Both are **fatal** — the roster is restored by name on
+    and the `Upgrade_*` names it earned. Both are **fatal** - the roster is restored by name on
     the next mission load, so a dangling template or upgrade breaks the carry-over. Counts are the
     number of heroes carrying that template / upgrade."""
     campaign_chunk = save.chunk("CHUNK_Campaign")
@@ -145,9 +145,9 @@ def harvest_campaign_references(save: SaveFile) -> list[Reference]:
 
 def harvest_script_engine_references(save: SaveFile) -> list[Reference]:
     """The `CHUNK_ScriptEngine` ini-names, now via the structured decode rather than a signature
-    scan. The per-player acquired-science vectors are **fatal** — they are the same
+    scan. The per-player acquired-science vectors are **fatal** - they are the same
     `xferScienceVec` restore-by-name machinery as `CHUNK_Players` (an unknown name is
-    `XFER_UNKNOWN_STRING`) — and independently cross-check the `Players` harvest. The
+    `XFER_UNKNOWN_STRING`) - and independently cross-check the `Players` harvest. The
     object-type lists and attack-priority overrides carry ini `Object` template names that are
     only stored (not resolved) at load time, so they are **non-fatal**."""
     script_chunk = save.chunk("CHUNK_ScriptEngine")
@@ -175,10 +175,10 @@ def harvest_living_world_references(save: SaveFile) -> list[Reference]:
     signature so runtime instance names (`DurmarthPlayerArmy`, `Player_1`) are not mistaken for
     definitions. **Non-fatal** (kind `object_template`): as with the `CHUNK_GameLogic` template
     table, a dangling object name is conservatively treated as a dropped reference rather than a
-    load-failure — whether the WotR
+    load-failure - whether the WotR
     strategic layer aborts or drops on an unknown army unit is not yet established, and over-stating
     fatality is worse than under-stating it. This is the only object-name source in a living-world
-    save (no `CHUNK_GameLogic` objects). Count is presence (1) per distinct template — the
+    save (no `CHUNK_GameLogic` objects). Count is presence (1) per distinct template - the
     per-army fielding count would need the record walk."""
     lwl = save.chunk("CHUNK_LivingWorldLogic")
     if lwl is None:
@@ -190,8 +190,8 @@ def harvest_living_world_references(save: SaveFile) -> list[Reference]:
 
 
 def _merge(references: list[Reference]) -> list[Reference]:
-    """Combine references to the same `(kind, name)` into one — summing counts and treating the
-    reference as fatal if any source is fatal — so a name a save carries in several chunks is
+    """Combine references to the same `(kind, name)` into one - summing counts and treating the
+    reference as fatal if any source is fatal - so a name a save carries in several chunks is
     reported once. Order follows first appearance."""
     merged: dict[tuple[str, str], Reference] = {}
     for ref in references:
@@ -257,7 +257,7 @@ def format_findings(findings: list[Finding]) -> list[str]:
         ref = finding.reference
         if finding.status == "missing":
             effect = "load fails" if ref.fatal else f"{ref.count} object(s) dropped on load"
-            lines.append(f"  MISSING  {ref.kind} {ref.name!r} — undefined ({effect})")
+            lines.append(f"  MISSING  {ref.kind} {ref.name!r} - undefined ({effect})")
         else:
-            lines.append(f"  CASE     {ref.kind} {ref.name!r} — defined as {finding.canonical!r}")
+            lines.append(f"  CASE     {ref.kind} {ref.name!r} - defined as {finding.canonical!r}")
     return lines

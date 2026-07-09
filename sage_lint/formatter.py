@@ -40,7 +40,7 @@ def _leading_whitespace(line: str) -> str:
 
 def _verbatim_lines(document: IniDocument) -> set[int]:
     """1-based line numbers inside `BeginScript`/`EndScript` bodies. The printer reproduces
-    these verbatim (an opaque Lua body), so reformatting never touches their indentation —
+    these verbatim (an opaque Lua body), so reformatting never touches their indentation -
     flagging tabs there would be an un-fixable warning that survives every format pass."""
     lines: set[int] = set()
 
@@ -61,7 +61,7 @@ def detect_indent_smells(
     text: str, file: str = "<string>", skip_lines: set[int] | None = None
 ) -> list[Diagnostic]:
     """Report tab-based indentation, which the canonical style forbids. Lines in `skip_lines`
-    are exempt — used to skip script bodies the printer reproduces verbatim, whose tabs
+    are exempt - used to skip script bodies the printer reproduces verbatim, whose tabs
     reformatting can never clear."""
     skip_lines = skip_lines or set()
     smells: list[Diagnostic] = []

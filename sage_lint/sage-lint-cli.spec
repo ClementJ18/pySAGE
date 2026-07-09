@@ -3,7 +3,7 @@
 # package needs no Python and no checkout:
 #   pyinstaller sage_lint/sage-lint-cli.spec
 # The result is dist/sage_lint(.exe). One binary serves every subcommand, `serve` included.
-# Copy it into the package's bin/ folder (or bin/<platform>/) — see plugins/sublime/README.md.
+# Copy it into the package's bin/ folder (or bin/<platform>/) - see plugins/sublime/README.md.
 # Build once per OS you support; PyInstaller binaries are not cross-platform.
 
 import os

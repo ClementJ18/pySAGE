@@ -46,7 +46,7 @@ def get_class(name: str) -> type["IniObject"] | None:
 
 def resolve_annotation(annotation):
     """A field annotation is either a converter object or a class name string. A field may
-    also be declared `Annotated[PyType, converter]` — the `PyType` is there only so the IDE
+    also be declared `Annotated[PyType, converter]` - the `PyType` is there only so the IDE
     sees the value's real type; the converter (the first metadata entry) is what runs."""
     if hasattr(annotation, "__metadata__"):
         annotation = annotation.__metadata__[0]
@@ -189,6 +189,12 @@ class IniObject:
     # sub-object, not the global `Object` type it shares a keyword with; mapping it here keeps it
     # from registering into `game.objects`. Read by `from_block` before `classify_subblock`.
     subblock_overrides: dict[str, type["IniObject"]] = {}
+    # The definition this one shadows in the same table, when a map.ini re-opens an existing
+    # object to patch it (the engine merges the override onto the base template in place). Set
+    # by `Game.register` only while a map layer loads; None everywhere else, where a same-name
+    # re-definition is a duplicate, not a patch. Lets inheritance-aware rules resolve the base's
+    # modules/fields through the override instead of seeing a stripped-down block.
+    _override_base: "IniObject | None" = None
     _header_extras: tuple = ()
     _uses_equals: bool = False  # whether the header was written `Name = Label` (see from_block)
 
@@ -276,7 +282,7 @@ class IniObject:
         game.register(self)
 
     def field_spans(self, name) -> list:
-        """Every span recorded for `name`, in source order — one per occurrence of a repeated
+        """Every span recorded for `name`, in source order - one per occurrence of a repeated
         key. Falls back to the single first-occurrence span, then the block span, so the result
         is never empty for a present field."""
         spans = self._field_span_lists.get(name)
@@ -359,7 +365,7 @@ class IniObject:
     @classmethod
     def _bare_directive_group(cls, key: str) -> 'tuple[type["IniObject"], str] | None':
         """`(class, nested-group)` when `key` names a registered bare one-line directive block
-        (`ClearNuggets`) that belongs to one of this block's nested groups, else None — so a
+        (`ClearNuggets`) that belongs to one of this block's nested groups, else None - so a
         body-less directive routes to the same group its `... End` form would."""
         directive_cls = REGISTRY.get(key)
         if directive_cls is None or not getattr(directive_cls, "bare_directive", False):
@@ -562,8 +568,8 @@ class Module(IniObject):
 
     @property
     def tag(self) -> str | None:
-        """The module's `ModuleTag_*` identifier — the second header token of
-        `Behavior = AutoHealBehavior ModuleTag_01` — or None when the header omits it."""
+        """The module's `ModuleTag_*` identifier - the second header token of
+        `Behavior = AutoHealBehavior ModuleTag_01` - or None when the header omits it."""
         parts = self.name.split()
         return parts[1] if len(parts) > 1 else None
 

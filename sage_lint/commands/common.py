@@ -91,8 +91,8 @@ def config_path(base: Path, value: str) -> Path:
 
 
 def effective_root(args: argparse.Namespace, config: Config) -> Path | None:
-    """The folder to lint. The config's `root`, when set, is the target — resolved against
-    the directory its `.sagelint` lives in (the positional root, else the current dir) — so a
+    """The folder to lint. The config's `root`, when set, is the target - resolved against
+    the directory its `.sagelint` lives in (the positional root, else the current dir) - so a
     config placed beside a project can point the lint at a subfolder. A positional root with
     no config `root` is the target itself; `--file` uses `--root` only for include resolution
     and never the config `root`."""
@@ -138,7 +138,7 @@ def resolve_rule_set(selected: set[str], include_assets: bool) -> list[type] | N
     """The rules a run executes. An explicit `--select` wins (opt-in rules run when named). With
     no selection, `--assets` (or config `assets`) adds the asset-group opt-in rules to the default
     set; otherwise None lets `run_rules` use the plain default set. A non-asset opt-in rule (e.g.
-    unused-object) is never pulled in by `--assets` — only naming it in `--select` runs it."""
+    unused-object) is never pulled in by `--assets` - only naming it in `--select` runs it."""
     if selected:
         return _selected_rules(selected)
     if include_assets:

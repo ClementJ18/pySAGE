@@ -1,6 +1,6 @@
 """Install a package's bundled Claude Code skill into a skills directory, so a user who
-pip-installed the package can opt into the agent workflow. The skills are static — they drive
-their package's CLI live rather than embedding generated data — so installing is a plain copy
+pip-installed the package can opt into the agent workflow. The skills are static - they drive
+their package's CLI live rather than embedding generated data - so installing is a plain copy
 of the packaged asset; there is nothing to regenerate. Each shipping package keeps a thin
 `skill_install` wrapper naming its own package and skill.
 """

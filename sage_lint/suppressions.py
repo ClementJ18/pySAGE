@@ -15,8 +15,8 @@ header line.
 
 Filtering runs inside the lint entry points (`sage_lint.linter`), re-reading each
 diagnosed file once per run. Reading from disk rather than the parsed AST keeps the
-mechanism uniform across every diagnostic source — parse errors on lines the block parser
-never typed, conversion facts, and rule findings — and the editor daemon lints a live
+mechanism uniform across every diagnostic source - parse errors on lines the block parser
+never typed, conversion facts, and rule findings - and the editor daemon lints a live
 buffer via a temp file written beside the real one, so unsaved suppression comments are
 seen too.
 """
@@ -30,7 +30,7 @@ from sage_ini.parser.io import read_text
 __all__ = ["line_suppressions", "filter_suppressed"]
 
 # `;`, `//` and `--` each start a comment anywhere on a line (see sage_ini.parser.lexer),
-# so a directive found after one of them is always inside a comment — no lexing needed.
+# so a directive found after one of them is always inside a comment - no lexing needed.
 _DIRECTIVE = re.compile(r"(?:;|//|--)\s*sagelint:\s*ignore(?:\s*\[([^\]]*)\])?", re.IGNORECASE)
 
 # Codes a bare `sagelint: ignore` suppresses: all of them.

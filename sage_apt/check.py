@@ -85,7 +85,7 @@ def check_one(apt_path) -> CheckResult:
         return CheckResult(apt_path, _round_trip(apt_path))
     except AptError as exc:
         return CheckResult(apt_path, ERROR, exc.reason)
-    except Exception as exc:  # noqa: BLE001 — any parse/pack failure is an ERROR result
+    except Exception as exc:  # noqa: BLE001 - any parse/pack failure is an ERROR result
         return CheckResult(apt_path, ERROR, str(exc))
 
 

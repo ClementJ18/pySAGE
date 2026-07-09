@@ -1,4 +1,4 @@
-"""`CHUNK_TacticalView` — the camera (Step 3).
+"""`CHUNK_TacticalView` - the camera (Step 3).
 
 BFME2 bumped the chunk to version 3 and appended camera state its non-public `View::xfer`
 overrides add, but the *leading* fields are exactly the GPL `View::xfer` (angle + look-at

@@ -3,7 +3,7 @@
 A `Behavior`/`Draw`/`Body`/... module names its class in its header (`Behavior =
 PhysicsBehavior Tag`); a named sub-block is typed by its own name. When that type is not in
 the model `REGISTRY` the builder cannot type it, so it is parked raw in the parent's
-`_extras` and would otherwise vanish silently — hiding both genuine typos (`PhysicsBeavior`
+`_extras` and would otherwise vanish silently - hiding both genuine typos (`PhysicsBeavior`
 for `PhysicsBehavior`) and still-unmodeled block kinds. This rule surfaces every one of them
 for manual triage.
 """
@@ -21,7 +21,7 @@ from sage_lint.rules.base import Rule
 
 class UnrecognizedBlockRule(Rule):
     """A sub-block (`Behavior`, `Draw`, a named block, ...) whose type the model does not
-    declare: an engine module the linter cannot type — a misspelled class name, or a kind the
+    declare: an engine module the linter cannot type - a misspelled class name, or a kind the
     schema does not cover yet. Raised as an ERROR so none slips by unnoticed.
 
     Exhaustive by design: an incomplete schema leaves many valid blocks unmodeled, so this

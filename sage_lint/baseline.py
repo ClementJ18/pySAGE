@@ -4,7 +4,7 @@ without first fixing everything: record today's problems once, then report only 
 which lets the linter go into CI immediately while the backlog is burned down over time.
 
 Matching is deliberately **line-insensitive**. A baseline entry is keyed by `(file, code,
-message)` with an occurrence count — never a line number — so editing a file (which shifts
+message)` with an occurrence count - never a line number - so editing a file (which shifts
 every line below) does not resurface unrelated baselined diagnostics. The count is still
 honoured: if a file held two of some problem and now holds three, the third is reported as
 new. File paths are stored relative to the lint root with forward slashes, so the baseline

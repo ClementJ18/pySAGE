@@ -1,4 +1,4 @@
-"""Winner inference over the fixture replays — one per verdict shape.
+"""Winner inference over the fixture replays - one per verdict shape.
 
 The 1v1 fixture is ground truth: Elendil (Misty Mountains) won that game, and the
 opponent's leave-game order (`0x448`) is what the heuristic keys on. The other three

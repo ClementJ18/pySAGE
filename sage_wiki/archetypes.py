@@ -8,7 +8,7 @@ context (0% excludes, >100% is a bonus) on top of the label.
 
 The key is the `(included, excluded)` pair of object/kindof name sets, so `+INFANTRY -CAVALRY
 -HERO` ("infantry, but not cavalry/hero") stays distinct from `+CAVALRY +HERO +INFANTRY`. The
-descriptor (ANY/ALL/NONE) and relations (ENEMIES/ALLIES) are dropped — they scope targeting,
+descriptor (ANY/ALL/NONE) and relations (ENEMIES/ALLIES) are dropped - they scope targeting,
 not the object category. A `0%`-on-exclusion filter (`ALL -STRUCTURE` = only structures are
 hit) is the renderer's job to read as its complement, not a label mapping.
 
@@ -118,13 +118,13 @@ def _auto_label(key: ArchetypeKey) -> str:
 
 
 def label_for_key(key: ArchetypeKey) -> str:
-    """The archetype label of a `(included, excluded)` key — its registered name, else an
+    """The archetype label of a `(included, excluded)` key - its registered name, else an
     auto-string. Used by the renderer to label a complement (an exclusion's spared set)."""
     return ARCHETYPES.get(key) or _auto_label(key)
 
 
 def label_for(object_filter) -> str:
-    """The archetype label of a filter — its registered name, else an auto-string. A bare
+    """The archetype label of a filter - its registered name, else an auto-string. A bare
     unscoped multiplier (no filter) is the global "All", distinct from a relation-only filter
     like `ALL ALLIES` that reduces to the same empty key but carries its own label."""
     if object_filter is None:
@@ -149,7 +149,7 @@ def describe_filter(object_filter) -> str:
 
 def _iter_damage_scalars(game):
     """Every `(weapon, DamageNugget, scaled_filter)` across the game's weapons. Limited to
-    DamageNuggets — the in-scope nugget for the weapon summary."""
+    DamageNuggets - the in-scope nugget for the weapon summary."""
     for weapon in game.weapons.values():
         for nugget in safe(lambda w=weapon: w.Nuggets, []) or []:
             if not isinstance(nugget, DamageNugget):
@@ -175,7 +175,7 @@ def collect_archetypes(game) -> tuple[Counter, dict[ArchetypeKey, tuple[str, lis
 
 def discovery_report(game) -> str:
     """A frequency-sorted listing of the corpus's DamageScalar filter shapes, each with its
-    archetype label (or an UNLABELED marker), a sample filter and example weapons — the input
+    archetype label (or an UNLABELED marker), a sample filter and example weapons - the input
     for hand-labeling `ARCHETYPES`."""
     counts, examples = collect_archetypes(game)
     lines: list[str] = []

@@ -23,7 +23,7 @@ class _Table[T: IniObject]:
     """Typed accessor for one fixed Game table: `game.objects` reads `dict[str, Object]`.
     The table set can't grow (a mod adds entries, never new tables), so each is declared once
     on `Game` and the element type rides along on the class passed here. It's a live view onto
-    the same `tables` dict the dynamic loader fills — reads and writes go to one place."""
+    the same `tables` dict the dynamic loader fills - reads and writes go to one place."""
 
     def __init__(self, cls: type[T]) -> None:
         assert cls.key is not None, f"{cls.__name__} has no table key"
@@ -210,13 +210,27 @@ class Game:
         # An already-built game consulted when a reference misses locally, so one file can be
         # rebuilt in isolation yet resolve names from its siblings (incremental re-lint path).
         self._reference_fallback: Game | None = None
+        # True only while a map layer loads on top of the global game (`load_map`). In this mode
+        # a same-name re-definition patches the shadowed object in place (the engine's map
+        # override) rather than replacing it wholesale, so `register` links the new object to the
+        # one it shadows. Off during the normal build, where a re-definition is a plain override.
+        self._map_override = False
 
     def warn(self, code: str, message: str, extra: dict | None = None) -> None:
         self._pending_warnings.append((code, message, extra or {}))
 
     def register(self, obj: IniObject) -> None:
         if obj.key is not None:
-            self.tables[obj.key][obj.name] = obj
+            table = self.tables[obj.key]
+            if self._map_override:
+                # A map layer re-opening an existing definition patches it in place; keep the
+                # shadowed object reachable so inheritance-aware rules resolve through it. A
+                # second re-open within the map still lands here (chaining onto the prior
+                # override) and is flagged separately as a same-file duplicate.
+                previous = table.get(obj.name)
+                if previous is not None and previous is not obj:
+                    obj._override_base = previous
+            table[obj.name] = obj
             if isinstance(obj.name, str):
                 self._folded_names[obj.key][obj.name.lower()] = obj.name
 
@@ -226,8 +240,8 @@ class Game:
     def lookup(self, key: str, name) -> tuple[IniObject | None, object]:
         """Resolve a cross-reference `name` in table `key` the way the engine does: an exact
         match first, then a case-insensitive one (engine name lookup ignores case). Returns
-        `(obj, canonical)` — `canonical` is the definition's actual name, differing from `name`
-        only on a case-only match (which the caller flags) — or `(None, name)` when unknown."""
+        `(obj, canonical)` - `canonical` is the definition's actual name, differing from `name`
+        only on a case-only match (which the caller flags) - or `(None, name)` when unknown."""
         table = self.tables.get(key, {})
         obj = table.get(name)
         if obj is not None:
@@ -261,7 +275,7 @@ class Game:
     def get_macro(self, value):
         """Resolve a macro name to its value; pass non-macro values through. A name that matches
         a `#define` only after case-folding still expands (engine matching is loose), but records
-        a `macro-case` warning naming the defined spelling — macro names are uppercase by
+        a `macro-case` warning naming the defined spelling - macro names are uppercase by
         convention, so a mismatch is almost always a typo."""
         if not isinstance(value, str):
             return value

@@ -113,7 +113,7 @@ def diff_infobox(infobox: Infobox, obj) -> list[FieldChange]:
             new = _merge_object_name(old, new)
         changes.append(FieldChange(param, old=old, new=new))
     # The per-archetype summary now lives in the `damage` cell, so any `damage_targets`
-    # the page still carries is redundant — clear it (and any stance variant).
+    # the page still carries is redundant - clear it (and any stance variant).
     for param, value in infobox.fields().items():
         if param.startswith("damage_targets"):
             changes.append(FieldChange(param, old=value, new=""))

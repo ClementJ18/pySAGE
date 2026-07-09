@@ -9,11 +9,11 @@ All the credit for the parsing logic goes to: https://github.com/OpenSAGE/OpenSA
 
 The package has three layers:
 
-- `sage_map.map` + `sage_map.assets` — the binary `.map` reader/writer (dataclasses per asset).
-- `sage_map.model` / `sage_map.scripts` / `sage_map.linter` / `sage_map.diff` — a game-aware
+- `sage_map.map` + `sage_map.assets` - the binary `.map` reader/writer (dataclasses per asset).
+- `sage_map.model` / `sage_map.scripts` / `sage_map.linter` / `sage_map.diff` - a game-aware
   typed overlay: resolves script arguments and object references against game definitions, lints
   maps the way `sage_lint` lints ini files, and renders content diffs of binary maps.
-- `sage_map.checks` — the architecture for standalone map checks (findings, rule-runner, terrain
+- `sage_map.checks` - the architecture for standalone map checks (findings, rule-runner, terrain
   helpers); rule sets are mod conventions and live with their mod package
   (`sage_edain.map_checks` for Edain).
 
@@ -35,7 +35,7 @@ print(map.objects_list)
 
 `sage_map.checks` validates maps without game data: a rule-runner (`lint_map`) and terrain
 helpers, with findings emitted as ordinary `sage_ini` `Diagnostic`s. The rules themselves are mod
-conventions — the Edain set (terrain flatness, object counts, resource placement, camera
+conventions - the Edain set (terrain flatness, object counts, resource placement, camera
 settings) lives in `sage_edain.map_checks` with a command-line front end:
 
 ```

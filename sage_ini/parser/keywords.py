@@ -62,7 +62,7 @@ CONDITIONAL_VALUE_OPENERS: dict[str, str] = {
 }
 
 # Bare lines (no '=') open blocks by default; these first tokens are the
-# exceptions — value lines like `ParticleSysBone NONE GoldChestGlimmer`.
+# exceptions - value lines like `ParticleSysBone NONE GoldChestGlimmer`.
 # A value key missing from this list surfaces as unclosed-block diagnostics.
 BARE_VALUE_KEYS: frozenset[str] = frozenset(
     {

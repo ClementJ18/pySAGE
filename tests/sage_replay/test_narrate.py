@@ -122,7 +122,7 @@ def test_describe_recruit_build_power_science_upgrade():
     assert _describe(hero, data) == "recruits a fortress hero (command slot 1)"
     # build
     assert _describe(_chunk(0x41A, [(_T.Integer, 3)]), data) == "builds Charlie"
-    # special power at a location — no localized name, so the raw code name is used verbatim.
+    # special power at a location - no localized name, so the raw code name is used verbatim.
     power = _chunk(0x411, [(_T.Integer, 2), (_T.Integer, 0x20), (_T.Position, (12.6, 34.2, 5.0))])
     assert _describe(power, data) == "uses SpecialAbilityBladeOfPurity at (13, 34, 5)"
     # special power on an enemy object (powerId, target ObjectId first, options=enemy)
@@ -131,7 +131,7 @@ def test_describe_recruit_build_power_science_upgrade():
     # spellbook purchase reads the SECOND integer; no localized name -> raw code name.
     science = _chunk(0x414, [(_T.Integer, 4), (_T.Integer, 3)])
     assert _describe(science, data) == "acquires the spellbook power SCIENCE_EyeofSauron"
-    # upgrade research — this one has a localized DisplayName.
+    # upgrade research - this one has a localized DisplayName.
     upgrade = _chunk(0x415, [(_T.ObjectId, 100), (_T.Integer, 4)])
     assert _describe(upgrade, data) == "researches Forged Blades"
 

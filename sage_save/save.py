@@ -20,7 +20,7 @@ from pathlib import Path
 from sage_utils.stream import BinaryStream
 
 # The 16-byte file header: two fourCCs stored reversed ("EALA", "RTS2") followed by two
-# int32s (observed 1, 0 on a BFME2 skirmish save — the same family as `.cah` hero files).
+# int32s (observed 1, 0 on a BFME2 skirmish save - the same family as `.cah` hero files).
 HEADER_SIZE = 16
 MAGIC_EALA = b"ALAE"  # "EALA" little-endian
 MAGIC_RTS = b"2STR"  # "RTS2" little-endian

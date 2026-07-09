@@ -115,7 +115,7 @@ class DiffReviewMixin:
         # The whole page as it will be submitted, freely editable; Apply saves exactly this text.
         frame, layout = card("Page wikitext")
         note = QLabel(
-            "The full page with all changes applied. Edit freely — Apply submits exactly this text."
+            "The full page with all changes applied. Edit freely - Apply submits exactly this text."
         )
         note.setObjectName("muted")
         note.setWordWrap(True)
@@ -124,7 +124,7 @@ class DiffReviewMixin:
         # The save/skip controls sit above the editor so they stay reachable without
         # scrolling past a long page. A blank summary uses the default (the changed-field list).
         self.summary_field = QLineEdit()
-        self.summary_field.setPlaceholderText("Edit summary (optional — overrides the default)")
+        self.summary_field.setPlaceholderText("Edit summary (optional - overrides the default)")
         layout.addWidget(self.summary_field)
 
         button_row = QHBoxLayout()
@@ -202,7 +202,7 @@ class DiffReviewMixin:
 
     def _on_link_failed(self, message: str) -> None:
         self.link_button.setEnabled(True)
-        self.status.setText(f"Link failed — {message}")
+        self.status.setText(f"Link failed - {message}")
 
     def _generate_diff(self) -> None:
         title = self.page_field.text().strip()
@@ -235,7 +235,7 @@ class DiffReviewMixin:
         """Pair every unit/hero/building infobox on the page with the object it names, then
         diff and update them all together. An infobox whose object isn't loaded is left
         untouched; one that names several forms (`A/B`) prompts for the form to use. The
-        object override box, when set, forces the first infobox's object — the rest still
+        object override box, when set, forces the first infobox's object - the rest still
         resolve from their own object-id fields."""
         game = self.game
         override = self.object_search.text().strip()
@@ -249,14 +249,14 @@ class DiffReviewMixin:
             else:
                 candidates = resolve_objects(infobox, game)
                 if not candidates:
-                    continue  # this infobox names no loaded object — leave it as it is
+                    continue  # this infobox names no loaded object - leave it as it is
                 if len(candidates) == 1:
                     obj = candidates[0]
                 else:
                     obj = self._choose_object(candidates)
                     if obj is None:  # cancelled
                         self.diff_button.setEnabled(True)
-                        self.status.setText("Diff cancelled — no object chosen.")
+                        self.status.setText("Diff cancelled - no object chosen.")
                         self._update_skip_enabled()
                         return
             resolved.append((infobox, obj))
@@ -287,7 +287,7 @@ class DiffReviewMixin:
             # between the live page and the scaffold. A draft failure must not break the diff.
             try:
                 draft = generate_page(game, primary_obj, faction, frozenset(), self._page_linker())
-            except Exception as exc:  # noqa: BLE001 — keep the diff even if generation fails
+            except Exception as exc:  # noqa: BLE001 - keep the diff even if generation fails
                 draft = f"<!-- page generation failed: {exc} -->"
             return primary_obj.name, groups, new_text, draft, image_value
 
@@ -299,7 +299,7 @@ class DiffReviewMixin:
         choice, ok = QInputDialog.getItem(
             self,
             "Choose object",
-            "This infobox names several objects — pick the one to load:",
+            "This infobox names several objects - pick the one to load:",
             names,
             0,
             False,  # not editable
@@ -316,7 +316,7 @@ class DiffReviewMixin:
         self.wikitext_editor.setPlainText(new_text)  # full page, every infobox's changes applied
         # Show the draft for the primary object alongside, so content can be copied between them.
         self.pagegen_object.setText(object_name)
-        # setText doesn't fire editingFinished, so refresh the upgrade toggles by hand — else the
+        # setText doesn't fire editingFinished, so refresh the upgrade toggles by hand - else the
         # ACTIVE UPGRADES section stays hidden and the object's upgrades can't be selected.
         self._refresh_pagegen_upgrades()
         self.pagegen_preview.setPlainText(draft)
@@ -347,7 +347,7 @@ class DiffReviewMixin:
     def _on_diff_failed(self, message: str) -> None:
         self.diff_button.setEnabled(True)
         self.wikitext_editor.clear()  # nothing safe to submit for a page that wouldn't diff
-        self.status.setText(f"Diff failed — {message}")
+        self.status.setText(f"Diff failed - {message}")
         self._update_apply_enabled()
         self._update_skip_enabled()
 
@@ -368,7 +368,7 @@ class DiffReviewMixin:
                 self.table.setSpan(row, 0, 1, 3)
                 row += 1
             for change in changes:
-                cells = (change.param, change.old or "—", change.new)
+                cells = (change.param, change.old or "-", change.new)
                 for col, text in enumerate(cells):
                     item = QTableWidgetItem(text)
                     if change.changed:
@@ -377,7 +377,7 @@ class DiffReviewMixin:
                 row += 1
 
     def _update_apply_enabled(self) -> None:
-        # Apply submits the editor's text verbatim — enabled when there is text and we're logged in.
+        # Apply submits the editor's text verbatim - enabled when there is text and we're logged in.
         has_text = bool(self.wikitext_editor.toPlainText().strip())
         self.apply_button.setEnabled(has_text and self.client.logged_in)
 
@@ -406,7 +406,7 @@ class DiffReviewMixin:
 
     def _on_saved(self, result) -> None:
         if result.no_change:
-            self.status.setText("Saved — the page already matched (no new revision).")
+            self.status.setText("Saved - the page already matched (no new revision).")
         else:
             self.status.setText(f"Saved “{result.title}” (revision {result.new_revid}).")
         self._clear_review()
@@ -423,6 +423,6 @@ class DiffReviewMixin:
         self._changes = []
 
     def _on_save_failed(self, message: str) -> None:
-        self.status.setText(f"Save failed — {message}")
+        self.status.setText(f"Save failed - {message}")
         self._update_apply_enabled()
         self._update_skip_enabled()  # let the run continue past a page that wouldn't save

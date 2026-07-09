@@ -174,7 +174,7 @@ def fix_blends(btd: BlendTileData, dry_run: bool = False) -> tuple[int, int]:
                     lr, lc = r, c
                     blend_dir = _OPPOSITE[fwd_dir]
 
-                # Already handled in this direction — skip.
+                # Already handled in this direction - skip.
                 if blend_dir in used_dir[sr][sc]:
                     continue
 

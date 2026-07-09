@@ -1,6 +1,6 @@
 """Phase 1: the typed script-argument layer over `sagemap`.
 
-These are pure-data tests of `ARG_SPECS` / `typed_value` — no `Game`, no `.map` file needed.
+These are pure-data tests of `ARG_SPECS` / `typed_value` - no `Game`, no `.map` file needed.
 A `pytest.importorskip` keeps them quiet when the optional `[map]` extra is not installed.
 """
 

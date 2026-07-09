@@ -5,13 +5,13 @@ needs the original save as the source of the (mostly opaque) chunk bulk. `apply_
 parsed save plus a possibly-edited dict and re-encodes only the fully-decoded chunks whose
 fields are present: `CHUNK_GameState` (description, timestamp, map path, profile), the
 `CHUNK_GameStateMap` header (map paths, game mode), `CHUNK_Campaign`, `CHUNK_Players` (per-player
-`money` — a u32 in place), `CHUNK_GameLogic` (a live object's `position` — the transform's
+`money` - a u32 in place), `CHUNK_GameLogic` (a live object's `position` - the transform's
 translation column, three f32 in place), and `CHUNK_TacticalView` (the camera angle + look-at
 position). Everything else in the dict (references, chunk table) is a read-only view and is
 ignored.
 
 BFME saves store *absolute* file offsets inside their nested blocks, so an edit that changed a
-chunk's byte length would shift every later chunk and invalidate those offsets — an empirically
+chunk's byte length would shift every later chunk and invalidate those offsets - an empirically
 corrupt save. `apply_json` therefore requires each re-encoded chunk to keep its exact byte
 length and raises `ValueError` otherwise: a timestamp change, a game-mode change or a
 same-length rename apply cleanly, while a different-length rename is refused rather than

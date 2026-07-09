@@ -530,7 +530,7 @@ class Weapon(IniObject):
     ScatterIndependently: Bool
     PlayFXWhenStealthed: Bool
     AimDirection: Float
-    FXTrigger: FXList
+    FXTrigger: Untyped  # a named trigger flag (e.g. CATAPULT_ROCK) FX gate on, not an FXList
     ShareTimers: Bool
     DisableScatterForTargetsOnWall: Bool
     DamageType: e.DamageType
@@ -602,7 +602,7 @@ class Locomotor(IniObject):
     key = "locomotors"
 
     # The terrain the locomotor crosses (flag set), its motion model on the Z axis, the visual
-    # movement style, and how it slots into formations — all named token sets, kept as strings.
+    # movement style, and how it slots into formations - all named token sets, kept as strings.
     Surfaces: Untyped
     ZAxisBehavior: Untyped
     Appearance: Untyped
@@ -1352,8 +1352,8 @@ class PlayerTemplate(IniObject):
     ObjectiveAddedSound: Sound
     ObjectiveCompletedSound: Sound
     InitialUpgrades: List[Upgrade]
-    BuildableHeroesMP: List[Object]
-    BuildableRingHeroesMP: List[Object]
+    BuildableHeroesMP: List[Nullable[Object]]
+    BuildableRingHeroesMP: List[Nullable[Object]]
     SpellStoreCurrentPowerLabel: Label
     SpellStoreMaximumPowerLabel: Label
     ResourceModifierObjectFilter: ObjectFilter

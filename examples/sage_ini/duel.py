@@ -59,7 +59,7 @@ def duel(game: Game, name_a: str, name_b: str) -> str:
     print(f"{name_b}: {hp[name_b]:.0f} HP, {dmg[name_b]:.0f}/hit")
 
     if dmg[name_a] <= 0 and dmg[name_b] <= 0:
-        print("  neither can damage the other — stalemate.")
+        print("  neither can damage the other - stalemate.")
         return ""
 
     turn_order = [(name_a, name_b), (name_b, name_a)]

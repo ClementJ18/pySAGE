@@ -150,7 +150,7 @@ Examples:
     try:
         print(f"Linting {args.map_file}...")
         map_obj = parse_map_from_path(str(args.map_file))
-    except Exception as e:  # noqa: BLE001 — CLI boundary: report the parse failure and exit
+    except Exception as e:  # noqa: BLE001 - CLI boundary: report the parse failure and exit
         print(f"Error: Failed to parse map file: {e}", file=sys.stderr)
         return 1
 

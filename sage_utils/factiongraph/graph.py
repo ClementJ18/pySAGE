@@ -1,4 +1,4 @@
-"""Assemble a faction's ownership graph from a loaded `Game` — the explicit link between a
+"""Assemble a faction's ownership graph from a loaded `Game` - the explicit link between a
 `PlayerTemplate` and everything a player of it can field.
 
 The walk itself is engine-generic: structures resolve their command sets (under the
@@ -9,15 +9,15 @@ found structures extend the walk. What differs between games is only where the w
 - **Plot flags** (BFME1-style build plots, reintroduced by Edain): flag objects'
   `CastleBehavior` rows say what base or structure each plot unpacks for the faction.
   Flags are discovered by scanning for CastleBehaviors carrying a row for the faction's
-  side (a caller that knows its mod's canonical flag names — `sage_edain` — passes them
+  side (a caller that knows its mod's canonical flag names - `sage_edain` - passes them
   instead for precision). A base *layout* (a `.bse` name, not an ini object) is decomposed
   through a layout resolver: by default the table `sage_utils.sources.load_sources`
   attaches to the game (`game.base_layouts`, swept from the loaded archives); `sage_edain`
   instead wires its on-disk `bases/`-folder resolver. Without either, the start point
   records the base name and contributes no seeds.
 - **Builders** (vanilla BFME2/RotWK): the faction's `StartingBuilding` (the fortress) is
-  seeded directly, and any `DOZER`-kind unit found — a starting unit or one trained during
-  the walk — contributes the structures its construct buttons build.
+  seeded directly, and any `DOZER`-kind unit found - a starting unit or one trained during
+  the walk - contributes the structures its construct buttons build.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ LayoutResolver = Callable[[object, str], BaseLayout | None]
 # Command action names (matched on the resolved CommandTypes enum's .name). A structure is built by
 # FOUNDATION_CONSTRUCT (on a base plot), DOZER_CONSTRUCT (worker-built), UNIT_BUILD, or
 # CASTLE_UNPACK_EXPLICIT_OBJECT (an economy/expansion plot dropping a specific building); a unit is
-# trained by UNIT_BUILD. The button's `Object` is the built/trained object either way — KindOf
+# trained by UNIT_BUILD. The button's `Object` is the built/trained object either way - KindOf
 # decides which it is.
 _REVIVE = "REVIVE"
 _BUILD_COMMANDS = frozenset(
@@ -88,7 +88,7 @@ _FLAG_KIND_TOKENS: tuple[tuple[StartPointKind, tuple[str, ...]], ...] = (
 )
 
 # The faction's starting-roster fields: the fortress and the initial units (builders among
-# them) — the vanilla equivalent of a plot flag's unpack.
+# them) - the vanilla equivalent of a plot flag's unpack.
 _STARTING_BUILDING = "StartingBuilding"
 _STARTING_UNITS = ("StartingUnit0", "StartingUnit1", "StartingUnit2", "StartingUnit5")
 
@@ -102,15 +102,15 @@ def _faction_side(faction) -> str | None:
 
 def _faction_upgrades(side: str | None) -> set[str]:
     """The upgrade(s) that identify a faction to the engine, by Edain's `Upgrade_<Side>Faction`
-    convention (e.g. `Upgrade_MenFaction`). A shared object — an economy/expansion plot, a build
-    foundation — swaps to the faction's palette through a `CommandSetUpgrade` triggered by this, so
+    convention (e.g. `Upgrade_MenFaction`). A shared object - an economy/expansion plot, a build
+    foundation - swaps to the faction's palette through a `CommandSetUpgrade` triggered by this, so
     resolving its command set under these upgrades yields the faction-specific buttons. Harmless
     when the upgrade isn't used; it simply activates nothing."""
     return {f"Upgrade_{side}Faction"} if side else set()
 
 
 def _object_side(game, name: str | None) -> str | None:
-    """The `Side` token of a structure, walking the parent chain — used to keep a faction's own
+    """The `Side` token of a structure, walking the parent chain - used to keep a faction's own
     start points and drop the cross-faction structures that neutral/captured flags also unpack."""
     obj = game.objects.get(name) if name else None
     while obj is not None:
@@ -190,7 +190,7 @@ def _castle_module(obj):
 
 def plot_flags(game, side: str) -> list[str]:
     """Every object carrying a CastleBehavior with an unpack row for `side`, in object-table
-    order — the generic plot-flag discovery for a game whose canonical flag names are not
+    order - the generic plot-flag discovery for a game whose canonical flag names are not
     known. The scan is deliberately broad (orientation variants, prebuilt/AI/map-template
     flags all carry rows); `start_points` collapses flags that unpack the same target, and
     its side-ownership filter drops the cross-faction ones."""
@@ -207,8 +207,8 @@ def plot_flags(game, side: str) -> list[str]:
 def start_points(
     game, side: str, start_flags=None, resolve_layout: LayoutResolver | None = None
 ) -> list[StartPoint]:
-    """The plot flags that unpack something for `side` — the named `start_flags` when given
-    (a mod's canonical plots, e.g. `sage_edain`'s), else every flag `plot_flags` discovers —
+    """The plot flags that unpack something for `side` - the named `start_flags` when given
+    (a mod's canonical plots, e.g. `sage_edain`'s), else every flag `plot_flags` discovers -
     with each base layout decomposed through `resolve_layout` (default: the game's own
     layout table). Flags unpacking a target another flag already claimed are dropped, so a
     discovery scan's orientation/AI variants collapse to one start point per base."""
@@ -242,7 +242,7 @@ def start_points(
                     point.prebuilt = list(layout.prebuilt)
             # Neutral/captured flags list every faction's unpack target; keep only the start points
             # whose own structure belongs to this faction. An unverifiable base (no parsed citadel)
-            # is kept — it simply contributes no seeds.
+            # is kept - it simply contributes no seeds.
             owned_side = _object_side(game, point.structure or point.citadel)
             if owned_side is not None and owned_side != side:
                 continue
@@ -253,7 +253,7 @@ def start_points(
 
 def _power_from_button(game, obj, button) -> Power | None:
     """A SPELL_BOOK / SPECIAL_POWER button resolved to a `Power` (its created objects, transform,
-    weapon, modifiers — see `resolve_power`). None when the button names no power."""
+    weapon, modifiers - see `resolve_power`). None when the button names no power."""
     power = safe(lambda: button.SpecialPower)
     name = getattr(power, "name", None)
     if not name:
@@ -420,7 +420,7 @@ class _Builder:
 
 
 def _shortcut(game, button) -> str:
-    """The localized hotkey suffix on a button's label (e.g. the trailing "(&Q)"), or "" — kept so
+    """The localized hotkey suffix on a button's label (e.g. the trailing "(&Q)"), or "" - kept so
     a producer edge can show the key the player presses."""
     label = localize(game, safe(lambda: button.TextLabel)) or ""
     marker = label.rfind("(&")
@@ -428,7 +428,7 @@ def _shortcut(game, button) -> str:
 
 
 def builder_targets(game, unit, faction_upgrades: set[str]) -> list[str]:
-    """The structure names a `DOZER`-kind unit's construct buttons build, in slot order —
+    """The structure names a `DOZER`-kind unit's construct buttons build, in slot order -
     empty for a non-builder. This is the vanilla base mechanic: buildings come from a
     worker's command set rather than from a plot flag."""
     if unit is None or not has_kindof(unit, "DOZER"):
@@ -468,7 +468,7 @@ def _plot_seeds(game, points: list[StartPoint]) -> dict[str, StructureRole]:
     seeds: dict[str, StructureRole] = {}
     for point in points:
         # A plot flag that is itself a build plot (an economy/expansion BASE_FOUNDATION) is walked
-        # too — its faction command set drops the explicit economy/outpost buildings.
+        # too - its faction command set drops the explicit economy/outpost buildings.
         flag = game.objects.get(point.flag)
         if flag is not None and has_kindof(flag, "BASE_FOUNDATION"):
             seeds.setdefault(point.flag, StructureRole.FOUNDATION)
@@ -490,8 +490,8 @@ def build_faction_graph(
     resolve_layout: LayoutResolver | None = None,
 ) -> FactionGraph:
     """The full ownership graph for one `PlayerTemplate`. Both seeding strategies run and
-    union, so plot-based (Edain/BFME1-style) and builder-based (vanilla) factions — and
-    mixes — all resolve. `start_flags` are the plot-flag object names consulted (default:
+    union, so plot-based (Edain/BFME1-style) and builder-based (vanilla) factions - and
+    mixes - all resolve. `start_flags` are the plot-flag object names consulted (default:
     discover them by scanning CastleBehaviors for the faction's side); `resolve_layout`
     decomposes a plot's base-layout name into its placed structures (default: the layout
     table the source loader attached to the game; `sage_edain` wires its `bases/`-folder
@@ -538,7 +538,7 @@ def _upgrade_triggers(game, name: str) -> set[str]:
 
 def _resolve_upgrade_affects(game, graph: FactionGraph) -> None:
     """Fill each researchable upgrade's `affects` with the faction's units, heroes and
-    structures whose stats react to it — the missing half of the upgrade story ("what does
+    structures whose stats react to it - the missing half of the upgrade story ("what does
     Forged Blades actually do to my roster"). Ordered units, then heroes, then structures,
     each in graph order."""
     if not graph.upgrades:
@@ -563,8 +563,8 @@ _MAX_CREATED = 400
 
 
 def _iter_powers(graph: FactionGraph):
-    """Every resolved power in the graph — spellbook, structure abilities, and unit/hero
-    abilities — so their created/transform targets can be gathered."""
+    """Every resolved power in the graph - spellbook, structure abilities, and unit/hero
+    abilities - so their created/transform targets can be gathered."""
     if graph.spellbook is not None:
         yield from graph.spellbook.powers
     for structure in graph.structures.values():

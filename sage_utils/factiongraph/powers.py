@@ -35,8 +35,8 @@ def _raw_token(module, field: str) -> str | None:
 
 def _summon_targets(game, chain) -> list[tuple[str, str]]:
     """The real objects a summon chain (`special_power_view`'s `summoned`) places, as
-    `(name, display)` pairs in first-seen order. Summon eggs — placeholders that auto-die and hatch
-    a payload — are descended through, not listed: the player cares about what hatches, not the egg.
+    `(name, display)` pairs in first-seen order. Summon eggs - placeholders that auto-die and hatch
+    a payload - are descended through, not listed: the player cares about what hatches, not the egg.
     """
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
@@ -44,7 +44,7 @@ def _summon_targets(game, chain) -> list[tuple[str, str]]:
     def walk(nodes) -> None:
         for node in nodes:
             children = node.get("summoned") or []
-            if children:  # a summon egg — skip it, descend to the objects it hatches
+            if children:  # a summon egg - skip it, descend to the objects it hatches
                 walk(children)
                 continue
             name = node["name"]
@@ -83,7 +83,7 @@ def _modifier_rows(modifier_list) -> list[tuple[str, str]]:
 
 def _resolve_extra(game, obj, name: str, power: Power) -> None:
     """Fill `transforms_into` and `modifiers` from any module on `obj` (or a parent) that names the
-    power — the WeaponMode/HeroMode/ToggleMounted toggles `special_power_view` does not classify."""
+    power - the WeaponMode/HeroMode/ToggleMounted toggles `special_power_view` does not classify."""
     owner = obj
     while owner is not None:
         for module in getattr(owner, "modules", ()):

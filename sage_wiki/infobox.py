@@ -1,6 +1,6 @@
 """Reading and editing a wiki page's primary infobox (a `{{Infobox unit |cost = 300 …}}`
-template). Values are written back in place — the rest of the page and the spacing around
-each parameter are preserved — for the smallest diff. Parsing is delegated to
+template). Values are written back in place - the rest of the page and the spacing around
+each parameter are preserved - for the smallest diff. Parsing is delegated to
 `mwparserfromhell`; callers work only with `Infobox`.
 """
 
@@ -84,7 +84,7 @@ def _hint_score(template: Template) -> int:
 
 
 def _names_object(template: Template) -> bool:
-    """Whether the template carries an object-id parameter (`object_name`/`object`) — the
+    """Whether the template carries an object-id parameter (`object_name`/`object`) - the
     field naming the game object an infobox describes (and so the one we can update)."""
     return any(str(p.name).strip().lower() in ("object_name", "object") for p in template.params)
 
@@ -112,7 +112,7 @@ def parse_infobox(wikitext: str) -> Infobox | None:
 def parse_infoboxes(wikitext: str) -> list[Infobox]:
     """Every unit/hero/building infobox on the page, in document order. A template qualifies
     when it names an object to update (an `object_name`/`object` parameter) and looks like an
-    infobox — named `Infobox…`, or carrying at least two known infobox parameters (the object
+    infobox - named `Infobox…`, or carrying at least two known infobox parameters (the object
     id plus a real stat), so an `{{Ability}}` or navbox that happens to mention an object is
     not mistaken for one. Every returned infobox wraps the same parsed page, so edits to any
     of them render together through `Infobox.render`."""

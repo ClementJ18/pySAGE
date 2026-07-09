@@ -14,7 +14,7 @@ shape is filled: a list of fills, each a run of triangles sharing one style. Lin
     l <x1>:<y1>:<x2>:<y2>          a stroked line segment
 
 The renderer needs the solid and textured fills (the real artwork); line styles/segments
-are kept out of the fills as they are hairline outlines. Stdlib-only — the atlas decode
+are kept out of the fills as they are hairline outlines. Stdlib-only - the atlas decode
 lives in `sage_apt.textures`."""
 
 from dataclasses import dataclass, field

@@ -406,7 +406,7 @@ HTML = """\
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>APT Viewer — {filename}</title>
+<title>APT Viewer - {filename}</title>
 <style>
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}
 body {{ background: #111122; color: #cdd; font: 12px/1.4 "Segoe UI", sans-serif; }}
@@ -446,7 +446,7 @@ code {{ background: #1e1e30; padding: 0 3px; border-radius: 2px; font-size: 10px
 <body>
 <div id="app">
   <header>
-    <h1>APT Viewer — {filename}</h1>
+    <h1>APT Viewer - {filename}</h1>
     <p>{char_summary}</p>
   </header>
 

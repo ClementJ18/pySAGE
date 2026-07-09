@@ -47,7 +47,7 @@ ALL_SAVES = [SAVE_PATH, SAVE2_PATH, SAVE3_PATH]
 
 @pytest.fixture(params=ALL_SAVES, ids=lambda p: p.stem.replace(" ", "_"))
 def any_save_path(request):
-    """Each authored save path in turn — for invariants that must hold across faction match-ups."""
+    """Each authored save path in turn - for invariants that must hold across faction match-ups."""
     if not request.param.is_file():
         pytest.skip(f"fixture save not present: {request.param.name}")
     return request.param
@@ -119,7 +119,7 @@ def test_game_state(save):
 
 def test_create_a_hero_save():
     """A create-a-hero skirmish save populates the GameState `hero_name` string with the hero's
-    display name, and carries the recruited hero as a live `CreateAHero` object — the two places
+    display name, and carries the recruited hero as a live `CreateAHero` object - the two places
     the created hero is visible in the save."""
     if not CAH_SKIRMISH.is_file():
         pytest.skip(f"fixture save not present: {CAH_SKIRMISH.name}")

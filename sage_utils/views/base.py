@@ -49,4 +49,4 @@ def percent(value) -> str:
 
 def fmt_stat(value) -> str:
     """A numeric stat rounded to a whole number for display, or an em dash when absent."""
-    return "—" if value is None else str(round(float(value)))
+    return "-" if value is None else str(round(float(value)))

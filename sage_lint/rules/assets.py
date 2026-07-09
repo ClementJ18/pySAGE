@@ -7,13 +7,13 @@ extension(s) the engine expects (`_TextureFile` -> `.tga`/`.dds`, `_ModelFile` -
 the loose texture/model filenames in `game.assets` and the `.map`/`.bse` layout files in
 `game.map_files` (see `sage_ini.parser.io`). The three missing-file rules (`MissingTextureFileRule`,
 `MissingModelFileRule`, `MissingMapFileRule`) walk the typed fields and confirm each referenced
-name resolves to one of those files — one code per kind, so a texture, model and map miss can be
+name resolves to one of those files - one code per kind, so a texture, model and map miss can be
 selected, ignored and counted apart; `MapFolderNameRule` checks the `<name>/<name>.ext` convention
 the reference resolution relies on.
 
 The engine searches its asset roots by basename and treats a kind's extensions as
 interchangeable (a `.tga` reference resolves to a `.dds` of the same name and vice versa), so
-the membership check mirrors that — strip any directory and surrounding quotes, reduce the name
+the membership check mirrors that - strip any directory and surrounding quotes, reduce the name
 to its stem, and accept the file under any of the kind's expected extensions. Engine sentinels
 (`NONE`, `<ANY>`, …) are left alone. When a kind was not crawled at all (a single file linted in
 isolation, or assets shipped in archives), its index is empty and the rule stays silent rather
@@ -68,7 +68,7 @@ def _iter_assets(value, converter) -> Iterator[tuple[type[_AssetFile], str]]:
 
 def _iter_asset_candidates(game: Game) -> Iterator[tuple[object, str, type[_AssetFile], str]]:
     """`(obj, field, asset_class, raw_name)` for every asset-file slot in the game's typed
-    fields — the front half of the missing-asset check, mirroring the reference walker."""
+    fields - the front half of the missing-asset check, mirroring the reference walker."""
     for obj in walk_objects(game):
         fieldspec = type(obj)._fieldspec
         for key in obj.fields:
@@ -85,17 +85,17 @@ def _iter_asset_candidates(game: Game) -> Iterator[tuple[object, str, type[_Asse
 class _MissingAssetRule(Rule):
     """Shared base for the per-kind missing-file rules: a field naming a file the mod does not
     ship, so in game the engine finds no such asset and whatever the field drives silently fails
-    to load. The name is matched the way the engine resolves it — by basename, appending the
+    to load. The name is matched the way the engine resolves it - by basename, appending the
     expected extension when the ini omits one. When the kind's index was not crawled at all the
     rule stays silent (the empty-index guard); engine sentinels (`NONE`, `<ANY>`, …) are left
-    alone. Concrete subclasses below set the `_AssetFile` kind and its message nouns — one code
+    alone. Concrete subclasses below set the `_AssetFile` kind and its message nouns - one code
     each, so a texture, model and map miss are reported, selected and counted apart.
 
     (Audio/sound files are `_AssetFile`s too but get no rule: they routinely live in archives the
     loose-file crawl never indexes, so a miss there would be meaningless.)
 
     These rules are **opt-in** (`default = False`): a plain `lint` skips them, because without the
-    base-game archives loaded every base asset reference would be reported missing — a flood, and
+    base-game archives loaded every base asset reference would be reported missing - a flood, and
     a push to load large `.big` bases just to silence it. Enable with `--assets` (or `--select`)."""
 
     code = ""  # base does not register; each concrete subclass sets its own code
@@ -117,9 +117,9 @@ class _MissingAssetRule(Rule):
             if not name or name == "none" or name.startswith("<"):
                 continue  # engine sentinels: NONE, <ANY>, <THIS_PLAYER>, ...
             extensions = asset_cls.extensions
-            # The engine treats a kind's extensions as interchangeable — a `.tga` reference
+            # The engine treats a kind's extensions as interchangeable - a `.tga` reference
             # resolves to a `.dds` of the same name (same texture, different compression), and
-            # vice versa — so strip any extension the value already carries to the stem and try
+            # vice versa - so strip any extension the value already carries to the stem and try
             # them all, rather than demanding the exact one written.
             stem = name
             for ext in extensions:
@@ -179,7 +179,7 @@ class MissingMapFileRule(_MissingAssetRule):
 
 class MapFolderNameRule(Rule):
     """A WorldBuilder layout file whose name does not match its folder. The engine loads a map
-    or base layout by folder name — `maps/my_map/my_map.map`, `bases/my_base/my_base.bse` — so a
+    or base layout by folder name - `maps/my_map/my_map.map`, `bases/my_base/my_base.bse` - so a
     file like `maps/my_map/other.map` is never loaded, and a `MapFile` reference to the folder
     silently finds nothing. Flagged on the misnamed file itself."""
 

@@ -91,7 +91,7 @@ def _weapon_top_damage(weapon, state: UnitState):
 
 def _weapon_damage_summary(weapon, state: UnitState) -> str | None:
     """A weapon's per-archetype damage summary (see `sage_wiki.weapons`) for the infobox's
-    `damage` cell — newline-joined so the modifier `*` bullets render as a wiki list. None
+    `damage` cell - newline-joined so the modifier `*` bullets render as a wiki list. None
     when the weapon is absent or deals no nugget damage."""
     if weapon is None:
         return None
@@ -100,7 +100,7 @@ def _weapon_damage_summary(weapon, state: UnitState) -> str | None:
 
 
 def _primary_of(weapon_set):
-    """A weapon set's basic auto-attack weapon — its PRIMARY slot, else its first. Skips
+    """A weapon set's basic auto-attack weapon - its PRIMARY slot, else its first. Skips
     special-ability weapons in other slots, which would inflate the listed damage/range."""
     if weapon_set is None:
         return None
@@ -141,7 +141,7 @@ def _armor(c: FieldContext) -> str | None:
 
 def _damage(c: FieldContext) -> str | None:
     """The unit's basic (PRIMARY) attack as a per-archetype damage summary (the old single
-    number is subsumed — the summary's first line carries it)."""
+    number is subsumed - the summary's first line carries it)."""
     return _weapon_damage_summary(_primary_weapon(c.unit_state), c.unit_state)
 
 
@@ -223,8 +223,8 @@ WEAPONSET_TOGGLE_CONDITIONS = ("WEAPONSET_TOGGLE_1", "WEAPONSET_TOGGLE_2", "WEAP
 
 def _weapon_toggle_flag(unit, state: UnitState) -> str | None:
     """The WeaponSet condition that selects the unit's alternate attack stance, or None.
-    Detected from the data — the lowest `WEAPONSET_TOGGLE_*` whose set differs from the
-    default — rather than a command button, since a special power may wire the switch."""
+    Detected from the data - the lowest `WEAPONSET_TOGGLE_*` whose set differs from the
+    default - rather than a command button, since a special power may wire the switch."""
     base = state.weapon_flags
     base_set = select_weapon_set(unit, base)
     for flag in WEAPONSET_TOGGLE_CONDITIONS:
@@ -289,7 +289,7 @@ def _iter_mount_targets(unit):
     """Yield the object each of `unit`'s `ToggleMountedSpecialAbilityUpdate` modules mounts
     into: `unit` itself for a toggle with no `MountedTemplate` (it mounts in place), else the
     resolved template object. Unloaded templates are skipped. A hero may carry several toggles
-    — a horse, a flying mount, and form transforms all share this module — so the caller
+    - a horse, a flying mount, and form transforms all share this module - so the caller
     classifies the targets rather than taking only the first."""
     game = getattr(unit, "_game", None)
     owner = unit
@@ -309,7 +309,7 @@ def _iter_mount_targets(unit):
 
 def _ground_mount(unit):
     """The object the ground-mounted stance reads from, or None. The first toggle target that
-    is not a flyer — `unit` for a mount-in-place toggle, else a separate mounted template (a
+    is not a flyer - `unit` for a mount-in-place toggle, else a separate mounted template (a
     horse, or a non-flying transform the engine reaches through the same module)."""
     for target in _iter_mount_targets(unit):
         if target is unit or not _giant_bird(target):
@@ -318,7 +318,7 @@ def _ground_mount(unit):
 
 
 def _flying_mount(unit):
-    """The flying mount a hero toggles onto (a fell beast, an eagle), or None — the first
+    """The flying mount a hero toggles onto (a fell beast, an eagle), or None - the first
     toggle target carrying `GiantBirdAIUpdate`. Distinct from `unit` itself flying, which is
     the pure-flyer case handled separately."""
     for target in _iter_mount_targets(unit):
@@ -328,7 +328,7 @@ def _flying_mount(unit):
 
 
 def _giant_bird(obj) -> bool:
-    """Whether `obj` flies — it carries `GiantBirdAIUpdate` (an eagle). A flyer's combat
+    """Whether `obj` flies - it carries `GiantBirdAIUpdate` (an eagle). A flyer's combat
     stats belong in the Hero infobox's `_flying` column rather than `_mounted`."""
     return find_behavior(obj, GiantBirdAIUpdate) is not None
 
@@ -401,9 +401,9 @@ def building_levels(unit) -> list[tuple[frozenset[str], float | None]]:
     """The `(active_upgrades, rank)` that resolves each level of a leveled building, in level
     order. A building levels one of two ways:
 
-    - economy upgrades — each level adds the next `AttributeModifierUpgrade` (HEALTH/PRODUCTION),
+    - economy upgrades - each level adds the next `AttributeModifierUpgrade` (HEALTH/PRODUCTION),
       so level 1 takes no upgrade and each later level the cumulative set (rank stays None);
-    - veterancy rank — a multi-rank `ExperienceLevel` ladder steps the building through its
+    - veterancy rank - a multi-rank `ExperienceLevel` ladder steps the building through its
       ranks, whose per-rank modifiers carry the health gain (no extra upgrade, rank selected).
       The rank may be earned by experience (`RequiredExperience`) or pushed by a `LevelUpUpgrade`;
       either way the ladder is what the page columns reflect.
@@ -551,4 +551,4 @@ def _emit_mount_split(
             if flying is not None:
                 _set(result, f"{param}_flying", flying.get(param))
         else:
-            emit(result, param, derive, base)  # health, … — a single field
+            emit(result, param, derive, base)  # health, … - a single field

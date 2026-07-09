@@ -2,7 +2,7 @@
 
 `XferReader` is the byte-level layer the typed chunk decoders in `sage_save.chunks` are
 built on: a cursor over a chunk payload exposing the primitives from the GPL Generals
-`Xfer` base class (`Core/GameEngine/Source/Common/System/Xfer.cpp`) — versioned reads,
+`Xfer` base class (`Core/GameEngine/Source/Common/System/Xfer.cpp`) - versioned reads,
 little-endian scalars, and the two string encodings (uint8-length ASCII, uint8-count
 UTF-16LE). Only the primitives the current decoders need are implemented; the rest of the
 table in sav_format.md is added here as decoding advances (the format is procedural, so a
@@ -39,7 +39,7 @@ class XferReader:
         self._stream.seek(self._stream.tell() + count)
 
     def rest(self) -> bytes:
-        """The undecoded remainder — used to keep a chunk's tail opaque yet round-trippable."""
+        """The undecoded remainder - used to keep a chunk's tail opaque yet round-trippable."""
         return self._stream.readBytes(self.remaining())
 
     def bytes(self, count: int) -> bytes:
@@ -47,7 +47,7 @@ class XferReader:
 
     def version(self, current: int | None = None) -> int:
         """`xferVersion`: a 1-byte version. Loading a version greater than `current` is the
-        engine's `XFER_INVALID_VERSION` failure — mirror it so unknown newer layouts surface
+        engine's `XFER_INVALID_VERSION` failure - mirror it so unknown newer layouts surface
         loudly rather than mis-parse."""
         value = self._stream.readUChar()
         if current is not None and value > current:

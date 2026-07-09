@@ -16,7 +16,7 @@ _NONE_SENTINELS = frozenset({"", "none"})
 
 class CommandSetButtonRule(Rule):
     """A numbered CommandSet slot (`3 = Command_Foo`) naming a CommandButton no definition
-    declares: in-game the slot is empty — the button silently never appears — a content bug,
+    declares: in-game the slot is empty - the button silently never appears - a content bug,
     usually a typo or a button renamed in one place but not the other. `NONE` slots are the
     engine's "no button here" and are left alone. CommandButtons are always defined in the
     data, so unlike art/audio references this resolves authoritatively (WARNING, not INFO)."""
@@ -67,7 +67,7 @@ def _is_revive(button) -> bool:
 class DuplicateReviveButtonRule(Rule):
     """The same REVIVE CommandButton wired into two slots of one CommandSet. Each revive button
     is bound to a fixed hero slot index, so listing it twice makes two GUI buttons fight over the
-    same hero — one silently never works. This is a content bug (usually a copy-paste when adding
+    same hero - one silently never works. This is a content bug (usually a copy-paste when adding
     a hero), so it is a WARNING; empty/unresolved slots and non-revive duplicates are left alone."""
 
     code = "duplicate-revive-button"

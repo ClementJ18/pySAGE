@@ -1,7 +1,7 @@
 """Rule: a module-tag field naming a module that the object does not actually have.
 
 Some module fields point at *another module on the same object* by its `ModuleTag_*` rather
-than at a Game-table definition — `ActivateModuleSpecialPower.TriggerSpecialPower` names the
+than at a Game-table definition - `ActivateModuleSpecialPower.TriggerSpecialPower` names the
 module it fires. A converter cannot check these (it has no view of the parent object), so this
 rule resolves each object's final module set (inheritance, adds/replaces/removes included) and
 flags a tag that is not among them: the engine finds no such module and the trigger silently
@@ -35,7 +35,7 @@ def _trigger_modules(obj) -> Iterator[ActivateModuleSpecialPower]:
 class ModuleTagReferenceRule(Rule):
     """A `TriggerSpecialPower` whose `ModuleTag` names no module on the owning object once
     inheritance is resolved. The engine finds nothing to fire, so the special power silently
-    never triggers — almost always a typo'd or stale tag."""
+    never triggers - almost always a typo'd or stale tag."""
 
     code = "module-tag-reference"
 

@@ -1,17 +1,17 @@
 # sage_apt
 
-Tooling for SAGE `.apt` UI movies — the Flash-derived format behind BFME's menus and
+Tooling for SAGE `.apt` UI movies - the Flash-derived format behind BFME's menus and
 in-game HUD (palantír, command bar, spellbook store, ...).
 
 An APT ships as a binary pair: `.apt` holds the movie structure (characters, sprite
 frames, placeobjects) and the ActionScript bytecode, `.const` the constant pool the
 bytecode indexes into. `sage_apt` decompiles the pair into an editable XML form and
-compiles the XML back — a Python port of Stephan Vedder's C++ AptConverter — and adds
+compiles the XML back - a Python port of Stephan Vedder's C++ AptConverter - and adds
 two ways to see what you are editing:
 
-- **viewer** — a self-contained HTML/SVG page of the movieclip's first frame, drawn to
+- **viewer** - a self-contained HTML/SVG page of the movieclip's first frame, drawn to
   scale with per-type colouring, tooltips, and pan/zoom.
-- **editor** — a local browser app: click an element on the stage, edit its placement /
+- **editor** - a local browser app: click an element on the stage, edit its placement /
   colour / text in a properties panel, drag elements to move them, add / duplicate / delete
   placeobjects, undo/redo, save the XML, and export straight to `.apt`.
 
@@ -73,7 +73,7 @@ never leaves a partial `.apt` beside a stale `.const`.
   `_geometry/` directory, and the atlas texture reachable under `--game-dir`. Without the
   extra / game dir, elements fall back to placeholders.
 - `to-xml --game-dir <dir>` resolves the `.const` (or the `.apt` itself) out of the `.big`
-  archives beneath `<dir>` when it is not a loose file — a loose file beside the `.apt`
+  archives beneath `<dir>` when it is not a loose file - a loose file beside the `.apt`
   still wins. Needs the optional `[apt]` extra (`pip install -e .[apt]`, pulls in pyBIG);
   the core stays stdlib-only.
 - `edittext` colour attributes are stored byte-swapped relative to placeobjects
@@ -84,7 +84,7 @@ never leaves a partial `.apt` beside a stale `.const`.
   the reference tool; see the comments in `actions.py`.
 - Branches (`branchalways`/`branchiftrue`/`branchiffalse`) carry a resolvable
   `target` label pointing at the destination instruction (which is tagged with a
-  matching `anchor` — a separate attribute because `gotolabel` already uses `label`
+  matching `anchor` - a separate attribute because `gotolabel` already uses `label`
   for its frame-label string), so edits that shift byte counts keep the branch
   aligned. The raw `offset` attribute is legacy/advisory; a branch with only an
   `offset` and no `target` compiles that value verbatim as a fallback.

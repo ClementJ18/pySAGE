@@ -1,7 +1,7 @@
 # pySAGE
 
 A collection of Python tools for reading, editing, linting and visualising the data
-formats of the **SAGE engine** — the engine behind *Command & Conquer: Generals* and
+formats of the **SAGE engine** - the engine behind *Command & Conquer: Generals* and
 *The Battle for Middle-earth*. It grew out of an ini parser and now spans ini game data,
 binary maps, replays, and UI, with a domain overlay for the Edain mod.
 
@@ -15,14 +15,14 @@ subproject has its own README with the details; this page is the map.
 | Project | What it is |
 | --- | --- |
 | [`sage_ini`](sage_ini/README.md) | The foundation: a typed, comment-preserving `.ini` parser, a whole-game loader, the cross-reference graph, and a lossless AST. Everything else builds on it. |
-| [`sage_lint`](sage_lint/README.md) | Formatter and linter over `sage_ini` — canonical reprint plus judgment rules (dangling references, out-of-range values, duplicates, unused definitions) and meta-analysis. |
+| [`sage_lint`](sage_lint/README.md) | Formatter and linter over `sage_ini` - canonical reprint plus judgment rules (dangling references, out-of-range values, duplicates, unused definitions) and meta-analysis. |
 
 ### Binary formats
 
 | Project | What it is |
 | --- | --- |
 | [`sage_map`](sage_map/README.md) | Reader/writer for BFME `.map` files, plus a game-aware overlay that resolves script arguments and object references and lints maps. |
-| [`sage_replay`](sage_replay/README.md) | Reader for SAGE replay files (Generals `.rep`, BFME / BFME2 / RotWK) — the recorded order stream, decoded into build orders, APM and command timing. |
+| [`sage_replay`](sage_replay/README.md) | Reader for SAGE replay files (Generals `.rep`, BFME / BFME2 / RotWK) - the recorded order stream, decoded into build orders, APM and command timing. |
 | [`sage_apt`](sage_apt/README.md) | Converter, viewer and editor for `.apt` UI movies (the Flash-derived format behind BFME's menus and HUD). |
 
 ### Domain overlays & apps
@@ -63,7 +63,7 @@ pytest --full     # + corpus acceptance gates and peripheral-package suites
 
 ## Contributing
 
-Contributions are welcome — bug reports, fixes, new checks and rules, format coverage, and
+Contributions are welcome - bug reports, fixes, new checks and rules, format coverage, and
 documentation all help. See **[CONTRIBUTING.md](CONTRIBUTING.md)** to get set up and
 **[CONVENTIONS.md](CONVENTIONS.md)** for the coding rules. AI-assisted contributions are
 welcome too, with one expectation: you have read, understood, and can stand behind every

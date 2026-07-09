@@ -57,7 +57,7 @@ class UnknownAttributeRule(Rule):
     """An attribute on a typed block that the block's schema does not declare: a still-untyped
     field (a coverage gap) or a misspelled attribute name.
 
-    Raised as an ERROR — the project drives toward 100% schema coverage, so every untyped field
+    Raised as an ERROR - the project drives toward 100% schema coverage, so every untyped field
     is a to-do, not background noise. Exhaustive by design (an incomplete schema leaves many
     valid fields untyped), so like `unrecognized-block` it is excluded from the corpus flood
     gate; silence it with `ignore = ["unknown-attribute"]` until the backlog is triaged."""
@@ -125,7 +125,7 @@ class OutOfRangeRule(Rule):
 
 
 class SpuriousBlockLabelRule(Rule):
-    """A block written with the `=` form of a header it takes plainly — `ThreatBreakdown =
+    """A block written with the `=` form of a header it takes plainly - `ThreatBreakdown =
     <tag>` instead of `ThreatBreakdown <tag>`. The engine tolerates the `=`, so it parses,
     but the `=` does nothing and usually signals a copy-paste slip."""
 
