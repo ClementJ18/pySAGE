@@ -224,10 +224,13 @@ class Game:
             table = self.tables[obj.key]
             if self._map_override:
                 # A map layer re-opening an existing definition patches it in place; keep the
-                # shadowed object reachable so inheritance-aware rules resolve through it. A
-                # second re-open within the map still lands here (chaining onto the prior
-                # override) and is flagged separately as a same-file duplicate.
+                # shadowed object reachable so inheritance-aware rules resolve through it. The
+                # shadowed object is an earlier one in this build (a same-file re-open, flagged
+                # separately as a duplicate) or - on the incremental path, where the map is built
+                # into a throwaway game against the global cache - the definition in that cache.
                 previous = table.get(obj.name)
+                if previous is None and self._reference_fallback is not None:
+                    previous, _ = self._reference_fallback.lookup(obj.key, obj.name)
                 if previous is not None and previous is not obj:
                     obj._override_base = previous
             table[obj.name] = obj

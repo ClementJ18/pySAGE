@@ -125,3 +125,39 @@ def test_id_numbering_is_dense_and_one_based(game):
     assert order[0] == "DefaultThingTemplate"
     # No duplicates: a dense 1..N id space.
     assert len(order) == len(set(order))
+
+
+def test_base_legend_and_objects_used_when_mod_has_neither(game, tmp_path):
+    # A mod with no SubsystemLegend.ini and no object tree of its own (like Edain's `_mod`) falls
+    # back to the base game for both, so its id order is exactly the base's.
+    mod = tmp_path / "_mod"
+    mod.mkdir()
+    assert thing_template_order(mod, bases=[game]) == thing_template_order(game)
+
+
+def test_mod_added_object_registers_in_base_path_order(game, tmp_path):
+    # A file the mod adds under an InitPath registers at its own path position within the merged
+    # base+mod tree: aaa_sub/bbb.ini sorts before aaa_sub/mmm/ and aaa_sub/zzz.ini.
+    mod = tmp_path / "_mod"
+    _write(mod, "object/aaa_sub/bbb.ini", "ModUnit")
+    order = thing_template_order(mod, bases=[game])
+    assert order.index("ModUnit") < order.index("SubInner") < order.index("SubZeta")
+
+
+def test_root_sequence_layers_like_root_plus_bases(game, tmp_path):
+    # Passing an ascending-priority [base, mod] sequence as the root is equivalent to root=mod
+    # with bases=[base]: same legend, same merged object tree, same id order.
+    mod = tmp_path / "_mod"
+    _write(mod, "object/aaa_sub/bbb.ini", "ModUnit")
+    assert thing_template_order([game, mod]) == thing_template_order(mod, bases=[game])
+
+
+def test_mod_override_shadows_base_file_registering_new_objects_in_place(game, tmp_path):
+    # The mod overrides the base's object/zeta.ini, keeping Zeta and adding ModZeta. The mod file
+    # shadows the base one at that path, so ModZeta registers at zeta.ini's (top-level) position
+    # and Zeta still appears exactly once.
+    mod = tmp_path / "_mod"
+    _write(mod, "object/zeta.ini", "Zeta", "ModZeta")
+    order = thing_template_order(mod, bases=[game])
+    assert order.count("Zeta") == 1
+    assert order.index("ModZeta") < order.index("Inner")

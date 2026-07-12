@@ -5,17 +5,46 @@
 - `orders <replay>` - dump the order stream (`--limit`, `--player`, `--order` to filter).
 - `ids <replay>` - the object-referencing integer ids in the order stream: a per-order
   summary, or (with `--order`) the timecode-ordered id runs for one order type. The raw
-  material for mapping ids to mod objects (see object_id_mapping_plan.md).
+  material for mapping ids to mod objects (see order_space_map.md).
 - `align <replay> <labels>` - join a hand-written label log to the id runs of one order
   type and print the inferred `id -> object` rows; `--out` accumulates them into a JSON
   mapping.
 - `narrate <replay> --game <root>` - retell the match in English, resolving recruit / build
   / special-power / spellbook / upgrade ids against a loaded game. `--game` takes an
   extracted `data/ini` tree or a live install folder (its `.big` archives are mounted
-  automatically into a cache).
+  automatically into a cache). `--game` is repeatable and layers ascending-priority - pass
+  the base game first and the mod after it for a mod that relies on the base game's
+  SubsystemLegend.ini / objects.
+- `stats <replay> --game <root>` - per-player match statistics: buildings / units / heroes
+  built (counts per template type), fortress-hero recruits by command slot, upgrades
+  researched, and the spellbook sciences in purchase order. Same `--game` resolution
+  as `narrate`.
+- `aggregate <replay|dir>... --game <root>` - corpus-wide stats over many replays: each
+  human slot becomes a player-game (faction, won/lost via the `winner` heuristic, timed
+  stats), grouped by faction into win rates plus science / building / unit / hero pick
+  tables - each pick with its own win-loss record and median first-purchase clock
+  ("does the faction win more with science X or Y?"). Upgrade researches are reported
+  only for a tracked set, and repeatable system purchases get per-instance depth rows
+  (CPObject1, CPObject2, ...) only for one: `--track-upgrade` / `--track-purchase NAME`
+  (repeatable), or the `sage-edain replay-aggregate` overlay, which registers this same
+  command with Edain's sets injected. The replays must all come from one patch/mod: a
+  corpus mixing patch fingerprints (the header's game-data checksum - recordings from
+  different game data do not simulate identically) exits 1 listing the groups, before
+  any game root is loaded. `--matchups` appends the same tables per enemy
+  faction (buildings built vs Mordor, units vs Gondor) after each faction's own sections.
+  `--faction` / `--player` filter
+  the player-games (case-insensitive substring); `--markdown` renders the same tables
+  as GitHub markdown.
 - `winner <replay>` - infer the outcome from session-end signals (leave-game orders,
   checksum heartbeats, the end-of-recording marker); a concession heuristic, so the
-  verdict may be `undetermined` (see `winner.py`).
+  verdict may be `undetermined` (see `winner.py`). `winner` and `aggregate` take
+  `--winner-pov`: assume the recording player's team won any game the stream leaves
+  undetermined (for corpora whose replays belong to the winner).
+- `coverage <replay|dir>...` - the format-coverage dashboard: distinct values of every
+  still-opaque surface (header reserved blocks, unnamed order ids, raw slot fields,
+  untyped metadata keys) across a corpus. `--strict` exits non-zero on any deviation from
+  the documented known state; `--diff a b` reports which opaque surfaces differ between two
+  replays (see `coverage.py`).
 
 All accept `--json` for machine-readable output.
 """
@@ -23,10 +52,18 @@ All accept `--json` for machine-readable output.
 import argparse
 import json
 import sys
-import tempfile
 from collections import Counter
 from pathlib import Path
 
+from sage_replay.aggregate import (
+    aggregate,
+    collect,
+    patch_groups,
+    render_aggregate,
+    render_aggregate_html,
+    render_aggregate_markdown,
+)
+from sage_replay.coverage import audit, diff_replays, find_replays
 from sage_replay.ids import (
     ChunkPredicate,
     IdRun,
@@ -39,6 +76,7 @@ from sage_replay.ids import (
 )
 from sage_replay.narrate import GameData, narrate, render
 from sage_replay.replay import (
+    Bfme2OrderType,
     GeneralsOrderType,
     OrderArgument,
     ReplayChunk,
@@ -48,8 +86,10 @@ from sage_replay.replay import (
     ReplaySlotType,
     parse_replay_from_path,
 )
+from sage_replay.stats import compute_stats, render_stats
 from sage_replay.winner import PlayerSession, infer_winner
-from sage_utils.cli import existing_file, utf8_stdout
+from sage_utils.cli import add_game_arguments, existing_file, utf8_stdout
+from sage_utils.gameroot import resolve_game_roots
 
 
 def _parse_order_type(value: str) -> int:
@@ -94,10 +134,16 @@ def _build_where(specs: list[str] | None) -> ChunkPredicate | None:
 
 
 def _order_name(replay: ReplayFile, order_type: int) -> str:
-    """Generals order ids have OpenSAGE names; BFME ids are unmapped, so raw hex."""
+    """Order ids get their game's decoded name where one exists (Generals via OpenSAGE,
+    BFME2 via the ✅-grade `Bfme2OrderType` map); otherwise the raw hex id."""
     if replay.game_type is ReplayGameType.Generals:
         try:
             return GeneralsOrderType(order_type).name
+        except ValueError:
+            pass
+    elif replay.game_type is ReplayGameType.Bfme2:
+        try:
+            return Bfme2OrderType(order_type).name
         except ValueError:
             pass
     return f"0x{order_type:X}"
@@ -131,32 +177,48 @@ def _slot_dict(slot: ReplaySlot) -> dict:
         "type": slot.slot_type.name,
         "name": slot.human_name,
         "difficulty": slot.computer_difficulty.name if slot.computer_difficulty else None,
+        "ip": str(slot.ip) if slot.ip is not None else None,
+        "port": slot.port,
+        "accepted": slot.accepted,
+        "has_map": slot.has_map,
         "color": slot.color,
         "faction": slot.faction,
         "start_position": slot.start_position,
         "team": slot.team,
+        "nat_behavior": slot.nat_behavior,
         "raw": slot.raw,
     }
 
 
 def _header_dict(replay: ReplayFile) -> dict:
     header = replay.header
+    metadata = header.metadata
     return {
         "game": header.game_type.name,
         "start_time": header.start_time.isoformat(),
         "end_time": header.end_time.isoformat(),
         "num_timecodes": header.num_timecodes,
+        "crc_interval": header.crc_interval,
+        "abnormal_end_frame": header.abnormal_end_frame,
+        "crashed": replay.crashed,
+        "local_player_index": header.local_player_index,
+        "data_checksum": header.data_checksum,
         "filename": header.filename,
         "timestamp": str(header.timestamp),
         "version": header.version,
         "build_date": header.build_date,
-        "map_file": header.metadata.map_file,
-        "map_crc": header.metadata.map_crc,
-        "map_size": header.metadata.map_size,
-        "seed": header.metadata.seed,
-        "starting_credits": header.metadata.starting_credits,
-        "metadata": header.metadata.values,
-        "players": [_slot_dict(s) for s in header.metadata.players],
+        "map_file": metadata.map_file,
+        "map_contents_mask": metadata.map_contents_mask,
+        "map_crc": metadata.map_crc,
+        "map_size": metadata.map_size,
+        "seed": metadata.seed,
+        "starting_credits": metadata.starting_credits,
+        "install_id": metadata.install_id,
+        "game_rules": list(metadata.game_rules),
+        "starting_resources": metadata.starting_resources,
+        "command_points": metadata.command_points,
+        "metadata": metadata.values,
+        "players": [_slot_dict(s) for s in metadata.players],
     }
 
 
@@ -348,27 +410,10 @@ def _merge_mapping(path: Path, metadata: dict, order_type: int, rows: list) -> l
     return conflicts
 
 
-def _resolve_game_root(game: Path, cache: Path | None) -> Path:
-    """Return a `data/ini` tree to load. `game` may already be one (or an extracted corpus),
-    or a live install holding `.big` archives - those are mounted into `cache` (default: a
-    per-install folder under the system temp dir), cached across runs."""
-    if (game / "data" / "ini").is_dir() or (game / "default" / "subsystemlegend.ini").is_file():
-        return game
-    if not list(game.glob("*.big")):
-        raise SystemExit(f"{game} is neither a data/ini tree nor an install with .big archives")
-
-    # tools/ is a dev-only, unpackaged helper; import it only when a live install must be
-    # mounted, so the other subcommands never depend on it being importable.
-    from tools.mount_game import mount_ini_tree  # noqa: PLC0415
-
-    if cache is None:
-        cache = Path(tempfile.gettempdir()) / "sage_mount" / game.resolve().name
-    return mount_ini_tree(game, cache)
-
-
 def _run_narrate(args: argparse.Namespace) -> int:
     replay = parse_replay_from_path(args.replay)
-    data = GameData.from_root(_resolve_game_root(args.game, args.cache))
+    games = resolve_game_roots(args.game, args.cache)
+    data = GameData.from_root(games, localize=args.localized)
 
     if args.json:
         events = [
@@ -385,6 +430,24 @@ def _run_narrate(args: argparse.Namespace) -> int:
         return 0
 
     for line in render(replay, data):
+        print(line)
+    return 0
+
+
+def _run_stats(args: argparse.Namespace) -> int:
+    replay = parse_replay_from_path(args.replay)
+    games = resolve_game_roots(args.game, args.cache)
+    data = GameData.from_root(games, localize=args.localized)
+
+    if args.json:
+        payload = {
+            "map_file": replay.header.metadata.map_file,
+            "players": [per.to_dict() for per in compute_stats(replay, data)],
+        }
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    for line in render_stats(replay, data):
         print(line)
     return 0
 
@@ -410,9 +473,175 @@ def _session_status(session: PlayerSession, end: int, spf: float) -> str:
     return f"present at end ({', '.join(parts)} frames)" if parts else "present at end"
 
 
+def _run_aggregate(args: argparse.Namespace) -> int:
+    replays = find_replays(args.paths)
+    if not replays:
+        print("aggregate: no replays found under the given paths", file=sys.stderr)
+        return 2
+    groups = patch_groups(replays)
+    if len(groups) > 1:
+        print(
+            "aggregate: the replays span multiple game patches/mods and their stats are "
+            "not comparable; aggregate each group separately:",
+            file=sys.stderr,
+        )
+        for fingerprint, names in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+            print(f"  {fingerprint}: {len(names)} replays (e.g. {names[0]})", file=sys.stderr)
+        return 1
+
+    games = resolve_game_roots(args.game, args.cache)
+    data = GameData.from_root(games, localize=args.localized)
+
+    corpus = collect(
+        args.paths,
+        data,
+        assume_pov_won=args.winner_pov,
+        refine_faction=args.refine_faction,
+        relabel_power=args.relabel_power,
+    )
+    if args.faction is not None:
+        needle = args.faction.lower()
+        corpus.games = [g for g in corpus.games if needle in g.faction.lower()]
+    if args.player is not None:
+        needle = args.player.lower()
+        corpus.games = [g for g in corpus.games if needle in g.player.lower()]
+    tracked = args.tracked_upgrades | frozenset(args.track_upgrade or [])
+    purchases = args.tracked_purchases | frozenset(args.track_purchase or [])
+    factions = aggregate(
+        corpus.games,
+        tracked_upgrades=tracked,
+        tracked_purchases=purchases,
+        matchups=args.matchups,
+    )
+
+    if args.json:
+        payload = {
+            "replays": corpus.replays,
+            "player_games": len(corpus.games),
+            "warnings": corpus.warnings,
+            "games": [
+                {
+                    "replay": g.replay,
+                    "player": g.player,
+                    "faction": g.faction,
+                    "outcome": g.outcome,
+                    "duration_seconds": g.duration,
+                }
+                for g in corpus.games
+            ],
+            "factions": [agg.to_dict() for agg in factions],
+        }
+        print(json.dumps(payload, indent=2))
+    elif args.html:
+        for line in render_aggregate_html(corpus, factions):
+            print(line)
+    else:
+        render = render_aggregate_markdown if args.markdown else render_aggregate
+        for line in render(corpus, factions):
+            print(line)
+    for warning in corpus.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    return 0
+
+
+def add_aggregate_command(
+    subparsers,
+    *,
+    name: str = "aggregate",
+    tracked_upgrades: frozenset[str] = frozenset(),
+    tracked_purchases: frozenset[str] = frozenset(),
+    refine_faction=None,
+    relabel_power=None,
+) -> argparse.ArgumentParser:
+    """Register the corpus-aggregate subcommand on an argparse `subparsers`. A mod overlay
+    that knows which upgrade researches deserve a pick-rate row and which system purchases
+    are depth-comparable registers the same command on its own CLI with its
+    `tracked_upgrades` / `tracked_purchases` injected (sage_edain's `replay-aggregate`);
+    `--track-upgrade` / `--track-purchase` extend whatever was injected. `refine_faction`
+    (a `FactionRefiner`) lets the overlay sharpen faction labels from each player's own
+    stats, e.g. Edain's Dwarves into their realm. `relabel_power` (a `PowerLabeler`) renames
+    special-power casts from the caster's faction Side, e.g. reading Imladris's four shared
+    Lichtbringer toggle powers as `Lichtbringer -> Earth/Light/Water/Air`."""
+    parser = subparsers.add_parser(
+        name,
+        help="corpus-wide faction stats over many replays: win rates and science/build "
+        "pick tables with per-pick win-loss records and timings",
+    )
+    parser.add_argument(
+        "paths",
+        nargs="+",
+        type=Path,
+        help="replays and/or directories to aggregate (searched recursively)",
+    )
+    add_game_arguments(
+        parser,
+        game_help="a data/ini tree, or a live install folder whose .big archives are mounted",
+    )
+    parser.add_argument(
+        "--localized",
+        action="store_true",
+        help="resolve localized DisplayNames from the string table instead of raw ini code names",
+    )
+    parser.add_argument(
+        "--faction",
+        default=None,
+        help="only player-games of factions matching this name (case-insensitive substring)",
+    )
+    parser.add_argument(
+        "--player",
+        default=None,
+        help="only player-games of players matching this name (case-insensitive substring)",
+    )
+    parser.add_argument(
+        "--track-upgrade",
+        action="append",
+        metavar="NAME",
+        default=None,
+        help="report this upgrade's researches in the Upgrades pick tables (raw ini code "
+        "name; repeatable, extends the command's built-in tracked set)",
+    )
+    parser.add_argument(
+        "--track-purchase",
+        action="append",
+        metavar="NAME",
+        default=None,
+        help="number this repeatable system purchase per instance (CPObject1, CPObject2, "
+        "...) so purchase depth compares across games (raw ini template name; repeatable, "
+        "extends the command's built-in tracked set)",
+    )
+    parser.add_argument(
+        "--matchups",
+        action="store_true",
+        help="also build every pick table per enemy faction (buildings built vs Mordor, "
+        "units vs Gondor), appended after each faction's own sections",
+    )
+    _add_winner_pov(parser)
+    output_format = parser.add_mutually_exclusive_group()
+    output_format.add_argument("--json", action="store_true")
+    output_format.add_argument(
+        "--markdown",
+        action="store_true",
+        help="render the aggregation as GitHub markdown (a table per pick category)",
+    )
+    output_format.add_argument(
+        "--html",
+        action="store_true",
+        help="render the aggregation as one self-contained HTML page (stat tiles, "
+        "win-rate bars, collapsible matchup blocks)",
+    )
+    parser.set_defaults(
+        func=_run_aggregate,
+        tracked_upgrades=tracked_upgrades,
+        tracked_purchases=tracked_purchases,
+        refine_faction=refine_faction,
+        relabel_power=relabel_power,
+    )
+    return parser
+
+
 def _run_winner(args: argparse.Namespace) -> int:
     replay = parse_replay_from_path(args.replay)
-    verdict = infer_winner(replay)
+    verdict = infer_winner(replay, assume_pov_won=args.winner_pov)
     end = replay.chunks[-1].timecode if replay.chunks else 0
     spf = replay.seconds_per_frame
 
@@ -456,6 +685,41 @@ def _run_winner(args: argparse.Namespace) -> int:
     else:
         print(f"Verdict:  {verdict.outcome} - {verdict.reason}")
     return 0
+
+
+def _run_coverage(args: argparse.Namespace) -> int:
+    if args.diff is not None:
+        a = parse_replay_from_path(args.diff[0])
+        b = parse_replay_from_path(args.diff[1])
+        lines = diff_replays(a, b)
+        if args.json:
+            print(json.dumps({"diff": lines}, indent=2))
+        else:
+            print("\n".join(lines))
+        return 0
+
+    if not args.paths:
+        print("coverage: give one or more replays/directories, or --diff A B", file=sys.stderr)
+        return 2
+
+    report = audit(args.paths)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(report.format_text())
+
+    return 1 if args.strict and report.strict_failures() else 0
+
+
+def _add_winner_pov(parser: argparse.ArgumentParser) -> None:
+    """The `--winner-pov` assumption shared by `winner` and `aggregate`."""
+    parser.add_argument(
+        "--winner-pov",
+        action="store_true",
+        help="assume the recording player's team won any game the stream leaves "
+        "undetermined (for corpora whose replays belong to the winner); explicit "
+        "evidence - a leave-game order - still wins over the assumption",
+    )
 
 
 def _add_id_arguments(parser: argparse.ArgumentParser) -> None:
@@ -533,24 +797,71 @@ def main(argv: list[str] | None = None) -> int:
         "narrate", help="retell the match in English, resolving ids against a loaded game"
     )
     narrate_parser.add_argument("replay", type=existing_file)
-    narrate_parser.add_argument(
-        "--game",
-        type=Path,
-        required=True,
-        help="a data/ini tree, or a live install folder whose .big archives are mounted",
+    add_game_arguments(
+        narrate_parser,
+        game_help="a data/ini tree, or a live install folder whose .big archives are mounted",
     )
     narrate_parser.add_argument(
-        "--cache", type=Path, default=None, help="where to mount an install's .big archives"
+        "--localized",
+        action="store_true",
+        help="resolve localized DisplayNames from the string table (Misty Mountains) instead of "
+        "the raw ini code names (FactionWild), which are used by default",
     )
     narrate_parser.add_argument("--json", action="store_true")
     narrate_parser.set_defaults(func=_run_narrate)
+
+    stats_parser = subparsers.add_parser(
+        "stats",
+        help="per-player building/unit/hero/upgrade counts and science purchase order",
+    )
+    stats_parser.add_argument("replay", type=existing_file)
+    add_game_arguments(
+        stats_parser,
+        game_help="a data/ini tree, or a live install folder whose .big archives are mounted",
+    )
+    stats_parser.add_argument(
+        "--localized",
+        action="store_true",
+        help="resolve localized DisplayNames from the string table instead of raw ini code names",
+    )
+    stats_parser.add_argument("--json", action="store_true")
+    stats_parser.set_defaults(func=_run_stats)
+
+    add_aggregate_command(subparsers)
 
     winner_parser = subparsers.add_parser(
         "winner", help="infer the outcome from session-end signals (concession heuristic)"
     )
     winner_parser.add_argument("replay", type=existing_file)
+    _add_winner_pov(winner_parser)
     winner_parser.add_argument("--json", action="store_true")
     winner_parser.set_defaults(func=_run_winner)
+
+    coverage_parser = subparsers.add_parser(
+        "coverage",
+        help="format-coverage dashboard over a corpus (--strict gate, --diff A B)",
+    )
+    coverage_parser.add_argument(
+        "paths",
+        nargs="*",
+        type=Path,
+        help="replays and/or directories to audit (searched recursively)",
+    )
+    coverage_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit non-zero on any deviation from the documented known state",
+    )
+    coverage_parser.add_argument(
+        "--diff",
+        nargs=2,
+        metavar=("A", "B"),
+        type=existing_file,
+        default=None,
+        help="report which still-opaque surfaces differ between two replays",
+    )
+    coverage_parser.add_argument("--json", action="store_true")
+    coverage_parser.set_defaults(func=_run_coverage)
 
     args = parser.parse_args(argv)
     return args.func(args)

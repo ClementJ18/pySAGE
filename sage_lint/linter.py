@@ -211,6 +211,11 @@ def lint_file_cached_game(
     game.assets.update(cache.assets)  # so the missing-texture/model-file rules see the crawled art
     game.map_files.extend(cache.map_files)  # and the crawled maps/bases/libraries
     game._reference_fallback = cache  # so cross-references resolve against the whole game
+    # A map.ini patches the global objects it re-opens (the engine's map override); flag the
+    # throwaway build so `register` links each re-opened object to its cache definition, letting
+    # module edits resolve against the inherited modules. Off for a normal file, where a
+    # re-definition is a plain override, never a patch.
+    game._map_override = is_map_path(path, base)
     try:
         game.load_document(result.document)
     except (ValueError, KeyError, TypeError, IndexError) as exc:

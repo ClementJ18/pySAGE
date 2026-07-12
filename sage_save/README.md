@@ -91,8 +91,9 @@ python -m sage_save edit <save> save.json --out edited.sav
 
 # Resolve the save's ini-names (object templates + fatal upgrade/science names) against a
 # game; report the danglers (exit 1 if any; a missing upgrade/science means the save won't
-# load). --base layers the base game under an overlay mod so its base-game references resolve.
-python -m sage_save check <save> --game <ini-tree-or-install> [--base <base-game>]
+# load). --game is repeatable: pass the base game first and an overlay mod after it so the
+# mod's base-game references resolve.
+python -m sage_save check <save> --game <ini-tree-or-install> [--game <mod>]
 
 # Chunk-name/version inventory across a folder of saves (answers "which chunks
 # does this game / save-kind write"); detection is by header magic, not extension

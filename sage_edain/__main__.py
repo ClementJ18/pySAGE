@@ -9,11 +9,17 @@
   (roster and stat moves in player terms; `--json` for programs).
 - `schema [graph | diff]` - describe the JSON shapes `explore --json` / `diff --json` emit.
 - `serve <dir> <faction>` - open a small web UI (sage_edain/ui) to traverse that graph.
+- `replay-aggregate <replay|dir>... --game <root>` - `sage-replay aggregate` (corpus-wide
+  faction stats over many replays) with Edain's knowledge (`sage_edain/replay.py`)
+  injected: the economy researches and library arts in its Upgrades pick tables, the
+  CP-upgrade CPObject depth-numbered per purchase in its Other-purchases tables, and
+  Dwarves player-games split into their realm (Erebor / Ered Luin / Iron Hills) by the
+  opening clan-upgrade purchase.
 - `install-skill` - install the bundled `bfme-faction` Claude Code skill.
 
 `<dir>` is the mod's ini root (e.g. `_mod/data/ini`). Pass `--bases` (the mod's `bases/` folder) to
 decompose castle/camp layouts into their citadel + foundations + prebuilt structures (needs the
-`[edain]` extra). `--base` layers a base-game ini source for completeness, like `sage_lint`.
+`[edain]` extra).
 """
 
 import argparse
@@ -27,10 +33,17 @@ from sage_edain.graph import (
     find_faction,
     playable_factions,
 )
+from sage_edain.replay import (
+    TRACKED_PURCHASES,
+    TRACKED_UPGRADES,
+    dwarven_realm_faction,
+    lichtbringer_power_label,
+)
 from sage_edain.report import render_report, render_roster_table
 from sage_edain.schema import render_schema
 from sage_edain.skill_install import install_skill
 from sage_ini.loader import load_game
+from sage_replay.__main__ import add_aggregate_command
 from sage_utils.cli import (
     add_install_skill_parser,
     existing_dir,
@@ -40,14 +53,14 @@ from sage_utils.cli import (
 from sage_utils.factiongraph import FactionGraph
 
 
-def _load(root: Path, base: list[Path]):
-    """Assemble the game from `root`, layering any `--base` sources for completeness.
+def _load(root: Path):
+    """Assemble the game from `root`.
 
     Point `root` at the **mod folder** (e.g. `_mod`): the loader scans it recursively for ini *and*
     for the localization table (`Lotr.csv` / `.str`), so display names resolve to their in-game
     text. Passing the deeper ini folder (`_mod/data/ini`) still works but misses the string table,
     which lives above it - names then fall back to raw template ids."""
-    return load_game(root, bases=tuple(base)).game
+    return load_game(root).game
 
 
 def _default_bases_dir(root: Path) -> Path | None:
@@ -60,8 +73,8 @@ def _default_bases_dir(root: Path) -> Path | None:
     return None
 
 
-def _run_factions(root: Path, base: list[Path]) -> int:
-    game = _load(root, base)
+def _run_factions(root: Path) -> int:
+    game = _load(root)
     factions = playable_factions(game)
     if not factions:
         print(f"no playable factions found under {root}")
@@ -121,10 +134,10 @@ def _print_summary(graph: FactionGraph) -> None:
     )
 
 
-def _build_graphs(root: Path, faction_name, base: list[Path], bases_dir):
+def _build_graphs(root: Path, faction_name, bases_dir):
     """The graphs to act on, or None on error. `faction_name` None builds every playable faction;
     a name/Side builds just that one."""
-    game = _load(root, base)
+    game = _load(root)
     resolved_bases = bases_dir if bases_dir is not None else _default_bases_dir(root)
     if faction_name is None:
         graphs = build_faction_graphs(game, resolved_bases)
@@ -148,8 +161,8 @@ def _payload(graphs: list[FactionGraph], all_factions: bool) -> dict:
     return graphs[0].to_dict()
 
 
-def _run_explore(root: Path, faction_name, base: list[Path], bases_dir, as_json: bool) -> int:
-    graphs = _build_graphs(root, faction_name, base, bases_dir)
+def _run_explore(root: Path, faction_name, bases_dir, as_json: bool) -> int:
+    graphs = _build_graphs(root, faction_name, bases_dir)
     if graphs is None:
         return 1
     all_factions = faction_name is None
@@ -163,8 +176,8 @@ def _run_explore(root: Path, faction_name, base: list[Path], bases_dir, as_json:
     return 0
 
 
-def _run_report(root: Path, faction_name, base: list[Path], bases_dir, out: Path | None) -> int:
-    graphs = _build_graphs(root, faction_name, base, bases_dir)
+def _run_report(root: Path, faction_name, bases_dir, out: Path | None) -> int:
+    graphs = _build_graphs(root, faction_name, bases_dir)
     if graphs is None:
         return 1
     if faction_name is None:
@@ -186,14 +199,14 @@ def _write_or_print(text: str, out: Path | None) -> None:
         print(text)
 
 
-def _run_diff(old_root, new_root, faction_name, base, as_json, out) -> int:
+def _run_diff(old_root, new_root, faction_name, as_json, out) -> int:
     """Faction-level changelog between two mod versions (two checkouts/folders). Each side's
     graphs are built the same way `explore` builds them (bases auto-detected per root), then
     compared in player terms - roster and stat moves, not raw ini fields."""
-    old_graphs = _build_graphs(old_root, faction_name, base, None)
+    old_graphs = _build_graphs(old_root, faction_name, None)
     if old_graphs is None:
         return 1
-    new_graphs = _build_graphs(new_root, faction_name, base, None)
+    new_graphs = _build_graphs(new_root, faction_name, None)
     if new_graphs is None:
         return 1
     diff = diff_graphs(old_graphs, new_graphs)
@@ -205,10 +218,10 @@ def _run_diff(old_root, new_root, faction_name, base, as_json, out) -> int:
     return 0
 
 
-def _run_serve(root, faction_name, base, bases_dir, port, open_browser) -> int:
+def _run_serve(root, faction_name, bases_dir, port, open_browser) -> int:
     from sage_edain.server import serve  # noqa: PLC0415 - only needed for `serve`
 
-    graphs = _build_graphs(root, faction_name, base, bases_dir)
+    graphs = _build_graphs(root, faction_name, bases_dir)
     if graphs is None:
         return 1
     all_factions = faction_name is None
@@ -224,7 +237,6 @@ def main(argv: list[str] | None = None) -> int:
 
     factions = subparsers.add_parser("factions", help="list a mod's playable factions")
     factions.add_argument("root", type=existing_dir, help="the mod's ini root (e.g. _mod/data/ini)")
-    factions.add_argument("--base", type=Path, action="append", default=[], help="base-game ini")
 
     explore = subparsers.add_parser("explore", help="print a faction's ownership graph")
     explore.add_argument("root", type=existing_dir, help="the mod folder (e.g. _mod)")
@@ -234,7 +246,6 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="faction template name or Side token (e.g. Gondor); omit for all playable factions",
     )
-    explore.add_argument("--base", type=Path, action="append", default=[], help="base-game ini")
     explore.add_argument(
         "--bases", type=Path, default=None, help="the mod's bases/ folder (base-layout .bse files)"
     )
@@ -248,7 +259,6 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="faction template name or Side token; omit for a roster table + every faction",
     )
-    report.add_argument("--base", type=Path, action="append", default=[], help="base-game ini")
     report.add_argument("--bases", type=Path, default=None, help="the mod's bases/ folder")
     report.add_argument(
         "--out", type=Path, default=None, help="write the report to this file instead of stdout"
@@ -265,7 +275,6 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="faction template name or Side token; omit to diff every playable faction",
     )
-    diff.add_argument("--base", type=Path, action="append", default=[], help="base-game ini")
     diff.add_argument("--json", action="store_true", help="emit the changelog as JSON")
     diff.add_argument(
         "--out", type=Path, default=None, help="write the changelog to this file instead of stdout"
@@ -279,7 +288,6 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="faction template name or Side token; omit to serve all factions with a picker",
     )
-    serve.add_argument("--base", type=Path, action="append", default=[], help="base-game ini")
     serve.add_argument("--bases", type=Path, default=None, help="the mod's bases/ folder")
     serve.add_argument("--port", type=int, default=8765, help="localhost port (default: 8765)")
     serve.add_argument("--no-browser", action="store_true", help="do not open a browser")
@@ -295,30 +303,40 @@ def main(argv: list[str] | None = None) -> int:
         help="the explore --json payload (graph, default) or the diff --json payload",
     )
 
+    add_aggregate_command(
+        subparsers,
+        name="replay-aggregate",
+        tracked_upgrades=TRACKED_UPGRADES,
+        tracked_purchases=TRACKED_PURCHASES,
+        refine_faction=dwarven_realm_faction,
+        relabel_power=lichtbringer_power_label,
+    )
+
     add_install_skill_parser(subparsers, "bfme-faction")
 
     args = parser.parse_args(argv)
+
+    if args.command == "replay-aggregate":
+        return args.func(args)
 
     if args.command == "schema":
         print(render_schema(args.which), end="")
         return 0
 
     if args.command == "factions":
-        return _run_factions(args.root, args.base)
+        return _run_factions(args.root)
 
     if args.command == "explore":
-        return _run_explore(args.root, args.faction, args.base, args.bases, args.json)
+        return _run_explore(args.root, args.faction, args.bases, args.json)
 
     if args.command == "report":
-        return _run_report(args.root, args.faction, args.base, args.bases, args.out)
+        return _run_report(args.root, args.faction, args.bases, args.out)
 
     if args.command == "diff":
-        return _run_diff(args.old, args.new, args.faction, args.base, args.json, args.out)
+        return _run_diff(args.old, args.new, args.faction, args.json, args.out)
 
     if args.command == "serve":
-        return _run_serve(
-            args.root, args.faction, args.base, args.bases, args.port, not args.no_browser
-        )
+        return _run_serve(args.root, args.faction, args.bases, args.port, not args.no_browser)
 
     if args.command == "install-skill":
         return run_install_skill(install_skill, args.dest, args.force)

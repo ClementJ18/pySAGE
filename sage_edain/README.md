@@ -36,13 +36,21 @@ python -m sage_edain diff <old> <new> [faction]
 
 # Open a small web UI to traverse the graph
 python -m sage_edain serve <dir> <faction>
+
+# sage_replay's corpus aggregation with Edain's knowledge (sage_edain/replay.py)
+# injected: economy researches + library arts in its Upgrades pick tables, the
+# CP-upgrade CPObject depth-numbered per purchase (CPObject1, CPObject2, ...),
+# Dwarves split into their realm (Erebor / Ered Luin / Iron Hills) by the opening
+# clan-upgrade purchase, and Imladris's four shared Lichtbringer element toggles read
+# as Lichtbringer -> Earth/Light/Water/Air in the Powers pick tables (only for an
+# Imladris caster - the same powers stay raw summons for Angmar / Rohan / Lothlorien)
+python -m sage_edain replay-aggregate <replay|dir>... --game <install>
 ```
 
 `<dir>` is the mod's ini root (e.g. `_mod/data/ini`; point it at the mod folder so the
 localization table resolves too). Pass `--bases` (the mod's `bases/` folder) to decompose
 castle/camp layouts into their citadel + foundations + prebuilt structures (needs the
-`[edain]` extra). `--base` layers a base-game ini source for completeness, like
-[`sage_lint`](../sage_lint).
+`[edain]` extra).
 
 ## Map checks
 

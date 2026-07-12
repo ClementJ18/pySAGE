@@ -31,11 +31,17 @@ def _data(**overrides) -> GameData:
         "objects": {"Bravo": _obj({"Side": "Mordor"})},
         "specialpowers": ["PowerOne", "SpecialAbilityBladeOfPurity"],
         "sciences": ["SciZero", "SciOne", "SCIENCE_EyeofSauron"],
-        # upgrades carry a +3 offset: replay id 4 -> index 0 -> Upgrade_ForgedBlades
+        # upgrade replay id = 0-based index + 3: id 3 -> index 0 -> Upgrade_ForgedBlades
         "upgrades": ["Upgrade_ForgedBlades", "Upgrade_FireArrows"],
         # only Bravo and the forged-blades upgrade have a localized name; everything else
         # (Alpha/Charlie, the power, the science) falls back to its raw code name.
         "displaynames": {"Bravo": "Orc Warriors", "Upgrade_ForgedBlades": "Forged Blades"},
+        # Alpha is a pre-placed castle you unpack; Charlie is raised from a foundation plot.
+        # Bravo has no build button (recruited unit); a wall/expansion template is simply absent.
+        "build_commands": {
+            "Alpha": frozenset({"CASTLE_UNPACK"}),
+            "Charlie": frozenset({"FOUNDATION_CONSTRUCT"}),
+        },
     }
     base.update(overrides)
     return GameData(**base)
@@ -85,10 +91,12 @@ def test_special_power_and_science_and_upgrade_offsets():
     data = _data()
     assert data.special_power(2) == "SpecialAbilityBladeOfPurity"
     assert data.science(3) == "SCIENCE_EyeofSauron"
-    # replay upgrade id 4 resolves through the +3 offset to the first upgrade.
-    assert data.upgrade(4) == "Upgrade_ForgedBlades"
-    assert data.upgrade(5) == "Upgrade_FireArrows"
-    assert data.upgrade(3) is None  # below the offset floor
+    # replay upgrade id = 0-based table index + 3 (survey-calibrated; the old 1-based reading
+    # was one high - the FireArrows/ForgedBlades anchor pair matches as a set under both).
+    assert data.upgrade(3) == "Upgrade_ForgedBlades"
+    assert data.upgrade(4) == "Upgrade_FireArrows"
+    assert data.upgrade(2) is None  # below the offset floor
+    assert data.upgrade(5) is None  # past the table end
 
 
 # --- power targeting from the Options bitfield -----------------------------------------
@@ -132,8 +140,85 @@ def test_describe_recruit_build_power_science_upgrade():
     science = _chunk(0x414, [(_T.Integer, 4), (_T.Integer, 3)])
     assert _describe(science, data) == "acquires the spellbook power SCIENCE_EyeofSauron"
     # upgrade research - this one has a localized DisplayName.
-    upgrade = _chunk(0x415, [(_T.ObjectId, 100), (_T.Integer, 4)])
+    upgrade = _chunk(0x415, [(_T.ObjectId, 100), (_T.Integer, 3)])
     assert _describe(upgrade, data) == "researches Forged Blades"
+
+
+def test_describe_placement_build_and_unpack():
+    data = _data()
+    # 0x419 foundation build: Charlie is a foundation template, so "builds", and the placement
+    # Position prints as ` at (x, y)` (z is dropped).
+    foundation = _chunk(0x419, [(_T.Integer, 3), (_T.Position, (512.7, 780.2, 90.0))])
+    assert _describe(foundation, data) == "builds Charlie at (513, 780)"
+    # 0x419 unpack: Alpha is a castle-unpack template, so "unpacks".
+    unpack = _chunk(0x419, [(_T.Integer, 1), (_T.Position, (100.4, 200.6, 5.0))])
+    assert _describe(unpack, data) == "unpacks Alpha at (100, 201)"
+    # 0x41A mobile-builder construct with a Position uses the same path and appends the location.
+    dozer = _chunk(0x41A, [(_T.Integer, 3), (_T.Position, (12.9, 34.1, 5.0))])
+    assert _describe(dozer, data) == "builds Charlie at (13, 34)"
+    # 0x41A without a Position omits the clause (unchanged from the recruit/build suite).
+    assert _describe(_chunk(0x41A, [(_T.Integer, 3)]), data) == "builds Charlie"
+    # a template with no build_commands entry (Bravo, a recruited unit) still narrates as "builds".
+    unmatched = _chunk(0x419, [(_T.Integer, 2), (_T.Position, (1.0, 2.0, 3.0))])
+    assert _describe(unmatched, data) == "builds Orc Warriors at (1, 2)"
+
+
+def test_describe_plot_unpack_uses_standard_ids():
+    data = _data()
+    # 0x43F unpack/build at a selected plot: standard +1 ids, same space as 0x419 (the
+    # earlier +2 reading was a resolving-table artifact). Alpha (id 1) is unpack-only ->
+    # "unpacks"; the order never carries a Position, so there is no placement clause.
+    assert _describe(_chunk(0x43F, [(_T.Integer, 1)]), data) == "unpacks Alpha"
+    # a template with a non-unpack build button narrates as "builds" (id 3 -> Charlie).
+    assert _describe(_chunk(0x43F, [(_T.Integer, 3)]), data) == "builds Charlie"
+    # out of range -> the marker shows the raw order id.
+    assert _describe(_chunk(0x43F, [(_T.Integer, 99)]), data) == "builds <object id 99?>"
+
+
+def test_describe_names_the_castle_base_for_the_players_side():
+    data = _data()
+    data.castle_bases["Alpha"] = {"imladris": "dunedain_outpost", "men": "gondor_outpost"}
+    # The issuing player's Side picks the CastleToUnpackForFaction row.
+    plot = _chunk(0x43F, [(_T.Integer, 1)])
+    assert _describe(plot, data, "Imladris") == "unpacks Alpha - unpacks the dunedain_outpost base"
+    assert _describe(plot, data, "Men") == "unpacks Alpha - unpacks the gondor_outpost base"
+    # An unknown side, or a template without a castle table, adds nothing.
+    assert _describe(plot, data, "Mordor") == "unpacks Alpha"
+    assert _describe(plot, data, None) == "unpacks Alpha"
+    assert _describe(_chunk(0x43F, [(_T.Integer, 3)]), data, "Imladris") == "builds Charlie"
+    # The 0x419 placement path names the base the same way (a fortress unpack).
+    placed = _chunk(0x419, [(_T.Integer, 1), (_T.Position, (100.4, 200.6, 5.0))])
+    assert (
+        _describe(placed, data, "Imladris")
+        == "unpacks Alpha at (100, 201) - unpacks the dunedain_outpost base"
+    )
+
+
+def test_describe_wall_segment():
+    data = _data()
+    # 0x463 carries the template then two endpoint Positions; each prints 2-D int-rounded.
+    wall = _chunk(
+        0x463,
+        [
+            (_T.Integer, 3),
+            (_T.Position, (100.4, 200.6, 5.0)),
+            (_T.Position, (300.9, 250.1, 5.0)),
+        ],
+    )
+    assert _describe(wall, data) == "builds a wall segment: Charlie from (100, 201) to (301, 250)"
+    # missing endpoints omit the from/to clause.
+    bare = _chunk(0x463, [(_T.Integer, 3)])
+    assert _describe(bare, data) == "builds a wall segment: Charlie"
+
+
+def test_describe_combine_hordes():
+    data = _data()
+    # 0x423 carries only a runtime ObjectId (the target/primary horde); it is narrated from
+    # that handle since there is no static id to resolve.
+    combine = _chunk(0x423, [(_T.ObjectId, 237)])
+    assert _describe(combine, data) == "combines hordes into object #237"
+    # a missing/zero target still names the action.
+    assert _describe(_chunk(0x423, [(_T.ObjectId, 0)]), data) == "combines hordes"
 
 
 def test_describe_skips_control_orders():
@@ -153,7 +238,6 @@ def _replay(chunks: list[ReplayChunk]) -> ReplayFile:
         start_time=datetime(2026, 1, 1, tzinfo=UTC),
         end_time=datetime(2026, 1, 1, 0, 1, tzinfo=UTC),  # 60s span
         num_timecodes=60,  # -> 1 frame per second
-        unknown1=b"",
         filename="",
         timestamp=ReplayTimestamp(*([0] * 8)),
         version="",

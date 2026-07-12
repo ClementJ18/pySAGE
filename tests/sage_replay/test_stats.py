@@ -1,0 +1,309 @@
+"""Per-player stats: KindOf bucketing (with ChildObject inheritance), counting, and the
+science purchase order. Synthetic GameData and chunks - no game install needed."""
+
+from datetime import UTC, datetime
+
+from sage_replay.narrate import GameData
+from sage_replay.replay import (
+    Order,
+    OrderArgument,
+    OrderArgumentType,
+    ReplayChunk,
+    ReplayFile,
+    ReplayGameType,
+    ReplayHeader,
+    ReplayMetadata,
+    ReplaySlot,
+    ReplaySlotType,
+    ReplayTimestamp,
+)
+from sage_replay.stats import _bucket, _effective_kindof, compute_stats
+
+_T = OrderArgumentType
+
+
+class _obj:
+    """Stand-in for a loaded Object: `_fields` plus an optional ChildObject-style parent."""
+
+    def __init__(self, fields: dict, parent=None) -> None:
+        self._fields = fields
+        if parent is not None:
+            self.parent = parent
+
+
+_BARRACKS = _obj({"KindOf": "STRUCTURE SELECTABLE"})
+_HORDE = _obj({"KindOf": "HORDE SELECTABLE CAN_CAST_REFLECTIONS"})
+_HERO = _obj({"KindOf": "HERO SELECTABLE"})
+_CP = _obj({"KindOf": "PRELOAD"})  # a CPObject-like purchase: no SELECTABLE
+# a ChildObject with no own KindOf inherits the parent's; one with modifiers adjusts it.
+_CHILD_PLAIN = _obj({}, parent=_HERO)
+_CHILD_MOD = _obj({"KindOf": "+STRUCTURE -HERO"}, parent=_HERO)
+
+
+def _data() -> GameData:
+    return GameData(
+        object_order=["Barracks", "OrcHorde", "Boromir", "CPObject", "ChildHero", "ModChild"],
+        objects={
+            "Barracks": _BARRACKS,
+            "OrcHorde": _HORDE,
+            "Boromir": _HERO,
+            "CPObject": _CP,
+            "ChildHero": _CHILD_PLAIN,
+            "ModChild": _CHILD_MOD,
+        },
+        specialpowers=[],
+        sciences=["SCIENCE_One", "SCIENCE_Two"],
+        upgrades=["DefaultUpgrade", "Upgrade_ForgedBlades"],
+        displaynames={},
+    )
+
+
+def test_effective_kindof_climbs_and_applies_modifiers():
+    objects = _data().objects
+    assert _effective_kindof(objects, "Boromir") == {"HERO", "SELECTABLE"}
+    assert _effective_kindof(objects, "ChildHero") == {"HERO", "SELECTABLE"}  # inherited
+    # modifier tokens adjust the inherited set instead of replacing it.
+    assert _effective_kindof(objects, "ModChild") == {"STRUCTURE", "SELECTABLE"}
+    assert _effective_kindof(objects, None) == frozenset()
+    assert _effective_kindof(objects, "Unknown") == frozenset()
+
+
+def test_bucket_rules():
+    assert _bucket(frozenset({"HERO", "SELECTABLE"})) == "heroes"
+    assert _bucket(frozenset({"STRUCTURE", "SELECTABLE"})) == "buildings"
+    assert _bucket(frozenset({"HORDE", "SELECTABLE"})) == "units"
+    assert _bucket(frozenset({"PRELOAD"})) == "other"  # CPObject-style purchase
+    assert _bucket(frozenset()) == "other"
+
+
+def _chunk(order_type: int, args: list, *, timecode: int = 0, number: int = 3) -> ReplayChunk:
+    order = Order(player_index=number - 3, order_type=order_type)
+    order.arguments = [OrderArgument(t, v) for t, v in args]
+    return ReplayChunk(timecode=timecode, order_type=order_type, number=number, order=order)
+
+
+def _replay(chunks: list[ReplayChunk]) -> ReplayFile:
+    slots = [ReplaySlot(slot_type=ReplaySlotType.Human, human_name=f"Player{i}") for i in range(2)]
+    header = ReplayHeader(
+        game_type=ReplayGameType.Bfme2,
+        start_time=datetime(2026, 1, 1, tzinfo=UTC),
+        end_time=datetime(2026, 1, 1, 0, 1, tzinfo=UTC),
+        num_timecodes=60,  # 1 frame per second
+        filename="",
+        timestamp=ReplayTimestamp(*([0] * 8)),
+        version="",
+        build_date="",
+        metadata=ReplayMetadata(slots=slots),
+    )
+    return ReplayFile(header=header, chunks=chunks)
+
+
+def test_compute_stats_buckets_and_orders():
+    def recruit_of(object_id: int, number: int = 3) -> ReplayChunk:
+        args = [(_T.Boolean, False), (_T.Integer, object_id), (_T.Integer, 0)]
+        return _chunk(0x417, args, number=number)
+
+    replay = _replay(
+        [
+            _chunk(0x419, [(_T.Integer, 1), (_T.Position, (1.0, 2.0, 3.0))]),  # builds Barracks
+            _chunk(0x41A, [(_T.Integer, 1)]),  # builder-constructs Barracks
+            _chunk(0x463, [(_T.Integer, 1)]),  # wall segment, counted with buildings
+            _chunk(0x43F, [(_T.Integer, 1)]),  # plot unpack: standard +1 id, so 1 -> Barracks
+            recruit_of(2),  # OrcHorde -> units
+            recruit_of(2),
+            recruit_of(3),  # Boromir -> heroes
+            recruit_of(5),  # ChildHero (inherited HERO) -> heroes
+            recruit_of(4),  # CPObject-like -> other
+            _chunk(0x417, [(_T.Boolean, True), (_T.Integer, 2), (_T.Integer, 0)]),  # slot hero
+            _chunk(0x414, [(_T.Integer, 3), (_T.Integer, 2)], timecode=9),  # SCIENCE_Two
+            _chunk(0x414, [(_T.Integer, 3), (_T.Integer, 1)], timecode=30),  # SCIENCE_One
+            # upgrade id = 0-based `upgrades` index + 3, so 4 -> Upgrade_ForgedBlades
+            _chunk(0x415, [(_T.Integer, 4)], timecode=20),
+            _chunk(0x415, [(_T.Integer, 99)], timecode=21),  # out of range
+            recruit_of(2, number=4),  # Player1's lone recruit
+        ]
+    )
+    stats = {per.player: per for per in compute_stats(replay, _data())}
+
+    p0 = stats["Player0"]
+    assert p0.buildings == {"Barracks": 4}
+    assert p0.units == {"OrcHorde": 2}
+    assert p0.heroes == {"Boromir": 1, "ChildHero": 1}
+    assert p0.other == {"CPObject": 1}
+    assert p0.upgrades == {"Upgrade_ForgedBlades": 1, "<upgrade id 99?>": 1}
+    assert p0.fortress_hero_slots == {2: 1}
+    # sciences keep purchase order (id is the SECOND integer), clocked at 1 frame/second.
+    assert [(int(s), name) for s, name in p0.sciences] == [
+        (9, "SCIENCE_Two"),
+        (30, "SCIENCE_One"),
+    ]
+
+    assert stats["Player1"].units == {"OrcHorde": 1}
+    assert not stats["Player1"].buildings
+
+
+def test_compute_stats_names_castle_bases():
+    # A plot-unpack whose target carries a CastleBehavior is labelled with the base the
+    # issuing player's faction Side unpacks (CastleToUnpackForFaction).
+    data = _data()
+    data.castle_bases["Barracks"] = {"rohan": "rohan_outpost"}
+    data.faction_sides = ["Rohan"]
+    replay = _replay([_chunk(0x43F, [(_T.Integer, 1)])])
+    replay.header.metadata.players[0].faction = 0
+    stats = {per.player: per for per in compute_stats(replay, data)}
+    assert stats["Player0"].buildings == {"Barracks (unpacks rohan_outpost)": 1}
+
+
+def _recruit(object_id: int, number: int = 3) -> ReplayChunk:
+    return _chunk(
+        0x417, [(_T.Boolean, False), (_T.Integer, object_id), (_T.Integer, 0)], number=number
+    )
+
+
+def _fortress_recruit(slot: int, number: int = 3) -> ReplayChunk:
+    return _chunk(0x417, [(_T.Boolean, True), (_T.Integer, slot), (_T.Integer, 0)], number=number)
+
+
+def _cancel_unit(template_id: int, number: int = 3) -> ReplayChunk:
+    args = [(_T.Boolean, False), (_T.Integer, template_id), (_T.Boolean, False)]
+    return _chunk(0x418, args, number=number)
+
+
+def _research(upgrade_id: int, number: int = 3) -> ReplayChunk:
+    return _chunk(0x415, [(_T.Integer, upgrade_id)], number=number)
+
+
+def _cancel_upgrade(upgrade_id: int, number: int = 3) -> ReplayChunk:
+    return _chunk(0x416, [(_T.Integer, upgrade_id)], number=number)
+
+
+def _cancel_build(number: int = 3) -> ReplayChunk:
+    return _chunk(0x41B, [], number=number)
+
+
+def test_unit_cancel_is_id_matched_and_lifo():
+    # CPObject is recruited first, OrcHorde second, but the cancel names CPObject's template
+    # id, so it removes CPObject even though OrcHorde is the more-recent recruit.
+    replay = _replay([_recruit(4), _recruit(2), _cancel_unit(4)])
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.other == {}
+    assert p0.units == {"OrcHorde": 1}
+
+
+def test_unit_cancel_nets_repeated_recruits():
+    replay = _replay([_recruit(2), _recruit(2), _recruit(2), _cancel_unit(2), _cancel_unit(2)])
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.units == {"OrcHorde": 1}
+
+
+def test_unmatched_unit_cancel_is_ignored():
+    # (a) a cancel with nothing queued at all.
+    replay = _replay([_cancel_unit(2)])
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.units == {}
+
+    # (b) a cancel naming a different template id than the queued recruit.
+    replay = _replay([_recruit(2), _cancel_unit(3)])
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.units == {"OrcHorde": 1}
+
+
+def test_fortress_hero_recruits_are_not_cancellable():
+    replay = _replay([_fortress_recruit(2), _cancel_unit(2)])
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.fortress_hero_slots == {2: 1}
+    assert p0.units == {}
+    assert p0.other == {}
+
+
+def test_upgrade_cancel_is_id_matched():
+    # Two researches of the same upgrade id, one cancel: nets to one.
+    replay = _replay([_research(4), _research(4), _cancel_upgrade(4)])
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.upgrades == {"Upgrade_ForgedBlades": 1}
+
+    # A cancel naming a different upgrade id leaves the queued research intact.
+    replay = _replay([_research(4), _cancel_upgrade(3)])
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.upgrades == {"Upgrade_ForgedBlades": 1}
+
+
+def test_build_cancel_is_id_less_lifo():
+    build_chunks = [
+        _chunk(0x419, [(_T.Integer, 1), (_T.Position, (1.0, 2.0, 3.0))]),  # builds Barracks
+        _chunk(0x41A, [(_T.Integer, 1)]),  # builder-constructs Barracks
+    ]
+    replay = _replay([*build_chunks, _cancel_build()])
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.buildings == {"Barracks": 1}
+
+    replay = _replay([*build_chunks, _cancel_build(), _cancel_build()])
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.buildings == {}
+
+    # A third cancel with nothing left on the stack is ignored, not an error.
+    replay = _replay([*build_chunks, _cancel_build(), _cancel_build(), _cancel_build()])
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.buildings == {}
+
+
+def test_cancels_are_scoped_to_the_issuing_player():
+    replay = _replay([_recruit(2), _cancel_unit(2, number=4)])
+    stats = {per.player: per for per in compute_stats(replay, _data())}
+    assert stats["Player0"].units == {"OrcHorde": 1}
+
+
+def _power_data() -> GameData:
+    """A GameData with a small special-power table and two faction Sides (for the caster-Side
+    relabel path). Power replay id = 1-based index into `specialpowers`."""
+    data = _data()
+    data.specialpowers = ["SpecialAbilityOne", "SpecialAbilityShared"]
+    data.faction_sides = ["Imladris", "Angmar"]
+    return data
+
+
+def _cast(power_id: int, order_type: int = 0x410, number: int = 3) -> ReplayChunk:
+    # A self-cast layout: [powerId, options, ...]; only the first Integer is read as the id.
+    return _chunk(order_type, [(_T.Integer, power_id), (_T.Integer, 0)], number=number)
+
+
+def test_power_casts_land_in_the_powers_bucket():
+    # Every cast order type (self / at-location / at-object / global) counts, by raw code name;
+    # an out-of-range id is marked rather than dropped.
+    replay = _replay([_cast(1, 0x410), _cast(2, 0x412), _cast(2, 0x456), _cast(99, 0x411)])
+    p0 = {per.player: per for per in compute_stats(replay, _power_data())}["Player0"]
+    assert p0.powers == {"SpecialAbilityShared": 2, "SpecialAbilityOne": 1, "<power id 99?>": 1}
+
+
+def test_relabel_power_sees_the_casters_side():
+    # The hook renames the shared power per caster Side; Player0 is Imladris, Player1 Angmar.
+    def relabel(side, power):
+        return f"{side}:{power}" if power == "SpecialAbilityShared" else power
+
+    replay = _replay([_cast(2, 0x410, number=3), _cast(2, 0x410, number=4)])
+    replay.header.metadata.players[0].faction = 0  # Side "Imladris"
+    replay.header.metadata.players[1].faction = 1  # Side "Angmar"
+    stats = {per.player: per for per in compute_stats(replay, _power_data(), relabel_power=relabel)}
+    assert stats["Player0"].powers == {"Imladris:SpecialAbilityShared": 1}
+    assert stats["Player1"].powers == {"Angmar:SpecialAbilityShared": 1}
+
+
+def test_combine_hordes_are_counted():
+    # 0x423 (Edain horde-merge) carries only a runtime ObjectId, so each is counted as one
+    # action under a constant label; the count is what matters, not the (runtime) target.
+    replay = _replay(
+        [_chunk(0x423, [(_T.ObjectId, 237)]), _chunk(0x423, [(_T.ObjectId, 240)], number=4)]
+    )
+    stats = {per.player: per for per in compute_stats(replay, _data())}
+    assert stats["Player0"].combines == {"horde combine": 1}
+    assert stats["Player1"].combines == {"horde combine": 1}
+
+
+def test_interleaved_buy_cancel_rebuy_nets_correctly():
+    # Mirrors the real CPObject bug: buy two, cancel both, buy two more - should net to two,
+    # not accumulate stale cancelled entries.
+    replay = _replay(
+        [_recruit(4), _recruit(4), _cancel_unit(4), _cancel_unit(4), _recruit(4), _recruit(4)]
+    )
+    p0 = {per.player: per for per in compute_stats(replay, _data())}["Player0"]
+    assert p0.other == {"CPObject": 2}

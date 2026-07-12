@@ -157,3 +157,6 @@ corpus_wishlist.md
 ToFix.md
 gpl_xfer_reference.md
 sav_format.md
+aggregate/
+sage_replay/format_coverage_plan.md
+sage_replay/order_space_map.md

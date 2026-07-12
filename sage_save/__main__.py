@@ -38,7 +38,6 @@
 import argparse
 import json
 import sys
-import tempfile
 from collections import Counter
 from pathlib import Path
 
@@ -63,7 +62,8 @@ from sage_save.reversing import (
 )
 from sage_save.save import SaveFile, parse_save, parse_save_from_path, write_save_to_path
 from sage_save.xref import check_save, format_findings
-from sage_utils.cli import existing_dir, existing_file, utf8_stdout
+from sage_utils.cli import add_game_arguments, existing_dir, existing_file, utf8_stdout
+from sage_utils.gameroot import resolve_game_roots
 
 
 def _header_lines(save: SaveFile) -> list[str]:
@@ -312,32 +312,13 @@ def _run_edit(args: argparse.Namespace) -> int:
     return 0
 
 
-def _resolve_game_root(game: Path, cache: Path | None) -> Path:
-    """Return an ini tree to load. `game` may hold a `data/ini` subtree, be an ini root
-    directly (a mod's `data/ini`), or be a live install holding `.big` archives - those are
-    mounted into `cache` (default: a per-install folder under the system temp dir), cached
-    across runs."""
-    if (game / "data" / "ini").is_dir() or (game / "default" / "subsystemlegend.ini").is_file():
-        return game
-    if list(game.glob("*.big")):
-        from tools.mount_game import mount_ini_tree  # noqa: PLC0415
-
-        if cache is None:
-            cache = Path(tempfile.gettempdir()) / "sage_mount" / game.resolve().name
-        return mount_ini_tree(game, cache)
-    if next(game.rglob("*.ini"), None) is not None:
-        return game  # already an ini root (e.g. a mod's data/ini passed directly)
-    raise SystemExit(f"{game} is neither an ini tree nor an install with .big archives")
-
-
 def _run_check(args: argparse.Namespace) -> int:
     from sage_ini.loader import load_game  # noqa: PLC0415
 
     save = parse_save_from_path(args.save)
-    # An overlay mod is only complete over the base game it overlays; without `--base` its
-    # references to base-game templates would show as false danglers.
-    bases = tuple(_resolve_game_root(base, args.cache) for base in args.base or ())
-    game = load_game(_resolve_game_root(args.game, args.cache), bases=bases).game
+    # An overlay mod is only complete over the base game it overlays; pass the base game as an
+    # earlier --game layer or its references to base-game templates show as false danglers.
+    game = load_game(resolve_game_roots(args.game, args.cache)).game
     findings = check_save(save, game)
 
     if args.json:
@@ -401,11 +382,10 @@ def _run_diagnose(args: argparse.Namespace) -> int:
         return 1
 
     game = None
-    if args.game is not None:
+    if args.game:
         from sage_ini.loader import load_game  # noqa: PLC0415
 
-        bases = tuple(_resolve_game_root(base, args.cache) for base in args.base or ())
-        game = load_game(_resolve_game_root(args.game, args.cache), bases=bases).game
+        game = load_game(resolve_game_roots(args.game, args.cache)).game
 
     diagnostics = diagnose_save(save, game)
     fatal = sum(1 for d in diagnostics if d.severity == "fatal")
@@ -585,20 +565,9 @@ def main(argv: list[str] | None = None) -> int:
 
     check = subparsers.add_parser("check", help="resolve object templates against a game")
     check.add_argument("save", type=existing_file)
-    check.add_argument(
-        "--game",
-        type=Path,
-        required=True,
-        help="a data/ini tree, or a live install folder whose .big archives are mounted",
-    )
-    check.add_argument(
-        "--base",
-        type=Path,
-        action="append",
-        help="a base game the --game tree overlays (repeatable); resolves base-game references",
-    )
-    check.add_argument(
-        "--cache", type=Path, default=None, help="where to mount an install's .big archives"
+    add_game_arguments(
+        check,
+        game_help="a data/ini tree, or a live install folder whose .big archives are mounted",
     )
     check.add_argument("--json", action="store_true")
     check.set_defaults(func=_run_check)
@@ -607,21 +576,11 @@ def main(argv: list[str] | None = None) -> int:
         "diagnose", help="explain why a save might fail to load (ranked suspects)"
     )
     diagnose.add_argument("save", type=existing_file)
-    diagnose.add_argument(
-        "--game",
-        type=Path,
-        default=None,
-        help="a data/ini tree or install to resolve names against - enables the dangling-"
+    add_game_arguments(
+        diagnose,
+        game_required=False,
+        game_help="a data/ini tree or install to resolve names against - enables the dangling-"
         "reference check (the most common load-failure cause)",
-    )
-    diagnose.add_argument(
-        "--base",
-        type=Path,
-        action="append",
-        help="a base game the --game tree overlays (repeatable)",
-    )
-    diagnose.add_argument(
-        "--cache", type=Path, default=None, help="where to mount an install's .big archives"
     )
     diagnose.add_argument("--json", action="store_true")
     diagnose.set_defaults(func=_run_diagnose)

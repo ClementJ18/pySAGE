@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from sage_ini.loader import LoadedGame, load_game, load_map
+from sage_ini.loader import LoadedGame, load_game
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse
 from sage_ini.parser.diagnostics import Diagnostics, Severity
@@ -1158,29 +1158,28 @@ class TestMapOverrideModulePatch:
     # A global object carrying a tagged module, and a map.ini that re-opens it to patch.
     _GLOBAL = "Object Buff\n    Draw = W3DScriptedModelDraw ModuleTag_Buff01\n    End\nEnd\n"
 
-    def _build(self, tmp_path, map_body: str):
+    def _lint(self, tmp_path, map_body: str, rules):
+        # `lint_folder` is the real editor/CLI path: it excludes the map from the global build,
+        # then re-lints it in its own throwaway game against the cache (see `_lint_maps`).
         (tmp_path / "global.ini").write_text(self._GLOBAL, encoding="utf-8")
         map_dir = tmp_path / "maps" / "MyMap"
         map_dir.mkdir(parents=True)
         (map_dir / "map.ini").write_text(map_body, encoding="utf-8")
-        return load_map(map_dir / "map.ini", tmp_path).game
+        return list(lint_folder(tmp_path, rules=rules))
 
     def test_map_override_inherits_the_patched_objects_modules(self, tmp_path):
         # The map re-opens `Buff` (a plain Object, not a ChildObject) to swap its draw. The engine
         # patches the global template in place, so the removed module is present - no false flag.
-        game = self._build(
+        diags = self._lint(
             tmp_path,
             "Object Buff\n"
             "    RemoveModule ModuleTag_Buff01\n"
             "    AddModule\n"
             "        Draw = W3DScriptedModelDraw ModuleTag_Buff01GG\n        End\n    End\n"
             "End\n",
+            rules=[ModuleOperationRule],
         )
-        assert not [
-            d
-            for d in run_rules(game, [ModuleOperationRule])
-            if d.code == "invalid-module-operation"
-        ]
+        assert not [d for d in diags if d.code == "invalid-module-operation"]
 
     def test_a_global_reopen_does_not_patch(self, tmp_path):
         # Merge is map-exclusive: outside a map load a re-opened definition replaces its
@@ -1194,13 +1193,13 @@ class TestMapOverrideModulePatch:
 
     def test_reopening_within_one_map_is_still_a_duplicate(self, tmp_path):
         # Patching is fine, but declaring the same object twice inside the map is a copy-paste slip.
-        game = self._build(
+        diags = self._lint(
             tmp_path,
             "Object Buff\n    RemoveModule ModuleTag_Buff01\nEnd\n"
             "Object Buff\n    Scale = 2\nEnd\n",
+            rules=[DuplicateDefinitionRule],
         )
-        codes = {d.code for d in run_rules(game, [DuplicateDefinitionRule])}
-        assert "duplicate-definition" in codes
+        assert any(d.code == "duplicate-definition" for d in diags)
 
 
 class TestSpuriousBlockLabelRule:

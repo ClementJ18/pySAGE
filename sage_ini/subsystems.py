@@ -30,7 +30,7 @@ from pathlib import Path
 from sage_ini.model.objects import REGISTRY
 from sage_ini.parser.ast import Block
 from sage_ini.parser.blockparser import parse_file
-from sage_ini.stats import ini_root
+from sage_ini.stats import as_root_list, ini_root
 
 __all__ = ["Subsystem", "parse_subsystem_legend", "thing_template_order"]
 
@@ -119,40 +119,54 @@ def _resolve(legend_path: str, root: Path) -> Path | None:
     return node
 
 
+def _resolve_in_layers(legend_path: str, roots: Sequence[Path]) -> Path | None:
+    """Resolve a legend path against each game root in priority order, returning the first
+    (highest-priority) layer that has it - so a mod file overrides the base game's."""
+    for root in roots:
+        resolved = _resolve(legend_path, root)
+        if resolved is not None and resolved.exists():
+            return resolved
+    return None
+
+
 def _game_rel(path: Path, root: Path) -> str:
     """`path`'s engine-facing `data/ini/…` name, normalized, for matching against legend paths."""
     return "data/ini/" + path.relative_to(ini_root(root)).as_posix().lower()
 
 
-def _walk(directory: Path, root: Path, pruned: Sequence[str]) -> Iterator[Path]:
-    """`.ini` files under `directory` in the engine's `INI::loadDirectory` order: a two-pass
-    enumeration of one flat, path-sorted set - first the files sitting directly in `directory`
-    (alphabetical), then every file in a subdirectory *at any depth* as a single flat list
-    sorted by full path (backslash-separated, lowercased, matching the engine's sorted
-    `FilenameList`). This is **not** recursive files-before-subdirs: below the top level, files
-    and subdirectories interleave purely by path order. Any file whose `data/ini/…` path is, or
-    lies under, a `pruned` entry is skipped (ExcludePath / cinematic path)."""
+def _walk(legend_path: str, roots: Sequence[Path], pruned: Sequence[str]) -> Iterator[Path]:
+    """`.ini` files under one InitPath in the engine's `INI::loadDirectory` order, across every
+    game layer merged into one virtual tree: a file present in more than one layer is taken from
+    the highest-priority (mod-over-base) layer, and a layer-unique file registers at its own path
+    position. Ordering is the engine's two-pass enumeration of one flat, path-sorted set - first
+    the files sitting directly in the directory (alphabetical), then every file in a subdirectory
+    *at any depth* as a single flat list sorted by full path (backslash-separated, lowercased,
+    matching the engine's sorted `FilenameList`); below the top level, files and subdirectories
+    interleave purely by path order. Any file whose `data/ini/…` path is, or lies under, a
+    `pruned` entry is skipped (ExcludePath / cinematic path)."""
 
-    def blocked(path: Path) -> bool:
+    def blocked(path: Path, root: Path) -> bool:
         rel = _game_rel(path, root)
         return any(rel == p or rel.startswith(p + "/") for p in pruned)
 
-    if blocked(directory):
-        return
+    # rel path (lowercased, backslash-separated) -> the file that wins for it. Layers are visited
+    # high priority first and `setdefault` keeps that winner, so a mod file shadows a base file at
+    # the same InitPath-relative path while its objects still register at that path's position.
+    entries: dict[str, Path] = {}
+    for root in roots:
+        directory = _resolve(legend_path, root)
+        if directory is None or not directory.is_dir() or blocked(directory, root):
+            continue
+        for path in directory.rglob("*"):
+            if not (path.is_file() and path.suffix.lower() == ".ini") or blocked(path, root):
+                continue
+            rel = path.relative_to(directory).as_posix().replace("/", "\\").lower()
+            entries.setdefault(rel, path)
 
-    def sort_key(path: Path) -> str:
-        # The engine sorts its FilenameList of lowercased, backslash-separated archive paths.
-        return path.relative_to(directory).as_posix().replace("/", "\\").lower()
-
-    files = [
-        p
-        for p in directory.rglob("*")
-        if p.is_file() and p.suffix.lower() == ".ini" and not blocked(p)
-    ]
-    top = sorted((p for p in files if p.parent == directory), key=sort_key)
-    subdirs = sorted((p for p in files if p.parent != directory), key=sort_key)
-    yield from top
-    yield from subdirs
+    for rel in sorted(rel for rel in entries if "\\" not in rel):
+        yield entries[rel]
+    for rel in sorted(rel for rel in entries if "\\" in rel):
+        yield entries[rel]
 
 
 def _object_names(path: Path, layers: tuple[Path, ...]) -> Iterator[str]:
@@ -165,19 +179,29 @@ def _object_names(path: Path, layers: tuple[Path, ...]) -> Iterator[str]:
 
 
 def thing_template_order(
-    root: str | Path, *, cinematics: bool = False, debug: bool = False
+    root: str | Path | Sequence[str | Path],
+    *,
+    bases: Sequence[str | Path] = (),
+    cinematics: bool = False,
+    debug: bool = False,
 ) -> list[str]:
     """Template names in engine ThingTemplate registration order. The replay object id of a name is
     its index **+ 1** (ids are 1-based; id 0 is the reserved null template).
 
-    `cinematics` includes the `-cinematics`-only object paths; `debug` includes `InitFileDebug`
-    files. Names redefined later keep their first position (the engine updates in place)."""
-    root = Path(root)
-    legend_file = _resolve("data/ini/" + _LEGEND, root)
+    `root` is a single game root or an ascending-priority sequence of them (a later root shadows an
+    earlier one). `bases` are further lower-priority game roots (the base game a mod is layered
+    over): their SubsystemLegend.ini and object tree stand in when the mod does not ship its own,
+    and a higher-priority file overrides a lower one at the same path - reproducing the id order
+    the engine assigns when the mod is loaded over the base. `cinematics` includes the
+    `-cinematics`-only object paths; `debug` includes `InitFileDebug` files. Names redefined later
+    keep their first position (the engine updates in place)."""
+    # Descending priority (highest first): the game roots last-wins, then the base roots.
+    roots = [*reversed(as_root_list(root)), *(Path(base) for base in bases)]
+    legend_file = _resolve_in_layers("data/ini/" + _LEGEND, roots)
     if legend_file is None or not legend_file.is_file():
-        raise FileNotFoundError(f"no {_LEGEND} under {root}")
+        raise FileNotFoundError(f"no {_LEGEND} under {', '.join(str(r) for r in roots)}")
     subsystems = parse_subsystem_legend(legend_file.read_text(encoding="latin-1"))
-    layers = (ini_root(root),)
+    layers = tuple(ini_root(r) for r in roots)
 
     order: list[str] = []
     seen: set[str] = set()
@@ -194,20 +218,25 @@ def thing_template_order(
             pruned += subsystem.cinematics
         loads = subsystem.loads + (subsystem.debug_loads if debug else [])
         for kind, legend_path in loads:
-            resolved = _resolve(legend_path, root)
-            if resolved is None or not resolved.exists():
-                continue
             if kind == "file":
-                register(resolved)
+                resolved = _resolve_in_layers(legend_path, roots)
+                if resolved is not None:
+                    register(resolved)
             else:
-                for ini in _walk(resolved, root, pruned):
+                for ini in _walk(legend_path, roots, pruned):
                     register(ini)
     return order
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate the replay object-id → template table.")
-    parser.add_argument("root", type=Path, help="game root (holds data/ini) or extracted ini dump")
+    parser.add_argument(
+        "root",
+        type=Path,
+        nargs="+",
+        help="game root (holds data/ini) or extracted ini dump; repeatable, ascending priority "
+        "(base game first, mod after it)",
+    )
     parser.add_argument("-o", "--out", type=Path, help="write id→name JSON here (else a summary)")
     parser.add_argument("--cinematics", action="store_true", help="include -cinematics paths")
     args = parser.parse_args(argv)

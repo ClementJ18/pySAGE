@@ -118,6 +118,7 @@ select = [
 "sage_ini/model/data_blocks.py" = ["F821"]
 # The embedded single-page HTML/CSS/JS template carries lines longer than the Python limit.
 "sage_apt/viewer.py" = ["E501"]
+"sage_replay/aggregate.py" = ["E501"]
 
 [tool.ruff.format]
 

@@ -85,6 +85,20 @@ class TestBaseSources:
         # the base is build-only: its structural error never reaches the report
         assert not loaded.diagnostics
 
+    def test_mod_file_fully_replaces_a_same_path_base_file(self, tmp_path):
+        mod = tmp_path / "mod"
+        base = tmp_path / "base"
+        _write(base, "units.ini", "Object Kept\nEnd\nObject Dropped\nEnd\n")
+        _write(mod, "units.ini", "Object Kept\n    BuildCost = 7\nEnd\n")
+
+        loaded = load_game(mod, bases=(base,))
+
+        # the mod's units.ini shadows the base's at the same relative path ("keep the latest of a
+        # file"): the mod's Kept wins, and Dropped - defined only in the shadowed base file - is
+        # never built, unlike the old both-files-loaded behavior.
+        assert loaded.game.objects["Kept"].BuildCost == 7
+        assert "Dropped" not in loaded.game.objects
+
     def test_base_assets_and_maps_are_indexed(self, tmp_path):
         # A mod reference to a base-game texture or map must resolve, so the loose-asset and
         # map indexes include the base layer's files alongside the mod's.
@@ -101,6 +115,38 @@ class TestBaseSources:
         assert {"modtex.tga", "basetex.tga"} <= loaded.game.assets
         names = {path.name.lower() for path in loaded.game.map_files}
         assert {"modmap.map", "basemap.map"} <= names
+
+
+class TestMultipleRoots:
+    def test_later_root_shadows_an_earlier_one_file_by_file(self, tmp_path):
+        low = tmp_path / "low"
+        high = tmp_path / "high"
+        _write(low, "units.ini", "Object Hero\n    BuildCost = 100\nEnd\nObject LowOnly\nEnd\n")
+        _write(high, "units.ini", "Object Hero\n    BuildCost = 5\nEnd\n")
+
+        loaded = load_game([low, high])
+
+        # both roots supply units.ini, so only the later (higher-priority) one builds: high's Hero
+        # wins and LowOnly - present only in the shadowed low file - does not enter the game.
+        assert loaded.game.objects["Hero"].BuildCost == 5
+        assert "LowOnly" not in loaded.game.objects
+
+    def test_later_root_overrides_by_name_across_differently_named_files(self, tmp_path):
+        low = tmp_path / "low"
+        high = tmp_path / "high"
+        _write(low, "a.ini", "Object Hero\n    BuildCost = 100\nEnd\n")
+        _write(high, "b.ini", "Object Hero\n    BuildCost = 5\nEnd\n")
+
+        loaded = load_game([low, high])
+
+        # different file names: both build, and the later root loads last, so its Hero wins by name.
+        assert loaded.game.objects["Hero"].BuildCost == 5
+
+    def test_a_single_root_still_loads_as_before(self, tmp_path):
+        _write(tmp_path, "a.ini", "Object Alpha\nEnd\n")
+
+        # the sequence form with one root is identical to passing the bare path.
+        assert set(load_game([tmp_path]).game.objects) == set(load_game(tmp_path).game.objects)
 
 
 class TestMapScoping:

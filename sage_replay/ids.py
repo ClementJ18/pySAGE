@@ -6,7 +6,7 @@ structure built). This module isolates those ids: it summarises which order type
 an integer, pulls the timecode-ordered id sequence for one order type and player, and
 collapses consecutive repeats into runs. A run of the same id is one labelled action
 ("recruit 2x Gondor Soldier" → a run of length 2), so a run sequence lines up with the
-ordered label log positionally. See object_id_mapping_plan.md, Phase 2.
+ordered label log positionally. See order_space_map.md.
 
 The label format is plain text (no dependency): `#` comments, `key: value` header
 lines, and one action per line as `[<count>x] <object name>`.

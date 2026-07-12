@@ -23,6 +23,7 @@ from sage_replay.ids import (
     parse_labels,
 )
 from sage_replay.replay import (
+    Bfme2OrderType,
     GeneralsOrderType,
     Order,
     OrderArgument,
@@ -43,6 +44,7 @@ from sage_replay.winner import PlayerSession, Side, WinnerVerdict, infer_winner
 
 __all__ = [
     "AlignRow",
+    "Bfme2OrderType",
     "GeneralsOrderType",
     "IdEvent",
     "IdRun",

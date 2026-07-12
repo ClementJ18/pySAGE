@@ -2,13 +2,20 @@
 against a loaded game.
 
 The order-space map (see `order_space_map.md`) pins how each order type's integer id
-resolves to a definition: recruit (`0x417`) and build (`0x41A`) carry a ThingTemplate id
-(`thing_template_order` index + 1); special powers (`0x410`/`0x411`/`0x412`/`0x456`) index
+resolves to a definition: recruit (`0x417`), placement build (`0x419`), mobile-builder build
+(`0x41A`), wall segment (`0x463`) and the plot unpack/build (`0x43F` - settlement/outpost
+unpacks and other fixed-spot creates, no placement UI) all carry a ThingTemplate id in their
+first integer (`thing_template_order` index + 1);
+special powers (`0x410`/`0x411`/`0x412`/`0x456`) index
 `game.specialpowers` + 1; a spellbook purchase (`0x414`) carries the science in its second
 integer; a building upgrade (`0x415`) indexes `game.upgrades` with a +3 offset. `GameData`
 loads those tables once from a game root (use `tools/mount_game.py` to mount a live install's
 `.big` archives into one), and `narrate` walks the stream turning each recognised order into a
 timecoded English line. Control/camera/selection orders carry no static id and are skipped.
+
+The horde-combine order (`0x423`, Edain horde-merge) has no static id either - its ObjectId is a
+runtime handle of the target/primary horde - but it names a deliberate action, so it is narrated
+("combines hordes into object #N") from that ObjectId alone.
 
 A cast order's **second integer is the firing button's `Options` bitfield**; its `NEED_TARGET_*`
 bits say what the power targets (the engine picks the order type to match): `NEED_TARGET_POS` (32)
@@ -24,18 +31,23 @@ faction-consistent definitions (see the module test / the `narrate` CLI command)
 
 from __future__ import annotations
 
-from collections import Counter
-from collections.abc import Iterator
-from dataclasses import dataclass
+from collections import defaultdict
+from collections.abc import Iterator, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from sage_ini.loader import load_game
+from sage_ini.model.behaviors import CastleBehavior
+from sage_ini.model.enums import CommandTypes
 from sage_ini.subsystems import thing_template_order
 from sage_replay.replay import OrderArgumentType, ReplayChunk, ReplayFile
 
 __all__ = ["GameData", "NarrationEvent", "narrate", "render"]
 
-# Upgrade ids sit 3 above their `game.upgrades` index (order_space_map.md, `0x415`).
+# Upgrade ids sit 3 above their 0-based `game.upgrades` index (DefaultUpgrade = id 3;
+# order_space_map.md, `0x415`). Ground-truthed by an in-game replay survey - the earlier
+# reading was one higher because the Mordor FireArrows/ForgedBlades anchor pair matches
+# as a set under both offsets.
 _UPGRADE_OFFSET = 3
 
 # Order types whose first integer is a `game.specialpowers` id (self / at-location / at-object
@@ -51,6 +63,21 @@ _OPT_ALLY = 0x4
 _OPT_POS = 0x20
 _OPT_OBJECT = _OPT_ENEMY | _OPT_NEUTRAL | _OPT_ALLY
 
+# A template is player-buildable when some CommandButton with one of these `Command`s targets it
+# through its `Object` field; `GameData.build_commands` records which of them reach each template.
+_BUILD_COMMANDS = frozenset(
+    {
+        CommandTypes.DOZER_CONSTRUCT,
+        CommandTypes.FOUNDATION_CONSTRUCT,
+        CommandTypes.CASTLE_UNPACK,
+        CommandTypes.CASTLE_UNPACK_EXPLICIT_OBJECT,
+    }
+)
+
+# The two commands that unpack a pre-placed castle/camp rather than raise a new structure; a
+# template reached only through these narrates as "unpacks" instead of "builds".
+_UNPACK_COMMANDS = frozenset({"CASTLE_UNPACK", "CASTLE_UNPACK_EXPLICIT_OBJECT"})
+
 
 @dataclass(slots=True)
 class GameData:
@@ -62,15 +89,42 @@ class GameData:
     sciences: list[str]
     upgrades: list[str]
     displaynames: dict[str, str]  # definition code-name -> localized DisplayName (when it has one)
+    # PlayerTemplate registration order -> a display label (localized faction name, else engine
+    # Side); the replay slot's `faction id` indexes straight into it.
+    faction_labels: list[str] = field(default_factory=list)
+    # Template code name -> the build command-type names ("DOZER_CONSTRUCT", "FOUNDATION_CONSTRUCT",
+    # "CASTLE_UNPACK", "CASTLE_UNPACK_EXPLICIT_OBJECT") whose CommandButtons target it. A template
+    # absent here (wall pieces, castle-expansion pads) is still buildable, just not via a button.
+    build_commands: dict[str, frozenset[str]] = field(default_factory=dict)
+    # PlayerTemplate registration order -> the faction's `Side` token ("Men", "Imladris"), the
+    # key `CastleToUnpackForFaction` rows use. Parallel to `faction_labels`.
+    faction_sides: list[str] = field(default_factory=list)
+    # Castle/camp/outpost plot template -> lowercased Side -> the base-layout name its
+    # CastleBehavior unpacks for that faction (`CastleToUnpackForFaction = Men gondor_castle ...`).
+    castle_bases: dict[str, dict[str, str]] = field(default_factory=dict)
 
     @classmethod
-    def from_root(cls, root: str | Path) -> GameData:
+    def from_root(
+        cls,
+        root: str | Path | Sequence[str | Path],
+        bases: Sequence[str | Path] = (),
+        localize: bool = False,
+    ) -> GameData:
         """Build from a game root holding `data/ini` (a live install must be mounted first;
-        see `tools/mount_game.py`)."""
-        game = load_game(root).game
+        see `tools/mount_game.py`). `root` may be an ascending-priority sequence of roots (a later
+        one shadows an earlier at the file level). `bases` are lower-priority base-game roots the
+        mod layers over - needed when the mod relies on the base game's SubsystemLegend.ini and
+        object tree (its own defs and references still win).
+
+        `localize` resolves each definition's localized DisplayName from the string table
+        ("Misty Mountains"); it is off by default, so every label stays the raw ini code name
+        ("FactionWild") - deterministic and independent of the string table."""
+        game = load_game(root, bases=tuple(bases)).game
         strings = {label.upper(): value for label, value in game.strings.items()}
 
         def localized(table) -> dict[str, str]:
+            if not localize:
+                return {}  # labels fall back to the raw code name
             names: dict[str, str] = {}
             for name, obj in table.items():
                 key = obj._fields.get("DisplayName")
@@ -78,15 +132,59 @@ class GameData:
                     names[name] = strings[key.upper()]
             return names
 
+        faction_names = localized(game.factions)  # code name -> localized name, when it resolves
+
+        # A modded button's `Command` may not convert to a known member; skip those rather than
+        # let one bad definition sink the whole table.
+        built_by: dict[str, set[str]] = defaultdict(set)
+        for btn in game.commandbuttons.values():
+            try:
+                cmd = btn.Command
+            except Exception:  # noqa: BLE001 - unknown/odd Command token; not this template's build
+                continue
+            if cmd in _BUILD_COMMANDS:
+                target = btn._fields.get("Object")
+                if isinstance(target, str):
+                    built_by[target].add(cmd.name)
+
+        # Castle/camp/outpost plot templates: their CastleBehavior's per-faction unpack rows
+        # (`CastleToUnpackForFaction = Men gondor_castle <cost>`). The target names a base
+        # layout, not an ini object; macro-resolve it so an unpack order can name the base
+        # the clicking player's faction actually gets.
+        castle_bases: dict[str, dict[str, str]] = {}
+        for obj_name, obj in game.objects.items():
+            for module in getattr(obj, "modules", ()):
+                if not isinstance(module, CastleBehavior):
+                    continue
+                raw = module._fields.get("CastleToUnpackForFaction")
+                if raw is None:
+                    continue
+                rows: dict[str, str] = {}
+                for entry in raw if isinstance(raw, list) else [raw]:
+                    tokens = str(entry).split()
+                    if len(tokens) >= 2:
+                        target = str(game.get_macro(tokens[1])).split()[0]
+                        rows.setdefault(tokens[0].lower(), target)
+                if rows:
+                    castle_bases[obj_name] = rows
+
         return cls(
-            object_order=thing_template_order(root),
+            object_order=thing_template_order(root, bases=tuple(bases)),
             objects=dict(game.objects),
             specialpowers=list(game.specialpowers),
             sciences=list(game.sciences),
             upgrades=list(game.upgrades),
-            # Objects and upgrades carry a localized DisplayName; special powers and sciences do
-            # not, so they fall back to their raw code name (see `label`) - never prettified.
+            # With `localize`, objects and upgrades carry a localized DisplayName (special powers
+            # and sciences never do); otherwise every lookup falls back to the raw code name.
             displaynames={**localized(game.objects), **localized(game.upgrades)},
+            # A faction's localized DisplayName ("Misty Mountains") under `localize`, else its raw
+            # PlayerTemplate code name ("FactionWild") - in registration order.
+            faction_labels=[faction_names.get(name, name) for name, _ in game.factions.items()],
+            build_commands={name: frozenset(cmds) for name, cmds in built_by.items()},
+            faction_sides=[
+                str(template._fields.get("Side") or "") for _, template in game.factions.items()
+            ],
+            castle_bases=castle_bases,
         )
 
     @staticmethod
@@ -103,11 +201,47 @@ class GameData:
         return self._at(self.sciences, replay_id)
 
     def upgrade(self, replay_id: int) -> str | None:
-        return self._at(self.upgrades, replay_id - _UPGRADE_OFFSET)
+        index = replay_id - _UPGRADE_OFFSET  # 0-based, unlike the 1-based spaces `_at` serves
+        return self.upgrades[index] if 0 <= index < len(self.upgrades) else None
 
     def side_of(self, name: str) -> str | None:
         obj = self.objects.get(name)
         return obj._fields.get("Side") if obj is not None else None
+
+    def effective_side(self, name: str | None) -> str | None:
+        """The template's roster `Side`, inherited up the `ChildObject` chain when the
+        template sets none of its own (`RohanKnechtHorde_Heerschau` -> `Rohan`), or None
+        when unknown or the name is not a template."""
+        obj = self.objects.get(name) if name is not None else None
+        while obj is not None:
+            side = obj._fields.get("Side")
+            if side:
+                return side
+            obj = getattr(obj, "parent", None)
+        return None
+
+    def faction_label(self, faction_id: int) -> str:
+        """The player's faction for display. The replay slot's `faction id` indexes the
+        PlayerTemplate registration order directly (0 = Civilian ... 5 = Rohan, 12 = Angmar);
+        out-of-range or an unloaded factions table yields `?`."""
+        if 0 <= faction_id < len(self.faction_labels):
+            return self.faction_labels[faction_id]
+        return "?"
+
+    def faction_side(self, faction_id: int) -> str | None:
+        """The player's faction `Side` token ("Men", "Imladris"...) - the key
+        `CastleToUnpackForFaction` rows use - or None when unknown."""
+        if 0 <= faction_id < len(self.faction_sides):
+            return self.faction_sides[faction_id] or None
+        return None
+
+    def castle_base(self, name: str | None, side: str | None) -> str | None:
+        """The base-layout name that unpacking template `name` yields for a player of
+        `side` (its CastleBehavior's `CastleToUnpackForFaction` row), or None when the
+        template carries no castle table or the side has no row."""
+        if name is None or side is None:
+            return None
+        return self.castle_bases.get(name, {}).get(side.lower())
 
     def label(self, name: str | None) -> str | None:
         """A definition's player-facing name: its localized DisplayName when it has one, else the
@@ -174,9 +308,50 @@ def _first_of(chunk: ReplayChunk, arg_type: OrderArgumentType):
     return None
 
 
-def _describe(chunk: ReplayChunk, data: GameData) -> str | None:
+def _positions(chunk: ReplayChunk) -> list:
+    """Every Position argument in order (a wall segment carries two: its endpoints)."""
+    return [a.value for a in chunk.order.arguments if a.argument_type is OrderArgumentType.Position]
+
+
+def _build_verb(code_name: str | None, build_commands: dict[str, frozenset[str]]) -> str:
+    """The verb for a build order: "unpacks" when a template is reached only through a castle/camp
+    unpack command, else "builds" - the default for foundation/dozer builds, mixed command sets,
+    and templates with no button entry (wall pieces, castle-expansion pads)."""
+    commands = build_commands.get(code_name, frozenset()) if code_name is not None else frozenset()
+    if commands & _UNPACK_COMMANDS and not commands - _UNPACK_COMMANDS:
+        return "unpacks"
+    return "builds"
+
+
+def _at_clause(position) -> str:
+    """The ` at (x, y)` placement clause for a build order (2-D, int-rounded; the z terrain height
+    is dropped), or empty when the order carries no Position."""
+    if position is None:
+        return ""
+    return f" at ({position[0]:.0f}, {position[1]:.0f})"
+
+
+def _wall_span(chunk: ReplayChunk) -> str:
+    """The ` from (x, y) to (x, y)` clause across a wall segment's two endpoint Positions (2-D,
+    int-rounded), or empty when the endpoints are missing."""
+    points = _positions(chunk)
+    if len(points) < 2:
+        return ""
+    a, b = points[0], points[1]
+    return f" from ({a[0]:.0f}, {a[1]:.0f}) to ({b[0]:.0f}, {b[1]:.0f})"
+
+
+def _base_clause(data: GameData, name: str | None, side: str | None) -> str:
+    """When a built/unpacked template carries a CastleBehavior, the base layout the issuing
+    player's faction gets (`" - unpacks the dunedain_outpost base"`), else nothing."""
+    base = data.castle_base(name, side)
+    return f" - unpacks the {base} base" if base else ""
+
+
+def _describe(chunk: ReplayChunk, data: GameData, side: str | None = None) -> str | None:
     """The English clause for one content-bearing order, or None if it carries no static id
-    (control/camera/selection, or an unmapped order type)."""
+    (control/camera/selection, or an unmapped order type). `side` is the issuing player's
+    faction Side token, used to name the base a castle/camp/outpost plot unpacks."""
     order = chunk.order_type
     ints = _integers(chunk)
 
@@ -187,8 +362,21 @@ def _describe(chunk: ReplayChunk, data: GameData) -> str | None:
             return f"recruits a fortress hero (command slot {ints[0]})"
         return f"recruits {data.object_label(ints[0])}"
 
-    if order == 0x41A and ints:  # build structure
-        return f"builds {data.object_label(ints[0])}"
+    if order in (0x419, 0x41A) and ints:  # placement build / mobile-builder construct
+        name = data.object_name(ints[0])
+        verb = _build_verb(name, data.build_commands)
+        location = _at_clause(_first_of(chunk, OrderArgumentType.Position))
+        return f"{verb} {data.object_label(ints[0])}{location}{_base_clause(data, name, side)}"
+
+    if order == 0x43F and ints:  # unpack/build at a selected plot - no placement UI
+        # Standard thing-template ids, same space as 0x419 (the earlier +2 reading was an
+        # adjacent-anchor miscalibration; order_space_map.md `0x43F`).
+        name = data.object_name(ints[0])
+        label = data.label(name) if name is not None else f"<object id {ints[0]}?>"
+        return f"{_build_verb(name, data.build_commands)} {label}{_base_clause(data, name, side)}"
+
+    if order == 0x463 and ints:  # wall segment: a template raised between two endpoints
+        return f"builds a wall segment: {data.object_label(ints[0])}{_wall_span(chunk)}"
 
     if order in _POWER_ORDERS and ints:
         power = data.label(data.special_power(ints[0])) or f"special power {ints[0]}?"
@@ -207,6 +395,10 @@ def _describe(chunk: ReplayChunk, data: GameData) -> str | None:
 
     if order == 0x457:  # toggle weapon set (bow<->sword etc.); target is a runtime unit
         return "switches weapon set"
+
+    if order == 0x423:  # combine hordes (Edain horde-merge); arg is the target/primary horde
+        target = _first_of(chunk, OrderArgumentType.ObjectId)
+        return f"combines hordes into object #{target}" if target else "combines hordes"
 
     return None
 
@@ -239,7 +431,9 @@ def narrate(replay: ReplayFile, data: GameData) -> list[NarrationEvent]:
     spf = replay.seconds_per_frame
     events: list[NarrationEvent] = []
     for chunk in replay.chunks:
-        text = _describe(chunk, data)
+        slot = replay.slot_for(chunk)
+        side = data.faction_side(slot.faction) if slot is not None else None
+        text = _describe(chunk, data, side)
         if text is None:
             continue
         player = _player_label(replay, chunk)
@@ -251,33 +445,16 @@ def narrate(replay: ReplayFile, data: GameData) -> list[NarrationEvent]:
     return events
 
 
-def _faction_label(replay: ReplayFile, data: GameData, slot_index: int) -> str:
-    """The engine Side most of a player's recruited units belong to - a data-driven faction
-    tag (`Mordor`, `Wild`, ...) without hard-coding any mod's faction names."""
-    sides: Counter[str] = Counter()
-    for chunk in replay.chunks:
-        if chunk.order_type != 0x417 or replay.slot_index(chunk) != slot_index:
-            continue
-        if _first_bool(chunk):
-            continue
-        ints = _integers(chunk)
-        name = data.object_name(ints[0]) if ints else None
-        side = data.side_of(name) if name else None
-        if side:
-            sides[side] += 1
-    return sides.most_common(1)[0][0] if sides else "?"
-
-
 def render(replay: ReplayFile, data: GameData) -> Iterator[str]:
     """The full narration as text lines: a header (game, map, duration, players and their
-    inferred factions) followed by the timecoded event log."""
+    factions) followed by the timecoded event log."""
     header = replay.header
     duration = header.end_time - header.start_time
     yield f"{header.game_type.name} replay - {header.metadata.map_file}"
     yield f"Duration: {duration} ({header.num_timecodes} frames)"
     yield "Players:"
-    for index, slot in enumerate(header.metadata.players):
-        faction = _faction_label(replay, data, index)
+    for slot in header.metadata.players:
+        faction = data.faction_label(slot.faction)
         yield f"  {slot.human_name}  [{faction}]  (faction id {slot.faction}, team {slot.team})"
     yield ""
 

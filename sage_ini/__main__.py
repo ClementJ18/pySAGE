@@ -15,6 +15,8 @@ The query commands (`lint`, `xref`, `resolve`, `brief`, `diff`) accept `--json` 
 same facts as machine-readable JSON for agents and tool builders.
 - `merge` - structure-aware 3-way merge: a git merge driver, a conflict-marker resolver,
   and a git-config installer.
+- `macro-merge <file>` - set-merge conflicted `#define` reference lists, reporting exactly
+  what each side added/removed so one-sided deletions can be confirmed, not guessed.
 """
 
 import argparse
@@ -27,6 +29,7 @@ from sage_ini import primer as primer_module
 from sage_ini.brief import brief_to_dict, build_brief, format_brief
 from sage_ini.diff import diff_folders, diff_refs, format_game_diff
 from sage_ini.loader import load_game
+from sage_ini.macro_merge import format_macro_report, resolve_macro_conflicts
 from sage_ini.merge import ConflictLabels, merge_documents, resolve_markers
 from sage_ini.model.game import Game
 from sage_ini.model.xref import Xref
@@ -309,14 +312,61 @@ def _read_once(path: Path) -> tuple[str, str]:
     return text, encoding
 
 
-def _write_back(out: Path, text: str, encoding: str) -> None:
+def _write_back(out: Path, text: str, encoding: str, newline: str | None = None) -> None:
     """Write the merged text in the source's encoding, falling back to utf-8 if the merged
     content (e.g. pulled from a utf-8 `theirs`) has characters the source's legacy encoding
-    cannot represent - better a re-encoded file than a crash that aborts the merge."""
+    cannot represent - better a re-encoded file than a crash that aborts the merge.
+
+    `newline=""` disables the platform newline translation so text that already carries its
+    own CRLF/LF terminators is written verbatim (otherwise Windows would double the CR)."""
     try:
-        out.write_text(text, encoding=encoding)
+        out.write_text(text, encoding=encoding, newline=newline)
     except UnicodeEncodeError:
-        out.write_text(text, encoding="utf-8")
+        out.write_text(text, encoding="utf-8", newline=newline)
+
+
+def _run_macro_merge(args: argparse.Namespace) -> int:
+    text, encoding = _read_once(args.file)
+    result = resolve_macro_conflicts(text, marker_size=args.marker_size)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "resolved": result.resolved,
+                    "remaining": result.remaining,
+                    "macros": [
+                        {
+                            "name": m.name,
+                            "merged": m.merged,
+                            "added_ours": m.added_ours,
+                            "added_theirs": m.added_theirs,
+                            "removed_ours": m.removed_ours,
+                            "removed_theirs": m.removed_theirs,
+                            "removed_one_side": [
+                                {"token": t, "side": s} for t, s in m.removed_one_side
+                            ],
+                            "duplicates": m.duplicates,
+                            "has_base": m.has_base,
+                        }
+                        for m in result.merges
+                    ],
+                },
+                indent=2,
+            )
+        )
+    else:
+        print(format_macro_report(result))
+
+    if result.resolved == 0:
+        return 1 if result.remaining else 0
+    if args.write:
+        out = args.output or args.file
+        _write_back(out, result.text, encoding, newline="")
+        if not args.json:
+            print(f"\nwrote {out}")
+    elif not args.json:
+        print("\n(dry run - pass --write to apply; no files changed)")
+    return 1 if result.remaining else 0
 
 
 def _run_merge(args: argparse.Namespace) -> int:
@@ -461,6 +511,24 @@ def main(argv: list[str] | None = None) -> int:
         "--global", dest="global_", action="store_true", help="install into global git config"
     )
 
+    macro_merge = subparsers.add_parser(
+        "macro-merge",
+        help="set-merge conflicted #define reference lists and report each side's adds/removes",
+    )
+    macro_merge.add_argument(
+        "file", type=existing_file, help="a conflict-marked ini/inc file (use diff3 markers)"
+    )
+    macro_merge.add_argument(
+        "--write", action="store_true", help="apply the merge (default: report only, no changes)"
+    )
+    macro_merge.add_argument(
+        "-o", "--output", type=Path, default=None, help="write result here instead of in place"
+    )
+    macro_merge.add_argument(
+        "-L", "--marker-size", type=int, default=7, help="conflict marker length (git %%L)"
+    )
+    macro_merge.add_argument("--json", action="store_true", help="emit the analysis as JSON")
+
     primer = subparsers.add_parser("primer", help="emit the compact model digest for an LLM agent")
     primer.add_argument(
         "action",
@@ -500,6 +568,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "install-skill":
         return run_install_skill(install_skill, args.dest, args.force)
+
+    if args.command == "macro-merge":
+        return _run_macro_merge(args)
 
     if args.command == "merge":
         if not args.install and args.resolve is None:

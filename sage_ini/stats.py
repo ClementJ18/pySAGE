@@ -2,7 +2,7 @@
 construct/validate counts, formatted as a single comparable table."""
 
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,6 +14,7 @@ from sage_ini.parser.printer import print_document
 
 __all__ = [
     "ini_root",
+    "as_root_list",
     "is_map_path",
     "root_files",
     "included_files",
@@ -59,6 +60,15 @@ def ini_root(root: str | Path) -> Path:
     root = Path(root)
     nested = root / "data" / "ini"
     return nested if nested.is_dir() else root
+
+
+def as_root_list(root: str | Path | Sequence[str | Path]) -> list[Path]:
+    """Normalize a game-root argument - a single root, or an ascending-priority sequence of them
+    (a later root shadows an earlier one) - to a list of `Path`s. The shared spelling the loader
+    and the ThingTemplate walk use so multiple `--game` roots layer the same way in both."""
+    if isinstance(root, (str, Path)):
+        return [Path(root)]
+    return [Path(part) for part in root]
 
 
 def is_map_path(path: str | Path, root: str | Path) -> bool:

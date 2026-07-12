@@ -39,25 +39,37 @@ python -m sage_ini xref <dir> GondorFighter --json
 python -m sage_ini merge <base> <ours> <theirs> [-o out.ini]
 python -m sage_ini merge --resolve <conflicted.ini>   # shrink existing conflicts
 python -m sage_ini merge --install [--global]         # register as a git merge driver
+
+# Set-merge a conflicted #define reference list: report each side's adds/removes,
+# then --write the union (honouring deliberate removals). Needs diff3 markers.
+python -m sage_ini macro-merge <conflicted.ini>          # report only (dry run)
+python -m sage_ini macro-merge <conflicted.ini> --write  # apply the merge
 ```
 
-### As a git merge driver
+### Merging ini in git
 
 Git merges ini files line by line, so two branches that touch the same long
-definition - or merely add objects next to each other - collide spuriously. The
-`merge` command instead matches definitions by name and merges field by field:
-independent edits apply silently, and a conflict is raised only around the fields
-both sides changed differently. Wire it into a repository once:
+definition - or merely add objects next to each other - collide spuriously, and a
+`#define` reference list collides on the whole line. Two helpers merge ini the way it
+actually means:
 
-```sh
-python -m sage_ini merge --install     # adds the 'sage-ini' driver to .git/config
-printf '*.ini merge=sage-ini\n*.inc merge=sage-ini\n' >> .gitattributes
-```
+- `merge` matches definitions by name and merges field by field, so independent edits
+  apply silently. Install it as a git merge driver once and every `git merge`/`git
+  rebase` routes ini files through it automatically:
 
-After that, `git merge`/`git rebase` route ini files through it automatically. For a
-file that already carries conflict markers, `merge --resolve <file>` re-merges
-structurally and collapses the conflicts git raised between independent definitions
-(richest when `merge.conflictStyle = zdiff3` records the common ancestor).
+  ```sh
+  python -m sage_ini merge --install     # adds the 'sage-ini' driver to .git/config
+  printf '*.ini merge=sage-ini\n*.inc merge=sage-ini\n' >> .gitattributes
+  ```
+
+- `macro-merge` reads a conflicted `#define NAME a b c ...` list as a 3-way *set* diff
+  against the diff3 base - reporting each side's adds/removes, then (with `--write`)
+  keeping every addition and honouring every removal, flagging one-sided deletions to
+  **VERIFY** so a retired reference is never silently resurrected.
+
+Full how-to - installing the driver (per-repo and `--global`), the recommended
+`merge.conflictStyle = zdiff3`, resolving files that already carry conflict markers,
+reading the `macro-merge` report, and how the merge decides: **[../docs/merge.md](../docs/merge.md)**.
 
 ### For an LLM coding agent
 

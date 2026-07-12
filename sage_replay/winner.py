@@ -8,7 +8,9 @@ human session *ended*, and those shapes carry a verdict whenever somebody conced
   they exit mid-game (the recording player's own exit included). Exiting from the
   post-game victory/defeat screen emits none.
 - `0x1D` - the **end-of-recording** marker: issued once, at the last timecode, attributed
-  to the player whose client wrote the file - it identifies the replay's point of view.
+  to the player whose client wrote the file. The recording player (the point of view) is
+  taken from the header's `local_player_index`, which agrees with this marker wherever one
+  exists and remains available for crashed recordings that finalized no `0x1D`.
 - `0x44A` - the per-client checksum **heartbeat** (~100 frames). Only humans emit orders
   of any kind (AI players leave no trace at all), so a heartbeat going silent long before
   the recording ends marks a drop even without a leave order.
@@ -24,6 +26,13 @@ concedes. Its honest outcomes:
   which the input stream does not record), or the surviving opposition includes AI
   players, whose fate is invisible.
 
+`assume_pov_won` (the CLI's `--winner-pov`) layers an external assumption over the
+heuristic: the recording player's team won - for corpora where the replay's owner is known
+to be the winner (a ladder upload, a personal win archive). It only fills in verdicts the
+stream leaves ``undetermined``; explicit evidence still wins (a `decided` verdict stands
+even against the point of view, and `recorder_left` - the recorder's own concession -
+directly contradicts the assumption and is kept).
+
 Validated against a ground-truth 1v1 (the side named by `0x448` had in fact lost) and
 the fixture corpus; the signal table lives in `order_space_map.md` section B.
 """
@@ -32,13 +41,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from sage_replay.replay import ReplayFile, ReplaySlot, ReplaySlotType
+from sage_replay.replay import Bfme2OrderType, ReplayFile, ReplaySlot, ReplaySlotType
 
 __all__ = ["PlayerSession", "Side", "WinnerVerdict", "infer_winner"]
 
-LEAVE_GAME = 0x448
-END_OF_RECORDING = 0x1D
-HEARTBEAT = 0x44A
+LEAVE_GAME = Bfme2OrderType.LeaveGame
+END_OF_RECORDING = Bfme2OrderType.EndOfRecording
+HEARTBEAT = Bfme2OrderType.ChecksumHeartbeat
 
 # A heartbeat silent for this many frames before the recording ends counts as a drop:
 # the cadence is ~100 frames, so three missed beats is a dead session, not jitter.
@@ -90,7 +99,7 @@ class WinnerVerdict:
     reason: str
     winner: str | None = None  # the winning Side.key, when decided
     winner_names: list[str] = field(default_factory=list)
-    confidence: str | None = None  # "high" | "medium", when decided
+    confidence: str | None = None  # "high" | "medium" | "assumed", when decided
     recorder: str | None = None  # the replay's point of view (`0x1D` issuer)
     sessions: list[PlayerSession] = field(default_factory=list)
 
@@ -111,6 +120,16 @@ def _build_sessions(replay: ReplayFile) -> list[PlayerSession]:
             session.left_at = chunk.timecode
         elif chunk.order_type == END_OF_RECORDING:
             session.is_recorder = True
+
+    # The header's local player index is the authoritative point of view: it indexes into
+    # `metadata.players` exactly as a session's slot index does, agrees with the `0x1D`
+    # end-of-recording issuer wherever one exists (10/10 in the corpus), and - unlike
+    # `0x1D` - is present even in crashed recordings that never finalized. Prefer it.
+    pov = replay.header.local_player_index
+    if pov in sessions:
+        for session in sessions.values():
+            session.is_recorder = session.slot_index == pov
+
     return [sessions[i] for i in sorted(sessions)]
 
 
@@ -127,8 +146,9 @@ def _build_sides(replay: ReplayFile, sessions: list[PlayerSession]) -> list[Side
     return list(sides.values())
 
 
-def infer_winner(replay: ReplayFile) -> WinnerVerdict:
-    """Apply the concession heuristic to a parsed replay."""
+def infer_winner(replay: ReplayFile, *, assume_pov_won: bool = False) -> WinnerVerdict:
+    """Apply the concession heuristic to a parsed replay. With `assume_pov_won`, verdicts
+    the stream leaves undetermined are decided in favour of the recording player's team."""
     sessions = _build_sessions(replay)
     recorder = next((s for s in sessions if s.is_recorder), None)
     recorder_name = recorder.name if recorder else None
@@ -185,6 +205,18 @@ def infer_winner(replay: ReplayFile) -> WinnerVerdict:
         )
     else:
         reason = "more than one side was still present when the recording ended"
+
+    if assume_pov_won and recorder is not None:
+        pov_side = next(s for s in sides if any(h is recorder for h in s.humans))
+        return WinnerVerdict(
+            outcome="decided",
+            reason=f"assumed - the recording player's team wins (--winner-pov); {reason}",
+            winner=pov_side.key,
+            winner_names=[s.name for s in pov_side.humans],
+            confidence="assumed",
+            recorder=recorder_name,
+            sessions=sessions,
+        )
     return WinnerVerdict(
         outcome="undetermined", reason=reason, recorder=recorder_name, sessions=sessions
     )

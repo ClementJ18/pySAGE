@@ -11,6 +11,7 @@ from pathlib import Path
 from sage_utils.skill import default_skills_dir
 
 __all__ = [
+    "add_game_arguments",
     "add_install_skill_parser",
     "existing_dir",
     "existing_file",
@@ -43,6 +44,36 @@ def utf8_stdout() -> None:
         sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
     except (AttributeError, ValueError):
         pass
+
+
+def add_game_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    game_required: bool = True,
+    game_help: str,
+) -> None:
+    """Add the shared game-source pair (`--game` / `--cache`) that every CLI loading a game from
+    user input offers. `--game` is repeatable and each value is an ini tree or a live install
+    (`.big` archives are mounted); resolve them with `sage_utils.gameroot.resolve_game_roots`,
+    which yields an ascending-priority list a later `--game` shadows an earlier one, file by
+    file - pass a base game first and the mod after it to layer them. The `--game` wording
+    differs per command, so pass it in; `--cache` is identical everywhere."""
+    repeatable = (
+        ". Repeatable; a later --game shadows an earlier one file by file (base game first,"
+        " mod after it)."
+    )
+    parser.add_argument(
+        "--game",
+        type=Path,
+        action="append",
+        required=game_required,
+        default=None,
+        metavar="ROOT",
+        help=game_help + repeatable,
+    )
+    parser.add_argument(
+        "--cache", type=Path, default=None, help="where to mount an install's .big archives"
+    )
 
 
 def add_install_skill_parser(subparsers, skill_name: str) -> argparse.ArgumentParser:

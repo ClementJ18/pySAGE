@@ -41,8 +41,38 @@ python -m sage_replay info <replay>
 # Dump the order stream (--limit N, --player N, --order 0x415 to filter)
 python -m sage_replay orders <replay> --limit 50
 
-# Infer the outcome from session-end signals (see below)
+# Per-player stats: building/unit/hero counts per template type, fortress-hero
+# slots, upgrades researched, special-power casts (hero abilities / summons /
+# unit toggles), and the spellbook sciences in purchase order
+python -m sage_replay stats <replay> --game <install>
+
+# Aggregate stats across many replays, grouped by faction: win rates plus science /
+# building / unit / hero pick tables, each pick with its own win-loss record and median
+# first-purchase time ("does the faction win more with science X or Y?"). Upgrade
+# researches get pick tables, and repeatable system purchases per-instance depth rows
+# (CPObject1, CPObject2, ...), only for a tracked set: --track-upgrade / --track-purchase
+# NAME (repeatable), or `sage-edain replay-aggregate` = this same command with Edain's
+# sets injected. --matchups appends the same tables per enemy faction (buildings built
+# vs Mordor, units vs Gondor) after each faction's own sections.
+# --faction / --player filter the player-games (case-insensitive substring);
+# --markdown renders the same tables as GitHub markdown.
+# The replays must all come from one patch/mod: a corpus mixing patch fingerprints
+# (the header's game-data checksum) exits 1 listing the groups.
+python -m sage_replay aggregate <replay|dir>... --game <install>
+
+# Infer the outcome from session-end signals (see below). --winner-pov (also on
+# aggregate) assumes the recording player's team won any game the stream leaves
+# undetermined - for corpora whose replays belong to the winner.
 python -m sage_replay winner <replay>
+
+# Format-coverage dashboard over a corpus: the distinct values still seen for every
+# opaque surface (header reserved blocks, unnamed order ids, raw slot fields, untyped
+# metadata keys). --strict exits non-zero on any deviation from the documented state.
+python -m sage_replay coverage <replay|dir>... [--strict]
+
+# Diff the opaque surfaces of two replays (the differential-decoding tool): which reserved
+# bytes, tail words, metadata fields, slot fields, and order-id sets moved between them.
+python -m sage_replay coverage --diff a.BfME2Replay b.BfME2Replay
 
 # Machine-readable output
 python -m sage_replay info <replay> --json
@@ -65,8 +95,8 @@ players emit no orders at all). Details in
 
 Order chunks carry integer ids that reference mod content (the unit recruited, the
 structure built). `ids` isolates them and `align` turns a controlled, labelled replay
-into an `id -> object` table. The method and the controlled-replay protocol are in
-[object_id_mapping_plan.md](object_id_mapping_plan.md).
+into an `id -> object` table. Each order type's id space and its resolution rule are in
+[order_space_map.md](order_space_map.md).
 
 ```sh
 # Which order types carry an integer id, ranked (spot the recruit/build order)
