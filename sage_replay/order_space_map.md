@@ -26,19 +26,40 @@ per game (they differ between vanilla BFME2 and merged RotWK/Edain).
 | order  | meaning | id arg | id space → definition | offset | status |
 |--------|---------|--------|-----------------------|--------|--------|
 | `0x417` flag=**False** | recruit unit / buy purchasable upgrade | Int arg1 | `thing_template_order(root)` index | **+1** (BFME2, offset→0) | ✅ |
-| `0x417` flag=**True**  | recruit fortress hero by command-slot | Int arg1 | building CommandSet **slot index** | n/a (per-building) | ✅ mechanism; ⬜ slot→hero needs the building's CommandSet resolved |
+| `0x417` flag=**True**  | **press command-button slot N of the currently-selected object** - usually a fortress hero recruit by revive-submenu position, but the *same order* is a **CASTLE_UNPACK** when the selected object is a castle/outpost plot (see the command-slot note below the table) | Int arg1 | the hero's **current position in the revive submenu**: the list starts as the faction's `BuildableHeroesMP` order (CreateAHero = position 0; on a map with a map.ini `PlayerTemplate` override, the *map's* list), locked heroes hold their positions as placeholders, an **in-production** hero still holds its position, and a **fielded** hero is removed (everything behind it slides forward). A hero **killed after fielding re-enters at the tail of the list**, not at its original position (a later hero that slid forward keeps its new id). Cancelled recruits never affect numbering | n/a (dynamic) | ✅ solved via the three `hero recruit*.BfME2Replay` Linhir fixtures: per-building unlocked `Command_GenericReviveSlotN` subsets matched every issued id (burst replay = static ids 1/3/6 + 2/4), the fielded-wait replay produced 1→2→4 for static 1/3/6, and the kill replay kept Lothiriel at 2 after Amrothos died then resolved dead Amrothos at id 7 = the tail of the 0..6 list. Resolving needs each hero's revive `BuildTime` (static ini data) to decide if an earlier recruit had fielded - no runtime object tracking; only the *death order* of multiple dead heroes (which tail slot each holds) is invisible to the stream |
 | `0x419` | build structure from the **placement UI** (Int template, Position, Float angle) - a build issued from a placement interface, not from a selected builder unit | Int arg0 | `thing_template_order` index - id of the **finished building** | **+1** (offset→0) | ✅ 491/491 corpus orders resolve (94 templates), faction-consistent in all 12 fixtures |
 | `0x41A` | build structure issued to a **selected mobile builder** (dozer/porter/tunnel-digger) (Int template, Position, Float rot) | Int arg0 | `thing_template_order` index - id of the **finished building** | **+1** (offset→0) | ✅ vanilla porter builds 25/25; RotWK/Edain corpus 15/15 - Goblin tunnel-diggers only (OrkstadtTunnelBaseBuild 8, GundabadTunnel 7), all DOZER_CONSTRUCT-only templates. (The old 0/2/3 faction gap was a `_walk` bug, fixed by the engine's `INI::loadDirectory` two-pass order - see section D / OPEN 1) |
 | `0x43F` | **unpack / build at a selected plot** - creates the named template at the selected object with no placement UI (signature: a single Int, no Position). Covers settlement extern unpacks, fixed-spot castle builds AND **castle/camp/outpost claims**: a target carrying a `CastleBehavior` unpacks the base its `CastleToUnpackForFaction` row names for the issuing player's faction (narrate/stats resolve it). Ground truths: Bluvil's slaughterhouse unpack (frame 462 of `cfda93ec`, button `Command_UnpackExplicitMordorSlaughterhouse` → `MordorSlaughterHouse_Extern`), the Dunedain outpost unpack (user-watched, `0d0f32fa` @20:45, raw 7041 = `ImladrisDunedainOutpost2` → base `dunedain_outpost`), and the Gondor outpost signal fire (user-confirmed, same replay @19:13, raw 7485 = `GondorLeuchtfeuer`, `Command_UnpackExplicitGondorLeuchtfeuer`). Raw id 1087 = Generals `MSG_DO_SALVAGE` → repurposed | Int arg0 | `thing_template_order` index - the **created** template | **+1** (offset→0, same standard rule as `0x417`/`0x419`). ⚠ The earlier "+2" was an **artifact of the resolving table, not the order**: it was calibrated against the Edain-Mod `_mod`-tree overlay mount, whose registration table is shifted one low around the anchor (slaughterhouse extern at id 4412 there vs 4413 on the live-install mount) and scores badly corpus-wide under ANY constant (39%/29% button-reachable). On the faithful live-install mount (`C:\BFME2`+`C:\RotWK`, first-registration-wins big mounting) the standard id resolves **2136/2166 (98.6%)** of all fixture `0x43F` orders to `CASTLE_UNPACK_EXPLICIT_OBJECT`/`FOUNDATION_CONSTRUCT` targets vs 47% under +2. Lesson: resolve ids against the install mount; an overlay tree can carry a shifted table | ✅ (narrated + counted in stats, base naming via CastleBehavior); 🟡 the ~30 no-button std-rule stragglers (expansion pads, plot variants) |
 | `0x415` | purchase / research at a building | Int arg1 (ObjId arg0 = target building, 0=selection) | `Upgrade` table (`TheUpgradeCenter`) index | **id = 0-based idx + 3** (uniform; survey-calibrated 2026-07-10) | 🟡 the +3 constant itself is a likely bug - probe reserved/base upgrades or subsystem order. ⚠ the old "+3 over a 1-based index" reading was **one high**: the Mordor FireArrows/ForgedBlades anchor pair matches as a *set* under both offsets, hiding the off-by-one until an in-game replay survey pinned WolfRiders→RhudaurSpearmen and BattleWagonHearth→OrcWarriors; the corrected offset also fixes cross-faction leaks (Mordor id 70 → MordorFireArrows, not RohanWallHub; Rohan id 250 → MerryKnappeRohans, not Pippin) and holds across both the `includes/upgrade.inc` and inline `upgrade.ini` regions |
 | `0x414` | purchase spellbook power | **Int arg1** (arg0 = the issuing player's chunk *number* - validated 231/231 corpus-wide; the old "branch/side science" reading is WRONG) | `game.sciences` index | +1 | ✅ |
 | `0x416` | cancel queued upgrade (Generals `MSG_CANCEL_UPGRADE`, same raw id 1046) | Int arg0 | same `Upgrade` space as `0x415` (observed ids 51-507 sit inside the 0x415 range) | 0-based idx +3 assumed (as `0x415`) | 🟡 strong (enum + id-space fit; confirm with a labelled cancel replay) |
-| `0x418` | cancel queued unit (Generals `MSG_CANCEL_UNIT_CREATE`, same raw id 1048) | Int arg1 | same thing-template space as `0x417` recruits (ids overlap recruit ids; bursts = clicking queued portraits) | +1 | 🟡 strong |
+| `0x418` | cancel queued unit (Generals `MSG_CANCEL_UNIT_CREATE`, same raw id 1048). **Mirrors `0x417`'s leading-Boolean mode switch**: flag=True cancels a queued hero revive by the same dynamic submenu position as the recruit (`hero recruit 3` fixture: recruit 3 → cancel 3, recruit 2 → cancel 2) | Int arg1 | flag=False: same thing-template space as `0x417` recruits (ids overlap recruit ids; bursts = clicking queued portraits); flag=True: the `0x417` flag=True revive-submenu position | +1 (flag=False) | ✅ flag=True (labelled cancel fixture); 🟡 strong flag=False |
 | `0x410` | cast special power - **self / no target** | Int arg0 | `game.specialpowers` index | +1 | ✅ |
 | `0x411` | cast special power - **at location** (Position) | Int arg0 | `game.specialpowers` index | +1 | ✅ |
 | `0x412` | cast special power - **at object** (ObjId target) | Int arg0 | `game.specialpowers` index | +1 | ✅ |
 | `0x456` | cast special power - **untargeted / global** | Int arg0 | `game.specialpowers` index | +1 | ✅ |
 | `0x457` | toggle weapon set (bow↔sword etc.) | - (ObjId = runtime unit) | no static id space | n/a | ✅ meaning |
+
+**The `0x417` flag=True command-slot is overloaded, disambiguated only by selection.** The order
+is byte-for-byte identical whether it recruits a fortress hero or unpacks a plot -
+`Boolean=True, Integer=N, Integer=-1, Boolean=False, Boolean=False` in both. `N` is the 1-based
+slot of the pressed `CommandButton` in the **currently-selected object's** `CommandSet`, not a
+universal hero index; the revive-submenu reading only holds because the selected object is a
+fortress. When the selected object is a neutral castle/outpost plot, slot N indexes *its*
+command set instead - e.g. `ExpansionPlotFlag` (the standard MP outpost plot, `Side = Flags`)
+carries `CommandSet = OutpostCommandSet`, whose slot 1 is `Command_UnpackOutpost`
+(`Command = CASTLE_UNPACK`, no `Object`). That button unpacks the base the plot's
+`CastleBehavior.CastleToUnpackForFaction` names for the **issuing player's Side**
+(`ExpansionPlotFlag` → Men `gondor_outpost`, Mordor `mordor_outpost`, Isengard
+`isengard_outpost`, ...) - the same base-naming path `0x43F`/`0x419` castle claims use.
+**Ground truth:** `outpost unpack.BfME2Replay` (Men, faction id 3, map `mp brandywein`) selects
+the plot (ObjectId 291) at tc30 then presses slot 1 at tc48 → `gondor_outpost`; the order is
+identical to the fortress-hero recruit at tc67 of `hero recruit 2.BfME2Replay`, which the
+faction-only revive model narrates (wrongly, here) as "recruits hero Pippin". Distinguishing the
+two from the stream alone needs **selection tracking** (the preceding `Select`/`BandBoxSelect`
+ObjectId) plus a way to know that object is a castle plot - a pre-placed map object's template is
+not in the order stream, so it needs map data (`sage_map` plot placements) or a heuristic
+(slot-1 press on a never-built neutral object). Not yet wired into narrate/stats.
 
 **Composite abilities:** one click can emit **N** special-power orders same-frame, where N = the
 length of the primary `CommandButton`'s `CommandTrigger` chain (e.g. Elrond Restoration → 25 +
@@ -160,7 +181,7 @@ EA's released source (`MessageStream.h`; see section E).
 | `0x461` | () | most frequent no-arg command, interleaves move streams - **stop** candidate | 🟡 |
 | `0x462` | (Int, Bool `True`) | **start-of-match handshake**: at tc≈11-15 every player emits Int = its own chunk number (12/12 files, zero exceptions); some emit Int=0 at tc=1 | ✅ pattern |
 | `0x463` | (Int, Pos, Pos, Int, ObjId) | **wall-segment build**: template id (resolves in the `thing_template_order` space → WildOrkstadtExpansionSklavenlager 24, WildOrkstadtExpansionBeutehort 5, faction-consistent Misty Mountains Orkstadt wall expansions), two endpoint positions, flags (16384/32768), builder/hub object | 🟡 |
-| `0x464` | (Pos, Float, Int 0-9, Bool) | position + facing angle + small index + flag - formation/facing move (right-click drag) | ❓ |
+| `0x464` | (Pos, Float, Int 0-9, Bool) | position + facing angle + small index + flag - **formation/facing move** (right-click drag). Corpus survey confirms the Int is a **0-9 index independent of the issuing player's faction** (slotfac=7 emits ints 0/1/2/3/9, slotfac=3 emits 0/1/2/3/5/7/9), files carry 20+ scattered across the map - not a build/unpack. ⚠ Red herring: in `outpost unpack.BfME2Replay` a lone `0x464` (Int=3) lands at the plot area right after the unpack; Int=3 coincided with faction id 3 (Men) but is just the formation index - the actual CASTLE_UNPACK is the `0x417` flag=True slot-1 press at tc48 (see the command-slot note in section A) | 🟡 |
 | `0x466` | (Int×3) | **resource gift to ally**: arg0 = own number (25/25), arg1 = teammate's number, arg2 = amount (212-7160) | 🟡 |
 | `0x468` | (Int ∈ {1,2,3}) | **stance set** (aggressive / hold / passive) - issued between select and move orders | 🟡 |
 | `0x469` | (Int, Int) | **modal-state bracket**: only `(1,0)` = enter and `(0,1)` = exit ever occur (435/435). Unconditional `(0,1)` per player at match start; survivors emit `(0,1)`+4×`0x3EC` 2-6 frames after every enemy `0x448`; **team-synchronized `(0,1)` waves at game end** (victory/defeat dialogs). NOT a group op | ✅ mechanics; ❓ UI meaning |
@@ -295,9 +316,13 @@ field after team named `NATBehavior`.
    archives (first-wins alphabetical override) into the `data/ini` tree the loaders need.
 3. **🟡 Builds - close the remaining gaps.** `0x419` placement-UI build and `0x41A` mobile-builder
    are solved (section A). Still open: confirm `0x41B` cancel-construct and `0x41C` sell with one
-   labelled recording; exercise a plain **CASTLE_UNPACK** (only such button in the tree targets
-   EntMoot, unseen in the corpus); and account for the unmatched-`0x419` template tail (wall/expansion
-   chains) and the two Angmar horde deploys riding the placement order.
+   labelled recording; and account for the unmatched-`0x419` template tail (wall/expansion
+   chains) and the two Angmar horde deploys riding the placement order. A plain **CASTLE_UNPACK**
+   *has* now been exercised (`outpost unpack.BfME2Replay`), but it does **not** ride a `0x419`
+   placement build - a plot-selection unpack (`Command_UnpackOutpost`, no `Object`) issues a
+   `0x417` flag=True **command-slot** order against the selected plot, resolved via that plot's
+   `CastleBehavior` (see the section-A command-slot note). The one CASTLE_UNPACK-with-`Object`
+   button (EntMoot) is still unseen.
 4. **⬜ `0x415` +3 → 0.** Survey-corrected 2026-07-10: id = **0-based** table idx + 3 (`DefaultUpgrade`
    = id 3), uniform across the `includes/upgrade.inc` and inline `upgrade.ini` regions - the old
    "+3 over 1-based" reading was one high (section A row). The +3 constant still wants a real

@@ -1,26 +1,103 @@
-"""Rebuild the Edain replay-corpus aggregate HTML pages.
+"""Rebuild one Edain replay-corpus's aggregate HTML pages.
 
-Everything lands under one output dir (`aggregate/` by default):
+A corpus is a subfolder of `downloads/replays/` (e.g. `edain-4.8.4.3`); different corpora
+require a different game version installed at C:\\BFME2 / C:\\RotWK, so this script builds
+exactly one corpus per run - pass its folder name as the positional argument. Its pages land
+under that same folder name inside the output dir (`aggregate/` by default), which is the
+shared ROOT all corpora build into:
 
     aggregate/
-      index.html               navigation index (corpus tiles, leaderboard, matchup matrix)
-      aggregate.html           the combined report over every faction
-      aggregate_names.json     hand-maintained localisation map (tracked; see below)
-      factions/<slug>.html     one page per faction, filtered to just that faction
+      index.html                       global index over every corpus built here (this
+                                        script also regenerates it every run, scanning disk)
+      aggregate_names.json             hand-maintained localisation map, shared across every
+                                        corpus (tracked; see below)
+      <folder>/                        one corpus, e.g. edain-4.8.4.3/
+        index.html                     navigation index (corpus tiles, leaderboard, matrix)
+        aggregate.html                 the combined report over every faction
+        corpus.json                    summary metadata read back by the global index
+        factions/<slug>.html           one page per faction, filtered to just that faction
+        <mode>/                        the same tree over one player count (1v1/ 2v2/ 3v3/ 4v4/)
+          index.html                   its own index, cross-linked to the corpus and siblings
+          aggregate.html               combined report over that mode
+          factions/<slug>.html         one page per faction within that mode
 
-All of it is built from the `downloads/replays/edain-4.8.4.3` corpus resolved against the live
-BFME2 + RotWK/Edain installs. This mirrors `sage-edain replay-aggregate --html` with Edain's
-knowledge injected (economy/library research rows, CP-purchase depth, Dwarves split into their
-realm) and `--matchups` on.
+Within a corpus, the overall index is the whole corpus plus a nav row to each per-count index
+(and an "All corpora" pill back up to the global index); each per-count index links on to that
+count's per-faction pages. The player-count splits mirror the corpus layout: the replays live
+in `<corpus>/<mode>/` subfolders, one per player count.
+
+A corpus is resolved against the live BFME2 + RotWK/Edain installs. This mirrors `sage-edain
+replay-aggregate --html` with Edain's knowledge injected (economy/library research rows,
+CP-purchase depth, Dwarves split into their realm, Men split into Gondor/Arnor/Belfalas by the
+map's Gondor roster, Imladris's Lichtbringer element toggles nested under the Loremaster, and
+the Mordor summons / Leuchtfeuer signal-fire casts that field permanent units counted as
+ordinary recruits) and `--matchups` on.
+
+Most corpora are one mod version, resolved against that version installed at the `--game` roots
+in a single pass. A tournament played across two Edain releases is instead one corpus whose
+replays span two patches, and recordings from different patches do not simulate identically, so
+each patch must be parsed under its own installed game version. Such a corpus carries a
+hand-maintained `versions.json` beside its replays (so the label map travels with the corpus): the
+first run over a multi-patch corpus generates it with one blank entry per patch fingerprint and
+stops, reporting each fingerprint's replay count and a couple of example filenames so you can fill
+every entry with its version name (e.g. "Edain 4.8.5"). A rerun then makes one pass per version,
+prompting you to switch the install(s) at the `--game` roots to that version before each pass
+(just press Enter when the first version is already installed), and pools every pass into the one
+aggregate tree - pooling across patches is the whole point of a tournament corpus. Each version's
+mounted ini tree is cached separately under the system temp dir (`sage_mount/<root>@<version>`), so
+switching a root back on a later rerun is a free cache hit and no pass poisons another's mount. A
+single-version corpus needs neither versions.json nor a prompt and rebuilds exactly as before.
+
+Each game's winner comes from a `<replay>.BfME2Replay.json` sidecar (see `sage_replay.sidecar`).
+Before anything is loaded - and before any version-switch prompt - this script writes a stub
+sidecar beside every replay that lacks one (filled from the header: players, factions, teams,
+map, length), then stops and lists every sidecar that still records no winner. Set `IsWinner` on
+the winning team in each and rerun; once all winners are in, the build proceeds. So a
+hand-collected off-ladder tournament (whose winner lives only in the match's name) gets its
+sidecars built up front rather than falling back to the point-of-view guess, which is meaningless
+here anyway - the recording player is often a caster/observer.
+
+The build is two explicit phases over the translated-document cache (`sage_replay.translated`
+via `sage_replay.cache`), a tree at `--cache-root` (default `downloads/cached/`) mirroring the
+corpus root's folder structure - `downloads/replays/<corpus>/<mode>/x.BfME2Replay` caches to
+`downloads/cached/<corpus>/<mode>/x.BfME2Replay.json`. Phase one caches: every replay lacking
+a trusted document is translated - ids resolved against whichever game version is mounted for
+its patch - and its document written into the mirror; a version group whose replays are all
+already cached loads no install and prompts no version switch. Phase two aggregates: the
+corpus is built from the cache tree alone, every document under the corpus's mirror folder,
+so a freshly translated replay and a years-old document flow through one path. Winners are
+deliberately not part of the documents - the sidecar is hand-edited, so reading a document
+always re-resolves against whatever sidecar sits beside its replay *now*, falling back only
+to the concession-heuristic verdict frozen at translation time. Documents are tied to their
+replays by content hash, not mtime, so replay and cache trees copied between machines rebuild
+there without the game versions that produced them. Pass `--no-cache` to re-translate every
+replay even when its document looks fine - after a stats-pipeline or overlay change, or when
+one is suspected stale (the rewritten documents are still what the aggregate reads).
 
 Code names (faction names and every pick-table entry) are shown through the hand-maintained
-localisation file: a `{code name: display string}` map. Each rebuild adds any code name it
-renders that the file is missing, with an empty string to fill in by hand. A filled entry
-renders as `display string (code name)` - the raw code name stays visible in brackets - while
-an empty (or absent) one falls back to the bare code name, so pages always render.
+localisation file: a `{code name: display string}` map. It lives at the output root
+(`<out>/aggregate_names.json`), not inside the corpus folder, because hand translations should
+carry over between mod versions - the same code names tend to recur release to release. Each
+rebuild adds any code name it renders that the file is missing, with an empty string to fill
+in by hand. A filled entry renders as `display string (code name)` - the raw code name stays
+visible in brackets - while an empty (or absent) one falls back to the bare code name, so
+pages always render. The corpus folder name itself is one of those code names: fill in its
+entry to give the whole corpus a custom display name, used for its page titles (next rebuild)
+and its row on the global index (any regeneration, see --index-only).
 
-Run from anywhere:  python tools/rebuild_aggregates.py
-Override the paths with --corpus / --game / --out / --names if your installs live elsewhere.
+After building the corpus tree, the script writes `<out>/<folder>/corpus.json` (summary
+counts the global index reads) and regenerates `<out>/index.html`: a landing page listing every
+corpus folder found on disk under `<out>/` (each one this script has ever built), pulling its
+headline numbers from its own corpus.json when present.
+
+Run from anywhere:  python tools/rebuild_aggregates.py edain-4.8.4.3
+Override the paths with --corpus-root / --game / --out / --names if your installs live
+elsewhere; --title overrides the folder-derived default corpus title. `--index-only`
+regenerates just the global index from what is already on disk - no folder argument and no
+game install needed, so a corpus renamed in the names file shows up without a full rebuild.
+`--no-cache` re-translates every replay even when its cached document looks fine - use it after
+a stats-pipeline change too small to warrant bumping `FORMAT_VERSION`, or when a document is
+simply suspected stale; `--cache-root` moves the whole document tree.
 """
 
 from __future__ import annotations
@@ -28,8 +105,11 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import sys
+import tempfile
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from html import escape
 from os.path import relpath
@@ -39,25 +119,44 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))  # allow running this file directly, not just as a module
 
 from sage_edain.replay import (  # noqa: E402
+    FACTION_ICONS,
+    ICONS_DIR,
+    IGNORED_RECRUITS,
     TRACKED_PURCHASES,
     TRACKED_UPGRADES,
-    dwarven_realm_faction,
+    edain_faction_refiner,
+    edain_power_recruits,
 )
 from sage_replay.aggregate import (  # noqa: E402
+    _HTML_STYLE,
+    Corpus,
+    _absorb,
     aggregate,
     collect,
+    patch_groups,
     render_aggregate_html,
     render_index_html,
+    version_groups,
+    version_labels,
 )
+from sage_replay.cache import (  # noqa: E402
+    cache_path,
+    cached_document,
+    load_replay_cache,
+    write_replay_cache,
+)
+from sage_replay.coverage import find_replays  # noqa: E402
 from sage_replay.narrate import GameData  # noqa: E402
+from sage_replay.replay import parse_replay_from_path  # noqa: E402
+from sage_replay.sidecar import ensure_sidecars, sidecar_path  # noqa: E402
 from sage_replay.stats import _clock  # noqa: E402
-from sage_utils.gameroot import resolve_game_roots  # noqa: E402
+from sage_utils.gameroot import resolve_game_root, resolve_game_roots  # noqa: E402
 
-DEFAULT_CORPUS = REPO / "downloads" / "replays" / "edain-4.8.4.3"
+DEFAULT_CORPUS_ROOT = REPO / "downloads" / "replays"
+DEFAULT_CACHE_ROOT = REPO / "downloads" / "cached"
 DEFAULT_GAME = [Path(r"C:\BFME2"), Path(r"C:\RotWK")]
 DEFAULT_OUT = REPO / "aggregate"
 DEFAULT_NAMES = DEFAULT_OUT / "aggregate_names.json"
-TITLE = "Edain 4.8.4.3 replay corpus"
 
 # The FactionAggregate attributes whose ChoiceStat labels are rendered code names.
 _LABEL_CATEGORIES = (
@@ -69,6 +168,42 @@ _LABEL_CATEGORIES = (
     "upgrades",
     "other",
 )
+
+
+def _rel(path: Path) -> Path:
+    """`path` repo-relative for printing, or as-is when it lives outside the repo
+    (`--out`/`--names` pointed somewhere else)."""
+    try:
+        return path.relative_to(REPO)
+    except ValueError:
+        return path
+
+
+def _copy_icons(dest: Path) -> int:
+    """Copy the faction emblems (`sage_edain/icons/*.webp`) into the site at `dest`, returning
+    how many landed. They live once per corpus, beside its indexes, so a corpus stays a movable,
+    self-relative unit; a missing source file is skipped so a partial icon set still builds."""
+    dest.mkdir(parents=True, exist_ok=True)
+    copied = 0
+    for name in sorted(set(FACTION_ICONS.values())):
+        src = ICONS_DIR / name
+        if src.is_file():
+            shutil.copy2(src, dest / name)
+            copied += 1
+    return copied
+
+
+def _icon_urls(page_dir: Path, icons_dir: Path):
+    """A `FactionIcon` for a page living in `page_dir`: a faction label -> its emblem's URL
+    relative to that page (`""` when the faction ships no icon), so the same shared `icons_dir`
+    is addressed correctly from the corpus root, a mode split, or a `factions/` subfolder."""
+    prefix = relpath(icons_dir, page_dir).replace("\\", "/")
+
+    def icon(label: str) -> str:
+        name = FACTION_ICONS.get(label)
+        return f"{prefix}/{name}" if name else ""
+
+    return icon
 
 
 def _slug(label: str) -> str:
@@ -89,6 +224,10 @@ def _collect_labels(factions) -> set[str]:
             labels.add(agg.faction)
             for attribute in _LABEL_CATEGORIES:
                 labels.update(getattr(agg, attribute))
+            # The standard-outpost milestone is named by the unpacked base (dunedain_outpost);
+            # surface that base as its own code name so it can be hand-translated.
+            if agg.outpost is not None and agg.outpost.label:
+                labels.add(agg.outpost.label)
             walk(agg.matchups.values())
 
     walk(factions)
@@ -120,6 +259,7 @@ def _write(
     extra=None,
     annotate=None,
     index_href=None,
+    icon=None,
 ) -> None:
     html = "\n".join(
         render_aggregate_html(
@@ -130,38 +270,43 @@ def _write(
             extra=extra,
             annotate=annotate,
             index_href=index_href,
+            icon=icon,
         )
     )
     path.write_text(html, encoding="utf-8")
-    print(f"wrote {path.relative_to(REPO)}  ({len(factions)} faction(s))")
+    print(f"wrote {_rel(path)}  ({len(factions)} faction(s))")
 
 
 _ROSTER_ATTRS = ("buildings", "units", "heroes")
 
 
-def _faction_own_side(agg, data) -> str | None:
+def _faction_own_side(agg, side_of) -> str | None:
     """The faction's own roster Side: the effective Side most of its unit/building/hero picks
     carry (weighted by games). Robust to the odd cross-faction pick, and needs no faction/Side
-    table - it reads the faction back off what it actually fields."""
+    table - it reads the faction back off what it actually fields. `side_of` is a label -> Side
+    lookup pooled from the cached documents (see `main`'s `side_of`), not a loaded game, so it
+    works when no game install was mounted at all."""
     counts: Counter[str] = Counter()
     for attribute in _ROSTER_ATTRS:
         for label, choice in getattr(agg, attribute).items():
-            side = data.effective_side(label)
+            side = side_of(label)
             if side:
                 counts[side] += choice.games
     return counts.most_common(1)[0][0] if counts else None
 
 
-def _side_annotator(combined, data):
+def _side_annotator(combined, side_of):
     """A `render_aggregate_html` annotator that badges a pick whose unit Side is a *different*
     faction's than the one whose page it is on - the tell-tale of a disconnected ally's roster
     built from their inherited base (see the corpus's rare 3v3 late-game takeovers). Side is
-    not identity, so the pick is kept and flagged rather than dropped."""
-    own_side = {agg.faction: _faction_own_side(agg, data) for agg in combined}
+    not identity, so the pick is kept and flagged rather than dropped. `side_of` (a label ->
+    Side lookup pooled from the cached documents) rather than a loaded game, so it works when
+    no game install was ever mounted for the page (see `main`'s `side_of`)."""
+    own_side = {agg.faction: _faction_own_side(agg, side_of) for agg in combined}
     faction_sides = {side for side in own_side.values() if side}
 
     def annotate(owner: str, label: str) -> str:
-        side = data.effective_side(label)
+        side = side_of(label)
         expected = own_side.get(owner)
         if side and expected and side in faction_sides and side != expected:
             return (
@@ -204,9 +349,183 @@ def _replay_rows(games, display) -> list[str]:
     return lines
 
 
+# The player-count splits, in display order. Each is a `<corpus>/<mode>/` subfolder of
+# replays and a mirroring `<out>/<folder>/<mode>/` subtree of pages.
+MODES = ("1v1", "2v2", "3v3", "4v4")
+
+
+def _partition_by_mode(files: Iterable[Path], corpus_dir: Path) -> dict[str, list[Path]]:
+    """Split a version's replay files into the mode subtree each sits under - keyed by the mode
+    folder that begins its path relative to `corpus_dir` - with a root-level or off-mode replay
+    falling into the flat "" bucket that only feeds the overall tree. A file lands under exactly
+    one key, so collecting the buckets parses nothing twice."""
+    buckets: dict[str, list[Path]] = {}
+    for path in files:
+        try:
+            parts = path.relative_to(corpus_dir).parts
+        except ValueError:
+            parts = ()
+        mode = parts[0] if len(parts) > 1 and parts[0] in MODES else ""
+        buckets.setdefault(mode, []).append(path)
+    return buckets
+
+
+def _merge_corpora(corpora: Iterable[Corpus]) -> Corpus:
+    """Pool several collected corpora into one - concatenating their player-games, summing their
+    replay counts, and gathering their warnings - so the per-mode partitions fold into the overall
+    tree without reading a single document twice."""
+    merged = Corpus()
+    for sub in corpora:
+        merged.games.extend(sub.games)
+        merged.replays += sub.replays
+        merged.warnings.extend(sub.warnings)
+    return merged
+
+
+def _unparseable(files: list[Path], groups: dict[str, list[Path]]) -> list[str]:
+    """The replays `find_replays` returned that no patch group claimed. `patch_groups` skips any
+    file it cannot header-parse, and the version passes feed `collect` explicit per-group file
+    lists, so such a file would otherwise vanish without a trace. Reparse each to recover the same
+    `<name>: <error>` warning `collect` raises for a broken replay, so it both prints here and
+    reaches the built pages' warning list."""
+    claimed = {path for paths in groups.values() for path in paths}
+    warnings: list[str] = []
+    for path in files:
+        if path in claimed:
+            continue
+        try:
+            parse_replay_from_path(path)
+            warnings.append(f"{path.name}: unreadable replay header")
+        except Exception as error:  # noqa: BLE001 - mirror collect's parse-failure warning
+            warnings.append(f"{path.name}: {error}")
+    return warnings
+
+
+def _available_corpora(root: Path) -> list[str]:
+    """The corpus folder names present under `root` (a non-existent root has none)."""
+    if not root.is_dir():
+        return []
+    return sorted(p.name for p in root.iterdir() if p.is_dir())
+
+
+def _corpora_on_disk(out: Path) -> list[tuple[str, dict | None]]:
+    """Every corpus this script has built under `out`, sorted by folder name: a subfolder
+    counts as built once it carries an index.html. Each entry pairs the folder name with its
+    corpus.json metadata (None when a build hasn't reached writing one yet, or predates this
+    script version), so the global index can still show a bare link row for it."""
+    entries: list[tuple[str, dict | None]] = []
+    if not out.is_dir():
+        return entries
+    for sub in sorted(out.iterdir(), key=lambda p: p.name):
+        if not sub.is_dir() or not (sub / "index.html").is_file():
+            continue
+        meta_path = sub / "corpus.json"
+        meta = None
+        if meta_path.is_file():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                meta = None
+        entries.append((sub.name, meta))
+    return entries
+
+
+def _corpus_row(folder: str, meta: dict | None, names: dict[str, str]) -> str:
+    """One `<tr>` of the global index's corpus table: the corpus.json headline numbers when
+    `meta` is given, else a bare link row (a folder built by an older script version, or one
+    still mid-build). The link text is the folder name through the shared names file - the
+    usual `display string (code name)` when its entry is filled, the bare folder otherwise -
+    resolved here at render time, so renaming a corpus in the names file takes effect on the
+    next index regeneration without rebuilding the corpus itself."""
+    href = f"{folder}/index.html"
+    name = names.get(folder)
+    label = escape(f"{name} ({folder})" if name else folder)
+    if meta is None:
+        cells = '<td class="dim">-</td>' * 7
+        return f'<tr><td><a href="{escape(href)}">{label}</a></td>{cells}</tr>'
+    modes = ", ".join(meta.get("modes") or []) or "&mdash;"
+    # The version labels a multi-patch (tournament) corpus pooled; a single-version corpus.json
+    # carries no such key, and neither do the older ones written before the column existed.
+    versions_meta = meta.get("versions")
+    versions = escape(", ".join(versions_meta)) if versions_meta else "-"
+    return (
+        f'<tr><td><a href="{escape(href)}">{label}</a></td>'
+        f"<td>{meta.get('replays', '-')}</td>"
+        f"<td>{meta.get('player_games', '-')}</td>"
+        f"<td>{meta.get('decided_games', '-')}</td>"
+        f"<td>{meta.get('factions', '-')}</td>"
+        f'<td class="dim">{escape(modes)}</td>'
+        f'<td class="dim">{versions}</td>'
+        f'<td class="dim">{escape(str(meta.get("generated") or "-"))}</td></tr>'
+    )
+
+
+def render_corpora_index(out: Path, names: dict[str, str]) -> str:
+    """The global landing page over every corpus built under `out` (one run of this script per
+    corpus folder): a stat tile for how many are present and a table row per corpus linking to
+    its own index.html, pulling headline numbers from its corpus.json and its display name from
+    `names` (the shared localisation map, keyed by folder name). Rendered here rather
+    than in `sage_replay.aggregate` - the corpora list is this script's concern (it scans disk
+    for what earlier runs left behind), not the aggregation library's - but it reuses the
+    library's stylesheet so the page matches the corpus pages it links to."""
+    entries = _corpora_on_disk(out)
+    lines = [
+        "<!doctype html>",
+        '<html lang="en">',
+        "<head>",
+        '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        "<title>Replay corpora</title>",
+        f"<style>{_HTML_STYLE}</style>",
+        "</head>",
+        "<body><main>",
+        "<h1>Replay corpora</h1>",
+        '<p class="meta">Every replay corpus built under this output folder.</p>',
+        '<div class="tiles"><div class="tile"><div class="k">Corpora</div>'
+        f'<div class="v">{len(entries)}</div></div></div>',
+    ]
+    if not entries:
+        lines.append(
+            '<p class="meta">No corpus has been built here yet - run this script with a '
+            "corpus folder name (e.g. edain-4.8.4.3) to build one.</p>"
+        )
+    else:
+        lines.extend(
+            [
+                '<div class="tablewrap"><table>',
+                "<thead><tr><th>Corpus</th><th>Replays</th><th>Player-games</th>"
+                "<th>Decided</th><th>Factions</th><th>Modes</th><th>Versions</th>"
+                "<th>Generated</th></tr></thead>",
+                "<tbody>",
+                *[_corpus_row(folder, meta, names) for folder, meta in entries],
+                "</tbody>",
+                "</table></div>",
+            ]
+        )
+    lines.extend(["</main>", "</body>", "</html>"])
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS, help="replay corpus dir")
+    parser.add_argument(
+        "folder",
+        nargs="?",
+        help="corpus subfolder under --corpus-root to build (e.g. edain-4.8.4.3)",
+    )
+    parser.add_argument(
+        "--corpus-root",
+        type=Path,
+        default=DEFAULT_CORPUS_ROOT,
+        help="directory of corpus subfolders, one per mod version (default: downloads/replays)",
+    )
+    parser.add_argument(
+        "--cache-root",
+        type=Path,
+        default=DEFAULT_CACHE_ROOT,
+        help="root of the translated-document tree mirroring --corpus-root's folder structure "
+        "(default: downloads/cached); the aggregate is built from what lands here",
+    )
     parser.add_argument(
         "--game",
         type=Path,
@@ -214,35 +533,295 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="game root (repeatable, base first); defaults to C:\\BFME2 then C:\\RotWK",
     )
-    parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="output dir for all pages")
-    parser.add_argument("--title", default=TITLE, help="page title / corpus label")
+    parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="output root for all corpora")
+    parser.add_argument(
+        "--title", default=None, help="page title / corpus label (default: derived from folder)"
+    )
     parser.add_argument(
         "--names",
         type=Path,
         default=DEFAULT_NAMES,
-        help="localisation map (code name -> display string); grown with new names each run",
+        help="localisation map (code name -> display string), shared across corpora",
+    )
+    parser.add_argument(
+        "--index-only",
+        action="store_true",
+        help="only regenerate the global index from what is on disk (no folder, no game load)",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="re-translate every replay from the installs even when a trusted cached document "
+        "exists (the rewritten documents are still what the aggregate is built from)",
     )
     args = parser.parse_args(argv)
 
-    game_roots = args.game or DEFAULT_GAME
-    print(f"loading game from {', '.join(str(g) for g in game_roots)} ...")
-    data = GameData.from_root(resolve_game_roots(game_roots, None), localize=False)
+    def _read_names() -> dict[str, str]:
+        if args.names.exists():
+            return json.loads(args.names.read_text(encoding="utf-8"))
+        return {}
 
-    print(f"collecting corpus from {args.corpus} ...")
-    # The corpus is uploaded winners' replays, so decide otherwise-undetermined games in favour
-    # of the recording player's team (the CLI's --winner-pov / infer_winner's assume_pov_won).
-    corpus = collect(
-        args.corpus and [args.corpus],
-        data,
-        refine_faction=dwarven_realm_faction,
-        assume_pov_won=True,
-    )
-    print(f"  {corpus.replays} replays -> {len(corpus.games)} player-games")
-    for warning in corpus.warnings:
+    def _write_global_index(names: dict[str, str]) -> None:
+        args.out.mkdir(parents=True, exist_ok=True)
+        global_index = args.out / "index.html"
+        global_index.write_text(render_corpora_index(args.out, names), encoding="utf-8")
+        print(f"wrote {_rel(global_index)}")
+
+    # A names-file edit (e.g. giving a corpus folder its display name) shows up on the global
+    # index without rebuilding any corpus - regenerating it is a pure disk scan.
+    if args.index_only:
+        _write_global_index(_read_names())
+        return 0
+
+    available = _available_corpora(args.corpus_root)
+    if args.folder is None:
+        parser.error(
+            "a corpus folder is required; available under "
+            f"{args.corpus_root}: {', '.join(available) or '(none)'}"
+        )
+    corpus_dir = args.corpus_root / args.folder
+    if not corpus_dir.is_dir():
+        parser.error(
+            f"no corpus folder {args.folder!r} under {args.corpus_root}; "
+            f"available: {', '.join(available) or '(none)'}"
+        )
+    out_root = args.out / args.folder
+    cache_dir = args.cache_root / args.folder
+
+    game_roots = args.game or DEFAULT_GAME
+
+    def _cache_file(replay_path: Path) -> Path:
+        """The replay's document in the mirrored cache tree: `<cache root>/<same relative
+        path>/<replay name>.json` (relative to the corpus *root*, so the corpus folder itself
+        is mirrored too)."""
+        return cache_path(replay_path, args.corpus_root, args.cache_root)
+
+    def _collect(paths, data, *, record) -> Corpus:
+        # The corpus is uploaded winners' replays, so decide otherwise-undetermined games in
+        # favour of the recording player's team (the CLI's --winner-pov / assume_pov_won).
+        return collect(
+            paths,
+            data,
+            refine_faction=edain_faction_refiner,
+            power_recruits=edain_power_recruits,
+            ignore_recruits=IGNORED_RECRUITS,
+            assume_pov_won=True,
+            record=record,
+        )
+
+    def _ensure_version_cached(files, load_game) -> tuple[int, int, int, list[str]]:
+        """The explicit caching step for one game version's replay files: every replay lacking
+        a trusted document in the mirrored cache tree (all of them under `--no-cache`) is
+        translated under `load_game()`'s mounted install - only versions with something to
+        translate ever prompt for an install switch - and its document written. The parsed
+        games themselves are discarded: the aggregate is built afterwards purely from the cache
+        tree, so a fresh parse and a cache hit flow through the very same path. Returns (already
+        cached, newly translated, failed to translate, warnings) - the warnings are only the
+        parse failures, since anything document-related resurfaces when the documents are read
+        back."""
+        misses = [
+            path
+            for path in files
+            if args.no_cache
+            or cached_document(path, _cache_file(path), assume_pov_won=True) is None
+        ]
+        if not misses:
+            return len(files), 0, 0, []
+
+        translated: set[str] = set()
+        data = load_game()
+
+        def record(path, replay, games, heuristic) -> None:
+            write_replay_cache(
+                path,
+                replay,
+                games,
+                cache_file=_cache_file(path),
+                heuristic_outcomes=heuristic,
+                side_of=data.effective_side,
+                assume_pov_won=True,
+            )
+            translated.add(path.name)
+
+        fresh = _collect(misses, data, record=record)
+        # A translated replay's own warnings (an unresolved faction) regenerate from its
+        # document when the cache tree is read back; keep only the failures that produced no
+        # document at all, which would otherwise vanish.
+        warnings = [w for w in fresh.warnings if w.split(":", 1)[0] not in translated]
+        already = len(files) - len(misses)
+        return already, len(translated), len(misses) - len(translated), warnings
+
+    def _load_cached_corpora() -> tuple[dict[str, Corpus], dict[str, str], list[str]]:
+        """Build the corpus from the cache tree alone: every document under the corpus's
+        mirror folder, whatever wrote it, loaded with its outcome re-resolved against the
+        sidecar beside its replay. The mirror maps each document back to its replay path, so
+        the mode partition follows the same subfolder rule as the replay tree. A document
+        whose replay is gone or changed loads as nothing and is reported - recache (or delete
+        the orphan) to clear it. Returns the per-mode corpora (the flat "" bucket for a
+        root-level replay), the pooled label -> Side lookups, and those warnings."""
+        by_replay: dict[Path, Path] = {}
+        if cache_dir.is_dir():
+            for cache_file in sorted(cache_dir.rglob("*.json")):
+                relative = cache_file.relative_to(cache_dir)
+                by_replay[corpus_dir / relative.with_suffix("")] = cache_file
+        corpora: dict[str, Corpus] = {}
+        sides: dict[str, str] = {}
+        warnings: list[str] = []
+        for mode, replay_paths in _partition_by_mode(by_replay, corpus_dir).items():
+            corpus = corpora.setdefault(mode, Corpus())
+            for replay_path in replay_paths:
+                cached = load_replay_cache(replay_path, by_replay[replay_path], assume_pov_won=True)
+                if cached is None:
+                    warnings.append(
+                        f"{by_replay[replay_path].name}: stale or orphaned cached document "
+                        "(its replay is missing or changed) - recache or delete it"
+                    )
+                    continue
+                corpus.replays += 1
+                _absorb(corpus, replay_path.name, cached.games)
+                sides.update(cached.sides)
+        return corpora, sides, warnings
+
+    # Group the corpus's replays by recording patch before any game loads - a header-only read.
+    # One fingerprint is the ordinary single-version corpus; several mean a tournament played
+    # across mod patches, each of which must parse under its own installed game version (see the
+    # module docstring's multi-patch workflow). Any file find_replays returned that no group
+    # claimed failed even a header parse; surface it here, since the per-group file lists fed to
+    # collect below would otherwise drop it silently.
+    print(f"scanning replays under {corpus_dir} ...")
+    all_replays = find_replays([corpus_dir])
+
+    # The winner comes from each replay's sidecar (see sage_replay.sidecar); a hand-collected
+    # (off-ladder) tournament corpus arrives with none. Write a stub beside every replay that
+    # lacks one - filled from the header, with the winner left for a human - and stop for the
+    # winners to be filled in, all before any game install is loaded or a version switch is
+    # asked for. A corpus whose sidecars all already name a winner sails straight through.
+    sidecars = ensure_sidecars(all_replays)
+    if sidecars.generated:
+        print(f"  generated {len(sidecars.generated)} missing sidecar(s) from replay headers")
+    for path, error in sidecars.failed:
+        print(f"  warning: could not generate a sidecar for {path.name}: {error}")
+    if sidecars.needs_winner:
+        print(
+            f"{len(sidecars.needs_winner)} replay(s) have no recorded winner yet - set "
+            '"IsWinner": true for each player on the winning team in these sidecars, then rerun:'
+        )
+        for path in sorted(sidecars.needs_winner, key=lambda p: p.name):
+            print(f"  {sidecar_path(path).name}")
+        return 1
+
+    groups = patch_groups(all_replays)
+    unparseable = _unparseable(all_replays, groups)
+    for warning in unparseable:
         print(f"  warning: {warning}")
 
-    # `collect` has already dropped unresolved-faction ("?") player-games into the warnings
-    # above and scrubbed "?" from every surviving game's opponents, so nothing here needs to.
+    # Phase one: the explicit caching step. Every replay gets a translated document in the
+    # mirrored cache tree, and a game install is loaded only for versions that still have
+    # something to translate. Phase two below builds the whole aggregate from the cache tree
+    # alone, so a freshly translated replay and an already-cached one flow through one path.
+    version_counts: dict[str, int] = {}
+    cache_warnings: list[str] = []
+    multi_version = len(groups) > 1
+
+    def _report(files, already: int, translated: int, failed: int, note: str) -> str:
+        cached = f"{already} already cached, {translated} newly translated"
+        failures = f", {failed} failed to translate" if failed else ""
+        skip = note if already == len(files) else ""
+        return f"{len(files)} replay(s): {cached}{failures}{skip}"
+
+    if multi_version:
+        labels = version_labels(corpus_dir / "versions.json", groups)
+        blank = [fingerprint for fingerprint in groups if not labels.get(fingerprint)]
+        if blank:
+            versions_path = _rel(corpus_dir / "versions.json")
+            print(
+                f"this corpus spans {len(groups)} game patches - label each in {versions_path} "
+                "before it can be built:"
+            )
+            for fingerprint in sorted(groups):
+                paths = groups[fingerprint]
+                examples = ", ".join(p.name for p in paths[:3])
+                mark = "" if labels.get(fingerprint) else "   <- fill in"
+                print(
+                    f"  {fingerprint}: {len(paths)} replay(s) "
+                    f'[{examples}] = "{labels.get(fingerprint, "")}"{mark}'
+                )
+            print(
+                'fill each blank label with its version name (e.g. "Edain 4.8.5"), then rerun to '
+                "build the pooled corpus."
+            )
+            return 1
+
+        roots = ", ".join(str(root) for root in game_roots)
+        for label, files in version_groups(groups, labels).items():
+
+            def load_game(label=label):
+                input(f'switch the game install(s) at {roots} to "{label}", then press Enter ... ')
+                # A per-version mount cache keeps each patch's mounted ini tree apart, so passes
+                # never poison one another and switching a root back on a rerun is a free cache
+                # hit. The singular resolve_game_root per root avoids the shared-cache collision
+                # the plural resolve_game_roots would cause by pointing every root at one cache dir.
+                slug = _slug(label)
+                mount = Path(tempfile.gettempdir()) / "sage_mount"
+                roots_resolved = tuple(
+                    resolve_game_root(root, mount / f"{Path(root).name}@{slug}")
+                    for root in game_roots
+                )
+                print(f'loading "{label}" game from {roots} ...')
+                return GameData.from_root(roots_resolved, localize=False)
+
+            already, translated, failed, version_warnings = _ensure_version_cached(files, load_game)
+            cache_warnings.extend(version_warnings)
+            # Count replays with a document (a trusted document was a successful parse by
+            # construction) - a replay that fails to translate becomes a warning, not a count.
+            version_counts[label] = already + translated
+            print(
+                f"  {label}: "
+                + _report(files, already, translated, failed, " - no install switch needed")
+            )
+    else:
+        files = next(iter(groups.values())) if groups else []
+
+        def load_game():
+            print(f"loading game from {', '.join(str(g) for g in game_roots)} ...")
+            return GameData.from_root(resolve_game_roots(game_roots, None), localize=False)
+
+        already, translated, failed, version_warnings = _ensure_version_cached(files, load_game)
+        cache_warnings.extend(version_warnings)
+        if files:
+            print("  " + _report(files, already, translated, failed, " (no game install needed)"))
+
+    # Phase two: the aggregate is built from the cache tree alone - every document under the
+    # corpus's mirror folder, outcomes re-resolved against the sidecars as they are now.
+    # `side_of` is what `_build_tree`'s `_side_annotator` uses to look up unit Sides for the
+    # advisory cross-faction badge: `sides` pools every document's own lookups, and Side
+    # membership is patch-stable, so lookups written under different versions pool safely.
+    corpora, sides, stale_warnings = _load_cached_corpora()
+    cache_warnings.extend(stale_warnings)
+
+    def side_of(label: str) -> str | None:
+        return sides.get(label)
+
+    # Each present player count is its own mode subtree; the overall corpus pools every
+    # partition (all modes plus any flat root-level replays), so no document is read twice. A
+    # flat corpus with no split subfolders collapses to just the overall tree.
+    print(f"collected corpus from {_rel(cache_dir)}:")
+    mode_corpora: dict[str, Corpus] = {}
+    for mode in MODES:
+        sub = corpora.get(mode)
+        if sub is not None and sub.replays:
+            mode_corpora[mode] = sub
+            print(f"  {mode}: {sub.replays} replays -> {len(sub.games)} player-games")
+    corpus = _merge_corpora(corpora.values())
+    print(f"  overall: {corpus.replays} replays -> {len(corpus.games)} player-games")
+    # The caching step's parse failures and any stale/orphaned documents join the documents'
+    # own warnings (an unresolved faction) in the pooled stream.
+    corpus.warnings.extend(cache_warnings)
+    for warning in corpus.warnings:
+        print(f"  warning: {warning}")
+    # The unparseable replays are already printed above; add them to the pooled corpus so the
+    # built index pages list them in their warning stream alongside the rest.
+    corpus.warnings.extend(unparseable)
 
     def _aggregate(games):
         return aggregate(
@@ -252,18 +831,22 @@ def main(argv: list[str] | None = None) -> int:
             matchups=True,
         )
 
-    # The combined page over the whole corpus (its aggregate also drives the index's
-    # leaderboard and matchup matrix, so compute it once).
+    # Grow the hand-maintained localisation map with any newly-rendered code name, then resolve
+    # each to its display string (blank/absent -> the raw code name). The per-mode splits are
+    # subsets of the overall corpus, so the overall aggregate already carries every label.
     combined = _aggregate(corpus.games)
-
-    # Grow the hand-maintained localisation map with any newly-rendered code name, then
-    # resolve each code name to its display string (blank/absent -> the raw code name).
-    names, added = _load_names(args.names, _collect_labels(combined))
+    # The corpus folder name is itself a translatable code name (its blank entry surfaces here
+    # like any pick label), so the whole corpus can be given a display name by hand.
+    names, added = _load_names(args.names, _collect_labels(combined) | {args.folder})
     untranslated = sum(1 for value in names.values() if not value)
     print(
-        f"names: {len(names)} keys ({added} new, {untranslated} untranslated) "
-        f"-> {args.names.relative_to(REPO)}"
+        f"names: {len(names)} keys ({added} new, {untranslated} untranslated) -> {_rel(args.names)}"
     )
+
+    # The corpus title: --title wins, then the folder's filled-in display name, then a
+    # readable default derived from the folder name itself.
+    corpus_name = names.get(args.folder) or args.folder.replace("-", " ").title()
+    title = args.title or f"{corpus_name} replay corpus"
 
     def display(code: str) -> str:
         # A translated entry shows its display string with the raw code name in brackets
@@ -271,83 +854,148 @@ def main(argv: list[str] | None = None) -> int:
         name = names.get(code)
         return f"{name} ({code})" if name else code
 
-    # Badge any pick whose unit Side is a different faction's than the page it sits on - a
-    # disconnected ally's roster the surviving teammate built from the inherited base.
-    annotate = _side_annotator(combined, data)
+    generated = datetime.now().strftime("%Y-%m-%d %H:%M")
+    present = list(mode_corpora)
 
-    # Everything lands under the output dir: the combined report at its root, the per-faction
-    # pages in a factions/ subfolder.
-    factions_dir = args.out / "factions"
-    factions_dir.mkdir(parents=True, exist_ok=True)
-    for stale in factions_dir.glob("*.html"):  # a faction that dropped out keeps no stale page
-        stale.unlink()
+    def _nav(current: str | None) -> list[tuple[str, str]]:
+        """The index nav pills for the tree at `current` (a mode, or None for the corpus's own
+        overall tree): a leading pill back up to the global corpora index (one level up from
+        the corpus root, two from inside a mode split), then the overall index plus every
+        present split, hrefs relative to `current`'s own folder, the current entry left inert
+        (empty href)."""
+        row: list[tuple[str, str]] = [
+            ("All corpora", "../index.html" if current is None else "../../index.html")
+        ]
+        for label, target in [("Overall", None), *((m, m) for m in present)]:
+            if target == current:
+                row.append((label, ""))
+            elif current is None:  # at <out>/ pointing down into a mode
+                row.append((label, f"{target}/index.html"))
+            elif target is None:  # from a mode back up to the overall index
+                row.append((label, "../index.html"))
+            else:  # between two modes
+                row.append((label, f"../{target}/index.html"))
+        return row
 
-    index_path = args.out / "index.html"
+    def _build_tree(out: Path, tree: Corpus, title: str, nav: list[tuple[str, str]]) -> None:
+        """Write one aggregate tree under `out`: the combined report, one page per faction
+        (each with its replay list), and the navigation index carrying `nav`."""
+        tree_combined = _aggregate(tree.games)
+        # Badge any pick whose unit Side is a different faction's than the page it sits on - a
+        # disconnected ally's roster the surviving teammate built from the inherited base.
+        annotate = _side_annotator(tree_combined, side_of)
 
-    def _index_href(page: Path) -> str:
-        """The index href for a page, relative to that page's own folder, so the whole
-        output dir can move as a unit (`index.html` from the root, `../index.html` from
-        the factions/ subfolder)."""
-        return relpath(index_path, page.parent).replace("\\", "/")
+        factions_dir = out / "factions"
+        factions_dir.mkdir(parents=True, exist_ok=True)
+        for stale in factions_dir.glob("*.html"):  # a faction that dropped out keeps no page
+            stale.unlink()
+        index_path = out / "index.html"
 
-    combined_page = args.out / "aggregate.html"
-    _write(
-        combined_page,
-        corpus,
-        combined,
-        args.title,
-        display,
-        annotate=annotate,
-        index_href=_index_href(combined_page),
-    )
+        # The faction emblems live once at `icons_dir` (the corpus root); each page addresses
+        # them relative to its own depth - the tree root and index, and a level deeper for the
+        # per-faction pages under factions/.
+        root_icon = _icon_urls(out, icons_dir)
+        faction_icon = _icon_urls(factions_dir, icons_dir)
 
-    # One page per faction label, filtered to just that faction's player-games. Each page
-    # also lists that faction's replays and the opponent faced (rendered after its aggregate
-    # block via the `extra` hook); the combined page above omits the lists.
-    games_by_faction: dict[str, list] = defaultdict(list)
-    for game in corpus.games:
-        games_by_faction[game.faction].append(game)
+        def _index_href(page: Path) -> str:
+            """This tree's index, relative to `page`'s own folder, so the tree can move as a
+            unit (`index.html` from the tree root, `../index.html` from factions/)."""
+            return relpath(index_path, page.parent).replace("\\", "/")
 
-    labels = sorted(games_by_faction)
-    for label in labels:
-        games = games_by_faction[label]
-        filtered = type(corpus)(games=games, replays=corpus.replays, warnings=corpus.warnings)
-        title = f"{display(label)} - {args.title}"
-        page = factions_dir / f"{_slug(label)}.html"
-
-        def extra(agg, games=games):  # noqa: B008 - the faction's replay list, appended per page
-            return _replay_rows(games, display)
-
+        combined_page = out / "aggregate.html"
         _write(
-            page,
-            filtered,
-            _aggregate(games),
+            combined_page,
+            tree,
+            tree_combined,
             title,
             display,
-            extra,
-            annotate,
-            index_href=_index_href(page),
+            annotate=annotate,
+            index_href=_index_href(combined_page),
+            icon=root_icon,
         )
 
-    # The navigation index sits at the output-dir root; hrefs are relative to it, so the
-    # whole dir can move as a unit.
-    def _href(target: Path) -> str:
-        return relpath(target, args.out).replace("\\", "/")
+        # One page per faction label, filtered to just that faction's player-games, with its
+        # replay list appended via the `extra` hook (the combined page omits the lists).
+        games_by_faction: dict[str, list] = defaultdict(list)
+        for game in tree.games:
+            games_by_faction[game.faction].append(game)
 
-    links = {agg.faction: _href(factions_dir / f"{_slug(agg.faction)}.html") for agg in combined}
-    index = render_index_html(
-        corpus,
-        combined,
-        links,
-        title=args.title,
-        combined_href=_href(args.out / "aggregate.html"),
-        generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
-        translate=display,
+        for label in sorted(games_by_faction):
+            games = games_by_faction[label]
+            filtered = type(tree)(games=games, replays=tree.replays, warnings=tree.warnings)
+            page = factions_dir / f"{_slug(label)}.html"
+
+            def extra(agg, games=games):  # noqa: B008 - the faction's replay list, per page
+                return _replay_rows(games, display)
+
+            _write(
+                page,
+                filtered,
+                _aggregate(games),
+                f"{display(label)} - {title}",
+                display,
+                extra,
+                annotate,
+                index_href=_index_href(page),
+                icon=faction_icon,
+            )
+
+        # The index sits at the tree root; its hrefs are relative to it, so the tree can move
+        # as a unit (`aggregate.html` and `factions/<slug>.html` beside/below it).
+        links = {agg.faction: f"factions/{_slug(agg.faction)}.html" for agg in tree_combined}
+        index = render_index_html(
+            tree,
+            tree_combined,
+            links,
+            title=title,
+            combined_href="aggregate.html",
+            generated=generated,
+            translate=display,
+            nav=nav,
+            icon=root_icon,
+        )
+        index_path.write_text("\n".join(index), encoding="utf-8")
+        print(f"wrote {_rel(index_path)}")
+
+    # The faction emblems, copied once into the corpus root; every page in the tree (and its
+    # mode splits) links them from here, relative to its own depth (see `_icon_urls`).
+    icons_dir = out_root / "icons"
+    print(f"copied {_copy_icons(icons_dir)} faction icon(s) -> {_rel(icons_dir)}")
+
+    # The overall tree at this corpus's own output root (everything, plus the nav to each
+    # split and back up to the global corpora index), then one mirroring subtree per present
+    # player count.
+    _build_tree(out_root, corpus, title, _nav(None))
+    for mode, sub in mode_corpora.items():
+        _build_tree(out_root / mode, sub, f"{title} - {mode}", _nav(mode))
+
+    # Summary metadata the global index reads back without needing to load any game data -
+    # it only ever scans what earlier runs of this script left on disk.
+    decided = sum(1 for g in corpus.games if g.outcome != "undetermined")
+    corpus_meta = {
+        "folder": args.folder,
+        "title": title,
+        "replays": corpus.replays,
+        "player_games": len(corpus.games),
+        "decided_games": decided,
+        "factions": len(combined),
+        "modes": list(mode_corpora),
+        "generated": generated,
+    }
+    # A tournament corpus pooled several game versions; record each version's replay count so the
+    # global index can show which patches it spans (a single-version corpus carries no such key).
+    if multi_version:
+        corpus_meta["versions"] = version_counts
+    (out_root / "corpus.json").write_text(
+        json.dumps(corpus_meta, indent=2) + "\n", encoding="utf-8"
     )
-    index_path.write_text("\n".join(index), encoding="utf-8")
-    print(f"wrote {index_path.relative_to(REPO)}")
+    print(f"wrote {_rel(out_root / 'corpus.json')}")
 
-    print(f"done: index + 1 combined + {len(labels)} per-faction pages")
+    # The global index is a pure disk scan (no game data needed), so it's cheap to regenerate
+    # in full every run - this one's corpus.json plus every sibling corpus a previous run left.
+    _write_global_index(names)
+
+    print(f"done: {args.folder} - overall tree + {len(mode_corpora)} player-count split(s)")
     return 0
 
 

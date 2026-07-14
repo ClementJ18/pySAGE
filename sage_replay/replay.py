@@ -248,7 +248,9 @@ class ReplaySlot:
     network fields: `C<difficulty>,<color>,<faction>,<start>,<team>,<NATBehavior>,<reserved...>`.
     The trailing `reserved` fields are constant across the corpus (`1,0` for humans, `0` for
     AI) and unexplained. `faction` is the mod's PlayerTemplate block index (resolving it to a
-    name needs a loaded game and is out of scope). `raw` is retained only for debugging."""
+    name needs a loaded game and is out of scope); the sentinel `-1` is a lobby Random pick and
+    `-2` marks an observer (a caster/spectator slot, always unteamed - see `is_observer`). `raw`
+    is retained only for debugging."""
 
     slot_type: ReplaySlotType
     raw: str = ""
@@ -271,6 +273,18 @@ class ReplaySlot:
         "H": ReplaySlotDifficulty.Hard,
         "B": ReplaySlotDifficulty.Brutal,
     }
+
+    # The faction sentinel an observer (caster/spectator) slot carries: it joined the lobby but
+    # plays no side, so it is always unteamed and issues no build orders. Distinct from `-1`, the
+    # lobby Random pick (a real player whose faction the engine rolls at load time).
+    OBSERVER_FACTION = -2
+
+    @property
+    def is_observer(self) -> bool:
+        """Whether this slot is an observer (a caster/spectator that plays no side). Such a slot
+        is a Human with a name but no faction and no team, so it must be kept out of player
+        stats, faction labels, opponents, and any winner mapping."""
+        return self.faction == ReplaySlot.OBSERVER_FACTION
 
     @staticmethod
     def parse(raw: str) -> ReplaySlot:

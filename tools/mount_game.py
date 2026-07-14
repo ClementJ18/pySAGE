@@ -30,9 +30,13 @@ _KEEP_SUFFIXES = (".ini", ".inc")
 
 def _keep(entry_low: str) -> bool:
     """Whether an archive entry belongs in the extracted tree: the `data\\ini` ini/inc sources
-    the object loader walks, plus the global `.str` localization table (`data\\lotr.str`) so
-    display names resolve. Map-scoped `.str` tables (`maps\\...`) are left out."""
+    the object loader walks, each map's `map.ini` override (`maps\\<map>\\map.ini` - the
+    per-map context `load_map` layers, e.g. a map-scoped hero roster), plus the global `.str`
+    localization table (`data\\lotr.str`) so display names resolve. Map-scoped `.str` tables
+    are left out."""
     if entry_low.startswith("data\\ini") and entry_low.endswith(_KEEP_SUFFIXES):
+        return True
+    if entry_low.startswith("maps\\") and entry_low.endswith("\\map.ini"):
         return True
     if not (entry_low.startswith("data\\") and entry_low.endswith(".str")):
         return False
@@ -67,13 +71,27 @@ def mount_ini_tree(game_dir: str | Path, out_dir: str | Path) -> Path:
     """Extract the merged `data/ini` tree of the install at `game_dir` into `out_dir`.
 
     Returns `out_dir` (the root to hand to `thing_template_order` / `load_game`). Cached: a
-    matching `.manifest` of `entry -> archive-name` skips re-extraction.
+    matching `.manifest` of `entry -> archive-name, size, mtime` skips re-extraction. The size
+    and mtime are part of the cache key alongside the archive name because a mod's version
+    switcher can swap a `.big`'s contents in place while keeping its filename and entry list, and
+    that must still be treated as a fresh install to mount.
     """
     game_dir, out_dir = Path(game_dir), Path(out_dir)
     index = _first_wins_index(_archives(game_dir))
 
+    stat_cache: dict[Path, os.stat_result] = {}
+
+    def _stat(archive: Path) -> os.stat_result:
+        st = stat_cache.get(archive)
+        if st is None:
+            st = stat_cache[archive] = archive.stat()
+        return st
+
     manifest_path = out_dir / ".manifest"
-    manifest = "\n".join(f"{key}\t{a.name}" for key, (a, _) in sorted(index.items()))
+    manifest = "\n".join(
+        f"{key}\t{a.name}\t{_stat(a).st_size}\t{_stat(a).st_mtime_ns}"
+        for key, (a, _) in sorted(index.items())
+    )
     if manifest_path.is_file() and manifest_path.read_text(encoding="utf-8") == manifest:
         return out_dir
 

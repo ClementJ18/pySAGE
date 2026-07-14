@@ -127,16 +127,24 @@ def map_files(root: str | Path) -> list[Path]:
 
 
 def load_map(
-    map_path: str | Path, root: str | Path, overlays: tuple[str | Path, ...] = ()
+    map_path: str | Path,
+    root: str | Path | Sequence[str | Path],
+    overlays: tuple[str | Path, ...] = (),
+    bases: tuple[str | Path, ...] = (),
 ) -> LoadedGame:
     """The global game with one `map_path` layered on top, as its own context: the map's
     definitions and overrides are visible only here, never leaking into the global game or
-    another map. Its `.str` table layers on the global strings the same way."""
+    another map. Its `.str` table layers on the global strings the same way. `root`,
+    `overlays` and `bases` are `load_game`'s."""
     map_path = Path(map_path)
-    root = Path(root)
-    layers = (ini_root(root), *(ini_root(overlay) for overlay in overlays))
+    roots = as_root_list(root)
+    layers = (
+        *(ini_root(r) for r in reversed(roots)),
+        *(ini_root(Path(overlay)) for overlay in overlays),
+        *(ini_root(Path(base)) for base in bases),
+    )
 
-    loaded = load_game(root, overlays)
+    loaded = load_game(root, overlays, bases)
     # The map layer patches the global objects it re-opens rather than replacing them (the
     # engine's map override), so flag the build while it loads; see `Game.register`.
     loaded.game._map_override = True

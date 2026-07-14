@@ -41,9 +41,9 @@ python -m sage_edain serve <dir> <faction>
 # injected: economy researches + library arts in its Upgrades pick tables, the
 # CP-upgrade CPObject depth-numbered per purchase (CPObject1, CPObject2, ...),
 # Dwarves split into their realm (Erebor / Ered Luin / Iron Hills) by the opening
-# clan-upgrade purchase, and Imladris's four shared Lichtbringer element toggles read
-# as Lichtbringer -> Earth/Light/Water/Air in the Powers pick tables (only for an
-# Imladris caster - the same powers stay raw summons for Angmar / Rohan / Lothlorien)
+# clan-upgrade purchase, and the Imladris Loremaster fielded as its element-specific
+# horde - read off the toggle cast (only for an Imladris caster; the same powers stay
+# raw summons for Angmar / Rohan / Lothlorien) with the elementless placeholder dropped
 python -m sage_edain replay-aggregate <replay|dir>... --game <install>
 ```
 

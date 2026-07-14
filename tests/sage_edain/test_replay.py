@@ -1,14 +1,22 @@
-"""The Edain replay overlay: the tracked-upgrade set, the dwarven-realm faction refiner,
-and their injection into the shared aggregate CLI command."""
+"""The Edain replay overlay: the tracked-upgrade set, the dwarven-realm and Gondor-variant
+faction refiners, and their injection into the shared aggregate CLI command."""
 
 import argparse
 
 from sage_edain.replay import (
+    DORWINION_RECRUITS,
     DWARVEN_REALMS,
+    GONDOR_VARIANTS,
+    IGNORED_RECRUITS,
+    LEUCHTFEUER_RECRUITS,
     LICHTBRINGER_ELEMENTS,
+    LICHTBRINGER_RECRUITS,
+    POWER_RECRUITS,
     TRACKED_UPGRADES,
     dwarven_realm_faction,
-    lichtbringer_power_label,
+    edain_faction_refiner,
+    edain_power_recruits,
+    gondor_variant_faction,
 )
 from sage_replay.__main__ import add_aggregate_command
 from sage_replay.stats import PlayerStats, StatEvent
@@ -48,21 +56,182 @@ def test_dwarven_realm_refiner():
     # No clan upgrade at all (an unknowable realm) is marked unresolved, to be dropped.
     assert dwarven_realm_faction("FactionDwarves", _stats([])) == "?"
 
+    # The stats-only refiner ignores the game/map arguments it is handed as a FactionRefiner.
+    assert (
+        dwarven_realm_faction("FactionDwarves", _stats([pick]), None, "maps/x")
+        == "Dwarves (Erebor)"
+    )
 
-def test_lichtbringer_power_label_is_faction_aware():
+
+class _FakeData:
+    """The slice of GameData the Gondor refiner consults: the FactionMen registration index
+    and the per-map hero roster its map.ini declares (keyed by map file here)."""
+
+    def __init__(self, rosters_by_map):
+        self.faction_names = ["FactionCivilian", "FactionMen", "FactionDwarves"]
+        self._rosters_by_map = rosters_by_map
+
+    def hero_roster_for(self, map_file, faction_id):
+        assert self.faction_names[faction_id] == "FactionMen"
+        return self._rosters_by_map.get(map_file, [])
+
+
+def test_gondor_variant_refiner():
+    assert set(GONDOR_VARIANTS.values()) == {"Arnor", "Belfalas"}
+
+    stats = _stats([])
+    data = _FakeData(
+        {
+            "maps/map edain arnor kaltfelsen": ["CreateAHero", "ArnorCaptainStealthless_mod"],
+            "maps/map edain linhir": ["CreateAHero", "AmrothAmrothos", "AmrothElphir"],
+            "maps/map edain minas tirith": ["CreateAHero", "GondorBoromir_mod"],
+        }
+    )
+    # The map's Gondor roster names the sub-faction: an Arnor captain, an Amrothos, or neither.
+    assert (
+        gondor_variant_faction("FactionMen", stats, data, "maps/map edain arnor kaltfelsen")
+        == "Arnor"
+    )
+    assert gondor_variant_faction("FactionMen", stats, data, "maps/map edain linhir") == "Belfalas"
+    assert (
+        gondor_variant_faction("FactionMen", stats, data, "maps/map edain minas tirith") == "Gondor"
+    )
+    # A map with no FactionMen roster override (or an unknown map) is plain Gondor.
+    assert gondor_variant_faction("FactionMen", stats, data, "maps/vanilla") == "Gondor"
+
+    # Every other faction passes through untouched, whatever the map declares.
+    assert (
+        gondor_variant_faction("FactionDwarves", stats, data, "maps/map edain linhir")
+        == "FactionDwarves"
+    )
+    # No game/map context (the stats-only call form) leaves the label untouched.
+    assert gondor_variant_faction("FactionMen", stats, None, None) == "FactionMen"
+
+
+def test_edain_refiner_composes_both_splits():
+    data = _FakeData({"maps/map edain linhir": ["CreateAHero", "AmrothAmrothos"]})
+    # Men are split by the map's Gondor roster...
+    assert (
+        edain_faction_refiner("FactionMen", _stats([]), data, "maps/map edain linhir") == "Belfalas"
+    )
+    # ...and Dwarves by the opening clan upgrade, in the one refiner.
+    clan = StatEvent(0.4, "upgrades", "Upgrade_ClanLangbarte")
+    assert (
+        edain_faction_refiner("FactionDwarves", _stats([clan]), data, "maps/x")
+        == "Dwarves (Erebor)"
+    )
+    # An unrelated faction is unchanged.
+    assert edain_faction_refiner("FactionMordor", _stats([]), data, "maps/x") == "FactionMordor"
+
+
+def test_lichtbringer_recruits_are_the_element_hordes():
     # The four toggle powers cover all four elements.
     assert set(LICHTBRINGER_ELEMENTS.values()) == {"Earth", "Light", "Water", "Air"}
+    # Each toggle fields the element-specific Loremaster horde it selects (Light -> the "Feuer"
+    # horde: the internal German name and the player-facing element diverge).
+    assert LICHTBRINGER_RECRUITS == {
+        "SpecialAbilityAngmarThrallMasterSummonRhudaurSlingers": "BruchtalLichtbringerErdeHorde",
+        "SpecialAbilityAngmarThrallMasterSummonOrc": "BruchtalLichtbringerFeuerHorde",
+        "SpecialAbilityAngmarThrallMasterSummonWolfRiders": "BruchtalLichtbringerWasserHorde",
+        "SpecialAbilityAngmarThrallMasterSummonRhudaurSpearmen": "BruchtalLichtbringerLuftHorde",
+    }
 
-    shared = "SpecialAbilityAngmarThrallMasterSummonOrc"  # the Lichtbringer "Light" toggle
-    # An Imladris caster: read the shared power as the element it selects.
-    assert lichtbringer_power_label("Imladris", shared) == "Lichtbringer -> Light"
-    # The same power cast by any other faction stays raw (Angmar fires it to summon Orcs).
-    assert lichtbringer_power_label("Angmar", shared) == shared
-    assert lichtbringer_power_label("Mordor", shared) == shared
-    assert lichtbringer_power_label(None, shared) == shared
-    # A power outside the map is untouched even for Imladris.
-    other = "SpecialAbilityForcePush"
-    assert lichtbringer_power_label("Imladris", other) == other
+
+def test_edain_power_recruits_lichtbringer_gates_on_imladris():
+    shared = "SpecialAbilityAngmarThrallMasterSummonOrc"  # the Lichtbringer "Light" (Feuer) toggle
+    # An Imladris caster: the toggle fields its element-specific Loremaster horde.
+    assert edain_power_recruits("Imladris", [], shared) == ("BruchtalLichtbringerFeuerHorde",)
+    # The same power cast by any other faction fields nothing here (Angmar fires it to summon
+    # Orcs, Rohan/Lothlorien likewise) - the elementless placeholder, not this, is their recruit.
+    assert edain_power_recruits("Angmar", [], shared) == ()
+    assert edain_power_recruits("Mordor", [], shared) == ()
+    assert edain_power_recruits(None, [], shared) == ()
+
+
+def test_ignored_recruits_drops_the_elementless_placeholder():
+    # The elementless Loremaster horde is dropped from the normal recruit stream: its element -
+    # and so its recruit row - only becomes known from the toggle cast tracked above.
+    assert IGNORED_RECRUITS == {"BruchtalLichtbringerHorde"}
+    # The element-specific hordes the toggles field are not ignored (they are the recruit rows).
+    for horde in LICHTBRINGER_RECRUITS.values():
+        assert horde not in IGNORED_RECRUITS
+
+
+def test_edain_power_recruits_mordor_summons():
+    assert edain_power_recruits("Mordor", [], "SpellBookSBSummonEasterling") == (
+        "MordorRhunSwordHorde",
+        "MordorEasterlingHordeMod",
+    )
+    # Mumakil once, the rider horde twice.
+    assert edain_power_recruits("Mordor", [], "SpellBookSBSummonHaradrim") == (
+        "MordorMumakil",
+        "MordorHaradrimRiderHordeMod",
+        "MordorHaradrimRiderHordeMod",
+    )
+
+
+def test_edain_power_recruits_dorwinion_calls():
+    # The two Loyal Protectors tiers field a Dorwinion sword/bow mix; the second tier doubles it.
+    assert edain_power_recruits("Dwarves", [], "SpecialAbilityLoyalProtectors") == (
+        "DwarvenDorwinionSwordmanHorde",
+        "DwarvenDorwinionBowmanHorde",
+    )
+    assert edain_power_recruits("Dwarves", [], "SpecialAbilityLoyalProtectors2") == (
+        "DwarvenDorwinionSwordmanHorde",
+        "DwarvenDorwinionSwordmanHorde",
+        "DwarvenDorwinionBowmanHorde",
+        "DwarvenDorwinionBowmanHorde",
+    )
+    # Fist of Dorwinion fields the Purple Guard horde.
+    assert edain_power_recruits("Dwarves", [], "SpecialAbilityFistOfDorwinion") == (
+        "DwarvenDorwinionPurpleGuardHorde",
+    )
+
+
+def test_edain_power_recruits_gates_on_side():
+    # One SpecialPower definition can serve several factions in Edain - a non-Mordor cast of a
+    # Mordor summon, a non-Dwarves cast of a Dorwinion call, or a non-Men cast of a Leuchtfeuer
+    # power, fields nothing.
+    for power in POWER_RECRUITS:
+        assert edain_power_recruits("Isengard", [], power) == ()
+    for power in DORWINION_RECRUITS:
+        assert edain_power_recruits("Isengard", [], power) == ()
+    for power in LEUCHTFEUER_RECRUITS:
+        assert edain_power_recruits("Isengard", [], power) == ()
+
+
+def test_edain_power_recruits_leuchtfeuer_reads_the_map_roster():
+    # Gondor and Belfalas fire the same power definitions; only the caster's per-map Gondor
+    # roster (the same marker gondor_variant_faction reads) tells them apart.
+    belfalas_roster = ["CreateAHero", "AmrothAmrothos", "AmrothElphir"]
+    assert edain_power_recruits("Men", belfalas_roster, "SpecialAbilityLeuchtfeuerRingVale") == (
+        "LamedonSwordsmenHorde",
+        "LamedonSwordsmenHorde",
+    )
+    # Without the Belfalas marker (Arnor's roster, or plain Gondor) it defaults to Gondor.
+    assert edain_power_recruits("Men", [], "SpecialAbilityLeuchtfeuerRingVale") == (
+        "RingValeSwordsmanHorde",
+        "RingValeSwordsmanHorde",
+    )
+    # The all-in-one call fields all four regions' hordes at once.
+    assert edain_power_recruits("Men", [], "SpecialAbilityLeuchtfeuerLehen") == (
+        "RingValeSwordsmanHorde",
+        "LehenLossarnachAxteHorde",
+        "MorthondBowmenHorde",
+        "PelegirSpearmenHorde",
+    )
+    assert edain_power_recruits("Men", belfalas_roster, "SpecialAbilityLeuchtfeuerLehen") == (
+        "LamedonSwordsmenHorde",
+        "LehenNimrassimRavensHorde",
+        "AndrastArcherHorde",
+        "TolFalasSpearmenHorde",
+    )
+
+
+def test_edain_power_recruits_unmapped_power():
+    assert edain_power_recruits("Mordor", [], "SpecialAbilityForcePush") == ()
+    assert edain_power_recruits("Men", [], "SpecialAbilityForcePush") == ()
+    assert edain_power_recruits(None, [], "SpecialAbilityForcePush") == ()
 
 
 def test_replay_aggregate_injects_the_edain_set():
@@ -71,16 +240,28 @@ def test_replay_aggregate_injects_the_edain_set():
         parser.add_subparsers(),
         name="replay-aggregate",
         tracked_upgrades=TRACKED_UPGRADES,
-        refine_faction=dwarven_realm_faction,
-        relabel_power=lichtbringer_power_label,
+        refine_faction=edain_faction_refiner,
+        power_recruits=edain_power_recruits,
+        ignore_recruits=IGNORED_RECRUITS,
     )
     args = parser.parse_args(["replay-aggregate", "replays", "--game", "root"])
     assert args.tracked_upgrades == TRACKED_UPGRADES
-    assert args.refine_faction is dwarven_realm_faction
-    assert args.relabel_power is lichtbringer_power_label
-    # --track-upgrade extends the injected set at run time (see _run_aggregate); here just
-    # check the flag parses alongside the injection.
+    assert args.refine_faction is edain_faction_refiner
+    assert args.power_recruits is edain_power_recruits
+    assert args.ignore_recruits is IGNORED_RECRUITS
+    # --track-upgrade / --track-power extend the injected sets at run time (see
+    # _run_aggregate); here just check the flags parse alongside the injection.
     args = parser.parse_args(
-        ["replay-aggregate", "replays", "--game", "root", "--track-upgrade", "Upgrade_X"]
+        [
+            "replay-aggregate",
+            "replays",
+            "--game",
+            "root",
+            "--track-upgrade",
+            "Upgrade_X",
+            "--track-power",
+            "Power_Y",
+        ]
     )
     assert args.track_upgrade == ["Upgrade_X"]
+    assert args.track_power == ["Power_Y"]

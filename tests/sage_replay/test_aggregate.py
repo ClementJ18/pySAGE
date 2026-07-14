@@ -2,14 +2,21 @@
 pick tables with win-loss records and first-purchase timings. Synthetic GameData and
 chunks - no game install needed - plus the fixture-backed patch-fingerprint gate."""
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 from sage_replay.__main__ import main
 from sage_replay.aggregate import (
     UNRESOLVED_FACTION,
+    ChoiceStat,
     Corpus,
     FactionAggregate,
+    _faction_summary,
+    _html_tiles,
+    _timeline_block,
     aggregate,
     collect,
     patch_groups,
@@ -18,6 +25,8 @@ from sage_replay.aggregate import (
     render_aggregate_html,
     render_aggregate_markdown,
     render_index_html,
+    version_groups,
+    version_labels,
 )
 from sage_replay.narrate import GameData
 from sage_replay.replay import (
@@ -210,6 +219,69 @@ def test_aggregate_pick_tables():
     assert isengard.sciences["SCIENCE_Two"].losses == 1
 
 
+def test_hero_counts_once_at_first_fielding():
+    # A hero re-recruited after dying (or clicked several times) is a revive, not a new pick:
+    # the aggregate keeps only its first fielding, so the row reads games=1, total=1 with the
+    # earliest recruit's clock - never games=1 with an inflated total.
+    replay = _replay(
+        [
+            _chunk(0x417, [(_T.Boolean, True), (_T.Integer, 2)], timecode=11),  # first fielding
+            _chunk(0x417, [(_T.Boolean, True), (_T.Integer, 2)], timecode=90),  # revive
+            _chunk(0x448, [(_T.Boolean, True)], timecode=95, number=4),  # Player1 concedes
+            _chunk(0x44A, [], timecode=100),  # Player0 present at the end -> Rohan wins
+        ]
+    )
+    rohan = {a.faction: a for a in aggregate(player_games(replay, _data()))}["Rohan"]
+    hero = rohan.heroes["fortress hero (command slot 2)"]
+    assert (hero.games, hero.total) == (1, 1)
+    assert hero.first_times == [11.0]
+
+
+def test_outpost_milestone_named_by_unpacked_base():
+    # A plot unpack whose CastleBehavior yields a `*_outpost` base for the issuing player's
+    # Side is the standard-outpost claim: it pools into the faction's `outpost` milestone
+    # (median unpack clock + how many games claimed one), on top of its ordinary building row.
+    data = _data()
+    data.faction_sides = ["Rohan", "Isengard"]
+    data.castle_bases["Barracks"] = {"rohan": "rohan_outpost"}
+    replay = _replay(
+        [
+            _chunk(0x419, [(_T.Integer, 1)], timecode=12),  # Player0 unpacks the Rohan outpost
+            _chunk(0x448, [(_T.Boolean, True)], timecode=30, number=4),  # Player1 concedes
+            _chunk(0x44A, [], timecode=60),  # Player0 present at the end -> Rohan wins
+        ]
+    )
+    by_faction = {a.faction: a for a in aggregate(player_games(replay, data))}
+    rohan = by_faction["Rohan"]
+    # The unpack still gets its ordinary building row...
+    assert "Barracks (unpacks rohan_outpost)" in rohan.buildings
+    # ...and folds into the milestone, which is labelled by the unpacked base so the base can
+    # be given a custom name of its own.
+    assert rohan.outpost is not None
+    assert rohan.outpost.label == "rohan_outpost"
+    assert (rohan.outpost.games, rohan.outpost.total, rohan.outpost.wins) == (1, 1, 0 + 1)
+    assert rohan.outpost.first_times == [12.0]
+    # The base name flows into the summary line and the HTML tile, and is shown through
+    # `translate`, so a hand-given name for the base appears in the report.
+    named = {"rohan_outpost": "Exile Camp"}.get
+    assert "outpost rohan_outpost ~0:12 (1/1)" in _faction_summary(rohan)
+    assert "outpost Exile Camp ~0:12 (1/1)" in _faction_summary(rohan, named)
+    # The stat tiles only carry Games/Record/Win rate/Median length - the outpost milestone
+    # (like the undetermined count) lives in the summary line above, not its own tile.
+    assert "Exile Camp" not in _html_tiles(rohan)
+
+    assert rohan.to_dict()["outpost"]["label"] == "rohan_outpost"
+
+    # A faction that never unpacks a standard outpost keeps the milestone empty/null.
+    isengard = by_faction["Isengard"]
+    assert isengard.outpost is None
+    assert isengard.to_dict()["outpost"] is None
+    assert "outpost" not in _faction_summary(isengard)
+    # No "Std outpost" or "Undetermined" tile at all, decided or not.
+    assert "Std outpost" not in _html_tiles(isengard)
+    assert "Undetermined" not in _html_tiles(isengard)
+
+
 def test_matchup_tables():
     data = _data()
     games = [g for replay in (_REPLAY_A, _REPLAY_B, _REPLAY_C) for g in player_games(replay, data)]
@@ -244,8 +316,11 @@ def test_matchup_tables():
 
 def test_refine_faction_flows_to_factions_and_opponents():
     data = _data()
-    # A refiner keyed on the player's own stats: anyone who bought a science gets a mark.
-    refiner = lambda label, stats: f"{label} (opener)" if stats.sciences else label  # noqa: E731
+    # A refiner keyed on the player's own stats: anyone who bought a science gets a mark. The
+    # game/map arguments (for map-scoped refinements) are part of the signature but unused here.
+    refiner = lambda label, stats, data, map_file: (  # noqa: E731
+        f"{label} (opener)" if stats.sciences else label
+    )
 
     games = {g.player: g for g in player_games(_REPLAY_A, data, refine_faction=refiner)}
     # Player0 bought a science; Player1 (number=4) bought one too in replay A.
@@ -256,8 +331,9 @@ def test_refine_faction_flows_to_factions_and_opponents():
 
 
 def test_power_casts_aggregate_with_faction_aware_relabel():
-    # Special-power casts aggregate as a `powers` pick category; a `relabel_power` hook renames
-    # a shared power per caster Side, so it groups under different labels for each faction.
+    # Special-power casts aggregate as a `powers` pick category, but only for the caller's
+    # tracked set (matched on the relabelled name); a `relabel_power` hook renames a shared
+    # power per caster Side, so it groups under different labels for each faction.
     data = _data()
     data.specialpowers = ["SpecialAbilityShared"]
     data.faction_sides = ["RohanSide", "IsengardSide"]
@@ -272,9 +348,50 @@ def test_power_casts_aggregate_with_faction_aware_relabel():
         ]
     )
     games = player_games(replay, data, relabel_power=relabel)
-    by_faction = {a.faction: a for a in aggregate(games)}
+    tracked = frozenset({"Rohan:SpecialAbilityShared", "SpecialAbilityShared"})
+    by_faction = {a.faction: a for a in aggregate(games, tracked_powers=tracked)}
     assert list(by_faction["Rohan"].powers) == ["Rohan:SpecialAbilityShared"]
     assert list(by_faction["Isengard"].powers) == ["SpecialAbilityShared"]
+
+    # Without a tracked set (the default), no power gets a row at all.
+    untracked = {a.faction: a for a in aggregate(games)}
+    assert not untracked["Rohan"].powers
+    assert not untracked["Isengard"].powers
+
+    # A tracked power renders nested under the Units section as `powers_heading` (its caster is
+    # a unit, not a recruitable hero), not as a flat top-level section. No unit was recruited
+    # here (the casters built nothing), so a bare Units header still anchors the powers - they
+    # never dangle under another category.
+    corpus = Corpus(games=games, replays=1)
+    factions = aggregate(games, tracked_powers=tracked)
+    text = "\n".join(render_aggregate(corpus, factions, powers_heading="Loremaster"))
+    assert "  Units  (games" in text
+    assert text.index("Units") < text.index("Loremaster:")
+    assert "Rohan:SpecialAbilityShared" in text
+    markdown = "\n".join(render_aggregate_markdown(corpus, factions, powers_heading="Loremaster"))
+    assert "### Units" in markdown  # the anchor heading
+    assert "#### Loremaster" in markdown  # nested one level under it
+    assert markdown.index("### Units") < markdown.index("#### Loremaster")
+    html = "\n".join(render_aggregate_html(corpus, factions, powers_heading="Loremaster"))
+    assert "<h3>Units</h3>" in html
+    assert "<h4>Loremaster</h4>" in html
+    assert html.index("<h3>Units</h3>") < html.index("<h4>Loremaster</h4>")
+
+
+def test_horde_combines_hidden_unless_included():
+    # Horde combines (0x423) are off by default and only aggregate with include_combines.
+    data = _data()
+    replay = _replay(
+        [
+            _chunk(0x423, [(_T.Integer, 999)], timecode=5),  # Player0 merges two hordes
+            _chunk(0x44A, [], timecode=60),
+            _chunk(0x44A, [], timecode=60, number=4),
+        ]
+    )
+    games = player_games(replay, data)
+    assert not aggregate(games)[0].combines  # default: no combines row
+    by_faction = {a.faction: a for a in aggregate(games, include_combines=True)}
+    assert by_faction["Rohan"].combines["horde combine"].games == 1
 
 
 def test_random_slot_resolved_from_build_orders():
@@ -319,6 +436,51 @@ def test_collect_routes_unresolved_faction_to_warnings(monkeypatch):
     # never surfaces as a matchup column.
     assert UNRESOLVED_FACTION not in corpus.games[0].opponents
     assert corpus.games[0].opponents == ()
+
+
+def test_player_games_prefers_given_outcomes_over_heuristic():
+    data = _data()
+    # The heuristic reads replay A as Player0 won / Player1 conceded; an explicit outcomes map
+    # (the ladder sidecar's verdict) is authoritative and overrides it outright - here flipping
+    # even a decided result, to prove the map wins rather than merely filling gaps.
+    games = {
+        g.player: g
+        for g in player_games(_REPLAY_A, data, outcomes={"Player0": "lost", "Player1": "won"})
+    }
+    assert games["Player0"].outcome == "lost"
+    assert games["Player1"].outcome == "won"
+
+
+def test_collect_reads_sidecar_by_default(tmp_path, monkeypatch):
+    data = _data()
+    # An elimination ending the heuristic can only call undetermined (nobody leaves, no PoV).
+    replay = _replay([_chunk(0x44A, [], timecode=60)])
+    replay.header.metadata.players[0].team = 1
+    replay.header.metadata.players[1].team = 0
+    replay_path = tmp_path / "game.BfME2Replay"
+    replay_path.write_bytes(b"")
+    replay_path.with_name(replay_path.name + ".json").write_text(
+        json.dumps(
+            {
+                "Players": [
+                    {"Team": 0, "IsWinner": False, "IsObserver": False},
+                    {"Team": 1, "IsWinner": True, "IsObserver": False},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("sage_replay.aggregate.find_replays", lambda paths: [replay_path])
+    monkeypatch.setattr("sage_replay.aggregate.parse_replay_from_path", lambda path: replay)
+
+    # By default the sidecar decides the game the heuristic left open: Player0 is on the
+    # winning team, Player1 on the losing one.
+    corpus = collect([replay_path], data)
+    assert {g.player: g.outcome for g in corpus.games} == {"Player0": "won", "Player1": "lost"}
+
+    # `outcome_source=None` opts back out to the heuristic alone, which here decides nothing.
+    corpus = collect([replay_path], data, outcome_source=None)
+    assert {g.outcome for g in corpus.games} == {"undetermined"}
 
 
 def test_winner_pov_assumption():
@@ -428,6 +590,77 @@ def test_render_aggregate_html_annotate_badges_rows_by_owner():
     assert text.count('<span class="badge">flag</span>') >= 2
 
 
+def test_timeline_occurrences_collect_every_instance():
+    # Two Barracks in one game: the timeline keeps both clocks, each paired with the match's
+    # duration, while `first_times` still holds only the first-per-game clock the median-first
+    # column reads.
+    data = _data()
+    replay = _replay(
+        [
+            _chunk(0x419, [(_T.Integer, 1)], timecode=5),
+            _chunk(0x419, [(_T.Integer, 1)], timecode=25),
+            _science(1, timecode=9),
+            _chunk(0x448, [(_T.Boolean, True)], timecode=30, number=4),  # Player1 concedes
+            _chunk(0x44A, [], timecode=60),
+        ]
+    )
+    rohan = {a.faction: a for a in aggregate(player_games(replay, data))}["Rohan"]
+    barracks = rohan.buildings["Barracks"]
+    assert barracks.occurrences == [(5.0, 60.0), (25.0, 60.0)]
+    assert barracks.first_times == [5.0]
+    # Only the graphed categories collect occurrences; sciences stay empty, and the JSON
+    # payload is unchanged by the new field.
+    assert rohan.sciences["SCIENCE_One"].occurrences == []
+    assert "occurrences" not in barracks.to_dict()
+
+
+def test_render_aggregate_html_timeline_graphs():
+    data = _data()
+    games = [g for r in (_REPLAY_A, _REPLAY_B) for g in player_games(r, data)]
+    corpus = Corpus(games=games, replays=2)
+    text = "\n".join(render_aggregate_html(corpus, aggregate(games, matchups=True), title="T"))
+    # The Buildings section carries a timeline block, collapsed by default (no `open`), with
+    # the two-mode axis toggle and the raw per-instance payload (Barracks at 5s of a 60s game).
+    assert '<details class="timeline" data-graph="g0">' in text
+    assert '<details class="timeline" open' not in text
+    assert 'data-mode="pct"' in text and 'data-mode="abs"' in text
+    assert '"occ":[[5.0,60.0]]' in text
+    # The y-mode toggle ships all four modes with share as the default (the one marked on),
+    # and the note starts as share's.
+    assert '<button type="button" class="on" data-ymode="share">' in text
+    for ymode in ("lifecycle", "count", "cumulative"):
+        assert f'data-ymode="{ymode}"' in text
+        assert f'class="on" data-ymode="{ymode}"' not in text
+    assert "share of visible series' orders per bin" in text
+    # The old per-game rate is gone: the payload carries only the series, no game count.
+    assert '"games":' not in text
+    # Each row's label cell leads with a checked checkbox + swatch keyed to its series.
+    assert 'data-graph="g0" data-series="0"' in text
+    assert '<input type="checkbox" checked' in text
+    # The label header carries the select-all, one per graph.
+    assert 'data-graph-all="g0"' in text and 'data-graph-all="g1"' in text
+    # The matchup sub-table's graph draws its own id, so its checkboxes never cross-wire
+    # with the faction-level graph over the same picks.
+    assert 'data-graph="g1"' in text
+    # Sections without a timeline stay checkbox-free: the fortress-hero row (Heroes) and the
+    # science rows carry plain label cells.
+    assert "<td>fortress hero (command slot 2)</td>" in text
+    assert "<td>SCIENCE_One</td>" in text
+    # The graph renderer ships with the page.
+    assert "details.timeline" in text and 'class="tl-data"' in text
+
+
+def test_timeline_payload_escapes_early_script_close():
+    # A label containing `</script>` must not close the payload element early: the block's
+    # only `</script>` is its own closing tag, and the payload still parses as JSON (the
+    # escaped `<\/` is a legal JSON escape for `/`).
+    choice = ChoiceStat(label="Evil</script>x")
+    choice.occurrences.append((1.0, 60.0))
+    block = _timeline_block([choice], "g9", lambda label: label)
+    payload = block.split('class="tl-data">', 1)[1].split("</script>", 1)[0]
+    assert json.loads(payload)["series"][0]["label"] == "Evil</script>x"
+
+
 def test_render_index_html():
     data = _data()
     games = [g for r in (_REPLAY_A, _REPLAY_B) for g in player_games(r, data)]
@@ -515,8 +748,9 @@ def test_translate_maps_code_names_to_display_strings():
 
     html = "\n".join(render_aggregate_html(corpus, factions, title="T", translate=translate))
     assert "<h2>Rohan (Riders)</h2>" in html
-    # A mapped label renders its display string, not the raw code name.
-    assert "<td>Barracks Hall</td>" in html and "<td>Barracks</td>" not in html
+    # A mapped label renders its display string, not the raw code name (the buildings cell
+    # leads with its timeline checkbox, so match the label against the cell's tail).
+    assert ">Barracks Hall</td>" in html and ">Barracks</td>" not in html
     assert "<td>First Science</td>" in html
     # An unmapped code name (Isengard) falls back to itself.
     assert "<h2>Isengard</h2>" in html
@@ -529,7 +763,7 @@ def test_translate_maps_code_names_to_display_strings():
     assert '<a href="aggregate/isengard.html">Isengard</a>' in index
     # Without a translate, labels stay as raw code names (default identity).
     plain = "\n".join(render_aggregate_html(corpus, factions, title="T"))
-    assert "<h2>Rohan</h2>" in plain and "<td>Barracks</td>" in plain
+    assert "<h2>Rohan</h2>" in plain and ">Barracks</td>" in plain
 
 
 # Fixture replays for the patch-fingerprint gate: two from the same install, one from
@@ -543,12 +777,13 @@ _OTHER_PATCH = _FIXTURES / "2v3.BfME2Replay"
 
 
 def test_patch_groups():
-    # A homogeneous corpus is one group, keyed by the shared fingerprint.
+    # A homogeneous corpus is one group, keyed by the shared fingerprint, holding the full
+    # paths back (so a caller can feed a group straight back into `collect`).
     groups = patch_groups(_SAME_PATCH)
-    assert list(groups.values()) == [[p.name for p in _SAME_PATCH]]
+    assert list(groups.values()) == [list(_SAME_PATCH)]
     # Mixed installs split into their groups; an unparseable file is skipped, not fatal.
     mixed = patch_groups([*_SAME_PATCH, _OTHER_PATCH, _FIXTURES / "missing.BfME2Replay"])
-    assert sorted(len(names) for names in mixed.values()) == [1, 2]
+    assert sorted(len(paths) for paths in mixed.values()) == [1, 2]
 
 
 def test_aggregate_cli_rejects_mixed_patches(capsys):
@@ -558,3 +793,86 @@ def test_aggregate_cli_rejects_mixed_patches(capsys):
     err = capsys.readouterr().err
     assert "not comparable" in err
     assert _OTHER_PATCH.name in err
+
+
+def test_version_labels_creates_blank_entries(tmp_path):
+    path = tmp_path / "versions.json"
+    labels = version_labels(path, ["Bfme2 data=0xAAA", "Bfme2 data=0xBBB"])
+    assert labels == {"Bfme2 data=0xAAA": "", "Bfme2 data=0xBBB": ""}
+    on_disk = json.loads(path.read_text(encoding="utf-8"))
+    assert on_disk == labels
+    assert path.read_text(encoding="utf-8").endswith("\n")
+
+
+def test_version_labels_preserves_hand_fill_and_adds_new_blanks(tmp_path):
+    path = tmp_path / "versions.json"
+    path.write_text(
+        json.dumps({"Bfme2 data=0xAAA": "Edain 4.8.4.3"}, indent=2) + "\n", encoding="utf-8"
+    )
+    labels = version_labels(path, ["Bfme2 data=0xAAA", "Bfme2 data=0xBBB"])
+    assert labels == {"Bfme2 data=0xAAA": "Edain 4.8.4.3", "Bfme2 data=0xBBB": ""}
+    assert json.loads(path.read_text(encoding="utf-8")) == labels
+
+
+def test_version_labels_no_rewrite_when_nothing_changed(tmp_path):
+    path = tmp_path / "versions.json"
+    path.write_text(
+        json.dumps({"Bfme2 data=0xAAA": "Edain 4.8.4.3"}, indent=2) + "\n", encoding="utf-8"
+    )
+    before = path.stat().st_mtime_ns
+    labels = version_labels(path, ["Bfme2 data=0xAAA"])
+    assert labels == {"Bfme2 data=0xAAA": "Edain 4.8.4.3"}
+    assert path.stat().st_mtime_ns == before
+
+
+def test_version_groups_merges_labels_sharing_a_version():
+    groups = {
+        "Bfme2 data=0xAAA": [Path("a1.BfME2Replay"), Path("a2.BfME2Replay")],
+        "Bfme2 data=0xBBB": [Path("b1.BfME2Replay")],
+    }
+    # Both fingerprints are the same hand-labeled version (a hotfix that changed nothing
+    # gameplay-visible), so they pool under its one entry.
+    labels = {"Bfme2 data=0xAAA": "Edain 4.8.4.3", "Bfme2 data=0xBBB": "Edain 4.8.4.3"}
+    merged = version_groups(groups, labels)
+    assert merged == {
+        "Edain 4.8.4.3": [
+            Path("a1.BfME2Replay"),
+            Path("a2.BfME2Replay"),
+            Path("b1.BfME2Replay"),
+        ]
+    }
+
+
+def test_version_groups_follows_label_order_not_hash_order():
+    # Fingerprints whose sorted-hash order is the reverse of their versions.json order: the
+    # merged versions must come out in label (file) order, so the build's install-switch
+    # prompts follow the hand-arranged versions.json rather than the hash sort.
+    groups = {
+        "Bfme2 data=0xCCC": [Path("c1.BfME2Replay")],
+        "Bfme2 data=0xAAA": [Path("a1.BfME2Replay")],
+    }
+    labels = {"Bfme2 data=0xCCC": "Lorienpatch 1.1", "Bfme2 data=0xAAA": "Lorienpatch 2.0"}
+    merged = version_groups(groups, labels)
+    assert list(merged) == ["Lorienpatch 1.1", "Lorienpatch 2.0"]
+
+
+def test_version_groups_ignores_labels_absent_from_this_corpus():
+    # versions.json may list historical versions this corpus's replays don't include; only the
+    # present fingerprints appear, still in label order.
+    groups = {"Bfme2 data=0xBBB": [Path("b1.BfME2Replay")]}
+    labels = {
+        "Bfme2 data=0xAAA": "Lorienpatch 1.1",
+        "Bfme2 data=0xBBB": "Lorienpatch 1.2",
+        "Bfme2 data=0xCCC": "Lorienpatch 1.3",
+    }
+    assert version_groups(groups, labels) == {"Lorienpatch 1.2": [Path("b1.BfME2Replay")]}
+
+
+def test_version_groups_rejects_unlabeled_fingerprints():
+    groups = {
+        "Bfme2 data=0xAAA": [Path("a1.BfME2Replay")],
+        "Bfme2 data=0xBBB": [Path("b1.BfME2Replay")],
+    }
+    labels = {"Bfme2 data=0xAAA": "Edain 4.8.4.3", "Bfme2 data=0xBBB": ""}
+    with pytest.raises(ValueError, match="Bfme2 data=0xBBB"):
+        version_groups(groups, labels)

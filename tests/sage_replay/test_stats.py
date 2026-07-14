@@ -55,6 +55,9 @@ def _data() -> GameData:
         sciences=["SCIENCE_One", "SCIENCE_Two"],
         upgrades=["DefaultUpgrade", "Upgrade_ForgedBlades"],
         displaynames={},
+        # Only Boromir is a buildable MP hero; ChildHero carries the HERO KindOf but is not on
+        # any roster, so it buckets as a unit (a summoned/hero-like unit, not a recruit).
+        hero_rosters=[["Boromir"]],
     )
 
 
@@ -69,11 +72,15 @@ def test_effective_kindof_climbs_and_applies_modifiers():
 
 
 def test_bucket_rules():
-    assert _bucket(frozenset({"HERO", "SELECTABLE"})) == "heroes"
-    assert _bucket(frozenset({"STRUCTURE", "SELECTABLE"})) == "buildings"
-    assert _bucket(frozenset({"HORDE", "SELECTABLE"})) == "units"
-    assert _bucket(frozenset({"PRELOAD"})) == "other"  # CPObject-style purchase
-    assert _bucket(frozenset()) == "other"
+    # Only a buildable-MP hero counts as a hero (the second arg), whatever the KindOf.
+    assert _bucket(frozenset({"HERO", "SELECTABLE"}), True) == "heroes"
+    # The same HERO KindOf, but not a buildable hero, is a unit - a summoned/hero-like unit.
+    assert _bucket(frozenset({"HERO", "SELECTABLE"}), False) == "units"
+    assert _bucket(frozenset({"HERO"}), False) == "units"  # even without SELECTABLE
+    assert _bucket(frozenset({"STRUCTURE", "SELECTABLE"}), False) == "buildings"
+    assert _bucket(frozenset({"HORDE", "SELECTABLE"}), False) == "units"
+    assert _bucket(frozenset({"PRELOAD"}), False) == "other"  # CPObject-style purchase
+    assert _bucket(frozenset(), False) == "other"
 
 
 def _chunk(order_type: int, args: list, *, timecode: int = 0, number: int = 3) -> ReplayChunk:
@@ -111,8 +118,8 @@ def test_compute_stats_buckets_and_orders():
             _chunk(0x43F, [(_T.Integer, 1)]),  # plot unpack: standard +1 id, so 1 -> Barracks
             recruit_of(2),  # OrcHorde -> units
             recruit_of(2),
-            recruit_of(3),  # Boromir -> heroes
-            recruit_of(5),  # ChildHero (inherited HERO) -> heroes
+            recruit_of(3),  # Boromir (on the MP roster) -> heroes
+            recruit_of(5),  # ChildHero (inherited HERO, not on any roster) -> units
             recruit_of(4),  # CPObject-like -> other
             _chunk(0x417, [(_T.Boolean, True), (_T.Integer, 2), (_T.Integer, 0)]),  # slot hero
             _chunk(0x414, [(_T.Integer, 3), (_T.Integer, 2)], timecode=9),  # SCIENCE_Two
@@ -127,8 +134,8 @@ def test_compute_stats_buckets_and_orders():
 
     p0 = stats["Player0"]
     assert p0.buildings == {"Barracks": 4}
-    assert p0.units == {"OrcHorde": 2}
-    assert p0.heroes == {"Boromir": 1, "ChildHero": 1}
+    assert p0.units == {"OrcHorde": 2, "ChildHero": 1}
+    assert p0.heroes == {"Boromir": 1}
     assert p0.other == {"CPObject": 1}
     assert p0.upgrades == {"Upgrade_ForgedBlades": 1, "<upgrade id 99?>": 1}
     assert p0.fortress_hero_slots == {2: 1}
@@ -286,6 +293,104 @@ def test_relabel_power_sees_the_casters_side():
     stats = {per.player: per for per in compute_stats(replay, _power_data(), relabel_power=relabel)}
     assert stats["Player0"].powers == {"Imladris:SpecialAbilityShared": 1}
     assert stats["Player1"].powers == {"Angmar:SpecialAbilityShared": 1}
+
+
+def test_power_recruits_injects_unit_events():
+    # A power that fields permanent units (returned with multiplicity via duplicate names)
+    # records them as ordinary bucketed events, alongside the untouched `powers` count.
+    calls = []
+
+    def recruits(side, roster, power):
+        calls.append((side, tuple(roster), power))
+        return ["OrcHorde", "OrcHorde"] if power == "SpecialAbilityOne" else ()
+
+    replay = _replay([_cast(1, 0x410, number=3)])
+    replay.header.metadata.players[0].faction = 0  # Side "Imladris"
+    stats = {
+        per.player: per for per in compute_stats(replay, _power_data(), power_recruits=recruits)
+    }
+    p0 = stats["Player0"]
+    assert p0.powers == {"SpecialAbilityOne": 1}
+    assert p0.units == {"OrcHorde": 2}
+    # The hook sees the caster's Side and their faction's (per-map) hero roster too.
+    assert calls == [("Imladris", ("Boromir",), "SpecialAbilityOne")]
+
+
+def test_power_recruits_sees_the_raw_power_name_even_when_relabelled():
+    # `relabel_power` may rewrite the stored label, but the hook keys on the raw code name so
+    # it survives relabelling.
+    seen = []
+
+    def recruits(side, roster, power):
+        seen.append(power)
+        return ()
+
+    def relabel(side, power):
+        return "Renamed"
+
+    replay = _replay([_cast(1, 0x410, number=3)])
+    replay.header.metadata.players[0].faction = 0
+    stats = {
+        per.player: per
+        for per in compute_stats(
+            replay, _power_data(), relabel_power=relabel, power_recruits=recruits
+        )
+    }
+    assert stats["Player0"].powers == {"Renamed": 1}
+    assert seen == ["SpecialAbilityOne"]
+
+
+def test_power_recruit_events_are_not_cancellable():
+    # A power cast cannot be cancelled, so the injected events never sit on the `recruits`
+    # LIFO stack: an unrelated 0x418 unit-cancel for the same template id must not consume one.
+    def recruits(side, roster, power):
+        return ["OrcHorde"]
+
+    replay = _replay([_cast(1, 0x410, number=3), _cancel_unit(2)])
+    p0 = {per.player: per for per in compute_stats(replay, _power_data(), power_recruits=recruits)}[
+        "Player0"
+    ]
+    assert p0.units == {"OrcHorde": 1}
+
+
+def test_no_power_recruits_hook_or_empty_result_leaves_units_untouched():
+    replay = _replay([_cast(1, 0x410, number=3)])
+    p0 = {per.player: per for per in compute_stats(replay, _power_data())}["Player0"]
+    assert p0.units == {}
+    assert p0.powers == {"SpecialAbilityOne": 1}
+
+    def empty(side, roster, power):
+        return ()
+
+    p0 = {per.player: per for per in compute_stats(replay, _power_data(), power_recruits=empty)}[
+        "Player0"
+    ]
+    assert p0.units == {}
+    assert p0.powers == {"SpecialAbilityOne": 1}
+
+
+def test_ignore_recruits_drops_named_templates():
+    # A template in `ignore_recruits` (by raw code name) never records as a recruit; the others
+    # in the same stream are untouched.
+    replay = _replay([_recruit(2), _recruit(2), _recruit(4)])  # OrcHorde x2, CPObject
+    p0 = {
+        per.player: per
+        for per in compute_stats(replay, _data(), ignore_recruits=frozenset({"OrcHorde"}))
+    }["Player0"]
+    assert p0.units == {}
+    assert p0.other == {"CPObject": 1}
+
+
+def test_ignored_recruit_is_not_left_on_the_cancel_stack():
+    # An ignored recruit was never recorded, so a later 0x418 unit-cancel for its id finds
+    # nothing to pop and must not disturb the recruit that is the genuine most-recent match.
+    replay = _replay([_recruit(2), _recruit(4), _cancel_unit(2)])  # OrcHorde ignored, CPObject kept
+    p0 = {
+        per.player: per
+        for per in compute_stats(replay, _data(), ignore_recruits=frozenset({"OrcHorde"}))
+    }["Player0"]
+    assert p0.units == {}
+    assert p0.other == {"CPObject": 1}
 
 
 def test_combine_hordes_are_counted():

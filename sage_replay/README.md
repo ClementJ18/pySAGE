@@ -41,18 +41,23 @@ python -m sage_replay info <replay>
 # Dump the order stream (--limit N, --player N, --order 0x415 to filter)
 python -m sage_replay orders <replay> --limit 50
 
-# Per-player stats: building/unit/hero counts per template type, fortress-hero
-# slots, upgrades researched, special-power casts (hero abilities / summons /
-# unit toggles), and the spellbook sciences in purchase order
+# Per-player stats: building/unit/hero counts per template type (fortress-hero
+# recruits resolve to hero names via the revive-submenu model - see
+# order_space_map.md 0x417 - falling back to raw slot numbers), upgrades
+# researched, special-power casts (hero abilities / summons / unit toggles),
+# and the spellbook sciences in purchase order
 python -m sage_replay stats <replay> --game <install>
 
 # Aggregate stats across many replays, grouped by faction: win rates plus science /
 # building / unit / hero pick tables, each pick with its own win-loss record and median
 # first-purchase time ("does the faction win more with science X or Y?"). Upgrade
-# researches get pick tables, and repeatable system purchases per-instance depth rows
-# (CPObject1, CPObject2, ...), only for a tracked set: --track-upgrade / --track-purchase
-# NAME (repeatable), or `sage-edain replay-aggregate` = this same command with Edain's
-# sets injected. --matchups appends the same tables per enemy faction (buildings built
+# researches get pick tables, special-power casts get a table nested under Heroes, and
+# repeatable system purchases per-instance depth rows (CPObject1, CPObject2, ...), each
+# only for a tracked set: --track-upgrade / --track-power / --track-purchase NAME
+# (repeatable), or `sage-edain replay-aggregate` = this same command with Edain's sets
+# injected (its Imladris Loremaster shows as its element-specific horde, read off the
+# toggle cast a `power_recruits` hook counts as a recruit). Horde combines
+# are shown only with --combines. --matchups appends the same tables per enemy faction (buildings built
 # vs Mordor, units vs Gondor) after each faction's own sections.
 # --faction / --player filter the player-games (case-insensitive substring);
 # --markdown renders the same tables as GitHub markdown.
@@ -91,6 +96,33 @@ recording), and `undetermined` for elimination endings or surviving AI oppositio
 players emit no orders at all). Details in
 [order_space_map.md](order_space_map.md#session-end-shapes--winner-inference).
 
+`aggregate` doesn't have to guess when the truth is on disk: a replay downloaded from the
+ladder carries a `<replay>.BfME2Replay.json` metadata sidecar that names the winning team
+outright. `sidecar.py` reads it and maps that team onto the replay's human slots (so even a
+lobby-Random slot, which records no faction, is placed by its team), and `collect` prefers it,
+falling back to the concession heuristic only for a replay with no trustworthy sidecar. The
+match is deliberately strict - a sidecar whose team structure doesn't line up with the replay
+(a stale or mismatched record) is refused rather than trusted - so the heuristic still backs
+every game the sidecars can't vouch for.
+
+## Sharing a parse without the game that made it
+
+Everything in a replay's order stream resolves against the exact game build that recorded it -
+template ids by ini load order, hero recruits by revive-menu position - so consuming a corpus
+normally means installing each recording patch in turn. `translated.py` defines the document
+that breaks the coupling: `TranslatedReplay`, one replay's parse with every id already resolved
+to code names (per-player event timelines, refined faction labels, opponents, Side lookups),
+serialized as versioned JSON. Whoever holds the recording patch produces the document once;
+anyone else can then aggregate the replay with no install at all, and the code-name labels stay
+meaningful against any game version whose templates share the same names. The document is tied
+to its replay by size + content hash (identity that survives copying), and winners are *not*
+baked in - `to_player_games` takes the current sidecar's verdict as an override, falling back
+to the frozen parse-time heuristic. `cache.py` turns a tree of these documents into a parse
+cache: a folder structure mirroring the replay tree (`tools/rebuild_aggregates.py` mirrors
+`downloads/replays/` into `downloads/cached/`), trust checks, and the sidecar refresh on load.
+Producing a document is always an explicit step by the caller - nothing in sage_replay caches
+as a side effect.
+
 ## Mapping order ids to mod objects
 
 Order chunks carry integer ids that reference mod content (the unit recruited, the
@@ -110,9 +142,10 @@ python -m sage_replay align <replay> labels.txt --order 0x415 --player 0 --out o
 ```
 
 Some order types carry more than one id space. The recruit order `0x417` has a leading
-Boolean that switches meaning: `False` = a global unit/upgrade id, `True` = a
-building-local hero-button slot. `--where INDEX=VALUE` (repeatable) filters `ids`/`align`
-to one mode by an argument's value:
+Boolean that switches meaning: `False` = a global unit/upgrade id, `True` = the hero's
+current position in the player's revive submenu (stats/narrate resolve it to a hero name
+via the model in order_space_map.md). `--where INDEX=VALUE` (repeatable) filters
+`ids`/`align` to one mode by an argument's value:
 
 ```sh
 # just the unit/upgrade recruits (drops the fortress-hero orders)

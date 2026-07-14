@@ -13,6 +13,11 @@ loads those tables once from a game root (use `tools/mount_game.py` to mount a l
 `.big` archives into one), and `narrate` walks the stream turning each recognised order into a
 timecoded English line. Control/camera/selection orders carry no static id and are skipped.
 
+Hero recruits (`0x417` flag=True) carry a *revive-submenu position*, not a static id; each
+player's `ReviveList` (heroes.py) replays the submenu - the faction's `BuildableHeroesMP`
+roster (the map's own, when the replay's map has a `map.ini` override and `map_file` is
+given), collapsed as heroes field - to name the hero behind each position.
+
 The horde-combine order (`0x423`, Edain horde-merge) has no static id either - its ObjectId is a
 runtime handle of the target/primary horde - but it names a deliberate action, so it is narrated
 ("combines hordes into object #N") from that ObjectId alone.
@@ -36,11 +41,15 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from sage_ini.loader import load_game
+from sage_ini.loader import load_game, load_map
 from sage_ini.model.behaviors import CastleBehavior
 from sage_ini.model.enums import CommandTypes
+from sage_ini.model.game import Game
+from sage_ini.parser.blockparser import parse_file
 from sage_ini.subsystems import thing_template_order
+from sage_replay.heroes import ReviveList
 from sage_replay.replay import OrderArgumentType, ReplayChunk, ReplayFile
+from sage_utils.views import upgrade_names
 
 __all__ = ["GameData", "NarrationEvent", "narrate", "render"]
 
@@ -102,6 +111,23 @@ class GameData:
     # Castle/camp/outpost plot template -> lowercased Side -> the base-layout name its
     # CastleBehavior unpacks for that faction (`CastleToUnpackForFaction = Men gondor_castle ...`).
     castle_bases: dict[str, dict[str, str]] = field(default_factory=dict)
+    # PlayerTemplate registration order -> the faction's `BuildableHeroesMP` names in order -
+    # the initial revive submenu a `0x417` flag=True slot id indexes (heroes.py). Parallel
+    # to `faction_labels`.
+    hero_rosters: list[list[str]] = field(default_factory=list)
+    # Template name -> its `BuildTime` in seconds (macro-resolved) - every template that
+    # carries one, so heroes that only a map's roster names still field on schedule.
+    hero_build_times: dict[str, float] = field(default_factory=dict)
+    # PlayerTemplate raw code names in registration order (parallel to `faction_labels`,
+    # which may be localized) - the key a map.ini's re-opened PlayerTemplate matches on.
+    faction_names: list[str] = field(default_factory=list)
+    # Where a replay map's `map.ini` may live (`<source>/<map_file>/map.ini`), highest
+    # priority first - lets `hero_roster_for` apply per-map roster overrides replay by
+    # replay (the aggregate path, where one GameData serves maps with different rosters).
+    map_sources: tuple[Path, ...] = ()
+    # map_file -> its overridden rosters (None = the map has no roster override); grown
+    # lazily by `hero_roster_for`, one map.ini parse per distinct map.
+    map_roster_cache: dict[str, list[list[str]] | None] = field(default_factory=dict, repr=False)
 
     @classmethod
     def from_root(
@@ -109,6 +135,7 @@ class GameData:
         root: str | Path | Sequence[str | Path],
         bases: Sequence[str | Path] = (),
         localize: bool = False,
+        map_file: str | None = None,
     ) -> GameData:
         """Build from a game root holding `data/ini` (a live install must be mounted first;
         see `tools/mount_game.py`). `root` may be an ascending-priority sequence of roots (a later
@@ -116,10 +143,19 @@ class GameData:
         mod layers over - needed when the mod relies on the base game's SubsystemLegend.ini and
         object tree (its own defs and references still win).
 
+        `map_file` is the replay header's map path ("maps/map edain linhir"); when some root
+        holds that map's `map.ini` (the mount extracts them), the map is layered on as its own
+        context, so map-scoped overrides - a map's hero roster - resolve like the game did.
+
         `localize` resolves each definition's localized DisplayName from the string table
         ("Misty Mountains"); it is off by default, so every label stays the raw ini code name
         ("FactionWild") - deterministic and independent of the string table."""
-        game = load_game(root, bases=tuple(bases)).game
+        sources = _game_sources(root, bases)
+        map_ini = _map_ini_path(map_file, sources)
+        if map_ini is not None:
+            game = load_map(map_ini, root, bases=tuple(bases)).game
+        else:
+            game = load_game(root, bases=tuple(bases)).game
         strings = {label.upper(): value for label, value in game.strings.items()}
 
         def localized(table) -> dict[str, str]:
@@ -168,6 +204,16 @@ class GameData:
                 if rows:
                     castle_bases[obj_name] = rows
 
+        hero_rosters = [
+            upgrade_names(template._fields.get("BuildableHeroesMP"))
+            for _, template in game.factions.items()
+        ]
+        hero_build_times: dict[str, float] = {}
+        for name in game.objects:
+            seconds = _build_seconds(game, name)
+            if seconds is not None:
+                hero_build_times[name] = seconds
+
         return cls(
             object_order=thing_template_order(root, bases=tuple(bases)),
             objects=dict(game.objects),
@@ -185,6 +231,12 @@ class GameData:
                 str(template._fields.get("Side") or "") for _, template in game.factions.items()
             ],
             castle_bases=castle_bases,
+            hero_rosters=hero_rosters,
+            hero_build_times=hero_build_times,
+            faction_names=[name for name, _ in game.factions.items()],
+            map_sources=sources,
+            # A map loaded via `load_map` already baked its overrides into `hero_rosters`.
+            map_roster_cache={map_file: None} if map_ini is not None and map_file else {},
         )
 
     @staticmethod
@@ -219,6 +271,48 @@ class GameData:
                 return side
             obj = getattr(obj, "parent", None)
         return None
+
+    def hero_roster(self, faction_id: int) -> list[str]:
+        """The faction's `BuildableHeroesMP` names in order - the initial revive submenu a
+        `0x417` flag=True slot id indexes - or [] when the faction is unknown."""
+        if 0 <= faction_id < len(self.hero_rosters):
+            return self.hero_rosters[faction_id]
+        return []
+
+    def is_buildable_hero(self, name: str | None) -> bool:
+        """Whether `name` appears on some faction's `BuildableHeroesMP` roster - the test for a
+        *real* recruitable MP hero, as opposed to a template that merely carries the HERO
+        KindOf (a summoned hero, a hero-like unit). Recruits use it to bucket: only a buildable
+        hero counts under heroes, everything else (HERO KindOf or not) under units."""
+        return name is not None and any(name in roster for roster in self.hero_rosters)
+
+    def hero_roster_for(self, map_file: str | None, faction_id: int) -> list[str]:
+        """The faction's revive roster *on this map*: the global `BuildableHeroesMP`,
+        replaced by the map's own when its `map.ini` (found under `map_sources`) re-opens
+        the PlayerTemplate with one - parsed once per distinct map, so one GameData serves
+        a whole corpus. Falls back to the global roster when the map or override is absent."""
+        rosters = self.hero_rosters
+        if map_file and self.map_sources:
+            if map_file not in self.map_roster_cache:
+                self.map_roster_cache[map_file] = self._map_rosters(map_file)
+            rosters = self.map_roster_cache[map_file] or self.hero_rosters
+        if 0 <= faction_id < len(rosters):
+            return rosters[faction_id]
+        return []
+
+    def _map_rosters(self, map_file: str) -> list[list[str]] | None:
+        """The global rosters with `map_file`'s `BuildableHeroesMP` overrides applied, or
+        None when the map's `map.ini` is absent or overrides no faction."""
+        map_ini = _map_ini_path(map_file, self.map_sources)
+        if map_ini is None:
+            return None
+        overrides = _map_hero_overrides(map_ini)
+        if not overrides:
+            return None
+        return [
+            overrides.get(name, roster)
+            for name, roster in zip(self.faction_names, self.hero_rosters, strict=False)
+        ]
 
     def faction_label(self, faction_id: int) -> str:
         """The player's faction for display. The replay slot's `faction id` indexes the
@@ -255,6 +349,81 @@ class GameData:
         return (
             self.displaynames.get(name, name) if name is not None else f"<object id {replay_id}?>"
         )
+
+
+def _game_sources(
+    root: str | Path | Sequence[str | Path], bases: Sequence[str | Path]
+) -> tuple[Path, ...]:
+    """`from_root`'s game folders as one search list, highest priority first."""
+    roots = [root] if isinstance(root, (str, Path)) else list(root)
+    return tuple(Path(source) for source in (*reversed(roots), *bases))
+
+
+def _map_ini_path(map_file: str | None, sources: Sequence[Path]) -> Path | None:
+    """The on-disk `map.ini` of the replay's map (`<some source>/<map_file>/map.ini`),
+    searched in `sources` order, or None when no source carries the map (vanilla-map
+    replays, trees mounted before maps were extracted)."""
+    if not map_file:
+        return None
+    for source in sources:
+        candidate = source / map_file / "map.ini"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _map_hero_overrides(map_ini: Path) -> dict[str, list[str]]:
+    """The `BuildableHeroesMP` rosters a map.ini's re-opened PlayerTemplates declare, by
+    faction code name. The file is parsed standalone (its cross-references stay unresolved -
+    only the roster fields are read), so one map costs one file parse, not a game reload."""
+    game = Game()
+    try:
+        game.load_document(parse_file(map_ini, resolve_includes=False).document)
+    except Exception:  # noqa: BLE001 - an unreadable map.ini simply means no override
+        return {}
+    return {
+        name: upgrade_names(template._fields.get("BuildableHeroesMP"))
+        for name, template in game.factions.items()
+        if template._fields.get("BuildableHeroesMP") is not None
+    }
+
+
+def _build_seconds(game, name: str) -> float | None:
+    """A hero template's revive `BuildTime` in seconds, macro-resolved
+    (`BuildTime = BEREGOND_BUILDTIME`), or None when the template or field is missing."""
+    obj = game.objects.get(name)
+    raw = obj._fields.get("BuildTime") if obj is not None else None
+    if raw is None:
+        return None
+    token = str(raw[-1] if isinstance(raw, list) else raw).split()[0]
+    try:
+        return float(str(game.get_macro(token)).split()[0])
+    except (ValueError, TypeError, IndexError):
+        return None
+
+
+def _revive_resolver(
+    cache: dict[str, ReviveList | None],
+    replay: ReplayFile,
+    chunk: ReplayChunk,
+    data: GameData,
+    faction_overrides: dict[str, int] | None = None,
+) -> ReviveList | None:
+    """The issuing player's `ReviveList`, created on first use from their faction's hero
+    roster *on the replay's map* (a map.ini roster override shifts every position); None
+    when the faction has no roster (hero slots then stay unresolved). `faction_overrides`
+    (player name -> faction id) substitutes the slot's faction id - how the aggregate path
+    supplies the faction a lobby-Random player (slot faction -1) actually rolled."""
+    player = _player_label(replay, chunk)
+    if player not in cache:
+        slot = replay.slot_for(chunk)
+        faction = slot.faction if slot is not None else None
+        if faction_overrides and player in faction_overrides:
+            faction = faction_overrides[player]
+        map_file = replay.header.metadata.map_file
+        roster = data.hero_roster_for(map_file, faction) if faction is not None else []
+        cache[player] = ReviveList(roster, data.hero_build_times) if roster else None
+    return cache[player]
 
 
 def _allegiance(options: int) -> str:
@@ -427,13 +596,28 @@ def _player_label(replay: ReplayFile, chunk: ReplayChunk) -> str:
 
 def narrate(replay: ReplayFile, data: GameData) -> list[NarrationEvent]:
     """Every content-bearing order as a `NarrationEvent`, in replay order, with consecutive
-    identical actions by the same player collapsed (`recruits 3x Orc Warriors`)."""
+    identical actions by the same player collapsed (`recruits 3x Orc Warriors`).
+
+    Hero recruits (`0x417` flag=True) resolve to hero names through each player's `ReviveList`
+    (heroes.py); the flag=True `0x418` cancels feed the same list (a cancelled hero never
+    fields) without narrating. An unresolvable slot keeps the generic command-slot line."""
     spf = replay.seconds_per_frame
     events: list[NarrationEvent] = []
+    revives: dict[str, ReviveList | None] = {}
     for chunk in replay.chunks:
         slot = replay.slot_for(chunk)
         side = data.faction_side(slot.faction) if slot is not None else None
         text = _describe(chunk, data, side)
+        if chunk.order_type in (0x417, 0x418) and _first_bool(chunk):
+            ints = _integers(chunk)
+            resolver = _revive_resolver(revives, replay, chunk, data)
+            if ints and resolver is not None:
+                if chunk.order_type == 0x417:
+                    name = resolver.recruit(chunk.timecode * spf, ints[0])
+                    if name is not None:
+                        text = f"recruits the hero {data.label(name)}"
+                else:
+                    resolver.cancel(chunk.timecode * spf, ints[0])
         if text is None:
             continue
         player = _player_label(replay, chunk)

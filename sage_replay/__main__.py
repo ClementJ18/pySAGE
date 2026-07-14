@@ -16,17 +16,20 @@
   the base game first and the mod after it for a mod that relies on the base game's
   SubsystemLegend.ini / objects.
 - `stats <replay> --game <root>` - per-player match statistics: buildings / units / heroes
-  built (counts per template type), fortress-hero recruits by command slot, upgrades
+  built (counts per template type; fortress-hero recruits resolve to hero names through
+  the revive-submenu model, falling back to the raw slot number), upgrades
   researched, and the spellbook sciences in purchase order. Same `--game` resolution
   as `narrate`.
 - `aggregate <replay|dir>... --game <root>` - corpus-wide stats over many replays: each
-  human slot becomes a player-game (faction, won/lost via the `winner` heuristic, timed
-  stats), grouped by faction into win rates plus science / building / unit / hero pick
-  tables - each pick with its own win-loss record and median first-purchase clock
-  ("does the faction win more with science X or Y?"). Upgrade researches are reported
-  only for a tracked set, and repeatable system purchases get per-instance depth rows
-  (CPObject1, CPObject2, ...) only for one: `--track-upgrade` / `--track-purchase NAME`
-  (repeatable), or the `sage-edain replay-aggregate` overlay, which registers this same
+  human slot becomes a player-game (faction, won/lost from the ladder metadata sidecar beside
+  the replay when present, else the `winner` heuristic, timed stats), grouped by faction into
+  win rates plus science / building / unit / hero pick tables - each pick with its own
+  win-loss record and median first-purchase clock
+  ("does the faction win more with science X or Y?"). Upgrade researches and special-power
+  casts are reported only for a tracked set, horde combines only with `--combines`, and
+  repeatable system purchases get per-instance depth rows (CPObject1, CPObject2, ...) only
+  for one: `--track-upgrade` / `--track-power` / `--track-purchase NAME` (repeatable, powers
+  nested under Heroes), or the `sage-edain replay-aggregate` overlay, which registers this same
   command with Edain's sets injected. The replays must all come from one patch/mod: a
   corpus mixing patch fingerprints (the header's game-data checksum - recordings from
   different game data do not simulate identically) exits 1 listing the groups, before
@@ -56,6 +59,7 @@ from collections import Counter
 from pathlib import Path
 
 from sage_replay.aggregate import (
+    _DEFAULT_POWERS_HEADING,
     aggregate,
     collect,
     patch_groups,
@@ -413,7 +417,9 @@ def _merge_mapping(path: Path, metadata: dict, order_type: int, rows: list) -> l
 def _run_narrate(args: argparse.Namespace) -> int:
     replay = parse_replay_from_path(args.replay)
     games = resolve_game_roots(args.game, args.cache)
-    data = GameData.from_root(games, localize=args.localized)
+    data = GameData.from_root(
+        games, localize=args.localized, map_file=replay.header.metadata.map_file
+    )
 
     if args.json:
         events = [
@@ -437,7 +443,9 @@ def _run_narrate(args: argparse.Namespace) -> int:
 def _run_stats(args: argparse.Namespace) -> int:
     replay = parse_replay_from_path(args.replay)
     games = resolve_game_roots(args.game, args.cache)
-    data = GameData.from_root(games, localize=args.localized)
+    data = GameData.from_root(
+        games, localize=args.localized, map_file=replay.header.metadata.map_file
+    )
 
     if args.json:
         payload = {
@@ -485,7 +493,8 @@ def _run_aggregate(args: argparse.Namespace) -> int:
             "not comparable; aggregate each group separately:",
             file=sys.stderr,
         )
-        for fingerprint, names in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        for fingerprint, group_paths in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+            names = [p.name for p in group_paths]
             print(f"  {fingerprint}: {len(names)} replays (e.g. {names[0]})", file=sys.stderr)
         return 1
 
@@ -498,6 +507,8 @@ def _run_aggregate(args: argparse.Namespace) -> int:
         assume_pov_won=args.winner_pov,
         refine_faction=args.refine_faction,
         relabel_power=args.relabel_power,
+        power_recruits=args.power_recruits,
+        ignore_recruits=args.ignore_recruits,
     )
     if args.faction is not None:
         needle = args.faction.lower()
@@ -507,10 +518,13 @@ def _run_aggregate(args: argparse.Namespace) -> int:
         corpus.games = [g for g in corpus.games if needle in g.player.lower()]
     tracked = args.tracked_upgrades | frozenset(args.track_upgrade or [])
     purchases = args.tracked_purchases | frozenset(args.track_purchase or [])
+    powers = args.tracked_powers | frozenset(args.track_power or [])
     factions = aggregate(
         corpus.games,
         tracked_upgrades=tracked,
         tracked_purchases=purchases,
+        tracked_powers=powers,
+        include_combines=args.combines,
         matchups=args.matchups,
     )
 
@@ -533,11 +547,11 @@ def _run_aggregate(args: argparse.Namespace) -> int:
         }
         print(json.dumps(payload, indent=2))
     elif args.html:
-        for line in render_aggregate_html(corpus, factions):
+        for line in render_aggregate_html(corpus, factions, powers_heading=args.powers_heading):
             print(line)
     else:
         render = render_aggregate_markdown if args.markdown else render_aggregate
-        for line in render(corpus, factions):
+        for line in render(corpus, factions, powers_heading=args.powers_heading):
             print(line)
     for warning in corpus.warnings:
         print(f"warning: {warning}", file=sys.stderr)
@@ -550,18 +564,30 @@ def add_aggregate_command(
     name: str = "aggregate",
     tracked_upgrades: frozenset[str] = frozenset(),
     tracked_purchases: frozenset[str] = frozenset(),
+    tracked_powers: frozenset[str] = frozenset(),
+    powers_heading: str = _DEFAULT_POWERS_HEADING,
     refine_faction=None,
     relabel_power=None,
+    power_recruits=None,
+    ignore_recruits: frozenset[str] = frozenset(),
 ) -> argparse.ArgumentParser:
     """Register the corpus-aggregate subcommand on an argparse `subparsers`. A mod overlay
-    that knows which upgrade researches deserve a pick-rate row and which system purchases
-    are depth-comparable registers the same command on its own CLI with its
-    `tracked_upgrades` / `tracked_purchases` injected (sage_edain's `replay-aggregate`);
-    `--track-upgrade` / `--track-purchase` extend whatever was injected. `refine_faction`
-    (a `FactionRefiner`) lets the overlay sharpen faction labels from each player's own
-    stats, e.g. Edain's Dwarves into their realm. `relabel_power` (a `PowerLabeler`) renames
+    that knows which upgrade researches deserve a pick-rate row, which system purchases
+    are depth-comparable, and which special powers are worth a row registers the same command
+    on its own CLI with its `tracked_upgrades` / `tracked_purchases` / `tracked_powers`
+    injected (sage_edain's `replay-aggregate`); `--track-upgrade` / `--track-purchase` /
+    `--track-power` extend whatever was injected. Tracked powers render nested under Heroes as
+    `powers_heading` (the owning hero's name - Edain's is "Loremaster"). `refine_faction` (a
+    `FactionRefiner`) lets the overlay sharpen faction labels from each player's own stats,
+    e.g. Edain's Dwarves into their realm. `relabel_power` (a `PowerLabeler`) renames
     special-power casts from the caster's faction Side, e.g. reading Imladris's four shared
-    Lichtbringer toggle powers as `Lichtbringer -> Earth/Light/Water/Air`."""
+    Lichtbringer toggle powers as `Lichtbringer -> Earth/Light/Water/Air` (the names
+    `tracked_powers` then matches). `power_recruits` (a `PowerRecruits`) lets the overlay
+    inject the units a power cast permanently fields as ordinary recruits, e.g. Edain's Mordor
+    summons and Leuchtfeuer signal fires, so they merge into the buildings/units/heroes tables.
+    `ignore_recruits` (raw template code names) drops recruits whose real signal is a later power
+    cast, e.g. Edain's elementless `BruchtalLichtbringerHorde` placeholder (its Loremaster row
+    comes from the toggle `power_recruits` reads instead)."""
     parser = subparsers.add_parser(
         name,
         help="corpus-wide faction stats over many replays: win rates and science/build "
@@ -610,6 +636,20 @@ def add_aggregate_command(
         "extends the command's built-in tracked set)",
     )
     parser.add_argument(
+        "--track-power",
+        action="append",
+        metavar="NAME",
+        default=None,
+        help="report this special power's casts in a pick table nested under Heroes (the "
+        "power's code name, or an overlay's relabelled name; repeatable, extends the "
+        "command's built-in tracked set). Powers are hidden by default",
+    )
+    parser.add_argument(
+        "--combines",
+        action="store_true",
+        help="include horde combines (the Edain 0x423 horde-merge), hidden by default",
+    )
+    parser.add_argument(
         "--matchups",
         action="store_true",
         help="also build every pick table per enemy faction (buildings built vs Mordor, "
@@ -633,8 +673,12 @@ def add_aggregate_command(
         func=_run_aggregate,
         tracked_upgrades=tracked_upgrades,
         tracked_purchases=tracked_purchases,
+        tracked_powers=tracked_powers,
+        powers_heading=powers_heading,
         refine_faction=refine_faction,
         relabel_power=relabel_power,
+        power_recruits=power_recruits,
+        ignore_recruits=ignore_recruits,
     )
     return parser
 

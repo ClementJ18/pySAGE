@@ -12,9 +12,11 @@
 - `replay-aggregate <replay|dir>... --game <root>` - `sage-replay aggregate` (corpus-wide
   faction stats over many replays) with Edain's knowledge (`sage_edain/replay.py`)
   injected: the economy researches and library arts in its Upgrades pick tables, the
-  CP-upgrade CPObject depth-numbered per purchase in its Other-purchases tables, and
-  Dwarves player-games split into their realm (Erebor / Ered Luin / Iron Hills) by the
-  opening clan-upgrade purchase.
+  CP-upgrade CPObject depth-numbered per purchase in its Other-purchases tables, the Imladris
+  Loremaster fielded as its element-specific horde (read off the toggle cast, the elementless
+  placeholder dropped) in its Units tables, Dwarves player-games split into their
+  realm (Erebor / Ered Luin / Iron Hills) by the opening clan-upgrade purchase, and Men
+  player-games split into Gondor / Arnor / Belfalas by the map's Gondor hero roster.
 - `install-skill` - install the bundled `bfme-faction` Claude Code skill.
 
 `<dir>` is the mod's ini root (e.g. `_mod/data/ini`). Pass `--bases` (the mod's `bases/` folder) to
@@ -34,10 +36,11 @@ from sage_edain.graph import (
     playable_factions,
 )
 from sage_edain.replay import (
+    IGNORED_RECRUITS,
     TRACKED_PURCHASES,
     TRACKED_UPGRADES,
-    dwarven_realm_faction,
-    lichtbringer_power_label,
+    edain_faction_refiner,
+    edain_power_recruits,
 )
 from sage_edain.report import render_report, render_roster_table
 from sage_edain.schema import render_schema
@@ -308,8 +311,9 @@ def main(argv: list[str] | None = None) -> int:
         name="replay-aggregate",
         tracked_upgrades=TRACKED_UPGRADES,
         tracked_purchases=TRACKED_PURCHASES,
-        refine_faction=dwarven_realm_faction,
-        relabel_power=lichtbringer_power_label,
+        refine_faction=edain_faction_refiner,
+        power_recruits=edain_power_recruits,
+        ignore_recruits=IGNORED_RECRUITS,
     )
 
     add_install_skill_parser(subparsers, "bfme-faction")
