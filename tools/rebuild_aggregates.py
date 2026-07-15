@@ -9,8 +9,6 @@ shared ROOT all corpora build into:
     aggregate/
       index.html                       global index over every corpus built here (this
                                         script also regenerates it every run, scanning disk)
-      aggregate_names.json             hand-maintained localisation map, shared across every
-                                        corpus (tracked; see below)
       <folder>/                        one corpus, e.g. edain-4.8.4.3/
         index.html                     navigation index (corpus tiles, leaderboard, matrix)
         aggregate.html                 the combined report over every faction
@@ -63,21 +61,25 @@ corpus root's folder structure - `downloads/replays/<corpus>/<mode>/x.BfME2Repla
 `downloads/cached/<corpus>/<mode>/x.BfME2Replay.json`. Phase one caches: every replay lacking
 a trusted document is translated - ids resolved against whichever game version is mounted for
 its patch - and its document written into the mirror; a version group whose replays are all
-already cached loads no install and prompts no version switch. Phase two aggregates: the
-corpus is built from the cache tree alone, every document under the corpus's mirror folder,
-so a freshly translated replay and a years-old document flow through one path. Winners are
-deliberately not part of the documents - the sidecar is hand-edited, so reading a document
-always re-resolves against whatever sidecar sits beside its replay *now*, falling back only
-to the concession-heuristic verdict frozen at translation time. Documents are tied to their
-replays by content hash, not mtime, so replay and cache trees copied between machines rebuild
-there without the game versions that produced them. Pass `--no-cache` to re-translate every
-replay even when its document looks fine - after a stats-pipeline or overlay change, or when
-one is suspected stale (the rewritten documents are still what the aggregate reads).
+already cached loads no install and prompts no version switch. Phase two aggregates: every
+document under the corpus's mirror folder is rehydrated against the currently mounted install
+and run through the load-time pipeline, so a freshly translated replay and a years-old document
+flow through one path. All analysis lives at load time - KindOf bucketing, the faction/power
+overlay, and the winner: since the sidecar is hand-edited, reading a document re-resolves the
+outcome against whatever sidecar sits beside its replay *now*, falling back only to the
+concession heuristic. Documents are tied to their replays by content hash, not mtime, so replay
+and cache trees copied between machines rebuild there without the game versions that produced
+them. Pass `--no-cache` to re-translate every replay even when its document looks fine - after
+an id-space change, or when one is suspected stale (the rewritten documents are still what the
+aggregate reads).
 
-Code names (faction names and every pick-table entry) are shown through the hand-maintained
-localisation file: a `{code name: display string}` map. It lives at the output root
-(`<out>/aggregate_names.json`), not inside the corpus folder, because hand translations should
-carry over between mod versions - the same code names tend to recur release to release. Each
+Code names (faction names and every pick-table entry) are shown through a hand-maintained
+localisation file: a `{code name: display string}` map. Each corpus picks its file through the
+`settings.json` beside its replays - a single `"names"` key whose path resolves relative to the
+corpus folder (an absolute path passes through) - and the files live under `downloads/names/`,
+one per mod: hand translations carry over between corpora of the same mod, whose code names
+recur release to release (edain-4.8.4.3 and loriencup share edain_names.json), but not across
+mods, whose code names diverge. `--names` overrides the settings.json for one run. Each
 rebuild adds any code name it renders that the file is missing, with an empty string to fill
 in by hand. A filled entry renders as `display string (code name)` - the raw code name stays
 visible in brackets - while an empty (or absent) one falls back to the bare code name, so
@@ -91,10 +93,12 @@ corpus folder found on disk under `<out>/` (each one this script has ever built)
 headline numbers from its own corpus.json when present.
 
 Run from anywhere:  python tools/rebuild_aggregates.py edain-4.8.4.3
-Override the paths with --corpus-root / --game / --out / --names if your installs live
-elsewhere; --title overrides the folder-derived default corpus title. `--index-only`
-regenerates just the global index from what is already on disk - no folder argument and no
-game install needed, so a corpus renamed in the names file shows up without a full rebuild.
+Override the paths with --corpus-root / --game / --out if your installs live elsewhere;
+--names bypasses the corpus's settings.json for one run, and --title overrides the
+folder-derived default corpus title. `--index-only` regenerates just the global index from
+what is already on disk - no folder argument, no names file and no game install needed; each
+corpus's display name resolves through its own names file (its corpus.json `"name"` when that
+fails), so a corpus renamed in its names file shows up without a full rebuild.
 `--no-cache` re-translates every replay even when its cached document looks fine - use it after
 a stats-pipeline change too small to warrant bumping `FORMAT_VERSION`, or when a document is
 simply suspected stale; `--cache-root` moves the whole document tree.
@@ -126,13 +130,13 @@ from sage_edain.replay import (  # noqa: E402
     TRACKED_UPGRADES,
     edain_faction_refiner,
     edain_power_recruits,
+    edain_upgrade_recruits,
 )
 from sage_replay.aggregate import (  # noqa: E402
     _HTML_STYLE,
     Corpus,
     _absorb,
     aggregate,
-    collect,
     patch_groups,
     render_aggregate_html,
     render_index_html,
@@ -155,7 +159,6 @@ DEFAULT_CORPUS_ROOT = REPO / "downloads" / "replays"
 DEFAULT_CACHE_ROOT = REPO / "downloads" / "cached"
 DEFAULT_GAME = [Path(r"C:\BFME2"), Path(r"C:\RotWK")]
 DEFAULT_OUT = REPO / "aggregate"
-DEFAULT_NAMES = DEFAULT_OUT / "aggregate_names.json"
 
 # The FactionAggregate attributes whose ChoiceStat labels are rendered code names.
 _LABEL_CATEGORIES = (
@@ -178,13 +181,87 @@ def _rel(path: Path) -> Path:
         return path
 
 
-def _copy_icons(dest: Path) -> int:
-    """Copy the faction emblems (`sage_edain/icons/*.webp`) into the site at `dest`, returning
-    how many landed. They live once per corpus, beside its indexes, so a corpus stays a movable,
-    self-relative unit; a missing source file is skipped so a partial icon set still builds."""
+_SETTINGS_SHAPE = (
+    'expected {"names": "../../names/<mod>_names.json", "edain": true|false, '
+    '"factions": {"<code>": "<display>", ...}}'
+)
+
+
+def _load_settings(corpus_dir: Path) -> dict:
+    """The corpus's `settings.json` beside its replays, as a dict. Read as utf-8-sig, not
+    utf-8: the file is hand-edited, and a Windows editor (or a PowerShell redirect) that saves
+    a UTF-8 BOM must not crash the build. Raises ValueError - naming the file and the shape it
+    should carry - when it is missing, unreadable, invalid JSON, or not a JSON object."""
+    settings_path = corpus_dir / "settings.json"
+    try:
+        settings = json.loads(settings_path.read_text(encoding="utf-8-sig"))
+    except OSError as error:
+        raise ValueError(f"cannot read {settings_path} ({error}); {_SETTINGS_SHAPE}") from error
+    except ValueError as error:
+        raise ValueError(f"invalid JSON in {settings_path} ({error}); {_SETTINGS_SHAPE}") from error
+    if not isinstance(settings, dict):
+        raise ValueError(f"{settings_path} is not a JSON object; {_SETTINGS_SHAPE}")
+    return settings
+
+
+def _resolve_names_path(corpus_dir: Path) -> Path:
+    """The names file the corpus at `corpus_dir` uses: the single `"names"` key of the
+    `settings.json` beside its replays, resolved against the corpus folder when relative (an
+    absolute path is used as-is), so a corpus and its names file move together. Raises
+    ValueError - naming the settings.json and the shape it should carry - when the file is
+    missing, unreadable, invalid JSON, or lacks the key."""
+    settings = _load_settings(corpus_dir)
+    value = settings.get("names")
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f'no "names" key in {corpus_dir / "settings.json"}; {_SETTINGS_SHAPE}')
+    path = Path(value)
+    return path if path.is_absolute() else (corpus_dir / path).resolve()
+
+
+def _faction_relabeler(mapping: dict[str, str]):
+    """A generic `FactionRefiner` for a non-Edain corpus: relabel a raw faction code name to
+    the display name the corpus's `settings.json` `factions` map gives it, so the aggregation
+    key is the shown faction name (a code the map doesn't list passes through unchanged). Unlike
+    Edain's refiner it reads no stats/map/game - a vanilla faction is fixed at the lobby pick."""
+
+    def refine(label: str, stats, data, map_file) -> str:
+        return mapping.get(label, label)
+
+    return refine
+
+
+def _drop_excluded(corpus: Corpus, exclude: frozenset[str]) -> int:
+    """Drop every player-game in `corpus` whose faction is in `exclude` - a corpus's
+    `settings.json` `exclude` list of aggregation labels that aren't real playable factions (a
+    neutral/observer `FactionCivilian` slot) - and scrub those labels from the surviving games'
+    opponent lists (so an excluded faction never appears as a faction row, page, or matchup
+    column), returning how many games were dropped. Applied to the games loaded from the cache,
+    so excluding a faction needs no re-translation. `corpus.replays` is left as-is: a replay that
+    parsed is still a replay that parsed, exactly as an unresolved-faction drop leaves it."""
+    if not exclude:
+        return 0
+    kept = []
+    dropped = 0
+    for game in corpus.games:
+        if game.faction in exclude:
+            dropped += 1
+            continue
+        if any(opponent in exclude for opponent in game.opponents):
+            game.opponents = tuple(o for o in game.opponents if o not in exclude)
+        kept.append(game)
+    corpus.games = kept
+    return dropped
+
+
+def _copy_icons(dest: Path, faction_icons: dict[str, str]) -> int:
+    """Copy the faction emblems (`sage_edain/icons/*.webp`) named in `faction_icons` into the
+    site at `dest`, returning how many landed. They live once per corpus, beside its indexes, so
+    a corpus stays a movable, self-relative unit; a missing source file is skipped so a partial
+    icon set still builds. A non-Edain corpus ships no emblems (`faction_icons` empty), so
+    nothing is copied."""
     dest.mkdir(parents=True, exist_ok=True)
     copied = 0
-    for name in sorted(set(FACTION_ICONS.values())):
+    for name in sorted(set(faction_icons.values())):
         src = ICONS_DIR / name
         if src.is_file():
             shutil.copy2(src, dest / name)
@@ -192,14 +269,15 @@ def _copy_icons(dest: Path) -> int:
     return copied
 
 
-def _icon_urls(page_dir: Path, icons_dir: Path):
+def _icon_urls(page_dir: Path, icons_dir: Path, faction_icons: dict[str, str]):
     """A `FactionIcon` for a page living in `page_dir`: a faction label -> its emblem's URL
     relative to that page (`""` when the faction ships no icon), so the same shared `icons_dir`
-    is addressed correctly from the corpus root, a mode split, or a `factions/` subfolder."""
+    is addressed correctly from the corpus root, a mode split, or a `factions/` subfolder. With
+    an empty `faction_icons` (a non-Edain corpus) every label resolves to no icon."""
     prefix = relpath(icons_dir, page_dir).replace("\\", "/")
 
     def icon(label: str) -> str:
-        name = FACTION_ICONS.get(label)
+        name = faction_icons.get(label)
         return f"{prefix}/{name}" if name else ""
 
     return icon
@@ -239,7 +317,9 @@ def _load_names(path: Path, labels: set[str]) -> tuple[dict[str, str], int]:
     map and how many entries were newly added."""
     names: dict[str, str] = {}
     if path.exists():
-        names = json.loads(path.read_text(encoding="utf-8"))
+        # utf-8-sig, not utf-8: the map is hand-edited, so a Windows editor or PowerShell
+        # redirect that saved a UTF-8 BOM must not crash the build (rewritten below without one).
+        names = json.loads(path.read_text(encoding="utf-8-sig"))
     before = len(names)
     for label in labels:
         names.setdefault(label, "")
@@ -283,8 +363,7 @@ def _faction_own_side(agg, side_of) -> str | None:
     """The faction's own roster Side: the effective Side most of its unit/building/hero picks
     carry (weighted by games). Robust to the odd cross-faction pick, and needs no faction/Side
     table - it reads the faction back off what it actually fields. `side_of` is a label -> Side
-    lookup pooled from the cached documents (see `main`'s `side_of`), not a loaded game, so it
-    works when no game install was mounted at all."""
+    lookup (the paired game's `effective_side`; see `main`'s `side_of`)."""
     counts: Counter[str] = Counter()
     for attribute in _ROSTER_ATTRS:
         for label, choice in getattr(agg, attribute).items():
@@ -298,9 +377,8 @@ def _side_annotator(combined, side_of):
     """A `render_aggregate_html` annotator that badges a pick whose unit Side is a *different*
     faction's than the one whose page it is on - the tell-tale of a disconnected ally's roster
     built from their inherited base (see the corpus's rare 3v3 late-game takeovers). Side is
-    not identity, so the pick is kept and flagged rather than dropped. `side_of` (a label ->
-    Side lookup pooled from the cached documents) rather than a loaded game, so it works when
-    no game install was ever mounted for the page (see `main`'s `side_of`)."""
+    not identity, so the pick is kept and flagged rather than dropped. `side_of` is the paired
+    game's `effective_side` label -> Side lookup (see `main`'s `side_of`)."""
     own_side = {agg.faction: _faction_own_side(agg, side_of) for agg in combined}
     faction_sides = {side for side in own_side.values() if side}
 
@@ -430,15 +508,16 @@ def _corpora_on_disk(out: Path) -> list[tuple[str, dict | None]]:
     return entries
 
 
-def _corpus_row(folder: str, meta: dict | None, names: dict[str, str]) -> str:
+def _corpus_row(folder: str, meta: dict | None, display_names: dict[str, str]) -> str:
     """One `<tr>` of the global index's corpus table: the corpus.json headline numbers when
     `meta` is given, else a bare link row (a folder built by an older script version, or one
-    still mid-build). The link text is the folder name through the shared names file - the
-    usual `display string (code name)` when its entry is filled, the bare folder otherwise -
-    resolved here at render time, so renaming a corpus in the names file takes effect on the
-    next index regeneration without rebuilding the corpus itself."""
+    still mid-build). The link text is the folder name through `display_names` (each folder's
+    display name, resolved by the caller through that corpus's own names file) - the usual
+    `display string (code name)` when a name is known, the bare folder otherwise - so renaming
+    a corpus in its names file takes effect on the next index regeneration without rebuilding
+    the corpus itself."""
     href = f"{folder}/index.html"
-    name = names.get(folder)
+    name = display_names.get(folder)
     label = escape(f"{name} ({folder})" if name else folder)
     if meta is None:
         cells = '<td class="dim">-</td>' * 6
@@ -455,13 +534,13 @@ def _corpus_row(folder: str, meta: dict | None, names: dict[str, str]) -> str:
     )
 
 
-def render_corpora_index(out: Path, names: dict[str, str]) -> str:
+def render_corpora_index(out: Path, display_names: dict[str, str]) -> str:
     """The global landing page over every corpus built under `out` (one run of this script per
     corpus folder): a stat tile for how many are present and a table row per corpus linking to
-    its own index.html, pulling headline numbers from its corpus.json and its display name from
-    `names` (the shared localisation map, keyed by folder name). Rendered here rather
-    than in `sage_replay.aggregate` - the corpora list is this script's concern (it scans disk
-    for what earlier runs left behind), not the aggregation library's - but it reuses the
+    its own index.html, pulling headline numbers from its corpus.json and its label from
+    `display_names` (folder -> display name, resolved per corpus by the caller). Rendered here
+    rather than in `sage_replay.aggregate` - the corpora list is this script's concern (it scans
+    disk for what earlier runs left behind), not the aggregation library's - but it reuses the
     library's stylesheet so the page matches the corpus pages it links to."""
     entries = _corpora_on_disk(out)
     lines = [
@@ -492,7 +571,7 @@ def render_corpora_index(out: Path, names: dict[str, str]) -> str:
                 "<th>Decided</th><th>Factions</th><th>Modes</th>"
                 "<th>Generated</th></tr></thead>",
                 "<tbody>",
-                *[_corpus_row(folder, meta, names) for folder, meta in entries],
+                *[_corpus_row(folder, meta, display_names) for folder, meta in entries],
                 "</tbody>",
                 "</table></div>",
             ]
@@ -535,8 +614,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--names",
         type=Path,
-        default=DEFAULT_NAMES,
-        help="localisation map (code name -> display string), shared across corpora",
+        default=None,
+        help="localisation map (code name -> display string); overrides the one the corpus's "
+        "settings.json points at",
     )
     parser.add_argument(
         "--index-only",
@@ -551,21 +631,35 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    def _read_names() -> dict[str, str]:
-        if args.names.exists():
-            return json.loads(args.names.read_text(encoding="utf-8"))
-        return {}
+    def _display_names() -> dict[str, str]:
+        """Each built corpus folder's display name for the global index: the folder's entry in
+        its own corpus's names file (resolved through --corpus-root/<folder>/settings.json, so
+        filling the entry and rerunning with --index-only renames the row). A blank or absent
+        entry keeps the bare folder name, like any untranslated code name; only when the names
+        file itself cannot be resolved - a corpus whose replay folder is gone - does the "name"
+        its corpus.json recorded label the row instead."""
+        display: dict[str, str] = {}
+        for folder, meta in _corpora_on_disk(args.out):
+            try:
+                names_file = _resolve_names_path(args.corpus_root / folder)
+                loaded = json.loads(names_file.read_text(encoding="utf-8-sig"))
+                name = loaded.get(folder) if isinstance(loaded, dict) else None
+            except (OSError, ValueError):
+                name = (meta or {}).get("name")
+            if name:
+                display[folder] = str(name)
+        return display
 
-    def _write_global_index(names: dict[str, str]) -> None:
+    def _write_global_index() -> None:
         args.out.mkdir(parents=True, exist_ok=True)
         global_index = args.out / "index.html"
-        global_index.write_text(render_corpora_index(args.out, names), encoding="utf-8")
+        global_index.write_text(render_corpora_index(args.out, _display_names()), encoding="utf-8")
         print(f"wrote {_rel(global_index)}")
 
     # A names-file edit (e.g. giving a corpus folder its display name) shows up on the global
     # index without rebuilding any corpus - regenerating it is a pure disk scan.
     if args.index_only:
-        _write_global_index(_read_names())
+        _write_global_index()
         return 0
 
     available = _available_corpora(args.corpus_root)
@@ -583,6 +677,60 @@ def main(argv: list[str] | None = None) -> int:
     out_root = args.out / args.folder
     cache_dir = args.cache_root / args.folder
 
+    # The corpus's localisation map: --names when given, else the file its settings.json
+    # points at (a settings problem is a usage error - the message says what shape to add).
+    if args.names is not None:
+        names_path = args.names
+    else:
+        try:
+            names_path = _resolve_names_path(corpus_dir)
+        except ValueError as error:
+            parser.error(str(error))
+    print(f"names file: {_rel(names_path)}")
+
+    # The corpus's overlay, from its settings.json: `edain` true injects Edain's faction refiner,
+    # fielding-power recruits, ignored recruit, and tracked upgrade/purchase tables (and its
+    # shipped emblems); false is a generic corpus that only relabels raw faction code names to
+    # the display names in the `factions` map (see `_faction_relabeler`) and tracks nothing
+    # Edain-specific. --names overrides the names file but not the overlay - that is a property
+    # of the corpus, not the run.
+    try:
+        settings = _load_settings(corpus_dir)
+    except ValueError as error:
+        parser.error(str(error))
+    edain = bool(settings.get("edain", False))
+    faction_map = settings.get("factions") or {}
+    if not isinstance(faction_map, dict):
+        parser.error(f'"factions" in {corpus_dir / "settings.json"} must be a code -> name object')
+    # Aggregation labels to drop entirely - slots that aren't real playable factions (a
+    # neutral/observer FactionCivilian). Matched against the label a game aggregates under, so an
+    # entry is a raw code unless the `factions` map relabels it. Applied after the cache load
+    # (see `_drop_excluded`), so excluding one needs no re-translation.
+    exclude = settings.get("exclude") or []
+    if not isinstance(exclude, list) or not all(isinstance(item, str) for item in exclude):
+        parser.error(f'"exclude" in {corpus_dir / "settings.json"} must be a list of labels')
+    exclude = frozenset(exclude)
+    if edain:
+        refine_faction = edain_faction_refiner
+        power_recruits = edain_power_recruits
+        upgrade_recruits = edain_upgrade_recruits
+        ignore_recruits = IGNORED_RECRUITS
+        tracked_upgrades = TRACKED_UPGRADES
+        tracked_purchases = TRACKED_PURCHASES
+        faction_icons = FACTION_ICONS
+        print(
+            "overlay: Edain (refiner, power/upgrade recruits, tracked upgrades/purchases, emblems)"
+        )
+    else:
+        refine_faction = _faction_relabeler(faction_map)
+        power_recruits = None
+        upgrade_recruits = None
+        ignore_recruits = frozenset()
+        tracked_upgrades = frozenset()
+        tracked_purchases = frozenset()
+        faction_icons = {}
+        print(f"overlay: generic ({len(faction_map)} faction name(s), no Edain-specific tracking)")
+
     game_roots = args.game or DEFAULT_GAME
 
     def _cache_file(replay_path: Path) -> Path:
@@ -591,91 +739,92 @@ def main(argv: list[str] | None = None) -> int:
         is mirrored too)."""
         return cache_path(replay_path, args.corpus_root, args.cache_root)
 
-    def _collect(paths, data, *, record) -> Corpus:
-        # The corpus is uploaded winners' replays, so decide otherwise-undetermined games in
-        # favour of the recording player's team (the CLI's --winner-pov / assume_pov_won).
-        return collect(
-            paths,
-            data,
-            refine_faction=edain_faction_refiner,
-            power_recruits=edain_power_recruits,
-            ignore_recruits=IGNORED_RECRUITS,
-            assume_pov_won=True,
-            record=record,
-        )
+    # One paired game for the whole load phase, resolved once against the currently mounted
+    # install and memoized. A single-version translate pass reuses it (so the game is never
+    # mounted twice in a run), and it is what phase two rehydrates every document against - per
+    # the corpus workflow, the current mount is assumed to carry every document's names,
+    # whatever recording patch each one holds.
+    _current: list[GameData | None] = [None]
+
+    def _current_game() -> GameData:
+        if _current[0] is None:
+            print(f"loading game from {', '.join(str(g) for g in game_roots)} ...")
+            _current[0] = GameData.from_root(resolve_game_roots(game_roots, None), localize=False)
+        return _current[0]
 
     def _ensure_version_cached(files, load_game) -> tuple[int, int, int, list[str]]:
         """The explicit caching step for one game version's replay files: every replay lacking
         a trusted document in the mirrored cache tree (all of them under `--no-cache`) is
         translated under `load_game()`'s mounted install - only versions with something to
-        translate ever prompt for an install switch - and its document written. The parsed
-        games themselves are discarded: the aggregate is built afterwards purely from the cache
-        tree, so a fresh parse and a cache hit flow through the very same path. Returns (already
-        cached, newly translated, failed to translate, warnings) - the warnings are only the
-        parse failures, since anything document-related resurfaces when the documents are read
-        back."""
+        translate ever prompt for an install switch - and its document written. Translation is
+        the whole step: ids resolve to code names now, while every analysis and outcome decision
+        waits for phase two, so a fresh parse and a cache hit flow through the same load-time
+        path. Returns (already cached, newly translated, failed to translate, warnings) - the
+        warnings are only the parse failures, since anything document-related resurfaces when
+        the documents are read back."""
         misses = [
             path
             for path in files
-            if args.no_cache
-            or cached_document(path, _cache_file(path), assume_pov_won=True) is None
+            if args.no_cache or cached_document(path, _cache_file(path)) is None
         ]
         if not misses:
             return len(files), 0, 0, []
 
-        translated: set[str] = set()
         data = load_game()
-
-        def record(path, replay, games, heuristic) -> None:
-            write_replay_cache(
-                path,
-                replay,
-                games,
-                cache_file=_cache_file(path),
-                heuristic_outcomes=heuristic,
-                side_of=data.effective_side,
-                assume_pov_won=True,
-            )
-            translated.add(path.name)
-
-        fresh = _collect(misses, data, record=record)
-        # A translated replay's own warnings (an unresolved faction) regenerate from its
-        # document when the cache tree is read back; keep only the failures that produced no
-        # document at all, which would otherwise vanish.
-        warnings = [w for w in fresh.warnings if w.split(":", 1)[0] not in translated]
+        translated = 0
+        warnings: list[str] = []
+        for path in misses:
+            try:
+                replay = parse_replay_from_path(path)
+            except Exception as error:  # noqa: BLE001 - any parse failure becomes a warning
+                warnings.append(f"{path.name}: {error}")
+                continue
+            write_replay_cache(path, replay, data, cache_file=_cache_file(path))
+            translated += 1
         already = len(files) - len(misses)
-        return already, len(translated), len(misses) - len(translated), warnings
+        return already, translated, len(misses) - translated, warnings
 
-    def _load_cached_corpora() -> tuple[dict[str, Corpus], dict[str, str], list[str]]:
-        """Build the corpus from the cache tree alone: every document under the corpus's
-        mirror folder, whatever wrote it, loaded with its outcome re-resolved against the
-        sidecar beside its replay. The mirror maps each document back to its replay path, so
-        the mode partition follows the same subfolder rule as the replay tree. A document
-        whose replay is gone or changed loads as nothing and is reported - recache (or delete
-        the orphan) to clear it. Returns the per-mode corpora (the flat "" bucket for a
-        root-level replay), the pooled label -> Side lookups, and those warnings."""
+    def _load_cached_corpora(data: GameData) -> tuple[dict[str, Corpus], list[str]]:
+        """Build the corpus from the cache tree: every document under the corpus's mirror
+        folder, whatever wrote it, rehydrated against the paired `data` and run through the
+        load-time pipeline with the corpus's overlay hooks, its outcome re-resolved against the
+        sidecar beside its replay. The mirror maps each document back to its replay path, so the
+        mode partition follows the same subfolder rule as the replay tree. A document whose
+        replay is gone or changed loads as nothing and is reported - recache (or delete the
+        orphan) to clear it. Returns the per-mode corpora (the flat "" bucket for a root-level
+        replay) and those warnings."""
         by_replay: dict[Path, Path] = {}
         if cache_dir.is_dir():
             for cache_file in sorted(cache_dir.rglob("*.json")):
                 relative = cache_file.relative_to(cache_dir)
                 by_replay[corpus_dir / relative.with_suffix("")] = cache_file
         corpora: dict[str, Corpus] = {}
-        sides: dict[str, str] = {}
         warnings: list[str] = []
         for mode, replay_paths in _partition_by_mode(by_replay, corpus_dir).items():
             corpus = corpora.setdefault(mode, Corpus())
             for replay_path in replay_paths:
-                cached = load_replay_cache(replay_path, by_replay[replay_path], assume_pov_won=True)
-                if cached is None:
+                # The corpus is uploaded winners' replays, so decide otherwise-undetermined
+                # games in favour of the recording player's team (assume_pov_won).
+                games = load_replay_cache(
+                    replay_path,
+                    by_replay[replay_path],
+                    data,
+                    assume_pov_won=True,
+                    refine_faction=refine_faction,
+                    relabel_power=None,
+                    power_recruits=power_recruits,
+                    upgrade_recruits=upgrade_recruits,
+                    ignore_recruits=ignore_recruits,
+                )
+                if games is None:
                     warnings.append(
                         f"{by_replay[replay_path].name}: stale or orphaned cached document "
                         "(its replay is missing or changed) - recache or delete it"
                     )
                     continue
                 corpus.replays += 1
-                _absorb(corpus, replay_path.name, cached.games)
-                sides.update(cached.sides)
-        return corpora, sides, warnings
+                _absorb(corpus, replay_path.name, games)
+        return corpora, warnings
 
     # Group the corpus's replays by recording patch before any game loads - a header-only read.
     # One fingerprint is the ordinary single-version corpus; several mean a tournament played
@@ -776,26 +925,25 @@ def main(argv: list[str] | None = None) -> int:
             )
     else:
         files = next(iter(groups.values())) if groups else []
-
-        def load_game():
-            print(f"loading game from {', '.join(str(g) for g in game_roots)} ...")
-            return GameData.from_root(resolve_game_roots(game_roots, None), localize=False)
-
-        already, translated, failed, version_warnings = _ensure_version_cached(files, load_game)
+        already, translated, failed, version_warnings = _ensure_version_cached(files, _current_game)
         cache_warnings.extend(version_warnings)
         if files:
             print("  " + _report(files, already, translated, failed, " (no game install needed)"))
 
-    # Phase two: the aggregate is built from the cache tree alone - every document under the
-    # corpus's mirror folder, outcomes re-resolved against the sidecars as they are now.
-    # `side_of` is what `_build_tree`'s `_side_annotator` uses to look up unit Sides for the
-    # advisory cross-faction badge: `sides` pools every document's own lookups, and Side
-    # membership is patch-stable, so lookups written under different versions pool safely.
-    corpora, sides, stale_warnings = _load_cached_corpora()
+    # Phase two: the aggregate is built from the cache tree, every document under the corpus's
+    # mirror folder rehydrated against the currently mounted install and run through the
+    # load-time pipeline, its outcome re-resolved against the sidecars as they are now.
+    # `side_of` is the paired game's `effective_side`, what `_build_tree`'s `_side_annotator`
+    # uses to look up unit Sides for the advisory cross-faction badge.
+    data = _current_game()
+    side_of = data.effective_side
+    corpora, stale_warnings = _load_cached_corpora(data)
     cache_warnings.extend(stale_warnings)
-
-    def side_of(label: str) -> str | None:
-        return sides.get(label)
+    # Drop excluded slots (a neutral FactionCivilian) from every mode partition before the
+    # overall corpus pools them, so they never surface as a faction row, page, or matchup column.
+    if exclude:
+        excluded = sum(_drop_excluded(sub, exclude) for sub in corpora.values())
+        print(f"excluded {excluded} player-game(s): {', '.join(sorted(exclude))}")
 
     # Each present player count is its own mode subtree; the overall corpus pools every
     # partition (all modes plus any flat root-level replays), so no document is read twice. A
@@ -821,8 +969,8 @@ def main(argv: list[str] | None = None) -> int:
     def _aggregate(games):
         return aggregate(
             games,
-            tracked_upgrades=TRACKED_UPGRADES,
-            tracked_purchases=TRACKED_PURCHASES,
+            tracked_upgrades=tracked_upgrades,
+            tracked_purchases=tracked_purchases,
             matchups=True,
         )
 
@@ -830,12 +978,21 @@ def main(argv: list[str] | None = None) -> int:
     # each to its display string (blank/absent -> the raw code name). The per-mode splits are
     # subsets of the overall corpus, so the overall aggregate already carries every label.
     combined = _aggregate(corpus.games)
+    # The names file translates pick labels (buildings/units/...). A non-Edain corpus already
+    # names its factions through the settings `factions` map, so those display names are the
+    # aggregation labels themselves and don't belong in the names file - drop every faction label
+    # (each aggregate's own, plus every matchup enemy) so it isn't re-added there as a blank.
+    labels = _collect_labels(combined)
+    if not edain:
+        faction_labels = {agg.faction for agg in combined}
+        faction_labels |= {enemy for agg in combined for enemy in agg.matchups}
+        labels -= faction_labels
     # The corpus folder name is itself a translatable code name (its blank entry surfaces here
     # like any pick label), so the whole corpus can be given a display name by hand.
-    names, added = _load_names(args.names, _collect_labels(combined) | {args.folder})
+    names, added = _load_names(names_path, labels | {args.folder})
     untranslated = sum(1 for value in names.values() if not value)
     print(
-        f"names: {len(names)} keys ({added} new, {untranslated} untranslated) -> {_rel(args.names)}"
+        f"names: {len(names)} keys ({added} new, {untranslated} untranslated) -> {_rel(names_path)}"
     )
 
     # The corpus title: --title wins, then the folder's filled-in display name, then a
@@ -889,8 +1046,8 @@ def main(argv: list[str] | None = None) -> int:
         # The faction emblems live once at `icons_dir` (the corpus root); each page addresses
         # them relative to its own depth - the tree root and index, and a level deeper for the
         # per-faction pages under factions/.
-        root_icon = _icon_urls(out, icons_dir)
-        faction_icon = _icon_urls(factions_dir, icons_dir)
+        root_icon = _icon_urls(out, icons_dir, faction_icons)
+        faction_icon = _icon_urls(factions_dir, icons_dir, faction_icons)
 
         def _index_href(page: Path) -> str:
             """This tree's index, relative to `page`'s own folder, so the tree can move as a
@@ -955,7 +1112,7 @@ def main(argv: list[str] | None = None) -> int:
     # The faction emblems, copied once into the corpus root; every page in the tree (and its
     # mode splits) links them from here, relative to its own depth (see `_icon_urls`).
     icons_dir = out_root / "icons"
-    print(f"copied {_copy_icons(icons_dir)} faction icon(s) -> {_rel(icons_dir)}")
+    print(f"copied {_copy_icons(icons_dir, faction_icons)} faction icon(s) -> {_rel(icons_dir)}")
 
     # The overall tree at this corpus's own output root (everything, plus the nav to each
     # split and back up to the global corpora index), then one mirroring subtree per present
@@ -969,6 +1126,9 @@ def main(argv: list[str] | None = None) -> int:
     decided = sum(1 for g in corpus.games if g.outcome != "undetermined")
     corpus_meta = {
         "folder": args.folder,
+        # The bare display name (no "replay corpus" suffix): the global index's label for this
+        # folder when its corpus's names file cannot be resolved at regeneration time.
+        "name": corpus_name,
         "title": title,
         "replays": corpus.replays,
         "player_games": len(corpus.games),
@@ -988,7 +1148,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # The global index is a pure disk scan (no game data needed), so it's cheap to regenerate
     # in full every run - this one's corpus.json plus every sibling corpus a previous run left.
-    _write_global_index(names)
+    _write_global_index()
 
     print(f"done: {args.folder} - overall tree + {len(mode_corpora)} player-count split(s)")
     return 0

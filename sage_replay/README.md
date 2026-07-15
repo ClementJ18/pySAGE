@@ -115,18 +115,20 @@ every game the sidecars can't vouch for.
 Everything in a replay's order stream resolves against the exact game build that recorded it -
 template ids by ini load order, hero recruits by revive-menu position - so consuming a corpus
 normally means installing each recording patch in turn. `translated.py` defines the document
-that breaks the coupling: `TranslatedReplay`, one replay's parse with every id already resolved
-to code names (per-player event timelines, refined faction labels, opponents, Side lookups),
-serialized as versioned JSON. Whoever holds the recording patch produces the document once;
-anyone else can then aggregate the replay with no install at all, and the code-name labels stay
-meaningful against any game version whose templates share the same names. The document is tied
-to its replay by size + content hash (identity that survives copying), and winners are *not*
-baked in - `to_player_games` takes the current sidecar's verdict as an override, falling back
-to the frozen parse-time heuristic. `cache.py` turns a tree of these documents into a parse
-cache: a folder structure mirroring the replay tree (`tools/rebuild_aggregates.py` mirrors
-`downloads/replays/` into `downloads/cached/`), trust checks, and the sidecar refresh on load.
-Producing a document is always an explicit step by the caller - nothing in sage_replay caches
-as a side effect.
+that breaks the coupling: `TranslatedReplay`, one replay's own structure serialized as versioned
+JSON with every version-coupled id resolved to its code name and nothing else raw. Whoever holds
+the recording patch produces the document once; anyone else can then rehydrate it into a
+`ReplayFile` and run the whole analysis pipeline against any game whose templates share those
+names, with no matching install at all. All analysis - KindOf bucketing, the faction/power
+overlay, the winner - lives at load time, so a pipeline or overlay change never invalidates a
+document; it only goes stale when id-space knowledge itself changes. The document is tied to its
+replay by size + content hash (identity that survives copying), and winners are *not* baked in:
+a load re-resolves each outcome from whatever sidecar sits beside the replay now, falling back to
+the concession heuristic. `cache.py` turns a tree of these documents into a parse cache: a folder
+structure mirroring the replay tree (`tools/rebuild_aggregates.py` mirrors `downloads/replays/`
+into `downloads/cached/`), the trust checks, and the load-time pipeline that turns a document
+back into player-games. Producing a document is always an explicit step by the caller - nothing
+in sage_replay caches as a side effect.
 
 ## Mapping order ids to mod objects
 

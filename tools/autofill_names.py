@@ -1,9 +1,11 @@
-"""Autofill display names into the aggregate localisation map.
+"""Autofill display names into a corpus localisation map.
 
-`rebuild_aggregates.py` adds every rendered code name to `aggregate/aggregate_names.json` with
-a blank value to hand-translate. This fills the two kinds it can resolve automatically against
-the live BFME2 + RotWK/Edain installs, leaving factions, upgrades, and composed labels
-(`CPObject1`, `X (unpacks Y)`, `fortress hero (command slot N)`) for hand-translation:
+The maps live under `downloads/names/`, one per mod, each pointed at by the `settings.json` of
+the corpora that share it; `rebuild_aggregates.py` adds every rendered code name to its
+corpus's map with a blank value to hand-translate. This fills the two kinds it can resolve
+automatically against the live BFME2 + RotWK/Edain installs, leaving factions, upgrades, and
+composed labels (`CPObject1`, `X (unpacks Y)`, `fortress hero (command slot N)`) for
+hand-translation:
 
   objects   - a ThingTemplate's localized DisplayName. A child template with no DisplayName of
               its own inherits one up the `ChildObject` chain (its effective in-game name), so
@@ -19,7 +21,11 @@ A code name with no resolvable name (no DisplayName up the chain, no buying butt
 Non-destructive: only blank entries are filled (a hand-written value is never overwritten
 unless --overwrite is given). Rerun after a rebuild surfaces new code names.
 
-Run from anywhere:  python tools/autofill_names.py
+Everything resolves against whatever game is installed at the `--game` roots, so pass the
+names file matching the installed mod - filling a mod's map from another mod's install would
+bake in the wrong display names.
+
+Run from anywhere:  python tools/autofill_names.py downloads/names/edain_names.json
 """
 
 from __future__ import annotations
@@ -35,15 +41,20 @@ sys.path.insert(0, str(REPO))  # allow running this file directly, not just as a
 from sage_ini.loader import load_game  # noqa: E402
 from sage_utils.gameroot import resolve_game_roots  # noqa: E402
 
-DEFAULT_NAMES = REPO / "aggregate" / "aggregate_names.json"
 DEFAULT_GAME = [Path(r"C:\BFME2"), Path(r"C:\RotWK")]
+
+
+def _rel(path: Path) -> Path:
+    """`path` repo-relative for printing, or as-is when it lives outside the repo."""
+    try:
+        return path.relative_to(REPO)
+    except ValueError:
+        return path
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--names", type=Path, default=DEFAULT_NAMES, help="localisation map to fill"
-    )
+    parser.add_argument("names", type=Path, help="localisation map to fill")
     parser.add_argument(
         "--game",
         type=Path,
@@ -94,7 +105,9 @@ def main(argv: list[str] | None = None) -> int:
         for science in sciences if isinstance(sciences, list) else [sciences]:
             science_display.setdefault(str(science), text)
 
-    names: dict[str, str] = json.loads(args.names.read_text(encoding="utf-8"))
+    # utf-8-sig, not utf-8: the map is hand-edited, so a UTF-8 BOM (a Windows editor or
+    # PowerShell redirect) must not crash the fill (it is rewritten below without one).
+    names: dict[str, str] = json.loads(args.names.read_text(encoding="utf-8-sig"))
     is_object = {key: key in game.objects for key in names}
     is_science = {key: key in game.sciences for key in names}
     filled_objects = filled_sciences = 0
@@ -119,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         f"filled {filled_objects} object + {filled_sciences} science name(s); "
         f"{named_obj}/{sum(is_object.values())} objects, "
         f"{named_sci}/{sum(is_science.values())} sciences now named, "
-        f"{len(names)} keys total -> {args.names.relative_to(REPO)}"
+        f"{len(names)} keys total -> {_rel(args.names.resolve())}"
     )
     return 0
 

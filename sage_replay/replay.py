@@ -766,12 +766,14 @@ def _read_argument(stream: BinaryStream, argument_type: OrderArgumentType) -> ob
             return stream.readBytes(2)
 
 
-def integer_arguments(chunk: ReplayChunk) -> list[int]:
-    """The Integer-typed argument values of a chunk's order, in order."""
+def integer_arguments(chunk: ReplayChunk) -> list[int | str]:
+    """The Integer-typed argument values of a chunk's order, in order. A raw parse only ever
+    puts an `int` in an Integer slot; a translated replay rehydrated from `sage_replay.translated`
+    carries a resolved code name (`str`) in the id positions, so callers must accept either."""
     return [
-        a.value
+        cast("int | str", a.value)
         for a in chunk.order.arguments
-        if a.argument_type is OrderArgumentType.Integer and isinstance(a.value, int)
+        if a.argument_type is OrderArgumentType.Integer
     ]
 
 
@@ -821,6 +823,12 @@ _NOMINAL_SECONDS_PER_FRAME = 0.2
 class ReplayFile:
     header: ReplayHeader
     chunks: list[ReplayChunk] = field(default_factory=list)
+    # True when this file was rehydrated from a translated-replay document (its id-bearing
+    # Integer arguments already hold resolved code names, and its hero recruits were resolved
+    # at translation time), rather than parsed from raw bytes. `stats.compute_stats` reads it to
+    # skip the revive-submenu resolver, whose list state cannot be rebuilt from a stream whose
+    # resolved recruits are already names (see `sage_replay.translated`).
+    translated: bool = False
 
     @property
     def game_type(self) -> ReplayGameType:

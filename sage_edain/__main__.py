@@ -41,6 +41,7 @@ from sage_edain.replay import (
     TRACKED_UPGRADES,
     edain_faction_refiner,
     edain_power_recruits,
+    edain_upgrade_recruits,
 )
 from sage_edain.report import render_report, render_roster_table
 from sage_edain.schema import render_schema
@@ -313,6 +314,7 @@ def main(argv: list[str] | None = None) -> int:
         tracked_purchases=TRACKED_PURCHASES,
         refine_faction=edain_faction_refiner,
         power_recruits=edain_power_recruits,
+        upgrade_recruits=edain_upgrade_recruits,
         ignore_recruits=IGNORED_RECRUITS,
     )
 

@@ -16,6 +16,7 @@ from sage_edain.replay import (
     dwarven_realm_faction,
     edain_faction_refiner,
     edain_power_recruits,
+    edain_upgrade_recruits,
     gondor_variant_faction,
 )
 from sage_replay.__main__ import add_aggregate_command
@@ -141,11 +142,95 @@ def test_edain_power_recruits_lichtbringer_gates_on_imladris():
     shared = "SpecialAbilityAngmarThrallMasterSummonOrc"  # the Lichtbringer "Light" (Feuer) toggle
     # An Imladris caster: the toggle fields its element-specific Loremaster horde.
     assert edain_power_recruits("Imladris", [], shared) == ("BruchtalLichtbringerFeuerHorde",)
-    # The same power cast by any other faction fields nothing here (Angmar fires it to summon
-    # Orcs, Rohan/Lothlorien likewise) - the elementless placeholder, not this, is their recruit.
-    assert edain_power_recruits("Angmar", [], shared) == ()
+    # The same power cast by a Side without a conversion table fields nothing here (a
+    # Rohan/Lothlorien peasant toggle is reversible, not a fielding).
     assert edain_power_recruits("Mordor", [], shared) == ()
+    assert edain_power_recruits("Lothlorien", [], shared) == ()
     assert edain_power_recruits(None, [], shared) == ()
+
+
+def test_edain_power_recruits_angmar_splits_on_the_buttons_options_bits():
+    # An Angmar cast of a shared ThrallMaster power is a real conversion of one of two units:
+    # the firing button's Options bitfield (the cast's second Integer) carries the SiegeTroll
+    # buttons' MULTI bits for a siege build and not for a ThrallMaster summon.
+    thrall_options = 0x40000000 | 0x1000000  # ON_GROUND_ONLY | TOGGLE_IMAGE_ON_WEAPONSET
+    troll_options = thrall_options | 0x100000 | 0x100  # + OK_FOR_MULTI_EXECUTE|_SELECT
+    shared = "SpecialAbilityAngmarThrallMasterSummonOrc"
+    assert edain_power_recruits("Angmar", [], shared, thrall_options) == ("AngmarOrcWarriors",)
+    assert edain_power_recruits("Angmar", [], shared, troll_options) == ("AngmarBatteringRam",)
+    assert edain_power_recruits(
+        "Angmar", [], "SpecialAbilityAngmarThrallMasterSummonWolfRiders", troll_options
+    ) == ("AngmarTrollSling",)
+    assert edain_power_recruits(
+        "Angmar", [], "SpecialAbilityAngmarThrallMasterSummonRhudaurSpearmen", troll_options
+    ) == ("AngmarSiegeTower",)
+    # The slingers power has no SiegeTroll button, so MULTI-bit casts of it field nothing.
+    assert (
+        edain_power_recruits(
+            "Angmar", [], "SpecialAbilityAngmarThrallMasterSummonRhudaurSlingers", troll_options
+        )
+        == ()
+    )
+    assert edain_power_recruits(
+        "Angmar", [], "SpecialAbilityAngmarThrallMasterSummonRhudaurSlingers", thrall_options
+    ) == ("AngmarRhudaurSlingers",)
+    # The Black Guard's dedication power is ThrallMaster-specific but flows the same way.
+    assert edain_power_recruits(
+        "Angmar", [], "SpecialAbilityAngmarThrallMasterSummonOrkSchlachter", thrall_options
+    ) == ("AngmarOrkSchlachterHorde",)
+    # An Imladris toggle is unaffected by whatever bits its button carries.
+    assert edain_power_recruits("Imladris", [], shared, thrall_options) == (
+        "BruchtalLichtbringerFeuerHorde",
+    )
+
+
+def test_edain_power_recruits_hauptmann_summons_gate_on_rohan():
+    # The Hauptmann (Herold) powers are Hauptmann-specific, so the power name alone names the
+    # Getreue horde; only a Rohan caster fields it.
+    assert edain_power_recruits("Rohan", [], "SpecialAbilityHeroldSummonWestfoldWachter") == (
+        "GetreueSchwertHordeHauptmann",
+    )
+    assert edain_power_recruits("Rohan", [], "SpecialAbilityHeroldSummonWestfoldSpearmen") == (
+        "GetreueSpeerHordeHauptmann",
+    )
+    assert edain_power_recruits("Rohan", [], "SpecialAbilityHeroldSummonIsenfurtReiterHorde") == (
+        "GetreueReiterHordeHauptmann",
+    )
+    assert edain_power_recruits("Angmar", [], "SpecialAbilityHeroldSummonWestfoldWachter") == ()
+
+
+def test_edain_upgrade_recruits_dedications():
+    # The dominant conversion path: the dedication research's DoCommandUpgrade fires the summon
+    # engine-side, so the 0x415 purchase is the recruit signal - Side-gated like the powers.
+    assert edain_upgrade_recruits("Angmar", "Upgrade_ThrallMasterOrcWarriors") == (
+        "AngmarOrcWarriors",
+    )
+    assert edain_upgrade_recruits("Angmar", "Upgrade_ThrallMasterWolfRiders") == (
+        "AngmarWolfRiders",
+    )
+    assert edain_upgrade_recruits("Angmar", "Upgrade_ThrallMasterRhudaurSpearmen") == (
+        "AngmarRhudaurSpearmen",
+    )
+    assert edain_upgrade_recruits("Angmar", "Upgrade_ThrallMasterRhudaurSlingers") == (
+        "AngmarRhudaurSlingers",
+    )
+    assert edain_upgrade_recruits("Angmar", "Upgrade_ThrallMasterOrksBergGram") == (
+        "AngmarOrkSchlachterHorde",
+    )
+    assert edain_upgrade_recruits("Rohan", "Upgrade_HeroldRohanWestfoldWachter") == (
+        "GetreueSchwertHordeHauptmann",
+    )
+    assert edain_upgrade_recruits("Rohan", "Upgrade_HeroldRohanWestfoldSpearmen") == (
+        "GetreueSpeerHordeHauptmann",
+    )
+    assert edain_upgrade_recruits("Rohan", "Upgrade_HeroldIsenfurtReiterHorde") == (
+        "GetreueReiterHordeHauptmann",
+    )
+    # Wrong Side or an unmapped upgrade fields nothing.
+    assert edain_upgrade_recruits("Rohan", "Upgrade_ThrallMasterOrcWarriors") == ()
+    assert edain_upgrade_recruits("Angmar", "Upgrade_HeroldRohanWestfoldWachter") == ()
+    assert edain_upgrade_recruits("Angmar", "Upgrade_ForgedBlades") == ()
+    assert edain_upgrade_recruits(None, "Upgrade_ThrallMasterOrcWarriors") == ()
 
 
 def test_ignored_recruits_drops_the_elementless_placeholder():
@@ -242,12 +327,14 @@ def test_replay_aggregate_injects_the_edain_set():
         tracked_upgrades=TRACKED_UPGRADES,
         refine_faction=edain_faction_refiner,
         power_recruits=edain_power_recruits,
+        upgrade_recruits=edain_upgrade_recruits,
         ignore_recruits=IGNORED_RECRUITS,
     )
     args = parser.parse_args(["replay-aggregate", "replays", "--game", "root"])
     assert args.tracked_upgrades == TRACKED_UPGRADES
     assert args.refine_faction is edain_faction_refiner
     assert args.power_recruits is edain_power_recruits
+    assert args.upgrade_recruits is edain_upgrade_recruits
     assert args.ignore_recruits is IGNORED_RECRUITS
     # --track-upgrade / --track-power extend the injected sets at run time (see
     # _run_aggregate); here just check the flags parse alongside the injection.

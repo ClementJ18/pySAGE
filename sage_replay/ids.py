@@ -56,7 +56,7 @@ class OrderIdSummary:
     order_type: int
     total: int  # chunks of this order type carrying at least one Integer argument
     distinct_ids: int
-    top: list[tuple[int, int]]  # (id, count), most common first
+    top: list[tuple[int | str, int]]  # (id, count), most common first
 
 
 def order_id_summaries(
@@ -73,7 +73,7 @@ def order_id_summaries(
     `where` sub-selects chunks (e.g. `arg_equals(0, False)` for one `0x417` mode).
     """
     totals: Counter[int] = Counter()
-    values: dict[int, Counter[int]] = {}
+    values: dict[int, Counter[int | str]] = {}
     for chunk in replay.chunks:
         if slot_index is not None and replay.slot_index(chunk) != slot_index:
             continue
@@ -101,7 +101,7 @@ def order_id_summaries(
 @dataclass
 class IdEvent:
     timecode: int
-    id: int
+    id: int | str
     slot_index: int | None
 
 
@@ -135,7 +135,7 @@ def id_events(
 @dataclass
 class IdRun:
     start_timecode: int
-    id: int
+    id: int | str
     count: int
 
 
@@ -193,7 +193,7 @@ def _parse_action_line(line: str) -> LabelAction:
 
 @dataclass
 class AlignRow:
-    id: int | None
+    id: int | str | None
     name: str
     replay_count: int | None  # run length in the replay; None when there is no run to pair
     label_count: int

@@ -29,6 +29,24 @@ Only for an Imladris caster does the resolver read each of the four as a recruit
 element-specific horde; `IGNORED_RECRUITS` drops the elementless placeholder from the normal
 recruit stream so the same Loremaster is not counted twice.
 
+For an *Angmar* caster those same four powers are genuine conversions, but of two different
+units: each is fired both by the ThrallMaster's summon button (the thrall becomes a line horde)
+and by the SiegeTroll horde's siege-conversion button (the trolls build a ram / sling / siege
+tower). The two button families differ in their `Options` bitfield - only the SiegeTroll buttons
+carry `OK_FOR_MULTI_EXECUTE OK_FOR_MULTI_SELECT` - and a cast order embeds the firing button's
+Options as its second Integer, so `edain_power_recruits` splits Angmar casts on those bits
+(`ANGMAR_THRALL_RECRUITS` vs `ANGMAR_SIEGE_TROLL_RECRUITS`; corpus-validated: all 197 Angmar
+ram/sling/tower casts in the 4.8.4.3 corpus carry the MULTI bits, the 2 thrall casts don't).
+
+Manual casts are the rare path, though: a dedication is normally bought as an `OBJECT_UPGRADE`
+(`Upgrade_ThrallMaster*`, `Upgrade_Herold*`), whose `DoCommandUpgrade` behavior then presses the
+summon button engine-side - never entering the order stream - so the player's only recorded
+order is the `0x415` research. `edain_upgrade_recruits` (an `UpgradeRecruits` hook) reads those
+researches as recruits of the resulting unit: Angmar's ThrallMaster dedications
+(`ANGMAR_THRALL_UPGRADES`) and Rohan's Hauptmann/Herold dedications (`HAUPTMANN_UPGRADES`,
+whose summon powers - fielding the loyal Getreue hordes - are Hauptmann-specific, so their
+manual casts in `HAUPTMANN_RECRUITS` need no Options split).
+
 Partly covered: **combo hordes**. Two Lichtbringer hordes merge into an element-pair combo by
 clicking one horde onto another - a discrete `0x423` order, ground-truthed by the labelled
 `tests/sage_replay/fixtures/combo replay.BfME2Replay`, so a combine *action* is countable and
@@ -277,6 +295,68 @@ LICHTBRINGER_RECRUITS = {
 # The faction `Side` token whose casts of the four shared powers are Lichtbringer toggles.
 _IMLADRIS_SIDE = "Imladris"
 
+# The faction `Side` token whose casts of the shared powers are real unit conversions.
+_ANGMAR_SIDE = "Angmar"
+
+# The `CommandButton` Options bits that mark an Angmar cast as the SiegeTroll's siege
+# conversion rather than a ThrallMaster summon: OK_FOR_MULTI_SELECT | OK_FOR_MULTI_EXECUTE
+# (order_space_map.md's confirmed bit table). Only the SiegeTroll's three conversion buttons
+# carry them; every ThrallMaster summon button is bare TOGGLE_IMAGE_ON_WEAPONSET ON_GROUND_ONLY.
+_SIEGE_TROLL_OPTION_BITS = 0x100 | 0x100000
+
+# Angmar ThrallMaster summon powers -> the line horde the thrall becomes (each module's
+# `SummonReplacementSpecialAbilityUpdate` MountedTemplate). The four shared powers plus the
+# Black Guard's Orks-vom-Berg-Gram dedication, whose power is ThrallMaster-specific.
+ANGMAR_THRALL_RECRUITS = {
+    "SpecialAbilityAngmarThrallMasterSummonOrc": "AngmarOrcWarriors",
+    "SpecialAbilityAngmarThrallMasterSummonWolfRiders": "AngmarWolfRiders",
+    "SpecialAbilityAngmarThrallMasterSummonRhudaurSpearmen": "AngmarRhudaurSpearmen",
+    "SpecialAbilityAngmarThrallMasterSummonRhudaurSlingers": "AngmarRhudaurSlingers",
+    "SpecialAbilityAngmarThrallMasterSummonOrkSchlachter": "AngmarOrkSchlachterHorde",
+}
+
+# The same powers fired from the SiegeTroll horde's buttons (the MULTI Options bits) -> the
+# siege engine the trolls build. The horde's modules mount an `...Egg` that hatches into the
+# engine; the engine is what the player fielded, so that is the recruit recorded. The slingers
+# power has no SiegeTroll button, so it has no row here.
+ANGMAR_SIEGE_TROLL_RECRUITS = {
+    "SpecialAbilityAngmarThrallMasterSummonOrc": "AngmarBatteringRam",
+    "SpecialAbilityAngmarThrallMasterSummonWolfRiders": "AngmarTrollSling",
+    "SpecialAbilityAngmarThrallMasterSummonRhudaurSpearmen": "AngmarSiegeTower",
+}
+
+# The ThrallMaster dedication researches -> the unit the thrall becomes. Buying one is the
+# player's actual conversion order: its `DoCommandUpgrade` presses the summon button
+# engine-side, so no power cast enters the stream (the dominant path - every Angmar replay in
+# the 4.8.4.3 corpus converts thralls this way).
+ANGMAR_THRALL_UPGRADES = {
+    "Upgrade_ThrallMasterOrcWarriors": "AngmarOrcWarriors",
+    "Upgrade_ThrallMasterWolfRiders": "AngmarWolfRiders",
+    "Upgrade_ThrallMasterRhudaurSpearmen": "AngmarRhudaurSpearmen",
+    "Upgrade_ThrallMasterRhudaurSlingers": "AngmarRhudaurSlingers",
+    "Upgrade_ThrallMasterOrksBergGram": "AngmarOrkSchlachterHorde",
+}
+
+# The faction `Side` token whose Hauptmann/Herold dedications convert into Getreue hordes.
+_ROHAN_SIDE = "Rohan"
+
+# Rohan's Hauptmann (Herold) summon powers -> the loyal Getreue horde the Hauptmann fields.
+# Unlike Angmar's, these powers are Hauptmann-specific, so the power name alone names the unit.
+HAUPTMANN_RECRUITS = {
+    "SpecialAbilityHeroldSummonWestfoldWachter": "GetreueSchwertHordeHauptmann",
+    "SpecialAbilityHeroldSummonWestfoldSpearmen": "GetreueSpeerHordeHauptmann",
+    "SpecialAbilityHeroldSummonIsenfurtReiterHorde": "GetreueReiterHordeHauptmann",
+}
+
+# The Hauptmann dedication researches -> the Getreue horde they field; like the ThrallMaster
+# dedications, the research's `DoCommandUpgrade` fires the summon engine-side, so the `0x415`
+# purchase is the player's only recorded order (no manual cast appears in the 4.8.4.3 corpus).
+HAUPTMANN_UPGRADES = {
+    "Upgrade_HeroldRohanWestfoldWachter": "GetreueSchwertHordeHauptmann",
+    "Upgrade_HeroldRohanWestfoldSpearmen": "GetreueSpeerHordeHauptmann",
+    "Upgrade_HeroldIsenfurtReiterHorde": "GetreueReiterHordeHauptmann",
+}
+
 # Recruit templates to drop from the normal recruit stream (a `sage_replay.stats` ignore set): the
 # elementless Loremaster placeholder, whose element - and so its recruit row - only becomes known
 # from the toggle `edain_power_recruits` reads. Counting the placeholder too would field every
@@ -284,19 +364,28 @@ _IMLADRIS_SIDE = "Imladris"
 IGNORED_RECRUITS = frozenset({"BruchtalLichtbringerHorde"})
 
 
-def edain_power_recruits(side: str | None, roster: Sequence[str], power: str) -> Sequence[str]:
+def edain_power_recruits(
+    side: str | None, roster: Sequence[str], power: str, options: int = 0
+) -> Sequence[str]:
     """A `PowerRecruits` for `sage_replay.stats`: the template names a Mordor summon, a Dwarven
-    Dorwinion call, a Men Leuchtfeuer call, or an Imladris Loremaster element toggle permanently
-    fields, or `()` when `power` is not one of Edain's fielding powers, or the caster's Side doesn't
-    gate it open. The Side gates matter because one `SpecialPower` definition can serve several
+    Dorwinion call, a Men Leuchtfeuer call, an Imladris Loremaster element toggle, an Angmar
+    ThrallMaster/SiegeTroll conversion, or a Rohan Hauptmann dedication permanently fields, or
+    `()` when `power` is not one of Edain's fielding powers, or the caster's Side doesn't gate
+    it open. The Side gates matter because one `SpecialPower` definition can serve several
     factions in Edain - a non-Mordor cast of a Mordor summon, a non-Dwarves cast of a Dorwinion
-    call, a non-Men cast of a Leuchtfeuer power, or a non-Imladris cast of a Loremaster toggle
-    (Angmar/Rohan/Lothlorien fire the same four to summon units) fields nothing here. A Leuchtfeuer
-    call's actual hordes depend on the caster's per-map Gondor roster, not their Side: Belfalas when
-    `_BELFALAS_MARKER` is on it, Gondor (and Arnor, which shares
-    Gondor's line units) otherwise. A Loremaster toggle fields the element-specific horde it selects
-    (`LICHTBRINGER_RECRUITS`); the elementless placeholder it upgrades from is dropped separately by
-    `IGNORED_RECRUITS`."""
+    call, a non-Men cast of a Leuchtfeuer power, or a Lothlorien peasant-toggle cast of a shared
+    ThrallMaster power fields nothing here. A Leuchtfeuer call's actual hordes depend on the
+    caster's per-map Gondor roster, not their Side: Belfalas when `_BELFALAS_MARKER` is on it,
+    Gondor (and Arnor, which shares Gondor's line units) otherwise.
+
+    The four shared `...ThrallMasterSummon...` powers split three ways: an Imladris cast is a
+    Loremaster toggle fielding the element-specific horde (`LICHTBRINGER_RECRUITS`; the
+    elementless placeholder it upgrades from is dropped separately by `IGNORED_RECRUITS`), and
+    an Angmar cast is a real conversion whose *button* decides the unit - `options` (the cast's
+    CommandButton Options bitfield, threaded through by `compute_stats`) carries the SiegeTroll
+    buttons' MULTI bits for a ram/sling/tower build (`ANGMAR_SIEGE_TROLL_RECRUITS`) and not for
+    a ThrallMaster summon (`ANGMAR_THRALL_RECRUITS`). Any other Side's cast of them is a
+    reversible toggle, not a fielding."""
     if power in POWER_RECRUITS:
         return POWER_RECRUITS[power] if side == _MORDOR_SIDE else ()
     if power in DORWINION_RECRUITS:
@@ -306,8 +395,35 @@ def edain_power_recruits(side: str | None, roster: Sequence[str], power: str) ->
             return ()
         gondor, belfalas = LEUCHTFEUER_RECRUITS[power]
         return belfalas if _BELFALAS_MARKER in roster else gondor
-    if power in LICHTBRINGER_RECRUITS:
-        return (LICHTBRINGER_RECRUITS[power],) if side == _IMLADRIS_SIDE else ()
+    if power in HAUPTMANN_RECRUITS:
+        return (HAUPTMANN_RECRUITS[power],) if side == _ROHAN_SIDE else ()
+    if power in ANGMAR_THRALL_RECRUITS:
+        if side == _IMLADRIS_SIDE and power in LICHTBRINGER_RECRUITS:
+            return (LICHTBRINGER_RECRUITS[power],)
+        if side == _ANGMAR_SIDE:
+            table = (
+                ANGMAR_SIEGE_TROLL_RECRUITS
+                if options & _SIEGE_TROLL_OPTION_BITS
+                else ANGMAR_THRALL_RECRUITS
+            )
+            name = table.get(power)
+            return (name,) if name is not None else ()
+        return ()
+    return ()
+
+
+def edain_upgrade_recruits(side: str | None, upgrade: str) -> Sequence[str]:
+    """An `UpgradeRecruits` for `sage_replay.stats`: the unit an Angmar ThrallMaster or a Rohan
+    Hauptmann dedication research converts its buyer into, or `()` for every other upgrade.
+    These conversions' only player order is the `0x415` research - its `DoCommandUpgrade`
+    presses the summon button engine-side - so this is where the dominant recruit signal lives
+    (the module docstring's manual-cast paragraph). Side-gated like every power table: the
+    upgrade names are faction-specific today, but a future patch reusing one must not leak a
+    conversion into another faction's stats."""
+    if upgrade in ANGMAR_THRALL_UPGRADES:
+        return (ANGMAR_THRALL_UPGRADES[upgrade],) if side == _ANGMAR_SIDE else ()
+    if upgrade in HAUPTMANN_UPGRADES:
+        return (HAUPTMANN_UPGRADES[upgrade],) if side == _ROHAN_SIDE else ()
     return ()
 
 
@@ -323,10 +439,15 @@ def edain_faction_refiner(
 
 
 __all__ = [
+    "ANGMAR_SIEGE_TROLL_RECRUITS",
+    "ANGMAR_THRALL_RECRUITS",
+    "ANGMAR_THRALL_UPGRADES",
     "DWARVEN_REALMS",
     "FACTION_ICONS",
     "ICONS_DIR",
     "GONDOR_VARIANTS",
+    "HAUPTMANN_RECRUITS",
+    "HAUPTMANN_UPGRADES",
     "IGNORED_RECRUITS",
     "LEUCHTFEUER_RECRUITS",
     "LICHTBRINGER_ELEMENTS",
@@ -337,5 +458,6 @@ __all__ = [
     "dwarven_realm_faction",
     "edain_faction_refiner",
     "edain_power_recruits",
+    "edain_upgrade_recruits",
     "gondor_variant_faction",
 ]

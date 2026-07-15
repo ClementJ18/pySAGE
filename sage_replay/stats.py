@@ -18,13 +18,14 @@ abilities, summons, unit toggles), horde combines (`0x423`, the Edain horde-merg
 one action, since its only argument is a runtime target-horde ObjectId), and the spellbook
 sciences in purchase order (`0x414`).
 
-Three hooks let a mod overlay reshape the recruit/power picture without the core knowing any
+Four hooks let a mod overlay reshape the recruit/power picture without the core knowing any
 mod-specific names: `relabel_power` rewrites a shared power's label from the caster's faction
 `Side` (see the `PowerLabeler` alias), `power_recruits` records a power cast's permanently
 fielded units as ordinary recruits instead of leaving them invisible inside `powers` (see the
-`PowerRecruits` alias), and `ignore_recruits` drops raw template names whose real recruit signal
-is a later power cast (see `compute_stats`). The core stays faction-agnostic and records raw
-code names when no hook is given.
+`PowerRecruits` alias), `upgrade_recruits` does the same for an upgrade research that converts
+the buyer into a unit engine-side (see the `UpgradeRecruits` alias), and `ignore_recruits`
+drops raw template names whose real recruit signal is a later power cast (see `compute_stats`).
+The core stays faction-agnostic and records raw code names when no hook is given.
 
 Counts are *net of cancels*: a `0x418` unit cancel, `0x416` upgrade cancel, or `0x41B` build
 cancel removes the issuing player's most-recent not-yet-cancelled matching order (LIFO) - unit
@@ -49,7 +50,7 @@ from dataclasses import dataclass, field
 from sage_ini.model.ini_objects import Object
 from sage_replay.heroes import ReviveList
 from sage_replay.narrate import POWER_ORDERS, GameData, player_label, revive_resolver
-from sage_replay.replay import ReplayFile, first_bool, integer_arguments
+from sage_replay.replay import ReplayChunk, ReplayFile, first_bool, integer_arguments
 from sage_utils.clock import clock
 
 __all__ = [
@@ -57,6 +58,7 @@ __all__ = [
     "PowerLabeler",
     "PowerRecruits",
     "StatEvent",
+    "UpgradeRecruits",
     "compute_stats",
     "render_stats",
 ]
@@ -67,11 +69,22 @@ __all__ = [
 PowerLabeler = Callable[[str | None, str], str]
 
 # A mod overlay's power-recruit resolver: given the caster's faction `Side` token (or None
-# when unknown), that faction's per-map hero roster (`GameData.hero_roster_for`), and the
-# power's raw code name, returns the template names the cast permanently fields (a name
-# repeated expresses multiplicity; [] means the power fields nothing). The roster - not a
-# `Side` - is what tells apart a mod's map-scoped sub-factions that share one power definition.
-PowerRecruits = Callable[[str | None, Sequence[str], str], Sequence[str]]
+# when unknown), that faction's per-map hero roster (`GameData.hero_roster_for`), the power's
+# raw code name, and the cast's `Options` bitfield (the order's second Integer - the firing
+# `CommandButton`'s Options, so two buttons that share one power definition on the same Side
+# can still field different units, e.g. Angmar's SiegeTroll ram vs ThrallMaster orc summon),
+# returns the template names the cast permanently fields (a name repeated expresses
+# multiplicity; [] means the power fields nothing). The roster - not a `Side` - is what tells
+# apart a mod's map-scoped sub-factions that share one power definition.
+PowerRecruits = Callable[[str | None, Sequence[str], str, int], Sequence[str]]
+
+# A mod overlay's upgrade-recruit resolver: given the purchaser's faction `Side` token (or
+# None when unknown) and the researched upgrade's raw code name, returns the template names
+# the purchase permanently fields. This covers conversions whose only player order is the
+# `0x415` research itself: a `DoCommandUpgrade` behavior then presses the summon button
+# engine-side (never entering the order stream), e.g. Edain's Angmar ThrallMaster and Rohan
+# Hauptmann dedications. A cancelled research (`0x416`) takes its fielded units back with it.
+UpgradeRecruits = Callable[[str | None, str], Sequence[str]]
 
 # The build-family orders whose first Integer is the built structure's template id.
 _BUILD_ORDERS = {0x419, 0x41A, 0x463}
@@ -211,17 +224,19 @@ def _drop(events: list[StatEvent], event: StatEvent) -> None:
             return
 
 
-def _pop_by_id(
-    stack: list[tuple[str | int, StatEvent]] | None, target: str | int
-) -> StatEvent | None:
-    """Pop the most-recent entry in `stack` whose key equals `target` (LIFO match; a template
-    /upgrade id, or a hero-revive's resolved name), or None if the stack is empty or has no
-    match."""
+def _pop_by_id[StackEntry: tuple](
+    stack: list[StackEntry] | None, target: str | int
+) -> StackEntry | None:
+    """Pop and return the most-recent entry in `stack` whose key (first element) equals
+    `target` (LIFO match; a template/upgrade id, or a hero-revive's resolved name). Entries are
+    `(key, event, ...)` tuples - recruits and hero revives are plain pairs, the upgrades stack
+    carries the research's injected recruit events as a third element. None if the stack is
+    empty or has no match."""
     if not stack:
         return None
     for i in range(len(stack) - 1, -1, -1):
         if stack[i][0] == target:
-            return stack.pop(i)[1]
+            return stack.pop(i)
     return None
 
 
@@ -236,6 +251,7 @@ def compute_stats(
     *,
     relabel_power: PowerLabeler | None = None,
     power_recruits: PowerRecruits | None = None,
+    upgrade_recruits: UpgradeRecruits | None = None,
     ignore_recruits: frozenset[str] = frozenset(),
     faction_overrides: dict[str, int] | None = None,
 ) -> list[PlayerStats]:
@@ -245,7 +261,11 @@ def compute_stats(
     `Side` (see the module docstring); without it powers record as their raw code name.
     `power_recruits`, if given, additionally injects a recruit-like `StatEvent` for every
     permanent unit a power cast fields (see the module docstring); without it a power cast
-    only ever records under `powers`. `ignore_recruits` (raw template code names) drops those
+    only ever records under `powers`. `upgrade_recruits` does the same for a `0x415` research
+    that converts the buyer into a unit engine-side; its injected events ride the upgrade's
+    cancel-stack entry, so a `0x416` cancel removes them along with the research (unlike a
+    power cast, a queued research can be cancelled). `ignore_recruits` (raw template code
+    names) drops those
     recruits entirely: an overlay whose real recruit signal is a later power cast can suppress
     the elementless placeholder the player first fields (Edain's `BruchtalLichtbringerHorde`,
     whose Loremaster element is only known once its `power_recruits` toggle fires).
@@ -264,15 +284,27 @@ def compute_stats(
 
     # LIFO match stacks for the cancel orders (0x418/0x416/0x41B), keyed by player. Recruits
     # and upgrades are id-matched, so each entry keeps the template/upgrade id alongside the
-    # StatEvent it cancels; builds are id-less, so the stack holds just the event. Hero-revive
-    # entries are keyed by resolved hero name (the submenu position shifts between recruit and
-    # cancel), falling back to the raw slot number when unresolved.
+    # StatEvent it cancels; an upgrade entry also carries the recruit events its
+    # `upgrade_recruits` injected, so a cancel takes the fielded units back with the research.
+    # Builds are id-less, so the stack holds just the event. Hero-revive entries are keyed by
+    # resolved hero name (the submenu position shifts between recruit and cancel), falling
+    # back to the raw slot number when unresolved.
     recruits: dict[str, list[tuple[str | int, StatEvent]]] = {}
-    upgrades: dict[str, list[tuple[str | int, StatEvent]]] = {}
+    upgrades: dict[str, list[tuple[str | int, StatEvent, tuple[StatEvent, ...]]]] = {}
     builds: dict[str, list[StatEvent]] = {}
     fortress: dict[str, list[tuple[str | int, StatEvent]]] = {}
     # Each player's revive submenu, replayed order by order (heroes.py).
     revives: dict[str, ReviveList | None] = {}
+
+    def caster_faction_and_side(chunk: ReplayChunk, player: str) -> tuple[int | None, str | None]:
+        """The issuing slot's faction id (with `faction_overrides` applied) and its `Side`
+        token, either None when unknown - the gates the recruit hooks key on."""
+        chunk_slot = replay.slot_for(chunk)
+        faction_id = chunk_slot.faction if chunk_slot is not None else None
+        if faction_overrides and player in faction_overrides:
+            faction_id = faction_overrides[player]
+        side = data.faction_side(faction_id) if faction_id is not None else None
+        return faction_id, side
 
     for chunk in replay.chunks:
         ints = integer_arguments(chunk)
@@ -299,13 +331,26 @@ def compute_stats(
             builds.setdefault(player, []).append(event)
         elif chunk.order_type == 0x417 and ints:
             if first_bool(chunk):
-                resolver = revive_resolver(revives, replay, chunk, data, faction_overrides)
-                name = resolver.recruit(seconds, ints[0]) if resolver is not None else None
-                if name is not None:
-                    event = StatEvent(seconds, "heroes", data.label(name) or name)
+                hero = ints[0]
+                if isinstance(hero, str):
+                    # A translated replay stores the hero already resolved to its template name;
+                    # it counts under `heroes` directly and keys the cancel stack by that name.
+                    event = StatEvent(seconds, "heroes", data.label(hero) or hero)
+                    key: str | int = hero
+                elif replay.translated:
+                    # A translated replay's unresolved slot stayed a raw int at translation time
+                    # (no roster, or an ambiguous tail): keep it as an unresolved slot number
+                    # rather than run the resolver, whose list state cannot be rebuilt here.
+                    event = StatEvent(seconds, "fortress_hero_slots", hero)
+                    key = hero
                 else:
-                    event = StatEvent(seconds, "fortress_hero_slots", ints[0])
-                key: str | int = name if name is not None else ints[0]
+                    resolver = revive_resolver(revives, replay, chunk, data, faction_overrides)
+                    name = resolver.recruit(seconds, hero) if resolver is not None else None
+                    if name is not None:
+                        event = StatEvent(seconds, "heroes", data.label(name) or name)
+                    else:
+                        event = StatEvent(seconds, "fortress_hero_slots", hero)
+                    key = name if name is not None else hero
                 per.events.append(event)
                 fortress.setdefault(player, []).append((key, event))
             else:
@@ -330,7 +375,25 @@ def compute_stats(
             upgrade = data.upgrade(ints[0]) or f"<upgrade id {ints[0]}?>"
             event = StatEvent(seconds, "upgrades", upgrade)
             per.events.append(event)
-            upgrades.setdefault(player, []).append((ints[0], event))
+            # A dedication research converts the buyer into a unit engine-side (Edain's
+            # ThrallMaster/Hauptmann - see the `UpgradeRecruits` alias): record the fielded
+            # units as ordinary recruits, attached to the upgrade's cancel-stack entry so a
+            # 0x416 cancel takes them back with the research.
+            fielded: tuple[StatEvent, ...] = ()
+            if upgrade_recruits is not None:
+                _, side = caster_faction_and_side(chunk, player)
+                fielded = tuple(
+                    StatEvent(
+                        seconds,
+                        _bucket(
+                            _effective_kindof(data.objects, name), data.is_buildable_hero(name)
+                        ),
+                        data.label(name) or name,
+                    )
+                    for name in upgrade_recruits(side, upgrade)
+                )
+                per.events.extend(fielded)
+            upgrades.setdefault(player, []).append((ints[0], event, fielded))
         elif chunk.order_type == 0x414 and len(ints) >= 2:
             science = data.label(data.science(ints[1])) or f"science {ints[1]}?"
             per.events.append(StatEvent(seconds, "sciences", science))
@@ -343,11 +406,7 @@ def compute_stats(
             faction_id: int | None = None
             side = None
             if relabel_power is not None or power_recruits is not None:
-                chunk_slot = replay.slot_for(chunk)
-                faction_id = chunk_slot.faction if chunk_slot is not None else None
-                if faction_overrides and player in faction_overrides:
-                    faction_id = faction_overrides[player]
-                side = data.faction_side(faction_id) if faction_id is not None else None
+                faction_id, side = caster_faction_and_side(chunk, player)
             if relabel_power is not None:
                 power = relabel_power(side, raw_power)
             per.events.append(StatEvent(seconds, "powers", power))
@@ -356,13 +415,17 @@ def compute_stats(
                 # signal fire) counts them as ordinary recruits, so they merge with normal
                 # recruits of the same template downstream. They never join the `recruits`
                 # cancel stack: a cast cannot be cancelled, and a later 0x418 unit-cancel
-                # must not consume one.
+                # must not consume one. The second Integer is the firing CommandButton's
+                # `Options` bitfield (order_space_map.md), which is what lets the hook tell
+                # two same-Side buttons sharing one power definition apart.
                 roster = (
                     data.hero_roster_for(replay.header.metadata.map_file, faction_id)
                     if faction_id is not None
                     else []
                 )
-                for name in power_recruits(side, roster, raw_power):
+                # The Options bitfield is never an id, so translation leaves it an int.
+                options = ints[1] if len(ints) > 1 and isinstance(ints[1], int) else 0
+                for name in power_recruits(side, roster, raw_power, options):
                     label = data.label(name) or name
                     bucket = _bucket(
                         _effective_kindof(data.objects, name), data.is_buildable_hero(name)
@@ -378,29 +441,38 @@ def compute_stats(
                 # Cancel a queued hero revive (flag=True): the id is the hero's *current*
                 # submenu position, so resolve it through the same ReviveList - which also
                 # un-queues the production, keeping later fielding-collapses correct - and
-                # match the recruit by hero name (raw slot when both stayed unresolved).
-                resolver = revive_resolver(revives, replay, chunk, data, faction_overrides)
-                name = resolver.cancel(seconds, ints[0]) if resolver is not None else None
-                key = name if name is not None else ints[0]
+                # match the recruit by hero name (raw slot when both stayed unresolved). A
+                # translated replay already carries the resolved name (pop by name) or an
+                # unresolved slot number (pop by slot), so its resolver is skipped.
+                hero = ints[0]
+                if isinstance(hero, str) or replay.translated:
+                    key = hero
+                else:
+                    resolver = revive_resolver(revives, replay, chunk, data, faction_overrides)
+                    name = resolver.cancel(seconds, hero) if resolver is not None else None
+                    key = name if name is not None else hero
                 cancelled = _pop_by_id(fortress.get(player), key)
             else:
                 # Cancel a queued non-fortress recruit: pop the issuing player's most-recent
                 # not-yet-cancelled 0x417 (flag=False) recruit with a matching template id.
                 cancelled = _pop_by_id(recruits.get(player), ints[0])
             if cancelled is not None:
-                _drop(per.events, cancelled)
+                _drop(per.events, cancelled[1])
         elif chunk.order_type == 0x416 and ints:
             # Cancel a queued upgrade research: pop the most-recent not-yet-cancelled 0x415
-            # research with a matching upgrade id.
-            cancelled = _pop_by_id(upgrades.get(player), ints[0])
-            if cancelled is not None:
-                _drop(per.events, cancelled)
+            # research with a matching upgrade id - and take back any recruit events its
+            # `upgrade_recruits` fielded (the cancelled conversion never happens).
+            popped = _pop_by_id(upgrades.get(player), ints[0])
+            if popped is not None:
+                _drop(per.events, popped[1])
+                for fielded_event in popped[2]:
+                    _drop(per.events, fielded_event)
         elif chunk.order_type == 0x41B:
             # Cancel a queued build (0x419/0x41A/0x463/0x43F family). Genuinely id-less, so
             # this pops whatever build is most recent in the issuing player's stack.
-            cancelled = _pop_last(builds.get(player))
-            if cancelled is not None:
-                _drop(per.events, cancelled)
+            build_event = _pop_last(builds.get(player))
+            if build_event is not None:
+                _drop(per.events, build_event)
 
     return list(stats.values())
 

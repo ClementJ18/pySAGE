@@ -29,9 +29,10 @@ purchases aggregate as ordinary pick-rate rows.
 
 A mod overlay sharpens the corpus before grouping: `refine_faction` (a `FactionRefiner`)
 relabels a human's faction from their clocked stats, the loaded game, and the replay's map;
-`relabel_power` and `power_recruits`, both threaded through `stats.compute_stats`, rename a
-special-power cast from the caster's faction Side and let a permanently-fielding cast merge
-into the pick tables like an ordinary recruit; `tracked_upgrades` / `tracked_purchases` /
+`relabel_power`, `power_recruits`, and `upgrade_recruits`, all threaded through
+`stats.compute_stats`, rename a special-power cast from the caster's faction Side and let a
+permanently-fielding cast or dedication research merge into the pick tables like an ordinary
+recruit; `tracked_upgrades` / `tracked_purchases` /
 `tracked_powers` gate which upgrade researches, purchases, and power casts earn a row at all
 (nothing by default), and `include_combines` gates horde combines (`0x423`) the same way. See
 the alias definitions below for each hook's shape, and `sage_edain.replay` for Edain's concrete
@@ -60,7 +61,13 @@ from statistics import median
 from sage_replay.narrate import GameData
 from sage_replay.replay import ReplayFile, ReplaySlotType, find_replays, parse_replay_from_path
 from sage_replay.sidecar import sidecar_outcomes
-from sage_replay.stats import PlayerStats, PowerLabeler, PowerRecruits, compute_stats
+from sage_replay.stats import (
+    PlayerStats,
+    PowerLabeler,
+    PowerRecruits,
+    UpgradeRecruits,
+    compute_stats,
+)
 from sage_replay.winner import infer_winner
 from sage_utils.clock import clock
 
@@ -184,10 +191,11 @@ class ChoiceStat:
     total: int = 0  # instances across all games (a Barracks built twice counts twice)
     first_times: list[float] = field(default_factory=list)  # first occurrence per game
     # Every instance across all games as (order seconds, that match's duration) pairs - the
-    # raw material for the HTML timeline graphs, which bin client-side so one payload serves
-    # both the %-of-match and absolute-clock axes. Only the buildings and units categories
-    # collect these (see `_record_game`); everywhere else the list stays empty, and it is
-    # deliberately absent from `to_dict()` so the JSON output is unchanged.
+    # raw material for the HTML timeline graphs (buildings/units) and the science purchase-
+    # timing heatmap, which both bin client-side so one payload serves either the %-of-match or
+    # the absolute-clock axis. Only the buildings, units, and sciences categories collect these
+    # (see `_record_game`); everywhere else the list stays empty, and it is deliberately absent
+    # from `to_dict()` so the JSON output is unchanged.
     occurrences: list[tuple[float, float]] = field(default_factory=list)
 
     @property
@@ -413,6 +421,7 @@ def player_games(
     refine_faction: FactionRefiner | None = None,
     relabel_power: PowerLabeler | None = None,
     power_recruits: PowerRecruits | None = None,
+    upgrade_recruits: UpgradeRecruits | None = None,
     ignore_recruits: frozenset[str] = frozenset(),
 ) -> list[PlayerGame]:
     """The replay's human slots as player-games (AI slots issue no orders, and observer slots
@@ -422,8 +431,9 @@ def player_games(
     given; without it the outcome falls back to that heuristic (`assume_pov_won` layers the
     point-of-view assumption over it). `refine_faction` sharpens faction labels from each
     human's own stats - both the player-game's faction and its appearances in other players'
-    opponent lists. `relabel_power`, `power_recruits`, and `ignore_recruits` thread straight
-    through to `compute_stats`, which documents their contracts.
+    opponent lists. `relabel_power`, `power_recruits`, `upgrade_recruits`, and
+    `ignore_recruits` thread straight through to `compute_stats`, which documents their
+    contracts.
 
     Hero recruits resolve against the slot faction's revive roster, which a lobby Random (slot
     faction -1) doesn't carry - so when such a player's first stats pass leaves hero slots
@@ -438,6 +448,7 @@ def player_games(
             data,
             relabel_power=relabel_power,
             power_recruits=power_recruits,
+            upgrade_recruits=upgrade_recruits,
             ignore_recruits=ignore_recruits,
         )
     }
@@ -450,6 +461,7 @@ def player_games(
                 data,
                 relabel_power=relabel_power,
                 power_recruits=power_recruits,
+                upgrade_recruits=upgrade_recruits,
                 ignore_recruits=ignore_recruits,
                 faction_overrides=overrides,
             )
@@ -567,6 +579,7 @@ def collect(
     refine_faction: FactionRefiner | None = None,
     relabel_power: PowerLabeler | None = None,
     power_recruits: PowerRecruits | None = None,
+    upgrade_recruits: UpgradeRecruits | None = None,
     ignore_recruits: frozenset[str] = frozenset(),
     record: RecordHook | None = None,
 ) -> Corpus:
@@ -607,6 +620,7 @@ def collect(
             refine_faction=refine_faction,
             relabel_power=relabel_power,
             power_recruits=power_recruits,
+            upgrade_recruits=upgrade_recruits,
             ignore_recruits=ignore_recruits,
         )
         if record is not None:
@@ -699,10 +713,11 @@ def _record_game(
             table = getattr(agg, "sciences" if category == "sciences" else category)
             choice = _record(table, label, game, min(times))
             choice.total += len(times)
-            # Keep every instance's clock alongside its match's length for the buildings and
-            # units timeline graphs; a game without a measurable duration (no chunks) has no
-            # match length to normalise against, so it contributes nothing to the timeline.
-            if category in ("buildings", "units") and game.duration > 0:
+            # Keep every instance's clock alongside its match's length for the buildings/units
+            # timeline graphs and the sciences purchase-timing heatmap; a game without a
+            # measurable duration (no chunks) has no match length to normalise against, so it
+            # contributes nothing to either graph.
+            if category in ("buildings", "units", "sciences") and game.duration > 0:
                 choice.occurrences.extend((seconds, game.duration) for seconds in sorted(times))
 
     # The standard-outpost milestone: pool every `*_outpost` unpack this game made into one
@@ -1128,6 +1143,20 @@ details.timeline > summary { padding: 8px 14px; font-size: 13px; font-weight: 50
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 .tl-tip b { color: var(--ink); font-weight: 600; }
+details.heatmap { margin: 6px 0 10px; }
+details.heatmap > summary { padding: 8px 14px; font-size: 13px; font-weight: 500; }
+.hm-wrap { position: relative; }
+.hm-grid { display: flex; flex-direction: column; gap: 2px; }
+.hm-row { display: flex; align-items: center; gap: 6px; height: 18px; }
+.hm-label {
+  width: 200px; flex: 0 0 auto; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hm-label .n { color: var(--muted); margin-left: 5px; }
+.hm-cells { display: flex; flex: 1 1 auto; gap: 1px; height: 100%; }
+.hm-cell { flex: 1; height: 100%; border-radius: 2px; background: var(--track); }
+.hm-axis { position: relative; height: 14px; margin: 3px 0 0 206px; }
+.hm-axis span { position: absolute; font-size: 10px; color: var(--muted); white-space: nowrap; }
 """
 
 
@@ -1514,6 +1543,178 @@ _GRAPH_SCRIPT = """\
 """
 
 
+# The purchase-timing heatmap for the Sciences section, self-contained like `_GRAPH_SCRIPT`
+# (small helpers - clock(), the STEPS ladder, binning, the centred 3-bin smoother - are
+# duplicated here rather than shared, so either script still stands alone with no external
+# assets). A science is bought at most once per game and a faction only carries 10-20 of them,
+# so more timeline lines would just overlap; a heatmap instead gives one row per science (table
+# rank order) with every row visible at once, reading as a bank of timing fingerprints rather
+# than a legend to toggle. Binning matches the timeline's: pct mode bins every purchase's %-
+# of-match into 20 bins of 5%; abs mode picks a bin size off the same STEPS ladder so the
+# longest purchase's match spans at most 24 bins. Raw per-bin counts are smoothed with the same
+# centred 3-bin moving average before shading (never before the tooltip's raw counts, which stay
+# exact). Shading is row-normalised - each row's intensity is its own smoothed bin over its own
+# smoothed max - so a row reads as *when* that science tends to be bought, independent of how
+# often it is bought at all; a bin whose smoothed value is exactly 0 is left untinted (the bare
+# `--track` row background), never painted with a fabricated floor tint. There is no y-mode
+# toggle (a heatmap cell has only one meaning) and no per-row checkbox - a heatmap row has no
+# line to hide - so only the %/abs axis toggle does anything. Charts render lazily on first open,
+# like the timeline, and the grid is built as markup handed to innerHTML.
+_HEATMAP_SCRIPT = """\
+(function () {
+  var STEPS = [15, 30, 60, 120, 300, 600, 1200];
+
+  function clock(seconds) {
+    var m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
+    if (s === 60) { m += 1; s = 0; }
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  // Unlike the timeline's escaper this one also covers `"`: heatmap labels land in a
+  // title attribute as well as element text.
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  }
+
+  function binning(payload, mode) {
+    if (mode === 'pct') return { bins: 20, size: 5, pct: true };
+    var max = 0;
+    payload.series.forEach(function (s) {
+      s.occ.forEach(function (p) { if (p[1] > max) max = p[1]; });
+    });
+    if (!max) max = 60;
+    var size = STEPS[STEPS.length - 1];
+    for (var i = 0; i < STEPS.length; i++) {
+      if (Math.ceil(max / STEPS[i]) <= 24) { size = STEPS[i]; break; }
+    }
+    return { bins: Math.max(1, Math.ceil(max / size)), size: size, pct: false };
+  }
+
+  function counts(s, spec) {
+    var out = [], b;
+    for (b = 0; b < spec.bins; b++) out.push(0);
+    s.occ.forEach(function (p) {
+      if (spec.pct) b = Math.floor(p[0] / p[1] * spec.bins);
+      else b = Math.floor(p[0] / spec.size);
+      out[Math.max(0, Math.min(spec.bins - 1, b))] += 1;
+    });
+    return out;
+  }
+
+  // The centred 3-bin moving average the shading reads; an edge bin averages over the
+  // neighbours it has. Mirrors `_GRAPH_SCRIPT`'s smoother exactly.
+  function smooth(raw) {
+    return raw.map(function (c, b) {
+      var sum = c, n = 1;
+      if (b > 0) { sum += raw[b - 1]; n += 1; }
+      if (b + 1 < raw.length) { sum += raw[b + 1]; n += 1; }
+      return sum / n;
+    });
+  }
+
+  function axisTicks(spec) {
+    var ticks = [];
+    if (spec.pct) {
+      [0, 25, 50, 75, 100].forEach(function (t) { ticks.push({ at: t, label: t + '%' }); });
+    } else {
+      var span = spec.bins * spec.size;
+      var step = spec.size * Math.max(1, Math.ceil(spec.bins / 6));
+      for (var t = 0; t <= span; t += step) {
+        ticks.push({ at: t / span * 100, label: clock(t) });
+      }
+    }
+    return ticks.map(function (tick) {
+      // Anchor by the tick's value, not its index: in abs mode the tick step need not
+      // divide the span, so the last tick can sit short of the right edge and must keep
+      // its true position rather than be pinned to 100%.
+      var style = tick.at <= 0 ? 'left:0'
+        : tick.at >= 100 ? 'left:100%;transform:translateX(-100%)'
+        : 'left:' + tick.at + '%;transform:translateX(-50%)';
+      return '<span style="' + style + '">' + tick.label + '</span>';
+    }).join('');
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('details.heatmap'), function (details) {
+    var payload = JSON.parse(details.querySelector('script.hm-data').textContent);
+    var grid = details.querySelector('.hm-grid');
+    var wrap = details.querySelector('.hm-wrap');
+    var tip = details.querySelector('.tl-tip');
+    var mode = 'pct';
+    var rendered = false;
+    var view = null;
+
+    function render() {
+      rendered = true;
+      var spec = binning(payload, mode);
+      var series = payload.series.map(function (s) {
+        var raw = counts(s, spec);
+        var sm = smooth(raw);
+        var maxSm = 0;
+        sm.forEach(function (v) { if (v > maxSm) maxSm = v; });
+        return { label: s.label, n: s.occ.length, raw: raw, sm: sm, maxSm: maxSm };
+      });
+      var rows = series.map(function (s, i) {
+        var cells = '';
+        for (var b = 0; b < spec.bins; b++) {
+          var style = '';
+          if (s.sm[b] > 0) {
+            var pct = 10 + (s.sm[b] / s.maxSm) * 75;
+            style = ' style="background: color-mix(in srgb, var(--above) ' +
+              pct.toFixed(1) + '%, transparent)"';
+          }
+          cells += '<span class="hm-cell" data-i="' + i + '" data-b="' + b + '"' + style + '></span>';
+        }
+        return '<div class="hm-row"><div class="hm-label" title="' + esc(s.label) + '">' +
+          esc(s.label) + '<span class="n">' + s.n + '</span></div>' +
+          '<div class="hm-cells">' + cells + '</div></div>';
+      }).join('');
+      grid.innerHTML = rows + '<div class="hm-axis">' + axisTicks(spec) + '</div>';
+      view = { spec: spec, series: series };
+    }
+
+    Array.prototype.forEach.call(details.querySelectorAll('.tl-toggle button'), function (btn) {
+      btn.addEventListener('click', function () {
+        if (btn.dataset.mode === mode) return;
+        mode = btn.dataset.mode;
+        Array.prototype.forEach.call(details.querySelectorAll('.tl-toggle button'), function (o) {
+          o.classList.toggle('on', o === btn);
+        });
+        render();
+      });
+    });
+
+    details.addEventListener('toggle', function () {
+      if (details.open && !rendered) render();
+    });
+    if (details.open) render();
+
+    wrap.addEventListener('mouseover', function (e) {
+      var cell = e.target;
+      if (!cell.classList || !cell.classList.contains('hm-cell') || !view) { return; }
+      var s = view.series[+cell.dataset.i];
+      var b = +cell.dataset.b;
+      if (!s || !(s.sm[b] > 0)) { tip.hidden = true; return; }
+      var size = view.spec.size;
+      var range = view.spec.pct
+        ? (b * size) + '\\u2013' + ((b + 1) * size) + '% of match'
+        : clock(b * size) + '\\u2013' + clock((b + 1) * size);
+      tip.innerHTML = '<b>' + esc(s.label) + '</b> ' + s.raw[b] + ' of ' + s.n +
+        ' games \\u00b7 ' + range;
+      tip.hidden = false;
+      var rect = wrap.getBoundingClientRect();
+      var cr = cell.getBoundingClientRect();
+      var left = cr.left - rect.left + cr.width / 2 + 8;
+      if (left + tip.offsetWidth > rect.width - 4) left -= tip.offsetWidth + cr.width + 16;
+      tip.style.left = Math.max(0, left) + 'px';
+      tip.style.top = Math.max(0, cr.top - rect.top - 30) + 'px';
+    });
+    wrap.addEventListener('mouseleave', function () {
+      tip.hidden = true;
+    });
+  });
+})();
+"""
+
+
 # Extra styling for the navigation index (`render_index_html`) only, appended after the
 # shared sheet so the per-faction pages are untouched: the matchup matrix (vertical column
 # heads, tinted diverging cells). The link and nav-pill rules live in the shared sheet, as
@@ -1612,6 +1813,41 @@ def _timeline_block(ranked: list[ChoiceStat], graph: str, translate: Translate) 
     )
 
 
+def _heatmap_block(ranked: list[ChoiceStat], graph: str, translate: Translate) -> str:
+    """The collapsed purchase-timing `<details>` for the Sciences table: a heatmap rather than
+    the Buildings/Units timeline's line graph, because a science is bought at most once per
+    game and a faction only carries 10-20 of them - one row per science (in table rank order)
+    reads at a glance where the timeline's overlapping lines would not. Only the x-axis toggles
+    (no y-mode: a heatmap cell is always that row's own share of its own purchases, row-
+    normalised - see `_HEATMAP_SCRIPT`), and there is no per-row checkbox/swatch or header
+    select-all, since there is no line to key a row to. The JSON payload is identical in shape
+    to `_timeline_block`'s (series of translated label + raw (order seconds, match duration)
+    occurrences), rounded to 1 decimal; `</` is escaped inside it so no label can close the
+    script element early."""
+    payload = {
+        "series": [
+            {
+                "label": translate(choice.label),
+                "occ": [[round(t, 1), round(d, 1)] for t, d in choice.occurrences],
+            }
+            for choice in ranked
+        ],
+    }
+    data = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
+    return (
+        f'<details class="heatmap" data-graph="{graph}"><summary>Purchase timing '
+        '<span class="rec">when each science is bought across match length</span></summary>'
+        '<div class="body">'
+        '<div class="tl-head"><span class="tl-toggle">'
+        '<button type="button" class="on" data-mode="pct">% of match</button>'
+        '<button type="button" data-mode="abs">game clock</button></span>'
+        '<span class="tl-note">each row shaded by where its own purchases fall</span></div>'
+        '<div class="hm-wrap"><div class="hm-grid"></div><div class="tl-tip" hidden></div></div>'
+        f'<script type="application/json" class="hm-data">{data}</script>'
+        "</div></details>"
+    )
+
+
 def _html_table(
     table: dict[str, ChoiceStat],
     title: str,
@@ -1625,39 +1861,48 @@ def _html_table(
     owner: str | None,
     annotate: Annotate | None,
     graph_ids: Iterator[int] | None = None,
+    graph_kind: str = "timeline",
     anchor: str | None = None,
 ) -> list[str]:
     """One pick-category table, titled at `heading` depth; empty when the table is. With a
     `base_table` (the faction's overall aggregate for this category) each row gains a `vs
     overall` delta column. With `graph_ids` (the page-wide counter, handed in only for the
-    Buildings/Units sections), a collapsed timeline graph sits between the heading and the
-    table, and every row's label cell leads with a checkbox + colour swatch keying that row to
-    its line in the graph - inside the first cell rather than its own column, so the sort
-    script's column indices and text-based keys are untouched and the checkboxes travel with
-    sorted rows. The id is drawn only when a graph actually renders (a table where every game
-    lacked a duration has nothing to draw), so ids stay dense across the page."""
+    Buildings/Units/Sciences sections), a collapsed graph sits between the heading and the
+    table: `graph_kind="timeline"` (Buildings/Units) draws `_timeline_block` and gives every
+    row's label cell a leading checkbox + colour swatch keying that row to its line - inside the
+    first cell rather than its own column, so the sort script's column indices and text-based
+    keys are untouched and the checkboxes travel with sorted rows - plus a header select-all;
+    `graph_kind="heatmap"` (Sciences) draws `_heatmap_block` instead, with no per-row key and no
+    select-all, since a heatmap row has no line to toggle. The id is drawn only when a graph
+    actually renders (a table where every game lacked a duration, or no science was ever
+    purchased, has nothing to draw), so ids stay dense across the page."""
     if not table:
         return []
     ranked = _ranked(table)
-    timeline_id = None
+    graph_id = None
     if graph_ids is not None and any(c.occurrences for c in ranked):
-        timeline_id = f"g{next(graph_ids)}"
+        graph_id = f"g{next(graph_ids)}"
+    heatmap = graph_kind == "heatmap"
     vs = base_table is not None
     vs_head = '<th title="pick rate vs the faction overall, in points">vs overall</th>'
     # `anchor` (the top-level faction sections only) ids the heading so the single-faction
     # page's contents box can link to it; matchup sub-tables pass none, avoiding duplicate ids.
     attr = f' id="{anchor}"' if anchor else ""
     lines = [f"<{heading}{attr}>{escape(title)}</{heading}>"]
-    if timeline_id is not None:
-        lines.append(_timeline_block(ranked, timeline_id, translate))
+    if graph_id is not None:
+        lines.append(
+            _heatmap_block(ranked, graph_id, translate)
+            if heatmap
+            else _timeline_block(ranked, graph_id, translate)
+        )
     master = ""
-    if timeline_id is not None:
+    if graph_id is not None and not heatmap:
         # The header's select-all: one checkbox driving every row checkbox below it (and
         # showing indeterminate when they disagree). It sits inside the sortable label
         # header, so the graph script stops its clicks from reaching the th's sort handler.
         master = (
             '<label class="serieskey"><input type="checkbox" checked '
-            f'data-graph-all="{timeline_id}" title="show/hide all series"></label>'
+            f'data-graph-all="{graph_id}" title="show/hide all series"></label>'
         )
     lines.extend(
         [
@@ -1672,13 +1917,13 @@ def _html_table(
         first = clock(choice.median_first) if choice.median_first is not None else "-"
         badge = annotate(owner, choice.label) if annotate and owner is not None else ""
         key = ""
-        if timeline_id is not None:
+        if graph_id is not None and not heatmap:
             # The row's tie to its graph line: checkbox (visibility) + swatch (the series
             # colour, stamped by the graph script). Contributes no textContent, so the
             # column sorter reads the same label it always did.
             key = (
                 '<label class="serieskey"><input type="checkbox" checked '
-                f'data-graph="{timeline_id}" data-series="{index}">'
+                f'data-graph="{graph_id}" data-series="{index}">'
                 '<span class="swatch"></span></label>'
             )
         vs_cell = ""
@@ -1719,9 +1964,10 @@ def _html_tables(
     `annotate(owner, label)` may append a badge to a row (e.g. flagging a pick that is not
     `owner`'s roster); `owner` is the faction the picks belong to, which for a matchup sub-table
     is the parent faction, not the enemy. `graph_ids` (a page-wide counter, threaded from
-    `render_aggregate_html`) gives the Buildings and Units sections their timeline graphs: each
-    rendered graph draws a fresh id tying its rows' checkboxes to its own chart, unique across
-    every faction and matchup block on the page."""
+    `render_aggregate_html`) gives the Buildings and Units sections their timeline graphs and the
+    Sciences section its purchase-timing heatmap: each rendered graph draws a fresh id tying its
+    rows (or, for the heatmap, just the graph itself) to its own chart, unique across every
+    faction and matchup block on the page."""
     base_games = baseline.games if baseline is not None else 0
     lines: list[str] = []
     for title, attribute, column in _SECTIONS:
@@ -1740,7 +1986,8 @@ def _html_tables(
             base_games=base_games,
             owner=owner,
             annotate=annotate,
-            graph_ids=graph_ids if attribute in ("buildings", "units") else None,
+            graph_ids=graph_ids if attribute in ("buildings", "units", "sciences") else None,
+            graph_kind="heatmap" if attribute == "sciences" else "timeline",
             anchor=anchor,
         )
         if attribute == "heroes" and section:
@@ -1852,11 +2099,14 @@ def render_aggregate_html(
     `index_href`, if given, renders a back-to-index nav pill linking there (a page relative path
     from this page). `icon`, if given, maps a faction code name to an icon URL (relative to
     this page - the one optional external asset) shown before the faction name in its header
-    and matchup summaries. Every table's column headers sort client-side (`_SORT_SCRIPT`), and
-    every Buildings/Units table carries a collapsed timeline graph of order timing across match
-    length, drawn by the embedded `_GRAPH_SCRIPT` (see its module comment and `_timeline_block`
-    for the graph's axis, y-mode, and denominator behavior). A contents box heads the page: over
-    the factions for a multi-faction report, or over the one faction's own sections (each pick
+    and matchup summaries. Every table's column headers sort client-side (`_SORT_SCRIPT`), every
+    Buildings/Units table carries a collapsed timeline graph of order timing across match length
+    (drawn by the embedded `_GRAPH_SCRIPT`; see its module comment and `_timeline_block` for the
+    graph's axis, y-mode, and denominator behavior), and every Sciences table carries a collapsed
+    purchase-timing heatmap - one row per science shaded by when it tends to be bought (drawn by
+    the embedded `_HEATMAP_SCRIPT`; see its module comment and `_heatmap_block`). A contents box
+    heads the page: over the factions for a multi-faction report, or over the one faction's own
+    sections (each pick
     category present, then Matchups and, when `extra` renders one, Replays) for a single-faction
     page - so `extra`'s replay heading should carry `id="replays"` to be linked."""
     tr = translate or _identity
@@ -1942,7 +2192,12 @@ def render_aggregate_html(
             lines.append("</div></details>")
         lines.extend(extra_lines[agg.faction])
     lines.extend(
-        ["</main>", f"<script>{_SORT_SCRIPT}</script>", f"<script>{_GRAPH_SCRIPT}</script>"]
+        [
+            "</main>",
+            f"<script>{_SORT_SCRIPT}</script>",
+            f"<script>{_GRAPH_SCRIPT}</script>",
+            f"<script>{_HEATMAP_SCRIPT}</script>",
+        ]
     )
     lines.extend(["</body>", "</html>"])
     return lines

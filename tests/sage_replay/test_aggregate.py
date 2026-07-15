@@ -16,6 +16,7 @@ from sage_replay.aggregate import (
     Corpus,
     FactionAggregate,
     _faction_summary,
+    _heatmap_block,
     _html_tiles,
     _timeline_block,
     aggregate,
@@ -609,10 +610,12 @@ def test_timeline_occurrences_collect_every_instance():
     barracks = rohan.buildings["Barracks"]
     assert barracks.occurrences == [(5.0, 60.0), (25.0, 60.0)]
     assert barracks.first_times == [5.0]
-    # Only the graphed categories collect occurrences; sciences stay empty, and the JSON
-    # payload is unchanged by the new field.
-    assert rohan.sciences["SCIENCE_One"].occurrences == []
+    # Sciences collect occurrences too (a science is bought at most once per game, so this
+    # game's SCIENCE_One contributes exactly one pair), and the JSON payload is still
+    # unchanged by the new field regardless of category.
+    assert rohan.sciences["SCIENCE_One"].occurrences == [(9.0, 60.0)]
     assert "occurrences" not in barracks.to_dict()
+    assert "occurrences" not in rohan.sciences["SCIENCE_One"].to_dict()
 
 
 def test_render_aggregate_html_timeline_graphs():
@@ -620,9 +623,12 @@ def test_render_aggregate_html_timeline_graphs():
     games = [g for r in (_REPLAY_A, _REPLAY_B) for g in player_games(r, data)]
     corpus = Corpus(games=games, replays=2)
     text = "\n".join(render_aggregate_html(corpus, aggregate(games, matchups=True), title="T"))
-    # The Buildings section carries a timeline block, collapsed by default (no `open`), with
-    # the two-mode axis toggle and the raw per-instance payload (Barracks at 5s of a 60s game).
-    assert '<details class="timeline" data-graph="g0">' in text
+    # Sciences heatmaps claim ids before any Buildings timeline: factions render alphabetically
+    # when tied on games (Isengard before Rohan), and Isengard never builds anything, so its
+    # top-level and matchup Sciences heatmaps (g0, g1) are the only graphs it draws. Rohan's
+    # top-level block then draws its own Sciences heatmap (g2) before its Buildings timeline
+    # (g3), and its matchup block repeats the pair (g4, g5).
+    assert '<details class="timeline" data-graph="g3">' in text
     assert '<details class="timeline" open' not in text
     assert 'data-mode="pct"' in text and 'data-mode="abs"' in text
     assert '"occ":[[5.0,60.0]]' in text
@@ -636,15 +642,15 @@ def test_render_aggregate_html_timeline_graphs():
     # The old per-game rate is gone: the payload carries only the series, no game count.
     assert '"games":' not in text
     # Each row's label cell leads with a checked checkbox + swatch keyed to its series.
-    assert 'data-graph="g0" data-series="0"' in text
+    assert 'data-graph="g3" data-series="0"' in text
     assert '<input type="checkbox" checked' in text
-    # The label header carries the select-all, one per graph.
-    assert 'data-graph-all="g0"' in text and 'data-graph-all="g1"' in text
+    # The label header carries the select-all, one per timeline graph (never for a heatmap).
+    assert 'data-graph-all="g3"' in text and 'data-graph-all="g5"' in text
     # The matchup sub-table's graph draws its own id, so its checkboxes never cross-wire
     # with the faction-level graph over the same picks.
-    assert 'data-graph="g1"' in text
+    assert 'data-graph="g5"' in text
     # Sections without a timeline stay checkbox-free: the fortress-hero row (Heroes) and the
-    # science rows carry plain label cells.
+    # science rows carry plain label cells (Sciences gets a heatmap, not a per-row checkbox).
     assert "<td>fortress hero (command slot 2)</td>" in text
     assert "<td>SCIENCE_One</td>" in text
     # The graph renderer ships with the page.
@@ -660,6 +666,73 @@ def test_timeline_payload_escapes_early_script_close():
     block = _timeline_block([choice], "g9", lambda label: label)
     payload = block.split('class="tl-data">', 1)[1].split("</script>", 1)[0]
     assert json.loads(payload)["series"][0]["label"] == "Evil</script>x"
+
+
+def test_render_aggregate_html_science_heatmap():
+    data = _data()
+    games = [g for r in (_REPLAY_A, _REPLAY_B) for g in player_games(r, data)]
+    corpus = Corpus(games=games, replays=2)
+    text = "\n".join(render_aggregate_html(corpus, aggregate(games, matchups=True), title="T"))
+    # The Sciences section carries a purchase-timing heatmap, drawing an id from the same
+    # page-wide counter as every Buildings/Units timeline but never sharing one with them.
+    heatmap_ids = set(re.findall(r'<details class="heatmap" data-graph="(g\d+)">', text))
+    timeline_ids = set(re.findall(r'<details class="timeline" data-graph="(g\d+)">', text))
+    assert heatmap_ids and timeline_ids
+    assert heatmap_ids.isdisjoint(timeline_ids)
+    assert 'class="hm-data"' in text
+    payloads = [
+        json.loads(chunk.split("</script>", 1)[0]) for chunk in text.split('class="hm-data">')[1:]
+    ]
+    assert any(s["label"] == "SCIENCE_One" for payload in payloads for s in payload["series"])
+    # Only the axis toggle ships (no y-mode buttons, which mean nothing for a heatmap cell).
+    assert '<span class="tl-note">each row shaded by where its own purchases fall</span>' in text
+    # The heatmap script ships with the page.
+    assert "details.heatmap" in text
+
+
+def test_science_rows_carry_no_series_key():
+    data = _data()
+    games = [g for r in (_REPLAY_A, _REPLAY_B) for g in player_games(r, data)]
+    corpus = Corpus(games=games, replays=2)
+    text = "\n".join(render_aggregate_html(corpus, aggregate(games, matchups=True), title="T"))
+    heatmap_ids = set(re.findall(r'<details class="heatmap" data-graph="(g\d+)">', text))
+    assert heatmap_ids
+    # A heatmap has no line to key a row to: no header select-all and no per-row checkbox
+    # naming a heatmap id, unlike the timeline graphs' `data-graph-all` / `data-series` rows.
+    for hid in heatmap_ids:
+        assert f'data-graph-all="{hid}"' not in text
+        assert f'data-graph="{hid}" data-series=' not in text
+    # A science row's label cell stays plain - no leading checkbox/swatch.
+    assert "<td>SCIENCE_One</td>" in text
+
+
+def test_heatmap_payload_escapes_early_script_close():
+    # Mirrors test_timeline_payload_escapes_early_script_close for the heatmap's own payload:
+    # a label containing `</script>` must not close the element early, and the escaped `<\/`
+    # is still a legal JSON escape for `/`.
+    choice = ChoiceStat(label="Evil</script>x")
+    choice.occurrences.append((1.0, 60.0))
+    block = _heatmap_block([choice], "g9", lambda label: label)
+    payload = block.split('class="hm-data">', 1)[1].split("</script>", 1)[0]
+    assert json.loads(payload)["series"][0]["label"] == "Evil</script>x"
+
+
+def test_science_heatmap_omitted_without_measurable_duration():
+    # A replay with no chunk after timecode 0 leaves both players' match duration at 0.0 (no
+    # heartbeat/leave to measure it by): the science pick still counts in the pick-rate table,
+    # but with no match length to normalise against it contributes no heatmap occurrence, so
+    # the Sciences section renders no heatmap block at all.
+    data = _data()
+    replay = _replay([_science(1, timecode=0)])
+    games = player_games(replay, data)
+    corpus = Corpus(games=games, replays=1)
+    factions = aggregate(games)
+    rohan = next(a for a in factions if a.faction == "Rohan")
+    assert rohan.sciences["SCIENCE_One"].games == 1
+    assert rohan.sciences["SCIENCE_One"].occurrences == []
+    text = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+    assert '<details class="heatmap"' not in text
+    assert "<td>SCIENCE_One</td>" in text
 
 
 def test_render_index_html():

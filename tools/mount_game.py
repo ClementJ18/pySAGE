@@ -44,8 +44,15 @@ def _keep(entry_low: str) -> bool:
 
 
 def _archives(game_dir: Path) -> list[Path]:
-    """Every `.big` in `game_dir`, in the engine's case-insensitive alphabetical mount order."""
-    found = glob.glob(str(game_dir / "*.big"))
+    """Every mountable `.big`, in the engine's case-insensitive alphabetical mount order so
+    `_first_wins_index` keeps the first-registered (winning) copy of each shared entry - the
+    convention that makes leading-underscore mod archives win (`__edain_data.big` >
+    `_patch201ini.big` > `ini.big`).
+
+    Includes the `lang\\` folder, which holds the localization archives: the game's own string
+    table (`data\\lotr.str`) lives only there, so without it display names never resolve. Those
+    archives fold into the same alphabetical priority as everything else."""
+    found = glob.glob(str(game_dir / "*.big")) + glob.glob(str(game_dir / "lang" / "*.big"))
     return sorted((Path(p) for p in found), key=lambda p: p.name.lower())
 
 
@@ -94,6 +101,19 @@ def mount_ini_tree(game_dir: str | Path, out_dir: str | Path) -> Path:
     )
     if manifest_path.is_file() and manifest_path.read_text(encoding="utf-8") == manifest:
         return out_dir
+
+    # A cache dir reused across installs must not keep the outgoing mod's files: the loader
+    # walks the on-disk tree, so a leftover the new index doesn't own would merge two games
+    # into one (a union tree scrambles ThingTemplate registration order - every replay
+    # unit/building id then resolves to the wrong template). Deletion is limited to the
+    # extractable suffixes, so the manifest itself and any foreign file are untouched.
+    if out_dir.is_dir():
+        for existing in out_dir.rglob("*"):
+            if not existing.is_file() or existing.suffix.lower() not in (*_KEEP_SUFFIXES, ".str"):
+                continue
+            key = str(existing.relative_to(out_dir)).replace(os.sep, "\\").lower()
+            if key not in index:
+                existing.unlink()
 
     # Read each owner once, serving all of its winning entries from a single open handle.
     by_archive: dict[Path, list[tuple[str, str]]] = {}

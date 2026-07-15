@@ -259,16 +259,26 @@ class GameData:
     def _at(table: list[str], one_based: int) -> str | None:
         return table[one_based - 1] if 1 <= one_based <= len(table) else None
 
-    def object_name(self, replay_id: int) -> str | None:
+    def object_name(self, replay_id: int | str) -> str | None:
+        # A translated replay already carries the resolved code name in this position, so a
+        # `str` is the answer and passes straight through; only a raw id needs the table.
+        if isinstance(replay_id, str):
+            return replay_id
         return self._at(self.object_order, replay_id)
 
-    def special_power(self, replay_id: int) -> str | None:
+    def special_power(self, replay_id: int | str) -> str | None:
+        if isinstance(replay_id, str):
+            return replay_id
         return self._at(self.specialpowers, replay_id)
 
-    def science(self, replay_id: int) -> str | None:
+    def science(self, replay_id: int | str) -> str | None:
+        if isinstance(replay_id, str):
+            return replay_id
         return self._at(self.sciences, replay_id)
 
-    def upgrade(self, replay_id: int) -> str | None:
+    def upgrade(self, replay_id: int | str) -> str | None:
+        if isinstance(replay_id, str):
+            return replay_id
         index = replay_id - _UPGRADE_OFFSET  # 0-based, unlike the 1-based spaces `_at` serves
         return self.upgrades[index] if 0 <= index < len(self.upgrades) else None
 
@@ -358,9 +368,10 @@ class GameData:
         raw code name exactly as written in the ini (never prettified). None passes through."""
         return self.displaynames.get(name, name) if name is not None else None
 
-    def object_label(self, replay_id: int) -> str:
+    def object_label(self, replay_id: int | str) -> str:
         """A recruited/built object's label - localized DisplayName or the raw template name (or a
-        `<id ?>` marker when the id is out of range)."""
+        `<id ?>` marker when the id is out of range). A translated replay's already-resolved name
+        passes through `object_name`, so a `str` yields its displayname/label directly."""
         name = self.object_name(replay_id)
         return (
             self.displaynames.get(name, name) if name is not None else f"<object id {replay_id}?>"
@@ -544,7 +555,8 @@ def _describe(chunk: ReplayChunk, data: GameData, side: str | None = None) -> st
 
     if order in POWER_ORDERS and ints:
         power = data.label(data.special_power(ints[0])) or f"special power {ints[0]}?"
-        options = ints[1] if len(ints) > 1 else 0
+        # The Options bitfield is never an id, so translation leaves it an int.
+        options = ints[1] if len(ints) > 1 and isinstance(ints[1], int) else 0
         power_position = cast(
             "tuple[float, float, float] | None",
             first_argument(chunk, OrderArgumentType.Position),
@@ -612,12 +624,18 @@ def narrate(replay: ReplayFile, data: GameData) -> list[NarrationEvent]:
             ints = integer_arguments(chunk)
             resolver = revive_resolver(revives, replay, chunk, data)
             if ints and resolver is not None:
+                hero_slot = ints[0]
                 if chunk.order_type == 0x417:
-                    name = resolver.recruit(chunk.timecode * spf, ints[0])
+                    # A translated replay already carries the resolved hero name in the id slot.
+                    name = (
+                        hero_slot
+                        if isinstance(hero_slot, str)
+                        else resolver.recruit(chunk.timecode * spf, hero_slot)
+                    )
                     if name is not None:
                         text = f"recruits the hero {data.label(name)}"
-                else:
-                    resolver.cancel(chunk.timecode * spf, ints[0])
+                elif isinstance(hero_slot, int):
+                    resolver.cancel(chunk.timecode * spf, hero_slot)
         if text is None:
             continue
         player = player_label(replay, chunk)

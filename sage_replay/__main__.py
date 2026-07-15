@@ -20,6 +20,10 @@
   the revive-submenu model, falling back to the raw slot number), upgrades
   researched, and the spellbook sciences in purchase order. Same `--game` resolution
   as `narrate`.
+- `translate <replay> --game <root> [-o OUT.json]` - write the replay-shaped translated
+  document: the order stream with every version-coupled id resolved to its code name and
+  everything else kept raw, so the parse can be re-analysed against any game sharing those
+  names without the recording build (see `translated.py`). Same `--game` resolution as `narrate`.
 - `aggregate <replay|dir>... --game <root>` - corpus-wide stats over many replays: each
   human slot becomes a player-game (faction, won/lost from the ladder metadata sidecar beside
   the replay when present, else the `winner` heuristic, timed stats), grouped by faction into
@@ -93,6 +97,7 @@ from sage_replay.replay import (
     parse_replay_from_path,
 )
 from sage_replay.stats import compute_stats, render_stats
+from sage_replay.translated import TranslatedReplay
 from sage_replay.winner import PlayerSession, infer_winner
 from sage_utils.cli import add_game_arguments, existing_file, utf8_stdout
 from sage_utils.clock import clock
@@ -465,6 +470,21 @@ def _run_stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_translate(args: argparse.Namespace) -> int:
+    replay = parse_replay_from_path(args.replay)
+    games = resolve_game_roots(args.game, args.cache)
+    data = GameData.from_root(
+        games, localize=args.localized, map_file=replay.header.metadata.map_file
+    )
+    document = TranslatedReplay.from_replay(Path(args.replay), replay, data)
+    if args.out is not None:
+        document.write(args.out)
+        print(f"wrote {args.out}", file=sys.stderr)
+    else:
+        print(json.dumps(document.to_dict(), ensure_ascii=False, indent=2))
+    return 0
+
+
 def _session_status(session: PlayerSession, end: int, spf: float) -> str:
     """One human session's ending, in words, for the `winner` text output."""
     departed = session.departed_at(end)
@@ -509,6 +529,7 @@ def _run_aggregate(args: argparse.Namespace) -> int:
         refine_faction=args.refine_faction,
         relabel_power=args.relabel_power,
         power_recruits=args.power_recruits,
+        upgrade_recruits=args.upgrade_recruits,
         ignore_recruits=args.ignore_recruits,
     )
     if args.faction is not None:
@@ -570,6 +591,7 @@ def add_aggregate_command(
     refine_faction=None,
     relabel_power=None,
     power_recruits=None,
+    upgrade_recruits=None,
     ignore_recruits: frozenset[str] = frozenset(),
 ) -> argparse.ArgumentParser:
     """Register the corpus-aggregate subcommand on an argparse `subparsers`. A mod overlay
@@ -585,7 +607,9 @@ def add_aggregate_command(
     Lichtbringer toggle powers as `Lichtbringer -> Earth/Light/Water/Air` (the names
     `tracked_powers` then matches). `power_recruits` (a `PowerRecruits`) lets the overlay
     inject the units a power cast permanently fields as ordinary recruits, e.g. Edain's Mordor
-    summons and Leuchtfeuer signal fires, so they merge into the buildings/units/heroes tables.
+    summons and Leuchtfeuer signal fires, so they merge into the buildings/units/heroes tables;
+    `upgrade_recruits` (an `UpgradeRecruits`) does the same for dedication researches whose
+    conversion fires engine-side, e.g. Edain's Angmar ThrallMaster and Rohan Hauptmann.
     `ignore_recruits` (raw template code names) drops recruits whose real signal is a later power
     cast, e.g. Edain's elementless `BruchtalLichtbringerHorde` placeholder (its Loremaster row
     comes from the toggle `power_recruits` reads instead)."""
@@ -679,6 +703,7 @@ def add_aggregate_command(
         refine_faction=refine_faction,
         relabel_power=relabel_power,
         power_recruits=power_recruits,
+        upgrade_recruits=upgrade_recruits,
         ignore_recruits=ignore_recruits,
     )
     return parser
@@ -873,6 +898,30 @@ def main(argv: list[str] | None = None) -> int:
     stats_parser.set_defaults(func=_run_stats)
 
     add_aggregate_command(subparsers)
+
+    translate_parser = subparsers.add_parser(
+        "translate",
+        help="write the replay-shaped translated document (every version-coupled id resolved "
+        "to its code name) for portable, install-free analysis",
+    )
+    translate_parser.add_argument("replay", type=existing_file)
+    add_game_arguments(
+        translate_parser,
+        game_help="a data/ini tree, or a live install folder whose .big archives are mounted",
+    )
+    translate_parser.add_argument(
+        "--localized",
+        action="store_true",
+        help="resolve localized DisplayNames from the string table instead of raw ini code names",
+    )
+    translate_parser.add_argument(
+        "-o",
+        "--out",
+        type=Path,
+        default=None,
+        help="write the document here as compact JSON; without it, pretty JSON goes to stdout",
+    )
+    translate_parser.set_defaults(func=_run_translate)
 
     winner_parser = subparsers.add_parser(
         "winner", help="infer the outcome from session-end signals (concession heuristic)"

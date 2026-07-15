@@ -269,9 +269,10 @@ def _power_data() -> GameData:
     return data
 
 
-def _cast(power_id: int, order_type: int = 0x410, number: int = 3) -> ReplayChunk:
-    # A self-cast layout: [powerId, options, ...]; only the first Integer is read as the id.
-    return _chunk(order_type, [(_T.Integer, power_id), (_T.Integer, 0)], number=number)
+def _cast(power_id: int, order_type: int = 0x410, number: int = 3, options: int = 0) -> ReplayChunk:
+    # A cast layout: [powerId, options, ...] - the power id is the first Integer, the firing
+    # CommandButton's Options bitfield the second.
+    return _chunk(order_type, [(_T.Integer, power_id), (_T.Integer, options)], number=number)
 
 
 def test_power_casts_land_in_the_powers_bucket():
@@ -300,8 +301,8 @@ def test_power_recruits_injects_unit_events():
     # records them as ordinary bucketed events, alongside the untouched `powers` count.
     calls = []
 
-    def recruits(side, roster, power):
-        calls.append((side, tuple(roster), power))
+    def recruits(side, roster, power, options):
+        calls.append((side, tuple(roster), power, options))
         return ["OrcHorde", "OrcHorde"] if power == "SpecialAbilityOne" else ()
 
     replay = _replay([_cast(1, 0x410, number=3)])
@@ -312,8 +313,24 @@ def test_power_recruits_injects_unit_events():
     p0 = stats["Player0"]
     assert p0.powers == {"SpecialAbilityOne": 1}
     assert p0.units == {"OrcHorde": 2}
-    # The hook sees the caster's Side and their faction's (per-map) hero roster too.
-    assert calls == [("Imladris", ("Boromir",), "SpecialAbilityOne")]
+    # The hook sees the caster's Side, their faction's (per-map) hero roster, and the cast's
+    # CommandButton Options bitfield too.
+    assert calls == [("Imladris", ("Boromir",), "SpecialAbilityOne", 0)]
+
+
+def test_power_recruits_sees_the_firing_buttons_options_bitfield():
+    # Two buttons can share one power definition on the same Side (Angmar's SiegeTroll ram vs
+    # ThrallMaster orc summon); the cast's second Integer is the firing button's Options
+    # bitfield, so the hook can field a different unit per button.
+    def recruits(side, roster, power, options):
+        return ["Barracks"] if options & 0x100 else ["OrcHorde"]
+
+    replay = _replay([_cast(1, options=0x1000100), _cast(1, options=0)])
+    p0 = {per.player: per for per in compute_stats(replay, _power_data(), power_recruits=recruits)}[
+        "Player0"
+    ]
+    assert p0.buildings == {"Barracks": 1}
+    assert p0.units == {"OrcHorde": 1}
 
 
 def test_power_recruits_sees_the_raw_power_name_even_when_relabelled():
@@ -321,7 +338,7 @@ def test_power_recruits_sees_the_raw_power_name_even_when_relabelled():
     # it survives relabelling.
     seen = []
 
-    def recruits(side, roster, power):
+    def recruits(side, roster, power, options):
         seen.append(power)
         return ()
 
@@ -343,7 +360,7 @@ def test_power_recruits_sees_the_raw_power_name_even_when_relabelled():
 def test_power_recruit_events_are_not_cancellable():
     # A power cast cannot be cancelled, so the injected events never sit on the `recruits`
     # LIFO stack: an unrelated 0x418 unit-cancel for the same template id must not consume one.
-    def recruits(side, roster, power):
+    def recruits(side, roster, power, options):
         return ["OrcHorde"]
 
     replay = _replay([_cast(1, 0x410, number=3), _cancel_unit(2)])
@@ -359,7 +376,7 @@ def test_no_power_recruits_hook_or_empty_result_leaves_units_untouched():
     assert p0.units == {}
     assert p0.powers == {"SpecialAbilityOne": 1}
 
-    def empty(side, roster, power):
+    def empty(side, roster, power, options):
         return ()
 
     p0 = {per.player: per for per in compute_stats(replay, _power_data(), power_recruits=empty)}[
@@ -367,6 +384,66 @@ def test_no_power_recruits_hook_or_empty_result_leaves_units_untouched():
     ]
     assert p0.units == {}
     assert p0.powers == {"SpecialAbilityOne": 1}
+
+
+def test_upgrade_recruits_injects_units_for_dedication_researches():
+    # A dedication research converts its buyer engine-side (the summon never enters the order
+    # stream), so the hook's units record as ordinary recruits alongside the untouched
+    # `upgrades` count; the hook sees the purchaser's Side.
+    calls = []
+
+    def dedications(side, upgrade):
+        calls.append((side, upgrade))
+        return ["OrcHorde"] if upgrade == "Upgrade_ForgedBlades" else ()
+
+    replay = _replay([_research(4)])
+    replay.header.metadata.players[0].faction = 1  # Side "Angmar"
+    p0 = {
+        per.player: per
+        for per in compute_stats(replay, _power_data(), upgrade_recruits=dedications)
+    }["Player0"]
+    assert p0.upgrades == {"Upgrade_ForgedBlades": 1}
+    assert p0.units == {"OrcHorde": 1}
+    assert calls == [("Angmar", "Upgrade_ForgedBlades")]
+
+
+def test_cancelled_dedication_takes_its_fielded_unit_back():
+    # A 0x416 upgrade cancel pops the research and the recruit events it injected - the
+    # cancelled conversion never happens.
+    def dedications(side, upgrade):
+        return ["OrcHorde"]
+
+    replay = _replay([_research(4), _cancel_upgrade(4)])
+    p0 = {
+        per.player: per
+        for per in compute_stats(replay, _power_data(), upgrade_recruits=dedications)
+    }["Player0"]
+    assert p0.upgrades == {}
+    assert p0.units == {}
+
+
+def test_dedication_cancel_only_takes_back_its_own_injected_events():
+    # The cancel removes exactly the events its research injected: an ordinary recruit of the
+    # same template (an equal-valued StatEvent) survives, ...
+    def dedications(side, upgrade):
+        return ["OrcHorde"]
+
+    replay = _replay([_recruit(2), _research(4), _cancel_upgrade(4)])
+    p0 = {
+        per.player: per
+        for per in compute_stats(replay, _power_data(), upgrade_recruits=dedications)
+    }["Player0"]
+    assert p0.units == {"OrcHorde": 1}
+    assert p0.upgrades == {}
+
+    # ... and the injected event never sits on the 0x418 unit-cancel stack either.
+    replay = _replay([_research(4), _cancel_unit(2)])
+    p0 = {
+        per.player: per
+        for per in compute_stats(replay, _power_data(), upgrade_recruits=dedications)
+    }["Player0"]
+    assert p0.units == {"OrcHorde": 1}
+    assert p0.upgrades == {"Upgrade_ForgedBlades": 1}
 
 
 def test_ignore_recruits_drops_named_templates():
