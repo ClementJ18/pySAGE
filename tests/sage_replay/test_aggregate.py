@@ -3,6 +3,7 @@ pick tables with win-loss records and first-purchase timings. Synthetic GameData
 chunks - no game install needed - plus the fixture-backed patch-fingerprint gate."""
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -547,7 +548,7 @@ def test_render_aggregate_html():
     assert text.startswith("<!doctype html>")
     assert "<title>Rohan corpus</title>" in text
     assert "2 replays -&gt; 4 player-games" in text or "2 replays -> 4 player-games" in text
-    assert "<h2>Rohan</h2>" in text
+    assert '<h2 id="f-rohan">Rohan</h2>' in text
     assert "SCIENCE_One" in text
     # The 50% win rate renders as a diverging bar of zero extent plus the number.
     assert '<span class="pct">50%</span>' in text
@@ -725,7 +726,40 @@ def test_render_aggregate_html_extra_hook_appends_per_faction():
     assert set(seen) == {"Rohan", "Isengard"}
     assert '<div class="marker">replays for Rohan</div>' in text
     # It is appended after the faction's own <h2> block.
-    assert text.index("<h2>Rohan</h2>") < text.index("replays for Rohan")
+    assert text.index('<h2 id="f-rohan">Rohan</h2>') < text.index("replays for Rohan")
+
+
+def test_render_aggregate_html_contents_box():
+    data = _data()
+    games = [g for r in (_REPLAY_A, _REPLAY_B) for g in player_games(r, data)]
+    corpus = Corpus(games=games, replays=2)
+    factions = aggregate(games, matchups=True)
+
+    # A multi-faction report: the contents box lists each faction, linking to its <h2>, and
+    # sits ahead of the first faction block.
+    multi = "\n".join(render_aggregate_html(corpus, factions))
+    assert '<nav class="toc">' in multi
+    assert '<a href="#f-rohan">Rohan</a>' in multi
+    assert '<a href="#f-isengard">Isengard</a>' in multi
+    assert multi.index('<nav class="toc">') < multi.index('<h2 id="f-rohan">')
+
+    # A single-faction page: the contents box lists that faction's own sections, then the
+    # Matchups block and (via the extra hook) the Replays list - every link resolving to an id
+    # that is actually present on the page.
+    rohan = [a for a in factions if a.faction == "Rohan"]
+    single = "\n".join(
+        render_aggregate_html(
+            corpus, rohan, extra=lambda agg: ['<h3 id="replays">Replays (2)</h3>']
+        )
+    )
+    assert '<a href="#matchups">Matchups</a>' in single
+    assert '<a href="#replays">Replays</a>' in single
+    assert '<h3 id="matchups">Matchups</h3>' in single
+    toc = single[single.index('<nav class="toc">') : single.index("</nav>")]
+    targets = re.findall(r'href="#([^"]+)"', toc)
+    assert any(t.startswith("sec-") for t in targets)  # at least one pick section is listed
+    for target in targets:
+        assert f'id="{target}"' in single  # every contents link resolves
 
 
 def test_render_index_html_without_matchups_omits_matrix():
@@ -747,13 +781,13 @@ def test_translate_maps_code_names_to_display_strings():
     translate = lambda code: names.get(code) or code  # noqa: E731
 
     html = "\n".join(render_aggregate_html(corpus, factions, title="T", translate=translate))
-    assert "<h2>Rohan (Riders)</h2>" in html
+    assert '<h2 id="f-rohan">Rohan (Riders)</h2>' in html
     # A mapped label renders its display string, not the raw code name (the buildings cell
     # leads with its timeline checkbox, so match the label against the cell's tail).
     assert ">Barracks Hall</td>" in html and ">Barracks</td>" not in html
     assert "<td>First Science</td>" in html
     # An unmapped code name (Isengard) falls back to itself.
-    assert "<h2>Isengard</h2>" in html
+    assert '<h2 id="f-isengard">Isengard</h2>' in html
 
     links = {"Rohan": "aggregate/rohan.html", "Isengard": "aggregate/isengard.html"}
     index = "\n".join(render_index_html(corpus, factions, links, translate=translate))
@@ -763,7 +797,7 @@ def test_translate_maps_code_names_to_display_strings():
     assert '<a href="aggregate/isengard.html">Isengard</a>' in index
     # Without a translate, labels stay as raw code names (default identity).
     plain = "\n".join(render_aggregate_html(corpus, factions, title="T"))
-    assert "<h2>Rohan</h2>" in plain and ">Barracks</td>" in plain
+    assert '<h2 id="f-rohan">Rohan</h2>' in plain and ">Barracks</td>" in plain
 
 
 # Fixture replays for the patch-fingerprint gate: two from the same install, one from

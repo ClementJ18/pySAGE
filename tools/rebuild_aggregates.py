@@ -329,7 +329,8 @@ def _replay_rows(games, display) -> list[str]:
     rank = {"won": 0, "lost": 1, "undetermined": 2}
     ordered = sorted(games, key=lambda g: (rank.get(g.outcome, 3), -g.duration))
     lines = [
-        f"<h3>Replays ({len(ordered)})</h3>",
+        # id="replays" so the single-faction page's contents box (render_aggregate_html) links here.
+        f'<h3 id="replays">Replays ({len(ordered)})</h3>',
         '<div class="tablewrap"><table>',
         "<thead><tr><th>Player</th><th>Versus</th><th>Result</th>"
         "<th>Length</th><th>Replay</th></tr></thead>",
@@ -440,13 +441,9 @@ def _corpus_row(folder: str, meta: dict | None, names: dict[str, str]) -> str:
     name = names.get(folder)
     label = escape(f"{name} ({folder})" if name else folder)
     if meta is None:
-        cells = '<td class="dim">-</td>' * 7
+        cells = '<td class="dim">-</td>' * 6
         return f'<tr><td><a href="{escape(href)}">{label}</a></td>{cells}</tr>'
     modes = ", ".join(meta.get("modes") or []) or "&mdash;"
-    # The version labels a multi-patch (tournament) corpus pooled; a single-version corpus.json
-    # carries no such key, and neither do the older ones written before the column existed.
-    versions_meta = meta.get("versions")
-    versions = escape(", ".join(versions_meta)) if versions_meta else "-"
     return (
         f'<tr><td><a href="{escape(href)}">{label}</a></td>'
         f"<td>{meta.get('replays', '-')}</td>"
@@ -454,7 +451,6 @@ def _corpus_row(folder: str, meta: dict | None, names: dict[str, str]) -> str:
         f"<td>{meta.get('decided_games', '-')}</td>"
         f"<td>{meta.get('factions', '-')}</td>"
         f'<td class="dim">{escape(modes)}</td>'
-        f'<td class="dim">{versions}</td>'
         f'<td class="dim">{escape(str(meta.get("generated") or "-"))}</td></tr>'
     )
 
@@ -493,7 +489,7 @@ def render_corpora_index(out: Path, names: dict[str, str]) -> str:
             [
                 '<div class="tablewrap"><table>',
                 "<thead><tr><th>Corpus</th><th>Replays</th><th>Player-games</th>"
-                "<th>Decided</th><th>Factions</th><th>Modes</th><th>Versions</th>"
+                "<th>Decided</th><th>Factions</th><th>Modes</th>"
                 "<th>Generated</th></tr></thead>",
                 "<tbody>",
                 *[_corpus_row(folder, meta, names) for folder, meta in entries],

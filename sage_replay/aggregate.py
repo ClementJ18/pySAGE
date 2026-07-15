@@ -151,6 +151,13 @@ def _icon_img(src: str, cls: str = "ficon") -> str:
     return f'<img class="{cls}" src="{escape(src)}" alt="">' if src else ""
 
 
+def _anchor(label: str) -> str:
+    """A faction code name as a stable in-page anchor slug (`FactionMen` -> `factionmen`), for
+    the contents box's links to each faction's `<h2>`."""
+    slug = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
+    return slug or "x"
+
+
 @dataclass(slots=True)
 class PlayerGame:
     """One human slot in one replay, with everything the aggregation needs."""
@@ -1078,6 +1085,17 @@ a:hover { text-decoration: underline; }
   border: 1px solid var(--ring); border-radius: 8px; font-weight: 600; color: var(--ink);
 }
 .nav:hover { text-decoration: none; border-color: var(--above); }
+.toc {
+  margin: 14px 0 24px; padding: 12px 16px; background: var(--surface);
+  border: 1px solid var(--ring); border-radius: 8px;
+}
+.toc-title {
+  margin: 0 0 8px; font-size: 11px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;
+}
+.toc ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.toc li { line-height: 1.7; }
+.toc .ficon { height: 1em; vertical-align: -0.15em; margin-right: 5px; }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink-2); }
 th.sortable.asc::after { content: " \\2191"; color: var(--above); }
@@ -1607,6 +1625,7 @@ def _html_table(
     owner: str | None,
     annotate: Annotate | None,
     graph_ids: Iterator[int] | None = None,
+    anchor: str | None = None,
 ) -> list[str]:
     """One pick-category table, titled at `heading` depth; empty when the table is. With a
     `base_table` (the faction's overall aggregate for this category) each row gains a `vs
@@ -1625,7 +1644,10 @@ def _html_table(
         timeline_id = f"g{next(graph_ids)}"
     vs = base_table is not None
     vs_head = '<th title="pick rate vs the faction overall, in points">vs overall</th>'
-    lines = [f"<{heading}>{escape(title)}</{heading}>"]
+    # `anchor` (the top-level faction sections only) ids the heading so the single-faction
+    # page's contents box can link to it; matchup sub-tables pass none, avoiding duplicate ids.
+    attr = f' id="{anchor}"' if anchor else ""
+    lines = [f"<{heading}{attr}>{escape(title)}</{heading}>"]
     if timeline_id is not None:
         lines.append(_timeline_block(ranked, timeline_id, translate))
     master = ""
@@ -1686,6 +1708,7 @@ def _html_tables(
     annotate: Annotate | None = None,
     powers_heading: str = DEFAULT_POWERS_HEADING,
     graph_ids: Iterator[int] | None = None,
+    section_anchors: bool = False,
 ) -> list[str]:
     """The pick-category tables of one aggregate, titled at `heading` (h3/h4) depth, with the
     tracked powers nested a heading level deeper under Units as `powers_heading` (their caster
@@ -1703,6 +1726,9 @@ def _html_tables(
     lines: list[str] = []
     for title, attribute, column in _SECTIONS:
         base_table = getattr(baseline, attribute) if baseline is not None else None
+        # The section-heading anchor for the single-faction page's contents box; only the
+        # faction's own top-level sections carry one (matchup sub-tables leave it off).
+        anchor = f"sec-{attribute}" if section_anchors else None
         section = _html_table(
             getattr(agg, attribute),
             title,
@@ -1715,6 +1741,7 @@ def _html_tables(
             owner=owner,
             annotate=annotate,
             graph_ids=graph_ids if attribute in ("buildings", "units") else None,
+            anchor=anchor,
         )
         if attribute == "heroes" and section:
             # Sit the extrapolation warning right under the Heroes heading (index 1, after the
@@ -1734,9 +1761,11 @@ def _html_tables(
                 owner=owner,
                 annotate=annotate,
             )
-            # A bare Units heading anchors the nested powers when no unit was recruited.
+            # A bare Units heading anchors the nested powers when no unit was recruited (keeping
+            # the section anchor so the contents box still links here).
             if powers and not section:
-                section = [f"<{heading}>{escape(title)}</{heading}>"]
+                attr = f' id="{anchor}"' if anchor else ""
+                section = [f"<{heading}{attr}>{escape(title)}</{heading}>"]
             section.extend(powers)
         lines.extend(section)
     return lines
@@ -1760,6 +1789,43 @@ def _html_tiles(agg: FactionAggregate) -> str:
         for k, v in tiles
     )
     return f'<div class="tiles">{cells}</div>'
+
+
+def _toc(entries: list[tuple[str, str]]) -> list[str]:
+    """A contents box from `(label_html, anchor)` pairs - `label_html` is already escaped/marked
+    up by the caller (a faction entry carries its icon), `anchor` is the in-page id it links to.
+    Empty pairs render nothing."""
+    if not entries:
+        return []
+    items = "".join(f'<li><a href="#{href}">{label}</a></li>' for label, href in entries)
+    return [f'<nav class="toc"><p class="toc-title">Contents</p><ul>{items}</ul></nav>']
+
+
+def _corpus_toc(
+    factions: list[FactionAggregate], translate: Translate, icon: FactionIcon
+) -> list[str]:
+    """The all-faction report's contents: one entry per faction, linking to its `<h2>` block."""
+    entries = [
+        (_icon_img(icon(agg.faction)) + escape(translate(agg.faction)), f"f-{_anchor(agg.faction)}")
+        for agg in factions
+    ]
+    return _toc(entries)
+
+
+def _faction_toc(agg: FactionAggregate, has_replays: bool) -> list[str]:
+    """A single-faction page's contents: each pick section present (a bare Units section still
+    lists when only powers were cast), then the matchups block and the replay list when present.
+    Section order and anchors mirror `_html_tables`' `sec-<attribute>` headings."""
+    entries: list[tuple[str, str]] = []
+    for title, attribute, _ in _SECTIONS:
+        present = bool(getattr(agg, attribute)) or (attribute == "units" and bool(agg.powers))
+        if present:
+            entries.append((escape(title), f"sec-{attribute}"))
+    if agg.matchups:
+        entries.append(("Matchups", "matchups"))
+    if has_replays:
+        entries.append(("Replays", "replays"))
+    return _toc(entries)
 
 
 def render_aggregate_html(
@@ -1789,7 +1855,10 @@ def render_aggregate_html(
     and matchup summaries. Every table's column headers sort client-side (`_SORT_SCRIPT`), and
     every Buildings/Units table carries a collapsed timeline graph of order timing across match
     length, drawn by the embedded `_GRAPH_SCRIPT` (see its module comment and `_timeline_block`
-    for the graph's axis, y-mode, and denominator behavior)."""
+    for the graph's axis, y-mode, and denominator behavior). A contents box heads the page: over
+    the factions for a multi-faction report, or over the one faction's own sections (each pick
+    category present, then Matchups and, when `extra` renders one, Replays) for a single-faction
+    page - so `extra`'s replay heading should carry `id="replays"` to be linked."""
     tr = translate or _identity
     ic = icon or _no_icon
     graph_ids = count()
@@ -1809,8 +1878,21 @@ def render_aggregate_html(
     ]
     if index_href is not None:
         lines.append(f'<p><a class="nav" href="{escape(index_href)}">&larr; Back to index</a></p>')
+    # A single-faction page (one faction, the caller's per-faction report) gets a contents box
+    # over its own sections; a multi-faction report gets one over its factions. The per-faction
+    # `extra` (the replay list) is rendered once and reused, so the single-faction contents can
+    # tell whether a Replays entry belongs.
+    extra_lines = {agg.faction: (extra(agg) if extra is not None else []) for agg in factions}
+    single = len(factions) == 1
+    if single:
+        lines.extend(_faction_toc(factions[0], bool(extra_lines[factions[0].faction])))
+    else:
+        lines.extend(_corpus_toc(factions, tr, ic))
     for agg in factions:
-        lines.append(f"<h2>{_icon_img(ic(agg.faction))}{escape(tr(agg.faction))}</h2>")
+        lines.append(
+            f'<h2 id="f-{_anchor(agg.faction)}">'
+            f"{_icon_img(ic(agg.faction))}{escape(tr(agg.faction))}</h2>"
+        )
         lines.append(_html_tiles(agg))
         lines.extend(
             _html_tables(
@@ -1821,9 +1903,16 @@ def render_aggregate_html(
                 annotate=annotate,
                 powers_heading=powers_heading,
                 graph_ids=graph_ids,
+                section_anchors=single,
             )
         )
-        for enemy, sub in _ranked_matchups(agg):
+        matchups = _ranked_matchups(agg)
+        if matchups:
+            # A heading anchors the matchup blocks (id only on a single-faction page, where the
+            # contents box links to it; a multi-faction report would collide on the id).
+            mid = ' id="matchups"' if single else ""
+            lines.append(f"<h3{mid}>Matchups</h3>")
+        for enemy, sub in matchups:
             swing = ""
             if sub.win_rate is not None and agg.win_rate is not None:
                 swing = (
@@ -1851,8 +1940,7 @@ def render_aggregate_html(
                 )
             )
             lines.append("</div></details>")
-        if extra is not None:
-            lines.extend(extra(agg))
+        lines.extend(extra_lines[agg.faction])
     lines.extend(
         ["</main>", f"<script>{_SORT_SCRIPT}</script>", f"<script>{_GRAPH_SCRIPT}</script>"]
     )
