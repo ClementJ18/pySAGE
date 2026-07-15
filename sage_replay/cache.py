@@ -4,30 +4,21 @@ The document itself - one replay's parse with every id already resolved to code 
 can be consumed (or shared) without any game install - is `sage_replay.translated`'s
 `TranslatedReplay`. Caching one is an explicit step the *caller* takes (nothing in sage_replay
 writes a cache as a side effect): the caller decides where documents live and when to produce
-them, and this module supplies the policy pieces that make a tree of them work as a cache -
-the mirrored-path convention, the trust checks, and the outcome refresh on load.
+them, and this module supplies the policy pieces that make a tree of them work as a cache - the
+mirrored-path convention (`cache_path`), the trust checks (`cached_document`), and the outcome
+refresh on load (`load_replay_cache`).
 
-`cache_path` maps a replay to its document in a *mirrored* cache tree: the same folder
-structure under a separate cache root (`tools/rebuild_aggregates.py` mirrors
-`downloads/replays/` into `downloads/cached/`), so the cache never pollutes the replay tree
-itself and a whole corpus's documents can be browsed, shipped, or deleted as one folder.
-
-A document is trusted (`cached_document`) when it reads back at all (`FORMAT_VERSION` gates
-the schema - bump it after a stats-pipeline or mod-overlay hook change, which the other checks
-can't see), when its recorded size and content hash still match the replay file (identity that
-survives copying a corpus between machines, unlike an mtime), and when it was written under
-the same `assume_pov_won` assumption the caller wants. Anything else reads as a miss: the
-caller re-translates and rewrites, so a stale document self-heals.
+A whole corpus's documents live in a *mirrored* cache tree - the same folder structure under a
+separate cache root (`tools/rebuild_aggregates.py` mirrors `downloads/replays/` into
+`downloads/cached/`) - so the cache never pollutes the replay tree and can be browsed, shipped,
+or deleted as one folder. A document that fails any trust check reads as a miss: the caller
+re-translates and rewrites, so a stale document self-heals.
 
 Match outcomes are deliberately not baked into the document. The ladder sidecar beside a
 replay (`sidecar.py`) is hand-edited - a winner filled in days after the replay was first
-cached must still take effect on the next rebuild - so `load_replay_cache` re-derives the
-outcome at *load* time from whatever sidecar sits beside the replay now, mapped by the
-document's cached `(name, lobby team)` pairs exactly as a fresh parse would
-(`sidecar_team_outcomes`). Only when the sidecar is missing or untrustworthy does a player's
-outcome fall back to the document's frozen `heuristic_outcome` - the concession-heuristic
-verdict from parse time, kept precisely because it can't be recomputed from an order stream
-the document doesn't retain.
+cached must still take effect on the next rebuild - so outcomes are re-derived at *load* time
+from whatever sidecar sits beside the replay now, falling back to the document's frozen
+`heuristic_outcome` only when the sidecar is missing or untrustworthy.
 """
 
 from __future__ import annotations

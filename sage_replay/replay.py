@@ -12,15 +12,18 @@ last chunk).
 from __future__ import annotations
 
 import ipaddress
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import IntEnum
 from io import BytesIO
 from pathlib import Path
+from typing import cast
 
 from sage_utils.stream import BinaryStream
 
 __all__ = [
+    "REPLAY_SUFFIXES",
     "Bfme2OrderType",
     "GeneralsOrderType",
     "Order",
@@ -35,8 +38,13 @@ __all__ = [
     "ReplaySlotDifficulty",
     "ReplaySlotType",
     "ReplayTimestamp",
+    "find_replays",
+    "first_argument",
+    "first_bool",
+    "integer_arguments",
     "parse_replay",
     "parse_replay_from_path",
+    "positions",
 ]
 
 
@@ -758,6 +766,41 @@ def _read_argument(stream: BinaryStream, argument_type: OrderArgumentType) -> ob
             return stream.readBytes(2)
 
 
+def integer_arguments(chunk: ReplayChunk) -> list[int]:
+    """The Integer-typed argument values of a chunk's order, in order."""
+    return [
+        a.value
+        for a in chunk.order.arguments
+        if a.argument_type is OrderArgumentType.Integer and isinstance(a.value, int)
+    ]
+
+
+def first_bool(chunk: ReplayChunk) -> bool | None:
+    """The value of the chunk order's first Boolean argument, or None when it carries none."""
+    for a in chunk.order.arguments:
+        if a.argument_type is OrderArgumentType.Boolean:
+            return bool(a.value)
+    return None
+
+
+def first_argument(chunk: ReplayChunk, argument_type: OrderArgumentType) -> object | None:
+    """The value of the first argument of `argument_type` (the `0x412` target is the first
+    ObjectId, the `0x411` ground point the first Position), or None."""
+    for a in chunk.order.arguments:
+        if a.argument_type is argument_type:
+            return a.value
+    return None
+
+
+def positions(chunk: ReplayChunk) -> list[tuple[float, float, float]]:
+    """Every Position argument in order (a wall segment carries two: its endpoints)."""
+    return [
+        cast("tuple[float, float, float]", a.value)
+        for a in chunk.order.arguments
+        if a.argument_type is OrderArgumentType.Position
+    ]
+
+
 # Chunk player numbers are offset from the metadata slot list: the first occupied slot
 # issues orders as number 3 (numbers 0-2 presumably belong to the engine's built-in
 # players). Validated on BFME2 replays with 2, 4 and 5 humans/AIs; the Generals offset
@@ -851,3 +894,23 @@ def parse_replay(data: bytes, only_header: bool = False) -> ReplayFile:
 
 def parse_replay_from_path(path: str | Path, only_header: bool = False) -> ReplayFile:
     return parse_replay(Path(path).read_bytes(), only_header=only_header)
+
+
+# Filename suffixes recognised as replays, matched case-insensitively.
+REPLAY_SUFFIXES = (".rep", ".bfmereplay", ".bfme2replay")
+
+
+def find_replays(paths: Iterable[str | Path]) -> list[Path]:
+    """Expand the given files and directories into a sorted, de-duplicated list of replay
+    paths. Directories are searched recursively for the recognised replay suffixes; files are
+    taken as-is regardless of extension."""
+    found: set[Path] = set()
+    for raw in paths:
+        path = Path(raw)
+        if path.is_dir():
+            for child in path.rglob("*"):
+                if child.is_file() and child.suffix.lower() in REPLAY_SUFFIXES:
+                    found.add(child)
+        elif path.is_file():
+            found.add(path)
+    return sorted(found)

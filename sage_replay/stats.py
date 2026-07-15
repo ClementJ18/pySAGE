@@ -18,28 +18,13 @@ abilities, summons, unit toggles), horde combines (`0x423`, the Edain horde-merg
 one action, since its only argument is a runtime target-horde ObjectId), and the spellbook
 sciences in purchase order (`0x414`).
 
-A `relabel_power` hook lets a mod overlay rewrite a power's label from the caster's faction
-`Side`, since one `SpecialPower` definition can serve several factions (Edain's four shared
-`...ThrallMasterSummon...` powers are Angmar summons, but the Imladris Lichtbringer's element
-toggle - Earth/Light/Water/Air - fires the very same four; only the caster's Side tells them
-apart). The core stays faction-agnostic and records the raw code name when no hook is given.
-
-A `power_recruits` hook lets a mod overlay say when a power cast fields its own permanent
-units - an Edain summon, a Leuchtfeuer signal-fire call - so those units are recorded as
-ordinary recruits (merging with normal recruits of the same template in every downstream
-table) instead of staying invisible inside the `powers` count. It sees the caster's faction
-`Side`, that faction's per-map hero roster (so a roster-only sub-faction split - Edain's
-Gondor/Belfalas Leuchtfeuer hordes - can key off it without a new `Side`), and the power's raw
-code name (before any `relabel_power` rewrite, so the hook survives relabelling), and returns
-the template names the cast fields (duplicates express multiplicity). The injected recruits
-never join the recruits cancel stack: a power cast cannot be cancelled, so a later `0x418`
-unit-cancel must not consume one.
-
-An `ignore_recruits` set is the mirror image: raw template code names an overlay drops from the
-normal recruit stream because their real signal is a later power cast. Edain fields its Loremaster
-as an elementless `BruchtalLichtbringerHorde` and only later toggles its element; the toggle is
-what `power_recruits` reads as the (element-specific) recruit, so the placeholder horde is ignored
-here to avoid counting the same Loremaster twice.
+Three hooks let a mod overlay reshape the recruit/power picture without the core knowing any
+mod-specific names: `relabel_power` rewrites a shared power's label from the caster's faction
+`Side` (see the `PowerLabeler` alias), `power_recruits` records a power cast's permanently
+fielded units as ordinary recruits instead of leaving them invisible inside `powers` (see the
+`PowerRecruits` alias), and `ignore_recruits` drops raw template names whose real recruit signal
+is a later power cast (see `compute_stats`). The core stays faction-agnostic and records raw
+code names when no hook is given.
 
 Counts are *net of cancels*: a `0x418` unit cancel, `0x416` upgrade cancel, or `0x41B` build
 cancel removes the issuing player's most-recent not-yet-cancelled matching order (LIFO) - unit
@@ -61,16 +46,11 @@ from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
+from sage_ini.model.ini_objects import Object
 from sage_replay.heroes import ReviveList
-from sage_replay.narrate import (
-    _POWER_ORDERS,
-    GameData,
-    _first_bool,
-    _integers,
-    _player_label,
-    _revive_resolver,
-)
-from sage_replay.replay import ReplayFile
+from sage_replay.narrate import POWER_ORDERS, GameData, player_label, revive_resolver
+from sage_replay.replay import ReplayFile, first_bool, integer_arguments
+from sage_utils.clock import clock
 
 __all__ = [
     "PlayerStats",
@@ -97,10 +77,10 @@ PowerRecruits = Callable[[str | None, Sequence[str], str], Sequence[str]]
 _BUILD_ORDERS = {0x419, 0x41A, 0x463}
 
 
-def _effective_kindof(objects: dict, name: str | None) -> frozenset[str]:
+def _effective_kindof(objects: dict[str, Object], name: str | None) -> frozenset[str]:
     """A template's effective `KindOf` tokens: the nearest explicit definition up the
     `ChildObject` parent chain, with `+X`/`-X` modifier tokens applied over the parent's set."""
-    chain = []
+    chain: list[Object] = []
     obj = objects.get(name) if name is not None else None
     while obj is not None:
         chain.append(obj)
@@ -295,17 +275,16 @@ def compute_stats(
     revives: dict[str, ReviveList | None] = {}
 
     for chunk in replay.chunks:
-        ints = _integers(chunk)
-        player = _player_label(replay, chunk)
+        ints = integer_arguments(chunk)
+        player = player_label(replay, chunk)
         per = stats.setdefault(player, PlayerStats(player=player))
         seconds = chunk.timecode * spf
 
         if (chunk.order_type in _BUILD_ORDERS or chunk.order_type == 0x43F) and ints:
             # The 0x419/0x41A/0x463 build family and the 0x43F plot unpack/build all carry
-            # standard thing-template ids (0x43F's earlier +2 reading was an adjacent-anchor
-            # miscalibration; order_space_map.md `0x43F`). A template whose CastleBehavior
-            # unpacks a base for the player's faction is counted under the base's name too,
-            # so outpost/camp claims are visible as their own row.
+            # standard thing-template ids (order_space_map.md `0x43F`). A template whose
+            # CastleBehavior unpacks a base for the player's faction is counted under the
+            # base's name too, so outpost/camp claims are visible as their own row.
             name = data.object_name(ints[0])
             label = (data.label(name) if name else None) or f"<object id {ints[0]}?>"
             chunk_slot = replay.slot_for(chunk)
@@ -319,8 +298,8 @@ def compute_stats(
             per.events.append(event)
             builds.setdefault(player, []).append(event)
         elif chunk.order_type == 0x417 and ints:
-            if _first_bool(chunk):
-                resolver = _revive_resolver(revives, replay, chunk, data, faction_overrides)
+            if first_bool(chunk):
+                resolver = revive_resolver(revives, replay, chunk, data, faction_overrides)
                 name = resolver.recruit(seconds, ints[0]) if resolver is not None else None
                 if name is not None:
                     event = StatEvent(seconds, "heroes", data.label(name) or name)
@@ -355,7 +334,7 @@ def compute_stats(
         elif chunk.order_type == 0x414 and len(ints) >= 2:
             science = data.label(data.science(ints[1])) or f"science {ints[1]}?"
             per.events.append(StatEvent(seconds, "sciences", science))
-        elif chunk.order_type in _POWER_ORDERS and ints:
+        elif chunk.order_type in POWER_ORDERS and ints:
             # A special-power cast (self / at-location / at-object / global). The power id is
             # the first Integer; keep the raw code name so an overlay's `relabel_power` and its
             # tracked sets match, then let the overlay rename it from the caster's faction Side.
@@ -395,12 +374,12 @@ def compute_stats(
             # itself under a constant label (order_space_map.md `0x423`).
             per.events.append(StatEvent(seconds, "combines", "horde combine"))
         elif chunk.order_type == 0x418 and ints:
-            if _first_bool(chunk):
+            if first_bool(chunk):
                 # Cancel a queued hero revive (flag=True): the id is the hero's *current*
                 # submenu position, so resolve it through the same ReviveList - which also
                 # un-queues the production, keeping later fielding-collapses correct - and
                 # match the recruit by hero name (raw slot when both stayed unresolved).
-                resolver = _revive_resolver(revives, replay, chunk, data, faction_overrides)
+                resolver = revive_resolver(revives, replay, chunk, data, faction_overrides)
                 name = resolver.cancel(seconds, ints[0]) if resolver is not None else None
                 key = name if name is not None else ints[0]
                 cancelled = _pop_by_id(fortress.get(player), key)
@@ -424,10 +403,6 @@ def compute_stats(
                 _drop(per.events, cancelled)
 
     return list(stats.values())
-
-
-def _clock(seconds: float) -> str:
-    return f"{int(seconds) // 60:d}:{int(seconds) % 60:02d}"
 
 
 def _counter_lines(title: str, counter: Counter) -> list[str]:
@@ -465,7 +440,7 @@ def render_stats(replay: ReplayFile, data: GameData) -> list[str]:
             lines.append(f"  Horde combines: {sum(per.combines.values())}")
         lines.append(f"  Sciences ({len(per.sciences)}, in order):")
         lines.extend(
-            f"    {i:2d}. [{_clock(seconds)}] {science}"
+            f"    {i:2d}. [{clock(seconds)}] {science}"
             for i, (seconds, science) in enumerate(per.sciences, start=1)
         )
         lines.append("")

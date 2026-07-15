@@ -5,30 +5,28 @@ The order-space map (see `order_space_map.md`) pins how each order type's intege
 resolves to a definition: recruit (`0x417`), placement build (`0x419`), mobile-builder build
 (`0x41A`), wall segment (`0x463`) and the plot unpack/build (`0x43F` - settlement/outpost
 unpacks and other fixed-spot creates, no placement UI) all carry a ThingTemplate id in their
-first integer (`thing_template_order` index + 1);
-special powers (`0x410`/`0x411`/`0x412`/`0x456`) index
-`game.specialpowers` + 1; a spellbook purchase (`0x414`) carries the science in its second
-integer; a building upgrade (`0x415`) indexes `game.upgrades` with a +3 offset. `GameData`
-loads those tables once from a game root (use `tools/mount_game.py` to mount a live install's
-`.big` archives into one), and `narrate` walks the stream turning each recognised order into a
-timecoded English line. Control/camera/selection orders carry no static id and are skipped.
+first integer (`thing_template_order` index + 1); special powers (`0x410`/`0x411`/`0x412`/
+`0x456`) index `game.specialpowers` + 1; a spellbook purchase (`0x414`) carries the science in
+its second integer; a building upgrade (`0x415`) indexes `game.upgrades` with a +3 offset.
+`GameData` loads those tables once from a game root (use `tools/mount_game.py` to mount a live
+install's `.big` archives into one), and `narrate` walks the stream turning each recognised
+order into a timecoded English line. Control/camera/selection orders carry no static id and
+are skipped.
 
 Hero recruits (`0x417` flag=True) carry a *revive-submenu position*, not a static id; each
 player's `ReviveList` (heroes.py) replays the submenu - the faction's `BuildableHeroesMP`
 roster (the map's own, when the replay's map has a `map.ini` override and `map_file` is
 given), collapsed as heroes field - to name the hero behind each position.
 
-The horde-combine order (`0x423`, Edain horde-merge) has no static id either - its ObjectId is a
-runtime handle of the target/primary horde - but it names a deliberate action, so it is narrated
-("combines hordes into object #N") from that ObjectId alone.
+The horde-combine order (`0x423`, Edain horde-merge) has no static id; it names a deliberate
+action from its target/primary horde ObjectId alone ("combines hordes into object #N").
 
 A cast order's **second integer is the firing button's `Options` bitfield**; its `NEED_TARGET_*`
-bits say what the power targets (the engine picks the order type to match): `NEED_TARGET_POS` (32)
-→ a ground **location** (`0x411`, carrying a Position); `NEED_TARGET_ENEMY`/`NEUTRAL`/`ALLY_OBJECT`
-(1/2/4) → a **target object** of that allegiance (`0x412`, carrying the target ObjectId + its
-Position); no target bits → **self** (`0x410`) or a **global** cast (`0x456`). `_target_phrase`
-decodes it. The trailing ObjectId is the casting source; naming the actual target object still
-needs runtime ObjectId→template tracking.
+bits say what the power targets (the engine picks the order type to match): `NEED_TARGET_POS`
+(32) → a ground **location** (`0x411`, a Position); `NEED_TARGET_ENEMY`/`NEUTRAL`/`ALLY_OBJECT`
+(1/2/4) → a **target object** of that allegiance (`0x412`, the target ObjectId + Position); no
+target bits → **self** (`0x410`) or a **global** cast (`0x456`). `_target_phrase` decodes it;
+naming the actual target object still needs runtime ObjectId→template tracking.
 
 Validated on RotWK+Edain: recruits, builds, powers, sciences and upgrades all resolve to
 faction-consistent definitions (see the module test / the `narrate` CLI command).
@@ -37,31 +35,49 @@ faction-consistent definitions (see the module test / the `narrate` CLI command)
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 from sage_ini.loader import load_game, load_map
 from sage_ini.model.behaviors import CastleBehavior
 from sage_ini.model.enums import CommandTypes
 from sage_ini.model.game import Game
+from sage_ini.model.ini_objects import Object
+from sage_ini.model.objects import IniObject
 from sage_ini.parser.blockparser import parse_file
 from sage_ini.subsystems import thing_template_order
 from sage_replay.heroes import ReviveList
-from sage_replay.replay import OrderArgumentType, ReplayChunk, ReplayFile
+from sage_replay.replay import (
+    OrderArgumentType,
+    ReplayChunk,
+    ReplayFile,
+    first_argument,
+    first_bool,
+    integer_arguments,
+    positions,
+)
+from sage_utils.clock import clock
 from sage_utils.views import upgrade_names
 
-__all__ = ["GameData", "NarrationEvent", "narrate", "render"]
+__all__ = [
+    "POWER_ORDERS",
+    "GameData",
+    "NarrationEvent",
+    "narrate",
+    "player_label",
+    "render",
+    "revive_resolver",
+]
 
 # Upgrade ids sit 3 above their 0-based `game.upgrades` index (DefaultUpgrade = id 3;
-# order_space_map.md, `0x415`). Ground-truthed by an in-game replay survey - the earlier
-# reading was one higher because the Mordor FireArrows/ForgedBlades anchor pair matches
-# as a set under both offsets.
+# ground-truthed by an in-game replay survey - order_space_map.md, `0x415`).
 _UPGRADE_OFFSET = 3
 
 # Order types whose first integer is a `game.specialpowers` id (self / at-location / at-object
 # / untargeted). They differ only in targeting, which the argument list still carries.
-_POWER_ORDERS = {0x410, 0x411, 0x412, 0x456}
+POWER_ORDERS = {0x410, 0x411, 0x412, 0x456}
 
 # A special-power order's second integer is the firing `CommandButton`'s Options bitfield; its
 # NEED_TARGET_* bits say what the power targets (and the engine picks the order type to match).
@@ -93,7 +109,7 @@ class GameData:
     """The resolution tables a narration needs, loaded once from a game root."""
 
     object_order: list[str]  # ThingTemplate registration order; replay id = index + 1
-    objects: dict  # name -> Object, for Side
+    objects: dict[str, Object]  # name -> Object, for Side
     specialpowers: list[str]
     sciences: list[str]
     upgrades: list[str]
@@ -158,7 +174,7 @@ class GameData:
             game = load_game(root, bases=tuple(bases)).game
         strings = {label.upper(): value for label, value in game.strings.items()}
 
-        def localized(table) -> dict[str, str]:
+        def localized(table: Mapping[str, IniObject]) -> dict[str, str]:
             if not localize:
                 return {}  # labels fall back to the raw code name
             names: dict[str, str] = {}
@@ -388,7 +404,7 @@ def _map_hero_overrides(map_ini: Path) -> dict[str, list[str]]:
     }
 
 
-def _build_seconds(game, name: str) -> float | None:
+def _build_seconds(game: Game, name: str) -> float | None:
     """A hero template's revive `BuildTime` in seconds, macro-resolved
     (`BuildTime = BEREGOND_BUILDTIME`), or None when the template or field is missing."""
     obj = game.objects.get(name)
@@ -402,7 +418,7 @@ def _build_seconds(game, name: str) -> float | None:
         return None
 
 
-def _revive_resolver(
+def revive_resolver(
     cache: dict[str, ReviveList | None],
     replay: ReplayFile,
     chunk: ReplayChunk,
@@ -414,7 +430,7 @@ def _revive_resolver(
     when the faction has no roster (hero slots then stay unresolved). `faction_overrides`
     (player name -> faction id) substitutes the slot's faction id - how the aggregate path
     supplies the faction a lobby-Random player (slot faction -1) actually rolled."""
-    player = _player_label(replay, chunk)
+    player = player_label(replay, chunk)
     if player not in cache:
         slot = replay.slot_for(chunk)
         faction = slot.faction if slot is not None else None
@@ -438,7 +454,12 @@ def _allegiance(options: int) -> str:
     return ""
 
 
-def _target_phrase(order_type: int, options: int, position, target: int | None) -> str:
+def _target_phrase(
+    order_type: int,
+    options: int,
+    position: tuple[float, float, float] | None,
+    target: int | None,
+) -> str:
     """How a special power is aimed, showing the raw target: at-location casts print the ground
     `Position` (x, y, z); at-object casts print the target ObjectId (with its allegiance); self /
     global casts carry no target. Order type gates it, with the `Options` bits as a fallback."""
@@ -453,35 +474,6 @@ def _target_phrase(order_type: int, options: int, position, target: int | None) 
     return ""  # 0x410 self / 0x456 global - no target
 
 
-def _integers(chunk: ReplayChunk) -> list[int]:
-    return [
-        a.value
-        for a in chunk.order.arguments
-        if a.argument_type is OrderArgumentType.Integer and isinstance(a.value, int)
-    ]
-
-
-def _first_bool(chunk: ReplayChunk) -> bool | None:
-    for a in chunk.order.arguments:
-        if a.argument_type is OrderArgumentType.Boolean:
-            return bool(a.value)
-    return None
-
-
-def _first_of(chunk: ReplayChunk, arg_type: OrderArgumentType):
-    """The value of the first argument of `arg_type` (the `0x412` target is the first ObjectId,
-    the `0x411` ground point the first Position), or None."""
-    for a in chunk.order.arguments:
-        if a.argument_type is arg_type:
-            return a.value
-    return None
-
-
-def _positions(chunk: ReplayChunk) -> list:
-    """Every Position argument in order (a wall segment carries two: its endpoints)."""
-    return [a.value for a in chunk.order.arguments if a.argument_type is OrderArgumentType.Position]
-
-
 def _build_verb(code_name: str | None, build_commands: dict[str, frozenset[str]]) -> str:
     """The verb for a build order: "unpacks" when a template is reached only through a castle/camp
     unpack command, else "builds" - the default for foundation/dozer builds, mixed command sets,
@@ -492,7 +484,7 @@ def _build_verb(code_name: str | None, build_commands: dict[str, frozenset[str]]
     return "builds"
 
 
-def _at_clause(position) -> str:
+def _at_clause(position: tuple[float, float, float] | None) -> str:
     """The ` at (x, y)` placement clause for a build order (2-D, int-rounded; the z terrain height
     is dropped), or empty when the order carries no Position."""
     if position is None:
@@ -503,7 +495,7 @@ def _at_clause(position) -> str:
 def _wall_span(chunk: ReplayChunk) -> str:
     """The ` from (x, y) to (x, y)` clause across a wall segment's two endpoint Positions (2-D,
     int-rounded), or empty when the endpoints are missing."""
-    points = _positions(chunk)
+    points = positions(chunk)
     if len(points) < 2:
         return ""
     a, b = points[0], points[1]
@@ -522,24 +514,27 @@ def _describe(chunk: ReplayChunk, data: GameData, side: str | None = None) -> st
     (control/camera/selection, or an unmapped order type). `side` is the issuing player's
     faction Side token, used to name the base a castle/camp/outpost plot unpacks."""
     order = chunk.order_type
-    ints = _integers(chunk)
+    ints = integer_arguments(chunk)
 
     if order == 0x417:  # recruit unit / buy upgrade, or (flag=True) fortress hero by slot
         if not ints:
             return None
-        if _first_bool(chunk):  # hero mode: the id is a command-slot, not a template
+        if first_bool(chunk):  # hero mode: the id is a command-slot, not a template
             return f"recruits a fortress hero (command slot {ints[0]})"
         return f"recruits {data.object_label(ints[0])}"
 
     if order in (0x419, 0x41A) and ints:  # placement build / mobile-builder construct
         name = data.object_name(ints[0])
         verb = _build_verb(name, data.build_commands)
-        location = _at_clause(_first_of(chunk, OrderArgumentType.Position))
+        build_position = cast(
+            "tuple[float, float, float] | None",
+            first_argument(chunk, OrderArgumentType.Position),
+        )
+        location = _at_clause(build_position)
         return f"{verb} {data.object_label(ints[0])}{location}{_base_clause(data, name, side)}"
 
     if order == 0x43F and ints:  # unpack/build at a selected plot - no placement UI
-        # Standard thing-template ids, same space as 0x419 (the earlier +2 reading was an
-        # adjacent-anchor miscalibration; order_space_map.md `0x43F`).
+        # Standard thing-template ids, same space as 0x419 (order_space_map.md `0x43F`).
         name = data.object_name(ints[0])
         label = data.label(name) if name is not None else f"<object id {ints[0]}?>"
         return f"{_build_verb(name, data.build_commands)} {label}{_base_clause(data, name, side)}"
@@ -547,12 +542,15 @@ def _describe(chunk: ReplayChunk, data: GameData, side: str | None = None) -> st
     if order == 0x463 and ints:  # wall segment: a template raised between two endpoints
         return f"builds a wall segment: {data.object_label(ints[0])}{_wall_span(chunk)}"
 
-    if order in _POWER_ORDERS and ints:
+    if order in POWER_ORDERS and ints:
         power = data.label(data.special_power(ints[0])) or f"special power {ints[0]}?"
         options = ints[1] if len(ints) > 1 else 0
-        position = _first_of(chunk, OrderArgumentType.Position)
-        target = _first_of(chunk, OrderArgumentType.ObjectId)
-        return f"uses {power}{_target_phrase(order, options, position, target)}"
+        power_position = cast(
+            "tuple[float, float, float] | None",
+            first_argument(chunk, OrderArgumentType.Position),
+        )
+        power_target = cast("int | None", first_argument(chunk, OrderArgumentType.ObjectId))
+        return f"uses {power}{_target_phrase(order, options, power_position, power_target)}"
 
     if order == 0x414 and len(ints) >= 2:  # spellbook power purchase - id is the 2nd integer
         science = data.label(data.science(ints[1])) or f"science {ints[1]}?"
@@ -566,8 +564,10 @@ def _describe(chunk: ReplayChunk, data: GameData, side: str | None = None) -> st
         return "switches weapon set"
 
     if order == 0x423:  # combine hordes (Edain horde-merge); arg is the target/primary horde
-        target = _first_of(chunk, OrderArgumentType.ObjectId)
-        return f"combines hordes into object #{target}" if target else "combines hordes"
+        combine_target = first_argument(chunk, OrderArgumentType.ObjectId)
+        if combine_target:
+            return f"combines hordes into object #{combine_target}"
+        return "combines hordes"
 
     return None
 
@@ -582,10 +582,10 @@ class NarrationEvent:
 
     @property
     def clock(self) -> str:
-        return f"{int(self.seconds) // 60:d}:{int(self.seconds) % 60:02d}"
+        return clock(self.seconds)
 
 
-def _player_label(replay: ReplayFile, chunk: ReplayChunk) -> str:
+def player_label(replay: ReplayFile, chunk: ReplayChunk) -> str:
     slot = replay.slot_for(chunk)
     if slot is None:
         return f"#{chunk.number}"
@@ -608,9 +608,9 @@ def narrate(replay: ReplayFile, data: GameData) -> list[NarrationEvent]:
         slot = replay.slot_for(chunk)
         side = data.faction_side(slot.faction) if slot is not None else None
         text = _describe(chunk, data, side)
-        if chunk.order_type in (0x417, 0x418) and _first_bool(chunk):
-            ints = _integers(chunk)
-            resolver = _revive_resolver(revives, replay, chunk, data)
+        if chunk.order_type in (0x417, 0x418) and first_bool(chunk):
+            ints = integer_arguments(chunk)
+            resolver = revive_resolver(revives, replay, chunk, data)
             if ints and resolver is not None:
                 if chunk.order_type == 0x417:
                     name = resolver.recruit(chunk.timecode * spf, ints[0])
@@ -620,7 +620,7 @@ def narrate(replay: ReplayFile, data: GameData) -> list[NarrationEvent]:
                     resolver.cancel(chunk.timecode * spf, ints[0])
         if text is None:
             continue
-        player = _player_label(replay, chunk)
+        player = player_label(replay, chunk)
         last = events[-1] if events else None
         if last is not None and last.player == player and last.text == text:
             last.count += 1

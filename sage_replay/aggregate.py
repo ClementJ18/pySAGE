@@ -1,75 +1,48 @@
 """Aggregate statistics across many replays, resolved against one loaded game.
 
-Every human slot in every replay becomes one *player-game*: the player's faction, that
-player's match outcome, the match length, and the clocked per-player stats from `stats.py`
-(buildings / units / heroes / sciences and when each was bought). Aggregation groups the
-player-games by faction and answers the questions a corpus review asks: how often a faction
-wins, which sciences it buys (and how early), what it opens with, when it claims its standard
-outpost (the `*_outpost` plot unpack, pooled into one per-faction milestone named by the
-unpacked base - see `_outpost_base`), and which structures / units / heroes it favours - every
-choice carrying its own win-loss record, so "does faction
-F win more with science X or science Y" and "how do games go when they build a Barracks
-vs a Signal Fire" are row-vs-row comparisons in one table.
+Every human slot in every replay becomes one *player-game*: the player's faction, match
+outcome, match length, and the clocked per-player stats from `stats.py` (buildings / units /
+heroes / sciences and when each was bought). Aggregation groups player-games by faction and
+answers what a corpus review asks: how often a faction wins, which sciences it buys (and how
+early), what it opens with, when it claims its standard outpost (the `*_outpost` plot unpack,
+pooled into one per-faction milestone named by the unpacked base - see `_outpost_base`), and
+which structures / units / heroes it favours - every choice carrying its own win-loss record,
+so "science X or Y" and "Barracks vs Signal Fire" are row-vs-row comparisons in one table.
 
 Outcomes come first from the ladder metadata sidecar beside each replay, which states the
-winner outright (see `sidecar.py`); `collect` reads it by default and only falls back, per
-replay lacking a trustworthy sidecar, to the concession heuristic in `winner.py`: there only
-`decided` games contribute wins and losses (in a `recorder_left` game the recorder's own
-concession counts as their loss, everyone else stays unknown); everything else is
-`undetermined` and excluded from win rates but still counted, so choice popularity spans the
-whole corpus. `assume_pov_won` (the CLI's `--winner-pov`) decides the games the heuristic
-still leaves undetermined in favour of the recording player's team - for corpora whose
-replays are known to belong to the winner. AI slots issue no recorded orders and are skipped
-entirely.
+winner outright (see `sidecar.py`); `collect` falls back, per replay lacking a trustworthy
+sidecar, to the concession heuristic in `winner.py`: only `decided` games contribute wins and
+losses (a `recorder_left` game counts the recorder's own concession as their loss, everyone
+else stays unknown); everything else is `undetermined` - excluded from win rates but still
+counted, so choice popularity spans the whole corpus. `assume_pov_won` (the CLI's
+`--winner-pov`) decides otherwise-undetermined games for the recording player's team. AI slots
+issue no recorded orders and are skipped entirely.
 
 A choice's *pick rate* counts games where it was made at least once; `first ~m:ss` is the
 median match clock of its first occurrence across those games; `total` counts every issued
 order, so "6 games, x14" reads "built in 6 games, 14 built overall". Heroes are the one
-exception: each hero counts once per game, at its first fielding - a hero re-recruited after
-dying is a revive, not a new pick, so it never adds to its total. `other`-bucket labels
-in the caller's `tracked_purchases` set are the exception: for a repeatable system purchase
-(Edain's CP-upgrade CPObject) each purchase within a game is its own choice, numbered in
-purchase order - `CPObject1` is every game's first CP purchase, `CPObject2` the second - so
-purchase depth compares directly (how many games went to the third CP upgrade, when, and
-with what win rate). Untracked `other` purchases aggregate as ordinary pick-rate rows.
+exception: each hero counts once per game, at its first fielding. `other`-bucket labels in
+`tracked_purchases` are the other exception: each purchase within a game is its own choice,
+numbered in purchase order (`CPObject1` is every game's first purchase of that kind,
+`CPObject2` the second), so purchase depth compares directly across games. Untracked `other`
+purchases aggregate as ordinary pick-rate rows.
 
-A lobby Random pick records no resolvable faction id in the slot; those player-games are
-labeled by the `Side` the player's own build orders vote for (see `_faction_from_orders`),
-so random players aggregate under the faction they actually played.
+A mod overlay sharpens the corpus before grouping: `refine_faction` (a `FactionRefiner`)
+relabels a human's faction from their clocked stats, the loaded game, and the replay's map;
+`relabel_power` and `power_recruits`, both threaded through `stats.compute_stats`, rename a
+special-power cast from the caster's faction Side and let a permanently-fielding cast merge
+into the pick tables like an ordinary recruit; `tracked_upgrades` / `tracked_purchases` /
+`tracked_powers` gate which upgrade researches, purchases, and power casts earn a row at all
+(nothing by default), and `include_combines` gates horde combines (`0x423`) the same way. See
+the alias definitions below for each hook's shape, and `sage_edain.replay` for Edain's concrete
+refiners and tables.
 
-A mod overlay can sharpen faction labels before grouping: `refine_faction` (a
-`FactionRefiner`) sees each human's label, clocked stats, the loaded game, and the replay's
-map, and returns the label to aggregate under - Edain's overlay splits Dwarves into their realm
-(Erebor / Ered Luin / Iron Hills) by the clan upgrade recorded at match start, and Men into
-Gondor / Arnor / Belfalas by the Gondor hero roster the map's `map.ini` declares. Refined labels
-flow everywhere a faction appears: the per-faction blocks, the `--faction` filter, and matchup
-opponents.
-Special-power casts aggregate as a `powers` pick category, but only for the caller's
-`tracked_powers` set (nothing by default) - the raw cast stream is dominated by routine hero
-abilities and unit toggles that would swamp the tables. `relabel_power` (a `PowerLabeler`,
-threaded to `stats.compute_stats`) lets the overlay rename a power from the caster's faction
-Side, e.g. Edain's four shared Lichtbringer toggles read as
-`Lichtbringer -> Earth/Light/Water/Air` only under Imladris; `tracked_powers` then matches on
-those relabelled names. Tracked powers render nested under the Units section (see
-`render_aggregate`'s `powers_heading`), so an Imladris corpus shows them beneath its Loremaster
-(a unit, not a recruitable hero). `power_recruits` (a `PowerRecruits`, likewise threaded to
-`stats.compute_stats`) lets the overlay say when a cast permanently fields units - Edain's
-Mordor summons, its Leuchtfeuer signal fires - so they count as ordinary recruits and merge
-into the buildings/units/heroes pick tables like any other build-order choice.
-Horde combines (`0x423`) are likewise off by default and included only with `include_combines`.
+A lobby Random pick is labeled by the `Side` the player's own build orders vote for (see
+`_faction_from_orders`), so random players aggregate under the faction they actually played.
 
-`matchups=True` (the CLI's `--matchups`) additionally folds every player-game into one
-sub-aggregate per enemy faction faced, so each pick table also exists per matchup -
-buildings built vs Mordor, units built vs Gondor - rendered after the faction's own
-sections. An enemy is any occupied slot (AI included) not sharing the player's nonnegative
-lobby team; a game against two enemies of the same faction counts once in that matchup.
-
-Upgrade researches (`0x415`) are aggregated only for the caller's `tracked_upgrades` set
-(raw ini code names; nothing by default) - the raw upgrade stream is dominated by
-per-battalion gear purchases that would swamp the tables. A mod overlay that knows which
-researches deserve a row and which purchases are depth-comparable injects its own sets
-(`sage_edain.replay.TRACKED_UPGRADES` / `TRACKED_PURCHASES`, wired into the `sage-edain
-replay-aggregate` command).
+`matchups=True` (the CLI's `--matchups`) additionally folds every player-game into a
+sub-aggregate per enemy faction faced, rendered after the faction's own sections. An enemy is
+any occupied slot (AI included) not sharing the player's nonnegative lobby team.
 """
 
 from __future__ import annotations
@@ -84,14 +57,15 @@ from itertools import count
 from pathlib import Path
 from statistics import median
 
-from sage_replay.coverage import find_replays
 from sage_replay.narrate import GameData
-from sage_replay.replay import ReplayFile, ReplaySlotType, parse_replay_from_path
+from sage_replay.replay import ReplayFile, ReplaySlotType, find_replays, parse_replay_from_path
 from sage_replay.sidecar import sidecar_outcomes
-from sage_replay.stats import PlayerStats, PowerLabeler, PowerRecruits, _clock, compute_stats
+from sage_replay.stats import PlayerStats, PowerLabeler, PowerRecruits, compute_stats
 from sage_replay.winner import infer_winner
+from sage_utils.clock import clock
 
 __all__ = [
+    "DEFAULT_POWERS_HEADING",
     "UNRESOLVED_FACTION",
     "ChoiceStat",
     "Corpus",
@@ -121,8 +95,8 @@ UNRESOLVED_FACTION = "?"
 _TEMPLATE_CATEGORIES = ("buildings", "units", "heroes", "upgrades", "other", "powers", "combines")
 
 # The default sub-heading the tracked powers render under, nested inside the Units section.
-# A mod overlay names it for the caster the powers belong to (Edain passes "Loremaster").
-_DEFAULT_POWERS_HEADING = "Special powers"
+# A mod overlay names it for the caster the powers belong to.
+DEFAULT_POWERS_HEADING = "Special powers"
 
 # Rendered under every aggregation's corpus summary: hero rows come from an approximation.
 # A hero-recruit order carries a shifting revive-submenu position, not a hero id; the
@@ -319,7 +293,7 @@ def _outcomes(replay: ReplayFile, assume_pov_won: bool) -> dict[str, str]:
 # was read from, it returns each human slot's outcome ("won"/"lost" by name), or None to defer
 # to the concession heuristic. `collect` calls it per replay before falling back to `winner.py`;
 # the default (`sidecar_outcomes`) reads the ladder metadata sidecar beside the replay.
-OutcomeSource = Callable[[ReplayFile, Path], "dict[str, str] | None"]
+OutcomeSource = Callable[[ReplayFile, Path], dict[str, str] | None]
 
 
 # A mod overlay's faction refiner: the slot's faction label, that player's clocked stats, the
@@ -327,7 +301,13 @@ OutcomeSource = Callable[[ReplayFile, Path], "dict[str, str] | None"]
 # aggregate under - e.g. splitting Edain's Dwarves into their realm by the clan upgrade bought at
 # match start (stats), or its Men into Gondor/Arnor/Belfalas by the map's Gondor hero roster
 # (game + map). A stats-only refiner simply ignores the last two arguments.
-FactionRefiner = Callable[[str, PlayerStats, GameData, "str | None"], str]
+FactionRefiner = Callable[[str, PlayerStats, GameData, str | None], str]
+
+# `collect`'s optional `record` hook: called once per successfully parsed replay with
+# `(path, replay, games, heuristic_outcomes)`, right before that replay's games fold into the
+# corpus. It is the caller's snapshot point for caching a translated parse (`sage_replay.cache`)
+# without this module knowing anything about caching.
+RecordHook = Callable[[Path, ReplayFile, list[PlayerGame], dict[str, str]], None]
 
 
 def _faction_from_orders(per: PlayerStats, data: GameData) -> str | None:
@@ -431,18 +411,16 @@ def player_games(
     """The replay's human slots as player-games (AI slots issue no orders, and observer slots
     play no side - both are skipped, and an observer never appears as an opponent either).
     `outcomes` (a `{human name: "won"|"lost"}` map) states the match result outright - the
-    ladder-sidecar verdict `collect` reads - and takes the place of the `winner.py` heuristic
-    when given; without it the outcome falls back to the concession heuristic (`assume_pov_won`
-    then layers the point-of-view assumption over that). `refine_faction` sharpens faction
-    labels from each human's own stats - both the player-game's faction and its appearances in
-    other players' opponent lists. `relabel_power` renames power casts from the caster's faction
-    Side, `power_recruits` injects the units a power cast permanently fields as ordinary
-    recruits, and `ignore_recruits` drops placeholder recruit templates whose real signal is a
-    later power cast (see `compute_stats`).
+    ladder-sidecar verdict `collect` reads - taking the place of the `winner.py` heuristic when
+    given; without it the outcome falls back to that heuristic (`assume_pov_won` layers the
+    point-of-view assumption over it). `refine_faction` sharpens faction labels from each
+    human's own stats - both the player-game's faction and its appearances in other players'
+    opponent lists. `relabel_power`, `power_recruits`, and `ignore_recruits` thread straight
+    through to `compute_stats`, which documents their contracts.
 
-    Hero recruits resolve against the slot faction's revive roster, which a lobby Random
-    (slot faction -1) doesn't carry - so when such a player's first stats pass left hero
-    slots unresolved, the faction they actually rolled is inferred from what they built
+    Hero recruits resolve against the slot faction's revive roster, which a lobby Random (slot
+    faction -1) doesn't carry - so when such a player's first stats pass leaves hero slots
+    unresolved, the faction they actually rolled is inferred from what they built
     (`_faction_from_orders`) and their stats recomputed with that faction's roster."""
     if outcomes is None:
         outcomes = _outcomes(replay, assume_pov_won)
@@ -509,14 +487,13 @@ def patch_groups(paths: Iterable[Path]) -> dict[str, list[Path]]:
 
 def version_labels(path: Path, fingerprints: Iterable[str]) -> dict[str, str]:
     """The hand-maintained patch-fingerprint -> version-label map at `path`, e.g.
-    `{"Bfme2 data=0xC14360E4": "Edain 4.8.4.3"}`. Every fingerprint in `fingerprints` gets a
-    blank entry ("" - not yet labeled by hand) if it is missing, mirroring the blank-then-
-    hand-fill pattern of the aggregate names file (`tools/rebuild_aggregates.py`'s
-    `_load_names`); a tournament corpus spanning patches hands this to `version_groups` once
-    every fingerprint has been filled in. The existing entries keep their file order and any
-    new blank is appended at the end - the order is hand-maintained (`version_groups` prompts
-    the build's version switches in it), so it must not be re-sorted out from under the user.
-    The file is rewritten (trailing newline) only when an entry was added or it did not exist
+    `{"Bfme2 data=0xC14360E4": "Edain 4.8.4.3"}`. Every fingerprint in `fingerprints` missing
+    from the file gets a blank entry ("" - not yet labeled by hand), the same blank-then-fill
+    pattern as `tools/rebuild_aggregates.py`'s `_load_names`; a tournament corpus spanning
+    patches hands this to `version_groups` once every fingerprint is filled in. Existing entries
+    keep their file order and a new blank is appended at the end - the order is hand-maintained
+    (`version_groups` prompts the build's version switches in it) and must not be re-sorted out
+    from under the user. The file is rewritten only when an entry was added or it did not exist
     yet, so a fully hand-filled file is left untouched run to run."""
     labels: dict[str, str] = {}
     if path.exists():
@@ -537,14 +514,14 @@ def version_groups(groups: dict[str, list[Path]], labels: dict[str, str]) -> dic
     labels - two fingerprints sharing a label (a hotfix that changed nothing gameplay-visible)
     pool into that label's one entry, so the caller aggregates each version's replays in a
     single pass. Raises `ValueError` naming every fingerprint in `groups` that `labels` leaves
-    blank or unlabeled, so the caller can point the user at `version_labels`' output instead
-    of aggregating a mislabeled fingerprint by accident.
+    blank or unlabeled, pointing the caller at `version_labels`' output instead of aggregating a
+    mislabeled fingerprint by accident.
 
-    The merged versions keep the order they appear in `labels` (i.e. the hand-maintained
-    versions.json order, which `version_labels` preserves) rather than fingerprint-hash order,
-    so a multi-version build's per-version install-switch prompts follow that file - letting the
-    corpus arrange its versions.json to minimise how much the game install has to change between
-    passes."""
+    The merged versions keep the order they appear in `labels` (the hand-maintained
+    versions.json order `version_labels` preserves) rather than fingerprint-hash order, so a
+    multi-version build's per-version install-switch prompts follow that file - letting the
+    corpus arrange its versions.json to minimise how much the game install has to change
+    between passes."""
     unlabeled = [fingerprint for fingerprint in groups if not labels.get(fingerprint)]
     if unlabeled:
         raise ValueError("no version label for: " + ", ".join(sorted(unlabeled)))
@@ -584,7 +561,7 @@ def collect(
     relabel_power: PowerLabeler | None = None,
     power_recruits: PowerRecruits | None = None,
     ignore_recruits: frozenset[str] = frozenset(),
-    record: Callable[[Path, ReplayFile, list[PlayerGame], dict[str, str]], None] | None = None,
+    record: RecordHook | None = None,
 ) -> Corpus:
     """Parse every replay under `paths` (files or directories) into a corpus of
     player-games. Files that fail to parse and player-games whose faction couldn't be
@@ -599,13 +576,11 @@ def collect(
     source has no verdict does the game fall back to the `winner.py` concession heuristic (with
     `assume_pov_won` layered over it). Pass `outcome_source=None` to use the heuristic alone.
 
-    `record`, when given, is called once per successfully parsed replay - `(path, replay,
-    games, heuristic)`, with `games` still the raw, unfiltered `player_games()` output and
-    `heuristic` the concession-heuristic verdict for every human in it - right before that
-    replay's games are folded into the corpus. It is the hook a caller uses to snapshot the
-    translated parse (e.g. into `sage_replay.cache`) without this module knowing anything about
-    caching; `heuristic` is computed once here (rather than inside `player_games`) precisely so
-    a caller that also wants it (to cache as a fallback outcome) doesn't pay for it twice."""
+    `record` (a `RecordHook`) is called once per successfully parsed replay, right before that
+    replay's games fold into the corpus; `games` is still the raw, unfiltered `player_games()`
+    output, and `heuristic` is the concession-heuristic verdict for every human in it, computed
+    once here (rather than inside `player_games`) so a caller that also wants it - to cache as a
+    fallback outcome - doesn't pay for it twice."""
     corpus = Corpus()
     for path in find_replays(paths):
         try:
@@ -761,10 +736,12 @@ def aggregate(
     matchups: bool = False,
 ) -> list[FactionAggregate]:
     """Group player-games by faction, most-played first. Upgrade events outside
-    `tracked_upgrades` and power casts outside `tracked_powers` (matched on the relabelled
-    name) are dropped, as are horde combines unless `include_combines`; `other` purchases in
-    `tracked_purchases` get per-instance depth rows - see the module docstring.
-    `matchups` additionally folds each game into a per-enemy-faction sub-aggregate
+    `tracked_upgrades` and power casts outside `tracked_powers` (matched on the relabelled name)
+    are dropped - the raw upgrade stream is dominated by per-battalion gear purchases and the
+    raw power stream by routine hero abilities and unit toggles, either of which would swamp
+    the tables - as are horde combines unless `include_combines`. `other` purchases in
+    `tracked_purchases` get per-instance depth rows instead of one pooled row - see the module
+    docstring. `matchups` additionally folds each game into a per-enemy-faction sub-aggregate
     (`FactionAggregate.matchups`), so every pick table also exists per matchup."""
     factions: dict[str, FactionAggregate] = {}
     for game in games:
@@ -797,7 +774,7 @@ def _choice_lines(title: str, table: dict[str, ChoiceStat]) -> list[str]:
     width = max(len(c.label) for c in ranked)
     lines = [_choice_header(title)]
     for choice in ranked:
-        first = f"~{_clock(choice.median_first)}" if choice.median_first is not None else "-"
+        first = f"~{clock(choice.median_first)}" if choice.median_first is not None else "-"
         lines.append(
             f"    {choice.label:{width}s}  {choice.games:3d}  "
             f"{choice.wins:2d}-{choice.losses:<2d} {_percent(choice.win_rate)}  "
@@ -830,13 +807,13 @@ def _outpost_value(agg: FactionAggregate, translate: Translate = _identity) -> s
     if agg.outpost is None or agg.outpost.median_first is None:
         return None
     base = translate(agg.outpost.label) if agg.outpost.label else "outpost"
-    return f"{base} ~{_clock(agg.outpost.median_first)} ({agg.outpost.games}/{agg.games})"
+    return f"{base} ~{clock(agg.outpost.median_first)} ({agg.outpost.games}/{agg.games})"
 
 
 def _faction_summary(
     agg: FactionAggregate, translate: Translate = _identity, *, include_outpost: bool = True
 ) -> str:
-    length = f", median length {_clock(median(agg.durations))}" if agg.durations else ""
+    length = f", median length {clock(median(agg.durations))}" if agg.durations else ""
     undetermined = f", {agg.undetermined} undetermined" if agg.undetermined else ""
     outpost_value = _outpost_value(agg, translate) if include_outpost else None
     outpost = f", outpost {outpost_value}" if outpost_value else ""
@@ -871,7 +848,7 @@ def _power_lines(heading: str, table: dict[str, ChoiceStat]) -> list[str]:
     width = max(len(c.label) for c in ranked)
     lines = [f"    {heading}:"]
     for choice in ranked:
-        first = f"~{_clock(choice.median_first)}" if choice.median_first is not None else "-"
+        first = f"~{clock(choice.median_first)}" if choice.median_first is not None else "-"
         lines.append(
             f"      {choice.label:{width}s}  {choice.games:3d}  "
             f"{choice.wins:2d}-{choice.losses:<2d} {_percent(choice.win_rate)}  "
@@ -907,7 +884,7 @@ def render_aggregate(
     corpus: Corpus,
     factions: list[FactionAggregate],
     *,
-    powers_heading: str = _DEFAULT_POWERS_HEADING,
+    powers_heading: str = DEFAULT_POWERS_HEADING,
 ) -> list[str]:
     """The corpus aggregation as text: a per-faction block of win rate, science picks
     (overall and opening), and the building/unit/hero pick tables (tracked powers nested
@@ -942,7 +919,7 @@ def _markdown_table(
         "|---|--:|--:|--:|--:|--:|",
     ]
     for choice in _ranked(table):
-        first = _clock(choice.median_first) if choice.median_first is not None else "-"
+        first = clock(choice.median_first) if choice.median_first is not None else "-"
         lines.append(
             f"| {_cell(choice.label)} | {choice.games} "
             f"| {choice.wins}-{choice.losses} | {_percent(choice.win_rate).strip()} "
@@ -980,7 +957,7 @@ def render_aggregate_markdown(
     corpus: Corpus,
     factions: list[FactionAggregate],
     *,
-    powers_heading: str = _DEFAULT_POWERS_HEADING,
+    powers_heading: str = DEFAULT_POWERS_HEADING,
 ) -> list[str]:
     """The same aggregation as GitHub markdown: a heading per faction and a table per
     pick category (tracked powers nested under Units as `powers_heading`), then a
@@ -1579,16 +1556,15 @@ def _delta(value: float | None, unit: str = "") -> str:
 
 
 def _timeline_block(ranked: list[ChoiceStat], graph: str, translate: Translate) -> str:
-    """The collapsed timeline `<details>` for one Buildings/Units table: the x-axis and
-    y-mode toggles, the empty containers the graph script draws into, and a JSON payload of
-    every occurrence as (order seconds, that match's duration) - raw rather than pre-binned,
-    so the client can rebin the same data for either axis and derive every y-mode (share of
-    visible series / lifecycle / count / cumulative; see `_GRAPH_SCRIPT`). Series ride in
-    row order (`ranked` matches the table body), which is how each row's `data-series` index
-    and swatch tie back to a line; labels go through `translate` so the graph names what the
-    table names. The note under the toggles describes the current y-mode (the script rewrites
-    it on toggle; the shipped text is share's, the default). `</` is escaped inside the JSON
-    so no label can close the script element early."""
+    """The collapsed timeline `<details>` for one Buildings/Units table: the x-axis and y-mode
+    toggles, the empty containers the graph script draws into, and a JSON payload of every
+    occurrence as (order seconds, that match's duration) - raw rather than pre-binned, so the
+    client can rebin the same data for either axis and derive every y-mode (see `_GRAPH_SCRIPT`).
+    Series ride in row order (`ranked` matches the table body), which is how each row's
+    `data-series` index and swatch tie back to a line; labels go through `translate` so the
+    graph names what the table names. The note under the toggles describes the current y-mode
+    (the script rewrites it on toggle; the shipped text is share's, the default). `</` is
+    escaped inside the JSON so no label can close the script element early."""
     payload = {
         "series": [
             {
@@ -1636,12 +1612,11 @@ def _html_table(
     `base_table` (the faction's overall aggregate for this category) each row gains a `vs
     overall` delta column. With `graph_ids` (the page-wide counter, handed in only for the
     Buildings/Units sections), a collapsed timeline graph sits between the heading and the
-    table, and every row's label cell leads with a checkbox + colour swatch keying that row
-    to its line in the graph - inside the first cell rather than an own column, so the sort
+    table, and every row's label cell leads with a checkbox + colour swatch keying that row to
+    its line in the graph - inside the first cell rather than its own column, so the sort
     script's column indices and text-based keys are untouched and the checkboxes travel with
-    sorted rows. The id is drawn only when a graph actually renders (some row collected
-    occurrences - a table where every game lacked a duration has nothing to draw), so ids
-    stay dense across the page."""
+    sorted rows. The id is drawn only when a graph actually renders (a table where every game
+    lacked a duration has nothing to draw), so ids stay dense across the page."""
     if not table:
         return []
     ranked = _ranked(table)
@@ -1672,7 +1647,7 @@ def _html_table(
         ]
     )
     for index, choice in enumerate(ranked):
-        first = _clock(choice.median_first) if choice.median_first is not None else "-"
+        first = clock(choice.median_first) if choice.median_first is not None else "-"
         badge = annotate(owner, choice.label) if annotate and owner is not None else ""
         key = ""
         if timeline_id is not None:
@@ -1709,21 +1684,21 @@ def _html_tables(
     baseline: FactionAggregate | None = None,
     owner: str | None = None,
     annotate: Annotate | None = None,
-    powers_heading: str = _DEFAULT_POWERS_HEADING,
+    powers_heading: str = DEFAULT_POWERS_HEADING,
     graph_ids: Iterator[int] | None = None,
 ) -> list[str]:
     """The pick-category tables of one aggregate, titled at `heading` (h3/h4) depth, with the
     tracked powers nested a heading level deeper under Units as `powers_heading` (their caster
     is a unit, not a recruitable hero). Row labels are shown through `translate` (raw code name
-    when it is the identity). With `baseline` (the
-    faction's overall aggregate), each row gains a `vs overall` column: this aggregate's pick
-    rate for the choice minus the baseline's, in points - so a matchup table shows how the
-    faction's picks shift against that enemy. `annotate(owner, label)` may append a badge to a
-    row (e.g. flagging a pick that is not `owner`'s roster); `owner` is the faction the picks
-    belong to, which for a matchup sub-table is the parent faction, not the enemy. `graph_ids`
-    (a page-wide counter, threaded from `render_aggregate_html`) gives the Buildings and Units
-    sections their timeline graphs: each rendered graph draws a fresh id tying its rows'
-    checkboxes to its own chart, unique across every faction and matchup block on the page."""
+    when it is the identity). With `baseline` (the faction's overall aggregate), each row gains
+    a `vs overall` column: this aggregate's pick rate for the choice minus the baseline's, in
+    points - so a matchup table shows how the faction's picks shift against that enemy.
+    `annotate(owner, label)` may append a badge to a row (e.g. flagging a pick that is not
+    `owner`'s roster); `owner` is the faction the picks belong to, which for a matchup sub-table
+    is the parent faction, not the enemy. `graph_ids` (a page-wide counter, threaded from
+    `render_aggregate_html`) gives the Buildings and Units sections their timeline graphs: each
+    rendered graph draws a fresh id tying its rows' checkboxes to its own chart, unique across
+    every faction and matchup block on the page."""
     base_games = baseline.games if baseline is not None else 0
     lines: list[str] = []
     for title, attribute, column in _SECTIONS:
@@ -1772,7 +1747,7 @@ def _html_tiles(agg: FactionAggregate) -> str:
     win rate, and median match length. Undetermined-outcome games and the standard-outpost
     milestone still fold into `_faction_summary`'s prose line above the tiles; they don't
     warrant tiles of their own."""
-    length = _clock(median(agg.durations)) if agg.durations else "-"
+    length = clock(median(agg.durations)) if agg.durations else "-"
     rate = _percent(agg.win_rate).strip() if agg.win_rate is not None else "-"
     tiles = (
         ("Games", str(agg.games)),
@@ -1796,30 +1771,25 @@ def render_aggregate_html(
     extra: Callable[[FactionAggregate], list[str]] | None = None,
     annotate: Annotate | None = None,
     index_href: str | None = None,
-    powers_heading: str = _DEFAULT_POWERS_HEADING,
+    powers_heading: str = DEFAULT_POWERS_HEADING,
     icon: FactionIcon | None = None,
 ) -> list[str]:
-    """The same aggregation as one self-contained HTML page (no external assets,
-    light/dark via `prefers-color-scheme`): per faction a stat-tile header and the
-    pick-category tables (tracked powers nested under Units as `powers_heading`), then a
-    collapsible `vs <enemy>` block per matchup when the aggregation carried them. Win rates
-    render as diverging bars around 50%. `translate` maps a code name to the display string
-    shown for faction and pick-table labels; by default labels render as their raw code names.
-    `extra`, if given, returns extra HTML lines appended after each faction's own block (the
-    caller's per-faction replay list). `annotate(faction, label)` may badge a pick row - both
-    the faction's own tables and its matchup sub-tables are annotated against that faction as
-    the owner. `index_href`, if given, renders a back-to-index nav pill linking there (a page
-    relative path from this page). `icon`, if given, maps a faction code name to an icon URL
-    (relative to this page - the one optional external asset) shown before the faction name in
-    its header and matchup summaries. Every table's column headers are clickable to sort by that
-    column (client-side, via the embedded `_SORT_SCRIPT`). Every Buildings/Units table also
-    carries a collapsed timeline graph of order timing across match length (drawn by the
-    embedded `_GRAPH_SCRIPT`; see `_timeline_block`), with an x-axis toggle (% of match /
-    game clock) and a y-mode toggle: share of the visible series' orders per bin (the
-    default), the unit's own lifecycle arc, raw counts, or its cumulative %. The rows'
-    checkboxes filter the series - in share mode the visible set is also the denominator,
-    so two checked rows read as a head-to-head - and the page-wide `count()` keeps each
-    graph's id unique across factions and matchup blocks."""
+    """The same aggregation as one self-contained HTML page (no external assets, light/dark via
+    `prefers-color-scheme`): per faction a stat-tile header and the pick-category tables
+    (tracked powers nested under Units as `powers_heading`), then a collapsible `vs <enemy>`
+    block per matchup when the aggregation carried them. Win rates render as diverging bars
+    around 50%. `translate` maps a code name to the display string shown for faction and
+    pick-table labels; by default labels render as their raw code names. `extra`, if given,
+    returns extra HTML lines appended after each faction's own block (the caller's per-faction
+    replay list). `annotate(faction, label)` may badge a pick row - both the faction's own
+    tables and its matchup sub-tables are annotated against that faction as the owner.
+    `index_href`, if given, renders a back-to-index nav pill linking there (a page relative path
+    from this page). `icon`, if given, maps a faction code name to an icon URL (relative to
+    this page - the one optional external asset) shown before the faction name in its header
+    and matchup summaries. Every table's column headers sort client-side (`_SORT_SCRIPT`), and
+    every Buildings/Units table carries a collapsed timeline graph of order timing across match
+    length, drawn by the embedded `_GRAPH_SCRIPT` (see its module comment and `_timeline_block`
+    for the graph's axis, y-mode, and denominator behavior)."""
     tr = translate or _identity
     ic = icon or _no_icon
     graph_ids = count()
@@ -1919,7 +1889,7 @@ def _index_leaderboard(
         "<tbody>",
     ]
     for agg in factions:
-        length = _clock(median(agg.durations)) if agg.durations else "-"
+        length = clock(median(agg.durations)) if agg.durations else "-"
         href = links.get(agg.faction)
         name = escape(translate(agg.faction))
         cell = _icon_img(icon(agg.faction)) + (

@@ -29,7 +29,7 @@
   casts are reported only for a tracked set, horde combines only with `--combines`, and
   repeatable system purchases get per-instance depth rows (CPObject1, CPObject2, ...) only
   for one: `--track-upgrade` / `--track-power` / `--track-purchase NAME` (repeatable, powers
-  nested under Heroes), or the `sage-edain replay-aggregate` overlay, which registers this same
+  nested under Units), or the `sage-edain replay-aggregate` overlay, which registers this same
   command with Edain's sets injected. The replays must all come from one patch/mod: a
   corpus mixing patch fingerprints (the header's game-data checksum - recordings from
   different game data do not simulate identically) exits 1 listing the groups, before
@@ -59,7 +59,7 @@ from collections import Counter
 from pathlib import Path
 
 from sage_replay.aggregate import (
-    _DEFAULT_POWERS_HEADING,
+    DEFAULT_POWERS_HEADING,
     aggregate,
     collect,
     patch_groups,
@@ -67,8 +67,9 @@ from sage_replay.aggregate import (
     render_aggregate_html,
     render_aggregate_markdown,
 )
-from sage_replay.coverage import audit, diff_replays, find_replays
+from sage_replay.coverage import audit, diff_replays
 from sage_replay.ids import (
+    AlignRow,
     ChunkPredicate,
     IdRun,
     align,
@@ -88,11 +89,13 @@ from sage_replay.replay import (
     ReplayGameType,
     ReplaySlot,
     ReplaySlotType,
+    find_replays,
     parse_replay_from_path,
 )
 from sage_replay.stats import compute_stats, render_stats
 from sage_replay.winner import PlayerSession, infer_winner
 from sage_utils.cli import add_game_arguments, existing_file, utf8_stdout
+from sage_utils.clock import clock
 from sage_utils.gameroot import resolve_game_roots
 
 
@@ -389,7 +392,9 @@ def _run_align(args: argparse.Namespace) -> int:
     return 1 if warnings else 0
 
 
-def _merge_mapping(path: Path, metadata: dict, order_type: int, rows: list) -> list[str]:
+def _merge_mapping(
+    path: Path, metadata: dict[str, str], order_type: int, rows: list[AlignRow]
+) -> list[str]:
     """Merge confidently-aligned rows into a growing `id -> object` JSON mapping keyed
     by order type, and return conflicts (an id already mapped to a different name)."""
     mapping = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
@@ -460,18 +465,14 @@ def _run_stats(args: argparse.Namespace) -> int:
     return 0
 
 
-def _clock(seconds: float) -> str:
-    return f"{int(seconds) // 60:d}:{int(seconds) % 60:02d}"
-
-
 def _session_status(session: PlayerSession, end: int, spf: float) -> str:
     """One human session's ending, in words, for the `winner` text output."""
     departed = session.departed_at(end)
     if session.left_at is not None:
-        when = f" ({_clock(session.left_at * spf)})" if spf else ""
+        when = f" ({clock(session.left_at * spf)})" if spf else ""
         return f"left the game at frame {session.left_at}{when}"
     if departed is not None:
-        when = f" ({_clock(departed * spf)})" if spf else ""
+        when = f" ({clock(departed * spf)})" if spf else ""
         return f"went silent at frame {departed}{when} - likely dropped"
     parts = []
     if session.last_order is not None:
@@ -565,7 +566,7 @@ def add_aggregate_command(
     tracked_upgrades: frozenset[str] = frozenset(),
     tracked_purchases: frozenset[str] = frozenset(),
     tracked_powers: frozenset[str] = frozenset(),
-    powers_heading: str = _DEFAULT_POWERS_HEADING,
+    powers_heading: str = DEFAULT_POWERS_HEADING,
     refine_faction=None,
     relabel_power=None,
     power_recruits=None,
@@ -576,8 +577,8 @@ def add_aggregate_command(
     are depth-comparable, and which special powers are worth a row registers the same command
     on its own CLI with its `tracked_upgrades` / `tracked_purchases` / `tracked_powers`
     injected (sage_edain's `replay-aggregate`); `--track-upgrade` / `--track-purchase` /
-    `--track-power` extend whatever was injected. Tracked powers render nested under Heroes as
-    `powers_heading` (the owning hero's name - Edain's is "Loremaster"). `refine_faction` (a
+    `--track-power` extend whatever was injected. Tracked powers render nested under Units as
+    `powers_heading` (the casting unit's name - Edain's is "Loremaster"). `refine_faction` (a
     `FactionRefiner`) lets the overlay sharpen faction labels from each player's own stats,
     e.g. Edain's Dwarves into their realm. `relabel_power` (a `PowerLabeler`) renames
     special-power casts from the caster's faction Side, e.g. reading Imladris's four shared
@@ -640,7 +641,7 @@ def add_aggregate_command(
         action="append",
         metavar="NAME",
         default=None,
-        help="report this special power's casts in a pick table nested under Heroes (the "
+        help="report this special power's casts in a pick table nested under Units (the "
         "power's code name, or an overlay's relabelled name; repeatable, extends the "
         "command's built-in tracked set). Powers are hidden by default",
     )

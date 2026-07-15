@@ -18,7 +18,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from sage_replay.replay import OrderArgumentType, ReplayChunk, ReplayFile
+from sage_replay.replay import ReplayChunk, ReplayFile, integer_arguments
 
 __all__ = [
     "AlignRow",
@@ -31,6 +31,7 @@ __all__ = [
     "arg_equals",
     "collapse_runs",
     "id_events",
+    "integer_arguments",
     "order_id_summaries",
     "parse_labels",
 ]
@@ -48,15 +49,6 @@ def arg_equals(arg_index: int, value: object) -> ChunkPredicate:
         return arg_index < len(args) and args[arg_index].value == value
 
     return predicate
-
-
-def integer_arguments(chunk: ReplayChunk) -> list[int]:
-    """The Integer-typed argument values of a chunk's order, in order."""
-    return [
-        a.value
-        for a in chunk.order.arguments
-        if a.argument_type is OrderArgumentType.Integer and isinstance(a.value, int)
-    ]
 
 
 @dataclass
@@ -125,7 +117,7 @@ def id_events(
 
     `where` sub-selects chunks (e.g. `arg_equals(0, False)` for one `0x417` mode).
     """
-    events = []
+    events: list[IdEvent] = []
     for chunk in replay.chunks:
         if chunk.order_type != order_type:
             continue

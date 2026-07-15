@@ -41,6 +41,11 @@ python -m sage_replay info <replay>
 # Dump the order stream (--limit N, --player N, --order 0x415 to filter)
 python -m sage_replay orders <replay> --limit 50
 
+# Retell the match in English, resolving recruit/build/power/science/upgrade ids
+# against a loaded game (--game an extracted data/ini tree or a live install; repeatable,
+# base game first and mod after it)
+python -m sage_replay narrate <replay> --game <install>
+
 # Per-player stats: building/unit/hero counts per template type (fortress-hero
 # recruits resolve to hero names via the revive-submenu model - see
 # order_space_map.md 0x417 - falling back to raw slot numbers), upgrades
@@ -51,7 +56,7 @@ python -m sage_replay stats <replay> --game <install>
 # Aggregate stats across many replays, grouped by faction: win rates plus science /
 # building / unit / hero pick tables, each pick with its own win-loss record and median
 # first-purchase time ("does the faction win more with science X or Y?"). Upgrade
-# researches get pick tables, special-power casts get a table nested under Heroes, and
+# researches get pick tables, special-power casts get a table nested under Units, and
 # repeatable system purchases per-instance depth rows (CPObject1, CPObject2, ...), each
 # only for a tracked set: --track-upgrade / --track-power / --track-purchase NAME
 # (repeatable), or `sage-edain replay-aggregate` = this same command with Edain's sets
@@ -60,7 +65,7 @@ python -m sage_replay stats <replay> --game <install>
 # are shown only with --combines. --matchups appends the same tables per enemy faction (buildings built
 # vs Mordor, units vs Gondor) after each faction's own sections.
 # --faction / --player filter the player-games (case-insensitive substring);
-# --markdown renders the same tables as GitHub markdown.
+# --markdown renders the same tables as GitHub markdown, --html as one self-contained page.
 # The replays must all come from one patch/mod: a corpus mixing patch fingerprints
 # (the header's game-data checksum) exits 1 listing the groups.
 python -m sage_replay aggregate <replay|dir>... --game <install>

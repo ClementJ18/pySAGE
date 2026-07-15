@@ -1,61 +1,49 @@
 """Edain knowledge for `sage_replay`'s generic corpus tooling.
 
-`sage_replay.aggregate` reports upgrade researches (`0x415`) only for a caller-supplied
-tracked set, because the raw research stream is dominated by per-battalion gear purchases;
-likewise it depth-numbers a repeatable system purchase (CPObject1, CPObject2, ...) only for
-a caller-supplied set. This module holds Edain's sets - the researches whose timing a
-corpus review asks about, and the fortress purchases whose depth is worth comparing - which
-`sage-edain replay-aggregate` injects into the shared aggregate command. Names are raw ini
-code names (`sage_replay.stats` records upgrade events unlocalized so they match; purchase
-labels are raw under the default unlocalized aggregation).
+`sage_replay.aggregate` reports upgrade researches and depth-numbers repeatable purchases only
+for a caller-supplied tracked set, because the raw streams are dominated by per-battalion gear
+noise. This module holds Edain's sets - the researches worth timing and the fortress purchases
+worth comparing - which `sage-edain replay-aggregate` injects into the shared aggregate command.
+Names are raw ini code names (`sage_replay.stats` records upgrade events unlocalized to match).
 
-It also holds Edain's faction refiner (`edain_faction_refiner`), which splits the two shared
-realm factions into their sub-factions: Dwarves player-games into their realm (Erebor / Ered
-Luin / Iron Hills) by the free clan upgrade the player bought at the citadel
-(`dwarven_realm_faction`), and Men player-games into Gondor / Arnor / Belfalas by the Gondor hero
-roster the replay's map declares (`gondor_variant_faction`).
+It also holds Edain's faction refiner (`edain_faction_refiner`), splitting the two shared realm
+factions: Dwarves into their realm (Erebor / Ered Luin / Iron Hills) by the free clan upgrade
+bought at the citadel, and Men into Gondor / Arnor / Belfalas by the Gondor hero roster the
+replay's map declares - see `dwarven_realm_faction` and `gondor_variant_faction` for the details.
 
-It also holds Edain's power-recruit resolver (`edain_power_recruits`), a `PowerRecruits` hook
-for `sage_replay.stats`: a handful of special powers permanently field an army rather than a
-buff or a summon-and-despawn effect, and a build-order review should read those casts as
-recruitment - a Mordor player's Haradrim call is as much a fielding decision as clicking the
-same units at a barracks. `POWER_RECRUITS` covers Mordor's two summon powers (gated on the
-caster's Side, since one `SpecialPower` definition can serve several factions - the Imladris trap
-below is exactly that); `DORWINION_RECRUITS` covers the Dwarves' two Loyal Protectors tiers and
-Fist of Dorwinion, Dwarves-gated the same way; `LEUCHTFEUER_RECRUITS` covers Men's four
-signal-fire calls plus their all-in-one variant, each keyed to a (Gondor hordes, Belfalas hordes)
-pair because Gondor and Belfalas fire the very same `CommandButton`/`SpecialPower` definitions -
-only the caster's per-map Gondor hero roster (the same one `gondor_variant_faction` reads) tells
-the two apart.
+It also holds Edain's power-recruit resolver (`edain_power_recruits`), a `PowerRecruits` hook for
+`sage_replay.stats`: a handful of special powers permanently field an army rather than a buff or
+a summon-and-despawn effect, and a build-order review should read those casts as recruitment - a
+Mordor player's Haradrim call is as much a fielding decision as clicking the same units at a
+barracks. `POWER_RECRUITS`, `DORWINION_RECRUITS`, and `LEUCHTFEUER_RECRUITS` cover Mordor's
+summons, the Dwarves' Dorwinion calls, and Men's signal-fire calls respectively, each gated on
+the caster's faction `Side` since one `SpecialPower` definition can serve several factions (see
+`edain_power_recruits` for the exact gating rules).
 
-`LICHTBRINGER_RECRUITS` covers the Imladris Loremaster ("Wissender"/Lichtbringer). A player fields
-it as an elementless `BruchtalLichtbringerHorde`, then toggles it to one of four elements with
-`CommandButton`s whose `SpecialPower` fields, by copy-paste heritage, are Angmar's
-`...ThrallMasterSummon...` powers - the very definitions Angmar (and Rohan / Lothlorien) fire to
-summon units, so by raw code name a toggle is indistinguishable from an Angmar summon. The toggle
-is what fixes the Loremaster's element, so - *only for an Imladris caster* (by faction `Side`) -
-the resolver reads each of the four as a recruit of the matching element-specific horde
-(`BruchtalLichtbringer{Erde,Feuer,Wasser,Luft}Horde`), and `IGNORED_RECRUITS` drops the elementless
-`BruchtalLichtbringerHorde` placeholder from the normal recruit stream so the same Loremaster is
-not counted twice. The four powers fire as `0x410` casts in 106 of 767 replays of the
-edain-4.8.4.3 ladder corpus.
+`LICHTBRINGER_RECRUITS` covers the Imladris Loremaster ("Wissender"/Lichtbringer), the trickiest
+case: a player fields it as an elementless `BruchtalLichtbringerHorde`, then toggles it to one of
+four elements with `CommandButton`s whose `SpecialPower` fields, by copy-paste heritage, are
+Angmar's `...ThrallMasterSummon...` powers - the very definitions Angmar (and Rohan / Lothlorien)
+fire to summon units, so by raw code name a toggle is indistinguishable from an Angmar summon.
+Only for an Imladris caster does the resolver read each of the four as a recruit of the matching
+element-specific horde; `IGNORED_RECRUITS` drops the elementless placeholder from the normal
+recruit stream so the same Loremaster is not counted twice.
 
-Partly covered: **combo hordes**. Two Lichtbringer hordes merge into an element-pair combo
-(WaterWater, ErdeFeuer, ...) by clicking one horde onto another. The merge IS a discrete order -
-`0x423`, ground-truthed by the labelled `tests/sage_replay/fixtures/combo replay.BfME2Replay`
-(build two Lichtbringer hordes, toggle each, then one `0x423` at the merge frame). So a combine
-*action* is countable and attributable to a player. What is not recoverable is *which* element-pair
-combo formed: `0x423` carries only a runtime ObjectId (a live handle in the just-merged cluster),
-not a static template id, so naming the WaterWater vs ErdeFeuer result needs the unsolved runtime
-ObjectId->template tracking. Combo *usage* also leaks indirectly through the combo-only abilities
-that resolve as normal power casts (WasserdesBruinen = Water+Water, HauchValinors = Air+Air,
-VorbotedesTelperion = Earth+Earth). Neither the combine count nor the combo-usage signal is
-surfaced here yet.
+Partly covered: **combo hordes**. Two Lichtbringer hordes merge into an element-pair combo by
+clicking one horde onto another - a discrete `0x423` order, ground-truthed by the labelled
+`tests/sage_replay/fixtures/combo replay.BfME2Replay`, so a combine *action* is countable and
+attributable to a player. What is not recoverable is *which* combo formed: `0x423` carries only a
+runtime ObjectId, not a static template id, so naming the result needs the unsolved runtime
+ObjectId->template tracking. Neither the combine count nor the combo-usage signal (which also
+leaks through combo-only power casts) is surfaced here yet.
 """
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from sage_replay.aggregate import UNRESOLVED_FACTION
+from sage_replay.narrate import GameData
+from sage_replay.stats import PlayerStats
 
 # The front-page faction emblems shipped alongside this module (webp), keyed by the aggregate
 # faction label each renders under: the refined sub-faction labels for the two shared realm
@@ -120,7 +108,9 @@ DWARVEN_REALMS = {
 }
 
 
-def dwarven_realm_faction(label: str, stats, data=None, map_file=None) -> str:
+def dwarven_realm_faction(
+    label: str, stats: PlayerStats, data: GameData | None = None, map_file: str | None = None
+) -> str:
     """A `FactionRefiner` for `sage_replay.aggregate`: split FactionDwarves player-games
     into their realm by the clan upgrade the player bought. The realm choice is permanent -
     a Dwarves player picks one clan at the citadel and can't re-pick - so the first clan
@@ -150,7 +140,9 @@ GONDOR_VARIANTS = {
 }
 
 
-def gondor_variant_faction(label: str, stats, data, map_file) -> str:
+def gondor_variant_faction(
+    label: str, stats: PlayerStats, data: GameData | None, map_file: str | None
+) -> str:
     """A `FactionRefiner` for `sage_replay.aggregate`: split FactionMen player-games into
     Gondor / Arnor / Belfalas by the Gondor hero roster the replay's map declares. The variant
     is a property of the map (its `map.ini` re-opens FactionMen with the sub-faction's
@@ -292,7 +284,7 @@ _IMLADRIS_SIDE = "Imladris"
 IGNORED_RECRUITS = frozenset({"BruchtalLichtbringerHorde"})
 
 
-def edain_power_recruits(side: str | None, roster, power: str):
+def edain_power_recruits(side: str | None, roster: Sequence[str], power: str) -> Sequence[str]:
     """A `PowerRecruits` for `sage_replay.stats`: the template names a Mordor summon, a Dwarven
     Dorwinion call, a Men Leuchtfeuer call, or an Imladris Loremaster element toggle permanently
     fields, or `()` when `power` is not one of Edain's fielding powers, or the caster's Side doesn't
@@ -319,7 +311,9 @@ def edain_power_recruits(side: str | None, roster, power: str):
     return ()
 
 
-def edain_faction_refiner(label: str, stats, data=None, map_file=None) -> str:
+def edain_faction_refiner(
+    label: str, stats: PlayerStats, data: GameData | None = None, map_file: str | None = None
+) -> str:
     """Edain's combined `FactionRefiner`: split the two shared realm factions into their
     sub-factions - Dwarves into Erebor / Ered Luin / Iron Hills by the opening clan upgrade,
     and Men into Gondor / Arnor / Belfalas by the map's Gondor hero roster. Every other faction

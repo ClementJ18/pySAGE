@@ -1,44 +1,35 @@
 """Read a replay's match outcome from its ladder metadata sidecar.
 
 A replay downloaded from the ladder carries a `<replay>.json` sidecar beside it - the
-ladder's own record of the game (`downloads/replays/.../<id>.BfME2Replay` next to
-`<id>.BfME2Replay.json`). Unlike the order stream, that record names the winner outright:
-each entry in its `Players` array carries a `Team`, an `IsWinner` flag, and an `IsObserver`
-flag. So where `winner.py` can only *infer* an outcome from concession signals (and often
-gives up with `undetermined`), the sidecar states it - and `sage_replay.aggregate` prefers
-it, falling back to the heuristic only when no trustworthy sidecar sits beside the replay.
+ladder's own record of the game. Unlike the order stream, that record names the winner
+outright: each entry in its `Players` array carries a `Team`, an `IsWinner` flag, and an
+`IsObserver` flag. Where `winner.py` can only *infer* an outcome from concession signals
+(and often gives up with `undetermined`), the sidecar states it - and `sage_replay.aggregate`
+prefers it, falling back to the heuristic only when no trustworthy sidecar sits beside the
+replay.
 
 The winner in the sidecar is a *team* fact: every player on the winning team is flagged, so
-the outcome is read as "which team won" and mapped onto the replay's human slots by their
-own lobby team. That mapping is what makes the sidecar robust to a slot the replay itself
-can't resolve - a lobby Random pick records faction -1 in the replay, but its team is still
-recorded, so the sidecar still places it on the winning or losing side.
+`sidecar_team_outcomes` maps it onto the replay's human slots by their own lobby team - robust
+to a slot the replay itself can't resolve (a lobby Random pick records faction -1, but its
+team is still recorded).
 
-`sidecar_outcomes` is deliberately strict: it returns None (declining, so the heuristic
-stands) unless the sidecar plainly corresponds to the replay. A sidecar can be stale or even
-describe a different game - one file in the corpus records six players for a two-player
-replay - so it is trusted only when its team structure lines up with the replay's:
+`sidecar_outcomes` is deliberately strict: it declines (returns None, so the heuristic
+stands) unless the sidecar plainly corresponds to the replay - a stale sidecar, or even one
+describing a different game, is trusted only when:
 
-- there is at least one flagged winner, and no team is both a winner and a loser (each team
-  is wholly one or the other - the shape a real result has);
-- every human slot in the replay is teamed (team >= 0), so it can be placed by team at all
-  (an unteamed FFA slot has no team to match, and the mismatched sidecars seen so far are
-  exactly the unteamed ones); and
+- there is at least one flagged winner, and no team is both a winner and a loser;
+- every human slot in the replay is teamed (team >= 0), so it can be placed by team at all;
 - every human slot's team appears among the sidecar's teams, so a sidecar for a differently
   shaped game is refused rather than mapped by coincidence.
 
-The sidecar's fields are the ladder's schema, not the mod's, so this stays engine-generic;
-the aggregate wires it in by default (see `collect`), and no mod overlay is needed to turn it
-on.
+The sidecar's fields are the ladder's schema, not the mod's, so this stays engine-generic.
 
-A corpus of hand-collected replays (a tournament played off the ladder) has no sidecars at
-all, and the winner lives only in the match's name and the caster's memory. `ensure_sidecars`
-crawls such a corpus and writes a stub sidecar beside every replay that lacks one, filling in
-everything the replay header already knows - the players, their factions and teams, the map,
-the length - and leaving `IsWinner` false for a human to set (the one fact the recording does
-not carry). It reports which sidecars still have no winner so the caller can stop and have them
-filled in before doing any expensive work, exactly as `sidecar_outcomes` needs a flagged winner
-to vote.
+A hand-collected corpus (a tournament played off the ladder) has no sidecars at all, and the
+winner lives only in the match's name and the caster's memory. `ensure_sidecars` crawls such a
+corpus and writes a stub sidecar beside every replay that lacks one, filled in from what the
+replay header already knows (players, factions, teams, map, length) with `IsWinner` left false
+for a human to set. It reports which sidecars still have no winner so the caller can fill them
+in before doing any expensive work.
 """
 
 from __future__ import annotations
@@ -49,6 +40,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from sage_replay.replay import ReplayFile, ReplaySlotType, parse_replay_from_path
+from sage_utils.clock import hms
 
 __all__ = [
     "SidecarReport",
@@ -128,12 +120,6 @@ def sidecar_outcomes(replay: ReplayFile, replay_path: Path) -> dict[str, str] | 
 _STUB_NOTE = 'Auto-generated stub. Set "IsWinner": true for each player on the winning team.'
 
 
-def _hms(seconds: float) -> str:
-    """A duration as `H:MM:SS` (the sidecar's `Duration` shape)."""
-    total = max(0, round(seconds))
-    return f"{total // 3600}:{total % 3600 // 60:02d}:{total % 60:02d}"
-
-
 def _mode_label(teams: list[int]) -> str:
     """A best-effort `GamemodeName` from the competing players' teams: `2v2` for two teams of
     two, and so on; empty when the shape isn't a clean team-vs-team split (an FFA, or a lone
@@ -144,7 +130,7 @@ def _mode_label(teams: list[int]) -> str:
     return "v".join(str(size) for size in sizes) if len(sizes) >= 2 else ""
 
 
-def build_sidecar_stub(replay: ReplayFile, replay_path: Path) -> dict:
+def build_sidecar_stub(replay: ReplayFile, replay_path: Path) -> dict[str, object]:
     """A sidecar stub for `replay` (read from `replay_path`): the ladder schema's shape filled
     from the replay header alone - each human slot's name, faction index and team, the map, and
     the match length - with `IsWinner` left false for a human to set, the observers flagged, and
@@ -173,7 +159,7 @@ def build_sidecar_stub(replay: ReplayFile, replay_path: Path) -> dict:
         "ReplayId": replay_path.name,
         "MapName": metadata.map_file,
         "GamemodeName": _mode_label(competitor_teams),
-        "Duration": _hms(replay.header.num_timecodes * replay.seconds_per_frame),
+        "Duration": hms(replay.header.num_timecodes * replay.seconds_per_frame),
         "Players": players,
         "IsValid": True,
     }

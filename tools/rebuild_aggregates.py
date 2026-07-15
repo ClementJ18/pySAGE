@@ -145,11 +145,10 @@ from sage_replay.cache import (  # noqa: E402
     load_replay_cache,
     write_replay_cache,
 )
-from sage_replay.coverage import find_replays  # noqa: E402
 from sage_replay.narrate import GameData  # noqa: E402
-from sage_replay.replay import parse_replay_from_path  # noqa: E402
+from sage_replay.replay import find_replays, parse_replay_from_path  # noqa: E402
 from sage_replay.sidecar import ensure_sidecars, sidecar_path  # noqa: E402
-from sage_replay.stats import _clock  # noqa: E402
+from sage_utils.clock import clock  # noqa: E402
 from sage_utils.gameroot import resolve_game_root, resolve_game_roots  # noqa: E402
 
 DEFAULT_CORPUS_ROOT = REPO / "downloads" / "replays"
@@ -342,7 +341,7 @@ def _replay_rows(games, display) -> list[str]:
         lines.append(
             f"<tr><td>{escape(game.player)}</td><td>{versus}</td>"
             f'<td class="{cls}">{label}</td>'
-            f'<td class="dim">{_clock(game.duration)}</td>'
+            f'<td class="dim">{clock(game.duration)}</td>'
             f'<td class="rep">{escape(game.replay)}</td></tr>'
         )
     lines.extend(["</tbody>", "</table></div>"])

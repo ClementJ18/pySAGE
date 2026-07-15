@@ -1,11 +1,18 @@
 """Reader for SAGE replay files - Generals `.rep`, BFME `.BfMEReplay`, BFME2 / RotWK
 `.BfME2Replay`.
 
-`sage_replay.replay` parses a replay into a header (game, version, map, player slots)
-and the recorded order stream: one `ReplayChunk` per issued command, carrying its
-logic-frame timecode, the issuing player, and typed arguments (object ids, positions,
-screen rectangles, ...). The Generals path mirrors OpenSAGE's ReplayFile; the BFME2
-layout was validated against a real replay.
+`replay` is the parse layer: a header (game, version, map, player slots) plus the recorded
+order stream, needing no game install. `ids` builds on it to extract object-referencing
+integer ids and align them to a hand-written label log. Outcome inference has two
+independent sources: `winner` infers a verdict from session-end signals (a concession
+heuristic), and `sidecar` reads the ladder metadata sidecar's own stated winner.
+
+`narrate`, `stats`, `aggregate`, `translated` and `cache` resolve against a loaded game and
+import `sage_ini`, so they are not re-exported here - import from their own modules. That
+keeps this package root install-free: every name below works from the replay file alone.
+
+The Generals path mirrors OpenSAGE's ReplayFile; the BFME2 layout was validated against a
+corpus of real replays.
 """
 
 from sage_replay.ids import (
@@ -37,6 +44,7 @@ from sage_replay.replay import (
     ReplaySlotDifficulty,
     ReplaySlotType,
     ReplayTimestamp,
+    find_replays,
     parse_replay,
     parse_replay_from_path,
 )
@@ -69,6 +77,7 @@ __all__ = [
     "align",
     "arg_equals",
     "collapse_runs",
+    "find_replays",
     "id_events",
     "infer_winner",
     "order_id_summaries",

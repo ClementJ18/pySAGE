@@ -1,16 +1,13 @@
 """The translated-replay document: one replay's parse with every id already resolved.
 
-A raw replay is not portable analysis data. Its order stream carries integer ids that only
-resolve against the exact game build that recorded it - template ids by ini load order, hero
-recruits by revive-menu position, faction indices by PlayerTemplate order - so consuming a
-corpus that spans mod patches means installing and mounting each patch in turn (see
+A raw replay is not portable analysis data: its order stream carries integer ids that only
+resolve against the exact game build that recorded it (template ids by ini load order, hero
+recruits by revive-menu position, faction indices by PlayerTemplate order), so consuming a
+corpus spanning mod patches normally means installing and mounting each patch in turn (see
 `tools/rebuild_aggregates.py`). This module defines the document that removes that coupling:
-the fully *translated* result of one parse, every id already a template code name, every
-faction already its (possibly overlay-refined) label, every event clocked in match seconds.
-Anyone holding this document can aggregate the replay's player-games with no game install at
-all; and because everything in it is a code name string, it is meaningful against any game
-version whose templates carry the same names - the exact build that recorded the replay is
-only needed once, by whoever produces the document.
+every id already a template code name, every faction its (possibly overlay-refined) label,
+every event clocked in match seconds - meaningful against any game version whose templates
+share those names, so the exact recording build is only needed once, by whoever produces it.
 
 `TranslatedReplay` is the document, `TranslatedPlayer` one human competitor in it, and each
 event is a `stats.StatEvent` (seconds, category, label - the label stays an `int` only for the
@@ -43,17 +40,14 @@ event is a `stats.StatEvent` (seconds, category, label - the label stays an `int
                                             # (the cross-faction badge) need no game either
     }
 
-Match outcomes are deliberately soft in this document. `heuristic_outcome` is only the
-concession-heuristic verdict frozen at parse time (it cannot be recomputed without the order
-stream); the authoritative winner lives in the hand-edited ladder sidecar beside the replay,
-which `to_player_games` accepts as an override - so a winner filled in long after the document
-was produced still takes effect (see `cache.load_replay_cache`, which wires the two together).
+Match outcomes are deliberately soft in this document: `heuristic_outcome` is the frozen
+parse-time concession verdict (it cannot be recomputed without the order stream), and the
+authoritative winner is the hand-edited ladder sidecar beside the replay, which
+`to_player_games` accepts as an override - see its docstring for the fallback contract, and
+`cache.load_replay_cache` for where the two get wired together.
 
-`from_dict` tolerates unknown keys (a newer producer may add fields) but refuses an unknown
-`format_version` or a malformed document with `ValueError`, so a consumer can tell "not this
-format" apart from "this format, damaged". `matches_replay` ties a document back to a replay
-file by size and content hash - the check `cache.py` gates on, and the one a recipient of a
-shared replay+document pair can run to know the two really belong together.
+`from_dict` and `matches_replay` document their own validation and verification contracts; both
+are what let a consumer trust a shared replay+document pair without re-parsing.
 """
 
 from __future__ import annotations

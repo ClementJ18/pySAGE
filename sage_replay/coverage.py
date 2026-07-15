@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import struct
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -34,6 +34,7 @@ from sage_replay.replay import (
     ReplayFile,
     ReplaySlot,
     ReplaySlotType,
+    find_replays,
     parse_replay_from_path,
 )
 
@@ -45,11 +46,7 @@ __all__ = [
     "SlotRawFields",
     "audit",
     "diff_replays",
-    "find_replays",
 ]
-
-# Filename suffixes the auditor recognises as replays, matched case-insensitively.
-REPLAY_SUFFIXES = (".rep", ".bfmereplay", ".bfme2replay")
 
 # Known reality, tuned to the checked-in fixture corpus (12 RotWK 2.01 / Edain replays).
 # A `strict` audit fails when the corpus deviates from any of these.
@@ -85,22 +82,6 @@ _KNOWN_UNKNOWN_ORDER_TYPES = frozenset(
     }
 )  # fmt: skip
 KNOWN_ORDER_TYPES = frozenset(_KNOWN_UNKNOWN_ORDER_TYPES | {int(o) for o in Bfme2OrderType})
-
-
-def find_replays(paths: Iterable[str | Path]) -> list[Path]:
-    """Expand the given files and directories into a sorted, de-duplicated list of replay
-    paths. Directories are searched recursively for the recognised replay suffixes; files are
-    taken as-is regardless of extension."""
-    found: set[Path] = set()
-    for raw in paths:
-        path = Path(raw)
-        if path.is_dir():
-            for child in path.rglob("*"):
-                if child.is_file() and child.suffix.lower() in REPLAY_SUFFIXES:
-                    found.add(child)
-        elif path.is_file():
-            found.add(path)
-    return sorted(found)
 
 
 def _order_name(order_type: int) -> str | None:
@@ -483,7 +464,12 @@ def _repr(value: str | None) -> str:
     return "<absent>" if value is None else repr(value)
 
 
-def _distinct_block(label, values, render, expected) -> list[str]:
+def _distinct_block[K](
+    label: str,
+    values: Mapping[K, list[str]],
+    render: Callable[[K], str],
+    expected: Iterable[K] | None,
+) -> list[str]:
     """One field's distinct-value block. `expected` is the set of values documented as the
     known reality (marks the block OK when it holds), or None when the field is expected to
     vary (a decoded value shown only for context)."""
@@ -518,8 +504,8 @@ def _slot_line(fields: SlotRawFields, tt: bool = True) -> str:
 
 def diff_replays(a: ReplayFile, b: ReplayFile) -> list[str]:
     """Print, field by field, which still-opaque surfaces differ between two replays - the
-    Workstream 2 differential-decoding tool. Decoded context (map, players) prints as a single
-    line; everything else is the raw/reserved surface where a controlled A/B pair localises an
+    differential-decoding tool. Decoded context (map, players) prints as a single line;
+    everything else is the raw/reserved surface where a controlled A/B pair localises an
     unknown byte."""
     ha, hb = a.header, b.header
     ma, mb = ha.metadata, hb.metadata
