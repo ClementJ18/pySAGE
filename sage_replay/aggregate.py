@@ -34,7 +34,10 @@ relabels a human's faction from their clocked stats, the loaded game, and the re
 permanently-fielding cast or dedication research merge into the pick tables like an ordinary
 recruit; `tracked_upgrades` / `tracked_purchases` /
 `tracked_powers` gate which upgrade researches, purchases, and power casts earn a row at all
-(nothing by default), and `include_combines` gates horde combines (`0x423`) the same way. See
+(nothing by default here in the core; the CLI and rebuild paths always pass the game's
+`Type = PLAYER` upgrade set - `GameData.player_upgrades` - so faction-wide researches earn
+rows while per-battalion OBJECT gear stays out), and `include_combines` gates horde combines
+(`0x423`) the same way. See
 the alias definitions below for each hook's shape, and `sage_edain.replay` for Edain's concrete
 refiners and tables.
 
@@ -81,6 +84,7 @@ __all__ = [
     "PlayerGame",
     "aggregate",
     "collect",
+    "command_point_weights",
     "patch_groups",
     "player_games",
     "render_aggregate",
@@ -135,6 +139,13 @@ Translate = Callable[[str], str]
 # does not match the faction - a disconnected ally's roster built from their inherited base).
 Annotate = Callable[[str, str], str]
 
+# An optional pick-weight hook for the Units timeline graph: given a pick's label as the
+# tables record it (before `translate`), returns the command points one order of it occupies -
+# the per-series weight behind the graph's "CP share" y-mode (see `command_point_weights`).
+# 0 means weightless (a free summon, an unknown label); without the hook the mode isn't
+# offered at all.
+Weight = Callable[[str], int]
+
 # An optional faction-icon hook: given a faction code name, returns the icon's URL (already
 # relative to the page being rendered) to show immediately before that faction's display name,
 # or "" for none. The aggregate core is engine-generic and ships no art, so the caller injects
@@ -146,6 +157,26 @@ FactionIcon = Callable[[str], str]
 
 def _identity(label: str) -> str:
     return label
+
+
+def command_point_weights(data: GameData) -> Weight:
+    """A `render_aggregate_html` `weight` hook mapping a pick label to its template's
+    effective `CommandPoints` (`data.command_points`, macro-resolved and inherited through
+    the ChildObject parent chain at load time - hordes carry theirs as gamedata macros) -
+    the army-cap cost one order of it occupies while fielded - behind the Units timeline's
+    "CP share" y-mode. Labels mirror how `stats.py` records recruits
+    (`data.label(name) or name`), so the keys match the pick tables whether or not the game
+    was loaded localized; when several templates share one display label the largest CP wins.
+    A label with no known positive CP weighs 0: a free summon genuinely occupies no command
+    points, and an unknown label reads the same way (a flat zero line, never a dropped row)."""
+    weights: dict[str, int] = {}
+    for name, cp in data.command_points.items():
+        if cp <= 0:
+            continue
+        label = data.label(name) or name
+        if cp > weights.get(label, 0):
+            weights[label] = cp
+    return lambda label: weights.get(label, 0)
 
 
 def _no_icon(label: str) -> str:
@@ -1240,6 +1271,12 @@ _SORT_SCRIPT = """\
 #     re-normalises the denominator to the visible set, so two checked rows read as a
 #     head-to-head, and a bin no visible series bought in has no share at all - a gap that
 #     breaks the line, never a fabricated 0;
+#   CP share (only when the block ships per-series `cp` weights - the Units tables, via the
+#     renderer's `weight` hook) - share with each series' orders weighted by the template's
+#     CommandPoints, "of the army capacity bought at this stage, how much was X"; an elite
+#     order outweighs a cheap one instead of counting the same, a 0-CP series (a free
+#     summon) draws along the zero line rather than vanishing, and the order stream carries
+#     no unit deaths, so this is CP *spent* per stage, not a standing-army snapshot;
 #   lifecycle - the series' orders over its own total, so each curve integrates to 100%
 #     and reads as the pure timing arc, independent of what else is visible;
 #   count - the raw corpus orders per bin, unnormalised;
@@ -1265,6 +1302,7 @@ _GRAPH_SCRIPT = """\
   var STEPS = [15, 30, 60, 120, 300, 600, 1200];
   var NOTES = {
     share: 'share of visible series\\' orders per bin',
+    cpshare: 'share of visible series\\' command points per bin',
     lifecycle: '% of the unit\\'s own orders per bin',
     count: 'total orders per bin',
     cumulative: 'cumulative % of the unit\\'s orders'
@@ -1383,13 +1421,20 @@ _GRAPH_SCRIPT = """\
       // already noise-proof and must stay monotonic. A null value is a gap the path breaks
       // over: a share where no visible series bought anything, or a series with no orders
       // at all - never a fabricated 0.
-      if (ymode === 'share') {
+      if (ymode === 'share' || ymode === 'cpshare') {
+        // cpshare is share with each series' smoothed counts scaled by its CommandPoints
+        // weight (cp, shipped per series only when the renderer had a `weight` hook). A
+        // 0-CP series contributes nothing to the denominator and draws along zero; a bin
+        // where every visible series weighs out entirely gaps like an empty share bin.
         var denom = [];
         series.forEach(function (l) {
-          l.sm.forEach(function (v, b) { denom[b] = (denom[b] || 0) + v; });
+          l.w = ymode === 'cpshare' ? (payload.series[l.i].cp || 0) : 1;
+          l.sm.forEach(function (v, b) { denom[b] = (denom[b] || 0) + v * l.w; });
         });
         series.forEach(function (l) {
-          l.vals = l.sm.map(function (v, b) { return denom[b] > 0 ? v / denom[b] : null; });
+          l.vals = l.sm.map(function (v, b) {
+            return denom[b] > 0 ? v * l.w / denom[b] : null;
+          });
         });
       } else if (ymode === 'lifecycle') {
         series.forEach(function (l) {
@@ -1516,6 +1561,8 @@ _GRAPH_SCRIPT = """\
       var v = best.vals[b], text;
       if (ymode === 'share') {
         text = asPct(v) + ' of buys &middot; ' + range + ' (n=' + best.raw[b] + ')';
+      } else if (ymode === 'cpshare') {
+        text = asPct(v) + ' of CP spent &middot; ' + range + ' (n=' + best.raw[b] + ')';
       } else if (ymode === 'lifecycle') {
         text = asPct(v) + ' of its orders &middot; ' + range;
       } else if (ymode === 'count') {
@@ -1774,26 +1821,35 @@ def _delta(value: float | None, unit: str = "") -> str:
     return f'<span class="delta {cls}">{text}</span>'
 
 
-def _timeline_block(ranked: list[ChoiceStat], graph: str, translate: Translate) -> str:
+def _timeline_block(
+    ranked: list[ChoiceStat], graph: str, translate: Translate, weight: Weight | None = None
+) -> str:
     """The collapsed timeline `<details>` for one Buildings/Units table: the x-axis and y-mode
     toggles, the empty containers the graph script draws into, and a JSON payload of every
     occurrence as (order seconds, that match's duration) - raw rather than pre-binned, so the
     client can rebin the same data for either axis and derive every y-mode (see `_GRAPH_SCRIPT`).
     Series ride in row order (`ranked` matches the table body), which is how each row's
     `data-series` index and swatch tie back to a line; labels go through `translate` so the
-    graph names what the table names. The note under the toggles describes the current y-mode
-    (the script rewrites it on toggle; the shipped text is share's, the default). `</` is
-    escaped inside the JSON so no label can close the script element early."""
+    graph names what the table names. With `weight` (the Units tables), every series also
+    carries its `cp` command-point weight - looked up by the pick's recorded label, before
+    `translate` - and the y-toggle gains the "CP share" mode that weighting enables. The note
+    under the toggles describes the current y-mode (the script rewrites it on toggle; the
+    shipped text is share's, the default). `</` is escaped inside the JSON so no label can
+    close the script element early."""
     payload = {
         "series": [
             {
                 "label": translate(choice.label),
                 "occ": [[round(t, 1), round(d, 1)] for t, d in choice.occurrences],
+                **({"cp": weight(choice.label)} if weight is not None else {}),
             }
             for choice in ranked
         ],
     }
     data = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
+    cp_button = (
+        '<button type="button" data-ymode="cpshare">CP share</button>' if weight is not None else ""
+    )
     return (
         f'<details class="timeline" data-graph="{graph}"><summary>Timeline '
         '<span class="rec">order timing across match length</span></summary>'
@@ -1803,6 +1859,7 @@ def _timeline_block(ranked: list[ChoiceStat], graph: str, translate: Translate) 
         '<button type="button" data-mode="abs">game clock</button></span>'
         '<span class="tl-toggle">'
         '<button type="button" class="on" data-ymode="share">share</button>'
+        f"{cp_button}"
         '<button type="button" data-ymode="lifecycle">lifecycle</button>'
         '<button type="button" data-ymode="count">count</button>'
         '<button type="button" data-ymode="cumulative">cumulative</button></span>'
@@ -1863,6 +1920,7 @@ def _html_table(
     graph_ids: Iterator[int] | None = None,
     graph_kind: str = "timeline",
     anchor: str | None = None,
+    weight: Weight | None = None,
 ) -> list[str]:
     """One pick-category table, titled at `heading` depth; empty when the table is. With a
     `base_table` (the faction's overall aggregate for this category) each row gains a `vs
@@ -1893,7 +1951,7 @@ def _html_table(
         lines.append(
             _heatmap_block(ranked, graph_id, translate)
             if heatmap
-            else _timeline_block(ranked, graph_id, translate)
+            else _timeline_block(ranked, graph_id, translate, weight)
         )
     master = ""
     if graph_id is not None and not heatmap:
@@ -1954,6 +2012,7 @@ def _html_tables(
     powers_heading: str = DEFAULT_POWERS_HEADING,
     graph_ids: Iterator[int] | None = None,
     section_anchors: bool = False,
+    weight: Weight | None = None,
 ) -> list[str]:
     """The pick-category tables of one aggregate, titled at `heading` (h3/h4) depth, with the
     tracked powers nested a heading level deeper under Units as `powers_heading` (their caster
@@ -1967,7 +2026,8 @@ def _html_tables(
     `render_aggregate_html`) gives the Buildings and Units sections their timeline graphs and the
     Sciences section its purchase-timing heatmap: each rendered graph draws a fresh id tying its
     rows (or, for the heatmap, just the graph itself) to its own chart, unique across every
-    faction and matchup block on the page."""
+    faction and matchup block on the page. `weight` (a label -> command-point lookup, see
+    `command_point_weights`) reaches only the Units timeline, giving it the "CP share" y-mode."""
     base_games = baseline.games if baseline is not None else 0
     lines: list[str] = []
     for title, attribute, column in _SECTIONS:
@@ -1989,6 +2049,9 @@ def _html_tables(
             graph_ids=graph_ids if attribute in ("buildings", "units", "sciences") else None,
             graph_kind="heatmap" if attribute == "sciences" else "timeline",
             anchor=anchor,
+            # Only the Units timeline weighs its series: command points are an army-cap
+            # cost, which structures don't occupy.
+            weight=weight if attribute == "units" else None,
         )
         if attribute == "heroes" and section:
             # Sit the extrapolation warning right under the Heroes heading (index 1, after the
@@ -2086,6 +2149,7 @@ def render_aggregate_html(
     index_href: str | None = None,
     powers_heading: str = DEFAULT_POWERS_HEADING,
     icon: FactionIcon | None = None,
+    weight: Weight | None = None,
 ) -> list[str]:
     """The same aggregation as one self-contained HTML page (no external assets, light/dark via
     `prefers-color-scheme`): per faction a stat-tile header and the pick-category tables
@@ -2102,7 +2166,10 @@ def render_aggregate_html(
     and matchup summaries. Every table's column headers sort client-side (`_SORT_SCRIPT`), every
     Buildings/Units table carries a collapsed timeline graph of order timing across match length
     (drawn by the embedded `_GRAPH_SCRIPT`; see its module comment and `_timeline_block` for the
-    graph's axis, y-mode, and denominator behavior), and every Sciences table carries a collapsed
+    graph's axis, y-mode, and denominator behavior; `weight`, a pick label -> command-point
+    lookup like `command_point_weights(data)`, adds the Units timelines' "CP share" y-mode,
+    weighting each series by the army-cap cost its orders occupy), and every Sciences table
+    carries a collapsed
     purchase-timing heatmap - one row per science shaded by when it tends to be bought (drawn by
     the embedded `_HEATMAP_SCRIPT`; see its module comment and `_heatmap_block`). A contents box
     heads the page: over the factions for a multi-faction report, or over the one faction's own
@@ -2154,6 +2221,7 @@ def render_aggregate_html(
                 powers_heading=powers_heading,
                 graph_ids=graph_ids,
                 section_anchors=single,
+                weight=weight,
             )
         )
         matchups = _ranked_matchups(agg)
@@ -2187,6 +2255,7 @@ def render_aggregate_html(
                     annotate=annotate,
                     powers_heading=powers_heading,
                     graph_ids=graph_ids,
+                    weight=weight,
                 )
             )
             lines.append("</div></details>")

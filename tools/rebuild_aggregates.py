@@ -137,6 +137,7 @@ from sage_replay.aggregate import (  # noqa: E402
     Corpus,
     _absorb,
     aggregate,
+    command_point_weights,
     patch_groups,
     render_aggregate_html,
     render_index_html,
@@ -311,19 +312,30 @@ def _collect_labels(factions) -> set[str]:
     return labels
 
 
-def _load_names(path: Path, labels: set[str]) -> tuple[dict[str, str], int]:
+def _load_names(
+    path: Path, labels: set[str], defaults: dict[str, str] | None = None
+) -> tuple[dict[str, str], int]:
     """Load the localisation map, adding a blank entry for any rendered code name it is
     missing, and rewrite it (sorted) so new names surface for hand-translation. Returns the
-    map and how many entries were newly added."""
+    map and how many entries were newly added. `defaults` seeds a missing or still-blank
+    entry's display string from the game's own data (an upgrade's localized DisplayName);
+    a hand-filled value always wins over it."""
     names: dict[str, str] = {}
     if path.exists():
         # utf-8-sig, not utf-8: the map is hand-edited, so a Windows editor or PowerShell
         # redirect that saved a UTF-8 BOM must not crash the build (rewritten below without one).
         names = json.loads(path.read_text(encoding="utf-8-sig"))
     before = len(names)
+    changed = False
     for label in labels:
-        names.setdefault(label, "")
-    if len(names) != before or not path.exists():
+        seeded = (defaults or {}).get(label, "")
+        if label not in names:
+            names[label] = seeded
+            changed = True
+        elif not names[label] and seeded:
+            names[label] = seeded
+            changed = True
+    if changed or not path.exists():
         text = json.dumps(names, ensure_ascii=False, indent=2, sort_keys=True)
         path.write_text(text + "\n", encoding="utf-8")
     return names, len(names) - before
@@ -339,6 +351,7 @@ def _write(
     annotate=None,
     index_href=None,
     icon=None,
+    weight=None,
 ) -> None:
     html = "\n".join(
         render_aggregate_html(
@@ -350,6 +363,7 @@ def _write(
             annotate=annotate,
             index_href=index_href,
             icon=icon,
+            weight=weight,
         )
     )
     path.write_text(html, encoding="utf-8")
@@ -937,6 +951,12 @@ def main(argv: list[str] | None = None) -> int:
     # uses to look up unit Sides for the advisory cross-faction badge.
     data = _current_game()
     side_of = data.effective_side
+    # The Units timelines' CP-share weights: pick label -> the template's CommandPoints,
+    # resolved against the currently mounted install like everything else in phase two.
+    weight = command_point_weights(data)
+    # Player-level upgrade researches (`Type = PLAYER` - armory tech, a clan pick) always earn
+    # Upgrades rows; the overlay's hand-tracked set extends them.
+    tracked_upgrades = tracked_upgrades | data.player_upgrades
     corpora, stale_warnings = _load_cached_corpora(data)
     cache_warnings.extend(stale_warnings)
     # Drop excluded slots (a neutral FactionCivilian) from every mode partition before the
@@ -988,8 +1008,10 @@ def main(argv: list[str] | None = None) -> int:
         faction_labels |= {enemy for agg in combined for enemy in agg.matchups}
         labels -= faction_labels
     # The corpus folder name is itself a translatable code name (its blank entry surfaces here
-    # like any pick label), so the whole corpus can be given a display name by hand.
-    names, added = _load_names(names_path, labels | {args.folder})
+    # like any pick label), so the whole corpus can be given a display name by hand. Tracked
+    # upgrade rows seed their display string from the upgrade's own DisplayName, so they never
+    # need hand-translation (a hand-filled entry still wins).
+    names, added = _load_names(names_path, labels | {args.folder}, data.upgrade_displaynames)
     untranslated = sum(1 for value in names.values() if not value)
     print(
         f"names: {len(names)} keys ({added} new, {untranslated} untranslated) -> {_rel(names_path)}"
@@ -1064,6 +1086,7 @@ def main(argv: list[str] | None = None) -> int:
             annotate=annotate,
             index_href=_index_href(combined_page),
             icon=root_icon,
+            weight=weight,
         )
 
         # One page per faction label, filtered to just that faction's player-games, with its
@@ -1090,6 +1113,7 @@ def main(argv: list[str] | None = None) -> int:
                 annotate,
                 index_href=_index_href(page),
                 icon=faction_icon,
+                weight=weight,
             )
 
         # The index sits at the tree root; its hrefs are relative to it, so the tree can move

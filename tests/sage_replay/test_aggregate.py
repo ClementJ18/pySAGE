@@ -21,6 +21,7 @@ from sage_replay.aggregate import (
     _timeline_block,
     aggregate,
     collect,
+    command_point_weights,
     patch_groups,
     player_games,
     render_aggregate,
@@ -30,7 +31,7 @@ from sage_replay.aggregate import (
     version_groups,
     version_labels,
 )
-from sage_replay.narrate import GameData
+from sage_replay.narrate import GameData, _command_points, _upgrade_tables
 from sage_replay.replay import (
     Order,
     OrderArgument,
@@ -657,7 +658,116 @@ def test_render_aggregate_html_timeline_graphs():
     assert "details.timeline" in text and 'class="tl-data"' in text
 
 
-def test_timeline_payload_escapes_early_script_close():
+class _game:
+    """The two members `_command_points` reads off a loaded Game: the object table and the
+    gamedata macro lookup (a non-macro token comes back unchanged, like the real one)."""
+
+    def __init__(self, objects: dict, macros: dict | None = None) -> None:
+        self.objects = objects
+        self._macros = macros or {}
+
+    def get_macro(self, token: str):
+        return self._macros.get(token, token)
+
+
+def test_command_points_resolution():
+    parent = _obj({"CommandPoints": "COMMAND_POINTS_INFANTRY_15_HORDE"})
+    child = _obj({})
+    child.parent = parent  # a ChildObject with no CommandPoints of its own
+    game = _game(
+        {
+            "PeasantHorde": parent,
+            "PeasantHorde_Variant": child,
+            "Hero": _obj({"CommandPoints": 90}),
+            "SummonHorde": _obj({"KindOf": "SELECTABLE"}),  # no CP anywhere in the chain
+            "Broken": _obj({"CommandPoints": "NOT_A_DEFINED_MACRO"}),
+        },
+        macros={"COMMAND_POINTS_INFANTRY_15_HORDE": 15},
+    )
+    assert _command_points(game, "PeasantHorde") == 15  # macro-resolved
+    assert _command_points(game, "PeasantHorde_Variant") == 15  # inherited through the chain
+    assert _command_points(game, "Hero") == 90  # a literal value
+    assert _command_points(game, "SummonHorde") is None
+    assert _command_points(game, "Broken") is None  # an unresolvable token, not a crash
+    assert _command_points(game, "Missing") is None
+
+
+def test_upgrade_tables():
+    upgrades = {
+        "Upgrade_Tech": _obj({"Type": "PLAYER", "DisplayName": "UPGRADE:Tech"}),
+        "Upgrade_Gear": _obj({"Type": "OBJECT", "DisplayName": "UPGRADE:Gear"}),
+        "Upgrade_Repeated": _obj({"Type": ["OBJECT", "PLAYER"]}),  # a repeated field: last wins
+        "Upgrade_Placeholder": _obj({}),  # no Type at all: never a player research
+        "Upgrade_Unstrung": _obj({"Type": "player", "DisplayName": "UPGRADE:Missing"}),
+    }
+    strings = {"UPGRADE:TECH": "Steel Weapons", "UPGRADE:GEAR": "Forged Blades"}
+    player, displaynames = _upgrade_tables(upgrades, strings)
+    # Type matches case-insensitively; only an explicit PLAYER joins the tracked-by-default set.
+    assert player == {"Upgrade_Tech", "Upgrade_Repeated", "Upgrade_Unstrung"}
+    # DisplayNames resolve for every upgrade the string table covers, whatever its Type, and
+    # independently of the localize flag - the aggregate names flow seeds display strings here.
+    assert displaynames == {"Upgrade_Tech": "Steel Weapons", "Upgrade_Gear": "Forged Blades"}
+
+
+def test_command_point_weights():
+    data = GameData(
+        object_order=[],
+        objects={},
+        specialpowers=[],
+        sciences=[],
+        upgrades=[],
+        displaynames={"TwinA": "Twin", "TwinB": "Twin"},
+        faction_labels=[],
+        command_points={"PeasantHorde": 15, "FreeSummon": 0, "TwinA": 30, "TwinB": 45},
+    )
+    weight = command_point_weights(data)
+    assert weight("PeasantHorde") == 15
+    assert weight("FreeSummon") == 0  # weightless, not missing
+    assert weight("Twin") == 45  # two templates behind one display label: the largest CP wins
+    assert weight("<object id 7?>") == 0
+
+
+def test_units_timeline_cp_share_mode():
+    data = GameData(
+        object_order=["Barracks", "Peasant"],
+        objects={
+            "Barracks": _obj({"KindOf": "STRUCTURE SELECTABLE"}),
+            "Peasant": _obj({"KindOf": "SELECTABLE"}),
+        },
+        specialpowers=[],
+        sciences=[],
+        upgrades=[],
+        displaynames={},
+        faction_labels=["Rohan", "Isengard"],
+        command_points={"Peasant": 20},
+    )
+    replay = _replay(
+        [
+            _chunk(0x419, [(_T.Integer, 1)], timecode=5),
+            _recruit(2, timecode=10),
+            _chunk(0x448, [(_T.Boolean, True)], timecode=30, number=4),  # Player1 concedes
+            _chunk(0x44A, [], timecode=60),
+        ]
+    )
+    games = list(player_games(replay, data))
+    corpus = Corpus(games=games, replays=1)
+    factions = aggregate(games)
+    # Without a weight hook the y-toggle stays as before - no CP-share button anywhere
+    # (the script always ships the mode; only the button and the weights gate it).
+    plain = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+    assert 'data-ymode="cpshare"' not in plain
+    text = "\n".join(
+        render_aggregate_html(corpus, factions, title="T", weight=command_point_weights(data))
+    )
+    # Only the Units timeline gains the mode and its per-series cp weight; the Buildings
+    # timeline on the same page stays unweighted (structures occupy no command points).
+    assert text.count('<button type="button" data-ymode="cpshare">CP share</button>') == 1
+    assert text.count('"cp":') == 1
+    assert '"label":"Peasant","occ":[[10.0,60.0]],"cp":20' in text
+    # The mode ships its note text and tooltip readout with the graph script (the note
+    # lives only in the script's NOTES map, apostrophe still JS-escaped).
+    assert "share of visible series\\' command points per bin" in text
+    assert "of CP spent" in text
     # A label containing `</script>` must not close the payload element early: the block's
     # only `</script>` is its own closing tag, and the payload still parses as JSON (the
     # escaped `<\/` is a legal JSON escape for `/`).

@@ -134,6 +134,18 @@ class GameData:
     # Template name -> its `BuildTime` in seconds (macro-resolved) - every template that
     # carries one, so heroes that only a map's roster names still field on schedule.
     hero_build_times: dict[str, float] = field(default_factory=dict)
+    # Template name -> its effective `CommandPoints` (macro-resolved, inherited through the
+    # ChildObject parent chain) - the army-cap cost one fielded instance occupies, behind the
+    # aggregate's CP-share weights (`aggregate.command_point_weights`).
+    command_points: dict[str, int] = field(default_factory=dict)
+    # Upgrade code names whose `Type = PLAYER` - the faction-wide researches (armory tech, a
+    # clan pick), as opposed to the per-battalion OBJECT gear purchases that dominate the raw
+    # `0x415` research stream. The aggregate paths track exactly this set by default.
+    player_upgrades: frozenset[str] = frozenset()
+    # Upgrade code name -> its localized DisplayName, populated regardless of `localize`
+    # (unlike `displaynames`) - so the aggregate's names flow can pre-fill a tracked upgrade's
+    # display string from the game's own string table without a localized load.
+    upgrade_displaynames: dict[str, str] = field(default_factory=dict)
     # PlayerTemplate raw code names in registration order (parallel to `faction_labels`,
     # which may be localized) - the key a map.ini's re-opened PlayerTemplate matches on.
     faction_names: list[str] = field(default_factory=list)
@@ -225,10 +237,16 @@ class GameData:
             for _, template in game.factions.items()
         ]
         hero_build_times: dict[str, float] = {}
+        command_points: dict[str, int] = {}
         for name in game.objects:
             seconds = _build_seconds(game, name)
             if seconds is not None:
                 hero_build_times[name] = seconds
+            cp = _command_points(game, name)
+            if cp is not None:
+                command_points[name] = cp
+
+        player_upgrades, upgrade_displaynames = _upgrade_tables(game.upgrades, strings)
 
         return cls(
             object_order=thing_template_order(root, bases=tuple(bases)),
@@ -238,7 +256,7 @@ class GameData:
             upgrades=list(game.upgrades),
             # With `localize`, objects and upgrades carry a localized DisplayName (special powers
             # and sciences never do); otherwise every lookup falls back to the raw code name.
-            displaynames={**localized(game.objects), **localized(game.upgrades)},
+            displaynames={**localized(game.objects), **(upgrade_displaynames if localize else {})},
             # A faction's localized DisplayName ("Misty Mountains") under `localize`, else its raw
             # PlayerTemplate code name ("FactionWild") - in registration order.
             faction_labels=[faction_names.get(name, name) for name, _ in game.factions.items()],
@@ -249,6 +267,9 @@ class GameData:
             castle_bases=castle_bases,
             hero_rosters=hero_rosters,
             hero_build_times=hero_build_times,
+            command_points=command_points,
+            player_upgrades=player_upgrades,
+            upgrade_displaynames=upgrade_displaynames,
             faction_names=[name for name, _ in game.factions.items()],
             map_sources=sources,
             # A map loaded via `load_map` already baked its overrides into `hero_rosters`.
@@ -427,6 +448,46 @@ def _build_seconds(game: Game, name: str) -> float | None:
         return float(str(game.get_macro(token)).split()[0])
     except (ValueError, TypeError, IndexError):
         return None
+
+
+def _command_points(game: Game, name: str) -> int | None:
+    """A template's effective `CommandPoints`, macro-resolved (hordes carry theirs as gamedata
+    macros - `CommandPoints = COMMAND_POINTS_INFANTRY_15_HORDE`): the nearest explicit value
+    up the `ChildObject` parent chain (a child's own value overrides its parent's; a repeated
+    field keeps the last line, matching the engine's last-wins read). None when no template in
+    the chain declares one or the value doesn't resolve to a number."""
+    obj = game.objects.get(name)
+    while obj is not None:
+        raw = obj._fields.get("CommandPoints")
+        if raw is not None:
+            token = str(raw[-1] if isinstance(raw, list) else raw).split()[0]
+            try:
+                return int(float(str(game.get_macro(token)).split()[0]))
+            except (ValueError, TypeError, IndexError):
+                return None
+        obj = getattr(obj, "parent", None)
+    return None
+
+
+def _upgrade_tables(
+    upgrades: Mapping[str, IniObject], strings: Mapping[str, str]
+) -> tuple[frozenset[str], dict[str, str]]:
+    """Two views over the game's upgrade table: the code names whose `Type` is PLAYER (the
+    faction-wide researches - armory tech, a clan pick - as opposed to the per-battalion
+    OBJECT gear purchases; a repeated Type keeps the last line, and a def that omits it stays
+    out), and every upgrade's localized DisplayName where the string table (keyed by
+    upper-cased label) resolves one."""
+    player: set[str] = set()
+    displaynames: dict[str, str] = {}
+    for name, upgrade in upgrades.items():
+        raw = upgrade._fields.get("Type")
+        value = raw[-1] if isinstance(raw, list) else raw
+        if str(value or "").strip().upper() == "PLAYER":
+            player.add(name)
+        key = upgrade._fields.get("DisplayName")
+        if isinstance(key, str) and key.upper() in strings:
+            displaynames[name] = strings[key.upper()]
+    return frozenset(player), displaynames
 
 
 def revive_resolver(

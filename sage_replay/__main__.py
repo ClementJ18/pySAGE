@@ -66,6 +66,7 @@ from sage_replay.aggregate import (
     DEFAULT_POWERS_HEADING,
     aggregate,
     collect,
+    command_point_weights,
     patch_groups,
     render_aggregate,
     render_aggregate_html,
@@ -538,7 +539,9 @@ def _run_aggregate(args: argparse.Namespace) -> int:
     if args.player is not None:
         needle = args.player.lower()
         corpus.games = [g for g in corpus.games if needle in g.player.lower()]
-    tracked = args.tracked_upgrades | frozenset(args.track_upgrade or [])
+    # Player-level researches (`Type = PLAYER` - armory tech, a clan pick) always earn rows;
+    # the per-battalion OBJECT gear purchases stay out unless explicitly tracked.
+    tracked = data.player_upgrades | args.tracked_upgrades | frozenset(args.track_upgrade or [])
     purchases = args.tracked_purchases | frozenset(args.track_purchase or [])
     powers = args.tracked_powers | frozenset(args.track_power or [])
     factions = aggregate(
@@ -569,7 +572,13 @@ def _run_aggregate(args: argparse.Namespace) -> int:
         }
         print(json.dumps(payload, indent=2))
     elif args.html:
-        for line in render_aggregate_html(corpus, factions, powers_heading=args.powers_heading):
+        html = render_aggregate_html(
+            corpus,
+            factions,
+            powers_heading=args.powers_heading,
+            weight=command_point_weights(data),
+        )
+        for line in html:
             print(line)
     else:
         render = render_aggregate_markdown if args.markdown else render_aggregate
@@ -594,8 +603,10 @@ def add_aggregate_command(
     upgrade_recruits=None,
     ignore_recruits: frozenset[str] = frozenset(),
 ) -> argparse.ArgumentParser:
-    """Register the corpus-aggregate subcommand on an argparse `subparsers`. A mod overlay
-    that knows which upgrade researches deserve a pick-rate row, which system purchases
+    """Register the corpus-aggregate subcommand on an argparse `subparsers`. Player-level
+    upgrade researches (`Type = PLAYER` in the loaded game - see `GameData.player_upgrades`)
+    always earn Upgrades rows. A mod overlay that knows which further upgrade researches
+    deserve a pick-rate row, which system purchases
     are depth-comparable, and which special powers are worth a row registers the same command
     on its own CLI with its `tracked_upgrades` / `tracked_purchases` / `tracked_powers`
     injected (sage_edain's `replay-aggregate`); `--track-upgrade` / `--track-purchase` /
@@ -649,7 +660,8 @@ def add_aggregate_command(
         metavar="NAME",
         default=None,
         help="report this upgrade's researches in the Upgrades pick tables (raw ini code "
-        "name; repeatable, extends the command's built-in tracked set)",
+        "name; repeatable). Upgrades whose Type is PLAYER are always tracked; this extends "
+        "them (e.g. with a per-battalion OBJECT purchase)",
     )
     parser.add_argument(
         "--track-purchase",
