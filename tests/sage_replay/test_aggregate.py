@@ -2,6 +2,7 @@
 pick tables with win-loss records and first-purchase timings. Synthetic GameData and
 chunks - no game install needed - plus the fixture-backed patch-fingerprint gate."""
 
+import argparse
 import json
 import re
 from datetime import UTC, datetime
@@ -9,12 +10,16 @@ from pathlib import Path
 
 import pytest
 
-from sage_replay.__main__ import main
+from sage_replay import build_orders
+from sage_replay.__main__ import add_aggregate_command, main
 from sage_replay.aggregate import (
+    _BUILD_MIN_GAMES,
+    _SCIENCE_LINE_MIN_SHARE,
     UNRESOLVED_FACTION,
     ChoiceStat,
     Corpus,
     FactionAggregate,
+    PlayerGame,
     _faction_summary,
     _heatmap_block,
     _html_tiles,
@@ -45,6 +50,7 @@ from sage_replay.replay import (
     ReplaySlotType,
     ReplayTimestamp,
 )
+from sage_replay.stats import PlayerStats, StatEvent
 from sage_replay.winner import infer_winner
 
 _T = OrderArgumentType
@@ -627,8 +633,9 @@ def test_render_aggregate_html_timeline_graphs():
     # Sciences heatmaps claim ids before any Buildings timeline: factions render alphabetically
     # when tied on games (Isengard before Rohan), and Isengard never builds anything, so its
     # top-level and matchup Sciences heatmaps (g0, g1) are the only graphs it draws. Rohan's
-    # top-level block then draws its own Sciences heatmap (g2) before its Buildings timeline
-    # (g3), and its matchup block repeats the pair (g4, g5).
+    # top-level block then draws its Sciences heatmap (g2), its Buildings timeline (g3), and the
+    # Other-purchases heatmap over its untracked CPBounty buys (g4); its matchup block repeats
+    # the trio (g5, g6, g7).
     assert '<details class="timeline" data-graph="g3">' in text
     assert '<details class="timeline" open' not in text
     assert 'data-mode="pct"' in text and 'data-mode="abs"' in text
@@ -646,10 +653,10 @@ def test_render_aggregate_html_timeline_graphs():
     assert 'data-graph="g3" data-series="0"' in text
     assert '<input type="checkbox" checked' in text
     # The label header carries the select-all, one per timeline graph (never for a heatmap).
-    assert 'data-graph-all="g3"' in text and 'data-graph-all="g5"' in text
+    assert 'data-graph-all="g3"' in text and 'data-graph-all="g6"' in text
     # The matchup sub-table's graph draws its own id, so its checkboxes never cross-wire
     # with the faction-level graph over the same picks.
-    assert 'data-graph="g5"' in text
+    assert '<details class="timeline" data-graph="g6">' in text
     # Sections without a timeline stay checkbox-free: the fortress-hero row (Heroes) and the
     # science rows carry plain label cells (Sciences gets a heatmap, not a per-row checkbox).
     assert "<td>fortress hero (command slot 2)</td>" in text
@@ -800,6 +807,34 @@ def test_render_aggregate_html_science_heatmap():
     assert "details.heatmap" in text
 
 
+def test_render_aggregate_html_upgrade_and_purchase_heatmaps():
+    data = _data()
+    games = [g for r in (_REPLAY_A, _REPLAY_B) for g in player_games(r, data)]
+    factions = aggregate(
+        games, tracked_upgrades=_TRACKED, tracked_purchases=frozenset({"CPBounty"})
+    )
+    rohan = next(a for a in factions if a.faction == "Rohan")
+    # Upgrades and tracked `other` purchases collect heatmap occurrences like sciences do: the
+    # tracked research keeps its clock, and each depth-numbered CPBounty row carries exactly its
+    # own instance's clock (one per game by construction). None of it leaks into the JSON dump.
+    assert rohan.upgrades["Upgrade_Economy"].occurrences == [(15.0, 60.0)]
+    assert rohan.other["CPBounty1"].occurrences == [(7.0, 60.0)]
+    assert rohan.other["CPBounty2"].occurrences == [(40.0, 60.0)]
+    assert "occurrences" not in rohan.other["CPBounty1"].to_dict()
+
+    corpus = Corpus(games=games, replays=2)
+    text = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+    # Both sections draw purchase-timing heatmaps, each under its own summary blurb, and the
+    # depth rows ride the payload as their own series.
+    assert "when each upgrade is researched across match length" in text
+    assert "when each purchase is made across match length" in text
+    payloads = [
+        json.loads(chunk.split("</script>", 1)[0]) for chunk in text.split('class="hm-data">')[1:]
+    ]
+    labels = {s["label"] for payload in payloads for s in payload["series"]}
+    assert {"Upgrade_Economy", "CPBounty1", "CPBounty2"} <= labels
+
+
 def test_science_rows_carry_no_series_key():
     data = _data()
     games = [g for r in (_REPLAY_A, _REPLAY_B) for g in player_games(r, data)]
@@ -822,7 +857,7 @@ def test_heatmap_payload_escapes_early_script_close():
     # is still a legal JSON escape for `/`.
     choice = ChoiceStat(label="Evil</script>x")
     choice.occurrences.append((1.0, 60.0))
-    block = _heatmap_block([choice], "g9", lambda label: label)
+    block = _heatmap_block([choice], "g9", lambda label: label, "when each science is bought")
     payload = block.split('class="hm-data">', 1)[1].split("</script>", 1)[0]
     assert json.loads(payload)["series"][0]["label"] == "Evil</script>x"
 
@@ -981,6 +1016,620 @@ def test_translate_maps_code_names_to_display_strings():
     # Without a translate, labels stay as raw code names (default identity).
     plain = "\n".join(render_aggregate_html(corpus, factions, title="T"))
     assert '<h2 id="f-rohan">Rohan</h2>' in plain and ">Barracks</td>" in plain
+
+
+def _bo_game(faction, outcome, steps, *, opponents=("Isengard",), duration=300.0):
+    """A PlayerGame carrying a hand-built stats timeline, so a build-order tree can be exercised
+    without threading a whole synthetic replay per game. `steps` is (seconds, category, label)."""
+    events = [StatEvent(seconds, category, label) for seconds, category, label in steps]
+    return PlayerGame(
+        replay="r",
+        player="p",
+        faction=faction,
+        outcome=outcome,
+        duration=duration,
+        stats=PlayerStats(player="p", events=events),
+        opponents=opponents,
+    )
+
+
+# A common Rohan opening (Farm x2 -> Barracks -> Haldir) plus a rare divergent one that must be
+# pruned. The Farm run-length-encodes to one step of count 2; the rare Smithy game holds the
+# whole faction just above the share floor while staying under `_BUILD_MIN_GAMES`.
+def _rohan_build_games():
+    games = []
+    for i in range(4):
+        games.append(
+            _bo_game(
+                "Rohan",
+                "won" if i < 3 else "lost",
+                [
+                    (5, "buildings", "Farm"),
+                    (20, "buildings", "Farm"),
+                    (40, "buildings", "Barracks"),
+                    (250, "heroes", "Haldir"),
+                ],
+            )
+        )
+    games.append(_bo_game("Rohan", "won", [(5, "buildings", "Smithy")]))
+    return games
+
+
+def test_build_orders_tree_root_counts_and_prune():
+    games = _rohan_build_games()
+    rohan = {a.faction: a for a in aggregate(games)}["Rohan"]
+    tree = rohan.build_orders
+    assert tree is not None
+    # The root counts every inserted game (the four common + the one rare), so a top-level
+    # child's share is a share of the whole faction.
+    assert tree.games == 5
+    # The earliest step of every kept opening is the RLE'd Farm (count 2), surviving the prune;
+    # the rare Smithy branch (1 game < _BUILD_MIN_GAMES) is dropped.
+    assert ("buildings", "Farm") in tree.children
+    assert ("buildings", "Smithy") not in tree.children
+    farm = tree.children[("buildings", "Farm")]
+    assert (farm.games, farm.median_count) == (4, 2)
+    assert ("buildings", "Barracks") in farm.children
+    # openings reads the top path back out, leaf last.
+    top = build_orders.openings(tree, limit=8)[0]
+    assert [n.label for n in top] == ["Farm", "Barracks", "Haldir"]
+    assert top[-1].games == 4
+    assert _BUILD_MIN_GAMES == 3
+
+
+def test_build_orders_render_all_formats_and_matchups():
+    games = _rohan_build_games()
+    corpus = Corpus(games=games, replays=5)
+    factions = aggregate(games, matchups=True)
+    rohan = {a.faction: a for a in factions}["Rohan"]
+    # matchups=True gives each matchup sub-aggregate its own tree.
+    assert rohan.matchups["Isengard"].build_orders is not None
+    assert rohan.matchups["Isengard"].build_orders.children
+
+    text = "\n".join(render_aggregate(corpus, factions))
+    assert "Build orders  (games - won-lost - win% - ~complete):" in text
+    assert "Farm x2 -> Barracks -> Haldir" in text
+
+    markdown = "\n".join(render_aggregate_markdown(corpus, factions))
+    assert "### Build orders" in markdown
+    assert "| Build order | Games | W-L | Win % | ~Complete |" in markdown
+    assert "Farm x2 -> Barracks -> Haldir" in markdown
+
+    # An `extra` (the per-faction replay list) so the build-order placement can be checked:
+    # single faction -> the section carries its anchor, and it sits after the matchups and just
+    # above the replays rather than leading the block.
+    extra = lambda agg: ['<h3 id="replays">Replays</h3>']  # noqa: E731
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T", extra=extra))
+    assert '<h3 id="sec-buildorders">Build orders</h3>' in html
+    assert '<a href="#sec-buildorders">Build orders</a>' in html
+    assert "Farm &times;2 &rarr; Barracks &rarr; Haldir" in html
+    # Build orders now follow the pick sections and the matchups, and lead the replay list.
+    assert html.index('id="sec-heroes"') < html.index('id="sec-buildorders"')
+    assert html.index('id="matchups"') < html.index('id="sec-buildorders"')
+    assert html.index('id="sec-buildorders"') < html.index('id="replays"')
+    # A hero step in the tree pulls in the build-order variant of the extrapolation caveat
+    # (scoped to hero steps, not the Heroes table's whole-section wording) right under the
+    # faction's own heading - check within its section, since a matchup sub-block carries the
+    # same note earlier on the page.
+    own_section = html[html.index('id="sec-buildorders"') :]
+    assert "Hero steps are extrapolated" in own_section
+    # The Explorer ships its translated payload and the drawing script.
+    assert '<details class="botree">' in html
+    assert 'class="bo-data"' in html
+    assert "details.botree" in html
+
+
+def test_build_orders_science_annotates_leaf_and_renders_sciences_line():
+    # Games differ only in *when* they bought the science; sciences never fork the eco tree, so
+    # all five fold into one shared opening, and the leaf's science annotations aggregate the
+    # differing clocks (median 20.0) for the text renderer's second line.
+    science_clocks = [2.0, 15.0, 20.0, 25.0, 100.0]  # median 20.0
+    games = [
+        _bo_game(
+            "Rohan",
+            "won",
+            [
+                (5.0, "buildings", "Farm"),
+                (sci_seconds, "sciences", "SCIENCE_A"),
+                (40.0, "buildings", "Barracks"),
+            ],
+        )
+        for sci_seconds in science_clocks
+    ]
+    corpus = Corpus(games=games, replays=len(games))
+    factions = aggregate(games)
+    rohan = {a.faction: a for a in factions}["Rohan"]
+    tree = rohan.build_orders
+    assert tree is not None
+
+    top = build_orders.openings(tree, limit=8)
+    assert len(top) == 1  # one shared eco opening - science never forks the tree
+    assert [n.label for n in top[0]] == ["Farm", "Barracks"]  # eco-only path
+    leaf = top[0][-1]
+    assert leaf.games == len(games)
+    assert leaf.sciences_taken["SCIENCE_A"] == science_clocks
+
+    text = "\n".join(render_aggregate(corpus, factions))
+    assert "Farm -> Barracks" in text
+    assert "sciences: SCIENCE_A (0:20, 100%)" in text
+
+
+def test_build_orders_html_payload_translates_labels():
+    games = _rohan_build_games()
+    corpus = Corpus(games=games, replays=5)
+    factions = aggregate(games)
+    names = {"Farm": "Farmstead", "Barracks": "Barracks Hall"}
+    translate = lambda code: names.get(code) or code  # noqa: E731
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T", translate=translate))
+    payload = html.split('class="bo-data">', 1)[1].split("</script>", 1)[0]
+    data = json.loads(payload)
+    # The payload is the root; its first child is the translated Farm step.
+    labels = {child["label"] for child in data["children"]}
+    assert "Farmstead" in labels
+    assert data["games"] == 5  # the root still counts every inserted game after the prune
+
+
+def test_build_orders_icicle_renders():
+    games = _rohan_build_games()
+    corpus = Corpus(games=games, replays=5)
+    factions = aggregate(games, matchups=True)
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+    # The build-order section leads with an icicle: a wrapper, its SVG host, and a JSON payload.
+    assert 'class="bo-ice-wrap"' in html
+    assert 'class="bo-ice"' in html
+    assert 'class="ice-data"' in html
+    # The drawing script ships exactly once (its `.bo-ice-wrap` querySelector marker) and renders
+    # lazily as each wrap scrolls into view.
+    assert html.count("querySelectorAll('.bo-ice-wrap')") == 1
+    assert "IntersectionObserver" in html
+    # The icicle is the section headline: it precedes the openings table within the section.
+    section = html[html.index(">Build orders</") :]
+    assert section.index('class="bo-ice-wrap"') < section.index("<th>Build order</th>")
+
+
+def test_build_orders_icicle_legend_names_every_category():
+    games = _rohan_build_games()
+    corpus = Corpus(games=games, replays=5)
+    factions = aggregate(games, matchups=True)
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+    # Rohan's own tree plus its Isengard matchup each carry an icicle, each with its own legend
+    # and its own science readout box.
+    assert html.count('class="bo-ice-wrap"') >= 2
+    assert html.count('class="bo-ice-wrap"') == html.count('class="ice-legend"')
+    assert html.count('class="bo-ice-wrap"') == html.count('class="ice-sci"')
+    assert "hover a step for its sciences" in html
+    # Every legend names exactly the three eco categories, in tree order, each swatch tied to its
+    # slot - the tree is eco-only, so sciences never earn a box, a slot, or a legend entry.
+    for chunk in html.split('class="ice-legend"')[1:]:
+        legend = chunk.split("</div>", 1)[0]
+        assert legend.index("--s1") < legend.index("--s2") < legend.index("--s3")
+        assert "buildings" in legend
+        assert "units" in legend
+        assert "heroes" in legend
+        assert "sciences" not in legend
+        assert "--s5" not in legend
+
+
+def test_build_orders_icicle_payload_translates_labels():
+    games = _rohan_build_games()
+    corpus = Corpus(games=games, replays=5)
+    factions = aggregate(games)
+    names = {"Farm": "Farmstead", "Barracks": "Barracks Hall"}
+    translate = lambda code: names.get(code) or code  # noqa: E731
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T", translate=translate))
+    payload = html.split('class="ice-data">', 1)[1].split("</script>", 1)[0]
+    data = json.loads(payload)
+    labels = {child["label"] for child in data["children"]}
+    assert "Farmstead" in labels
+    assert data["games"] == 5
+    # The faction's own icicle is non-diff: no top-level `diff` flag, no per-node `base_share`.
+    assert "diff" not in data
+    assert all("base_share" not in child for child in data["children"])
+
+
+def _diverging_matchup_games():
+    """Rohan opening Farm -> Barracks against Isengard (40 games) but the rare Smithy -> Rider
+    against Mordor (4 games): the Smithy opening is too rare in the faction overall to survive its
+    prune (4 < 0.10 * 44), so vs Mordor it reads as NEW, while vs Isengard the shared Farm opening
+    reads as a share delta against the overall."""
+    games = []
+    for i in range(40):
+        games.append(
+            _bo_game(
+                "Rohan",
+                "won" if i % 2 else "lost",
+                [(5, "buildings", "Farm"), (40, "buildings", "Barracks")],
+                opponents=("Isengard",),
+            )
+        )
+    for _ in range(4):
+        games.append(
+            _bo_game(
+                "Rohan",
+                "won",
+                [(5, "buildings", "Smithy"), (30, "units", "Rider")],
+                opponents=("Mordor",),
+            )
+        )
+    return games
+
+
+def test_build_orders_matchup_diff():
+    games = _diverging_matchup_games()
+    corpus = Corpus(games=games, replays=44)
+    factions = aggregate(games, matchups=True)
+    rohan = {a.faction: a for a in factions}["Rohan"]
+    # The overall tree kept only the common Farm opening; the rare Smithy is pruned there but
+    # survives inside its own matchup.
+    assert rohan.build_orders is not None
+    assert ("buildings", "Farm") in rohan.build_orders.children
+    assert ("buildings", "Smithy") not in rohan.build_orders.children
+
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+    body = html.split("</main>", 1)[0]  # exclude the appended scripts (which carry literal markup)
+
+    # A matchup build-order openings table carries a `vs overall` column (its own header wording,
+    # distinct from the pick tables'); the faction's own build-order table does not.
+    bo_vs = (
+        '~Complete</th><th title="opening share vs the faction overall, in points">vs overall</th>'
+    )
+    assert bo_vs in body
+    assert "<th>Win rate</th><th>~Complete</th></tr></thead>" in body  # the own (non-diff) table
+    # vs Mordor's Smithy opening is absent overall -> a NEW badge; vs Isengard's Farm opening is
+    # shared -> a `_delta`-classed cell.
+    assert '<span class="badge">NEW</span>' in body
+    assert 'class="delta' in body
+
+    # The matchup icicle/Explorer payloads diff (top-level flag) and carry a `base_share` on a
+    # node whose path is shared with the overall (vs Isengard's Farm); the faction's own payload
+    # is non-diff.
+    ice = [chunk.split("</script>", 1)[0] for chunk in html.split('class="ice-data">')[1:]]
+    payloads = [json.loads(p) for p in ice]
+    diffed = [p for p in payloads if p.get("diff")]
+    own = [p for p in payloads if not p.get("diff")]
+    assert diffed and own
+
+    def has_base_share(node):
+        if node.get("base_share") is not None:
+            return True
+        return any(has_base_share(child) for child in node["children"])
+
+    assert any(has_base_share(p) for p in diffed)
+    for p in own:
+        assert all("base_share" not in child for child in p["children"])
+
+
+def test_build_depth_zero_disables_section():
+    games = _rohan_build_games()
+    corpus = Corpus(games=games, replays=5)
+    factions = aggregate(games, build_depth=0, matchups=True)
+    rohan = {a.faction: a for a in factions}["Rohan"]
+    assert rohan.build_orders is None
+    assert rohan.matchups["Isengard"].build_orders is None
+    assert rohan.to_dict()["build_orders"] is None
+    assert "Build orders" not in "\n".join(render_aggregate(corpus, factions))
+    assert "Build orders" not in "\n".join(render_aggregate_markdown(corpus, factions))
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+    assert "sec-buildorders" not in html
+    assert 'class="bo-data"' not in html
+    assert '<details class="botree">' not in html
+    # The icicle goes with it: no rendered wrapper or payload (the drawing script, keyed off
+    # `.bo-ice-wrap`, still ships but finds nothing to draw).
+    assert 'class="bo-ice-wrap"' not in html
+    assert 'class="ice-data"' not in html
+
+
+def test_build_orders_to_dict_roundtrips():
+    games = _rohan_build_games()
+    rohan = {a.faction: a for a in aggregate(games, matchups=True)}["Rohan"]
+    payload = rohan.to_dict()["build_orders"]
+    assert payload is not None
+    assert payload["games"] == 5
+    assert any(child["label"] == "Farm" for child in payload["children"])
+    # A matchup sub-aggregate carries its own nested tree in its own to_dict.
+    assert rohan.to_dict()["matchups"]["Isengard"]["build_orders"] is not None
+
+
+def _rohan_science_games():
+    """4 games with a common eco opening (Farm -> Barracks -> Haldir) that also buys SCIENCE_A,
+    one game with a rare eco opening (Smithy) and no science purchases at all, and one game on
+    that same rare eco opening with a science - so a game whose eco path gets pruned still
+    annotates every node that path visited before pruning drops it, taking those annotations
+    (here, one too rare to itself survive) along with the branch."""
+    games = []
+    for i in range(4):
+        games.append(
+            _bo_game(
+                "Rohan",
+                "won" if i < 3 else "lost",
+                [
+                    (5, "buildings", "Farm"),
+                    (40, "buildings", "Barracks"),
+                    (60, "sciences", "SCIENCE_A"),
+                    (250, "heroes", "Haldir"),
+                ],
+            )
+        )
+    games.append(_bo_game("Rohan", "won", [(5, "buildings", "Smithy")]))  # no science at all
+    games.append(
+        _bo_game("Rohan", "won", [(5, "buildings", "Smithy"), (10, "sciences", "SCIENCE_RARE")])
+    )
+    return games
+
+
+def test_build_orders_science_annotation_survives_prune_and_root_never_annotated():
+    games = _rohan_science_games()
+    rohan = {a.faction: a for a in aggregate(games, matchups=True)}["Rohan"]
+    tree = rohan.build_orders
+    assert tree is not None
+    # The root counts every inserted game, including the two on the pruned Smithy opening, but
+    # is never itself annotated.
+    assert tree.games == 6
+    assert tree.sciences_taken == {}
+    # The rare Smithy eco branch (2 games < _BUILD_MIN_GAMES) does not survive pruning.
+    assert ("buildings", "Smithy") not in tree.children
+
+    farm = tree.children[("buildings", "Farm")]
+    barracks = farm.children[("buildings", "Barracks")]
+    haldir = barracks.children[("heroes", "Haldir")]
+    # SCIENCE_A rides as an annotation on every node its own games' eco path visits, including
+    # the leaf (Haldir) - one clock per game, all 4 games sharing the same 60.0s purchase.
+    assert haldir.sciences_taken["SCIENCE_A"] == [60.0, 60.0, 60.0, 60.0]
+    assert haldir.sciences_by_step["SCIENCE_A"] == [60.0, 60.0, 60.0, 60.0]  # by Haldir's own clock
+    assert farm.sciences_taken["SCIENCE_A"] == [60.0, 60.0, 60.0, 60.0]
+    assert "SCIENCE_A" not in farm.sciences_by_step  # not yet bought by Farm's own step clock (5.0)
+
+    # SCIENCE_RARE only ever rode the pruned Smithy branch, so it never survives anywhere in the
+    # tree - the pruned branch takes its own annotations along with it.
+    def _walk(node: build_orders.BuildNode) -> None:
+        assert "SCIENCE_RARE" not in node.sciences_taken
+        assert "SCIENCE_RARE" not in node.sciences_by_step
+        for child in node.children.values():
+            _walk(child)
+
+    _walk(tree)
+
+    # matchups=True gives each matchup sub-aggregate its own annotated tree too.
+    assert rohan.matchups["Isengard"].build_orders is not None
+    assert rohan.matchups["Isengard"].build_orders.children
+
+    assert "science_orders" not in rohan.to_dict()
+
+
+# 5 identical games: Farm -> SCIENCE_A -> Barracks by clock, all sharing the same short eco
+# prefix and science pick, so the eco tree stays a single Farm -> Barracks branch and SCIENCE_A
+# annotates both nodes (bought after Farm's own clock, before Barracks's).
+def _science_suffix_games():
+    return [
+        _bo_game(
+            "Rohan",
+            "won",
+            [
+                (5.0, "buildings", "Farm"),
+                (20.0, "sciences", "SCIENCE_A"),
+                (40.0, "buildings", "Barracks"),
+            ],
+        )
+        for _ in range(5)
+    ]
+
+
+def test_no_science_paths_heading_anywhere():
+    games = _rohan_science_games()
+    corpus = Corpus(games=games, replays=len(games))
+    factions = aggregate(games, matchups=True)
+
+    assert "Science paths" not in "\n".join(render_aggregate(corpus, factions))
+    assert "Science paths" not in "\n".join(render_aggregate_markdown(corpus, factions))
+    assert "Science paths" not in "\n".join(render_aggregate_html(corpus, factions, title="T"))
+
+
+def test_science_leaf_annotation_renders_second_line_in_all_formats():
+    games = _science_suffix_games()
+    corpus = Corpus(games=games, replays=len(games))
+    factions = aggregate(games)
+
+    text = "\n".join(render_aggregate(corpus, factions))
+    assert "Farm -> Barracks" in text
+    assert "      sciences: SCIENCE_A (0:20, 100%)" in text
+
+    markdown = "\n".join(render_aggregate_markdown(corpus, factions))
+    assert "Farm -> Barracks<br>sciences: SCIENCE_A (0:20, 100%)" in markdown
+
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+    assert '<div class="bo-sci">sciences: SCIENCE_A (0:20, 100%)</div>' in html
+
+
+def test_build_order_icicle_and_explorer_are_eco_only_with_science_readout_data():
+    games = _science_suffix_games()
+    corpus = Corpus(games=games, replays=len(games))
+    factions = aggregate(games)
+    rohan = {a.faction: a for a in factions}["Rohan"]
+    assert rohan.build_orders is not None
+    # The tree's canonical path is eco-only.
+    top = build_orders.openings(rohan.build_orders, limit=8)[0]
+    assert [n.category for n in top] == ["buildings", "buildings"]
+
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+
+    def has_science_category(node):
+        if node["category"] == "sciences":
+            return True
+        return any(has_science_category(child) for child in node["children"])
+
+    ice_payloads = [
+        json.loads(chunk.split("</script>", 1)[0]) for chunk in html.split('class="ice-data">')[1:]
+    ]
+    bo_payloads = [
+        json.loads(chunk.split("</script>", 1)[0]) for chunk in html.split('class="bo-data">')[1:]
+    ]
+    # One icicle, one Explorer - no separate Science paths block - and no payload node anywhere
+    # carries the sciences category (the tree is eco-only).
+    assert len(ice_payloads) == 1
+    assert len(bo_payloads) == 1
+    assert not has_science_category(ice_payloads[0])
+    assert not has_science_category(bo_payloads[0])
+
+    # The Barracks leaf's by-step science annotation rides in the icicle's payload for the
+    # readout, translated and clock-sorted; Farm's own by-step annotation is empty (SCIENCE_A was
+    # bought after Farm's own clock), so Farm's payload carries no "sciences" key at all.
+    farm_node = ice_payloads[0]["children"][0]
+    barracks_node = farm_node["children"][0]
+    assert farm_node["label"] == "Farm"
+    assert "sciences" not in farm_node
+    assert barracks_node["label"] == "Barracks"
+    assert barracks_node["sciences"] == [{"label": "SCIENCE_A", "games": 5, "median_seconds": 20.0}]
+
+    section = html[html.index(">Build orders</") :]
+    assert "Farm &rarr; Barracks" in section
+    assert "sciences: SCIENCE_A (0:20, 100%)" in section
+
+
+def test_icicle_sciences_payload_translates_labels():
+    games = _science_suffix_games()
+    corpus = Corpus(games=games, replays=len(games))
+    factions = aggregate(games)
+    names = {"SCIENCE_A": "First Science"}
+    translate = lambda code: names.get(code) or code  # noqa: E731
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T", translate=translate))
+    payload = html.split('class="ice-data">', 1)[1].split("</script>", 1)[0]
+    data = json.loads(payload)
+    barracks_node = data["children"][0]["children"][0]
+    assert barracks_node["sciences"] == [
+        {"label": "First Science", "games": 5, "median_seconds": 20.0}
+    ]
+
+
+def _rohan_two_science_orders_games():
+    """10 games sharing one eco opening (Farm -> Barracks), split evenly between two science
+    picks bought at the same clock - sciences never fork the eco tree, so all ten land on one
+    shared opening whose leaf annotates both picks at 50% each."""
+    games = []
+    for label in ("SCIENCE_A", "SCIENCE_B"):
+        for _ in range(5):
+            games.append(
+                _bo_game(
+                    "Rohan",
+                    "won",
+                    [
+                        (5, "buildings", "Farm"),
+                        (40, "buildings", "Barracks"),
+                        (60, "sciences", label),
+                    ],
+                )
+            )
+    return games
+
+
+def test_two_science_picks_over_same_eco_stay_one_opening_with_both_annotated():
+    games = _rohan_two_science_orders_games()
+    corpus = Corpus(games=games, replays=len(games))
+    factions = aggregate(games)
+    rohan = {a.faction: a for a in factions}["Rohan"]
+    tree = rohan.build_orders
+    assert tree is not None
+    barracks = tree.children[("buildings", "Farm")].children[("buildings", "Barracks")]
+    assert barracks.children == {}  # sciences never grow their own nodes
+
+    top = build_orders.openings(tree, limit=8)
+    assert len(top) == 1  # one shared eco opening, not split by science
+    assert top[0][-1].games == 10
+
+    assert set(barracks.sciences_taken) == {"SCIENCE_A", "SCIENCE_B"}
+    assert len(barracks.sciences_taken["SCIENCE_A"]) == 5
+    assert len(barracks.sciences_taken["SCIENCE_B"]) == 5
+
+    text = "\n".join(render_aggregate(corpus, factions))
+    # Both picks clear the 25% floor at 50% each, ordered alphabetically on a median-clock tie.
+    assert "sciences: SCIENCE_A (1:00, 50%) -> SCIENCE_B (1:00, 50%)" in text
+
+
+def _science_matchup_games():
+    """40 games vs Isengard opening Farm, 4 vs Mordor opening Smithy, all buying SCIENCE_A right
+    after: exercises a matchup's own leaf-level science annotation and its openings table's
+    `vs overall` column together."""
+    games = []
+    for i in range(40):
+        games.append(
+            _bo_game(
+                "Rohan",
+                "won" if i % 2 else "lost",
+                [(5, "buildings", "Farm"), (20, "sciences", "SCIENCE_A")],
+                opponents=("Isengard",),
+            )
+        )
+    for _ in range(4):
+        games.append(
+            _bo_game(
+                "Rohan",
+                "won",
+                [(5, "buildings", "Smithy"), (20, "sciences", "SCIENCE_A")],
+                opponents=("Mordor",),
+            )
+        )
+    return games
+
+
+def test_science_annotation_in_matchup_openings_table_with_vs_overall_column():
+    games = _science_matchup_games()
+    corpus = Corpus(games=games, replays=len(games))
+    factions = aggregate(games, matchups=True)
+    rohan = {a.faction: a for a in factions}["Rohan"]
+    assert rohan.build_orders is not None
+    farm = rohan.build_orders.children[("buildings", "Farm")]
+    assert farm.children == {}  # sciences never grow their own nodes
+    assert farm.sciences_taken["SCIENCE_A"] == [20.0] * 40
+
+    isengard = rohan.matchups["Isengard"]
+    assert isengard.build_orders is not None
+    isengard_farm = isengard.build_orders.children[("buildings", "Farm")]
+    assert isengard_farm.sciences_taken["SCIENCE_A"] == [20.0] * 40
+
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+    body = html.split("</main>", 1)[0]
+    blocks = body.split("<details><summary>")[1:]
+    isengard_block = next(b for b in blocks if "Isengard" in b.split("</summary>", 1)[0])
+    build_order_block = isengard_block.split(">Build orders<", 1)[1]
+    assert (
+        '<th title="opening share vs the faction overall, in points">vs overall</th>'
+        in build_order_block
+    )
+    assert "sciences: SCIENCE_A (0:20, 100%)" in build_order_block
+
+
+def test_science_line_omitted_when_below_min_share_floor():
+    assert _SCIENCE_LINE_MIN_SHARE == 0.25
+    # 8 games share one eco opening; SCIENCE_A rides on only 1 of them (12.5%), below the 25%
+    # floor, so the row's science line is empty even though the leaf carries the annotation.
+    games = [_bo_game("Rohan", "won", [(5, "buildings", "Farm")]) for _ in range(7)]
+    games.append(
+        _bo_game("Rohan", "won", [(5, "buildings", "Farm"), (20, "sciences", "SCIENCE_A")])
+    )
+    corpus = Corpus(games=games, replays=len(games))
+    factions = aggregate(games)
+    rohan = {a.faction: a for a in factions}["Rohan"]
+    assert rohan.build_orders is not None
+    farm = rohan.build_orders.children[("buildings", "Farm")]
+    assert farm.sciences_taken["SCIENCE_A"] == [20.0]  # annotated, but under the floor
+
+    text = "\n".join(render_aggregate(corpus, factions))
+    assert "sciences:" not in text
+
+    markdown = "\n".join(render_aggregate_markdown(corpus, factions))
+    assert "<br>sciences:" not in markdown
+
+    html = "\n".join(render_aggregate_html(corpus, factions, title="T"))
+    assert 'class="bo-sci"' not in html
+
+
+def test_aggregate_cli_accepts_build_depth():
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+    add_aggregate_command(subparsers)
+    args = parser.parse_args(["aggregate", "x.rep", "--game", "g", "--build-depth", "0"])
+    assert args.build_depth == 0
+    default = parser.parse_args(["aggregate", "x.rep", "--game", "g"])
+    assert default.build_depth == 12
 
 
 # Fixture replays for the patch-fingerprint gate: two from the same install, one from

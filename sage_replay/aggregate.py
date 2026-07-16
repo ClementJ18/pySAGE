@@ -41,6 +41,19 @@ rows while per-battalion OBJECT gear stays out), and `include_combines` gates ho
 the alias definitions below for each hook's shape, and `sage_edain.replay` for Edain's concrete
 refiners and tables.
 
+Each faction also carries a *build-order tree* (`build_orders.py`): every game's eco steps
+(buildings/units/heroes) fold into one per-faction prefix tree (`build_orders.build_tree`), while
+its sciences - a separate currency, extracted by `build_sequence` as their own stream - never grow
+tree nodes of their own, riding instead as two per-node annotations built alongside the insert:
+`sciences_by_step` (what a game had bought by that step's own clock) and `sciences_taken` (the
+game's whole science order, unconditionally) - so a node can answer both "what's typically in hand
+here" and "what science order rides with this opening." Two games that bought the same things in a
+different relative order still land on one shared opening. A report reads the tree's eco identity
+directly for the icicle, Explorer, and openings table, and layers the science annotations back in
+per renderer: the icicle's readout box shows a hovered/pinned step's by-step sciences, and the
+openings table appends each row's leaf-wide science order as a second line. What one step is, and
+how a tree is built, pruned, and annotated, lives in `build_orders.py`'s docstring.
+
 A lobby Random pick is labeled by the `Side` the player's own build orders vote for (see
 `_faction_from_orders`), so random players aggregate under the faction they actually played.
 
@@ -54,13 +67,15 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from html import escape
 from itertools import count
 from pathlib import Path
 from statistics import median
 
+from sage_replay import build_orders
+from sage_replay.build_orders import BuildNode
 from sage_replay.narrate import GameData
 from sage_replay.replay import ReplayFile, ReplaySlotType, find_replays, parse_replay_from_path
 from sage_replay.sidecar import sidecar_outcomes
@@ -105,6 +120,18 @@ UNRESOLVED_FACTION = "?"
 # separately to also capture the opening pick).
 _TEMPLATE_CATEGORIES = ("buildings", "units", "heroes", "upgrades", "other", "powers", "combines")
 
+# The prune thresholds for a faction's build-order tree: a branch is kept only when at least
+# `_BUILD_MIN_GAMES` games took it and it holds at least `_BUILD_MIN_SHARE` of its parent's
+# games, so a rare or under-sampled fork is dropped along with everything under it.
+_BUILD_MIN_GAMES = 3
+_BUILD_MIN_SHARE = 0.10
+
+# The floor an opening row's science line applies to a leaf's full science order
+# (`BuildNode.sciences_taken`): a label renders on the line only when at least this share of the
+# leaf's games bought it, so a one-off purchase in an otherwise unrelated game doesn't clutter
+# every row's science summary.
+_SCIENCE_LINE_MIN_SHARE = 0.25
+
 # The default sub-heading the tracked powers render under, nested inside the Units section.
 # A mod overlay names it for the caster the powers belong to.
 DEFAULT_POWERS_HEADING = "Special powers"
@@ -127,6 +154,16 @@ _HERO_NOTE = (
 _HERO_SECTION_NOTE = (
     "Extrapolated from revive-menu positions, not hero ids - these rows may be inaccurate, "
     'especially any "command slot N" row, whose position could not be resolved to a hero.'
+)
+
+# The Build orders section's variant of the hero caveat: only the hero *steps* inside a
+# sequence carry the extrapolation, the building/unit steps around them are exact - so the
+# wording scopes the doubt to those steps rather than repeating the Heroes table's whole-section
+# warning.
+_BUILD_ORDER_HERO_NOTE = (
+    "Hero steps are extrapolated from revive-menu positions, not hero ids - a hero named in "
+    'an opening may be wrong, especially a "fortress hero (command slot N)" step, whose '
+    "position never resolved. The steps around it are exact."
 )
 
 # The HTML/index renderers take an optional label `translate` (a code name -> display string
@@ -222,11 +259,11 @@ class ChoiceStat:
     total: int = 0  # instances across all games (a Barracks built twice counts twice)
     first_times: list[float] = field(default_factory=list)  # first occurrence per game
     # Every instance across all games as (order seconds, that match's duration) pairs - the
-    # raw material for the HTML timeline graphs (buildings/units) and the science purchase-
-    # timing heatmap, which both bin client-side so one payload serves either the %-of-match or
-    # the absolute-clock axis. Only the buildings, units, and sciences categories collect these
-    # (see `_record_game`); everywhere else the list stays empty, and it is deliberately absent
-    # from `to_dict()` so the JSON output is unchanged.
+    # raw material for the HTML timeline graphs (buildings/units) and the purchase-timing
+    # heatmaps (sciences/upgrades/other), which both bin client-side so one payload serves
+    # either the %-of-match or the absolute-clock axis. Only those five categories collect
+    # these (see `_record_game`); everywhere else the list stays empty, and it is deliberately
+    # absent from `to_dict()` so the JSON output is unchanged.
     occurrences: list[tuple[float, float]] = field(default_factory=list)
 
     @property
@@ -278,6 +315,11 @@ class FactionAggregate:
     # is the unpacked base name (`dunedain_outpost`), so the base gets its own translatable
     # aggregate name. None until a game unpacks one.
     outpost: ChoiceStat | None = None
+    # The faction's openings as a pruned prefix tree (`build_orders.py`): None until a game
+    # contributes one, and a tree pruned down to no children (`not build_orders.children`) is
+    # treated as absent everywhere downstream, the same as None. The tree's identity is eco-only;
+    # each node also carries its games' sciences as two annotations (`build_orders.build_tree`).
+    build_orders: BuildNode | None = None
     # Per enemy faction, the same aggregation over just the games against it (only filled
     # when `aggregate(matchups=True)`; a game against two same-faction enemies counts once).
     matchups: dict[str, FactionAggregate] = field(default_factory=dict)
@@ -302,6 +344,11 @@ class FactionAggregate:
             "sciences": [c.to_dict() for c in _ranked(self.sciences)],
             "first_science": [c.to_dict() for c in _ranked(self.first_science)],
             "outpost": self.outpost.to_dict() if self.outpost is not None else None,
+            "build_orders": (
+                self.build_orders.to_dict()
+                if self.build_orders is not None and self.build_orders.children
+                else None
+            ),
         }
         for category in _TEMPLATE_CATEGORIES:
             payload[category] = [c.to_dict() for c in _ranked(getattr(self, category))]
@@ -739,16 +786,23 @@ def _record_game(
     for (category, label), times in per_label.items():
         if category == "other" and label in tracked_purchases:
             for nth, seconds in enumerate(sorted(times), start=1):
-                _record(agg.other, f"{label}{nth}", game, seconds).total += 1
+                choice = _record(agg.other, f"{label}{nth}", game, seconds)
+                choice.total += 1
+                # A depth row is one instance per game by construction, so its heatmap
+                # occurrence is exactly that instance's clock.
+                if game.duration > 0:
+                    choice.occurrences.append((seconds, game.duration))
         else:
             table = getattr(agg, "sciences" if category == "sciences" else category)
             choice = _record(table, label, game, min(times))
             choice.total += len(times)
             # Keep every instance's clock alongside its match's length for the buildings/units
-            # timeline graphs and the sciences purchase-timing heatmap; a game without a
-            # measurable duration (no chunks) has no match length to normalise against, so it
-            # contributes nothing to either graph.
-            if category in ("buildings", "units", "sciences") and game.duration > 0:
+            # timeline graphs and the sciences/upgrades/other purchase-timing heatmaps; a game
+            # without a measurable duration (no chunks) has no match length to normalise
+            # against, so it contributes nothing to either graph.
+            if category in ("buildings", "units", "sciences", "upgrades", "other") and (
+                game.duration > 0
+            ):
                 choice.occurrences.extend((seconds, game.duration) for seconds in sorted(times))
 
     # The standard-outpost milestone: pool every `*_outpost` unpack this game made into one
@@ -787,6 +841,7 @@ def aggregate(
     tracked_powers: frozenset[str] = frozenset(),
     include_combines: bool = False,
     matchups: bool = False,
+    build_depth: int = 12,
 ) -> list[FactionAggregate]:
     """Group player-games by faction, most-played first. Upgrade events outside
     `tracked_upgrades` and power casts outside `tracked_powers` (matched on the relabelled name)
@@ -795,19 +850,55 @@ def aggregate(
     the tables - as are horde combines unless `include_combines`. `other` purchases in
     `tracked_purchases` get per-instance depth rows instead of one pooled row - see the module
     docstring. `matchups` additionally folds each game into a per-enemy-faction sub-aggregate
-    (`FactionAggregate.matchups`), so every pick table also exists per matchup."""
+    (`FactionAggregate.matchups`), so every pick table also exists per matchup.
+
+    `build_depth` is how many distinct opening steps - each thing's first appearance - a game
+    contributes to the build-order tree's eco sequence (`build_sequence(depth=)`); the science
+    sequence is capped separately by `build_sequence`'s own `science_depth` default, since
+    aggregation does not grow a matching parameter for it - that cap also bounds how many
+    sciences a game's per-node annotations (`build_orders.build_tree`) can carry. `build_depth
+    <= 0` skips the tree entirely here rather than asking the core for an unlimited sequence
+    (where 0 means unlimited), leaving every `build_orders` None so the renderers omit the
+    section."""
     factions: dict[str, FactionAggregate] = {}
+    # Each aggregate's games collected here (keyed by identity - a `FactionAggregate` is
+    # unhashable) and turned into its pruned tree in one pass after the loop
+    # (`build_orders.build_tree`), so pruning runs once over the whole batch rather than needing
+    # its own incremental insert/prune bookkeeping here.
+    pending: dict[int, list[tuple[Sequence[build_orders.BuildStep], str]]] = {}
     for game in games:
         agg = factions.setdefault(game.faction, FactionAggregate(faction=game.faction))
         _record_game(
             agg, game, tracked_upgrades, tracked_purchases, tracked_powers, include_combines
         )
+        # One extraction per game, collected for `agg`'s (and each matchup's) tree; an empty
+        # sequence is still collected, so the tree's root ends up counting every game.
+        steps: Sequence[build_orders.BuildStep] = ()
+        if build_depth > 0:
+            steps = build_orders.build_sequence(game.stats, depth=build_depth)
+            pending.setdefault(id(agg), []).append((steps, game.outcome))
         if matchups:
             for enemy in dict.fromkeys(game.opponents):  # dedupe: one count per game
                 sub = agg.matchups.setdefault(enemy, FactionAggregate(faction=enemy))
                 _record_game(
                     sub, game, tracked_upgrades, tracked_purchases, tracked_powers, include_combines
                 )
+                if build_depth > 0:
+                    pending.setdefault(id(sub), []).append((steps, game.outcome))
+
+    if build_depth > 0:
+        for agg in factions.values():
+            agg_games = pending.get(id(agg))
+            if agg_games:
+                agg.build_orders = build_orders.build_tree(
+                    agg_games, min_games=_BUILD_MIN_GAMES, min_share=_BUILD_MIN_SHARE
+                )
+            for sub in agg.matchups.values():
+                sub_games = pending.get(id(sub))
+                if sub_games:
+                    sub.build_orders = build_orders.build_tree(
+                        sub_games, min_games=_BUILD_MIN_GAMES, min_share=_BUILD_MIN_SHARE
+                    )
 
     return sorted(factions.values(), key=lambda a: (-a.games, a.faction))
 
@@ -891,6 +982,18 @@ _SECTIONS = (
     ("Horde combines", "combines", "Combine"),
 )
 
+# The sections that carry a timing graph in the HTML report, and which kind: many-instance
+# categories get the Buildings/Units timeline, at-most-once-per-row categories the purchase-
+# timing heatmap (see `_HEATMAP_SCRIPT`'s comment for why). The heatmap sections each carry
+# their own summary blurb, since "science" / "upgrade" / "purchase" read differently.
+_TIMELINE_SECTIONS = frozenset({"buildings", "units"})
+_HEATMAP_REC = {
+    "sciences": "when each science is bought across match length",
+    "upgrades": "when each upgrade is researched across match length",
+    "other": "when each purchase is made across match length",
+}
+_GRAPH_SECTIONS = _TIMELINE_SECTIONS | frozenset(_HEATMAP_REC)
+
 
 def _power_lines(heading: str, table: dict[str, ChoiceStat]) -> list[str]:
     """The tracked powers as a sub-block nested one level under the Units section: a titled
@@ -933,22 +1036,107 @@ def _section_lines(agg: FactionAggregate, powers_heading: str) -> list[str]:
     return lines
 
 
+def _build_order_present(agg: FactionAggregate) -> bool:
+    """Whether `agg` carries a build-order tree worth rendering: one exists and it survived
+    pruning with at least one branch (an empty pruned tree reads as absent)."""
+    return agg.build_orders is not None and bool(agg.build_orders.children)
+
+
+def _build_path_label(
+    path: list[BuildNode],
+    translate: Translate,
+    *,
+    arrow: str,
+    times: str,
+    esc: Callable[[str], str] = _identity,
+) -> str:
+    """One opening path as its step labels joined by `arrow`, each label through `translate`
+    (then `esc`, e.g. HTML-escaping) with a `{times}<count>` suffix when the step's typical
+    count is above one - so `[Farm x2, Barracks]` reads `Farm x2 -> Barracks` for text and
+    `Farm &times;2 &rarr; Barracks` for HTML."""
+    parts = []
+    for node in path:
+        label = esc(translate(node.label))
+        if node.median_count is not None and node.median_count > 1:
+            label += f"{times}{node.median_count}"
+        parts.append(label)
+    return arrow.join(parts)
+
+
+def _science_line(
+    leaf: BuildNode,
+    translate: Translate,
+    *,
+    arrow: str,
+    esc: Callable[[str], str] = _identity,
+) -> str:
+    """One opening row's science summary, read off the leaf's full science order
+    (`BuildNode.sciences_taken`): every label bought by at least `_SCIENCE_LINE_MIN_SHARE` of the
+    leaf's games, sorted by median clock (ties by label), each formatted `label (m:ss, NN%)` -
+    the label through the same `translate`/`esc` treatment `_build_path_label` gives the main
+    label, the percent the label's share of the leaf's games, rounded. Joined with `arrow`, the
+    same one the caller used for the main label. Empty when nothing clears the floor (or the leaf
+    has no games)."""
+    if not leaf.games:
+        return ""
+    entries = [
+        (label, clocks)
+        for label, clocks in leaf.sciences_taken.items()
+        if len(clocks) / leaf.games >= _SCIENCE_LINE_MIN_SHARE
+    ]
+    entries.sort(key=lambda entry: (median(entry[1]), entry[0]))
+    parts = []
+    for label, clocks in entries:
+        pct = round(len(clocks) / leaf.games * 100)
+        parts.append(f"{esc(translate(label))} ({clock(median(clocks))}, {pct}%)")
+    return arrow.join(parts)
+
+
+def _build_order_lines(agg: FactionAggregate, translate: Translate = _identity) -> list[str]:
+    """One aggregate's common openings as a `Build orders` text block mirroring `_choice_lines`
+    (`_build_order_present` gates it, empty otherwise); `~complete` is the leaf's own median
+    clock. A row is followed by an indented `sciences: ...` continuation line naming the leaf's
+    typical science order (`_science_line`), omitted when nothing clears
+    `_SCIENCE_LINE_MIN_SHARE`."""
+    if not _build_order_present(agg):
+        return []
+    assert agg.build_orders is not None
+    paths = build_orders.openings(agg.build_orders, limit=8)
+    labels = [_build_path_label(p, translate, arrow=" -> ", times=" x") for p in paths]
+    width = max(len(label) for label in labels)
+    lines = ["  Build orders  (games - won-lost - win% - ~complete):"]
+    for label, path in zip(labels, paths, strict=True):
+        leaf = path[-1]
+        complete_at = leaf.median_seconds
+        complete = f"~{clock(complete_at)}" if complete_at is not None else "-"
+        lines.append(
+            f"    {label:{width}s}  {leaf.games:3d}  "
+            f"{leaf.wins:2d}-{leaf.losses:<2d} {_percent(leaf.win_rate)}  {complete:>6s}"
+        )
+        science_line = _science_line(leaf, translate, arrow=" -> ")
+        if science_line:
+            lines.append(f"      sciences: {science_line}")
+    return lines
+
+
 def render_aggregate(
     corpus: Corpus,
     factions: list[FactionAggregate],
     *,
     powers_heading: str = DEFAULT_POWERS_HEADING,
 ) -> list[str]:
-    """The corpus aggregation as text: a per-faction block of win rate, science picks
-    (overall and opening), and the building/unit/hero pick tables (tracked powers nested
-    under Units as `powers_heading`), followed by the same block per matchup when the
+    """The corpus aggregation as text: a per-faction block of win rate, the common openings,
+    science picks (overall and opening), and the building/unit/hero pick tables (tracked powers
+    nested under Units as `powers_heading`), followed by the same block per matchup when the
     aggregation carried them."""
     lines = [f"Corpus: {_corpus_summary(corpus)}", f"Note: {_HERO_NOTE}", ""]
     for agg in factions:
         lines.append(f"== {agg.faction}  - {_faction_summary(agg)}")
+        lines.extend(_build_order_lines(agg))
         lines.extend(_section_lines(agg, powers_heading))
         for enemy, sub in _ranked_matchups(agg):
             lines.append(f"  -- vs {enemy}  - {_faction_summary(sub, include_outpost=False)}")
+            lines.extend(_build_order_lines(sub))
             lines.extend(_section_lines(sub, powers_heading))
         lines.append("")
     return lines
@@ -1006,23 +1194,56 @@ def _markdown_tables(agg: FactionAggregate, heading: str, powers_heading: str) -
     return lines
 
 
+def _build_order_markdown(agg: FactionAggregate, heading: str) -> list[str]:
+    """One aggregate's common openings as a `Build orders` markdown table at `heading` depth
+    (`_build_order_present` gates it, empty otherwise); `~Complete` is the leaf's own median
+    clock. Pipes in a step label are escaped through `_cell` so a label never breaks the table; a
+    non-empty science line (`_science_line`) appends as a `<br>sciences: ...` continuation inside
+    the same cell (GitHub renders `<br>` in table cells)."""
+    if not _build_order_present(agg):
+        return []
+    assert agg.build_orders is not None
+    lines = [
+        f"{heading} Build orders",
+        "",
+        "| Build order | Games | W-L | Win % | ~Complete |",
+        "|---|--:|--:|--:|--:|",
+    ]
+    for path in build_orders.openings(agg.build_orders, limit=8):
+        leaf = path[-1]
+        label = _build_path_label(path, _identity, arrow=" -> ", times=" x", esc=_cell)
+        complete_at = leaf.median_seconds
+        complete = clock(complete_at) if complete_at is not None else "-"
+        science_line = _science_line(leaf, _identity, arrow=" -> ", esc=_cell)
+        if science_line:
+            label += f"<br>sciences: {science_line}"
+        lines.append(
+            f"| {label} | {leaf.games} | {leaf.wins}-{leaf.losses} "
+            f"| {_percent(leaf.win_rate).strip()} | {complete} |"
+        )
+    lines.append("")
+    return lines
+
+
 def render_aggregate_markdown(
     corpus: Corpus,
     factions: list[FactionAggregate],
     *,
     powers_heading: str = DEFAULT_POWERS_HEADING,
 ) -> list[str]:
-    """The same aggregation as GitHub markdown: a heading per faction and a table per
-    pick category (tracked powers nested under Units as `powers_heading`), then a
+    """The same aggregation as GitHub markdown: a heading per faction, the common openings, and
+    a table per pick category (tracked powers nested under Units as `powers_heading`), then a
     `### vs <enemy>` block per matchup when the aggregation carried them."""
     lines = ["# Replay corpus stats", "", _corpus_summary(corpus), "", f"_{_HERO_NOTE}_", ""]
     for agg in factions:
         lines.extend([f"## {_cell(agg.faction)} - {_faction_summary(agg)}", ""])
+        lines.extend(_build_order_markdown(agg, "###"))
         lines.extend(_markdown_tables(agg, "###", powers_heading))
         for enemy, sub in _ranked_matchups(agg):
             lines.extend(
                 [f"### vs {_cell(enemy)} - {_faction_summary(sub, include_outpost=False)}", ""]
             )
+            lines.extend(_build_order_markdown(sub, "####"))
             lines.extend(_markdown_tables(sub, "####", powers_heading))
     return lines
 
@@ -1075,7 +1296,8 @@ p.meta { color: var(--ink-2); margin: 0 0 16px; }
 .tile .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .tile .v { font-size: 20px; font-weight: 600; margin-top: 2px; }
 .tile .v small { font-size: 12px; font-weight: 400; color: var(--ink-2); }
-.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; }
+/* padding-bottom keeps the horizontal scrollbar off the last row when a table overflows. */
+.tablewrap { overflow-x: auto; padding-bottom: 10px; background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; }
 table { border-collapse: collapse; width: 100%; }
 th, td { padding: 5px 12px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
@@ -1188,6 +1410,42 @@ details.heatmap > summary { padding: 8px 14px; font-size: 13px; font-weight: 500
 .hm-cell { flex: 1; height: 100%; border-radius: 2px; background: var(--track); }
 .hm-axis { position: relative; height: 14px; margin: 3px 0 0 206px; }
 .hm-axis span { position: absolute; font-size: 10px; color: var(--muted); white-space: nowrap; }
+details.botree { margin: 6px 0 10px; }
+details.botree > summary { padding: 8px 14px; font-size: 13px; font-weight: 500; }
+.bo-rows { margin: 4px 0 2px; }
+.bo-row { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 6px; border-radius: 4px; }
+.bo-row[hidden] { display: none; }
+.bo-row.bo-open { cursor: pointer; }
+.bo-row.bo-open:hover { background: var(--track); }
+.bo-mark { width: 12px; flex: 0 0 auto; text-align: center; font-size: 11px; color: var(--muted); }
+.bo-dot { width: 10px; height: 10px; flex: 0 0 auto; border-radius: 50%; }
+.bo-label {
+  flex: 1 1 auto; min-width: 0; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bo-share { flex: 0 0 auto; min-width: 36px; text-align: right; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.bo-games, .bo-wl, .bo-time { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.bo-games { min-width: 26px; text-align: right; }
+.bo-wl { min-width: 34px; text-align: right; }
+.bo-time { min-width: 34px; text-align: right; }
+.bo-vs { flex: 0 0 auto; min-width: 40px; text-align: right; font-size: 11px; }
+.bo-sci { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
+.ice-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 4px; font-size: 11px; color: var(--muted); }
+.ice-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.ice-sci { min-height: 14px; margin: 0 0 6px; font-size: 11px; color: var(--muted); }
+.ice-sci b { color: var(--ink); }
+.bo-ice-wrap { position: relative; margin: 4px 0 10px; }
+.bo-ice svg { display: block; width: 100%; height: auto; }
+.ice-box { cursor: default; }
+.ice-box.ice-pin { stroke: var(--ink); stroke-width: 2; }
+/* The label reads over saturated --sN fills in both themes: --ink text haloed by --surface
+   (paint-order draws the stroke behind the fill), so neither an --ink nor an --surface fill
+   alone has to read on every hue. */
+.ice-label {
+  fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 2px;
+  stroke-linejoin: round; pointer-events: none;
+  font: 10px system-ui, -apple-system, "Segoe UI", sans-serif;
+}
 """
 
 
@@ -1590,13 +1848,16 @@ _GRAPH_SCRIPT = """\
 """
 
 
-# The purchase-timing heatmap for the Sciences section, self-contained like `_GRAPH_SCRIPT`
-# (small helpers - clock(), the STEPS ladder, binning, the centred 3-bin smoother - are
-# duplicated here rather than shared, so either script still stands alone with no external
-# assets). A science is bought at most once per game and a faction only carries 10-20 of them,
-# so more timeline lines would just overlap; a heatmap instead gives one row per science (table
-# rank order) with every row visible at once, reading as a bank of timing fingerprints rather
-# than a legend to toggle. Binning matches the timeline's: pct mode bins every purchase's %-
+# The purchase-timing heatmaps for the Sciences, Upgrades, and Other purchases sections,
+# self-contained like `_GRAPH_SCRIPT` (small helpers - clock(), the STEPS ladder, binning, the
+# centred 3-bin smoother - are duplicated here rather than shared, so either script still
+# stands alone with no external assets). These categories' picks mostly happen once per game
+# per row (a science or player-wide upgrade is bought once; a tracked CP purchase is depth-
+# numbered so each row is a game's nth buy; only an untracked pooled purchase can repeat,
+# which is why the tooltip counts purchases, not games) and a faction only carries 10-20 of
+# them, so more timeline lines would just overlap; a heatmap instead gives one row per pick
+# (table rank order) with every row visible at once, reading as a bank of timing fingerprints
+# rather than a legend to toggle. Binning matches the timeline's: pct mode bins every purchase's %-
 # of-match into 20 bins of 5%; abs mode picks a bin size off the same STEPS ladder so the
 # longest purchase's match spans at most 24 bins. Raw per-bin counts are smoothed with the same
 # centred 3-bin moving average before shading (never before the tooltip's raw counts, which stay
@@ -1702,8 +1963,11 @@ _HEATMAP_SCRIPT = """\
       var rows = series.map(function (s, i) {
         var cells = '';
         for (var b = 0; b < spec.bins; b++) {
+          // Smoothing drives intensity only; a bin with no actual purchases stays
+          // uncoloured rather than inheriting spillover from its neighbours (the
+          // tooltip reports raw counts, so a tinted "0 of n" cell would lie).
           var style = '';
-          if (s.sm[b] > 0) {
+          if (s.raw[b] > 0) {
             var pct = 10 + (s.sm[b] / s.maxSm) * 75;
             style = ' style="background: color-mix(in srgb, var(--above) ' +
               pct.toFixed(1) + '%, transparent)"';
@@ -1739,13 +2003,13 @@ _HEATMAP_SCRIPT = """\
       if (!cell.classList || !cell.classList.contains('hm-cell') || !view) { return; }
       var s = view.series[+cell.dataset.i];
       var b = +cell.dataset.b;
-      if (!s || !(s.sm[b] > 0)) { tip.hidden = true; return; }
+      if (!s || !(s.raw[b] > 0)) { tip.hidden = true; return; }
       var size = view.spec.size;
       var range = view.spec.pct
         ? (b * size) + '\\u2013' + ((b + 1) * size) + '% of match'
         : clock(b * size) + '\\u2013' + clock((b + 1) * size);
       tip.innerHTML = '<b>' + esc(s.label) + '</b> ' + s.raw[b] + ' of ' + s.n +
-        ' games \\u00b7 ' + range;
+        ' purchases \\u00b7 ' + range;
       tip.hidden = false;
       var rect = wrap.getBoundingClientRect();
       var cr = cell.getBoundingClientRect();
@@ -1757,6 +2021,369 @@ _HEATMAP_SCRIPT = """\
     wrap.addEventListener('mouseleave', function () {
       tip.hidden = true;
     });
+  });
+})();
+"""
+
+
+# The build-order Explorer, self-contained like the other scripts. Each `details.botree`
+# ships its faction's pruned eco-only tree as a JSON payload (already translated); this script
+# draws it lazily on first open as a flat list of indented rows (one per node, root excluded),
+# toggling row visibility rather than adding/removing DOM. A row's headline is its share of its
+# parent (node.games / parent.games); the muted tail carries games, the win-loss split, the same
+# diverging win-rate bar the tables use (markup replicated here), and the median clock. A node
+# with children carries a disclosure marker and toggles its subtree on click; visibility
+# cascades, so a collapsed node hides its whole subtree and re-expanding restores only the
+# descendants whose own state says show. Default expansion follows the dominant line: the root's
+# children always show, and a deeper node stays open only while its largest child holds >= 60%
+# of its games, collapsing at the first fork. The category dot's hue is fixed per category. When
+# the payload is a matchup diff (`root.diff`), each row also carries a `vs overall` annotation
+# after its share: the share-vs-overall delta in points (from `base_share`) as the tables'
+# `.delta` classes, or a `NEW` badge when the step is absent in the faction overall.
+_BUILDORDER_SCRIPT = """\
+(function () {
+  var DOT = { buildings: '--s1', units: '--s2', heroes: '--s3' };
+
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function clock(seconds) {
+    if (seconds === null || seconds === undefined) return '-';
+    var m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
+    if (s === 60) { m += 1; s = 0; }
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  // The tables' diverging win-rate bar, rebuilt in JS from a node's win-loss split so the
+  // Explorer reads the same as the openings table above it; an undecided node shows the dash.
+  function bar(node) {
+    var decided = node.wins + node.losses;
+    if (!decided) return '<span class="na">-</span>';
+    var rate = node.wins / decided;
+    var span = Math.abs(rate - 0.5) * 100;
+    var side = rate >= 0.5 ? 'above' : 'below';
+    return '<span class="bar"><span class="track"><span class="fill ' + side +
+      '" style="width:' + span.toFixed(0) + '%"></span><i></i></span>' +
+      '<span class="pct">' + Math.round(rate * 100) + '%</span></span>';
+  }
+
+  // The share-vs-overall annotation for a diff row: the delta between this node's share of its
+  // parent and the baseline's (`base_share`) in points, coloured like the tables' deltas, or a
+  // `NEW` badge when the step is absent in the faction overall (base_share null).
+  function vsOverall(node, parentGames) {
+    if (node.base_share === null || node.base_share === undefined) {
+      return '<span class="bo-vs"><span class="badge">NEW</span></span>';
+    }
+    var share = parentGames > 0 ? node.games / parentGames : 0;
+    var points = Math.round(share * 100 - node.base_share * 100);
+    var cls = points > 0 ? 'up' : points < 0 ? 'down' : 'even';
+    var text = (points > 0 ? '+' : '') + points;
+    return '<span class="bo-vs"><span class="delta ' + cls + '">' + text + '</span></span>';
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('details.botree'), function (details) {
+    var root = JSON.parse(details.querySelector('script.bo-data').textContent);
+    var diff = !!root.diff;
+    var host = details.querySelector('.bo-rows');
+    var rows = [];
+    var rendered = false;
+
+    // A row is visible only while every real ancestor is expanded; the synthetic root (parent
+    // of the depth-1 rows) is always expanded, so the top level always shows.
+    function isVisible(row) {
+      var p = row.parent;
+      while (p) {
+        if (!p.expanded) return false;
+        p = p.parent;
+      }
+      return true;
+    }
+    function refresh() {
+      rows.forEach(function (row) {
+        row.el.hidden = !isVisible(row);
+        if (row.hasKids) row.mark.textContent = row.expanded ? '\\u25BE' : '\\u25B8';
+      });
+    }
+    function makeRow(node, depth, parentGames, hasKids) {
+      var el = document.createElement('div');
+      el.className = 'bo-row' + (hasKids ? ' bo-open' : '');
+      el.style.marginLeft = ((depth - 1) * 18) + 'px';
+      var share = parentGames > 0 ? Math.round(node.games / parentGames * 100) : 0;
+      var count = node.median_count > 1 ? ' \\u00d7' + node.median_count : '';
+      var dot = DOT[node.category] || '--muted';
+      el.innerHTML =
+        '<span class="bo-mark">' + (hasKids ? '\\u25B8' : '') + '</span>' +
+        '<span class="bo-dot" style="background: var(' + dot + ')"></span>' +
+        '<span class="bo-label">' + esc(node.label) + count + '</span>' +
+        '<span class="bo-share">' + share + '%</span>' +
+        (diff ? vsOverall(node, parentGames) : '') +
+        '<span class="bo-games">' + node.games + '</span>' +
+        '<span class="bo-wl">' + node.wins + '-' + node.losses + '</span>' +
+        bar(node) +
+        '<span class="bo-time">' + clock(node.median_seconds) + '</span>';
+      return el;
+    }
+    function walk(node, depth, parentGames, parent) {
+      var kids = node.children || [];
+      var maxKid = 0;
+      kids.forEach(function (c) {
+        if (c.games > maxKid) maxKid = c.games;
+      });
+      var hasKids = kids.length > 0;
+      var expanded = hasKids &&
+        (depth === 0 || (node.games > 0 && maxKid / node.games >= 0.6));
+      var row;
+      if (depth === 0) {
+        row = { expanded: true, parent: null };  // the synthetic root
+      } else {
+        var el = makeRow(node, depth, parentGames, hasKids);
+        row = { el: el, expanded: expanded, hasKids: hasKids, parent: parent,
+                mark: el.querySelector('.bo-mark') };
+        if (hasKids) {
+          (function (r) {
+            el.addEventListener('click', function () { r.expanded = !r.expanded; refresh(); });
+          })(row);
+        }
+        rows.push(row);
+        host.appendChild(el);
+      }
+      kids.forEach(function (c) { walk(c, depth + 1, node.games, row); });
+    }
+    function render() {
+      if (rendered) return;
+      rendered = true;
+      walk(root, 0, root.games, null);
+      refresh();
+    }
+
+    details.addEventListener('toggle', function () {
+      if (details.open) render();
+    });
+    if (details.open) render();
+  });
+})();
+"""
+
+
+# The build-order icicle/flow diagram, self-contained like the other scripts. Each `.bo-ice-wrap`
+# ships its faction's pruned eco-only tree as the same translated JSON payload the Explorer uses;
+# this script lays it out as a horizontal icicle - depth = columns left-to-right (matching the
+# openings table's arrow direction), a box's height its share of `games`. Column 0 (depth-1 nodes)
+# partitions the full SVG height top-aligned in child order; each deeper column partitions its
+# parent box's band among that parent's children the same way, leaving the remainder
+# (parent.games - sum child.games) blank at the bottom - real attrition (games whose continuation
+# was pruned as uncommon), kept visible so heights read honestly. A box fills with its category's
+# `--sN` hue (fallback --muted) and a thin --surface stroke separating stacked boxes; a box tall
+# enough carries a haloed, truncated label (the translated step, `×k` when its typical count is
+# above one). A static `.ice-legend` above the SVG (server-rendered in `_build_order_icicle`, not
+# drawn by this script) names each category against its `--sN` swatch, so the fills read as
+# buildings/units/heroes before the icicle itself has laid out. Rendering is lazy via an
+# IntersectionObserver (a matchup-heavy page holds many icicles inside collapsed `<details>`),
+# falling back to an immediate render where the observer is unavailable, and runs once. Hovering a
+# box highlights it and its ancestor path (dimming the rest) and reads out the shared `.tl-tip`:
+# label, games, share of parent, W-L, win rate (dash when undecided), and median clock. When the
+# payload is a matchup diff (`root.diff`), the tooltip also names the share-vs-overall delta (or
+# "new vs overall") and a box new versus the faction overall (base_share null) is outlined with a
+# dashed --ink stroke, the diff riding as a second channel over the category fill.
+#
+# A second readout box (`.ice-sci`, above the SVG) shows a step's science annotation: unless
+# pinned, it tracks the hovered box, reading that node's payload `sciences` (the by-step
+# annotation, already clock-sorted server-side) as `label m:ss (NN%)` entries - share of that
+# node's own games - or "none yet" when the node carries none; it reverts to the default text on
+# mouseleave. Right-clicking a box (`contextmenu`, default prevented) pins the readout there - a
+# `(pinned)` suffix and the `pinned` class mark the readout, and a `.ice-pin` class marks the
+# pinned rect - until the same box is right-clicked again or empty SVG background is
+# right-clicked, either of which unpins; right-clicking a different box moves the pin there
+# instead. Hover tooltips (`.tl-tip`) keep working regardless of the pin.
+_ICICLE_SCRIPT = """\
+(function () {
+  var CAT = { buildings: '--s1', units: '--s2', heroes: '--s3' };
+  var W = 720, H = 300, PAD = 3, GAP = 2, MIN_LABEL = 11, CHAR = 5.4;
+
+  function clock(seconds) {
+    if (seconds === null || seconds === undefined) return '-';
+    var m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
+    if (s === 60) { m += 1; s = 0; }
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  }
+  // The by-step science annotation as the readout's trailing list, already clock-sorted
+  // server-side: 'label m:ss (NN%)' per entry, share = that science's games over the node's own
+  // games, or 'none yet' when the node carries no science annotation at all.
+  function sciText(n) {
+    if (!n.sciences.length) return 'none yet';
+    var parts = [];
+    n.sciences.forEach(function (s) {
+      var pct = n.games > 0 ? Math.round(s.games / n.games * 100) : 0;
+      parts.push(esc(s.label) + ' ' + clock(s.median_seconds) + ' (' + pct + '%)');
+    });
+    return parts.join(' \\u00b7 ');
+  }
+  function maxDepth(node, d) {
+    var m = d;
+    (node.children || []).forEach(function (c) {
+      var cd = maxDepth(c, d + 1);
+      if (cd > m) m = cd;
+    });
+    return m;
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.bo-ice-wrap'), function (wrap) {
+    var root = JSON.parse(wrap.querySelector('script.ice-data').textContent);
+    var host = wrap.querySelector('.bo-ice');
+    var tip = wrap.querySelector('.tl-tip');
+    var sciBox = wrap.querySelector('.ice-sci');
+    var defaultSci = sciBox ? sciBox.textContent : '';
+    var diff = !!root.diff;
+    var nodes = [];
+    var rendered = false;
+    var pinned = -1;
+
+    function render() {
+      if (rendered) return;
+      rendered = true;
+      var depth = Math.max(1, maxDepth(root, 0));
+      var colW = (W - PAD * 2) / depth;
+      var svg = [];
+
+      // Partition a parent band [y0, y1] (its games mapping to the whole band) among its children
+      // top-aligned, the pruned remainder left blank at the bottom; emit a rect per real node.
+      function walk(node, y0, y1, d, parentIdx) {
+        var idx = -1;
+        if (d >= 1) {
+          idx = nodes.length;
+          var x = PAD + (d - 1) * colW, w = colW - GAP, h = y1 - y0;
+          var fill = CAT[node.category] || '--muted';
+          var isNew = diff && (node.base_share === null || node.base_share === undefined);
+          svg.push('<rect class="ice-box" data-i="' + idx + '" x="' + x.toFixed(1) +
+            '" y="' + y0.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) +
+            '" fill="var(' + fill + ')" stroke="var(--surface)"' +
+            (isNew ? ' stroke-dasharray="3 2" style="stroke:var(--ink)"' : '') + '/>');
+          nodes.push({ parent: parentIdx, label: node.label, games: node.games,
+            parentGames: parentIdx >= 0 ? nodes[parentIdx].games : root.games,
+            wins: node.wins, losses: node.losses, ms: node.median_seconds,
+            sciences: node.sciences || [],
+            base: (node.base_share === undefined ? null : node.base_share) });
+          if (h >= MIN_LABEL) {
+            var count = (node.median_count && node.median_count > 1)
+              ? ' \\u00d7' + node.median_count : '';
+            var label = node.label + count;
+            var fit = Math.floor((w - 6) / CHAR);
+            if (label.length > fit) label = fit > 1 ? label.slice(0, fit - 1) + '\\u2026' : '';
+            if (label) {
+              svg.push('<text class="ice-label" x="' + (x + 3).toFixed(1) + '" y="' +
+                (y0 + h / 2).toFixed(1) + '" dominant-baseline="middle">' + esc(label) + '</text>');
+            }
+          }
+        }
+        var kids = node.children || [];
+        if (node.games > 0) {
+          var scale = (y1 - y0) / node.games, cursor = y0;
+          kids.forEach(function (c) {
+            var ch = c.games * scale;
+            walk(c, cursor, cursor + ch, d + 1, idx);
+            cursor += ch;
+          });
+        }
+      }
+      walk(root, PAD, H - PAD, 0, -1);
+      host.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + svg.join('') +
+        '</svg>';
+    }
+
+    function ancestors(i) {
+      var set = {};
+      while (i >= 0) { set[i] = true; i = nodes[i].parent; }
+      return set;
+    }
+
+    // The readout box: unpinned, it tracks the hovered node; pinned, it stays on that node (a
+    // '(pinned)' suffix and the 'pinned' class marking it) until unpinned again.
+    function showSci(i) {
+      if (!sciBox) return;
+      var n = nodes[i];
+      var html = '<b>' + esc(n.label) + '</b> \\u00b7 sciences by ~' + clock(n.ms) + ': ' +
+        sciText(n);
+      if (i === pinned) html += ' (pinned)';
+      sciBox.innerHTML = html;
+      sciBox.classList.toggle('pinned', i === pinned);
+    }
+    function resetSci() {
+      if (!sciBox) return;
+      sciBox.textContent = defaultSci;
+      sciBox.classList.remove('pinned');
+    }
+    function setPin(i) {
+      pinned = i;
+      Array.prototype.forEach.call(host.querySelectorAll('.ice-box'), function (r) {
+        r.classList.remove('ice-pin');
+      });
+      if (i < 0) { resetSci(); return; }
+      var rect = host.querySelector('.ice-box[data-i="' + i + '"]');
+      if (rect) rect.classList.add('ice-pin');
+      showSci(i);
+    }
+
+    host.addEventListener('mouseover', function (e) {
+      var rect = e.target;
+      if (!rect.classList || !rect.classList.contains('ice-box')) return;
+      var i = +rect.getAttribute('data-i');
+      var set = ancestors(i);
+      Array.prototype.forEach.call(host.querySelectorAll('.ice-box'), function (r) {
+        r.style.opacity = set[+r.getAttribute('data-i')] ? '1' : '0.25';
+      });
+      var n = nodes[i];
+      var share = n.parentGames > 0 ? Math.round(n.games / n.parentGames * 100) : 0;
+      var decided = n.wins + n.losses;
+      var wr = decided ? Math.round(n.wins / decided * 100) + '%' : '\\u2013';
+      var html = '<b>' + esc(n.label) + '</b> ' + n.games + ' games \\u00b7 ' + share +
+        '% of parent \\u00b7 ' + n.wins + '-' + n.losses + ' \\u00b7 ' + wr +
+        ' \\u00b7 ' + clock(n.ms);
+      if (diff) {
+        if (n.base === null) {
+          html += ' \\u00b7 new vs overall';
+        } else {
+          var pts = Math.round((n.parentGames > 0 ? n.games / n.parentGames : 0) * 100 -
+            n.base * 100);
+          html += ' \\u00b7 ' + (pts > 0 ? '+' : '') + pts + ' vs overall';
+        }
+      }
+      tip.innerHTML = html;
+      tip.hidden = false;
+      var wr2 = wrap.getBoundingClientRect(), cr = rect.getBoundingClientRect();
+      var left = cr.left - wr2.left + cr.width / 2 + 8;
+      if (left + tip.offsetWidth > wr2.width - 4) left = wr2.width - tip.offsetWidth - 4;
+      tip.style.left = Math.max(0, left) + 'px';
+      tip.style.top = Math.max(0, cr.top - wr2.top - 6) + 'px';
+      if (pinned < 0) showSci(i);
+    });
+    host.addEventListener('mouseleave', function () {
+      tip.hidden = true;
+      Array.prototype.forEach.call(host.querySelectorAll('.ice-box'), function (r) {
+        r.style.opacity = '1';
+      });
+      if (pinned < 0) resetSci();
+    });
+    host.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      var rect = e.target;
+      if (rect.classList && rect.classList.contains('ice-box')) {
+        var i = +rect.getAttribute('data-i');
+        setPin(i === pinned ? -1 : i);
+      } else {
+        setPin(-1);
+      }
+    });
+
+    if (typeof IntersectionObserver === 'undefined') {
+      render();
+    } else {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) { render(); io.disconnect(); }
+        });
+      });
+      io.observe(wrap);
+    }
   });
 })();
 """
@@ -1870,17 +2497,18 @@ def _timeline_block(
     )
 
 
-def _heatmap_block(ranked: list[ChoiceStat], graph: str, translate: Translate) -> str:
-    """The collapsed purchase-timing `<details>` for the Sciences table: a heatmap rather than
-    the Buildings/Units timeline's line graph, because a science is bought at most once per
-    game and a faction only carries 10-20 of them - one row per science (in table rank order)
-    reads at a glance where the timeline's overlapping lines would not. Only the x-axis toggles
-    (no y-mode: a heatmap cell is always that row's own share of its own purchases, row-
-    normalised - see `_HEATMAP_SCRIPT`), and there is no per-row checkbox/swatch or header
-    select-all, since there is no line to key a row to. The JSON payload is identical in shape
-    to `_timeline_block`'s (series of translated label + raw (order seconds, match duration)
-    occurrences), rounded to 1 decimal; `</` is escaped inside it so no label can close the
-    script element early."""
+def _heatmap_block(ranked: list[ChoiceStat], graph: str, translate: Translate, rec: str) -> str:
+    """The collapsed purchase-timing `<details>` for a Sciences/Upgrades/Other purchases table:
+    a heatmap rather than the Buildings/Units timeline's line graph, because these picks happen
+    at most once per game per row and a faction only carries 10-20 of them - one row per pick
+    (in table rank order) reads at a glance where the timeline's overlapping lines would not.
+    `rec` is the section-appropriate summary blurb ("when each science is bought..."). Only the
+    x-axis toggles (no y-mode: a heatmap cell is always that row's own share of its own
+    purchases, row-normalised - see `_HEATMAP_SCRIPT`), and there is no per-row checkbox/swatch
+    or header select-all, since there is no line to key a row to. The JSON payload is identical
+    in shape to `_timeline_block`'s (series of translated label + raw (order seconds, match
+    duration) occurrences), rounded to 1 decimal; `</` is escaped inside it so no label can
+    close the script element early."""
     payload = {
         "series": [
             {
@@ -1893,7 +2521,7 @@ def _heatmap_block(ranked: list[ChoiceStat], graph: str, translate: Translate) -
     data = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
     return (
         f'<details class="heatmap" data-graph="{graph}"><summary>Purchase timing '
-        '<span class="rec">when each science is bought across match length</span></summary>'
+        f'<span class="rec">{escape(rec)}</span></summary>'
         '<div class="body">'
         '<div class="tl-head"><span class="tl-toggle">'
         '<button type="button" class="on" data-mode="pct">% of match</button>'
@@ -1919,21 +2547,23 @@ def _html_table(
     annotate: Annotate | None,
     graph_ids: Iterator[int] | None = None,
     graph_kind: str = "timeline",
+    heatmap_rec: str = "",
     anchor: str | None = None,
     weight: Weight | None = None,
 ) -> list[str]:
     """One pick-category table, titled at `heading` depth; empty when the table is. With a
     `base_table` (the faction's overall aggregate for this category) each row gains a `vs
     overall` delta column. With `graph_ids` (the page-wide counter, handed in only for the
-    Buildings/Units/Sciences sections), a collapsed graph sits between the heading and the
-    table: `graph_kind="timeline"` (Buildings/Units) draws `_timeline_block` and gives every
-    row's label cell a leading checkbox + colour swatch keying that row to its line - inside the
-    first cell rather than its own column, so the sort script's column indices and text-based
-    keys are untouched and the checkboxes travel with sorted rows - plus a header select-all;
-    `graph_kind="heatmap"` (Sciences) draws `_heatmap_block` instead, with no per-row key and no
-    select-all, since a heatmap row has no line to toggle. The id is drawn only when a graph
-    actually renders (a table where every game lacked a duration, or no science was ever
-    purchased, has nothing to draw), so ids stay dense across the page."""
+    graph-bearing sections - see `_GRAPH_SECTIONS`), a collapsed graph sits between the heading
+    and the table: `graph_kind="timeline"` (Buildings/Units) draws `_timeline_block` and gives
+    every row's label cell a leading checkbox + colour swatch keying that row to its line -
+    inside the first cell rather than its own column, so the sort script's column indices and
+    text-based keys are untouched and the checkboxes travel with sorted rows - plus a header
+    select-all; `graph_kind="heatmap"` (Sciences/Upgrades/Other purchases) draws
+    `_heatmap_block` instead - `heatmap_rec` its section-appropriate summary blurb - with no
+    per-row key and no select-all, since a heatmap row has no line to toggle. The id is drawn
+    only when a graph actually renders (a table where every game lacked a duration has nothing
+    to draw), so ids stay dense across the page."""
     if not table:
         return []
     ranked = _ranked(table)
@@ -1949,7 +2579,7 @@ def _html_table(
     lines = [f"<{heading}{attr}>{escape(title)}</{heading}>"]
     if graph_id is not None:
         lines.append(
-            _heatmap_block(ranked, graph_id, translate)
+            _heatmap_block(ranked, graph_id, translate, heatmap_rec)
             if heatmap
             else _timeline_block(ranked, graph_id, translate, weight)
         )
@@ -1997,6 +2627,238 @@ def _html_table(
     return lines
 
 
+def _tree_has_category(node: BuildNode, category: str) -> bool:
+    """Whether any node below `node` (children onward, the root step-less node excluded) carries
+    `category` - so a tree with a hero step anywhere earns the Heroes extrapolation caveat."""
+    for child in node.children.values():
+        if child.category == category or _tree_has_category(child, category):
+            return True
+    return False
+
+
+def _science_payload(table: dict[str, list[float]], translate: Translate) -> list[dict]:
+    """One node's by-step science annotation (`BuildNode.sciences_by_step`) as the client JSON
+    shape: each label translated, `games` the number of clocks recorded for it, sorted by median
+    clock ascending (ties by label) - the same ordering `_science_line` and `BuildNode.to_dict`
+    use for their own science summaries."""
+    entries = [
+        {"label": translate(label), "games": len(clocks), "median_seconds": median(clocks)}
+        for label, clocks in table.items()
+    ]
+    entries.sort(key=lambda entry: (entry["median_seconds"], entry["label"]))
+    return entries
+
+
+def _bo_node_payload(
+    node: BuildNode,
+    translate: Translate,
+    base_node: BuildNode | None,
+    base_parent: BuildNode | None,
+    diffing: bool,
+) -> dict:
+    """One build-order node as the client JSON shape (shared by the icicle and the Explorer): its
+    label through `translate` plus the fields the client draws from, recursing into children.
+    Keeps `win_rate`/`decided` out - both scripts derive the bar/win-rate from wins/losses, matching
+    the tables. Carries `sciences` - the node's by-step science annotation (`_science_payload`,
+    translated, clock-sorted) - only when it is non-empty, so a leaf-less node's payload stays as
+    small as before. When `diffing` (a parallel walk of the faction's overall tree, `base_node`/
+    `base_parent` following the same key-path) every node carries `base_share`: the matching
+    baseline node's share-of-its-parent (`base_node.games / base_parent.games`), or `null` when
+    that path is absent in the baseline (a step common only against this enemy) - so every node
+    carries the key even below the point the paths diverge. Outside diff mode neither `base_share`
+    nor the top-level `diff` flag is emitted, so the payload stays byte-identical to the non-diff
+    shape."""
+    payload: dict = {
+        "label": translate(node.label),
+        "category": node.category,
+        "games": node.games,
+        "wins": node.wins,
+        "losses": node.losses,
+        "median_seconds": node.median_seconds,
+        "median_count": node.median_count,
+    }
+    sciences = _science_payload(node.sciences_by_step, translate)
+    if sciences:
+        payload["sciences"] = sciences
+    if diffing:
+        payload["base_share"] = (
+            base_node.games / base_parent.games
+            if base_node is not None and base_parent is not None and base_parent.games
+            else None
+        )
+    children = []
+    for key, child in node.children.items():
+        child_base = base_node.children.get(key) if base_node is not None else None
+        children.append(_bo_node_payload(child, translate, child_base, base_node, diffing))
+    payload["children"] = children
+    return payload
+
+
+def _bo_payload(
+    node: BuildNode, translate: Translate, *, baseline: BuildNode | None = None
+) -> dict:
+    """The whole build-order tree as the client JSON shape, rooted at `node` (see
+    `_bo_node_payload` for one node). With `baseline` (the faction's overall tree) the payload
+    walks it in parallel so every node carries a `base_share` and the root gains `diff: true`,
+    letting the icicle and Explorer show how the opening shifts against one enemy; without it the
+    payload is byte-identical to the non-diff shape (no `base_share`, no `diff`)."""
+    diffing = baseline is not None
+    payload = _bo_node_payload(node, translate, baseline, None, diffing)
+    if diffing:
+        payload["diff"] = True
+    return payload
+
+
+def _baseline_path_games(baseline: BuildNode, path: list[BuildNode]) -> int | None:
+    """The games reaching the same full key-path in the baseline (overall) tree, walking keys
+    from its root; None when any step of the path is absent - an opening common against this enemy
+    but not in the faction overall."""
+    node = baseline
+    for step in path:
+        child = node.children.get((step.category, step.label))
+        if child is None:
+            return None
+        node = child
+    return node.games
+
+
+def _build_order_table(
+    tree: BuildNode, translate: Translate, *, baseline: BuildNode | None = None
+) -> list[str]:
+    """The top openings as a standard sortable table: each path's step labels joined with arrows
+    (translated, HTML-escaped, `×k` when a step's typical count is above one), then its leaf
+    node's games, win-loss, win-rate bar, and `~Complete` (the leaf's own median clock) in a
+    muted cell. A non-empty science line (`_science_line`, off the leaf's `sciences_taken`)
+    renders as a second, muted line inside the Build order cell (`.bo-sci`). With `baseline` (the
+    faction's overall tree, a matchup sub-block only) a trailing `vs overall` column carries the
+    path-share delta - this opening's share of the matchup (`leaf.games / tree.games`) minus the
+    overall's share of the whole faction at the same full key-path (`_baseline_path_games`) - as
+    a `_delta`, or a `NEW` badge when that path is absent in the baseline entirely."""
+    vs = baseline is not None
+    vs_head = '<th title="opening share vs the faction overall, in points">vs overall</th>'
+    lines = [
+        '<div class="tablewrap"><table>',
+        "<thead><tr><th>Build order</th><th>Games</th><th>W-L</th>"
+        f"<th>Win rate</th><th>~Complete</th>{vs_head if vs else ''}</tr></thead>",
+        "<tbody>",
+    ]
+    for path in build_orders.openings(tree, limit=8):
+        leaf = path[-1]
+        label = _build_path_label(path, translate, arrow=" &rarr; ", times=" &times;", esc=escape)
+        complete_at = leaf.median_seconds
+        complete = clock(complete_at) if complete_at is not None else "-"
+        science_line = _science_line(leaf, translate, arrow=" &rarr; ", esc=escape)
+        sci_cell = f'<div class="bo-sci">sciences: {science_line}</div>' if science_line else ""
+        vs_cell = ""
+        if baseline is not None:
+            base_games = _baseline_path_games(baseline, path)
+            if base_games is None:
+                vs_cell = '<td><span class="badge">NEW</span></td>'
+            else:
+                share = leaf.games / tree.games if tree.games else 0.0
+                base_share = base_games / baseline.games if baseline.games else 0.0
+                vs_cell = f"<td>{_delta(share - base_share)}</td>"
+        lines.append(
+            f"<tr><td>{label}{sci_cell}</td><td>{leaf.games}</td>"
+            f"<td>{leaf.wins}-{leaf.losses}</td><td>{_html_bar(leaf.win_rate)}</td>"
+            f'<td class="dim">{complete}</td>{vs_cell}</tr>'
+        )
+    lines.extend(["</tbody>", "</table></div>"])
+    return lines
+
+
+# The icicle's category legend, in the same tree order the boxes themselves stack in (buildings,
+# units, heroes) and tied to the same `--sN` slots `_ICICLE_SCRIPT`'s `CAT` map uses, so a swatch
+# always matches the fill it names. The tree is eco-only, so sciences never earn a box or a slot.
+_ICE_LEGEND = (("buildings", "--s1"), ("units", "--s2"), ("heroes", "--s3"))
+
+# The icicle readout's default text before any step has been hovered or right-click pinned.
+_ICE_SCI_DEFAULT = "hover a step for its sciences · right-click pins"
+
+
+def _build_order_icicle(
+    tree: BuildNode, translate: Translate, *, baseline: BuildNode | None = None
+) -> str:
+    """The build-order tree as a horizontal icicle/flow diagram (`_ICICLE_SCRIPT` draws it): a
+    wrapper holding a static category legend, a science readout box (`.ice-sci`, `_ICE_SCI_DEFAULT`
+    until a step is hovered or pinned - the script fills it in per step from that node's payload
+    `sciences`), the SVG host, a shared tooltip, and the same translated JSON payload the Explorer
+    ships (`</` escaped so no label can close the script element early). Column = depth
+    left-to-right, a box's height its share of `games`; the client partitions each parent band
+    among its children top-aligned, leaving the pruned-away remainder blank. With `baseline` the
+    payload carries the diff channel (`base_share`, `diff`) so a matchup icicle can outline steps
+    new versus the faction overall and read the share delta in the tooltip. `tree` is eco-only; a
+    node's sciences ride in its payload's `sciences` field for the readout, never as boxes of
+    their own. The legend (`_ICE_LEGEND`) is plain server-rendered markup, not part of the JSON
+    payload or drawn by the script, so it reads before the lazy icicle itself has rendered."""
+    payload = _bo_payload(tree, translate, baseline=baseline)
+    data = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
+    legend = "".join(
+        f'<span class="ice-legend-item"><span class="swatch" style="--c: var({slot})"></span>'
+        f"{category}</span>"
+        for category, slot in _ICE_LEGEND
+    )
+    return (
+        f'<div class="bo-ice-wrap"><div class="ice-legend">{legend}</div>'
+        f'<div class="ice-sci">{_ICE_SCI_DEFAULT}</div>'
+        '<div class="bo-ice"></div><div class="tl-tip" hidden></div>'
+        f'<script type="application/json" class="ice-data">{data}</script></div>'
+    )
+
+
+def _build_order_explorer(
+    tree: BuildNode, translate: Translate, *, baseline: BuildNode | None = None
+) -> str:
+    """The collapsed step-by-step `<details class="botree">`: the translated tree as a JSON
+    payload (`</` escaped so no label can close the script element early) that `_BUILDORDER_SCRIPT`
+    draws lazily on first open into an indented, foldable row per node. With `baseline` (a matchup
+    sub-block only) the payload carries the diff channel, so each row also shows how its share
+    shifts against the faction overall (a `vs overall` delta, or a `NEW` badge). `tree` is
+    eco-only - buildings/units/heroes rows, no science rows; a node's science annotations still
+    ride in its payload (for the icicle's readout) but are not drawn by this script."""
+    data = json.dumps(
+        _bo_payload(tree, translate, baseline=baseline), separators=(",", ":")
+    ).replace("</", "<\\/")
+    return (
+        '<details class="botree"><summary>Explorer '
+        '<span class="rec">step-by-step branches with share of games</span></summary>'
+        '<div class="body"><div class="bo-rows"></div>'
+        f'<script type="application/json" class="bo-data">{data}</script>'
+        "</div></details>"
+    )
+
+
+def _build_order_html(
+    agg: FactionAggregate,
+    heading: str,
+    translate: Translate,
+    *,
+    anchor: str | None = None,
+    baseline: BuildNode | None = None,
+) -> list[str]:
+    """One aggregate's build-order section as HTML: the heading (ided by `anchor` only on the
+    single-faction page's own block, never a matchup's), the hero-step extrapolation caveat
+    (`_BUILD_ORDER_HERO_NOTE` - scoped to hero steps, not the Heroes table's whole-section
+    wording) when a hero step appears anywhere in the tree, then the eco-only tree itself as the
+    section headline's icicle/flow diagram (with its science readout box), the top-openings table
+    (each row's leaf-wide science order riding as a second line, `_science_line`), and the
+    collapsible Explorer. With `baseline` (the faction's overall combined tree, threaded for a
+    matchup sub-block) every piece diffs against it, showing how the opening differs from the
+    faction's overall. Empty when the aggregate has no pruned build-order tree."""
+    if not _build_order_present(agg):
+        return []
+    assert agg.build_orders is not None
+    tree = agg.build_orders
+    attr = f' id="{anchor}"' if anchor else ""
+    lines = [f"<{heading}{attr}>Build orders</{heading}>"]
+    if _tree_has_category(tree, "heroes"):
+        lines.append(f'<p class="note">{escape(_BUILD_ORDER_HERO_NOTE)}</p>')
+    lines.append(_build_order_icicle(tree, translate, baseline=baseline))
+    lines.extend(_build_order_table(tree, translate, baseline=baseline))
+    lines.append(_build_order_explorer(tree, translate, baseline=baseline))
+    return lines
+
+
 def _sub_heading(heading: str) -> str:
     """The heading one level deeper than `heading` (h3 -> h4), for the nested powers block."""
     return f"h{int(heading[1:]) + 1}"
@@ -2013,23 +2875,42 @@ def _html_tables(
     graph_ids: Iterator[int] | None = None,
     section_anchors: bool = False,
     weight: Weight | None = None,
+    lead_build_orders: bool = True,
 ) -> list[str]:
-    """The pick-category tables of one aggregate, titled at `heading` (h3/h4) depth, with the
-    tracked powers nested a heading level deeper under Units as `powers_heading` (their caster
-    is a unit, not a recruitable hero). Row labels are shown through `translate` (raw code name
-    when it is the identity). With `baseline` (the faction's overall aggregate), each row gains
+    """The pick-category tables of one aggregate, titled at `heading` (h3/h4) depth, led by the
+    common build-order section (`_build_order_html` - anchored only when `section_anchors`) unless
+    `lead_build_orders` is False (the faction's own block renders it lower, just above the replay
+    list - see `render_aggregate_html` - while matchup sub-blocks keep it leading), and
+    with the tracked powers nested a heading level deeper under Units as `powers_heading` (their
+    caster is a unit, not a recruitable hero). Row labels are shown through `translate` (raw code
+    name when it is the identity). With `baseline` (the faction's overall aggregate), each row gains
     a `vs overall` column: this aggregate's pick rate for the choice minus the baseline's, in
-    points - so a matchup table shows how the faction's picks shift against that enemy.
-    `annotate(owner, label)` may append a badge to a row (e.g. flagging a pick that is not
+    points - so a matchup table shows how the faction's picks shift against that enemy; the leading
+    build-order section diffs against the baseline's own tree the same way (icicle, openings table,
+    and Explorer all showing how the opening differs from the faction overall). `annotate(owner,
+    label)` may append a badge to a row (e.g. flagging a pick that is not
     `owner`'s roster); `owner` is the faction the picks belong to, which for a matchup sub-table
     is the parent faction, not the enemy. `graph_ids` (a page-wide counter, threaded from
     `render_aggregate_html`) gives the Buildings and Units sections their timeline graphs and the
-    Sciences section its purchase-timing heatmap: each rendered graph draws a fresh id tying its
-    rows (or, for the heatmap, just the graph itself) to its own chart, unique across every
-    faction and matchup block on the page. `weight` (a label -> command-point lookup, see
-    `command_point_weights`) reaches only the Units timeline, giving it the "CP share" y-mode."""
+    Sciences/Upgrades/Other purchases sections their purchase-timing heatmaps: each rendered
+    graph draws a fresh id tying its rows (or, for a heatmap, just the graph itself) to its own
+    chart, unique across every faction and matchup block on the page. `weight` (a label ->
+    command-point lookup, see `command_point_weights`) reaches only the Units timeline, giving
+    it the "CP share" y-mode."""
     base_games = baseline.games if baseline is not None else 0
     lines: list[str] = []
+    # Build orders lead a matchup sub-block, but the faction's own block renders them lower (just
+    # above its replay list, see `render_aggregate_html`), so `lead_build_orders` gates them here.
+    if lead_build_orders:
+        lines.extend(
+            _build_order_html(
+                agg,
+                heading,
+                translate,
+                anchor="sec-buildorders" if section_anchors else None,
+                baseline=baseline.build_orders if baseline is not None else None,
+            )
+        )
     for title, attribute, column in _SECTIONS:
         base_table = getattr(baseline, attribute) if baseline is not None else None
         # The section-heading anchor for the single-faction page's contents box; only the
@@ -2046,8 +2927,9 @@ def _html_tables(
             base_games=base_games,
             owner=owner,
             annotate=annotate,
-            graph_ids=graph_ids if attribute in ("buildings", "units", "sciences") else None,
-            graph_kind="heatmap" if attribute == "sciences" else "timeline",
+            graph_ids=graph_ids if attribute in _GRAPH_SECTIONS else None,
+            graph_kind="timeline" if attribute in _TIMELINE_SECTIONS else "heatmap",
+            heatmap_rec=_HEATMAP_REC.get(attribute, ""),
             anchor=anchor,
             # Only the Units timeline weighs its series: command points are an army-cap
             # cost, which structures don't occupy.
@@ -2124,8 +3006,10 @@ def _corpus_toc(
 
 def _faction_toc(agg: FactionAggregate, has_replays: bool) -> list[str]:
     """A single-faction page's contents: each pick section present (a bare Units section still
-    lists when only powers were cast), then the matchups block and the replay list when present.
-    Section order and anchors mirror `_html_tables`' `sec-<attribute>` headings."""
+    lists when only powers were cast), the matchups block, then the build-order section and the
+    replay list when present. Section order and anchors mirror `render_aggregate_html`'s layout,
+    where build orders sit after the matchups and just above the replays (`sec-buildorders` /
+    `sec-<attribute>` headings)."""
     entries: list[tuple[str, str]] = []
     for title, attribute, _ in _SECTIONS:
         present = bool(getattr(agg, attribute)) or (attribute == "units" and bool(agg.powers))
@@ -2133,6 +3017,8 @@ def _faction_toc(agg: FactionAggregate, has_replays: bool) -> list[str]:
             entries.append((escape(title), f"sec-{attribute}"))
     if agg.matchups:
         entries.append(("Matchups", "matchups"))
+    if _build_order_present(agg):
+        entries.append(("Build orders", "sec-buildorders"))
     if has_replays:
         entries.append(("Replays", "replays"))
     return _toc(entries)
@@ -2158,7 +3044,17 @@ def render_aggregate_html(
     around 50%. `translate` maps a code name to the display string shown for faction and
     pick-table labels; by default labels render as their raw code names. `extra`, if given,
     returns extra HTML lines appended after each faction's own block (the caller's per-faction
-    replay list). `annotate(faction, label)` may badge a pick row - both the faction's own
+    replay list). Each faction carries a Build orders section (an icicle/flow diagram of the
+    pruned eco-only tree as its headline, with a readout box for a hovered/pinned step's
+    sciences - its common openings as a sortable table, each row's leaf-wide science order riding
+    as a second line - and a collapsible step-by-step Explorer over the same tree - drawn by the
+    embedded `_ICICLE_SCRIPT` and `_BUILDORDER_SCRIPT`) when its pruned build-order tree has any
+    branches, rendered after its matchups and just above `extra`'s replay list. Matchup blocks
+    carry their own Build orders section leading their sub-tables, diffing against the faction's
+    overall tree
+    (a `vs overall` column on the openings table, a `NEW`/delta annotation in the icicle and the
+    Explorer).
+    `annotate(faction, label)` may badge a pick row - both the faction's own
     tables and its matchup sub-tables are annotated against that faction as the owner.
     `index_href`, if given, renders a back-to-index nav pill linking there (a page relative path
     from this page). `icon`, if given, maps a faction code name to an icon URL (relative to
@@ -2168,10 +3064,10 @@ def render_aggregate_html(
     (drawn by the embedded `_GRAPH_SCRIPT`; see its module comment and `_timeline_block` for the
     graph's axis, y-mode, and denominator behavior; `weight`, a pick label -> command-point
     lookup like `command_point_weights(data)`, adds the Units timelines' "CP share" y-mode,
-    weighting each series by the army-cap cost its orders occupy), and every Sciences table
-    carries a collapsed
-    purchase-timing heatmap - one row per science shaded by when it tends to be bought (drawn by
-    the embedded `_HEATMAP_SCRIPT`; see its module comment and `_heatmap_block`). A contents box
+    weighting each series by the army-cap cost its orders occupy), and every Sciences, Upgrades,
+    and Other purchases table carries a collapsed purchase-timing heatmap - one row per pick
+    shaded by when it tends to be bought (drawn by the embedded `_HEATMAP_SCRIPT`; see its
+    module comment and `_heatmap_block`). A contents box
     heads the page: over the factions for a multi-faction report, or over the one faction's own
     sections (each pick
     category present, then Matchups and, when `extra` renders one, Replays) for a single-faction
@@ -2222,6 +3118,7 @@ def render_aggregate_html(
                 graph_ids=graph_ids,
                 section_anchors=single,
                 weight=weight,
+                lead_build_orders=False,
             )
         )
         matchups = _ranked_matchups(agg)
@@ -2259,6 +3156,10 @@ def render_aggregate_html(
                 )
             )
             lines.append("</div></details>")
+        # The faction's own build orders render here, after its matchups and just above the
+        # replay list, rather than leading the block (matchup sub-blocks keep them leading, see
+        # `_html_tables`); the anchor rides along only on a single-faction page's contents box.
+        lines.extend(_build_order_html(agg, "h3", tr, anchor="sec-buildorders" if single else None))
         lines.extend(extra_lines[agg.faction])
     lines.extend(
         [
@@ -2266,6 +3167,8 @@ def render_aggregate_html(
             f"<script>{_SORT_SCRIPT}</script>",
             f"<script>{_GRAPH_SCRIPT}</script>",
             f"<script>{_HEATMAP_SCRIPT}</script>",
+            f"<script>{_BUILDORDER_SCRIPT}</script>",
+            f"<script>{_ICICLE_SCRIPT}</script>",
         ]
     )
     lines.extend(["</body>", "</html>"])

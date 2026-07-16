@@ -551,6 +551,7 @@ def _run_aggregate(args: argparse.Namespace) -> int:
         tracked_powers=powers,
         include_combines=args.combines,
         matchups=args.matchups,
+        build_depth=args.build_depth,
     )
 
     if args.json:
@@ -691,6 +692,14 @@ def add_aggregate_command(
         action="store_true",
         help="also build every pick table per enemy faction (buildings built vs Mordor, "
         "units vs Gondor), appended after each faction's own sections",
+    )
+    parser.add_argument(
+        "--build-depth",
+        type=int,
+        default=12,
+        metavar="N",
+        help="how many distinct opening steps (each thing's first appearance) each game "
+        "contributes to the common-build-order trees; 0 disables the section",
     )
     _add_winner_pov(parser)
     output_format = parser.add_mutually_exclusive_group()

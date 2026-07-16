@@ -1,10 +1,12 @@
-"""Rebuild one Edain replay-corpus's aggregate HTML pages.
+"""Rebuild Edain replay-corpora's aggregate HTML pages.
 
-A corpus is a subfolder of `downloads/replays/` (e.g. `edain-4.8.4.3`); different corpora
-require a different game version installed at C:\\BFME2 / C:\\RotWK, so this script builds
-exactly one corpus per run - pass its folder name as the positional argument. Its pages land
-under that same folder name inside the output dir (`aggregate/` by default), which is the
-shared ROOT all corpora build into:
+A corpus is a subfolder of `downloads/replays/` (e.g. `edain-4.8.4.3`); pass one or more
+folder names as positional arguments and each is built in turn. Corpora of different mods
+require a different game version installed at C:\\BFME2 / C:\\RotWK, and every corpus in one
+run resolves against the same install (loaded once and shared), so only build folders together
+when they share the installed game version (e.g. edain-4.8.4.3 and loriencup, both Edain).
+Each corpus's pages land under its own folder name inside the output dir (`aggregate/` by
+default), which is the shared ROOT all corpora build into:
 
     aggregate/
       index.html                       global index over every corpus built here (this
@@ -92,7 +94,7 @@ counts the global index reads) and regenerates `<out>/index.html`: a landing pag
 corpus folder found on disk under `<out>/` (each one this script has ever built), pulling its
 headline numbers from its own corpus.json when present.
 
-Run from anywhere:  python tools/rebuild_aggregates.py edain-4.8.4.3
+Run from anywhere:  python tools/rebuild_aggregates.py edain-4.8.4.3 [loriencup ...]
 Override the paths with --corpus-root / --game / --out if your installs live elsewhere;
 --names bypasses the corpus's settings.json for one run, and --title overrides the
 folder-derived default corpus title. `--index-only` regenerates just the global index from
@@ -113,7 +115,7 @@ import shutil
 import sys
 import tempfile
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from html import escape
 from os.path import relpath
@@ -597,9 +599,11 @@ def render_corpora_index(out: Path, display_names: dict[str, str]) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "folder",
-        nargs="?",
-        help="corpus subfolder under --corpus-root to build (e.g. edain-4.8.4.3)",
+        "folders",
+        nargs="*",
+        metavar="folder",
+        help="corpus subfolder(s) under --corpus-root to build, in order (e.g. edain-4.8.4.3 "
+        "loriencup); folders built together must share the installed game version",
     )
     parser.add_argument(
         "--corpus-root",
@@ -623,7 +627,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="output root for all corpora")
     parser.add_argument(
-        "--title", default=None, help="page title / corpus label (default: derived from folder)"
+        "--title",
+        default=None,
+        help="page title / corpus label (default: derived from folder); single folder only",
     )
     parser.add_argument(
         "--names",
@@ -677,19 +683,65 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     available = _available_corpora(args.corpus_root)
-    if args.folder is None:
+    if not args.folders:
         parser.error(
-            "a corpus folder is required; available under "
+            "at least one corpus folder is required; available under "
             f"{args.corpus_root}: {', '.join(available) or '(none)'}"
         )
-    corpus_dir = args.corpus_root / args.folder
-    if not corpus_dir.is_dir():
+    missing = [folder for folder in args.folders if not (args.corpus_root / folder).is_dir()]
+    if missing:
         parser.error(
-            f"no corpus folder {args.folder!r} under {args.corpus_root}; "
+            f"no corpus folder(s) {', '.join(missing)} under {args.corpus_root}; "
             f"available: {', '.join(available) or '(none)'}"
         )
-    out_root = args.out / args.folder
-    cache_dir = args.cache_root / args.folder
+    if args.title is not None and len(args.folders) > 1:
+        parser.error("--title names a single corpus; drop it when building several folders")
+
+    # One paired game for the whole run, resolved once against the currently mounted install
+    # and memoized: every corpus's translate pass and phase two share it (so the game is never
+    # mounted twice), which is why the folders built together must share the installed game
+    # version - per the corpus workflow, the current mount is assumed to carry every
+    # document's names, whatever recording patch each one holds.
+    game_roots = args.game or DEFAULT_GAME
+    current: list[GameData | None] = [None]
+
+    def current_game() -> GameData:
+        if current[0] is None:
+            print(f"loading game from {', '.join(str(g) for g in game_roots)} ...")
+            current[0] = GameData.from_root(resolve_game_roots(game_roots, None), localize=False)
+        return current[0]
+
+    needs_input = []
+    for folder in args.folders:
+        if _build_corpus(parser, args, folder, game_roots, current_game):
+            needs_input.append(folder)
+
+    # The global index is a pure disk scan (no game data needed), so it's cheap to regenerate
+    # in full once at the end - the corpora just built plus every sibling a previous run left.
+    _write_global_index()
+
+    if needs_input:
+        print(f"not built (fill in the reported items and rerun): {', '.join(needs_input)}")
+        return 1
+    return 0
+
+
+def _build_corpus(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+    folder: str,
+    game_roots: list[Path],
+    current_game: Callable[[], GameData],
+) -> int:
+    """Build the one corpus at `--corpus-root/<folder>` into `--out/<folder>`: the whole
+    single-corpus flow - sidecars, phase-one caching, phase-two aggregation, page tree.
+    Returns 1 without building when the corpus stops for hand-input (sidecar winners, blank
+    version labels); a malformed settings.json is still a usage error through `parser`.
+    `current_game` is the run-wide memoized game load every corpus's phase two shares."""
+    print(f"building {folder} ...")
+    corpus_dir = args.corpus_root / folder
+    out_root = args.out / folder
+    cache_dir = args.cache_root / folder
 
     # The corpus's localisation map: --names when given, else the file its settings.json
     # points at (a settings problem is a usage error - the message says what shape to add).
@@ -724,6 +776,18 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(exclude, list) or not all(isinstance(item, str) for item in exclude):
         parser.error(f'"exclude" in {corpus_dir / "settings.json"} must be a list of labels')
     exclude = frozenset(exclude)
+    # Upgrade code names (raw) never to give an Upgrades row. A `Type = PLAYER` upgrade is
+    # auto-tracked via `data.player_upgrades`, but a mod can implement a client option that
+    # way (2.02's CE-graphics toggle) - purchase noise, not a strategic pick.
+    ignore_upgrades = settings.get("ignore_upgrades") or []
+    if not isinstance(ignore_upgrades, list) or not all(
+        isinstance(item, str) for item in ignore_upgrades
+    ):
+        parser.error(
+            f'"ignore_upgrades" in {corpus_dir / "settings.json"} must be a list of '
+            "upgrade code names"
+        )
+    ignore_upgrades = frozenset(ignore_upgrades)
     if edain:
         refine_faction = edain_faction_refiner
         power_recruits = edain_power_recruits
@@ -745,26 +809,11 @@ def main(argv: list[str] | None = None) -> int:
         faction_icons = {}
         print(f"overlay: generic ({len(faction_map)} faction name(s), no Edain-specific tracking)")
 
-    game_roots = args.game or DEFAULT_GAME
-
     def _cache_file(replay_path: Path) -> Path:
         """The replay's document in the mirrored cache tree: `<cache root>/<same relative
         path>/<replay name>.json` (relative to the corpus *root*, so the corpus folder itself
         is mirrored too)."""
         return cache_path(replay_path, args.corpus_root, args.cache_root)
-
-    # One paired game for the whole load phase, resolved once against the currently mounted
-    # install and memoized. A single-version translate pass reuses it (so the game is never
-    # mounted twice in a run), and it is what phase two rehydrates every document against - per
-    # the corpus workflow, the current mount is assumed to carry every document's names,
-    # whatever recording patch each one holds.
-    _current: list[GameData | None] = [None]
-
-    def _current_game() -> GameData:
-        if _current[0] is None:
-            print(f"loading game from {', '.join(str(g) for g in game_roots)} ...")
-            _current[0] = GameData.from_root(resolve_game_roots(game_roots, None), localize=False)
-        return _current[0]
 
     def _ensure_version_cached(files, load_game) -> tuple[int, int, int, list[str]]:
         """The explicit caching step for one game version's replay files: every replay lacking
@@ -939,7 +988,7 @@ def main(argv: list[str] | None = None) -> int:
             )
     else:
         files = next(iter(groups.values())) if groups else []
-        already, translated, failed, version_warnings = _ensure_version_cached(files, _current_game)
+        already, translated, failed, version_warnings = _ensure_version_cached(files, current_game)
         cache_warnings.extend(version_warnings)
         if files:
             print("  " + _report(files, already, translated, failed, " (no game install needed)"))
@@ -949,14 +998,15 @@ def main(argv: list[str] | None = None) -> int:
     # load-time pipeline, its outcome re-resolved against the sidecars as they are now.
     # `side_of` is the paired game's `effective_side`, what `_build_tree`'s `_side_annotator`
     # uses to look up unit Sides for the advisory cross-faction badge.
-    data = _current_game()
+    data = current_game()
     side_of = data.effective_side
     # The Units timelines' CP-share weights: pick label -> the template's CommandPoints,
     # resolved against the currently mounted install like everything else in phase two.
     weight = command_point_weights(data)
     # Player-level upgrade researches (`Type = PLAYER` - armory tech, a clan pick) always earn
-    # Upgrades rows; the overlay's hand-tracked set extends them.
-    tracked_upgrades = tracked_upgrades | data.player_upgrades
+    # Upgrades rows; the overlay's hand-tracked set extends them, and the corpus's
+    # `ignore_upgrades` drop the ones that are really client options.
+    tracked_upgrades = (tracked_upgrades | data.player_upgrades) - ignore_upgrades
     corpora, stale_warnings = _load_cached_corpora(data)
     cache_warnings.extend(stale_warnings)
     # Drop excluded slots (a neutral FactionCivilian) from every mode partition before the
@@ -1011,7 +1061,7 @@ def main(argv: list[str] | None = None) -> int:
     # like any pick label), so the whole corpus can be given a display name by hand. Tracked
     # upgrade rows seed their display string from the upgrade's own DisplayName, so they never
     # need hand-translation (a hand-filled entry still wins).
-    names, added = _load_names(names_path, labels | {args.folder}, data.upgrade_displaynames)
+    names, added = _load_names(names_path, labels | {folder}, data.upgrade_displaynames)
     untranslated = sum(1 for value in names.values() if not value)
     print(
         f"names: {len(names)} keys ({added} new, {untranslated} untranslated) -> {_rel(names_path)}"
@@ -1019,7 +1069,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # The corpus title: --title wins, then the folder's filled-in display name, then a
     # readable default derived from the folder name itself.
-    corpus_name = names.get(args.folder) or args.folder.replace("-", " ").title()
+    corpus_name = names.get(folder) or folder.replace("-", " ").title()
     title = args.title or f"{corpus_name} replay corpus"
 
     def display(code: str) -> str:
@@ -1149,7 +1199,7 @@ def main(argv: list[str] | None = None) -> int:
     # it only ever scans what earlier runs of this script left on disk.
     decided = sum(1 for g in corpus.games if g.outcome != "undetermined")
     corpus_meta = {
-        "folder": args.folder,
+        "folder": folder,
         # The bare display name (no "replay corpus" suffix): the global index's label for this
         # folder when its corpus's names file cannot be resolved at regeneration time.
         "name": corpus_name,
@@ -1170,11 +1220,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"wrote {_rel(out_root / 'corpus.json')}")
 
-    # The global index is a pure disk scan (no game data needed), so it's cheap to regenerate
-    # in full every run - this one's corpus.json plus every sibling corpus a previous run left.
-    _write_global_index()
-
-    print(f"done: {args.folder} - overall tree + {len(mode_corpora)} player-count split(s)")
+    print(f"done: {folder} - overall tree + {len(mode_corpora)} player-count split(s)")
     return 0
 
 
