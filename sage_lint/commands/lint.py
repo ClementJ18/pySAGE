@@ -6,11 +6,19 @@ and list the accepted diagnostic codes (`--list-codes`).
 import argparse
 import json
 import sys
+from collections.abc import Callable, Iterable
 from fnmatch import fnmatch
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+from sage_utils.cli import add_game_arguments, existing_path
+
+if TYPE_CHECKING:
+    from sage_map import Map
 
 from sage_ini.parser.diagnostics import Diagnostic, Diagnostics, Severity
 from sage_ini.parser.io import read_text
+from sage_ini.parser.location import Span
 from sage_ini.suggest import suggestions_enabled
 from sage_lint.baseline import (
     BASELINE_NAME,
@@ -402,14 +410,71 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
     return 0 if args.exit_zero else (1 if shown else 0)
 
 
-def run_lint_maps(args: argparse.Namespace, config: Config, root: Path) -> int:
-    """Lint the binary `.map` layouts under `root` for dangling references, resolved against the
-    assembled game. Reuses the same root/base/exclude resolution as `lint`, so GAME-scope checks
-    (object/science/upgrade names) resolve against the *complete* world the `--base` layers build -
-    without them only map-local references (teams, waypoints) are reliable. The `sage_map` overlay
-    is imported lazily so `sage_lint` runs without the optional `[map]` extra installed."""
+def _crawl_maps(target: Path) -> list[Path]:
+    """The `.map` files the positional target names: the file itself, or every `*.map` under a
+    folder (recursively, sorted for a stable report order)."""
+    if target.is_dir():
+        return sorted(target.rglob("*.map"))
+    return [target]
+
+
+def add_map_lint_arguments(parser: argparse.ArgumentParser, *, game_help: str) -> None:
+    """Add the shared `lint-maps` argument surface - a single target (a `.map` file or a folder to
+    crawl), the standard `--game`/`--cache` game source, and the diagnostic filter/output options -
+    so any command that lints maps against a game offers the exact same interface. `game_help`
+    tailors the `--game` wording; `run_map_lint` consumes what this adds."""
+    parser.add_argument(
+        "target",
+        type=existing_path,
+        help="a .map file to lint, or a folder to crawl (recursively) for .map files",
+    )
+    add_game_arguments(parser, game_required=False, game_help=game_help)
+    parser.add_argument(
+        "--select", action="append", default=[], metavar="CODE", help="report only these codes"
+    )
+    parser.add_argument(
+        "--ignore", action="append", default=[], metavar="CODE", help="omit these codes"
+    )
+    parser.add_argument(
+        "--level",
+        type=str.upper,
+        choices=[level.name for level in Severity],
+        help="define the diagnostic level to show",
+    )
+    parser.add_argument("-q", "--quiet", action="store_true", help="print only the summary line")
+    parser.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="colour the severity in text output (default: auto, on when a tty)",
+    )
+    parser.add_argument(
+        "--exit-zero", action="store_true", help="always exit 0, even when diagnostics are reported"
+    )
+    parser.add_argument(
+        "--output-format",
+        choices=("text", "json"),
+        default="text",
+        help="report format: human text (default) or machine-readable json",
+    )
+
+
+def run_map_lint(
+    args: argparse.Namespace,
+    *,
+    extra_checks: Callable[["Map", Path], Iterable[Diagnostic]] | None = None,
+) -> int:
+    """Lint the `.map` file - or every `.map` under the folder - named by `args.target`, resolved
+    against the game loaded with `--game`. Every map gets the game-resolved dangling-reference
+    checks; `extra_checks`, when given, adds more findings per parsed map (an overlay's own rule
+    set, e.g. `sage_mods.edain.map_checks`). The object and GAME-scope reference checks need the
+    game
+    (pass the base game first, the mod after it; each `.big` install is mounted); with no `--game`
+    the game is empty, so only the parse and map-local checks (teams, waypoints, trigger areas)
+    run. The `sage_map` overlay and game loader are imported lazily so `sage_lint` runs without
+    the optional `[map]` extra installed."""
     try:
-        from sage_map import lint_maps  # noqa: PLC0415 - lazy: the [map] extra is optional
+        from sage_map import MapModel, lint_map  # noqa: PLC0415 - lazy: the [map] extra is optional
     except ImportError:
         print(
             "sage_lint: map linting needs the optional 'map' extra (pip install 'pysage[map]')",
@@ -417,33 +482,30 @@ def run_lint_maps(args: argparse.Namespace, config: Config, root: Path) -> int:
         )
         return 2
 
-    base_dir = root
-    selected = split_codes(args.select) or set(config.select)
-    ignored = split_codes(args.ignore) or set(config.ignore)
-    excludes = (
-        list(args.exclude) if args.exclude else [config_path(base_dir, e) for e in config.exclude]
-    )
-    bases = list(args.base) if args.base else [config_path(base_dir, b) for b in config.base]
-    level_name = args.level or config.level
+    from sage_ini.loader import load_game  # noqa: PLC0415 - lazy: only when a --game is given
+    from sage_ini.model.game import Game  # noqa: PLC0415
+    from sage_utils.gameroot import resolve_game_roots  # noqa: PLC0415
 
-    # Build the whole game once (base layers merged in, like `lint`), then lint each crawled map
-    # against it. The base layer is kept only for the duration of this run.
-    game, _folder, base_layer = build_cache(
-        root, exclude=tuple(excludes), bases=tuple(base_source(base) for base in bases)
-    )
-    try:
-        excluded = tuple(Path(directory).resolve() for directory in excludes)
-        paths = [
-            path
-            for path in game.map_files
-            if not any(path.resolve().is_relative_to(directory) for directory in excluded)
-        ]
-        diagnostics = lint_maps(root, game=game, paths=paths)
-    finally:
-        if base_layer is not None:
-            base_layer.cleanup()
+    selected = split_codes(args.select)
+    ignored = split_codes(args.ignore)
+    game = load_game(resolve_game_roots(args.game, args.cache)).game if args.game else Game()
 
-    shown, summary = select_and_summarize(diagnostics.items, selected, ignored, level_name)
+    paths = _crawl_maps(args.target)
+    diagnostics = Diagnostics()
+    for path in paths:
+        # Parse each map once and run every check over it. A binary map that fails to parse (or a
+        # check that blows up on it) becomes one map-parse-error rather than aborting the batch.
+        try:
+            model = MapModel.from_path(str(path))
+            found = list(lint_map(model, game, path).items)
+            if extra_checks is not None:
+                found.extend(extra_checks(model.raw, path))
+        except Exception as exc:  # noqa: BLE001 - one bad binary map must not abort the run
+            diagnostics.add("map-parse-error", f"failed to parse map: {exc}", Span(str(path), 1, 1))
+            continue
+        diagnostics.items.extend(found)
+
+    shown, summary = select_and_summarize(diagnostics.items, selected, ignored, args.level)
 
     if args.output_format == "json":
         print(

@@ -77,7 +77,7 @@ def test_registered_codec_round_trips(save_path, chunk_name):
     if chunk is None:
         pytest.skip(f"{save_path.name} has no {chunk_name}")
     codec = CHUNK_CODECS[chunk_name]
-    assert codec.encode(codec.decode(chunk), chunk.payload) == chunk.payload
+    assert codec.encode(codec.decode(chunk)) == chunk.payload
 
 
 # --- coverage report ---

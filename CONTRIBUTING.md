@@ -26,7 +26,7 @@ whole tree follows, and the fastest way to make a change that fits in. In partic
 - New behaviour needs tests. The core suite must stay data-free; corpus-dependent tests go
   behind the `full` marker (`pytest --full`).
 - Keep the core packages engine-generic; mod-specific names and paths live in the mod's
-  overlay package (e.g. `sage_edain`).
+  overlay package (e.g. `sage_mods.edain`).
 - Keep changes scoped to one subproject where you can; note in the PR which packages you
   touched and why.
 

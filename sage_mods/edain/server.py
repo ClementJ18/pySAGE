@@ -1,8 +1,8 @@
 """A tiny stdlib HTTP server for the faction-explorer web UI.
 
-Serves the static files in `sage_edain/ui/` plus the built graph as `/graph.json`, so the page can
-fetch it on load. No third-party dependency - `python -m sage_edain serve …` opens a browser onto a
-live, navigable view of one faction's ownership graph.
+Serves the static files in `sage_mods/edain/ui/` plus the built graph as `/graph.json`, so the
+page can fetch it on load. No third-party dependency - `python -m sage_mods.edain serve …` opens
+a browser onto a live, navigable view of one faction's ownership graph.
 """
 
 from __future__ import annotations

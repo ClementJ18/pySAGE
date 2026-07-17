@@ -163,7 +163,7 @@ def test_full_campaign_save_has_embedded_map():
 
 def test_game_state_map_stub_encoder_is_exact_inverse(any_mission):
     chunk = parse_save_from_path(any_mission).chunk("CHUNK_GameStateMap")
-    assert encode_game_state_map(decode_game_state_map(chunk), chunk.payload) == chunk.payload
+    assert encode_game_state_map(decode_game_state_map(chunk)) == chunk.payload
 
 
 # --- Phase 3: the roster is a fatal ini cross-reference surface ---

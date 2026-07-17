@@ -20,7 +20,12 @@ from sage_lint.commands.common import SORTERS, effective_root, load_lint_config
 from sage_lint.commands.diff import run_diff, run_diff_maps
 from sage_lint.commands.format import run_format
 from sage_lint.commands.init import run_init
-from sage_lint.commands.lint import run_lint, run_lint_maps, run_list_codes
+from sage_lint.commands.lint import (
+    add_map_lint_arguments,
+    run_lint,
+    run_list_codes,
+    run_map_lint,
+)
 from sage_lint.commands.serve import run_serve
 
 
@@ -259,63 +264,22 @@ def main(argv: list[str] | None = None) -> int:
 
     lint_maps_cmd = subparsers.add_parser(
         "lint-maps",
-        help="lint binary .map layouts for dangling references against the assembled game",
-        description="Lint binary .map layouts for dangling references against the assembled game. "
+        help="lint a .map file (or every .map under a folder) for dangling references",
+        description="Lint a binary .map layout - or every .map under a folder - for dangling "
+        "references, resolved against the game loaded with --game. "
         "Diagnostics use these codes (all accepted by --select/--ignore): "
         "map-dangling-reference (a script argument naming something undefined), "
         "map-dangling-object (a placed object whose type is undefined), "
         "map-dangling-property (an object property naming something undefined), "
         "map-parse-error. The map-dangling-object check (and the GAME-scope references) resolve "
-        "against the whole game, so load your bases with --base or they report base-game content "
-        "as missing; map-local checks (teams, waypoints) need no bases.",
+        "against the game, so load it with --game (base game first, mod after) or base-game "
+        "content is reported as missing; map-local checks (teams, waypoints) need no --game.",
     )
-    lint_maps_cmd.add_argument(
-        "root", type=Path, nargs="?", help="mod folder to assemble; its .map files are linted"
+    add_map_lint_arguments(
+        lint_maps_cmd,
+        game_help="a data/ini tree, or a live install folder whose .big archives are mounted, "
+        "whose objects/upgrades/sciences the map's references resolve against",
     )
-    lint_maps_cmd.add_argument(
-        "--base",
-        type=Path,
-        action="append",
-        default=[],
-        help="base-game source (folder or .big) loaded beneath the mod, so GAME-scope references "
-        "(object/science/upgrade names) resolve against the full game (repeatable, highest first)",
-    )
-    lint_maps_cmd.add_argument(
-        "--exclude",
-        type=Path,
-        action="append",
-        default=[],
-        help="directory whose maps are skipped; its ini files still build the game (repeatable)",
-    )
-    lint_maps_cmd.add_argument(
-        "--select", action="append", default=[], metavar="CODE", help="report only these codes"
-    )
-    lint_maps_cmd.add_argument(
-        "--ignore", action="append", default=[], metavar="CODE", help="omit these codes"
-    )
-    lint_maps_cmd.add_argument(
-        "--level",
-        type=str.upper,
-        choices=[level.name for level in Severity],
-        help="define the diagnostic level to show",
-    )
-    lint_maps_cmd.add_argument(
-        "-q", "--quiet", action="store_true", help="print only the summary line"
-    )
-    lint_maps_cmd.add_argument(
-        "--color",
-        choices=("auto", "always", "never"),
-        default="auto",
-        help="colour the severity in text output (default: auto, on when a tty)",
-    )
-    lint_maps_cmd.add_argument(
-        "--exit-zero", action="store_true", help="always exit 0, even when diagnostics are reported"
-    )
-    lint_maps_cmd.add_argument(
-        "--no-config", action="store_true", help="ignore .sagelint config files"
-    )
-    lint_maps_cmd.set_defaults(file=None)  # no single-file path; satisfy the shared config helpers
-    _add_output_format(lint_maps_cmd)
 
     serve = subparsers.add_parser(
         "serve",
@@ -486,13 +450,7 @@ def main(argv: list[str] | None = None) -> int:
         return run_lint(args, config, root)
 
     if args.command == "lint-maps":
-        config = load_lint_config(args)
-        root = effective_root(args, config)
-        if root is None:
-            parser.error("the following arguments are required: root (or set 'root' in .sagelint)")
-        if not root.is_dir():
-            parser.error(f"not a directory: {root}")
-        return run_lint_maps(args, config, root)
+        return run_map_lint(args)
 
     if args.command == "diff":
         return run_diff(args, parser)

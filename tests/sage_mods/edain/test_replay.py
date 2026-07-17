@@ -3,7 +3,7 @@ faction refiners, and their injection into the shared aggregate CLI command."""
 
 import argparse
 
-from sage_edain.replay import (
+from sage_mods.edain.replay import (
     DORWINION_RECRUITS,
     DWARVEN_REALMS,
     GONDOR_VARIANTS,

@@ -1,4 +1,4 @@
-"""Command-line entry point: `python -m sage_edain <command>` (or `sage-edain`).
+"""Command-line entry point: `python -m sage_mods.edain <command>` (or `sage-edain`).
 
 - `factions <dir>` - list the playable factions in a mod.
 - `explore <dir> <faction>` - print (or `--json`) the faction's ownership graph: its spellbook,
@@ -8,9 +8,13 @@
 - `diff <old> <new> [faction]` - faction-level changelog between two versions of the mod
   (roster and stat moves in player terms; `--json` for programs).
 - `schema [graph | diff]` - describe the JSON shapes `explore --json` / `diff --json` emit.
-- `serve <dir> <faction>` - open a small web UI (sage_edain/ui) to traverse that graph.
+- `lint-maps <map|dir> [--game <root>...]` - the `sage-lint lint-maps` interface (a `.map` file or
+  a folder crawled for maps, resolved against the game loaded with `--game`) plus the Edain mapping
+  conventions - plot-flag placement, FarmTemplate terrain, Gollum spawns, the skirmish AI roster,
+  performance limits (the MAP-xxx codes).
+- `serve <dir> <faction>` - open a small web UI (sage_mods/edain/ui) to traverse that graph.
 - `replay-aggregate <replay|dir>... --game <root>` - `sage-replay aggregate` (corpus-wide
-  faction stats over many replays) with Edain's knowledge (`sage_edain/replay.py`)
+  faction stats over many replays) with Edain's knowledge (`sage_mods/edain/replay.py`)
   injected: the economy researches and library arts in its Upgrades pick tables, the
   CP-upgrade CPObject depth-numbered per purchase in its Other-purchases tables, the Imladris
   Loremaster fielded as its element-specific horde (read off the toggle cast, the elementless
@@ -26,16 +30,20 @@ decompose castle/camp layouts into their citadel + foundations + prebuilt struct
 
 import argparse
 import json
+from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from sage_edain.diff import diff_graphs, format_mod_diff
-from sage_edain.graph import (
+from sage_ini.loader import load_game
+from sage_lint.commands.lint import add_map_lint_arguments, run_map_lint
+from sage_mods.edain.diff import diff_graphs, format_mod_diff
+from sage_mods.edain.graph import (
     build_faction_graph,
     build_faction_graphs,
     find_faction,
     playable_factions,
 )
-from sage_edain.replay import (
+from sage_mods.edain.replay import (
     IGNORED_RECRUITS,
     TRACKED_PURCHASES,
     TRACKED_UPGRADES,
@@ -43,10 +51,9 @@ from sage_edain.replay import (
     edain_power_recruits,
     edain_upgrade_recruits,
 )
-from sage_edain.report import render_report, render_roster_table
-from sage_edain.schema import render_schema
-from sage_edain.skill_install import install_skill
-from sage_ini.loader import load_game
+from sage_mods.edain.report import render_report, render_roster_table
+from sage_mods.edain.schema import render_schema
+from sage_mods.edain.skill_install import install_skill
 from sage_replay.__main__ import add_aggregate_command
 from sage_utils.cli import (
     add_install_skill_parser,
@@ -55,6 +62,10 @@ from sage_utils.cli import (
     utf8_stdout,
 )
 from sage_utils.factiongraph import FactionGraph
+
+if TYPE_CHECKING:
+    from sage_ini.parser.diagnostics import Diagnostic
+    from sage_map import Map
 
 
 def _load(root: Path):
@@ -223,7 +234,7 @@ def _run_diff(old_root, new_root, faction_name, as_json, out) -> int:
 
 
 def _run_serve(root, faction_name, bases_dir, port, open_browser) -> int:
-    from sage_edain.server import serve  # noqa: PLC0415 - only needed for `serve`
+    from sage_mods.edain.server import serve  # noqa: PLC0415 - only needed for `serve`
 
     graphs = _build_graphs(root, faction_name, bases_dir)
     if graphs is None:
@@ -234,9 +245,19 @@ def _run_serve(root, faction_name, bases_dir, port, open_browser) -> int:
     return 0
 
 
+def _edain_map_checks(map_obj: "Map", path: Path) -> "Iterable[Diagnostic]":
+    """`run_map_lint`'s per-map hook: the Edain mapping-convention findings for one parsed map."""
+    from sage_mods.edain.map_checks import (  # noqa: PLC0415 - only for lint-maps
+        LintConfig,
+        lint_map,
+    )
+
+    return lint_map(map_obj, LintConfig(), path).items
+
+
 def main(argv: list[str] | None = None) -> int:
     utf8_stdout()
-    parser = argparse.ArgumentParser(prog="sage_edain")
+    parser = argparse.ArgumentParser(prog="sage-edain")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     factions = subparsers.add_parser("factions", help="list a mod's playable factions")
@@ -307,6 +328,20 @@ def main(argv: list[str] | None = None) -> int:
         help="the explore --json payload (graph, default) or the diff --json payload",
     )
 
+    lint_maps = subparsers.add_parser(
+        "lint-maps",
+        help="lint a .map file (or folder of maps) for dangling references + Edain conventions",
+        description="Lint a .map file (or every .map under a folder) for dangling references "
+        "against the game loaded with --game, plus the Edain mapping conventions (the MAP-xxx "
+        "codes). The same interface as `sage-lint lint-maps`; filter with --select / --ignore / "
+        "--level.",
+    )
+    add_map_lint_arguments(
+        lint_maps,
+        game_help="a data/ini tree, or a live install folder whose .big archives are mounted, "
+        "whose objects/upgrades/sciences the map's references resolve against",
+    )
+
     add_aggregate_command(
         subparsers,
         name="replay-aggregate",
@@ -340,6 +375,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "diff":
         return _run_diff(args.old, args.new, args.faction, args.json, args.out)
+
+    if args.command == "lint-maps":
+        return run_map_lint(args, extra_checks=_edain_map_checks)
 
     if args.command == "serve":
         return _run_serve(args.root, args.faction, args.bases, args.port, not args.no_browser)

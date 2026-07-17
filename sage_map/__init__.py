@@ -15,7 +15,7 @@ the `content_type` action table are deferred. See docs/sage_map_plan.md.
 touches), reporting moved objects, script edits and terrain summaries where git can only say
 "binary files differ". `sage_map.checks` is the architecture for standalone (no game data) map
 checks - findings, rule-runner, terrain helpers; the Edain rule set lives in
-`sage_edain.map_checks`.
+`sage_mods.edain.map_checks`.
 """
 
 from sage_map.diff import (

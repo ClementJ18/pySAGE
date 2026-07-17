@@ -9,13 +9,21 @@ camera, and the harvested cross-reference names (object templates, upgrades, sci
 plain structure. The embedded map is summarised by size only, never
 inlined; pass `include_objects=False` for a compact export that drops the per-object list
 (keeping the counts, the module-tag summary and the reference summary).
+
+That `save_to_dict`/`save_to_json` pair is deliberately lossy - a human-readable summary, not a
+serialization format. `save_to_dict_full`/`save_to_json_full` are the lossless counterpart: every
+chunk rides as `codec_to_json` output (or a raw base64 blob for an unregistered chunk), so the
+JSON is roughly the size of the source file, but `sage_save.serialize.json_to_save_full`
+reconstructs the exact original bytes from it with no access to the source `.sav`.
 """
 
+import base64
 import json
 from collections import Counter
 from typing import Any
 
 from sage_save.chunks import (
+    CHUNK_CODECS,
     decode_campaign,
     decode_game_client,
     decode_game_logic,
@@ -31,6 +39,7 @@ from sage_save.chunks import (
     object_veterancy_level,
 )
 from sage_save.save import SaveFile
+from sage_save.serialize import LOSSLESS_FORMAT, codec_to_json
 from sage_save.xref import harvest_references
 
 
@@ -222,3 +231,32 @@ def save_to_dict(save: SaveFile, *, include_objects: bool = True) -> dict[str, A
 def save_to_json(save: SaveFile, *, indent: int | None = 2, include_objects: bool = True) -> str:
     """`save_to_dict` rendered as JSON text (`indent=None` for a compact single line)."""
     return json.dumps(save_to_dict(save, include_objects=include_objects), indent=indent)
+
+
+def save_to_dict_full(save: SaveFile) -> dict[str, Any]:
+    """A byte-exact JSON view of `save`: every chunk rides either as `codec_to_json` output (a
+    chunk `CHUNK_CODECS` has a decoder for) or a raw base64 blob (one it doesn't), so
+    `sage_save.serialize.json_to_save_full` can rebuild the original file bytes with no access to
+    the source `.sav`. Unlike `save_to_dict`, nothing here is summarised or dropped."""
+    chunks: list[dict[str, Any]] = []
+    for chunk in save.chunks:
+        entry: dict[str, Any] = {"name": chunk.name, "version": chunk.version}
+        codec = CHUNK_CODECS.get(chunk.name)
+        if codec is not None:
+            entry["decoded"] = codec_to_json(codec, codec.decode(chunk))
+        else:
+            entry["raw"] = {"b64": base64.b64encode(chunk.payload).decode("ascii")}
+        chunks.append(entry)
+    return {
+        "format": LOSSLESS_FORMAT,
+        "header": {
+            "container_id": save.header.container_id,
+            "values": [save.header.value1, save.header.value2],
+        },
+        "chunks": chunks,
+    }
+
+
+def save_to_json_full(save: SaveFile, *, indent: int | None = 2) -> str:
+    """`save_to_dict_full` rendered as JSON text (`indent=None` for a compact single line)."""
+    return json.dumps(save_to_dict_full(save), indent=indent)

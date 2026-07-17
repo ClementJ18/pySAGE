@@ -16,6 +16,14 @@ corrupt save. `apply_json` therefore requires each re-encoded chunk to keep its 
 length and raises `ValueError` otherwise: a timestamp change, a game-mode change or a
 same-length rename apply cleanly, while a different-length rename is refused rather than
 silently corrupting the file.
+
+For a length-changing edit, the lossless alternative sidesteps this module entirely: a
+`sage_save.export.save_to_json_full` document round-trips through
+`sage_save.serialize.json_to_save_full` with no original `.sav` at hand, so any decoded field or
+raw base64 region can be edited directly in that JSON. The absolute-offset constraint above still
+applies there too - a length-changing edit to a decoded chunk still shifts every later chunk's
+stored offsets - but an edit that keeps each chunk's encoded length unchanged reassembles
+losslessly regardless of which module produced the edit.
 """
 
 import json
@@ -93,7 +101,7 @@ def apply_json(save: SaveFile, data: dict[str, Any]) -> SaveFile:
             pristine_map_name=game_state_map.get("pristine_map_name", gsm.pristine_map_name),
             game_mode=game_state_map.get("game_mode", gsm.game_mode),
         )
-        _replace_payload(chunks, "CHUNK_GameStateMap", encode_game_state_map(gsm, chunk.payload))
+        _replace_payload(chunks, "CHUNK_GameStateMap", encode_game_state_map(gsm))
 
     campaign_data = data.get("campaign")
     if campaign_data:

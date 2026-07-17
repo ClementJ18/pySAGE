@@ -1,12 +1,20 @@
 """The Edain map rules over synthetic maps: findings as sage_ini diagnostics."""
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 pytest.importorskip("reversebox", reason="requires the optional [map] extra (reversebox)")
 
-from sage_edain.map_checks import (  # noqa: E402
+from sage_ini.parser.diagnostics import Severity  # noqa: E402
+from sage_map import Map  # noqa: E402
+from sage_map.assets.object_list import Object, ObjectsList  # noqa: E402
+from sage_map.checks import LintConfig as BaseLintConfig  # noqa: E402
+from sage_map.checks import lint_map as run_rules  # noqa: E402
+from sage_mods.edain.__main__ import main  # noqa: E402
+from sage_mods.edain.map_checks import (  # noqa: E402
     CAMERA_MAX_HEIGHT_TOO_LOW,
     CONTAINS_EXPANSION_FLAG,
     EXCESSIVE_OBJECT_COUNT,
@@ -19,11 +27,6 @@ from sage_edain.map_checks import (  # noqa: E402
     LintConfig,
     lint_map,
 )
-from sage_ini.parser.diagnostics import Severity  # noqa: E402
-from sage_map import Map  # noqa: E402
-from sage_map.assets.object_list import Object, ObjectsList  # noqa: E402
-from sage_map.checks import LintConfig as BaseLintConfig  # noqa: E402
-from sage_map.checks import lint_map as run_rules  # noqa: E402
 
 
 def _object(type_name, angle=0.0, **props):
@@ -115,3 +118,43 @@ def test_crashing_rule_becomes_finding():
     assert findings[0].code == "rule-error"
     assert "bad_rule failed: boom" in findings[0].message
     assert findings[0].span.file == "broken.map"
+
+
+class TestMapChecksCli:
+    """`python -m sage_mods.edain lint-maps` is the `sage-lint lint-maps` interface plus the Edain
+    MAP-xxx rules: same target/--game/filter surface, driven through the shared runner."""
+
+    _MAPS_DIR = Path(__file__).parents[2] / "sage_map" / "fixtures" / "maps"
+    _EDAIN_MAP = _MAPS_DIR / "map edain ford of bruinen.map"
+
+    def test_reports_edain_map_codes_without_a_game(self, capsys):
+        # No --game: the game-resolved dangling checks self-skip, but the Edain rules still run and
+        # emit their MAP-xxx codes (this Edain skirmish map trips several).
+        code = main(
+            ["lint-maps", str(self._EDAIN_MAP), "--level", "INFO", "--output-format", "json"]
+        )
+        assert code == 1
+        payload = json.loads(capsys.readouterr().out)
+        codes = {d["code"] for d in payload["diagnostics"]}
+        assert any(code.startswith("MAP-") for code in codes)
+
+    def test_select_narrows_to_one_edain_code(self, capsys):
+        code = main(
+            ["lint-maps", str(self._EDAIN_MAP), "--select", "MAP-013", "--output-format", "json"]
+        )
+        payload = json.loads(capsys.readouterr().out)
+        assert {d["code"] for d in payload["diagnostics"]} == {"MAP-013"}
+        assert code == 1
+
+    def test_crawls_a_folder(self, capsys):
+        count = len(list(self._MAPS_DIR.glob("*.map")))
+        main(["lint-maps", str(self._MAPS_DIR)])
+        assert f"across {count} maps" in capsys.readouterr().out
+
+    def test_requires_a_target(self):
+        with pytest.raises(SystemExit):
+            main(["lint-maps"])
+
+    def test_rejects_a_nonexistent_target(self, tmp_path):
+        with pytest.raises(SystemExit):
+            main(["lint-maps", str(tmp_path / "nope.map")])

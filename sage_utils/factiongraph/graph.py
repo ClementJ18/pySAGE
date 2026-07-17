@@ -9,10 +9,10 @@ found structures extend the walk. What differs between games is only where the w
 - **Plot flags** (BFME1-style build plots, reintroduced by Edain): flag objects'
   `CastleBehavior` rows say what base or structure each plot unpacks for the faction.
   Flags are discovered by scanning for CastleBehaviors carrying a row for the faction's
-  side (a caller that knows its mod's canonical flag names - `sage_edain` - passes them
+  side (a caller that knows its mod's canonical flag names - `sage_mods.edain` - passes them
   instead for precision). A base *layout* (a `.bse` name, not an ini object) is decomposed
   through a layout resolver: by default the table `sage_utils.sources.load_sources`
-  attaches to the game (`game.base_layouts`, swept from the loaded archives); `sage_edain`
+  attaches to the game (`game.base_layouts`, swept from the loaded archives); `sage_mods.edain`
   instead wires its on-disk `bases/`-folder resolver. Without either, the start point
   records the base name and contributes no seeds.
 - **Builders** (vanilla BFME2/RotWK): the faction's `StartingBuilding` (the fortress) is
@@ -64,7 +64,7 @@ from sage_utils.views import description as object_description
 
 # A base-layout resolver: `(game, base_name) -> layout | None` where the layout carries
 # `citadel` / `foundations` / `prebuilt`. The default reads the game's own layout table
-# (see `game_base_layout`); `sage_edain` supplies one backed by a mod checkout's `bases/`.
+# (see `game_base_layout`); `sage_mods.edain` supplies one backed by a mod checkout's `bases/`.
 LayoutResolver = Callable[[object, str], BaseLayout | None]
 
 # Command action names (matched on the resolved CommandTypes enum's .name). A structure is built by
@@ -208,7 +208,7 @@ def start_points(
     game, side: str, start_flags=None, resolve_layout: LayoutResolver | None = None
 ) -> list[StartPoint]:
     """The plot flags that unpack something for `side` - the named `start_flags` when given
-    (a mod's canonical plots, e.g. `sage_edain`'s), else every flag `plot_flags` discovers -
+    (a mod's canonical plots, e.g. `sage_mods.edain`'s), else every flag `plot_flags` discovers -
     with each base layout decomposed through `resolve_layout` (default: the game's own
     layout table). Flags unpacking a target another flag already claimed are dropped, so a
     discovery scan's orientation/AI variants collapse to one start point per base."""
@@ -494,7 +494,7 @@ def build_faction_graph(
     mixes - all resolve. `start_flags` are the plot-flag object names consulted (default:
     discover them by scanning CastleBehaviors for the faction's side); `resolve_layout`
     decomposes a plot's base-layout name into its placed structures (default: the layout
-    table the source loader attached to the game; `sage_edain` wires its `bases/`-folder
+    table the source loader attached to the game; `sage_mods.edain` wires its `bases/`-folder
     resolver here)."""
     side = _faction_side(faction)
     faction_upgrades = _faction_upgrades(side)

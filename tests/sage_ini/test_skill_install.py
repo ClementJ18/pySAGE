@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-import sage_edain.skill_install
 import sage_ini.skill_install
+import sage_mods.edain.skill_install
 from sage_ini.__main__ import main
 from sage_ini.skill_install import SKILL_NAME, install_skill
 
@@ -18,12 +18,12 @@ PROJECT_LOCAL = REPO_ROOT / ".claude" / "skills" / SKILL_NAME / "SKILL.md"
     "package, skill_name",
     [
         ("sage_ini", sage_ini.skill_install.SKILL_NAME),
-        ("sage_edain", sage_edain.skill_install.SKILL_NAME),
+        ("sage_mods.edain", sage_mods.edain.skill_install.SKILL_NAME),
     ],
 )
 def test_project_local_copy_matches_packaged(package, skill_name):
     # One source of truth: the active project-local skill must equal the packaged asset.
-    packaged = REPO_ROOT / package / "skill_assets" / skill_name / "SKILL.md"
+    packaged = REPO_ROOT.joinpath(*package.split(".")) / "skill_assets" / skill_name / "SKILL.md"
     project_local = REPO_ROOT / ".claude" / "skills" / skill_name / "SKILL.md"
     assert project_local.read_bytes() == packaged.read_bytes()
 

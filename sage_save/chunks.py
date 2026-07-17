@@ -17,6 +17,7 @@ verbatim: each object/drawable's `KOLB` end-offset is recomputed from its stored
 the index reassembles losslessly without decoding a single module's `xfer`.
 """
 
+import base64
 import io
 import re
 import struct
@@ -137,6 +138,8 @@ class GameStateMap:
     save_map_name: str  # portable "save\<leaf>.map" scratch path ("" in a mission stub)
     pristine_map_name: str  # portable path of the original map ("" in a mission stub)
     game_mode: int  # GameMode enum: 0 single-player, 2 skirmish (-1 in a mission stub)
+    block_tag: int  # int32 preceding the nested map block (3 in BFME2, 0 in WotR; -1 in a stub)
+    map_block_end: int  # nested map block's absolute end offset, kept verbatim (-1 in a stub)
     map_data: bytes  # the embedded map, byte-for-byte an on-disk `.map` (EAR/RefPack); "" in a stub
     trailing: bytes  # id counters + (skirmish) slot info, left undecoded
 
@@ -152,43 +155,60 @@ def decode_game_state_map(chunk: Chunk) -> GameStateMap:
     if BLOCK_MARKER not in chunk.payload:
         # Mission-save stub: no embedded map block. Its shorter field layout differs from a full
         # save's, so keep everything past the version opaque rather than mis-parse it by position.
-        return GameStateMap(version, "", "", -1, b"", reader.rest())
+        return GameStateMap(version, "", "", -1, -1, -1, b"", reader.rest())
     save_map_name = reader.ascii_string()
     pristine_map_name = reader.ascii_string()
     game_mode = reader.int32()
-    reader.int32()  # block tag preceding the nested map block (observed 3)
+    block_tag = reader.int32()  # 3 in BFME2, 0 in WotR
 
-    reader.nested_block()  # the map block's absolute end-offset (unused; sizes follow)
+    # No base_offset was given above, so this nested block's end offset comes back as-stored:
+    # the absolute file offset, not relative to the chunk payload.
+    map_block_end = reader.nested_block()
     size = reader.uint32()
-    reader.uint32()  # a second copy of the size (compressed vs. stored; equal here)
+    if reader.uint32() != size:
+        # A second copy of the size, equal to the first in every corpus fixture (compressed vs.
+        # stored). Raise loudly rather than silently dropping a real divergence.
+        raise ValueError("CHUNK_GameStateMap: map data size copies disagree")
     map_data = reader.bytes(size)
     trailing = reader.rest()
-    return GameStateMap(version, save_map_name, pristine_map_name, game_mode, map_data, trailing)
+    return GameStateMap(
+        version,
+        save_map_name,
+        pristine_map_name,
+        game_mode,
+        block_tag,
+        map_block_end,
+        map_data,
+        trailing,
+    )
 
 
-def encode_game_state_map(gsm: GameStateMap, original_payload: bytes) -> bytes:
-    """Re-encode `CHUNK_GameStateMap` with edited map paths / game mode, keeping the embedded
-    map block and everything after it verbatim from `original_payload`. The nested map block
-    stores an *absolute* file offset, so it is copied byte-for-byte rather than rebuilt - an
-    edit that changes the prefix length would move it and invalidate that offset, which the
-    caller (`apply_json`) guards against by requiring the payload length to be unchanged."""
-    if BLOCK_MARKER not in original_payload:
-        return original_payload  # mission stub: nothing decoded to re-encode
-    reader = XferReader(original_payload)
-    reader.version(2)
-    reader.ascii_string()
-    reader.ascii_string()
-    reader.int32()
-    block_tag = reader.int32()
-    tail = original_payload[reader.tell() :]  # KOLB map block + id counters + slot info
+def encode_game_state_map(gsm: GameStateMap) -> bytes:
+    """Inverse of `decode_game_state_map`; rebuilt entirely from `gsm`, with no read of the
+    original payload. A mission stub (`map_block_end < 0`, no embedded map) writes just the
+    version byte and `trailing`. A full save writes the two map-name strings, `game_mode`, the
+    stored `block_tag`, the `KOLB` marker, the stored `map_block_end`, `len(map_data)` written
+    twice (the corpus's two equal size copies), `map_data`, then `trailing`.
 
+    `map_block_end` stores an *absolute* file offset, so it is kept verbatim rather than
+    recomputed - a lossless round-trip never changes any length before it, so the offset stays
+    valid. An edit that changes the prefix length would invalidate it, which the caller
+    (`apply_json`) guards against by requiring the payload length to be unchanged."""
     stream = BinaryStream(io.BytesIO())
     stream.writeUChar(gsm.version)
+    if gsm.map_block_end < 0 or not gsm.map_data:
+        stream.writeBytes(gsm.trailing)  # mission stub: nothing else was decoded
+        return stream.getvalue()
     stream.writeString(gsm.save_map_name)
     stream.writeString(gsm.pristine_map_name)
     stream.writeInt32(gsm.game_mode)
-    stream.writeInt32(block_tag)
-    stream.writeBytes(tail)
+    stream.writeInt32(gsm.block_tag)
+    stream.writeBytes(BLOCK_MARKER)
+    stream.writeUInt32(gsm.map_block_end)
+    stream.writeUInt32(len(gsm.map_data))
+    stream.writeUInt32(len(gsm.map_data))
+    stream.writeBytes(gsm.map_data)
+    stream.writeBytes(gsm.trailing)
     return stream.getvalue()
 
 
@@ -1545,6 +1565,37 @@ def encode_living_world_logic(state: LivingWorldLogicState) -> bytes:
     return bytes([state.version]) + state.body
 
 
+def living_world_logic_from_json(data: dict[str, Any]) -> LivingWorldLogicState:
+    """`ChunkCodec.from_json` override for `CHUNK_LivingWorldLogic`: `names` is a view harvested
+    from `body` by `decode_living_world_logic`, not a stored field, so it is never deserialized
+    from JSON directly - that could let it go stale against an edited `body`. Instead this
+    rebuilds the raw payload (version + body) and re-decodes it, so `names` is always re-harvested
+    fresh from whatever `body` the JSON carries."""
+    body = base64.b64decode(data["body"]["b64"])
+    return decode_living_world_logic(
+        Chunk("CHUNK_LivingWorldLogic", bytes([data["version"]]) + body, 0)
+    )
+
+
+def campaign_from_json(data: dict[str, Any]) -> Campaign:
+    """`ChunkCodec.from_json` override for `CHUNK_Campaign`: `heroes` and `mission_number` are
+    views harvested from `roster` by `decode_campaign`, not stored fields, so they are never
+    deserialized from JSON directly - that could let them go stale against an edited `roster`.
+    Instead this builds a stub `Campaign` from the stored scalar fields and `roster` bytes, encodes
+    it back to a payload, and re-decodes that payload, so both views are always re-harvested fresh
+    from whatever `roster` the JSON carries."""
+    stub = Campaign(
+        version=data["version"],
+        active=data["active"],
+        current_campaign=data["current_campaign"],
+        campaign_flag=data["campaign_flag"],
+        mission_number=-1,
+        heroes=[],
+        roster=base64.b64decode(data["roster"]["b64"]),
+    )
+    return decode_campaign(Chunk("CHUNK_Campaign", encode_campaign(stub), 0))
+
+
 # The Step-1 chunks handled by the generic `SmallChunk` codec (see that class for the reversing
 # notes). Registered with the specific decoders below in `CHUNK_CODECS`.
 _SMALL_CHUNK_NAMES = (
@@ -1566,18 +1617,28 @@ class ChunkCodec:
     free (see `CHUNK_CODECS`).
 
     - `decode(chunk)` → the typed value for that chunk.
-    - `encode(value, payload)` is its **exact inverse** - `encode(decode(c), c.payload) ==
-      c.payload` for every fixture - or None for a chunk decoded only partially (no lossless
-      writer yet). The original payload is passed for decoders that keep an opaque region verbatim
-      (e.g. the embedded map); encoders that don't need it ignore it.
+    - `encode(value)` is its **exact inverse** - `encode(decode(c)) == c.payload` for every
+      fixture - or None for a chunk decoded only partially (no lossless writer yet).
     - `opaque_bytes(value)` is how many of the payload's bytes the decode left undecoded (raw
       `bytes` regions). Coverage subtracts it from the payload size, so a decoder silently falling
-      back to opaque shows up as a coverage regression rather than passing unnoticed."""
+      back to opaque shows up as a coverage regression rather than passing unnoticed.
+    - `value_type` is the decoded dataclass type. The lossless-JSON layer in
+      `sage_save.serialize` keys its generic, type-driven (de)serializer off it.
+    - `to_json`/`from_json` are hand-written overrides for the generic (de)serializer - None
+      means "use the generic dataclass-to-dict converter" (`to_json`) or "use the generic
+      type-driven deserializer keyed on `value_type`" (`from_json`). A chunk whose decoded value
+      carries a DERIVED-VIEW field - one the encoder ignores because it is re-harvested from a raw
+      sub-region by `decode` - needs a `from_json` override that rebuilds via encode-then-decode
+      rather than deserializing the view straight from JSON, so the view can never go stale
+      against an edited raw region."""
 
     name: str
     decode: Callable[[Chunk], Any]
-    encode: Callable[[Any, bytes], bytes] | None
+    encode: Callable[[Any], bytes] | None
     opaque_bytes: Callable[[Any], int]
+    value_type: type
+    to_json: Callable[[Any], dict[str, Any]] | None = None
+    from_json: Callable[[dict[str, Any]], Any] | None = None
 
 
 # The registry of decoded chunks. Keyed by the exact `CHUNK_*` name the engine writes; the
@@ -1593,57 +1654,64 @@ CHUNK_CODECS: dict[str, ChunkCodec] = {
         ChunkCodec(
             "CHUNK_GameState",
             decode_game_state,
-            lambda value, _payload: encode_game_state(value),
+            encode_game_state,
             lambda value: len(value.leading) + len(value.post_map) + len(value.trailing),
+            value_type=GameStateHeader,
         ),
         ChunkCodec(
             "CHUNK_GameStateMap",
             decode_game_state_map,
             encode_game_state_map,
             lambda value: len(value.trailing),
+            value_type=GameStateMap,
         ),
         ChunkCodec(
             "CHUNK_Campaign",
             decode_campaign,
-            lambda value, _payload: encode_campaign(value),
+            encode_campaign,
             # the roster block round-trips verbatim but its group framing is not structurally
             # decoded (heroes are a harvested view), so it counts as opaque for coverage
             lambda value: len(value.roster),
+            value_type=Campaign,
+            from_json=campaign_from_json,
         ),
         ChunkCodec(
             "CHUNK_GameLogic",
             decode_game_logic,
-            lambda value, _payload: encode_game_logic(value),
+            encode_game_logic,
             lambda value: (
                 len(value.preamble)
                 + sum(len(obj.body) for obj in value.objects)
                 + len(value.trailing)
             ),
+            value_type=GameLogicState,
         ),
         ChunkCodec(
             "CHUNK_GameClient",
             decode_game_client,
-            lambda value, _payload: encode_game_client(value),
+            encode_game_client,
             lambda value: (
                 len(value.preamble)
                 + sum(len(drawable.body) for drawable in value.drawables)
                 + len(value.trailing)
             ),
+            value_type=GameClientState,
         ),
         ChunkCodec(
             "CHUNK_Players",
             decode_players,
-            lambda value, _payload: encode_players(value),
+            encode_players,
             # per player: the 16-byte prefix, the 10-byte radar block, the 6-byte energy stub,
             # and the opaque record tail (AI/build/science/rank/hero state)
             lambda value: sum(
                 len(p.prefix) + len(p.radar) + len(p.energy) + len(p.tail) for p in value.players
             ),
+            value_type=PlayersState,
         ),
         ChunkCodec(
             "CHUNK_ScriptEngine",
             decode_script_engine,
-            lambda value, _payload: encode_script_engine(value),
+            encode_script_engine,
             # the four raw regions kept verbatim: head u32, the 12 mid bytes, the 20-byte
             # fade-counter block, the reveal-section u32 pair, and the 8-byte tail
             lambda value: (
@@ -1653,33 +1721,39 @@ CHUNK_CODECS: dict[str, ChunkCodec] = {
                 + len(value.reveal_unknown)
                 + len(value.unknown_tail)
             ),
+            value_type=ScriptEngineState,
         ),
         ChunkCodec(
             "CHUNK_TacticalView",
             decode_tactical_view,
-            lambda value, _payload: encode_tactical_view(value),
+            encode_tactical_view,
             lambda value: len(value.trailing),
+            value_type=TacticalView,
         ),
         ChunkCodec(
             "CHUNK_TeamFactory",
             decode_team_factory,
-            lambda value, _payload: encode_team_factory(value),
+            encode_team_factory,
             lambda value: len(value.body),
+            value_type=TeamFactory,
         ),
         ChunkCodec(
             "CHUNK_LivingWorldLogic",
             decode_living_world_logic,
-            lambda value, _payload: encode_living_world_logic(value),
+            encode_living_world_logic,
             # the roster is a harvested view over the body, not a structural decode, so the whole
             # post-version body still counts as opaque for coverage
             lambda value: len(value.body),
+            value_type=LivingWorldLogicState,
+            from_json=living_world_logic_from_json,
         ),
         *(
             ChunkCodec(
                 name,
                 decode_small_chunk,
-                lambda value, _payload: encode_small_chunk(value),
+                encode_small_chunk,
                 lambda value: len(value.body),
+                value_type=SmallChunk,
             )
             for name in _SMALL_CHUNK_NAMES
         ),
@@ -1714,6 +1788,7 @@ __all__ = [
     "TacticalView",
     "TeamFactory",
     "ToppleDirection",
+    "campaign_from_json",
     "decode_campaign",
     "decode_game_client",
     "decode_game_logic",
@@ -1737,6 +1812,7 @@ __all__ = [
     "encode_team_factory",
     "extract_map",
     "iter_objects",
+    "living_world_logic_from_json",
     "living_world_names",
     "living_world_object_templates",
     "object_modules",

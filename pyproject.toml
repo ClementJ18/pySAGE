@@ -25,7 +25,7 @@ Repository = "https://github.com/ClementJ18/ini_parser"
 [project.scripts]
 sage-lint = "sage_lint.cli:main"
 sage-ini = "sage_ini.__main__:main"
-sage-edain = "sage_edain.__main__:main"
+sage-edain = "sage_mods.edain.__main__:main"
 sage-replay = "sage_replay.__main__:main"
 sage-apt = "sage_apt.__main__:main"
 sage-save = "sage_save.__main__:main"
@@ -77,14 +77,14 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_apt*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_edain*"]
+include = ["sage_apt*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*"]
 
 [tool.setuptools.package-data]
 sage_apt = ["assets/*.html", "py.typed"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
 sage_save = ["py.typed"]
-sage_edain = ["ui/*", "skill_assets/**/*"]
+"sage_mods.edain" = ["ui/*", "skill_assets/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -124,7 +124,7 @@ select = [
 
 [tool.mypy]
 python_version = "3.13"
-files = ["sage_apt", "sage_ini", "sage_map", "sage_edain", "sage_replay", "sage_save", "sage_utils"]
+files = ["sage_apt", "sage_ini", "sage_map", "sage_mods", "sage_replay", "sage_save", "sage_utils"]
 disable_error_code = ["annotation-unchecked"]
 
 [[tool.mypy.overrides]]
@@ -137,3 +137,11 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["sage_utils.widgets", "sage_utils.styles", "sage_utils.textures", "sage_utils.sources"]
 ignore_errors = true
+
+# sage_lint is a tool package, not in the type-checked `files` set. sage_mods.edain.map_checks imports
+# its shared map-lint runner (add_map_lint_arguments / run_map_lint), which pulls sage_lint into
+# reach: follow the import so sage_mods.edain still sees real types, but don't gate on sage_lint's own
+# (pre-existing) errors here - it is checked on its own terms, not through this overlay.
+[[tool.mypy.overrides]]
+module = ["sage_lint.*"]
+follow_imports = "silent"

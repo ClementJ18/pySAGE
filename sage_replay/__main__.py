@@ -610,7 +610,7 @@ def add_aggregate_command(
     deserve a pick-rate row, which system purchases
     are depth-comparable, and which special powers are worth a row registers the same command
     on its own CLI with its `tracked_upgrades` / `tracked_purchases` / `tracked_powers`
-    injected (sage_edain's `replay-aggregate`); `--track-upgrade` / `--track-purchase` /
+    injected (sage_mods.edain's `replay-aggregate`); `--track-upgrade` / `--track-purchase` /
     `--track-power` extend whatever was injected. Tracked powers render nested under Units as
     `powers_heading` (the casting unit's name - Edain's is "Loremaster"). `refine_faction` (a
     `FactionRefiner`) lets the overlay sharpen faction labels from each player's own stats,

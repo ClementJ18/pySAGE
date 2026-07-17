@@ -439,11 +439,11 @@ function renderFactionChooser() {
     DATA = null;
     FACTIONS && (byId("faction-select").value = "");
     byId("sidebar").innerHTML = "";
-    byId("faction-name").textContent = "sage_edain";
+    byId("faction-name").textContent = "sage_mods.edain";
     byId("faction-side").textContent = "";
     byId("back").disabled = true;
     HISTORY.length = 0;
-    document.title = "sage_edain - choose a faction";
+    document.title = "sage_mods.edain - choose a faction";
     const grid = el("div", { className: "faction-grid" }, FACTIONS.map((faction, index) =>
         el("button", { className: "faction-card", onclick: () => selectFaction(index) }, [
             el("div", { className: "name" }, faction.display || faction.name),
@@ -468,7 +468,7 @@ function loadSingle(data) {
     HISTORY.length = 0;
     byId("faction-name").textContent = data.display || data.name || "faction";
     byId("faction-side").textContent = data.side ? `· ${data.side}` : "";
-    document.title = `${data.display || data.name} - sage_edain`;
+    document.title = `${data.display || data.name} - sage_mods.edain`;
     renderSidebar();
     select("overview", "", false);
 }

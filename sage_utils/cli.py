@@ -15,6 +15,7 @@ __all__ = [
     "add_install_skill_parser",
     "existing_dir",
     "existing_file",
+    "existing_path",
     "run_install_skill",
     "utf8_stdout",
 ]
@@ -25,6 +26,14 @@ def existing_dir(value: str) -> Path:
     path = Path(value)
     if not path.is_dir():
         raise argparse.ArgumentTypeError(f"not a directory: {value}")
+    return path
+
+
+def existing_path(value: str) -> Path:
+    """Argparse `type=` for an argument that must name an existing file or directory."""
+    path = Path(value)
+    if not path.exists():
+        raise argparse.ArgumentTypeError(f"no such file or directory: {value}")
     return path
 
 

@@ -12,9 +12,9 @@ import typing
 from dataclasses import fields, is_dataclass
 from enum import StrEnum
 
-import sage_edain.diff as diff_module
+import sage_mods.edain.diff as diff_module
 import sage_utils.factiongraph.model as model_module
-from sage_edain.diff import ModDiff
+from sage_mods.edain.diff import ModDiff
 from sage_utils.factiongraph.model import FactionGraph, ToDictMixin
 
 __all__ = ["render_schema"]
@@ -84,7 +84,7 @@ def render_schema(which: str = "graph") -> str:
     if which == "diff":
         header = [
             "# sage-edain diff --json payload (plus top-level `old`/`new` folder labels).",
-            "# Generated from sage_edain.diff; every key is always present.",
+            "# Generated from sage_mods.edain.diff; every key is always present.",
             "",
         ]
         return "\n".join(header + _walk(ModDiff, diff_module)).rstrip("\n") + "\n"

@@ -15,7 +15,7 @@ The package has three layers:
   maps the way `sage_lint` lints ini files, and renders content diffs of binary maps.
 - `sage_map.checks` - the architecture for standalone map checks (findings, rule-runner, terrain
   helpers); rule sets are mod conventions and live with their mod package
-  (`sage_edain.map_checks` for Edain).
+  (`sage_mods.edain.map_checks` for Edain).
 
 ## Example
 
@@ -36,24 +36,24 @@ print(map.objects_list)
 `sage_map.checks` validates maps without game data: a rule-runner (`lint_map`) and terrain
 helpers, with findings emitted as ordinary `sage_ini` `Diagnostic`s. The rules themselves are mod
 conventions - the Edain set (terrain flatness, object counts, resource placement, camera
-settings) lives in `sage_edain.map_checks` with a command-line front end:
+settings) lives in `sage_mods.edain.map_checks` with a command-line front end:
 
 ```
-python -m sage_edain.map_checks <path-to-map-file>
+python -m sage_mods.edain.map_checks <path-to-map-file>
 ```
 
 You can list all available error codes or exclude specific checks using command-line options. For
 more details, run:
 
 ```
-python -m sage_edain.map_checks --help
+python -m sage_mods.edain.map_checks --help
 ```
 
 ### Using the checks programmatically
 
 ```python
 from sage_map import parse_map_from_path
-from sage_edain.map_checks import lint_map
+from sage_mods.edain.map_checks import lint_map
 
 map = parse_map_from_path('path/to/your/file.map')
 errors = lint_map(map)

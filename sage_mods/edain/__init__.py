@@ -3,15 +3,15 @@
 An Edain faction is a `PlayerTemplate` with `PlayableSide = Yes`. From it hang a spellbook, the
 starting plot flags that unpack a base (citadel + foundations) or a single structure, the buildings
 constructed on those foundations, and the units / heroes / upgrades those buildings produce.
-`sage_edain` walks the loaded `Game` (and the mod's binary base layouts, via sagemap) into one
+`sage_mods.edain` walks the loaded `Game` (and the mod's binary base layouts, via sagemap) into one
 explicit ownership graph - the link between a faction and everything a player of it can see.
 
 It is an orchestration layer: resolution lives in `sage_ini.model.state` and `sage_utils.views`;
 this package only assembles those primitives into the `FactionGraph` shape.
 """
 
-from sage_edain.diff import FactionDiff, ModDiff, diff_faction, diff_graphs, format_mod_diff
-from sage_edain.graph import (
+from sage_mods.edain.diff import FactionDiff, ModDiff, diff_faction, diff_graphs, format_mod_diff
+from sage_mods.edain.graph import (
     build_faction_graph,
     build_faction_graphs,
     find_faction,

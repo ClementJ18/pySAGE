@@ -4,7 +4,8 @@ Game- and mod-agnostic: findings are ordinary `sage_ini` `Diagnostic`s, so map c
 same severity/code/reporting primitives as the rest of the repo's linting. This package defines
 how a sequence of rules runs over a parsed `Map` (`lint_map`, `LintConfig`) and shared terrain
 geometry helpers (`height_utils`). The actual rules are mod conventions and live elsewhere;
-`sage_edain.map_checks` is the Edain rule set (with its CLI: `python -m sage_edain.map_checks`).
+`sage_mods.edain.map_checks` is the Edain rule set (with its CLI:
+`python -m sage_mods.edain lint-maps`).
 """
 
 from .height_utils import get_flatness_percentage, is_flat_at_position

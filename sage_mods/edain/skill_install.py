@@ -16,4 +16,4 @@ def install_skill(dest: str | Path | None = None, force: bool = False) -> Path:
     """Copy the bundled skill into `<dest>/bfme-faction` (default: the per-user skills dir).
     Returns the installed skill directory. Refuses to overwrite an existing install unless
     `force`."""
-    return install_packaged_skill("sage_edain", SKILL_NAME, dest, force=force)
+    return install_packaged_skill("sage_mods.edain", SKILL_NAME, dest, force=force)

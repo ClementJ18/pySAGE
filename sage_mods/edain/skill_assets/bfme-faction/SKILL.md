@@ -4,7 +4,7 @@ description: >-
   Visualise and critique a Battle for Middle-earth / Edain faction - its spellbook, base and
   start options, structures, and the units / heroes / upgrades they produce, with per-unit stats
   (cost, health, attack, resilience). Use when asked to review, critique, summarise, balance, or
-  write up a faction (or compare factions) in a BFME/SAGE mod tree. Backed by the `sage_edain`
+  write up a faction (or compare factions) in a BFME/SAGE mod tree. Backed by the `sage_mods.edain`
   ownership-graph model via the `sage-edain` CLI.
 ---
 

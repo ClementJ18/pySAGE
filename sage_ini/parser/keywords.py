@@ -1,7 +1,7 @@
 """Block-opening keywords. A `Key = Value` line is syntactically identical whether it is a
 plain attribute or a `... End` block header, so the block parser consults these curated
 lists to disambiguate; a missing opener surfaces as an `End`-imbalance diagnostic rather
-than silent mis-nesting. Bootstrapped by `tools/scan_block_keywords.py`, then curated by hand.
+than silent mis-nesting. Curated by hand.
 """
 
 BLOCK_OPENING_KEYWORDS: frozenset[str] = frozenset(

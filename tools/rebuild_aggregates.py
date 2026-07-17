@@ -124,7 +124,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))  # allow running this file directly, not just as a module
 
-from sage_edain.replay import (  # noqa: E402
+from sage_mods.edain.replay import (  # noqa: E402
     FACTION_ICONS,
     ICONS_DIR,
     IGNORED_RECRUITS,
@@ -257,7 +257,7 @@ def _drop_excluded(corpus: Corpus, exclude: frozenset[str]) -> int:
 
 
 def _copy_icons(dest: Path, faction_icons: dict[str, str]) -> int:
-    """Copy the faction emblems (`sage_edain/icons/*.webp`) named in `faction_icons` into the
+    """Copy the faction emblems (`sage_mods/edain/icons/*.webp`) named in `faction_icons` into the
     site at `dest`, returning how many landed. They live once per corpus, beside its indexes, so
     a corpus stays a movable, self-relative unit; a missing source file is skipped so a partial
     icon set still builds. A non-Edain corpus ships no emblems (`faction_icons` empty), so

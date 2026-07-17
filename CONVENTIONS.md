@@ -49,7 +49,7 @@ is genuinely dynamic, make that explicit.
 
 The core (`sage_ini`, `sage_map`, `sage_utils`, `sage_ui`, `sage_lint`) stays engine-generic:
 no mod-specific names, paths, or assumptions. Anything specific to a mod lives in that mod's
-package - Edain content in `sage_edain` - and wires into the generic core through hooks, never
+package - Edain content in `sage_mods.edain` - and wires into the generic core through hooks, never
 by reaching back into it. If you find yourself hard-coding an Edain name in a core package,
 it belongs in the overlay instead.
 

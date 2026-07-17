@@ -25,7 +25,7 @@ python -m sage_lint diff --player <old> <new>
 ## Configuration & baselines
 
 Project settings live in a `.sagelint` file (with an optional `.sagelint.local` override);
-see [`.sagelint.template`](../.sagelint.template) for the documented set of knobs. To adopt
+see [`.sagelint.template`](.sagelint.template) for the documented set of knobs. To adopt
 the linter on an existing mod without drowning in pre-existing diagnostics, write a baseline
 and report only new findings:
 
@@ -42,7 +42,7 @@ unrelated edits above a finding don't resurface it.
 `sage_lint` also exposes game-aware `.map` linting, which resolves script arguments and
 object references against the assembled game (see [`sage_map`](../sage_map)). Standalone,
 game-data-free map checks live in `sage_map.checks`, with mod-specific rule sets under the
-mod package (`sage_edain.map_checks`).
+mod package (`sage_mods.edain.map_checks`).
 
 ## Desktop UI
 

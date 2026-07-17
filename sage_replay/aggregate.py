@@ -38,7 +38,7 @@ recruit; `tracked_upgrades` / `tracked_purchases` /
 `Type = PLAYER` upgrade set - `GameData.player_upgrades` - so faction-wide researches earn
 rows while per-battalion OBJECT gear stays out), and `include_combines` gates horde combines
 (`0x423`) the same way. See
-the alias definitions below for each hook's shape, and `sage_edain.replay` for Edain's concrete
+the alias definitions below for each hook's shape, and `sage_mods.edain.replay` for Edain's concrete
 refiners and tables.
 
 Each faction also carries a *build-order tree* (`build_orders.py`): every game's eco steps

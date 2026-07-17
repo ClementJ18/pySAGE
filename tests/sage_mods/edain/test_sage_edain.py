@@ -1,4 +1,4 @@
-"""The Edain faction ownership graph (sage_edain).
+"""The Edain faction ownership graph (sage_mods.edain).
 
 Fast tests build a tiny synthetic game and exercise the whole walk through the single-structure
 start-point path (no `.bse`/sagemap needed). A `--full`-gated acceptance test builds Gondor from
@@ -15,7 +15,10 @@ from pathlib import Path
 import pytest
 
 import sage_ini.model.definitions  # noqa: F401  (register model classes)
-from sage_edain import (
+from sage_ini.loader import load_game
+from sage_ini.model.game import Game
+from sage_ini.parser.blockparser import parse
+from sage_mods.edain import (
     StartPointKind,
     StructureRole,
     build_faction_graph,
@@ -23,14 +26,11 @@ from sage_edain import (
     find_faction,
     playable_factions,
 )
-from sage_edain.__main__ import _payload
-from sage_edain.__main__ import main as cli_main
-from sage_edain.diff import diff_graphs, format_mod_diff
-from sage_edain.report import _clean, render_report, render_roster_table
-from sage_edain.server import _Handler
-from sage_ini.loader import load_game
-from sage_ini.model.game import Game
-from sage_ini.parser.blockparser import parse
+from sage_mods.edain.__main__ import _payload
+from sage_mods.edain.__main__ import main as cli_main
+from sage_mods.edain.diff import diff_graphs, format_mod_diff
+from sage_mods.edain.report import _clean, render_report, render_roster_table
+from sage_mods.edain.server import _Handler
 from sage_utils.factiongraph.bases import BaseLayout, find_base_file, resolve_base_layout
 from sage_utils.views import recruited_hero_names
 
@@ -373,7 +373,7 @@ def test_build_faction_graphs_covers_all_playable():
 
 
 class TestFactionDiff:
-    """Faction-level changelog between two versions (sage_edain.diff)."""
+    """Faction-level changelog between two versions (sage_mods.edain.diff)."""
 
     def _graphs(self, text: str):
         game = load(text)
@@ -549,7 +549,7 @@ def test_server_serves_ui_and_graph(graph):
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as response:
             assert response.status == 200
-            assert b"sage_edain" in response.read()
+            assert b"sage_mods.edain" in response.read()
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/graph.json") as response:
             assert json.loads(response.read())["name"] == "FactionTest"
     finally:
@@ -582,7 +582,7 @@ def test_find_base_file_in_named_folder(tmp_path: Path):
 
 
 def _edain_root() -> Path | None:
-    roots_file = Path(__file__).resolve().parent.parent / "corpus_roots.txt"
+    roots_file = Path(__file__).resolve().parents[2] / "corpus_roots.txt"
     if not roots_file.is_file():
         return None
     for line in roots_file.read_text(encoding="utf-8").splitlines():

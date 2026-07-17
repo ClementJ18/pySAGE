@@ -29,7 +29,7 @@ subproject has its own README with the details; this page is the map.
 
 | Project | What it is |
 | --- | --- |
-| [`sage_edain`](sage_edain/README.md) | Edain-mod overlay: builds a faction ownership graph (spellbook → base → structures → units/heroes/upgrades) and renders, diffs or serves it. |
+| [`sage_mods.edain`](sage_mods/edain/README.md) | Edain-mod overlay: builds a faction ownership graph (spellbook → base → structures → units/heroes/upgrades) and renders, diffs or serves it. |
 | [`sage_wiki`](sage_wiki/README.md) | Desktop tool that updates Edain wiki infoboxes from parsed game data through the MediaWiki API. |
 | [`sage_ui`](sage_ui/README.md) | PyQt6 desktop browser for SAGE game data: load sources, search an object, see its resolved stats. |
 

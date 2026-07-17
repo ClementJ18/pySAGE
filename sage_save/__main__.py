@@ -11,7 +11,11 @@
   objects' behavior-module tags (a frequency table, or per-object with `--list`).
 - `json <save>` - everything decoded (header, chunks, game state, map summary, objects, and the
   harvested reference names) as one JSON document (`--out` to a file, `--no-objects` to omit the
-  per-object list, `--compact` for a single line).
+  per-object list, `--compact` for a single line). By default this is the lossy human-readable
+  summary; `--full` instead emits the lossless document (roughly file-sized, every chunk in full,
+  opaque regions as base64) that `from-json` reconstructs byte-exactly.
+- `from-json <in.json> --out <new.sav>` - rebuild a `.sav` from a lossless (`--full`) `json`
+  document, byte-exact with no access to the original file.
 - `edit <save> <edits.json> --out <new.sav>` - apply the editable fields of a JSON document (the
   `game_state` / `game_state_map` / `campaign` sections of a `json` export) back onto a save.
   Edits must preserve each chunk's byte length (timestamp, game mode, same-length rename).
@@ -53,7 +57,7 @@ from sage_save.chunks import (
 from sage_save.coverage import chunk_coverage, coverage_summary
 from sage_save.diagnose import Diagnostic, diagnose_save, format_diagnosis
 from sage_save.edit import apply_json_text
-from sage_save.export import save_to_json
+from sage_save.export import save_to_json, save_to_json_full
 from sage_save.reversing import (
     first_difference,
     format_block_tree,
@@ -61,6 +65,7 @@ from sage_save.reversing import (
     nested_block_tree,
 )
 from sage_save.save import SaveFile, parse_save, parse_save_from_path, write_save_to_path
+from sage_save.serialize import json_to_save_full
 from sage_save.xref import check_save, format_findings
 from sage_utils.cli import add_game_arguments, existing_dir, existing_file, utf8_stdout
 from sage_utils.gameroot import resolve_game_roots
@@ -289,14 +294,32 @@ def _run_objects(args: argparse.Namespace) -> int:
 
 def _run_json(args: argparse.Namespace) -> int:
     save = parse_save_from_path(args.save)
-    text = save_to_json(
-        save, indent=None if args.compact else 2, include_objects=not args.no_objects
-    )
+    if args.full:
+        if args.no_objects:
+            print("--no-objects only applies to the summary view, not --full", file=sys.stderr)
+            return 2
+        text = save_to_json_full(save, indent=None if args.compact else 2)
+    else:
+        text = save_to_json(
+            save, indent=None if args.compact else 2, include_objects=not args.no_objects
+        )
     if args.out is not None:
         args.out.write_text(text, encoding="utf-8")
         print(f"wrote {args.out}")
     else:
         print(text)
+    return 0
+
+
+def _run_from_json(args: argparse.Namespace) -> int:
+    data = json.loads(args.json.read_text(encoding="utf-8"))
+    try:
+        sav_bytes = json_to_save_full(data)
+    except ValueError as exc:
+        print(f"cannot reconstruct: {exc}", file=sys.stderr)
+        return 1
+    args.out.write_bytes(sav_bytes)
+    print(f"wrote {len(sav_bytes):,} bytes to {args.out}")
     return 0
 
 
@@ -555,7 +578,20 @@ def main(argv: list[str] | None = None) -> int:
     to_json.add_argument("--out", type=Path, default=None, help="write to a file instead of stdout")
     to_json.add_argument("--no-objects", action="store_true", help="omit the per-object list")
     to_json.add_argument("--compact", action="store_true", help="single-line JSON")
+    to_json.add_argument(
+        "--full",
+        action="store_true",
+        help="lossless export: every chunk in full, opaque regions as base64; reconstructable "
+        "with from-json",
+    )
     to_json.set_defaults(func=_run_json)
+
+    from_json = subparsers.add_parser(
+        "from-json", help="rebuild a .sav from a lossless (--full) JSON document"
+    )
+    from_json.add_argument("json", type=existing_file)
+    from_json.add_argument("--out", type=Path, required=True, help="write the rebuilt save here")
+    from_json.set_defaults(func=_run_from_json)
 
     edit = subparsers.add_parser("edit", help="apply edited JSON attributes back onto a save")
     edit.add_argument("save", type=existing_file)

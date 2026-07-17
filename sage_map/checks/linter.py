@@ -5,7 +5,7 @@ primitives as every other linter in the repo. A rule is any callable taking the 
 `LintConfig` and returning `Diagnostic`s; the runner stamps every finding with the map file's
 span (a binary map has no lines, so the span is `path:1`), turns an exception escaping a rule
 into a `rule-error` finding, and applies the config's code exclusions. Rule sets live with the
-mod-specific packages: `sage_edain.map_checks` holds the Edain mapping conventions.
+mod-specific packages: `sage_mods.edain.map_checks` holds the Edain mapping conventions.
 """
 
 from collections.abc import Callable, Sequence

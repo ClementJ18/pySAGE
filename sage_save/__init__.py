@@ -15,6 +15,8 @@ the map. Object bodies and the deeper per-player/script state stay opaque, excep
 `sage_ini` `Game`, reporting the danglers - "will this save still load under this mod tree".
 `sage_save.export` renders a save to JSON and `sage_save.edit` (`apply_json`) writes edited
 JSON attributes back onto a save (length-preserving edits only - see that module).
+`sage_save.export.save_to_json_full`/`sage_save.serialize.json_to_save_full` are a lossless
+counterpart to that summary: a JSON document that reconstructs the original `.sav` byte-for-byte.
 
 The layouts here were reversed against the GPL Generals/Zero Hour `XferSave` source and
 confirmed against a real BFME2 skirmish save; see sav_format.md for the full format notes.
@@ -47,6 +49,7 @@ from sage_save.chunks import (
     TacticalView,
     TeamFactory,
     ToppleDirection,
+    campaign_from_json,
     decode_campaign,
     decode_game_client,
     decode_game_logic,
@@ -73,6 +76,7 @@ from sage_save.chunks import (
     encode_team_factory,
     extract_map,
     iter_objects,
+    living_world_logic_from_json,
     living_world_names,
     living_world_object_templates,
     object_modules,
@@ -92,7 +96,7 @@ from sage_save.diagnose import (
     format_diagnosis,
 )
 from sage_save.edit import apply_json, apply_json_text
-from sage_save.export import save_to_dict, save_to_json
+from sage_save.export import save_to_dict, save_to_dict_full, save_to_json, save_to_json_full
 from sage_save.players import NameList, harvest_name_lists
 from sage_save.reversing import (
     NestedBlock,
@@ -109,6 +113,13 @@ from sage_save.save import (
     parse_save_from_path,
     write_save,
     write_save_to_path,
+)
+from sage_save.serialize import (
+    LOSSLESS_FORMAT,
+    json_to_save_full,
+    json_to_save_full_to_path,
+    value_from_json,
+    value_to_json,
 )
 from sage_save.xfer import XferReader
 from sage_save.xref import (
@@ -139,6 +150,7 @@ __all__ = [
     "Diagnostic",
     "Finding",
     "KNOWN_CHUNK_VERSIONS",
+    "LOSSLESS_FORMAT",
     "GameClientState",
     "GameLogicState",
     "GameStateHeader",
@@ -167,6 +179,7 @@ __all__ = [
     "XferReader",
     "apply_json",
     "apply_json_text",
+    "campaign_from_json",
     "check_references",
     "check_save",
     "chunk_coverage",
@@ -210,6 +223,9 @@ __all__ = [
     "harvest_player_references",
     "harvest_references",
     "harvest_script_engine_references",
+    "json_to_save_full",
+    "json_to_save_full_to_path",
+    "living_world_logic_from_json",
     "living_world_names",
     "living_world_object_templates",
     "nested_block_tree",
@@ -219,8 +235,12 @@ __all__ = [
     "parse_save",
     "parse_save_from_path",
     "save_to_dict",
+    "save_to_dict_full",
     "save_to_json",
+    "save_to_json_full",
     "set_object_position",
+    "value_from_json",
+    "value_to_json",
     "write_save",
     "write_save_to_path",
 ]
