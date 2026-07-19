@@ -46,13 +46,15 @@ pip install -e .            # core library + linter (Python ≥ 3.13)
 pip install -e ".[ui]"      # + the PyQt6 desktop apps (sage-ui)
 pip install -e ".[wiki]"    # + the wiki updater
 pip install -e ".[edain]"   # + Edain base-layout decompilation
+pip install -e ".[edain-ui]"  # + the Edain Linter desktop app
 pip install -e ".[apt]"     # + reading .const/.apt out of .big archives
 ```
 
-The extras (`ui`, `lint-ui`, `wiki`, `map`, `edain`, `apt`) pull in the optional
+The extras (`ui`, `lint-ui`, `wiki`, `map`, `edain`, `edain-ui`, `apt`) pull in the optional
 dependencies each peripheral tool needs; the core parser and linter stay dependency-free.
 Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-edain`,
-`sage-replay`, `sage-apt` (and the GUI scripts `sage-ui`, `sage-wiki`, `sage-lint-ui`).
+`sage-replay`, `sage-apt` (and the GUI scripts `sage-ui`, `sage-wiki`, `sage-lint-ui`,
+`sage-edain-lint` - the Edain Linter, which combines the ini and map checks in one window).
 
 ## Tests
 

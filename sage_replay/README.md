@@ -70,6 +70,13 @@ python -m sage_replay stats <replay> --game <install>
 # (the header's game-data checksum) exits 1 listing the groups.
 python -m sage_replay aggregate <replay|dir>... --game <install>
 
+# Re-emit a translated document (or a replay + --source-game) as a binary replay whose ids
+# are valid for the --game version; --donor supplies the target patch identity (see below)
+python -m sage_replay convert <doc.json|replay> --game <target install> --donor <replay> -o out.BfME2Replay
+
+# Parse + re-serialize a replay and compare byte-for-byte (the writer's self-test)
+python -m sage_replay roundtrip <replay>
+
 # Infer the outcome from session-end signals (see below). --winner-pov (also on
 # aggregate) assumes the recording player's team won any game the stream leaves
 # undetermined - for corpora whose replays belong to the winner.
@@ -129,6 +136,30 @@ structure mirroring the replay tree (`tools/rebuild_aggregates.py` mirrors `down
 into `downloads/cached/`), the trust checks, and the load-time pipeline that turns a document
 back into player-games. Producing a document is always an explicit step by the caller - nothing
 in sage_replay caches as a side effect.
+
+## Converting a replay to another version
+
+The translated document also works in reverse. `serialize.py` is a byte-exact binary writer
+(`serialize_replay(parse_replay(data)) == data` across the whole fixture corpus - the `roundtrip`
+command is that check as a one-liner), and `retarget.py` takes a v2 document plus a *target*
+game's data and re-resolves every code name back to that version's integer ids: template /
+upgrade / science / special-power names looked up in the target's tables, fortress-hero recruits
+re-run through the `ReviveList` simulation under the target's rosters and build times (so the
+emitted slot ids follow the *target's* revive-menu dynamics), and the metadata slot factions
+re-indexed against the target's PlayerTemplate order. `convert` chains the two into a playable
+file. Only a v2 document (one carrying the raw `header` block) can be re-emitted; v1 documents
+stay valid for analysis and are refused with a request to re-translate.
+
+Three honest limits. The header's patch identity - the `version` / `build_date` strings, the
+`data_checksum`, the metadata `GSID` - is computed by the engine and cannot be fabricated, so
+`--donor` names any replay recorded under the target version and the converter lifts its
+identity; without one the file keeps the source identity and the target game will flag it.
+Resolution is all-or-nothing: a name the target lacks (renamed or removed template, a hero off
+the target roster) aborts the conversion with the full failure list, because a silently wrong id
+corrupts the simulation and a dropped chunk would shift every later revive-menu position. And
+`ObjectId` arguments are runtime simulation ids that no conversion can remap - the order
+stream's ids are exact for the target, but a target version whose gameplay data differs at all
+will still diverge from the recorded commands during playback.
 
 ## Mapping order ids to mod objects
 

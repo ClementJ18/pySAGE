@@ -468,8 +468,11 @@ class ReplayHeader:
     # The recording client's own player index, written as a NUL-terminated ASCII "%d"
     # string. It is an index into `metadata.players` and identifies the replay's point of
     # view (matching the `0x1D` end-of-recording issuer, and available even when a crash
-    # left no `0x1D`).
+    # left no `0x1D`). `local_player_raw` keeps the string verbatim: the int collapses
+    # formatting (an empty or non-numeric string reads -1), and the serializer must
+    # reproduce the original bytes, not a normalized "%d" of the derived value.
     local_player_index: int = -1
+    local_player_raw: str = ""
     # BFME2 header block. `crc_interval` is REPLAY_CRC_INTERVAL, the checksum-heartbeat
     # cadence (always 100). `abnormal_end_frame` is None when the recording finalized
     # normally (a 0xFFFFFFFF sentinel on disk) and otherwise the last completed heartbeat
@@ -490,10 +493,14 @@ class ReplayHeader:
     # length-prefixed `ALAE2STR` blob per occupied player (a stock-hero slot carries a bare
     # 0 flag and no blob) between `local_player_index` and the trailing header words. The
     # blobs are retained raw (`custom_heroes`); decoding a hero's name/equipment/powers is a
-    # follow-up. The per-player flag list shortens the trailing header block by one byte per
-    # player, so those bytes are kept as `custom_hero_tail` (`24 - len(players)` bytes; its
-    # last five words are the usual (0, 1, 1, 0, 0)) instead of `unknown_tail`.
+    # follow-up. `custom_hero_flags` is the full per-player flag byte vector - it records
+    # which occupied slot each blob belongs to (the blobs alone don't), and the serializer
+    # needs it to re-emit the flag bytes of the stock-hero players. The per-player flag list
+    # shortens the trailing header block by one byte per player, so those bytes are kept as
+    # `custom_hero_tail` (`24 - len(players)` bytes; its last five words are the usual
+    # (0, 1, 1, 0, 0)) instead of `unknown_tail`.
     custom_heroes: list[bytes] = field(default_factory=list)
+    custom_hero_flags: tuple[int, ...] = ()
     custom_hero_tail: bytes = b""
     # Generals-only fields. The Generals branch follows EA's officially released
     # Recorder.cpp writer, cross-checked against OpenSAGE's reader; no Generals fixture
@@ -564,12 +571,16 @@ class ReplayHeader:
 
         metadata = ReplayMetadata.parse(stream, game_type)
 
-        local_player_index = _to_int(stream.readNullTerminatedAsciiString(), -1)
+        local_player_raw = stream.readNullTerminatedAsciiString()
+        local_player_index = _to_int(local_player_raw, -1)
 
         custom_heroes: list[bytes] = []
+        custom_hero_flags: tuple[int, ...] = ()
         custom_hero_tail = b""
         if game_type is not ReplayGameType.Generals:
-            custom_heroes = ReplayHeader._read_custom_heroes(stream, len(metadata.players))
+            custom_hero_flags, custom_heroes = ReplayHeader._read_custom_heroes(
+                stream, len(metadata.players)
+            )
 
         if custom_heroes:
             # The per-player flag list consumed one byte per player from the trailing header
@@ -599,6 +610,7 @@ class ReplayHeader:
             build_date=build_date,
             metadata=metadata,
             local_player_index=local_player_index,
+            local_player_raw=local_player_raw,
             crc_interval=crc_interval,
             abnormal_end_frame=abnormal_end_frame,
             reserved1=reserved1,
@@ -606,6 +618,7 @@ class ReplayHeader:
             reserved2=reserved2,
             unknown_tail=tail,
             custom_heroes=custom_heroes,
+            custom_hero_flags=custom_hero_flags,
             custom_hero_tail=custom_hero_tail,
             version_minor=version_minor,
             version_major=version_major,
@@ -621,27 +634,32 @@ class ReplayHeader:
         )
 
     @staticmethod
-    def _read_custom_heroes(stream: BinaryStream, num_players: int) -> list[bytes]:
+    def _read_custom_heroes(
+        stream: BinaryStream, num_players: int
+    ) -> tuple[tuple[int, ...], list[bytes]]:
         """Read the BFME2 Create-A-Hero header extension, if present. A game featuring a
         customized hero writes, right after `local_player_index`, one entry per occupied
         player: a `u8` flag (1 = this player brought a custom hero, 0 = a stock hero) and,
         when set, a `u32`-length-prefixed `ALAE2STR` blob. The list is absent entirely in an
         ordinary game, detected by peeking for the `1`+`ALAE2STR` signature; the stream is
-        left untouched when it does not match. Returns the raw blobs (see `custom_heroes`)."""
+        left untouched when it does not match. Returns the per-player flag vector and the raw
+        blobs (see `custom_hero_flags` / `custom_heroes`)."""
         start = stream.tell()
         flag = stream.readUChar()
         stream.readUInt32()  # length
         magic = stream.readBytes(8)
         stream.seek(start)
         if flag != 1 or magic != _CUSTOM_HERO_MAGIC:
-            return []
+            return (), []
 
+        flags: list[int] = []
         heroes: list[bytes] = []
         for _ in range(num_players):
-            if stream.readUChar() == 1:
+            flags.append(stream.readUChar())
+            if flags[-1] == 1:
                 length = stream.readUInt32()
                 heroes.append(stream.readBytes(length))
-        return heroes
+        return tuple(flags), heroes
 
     @staticmethod
     def _parse_game_type(stream: BinaryStream) -> ReplayGameType:

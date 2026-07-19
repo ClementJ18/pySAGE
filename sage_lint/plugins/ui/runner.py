@@ -8,6 +8,7 @@ import json
 import sys
 import tempfile
 from collections import Counter
+from collections.abc import Iterable
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
@@ -136,18 +137,17 @@ def build_argv(
     folder: str,
     *,
     level: str = "WARNING",
-    base: str = "",
+    bases: Iterable[str] = (),
     baseline: str = "",
     suggest: bool = False,
     fix: bool = False,
 ) -> list[str]:
     """The `sage_lint lint` argument list for these options. Always JSON and `--exit-zero`
-    (the UI reads the report, not the exit code). Empty base/baseline are omitted so the
-    project config's own values stand."""
+    (the UI reads the report, not the exit code). Each base (a folder or a `.big` archive)
+    becomes its own `--base`, in order - the CLI layers them in the order given. Empty
+    bases/baseline are omitted so the project config's own values stand."""
     argv = ["lint", folder, "--output-format", "json", "--exit-zero", "--level", level]
-    # The Base game field holds one or more paths separated by ';' (safe: Windows paths use
-    # ':' only after a drive letter, never ';'); each becomes its own --base.
-    for path in (p.strip() for p in base.split(";")):
+    for path in (str(p).strip() for p in bases):
         if path:
             argv += ["--base", path]
     if baseline.strip():

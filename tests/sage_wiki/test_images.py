@@ -4,14 +4,19 @@ import io
 from types import SimpleNamespace
 
 import pytest
-from PIL import Image
 
 import sage_ini.model.definitions  # noqa: F401  (register classes, incl. MappedImage)
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse
-from sage_utils.textures import TextureSource
 from sage_utils.views import flatten_button_images
-from sage_wiki.images import (
+
+pytest.importorskip("PIL", reason="the [ui]/[wiki] extra (Pillow) is not installed")
+pytest.importorskip("pyBIG", reason="the [ui]/[wiki] extra (pyBIG) is not installed")
+pytest.importorskip("mwparserfromhell", reason="the [wiki] extra is not installed")
+from PIL import Image  # noqa: E402 - after the importorskip guard
+
+from sage_utils.textures import TextureSource  # noqa: E402 - after the importorskip guard
+from sage_wiki.images import (  # noqa: E402 - after the importorskip guard
     command_icon_names,
     command_icon_rows,
     command_set_icon_rows,
@@ -23,7 +28,7 @@ from sage_wiki.images import (
     render_portrait_png,
     rewrite_image_value,
 )
-from sage_wiki.infobox import parse_infobox
+from sage_wiki.infobox import parse_infobox  # noqa: E402 - after the importorskip guard
 
 pytestmark = pytest.mark.full
 

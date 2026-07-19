@@ -238,6 +238,40 @@ def test_from_dict_rejects_missing_and_malformed(tmp_path):
         TranslatedReplay.from_dict(bad_arg)
 
 
+def test_v2_document_carries_the_raw_header(tmp_path):
+    document, _ = _translated(tmp_path, _full_replay())
+    payload = document.to_dict()
+    assert payload["format_version"] == 2
+    header = payload["header"]
+    assert header["start_time"] == int(datetime(2026, 1, 1, tzinfo=UTC).timestamp())
+    assert header["metadata"] == ""  # the synthetic replay carries no raw metadata string
+    assert header["local_player_raw"] == ""
+    assert header["abnormal_end_frame"] is None
+    rebuilt = TranslatedReplay.from_dict(payload)
+    assert rebuilt.header == document.header
+
+
+def test_v1_document_still_loads_analysis_only(tmp_path):
+    document, _ = _translated(tmp_path, _full_replay())
+    payload = document.to_dict()
+    del payload["header"]
+    payload["format_version"] = 1
+    loaded = TranslatedReplay.from_dict(payload)
+    assert loaded.header is None
+    # Analysis rehydration is untouched by the missing header ...
+    assert loaded.to_replay(_data()).translated is True
+    # ... and re-serializing keeps it honestly versioned as 1.
+    assert loaded.to_dict()["format_version"] == 1
+
+
+def test_v2_document_without_header_is_rejected(tmp_path):
+    document, _ = _translated(tmp_path, _full_replay())
+    payload = document.to_dict()
+    del payload["header"]
+    with pytest.raises(ValueError, match="missing 'header'"):
+        TranslatedReplay.from_dict(payload)
+
+
 def test_from_dict_rejects_old_events_shaped_document():
     # The previous events-shaped document also said `format_version: 1` but keyed its per-player
     # data under `events`, with no `chunks` at all - the missing key makes it read as unsupported.

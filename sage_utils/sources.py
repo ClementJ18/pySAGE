@@ -8,8 +8,6 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from pyBIG import InDiskArchive
-
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse_file
 from sage_ini.parser.io import read_text
@@ -66,6 +64,8 @@ def extract_big(big_path: str, dest: Path, suffixes: frozenset[str] = LOAD_SUFFI
     linter widens this to include `.map`/`.bse` so a base-game map can be parsed and linted (but
     never textures/models - those are huge and only their names are indexed, see
     `big_member_basenames`)."""
+    from pyBIG import InDiskArchive  # noqa: PLC0415 - lazy: the [ui]/[wiki] extra is optional
+
     archive = InDiskArchive(str(big_path))
     wanted = [name for name in archive.file_list() if Path(name).suffix.lower() in suffixes]
     dest.mkdir(parents=True, exist_ok=True)
@@ -78,6 +78,8 @@ def big_member_basenames(big_path: str | Path, suffixes: frozenset[str]) -> set[
     archive's file list without extracting any bytes. Enough for the linter's asset-membership
     check: a packed texture or model counts as present without unpacking it (and `extract_big`
     only unpacks the loadable ini/str, so a base .big's art is otherwise invisible to the index)."""
+    from pyBIG import InDiskArchive  # noqa: PLC0415 - lazy: the [ui]/[wiki] extra is optional
+
     archive = InDiskArchive(str(big_path))
     return {
         Path(name).name.lower()

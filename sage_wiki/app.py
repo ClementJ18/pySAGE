@@ -23,13 +23,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from sage_utils.sources import load_saved_sources, load_sources, save_sources
+from sage_utils.sources import load_saved_sources, load_sources
 from sage_utils.textures import (
     TextureSource,
     default_background,
 )
 from sage_utils.widgets import (
-    SourcesPanel,
+    SourceLoader,
     Worker,
     card,
     make_completer,
@@ -94,6 +94,11 @@ class WikiUpdater(
         title.setFont(QFont("Segoe UI", 16, QFont.Weight.DemiBold))
         root.addWidget(title)
 
+        # Built before the cards (the sources card's loader reports to it); added to the
+        # layout at the bottom, below the columns.
+        self.status = QLabel("Add data sources and Load to begin.")
+        self.status.setObjectName("muted")
+
         # Three columns (update workflow / editable wikitext / image+page tools), each a
         # vertical splitter of cards, all under one horizontal splitter - so every column
         # boundary and every card boundary can be dragged to taste. The whole thing sits in
@@ -134,8 +139,6 @@ class WikiUpdater(
         self._update_versions_header()
         self._build_menu()
 
-        self.status = QLabel("Add data sources and Load to begin.")
-        self.status.setObjectName("muted")
         root.addWidget(self.status)
 
         for kind, path in load_saved_sources(APP_NAME):
@@ -180,8 +183,20 @@ class WikiUpdater(
         dialog.activateWindow()
 
     def _build_sources_card(self) -> QWidget:
-        self.sources_panel = SourcesPanel(title="DATA SOURCES", list_min_height=170)
-        self.sources_panel.load_requested.connect(self._load)
+        # The shared SourceLoader owns the panel and the background load-to-Game (the same
+        # controller sage_ui uses); `_on_loaded` below does the wiki-specific post-load work.
+        self.loader = SourceLoader(
+            self,
+            build=load_sources,
+            app_name=APP_NAME,
+            on_loaded=self._on_loaded,
+            on_failed=self._on_load_failed,
+            status=self.status,
+            collapse_on_load=True,
+            title="DATA SOURCES",
+            list_min_height=170,
+        )
+        self.sources_panel = self.loader.panel
         # Collapsing/expanding the panel moves its splitter handle so the freed (or needed)
         # space goes to the column's growing card rather than leaving a gap.
         self.sources_panel.collapsed_changed.connect(
@@ -218,16 +233,6 @@ class WikiUpdater(
         sizes[grow] = max(1, sizes[grow] + delta)
         splitter.setSizes(sizes)
 
-    def _load(self) -> None:
-        sources = self.sources_panel.sources()
-        if not sources:
-            self.status.setText("Add at least one folder or .big file first.")
-            return
-        save_sources(sources, APP_NAME)
-        self.sources_panel.load_button.setEnabled(False)
-        self.status.setText(f"Loading {len(sources)} source(s)…")
-        self._run(lambda: load_sources(sources), self._on_loaded, self._on_load_failed)
-
     def _on_loaded(self, result) -> None:
         self.game, names = result
         self.object_search.setEnabled(True)
@@ -241,12 +246,11 @@ class WikiUpdater(
             make_completer(self, names=sorted(self.game.commandsets))
         )
         self.commandset_search.setEnabled(True)
-        self.sources_panel.load_button.setEnabled(True)
-        self.sources_panel.set_collapsed(True)  # free up room now that sources are loaded
+        # The shared loader has already re-enabled Load and collapsed the panel.
         self.status.setText(f"Loaded {len(names)} objects.")
 
     def _on_load_failed(self, message: str) -> None:
-        self.sources_panel.load_button.setEnabled(True)
+        # The shared loader has already re-enabled Load.
         self.status.setText(f"Load failed - {message}")
 
     def _build_object_card(self) -> QWidget:

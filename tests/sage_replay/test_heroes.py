@@ -113,6 +113,49 @@ def test_hero_without_build_time_never_fields():
     assert revive.recruit(500.0, 3) == "AmrothLothiriel"
 
 
+def test_slot_of_mirrors_recruit():
+    # Driving one list with names and a twin with the returned slots keeps them in lockstep -
+    # the retarget contract: known recruits re-emit the ids a client under this roster sends.
+    forward, inverse = _list(), _list()
+    script = [
+        (14.0, "AmrothAmrothos"),
+        (49.0, "AmrothLothiriel"),  # Amrothos fielded: the list has collapsed
+        (86.0, "GondorGandalf_mod"),
+    ]
+    for seconds, name in script:
+        slot = inverse.slot_of(seconds, name)
+        assert slot is not None
+        assert forward.recruit(seconds, slot) == name
+    assert inverse.slot_of(86.5, "NotARosterHero") is None
+
+
+def test_slot_of_shifts_with_the_roster():
+    # The same recruits under a different roster order land on different slots - the whole
+    # point of re-resolving against the target version.
+    reordered = ReviveList(list(reversed(ROSTER)), BUILD_TIMES)
+    assert reordered.slot_of(56.0, "AmrothAmrothos") == 6
+    assert _list().slot_of(56.0, "AmrothAmrothos") == 1
+
+
+def test_slot_of_dead_reentry_is_unambiguous_by_name():
+    revive = _list()
+    revive.slot_of(0.0, "AmrothAmrothos")
+    revive.slot_of(1.0, "AmrothElphir")
+    # Both fielded by 40s. The forward direction cannot resolve a tail recruit here; the
+    # inverse knows which hero re-enters, and it lands at the tail of the 6-long list.
+    assert revive.slot_of(40.0, "AmrothAmrothos") == 6
+
+
+def test_cancel_slot_of_unqueues_without_shifting():
+    revive = _list()
+    assert revive.slot_of(12.0, "AmrothAmrothos") == 1
+    assert revive.slot_of(16.0, "AmrothLothiriel") == 3
+    assert revive.cancel_slot_of(17.0, "AmrothLothiriel") == 3
+    # The cancelled Lothiriel never fields; 50s later only Amrothos has left the list.
+    assert revive.slot_of(66.0, "AmrothLothiriel") == 2
+    assert revive.cancel_slot_of(66.0, "NotARosterHero") is None
+
+
 def _linhir_data() -> GameData:
     # The replay slots carry faction id 3 (FactionMen); rosters index by faction id.
     return GameData(

@@ -16,12 +16,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from sage_utils.sources import save_sources
 from sage_utils.textures import (
     TextureSource,
     ability_overlay,
 )
 from sage_utils.widgets import (
+    SourceLoader,
     SourcesPanel,
     card,
 )
@@ -78,7 +78,8 @@ class ImagesCardMixin:
             item_label=lambda kind, path: f"[{kind}]  {Path(path).name}  -  {path}",
             list_max_height=120,
         )
-        self.image_sources_panel.load_requested.connect(self._load_textures)
+        # Its Load button is driven by the shared SourceLoader, wired once `image_status` (the
+        # label it reports to) exists further down.
         body.addWidget(self.image_sources_panel)
 
         # Optional: a specific object whose portrait (and button icons) to show, overriding the
@@ -111,6 +112,21 @@ class ImagesCardMixin:
         # whole column wide.
         self.image_status.setWordWrap(True)
         row.addWidget(self.image_status, 1)
+        # Indexing the image archives into a TextureSource is the same load skeleton the data
+        # sources use, so it runs on the shared SourceLoader (see sage_utils.widgets).
+        self.texture_loader = SourceLoader(
+            self,
+            build=lambda sources, _progress: TextureSource(sources),
+            app_name=TEXTURE_SOURCES_APP,
+            on_loaded=self._on_textures_loaded,
+            on_failed=self._on_textures_failed,
+            status=self.image_status,
+            collapse_on_load=True,
+            verb="Indexing",
+            noun="image source",
+            empty_message="Add an image folder or .big file first.",
+            panel=self.image_sources_panel,
+        )
         self.image_preview_button = QPushButton("Preview")
         self.image_preview_button.setEnabled(False)  # enabled once image sources load
         self.image_preview_button.clicked.connect(self._preview_portrait)
@@ -203,24 +219,9 @@ class ImagesCardMixin:
         arrow = "▾" if self.images_body.isVisible() else "▸"
         self.images_toggle.setText(f"{arrow}  IMAGES")
 
-    def _load_textures(self) -> None:
-        sources = self.image_sources_panel.sources()
-        if not sources:
-            self.image_status.setText("Add an image folder or .big file first.")
-            return
-        save_sources(sources, TEXTURE_SOURCES_APP)
-        self.image_sources_panel.load_button.setEnabled(False)
-        self.image_status.setText(f"Indexing {len(sources)} image source(s)…")
-        self._run(
-            lambda: TextureSource(sources),
-            self._on_textures_loaded,
-            self._on_textures_failed,
-        )
-
     def _on_textures_loaded(self, source: TextureSource) -> None:
         self._texture_source = source
-        self.image_sources_panel.load_button.setEnabled(True)
-        self.image_sources_panel.set_collapsed(True)
+        # The shared loader has already re-enabled Load and collapsed the panel.
         self.image_preview_button.setEnabled(True)
         self.image_upload_button.setEnabled(True)
         self.image_status.setText(f"Indexed {len(source)} texture(s). Preview or upload.")
@@ -229,7 +230,7 @@ class ImagesCardMixin:
         self._auto_load_images(self._current_object())
 
     def _on_textures_failed(self, message: str) -> None:
-        self.image_sources_panel.load_button.setEnabled(True)
+        # The shared loader has already re-enabled Load.
         self.image_status.setText(f"Could not index the image sources - {message}")
 
     def _portrait_object(self, game):

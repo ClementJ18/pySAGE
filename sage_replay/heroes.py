@@ -73,3 +73,35 @@ class ReviveList:
         name = self._entries[slot]
         self._pending.pop(name, None)
         return name
+
+    def slot_of(self, seconds: float, name: str) -> int | None:
+        """The inverse of `recruit`: the submenu position at which recruiting hero `name` at
+        `seconds` lands, mutating the list state exactly as the recruit itself would - so a
+        stream of known recruits re-emits the slot ids a client under THIS roster would have
+        sent (`sage_replay.retarget` drives it with the target game's roster and build times).
+        Knowing the name makes the dead-re-entry tail case unambiguous where the forward
+        direction is not: a fielded hero re-enters at the tail regardless of how many other
+        heroes have fielded. None for a hero this roster never listed."""
+        self._advance(seconds)
+        if name in self._entries:
+            slot = self._entries.index(name)
+        elif name in self._fielded:
+            slot = len(self._entries)
+            self._fielded.remove(name)
+            self._entries.append(name)
+        else:
+            return None
+        fields_in = self._build_times.get(name)
+        if fields_in is not None:
+            self._pending[name] = seconds + fields_in
+        return slot
+
+    def cancel_slot_of(self, seconds: float, name: str) -> int | None:
+        """The inverse of `cancel`: the position a cancel of hero `name`'s queued revive
+        names at `seconds`, un-queuing it (the list never shifts). None for a hero not
+        currently listed."""
+        self._advance(seconds)
+        if name not in self._entries:
+            return None
+        self._pending.pop(name, None)
+        return self._entries.index(name)

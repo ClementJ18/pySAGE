@@ -48,6 +48,7 @@ from sage_replay.replay import (
     parse_replay,
     parse_replay_from_path,
 )
+from sage_replay.serialize import serialize_replay, write_replay
 from sage_replay.winner import PlayerSession, Side, WinnerVerdict, infer_winner
 
 __all__ = [
@@ -84,4 +85,6 @@ __all__ = [
     "parse_labels",
     "parse_replay",
     "parse_replay_from_path",
+    "serialize_replay",
+    "write_replay",
 ]

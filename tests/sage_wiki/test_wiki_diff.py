@@ -5,8 +5,15 @@ import pytest
 import sage_ini.model.definitions  # noqa: F401  (register classes)
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse
-from sage_wiki.diff import apply_all, diff_infobox, resolve_object, resolve_objects
-from sage_wiki.infobox import parse_infobox, parse_infoboxes
+
+pytest.importorskip("mwparserfromhell", reason="the [wiki] extra is not installed")
+from sage_wiki.diff import (  # noqa: E402 - after the importorskip guard
+    apply_all,
+    diff_infobox,
+    resolve_object,
+    resolve_objects,
+)
+from sage_wiki.infobox import parse_infobox, parse_infoboxes  # noqa: E402 - after the guard
 
 # Peripheral package (sage_wiki, deferred project): full suite only.
 pytestmark = pytest.mark.full

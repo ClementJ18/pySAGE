@@ -262,6 +262,12 @@ override: `__edain_data` > `_patch201ini` > `ini.big`) into one `data/ini` tree 
 [`tools/mount_game.py`](../tools/mount_game.py); [`narrate.py`](narrate.py) then retells the
 match (`python -m sage_replay narrate <replay> --game <install>`).
 
+Every ✅ space above now also runs in **reverse**: [`retarget.py`](retarget.py) inverts each
+rule (name → target-game id, same offsets) to re-emit a translated document as a binary replay
+for another version, including the `0x417` flag=True revive-slot dynamics via
+`ReviveList.slot_of`. The byte-exact writer that backs it is [`serialize.py`](serialize.py),
+gated by `serialize(parse(x)) == x` over the whole fixture corpus.
+
 ---
 
 ## E. Generals GameMessage lineage (EA source, 2026-07-09)

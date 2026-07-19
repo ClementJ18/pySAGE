@@ -13,7 +13,10 @@ sorting as the CLI and the Sublime plugin - nothing about *what* gets reported i
 ## Layout
 
 - [app.py](app.py) - entry point; boots the shared `QApplication` via `sage_utils.run_app`.
-- [window.py](window.py) - the `LintWindow` (`QMainWindow`): options, the results table, search.
+- [window.py](window.py) - the `LintWindow` (`QMainWindow`): options, the base-game sources
+  panel, and the shared `sage_utils.findings.FindingsView` results table (search, sorting,
+  CSV export and double-click-to-open all live there, so the Edain Linter shows findings
+  identically).
 - [runner.py](runner.py) - Qt-free: builds the lint argv, runs the CLI, returns the JSON report.
 
 ## Run it

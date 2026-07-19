@@ -37,7 +37,6 @@ from sage_utils.factiongraph import build_faction_graphs
 from sage_utils.sources import (
     load_saved_sources,
     load_sources,
-    save_sources,
 )
 from sage_utils.textures import TextureSource, default_background
 from sage_utils.views import (
@@ -50,9 +49,8 @@ from sage_utils.widgets import (
     CopyableLabel as QLabel,  # info labels are selectable/copyable by default
 )
 from sage_utils.widgets import (
-    SourcesPanel,
+    SourceLoader,
     ThemeToggle,
-    Worker,
     card,
     make_completer,
     resource_path,
@@ -117,16 +115,37 @@ class Browser(QMainWindow):
         header.addWidget(self.theme_button, 0, Qt.AlignmentFlag.AlignTop)
         root.addLayout(header)
 
-        self.sources_panel = SourcesPanel(
+        # The shared SourceLoader owns the SOURCES panel and the background load-to-Game; its
+        # `on_start` blanks the results area while data loads, and `on_loaded` does the post-load
+        # work below. A second, headless SourceLoader indexes the image archives into a
+        # TextureSource for the inline portraits / button icons.
+        self.loader = SourceLoader(
+            self,
+            build=load_sources,
+            app_name="sage_ui",
+            on_loaded=self._on_loaded,
+            on_failed=self._on_failed,
+            on_start=self._on_load_start,
+            collapse_on_load=True,
             title="SOURCES",
             expanded_hint="SOURCES - loaded top to bottom; lower entries override upper",
             item_label=lambda kind, path: f"[{kind}]  {Path(path).name}  -  {path}",
             list_max_height=140,
             show_status=True,
         )
-        self.sources_panel.load_requested.connect(self._load)
+        self.sources_panel = self.loader.panel
         self.status = self.sources_panel.status
         root.addWidget(self.sources_panel)
+        self.texture_loader = SourceLoader(
+            self,
+            build=lambda sources, _progress: TextureSource(sources),
+            app_name=TEXTURE_SOURCES_APP,
+            on_loaded=self._on_textures_loaded,
+            on_failed=self._on_textures_failed,
+            status=self.status,
+            verb="Indexing",
+            noun="image source",
+        )
 
         # Search by raw template name, or by localized display name when toggled on.
         self._object_names: list[str] = []
@@ -261,14 +280,11 @@ class Browser(QMainWindow):
             )
             return
 
-        texture_sources = [("big", str(p)) for p in textures]
-        save_sources(texture_sources, TEXTURE_SOURCES_APP)
-        self._load_textures(texture_sources)
+        # The texture loader persists them under TEXTURE_SOURCES_APP as it indexes.
+        self.texture_loader.load([("big", str(p)) for p in textures])
 
-        self.sources_panel.clear()
-        for archive in archives:
-            self.sources_panel.add_source("big", str(archive))
-        self._load()
+        self.loader.set_sources([("big", str(archive)) for archive in archives])
+        self.loader.load()
 
     def _load_vanilla(self, label: str) -> None:
         """One-click load of a detected vanilla install: its ini.big plus its language
@@ -295,31 +311,14 @@ class Browser(QMainWindow):
             )
             return
         if textures:
-            texture_sources = [("big", str(p)) for p in textures]
-            save_sources(texture_sources, TEXTURE_SOURCES_APP)
-            self._load_textures(texture_sources)
-        self.sources_panel.clear()
-        for archive in data:
-            self.sources_panel.add_source("big", str(archive))
-        self._load()
+            self.texture_loader.load([("big", str(p)) for p in textures])
+        self.loader.set_sources([("big", str(archive)) for archive in data])
+        self.loader.load()
 
-    def _load(self) -> None:
-        sources = self.sources_panel.sources()
-        if not sources:
-            self.status.setText("Add at least one folder or .big file first.")
-            return
-        save_sources(sources)  # remember this list for next launch (no auto-load)
-        self.sources_panel.load_button.setEnabled(False)
+    def _on_load_start(self, _sources) -> None:
+        """Blank the search box and results area while the shared loader reads the sources."""
         self.search.setEnabled(False)
-        self.status.setText(f"Loading {len(sources)} source(s)…")
         self._set_message("Loading game data…")
-        # Pass the worker's progress signal as the load callback so each source's name
-        # appears on the status line as it is read.
-        self.loader = Worker(lambda: load_sources(sources, progress=self.loader.progress.emit))
-        self.loader.progress.connect(self.status.setText)
-        self.loader.done.connect(self._on_loaded)
-        self.loader.failed.connect(self._on_failed)
-        self.loader.start()
 
     def ensure_faction_graphs(self, on_ready, on_failed=None) -> None:
         """Hand `on_ready` the faction ownership graphs - immediately when cached, else
@@ -374,38 +373,25 @@ class Browser(QMainWindow):
         self.search.setEnabled(True)
         self._update_search_placeholder()
         self.search.setFocus()
-        self.sources_panel.load_button.setEnabled(True)
+        # The shared loader has already re-enabled Load and collapsed the panel.
         self.status.setText(
             f"Loaded {len(names)} objects from {self.sources_panel.count()} source(s)."
         )
-        self.sources_panel.set_collapsed(True)  # collapse once loaded; header re-expands it
         self._build_faction_info()
         if self.object_browser is not None:  # keep the floating tree in step with the load
             self.object_browser.rebuild()
         self._set_message("Start typing to find an object.")
         # Index any remembered image sources so portraits / button icons show without the
-        # Edain button (its own load indexes them directly).
+        # Edain button (its own load indexes them directly). Already persisted, so save=False.
         if self._texture_source is None:
             saved_textures = load_saved_sources(TEXTURE_SOURCES_APP)
             if saved_textures:
-                self._load_textures(saved_textures)
+                self.texture_loader.load(saved_textures, save=False)
 
     def _on_failed(self, message: str) -> None:
-        self.sources_panel.load_button.setEnabled(True)
+        # The shared loader has already re-enabled Load.
         self.status.setText(f"Load failed - {message}")
         self._set_message("Load failed. Check the sources and try again.")
-
-    def _load_textures(self, sources: list[tuple[str, str]]) -> None:
-        """Index the image sources on a worker so the panels can crop portraits and button
-        icons out of them; the indexed source is handed to the panels when it is ready."""
-        if not sources:
-            return
-        run_worker(
-            self,
-            lambda: TextureSource(sources),
-            self._on_textures_loaded,
-            self._on_textures_failed,
-        )
 
     def _on_textures_loaded(self, source: TextureSource) -> None:
         self._texture_source = source

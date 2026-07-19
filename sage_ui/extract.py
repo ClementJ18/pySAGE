@@ -21,7 +21,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from sage_utils.sources import load_saved_sources, save_sources
 from sage_utils.textures import (
     TextureSource,
     composite_on_background,
@@ -30,7 +29,7 @@ from sage_utils.textures import (
 )
 from sage_utils.views import flatten_button_images
 from sage_utils.widgets import CopyableLabel as QLabel
-from sage_utils.widgets import SourcesPanel, card, pil_to_pixmap, run_worker
+from sage_utils.widgets import SourceLoader, card, pil_to_pixmap
 
 # Image sources are remembered under their own app key, separate from the data sources.
 TEXTURE_SOURCES_APP = "sage_ui_textures"
@@ -57,17 +56,27 @@ class ExtractImageDialog(QDialog):
         heading.setObjectName("objName")
         root.addWidget(heading)
 
-        self.sources_panel = SourcesPanel(
+        # Indexing the texture archives runs on the shared SourceLoader (the same controller the
+        # data sources use); it owns the panel, its Load button and the background build.
+        self.loader = SourceLoader(
+            self,
+            build=lambda sources, _progress: TextureSource(sources),
+            app_name=TEXTURE_SOURCES_APP,
+            on_loaded=self._on_textures_loaded,
+            on_failed=self._on_textures_failed,
+            collapse_on_load=True,
+            verb="Indexing",
+            noun="image source",
+            empty_message="Add an image folder or .big file first.",
             title="IMAGE SOURCES",
             expanded_hint="IMAGE SOURCES - texture folders / .big archives with the .dds files",
             item_label=lambda kind, path: f"[{kind}]  {Path(path).name}  -  {path}",
             list_max_height=120,
             show_status=True,
         )
-        self.sources_panel.load_requested.connect(self._load_textures)
+        self.sources_panel = self.loader.panel
         self.status = self.sources_panel.status
-        for kind, path in load_saved_sources(TEXTURE_SOURCES_APP):
-            self.sources_panel.add_source(kind, path)
+        self.loader.restore_saved()
         root.addWidget(self.sources_panel)
 
         body = QHBoxLayout()
@@ -130,31 +139,15 @@ class ExtractImageDialog(QDialog):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
             self.button_list.addItem(item)
 
-    def _load_textures(self) -> None:
-        sources = self.sources_panel.sources()
-        if not sources:
-            self.status.setText("Add an image folder or .big file first.")
-            return
-        save_sources(sources, TEXTURE_SOURCES_APP)
-        self.sources_panel.load_button.setEnabled(False)
-        self.status.setText(f"Indexing {len(sources)} image source(s)…")
-        run_worker(
-            self,
-            lambda: TextureSource(sources),
-            self._on_textures_loaded,
-            self._on_textures_failed,
-        )
-
     def _on_textures_loaded(self, source: TextureSource) -> None:
         self._source = source
-        self.sources_panel.load_button.setEnabled(True)
+        # The shared loader has already re-enabled Load and collapsed the panel.
         self.status.setText(f"Indexed {len(source)} texture(s). Pick a button to preview.")
-        self.sources_panel.set_collapsed(True)
         self._update_actions()
         self._refresh_preview()
 
     def _on_textures_failed(self, message: str) -> None:
-        self.sources_panel.load_button.setEnabled(True)
+        # The shared loader has already re-enabled Load.
         self.status.setText(f"Could not index the image sources - {message}")
 
     def _current_entry(self) -> dict | None:

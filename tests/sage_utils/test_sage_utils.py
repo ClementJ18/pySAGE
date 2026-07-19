@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-from pyBIG import Archive
 
 import sage_ini.model.definitions  # noqa: F401  (register classes)
 from sage_ini.model.game import Game
@@ -58,6 +57,9 @@ from sage_utils.views import (
     weapon_dps,
     weapon_top_nugget,
 )
+
+pytest.importorskip("pyBIG", reason="the [ui] extra (pyBIG) is not installed")
+from pyBIG import Archive  # noqa: E402 - after the importorskip guard
 
 # Peripheral package (not the sage_ini/sage_lint engine): full suite only.
 pytestmark = pytest.mark.full

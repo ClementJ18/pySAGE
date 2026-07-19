@@ -7,7 +7,11 @@ from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse
 from sage_wiki.links import build_linker
 from sage_wiki.mapping import building_levels, computed_fields
-from sage_wiki.pagegen import (
+
+# sage_wiki.pagegen pulls in sage_wiki.images (Pillow + pyBIG via sage_utils.textures).
+pytest.importorskip("PIL", reason="the [ui]/[wiki] extra (Pillow) is not installed")
+pytest.importorskip("pyBIG", reason="the [ui]/[wiki] extra (pyBIG) is not installed")
+from sage_wiki.pagegen import (  # noqa: E402 - after the importorskip guard
     _clean_tooltip,
     _intro,
     _lore_prose,

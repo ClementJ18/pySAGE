@@ -21,7 +21,7 @@ The wire schema, version `FORMAT_VERSION`:
 
     {
       "format": "sage-replay/translated",   # the document's magic, for shared files
-      "format_version": 1,
+      "format_version": 2,
       "replay": "<replay file name>",       # the source name player-games report
       "size": 123456,                       # the replay file's byte size ...
       "sha256": "<hex digest>",             # ... and content hash: identity that survives
@@ -42,11 +42,35 @@ The wire schema, version `FORMAT_VERSION`:
          "team": 0, "color": 3, "start_position": 2},
         ...
       ],
+      "header": {                           # v2: the recording header's raw surface, verbatim
+        "start_time": 1758055192,           # unix seconds, as stored on disk
+        "end_time": 1758058844,
+        "crc_interval": 100,
+        "abnormal_end_frame": null,         # exact value; `crashed` above is its summary
+        "reserved1": "<18 hex chars>",      # the raw reserved blocks, hex-encoded
+        "filename": "Last Replay",          # the replay's internal name (not the disk name)
+        "timestamp": [2025, 9, 16, 2, 22, 39, 52, 0],   # Windows SYSTEMTIME words
+        "version": "2.01.2614 ...", "build_date": "...",
+        "data_checksum": 305419896,         # the recording patch's INI-tree checksum
+        "reserved2": "<10 hex chars>",
+        "metadata": "M=387maps/...;S=...;", # the whole key=value; string - map CRC/size,
+                                            # seed, GSID, GR, and every slot string verbatim
+        "local_player_raw": "0",            # the index as its original ASCII digits
+        "unknown_tail": [0, 0, 1, 1, 0, 0],
+        "custom_hero_flags": [],            # Create-A-Hero games: per-player flag bytes,
+        "custom_heroes": [],                # the raw ALAE2STR blobs (hex), and
+        "custom_hero_tail": ""              # the shortened trailing block (hex)
+      },
       "chunks": [                           # [timecode, order hex, raw chunk number, args]
         [462, "0x417", 3, [["bool", false], ["int", "AngmarThrallMaster"], ["int", 0]]],
         ...                                 # arg = [tag, value]; a str in an "int" slot is a name
       ]
     }
+
+Version 1 is the same document without `header`; the reader still accepts it. Everything the
+analysis pipeline consumes lives outside `header`, so a v1 document loses nothing there - but
+only a v2 document carries the raw header a binary re-emission needs, so converting a v1
+document to a replay file (`sage_replay.retarget`) asks for a re-translate instead.
 
 `from_dict` and `matches_replay` document their own validation and verification contracts; both
 are what let a consumer trust a shared replay+document pair without the recording build, and
@@ -82,14 +106,17 @@ from sage_replay.replay import (
 )
 from sage_replay.stats import compute_stats
 
-__all__ = ["FORMAT", "FORMAT_VERSION", "TranslatedReplay", "TranslatedSlot"]
+__all__ = ["FORMAT", "FORMAT_VERSION", "TranslatedHeader", "TranslatedReplay", "TranslatedSlot"]
 
-# The document magic and schema version. Bump the version only when id-space knowledge changes
-# how a fresh translation fills the id positions - a new resolvable space, a corrected offset;
-# an analysis-side change (a stats bucketing rule, a mod overlay hook) runs at load and leaves
-# every document valid.
+# The document magic and schema version. Bump the version when id-space knowledge changes how a
+# fresh translation fills the id positions - a new resolvable space, a corrected offset - or when
+# the schema gains fields a new capability requires; an analysis-side change (a stats bucketing
+# rule, a mod overlay hook) runs at load and leaves every document valid. The reader accepts every
+# version it can serve: v1 documents stay fully valid for analysis and only lack the raw `header`
+# that binary re-emission (v2) needs.
 FORMAT = "sage-replay/translated"
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
+_ANALYSIS_VERSIONS = (1, 2)
 
 # The lowercase argument tag stored per `OrderArgumentType`, and its inverse. The tag is the
 # whole wire type of an argument: an `int` value under `"int"` is a raw id, a `str` value under
@@ -159,6 +186,114 @@ def _decode_value(arg_type: OrderArgumentType, value: object) -> object:
 
 
 @dataclass(slots=True)
+class TranslatedHeader:
+    """The recording header's raw, version-coupled surface, kept verbatim (v2 documents only).
+    Analysis never reads it; it exists so `sage_replay.retarget` can rebuild a real
+    `ReplayHeader` and re-emit a binary replay without the source file. Byte fields
+    (`reserved1`, `reserved2`, the custom-hero blobs and tail) are hex-encoded; everything
+    else is stored as the parser's own value. `metadata` is the whole `key=value;` string,
+    which carries the map identity, seed, GSID, lobby rules, and every slot string - so the
+    document needs no per-slot raw copies."""
+
+    start_time: int
+    end_time: int
+    crc_interval: int
+    abnormal_end_frame: int | None
+    reserved1: str
+    filename: str
+    timestamp: tuple[int, ...]
+    version: str
+    build_date: str
+    data_checksum: int
+    reserved2: str
+    metadata: str
+    local_player_raw: str
+    unknown_tail: tuple[int, ...]
+    custom_hero_flags: tuple[int, ...]
+    custom_heroes: tuple[str, ...]
+    custom_hero_tail: str
+
+    @classmethod
+    def from_header(cls, header: ReplayHeader) -> TranslatedHeader:
+        return cls(
+            start_time=int(header.start_time.timestamp()),
+            end_time=int(header.end_time.timestamp()),
+            crc_interval=header.crc_interval,
+            abnormal_end_frame=header.abnormal_end_frame,
+            reserved1=header.reserved1.hex(),
+            filename=header.filename,
+            timestamp=(
+                header.timestamp.year,
+                header.timestamp.month,
+                header.timestamp.day_of_week,
+                header.timestamp.day,
+                header.timestamp.hour,
+                header.timestamp.minute,
+                header.timestamp.second,
+                header.timestamp.millisecond,
+            ),
+            version=header.version,
+            build_date=header.build_date,
+            data_checksum=header.data_checksum,
+            reserved2=header.reserved2.hex(),
+            metadata=header.metadata.raw,
+            local_player_raw=header.local_player_raw,
+            unknown_tail=header.unknown_tail,
+            custom_hero_flags=header.custom_hero_flags,
+            custom_heroes=tuple(blob.hex() for blob in header.custom_heroes),
+            custom_hero_tail=header.custom_hero_tail.hex(),
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "crc_interval": self.crc_interval,
+            "abnormal_end_frame": self.abnormal_end_frame,
+            "reserved1": self.reserved1,
+            "filename": self.filename,
+            "timestamp": list(self.timestamp),
+            "version": self.version,
+            "build_date": self.build_date,
+            "data_checksum": self.data_checksum,
+            "reserved2": self.reserved2,
+            "metadata": self.metadata,
+            "local_player_raw": self.local_player_raw,
+            "unknown_tail": list(self.unknown_tail),
+            "custom_hero_flags": list(self.custom_hero_flags),
+            "custom_heroes": list(self.custom_heroes),
+            "custom_hero_tail": self.custom_hero_tail,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: object) -> TranslatedHeader:
+        if not isinstance(payload, dict):
+            raise ValueError("translated header must be a JSON object")
+        try:
+            return cls(
+                start_time=payload["start_time"],
+                end_time=payload["end_time"],
+                crc_interval=payload["crc_interval"],
+                abnormal_end_frame=payload["abnormal_end_frame"],
+                reserved1=payload["reserved1"],
+                filename=payload["filename"],
+                timestamp=tuple(payload["timestamp"]),
+                version=payload["version"],
+                build_date=payload["build_date"],
+                data_checksum=payload["data_checksum"],
+                reserved2=payload["reserved2"],
+                metadata=payload["metadata"],
+                local_player_raw=payload["local_player_raw"],
+                unknown_tail=tuple(payload["unknown_tail"]),
+                custom_hero_flags=tuple(payload["custom_hero_flags"]),
+                custom_heroes=tuple(payload["custom_heroes"]),
+                custom_hero_tail=payload["custom_hero_tail"],
+            )
+        except (TypeError, KeyError) as error:
+            raise ValueError(f"malformed translated header: missing {error}") from error
+
+
+@dataclass(slots=True)
 class TranslatedSlot:
     """One occupied player slot as the document records it. `faction` is the PlayerTemplate
     code name (`None` for a lobby Random, whose faction the engine rolled at load time);
@@ -224,6 +359,9 @@ class TranslatedReplay:
     seconds_per_frame: float
     crashed: bool
     local_player_index: int
+    # The raw header surface (v2 documents; None when read from a v1 document, which stays
+    # analysis-only). See TranslatedHeader.
+    header: TranslatedHeader | None = None
     players: list[TranslatedSlot] = field(default_factory=list)
     # Each chunk is [timecode, order type as lowercase hex "0x417", raw chunk number, args],
     # each argument [tag, value] - the raw replay structure, with the id positions the id-space
@@ -263,14 +401,15 @@ class TranslatedReplay:
             seconds_per_frame=spf,
             crashed=replay.crashed,
             local_player_index=replay.header.local_player_index,
+            header=TranslatedHeader.from_header(replay.header),
             players=players,
             chunks=chunks,
         )
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "format": FORMAT,
-            "format_version": FORMAT_VERSION,
+            "format_version": FORMAT_VERSION if self.header is not None else 1,
             "replay": self.replay,
             "size": self.size,
             "sha256": self.sha256,
@@ -284,19 +423,23 @@ class TranslatedReplay:
             "players": [player.to_dict() for player in self.players],
             "chunks": self.chunks,
         }
+        if self.header is not None:
+            payload["header"] = self.header.to_dict()
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict) -> TranslatedReplay:
         """The document `payload` describes, or `ValueError` when it is not exactly this schema:
-        a wrong or absent magic, a `format_version` other than `FORMAT_VERSION`, a missing
-        top-level field, or a malformed chunk or argument entry. Unknown extra keys are ignored,
-        so a same-version producer may annotate documents freely."""
+        a wrong or absent magic, a `format_version` outside the supported set (1 loads
+        analysis-only with `header=None`; 2 also carries the raw header), a missing top-level
+        field, or a malformed chunk or argument entry. Unknown extra keys are ignored, so a
+        same-version producer may annotate documents freely."""
         if not isinstance(payload, dict):
             raise ValueError("translated replay document must be a JSON object")
         if payload.get("format") != FORMAT:
             raise ValueError(f"not a {FORMAT} document: format={payload.get('format')!r}")
         version = payload.get("format_version")
-        if version != FORMAT_VERSION:
+        if version not in _ANALYSIS_VERSIONS:
             raise ValueError(f"unsupported format_version {version!r} (reader is {FORMAT_VERSION})")
         for key in (
             "replay",
@@ -314,8 +457,11 @@ class TranslatedReplay:
         ):
             if key not in payload:
                 raise ValueError(f"translated replay document is missing {key!r}")
+        if version == FORMAT_VERSION and "header" not in payload:
+            raise ValueError("translated replay document is missing 'header'")
         players = [TranslatedSlot.from_dict(p) for p in payload["players"]]
         chunks = [_validate_chunk(chunk) for chunk in payload["chunks"]]
+        header = TranslatedHeader.from_dict(payload["header"]) if "header" in payload else None
         return cls(
             replay=payload["replay"],
             size=payload["size"],
@@ -327,6 +473,7 @@ class TranslatedReplay:
             seconds_per_frame=payload["seconds_per_frame"],
             crashed=payload["crashed"],
             local_player_index=payload["local_player_index"],
+            header=header,
             players=players,
             chunks=chunks,
         )

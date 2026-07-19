@@ -1121,9 +1121,9 @@ class TestBaseBigIndexing:
     and indexed. Otherwise a real base-game texture (e.g. HeroUI_001) is wrongly flagged missing."""
 
     def _big(self, directory, dest):
-        from pyBIG import Archive  # noqa: PLC0415 - only this test needs the .big writer
+        pyBIG = pytest.importorskip("pyBIG", reason="requires the optional [ui] extra (pyBIG)")
 
-        Archive.from_directory(str(directory)).save(str(dest))
+        pyBIG.Archive.from_directory(str(directory)).save(str(dest))
         return dest
 
     def test_base_big_texture_name_resolves_a_reference(self, tmp_path, capsys):

@@ -199,6 +199,9 @@ class BinaryStream:
             buf.extend(char)
         return buf.decode("ascii", errors="replace")
 
+    def writeNullTerminatedAsciiString(self, value: str):
+        self.writeBytes(value.encode("ascii") + b"\x00")
+
     def readNullTerminatedUnicodeString(self) -> str:
         """Read UTF-16LE characters (2 bytes each) until a NUL character."""
         buf = bytearray()
@@ -208,6 +211,9 @@ class BinaryStream:
                 break
             buf.extend(char)
         return buf.decode("utf-16-le", errors="replace")
+
+    def writeNullTerminatedUnicodeString(self, value: str):
+        self.writeBytes(value.encode("utf-16-le") + b"\x00\x00")
 
     def readUInt16PrefixedUnicodeString(self) -> str:
         length = self.readUInt16()

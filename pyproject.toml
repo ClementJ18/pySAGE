@@ -30,11 +30,12 @@ sage-replay = "sage_replay.__main__:main"
 sage-apt = "sage_apt.__main__:main"
 sage-save = "sage_save.__main__:main"
 
-# Desktop apps; each needs its extra installed (ui / wiki / lint-ui).
+# Desktop apps; each needs its extra installed (ui / wiki / lint-ui / edain-ui).
 [project.gui-scripts]
 sage-ui = "sage_ui.app:main"
 sage-wiki = "sage_wiki.app:main"
 sage-lint-ui = "sage_lint.plugins.ui.app:main"
+sage-edain-lint = "sage_mods.edain.map_checks.ui.app:main"
 
 [project.optional-dependencies]
 ui = [
@@ -64,6 +65,11 @@ edain = [
     "reversebox>=0.84",
 ]
 
+edain-ui = [
+    "PyQt6>=6.6",
+    "reversebox>=0.84",  # the binary .map layer the checks parse
+]
+
 apt = [
     "pybig>=0.6",  # reading a .const (or .apt) out of a .big archive; the core stays stdlib-only
 ]
@@ -84,7 +90,7 @@ sage_apt = ["assets/*.html", "py.typed"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
 sage_save = ["py.typed"]
-"sage_mods.edain" = ["ui/*", "skill_assets/**/*"]
+"sage_mods.edain" = ["ui/*", "skill_assets/**/*", "map_checks/ui/*.ico"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -135,7 +141,18 @@ ignore_missing_imports = true
 # the type-checked set: it needs the [ui] extras installed and predates annotations. The
 # Qt-free helpers (config, views, skill, cli) are checked like the core packages.
 [[tool.mypy.overrides]]
-module = ["sage_utils.widgets", "sage_utils.styles", "sage_utils.textures", "sage_utils.sources"]
+module = [
+    "sage_utils.widgets",
+    "sage_utils.styles",
+    "sage_utils.textures",
+    "sage_utils.sources",
+    "sage_utils.findings",
+]
+ignore_errors = true
+
+# Same for the Qt half of the Edain Linter window; its Qt-free runner stays checked.
+[[tool.mypy.overrides]]
+module = ["sage_mods.edain.map_checks.ui.window", "sage_mods.edain.map_checks.ui.app"]
 ignore_errors = true
 
 # sage_lint is a tool package, not in the type-checked `files` set. sage_mods.edain.map_checks imports

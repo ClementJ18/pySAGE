@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
 )
 
 from sage_utils.config import read_json, write_json
+from sage_utils.sources import load_saved_sources, save_sources
 from sage_utils.styles import DARK_STYLE, LIGHT_STYLE
 
 # The theme preference is shared across every SAGE front end, so it lives under one key
@@ -189,7 +190,9 @@ class SourcesPanel(QFrame):
     add/remove/reorder controls and a Load button. Sources load top to bottom (later
     overrides earlier). Emits `load_requested` on Load; the host reads `sources()`.
     Emits `collapsed_changed(bool)` whenever it collapses or expands, so a host can move a
-    parent splitter's handle to match the new size."""
+    parent splitter's handle to match the new size. Pass `show_load=False` for a host whose
+    own action button (e.g. a Check) consumes the sources - the panel is then just the
+    ordered list editor and `load_button` is None."""
 
     load_requested = pyqtSignal()
     collapsed_changed = pyqtSignal(bool)
@@ -203,6 +206,7 @@ class SourcesPanel(QFrame):
         list_min_height: int | None = None,
         list_max_height: int | None = None,
         show_status: bool = False,
+        show_load: bool = True,
     ) -> None:
         super().__init__()
         self.setObjectName("card")
@@ -252,10 +256,12 @@ class SourcesPanel(QFrame):
             button.clicked.connect(slot)
             buttons.addWidget(button)
         buttons.addStretch(1)
-        self.load_button = QPushButton("Load")
-        self.load_button.setObjectName("primary")
-        self.load_button.clicked.connect(self.load_requested.emit)
-        buttons.addWidget(self.load_button)
+        self.load_button: QPushButton | None = None
+        if show_load:
+            self.load_button = QPushButton("Load")
+            self.load_button.setObjectName("primary")
+            self.load_button.clicked.connect(self.load_requested.emit)
+            buttons.addWidget(self.load_button)
         body.addLayout(buttons)
 
         outer.addWidget(self.body)
@@ -346,3 +352,130 @@ class SourcesPanel(QFrame):
             self.header.setText(f"{arrow}  {self._expanded_hint}")
         else:
             self.header.setText(f"{arrow}  {self._title} ({self.count()})")
+
+
+class SourceLoader:
+    """Runs an ordered `(kind, path)` source list through a `build` callable on a background
+    worker, with the boilerplate every SAGE front end shares: persist the list, disable the
+    Load button, put an "…ing N source(s)" line on a status widget, hand the result (or the
+    error) back to the host, and (optionally) collapse the panel once loaded.
+
+    It backs two flows that are the same skeleton:
+      * loading data into a Game - `build=load_sources`, result `(game, names)`;
+      * indexing image archives into a TextureSource - `build=lambda s, _p: TextureSource(s)`.
+
+    Pass panel kwargs (title, hints, …) to have it build and own a `SourcesPanel` whose Load
+    button drives it, or `panel=None` for a headless loader triggered by `load(sources)` (e.g.
+    an app auto-indexing remembered image sources with no visible panel). The host keeps its
+    own post-load fan-out in `on_loaded`; `on_start`, if given, runs just before the worker
+    (the game browser uses it to blank its results area while data loads)."""
+
+    def __init__(
+        self,
+        owner,
+        *,
+        build,
+        app_name: str,
+        on_loaded,
+        on_failed=None,
+        status=None,
+        on_start=None,
+        collapse_on_load: bool = False,
+        verb: str = "Loading",
+        noun: str = "source",
+        empty_message: str = "Add at least one folder or .big file first.",
+        panel: "SourcesPanel | None" = None,
+        **panel_kwargs,
+    ) -> None:
+        self.owner = owner
+        self._build = build
+        self.app_name = app_name
+        self._on_loaded = on_loaded
+        self._on_failed = on_failed
+        self._status = status
+        self._on_start = on_start
+        self._collapse_on_load = collapse_on_load
+        self._verb = verb
+        self._noun = noun
+        self._empty_message = empty_message
+        self._worker: Worker | None = None
+        if panel is None and panel_kwargs:
+            panel = SourcesPanel(**panel_kwargs)
+        self.panel = panel
+        if self.panel is not None:
+            self.panel.load_requested.connect(self.load)
+            # A panel built with show_status carries its own status label; report to it unless
+            # the host wired a different one.
+            if self._status is None:
+                self._status = getattr(self.panel, "status", None)
+
+    # -- panel helpers ------------------------------------------------------------------
+    def restore_saved(self) -> None:
+        """Re-add the source list remembered for this app under `app_name` (a no-op headless)."""
+        if self.panel is None:
+            return
+        for kind, path in load_saved_sources(self.app_name):
+            self.panel.add_source(kind, path)
+
+    def set_sources(self, sources) -> None:
+        """Replace the panel's list with `sources` (used by the one-click Edain/vanilla loads)."""
+        if self.panel is None:
+            return
+        self.panel.clear()
+        for kind, path in sources:
+            self.panel.add_source(kind, path)
+
+    def sources(self) -> list[tuple[str, str]]:
+        return self.panel.sources() if self.panel is not None else []
+
+    # -- loading ------------------------------------------------------------------------
+    def load(self, sources=None, *, save: bool = True) -> None:
+        """Build `sources` (or the panel's current list) on a worker. Persists the list under
+        `app_name` (unless `save=False`), then hands the result to `on_loaded`."""
+        srcs = list(sources) if sources is not None else self.sources()
+        if not srcs:
+            self._say(self._empty_message)
+            return
+        if save:
+            save_sources(srcs, self.app_name)
+        self._enable_load(False)
+        self._say(f"{self._verb} {len(srcs)} {self._noun}(s)…")
+        if self._on_start is not None:
+            self._on_start(srcs)
+        self._worker = run_worker(
+            self.owner,
+            lambda: self._build(srcs, self._emit_progress),
+            self._on_done,
+            self._on_worker_failed,
+        )
+        self._worker.progress.connect(self._say)
+
+    def _on_done(self, result) -> None:
+        self._enable_load(True)
+        if self._collapse_on_load and self.panel is not None:
+            self.panel.set_collapsed(True)
+        self._on_loaded(result)
+
+    def _on_worker_failed(self, message: str) -> None:
+        self._enable_load(True)
+        if self._on_failed is not None:
+            self._on_failed(message)
+        else:
+            self._say(f"Load failed - {message}")
+
+    def _emit_progress(self, text: str) -> None:
+        # The build callable reports progress through the worker's own signal (thread-safe);
+        # a report landing before `load` finishes wiring the worker is simply dropped.
+        worker = self._worker
+        if worker is not None:
+            worker.progress.emit(text)
+
+    def _enable_load(self, enabled: bool) -> None:
+        if self.panel is not None and self.panel.load_button is not None:
+            self.panel.load_button.setEnabled(enabled)
+
+    def _say(self, text: str) -> None:
+        if self._status is None:
+            return
+        setter = getattr(self._status, "setText", self._status)
+        setter(text)

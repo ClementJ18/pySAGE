@@ -42,6 +42,14 @@
   `--faction` / `--player` filter
   the player-games (case-insensitive substring); `--markdown` renders the same tables
   as GitHub markdown.
+- `convert <document|replay> --game <target-root> [-o OUT]` - the other direction: re-emit a
+  v2 translated document (or a replay translated on the fly via `--source-game`) as a binary
+  `.BfME2Replay` whose ids are valid for the TARGET version (`retarget.py` + `serialize.py`).
+  `--donor` names a replay recorded under the target version and supplies the emitted header's
+  patch identity (version / build date / data checksum / GSID), which cannot be computed;
+  any name the target game lacks aborts with the full list rather than emitting a corrupt file.
+- `roundtrip <replay>` - parse and re-serialize the replay, comparing byte-for-byte: the
+  writer's self-test, printing the first differing offset on a mismatch.
 - `winner <replay>` - infer the outcome from session-end signals (leave-game orders,
   checksum heartbeats, the end-of-recording marker); a concession heuristic, so the
   verdict may be `undetermined` (see `winner.py`). `winner` and `aggregate` take
@@ -95,8 +103,11 @@ from sage_replay.replay import (
     ReplaySlot,
     ReplaySlotType,
     find_replays,
+    parse_replay,
     parse_replay_from_path,
 )
+from sage_replay.retarget import RetargetError, retarget
+from sage_replay.serialize import serialize_replay, write_replay
 from sage_replay.stats import compute_stats, render_stats
 from sage_replay.translated import TranslatedReplay
 from sage_replay.winner import PlayerSession, infer_winner
@@ -484,6 +495,64 @@ def _run_translate(args: argparse.Namespace) -> int:
     else:
         print(json.dumps(document.to_dict(), ensure_ascii=False, indent=2))
     return 0
+
+
+def _run_convert(args: argparse.Namespace) -> int:
+    if args.input.suffix.lower() == ".json":
+        document = TranslatedReplay.read(args.input)
+    else:
+        if not args.source_game:
+            print(
+                "convert: a raw replay input needs --source-game (the recording build) "
+                "to translate it first",
+                file=sys.stderr,
+            )
+            return 2
+        replay = parse_replay_from_path(args.input)
+        source = resolve_game_roots(args.source_game, args.cache)
+        source_data = GameData.from_root(source, map_file=replay.header.metadata.map_file)
+        document = TranslatedReplay.from_replay(args.input, replay, source_data)
+
+    games = resolve_game_roots(args.game, args.cache)
+    data = GameData.from_root(games, map_file=document.map)
+    donor = None
+    if args.donor is not None:
+        donor = parse_replay_from_path(args.donor, only_header=True)
+    else:
+        print(
+            "convert: no --donor given - the emitted header keeps the source patch identity "
+            "(version, data checksum, GSID), so the target game will flag the replay as "
+            "recorded on different game data",
+            file=sys.stderr,
+        )
+
+    try:
+        converted = retarget(document, data, donor=donor)
+    except RetargetError as error:
+        print("convert: unresolvable against the target game:", file=sys.stderr)
+        for failure in error.failures:
+            print(f"  {failure}", file=sys.stderr)
+        return 1
+    write_replay(converted, args.out)
+    print(f"wrote {args.out}", file=sys.stderr)
+    return 0
+
+
+def _run_roundtrip(args: argparse.Namespace) -> int:
+    data = Path(args.replay).read_bytes()
+    output = serialize_replay(parse_replay(data))
+    if output == data:
+        print(f"OK: {args.replay} round-trips byte-exactly ({len(data)} bytes)")
+        return 0
+    length = min(len(data), len(output))
+    offset = next((i for i in range(length) if data[i] != output[i]), length)
+    print(
+        f"MISMATCH at offset {offset} (0x{offset:x}): "
+        f"original {len(data)} bytes, re-emitted {len(output)}"
+    )
+    print(f"  original:   {data[offset : offset + 16].hex(' ')}")
+    print(f"  re-emitted: {output[offset : offset + 16].hex(' ')}")
+    return 1
 
 
 def _session_status(session: PlayerSession, end: int, spf: float) -> str:
@@ -943,6 +1012,50 @@ def main(argv: list[str] | None = None) -> int:
         help="write the document here as compact JSON; without it, pretty JSON goes to stdout",
     )
     translate_parser.set_defaults(func=_run_translate)
+
+    convert_parser = subparsers.add_parser(
+        "convert",
+        help="re-emit a translated document (or a replay + --source-game) as a binary replay "
+        "with every version-coupled id re-resolved against the --game version",
+    )
+    convert_parser.add_argument(
+        "input",
+        type=existing_file,
+        help="a v2 translated .json document, or a replay file (then --source-game is required)",
+    )
+    add_game_arguments(
+        convert_parser,
+        game_help="the TARGET version: a data/ini tree, or a live install folder whose .big "
+        "archives are mounted",
+    )
+    convert_parser.add_argument(
+        "--source-game",
+        type=Path,
+        action="append",
+        default=None,
+        metavar="ROOT",
+        help="the recording version, to translate a raw replay input on the fly "
+        "(repeatable and layered like --game)",
+    )
+    convert_parser.add_argument(
+        "--donor",
+        type=existing_file,
+        default=None,
+        help="a replay recorded under the target version: the source of the emitted header's "
+        "patch identity (version, build date, data checksum, GSID); without it the source "
+        "identity is kept and the target game will flag the file",
+    )
+    convert_parser.add_argument(
+        "-o", "--out", type=Path, required=True, help="the converted replay file to write"
+    )
+    convert_parser.set_defaults(func=_run_convert)
+
+    roundtrip_parser = subparsers.add_parser(
+        "roundtrip",
+        help="parse + re-serialize a replay and compare byte-for-byte (writer self-test)",
+    )
+    roundtrip_parser.add_argument("replay", type=existing_file)
+    roundtrip_parser.set_defaults(func=_run_roundtrip)
 
     winner_parser = subparsers.add_parser(
         "winner", help="infer the outcome from session-end signals (concession heuristic)"

@@ -1,5 +1,5 @@
-"""The shared BinaryStream's null-terminated string readers (the rest of the reader
-surface is exercised by the sage_map asset suites)."""
+"""The shared BinaryStream's null-terminated string readers and writers (the rest of the
+reader surface is exercised by the sage_map asset suites)."""
 
 import io
 
@@ -33,3 +33,29 @@ def test_read_null_terminated_unicode():
 
 def test_read_null_terminated_unicode_at_eof():
     assert stream_of("abc".encode("utf-16-le")).readNullTerminatedUnicodeString() == "abc"
+
+
+def test_write_null_terminated_ascii():
+    stream = stream_of(b"")
+    stream.writeNullTerminatedAsciiString("hello")
+    assert stream.getvalue() == b"hello\x00"
+
+
+def test_write_null_terminated_ascii_rejects_non_ascii():
+    with pytest.raises(UnicodeEncodeError):
+        stream_of(b"").writeNullTerminatedAsciiString("héllo")
+
+
+def test_write_null_terminated_unicode():
+    stream = stream_of(b"")
+    stream.writeNullTerminatedUnicodeString("Last Replay")
+    assert stream.getvalue() == "Last Replay".encode("utf-16-le") + b"\x00\x00"
+
+
+def test_null_terminated_write_read_round_trip():
+    stream = stream_of(b"")
+    stream.writeNullTerminatedAsciiString("abc")
+    stream.writeNullTerminatedUnicodeString("déf")
+    stream.seek(0)
+    assert stream.readNullTerminatedAsciiString() == "abc"
+    assert stream.readNullTerminatedUnicodeString() == "déf"

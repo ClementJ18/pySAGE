@@ -4,24 +4,21 @@ sage_utils widgets (cards, the background Worker, the theme toggle) so it looks 
 like the other SAGE front ends. The lint itself runs the CLI in-process on a worker thread
 (see `runner`), inheriting all of its config/baseline/sorting behaviour."""
 
-import csv
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QColor, QDesktopServices, QFont, QIcon
+from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
-    QAbstractItemView,
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QHBoxLayout,
-    QHeaderView,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -40,10 +37,13 @@ from sage_lint.plugins.ui.runner import (
     project_config,
     run_cli,
 )
+from sage_utils.findings import FindingsView
+from sage_utils.sources import load_saved_sources, save_sources
 from sage_utils.widgets import (
     CopyableLabel as QLabel,
 )
 from sage_utils.widgets import (
+    SourcesPanel,
     ThemeToggle,
     card,
     resource_path,
@@ -56,8 +56,7 @@ APP_TITLE = "SAGE Lint"
 # https://ludovicbourgeoislefevre.artstation.com/projects/2xL1WJ
 ICON_FILE = "icon.ico"
 
-# The report columns: (heading, diagnostic key). The table, the search and the CSV export
-# all read this one list.
+# The report columns: (heading, diagnostic key), handed to the shared FindingsView.
 _COLUMNS = (
     ("Severity", "severity"),
     ("Code", "code"),
@@ -66,21 +65,49 @@ _COLUMNS = (
     ("Message", "message"),
 )
 
-# Severity text colour, chosen to read on both the dark and the light theme.
-_SEVERITY_COLOR = {
-    "error": QColor("#e06c75"),
-    "warning": QColor("#d8a657"),
-    "info": QColor("#5fa8d3"),
-}
-_SEVERITY_RANK = {"error": 0, "warning": 1, "info": 2}
+# The Help ▸ Getting started walkthrough. Kept as one HTML block so QTextBrowser lays it out
+# with headings and lists; the steps mirror the fields on the options card.
+_GETTING_STARTED_HTML = """
+<h2>Getting started with SAGE Lint</h2>
+<p>SAGE Lint reads a mod's <code>.ini</code> game data, assembles the game, and reports
+problems - repeated fields, dangling references, out-of-range values, and more. Follow these
+steps the first time you set it up.</p>
 
+<h3>1. Pick your mod folder</h3>
+<p>Next to <b>Mod folder</b>, press <b>Browse…</b> and choose the folder that holds your
+mod's <code>.ini</code> files. Everything under it is checked.</p>
 
-class _SeverityItem(QTableWidgetItem):
-    """A severity cell that sorts by severity rank (error < warning < info) rather than
-    alphabetically, so a severity sort surfaces the errors first."""
+<h3>2. Point at the base game (optional)</h3>
+<p>If your mod overrides base-game files, add the unmodified game data to the
+<b>BASE GAME</b> list - folders or <code>.big</code> archives - so references resolve against
+the original data. Sources load top to bottom (later overrides earlier); put the original
+game first and reorder with the ↑/↓ buttons. The list is remembered for the next launch.
+You can skip this for a standalone mod.</p>
 
-    def __lt__(self, other: QTableWidgetItem) -> bool:
-        return _SEVERITY_RANK.get(self.text(), 9) < _SEVERITY_RANK.get(other.text(), 9)
+<h3>3. Add a project config (optional)</h3>
+<p>Drop a <code>.sagelint</code> file in your mod folder to set which rules run, the default
+severity, formatting style, and more. When one is present the UI loads it automatically and
+uses it on every Check. See <code>.sagelint.template</code> in the repo for the documented
+options.</p>
+
+<h3>4. Choose what to show</h3>
+<p>Use <b>Show</b> to set the lowest severity you want listed (ERROR, WARNING, or INFO).
+Tick <b>Suggest fixes for typos</b> to get "did you mean…" hints, and
+<b>Auto-fix safe issues</b> only when you want the linter to rewrite files for you.</p>
+
+<h3>5. Run the check</h3>
+<p>Press <b>Check</b>. Results appear in the table below - sort by any column, use
+<b>Search</b> to filter, and <b>double-click a row</b> to open that file. On a large mod the
+first check can take a moment.</p>
+
+<h3>6. Adopt on an existing mod (optional)</h3>
+<p>To try the linter on a mod that already has many findings, set a <b>Baseline</b> file so
+only new problems are reported. Baselines found under the mod are merged automatically.</p>
+
+<h3>Other tools</h3>
+<p><b>Format</b> reprints the ini files in the canonical style. <b>Export CSV…</b> saves the
+rows currently shown so you can share them.</p>
+"""
 
 
 class LintWindow(QMainWindow):
@@ -89,12 +116,14 @@ class LintWindow(QMainWindow):
         self.setWindowTitle(f"{APP_TITLE} v{__version__}")
         self.setWindowIcon(QIcon(str(resource_path(ICON_FILE, __file__))))
         self.resize(1180, 760)
-        self._diagnostics: list[dict] = []
         self._workers = set()
+        self._help_dialog: QDialog | None = None
         # Baselines found under the mod, merged on Check unless the user overrides the field.
         self._auto_baselines: list = []
         self._baseline_root = None
         self._baseline_is_auto = False
+
+        self._build_menu()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -111,13 +140,27 @@ class LintWindow(QMainWindow):
         root.addLayout(header)
 
         root.addWidget(self._build_options_card())
-        root.addWidget(self._build_results_toolbar())
-        root.addWidget(self._build_table(), 1)
+        root.addWidget(self._build_base_panel())
+        # The searchable, sortable results table is the shared FindingsView (the Edain Linter
+        # uses the same one). Its double-click / export messages come back on `status`.
+        self.findings = FindingsView(
+            _COLUMNS,
+            stretch_col=4,  # Message takes the slack
+            path_col=2,  # the File column, opened on double-click
+            numeric_keys=("line_start",),
+            widths={0: 90, 1: 170, 2: 320, 3: 60},
+        )
+        self.findings.status.connect(lambda text: self.status.setText(text))
+        root.addWidget(self.findings, 1)
 
         self.status = QLabel("Pick a mod folder, then press Check.")
         self.status.setObjectName("muted")
         root.addWidget(self.status)
 
+        # Last session's base sources come back first; a picked folder's `.sagelint` (or the
+        # startup autoload just below) replaces them when it names its own.
+        for kind, path in load_saved_sources(APP_NAME):
+            self.base_panel.add_source(kind, path)
         self._autoload_startup_config()
 
     def _autoload_startup_config(self) -> None:
@@ -129,21 +172,67 @@ class LintWindow(QMainWindow):
             self.folder_field.setText(str(folder))
             self._load_project_config()
 
+    def _build_menu(self) -> None:
+        """A Help menu: a getting-started walkthrough for newcomers, and an About entry."""
+        help_menu = self.menuBar().addMenu("&Help")
+        help_menu.addAction("&Getting started…", self._show_getting_started)
+        help_menu.addSeparator()
+        help_menu.addAction("&About SAGE Lint", self._show_about)
+
+    def _show_getting_started(self) -> None:
+        """A scrollable, non-modal walkthrough of the basic steps to set up SAGE Lint. Held on
+        the window so it keeps its scroll position between openings."""
+        if getattr(self, "_help_dialog", None) is None:
+            self._help_dialog = self._make_help_dialog()
+        self._help_dialog.show()
+        self._help_dialog.raise_()
+        self._help_dialog.activateWindow()
+
+    def _make_help_dialog(self) -> QDialog:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Getting started with SAGE Lint")
+        dialog.setWindowIcon(QIcon(str(resource_path(ICON_FILE, __file__))))
+        dialog.resize(560, 520)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        browser = QTextBrowser()
+        browser.setOpenExternalLinks(True)
+        browser.setHtml(_GETTING_STARTED_HTML)
+        layout.addWidget(browser, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dialog.close)
+        buttons.accepted.connect(dialog.close)
+        layout.addWidget(buttons)
+        return dialog
+
+    def _show_about(self) -> None:
+        QMessageBox.about(
+            self,
+            "About SAGE Lint",
+            f"<b>{APP_TITLE}</b> v{__version__}"
+            "<p>A formatter and linter for SAGE ini game data. This window runs the "
+            "<code>sage_lint</code> command line in-process - point it at a mod folder, "
+            "press Check, and browse the results.</p>"
+            "<p>Icon art by Ludovic Bourgeois-Lefèvre.</p>",
+        )
+
     def _build_options_card(self) -> QWidget:
         frame, layout = card("What to check")
 
         self.folder_field = self._path_row(
-            layout, "Mod folder", "Folder of ini files to check", self._pick_folder
+            layout,
+            "Mod folder",
+            "Folder of ini files to check",
+            self._pick_folder,
+            tooltip="The mod's folder of .ini files - the linter checks everything under it.",
         )
         self.folder_field.editingFinished.connect(self._load_project_config)
-        self.base_field = self._path_row(
-            layout, "Base game (optional)", "Unmodified base-game folder", self._pick_base
-        )
         self.baseline_field = self._path_row(
             layout,
             "Baseline (optional)",
             "Baseline file of accepted diagnostics",
             self._pick_baseline,
+            tooltip="A baseline of already-accepted diagnostics; only new findings are reported.",
         )
         # Typing in the baseline field (textEdited fires on user input, not setText) means the
         # user is choosing their own, so stop auto-merging the found baselines.
@@ -155,10 +244,19 @@ class LintWindow(QMainWindow):
         self.level_box = QComboBox()
         self.level_box.addItems(LEVELS)
         self.level_box.setCurrentText("WARNING")
+        self.level_box.setToolTip(
+            "The lowest severity to report. ERROR shows only errors; INFO shows everything."
+        )
         options.addWidget(self.level_box)
         self.suggest_check = QCheckBox("Suggest fixes for typos")
+        self.suggest_check.setToolTip(
+            "Add a 'did you mean…' suggestion to unknown-name diagnostics (nearest known name)."
+        )
         options.addWidget(self.suggest_check)
         self.fix_check = QCheckBox("Auto-fix safe issues (rewrites files)")
+        self.fix_check.setToolTip(
+            "Apply the fixes the linter deems safe and rewrite the affected files on disk."
+        )
         options.addWidget(self.fix_check)
         options.addStretch(1)
         self.format_button = QPushButton("Format")
@@ -170,68 +268,66 @@ class LintWindow(QMainWindow):
         options.addWidget(self.format_button)
         self.check_button = QPushButton("Check")
         self.check_button.setObjectName("primary")
+        self.check_button.setToolTip(
+            "Run the linter over the mod folder and list every error and warning below."
+        )
         self.check_button.clicked.connect(self._run)
         options.addWidget(self.check_button)
         layout.addLayout(options)
         return frame
 
-    def _path_row(self, layout, label: str, placeholder: str, on_browse) -> QLineEdit:
-        """A labelled path field with a Browse button, appended to `layout`. Returns the field."""
+    def _build_base_panel(self) -> QWidget:
+        """The base-game sources: an ordered list of folders and .big archives (the shared
+        SourcesPanel sage_ui / sage_wiki use, without its Load button - Check consumes it).
+        Order matters: the CLI layers them top to bottom, so put the original game first and
+        use the ↑/↓ buttons to reorder."""
+        self.base_panel = SourcesPanel(
+            title="BASE GAME (OPTIONAL)",
+            expanded_hint=(
+                "BASE GAME (OPTIONAL) - folders / .big archives, loaded top to bottom "
+                "(reorder with ↑/↓): the original game first. References into these resolve "
+                "instead of showing up as dangling."
+            ),
+            list_max_height=96,
+            show_load=False,
+        )
+        return self.base_panel
+
+    def _set_bases(self, paths) -> None:
+        """Show `paths` as the base-game sources, replacing the list (kind read off the
+        suffix, mirroring how the CLI classifies a `--base`)."""
+        self.base_panel.clear()
+        for path in paths:
+            kind = "big" if str(path).lower().endswith(".big") else "folder"
+            self.base_panel.add_source(kind, str(path))
+
+    def _path_row(
+        self, layout, label: str, placeholder: str, on_browse, tooltip: str = ""
+    ) -> QLineEdit:
+        """A labelled path field with a Browse button, appended to `layout`. Returns the field.
+        `tooltip`, if given, is shown on hover over both the field and its Browse button."""
         row = QHBoxLayout()
         caption = QLabel(label)
         caption.setMinimumWidth(150)
         row.addWidget(caption)
         field = QLineEdit()
         field.setPlaceholderText(placeholder)
+        if tooltip:
+            field.setToolTip(tooltip)
         row.addWidget(field, 1)
         button = QPushButton("Browse…")
+        if tooltip:
+            button.setToolTip(tooltip)
         button.clicked.connect(on_browse)
         row.addWidget(button)
         layout.addLayout(row)
         return field
-
-    def _build_results_toolbar(self) -> QWidget:
-        wrap = QWidget()
-        row = QHBoxLayout(wrap)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(10)
-        row.addWidget(QLabel("Search:"))
-        self.search_field = QLineEdit()
-        self.search_field.setPlaceholderText("Filter the results…")
-        self.search_field.textChanged.connect(self._apply_filter)
-        row.addWidget(self.search_field, 1)
-        self.export_button = QPushButton("Export CSV…")
-        self.export_button.clicked.connect(self._export)
-        row.addWidget(self.export_button)
-        return wrap
-
-    def _build_table(self) -> QWidget:
-        self.table = QTableWidget(0, len(_COLUMNS))
-        self.table.setHorizontalHeaderLabels([heading for heading, _ in _COLUMNS])
-        self.table.setSortingEnabled(True)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.verticalHeader().setVisible(False)
-        self.table.itemDoubleClicked.connect(self._open_item)
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Message takes the slack
-        self.table.setColumnWidth(0, 90)
-        self.table.setColumnWidth(1, 170)
-        self.table.setColumnWidth(2, 320)
-        self.table.setColumnWidth(3, 60)
-        return self.table
 
     def _pick_folder(self) -> None:
         chosen = QFileDialog.getExistingDirectory(self, "Choose the mod folder to check")
         if chosen:
             self.folder_field.setText(chosen)
             self._load_project_config()
-
-    def _pick_base(self) -> None:
-        chosen = QFileDialog.getExistingDirectory(self, "Choose the unmodified base-game folder")
-        if chosen:
-            self.base_field.setText(chosen)
 
     def _pick_baseline(self) -> None:
         start = self.folder_field.text().strip()
@@ -257,11 +353,11 @@ class LintWindow(QMainWindow):
         self.level_box.setCurrentText(config.level or "WARNING")
         self.suggest_check.setChecked(config.suggest)
         # Reflect the config's base game(s) so they are visible and used. Only overwrite when
-        # the config provides one, so a value the user typed for a config-less folder is not
+        # the config provides one, so sources the user added for a config-less folder are not
         # wiped on a focus-out reload.
         bases = config_bases(config, folder)
         if bases:
-            self.base_field.setText("; ".join(bases))
+            self._set_bases(bases)
         self._discover_baselines(config, folder)
         has_config = has_project_config(folder)
         if config.warnings:
@@ -302,10 +398,12 @@ class LintWindow(QMainWindow):
         if not folder or not Path(folder).is_dir():
             self.status.setText("Pick a valid mod folder first.")
             return
+        sources = self.base_panel.sources()
+        save_sources(sources, APP_NAME)  # remember the base list for next launch
         argv = build_argv(
             folder,
             level=self.level_box.currentText(),
-            base=self.base_field.text(),
+            bases=[path for _, path in sources],
             baseline=self._effective_baseline(),
             suggest=self.suggest_check.isChecked(),
             fix=self.fix_check.isChecked(),
@@ -357,8 +455,7 @@ class LintWindow(QMainWindow):
 
     def _on_report(self, report: dict) -> None:
         self.check_button.setEnabled(True)
-        self._diagnostics = report.get("diagnostics", [])
-        self._populate()
+        self.findings.set_diagnostics(report.get("diagnostics", []))
         summary = report.get("summary", {})
         errors = summary.get("errors", 0)
         warnings = summary.get("warnings", 0)
@@ -375,67 +472,3 @@ class LintWindow(QMainWindow):
     def _on_failed(self, message: str) -> None:
         self.check_button.setEnabled(True)
         self.status.setText(f"Check failed - {message}")
-
-    def _populate(self) -> None:
-        self.table.setSortingEnabled(False)  # bulk insert, then re-enable to sort
-        self.table.setRowCount(len(self._diagnostics))
-        for row, diag in enumerate(self._diagnostics):
-            severity = diag.get("severity", "info")
-            colour = _SEVERITY_COLOR.get(severity)
-            for col, (_, key) in enumerate(_COLUMNS):
-                if key == "severity":
-                    item = _SeverityItem(severity)
-                elif key == "line_start":
-                    item = QTableWidgetItem()
-                    item.setData(Qt.ItemDataRole.DisplayRole, diag.get("line_start") or 0)
-                else:
-                    item = QTableWidgetItem(str(diag.get(key, "")))
-                if colour is not None:
-                    item.setForeground(colour)
-                self.table.setItem(row, col, item)
-        self.table.setSortingEnabled(True)
-        self._apply_filter(self.search_field.text())
-
-    def _apply_filter(self, text: str) -> None:
-        needle = text.strip().casefold()
-        for row in range(self.table.rowCount()):
-            if not needle:
-                self.table.setRowHidden(row, False)
-                continue
-            hay = " ".join(
-                (self.table.item(row, col).text() if self.table.item(row, col) else "")
-                for col in range(self.table.columnCount())
-            ).casefold()
-            self.table.setRowHidden(row, needle not in hay)
-
-    def _open_item(self, item: QTableWidgetItem) -> None:
-        """Open the double-clicked row's file in the OS default editor."""
-        file_item = self.table.item(item.row(), 2)  # the File column
-        path = file_item.text() if file_item else ""
-        if path and Path(path).exists():
-            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
-        else:
-            self.status.setText(f"File not found: {path}")
-
-    def _export(self) -> None:
-        if not self._diagnostics:
-            self.status.setText("Nothing to export yet - run a check first.")
-            return
-        path, _ = QFileDialog.getSaveFileName(self, "Export results", "", "CSV file (*.csv)")
-        if not path:
-            return
-        # Export the rows currently shown (after the search filter), in the table's sort order.
-        rows = [r for r in range(self.table.rowCount()) if not self.table.isRowHidden(r)]
-        try:
-            with open(path, "w", newline="", encoding="utf-8") as handle:
-                writer = csv.writer(handle)
-                writer.writerow([heading for heading, _ in _COLUMNS])
-                for row in rows:
-                    writer.writerow(
-                        self.table.item(row, col).text() if self.table.item(row, col) else ""
-                        for col in range(self.table.columnCount())
-                    )
-        except OSError as exc:
-            self.status.setText(f"Could not save the file: {exc}")
-            return
-        self.status.setText(f"Exported {len(rows)} row(s) to {path}.")

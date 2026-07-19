@@ -3,12 +3,16 @@
 from pathlib import Path
 
 import pytest
-from PIL import Image
 
 import sage_ini.model.definitions  # noqa: F401  (register classes, incl. MappedImage)
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse
-from sage_utils.textures import (
+
+pytest.importorskip("PIL", reason="the [ui] extra (Pillow) is not installed")
+pytest.importorskip("pyBIG", reason="the [ui] extra (pyBIG) is not installed")
+from PIL import Image  # noqa: E402 - after the importorskip guard
+
+from sage_utils.textures import (  # noqa: E402 - after the importorskip guard
     TextureSource,
     ability_overlay,
     composite_on_background,
