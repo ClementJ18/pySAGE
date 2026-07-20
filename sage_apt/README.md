@@ -3,6 +3,10 @@
 Tooling for SAGE `.apt` UI movies - the Flash-derived format behind BFME's menus and
 in-game HUD (palantír, command bar, spellbook store, ...).
 
+> **Status: work in progress — not yet fully functional and largely untested.** The
+> decompile/compile round-trip and the viewer are usable, but the editor and full format
+> coverage are incomplete. Don't rely on it for production edits yet.
+
 An APT ships as a binary pair: `.apt` holds the movie structure (characters, sprite
 frames, placeobjects) and the ActionScript bytecode, `.const` the constant pool the
 bytecode indexes into. `sage_apt` decompiles the pair into an editable XML form and
@@ -74,7 +78,7 @@ never leaves a partial `.apt` beside a stale `.const`.
   extra / game dir, elements fall back to placeholders.
 - `to-xml --game-dir <dir>` resolves the `.const` (or the `.apt` itself) out of the `.big`
   archives beneath `<dir>` when it is not a loose file - a loose file beside the `.apt`
-  still wins. Needs the optional `[apt]` extra (`pip install "py-sage[apt]"`, pulls in pyBIG);
+  still wins. Needs the optional `[apt]` extra (`pip install "pysage-tools[apt]"`, pulls in pyBIG);
   the core stays stdlib-only.
 - `edittext` colour attributes are stored byte-swapped relative to placeobjects
   (red=alpha, green=red, blue=green, alpha=blue); the XML mirrors the raw layout and

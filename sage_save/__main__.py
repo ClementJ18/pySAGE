@@ -324,6 +324,10 @@ def _run_from_json(args: argparse.Namespace) -> int:
 
 
 def _run_edit(args: argparse.Namespace) -> int:
+    print(
+        "warning: save editing is experimental - keep a backup of the original save.",
+        file=sys.stderr,
+    )
     save = parse_save_from_path(args.save)
     try:
         edited = apply_json_text(save, args.edits.read_text(encoding="utf-8"))
@@ -593,7 +597,9 @@ def main(argv: list[str] | None = None) -> int:
     from_json.add_argument("--out", type=Path, required=True, help="write the rebuilt save here")
     from_json.set_defaults(func=_run_from_json)
 
-    edit = subparsers.add_parser("edit", help="apply edited JSON attributes back onto a save")
+    edit = subparsers.add_parser(
+        "edit", help="apply edited JSON attributes back onto a save (experimental)"
+    )
     edit.add_argument("save", type=existing_file)
     edit.add_argument("edits", type=existing_file, help="a (edited) JSON document from `json`")
     edit.add_argument("--out", type=Path, required=True, help="write the edited save here")

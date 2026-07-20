@@ -502,8 +502,8 @@ def run_map_lint(
         from sage_map import MapModel, lint_map  # noqa: PLC0415 - lazy: paid for only on map runs
     except ImportError:
         print(
-            "sage_lint: map linting needs sage_map, which ships with py-sage itself "
-            "(no extra required) - reinstall with: pip install py-sage",
+            "sage_lint: map linting needs sage_map, which ships with pysage-tools itself "
+            "(no extra required) - reinstall with: pip install pysage-tools",
             file=sys.stderr,
         )
         return 2

@@ -38,6 +38,11 @@ from sage_save.players import NameList, _scan
 from sage_save.save import BLOCK_MARKER, EOF_TOKEN, MAGIC_EALA, MAGIC_RTS
 from tests.sage_save.corpus import CAH_SKIRMISH
 
+# End-to-end parsing of the real .BfME2Skirmish binary fixtures, so this module is part of the
+# full suite rather than the data-free core (CONVENTIONS.md rule 7). The synthetic payload
+# round-trips that stay in the core live in the other sage_save test modules.
+pytestmark = pytest.mark.full
+
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 SAVE_PATH = FIXTURES / "Saved Game 1.BfME2Skirmish"
 SAVE2_PATH = FIXTURES / "Saved Game 2.BfME2Skirmish"

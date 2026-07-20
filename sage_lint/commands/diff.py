@@ -76,8 +76,8 @@ def run_diff_maps(args: argparse.Namespace) -> int:
         )
     except ImportError:
         print(
-            "sage_lint: map diffing needs sage_map, which ships with py-sage itself "
-            "(no extra required) - reinstall with: pip install py-sage",
+            "sage_lint: map diffing needs sage_map, which ships with pysage-tools itself "
+            "(no extra required) - reinstall with: pip install pysage-tools",
             file=sys.stderr,
         )
         return 2

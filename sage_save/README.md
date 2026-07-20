@@ -3,6 +3,11 @@
 A Python library for reading SAGE-engine save games: Battle for Middle-earth `.sav`-family
 files (BFME2 `.BfME2Skirmish` and friends). Sibling to `sage_map`.
 
+> **Status: work in progress.** The container round-trips losslessly and the decoded chunks
+> are solid, but most per-object state is still undecoded and the format is being
+> reverse-engineered. Reading is safe; `edit` writes back to a save (and refuses any
+> length-changing edit), but treat it as experimental and keep a backup of the original.
+
 A save is a serialized engine snapshot - a 16-byte file header, a flat sequence of named,
 self-delimiting chunks, and an `SG_EOF` token. Each chunk is
 `ascii-name + "KOLB" marker + uint32 end-offset + payload`, where the end-offset is the

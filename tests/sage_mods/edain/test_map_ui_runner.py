@@ -3,7 +3,13 @@ CLI-shaped report in-process (game loaded once for the whole batch)."""
 
 from pathlib import Path
 
+import pytest
+
 from sage_mods.edain.map_checks.ui.runner import crawl_maps, run_check  # noqa: E402
+
+# Reads and crawls real .map binary fixtures, so it belongs to the full suite, not the
+# data-free core (CONVENTIONS.md rule 7).
+pytestmark = pytest.mark.full
 
 # The shared map fixtures (see tests/sage_lint's TestLintMaps).
 MAPS_DIR = Path(__file__).parents[2] / "sage_map" / "fixtures" / "maps"

@@ -14,7 +14,7 @@ so the UI stays responsive.
 Needs the `wiki` extra (mwclient, mwparserfromhell, PyQt6, pyBIG, keyring):
 
 ```sh
-pip install "py-sage[wiki]"   # from a checkout: pip install -e ".[wiki]"
+pip install "pysage-tools[wiki]"   # from a checkout: pip install -e ".[wiki]"
 sage-wiki                     # or: python -m sage_wiki.app
 ```
 

@@ -954,6 +954,8 @@ class TestBaseline:
         assert payload["diagnostics"] == []
 
 
+# Crawls real .map binary fixtures, so it is full-suite, not data-free core (CONVENTIONS.md rule 7).
+@pytest.mark.full
 class TestLintMaps:
     """The `lint-maps` subcommand wiring: a single positional target (a `.map` file or a folder to
     crawl) resolved against the game loaded with `--game`. The per-map logic is covered in

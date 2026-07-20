@@ -31,7 +31,7 @@ pure-Python fallback.
 ## Command-line tool
 
 The engine-generic front end - parse, inspect, serialize and diff `.map` files with no game data
-(`pip install py-sage` - this layer is stdlib-only and needs no extra - or a standalone
+(`pip install pysage-tools` - this layer is stdlib-only and needs no extra - or a standalone
 `sage_map` binary built from `sage-map.spec`):
 
 ```

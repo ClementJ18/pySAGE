@@ -28,7 +28,7 @@ run per file, the game data is loaded once per Check.
 
 ## Run it
 
-Needs `PyQt6` and the map layer, via the `edain-ui` extra - `pip install "py-sage[edain-ui]"`,
+Needs `PyQt6` and the map layer, via the `edain-ui` extra - `pip install "pysage-tools[edain-ui]"`,
 or `pip install -e .[edain-ui]` from a checkout:
 
 ```

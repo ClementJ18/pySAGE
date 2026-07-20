@@ -21,7 +21,7 @@ sorting as the CLI and the Sublime plugin - nothing about *what* gets reported i
 
 ## Run it
 
-Needs `PyQt6`, via the `lint-ui` extra - `pip install "py-sage[lint-ui]"`, or
+Needs `PyQt6`, via the `lint-ui` extra - `pip install "pysage-tools[lint-ui]"`, or
 `pip install -e .[lint-ui]` from a checkout:
 
 ```

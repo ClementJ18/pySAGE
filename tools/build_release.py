@@ -86,8 +86,10 @@ def main() -> None:
 
     artifacts = make_zip()
     total = sum(p.stat().st_size for p in artifacts)
-    print(f"\nzipped {len(artifacts)} artifact(s) into {ZIP_PATH.relative_to(REPO_ROOT)} "
-          f"({total / 1_048_576:.1f} MiB uncompressed):")
+    print(
+        f"\nzipped {len(artifacts)} artifact(s) into {ZIP_PATH.relative_to(REPO_ROOT)} "
+        f"({total / 1_048_576:.1f} MiB uncompressed):"
+    )
     for path in artifacts:
         print(f"  {path.relative_to(STAGE_DIR)}")
 

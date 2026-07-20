@@ -31,7 +31,7 @@ subproject has its own README with the details; this page is the map.
 | --- | --- |
 | [`sage_mods.edain`](sage_mods/edain/README.md) | Edain-mod overlay: builds a faction ownership graph (spellbook → base → structures → units/heroes/upgrades) and renders, diffs or serves it. |
 | [`sage_wiki`](sage_wiki/README.md) | Desktop tool that updates Edain wiki infoboxes from parsed game data through the MediaWiki API. |
-| [`sage_ui`](sage_ui/README.md) | PyQt6 desktop browser for SAGE game data: load sources, search an object, see its resolved stats. Windows-only (reads the games' install paths from the registry). |
+| [`sage_ui`](sage_ui/README.md) | PyQt6 desktop browser for SAGE game data: load sources, search an object, see its resolved stats. |
 
 ### Shared
 
@@ -41,18 +41,18 @@ subproject has its own README with the details; this page is the map.
 
 ## Install
 
-Requires Python ≥ 3.12. The project is **pySAGE**; on PyPI it is published as **`py-sage`**.
+Requires Python ≥ 3.12. The project is **pySAGE**; on PyPI it is published as **`pysage-tools`**.
 
-> **Note:** there is an unrelated project called `pysage` on PyPI - an abandoned messaging
-> library last released in 2011. `pip install pysage` will *not* get you this project. Mind the
-> hyphen.
+> **Note:** the bare `pysage` name on PyPI is an unrelated, abandoned messaging library last
+> released in 2011, and `py-sage` is likewise taken by another project. `pip install pysage` will
+> *not* get you this project - install `pysage-tools`.
 
 ```sh
-pip install py-sage             # core library + linter
-pip install "py-sage[ui]"       # + the PyQt6 desktop apps (sage-ui)
-pip install "py-sage[wiki]"     # + the wiki updater
-pip install "py-sage[edain-ui]" # + the Edain Linter desktop app
-pip install "py-sage[apt]"      # + reading .const/.apt out of .big archives
+pip install pysage-tools             # core library + linter
+pip install "pysage-tools[ui]"       # + the PyQt6 desktop apps (sage-ui)
+pip install "pysage-tools[wiki]"     # + the wiki updater
+pip install "pysage-tools[edain-ui]" # + the Edain Linter desktop app
+pip install "pysage-tools[apt]"      # + reading .const/.apt out of .big archives
 ```
 
 From a clone, for development, swap the name for an editable install of the checkout:

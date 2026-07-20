@@ -13,6 +13,6 @@ helpers in [`sage_utils`](../sage_utils).
 Needs the `ui` extra (PyQt6, pyBIG, Pillow):
 
 ```sh
-pip install "py-sage[ui]"   # from a checkout: pip install -e ".[ui]"
+pip install "pysage-tools[ui]"   # from a checkout: pip install -e ".[ui]"
 sage-ui                     # or: python -m sage_ui.app
 ```

@@ -208,7 +208,7 @@ def _warn_fallback(reason: str) -> None:
     # The remedy differs by platform: on Windows the accelerator is a base dependency, so its
     # absence means a broken install; elsewhere the pure-Python path is the only one there is.
     remedy = (
-        "Reinstalling py-sage should restore it."
+        "Reinstalling pysage-tools should restore it."
         if sys.platform == "win32"
         else "The native accelerator is Windows-only, so this is expected here."
     )

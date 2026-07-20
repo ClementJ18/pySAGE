@@ -12,10 +12,10 @@ so the check itself never drags Qt into a process that only wants the core libra
 
 import importlib.util
 
-# The PyPI distribution name (not the project name, pySAGE) - spelled with the hyphen, since the
-# unhyphenated `pysage` is a different, unrelated project. Messages that name it must keep the
-# hyphen or they point users at the wrong package.
-DISTRIBUTION = "py-sage"
+# The PyPI distribution name (not the project name, pySAGE). The bare `pysage` and `py-sage`
+# names are taken by unrelated projects, so the package is published as `pysage-tools`; messages
+# that name it must use this exact spelling or they point users at the wrong package.
+DISTRIBUTION = "pysage-tools"
 
 
 def missing_modules(*modules: str) -> list[str]:

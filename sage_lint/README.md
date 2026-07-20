@@ -70,6 +70,6 @@ mod package (`sage_mods.edain.map_checks`).
 A PyQt6 front end ships under `sage_lint/plugins/ui` (install the `lint-ui` extra):
 
 ```sh
-pip install "py-sage[lint-ui]"   # from a checkout: pip install -e ".[lint-ui]"
+pip install "pysage-tools[lint-ui]"   # from a checkout: pip install -e ".[lint-ui]"
 sage-lint-ui                     # or: python -m sage_lint.plugins.ui.app
 ```

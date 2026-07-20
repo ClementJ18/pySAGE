@@ -118,6 +118,8 @@ def test_crashing_rule_becomes_finding():
     assert findings[0].span.file == "broken.map"
 
 
+# Crawls real .map binary fixtures, so it is full-suite, not data-free core (CONVENTIONS.md rule 7).
+@pytest.mark.full
 class TestMapChecksCli:
     """`python -m sage_mods.edain lint-maps` is the `sage-lint lint-maps` interface plus the Edain
     MAP-xxx rules: same target/--game/filter surface, driven through the shared runner."""

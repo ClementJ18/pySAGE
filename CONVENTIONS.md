@@ -55,10 +55,11 @@ it belongs in the overlay instead.
 
 ## 7. Tests
 
-New behaviour comes with tests. The core suite is **data-free** and fast: a bare `pytest`
-must stay sub-second and depend on no game corpus. Tests that need real game data are marked
-`full` (the corpus acceptance gates and peripheral-package suites) and run only under
-`pytest --full`; a corpus test skips - never fails - when no corpus root is present.
+New behaviour comes with tests. The core suite is **data-free**: a bare `pytest` depends on
+no game data on disk - no game corpus and no binary fixtures (`.map`/`.sav`/replays) - and is
+the inner-loop suite. Tests that read real game data are marked `full` (the corpus acceptance
+gates and peripheral-package suites) and run only under `pytest --full`; a corpus test skips -
+never fails - when no corpus root is present.
 
 ## 8. Formatting & the green-build gate
 

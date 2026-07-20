@@ -5,7 +5,7 @@ Two tiers of tests:
   `pytest` runs only this - the inner loop while implementing a feature.
 - **full**: core plus the `full`-marked tests (the corpus acceptance gates and
   the peripheral-package suites). These run only with `--full`; without the flag
-  they are deselected, so a default run stays sub-second.
+  they are deselected, so a default run needs no game data on disk.
 
 Corpus tests are parametrized over real game-data dumps: any test taking a
 `corpus_file` argument is fanned out over every ini/inc/bhav file of every
