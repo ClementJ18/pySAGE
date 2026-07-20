@@ -6,9 +6,20 @@ and delegate to their elements. Numbers may be inline arithmetic expressions
 """
 
 import re
+import sys
 from itertools import zip_longest
 from typing import TYPE_CHECKING, Annotated, NamedTuple
-from warnings import deprecated
+
+if sys.version_info >= (3, 13):
+    from warnings import deprecated
+else:
+
+    def deprecated(message, *, category=DeprecationWarning, stacklevel=1):
+        def decorate(obj):
+            return obj
+
+        return decorate
+
 
 import sage_ini.model.types as t  # noqa: E402  (intentional self-reference)
 from sage_ini.model.enums import (

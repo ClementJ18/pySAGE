@@ -197,6 +197,10 @@ class IniObject:
     _override_base: "IniObject | None" = None
     _header_extras: tuple = ()
     _uses_equals: bool = False  # whether the header was written `Name = Label` (see from_block)
+    # Base->mod reference edges recovered from a manifest (see sage_ini.manifest): each is a
+    # (kind, target-name) pair that `xref` folds back through `game.lookup`. Empty on any object
+    # built the ordinary way; only manifest-seeded stand-ins carry edges here.
+    _manifest_edges: tuple[tuple[str, str], ...] = ()
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)

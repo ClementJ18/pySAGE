@@ -121,6 +121,13 @@ def _object_references(root: IniObject, game: Game) -> set[IniObject]:
         # fold their resolved targets in directly (a command set's buttons are real edges).
         for target in node.numbered_slot_targets():
             found.update(_referenced_objects(target, game, set()))
+    # A manifest stand-in carries its forward edges precomputed (its subtree is metadata, not a
+    # converted model), so resolve them through `game` here for the reverse edges a real load
+    # would give - a base->mod edge an unused-definition check depends on.
+    for key, name in getattr(root, "_manifest_edges", ()):
+        target, _ = game.lookup(key, name)
+        if target is not None:
+            found.add(target)
     found.discard(root)
     return found
 

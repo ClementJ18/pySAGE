@@ -4,9 +4,11 @@ sage_lint `Rule` judgments.
 
 Excluded directories are dropped from the *report*, not the *build*: the whole game is
 still assembled (so cross-file references resolve), but diagnostics inside an excluded
-directory are filtered out. Base-game sources are silenced the same way. Last, inline
-`; sagelint: ignore[...]` comments drop the named codes on their own line (see
-`sage_lint.suppressions`).
+directory are filtered out. Base-game sources are silenced the same way. A base-symbol
+manifest (`manifest=`, see `sage_ini.manifest`) is a no-real-base-tree substitute for a base
+source, silenced identically; it only applies when no real base is configured, since real data
+is strictly more complete. Last, inline `; sagelint: ignore[...]` comments drop the named codes
+on their own line (see `sage_lint.suppressions`).
 """
 
 import shutil
@@ -16,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sage_ini.loader import LoadedGame, load_game, map_files
+from sage_ini.manifest import load_manifest_into, read_manifest
 from sage_ini.model.game import Game
 from sage_ini.model.xref import references_into
 from sage_ini.parser.blockparser import parse_file
@@ -69,6 +72,38 @@ def _prepare_base(root: str | Path, bases: tuple[tuple[str, str], ...]) -> BaseL
         shutil.rmtree(workdir, ignore_errors=True)
         raise
     return BaseLayer(root=merged, include_root=ini_root(merged), workdir=workdir)
+
+
+def _manifest_vroot(manifest: str | Path) -> Path:
+    """A synthetic absolute folder the manifest's stand-in definitions are anchored under - one
+    that can never contain a real mod file, so excluding it from the report can never swallow a
+    genuine mod diagnostic. Deliberately *not* the manifest's own parent directory: a manifest
+    committed inside the mod tree would make that directory a real, populated one, and excluding
+    it would silently drop the mod's own findings there too. `<manifest path>.src` is a sibling
+    that cannot exist on disk."""
+    resolved = Path(manifest).resolve()
+    return resolved.parent / (resolved.name + ".src")
+
+
+def _load_with_manifest(root: str | Path, manifest: str | Path) -> tuple[LoadedGame, Path]:
+    """Seed a fresh `Game` from `manifest` (see `sage_ini.manifest`) and build the mod under
+    `root` on top of it, so its references into base symbols resolve with no base tree on disk -
+    the no-real-base counterpart to `_prepare_base`. The mod's own loadable files are computed as
+    a `shadow` set the same way `_prepare_base` shadows a real base merge, so a mod file that
+    happens to share a base file's path overrides the manifest's stand-ins from that file, not
+    just the mod's own definitions. Returns the built game and the synthetic `virtual_root` the
+    caller must add to `exclude` to silence the stand-ins' diagnostics. Raises `ManifestError`
+    (uncaught here) when the manifest is unreadable or the wrong format; the caller turns that
+    into a clean CLI error rather than a traceback."""
+    vroot = _manifest_vroot(manifest)
+    data = read_manifest(manifest)
+    # Manifest entries are keyed `ini_root`-relative (the engine's file identity), so the mod's
+    # shadow keys must be too - a mod keeping the full `data/ini` layout would otherwise never
+    # shadow a manifest file.
+    shadow = frozenset(rel for rel, _ in loadable_files(ini_root(Path(root)), LOAD_SUFFIXES))
+    game = Game()
+    load_manifest_into(game, data, vroot, shadow=shadow)
+    return load_game(root, game=game), vroot
 
 
 def _base_asset_names(bases: tuple[tuple[str, str], ...]) -> set[str]:
@@ -265,6 +300,7 @@ def build_cache(
     rules: Iterable[type[Rule]] | None = None,
     exclude: tuple[str | Path, ...] = (),
     bases: tuple[tuple[str, str], ...] = (),
+    manifest: str | Path | None = None,
 ) -> tuple[Game, Diagnostics, BaseLayer | None]:
     """Assemble the game under `root` and return it, its full-folder diagnostics, and the
     `BaseLayer` (or None) the bases merged into.
@@ -274,13 +310,25 @@ def build_cache(
     report, including each map.ini linted in its own context. `bases` are lower-priority
     `(kind, path)` sources merged in build-only (their merged folder is excluded, so only
     diagnostics under `root` show). The returned `BaseLayer` stays on disk so per-file re-lints
-    can resolve base-game `#include`s; **the caller owns `BaseLayer.cleanup()`**."""
+    can resolve base-game `#include`s; **the caller owns `BaseLayer.cleanup()`**.
+
+    `manifest` is a path to a base-symbol manifest (see `sage_ini.manifest`), honored **only
+    when `bases` is empty** - real base sources are strictly more complete and always win. It
+    lets a mod be linted against base symbols with no base tree on disk: the manifest's stand-ins
+    are excluded from the report the same way a real base layer is. **Documented limitation**: a
+    mod whose inis `#include` base-game files still needs a real base - a manifest carries
+    symbols, not include text - so `include_bases` stays empty in this path. May raise
+    `ManifestError` (propagated, not caught here)."""
     excluded = tuple(Path(directory).resolve() for directory in exclude)
     base_layer = _prepare_base(root, bases)
     try:
         if base_layer is None:
-            loaded = load_game(root)
-            diagnostics = lint_game(loaded, rules, exclude)
+            if manifest is not None:
+                loaded, vroot = _load_with_manifest(root, manifest)
+                diagnostics = lint_game(loaded, rules, (*exclude, vroot))
+            else:
+                loaded = load_game(root)
+                diagnostics = lint_game(loaded, rules, exclude)
             include_bases: tuple[Path, ...] = ()
         else:
             loaded = load_game(root, bases=(base_layer.root,))
@@ -331,10 +379,12 @@ def lint_folder(
     rules: Iterable[type[Rule]] | None = None,
     exclude: tuple[str | Path, ...] = (),
     bases: tuple[tuple[str, str], ...] = (),
+    manifest: str | Path | None = None,
 ) -> Diagnostics:
-    """Assemble the game under `root` and report its problems (see `build_cache`). A one-shot:
-    the base layer is removed before returning, since nothing re-lints against it afterwards."""
-    game, diagnostics, base_layer = build_cache(root, rules, exclude, bases)
+    """Assemble the game under `root` and report its problems (see `build_cache`, including what
+    `manifest` does). A one-shot: the base layer is removed before returning, since nothing
+    re-lints against it afterwards."""
+    game, diagnostics, base_layer = build_cache(root, rules, exclude, bases, manifest)
     if base_layer is not None:
         base_layer.cleanup()
     return diagnostics

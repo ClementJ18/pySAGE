@@ -1,12 +1,7 @@
 """Phase 2: the game-aware map adapter (symbol harvest + located argument walk).
 
-Built from hand-made sagemap dataclasses so the tests need no `.map` file or corpus. A
-`pytest.importorskip` keeps them quiet without the optional `[map]` extra.
+Built from hand-made sagemap dataclasses so the tests need no `.map` file or corpus.
 """
-
-import pytest
-
-pytest.importorskip("reversebox", reason="requires the optional [map] extra (reversebox)")
 
 from sage_map import (  # noqa: E402
     Map,  # noqa: E402

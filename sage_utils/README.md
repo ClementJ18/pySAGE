@@ -7,7 +7,8 @@ Two layers:
 
 - **Qt-free data layer** - `config` (settings), `sources` (loose ini folders and `.big`
   archives as a uniform source), `textures` (game texture lookup), `views` (resolution
-  helpers over the `sage_ini` model), the `factiongraph` ownership-graph types that
+  helpers over the `sage_ini` model), `refpack` (a pure-Python EA RefPack codec for the
+  binary `.map`/`.bse` layer), the `factiongraph` ownership-graph types that
   [`sage_mods.edain`](../sage_mods.edain) assembles, and the `cli` / `skill` command plumbing.
 - **Shared Qt pieces** - `styles`, `widgets` and `findings`, the desktop chrome shared by
   every SAGE front end ([`sage_ui`](../sage_ui), [`sage_wiki`](../sage_wiki), the SAGE Lint

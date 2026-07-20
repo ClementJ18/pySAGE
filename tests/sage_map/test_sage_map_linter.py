@@ -1,12 +1,8 @@
 """Phase 3: dangling-reference linting of a `.map` against an assembled game.
 
 Hand-built sagemap maps + a tiny `Game` populated directly, so no corpus or `.map` file is
-needed. A `pytest.importorskip` keeps these quiet without the optional `[map]` extra.
+needed.
 """
-
-import pytest
-
-pytest.importorskip("reversebox", reason="requires the optional [map] extra (reversebox)")
 
 from sage_ini.model.game import Game  # noqa: E402
 from sage_ini.parser.diagnostics import Severity  # noqa: E402

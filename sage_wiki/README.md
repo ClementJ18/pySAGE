@@ -14,8 +14,8 @@ so the UI stays responsive.
 Needs the `wiki` extra (mwclient, mwparserfromhell, PyQt6, pyBIG, keyring):
 
 ```sh
-pip install -e ".[wiki]"
-sage-wiki            # or: python -m sage_wiki.app
+pip install "py-sage[wiki]"   # from a checkout: pip install -e ".[wiki]"
+sage-wiki                     # or: python -m sage_wiki.app
 ```
 
 Credentials are handled through `keyring`, with a login prompt each session.

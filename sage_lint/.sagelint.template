@@ -120,6 +120,18 @@ base = [
     # "C:/Games/BFME2/lotr.big",
 ]
 
+# -- base_manifest -----------------------------------------------------------
+# A symbol manifest (generated with `sage_lint manifest --game <base-game> -o
+# <path>`) standing in for the base game when no `base` sources are configured,
+# so references into it resolve with no base tree on disk and none of the cost
+# of loading one every run (mirrors --base-manifest). Unlike `base` (a machine
+# path, usually in .sagelint.local), a manifest is a small file you can commit
+# or share - path here, resolved relative to THIS file. A real `base` always
+# wins when both are set (real data is strictly more complete). LIMITATION: a
+# mod that #includes base-game files still needs a real `base` - a manifest
+# carries symbols, not include text.
+# base_manifest = "sage-base-manifest.json.gz"
+
 # -- sentinels --------------------------------------------------------------
 # Extra "intentionally nothing" reference tokens, never reported as dangling.
 # `None`/`NONE`/empty are ALWAYS treated this way; list any other names your mod
@@ -133,6 +145,14 @@ base = [
 # `PlayerAIType` the engine selects by name, or anything a binary `.map` script
 # spawns). Case-insensitive; names the block type, not a single definition.
 # always_referenced = ["PlayerAIType"]
+
+# -- duplicate_min_lines / duplicate_min_occurrences -------------------------
+# Thresholds for `sage_lint duplicates` (find copy-pasted chunks worth moving
+# into a shared #include): the smallest duplicate to report, in comment-stripped
+# source lines (mirrors --min-lines, default 10), and how many places a chunk
+# must appear (mirrors --min-occurrences, default 2, the minimum).
+# duplicate_min_lines = 10
+# duplicate_min_occurrences = 2
 
 # -----------------------------------------------------------------------------
 # Valid codes for `ignore` / `select`

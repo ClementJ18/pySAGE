@@ -1,14 +1,9 @@
 """The map content diff (`sage_map.diff`): section building over hand-made sagemap dataclasses
 (no `.map` file or corpus needed), the git commit plumbing over a real temp repo with the blob
-parser stubbed, and the `diff-maps` CLI. A `pytest.importorskip` keeps the module quiet without
-the optional `[map]` extra."""
+parser stubbed, and the `diff-maps` CLI."""
 
 import json
 import subprocess
-
-import pytest
-
-pytest.importorskip("reversebox", reason="requires the optional [map] extra (reversebox)")
 
 import sage_map.diff as map_diff  # noqa: E402
 from sage_lint.cli import main  # noqa: E402

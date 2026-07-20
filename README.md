@@ -23,7 +23,7 @@ subproject has its own README with the details; this page is the map.
 | --- | --- |
 | [`sage_map`](sage_map/README.md) | Reader/writer for BFME `.map` files, plus a game-aware overlay that resolves script arguments and object references and lints maps. |
 | [`sage_replay`](sage_replay/README.md) | Reader for SAGE replay files (Generals `.rep`, BFME / BFME2 / RotWK) - the recorded order stream, decoded into build orders, APM and command timing. |
-| [`sage_apt`](sage_apt/README.md) | Converter, viewer and editor for `.apt` UI movies (the Flash-derived format behind BFME's menus and HUD). |
+| [`sage_apt`](sage_apt/README.md) | Converter, viewer and editor for `.apt` UI movies (the Flash-derived format behind BFME's menus and HUD). **Work in progress**, not yet fully functional. |
 
 ### Domain overlays & apps
 
@@ -31,7 +31,7 @@ subproject has its own README with the details; this page is the map.
 | --- | --- |
 | [`sage_mods.edain`](sage_mods/edain/README.md) | Edain-mod overlay: builds a faction ownership graph (spellbook → base → structures → units/heroes/upgrades) and renders, diffs or serves it. |
 | [`sage_wiki`](sage_wiki/README.md) | Desktop tool that updates Edain wiki infoboxes from parsed game data through the MediaWiki API. |
-| [`sage_ui`](sage_ui/README.md) | PyQt6 desktop browser for SAGE game data: load sources, search an object, see its resolved stats. |
+| [`sage_ui`](sage_ui/README.md) | PyQt6 desktop browser for SAGE game data: load sources, search an object, see its resolved stats. Windows-only (reads the games' install paths from the registry). |
 
 ### Shared
 
@@ -41,17 +41,32 @@ subproject has its own README with the details; this page is the map.
 
 ## Install
 
+Requires Python ≥ 3.12. The project is **pySAGE**; on PyPI it is published as **`py-sage`**.
+
+> **Note:** there is an unrelated project called `pysage` on PyPI - an abandoned messaging
+> library last released in 2011. `pip install pysage` will *not* get you this project. Mind the
+> hyphen.
+
 ```sh
-pip install -e .            # core library + linter (Python ≥ 3.13)
-pip install -e ".[ui]"      # + the PyQt6 desktop apps (sage-ui)
-pip install -e ".[wiki]"    # + the wiki updater
-pip install -e ".[edain]"   # + Edain base-layout decompilation
-pip install -e ".[edain-ui]"  # + the Edain Linter desktop app
-pip install -e ".[apt]"     # + reading .const/.apt out of .big archives
+pip install py-sage             # core library + linter
+pip install "py-sage[ui]"       # + the PyQt6 desktop apps (sage-ui)
+pip install "py-sage[wiki]"     # + the wiki updater
+pip install "py-sage[edain-ui]" # + the Edain Linter desktop app
+pip install "py-sage[apt]"      # + reading .const/.apt out of .big archives
 ```
 
-The extras (`ui`, `lint-ui`, `wiki`, `map`, `edain`, `edain-ui`, `apt`) pull in the optional
-dependencies each peripheral tool needs; the core parser and linter stay dependency-free.
+From a clone, for development, swap the name for an editable install of the checkout:
+
+```sh
+pip install -e ".[ui]"
+```
+
+The extras (`ui`, `lint-ui`, `wiki`, `edain-ui`, `apt`) pull in the optional dependencies each
+peripheral tool needs. The ini, map and replay layers are stdlib-only and always ship, so no
+extra is needed to parse, lint or diff a map. The one non-optional dependency is `reversebox` on
+Windows, the native RefPack compressor that makes saving large maps fast (its DLL is Windows-only,
+so other platforms use the byte-identical pure-Python compressor).
+
 Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-edain`,
 `sage-replay`, `sage-apt` (and the GUI scripts `sage-ui`, `sage-wiki`, `sage-lint-ui`,
 `sage-edain-lint` - the Edain Linter, which combines the ini and map checks in one window).

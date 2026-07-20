@@ -28,7 +28,7 @@ from sage_ini.parser.ast import (
     ScriptBlock,
 )
 
-__all__ = ["print_document", "INDENT"]
+__all__ = ["print_document", "print_nodes", "INDENT"]
 
 INDENT = "    "
 
@@ -181,6 +181,14 @@ def _emit_commandset_children(
     for child in rest:
         width = slot_width if isinstance(child, Attribute) and child.key.isdigit() else 0
         _emit(child, depth, out, align, exclude, True, width)
+
+
+def print_nodes(nodes: Iterable[Node]) -> str:
+    """Canonical text of a node list at depth 0, plain mode (no alignment, no CommandSet
+    layout) - the round-trip-stable form, usable as a normalized key for comparing subtrees."""
+    out: list[str] = []
+    _emit_children(list(nodes), 0, out, False, frozenset(), False, False)
+    return "\n".join(out) + "\n" if out else ""
 
 
 def print_document(

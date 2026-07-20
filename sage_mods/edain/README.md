@@ -49,8 +49,7 @@ python -m sage_mods.edain replay-aggregate <replay|dir>... --game <install>
 
 `<dir>` is the mod's ini root (e.g. `_mod/data/ini`; point it at the mod folder so the
 localization table resolves too). Pass `--bases` (the mod's `bases/` folder) to decompose
-castle/camp layouts into their citadel + foundations + prebuilt structures (needs the
-`[edain]` extra).
+castle/camp layouts into their citadel + foundations + prebuilt structures.
 
 ## Map checks
 

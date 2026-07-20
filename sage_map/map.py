@@ -6,8 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import BinaryIO, cast
 
-from reversebox.compression.compression_refpack import RefpackHandler
-
+from sage_utils import refpack
 from sage_utils.stream import BinaryStream
 
 from .assets import (
@@ -369,8 +368,8 @@ def parse_map(file: BinaryIO) -> Map:
     compressed_data = file.read()
 
     try:
-        decompressed_data = RefpackHandler().decompress_data(compressed_data)
-    except Exception:  # noqa: BLE001 - not refpack-compressed; treat the bytes as raw
+        decompressed_data = refpack.decompress(compressed_data)
+    except refpack.RefpackError:  # not refpack-compressed; treat the bytes as raw
         decompressed_data = compressed_data
 
     logger = logging.getLogger("sage_map")
@@ -392,7 +391,7 @@ def write_map(map: Map, compress: bool) -> bytes:
     uncompressed_data = map.write(context)
 
     if compress:
-        compressed_data = RefpackHandler().compress_data(uncompressed_data)
+        compressed_data = refpack.compress(uncompressed_data)
         if map.ea_compression_header:
             header_stream = BinaryStream(io.BytesIO())
             header_stream.writeFourCc("EAR\0")

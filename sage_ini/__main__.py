@@ -23,6 +23,7 @@ import argparse
 import codecs
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 from sage_ini import primer as primer_module
@@ -256,7 +257,17 @@ def _run_includes(root: Path, file: Path) -> int:
     return 0
 
 
-_MERGE_DRIVER = "sage-ini merge %O %A %B -L %L -P %P"
+_MERGE_ARGS = "merge %O %A %B -L %L -P %P"
+
+
+def _driver_command() -> str:
+    """The command git config runs for the driver. From a pip install, the bare `sage-ini`
+    script (resolved via PATH); from a frozen (PyInstaller) binary, the running executable's
+    absolute path - a packaged exe is not on PATH and must not require Python. Quoted, since
+    an install path can contain spaces and git runs the driver through a shell."""
+    if getattr(sys, "frozen", False):
+        return f'"{Path(sys.executable).resolve().as_posix()}" {_MERGE_ARGS}'
+    return f"sage-ini {_MERGE_ARGS}"
 
 
 def _install_merge_driver(global_: bool) -> int:
@@ -265,7 +276,7 @@ def _install_merge_driver(global_: bool) -> int:
     try:
         for key, value in (
             ("merge.sage-ini.name", "SAGE ini structure-aware merge"),
-            ("merge.sage-ini.driver", _MERGE_DRIVER),
+            ("merge.sage-ini.driver", _driver_command()),
         ):
             subprocess.run(["git", "config", *scope, key, value], check=True)
     except FileNotFoundError:

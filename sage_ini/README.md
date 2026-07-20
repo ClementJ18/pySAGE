@@ -62,6 +62,10 @@ actually means:
   printf '*.ini merge=sage-ini\n*.inc merge=sage-ini\n' >> .gitattributes
   ```
 
+  No Python? The standalone binary (below) works too: running `sage_ini merge --install`
+  from the downloaded exe registers the exe's own absolute path as the driver command, so
+  git merges ini structurally with nothing else installed.
+
 - `macro-merge` reads a conflicted `#define NAME a b c ...` list as a 3-way *set* diff
   against the diff3 base - reporting each side's adds/removes, then (with `--write`)
   keeping every addition and honouring every removal, flagging one-sided deletions to
@@ -81,6 +85,17 @@ python -m sage_ini primer                 # lean schema digest (tables + modules
 python -m sage_ini primer expand Object   # one kind's full field schema, on demand
 python -m sage_ini install-skill          # install the bundled bfme-ini skill (~/.claude/skills)
 ```
+
+### Standalone binary (no Python)
+
+```sh
+pyinstaller sage_ini/sage-ini.spec
+```
+
+This produces `dist/sage_ini` (`dist/sage_ini.exe` on Windows) - one binary serving every
+subcommand, the git merge driver included: `merge --install` run from the binary registers
+the binary's own absolute path, so structure-aware merging needs nothing else installed.
+PyInstaller binaries are not cross-platform, so build once per OS you support.
 
 ## Library use
 

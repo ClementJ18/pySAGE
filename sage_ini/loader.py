@@ -55,6 +55,7 @@ def load_game(
     root: str | Path | Sequence[str | Path],
     overlays: tuple[str | Path, ...] = (),
     bases: tuple[str | Path, ...] = (),
+    game: Game | None = None,
 ) -> LoadedGame:
     """Assemble every non-map root file under `root` into one `Game`.
 
@@ -63,6 +64,11 @@ def load_game(
     `#include`s may resolve into (the engine's overlay). `bases` are lower-priority game folders
     built into the game (silently, and first, so a mod definition of the same name overrides them)
     so the mod's references resolve; their own problems are not reported.
+
+    `game`, when given, is a pre-seeded `Game` to build into rather than a fresh one - the same
+    below-every-root layering as `bases`, but for symbols materialized from a manifest: the mod's
+    files build on top, so a same-name definition overrides the stand-in exactly as it would a
+    real base file.
 
     A root file present at the same `ini_root`-relative path in more than one layer is built once,
     from the highest-priority layer ("keep the latest of a file" - the engine's file shadowing).
@@ -78,7 +84,7 @@ def load_game(
     layers = tuple(ini_root(src) for src, _ in reversed(stack)) + tuple(
         ini_root(overlay) for overlay in overlay_paths
     )
-    game = Game()
+    game = game if game is not None else Game()
     diagnostics = Diagnostics()
 
     # File-level shadowing: record the highest-priority layer that supplies each relative path,

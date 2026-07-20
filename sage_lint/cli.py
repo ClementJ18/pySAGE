@@ -4,7 +4,8 @@ files to the canonical style (or reports them with `--check`, or formats stdin);
 (`--output-format json`) for an editor plugin. `diff` assembles the mod at two git refs
 (config-aware, with the base game merged in) and reports a human-readable changelog of the
 game-data changes between them; `diff-maps` does the same for the binary `.map`/`.bse` files
-one commit touches.
+one commit touches; `duplicates` reports ini chunks repeated verbatim in 2+ places, worth
+extracting into shared `#include` files.
 
 This module owns the argument parser and dispatch; the command implementations live in
 `sage_lint.commands` (one module per command, shared option/report plumbing in `common`).
@@ -18,6 +19,7 @@ from sage_ini.parser.io import INI_SUFFIXES
 from sage_lint.baseline import BASELINE_NAME
 from sage_lint.commands.common import SORTERS, effective_root, load_lint_config
 from sage_lint.commands.diff import run_diff, run_diff_maps
+from sage_lint.commands.duplicates import run_duplicates
 from sage_lint.commands.format import run_format
 from sage_lint.commands.init import run_init
 from sage_lint.commands.lint import (
@@ -26,7 +28,9 @@ from sage_lint.commands.lint import (
     run_list_codes,
     run_map_lint,
 )
+from sage_lint.commands.manifest import run_manifest
 from sage_lint.commands.serve import run_serve
+from sage_utils.cli import add_game_arguments
 
 
 def _add_output_format(sub: argparse.ArgumentParser) -> None:
@@ -115,6 +119,17 @@ def main(argv: list[str] | None = None) -> int:
         "file-shadowed by the mod, and never reported (repeatable, highest priority first)",
     )
     lint.add_argument(
+        "--base-manifest",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="a symbol manifest (from `sage_lint manifest`) standing in for the base game when "
+        "no --base / config 'base' sources are configured: references into it resolve with no "
+        "base tree on disk. Ignored when a real --base is set (real data always wins). Mirrors "
+        "the config 'base_manifest'. A mod that #includes base-game files still needs a real "
+        "--base - a manifest carries symbols, not include text.",
+    )
+    lint.add_argument(
         "--assets-base",
         type=Path,
         action="append",
@@ -184,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="also lint the binary .map layouts against the assembled game, so a map referencing "
         "an object/upgrade you have removed is caught (off by default: parsing every map adds "
-        "time, and needs the [map] extra installed). Map checks use the map-dangling-* codes.",
+        "time). Map checks use the map-dangling-* codes.",
     )
     lint.add_argument(
         "--maps-base",
@@ -280,6 +295,70 @@ def main(argv: list[str] | None = None) -> int:
         game_help="a data/ini tree, or a live install folder whose .big archives are mounted, "
         "whose objects/upgrades/sciences the map's references resolve against",
     )
+
+    manifest = subparsers.add_parser(
+        "manifest",
+        help="index a loaded base game into a symbol manifest, for lint --base-manifest",
+        description="Load the game named by --game and write a symbol manifest: a JSON index "
+        "(optionally gzipped) of everything sage_lint's rules read off base data - names, "
+        "tables, classes, module tags, a handful of raw field values, and the game-level macro/"
+        "string/asset tables. A mod can later be linted against it with no base game on disk, "
+        "via 'base_manifest' in .sagelint or `lint --base-manifest` - much faster than loading "
+        "the base tree every run, at the cost of needing to regenerate the manifest when the "
+        "base game changes. A mod that #includes base-game files still needs a real --base.",
+    )
+    add_game_arguments(
+        manifest,
+        game_required=True,
+        game_help="a data/ini tree, or a live install folder whose .big archives are mounted, "
+        "to index",
+    )
+    manifest.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=Path("sage-base-manifest.json"),
+        metavar="PATH",
+        help="where to write the manifest (default: %(default)s); a .gz suffix gzips it",
+    )
+    manifest.add_argument("-q", "--quiet", action="store_true", help="print only the output path")
+
+    dupes = subparsers.add_parser(
+        "duplicates",
+        help="find duplicated ini chunks worth extracting into shared #include files",
+        description="Parse every ini file under the root (includes left literal, so already-"
+        "shared content is never re-flagged) and report identical blocks and identical "
+        "contiguous runs of sibling lines appearing in 2+ places - comments and formatting "
+        "ignored - grouped into clusters with every file:line span, largest saving first. "
+        "Advisory: always exits 0.",
+    )
+    dupes.add_argument(
+        "root", type=Path, nargs="?", help="folder of ini files to scan (else config root)"
+    )
+    dupes.add_argument(
+        "--min-lines",
+        type=int,
+        metavar="N",
+        help="smallest duplicate to report, in comment-stripped source lines (default: 10, "
+        "or the config's duplicate_min_lines)",
+    )
+    dupes.add_argument(
+        "--min-occurrences",
+        type=int,
+        metavar="N",
+        help="how many places a chunk must appear (default: 2, or the config's "
+        "duplicate_min_occurrences)",
+    )
+    dupes.add_argument(
+        "--exclude", type=Path, action="append", default=[], help="excluded directory"
+    )
+    dupes.add_argument("--no-config", action="store_true", help="ignore .sagelint config files")
+    dupes.add_argument("-q", "--quiet", action="store_true", help="print only the summary line")
+    dupes.add_argument(
+        "-v", "--verbose", action="store_true", help="print each cluster's canonical snippet"
+    )
+    _add_output_format(dupes)
+    dupes.set_defaults(file=None)  # no single-file path; satisfy the shared config helpers
 
     serve = subparsers.add_parser(
         "serve",
@@ -451,6 +530,22 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "lint-maps":
         return run_map_lint(args)
+
+    if args.command == "manifest":
+        return run_manifest(args)
+
+    if args.command == "duplicates":
+        if args.min_lines is not None and args.min_lines < 1:
+            parser.error("--min-lines must be >= 1")
+        if args.min_occurrences is not None and args.min_occurrences < 2:
+            parser.error("--min-occurrences must be >= 2")
+        config = load_lint_config(args)
+        root = effective_root(args, config)
+        if root is None:
+            parser.error("the following arguments are required: root (or set 'root' in .sagelint)")
+        if not root.is_dir():
+            parser.error(f"not a directory: {root}")
+        return run_duplicates(args, config, root)
 
     if args.command == "diff":
         return run_diff(args, parser)

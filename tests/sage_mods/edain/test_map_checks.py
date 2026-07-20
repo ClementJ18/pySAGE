@@ -6,8 +6,6 @@ from types import SimpleNamespace
 
 import pytest
 
-pytest.importorskip("reversebox", reason="requires the optional [map] extra (reversebox)")
-
 from sage_ini.parser.diagnostics import Severity  # noqa: E402
 from sage_map import Map  # noqa: E402
 from sage_map.assets.object_list import Object, ObjectsList  # noqa: E402

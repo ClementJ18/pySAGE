@@ -4,12 +4,8 @@ import io
 import json
 from pathlib import Path
 
-import pytest
-
-pytest.importorskip("reversebox", reason="requires the optional [map] extra (reversebox)")
-
-from sage_map.context import ParsingContext, WritingContext  # noqa: E402
-from sage_utils.stream import BinaryStream  # noqa: E402
+from sage_map.context import ParsingContext, WritingContext
+from sage_utils.stream import BinaryStream
 
 
 def load_asset_bytes(asset_name: str) -> bytes:

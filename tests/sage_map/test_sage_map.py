@@ -1,15 +1,12 @@
 """Phase 1: the typed script-argument layer over `sagemap`.
 
 These are pure-data tests of `ARG_SPECS` / `typed_value` - no `Game`, no `.map` file needed.
-A `pytest.importorskip` keeps them quiet when the optional `[map]` extra is not installed.
 """
 
 import pytest
 
-pytest.importorskip("reversebox", reason="requires the optional [map] extra (reversebox)")
-
-from sage_map import ARG_SPECS, Scope, arg_spec, typed_value  # noqa: E402
-from sage_map.assets.player_scripts import ScriptArgument, ScriptArgumentType  # noqa: E402
+from sage_map import ARG_SPECS, Scope, arg_spec, typed_value
+from sage_map.assets.player_scripts import ScriptArgument, ScriptArgumentType
 
 
 def test_every_argument_type_has_a_spec():

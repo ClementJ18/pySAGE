@@ -16,6 +16,7 @@ from sage_utils.cli import add_game_arguments, existing_path
 if TYPE_CHECKING:
     from sage_map import Map
 
+from sage_ini.manifest import ManifestError
 from sage_ini.parser.diagnostics import Diagnostic, Diagnostics, Severity
 from sage_ini.parser.io import read_text
 from sage_ini.parser.location import Span
@@ -171,10 +172,11 @@ def run_list_codes() -> int:
 
 def _lint_map_files(root: Path, game, excludes: tuple[Path, ...]) -> Diagnostics:
     """Lint the binary `.map` layouts under `root` against the already-assembled `game`, skipping
-    any map in an excluded directory. `sage_map` is imported lazily; when the optional `[map]`
-    extra is not installed, map linting is silently skipped (no diagnostics)."""
+    any map in an excluded directory. `sage_map` is imported lazily so a run that never reaches
+    a map does not pay for the map layer; if that import fails, map linting is silently skipped
+    (no diagnostics)."""
     try:
-        from sage_map import lint_maps  # noqa: PLC0415 - lazy: the [map] extra is optional
+        from sage_map import lint_maps  # noqa: PLC0415 - lazy: only paid for when maps are linted
     except ImportError:
         return Diagnostics()
     excluded = tuple(Path(directory).resolve() for directory in excludes)
@@ -216,6 +218,18 @@ def _baseline_path(args: argparse.Namespace, config: Config) -> Path | None:
     return directory / BASELINE_NAME
 
 
+def _effective_manifest(args: argparse.Namespace, config: Config, base_dir: Path) -> Path | None:
+    """The base-symbol manifest for this run: `--base-manifest` if given, else the config's
+    `base_manifest` resolved against `base_dir`, else None. Callers pass this down only when the
+    resolved `bases` list is empty - a real `base` (CLI or config) always wins, since real data
+    is strictly more complete than a manifest snapshot."""
+    if args.base_manifest is not None:
+        return args.base_manifest
+    if config.base_manifest:
+        return config_path(base_dir, config.base_manifest)
+    return None
+
+
 _SOURCE_CACHE: dict[str, list[str]] = {}
 
 
@@ -249,6 +263,8 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
         list(args.exclude) if args.exclude else [config_path(base_dir, e) for e in config.exclude]
     )
     bases = base_paths(args, config, base_dir, include_assets, include_maps)
+    # A real base always wins; only resolve (and later pass down) a manifest when there is none.
+    manifest = _effective_manifest(args, config, base_dir) if not bases else None
     level_name = args.level or config.level
 
     rules = resolve_rule_set(selected, include_assets)
@@ -260,34 +276,43 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
         suggestions_enabled(args.suggest or config.suggest),
         rule_options(sentinels=config.sentinels, always_referenced=config.always_referenced),
     ):
-        if args.file is not None:
-            # Save-time fast path: lint just one file, resolving includes against the positional
-            # root (the project folder) when given, else the file's directory. Base sources are
-            # build-only and folder-scoped, so the single-file path never applies them.
-            diagnostics = lint_file(args.file, include_root=root, rules=rules)
-        elif include_maps:
-            # Build the game once (keeping it), lint the ini, then also lint the binary `.map`
-            # layouts against that same game so a map referencing removed content is caught. The
-            # base layer is cleaned up once both passes are done.
-            game, diagnostics, base_layer = build_cache(
-                root,
-                rules=rules,
-                exclude=tuple(excludes),
-                bases=tuple(base_source(base) for base in bases),
-            )
-            try:
-                diagnostics.items.extend(_lint_map_files(root, game, tuple(excludes)).items)
-                diagnostics.items = list(dict.fromkeys(diagnostics.items))
-            finally:
-                if base_layer is not None:
-                    base_layer.cleanup()
-        else:
-            diagnostics = lint_folder(
-                root,
-                rules=rules,
-                exclude=tuple(excludes),
-                bases=tuple(base_source(base) for base in bases),
-            )
+        try:
+            if args.file is not None:
+                # Save-time fast path: lint just one file, resolving includes against the
+                # positional root (the project folder) when given, else the file's directory.
+                # Base sources (and a manifest) are build-only and folder-scoped, so the
+                # single-file path never applies them.
+                diagnostics = lint_file(args.file, include_root=root, rules=rules)
+            elif include_maps:
+                # Build the game once (keeping it), lint the ini, then also lint the binary
+                # `.map` layouts against that same game so a map referencing removed content is
+                # caught. The base layer is cleaned up once both passes are done.
+                game, diagnostics, base_layer = build_cache(
+                    root,
+                    rules=rules,
+                    exclude=tuple(excludes),
+                    bases=tuple(base_source(base) for base in bases),
+                    manifest=manifest,
+                )
+                try:
+                    diagnostics.items.extend(_lint_map_files(root, game, tuple(excludes)).items)
+                    diagnostics.items = list(dict.fromkeys(diagnostics.items))
+                finally:
+                    if base_layer is not None:
+                        base_layer.cleanup()
+            else:
+                diagnostics = lint_folder(
+                    root,
+                    rules=rules,
+                    exclude=tuple(excludes),
+                    bases=tuple(base_source(base) for base in bases),
+                    manifest=manifest,
+                )
+        except ManifestError as exc:
+            # A bad --base-manifest / config base_manifest is a hard stop: report it cleanly
+            # (matching the corrupt-baseline handling below) rather than let it traceback.
+            print(f"sage_lint: {exc}", file=sys.stderr)
+            return 2
 
     remaining = list(diagnostics)
     if selected:
@@ -471,13 +496,14 @@ def run_map_lint(
     game
     (pass the base game first, the mod after it; each `.big` install is mounted); with no `--game`
     the game is empty, so only the parse and map-local checks (teams, waypoints, trigger areas)
-    run. The `sage_map` overlay and game loader are imported lazily so `sage_lint` runs without
-    the optional `[map]` extra installed."""
+    run. The `sage_map` overlay and game loader are imported lazily so a `sage_lint` run that
+    never touches a map does not pay for them."""
     try:
-        from sage_map import MapModel, lint_map  # noqa: PLC0415 - lazy: the [map] extra is optional
+        from sage_map import MapModel, lint_map  # noqa: PLC0415 - lazy: paid for only on map runs
     except ImportError:
         print(
-            "sage_lint: map linting needs the optional 'map' extra (pip install 'pysage[map]')",
+            "sage_lint: map linting needs sage_map, which ships with py-sage itself "
+            "(no extra required) - reinstall with: pip install py-sage",
             file=sys.stderr,
         )
         return 2

@@ -964,26 +964,22 @@ class TestLintMaps:
     _LOOSE_MAP = _MAPS_DIR / "map edain ford of bruinen.map"
 
     def test_empty_folder_exits_zero_with_zero_maps(self, tmp_path, capsys):
-        pytest.importorskip("reversebox", reason="requires the optional [map] extra")
         assert main(["lint-maps", str(tmp_path)]) == 0
         assert "across 0 maps" in capsys.readouterr().out
 
     def test_lints_a_loose_map_file_without_a_game(self, capsys):
         # A map file target outside any mod tree; with no --game the game is empty, so the parse
         # and map-local checks run (this fixture is clean) and no game is required.
-        pytest.importorskip("reversebox", reason="requires the optional [map] extra")
         assert main(["lint-maps", str(self._LOOSE_MAP)]) == 0
         assert "across 1 map" in capsys.readouterr().out
 
     def test_crawls_a_folder_for_map_files(self, capsys):
         # A directory target is crawled recursively for *.map; every fixture map is linted.
-        pytest.importorskip("reversebox", reason="requires the optional [map] extra")
         count = len(list(self._MAPS_DIR.glob("*.map")))
         main(["lint-maps", str(self._MAPS_DIR)])
         assert f"across {count} maps" in capsys.readouterr().out
 
     def test_json_report_has_diagnostics_and_summary(self, capsys):
-        pytest.importorskip("reversebox", reason="requires the optional [map] extra")
         assert main(["lint-maps", str(self._LOOSE_MAP), "--output-format", "json"]) == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["diagnostics"] == []
@@ -992,7 +988,6 @@ class TestLintMaps:
     def test_game_enables_the_object_resolution_check(self, tmp_path, capsys):
         # With --game loaded, placed objects resolve against it: a root defining only one object
         # flags the fixture's many other placed types as dangling (proves the game is consulted).
-        pytest.importorskip("reversebox", reason="requires the optional [map] extra")
         (tmp_path / "a.ini").write_text("Object Foo\n    BuildCost = 1\nEnd\n", encoding="utf-8")
         code = main(
             [

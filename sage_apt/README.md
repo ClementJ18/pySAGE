@@ -74,7 +74,7 @@ never leaves a partial `.apt` beside a stale `.const`.
   extra / game dir, elements fall back to placeholders.
 - `to-xml --game-dir <dir>` resolves the `.const` (or the `.apt` itself) out of the `.big`
   archives beneath `<dir>` when it is not a loose file - a loose file beside the `.apt`
-  still wins. Needs the optional `[apt]` extra (`pip install -e .[apt]`, pulls in pyBIG);
+  still wins. Needs the optional `[apt]` extra (`pip install "py-sage[apt]"`, pulls in pyBIG);
   the core stays stdlib-only.
 - `edittext` colour attributes are stored byte-swapped relative to placeobjects
   (red=alpha, green=red, blue=green, alpha=blue); the XML mirrors the raw layout and

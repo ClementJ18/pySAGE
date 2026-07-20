@@ -21,9 +21,11 @@ sorting as the CLI and the Sublime plugin - nothing about *what* gets reported i
 
 ## Run it
 
-From the checkout (needs `PyQt6` - `pip install -e .[lint-ui]`):
+Needs `PyQt6`, via the `lint-ui` extra - `pip install "py-sage[lint-ui]"`, or
+`pip install -e .[lint-ui]` from a checkout:
 
 ```
+sage-lint-ui                      # or, from a checkout:
 python -m sage_lint.plugins.ui
 ```
 
@@ -76,10 +78,11 @@ The status bar reports whether a config was found and loaded.
 
 ```
 pip install -e .[lint-ui]
-pyinstaller sage_lint/sage-lint-ui.spec
+pyinstaller sage_lint/sage-lint.spec
 ```
 
-This produces `dist/SAGE Lint.exe` - a single file you can hand to a teammate. The window icon
+This produces `dist/SAGE Lint.exe` - a single file you can hand to a teammate - alongside the
+console `sage_lint` CLI binary the same spec builds (see plugins/sublime/README.md). The window icon
 ([icon.ico](icon.ico)) is bundled and set on the exe.
 
 ## Credits

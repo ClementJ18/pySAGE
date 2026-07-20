@@ -149,8 +149,11 @@ class TestVanillaLoad:
             "detect_installed_games",
             lambda: {"BfMe II": str(bfme2), "RotWK": str(rotwk)},
         )
-        monkeypatch.setattr(Browser, "_load", lambda self: None)  # queue only; don't parse
-        monkeypatch.setattr(Browser, "_load_textures", lambda self, sources: None)
+        # Queue only; don't parse. Both loads run through the shared SourceLoader controllers, so
+        # the stubs go on those - which still lets `loader.set_sources` populate the panel this
+        # test inspects.
+        monkeypatch.setattr(browser.loader, "load", lambda: None)
+        monkeypatch.setattr(browser.texture_loader, "load", lambda sources: None)
 
         browser._load_vanilla("RotWK")
         queued = [path for _kind, path in browser.sources_panel.sources()]

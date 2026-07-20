@@ -5,11 +5,16 @@ and see its stats. The entry point; the UI is split across `browser.py` (main wi
 Run with `sage-ui` (installed with the `ui` extra) or `python -m sage_ui.app`.
 """
 
-from sage_ui.browser import ICON_FILE, Browser
-from sage_utils.widgets import run_app
+from sage_utils.extras import require_extra
 
 
 def main() -> None:
+    require_extra("ui", "sage-ui")
+    # Imported after the check: both modules pull in PyQt6 at import time, which is exactly the
+    # failure `require_extra` is here to report in plain language.
+    from sage_ui.browser import ICON_FILE, Browser  # noqa: PLC0415
+    from sage_utils.widgets import run_app  # noqa: PLC0415
+
     run_app(Browser, icon_file=ICON_FILE, anchor=__file__)
 
 

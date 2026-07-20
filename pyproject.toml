@@ -1,26 +1,40 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]  # >=77 for the PEP 639 SPDX `license` field below
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pysage"
+name = "py-sage"
 version = "0.1.0"
 description = "Python tools for the data formats of the SAGE engine (Battle for Middle-earth): ini game data, binary maps, replays, and UI movies."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Clement Julia", email = "clement.julia13@gmail.com" },
 ]
 keywords = ["sage", "bfme", "ini", "parser", "linter", "map", "replay", "modding"]
 classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Quality Assurance",
     "Topic :: Games/Entertainment",
 ]
-dependencies = []
+dependencies = [
+    # Native RefPack compressor for map saving (`sage_utils.refpack`). reversebox ships a
+    # Windows-only DLL, so the marker installs it exactly where it can load; every other
+    # platform resolves to no dependencies at all and uses the pure-Python compressor.
+    "reversebox>=0.84; sys_platform == 'win32'",
+]
 
 [project.urls]
-Repository = "https://github.com/ClementJ18/ini_parser"
+Homepage = "https://github.com/ClementJ18/pySAGE"
+Repository = "https://github.com/ClementJ18/pySAGE"
+Issues = "https://github.com/ClementJ18/pySAGE/issues"
 
 [project.scripts]
 sage-lint = "sage_lint.cli:main"
@@ -29,11 +43,12 @@ sage-edain = "sage_mods.edain.__main__:main"
 sage-replay = "sage_replay.__main__:main"
 sage-apt = "sage_apt.__main__:main"
 sage-save = "sage_save.__main__:main"
+sage-map = "sage_map.__main__:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui / edain-ui).
 [project.gui-scripts]
 sage-ui = "sage_ui.app:main"
-sage-wiki = "sage_wiki.app:main"
+sage-wiki = "sage_wiki.launcher:main"  # guards the [wiki] extra; app.py imports Qt at module scope
 sage-lint-ui = "sage_lint.plugins.ui.app:main"
 sage-edain-lint = "sage_mods.edain.map_checks.ui.app:main"
 
@@ -42,7 +57,6 @@ ui = [
     "PyQt6>=6.6",
     "pybig>=0.6",
     "pillow>=10",
-    "reversebox>=0.84",  # refpack decompression for sage_map's binary .map/.bse layer
 ]
 
 lint-ui = [
@@ -57,17 +71,8 @@ wiki = [
     "keyring>=24",
 ]
 
-map = [
-    "reversebox>=0.84",
-]
-
-edain = [
-    "reversebox>=0.84",
-]
-
 edain-ui = [
     "PyQt6>=6.6",
-    "reversebox>=0.84",  # the binary .map layer the checks parse
 ]
 
 apt = [
@@ -86,11 +91,26 @@ dev = [
 include = ["sage_apt*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*"]
 
 [tool.setuptools.package-data]
+# Anything a package opens at runtime must be listed here, or it is absent from the wheel. The
+# loaders degrade silently (a missing asset returns None), so an omission surfaces as a feature
+# quietly not working rather than an error; tests/test_packaging.py asserts every runtime asset
+# below is shipped.
 sage_apt = ["assets/*.html", "py.typed"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
 sage_save = ["py.typed"]
-"sage_mods.edain" = ["ui/*", "skill_assets/**/*", "map_checks/ui/*.ico"]
+sage_replay = ["py.typed"]
+sage_ui = ["*.ico"]
+sage_wiki = ["*.ico"]
+sage_utils = ["assets/*.png"]  # portrait background + overlays; sage_utils/textures.py
+"sage_lint.plugins.ui" = ["*.ico"]
+sage_mods = ["py.typed"]  # PEP 561 marker belongs on the top-level package, not sage_mods.edain
+"sage_mods.edain" = [
+    "ui/*",
+    "skill_assets/**/*",
+    "map_checks/ui/*.ico",
+    "icons/*.webp",  # faction emblems; the public ICONS_DIR / FACTION_ICONS in edain/replay.py
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -100,7 +120,7 @@ markers = [
 ]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py312"  # matches requires-python, so pyupgrade cannot suggest 3.13-only syntax
 line-length = 100
 extend-exclude = [
     "data", # game-data corpus
@@ -129,7 +149,7 @@ select = [
 [tool.ruff.format]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
 files = ["sage_apt", "sage_ini", "sage_map", "sage_mods", "sage_replay", "sage_save", "sage_utils"]
 disable_error_code = ["annotation-unchecked"]
 

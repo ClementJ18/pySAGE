@@ -5,7 +5,10 @@ and explicit CLI flags override both - the CLI stays the final say.
 
 Recognised keys (all optional): `level` ("ERROR" | "WARNING" | "INFO"), `root` (the folder
 to lint, a single path resolved relative to the config file's own directory), `baseline` (a
-path to a baseline file of accepted diagnostics, resolved the same way), `suggest` (a bool
+path to a baseline file of accepted diagnostics, resolved the same way), `base_manifest` (a
+path to a symbol manifest from `sage_lint manifest`, resolved the same way - stands in for the
+base game when no `base` sources are configured, mirrors --base-manifest; a real `base` always
+wins when both are set, since real data is strictly more complete), `suggest` (a bool
 turning on "did you mean" hints), `assets` (a bool enabling the opt-in missing-texture/model/map
 file rules, mirrors --assets), `maps` (a bool, default false, also linting the binary `.map`
 layouts against the assembled game; mirrors --maps), `sentinels` (extra "intentionally nothing"
@@ -17,10 +20,13 @@ unused-definition rule never flags, for kinds reached in ways the ini graph cann
 archives only those rules need; mirrors --assets-base), and `maps_base` (extra base sources loaded
 only when `maps` is on; mirrors --maps-base). The `format`
 command reads two more: `align_equals` (a bool, mirrors --align-equals) and `align_exclude`
-(block types to leave unaligned, mirrors --align-exclude). `root`, `baseline` and `level` are
-single strings, `suggest`/`align_equals` are bools, the rest a string or a list of strings,
-all mirroring the matching CLI flags. Unknown keys and bad values are reported as warnings,
-never raised, so a typo in the config degrades to a message rather than a crash.
+(block types to leave unaligned, mirrors --align-exclude). The `duplicates` command reads
+`duplicate_min_lines` and `duplicate_min_occurrences` (integers, mirroring --min-lines and
+--min-occurrences). `root`, `baseline`, `base_manifest`
+and `level` are single strings, `suggest`/`align_equals` are bools, the duplicate thresholds
+integers, the rest a string or a list
+of strings, all mirroring the matching CLI flags. Unknown keys and bad values are reported as
+warnings, never raised, so a typo in the config degrades to a message rather than a crash.
 """
 
 import tomllib
@@ -46,7 +52,9 @@ _LIST_KEYS = (
     "always_referenced",
 )
 _BOOL_KEYS = ("suggest", "align_equals", "assets", "maps")
-_KNOWN_KEYS = {"level", "root", "baseline", *_BOOL_KEYS, *_LIST_KEYS}
+# Integer keys with their smallest accepted value.
+_INT_KEYS = {"duplicate_min_lines": 1, "duplicate_min_occurrences": 2}
+_KNOWN_KEYS = {"level", "root", "baseline", "base_manifest", *_BOOL_KEYS, *_INT_KEYS, *_LIST_KEYS}
 
 
 @dataclass
@@ -57,6 +65,9 @@ class Config:
     level: str | None = None
     root: str | None = None
     baseline: str | None = None
+    # A symbol manifest standing in for the base game when no `base` sources are configured; a
+    # real `base` always wins (see `sage_lint.linter.build_cache`).
+    base_manifest: str | None = None
     suggest: bool = False
     # Off by default: the missing-file rules need the base-game archives loaded via `base`,
     # else every base asset reads as missing.
@@ -78,6 +89,10 @@ class Config:
     # unused-definition rule never flags, for kinds reached outside the ini reference graph.
     sentinels: list[str] = field(default_factory=list)
     always_referenced: list[str] = field(default_factory=list)
+    # Thresholds for the `duplicates` command, in comment-stripped source lines / occurrence
+    # count; None lets the CLI flag or the built-in default (10 / 2) win.
+    duplicate_min_lines: int | None = None
+    duplicate_min_occurrences: int | None = None
     # Human-readable problems found while loading (bad TOML, unknown keys, wrong types).
     warnings: list[str] = field(default_factory=list)
 
@@ -142,6 +157,14 @@ def load_config(directory: str | Path) -> Config:
             warnings.append(
                 f"{sources['baseline']}: 'baseline' must be a non-empty string (ignored)"
             )
+    if "base_manifest" in merged:
+        base_manifest = merged["base_manifest"]
+        if isinstance(base_manifest, str) and base_manifest:
+            config.base_manifest = base_manifest
+        else:
+            warnings.append(
+                f"{sources['base_manifest']}: 'base_manifest' must be a non-empty string (ignored)"
+            )
     for key in _BOOL_KEYS:
         if key in merged:
             value = merged[key]
@@ -149,6 +172,15 @@ def load_config(directory: str | Path) -> Config:
                 setattr(config, key, value)
             else:
                 warnings.append(f"{sources[key]}: '{key}' must be a bool (ignored)")
+    for key, minimum in _INT_KEYS.items():
+        if key in merged:
+            value = merged[key]
+            if isinstance(value, int) and not isinstance(value, bool) and value >= minimum:
+                setattr(config, key, value)
+            else:
+                warnings.append(
+                    f"{sources[key]}: '{key}' must be an integer >= {minimum} (ignored)"
+                )
     for key in _LIST_KEYS:
         if key in merged:
             setattr(config, key, _str_list(merged[key], key, sources[key], warnings))
@@ -167,6 +199,14 @@ root = "."
 
 # Show "Did you mean ...?" hints on unknown names, attributes and string labels.
 suggest = true
+
+# A symbol manifest (generated with `sage_lint manifest`) standing in for the base game when
+# no `base` sources are configured, so references into it resolve with no base tree on disk.
+# Unlike `base` (a machine-specific path, so it belongs in .sagelint.local), a manifest is a
+# small committable file - share it here so everyone lints against the same base symbols. A
+# real `base` (in .sagelint.local) always wins when both are set. Mods that #include base-game
+# files still need a real `base` - a manifest carries symbols, not include text.
+# base_manifest = "sage-base-manifest.json.gz"
 """
 
 # The gitignored `.sagelint.local`: machine paths, written commented-out so a freshly

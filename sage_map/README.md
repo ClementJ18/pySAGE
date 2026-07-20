@@ -17,6 +17,32 @@ The package has three layers:
   helpers); rule sets are mod conventions and live with their mod package
   (`sage_mods.edain.map_checks` for Edain).
 
+## Compression
+
+On-disk `.map`/`.bse` files are usually EA RefPack (LZSS) compressed. `sage_map` handles this
+with a pure-Python, cross-platform codec ([`sage_utils.refpack`](../sage_utils/refpack.py)), so
+reading and writing maps needs no native dependency. Decompression (every load) is fast.
+Compression runs EA's exact search and is byte-for-byte identical to the original tools, but in
+pure Python it can take tens of seconds on large, repetitive maps - this only affects *saving* a
+compressed map. On Windows the `reversebox` accelerator is installed as a core dependency and
+does that work natively; its DLL is Windows-only, so elsewhere a one-time warning notes the
+pure-Python fallback.
+
+## Command-line tool
+
+The engine-generic front end - parse, inspect, serialize and diff `.map` files with no game data
+(`pip install py-sage` - this layer is stdlib-only and needs no extra - or a standalone
+`sage_map` binary built from `sage-map.spec`):
+
+```
+sage-map info <map>          # terrain size, object count + top templates, waypoint/team tallies
+sage-map json <map> [--out]  # the parsed map as a JSON document
+sage-map diff <a> <b>        # human-readable content diff (moved objects, script edits, terrain)
+```
+
+The mod-specific map *checks* live with their mod (`sage_mods.edain.map_checks`), and game-aware
+linting is exposed through `sage-lint`.
+
 ## Example
 
 ```python

@@ -6,7 +6,7 @@ then loaded into a Game. Kept Qt-free so it can run headless.
 
 import shutil
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse_file
@@ -58,6 +58,15 @@ def loadable_files(folder: Path, suffixes: frozenset[str] = LOAD_SUFFIXES):
             yield norm_key(path.relative_to(base)), path
 
 
+def big_entry_basename(name: str) -> str:
+    """The lowercased file name of a .big entry path.
+
+    Entry paths are stored Windows-style (`art\\HeroUI_001.dds`). `norm_key` folds both `\\` and
+    `/` to `/` before the split, so the basename is correct on POSIX too, where a backslash is an
+    ordinary character that `Path(name).name` would not treat as a separator."""
+    return norm_key(name).rsplit("/", 1)[-1]
+
+
 def extract_big(big_path: str, dest: Path, suffixes: frozenset[str] = LOAD_SUFFIXES) -> Path:
     """Extract a .big's files whose suffix is in `suffixes` to `dest`, reading entries off disk
     rather than buffering the whole archive in memory. Defaults to the loadable ini/str; the
@@ -67,7 +76,13 @@ def extract_big(big_path: str, dest: Path, suffixes: frozenset[str] = LOAD_SUFFI
     from pyBIG import InDiskArchive  # noqa: PLC0415 - lazy: the [ui]/[wiki] extra is optional
 
     archive = InDiskArchive(str(big_path))
-    wanted = [name for name in archive.file_list() if Path(name).suffix.lower() in suffixes]
+    # Filter on the normalized basename (entry paths are Windows-style; see `big_entry_basename`),
+    # but keep the original names - they are the keys `extract` looks the entries up by.
+    wanted = [
+        name
+        for name in archive.file_list()
+        if PurePosixPath(big_entry_basename(name)).suffix in suffixes
+    ]
     dest.mkdir(parents=True, exist_ok=True)
     archive.extract(str(dest), files=wanted)
     return dest
@@ -81,11 +96,8 @@ def big_member_basenames(big_path: str | Path, suffixes: frozenset[str]) -> set[
     from pyBIG import InDiskArchive  # noqa: PLC0415 - lazy: the [ui]/[wiki] extra is optional
 
     archive = InDiskArchive(str(big_path))
-    return {
-        Path(name).name.lower()
-        for name in archive.file_list()
-        if Path(name).suffix.lower() in suffixes
-    }
+    names = {big_entry_basename(name) for name in archive.file_list()}
+    return {name for name in names if PurePosixPath(name).suffix in suffixes}
 
 
 def source_root(

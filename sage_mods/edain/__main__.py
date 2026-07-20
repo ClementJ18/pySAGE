@@ -24,8 +24,7 @@
 - `install-skill` - install the bundled `bfme-faction` Claude Code skill.
 
 `<dir>` is the mod's ini root (e.g. `_mod/data/ini`). Pass `--bases` (the mod's `bases/` folder) to
-decompose castle/camp layouts into their citadel + foundations + prebuilt structures (needs the
-`[edain]` extra).
+decompose castle/camp layouts into their citadel + foundations + prebuilt structures.
 """
 
 import argparse

@@ -2,10 +2,26 @@
 folder picker when the read fails (game not installed, or a non-standard layout)."""
 
 import os
-import winreg
+import sys
 from pathlib import Path
+from types import ModuleType
 
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
+
+
+def _winreg() -> ModuleType | None:
+    """The stdlib `winreg` module, or None off Windows (it is Windows-only).
+
+    The games are Windows-only, but this browser is not: it reads game data from folders and
+    `.big` archives, which works anywhere. Importing `winreg` behind this guard keeps sage_ui
+    importable off Windows, where the probes below return None - the handled "not found" case, in
+    which the caller falls back to the folder picker or the add-files-by-hand onboarding."""
+    if sys.platform != "win32":
+        return None
+    import winreg  # noqa: PLC0415 - Windows-only stdlib module, imported behind the guard
+
+    return winreg
+
 
 # Registry keys holding each game's install path (under the 32-bit WOW6432Node).
 BFME2_REGISTRY_KEY = (
@@ -19,11 +35,15 @@ ROTWK_REGISTRY_KEY = (
 
 def _read_game_path_from_registry(registry_key: str, game_name: str) -> str:
     """A game's InstallPath from the registry, falling back to a folder picker. Returns
-    "" when the read fails and the user cancels the picker."""
+    "" when the read fails and the user cancels the picker. Off Windows there is no registry to
+    read, so it goes straight to the picker."""
+    registry = _winreg()
     try:
-        with winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE) as hkey:
-            with winreg.OpenKey(hkey, registry_key, 0, winreg.KEY_READ) as sub_key:
-                return winreg.QueryValueEx(sub_key, "InstallPath")[0]
+        if registry is None:
+            raise OSError("no Windows registry on this platform")
+        with registry.ConnectRegistry(None, registry.HKEY_LOCAL_MACHINE) as hkey:
+            with registry.OpenKey(hkey, registry_key, 0, registry.KEY_READ) as sub_key:
+                return registry.QueryValueEx(sub_key, "InstallPath")[0]
     except OSError as e:
         QMessageBox.information(
             None,
@@ -36,11 +56,15 @@ def _read_game_path_from_registry(registry_key: str, game_name: str) -> str:
 
 def _registry_install_path(registry_key: str) -> str | None:
     """A game's InstallPath read straight from the registry, or None when it isn't there - a
-    silent probe with no folder-picker fallback, for deciding whether to show onboarding."""
+    silent probe with no folder-picker fallback, for deciding whether to show onboarding. Always
+    None off Windows, which shows the same onboarding as a machine with neither game installed."""
+    registry = _winreg()
+    if registry is None:
+        return None
     try:
-        with winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE) as hkey:
-            with winreg.OpenKey(hkey, registry_key, 0, winreg.KEY_READ) as sub_key:
-                path = winreg.QueryValueEx(sub_key, "InstallPath")[0]
+        with registry.ConnectRegistry(None, registry.HKEY_LOCAL_MACHINE) as hkey:
+            with registry.OpenKey(hkey, registry_key, 0, registry.KEY_READ) as sub_key:
+                path = registry.QueryValueEx(sub_key, "InstallPath")[0]
     except OSError:
         return None
     return path or None

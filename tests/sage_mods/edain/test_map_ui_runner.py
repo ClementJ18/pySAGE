@@ -3,10 +3,6 @@ CLI-shaped report in-process (game loaded once for the whole batch)."""
 
 from pathlib import Path
 
-import pytest
-
-pytest.importorskip("reversebox", reason="requires the optional [map] extra (reversebox)")
-
 from sage_mods.edain.map_checks.ui.runner import crawl_maps, run_check  # noqa: E402
 
 # The shared map fixtures (see tests/sage_lint's TestLintMaps).

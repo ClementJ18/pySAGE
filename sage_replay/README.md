@@ -95,6 +95,16 @@ python -m sage_replay coverage --diff a.BfME2Replay b.BfME2Replay
 python -m sage_replay info <replay> --json
 ```
 
+### Standalone binary (no Python)
+
+```sh
+pyinstaller sage_replay/sage-replay.spec
+```
+
+This produces `dist/sage_replay` (`dist/sage_replay.exe` on Windows) - one binary serving
+every subcommand, the `--game`-resolved ones included. PyInstaller binaries are not
+cross-platform, so build once per OS you support.
+
 ## Who won?
 
 The outcome is never stored - a replay is inputs, and eliminations happen inside the

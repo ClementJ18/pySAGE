@@ -64,10 +64,10 @@ def run_diff_maps(args: argparse.Namespace) -> int:
     """Changelog of the `.map`/`.bse` files `commit` touches - a single commit diffed against
     its parent, or a git range (`old..new` / `old...new`) diffed endpoint against endpoint -
     each side parsed out of git and compared structurally (objects, teams, scripts, terrain),
-    the report git's binary-file diff cannot give. `sage_map` is imported lazily so `sage_lint`
-    runs without the optional `[map]` extra installed."""
+    the report git's binary-file diff cannot give. `sage_map` is imported lazily so a `sage_lint`
+    run that never diffs maps does not pay for the map layer."""
     try:
-        from sage_map.diff import (  # noqa: PLC0415 - lazy: the [map] extra is optional
+        from sage_map.diff import (  # noqa: PLC0415 - lazy: paid for only when diffing maps
             diff_commit_maps,
             diff_range_maps,
             format_map_file_diffs,
@@ -76,7 +76,8 @@ def run_diff_maps(args: argparse.Namespace) -> int:
         )
     except ImportError:
         print(
-            "sage_lint: map diffing needs the optional 'map' extra (pip install 'pysage[map]')",
+            "sage_lint: map diffing needs sage_map, which ships with py-sage itself "
+            "(no extra required) - reinstall with: pip install py-sage",
             file=sys.stderr,
         )
         return 2

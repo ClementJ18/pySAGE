@@ -3,10 +3,15 @@
 from pathlib import Path
 
 import pytest
-from reversebox.compression.compression_refpack import RefpackHandler
 
 from sage_map import parse_map_from_path
 from sage_map.map import write_map
+from sage_utils.refpack import RefpackError, decompress
+
+# Corpus acceptance gate: parses and re-writes every real map fixture, and for the
+# compressed ones re-compresses them - byte-exact but minutes-long on the largest
+# maps under the pure-Python codec, so it belongs in the opt-in `--full` tier.
+pytestmark = pytest.mark.full
 
 
 def get_test_maps():
@@ -69,8 +74,8 @@ def test_write_map(map_path):
         compressed_data = f.read()
 
     try:
-        original_decompressed = RefpackHandler().decompress_data(compressed_data)
-    except Exception:  # noqa: BLE001 - not refpack-compressed; use the raw bytes
+        original_decompressed = decompress(compressed_data)
+    except RefpackError:  # not refpack-compressed; use the raw bytes
         original_decompressed = compressed_data
 
     assert written_bytes == original_decompressed, (
@@ -101,11 +106,11 @@ def test_write_map_compressed(map_path):
         original_data = f.read()
         is_compressed = False
         try:
-            RefpackHandler().decompress_data(original_data)
+            decompress(original_data)
             is_compressed = True
             f.seek(0)
             original_data = f.read()
-        except Exception:  # noqa: BLE001 - not refpack-compressed
+        except RefpackError:  # not refpack-compressed
             is_compressed = False
 
     if is_compressed:
@@ -118,7 +123,7 @@ def test_write_map_compressed(map_path):
         written_compressed = write_map(map_obj, compress=True)
         assert written_compressed is not None, f"Failed to write compressed map: {map_path.name}"
 
-        decompressed = RefpackHandler().decompress_data(written_compressed)
+        decompressed = decompress(written_compressed)
         written_uncompressed = write_map(map_obj, compress=False)
         assert decompressed == written_uncompressed, (
             f"Compressed data doesn't decompress correctly for: {map_path.name}"

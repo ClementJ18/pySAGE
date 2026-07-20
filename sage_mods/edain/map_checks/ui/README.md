@@ -28,9 +28,11 @@ run per file, the game data is loaded once per Check.
 
 ## Run it
 
-From the checkout (needs `PyQt6` and the map layer - `pip install -e .[edain-ui]`):
+Needs `PyQt6` and the map layer, via the `edain-ui` extra - `pip install "py-sage[edain-ui]"`,
+or `pip install -e .[edain-ui]` from a checkout:
 
 ```
+sage-edain-lint                      # or, from a checkout:
 python -m sage_mods.edain.map_checks.ui
 ```
 
@@ -74,12 +76,13 @@ or, once installed, `sage-edain-lint`.
 
 ```
 pip install -e .[edain-ui]
-pyinstaller sage_mods/edain/sage-edain-lint.spec
+pyinstaller sage_mods/edain/sage-edain.spec
 ```
 
-This produces `dist/Edain Linter.exe` - a single file you can hand to a modder. The window
-icon ([icon.ico](icon.ico)) is bundled and set on the exe. Dropping it into a mod folder that
-has a `.sagelint` makes it ready to Check on launch.
+This produces `dist/Edain Linter.exe` - a single file you can hand to a modder - alongside the
+console `sage_edain` CLI binary the same spec builds (every `sage-edain` subcommand,
+`lint-maps` included). The window icon ([icon.ico](icon.ico)) is bundled and set on the exe.
+Dropping it into a mod folder that has a `.sagelint` makes it ready to Check on launch.
 
 ## Credits
 
