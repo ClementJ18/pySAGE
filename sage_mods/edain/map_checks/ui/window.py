@@ -15,8 +15,6 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
-    QDialog,
-    QDialogButtonBox,
     QFileDialog,
     QHBoxLayout,
     QLineEdit,
@@ -25,7 +23,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QTabWidget,
-    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -57,6 +54,7 @@ from sage_utils.widgets import (
 from sage_utils.widgets import (
     SourcesPanel,
     ThemeToggle,
+    add_help_menu,
     card,
     resource_path,
     run_worker,
@@ -138,7 +136,6 @@ class EdainLinterWindow(QMainWindow):
         self.resize(1180, 820)
         self.setAcceptDrops(True)  # drop map files/folders anywhere -> the Maps tab
         self._workers: set = set()
-        self._help_dialog: QDialog | None = None
         # Baselines found under the mod, merged on Check unless the user overrides the field.
         self._auto_baselines: list = []
         self._baseline_root = None
@@ -204,46 +201,19 @@ class EdainLinterWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         """A Help menu: a getting-started walkthrough for newcomers, and an About entry."""
-        help_menu = self.menuBar().addMenu("&Help")
-        help_menu.addAction("&Getting started…", self._show_getting_started)
-        help_menu.addSeparator()
-        help_menu.addAction("&About Edain Linter", self._show_about)
-
-    def _show_getting_started(self) -> None:
-        """A scrollable, non-modal walkthrough of the basic steps to set up the Edain Linter.
-        Held on the window so it keeps its scroll position between openings."""
-        if getattr(self, "_help_dialog", None) is None:
-            self._help_dialog = self._make_help_dialog()
-        self._help_dialog.show()
-        self._help_dialog.raise_()
-        self._help_dialog.activateWindow()
-
-    def _make_help_dialog(self) -> QDialog:
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Getting started with the Edain Linter")
-        dialog.setWindowIcon(QIcon(str(resource_path(ICON_FILE, __file__))))
-        dialog.resize(560, 520)
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(16, 16, 16, 16)
-        browser = QTextBrowser()
-        browser.setOpenExternalLinks(True)
-        browser.setHtml(_GETTING_STARTED_HTML)
-        layout.addWidget(browser, 1)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        buttons.rejected.connect(dialog.close)
-        buttons.accepted.connect(dialog.close)
-        layout.addWidget(buttons)
-        return dialog
-
-    def _show_about(self) -> None:
-        QMessageBox.about(
+        add_help_menu(
             self,
-            "About Edain Linter",
-            f"<b>{APP_TITLE}</b> v{__version__}"
-            "<p>One window for checking an Edain mod: the Mod (ini) tab runs the "
-            "<code>sage_lint</code> ini checks, the Maps tab runs the Edain map checks, "
-            "and both resolve against the shared GAME DATA sources.</p>"
-            "<p>Icon art by Ludovic Bourgeois-Lefèvre.</p>",
+            guide_title="Getting started with the Edain Linter",
+            guide_html=_GETTING_STARTED_HTML,
+            about_title="About Edain Linter",
+            about_html=(
+                f"<b>{APP_TITLE}</b> v{__version__}"
+                "<p>One window for checking an Edain mod: the Mod (ini) tab runs the "
+                "<code>sage_lint</code> ini checks, the Maps tab runs the Edain map checks, "
+                "and both resolve against the shared GAME DATA sources.</p>"
+                "<p>Icon art by Ludovic Bourgeois-Lefèvre.</p>"
+            ),
+            icon=QIcon(str(resource_path(ICON_FILE, __file__))),
         )
 
     # ---------------------------------------------------------------- the Mod (ini) tab

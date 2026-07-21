@@ -51,6 +51,7 @@ from sage_utils.widgets import (
 from sage_utils.widgets import (
     SourceLoader,
     ThemeToggle,
+    add_help_menu,
     card,
     make_completer,
     resource_path,
@@ -58,6 +59,32 @@ from sage_utils.widgets import (
 )
 
 ICON_FILE = "icon.ico"
+
+# The Help ▸ Getting started walkthrough. One HTML block so QTextBrowser lays it out.
+_GETTING_STARTED_HTML = """
+<h2>Getting started with the BfMe Searcher</h2>
+<p>The BfMe Searcher lets you look up a SAGE game's object stats without launching the game -
+health, armor, damage, cost, and how a unit resolves against the game's data. Here is how to
+use it.</p>
+
+<h3>1. Load the game data</h3>
+<p>Fill the <b>SOURCES</b> panel with the game's data - folders or <code>.big</code> archives -
+then let it load. Sources load top to bottom (later overrides earlier); put the base game first,
+then any mod. For Edain specifically, the <b>Load Edain</b> button in the top bar loads the right
+archives in the right order for you. The source list is remembered for next launch.</p>
+
+<h3>2. Search for an object</h3>
+<p>Type a unit or object name in the search box; matches are offered as you type, including
+close spellings. Pick one to show its resolved stats. Open the <b>Browser</b> menu for a
+floating tree to navigate objects by faction instead of by name.</p>
+
+<h3>3. Read and compare</h3>
+<p>The panel shows the object's stats with references resolved against the loaded data. Load a
+second object to compare two side by side. <b>Extract Images</b> crops the current unit's
+command-button icons out of the texture archives.</p>
+
+<p>The theme toggle in the top bar switches dark and light mode.</p>
+"""
 
 
 class Browser(QMainWindow):
@@ -85,6 +112,19 @@ class Browser(QMainWindow):
         # A bare menu-bar action that opens the floating Object Browser window.
         browser_action = self.menuBar().addAction("Browser")
         browser_action.triggered.connect(self._open_object_browser)
+        add_help_menu(
+            self,
+            guide_title="Getting started with the BfMe Searcher",
+            guide_html=_GETTING_STARTED_HTML,
+            about_title="About BfMe Searcher",
+            about_html=(
+                f"<b>BfMe Searcher</b> v{__version__}"
+                "<p>Look up a SAGE game's object stats without launching the game: load the "
+                "data, search for a unit, and see its resolved stats - useful for balance "
+                "discussions and updating wikis.</p>"
+            ),
+            icon=QIcon(str(resource_path(ICON_FILE, __file__))),
+        )
 
         central = QWidget()
         self.setCentralWidget(central)

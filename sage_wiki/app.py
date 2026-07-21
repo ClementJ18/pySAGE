@@ -31,6 +31,7 @@ from sage_utils.textures import (
 from sage_utils.widgets import (
     SourceLoader,
     Worker,
+    add_help_menu,
     card,
     make_completer,
     resource_path,
@@ -48,6 +49,35 @@ from sage_wiki.diff import (
 )
 from sage_wiki.meta import APP_NAME, APP_TITLE, ICON_FILE, TEXTURE_SOURCES_APP
 from sage_wiki.wiki import WikiClient
+
+# The Help ▸ Getting started walkthrough. One HTML block so QTextBrowser lays it out.
+_GETTING_STARTED_HTML = """
+<h2>Getting started with the Wiki Assistant</h2>
+<p>This tool keeps Edain wiki infoboxes in sync with the mod's game data: it reads an object's
+stats from the ini files and writes them into the object's wiki page. Here is the basic loop.</p>
+
+<h3>1. Load the game data</h3>
+<p>Fill the <b>SOURCES</b> panel with the game's data - folders or <code>.big</code> archives -
+so object stats can be read. Sources load top to bottom (later overrides earlier); put the base
+game first, then the mod. The list is remembered for next launch.</p>
+
+<h3>2. Log in to the wiki</h3>
+<p>Open <b>Wiki Login</b> from the menu bar and enter your wiki credentials. Applying an edit
+needs a logged-in account; generating a diff to preview does not.</p>
+
+<h3>3. Pick a page and preview the diff</h3>
+<p>Type the object or page name, then generate the diff between the page's current infobox and
+the stats read from the sources. Review it before doing anything - nothing is written until you
+choose to apply.</p>
+
+<h3>4. Apply, or run a whole category</h3>
+<p>Apply the diff to update that one page, or use a <b>category run</b> to walk every page in one
+or more categories and update them in turn. Network calls run in the background, so the window
+stays responsive.</p>
+
+<p><b>Armor Sets</b> and <b>Version Templates</b> in the menu bar open helper dialogs for those
+specific wiki templates.</p>
+"""
 
 
 class WikiUpdater(
@@ -176,6 +206,19 @@ class WikiUpdater(
             ("&Version Templates", self.versions_dialog),
         ):
             menu_bar.addAction(label, lambda _=False, d=dialog: self._open_dialog(d))
+        add_help_menu(
+            self,
+            guide_title="Getting started with the Wiki Assistant",
+            guide_html=_GETTING_STARTED_HTML,
+            about_title="About Wiki Assistant",
+            about_html=(
+                f"<b>{APP_TITLE}</b> v{__version__}"
+                "<p>Updates Edain wiki infoboxes from parsed game data: load sources, name a "
+                "page, log in, generate the diff between its infobox and the object's stats, "
+                "and apply it.</p>"
+            ),
+            icon=QIcon(str(resource_path(ICON_FILE, __file__))),
+        )
 
     def _open_dialog(self, dialog: QDialog) -> None:
         dialog.show()

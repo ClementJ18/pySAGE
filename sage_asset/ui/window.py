@@ -34,6 +34,7 @@ from sage_utils.widgets import (
 from sage_utils.widgets import (
     ThemeToggle,
     Worker,
+    add_help_menu,
     card,
     resource_path,
     run_worker,
@@ -43,6 +44,35 @@ APP_NAME = "sage_asset"
 APP_TITLE = "SAGE Asset"
 ICON_FILE = "icon.ico"
 
+# The Help ▸ Getting started walkthrough. One HTML block so QTextBrowser lays it out.
+_GETTING_STARTED_HTML = """
+<h2>Getting started with SAGE Asset</h2>
+<p>An <code>asset.dat</code> is the index BFME2 and RotWK read at startup to find their art: a
+model or texture that is not listed in it is invisible in game even when the file is on disk.
+This window does the two things you need for a mod's asset.dat, each on its own card.</p>
+
+<h3>Build an asset.dat from your art</h3>
+<p>On the <b>Build</b> card, press <b>Browse…</b> next to <b>Art folder</b> and choose the
+folder that holds your <code>compiledtextures/</code> and <code>w3d/</code> subfolders. Pick an
+<b>Output .dat</b> path, then press <b>Build</b>. The whole art tree is scanned and the
+asset.dat it describes is written. Rebuild whenever you add or change art, or the game will not
+see the new files.</p>
+
+<h3>Combine a base and a mod asset.dat</h3>
+<p>The game loads one asset.dat, so a mod's is merged with the base game's. On the
+<b>Combine</b> card, pick the <b>Base .dat</b> (the base game's asset.dat) and the
+<b>Overlay .dat</b> (your mod's), choose an <b>Output .dat</b>, and press <b>Combine</b>. The
+two are concatenated - base first, overlay after - so the mod's entries override the base's for
+any name they share. The status line reports how many names ended up duplicated that way.</p>
+
+<h3>Good to know</h3>
+<p>Both actions run in the background, so the window stays responsive; the result and any error
+appear in the status line under each card. The theme toggle at the bottom switches dark and
+light mode. The command-line <code>sage-asset</code> tool offers the same build and combine plus
+<code>check</code> and <code>diff</code>.</p>
+<p>The asset.dat parsing this builds on is thanks to Brechstange.</p>
+"""
+
 
 class AssetWindow(QMainWindow):
     def __init__(self) -> None:
@@ -51,6 +81,8 @@ class AssetWindow(QMainWindow):
         self.setWindowIcon(QIcon(str(resource_path(ICON_FILE, __file__))))
         self.resize(760, 460)
         self._build_worker: Worker | None = None
+
+        self._build_menu()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -73,6 +105,23 @@ class AssetWindow(QMainWindow):
         footer.addStretch(1)
         footer.addWidget(ThemeToggle())
         root.addLayout(footer)
+
+    def _build_menu(self) -> None:
+        """A Help menu: a getting-started walkthrough for newcomers, and an About entry."""
+        add_help_menu(
+            self,
+            guide_title="Getting started with SAGE Asset",
+            guide_html=_GETTING_STARTED_HTML,
+            about_title="About SAGE Asset",
+            about_html=(
+                f"<b>{APP_TITLE}</b>"
+                "<p>Build an <code>asset.dat</code> from an unpacked art tree, or combine a base "
+                "game's asset.dat with a mod's overlay - the two operations the "
+                "<code>sage-asset</code> command line also exposes.</p>"
+                "<p>asset.dat parsing based on work by Brechstange.</p>"
+            ),
+            icon=QIcon(str(resource_path(ICON_FILE, __file__))),
+        )
 
     def _path_row(
         self, layout: QVBoxLayout, label: str, placeholder: str, on_browse: Callable[[], None]

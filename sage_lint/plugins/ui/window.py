@@ -10,15 +10,12 @@ from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QDialog,
-    QDialogButtonBox,
     QFileDialog,
     QHBoxLayout,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
-    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -45,6 +42,7 @@ from sage_utils.widgets import (
 from sage_utils.widgets import (
     SourcesPanel,
     ThemeToggle,
+    add_help_menu,
     card,
     resource_path,
     run_worker,
@@ -117,7 +115,6 @@ class LintWindow(QMainWindow):
         self.setWindowIcon(QIcon(str(resource_path(ICON_FILE, __file__))))
         self.resize(1180, 760)
         self._workers = set()
-        self._help_dialog: QDialog | None = None
         # Baselines found under the mod, merged on Check unless the user overrides the field.
         self._auto_baselines: list = []
         self._baseline_root = None
@@ -174,46 +171,19 @@ class LintWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         """A Help menu: a getting-started walkthrough for newcomers, and an About entry."""
-        help_menu = self.menuBar().addMenu("&Help")
-        help_menu.addAction("&Getting started…", self._show_getting_started)
-        help_menu.addSeparator()
-        help_menu.addAction("&About SAGE Lint", self._show_about)
-
-    def _show_getting_started(self) -> None:
-        """A scrollable, non-modal walkthrough of the basic steps to set up SAGE Lint. Held on
-        the window so it keeps its scroll position between openings."""
-        if getattr(self, "_help_dialog", None) is None:
-            self._help_dialog = self._make_help_dialog()
-        self._help_dialog.show()
-        self._help_dialog.raise_()
-        self._help_dialog.activateWindow()
-
-    def _make_help_dialog(self) -> QDialog:
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Getting started with SAGE Lint")
-        dialog.setWindowIcon(QIcon(str(resource_path(ICON_FILE, __file__))))
-        dialog.resize(560, 520)
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(16, 16, 16, 16)
-        browser = QTextBrowser()
-        browser.setOpenExternalLinks(True)
-        browser.setHtml(_GETTING_STARTED_HTML)
-        layout.addWidget(browser, 1)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        buttons.rejected.connect(dialog.close)
-        buttons.accepted.connect(dialog.close)
-        layout.addWidget(buttons)
-        return dialog
-
-    def _show_about(self) -> None:
-        QMessageBox.about(
+        add_help_menu(
             self,
-            "About SAGE Lint",
-            f"<b>{APP_TITLE}</b> v{__version__}"
-            "<p>A formatter and linter for SAGE ini game data. This window runs the "
-            "<code>sage_lint</code> command line in-process - point it at a mod folder, "
-            "press Check, and browse the results.</p>"
-            "<p>Icon art by Ludovic Bourgeois-Lefèvre.</p>",
+            guide_title="Getting started with SAGE Lint",
+            guide_html=_GETTING_STARTED_HTML,
+            about_title="About SAGE Lint",
+            about_html=(
+                f"<b>{APP_TITLE}</b> v{__version__}"
+                "<p>A formatter and linter for SAGE ini game data. This window runs the "
+                "<code>sage_lint</code> command line in-process - point it at a mod folder, "
+                "press Check, and browse the results.</p>"
+                "<p>Icon art by Ludovic Bourgeois-Lefèvre.</p>"
+            ),
+            icon=QIcon(str(resource_path(ICON_FILE, __file__))),
         )
 
     def _build_options_card(self) -> QWidget:

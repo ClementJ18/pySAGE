@@ -12,13 +12,18 @@ from PyQt6.QtWidgets import (
     QWIDGETSIZE_MAX,
     QApplication,
     QCompleter,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMainWindow,
+    QMessageBox,
     QPushButton,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -92,6 +97,63 @@ def card(title: str | None = None, *, spacing: int = 8) -> tuple[QFrame, QVBoxLa
         head.setObjectName("h2")
         layout.addWidget(head)
     return frame, layout
+
+
+def getting_started_dialog(
+    parent: QWidget, title: str, html: str, *, icon: QIcon | None = None
+) -> QDialog:
+    """A non-modal, scrollable dialog showing `html` (rich text with working external links).
+    Built once and reused by `add_help_menu`, which caches it on the window so it keeps its
+    scroll position between openings."""
+    dialog = QDialog(parent)
+    dialog.setWindowTitle(title)
+    if icon is not None:
+        dialog.setWindowIcon(icon)
+    dialog.resize(560, 520)
+    layout = QVBoxLayout(dialog)
+    layout.setContentsMargins(16, 16, 16, 16)
+    browser = QTextBrowser()
+    browser.setOpenExternalLinks(True)
+    browser.setHtml(html)
+    layout.addWidget(browser, 1)
+    buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+    buttons.rejected.connect(dialog.close)
+    buttons.accepted.connect(dialog.close)
+    layout.addWidget(buttons)
+    return dialog
+
+
+def add_help_menu(
+    window: QMainWindow,
+    *,
+    guide_title: str,
+    guide_html: str,
+    about_title: str,
+    about_html: str,
+    icon: QIcon | None = None,
+) -> None:
+    """Add a `&Help` menu to `window`: a "Getting started…" walkthrough of the basics and an
+    About entry - the standard help affordance every SAGE desktop app carries, so a newcomer
+    can always find out what the window does and how to drive it. The walkthrough dialog is
+    created on first use and cached on the window, so it keeps its scroll position across
+    openings."""
+    menu = window.menuBar().addMenu("&Help")
+
+    def show_guide() -> None:
+        dialog = getattr(window, "_help_dialog", None)
+        if dialog is None:
+            dialog = getting_started_dialog(window, guide_title, guide_html, icon=icon)
+            window._help_dialog = dialog
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def show_about() -> None:
+        QMessageBox.about(window, about_title, about_html)
+
+    menu.addAction("&Getting started…", show_guide)
+    menu.addSeparator()
+    menu.addAction(f"&{about_title}", show_about)
 
 
 def pil_to_pixmap(picture) -> QPixmap:

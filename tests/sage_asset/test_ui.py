@@ -13,7 +13,7 @@ pytestmark = pytest.mark.full
 
 pytest.importorskip("PyQt6", reason="the [asset-ui] extra (PyQt6) is not installed")
 
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PyQt6.QtWidgets import QApplication, QMenu  # noqa: E402
 
 from sage_asset.assetdat import AssetDat, FileEntry, write_asset_dat_to_path  # noqa: E402
 from sage_asset.ui.window import AssetWindow  # noqa: E402
@@ -42,6 +42,13 @@ def test_combine_card_has_its_key_widgets(window):
     assert window.overlay_field.placeholderText()
     assert window.combine_out_field.placeholderText()
     assert window.combine_button.text() == "Combine"
+
+
+def test_window_has_a_help_menu_with_getting_started(window):
+    help_menu = next(m for m in window.menuBar().findChildren(QMenu) if m.title() == "&Help")
+    labels = [action.text() for action in help_menu.actions() if action.text()]
+    assert "&Getting started…" in labels
+    assert "&About SAGE Asset" in labels
 
 
 def test_combine_writes_result_and_reports_duplicate_count(window, tmp_path):
