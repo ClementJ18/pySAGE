@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pysage-tools"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python tools for the data formats of the SAGE engine (Battle for Middle-earth): ini game data, binary maps, replays, and UI movies."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -19,6 +19,7 @@ re-save a map identical to the original file on disk, whichever backend runs.
 
 import sys
 import warnings
+from array import array
 from collections.abc import Callable
 
 __all__ = ["compress", "decompress", "RefpackError", "RefpackPerformanceWarning"]
@@ -115,6 +116,11 @@ def _decompress_body(data: bytes, pos: int, unpacked_size: int) -> bytes:
             break
     except IndexError as exc:
         raise RefpackError("RefPack stream ends mid-command") from exc
+    if di != unpacked_size or len(out) != unpacked_size:
+        raise RefpackError(
+            f"RefPack stream decoded to {di} bytes (buffer length {len(out)}), "
+            f"expected the declared {unpacked_size}"
+        )
     return bytes(out)
 
 
@@ -125,6 +131,11 @@ def _copy_ref(out: bytearray, di: int, distance: int, length: int) -> int:
     is how RefPack encodes runs, so each chunk must only pull from bytes already
     written, in chunks no larger than `distance` to keep every slice copy correct.
     """
+    if distance > di:
+        raise RefpackError(
+            "RefPack back-reference reaches before the start of the output "
+            f"(distance {distance} at output offset {di})"
+        )
     ref = di - distance
     if distance >= length:
         out[di : di + length] = out[ref : ref + length]
@@ -146,6 +157,10 @@ def compress(data: bytes) -> bytes:
     otherwise the pure-Python compressor, warning once. Both produce byte-identical
     output, so the choice never changes the bytes on disk - only the speed.
     """
+    # Checked here, ahead of the native DLL, because the DLL writes a 3-byte size
+    # field and would silently truncate an oversized input instead of rejecting it.
+    if len(data) > 0xFFFFFF:
+        raise RefpackError(f"input too large for a 3-byte RefPack size field: {len(data)} bytes")
     if data:
         native = _native_compressor()
         if native is not None:
@@ -175,9 +190,11 @@ def _native_compressor() -> Callable[[bytes], bytes] | None:
     """Return a working native `compress_data` callable, or None (probed once).
 
     The `reversebox` package wraps EA's reference codec as a compiled DLL. We accept it
-    only if a self-test round-trip through our own decompressor reproduces the input, so
-    a missing package or an unloadable DLL (the bundled build is Windows-only) degrades
-    transparently to the pure-Python path.
+    only if a self-test shows it emits the same bytes as the pure-Python compressor for
+    the same input - a round-trip alone isn't enough, since a backend that decompresses
+    fine but encodes differently would break the byte-identical-output contract. A
+    missing package, an unloadable DLL (the bundled build is Windows-only), or a failed
+    parity check all degrade transparently to the pure-Python path.
     """
     global _native_probed, _native_compress_fn
     if _native_probed:
@@ -193,7 +210,7 @@ def _native_compressor() -> Callable[[bytes], bytes] | None:
     handler = RefpackHandler()
     probe = b"RefPack native backend self-test probe " * 4
     try:
-        ok = decompress(handler.compress_data(probe)) == probe
+        ok = handler.compress_data(probe) == _compress_pure(probe)
     except Exception as exc:  # noqa: BLE001 - any native failure must fall back safely
         _warn_fallback(f"the native accelerator is not usable ({exc})")
         return None
@@ -220,24 +237,21 @@ def _warn_fallback(reason: str) -> None:
     )
 
 
-def _hash3(data: bytes, i: int, n: int) -> int:
-    # Any pure function of the 3 bytes at i is fine: hash collisions are filtered
-    # downstream by the match-length check, so this need not be a "good" hash.
-    a = data[i]
-    b = data[i + 1] if i + 1 < n else 0
-    c = data[i + 2] if i + 2 < n else 0
-    return ((a << 8) ^ (b << 4) ^ c) & 0xFFFF
-
-
-def _matchlen(data: bytes, s: int, d: int, maxmatch: int) -> int:
+def _matchlen(data: bytes, s: int, d: int, maxmatch: int, lo: int = 0) -> int:
     """Length of the common prefix of `data[s:]` and `data[d:]`, capped at `maxmatch`.
 
     Binary search over slice comparisons: since a matching prefix of length L implies
     every shorter prefix also matches, the match/mismatch outcome is monotonic in the
     tried length, so bisecting finds the exact boundary in O(log maxmatch) memcmp-speed
     comparisons instead of a byte-at-a-time Python loop.
+
+    `lo` seeds the search with a prefix length already known to match (e.g. from a
+    cheaper probe by the caller), skipping the low end of the search; it's clamped to
+    `maxmatch` so the result never exceeds the cap even when the known prefix is longer
+    than `maxmatch` allows.
     """
-    lo, hi = 0, maxmatch
+    lo = min(lo, maxmatch)
+    hi = maxmatch
     while lo < hi:
         mid = (lo + hi + 1) // 2
         if data[s : s + mid] == data[d : d + mid]:
@@ -252,6 +266,21 @@ def _compress_body(data: bytes) -> bytes:
     out = bytearray()
     hashtbl = [-1] * 65536
     link = [-1] * MAX_WINDOW
+    MASK = MAX_WINDOW - 1
+
+    # Any pure function of 3 bytes is fine: hash collisions are filtered downstream
+    # by the match-length check, so this need not be a "good" hash. Every position's
+    # hash is precomputed once up front - a single array lookup per chain insertion -
+    # rather than recomputed on each of the many times a position is touched; z1/z2
+    # are data shifted left by one/two bytes with zero padding, reproducing the same
+    # zero-past-the-end reads as looking up bytes i+1/i+2 near the tail of data.
+    z1 = data[1:] + b"\x00"
+    z2 = data[2:] + b"\x00\x00"
+    # For inputs shorter than the 3-byte hash width the padding leaves z1/z2 longer
+    # than data, so zip is deliberately not strict: it stops at data's length.
+    hashes = array(
+        "H", (((a << 8) ^ (b << 4) ^ c) & 0xFFFF for a, b, c in zip(data, z1, z2, strict=False))
+    )
 
     run = 0
     cptr = 0
@@ -270,19 +299,28 @@ def _compress_body(data: bytes) -> bytes:
         # otherwise byte-identical up to the last command on every map fixture).
         mlen = min(remaining - 4, MAX_MATCH)
 
-        hash_ = _hash3(data, cptr, n)
+        hash_ = hashes[cptr]
         hoffset = hashtbl[hash_]
         minhoffset = max(cptr - (MAX_WINDOW - 1), 0)
 
         if hoffset >= minhoffset:
+            ci = cptr + blen
             while True:
                 tptr = hoffset
-                ci = cptr + blen
-                # A candidate can only improve on blen if it agrees with the current
-                # best at index blen; reading past the input can never satisfy that
-                # (matchlen is bounded by mlen <= remaining), so treat it as a miss.
-                if ci < n and data[ci] == data[tptr + blen]:
-                    tlen = _matchlen(data, cptr, tptr, mlen)
+                # A candidate can only improve on blen if it matches the current best on
+                # every byte through index blen, so it is probed in two stages, cheapest
+                # first: a single-byte check at index blen (which rejects almost every
+                # candidate at O(1)), then one slice compare over the rest of the prefix.
+                # Only a candidate that passes both - guaranteed to beat blen - pays for
+                # the binary search, seeded with the prefix already known to match.
+                # Reading past the input can never satisfy the probe (matchlen is bounded
+                # by mlen <= remaining), so it's treated as a miss, like a value mismatch.
+                if (
+                    ci < n
+                    and data[ci] == data[tptr + blen]
+                    and data[cptr:ci] == data[tptr : tptr + blen]
+                ):
+                    tlen = _matchlen(data, cptr, tptr, mlen, blen + 1)
                     if tlen > blen:
                         toffset = (cptr - 1) - tptr
                         if toffset < 1024 and tlen <= 10:
@@ -293,14 +331,19 @@ def _compress_body(data: bytes) -> bytes:
                             tcost = 4
                         if tlen - tcost > blen - bcost:
                             blen, bcost, boffset = tlen, tcost, toffset
-                            if blen >= MAX_MATCH:
+                            ci = cptr + blen
+                            # Once the best match hits the per-position cap, every
+                            # later candidate is measured against the same cap and so
+                            # can never come back longer - further chain links can
+                            # only tie or lose, so the walk stops here.
+                            if blen >= mlen:
                                 break
-                hoffset = link[hoffset & (MAX_WINDOW - 1)]
+                hoffset = link[hoffset & MASK]
                 if hoffset < minhoffset:
                     break
 
         if bcost >= blen:
-            link[cptr & (MAX_WINDOW - 1)] = hashtbl[hash_]
+            link[cptr & MASK] = hashtbl[hash_]
             hashtbl[hash_] = cptr
             run += 1
             cptr += 1
@@ -331,11 +374,11 @@ def _compress_body(data: bytes) -> bytes:
             out += data[rptr : rptr + run]
             run = 0
 
-        for _ in range(blen):
-            hash_ = _hash3(data, cptr, n)
-            link[cptr & (MAX_WINDOW - 1)] = hashtbl[hash_]
-            hashtbl[hash_] = cptr
-            cptr += 1
+        for i in range(cptr, cptr + blen):
+            h = hashes[i]
+            link[i & MASK] = hashtbl[h]
+            hashtbl[h] = i
+        cptr += blen
 
         rptr = cptr
         remaining -= blen
