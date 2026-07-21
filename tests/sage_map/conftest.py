@@ -4,6 +4,8 @@ import io
 import json
 from pathlib import Path
 
+import pytest
+
 from sage_map.context import ParsingContext, WritingContext
 from sage_utils.stream import BinaryStream
 
@@ -19,6 +21,22 @@ def load_asset_bytes(asset_name: str) -> bytes:
     """
     data_dir = Path(__file__).parent / "fixtures"
     asset_path = data_dir / asset_name
+    return asset_path.read_bytes()
+
+
+def require_asset(asset_name: str) -> bytes:
+    """Asset bytes for `asset_name`, or skip when its fixture is not present.
+
+    A test needs both the raw asset (fixtures/<name>) and its asset list
+    (fixtures/asset_lists/<name>.assets); if either is missing the test skips,
+    so it self-enables the moment both fixtures are added - unlike a hard skip
+    mark, which stays skipped even once the data exists.
+    """
+    fixtures = Path(__file__).parent / "fixtures"
+    asset_path = fixtures / asset_name
+    assets_path = fixtures / "asset_lists" / f"{asset_name}.assets"
+    if not asset_path.is_file() or not assets_path.is_file():
+        pytest.skip(f"no {asset_name} fixture present")
     return asset_path.read_bytes()
 
 

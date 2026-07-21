@@ -1,16 +1,13 @@
 """Test GlobalVersion asset parsing."""
 
-import pytest
-
 from sage_map.assets import GlobalVersion
 
-from .conftest import create_context, create_writing_context, load_asset_bytes
+from .conftest import create_context, create_writing_context, require_asset
 
 
-@pytest.mark.skip(reason="No test data available for AssetList yet")
 def test_global_version():
     """Test GlobalVersion asset parsing."""
-    asset_bytes = load_asset_bytes("GlobalVersion")
+    asset_bytes = require_asset("GlobalVersion")
 
     context = create_context(asset_bytes, "GlobalVersion")
     result = GlobalVersion.parse(context)
@@ -18,10 +15,9 @@ def test_global_version():
     assert hasattr(result, "version")
 
 
-@pytest.mark.skip(reason="No test data available for AssetList yet")
 def test_global_version_write():
     """Test GlobalVersion asset writing."""
-    asset_bytes = load_asset_bytes("GlobalVersion")
+    asset_bytes = require_asset("GlobalVersion")
 
     # Parse the asset
     parse_context = create_context(asset_bytes, "GlobalVersion")

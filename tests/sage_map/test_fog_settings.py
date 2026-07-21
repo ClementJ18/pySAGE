@@ -1,16 +1,13 @@
 """Test FogSettings asset parsing."""
 
-import pytest
-
 from sage_map.assets import FogSettings
 
-from .conftest import create_context, create_writing_context, load_asset_bytes
+from .conftest import create_context, create_writing_context, require_asset
 
 
-@pytest.mark.skip(reason="No test data available")
 def test_fog_settings():
     """Test FogSettings asset parsing."""
-    asset_bytes = load_asset_bytes("FogSettings")
+    asset_bytes = require_asset("FogSettings")
 
     context = create_context(asset_bytes, "FogSettings")
     result = FogSettings.parse(context)
@@ -18,10 +15,9 @@ def test_fog_settings():
     assert hasattr(result, "version")
 
 
-@pytest.mark.skip(reason="No test data available")
 def test_fog_settings_write():
     """Test FogSettings asset writing."""
-    asset_bytes = load_asset_bytes("FogSettings")
+    asset_bytes = require_asset("FogSettings")
 
     # Parse the asset
     parse_context = create_context(asset_bytes, "FogSettings")

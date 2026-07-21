@@ -9,6 +9,7 @@ from sage_ini.parser.diagnostics import Diagnostics, Severity
 from sage_ini.suggest import suggestions_enabled
 from sage_lint.linter import lint_folder, lint_game
 from sage_lint.ruleconfig import rule_options
+from sage_lint.rules.asset_dat import AssetDatMissingModelRule, AssetDatMissingTextureRule
 from sage_lint.rules.assets import (
     MapFolderNameRule,
     MissingMapFileRule,
@@ -753,6 +754,81 @@ class TestMissingAssetFileRule:
         game = self._map_game("my_base", "my_map", [])
         game.assets = {"sometexture.tga"}
         assert not list(run_rules(game, _ASSET_RULES))
+
+
+_ASSET_DAT_RULES = [AssetDatMissingModelRule, AssetDatMissingTextureRule]
+
+
+class TestAssetDatMissingRule:
+    # A tree object whose draw module names a model and a texture file - same shape as
+    # TestMissingAssetFileRule's fixture, checked against asset.dat membership instead of a
+    # loose-file crawl.
+    def _tree(self, model: str, texture: str) -> str:
+        return (
+            "Object Tree\n    Draw = W3DTreeDraw ModuleTag_01\n"
+            f"        ModelName = {model}\n        TextureName = {texture}\n"
+            "    End\nEnd\n"
+        )
+
+    def _game(self, model: str, texture: str, asset_dat_names: set[str]) -> Game:
+        game = _load(self._tree(model, texture))
+        game.asset_dat_names = asset_dat_names
+        return game
+
+    def test_flags_a_model_and_texture_absent_from_the_asset_dat(self):
+        game = self._game("AMissingTree", "AMissingTree", {"someothertree.w3d"})
+        diags = list(run_rules(game, _ASSET_DAT_RULES))
+
+        assert {d.code for d in diags} == {
+            "asset-dat-missing-model",
+            "asset-dat-missing-texture",
+        }
+        assert all(d.severity is Severity.WARNING for d in diags)
+        assert {d.extra["kind"] for d in diags} == {"model", "texture"}
+
+    def test_each_kind_has_its_own_code(self):
+        assert AssetDatMissingModelRule.code == "asset-dat-missing-model"
+        assert AssetDatMissingTextureRule.code == "asset-dat-missing-texture"
+        # Each rule only reports its own kind: the model rule alone leaves the texture miss.
+        game = self._game("AMissingTree", "AMissingTree", {"someothertree.w3d"})
+        model_only = list(run_rules(game, [AssetDatMissingModelRule]))
+        assert [d.extra["kind"] for d in model_only] == ["model"]
+
+    def test_does_not_flag_a_model_and_texture_present_in_the_asset_dat(self):
+        game = self._game("ATree", "ATree.tga", {"atree.w3d", "atree.tga"})
+        assert not list(run_rules(game, _ASSET_DAT_RULES))
+
+    def test_resolves_case_insensitively(self):
+        game = self._game("ATree", "ATree.TGA", {"atree.w3d", "atree.tga"})
+        assert not list(run_rules(game, _ASSET_DAT_RULES))
+
+    def test_a_dds_entry_satisfies_a_texture_reference(self):
+        # A normally-built asset.dat always names a texture entry stem.tga even when the source
+        # was a .dds, but a hand-built or hand-edited one may index the .dds name directly -
+        # both are accepted, mirroring the on-disk texture rule's tolerance.
+        game = self._game("ATree", "ATree", {"atree.w3d", "atree.dds"})
+        assert not list(run_rules(game, _ASSET_DAT_RULES))
+
+    def test_skips_the_none_sentinel(self):
+        game = self._game("NONE", "NONE", {"atree.w3d"})
+        assert not list(run_rules(game, _ASSET_DAT_RULES))
+
+    def test_skips_an_angle_bracket_sentinel(self):
+        game = self._game("<ANY>", "<ANY>", {"atree.w3d"})
+        assert not list(run_rules(game, _ASSET_DAT_RULES))
+
+    def test_skipped_when_no_asset_dat_provided(self):
+        # Empty asset_dat_names means no --asset-dat was given: flagging every reference would
+        # flood the report, so both rules stay silent even though the refs are missing.
+        game = self._game("AMissingTree", "AMissingTree", set())
+        assert not list(run_rules(game, _ASSET_DAT_RULES))
+
+    def test_opt_in_so_skipped_by_a_default_run(self):
+        assert all(not rule.default for rule in _ASSET_DAT_RULES)
+        game = self._game("AMissingTree", "AMissingTree", {"someothertree.w3d"})
+        codes = {"asset-dat-missing-model", "asset-dat-missing-texture"}
+        assert not ({d.code for d in run_rules(game)} & codes)  # default run: none
+        assert {d.code for d in run_rules(game, _ASSET_DAT_RULES)} & codes  # explicit: fired
 
 
 class TestMapFolderNameRule:

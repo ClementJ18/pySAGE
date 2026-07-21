@@ -1,5 +1,6 @@
 """Lint rules. Importing this package registers the concrete rules in `RULES`."""
 
+from sage_lint.rules.asset_dat import AssetDatMissingModelRule, AssetDatMissingTextureRule
 from sage_lint.rules.assets import (
     MapFolderNameRule,
     MissingMapFileRule,
@@ -31,6 +32,8 @@ from sage_lint.rules.strings import MapLocalStringRule, UnknownStringLabelRule
 
 __all__ = [
     "RULES",
+    "AssetDatMissingModelRule",
+    "AssetDatMissingTextureRule",
     "CommandSetButtonRule",
     "DanglingAssetReferenceRule",
     "DanglingReferenceRule",

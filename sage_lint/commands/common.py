@@ -134,16 +134,26 @@ def _selected_rules(selected: set[str]) -> list[type] | None:
     return [rule for rule in RULES if rule.code in selected]
 
 
-def resolve_rule_set(selected: set[str], include_assets: bool) -> list[type] | None:
+def resolve_rule_set(
+    selected: set[str], include_assets: bool, extra_codes: set[str] = frozenset()
+) -> list[type] | None:
     """The rules a run executes. An explicit `--select` wins (opt-in rules run when named). With
     no selection, `--assets` (or config `assets`) adds the asset-group opt-in rules to the default
     set; otherwise None lets `run_rules` use the plain default set. A non-asset opt-in rule (e.g.
-    unused-object) is never pulled in by `--assets` - only naming it in `--select` runs it."""
+    unused-object) is never pulled in by `--assets` - only naming it in `--select` runs it.
+
+    `extra_codes` names rule codes that must run regardless of `selected`/`include_assets` - for
+    `--asset-dat`, an unambiguous request to run the asset-dat-membership rules even on a plain
+    run with neither `--select` nor `--assets` given."""
     if selected:
-        return _selected_rules(selected)
-    if include_assets:
-        return [rule for rule in RULES if rule.default or rule.assets]
-    return None
+        return _selected_rules(selected | extra_codes)
+    if not include_assets and not extra_codes:
+        return None
+    return [
+        rule
+        for rule in RULES
+        if rule.default or (include_assets and rule.assets) or rule.code in extra_codes
+    ]
 
 
 def select_and_summarize(

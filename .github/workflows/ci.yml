@@ -96,11 +96,24 @@ jobs:
       - name: Install the package with extras
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[ui,wiki,lint-ui,edain-ui,apt]"
+          pip install -e ".[ui,wiki,lint-ui,edain-ui,apt,asset-ui]"
           pip install pytest
 
+      # `shell: bash` runs on every runner (Windows included) with `-eo pipefail`, so a
+      # pytest failure propagates through the `tee` pipe below.
       - name: Full test suite
-        run: pytest -q --full
+        shell: bash
+        run: |
+          pytest -q --full -rs | tee pytest-full.log
+          # Every optional-dependency guard (`importorskip`) names an extra in its skip
+          # reason; the game-data corpus skips never contain the word "extra". With all
+          # extras installed above, a skip that names one means a dependency is missing
+          # from this job - fail loudly rather than silently not running its suite. (grep
+          # inside the `if` condition is exempt from `-e`, so no-match is not an error.)
+          if grep -E "^SKIPPED.*extra" pytest-full.log; then
+            echo "::error::A test skipped for a missing optional dependency (see above); add it to the extras installed in this job."
+            exit 1
+          fi
 
   # A wheel is not the source tree: package data must be declared to ship, and the console
   # scripts have to work from an installed distribution rather than from the checkout.
@@ -132,14 +145,14 @@ jobs:
       # with the pip command to fix it, rather than a bare ModuleNotFoundError traceback.
       - name: Console scripts work without extras
         run: |
-          for script in sage-lint sage-ini sage-edain sage-replay sage-apt sage-save sage-map; do
+          for script in sage-lint sage-ini sage-edain sage-replay sage-apt sage-save sage-map sage-asset; do
             echo "== $script"
             /tmp/wheelenv/bin/$script --help > /dev/null
           done
 
       - name: Desktop scripts explain the missing extra
         run: |
-          for script in sage-ui sage-wiki sage-lint-ui sage-edain-lint; do
+          for script in sage-ui sage-wiki sage-lint-ui sage-edain-lint sage-asset-ui; do
             echo "== $script"
             if /tmp/wheelenv/bin/$script > /tmp/out.txt 2>&1; then
               echo "expected a non-zero exit without the extra installed"; exit 1

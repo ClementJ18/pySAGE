@@ -59,6 +59,13 @@ class TestLoadConfig:
         )
         assert load_config(tmp_path).assets_base == ["textures2.big", "textures3.big"]
 
+    def test_reads_the_asset_dat_list_key(self, tmp_path):
+        assert load_config(tmp_path).asset_dat == []  # default empty
+        (tmp_path / ".sagelint").write_text(
+            'asset_dat = ["asset.dat", "base/asset.dat"]\n', encoding="utf-8"
+        )
+        assert load_config(tmp_path).asset_dat == ["asset.dat", "base/asset.dat"]
+
     def test_maps_defaults_off_and_can_be_enabled(self, tmp_path):
         assert load_config(tmp_path).maps is False  # default: maps not linted
         (tmp_path / ".sagelint").write_text("maps = true\n", encoding="utf-8")

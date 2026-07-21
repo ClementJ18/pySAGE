@@ -1,26 +1,22 @@
 """Test AssetList asset parsing."""
 
-import pytest
-
 from sage_map.assets import AssetList
 
-from .conftest import create_context, create_writing_context, load_asset_bytes
+from .conftest import create_context, create_writing_context, require_asset
 
 
-@pytest.mark.skip(reason="No test data available for AssetList yet")
 def test_asset_list():
     """Test AssetList asset parsing."""
-    asset_bytes = load_asset_bytes("AssetList")
+    asset_bytes = require_asset("AssetList")
 
     context = create_context(asset_bytes, "AssetList")
     result = AssetList.parse(context)
     assert result is not None
 
 
-@pytest.mark.skip(reason="No test data available for AssetList yet")
 def test_asset_list_write():
     """Test AssetList asset writing."""
-    asset_bytes = load_asset_bytes("AssetList")
+    asset_bytes = require_asset("AssetList")
 
     # Parse the asset
     parse_context = create_context(asset_bytes, "AssetList")

@@ -1,16 +1,13 @@
 """Test MissionHotSpots asset parsing."""
 
-import pytest
-
 from sage_map.assets import MissionHotSpots
 
-from .conftest import create_context, create_writing_context, load_asset_bytes
+from .conftest import create_context, create_writing_context, require_asset
 
 
-@pytest.mark.skip(reason="No test data available")
 def test_mission_hotspots():
     """Test MissionHotSpots asset parsing."""
-    asset_bytes = load_asset_bytes("MissionHotSpots")
+    asset_bytes = require_asset("MissionHotSpots")
 
     context = create_context(asset_bytes, "MissionHotSpots")
     result = MissionHotSpots.parse(context)
@@ -19,10 +16,9 @@ def test_mission_hotspots():
     assert hasattr(result, "mission_hotspots")
 
 
-@pytest.mark.skip(reason="No test data available")
 def test_mission_hotspots_write():
     """Test MissionHotSpots asset writing."""
-    asset_bytes = load_asset_bytes("MissionHotSpots")
+    asset_bytes = require_asset("MissionHotSpots")
 
     # Parse the asset
     parse_context = create_context(asset_bytes, "MissionHotSpots")

@@ -1,7 +1,8 @@
 """APT texture resolver: cropping `image` characters out of an atlas (Phase 6.4).
 
-Needs Pillow (the `[apt]`/`[ui]` extra); skipped cleanly when absent. Uses a synthetic
-in-memory atlas and a stub source, so no game files are required."""
+Needs Pillow and pyBIG (the `[ui]` extra); skipped cleanly when either is absent - the
+resolver imports Pillow directly and pulls in pyBIG through `sage_utils.textures`. Uses a
+synthetic in-memory atlas and a stub source, so no game files are required."""
 
 import base64
 import io
@@ -9,7 +10,8 @@ import io
 import pytest
 
 pytest.importorskip("PIL", reason="the [apt]/[ui] extra (Pillow) is not installed")
-from PIL import Image  # noqa: E402 - after the importorskip guard
+pytest.importorskip("pyBIG", reason="the [apt]/[ui] extra (pyBIG) is not installed")
+from PIL import Image  # noqa: E402 - after the importorskip guards
 
 from sage_apt.imagemap import parse_image_map  # noqa: E402
 from sage_apt.textures import AptTextureResolver, build_resolver  # noqa: E402

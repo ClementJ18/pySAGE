@@ -22,6 +22,7 @@ subproject has its own README with the details; this page is the map.
 | Project | What it is |
 | --- | --- |
 | [`sage_map`](sage_map/README.md) | Reader/writer for BFME `.map` files, plus a game-aware overlay that resolves script arguments and object references and lints maps. |
+| [`sage_asset`](sage_asset/README.md) | Reader/writer, builder and combiner for `asset.dat`, the BFME2/RotWK art cache index - parse, build one from an art tree, merge a base with a mod overlay, and check it against the art on disk. |
 | [`sage_replay`](sage_replay/README.md) | Reader for SAGE replay files (Generals `.rep`, BFME / BFME2 / RotWK) - the recorded order stream, decoded into build orders, APM and command timing. |
 | [`sage_apt`](sage_apt/README.md) | Converter, viewer and editor for `.apt` UI movies (the Flash-derived format behind BFME's menus and HUD). **Work in progress**, not yet fully functional. |
 
@@ -53,6 +54,7 @@ pip install "pysage-tools[ui]"       # + the PyQt6 desktop apps (sage-ui)
 pip install "pysage-tools[wiki]"     # + the wiki updater
 pip install "pysage-tools[edain-ui]" # + the Edain Linter desktop app
 pip install "pysage-tools[apt]"      # + reading .const/.apt out of .big archives
+pip install "pysage-tools[asset-ui]" # + the SAGE Asset desktop app (build/combine asset.dat)
 ```
 
 From a clone, for development, swap the name for an editable install of the checkout:
@@ -61,15 +63,17 @@ From a clone, for development, swap the name for an editable install of the chec
 pip install -e ".[ui]"
 ```
 
-The extras (`ui`, `lint-ui`, `wiki`, `edain-ui`, `apt`) pull in the optional dependencies each
-peripheral tool needs. The ini, map and replay layers are stdlib-only and always ship, so no
-extra is needed to parse, lint or diff a map. The one non-optional dependency is `reversebox` on
+The extras (`ui`, `lint-ui`, `wiki`, `edain-ui`, `apt`, `asset-ui`) pull in the optional
+dependencies each peripheral tool needs. The ini, map, replay and asset layers are stdlib-only and
+always ship, so no extra is needed to parse, lint or diff a map, or to build and combine an
+asset.dat from the command line. The one non-optional dependency is `reversebox` on
 Windows, the native RefPack compressor that makes saving large maps fast (its DLL is Windows-only,
 so other platforms use the byte-identical pure-Python compressor).
 
 Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-edain`,
-`sage-replay`, `sage-apt` (and the GUI scripts `sage-ui`, `sage-wiki`, `sage-lint-ui`,
-`sage-edain-lint` - the Edain Linter, which combines the ini and map checks in one window).
+`sage-replay`, `sage-apt`, `sage-map`, `sage-save`, `sage-asset` (and the GUI scripts `sage-ui`,
+`sage-wiki`, `sage-lint-ui`, `sage-edain-lint` - the Edain Linter, which combines the ini and map
+checks in one window - and `sage-asset-ui`, the SAGE Asset builder/combiner window).
 
 ## Tests
 

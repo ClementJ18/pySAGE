@@ -10,7 +10,7 @@ import pytest
 
 pytestmark = pytest.mark.full
 
-pytest.importorskip("PyQt6")
+pytest.importorskip("PyQt6", reason="the [ui] extra (PyQt6) is not installed")
 
 from PyQt6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
 

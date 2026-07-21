@@ -166,6 +166,7 @@ def lint_file(
     path: str | Path,
     include_root: str | Path | None = None,
     rules: Iterable[type[Rule]] | None = None,
+    asset_dat_names: frozenset[str] = frozenset(),
 ) -> Diagnostics:
     """Lint a single file in isolation: parse it (expanding includes) and build just that
     file into a fresh game, then report its parse, conversion, and rule diagnostics.
@@ -175,7 +176,8 @@ def lint_file(
     references to definitions defined elsewhere cannot resolve and may surface here as
     conversion/reference diagnostics; those are only authoritative under `lint_folder`.
     Includes resolve against `include_root` (the project root), defaulting to the file's
-    own directory.
+    own directory. `asset_dat_names` seeds `Game.asset_dat_names` (the file-entry names read
+    from any `--asset-dat` source) before the rules run.
     """
     path = Path(path)
     base = Path(include_root) if include_root is not None else path.parent
@@ -184,6 +186,7 @@ def lint_file(
     diagnostics = Diagnostics()
     diagnostics.items.extend(result.diagnostics.items)
     game = Game()
+    game.asset_dat_names.update(asset_dat_names)
     try:
         game.load_document(result.document)
     except (ValueError, KeyError, TypeError, IndexError) as exc:
@@ -301,6 +304,7 @@ def build_cache(
     exclude: tuple[str | Path, ...] = (),
     bases: tuple[tuple[str, str], ...] = (),
     manifest: str | Path | None = None,
+    asset_dat_names: frozenset[str] = frozenset(),
 ) -> tuple[Game, Diagnostics, BaseLayer | None]:
     """Assemble the game under `root` and return it, its full-folder diagnostics, and the
     `BaseLayer` (or None) the bases merged into.
@@ -318,16 +322,21 @@ def build_cache(
     are excluded from the report the same way a real base layer is. **Documented limitation**: a
     mod whose inis `#include` base-game files still needs a real base - a manifest carries
     symbols, not include text - so `include_bases` stays empty in this path. May raise
-    `ManifestError` (propagated, not caught here)."""
+    `ManifestError` (propagated, not caught here).
+
+    `asset_dat_names` seeds `Game.asset_dat_names` (the file-entry names read from any
+    `--asset-dat` source) before the rules run, so the asset-dat-membership rules see it."""
     excluded = tuple(Path(directory).resolve() for directory in exclude)
     base_layer = _prepare_base(root, bases)
     try:
         if base_layer is None:
             if manifest is not None:
                 loaded, vroot = _load_with_manifest(root, manifest)
+                loaded.game.asset_dat_names.update(asset_dat_names)
                 diagnostics = lint_game(loaded, rules, (*exclude, vroot))
             else:
                 loaded = load_game(root)
+                loaded.game.asset_dat_names.update(asset_dat_names)
                 diagnostics = lint_game(loaded, rules, exclude)
             include_bases: tuple[Path, ...] = ()
         else:
@@ -336,6 +345,7 @@ def build_cache(
             # never reaches the asset index - a mod reference to a base-game texture would look
             # missing. Index those names directly: crawl a folder base, read a .big's entry list.
             loaded.game.assets.update(_base_asset_names(bases))
+            loaded.game.asset_dat_names.update(asset_dat_names)
             diagnostics = lint_game(loaded, rules, (*exclude, base_layer.root))
             include_bases = (base_layer.include_root,)
 
@@ -380,11 +390,14 @@ def lint_folder(
     exclude: tuple[str | Path, ...] = (),
     bases: tuple[tuple[str, str], ...] = (),
     manifest: str | Path | None = None,
+    asset_dat_names: frozenset[str] = frozenset(),
 ) -> Diagnostics:
     """Assemble the game under `root` and report its problems (see `build_cache`, including what
-    `manifest` does). A one-shot: the base layer is removed before returning, since nothing
-    re-lints against it afterwards."""
-    game, diagnostics, base_layer = build_cache(root, rules, exclude, bases, manifest)
+    `manifest` and `asset_dat_names` do). A one-shot: the base layer is removed before returning,
+    since nothing re-lints against it afterwards."""
+    game, diagnostics, base_layer = build_cache(
+        root, rules, exclude, bases, manifest, asset_dat_names
+    )
     if base_layer is not None:
         base_layer.cleanup()
     return diagnostics

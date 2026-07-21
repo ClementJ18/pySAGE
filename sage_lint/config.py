@@ -17,8 +17,11 @@ this way), `always_referenced` (definition kinds - block type names like `Player
 unused-definition rule never flags, for kinds reached in ways the ini graph cannot see),
 `ignore`, `select`, `exclude`, `base`,
 `assets_base` (extra base sources loaded only when `assets` is on - the large texture/model
-archives only those rules need; mirrors --assets-base), and `maps_base` (extra base sources loaded
-only when `maps` is on; mirrors --maps-base). The `format`
+archives only those rules need; mirrors --assets-base), `maps_base` (extra base sources loaded
+only when `maps` is on; mirrors --maps-base), and `asset_dat` (asset.dat files whose entries the
+asset-dat-membership rules check model/texture references against - a path or list of paths
+resolved relative to the config file, mirrors --asset-dat; setting it turns those two rules on
+just as the flag does). The `format`
 command reads two more: `align_equals` (a bool, mirrors --align-equals) and `align_exclude`
 (block types to leave unaligned, mirrors --align-exclude). The `duplicates` command reads
 `duplicate_min_lines` and `duplicate_min_occurrences` (integers, mirroring --min-lines and
@@ -47,6 +50,7 @@ _LIST_KEYS = (
     "base",
     "assets_base",
     "maps_base",
+    "asset_dat",
     "align_exclude",
     "sentinels",
     "always_referenced",
@@ -84,6 +88,9 @@ class Config:
     # load the large texture/model archives or base-game data those checks alone need.
     assets_base: list[str] = field(default_factory=list)
     maps_base: list[str] = field(default_factory=list)
+    # asset.dat files whose file-entry names the asset-dat-membership rules check model/texture
+    # references against; setting it (like passing --asset-dat) turns those two rules on.
+    asset_dat: list[str] = field(default_factory=list)
     # Extra "intentionally nothing" reference tokens (e.g. NoSound) never flagged as dangling;
     # None/empty are always treated this way regardless. Definition kinds (block type names) the
     # unused-definition rule never flags, for kinds reached outside the ini reference graph.
@@ -220,6 +227,12 @@ _LOCAL_CONFIG_TEXT = """\
 # `assets_base` is loaded only when asset checking is on (assets = true / --assets): the large
 # texture/model .big archives the missing-file rules need, kept out of every other run.
 # assets_base = ["C:/Program Files (x86)/Electronic Arts/.../BFME2/textures2.big"]
+
+# `asset_dat` points the asset-dat-membership rules at the asset.dat(s) the engine actually reads,
+# so a model/texture the mod references but that never made it into the cache is flagged (invisible
+# in game even though the file is on disk). List the mod's own asset.dat and the base game's; a
+# name present in any of them counts. Setting this turns those two rules on, like --asset-dat.
+# asset_dat = ["asset.dat", "C:/Program Files (x86)/Electronic Arts/.../BFME2/asset.dat"]
 
 # `maps_base` is loaded only when map linting is on (maps = true / --maps): the base-game data the
 # map checks resolve object/upgrade references against (e.g. the .big holding data/ini/object).

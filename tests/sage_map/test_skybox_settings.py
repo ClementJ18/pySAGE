@@ -1,16 +1,13 @@
 """Test SkyboxSettings asset parsing."""
 
-import pytest
-
 from sage_map.assets import SkyboxSettings
 
-from .conftest import create_context, create_writing_context, load_asset_bytes
+from .conftest import create_context, create_writing_context, require_asset
 
 
-@pytest.mark.skip(reason="No test data available")
 def test_skybox_settings():
     """Test SkyboxSettings asset parsing."""
-    asset_bytes = load_asset_bytes("SkyboxSettings")
+    asset_bytes = require_asset("SkyboxSettings")
 
     context = create_context(asset_bytes, "SkyboxSettings")
     result = SkyboxSettings.parse(context)
@@ -19,10 +16,9 @@ def test_skybox_settings():
     assert hasattr(result, "position")
 
 
-@pytest.mark.skip(reason="No test data available")
 def test_skybox_settings_write():
     """Test SkyboxSettings asset writing."""
-    asset_bytes = load_asset_bytes("SkyboxSettings")
+    asset_bytes = require_asset("SkyboxSettings")
 
     # Parse the asset
     parse_context = create_context(asset_bytes, "SkyboxSettings")

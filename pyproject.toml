@@ -44,6 +44,7 @@ sage-replay = "sage_replay.__main__:main"
 sage-apt = "sage_apt.__main__:main"
 sage-save = "sage_save.__main__:main"
 sage-map = "sage_map.__main__:main"
+sage-asset = "sage_asset.__main__:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui / edain-ui).
 [project.gui-scripts]
@@ -51,6 +52,7 @@ sage-ui = "sage_ui.app:main"
 sage-wiki = "sage_wiki.launcher:main"  # guards the [wiki] extra; app.py imports Qt at module scope
 sage-lint-ui = "sage_lint.plugins.ui.app:main"
 sage-edain-lint = "sage_mods.edain.map_checks.ui.app:main"
+sage-asset-ui = "sage_asset.ui.app:main"
 
 [project.optional-dependencies]
 ui = [
@@ -75,6 +77,10 @@ edain-ui = [
     "PyQt6>=6.6",
 ]
 
+asset-ui = [
+    "PyQt6>=6.6",
+]
+
 apt = [
     "pybig>=0.6",  # reading a .const (or .apt) out of a .big archive; the core stays stdlib-only
 ]
@@ -88,7 +94,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_apt*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*"]
+include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*"]
 
 [tool.setuptools.package-data]
 # Anything a package opens at runtime must be listed here, or it is absent from the wheel. The
@@ -96,6 +102,7 @@ include = ["sage_apt*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", 
 # quietly not working rather than an error; tests/test_packaging.py asserts every runtime asset
 # below is shipped.
 sage_apt = ["assets/*.html", "py.typed"]
+sage_asset = ["py.typed", "ui/*.ico"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
 sage_save = ["py.typed"]
@@ -150,7 +157,7 @@ select = [
 
 [tool.mypy]
 python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
-files = ["sage_apt", "sage_ini", "sage_map", "sage_mods", "sage_replay", "sage_save", "sage_utils"]
+files = ["sage_apt", "sage_asset", "sage_ini", "sage_map", "sage_mods", "sage_replay", "sage_save", "sage_utils"]
 disable_error_code = ["annotation-unchecked"]
 
 [[tool.mypy.overrides]]

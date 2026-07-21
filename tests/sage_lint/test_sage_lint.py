@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from sage_asset import AssetDat, FileEntry, write_asset_dat_to_path
 from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_ini.parser.location import Span
 from sage_lint.cli import main
@@ -1094,6 +1095,96 @@ class TestAssetRulesOptIn:
         assert "missing-texture-file" in capsys.readouterr().out
 
 
+class TestAssetDatFlag:
+    """`--asset-dat` checks model/texture references against a provided asset.dat and, being an
+    unambiguous request to do so, turns on the two asset-dat rules even without --assets."""
+
+    def _mod(self, tmp_path):
+        (tmp_path / "a.ini").write_text(
+            "Object Tree\n    Draw = W3DTreeDraw ModuleTag_01\n"
+            "        ModelName = Missing_999\n    End\nEnd\n",
+            encoding="utf-8",
+        )
+
+    def _write_asset_dat(self, path, *names):
+        ad = AssetDat(version=0x102, files=[FileEntry(name=name, file_time=0) for name in names])
+        write_asset_dat_to_path(ad, path)
+
+    def test_plain_lint_omits_asset_dat_rules(self, tmp_path, capsys):
+        self._mod(tmp_path)
+        assert main(["lint", str(tmp_path), "--no-config"]) == 0
+        assert "asset-dat-missing-model" not in capsys.readouterr().out
+
+    def test_flag_enables_the_rules_without_assets(self, tmp_path, capsys):
+        self._mod(tmp_path)
+        dat = tmp_path / "asset.dat"
+        self._write_asset_dat(dat, "someothertree.w3d")
+        assert main(["lint", str(tmp_path), "--asset-dat", str(dat), "--no-config"]) == 1
+        assert "asset-dat-missing-model" in capsys.readouterr().out
+
+    def test_goes_quiet_once_the_model_is_in_the_asset_dat(self, tmp_path, capsys):
+        self._mod(tmp_path)
+        dat = tmp_path / "asset.dat"
+        self._write_asset_dat(dat, "missing_999.w3d")
+        assert main(["lint", str(tmp_path), "--asset-dat", str(dat), "--no-config"]) == 0
+        assert "asset-dat-missing-model" not in capsys.readouterr().out
+
+    def test_a_second_asset_dat_is_unioned_in(self, tmp_path, capsys):
+        # Two --asset-dat sources (e.g. base game plus mod) are unioned, not last-wins.
+        self._mod(tmp_path)
+        base_dat = tmp_path / "base.dat"
+        mod_dat = tmp_path / "mod.dat"
+        self._write_asset_dat(base_dat, "someothertree.w3d")
+        self._write_asset_dat(mod_dat, "missing_999.w3d")
+        assert (
+            main(
+                [
+                    "lint",
+                    str(tmp_path),
+                    "--asset-dat",
+                    str(base_dat),
+                    "--asset-dat",
+                    str(mod_dat),
+                    "--no-config",
+                ]
+            )
+            == 0
+        )
+        assert "asset-dat-missing-model" not in capsys.readouterr().out
+
+    def test_bad_asset_dat_path_is_a_clean_error_not_a_traceback(self, tmp_path, capsys):
+        self._mod(tmp_path)
+        bogus = tmp_path / "nope.dat"
+        assert main(["lint", str(tmp_path), "--asset-dat", str(bogus), "--no-config"]) == 2
+        assert "nope.dat" in capsys.readouterr().err
+
+    def test_config_asset_dat_enables_the_rules(self, tmp_path, capsys):
+        # `asset_dat` in .sagelint drives the same check as --asset-dat, no flag needed; its
+        # relative path resolves against the config's directory.
+        self._mod(tmp_path)
+        self._write_asset_dat(tmp_path / "asset.dat", "someothertree.w3d")
+        (tmp_path / ".sagelint").write_text('asset_dat = ["asset.dat"]\n', encoding="utf-8")
+        assert main(["lint", str(tmp_path)]) == 1
+        assert "asset-dat-missing-model" in capsys.readouterr().out
+
+    def test_config_asset_dat_goes_quiet_when_the_model_is_present(self, tmp_path, capsys):
+        self._mod(tmp_path)
+        self._write_asset_dat(tmp_path / "asset.dat", "missing_999.w3d")
+        (tmp_path / ".sagelint").write_text('asset_dat = ["asset.dat"]\n', encoding="utf-8")
+        assert main(["lint", str(tmp_path)]) == 0
+        assert "asset-dat-missing-model" not in capsys.readouterr().out
+
+    def test_cli_asset_dat_overrides_config(self, tmp_path, capsys):
+        # An explicit --asset-dat replaces the config list wholesale: the config's satisfying
+        # asset.dat is ignored, so the CLI's non-satisfying one leaves the reference flagged.
+        self._mod(tmp_path)
+        self._write_asset_dat(tmp_path / "config.dat", "missing_999.w3d")
+        self._write_asset_dat(tmp_path / "cli.dat", "someothertree.w3d")
+        (tmp_path / ".sagelint").write_text('asset_dat = ["config.dat"]\n', encoding="utf-8")
+        assert main(["lint", str(tmp_path), "--asset-dat", str(tmp_path / "cli.dat")]) == 1
+        assert "asset-dat-missing-model" in capsys.readouterr().out
+
+
 class TestRuleSetResolution:
     """`--assets` turns on the asset-group opt-in rules, but a non-asset opt-in rule
     (unused-object) stays off unless named in `--select`."""
@@ -1110,6 +1201,24 @@ class TestRuleSetResolution:
     def test_select_can_still_name_unused_object(self):
         codes = self._codes(resolve_rule_set({"unused-object"}, include_assets=True))
         assert codes == {"unused-object"}
+
+    def test_extra_codes_are_added_on_a_plain_run(self):
+        # --asset-dat passes its two codes as extra_codes: they run on a plain run (neither
+        # --assets nor --select given), but the rest of the asset group stays off.
+        codes = self._codes(
+            resolve_rule_set(set(), include_assets=False, extra_codes={"asset-dat-missing-model"})
+        )
+        assert "asset-dat-missing-model" in codes
+        assert "missing-texture-file" not in codes  # the rest of the asset group stays off
+        assert "unused-definition" in codes  # still the default set otherwise
+
+    def test_extra_codes_are_unioned_into_an_explicit_select(self):
+        codes = self._codes(
+            resolve_rule_set(
+                {"unused-object"}, include_assets=False, extra_codes={"asset-dat-missing-model"}
+            )
+        )
+        assert codes == {"unused-object", "asset-dat-missing-model"}
 
 
 class TestBaseBigIndexing:

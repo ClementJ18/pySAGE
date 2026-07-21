@@ -192,6 +192,10 @@ class Game:
         # Lower-cased asset basenames (e.g. "gbarcher.w3d") found under the mod root. Backs the
         # missing-texture/model rules; empty when a file is built in isolation, so they no-op.
         self.assets: set[str] = set()
+        # Lower-cased file-entry names (e.g. "gbarcher.w3d") read from any asset.dat the caller
+        # provided (`--asset-dat`). Backs the sage_lint asset-dat-membership rules; empty when
+        # none was given, so they no-op.
+        self.asset_dat_names: set[str] = set()
         # WorldBuilder layout files (`.map`/`.bse`), full paths so the linter can resolve a
         # `MapFile` by basename and flag a stem that mismatches its `<name>/<name>.ext` folder.
         self.map_files: list[Path] = []

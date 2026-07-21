@@ -195,6 +195,18 @@ def main(argv: list[str] | None = None) -> int:
         "Load your bases, then add --assets to check that referenced files exist.",
     )
     lint.add_argument(
+        "--asset-dat",
+        type=Path,
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="an asset.dat file to check model/texture references against (repeatable, e.g. one "
+        "per .big): a name absent from every provided asset.dat is invisible in game even when "
+        "the file exists on disk, so this catches what the on-disk missing-file rules cannot. "
+        "Passing --asset-dat turns on the asset-dat-missing-model/texture rules even without "
+        "--assets.",
+    )
+    lint.add_argument(
         "--maps",
         action="store_true",
         help="also lint the binary .map layouts against the assembled game, so a map referencing "

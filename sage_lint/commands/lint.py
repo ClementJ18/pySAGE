@@ -45,6 +45,7 @@ from sage_lint.config import Config
 from sage_lint.fixer import fix_diagnostics
 from sage_lint.linter import build_cache, lint_file, lint_folder
 from sage_lint.ruleconfig import rule_options
+from sage_lint.rules.asset_dat import AssetDatMissingModelRule, AssetDatMissingTextureRule
 from sage_lint.rules.base import RULES
 
 # Diagnostic codes emitted outside the rule framework (parser, loader, conversion)
@@ -267,7 +268,47 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
     manifest = _effective_manifest(args, config, base_dir) if not bases else None
     level_name = args.level or config.level
 
-    rules = resolve_rule_set(selected, include_assets)
+    # A CLI --asset-dat list overrides the config `asset_dat` wholesale; config relative paths
+    # resolve against the lint root like `base`/`exclude`.
+    asset_dat_paths: list[Path] = (
+        list(args.asset_dat)
+        if args.asset_dat
+        else [config_path(base_dir, p) for p in config.asset_dat]
+    )
+
+    asset_dat_names: frozenset[str] = frozenset()
+    if asset_dat_paths:
+        try:
+            from sage_asset import (  # noqa: PLC0415 - lazy: only paid for when asset.dat checking is on
+                AssetDatError,
+                parse_asset_dat_from_path,
+            )
+        except ImportError:
+            print(
+                "sage_lint: --asset-dat needs sage_asset, which ships with pysage-tools itself "
+                "(no extra required) - reinstall with: pip install pysage-tools",
+                file=sys.stderr,
+            )
+            return 2
+        names: set[str] = set()
+        try:
+            for asset_dat_path in asset_dat_paths:
+                ad = parse_asset_dat_from_path(asset_dat_path)
+                names |= {entry.name.lower() for entry in ad.files}
+        except (AssetDatError, OSError) as exc:
+            print(f"sage_lint: failed to parse asset.dat: {exc}", file=sys.stderr)
+            return 2
+        asset_dat_names = frozenset(names)
+
+    # An asset.dat given (by --asset-dat or config `asset_dat`) is an unambiguous request to
+    # check asset.dat membership, so it turns on the two asset-dat rules even on a plain run -
+    # not only via --assets/--select.
+    extra_codes = (
+        {AssetDatMissingModelRule.code, AssetDatMissingTextureRule.code}
+        if asset_dat_paths
+        else set()
+    )
+    rules = resolve_rule_set(selected, include_assets, extra_codes)
 
     # Suggestions are opt-in (they fuzzy-match every miss against the whole name table); enable
     # them only for the build/validate that produces this report. The reference/unused rules read
@@ -282,7 +323,9 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
                 # positional root (the project folder) when given, else the file's directory.
                 # Base sources (and a manifest) are build-only and folder-scoped, so the
                 # single-file path never applies them.
-                diagnostics = lint_file(args.file, include_root=root, rules=rules)
+                diagnostics = lint_file(
+                    args.file, include_root=root, rules=rules, asset_dat_names=asset_dat_names
+                )
             elif include_maps:
                 # Build the game once (keeping it), lint the ini, then also lint the binary
                 # `.map` layouts against that same game so a map referencing removed content is
@@ -293,6 +336,7 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
                     exclude=tuple(excludes),
                     bases=tuple(base_source(base) for base in bases),
                     manifest=manifest,
+                    asset_dat_names=asset_dat_names,
                 )
                 try:
                     diagnostics.items.extend(_lint_map_files(root, game, tuple(excludes)).items)
@@ -307,6 +351,7 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
                     exclude=tuple(excludes),
                     bases=tuple(base_source(base) for base in bases),
                     manifest=manifest,
+                    asset_dat_names=asset_dat_names,
                 )
         except ManifestError as exc:
             # A bad --base-manifest / config base_manifest is a hard stop: report it cleanly
