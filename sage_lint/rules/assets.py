@@ -23,9 +23,7 @@ than flagging every reference.
 from collections.abc import Iterator
 
 from sage_ini.model.game import Game
-from sage_ini.model.objects import resolve_annotation
 from sage_ini.model.types import (
-    KeyedRecord,
     _AssetFile,
     _MapFile,
     _ModelFile,
@@ -33,7 +31,7 @@ from sage_ini.model.types import (
 )
 from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_ini.parser.location import Span
-from sage_ini.walk import walk_objects
+from sage_ini.walk import walk_asset_fields
 from sage_lint.rules.base import Rule
 
 
@@ -41,45 +39,6 @@ def _normalize(raw: str) -> str:
     """The on-disk basename a reference resolves to: drop surrounding quotes and any directory
     prefix (the engine searches by basename), lower-cased for the case-insensitive match."""
     return raw.strip().strip('"').replace("\\", "/").rsplit("/", 1)[-1].strip().lower()
-
-
-def _iter_assets(value, converter) -> Iterator[tuple[type[_AssetFile], str]]:
-    """`(asset_class, raw_name)` for every asset-file slot reachable through `value` given its
-    resolved `converter`. Mirrors the reference walker: a bare `_AssetFile`, a `List[...]` of
-    one (via its `element`), a `Tuple[...]` (via `element_types`), and a `KeyedRecord`'s typed
-    keys are all descended."""
-    if isinstance(converter, type) and issubclass(converter, _AssetFile):
-        if isinstance(value, str):
-            yield converter, value
-    elif (element := getattr(converter, "element", None)) is not None:
-        for item in value if isinstance(value, list) else [value]:
-            yield from _iter_assets(item, resolve_annotation(element))
-    elif (element_types := getattr(converter, "element_types", None)) is not None:
-        if isinstance(value, (list, tuple)):
-            for slot, annotation in zip(value, element_types, strict=False):
-                yield from _iter_assets(slot, resolve_annotation(annotation))
-    elif isinstance(converter, type) and issubclass(converter, KeyedRecord):
-        for record in value if isinstance(value, list) else [value]:
-            if record is None:
-                continue
-            for key, annotation in converter._keyspec.items():
-                yield from _iter_assets(getattr(record, key, None), resolve_annotation(annotation))
-
-
-def _iter_asset_candidates(game: Game) -> Iterator[tuple[object, str, type[_AssetFile], str]]:
-    """`(obj, field, asset_class, raw_name)` for every asset-file slot in the game's typed
-    fields - the front half of the missing-asset check, mirroring the reference walker."""
-    for obj in walk_objects(game):
-        fieldspec = type(obj)._fieldspec
-        for key in obj.fields:
-            if key not in fieldspec:
-                continue
-            try:
-                converter = resolve_annotation(fieldspec[key])
-                value = getattr(obj, key)
-            except (ValueError, KeyError, TypeError, IndexError):
-                continue  # a bad value is the conversion pass's own diagnostic
-            yield from ((obj, key, cls, name) for cls, name in _iter_assets(value, converter))
 
 
 class _MissingAssetRule(Rule):
@@ -110,7 +69,7 @@ class _MissingAssetRule(Rule):
         index = game.assets if self.group == "art" else {p.name.lower() for p in game.map_files}
         if not index:
             return  # that kind wasn't crawled: nothing to check against
-        for obj, key, asset_cls, raw in _iter_asset_candidates(game):
+        for obj, key, asset_cls, raw in walk_asset_fields(game):
             if asset_cls is not self.asset_class:
                 continue
             name = _normalize(raw)

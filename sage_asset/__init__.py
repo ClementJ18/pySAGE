@@ -18,7 +18,7 @@ from sage_asset.assetdat import (
     write_asset_dat,
     write_asset_dat_to_path,
 )
-from sage_asset.builder import build_asset_dat, collect_art_index
+from sage_asset.builder import W3dRefs, build_asset_dat, collect_art_index, w3d_references
 
 __all__ = [
     "Asset",
@@ -28,12 +28,14 @@ __all__ = [
     "ReferenceRecord",
     "ShadowedEntry",
     "VersionMismatchWarning",
+    "W3dRefs",
     "build_asset_dat",
     "collect_art_index",
     "combine_asset_dats",
     "parse_asset_dat",
     "parse_asset_dat_from_path",
     "shadowed_entries",
+    "w3d_references",
     "write_asset_dat",
     "write_asset_dat_to_path",
 ]

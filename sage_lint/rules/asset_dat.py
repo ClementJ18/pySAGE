@@ -12,7 +12,7 @@ reads.
 
 `AssetDatMissingModelRule` (`asset-dat-missing-model`) and `AssetDatMissingTextureRule`
 (`asset-dat-missing-texture`) walk the same typed model/texture fields as the on-disk rules -
-reusing `_iter_asset_candidates` and `_normalize` from `sage_lint.rules.assets` - and check each
+`sage_ini.walk.walk_asset_fields`, plus `_normalize` from `sage_lint.rules.assets` - and check each
 referenced name's stem against `game.asset_dat_names`, the lower-cased file-entry basenames read
 out of every `asset.dat` given to the linter (see `sage_lint.commands.lint`, `--asset-dat`). A
 normally-built asset.dat always names a texture entry `stem.tga`, even when the source was a
@@ -31,7 +31,8 @@ from collections.abc import Iterator
 from sage_ini.model.game import Game
 from sage_ini.model.types import _AssetFile, _ModelFile, _TextureFile
 from sage_ini.parser.diagnostics import Diagnostic, Severity
-from sage_lint.rules.assets import _iter_asset_candidates, _normalize
+from sage_ini.walk import walk_asset_fields
+from sage_lint.rules.assets import _normalize
 from sage_lint.rules.base import Rule
 
 
@@ -51,7 +52,7 @@ class _AssetDatMissingRule(Rule):
     def check(self, game: Game) -> Iterator[Diagnostic]:
         if not game.asset_dat_names:
             return  # no --asset-dat given: nothing to check membership against
-        for obj, key, asset_cls, raw in _iter_asset_candidates(game):
+        for obj, key, asset_cls, raw in walk_asset_fields(game):
             if asset_cls is not self.asset_class:
                 continue
             name = _normalize(raw)

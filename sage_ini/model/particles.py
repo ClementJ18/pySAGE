@@ -24,7 +24,7 @@ class System(NestedAttribute):
     Priority: t.Untyped
     Shader: t.Untyped
     Type: e.ParticleSystemType
-    ParticleName: t.Untyped
+    ParticleName: t.TextureFile
     SystemLifetime: t.Int
     SortLevel: t.Int
     IsOneShot: t.Bool

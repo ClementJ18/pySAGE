@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from sage_asset.assetdat import Asset, parse_asset_dat, parse_asset_dat_from_path, write_asset_dat
-from sage_asset.builder import build_asset_dat, collect_art_index
+from sage_asset.builder import build_asset_dat, collect_art_index, w3d_references
 
 _FILETIME_EPOCH_DIFF = 116_444_736_000_000_000
 
@@ -144,6 +144,37 @@ def test_collect_art_index_empty_for_a_tree_with_no_art(tmp_path):
     art_dir.mkdir()
 
     assert collect_art_index(art_dir) == {}
+
+
+class TestW3dReferences:
+    """`w3d_references` reads a single file's outward edges without a full art tree."""
+
+    def test_collects_deduped_mesh_textures_and_external_hierarchy(self):
+        data = _mesh_chunk(
+            "MYCONTAINER", "MYMESH", ["MYTEX.TGA", "MYTEX.TGA", "OTHER.DDS"]
+        ) + _hlod_chunk("MYHLOD", "MYSKELETON")
+
+        refs = w3d_references(data)
+
+        assert refs.textures == ["MYTEX.TGA", "OTHER.DDS"]  # deduped, original case, file order
+        assert refs.hierarchies == ["myskeleton"]
+
+    def test_own_hierarchy_def_needs_no_external_skeleton(self):
+        # The file carries its own HIER chunk, so its HLOD's hier_ref (even naming a different,
+        # real file) is not treated as an external skeleton.
+        data = _hierarchy_def_chunk("MYHIER") + _hlod_chunk("MYHIER", "IGNOREME")
+
+        assert w3d_references(data).hierarchies == []
+
+    def test_hlod_matching_its_own_name_is_not_external(self):
+        # No HIER chunk, but the HLOD's hier_ref equals its own name (case-insensitively) - a
+        # self-contained model, not a skinned mesh pointing at a separate skeleton file.
+        data = _hlod_chunk("SelfContained", "selfcontained")
+
+        assert w3d_references(data).hierarchies == []
+
+    def test_no_mesh_or_hlod_yields_nothing(self):
+        assert w3d_references(_hierarchy_def_chunk("MYHIER")) == ([], [])
 
 
 @pytest.mark.full

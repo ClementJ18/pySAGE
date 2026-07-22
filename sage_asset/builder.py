@@ -13,7 +13,7 @@ from typing import NamedTuple
 
 from sage_asset.assetdat import Asset, AssetDat, FileEntry, ReferenceRecord, _decode_type
 
-__all__ = ["build_asset_dat", "collect_art_index"]
+__all__ = ["W3dRefs", "build_asset_dat", "collect_art_index", "w3d_references"]
 
 # W3D chunk ids (the type discriminator at the start of every chunk header).
 _CHUNK_MESH = 0x00000000
@@ -217,6 +217,41 @@ def _iter_sub_chunks(data: bytes) -> Iterator[_SubChunk]:
             yield _SubChunk(f"CHUNK_{ctype:#010x}", type_tag, pos, total, [], "")
 
         pos += total
+
+
+class W3dRefs(NamedTuple):
+    """A single `.w3d` file's outward references, without needing a full art tree: the
+    textures its meshes name and the external skeleton stem(s) its HLOD(s) point at."""
+
+    textures: list[str]  # mesh texture names, file order, deduped, original case
+    hierarchies: list[str]  # external skeleton stems (an HLOD's hier_ref, own case-folded)
+
+
+def w3d_references(data: bytes) -> W3dRefs:
+    """Every texture a `.w3d`'s meshes name and every external skeleton its HLOD(s) pull in -
+    the outward edges a model asset carries, read straight off its chunks (no `compiledtextures/`
+    or `w3d/` tree needed). A file that carries its own hierarchy-def needs no external
+    skeleton; only a skinned mesh, whose HLOD names a *different* file's hierarchy, does."""
+    textures: list[str] = []
+    has_own_hierarchy = False
+    hlods: list[tuple[str, str]] = []  # (the HLOD's own name, its hier_ref), resolved below
+    for chunk in _iter_sub_chunks(data):
+        if chunk.type_tag == "MESH":
+            for tex in chunk.textures:
+                if tex not in textures:
+                    textures.append(tex)
+        elif chunk.type_tag == "HIER":
+            has_own_hierarchy = True
+        elif chunk.type_tag == "HLOD":
+            hlods.append((chunk.name, chunk.hier_ref))
+
+    hierarchies: list[str] = []
+    if not has_own_hierarchy:
+        for name, hier_ref in hlods:
+            stem = hier_ref.lower()
+            if hier_ref and stem != name.lower() and stem not in hierarchies:
+                hierarchies.append(stem)
+    return W3dRefs(textures, hierarchies)
 
 
 def _collect_best_textures(compiledtextures_dir: Path) -> dict[str, Path]:

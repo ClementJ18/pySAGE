@@ -165,6 +165,11 @@ AssetDat(version: int, files: list[FileEntry], references: list[ReferenceRecord]
 `references_for(file_name, asset_name)` (a list of reference lists - duplicates exist in the
 wild), and `asset_counts()` (asset tally by type).
 
+`w3d_references(data: bytes) -> W3dRefs` reads a single `.w3d` file's outward references
+without a `compiledtextures/`/`w3d/` tree or an asset.dat: `W3dRefs.textures` is the texture
+names its meshes carry, `W3dRefs.hierarchies` the external skeleton stem(s) its HLOD(s) pull
+in (empty when the file carries its own hierarchy-def).
+
 ## Example
 
 ```python

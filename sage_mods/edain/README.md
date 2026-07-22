@@ -51,6 +51,35 @@ python -m sage_mods.edain replay-aggregate <replay|dir>... --game <install>
 localization table resolves too). Pass `--bases` (the mod's `bases/` folder) to decompose
 castle/camp layouts into their citadel + foundations + prebuilt structures.
 
+## Object asset walking
+
+`sage_mods.edain.assets` walks the on-disk art a set of ini objects reference, sized against
+an art tree. `object_assets(objects, art)` gathers, for each object's own subtree, every
+`.w3d` it shows (one per model-condition state, animation clips, the skeletons a skinned
+mesh's HLOD pulls in) and every texture it names - in a typed field (a draw's `Texture`, a
+particle system's `ParticleName`, a mapped image's `Texture`) or inside those `.w3d` files -
+resolving each to its file size in an `ArtIndex` (loose folders and/or `.big` archives,
+later sources overriding earlier ones). Each asset is counted once across the objects
+passed, and `write_csv` emits one row each
+(`asset,kind,size_bytes,ref_count,references,source`).
+
+It deliberately does **not** follow references from one object to another - a caller controls
+the scope by choosing which objects to pass. File size stands in for RAM weight as a
+first-order estimate: a `.dds` stays block-compressed in memory the way it sits on disk, a
+`.w3d`'s geometry loads roughly 1:1.
+
+```python
+from pathlib import Path
+from sage_ini.loader import load_game
+from sage_mods.edain.assets import ArtIndex, object_assets, write_csv
+
+game = load_game(Path("_mod")).game
+art = ArtIndex.build([Path("_mod/art")])  # or a base .big then the mod's, in priority order
+records = object_assets([game.objects["GondorTower"]], art)
+with open("tower_assets.csv", "w", newline="") as fh:
+    write_csv(records, fh)
+```
+
 ## Map checks
 
 Edain's map-convention rule set (terrain flatness, object counts, resource placement,
