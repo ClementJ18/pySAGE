@@ -26,14 +26,30 @@ from PyQt6.QtWidgets import (
 )
 
 from sage_utils.widgets import CopyableLabel as QLabel
+from sage_utils.widgets import saved_dark_theme, theme_notifier
 
-# Severity text colour, chosen to read on both the dark and the light theme.
-SEVERITY_COLOR = {
-    "error": QColor("#e06c75"),
-    "warning": QColor("#d8a657"),
-    "info": QColor("#5fa8d3"),
+# Severity text colour, per theme: the dark reds/ambers wash out on a white surface, so the
+# light theme gets its own darker, more saturated set (matching the palette in styles.py).
+SEVERITY_COLORS = {
+    True: {  # dark
+        "error": QColor("#e06c75"),
+        "warning": QColor("#d8a657"),
+        "info": QColor("#5fa8d3"),
+    },
+    False: {  # light
+        "error": QColor("#c0392b"),
+        "warning": QColor("#b07a1f"),
+        "info": QColor("#2f6f9f"),
+    },
 }
 SEVERITY_RANK = {"error": 0, "warning": 1, "info": 2}
+
+
+def severity_color(severity: str, dark: bool | None = None) -> QColor | None:
+    """The text colour for a severity in the current (or given) theme, or None if unknown."""
+    if dark is None:
+        dark = saved_dark_theme()
+    return SEVERITY_COLORS[bool(dark)].get(severity)
 
 
 class _SeverityItem(QTableWidgetItem):
@@ -78,6 +94,10 @@ class FindingsView(QWidget):
         root.addWidget(self._build_toolbar(search_placeholder))
         root.addWidget(self._build_table(stretch_col, widths or {}), 1)
 
+        # The severity text colours are set in code, not by the stylesheet, so a theme flip
+        # can't repaint them - recolour the visible rows ourselves when the theme changes.
+        theme_notifier.changed.connect(self._recolor)
+
     def _build_toolbar(self, placeholder: str) -> QWidget:
         wrap = QWidget()
         row = QHBoxLayout(wrap)
@@ -115,11 +135,12 @@ class FindingsView(QWidget):
     def set_diagnostics(self, diagnostics: list[dict]) -> None:
         """Show `diagnostics` in the table (replacing what was there) and re-apply the search."""
         self._diagnostics = diagnostics
+        dark = saved_dark_theme()
         self.table.setSortingEnabled(False)  # bulk insert, then re-enable to sort
         self.table.setRowCount(len(diagnostics))
         for row, diag in enumerate(diagnostics):
             severity = diag.get("severity", "info")
-            colour = SEVERITY_COLOR.get(severity)
+            colour = severity_color(severity, dark)
             for col, (_, key) in enumerate(self._columns):
                 if key == "severity":
                     item = _SeverityItem(severity)
@@ -128,11 +149,26 @@ class FindingsView(QWidget):
                     item.setData(Qt.ItemDataRole.DisplayRole, diag.get(key) or 0)
                 else:
                     item = QTableWidgetItem(str(diag.get(key, "")))
+                # Remember the severity on the item so a theme flip can recolour it (row order
+                # shifts under sorting, so we can't map back to `diagnostics` by index later).
+                item.setData(Qt.ItemDataRole.UserRole, severity)
                 if colour is not None:
                     item.setForeground(colour)
                 self.table.setItem(row, col, item)
         self.table.setSortingEnabled(True)
         self._apply_filter(self.search_field.text())
+
+    def _recolor(self, dark: bool) -> None:
+        """Repaint every cell's severity text colour for the new theme (see the connection in
+        `__init__`); the app stylesheet swap can't touch colours set in code."""
+        for row in range(self.table.rowCount()):
+            for col in range(self.table.columnCount()):
+                item = self.table.item(row, col)
+                if item is None:
+                    continue
+                colour = severity_color(item.data(Qt.ItemDataRole.UserRole), dark)
+                if colour is not None:
+                    item.setForeground(colour)
 
     def clear(self) -> None:
         self.set_diagnostics([])

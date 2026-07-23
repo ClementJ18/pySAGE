@@ -6,7 +6,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from PyQt6.QtCore import QStringListModel, Qt, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, QStringListModel, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QIcon, QImage, QPixmap
 from PyQt6.QtWidgets import (
     QWIDGETSIZE_MAX,
@@ -38,6 +38,18 @@ _THEME_APP = "sage_utils"
 _THEME_FILE = "theme.json"
 
 
+class _ThemeNotifier(QObject):
+    """Broadcasts theme flips to widgets whose colours are set in code rather than by the
+    stylesheet (e.g. a table's severity-coloured text), which the app stylesheet swap can't
+    repaint on its own. `changed` carries True for dark, False for light."""
+
+    changed = pyqtSignal(bool)
+
+
+# One process-wide notifier; widgets connect to `theme_notifier.changed` to recolour on toggle.
+theme_notifier = _ThemeNotifier()
+
+
 def saved_dark_theme(default: bool = True) -> bool:
     """The remembered theme choice (True = dark), defaulting to dark when none is saved."""
     data = read_json(_THEME_APP, _THEME_FILE, {})
@@ -53,6 +65,7 @@ def apply_theme(dark: bool, *, persist: bool = True) -> None:
         app.setStyleSheet(DARK_STYLE if dark else LIGHT_STYLE)
     if persist:
         write_json(_THEME_APP, _THEME_FILE, {"dark": bool(dark)})
+    theme_notifier.changed.emit(bool(dark))
 
 
 class ThemeToggle(QPushButton):

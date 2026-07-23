@@ -65,6 +65,30 @@ QTreeWidget {
 QTreeWidget::item { padding: 4px 6px; }
 QTreeWidget::item:selected,
 QTreeWidget::branch:selected { background: $accent; color: $accentInk; }
+QTableWidget {
+    background: $surface; border: 1px solid $border; border-radius: 6px;
+    gridline-color: $border;
+}
+QTableWidget::item:selected { background: $selection; color: $text; }
+/* Header sections default to Qt's native palette (white bar in dark mode) unless themed here. */
+QHeaderView::section {
+    background: $control; color: $muted;
+    border: none; border-bottom: 1px solid $border; border-right: 1px solid $border;
+    padding: 6px 8px; font-weight: 600;
+}
+QTableCornerButton::section { background: $control; border: none; }
+/* Tabs default to Qt's native palette (white bars in dark mode) unless themed here. */
+QTabWidget::pane {
+    background: $surface; border: 1px solid $border; border-radius: 8px; top: -1px;
+}
+QTabBar::tab {
+    background: $control; color: $muted;
+    border: 1px solid $border; border-bottom: none;
+    border-top-left-radius: 6px; border-top-right-radius: 6px;
+    padding: 6px 14px; margin-right: 2px;
+}
+QTabBar::tab:selected { background: $surface; color: $text; }
+QTabBar::tab:hover { color: $accent; }
 """)
 
 DARK = {
