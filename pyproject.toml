@@ -172,7 +172,7 @@ files = ["sage_apt", "sage_asset", "sage_ini", "sage_map", "sage_mods", "sage_re
 disable_error_code = ["annotation-unchecked"]
 
 [[tool.mypy.overrides]]
-module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*", "OpenGL.*"]
+module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*", "OpenGL.*", "numpy.*"]
 ignore_missing_imports = true
 
 # The Qt half of sage_utils (and the texture/source layer built on optional deps) is outside
