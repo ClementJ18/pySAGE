@@ -1,2 +1,9 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Byte-frozen golden/input fixtures are compared with read_bytes() exactly, so
+# their bytes must survive checkout unchanged on every platform. Pin the XML to
+# LF (kept diffable for intentional regenerations) and treat the binaries as-is.
+tests/sage_apt/fixtures/**/*.xml text eol=lf
+tests/sage_apt/fixtures/**/*.apt binary
+tests/sage_apt/fixtures/**/*.const binary

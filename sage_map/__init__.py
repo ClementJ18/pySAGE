@@ -48,6 +48,15 @@ from sage_map.model import (
     build_symbols,
     iter_script_arguments,
 )
+from sage_map.scb import (
+    ScriptLibrary,
+    extract_scripts,
+    inject_scripts,
+    parse_scb,
+    parse_scb_from_path,
+    write_scb,
+    write_scb_to_path,
+)
 from sage_map.scripts import (
     ARG_SPECS,
     ArgSpec,
@@ -69,6 +78,7 @@ __all__ = [
     "ResolvedArg",
     "Scope",
     "ScriptArgRef",
+    "ScriptLibrary",
     "arg_spec",
     "build_symbols",
     "commit_map_changes",
@@ -76,9 +86,11 @@ __all__ = [
     "diff_map_files",
     "diff_maps",
     "diff_range_maps",
+    "extract_scripts",
     "format_map_diff",
     "format_map_file_diffs",
     "format_map_file_diffs_md",
+    "inject_scripts",
     "range_map_changes",
     "resolve_range",
     "iter_script_arguments",
@@ -87,7 +99,11 @@ __all__ = [
     "lint_maps",
     "parse_map",
     "parse_map_from_path",
+    "parse_scb",
+    "parse_scb_from_path",
     "typed_value",
     "write_map",
     "write_map_to_path",
+    "write_scb",
+    "write_scb_to_path",
 ]

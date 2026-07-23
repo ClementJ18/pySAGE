@@ -23,6 +23,8 @@ subproject has its own README with the details; this page is the map.
 | --- | --- |
 | [`sage_map`](sage_map/README.md) | Reader/writer for BFME `.map` files, plus a game-aware overlay that resolves script arguments and object references and lints maps. |
 | [`sage_asset`](sage_asset/README.md) | Reader/writer, builder and combiner for `asset.dat`, the BFME2/RotWK art cache index - parse, build one from an art tree, merge a base with a mod overlay, and check it against the art on disk. |
+| [`sage_w3d`](sage_w3d/README.md) | Lossless reader/writer for `.w3d` model files - meshes, materials, skeletons, uncompressed and compressed animation, HLOD level-of-detail data, collision boxes, and dazzles - plus a scene-assembly + PyQt6/OpenGL viewer (`sage-w3d view`, the `w3d-view` extra). |
+| [`sage_cah`](sage_cah/README.md) | Reader/writer for `.cah`, the BFME2/RotWK Create-a-Hero file - identity, class, colors, powers, "bling" customization/attributes, GUID, and the validating checksum. |
 | [`sage_replay`](sage_replay/README.md) | Reader for SAGE replay files (Generals `.rep`, BFME / BFME2 / RotWK) - the recorded order stream, decoded into build orders, APM and command timing. |
 | [`sage_apt`](sage_apt/README.md) | Converter, viewer and editor for `.apt` UI movies (the Flash-derived format behind BFME's menus and HUD). **Work in progress**, not yet fully functional. |
 
@@ -71,7 +73,7 @@ Windows, the native RefPack compressor that makes saving large maps fast (its DL
 so other platforms use the byte-identical pure-Python compressor).
 
 Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-edain`,
-`sage-replay`, `sage-apt`, `sage-map`, `sage-save`, `sage-asset` (and the GUI scripts `sage-ui`,
+`sage-replay`, `sage-apt`, `sage-map`, `sage-save`, `sage-asset`, `sage-w3d`, `sage-cah` (and the GUI scripts `sage-ui`,
 `sage-wiki`, `sage-lint-ui`, `sage-edain-lint` - the Edain Linter, which combines the ini and map
 checks in one window - and `sage-asset-ui`, the SAGE Asset builder/combiner window).
 

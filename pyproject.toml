@@ -45,6 +45,8 @@ sage-apt = "sage_apt.__main__:main"
 sage-save = "sage_save.__main__:main"
 sage-map = "sage_map.__main__:main"
 sage-asset = "sage_asset.__main__:main"
+sage-w3d = "sage_w3d.__main__:main"
+sage-cah = "sage_cah.__main__:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui / edain-ui).
 [project.gui-scripts]
@@ -85,6 +87,13 @@ apt = [
     "pybig>=0.6",  # reading a .const (or .apt) out of a .big archive; the core stays stdlib-only
 ]
 
+w3d-view = [
+    "PyQt6>=6.6",
+    "PyOpenGL>=3.1",
+    "numpy>=2",
+    "pillow>=10",
+]
+
 [dependency-groups]
 dev = [
     "pytest",
@@ -94,7 +103,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*"]
+include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*", "sage_w3d*", "sage_cah*"]
 
 [tool.setuptools.package-data]
 # Anything a package opens at runtime must be listed here, or it is absent from the wheel. The
@@ -103,6 +112,8 @@ include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "
 # below is shipped.
 sage_apt = ["assets/*.html", "py.typed"]
 sage_asset = ["py.typed", "ui/*.ico"]
+sage_w3d = ["py.typed"]
+sage_cah = ["py.typed"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
 sage_save = ["py.typed"]
@@ -157,11 +168,11 @@ select = [
 
 [tool.mypy]
 python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
-files = ["sage_apt", "sage_asset", "sage_ini", "sage_map", "sage_mods", "sage_replay", "sage_save", "sage_utils"]
+files = ["sage_apt", "sage_asset", "sage_ini", "sage_map", "sage_mods", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah"]
 disable_error_code = ["annotation-unchecked"]
 
 [[tool.mypy.overrides]]
-module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*"]
+module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*", "OpenGL.*"]
 ignore_missing_imports = true
 
 # The Qt half of sage_utils (and the texture/source layer built on optional deps) is outside
