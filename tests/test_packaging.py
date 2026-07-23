@@ -80,3 +80,28 @@ def test_runtime_asset_is_declared_as_package_data(asset: Path):
         f"so it will be missing from the wheel (and silently unavailable to pip users). Add a "
         f"pattern for it, or exclude it in this test if it genuinely does not need to ship."
     )
+
+
+def test_all_extra_aggregates_every_other_extra():
+    """The `all` extra must self-reference every other optional extra, so `pip install .[all]`
+    (which CI's full job uses) can never silently miss one - the exact gap that once let a new
+    extra ship without its Qt-backed suite ever running in CI. Runs in the core suite (it only
+    parses pyproject.toml), so a forgotten extra fails fast everywhere, not just where the extras
+    are installed."""
+    project = _pyproject()["project"]
+    name = project["name"]
+    extras = project["optional-dependencies"]
+    assert "all" in extras, "no aggregate `all` extra in [project.optional-dependencies]"
+
+    referenced: set[str] = set()
+    for entry in extras["all"]:
+        assert entry.startswith(f"{name}[") and entry.endswith("]"), (
+            f"`all` entry {entry!r} must be a self-reference of the form {name}[<extra>]"
+        )
+        referenced.add(entry[len(name) + 1 : -1])
+
+    others = set(extras) - {"all"}
+    assert referenced == others, (
+        f"`all` must reference exactly the other extras - "
+        f"missing {sorted(others - referenced)}, unknown {sorted(referenced - others)}"
+    )

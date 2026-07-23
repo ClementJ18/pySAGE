@@ -94,6 +94,21 @@ w3d-view = [
     "pillow>=10",
 ]
 
+# Every optional extra at once: `pip install "pysage-tools[all]"` (and CI's full job) installs
+# the complete set by one name, so a newly added extra can never be silently left out. Each
+# entry is a self-reference, keeping the individual extras above the single source of truth for
+# their own dependencies rather than re-listing them here; `tests/test_packaging.py` asserts this
+# aggregate references every other extra, failing the core suite if one is ever forgotten.
+all = [
+    "pysage-tools[ui]",
+    "pysage-tools[lint-ui]",
+    "pysage-tools[wiki]",
+    "pysage-tools[edain-ui]",
+    "pysage-tools[asset-ui]",
+    "pysage-tools[apt]",
+    "pysage-tools[w3d-view]",
+]
+
 [dependency-groups]
 dev = [
     "pytest",
