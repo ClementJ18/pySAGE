@@ -8,6 +8,8 @@ binary maps, replays, and UI, with a domain overlay for the Edain mod.
 Everything installs as one package with optional extras (see [Install](#install)). Each
 subproject has its own README with the details; this page is the map.
 
+Can be downloaded pre-packaged from here: https://www.moddb.com/games/battle-for-middle-earth-ii/downloads/pysage-tools
+
 ## Projects
 
 ### Ini game data
