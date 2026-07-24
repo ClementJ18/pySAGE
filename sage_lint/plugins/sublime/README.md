@@ -26,11 +26,9 @@ warnings inline in Sublime Text 4.
   keys, the module class after a `Behavior =` / `Body =` slot, numbers, booleans, strings,
   comments and `#` directives. Class names are only highlighted in value position, so words
   that double as class names (`Fire`, `Road`, `Color`) stay plain elsewhere - the colouring
-  stays quiet. Its keyword lists are generated from `sage_ini`'s class registry - the same
-  source the parser uses - so they stay complete as the model grows. Pick it from the syntax
-  menu (bottom-right, or
-  `View > Syntax > Sage Lint`); it keeps the conventional `source.ini` scope, so the
-  package's key bindings and any colour scheme apply unchanged.
+  stays quiet. Pick it from the syntax menu (bottom-right, or `View > Syntax > Sage Lint`);
+  it keeps the conventional `source.ini` scope, so the package's key bindings and any colour
+  scheme apply unchanged.
 - **Navigate the game like a code base.** The same daemon that lints also serves a symbol
   index built from the real `sage_ini` parse - every definition with its source location and
   game table, the macro and string tables, and every block's typed field schema. From it you
@@ -48,84 +46,19 @@ warnings inline in Sublime Text 4.
 
 ## Install
 
-Quickest: run `bash install.sh` from this folder. It syntax-checks the plugin, copies it
-into Sublime's `Packages/SageLint`, and - on first install only - writes
-`SageLint.sublime-settings` with `linter_cwd` pre-filled to this checkout. Override the
-destination with `SUBLIME_PACKAGES=/path/to/Packages` and the interpreter with `PYTHON=...`.
-You will usually still want to set `python` to the interpreter that has `sage_ini` installed.
+You have been handed a `SageLint` folder. To install it:
 
-Manual install:
+1. In Sublime: `Preferences > Browse Packages...`.
+2. Move the whole `SageLint` folder into the folder that opens. It must sit directly there
+   as `Packages\SageLint\` - **not** inside the `User` folder.
+3. Restart Sublime Text.
 
-1. In Sublime: `Preferences > Browse Packages...` to open the `Packages` directory.
-2. Copy this `sublime` folder into it (rename it to e.g. `SageLint` if you like).
-3. Open `Preferences > Package Settings`… or just edit `SageLint.sublime-settings` in the
-   copied folder and set:
-   - `python` - the interpreter that can run `python -m sage_lint` (a venv path is fine).
-   - `linter_cwd` - the absolute path to your `ini_parser` checkout. This can be left
-     empty only if you load the plugin from inside the checkout (e.g. via a symlink).
+Done - the `SAGE Lint` commands are now in the Command Palette. Open your mod folder and run
+**SAGE Lint: Lint Folder** to start.
 
-## Standalone package (no Python, no checkout)
-
-The two installs above need Python and the `ini_parser` checkout on the machine. To hand the
-plugin to a teammate who has neither, **bundle a standalone `sage_lint` binary** in the
-package. The plugin auto-detects it: if a binary is present in `bin/` it runs that (one binary
-serves every command, `serve` daemon included) and ignores `python` / `linter_cwd`; otherwise
-it falls back to `python -m sage_lint` from the checkout, so a dev checkout keeps working.
-
-### One step (Windows)
-
-Run [build_package.bat](build_package.bat) - it freezes the binary, stages the plugin with it
-in `bin/`, and zips a `.sublime-package`, all into `dist/` (needs PyInstaller:
-`pip install -e .[lint-ui]`):
-
-```
-sage_lint\plugins\sublime\build_package.bat
-```
-
-Output: `dist\SageLint\` (drop into the `Packages` directory) and `dist\SageLint.sublime-package`.
-Build once per OS - PyInstaller binaries aren't cross-platform.
-
-**For a bundled binary, install the folder, not the zip.** Sublime never extracts a
-`.sublime-package` to disk, so a binary inside one has no filesystem path and can't be
-`exec`'d - the plugin would report "no sage_lint found" and fall back to `python -m sage_lint`.
-The `.sublime-package` is only useful when installed **through Package Control**, which honors
-the bundled `.no-sublime-package` marker and unpacks it into `Packages/SageLint` (giving the
-binary a real path). A manual install must use the `dist\SageLint\` folder.
-
-### By hand
-
-1. **Build the binary** (needs PyInstaller - `pip install -e .[lint-ui]` brings it in), from
-   the repo root:
-
-   ```
-   pyinstaller sage_lint/sage-lint.spec
-   ```
-
-   This produces `dist/sage_lint` (`dist/sage_lint.exe` on Windows), alongside the desktop
-   `SAGE Lint` app the same spec builds (see plugins/ui/README.md). PyInstaller binaries are
-   **not** cross-platform, so build once on each OS you support.
-
-2. **Drop it into the package.** Put the binary in this folder's `bin/`:
-
-   ```
-   SageLint/
-     sage_lint.py, *.sublime-*, SageLint.sublime-settings, README.md
-     bin/sage_lint(.exe)            # one binary, the host's OS
-   ```
-
-   To ship all platforms in one package, use per-OS subfolders instead - `bin/win32/`,
-   `bin/darwin/`, `bin/linux/` - the plugin checks both `bin/<name>` and `bin/<platform>/<name>`.
-
-3. **Distribute.** Give the teammate the whole `SageLint/` folder to drop in
-   `Preferences > Browse Packages…`. No Python, no checkout, no settings - the project's
-   `.sagelint` is still read from the linted folder at runtime as usual. Do **not** hand them a
-   zipped `.sublime-package` for a bundled-binary build: Sublime won't extract it, so the
-   binary won't be found (see the note above). The `.no-sublime-package` marker in this folder
-   only takes effect for installs done through Package Control.
-
-Notes: each binary bundles Python + `sage_ini` (~15–40 MB). One-shot commands (format/fix)
-spawn the binary per call (~0.1–0.3 s cold start); the `serve` daemon is long-lived, so it
-pays that startup only once per project.
+> If the folder has a `bin/` with a `sage_lint` binary inside, that's everything you need.
+> Otherwise the plugin runs `sage_lint` through Python - open
+> `SageLint\SageLint.sublime-settings` and set `python` and `linter_cwd` (see **Settings**).
 
 ## Settings
 
@@ -229,32 +162,6 @@ if a file is highlighted by some other syntax with a different scope, use the Co
 Palette or widen the binding's scope. Edit `Default (<platform>).sublime-keymap` in the
 package to change them.
 
-## How it maps to `sage_lint`
+---
 
-The plugin runs a long-lived **daemon** per project folder and shells out for the rest:
-
-- Daemon: `python -m sage_lint serve <folder>` - builds the game once, then takes
-  newline-delimited JSON commands on stdin (`lint_file` on save/idle, `rebuild` on
-  Lint Folder, `index` after each build) and answers with `folder` / `file` / `index` JSON
-  messages. This is what gives save-time lints full cross-file reference resolution at
-  single-file speed, and the navigation commands a symbol index from the same parsed game.
-- Format: `python -m sage_lint format --stdin --stdin-filename <file>`
-- Fix: `python -m sage_lint lint ... --fix` (one-shot), then a daemon rebuild
-
-The level, ignored codes, exclude dirs and base sources come from the project's `.sagelint`
-(see **Project config**); the daemon reads them from `<folder>/.sagelint`, and its `root`
-key can scope the build to a subfolder. The cache is rebuilt on the initial build and on
-**Lint Folder** - a brand new definition is only visible to other files after a rebuild.
-
-The `--file` mode parses one file plus its includes instead of assembling the whole
-folder, which is what keeps saves and on-idle linting fast. Two trade-offs follow from it:
-
-- References to definitions in **other** files cannot resolve in `--file` mode, so a
-  cross-file reference may briefly show as an error until the next full **Lint Folder**
-  run. Setting `base` removes most of this noise for references into the base game.
-- On-idle linting of an **unsaved** buffer is done by writing the buffer to a short-lived
-  temp file beside the real one (so relative `#include`s resolve the same way) and linting
-  that; the temp file is removed immediately after.
-
-`sage_lint` diagnostics are line-level (spans carry no column), so highlighting is
-per-line rather than per-column.
+Building, packaging, or hacking on the plugin itself? See [DEVELOPING.md](DEVELOPING.md).
