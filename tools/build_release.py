@@ -34,8 +34,12 @@ ZIP_PATH = REPO_ROOT / "pySAGE.zip"
 SUBLIME_SRC = REPO_ROOT / "sage_lint" / "plugins" / "sublime"
 # Dev-only names kept out of the installable package (directory names match too).
 SUBLIME_EXCLUDE = (
-    "__pycache__", "bin",
-    "build_package.bat", "install.sh", "install.bat", "generate_syntax.py",
+    "__pycache__",
+    "bin",
+    "build_package.bat",
+    "install.sh",
+    "install.bat",
+    "generate_syntax.py",
 )
 # The CLI binary sage-lint.spec emits; the plugin looks for exactly this name in bin/.
 CLI_BINARY_NAME = "sage_lint.exe" if sys.platform == "win32" else "sage_lint"
