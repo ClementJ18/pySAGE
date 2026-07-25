@@ -1,0 +1,195 @@
+"""The `CommandSet` button-limit patch, as a :class:`~..patcher.Patch`.
+
+Raises `MAX_COMMANDS_PER_COMMAND_SET` from its stock 33 to any ``count`` in 34..127 on
+ROTWK/Edain `game.dat` build ``2.01.2614.37001``, so a `CommandSet` INI block may define more
+than 33 buttons. See ``../docs/commandset-button-limit.md`` for the derivation of every site.
+
+Two phases make up the patch:
+
+* **Phase 1** grows the `CommandSet` object from ``0xA0`` to ``0x14 + count*4 + 8`` bytes. The
+  ``m_command[]`` array stays at ``+0x14``; the trailing count/flag fields move from ``0x98/0x9c``
+  to just past the enlarged array. Fourteen instruction immediates (the allocation size, the
+  ctor's ``33`` fills, and every field offset) are rewritten.
+* **Phase 2** builds a fresh ``count``-slot field-parse table plus the new ``"34".."count"`` slot
+  names in an appended ``.cmdext`` PE section, and repoints the two code references to it.
+
+Together these let a `CommandSet` *define* and *store* up to ``count`` buttons. The ControlBar
+still *draws* only 33 at a time; reach the rest by paging with ``PUSH_VISIBLE_COMMAND_RANGE``.
+Widening the drawing loops instead is a dead end — those ``getCommandButton``-caller loops
+populate the ControlBar's fixed 33-slot UI arrays, so raising their bounds overruns those arrays
+and crashes. See ``../docs/push-visible-command-range.md``.
+
+Why the ceiling is 127
+----------------------
+Five of the Phase-1 sites encode the limit as a **signed 8-bit immediate** (``6a NN`` ``push``,
+``83 fa NN`` / ``83 fb NN`` ``cmp``), so 127 is the largest value that survives sign extension:
+at 128 the byte ``0x80`` decodes as ``-128``, and since one of those pushes supplies ``rep
+stosd``'s counter the constructor would zero ~4 billion dwords. Going beyond 127 means
+re-encoding those instructions as imm32, which is 3 bytes longer apiece and therefore needs
+relocated code (a trampoline into a cave), not an in-place byte patch.
+"""
+
+from __future__ import annotations
+
+import struct
+
+from ..patcher import Patch
+from ..utils import append_section, apply_byte_patch, image_base
+
+# --- fixed facts about the target build (VA, ImageBase 0x400000) ---
+_TABLE_VA = 0xC4F3D8  # the original 34-entry CommandSet field-parse table
+_PARSE_COMMAND_BUTTON = 0x0080C9E1  # parseCommandButton (fn of every slot entry)
+_NEW_SECTION_RVA = 0xAD3000  # where the enlarged table + new slot names go (.cmdext)
+_ORIGINAL_MAX = 33
+_ORIGINAL_OBJ_SIZE = 0xA0
+_ORIGINAL_COUNT_OFF = 0x98  # count / InitialVisible field in the 0xA0 object
+_ORIGINAL_FLAG_OFF = 0x9C
+_ARRAY_OFF = 0x14  # m_command[] base within the object (unchanged by the patch)
+
+_SECTION_CHARACTERISTICS = 0x40000040  # IMAGE_SCN_CNT_INITIALIZED_DATA | MEM_READ
+
+#: Largest limit this patch can install. Bounded by the signed-imm8 encoding of five Phase-1
+#: sites (see the module docstring), not by the object layout or the new section.
+MAX_COUNT = 127
+
+#: Smallest limit worth installing - anything at or below the stock 33 is a no-op.
+MIN_COUNT = _ORIGINAL_MAX + 1
+
+
+def _u32(value: int) -> bytes:
+    return struct.pack("<I", value)
+
+
+def _imm8(value: int) -> bytes:
+    """The limit as a signed 8-bit immediate, refusing values that would sign-extend negative."""
+    if not 0 <= value <= 127:
+        raise ValueError(
+            f"{value} does not fit a signed imm8 (max 127); this patch site would encode it as "
+            f"{value - 256}"
+        )
+    return bytes([value])
+
+
+class CommandSetLimitPatch(Patch):
+    """Raise the `CommandSet` button limit from the stock 33 to ``count`` (34..127)."""
+
+    name = "commandset-limit"
+    description = "Raise the CommandSet button limit from 33 to N"
+
+    def __init__(self, count: int = 64):
+        if not MIN_COUNT <= count <= MAX_COUNT:
+            hint = (
+                " (128+ would need imm32 re-encoding of five sites, which does not fit in place)"
+                if count > MAX_COUNT
+                else ""
+            )
+            raise ValueError(f"count must be in {MIN_COUNT}..{MAX_COUNT}, got {count}{hint}")
+        self.count = count
+
+    def __str__(self) -> str:
+        return f"{self.name} (N={self.count})"
+
+    def apply(self, data: bytearray) -> None:
+        n = self.count
+        base = image_base(data)
+        count_off = _ARRAY_OFF + n * 4  # trailing count field, just past the array
+        flag_off = count_off + 4
+        obj_size = count_off + 8
+
+        self._build_and_link_table(data, base, n)
+        self._phase1_grow_object(data, n, count_off, flag_off, obj_size)
+
+    # --- Phase 2: the enlarged field-parse table in a new section ---------------------------
+
+    def _build_and_link_table(self, data: bytearray, base: int, n: int) -> None:
+        tab_foff = _TABLE_VA - base
+        original = [struct.unpack_from("<IIII", data, tab_foff + i * 16) for i in range(34)]
+        parse_fn = original[0][1]
+        if parse_fn != _PARSE_COMMAND_BUTTON:
+            raise ValueError(
+                f"unexpected build: slot 0 parse fn is 0x{parse_fn:08x}, "
+                f"expected 0x{_PARSE_COMMAND_BUTTON:08x}"
+            )
+        initial_visible = original[33]  # the "InitialVisible" field entry
+
+        new_base_va = base + _NEW_SECTION_RVA
+        table_entries = n + 2  # n slots + InitialVisible + NULL terminator
+        table_size = table_entries * 16
+        str_area_va = new_base_va + table_size
+
+        # slot name strings "34".."n" (slots 1..33 reuse the original pointers)
+        str_bytes = bytearray()
+        str_va: dict[int, int] = {}
+        for k in range(_ORIGINAL_MAX + 1, n + 1):
+            str_va[k] = str_area_va + len(str_bytes)
+            str_bytes += str(k).encode("ascii") + b"\x00"
+
+        initvis_off = _ARRAY_OFF + n * 4
+        table = bytearray()
+        for i in range(n):
+            name_ptr = original[i][0] if i < _ORIGINAL_MAX else str_va[i + 1]
+            table += struct.pack("<IIII", name_ptr, parse_fn, i, _ARRAY_OFF)
+        table += struct.pack("<IIII", initial_visible[0], initial_visible[1], 0, initvis_off)
+        table += struct.pack("<IIII", 0, 0, 0, 0)  # terminator
+        assert len(table) == table_size
+
+        content = bytes(table) + bytes(str_bytes)
+        append_section(data, ".cmdext", _NEW_SECTION_RVA, content, _SECTION_CHARACTERISTICS)
+
+        # repoint the two references to the old table -> the new one
+        new_ptr = _u32(new_base_va)
+        old_ptr = _u32(_TABLE_VA)
+        apply_byte_patch(
+            data, 0x32065C, b"\x68" + old_ptr, b"\x68" + new_ptr, "P2 parser table push -> .cmdext"
+        )
+        apply_byte_patch(
+            data, 0x31C2EE, b"\xb8" + old_ptr, b"\xb8" + new_ptr, "P2 getFieldParse mov -> .cmdext"
+        )
+
+    # --- Phase 1: grow the object and move its trailing fields -------------------------------
+
+    def _phase1_grow_object(
+        self, data: bytearray, n: int, count_off: int, flag_off: int, obj_size: int
+    ) -> None:
+        nb = _imm8(n)  # the five sites below encode the limit as a signed byte
+        old_count, new_count = _u32(_ORIGINAL_COUNT_OFF), _u32(count_off)
+        old_flag, new_flag = _u32(_ORIGINAL_FLAG_OFF), _u32(flag_off)
+
+        edits = [
+            (
+                0x320298,
+                b"\x68" + _u32(_ORIGINAL_OBJ_SIZE),
+                b"\x68" + _u32(obj_size),
+                "P1 alloc size",
+            ),
+            (0x40C97E, b"\x6a\x21", b"\x6a" + nb, "P1 ctor count/stosd push"),
+            (0x40C987, b"\x89\x8e" + old_count, b"\x89\x8e" + new_count, "P1 ctor count store"),
+            (0x40C980, b"\x89\x86" + old_flag, b"\x89\x86" + new_flag, "P1 ctor flag store"),
+            (0x40C8FC, b"\x83\xfa\x21", b"\x83\xfa" + nb, "P1 set bound"),
+            (0x40C909, b"\x8d\x81" + old_count, b"\x8d\x81" + new_count, "P1 set &count"),
+            (
+                0x40C8EF,
+                b"\x83\xb9" + old_flag + b"\x01",
+                b"\x83\xb9" + new_flag + b"\x01",
+                "P1 set flag guard",
+            ),
+            (
+                0x40C8DB,
+                b"\x83\xa1" + old_count + b"\x00",
+                b"\x83\xa1" + new_count + b"\x00",
+                "P1 reset count",
+            ),
+            (
+                0x40C8D2,
+                b"\x83\xb9" + old_flag + b"\x01",
+                b"\x83\xb9" + new_flag + b"\x01",
+                "P1 reset flag guard",
+            ),
+            (0x40C8C6, b"\x83\xfb\x21", b"\x83\xfb" + nb, "P1 slot-scan bound"),
+            (0x40C8E3, b"\x6a\x21", b"\x6a" + nb, "P1 clear stosd"),
+            (0x40C91D, b"\x6a\x21", b"\x6a" + nb, "P1 reset stosd"),
+            (0x543DF9, b"\xff\xb0" + old_count, b"\xff\xb0" + new_count, "P1 consumer count read"),
+            (0x5A025E, b"\xff\xb3" + old_count, b"\xff\xb3" + new_count, "P1 consumer count read"),
+        ]
+        for file_off, old, new, note in edits:
+            apply_byte_patch(data, file_off, old, new, note)

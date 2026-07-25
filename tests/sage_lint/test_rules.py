@@ -17,7 +17,12 @@ from sage_lint.rules.assets import (
     MissingTextureFileRule,
 )
 from sage_lint.rules.base import Rule, run_rules
-from sage_lint.rules.commandset import CommandSetButtonRule, DuplicateReviveButtonRule
+from sage_lint.rules.commandset import (
+    CommandSetButtonRule,
+    DuplicateReviveButtonRule,
+    InitialVisibleLimitRule,
+    PushCommandRangeOverflowRule,
+)
 from sage_lint.rules.definitions import (
     DuplicateDefinitionRule,
     UnusedDefinitionRule,
@@ -941,6 +946,86 @@ class TestDuplicateReviveButtonRule:
 
         assert len(diags) == 1
         assert diags[0].extra["name"] == "Command_Rev"  # the first spelling is reported
+
+
+class TestInitialVisibleLimitRule:
+    def _run(self, initial_visible: str) -> list:
+        game = _load(f"CommandSet Set\n    InitialVisible = {initial_visible}\n    1 = NONE\nEnd\n")
+        return list(run_rules(game, [InitialVisibleLimitRule]))
+
+    def test_flags_initial_visible_above_33(self):
+        diags = self._run("64")
+
+        assert len(diags) == 1
+        assert diags[0].code == "initial-visible-over-max"
+        assert diags[0].severity is Severity.WARNING
+        assert diags[0].extra == {
+            "type": "CommandSet",
+            "commandset": "Set",
+            "key": "InitialVisible",
+            "value": 64,
+            "maximum": 33,
+        }
+
+    def test_does_not_flag_exactly_33(self):
+        assert not self._run("33")
+
+    def test_does_not_flag_a_normal_value(self):
+        assert not self._run("12")
+
+    def test_does_not_flag_when_unset(self):
+        game = _load("CommandSet Set\n    1 = NONE\nEnd\n")
+        assert not list(run_rules(game, [InitialVisibleLimitRule]))
+
+
+class TestPushCommandRangeOverflowRule:
+    # A set with buttons in slots 1..40, plus a paging button in slot 1 whose range varies.
+    def _game(self, start: str, count: str, highest: int = 40) -> Game:
+        slots = "".join(f"    {n} = Command_Fill\n" for n in range(2, highest + 1))
+        text = (
+            "CommandButton Command_Fill\n    Command = UNIT_BUILD\nEnd\n"
+            "CommandButton Command_Page\n"
+            "    Command = PUSH_VISIBLE_COMMAND_RANGE\n"
+            f"    CommandRangeStart = {start}\n    CommandRangeCount = {count}\nEnd\n"
+            "CommandSet Set\n    1 = Command_Page\n" + slots + "End\n"
+        )
+        return _load(text)
+
+    def _run(self, start: str, count: str, highest: int = 40) -> list:
+        return list(run_rules(self._game(start, count, highest), [PushCommandRangeOverflowRule]))
+
+    def test_flags_range_running_off_the_64_array_as_error(self):
+        # start 33 + count 33 = 66 > 64 -> reads the count field -> crash (the real Lothlorien bug).
+        diags = self._run("33", "33")
+
+        assert len(diags) == 1
+        assert diags[0].code == "command-range-overflow"
+        assert diags[0].severity is Severity.ERROR
+        assert diags[0].extra["crashes"] is True
+        assert diags[0].extra["start"] == 33
+        assert diags[0].extra["count"] == 33
+        assert "Command_Page" in diags[0].message
+
+    def test_flags_overshoot_into_empty_slots_as_warning(self):
+        # start 33 + count 10 = 43 > 40 (highest slot) but <= 64: paints empties, no crash.
+        diags = self._run("33", "10", highest=40)
+
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.WARNING
+        assert diags[0].extra["crashes"] is False
+        assert diags[0].extra["highest_slot"] == 40
+
+    def test_does_not_flag_a_range_within_the_set(self):
+        # start 33 + count 7 = 40 == highest slot: exactly fits.
+        assert not self._run("33", "7", highest=40)
+
+    def test_ignores_non_paging_buttons(self):
+        game = _load(
+            "CommandButton Command_Fill\n    Command = UNIT_BUILD\n"
+            "    CommandRangeStart = 33\n    CommandRangeCount = 33\nEnd\n"
+            "CommandSet Set\n    1 = Command_Fill\nEnd\n"
+        )
+        assert not list(run_rules(game, [PushCommandRangeOverflowRule]))
 
 
 class TestModuleTagReferenceRule:

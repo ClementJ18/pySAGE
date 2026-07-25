@@ -162,3 +162,5 @@ sage_replay/format_coverage_plan.md
 sage_replay/order_space_map.md
 intro.md
 pySAGE.zip
+sage_mods/edain/patching/engine/game.dat
+sage_mods/edain/patching/engine/game.dat.backup

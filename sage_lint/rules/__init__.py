@@ -8,7 +8,12 @@ from sage_lint.rules.assets import (
     MissingTextureFileRule,
 )
 from sage_lint.rules.base import RULES, Rule, run_rules
-from sage_lint.rules.commandset import CommandSetButtonRule, DuplicateReviveButtonRule
+from sage_lint.rules.commandset import (
+    CommandSetButtonRule,
+    DuplicateReviveButtonRule,
+    InitialVisibleLimitRule,
+    PushCommandRangeOverflowRule,
+)
 from sage_lint.rules.definitions import (
     DuplicateDefinitionRule,
     UnusedDefinitionRule,
@@ -39,6 +44,7 @@ __all__ = [
     "DanglingReferenceRule",
     "DuplicateDefinitionRule",
     "DuplicateReviveButtonRule",
+    "InitialVisibleLimitRule",
     "MapBareModuleRule",
     "MapFolderNameRule",
     "MapLocalStringRule",
@@ -49,6 +55,7 @@ __all__ = [
     "ModuleOperationRule",
     "ModuleTagReferenceRule",
     "OutOfRangeRule",
+    "PushCommandRangeOverflowRule",
     "RepeatedScalarFieldRule",
     "RespawnLevelRule",
     "RespawnOrderRule",

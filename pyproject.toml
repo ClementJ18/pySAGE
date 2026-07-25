@@ -157,6 +157,11 @@ target-version = "py312"  # matches requires-python, so pyupgrade cannot suggest
 line-length = 100
 extend-exclude = [
     "data", # game-data corpus
+    # One-off reverse-engineering scans for the game.dat patch work: each hardcodes a local
+    # install path and imports its sibling `pe` module, so they only run as `python <name>.py`
+    # from inside that directory. Kept for provenance, not maintained as library code - the
+    # patch framework itself (patcher/utils/patches/engine/patch.py) is linted normally.
+    "sage_mods/edain/patching/scripts",
 ]
 
 [tool.ruff.lint]
@@ -185,9 +190,14 @@ select = [
 python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
 files = ["sage_apt", "sage_asset", "sage_ini", "sage_map", "sage_mods", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah"]
 disable_error_code = ["annotation-unchecked"]
+# Same one-off RE scans ruff skips above (see [tool.ruff] extend-exclude): they import a sibling
+# `pe` module that is only resolvable with the scripts directory on sys.path.
+exclude = ["sage_mods/edain/patching/scripts/"]
 
 [[tool.mypy.overrides]]
-module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*", "OpenGL.*", "numpy.*"]
+# capstone/pefile are the disassembler + PE reader behind the game.dat patch work; neither ships
+# stubs or a py.typed marker.
+module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*", "OpenGL.*", "numpy.*", "capstone.*", "pefile"]
 ignore_missing_imports = true
 
 # The Qt half of sage_utils (and the texture/source layer built on optional deps) is outside
