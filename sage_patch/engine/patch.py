@@ -13,9 +13,9 @@ import sys
 from pathlib import Path
 
 # Allow running as a plain script (`python patch.py`) even if the package isn't installed.
-sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from sage_mods.edain.patching import CommandSetLimitPatch, apply_patches  # noqa: E402
+from sage_patch import CommandSetLimitPatch, apply_patches  # noqa: E402
 
 HERE = Path(__file__).parent
 

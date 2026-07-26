@@ -19,7 +19,7 @@ _NONE_SENTINELS = frozenset({"", "none"})
 # CommandSet 33->64 data-limit patch, which only enlarges how many buttons a set may *define*.
 MAX_VISIBLE_BUTTONS = 33
 
-# The `m_command[]` array size after the 33->64 engine patch (see sage_mods/edain/patching).
+# The `m_command[]` array size after the 33->64 engine patch (see sage_patch).
 # A `PUSH_VISIBLE_COMMAND_RANGE` window reaching index >= this reads past the array into the
 # object's count/flag fields and the game dereferences that value as a button pointer -> crash.
 MAX_COMMANDSET_SLOTS = 64
@@ -118,7 +118,7 @@ class PushCommandRangeOverflowRule(Rule):
     `Start+1 .. Start+Count`. Overshooting the set's highest slot paints empty positions, and -
     worse - reaching slot 64+1 runs off the `m_command[]` array into the
     object's count field, which the engine then dereferences as a button pointer and crashes
-    (the exact `PUSH_VISIBLE_COMMAND_RANGE` crash documented in sage_mods/edain/patching).
+    (the exact `PUSH_VISIBLE_COMMAND_RANGE` crash documented in sage_patch).
 
     ERROR when the window runs off the array end (a hard crash); WARNING when it only overshoots
     into empty slots of the same set."""

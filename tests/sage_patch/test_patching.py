@@ -1,13 +1,15 @@
-"""Tests for the sage_mods.edain.patching binary-patch framework."""
+"""Tests for the sage_patch binary-patch framework."""
 
 import struct
 from pathlib import Path
 
 import pytest
 
-from sage_mods.edain.patching import CommandSetLimitPatch, Patch, apply_patches
-from sage_mods.edain.patching.patches.commandset import MAX_COUNT, MIN_COUNT
-from sage_mods.edain.patching.utils import (
+from sage_patch import CommandSetLimitPatch, Patch, apply_patches
+from sage_patch.cli import main
+from sage_patch.patches import commandset as cs
+from sage_patch.patches.commandset import MAX_COUNT, MIN_COUNT
+from sage_patch.utils import (
     align_up,
     append_section,
     apply_byte_patch,
@@ -16,7 +18,7 @@ from sage_mods.edain.patching.utils import (
     va_to_offset,
 )
 
-_ENGINE = Path(__file__).resolve().parents[3] / "sage_mods" / "edain" / "patching" / "engine"
+_ENGINE = Path(__file__).resolve().parents[2] / "sage_patch" / "engine"
 
 
 def _tiny_pe() -> bytearray:
@@ -161,6 +163,117 @@ class TestCommandSetLimitPatch:
         # patch refuses rather than writing into an unrecognised binary.
         with pytest.raises((struct.error, ValueError)):
             CommandSetLimitPatch().apply(_tiny_pe())
+
+
+def _synthetic_game_dat(base: int = 0x400000) -> bytearray:
+    """A PE32 image large enough to hold every `CommandSetLimitPatch` site and the original
+    field-parse table at their real file offsets, with the original bytes planted so the patch
+    applies cleanly. This lets the full apply + verify path run in CI without the copyrighted
+    `game.dat` (whose byte-identity reproduction is covered separately, when present)."""
+    probe = CommandSetLimitPatch(count=64)
+    tab_foff = cs._TABLE_VA - base
+    highest = tab_foff + 34 * 16
+    for off, old, _new, _note in probe._phase1_edits(64):
+        highest = max(highest, off + len(old))
+    highest = max(highest, cs._PARSER_TABLE_REF + 5, cs._GETFIELDPARSE_REF + 5)
+    data = bytearray(align_up(highest + 0x400, 0x200))
+
+    # PE headers: one section, and room after its header for append_section to add a second.
+    e = 0x80
+    struct.pack_into("<I", data, 0x3C, e)  # e_lfanew
+    data[e : e + 4] = b"PE\x00\x00"
+    struct.pack_into("<H", data, e + 2, 0x14C)  # Machine (i386)
+    struct.pack_into("<H", data, e + 6, 1)  # NumberOfSections
+    struct.pack_into("<H", data, e + 20, 0xE0)  # SizeOfOptionalHeader
+    opt = e + 24
+    struct.pack_into("<H", data, opt, 0x10B)  # PE32 magic
+    struct.pack_into("<I", data, opt + 28, base)  # ImageBase
+    struct.pack_into("<I", data, opt + 32, 0x1000)  # SectionAlignment
+    struct.pack_into("<I", data, opt + 36, 0x200)  # FileAlignment
+    struct.pack_into("<I", data, opt + 56, 0x2000000)  # SizeOfImage (append_section recomputes)
+    struct.pack_into("<I", data, opt + 60, 0x400)  # SizeOfHeaders (room for a 2nd section header)
+    sectab = opt + 0xE0
+    hdr = bytearray(40)
+    hdr[0:8] = b".text\x00\x00\x00"
+    # A small .text so it never shadows the appended .cmdext (rva 0xAD3000) in va_to_offset.
+    struct.pack_into("<IIII", hdr, 8, 0x1000, 0x1000, 0x1000, 0x1000)  # vsize, rva, rawsize, praw
+    data[sectab : sectab + 40] = hdr
+
+    # Plant the original bytes at every patch site (the `old` half of each edit is N-independent).
+    for off, old, _new, _note in probe._phase1_edits(64):
+        data[off : off + len(old)] = old
+    data[cs._PARSER_TABLE_REF : cs._PARSER_TABLE_REF + 5] = b"\x68" + struct.pack(
+        "<I", cs._TABLE_VA
+    )
+    data[cs._GETFIELDPARSE_REF : cs._GETFIELDPARSE_REF + 5] = b"\xb8" + struct.pack(
+        "<I", cs._TABLE_VA
+    )
+
+    # Plant the original 34-entry field-parse table (33 numbered slots + InitialVisible).
+    for i in range(34):
+        name_ptr = 0x00D00000 + i  # distinctive; slots 1..33 are copied through into the new table
+        struct.pack_into(
+            "<IIII", data, tab_foff + i * 16, name_ptr, cs._PARSE_COMMAND_BUTTON, i, cs._ARRAY_OFF
+        )
+    return data
+
+
+class TestApplyProducesVerifiablePatch:
+    """End-to-end coverage of the patch logic on a synthetic PE - runnable in CI without the
+    real game.dat, which the reproduction test below needs and therefore skips."""
+
+    @pytest.mark.parametrize("count", [MIN_COUNT, 40, 64, 100, MAX_COUNT])
+    def test_apply_then_verify(self, count):
+        data = _synthetic_game_dat()
+        CommandSetLimitPatch(count=count).apply(data)
+        assert CommandSetLimitPatch(count=count).verify(data) == []
+
+    def test_apply_writes_the_expected_immediates(self):
+        data = _synthetic_game_dat()
+        CommandSetLimitPatch(count=64).apply(data)
+        obj_size = cs._ARRAY_OFF + 64 * 4 + 8
+        assert bytes(data[0x320298 : 0x320298 + 5]) == b"\x68" + struct.pack("<I", obj_size)
+        assert bytes(data[0x40C97E : 0x40C97E + 2]) == b"\x6a\x40"  # ctor stosd push = 64
+        new_va = image_base(data) + cs._NEW_SECTION_RVA
+        assert struct.unpack_from("<I", data, cs._PARSER_TABLE_REF + 1)[0] == new_va
+        assert struct.unpack_from("<I", data, cs._GETFIELDPARSE_REF + 1)[0] == new_va
+
+    def test_different_counts_produce_different_output(self):
+        a, b = _synthetic_game_dat(), _synthetic_game_dat()
+        CommandSetLimitPatch(count=40).apply(a)
+        CommandSetLimitPatch(count=100).apply(b)
+        assert bytes(a) != bytes(b)
+
+    def test_verify_rejects_an_unpatched_file(self):
+        # A clean build: the refs still point at the old table and there is no .cmdext section.
+        assert CommandSetLimitPatch(count=64).verify(_synthetic_game_dat())
+
+    def test_verify_rejects_the_wrong_count(self):
+        data = _synthetic_game_dat()
+        CommandSetLimitPatch(count=64).apply(data)
+        assert CommandSetLimitPatch(count=40).verify(data)  # patched to 64, not 40
+
+
+class TestCli:
+    def test_list_shows_registered_patches(self, capsys):
+        assert main(["list"]) == 0
+        assert "commandset-limit" in capsys.readouterr().out
+
+    def test_apply_then_verify_roundtrip(self, tmp_path):
+        src = tmp_path / "game.dat.backup"
+        src.write_bytes(bytes(_synthetic_game_dat()))
+        out = tmp_path / "game.dat"
+        rc = main(
+            ["apply", "commandset-limit", "--count", "64", "--in", str(src), "--out", str(out)]
+        )
+        assert rc == 0
+        assert src.read_bytes() == bytes(_synthetic_game_dat())  # input left untouched
+        assert main(["verify", "commandset-limit", "--count", "64", str(out)]) == 0
+
+    def test_verify_exits_nonzero_on_mismatch(self, tmp_path):
+        clean = tmp_path / "clean.dat"
+        clean.write_bytes(bytes(_synthetic_game_dat()))
+        assert main(["verify", "commandset-limit", "--count", "64", str(clean)]) == 1
 
 
 @pytest.mark.skipif(

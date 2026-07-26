@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import struct
 
-log = logging.getLogger("sage_mods.edain.patching")
+log = logging.getLogger("sage_patch")
 
 # --- PE optional-header field offsets (relative to the optional header start) ---
 _OPT_IMAGE_BASE = 28
@@ -84,6 +84,25 @@ def apply_byte_patch(
         raise ValueError(f"{note} @0x{file_off:x}: expected {old_b.hex()} got {got.hex()}")
     data[file_off : file_off + len(new_b)] = new_b
     log.info("  ok  0x%06x  %s", file_off, note)
+
+
+def next_section_rva(data: bytes | bytearray) -> int:
+    """The RVA at which the next appended section would start: the highest section end
+    (``VirtualAddress + VirtualSize``), rounded up to SectionAlignment. Pass this to
+    :func:`append_section` so a cave lands past every existing section regardless of what else
+    (e.g. another patch's section) has already been appended."""
+    e = _e_lfanew(data)
+    opt = _optional_header_offset(data)
+    nsec = struct.unpack_from("<H", data, e + 6)[0]
+    szopt = struct.unpack_from("<H", data, e + 20)[0]
+    sec_align = struct.unpack_from("<I", data, opt + _OPT_SECTION_ALIGNMENT)[0]
+    sectab = e + 24 + szopt
+    max_end = 0
+    for i in range(nsec):
+        o = sectab + i * _SECTION_HEADER_SIZE
+        vsize, sva = struct.unpack_from("<II", data, o + 8)
+        max_end = max(max_end, sva + vsize)
+    return align_up(max_end, sec_align)
 
 
 def append_section(

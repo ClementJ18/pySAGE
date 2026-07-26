@@ -1,8 +1,9 @@
 """The `CommandSet` button-limit patch, as a :class:`~..patcher.Patch`.
 
-Raises `MAX_COMMANDS_PER_COMMAND_SET` from its stock 33 to any ``count`` in 34..127 on
-ROTWK/Edain `game.dat` build ``2.01.2614.37001``, so a `CommandSet` INI block may define more
-than 33 buttons. See ``../docs/commandset-button-limit.md`` for the derivation of every site.
+Raises `MAX_COMMANDS_PER_COMMAND_SET` from its stock 33 to any ``count`` in 34..127 on the ROTWK
+SAGE-engine `game.dat` build ``2.01.2614.37001`` (engine-level: it benefits every mod on that
+build, not one in particular), so a `CommandSet` INI block may define more than 33 buttons. See
+``../docs/commandset-button-limit.md`` for the derivation of every site.
 
 Two phases make up the patch:
 
@@ -32,14 +33,20 @@ relocated code (a trampoline into a cave), not an in-place byte patch.
 from __future__ import annotations
 
 import struct
+from typing import TYPE_CHECKING
 
 from ..patcher import Patch
-from ..utils import append_section, apply_byte_patch, image_base
+from ..utils import append_section, apply_byte_patch, image_base, va_to_offset
+
+if TYPE_CHECKING:
+    import argparse
 
 # --- fixed facts about the target build (VA, ImageBase 0x400000) ---
 _TABLE_VA = 0xC4F3D8  # the original 34-entry CommandSet field-parse table
 _PARSE_COMMAND_BUTTON = 0x0080C9E1  # parseCommandButton (fn of every slot entry)
 _NEW_SECTION_RVA = 0xAD3000  # where the enlarged table + new slot names go (.cmdext)
+_PARSER_TABLE_REF = 0x32065C  # `push _TABLE_VA` - parser's table pointer (repointed in Phase 2)
+_GETFIELDPARSE_REF = 0x31C2EE  # `mov eax, _TABLE_VA` - getFieldParse's table pointer (Phase 2)
 _ORIGINAL_MAX = 33
 _ORIGINAL_OBJ_SIZE = 0xA0
 _ORIGINAL_COUNT_OFF = 0x98  # count / InitialVisible field in the 0xA0 object
@@ -92,16 +99,69 @@ class CommandSetLimitPatch(Patch):
     def apply(self, data: bytearray) -> None:
         n = self.count
         base = image_base(data)
-        count_off = _ARRAY_OFF + n * 4  # trailing count field, just past the array
-        flag_off = count_off + 4
-        obj_size = count_off + 8
+        content, new_base_va = self._compute_table(data, base, n)
+        append_section(data, ".cmdext", _NEW_SECTION_RVA, content, _SECTION_CHARACTERISTICS)
+        self._link_table(data, new_base_va)
+        for file_off, old, new, note in self._phase1_edits(n):
+            apply_byte_patch(data, file_off, old, new, note)
 
-        self._build_and_link_table(data, base, n)
-        self._phase1_grow_object(data, n, count_off, flag_off, obj_size)
+    def verify(self, data: bytes | bytearray) -> list[str]:
+        """Structural check that ``data`` already carries this patch at ``count`` (an empty list
+        == verified). Recomputes the expected ``.cmdext`` table, the two repointed references and
+        the Phase-1 site bytes for ``count`` and compares them to what is on disk. Reads only via
+        ``struct`` + the section table, so it needs no disassembler."""
+        n = self.count
+        problems: list[str] = []
+        try:
+            base = image_base(data)
+            content, new_base_va = self._compute_table(data, base, n)
+        except (ValueError, struct.error) as exc:
+            return [f"cannot recompute the expected table (wrong build?): {exc}"]
+
+        table_off = va_to_offset(data, new_base_va)
+        if table_off is None:
+            problems.append(f".cmdext is not mapped at VA 0x{new_base_va:08x}")
+        elif bytes(data[table_off : table_off + len(content)]) != content:
+            problems.append(f"the .cmdext field-parse table / slot names do not match N={n}")
+
+        for ref_off, label in (
+            (_PARSER_TABLE_REF, "parser table ref"),
+            (_GETFIELDPARSE_REF, "getFieldParse ref"),
+        ):
+            got = struct.unpack_from("<I", data, ref_off + 1)[0]
+            if got != new_base_va:
+                problems.append(
+                    f"{label} @0x{ref_off:x} -> 0x{got:08x}, expected 0x{new_base_va:08x}"
+                )
+
+        for file_off, _old, new, note in self._phase1_edits(n):
+            got = bytes(data[file_off : file_off + len(new)])
+            if got != new:
+                problems.append(f"{note} @0x{file_off:x}: expected {new.hex()}, got {got.hex()}")
+        return problems
+
+    # --- CLI integration --------------------------------------------------------------------
+
+    @classmethod
+    def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "--count",
+            type=int,
+            default=64,
+            metavar="N",
+            help=f"new CommandSet button limit ({MIN_COUNT}..{MAX_COUNT}); default 64",
+        )
+
+    @classmethod
+    def from_cli_args(cls, args: argparse.Namespace) -> CommandSetLimitPatch:
+        return cls(count=args.count)
 
     # --- Phase 2: the enlarged field-parse table in a new section ---------------------------
 
-    def _build_and_link_table(self, data: bytearray, base: int, n: int) -> None:
+    def _compute_table(self, data: bytes | bytearray, base: int, n: int) -> tuple[bytes, int]:
+        """Return ``(section content, new table VA)`` for an ``n``-slot table. Reads the original
+        34-entry table to reuse its slot-name pointers and parse fn; raises on an unrecognised
+        build (slot 0's parse fn not where this build keeps it)."""
         tab_foff = _TABLE_VA - base
         original = [struct.unpack_from("<IIII", data, tab_foff + i * 16) for i in range(34)]
         parse_fn = original[0][1]
@@ -113,8 +173,7 @@ class CommandSetLimitPatch(Patch):
         initial_visible = original[33]  # the "InitialVisible" field entry
 
         new_base_va = base + _NEW_SECTION_RVA
-        table_entries = n + 2  # n slots + InitialVisible + NULL terminator
-        table_size = table_entries * 16
+        table_size = (n + 2) * 16  # n slots + InitialVisible + NULL terminator
         str_area_va = new_base_va + table_size
 
         # slot name strings "34".."n" (slots 1..33 reuse the original pointers)
@@ -132,30 +191,40 @@ class CommandSetLimitPatch(Patch):
         table += struct.pack("<IIII", initial_visible[0], initial_visible[1], 0, initvis_off)
         table += struct.pack("<IIII", 0, 0, 0, 0)  # terminator
         assert len(table) == table_size
+        return bytes(table) + bytes(str_bytes), new_base_va
 
-        content = bytes(table) + bytes(str_bytes)
-        append_section(data, ".cmdext", _NEW_SECTION_RVA, content, _SECTION_CHARACTERISTICS)
-
-        # repoint the two references to the old table -> the new one
-        new_ptr = _u32(new_base_va)
-        old_ptr = _u32(_TABLE_VA)
+    def _link_table(self, data: bytearray, new_base_va: int) -> None:
+        """Repoint the two code references from the old table VA to the new ``.cmdext`` table."""
+        new_ptr, old_ptr = _u32(new_base_va), _u32(_TABLE_VA)
         apply_byte_patch(
-            data, 0x32065C, b"\x68" + old_ptr, b"\x68" + new_ptr, "P2 parser table push -> .cmdext"
+            data,
+            _PARSER_TABLE_REF,
+            b"\x68" + old_ptr,
+            b"\x68" + new_ptr,
+            "P2 parser table push -> .cmdext",
         )
         apply_byte_patch(
-            data, 0x31C2EE, b"\xb8" + old_ptr, b"\xb8" + new_ptr, "P2 getFieldParse mov -> .cmdext"
+            data,
+            _GETFIELDPARSE_REF,
+            b"\xb8" + old_ptr,
+            b"\xb8" + new_ptr,
+            "P2 getFieldParse mov -> .cmdext",
         )
 
     # --- Phase 1: grow the object and move its trailing fields -------------------------------
 
-    def _phase1_grow_object(
-        self, data: bytearray, n: int, count_off: int, flag_off: int, obj_size: int
-    ) -> None:
+    def _phase1_edits(self, n: int) -> list[tuple[int, bytes, bytes, str]]:
+        """The 14 ``(file_offset, original bytes, patched bytes, note)`` edits that grow the
+        object for ``n`` slots. Shared by :meth:`apply` (writes ``patched`` if ``original``
+        matches) and :meth:`verify` (asserts ``patched`` is present)."""
+        count_off = _ARRAY_OFF + n * 4  # trailing count field, just past the array
+        flag_off = count_off + 4
+        obj_size = count_off + 8
         nb = _imm8(n)  # the five sites below encode the limit as a signed byte
         old_count, new_count = _u32(_ORIGINAL_COUNT_OFF), _u32(count_off)
         old_flag, new_flag = _u32(_ORIGINAL_FLAG_OFF), _u32(flag_off)
 
-        edits = [
+        return [
             (
                 0x320298,
                 b"\x68" + _u32(_ORIGINAL_OBJ_SIZE),
@@ -191,5 +260,3 @@ class CommandSetLimitPatch(Patch):
             (0x543DF9, b"\xff\xb0" + old_count, b"\xff\xb0" + new_count, "P1 consumer count read"),
             (0x5A025E, b"\xff\xb3" + old_count, b"\xff\xb3" + new_count, "P1 consumer count read"),
         ]
-        for file_off, old, new, note in edits:
-            apply_byte_patch(data, file_off, old, new, note)

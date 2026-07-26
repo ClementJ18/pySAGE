@@ -12,14 +12,21 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-log = logging.getLogger("sage_mods.edain.patching")
+if TYPE_CHECKING:
+    import argparse
+
+log = logging.getLogger("sage_patch")
 
 
 class Patch:
     """One binary modification of a `game.dat` image.
 
-    Subclasses set :attr:`name`/:attr:`description` and implement :meth:`apply`."""
+    Subclasses set :attr:`name`/:attr:`description` and implement :meth:`apply`. To be reachable
+    from the ``sage-patch`` CLI, a patch is registered in :mod:`sage_patch.registry`; it may
+    override :meth:`add_cli_arguments`/:meth:`from_cli_args` to accept parameters and
+    :meth:`verify` to make its result independently checkable."""
 
     name: str = ""
     description: str = ""
@@ -28,6 +35,21 @@ class Patch:
         """Mutate ``data`` in place. Raise (typically ``ValueError``) if the image is not the
         expected build or a patch site does not match."""
         raise NotImplementedError
+
+    def verify(self, data: bytes | bytearray) -> list[str]:
+        """Return the structural problems that mean ``data`` does not carry this patch (an empty
+        list == verified). Default: nothing checkable. Overrides should not disassemble, so that
+        verification stays dependency-light."""
+        return []
+
+    @classmethod
+    def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
+        """Register this patch's parameters as CLI options on ``parser``. Default: none."""
+
+    @classmethod
+    def from_cli_args(cls, args: argparse.Namespace) -> Patch:
+        """Build an instance from parsed CLI ``args``. Default: the no-argument constructor."""
+        return cls()
 
     def __str__(self) -> str:
         return self.name or type(self).__name__

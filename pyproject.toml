@@ -47,6 +47,7 @@ sage-map = "sage_map.__main__:main"
 sage-asset = "sage_asset.__main__:main"
 sage-w3d = "sage_w3d.__main__:main"
 sage-cah = "sage_cah.__main__:main"
+sage-patch = "sage_patch.cli:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui / edain-ui).
 [project.gui-scripts]
@@ -94,6 +95,14 @@ w3d-view = [
     "pillow>=10",
 ]
 
+# The disassembler + PE reader behind the game.dat reverse-engineering and static-verification
+# tooling (sage_patch/engine + sage_patch/scripts). The patch framework itself (apply + the
+# structural `verify`) is stdlib-only; this extra is just for the RE/disassembly dev tools.
+patch = [
+    "capstone>=5",
+    "pefile>=2023",
+]
+
 # Every optional extra at once: `pip install "pysage-tools[all]"` (and CI's full job) installs
 # the complete set by one name, so a newly added extra can never be silently left out. Each
 # entry is a self-reference, keeping the individual extras above the single source of truth for
@@ -107,6 +116,7 @@ all = [
     "pysage-tools[asset-ui]",
     "pysage-tools[apt]",
     "pysage-tools[w3d-view]",
+    "pysage-tools[patch]",
 ]
 
 [dependency-groups]
@@ -118,7 +128,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*", "sage_w3d*", "sage_cah*"]
+include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*", "sage_w3d*", "sage_cah*"]
 
 [tool.setuptools.package-data]
 # Anything a package opens at runtime must be listed here, or it is absent from the wheel. The
@@ -131,6 +141,7 @@ sage_w3d = ["py.typed"]
 sage_cah = ["py.typed"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
+sage_patch = ["py.typed"]
 sage_save = ["py.typed"]
 sage_replay = ["py.typed"]
 sage_ui = ["*.ico"]
@@ -161,7 +172,7 @@ extend-exclude = [
     # install path and imports its sibling `pe` module, so they only run as `python <name>.py`
     # from inside that directory. Kept for provenance, not maintained as library code - the
     # patch framework itself (patcher/utils/patches/engine/patch.py) is linted normally.
-    "sage_mods/edain/patching/scripts",
+    "sage_patch/scripts",
 ]
 
 [tool.ruff.lint]
@@ -188,11 +199,11 @@ select = [
 
 [tool.mypy]
 python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
-files = ["sage_apt", "sage_asset", "sage_ini", "sage_map", "sage_mods", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah"]
+files = ["sage_apt", "sage_asset", "sage_ini", "sage_map", "sage_mods", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah"]
 disable_error_code = ["annotation-unchecked"]
 # Same one-off RE scans ruff skips above (see [tool.ruff] extend-exclude): they import a sibling
 # `pe` module that is only resolvable with the scripts directory on sys.path.
-exclude = ["sage_mods/edain/patching/scripts/"]
+exclude = ["sage_patch/scripts/"]
 
 [[tool.mypy.overrides]]
 # capstone/pefile are the disassembler + PE reader behind the game.dat patch work; neither ships

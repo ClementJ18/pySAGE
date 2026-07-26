@@ -1,9 +1,10 @@
 # ROTWK `game.dat` patching — raise the `CommandSet` button limit
 
-Reverse-engineering + binary-patch work that raises the ROTWK/Edain `CommandSet` button limit
+Reverse-engineering + binary-patch work that raises the ROTWK `CommandSet` button limit
 from its stock **33** to any **N** in 34..127 (engine build `2.01.2614.37001`), plus the INI paging
-rule needed to surface the extra buttons. Uses [pyBIG](../../..)/capstone/pefile and Ghidra
-headless. The shipped build uses **N = 64**.
+rule needed to surface the extra buttons. The patch is engine-level — it applies to any ROTWK
+`game.dat` of that build and benefits every mod on it (Edain among them), not one in particular.
+Uses [pyBIG](..)/capstone/pefile and Ghidra headless. The shipped build uses **N = 64**.
 
 ## Status
 
@@ -18,6 +19,20 @@ headless. The shipped build uses **N = 64**.
   raising their bounds overruns those arrays and crashes. True >33 on-screen display means
   enlarging the ControlBar/APT UI, not this patch.
 
+## CLI
+
+Bring your own `game.dat` (this repo ships the patch recipe, never the copyrighted binary):
+
+```sh
+sage-patch list                                  # the registered patches
+sage-patch apply commandset-limit --count 64 \
+    --in game.dat.backup --out game.dat          # --in is read, never modified
+sage-patch verify commandset-limit --count 64 game.dat   # exits non-zero on any mismatch
+```
+
+`verify` re-derives the expected table, the repointed references and every patched site for the
+given N and checks them against the file — a structural, disassembler-free pass/fail.
+
 ## The patch framework
 
 `apply_patches(game_dat, patches, output=None)` applies an ordered list of `Patch` subclasses to a
@@ -26,14 +41,16 @@ the bytes it expects before writing, so a list either applies in full or raises 
 half-patched file.
 
 ```python
-from sage_mods.edain.patching import apply_patches, CommandSetLimitPatch
+from sage_patch import apply_patches, CommandSetLimitPatch
 
 apply_patches("game.dat.backup", [CommandSetLimitPatch(count=64)], output="game.dat")
 ```
 
 | module | what |
 |--------|------|
-| [`patcher.py`](patcher.py) | the `Patch` base class + `apply_patches` driver |
+| [`patcher.py`](patcher.py) | the `Patch` base class (`apply` / `verify` / CLI hooks) + `apply_patches` driver |
+| [`cli.py`](cli.py) | the `sage-patch` console script (`apply` / `verify` / `list`) |
+| [`registry.py`](registry.py) | the name→`Patch` map the CLI dispatches over; register a patch here to expose it |
 | [`utils.py`](utils.py) | PE/byte helpers (`append_section`, `apply_byte_patch`, `va_to_offset`, `image_base`, …) operating on an in-memory `bytearray` |
 | [`patches/commandset.py`](patches/commandset.py) | `CommandSetLimitPatch` — raise the CommandSet button limit to any N (grow the object + relocate/enlarge the field-parse table) |
 
@@ -46,7 +63,7 @@ field-parse table and the slot-name strings are derived from it.
 > Going higher means re-encoding those five as imm32 (3 bytes longer apiece), which no longer
 > fits in place and needs relocated code, not a byte patch.
 
-Tests live in [`tests/sage_mods/edain/test_patching.py`](../../../tests/sage_mods/edain/test_patching.py),
+Tests live in [`tests/sage_patch/test_patching.py`](../tests/sage_patch/test_patching.py),
 including a byte-identity check that `count=64` still reproduces the shipped `game.dat`.
 
 ## Layout

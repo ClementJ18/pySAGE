@@ -150,6 +150,7 @@ object_ids.*.json
 docs/apt_guidelines.pdf
 
 # Per-package planning / working notes are local scratch, not committed.
+_local/
 PLAN.md
 TODO.md
 HANDOVER.md
@@ -162,5 +163,9 @@ sage_replay/format_coverage_plan.md
 sage_replay/order_space_map.md
 intro.md
 pySAGE.zip
-sage_mods/edain/patching/engine/game.dat
-sage_mods/edain/patching/engine/game.dat.backup
+# Copyrighted game binaries and any patched output (`sage-patch apply` writes these): the tool
+# ships the patch recipe, never the binary. Matched by basename so they are ignored wherever they
+# land, not only under sage_patch/engine/.
+game.dat
+game.dat.backup
+patched.dat
