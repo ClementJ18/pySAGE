@@ -143,11 +143,21 @@ def expand_includes(
 
         resolved = resolve_include(target, source, layers)
         if resolved is None:
-            diagnostics.add("unresolved-include", f"cannot resolve {target}", line.span)
+            diagnostics.add(
+                "unresolved-include",
+                f"cannot resolve {target}",
+                line.span,
+                extra={"target": target},
+            )
             continue
         key = str(resolved).lower()
         if key in seen:
-            diagnostics.add("include-cycle", f"include cycle via {target}", line.span)
+            diagnostics.add(
+                "include-cycle",
+                f"include cycle via {target}",
+                line.span,
+                extra={"target": target},
+            )
             continue
 
         sub = tokenize_path(resolved)
@@ -175,7 +185,13 @@ def _parse_directive(line: Line, children: list[Node], diagnostics: Diagnostics)
         diagnostics.add("malformed-include", "#include expects a quoted path", line.span)
         return
 
-    diagnostics.add("unknown-directive", f"unknown directive: {content.split()[0]}", line.span)
+    directive = content.split()[0]
+    diagnostics.add(
+        "unknown-directive",
+        f"unknown directive: {directive}",
+        line.span,
+        extra={"directive": directive},
+    )
 
 
 def parse_lines(
@@ -340,7 +356,12 @@ def parse_lines(
         diagnostics.add("unclosed-script", "missing EndScript", script.span)
 
     for block in stack:
-        diagnostics.add("unclosed-block", f"missing End for block '{block.name}'", block.span)
+        diagnostics.add(
+            "unclosed-block",
+            f"missing End for block '{block.name}'",
+            block.span,
+            extra={"block": block.name},
+        )
 
     last_line = max(1, len(lines))
     document = IniDocument(file=file, children=root, span=Span(file, 1, last_line))

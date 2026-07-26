@@ -1,0 +1,73 @@
+name: Build release binaries
+
+# Manual only: PyInstaller builds are slow and their artifacts are large, so they are cut on
+# demand rather than on every push. Runs on Windows because PyInstaller binaries are not
+# cross-platform - this workflow produces the .exe set. Add a matching job on another runner
+# if you start shipping Linux or macOS builds.
+on:
+  workflow_dispatch:
+    inputs:
+      specs:
+        description: >-
+          Only build specs whose repo-relative path contains one of these, space-separated
+          (e.g. "sage_lint sage_ini"). Leave empty to build every spec.
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      # The Qt- and pyBIG-backed specs import their dependencies during PyInstaller's analysis,
+      # so the full extras are needed even for a filtered build. PyInstaller itself is in the
+      # `dev` dependency group rather than an extra, so it is installed by name.
+      - name: Install the package with extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+          pip install "pyinstaller>=6"
+
+      # `specs` arrives as an env var rather than a `${{ }}` expansion inside the script, so a
+      # dispatch value cannot inject shell. Left unquoted so several filters split into separate
+      # arguments, which is what build_release.py's `nargs="*"` expects.
+      - name: Build every spec
+        shell: bash
+        env:
+          SPECS: ${{ inputs.specs }}
+        run: python tools/build_release.py $SPECS
+
+      # A frozen build that silently ships stale or broken code is the failure this guards: the
+      # binary must run, and must write the current baseline format (entries carrying `id`).
+      # Skips cleanly when a filtered build left the CLI out.
+      - name: Smoke-test the CLI binary
+        shell: bash
+        run: |
+          cli="build/release-dist/sage_lint.exe"
+          if [ ! -f "$cli" ]; then
+            echo "sage_lint.exe not built (filtered out) - skipping smoke test"
+            exit 0
+          fi
+          "$cli" --help > /dev/null
+          mkdir -p smoke
+          printf 'Object Foo\n    BuildCost = 1\n    BuildCost = 2\nEnd\n' > smoke/a.ini
+          "$cli" lint smoke --no-config --write-baseline --baseline smoke/baseline.json
+          python -c "import json;e=json.load(open('smoke/baseline.json'))['entries'];assert e and all('id' in x for x in e), e;print('baseline format OK:', len(e), 'entries')"
+
+      - name: Upload the binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: pySAGE-windows-${{ github.run_number }}
+          path: build/release-dist/
+          if-no-files-found: error
+          retention-days: 14

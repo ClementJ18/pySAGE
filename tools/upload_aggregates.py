@@ -1,7 +1,7 @@
 """Sync the generated replay-aggregate site to a DigitalOcean Spaces bucket.
 
-`tools/rebuild_aggregates.py` writes a static HTML + JSON tree to `aggregate/` at the repo
-root - a global index over every corpus plus one `<corpus>/` subtree each (its own index,
+`tools/rebuild_aggregates.py` writes a static HTML + JSON tree to `build/aggregate/` at the
+repo root - a global index over every corpus plus one `<corpus>/` subtree each (its own index,
 player-count modes `1v1/`, `2v2/`, ..., and per-faction pages under `factions/`). This script
 pushes that tree to a DigitalOcean Spaces bucket (an S3-compatible object store) so it can be
 served publicly, and keeps it in sync on repeat runs rather than re-uploading everything every
@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-DEFAULT_DIR = REPO / "aggregate"
+DEFAULT_DIR = REPO / "build" / "aggregate"
 
 # mimetypes' guess is platform-dependent (it also consults the OS registry on Windows); this
 # fallback covers the extensions the aggregate site actually emits so Content-Type is stable

@@ -7,15 +7,15 @@ import io
 import json
 import sys
 import tempfile
-from collections import Counter
 from collections.abc import Iterable
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from sage_lint.baseline import (
-    BASELINE_VERSION,
     BaselineError,
+    entry_key,
     load_baseline,
+    write_entries,
 )
 from sage_lint.cli import main as cli_main
 from sage_lint.config import CONFIG_NAME, LOCAL_CONFIG_NAME, load_config
@@ -106,7 +106,7 @@ def merge_baselines(paths, root) -> str:
     relative to `root`. A baseline sitting directly at `root` needs no prefix; one outside
     `root` (no relative path) is left as-is."""
     base = Path(root)
-    counts: Counter = Counter()
+    merged: dict[tuple, dict] = {}
     for path in paths:
         try:
             baseline = load_baseline(path)
@@ -118,18 +118,20 @@ def merge_baselines(paths, root) -> str:
             prefix = ""
         if prefix == ".":
             prefix = ""
-        for (file, code, message), count in baseline.counts.items():
-            rerooted = f"{prefix}/{file}" if prefix else file
-            counts[(rerooted, code, message)] += count
-    if not counts:
+        for entry in baseline.entries:
+            rerooted = {**entry, "file": f"{prefix}/{entry['file']}" if prefix else entry["file"]}
+            key = entry_key(rerooted)
+            # Two baselines can accept the same problem in the same re-rooted file; their
+            # allowances add up rather than one shadowing the other.
+            existing = merged.get(key)
+            if existing is None:
+                merged[key] = rerooted
+            else:
+                existing["count"] = int(existing.get("count", 1)) + int(rerooted.get("count", 1))
+    if not merged:
         return ""
-    entries = [
-        {"file": file, "code": code, "message": message, "count": count}
-        for (file, code, message), count in sorted(counts.items())
-    ]
-    document = {"version": BASELINE_VERSION, "total": sum(counts.values()), "entries": entries}
     out = Path(tempfile.gettempdir()) / MERGED_BASELINE
-    out.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    write_entries(out, [merged[key] for key in sorted(merged)])
     return str(out)
 
 

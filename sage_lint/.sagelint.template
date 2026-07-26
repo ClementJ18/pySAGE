@@ -39,8 +39,10 @@ level = "WARNING"
 # beside this file is picked up automatically if present.
 #
 # Generate or refresh it with `sage_lint lint --write-baseline`, and COMMIT it (unlike
-# .sagelint.local) - it is the shared, checkout-independent record. Matching ignores line
-# numbers (file + code + message + count), so editing files does not resurface old problems.
+# .sagelint.local) - it is the shared, checkout-independent record. Matching is on the facts
+# identifying each problem (file + code + the object/field/symbol involved + count), never on
+# line numbers, measured values or the message text - so editing files, partially fixing a
+# problem, or a linter update rewording a rule do not resurface old problems.
 # baseline = ".sagelint.baseline"
 
 # -- ignore -----------------------------------------------------------------

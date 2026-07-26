@@ -16,6 +16,7 @@ from sage_lint.commands.common import base_paths, resolve_rule_set
 from sage_lint.config import Config
 from sage_lint.fixer import fix_diagnostics
 from sage_lint.formatter import format_file, format_text
+from sage_lint.plugins.ui.runner import merge_baselines
 from sage_lint.rules.base import RULES
 
 
@@ -850,8 +851,8 @@ _NOISY = "Object Foo\n    BuildCost = 1\n    BuildCost = 2\n    Weapon = NoSuchW
 
 class TestBaseline:
     """`--write-baseline` records today's diagnostics; `--baseline` then reports only what is
-    new against that record, matched line-insensitively so editing files does not resurface
-    accepted problems."""
+    new against that record. Matching is on the diagnostic's structured identity, not its line
+    or its prose, so editing files does not resurface accepted problems."""
 
     def _write(self, tmp_path, text=_NOISY):
         (tmp_path / "a.ini").write_text(text, encoding="utf-8")
@@ -906,6 +907,109 @@ class TestBaseline:
         )
         assert main(["lint", str(tmp_path), "--baseline", str(bl)]) == 1
         assert "1 baselined" in capsys.readouterr().out
+
+    def test_partial_fix_does_not_resurface_the_remainder(self, tmp_path, capsys):
+        # "BuildCost is set 3 times" and "set 2 times" are the same accepted problem: dropping
+        # one of three repeats must not re-report the two that are left as a new diagnostic.
+        self._write(
+            tmp_path, "Object Foo\n    BuildCost = 1\n    BuildCost = 2\n    BuildCost = 3\nEnd\n"
+        )
+        bl = tmp_path / "bl.json"
+        main(["lint", str(tmp_path), "--baseline", str(bl), "--write-baseline"])
+        capsys.readouterr()
+
+        self._write(tmp_path, "Object Foo\n    BuildCost = 1\n    BuildCost = 2\nEnd\n")
+        assert main(["lint", str(tmp_path), "--baseline", str(bl)]) == 0
+        assert "1 baselined" in capsys.readouterr().out
+
+    def test_line_in_a_message_is_not_part_of_the_identity(self, tmp_path, capsys):
+        # duplicate-definition names the redefining line in its message. Pushing that line down
+        # must not turn the accepted duplicate back into a new one.
+        dupe = "CommandButton Command_Foo\nEnd\nCommandButton Command_Foo\nEnd\n"
+        self._write(tmp_path, dupe)
+        bl = tmp_path / "bl.json"
+        main(["lint", str(tmp_path), "--baseline", str(bl), "--write-baseline"])
+        capsys.readouterr()
+
+        recorded = json.loads(bl.read_text(encoding="utf-8"))["entries"]
+        assert any("redefined at line 3" in entry["message"] for entry in recorded)
+
+        # The redefinition now sits on line 5, so the message the rule produces differs from
+        # the recorded one - and the entry still matches.
+        self._write(tmp_path, "; pushed down\n\n" + dupe)
+        assert main(["lint", str(tmp_path), "--baseline", str(bl)]) == 0
+        assert "2 baselined" in capsys.readouterr().out
+
+    def test_reworded_message_still_matches(self, tmp_path, capsys):
+        # The stored message is a human-readable comment, not part of the match, so rewording a
+        # rule (simulated here by rewriting the recorded text) keeps the backlog suppressed.
+        self._write(tmp_path)
+        bl = tmp_path / "bl.json"
+        main(["lint", str(tmp_path), "--baseline", str(bl), "--write-baseline"])
+        capsys.readouterr()
+
+        document = json.loads(bl.read_text(encoding="utf-8"))
+        for entry in document["entries"]:
+            entry["message"] = "some entirely different wording"
+        bl.write_text(json.dumps(document, indent=2), encoding="utf-8")
+
+        assert main(["lint", str(tmp_path), "--baseline", str(bl)]) == 0
+        assert "2 baselined" in capsys.readouterr().out
+
+    def test_entries_record_their_identifying_facts(self, tmp_path):
+        self._write(tmp_path)
+        bl = tmp_path / "bl.json"
+        main(["lint", str(tmp_path), "--baseline", str(bl), "--write-baseline"])
+
+        entries = json.loads(bl.read_text(encoding="utf-8"))["entries"]
+        ids = {entry["code"]: entry["id"] for entry in entries}
+        # The repeat count is state, not identity, so it is recorded in the message only.
+        assert ids["repeated-field"] == {"type": "Object", "key": "BuildCost"}
+        assert "2 times" in {entry["code"]: entry["message"] for entry in entries}["repeated-field"]
+        assert ids["unknown-attribute"] == {"type": "Object", "key": "Weapon"}
+
+    def test_unsupported_version_asks_for_a_regenerate(self, tmp_path, capsys):
+        self._write(tmp_path)
+        bl = tmp_path / "bl.json"
+        main(["lint", str(tmp_path), "--baseline", str(bl), "--write-baseline"])
+        capsys.readouterr()
+
+        document = json.loads(bl.read_text(encoding="utf-8"))
+        document["version"] = 1
+        bl.write_text(json.dumps(document, indent=2), encoding="utf-8")
+
+        # An unreadable baseline is treated as empty, so the run reports the real problems.
+        assert main(["lint", str(tmp_path), "--baseline", str(bl)]) == 1
+        assert "regenerate it with --write-baseline" in capsys.readouterr().err
+
+    def test_merge_reroots_and_sums_allowances(self, tmp_path):
+        # The UI merges every baseline found under a mod into one, re-rooting each entry to the
+        # folder its baseline covers. Two baselines accepting the same problem in what becomes
+        # the same file must have their allowances added, not one shadow the other.
+        for sub in ("one", "two"):
+            (tmp_path / sub).mkdir()
+            (tmp_path / sub / "a.ini").write_text(_NOISY, encoding="utf-8")
+            main(
+                [
+                    "lint",
+                    str(tmp_path / sub),
+                    "--baseline",
+                    str(tmp_path / sub / ".sagelint.baseline"),
+                    "--write-baseline",
+                ]
+            )
+
+        merged_path = merge_baselines(
+            [tmp_path / sub / ".sagelint.baseline" for sub in ("one", "two")], tmp_path
+        )
+        merged = json.loads(Path(merged_path).read_text(encoding="utf-8"))
+        assert {entry["file"] for entry in merged["entries"]} == {"one/a.ini", "two/a.ini"}
+        assert merged["total"] == 4
+
+        # Neither sub-baseline covers the other's folder, so only the merge makes the
+        # whole-folder lint clean.
+        assert main(["lint", str(tmp_path)]) == 1
+        assert main(["lint", str(tmp_path), "--baseline", merged_path]) == 0
 
     def test_baseline_is_auto_discovered_beside_the_config(self, tmp_path, capsys):
         # A `.sagelint.baseline` next to the linted folder is used without any flag.

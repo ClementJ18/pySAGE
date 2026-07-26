@@ -37,8 +37,10 @@ python -m sage_lint lint <dir> --write-baseline   # snapshot current diagnostics
 python -m sage_lint lint <dir> --baseline         # report only what's new since
 ```
 
-The baseline matches diagnostics by file + code + message + count (line-insensitive), so
-unrelated edits above a finding don't resurface it.
+The baseline matches diagnostics by file + code + the structured facts identifying the problem
+(which object, which field, which referenced symbol) + count. Line numbers, measured values and
+the prose message are all excluded, so an unrelated edit above a finding, a partial fix, or a
+reworded rule won't resurface accepted diagnostics.
 
 ## Linting without a base game on disk
 

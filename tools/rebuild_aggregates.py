@@ -5,10 +5,11 @@ folder names as positional arguments and each is built in turn. Corpora of diffe
 require a different game version installed at C:\\BFME2 / C:\\RotWK, and every corpus in one
 run resolves against the same install (loaded once and shared), so only build folders together
 when they share the installed game version (e.g. edain-4.8.4.3 and loriencup, both Edain).
-Each corpus's pages land under its own folder name inside the output dir (`aggregate/` by
-default), which is the shared ROOT all corpora build into:
+Each corpus's pages land under its own folder name inside the output dir
+(`build/aggregate/` by default, which is not distributed with the repository), and that
+dir is the shared ROOT all corpora build into:
 
-    aggregate/
+    build/aggregate/
       index.html                       global index over every corpus built here (this
                                         script also regenerates it every run, scanning disk)
       <folder>/                        one corpus, e.g. edain-4.8.4.3/
@@ -161,7 +162,7 @@ from sage_utils.gameroot import resolve_game_root, resolve_game_roots  # noqa: E
 DEFAULT_CORPUS_ROOT = REPO / "downloads" / "replays"
 DEFAULT_CACHE_ROOT = REPO / "downloads" / "cached"
 DEFAULT_GAME = [Path(r"C:\BFME2"), Path(r"C:\RotWK")]
-DEFAULT_OUT = REPO / "aggregate"
+DEFAULT_OUT = REPO / "build" / "aggregate"
 
 # The FactionAggregate attributes whose ChoiceStat labels are rendered code names.
 _LABEL_CATEGORIES = (
