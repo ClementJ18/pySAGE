@@ -138,10 +138,17 @@ All under the Command Palette as **SAGE Lint: ...**
   pick one to jump to its usage or its definition.
 - **Edit Macro Values** - add / subtract / remove / list the `+token` / `-token` values of
   the `#define` on the current line, with indexed symbol names offered as candidates.
+- **Rename Symbol** - rename the definition under the caret, and every reference to it,
+  across the project. The plan is shown before anything is written, because two of its
+  outcomes need your decision: a binary `.map` that references the symbol is reported but
+  never rewritten (WorldBuilder owns those files), and an occurrence the typed model cannot
+  account for is listed for review rather than guessed at - pick either row to jump to it.
+  map.ini overlays *are* rewritten. Dirty buffers are saved first, since the rename reads
+  from disk; rewritten files are reloaded and the folder re-linted afterwards.
 - **About** - show the plugin version and description.
 
-**Go to Definition** and **Browse Symbols** sit at the top level of the right-click menu (as
-`Sage Lint: …`); the rest are grouped under a **Sage Lint** submenu. They need the index,
+**Go to Definition**, **Rename Symbol** and **Browse Symbols** sit at the top level of the
+right-click menu (as `Sage Lint: …`); the rest are grouped under a **Sage Lint** submenu. They need the index,
 which the daemon builds on load and refreshes on every folder lint - **Lint Folder** doubles
 as a reindex. Until the first build finishes they report "index not ready".
 

@@ -116,7 +116,9 @@ exclude = [
 # the mod: build-only, file-shadowed by the mod, and never reported (mirrors
 # --base). Highest priority first. Applied to whole-folder lint/fix only, not
 # the per-file save path. These paths are usually machine-specific - prefer
-# setting them in `.sagelint.local` instead of here.
+# setting them in `.sagelint.local` instead of here. A relative value resolves
+# against THIS file's directory, like `baseline`/`base_manifest` and unlike
+# `exclude` (which is relative to the linted root).
 base = [
     # "C:/Games/BFME2/data",
     # "C:/Games/BFME2/lotr.big",

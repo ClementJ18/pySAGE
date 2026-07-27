@@ -1,5 +1,6 @@
 [
     { "caption": "Sage Lint: Go to Definition", "command": "sage_lint_goto_definition" },
+    { "caption": "Sage Lint: Rename Symbol", "command": "sage_lint_rename_symbol" },
     { "caption": "Sage Lint: Browse Symbols", "command": "sage_lint_browse_symbols" },
     {
         "caption": "Sage Lint",
@@ -7,6 +8,7 @@
         [
             { "caption": "Show Module Documentation", "command": "sage_lint_module_doc" },
             { "caption": "Edit Macro Values", "command": "sage_lint_edit_define" },
+            { "caption": "Rename Symbol", "command": "sage_lint_rename_symbol" },
             { "caption": "-" },
             { "caption": "Symbols in File", "command": "sage_lint_file_symbols" },
             { "caption": "Referenced Symbols", "command": "sage_lint_referenced_symbols" },

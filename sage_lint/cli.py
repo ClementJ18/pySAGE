@@ -29,6 +29,7 @@ from sage_lint.commands.lint import (
     run_map_lint,
 )
 from sage_lint.commands.manifest import run_manifest
+from sage_lint.commands.rename import add_rename_arguments, print_tables, run_rename
 from sage_lint.commands.serve import run_serve
 from sage_utils.cli import add_game_arguments
 
@@ -308,6 +309,21 @@ def main(argv: list[str] | None = None) -> int:
         "whose objects/upgrades/sciences the map's references resolve against",
     )
 
+    rename_cmd = subparsers.add_parser(
+        "rename",
+        help="rename a definition and every reference to it across the mod's ini data",
+        description="Rename a definition - and every reference to it - across a mod's ini data. "
+        "References are found through the typed model (fields, a CommandSet's numbered slots, a "
+        "ChildObject's parent, and the #define bodies a field reaches a name through), then the "
+        "map.ini overlays are planned separately (the global build excludes them), and a "
+        "whole-tree token scan reports anything left over so an unmodelled field cannot leave a "
+        "silent half-rename. Binary .map layouts are scanned and REPORTED but never rewritten: "
+        "they belong to the map author, so the rename knowingly leaves dangling references there "
+        "for `sage-lint lint-maps` to pick up. Only files under the root are rewritten; a --base "
+        "tree is read-only. Nothing is written without --apply.",
+    )
+    add_rename_arguments(rename_cmd)
+
     manifest = subparsers.add_parser(
         "manifest",
         help="index a loaded base game into a symbol manifest, for lint --base-manifest",
@@ -542,6 +558,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "lint-maps":
         return run_map_lint(args)
+
+    if args.command == "rename":
+        if args.list_tables:
+            return print_tables()
+        if args.old is None or args.new is None:
+            parser.error("the following arguments are required: old, new")
+        config = load_lint_config(args)
+        root = effective_root(args, config)
+        if root is None:
+            parser.error("the following arguments are required: root (or set 'root' in .sagelint)")
+        if not root.is_dir():
+            parser.error(f"not a directory: {root}")
+        return run_rename(args, config, root)
 
     if args.command == "manifest":
         return run_manifest(args)

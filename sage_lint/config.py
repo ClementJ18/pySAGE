@@ -15,13 +15,17 @@ layouts against the assembled game; mirrors --maps), `sentinels` (extra "intenti
 reference tokens - e.g. `NoSound` - never reported as dangling; `None`/empty are always treated
 this way), `always_referenced` (definition kinds - block type names like `PlayerAIType` - the
 unused-definition rule never flags, for kinds reached in ways the ini graph cannot see),
-`ignore`, `select`, `exclude`, `base`,
+`ignore`, `select`, `exclude` (directories omitted from the report - the one path key resolved
+against the linted root rather than this file, since it names folders inside the tree being
+built), `base`,
 `assets_base` (extra base sources loaded only when `assets` is on - the large texture/model
 archives only those rules need; mirrors --assets-base), `maps_base` (extra base sources loaded
 only when `maps` is on; mirrors --maps-base), and `asset_dat` (asset.dat files whose entries the
 asset-dat-membership rules check model/texture references against - a path or list of paths
 resolved relative to the config file, mirrors --asset-dat; setting it turns those two rules on
-just as the flag does). The `format`
+just as the flag does). Apart from `exclude`, every path key resolves relative to the directory
+holding the config file, so the values stay correct wherever `root` points and whichever
+directory the command runs from. The `format`
 command reads two more: `align_equals` (a bool, mirrors --align-equals) and `align_exclude`
 (block types to leave unaligned, mirrors --align-exclude). The `duplicates` command reads
 `duplicate_min_lines` and `duplicate_min_occurrences` (integers, mirroring --min-lines and

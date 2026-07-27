@@ -114,6 +114,63 @@ class TestExpansion:
         assert keys == ["Speed"]
 
 
+class TestCaseInsensitiveResolution:
+    # includes are authored on Windows, where the filesystem ignores case; a Linux run has
+    # to match the same way or the include silently goes missing (and its target then looks
+    # like a root file)
+    def test_target_case_may_differ_from_the_file_on_disk(self, tmp_path: Path):
+        write(tmp_path / "Part.inc", "Speed = 30\n")
+        root = write(tmp_path / "root.ini", '#include "PART.INC"\n')
+
+        result = parse_file(root, resolve_includes=True)
+
+        assert not result.diagnostics
+        include, speed = result.document.children
+        assert speed == Attribute(key="Speed", value="30", span=speed.span)
+
+    def test_directory_case_may_differ(self, tmp_path: Path):
+        (tmp_path / "Common").mkdir()
+        write(tmp_path / "Common" / "shared.inc", "Speed = 30\n")
+        root = write(tmp_path / "root.ini", '#include "common\\Shared.INC"\n')
+
+        result = parse_file(root, resolve_includes=True)
+
+        assert not result.diagnostics
+        assert [n.key for n in result.document.children if isinstance(n, Attribute)] == ["Speed"]
+
+    def test_exact_casing_wins_over_a_case_insensitive_match(self, tmp_path: Path):
+        write(tmp_path / "part.inc", "Speed = 30\n")
+        write(tmp_path / "PART.INC", "Speed = 99\n")
+        root = write(tmp_path / "root.ini", '#include "part.inc"\n')
+
+        result = parse_file(root, resolve_includes=True)
+
+        _, speed = result.document.children
+        assert speed.value == "30"
+
+    def test_case_differs_across_layers(self, tmp_path: Path):
+        base = tmp_path / "base"
+        mod = tmp_path / "mod"
+        (base / "object").mkdir(parents=True)
+        (mod / "object").mkdir(parents=True)
+        write(base / "object" / "Shared.inc", "Speed = 30\n")
+        root = write(mod / "object" / "unit.ini", '#include "SHARED.INC"\n')
+
+        result = parse_file(root, resolve_includes=True, include_layers=(mod, base))
+
+        assert not result.diagnostics
+        include, speed = result.document.children
+        assert speed.span.file.endswith("Shared.inc")
+
+    def test_still_unresolved_when_no_casing_matches(self, tmp_path: Path):
+        write(tmp_path / "part.inc", "Speed = 30\n")
+        root = write(tmp_path / "root.ini", '#include "other.inc"\n')
+
+        result = parse_file(root, resolve_includes=True)
+
+        assert [d.code for d in result.diagnostics] == ["unresolved-include"]
+
+
 class TestExpansionRecovery:
     def test_missing_include_yields_diagnostic_and_continues(self, tmp_path: Path):
         root = write(tmp_path / "root.ini", '#include "nope.inc"\nObject A\nEnd\n')

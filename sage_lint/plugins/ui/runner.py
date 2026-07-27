@@ -55,24 +55,25 @@ def project_config(folder: str):
 
 
 def _resolve(folder: Path, value: str) -> Path:
-    """A config path resolved against the lint `folder` (an absolute value is kept as-is) -
-    mirroring how the CLI resolves a relative `base`/`baseline` against the lint root."""
+    """A config path resolved against the `folder` the `.sagelint` lives in (an absolute value is
+    kept as-is) - the frame the CLI uses for `root`, `base`, `baseline` and `base_manifest`."""
     path = Path(value)
     return path if path.is_absolute() else folder / path
 
 
 def config_bases(config, folder: str) -> list[str]:
-    """The config's base-game source(s) as absolute path strings, resolved against the lint
-    folder - so the UI can show and pass them as `--base` rather than rely on the CLI's own
-    config lookup (which would resolve a relative value against the wrong directory)."""
+    """The config's base-game source(s) as absolute path strings, resolved against the folder the
+    `.sagelint` lives in - so the UI can show and pass them as `--base` rather than rely on the
+    CLI's own config lookup (which would resolve a relative value against the wrong directory)."""
     base = Path(folder)
     return [str(_resolve(base, value)) for value in config.base]
 
 
 def effective_lint_root(config, folder: str) -> Path:
-    """The folder the CLI will actually lint and resolve baselines against: the config's `root`
-    (resolved against the config folder) when set, else the folder itself. Baseline entries are
-    stored relative to this root, so it is also what the merge re-roots to."""
+    """The folder the CLI will actually lint: the config's `root` (resolved against the config
+    folder) when set, else the folder itself. Baseline *entries* are stored relative to this root,
+    so it is also what the merge re-roots to - the baseline file's own path is not, resolving
+    against the config folder instead."""
     base = Path(folder)
     if config is not None and config.root:
         return _resolve(base, config.root)

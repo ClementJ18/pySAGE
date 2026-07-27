@@ -29,6 +29,7 @@ from sage_ini.suggest import set_enabled as set_suggestions_enabled
 from sage_lint.commands.common import (
     base_paths,
     base_source,
+    config_dir,
     config_path,
     diagnostic_dict,
     effective_root,
@@ -336,15 +337,18 @@ def run_serve(args: argparse.Namespace) -> int:
     set_suggestions_enabled(args.suggest or config.suggest)
     set_options(sentinels=config.sentinels, always_referenced=config.always_referenced)
 
-    base_dir = root
+    # `exclude` names paths inside the linted tree, so it resolves against the lint root; `base`
+    # names sidecar data beside the `.sagelint`, so it resolves against the config dir.
+    lint_dir = root
+    conf_dir = config_dir(args)
     include_assets = args.assets or config.assets
     selected = split_codes(args.select) or set(config.select)
     ignored = split_codes(args.ignore) or set(config.ignore)
     level_name = args.level or config.level
     excludes = tuple(
-        list(args.exclude) if args.exclude else [config_path(base_dir, e) for e in config.exclude]
+        list(args.exclude) if args.exclude else [config_path(lint_dir, e) for e in config.exclude]
     )
-    bases = tuple(base_source(b) for b in base_paths(args, config, base_dir, include_assets))
+    bases = tuple(base_source(b) for b in base_paths(args, config, conf_dir, include_assets))
     rule_set = resolve_rule_set(selected, include_assets)
 
     # The merged base game is kept on disk between builds so a single-file re-lint can resolve

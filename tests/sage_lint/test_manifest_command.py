@@ -261,3 +261,40 @@ class TestSagelintBaseManifest:
 
         assert rc == 2
         assert "sage_lint:" in capsys.readouterr().err
+
+    def test_relative_base_manifest_resolves_against_the_config_dir(self, tmp_path, capsys):
+        # `root` points the lint at a subfolder, so the config dir and the lint root differ. A
+        # manifest is a committed sidecar that sits beside the `.sagelint`, so a bare filename
+        # there must be found at the project root - looking inside the linted tree would miss it.
+        base = tmp_path / "base"
+        _base_tree(base)
+        _mod_tree(tmp_path / "mod")
+        write_manifest(build_manifest(load_game(base), [base]), tmp_path / "base-manifest.json")
+
+        (tmp_path / ".sagelint").write_text(
+            'root = "mod"\nbase_manifest = "base-manifest.json"\n', encoding="utf-8"
+        )
+
+        assert main(["lint", str(tmp_path), "--select", "dangling-reference"]) == 1
+        out = capsys.readouterr().out
+        # BaseSword resolves only if the manifest was loaded; NoSuchOCL dangles either way.
+        assert "BaseSword" not in out
+        assert "NoSuchOCL" in out
+
+    def test_relative_exclude_keeps_the_lint_root_frame(self, tmp_path, capsys):
+        # The counterpart: `exclude` names folders inside the tree being built, so with `root` set
+        # it resolves against the linted subfolder rather than beside the config.
+        mod = tmp_path / "mod"
+        _write(mod, "fine.ini", "Object Fine\n    BuildCost = 1\nEnd\n")
+        _write(
+            mod,
+            "skipme/dupe.ini",
+            "Object Dupe\n    BuildCost = 1\nEnd\nObject Dupe\n    BuildCost = 2\nEnd\n",
+        )
+
+        (tmp_path / ".sagelint").write_text(
+            'root = "mod"\nexclude = ["skipme"]\n', encoding="utf-8"
+        )
+
+        assert main(["lint", str(tmp_path), "--select", "duplicate-definition"]) == 0
+        assert "duplicate-definition" not in capsys.readouterr().out

@@ -99,13 +99,57 @@ def resolve_include(target: str, source: Path, layers: tuple[Path, ...]) -> Path
     """Resolve an include target written in file `source` to an existing file, relative to
     the including file's own directory (a leading slash is stripped, not ini-root anchoring).
     When `source` sits in an overlay layer, the same virtual path is tried in every layer so
-    a mod include can fall through to the base game."""
+    a mod include can fall through to the base game. Matching is case-insensitive, as it is
+    for the engine on Windows, so a Linux run resolves the same includes a Windows one does."""
     cache_key = (target, str(source), tuple(str(layer) for layer in layers))
     if cache_key in _INCLUDE_CACHE:
         return _INCLUDE_CACHE[cache_key]
     resolved = _resolve_include(target, source, layers)
     _INCLUDE_CACHE[cache_key] = resolved
     return resolved
+
+
+# Lowercased entry name -> real path, one entry per directory walked. Include targets are
+# authored on Windows, where the filesystem itself matches them case-insensitively; on Linux
+# that has to be done by hand, and listing a directory once is far cheaper than probing every
+# casing. Same stability assumption as `_INCLUDE_CACHE`.
+_DIR_CACHE: dict[Path, dict[str, Path]] = {}
+
+
+def _entries(directory: Path) -> dict[str, Path]:
+    entries = _DIR_CACHE.get(directory)
+    if entries is None:
+        try:
+            entries = {child.name.lower(): child for child in directory.iterdir()}
+        except OSError:  # missing or unreadable directory - nothing resolves inside it
+            entries = {}
+        _DIR_CACHE[directory] = entries
+    return entries
+
+
+def _resolve_under(base: Path, relative: str) -> Path | None:
+    """The file at forward-slashed `relative` under `base`, matching each path component
+    case-insensitively when its exact casing is absent. An exact match always wins, so a
+    directory holding two casings of a name still resolves the one that was written."""
+    candidate = base / relative
+    if candidate.is_file():
+        return candidate
+
+    node = base
+    for part in relative.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            node = node.parent
+            continue
+        if (exact := node / part).exists():
+            node = exact
+            continue
+        match = _entries(node).get(part.lower())
+        if match is None:
+            return None
+        node = match
+    return node if node.is_file() else None
 
 
 def _resolve_include(target: str, source: Path, layers: tuple[Path, ...]) -> Path | None:
@@ -116,13 +160,13 @@ def _resolve_include(target: str, source: Path, layers: tuple[Path, ...]) -> Pat
             virtual_dir = source.parent.relative_to(layer)
             relative = posixpath.normpath(str(PurePosixPath(virtual_dir.as_posix()) / normalized))
             for candidate_layer in layers:
-                candidate = candidate_layer / relative
-                if candidate.is_file():
+                candidate = _resolve_under(candidate_layer, relative)
+                if candidate is not None:
                     return candidate.resolve()
             return None
 
-    candidate = (source.parent / normalized).resolve()
-    return candidate if candidate.is_file() else None
+    candidate = _resolve_under(source.parent, normalized)
+    return candidate.resolve() if candidate is not None else None
 
 
 def expand_includes(

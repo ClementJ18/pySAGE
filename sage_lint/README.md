@@ -23,7 +23,45 @@ python -m sage_lint diff --player <old> <new>
 
 # Find copy-pasted chunks (blocks or runs of lines) worth moving into a shared #include
 python -m sage_lint duplicates <dir> [--min-lines N] [-v]
+
+# Rename a definition and every reference to it (reports the plan; --apply performs it)
+python -m sage_lint rename <dir> <old> <new> [--table objects] [--apply]
 ```
+
+## Renaming a definition
+
+`rename` moves a definition's name and every reference to it in one pass. References come from
+the typed model - fields (including lists, tuples and `KeyedRecord` keys), a `CommandSet`'s
+numbered slots, a `ChildObject`'s parent, and the `#define` body a field reaches a name through -
+so the rewrite follows the reference graph rather than grepping for a string. Matching is
+case-insensitive, the way the engine resolves names.
+
+```sh
+python -m sage_lint rename <dir> OldSword NewSword          # report the plan, write nothing
+python -m sage_lint rename <dir> OldSword NewSword --apply  # perform it
+python -m sage_lint rename --list-tables                    # the table keys --table accepts
+```
+
+Nothing is written without `--apply`, so the destructive step is always a second, deliberate
+invocation. `--table` is only needed when one bareword names a definition in more than one table;
+otherwise it is inferred. Only files under the root are rewritten - a `--base` tree is read-only,
+and renaming a definition declared in one is refused.
+
+Three things the report will tell you about:
+
+- **map.ini overlays are included.** Each is a per-map context the global build deliberately
+  excludes, so they are planned separately and *are* rewritten.
+- **Binary `.map` layouts are reported, never rewritten.** A WorldBuilder layout belongs to the
+  map author, so the rename leaves it alone and names the exact placed object, object property or
+  script-argument address that will become a dangling reference - the same thing `lint-maps`
+  reports as `map-dangling-object` / `map-dangling-reference` afterwards. Fix those in
+  WorldBuilder. `--no-maps` skips the scan (it parses every map, which is the slow part of a run).
+- **Unaccounted occurrences.** After planning, the whole tree is scanned for the name. A header
+  declaring the same name in the same table is folded into the plan automatically - only the
+  *winning* declaration of a name is registered in the game, so a shadowed one is invisible to the
+  typed pass. Anything else - a field the schema does not model, a same-spelled name in another
+  table - is listed for you to judge rather than guessed at, so an incomplete rename is always
+  visible instead of silent.
 
 ## Configuration & baselines
 

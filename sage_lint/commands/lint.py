@@ -219,15 +219,17 @@ def _baseline_path(args: argparse.Namespace, config: Config) -> Path | None:
     return directory / BASELINE_NAME
 
 
-def _effective_manifest(args: argparse.Namespace, config: Config, base_dir: Path) -> Path | None:
+def _effective_manifest(args: argparse.Namespace, config: Config, conf_dir: Path) -> Path | None:
     """The base-symbol manifest for this run: `--base-manifest` if given, else the config's
-    `base_manifest` resolved against `base_dir`, else None. Callers pass this down only when the
-    resolved `bases` list is empty - a real `base` (CLI or config) always wins, since real data
-    is strictly more complete than a manifest snapshot."""
+    `base_manifest` resolved against `conf_dir` (the directory the `.sagelint` lives in, matching
+    `baseline` - both name committed sidecar files that sit beside the config, not inside the
+    linted tree), else None. Callers pass this down only when the resolved `bases` list is empty -
+    a real `base` (CLI or config) always wins, since real data is strictly more complete than a
+    manifest snapshot."""
     if args.base_manifest is not None:
         return args.base_manifest
     if config.base_manifest:
-        return config_path(base_dir, config.base_manifest)
+        return config_path(conf_dir, config.base_manifest)
     return None
 
 
@@ -251,29 +253,34 @@ def _source_line(diag: Diagnostic) -> str | None:
 
 def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int:
     # CLI flags override the config file; the config fills in what the flags leave unset.
-    # A config's relative exclude/base paths name folders inside the linted tree, so they
-    # resolve against the lint root - not the process working directory (which, run from an
-    # editor, is the linter checkout) - falling back to the config dir on the --file path.
-    base_dir = root if root is not None else config_dir(args)
+    # Config paths use two frames. `exclude` names folders inside the linted tree, so it resolves
+    # against the lint root - not the process working directory (which, run from an editor, is the
+    # linter checkout) - falling back to the config dir on the --file path. Everything else
+    # (`base`, `base_manifest`, `asset_dat`, `baseline`) names data beside the config rather than
+    # inside the tree, so it resolves against the directory the `.sagelint` itself lives in and
+    # stays put when `root` moves.
+    lint_dir = root if root is not None else config_dir(args)
+    conf_dir = config_dir(args)
     include_assets = args.assets or config.assets
     # Maps are a whole-folder concern (off by default), never linted on the single-file path.
     include_maps = (args.maps or config.maps) and args.file is None
     selected = split_codes(args.select) or set(config.select)
     ignored = split_codes(args.ignore) or set(config.ignore)
     excludes = (
-        list(args.exclude) if args.exclude else [config_path(base_dir, e) for e in config.exclude]
+        list(args.exclude) if args.exclude else [config_path(lint_dir, e) for e in config.exclude]
     )
-    bases = base_paths(args, config, base_dir, include_assets, include_maps)
+    bases = base_paths(args, config, conf_dir, include_assets, include_maps)
     # A real base always wins; only resolve (and later pass down) a manifest when there is none.
-    manifest = _effective_manifest(args, config, base_dir) if not bases else None
+    manifest = _effective_manifest(args, config, conf_dir) if not bases else None
     level_name = args.level or config.level
 
     # A CLI --asset-dat list overrides the config `asset_dat` wholesale; config relative paths
-    # resolve against the lint root like `base`/`exclude`.
+    # resolve against the config dir like `base` - an asset.dat is data the rules consult, not a
+    # path inside the linted tree.
     asset_dat_paths: list[Path] = (
         list(args.asset_dat)
         if args.asset_dat
-        else [config_path(base_dir, p) for p in config.asset_dat]
+        else [config_path(conf_dir, p) for p in config.asset_dat]
     )
 
     asset_dat_names: frozenset[str] = frozenset()

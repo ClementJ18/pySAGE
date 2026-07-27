@@ -68,5 +68,9 @@
     {
         "caption": "SAGE Lint: Edit Macro Values",
         "command": "sage_lint_edit_define"
+    },
+    {
+        "caption": "SAGE Lint: Rename Symbol",
+        "command": "sage_lint_rename_symbol"
     }
 ]

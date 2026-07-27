@@ -106,7 +106,7 @@ def effective_root(args: argparse.Namespace, config: Config) -> Path | None:
 def base_paths(
     args: argparse.Namespace,
     config: Config,
-    base_dir: Path,
+    conf_dir: Path,
     include_assets: bool,
     include_maps: bool = False,
 ) -> list[Path]:
@@ -114,10 +114,11 @@ def base_paths(
     is on and `maps_base` only when map linting is on. Those conditional sources are the heavy
     base-game data each pass needs but nothing else does, so a plain run never pays to load them. A
     CLI list (`--base` / `--assets-base` / `--maps-base`) overrides the matching config list
-    wholesale; config relative paths resolve against `base_dir`."""
+    wholesale; config relative paths resolve against `conf_dir`, the directory the `.sagelint`
+    lives in - a base source names data outside the linted tree, so it does not follow `root`."""
 
     def listed(cli_value, config_value):
-        return list(cli_value) if cli_value else [config_path(base_dir, b) for b in config_value]
+        return list(cli_value) if cli_value else [config_path(conf_dir, b) for b in config_value]
 
     paths = listed(args.base, config.base)
     if include_assets:

@@ -219,6 +219,21 @@ def _run_lint_json(args):
         return {"_error": completed.stderr.strip() or "could not parse sage_lint output"}
 
 
+def _run_rename_json(args):
+    """Run a `rename` invocation and return its parsed plan, or {"_error": ...}. A blocked
+    rename exits non-zero but still prints its plan (the conflicts are the answer), so the
+    exit status is not treated as failure - only missing or unparseable output is."""
+    completed, error = _run_module(["rename", *args, "--json"])
+    if error:
+        return {"_error": error}
+    if not completed.stdout.strip():
+        return {"_error": completed.stderr.strip() or "no output from sage_lint"}
+    try:
+        return sublime.decode_value(completed.stdout)
+    except ValueError:
+        return {"_error": completed.stderr.strip() or "could not parse sage_lint output"}
+
+
 # One long-lived `sage_lint serve` daemon per project root builds the game once and then
 # re-lints individual files against that cache in milliseconds, so cross-file references
 # resolve without re-assembling the whole folder on every save. The plugin talks to it over
@@ -1634,6 +1649,174 @@ class SageLintEditDefineCommand(sublime_plugin.TextCommand):
 
     def is_enabled(self):
         return _is_lintable(self.view.file_name())
+
+
+class SageLintRenameSymbolCommand(sublime_plugin.TextCommand):
+    """SAGE Lint: Rename Symbol - rename the definition under the caret, and every reference to
+    it, across the project's ini data.
+
+    The rename runs as two `sage_lint rename` invocations: one to plan (which writes nothing)
+    and, after the plan is confirmed, one to apply. The plan is shown before anything is
+    written because two of its outcomes need a human decision - a binary `.map` that references
+    the symbol is reported but never rewritten (WorldBuilder owns those files), and an
+    occurrence the typed model cannot account for is left for review rather than guessed at.
+    """
+
+    def run(self, edit):
+        view = self.view
+        file_name = view.file_name()
+        if not _is_lintable(file_name):
+            sublime.status_message("sage_lint: no lintable file")
+            return
+        if not _has_index():
+            sublime.status_message("sage_lint: index not ready - run Sage Lint: Lint Folder")
+            return
+
+        word = _word_at(view, view.sel()[0])
+        found = _lookup_symbol(word) if word else None
+        if found is None or found[0] != "definition":
+            # Macros and string labels are indexed too, but a rename plans through the typed
+            # reference graph, which only definitions have.
+            sublime.status_message(
+                "sage_lint: put the caret on a definition name (not a macro or string label)"
+            )
+            return
+
+        self.root = _project_root(view.window(), file_name)
+        if not self.root:
+            sublime.status_message("sage_lint: no project folder open")
+            return
+        self.old = found[1][0]["name"]
+        tables = sorted({entry.get("table") for entry in found[1] if entry.get("table")})
+        if len(tables) > 1:
+            self._pick_table(tables)
+        else:
+            self._ask_new_name(tables[0] if tables else None)
+
+    def _pick_table(self, tables):
+        """One bareword can name a definition in several tables; only the user knows which."""
+
+        def on_done(index):
+            if index >= 0:
+                self._ask_new_name(tables[index])
+
+        items = [f"{self.old}  [{table}]" for table in tables]
+        self.view.window().show_quick_panel(items, on_done)
+
+    def _ask_new_name(self, table):
+        self.table = table
+
+        def on_done(new_name):
+            new_name = (new_name or "").strip()
+            if not new_name or new_name == self.old:
+                sublime.status_message("sage_lint: rename cancelled")
+                return
+            self._plan(new_name)
+
+        self.view.window().show_input_panel(f"Rename {self.old} to:", self.old, on_done, None, None)
+
+    def _args(self, new_name, apply_it):
+        args = [self.root, self.old, new_name]
+        if self.table:
+            args += ["--table", self.table]
+        if apply_it:
+            args.append("--apply")
+        return args
+
+    def _plan(self, new_name):
+        # The plan is computed from what is on disk, so unsaved buffers would be planned from
+        # stale text; save them first, exactly as Fix File does before rewriting.
+        for window in sublime.windows():
+            for view in window.views():
+                if view.is_dirty() and _is_lintable(view.file_name()):
+                    view.run_command("save")
+        _log(f"rename: planning {self.old} -> {new_name}")
+        sublime.status_message("sage_lint: planning rename...")
+
+        def work():
+            plan = _run_rename_json(self._args(new_name, False))
+            sublime.set_timeout(lambda: self._show_plan(plan, new_name), 0)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_plan(self, plan, new_name):
+        if "_error" in plan:
+            _log("rename failed: " + plan["_error"])
+            sublime.status_message("sage_lint: " + plan["_error"])
+            return
+        conflicts = plan.get("conflicts") or []
+        if conflicts:
+            _log("rename blocked: " + "; ".join(conflicts))
+            self.view.window().show_quick_panel(
+                [["Rename blocked", problem] for problem in conflicts], lambda _i: None
+            )
+            return
+
+        summary = plan.get("summary") or {}
+        self._rows = [
+            [
+                f"Apply rename: {self.old} -> {new_name}",
+                "{} site(s) in {} file(s)".format(summary.get("sites", 0), summary.get("files", 0)),
+            ],
+            ["Cancel", "change nothing"],
+        ]
+        self._locations = [None, None]
+
+        for warning in plan.get("map_warnings") or []:
+            self._rows.append([".map reference (NOT rewritten)", warning])
+            self._locations.append(None)
+        for hit in plan.get("unaccounted") or []:
+            self._rows.append(
+                [
+                    "unaccounted - review by hand",
+                    "{}:{}: {}".format(os.path.basename(hit["file"]), hit["line"], hit["text"]),
+                ]
+            )
+            self._locations.append((hit["file"], hit["line"]))
+
+        def on_done(index):
+            if index == 0:
+                self._apply(new_name)
+            elif index > 1 and self._locations[index] is not None:
+                file_name, line = self._locations[index]
+                _open_location(self.view.window(), file_name, line)
+
+        self.view.window().show_quick_panel(self._rows, on_done)
+
+    def _apply(self, new_name):
+        _log(f"rename: applying {self.old} -> {new_name}")
+        sublime.status_message("sage_lint: renaming...")
+
+        def work():
+            result = _run_rename_json(self._args(new_name, True))
+            sublime.set_timeout(lambda: self._done(result, new_name), 0)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _done(self, result, new_name):
+        if "_error" in result:
+            _log("rename failed: " + result["_error"])
+            sublime.status_message("sage_lint: " + result["_error"])
+            return
+        applied = result.get("applied") or {}
+        lines = sum(applied.values())
+        _log(f"rename done: {lines} line(s) in {len(applied)} file(s)")
+        # Reload any open, unmodified view the rename rewrote, then rebuild the daemon's cache:
+        # the renamed definition changes what every sibling file's references resolve to.
+        rewritten = {_normcase(path) for path in applied}
+        for window in sublime.windows():
+            for view in window.views():
+                name = view.file_name()
+                if name and not view.is_dirty() and _normcase(name) in rewritten:
+                    view.run_command("revert")
+        _lint_folder_async(self.view.window(), self.root)
+        sublime.status_message(
+            f"sage_lint: renamed {self.old} -> {new_name} "
+            f"({lines} line(s) in {len(applied)} file(s))"
+        )
+
+    def is_enabled(self):
+        return _has_index() and _is_lintable(self.view.file_name())
 
 
 class SageLintReplaceLineCommand(sublime_plugin.TextCommand):
