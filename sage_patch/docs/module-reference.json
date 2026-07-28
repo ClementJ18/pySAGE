@@ -4490,9 +4490,9 @@
    {
     "name": "ClearanceGeometry",
     "offset": 400,
-    "type": "0x00ad4040",
+    "type": "GeometryType",
     "parse_fn": 11354176,
-    "userdata": null,
+    "userdata": "0x00dc1c38",
     "default": null
    },
    {
@@ -6527,7 +6527,7 @@
    {
     "name": "AddEmotion",
     "offset": 0,
-    "type": "0x008b618c",
+    "type": "AddEmotion",
     "parse_fn": 9134476,
     "userdata": null,
     "default": null

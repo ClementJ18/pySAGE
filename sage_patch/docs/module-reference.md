@@ -13,7 +13,7 @@ constant-tracking through each constructor.
 - `-` in the default column means the constructor's write was not resolvable by
   constant-tracking - typically a container or string built by a member
   constructor, which is to say "empty". It does not mean the field is unset.
-- `type` is derived from the field's parse function. 71 fields (3%) use a
+- `type` is derived from the field's parse function. 69 fields (3%) use a
   parse function that has not been identified and show its raw address instead.
 - Offsets are into ModuleData, not into the module instance.
 - Types are checked for internal consistency: no `Bool` resolves to a non-boolean.
@@ -851,7 +851,7 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ClearanceGeometry` | 0x00ad4040 | `0x190` | - |
+| `ClearanceGeometry` | GeometryType | `0x190` | - |
 | `ClearanceGeometryHeight` | 0x00ad2b60 | `0x190` | - |
 | `ClearanceGeometryIsSmall` | 0x00ad2b30 | `0x190` | - |
 | `ClearanceGeometryMajorRadius` | 0x00ad2bc0 | `0x190` | - |
@@ -1319,7 +1319,7 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `AddEmotion` | 0x008b618c | `0x0` | - |
+| `AddEmotion` | AddEmotion | `0x0` | - |
 | `AfraidOf` | KindOfFilter | `0x14` | - |
 | `AlwaysAfraidOf` | KindOfFilter | `0x18` | `0` |
 | `FearScanDistance` | Real | `0x24` | `0` |

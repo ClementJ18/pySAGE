@@ -26,7 +26,25 @@ class Patch:
     Subclasses set :attr:`name`/:attr:`description` and implement :meth:`apply`. To be reachable
     from the ``sage-patch`` CLI, a patch is registered in :mod:`sage_patch.registry`; it may
     override :meth:`add_cli_arguments`/:meth:`from_cli_args` to accept parameters and
-    :meth:`verify` to make its result independently checkable."""
+    :meth:`verify` to make its result independently checkable.
+
+    Composing patches
+    -----------------
+    The bundled patches are order-independent: any subset applies in any order. A new patch keeps
+    that property by observing three rules, in decreasing order of how mechanically they hold.
+
+    1. **Allocate caves with** :func:`~sage_patch.utils.allocate_section`, never at a fixed RVA,
+       and have :meth:`verify` locate the cave with :func:`~sage_patch.utils.find_section` rather
+       than recomputing where it "should" be. Appending past the highest existing section keeps
+       the section table sorted by RVA no matter what else has been added; a hardcoded RVA
+       composes only when its patch happens to be applied first. Appending never moves an existing
+       section, so file offsets stay stable for everyone.
+    2. **Do not edit bytes another patch edits.** This is not enforced, but it does fail loudly:
+       :func:`~sage_patch.utils.apply_byte_patch` asserts the original bytes before writing, so
+       the second patch to reach a shared site raises instead of silently corrupting it.
+    3. **Do not derive your output from bytes another patch rewrites.** This is the one the
+       framework cannot catch — both orders would "succeed" and disagree. If a patch must read a
+       structure another patch rebuilds, say so in its docstring and treat the pair as ordered."""
 
     name: str = ""
     description: str = ""

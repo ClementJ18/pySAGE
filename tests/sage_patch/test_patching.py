@@ -5,16 +5,20 @@ from pathlib import Path
 
 import pytest
 
-from sage_patch import CommandSetLimitPatch, Patch, apply_patches
+from sage_patch import CahFactionsPatch, CommandSetLimitPatch, Patch, apply_patches
 from sage_patch.cli import main
+from sage_patch.patches import cah_factions as cf
 from sage_patch.patches import commandset as cs
 from sage_patch.patches.commandset import MAX_COUNT, MIN_COUNT
 from sage_patch.utils import (
     align_up,
+    allocate_section,
     append_section,
     apply_byte_patch,
+    find_section,
     hexbytes,
     image_base,
+    next_section_rva,
     va_to_offset,
 )
 
@@ -93,6 +97,34 @@ class TestUtils:
         # the appended content is reachable via its VA
         off = va_to_offset(data, base_va)
         assert data[off : off + len(content)] == content
+
+    def test_find_section(self):
+        data = _tiny_pe()
+        assert find_section(data, ".nope") is None
+        base_va = append_section(data, ".cave", 0x3000, b"xyz", 0x40000040)
+        located = find_section(data, ".cave")
+        assert located is not None
+        found_va, off, vsize = located
+        assert (found_va, vsize) == (base_va, 3)
+        assert data[off : off + 3] == b"xyz"
+
+    def test_allocate_section_builds_self_referential_content(self):
+        data = _tiny_pe()
+        # `build` is handed the base VA, so content can point at itself
+        base_va = allocate_section(
+            data, ".cave", lambda va: struct.pack("<I", va + 4) + b"tail", 0x40000040
+        )
+        off = va_to_offset(data, base_va)
+        assert struct.unpack_from("<I", data, off)[0] == base_va + 4
+        assert data[off + 4 : off + 8] == b"tail"
+
+    def test_allocate_section_always_lands_past_every_existing_section(self):
+        data = _tiny_pe()
+        first = allocate_section(data, ".one", lambda va: b"a", 0x40000040)
+        second = allocate_section(data, ".two", lambda va: b"b", 0x40000040)
+        assert second > first  # appending twice keeps the section table RVA-sorted
+        rvas = _section_rvas(data)
+        assert rvas == sorted(rvas)
 
 
 class _NopPatch(Patch):
@@ -195,11 +227,19 @@ def _synthetic_game_dat(base: int = 0x400000) -> bytearray:
     sectab = opt + 0xE0
     hdr = bytearray(40)
     hdr[0:8] = b".text\x00\x00\x00"
-    # A small .text so it never shadows the appended .cmdext (rva 0xAD3000) in va_to_offset.
+    # A small .text so it never shadows the cave appended past it in va_to_offset.
     struct.pack_into("<IIII", hdr, 8, 0x1000, 0x1000, 0x1000, 0x1000)  # vsize, rva, rawsize, praw
     data[sectab : sectab + 40] = hdr
 
-    # Plant the original bytes at every patch site (the `old` half of each edit is N-independent).
+    _plant_commandset_sites(data, base)
+    return data
+
+
+def _plant_commandset_sites(data: bytearray, base: int = 0x400000) -> None:
+    """Write the clean bytes `CommandSetLimitPatch` expects at every site it touches, so it can be
+    applied to ``data``. Kept separate so a test can host both patches in one image."""
+    probe = CommandSetLimitPatch(count=64)
+    # The `old` half of each edit is N-independent, so any probe count will do.
     for off, old, _new, _note in probe._phase1_edits(64):
         data[off : off + len(old)] = old
     data[cs._PARSER_TABLE_REF : cs._PARSER_TABLE_REF + 5] = b"\x68" + struct.pack(
@@ -210,12 +250,12 @@ def _synthetic_game_dat(base: int = 0x400000) -> bytearray:
     )
 
     # Plant the original 34-entry field-parse table (33 numbered slots + InitialVisible).
+    tab_foff = cs._TABLE_VA - base
     for i in range(34):
         name_ptr = 0x00D00000 + i  # distinctive; slots 1..33 are copied through into the new table
         struct.pack_into(
             "<IIII", data, tab_foff + i * 16, name_ptr, cs._PARSE_COMMAND_BUTTON, i, cs._ARRAY_OFF
         )
-    return data
 
 
 class TestApplyProducesVerifiablePatch:
@@ -234,7 +274,7 @@ class TestApplyProducesVerifiablePatch:
         obj_size = cs._ARRAY_OFF + 64 * 4 + 8
         assert bytes(data[0x320298 : 0x320298 + 5]) == b"\x68" + struct.pack("<I", obj_size)
         assert bytes(data[0x40C97E : 0x40C97E + 2]) == b"\x6a\x40"  # ctor stosd push = 64
-        new_va = image_base(data) + cs._NEW_SECTION_RVA
+        new_va, _off, _vsize = find_section(data, cs._SECTION_NAME)
         assert struct.unpack_from("<I", data, cs._PARSER_TABLE_REF + 1)[0] == new_va
         assert struct.unpack_from("<I", data, cs._GETFIELDPARSE_REF + 1)[0] == new_va
 
@@ -274,6 +314,273 @@ class TestCli:
         clean = tmp_path / "clean.dat"
         clean.write_bytes(bytes(_synthetic_game_dat()))
         assert main(["verify", "commandset-limit", "--count", "64", str(clean)]) == 1
+
+
+def _cah_game_dat(base: int = 0x400000) -> bytearray:
+    """A PE32 image carrying the clean bytes `CahFactionsPatch` expects at every site it touches,
+    at their real file offsets, so the full apply + verify path runs in CI without the
+    copyrighted `game.dat`. Raw offset equals RVA throughout, as it does in the real binary."""
+    sites = [
+        *cf._TABLE_REF_VAS,
+        *cf._TABLE_END_REF_VAS,
+        cf._DEFAULT_FACTION_USERDATA_VA,
+        cf._USABLE_FACTIONS_PARSER_VA,
+    ]
+    highest = max(
+        (cf._SIDE_TABLE_VA - base) + (len(cf.STOCK_SIDES) + 1) * 4,
+        cf._SCAN_BOUND_VA - base + 8,
+        max(va - base + 4 for va in sites),
+    )
+    data = bytearray(align_up(highest + 0x1000, 0x200))
+
+    e = 0x80
+    struct.pack_into("<I", data, 0x3C, e)  # e_lfanew
+    data[e : e + 4] = b"PE\x00\x00"
+    struct.pack_into("<H", data, e + 2, 0x14C)  # Machine (i386)
+    struct.pack_into("<H", data, e + 6, 1)  # NumberOfSections
+    struct.pack_into("<H", data, e + 20, 0xE0)  # SizeOfOptionalHeader
+    opt = e + 24
+    struct.pack_into("<H", data, opt, 0x10B)  # PE32 magic
+    struct.pack_into("<I", data, opt + 28, base)  # ImageBase
+    struct.pack_into("<I", data, opt + 32, 0x1000)  # SectionAlignment
+    struct.pack_into("<I", data, opt + 36, 0x200)  # FileAlignment
+    struct.pack_into("<I", data, opt + 56, 0x2000000)  # SizeOfImage (append_section recomputes)
+    struct.pack_into("<I", data, opt + 60, 0x400)  # SizeOfHeaders (room for more section headers)
+    sectab = opt + 0xE0
+    hdr = bytearray(40)
+    hdr[0:8] = b".text\x00\x00\x00"
+    span = len(data) - 0x1000
+    struct.pack_into("<IIII", hdr, 8, span, 0x1000, span, 0x1000)  # vsize, rva, rawsize, praw
+    data[sectab : sectab + 40] = hdr
+
+    # The nine stock name strings, and the NULL-terminated table of pointers to them.
+    cursor = 0x900000
+    ptrs = []
+    for name in cf.STOCK_SIDES:
+        ptrs.append(base + cursor)
+        raw = name.encode("ascii") + b"\x00"
+        data[cursor : cursor + len(raw)] = raw
+        cursor += len(raw)
+    struct.pack_into(f"<{len(ptrs) + 1}I", data, cf._SIDE_TABLE_VA - base, *ptrs, 0)
+
+    for va in cf._TABLE_REF_VAS:
+        struct.pack_into("<I", data, va - base, cf._SIDE_TABLE_VA)
+    for va in cf._TABLE_END_REF_VAS:
+        struct.pack_into("<I", data, va - base, cf._SIDE_TABLE_VA + cf._TABLE_END_DELTA)
+    struct.pack_into("<I", data, cf._DEFAULT_FACTION_USERDATA_VA - base, cf._INI_TABLE_VA)
+    struct.pack_into("<I", data, cf._USABLE_FACTIONS_PARSER_VA - base, cf._STOCK_PARSER_VA)
+    # `cmp esi, 9 / jl / push 9 / pop eax` - the scan bound, then the not-found answer that the
+    # patch deliberately leaves alone.
+    scan = cf._SCAN_BOUND_VA - base
+    data[scan : scan + 8] = b"\x83\xfe\x09\x7c\xe6\x6a\x09\x58"
+    return data
+
+
+def _cave(data, patch):
+    """The `.cahfac` section's ``(base_va, file_offset)``, plus the parsed table entry names."""
+    base_va, off, _vsize = find_section(data, cf._SECTION_NAME)
+    count = patch.entry_count
+    ptrs = struct.unpack_from(f"<{count + 1}I", data, off)
+    names = [cf._read_cstring(data, p) for p in ptrs[:-1]]
+    return base_va, off, names, ptrs[-1]
+
+
+class TestCahFactionsValidation:
+    def test_ceiling_is_the_32_bit_mask(self):
+        # indices 0..8 are the stock sides and 9 is `All`, so 31 is the highest usable bit.
+        assert cf.ALL_INDEX == 9
+        assert cf.MAX_SIDES == 22
+        assert CahFactionsPatch(sides=[f"S{i}" for i in range(cf.MAX_SIDES)])
+
+    def test_rejects_more_sides_than_bits(self):
+        with pytest.raises(ValueError, match="at most 22 sides"):
+            CahFactionsPatch(sides=[f"S{i}" for i in range(cf.MAX_SIDES + 1)])
+
+    @pytest.mark.parametrize("name", ["Men", "men", "Neutral", "All", "all", "None", "Goblins"])
+    def test_rejects_reserved_names(self, name):
+        with pytest.raises(ValueError, match="reserved"):
+            CahFactionsPatch(sides=[name])
+
+    def test_rejects_duplicates_case_insensitively(self):
+        with pytest.raises(ValueError, match="duplicate"):
+            CahFactionsPatch(sides=["Rohan", "rohan"])
+
+    @pytest.mark.parametrize("name", ["", " ", "Ro han", "Rohan ", "Rohán", "Ro\tan"])
+    def test_rejects_unusable_names(self, name):
+        with pytest.raises(ValueError):
+            CahFactionsPatch(sides=[name])
+
+    @pytest.mark.parametrize("name", ["+Rohan", "-Rohan"])
+    def test_rejects_usablefactions_prefixes(self, name):
+        # `+Name` / `-Name` are the parser's set/clear tokens, so a name starting with one could
+        # never be written literally in an INI.
+        with pytest.raises(ValueError, match=r"\+"):
+            CahFactionsPatch(sides=[name])
+
+    def test_no_sides_is_valid_and_still_adds_all(self):
+        assert CahFactionsPatch().entry_count == len(cf.STOCK_SIDES) + 1
+
+
+class TestCahFactionsApply:
+    @pytest.mark.parametrize(
+        "sides",
+        [(), ("Rohan",), ("Rohan", "Lothlorien", "Harad"), tuple(f"S{i}" for i in range(22))],
+    )
+    def test_apply_then_verify(self, sides):
+        data = _cah_game_dat()
+        CahFactionsPatch(sides=sides).apply(data)
+        assert CahFactionsPatch(sides=sides).verify(data) == []
+
+    def test_table_is_the_stock_nine_then_all_then_the_sides(self):
+        data = _cah_game_dat()
+        patch = CahFactionsPatch(sides=["Rohan", "Lothlorien"])
+        patch.apply(data)
+        _base_va, _off, names, terminator = _cave(data, patch)
+        assert names == [*cf.STOCK_SIDES, "All", "Rohan", "Lothlorien"]
+        assert terminator == 0  # the scan still stops on a NULL
+        assert names.index("Wild") == 5  # `Goblins` is hard-coded to alias index 5
+
+    def test_every_reference_moves_to_the_new_table(self):
+        data = _cah_game_dat()
+        patch = CahFactionsPatch(sides=["Rohan"])
+        patch.apply(data)
+        base_va, _off, _names, _term = _cave(data, patch)
+        for va in cf._TABLE_REF_VAS:
+            assert struct.unpack_from("<I", data, va - 0x400000)[0] == base_va
+        for va in cf._TABLE_END_REF_VAS:
+            # the stock-eight loops keep pointing at entry 8, so they still iterate eight sides
+            assert struct.unpack_from("<I", data, va - 0x400000)[0] == base_va + cf._TABLE_END_DELTA
+        assert (
+            struct.unpack_from("<I", data, cf._DEFAULT_FACTION_USERDATA_VA - 0x400000)[0] == base_va
+        )
+
+    def test_scan_bound_grows_but_the_not_found_answer_stays_at_the_all_index(self):
+        data = _cah_game_dat()
+        patch = CahFactionsPatch(sides=["Rohan", "Lothlorien"])
+        patch.apply(data)
+        scan = cf._SCAN_BOUND_VA - 0x400000
+        assert data[scan : scan + 3] == b"\x83\xfe" + bytes([patch.entry_count])  # cmp esi, 12
+        # `push 9 / pop eax`: an unrecognised side resolves to the `All` entry, by design.
+        assert data[scan + 5 : scan + 8] == b"\x6a\x09\x58"
+        assert patch.entry_count == 12
+
+    def test_wrapper_calls_the_stock_parser_and_expands_the_all_bit(self):
+        data = _cah_game_dat()
+        CahFactionsPatch(sides=["Rohan"]).apply(data)
+        wrapper_va = struct.unpack_from("<I", data, cf._USABLE_FACTIONS_PARSER_VA - 0x400000)[0]
+        off = va_to_offset(data, wrapper_va)
+        code = bytes(data[off : off + 43])
+        # the call at +16 lands exactly on the stock parser it wraps
+        assert code[16] == 0xE8
+        rel = struct.unpack_from("<i", code, 17)[0]
+        assert wrapper_va + 16 + 5 + rel == cf._STOCK_PARSER_VA
+        # ... and the bit it tests is the `All` entry's
+        assert struct.unpack_from("<I", code, 30)[0] == 1 << cf.ALL_INDEX
+        assert code.endswith(b"\xc7\x00\xff\xff\xff\xff\xc3")  # mask := all ones
+
+    def test_rejects_the_wrong_build(self):
+        data = _cah_game_dat()
+        # a table whose first entry is not "Men" is not this build's side table
+        struct.pack_into("<I", data, cf._SIDE_TABLE_VA - 0x400000, 0x00BF0000)
+        with pytest.raises(ValueError, match="unexpected build"):
+            CahFactionsPatch(sides=["Rohan"]).apply(data)
+
+    def test_refuses_to_apply_twice(self):
+        data = _cah_game_dat()
+        CahFactionsPatch(sides=["Rohan"]).apply(data)
+        with pytest.raises(ValueError, match="expected"):
+            CahFactionsPatch(sides=["Rohan"]).apply(data)
+
+
+class TestCahFactionsVerify:
+    def test_rejects_an_unpatched_file(self):
+        assert CahFactionsPatch(sides=["Rohan"]).verify(_cah_game_dat())
+
+    def test_rejects_a_different_side_list(self):
+        data = _cah_game_dat()
+        CahFactionsPatch(sides=["Rohan"]).apply(data)
+        assert CahFactionsPatch(sides=["Lothlorien"]).verify(data)
+        assert CahFactionsPatch(sides=["Rohan", "Lothlorien"]).verify(data)
+        assert CahFactionsPatch(sides=["Rohan"]).verify(data) == []
+
+
+def _both_patches():
+    return CommandSetLimitPatch(count=64), CahFactionsPatch(sides=["Rohan"])
+
+
+def _section_rvas(data) -> list[int]:
+    e = struct.unpack_from("<I", data, 0x3C)[0]
+    nsec = struct.unpack_from("<H", data, e + 6)[0]
+    sectab = e + 24 + struct.unpack_from("<H", data, e + 20)[0]
+    return [struct.unpack_from("<I", data, sectab + i * 40 + 12)[0] for i in range(nsec)]
+
+
+class TestPatchesCompose:
+    """Both bundled patches allocate their cave past every existing section and locate it by
+    name, so any subset applies in any order. See `Patch`'s composition contract."""
+
+    @pytest.mark.parametrize("reverse", [False, True], ids=["commandset-first", "cah-first"])
+    def test_either_order_applies_and_verifies(self, reverse):
+        data = _cah_game_dat()
+        _plant_commandset_sites(data)
+        order = list(reversed(_both_patches())) if reverse else list(_both_patches())
+        for patch in order:
+            patch.apply(data)
+        for patch in _both_patches():
+            assert patch.verify(data) == [], f"{patch} failed after {[str(p) for p in order]}"
+
+    @pytest.mark.parametrize("reverse", [False, True], ids=["commandset-first", "cah-first"])
+    def test_either_order_keeps_the_section_table_rva_sorted(self, reverse):
+        data = _cah_game_dat()
+        _plant_commandset_sites(data)
+        for patch in reversed(_both_patches()) if reverse else _both_patches():
+            patch.apply(data)
+        rvas = _section_rvas(data)
+        assert rvas == sorted(rvas)
+        # both caves exist, at distinct addresses, whichever went first
+        cmdext, _o, _v = find_section(data, cs._SECTION_NAME)
+        cahfac, _o, _v = find_section(data, cf._SECTION_NAME)
+        assert cmdext != cahfac
+
+    def test_a_lone_patch_lands_where_the_old_fixed_rva_put_it(self):
+        # The RVA is computed now rather than hardcoded, but on an unpatched image it computes to
+        # the same address the constant used to name - which is what keeps the byte-identity
+        # reproduction of the shipped game.dat intact.
+        data = _synthetic_game_dat()
+        expected = image_base(data) + next_section_rva(data)
+        CommandSetLimitPatch(count=64).apply(data)
+        assert find_section(data, cs._SECTION_NAME)[0] == expected
+
+
+class TestCahFactionsCli:
+    def test_apply_then_verify_roundtrip(self, tmp_path):
+        src = tmp_path / "game.dat.backup"
+        src.write_bytes(bytes(_cah_game_dat()))
+        out = tmp_path / "game.dat"
+        rc = main(
+            [
+                "apply",
+                "cah-factions",
+                "--sides",
+                "Rohan, Lothlorien",
+                "--in",
+                str(src),
+                "--out",
+                str(out),
+            ]
+        )
+        assert rc == 0
+        assert src.read_bytes() == bytes(_cah_game_dat())  # input left untouched
+        assert main(["verify", "cah-factions", "--sides", "Rohan,Lothlorien", str(out)]) == 0
+
+    def test_verify_exits_nonzero_on_mismatch(self, tmp_path):
+        clean = tmp_path / "clean.dat"
+        clean.write_bytes(bytes(_cah_game_dat()))
+        assert main(["verify", "cah-factions", "--sides", "Rohan", str(clean)]) == 1
+
+    def test_list_shows_the_patch(self, capsys):
+        assert main(["list"]) == 0
+        assert "cah-factions" in capsys.readouterr().out
 
 
 @pytest.mark.skipif(

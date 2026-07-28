@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import struct
+from collections.abc import Callable
 
 log = logging.getLogger("sage_patch")
 
@@ -86,6 +87,24 @@ def apply_byte_patch(
     log.info("  ok  0x%06x  %s", file_off, note)
 
 
+def find_section(data: bytes | bytearray, name: str) -> tuple[int, int, int] | None:
+    """Locate an appended section by name, returning ``(base_va, file_offset, virtual_size)`` or
+    None if it is absent. Lets a patch's :meth:`~.patcher.Patch.verify` find the cave it created
+    without having to re-derive the RVA it happened to land on."""
+    e = _e_lfanew(data)
+    nsec = struct.unpack_from("<H", data, e + 6)[0]
+    szopt = struct.unpack_from("<H", data, e + 20)[0]
+    sectab = e + 24 + szopt
+    want = name.encode("ascii").ljust(8, b"\x00")[:8]
+    for i in range(nsec):
+        o = sectab + i * _SECTION_HEADER_SIZE
+        if bytes(data[o : o + 8]) != want:
+            continue
+        vsize, sva, _rawsize, praw = struct.unpack_from("<IIII", data, o + 8)
+        return image_base(data) + sva, praw, vsize
+    return None
+
+
 def next_section_rva(data: bytes | bytearray) -> int:
     """The RVA at which the next appended section would start: the highest section end
     (``VirtualAddress + VirtualSize``), rounded up to SectionAlignment. Pass this to
@@ -103,6 +122,29 @@ def next_section_rva(data: bytes | bytearray) -> int:
         vsize, sva = struct.unpack_from("<II", data, o + 8)
         max_end = max(max_end, sva + vsize)
     return align_up(max_end, sec_align)
+
+
+def allocate_section(
+    data: bytearray,
+    name: str,
+    build: Callable[[int], bytes],
+    characteristics: int,
+) -> int:
+    """Append a cave past every existing section and return its base virtual address.
+
+    ``build`` receives the base VA the section will occupy and returns its bytes, so content that
+    refers to itself — a table of pointers into its own string area, code that needs its own
+    address to compute a relative branch — can be laid out before the section exists.
+
+    **Always allocate a cave this way rather than at a fixed RVA.** Appending past the current
+    highest section keeps the section table sorted by RVA whatever else has already been added,
+    which is what lets a set of section-adding patches be applied in any order. A patch that
+    hardcodes its RVA composes only when it happens to be applied first."""
+    rva = next_section_rva(data)
+    base_va = image_base(data) + rva
+    appended = append_section(data, name, rva, build(base_va), characteristics)
+    assert appended == base_va
+    return base_va
 
 
 def append_section(

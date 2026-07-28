@@ -1,5 +1,6 @@
 """Concrete :class:`~sage_patch.patcher.Patch` implementations."""
 
+from sage_patch.patches.cah_factions import CahFactionsPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
 
-__all__ = ["CommandSetLimitPatch"]
+__all__ = ["CahFactionsPatch", "CommandSetLimitPatch"]

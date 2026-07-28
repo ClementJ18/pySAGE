@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import struct
 from typing import Any, Iterator, Optional
 
@@ -37,7 +38,8 @@ __all__ = [
     "block_keywords",
     "lookup_table",
     "name_table",
-    "sub_block_table",
+    "field_table_of",
+    "ini_blocks",
     "BLOCK_TYPES",
     "NAME_TABLES",
     "PARSE_TYPES",
@@ -45,6 +47,9 @@ __all__ = [
 ]
 
 ADD_MODULE = 0x6570FE
+# A block keyword is CamelCase; the field table its parser owns is what really decides.
+INI_KEYWORD = re.compile(r"^[A-Z][A-Za-z0-9_]{2,40}$")
+INI_BLOCK_MIN_FIELDS = 3
 EH_PROLOG = 0xA3CEF0
 OPERATOR_NEW = (0x42F6E0, 0x42F6A0)
 STR_ASSIGN = (0x4374E0, 0x4050E6, 0x436030, 0x40611E)
@@ -139,6 +144,10 @@ PARSE_TYPES = {
     0x008A1700: "DisabledTypeFlags",
     0x008BA71A: "ModelConditionFlagRange",
     0x0086C30A: "MeleeBehavior",
+    # `Behavior = <module> <tag>` and its siblings: the keyword that attaches a module
+    # to an object, and the geometry primitive an object's shape is built from.
+    0x0073F24D: "Module",
+    0x00AD4040: "GeometryType",
 }
 
 # The lists those types resolve their tokens against, where the array is reached from
@@ -156,6 +165,7 @@ PARSER_TABLES = {
     0x008A1700: 0x00DAD904,
     0x008BA71A: 0x00D9FAD8,
     0x0086C30A: 0x00DAEB2C,
+    0x00AD4040: 0x00DC1C38,
 }
 
 # Sub-block parsers shared by more than one keyword, so the block's name cannot be
@@ -299,7 +309,7 @@ class Image:
             return None
 
     def is_text(self, va: int) -> bool:
-        return 0x401000 <= va < 0xA50000
+        return self.section_of(va) == ".text"
 
     def is_str(self, va: int) -> bool:
         return self.section_of(va) in (".rdata", ".data") and self.cstr(va) is not None
@@ -371,21 +381,38 @@ def lookup_table(img: Image, va: int, limit: int = 256) -> list[tuple[str, int]]
     return out
 
 
-def sub_block_table(img: Image, fn: int, depth: int = 0,
-                    seen: Optional[set[int]] = None) -> list[tuple[str, int, int, int]]:
-    """The field table a sub-block parser hands to the INI reader, if it uses one.
+def field_table_of(img: Image, fn: int, max_offset: int = 0x4000, limit: int = 200,
+                   depth: int = 0, maxdepth: int = 1,
+                   seen: Optional[set[int]] = None) -> list[tuple[str, int, int, int]]:
+    """The field table a parser hands to the INI reader, if it uses one.
 
-    A nested block is read the same way a module is - through a 16-byte-stride table -
-    so its keywords come with types and offsets too. A name array can pass
-    `_looks_like_table`, so a real table is told apart by its rows: every parse
-    function is code, and every offset is a plausible struct offset.
+    Every block the engine reads - a module, a nested block, a whole `Object` - is read
+    through the same 16-byte-stride table, either pushed directly or fetched from a
+    constant-returning accessor. A name array can pass `_looks_like_table`, so a real
+    table is told apart by its rows: every parse function is code, and every offset is
+    a plausible struct offset.
     """
     seen = seen if seen is not None else set()
-    if fn in seen or depth > 1:
+    if fn in seen or depth > maxdepth:
         return []
     seen.add(fn)
-    ins = list(img.disasm(fn, 0x600))
+
+    def rows_at(addr: int) -> list[tuple[str, int, int, int]]:
+        if not _looks_like_table(img, addr):
+            return []
+        rows = parse_table(img, addr, limit)
+        ok = all(img.is_text(r[1]) and r[3] < max_offset for r in rows)
+        return rows if len(rows) >= 2 and ok else []
+
+    ins = list(img.disasm(fn, 0x900))
+    # the parser's own table first, then the one a helper it calls hands over
     for i in ins:
+        if i.mnemonic == "call" and i.op_str.startswith("0x"):
+            accessor = const_return(img, int(i.op_str, 16))
+            if accessor:
+                rows = rows_at(accessor)
+                if rows:
+                    return rows
         for tok in i.op_str.replace(",", " ").replace("[", " ").replace("]", " ").split():
             if not tok.startswith("0x"):
                 continue
@@ -393,16 +420,15 @@ def sub_block_table(img: Image, fn: int, depth: int = 0,
                 a = int(tok, 16)
             except ValueError:
                 continue
-            if not _looks_like_table(img, a):
-                continue
-            rows = parse_table(img, a)
-            if (len(rows) >= 2
-                    and all(img.is_text(r[1]) and r[3] < 0x4000 for r in rows)):
+            rows = rows_at(a)
+            if rows:
                 return rows
-        if i.mnemonic in ("call", "jmp") and i.op_str.startswith("0x") and len(ins) < 90:
+    for i in ins:
+        if i.mnemonic in ("call", "jmp") and i.op_str.startswith("0x") and len(ins) < 200:
             target = int(i.op_str, 16)
             if img.is_text(target):
-                rows = sub_block_table(img, target, depth + 1, seen)
+                rows = field_table_of(img, target, max_offset, limit, depth + 1,
+                                      maxdepth, seen)
                 if rows:
                     return rows
     return []
@@ -701,7 +727,7 @@ def field_type(img: Image, keyword: str, parse: int,
     name = BLOCK_TYPES.get(parse, keyword)
     if name in blocks:
         return name if blocks[name]["parse_fn"] == parse else "0x%08x" % parse
-    rows = sub_block_table(img, parse)
+    rows = field_table_of(img, parse)
     fields = [{"name": kw, "type": PARSE_TYPES.get(fn, "0x%08x" % fn),
                "parse_fn": fn, "offset": off}
               for kw, fn, _ud, off in rows]
@@ -712,44 +738,131 @@ def field_type(img: Image, keyword: str, parse: int,
     return name
 
 
+class Catalogue:
+    """The shared side-tables an extraction fills in: enums, lookups, sub-blocks."""
+
+    def __init__(self) -> None:
+        self.blocks: dict[str, dict[str, Any]] = {}
+        self.tables: dict[str, list[str]] = {}
+        self.lookups: dict[str, list[tuple[str, int]]] = {}
+
+    def field(self, img: Image, row: tuple[str, int, int, int],
+              defaults: dict[int, Any]) -> FieldInfo:
+        """One field-table row as a typed field, registering what it points at."""
+        keyword, parse, ud, off = row
+        kind = field_type(img, keyword, parse, self.blocks)
+        ud = ud or PARSER_TABLES.get(parse, 0)
+        members = name_table(img, ud) if ud else []
+        pairs = lookup_table(img, ud) if kind == "LookupList" and ud else []
+        if len(members) > 1 and kind != "LookupList":
+            self.tables.setdefault("0x%08x" % ud, members)
+        elif len(pairs) > 1:
+            self.lookups.setdefault("0x%08x" % ud, pairs)
+        else:
+            ud = 0
+        return FieldInfo(
+            name=keyword,
+            offset=off,
+            type=kind,
+            parse_fn=parse,
+            userdata="0x%08x" % ud if ud else None,
+            default=render_default(img, kind, defaults.get(off)),
+        )
+
+
+def alloc_ctor(img: Image, fn: int) -> Optional[int]:
+    """The constructor a block parser runs on the instance it allocates, if it does.
+
+    Some block types are allocated and constructed right there in the parser, which
+    puts their defaults within reach of the same constant tracking modules use. The
+    ones built through a factory elsewhere are not, and get no defaults.
+    """
+    size: Optional[int] = None
+    pending: Optional[int] = None
+    for i in img.disasm(fn, 0x600):
+        if i.mnemonic == "push" and i.op_str.startswith("0x"):
+            value = int(i.op_str, 16)
+            if 4 <= value <= 0x8000:
+                pending = value
+        elif i.mnemonic == "call" and i.op_str.startswith("0x"):
+            target = int(i.op_str, 16)
+            if target in OPERATOR_NEW and size is None:
+                size = pending
+            elif target not in HELPERS and size is not None:
+                return target
+    return None
+
+
+def ini_blocks(img: Image, cat: Catalogue) -> dict[str, dict[str, Any]]:
+    """Every INI block keyword whose parser owns a field table.
+
+    The loader dispatches a block on `{keyword, parser}` pairs sitting in the data
+    sections. Rather than trust the pairs - a string next to a function pointer is a
+    common enough accident - each candidate is kept only if its parser really does
+    hand a field table to the INI reader, which is what makes it a block type at all.
+    """
+    candidates: dict[str, set[int]] = {}
+    for name, va0, size, _fo in img.sections:
+        if name not in (".rdata", ".data"):
+            continue
+        for va in range(va0, va0 + size - 8, 4):
+            strp, fn = img.u32(va), img.u32(va + 4)
+            if not strp or not fn or not img.is_text(fn):
+                continue
+            if img.section_of(strp) not in (".rdata", ".data"):
+                continue
+            keyword = img.cstr(strp, 48)
+            if keyword and INI_KEYWORD.match(keyword):
+                candidates.setdefault(keyword, set()).add(fn)
+
+    # A field-table row is a keyword next to a parse function too, so a keyword often
+    # has several candidates: the block parser that owns its whole schema, and the leaf
+    # parsers of same-named fields elsewhere. The fullest table is the block's.
+    rows_of: dict[int, list[tuple[str, int, int, int]]] = {}
+    out: dict[str, dict[str, Any]] = {}
+    for keyword, fns in sorted(candidates.items()):
+        best: list[tuple[str, int, int, int]] = []
+        chosen = 0
+        for fn in sorted(fns):
+            if fn not in rows_of:
+                rows_of[fn] = field_table_of(img, fn, max_offset=0x10000, limit=500,
+                                             maxdepth=2)
+            if len(rows_of[fn]) > len(best):
+                best, chosen = rows_of[fn], fn
+        if len(best) < INI_BLOCK_MIN_FIELDS:
+            continue
+        ctor = alloc_ctor(img, chosen)
+        defaults = ctor_defaults(img, ctor) if ctor else {}
+        fields = [cat.field(img, row, defaults) for row in best]
+        out[keyword] = {
+            "parse_fn": chosen,
+            "moduledata_ctor": ctor,
+            "fields": sorted(fields, key=lambda f: f["name"].lower()),
+        }
+    return dict(sorted(out.items()))
+
+
 def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any]]:
     """Every registered module with its fields, plus the types those fields use.
 
     The second return value carries what a field's type alone cannot: the member
-    names behind every enum and flag type, and the keywords of every sub-block.
+    names behind every enum and flag type, the keywords of every sub-block, and the
+    INI block types that are read the same way modules are.
     """
     mods: list[ModuleInfo] = []
-    blocks: dict[str, dict[str, Any]] = {}
-    tables: dict[str, list[str]] = {}
-    lookups: dict[str, list[tuple[str, int]]] = {}
+    cat = Catalogue()
+    blocks, tables, lookups = cat.blocks, cat.tables, cat.lookups
     for name, inst, md, mask in registrations(img):
         size, ctor, bfp = moduledata_info(img, md)
         defaults = ctor_defaults(img, ctor)
         fields: list[FieldInfo] = []
         seen: set[str] = set()
         for tab in field_tables(img, bfp):
-            for keyword, parse, ud, off in parse_table(img, tab):
-                if keyword in seen:
+            for row in parse_table(img, tab):
+                if row[0] in seen:
                     continue
-                seen.add(keyword)
-                kind = field_type(img, keyword, parse, blocks)
-                ud = ud or PARSER_TABLES.get(parse, 0)
-                members = name_table(img, ud) if ud else []
-                pairs = lookup_table(img, ud) if kind == "LookupList" and ud else []
-                if len(members) > 1 and kind != "LookupList":
-                    tables.setdefault("0x%08x" % ud, members)
-                elif len(pairs) > 1:
-                    lookups.setdefault("0x%08x" % ud, pairs)
-                else:
-                    ud = 0
-                fields.append(FieldInfo(
-                    name=keyword,
-                    offset=off,
-                    type=kind,
-                    parse_fn=parse,
-                    userdata="0x%08x" % ud if ud else None,
-                    default=render_default(img, kind, defaults.get(off)),
-                ))
+                seen.add(row[0])
+                fields.append(cat.field(img, row, defaults))
         mods.append(ModuleInfo(
             name=name,
             interface_mask=mask,
@@ -769,9 +882,11 @@ def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any]]:
         for type_name, target in TYPE_TABLES.items():
             if target == enum:
                 types[type_name] = "0x%08x" % va
+    ini = ini_blocks(img, cat)
     return (sorted(mods, key=lambda m: (m["name"] or "").lower()),
             {"name_tables": tables, "lookup_tables": lookups, "enums": enums,
-             "types": types, "blocks": dict(sorted(blocks.items()))})
+             "types": types, "blocks": dict(sorted(blocks.items())),
+             "ini_blocks": ini})
 
 
 def to_markdown(mods: list[ModuleInfo]) -> str:
@@ -830,7 +945,7 @@ def main() -> None:
     ap.add_argument("--json", dest="json_out")
     ap.add_argument("--markdown", dest="md_out")
     ap.add_argument("--enums", dest="enum_out",
-                    help="write the enum, lookup and sub-block schemas here")
+                    help="write the enum, lookup, sub-block and INI block schemas here")
     args = ap.parse_args()
 
     img = Image(args.binary)
@@ -839,8 +954,9 @@ def main() -> None:
     known = sum(1 for m in mods for f in m["fields"] if f["default"] is not None)
     print("modules: %d  fields: %d  defaults recovered: %d (%.0f%%)"
           % (len(mods), total, known, 100.0 * known / total if total else 0))
-    print("enums: %d  lookups: %d  sub-blocks: %d"
-          % (len(types["name_tables"]), len(types["lookup_tables"]), len(types["blocks"])))
+    print("enums: %d  lookups: %d  sub-blocks: %d  INI block types: %d"
+          % (len(types["name_tables"]), len(types["lookup_tables"]), len(types["blocks"]),
+             len(types["ini_blocks"])))
 
     if args.json_out:
         with open(args.json_out, "w") as fh:

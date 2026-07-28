@@ -15,7 +15,8 @@ takes any N in 34..127) so a `CommandSet` INI block may define `1`..`64` without
 
 - **Grow the object** (14 edits): grows `CommandSet` from `0xA0` to `0x11C`; `m_command[64]` stays
   at `+0x14`; the count/flag fields move `0x98/0x9c → 0x114/0x118`.
-- **Relocate the field table**: adds a `.cmdext` PE section (VA `0xed3000`) holding a fresh 64-slot
+- **Relocate the field table**: adds a `.cmdext` PE section (VA `0xed3000` on a clean image — the
+  RVA is computed, so it lands past any cave another patch already added) holding a fresh 64-slot
   field-parse table + the new `"34".."64"` name strings, and repoints the two references
   (`0x72065c`, `0x71c2ee`).
 

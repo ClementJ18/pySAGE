@@ -5,6 +5,11 @@ SAGE-engine `game.dat` build ``2.01.2614.37001`` (engine-level: it benefits ever
 build, not one in particular), so a `CommandSet` INI block may define more than 33 buttons. See
 ``../docs/commandset-button-limit.md`` for the derivation of every site.
 
+**Composition.** Order-independent: it allocates its cave past every existing section and
+:meth:`verify` finds it by name, it shares no edited byte with any other bundled patch, and it
+derives its table only from the stock one, which nothing else rewrites. See the composition
+contract on :class:`~..patcher.Patch`.
+
 Two phases make up the patch:
 
 * **Phase 1** grows the `CommandSet` object from ``0xA0`` to ``0x14 + count*4 + 8`` bytes. The
@@ -36,7 +41,7 @@ import struct
 from typing import TYPE_CHECKING
 
 from ..patcher import Patch
-from ..utils import append_section, apply_byte_patch, image_base, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, image_base
 
 if TYPE_CHECKING:
     import argparse
@@ -44,7 +49,7 @@ if TYPE_CHECKING:
 # --- fixed facts about the target build (VA, ImageBase 0x400000) ---
 _TABLE_VA = 0xC4F3D8  # the original 34-entry CommandSet field-parse table
 _PARSE_COMMAND_BUTTON = 0x0080C9E1  # parseCommandButton (fn of every slot entry)
-_NEW_SECTION_RVA = 0xAD3000  # where the enlarged table + new slot names go (.cmdext)
+_SECTION_NAME = ".cmdext"  # the cave holding the enlarged table + the new slot names
 _PARSER_TABLE_REF = 0x32065C  # `push _TABLE_VA` - parser's table pointer (repointed in Phase 2)
 _GETFIELDPARSE_REF = 0x31C2EE  # `mov eax, _TABLE_VA` - getFieldParse's table pointer (Phase 2)
 _ORIGINAL_MAX = 33
@@ -98,31 +103,37 @@ class CommandSetLimitPatch(Patch):
 
     def apply(self, data: bytearray) -> None:
         n = self.count
-        base = image_base(data)
-        content, new_base_va = self._compute_table(data, base, n)
-        append_section(data, ".cmdext", _NEW_SECTION_RVA, content, _SECTION_CHARACTERISTICS)
+        new_base_va = allocate_section(
+            data,
+            _SECTION_NAME,
+            lambda section_va: self._compute_table(data, section_va, n),
+            _SECTION_CHARACTERISTICS,
+        )
         self._link_table(data, new_base_va)
         for file_off, old, new, note in self._phase1_edits(n):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         """Structural check that ``data`` already carries this patch at ``count`` (an empty list
-        == verified). Recomputes the expected ``.cmdext`` table, the two repointed references and
-        the Phase-1 site bytes for ``count`` and compares them to what is on disk. Reads only via
-        ``struct`` + the section table, so it needs no disassembler."""
+        == verified). Locates the ``.cmdext`` cave, recomputes the table, the two repointed
+        references and the Phase-1 site bytes for ``count``, and compares them to what is on disk.
+        Reads only via ``struct`` + the section table, so it needs no disassembler."""
         n = self.count
         problems: list[str] = []
+        located = find_section(data, _SECTION_NAME)
+        if located is None:
+            return [f"no {_SECTION_NAME} section: the file does not carry this patch"]
+        new_base_va, table_off, _vsize = located
+
         try:
-            base = image_base(data)
-            content, new_base_va = self._compute_table(data, base, n)
+            content = self._compute_table(data, new_base_va, n)
         except (ValueError, struct.error) as exc:
             return [f"cannot recompute the expected table (wrong build?): {exc}"]
 
-        table_off = va_to_offset(data, new_base_va)
-        if table_off is None:
-            problems.append(f".cmdext is not mapped at VA 0x{new_base_va:08x}")
-        elif bytes(data[table_off : table_off + len(content)]) != content:
-            problems.append(f"the .cmdext field-parse table / slot names do not match N={n}")
+        if bytes(data[table_off : table_off + len(content)]) != content:
+            problems.append(
+                f"the {_SECTION_NAME} field-parse table / slot names do not match N={n}"
+            )
 
         for ref_off, label in (
             (_PARSER_TABLE_REF, "parser table ref"),
@@ -158,11 +169,11 @@ class CommandSetLimitPatch(Patch):
 
     # --- Phase 2: the enlarged field-parse table in a new section ---------------------------
 
-    def _compute_table(self, data: bytes | bytearray, base: int, n: int) -> tuple[bytes, int]:
-        """Return ``(section content, new table VA)`` for an ``n``-slot table. Reads the original
-        34-entry table to reuse its slot-name pointers and parse fn; raises on an unrecognised
-        build (slot 0's parse fn not where this build keeps it)."""
-        tab_foff = _TABLE_VA - base
+    def _compute_table(self, data: bytes | bytearray, section_va: int, n: int) -> bytes:
+        """Return the ``.cmdext`` content for an ``n``-slot table placed at ``section_va``. Reads
+        the original 34-entry table to reuse its slot-name pointers and parse fn; raises on an
+        unrecognised build (slot 0's parse fn not where this build keeps it)."""
+        tab_foff = _TABLE_VA - image_base(data)
         original = [struct.unpack_from("<IIII", data, tab_foff + i * 16) for i in range(34)]
         parse_fn = original[0][1]
         if parse_fn != _PARSE_COMMAND_BUTTON:
@@ -172,9 +183,8 @@ class CommandSetLimitPatch(Patch):
             )
         initial_visible = original[33]  # the "InitialVisible" field entry
 
-        new_base_va = base + _NEW_SECTION_RVA
         table_size = (n + 2) * 16  # n slots + InitialVisible + NULL terminator
-        str_area_va = new_base_va + table_size
+        str_area_va = section_va + table_size
 
         # slot name strings "34".."n" (slots 1..33 reuse the original pointers)
         str_bytes = bytearray()
@@ -191,7 +201,7 @@ class CommandSetLimitPatch(Patch):
         table += struct.pack("<IIII", initial_visible[0], initial_visible[1], 0, initvis_off)
         table += struct.pack("<IIII", 0, 0, 0, 0)  # terminator
         assert len(table) == table_size
-        return bytes(table) + bytes(str_bytes), new_base_va
+        return bytes(table) + bytes(str_bytes)
 
     def _link_table(self, data: bytearray, new_base_va: int) -> None:
         """Repoint the two code references from the old table VA to the new ``.cmdext`` table."""

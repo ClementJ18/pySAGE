@@ -25,6 +25,8 @@ import shutil
 from typing import Any, Optional
 
 import sage_ini.model.enums as sage_enums
+import sage_ini.model.types as sage_types
+from sage_ini.model.objects import REGISTRY as SAGE_REGISTRY
 
 __all__ = ["build", "TYPE_DOCS", "CATEGORIES"]
 
@@ -32,7 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, os.pardir, os.pardir))
 DOCS = os.path.join(HERE, os.pardir, "docs")
 MODULE_JSON = os.path.join(DOCS, "module-reference.json")
-TYPE_JSON = os.path.join(DOCS, "module-types.json")
+TYPE_JSON = os.path.join(DOCS, "ini-types.json")
 DEFAULT_OUT = os.path.join(REPO, "build", "wiki")
 
 ENGINE_BUILD = "2.01.2614.37001"
@@ -185,6 +187,12 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
                                 "complains if you give it anything but two."),
     "MeleeBehavior": ("Enumeration", "one melee-behaviour token",
                       "How a horde's members close on their target."),
+    "Module": ("Reference", "a module name, then a tag of your own",
+               "Attaches a module and opens its block. The tag only has to be unique "
+               "within the object, and is what an override or a `RemoveModule` refers "
+               "to later."),
+    "GeometryType": ("Enumeration", "one geometry token",
+                     "The primitive the object's collision shape is built from."),
 }
 
 CATEGORY_ORDER = ["Scalar", "Text", "Enumeration", "Flag set", "Reference",
@@ -214,6 +222,7 @@ VALUE_KINDS = {
     "RGBAColor": "rgba",
     "ModelConditionFlagRange": "pair",
     "AngleFXList": "text",
+    "Module": "module",
 }
 
 # Token lists the binary does not name and `sage_ini` does not model, named here after
@@ -224,6 +233,49 @@ ENUM_NAMES = {
     "0x00db0f20": "StructureTopplePhase",
     "0x00d9e6bc": "LodLevel",
 }
+
+
+
+def annotation_target(annotation: Any, depth: int = 0) -> Optional[str]:
+    """The table a `sage_ini` annotation points at, through whatever wraps it.
+
+    The model says what the engine's parse function cannot: that this string names an
+    upgrade, or that one names an object. It says it in several shapes - a `Reference`
+    marker, the model class itself, or either of those inside a list, a nullable or a
+    union - and all of them lead back to one table key.
+    """
+    if annotation is None or depth > 5:
+        return None
+    for meta in getattr(annotation, "__metadata__", ()):
+        if isinstance(meta, sage_types.Reference):
+            return meta.key
+    key = getattr(annotation, "key", None)
+    if isinstance(key, str):
+        return key
+    for attr in ("element", "inner"):
+        found = annotation_target(getattr(annotation, attr, None), depth + 1)
+        if found:
+            return found
+    for attr in ("types", "element_types", "values"):
+        options = getattr(annotation, attr, None)
+        if not isinstance(options, (list, tuple)):
+            continue      # a class's own `values` is a method, not a set of alternatives
+        for option in options:
+            found = annotation_target(option, depth + 1)
+            if found:
+                return found
+    return None
+
+
+def sage_annotations(name: str) -> dict[str, Any]:
+    """Every field `sage_ini` models for a block or module, base classes included."""
+    cls = SAGE_REGISTRY.get(name)
+    if cls is None:
+        return {}
+    merged: dict[str, Any] = {}
+    for base in reversed(getattr(cls, "__mro__", ())):
+        merged.update(getattr(base, "__annotations__", {}))
+    return merged
 
 
 def esc(text: Any) -> str:
@@ -249,11 +301,13 @@ class Reference:
         self.name_tables: dict[str, list[str]] = types["name_tables"]
         self.lookup_tables: dict[str, list] = types["lookup_tables"]
         self.blocks: dict[str, dict] = types["blocks"]
+        self.ini_blocks: dict[str, dict] = types.get("ini_blocks", {})
         self.type_tables: dict[str, str] = types["types"]
         self.engine_enums: dict[str, str] = types["enums"]
         self.sage_enums = self._sage_enums()
         self.enums = self._name_enums()
         self.field_types = self._field_types()
+        self.targets = self._sage_targets()
 
     @staticmethod
     def _sage_enums() -> dict[str, tuple[list[str], Optional[str]]]:
@@ -299,12 +353,14 @@ class Reference:
         was found at.
         """
         by_table: dict[str, str] = {va: name for name, va in self.engine_enums.items()}
-        users: dict[str, list[tuple[str, str]]] = {}
+        users: dict[str, list[tuple[str, str, str]]] = {}
         from_type: dict[str, str] = {}
-        for m in self.modules:
-            for f in m["fields"]:
+        owned = ([("m", m["name"], m["fields"]) for m in self.modules]
+                 + [("b", n, blk["fields"]) for n, blk in self.ini_blocks.items()])
+        for page_dir, owner, fields in owned:
+            for f in fields:
                 if f.get("userdata"):
-                    users.setdefault(f["userdata"], []).append((m["name"], f["name"]))
+                    users.setdefault(f["userdata"], []).append((page_dir, owner, f["name"]))
                     kind = TYPE_DOCS.get(f["type"], ("", "", ""))[0]
                     if f["type"].endswith("Flags") and f["type"] != "BitFlags":
                         from_type.setdefault(f["userdata"], f["type"][:-len("Flags")])
@@ -324,7 +380,7 @@ class Reference:
             matched = self._match_sage_enum(members)
             if not name:
                 name = (matched or ENUM_NAMES.get(va) or from_type.get(va)
-                        or users.get(va, [("", "Unnamed")])[0][1] + "Values")
+                        or users.get(va, [("", "", "Unnamed")])[0][2] + "Values")
             while name in enums:
                 name += "'"
             doc = self.sage_enums.get(matched or name, ([], None))[1]
@@ -342,7 +398,7 @@ class Reference:
         for va, pairs in sorted(self.lookup_tables.items()):
             members = [p[0] for p in pairs]
             matched = self._match_sage_enum(members)
-            name = matched or (users.get(va, [("", "Unnamed")])[0][1] + "Values")
+            name = matched or (users.get(va, [("", "", "Unnamed")])[0][2] + "Values")
             enums[name] = {
                 "members": members,
                 "values": [p[1] for p in pairs],
@@ -376,13 +432,49 @@ class Reference:
                 return name
         return None
 
-    def _field_types(self) -> dict[str, list[tuple[str, str]]]:
-        """type name -> the fields that use it."""
-        out: dict[str, list[tuple[str, str]]] = {}
+    def _field_types(self) -> dict[str, list[tuple[str, str, str]]]:
+        """type name -> the (page, owner, field) triples that use it."""
+        out: dict[str, list[tuple[str, str, str]]] = {}
         for m in self.modules:
             for f in m["fields"]:
-                out.setdefault(f["type"], []).append((m["name"], f["name"]))
+                out.setdefault(f["type"], []).append(("m", m["name"], f["name"]))
+        for name, blk in self.ini_blocks.items():
+            for f in blk["fields"]:
+                out.setdefault(f["type"], []).append(("b", name, f["name"]))
         return out
+
+
+    def _sage_targets(self) -> dict[str, dict[str, tuple[str, bool]]]:
+        """owner -> field -> (the block its value names, whether that block has a page).
+
+        Straight from `sage_ini`'s model rather than from the binary: the engine parses
+        these fields as plain strings and never says what the string has to match.
+        """
+        by_key: dict[str, list[str]] = {}
+        for keyword, cls in SAGE_REGISTRY.items():
+            key = getattr(cls, "key", None)
+            if isinstance(key, str) and not keyword.startswith("_"):
+                by_key.setdefault(key, []).append(keyword)
+        named: dict[str, str] = {}
+        for key, keywords in by_key.items():
+            here = [k for k in keywords if k in self.ini_blocks]
+            named[key] = min(here or keywords, key=lambda k: (len(k), k))
+
+        out: dict[str, dict[str, tuple[str, bool]]] = {}
+        owners = [m["name"] for m in self.modules] + list(self.ini_blocks)
+        for owner in owners:
+            for field, annotation in sage_annotations(owner).items():
+                key = annotation_target(annotation)
+                block = named.get(key or "")
+                if block:
+                    out.setdefault(owner, {})[field] = (block, block in self.ini_blocks)
+        return out
+
+    def target_of(self, owner: str, field: dict) -> Optional[tuple[str, bool]]:
+        """What a field's value names, where the engine's own type does not say."""
+        if self.type_category(field["type"]) not in ("Text", "Unidentified"):
+            return None
+        return self.targets.get(owner, {}).get(field["name"])
 
     def category(self, module: str) -> str:
         for suffix, label, _blurb in CATEGORIES:
@@ -399,7 +491,7 @@ class Reference:
 
 
 def page(ref: Reference, title: str, body: str, base: str = "",
-         subtitle: str = "", active: str = "") -> str:
+         subtitle: str = "", active: str = "", extra: str = "") -> str:
     """The shell every page shares: head, sidebar mount point, content."""
     return f"""<!DOCTYPE html>
 <html lang="en" data-base="{base}" data-active="{esc(active)}">
@@ -435,6 +527,7 @@ def page(ref: Reference, title: str, body: str, base: str = "",
 </footer>
 </main>
 <script src="{base}assets/data.js"></script>
+{f'<script src="{base}assets/{extra}"></script>' if extra else ''}
 <script src="{base}assets/wiki.js"></script>
 </body>
 </html>
@@ -518,14 +611,29 @@ def value_control(ref: Reference, field: dict, enum: Optional[str], kind: str,
             f' placeholder="{esc(default)}"{common}>')
 
 
-def field_rows(ref: Reference, module: dict, base: str) -> str:
+def target_link(ref: Reference, owner: str, field: dict, base: str) -> str:
+    """What the value names, where the engine's type only says "string"."""
+    found = ref.target_of(owner, field)
+    if not found:
+        return ""
+    block, has_page = found
+    tip = esc(f"sage_ini models this as naming a {block}; the engine parses it as a "
+              f"plain string and does not say what it has to match")
+    if has_page:
+        return (f' <a class="reflink" href="{base}b/{esc(slug(block))}.html" '
+                f'data-tip="{tip}">&rarr; {esc(block)}</a>')
+    return f' <span class="reflink" data-tip="{tip}">&rarr; {esc(block)}</span>'
+
+
+def field_rows(ref: Reference, owner: str, fields: list[dict], base: str) -> str:
     rows = []
-    for f in module["fields"]:
+    for f in fields:
         enum = ref.enum_for_field(f)
         extra = ""
         if enum:
             extra = (f' <a class="enumref" href="{base}enums.html#{esc(slug(enum))}">'
                      f'{esc(enum)}</a>')
+        extra += target_link(ref, owner, f, base)
         default = (f'<code>{esc(f["default"])}</code>' if f["default"] is not None
                    else '<span class="none" title="not recoverable by constant tracking; '
                         'in practice an empty container or string">-</span>')
@@ -540,42 +648,39 @@ def field_rows(ref: Reference, module: dict, base: str) -> str:
     return "\n".join(rows)
 
 
-def ini_skeleton(ref: Reference, module: dict) -> str:
-    """The module's block with every keyword at the value it holds when left out.
+def ini_skeleton(header: str, fields: list[dict]) -> str:
+    """The block with every keyword at the value it holds when left out.
 
     A keyword whose default could not be recovered is left out rather than written
     blank, since a blank line is not something you could paste.
     """
-    written = [f for f in module["fields"] if f["default"] is not None]
+    written = [f for f in fields if f["default"] is not None]
     width = max((len(f["name"]) for f in written), default=0)
-    lines = [f'{module["name"]} ModuleTag_01']
+    lines = [header]
     lines += [f'  {f["name"]:<{width}} = {f["default"]}' for f in written]
     lines.append("End")
     return esc("\n".join(lines))
 
 
-def module_page(ref: Reference, module: dict) -> str:
-    base = "../"
-    mask = module.get("interface_mask") or ""
-    facts = []
-    if mask.startswith("0x") or mask.isdigit():
-        facts.append(f'<div><dt>Interface mask</dt><dd><code>{esc(mask)}</code></dd></div>')
-    unknown = [f for f in module["fields"] if f["type"].startswith("0x")]
+def schema_page(ref: Reference, name: str, fields: list[dict], header: str,
+                lead: str, base: str, facts: str = "") -> str:
+    """The page shared by a module and an INI block: its fields, and a block to paste."""
+    unknown = [f for f in fields if f["type"].startswith("0x")]
     warn = ""
     if unknown:
         names = ", ".join(f'<code>{esc(f["name"])}</code>' for f in unknown)
         verb = "uses" if len(unknown) == 1 else "use"
         warn = (f'<p class="note">{len(unknown)} field'
-                f'{"" if len(unknown) == 1 else "s"} on this module {verb} a parse '
-                f'function that has not been identified, so the type column shows its '
-                f'address: {names}.</p>')
+                f'{"" if len(unknown) == 1 else "s"} here {verb} a parse function that '
+                f'has not been identified, so the type column shows its address: '
+                f'{names}.</p>')
     body = f"""
-{f'<dl class="facts">{"".join(facts)}</dl>' if facts else ''}
+{facts}
 {warn}
-<table class="fields sortable" data-module="{esc(module["name"])}">
+<table class="fields sortable" data-module="{esc(header)}">
 <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Value</th></tr></thead>
 <tbody>
-{field_rows(ref, module, base)}
+{field_rows(ref, name, fields, base)}
 </tbody>
 </table>
 <div class="inirow">
@@ -584,15 +689,39 @@ def module_page(ref: Reference, module: dict) -> str:
 <p class="note">The engine writes these values before it reads the block, so a keyword
 you leave out behaves exactly as if you had written the line below. Fill in the value
 column above and the line follows. Keywords whose default could not be recovered are
-left out until you give them a value. The leading keyword (<code>Behavior</code>,
-<code>Draw</code>, <code>Body</code>, ...) depends on which interface you are
-attaching.</p>
-<pre><code id="ini">{ini_skeleton(ref, module)}</code></pre>
+left out until you give them a value. {lead}</p>
+<pre><code id="ini">{ini_skeleton(header, fields)}</code></pre>
 </details>
 <button class="copyini" type="button">Copy INI</button>
 </div>
 """
-    return page(ref, module["name"], body, base=base, active=module["name"])
+    return page(ref, name, body, base=base, active=name)
+
+
+def module_page(ref: Reference, module: dict) -> str:
+    mask = module.get("interface_mask") or ""
+    facts = ""
+    if mask.startswith("0x") or mask.isdigit():
+        facts = (f'<dl class="facts"><div><dt>Interface mask</dt>'
+                 f'<dd><code>{esc(mask)}</code></dd></div></dl>')
+    lead = ("The leading keyword (<code>Behavior</code>, <code>Draw</code>, "
+            "<code>Body</code>, ...) depends on which interface you are attaching.")
+    return schema_page(ref, module["name"], module["fields"],
+                       f'{module["name"]} ModuleTag_01', lead, "../", facts)
+
+
+def block_page(ref: Reference, name: str, block: dict) -> str:
+    shared = sorted(n for n, other in ref.ini_blocks.items()
+                    if other["parse_fn"] == block["parse_fn"] and n != name)
+    facts = ""
+    if shared:
+        links = ", ".join(f'<a href="{esc(slug(n))}.html"><code>{esc(n)}</code></a>'
+                          for n in shared)
+        facts = (f'<p class="note">The same schema is read for {links}.</p>')
+    lead = ("A named block takes its name after the keyword "
+            f"(<code>{esc(name)} SomeName</code>); the settings blocks that exist once "
+            "take none.")
+    return schema_page(ref, name, block["fields"], name, lead, "../", facts)
 
 
 def modules_page(ref: Reference) -> str:
@@ -612,6 +741,22 @@ def modules_page(ref: Reference) -> str:
                          f"grouped by the interface they attach to", active="modules")
 
 
+def blocks_page(ref: Reference) -> str:
+    items = "\n".join(
+        f'<li><a href="b/{esc(slug(name))}.html">{esc(name)}</a>'
+        f'<span class="count">{len(blk["fields"])}</span></li>'
+        for name, blk in sorted(ref.ini_blocks.items(), key=lambda kv: kv[0].lower()))
+    fields = sum(len(b["fields"]) for b in ref.ini_blocks.values())
+    body = f"""<p class="lead">The block types the INI loader dispatches on, each read
+through a field table of its own - the same machinery a module's data goes through.
+`Object`, `Weapon`, `Locomotor`, `GameData` and the rest live here, alongside the
+nested blocks that only appear inside another.</p>
+<ul class="modgrid">{items}</ul>"""
+    return page(ref, "All blocks", body.replace("`", ""),
+                subtitle=f"{len(ref.ini_blocks)} block types, {fields} fields",
+                active="blocks")
+
+
 def types_page(ref: Reference) -> str:
     sections = []
     for cat in CATEGORY_ORDER:
@@ -625,8 +770,8 @@ def types_page(ref: Reference) -> str:
         for name in names:
             users = ref.field_types.get(name, [])
             examples = ", ".join(
-                f'<a href="m/{esc(slug(mod))}.html#{esc(slug(fld))}">'
-                f'<code>{esc(mod)}.{esc(fld)}</code></a>' for mod, fld in users[:3])
+                f'<a href="{d}/{esc(slug(owner))}.html#{esc(slug(fld))}">'
+                f'<code>{esc(owner)}.{esc(fld)}</code></a>' for d, owner, fld in users[:3])
             more = f" and {len(users) - 3} more" if len(users) > 3 else ""
             table = ""
             if cat == "Sub-block":
@@ -694,8 +839,8 @@ def enums_page(ref: Reference) -> str:
             f'<code>{esc(m)}</code></li>' for i, m in enumerate(members))
         users = enum["users"]
         used = ", ".join(
-            f'<a href="m/{esc(slug(mod))}.html#{esc(slug(fld))}">'
-            f'<code>{esc(mod)}.{esc(fld)}</code></a>' for mod, fld in users[:4])
+            f'<a href="{d}/{esc(slug(owner))}.html#{esc(slug(fld))}">'
+            f'<code>{esc(owner)}.{esc(fld)}</code></a>' for d, owner, fld in users[:4])
         more = f" and {len(users) - 4} more" if len(users) > 4 else ""
         cross = ""
         if enum["sage_ini"]:
@@ -742,10 +887,12 @@ def index_page(ref: Reference) -> str:
         f'<span>{sum(1 for m in ref.modules if ref.category(m["name"]) == label)}</span></a>'
         for _s, label, _b in CATEGORIES
         if any(ref.category(m["name"]) == label for m in ref.modules))
+    blocks = len(ref.ini_blocks)
     body = f"""
-<p class="lead">Every behaviour, update, draw and body module the ROTWK engine
-registers, with the INI keywords it accepts, the type of each keyword, where it sits in
-the module's data and the value it holds when you leave the line out.</p>
+<p class="lead">Every module the ROTWK engine registers and every block type its INI
+loader dispatches on, with the keywords each accepts, the type of every keyword and the
+value it holds when you leave the line out - read out of the binary rather than
+transcribed.</p>
 
 <section>
 <h2>Start here</h2>
@@ -757,9 +904,17 @@ the module's data and the value it holds when you leave the line out.</p>
   <a class="tile" href="types.html"><b>Types</b>
     <span>What each type accepts and how the engine stores it - which reals are scaled
     into radians or logic frames, which strings are references into another INI file.</span></a>
+  <a class="tile" href="blocks.html"><b>Blocks</b>
+    <span>The {blocks} block types the INI loader dispatches on - <code>Object</code>,
+    <code>Weapon</code>, <code>Locomotor</code>, <code>GameData</code> and the rest -
+    read through field tables of their own.</span></a>
   <a class="tile" href="enums.html"><b>Enumerations</b>
     <span>The engine's token lists in engine order, read from the arrays its parsers
     resolve names against, cross-checked against <code>sage_ini</code>.</span></a>
+  <a class="tile" href="check.html"><b>Check a block</b>
+    <span>Paste INI and have every keyword checked against these tables: unknown
+    keywords, values of the wrong shape, tokens that are not in the list, and lines
+    that only repeat a default.</span></a>
 </div>
 </section>
 
@@ -774,7 +929,9 @@ the module's data and the value it holds when you leave the line out.</p>
   <li><b>Field</b> - the INI keyword, spelled as the engine's parse table spells it.</li>
   <li><b>Type</b> - the parse function behind the keyword. Hover it for what it accepts,
       click it for the full entry. A second, smaller link appears when the field's tokens
-      come from a fixed list.</li>
+      come from a fixed list, and a <span class="reflink">&rarr; Block</span> when
+      <code>sage_ini</code> knows what the string has to name - the engine itself parses
+      those as plain strings and says nothing about what they match.</li>
   <li><b>Default</b> - what the module's constructor writes before the block is read,
       so it is the value in force when the keyword is absent. A <span class="none">-</span>
       means constant tracking could not resolve the write, which in practice means an
@@ -800,20 +957,85 @@ reference, so where this site and another disagree, both are worth re-checking.<
                          "read out of the ROTWK engine", active="index")
 
 
+def field_data(ref: Reference) -> str:
+    """Every schema the checker validates against: modules, INI blocks, sub-blocks.
+
+    One entry per field - the kind to check it against, the token list if it has one,
+    and the default - so a pasted block can be told what the engine would make of it.
+    """
+    schemas: dict[str, dict[str, list]] = {}
+
+    def add(name: str, fields: list[dict]) -> None:
+        entry = schemas.setdefault(name, {})
+        for f in fields:
+            found = ref.target_of(name, f) if "default" in f else None
+            entry.setdefault(f["name"], [field_kind(ref, f["type"]),
+                                         ref.enum_for_field(f), f.get("default"),
+                                         f["type"], found[0] if found else None])
+
+    for module in ref.modules:
+        add(module["name"], module["fields"])
+    for name, blk in ref.ini_blocks.items():
+        add(name, blk["fields"])
+    for name, blk in ref.blocks.items():
+        if blk.get("fields"):
+            add(name, blk["fields"])
+        else:
+            entry = schemas.setdefault(name, {})
+            for word in blk["keywords"]:
+                entry.setdefault(word, ["text", None, None, "AsciiString"])
+    data = {
+        "schemas": schemas,
+        "modules": sorted(m["name"] for m in ref.modules),
+        "blocks": sorted(ref.ini_blocks),
+    }
+    return "window.WIKI_FIELDS = " + json.dumps(data, separators=(",", ":")) + ";\n"
+
+
+def check_page(ref: Reference) -> str:
+    body = """
+<p class="lead">Paste a block - an <code>Object</code>, a <code>Weapon</code>, a
+<code>Behavior = ...</code> module, anything with an <code>End</code> - and every
+keyword in it is checked against what the engine's own parser accepts: is the keyword
+one this block has, is the value the shape its type wants, is that token in the list.
+Lines that only repeat a compiled-in default are called out too, since they do nothing.</p>
+<p class="note">Nothing leaves the page: the schemas are already loaded, and the check
+runs here.</p>
+<div class="checkbar">
+  <button id="checkrun" type="button">Check</button>
+  <button id="checkclear" class="ghost" type="button">Clear</button>
+  <span id="checksummary"></span>
+</div>
+<textarea id="checkinput" spellcheck="false" rows="14"
+  placeholder="Behavior = ProductionUpdate ModuleTag_01
+  MaxQueueEntries = 20
+  GiveNoXP = Yes
+End"></textarea>
+<div id="checkout"></div>
+"""
+    return page(ref, "Check a block", body,
+                subtitle="Validate a pasted INI block against the engine's field tables",
+                active="check", extra="fields.js")
+
+
 def search_data(ref: Reference) -> str:
     """The sidebar tree and the search index, as a script so `file://` works."""
     modules = [{"n": m["name"], "c": ref.category(m["name"]),
                 "f": [f["name"] for f in m["fields"]]} for m in ref.modules]
+    blocks = [{"n": name, "f": [f["name"] for f in blk["fields"]]}
+              for name, blk in sorted(ref.ini_blocks.items(), key=lambda kv: kv[0].lower())]
     types = [[t, ref.type_category(t)]
              for t in sorted(ref.field_types) if not t.startswith("0x")]
     data = {
         "modules": modules,
+        "blocks": blocks,
         "groups": [label for _s, label, _b in CATEGORIES],
         "types": types,
         "enums": sorted(ref.enums),
         "members": {name: enum["members"] for name, enum in sorted(ref.enums.items())},
         "pages": [["index.html", "Home"], ["modules.html", "All modules"],
-                  ["types.html", "Types"], ["enums.html", "Enumerations"]],
+                  ["blocks.html", "All blocks"], ["types.html", "Types"],
+                  ["enums.html", "Enumerations"], ["check.html", "Check a block"]],
     }
     return "window.WIKI = " + json.dumps(data, separators=(",", ":")) + ";\n"
 
@@ -983,6 +1205,18 @@ td:last-child .t[data-tip]:hover::after { left: auto; right: 0; }
   .t-flag { color: #e0a458; } .t-reference { color: #ef8fb8; } .t-sub { color: #aab; }
 }
 .enumref { font-size: 11.5px; margin-left: 6px; }
+.reflink {
+  font-size: 11.5px; margin-left: 6px; color: var(--muted); position: relative;
+  border-bottom: 1px dotted var(--line);
+}
+a.reflink:hover { color: var(--accent); text-decoration: none; }
+.reflink[data-tip]:hover::after {
+  content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 6px); z-index: 20;
+  width: max-content; max-width: 340px; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--fg);
+  font-family: var(--sans); font-size: 12.5px; line-height: 1.45; white-space: normal;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .28); pointer-events: none;
+}
 /* the column is sized here rather than by its content, so typing never reflows the table */
 .fields td.val { position: relative; width: 210px; }
 .fieldval {
@@ -1003,6 +1237,82 @@ select.fieldval[multiple] option { padding: 1px 4px; border-radius: 3px; }
   white-space: normal; box-shadow: 0 4px 14px rgba(0, 0, 0, .22);
 }
 .why:empty { display: none; }
+/* The checker is a working surface, not a page of prose: its own dark palette whichever
+   theme the reader is in, the editor as wide as the window, and the toolbar in reach. */
+:root[data-active="check"] {
+  --bg: #0d1117; --fg: #e8edf3; --muted: #8b98a8; --line: #232c37;
+  --panel: #161d26; --accent: #6ea8fe; --accent-soft: #17233a; --code: #111823;
+  --bad: #ff7b83; --bad-soft: #2a1519; --ok: #6fcf97; --part: #e0b458;
+}
+:root[data-active="check"] main { max-width: none; }
+:root[data-active="check"] .lead { font-size: 14px; }
+
+.checkbar {
+  display: flex; align-items: center; gap: 10px; margin: 16px 0 10px;
+  position: sticky; top: 0; z-index: 4; padding: 10px 0; background: var(--bg);
+}
+.checkbar button {
+  border: 1px solid transparent; border-radius: 10px; padding: 9px 20px; font-size: 13.5px;
+  font-weight: 600; letter-spacing: .2px; cursor: pointer; font-family: var(--sans);
+  color: #0b1017; background: linear-gradient(180deg, #8cbcff, #5b95f5);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset, 0 8px 20px -10px #5b95f5;
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
+}
+.checkbar button:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.checkbar button:active { transform: translateY(0); box-shadow: none; }
+.checkbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.checkbar button.ghost {
+  background: var(--panel); color: var(--fg); border-color: var(--line); box-shadow: none;
+  font-weight: 500;
+}
+.checkbar button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+#checksummary {
+  margin-left: auto; font-size: 12.5px; color: var(--muted); padding: 6px 14px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--panel);
+  white-space: nowrap;
+}
+#checksummary:empty { display: none; }
+#checksummary.bad { color: var(--bad); border-color: rgba(255, 123, 131, .4); }
+#checksummary.good { color: var(--ok); border-color: rgba(111, 207, 151, .4); }
+#checkinput {
+  width: 100%; height: min(62vh, 720px); padding: 18px 20px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--code); color: var(--fg);
+  font-family: var(--mono); font-size: 13px; line-height: 1.65; resize: vertical;
+  tab-size: 2; box-shadow: 0 1px 0 rgba(255, 255, 255, .03) inset,
+              0 24px 60px -40px rgba(0, 0, 0, .9);
+}
+#checkinput::placeholder { color: var(--muted); opacity: .6; }
+#checkinput:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 24px 60px -40px rgba(0, 0, 0, .9);
+}
+.checktable {
+  margin-top: 20px; font-family: var(--mono); font-size: 12.5px;
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+  background: var(--panel);
+}
+.checktable td {
+  padding: 4px 12px; vertical-align: top; border-bottom: 1px solid transparent;
+  border-left: 3px solid transparent;
+}
+.checktable .lineno {
+  text-align: right; color: var(--muted); width: 1%; user-select: none; opacity: .7;
+}
+.checktable .linetext { white-space: pre-wrap; width: 55%; }
+.checktable .linenote { color: var(--muted); font-family: var(--sans); font-size: 12px; }
+.checktable tr.error td:first-child { border-left-color: var(--bad); }
+.checktable tr.error { background: var(--bad-soft); }
+.checktable tr.error .linetext, .checktable tr.error .linenote { color: var(--bad); }
+.checktable tr.warn td:first-child { border-left-color: var(--part); }
+.checktable tr.warn .linenote { color: var(--part); }
+.checktable tr.block td:first-child { border-left-color: var(--accent); }
+.checktable tr.block .linetext { font-weight: 600; }
+.checktable tr.ok .linenote { color: var(--muted); }
+.checktable tr:hover { background: var(--accent-soft); }
+.checktable tr:hover { background: var(--panel); }
+details.defaults { margin-top: 14px; }
+details.defaults summary { cursor: pointer; font-size: 13.5px; }
+details.defaults pre { margin-top: 8px; }
 .inirow { display: flex; align-items: flex-start; gap: 10px; margin-top: 26px; }
 .inirow .skeleton { flex: 1; min-width: 0; margin-top: 0; }
 .copyini {
@@ -1062,29 +1372,33 @@ JS = r"""
   // sidebar: the fixed pages, then one collapsible section per module group
   var nav = document.getElementById('nav');
   var pages = el('div', 'pages');
+  // there are 200 block types; listing them all would bury the modules, so the sidebar
+  // carries the one link and lets `blocks.html` do the listing
+  var onBlock = (W.blocks || []).some(function (b) { return b.n === active; });
   W.pages.forEach(function (p) {
-    var a = el('a', active === p[0].replace('.html', '') ? 'on' : '', p[1]);
+    var here = active === p[0].replace('.html', '') || (onBlock && p[0] === 'blocks.html');
+    var a = el('a', here ? 'on' : '', p[1]);
     a.href = base + p[0];
     pages.appendChild(a);
   });
   nav.appendChild(pages);
 
-  var byGroup = {};
-  W.modules.forEach(function (m) { (byGroup[m.c] = byGroup[m.c] || []).push(m); });
-  W.groups.forEach(function (g) {
-    var mods = byGroup[g];
-    if (!mods) return;
+  function navGroup(label, entries, dir) {
+    if (!entries.length) return;
     var d = el('details', 'group');
-    var s = el('summary', null, g + ' (' + mods.length + ')');
-    d.appendChild(s);
-    mods.forEach(function (m) {
-      var a = el('a', m.n === active ? 'on' : '', m.n);
-      a.href = base + 'm/' + m.n.replace(/[^A-Za-z0-9_-]/g, '-') + '.html';
+    d.appendChild(el('summary', null, label + ' (' + entries.length + ')'));
+    entries.forEach(function (e) {
+      var a = el('a', e.n === active ? 'on' : '', e.n);
+      a.href = base + dir + '/' + e.n.replace(/[^A-Za-z0-9_-]/g, '-') + '.html';
       d.appendChild(a);
-      if (m.n === active) d.open = true;
+      if (e.n === active) d.open = true;
     });
     nav.appendChild(d);
-  });
+  }
+
+  var byGroup = {};
+  W.modules.forEach(function (m) { (byGroup[m.c] = byGroup[m.c] || []).push(m); });
+  W.groups.forEach(function (g) { navGroup(g, byGroup[g] || [], 'm'); });
 
   // search over module names, field names, types and enums
   var q = document.getElementById('q'), out = document.getElementById('results');
@@ -1093,18 +1407,25 @@ JS = r"""
     return 'm/' + slug(mod) + '.html' + (field ? '#' + slug(field) : '');
   }
   var index = [], byField = {};
+  function own(entry, dir, name) {
+    // a keyword that several blocks declare is one result carrying all of them
+    entry.f.forEach(function (f) {
+      if (!byField[f]) { byField[f] = { k: f, t: 'field', mods: [] }; index.push(byField[f]); }
+      byField[f].mods.push({ n: name, d: dir });
+    });
+  }
   W.modules.forEach(function (m) {
     index.push({ k: m.n, t: 'module', h: modHref(m.n), s: m.c });
-    // a keyword that several modules declare is one result carrying all of them
-    m.f.forEach(function (f) {
-      if (!byField[f]) { byField[f] = { k: f, t: 'field', mods: [] }; index.push(byField[f]); }
-      byField[f].mods.push(m.n);
-    });
+    own(m, 'm', m.n);
+  });
+  (W.blocks || []).forEach(function (b) {
+    index.push({ k: b.n, t: 'block', h: 'b/' + slug(b.n) + '.html', s: 'INI block' });
+    own(b, 'b', b.n);
   });
   Object.keys(byField).forEach(function (f) {
     var e = byField[f];
-    e.s = e.mods.length === 1 ? e.mods[0] : e.mods.length + ' modules';
-    if (e.mods.length === 1) e.h = modHref(e.mods[0], f);
+    e.s = e.mods.length === 1 ? e.mods[0].n : e.mods.length + ' blocks';
+    if (e.mods.length === 1) e.h = e.mods[0].d + '/' + slug(e.mods[0].n) + '.html#' + slug(f);
   });
   W.types.forEach(function (t) {
     index.push({
@@ -1116,7 +1437,7 @@ JS = r"""
     index.push({ k: e, t: 'enum', s: 'enumeration', h: 'enums.html#' + e.replace(/[^A-Za-z0-9_-]/g, '-') });
   });
 
-  var rank = { module: 0, type: 1, enum: 2, field: 3 };
+  var rank = { module: 0, block: 1, type: 2, enum: 3, field: 4 };
   function search(term) {
     var needle = term.toLowerCase(), hits = [];
     for (var i = 0; i < index.length && hits.length < 400; i++) {
@@ -1146,8 +1467,8 @@ JS = r"""
         sum.appendChild(el('span', null, 'field - ' + e.s));
         d.appendChild(sum);
         e.mods.forEach(function (mod) {
-          var link = el('a', 'sub', mod);
-          link.href = base + modHref(mod, e.k);
+          var link = el('a', 'sub', mod.n);
+          link.href = base + mod.d + '/' + slug(mod.n) + '.html#' + slug(e.k);
           d.appendChild(link);
         });
         out.appendChild(d);
@@ -1248,6 +1569,11 @@ JS = r"""
       case 'keyed':
         if (toks.length < 2) return 'expected a moment, then a name';
         return (list && !memberOf(list, toks[0])) ? toks[0] + ' is not in ' + enumName : '';
+      case 'module':
+        var known = window.WIKI_FIELDS;
+        if (known && known.modules.indexOf(toks[0]) < 0)
+          return toks[0] + ' is not a module the engine registers';
+        return toks.length < 2 ? 'expected a module, then a tag' : '';
       default:
         return '';
     }
@@ -1321,6 +1647,220 @@ JS = r"""
       rebuildIni();
   }
 
+  // paste a block, check every keyword in it against the engine's field tables
+  var checkInput = document.getElementById('checkinput');
+
+  function stripComment(line) {
+    var out = '', quoted = false;
+    for (var i = 0; i < line.length; i++) {
+      var c = line.charAt(i);
+      if (c === '"') quoted = !quoted;
+      if (!quoted && (c === ';' || (c === '/' && line.charAt(i + 1) === '/'))) break;
+      out += c;
+    }
+    return out;
+  }
+
+  function schemaFor(name) {
+    var F = window.WIKI_FIELDS;
+    return (F && F.schemas[name]) || null;
+  }
+
+  function isModule(name) {
+    var F = window.WIKI_FIELDS;
+    return !!(F && F.modules.indexOf(name) >= 0);
+  }
+
+  function isBlockType(name) {
+    var F = window.WIKI_FIELDS;
+    return !!(F && F.blocks.indexOf(name) >= 0);
+  }
+
+  function checkText(text) {
+    var lines = text.split(/\r?\n/), stack = [], report = [], seen = [];
+    var totals = { keywords: 0, errors: 0, redundant: 0, blocks: 0 };
+
+    function top() { return stack.length ? stack[stack.length - 1] : null; }
+
+    for (var n = 0; n < lines.length; n++) {
+      var raw = lines[n], line = stripComment(raw).trim();
+      var row = { no: n + 1, text: raw, state: 'plain', note: '' };
+      if (!line) { report.push(row); continue; }
+
+      if (/^end$/i.test(line)) {
+        if (!stack.length) {
+          row.state = 'error';
+          row.note = 'End without a block to close';
+          totals.errors++;
+        } else {
+          var done = stack.pop();
+          row.state = 'block';
+          row.note = 'closes ' + (done.name || 'the block');
+        }
+        report.push(row);
+        continue;
+      }
+
+      var eq = line.indexOf('='), key, value;
+      if (eq >= 0) {
+        key = line.slice(0, eq).trim();
+        value = line.slice(eq + 1).trim();
+      } else {
+        var words = line.split(/\s+/);
+        key = words[0];
+        value = words.slice(1).join(' ');   // `Object GondorSoldier` names the block
+      }
+      var first = value.split(/\s+/)[0] || '';
+      var scope = top();
+      var schema = scope && scope.name ? schemaFor(scope.name) : null;
+      var spec = schema ? schema[key] : null;
+
+      // what the keyword does comes from the schema it sits in: a `Module` keyword
+      // attaches the module its value names, a keyword typed as a block opens that
+      // block, and a keyword with no value that names a block is a header
+      var opened = null, unknownModule = false;
+      if (spec && spec[0] === 'module') {
+        opened = schemaFor(first) ? first : null;
+        unknownModule = !opened;
+      } else if (spec && schemaFor(spec[3])) {
+        opened = spec[3];
+      } else if (!spec && isModule(first)) {
+        opened = first;
+      } else if (schemaFor(key) && (!spec || !value)) {
+        opened = key;
+      } else if (eq < 0 && scope) {
+        // a keyword on a line of its own opens something; without a schema for it the
+        // honest thing is to skip its contents rather than judge them
+        unknownModule = true;
+      }
+
+      if (opened) {
+        stack.push({ name: opened, line: n + 1, set: {} });
+        seen.push(stack[stack.length - 1]);
+        totals.blocks++;
+        if (spec) scope.set[key] = true;
+        row.state = 'block';
+        row.note = 'opens ' + opened;
+        report.push(row);
+        continue;
+      }
+      if (unknownModule) {
+        stack.push({ name: null, line: n + 1, set: {} });
+        row.state = 'warn';
+        row.note = (spec && spec[0] === 'module' ? first : key) +
+                   ' opens a block with no schema here, so its contents are not checked';
+        report.push(row);
+        continue;
+      }
+
+      if (!scope) {
+        row.state = 'warn';
+        row.note = 'outside any block';
+        report.push(row);
+        continue;
+      }
+      if (!scope.name) { report.push(row); continue; }
+
+      totals.keywords++;
+      if (!spec) {
+        row.state = 'error';
+        row.note = key + ' is not a keyword of ' + scope.name;
+        totals.errors++;
+        report.push(row);
+        continue;
+      }
+      scope.set[key] = true;
+      var why = value ? complain(value, spec[0], spec[1]) : '';
+      if (why) {
+        row.state = 'error';
+        row.note = why;
+        totals.errors++;
+      } else if (spec[2] !== null && spec[2] !== undefined && value === String(spec[2])) {
+        row.state = 'warn';
+        row.note = 'same as the default, so the line does nothing';
+        totals.redundant++;
+      } else {
+        row.state = 'ok';
+        row.note = spec[4] ? 'names a ' + spec[4] : spec[3];
+      }
+      report.push(row);
+    }
+
+    stack.forEach(function (open) {
+      totals.errors++;
+      report.push({ no: lines.length, text: '', state: 'error',
+                    note: (open.name || 'block') + ' opened on line ' + open.line +
+                          ' is never closed' });
+    });
+    return { report: report, totals: totals, seen: seen };
+  }
+
+  function renderCheck(result) {
+    var out = document.getElementById('checkout');
+    out.innerHTML = '';
+    var table = el('table', 'checktable');
+    var body = document.createElement('tbody');
+    result.report.forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.className = row.state;
+      var no = el('td', 'lineno', String(row.no));
+      var text = el('td', 'linetext', row.text);
+      var note = el('td', 'linenote', row.note);
+      tr.appendChild(no);
+      tr.appendChild(text);
+      tr.appendChild(note);
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    out.appendChild(table);
+
+    result.seen.forEach(function (scope) {
+      var schema = schemaFor(scope.name);
+      if (!schema) return;
+      var missing = Object.keys(schema).filter(function (k) {
+        return !scope.set[k] && schema[k][2] !== null && schema[k][2] !== undefined;
+      });
+      if (!missing.length) return;
+      var d = el('details', 'defaults');
+      d.appendChild(el('summary', null,
+        scope.name + ': ' + missing.length + ' keyword' + (missing.length === 1 ? '' : 's') +
+        ' you did not set, and what they default to'));
+      var pre = document.createElement('pre');
+      var width = 0;
+      missing.forEach(function (k) { if (k.length > width) width = k.length; });
+      pre.textContent = missing.map(function (k) {
+        var pad = k;
+        while (pad.length < width) pad += ' ';
+        return '  ' + pad + ' = ' + schema[k][2];
+      }).join('\n');
+      d.appendChild(pre);
+      out.appendChild(d);
+    });
+
+    var t = result.totals;
+    var summary = document.getElementById('checksummary');
+    summary.className = t.errors ? 'bad' : 'good';
+    summary.textContent = t.keywords + ' keyword' + (t.keywords === 1 ? '' : 's') +
+      ' in ' + t.blocks + ' block' + (t.blocks === 1 ? '' : 's') + ' - ' +
+      t.errors + ' problem' + (t.errors === 1 ? '' : 's') + ', ' +
+      t.redundant + ' line' + (t.redundant === 1 ? '' : 's') + ' equal to the default';
+  }
+
+  if (checkInput) {
+    var run = function () { renderCheck(checkText(checkInput.value)); };
+    document.getElementById('checkrun').addEventListener('click', run);
+    document.getElementById('checkclear').addEventListener('click', function () {
+      checkInput.value = '';
+      document.getElementById('checkout').innerHTML = '';
+      document.getElementById('checksummary').textContent = '';
+    });
+    var pending = null;
+    checkInput.addEventListener('input', function () {
+      clearTimeout(pending);
+      pending = setTimeout(run, 350);
+    });
+  }
+
   var copyBtn = document.querySelector('.copyini');
   if (copyBtn && iniCode) {
     copyBtn.addEventListener('click', function () {
@@ -1385,19 +1925,26 @@ def build(out_dir: str) -> int:
         types = json.load(fh)
     ref = Reference(modules, types)
 
-    if os.path.isdir(os.path.join(out_dir, "m")):
-        shutil.rmtree(os.path.join(out_dir, "m"))
+    for stale in ("m", "b"):
+        if os.path.isdir(os.path.join(out_dir, stale)):
+            shutil.rmtree(os.path.join(out_dir, stale))
     write(os.path.join(out_dir, "assets", "wiki.css"), CSS.lstrip())
     write(os.path.join(out_dir, "assets", "wiki.js"), JS.lstrip())
     write(os.path.join(out_dir, "assets", "data.js"), search_data(ref))
     write(os.path.join(out_dir, "index.html"), index_page(ref))
     write(os.path.join(out_dir, "modules.html"), modules_page(ref))
+    write(os.path.join(out_dir, "blocks.html"), blocks_page(ref))
+    write(os.path.join(out_dir, "assets", "fields.js"), field_data(ref))
+    write(os.path.join(out_dir, "check.html"), check_page(ref))
     write(os.path.join(out_dir, "types.html"), types_page(ref))
     write(os.path.join(out_dir, "enums.html"), enums_page(ref))
     for module in ref.modules:
         write(os.path.join(out_dir, "m", slug(module["name"]) + ".html"),
               module_page(ref, module))
-    return len(ref.modules) + 5
+    for name, block in ref.ini_blocks.items():
+        write(os.path.join(out_dir, "b", slug(name) + ".html"),
+              block_page(ref, name, block))
+    return len(ref.modules) + len(ref.ini_blocks) + 6
 
 
 def main() -> None:

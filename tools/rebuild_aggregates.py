@@ -90,6 +90,11 @@ pages always render. The corpus folder name itself is one of those code names: f
 entry to give the whole corpus a custom display name, used for its page titles (next rebuild)
 and its row on the global index (any regeneration, see --index-only).
 
+The same corpus is also published as itself, under `--replay-site` (default `build/replays/`):
+every recording that has a translated document, both files downloadable, in one table filtered
+by game, patch, mode, faction and player. That step reads only the replay and cache trees this
+build has just brought up to date - no game data - and `--no-replay-site` skips it.
+
 After building the corpus tree, the script writes `<out>/<folder>/corpus.json` (summary
 counts the global index reads) and regenerates `<out>/index.html`: a landing page listing every
 corpus folder found on disk under `<out>/` (each one this script has ever built), pulling its
@@ -158,11 +163,13 @@ from sage_replay.replay import find_replays, parse_replay_from_path  # noqa: E40
 from sage_replay.sidecar import ensure_sidecars, sidecar_path  # noqa: E402
 from sage_utils.clock import clock  # noqa: E402
 from sage_utils.gameroot import resolve_game_root, resolve_game_roots  # noqa: E402
+from tools.build_replay_site import export_corpus  # noqa: E402
 
 DEFAULT_CORPUS_ROOT = REPO / "downloads" / "replays"
 DEFAULT_CACHE_ROOT = REPO / "downloads" / "cached"
 DEFAULT_GAME = [Path(r"C:\BFME2"), Path(r"C:\RotWK")]
 DEFAULT_OUT = REPO / "build" / "aggregate"
+DEFAULT_REPLAY_SITE = REPO / "build" / "replays"
 
 # The FactionAggregate attributes whose ChoiceStat labels are rendered code names.
 _LABEL_CATEGORIES = (
@@ -643,6 +650,18 @@ def main(argv: list[str] | None = None) -> int:
         "--index-only",
         action="store_true",
         help="only regenerate the global index from what is on disk (no folder, no game load)",
+    )
+    parser.add_argument(
+        "--replay-site",
+        type=Path,
+        default=DEFAULT_REPLAY_SITE,
+        help="also publish this corpus's recordings and their documents as a downloadable, "
+        f"filterable table here (default: {DEFAULT_REPLAY_SITE})",
+    )
+    parser.add_argument(
+        "--no-replay-site",
+        action="store_true",
+        help="skip publishing the replay repository for this run",
     )
     parser.add_argument(
         "--no-cache",
@@ -1220,6 +1239,18 @@ def _build_corpus(
         json.dumps(corpus_meta, indent=2) + "\n", encoding="utf-8"
     )
     print(f"wrote {_rel(out_root / 'corpus.json')}")
+
+    # The same corpus, published as itself: every recording and the document it was parsed
+    # into, downloadable. Reads only the two trees this build has just brought up to date,
+    # so it needs no game data and cannot fail the aggregate it follows.
+    if not args.no_replay_site:
+        published = export_corpus(
+            corpus_dir,
+            args.replay_site,
+            replay_root=args.corpus_root,
+            cache_root=args.cache_root,
+        )
+        print(f"published {published} replay(s) to {_rel(args.replay_site)}")
 
     print(f"done: {folder} - overall tree + {len(mode_corpora)} player-count split(s)")
     return 0

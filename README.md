@@ -29,6 +29,7 @@ Can be downloaded pre-packaged from here: https://www.moddb.com/games/battle-for
 | [`sage_cah`](sage_cah/README.md) | Reader/writer for `.cah`, the BFME2/RotWK Create-a-Hero file - identity, class, colors, powers, "bling" customization/attributes, GUID, and the validating checksum. |
 | [`sage_replay`](sage_replay/README.md) | Reader for SAGE replay files (Generals `.rep`, BFME / BFME2 / RotWK) - the recorded order stream, decoded into build orders, APM and command timing. |
 | [`sage_apt`](sage_apt/README.md) | Converter, viewer and editor for `.apt` UI movies (the Flash-derived format behind BFME's menus and HUD). **Work in progress**, not yet fully functional. |
+| [`sage_patch`](sage_patch/README.md) | Binary patches for the ROTWK `game.dat` engine, with the reverse-engineering behind them - the shipped one raises the `CommandSet` button limit from 33 to 64, and `verify` re-checks a patched binary without a disassembler. |
 
 ### Domain overlays & apps
 
@@ -59,6 +60,9 @@ pip install "pysage-tools[wiki]"     # + the wiki updater
 pip install "pysage-tools[edain-ui]" # + the Edain Linter desktop app
 pip install "pysage-tools[apt]"      # + reading .const/.apt out of .big archives
 pip install "pysage-tools[asset-ui]" # + the SAGE Asset desktop app (build/combine asset.dat)
+pip install "pysage-tools[w3d-view]" # + the OpenGL model viewer (sage-w3d view)
+pip install "pysage-tools[patch]"    # + the game.dat disassembly/RE tools
+pip install "pysage-tools[all]"      # + everything above at once
 ```
 
 From a clone, for development, swap the name for an editable install of the checkout:
@@ -67,15 +71,17 @@ From a clone, for development, swap the name for an editable install of the chec
 pip install -e ".[ui]"
 ```
 
-The extras (`ui`, `lint-ui`, `wiki`, `edain-ui`, `apt`, `asset-ui`) pull in the optional
-dependencies each peripheral tool needs. The ini, map, replay and asset layers are stdlib-only and
-always ship, so no extra is needed to parse, lint or diff a map, or to build and combine an
-asset.dat from the command line. The one non-optional dependency is `reversebox` on
+The extras (`ui`, `lint-ui`, `wiki`, `edain-ui`, `apt`, `asset-ui`, `w3d-view`, `patch`, and
+`all` for the lot) pull in the optional dependencies each peripheral tool needs. The ini, map,
+replay, asset, w3d, cah and patch layers are stdlib-only and always ship, so no extra is needed
+to parse, lint or diff a map, to build and combine an asset.dat from the command line, or to
+apply and verify a game.dat patch. The one non-optional dependency is `reversebox` on
 Windows, the native RefPack compressor that makes saving large maps fast (its DLL is Windows-only,
 so other platforms use the byte-identical pure-Python compressor).
 
 Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-edain`,
-`sage-replay`, `sage-apt`, `sage-map`, `sage-save`, `sage-asset`, `sage-w3d`, `sage-cah` (and the GUI scripts `sage-ui`,
+`sage-replay`, `sage-apt`, `sage-map`, `sage-save`, `sage-asset`, `sage-w3d`, `sage-cah`,
+`sage-patch` (and the GUI scripts `sage-ui`,
 `sage-wiki`, `sage-lint-ui`, `sage-edain-lint` - the Edain Linter, which combines the ini and map
 checks in one window - and `sage-asset-ui`, the SAGE Asset builder/combiner window).
 
