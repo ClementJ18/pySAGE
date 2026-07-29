@@ -31,6 +31,7 @@ from datetime import UTC, datetime
 from io import BytesIO
 
 from sage_replay.heroes import ReviveList
+from sage_replay.idspace import IdSpace, id_spaces
 from sage_replay.narrate import GameData
 from sage_replay.replay import (
     OrderArgumentType,
@@ -53,9 +54,6 @@ from sage_replay.translated import (
 from sage_utils.stream import BinaryStream
 
 __all__ = ["RetargetError", "retarget"]
-
-# The replay-id offset of each 1-based table and the upgrade space's +3 (see narrate.GameData).
-_UPGRADE_OFFSET = 3
 
 
 class RetargetError(ValueError):
@@ -104,10 +102,7 @@ def _resolve_chunks(
     """Replace every resolved code name in the rehydrated chunks with the target game's
     integer id, in place - the exact mirror of `translated._translate_ids`, including the
     `0x414` second-integer science and the `0x417/0x418` boolean mode switch."""
-    things = {name: index + 1 for index, name in enumerate(target.object_order)}
-    upgrades = {name: index + _UPGRADE_OFFSET for index, name in enumerate(target.upgrades)}
-    powers = {name: index + 1 for index, name in enumerate(target.specialpowers)}
-    sciences = {name: index + 1 for index, name in enumerate(target.sciences)}
+    spaces = id_spaces(target.object_order, target.upgrades, target.specialpowers, target.sciences)
     revives: dict[int, ReviveList | None] = {}
     spf = document.seconds_per_frame
 
@@ -120,26 +115,26 @@ def _resolve_chunks(
             if first_bool(chunk):
                 _resolve_hero(chunk, replay, document, target, revives, spf, failures)
             else:
-                _resolve(chunk, 0, things, "thing template", failures)
+                _resolve(chunk, 0, spaces.things, "thing template", failures)
         elif order in _THING_ORDERS:
-            _resolve(chunk, 0, things, "thing template", failures)
+            _resolve(chunk, 0, spaces.things, "thing template", failures)
         elif order in _UPGRADE_ORDERS:
-            _resolve(chunk, 0, upgrades, "upgrade", failures)
+            _resolve(chunk, 0, spaces.upgrades, "upgrade", failures)
         elif order in _POWER_ORDERS:
-            _resolve(chunk, 0, powers, "special power", failures)
+            _resolve(chunk, 0, spaces.powers, "special power", failures)
         elif order == 0x414 and len(ints) >= 2:
-            _resolve(chunk, 1, sciences, "science", failures)
+            _resolve(chunk, 1, spaces.sciences, "science", failures)
 
 
 def _resolve(
-    chunk: ReplayChunk, which: int, table: dict[str, int], space: str, failures: list[str]
+    chunk: ReplayChunk, which: int, table: IdSpace, space: str, failures: list[str]
 ) -> None:
     """Turn the `which`-th Integer argument's code name back into the target's id. A raw int
     in the position means the source translation itself failed to resolve it - equally fatal,
     since the number indexes the *source* game."""
     value = integer_arguments(chunk)[which]
     if isinstance(value, str):
-        target_id = table.get(value)
+        target_id = table.to_id(value)
         if target_id is None:
             failures.append(
                 f"chunk @{chunk.timecode} 0x{chunk.order_type:x}: "

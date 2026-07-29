@@ -70,9 +70,9 @@ RESERVED2_PATTERN = bytes(5)
 KNOWN_METADATA_KEYS = frozenset({"M", "MC", "MS", "SD", "SC", "S", "GSID", "GT", "SI", "GR"})
 
 # Census of the 79 distinct order-type ids observed across the fixture corpus
-# (order_space_map.md sections A/B/C). The ✅-grade ids carry a `Bfme2OrderType` name; the
-# rest are known-unknowns (🟡/❓) still measured here. An id in neither set is brand-new and
-# fails a strict audit.
+# (order_space_map.md sections A/B/C). The confirmed-grade ids carry a `Bfme2OrderType` name;
+# the rest are known-unknowns - provisional or unexplained - still measured here. An id in
+# neither set is brand-new and fails a strict audit.
 _KNOWN_UNKNOWN_ORDER_TYPES = frozenset(
     {
         0x3EA, 0x3EB, 0x3ED, 0x403, 0x404, 0x405, 0x40E, 0x40F, 0x415, 0x416,

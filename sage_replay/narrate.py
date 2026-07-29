@@ -49,6 +49,7 @@ from sage_ini.model.objects import IniObject
 from sage_ini.parser.blockparser import parse_file
 from sage_ini.subsystems import thing_template_order
 from sage_replay.heroes import ReviveList
+from sage_replay.idspace import UPGRADE_OFFSET
 from sage_replay.replay import (
     OrderArgumentType,
     ReplayChunk,
@@ -71,9 +72,10 @@ __all__ = [
     "revive_resolver",
 ]
 
-# Upgrade ids sit 3 above their 0-based `game.upgrades` index (DefaultUpgrade = id 3;
-# ground-truthed by an in-game replay survey - order_space_map.md, `0x415`).
-_UPGRADE_OFFSET = 3
+# The id-space offsets live in `idspace`, so the read direction here and the write direction
+# in `retarget` (and in a live session) cannot drift apart. The upgrade `+3` in particular is
+# still unexplained (OPEN 4), so it is a correction waiting to happen.
+_UPGRADE_OFFSET = UPGRADE_OFFSET
 
 # Order types whose first integer is a `game.specialpowers` id (self / at-location / at-object
 # / untargeted). They differ only in targeting, which the argument list still carries.

@@ -107,8 +107,19 @@ cross-platform, so build once per OS you support.
 
 ## Who won?
 
-The outcome is never stored - a replay is inputs, and eliminations happen inside the
-simulation. But how each human session *ends* is recorded: `0x448` is the voluntary
+The outcome is never stored **by the stock engine** - a replay is inputs, and eliminations
+happen inside the simulation.
+
+Unless the recording client carried [`sage_patch`](../sage_patch)'s **`replay-outcome`** patch,
+which writes one `0x7D0` chunk per player at the frame the recording ends - whether the game
+finished or somebody left - carrying that player's final state (victorious / defeated /
+undetermined) and the frame they were defeated on, straight from the engine's own
+`VictoryConditions`. `winner.recorded_outcomes` reads them back and `infer_winner` prefers them
+over everything below: they are ground truth rather than inference, they cover AI players, and
+they settle the elimination endings the input stream can never explain. Replays from unpatched
+clients carry none, and then:
+
+How each human session *ends* is recorded: `0x448` is the voluntary
 leave-game action, `0x1D` marks the end of the recording (attributed to the player whose
 client wrote the file - the replay's point of view), and the `0x44A` checksum heartbeat
 stops when a client drops. `winner` applies a concession heuristic over those signals

@@ -50,6 +50,7 @@ from sage_utils.views import (
     resource_production_view,
     select_portrait_image,
     special_power_view,
+    starting_units,
     upgrade_label,
     upgrade_toggle_labels,
     weapon_attack_interval,
@@ -1306,6 +1307,32 @@ def _vanilla_game() -> Game:
     assert not result.diagnostics
     game.load_document(result.document)
     return game
+
+
+STARTING_ROSTER_FIXTURE = """
+PlayerTemplate FactionRoster
+    PlayableSide = Yes
+    Side = RosterSide
+    StartingBuilding = RosterFortress
+    StartingUnit0 = RosterBattalion
+    StartingUnit1 = RosterBattalion
+    StartingUnit3 = RosterPorter   ; a slot the base game never fills
+    StartingUnit5 = RosterPorterEgg
+    StartingUnitTacticalWOTR = RosterWotrPorter
+End
+"""
+
+
+def test_starting_units_reads_every_engine_slot_in_order():
+    game = Game()
+    result = parse(STARTING_ROSTER_FIXTURE, file="r.ini")
+    assert not result.diagnostics
+    game.load_document(result.document)
+
+    roster = starting_units(game.factions["FactionRoster"])
+    # Slot order, with the repeat kept (two identical battalions), the trailing comment
+    # dropped, and the fortress and the War of the Ring roster left out.
+    assert roster == ["RosterBattalion", "RosterBattalion", "RosterPorter", "RosterPorterEgg"]
 
 
 class TestFactionGraphSeeding:

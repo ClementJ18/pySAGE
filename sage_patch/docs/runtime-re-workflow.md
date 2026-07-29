@@ -125,7 +125,10 @@ function boundary.
 | from | offset | meaning | evidence in this `game.dat` |
 |---|---|---|---|
 | `PlayerList` | `+0x10` | local/current player | consistent with [`max-player-count.md`](max-player-count.md); `getNthPlayer` @`0x6a844e` is byte-identical, so it is the same `PlayerList` layout |
+| `Player` | `+0x94` | **current spendable resources** | live diff, 2026-07-29: falls by exactly the amount spent (1500, confirmed against the cumulative counter). Engine-managed sides hold the default `1000`; the neutral slot holds `0`. See [`engine-globals.md`](engine-globals.md) |
+| `Player` | `+0x38` / `+0x4C` / `+0x58` | display name (UTF-16) / internal name / **Side** | same offset in every populated slot; `+0x58` is the faction token (`Men`, `Civilian`, `Observer`) |
 | `Player` | `+0x3DC` | base of the per-player stats block | `mov edi,[ebp+0xc]` @`0x9cded4` then `add edi, 0x3dc` @`0x9cdf0c` |
+| `Player` | `+0x3E0` | cumulative resources collected (= stats `+0x04`) | live diff: rises with income, never falls. **Not** the spendable pool - that is `+0x94`, outside the stats block |
 | `Player` | `+0x44C` | units created | switch `case 5` → `edi+0x70` |
 | `Player` | `+0x450` | units lost | switch `case 6` → `edi+0x74` |
 | object | `+0x04` | pointer to its `ThingTemplate` | 45 `mov rX,[rY+4]` → `[rX+0x64]` sites in `.text` |
@@ -173,7 +176,7 @@ rid of it" (07:36) is visible in the control flow.
 | `+0x450` | 6 | units lost |
 | `+0x4A4` | 1 | structures created |
 | `+0x4A8` | 2 | structures lost |
-| `+0x704` | 4 | fortresses built |
+| `+0x704` | 4 | fortresses built — ⚠ **suspect**: reads `182078920` live (a heap pointer, not a counter) while every other offset in this table reads plausibly. Either the switch case was misread or the field moved in 2.01; re-derive before use |
 
 Reproduce with the scripts in [`../scripts/`](../scripts/) (`pe.py` needs its `PATH` pointed at your
 own copy) — the switch table is at `0x9ce47f`, 24 entries, dispatched from `0x9cdf23`.

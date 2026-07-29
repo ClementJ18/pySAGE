@@ -19,9 +19,13 @@ takes any N in 34..127) so a `CommandSet` INI block may define `1`..`64` without
   RVA is computed, so it lands past any cave another patch already added) holding a fresh 64-slot
   field-parse table + the new `"34".."64"` name strings, and repoints the two references
   (`0x72065c`, `0x71c2ee`).
+- **Widen the AI's set-walk** (1 edit): `BuildAssistant::canMakeUnit`'s bound at `0x7950e2`,
+  `cmp [ebp-8], 33 → 64`. That loop reads buttons rather than populating a UI array, so unlike the
+  draw loops it can be widened — and left at 33 the AI would be blind to exactly the buttons this
+  patch newly allows.
 
 The patch stops there deliberately: it lifts only the *data* limit. Widening the
-`getCommandButton`-caller draw loops instead would overrun the ControlBar's **fixed 33-slot UI
+`getCommandButton`-caller **draw** loops would overrun the ControlBar's **fixed 33-slot UI
 arrays** (`ControlBar +0xdc / +0x160`) and crash — so >33 *on screen* is a separate ControlBar/UI
 project, and you page with `PUSH_VISIBLE_COMMAND_RANGE` in the meantime. Every edit verifies its
 expected original bytes before writing.

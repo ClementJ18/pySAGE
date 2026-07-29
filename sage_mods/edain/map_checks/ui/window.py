@@ -82,7 +82,7 @@ _MAP_COLUMNS = (
     ("Message", "message"),
 )
 
-# The Help ▸ Getting started walkthrough. Kept as one HTML block so QTextBrowser lays it out
+# The Help > Getting started walkthrough. Kept as one HTML block so QTextBrowser lays it out
 # with headings and lists; the steps mirror the shared GAME DATA panel and the two tabs.
 _GETTING_STARTED_HTML = """
 <h2>Getting started with the Edain Linter</h2>

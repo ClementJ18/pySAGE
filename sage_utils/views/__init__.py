@@ -36,6 +36,7 @@ from sage_utils.views.factions import (
     playable_factions,
     recruited_hero_names,
     revive_order,
+    starting_units,
 )
 from sage_utils.views.objects import (
     build_cost_view,
@@ -115,6 +116,7 @@ __all__ = [
     "select_portrait_image",
     "special_power_cooldown",
     "special_power_view",
+    "starting_units",
     "upgrade_label",
     "upgrade_names",
     "upgrade_toggle_labels",

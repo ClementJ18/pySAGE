@@ -14,8 +14,8 @@ Two phases make up the patch:
 
 * **Phase 1** grows the `CommandSet` object from ``0xA0`` to ``0x14 + count*4 + 8`` bytes. The
   ``m_command[]`` array stays at ``+0x14``; the trailing count/flag fields move from ``0x98/0x9c``
-  to just past the enlarged array. Fourteen instruction immediates (the allocation size, the
-  ctor's ``33`` fills, and every field offset) are rewritten.
+  to just past the enlarged array. Fifteen instruction immediates (the allocation size, the
+  ctor's ``33`` fills, every field offset, and the AI's scan bound below) are rewritten.
 * **Phase 2** builds a fresh ``count``-slot field-parse table plus the new ``"34".."count"`` slot
   names in an appended ``.cmdext`` PE section, and repoints the two code references to it.
 
@@ -25,13 +25,24 @@ Widening the drawing loops instead is a dead end — those ``getCommandButton``-
 populate the ControlBar's fixed 33-slot UI arrays, so raising their bounds overruns those arrays
 and crashes. See ``../docs/push-visible-command-range.md``.
 
+The AI's scan bound
+-------------------
+One ``getCommandButton``-caller loop *is* widened, because it populates nothing:
+``BuildAssistant::canMakeUnit`` walks a producer's set to decide whether the AI may build or
+revive something, and reads each button rather than writing it into a fixed array. Left at 33 it
+would make every button the rest of this patch newly allows - the paged ones - invisible to the
+AI, so a mod paging its hero roster past slot 33 would get buildings the player can recruit from
+and the AI cannot. ``getCommandButton`` is an unchecked ``[this + i*4 + 0x14]``, so the bound
+*is* the bound: ``count`` visits indices ``0..count-1`` and stops one short of the count field
+that Phase 1 places at index ``count``.
+
 Why the ceiling is 127
 ----------------------
-Five of the Phase-1 sites encode the limit as a **signed 8-bit immediate** (``6a NN`` ``push``,
-``83 fa NN`` / ``83 fb NN`` ``cmp``), so 127 is the largest value that survives sign extension:
-at 128 the byte ``0x80`` decodes as ``-128``, and since one of those pushes supplies ``rep
-stosd``'s counter the constructor would zero ~4 billion dwords. Going beyond 127 means
-re-encoding those instructions as imm32, which is 3 bytes longer apiece and therefore needs
+Six of the Phase-1 sites encode the limit as a **signed 8-bit immediate** (``6a NN`` ``push``,
+``83 fa NN`` / ``83 fb NN`` / ``83 7d f8 NN`` ``cmp``), so 127 is the largest value that survives
+sign extension: at 128 the byte ``0x80`` decodes as ``-128``, and since one of those pushes
+supplies ``rep stosd``'s counter the constructor would zero ~4 billion dwords. Going beyond 127
+means re-encoding those instructions as imm32, which is 3 bytes longer apiece and therefore needs
 relocated code (a trampoline into a cave), not an in-place byte patch.
 """
 
@@ -40,6 +51,7 @@ from __future__ import annotations
 import struct
 from typing import TYPE_CHECKING
 
+from ..addresses import CAN_MAKE_UNIT_SCAN_BOUND, IMAGE_BASE
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, image_base
 
@@ -57,6 +69,12 @@ _ORIGINAL_OBJ_SIZE = 0xA0
 _ORIGINAL_COUNT_OFF = 0x98  # count / InitialVisible field in the 0xA0 object
 _ORIGINAL_FLAG_OFF = 0x9C
 _ARRAY_OFF = 0x14  # m_command[] base within the object (unchanged by the patch)
+
+# The AI's set-walk bound in `BuildAssistant::canMakeUnit` (see the module docstring). Taken from
+# `..addresses` rather than written as an offset here, because `ai-revive-gate` patches the same
+# function six bytes earlier and both must name one address. Raw offset equals `va - ImageBase`
+# throughout this build's `.text`, which is what every offset below already assumes.
+_AI_SCAN_BOUND = CAN_MAKE_UNIT_SCAN_BOUND - IMAGE_BASE
 
 _SECTION_CHARACTERISTICS = 0x40000040  # IMAGE_SCN_CNT_INITIALIZED_DATA | MEM_READ
 
@@ -224,9 +242,10 @@ class CommandSetLimitPatch(Patch):
     # --- Phase 1: grow the object and move its trailing fields -------------------------------
 
     def _phase1_edits(self, n: int) -> list[tuple[int, bytes, bytes, str]]:
-        """The 14 ``(file_offset, original bytes, patched bytes, note)`` edits that grow the
-        object for ``n`` slots. Shared by :meth:`apply` (writes ``patched`` if ``original``
-        matches) and :meth:`verify` (asserts ``patched`` is present)."""
+        """The 15 ``(file_offset, original bytes, patched bytes, note)`` edits that grow the
+        object for ``n`` slots and let the AI walk all of them. Shared by :meth:`apply` (writes
+        ``patched`` if ``original`` matches) and :meth:`verify` (asserts ``patched`` is
+        present)."""
         count_off = _ARRAY_OFF + n * 4  # trailing count field, just past the array
         flag_off = count_off + 4
         obj_size = count_off + 8
@@ -269,4 +288,5 @@ class CommandSetLimitPatch(Patch):
             (0x40C91D, b"\x6a\x21", b"\x6a" + nb, "P1 reset stosd"),
             (0x543DF9, b"\xff\xb0" + old_count, b"\xff\xb0" + new_count, "P1 consumer count read"),
             (0x5A025E, b"\xff\xb3" + old_count, b"\xff\xb3" + new_count, "P1 consumer count read"),
+            (_AI_SCAN_BOUND, b"\x83\x7d\xf8\x21", b"\x83\x7d\xf8" + nb, "P1 AI scan bound"),
         ]

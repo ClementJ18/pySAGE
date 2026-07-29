@@ -60,7 +60,7 @@ from sage_utils.widgets import (
 
 ICON_FILE = "icon.ico"
 
-# The Help ▸ Getting started walkthrough. One HTML block so QTextBrowser lays it out.
+# The Help > Getting started walkthrough. One HTML block so QTextBrowser lays it out.
 _GETTING_STARTED_HTML = """
 <h2>Getting started with the BfMe Searcher</h2>
 <p>The BfMe Searcher lets you look up a SAGE game's object stats without launching the game -

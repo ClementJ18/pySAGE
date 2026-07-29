@@ -29,11 +29,12 @@ def _tiny_pe() -> bytearray:
     """A minimal-but-valid-enough PE32 image with one `.text` section, for exercising the PE
     helpers without the real 11 MB binary."""
     data = bytearray(0x400)
+    data[0:2] = b"MZ"
     e = 0x80
     struct.pack_into("<I", data, 0x3C, e)  # e_lfanew
     data[e : e + 4] = b"PE\x00\x00"
     # COFF file header
-    struct.pack_into("<H", data, e + 2, 0x14C)  # Machine (i386) - not read, just realism
+    struct.pack_into("<H", data, e + 4, 0x14C)  # Machine (i386) - not read, just realism
     struct.pack_into("<H", data, e + 6, 1)  # NumberOfSections
     struct.pack_into("<H", data, e + 20, 0xE0)  # SizeOfOptionalHeader
     opt = e + 24
@@ -209,12 +210,13 @@ def _synthetic_game_dat(base: int = 0x400000) -> bytearray:
         highest = max(highest, off + len(old))
     highest = max(highest, cs._PARSER_TABLE_REF + 5, cs._GETFIELDPARSE_REF + 5)
     data = bytearray(align_up(highest + 0x400, 0x200))
+    data[0:2] = b"MZ"
 
     # PE headers: one section, and room after its header for append_section to add a second.
     e = 0x80
     struct.pack_into("<I", data, 0x3C, e)  # e_lfanew
     data[e : e + 4] = b"PE\x00\x00"
-    struct.pack_into("<H", data, e + 2, 0x14C)  # Machine (i386)
+    struct.pack_into("<H", data, e + 4, 0x14C)  # Machine (i386)
     struct.pack_into("<H", data, e + 6, 1)  # NumberOfSections
     struct.pack_into("<H", data, e + 20, 0xE0)  # SizeOfOptionalHeader
     opt = e + 24
@@ -278,6 +280,25 @@ class TestApplyProducesVerifiablePatch:
         assert struct.unpack_from("<I", data, cs._PARSER_TABLE_REF + 1)[0] == new_va
         assert struct.unpack_from("<I", data, cs._GETFIELDPARSE_REF + 1)[0] == new_va
 
+    @pytest.mark.parametrize("count", [MIN_COUNT, 64, MAX_COUNT])
+    def test_the_ai_scan_bound_tracks_the_limit(self, count):
+        """`BuildAssistant::canMakeUnit` walks the set for the AI. Left at 33 it would not see the
+        buttons this patch newly allows, so a paged hero roster would be player-only."""
+        data = _synthetic_game_dat()
+        CommandSetLimitPatch(count=count).apply(data)
+        site = cs._AI_SCAN_BOUND
+        assert bytes(data[site : site + 4]) == b"\x83\x7d\xf8" + bytes([count])
+
+    def test_the_ai_scan_bound_stops_one_short_of_the_count_field(self):
+        """The bound is unchecked (`getCommandButton` is a bare `[this + i*4 + 0x14]`), so `N`
+        must visit indices 0..N-1 and never index N, where Phase 1 puts the count field."""
+        count = 64
+        data = _synthetic_game_dat()
+        CommandSetLimitPatch(count=count).apply(data)
+        highest_index_visited = count - 1
+        count_field_index = (cs._ARRAY_OFF + count * 4 - cs._ARRAY_OFF) // 4
+        assert highest_index_visited < count_field_index
+
     def test_different_counts_produce_different_output(self):
         a, b = _synthetic_game_dat(), _synthetic_game_dat()
         CommandSetLimitPatch(count=40).apply(a)
@@ -332,11 +353,12 @@ def _cah_game_dat(base: int = 0x400000) -> bytearray:
         max(va - base + 4 for va in sites),
     )
     data = bytearray(align_up(highest + 0x1000, 0x200))
+    data[0:2] = b"MZ"
 
     e = 0x80
     struct.pack_into("<I", data, 0x3C, e)  # e_lfanew
     data[e : e + 4] = b"PE\x00\x00"
-    struct.pack_into("<H", data, e + 2, 0x14C)  # Machine (i386)
+    struct.pack_into("<H", data, e + 4, 0x14C)  # Machine (i386)
     struct.pack_into("<H", data, e + 6, 1)  # NumberOfSections
     struct.pack_into("<H", data, e + 20, 0xE0)  # SizeOfOptionalHeader
     opt = e + 24

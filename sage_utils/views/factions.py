@@ -11,6 +11,12 @@ from sage_utils.views.text import display_name
 # customizer and the ring-hero slot placeholder, neither a real fielded hero.
 _HERO_PLACEHOLDERS = frozenset({"CreateAHero", "RingHeroDummy"})
 
+# The starting-roster slots the engine parses on a `PlayerTemplate`: `StartingUnit0` through
+# `StartingUnit9`, each paired with a `StartingUnitOffset<N>` placing it around the fortress.
+# The range is the engine's own parse table, not the slots the shipped data happens to fill,
+# so a faction using one the base game never touches still reads.
+_STARTING_UNIT_SLOTS = tuple(f"StartingUnit{slot}" for slot in range(10))
+
 
 def playable_faction_objects(game) -> list:
     """The playable `PlayerTemplate`s (a faction with `PlayableSide = Yes`), in faction-table
@@ -62,6 +68,31 @@ def faction_for_side(game, side):
         if other is not None and str(other[-1] if isinstance(other, list) else other) == str(side):
             return faction
     return None
+
+
+def starting_units(faction) -> list[str]:
+    """The object names a faction is spawned with at frame zero, in slot order.
+
+    The `PlayerTemplate` is the only place this is written down: a spawned starting unit
+    carries no marker of its own, so nothing about the object on the map says it was part of
+    the opening roster. Matching a name instead - a mod that spells its starting battalions
+    `..._StartUnit` is following its own convention, not the engine's - reads every other mod
+    wrong, and misses the slots that faction fills with an ordinary template.
+
+    One entry per filled slot, so a faction opening with two identical battalions lists it
+    twice; the fortress is `StartingBuilding` and is not included.
+    """
+    names: list[str] = []
+    for slot in _STARTING_UNIT_SLOTS:
+        raw = faction._fields.get(slot)
+        if raw is None:
+            continue
+        # A re-opened PlayerTemplate stacks values on the field; the last one is what the
+        # engine kept. Trailing tokens are comment text, not a second name.
+        tokens = str(raw[-1] if isinstance(raw, list) else raw).split()
+        if tokens:
+            names.append(tokens[0])
+    return names
 
 
 def building_faction(game, obj):

@@ -10,6 +10,9 @@ import logging
 import struct
 from collections.abc import Callable
 
+from sage_patch.pe import find as pe_find
+from sage_patch.pe import image_sections
+
 log = logging.getLogger("sage_patch")
 
 # --- PE optional-header field offsets (relative to the optional header start) ---
@@ -51,16 +54,9 @@ def image_base(data: bytes | bytearray) -> int:
 
 def va_to_offset(data: bytes | bytearray, va: int) -> int | None:
     """Map a virtual address to its file offset via the section table, or None if unmapped."""
-    e = _e_lfanew(data)
-    nsec = struct.unpack_from("<H", data, e + 6)[0]
-    szopt = struct.unpack_from("<H", data, e + 20)[0]
-    sectab = e + 24 + szopt
-    rva = va - image_base(data)
-    for i in range(nsec):
-        o = sectab + i * _SECTION_HEADER_SIZE
-        vsize, sva, rawsize, praw = struct.unpack_from("<IIII", data, o + 8)
-        if sva <= rva < sva + max(vsize, rawsize):
-            return praw + (rva - sva)
+    for section in image_sections(data):
+        if section.contains(va):
+            return section.raw_offset + (va - section.virtual_address)
     return None
 
 
@@ -91,18 +87,10 @@ def find_section(data: bytes | bytearray, name: str) -> tuple[int, int, int] | N
     """Locate an appended section by name, returning ``(base_va, file_offset, virtual_size)`` or
     None if it is absent. Lets a patch's :meth:`~.patcher.Patch.verify` find the cave it created
     without having to re-derive the RVA it happened to land on."""
-    e = _e_lfanew(data)
-    nsec = struct.unpack_from("<H", data, e + 6)[0]
-    szopt = struct.unpack_from("<H", data, e + 20)[0]
-    sectab = e + 24 + szopt
-    want = name.encode("ascii").ljust(8, b"\x00")[:8]
-    for i in range(nsec):
-        o = sectab + i * _SECTION_HEADER_SIZE
-        if bytes(data[o : o + 8]) != want:
-            continue
-        vsize, sva, _rawsize, praw = struct.unpack_from("<IIII", data, o + 8)
-        return image_base(data) + sva, praw, vsize
-    return None
+    section = pe_find(image_sections(data), name)
+    if section is None:
+        return None
+    return section.virtual_address, section.raw_offset, section.virtual_size
 
 
 def next_section_rva(data: bytes | bytearray) -> int:

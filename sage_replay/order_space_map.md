@@ -197,6 +197,15 @@ Only `0x3E9`/`0x3EA` have two signatures (their ObjectId list may be empty).
 
 ### Session-end shapes → winner inference
 
+> **`0x7D0` ends the guessing, where it is present.** `sage_patch`'s
+> [`replay-outcome`](../sage_patch/docs/replay-outcome.md) patch makes the recording client
+> write one chunk per player at the closing frame - `Integer` outcome
+> (0 undetermined / 1 victorious / 2 defeated) and `Integer` defeat frame - read back by
+> `winner.recorded_outcomes`. It is **not an engine order**: the recorder only copies types
+> `0x3E8 < t < 0x7CF` off the command list and `GameMessage::Type` stops at `0x47B`, so nothing
+> the engine can emit collides with it, and an unpatched replay simply has none. Everything
+> below is what the stream alone supports, and stays the answer for the whole existing corpus.
+
 The three signals above make match endings legible ([`winner.py`](winner.py) /
 `python -m sage_replay winner <replay>`), validated on a ground-truth 1v1 (the `0x448`
 issuer had indeed lost) plus the fixture corpus:
@@ -294,6 +303,14 @@ Two decisive extractions besides the ids: the argument-type enum names our unkno
 **not debug-gated** - so every `MSG_*` name should exist as a string literal in BFME2's
 `game.dat`, making a Ghidra pass the one-shot naming source for all ~76 BFME2 order ids.
 
+> **This pass has now been done** (2026-07-29, OPEN 10) - see
+> [`sage_patch/docs/message-stream.md`](../sage_patch/docs/message-stream.md) for BFME2's own
+> 147-name network enum, recovered from RotWK 2.01 `game.dat`. It supersedes the Generals
+> shift picture above for *naming* purposes: the BFME2 enum value **is** the order id, so no
+> offset reasoning is needed any more. The Generals lineage above stays useful for *semantics*
+> where BFME2 reuses a Generals meaning, and the shift figures remain correct as a description
+> of how the two enums relate.
+
 Also from the same source: the Generals replay header is now fully named (frameDuration,
 desync flag, per-player disconnect bools, exeCRC+iniCRC, ASCII localPlayerIndex, difficulty /
 originalGameMode / rankPoints / maxFPS), the `M=` digit prefix is the **map-contents bitmask
@@ -329,13 +346,27 @@ field after team named `NATBehavior`.
    `0x417` flag=True **command-slot** order against the selected plot, resolved via that plot's
    `CastleBehavior` (see the section-A command-slot note). The one CASTLE_UNPACK-with-`Object`
    button (EntMoot) is still unseen.
-4. **⬜ `0x415` +3 → 0.** Survey-corrected 2026-07-10: id = **0-based** table idx + 3 (`DefaultUpgrade`
-   = id 3), uniform across the `includes/upgrade.inc` and inline `upgrade.ini` regions - the old
-   "+3 over 1-based" reading was one high (section A row). The +3 constant still wants a real
-   explanation: 3 reserved leading ids, entries the engine registers before `DefaultUpgrade`, or a
-   subsystem miscount. ⚠ method lesson: an anchor pair that is *adjacent in the table* (FireArrows/
-   ForgedBlades) validates the id space but NOT the offset - it matches as a set under ±1; calibrate
-   offsets on a surveyed single action or a non-adjacent pair.
+4. **✅ DONE (2026-07-30) — the `0x415` `+3` is three upgrades the engine registers itself.**
+   Survey-corrected 2026-07-10: id = **0-based** table idx + 3 (`DefaultUpgrade` = id 3), uniform
+   across the `includes/upgrade.inc` and inline `upgrade.ini` regions - the old "+3 over 1-based"
+   reading was one high (section A row). The constant is now explained, by reading the engine's own
+   registry out of a running game (`TheUpgradeCenter` at `0x00DE45A0`, see
+   [`live-object-model.md`](../sage_patch/docs/live-object-model.md) §6):
+
+   > **The replay id *is* the engine's registration index.** There is no offset at all. The engine
+   > registers `Upgrade_Veterancy_VETERAN`, `Upgrade_Veterancy_ELITE` and `Upgrade_Veterancy_HEROIC`
+   > — **indices 0, 1, 2** — before it parses a single `Upgrade` block, so the ini's first
+   > definition lands at 3. None of the three has an ini definition anywhere in the mounted tree,
+   > which is why reconstructing the table from ini alone loses them and needs a `+3` to compensate.
+
+   Ground truth: all **976** live templates walked, and **976/976** satisfy
+   `engine index == ini index + 3`. `UPGRADE_OFFSET` therefore stays 3 for the ini-derived path in
+   [`idspace.py`](idspace.py) — it is correct, just no longer mysterious — and a live consumer that
+   reads the registry directly needs no offset at all.
+
+   ⚠ method lesson (kept, it cost real time): an anchor pair that is *adjacent in the table*
+   (FireArrows/ForgedBlades) validates the id space but NOT the offset - it matches as a set under
+   ±1; calibrate offsets on a surveyed single action or a non-adjacent pair.
 5. **⬜ Rewire [`replay_idmap.py`](../tools/replay_idmap.py)** to source objects from the mounted
    `thing_template_order` (now validated on RotWK/Edain) and drop the old `game.objects` +1201 column.
 6. **✅ DONE (2026-07-11) - `0x43F` = unpack / build at a selected plot; offset driven to 0
@@ -353,12 +384,23 @@ field after team named `NATBehavior`.
    button chains, and **why the overlay tree's table drifts** (find the missing/extra registration
    - it also silently shifts any id resolved against that mount). `0x416` is resolved (cancel
    upgrade, section A).
-7. **⬜ Cross-faction / cross-version validation** of the special-power +1 (the lone odd resolution
+7. **🟡 Cross-faction / cross-version validation** of the special-power +1 (the lone odd resolution
    so far is `AragornBladeMaster` for a Mordor caster - check if a real shared/neutral ability).
-8. **⬜ Runtime ObjectId → template** (`0x3E9`, `0x457` targets, `0x412` object targets): track
+   **First live confirmation 2026-07-29**: `SpecialAbilityImrahilSummonPrinzengarde` resolved
+   under the standard +1 to id 557, and injecting `MSG_DO_SPECIAL_POWER_AT_LOCATION` with that id
+   spawned the summon at the exact commanded position in a running RotWK+Edain game - a Gondor
+   hero ability, so the offset now has one cross-checked non-corpus data point. Still wanted: a
+   second faction, and the `AragornBladeMaster` oddity.
+8. **🟡 Runtime ObjectId → template** (`0x3E9`, `0x457` targets, `0x412` object targets): track
    object creation through the stream to name selections/targets - needed to narrate *who/what* a
    power targets, not just the power. (`0x42F`/`0x469`/`0x462`/`0x3EC` are now characterized -
-   section B.)
+   section B.) **Live half settled 2026-07-29**: the id in the engine's runtime object table *is*
+   the id the order stream carries - an injected `0x3E9` naming object `400`, read from that
+   table, was recorded in the replay as `ObjectId 400` (see
+   [`live-object-model.md`](../sage_patch/docs/live-object-model.md) section 1). So a live session
+   maps ids to templates by lookup. **Still open for archived replays**, which have no process to
+   read: creation must be tracked through the stream. The value of the live result is that such
+   tracking is now known to be chasing the same numbers, not a parallel handle space.
 9. **🟡 Elimination signature - candidates found (2026-07-09), needs falsification.** The
    decided-game signature (section B footnote): `0x474` all-client echo (fortress-destroyed
    candidate) → loser's `0x448` → team-synchronized `0x469 (0,1)` dialog waves + `0x453` sweep.
@@ -366,8 +408,17 @@ field after team named `NATBehavior`.
    controlled fortress-kill recording (echoed ObjectId should be the dying fortress) and one
    concession-only recording (waves without `0x474`); then teach [`winner.py`](winner.py) the
    signature so fought-to-the-end games stop returning `undetermined`.
-10. **⬜ Ghidra one-shot order naming.** `GameMessage::getCommandTypeAsAsciiString` is not
-    debug-gated, so BFME2's `game.dat` should carry every `MSG_*` name as a string literal
-    (section E) - recover the name table and replace every 🟡/❓ in section B with the
-    engine's own name. The Ghidra workflow built for the `.sav` reverse-engineering
-    (string search + call-site adjacency) transfers directly.
+10. **✅ SOLVED (2026-07-29) - Ghidra one-shot order naming.** Done statically against RotWK
+    2.01 `game.dat`; the full table and method are in
+    [`sage_patch/docs/message-stream.md`](../sage_patch/docs/message-stream.md). All **147**
+    network `MSG_*` names (ids 1001-1147) recovered from
+    `getCommandTypeAsAsciiString`'s two jump tables, and **the enum value is the replay order
+    id with no offset** (`0x3E9` = `MSG_CREATE_SELECTED_GROUP` is the anchor). Highlights: it
+    confirms `0x416`/`0x418` (both were 🟡), names the ❓ `0x453` = `MSG_HORDE_TOGGLE_FORMATION`
+    and `0x469` = `MSG_CHANGE_ORDERMODE`, vindicates the `0x43F` reading outright
+    (`MSG_CASTLE_UNPACK_EXPLICIT_OBJECT`), and **refutes** the `0x473`/`0x474`/`0x475`
+    fortress-destroyed hypothesis - they are `MSG_ADD_TO_TEAM1/2/3`, so OPEN 9 needs a new
+    theory for the observed end-game echo. Two other corrections: `0x419` is
+    `MSG_FOUNDATION_CONSTRUCT` (not Generals' `MSG_DOZER_CONSTRUCT`, which is `0x41A`), and
+    `0x444` is `MSG_PLACE_BEACON` (`MSG_SET_REPLAY_CAMERA` is `0x447`). Section B's 🟡/❓ marks
+    are **not** yet rewritten against the table - that edit is the remaining chore.

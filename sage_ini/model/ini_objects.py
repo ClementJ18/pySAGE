@@ -1341,6 +1341,20 @@ class PlayerTemplate(IniObject):
     StartingUnitOffset2: Coords
     StartingUnit5: Object
     StartingUnitOffset5: Coords
+    # The engine parses ten starting-unit slots; the shipped data fills only four of them,
+    # and a mod is free to use the rest.
+    StartingUnit3: Object
+    StartingUnitOffset3: Coords
+    StartingUnit4: Object
+    StartingUnitOffset4: Coords
+    StartingUnit6: Object
+    StartingUnitOffset6: Coords
+    StartingUnit7: Object
+    StartingUnitOffset7: Coords
+    StartingUnit8: Object
+    StartingUnitOffset8: Coords
+    StartingUnit9: Object
+    StartingUnitOffset9: Coords
     StartingUnitTacticalWOTR: List[Object]
     IntrinsicSciencesMP: Nullable[List[Science]]
     SpellBook: Object

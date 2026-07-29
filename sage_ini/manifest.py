@@ -257,7 +257,7 @@ def write_manifest(data: dict, path: str | Path) -> Path:
     it landed, creating parent folders as needed."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(data, separators=(",", ":")).encode("utf-8")
+    payload = json.dumps(data, separators=(",", ":"), indent=4).encode("utf-8")
     if path.suffix == ".gz":
         with gzip.open(path, "wb") as handle:
             handle.write(payload)

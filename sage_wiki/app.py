@@ -50,7 +50,7 @@ from sage_wiki.diff import (
 from sage_wiki.meta import APP_NAME, APP_TITLE, ICON_FILE, TEXTURE_SOURCES_APP
 from sage_wiki.wiki import WikiClient
 
-# The Help ▸ Getting started walkthrough. One HTML block so QTextBrowser lays it out.
+# The Help > Getting started walkthrough. One HTML block so QTextBrowser lays it out.
 _GETTING_STARTED_HTML = """
 <h2>Getting started with the Wiki Assistant</h2>
 <p>This tool keeps Edain wiki infoboxes in sync with the mod's game data: it reads an object's

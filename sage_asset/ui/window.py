@@ -44,7 +44,7 @@ APP_NAME = "sage_asset"
 APP_TITLE = "SAGE Asset"
 ICON_FILE = "icon.ico"
 
-# The Help ▸ Getting started walkthrough. One HTML block so QTextBrowser lays it out.
+# The Help > Getting started walkthrough. One HTML block so QTextBrowser lays it out.
 _GETTING_STARTED_HTML = """
 <h2>Getting started with SAGE Asset</h2>
 <p>An <code>asset.dat</code> is the index BFME2 and RotWK read at startup to find their art: a

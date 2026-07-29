@@ -59,6 +59,7 @@ from sage_utils.views import (
     playable_faction_objects,
     recruited_hero_names,
     safe,
+    starting_units,
 )
 from sage_utils.views import description as object_description
 
@@ -87,10 +88,9 @@ _FLAG_KIND_TOKENS: tuple[tuple[StartPointKind, tuple[str, ...]], ...] = (
     (StartPointKind.CASTLE, ("festung", "castle", "burg", "veste")),
 )
 
-# The faction's starting-roster fields: the fortress and the initial units (builders among
-# them) - the vanilla equivalent of a plot flag's unpack.
+# The faction's starting fortress - the vanilla equivalent of a plot flag's unpack. The
+# initial units beside it (builders among them) come from `starting_units`.
 _STARTING_BUILDING = "StartingBuilding"
-_STARTING_UNITS = ("StartingUnit0", "StartingUnit1", "StartingUnit2", "StartingUnit5")
 
 
 def _faction_side(faction) -> str | None:
@@ -454,8 +454,8 @@ def _starting_seeds(game, faction, faction_upgrades: set[str]) -> dict[str, Stru
     building = _field_token(faction, _STARTING_BUILDING)
     if building and game.objects.get(building) is not None:
         seeds[building] = StructureRole.CITADEL
-    for field in _STARTING_UNITS:
-        unit = game.objects.get(_field_token(faction, field) or "")
+    for name in starting_units(faction):
+        unit = game.objects.get(name)
         for built in builder_targets(game, unit, faction_upgrades):
             seeds.setdefault(built, StructureRole.STANDALONE)
     return seeds

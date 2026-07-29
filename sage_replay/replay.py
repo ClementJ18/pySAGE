@@ -148,10 +148,10 @@ class GeneralsOrderType(IntEnum):
 
 class Bfme2OrderType(IntEnum):
     """Order-type ids for **BFME2 / RotWK** replays that resolve to a definition or action
-    name exactly (the ✅ grade of `order_space_map.md` sections A and B). BFME2 reuses the
-    Generals numeric range with shifted/appended meanings, so these are the BFME2 readings,
-    not the Generals ones. Ids still carrying a provisional offset or unknown meaning (🟡/❓)
-    are deliberately absent; `chunk.order_type` keeps the raw integer regardless."""
+    name exactly (the confirmed grade of `order_space_map.md` sections A and B). BFME2 reuses
+    the Generals numeric range with shifted/appended meanings, so these are the BFME2 readings,
+    not the Generals ones. Ids still carrying a provisional offset or an unknown meaning are
+    deliberately absent; `chunk.order_type` keeps the raw integer regardless."""
 
     EndOfRecording = 0x1D  # issued once at the last timecode by the recording client
     Select = 0x3E9  # new/additive selection (Bool) with the selected ObjectId list
@@ -193,6 +193,14 @@ class Bfme2OrderType(IntEnum):
     ToggleWeaponSet = 0x457
     Handshake = 0x462  # start-of-match handshake
     ModalBracket = 0x469  # modal-state enter/exit bracket
+    # Not an engine message type: the marker `sage_patch`'s `replay-outcome` patch writes, one
+    # chunk per player at the frame the recording ends, carrying that player's final
+    # victory/defeat state (`sage_replay.winner.recorded_outcomes` reads them). The stock engine
+    # cannot produce it - the recorder only copies types `0x3E8 < t < 0x7CF` off the command
+    # list and `GameMessage::Type` itself stops at `0x47B` - so an unpatched replay simply has
+    # none, and no real order can be mistaken for one. Must stay equal to the patch's
+    # `ORDER_TYPE`.
+    GameOutcome = 0x7D0
 
 
 class ReplaySlotType(IntEnum):
@@ -294,6 +302,35 @@ class ReplaySlot:
         stats, faction labels, opponents, and any winner mapping."""
         return self.faction == ReplaySlot.OBSERVER_FACTION
 
+    def serialize(self) -> str:
+        """Back to the lobby's own wire form, so an edited slot can be written out again.
+
+        Not simply `raw`: the point is to change a field (a faction, a start position) and emit
+        the result. `raw` is still the answer for an Empty slot, whose single character carries
+        no fields to rebuild from.
+
+        `ReplayMetadata` came out of parsing replays, where nothing is ever written back — but
+        the engine's *lobby* file holds the same string, so this is what makes a match
+        configurable. `tools/skirmish_config.py` is the caller.
+        """
+        if self.slot_type is ReplaySlotType.Empty:
+            return self.raw or "X"
+        tail = [self.color, self.faction, self.start_position, self.team, self.nat_behavior]
+        if self.slot_type is ReplaySlotType.Human:
+            # Uppercase, unpadded - the engine's `%X`. Lowercase round-trips through the parser
+            # fine and still produces a different file, which is the whole risk here.
+            ip = f"{int(self.ip):X}" if self.ip is not None else "0"
+            flags = f"{'T' if self.accepted else 'F'}{'T' if self.has_map else 'F'}"
+            port = str(self.port if self.port is not None else 0)
+            head = [f"H{self.human_name or ''}", ip, port, flags]
+        else:
+            letter = next(
+                (k for k, v in ReplaySlot._DIFFICULTIES.items() if v is self.computer_difficulty),
+                "M",
+            )
+            head = [f"C{letter}"]
+        return ",".join([*head, *(str(v) for v in tail), *(str(v) for v in self.reserved)])
+
     @staticmethod
     def parse(raw: str) -> ReplaySlot:
         kind = raw[0] if raw else ""
@@ -369,10 +406,22 @@ class ReplayMetadata:
     seed: int = 0
     starting_credits: int | None = None
     slots: list[ReplaySlot] = field(default_factory=list)
+    # Kept so `to_string` can rebuild `M=`, whose mask prefix is a fixed width *per game*.
+    game_type: ReplayGameType = ReplayGameType.Bfme2
 
     @staticmethod
     def parse(stream: BinaryStream, game_type: ReplayGameType) -> ReplayMetadata:
-        result = ReplayMetadata(raw=stream.readNullTerminatedAsciiString())
+        return ReplayMetadata.from_string(stream.readNullTerminatedAsciiString(), game_type)
+
+    @staticmethod
+    def from_string(raw: str, game_type: ReplayGameType) -> ReplayMetadata:
+        """Parse the `key=value;` game-info string on its own.
+
+        The engine writes the same string into a replay header *and* into its lobby file
+        (`Skirmish.ini`), so this is shared rather than reimplemented - see
+        `tools/skirmish_config.py`. `parse` is the replay-header entry point onto it.
+        """
+        result = ReplayMetadata(raw=raw, game_type=game_type)
         width = _MAP_MASK_HEX_DIGITS[game_type]
         for entry in result.raw.split(";"):
             key, sep, value = entry.partition("=")
@@ -400,6 +449,28 @@ class ReplayMetadata:
             elif key == "S":
                 result.slots = [ReplaySlot.parse(s) for s in value.split(":") if s]
         return result
+
+    def to_string(self) -> str:
+        """Rebuild the `key=value;` string, with the typed fields winning over `values`.
+
+        Ordering and unknown keys come from `values`, which holds every pair verbatim, so a key
+        this model does not understand survives an edit untouched. Only the keys it *does*
+        understand are regenerated - which is what lets a caller change a faction or a seed and
+        write the result back without having to know what `GR` or `GSID` mean.
+        """
+        width = _MAP_MASK_HEX_DIGITS[self.game_type]
+        rebuilt = dict(self.values)
+        for key, value in (
+            ("M", f"{self.map_contents_mask:0{width}x}{self.map_file}"),
+            ("MC", f"{self.map_crc:X}"),  # unpadded `%X`: a corpus replay wrote `MC=C1ABD7B`
+            ("MS", str(self.map_size)),
+            ("SD", str(self.seed)),
+            ("SC", None if self.starting_credits is None else str(self.starting_credits)),
+            ("S", "".join(f"{s.serialize()}:" for s in self.slots)),
+        ):
+            if key in rebuilt and value is not None:
+                rebuilt[key] = value
+        return "".join(f"{key}={value};" for key, value in rebuilt.items())
 
     @property
     def players(self) -> list[ReplaySlot]:

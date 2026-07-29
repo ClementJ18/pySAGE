@@ -1,0 +1,171 @@
+# sage_lint on GitHub Actions - drop this in a mod repo as .github/workflows/sagelint.yml
+#
+# Expects two things in the repo:
+#   .sagelint            the committed lint config, at the repo root, with `root` set to the
+#                        folder of ini files to lint (e.g. root = "data")
+#   sage_lint.exe        the frozen Windows CLI, committed somewhere in the repo; point the
+#                        SAGE_LINT variable below at it
+#
+# It runs `sage_lint lint` with no path and no flags, so every setting (root, level, ignore,
+# exclude, base_manifest, baseline) comes from the committed .sagelint - CI and a developer's
+# local run report exactly the same thing. A gitignored .sagelint.local is absent here, which
+# is what you want: machine-specific base paths never apply on a runner.
+#
+# The JSON report becomes inline GitHub annotations (they land on the changed lines of a PR),
+# a job-summary table, and an uploaded artifact.
+
+name: sage_lint
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+  # To skip runs that cannot change the result, add a paths filter to both triggers, naming
+  # your config's `root` folder:
+  #   paths: ['<root>/**', '.sagelint', '<path-to>/sage_lint.exe', '.github/workflows/sagelint.yml']
+  # Leave it off if this check is a required status - a filtered-out run stays pending forever.
+
+concurrency:
+  group: sagelint-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint the mod
+    runs-on: windows-latest # sage_lint.exe is a PyInstaller Windows binary
+    timeout-minutes: 20
+    env:
+      # EDIT ME: repo-relative path to the committed CLI, e.g. tools\sage_lint.exe
+      SAGE_LINT: path\to\sage_lint.exe
+      # any   - fail on anything the report shows (matches sage_lint's own exit code)
+      # error - fail only on ERROR; warnings are still reported, but stay advisory
+      FAIL_ON: any
+      # GitHub renders only ~10 annotations per level per step; the rest live in the job
+      # summary and the artifact. Keep this modest so the log stays readable.
+      MAX_ANNOTATIONS: "50"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the linter is present and runnable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path -LiteralPath $env:SAGE_LINT)) {
+            throw "$env:SAGE_LINT not found - set SAGE_LINT to the committed CLI's path, or build it from a pySAGE checkout with 'python tools/build_release.py sage_lint'."
+          }
+          & $env:SAGE_LINT lint --list-codes | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "sage_lint could not start (exit $LASTEXITCODE)" }
+
+      - name: Run sage_lint
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          # No path argument: the config is read from the working directory (the repo root) and
+          # its `root` names what gets linted. If .sagelint lives in a subfolder instead, pass
+          # that folder as the positional argument - the config's `root` resolves against it.
+          # --exit-zero: the report below decides the job's fate, so a nonzero exit here only
+          # ever means the linter failed to run (bad config, unreadable tree, crash).
+          & $env:SAGE_LINT lint --output-format json --exit-zero |
+            Out-File -FilePath sagelint.json -Encoding utf8
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::sage_lint exited $LASTEXITCODE before producing a report"
+            exit 1
+          }
+
+      - name: Annotate and summarise
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path -LiteralPath 'sagelint.json')) {
+            Write-Host "::error::no report was produced"; exit 1
+          }
+          $report = Get-Content -LiteralPath sagelint.json -Raw | ConvertFrom-Json
+          $diags  = @($report.diagnostics)
+
+          # Diagnostics carry absolute paths (the config root resolves against the working
+          # directory); annotations need repo-relative paths with forward slashes.
+          $ws = (Resolve-Path -LiteralPath $env:GITHUB_WORKSPACE).Path.TrimEnd('\')
+          function Rel([string]$p) {
+            if ([string]::IsNullOrEmpty($p)) { return '' }
+            if ($p.StartsWith($ws, [StringComparison]::OrdinalIgnoreCase)) {
+              $p = $p.Substring($ws.Length).TrimStart('\', '/')
+            }
+            return ($p -replace '\\', '/')
+          }
+          function Esc([string]$s) { $s -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A' }
+          function EscProp([string]$s) { (Esc $s) -replace ':', '%3A' -replace ',', '%2C' }
+
+          $level = @{ 'error' = 'error'; 'warning' = 'warning'; 'info' = 'notice' }
+          $shown = 0
+          foreach ($d in $diags) {
+            if ($shown -ge [int]$env:MAX_ANNOTATIONS) { break }
+            $kind = $level[[string]$d.severity]; if (-not $kind) { $kind = 'warning' }
+            $props = "file=$(EscProp (Rel $d.file)),line=$($d.line_start),endLine=$($d.line_end),title=$(EscProp $d.code)"
+            Write-Host "::${kind} ${props}::$(Esc $d.message)"
+            $shown++
+          }
+          if ($diags.Count -gt $shown) {
+            Write-Host "::notice::$($diags.Count - $shown) further diagnostic(s) not annotated - see the job summary and the sagelint-report artifact"
+          }
+
+          # Job summary: the counts, a per-code table (where the noise is), then the first 100
+          # diagnostics in the linter's own text format.
+          $s = $report.summary
+          $notes = @()
+          if ($s.hidden)    { $notes += "$($s.hidden) info hidden" }
+          if ($s.baselined) { $notes += "$($s.baselined) baselined" }
+          $note = if ($notes) { " ($($notes -join '; '))" } else { '' }
+          $lines = @('## sage_lint', '', "**$($s.errors) error(s), $($s.warnings) warning(s)**$note", '')
+          if ($diags.Count -eq 0) {
+            $lines += 'No diagnostics.'
+          } else {
+            $lines += @('| count | severity | code |', '| ---: | --- | --- |')
+            $diags | Group-Object code | Sort-Object @{e = 'Count'; d = $true}, Name | ForEach-Object {
+              $lines += "| $($_.Count) | $($_.Group[0].severity) | ``$($_.Name)`` |"
+            }
+            $lines += @('', '<details><summary>Diagnostics</summary>', '', '```')
+            foreach ($d in ($diags | Select-Object -First 100)) {
+              $lines += "$(Rel $d.file):$($d.line_start): $($d.severity): $($d.message) [$($d.code)]"
+            }
+            if ($diags.Count -gt 100) { $lines += "... and $($diags.Count - 100) more" }
+            $lines += @('```', '', '</details>')
+          }
+          $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+          $failures = if ($env:FAIL_ON -eq 'error') { [int]$s.errors } else { [int]$s.errors + [int]$s.warnings }
+          if ($failures -gt 0) {
+            Write-Host "::error::sage_lint reported $failures problem(s) - see the annotations above"
+            exit 1
+          }
+          exit 0
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sagelint-report
+          path: sagelint.json
+          if-no-files-found: warn
+
+# ---- Getting a clean run on a mod that #includes the base game -----------------------------
+#
+# A runner has no game install, so every reference into base-game data reads as a
+# dangling-reference. Two committed-to-the-repo ways out, both read straight from .sagelint:
+#
+#   base_manifest = "<path-to>/sage-base-manifest.json.gz"
+#     Generated once on a machine that owns the game:
+#       sage_lint manifest --game "C:/Games/<game>" -o <path-to>/sage-base-manifest.json.gz
+#     Base symbols then resolve with no base tree on disk. Regenerate when the base game
+#     changes. A mod that literally #includes base-game *files* still needs a real base -
+#     a manifest carries symbols, not include text.
+#
+#   baseline = ".sagelint.baseline"   (or just commit .sagelint.baseline beside .sagelint)
+#     Run `sage_lint lint --write-baseline` once to accept today's diagnostics; CI then fails
+#     only on newly introduced ones. Refresh it whenever you accept more.

@@ -7,6 +7,8 @@ point at the file that physically contains the line.
 
 from pathlib import Path
 
+import pytest
+
 from sage_ini.parser.ast import Attribute, Block, Include
 from sage_ini.parser.blockparser import parse_file
 
@@ -14,6 +16,20 @@ from sage_ini.parser.blockparser import parse_file
 def write(path: Path, text: str) -> Path:
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def case_sensitive(directory: Path) -> bool:
+    """Whether `directory`'s filesystem keeps two names differing only in case apart.
+
+    Probed rather than inferred from the platform: NTFS and APFS are case-insensitive by
+    default while ext4 is not, and a Windows directory can carry the per-directory
+    case-sensitivity flag - so the only reliable answer is to ask this directory."""
+    probe = directory / "case_probe.tmp"
+    probe.write_text("", encoding="utf-8")
+    try:
+        return not (directory / "CASE_PROBE.TMP").exists()
+    finally:
+        probe.unlink()
 
 
 class TestExpansion:
@@ -139,6 +155,14 @@ class TestCaseInsensitiveResolution:
         assert [n.key for n in result.document.children if isinstance(n, Attribute)] == ["Speed"]
 
     def test_exact_casing_wins_over_a_case_insensitive_match(self, tmp_path: Path):
+        # Two casings of one name can only be two files on a case-sensitive filesystem. Where
+        # they are not (NTFS, APFS), the second `write` below overwrites the first and there is
+        # no preference left to observe - the fixture, not the behaviour, is what fails. The
+        # preference itself still holds there: `_resolve_under` probes the exact path first, and
+        # on those filesystems that probe matches whatever casing was written.
+        if not case_sensitive(tmp_path):
+            pytest.skip("needs a case-sensitive filesystem to hold both part.inc and PART.INC")
+
         write(tmp_path / "part.inc", "Speed = 30\n")
         write(tmp_path / "PART.INC", "Speed = 99\n")
         root = write(tmp_path / "root.ini", '#include "part.inc"\n')

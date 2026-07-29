@@ -1,0 +1,10 @@
+{
+ "comment": "Cold launch (main menu) into a solo skirmish on whatever the lobby was last set to. Client coordinates, 1080x720. Derived from screenshots rather than recorded, so each step is a named UI element: a failure names the button it could not reach. NOTE the main menu and the post-match skirmish lobby are DIFFERENT states at the same coordinates - (982,679) is empty space in the lobby and QUIT on the main menu, which is how an earlier blind replay closed the game.",
+ "client_width": 1080,
+ "client_height": 720,
+ "steps": [
+  {"label": "solo play", "x": 118, "y": 662, "wait": 4.0},
+  {"label": "skirmish", "x": 118, "y": 461, "wait": 4.0},
+  {"label": "play", "x": 921, "y": 688, "wait": 1.0}
+ ]
+}

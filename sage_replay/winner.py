@@ -1,8 +1,18 @@
-"""Infer the match outcome from a replay's session-end signals.
+"""Infer the match outcome from a replay's session-end signals - or read it, when recorded.
 
 A replay records inputs, not state: eliminations are computed by the simulation and never
-written to the stream, so no chunk says who won. What the stream does record is how each
-human session *ended*, and those shapes carry a verdict whenever somebody conceded:
+written to the stream, so no stock chunk says who won.
+
+**Unless the recording client carried the `replay-outcome` patch.** That patch
+(`sage_patch.patches.replay_outcome`) writes one `0x7D0` chunk per player at the frame the
+recording ends - whether the game finished or somebody left - carrying that player's final
+state as the engine's own `VictoryConditions` had it. `recorded_outcomes` reads them back and
+`infer_winner` prefers them outright: they are ground truth, not a heuristic, and they cover
+AI players and elimination endings that leave no trace in the input stream. Replays from
+unpatched clients carry none, and everything below is what happens then.
+
+What the stream does record is how each human session *ended*, and those shapes carry a
+verdict whenever somebody conceded:
 
 - `0x448` (Boolean) - the voluntary **leave-game** action, a player's final order when
   they exit mid-game (the recording player's own exit included). Exiting from the
@@ -40,14 +50,30 @@ the fixture corpus; the signal table lives in `order_space_map.md` section B.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import IntEnum
 
-from sage_replay.replay import Bfme2OrderType, ReplayFile, ReplaySlot, ReplaySlotType
+from sage_replay.replay import (
+    Bfme2OrderType,
+    ReplayFile,
+    ReplaySlot,
+    ReplaySlotType,
+    integer_arguments,
+)
 
-__all__ = ["PlayerSession", "Side", "WinnerVerdict", "infer_winner"]
+__all__ = [
+    "PlayerOutcome",
+    "PlayerSession",
+    "RecordedOutcome",
+    "Side",
+    "WinnerVerdict",
+    "infer_winner",
+    "recorded_outcomes",
+]
 
 LEAVE_GAME = Bfme2OrderType.LeaveGame
 END_OF_RECORDING = Bfme2OrderType.EndOfRecording
 HEARTBEAT = Bfme2OrderType.ChecksumHeartbeat
+GAME_OUTCOME = Bfme2OrderType.GameOutcome
 
 # A heartbeat silent for this many frames before the recording ends counts as a drop:
 # the cadence is ~100 frames, so three missed beats is a dead session, not jitter.
@@ -93,15 +119,88 @@ class Side:
     ai_count: int = 0
 
 
+class PlayerOutcome(IntEnum):
+    """The values a `0x7D0` chunk's first Integer argument takes, as the `replay-outcome`
+    patch writes them. `Undetermined` is the honest answer for a player who had neither lost
+    nor won when the recording ended - typically everyone else's state when the recorder quit
+    a match that was still live."""
+
+    Undetermined = 0
+    Victorious = 1
+    Defeated = 2
+
+
+@dataclass(slots=True)
+class RecordedOutcome:
+    """One player's final state as the engine itself had it, read from a `0x7D0` chunk."""
+
+    slot_index: int
+    slot: ReplaySlot
+    outcome: PlayerOutcome
+    #: The frame this player was defeated on, or None if they never were. The engine stamps it
+    #: on the transition, so it is the moment of the loss, not the moment of the recording's end.
+    defeated_at: int | None
+    #: The frame the record itself was written - the end of the recording, the same for all.
+    recorded_at: int
+
+    @property
+    def name(self) -> str:
+        return self.slot.human_name or f"slot {self.slot_index}"
+
+
 @dataclass(slots=True)
 class WinnerVerdict:
     outcome: str  # "decided" | "recorder_left" | "undetermined"
     reason: str
     winner: str | None = None  # the winning Side.key, when decided
     winner_names: list[str] = field(default_factory=list)
-    confidence: str | None = None  # "high" | "medium" | "assumed", when decided
+    # "recorded" (read from the replay, ground truth) | "high" | "medium" | "assumed"
+    confidence: str | None = None
     recorder: str | None = None  # the replay's point of view (`0x1D` issuer)
     sessions: list[PlayerSession] = field(default_factory=list)
+    #: The per-player states the `replay-outcome` patch wrote, by slot index. Empty for a
+    #: replay recorded by an unpatched client, which is what makes everything else a heuristic.
+    recorded: dict[int, RecordedOutcome] = field(default_factory=dict)
+
+
+def recorded_outcomes(replay: ReplayFile) -> dict[int, RecordedOutcome]:
+    """The final per-player states written into `replay` by the `replay-outcome` patch, keyed
+    by metadata slot index. Empty when the recording client did not carry the patch.
+
+    A chunk names its player exactly as a real order does - the engine's own `m_playerIndex` in
+    the chunk's number field - so `ReplayFile.slot_index` maps it with no extra rule. Chunks
+    whose number falls outside the occupied slots, or whose payload is not the expected pair of
+    Integers, are skipped rather than guessed at. A later batch wins over an earlier one, so a
+    teardown that somehow ran twice reports its last word.
+    """
+    found: dict[int, RecordedOutcome] = {}
+    for chunk in replay.chunks:
+        if chunk.order_type != GAME_OUTCOME:
+            continue
+        index = replay.slot_index(chunk)
+        if index is None:
+            continue
+        values = integer_arguments(chunk)
+        if len(values) != 2:
+            continue
+        raw, defeated_at = values
+        # A replay rehydrated from a translated document carries code names in its Integer
+        # slots; these two are engine numbers with no id space behind them, so a name here
+        # means the document was edited rather than translated, and is not readable.
+        if not isinstance(raw, int) or not isinstance(defeated_at, int):
+            continue
+        try:
+            outcome = PlayerOutcome(raw)
+        except ValueError:
+            continue
+        found[index] = RecordedOutcome(
+            slot_index=index,
+            slot=replay.header.metadata.players[index],
+            outcome=outcome,
+            defeated_at=defeated_at or None,
+            recorded_at=chunk.timecode,
+        )
+    return found
 
 
 def _build_sessions(replay: ReplayFile) -> list[PlayerSession]:
@@ -133,11 +232,17 @@ def _build_sessions(replay: ReplayFile) -> list[PlayerSession]:
     return [sessions[i] for i in sorted(sessions)]
 
 
+def _side_key(slot: ReplaySlot, index: int) -> str:
+    """The `Side.key` a slot belongs to: its team, or the slot itself where the metadata
+    carries none. Shared so a recorded verdict names the same side the heuristic would."""
+    return f"team {slot.team}" if slot.team >= 0 else (slot.human_name or f"slot {index}")
+
+
 def _build_sides(replay: ReplayFile, sessions: list[PlayerSession]) -> list[Side]:
     by_index = {s.slot_index: s for s in sessions}
     sides: dict[str, Side] = {}
     for index, slot in enumerate(replay.header.metadata.players):
-        key = f"team {slot.team}" if slot.team >= 0 else (slot.human_name or f"slot {index}")
+        key = _side_key(slot, index)
         side = sides.setdefault(key, Side(key))
         if slot.slot_type is ReplaySlotType.Human:
             side.humans.append(by_index.get(index) or PlayerSession(index, slot))
@@ -146,14 +251,60 @@ def _build_sides(replay: ReplayFile, sessions: list[PlayerSession]) -> list[Side
     return list(sides.values())
 
 
+def _verdict_from_record(
+    recorded: dict[int, RecordedOutcome],
+    recorder_name: str | None,
+    sessions: list[PlayerSession],
+) -> WinnerVerdict | None:
+    """The verdict the recorded states settle outright, or None when they name no winner.
+
+    They name none when the engine had decided nothing yet - the recorder quitting a live
+    match is the usual case - and then the concession heuristic still has something to add,
+    so this defers to it rather than reporting an undetermined verdict of its own.
+    """
+    winners = [r for r in recorded.values() if r.outcome is PlayerOutcome.Victorious]
+    if not winners:
+        return None
+    keys = {_side_key(r.slot, r.slot_index) for r in winners}
+    defeated = sum(1 for r in recorded.values() if r.outcome is PlayerOutcome.Defeated)
+    return WinnerVerdict(
+        outcome="decided",
+        reason=(
+            f"recorded by the game itself at the end of the recording: "
+            f"{len(winners)} victorious, {defeated} defeated"
+        ),
+        # One team normally wins; a record that somehow named two keeps both rather than
+        # picking, so the disagreement is visible instead of resolved by ordering.
+        winner=sorted(keys)[0] if len(keys) == 1 else ", ".join(sorted(keys)),
+        winner_names=[r.name for r in winners],
+        confidence="recorded",
+        recorder=recorder_name,
+        sessions=sessions,
+        recorded=recorded,
+    )
+
+
 def infer_winner(replay: ReplayFile, *, assume_pov_won: bool = False) -> WinnerVerdict:
-    """Apply the concession heuristic to a parsed replay. With `assume_pov_won`, verdicts
-    the stream leaves undetermined are decided in favour of the recording player's team."""
+    """Read the match outcome the `replay-outcome` patch recorded, or fall back to the
+    concession heuristic. With `assume_pov_won`, verdicts the stream leaves undetermined are
+    decided in favour of the recording player's team - an assumption the recorded states, when
+    present, always outrank."""
     sessions = _build_sessions(replay)
     recorder = next((s for s in sessions if s.is_recorder), None)
     recorder_name = recorder.name if recorder else None
+
+    recorded = recorded_outcomes(replay)
+    if recorded:
+        verdict = _verdict_from_record(recorded, recorder_name, sessions)
+        if verdict is not None:
+            return verdict
+
     if not sessions:
-        return WinnerVerdict(outcome="undetermined", reason="the replay carries no player orders")
+        return WinnerVerdict(
+            outcome="undetermined",
+            reason="the replay carries no player orders",
+            recorded=recorded,
+        )
 
     end = replay.chunks[-1].timecode
     sides = _build_sides(replay, sessions)
@@ -180,6 +331,7 @@ def infer_winner(replay: ReplayFile, *, assume_pov_won: bool = False) -> WinnerV
             confidence=confidence,
             recorder=recorder_name,
             sessions=sessions,
+            recorded=recorded,
         )
 
     if recorder is not None and recorder.left_at is not None:
@@ -191,6 +343,7 @@ def infer_winner(replay: ReplayFile, *, assume_pov_won: bool = False) -> WinnerV
             ),
             recorder=recorder_name,
             sessions=sessions,
+            recorded=recorded,
         )
 
     if all(s.departed_at(end) is None for s in sessions):
@@ -216,7 +369,12 @@ def infer_winner(replay: ReplayFile, *, assume_pov_won: bool = False) -> WinnerV
             confidence="assumed",
             recorder=recorder_name,
             sessions=sessions,
+            recorded=recorded,
         )
     return WinnerVerdict(
-        outcome="undetermined", reason=reason, recorder=recorder_name, sessions=sessions
+        outcome="undetermined",
+        reason=reason,
+        recorder=recorder_name,
+        sessions=sessions,
+        recorded=recorded,
     )

@@ -46,6 +46,7 @@ from __future__ import annotations
 import struct
 from typing import TYPE_CHECKING
 
+from ..asm import JZ, Asm
 from ..patcher import Patch
 from ..utils import (
     allocate_section,
@@ -138,8 +139,6 @@ _SECTION_NAME = ".cahfac"
 # strings and the parser wrapper, so it must be executable as well as readable.
 _SECTION_CHARACTERISTICS = 0x60000060
 
-_WRAPPER_CALL_OFFSET = 16  # where the `call` into the stock parser sits within the wrapper
-
 
 def _u32(value: int) -> bytes:
     return struct.pack("<I", value)
@@ -159,21 +158,17 @@ def _wrapper_code(wrapper_va: int) -> bytes:
     A cdecl ``(ini, instance, store, userData)`` shim: forward all four arguments to the stock
     parser, then expand a set `All` bit in the mask it wrote to all ones. ``store`` is the address
     of the mask itself, which is what the stock thunk uses it as."""
-    rel = _STOCK_PARSER_VA - (wrapper_va + _WRAPPER_CALL_OFFSET + 5)
-    code = b"".join(
-        (
-            b"\xff\x74\x24\x10" * 4,  # push [esp+0x10] x4 -> ini, instance, store, userData
-            b"\xe8" + struct.pack("<i", rel),  # call <stock parser>
-            b"\x83\xc4\x10",  # add esp, 0x10
-            b"\x8b\x44\x24\x0c",  # mov eax, [esp+0xc]      ; store = &mask
-            b"\xf7\x00" + _u32(1 << ALL_INDEX),  # test dword [eax], <All bit>
-            b"\x74\x06",  # jz .done
-            b"\xc7\x00\xff\xff\xff\xff",  # mov dword [eax], 0xffffffff
-            b"\xc3",  # .done: ret
-        )
-    )
-    assert code[_WRAPPER_CALL_OFFSET] == 0xE8
-    return code
+    a = Asm(wrapper_va)
+    a.emit(b"\xff\x74\x24\x10" * 4)  # push [esp+0x10] x4 -> ini, instance, store, userData
+    a.call_absolute(_STOCK_PARSER_VA)  # call <stock parser>
+    a.emit(b"\x83\xc4\x10")  # add esp, 0x10
+    a.emit(b"\x8b\x44\x24\x0c")  # mov eax, [esp+0xc]      ; store = &mask
+    a.emit(b"\xf7\x00", _u32(1 << ALL_INDEX))  # test dword [eax], <All bit>
+    a.jcc_short(JZ, "done")  # jz .done
+    a.emit(b"\xc7\x00\xff\xff\xff\xff")  # mov dword [eax], 0xffffffff
+    a.label("done")
+    a.emit(0xC3)  # ret
+    return a.finish()
 
 
 class CahFactionsPatch(Patch):

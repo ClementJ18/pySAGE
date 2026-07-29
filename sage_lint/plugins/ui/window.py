@@ -63,7 +63,7 @@ _COLUMNS = (
     ("Message", "message"),
 )
 
-# The Help ▸ Getting started walkthrough. Kept as one HTML block so QTextBrowser lays it out
+# The Help > Getting started walkthrough. Kept as one HTML block so QTextBrowser lays it out
 # with headings and lists; the steps mirror the fields on the options card.
 _GETTING_STARTED_HTML = """
 <h2>Getting started with SAGE Lint</h2>

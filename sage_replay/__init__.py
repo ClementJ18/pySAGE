@@ -49,7 +49,15 @@ from sage_replay.replay import (
     parse_replay_from_path,
 )
 from sage_replay.serialize import serialize_replay, write_replay
-from sage_replay.winner import PlayerSession, Side, WinnerVerdict, infer_winner
+from sage_replay.winner import (
+    PlayerOutcome,
+    PlayerSession,
+    RecordedOutcome,
+    Side,
+    WinnerVerdict,
+    infer_winner,
+    recorded_outcomes,
+)
 
 __all__ = [
     "AlignRow",
@@ -63,7 +71,9 @@ __all__ = [
     "OrderArgument",
     "OrderArgumentType",
     "OrderIdSummary",
+    "PlayerOutcome",
     "PlayerSession",
+    "RecordedOutcome",
     "ReplayChunk",
     "ReplayFile",
     "ReplayGameType",
@@ -85,6 +95,7 @@ __all__ = [
     "parse_labels",
     "parse_replay",
     "parse_replay_from_path",
+    "recorded_outcomes",
     "serialize_replay",
     "write_replay",
 ]

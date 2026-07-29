@@ -159,7 +159,7 @@ def _build_where(specs: list[str] | None) -> ChunkPredicate | None:
 
 def _order_name(replay: ReplayFile, order_type: int) -> str:
     """Order ids get their game's decoded name where one exists (Generals via OpenSAGE,
-    BFME2 via the ✅-grade `Bfme2OrderType` map); otherwise the raw hex id."""
+    BFME2 via the confirmed-grade `Bfme2OrderType` map); otherwise the raw hex id."""
     if replay.game_type is ReplayGameType.Generals:
         try:
             return GeneralsOrderType(order_type).name
@@ -813,6 +813,16 @@ def _run_winner(args: argparse.Namespace) -> int:
             "confidence": verdict.confidence,
             "reason": verdict.reason,
             "recorder": verdict.recorder,
+            "recorded": [
+                {
+                    "slot_index": r.slot_index,
+                    "name": r.name,
+                    "outcome": r.outcome.name.lower(),
+                    "defeated_at": r.defeated_at,
+                    "recorded_at": r.recorded_at,
+                }
+                for r in sorted(verdict.recorded.values(), key=lambda r: r.slot_index)
+            ],
             "sessions": [
                 {
                     "slot_index": s.slot_index,
@@ -832,6 +842,11 @@ def _run_winner(args: argparse.Namespace) -> int:
 
     if verdict.recorder:
         print(f"PoV:      {verdict.recorder} (wrote the recording)")
+    if verdict.recorded:
+        print("Recorded: (written by the game itself - replay-outcome patch)")
+        for record in sorted(verdict.recorded.values(), key=lambda r: r.slot_index):
+            when = "" if record.defeated_at is None else f"  at {record.defeated_at}"
+            print(f"  {record.name:20s} {record.outcome.name.lower()}{when}")
     print("Sessions:")
     for session in verdict.sessions:
         print(

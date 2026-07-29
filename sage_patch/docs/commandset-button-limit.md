@@ -165,6 +165,24 @@ Indexed/other (fixed slot, no bound to change): `0x0061903f`, `0x0071f207`, `0x0
 The `0x0092…`–`0x009e…` cluster is the **`Apt*` UI layer** (see UI section); the
 `0x006x`–`0x008x` functions are the ControlBar / selection / AI consumers.
 
+### The one consumer bound that *is* raised: `0x00794f38`
+
+`CommandSetLimitPatch` raises exactly one of these 42 bounds — `BuildAssistant::canMakeUnit` at
+`0x00794f38`, whose `cmp dword [ebp-8], 0x21` sits at `0x007950e2`. It is the AI's gate on whether
+a producer may build or revive a given thing, and unlike every other consumer it **reads** each
+button rather than writing it into a fixed-size UI array, so widening it overruns nothing. Left at
+33 the AI would be blind to precisely the buttons this patch newly allows: a mod paging a hero
+roster past slot 33 would end up with buildings the player can recruit from and the AI cannot.
+
+The bound is also the *only* bound — `getCommandButton` is a bare unchecked
+`[this + i*4 + 0x14]` — so it must be exactly N. At N it visits indices `0..N-1` and stops one
+short of index N, where the patch relocates the count field; at N+1 it would read that field as a
+`CommandButton*`, which is the same fault the paging rule prevents (see
+[`push-visible-command-range.md`](push-visible-command-range.md)).
+
+The same function's revive branch is what [`ai-revive-gate.md`](ai-revive-gate.md) patches, 20
+bytes earlier. The two edits do not overlap and neither reads the other's bytes.
+
 ### Mirror array
 
 The ControlBar/store object (ctor region `0x00720302`, fields out to `+0x2b0`) keeps its own

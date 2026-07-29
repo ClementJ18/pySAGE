@@ -40,6 +40,7 @@ Issues = "https://github.com/ClementJ18/pySAGE/issues"
 sage-lint = "sage_lint.cli:main"
 sage-ini = "sage_ini.__main__:main"
 sage-edain = "sage_mods.edain.__main__:main"
+sage-live = "sage_live.__main__:main"
 sage-replay = "sage_replay.__main__:main"
 sage-apt = "sage_apt.__main__:main"
 sage-save = "sage_save.__main__:main"
@@ -128,7 +129,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*", "sage_w3d*", "sage_cah*"]
+include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_live*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*", "sage_w3d*", "sage_cah*"]
 
 [tool.setuptools.package-data]
 # Anything a package opens at runtime must be listed here, or it is absent from the wheel. The
@@ -144,6 +145,7 @@ sage_map = ["py.typed"]
 sage_patch = ["py.typed"]
 sage_save = ["py.typed"]
 sage_replay = ["py.typed"]
+sage_live = ["py.typed"]
 sage_ui = ["*.ico"]
 sage_wiki = ["*.ico"]
 sage_utils = ["assets/*.png"]  # portrait background + overlays; sage_utils/textures.py
@@ -199,7 +201,7 @@ select = [
 
 [tool.mypy]
 python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
-files = ["sage_apt", "sage_asset", "sage_ini", "sage_map", "sage_mods", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah"]
+files = ["sage_apt", "sage_asset", "sage_ini", "sage_live", "sage_map", "sage_mods", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah"]
 disable_error_code = ["annotation-unchecked"]
 # Same one-off RE scans ruff skips above (see [tool.ruff] extend-exclude): they import a sibling
 # `pe` module that is only resolvable with the scripts directory on sys.path.
