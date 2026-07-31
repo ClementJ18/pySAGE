@@ -10,11 +10,14 @@ order did something, and notice the match ended.
 
 **Every order is verified, never assumed.** Game logic silently discards a malformed or
 unaffordable order *after* the stream has taken it - no error, no diagnostic, and it still
-reaches the replay. So this bot does not count a spend order as done until the player's gold
-actually falls, and does not count a move as done until units actually move. That is the
-oracle `sage_live`'s README prescribes, and here it doubles as instrumentation: `unpack` and
-`attack_move` have never been confirmed live, so the run prints exactly which order types
-made the game do something and which quietly did nothing.
+reaches the replay. So nothing here counts as done until the game visibly does it: a recruit
+until the building's *queue* grows, a move until units move, a build until something stands on
+the plot.
+
+**The queue, not the gold.** An earlier version confirmed spends by watching the balance fall,
+which is wrong in both directions in a real match: an enemy ability can steal gold, so it falls
+with no spend of ours, and a grant of 500-1000 can hide a real spend under a net rise. The
+queue belongs to the building the order named and nothing else can forge it.
 
 **Classification comes from `KindOf`, not from names.** A live object carries a template name
 and nothing else, and the interesting categories are not guessable from it:
@@ -56,7 +59,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root on pat
 from sage_live.connect import AttachError, attach  # noqa: E402
 from sage_live.naming import UnknownDefinition  # noqa: E402
 from sage_live.observation import GameObject, Observation, Vec3  # noqa: E402
-from sage_live.session import NoSelection, Session  # noqa: E402
+from sage_live.session import NoSelection, Sent, Session  # noqa: E402
 from sage_live.statics import Statics  # noqa: E402
 
 __all__ = ["PLANS", "Bot", "Plan", "main"]
@@ -102,14 +105,9 @@ PLANS: dict[str, Plan] = {
     ),
 }
 
-# How long to give the engine to act on an order before deciding it did nothing. Comfortably
-# more than a logic frame, and short enough that a whole cycle stays responsive.
-VERIFY_WINDOW = 1.5
-VERIFY_POLL = 0.15
-
-# Builds get longer: the order goes through the placement interface and the foundation has to
-# be laid before anything is observable, which is more than one frame's worth of work.
-BUILD_WINDOW = 4.0
+# How long to wait for an order to take effect now lives in the library, as
+# `session.DEFAULT_CONFIRM` and `BUILD_CONFIRM` - every consumer needs the same windows and
+# they were arrived at the same way, by watching orders that did nothing.
 
 # How near a plot a structure must stand to be the thing built on it. **A plot is not consumed
 # by building on it** - the `GondorBuildingFoundation` object stays put underneath, so "is this
@@ -125,6 +123,11 @@ BASE_RADIUS = 900.0
 # How close to the opponent's centre the push aims. Short of it, so the army arrives as a
 # group and engages the base edge rather than walking into the middle of it.
 PUSH_STANDOFF = 250.0
+
+# How deep the bot is willing to fill one building's queue. The engine allows about 20, so
+# this is a spreading policy rather than a limit: several buildings each working on a few
+# beats one building working on twenty, because the first unit out of each arrives sooner.
+QUEUE_TARGET = 4
 
 # `KindOf` flags that disqualify an object from the army: structures and plots do not move,
 # and a builder sent to the front is a builder lost.
@@ -170,13 +173,22 @@ class Bot:
         self.statics = statics
         self.dry_run = dry_run
         self.ledger = Ledger()
-        self.observation: Observation = session.observe()
+        session.observe()
 
     # ---- reading the world -------------------------------------------------------------
 
+    @property
+    def observation(self) -> Observation:
+        """The session's latest snapshot, never a copy this bot keeps.
+
+        The confirmation helpers poll while they wait, so a bot holding its own reference is
+        reading a world several frames old the moment it verifies anything - and then decides
+        against it.
+        """
+        return self.session.latest or self.session.observe()
+
     def refresh(self) -> Observation:
-        self.observation = self.session.observe()
-        return self.observation
+        return self.session.observe()
 
     @property
     def gold(self) -> int:
@@ -301,70 +313,48 @@ class Bot:
 
     # ---- acting, and checking that the action landed -----------------------------------
 
-    def _verify(self, changed: Callable[[], bool], window: float = VERIFY_WINDOW) -> bool:
-        """Poll until `changed` holds or the window expires."""
-        deadline = time.monotonic() + window
-        while time.monotonic() < deadline:
-            time.sleep(VERIFY_POLL)
-            self.refresh()
-            if changed():
-                return True
-        return False
+    def _issue(self, label: str, act: Callable[[], Sent]) -> Sent:
+        """Send, reporting the two failures that happen before the engine ever sees it.
 
-    def spend(self, label: str, act: Callable[[], int]) -> bool:
-        """Issue an order that should cost gold, and confirm the gold actually left.
+        `Sent` says which: the APM cap holding an order back is normal pacing, the backend
+        turning it down is a fault. Guessing between them from a running throttle count gets
+        it wrong the moment a cap has ever fired.
 
-        **A consumed order is not an accepted order.** Logic discards an unaffordable or
-        malformed order after the stream has taken it, reporting nothing at all, so the only
-        honest confirmation of a purchase is the balance falling.
+        Reports but does not record. The ledger is written once, by `_report`, so an order
+        that never left is not counted twice - once here and once when the confirmation that
+        was never given comes back false.
         """
-        before = self.gold
-        if not self._issue(label, act):
-            return False
-        ok = self._verify(lambda: self.gold < before)
-        self.ledger.record(label, ok)
-        print(f"    {label:<16} {'charged' if ok else 'NOT CHARGED - logic discarded it'}")
-        return ok
-
-    def manoeuvre(self, label: str, act: Callable[[], int], units: list[GameObject]) -> bool:
-        """Issue a movement order, and confirm the units actually moved.
-
-        A move costs nothing, so the resource oracle says nothing about it. Positions do.
-        """
-        origin = {u.object_id: u.position for u in units}
-        if not self._issue(label, act):
-            return False
-
-        def moved() -> bool:
-            return any(
-                (found := self.observation.obj(oid)) is not None and found.distance_to(was) > 5.0
-                for oid, was in origin.items()
-            )
-
-        ok = self._verify(moved)
-        self.ledger.record(label, ok)
-        print(f"    {label:<16} {'units moved' if ok else 'NOTHING MOVED - order discarded'}")
-        return ok
-
-    def _issue(self, label: str, act: Callable[[], int]) -> bool:
-        """Send, reporting the two failures that happen before the engine ever sees it."""
         if self.dry_run:
             print(f"    {label:<16} (dry run)")
-            return False
+            return Sent(0)
         try:
-            accepted = act()
+            sent = act()
         except (UnknownDefinition, NoSelection) as exc:
             print(f"    {label:<16} refused: {exc}")
-            self.ledger.record(label, False)
-            return False
-        if not accepted:
-            reason = "APM cap" if self.session.throttled else "backend refused it"
-            print(f"    {label:<16} not sent ({reason})")
-            self.ledger.record(label, False)
-            return False
-        return True
+            return Sent(0)
+        if not sent:
+            print(f"    {label:<16} not sent ({sent.reason})")
+        return sent
 
-    def raise_building(self, label: str, act: Callable[[], int], plot: GameObject) -> bool:
+    def _report(self, label: str, ok: bool, good: str, bad: str) -> bool:
+        """The one place the ledger is written, so every issued order counts exactly once."""
+        self.ledger.record(label, ok)
+        print(f"    {label:<16} {good if ok else bad}")
+        return ok
+
+    def spend(self, label: str, act: Callable[[], Sent]) -> bool:
+        """Issue an order that should cost gold, and confirm the gold actually left."""
+        ok = self.session.confirm_spend(lambda: self._issue(label, act))
+        return self._report(label, ok, "charged", "NOT CHARGED - logic discarded it")
+
+    def manoeuvre(self, label: str, act: Callable[[], Sent], units: list[GameObject]) -> bool:
+        """Issue a movement order, and confirm the units actually moved."""
+        ok = self.session.confirm_moved(
+            lambda: self._issue(label, act), [u.object_id for u in units]
+        )
+        return self._report(label, ok, "units moved", "NOTHING MOVED - order discarded")
+
+    def raise_building(self, label: str, act: Callable[[], Sent], plot: GameObject) -> bool:
         """Issue a build order, and confirm it by watching the **plot**, not the gold.
 
         Two oracles were wrong before this one. **Gold** produced a false negative on the very
@@ -372,24 +362,14 @@ class Bot:
         disappearing** never happens: a plot is not consumed by building on it, so that test
         reported failure for every build in a match.
 
-        What is left is the only direct evidence: a structure standing on the plot that was not
-        there before. That is immune to `BuildVariations` too, because it asks what appeared
-        rather than what it is called.
+        What is left is the only direct evidence, and it is what `confirm_appeared` asks:
+        something new standing where the order was aimed. That is immune to `BuildVariations`
+        too, because it asks what appeared rather than what it is called.
         """
-        before = {o.object_id for o in self.observation.mine}
-        if not self._issue(label, act):
-            return False
-
-        def raised() -> bool:
-            return any(
-                o.object_id not in before and o.distance_to(plot.position) < PLOT_RADIUS
-                for o in self.structures()
-            )
-
-        ok = self._verify(raised, window=BUILD_WINDOW)
-        self.ledger.record(label, ok)
-        print(f"    {label:<16} {'built' if ok else 'NOTHING APPEARED - order discarded'}")
-        return ok
+        ok = self.session.confirm_appeared(
+            lambda: self._issue(label, act), near=plot.position, within=PLOT_RADIUS
+        )
+        return self._report(label, ok, "built", "NOTHING APPEARED - order discarded")
 
     def build_on_plot(self, template: str, plot: GameObject) -> bool:
         """Place `template` on `plot`, trying both build paths.
@@ -438,10 +418,28 @@ class Bot:
             return "production: wanted a production building but no free plot is visible"
 
         if len(army) < plan.army_target:
+            # **Queue depth, not "is it busy".** A production queue holds up to
+            # `QUEUE_LIMIT` items, so refusing to order at a building that is merely working
+            # throws most of the faction's output away - an earlier version did exactly that
+            # and called it a fix. What the queue is actually good for is knowing *how much*
+            # is already coming, so the bot spreads orders instead of filling one building.
+            usable = [b for b in production if len(b.production) < QUEUE_TARGET]
+            if not usable:
+                deepest = max(len(b.production) for b in production)
+                return f"army: {len(army)}/{plan.army_target}, every building has {deepest} queued"
+            usable.sort(key=lambda b: len(b.production))
             # Recruiting acts on the selection, so the production building must be selected
             # first - and that clobbers any army selection, which is why the push re-selects.
-            self.session.select([production[0].object_id])
-            self.spend("recruit", lambda: self.session.recruit(plan.unit))
+            target = usable[0]
+            self.session.select([target.object_id])
+            # The queue is the oracle, not the gold: an enemy ability can steal gold (a fall
+            # with no spend of ours) and a grant of 500-1000 can hide a real spend under a
+            # rise. What a recruit must do is put an item in *this building's* queue.
+            ok = self.session.confirm_queued(
+                lambda: self._issue("recruit", lambda: self.session.recruit(plan.unit)),
+                target.object_id,
+            )
+            self._report("recruit", ok, "queued", "NOT QUEUED - logic discarded it")
             return f"army: {len(army)}/{plan.army_target} battalions"
 
         target = self.enemy()
@@ -489,7 +487,13 @@ class Bot:
         this - `victorysystem.ini` shows it is a per-cell battle-momentum bonus, not a win
         condition - and `TheVictoryConditions` has an address but has never been walked. So
         this infers, using the engine's own victory-counting flag, and says so.
+
+        **The process is asked first.** A crashed game reads exactly as a finished one - no
+        objects, no local player - so inferring from the observation alone would report a
+        crash as a defeat, which is a result that looks real and means nothing.
         """
+        if not self.session.alive:
+            return "the game is gone (it exited or crashed) - this is not a result"
         if not self.observation.in_match:
             return "the match ended (the local player is no longer a faction)"
         if not self._holdings(self.session.player_index):

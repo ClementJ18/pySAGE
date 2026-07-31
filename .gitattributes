@@ -7,3 +7,9 @@
 tests/sage_apt/fixtures/**/*.xml text eol=lf
 tests/sage_apt/fixtures/**/*.apt binary
 tests/sage_apt/fixtures/**/*.const binary
+
+# A captured process snapshot and the decode it is compared against. The snapshot is gzipped
+# bytes from a running game and must survive checkout unchanged; the golden JSON is diffable
+# and pinned to LF so a regeneration shows as a real diff.
+tests/sage_live/fixtures/*.snapshot.gz binary
+tests/sage_live/fixtures/*.expected.json text eol=lf

@@ -19,6 +19,7 @@ from sage_live.bridge import (
     encode_order,
     find_section,
 )
+from sage_live.identity import ROTWK_201_TIMESTAMP
 from sage_live.memory import MemoryBackend
 from sage_patch.patches.live_bridge import (
     ARG_COUNT_OFF,
@@ -36,22 +37,22 @@ from sage_replay.replay import Order, OrderArgument, OrderArgumentType
 from tests.sage_live.test_memory import HEAP, FakeImage, build_game
 
 SECTION_VA = HEAP + 0x38000
-IMAGE_SIZE = 0x1000
+SECTION_SIZE = 0x400
 
 
 class WritableImage(FakeImage):
-    """The fake process image, plus a mapped PE header region and a `.livebrg` section."""
+    """The fake process image, plus the `.livebrg` section a patched game carries."""
 
-    def __init__(self) -> None:
+    def __init__(self, section: bool = True) -> None:
         super().__init__()
-        self.image = bytearray(IMAGE_SIZE)
         self.writes: list[tuple[int, bytes]] = []
         self.auto_acknowledge = True
-
-    def _region(self, address: int, size: int):
-        if IMAGE_BASE <= address and address + size <= IMAGE_BASE + IMAGE_SIZE:
-            return self.image, address - IMAGE_BASE
-        return super()._region(address, size)
+        if section:
+            # A patch announces itself by appending a section; the header it appends to is the
+            # one every image already has, so this adds to it rather than replacing it.
+            self.pe_headers(
+                ROTWK_201_TIMESTAMP, [(SECTION_NAME, SECTION_VA - IMAGE_BASE, SECTION_SIZE)]
+            )
 
     def write_memory(self, address: int, data: bytes) -> bool:
         self.writes.append((address, data))
@@ -78,30 +79,12 @@ class Source:
         self.img.close()
 
 
-def with_pe_header(img: WritableImage, section: bool = True) -> None:
-    """Lay down just enough PE structure for `find_section` to walk."""
-    img.write(IMAGE_BASE, b"MZ" + b"\x00" * 0x3A)
-    img.write(IMAGE_BASE + 0x3C, struct.pack("<I", 0x80))
-    pe = IMAGE_BASE + 0x80
-    header = bytearray(24)
-    header[0:4] = b"PE\x00\x00"
-    struct.pack_into("<H", header, 6, 1 if section else 0)
-    struct.pack_into("<H", header, 20, 0xE0)
-    img.write(pe, bytes(header))
-    if section:
-        entry = bytearray(40)
-        entry[0:8] = SECTION_NAME.encode().ljust(8, b"\x00")
-        struct.pack_into("<II", entry, 8, 0x400, SECTION_VA - IMAGE_BASE)
-        img.write(pe + 24 + 0xE0, bytes(entry))
-
-
 def make_image(section: bool = True) -> WritableImage:
-    img = WritableImage()
+    img = WritableImage(section)
     # reuse the populated game state so observation still works
     src = build_game()
     img.static[:] = src.static
     img.heap[:] = src.heap
-    with_pe_header(img, section)
     img.write(SECTION_VA, build_section(SECTION_VA)[:CODE_OFF])
     return img
 
@@ -195,7 +178,18 @@ def test_connect_refuses_an_unpatched_game():
 def test_find_section_locates_the_command_buffer():
     img = make_image()
     located = find_section(Source(img))
-    assert located == (SECTION_VA, 0x400)
+    assert located == (SECTION_VA, SECTION_SIZE)
+
+
+def test_the_patch_does_not_change_what_build_this_is():
+    """Appending a cave bumps `NumberOfSections` and `SizeOfImage` and leaves the COFF header
+    alone, which is why the timestamp identifies a build whether or not it is patched - and it
+    has to, because the writable path only ever runs against a patched binary."""
+    backend = make_backend(make_image())
+    identity = backend.identity
+    assert identity is not None
+    assert identity.timestamp == ROTWK_201_TIMESTAMP
+    assert identity.carries(SECTION_NAME)
 
 
 def test_send_publishes_the_payload_before_the_ready_flag():

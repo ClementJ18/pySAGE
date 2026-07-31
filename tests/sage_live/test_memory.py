@@ -13,42 +13,101 @@ from __future__ import annotations
 
 import math
 import struct
+from collections.abc import Sequence
 
 import pytest
 
-from sage_live.backend import ConnectionRefused
+from sage_live.backend import ConnectionRefused, GameExited
+from sage_live.identity import ROTWK_201_TIMESTAMP
 from sage_live.memory import LAYOUT_ROTWK_201, EngineLayout, MemoryBackend
 from sage_live.orders import move
 from sage_live.protocol import Handshake
+from sage_patch.addresses import IMAGE_BASE
+from sage_patch.pe import OPT_IMAGE_BASE, SECTION_HEADER_SIZE
 
 LAY = LAYOUT_ROTWK_201
 HEAP = 0x10000000
-STATIC = 0x00DE0000
-STATIC_SIZE = 0x10000
+# The real .data runs 0x00D89000-0x00E0A000. The fake covers the part holding every static
+# this reads: the subsystem globals near 0xDE4000 and the model-condition name table at
+# 0xD9FAD8, which is below them.
+STATIC = 0x00D90000
+STATIC_SIZE = 0x60000
 HEAP_SIZE = 0x40000
+# Enough for the DOS stub, the PE and optional headers, and a two-entry section table.
+HEADER_SIZE = 0x400
 
 
 class FakeImage:
-    """A sparse two-region address space that behaves like a 32-bit process."""
+    """A sparse three-region address space that behaves like a 32-bit process.
 
-    def __init__(self) -> None:
+    The third region is the mapped PE header. Every real process has one and `connect` now
+    identifies the build from it, so a fake without one would only prove the gate can be
+    bypassed. Writing a real header here keeps the check inside the data-free suite.
+    """
+
+    def __init__(self, timestamp: int = ROTWK_201_TIMESTAMP) -> None:
         self.static = bytearray(STATIC_SIZE)
         self.heap = bytearray(HEAP_SIZE)
+        self.headers = bytearray(HEADER_SIZE)
         self._next = HEAP + 0x100
         self.closed = False
+        self.gone = False
+        # `{name -> template address}`, so a test can point a production queue entry at the
+        # same template the registry walk will resolve it against.
+        self.upgrade_at: dict[str, int] = {}
+        self.pe_headers(timestamp)
 
     def _region(self, address: int, size: int):
+        if IMAGE_BASE <= address and address + size <= IMAGE_BASE + HEADER_SIZE:
+            return self.headers, address - IMAGE_BASE
         if STATIC <= address and address + size <= STATIC + STATIC_SIZE:
             return self.static, address - STATIC
         if HEAP <= address and address + size <= HEAP + HEAP_SIZE:
             return self.heap, address - HEAP
         return None, 0
 
+    def pe_headers(self, timestamp: int, extra: Sequence[tuple[str, int, int]] = ()) -> None:
+        """A minimal but genuine PE32 header block, walked by `sage_patch.pe`.
+
+        `.data` is made to cover the static region, so the subsystem globals sit inside the
+        image exactly as they do in the real one. `extra` adds sections by `(name, rva, size)`,
+        which is how a patched game announces its cave.
+        """
+        e_lfanew = 0x80
+        sections = [
+            (".text", 0x1000, 0x7CF000),
+            (".data", STATIC - IMAGE_BASE, STATIC_SIZE),
+            *extra,
+        ]
+        self.write(IMAGE_BASE, b"MZ")
+        self.write(IMAGE_BASE + 0x3C, struct.pack("<I", e_lfanew))
+        self.write(IMAGE_BASE + e_lfanew, b"PE\x00\x00")
+        self.write(IMAGE_BASE + e_lfanew + 4 + 2, struct.pack("<H", len(sections)))
+        self.write(IMAGE_BASE + e_lfanew + 4 + 4, struct.pack("<I", timestamp))
+        size_of_optional = 0xE0
+        self.write(IMAGE_BASE + e_lfanew + 4 + 16, struct.pack("<H", size_of_optional))
+        optional = IMAGE_BASE + e_lfanew + 24
+        self.write(optional + OPT_IMAGE_BASE, struct.pack("<I", IMAGE_BASE))
+        table = optional + size_of_optional
+        for i, (name, rva, size) in enumerate(sections):
+            entry = name.encode().ljust(8, b"\x00") + struct.pack("<IIII", size, rva, size, 0)
+            self.write(table + i * SECTION_HEADER_SIZE, entry.ljust(SECTION_HEADER_SIZE, b"\x00"))
+
     def read(self, address: int, size: int) -> bytes | None:
+        if self.gone:
+            return None
         buf, offset = self._region(address, size)
         if buf is None or size <= 0:
             return None
         return bytes(buf[offset : offset + size])
+
+    def die(self) -> None:
+        """What a process exiting looks like from outside: every read fails, at once.
+
+        Not zeroes - `ReadProcessMemory` against a dead handle returns nothing at all, which
+        is the whole reason a vanished game decodes as an empty one.
+        """
+        self.gone = True
 
     def close(self) -> None:
         self.closed = True
@@ -116,11 +175,91 @@ class FakeImage:
         node = 0
         for upgrade_id, name, player_scoped in rows:
             node = self.upgrade(upgrade_id, name, player_scoped, node)
+            self.upgrade_at[name] = node
         address = self.alloc(0x40)
         self.u32(address + LAY.uc_list, node)
         self.u32(address + LAY.uc_count, max((row[0] for row in rows), default=-1) + 1)
         self.u32(LAY.the_upgrade_center, address)
         return address
+
+    def thing_factory(self, names: list[str]) -> dict[str, int]:
+        """`TheThingFactory` over `names` in registration order, returning their addresses.
+
+        Prepended, exactly as the engine builds it: the head is the *last* registered, so a
+        walk yields reverse order and `thing_order` has something real to reverse.
+        """
+        node = 0
+        at: dict[str, int] = {}
+        for name in names:
+            address = self.alloc(LAY.tmpl_next + 8)
+            self.u32(address + LAY.tmpl_name, self.ascii(name))
+            self.u32(address + LAY.tmpl_next, node)
+            at[name] = node = address
+        factory = self.alloc(0x40)
+        self.u32(factory + LAY.tf_list, node)
+        self.u32(factory + LAY.tf_count, len(names))
+        self.u32(LAY.the_thing_factory, factory)
+        return at
+
+    def production_update(self, obj: int, entries: list[tuple[int, int]]) -> int:
+        """A `ProductionUpdate` owned by `obj`, holding `(kind, payload)` entries in order."""
+        module = self.alloc(0x40)
+        self.u32(module, LAY.production_update_vtable)
+        self.u32(module + LAY.module_object, obj)
+        head, previous = 0, None
+        for kind, payload in entries:
+            entry = self.alloc(0x60)
+            self.u32(entry + LAY.entry_kind, kind)
+            slot = LAY.entry_upgrade if kind == 2 else LAY.entry_template
+            self.u32(entry + slot, payload)
+            if previous is None:
+                head = entry
+            else:
+                self.u32(previous + LAY.entry_next, entry)
+            previous = entry
+        self.u32(module + LAY.production_head, head)
+        self.u32(module + LAY.production_count, len(entries))
+        return module
+
+    def modules(self, obj: int, mods: list[int]) -> int:
+        """The object's NULL-terminated `BehaviorModule*` array."""
+        array = self.alloc((len(mods) + 1) * 4)
+        for i, module in enumerate(mods):
+            self.u32(array + i * 4, module)
+        self.u32(array + len(mods) * 4, 0)
+        self.u32(obj + LAY.obj_modules, array)
+        return array
+
+    def model_condition_names(self, names: list[str]) -> int:
+        """The engine's NULL-terminated table of `ModelConditionFlags` names, in bit order."""
+        pointers = [self.write_cstring(n) for n in names]
+        table = LAY.the_model_condition_names
+        for i, p in enumerate(pointers):
+            self.u32(table + i * 4, p)
+        self.u32(table + len(pointers) * 4, 0)
+        return table
+
+    def write_cstring(self, text: str) -> int:
+        """A bare NUL-terminated string - the name table points at these, not AsciiStrings."""
+        raw = text.encode("latin-1") + b"\x00"
+        address = self.alloc(len(raw))
+        self.write(address, raw)
+        return address
+
+    def set_conditions(self, obj: int, names) -> None:
+        """Set the model-condition bits for `names`, by their index in the written table."""
+        table = LAY.the_model_condition_names
+        order = []
+        for i in range(LAY.model_condition_count):
+            p = struct.unpack_from("<I", self.read(table + i * 4, 4), 0)[0]
+            if p == 0:
+                break
+            order.append(self.read(p, 64).split(b"\x00")[0].decode("latin-1"))
+        bits = 0
+        for n in names:
+            bits |= 1 << order.index(n)
+        raw = bits.to_bytes(LAY.model_condition_words * 4, "little")
+        self.write(obj + LAY.obj_model_conditions, raw)
 
     def set_upgrade_bit(self, base_ptr: int, base: int, upgrade_id: int) -> None:
         """Set one upgrade's bit in a mask, the way the engine indexes it."""
@@ -137,6 +276,7 @@ class FakeImage:
         angle: float = 0.0,
         body: int | None = None,
         list_prev: int | None = None,
+        contained_by: int | None = None,
     ) -> int:
         # 0x400, not 0x300: the object's upgrade mask runs to +0x308 and the team pointer sits
         # at +0x31C, so a smaller allocation would have one object's fields read as the next
@@ -152,6 +292,8 @@ class FakeImage:
             self.u32(address + LAY.obj_body, body)
         if list_prev is not None:
             self.u32(address + LAY.obj_list_prev, list_prev)
+        if contained_by is not None:
+            self.u32(address + LAY.obj_contained_by, contained_by)
         return address
 
     def entry(self, object_id: int, obj: int) -> int:
@@ -206,10 +348,19 @@ def build_game() -> FakeImage:
 
     horde = img.game_object(horde_t, (2155.0, 3445.0, 61.0), body=img.body(1.0, 1.0))
     fighter_a = img.game_object(
-        fighter_t, (2153.0, 3443.0, 61.0), angle=0.849, body=img.body(237.0, 255.0), list_prev=horde
+        fighter_t,
+        (2153.0, 3443.0, 61.0),
+        angle=0.849,
+        body=img.body(237.0, 255.0),
+        list_prev=horde,
+        contained_by=horde,
     )
     fighter_b = img.game_object(
-        fighter_t, (2170.0, 3450.0, 61.0), body=img.body(255.0, 255.0), list_prev=horde
+        fighter_t,
+        (2170.0, 3450.0, 61.0),
+        body=img.body(255.0, 255.0),
+        list_prev=horde,
+        contained_by=horde,
     )
     lair = img.game_object(lair_t, (1422.0, 3095.0, 88.0), body=img.body(2000.0, 2000.0))
 
@@ -242,6 +393,75 @@ def test_connect_refuses_a_handshake_mismatch():
     expected = Handshake(engine_build="RotWK 2.02")
     with pytest.raises(ConnectionRefused, match="engine build"):
         MemoryBackend(img, handshake=peer, expect=expected).connect()
+
+
+def test_another_build_is_refused_before_anything_is_decoded():
+    """The whole point of the gate: a wrong build does not read as an error, it reads as
+    data, so it has to be caught by identity rather than by anything downstream."""
+    with pytest.raises(ConnectionRefused, match="not the build the layout describes"):
+        MemoryBackend(FakeImage(timestamp=0x11223344)).connect()
+
+
+def test_an_unidentified_build_can_be_read_deliberately():
+    """`build_timestamp = 0` is how a layout for an unknown build says it cannot vouch for
+    one. No gate is honest; a gate asserting a number nobody measured is not."""
+    layout = EngineLayout(build_timestamp=0)
+    img = FakeImage(timestamp=0x11223344)
+    img.static[:] = build_game().static
+    img.heap[:] = build_game().heap
+    assert MemoryBackend(img, layout).connect().engine_build
+
+
+def test_the_handshake_carries_the_measured_fingerprint():
+    """It is measured, not declared - which is what makes `expect` able to gate on it."""
+    assert backend(build_game()).connect().data_checksum == f"pe-{ROTWK_201_TIMESTAMP:08x}"
+
+
+def test_a_pinned_fingerprint_refuses_a_different_image():
+    """Pinning is the caller's half of the gate: a session that must not silently move to
+    another build says so, and finds out at connect rather than in its observations."""
+    pinned = Handshake(data_checksum="pe-deadbeef")
+    with pytest.raises(ConnectionRefused, match="checksum"):
+        MemoryBackend(build_game(), expect=pinned).connect()
+
+
+def test_identity_reports_the_sections_the_image_carries():
+    """How a consumer asks whether the running game is patched, without the file on disk."""
+    identity = backend(build_game()).identity
+    assert identity is not None
+    assert ".text" in identity.section_names
+    assert identity.maps(LAY.the_game_logic)
+    assert not identity.carries(".livebrg")
+
+
+def test_a_vanished_game_raises_rather_than_decoding_as_an_empty_one():
+    """The failure this exists for: an exited process reads as no objects, no players and no
+    local player, which is exactly what a finished match reads as."""
+    img = build_game()
+    live = backend(img)
+    assert live.observe().objects
+    img.die()
+    with pytest.raises(GameExited, match="not a match that ended"):
+        live.observe()
+
+
+def test_alive_answers_for_the_process_not_the_match():
+    img = build_game()
+    live = backend(img)
+    assert live.alive
+    img.die()
+    assert not live.alive
+
+
+def test_a_null_game_logic_is_not_a_dead_process():
+    """Between maps the global is null while the process is perfectly healthy. Reading zero
+    and failing to read are different answers and only one of them ends a session."""
+    img = build_game()
+    live = backend(img)
+    img.u32(LAY.the_game_logic, 0)
+    assert live.alive
+    assert live.frame() == 0
+    assert live.observe().objects == ()
 
 
 def test_frame_is_read_from_game_logic():
@@ -290,10 +510,12 @@ def test_health_is_a_fraction_and_max_is_absolute():
     assert not objects[134].is_damaged
 
 
-def test_parent_id_is_not_claimed():
-    """`Object+0x8C`/`+0x90` are the global object list's next/prev, not a container link, so
-    horde membership is not readable and is reported as absent rather than guessed."""
-    assert all(o.parent_id is None for o in backend(build_game()).read_objects())
+def test_the_list_links_are_not_the_container_link():
+    """`Object+0x8C`/`+0x90` are the global object list's next/prev and mean nothing about
+    membership - they only looked like a container link because a battalion's members are
+    created consecutively. Containment is `+0x27C`, and the lair below is in nothing."""
+    objects = {o.object_id: o for o in backend(build_game()).read_objects()}
+    assert objects[124].parent_id is None
 
 
 def test_an_object_without_a_body_is_not_reported_as_damaged():
@@ -495,3 +717,259 @@ def test_upgrades_are_empty_and_diagnosed_without_a_registry():
     assert all(p.upgrades == frozenset() for p in b.read_players())
     assert all(o.upgrades == frozenset() for o in b.read_objects())
     assert any("TheUpgradeCenter is null" in d.message for d in b.diagnostics)
+
+
+# --- production state: what a structure is currently making -------------------------------
+#
+# The last hop `live-object-model.md` §5 listed as missing. `Object+0x24C` is a NULL-terminated
+# module array, and the `ProductionUpdate` is identified by its primary vtable rather than by
+# asking each module - which the engine does with a virtual call a reader cannot make.
+
+
+def producing_game(entries, decoys: int = 0, back_pointer: int | None = None):
+    """A barracks with `entries` queued, and the registries needed to name them.
+
+    An entry is `(kind, name)` where kind is the engine's own: 1 unit, 2 upgrade, 3 revive.
+    """
+    img = FakeImage()
+    img.upgrade_center([(3, "Upgrade_GondorHeavyArmor", False)])
+    things = img.thing_factory(["DefaultThingTemplate", "GondorFighter", "GondorArcher"])
+
+    barracks_t = img.template("GondorBarracks", "Men")
+    barracks = img.game_object(barracks_t, (100.0, 200.0, 0.0), body=img.body(1.0, 3000.0))
+
+    resolved = [
+        (kind, img.upgrade_at[name] if kind == 2 else things[name]) for kind, name in entries
+    ]
+    module = img.production_update(barracks, resolved)
+    # Decoy modules ahead of it: the production module is rarely the first one an object has.
+    img.modules(barracks, [img.alloc(0x20) for _ in range(decoys)] + [module])
+    if back_pointer is not None:
+        img.u32(module + LAY.module_object, back_pointer)
+
+    img.player_list([img.player("Player_1", "Men", 500)], local=0)
+    img.game_logic(10, [img.entry(77, barracks)])
+    return img
+
+
+def test_a_barracks_training_a_unit_no_longer_reads_as_idle():
+    """The gap this closes: production state is not in the object's header at all, so a
+    building already training was indistinguishable from an empty one."""
+    img = producing_game([(1, "GondorFighter")])
+    obj = backend(img).observe().obj(77)
+    assert obj is not None
+    assert obj.producing
+    assert [(i.kind, i.name) for i in obj.production] == [("unit", "GondorFighter")]
+
+
+def test_units_and_upgrades_share_one_queue():
+    """The engine keeps a single list for both, so a barracks training and an armoury
+    researching are the same structure with different kinds."""
+    img = producing_game([(1, "GondorArcher"), (2, "Upgrade_GondorHeavyArmor")])
+    obj = backend(img).observe().obj(77)
+    assert obj is not None
+    kinds = [i.kind for i in obj.production]
+    assert kinds == ["unit", "upgrade"]
+    assert obj.production[1].name == "Upgrade_GondorHeavyArmor"
+    assert obj.production[1].is_upgrade
+
+
+def test_an_idle_building_reports_nothing_queued():
+    img = producing_game([])
+    obj = backend(img).observe().obj(77)
+    assert obj is not None
+    assert not obj.producing
+    assert obj.production == ()
+
+
+def test_an_object_with_no_modules_is_not_an_error():
+    """Most objects have no production module at all - scenery, plots, units."""
+    obj = backend(build_game()).observe().obj(132)
+    assert obj is not None
+    assert not obj.producing
+
+
+def test_the_module_is_found_past_other_modules():
+    """The array holds every behaviour module; the production one is rarely first."""
+    img = producing_game([(1, "GondorFighter")], decoys=5)
+    obj = backend(img).observe().obj(77)
+    assert obj is not None and obj.producing
+
+
+def test_a_module_that_does_not_point_back_is_refused():
+    """The self-check that makes a wrong module-list offset loud. If the walk landed on some
+    other array of pointers, the back-pointer will not name the object we came from - and
+    everything read past that point would be fiction."""
+    img = producing_game([(1, "GondorFighter")], back_pointer=0x10000000)
+    live = backend(img)
+    obj = live.observe().obj(77)
+    assert obj is not None
+    assert obj.production == ()
+    assert any("does not point back" in str(d) for d in live.diagnostics)
+
+
+def test_production_can_be_turned_off_for_a_cheaper_observation():
+    img = producing_game([(1, "GondorFighter")])
+    live = MemoryBackend(img, read_production=False)
+    live.connect()
+    obj = live.observe().obj(77)
+    assert obj is not None and not obj.producing
+
+
+def test_a_horde_member_names_its_container():
+    """`Object+0x27C` is what contains this object. Before it was found, `parent_id` was
+    always None and a battalion read as unrelated individuals."""
+    obs = backend(build_game()).observe()
+    horde = obs.obj(132)
+    members = obs.members(132)
+    assert horde is not None and horde.parent_id is None, "a container is not contained"
+    assert {m.object_id for m in members} == {133, 134}
+    assert all(m.template_name == "GondorFighter" for m in members)
+
+
+def test_an_object_contained_by_nothing_has_no_parent():
+    obs = backend(build_game()).observe()
+    lair = obs.obj(124)
+    assert lair is not None and lair.parent_id is None
+
+
+# --- how many reads an observation costs ---------------------------------------------------
+#
+# A budget, not a benchmark. Each `MemorySource.read` is a `ReadProcessMemory` syscall, and the
+# per-object count is what decides whether a policy can observe a few times a second or a few
+# dozen. It regressed silently once already - the module walk for production state added ten
+# reads per object - so it is asserted rather than remembered.
+
+
+class CountingSource:
+    """A source that counts reads, and can refuse the wide ones.
+
+    Refusing them exercises the fallback path, which is field-for-field what the reader did
+    before it batched - so the same test measures both and the improvement cannot be an
+    artefact of a different image.
+    """
+
+    def __init__(self, inner: FakeImage, wide: bool = True) -> None:
+        self.inner = inner
+        self.wide = wide
+        self.reads = 0
+
+    def read(self, address: int, size: int) -> bytes | None:
+        self.reads += 1
+        if not self.wide and size in (LAY.obj_span, LAY.body_max_health - LAY.body_health + 4):
+            return None
+        return self.inner.read(address, size)
+
+    def close(self) -> None:
+        self.inner.close()
+
+
+def crowd(n: int) -> FakeImage:
+    """`n` objects of one template, so per-template caching is exercised as it is live."""
+    img = FakeImage()
+    img.upgrade_center([(3, "Upgrade_X", False)])
+    template = img.template("GondorFighter", "Men")
+    entries = []
+    for i in range(n):
+        obj = img.game_object(template, (float(i), 0.0, 0.0), body=img.body(1.0, 99.0))
+        entries.append(img.entry(100 + i, obj))
+    img.player_list([img.player("P", "Men", 10)], local=0)
+    img.game_logic(1, entries, slots=max(64, n + 8))
+    return img
+
+
+def marginal_reads(wide: bool) -> float:
+    """Reads per object, measured as the *difference* between a small and a large observation.
+
+    The marginal cost is the honest figure: a fixed overhead of players, the object table and
+    the upgrade registry would otherwise dominate any image small enough to build in a test.
+    """
+    counts = {}
+    for n in (10, 110):
+        source = CountingSource(crowd(n), wide)
+        live = MemoryBackend(source)
+        live.connect()
+        live.upgrade_table()
+        before = source.reads
+        live.observe()
+        counts[n] = source.reads - before
+    return (counts[110] - counts[10]) / 100
+
+
+def test_an_object_costs_three_reads():
+    """The entry, the object header, and the body. Everything else on the header - position,
+    facing, team, the upgrade mask, the module pointer - comes out of the one read, and the
+    template's name and Side are cached per template rather than per object."""
+    assert marginal_reads(wide=True) <= 3.0
+
+
+def test_batching_is_what_makes_it_three():
+    """Guards the win rather than just the number: with the wide reads refused, the reader
+    falls back to a field at a time, which is what it did before batching."""
+    assert marginal_reads(wide=False) >= 15.0
+
+
+def test_the_fallback_decodes_identically():
+    """The fast path must be an optimisation and nothing else. A wide read that fails - an
+    object straddling an unmapped page, or a recorded snapshot with gaps - has to produce the
+    same observation, or the optimisation is a second decoder with its own bugs."""
+    batched = MemoryBackend(CountingSource(build_game(), wide=True))
+    batched.connect()
+    field_wise = MemoryBackend(CountingSource(build_game(), wide=False))
+    field_wise.connect()
+    assert batched.observe().to_dict() == field_wise.observe().to_dict()
+
+
+# --- model conditions: the states the engine itself tracks -----------------------------------
+#
+# A 19-dword bitset on the object, named by a NULL-terminated table in static data. It is how
+# the game knows a structure is still going up, which health cannot say - hit points ramp while
+# building, so a half-built structure and a damaged one look identical by health alone.
+
+
+def conditioned(*names: str) -> FakeImage:
+    """An image whose one structure is in the given model-condition states."""
+    img = FakeImage()
+    img.upgrade_center([(3, "Upgrade_X", False)])
+    img.model_condition_names(["FIRST", "ACTIVELY_BEING_CONSTRUCTED", "DAMAGED", "ATTACKING"])
+    template = img.template("GondorBarracks", "Men")
+    obj = img.game_object(template, (10.0, 20.0, 0.0), body=img.body(500.0, 3000.0))
+    img.set_conditions(obj, [1 if n == "ACTIVELY_BEING_CONSTRUCTED" else 2 for n in ()])
+    img.set_conditions(obj, names)
+    img.player_list([img.player("P", "Men", 10)], local=0)
+    img.game_logic(1, [img.entry(7, obj)])
+    return img
+
+
+def test_a_structure_still_going_up_says_so():
+    """The gap this closes: health ramps while building, so a half-built structure was
+    indistinguishable from a damaged one."""
+    obj = backend(conditioned("ACTIVELY_BEING_CONSTRUCTED")).observe().obj(7)
+    assert obj is not None
+    assert obj.under_construction
+    assert obj.is_in("actively_being_constructed"), "case-insensitive, like every other name"
+
+
+def test_a_finished_structure_is_not_under_construction():
+    obj = backend(conditioned("DAMAGED")).observe().obj(7)
+    assert obj is not None
+    assert not obj.under_construction
+    assert obj.conditions == frozenset({"DAMAGED"})
+
+
+def test_several_conditions_decode_together():
+    obj = backend(conditioned("DAMAGED", "ATTACKING")).observe().obj(7)
+    assert obj is not None
+    assert obj.conditions == frozenset({"DAMAGED", "ATTACKING"})
+
+
+def test_an_object_in_no_notable_state_carries_nothing():
+    obj = backend(conditioned()).observe().obj(7)
+    assert obj is not None
+    assert obj.conditions == frozenset()
+
+
+def test_conditions_cost_no_extra_read():
+    """The mask sits inside the object header the reader already takes in one read, so this
+    field is free - which is why it is on by default."""
+    assert marginal_reads(wide=True) <= 3.0

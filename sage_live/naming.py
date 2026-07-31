@@ -14,8 +14,9 @@ install-free, so `Session` cannot import the concrete resolver at all.
 
 `LiveNames` is the live half. Two of the four registries are walked by `sage_live.memory` -
 `TheUpgradeCenter` and `TheThingFactory` - so upgrade and template names need nothing on disk.
-`TheSpecialPowerStore` and `TheScienceStore` have not been walked, and say so plainly rather
-than guessing; when they are, they land here and every caller gains them without a change.
+`TheSpecialPowerStore` is walked too - it is a `std::vector` rather than a linked list, which
+is why the first pass missed it. `TheScienceStore` has not been walked and says so plainly
+rather than guessing; when it is, it lands here and every caller gains it without a change.
 
 The two halves are not equally sure of themselves. An upgrade template carries its own index,
 so its id is *read*; a thing template does not, so its id is its position in the walked list.
@@ -31,7 +32,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Protocol, runtime_checkable
 
-from sage_replay.idspace import THING_OFFSET
+from sage_replay.idspace import POWER_OFFSET, THING_OFFSET
 
 __all__ = [
     "SPACES",
@@ -115,6 +116,8 @@ class LiveSource(Protocol):
 
     def thing_order(self) -> Sequence[str]: ...
 
+    def power_order(self) -> Sequence[str]: ...
+
 
 class LiveNames:
     """A `NameLookup` backed by the running game's own registries.
@@ -133,6 +136,8 @@ class LiveNames:
         self._spelled: list[str] = []
         self._things: dict[str, int] | None = None
         self._thing_names: Sequence[str] = ()
+        self._powers: dict[str, int] | None = None
+        self._power_names: Sequence[str] = ()
 
     @property
     def upgrades(self) -> dict[str, int]:
@@ -195,8 +200,32 @@ class LiveNames:
             raise UnknownDefinition("thing", name, nearby(name, self._thing_names))
         return found
 
+    @property
+    def powers(self) -> dict[str, int]:
+        """`{lowercased power name -> order id}`, read once and cached."""
+        if self._powers is None:
+            self._power_names = self.source.power_order()
+            self._powers = {
+                name.lower(): index + POWER_OFFSET for index, name in enumerate(self._power_names)
+            }
+        return self._powers
+
     def power(self, name: str) -> int:
-        raise self._unwalked("power", "TheSpecialPowerStore")
+        """The order id for a `SpecialPower` name.
+
+        **Corroborated exactly**, which is more than `thing` can claim. Measured live
+        (2026-07-31): the engine's own `TheSpecialPowerStore` walks out 1,566 powers and the
+        ini reconstruction reads 1,566, and the two agree position by position on **every one**
+        - no empty name, no duplicate, no divergence anywhere including the tail. Two
+        independent reconstructions agreeing completely is the strongest evidence this package
+        has for any id space.
+        """
+        if not self.powers:
+            raise self._unwalked("power", "TheSpecialPowerStore")
+        found = self.powers.get(name.lower())
+        if found is None:
+            raise UnknownDefinition("power", name, nearby(name, self._power_names))
+        return found
 
     def science(self, name: str) -> int:
         raise self._unwalked("science", "TheScienceStore")

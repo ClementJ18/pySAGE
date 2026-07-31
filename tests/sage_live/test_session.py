@@ -14,6 +14,7 @@ from sage_live import (
     Observation,
     OrderType,
     PlayerState,
+    ProductionItem,
     Session,
 )
 
@@ -26,12 +27,33 @@ class FakeClock:
         return self.now
 
 
-def obj(object_id: int, template: str = "GondorFighter", side: str = "Men") -> GameObject:
+class TickingClock:
+    """A clock that advances every time it is read.
+
+    Lets a timeout be reached in a bounded number of steps with `poll=0`, so the confirmation
+    helpers are tested at full speed instead of waiting out real seconds.
+    """
+
+    def __init__(self, tick: float = 0.5) -> None:
+        self.now = 0.0
+        self.tick = tick
+
+    def __call__(self) -> float:
+        self.now += self.tick
+        return self.now
+
+
+def obj(
+    object_id: int,
+    template: str = "GondorFighter",
+    side: str = "Men",
+    position: tuple[float, float, float] | None = None,
+) -> GameObject:
     return GameObject(
         object_id=object_id,
         template_name=template,
         template_side=side,
-        position=(100.0 * object_id, 200.0, 61.0),
+        position=position or (100.0 * object_id, 200.0, 61.0),
         angle=0.0,
         health=1.0,
         max_health=255.0,
@@ -135,6 +157,100 @@ def test_fogged_observations_do_not_prune_the_selection():
     session.select([10, 11])
     session.poll()
     assert session.selection == (10, 11), "under fog, absent means unseen, not dead"
+
+
+def confirming(script) -> Session:
+    """A session whose confirmations neither sleep nor wait for a real clock."""
+    session = Session(LoopbackBackend(script), player_index=3, clock=TickingClock())
+    session.connect()
+    return session
+
+
+def test_a_throttled_order_is_not_a_refused_one():
+    """`send` returning 0 has two causes and only one of them means something is wrong."""
+    session = Session(LoopbackBackend(), player_index=3, apm_cap=1, clock=FakeClock())
+    session.connect()
+
+    first = session.select([10])
+    assert first == 1 and first.reason == ""
+
+    second = session.select([11])
+    assert second == 0
+    assert second.throttled == 1 and second.refused == 0
+    assert "APM cap" in second.reason
+
+
+def test_an_order_the_backend_would_not_take_is_reported_as_refused():
+    backend = LoopbackBackend()  # never connected, so it accepts nothing
+    session = Session(backend, player_index=3)
+    session.handshake = Handshake()  # connected as far as the session knows
+    sent = session.select([10])
+    assert sent == 0
+    assert sent.refused == 1 and sent.throttled == 0
+    assert "backend refused" in sent.reason
+
+
+def test_confirm_spend_wants_the_balance_to_fall():
+    """The oracle for a purchase: the order being taken says nothing, the gold does."""
+    session = confirming([frame(1, [], resources=1000), frame(2, [], resources=650)])
+    assert session.confirm_spend(lambda: session.select([10]), timeout=2.0) is True
+
+
+def test_confirm_spend_is_false_when_logic_quietly_discarded_the_order():
+    """The failure this exists for: accepted by the stream, discarded by logic, nothing said."""
+    session = confirming([frame(n, [], resources=1000) for n in range(1, 6)])
+    assert session.confirm_spend(lambda: session.select([10]), timeout=1.0) is False
+
+
+def test_confirm_moved_ignores_a_unit_that_stayed_put():
+    still = [obj(10, position=(100.0, 200.0, 61.0))]
+    session = confirming([frame(1, still), frame(2, still), frame(3, still)])
+    assert session.confirm_moved(lambda: session.select([10]), [10], timeout=1.0) is False
+
+
+def test_confirm_moved_sees_a_unit_that_left_its_position():
+    session = confirming(
+        [
+            frame(1, [obj(10, position=(100.0, 200.0, 61.0))]),
+            frame(2, [obj(10, position=(400.0, 200.0, 61.0))]),
+        ]
+    )
+    assert session.confirm_moved(lambda: session.select([10]), [10], timeout=2.0) is True
+
+
+def test_confirm_appeared_finds_a_building_it_never_named():
+    """`BuildVariations` means the ordered template never appears, so the test has to be what
+    turned up rather than what it is called."""
+    session = confirming(
+        [
+            frame(1, [obj(10)]),
+            frame(2, [obj(10), obj(12, template="GondorWohnhaus01", position=(50.0, 60.0, 0.0))]),
+        ]
+    )
+    appeared = session.confirm_appeared(
+        lambda: session.select([10]), near=(55.0, 62.0, 0.0), timeout=2.0
+    )
+    assert appeared is True
+
+
+def test_confirm_appeared_ignores_something_that_turned_up_elsewhere():
+    session = confirming(
+        [
+            frame(1, [obj(10)]),
+            frame(2, [obj(10), obj(12, position=(9000.0, 9000.0, 0.0))]),
+            frame(3, [obj(10), obj(12, position=(9000.0, 9000.0, 0.0))]),
+        ]
+    )
+    appeared = session.confirm_appeared(
+        lambda: session.select([10]), near=(50.0, 60.0, 0.0), timeout=1.0
+    )
+    assert appeared is False
+
+
+def test_a_scripted_session_is_alive_because_it_has_no_process_to_lose():
+    session = Session(LoopbackBackend(), player_index=3)
+    session.connect()
+    assert session.alive
 
 
 def test_apm_cap_throttles_and_the_window_slides():
@@ -260,3 +376,81 @@ def test_scripted_game_drives_a_policy_end_to_end():
     assert backend.sent[0].order_type == OrderType.CREATE_SELECTED_GROUP
     assert all(o.order_type == OrderType.DO_MOVETO for o in backend.sent[1:])
     assert all(o.player_index == 3 for o in backend.sent)
+
+
+def test_a_session_without_godsight_censors_every_observation():
+    """Applied in one place, so a policy cannot reach privileged state by using `step` instead
+    of `poll`, or by reading `latest` directly."""
+    enemy = GameObject(
+        object_id=99,
+        template_name="MordorOrcPit",
+        template_side="Mordor",
+        position=(0.0, 0.0, 0.0),
+        angle=0.0,
+        health=1.0,
+        max_health=100.0,
+        owner_index=4,
+        production=(ProductionItem("unit", "MordorFighterHorde"),),
+    )
+    script = [
+        Observation(
+            frame=n,
+            local_player=3,
+            players=(
+                PlayerState(index=3, name="me", faction="Men", resources=100),
+                PlayerState(index=4, name="foe", faction="Mordor", resources=7777),
+            ),
+            objects=(enemy,),
+        )
+        for n in (1, 2)
+    ]
+    session = Session(LoopbackBackend(script), player_index=3, godsight=False)
+    session.connect()
+
+    polled = session.poll()
+    assert polled.obj(99).production == ()
+    assert polled.player(4).resources == 0
+    assert polled.godsight is False
+    assert session.latest.player(4).resources == 0, "the cached snapshot is censored too"
+
+    stepped = session.step()
+    assert stepped.obj(99).production == ()
+
+
+def test_godsight_is_on_by_default():
+    """Changing what a session reports is a decision, not something that happens by upgrade."""
+    assert Session(LoopbackBackend()).godsight is True
+
+
+def _barracks(object_id: int, queued: int) -> GameObject:
+    return GameObject(
+        object_id=object_id,
+        template_name="GondorBarracks",
+        template_side="Men",
+        position=(0.0, 0.0, 0.0),
+        angle=0.0,
+        health=1.0,
+        max_health=3000.0,
+        owner_index=3,
+        production=tuple(ProductionItem("unit", "GondorFighterHorde") for _ in range(queued)),
+    )
+
+
+def test_confirm_queued_watches_the_building_rather_than_the_gold():
+    """The sound oracle for a recruit. Gold is contested - an enemy ability can steal it and a
+    grant can hide a spend under a rise - but the queue belongs to the building the order
+    named."""
+    session = confirming([frame(1, [_barracks(7, 0)]), frame(2, [_barracks(7, 1)])])
+    assert session.confirm_queued(lambda: session.select([7]), 7, timeout=2.0) is True
+
+
+def test_confirm_queued_is_false_when_nothing_joined_the_queue():
+    session = confirming([frame(n, [_barracks(7, 1)]) for n in range(1, 6)])
+    assert session.confirm_queued(lambda: session.select([7]), 7, timeout=1.0) is False
+
+
+def test_confirm_queued_measures_growth_not_emptiness():
+    """A queue that was already working must still register the new item - a building can hold
+    about twenty, so "is it busy" is not the question."""
+    session = confirming([frame(1, [_barracks(7, 3)]), frame(2, [_barracks(7, 4)])])
+    assert session.confirm_queued(lambda: session.select([7]), 7, timeout=2.0) is True

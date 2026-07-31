@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from sage_live.observation import GameObject, Observation, PlayerState, distance
+from sage_live.observation import GameObject, Observation, PlayerState, ProductionItem, distance
 
 
 def obj(
@@ -228,3 +228,150 @@ def test_the_snapshot_survives_json_and_keeps_the_derived_fields(match):
 
     flag = next(o for o in round_tripped["objects"] if o["object_id"] == 6)
     assert flag["has_body"] is False
+
+
+def _member(object_id: int, parent: int | None, owner: int = 3) -> GameObject:
+    return GameObject(
+        object_id=object_id,
+        template_name="GondorFighter" if parent else "GondorFighterHorde",
+        template_side="Men",
+        position=(0.0, 0.0, 0.0),
+        angle=0.0,
+        health=1.0,
+        max_health=100.0,
+        owner_index=owner,
+        parent_id=parent,
+    )
+
+
+def test_orderable_excludes_horde_members():
+    """The selection an order must be addressed to. A battalion appears as its members *plus*
+    the container; the members are driven by the container's `HordeAIUpdate`, so an order sent
+    to them is recorded by the engine and then ignored."""
+    obs = Observation(
+        frame=1,
+        local_player=3,
+        objects=(_member(10, None), _member(11, 10), _member(12, 10), _member(20, None)),
+    )
+    assert {o.object_id for o in obs.orderable(3)} == {10, 20}
+
+
+def test_members_is_the_inverse_of_parent_id():
+    obs = Observation(
+        frame=1,
+        local_player=3,
+        objects=(_member(10, None), _member(11, 10), _member(12, 10)),
+    )
+    assert {o.object_id for o in obs.members(10)} == {11, 12}
+    assert obs.members(11) == ()
+
+
+def test_orderable_is_per_player():
+    obs = Observation(
+        frame=1,
+        local_player=3,
+        objects=(_member(10, None), _member(30, None, owner=4)),
+    )
+    assert {o.object_id for o in obs.orderable(3)} == {10}
+    assert {o.object_id for o in obs.orderable(4)} == {30}
+
+
+# --- godsight: knowledge a real player could not have ---------------------------------------
+#
+# Distinct from fog. Fog is about what is *visible*; this is about what is *knowable*. A fully
+# visible enemy barracks still has no readable production queue - the interface offers no tell -
+# so a policy reading one is not playing better, it is playing a different game.
+
+
+def _with_production(object_id: int, owner: int) -> GameObject:
+    return GameObject(
+        object_id=object_id,
+        template_name="GondorBarracks",
+        template_side="Men",
+        position=(0.0, 0.0, 0.0),
+        angle=0.0,
+        health=1.0,
+        max_health=3000.0,
+        owner_index=owner,
+        production=(ProductionItem("unit", "GondorFighterHorde"),),
+    )
+
+
+def _two_sided() -> Observation:
+    return Observation(
+        frame=1,
+        local_player=3,
+        players=(
+            PlayerState(index=3, name="me", faction="Men", resources=900, power_points=4),
+            PlayerState(
+                index=4,
+                name="foe",
+                faction="Mordor",
+                resources=5000,
+                resources_collected=9000,
+                power_points=7,
+                command_points=(60, 500),
+                upgrades=frozenset({"Upgrade_MordorForgedBlades"}),
+            ),
+        ),
+        objects=(_with_production(10, owner=3), _with_production(20, owner=4)),
+    )
+
+
+def test_an_opponents_production_is_hidden_however_visible_the_building_is():
+    """Always hidden, not merely when fogged: the game gives a player no tell at all."""
+    censored = _two_sided().without_godsight()
+    assert censored.obj(20).production == ()
+    assert not censored.obj(20).producing
+
+
+def test_my_own_production_is_untouched():
+    censored = _two_sided().without_godsight()
+    assert censored.obj(10).production[0].name == "GondorFighterHorde"
+
+
+def test_an_opponents_economy_is_hidden():
+    """Gold, income, spellbook points, command points and researches are engine state with no
+    on-screen equivalent."""
+    foe = _two_sided().without_godsight().player(4)
+    assert foe.resources == 0
+    assert foe.resources_collected == 0
+    assert foe.power_points == 0
+    assert foe.command_points == (0, 0)
+    assert foe.upgrades == frozenset()
+
+
+def test_who_an_opponent_is_stays_visible():
+    """Name and faction are on screen from the first second of the match."""
+    foe = _two_sided().without_godsight().player(4)
+    assert foe.name == "foe" and foe.faction == "Mordor"
+    assert foe.playing
+
+
+def test_my_own_player_is_untouched():
+    me = _two_sided().without_godsight().player(3)
+    assert me.resources == 900 and me.power_points == 4
+
+
+def test_the_objects_are_all_still_there():
+    """This removes knowledge, not visibility. Hiding the objects themselves needs the shroud,
+    which is why `fogged` is a separate flag and stays False."""
+    censored = _two_sided().without_godsight()
+    assert len(censored.objects) == 2
+    assert censored.fogged is False
+
+
+def test_the_snapshot_records_that_it_was_censored():
+    """A saved observation outlives the session that made it, so it says so itself."""
+    assert _two_sided().godsight is True
+    assert _two_sided().without_godsight().godsight is False
+    assert _two_sided().without_godsight().to_dict()["godsight"] is False
+
+
+def test_a_viewer_can_be_named_explicitly():
+    """Censoring for someone other than the local player - what a replay of the opponent's
+    side, or a self-play run driving both seats, needs."""
+    censored = _two_sided().without_godsight(viewer=4)
+    assert censored.obj(20).production != ()
+    assert censored.obj(10).production == ()
+    assert censored.player(3).resources == 0

@@ -15,6 +15,7 @@ from sage_live import connect as connect_module
 from sage_live.connect import AttachError, NoGameRunning, NotPermitted, attach, open_backend
 from sage_live.memory import EngineLayout, MemoryBackend
 from sage_live.naming import LiveNames
+from tests.sage_live.test_memory import FakeImage
 
 
 class FakeSource:
@@ -60,13 +61,36 @@ def test_every_failure_is_an_attach_error(monkeypatch):
         attach()
 
 
-def test_a_game_with_no_logic_refuses_rather_than_returning_an_empty_session(monkeypatch):
-    """`TheGameLogic` reading null means the layout is wrong or nothing is running."""
+def test_a_process_that_is_not_the_game_refuses_before_reading_anything(monkeypatch):
+    """No readable PE image at the base means this is not `game.dat`, or the handle cannot
+    read it. Either way there is nothing to identify, so nothing is decoded."""
     monkeypatch.setattr(connect_module, "find_game_processes", lambda: [4242])
     monkeypatch.setattr(connect_module, "ProcessMemory", FakeSource)
     with pytest.raises(AttachError) as caught:
         open_backend()
+    assert "no PE image" in str(caught.value)
+
+
+def test_a_game_with_no_logic_refuses_rather_than_returning_an_empty_session(monkeypatch):
+    """The right build, but nothing running: `TheGameLogic` is null."""
+    monkeypatch.setattr(connect_module, "find_game_processes", lambda: [4242])
+    monkeypatch.setattr(connect_module, "ProcessMemory", lambda pid, writable=False: FakeImage())
+    with pytest.raises(AttachError) as caught:
+        open_backend()
     assert "TheGameLogic" in str(caught.value)
+
+
+def test_another_build_is_refused_rather_than_read_with_the_wrong_offsets(monkeypatch):
+    """The failure this gate exists for. A different `game.dat` does not read as an error - it
+    reads as data - so the build is identified before anything is decoded."""
+    monkeypatch.setattr(connect_module, "find_game_processes", lambda: [4242])
+    monkeypatch.setattr(
+        connect_module, "ProcessMemory", lambda pid, writable=False: FakeImage(timestamp=0xDEADBEEF)
+    )
+    with pytest.raises(AttachError) as caught:
+        open_backend()
+    assert "not the build the layout describes" in str(caught.value)
+    assert "0xdeadbeef" in str(caught.value)
 
 
 def test_the_first_process_is_used_when_no_pid_is_given(monkeypatch):

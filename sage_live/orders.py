@@ -27,6 +27,7 @@ records which constructors have actually made the engine *do* something:
 | `deselect` | a following `move` did nothing at all |
 | `attack_object` | unit advanced 380 units, closing on the target |
 | `recruit` | gold charged, unit appeared |
+| `recruit_hero` | gold charged, the named roster entry's hero appeared (twice, two factions) |
 | `build_at` | gold charged, structure built on a castle plot |
 | `research` | gold charged, upgrade applied |
 | `cast_at_location` | three ways: a summon spawned at the commanded point, a nuke damaged a
@@ -35,19 +36,36 @@ records which constructors have actually made the engine *do* something:
 | `cast_self` | a targetless grant raised the player's spellbook points |
 | `cast_at_object` | Faramir's Wound Arrow fired on a lair and went to cooldown |
 | `set_stance` | the hero visibly changed stance |
+| `attack_move` | two battalions walked, closing on the target for eight seconds |
+| `castle_unpack` | an `IsengardLumberMill` rose on a claimed economy plot |
 
-All thirteen have now made the engine act. `set_stance` was the one with no oracle readable from
+Sixteen have now made the engine act. `set_stance` was the one with no oracle readable from
 memory - it costs nothing, creates nothing, and its field is not a plain dword on `Object` - so it
 was confirmed by watching the game.
 
-Seven of these thirteen were wrong when this table was first written, and **every one failed by
+Seven of the first thirteen were wrong when this table was written, and **every one failed by
 doing nothing at all** - accepted by `appendMessage`, recorded in the replay, discarded by logic.
 Corpus shape agreement caught four of them; only running the game caught the rest.
 
-**Two more are corpus-shaped but not yet live-verified**, and are marked as such on themselves:
-`unpack` and `attack_move`. Given the record above - seven of thirteen wrong on first writing -
-treat them as unproven until something in the game visibly changes, and read a failure as a
-likely bug here rather than as a game rule.
+**One is still unproven**: `unpack` (`0x43F`), the explicit-template unpack. It is the rarer of
+the engine's two unpack orders - the buttons a player clicks on a plot flag send `0x43D`, which
+`castle_unpack` emits and which is verified.
+
+One correction to the advice this file used to give. It said to read a failure "as a likely bug
+here rather than as a game rule" - and `castle_unpack` is the case where that was wrong. Four
+argument shapes were tried against an *unclaimed* plot flag and every one was consumed and
+discarded, which looked exactly like a broken constructor; the order was correct all along and
+the flag simply has to be owned first. When a whole family of shapes fails identically, suspect
+a precondition.
+
+**A well-formed order is not a legitimate one.** These constructors reach the engine through
+`appendMessage`, the same path a mouse click takes, and the engine does not ask where the order
+came from - so an agent can issue actions the interface would never have offered it. The
+authority on what is legitimate is the target's own `CommandSet`: if the selected object's
+command set holds no button carrying that command, a human could not have issued it, and
+sending it anyway is cheating rather than automation. `sage_live.statics` reads command sets,
+and the check belongs in the policy - nothing here enforces it, because nothing here can tell
+an agent from a scripted convenience a human asked for.
 
 **The `player` argument does not choose who acts.** It fills `Order.player_index`, which the
 bridge does not transmit - the engine attributes an injected order to the local player itself
@@ -72,10 +90,12 @@ __all__ = [
     "cast_at_location",
     "cast_at_object",
     "cast_self",
+    "castle_unpack",
     "deselect",
     "move",
     "purchase_power",
     "recruit",
+    "recruit_hero",
     "research",
     "select",
     "set_stance",
@@ -106,6 +126,7 @@ class OrderType(IntEnum):
     DO_MOVETO = 0x42F
     DO_ATTACKMOVETO = 0x430
     DO_STOP = 0x435
+    CASTLE_UNPACK = 0x43D
     CASTLE_UNPACK_EXPLICIT_OBJECT = 0x43F
     CHANGE_STANCE = 0x468
 
@@ -175,8 +196,37 @@ def build_at(player: int, template_id: int, position: Vec3, angle: float = 0.0) 
     )
 
 
+def castle_unpack(player: int) -> Order:
+    """Unpack the **currently selected** castle plot, camp or settlement flag.
+
+    **This is what the game's own button sends, and it carries no arguments at all.** The
+    `CommandButton` on a `WirtschaftPlotFlag_Real` or an `ExpansionPlotFlag` is
+    `Command = CASTLE_UNPACK` with an *empty* `Object` field: the engine reads what to build
+    off the target's own `CastleBehavior`, picking the `CastleToUnpackForFaction` row for the
+    issuing player's faction. Naming a template here is the *other* order, `unpack`.
+
+    **Verified live** (2026-07-31, RotWK 2.01 + Edain, Isengard): a detachment walked onto an
+    unclaimed `WirtschaftPlotFlag_Real`, the flag's `owner_index` flipped from the civilian
+    player to ours, this order was sent with no arguments, and an `IsengardLumberMill` rose on
+    the flag.
+
+    **The plot must already be owned by the issuing player.** That precondition is a game rule
+    rather than anything this can check, and an order that fails it is consumed and discarded in
+    silence, exactly like a malformed one - an earlier attempt against an *unclaimed* flag was
+    discarded four different ways, every one of which looked precisely like a broken
+    constructor.
+
+    Ownership is taken by standing your own units next to the flag while no enemy is near it.
+    The distances - roughly 10 units to claim, roughly 50 for an enemy to deny - are **aims to
+    move toward, not thresholds to test against**: they are approximate, and a policy that
+    treats them as exact will refuse claims the game would have allowed. Read ownership itself
+    from `GameObject.owner_index`, which is the engine's own answer and needs no threshold.
+    """
+    return Order(player, OrderType.CASTLE_UNPACK, [])
+
+
 def unpack(player: int, template_id: int) -> Order:
-    """Build at the **currently selected plot**, with no placement interface.
+    """Build at the **currently selected plot**, naming what to build.
 
     The other build path. `build_at` drives the placement UI and therefore carries a world
     position; this one names only what to create and takes its location from the selected
@@ -190,9 +240,12 @@ def unpack(player: int, template_id: int) -> Order:
     live-install mount. On the install mount the standard rule resolves 2136/2166 (98.6%) of
     the corpus's orders of this type; under +2 it manages 47%. Resolve against the install.
 
-    **Not yet live-verified.** Shape and id rule come from the corpus
-    (`order_space_map.md` section A, `0x43F`); no order built here has yet been watched to
-    create a building. If it does nothing, suspect this before suspecting the game.
+    **Still not live-verified, and `castle_unpack` is probably what you want.** The engine has
+    *two* unpack orders and this is the rarer one: the buttons on the plot flags a player
+    actually clicks are `CASTLE_UNPACK` (`0x43D`) with an empty `Object`, and that form is now
+    verified. Nothing has been watched to build via this one, and the fixture corpus contains
+    no order of either type - the id rule below comes from a wider corpus, not from these
+    tests. If it does nothing, try `castle_unpack` before suspecting the game.
     """
     return Order(player, OrderType.CASTLE_UNPACK_EXPLICIT_OBJECT, [_int(template_id)])
 
@@ -203,9 +256,18 @@ def attack_move(player: int, position: Vec3) -> Order:
     Byte-identical in shape to `move`, and a different order type: the engine distinguishes
     them, and `move` walks units past enemies that are shooting at them.
 
-    **Not yet live-verified.** `0x430` `MSG_DO_ATTACKMOVETO` is ground truth from the binary's
-    own name table, and the single-Position signature matches `move`, but nothing has yet been
-    watched to engage on the way. Selection-dependent, like `move`.
+    **Verified live** (2026-07-31, RotWK 2.01 + Edain): two `IsengardUrukScoutHorde_StartUnit`
+    containers were selected and ordered to a point short of the enemy base. Both walked, and
+    their distance to the target fell monotonically over eight seconds - 2444 to 2353 and 2464
+    to 2389 - which is sustained pathing rather than the unit jostle a single sample would not
+    have told apart. Selection-dependent, like `move`.
+
+    That measured the *movement* half only. That it also **engages what it meets on the way**,
+    which is the whole reason to prefer it to `move`, is confirmed by the game's own behaviour
+    rather than by this package's instrumentation.
+
+    Address the horde **containers**. An order issued to their members is recorded and then
+    ignored, which reads exactly like a broken constructor.
     """
     return Order(player, OrderType.DO_ATTACKMOVETO, [_pos(position)])
 
@@ -220,20 +282,47 @@ def recruit(player: int, template_id: int) -> Order:
     second argument is read: False for a `thing_template_order` id, True for a command-slot
     index (that is the form an outpost unpack uses).
 
-    **Use the template-id form. The command-slot index is not the CommandSet file's slot
-    number.** Tested twice, and both times it produced something else entirely: slot 1 of
-    `LothlorienCastleBaseKeepCommandSet`, whose file entry 1 is
-    `Command_ConstructElvenLorienWarriorHorde`, recruited the hero Orophin; slot 7 of
-    `GondorBarracksCommandSet`, whose file entry 7 is the structure-upgrade button, recruited
-    the hero Imrahil. Both orders were accepted and charged - so this form is not broken, it is
-    indexed against something we have not identified (visible-button order, or a runtime
-    rebuild of the set). Until that is worked out, a file-derived index buys the wrong thing at
-    full price.
+    **This is the unit form. Heroes go through `recruit_hero` instead**, which is the same
+    order with the leading flag set and a *revive index* in place of the template id. Feeding
+    this function's argument to that form is what produced two heroes nobody asked for; the
+    index space is identified in `sage_live.heroes` and it is not the CommandSet's slot number.
     """
     return Order(
         player,
         OrderType.QUEUE_UNIT_CREATE,
         [_bool(False), _int(template_id), _int(-1), _bool(False), _bool(False)],
+    )
+
+
+def recruit_hero(player: int, revive_index: int) -> Order:
+    """Recruit a hero at the selected building, by its position in the revive list.
+
+    The same order as `recruit` with the leading flag **set**: that flag picks how the second
+    argument is read, and set it means a revive index rather than a `thing_template_order` id.
+
+    `revive_index` is a 0-based position in the player's `BuildableHeroesMP` list, which is
+    **not** a `CommandSet` slot and **not** static - a fielded hero leaves the list and the
+    ones behind it slide forward. `sage_live.heroes` derives it and `Session.recruit_hero`
+    tracks it across frames; the derivation, and the two live recruits that confirm the index
+    space, are documented there.
+
+    **Verified live** (RotWK 2.01 + Edain): index 7 at a `GondorBarracks` charged and produced
+    `GondorImrahil`, which is `FactionMen`'s roster entry 7; index 1 at a
+    `LothlorienCastleBaseKeep` produced `LothlorienRumil`, entry 1 of `FactionElves`.
+
+    **The engine will not stop you recruiting a hero the interface never offered.** Its own
+    gate, `BuildAssistant::canMakeUnit`, matches a REVIVE slot by counting and never reads the
+    matched button's `NeededUpgrade` - the defect `sage_patch`'s `ai-revive-gate` patch fixes
+    for the AI. So an order naming any index reachable in the producer's slot block is honoured,
+    including the slots a human's control bar hides. The Imrahil recruit above was one: the
+    barracks offers Beregond and Boromir and nothing else. `Session.recruit_hero` refuses that
+    unless the session is running with `godsight`; this constructor does not, in keeping with
+    every other one here.
+    """
+    return Order(
+        player,
+        OrderType.QUEUE_UNIT_CREATE,
+        [_bool(True), _int(revive_index), _int(-1), _bool(False), _bool(False)],
     )
 
 

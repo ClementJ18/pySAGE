@@ -3,14 +3,18 @@ produces diagnostics rather than exceptions."""
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
-from sage_live.observation import GameObject, Observation, PlayerState
+from sage_live.observation import GameObject, Observation, PlayerState, ProductionItem
 from sage_live.protocol import (
     FRAME_HEADER,
     FRAME_MAGIC,
     OBSERVATION_STRUCT_VERSION,
     PROTOCOL_VERSION,
+    Diagnostic,
+    DiagnosticLog,
     Handshake,
     MessageType,
     decode_frames,
@@ -208,3 +212,105 @@ def test_no_truncation_ever_raises(cut):
     wire = encode_observation(make_observation())
     obs, diags = decode_observation(wire[:cut])
     assert obs is None or diags == []
+
+
+def test_the_diagnostic_log_is_bounded():
+    """A backend appends per observation, and a game that has gone away appends the same
+    sentence every cycle. Unbounded, an hour-long run keeps every copy."""
+    log = DiagnosticLog(limit=4)
+    log.extend(Diagnostic(f"problem {i}") for i in range(100))
+    assert len(log) == 4
+    assert log.seen == 100
+    assert log[-1].message == "problem 99", "the newest are what a reader wants"
+
+
+def test_draining_reports_each_problem_once():
+    log = DiagnosticLog()
+    log.append(Diagnostic("first"))
+    assert [d.message for d in log.drain()] == ["first"]
+    assert list(log) == []
+    log.append(Diagnostic("second"))
+    assert [d.message for d in log.drain()] == ["second"]
+    assert log.seen == 2, "draining reports what is held, not what has happened"
+
+
+def test_every_diagnostic_reaches_the_logger(caplog):
+    """A diagnostic nobody reads is not a diagnostic - and a library must not decide to print,
+    so it logs and the application chooses."""
+    with caplog.at_level(logging.WARNING, logger="sage_live"):
+        DiagnosticLog().append(Diagnostic("the object table is unreadable", offset=8))
+    assert "the object table is unreadable" in caplog.text
+
+
+def test_object_scoped_upgrades_survive_the_round_trip():
+    """Struct version 1 dropped these silently. `LoopbackBackend` round-trips every
+    observation through this codec, so a policy tested against it saw an upgraded battalion as
+    a fresh one - and that set is the *only* thing distinguishing the two."""
+    obs = Observation(
+        frame=1,
+        local_player=0,
+        objects=(
+            GameObject(
+                object_id=5,
+                template_name="GondorFighterHorde",
+                template_side="Men",
+                position=(1.0, 2.0, 3.0),
+                angle=0.0,
+                health=1.0,
+                max_health=400.0,
+                upgrades=frozenset({"Upgrade_GondorHeavyArmor", "Upgrade_ObjectLevel2"}),
+            ),
+        ),
+    )
+    got, diags = decode_observation(encode_observation(obs))
+    assert diags == []
+    assert got is not None
+    assert got.objects[0].upgrades == obs.objects[0].upgrades
+    assert got.objects[0].veterancy == 2
+
+
+def test_player_upgrades_in_progress_survive_the_round_trip():
+    obs = Observation(
+        frame=1,
+        local_player=0,
+        players=(
+            PlayerState(
+                index=0,
+                name="Player_1",
+                faction="Men",
+                resources=100,
+                upgrades=frozenset({"Upgrade_A"}),
+                upgrades_in_progress=frozenset({"Upgrade_B"}),
+            ),
+        ),
+    )
+    got, _ = decode_observation(encode_observation(obs))
+    assert got is not None
+    assert got.players[0].upgrades_in_progress == frozenset({"Upgrade_B"})
+    assert got.players[0].researching("upgrade_b")
+
+
+def test_a_production_queue_survives_the_round_trip():
+    obs = Observation(
+        frame=1,
+        local_player=0,
+        objects=(
+            GameObject(
+                object_id=7,
+                template_name="GondorBarracks",
+                template_side="Men",
+                position=(0.0, 0.0, 0.0),
+                angle=0.0,
+                health=1.0,
+                max_health=3000.0,
+                production=(
+                    ProductionItem("unit", "GondorFighterHorde"),
+                    ProductionItem("upgrade", "Upgrade_GondorHeavyArmor"),
+                ),
+            ),
+        ),
+    )
+    got, _ = decode_observation(encode_observation(obs))
+    assert got is not None
+    assert got.objects[0].producing
+    assert got.objects[0].production == obs.objects[0].production

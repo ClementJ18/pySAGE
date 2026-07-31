@@ -21,16 +21,21 @@ Python surface is exercised with no game, no Windows and no reverse-engineering;
 backends read a live process or talk to an injected bridge. Backends are constructed
 explicitly and check their platform in the constructor, never at import.
 
-This package root is **install-free**: nothing below needs a game on disk. `resolve` turns
-code names into a specific build's integer ids, needs `sage_ini`, and is therefore not
-re-exported - import it from its own module. Upgrade names need no such load at all: the
-engine's own registry is readable, and `attach` fits it to the session automatically.
+This package root is **install-free**: nothing below needs a game on disk. Two modules do and
+are therefore not re-exported - import them from their own module:
+
+- `resolve` turns code names into a specific build's integer ids.
+- `statics` turns a template name into the ini facts about it, which is how a live object is
+  classified at all: a build plot, a horde container, a thing that counts for victory.
+
+Upgrade and template names need no such load: the engine's own registries are readable, and
+`attach` fits a `LiveNames` to the session automatically.
 
 The live layouts these backends read are documented in `sage_patch/docs/engine-globals.md`,
 `sage_patch/docs/live-object-model.md` and `sage_patch/docs/message-stream.md`.
 """
 
-from sage_live.backend import Backend, ConnectionRefused, LoopbackBackend
+from sage_live.backend import Backend, ConnectionRefused, GameExited, LoopbackBackend
 from sage_live.bridge import BridgeBackend, BridgeUnavailable
 from sage_live.connect import (
     AttachError,
@@ -39,6 +44,7 @@ from sage_live.connect import (
     attach,
     open_backend,
 )
+from sage_live.heroes import ReviveLookup, ReviveSlot
 from sage_live.memory import (
     LAYOUT_ROTWK_201,
     EngineLayout,
@@ -54,12 +60,20 @@ from sage_live.naming import (
     NoNameLookup,
     UnknownDefinition,
 )
-from sage_live.observation import GameObject, Observation, PlayerState, Vec3, distance
+from sage_live.observation import (
+    GameObject,
+    Observation,
+    PlayerState,
+    ProductionItem,
+    Vec3,
+    distance,
+)
 from sage_live.orders import OrderType
 from sage_live.protocol import (
     OBSERVATION_STRUCT_VERSION,
     PROTOCOL_VERSION,
     Diagnostic,
+    DiagnosticLog,
     Frame,
     Handshake,
     MessageType,
@@ -70,10 +84,23 @@ from sage_live.protocol import (
     encode_handshake,
     encode_observation,
 )
-from sage_live.session import DEFAULT_APM_CAP, APMLimiter, NoSelection, Session
+from sage_live.session import (
+    BUILD_CONFIRM,
+    DEFAULT_APM_CAP,
+    DEFAULT_CONFIRM,
+    APMLimiter,
+    IllegitimateOrder,
+    NoReviveLookup,
+    NoSelection,
+    Sent,
+    Session,
+)
+from sage_live.snapshot import RecordingSource, SnapshotSource
 
 __all__ = [
+    "BUILD_CONFIRM",
     "DEFAULT_APM_CAP",
+    "DEFAULT_CONFIRM",
     "LAYOUT_ROTWK_201",
     "OBSERVATION_STRUCT_VERSION",
     "PROTOCOL_VERSION",
@@ -84,10 +111,13 @@ __all__ = [
     "BridgeUnavailable",
     "ConnectionRefused",
     "Diagnostic",
+    "DiagnosticLog",
     "EngineLayout",
     "Frame",
+    "GameExited",
     "GameObject",
     "Handshake",
+    "IllegitimateOrder",
     "LiveNames",
     "LoopbackBackend",
     "MemoryBackend",
@@ -96,12 +126,19 @@ __all__ = [
     "NameLookup",
     "NoGameRunning",
     "NoNameLookup",
+    "NoReviveLookup",
     "NoSelection",
     "NotPermitted",
     "Observation",
     "OrderType",
     "PlayerState",
     "ProcessMemory",
+    "ProductionItem",
+    "RecordingSource",
+    "ReviveLookup",
+    "ReviveSlot",
+    "Sent",
+    "SnapshotSource",
     "Session",
     "UnknownDefinition",
     "UpgradeDefinition",

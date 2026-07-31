@@ -17,13 +17,14 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 
 __all__ = [
     "NON_PLAYING_FACTIONS",
     "GameObject",
     "Observation",
     "PlayerState",
+    "ProductionItem",
     "Vec3",
     "distance",
 ]
@@ -121,6 +122,15 @@ class PlayerState:
         lowered = upgrade.lower()
         return any(name.lower() == lowered for name in self.upgrades_in_progress)
 
+    def as_opponent(self) -> PlayerState:
+        """This player as an opponent may see them: who they are, and nothing else.
+
+        Everything stripped here is engine state a real player has no way to read - the gold
+        an opponent holds, what they have researched, how much army they are carrying. Name
+        and faction survive because both are on screen from the moment the match starts.
+        """
+        return PlayerState(index=self.index, name=self.name, faction=self.faction, resources=0)
+
     def to_dict(self) -> dict[str, object]:
         """A JSON-safe view, including the computed fields.
 
@@ -135,6 +145,30 @@ class PlayerState:
             "playing": self.playing,
             "command_points_free": self.command_points_free,
         }
+
+
+@dataclass(frozen=True)
+class ProductionItem:
+    """One entry in a structure's production queue.
+
+    Units and upgrades share a single queue on the engine's `ProductionUpdate`, so a barracks
+    training infantry and an armoury researching blades are the same list with different
+    `kind`s. That is the engine's shape, not a simplification: `queueCreateUnit` and
+    `queueUpgrade` append to the same list.
+
+    `name` is resolved by **pointer identity** against the registries the backend already
+    walks, so a template this build does not define answers `""` rather than a guess. An empty
+    name therefore means "the queue holds something we could not name", never "the queue is
+    empty" - the entry's presence is the fact, the name is the convenience.
+    """
+
+    # "unit", "upgrade" or "revive" - the engine's own kinds, 1, 2 and 3.
+    kind: str
+    name: str = ""
+
+    @property
+    def is_upgrade(self) -> bool:
+        return self.kind == "upgrade"
 
 
 @dataclass(frozen=True)
@@ -168,14 +202,26 @@ class GameObject:
     health: float
     max_health: float
     owner_index: int | None = None
-    # Horde membership. The engine links members through the parent container, and this is
-    # information the replay order stream cannot express, since its arguments are opaque
-    # runtime handles.
+    # What contains this object: the horde a battalion member belongs to, and in principle any
+    # other container. None means it stands on its own - which a container itself does.
+    #
+    # This is the exact test for "should I address an order to this object": a member is driven
+    # by its container's AI, and an order sent to a member is recorded by the engine and then
+    # ignored. `Observation.orderable` applies it.
     parent_id: int | None = None
     # Completed OBJECT-scoped upgrades, by code name. A horde and each of its members carry the
     # same set: the engine applies a battalion purchase to the container and to every member,
     # so a consumer counting upgrades across objects will see it once per member.
     upgrades: frozenset[str] = frozenset()
+    # The engine's own `ModelConditionFlags` for this object: the states the game itself
+    # tracks and animates from - `ACTIVELY_BEING_CONSTRUCTED`, `DAMAGED`, `RUBBLE`,
+    # `GARRISONED`, `ATTACKING`, the `DOOR_*` production animations. Empty for an object in no
+    # notable state, and empty when the name table could not be read.
+    conditions: frozenset[str] = frozenset()
+    # What this structure is currently making, in queue order. Empty for anything that is not
+    # producing *and* for everything without a production module, which is most objects - use
+    # `producing` rather than testing this against None.
+    production: tuple[ProductionItem, ...] = ()
 
     @property
     def has_body(self) -> bool:
@@ -189,6 +235,32 @@ class GameObject:
     @property
     def is_damaged(self) -> bool:
         return self.has_body and self.health < 1.0
+
+    @property
+    def under_construction(self) -> bool:
+        """Whether this structure is still going up.
+
+        The engine's own `ACTIVELY_BEING_CONSTRUCTED` condition. Health cannot answer this: a
+        structure ramps its hit points as it builds, so a half-built one is indistinguishable
+        from a damaged one by health alone - which is exactly why this was an open gap.
+        """
+        return self.is_in("ACTIVELY_BEING_CONSTRUCTED")
+
+    def is_in(self, condition: str) -> bool:
+        """Whether the engine has this `ModelCondition` set, case-insensitively."""
+        wanted = condition.lower()
+        return any(name.lower() == wanted for name in self.conditions)
+
+    @property
+    def producing(self) -> bool:
+        """Whether this structure is currently training a unit or researching an upgrade.
+
+        The question a build order has to ask and could not, before: a barracks already
+        training read as idle, so a policy queued into a building that was busy and wondered
+        why nothing was charged. Note that "idle" and "has no production module" are the same
+        answer here - both are False - because both mean "do not send it work".
+        """
+        return bool(self.production)
 
     @property
     def hit_points(self) -> float:
@@ -236,6 +308,9 @@ class GameObject:
             "is_damaged": self.is_damaged,
             "hit_points": self.hit_points,
             "veterancy": self.veterancy,
+            "producing": self.producing,
+            "conditions": sorted(self.conditions),
+            "under_construction": self.under_construction,
         }
 
 
@@ -254,6 +329,10 @@ class Observation:
     objects: tuple[GameObject, ...] = ()
     # True when the producer applied per-player visibility. False means whole-map.
     fogged: bool = False
+    # True when this snapshot still carries things a real player could never know. The
+    # snapshot says so itself rather than leaving it to the consumer to remember how the
+    # session was opened - a saved observation outlives the session that made it.
+    godsight: bool = True
 
     @property
     def in_match(self) -> bool:
@@ -314,6 +393,29 @@ class Observation:
 
     def owned_by(self, index: int) -> tuple[GameObject, ...]:
         return tuple(o for o in self.objects if o.owner_index == index)
+
+    def members(self, object_id: int) -> tuple[GameObject, ...]:
+        """The objects contained by `object_id` - a horde's battalion, a garrison's occupants.
+
+        The inverse of `GameObject.parent_id`. Empty for anything that contains nothing, which
+        is most objects.
+        """
+        return tuple(o for o in self.objects if o.parent_id == object_id)
+
+    def orderable(self, index: int) -> tuple[GameObject, ...]:
+        """A player's objects that an order should actually be addressed to.
+
+        **Horde members are excluded, and this is not a nicety.** A battalion appears as its
+        members *plus* the container, the members are driven by the container's `HordeAIUpdate`,
+        and an order issued to them is recorded by the engine and then ignored - the failure
+        that looks exactly like a broken constructor.
+
+        `parent_id` makes this exact and free: a member is anything that something else
+        contains. The name-based test in `sage_live.statics` reaches the same answer from ini
+        and remains useful offline, but this needs no game files and cannot disagree with the
+        running game.
+        """
+        return tuple(o for o in self.owned_by(index) if o.parent_id is None)
 
     def by_side(self, side: str) -> tuple[GameObject, ...]:
         return tuple(o for o in self.objects if o.template_side == side)
@@ -384,6 +486,40 @@ class Observation:
         """
         return Counter(o.template_name for o in (self.objects if objects is None else objects))
 
+    def without_godsight(self, viewer: int | None = None) -> Observation:
+        """The same snapshot with everything a real player could not know removed.
+
+        **Not the same question as fog.** Fog is about what is *visible*; this is about what is
+        *knowable at all*. A fully visible enemy barracks still has no readable production
+        queue - the interface offers no tell, so a policy reading one is not playing better,
+        it is playing a different game. Two leaks of that kind exist here:
+
+        - **what an opponent is producing.** Removed for every object the viewer does not own,
+          however plainly that object can be seen.
+        - **an opponent's economy** - gold, income, spellbook points, command points and the
+          faction-wide upgrades they have researched. All of it is engine state with no
+          on-screen equivalent, so an opponent keeps only what the UI shows: who they are and
+          which faction they play.
+
+        Own objects and own economy are untouched, and every object stays in the list: this
+        removes *knowledge*, not *visibility*. Hiding the objects themselves needs the shroud,
+        which is why `fogged` is a separate flag and is not set by this.
+
+        **Allied vision is not modelled yet.** Alliances are not read from the engine, so an
+        ally is treated as another player and their economy is removed with everyone else's.
+        That is the conservative direction - it hides more than a real player would see, never
+        less - and it is the same team data the shroud work will need.
+        """
+        seat = self.local_player if viewer is None else viewer
+        return replace(
+            self,
+            godsight=False,
+            players=tuple(p if p.index == seat else p.as_opponent() for p in self.players),
+            objects=tuple(
+                o if o.owner_index == seat else replace(o, production=()) for o in self.objects
+            ),
+        )
+
     def to_dict(self) -> dict[str, object]:
         """A JSON-safe view of the whole snapshot.
 
@@ -396,6 +532,7 @@ class Observation:
             "frame": self.frame,
             "local_player": self.local_player,
             "fogged": self.fogged,
+            "godsight": self.godsight,
             "in_match": self.in_match,
             "players": [p.to_dict() for p in self.players],
             "objects": [o.to_dict() for o in self.objects],

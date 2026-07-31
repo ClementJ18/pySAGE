@@ -9,9 +9,26 @@ Fetching bytes is separated from interpreting them. Everything below reads throu
 exercised against a synthetic image in the data-free suite, and only `ProcessMemory` needs
 a real game. `ctypes` is stdlib, so this module adds no dependency.
 
-**Addresses are build-specific.** `LAYOUT_ROTWK_201` is verified against RotWK 2.01 + Edain
-(`game.dat`, 11,346,944 bytes); the derivation is in `sage_patch/docs/engine-globals.md` and
-`sage_patch/docs/live-object-model.md`. Pass a different `EngineLayout` for another build.
+**Addresses are build-specific, and `connect` checks the build.** `LAYOUT_ROTWK_201` is
+verified against RotWK 2.01 (PE timestamp `0x460DA09E`); the derivation is in
+`sage_patch/docs/engine-globals.md` and `sage_patch/docs/live-object-model.md`. Pass a
+different `EngineLayout` for another build - and note that reading the *wrong* build with
+these offsets never fails, it reports nonsense, which is why `sage_live.identity` gates it.
+
+**An observation costs three reads per object**, and that is asserted rather than hoped for -
+see `test_an_object_costs_three_reads`. Each `MemorySource.read` is a `ReadProcessMemory`
+syscall, so the per-object count is what decides whether a policy observes a few times a second
+or a few dozen. Three is the entry, the object header, and the body: everything else on the
+header comes out of the one read, a template's name and Side are cached per template rather
+than per object, and a template already known to carry no `ProductionUpdate` skips the module
+walk entirely.
+
+Every wide read has a **field-by-field fallback**, and the two must decode identically. That is
+not defensive decoration: an object whose header straddles into an unmapped page fails the wide
+read while each field inside it reads perfectly, and a recorded snapshot holds only the ranges
+its capture touched. The fallback is also what the reader did before it batched, which is how
+the improvement is measured - refusing the wide reads turns the fast path back into the old one
+on the same image, and the marginal cost goes from 3 back to 16.
 
 Two limits worth knowing before building on this:
 
@@ -41,16 +58,26 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-from sage_live.backend import ConnectionRefused
-from sage_live.observation import GameObject, Observation, PlayerState
-from sage_live.protocol import Diagnostic, Handshake
+from sage_live.backend import ConnectionRefused, GameExited
+from sage_live.identity import ROTWK_201_TIMESTAMP, BuildIdentity, read_identity
+from sage_live.observation import GameObject, Observation, PlayerState, ProductionItem
+from sage_live.protocol import Diagnostic, DiagnosticLog, Handshake
 from sage_patch.addresses import (
+    BUILD,
+    IMAGE_BASE,
+    OBJECT_MODULE_LIST,
+    PRODUCTION_UPDATE_VTABLE,
     THE_GAME_LOGIC,
     THE_MESSAGE_STREAM,
     THE_PLAYER_LIST,
+    THE_SPECIAL_POWER_STORE,
     THE_THING_FACTORY,
     THE_UPGRADE_CENTER,
 )
+from sage_patch.patches.model_conditions import MASK_DWORDS as MODEL_CONDITION_DWORDS
+from sage_patch.patches.model_conditions import MASK_OFFSET as MODEL_CONDITION_MASK
+from sage_patch.patches.model_conditions import NAME_TABLE_VA as MODEL_CONDITION_NAMES
+from sage_patch.patches.model_conditions import STOCK_BIT_COUNT as MODEL_CONDITION_COUNT
 from sage_replay.replay import Order
 
 __all__ = [
@@ -78,6 +105,13 @@ class EngineLayout:
     Defaults are RotWK 2.01 + Edain. Every field here was confirmed against a running
     process, not inferred from shape alone.
     """
+
+    # Which image these offsets are meaningful for, as its PE `TimeDateStamp`. `connect`
+    # reads the same number out of the running process and refuses a mismatch, because
+    # reading the wrong build with these offsets does not fail - it reports nonsense that
+    # looks like data. **0 disables the check**, which is what a layout for an unidentified
+    # build should carry: no gate is honest, a wrong gate is not.
+    build_timestamp: int = ROTWK_201_TIMESTAMP
 
     # Subsystem globals come from `sage_patch.addresses`, the single description of this
     # build, so the addresses this reads and the ones the live-bridge cave calls cannot drift.
@@ -149,9 +183,23 @@ class EngineLayout:
     tf_count: int = 0x10
     tmpl_next: int = 0x494
 
+    # SpecialPowerStore - the third of the four id spaces, and the one registry that is **not**
+    # a linked list. It is a `std::vector` of `SpecialPowerTemplate*`: `{begin, end, capacity}`
+    # at `+0x0C`, so the count is `(end - begin) / 4` and there is no count field to check it
+    # against. That shape is why the list walk used for the other two never found it.
+    the_special_power_store: int = THE_SPECIAL_POWER_STORE
+    sps_vector: int = 0x0C
+    power_name: int = 0x10  # AsciiString on the template
+    # A vector longer than this is a bad read rather than a real store.
+    max_powers: int = 1 << 14
+
     # Object
     obj_template: int = 0x04
     obj_team: int = 0x31C  # Team*, resolved to a player via `player_default_team`
+    # A pointer to a **NULL-terminated** array of `BehaviorModule*`. This is the hop
+    # `live-object-model.md` §5 named as the one thing missing for a live consumer: production
+    # state lives on a module, and this is how an object reaches its modules.
+    obj_modules: int = OBJECT_MODULE_LIST
     # Completed OBJECT-scoped upgrades, same bitset layout as the player's masks. An object has
     # no in-progress mask; the player's carries that, unclearable.
     obj_upgrades_completed: int = 0x28C
@@ -160,6 +208,32 @@ class EngineLayout:
     obj_pos_z: int = 0x34
     obj_cos: int = 0x08
     obj_sin: int = 0x18
+    # The engine's `ModelConditionFlags` - a 19-dword bitset of the states an object is in,
+    # named by a NULL-terminated table of 591 strings in the image. This is how the game itself
+    # knows a structure is still going up (`ACTIVELY_BEING_CONSTRUCTED`), a building is working
+    # its door animation, or a unit is attacking - and it sits inside `obj_span`, so reading it
+    # costs no read of its own. Offsets are `sage_patch.patches.model_conditions`, whose
+    # production-condition patch writes to this same mask.
+    obj_model_conditions: int = MODEL_CONDITION_MASK
+    model_condition_words: int = MODEL_CONDITION_DWORDS
+    the_model_condition_names: int = MODEL_CONDITION_NAMES
+    model_condition_count: int = MODEL_CONDITION_COUNT
+
+    # **What contains this object** - the horde a battalion member belongs to. `Object*`, or 0
+    # for anything standing on its own, which includes the container itself.
+    #
+    # Found differentially against a live match rather than by disassembly: of every dword in a
+    # member's first `0x400` bytes, this is the one holding its container's address, and it did
+    # so for 22 of 23 members while no other offset managed more than 2. Corroborated across
+    # four factions at once - every one of the 38 objects carrying it pointed at a real object
+    # in the table, none stood more than 200 units from it, and the template pairs are all
+    # `X -> XHorde`, including an `ImladrisBanner` inside a `BruchtalLancerHorde` where the
+    # names differ but the membership is right.
+    #
+    # Almost certainly SAGE's `m_containedBy`, which is the more general "what am I inside" -
+    # so a garrisoned or transported unit should report its holder here too. Only horde
+    # membership has been observed, so only that is claimed.
+    obj_contained_by: int = 0x27C
     # `next` and `prev` of one **global** doubly-linked list holding every live object, not any
     # kind of parent link. Measured: 317 of 318 objects link, the two are exact inverses for
     # every one of them, there is a single head and a single tail, and walking `next` from the
@@ -168,6 +242,11 @@ class EngineLayout:
     obj_list_next: int = 0x8C
     obj_list_prev: int = 0x90
     obj_body: int = 0x25C
+    # How much of an `Object` one read takes. Sized to reach past the last field read inline -
+    # the team pointer at `+0x31C` - so a single read serves the whole header, upgrade mask
+    # included. Widening it costs bytes; narrowing it silently reintroduces per-field reads
+    # through the fallback path.
+    obj_span: int = 0x320
 
     # BodyModule
     body_health: int = 0x08
@@ -176,6 +255,28 @@ class EngineLayout:
     # ThingTemplate
     tmpl_name: int = 0x64
     tmpl_side: int = 0x6C
+
+    # ProductionUpdate - what a structure is currently making.
+    #
+    # The module is identified by its **primary vtable**, which is unique to the class, so this
+    # needs none of the engine calls `getProductionUpdateInterface` makes and cannot mistake a
+    # different module for this one. Units and upgrades share one queue, appended at the tail.
+    production_update_vtable: int = PRODUCTION_UPDATE_VTABLE
+    module_object: int = 0x08  # Object* back-pointer, used to check the walk landed correctly
+    production_head: int = 0x28
+    production_tail: int = 0x2C
+    production_count: int = 0x34
+    # ProductionEntry, 0x54 bytes. `kind` is 1 for a unit, 2 for an upgrade, 3 for a hero
+    # revive; the unit kinds keep a `ThingTemplate*` and the upgrade kind an `UpgradeTemplate*`,
+    # in different slots.
+    entry_kind: int = 0x04
+    entry_template: int = 0x08
+    entry_upgrade: int = 0x0C
+    entry_next: int = 0x48
+    # Walk guards. A queue longer than this, or an object with more modules, means a corrupt
+    # read rather than a real structure - refuse rather than spin.
+    max_queue: int = 64
+    max_modules: int = 64
 
     # AsciiString: {u32 refcount; u32 allocated; char chars[]}
     string_chars: int = 8
@@ -339,27 +440,66 @@ class MemoryBackend:
         layout: EngineLayout = LAYOUT_ROTWK_201,
         handshake: Handshake | None = None,
         expect: Handshake | None = None,
+        read_production: bool = True,
     ) -> None:
         self.source = source
         self.layout = layout
-        self._handshake = handshake or Handshake(engine_build="RotWK 2.01", fog_of_war=False)
+        # Reading production state costs a module-list walk per object - one read for the array
+        # plus one per module until the `ProductionUpdate` is found or the list ends. That is
+        # the largest per-object cost here after the object itself, so a consumer polling every
+        # frame and not asking "what is this building making" can turn it off.
+        self.read_production = read_production
+        # Declared rather than agreed. A caller-supplied handshake is used unchanged; the
+        # default one is built at connect time out of what the running image actually says,
+        # so `expect` has something real to gate on.
+        self._declared = handshake
+        self._handshake = handshake or Handshake(engine_build=BUILD, fog_of_war=False)
+        self._identity: BuildIdentity | None = None
         self._expect = expect
-        self._diagnostics: list[Diagnostic] = []
+        self._diagnostics = DiagnosticLog()
         self._connected = False
         self._latest: Observation | None = None
         self._upgrades: dict[int, UpgradeDefinition] | None = None
         self._upgrade_word_count: int | None = None
         self._things: tuple[str, ...] | None = None
+        self._powers: tuple[str, ...] | None = None
+        self._conditions: tuple[str, ...] | None = None
+        # `{template address -> name}` for both registries, filled by the walks above and used
+        # to name whatever a production queue entry points at.
+        self._thing_at: dict[int, str] = {}
+        self._upgrade_at: dict[int, str] = {}
+        # Per-template caches. A template's strings and its module composition are fixed once
+        # ini parsing is done, so both are read once per template rather than once per object.
+        self._template_at: dict[int, tuple[str, str]] = {}
+        self._template_produces: dict[int, bool] = {}
 
     @property
-    def diagnostics(self) -> Sequence[Diagnostic]:
-        return tuple(self._diagnostics)
+    def diagnostics(self) -> DiagnosticLog:
+        return self._diagnostics
 
     @property
     def connected(self) -> bool:
         return self._connected
 
+    @property
+    def identity(self) -> BuildIdentity | None:
+        """What the running image says it is, once connected."""
+        return self._identity
+
     def connect(self) -> Handshake:
+        """Identify the build, agree the handshake, and confirm a game is running.
+
+        In that order, because each failure is more specific than the last and the first
+        message that fits is the useful one: "this is not that build" is a better report than
+        "TheGameLogic is null", which is what a wrong build looks like from the inside.
+        """
+        self._identity = self._identify()
+        if self._declared is None:
+            self._handshake = Handshake(
+                engine_build=BUILD,
+                data_checksum=self._identity.fingerprint,
+                fog_of_war=False,
+            )
         if self._expect is not None:
             ok, why = self._expect.accepts(self._handshake)
             if not ok:
@@ -370,6 +510,26 @@ class MemoryBackend:
             )
         self._connected = True
         return self._handshake
+
+    def _identify(self) -> BuildIdentity:
+        """The running image, refused unless it is the build this layout describes."""
+        identity = read_identity(self.source.read, IMAGE_BASE)
+        if identity is None:
+            raise ConnectionRefused(
+                f"no PE image is mapped at {IMAGE_BASE:#010x}: this is not a game.dat process, "
+                "the handle cannot read it (an unelevated shell), or the image was relocated - "
+                "and a relocated image invalidates every address in the layout"
+            )
+        expected = self.layout.build_timestamp
+        if expected and identity.timestamp != expected:
+            raise ConnectionRefused(
+                f"this is not the build the layout describes: the running game.dat is stamped "
+                f"{identity.timestamp:#010x}, and these offsets were confirmed against "
+                f"{expected:#010x}. Reading it anyway would not fail - it would report plausible "
+                "nonsense - so pass an EngineLayout for this build, or set `build_timestamp` to 0 "
+                "in --layout-json to read it unverified"
+            )
+        return identity
 
     def close(self) -> None:
         self._connected = False
@@ -444,6 +604,8 @@ class MemoryBackend:
             name = self._ascii(node + lay.upgrade_name)
             upgrade_id = self._i32(node + lay.upgrade_index)
             # id 0 is a real upgrade (`Upgrade_Veterancy_VETERAN`), so only negatives are junk.
+            if name:
+                self._upgrade_at[node] = name
             if name and upgrade_id is not None and upgrade_id >= 0:
                 table[upgrade_id] = UpgradeDefinition(
                     upgrade_id=upgrade_id,
@@ -503,6 +665,9 @@ class MemoryBackend:
                 if chars:
                     name = chars.split(b"\x00")[0].decode("latin-1", errors="replace")
             walked.append(name)
+            # Kept so a pointer held by something else - a production queue entry - can be
+            # resolved to a name by identity rather than by a second guess at a layout.
+            self._thing_at[node] = name
             nxt = struct.unpack_from("<I", blob, lay.tmpl_next)[0]
             node = nxt if _MIN_PTR <= nxt <= _MAX_PTR else None
 
@@ -516,6 +681,119 @@ class MemoryBackend:
             )
         self._things = tuple(reversed(walked))
         return self._things
+
+    def power_order(self) -> tuple[str, ...]:
+        """Every `SpecialPower` name in registration order, from `TheSpecialPowerStore`.
+
+        The index is the 0-based registration index, so an order id is
+        `index + sage_replay.idspace.POWER_OFFSET`. Index 0 walks out as `DefaultSpecialPower`,
+        which is what a 1-based id space puts first - the same corroboration `thing_order` has.
+
+        **Corroborated exactly.** Measured against a live RotWK 2.01 + Edain match
+        (2026-07-31): this walk reads 1,566 powers and the ini reconstruction reads 1,566, and
+        they agree **position by position on all 1,566**, with no empty name and no duplicate.
+        The two are independent - one walks the engine's own vector, the other parses ini - so
+        that is a stronger agreement than either gives alone, and stronger than the thing
+        table's, which diverges in its tail.
+
+        Unlike the other registries this is a vector, not a list, so there is no count field to
+        cross-check the walk against; the bound below is a sanity limit, not a checksum.
+        """
+        if self._powers is not None:
+            return self._powers
+        lay = self.layout
+        store = self._pointer(lay.the_special_power_store)
+        if store is None:
+            self._diagnostics.append(Diagnostic("TheSpecialPowerStore is null; powers unnamed"))
+            self._powers = ()
+            return self._powers
+        begin = self._pointer(store + lay.sps_vector)
+        end = self._u32(store + lay.sps_vector + 4)
+        if begin is None or end is None or end < begin:
+            self._diagnostics.append(Diagnostic("the special-power vector is unreadable"))
+            self._powers = ()
+            return self._powers
+        count = (end - begin) // 4
+        if not (0 < count <= lay.max_powers):
+            self._diagnostics.append(Diagnostic(f"implausible special-power count {count}"))
+            self._powers = ()
+            return self._powers
+        raw = self.source.read(begin, count * 4)
+        if raw is None:
+            self._powers = ()
+            return self._powers
+        names: list[str] = []
+        for template in struct.unpack(f"<{count}I", raw):
+            if not (_MIN_PTR <= template <= _MAX_PTR):
+                names.append("")
+                continue
+            names.append(self._ascii(template + lay.power_name))
+        self._powers = tuple(names)
+        return self._powers
+
+    def model_condition_names(self) -> tuple[str, ...]:
+        """The engine's `ModelConditionFlags` names, in bit order, read from the image.
+
+        A NULL-terminated table of `char*` in static data, so this is the one registry that
+        needs no heap walk at all - and it cannot drift, because the same table is what the
+        game's own ini parser resolves a `ModelConditionState` name against.
+
+        The count is checked rather than trusted: the table is walked to its terminator and
+        compared against the bit count the engine's own loops use, since a table shorter than
+        the count is exactly what `sage_patch`'s production-condition patch warns about - the
+        single-bit-name helper indexes it with no bound check.
+        """
+        if self._conditions is not None:
+            return self._conditions
+        lay = self.layout
+        names: list[str] = []
+        for index in range(lay.model_condition_count + 1):
+            pointer = self._pointer(lay.the_model_condition_names + index * 4)
+            if pointer is None:
+                break
+            raw = self.source.read(pointer, 64)
+            if raw is None:
+                break
+            names.append(raw.split(b"\x00")[0].decode("latin-1", errors="replace"))
+        if names and len(names) != lay.model_condition_count:
+            self._diagnostics.append(
+                Diagnostic(
+                    f"walked {len(names)} model-condition names but this build declares "
+                    f"{lay.model_condition_count}"
+                )
+            )
+        self._conditions = tuple(names)
+        return self._conditions
+
+    def _conditions_at(self, blob: bytes | None, obj_ptr: int) -> frozenset[str]:
+        """Decode an object's `ModelConditionFlags` into names.
+
+        Costs no read of its own: the mask lives inside the object header `obj_span` already
+        covers. Names are only looked up once a bit is actually set, so an object in no
+        interesting state pays for nothing.
+        """
+        lay = self.layout
+        base, span = lay.obj_model_conditions, lay.model_condition_words * 4
+        if blob is not None and base + span <= len(blob):
+            raw: bytes | None = blob[base : base + span]
+        else:
+            raw = self.source.read(obj_ptr + base, span)
+        if not raw:
+            return frozenset()
+        bits = int.from_bytes(raw, "little")
+        if not bits:
+            return frozenset()
+        names = self.model_condition_names()
+        if not names:
+            return frozenset()
+        found: list[str] = []
+        while bits:
+            lowest = bits & -bits
+            index = lowest.bit_length() - 1
+            if index < len(names):
+                found.append(names[index])
+            bits ^= lowest
+        return frozenset(found)
 
     def _upgrade_words(self) -> int:
         """How many dwords of a bitset can hold every upgrade this build defines.
@@ -538,16 +816,26 @@ class MemoryBackend:
         return self._upgrade_word_count
 
     def _upgrades_at(
-        self, base_ptr: int, base: int, player_scope: bool | None = None
+        self,
+        base_ptr: int,
+        base: int,
+        player_scope: bool | None = None,
+        blob: bytes | None = None,
     ) -> frozenset[str]:
         """Decode one upgrade bitset into code names.
 
         `player_scope` filters by the definition's scope: the player's in-progress mask records
         object-scoped upgrades too and never clears them, so reporting those would mean claiming
         a battalion upgrade is pending for the rest of the match.
+
+        `blob` is the already-read header the mask sits inside, so an object's mask costs no
+        read of its own. The layout's `obj_span` is sized to contain it.
         """
         words = self._upgrade_words()
-        raw = self.source.read(base_ptr + base, words * 4)
+        if blob is not None and base + words * 4 <= len(blob):
+            raw: bytes | None = blob[base : base + words * 4]
+        else:
+            raw = self.source.read(base_ptr + base, words * 4)
         if raw is None:
             return frozenset()
         table = self.upgrade_table()
@@ -643,11 +931,15 @@ class MemoryBackend:
         for entry_ptr in struct.unpack(f"<{slots}I", raw):
             if not (_MIN_PTR <= entry_ptr <= _MAX_PTR):
                 continue
-            obj_ptr = self._pointer(entry_ptr + lay.entry_object)
-            if obj_ptr is None:
+            # The id and the object pointer are adjacent, so one read serves both.
+            head = self.source.read(entry_ptr + lay.entry_id, lay.entry_object - lay.entry_id + 4)
+            if head is None:
+                continue
+            object_id, obj_ptr = struct.unpack_from("<II", head)
+            if not (_MIN_PTR <= obj_ptr <= _MAX_PTR):
                 continue
             entries.append((entry_ptr, obj_ptr))
-            id_of[obj_ptr] = self._u32(entry_ptr + lay.entry_id) or 0
+            id_of[obj_ptr] = object_id
 
         owner_of = self._team_owners()
         objects: list[GameObject] = []
@@ -685,64 +977,247 @@ class MemoryBackend:
                 owners.setdefault(team, index)
         return owners
 
+    def _body_values(self, body: int) -> tuple[float | None, float | None]:
+        """Current and maximum hit points, in one read where the span is readable.
+
+        Falls back to reading each field on its own, for the same reason the object header
+        does: a span crossing into an unmapped page fails as a whole while each field inside it
+        reads perfectly, and a recorded snapshot holds only the ranges its capture touched.
+        """
+        lay = self.layout
+        span = lay.body_max_health - lay.body_health + 4
+        raw = self.source.read(body + lay.body_health, span)
+        if raw is not None and len(raw) >= span:
+            return (
+                float(struct.unpack_from("<f", raw, 0)[0]),
+                float(struct.unpack_from("<f", raw, span - 4)[0]),
+            )
+        return self._f32(body + lay.body_health), self._f32(body + lay.body_max_health)
+
+    def _template_info(self, template: int) -> tuple[str, str] | None:
+        """`(name, Side)` for a `ThingTemplate`, cached by address.
+
+        Four reads per object became four reads per *template*: a match holds hundreds of
+        objects across a few dozen templates, and a template's strings never change once ini
+        parsing is done. Keyed by pointer because templates are allocated once and never move.
+
+        None means the pointer did not land on a `ThingTemplate` - a template name is a single
+        ini identifier, so anything with a space or a dot in it says the chain went wrong and
+        the whole reading is unsafe rather than merely odd.
+        """
+        cached = self._template_at.get(template)
+        if cached is None:
+            name = self._ascii(template + self.layout.tmpl_name)
+            if not name or " " in name or "." in name:
+                self._template_at[template] = ("", "")
+                return None
+            cached = (name, self._ascii(template + self.layout.tmpl_side))
+            self._template_at[template] = cached
+        return cached if cached[0] else None
+
     def _read_object(
         self, entry_ptr: int, obj_ptr: int, id_of: dict[int, int], owner_of: dict[int, int]
     ) -> GameObject | None:
         lay = self.layout
-        template = self._pointer(obj_ptr + lay.obj_template)
+        # One read for the whole header instead of a dozen. The fallback is not defensive
+        # decoration: an object whose header straddles into an unmapped page fails the wide
+        # read and reads perfectly well field by field, and a recorded snapshot only holds the
+        # ranges its capture touched.
+        blob = self.source.read(obj_ptr, lay.obj_span)
+
+        def u32(offset: int) -> int | None:
+            if blob is not None:
+                return int(struct.unpack_from("<I", blob, offset)[0])
+            return self._u32(obj_ptr + offset)
+
+        def f32(offset: int) -> float:
+            if blob is not None:
+                return float(struct.unpack_from("<f", blob, offset)[0])
+            return self._f32(obj_ptr + offset) or 0.0
+
+        def pointer(offset: int) -> int | None:
+            value = u32(offset)
+            return value if value is not None and _MIN_PTR <= value <= _MAX_PTR else None
+
+        template = pointer(lay.obj_template)
         if template is None:
             return None
-        name = self._ascii(template + lay.tmpl_name)
-        # A template name is a single ini identifier. Anything else means the chain did not
-        # land on a ThingTemplate, so the whole reading is unsafe rather than merely odd.
-        if not name or " " in name or "." in name:
+        named = self._template_info(template)
+        if named is None:
             return None
+        name, side = named
 
         # Not every object has a body: inert map markers (wall hubs, farm spots) carry a
         # pointer at this offset whose contents are uninitialised, reading as denormal
         # floats. A body is only believed when its maximum is a plausible hit-point figure,
         # so max_health == 0 means "no body", not "dead".
         health, max_health = 1.0, 0.0
-        body = self._pointer(obj_ptr + lay.obj_body)
+        body = pointer(lay.obj_body)
         if body is not None:
-            current = self._f32(body + lay.body_health)
-            maximum = self._f32(body + lay.body_max_health)
+            current, maximum = self._body_values(body)
             if current is not None and maximum is not None and maximum >= 1.0 and current >= 0.0:
                 health = max(0.0, min(1.0, current / maximum))
                 max_health = maximum
 
-        cos_a = self._f32(obj_ptr + lay.obj_cos) or 0.0
-        sin_a = self._f32(obj_ptr + lay.obj_sin) or 0.0
-
+        upgrades = self._upgrades_at(obj_ptr, lay.obj_upgrades_completed, False, blob=blob)
         return GameObject(
-            object_id=self._u32(entry_ptr + lay.entry_id) or 0,
+            object_id=id_of.get(obj_ptr, 0),
             template_name=name,
-            template_side=self._ascii(template + lay.tmpl_side),
-            position=(
-                self._f32(obj_ptr + lay.obj_pos_x) or 0.0,
-                self._f32(obj_ptr + lay.obj_pos_y) or 0.0,
-                self._f32(obj_ptr + lay.obj_pos_z) or 0.0,
-            ),
-            angle=math.atan2(sin_a, cos_a),
+            template_side=side,
+            position=(f32(lay.obj_pos_x), f32(lay.obj_pos_y), f32(lay.obj_pos_z)),
+            angle=math.atan2(f32(lay.obj_sin), f32(lay.obj_cos)),
             health=health,
             max_health=max_health,
-            owner_index=owner_of.get(self._pointer(obj_ptr + lay.obj_team) or 0),
+            owner_index=owner_of.get(pointer(lay.obj_team) or 0),
             # Object-scoped only. A structure or battalion upgrade is recorded nowhere else -
             # not in the template name, not on the player - so without this an upgrade the
             # policy paid for is indistinguishable from one it never bought.
-            upgrades=self._upgrades_at(obj_ptr, lay.obj_upgrades_completed, False),
-            # Horde membership is not readable yet. The two link fields on an `Object` are the
-            # global object list's `next`/`prev`, not a container link - see `obj_list_next`.
-            parent_id=None,
+            upgrades=upgrades,
+            conditions=self._conditions_at(blob, obj_ptr),
+            # The container this object is inside, resolved through the address->id map the
+            # first pass built. `None` when it stands alone, which is why the walk is two-pass:
+            # the pointer names an `Object`, and only the table knows that object's id.
+            parent_id=id_of.get(pointer(lay.obj_contained_by) or 0),
+            production=(
+                self._read_production(obj_ptr, template, pointer(lay.obj_modules))
+                if self.read_production
+                else ()
+            ),
         )
 
+    @property
+    def alive(self) -> bool:
+        """Whether the process is still there, by the cheapest read that proves it.
+
+        `TheGameLogic` is a static inside the mapped image, so the read succeeds for as long
+        as the process does - whatever value it holds.
+        """
+        return self._u32(self.layout.the_game_logic) is not None
+
+    def _game_logic(self) -> int | None:
+        """The `GameLogic` pointer, telling a dead process apart from a null global.
+
+        **A vanished process does not read as zeroes - it does not read at all.** Every field
+        then falls back to its default and the observation comes back empty, which is
+        indistinguishable from a match that ended. `ReadProcessMemory` failing at a static
+        address inside the image is the signal, and it is only visible here, before the
+        defaults are applied.
+        """
+        value = self._u32(self.layout.the_game_logic)
+        if value is None:
+            raise GameExited(
+                f"the game is gone: reading TheGameLogic at "
+                f"{self.layout.the_game_logic:#010x} failed. The process exited, crashed, or "
+                "the handle was closed - this is not a match that ended"
+            )
+        return value if _MIN_PTR <= value <= _MAX_PTR else None
+
+    def _production_module(self, array: int) -> tuple[int | None, bool]:
+        """The `ProductionUpdate` in a module array, and whether the walk reached a conclusion.
+
+        Walks the NULL-terminated module array at `Object+0x24C` and matches on each module's
+        primary vtable. The engine does this by asking every module's second vtable for its
+        production interface - a call, which a reader outside the process cannot make - but a
+        vtable address is unique to its class, so comparing the pointer answers the same
+        question without executing anything.
+
+        The second half of the answer is what makes the per-template cache safe: "walked the
+        whole list and it is not there" may be remembered, "a read failed halfway" may not.
+        """
+        lay = self.layout
+        raw = self.source.read(array, lay.max_modules * 4)
+        if raw is None:
+            return None, False
+        for module in struct.unpack(f"<{lay.max_modules}I", raw):
+            if module == 0:  # the terminator: the list really does end without one
+                return None, True
+            if not (_MIN_PTR <= module <= _MAX_PTR):
+                return None, False
+            vtable = self._u32(module)
+            if vtable is None:
+                return None, False
+            if vtable == lay.production_update_vtable:
+                return module, True
+        return None, True
+
+    def _read_production(
+        self, obj_ptr: int, template: int, array: int | None
+    ) -> tuple[ProductionItem, ...]:
+        """What this object is currently making, in queue order.
+
+        Empty for the overwhelming majority of objects, which carry no production module at
+        all - so "not producing" and "cannot produce" are deliberately the same answer: both
+        mean an order sent here will do nothing.
+
+        Names are resolved by **pointer identity** against the two registries this backend
+        already walks. An entry pointing at something neither registry knows is reported with
+        an empty name rather than a guessed one, so a layout that drifts degrades to "something
+        is queued" instead of inventing a template.
+
+        **Most objects can skip the walk entirely.** Which behaviour modules an object carries
+        comes from its `ThingTemplate`, so once one `GondorFighter` has been walked and found
+        to have no production module, no other `GondorFighter` needs walking - and in a real
+        match the overwhelming majority of objects are units and scenery. Only a *conclusive*
+        walk is remembered; a read that failed partway teaches nothing.
+        """
+        lay = self.layout
+        if array is None or self._template_produces.get(template) is False:
+            return ()
+        module, conclusive = self._production_module(array)
+        if module is None:
+            if conclusive:
+                self._template_produces[template] = False
+            return ()
+        self._template_produces[template] = True
+        # The module names its owner. If this disagrees, the module array was not what we
+        # thought it was, and everything read past here would be fiction.
+        if self._pointer(module + lay.module_object) != obj_ptr:
+            self._diagnostics.append(
+                Diagnostic(
+                    f"a ProductionUpdate at {module:#x} does not point back at the object "
+                    f"{obj_ptr:#x} it was reached from; the module list layout is wrong"
+                )
+            )
+            return ()
+
+        items: list[ProductionItem] = []
+        node = self._pointer(module + lay.production_head)
+        seen: set[int] = set()
+        while node is not None and node not in seen and len(items) < lay.max_queue:
+            seen.add(node)
+            kind = self._i32(node + lay.entry_kind)
+            if kind == 2:
+                # Both registry walks are cached and are triggered here rather than up front,
+                # so an observation of a game where nothing is producing never pays for them.
+                self.upgrade_table()
+                name = self._upgrade_at.get(self._u32(node + lay.entry_upgrade) or 0, "")
+                items.append(ProductionItem("upgrade", name))
+            elif kind in (1, 3):
+                self.thing_order()
+                name = self._thing_at.get(self._u32(node + lay.entry_template) or 0, "")
+                items.append(ProductionItem("unit" if kind == 1 else "revive", name))
+            else:
+                items.append(ProductionItem("unknown"))
+            node = self._pointer(node + lay.entry_next)
+
+        declared = self._u32(module + lay.production_count)
+        if declared is not None and declared != len(items):
+            self._diagnostics.append(
+                Diagnostic(
+                    f"walked {len(items)} production entries but the module counts {declared}"
+                )
+            )
+        return tuple(items)
+
     def frame(self) -> int:
-        gl = self._pointer(self.layout.the_game_logic)
+        gl = self._game_logic()
         if gl is None:
             return 0
         return self._u32(gl + self.layout.gl_frame) or 0
 
     def observe(self) -> Observation:
+        # Ordered so the liveness check runs before anything can quietly default.
+        self._game_logic()
         return Observation(
             frame=self.frame(),
             local_player=self.local_player_index(),

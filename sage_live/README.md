@@ -41,8 +41,8 @@ with sage_live.attach(writable=True) as game:
 
 `attach` reads the local player's seat out of `PlayerList+0x10` rather than assuming 0, and
 fits the session with a `LiveNames` that resolves **upgrade and template** names against the
-engine's own `TheUpgradeCenter` and `TheThingFactory` — 976 upgrades and 11,142 templates, read
-in under a fifth of a second, with **no game files on disk at all**. Power and science names
+engine's own `TheUpgradeCenter`, `TheThingFactory` and `TheSpecialPowerStore` — 976 upgrades,
+11,142 templates and 1,566 powers, with **no game files on disk at all**. Only science names
 still need an ini load; attach one with `session.names = Resolver.from_root(...)`.
 
 ## Command line
@@ -63,9 +63,9 @@ is a bug class this rules out entirely.
 
 | | carries |
 |---|---|
-| `Observation` | `frame`, `local_player`, `players`, `objects`, `fogged` |
+| `Observation` | `frame`, `local_player`, `players`, `objects`, `fogged`, `godsight` |
 | `PlayerState` | economy, spellbook points, command points, PLAYER-scoped upgrades |
-| `GameObject` | id, template name and Side, position, facing, health, owner, OBJECT-scoped upgrades |
+| `GameObject` | id, template name and Side, position, facing, health, owner, OBJECT-scoped upgrades, production queue |
 
 `Observation` is also the query surface: `me`, `mine`, `opponents`, `player(i)`, `obj(id)`,
 `find(...)`, `nearest(...)`, `census(...)`, `by_side(...)`, `owned_by(...)`, `to_dict()`.
@@ -76,6 +76,133 @@ documentation; all string matching is case-insensitive because ini identifiers a
 `sage_mods.edain` supply cost, armour, weapons, build time, command points and the faction
 tree — so the observation stays small and the consumer joins against static data it already
 holds.
+
+## What a building is making
+
+```python
+barracks = observation.find(template="GondorBarracks", owner=game.player_index)[0]
+if not barracks.producing:                       # queue non-empty: unit *or* upgrade
+    game.select([barracks.object_id])
+    game.recruit("GondorFighterHorde")
+
+print([(i.kind, i.name) for i in barracks.production])
+# [('unit', 'GondorFighterHorde'), ('upgrade', 'Upgrade_GondorHeavyArmor')]
+```
+
+Units and upgrades share **one** queue on the engine's `ProductionUpdate`, so a barracks
+training and an armoury researching are the same list with different `kind`s — that is the
+engine's shape, not a simplification.
+
+This was the interface's largest blind spot: a barracks already training read as idle, so a
+policy queued into a building that was busy and could not tell why nothing was charged. The
+missing piece was one hop, `Object` → its modules, and it is `Object+0x24C` — a
+NULL-terminated `BehaviorModule*` array, read off the engine's own
+`getProductionUpdateInterface`. The module is then picked out by matching its **primary
+vtable**, because a vtable address is unique to its class and needs no call.
+
+Names are resolved by **pointer identity** against the registries the backend already walks, so
+an entry pointing at something neither registry knows reports an empty name rather than a
+guessed one. And the module has to name the object it was reached from — if that back-pointer
+disagrees, the read is refused with a diagnostic instead of reporting fiction.
+
+Reading this costs a module walk per object. `MemoryBackend(..., read_production=False)` turns
+it off for a consumer polling every frame that does not need it.
+
+## Recruiting a hero
+
+```python
+from sage_live.statics import Statics
+
+game.revives = Statics.from_root(root)          # the roster and the slot blocks
+game.select([barracks.object_id])
+game.confirm_queued(lambda: game.recruit_hero("GondorBeregond"), barracks.object_id)
+```
+
+**A hero is not recruited by template id.** It is queued by its position in the player's
+`BuildableHeroesMP` list, through a `CommandButton` whose `Command` is `REVIVE` — the same
+`0x417` order as `recruit` with the leading flag set, and the second argument read as a revive
+index instead of a template. The two forms are otherwise byte-identical, which is why feeding a
+`CommandSet` slot number to the flagged one was charged in full and produced a hero nobody asked
+for, twice.
+
+Heroes bind to those buttons **by position**, offset by one because position 0 is the Ring-hero
+slot. A building that recruits the fourth hero carries the first three slots too, disabled by an
+upgrade it can never hold — so `GondorBarracksCommandSet` has fourteen REVIVE buttons of which
+two are live, and those two are Beregond and Boromir.
+
+**The list is not the roster.** A fielded hero leaves it and everything behind slides forward; a
+hero killed after fielding rejoins at the tail. `Session` follows both across frames, so
+`revive_index` stays right as a match runs — exact for a hero never yet fielded, and inferred
+from observed deaths for one being re-recruited.
+
+**The engine will recruit a hero the interface never offered.** Its own gate matches a REVIVE
+slot by counting and never reads the button it matched, so an order can buy a hero whose slot
+the control bar hides — that is how a `GondorBarracks` was made to produce Imrahil, and nothing
+in the game reports it. So `recruit_hero` gates on `godsight`: with it, any hero the producer's
+slot block can reach; without it, only a hero whose slot at that building is **enabled**, which
+is the set a human would have been shown. Either way an index past the block raises rather than
+being consumed and silently discarded.
+
+Derivation, the two live recruits, and what is still open:
+[`hero-recruitment.md`](../sage_patch/docs/hero-recruitment.md).
+
+## Who is in a battalion
+
+```python
+game.select([o.object_id for o in observation.orderable(game.player_index)])
+```
+
+A battalion appears in an observation as its ~15 members **plus** the container, and the
+members are slaved to the container's `HordeAIUpdate`. Selecting the members and issuing a move
+produces an order the engine records and then ignores — the "sometimes recorded but nothing
+moved" symptom, and one of the easiest ways to conclude a constructor is broken when it is not.
+
+`GameObject.parent_id` names the container, `Observation.members(id)` is the inverse, and
+`orderable(player)` is the selection an order should be addressed to. This needs no game files
+and cannot disagree with the running game, so it supersedes the name-based `is_horde_member`
+wherever a live observation is in hand.
+
+The field is `Object+0x27C`, found by asking which dword in a member's header holds its
+container's address — 22 of 23 members agreed and no other offset managed more than 2. Across a
+whole live match it never once pointed outside the object table or more than 200 units away,
+and the template pairs were right for four factions at once.
+
+## `Statics` — the join, and why you cannot skip it
+
+```python
+from sage_live.statics import Statics          # imports sage_ini; not re-exported
+
+statics = Statics.from_root(root)              # one ini load, about a minute
+plots = [o for o in observation.mine if statics.is_build_site(o.template_name)]
+```
+
+A live object carries a template name and nothing else, and **none of the categories a policy
+needs are guessable from that name**. Each of these was got wrong in a real match first:
+
+| question | the wrong answer | what actually answers it |
+|---|---|---|
+| where can I build? | "an object with no body" — a plot has an `ImmortalBody` of 15,000 | `is_build_site` (`BASE_FOUNDATION` / `BASE_SITE`) |
+| is this plot free? | "the plot disappeared" — building on a plot does not consume it | what is *standing* on it |
+| did my building appear? | counting the ordered name — `BuildVariations` means it never appears | `same_building` / `canonical` |
+| who has lost? | "owns no objects", or "owns no buildings" — an economy building is `IGNORE_FOR_VICTORY` | `counts_for_victory` (`MP_COUNT_FOR_VICTORY`) |
+| what do I order? | the units you can see — they are horde *members*, and orders to them are ignored | `Observation.orderable` (live, exact); `is_horde_member` offline |
+
+`kind_of` resolves inheritance and SAGE's delta form (`KindOf = +SUMMONED`), because a
+`ChildObject` does not restate its parent's flags — reading the field directly reports nothing
+for a large share of real templates, `GondorBuildingFoundation_Independant` among them.
+
+## What an observation costs
+
+**Three reads per object** - the table entry, the object header, and the body. Everything else
+on the header comes out of that one read, a template's name and Side are cached per template
+rather than per object, and a template already known to carry no `ProductionUpdate` skips the
+module walk. Measured on the same image, refusing the wide reads to force the older
+field-by-field path gives 16 per object, so batching is a 5.3x cut; a 400-object observation
+was 0.32 s before it.
+
+Every wide read falls back to reading fields individually, and the two must decode identically
+- an object straddling an unmapped page fails the wide read while each field inside it reads
+fine. `MemoryBackend(..., read_production=False)` drops the module walk as well.
 
 ## Backends
 
@@ -89,6 +216,12 @@ holds.
 LoopbackBackend  MemoryBackend  BridgeBackend
  (in-process)     (read-only)    (patched, read+write)
 ```
+
+**`SnapshotSource`** replays a recorded process: `capture_snapshot.py` writes the bytes a decode
+touched during a real match, and any backend can read them back with no game, no Windows and no
+elevation. That is what regression-tests the layout — every other fixture in this package writes
+its fields where `EngineLayout` says they are, so a wrong offset is written wrong *and* read
+wrong and the test passes. Bytes the engine laid out cannot cancel out that way.
 
 **`LoopbackBackend`** is fed scripted observations and needs no game. Not a stub: every
 observation is encoded to the wire format and decoded back before being handed out, so a test
@@ -105,7 +238,7 @@ via a diagnostic rather than dropping them silently.
 Backends are constructed explicitly and check their platform in the constructor, never at
 import: this package imports cleanly on a machine with no game and no Windows.
 
-## Five things that will catch you out
+## Six things that will catch you out
 
 **The main menu is a running game.** BFME2 draws its menu over a *shell map* — a real map
 simulated by the same `GameLogic` — so the frame counter advances, objects exist, and every
@@ -129,13 +262,52 @@ upgrade's in-progress bit on the player and then never clears it.
 
 **A consumed order is not an accepted order.** Game logic can discard a malformed or
 unaffordable order after the stream has taken it, and *nothing reports that* — no error, no
-diagnostic, and the order still reaches the replay. **Resources are the oracle**: if a recruit
-or build does not drop the player's gold within a second, logic refused it.
+diagnostic, and the order still reaches the replay. So `send` returning 1 means the game
+*received* the order, never that it obeyed it. The only honest test is the side effect, and
+`Session` ships the three that work:
 
-**Nothing here is fog-filtered.** This reads the whole map. The engine knows what each player
-can see, but that filter belongs on the game side and cannot be reconstructed honestly from
-outside, so `Observation.fogged` is always False on the memory and bridge backends. Training a
-policy on information a human never had should be a decision, not an accident.
+```python
+game.confirm_queued(lambda: game.recruit("GondorFighterHorde"), barracks.object_id)
+game.confirm_moved(lambda: game.move(there), [u.object_id for u in army])
+game.confirm_appeared(lambda: game.build("GondorWohnhaus", plot.position), near=plot.position)
+```
+
+Each answers False rather than raising, because "it did nothing" is a result a policy acts on.
+The obvious version of each is wrong: a plot vanishing is not the oracle for a build (building
+on a plot does not consume it), and the ordered template never appears when it has
+`BuildVariations`.
+
+**Gold is not a sound oracle, in either direction.** It reads as the obvious one — the order
+costs money, so watch the money — and `confirm_spend` still offers it for spends with no other
+visible effect. But the balance is a contested number: an enemy ability can **steal** it, so it
+falls with no spend of yours, and an ability can **grant** 500–1000 at once, so a real spend
+hides under a net rise. Prefer `confirm_queued`, which watches the queue of the building the
+order actually named — that is the thing the order was supposed to do, and nothing else in the
+match can forge it.
+
+`send` also returns *why* nothing went — `Sent.throttled` is the APM cap pacing you, which is
+normal, and `Sent.refused` is the backend turning the order down, which is not.
+
+**A crashed game reads exactly like a finished one.** A vanished process does not read as
+zeroes; it does not read at all, so every field falls back to its default and the observation
+comes back with no objects and no local player — which is what a match that ended looks like.
+`poll` raises `GameExited` rather than handing that over, and `session.alive` is the loop
+condition to prefer over anything inferred from an observation.
+
+**Nothing here is fog-filtered, and some of it a player could never know at all.** These are
+two different problems and only one of them is about visibility.
+
+*Visibility* is fog: `Observation.fogged` is always False, so you read the whole map. The
+engine's own per-object shroud state is the honest source and has not been read yet.
+
+*Knowledge* is `godsight`, and it is not fixed by fog. A fully visible enemy barracks still has
+no readable production queue — the game gives a player no tell whatever — and an opponent's
+gold, income, spellbook points and researches have no on-screen equivalent either. So
+`attach(godsight=False)` strips exactly that: an opponent keeps their name and faction, and
+nothing else. Every observation the session hands out goes through one filter, and the snapshot
+records `godsight` itself, because a saved observation outlives the session that made it.
+
+Training a policy on information a human never had should be a decision, not an accident.
 
 ## Requirements
 
@@ -144,9 +316,17 @@ policy on information a human never had should be a decision, not an accident.
 - **An elevated shell.** `game.dat` runs as administrator, so `ReadProcessMemory` is refused
   otherwise. `attach` says exactly that when it happens.
 - **A patched `game.dat`**, for `writable=True` only: `sage-patch apply live-bridge --in game.dat`.
-- **Addresses are build-specific.** `LAYOUT_ROTWK_201` is verified against RotWK 2.01 + Edain
-  (`game.dat`, 11,346,944 bytes). Pass a different `EngineLayout` for another build, or
-  `--layout-json` on the CLI.
+- **Addresses are build-specific, and the build is checked.** `LAYOUT_ROTWK_201` is verified
+  against RotWK 2.01 (`game.dat`, PE timestamp `0x460DA09E`). `attach` reads that stamp out of
+  the running image and **refuses a mismatch**, because reading another build with these
+  offsets does not fail — it reports plausible nonsense, which is far harder to notice than an
+  exception. Pass a different `EngineLayout` for another build, or `--layout-json` on the CLI;
+  `build_timestamp: 0` there disables the check for a build nobody has measured yet.
+
+  The stamp identifies the *engine*, not the mod: a different Edain release runs the same
+  `game.dat`, and it is the id spaces rather than the layout that move (see `LiveNames`). It
+  also survives patching — appending a cave leaves the COFF header alone — which it has to,
+  since the writable path only ever runs against a patched binary.
 
 ## Where the layouts come from
 
@@ -160,21 +340,28 @@ Every offset was confirmed against a running process, not inferred from shape:
 
 ## Known gaps
 
-- **Production, queue and construction state are not located** — but they are ruled out of the
-  object's own header. Sampling every owned object's first `0x400` bytes for 531 consecutive
-  samples while a structure was built and then produced a battalion, exactly nine dwords of that
-  structure ever changed and all had settled long before it produced anything. Both live in a
-  module behind a pointer. So a barracks already training still reads as idle, and a half-built
-  structure is indistinguishable from a finished one.
-- **Horde membership is not reported.** `Object+0x8C`/`+0x90` turned out to be the `next`/`prev`
-  of one global doubly-linked list of every live object — exact inverses for all 317 links in a
-  318-object match, one head, one tail, full reachability. They looked like battalion links only
-  because members are created consecutively. `parent_id` is therefore unset because the
-  information is *absent*, and a battalion appears as its individual members.
+- **Construction state is read, but not yet live-verified.** `GameObject.under_construction` is
+  the engine's own `ACTIVELY_BEING_CONSTRUCTED` model condition — bit 69 of the mask at
+  `Object+0x10C`. The offset comes from `sage_patch`, whose production-condition patch writes to
+  that same mask, and the name table walks to exactly the 591 entries the engine declares. But
+  nothing has yet been *watched* to flip the bit: raise a structure and check it goes true, and
+  until then treat it as derived rather than proven. It reports state, not progress — there is
+  still no percentage.
 - **Ownership misses script teams** — 2 objects of 523 in a live match, reported as no owner.
-- **Power and science names need an ini load.** `TheSpecialPowerStore` and `TheScienceStore`
-  have addresses but have not been walked. `TheUpgradeCenter` and `TheThingFactory` have, which
-  is why upgrade and template names need no game data.
+- **The revive list is reconstructed, not read.** A hero's index comes from the faction roster
+  and what the map shows, which is exact for a hero never yet fielded and inferred from observed
+  deaths for one being re-recruited — a session that started mid-match has not seen those. The
+  button-to-hero binding is likewise derived from the slot block's shape rather than read out of
+  the ControlBar's own walk (`0x00943F81`), and 9 of the tree's 187 playable-faction producers
+  do not line up under it; `Statics.check_revive_slots` names them, `RohanCitadel` included.
+  Map-scoped `BuildableHeroesMP` overrides are not applied. See
+  [`hero-recruitment.md`](../sage_patch/docs/hero-recruitment.md).
+- **Science names need an ini load.** `TheScienceStore` has an address but resists the same
+  treatment: it is a vector of 263 pointers, but only about a fifth of them carry a
+  `SCIENCE_*` name at any one offset, so the element layout is not uniform and has not been
+  pinned down. `TheSpecialPowerStore` *is* walked — it is a `std::vector` at `+0x0C` rather
+  than a linked list, which is why the first pass missed it, and its 1,566 names agree with
+  the ini reconstruction position by position on every single one.
 - **Thing ids are corroborated, not round-tripped** — but the corroboration is now measured.
   `thing_order` anchors index 0 at `DefaultThingTemplate`, contains every template any live
   object uses, and has no duplicate names. Against the ini tree it reads 11,142 templates to

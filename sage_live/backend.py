@@ -22,6 +22,7 @@ from typing import Protocol, runtime_checkable
 from sage_live.observation import Observation
 from sage_live.protocol import (
     Diagnostic,
+    DiagnosticLog,
     Handshake,
     MessageType,
     decode_frames,
@@ -31,11 +32,21 @@ from sage_live.protocol import (
 )
 from sage_replay.replay import Order
 
-__all__ = ["Backend", "ConnectionRefused", "LoopbackBackend"]
+__all__ = ["Backend", "ConnectionRefused", "GameExited", "LoopbackBackend"]
 
 
 class ConnectionRefused(Exception):
     """The handshake gate rejected the peer. Raised by `connect`, never by decoding."""
+
+
+class GameExited(RuntimeError):
+    """The game this backend was reading is gone.
+
+    Raised rather than answered with an empty observation, because an empty observation is
+    **exactly what a finished match looks like**: no objects, no local player, `in_match`
+    False. A policy that cannot tell those apart reports a crash as a defeat, and a long run
+    ends with a plausible-looking result that means nothing.
+    """
 
 
 @runtime_checkable
@@ -48,8 +59,22 @@ class Backend(Protocol):
 
     def close(self) -> None: ...
 
+    @property
+    def alive(self) -> bool:
+        """Whether the game this backend reads is still there.
+
+        Cheap enough to ask every cycle: a loop that checks this instead of trusting its
+        observations is the difference between "the game crashed" and "the match ended",
+        which look identical in the data.
+        """
+        ...
+
     def poll(self) -> Observation | None:
-        """The most recent observation, or None if none has arrived. Never blocks."""
+        """The most recent observation, or None if none has arrived. Never blocks.
+
+        Raises `GameExited` when the game has gone, rather than returning the empty
+        observation that a vanished process would otherwise decode to.
+        """
         ...
 
     def step(self, timeout: float | None = None) -> Observation | None:
@@ -65,7 +90,7 @@ class Backend(Protocol):
         ...
 
     @property
-    def diagnostics(self) -> Sequence[Diagnostic]: ...
+    def diagnostics(self) -> DiagnosticLog: ...
 
 
 class LoopbackBackend:
@@ -88,17 +113,26 @@ class LoopbackBackend:
         self._handshake = handshake or Handshake()
         self._expect = expect
         self._latest: Observation | None = None
-        self._diagnostics: list[Diagnostic] = []
+        self._diagnostics = DiagnosticLog()
         self._connected = False
         self.sent: list[Order] = []
 
     @property
-    def diagnostics(self) -> Sequence[Diagnostic]:
-        return tuple(self._diagnostics)
+    def diagnostics(self) -> DiagnosticLog:
+        return self._diagnostics
 
     @property
     def connected(self) -> bool:
         return self._connected
+
+    @property
+    def alive(self) -> bool:
+        """Always true: a scripted game has no process to lose.
+
+        Running out of script is not the game exiting - `poll` keeps answering with the last
+        observation, exactly as a live backend does between frames.
+        """
+        return True
 
     @property
     def remaining(self) -> int:

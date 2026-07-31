@@ -109,3 +109,17 @@ def test_a_ground_cast_defaults_to_an_options_value_the_corpus_actually_uses():
 
 def test_an_object_cast_carries_the_target_position_last():
     assert values(orders.cast_at_object(0, 7, 8, POSITION))[-1] == POSITION
+
+
+def test_castle_unpack_carries_no_arguments():
+    """What the flag's own button sends. The engine reads what to build off the target's
+    `CastleBehavior`, so naming a template here is the *other* order."""
+    order = orders.castle_unpack(3)
+    assert order.order_type == orders.OrderType.CASTLE_UNPACK == 0x43D
+    assert order.arguments == []
+
+
+def test_the_two_unpack_orders_are_different_ids():
+    """`0x43D` is what a player clicks; `0x43F` names a template explicitly. Conflating them
+    is why the unpack path stayed unverified for so long."""
+    assert orders.castle_unpack(0).order_type != orders.unpack(0, 5).order_type

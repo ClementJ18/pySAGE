@@ -28,17 +28,23 @@ of them for the two plot flags, but a rule that is only right for today's data i
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from sage_ini import load_game
 from sage_ini.model.game import Game
+from sage_live.heroes import ReviveSlot
 
 __all__ = [
     "BASE_SITE_KINDS",
     "MP_COUNT_FOR_VICTORY",
+    "REVIVE",
     "Statics",
 ]
+
+# The `CommandButton` command that recruits a hero. Every hero in the game is reached through
+# one of these; see `sage_live.heroes` for the index space they are addressed by.
+REVIVE = "REVIVE"
 
 # The two flags that mark somewhere a structure can be placed. Both, not either: `BASE_SITE`
 # is the settlement/outpost spot and `BASE_FOUNDATION` the castle plot, and a faction may use
@@ -66,9 +72,16 @@ class Statics:
         # Keyed lowercase once, so every later lookup is a dict hit rather than a scan over
         # eleven thousand names.
         self._objects = {str(name).lower(): obj for name, obj in objects.items()}
+        self._sets = {str(n).lower(): s for n, s in game.tables.get("commandsets", {}).items()}
+        self._buttons = {
+            str(n).lower(): b for n, b in game.tables.get("commandbuttons", {}).items()
+        }
+        # `PlayerTemplate` blocks live in the `factions` table, keyed `FactionMen` and so on.
+        self._factions = {str(n).lower(): f for n, f in game.tables.get("factions", {}).items()}
         self._kinds: dict[str, frozenset[str]] = {}
         self._canonical: dict[str, str] | None = None
         self._members: frozenset[str] | None = None
+        self._revives: dict[str, tuple[ReviveSlot, ...]] = {}
 
     @classmethod
     def from_root(cls, root: str | Path) -> Statics:
@@ -245,6 +258,134 @@ class Statics:
         both roles - the container is always the correct thing to order.
         """
         return template.lower() in self.horde_members() and not self.is_horde(template)
+
+    # ---- the revive system: which building recruits which hero ---------------------------
+
+    def command_set(self, template: str) -> str | None:
+        """The template's `CommandSet` name, following the parent chain."""
+        return self.field(template, "CommandSet")
+
+    def command_buttons(self, command_set: str) -> tuple[tuple[int, str], ...]:
+        """`(slot, button name)` for one `CommandSet`, in slot order.
+
+        Slots are sparse and unordered in the file - a set may define 1-7 then jump to 12 -
+        so they are read as the integer keys they are and sorted, never enumerated.
+        """
+        block = self._sets.get(command_set.lower())
+        if block is None:
+            return ()
+        found = [
+            (int(key.strip()), str(value).strip())
+            for key, value in block.fields.items()
+            if str(key).strip().isdigit()
+        ]
+        return tuple(sorted(found))
+
+    def button_command(self, button: str) -> str:
+        """A `CommandButton`'s `Command`, uppercased. Empty for a button this tree lacks."""
+        block = self._buttons.get(button.lower())
+        if block is None:
+            return ""
+        return str(block.fields.get("Command", "")).strip().upper()
+
+    def revive_slots(self, template: str) -> tuple[ReviveSlot, ...]:
+        """The producer's `Command = REVIVE` buttons, in slot order - its hero slots.
+
+        Empty for anything that cannot recruit a hero, which is almost everything. A building
+        with slots offers only the ones whose `NeededUpgrade` it can satisfy; the rest are
+        present because heroes bind to these slots **by position**, so a building that recruits
+        the fourth hero must carry the first three slots as well. See `sage_live.heroes` for
+        why the position is offset by one, and for what the engine does and does not check.
+        """
+        key = template.lower()
+        cached = self._revives.get(key)
+        if cached is not None:
+            return cached
+        name = self.command_set(template)
+        slots: list[ReviveSlot] = []
+        if name:
+            for command_slot, button in self.command_buttons(name):
+                if self.button_command(button) != REVIVE:
+                    continue
+                block = self._buttons.get(button.lower())
+                fields = block.fields if block is not None else {}
+                needed = str(fields.get("NeededUpgrade", "")).split()
+                options = str(fields.get("Options", "")).upper().split()
+                slots.append(
+                    ReviveSlot(
+                        position=len(slots),
+                        command_slot=command_slot,
+                        button=button,
+                        needed_upgrades=tuple(needed),
+                        hide_while_disabled="HIDE_WHILE_DISABLED" in options,
+                    )
+                )
+        result = tuple(slots)
+        self._revives[key] = result
+        return result
+
+    def revive_slot_for(self, template: str, roster_index: int) -> ReviveSlot | None:
+        """The producer's slot serving `roster_index`, or None if it carries no such slot."""
+        for slot in self.revive_slots(template):
+            if slot.roster_index == roster_index:
+                return slot
+        return None
+
+    def hero_roster(self, faction: str) -> tuple[str, ...]:
+        """A faction's `BuildableHeroesMP`, which is the revive list's starting order.
+
+        `faction` is matched against the `PlayerTemplate` block name (`FactionMen`) *and*
+        against its `Side` - a live observation reports the Side token, `Men`, and the two are
+        not the same string. Where several templates share a Side, the playable one wins:
+        `FactionTutorial` is also `Side = Men` and carries a different roster.
+
+        **Map-scoped overrides are not applied.** A `map.ini` may redefine `BuildableHeroesMP`
+        for the map being played, and several Edain maps do; this reads the base tree only.
+        """
+        key = faction.lower()
+        block = self._factions.get(key) or self._factions.get(f"faction{key}")
+        if block is None:
+            playable = [
+                f
+                for f in self._factions.values()
+                if str(f.fields.get("Side", "")).lower() == key
+                and str(f.fields.get("PlayableSide", "")).lower() in ("yes", "true")
+            ]
+            if len(playable) != 1:
+                return ()
+            block = playable[0]
+        return tuple(str(block.fields.get("BuildableHeroesMP", "")).split())
+
+    def check_revive_slots(self, template: str, roster: Sequence[str]) -> tuple[str, ...]:
+        """Whether this producer's slot block can be read against `roster` at all.
+
+        An **enabled** slot serving an index outside the roster cannot be right: the positional
+        rule has landed somewhere there is no hero, so this block does not line up and the
+        heroes it appears to offer are fiction. Reported rather than resolved - a policy running
+        without `godsight` should treat such a producer as unknown rather than trust it.
+
+        Restricted to slots enabled with no upgrade held, because the permanently-gated
+        `Command_FakeHeroReviveSlotN` fillers are not meant to line up with anything: they exist
+        only to hold positions so the real buttons land in the right places.
+
+        **Button names are deliberately not checked.** It is tempting - Edain appears to number
+        these after the roster entry they serve - but `Command_GenericReviveSlot1` occurs at
+        positions 0, 1, 3 and 4 in different sets, so its number identifies the button and not
+        a hero. The names that *are* meaningful are the ones naming a hero outright
+        (`Command_HaldirGenericReviveSlot`), and 220 of 231 of those land on their own roster
+        entry - measured once, recorded in `sage_live.heroes`, not re-derived here by guessing
+        at hero names.
+        """
+        problems: list[str] = []
+        for slot in self.revive_slots(template):
+            if not slot.enabled_for(frozenset()):
+                continue
+            if not 0 <= slot.roster_index < len(roster):
+                problems.append(
+                    f"{slot.button} sits at position {slot.position}, which serves roster "
+                    f"index {slot.roster_index} - outside a roster of {len(roster)}"
+                )
+        return tuple(problems)
 
     def templates_with(self, *flags: str) -> frozenset[str]:
         """Every known template carrying any of `flags`, for surveying a build rather than

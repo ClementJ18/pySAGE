@@ -23,13 +23,20 @@ class Row:
 
 
 class FakeRegistries:
-    """The two methods `LiveNames` needs, plus a count of how often each was asked."""
+    """The registries `LiveNames` reads, plus a count of how often each was asked."""
 
-    def __init__(self, *rows: Row, things: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self,
+        *rows: Row,
+        things: tuple[str, ...] = (),
+        powers: tuple[str, ...] = (),
+    ) -> None:
         self.rows = rows
         self.things = things
+        self.powers = powers
         self.reads = 0
         self.thing_reads = 0
+        self.power_reads = 0
 
     def upgrade_table(self) -> dict[int, Row]:
         self.reads += 1
@@ -38,6 +45,10 @@ class FakeRegistries:
     def thing_order(self) -> tuple[str, ...]:
         self.thing_reads += 1
         return self.things
+
+    def power_order(self) -> tuple[str, ...]:
+        self.power_reads += 1
+        return self.powers
 
 
 @pytest.fixture
@@ -81,11 +92,49 @@ def test_an_unknown_upgrade_raises_with_the_registered_spelling(names):
     assert caught.value.space == "upgrade"
 
 
-@pytest.mark.parametrize("space", ["power", "science"])
-def test_the_unwalked_spaces_say_so_rather_than_guessing(names, space):
+def test_the_unwalked_space_says_so_rather_than_guessing(names):
+    """`TheScienceStore` is the one registry still not walked. Saying so is not the same
+    answer as "this build has no such science", and conflating them sends a caller hunting
+    for a typo in a perfectly good name."""
     with pytest.raises(NoNameLookup) as caught:
-        getattr(names, space)("AnythingAtAll")
+        names.science("AnythingAtAll")
     assert "Resolver" in str(caught.value), "the message should name the way forward"
+
+
+def test_a_power_with_no_store_walked_says_so_too(names):
+    """The `names` fixture supplies no powers, which is the empty-store case."""
+    with pytest.raises(NoNameLookup):
+        names.power("SpecialAbilityAnything")
+
+
+def test_a_power_resolves_to_its_walk_position_plus_the_offset():
+    """`DefaultSpecialPower` is registered first, exactly as `DefaultThingTemplate` is in the
+    thing table, which is what corroborates a 1-based space rather than assuming one."""
+    lookup = LiveNames(
+        FakeRegistries(
+            powers=("DefaultSpecialPower", "SpecialAbilitySarumanMagiestoss", "SpecialAbilityX")
+        )
+    )
+    assert lookup.power("DefaultSpecialPower") == 1
+    assert lookup.power("specialabilitysarumanmagiestoss") == 2
+    assert lookup.power("SpecialAbilityX") == 3
+
+
+def test_an_unknown_power_offers_a_hint():
+    lookup = LiveNames(
+        FakeRegistries(powers=("DefaultSpecialPower", "SpecialAbilitySarumanMagiestoss"))
+    )
+    with pytest.raises(UnknownDefinition) as caught:
+        lookup.power("SarumanMagie")
+    assert caught.value.space == "power"
+
+
+def test_the_power_store_is_read_once():
+    source = FakeRegistries(powers=("DefaultSpecialPower", "SpecialAbilityX"))
+    lookup = LiveNames(source)
+    lookup.power("SpecialAbilityX")
+    lookup.power("DefaultSpecialPower")
+    assert source.power_reads == 1
 
 
 def test_a_thing_resolves_to_its_walk_position_plus_the_offset(names):

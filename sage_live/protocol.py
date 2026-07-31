@@ -25,11 +25,15 @@ Per CONVENTIONS.md rule 4, decoding never raises: a frame we cannot read becomes
 
 from __future__ import annotations
 
+import logging
 import struct
+from collections import deque
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from enum import IntEnum
+from typing import overload
 
-from sage_live.observation import GameObject, Observation, PlayerState
+from sage_live.observation import GameObject, Observation, PlayerState, ProductionItem
 
 __all__ = [
     "FRAME_HEADER",
@@ -37,6 +41,7 @@ __all__ = [
     "OBSERVATION_STRUCT_VERSION",
     "PROTOCOL_VERSION",
     "Diagnostic",
+    "DiagnosticLog",
     "Frame",
     "Handshake",
     "MessageType",
@@ -48,11 +53,29 @@ __all__ = [
     "encode_observation",
 ]
 
+# One logger for the package, named for it, with no handler attached: a library that
+# configures logging decides for the application that imported it. A consumer that wants these
+# calls `logging.basicConfig()`, and one that does not is unaffected.
+_log = logging.getLogger("sage_live")
+
 PROTOCOL_VERSION = 1
 
 # Bumped independently of PROTOCOL_VERSION whenever the observation payload layout changes,
 # so a reader can refuse a struct it does not know without rejecting the whole connection.
-OBSERVATION_STRUCT_VERSION = 1
+#
+# 4 (2026-08-01) added per-object `ModelConditionFlags`, which is how the engine itself knows a
+# structure is still going up - health cannot say, since it ramps while building.
+#
+# 3 (2026-08-01) added `godsight`, so a snapshot records whether it still carries knowledge a
+# real player could not have - an opponent's economy, or what their buildings are making.
+#
+# 2 (2026-07-31) added per-object production queues, and carried two fields the model had all
+# along that version 1 silently dropped: `GameObject.upgrades` and
+# `PlayerState.upgrades_in_progress`. Dropping them was not cosmetic - `LoopbackBackend` round
+# -trips every observation through this codec, so a policy tested against it saw battalions
+# whose object-scoped upgrades had vanished, which is the one field distinguishing an upgraded
+# battalion from a fresh one.
+OBSERVATION_STRUCT_VERSION = 4
 
 # "SG" - the sync marker every frame opens with, so a confused reader can find its footing.
 FRAME_MAGIC = 0x4753
@@ -81,6 +104,67 @@ class Diagnostic:
 
     def __str__(self) -> str:
         return f"{self.message} (at byte {self.offset})"
+
+
+class DiagnosticLog(Sequence[Diagnostic]):
+    """A backend's diagnostics: bounded, logged, and drainable.
+
+    Three things a plain list got wrong for a session that runs for an hour rather than for a
+    test. **Bounded**, because a backend appends per observation and a game that has gone away
+    appends the same message every cycle forever - unbounded memory in exchange for a thousand
+    copies of one sentence. **Logged**, because a diagnostic nobody reads is not a diagnostic;
+    `logging` is how a long run surfaces one without the library choosing to print. And
+    **drainable**, so a loop can consume what is new instead of re-scanning a growing tail.
+
+    Kept oldest-first with the newest retained: on a `deque` with a `maxlen` the oldest are
+    what fall out, which is right here - the first occurrence of a problem is usually the one
+    that explains the rest, but a stale first occurrence is worth less than a current one.
+    """
+
+    def __init__(self, limit: int = 256, logger: logging.Logger | None = None) -> None:
+        self._entries: deque[Diagnostic] = deque(maxlen=limit)
+        self._logger = logger or _log
+        self._seen = 0
+
+    def append(self, diagnostic: Diagnostic) -> None:
+        self._entries.append(diagnostic)
+        self._seen += 1
+        self._logger.warning("%s", diagnostic)
+
+    def extend(self, diagnostics: Iterable[Diagnostic]) -> None:
+        for diagnostic in diagnostics:
+            self.append(diagnostic)
+
+    def drain(self) -> tuple[Diagnostic, ...]:
+        """Take everything held and clear it, so a loop reports each problem once."""
+        taken = tuple(self._entries)
+        self._entries.clear()
+        return taken
+
+    @property
+    def seen(self) -> int:
+        """How many have ever been recorded, including those dropped by the bound."""
+        return self._seen
+
+    def __iter__(self) -> Iterator[Diagnostic]:
+        # Over a copy: a consumer that reports while the backend is polling would otherwise
+        # be iterating a deque that is being appended to.
+        return iter(tuple(self._entries))
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    @overload
+    def __getitem__(self, index: int) -> Diagnostic: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> Sequence[Diagnostic]: ...
+
+    def __getitem__(self, index: int | slice) -> Diagnostic | Sequence[Diagnostic]:
+        return tuple(self._entries)[index]
+
+    def __repr__(self) -> str:
+        return f"DiagnosticLog({len(self._entries)} held, {self._seen} seen)"
 
 
 @dataclass(frozen=True)
@@ -248,6 +332,7 @@ def encode_observation(obs: Observation) -> bytes:
     w.u32(obs.frame)
     w.i32(obs.local_player)
     w.u8(int(obs.fogged))
+    w.u8(int(obs.godsight))
     w.u16(len(obs.players))
     for p in obs.players:
         w.u16(p.index)
@@ -260,6 +345,9 @@ def encode_observation(obs: Observation) -> bytes:
         w.i32(p.command_points[1])
         w.u16(len(p.upgrades))
         for up in sorted(p.upgrades):
+            w.text(up)
+        w.u16(len(p.upgrades_in_progress))
+        for up in sorted(p.upgrades_in_progress):
             w.text(up)
     w.u32(len(obs.objects))
     for o in obs.objects:
@@ -274,6 +362,18 @@ def encode_observation(obs: Observation) -> bytes:
         w.f32(o.max_health)
         w.i32(_NO_INDEX if o.owner_index is None else o.owner_index)
         w.i32(_NO_INDEX if o.parent_id is None else o.parent_id)
+        # OBJECT-scoped upgrades. Absent from struct version 1, which silently dropped them -
+        # and they are the only thing distinguishing an upgraded battalion from a fresh one.
+        w.u16(len(o.upgrades))
+        for up in sorted(o.upgrades):
+            w.text(up)
+        w.u16(len(o.conditions))
+        for name in sorted(o.conditions):
+            w.text(name)
+        w.u16(len(o.production))
+        for item in o.production:
+            w.text(item.kind)
+            w.text(item.name)
     return bytes(w.buf)
 
 
@@ -289,6 +389,7 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
     frame = r.u32()
     local_player = r.i32()
     fogged = bool(r.u8())
+    godsight = bool(r.u8())
 
     players: list[PlayerState] = []
     for _ in range(r.u16()):
@@ -301,6 +402,7 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
         cp_used = r.i32()
         cp_cap = r.i32()
         upgrades = frozenset(r.text() for _ in range(r.u16()))
+        in_progress = frozenset(r.text() for _ in range(r.u16()))
         if r.failed:
             return None, [Diagnostic("truncated player block", r.pos)]
         players.append(
@@ -313,6 +415,7 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
                 power_points=power,
                 command_points=(cp_used, cp_cap),
                 upgrades=upgrades,
+                upgrades_in_progress=in_progress,
             )
         )
 
@@ -327,6 +430,9 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
         max_health = r.f32()
         owner = r.i32()
         parent = r.i32()
+        obj_upgrades = frozenset(r.text() for _ in range(r.u16()))
+        conditions = frozenset(r.text() for _ in range(r.u16()))
+        production = tuple(ProductionItem(r.text(), r.text()) for _ in range(r.u16()))
         if r.failed:
             return None, [Diagnostic("truncated object block", r.pos)]
         objects.append(
@@ -340,6 +446,9 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
                 max_health=max_health,
                 owner_index=None if owner == _NO_INDEX else owner,
                 parent_id=None if parent == _NO_INDEX else parent,
+                upgrades=obj_upgrades,
+                conditions=conditions,
+                production=production,
             )
         )
 
@@ -352,6 +461,7 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
             players=tuple(players),
             objects=tuple(objects),
             fogged=fogged,
+            godsight=godsight,
         ),
         [],
     )

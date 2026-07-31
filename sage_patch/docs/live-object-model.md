@@ -373,10 +373,51 @@ several *different* expected values, then keep only the location consistent with
   | `entry+0x0C` | payload (`UpgradeTemplate *` for an upgrade) |
   | `entry+0x48` | next entry |
 
-  `ProductionEntry` is `0x54` bytes. So the only thing still missing for a live consumer is the
-  first hop - `Object` → its `ProductionUpdate` - which is the module list this bullet already
-  names as the next step. "Is this building producing, and what" is readable *from the module*
-  today; it is not yet readable from an object id.
+  `ProductionEntry` is `0x54` bytes.
+
+  **The first hop is now found, and this is closed.** `Object+0x24C` holds a pointer to a
+  **NULL-terminated** array of `BehaviorModule*`. Read off `getProductionUpdateInterface`
+  (`0x0068C327`), which is `mov esi,[ecx+0x24c]` followed by a walk in steps of 4 until it
+  loads NULL; three interface getters in a row share the idiom, so it is corroborated three
+  times rather than inferred once.
+
+  The engine picks its module out of that array by *calling* each one's second vtable
+  (`module+0x0C`, slot `+0x70`), which a reader outside the process cannot do. It does not need
+  to: a vtable address is unique to its class, so matching `[module+0x00]` against
+  `0x00C67EF4` — the primary vtable the constructor at `0x008A1819` writes — answers the same
+  question without executing anything.
+
+  Three fields the table above did not have, from the list insert at `0x008A0C99`:
+
+  | offset | field |
+  |---|---|
+  | `module+0x2C` | queue **tail** |
+  | `module+0x34` | queue **length** — a count, so "is it busy" needs no walk |
+  | `entry+0x4C` | previous entry |
+
+  Two corrections while reading it. The queue is **appended** to, not prepended
+  (`production-model-condition.md` says prepended): the head is written only when the list is
+  empty, and the tail always. And a unit entry keeps its `ThingTemplate*` at `entry+0x08`, not
+  at the `+0x0C` an upgrade uses — `queueCreateUnit` writes `[esi+4]=1; [esi+8]=what` for a
+  build and `[esi+4]=3` for a hero revive, so `kind` is 1, 2 and 3 for unit, upgrade and revive.
+
+  `sage_live.memory` reads all of this per object, and checks the walk landed correctly by
+  requiring the module's own `Object*` back-pointer to name the object it was reached from.
+- ~~Horde membership~~ — **found: `Object+0x27C` is what contains this object.** The two link
+  fields at `+0x8C`/`+0x90` really are the global list's `next`/`prev`, as recorded above; the
+  container link is a separate inline pointer, and a container's own is null.
+
+  Found differentially rather than by disassembly, which a live match makes cheap: of all 256
+  dwords in a member's first `0x400` bytes, this is the one holding its container's address,
+  and it did so for 22 of 23 members while nothing else managed more than 2. Checked over a
+  whole match afterwards — every one of the 38 objects carrying it pointed at a live object in
+  the table, none stood further than 200 units from it, and the pairs were right across four
+  factions (`HobbitBounder` → `ImladrisHobbitBoundersHorde`, `IsengardPikeman` →
+  `IsengardPikemanHorde`, and an `ImladrisBanner` inside a `BruchtalLancerHorde`, where the
+  names disagree but the membership does not).
+
+  Presumably `m_containedBy`, so a garrisoned or transported object should report its holder
+  here too; only horde membership has been observed, so only that is claimed.
 - Ownership for objects on non-default (script) teams — 2 of 523 live, reported as no owner.
   Needs the team list itself, presumably a `TheTeamFactory`-style global.
 - `Player+0x06C` sits with the command-point fields and moved 200 → 400 when a command-point

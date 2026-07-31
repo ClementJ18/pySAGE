@@ -42,6 +42,15 @@ def test_info_json_is_machine_readable(attached, capsys):
     assert doc["fogged"] is False
 
 
+def test_info_names_the_build_and_whether_it_can_take_orders(attached, capsys):
+    """The two things to check before blaming a policy: is this the build the layout
+    describes, and is the patch that accepts orders actually there."""
+    assert cli.main(["info"]) == 0
+    out = capsys.readouterr().out
+    assert "build           pe-460da09e" in out
+    assert "live-bridge     no" in out
+
+
 def test_players_json_lists_every_named_side(attached, capsys):
     assert cli.main(["players", "--json"]) == 0
     doc = json.loads(capsys.readouterr().out)

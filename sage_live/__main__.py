@@ -38,6 +38,7 @@ from pathlib import Path
 from sage_live.connect import AttachError, open_backend
 from sage_live.memory import LAYOUT_ROTWK_201, EngineLayout, MemoryBackend, find_game_processes
 from sage_live.observation import GameObject, Observation
+from sage_patch.patches.live_bridge import SECTION_NAME
 
 __all__ = ["main"]
 
@@ -87,9 +88,12 @@ def cmd_processes(args: argparse.Namespace) -> int:
 def cmd_info(args: argparse.Namespace) -> int:
     backend, obs = _observe(args)
     if args.json:
+        identity = backend.identity
         print(
             json.dumps(
                 {
+                    "build": None if identity is None else identity.fingerprint,
+                    "live_bridge": identity is not None and identity.carries(SECTION_NAME),
                     "frame": obs.frame,
                     "local_player": obs.local_player,
                     "fogged": obs.fogged,
@@ -102,6 +106,11 @@ def cmd_info(args: argparse.Namespace) -> int:
         )
         return 0
 
+    identity = backend.identity
+    if identity is not None:
+        bridge = "yes" if identity.carries(SECTION_NAME) else "no (read-only; orders need it)"
+        print(f"build           {identity.fingerprint}")
+        print(f"live-bridge     {bridge}")
     print(f"frame           {obs.frame}")
     print(f"local player    {obs.local_player}")
     print(f"fog applied     {obs.fogged}")

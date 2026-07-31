@@ -60,7 +60,9 @@ __all__ = [
     "PLAYER_INDEX",
     "PLAYER_IS_DEFEATED",
     "PLAYER_IS_OBSERVER",
+    "OBJECT_MODULE_LIST",
     "PRODUCTION_UPDATE_INTERFACE_VTABLE",
+    "PRODUCTION_UPDATE_VTABLE",
     "RECORDER_END_BRANCH",
     "RECORDER_END_BRANCH_BYTES",
     "RECORDER_END_WRITE_CALL",
@@ -426,6 +428,20 @@ GUICOMMAND_REVIVE = 46
 REQUEST_UNIQUE_UNIT_ID = 0x008A18FA
 PRODUCTION_UPDATE_INTERFACE_VTABLE = 0x00C67DB0
 REQUEST_UNIQUE_UNIT_ID_VTABLE_SLOT = 0x08
+
+# The module's *primary* vtable, written at `module+0x00` by the constructor
+# (`0x008A1819`: `mov dword [esi], 0xc67ef4`). A vtable address is unique to its class, so
+# this is how a reader outside the process identifies which of an object's behaviour modules
+# is the `ProductionUpdate` - without calling the engine's own `getProductionUpdateInterface`,
+# which it cannot. Used by `sage_live.memory` to read production state; see
+# `docs/production-model-condition.md` §5.
+PRODUCTION_UPDATE_VTABLE = 0x00C67EF4
+
+# `Object+0x24C` is a pointer to a **NULL-terminated** array of `BehaviorModule*`. Read off
+# `getProductionUpdateInterface` (`0x0068C327`), which is `mov esi,[ecx+0x24c]` and then walks
+# `esi` in steps of 4 until it loads NULL. Three interface getters in a row share the idiom,
+# so the offset is corroborated three times over rather than inferred from one.
+OBJECT_MODULE_LIST = 0x24C
 # The whole stock body: `mov eax,[ecx+0x10]` / `lea edx,[eax+1]` / `mov [ecx+0x10],edx` / `ret`.
 # Ten bytes, entered only through the vtable, so all ten are replaceable in place.
 REQUEST_UNIQUE_UNIT_ID_BODY = bytes.fromhex("8b41108d5001895110c3")

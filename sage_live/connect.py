@@ -28,6 +28,7 @@ from typing import Literal, overload
 
 from sage_live.backend import ConnectionRefused
 from sage_live.bridge import BridgeBackend, BridgeUnavailable
+from sage_live.heroes import ReviveLookup
 from sage_live.memory import (
     LAYOUT_ROTWK_201,
     EngineLayout,
@@ -133,6 +134,8 @@ def attach(
     layout: EngineLayout = LAYOUT_ROTWK_201,
     apm_cap: int = DEFAULT_APM_CAP,
     player_index: int | None = None,
+    godsight: bool = True,
+    revives: ReviveLookup | None = None,
 ) -> Session:
     """A connected `Session` on the running game.
 
@@ -153,6 +156,10 @@ def attach(
     `TheUpgradeCenter`, so `research("Upgrade_MordorForgedBlades", id)` needs no game files.
     Thing, power and science names still need a `sage_live.resolve.Resolver`; attach one with
     `session.names = resolver`.
+
+    `revives` is the revive system's static half, which hero recruitment needs and which needs
+    an ini load - pass a `sage_live.statics.Statics`, or set `session.revives` later. Without
+    it the session reads and orders everything else normally and refuses hero recruits.
     """
     backend = open_backend(pid, writable=writable, layout=layout)
     session = Session(
@@ -160,6 +167,8 @@ def attach(
         player_index=backend.local_player_index() if player_index is None else player_index,
         apm_cap=apm_cap,
         names=LiveNames(backend),
+        godsight=godsight,
+        revives=revives,
     )
     session.connect()
     return session

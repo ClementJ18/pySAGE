@@ -145,10 +145,14 @@ Four notes that shape the design:
 - **`template_name` carries the whole unit model.** Once an object names its template, `sage_ini`
   and `sage_mods.edain` supply cost, armour, weapons, build time, command points and the faction
   tree. The observation stays small and the consumer joins against static data it already has.
-- **Fog of war must be applied on the game side, per player, and it must be explicit.** The
-  engine knows what a player can see; the API must not quietly hand over the whole map. Make it a
-  session option that defaults to fogged, so training on impossible information is a deliberate
-  act rather than an accident.
+- **Two separate problems, and the design used to name only one.** *Fog* is visibility, and it
+  must be applied per player and explicitly — the engine knows what a player can see and the API
+  must not quietly hand over the whole map. `PartitionData` carries `m_shroudedness[player]` per
+  **object**, so the filter is a per-object lookup rather than a grid query; that offset is the
+  remaining work. *Godsight* is knowledge, and fog does not fix it: an enemy building in plain
+  view still has no readable production queue, and an opponent's economy has no on-screen
+  equivalent at all. `attach(godsight=False)` removes that today. Both should end up defaulting
+  to the honest setting, so training on impossible information is a deliberate act.
 - **Frozen dataclasses.** An observation is a snapshot; making it immutable stops a whole class of
   bug where a policy mutates last frame's world.
 
@@ -194,12 +198,18 @@ callers at once. (The `+3` on upgrades is now explained: three veterancy upgrade
 registers before parsing any ini, so an ini-derived table starts three short. OPEN 4 is closed,
 and a live consumer reading `TheUpgradeCenter` needs no offset at all.)
 
-**Live state deletes the hardest part of the replay-side model.** Recruiting a fortress hero is
-`0x417` flag=True, "press command-button slot N of the currently selected object", where N is the
-hero's *dynamic* position in the revive submenu. Offline, that needs the whole `ReviveList`
-simulation — rosters, build times, who has fielded, where a dead hero re-enters. Live, you read
-the selected object's current command set out of the engine and look up which slot holds the
-button you want. The simulation becomes an assertion instead of a dependency.
+**Live state deletes most of the replay-side revive model — but not by reading the command set.**
+Recruiting a hero is `0x417` flag=True, and N is *not* a command-button slot: it is the hero's
+dynamic position in the player's `BuildableHeroesMP` list. Offline that needs the whole
+`ReviveList` simulation — rosters, build times, who has fielded, where a dead hero re-enters.
+Live, the map answers most of it directly: a hero standing on it has left the list, which is the
+only rule that matters for a hero not yet recruited. Only the tail, where a hero killed after
+fielding rejoins, still needs history, and `Session` accumulates that across frames.
+
+The static half — which building may recruit which hero — is an ini join rather than a live read.
+Heroes bind to `Command = REVIVE` buttons by position, and the surplus slots every such building
+carries are disabled by an unobtainable upgrade. See
+[`hero-recruitment.md`](../sage_patch/docs/hero-recruitment.md).
 
 **Selection is session state, and it is mandatory.** `0x417` flag=True is byte-identical whether
 it recruits a hero or unpacks an outpost; only the current selection disambiguates. `Session`
@@ -254,7 +264,7 @@ Honest inventory. Each is a blocker for a specific milestone, and each has a sta
 | 2 | **Object body offsets** — position, health, state | M1 | same lever; these are precisely the "object bodies stay opaque" part of the save decode. Confirm with Cheat Engine against a unit you damage on demand |
 | 3 | **Player resources / power points** — `Player+0x3DC` is the *stats* block, not the economy | M1 | known-value search on a resource number you can change by building something |
 | 4 | **MessageStream append function** | M2 | `getCommandTypeAsAsciiString` is not debug-gated, so every `MSG_*` name is a string literal in `game.dat`; strings → xrefs is the documented workflow, and it closes OPEN 10 as a side effect |
-| 5 | **Live CommandSet state of a selected object** | hero recruits | `ThingTemplate+0x70` is the static CommandSet; the runtime availability/paging state is adjacent work |
+| 5 | ~~**Live CommandSet state of a selected object**~~ | ~~hero recruits~~ | **Closed, and the question was wrong.** A hero recruit carries a position in the player's `BuildableHeroesMP` list, not a command-button slot, so no runtime command-set state is needed: the roster is an ini join and the list's mutations are visible on the map. What remains open is the ControlBar's own button-to-hero walk at `0x00943F81` — see [`hero-recruitment.md`](../sage_patch/docs/hero-recruitment.md) |
 
 Already verified and not on this list: `PlayerList+0x10` (local player), `Player+0x3DC`,
 object `+0x04` → `ThingTemplate`, template `+0x64` name / `+0x6C` Side / `+0x70` CommandSet.
@@ -273,11 +283,32 @@ the runtime map as a by-product.
 | **M3** | `BridgeBackend`: per-frame observation + full order vocabulary + selection tracking | a scripted opening executes; the recorded replay's order stream matches the intent, and `narrate` retells it correctly | M1, M2 |
 | **M4** | stepped mode | N identical rollouts from one save produce identical observation hashes | M3 |
 
-M0–M3 are done. What the interface still misrepresents is **per-object activity**: production
-and queue state are not located, so a barracks already training reads as idle and a half-built
-structure is indistinguishable from a finished one; and horde membership is not reported, so a
-battalion appears as its individual members. Both are read-side reverse engineering against
-`Object`, not API work — see [`live-object-model.md`](../sage_patch/docs/live-object-model.md) §5.
+M0–M3 are done, and so is the hardening that turns "an expert can drive it" into "it can be
+left running":
+
+| | what it fixes |
+|---|---|
+| **build identity gate** | `EngineLayout.build_timestamp` against the running image's PE stamp. The handshake now gates instead of greeting: it carries a *measured* fingerprint, so `expect=` can pin a build. Reading another build never failed before — it reported nonsense. |
+| **`GameExited`** | a vanished process decoded as an empty observation, which is what a finished match decodes as. `session.alive` asks the process rather than the data. |
+| **`confirm_spend` / `confirm_moved` / `confirm_appeared`** | the "resources are the oracle" rule was documented here and implemented only in an example. Every consumer needed it and the obvious version of each is wrong. |
+| **`Sent`** | `send` returning 0 conflated the APM cap pacing you with the backend refusing the order. An `int` subclass, so no caller changed. |
+| **`DiagnosticLog`** | a per-observation append into an unbounded list, never logged, re-scanned from the start on every read. Now bounded, logged through `logging.getLogger("sage_live")`, and drainable. |
+
+**Production state is now readable**, which was the largest thing the interface misrepresented:
+a barracks already training read as idle. The missing hop was `Object` → its behaviour modules,
+and it is `Object+0x24C`, read off the engine's own `getProductionUpdateInterface`; the
+`ProductionUpdate` is then identified by its primary vtable, which needs no call. `GameObject`
+carries `production` and `producing`, and the derivation is in
+[`live-object-model.md`](../sage_patch/docs/live-object-model.md) §5.
+
+**Horde membership is now readable too**, from the same live match: `Object+0x27C` is what
+contains an object, so `parent_id` is populated, `Observation.members` is its inverse, and
+`orderable(player)` is the selection an order should be addressed to — the trap that made
+orders to a battalion's members vanish silently.
+
+What the interface still misrepresents is **construction progress**: a half-built structure is
+indistinguishable from a finished one, because health ramps while building. That is read-side
+reverse engineering against `Object`, not API work.
 
 M0's test suite is the whole Python surface. M1 and M2 are each independently useful — M1 is a
 live game inspector, M2 is scripted-build automation — so neither is dead weight if the project
