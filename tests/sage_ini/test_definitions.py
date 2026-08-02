@@ -11,6 +11,7 @@ from sage_ini.model.behaviors import Body
 from sage_ini.model.data_blocks import (
     AudioEvent,
     AudioSettings,
+    EyeTower,
     InGameUI,
     LivingWorldMapInfo,
     MappedImage,
@@ -1345,6 +1346,49 @@ def test_livingworldmapinfo_fields_are_typed():
     assert info.Center == [226.0, 844.0, 0.0]
     assert info.ArmyLineColorAttacking == [255.0, 0.0, 0.0, 255.0]
     assert info.DefaultArmyMoveSpeed == 20.0
+
+
+def test_livingworldmapinfo_EyeTower_fields():
+    game = load(
+        """\
+        LivingWorldAnimObject EyeTower_Pupil
+            Model       = LM_BrdrPupil
+            Pos         = x:2458 Y:170 Z:200
+            OrientAngle = 25
+        End
+
+        LivingWorldAnimObject EyeTower_EyeBeam
+            Model = LM_BrdrLight
+            Pos   = x:2458 Y:170 Z:200
+        End
+
+        LivingWorldAnimObject EyeTower_Decal
+            Model = LM_BrdrEye
+            Pos   = x:2000 Y:170 Z:50
+        End
+
+        LivingWorldAnimObject EyeTower_Decal_Beam
+            Model = LM_BrdrLightB
+            Pos   = x:2000 Y:170 Z:50
+        End
+
+        LivingWorldMapInfo
+            EyeTower
+                PupilAnimObject        = EyeTower_Pupil
+                PupilBeamAnimObject    = EyeTower_EyeBeam
+                EyeDecalAnimObject     = EyeTower_Decal
+                EyeDecalBeamAnimObject = EyeTower_Decal_Beam
+            End
+        End
+        """
+    )
+    info = game.livingworldmapinfos["LivingWorldMapInfo"]
+    assert isinstance(info, LivingWorldMapInfo)
+    assert isinstance(info.EyeTower[0], EyeTower)
+    assert info.EyeTower[0].PupilAnimObject is game.livingworldanimobjects["EyeTower_Pupil"]
+    assert info.EyeTower[0].PupilBeamAnimObject is game.livingworldanimobjects["EyeTower_EyeBeam"]
+    assert info.EyeTower[0].EyeDecalAnimObject is game.livingworldanimobjects["EyeTower_Decal"]
+    assert info.EyeTower[0].EyeDecalBeamAnimObject is game.livingworldanimobjects["EyeTower_Decal_Beam"]
 
 
 def test_object_world_map_prop_fields_are_typed():

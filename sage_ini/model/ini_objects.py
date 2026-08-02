@@ -1020,6 +1020,8 @@ class Object(IniObject):
     EvaEventDamagedByFireOwner: EvaEvent
     EvaEventDamagedFromShroudedSourceOwner: EvaEvent
     EvaEventSecondDamageFarFromFirstOwner: EvaEvent
+    EvaEventDieAlly: EvaEvent
+    EvaEventDieEnemy: EvaEvent
     EvaEventDieOwner: EvaEvent
     EvaEventAmbushed: EvaEvent
     EvaEnemyObjectSightedEvent: EvaEvent

@@ -747,6 +747,7 @@ AutoResolveLeadershipRef = Annotated[str, Reference("autoresolveleaderships")]
 RegionCampaignRef = Annotated[str, Reference("livingworldregioncampaigns")]
 BuildingIconRef = Annotated[str, Reference("livingworldbuildingicons")]
 DamageFXRef = Annotated[str, Reference("damagefxs")]
+LivingWorldAnimObjectRef = Annotated[str, Reference("livingworldanimobjects")]
 
 # `AnimState:NAME AnimTime:0 TriggerTime:0` - the engine's colon-keyed pair form.
 AnimAndDuration = KeyValuePair
