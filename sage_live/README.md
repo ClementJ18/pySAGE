@@ -193,12 +193,24 @@ for a large share of real templates, `GondorBuildingFoundation_Independant` amon
 
 ## What an observation costs
 
-**Three reads per object** - the table entry, the object header, and the body. Everything else
-on the header comes out of that one read, a template's name and Side are cached per template
-rather than per object, and a template already known to carry no `ProductionUpdate` skips the
-module walk. Measured on the same image, refusing the wide reads to force the older
-field-by-field path gives 16 per object, so batching is a 5.3x cut; a 400-object observation
-was 0.32 s before it.
+**Three reads for an additional object; about fifteen averaged over a real match.** Both numbers
+are real and they answer different questions, so it is worth being exact about which is which.
+
+*Marginal* cost — one more object of a template already seen — is **3**: the table entry, the
+object header, and the body. Everything else on the header comes out of that one read.
+
+*Average* cost over a captured 386-object match is **15.1**, because a real match holds dozens
+of distinct templates and each pays once for its name, its Side and its module walk. Measured
+against the same capture, the improvements decompose as:
+
+| | reads per object |
+|---|---|
+| originally | 49.8 |
+| caching template facts | 29.1 |
+| + batching the reads | **15.1** |
+
+So batching is a 1.9x cut on top of a 1.7x from caching — **3.3x** together on real data, not the
+5.3x the marginal figure alone suggests. A 400-object observation took 0.32 s before any of it.
 
 Every wide read falls back to reading fields individually, and the two must decode identically
 - an object straddling an unmapped page fails the wide read while each field inside it reads
@@ -340,13 +352,8 @@ Every offset was confirmed against a running process, not inferred from shape:
 
 ## Known gaps
 
-- **Construction state is read, but not yet live-verified.** `GameObject.under_construction` is
-  the engine's own `ACTIVELY_BEING_CONSTRUCTED` model condition — bit 69 of the mask at
-  `Object+0x10C`. The offset comes from `sage_patch`, whose production-condition patch writes to
-  that same mask, and the name table walks to exactly the 591 entries the engine declares. But
-  nothing has yet been *watched* to flip the bit: raise a structure and check it goes true, and
-  until then treat it as derived rather than proven. It reports state, not progress — there is
-  still no percentage.
+- **Construction reports state, not progress.** `under_construction` is verified (below), but
+  there is no percentage: how far along a structure is remains unread.
 - **Ownership misses script teams** — 2 objects of 523 in a live match, reported as no owner.
 - **The revive list is reconstructed, not read.** A hero's index comes from the faction roster
   and what the map shows, which is exact for a hero never yet fielded and inferred from observed
@@ -356,12 +363,22 @@ Every offset was confirmed against a running process, not inferred from shape:
   do not line up under it; `Statics.check_revive_slots` names them, `RohanCitadel` included.
   Map-scoped `BuildableHeroesMP` overrides are not applied. See
   [`hero-recruitment.md`](../sage_patch/docs/hero-recruitment.md).
-- **Science names need an ini load.** `TheScienceStore` has an address but resists the same
-  treatment: it is a vector of 263 pointers, but only about a fifth of them carry a
-  `SCIENCE_*` name at any one offset, so the element layout is not uniform and has not been
-  pinned down. `TheSpecialPowerStore` *is* walked — it is a `std::vector` at `+0x0C` rather
-  than a linked list, which is why the first pass missed it, and its 1,566 names agree with
-  the ini reconstruction position by position on every single one.
+- **Science names need an ini load** — the last id space that does. `TheScienceStore` is a
+  `std::vector` at `+0x0C` exactly like `TheSpecialPowerStore`, and it holds **263 pointers,
+  which is exactly the 263 sciences the ini tree defines**. That count agreeing to the entry is
+  good evidence the vector *is* the registry in registration order, so the ini rule is
+  corroborated even though the live path is not usable yet.
+
+  What blocks it is the element: the entries are **separately allocated and of different
+  sizes** (0x80, 0x70, 0x78, 0x58 apart), all sharing one vtable, and no offset in the first
+  0x100 bytes names more than a fifth of them. The `SCIENCE_*` strings sit adjacent in memory,
+  so a scan for "a pointer whose target reads as a name" finds mostly coincidences — one such
+  hit pointed into the *middle* of a neighbouring string. Reading it needs the parser followed
+  statically, not another differential.
+
+  `TheSpecialPowerStore` *is* walked — same vector shape, which is why the linked-list pass
+  first missed both — and its 1,566 names agree with the ini reconstruction position by
+  position on every single one.
 - **Thing ids are corroborated, not round-tripped** — but the corroboration is now measured.
   `thing_order` anchors index 0 at `DefaultThingTemplate`, contains every template any live
   object uses, and has no duplicate names. Against the ini tree it reads 11,142 templates to

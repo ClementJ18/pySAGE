@@ -418,6 +418,39 @@ several *different* expected values, then keep only the location consistent with
 
   Presumably `m_containedBy`, so a garrisoned or transported object should report its holder
   here too; only horde membership has been observed, so only that is claimed.
+- **Per-object shroud — not found, and the cheap approach is ruled out.**
+  [`max-player-count.md`](max-player-count.md) documents `PartitionData` as carrying
+  `ObjectShroudStatus m_shroudedness[N]` **per object**, which would make fog a per-object
+  lookup rather than a grid query. The hop from `Object` to it was hunted differentially in a
+  live match and **is not** a per-player array reachable one pointer from the `Object`:
+
+  | test | scope | result |
+  |---|---|---|
+  | mirror (mine vs theirs, `arr[me] == theirs[foe]` and vice versa) | every pointer in `Object+0x000..0x400`, 0x300 followed, strides 1, 2 and 4 | one hit, and it is not the shroud — see below |
+  | near vs far enemy objects (within 200 of my units vs beyond 900) | same | 9 byte-stride candidates, none shaped like a 20-wide array; nothing at all at int stride |
+
+  So `PartitionData` is reached by more than one indirection, sits further than 0x300 into
+  whatever holds it, or is keyed by the object's `m_lastCell` through `ThePartitionManager`
+  rather than pointed at directly.
+
+  **The static attempt got as far as the manager and no further.** `ThePartitionManager` is
+  `0x00DE4358`, recovered from its registration site the way the other subsystem globals were
+  (name string at `0x00BFDC08` pushed at `0x0062CECB`; the 20-byte object built immediately
+  after is stored at `0x0062CF01`) - and the same reading of the `TheGameLogic` registration
+  returns its known `0x00DE412C`, which is what makes the method trustworthy here. It is
+  referenced from **109** sites, too many to read by hand.
+
+  A scan for the accessor's *shape* - load a member pointer out of `this`, then index an array
+  by an argument - found nothing, because it required `this` to still be in `ecx`, which it
+  rarely is past a prologue. Worth repeating with the pointer load allowed from any register.
+  The other lead not yet pulled is `-xShroudCRC`, a real command-line flag whose handler must
+  reach code that walks the shroud.
+
+- **The alliance table is `Team+0x1A8`** — found by the mirror test above, which it passes
+  perfectly: a 20-wide per-player byte array where the owning player's own slot reads **25** and
+  an enemy's reads **0**, mirrored exactly between the two sides. Reached as
+  `Object+0x31C` (the `Team*`) `+0x1A8`. Not yet used, but it is what "allied vision" and a
+  correct `opponents` will need, and it is the same team data the shroud work wants.
 - Ownership for objects on non-default (script) teams — 2 of 523 live, reported as no owner.
   Needs the team list itself, presumably a `TheTeamFactory`-style global.
 - `Player+0x06C` sits with the command-point fields and moved 200 → 400 when a command-point

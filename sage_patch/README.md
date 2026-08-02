@@ -63,11 +63,53 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   exists only to rescue the file before it is overwritten (`--rename added` keeps the stock
   behaviour for network games). Client-local, like `replay-outcome`. **Gate runtime-verified,
   naming re-test open** — see Status.
+- **`terrain-resource-exp`** adds a **`GiveNoXP`** boolean to `TerrainResourceBehavior`, so a
+  resource spot can pay its owner without levelling its own building. The module hands the integer
+  it just deposited to the building's `ExperienceTracker` on every income tick, and no INI field
+  separates the two — while the sibling `AutoDepositUpdate` has shipped exactly this boolean, under
+  exactly this name, since the stock build. The new field lands in `ModuleData+0x16`, alignment
+  padding the constructor never wrote, so nothing grows.
 - **`unique-production-id`** mints the `ProductionID` **game-wide** instead of per building. The
   stock counter lives on the producer, so every building's first production is id 1 — and hero
   recruitment keys the player's revive bookkeeping on that id, so recruiting a hero from a second
   building while the first is still producing collides, and the click takes the money without
   starting anything.
+- **`hero-mana`** gives special powers a **regenerating per-object cost** — `SpecialPower.ManaCost`
+  for the price of one activation, and `Object.ManaPool` / `Object.ManaRegen` for the caster's
+  single pool that all of its abilities draw on. The stock `UnitCost` field cannot do
+  this: all three sites that read it ask `Object+0x258` for the horde interface first and, when
+  it is absent, branch to *the same label as "cost is zero"* — so on a lone hero `UnitCost` is
+  not a weak mechanic, it is a **no-op**. The patch grows `SpecialPowerTemplate` `0x88 → 0x94`,
+  relocates both the `SpecialPower` field-parse table (**two** references, the smallest repoint
+  here) and the `Object` one (**five**, and no interior reference despite what
+  `second-resource-type` records),
+  and enforces the cost at `SpecialPowerStore::canUseSpecialPower` — the one predicate the
+  player's UI, the AI and every activation path all share, so **the AI is gated for free**. The
+  pool is *computed on read* from the logic frame rather than ticked, which is what lets it need
+  no per-frame hook (avoiding a collision with `live-bridge`), no init hook, no destroy hook and
+  no savegame change. A `ManaCost` line joins the stock `UnitCost` one in a button's description,
+  from the `TOOLTIP:ManaCost` key and carrying **both the price and what the caster currently has**;
+  a `ManaPool` line sits under a hero's level on its revive/recruit button. `ManaCost = 0`, the default, leaves a power exactly as it is today.
+
+- **`command-point-upkeep`** makes a large army **cost a player income**: the more command points
+  they have in the field, the less their resource buildings pay. Two new `PlayerTemplate` fields
+  declare the curve per faction — `UpkeepCommandPointStep` (how many command points move a player
+  one tier; **0, the default, is upkeep off**) and `UpkeepValues` (the percentage of income kept
+  at each tier, the last entry held for everything past it). It is not a new mechanic so much as a
+  second dial on an old one: `ResourceModifierValues` — the per-building "inflation" every Edain
+  faction sets — is read in exactly **one** place, `AutoDepositUpdate::update`, which turns a
+  *count* into a percentage and scales the deposit by it. Upkeep swaps the count for command
+  points and multiplies the same slot, so the two stack and the engine's "never round income below
+  1 gold" floor still applies. Only income the faction's own `ResourceModifierObjectFilter`
+  accepts is taxed, because `AutoDepositUpdate` is *all* tick income and would otherwise catch
+  captured neutral structures too. The per-faction rows live in the cave keyed by the template's
+  `NameKeyType`, not by a pointer — a `PlayerTemplate` is parsed into a **stack temporary** before
+  being copied into the store's vector — which is also what leaves **no savegame change and no
+  init hook**. The `PlayerTemplate` field table has **one** reference, the smallest repoint here.
+  The palantir's command-point readout gains the current loss: `500/1500 (-10%)`, produced by the
+  engine's own formatter with a third vararg, so it needs no `.apt` and no `.csf`/`.str` edit
+  (a mod's `APT:PalantirCommandPoints` string is a design-time placeholder the engine overwrites
+  every refresh). `--no-hud` leaves the text stock.
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -137,12 +179,57 @@ Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
   function disassembles to the four intended instructions and ends exactly on the next function's
   boundary; recruiting from a second building while the first is still producing is the in-game
   check, and it is open.
+- **`terrain-resource-exp` is static-verified, not yet runtime-verified in a game.** The three
+  edits install, the sites disassemble to the intended instructions, and
+  [`scripts/module_defaults.py`](scripts/module_defaults.py) — which reads the module table out of
+  the binary knowing nothing about this patch — reports `GiveNoXP` as a `Bool` at `ModuleData+0x16`
+  defaulting to `No`, with `sizeof(ModuleData)` still `0x24`. What is open is the in-game check:
+  that a gated spot still pays the same money per tick, and that its building stops levelling while
+  an ungated one does not.
+- **`terrain-resource-exp` needs every peer on the patched binary, and its keyword is fatal without
+  it.** Experience feeds `ExperienceTracker` and veterancy is CRC'd logic-side `Object` state, so a
+  patched and an unpatched client diverge on the first gated income tick — the
+  `production-condition` class of patch, not the `replay-outcome` one. And SAGE treats an unknown
+  field in a known block as a parse error, so a mod writing `GiveNoXP` into a
+  `TerrainResourceBehavior` block does not load on a stock `game.dat` at all (the `"Error parsing
+  field '34'…"` failure, under another name). Savegames are unaffected either way.
+- **Reading a patched binary needed two fixes to `module_defaults.py`, both neutral on a stock
+  one.** It refused to follow a table pointer into any section but `.rdata`/`.data` — which a
+  relocated table never is — and it did not know that `and dword [x], 0` defaults all four bytes,
+  so a `Bool` packed beside an `Int` read as having no compiled-in default. Regenerated against an
+  unpatched `game.dat`, [`docs/module-reference.json`](docs/module-reference.json) is unchanged.
 - **A savegame taken mid-recruit can still lose one payment.** The game-wide counter lives in the
   appended section, which the save does not carry, so a loaded game mints from 1 again while an
   in-progress revive may still hold a low id. It collides at most once and then clears itself —
   the stock bug in a far narrower window. Closing it means persisting the counter through `Xfer`,
   a savegame format change. See the scope note in
   [`docs/unique-production-id.md`](docs/unique-production-id.md).
+- **`hero-mana` is partly runtime-verified, and one defect is open.** A traced build was played
+  on 2026-08-01: both field tables relocate, all three fields parse, the pool deducts and
+  regenerates, and the cost shows in the button description. Two bugs were found and fixed there
+  (a double-charge, and a missing fourth *targetless* activation variant). **Still open:**
+  abilities driven by `WeaponFireSpecialAbilityUpdate` — Word of Power among them — never reach
+  the charge point and so cost nothing. See [`docs/hero-mana.md`](docs/hero-mana.md) §10 for the
+  state, the leads, and a stop-gap.
+- **`hero-mana` has no mana *bar*.** The ability's cost shows in its button description, the
+  hero's maximum under its level on the revive/recruit button, and an unaffordable power greys
+  out — but there is no bar, and no readout anywhere except in those descriptions. The Palantir HUD is APT-driven and
+  the engine registers only **28** data bindings in the whole image, none of them a unit or hero
+  panel — so there is nothing to hang a number on without authoring a field into the `.apt`, which
+  `sage_apt` cannot yet do reliably. See [`docs/hero-mana.md`](docs/hero-mana.md) §8b.
+- **`hero-mana` folds the object id into 8192 rows.** Two mana-using heroes alive at once whose
+  ids differ by a multiple of 8192 share a row, and the one that does not own it reads a *full*
+  pool. The failure is "a power was occasionally free" — never a crash, a wrong refusal, or a
+  desync, since every peer folds identically. A save reloads with every hero full.
+
+- **`command-point-upkeep` is static-verified, not yet runtime-verified in a game.** The bytes
+  apply, disassemble as intended and verify, and the tier arithmetic is asserted against a stated
+  rule — but no match has been played on a build carrying it. The six checks that would close
+  that are listed in [`docs/command-point-upkeep.md`](docs/command-point-upkeep.md).
+- **`command-point-upkeep` thresholds are absolute, not a fraction of the cap.** A faction whose
+  command-point cap is 400 can never reach a `500+` tier; one capped at 3000 sits in a band for
+  most of a game. That is the requested behaviour, but it is what makes a curve faction-specific
+  in practice.
 
 ## CLI
 
@@ -179,8 +266,21 @@ sage-patch verify replay-outcome game.dat
 sage-patch apply skirmish-replay --in game.dat.backup --out game.dat  # --modes 2 --rename all
 sage-patch verify skirmish-replay game.dat
 
+# --pool is the fallback maximum in whole points, --regen the fallback refill in hundredths of a
+# point per logic frame (30 == one point per second at 30fps); a SpecialPower may override both.
+sage-patch apply hero-mana --pool 100 --regen 30 --in game.dat.backup --out game.dat
+sage-patch verify hero-mana --pool 100 --regen 30 game.dat
+
+# per-faction upkeep thresholds come from playertemplate.ini; --no-hud keeps the palantir's
+# command-point text exactly as the stock engine draws it
+sage-patch apply command-point-upkeep --in game.dat.backup --out game.dat
+sage-patch verify command-point-upkeep game.dat
+
 # rename only the skirmish recordings, leaving network ones (and Save Replay) as stock
 sage-patch apply skirmish-replay --rename added --in game.dat.backup --out game.dat
+
+sage-patch apply terrain-resource-exp --in game.dat.backup --out game.dat   # --keyword GiveNoXP
+sage-patch verify terrain-resource-exp game.dat
 ```
 
 `verify` re-derives the expected tables, the repointed references and every patched site from the
@@ -223,6 +323,7 @@ apply_patches(
 | [`patches/model_conditions.py`](patches/model_conditions.py) | owner of the `ModelConditionFlags` table: its 16 references, its 10 count bounds and the `xfer` blob width |
 | [`patches/weapon_set_flags.py`](patches/weapon_set_flags.py) | owner of the `WeaponSetFlags` table: 8 references, `Object+0x38C`, and the count that must **not** move |
 | [`patches/locomotor_sets.py`](patches/locomotor_sets.py) | owner of the `LocomotorSetType` table: 8 references, and `chooseLocomotorSet` on the AI module |
+| [`patches/terrain_resource_exp.py`](patches/terrain_resource_exp.py) | `TerrainResourceExpPatch` — add a `GiveNoXP` boolean to `TerrainResourceBehavior` (rebuild its field table into a cave by pointer, put the new `Bool` in the struct's padding, gate the experience grant on it) |
 | [`patches/unique_production_id.py`](patches/unique_production_id.py) | `UniqueProductionIdPatch` — rewrite `requestUniqueUnitID` to mint from one game-wide counter instead of one per producer |
 | [`patches/replay_outcome.py`](patches/replay_outcome.py) | `ReplayOutcomePatch` — write every player's final victory/defeat state into the replay as the recorded game is torn down |
 | [`patches/skirmish_replay.py`](patches/skirmish_replay.py) | `SkirmishReplayPatch` — add the skirmish game mode to the recorder's whitelist, and name the file by timestamp and map |
@@ -310,6 +411,20 @@ instead of the per-producer one at `ProductionUpdate+0x30`. The first id minted 
 is still never minted — which matters, because 0 is what an idle hero's revive entry holds in the
 field the id is matched against. See [`docs/unique-production-id.md`](docs/unique-production-id.md).
 
+`TerrainResourceExpPatch(keyword="GiveNoXP")`. **One keyword**, and the default is the name the
+stock `AutoDepositUpdate` already gives the same field, so a mod writes one keyword for one concept
+across both income modules. Three edits and a `0xC5`-byte `.trexp` cave: the constructor's two
+`Bool` stores become `and dword [esi+0x14], 0` plus the same `Visible` store — eight bytes for
+eight, and the `and` clears the new field on the way past, so the default costs nothing; the
+field-parse table is rebuilt in the cave with a ninth row, which is **one** 4-byte repoint because
+the table has exactly one reference and is read through its terminator rather than a count; and a
+6-byte hook on the experience block runs `AutoDepositUpdate`'s own gate, `cmp byte
+[ModuleData+off], 0` / `jne <past the grant>`, instruction for instruction. See
+[`docs/terrain-resource-exp.md`](docs/terrain-resource-exp.md).
+
+> **Every peer must run the same patched binary**, and a mod using the keyword cannot run without
+> it at all — an unknown field in a known block is an INI parse error, not a warning. See Status.
+
 ### Composing patches
 
 **Any subset of the bundled patches applies in any order**, and a patch is only considered done
@@ -372,7 +487,10 @@ a byte-identity check that `count=64` reproduces the shipped `game.dat`.
 | [`docs/production-model-condition.md`](docs/production-model-condition.md) | full RE writeup for `production-condition`: the `ModelConditionFlags` anatomy (591 names in 19 dwords, 17 spare), why the 74-byte `xfer` window makes **exactly one** new condition free, the terminator-driven parser that needs no patch, the ten count bounds, `ProductionUpdate`'s queue, and why `update` never sleeping is what makes a single entry hook correct. Settles the `Object`-vs-`Drawable` question left open by `ai-revive-gate`. |
 | [`docs/replay-outcome.md`](docs/replay-outcome.md) | full RE writeup for `replay-outcome`: the `VictoryConditions` layout and its defeat latch, `RecorderClass`'s file handle and chunk writer, why the recordable range being the *network* range rules out injecting a message, the thirteen emitters of `MSG_CLEAR_GAME_DATA` and why the hook belongs on the consumer instead, and the header fields that stay consistent. |
 | [`docs/skirmish-replay.md`](docs/skirmish-replay.md) | full RE writeup for `skirmish-replay`: the `MSG_NEW_GAME` branch that is the whole decision to record, the game-mode enum recovered from its emitters (and why 2 is skirmish), why `startRecording`'s non-network path and the engine's playback predicates already handle it, the three helpers behind the file name and the second caller that makes the *call site* the patchable thing. |
+| [`docs/terrain-resource-exp.md`](docs/terrain-resource-exp.md) | full RE writeup for `terrain-resource-exp`: the module's field table and the two padding bytes the new `Bool` goes in, the experience block at the tail of `update` and why its first instruction is the right thing to hook, the constructor rewrite that buys the default for nothing, and `AutoDepositUpdate::GiveNoXP` — the stock field, and stock gate, this reproduces. |
+| [`docs/hero-mana.md`](docs/hero-mana.md) | full RE writeup for `hero-mana`: why `UnitCost` is inert on a hero (the shared no-horde branch, at three sites), the activation path and the six callers of `canUseSpecialPower` that make one hook reach the AI too, `Object+0x74` as the object id, the `SpecialPower` table's two references and the `0x88 → 0x94` struct growth, and the compute-on-read pool that needs no per-frame, init, destroy or savegame hook. |
 | [`docs/unique-production-id.md`](docs/unique-production-id.md) | full RE writeup for `unique-production-id`: the path a hero recruit takes from `doCommandButton` to `ProductionUpdate::queueCreateUnit`, the per-player revive manager at `Player+0x758` and the `ProductionID` it keys entries on, where the money moves relative to the failure edge, and why the fix belongs at the mint rather than at the check or as a refund. |
+| [`docs/command-point-upkeep.md`](docs/command-point-upkeep.md) | full RE writeup for `command-point-upkeep`: the one reader of `ResourceModifierValues` and the three properties upkeep inherits from it, the command-point bookkeeping at `Player+0x60`, why a `PlayerTemplate` cannot hold the numbers (no hole, 24 size literals, and a parse-time `this` that is a stack temporary) and why its `NameKeyType` can, the one-reference field table, and the cdecl vararg rule that decides where the palantir hook goes. |
 | [`docs/runtime-re-workflow.md`](docs/runtime-re-workflow.md) | the static+dynamic RE method (Ghidra, Cheat Engine, INI field tables) used to recover these offsets, with the verified `Player`/`ThingTemplate` layouts. |
 | [`docs/message-stream.md`](docs/message-stream.md) | `TheMessageStream` (`0x00DE6398`), `appendMessage` (vtable `+0x48`) and all eleven `append*Argument` helpers - the order-injection path - plus the authoritative 147-name `GameMessage::Type` network enum recovered from `getCommandTypeAsAsciiString`. Closes OPEN 10 of [`order_space_map.md`](../sage_replay/order_space_map.md). |
 | [`docs/engine-globals.md`](docs/engine-globals.md) | the 88 named engine singletons (`TheGameLogic`, `ThePlayerList`, `TheThingFactory`, `TheUpgradeCenter`, ...), the `PlayerList` layout and the `Player` economy/identity offsets. The starting point for any live-memory work. |
@@ -437,6 +555,8 @@ its upgrade gate `0x79502a` · its revive branch `0x7950ce` · slot-count bump
 `0x7950dc` · next-slot step `0x7950df` · AI scan bound `0x7950e2` · `GUICOMMAND_REVIVE` = 46
 (name table `0xda4d10`, 61 entries) · the pre-production gate `0x793ecb` (vtable `+0x64`), which
 is how `queueCreateUnit` reaches `canMakeUnit`.
+
+`TerrainResourceBehavior` `ModuleData` ctor `0x88525d` (`sizeof` `0x24`, free padding `+0x16`/`+0x17`) · its two `Bool` defaults `0x88528b` · `buildFieldParse` `0x8852b8`, its `push` immediate `0x8852bf` · field-parse table `0xc5fd78` (8 rows, terminator `0xc5fdf8`, **one** reference) · `update` `0x8854d3` (slot 0 of `0xc5fbcc`), its `ModuleData` slot `[ebp-0x18]` · deposit `0x7b18b8` at `0x8856b0` · the experience block `0x88573c`-`0x885765`, rejoin `0x88576a` · `Object` `m_experienceTracker` `+0x26c` · `ExperienceTracker::isTrainable` `0x79d322` · `addExperiencePoints` `0x79d833` (15 call sites) · `AutoDepositUpdate`'s stock `GiveNoXP` gate `0x89dd16` (field at its `ModuleData+0x20`) · `INI::parseBool` `0x42e558` · `MultiIniFieldParse::add` `0x42b8d7`.
 
 `ProductionUpdateInterface` vtable `0xc67db0` (the subobject at `module+0x20`) ·
 `requestUniqueUnitID` `0x8a18fa` (slot `+0x08`) · `queueCreateUnit` `0x8a11d2` (slot `+0x20`) ·

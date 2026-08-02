@@ -312,7 +312,7 @@ class Image:
         return self.section_of(va) == ".text"
 
     def is_str(self, va: int) -> bool:
-        return self.section_of(va) in (".rdata", ".data") and self.cstr(va) is not None
+        return _is_data(self, va) and self.cstr(va) is not None
 
     def calls_to(self, target: int) -> list[int]:
         out, td = [], self.text
@@ -356,7 +356,7 @@ def name_table(img: Image, va: int, limit: int = 1024) -> list[str]:
     out: list[str] = []
     for k in range(min(limit, TABLE_LENGTHS.get(va, limit))):
         p = img.u32(va + 4 * k)
-        if not p or img.section_of(p) not in (".rdata", ".data"):
+        if not p or not _is_data(img, p):
             break
         s = img.cstr(p, 64)
         if not s or not s.isprintable() or " " in s or not 0 < len(s) <= 48:
@@ -372,7 +372,7 @@ def lookup_table(img: Image, va: int, limit: int = 256) -> list[tuple[str, int]]
     out: list[tuple[str, int]] = []
     for k in range(limit):
         p = img.u32(va + 8 * k)
-        if not p or img.section_of(p) not in (".rdata", ".data"):
+        if not p or not _is_data(img, p):
             break
         s = img.cstr(p, 64)
         if not s or not s.isprintable() or " " in s or not 0 < len(s) <= 48:
@@ -451,7 +451,7 @@ def block_keywords(img: Image, fn: int) -> list[str]:
                 va = int(tok, 16)
             except ValueError:
                 continue
-            if img.section_of(va) not in (".rdata", ".data"):
+            if not _is_data(img, va):
                 continue
             s = img.cstr(va, 64)
             if (s and s not in out and s not in NOT_KEYWORDS and 1 < len(s) <= 32
@@ -475,6 +475,14 @@ def _memop(op: str) -> Optional[tuple[str, int]]:
         except ValueError:
             return None
     return parts[0], disp
+
+
+_WIDTHS = {"byte": 1, "word": 2, "dword": 4, "qword": 8}
+
+
+def _width(op: str) -> int:
+    """Bytes a memory operand covers, from capstone's `dword ptr [...]` size prefix."""
+    return _WIDTHS.get(op.split(" ", 1)[0], 1)
 
 
 class FieldInfo(dict):
@@ -540,11 +548,22 @@ def moduledata_info(img: Image, fn: Optional[int]) -> tuple[Optional[int], Optio
     return size, ctor, bfp
 
 
+def _is_data(img: Image, va: int) -> bool:
+    """Mapped, and not in the code section - `.rdata`/`.data`, or a patch's appended cave.
+
+    Naming the two stock sections outright would refuse a table a patch has relocated: a rebuilt
+    field table lives in the section that patch appended, which is where a patched `game.dat`
+    keeps it and where the engine reads it from. What discriminates a table is its shape, checked
+    below, not which section it happens to sit in."""
+    section = img.section_of(va)
+    return section is not None and section != ".text"
+
+
 def _looks_like_table(img: Image, a: int) -> bool:
-    if img.section_of(a) not in (".rdata", ".data"):
+    if not _is_data(img, a):
         return False
     first = img.u32(a)
-    return bool(first and img.section_of(first) in (".rdata", ".data") and img.cstr(first))
+    return bool(first and _is_data(img, first) and img.cstr(first))
 
 
 def const_return(img: Image, fn: int) -> Optional[int]:
@@ -583,7 +602,7 @@ def parse_table(img: Image, tab: int, limit: int = 200) -> list[tuple[str, int, 
     for k in range(limit):
         e = tab + k * 16
         namep = img.u32(e)
-        if not namep or img.section_of(namep) not in (".rdata", ".data"):
+        if not namep or not _is_data(img, namep):
             break
         nm = img.cstr(namep)
         if not nm or not nm.isprintable() or len(nm) > 64:
@@ -649,7 +668,13 @@ def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int
             elif m == "or" and src == "0xffffffff":
                 out[off] = 0xFFFFFFFF
             elif m == "and" and src == "0":
-                out[off] = 0
+                # `and dword [this+off], 0` is the engine's idiom for zeroing a member, and it
+                # zeroes all four bytes - so a narrower field sharing the dword is defaulted by
+                # it too, unless a later store overwrites that byte (this walk is linear, so a
+                # later `out[off]` wins). Without this a `Bool` packed beside an `Int` reads as
+                # having no compiled-in default when it plainly has one.
+                for k in range(_width(dst)):
+                    out[off + k] = 0
             elif m == "mov":
                 if src.startswith("0x") or src.lstrip("-").isdigit():
                     out[off] = int(src, 0)
@@ -809,7 +834,7 @@ def ini_blocks(img: Image, cat: Catalogue) -> dict[str, dict[str, Any]]:
             strp, fn = img.u32(va), img.u32(va + 4)
             if not strp or not fn or not img.is_text(fn):
                 continue
-            if img.section_of(strp) not in (".rdata", ".data"):
+            if not _is_data(img, strp):
                 continue
             keyword = img.cstr(strp, 48)
             if keyword and INI_KEYWORD.match(keyword):

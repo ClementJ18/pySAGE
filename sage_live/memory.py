@@ -15,13 +15,17 @@ verified against RotWK 2.01 (PE timestamp `0x460DA09E`); the derivation is in
 different `EngineLayout` for another build - and note that reading the *wrong* build with
 these offsets never fails, it reports nonsense, which is why `sage_live.identity` gates it.
 
-**An observation costs three reads per object**, and that is asserted rather than hoped for -
-see `test_an_object_costs_three_reads`. Each `MemorySource.read` is a `ReadProcessMemory`
+**An observation costs three reads per additional object**, and that is asserted rather than
+hoped for - see `test_an_object_costs_three_reads`. Each `MemorySource.read` is a
+`ReadProcessMemory`
 syscall, so the per-object count is what decides whether a policy observes a few times a second
 or a few dozen. Three is the entry, the object header, and the body: everything else on the
 header comes out of the one read, a template's name and Side are cached per template rather
 than per object, and a template already known to carry no `ProductionUpdate` skips the module
-walk entirely.
+walk entirely. Averaged over a real 386-object match the figure is about **15**, because a
+match holds dozens of distinct templates and each pays once for its strings and its module
+walk; the decomposition (49.8 originally, 29.1 with the caches, 15.1 with batching too) is in
+the package README.
 
 Every wide read has a **field-by-field fallback**, and the two must decode identically. That is
 not defensive decoration: an object whose header straddles into an unmapped page fails the wide

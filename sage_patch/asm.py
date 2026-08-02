@@ -19,14 +19,35 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass, field
 
-__all__ = ["JA", "JB", "JE", "JL", "JNAE", "JNE", "JNZ", "JZ", "Asm"]
+__all__ = [
+    "JA",
+    "JAE",
+    "JB",
+    "JBE",
+    "JE",
+    "JG",
+    "JGE",
+    "JL",
+    "JLE",
+    "JNAE",
+    "JNB",
+    "JNE",
+    "JNZ",
+    "JZ",
+    "Asm",
+]
 
 # Condition codes, as the low nibble of the 0x70/0x0F80 opcodes.
 JB = JNAE = 0x2
+JAE = JNB = 0x3
 JE = JZ = 0x4
 JNE = JNZ = 0x5
+JBE = 0x6
 JA = 0x7
 JL = 0xC
+JGE = 0xD
+JLE = 0xE
+JG = 0xF
 
 
 @dataclass
@@ -67,6 +88,16 @@ class Asm:
         self._labels[name] = len(self.buf)
         return self
 
+    def label_va(self, name: str) -> int:
+        """The virtual address a defined label sits at.
+
+        A cave with several routines has to tell the engine where each one starts, and the only
+        honest source for that is the layout that was actually emitted - counting the bytes a
+        second time by hand is the arithmetic this module exists to remove."""
+        if name not in self._labels:
+            raise ValueError(f"undefined label {name!r}")
+        return self.base_va + self._labels[name]
+
     def jmp(self, name: str) -> Asm:
         """`jmp rel32` to a label."""
         self.emit(0xE9)
@@ -77,6 +108,16 @@ class Asm:
         the body changes is exactly the failure this module exists to prevent, so widening
         is the default and shortening is opt-in."""
         self.emit(0x0F, 0x80 | condition)
+        return self._fixup(name, 4)
+
+    def call(self, name: str) -> Asm:
+        """`call rel32` to a label - a routine inside this same cave.
+
+        The sibling of :meth:`call_absolute`, which reaches engine code at a known address. A
+        cave with more than one routine cannot use that form for its own internals: the callee's
+        address is not known until the body it lives in has been laid out, which is the whole
+        reason labels exist here."""
+        self.emit(0xE8)
         return self._fixup(name, 4)
 
     def jmp_short(self, name: str) -> Asm:
