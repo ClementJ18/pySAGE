@@ -81,9 +81,6 @@ class _Unit:
     trivia: list[Node] = field(default_factory=list)
 
 
-# ---------------------------------------------------------------- rendering helpers
-
-
 def _render_nodes(nodes: Sequence[Node], depth: int) -> list[str]:
     """Canonically print `nodes` at indentation `depth`. Reuses the public printer at
     depth 0 and shifts every non-blank line right by `depth` indents - equivalent to
@@ -129,9 +126,6 @@ def _conflict_lines(
     return out
 
 
-# ----------------------------------------------------------------------- segmentation
-
-
 def _key(node: Node) -> tuple | None:
     """Identity of a node for matching, or None for trivia (comments, blank lines)."""
     match node:
@@ -167,9 +161,6 @@ def _segment(nodes: Sequence[Node]) -> tuple[list[_Unit], list[Node]]:
 def _has_dup_keys(units: list[_Unit]) -> bool:
     keys = [u.key for u in units]
     return len(keys) != len(set(keys))
-
-
-# ---------------------------------------------------------------------- textual diff3
 
 
 def _three_way_lines(base: list, ours: list, theirs: list) -> list[tuple]:
@@ -230,9 +221,6 @@ def _textual_fallback(
             out.extend(_conflict_lines(cfg, a_seg, b_seg, o_seg))
             conflicts += 1
     return out, conflicts
-
-
-# ----------------------------------------------------------------------- structural merge
 
 
 def _merge_key_order(base_keys: list, ours_keys: list, theirs_keys: list) -> list:
@@ -395,9 +383,6 @@ def _merge_nodes(
     tail = ours_tail or theirs_tail
     out.extend(_render_nodes(tail, depth))
     return out, conflicts
-
-
-# ------------------------------------------------------------------------- public API
 
 
 def merge_documents(

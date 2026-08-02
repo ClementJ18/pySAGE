@@ -14,7 +14,6 @@ import os
 # This spec lives in sage_asset/; anchor paths to the repo root so it builds from any cwd.
 ROOT = os.path.dirname(SPECPATH)
 
-# ---------------------------------------------------------------- CLI: dist/sage_asset(.exe)
 
 cli_a = Analysis(
     [os.path.join(ROOT, 'sage_asset', '__main__.py')],
@@ -52,7 +51,6 @@ cli_exe = EXE(
     entitlements_file=None,
 )
 
-# --------------------------------------------------------------- UI: dist/SAGE Asset(.exe)
 
 ui_a = Analysis(
     [os.path.join(ROOT, 'sage_asset', 'ui', 'app.py')],

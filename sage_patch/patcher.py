@@ -10,9 +10,12 @@ patches succeed)."""
 from __future__ import annotations
 
 import logging
+import struct
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from sage_ini.engine import STOCK, Engine
 
 if TYPE_CHECKING:
     import argparse
@@ -25,8 +28,10 @@ class Patch:
 
     Subclasses set :attr:`name`/:attr:`description` and implement :meth:`apply`. To be reachable
     from the ``sage-patch`` CLI, a patch is registered in :mod:`sage_patch.registry`; it may
-    override :meth:`add_cli_arguments`/:meth:`from_cli_args` to accept parameters and
-    :meth:`verify` to make its result independently checkable.
+    override :meth:`add_cli_arguments`/:meth:`from_cli_args` to accept parameters,
+    :meth:`verify` to make its result independently checkable, :meth:`detect` to be recognised
+    (with its parameters) in a binary someone else patched, and :meth:`ini_surface` to say what
+    it changes about the INI the engine accepts.
 
     Composing patches
     -----------------
@@ -59,6 +64,36 @@ class Patch:
         list == verified). Default: nothing checkable. Overrides should not disassemble, so that
         verification stays dependency-light."""
         return []
+
+    @classmethod
+    def detect(cls, data: bytes | bytearray) -> Patch | None:
+        """The instance of this patch that ``data`` carries, or None if it does not carry one.
+
+        The default probes with the patch's own defaults and asks :meth:`verify`. **A patch with
+        parameters must override this** and recover them from the image: `verify` only answers
+        "does this file carry *this* configuration", so a default-built probe reports a patch
+        applied with any other parameters as absent.
+
+        Never raises. A `verify` (or a constructor) that trips over an unrecognised build is
+        answering "not this patch", which is exactly what a detection sweep over an arbitrary
+        `game.dat` needs."""
+        try:
+            patch = cls()
+            problems = patch.verify(data)
+        except (ValueError, KeyError, IndexError, TypeError, struct.error):
+            return None
+        return None if problems else patch
+
+    def ini_surface(self) -> Engine:
+        """What this patch changes about the **INI** the engine accepts, as an
+        :class:`~sage_ini.engine.Engine`: fields it adds to a block, tokens it adds to a name
+        table, ceilings it raises, fields it retires. Default: nothing.
+
+        Declared here, beside the assembly that implements it, so the two cannot drift - and read
+        by ``sage-patch sagepatch`` to write the `.sagepatch` that teaches `sage_ini` and
+        `sage_lint` about this engine. It describes *this instance*, so a parameterized patch
+        reports the names and counts it was actually built with."""
+        return STOCK
 
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:

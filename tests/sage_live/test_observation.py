@@ -276,7 +276,6 @@ def test_orderable_is_per_player():
     assert {o.object_id for o in obs.orderable(4)} == {30}
 
 
-# --- godsight: knowledge a real player could not have ---------------------------------------
 #
 # Distinct from fog. Fog is about what is *visible*; this is about what is *knowable*. A fully
 # visible enemy barracks still has no readable production queue - the interface offers no tell -

@@ -537,9 +537,6 @@ def test_roster_table_has_a_row_per_faction(graph):
     assert "| FactionTest | TestSide | 5 | 1 | 1 | 2 | 1 |" in table
 
 
-# --- web UI server ---------------------------------------------------------------------------
-
-
 def test_server_serves_ui_and_graph(graph):
     # The serve handler returns the bundled UI files and the graph at /graph.json.
     payload = json.dumps(graph.to_dict()).encode("utf-8")
@@ -555,9 +552,6 @@ def test_server_serves_ui_and_graph(graph):
     finally:
         httpd.shutdown()
         httpd.server_close()
-
-
-# --- base-layout resolver (no sagemap needed for these) --------------------------------------
 
 
 def test_resolve_base_layout_without_bases_dir_is_empty():
@@ -576,9 +570,6 @@ def test_find_base_file_in_named_folder(tmp_path: Path):
     bse = folder / "gondor_castle.bse"
     bse.write_bytes(b"")
     assert find_base_file(tmp_path, "gondor_castle") == bse
-
-
-# --- corpus acceptance (full suite only) -----------------------------------------------------
 
 
 def _edain_root() -> Path | None:

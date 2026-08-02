@@ -136,6 +136,18 @@ base = [
 # carries symbols, not include text.
 # base_manifest = "sage-base-manifest.json.gz"
 
+# -- sagepatch --------------------------------------------------------------
+# A `.sagepatch` describing what the mod's PATCHED game.dat adds to the INI the
+# engine accepts: new fields on a block, new name-table tokens (model conditions,
+# weapon-set flags, locomotor sets, weathers) and raised limits. Without it the
+# linter judges the mod against the stock engine, so every patched field reads as
+# an unknown attribute. Generate it from the binary you actually ship:
+#   sage-patch sagepatch game.dat -o .sagepatch
+# A file named `.sagepatch` beside THIS one is loaded automatically, so set this
+# key only to point somewhere else (relative to THIS file, like `base_manifest`).
+# `--engine PATH` overrides it and `--no-engine` turns it off for one run.
+# sagepatch = ".sagepatch"
+
 # -- sentinels --------------------------------------------------------------
 # Extra "intentionally nothing" reference tokens, never reported as dangling.
 # `None`/`NONE`/empty are ALWAYS treated this way; list any other names your mod

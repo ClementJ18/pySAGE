@@ -17,6 +17,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from sage_ini.engine import Engine, apply_engine
 from sage_ini.loader import LoadedGame, load_game, map_files
 from sage_ini.manifest import load_manifest_into, read_manifest
 from sage_ini.model.game import Game
@@ -85,7 +86,9 @@ def _manifest_vroot(manifest: str | Path) -> Path:
     return resolved.parent / (resolved.name + ".src")
 
 
-def _load_with_manifest(root: str | Path, manifest: str | Path) -> tuple[LoadedGame, Path]:
+def _load_with_manifest(
+    root: str | Path, manifest: str | Path, engine: Engine | None = None
+) -> tuple[LoadedGame, Path]:
     """Seed a fresh `Game` from `manifest` (see `sage_ini.manifest`) and build the mod under
     `root` on top of it, so its references into base symbols resolve with no base tree on disk -
     the no-real-base counterpart to `_prepare_base`. The mod's own loadable files are computed as
@@ -103,7 +106,7 @@ def _load_with_manifest(root: str | Path, manifest: str | Path) -> tuple[LoadedG
     shadow = frozenset(rel for rel, _ in loadable_files(ini_root(Path(root)), LOAD_SUFFIXES))
     game = Game()
     load_manifest_into(game, data, vroot, shadow=shadow)
-    return load_game(root, game=game), vroot
+    return load_game(root, game=game, engine=engine), vroot
 
 
 def _base_asset_names(bases: tuple[tuple[str, str], ...]) -> set[str]:
@@ -167,6 +170,7 @@ def lint_file(
     include_root: str | Path | None = None,
     rules: Iterable[type[Rule]] | None = None,
     asset_dat_names: frozenset[str] = frozenset(),
+    engine: Engine | None = None,
 ) -> Diagnostics:
     """Lint a single file in isolation: parse it (expanding includes) and build just that
     file into a fresh game, then report its parse, conversion, and rule diagnostics.
@@ -177,13 +181,15 @@ def lint_file(
     conversion/reference diagnostics; those are only authoritative under `lint_folder`.
     Includes resolve against `include_root` (the project root), defaulting to the file's
     own directory. `asset_dat_names` seeds `Game.asset_dat_names` (the file-entry names read
-    from any `--asset-dat` source) before the rules run.
+    from any `--asset-dat` source) before the rules run. `engine` is the patched engine's INI
+    surface (`sage_ini.engine`), applied before the file is built.
     """
     path = Path(path)
     base = Path(include_root) if include_root is not None else path.parent
     result = parse_file(path, resolve_includes=True, include_layers=(ini_root(base),))
 
     diagnostics = Diagnostics()
+    apply_engine(engine, diagnostics, Span(str(path), 1, 1))
     diagnostics.items.extend(result.diagnostics.items)
     game = Game()
     game.asset_dat_names.update(asset_dat_names)
@@ -305,6 +311,7 @@ def build_cache(
     bases: tuple[tuple[str, str], ...] = (),
     manifest: str | Path | None = None,
     asset_dat_names: frozenset[str] = frozenset(),
+    engine: Engine | None = None,
 ) -> tuple[Game, Diagnostics, BaseLayer | None]:
     """Assemble the game under `root` and return it, its full-folder diagnostics, and the
     `BaseLayer` (or None) the bases merged into.
@@ -325,22 +332,26 @@ def build_cache(
     `ManifestError` (propagated, not caught here).
 
     `asset_dat_names` seeds `Game.asset_dat_names` (the file-entry names read from any
-    `--asset-dat` source) before the rules run, so the asset-dat-membership rules see it."""
+    `--asset-dat` source) before the rules run, so the asset-dat-membership rules see it.
+
+    `engine` is the patched engine's INI surface (`sage_ini.engine`), applied to the model before
+    the build so a field or token a `game.dat` patch added is not reported as a mistake. It stays
+    applied while the rules run - they read the schema off the model - and is process-wide."""
     excluded = tuple(Path(directory).resolve() for directory in exclude)
     base_layer = _prepare_base(root, bases)
     try:
         if base_layer is None:
             if manifest is not None:
-                loaded, vroot = _load_with_manifest(root, manifest)
+                loaded, vroot = _load_with_manifest(root, manifest, engine)
                 loaded.game.asset_dat_names.update(asset_dat_names)
                 diagnostics = lint_game(loaded, rules, (*exclude, vroot))
             else:
-                loaded = load_game(root)
+                loaded = load_game(root, engine=engine)
                 loaded.game.asset_dat_names.update(asset_dat_names)
                 diagnostics = lint_game(loaded, rules, exclude)
             include_bases: tuple[Path, ...] = ()
         else:
-            loaded = load_game(root, bases=(base_layer.root,))
+            loaded = load_game(root, bases=(base_layer.root,), engine=engine)
             # The base merge only carries loadable ini/str, so a base's *art* (textures/models)
             # never reaches the asset index - a mod reference to a base-game texture would look
             # missing. Index those names directly: crawl a folder base, read a .big's entry list.
@@ -365,7 +376,9 @@ def build_cache(
 
 
 def assemble_with_bases(
-    root: str | Path, bases: tuple[tuple[str, str], ...] = ()
+    root: str | Path,
+    bases: tuple[tuple[str, str], ...] = (),
+    engine: Engine | None = None,
 ) -> tuple[LoadedGame, BaseLayer | None]:
     """Assemble the game under `root` with `bases` (folder / `.big` sources) merged beneath it,
     without running any lint rules - the loaded game and the `BaseLayer` (or None) it merged into.
@@ -375,8 +388,8 @@ def assemble_with_bases(
     base_layer = _prepare_base(root, bases)
     try:
         if base_layer is None:
-            return load_game(root), None
-        loaded = load_game(root, bases=(base_layer.root,))
+            return load_game(root, engine=engine), None
+        loaded = load_game(root, bases=(base_layer.root,), engine=engine)
         return loaded, base_layer
     except BaseException:
         if base_layer is not None:
@@ -391,12 +404,13 @@ def lint_folder(
     bases: tuple[tuple[str, str], ...] = (),
     manifest: str | Path | None = None,
     asset_dat_names: frozenset[str] = frozenset(),
+    engine: Engine | None = None,
 ) -> Diagnostics:
     """Assemble the game under `root` and report its problems (see `build_cache`, including what
     `manifest` and `asset_dat_names` do). A one-shot: the base layer is removed before returning,
     since nothing re-lints against it afterwards."""
     game, diagnostics, base_layer = build_cache(
-        root, rules, exclude, bases, manifest, asset_dat_names
+        root, rules, exclude, bases, manifest, asset_dat_names, engine
     )
     if base_layer is not None:
         base_layer.cleanup()

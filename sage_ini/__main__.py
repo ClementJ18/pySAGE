@@ -17,6 +17,9 @@ same facts as machine-readable JSON for agents and tool builders.
   and a git-config installer.
 - `macro-merge <file>` - set-merge conflicted `#define` reference lists, reporting exactly
   what each side added/removed so one-sided deletions can be confirmed, not guessed.
+
+`--engine <.sagepatch>` applies a patched engine's INI surface (see `sage_ini.engine`) before
+any command runs, so data written for a patched `game.dat` reads as what it is.
 """
 
 import argparse
@@ -29,6 +32,7 @@ from pathlib import Path
 from sage_ini import primer as primer_module
 from sage_ini.brief import brief_to_dict, build_brief, format_brief
 from sage_ini.diff import diff_folders, diff_refs, format_game_diff
+from sage_ini.engine import load_engine
 from sage_ini.loader import load_game
 from sage_ini.macro_merge import format_macro_report, resolve_macro_conflicts
 from sage_ini.merge import ConflictLabels, merge_documents, resolve_markers
@@ -423,6 +427,13 @@ def _run_merge(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     utf8_stdout()
     parser = argparse.ArgumentParser(prog="sage_ini")
+    parser.add_argument(
+        "--engine",
+        type=existing_file,
+        metavar="SAGEPATCH",
+        help="a .sagepatch describing the INI surface a patched game.dat adds (written by "
+        "`sage_patch sagepatch`); applied to the model before any command runs",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     stats = subparsers.add_parser("stats", help="print the corpus parse-rate scoreboard")
@@ -551,6 +562,13 @@ def main(argv: list[str] | None = None) -> int:
     primer.add_argument("name", nargs="?", help="kind name (expand) or enum name (enum)")
 
     args = parser.parse_args(argv)
+
+    if args.engine is not None:
+        # Applied once, up front: every command below reads the schema off the model, so the
+        # patched fields and tokens are simply there for all of them.
+        engine = load_engine(args.engine)
+        for message in (*engine.warnings, *engine.apply()):
+            print(f"{args.engine}: {message}", file=sys.stderr)
 
     if args.command == "stats":
         print(format_scoreboard(compute_scoreboard(args.root, overlays=tuple(args.overlay))))

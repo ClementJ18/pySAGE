@@ -71,7 +71,6 @@ __all__ = [
     "relocation_edits",
 ]
 
-# --- fixed facts about the target build (VA, ImageBase 0x400000) ---------------------------
 
 #: The stock NULL-terminated `WeaponSetFlags` name table. Only used to recognise an unpatched
 #: image - :func:`read` follows the references.

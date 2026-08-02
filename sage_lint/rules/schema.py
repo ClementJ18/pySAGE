@@ -149,3 +149,35 @@ class SpuriousBlockLabelRule(Rule):
                 severity=Severity.WARNING,
                 extra={"type": type(obj).__name__, "label": obj.name},
             )
+
+
+class PatchedOutFieldRule(Rule):
+    """A field the mod's patched engine still parses but no longer acts on: the value is read
+    and then ignored, so whatever it says has no effect in game.
+
+    Only ever fires under a `.sagepatch` that declares one (`sage_ini.engine`, `[[noops]]`) -
+    a patch retiring a field it has replaced. Reported rather than dropped from the schema on
+    purpose: a retired field is not an unknown one, and saying which patch retired it is the
+    whole point. WARNING - it converts and loads fine, it just does nothing."""
+
+    code = "patched-out-field"
+
+    def check(self, game: Game) -> Iterator[Diagnostic]:
+        for obj in walk_objects(game):
+            noops = type(obj)._noops
+            if not noops:
+                continue
+            for key in obj.fields:
+                reason = noops.get(key)
+                if reason is None:
+                    continue
+                for span in obj.field_spans(key):
+                    yield Diagnostic(
+                        code=self.code,
+                        message=(
+                            f"{type(obj).__name__}.{key} does nothing on this engine: {reason}"
+                        ),
+                        span=span,
+                        severity=Severity.WARNING,
+                        extra={"type": type(obj).__name__, "key": key, "reason": reason},
+                    )

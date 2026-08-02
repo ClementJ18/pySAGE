@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from sage_ini.engine import Engine, apply_engine
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse_file
 from sage_ini.parser.diagnostics import Diagnostics
@@ -56,6 +57,7 @@ def load_game(
     overlays: tuple[str | Path, ...] = (),
     bases: tuple[str | Path, ...] = (),
     game: Game | None = None,
+    engine: Engine | None = None,
 ) -> LoadedGame:
     """Assemble every non-map root file under `root` into one `Game`.
 
@@ -72,6 +74,11 @@ def load_game(
 
     A root file present at the same `ini_root`-relative path in more than one layer is built once,
     from the highest-priority layer ("keep the latest of a file" - the engine's file shadowing).
+
+    `engine`, when given, is the INI surface of the patched `game.dat` this data is meant for
+    (`sage_ini.engine`): it is applied to the typed model before anything builds, so a field or
+    a name-table token a binary patch added reads as the field it is rather than as a mistake.
+    Applying is process-wide and outlives the call, since conversion is lazy - see that module.
     """
     roots = as_root_list(root)  # reported, ascending priority (the last one wins)
     base_paths = [Path(base) for base in bases]  # silent, below every root
@@ -86,6 +93,7 @@ def load_game(
     )
     game = game if game is not None else Game()
     diagnostics = Diagnostics()
+    apply_engine(engine, diagnostics, Span(str(roots[0]), 1, 1))
 
     # File-level shadowing: record the highest-priority layer that supplies each relative path,
     # then build each layer's winners in low->high order so a same-*named* definition in a higher
@@ -137,11 +145,12 @@ def load_map(
     root: str | Path | Sequence[str | Path],
     overlays: tuple[str | Path, ...] = (),
     bases: tuple[str | Path, ...] = (),
+    engine: Engine | None = None,
 ) -> LoadedGame:
     """The global game with one `map_path` layered on top, as its own context: the map's
     definitions and overrides are visible only here, never leaking into the global game or
     another map. Its `.str` table layers on the global strings the same way. `root`,
-    `overlays` and `bases` are `load_game`'s."""
+    `overlays`, `bases` and `engine` are `load_game`'s."""
     map_path = Path(map_path)
     roots = as_root_list(root)
     layers = (
@@ -150,7 +159,7 @@ def load_map(
         *(ini_root(Path(base)) for base in bases),
     )
 
-    loaded = load_game(root, overlays, bases)
+    loaded = load_game(root, overlays, bases, engine=engine)
     # The map layer patches the global objects it re-opens rather than replacing them (the
     # engine's map override), so flag the build while it loads; see `Game.register`.
     loaded.game._map_override = True

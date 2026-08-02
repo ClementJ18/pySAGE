@@ -113,124 +113,6 @@ every mod on it (Edain among them), not one in particular. All of them target `g
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
-## Status
-
-- **Shipped:** [`engine/game.dat`](engine/game.dat) — the **N = 64** build, runtime-verified.
-  A `CommandSet` may define up to 64 entries (no more `"Error parsing field '34'…"`), and
-  multi-select is stable.
-- **Data limit lifted, display limit not.** The ControlBar still draws **33 buttons at once**;
-  reach the rest by paging with `PUSH_VISIBLE_COMMAND_RANGE`
-  (see [`docs/push-visible-command-range.md`](docs/push-visible-command-range.md)).
-- **On-screen >33 is a separate project.** Widening the *drawing* loops instead of paging is a dead
-  end: those `getCommandButton`-caller loops populate the ControlBar's fixed 33-slot UI arrays, so
-  raising their bounds overruns those arrays and crashes. True >33 on-screen display means
-  enlarging the ControlBar/APT UI, not this patch. The AI's set-walk is the one
-  `getCommandButton`-caller loop that *is* widened, because it reads buttons instead of populating
-  an array.
-- **`ai-revive-gate` is static-verified, not yet runtime-verified in a game.** The bytes install
-  and disassemble as intended; the in-game behaviour check is open.
-- **`ai-revive-gate` gated the player too, until 2026-07-30.** `canMakeUnit` has a fifth caller
-  the original scan could not see — `BuildAssistant`'s own `+0x64` gate reaches it by a virtual
-  *self-call*, with no `TheBuildAssistant` load to find — and that is the edge the ControlBar and
-  `ProductionUpdate::queueCreateUnit` come in on. A build carrying the unconditional version made
-  some heroes unrecruitable for the human (reported for Rohan's Merry and Gamling and for a
-  Create-A-Hero). The cave now tests its return address and takes the stock edge for anything that
-  did not ask directly. **Rebuild any binary carrying the older `.aigate` cave.**
-- **Model-condition-gated revive slots stay unfixed.** A button disabled via
-  `DisableOnModelCondition` rather than `NeededUpgrade` is still honoured for the AI — see the
-  scope note in [`docs/ai-revive-gate.md`](docs/ai-revive-gate.md).
-- **`replay-outcome` is runtime-verified (2026-07-31): won, lost and left all read correctly.**
-  Three 1v1-vs-AI recordings each carry one `0x7D0` chunk per player at the closing frame, and
-  `sage-replay winner` reports `decided` with confidence `recorded` on all three — including the
-  two elimination endings the concession heuristic answers `undetermined` for. The defeat frame
-  is the frame of the loss (795 in a game that closed at 875), and a mid-match quit resolves too
-  (leave order at frame 45, defeat frame 45).
-- **`replay-outcome`'s hook site moved on 2026-07-31; rebuild any binary carrying the older
-  `.rpout` cave.** The first build hooked `GameLogic::clearGameData`, on the wrong reading that
-  it was the only route to the `0x1D` end-of-recording marker. The mechanism worked — a *leave*
-  wrote both chunks, correctly numbered and placed — but a *win* and a *loss* wrote nothing,
-  because a finished game emits `0x1D` from the score-screen code: the message has **thirteen**
-  emitters. The hook now sits on the single *consumer*, `RecorderClass::updateRecord`'s `0x1D`
-  branch, which also reads the state late enough for a quit to have been applied. See
-  [`docs/replay-outcome.md`](docs/replay-outcome.md).
-- **`replay-outcome` is unverified for multiplayer, teams and observers.** Every verified
-  recording is 1v1 against AI, so `hasAchievedVictory`'s ally walk is untested beyond the
-  degenerate case, the observer skip has never fired, and the client-local claim (a patched and
-  an unpatched peer staying in sync) is argued from the code rather than played.
-- **`skirmish-replay`'s gate is runtime-verified (2026-07-31): a skirmish records.** Read live
-  mid-match, `TheRecorder+0x1C` was 0 (RECORD) with an open `FILE*`, `TheGameLogic+0x110` was 2
-  (so the skirmish mode really is 2) and `+0x114` was 3 (so the branch's third test, the one
-  open question that could have changed the patch's shape, is satisfied). The header the same
-  call wrote carries mode 2 in its trailing block.
-- **`skirmish-replay`'s naming was broken until 2026-07-31; rebuild any binary carrying the
-  older `.rpskir` cave.** It decided whether to rename by reading `RecorderClass::m_gameMode`,
-  but `startRecording` calls `reset()` before it names the file and that overwrites the field
-  with the sentinel 9 (`0x0077D7D2`), forty bytes before the name is built. So every skirmish
-  recorded and every skirmish kept the stock name — which, since each game then overwrote the
-  last, looks exactly like nothing being recorded at all. It now reads `startRecording`'s own
-  second argument, the value written into the header. The re-test is open.
-- **`skirmish-replay` never deletes anything, and drops Save Replay.** Uniquely named recordings
-  are never overwritten, so the Replays folder grows without bound; there is no UI and no
-  cleanup. Under the default `--rename all` the replay menu's Save Replay button (command 7,
-  `0x00817D0E`) reports its error box, because it copies the fixed `Last Replay` name — the very
-  thing the rename removes the need for. `--rename added` keeps it working for network games.
-  See [`docs/skirmish-replay.md`](docs/skirmish-replay.md).
-- **`unique-production-id` is static-verified, not yet runtime-verified in a game.** The rewritten
-  function disassembles to the four intended instructions and ends exactly on the next function's
-  boundary; recruiting from a second building while the first is still producing is the in-game
-  check, and it is open.
-- **`terrain-resource-exp` is static-verified, not yet runtime-verified in a game.** The three
-  edits install, the sites disassemble to the intended instructions, and
-  [`scripts/module_defaults.py`](scripts/module_defaults.py) — which reads the module table out of
-  the binary knowing nothing about this patch — reports `GiveNoXP` as a `Bool` at `ModuleData+0x16`
-  defaulting to `No`, with `sizeof(ModuleData)` still `0x24`. What is open is the in-game check:
-  that a gated spot still pays the same money per tick, and that its building stops levelling while
-  an ungated one does not.
-- **`terrain-resource-exp` needs every peer on the patched binary, and its keyword is fatal without
-  it.** Experience feeds `ExperienceTracker` and veterancy is CRC'd logic-side `Object` state, so a
-  patched and an unpatched client diverge on the first gated income tick — the
-  `production-condition` class of patch, not the `replay-outcome` one. And SAGE treats an unknown
-  field in a known block as a parse error, so a mod writing `GiveNoXP` into a
-  `TerrainResourceBehavior` block does not load on a stock `game.dat` at all (the `"Error parsing
-  field '34'…"` failure, under another name). Savegames are unaffected either way.
-- **Reading a patched binary needed two fixes to `module_defaults.py`, both neutral on a stock
-  one.** It refused to follow a table pointer into any section but `.rdata`/`.data` — which a
-  relocated table never is — and it did not know that `and dword [x], 0` defaults all four bytes,
-  so a `Bool` packed beside an `Int` read as having no compiled-in default. Regenerated against an
-  unpatched `game.dat`, [`docs/module-reference.json`](docs/module-reference.json) is unchanged.
-- **A savegame taken mid-recruit can still lose one payment.** The game-wide counter lives in the
-  appended section, which the save does not carry, so a loaded game mints from 1 again while an
-  in-progress revive may still hold a low id. It collides at most once and then clears itself —
-  the stock bug in a far narrower window. Closing it means persisting the counter through `Xfer`,
-  a savegame format change. See the scope note in
-  [`docs/unique-production-id.md`](docs/unique-production-id.md).
-- **`hero-mana` is partly runtime-verified, and one defect is open.** A traced build was played
-  on 2026-08-01: both field tables relocate, all three fields parse, the pool deducts and
-  regenerates, and the cost shows in the button description. Two bugs were found and fixed there
-  (a double-charge, and a missing fourth *targetless* activation variant). **Still open:**
-  abilities driven by `WeaponFireSpecialAbilityUpdate` — Word of Power among them — never reach
-  the charge point and so cost nothing. See [`docs/hero-mana.md`](docs/hero-mana.md) §10 for the
-  state, the leads, and a stop-gap.
-- **`hero-mana` has no mana *bar*.** The ability's cost shows in its button description, the
-  hero's maximum under its level on the revive/recruit button, and an unaffordable power greys
-  out — but there is no bar, and no readout anywhere except in those descriptions. The Palantir HUD is APT-driven and
-  the engine registers only **28** data bindings in the whole image, none of them a unit or hero
-  panel — so there is nothing to hang a number on without authoring a field into the `.apt`, which
-  `sage_apt` cannot yet do reliably. See [`docs/hero-mana.md`](docs/hero-mana.md) §8b.
-- **`hero-mana` folds the object id into 8192 rows.** Two mana-using heroes alive at once whose
-  ids differ by a multiple of 8192 share a row, and the one that does not own it reads a *full*
-  pool. The failure is "a power was occasionally free" — never a crash, a wrong refusal, or a
-  desync, since every peer folds identically. A save reloads with every hero full.
-
-- **`command-point-upkeep` is static-verified, not yet runtime-verified in a game.** The bytes
-  apply, disassemble as intended and verify, and the tier arithmetic is asserted against a stated
-  rule — but no match has been played on a build carrying it. The six checks that would close
-  that are listed in [`docs/command-point-upkeep.md`](docs/command-point-upkeep.md).
-- **`command-point-upkeep` thresholds are absolute, not a fraction of the cap.** A faction whose
-  command-point cap is 400 can never reach a `500+` tier; one capped at 3000 sits in a band for
-  most of a game. That is the requested behaviour, but it is what makes a curve faction-specific
-  in practice.
-
 ## CLI
 
 Bring your own `game.dat` (this repo ships the patch recipe, never the copyrighted binary):
@@ -286,6 +168,33 @@ sage-patch verify terrain-resource-exp game.dat
 `verify` re-derives the expected tables, the repointed references and every patched site from the
 same parameters and checks them against the file — a structural, disassembler-free pass/fail.
 
+## Telling the linter what the engine now accepts
+
+A patch that adds an INI field or a name-table token changes what *valid data* looks like, and
+`sage_ini`'s model describes the stock engine — so on a patched game the mod's own data reads as
+a pile of unknown attributes and unknown enum tokens. `sagepatch` closes that: it reads the binary
+and writes the `.sagepatch` that `sage_ini` and `sage_lint` load (see
+[`sage_ini/engine.py`](../sage_ini/engine.py)).
+
+```sh
+sage-patch sagepatch game.dat -o /path/to/mod/.sagepatch   # commit it beside .sagelint
+sage-patch sagepatch game.dat                              # to stdout, to review first
+sage-patch sagepatch game.dat --check /path/to/mod/.sagepatch   # non-zero if it has drifted
+sage-patch sagepatch --patch hero-mana --patch commandset-limit  # by name, no binary
+```
+
+It reads the **binary**, not a list of names you type, because that is the only thing that knows
+what was actually built: which patches are in it, at what count, under which keyword, and which
+token landed on which bit. Two passes do it, and they cover for each other — each patch is offered
+the image through `Patch.detect` (which recovers its parameters) and contributes its declared
+`Patch.ini_surface`, while the name tables are read live so *any* token past the stock ones is
+recorded with its real index, including ones added by a patch applied under a custom name or by a
+patch this package has never heard of. The `--patch` form skips the binary for a project that
+would rather not wire a path into CI, at the cost of describing every patch with its defaults.
+
+`--check` is the drift guard: run it in CI, and a committed `.sagepatch` that no longer matches
+the binary the team ships fails the build instead of silently mislinting.
+
 ## The patch framework
 
 `apply_patches(game_dat, patches, output=None)` applies an ordered list of `Patch` subclasses to a
@@ -310,7 +219,8 @@ apply_patches(
 | module | what |
 |--------|------|
 | [`patcher.py`](patcher.py) | the `Patch` base class (`apply` / `verify` / CLI hooks) + `apply_patches` driver |
-| [`cli.py`](cli.py) | the `sage-patch` console script (`apply` / `verify` / `list`) |
+| [`cli.py`](cli.py) | the `sage-patch` console script (`apply` / `verify` / `list` / `sagepatch`) |
+| [`sagepatch.py`](sagepatch.py) | reads a patched binary back as the `.sagepatch` describing the INI it accepts — patch detection plus a live read of every engine name table |
 | [`registry.py`](registry.py) | the name→`Patch` map the CLI dispatches over; register a patch here to expose it |
 | [`addresses.py`](addresses.py) | every address of the target build, in one place — the globals, the hooked functions and the labels inside them that the caves jump to |
 | [`asm.py`](asm.py) | the tiny label-resolving x86 emitter the caves are written with |

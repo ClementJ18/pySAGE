@@ -214,8 +214,6 @@ class CahFactionsPatch(Patch):
         and the caller's sides. This is `getSideIndex`'s new scan bound."""
         return len(STOCK_SIDES) + 1 + len(self.sides)
 
-    # --- apply / verify ----------------------------------------------------------------------
-
     def apply(self, data: bytearray) -> None:
         section_va = allocate_section(
             data,
@@ -259,8 +257,6 @@ class CahFactionsPatch(Patch):
                 problems.append(f"{note} @0x{file_off:x}: expected {new.hex()}, got {got.hex()}")
         return problems
 
-    # --- CLI integration ---------------------------------------------------------------------
-
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -277,8 +273,6 @@ class CahFactionsPatch(Patch):
     def from_cli_args(cls, args: argparse.Namespace) -> CahFactionsPatch:
         sides = [part.strip() for part in args.sides.split(",") if part.strip()]
         return cls(sides=sides)
-
-    # --- the cave ------------------------------------------------------------------------------
 
     def _compute_section(self, data: bytes | bytearray, section_va: int) -> tuple[bytes, int]:
         """Return ``(section content, wrapper VA)`` for a cave based at ``section_va``.
@@ -322,8 +316,6 @@ class CahFactionsPatch(Patch):
             if got != expected:
                 raise ValueError(f"unexpected build: side table has {got!r}, expected {expected!r}")
         return ptrs[:-1]
-
-    # --- the patch sites -----------------------------------------------------------------------
 
     def _edits(
         self, data: bytes | bytearray, section_va: int, wrapper_va: int

@@ -260,7 +260,6 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     a = Asm(base_va + NAME_CODE_OFF)
 
     if not rename_all:
-        # --- is this a mode this patch enabled? ---------------------------------------------
         # `startRecording`'s own second argument - the value it writes into the header, so the
         # name and the recorded mode agree by construction.
         #
@@ -299,11 +298,9 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     a.emit(0x57)  # push edi
     # From here the argument is at [esp+0x10]: three saves, then the return address.
 
-    # --- the timestamp ----------------------------------------------------------------------
     a.emit(0x68, _u32(systemtime))  # push &systemtime
     a.emit(0xFF, 0x15, _u32(IMPORT_GET_LOCAL_TIME))  # call [GetLocalTime]  (stdcall)
 
-    # --- the map's AsciiString --------------------------------------------------------------
     a.emit(0x8B, 0x0D, _u32(THE_GAME_INFO))  # mov ecx, [TheGameInfo]
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JNE, "have_info")
@@ -321,7 +318,6 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     a.label("no_map")
     a.emit(0xBE, _u32(empty))  # mov esi, empty
 
-    # --- the last path component ------------------------------------------------------------
     # `M=` carries `maps/map mp westfold`, and a separator is not a legal file-name character,
     # so the name is taken from after the last one rather than sanitised into `maps_map...`.
     a.label("basename")
@@ -341,7 +337,6 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     a.emit(0x8B, 0xDF)  # mov ebx, edi
     a.jmp("separator")
 
-    # --- widen, sanitise and cap ------------------------------------------------------------
     a.label("copy_init")
     a.emit(0x8B, 0xF3)  # mov esi, ebx          ; source = the basename
     a.emit(0xBF, _u32(map_buffer))  # mov edi, map
@@ -396,7 +391,6 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     a.emit(0x33, 0xC0)  # xor eax, eax
     a.emit(0x66, 0x89, 0x07)  # mov word [edi], ax    ; terminate
 
-    # --- format -----------------------------------------------------------------------------
     # cdecl and variadic, so the caller cleans all nine dwords. The `SYSTEMTIME` fields are
     # 16-bit; they are zero-extended here because a variadic `%d` reads a full dword.
     a.emit(0x68, _u32(map_buffer))  # push map
@@ -408,7 +402,6 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     a.emit(0xFF, 0x15, _u32(IMPORT_SWPRINTF))  # call [swprintf]
     a.emit(0x83, 0xC4, 0x24)  # add esp, 0x24         ; 9 dwords
 
-    # --- construct the string the caller asked for ------------------------------------------
     a.emit(0x8B, 0x4C, 0x24, 0x10)  # mov ecx, [esp+0x10]   ; the storage
     a.emit(0x68, _u32(name_buffer))  # push name
     a.call_absolute(UNICODE_STRING_FROM_WIDE)  # ret 4: it cleans its own argument

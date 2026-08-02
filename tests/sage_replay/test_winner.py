@@ -111,9 +111,6 @@ def test_recorder_leaving_first_is_not_a_verdict():
     assert verdict.winner is None
 
 
-# --- recorded outcomes (the `replay-outcome` patch) ------------------------------------------
-
-
 def test_an_unpatched_replay_records_nothing():
     """Every corpus fixture predates the patch, so the heuristic stays the only answer and
     `recorded` is empty rather than absent."""

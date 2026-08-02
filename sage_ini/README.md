@@ -116,6 +116,27 @@ More in **[../docs/cookbook.md](../docs/cookbook.md)**: walking objects by KindO
 macros, following references, editing-then-reprinting losslessly, and writing your own
 checker against the model.
 
+## Data for a patched engine
+
+The model describes the **stock** SAGE engine. A binary patch (see [`sage_patch`](../sage_patch))
+can make the engine accept INI it could not read before - a new field on a block, a new
+model-condition token, a bigger `CommandSet` - and against the stock model all of that reads as a
+mistake. An [`Engine`](engine.py) is that difference as data, loaded from the `.sagepatch` a mod
+commits and applied to the model before anything builds:
+
+```python
+from sage_ini import load_engine, load_game
+
+game = load_game("data", engine=load_engine("data/.sagepatch")).game
+game.specialpowers["MyHeroPower"].ManaCost      # a field only the patched engine has
+```
+
+Applying is process-wide - the schema lives on the model classes, which is exactly what makes a
+patched field work everywhere without each consumer knowing about engines - so one engine is
+active at a time and `Engine.activate()` is the scoped form. `sage-ini --engine <file>` applies
+one to any command. Nothing in the path raises on a bad file: it degrades to the stock engine and
+says why.
+
 ## Public API & stability
 
 The supported surface is what `sage_ini` re-exports at the top level (and lists in its

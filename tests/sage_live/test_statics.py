@@ -256,7 +256,6 @@ def test_horde_lookups_are_case_insensitive(statics):
     assert statics.horde_payload("gondorfighterhorde") == "GondorFighter"
 
 
-# --- the revive system ------------------------------------------------------------------
 #
 # `GondorBarracksCommandSet` reproduced faithfully, because its shape is the whole point: a
 # building that recruits *any* hero carries the whole slot block, and the slots it must not

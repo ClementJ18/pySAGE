@@ -3,6 +3,7 @@ REVIVE button wired into two slots of the same set."""
 
 from collections.abc import Iterator
 
+from sage_ini.engine import active
 from sage_ini.model.enums import CommandTypes
 from sage_ini.model.game import Game
 from sage_ini.parser.diagnostics import Diagnostic, Severity
@@ -13,16 +14,21 @@ from sage_lint.rules.base import Rule
 # a dangling reference, so it is never flagged.
 _NONE_SENTINELS = frozenset({"", "none"})
 
+# Both ceilings are engine facts, so they come from the applied engine rather than a constant
+# here: `sage_patch`'s commandset-limit patch raises the `m_command[]` array size, and a mod
+# linted against a `.sagepatch` that carries it must be judged by *its* array, not the stock one.
+# With no engine applied these are the stock build's 33 (see `sage_ini.engine.STOCK_LIMITS`).
+
 # The ControlBar draws at most this many buttons at once - a fixed-size UI array in the engine
 # (ControlBar singleton, the 33-slot command-button arrays). `InitialVisible` feeds that count,
-# so a value above it can never be honoured on screen. This ceiling is unaffected by the
-# CommandSet 33->64 data-limit patch, which only enlarges how many buttons a set may *define*.
-MAX_VISIBLE_BUTTONS = 33
+# so a value above it can never be honoured on screen. Untouched by the patch that raises the
+# slot count, which only enlarges how many buttons a set may *define*.
+_VISIBLE_LIMIT = "commandset.max_visible_buttons"
 
-# The `m_command[]` array size after the 33->64 engine patch (see sage_patch).
-# A `PUSH_VISIBLE_COMMAND_RANGE` window reaching index >= this reads past the array into the
-# object's count/flag fields and the game dereferences that value as a button pointer -> crash.
-MAX_COMMANDSET_SLOTS = 64
+# The `m_command[]` array size. A `PUSH_VISIBLE_COMMAND_RANGE` window reaching index >= this reads
+# past the array into the object's count/flag fields and the game dereferences that value as a
+# button pointer -> crash.
+_SLOT_LIMIT = "commandset.max_slots"
 
 
 class CommandSetButtonRule(Rule):
@@ -68,27 +74,27 @@ class CommandSetButtonRule(Rule):
 
 class InitialVisibleLimitRule(Rule):
     """A CommandSet whose `InitialVisible` exceeds the on-screen button ceiling. The ControlBar
-    has a fixed number of button widgets (33); asking for more can never draw
+    has a fixed number of button widgets (33 on the stock build); asking for more can never draw
     them, and in practice the over-large count breaks the bar's layout (buttons past the limit go
-    missing). The engine patch that lifts the *data* limit to 64 does not raise this display
-    ceiling, so the rule holds regardless. WARNING - it converts fine, the bar just misbehaves."""
+    missing). The engine patch that lifts the *data* limit does not raise this display ceiling, so
+    the rule holds regardless. WARNING - it converts fine, the bar just misbehaves."""
 
     code = "initial-visible-over-max"
 
     def check(self, game: Game) -> Iterator[Diagnostic]:
+        maximum = active().limit(_VISIBLE_LIMIT)
         for commandset in game.commandsets.values():
             try:
                 value = commandset.InitialVisible
             except (ValueError, KeyError, TypeError, IndexError):
                 continue  # a non-numeric value is the conversion pass's job, not ours
-            if value is None or value <= MAX_VISIBLE_BUTTONS:
+            if value is None or value <= maximum:
                 continue
             yield Diagnostic(
                 code=self.code,
                 message=(
                     f"CommandSet {commandset.name!r} sets InitialVisible = {value}, above the "
-                    f"{MAX_VISIBLE_BUTTONS}-button on-screen limit; buttons past "
-                    f"{MAX_VISIBLE_BUTTONS} cannot be shown."
+                    f"{maximum}-button on-screen limit; buttons past {maximum} cannot be shown."
                 ),
                 span=commandset._field_spans.get("InitialVisible", commandset.span),
                 severity=Severity.WARNING,
@@ -97,7 +103,7 @@ class InitialVisibleLimitRule(Rule):
                     "commandset": commandset.name,
                     "key": "InitialVisible",
                     "value": value,
-                    "maximum": MAX_VISIBLE_BUTTONS,
+                    "maximum": maximum,
                 },
             )
 
@@ -116,9 +122,10 @@ class PushCommandRangeOverflowRule(Rule):
     past the buttons of the CommandSet it sits in. That window paints slots of the current set;
     `CommandRangeStart` is a 0-based slot index, so the range covers slots
     `Start+1 .. Start+Count`. Overshooting the set's highest slot paints empty positions, and -
-    worse - reaching slot 64+1 runs off the `m_command[]` array into the
-    object's count field, which the engine then dereferences as a button pointer and crashes
-    (the exact `PUSH_VISIBLE_COMMAND_RANGE` crash documented in sage_patch).
+    worse - reaching one past the `m_command[]` array runs off it into the object's count field,
+    which the engine then dereferences as a button pointer and crashes (the exact
+    `PUSH_VISIBLE_COMMAND_RANGE` crash documented in sage_patch). How long that array is depends
+    on the engine: 33 stock, more under the commandset-limit patch a `.sagepatch` declares.
 
     ERROR when the window runs off the array end (a hard crash); WARNING when it only overshoots
     into empty slots of the same set."""
@@ -126,6 +133,7 @@ class PushCommandRangeOverflowRule(Rule):
     code = "command-range-overflow"
 
     def check(self, game: Game) -> Iterator[Diagnostic]:
+        array_size = active().limit(_SLOT_LIMIT)
         for commandset in game.commandsets.values():
             slots = [int(slot) for slot in commandset._fields if slot.isdigit()]
             if not slots:
@@ -146,9 +154,9 @@ class PushCommandRangeOverflowRule(Rule):
                 end = start + count  # exclusive; last slot index read is end-1 (0-based)
                 if end <= highest_slot:
                     continue  # stays within the set's defined slots
-                crashes = end > MAX_COMMANDSET_SLOTS
+                crashes = end > array_size
                 detail = (
-                    f"runs off the {MAX_COMMANDSET_SLOTS}-slot command array (reaching slot "
+                    f"runs off the {array_size}-slot command array (reaching slot "
                     f"{end}) into the set's count field - the engine dereferences that as a "
                     f"button pointer and crashes"
                     if crashes

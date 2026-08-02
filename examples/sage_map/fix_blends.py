@@ -32,11 +32,9 @@ from sage_map.assets.blend_tile_data import (
     BlendTileData,
 )
 
-# ---------------------------------------------------------------------------
 # Direction constants (all in internal tile-array coordinates)
 # Internal (r, c) is transposed vs. the editor view:
 #   internal r = editor col,  internal c = editor row
-# ---------------------------------------------------------------------------
 
 _DIR_DELTAS = {
     BlendDirection.RIGHT_TO_LEFT: (1, 0),
@@ -57,11 +55,6 @@ _FORWARD_DIRS = [
     (BlendDirection.RIGHT_TO_LEFT, 1, 0),
     (BlendDirection.TOP_TO_BOTTOM, 0, 1),
 ]
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _find_texture(tile_val, textures):
@@ -109,11 +102,6 @@ def _get_or_add_desc(desc, desc_list):
             return i + 1
     desc_list.append(desc)
     return len(desc_list)
-
-
-# ---------------------------------------------------------------------------
-# Core logic
-# ---------------------------------------------------------------------------
 
 
 def fix_blends(btd: BlendTileData, dry_run: bool = False) -> tuple[int, int]:
@@ -196,11 +184,6 @@ def fix_blends(btd: BlendTileData, dry_run: bool = False) -> tuple[int, int]:
                     skipped += 1
 
     return added, skipped
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 
 def main():

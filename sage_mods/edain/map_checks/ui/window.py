@@ -197,8 +197,6 @@ class EdainLinterWindow(QMainWindow):
             self.folder_field.setText(str(folder))
             self._load_project_config()
 
-    # ---------------------------------------------------------------- the Help menu
-
     def _build_menu(self) -> None:
         """A Help menu: a getting-started walkthrough for newcomers, and an About entry."""
         add_help_menu(
@@ -215,8 +213,6 @@ class EdainLinterWindow(QMainWindow):
             ),
             icon=QIcon(str(resource_path(ICON_FILE, __file__))),
         )
-
-    # ---------------------------------------------------------------- the Mod (ini) tab
 
     def _build_lint_tab(self) -> QWidget:
         tab = QWidget()
@@ -433,8 +429,6 @@ class EdainLinterWindow(QMainWindow):
         self.format_button.setEnabled(True)
         self.status.setText(f"Format failed - {message}")
 
-    # ---------------------------------------------------------------- the Maps tab
-
     def _build_maps_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -570,8 +564,6 @@ class EdainLinterWindow(QMainWindow):
         self.map_check_button.setEnabled(True)
         self.status.setText(f"Check failed - {message}")
 
-    # ---------------------------------------------------------------- drag-and-drop (-> Maps)
-
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
@@ -590,8 +582,6 @@ class EdainLinterWindow(QMainWindow):
             self.status.setText(f"Added {added} item(s) to check. Press Check when ready.")
         elif ignored:
             self.status.setText("Only folders and .map files can be dropped here.")
-
-    # ---------------------------------------------------------------- shared helpers
 
     def _path_row(
         self, layout, label: str, placeholder: str, on_browse, tooltip: str = ""

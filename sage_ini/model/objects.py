@@ -22,6 +22,8 @@ __all__ = [
     "get_class",
     "resolve_annotation",
     "classify_subblock",
+    "rebuild_schema",
+    "rebuild_schema_tree",
     "is_multivalued",
     "Multivalued",
     "MarkerGroup",
@@ -145,6 +147,62 @@ def classify_subblock(block: Block) -> tuple[str, type["IniObject"] | None]:
     return block.name, REGISTRY.get(block.name)
 
 
+def rebuild_schema(cls: type["IniObject"]) -> None:
+    """Recompute `cls`'s flattened schema (`_fieldspec`, `_defaults`, the nested and marker
+    groups, the aliases) from its MRO plus whatever an `Engine` has injected.
+
+    Flattening is a snapshot, not a live view, so it has to be replayed whenever the sources
+    change: a field an engine adds to `Object` stays invisible to `ChildObject` until that
+    subclass is rebuilt too (see `rebuild_schema_tree`)."""
+    fieldspec: dict[str, object] = {}
+    defaults: dict[str, object] = {}
+    nested: dict[str, list[str | type]] = {}
+    groups: dict[str, MarkerGroup] = {}
+    aliases: dict[str, str] = {}
+    noops: dict[str, str] = {}
+    for base in reversed(cls.__mro__):
+        fieldspec.update(getattr(base, "__annotations__", {}))
+        # An engine's fields come after the class body's at the same level, so a patch that
+        # retypes a field it also declares wins over the stock annotation.
+        fieldspec.update(base.__dict__.get("_engine_fields", {}))
+        defaults.update(base.__dict__.get("_own_defaults", {}))
+        defaults.update(base.__dict__.get("_engine_defaults", {}))
+        nested.update(base.__dict__.get("nested_attributes", {}))
+        groups.update(base.__dict__.get("marker_groups", {}))
+        aliases.update(base.__dict__.get("field_aliases", {}))
+        noops.update(base.__dict__.get("_engine_noops", {}))
+    # A nested or marker group may carry a `list[...]` annotation purely so the IDE knows
+    # its element type; it's served by its own `__getattr__` branch, not lazy conversion,
+    # so keep it out of the converter fieldspec (which other passes treat as raw fields).
+    for grouped in nested.keys() | groups.keys():
+        fieldspec.pop(grouped, None)
+    cls._fieldspec = fieldspec
+    cls._defaults = defaults
+    cls._nested = nested
+    cls._marker_groups = groups
+    cls._field_aliases = aliases
+    cls._noops = noops
+
+    # Reverse maps for from_block: which group a key opens vs. extends.
+    starts: dict[str, str] = {}
+    members: dict[str, str] = {}
+    for name, group in groups.items():
+        for marker in group.markers:
+            starts[marker] = name
+        for key in group.keys:
+            members[key] = name
+    cls._marker_starts = starts
+    cls._marker_members = members
+
+
+def rebuild_schema_tree(cls: type["IniObject"]) -> None:
+    """Rebuild `cls`'s schema and every subclass's, so a change at one level reaches the
+    classes that inherited from it."""
+    rebuild_schema(cls)
+    for subclass in cls.__subclasses__():
+        rebuild_schema_tree(subclass)
+
+
 class IniObject:
     key: str | None = None  # Game table this object registers into; None = unstored
     # Whether a label names a unique definition (last-wins) or a shared category that
@@ -202,6 +260,14 @@ class IniObject:
     # built the ordinary way; only manifest-seeded stand-ins carry edges here.
     _manifest_edges: tuple[tuple[str, str], ...] = ()
 
+    # Fields, defaults and does-nothing markers an `Engine` injected (the INI surface a binary
+    # patch adds; see `sage_ini.engine`). Kept apart from the class body's annotations so
+    # applying and reverting an engine touches only these dicts, and so they flatten down the
+    # MRO exactly like a hand-written field: one added to `Object` reaches `ChildObject`.
+    _engine_fields: dict[str, object] = {}
+    _engine_defaults: dict[str, object] = {}
+    _engine_noops: dict[str, str] = {}
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         REGISTRY[cls.__name__] = cls
@@ -215,39 +281,7 @@ class IniObject:
                 own_defaults[field] = cls.__dict__[field]
                 delattr(cls, field)
         cls._own_defaults = own_defaults
-
-        fieldspec: dict[str, object] = {}
-        defaults: dict[str, object] = {}
-        nested: dict[str, list[str | type]] = {}
-        groups: dict[str, MarkerGroup] = {}
-        aliases: dict[str, str] = {}
-        for base in reversed(cls.__mro__):
-            fieldspec.update(getattr(base, "__annotations__", {}))
-            defaults.update(base.__dict__.get("_own_defaults", {}))
-            nested.update(base.__dict__.get("nested_attributes", {}))
-            groups.update(base.__dict__.get("marker_groups", {}))
-            aliases.update(base.__dict__.get("field_aliases", {}))
-        # A nested or marker group may carry a `list[...]` annotation purely so the IDE knows
-        # its element type; it's served by its own `__getattr__` branch, not lazy conversion,
-        # so keep it out of the converter fieldspec (which other passes treat as raw fields).
-        for grouped in nested.keys() | groups.keys():
-            fieldspec.pop(grouped, None)
-        cls._fieldspec = fieldspec
-        cls._defaults = defaults
-        cls._nested = nested
-        cls._marker_groups = groups
-        cls._field_aliases = aliases
-
-        # Reverse maps for from_block: which group a key opens vs. extends.
-        starts: dict[str, str] = {}
-        members: dict[str, str] = {}
-        for name, group in groups.items():
-            for marker in group.markers:
-                starts[marker] = name
-            for key in group.keys:
-                members[key] = name
-        cls._marker_starts = starts
-        cls._marker_members = members
+        rebuild_schema(cls)
 
     _fieldspec: dict[str, object] = {}
     _defaults: dict[str, object] = {}
@@ -256,6 +290,7 @@ class IniObject:
     _marker_starts: dict[str, str] = {}
     _marker_members: dict[str, str] = {}
     _field_aliases: dict[str, str] = {}
+    _noops: dict[str, str] = {}
 
     def __init__(
         self,

@@ -36,6 +36,7 @@ from sage_lint.commands.common import (
     config_path,
     diag_line,
     diagnostic_dict,
+    project_engine,
     resolve_rule_set,
     select_and_summarize,
     split_codes,
@@ -68,6 +69,7 @@ _NONRULE_CODES: dict[str, str] = {
     "malformed-include": "an `#include` directive that could not be parsed",
     "unknown-directive": "an unrecognized `#` directive",
     "load-error": "a file failed to build into the game",
+    "engine-config": "a problem in the .sagepatch describing the patched engine's INI surface",
     "rule-error": "a lint rule raised while running (internal)",
 }
 
@@ -269,6 +271,7 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
     excludes = (
         list(args.exclude) if args.exclude else [config_path(lint_dir, e) for e in config.exclude]
     )
+    engine = project_engine(args, config, conf_dir)
     bases = base_paths(args, config, conf_dir, include_assets, include_maps)
     # A real base always wins; only resolve (and later pass down) a manifest when there is none.
     manifest = _effective_manifest(args, config, conf_dir) if not bases else None
@@ -331,7 +334,11 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
                 # Base sources (and a manifest) are build-only and folder-scoped, so the
                 # single-file path never applies them.
                 diagnostics = lint_file(
-                    args.file, include_root=root, rules=rules, asset_dat_names=asset_dat_names
+                    args.file,
+                    include_root=root,
+                    rules=rules,
+                    asset_dat_names=asset_dat_names,
+                    engine=engine,
                 )
             elif include_maps:
                 # Build the game once (keeping it), lint the ini, then also lint the binary
@@ -344,6 +351,7 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
                     bases=tuple(base_source(base) for base in bases),
                     manifest=manifest,
                     asset_dat_names=asset_dat_names,
+                    engine=engine,
                 )
                 try:
                     diagnostics.items.extend(_lint_map_files(root, game, tuple(excludes)).items)
@@ -359,6 +367,7 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
                     bases=tuple(base_source(base) for base in bases),
                     manifest=manifest,
                     asset_dat_names=asset_dat_names,
+                    engine=engine,
                 )
         except ManifestError as exc:
             # A bad --base-manifest / config base_manifest is a hard stop: report it cleanly

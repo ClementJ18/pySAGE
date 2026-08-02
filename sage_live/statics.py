@@ -259,8 +259,6 @@ class Statics:
         """
         return template.lower() in self.horde_members() and not self.is_horde(template)
 
-    # ---- the revive system: which building recruits which hero ---------------------------
-
     def command_set(self, template: str) -> str | None:
         """The template's `CommandSet` name, following the parent chain."""
         return self.field(template, "CommandSet")

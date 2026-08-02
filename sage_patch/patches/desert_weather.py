@@ -54,6 +54,8 @@ from __future__ import annotations
 import struct
 from typing import TYPE_CHECKING
 
+from sage_ini.engine import Engine, EnumDelta
+
 from ..asm import JNZ, JZ, Asm
 from ..patcher import Patch
 from ..utils import apply_byte_patch, find_section, va_to_offset
@@ -70,7 +72,6 @@ __all__ = [
     "DesertWeatherPatch",
 ]
 
-# --- fixed facts about the target build (VA, ImageBase 0x400000) ---------------------------
 
 #: The global weather name table: ``{"NORMAL", "SNOWY", NULL}``. `INI::scanIndexList`
 #: (``0x0042B914``) walks it to the terminator with `stricmp`, so its length is the terminator and
@@ -109,7 +110,6 @@ _SET_BIT_VA = 0x0068CC09
 #: `Object::onModelConditionFlagsChanged`, called with ecx = the `Object`.
 _PROPAGATE_VA = 0x0068B53C
 
-# --- site 1: Drawable::bindToObject -------------------------------------------------------
 
 #: The ``ForceModelsToFollowWeather`` arm of ``Drawable::bindToObject``, entered with esi =
 #: `TheWritableGlobalData` (already null-checked) and the `ModelConditionFlags` being built at
@@ -121,7 +121,6 @@ _BIND_ORIGINAL = bytes.fromhex("33c083be38010000018d4db40f94c0506a08e834bcffff")
 #: Where the mask being built lives in ``bindToObject``'s frame.
 _BIND_FLAGS_DISP = -0x4C
 
-# --- site 2: the timed-upgrade expiry update ----------------------------------------------
 
 #: In the update at ``0x0080585F``, the block that re-asserts ``SNOW``/``NIGHT`` after an expiring
 #: upgrade's model conditions have been cleared off the object. Entered with esi = the module's
@@ -139,7 +138,6 @@ _UPGRADE_ORIGINAL = bytes.fromhex(
 _UPGRADE_FLAGS_DISP = -0x94  # [ebp-0x94] -> the ModelConditionFlags just cleared
 _UPGRADE_THIS_TO_OBJECT = -0x08  # [esi-0x08] -> Object*
 
-# --- site 3: the "any weather" sentinel in Sound / ViewShake -------------------------------
 
 #: `Sound` / `ViewShake` carry ``Weather`` at ``+0x140``, and use the member **count** as the
 #: "matches any weather" value: the constructor stores it as the default, and the condition
@@ -256,8 +254,6 @@ class DesertWeatherPatch(Patch):
     def __str__(self) -> str:
         return f"{self.name} ({self.weather} -> {self.condition})"
 
-    # --- apply / verify ------------------------------------------------------------------------
-
     def apply(self, data: bytearray) -> None:
         stock_names = self._check_weather_table(data)
         for va, original in (
@@ -307,6 +303,20 @@ class DesertWeatherPatch(Patch):
         )
         for file_off, old, new, note in edits:
             apply_byte_patch(data, file_off, old, new, note)
+
+    def ini_surface(self) -> Engine:
+        """The two tokens this patch adds: the weather (`GameData.Weather`, and the
+        `WeatherTexture` selector that reads the same table) and the model condition it drives.
+
+        The weather's index is fixed - it is appended to a two-entry table nothing else grows -
+        while the model condition's bit depends on what else the binary carries, so only the
+        first is stated here."""
+        return Engine(
+            enum_members=(
+                EnumDelta("MapWeatherType", self.weather, NEW_WEATHER_INDEX, self.name),
+                EnumDelta("ModelCondition", self.condition, None, self.name),
+            )
+        )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         """Structural check that ``data`` carries this patch. Everything is re-derived from the
@@ -370,8 +380,6 @@ class DesertWeatherPatch(Patch):
                 )
         return problems
 
-    # --- CLI integration -----------------------------------------------------------------------
-
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -396,8 +404,6 @@ class DesertWeatherPatch(Patch):
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> DesertWeatherPatch:
         return cls(weather=args.weather, condition=args.condition)
-
-    # --- the cave ------------------------------------------------------------------------------
 
     def _tail(self, tail_va: int, condition_bit: int, stock_names: tuple[int, ...]) -> bytes:
         """Everything this patch puts in the cave after the model-condition table and its name:
@@ -426,8 +432,6 @@ class DesertWeatherPatch(Patch):
         name_size += -name_size % 4
         bind_va = tail_va + table_size + name_size
         return tail_va, bind_va, bind_va + len(build_bind_code(bind_va, 0))
-
-    # --- reading the image back ----------------------------------------------------------------
 
     def _check_weather_table(self, data: bytes | bytearray) -> tuple[int, ...]:
         """The stock name pointers, after checking the table is where and what it should be and

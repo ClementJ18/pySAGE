@@ -81,6 +81,8 @@ from __future__ import annotations
 import struct
 from typing import TYPE_CHECKING
 
+from sage_ini.engine import Engine, FieldDelta
+
 from ..addresses import (
     AUTO_DEPOSIT_FILTER_EBP,
     AUTO_DEPOSIT_MULTIPLIER_EBP,
@@ -162,7 +164,6 @@ MAX_PERCENT = 100
 
 _ROWS_MASK = ROWS - 1
 
-# --- section layout ---------------------------------------------------------------------------
 _KEY_OFF = 0x00  # the name key of the PlayerTemplate block currently being parsed
 _ROWS_OFF = 0x10
 _CONST_OFF = _ROWS_OFF + ROWS * ROW_STRIDE  # the float 0.01f the percentage is scaled by
@@ -206,7 +207,6 @@ def kept_percent(command_points: int, step: int, values: tuple[int, ...]) -> int
     return min(max(values[tier], 0), MAX_PERCENT)
 
 
-# --- the cave's routines ------------------------------------------------------------------------
 # Everything below is hand-encoded (the house style: only address arithmetic is automated, by
 # `..asm`), with a comment saying what each instruction is.
 
@@ -574,8 +574,6 @@ class CommandPointUpkeepPatch(Patch):
     def __str__(self) -> str:
         return self.name if self.hud else f"{self.name} (no hud)"
 
-    # --- apply ----------------------------------------------------------------------------
-
     def apply(self, data: bytearray) -> None:
         table_va = self._resolve(data)
         entries = self._check_build(data, table_va)
@@ -621,8 +619,6 @@ class CommandPointUpkeepPatch(Patch):
                 )
         return entries
 
-    # --- section layout -------------------------------------------------------------------
-
     @staticmethod
     def _code_offset(entries: tuple[Entry, ...]) -> int:
         return _TABLE_OFF + _table_span(entries)
@@ -658,8 +654,6 @@ class CommandPointUpkeepPatch(Patch):
             _emit_text(a, base_va + _FMT_OFF)
         a.finish()  # resolve the internal branches, so `label_va` describes a real layout
         return a
-
-    # --- the engine-side edits, shared by apply and verify --------------------------------
 
     def _edits(
         self, data: bytes | bytearray, section_va: int, entries: tuple[Entry, ...], old_table: int
@@ -723,8 +717,6 @@ class CommandPointUpkeepPatch(Patch):
             )
         return out
 
-    # --- CLI ------------------------------------------------------------------------------
-
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -738,7 +730,19 @@ class CommandPointUpkeepPatch(Patch):
     def from_cli_args(cls, args: argparse.Namespace) -> CommandPointUpkeepPatch:
         return cls(hud=not args.no_hud)
 
-    # --- verify ---------------------------------------------------------------------------
+    def ini_surface(self) -> Engine:
+        """The two `PlayerTemplate` fields this patch adds. `UpkeepCommandPointStep` defaults to
+        0, which is "no upkeep at all"; `UpkeepValues` is a whole-line list of percentages read
+        the way the stock `ResourceModifierValues` beside it is, so it has no scalar default."""
+        # Keyed by the `user_data` the cave's parse function switches on, so the INI types stated
+        # here and the parse paths installed below cannot describe different fields.
+        spelling = {0: ("Int", 0), 1: ("Int[]", None)}
+        return Engine(
+            fields=tuple(
+                FieldDelta("PlayerTemplate", field, *spelling[user_data], patch=self.name)
+                for field, user_data in FIELDS
+            )
+        )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         located = find_section(data, SECTION_NAME)

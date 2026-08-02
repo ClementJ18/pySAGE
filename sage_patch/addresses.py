@@ -315,7 +315,6 @@ OBJECT_ID = 0x74
 # engine's `UnitCost` sites skip the check outright when it is null, rather than failing it.
 OBJECT_CONTAIN = 0x258
 
-# --- Special powers ---------------------------------------------------------------------------
 #
 # The activation path, end to end, as `docs/hero-mana.md` derives it:
 #
@@ -780,7 +779,6 @@ OBJECT_MODULE_LIST = 0x24C
 # Ten bytes, entered only through the vtable, so all ten are replaceable in place.
 REQUEST_UNIQUE_UNIT_ID_BODY = bytes.fromhex("8b41108d5001895110c3")
 
-# --- INI field parsing -----------------------------------------------------------------------
 
 # A module's INI fields are a 16-byte-stride array of `{const char *name, parseFn, userData,
 # offset}`, walked to a NULL name pointer - never to a count, which is why adding a field needs
@@ -790,7 +788,6 @@ REQUEST_UNIQUE_UNIT_ID_BODY = bytes.fromhex("8b41108d5001895110c3")
 FIELD_PARSE_STRIDE = 16
 INI_PARSE_BOOL = 0x0042E558
 
-# --- TerrainResourceBehavior -------------------------------------------------------------------
 
 # The module on a claimed resource spot: it wakes every `IncomeInterval`, deposits an income, and
 # hands the same number to the building's `ExperienceTracker`. Derived in
@@ -867,7 +864,6 @@ ARG_APPENDERS = (
 )
 
 
-# --- command-point upkeep: the resource-modifier income path -----------------------------------
 # Derived in `docs/command-point-upkeep.md`. The whole per-building "inflation" mechanic lives
 # in one function, and these are the pieces of it a second modifier has to reach.
 

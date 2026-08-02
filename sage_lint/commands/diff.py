@@ -13,7 +13,7 @@ from pathlib import Path
 
 from sage_ini.diff import diff_games, format_game_diff, git_worktree
 from sage_ini.player_diff import format_player_diff
-from sage_lint.commands.common import base_source, config_path
+from sage_lint.commands.common import base_source, config_path, project_engine
 from sage_lint.config import Config, load_config
 from sage_lint.linter import assemble_with_bases
 from sage_utils.cli import utf8_stdout
@@ -30,6 +30,7 @@ def run_diff(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     for warning in config.warnings:
         print(warning, file=sys.stderr)
 
+    engine = project_engine(args, config, config_dir)
     bases = list(args.base) if args.base else [config_path(config_dir, b) for b in config.base]
     base_sources = tuple(base_source(Path(b)) for b in bases)
     rel_root = config.root if config.root and not Path(config.root).is_absolute() else None
@@ -39,7 +40,7 @@ def run_diff(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         root = tree / rel_root if rel_root else tree
         if not root.is_dir():
             parser.error(f"root {root.name!r} not found at ref {ref!r}")
-        loaded, base_layer = assemble_with_bases(root, base_sources)
+        loaded, base_layer = assemble_with_bases(root, base_sources, engine=engine)
         if base_layer is not None:
             stack.callback(base_layer.cleanup)
         return loaded.game

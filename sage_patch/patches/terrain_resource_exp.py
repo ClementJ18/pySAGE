@@ -77,6 +77,8 @@ import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from sage_ini.engine import Engine, FieldDelta
+
 from ..addresses import (
     FIELD_PARSE_STRIDE,
     INI_PARSE_BOOL,
@@ -250,8 +252,6 @@ class TerrainResourceExpPatch(Patch):
     def __str__(self) -> str:
         return f"{self.name} ({self.keyword})"
 
-    # --- apply / verify ------------------------------------------------------------------------
-
     def apply(self, data: bytearray) -> None:
         self._check_dispatch(data)
         self._check_table(data)
@@ -334,6 +334,33 @@ class TerrainResourceExpPatch(Patch):
                     "another keyword"
                 )
 
+    @classmethod
+    def detect(cls, data: bytes | bytearray) -> TerrainResourceExpPatch | None:
+        """Recognise this patch **and recover its keyword** from ``data``.
+
+        The default probe would only ever recognise the default keyword. The keyword string is
+        the first thing in the cave (`_layout` puts it at the section base), so it reads straight
+        back out; `verify` then checks the whole cave against it."""
+        located = find_section(data, SECTION_NAME)
+        if located is None:
+            return None
+        keyword = _cstring(data, located[0])
+        if keyword is None:
+            return None
+        try:
+            patch = cls(keyword)
+        except ValueError:
+            return None  # not a keyword this patch could have written
+        return None if patch.verify(data) else patch
+
+    def ini_surface(self) -> Engine:
+        """The one `Bool` this patch adds to `TerrainResourceBehavior`, under whatever keyword it
+        was installed with. The constructor zeroes it, so the default is `No` - stock behaviour,
+        which is what makes the field opt-in."""
+        return Engine(
+            fields=(FieldDelta("TerrainResourceBehavior", self.keyword, "Bool", False, self.name),)
+        )
+
     def verify(self, data: bytes | bytearray) -> list[str]:
         """Structural check that ``data`` carries this patch for exactly this keyword. Reads only
         via ``struct`` and the section table, so it needs no disassembler.
@@ -408,8 +435,6 @@ class TerrainResourceExpPatch(Patch):
             if got != want:
                 problems.append(f"@0x{va:08x}: {complaint} (holds {got.hex()})")
         return problems
-
-    # --- CLI integration -----------------------------------------------------------------------
 
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:

@@ -161,9 +161,6 @@ def _cave(data: bytes | bytearray) -> tuple[int, int]:
     return base_va, vsize
 
 
-# --- the free byte ------------------------------------------------------------------------
-
-
 def test_new_field_lands_in_existing_padding() -> None:
     """The offset the patch uses is inside the struct and claimed by no stock field.
 
@@ -188,9 +185,6 @@ def test_rewritten_ctor_zeroes_the_new_byte_and_keeps_visible() -> None:
     assert 0x14 <= TERRAIN_RESOURCE_FREE_OFFSET < 0x18
 
 
-# --- the rebuilt table --------------------------------------------------------------------
-
-
 def test_table_keeps_the_stock_rows_verbatim() -> None:
     keyword_va = 0x00F00000
     table = build_table(keyword_va)
@@ -205,9 +199,6 @@ def test_table_appends_one_bool_row_and_a_terminator() -> None:
     row = struct.unpack_from("<IIII", table, STOCK_FIELD_COUNT * FIELD_PARSE_STRIDE)
     assert row == (keyword_va, INI_PARSE_BOOL, 0, TERRAIN_RESOURCE_FREE_OFFSET)
     assert table[-FIELD_PARSE_STRIDE:] == bytes(FIELD_PARSE_STRIDE)
-
-
-# --- the gate -----------------------------------------------------------------------------
 
 
 def test_gate_reads_the_field_and_branches_to_the_engine_edges() -> None:
@@ -244,9 +235,6 @@ def test_gate_is_position_independent() -> None:
     assert len(a) == len(b)
     differing = [i for i, (x, y) in enumerate(zip(a, b, strict=True)) if x != y]
     assert len(differing) <= 8  # the two displacements, 4 bytes each
-
-
-# --- apply --------------------------------------------------------------------------------
 
 
 def test_apply_writes_the_three_sites(image: bytearray) -> None:
@@ -292,9 +280,6 @@ def test_default_keyword_matches_the_stock_sibling() -> None:
     assert DEFAULT_KEYWORD == "GiveNoXP"
 
 
-# --- verify -------------------------------------------------------------------------------
-
-
 def test_verify_clean_after_apply(image: bytearray) -> None:
     patch = TerrainResourceExpPatch()
     patch.apply(image)
@@ -333,9 +318,6 @@ def test_verify_catches_a_reverted_site(image: bytearray, va: int) -> None:
     assert patch.verify(image) != []
 
 
-# --- refusals -----------------------------------------------------------------------------
-
-
 def test_apply_refuses_a_second_time(image: bytearray) -> None:
     """The stock table is checked before anything is written, and it no longer looks stock once
     the first application has repointed the `push` - so a double apply raises rather than
@@ -370,9 +352,6 @@ def test_apply_refuses_when_the_table_is_not_the_stock_one(image: bytearray) -> 
 def test_constructor_refuses_an_unparseable_keyword(keyword: str) -> None:
     with pytest.raises(ValueError, match="INI keyword"):
         TerrainResourceExpPatch(keyword=keyword)
-
-
-# --- composition --------------------------------------------------------------------------
 
 
 #: Comfortably past the highest site any of the four patches below touches (the production

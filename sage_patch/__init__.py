@@ -50,6 +50,7 @@ from sage_patch.patches import (
     TerrainResourceExpPatch,
     UniqueProductionIdPatch,
 )
+from sage_patch.sagepatch import generate
 
 __all__ = [
     "AiReviveGatePatch",
@@ -64,4 +65,5 @@ __all__ = [
     "TerrainResourceExpPatch",
     "UniqueProductionIdPatch",
     "apply_patches",
+    "generate",
 ]

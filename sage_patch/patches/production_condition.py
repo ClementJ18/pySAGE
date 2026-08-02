@@ -96,6 +96,8 @@ import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from sage_ini.engine import Engine, EnumDelta
+
 from ..asm import JE, JNE, JNZ, JZ, Asm
 from ..patcher import Patch
 from ..utils import apply_byte_patch, find_section, va_to_offset
@@ -106,7 +108,6 @@ if TYPE_CHECKING:
 
 __all__ = ["MASK_OFFSET", "NEW_BIT", "STOCK_BIT_COUNT", "ProductionConditionPatch"]
 
-# --- fixed facts about the target build (VA, ImageBase 0x400000) ---------------------------
 # The name table, its 16 references, the 10 count sites and the mask offset are shared with any
 # other patch that names a condition, so they live in `model_conditions` and are re-exported here.
 
@@ -336,8 +337,6 @@ class ProductionConditionPatch(Patch):
         if self.locomotor_set is not None:
             name_tables.validate_name(self.locomotor_set, "locomotor set name")
 
-    # --- apply / verify ------------------------------------------------------------------------
-
     def apply(self, data: bytearray) -> None:
         """Install the cave and repoint every table it rebuilt.
 
@@ -384,8 +383,6 @@ class ProductionConditionPatch(Patch):
         )
         for file_off, old, new, note in edits:
             apply_byte_patch(data, file_off, old, new, note)
-
-    # --- the cave's layout ---------------------------------------------------------------------
 
     def _tail(
         self,
@@ -446,6 +443,26 @@ class ProductionConditionPatch(Patch):
             mask_va = va
             va += weapon_set_flags.MASK_DWORDS * 4
         return _TailLayout(weapon_table_va, locomotor_table_va, mask_va, va)
+
+    def ini_surface(self) -> Engine:
+        """The tokens this patch teaches the INI parser: the model condition, plus the weapon-set
+        flag and locomotor set when those extras were installed. Each maps to the model enum that
+        types the fields it can appear in - a `ModelConditionState` label, a `WeaponSet`
+        `Conditions` token, a `Locomotor = SET_X` selector.
+
+        No indices are stated: which bit a name landed on depends on what else the binary already
+        carries, so the generator reads them back from the live tables instead."""
+        return Engine(
+            enum_members=tuple(
+                EnumDelta(enum=enum, name=token, patch=self.name)
+                for enum, token in (
+                    ("ModelCondition", self.condition),
+                    ("WeaponSetConditions", self.weapon_set_flag),
+                    ("LocomotorSetType", self.locomotor_set),
+                )
+                if token is not None
+            )
+        )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         """Structural check that ``data`` carries this patch for exactly this condition name.
@@ -576,8 +593,6 @@ class ProductionConditionPatch(Patch):
             )
         return pointers
 
-    # --- CLI integration -----------------------------------------------------------------------
-
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -615,8 +630,6 @@ class ProductionConditionPatch(Patch):
             weapon_set_flag=args.weapon_set_flag,
             locomotor_set=args.locomotor_set,
         )
-
-    # --- the patch sites -----------------------------------------------------------------------
 
     @staticmethod
     def _check_dispatch(data: bytes | bytearray) -> None:

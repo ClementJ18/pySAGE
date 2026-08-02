@@ -62,9 +62,6 @@ def _chunk(save, name):
     return chunk
 
 
-# --- every parseable WotR save: container and modelled chunks round-trip -----------------------
-
-
 @pytest.mark.parametrize("path", WOTR_PARSEABLE, ids=fixture_id)
 def test_parseable_save_container_round_trips(path):
     save = parse_save_from_path(_require(path))
@@ -81,9 +78,6 @@ def test_game_logic_and_client_re_encode_exactly(path):
     client_chunk = _chunk(save, "CHUNK_GameClient")
     assert encode_game_logic(decode_game_logic(logic_chunk)) == logic_chunk.payload
     assert encode_game_client(decode_game_client(client_chunk)) == client_chunk.payload
-
-
-# --- battle saves: an embedded map and a live index -------------------------------------------
 
 
 @pytest.mark.parametrize("path", WOTR_BATTLE, ids=fixture_id)
@@ -105,9 +99,6 @@ def test_battle_save_decodes_umlaut_template_names():
     assert [n for n in templates.values() if any(ord(ch) > 127 for ch in n)]
 
 
-# --- living-world saves: valid, objectless, and clean -----------------------------------------
-
-
 @pytest.mark.parametrize("path", WOTR_LIVING_WORLD, ids=fixture_id)
 def test_living_world_save_is_objectless(path):
     """No embedded battle map and no live objects - the normal shape of a strategic-layer save. The
@@ -126,18 +117,12 @@ def test_living_world_save_diagnoses_clean(path):
     assert not [d for d in diagnose_save(save) if d.severity == "fatal"]
 
 
-# --- angmar 6: game-corrupt but structurally indistinguishable --------------------------------
-
-
 def test_game_corrupt_save_is_structurally_indistinguishable():
     """It parses and re-encodes byte-exactly like a valid living-world save; the tooling has no
     structural signal to flag it, and asserting otherwise would over-fit a sample of one."""
     save = parse_save_from_path(_require(WOTR_GAME_CORRUPT))
     assert write_save(save) == WOTR_GAME_CORRUPT.read_bytes()
     assert decode_game_logic(_chunk(save, "CHUNK_GameLogic")).objects == []
-
-
-# --- LivingWorldLogic: the WotR strategic roster ----------------------------------------------
 
 
 @pytest.mark.parametrize("path", WOTR_PARSEABLE, ids=fixture_id)
@@ -194,9 +179,6 @@ def test_living_world_logic_is_empty_in_a_non_wotr_save():
         pytest.skip("no skirmish fixture present")
     save = parse_save_from_path(skirmish)
     assert decode_living_world_logic(_chunk(save, "CHUNK_LivingWorldLogic")).names == []
-
-
-# --- angmar 7: the one detectable corruption --------------------------------------------------
 
 
 def test_truncated_save_container_does_not_parse():

@@ -81,9 +81,6 @@ class ManifestError(Exception):
     stop rather than a lint finding."""
 
 
-# --------------------------------------------------------------------------- generation
-
-
 def _file_key(file: str, ini_roots: list[Path]) -> str:
     """A definition's file identity: its span file made `ini_root`-relative, lowercased and
     forward-slashed, matching `loader._rel_key` so a mod file shadows the manifest entry. Falls
@@ -309,9 +306,6 @@ def manifest_matches_roots(data: dict, roots) -> bool:
     _, digest = source_digest(roots)
     source = data.get("source")
     return isinstance(source, dict) and source.get("digest") == digest
-
-
-# --------------------------------------------------------------------------- loading
 
 
 def _definition_class(class_name: str | None, table: str) -> type[IniObject]:

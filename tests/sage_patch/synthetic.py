@@ -91,7 +91,6 @@ def synthetic_image() -> bytearray:
 
     write(STRINGS_VA, bytes(strings))
 
-    # --- the model-condition name table, its 16 refs and its 10 count bounds ---------------
     for index, va in enumerate(condition_vas):
         u32(mc.NAME_TABLE_VA + index * 4, va)
     u32(mc.NAME_TABLE_VA + mc.STOCK_BIT_COUNT * 4, 0)  # the terminator
@@ -103,11 +102,9 @@ def synthetic_image() -> bytearray:
     for va in mc.XFER_LENGTH_VAS:
         write(va, bytes([0x6A, mc.XFER_STOCK_LENGTH]))  # push 0x4a
 
-    # --- production-condition's hook site and the vtable that proves it is the right one ----
     write(pc._UPDATE_VA, pc._UPDATE_ENTRY)
     u32(pc._UPDATE_VTABLE + pc._UPDATE_VTABLE_SLOT, pc._UPDATE_VA)
 
-    # --- the two tables production-condition's optional halves rebuild ----------------------
     # Neither has a count to raise; the weapon-set one has a count that must *not* move, so its
     # four bytes are planted for the check that asserts exactly that.
     for table_va, vas, ref_vas in (
@@ -121,7 +118,6 @@ def synthetic_image() -> bytearray:
             u32(va, table_va)
     write(ws.BIT_COUNT_VA, ws.BIT_COUNT_BYTES)
 
-    # --- desert-weather's table, its 4 refs, the two sentinels and the two blocks -----------
     for index, va in enumerate(weather_vas):
         u32(dw.WEATHER_TABLE_VA + index * 4, va)
     u32(dw.WEATHER_TABLE_VA + len(weather_vas) * 4, 0)
@@ -135,8 +131,6 @@ def synthetic_image() -> bytearray:
 
     return data
 
-
-# --- Worldbuilder.exe -----------------------------------------------------------------------
 
 #: Where the Worldbuilder image parks its two stock weather strings. Any mapped page will do; the
 #: patch only ever follows the table's pointers.

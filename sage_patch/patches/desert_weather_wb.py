@@ -67,7 +67,6 @@ if TYPE_CHECKING:
 
 __all__ = ["DEFAULT_WEATHER", "STOCK_WEATHER_NAMES", "DesertWeatherWorldbuilderPatch"]
 
-# --- fixed facts about the target build (VA, ImageBase 0x400000) ---------------------------
 
 #: Worldbuilder's copy of the global weather name table: ``{"NORMAL", "SNOWY", NULL}``. The NULL
 #: is at ``0x02231FB8`` and ``0x02231FBC`` is already `ARMY`, the first entry of the
@@ -139,8 +138,6 @@ class DesertWeatherWorldbuilderPatch(Patch):
     def __str__(self) -> str:
         return f"{self.name} ({self.weather})"
 
-    # --- apply / verify ------------------------------------------------------------------------
-
     def apply(self, data: bytearray) -> None:
         self._check_not_rebased(data)
         self._check_dialog(data)
@@ -179,8 +176,6 @@ class DesertWeatherWorldbuilderPatch(Patch):
                 problems.append(f"{note} @0x{file_off:x}: expected {new.hex()}, got {got.hex()}")
         return problems
 
-    # --- CLI integration -----------------------------------------------------------------------
-
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -197,8 +192,6 @@ class DesertWeatherWorldbuilderPatch(Patch):
     def from_cli_args(cls, args: argparse.Namespace) -> DesertWeatherWorldbuilderPatch:
         return cls(weather=args.weather)
 
-    # --- the cave ------------------------------------------------------------------------------
-
     def _table(self, base_va: int, stock: tuple[int, ...]) -> bytes:
         """The relocated table: the stock name pointers reused as-is - so ``NORMAL`` and ``SNOWY``
         keep both their indices and their original strings - then the new name, then the NULL.
@@ -208,8 +201,6 @@ class DesertWeatherWorldbuilderPatch(Patch):
         name += b"\x00" * (-len(name) % 4)
         name_va = base_va + (len(stock) + 2) * 4
         return b"".join(_u32(p) for p in (*stock, name_va)) + _u32(0) + name
-
-    # --- the patch sites -----------------------------------------------------------------------
 
     def _edits(
         self, data: bytes | bytearray, section_va: int

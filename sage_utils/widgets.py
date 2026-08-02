@@ -484,7 +484,6 @@ class SourceLoader:
             if self._status is None:
                 self._status = getattr(self.panel, "status", None)
 
-    # -- panel helpers ------------------------------------------------------------------
     def restore_saved(self) -> None:
         """Re-add the source list remembered for this app under `app_name` (a no-op headless)."""
         if self.panel is None:
@@ -503,7 +502,6 @@ class SourceLoader:
     def sources(self) -> list[tuple[str, str]]:
         return self.panel.sources() if self.panel is not None else []
 
-    # -- loading ------------------------------------------------------------------------
     def load(self, sources=None, *, save: bool = True) -> None:
         """Build `sources` (or the panel's current list) on a worker. Persists the list under
         `app_name` (unless `save=False`), then hands the result to `on_loaded`."""

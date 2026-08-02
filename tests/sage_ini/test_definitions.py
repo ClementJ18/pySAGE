@@ -1388,7 +1388,10 @@ def test_livingworldmapinfo_EyeTower_fields():
     assert info.EyeTower[0].PupilAnimObject is game.livingworldanimobjects["EyeTower_Pupil"]
     assert info.EyeTower[0].PupilBeamAnimObject is game.livingworldanimobjects["EyeTower_EyeBeam"]
     assert info.EyeTower[0].EyeDecalAnimObject is game.livingworldanimobjects["EyeTower_Decal"]
-    assert info.EyeTower[0].EyeDecalBeamAnimObject is game.livingworldanimobjects["EyeTower_Decal_Beam"]
+    assert (
+        info.EyeTower[0].EyeDecalBeamAnimObject
+        is game.livingworldanimobjects["EyeTower_Decal_Beam"]
+    )
 
 
 def test_object_world_map_prop_fields_are_typed():

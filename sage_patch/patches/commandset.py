@@ -51,6 +51,8 @@ from __future__ import annotations
 import struct
 from typing import TYPE_CHECKING
 
+from sage_ini.engine import Engine, LimitDelta
+
 from ..addresses import CAN_MAKE_UNIT_SCAN_BOUND, IMAGE_BASE
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, image_base
@@ -69,6 +71,10 @@ _ORIGINAL_OBJ_SIZE = 0xA0
 _ORIGINAL_COUNT_OFF = 0x98  # count / InitialVisible field in the 0xA0 object
 _ORIGINAL_FLAG_OFF = 0x9C
 _ARRAY_OFF = 0x14  # m_command[] base within the object (unchanged by the patch)
+
+#: File offset of the `push <object size>` the allocator uses. It is the one Phase-1 site that
+#: encodes the limit as a full imm32, which makes it the site `detect` reads the count back from.
+_ALLOC_SIZE_SITE = 0x320298
 
 # The AI's set-walk bound in `BuildAssistant::canMakeUnit` (see the module docstring). Taken from
 # `..addresses` rather than written as an offset here, because `ai-revive-gate` patches the same
@@ -169,7 +175,31 @@ class CommandSetLimitPatch(Patch):
                 problems.append(f"{note} @0x{file_off:x}: expected {new.hex()}, got {got.hex()}")
         return problems
 
-    # --- CLI integration --------------------------------------------------------------------
+    @classmethod
+    def detect(cls, data: bytes | bytearray) -> CommandSetLimitPatch | None:
+        """Recognise this patch **and recover its N** from ``data``.
+
+        The default probe cannot: it would ask `verify` about N=64 and call every other limit
+        absent. The allocator's ``push <object size>`` is an imm32 holding
+        ``0x14 + N*4 + 8``, so N reads straight back out of it, and `verify` then checks all
+        fifteen sites against that N."""
+        if find_section(data, _SECTION_NAME) is None:
+            return None
+        try:
+            obj_size = struct.unpack_from("<I", data, _ALLOC_SIZE_SITE + 1)[0]
+        except struct.error:
+            return None
+        count, remainder = divmod(obj_size - _ARRAY_OFF - 8, 4)
+        if remainder or not MIN_COUNT <= count <= MAX_COUNT:
+            return None
+        patch = cls(count)
+        return None if patch.verify(data) else patch
+
+    def ini_surface(self) -> Engine:
+        """The raised ceiling, as the `commandset.max_slots` engine limit the lint rules read.
+        The ControlBar's separate 33-button *display* ceiling is untouched, so it is not named
+        here and stays at its stock value."""
+        return Engine(limits=(LimitDelta("commandset.max_slots", self.count, self.name),))
 
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
@@ -184,8 +214,6 @@ class CommandSetLimitPatch(Patch):
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> CommandSetLimitPatch:
         return cls(count=args.count)
-
-    # --- Phase 2: the enlarged field-parse table in a new section ---------------------------
 
     def _compute_table(self, data: bytes | bytearray, section_va: int, n: int) -> bytes:
         """Return the ``.cmdext`` content for an ``n``-slot table placed at ``section_va``. Reads
@@ -238,8 +266,6 @@ class CommandSetLimitPatch(Patch):
             b"\xb8" + new_ptr,
             "P2 getFieldParse mov -> .cmdext",
         )
-
-    # --- Phase 1: grow the object and move its trailing fields -------------------------------
 
     def _phase1_edits(self, n: int) -> list[tuple[int, bytes, bytes, str]]:
         """The 15 ``(file_offset, original bytes, patched bytes, note)`` edits that grow the

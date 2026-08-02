@@ -21,10 +21,6 @@ from pathlib import Path
 from sage_map import parse_map_from_path, write_map_to_path
 from sage_map.assets.blend_tile_data import BlendDescription, BlendDirection
 
-# ---------------------------------------------------------------------------
-# Internal helpers – tile re-encoding and blend rebuilding
-# ---------------------------------------------------------------------------
-
 
 def _find_texture_for_tile(tile_val, textures):
     global_cell = tile_val // 4
@@ -136,11 +132,6 @@ def _rebuild_blends(blends, three_way_blends, old_descriptions, retiled_tiles):
                 dst_grid[r][c] = key_to_idx[key]
 
     return new_blends, new_three_way, new_descriptions
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 
 def extract_textures(map_path: str) -> dict:

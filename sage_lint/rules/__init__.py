@@ -29,6 +29,7 @@ from sage_lint.rules.references import DanglingAssetReferenceRule, DanglingRefer
 from sage_lint.rules.respawn import RespawnLevelRule, RespawnOrderRule
 from sage_lint.rules.schema import (
     OutOfRangeRule,
+    PatchedOutFieldRule,
     RepeatedScalarFieldRule,
     SpuriousBlockLabelRule,
     UnknownAttributeRule,
@@ -55,6 +56,7 @@ __all__ = [
     "ModuleOperationRule",
     "ModuleTagReferenceRule",
     "OutOfRangeRule",
+    "PatchedOutFieldRule",
     "PushCommandRangeOverflowRule",
     "RepeatedScalarFieldRule",
     "RespawnLevelRule",

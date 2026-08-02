@@ -15,6 +15,10 @@ layouts against the assembled game; mirrors --maps), `sentinels` (extra "intenti
 reference tokens - e.g. `NoSound` - never reported as dangling; `None`/empty are always treated
 this way), `always_referenced` (definition kinds - block type names like `PlayerAIType` - the
 unused-definition rule never flags, for kinds reached in ways the ini graph cannot see),
+`sagepatch` (a path to a `.sagepatch` describing what a patched `game.dat` adds to the INI
+surface - new fields, new name-table tokens, raised limits; see `sage_ini.engine` and
+`sage_patch sagepatch`. Unset, a `.sagepatch` sitting beside this config is picked up anyway, so
+a mod that commits one needs no configuration; mirrors --engine, and --no-engine turns both off),
 `ignore`, `select`, `exclude` (directories omitted from the report - the one path key resolved
 against the linted root rather than this file, since it names folders inside the tree being
 built), `base`,
@@ -62,7 +66,8 @@ _LIST_KEYS = (
 _BOOL_KEYS = ("suggest", "align_equals", "assets", "maps")
 # Integer keys with their smallest accepted value.
 _INT_KEYS = {"duplicate_min_lines": 1, "duplicate_min_occurrences": 2}
-_KNOWN_KEYS = {"level", "root", "baseline", "base_manifest", *_BOOL_KEYS, *_INT_KEYS, *_LIST_KEYS}
+_PATH_KEYS = ("root", "baseline", "base_manifest", "sagepatch")
+_KNOWN_KEYS = {"level", *_PATH_KEYS, *_BOOL_KEYS, *_INT_KEYS, *_LIST_KEYS}
 
 
 @dataclass
@@ -76,6 +81,10 @@ class Config:
     # A symbol manifest standing in for the base game when no `base` sources are configured; a
     # real `base` always wins (see `sage_lint.linter.build_cache`).
     base_manifest: str | None = None
+    # A `.sagepatch` describing the INI surface the mod's patched `game.dat` adds (see
+    # `sage_ini.engine`). Unset means the `.sagepatch` beside this config, when there is one -
+    # a mod that ships one is linted against it without configuring anything.
+    sagepatch: str | None = None
     suggest: bool = False
     # Off by default: the missing-file rules need the base-game archives loaded via `base`,
     # else every base asset reads as missing.
@@ -154,28 +163,13 @@ def load_config(directory: str | Path) -> Config:
             config.level = level.upper()
         else:
             warnings.append(f"{sources['level']}: invalid level {level!r} (ignored)")
-    if "root" in merged:
-        root = merged["root"]
-        if isinstance(root, str) and root:
-            config.root = root
-        else:
-            warnings.append(f"{sources['root']}: 'root' must be a non-empty string (ignored)")
-    if "baseline" in merged:
-        baseline = merged["baseline"]
-        if isinstance(baseline, str) and baseline:
-            config.baseline = baseline
-        else:
-            warnings.append(
-                f"{sources['baseline']}: 'baseline' must be a non-empty string (ignored)"
-            )
-    if "base_manifest" in merged:
-        base_manifest = merged["base_manifest"]
-        if isinstance(base_manifest, str) and base_manifest:
-            config.base_manifest = base_manifest
-        else:
-            warnings.append(
-                f"{sources['base_manifest']}: 'base_manifest' must be a non-empty string (ignored)"
-            )
+    for key in _PATH_KEYS:
+        if key in merged:
+            value = merged[key]
+            if isinstance(value, str) and value:
+                setattr(config, key, value)
+            else:
+                warnings.append(f"{sources[key]}: '{key}' must be a non-empty string (ignored)")
     for key in _BOOL_KEYS:
         if key in merged:
             value = merged[key]
@@ -218,6 +212,11 @@ suggest = true
 # real `base` (in .sagelint.local) always wins when both are set. Mods that #include base-game
 # files still need a real `base` - a manifest carries symbols, not include text.
 # base_manifest = "sage-base-manifest.json.gz"
+
+# A `.sagepatch` (written by `sage_patch sagepatch <game.dat>`) describing what the mod's patched
+# game.dat adds to the INI surface: fields, name-table tokens, raised limits. A file named
+# `.sagepatch` beside this one is used automatically, so set this only to point elsewhere.
+# sagepatch = ".sagepatch"
 """
 
 # The gitignored `.sagelint.local`: machine paths, written commented-out so a freshly

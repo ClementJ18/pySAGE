@@ -98,6 +98,30 @@ base tree required. A real `base` always wins when both are configured - real da
 strictly more complete. **Limitation:** a mod that `#include`s base-game files still needs a
 real `base`; a manifest carries symbols, not include text.
 
+## Linting a mod that runs on a patched `game.dat`
+
+A binary patch can teach the engine INI it could not read before - a new field on a block, a new
+model-condition token, a bigger `CommandSet`. The typed model describes the **stock** engine, so
+without help every one of those reads as a mistake: unknown attributes, unknown enum tokens, a
+paging window that "runs off" an array the patched engine has widened.
+
+A `.sagepatch` is that difference, written down. Generate it from the binary the mod actually
+ships with and commit it beside `.sagelint`:
+
+```sh
+sage-patch sagepatch game.dat -o .sagepatch     # see ../sage_patch
+```
+
+A `.sagepatch` sitting next to the config is picked up automatically, so nothing needs
+configuring; `sagepatch = "..."` in `.sagelint` points elsewhere, `--engine PATH` overrides both,
+and `--no-engine` lints against the stock engine regardless. The patched fields and tokens then
+simply exist - they convert, they cross-reference, they rename, they autocomplete - and the
+engine-dependent ceilings the rules enforce move with them. A field a patch *retired* (one the
+engine still parses and no longer acts on) is reported as `patched-out-field` rather than
+vanishing, so it reads as what it is instead of as an unknown attribute. A malformed or
+unreadable `.sagepatch` degrades to the stock engine with an `engine-config` diagnostic; it never
+stops the run.
+
 ## Map linting
 
 `sage_lint` also exposes game-aware `.map` linting, which resolves script arguments and

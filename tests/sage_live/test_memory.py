@@ -606,7 +606,6 @@ def test_close_releases_the_source():
     assert img.closed
 
 
-# ---------------------------------------------------------------------------
 # Upgrades. Two scopes, two places, and one field that lies if taken at face value.
 #
 # Measured live: researching a faction-wide upgrade sets the player's in-progress bit and clears
@@ -719,7 +718,6 @@ def test_upgrades_are_empty_and_diagnosed_without_a_registry():
     assert any("TheUpgradeCenter is null" in d.message for d in b.diagnostics)
 
 
-# --- production state: what a structure is currently making -------------------------------
 #
 # The last hop `live-object-model.md` §5 listed as missing. `Object+0x24C` is a NULL-terminated
 # module array, and the `ProductionUpdate` is identified by its primary vtable rather than by
@@ -833,7 +831,6 @@ def test_an_object_contained_by_nothing_has_no_parent():
     assert lair is not None and lair.parent_id is None
 
 
-# --- how many reads an observation costs ---------------------------------------------------
 #
 # A budget, not a benchmark. Each `MemorySource.read` is a `ReadProcessMemory` syscall, and the
 # per-object count is what decides whether a policy can observe a few times a second or a few
@@ -920,7 +917,6 @@ def test_the_fallback_decodes_identically():
     assert batched.observe().to_dict() == field_wise.observe().to_dict()
 
 
-# --- model conditions: the states the engine itself tracks -----------------------------------
 #
 # A 19-dword bitset on the object, named by a NULL-terminated table in static data. It is how
 # the game knows a structure is still going up, which health cannot say - hit points ramp while

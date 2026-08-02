@@ -16,7 +16,6 @@ import os
 # This spec lives in sage_lint/; anchor paths to the repo root so it builds from any cwd.
 ROOT = os.path.dirname(SPECPATH)
 
-# ----------------------------------------------------------------- CLI: dist/sage_lint(.exe)
 
 cli_a = Analysis(
     [os.path.join(ROOT, 'sage_lint', '__main__.py')],
@@ -54,7 +53,6 @@ cli_exe = EXE(
     entitlements_file=None,
 )
 
-# ----------------------------------------------------------------- UI: dist/SAGE Lint(.exe)
 # The model registry is populated by ordinary imports from sage_lint.cli, so PyInstaller's
 # static analysis finds it - no hiddenimports needed beyond tomllib.
 

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from sage_ini.engine import Engine, LimitDelta
 from sage_ini.loader import LoadedGame, load_game
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse
@@ -994,8 +995,9 @@ class TestPushCommandRangeOverflowRule:
     def _run(self, start: str, count: str, highest: int = 40) -> list:
         return list(run_rules(self._game(start, count, highest), [PushCommandRangeOverflowRule]))
 
-    def test_flags_range_running_off_the_64_array_as_error(self):
-        # start 33 + count 33 = 66 > 64 -> reads the count field -> crash (the real Lothlorien bug).
+    def test_flags_range_running_off_the_array_as_error(self):
+        # start 33 + count 33 = 66 -> way past the stock 33-slot array -> reads the count field
+        # -> crash (the real Lothlorien bug).
         diags = self._run("33", "33")
 
         assert len(diags) == 1
@@ -1006,14 +1008,25 @@ class TestPushCommandRangeOverflowRule:
         assert diags[0].extra["count"] == 33
         assert "Command_Page" in diags[0].message
 
-    def test_flags_overshoot_into_empty_slots_as_warning(self):
-        # start 33 + count 10 = 43 > 40 (highest slot) but <= 64: paints empties, no crash.
-        diags = self._run("33", "10", highest=40)
+    def test_the_array_size_comes_from_the_engine_not_a_constant(self):
+        """start 33 + count 10 = 43 overshoots the set's 40 defined slots either way, but whether
+        it runs off `m_command[]` depends on the engine: it does on the stock 33-slot array, and
+        does not once the commandset-limit patch has widened it. The `.sagepatch` a mod commits
+        is what decides which of those it is told."""
+        stock = self._run("33", "10", highest=40)
 
-        assert len(diags) == 1
-        assert diags[0].severity is Severity.WARNING
-        assert diags[0].extra["crashes"] is False
-        assert diags[0].extra["highest_slot"] == 40
+        assert len(stock) == 1
+        assert stock[0].severity is Severity.ERROR
+        assert stock[0].extra["crashes"] is True
+
+        patched = Engine(limits=(LimitDelta("commandset.max_slots", 64),))
+        with patched.activate():
+            widened = self._run("33", "10", highest=40)
+
+        assert len(widened) == 1
+        assert widened[0].severity is Severity.WARNING
+        assert widened[0].extra["crashes"] is False
+        assert widened[0].extra["highest_slot"] == 40
 
     def test_does_not_flag_a_range_within_the_set(self):
         # start 33 + count 7 = 40 == highest slot: exactly fits.

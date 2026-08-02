@@ -8,6 +8,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from sage_ini.engine import SAGEPATCH_NAME, Engine, load_engine
 from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_lint.config import Config, load_config
 from sage_lint.rules.base import RULES
@@ -76,6 +77,36 @@ def load_lint_config(args: argparse.Namespace) -> Config:
     for warning in config.warnings:
         print(f"sage_lint: {warning}", file=sys.stderr)
     return config
+
+
+def project_engine(args: argparse.Namespace, config: Config, conf_dir: Path) -> Engine | None:
+    """The patched engine this run lints against, or None for the stock engine.
+
+    Resolution, highest priority first: `--no-engine` (stock, whatever is configured), `--engine
+    PATH`, the config's `sagepatch` (resolved against the directory the `.sagelint` lives in,
+    like `base` - it names a file beside the project, not inside the linted tree), then a
+    `.sagepatch` sitting next to the config. That last step is what makes a mod that commits one
+    lint correctly with no configuration at all.
+
+    A file that was *asked for* and is not there is a typo worth saying out loud, so it warns and
+    falls back to stock - unlike the discovery step, where not having one is the normal case."""
+    if getattr(args, "no_engine", False):
+        return None
+    path = getattr(args, "engine", None)
+    if path is None and config.sagepatch:
+        path = config_path(conf_dir, config.sagepatch)
+    if path is None:
+        discovered = conf_dir / SAGEPATCH_NAME
+        if not discovered.is_file():
+            return None
+        path = discovered
+    elif not Path(path).is_file():
+        print(
+            f"sage_lint: no .sagepatch at {path} (linting against the stock engine)",
+            file=sys.stderr,
+        )
+        return None
+    return load_engine(path)
 
 
 def config_dir(args: argparse.Namespace) -> Path:

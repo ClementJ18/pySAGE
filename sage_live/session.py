@@ -331,7 +331,6 @@ class Session:
         self.player_index = obs.local_player
         return obs
 
-    # ---- did the order actually do anything? -------------------------------------------
     #
     # **A consumed order is not an accepted order.** Game logic discards a malformed or
     # unaffordable order *after* the message stream has taken it, and reports nothing at all:
@@ -564,7 +563,6 @@ class Session:
         self._require_selection()
         return self.send(_orders.recruit(self.player_index, self.resolve("thing", template)))
 
-    # ---- heroes ---------------------------------------------------------------------------
     #
     # Hero recruitment is its own order shape and its own index space, and both were got wrong
     # before they were identified: the engine takes a `CommandSet` slot number happily and buys

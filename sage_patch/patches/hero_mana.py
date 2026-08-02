@@ -95,6 +95,8 @@ from __future__ import annotations
 import struct
 from typing import TYPE_CHECKING
 
+from sage_ini.engine import Engine, FieldDelta
+
 from ..addresses import (
     ABILITY_MODULEDATA_SPECIAL_POWER,
     ABILITY_TRIGGER,
@@ -213,7 +215,6 @@ ROW_STRIDE = 12
 _POOL_MASK = POOL_ROWS - 1
 _TEMPLATE_MASK = TEMPLATE_ROWS - 1
 
-# --- section layout ---------------------------------------------------------------------------
 _CFG_POOL_OFF = 0x00
 _CFG_REGEN_OFF = 0x04
 _SCRATCH_OFF = 0x08  # where the borrowed Int parser is told to put the value
@@ -260,7 +261,6 @@ def _u32(value: int) -> bytes:
     return struct.pack("<I", value)
 
 
-# --- literal x86 encodings, named once ----------------------------------------------------------
 # Everything below is hand-encoded (the house style: only address arithmetic is automated, by
 # `..asm`). The forms that take a 32-bit displacement are the error-prone ones - `0x88` does not
 # fit the signed imm8 a disassembler would print - so they get helpers rather than being spelled
@@ -1089,8 +1089,6 @@ class HeroManaPatch(Patch):
         suffix = ", trace" if self.trace else ""
         return f"{self.name} (pool={self.pool}, regen={self.regen}{suffix})"
 
-    # --- apply ----------------------------------------------------------------------------
-
     def apply(self, data: bytearray) -> None:
         self._check_dispatch(data)
         power_va, object_va = self._resolve(data)
@@ -1176,8 +1174,6 @@ class HeroManaPatch(Patch):
                 "has grown SpecialPowerTemplate"
             )
         return tables[0], tables[1]
-
-    # --- section layout -------------------------------------------------------------------
 
     @classmethod
     def _object_table_off(cls, power: tuple[Entry, ...]) -> int:
@@ -1265,8 +1261,6 @@ class HeroManaPatch(Patch):
                 _emit_dispatch_hook(a, index, window, resume_va, trace=trace)
         a.finish()  # resolve the internal branches, so `label_va` describes a real layout
         return a
-
-    # --- the engine-side edits, shared by apply and verify --------------------------------
 
     def _edits(
         self,
@@ -1423,8 +1417,6 @@ class HeroManaPatch(Patch):
         )
         return out
 
-    # --- CLI ------------------------------------------------------------------------------
-
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -1454,7 +1446,17 @@ class HeroManaPatch(Patch):
     def from_cli_args(cls, args: argparse.Namespace) -> HeroManaPatch:
         return cls(pool=args.pool, regen=args.regen, trace=args.trace)
 
-    # --- verify ---------------------------------------------------------------------------
+    def ini_surface(self) -> Engine:
+        """The three `Int` fields this patch teaches the parser, from the same tables the caves
+        are built from. All default to 0, which is "no mana cost" / "use the patch's own pool and
+        regen" - so a mod that names none of them is unaffected, exactly as the code path is."""
+        return Engine(
+            fields=tuple(
+                FieldDelta(block=block, name=field, type="Int", default=0, patch=self.name)
+                for block, fields in (("SpecialPower", POWER_FIELDS), ("Object", OBJECT_FIELDS))
+                for field, _user_data in fields
+            )
+        )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         located = find_section(data, SECTION_NAME)
@@ -1480,27 +1482,27 @@ class HeroManaPatch(Patch):
                 by_name[_read_cstring(data, entry[0])] = entry
 
         for field, offset in POWER_FIELDS:
-            entry = by_name.get(field)
-            if entry is None:
+            row = by_name.get(field)
+            if row is None:
                 problems.append(f"the SpecialPower table does not name {field}")
                 continue
-            if entry[1] != INI_PARSE_INT:
-                problems.append(f"{field} parses with 0x{entry[1]:08x}, not the stock Int parser")
-            if entry[3] != offset:
-                problems.append(f"{field} writes 0x{entry[3]:x}, expected 0x{offset:x}")
+            if row[1] != INI_PARSE_INT:
+                problems.append(f"{field} parses with 0x{row[1]:08x}, not the stock Int parser")
+            if row[3] != offset:
+                problems.append(f"{field} writes 0x{row[3]:x}, expected 0x{offset:x}")
 
         parse_fn = self._assemble(section_va, power, objects, trace=self.trace).label_va("tparse")
         for field, user_data in OBJECT_FIELDS:
-            entry = by_name.get(field)
-            if entry is None:
+            row = by_name.get(field)
+            if row is None:
                 problems.append(f"the Object table does not name {field}")
                 continue
-            if entry[1] != parse_fn:
+            if row[1] != parse_fn:
                 problems.append(f"{field} does not use the patch's own parse function")
-            if entry[2] != user_data:
-                problems.append(f"{field} carries userData {entry[2]}, expected {user_data}")
-            if entry[3] != 0:
-                problems.append(f"{field} has a non-zero template offset ({entry[3]:#x})")
+            if row[2] != user_data:
+                problems.append(f"{field} carries userData {row[2]}, expected {user_data}")
+            if row[3] != 0:
+                problems.append(f"{field} has a non-zero template offset ({row[3]:#x})")
 
         if struct.unpack_from("<I", data, section_off + _CFG_POOL_OFF)[0] != self.pool:
             problems.append(f"the default pool is not {self.pool}")

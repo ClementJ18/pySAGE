@@ -130,9 +130,6 @@ def name_text(
     return [f"{i.mnemonic} {i.op_str}" for i in _disassemble(body, base + NAME_CODE_OFF)]
 
 
-# --- the two hooks --------------------------------------------------------------------------
-
-
 def test_apply_replaces_the_whitelist_tail_with_a_jump_into_the_cave():
     data = patched_image()
     section_va, _, _ = find_section(data, SECTION_NAME)
@@ -183,9 +180,6 @@ def test_apply_is_not_repeatable():
         SkirmishReplayPatch().apply(data)
 
 
-# --- the structural guards ------------------------------------------------------------------
-
-
 def test_apply_refuses_when_the_new_game_branch_moved():
     """A bare `cmp eax, 5` says nothing about which comparison it is; the 63 bytes above it -
     the message-type test, the argument fetch, the `TheGameLogic` gate - do."""
@@ -229,9 +223,6 @@ def test_a_mode_the_engine_already_records_is_refused(mode: int):
 def test_an_unusable_mode_set_is_refused(modes: tuple[int, ...]):
     with pytest.raises(ValueError):
         SkirmishReplayPatch(modes=modes)
-
-
-# --- the whitelist routine ------------------------------------------------------------------
 
 
 def test_the_gate_still_accepts_the_mode_the_replaced_bytes_tested():
@@ -278,9 +269,6 @@ def test_the_gate_reads_the_mode_table_rather_than_unrolling_it():
     assert f"mov ecx, dword ptr [{BASE + MODE_COUNT_OFF:#x}]" in body
     assert f"mov edx, {BASE + MODE_TABLE_OFF:#x}" in body
     assert gate_text(modes=(2,)) == body  # the code does not vary with the mode count
-
-
-# --- the naming routine ---------------------------------------------------------------------
 
 
 def test_renaming_everything_is_the_default_and_asks_no_questions():
@@ -444,9 +432,6 @@ def test_the_format_orders_the_name_so_it_sorts():
     assert FORMAT.endswith("%s")  # the map last: it is what truncation should eat
 
 
-# --- both routines --------------------------------------------------------------------------
-
-
 def test_the_cave_is_position_independent_of_its_base():
     """Every absolute either routine holds is derived from the base it is built for, so the
     same body at a different base differs only in those - not in length or shape."""
@@ -468,9 +453,6 @@ def test_the_whitelist_routine_fits_its_window():
 def test_the_default_is_the_skirmish_mode():
     assert DEFAULT_MODES == (GAME_MODE_SKIRMISH,)
     assert GAME_MODE_SKIRMISH not in RECORDER_RECORDED_MODES
-
-
-# --- composition ----------------------------------------------------------------------------
 
 
 def test_the_cave_lands_past_every_existing_section():

@@ -10,6 +10,7 @@ For a one-paragraph orientation see the README; this document is the how-to.
 
 - [Public API](#public-api)
 - [Load a game and read fields](#load-a-game-and-read-fields)
+- [Load data written for a patched engine](#load-data-written-for-a-patched-engine)
 - [Walk all objects of a KindOf](#walk-all-objects-of-a-kindof)
 - [Resolve a macro](#resolve-a-macro)
 - [Follow BuildVariations (and other references)](#follow-buildvariations-and-other-references)
@@ -54,6 +55,23 @@ print(fighter.BuildCost)                     # annotated fields convert on acces
 
 `load_game` returns a `LoadedGame` (`.game` and `.diagnostics`). Pass `bases=` to layer an
 unmodified base game beneath a mod so the mod's references resolve.
+
+## Load data written for a patched engine
+
+The model describes the stock engine, so a field or a name-table token that only a patched
+`game.dat` accepts reads as a mistake. Point `load_game` at the mod's `.sagepatch` (written by
+`sage-patch sagepatch <game.dat>`) and the patched surface becomes part of the schema:
+
+```python
+from sage_ini import load_engine, load_game
+
+game = load_game("data", engine=load_engine("data/.sagepatch")).game
+game.specialpowers["MyHeroPower"].ManaCost      # a field only the patched engine has
+```
+
+Applying is process-wide (the schema lives on the model classes), so one engine is active at a
+time; use `Engine.activate()` when the change must be scoped. A malformed file never raises -
+it degrades to the stock engine and lands `engine-config` in `.diagnostics`.
 
 ## Walk all objects of a KindOf
 

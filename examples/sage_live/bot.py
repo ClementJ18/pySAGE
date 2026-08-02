@@ -175,8 +175,6 @@ class Bot:
         self.ledger = Ledger()
         session.observe()
 
-    # ---- reading the world -------------------------------------------------------------
-
     @property
     def observation(self) -> Observation:
         """The session's latest snapshot, never a copy this bot keeps.
@@ -311,8 +309,6 @@ class Bot:
             sum(o.position[2] for o in owned) / len(owned),
         )
 
-    # ---- acting, and checking that the action landed -----------------------------------
-
     def _issue(self, label: str, act: Callable[[], Sent]) -> Sent:
         """Send, reporting the two failures that happen before the engine ever sees it.
 
@@ -386,8 +382,6 @@ class Bot:
         print(f"      placement build failed on plot {plot.object_id}; trying the unpack path")
         self.session.select([plot.object_id])
         return self.raise_building("unpack", lambda: self.session.unpack(template), plot)
-
-    # ---- the policy --------------------------------------------------------------------
 
     def decide(self) -> str:
         """One cycle. Returns a one-line description of what it chose to do.

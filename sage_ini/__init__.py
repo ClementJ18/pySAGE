@@ -19,6 +19,7 @@ library is pre-1.0, so the surface may still shift between minor versions until 
 `__version__` tracks that.
 """
 
+from sage_ini.engine import Engine, load_engine
 from sage_ini.loader import LoadedGame, load_game, load_map, map_files
 from sage_ini.model.game import Game, Redefinition
 from sage_ini.model.objects import IniObject, get_class
@@ -39,6 +40,9 @@ __all__ = [
     "load_map",
     "map_files",
     "LoadedGame",
+    # the patched-engine INI surface
+    "Engine",
+    "load_engine",
     # typed model
     "Game",
     "IniObject",

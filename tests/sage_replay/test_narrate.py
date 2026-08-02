@@ -60,9 +60,6 @@ def _chunk(order_type: int, args: list[tuple[OrderArgumentType, object]], *, num
     return ReplayChunk(timecode=0, order_type=order_type, number=number, order=order)
 
 
-# --- id resolution --------------------------------------------------------------------
-
-
 def test_object_id_is_index_plus_one():
     data = _data()
     assert data.object_name(1) == "Alpha"
@@ -99,9 +96,6 @@ def test_special_power_and_science_and_upgrade_offsets():
     assert data.upgrade(5) is None  # past the table end
 
 
-# --- power targeting from the Options bitfield -----------------------------------------
-
-
 def test_target_phrase_shows_raw_location_and_target():
     # NEED_TARGET_POS (32) -> the raw ground Position (rounded).
     assert _target_phrase(0x411, 0x20, (1083.4, 1005.9, 300.0), None) == " at (1083, 1006, 300)"
@@ -115,9 +109,6 @@ def test_target_phrase_shows_raw_location_and_target():
     # self / global casts carry no target.
     assert _target_phrase(0x410, 0x0, None, None) == ""
     assert _target_phrase(0x456, 0x0, None, None) == ""
-
-
-# --- per-order phrasing ---------------------------------------------------------------
 
 
 def test_describe_recruit_build_power_science_upgrade():
@@ -225,9 +216,6 @@ def test_describe_skips_control_orders():
     # a pure selection/move order carries no static id and is not narrated.
     assert _describe(_chunk(0x42F, [(_T.Position, (1, 2, 3))]), data=_data()) is None
     assert _describe(_chunk(0x424, [(_T.ScreenRectangle, (0, 0, 1, 1))]), data=_data()) is None
-
-
-# --- whole-stream narration -----------------------------------------------------------
 
 
 def _replay(chunks: list[ReplayChunk]) -> ReplayFile:

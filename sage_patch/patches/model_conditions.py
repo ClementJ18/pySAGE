@@ -74,7 +74,6 @@ __all__ = [
     "validate_name",
 ]
 
-# --- fixed facts about the target build (VA, ImageBase 0x400000) ---------------------------
 
 #: The stock NULL-terminated `ModelConditionFlags` name table. `getBitNames()` at 0x00444D95
 #: returns it. Only used to recognise an unpatched image - :func:`read` follows the references.

@@ -37,9 +37,6 @@ def _coerce(value: bytes | bytearray | str) -> bytes:
     return hexbytes(value) if isinstance(value, str) else bytes(value)
 
 
-# --- PE navigation -------------------------------------------------------------------------
-
-
 def _e_lfanew(data: bytes | bytearray) -> int:
     return struct.unpack_from("<I", data, 0x3C)[0]
 
@@ -58,9 +55,6 @@ def va_to_offset(data: bytes | bytearray, va: int) -> int | None:
         if section.contains(va):
             return section.raw_offset + (va - section.virtual_address)
     return None
-
-
-# --- editing -------------------------------------------------------------------------------
 
 
 def apply_byte_patch(

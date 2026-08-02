@@ -110,9 +110,6 @@ def session(script, godsight=True, revives=None) -> Session:
     return s
 
 
-# --- the order shape -------------------------------------------------------------------
-
-
 def test_recruit_hero_is_the_flagged_form_of_recruit():
     """Same order type as `recruit`, distinguished only by the leading boolean. That flag is
     the whole difference between a template id and a revive index, which is why feeding one to
@@ -124,9 +121,6 @@ def test_recruit_hero_is_the_flagged_form_of_recruit():
     assert unit.arguments[0].value is False
     assert hero.arguments[0].value is True
     assert [a.value for a in hero.arguments[1:]] == [7, -1, False, False]
-
-
-# --- the index space -------------------------------------------------------------------
 
 
 def test_roster_position_is_the_index_before_anyone_is_fielded():
@@ -176,9 +170,6 @@ def test_a_needed_upgrade_is_satisfied_by_any_one_of_them():
     assert slot.enabled_for(frozenset({"upgrade_b"}))
 
 
-# --- tracking the list across frames ---------------------------------------------------
-
-
 def test_the_session_follows_heroes_onto_and_off_the_map():
     script = [
         frame(1, []),
@@ -209,9 +200,6 @@ def test_absence_under_fog_is_not_a_death():
 
 def test_an_unknown_hero_has_no_index():
     assert session([frame(1, [])]).revive_index("MordorWitchKing") is None
-
-
-# --- the godsight gate -----------------------------------------------------------------
 
 
 def test_godsight_allows_any_hero_the_slot_block_can_reach():

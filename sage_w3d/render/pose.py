@@ -379,8 +379,6 @@ class PoseEvaluator:
         if not self._store_scalar(pivot, channel_type, keys, source):
             self._unsupported_channel_type(pivot, channel_type, source)
 
-    # -- uncompressed ANIMATION -------------------------------------------------------------
-
     def _ingest_uncompressed(self, animation: Animation) -> None:
         for channel in animation.channels:
             self._ingest_animation_channel(channel)
@@ -424,8 +422,6 @@ class PoseEvaluator:
             default_before=default,
             default_after=default,
         )
-
-    # -- COMPRESSED_ANIMATION ----------------------------------------------------------------
 
     def _ingest_compressed(self, animation: CompressedAnimation) -> None:
         for time_coded in animation.time_coded_channels:

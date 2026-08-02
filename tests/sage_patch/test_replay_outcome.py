@@ -117,9 +117,6 @@ def text_of(base: int = BASE) -> list[str]:
     return [f"{i.mnemonic} {i.op_str}" for i in disassembled(base)]
 
 
-# --- the hook -------------------------------------------------------------------------------
-
-
 def test_apply_repoints_the_write_to_file_call_into_the_cave():
     data = patched_image()
     section_va, _, _ = find_section(data, SECTION_NAME)
@@ -154,9 +151,6 @@ def test_apply_is_not_repeatable():
         ReplayOutcomePatch().apply(data)
 
 
-# --- the structural guards ------------------------------------------------------------------
-
-
 def test_apply_refuses_when_the_end_branch_fingerprint_moved():
     """The hook site is a bare `call`; what proves it is the end-of-recording one is the
     `cmp eax, MSG_CLEAR_GAME_DATA` + `m_file` test just above it."""
@@ -186,9 +180,6 @@ def test_the_guards_are_checked_before_the_section_is_added():
         ReplayOutcomePatch().apply(data)
     data[off] = before[off]
     assert bytes(data) == before
-
-
-# --- the cave body --------------------------------------------------------------------------
 
 
 def test_the_cave_preserves_every_register_it_borrows():
@@ -252,9 +243,6 @@ def test_the_cave_is_position_independent_of_its_base():
     assert [i.mnemonic for i in here] == [i.mnemonic for i in elsewhere]
 
 
-# --- the chunk it writes --------------------------------------------------------------------
-
-
 def test_the_chunk_template_parses_as_a_replay_chunk():
     """The other end of the contract: what the cave lays down is what `sage_replay` reads."""
     chunk = ReplayChunk.parse(BinaryStream(BytesIO(chunk_template())))
@@ -270,9 +258,6 @@ def test_the_order_type_cannot_collide_with_an_engine_order():
     """The recorder copies `0x3E8 < type < 0x7CF` off the command list and the
     `GameMessage::Type` enum ends at `0x47B`, so 0x7D0 is unreachable for the engine."""
     assert ORDER_TYPE > 0x7CF
-
-
-# --- composition ----------------------------------------------------------------------------
 
 
 def test_the_cave_lands_past_every_existing_section():

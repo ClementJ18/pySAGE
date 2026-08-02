@@ -22,8 +22,21 @@ from pathlib import Path
 
 import pytest
 
+from sage_ini.engine import revert
 from sage_ini.parser.io import iter_ini_files
 from sage_ini.stats import ini_root, root_files
+
+
+@pytest.fixture(autouse=True)
+def _stock_engine():
+    """Every test runs against the stock engine, and leaves it that way.
+
+    Applying an `Engine` mutates the model's classes and enums process-wide (see
+    `sage_ini.engine`), so without this a test that applies one would silently change what every
+    later test's schema means. Reverting after each test is what keeps that impossible; it is a
+    no-op for the tests that never touch an engine."""
+    yield
+    revert()
 
 
 def pytest_addoption(parser):

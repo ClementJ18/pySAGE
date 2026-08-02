@@ -131,6 +131,21 @@ def main(argv: list[str] | None = None) -> int:
         "--base - a manifest carries symbols, not include text.",
     )
     lint.add_argument(
+        "--engine",
+        type=Path,
+        default=None,
+        metavar="SAGEPATCH",
+        help="a .sagepatch describing what the mod's patched game.dat adds to the INI surface - "
+        "new fields, new name-table tokens, raised limits (written by `sage_patch sagepatch`). "
+        "Mirrors the config 'sagepatch'; a `.sagepatch` beside the config is picked up with "
+        "neither set",
+    )
+    lint.add_argument(
+        "--no-engine",
+        action="store_true",
+        help="lint against the stock engine, ignoring any configured or discovered .sagepatch",
+    )
+    lint.add_argument(
         "--assets-base",
         type=Path,
         action="append",

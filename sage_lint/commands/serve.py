@@ -34,6 +34,7 @@ from sage_lint.commands.common import (
     diagnostic_dict,
     effective_root,
     load_lint_config,
+    project_engine,
     resolve_rule_set,
     select_and_summarize,
     split_codes,
@@ -350,6 +351,9 @@ def run_serve(args: argparse.Namespace) -> int:
     )
     bases = tuple(base_source(b) for b in base_paths(args, config, conf_dir, include_assets))
     rule_set = resolve_rule_set(selected, include_assets)
+    # Applied once, before the first build: the schema it injects is process-wide, so every
+    # rebuild and every single-file re-lint below sees the same patched engine.
+    engine = project_engine(args, config, conf_dir)
 
     # The merged base game is kept on disk between builds so a single-file re-lint can resolve
     # `#include`s that fall through to the base; each rebuild replaces it, shutdown removes it.
@@ -361,7 +365,9 @@ def run_serve(args: argparse.Namespace) -> int:
         if base_layer is not None:
             base_layer.cleanup()
             base_layer = None
-        game, folder, base_layer = build_cache(root, rules=rule_set, exclude=excludes, bases=bases)
+        game, folder, base_layer = build_cache(
+            root, rules=rule_set, exclude=excludes, bases=bases, engine=engine
+        )
         shown, summary = select_and_summarize(folder.items, selected, ignored, level_name)
         _emit(
             {

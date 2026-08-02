@@ -19,7 +19,6 @@ import os
 ROOT = os.path.dirname(os.path.dirname(SPECPATH))
 EDAIN = os.path.join(ROOT, 'sage_mods', 'edain')
 
-# ---------------------------------------------------------------- CLI: dist/sage_edain(.exe)
 
 cli_a = Analysis(
     [os.path.join(EDAIN, '__main__.py')],
@@ -63,7 +62,6 @@ cli_exe = EXE(
     entitlements_file=None,
 )
 
-# ------------------------------------------------------------ UI: dist/Edain Linter(.exe)
 # The checks are ordinary imports from the runners, so PyInstaller's static analysis finds
 # them - no hiddenimports needed.
 

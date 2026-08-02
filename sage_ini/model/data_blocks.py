@@ -2010,7 +2010,6 @@ class EyeTower(NestedAttribute):
 class LivingWorldMapInfo(IniObject):
     key = "livingworldmapinfos"
 
-
     nested_attributes = {"EyeTower": ["EyeTower"]}
 
     MapObject: Opaque
