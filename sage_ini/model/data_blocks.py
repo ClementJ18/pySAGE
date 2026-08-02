@@ -1998,8 +1998,20 @@ class LivingWorldAutoResolveSciencePurchasePointBonus(IniObject):
     nested_attributes = {"Bonus": ["Bonus"]}
 
 
+class EyeTower(NestedAttribute):
+    """Defines special objects for Barad-dûr on the living world map."""
+
+    PupilAnimObject: t.LivingWorldAnimObjectRef
+    PupilBeamAnimObject: t.LivingWorldAnimObjectRef
+    EyeDecalAnimObject: t.LivingWorldAnimObjectRef
+    EyeDecalBeamAnimObject: t.LivingWorldAnimObjectRef
+
+
 class LivingWorldMapInfo(IniObject):
     key = "livingworldmapinfos"
+
+
+    nested_attributes = {"EyeTower": ["EyeTower"]}
 
     MapObject: Opaque
     NumWorldTiles: Int
@@ -2106,7 +2118,6 @@ class LivingWorldMapInfo(IniObject):
     CloudInitialOpacity: t.Float
     CloudInitialSize: t.Float
     EnableMapShadows: t.Bool
-    EyeTower: t.Opaque
     GondorAnts: t.Opaque
     GondorBanner: t.Opaque
     MordorCloud: t.Opaque

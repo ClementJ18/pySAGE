@@ -132,6 +132,7 @@ class BuffNugget(NestedAttribute):
     BuffTrollTemplate: t.ObjectRef
     BuffOrcTemplate: t.ObjectRef
     BuffMonsterTemplate: t.ObjectRef
+    BuffMumakilTemplate: t.ObjectRef
     BuffThingTemplate: t.ObjectRef
 
 
