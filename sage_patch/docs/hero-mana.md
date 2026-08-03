@@ -91,7 +91,7 @@ It has **six** callers, and that list is why this patch is small:
 
 **The AI comes free.** It asks the same predicate the activation path asks, so a hero that cannot
 pay simply does not fire. That is the opposite of
-[`second-resource-type`](ideas/second-resource-type.md), where a cost the AI could not
+[`second-resource`](second-resource.md), where a cost the AI could not
 see meant permanent economic stalls. What the AI still will not do is *plan* around mana — it will
 not hold a power back to afford a better one. A behaviour gap, and it needs no code.
 
@@ -157,8 +157,8 @@ stock `Int` parser at `0x42ec5e`, so no parser had to be written: its signature 
 The `Object` table is the same shape: base `0x00DA3DF8`, 191 entries, terminator at `0x00DA49E8`,
 **five** references (`0x73bdf4` a `mov`, four `push`es). It has **no interior reference** — a byte
 scan reports one at `0x7162a4`, and
-[`second-resource-type`](ideas/second-resource-type.md) §4a records it as something a
-relocation would have to re-derive, but that address disassembles to `call 0x723cee`, whose `E8`
+an earlier costing recorded it as something a relocation
+would have to re-derive, but that address disassembles to `call 0x723cee`, whose `E8`
 opcode plus the first three bytes of its displacement happen to spell `0x00DA45E8`. A false
 positive; the table relocates as a unit.
 
@@ -281,8 +281,9 @@ pointer exists outside the `spend` routine.
 - The one apparent hole is `+0x5E8`, two bytes between `CampnessValue` (`Int` at `+0x5E4`) and
   `BuildCost` (`UInt16` at `+0x5EA`) that no INI field names. It is **not** padding: the
   constructor writes it as a word at `0x73ff8d` (`mov word ptr [ebx+0x5e8], si`), and again at
-  `0x740630`. A live non-INI member. That closes the question `second-resource-type` §4a left
-  open, and it would have been a memory-corruption bug rather than a missing field.
+  `0x740630`. A live non-INI member, and it would have been a memory-corruption bug rather
+  than a missing field. [`second-resource`](second-resource.md) §7.1 identifies what it
+  actually is: the template's engine-assigned id.
 - Growing the struct is possible but a poor trade: `sizeof` is `0x650`, allocated at exactly two
   sites (`0x6d2750` in `ThingFactory::newOverride`, `0x6d27bd` in `newTemplate`), but with 11,143
   instances an allocation site the scan missed corrupts the heap. The `SpecialPowerTemplate` case
@@ -388,7 +389,7 @@ That leaves two routes, both bigger than "basic":
 1. **Author the field into the Palantir `.apt`** and register a matching binding. The engine half
    is small and well understood — one `0x6241ce` call with a path and a mirror dword. The movie
    half is blocked on [`sage_apt`](../../sage_apt/README.md), whose own README says it is "not yet
-   fully functional and largely untested"; the same schedule risk `second-resource-type` §2 flagged
+   fully functional and largely untested"; the same schedule risk the second-resource costing flagged
    for a second resource icon.
 2. **Draw it natively**, beside the in-world health bar rather than in the Palantir. No APT, but it
    needs the health-bar draw located and the placement iterated against a running game.

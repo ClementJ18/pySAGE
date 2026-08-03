@@ -23,6 +23,9 @@ them), not one mod in particular.
   recruiting a hero from a second building no longer takes the money and starts nothing.
 * :class:`ReplayOutcomePatch` writes every player's final victory/defeat state into the replay
   at the frame the recording ends, which the stock input-only stream never records.
+* :class:`SecondResourcePatch` gives every player a second resource pool, granted per tick by
+  `AutoDepositUpdate.DepositAmount2`, seeded per faction by `PlayerTemplate.StartMoney2`, shown
+  in brackets after the palantir's own number, and spent through `Object.BuildCost2`.
 * :class:`SkirmishReplayPatch` records single-player skirmish games, which the stock recorder
   refuses, and names each recording by timestamp and map instead of overwriting `Last Replay`.
 * :class:`TerrainResourceExpPatch` adds a `GiveNoXP` boolean to `TerrainResourceBehavior` -
@@ -48,8 +51,10 @@ from sage_patch.patches import (
     CommandPointUpkeepPatch,
     CommandSetLimitPatch,
     HeroManaPatch,
+    InflationReadoutPatch,
     ProductionConditionPatch,
     ReplayOutcomePatch,
+    SecondResourcePatch,
     SkirmishReplayPatch,
     TerrainResourceExpPatch,
     UniqueProductionIdPatch,
@@ -63,9 +68,11 @@ __all__ = [
     "CommandPointUpkeepPatch",
     "CommandSetLimitPatch",
     "HeroManaPatch",
+    "InflationReadoutPatch",
     "Patch",
     "ProductionConditionPatch",
     "ReplayOutcomePatch",
+    "SecondResourcePatch",
     "SkirmishReplayPatch",
     "TerrainResourceExpPatch",
     "UniqueProductionIdPatch",

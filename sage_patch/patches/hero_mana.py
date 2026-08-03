@@ -170,6 +170,7 @@ __all__ = [
     "TRACE_RING",
     "TRACE_STRIDE",
     "HeroManaPatch",
+    "entries_before",
     "read_field_table",
     "resolve_table",
 ]
@@ -986,6 +987,30 @@ def read_field_table(data: bytes | bytearray, base_va: int) -> tuple[Entry, ...]
     raise ValueError(f"the field table at 0x{base_va:08x} is not terminated")
 
 
+def entries_before(
+    data: bytes | bytearray, entries: tuple[Entry, ...], name: str
+) -> tuple[Entry, ...] | None:
+    """The rows that preceded ``name`` when the patch owning it rebuilt the table, or None if the
+    table does not name it.
+
+    Located **by name, never by counting back from the end**. A rebuilt table is
+    ``[what was live] + [the new rows] + terminator``, so a patch that extends the same table
+    afterwards appends past these - and counting back would then report the wrong number of
+    preceding rows. That number is not cosmetic: it sizes the rebuilt table, which places
+    everything the cave lays out after it, so getting it wrong moves every routine the patch
+    points the engine at.
+    """
+    for index, entry in enumerate(entries):
+        name_va = entry[0]
+        off = va_to_offset(data, name_va)
+        if off is None:
+            continue
+        end = bytes(data[off : off + 64]).find(b"\x00")
+        if end >= 0 and bytes(data[off : off + end]).decode("latin1") == name:
+            return entries[:index]
+    return None
+
+
 def resolve_table(
     data: bytes | bytearray, ref_vas: tuple[int, ...], opcodes: tuple[int, ...], what: str
 ) -> int:
@@ -1270,9 +1295,18 @@ class HeroManaPatch(Patch):
         objects: tuple[Entry, ...],
         old_power_va: int,
         old_object_va: int,
+        *,
+        table_refs: bool = True,
     ) -> list[tuple[int, bytes, bytes, str]]:
         """``(file offset, original bytes, patched bytes, note)`` for every engine byte this
-        patch rewrites. One list so :meth:`apply` writes exactly what :meth:`verify` asserts."""
+        patch rewrites. One list so :meth:`apply` writes exactly what :meth:`verify` asserts.
+
+        ``table_refs=False`` drops the field-table repoints. :meth:`verify` asks for that, because
+        a repoint is the one edit here a *later* patch is entitled to overwrite: a second patch
+        extending the same table rebuilds it including these rows - by pointer, so they stay the
+        same rows with the same parse function - and points the reference at its own copy. What
+        has to hold afterwards is that the live table still names these fields correctly, which
+        `verify` checks directly, not that the reference still names this patch's copy."""
         labels = self._assemble(section_va, power, objects, trace=self.trace).label_va
         out: list[tuple[int, bytes, bytes, str]] = []
 
@@ -1284,20 +1318,24 @@ class HeroManaPatch(Patch):
 
         # 1. repoint both field tables
         for refs, opcodes, old_va, new_va, what in (
-            (
-                SPECIAL_POWER_FIELD_TABLE_REFS,
-                SPECIAL_POWER_FIELD_TABLE_REF_OPCODES,
-                old_power_va,
-                section_va + _TABLES_OFF,
-                "SpecialPower",
-            ),
-            (
-                OBJECT_FIELD_TABLE_REFS,
-                OBJECT_FIELD_TABLE_REF_OPCODES,
-                old_object_va,
-                section_va + self._object_table_off(power),
-                "Object",
-            ),
+            ()
+            if not table_refs
+            else (
+                (
+                    SPECIAL_POWER_FIELD_TABLE_REFS,
+                    SPECIAL_POWER_FIELD_TABLE_REF_OPCODES,
+                    old_power_va,
+                    section_va + _TABLES_OFF,
+                    "SpecialPower",
+                ),
+                (
+                    OBJECT_FIELD_TABLE_REFS,
+                    OBJECT_FIELD_TABLE_REF_OPCODES,
+                    old_object_va,
+                    section_va + self._object_table_off(power),
+                    "Object",
+                ),
+            )
         ):
             for ref_va, opcode in zip(refs, opcodes, strict=True):
                 out.append(
@@ -1471,10 +1509,13 @@ class HeroManaPatch(Patch):
             object_all = read_field_table(data, object_va)
         except ValueError as exc:
             return [f"cannot read the field tables: {exc}"]
-        if len(power_all) <= len(POWER_FIELDS) or len(object_all) <= len(OBJECT_FIELDS):
-            return ["a field table is too short to carry this patch"]
-        power = power_all[: len(power_all) - len(POWER_FIELDS)]
-        objects = object_all[: len(object_all) - len(OBJECT_FIELDS)]
+        # By name, not by position: another patch may have extended either table afterwards, and
+        # these counts size the rebuilt tables - which place every routine in the cave.
+        power = entries_before(data, power_all, POWER_FIELDS[0][0])
+        objects = entries_before(data, object_all, OBJECT_FIELDS[0][0])
+        if power is None or objects is None:
+            missing = POWER_FIELDS[0][0] if power is None else OBJECT_FIELDS[0][0]
+            return [f"no {missing} row: the file does not carry this patch"]
 
         by_name = {}
         for table in (power_all, object_all):
@@ -1510,7 +1551,9 @@ class HeroManaPatch(Patch):
             problems.append(f"the default regen is not {self.regen}")
 
         try:
-            edits = self._edits(data, section_va, power, objects, power_va, object_va)
+            edits = self._edits(
+                data, section_va, power, objects, power_va, object_va, table_refs=False
+            )
         except ValueError as exc:
             return [*problems, f"cannot recompute the expected edits (wrong build?): {exc}"]
         for file_off, _old, new, note in edits:

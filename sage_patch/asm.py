@@ -31,6 +31,7 @@ __all__ = [
     "JLE",
     "JNAE",
     "JNB",
+    "JNC",
     "JNE",
     "JNZ",
     "JZ",
@@ -39,7 +40,7 @@ __all__ = [
 
 # Condition codes, as the low nibble of the 0x70/0x0F80 opcodes.
 JB = JNAE = 0x2
-JAE = JNB = 0x3
+JAE = JNB = JNC = 0x3
 JE = JZ = 0x4
 JNE = JNZ = 0x5
 JBE = 0x6

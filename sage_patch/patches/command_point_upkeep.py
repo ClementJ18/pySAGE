@@ -62,14 +62,15 @@ records it for the field callbacks to file against.
 
 **Determinism.** Every input is simulation state identical on every peer: the player's command
 points, its template's name key, and the INI. No pointer *value* is read, and the only writes
-happen at INI load. The HUD half is a **pure read** on the local client.
+happen at INI load.
 
-**The display.** The palantir's command-point text is not a numeric data binding - `0x0080078F`
-formats `L"%d/%d"` and hands the string to `TheAptPlayer::setValue`, and a mod's `.csf` entry of
-the same name is only a design-time placeholder (Edain's reads ``102/200``). So a third number
-has to come from the engine, and it does: with upkeep active the text reads ``500/1500 (-10%)``,
-built by the same formatter with one more vararg. No `.apt` edit, no `.csf`/`.str` edit, and at
-zero loss the stock two-number form is emitted unchanged.
+**The display lives in `inflation-readout`.** This patch draws nothing. It *exports* `percent`
+through :mod:`~sage_patch.patches.income_link`, and when
+[`inflation-readout`](../docs/inflation-readout.md) is also installed the palantir's
+resource-multiplier slot shows the **product** of both factors - which is what the deposit
+actually computes, since the two multiply the same `[ebp-0x1c]`. Earlier versions of this patch
+appended `(-10%)` to the command-point readout instead; that number is a strict subset of what
+the multiplier slot now shows, so it was removed rather than shown twice.
 
 > **Every peer must run the same patched binary.** Income decides what gets built, so the effect
 > is inside the simulation: a patched and an unpatched client desync and replays do not cross.
@@ -79,7 +80,6 @@ zero loss the stock two-number form is emitted unchanged.
 from __future__ import annotations
 
 import struct
-from typing import TYPE_CHECKING
 
 from sage_ini.engine import Engine, FieldDelta
 
@@ -93,12 +93,7 @@ from ..addresses import (
     INI_SCAN_INT,
     OBJECT_FILTER_ALLOW,
     OBJECT_FILTER_IS_VALID,
-    PALANTIR_COMMAND_POINTS,
-    PALANTIR_COMMAND_POINTS_BYTES,
-    PALANTIR_COMMAND_POINTS_DONE,
-    PALANTIR_COMMAND_POINTS_RESUME,
     PLAYER_COMMAND_POINTS_USED,
-    PLAYER_LIST_GET_LOCAL_PLAYER,
     PLAYER_PLAYER_TEMPLATE,
     PLAYER_TEMPLATE_BLOCK_KEY,
     PLAYER_TEMPLATE_BLOCK_KEY_BYTES,
@@ -109,20 +104,21 @@ from ..addresses import (
     PLAYER_TEMPLATE_NAME_KEY,
     PLAYER_TEMPLATE_RESOURCE_FILTER,
     PLAYER_TEMPLATE_RESOURCE_VALUES,
-    THE_PLAYER_LIST,
-    UNICODE_STRING_FORMAT,
 )
-from ..asm import JAE, JBE, JE, JG, JL, JLE, JNE, Asm
+from ..asm import JAE, JBE, JE, JG, JLE, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 # `read_field_table` and `resolve_table` are generic field-table helpers that happen to live in
 # the patch that needed them first. This is a code import only - the two patches rewrite
 # different tables (`Object`/`SpecialPower` there, `PlayerTemplate` here) and share no byte.
-from .hero_mana import Entry, read_field_table, resolve_table
-
-if TYPE_CHECKING:
-    import argparse
+from .hero_mana import Entry, entries_before, read_field_table, resolve_table
+from .income_link import (
+    READOUT_SECTION,
+    UPKEEP_EXPORT_OFF,
+    UPKEEP_SECTION,
+    import_slot_offset,
+)
 
 __all__ = [
     "FIELDS",
@@ -135,7 +131,9 @@ __all__ = [
     "kept_percent",
 ]
 
-SECTION_NAME = ".upkeep"  # 8 chars max: the PE name field truncates silently past 8
+#: 8 chars max: the PE name field truncates silently past 8. Owned by
+#: :mod:`~sage_patch.patches.income_link`, which also owns the offset in it that exports `percent`.
+SECTION_NAME = UPKEEP_SECTION
 
 # CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE. The cave holds code, the
 # rebuilt field table and a row array written at INI load, so it needs all three access bits.
@@ -165,14 +163,10 @@ MAX_PERCENT = 100
 _ROWS_MASK = ROWS - 1
 
 _KEY_OFF = 0x00  # the name key of the PlayerTemplate block currently being parsed
+_EXPORT_OFF = UPKEEP_EXPORT_OFF  # the VA of `percent`, for `inflation-readout` to call
 _ROWS_OFF = 0x10
 _CONST_OFF = _ROWS_OFF + ROWS * ROW_STRIDE  # the float 0.01f the percentage is scaled by
-_FMT_OFF = _CONST_OFF + 4
-
-#: ``used/cap (-loss%)``, UTF-16 like the engine's own ``L"%d/%d"`` at `0x00C4E594`.
-FORMAT = "%d/%d (-%d%%)"
-_FMT_BYTES = FORMAT.encode("utf-16-le") + b"\x00\x00"
-_TABLE_OFF = _FMT_OFF + len(_FMT_BYTES) + (-len(_FMT_BYTES) % 4)
+_TABLE_OFF = _CONST_OFF + 4
 
 #: Names the `PlayerTemplate` table must carry at these offsets, or this is not the build these
 #: addresses were derived against. Checked by name rather than by count, so the check survives
@@ -451,65 +445,6 @@ def _emit_deposit(a: Asm, const_va: int) -> None:
     a.jmp_absolute(AUTO_DEPOSIT_SCALE_RESUME)
 
 
-def _emit_local_loss(a: Asm) -> None:
-    """``loss``: the local player's upkeep, as a positive percentage. 0 when there is none.
-
-    Read-only, and read-only is required: this runs on the local client only, so a write here
-    would be a desync.
-    """
-    a.label("loss")
-    a.emit(0x51, 0x52)  # push ecx / push edx
-    a.emit(0x31, 0xC0)  # xor eax, eax
-    a.emit(0x8B, 0x0D, _u32(THE_PLAYER_LIST))  # mov ecx, [ThePlayerList]
-    a.emit(0x85, 0xC9)  # test ecx, ecx
-    a.jcc(JE, "ls_out")
-    a.call_absolute(PLAYER_LIST_GET_LOCAL_PLAYER)  # thiscall, no arguments
-    a.emit(0x85, 0xC0)  # test eax, eax
-    a.jcc(JE, "ls_out")
-    a.emit(0x8B, 0xC8)  # mov ecx, eax
-    a.call("percent")
-    a.emit(0x8B, 0xC8)  # mov ecx, eax                 ; what is kept
-    a.emit(0xB8, _u32(MAX_PERCENT))  # mov eax, 100
-    a.emit(0x29, 0xC8)  # sub eax, ecx                 ; what is lost
-    a.jcc(JG, "ls_out")
-    a.emit(0x31, 0xC0)  # xor eax, eax
-    a.label("ls_out")
-    a.emit(0x5A, 0x59)  # pop edx / pop ecx
-    a.emit(0xC3)  # ret
-
-
-def _emit_text(a: Asm, fmt_va: int) -> None:
-    """A third number in the palantir's command-point text: ``500/1500 (-10%)``.
-
-    The engine builds that text with `UnicodeString::format(L"%d/%d", used, cap)` - cdecl, so
-    the varargs are pushed last-first and the trailing `add esp` counts them. The hook therefore
-    sits *before* the first vararg push, which is the only place a third one fits.
-
-    With no upkeep the stock two-number call is emitted byte-identically, including the
-    negative-`used` branch that falls back to a single `%d`.
-    """
-    a.label("text")
-    a.emit(0x51, 0x52)  # push ecx / push edx
-    a.call("loss")
-    a.emit(0x5A, 0x59)  # pop edx / pop ecx
-    a.emit(0x85, 0xC0)  # test eax, eax
-    a.jcc(JE, "tx_plain")
-    a.emit(0x83, 0x7D, 0x0C, 0x00)  # cmp dword ptr [ebp+0xc], 0
-    a.jcc(JL, "tx_plain")  # a negative count takes the stock one-number path
-    a.emit(0x50)  # push eax                     ; vararg 3 - the loss
-    a.emit(0xFF, 0x75, 0x08)  # push dword ptr [ebp+8]       ; vararg 2 - the cap
-    a.emit(0xFF, 0x75, 0x0C)  # push dword ptr [ebp+0xc]     ; vararg 1 - points in use
-    a.emit(0x68, _u32(fmt_va))  # push L"%d/%d (-%d%%)"
-    a.emit(0x8D, 0x45, 0xF0)  # lea eax, [ebp-0x10]          ; the UnicodeString
-    a.emit(0x50)  # push eax
-    a.call_absolute(UNICODE_STRING_FORMAT)
-    a.emit(0x83, 0xC4, 0x14)  # add esp, 20                  ; three varargs, not two
-    a.jmp_absolute(PALANTIR_COMMAND_POINTS_DONE)
-    a.label("tx_plain")
-    a.emit(PALANTIR_COMMAND_POINTS_BYTES)  # the displaced compare and push
-    a.jmp_absolute(PALANTIR_COMMAND_POINTS_RESUME)
-
-
 def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
     off = va_to_offset(data, va)
     if off is None:
@@ -554,9 +489,10 @@ def _table_span(entries: tuple[Entry, ...]) -> int:
 class CommandPointUpkeepPatch(Patch):
     """Scale a faction's tick income down as its command-point usage crosses INI thresholds.
 
-    ``hud`` (default on) also appends the current loss to the palantir's command-point readout,
-    so ``500/1500`` becomes ``500/1500 (-10%)``. Turning it off leaves the mechanic and the text
-    exactly as the stock engine draws it.
+    Draws nothing itself. It publishes `percent` through
+    :mod:`~sage_patch.patches.income_link`, and a file that also carries `inflation-readout` shows
+    the resulting factor - multiplied by the stock inflation, exactly as the deposit computes it -
+    in the palantir's resource-multiplier slot.
     """
 
     name = "command-point-upkeep"
@@ -564,15 +500,6 @@ class CommandPointUpkeepPatch(Patch):
         "Scale resource-building income down as a player's command-point usage rises "
         "(PlayerTemplate.UpkeepCommandPointStep / UpkeepValues)"
     )
-
-    def __init__(self, *, hud: bool = True):
-        #: Show the current upkeep beside the command-point numbers. Client-local either way -
-        #: the text never enters the simulation - but it is the whole point of the feature
-        #: being legible, so it is on by default.
-        self.hud = hud
-
-    def __str__(self) -> str:
-        return self.name if self.hud else f"{self.name} (no hud)"
 
     def apply(self, data: bytearray) -> None:
         table_va = self._resolve(data)
@@ -624,14 +551,14 @@ class CommandPointUpkeepPatch(Patch):
         return _TABLE_OFF + _table_span(entries)
 
     def _build_section(self, base_va: int, entries: tuple[Entry, ...]) -> bytes:
-        """The block key, the row array, the constant, the format string, the rebuilt field
+        """The block key, the `percent` export, the row array, the constant, the rebuilt field
         table, then the code."""
         code = self._assemble(base_va, entries)
         table, strings = _table_bytes(base_va + _TABLE_OFF, entries, code.label_va("parse"))
 
         body = bytearray(_TABLE_OFF)
+        struct.pack_into("<I", body, _EXPORT_OFF, code.label_va("percent"))
         struct.pack_into("<f", body, _CONST_OFF, 0.01)
-        body[_FMT_OFF : _FMT_OFF + len(_FMT_BYTES)] = _FMT_BYTES
         body += table + strings
         assert len(body) == self._code_offset(entries)
         return bytes(body) + code.finish()
@@ -649,17 +576,28 @@ class CommandPointUpkeepPatch(Patch):
         _emit_parse(a, base_va + _KEY_OFF)
         _emit_percent(a)
         _emit_deposit(a, base_va + _CONST_OFF)
-        if self.hud:
-            _emit_local_loss(a)
-            _emit_text(a, base_va + _FMT_OFF)
         a.finish()  # resolve the internal branches, so `label_va` describes a real layout
         return a
 
     def _edits(
-        self, data: bytes | bytearray, section_va: int, entries: tuple[Entry, ...], old_table: int
+        self,
+        data: bytes | bytearray,
+        section_va: int,
+        entries: tuple[Entry, ...],
+        old_table: int,
+        *,
+        table_ref: bool = True,
     ) -> list[tuple[int, bytes, bytes, str]]:
         """``(file offset, original bytes, patched bytes, note)`` for every engine byte this
-        patch rewrites. One list so :meth:`apply` writes exactly what :meth:`verify` asserts."""
+        patch rewrites. One list so :meth:`apply` writes exactly what :meth:`verify` asserts.
+
+        ``table_ref=False`` drops the field-table repoint. :meth:`verify` asks for that, because
+        the repoint is the one edit here a *later* patch is entitled to overwrite: a second patch
+        extending the same table rebuilds it including these rows - by pointer, so they stay the
+        same rows with the same parse function - and points the reference at its own copy. What
+        has to hold afterwards is that the live table still names these fields correctly, which
+        `verify` checks directly, not that the reference still names this patch's copy.
+        """
         labels = self._assemble(section_va, entries).label_va
         out: list[tuple[int, bytes, bytes, str]] = []
 
@@ -670,17 +608,20 @@ class CommandPointUpkeepPatch(Patch):
             return off
 
         # 1. repoint the PlayerTemplate field table at the rebuilt copy
-        for ref_va, opcode in zip(
-            PLAYER_TEMPLATE_FIELD_TABLE_REFS, PLAYER_TEMPLATE_FIELD_TABLE_REF_OPCODES, strict=True
-        ):
-            out.append(
-                (
-                    at(ref_va),
-                    bytes([opcode]) + _u32(old_table),
-                    bytes([opcode]) + _u32(section_va + _TABLE_OFF),
-                    f"PlayerTemplate field table ref @0x{ref_va:08x}",
+        if table_ref:
+            for ref_va, opcode in zip(
+                PLAYER_TEMPLATE_FIELD_TABLE_REFS,
+                PLAYER_TEMPLATE_FIELD_TABLE_REF_OPCODES,
+                strict=True,
+            ):
+                out.append(
+                    (
+                        at(ref_va),
+                        bytes([opcode]) + _u32(old_table),
+                        bytes([opcode]) + _u32(section_va + _TABLE_OFF),
+                        f"PlayerTemplate field table ref @0x{ref_va:08x}",
+                    )
                 )
-            )
 
         # 2. record which faction the block being parsed is, for the field callbacks
         out.append(
@@ -704,31 +645,20 @@ class CommandPointUpkeepPatch(Patch):
             )
         )
 
-        # 4. the third number in the palantir's command-point text
-        if self.hud:
+        # 4. link an `inflation-readout` that was applied first, so it shows the combined factor.
+        #    Absent one, nothing is written and the export sits unread - which is also what a
+        #    readout applied *later* finds, and reads for itself.
+        slot = import_slot_offset(data)
+        if slot is not None:
             out.append(
                 (
-                    at(PALANTIR_COMMAND_POINTS),
-                    PALANTIR_COMMAND_POINTS_BYTES,
-                    _jmp(PALANTIR_COMMAND_POINTS, labels("text"))
-                    + b"\x90" * (len(PALANTIR_COMMAND_POINTS_BYTES) - 5),
-                    "palantir command points -> upkeep suffix",
+                    slot,
+                    bytes(4),
+                    _u32(labels("percent")),
+                    f"{READOUT_SECTION} upkeep import -> percent",
                 )
             )
         return out
-
-    @classmethod
-    def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument(
-            "--no-hud",
-            action="store_true",
-            help="leave the palantir's command-point text exactly as the stock engine draws it, "
-            "instead of appending the current upkeep as (-N%%)",
-        )
-
-    @classmethod
-    def from_cli_args(cls, args: argparse.Namespace) -> CommandPointUpkeepPatch:
-        return cls(hud=not args.no_hud)
 
     def ini_surface(self) -> Engine:
         """The two `PlayerTemplate` fields this patch adds. `UpkeepCommandPointStep` defaults to
@@ -756,9 +686,11 @@ class CommandPointUpkeepPatch(Patch):
             all_entries = read_field_table(data, table_va)
         except ValueError as exc:
             return [f"cannot read the PlayerTemplate field table: {exc}"]
-        if len(all_entries) <= len(FIELDS):
-            return ["the PlayerTemplate field table is too short to carry this patch"]
-        entries = all_entries[: len(all_entries) - len(FIELDS)]
+        # By name, not by position: another patch may have extended the same table afterwards,
+        # and this count sizes the rebuilt table - which places every routine in the cave.
+        entries = entries_before(data, all_entries, _NAMES[0])
+        if entries is None:
+            return [f"the PlayerTemplate table does not name {_NAMES[0]}"]
 
         by_name = {_read_cstring(data, e[0]): e for e in all_entries}
         parse_fn = self._assemble(section_va, entries).label_va("parse")
@@ -779,24 +711,16 @@ class CommandPointUpkeepPatch(Patch):
         rows = section_off + _ROWS_OFF
         if bytes(data[rows : rows + ROWS * ROW_STRIDE]) != bytes(ROWS * ROW_STRIDE):
             problems.append("the faction table is not zero-initialised")
-        fmt = section_off + _FMT_OFF
-        if bytes(data[fmt : fmt + len(_FMT_BYTES)]) != _FMT_BYTES:
-            problems.append(f"the format string is not {FORMAT!r}")
-
-        # `_edits` only describes bytes this configuration *writes*, so with the HUD half off it
-        # would not notice one that is on. Say so, rather than verifying a build this is not.
-        if not self.hud:
-            off = va_to_offset(data, PALANTIR_COMMAND_POINTS)
-            if off is not None and bytes(data[off : off + len(PALANTIR_COMMAND_POINTS_BYTES)]) != (
-                PALANTIR_COMMAND_POINTS_BYTES
-            ):
-                problems.append(
-                    "the palantir command-point text is hooked, but this patch was built with "
-                    "the HUD half off"
-                )
+        percent_fn = self._assemble(section_va, entries).label_va("percent")
+        exported = struct.unpack_from("<I", data, section_off + _EXPORT_OFF)[0]
+        if exported != percent_fn:
+            problems.append(
+                f"the percent export is 0x{exported:08x}, expected 0x{percent_fn:08x} - a linked "
+                f"{READOUT_SECTION} would call the wrong address"
+            )
 
         try:
-            edits = self._edits(data, section_va, entries, table_va)
+            edits = self._edits(data, section_va, entries, table_va, table_ref=False)
         except ValueError as exc:
             return [*problems, f"cannot recompute the expected edits (wrong build?): {exc}"]
         for file_off, _old, new, note in edits:

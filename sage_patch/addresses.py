@@ -33,14 +33,32 @@ __all__ = [
     "ABILITY_TRIGGER_VTABLE",
     "APPEND_MESSAGE_VTABLE_SLOT",
     "ARG_APPENDERS",
+    "ASCII_STRING_FORMAT",
+    "AUTO_DEPOSIT_DEPOSIT",
+    "AUTO_DEPOSIT_DEPOSIT_BYTES",
+    "AUTO_DEPOSIT_DEPOSIT_RESUME",
+    "AUTO_DEPOSIT_FIELD_TABLE",
+    "AUTO_DEPOSIT_FIELD_TABLE_REFS",
+    "AUTO_DEPOSIT_FIELD_TABLE_REF_OPCODES",
     "AUTO_DEPOSIT_FILTER_EBP",
+    "AUTO_DEPOSIT_MODULE_DATA_CTOR",
+    "AUTO_DEPOSIT_MODULE_DATA_CTOR_BOOLS",
+    "AUTO_DEPOSIT_MODULE_DATA_CTOR_BOOLS_BYTES",
     "AUTO_DEPOSIT_MODULE_DATA_EBP",
+    "AUTO_DEPOSIT_MODULE_DATA_ESI",
+    "AUTO_DEPOSIT_MODULE_DATA_SIZE",
     "AUTO_DEPOSIT_MULTIPLIER_EBP",
     "AUTO_DEPOSIT_SCALE",
     "AUTO_DEPOSIT_SCALE_BYTES",
     "AUTO_DEPOSIT_SCALE_RESUME",
     "BUILD",
     "BUILD_ASSISTANT_VTABLE",
+    "BUILD_GATE_AFFORD",
+    "BUILD_GATE_AFFORD_BYTES",
+    "BUILD_GATE_AFFORD_OK",
+    "BUILD_GATE_AFFORD_REFUSE",
+    "BUILD_GATE_NOT_ENOUGH_MONEY",
+    "BUILD_GATE_TEMPLATE_EBP",
     "CAN_MAKE_UNIT",
     "CAN_MAKE_UNIT_ACCEPT",
     "CAN_MAKE_UNIT_BUMP_SLOT",
@@ -73,6 +91,10 @@ __all__ = [
     "DESCRIPTION_TEXT_EBP_OFFSET",
     "DESCRIPTION_UNIT_COST_BODY",
     "DO_SPECIAL_POWER_SITES",
+    "FIELD_PARSE_STRIDE",
+    "FLOAT_ONE",
+    "FLOAT_ONE_PERCENT",
+    "FLOAT_TWO_PERCENT",
     "GAME_INFO_MAP",
     "GAME_LOGIC_FRAME",
     "GAME_LOGIC_UPDATE",
@@ -89,9 +111,13 @@ __all__ = [
     "IMPORT_GET_LOCAL_TIME",
     "IMPORT_SWPRINTF",
     "INI_NEXT_TOKEN_OR_NULL",
+    "INI_PARSE_BOOL",
     "INI_PARSE_INT",
+    "INI_PARSE_UNSIGNED_SHORT",
     "INI_SCAN_INT",
     "MAX_PLAYER_COUNT",
+    "MONEY_DEPOSIT",
+    "MONEY_WITHDRAW",
     "MSG_CLEAR_GAME_DATA",
     "MSG_NEW_GAME",
     "OBJECT_CONTAIN",
@@ -104,19 +130,34 @@ __all__ = [
     "OBJECT_MODULE_LIST",
     "OBJECT_THING_TEMPLATE",
     "OPERATOR_NEW",
-    "PALANTIR_COMMAND_POINTS",
-    "PALANTIR_COMMAND_POINTS_BYTES",
-    "PALANTIR_COMMAND_POINTS_DONE",
-    "PALANTIR_COMMAND_POINTS_RESUME",
+    "PALANTIR_RESOURCES",
+    "PALANTIR_RESOURCES_BYTES",
+    "PALANTIR_RESOURCES_CACHE",
+    "PALANTIR_RESOURCES_CACHE_BYTES",
+    "PALANTIR_RESOURCES_CACHE_PUSH",
+    "PALANTIR_RESOURCES_CACHE_SKIP",
+    "PALANTIR_RESOURCES_DONE",
+    "PALANTIR_RESOURCES_RESUME",
+    "PALANTIR_RESOURCE_MULTIPLIER",
+    "PALANTIR_RESOURCE_MULTIPLIER_BYTES",
+    "PALANTIR_RESOURCE_MULTIPLIER_RESUME",
     "PLAYER_COMMAND_POINTS_USED",
     "PLAYER_DEFEAT_FRAME",
+    "PLAYER_FOR_EACH_TEAM_OBJECT",
     "PLAYER_INDEX",
+    "PLAYER_INIT",
+    "PLAYER_INIT_ENTRY",
+    "PLAYER_INIT_ENTRY_BYTES",
+    "PLAYER_INIT_ENTRY_RESUME",
     "PLAYER_IS_DEFEATED",
     "PLAYER_IS_OBSERVER",
     "PLAYER_LIST_GET_LOCAL_PLAYER",
     "PLAYER_PLAYER_TEMPLATE",
     "PLAYER_TEMPLATE_BLOCK_KEY",
     "PLAYER_TEMPLATE_BLOCK_KEY_BYTES",
+    "PLAYER_TEMPLATE_BLOCK_KEY_EARLY",
+    "PLAYER_TEMPLATE_BLOCK_KEY_EARLY_BYTES",
+    "PLAYER_TEMPLATE_BLOCK_KEY_EARLY_RESUME",
     "PLAYER_TEMPLATE_BLOCK_KEY_RESUME",
     "PLAYER_TEMPLATE_FIELD_TABLE",
     "PLAYER_TEMPLATE_FIELD_TABLE_REFS",
@@ -128,6 +169,11 @@ __all__ = [
     "PLAYER_TEMPLATE_SIZE",
     "PRODUCTION_UPDATE_INTERFACE_VTABLE",
     "PRODUCTION_UPDATE_VTABLE",
+    "PRODUCTION_WITHDRAW",
+    "PRODUCTION_WITHDRAW_BYTES",
+    "PRODUCTION_WITHDRAW_PLAYER_EBP",
+    "PRODUCTION_WITHDRAW_RESUME",
+    "PRODUCTION_WITHDRAW_TEMPLATE_EBP",
     "RECORDER_END_BRANCH",
     "RECORDER_END_BRANCH_BYTES",
     "RECORDER_END_WRITE_CALL",
@@ -154,8 +200,17 @@ __all__ = [
     "REQUEST_UNIQUE_UNIT_ID",
     "REQUEST_UNIQUE_UNIT_ID_BODY",
     "REQUEST_UNIQUE_UNIT_ID_VTABLE_SLOT",
-    "FIELD_PARSE_STRIDE",
-    "INI_PARSE_BOOL",
+    "RESOURCE_MODIFIER_COUNT_CALLBACK",
+    "SPECIAL_POWER_FIELD_TABLE",
+    "SPECIAL_POWER_FIELD_TABLE_REFS",
+    "SPECIAL_POWER_FIELD_TABLE_REF_OPCODES",
+    "SPECIAL_POWER_TEMPLATE_COPY_TAIL",
+    "SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES",
+    "SPECIAL_POWER_TEMPLATE_NEW_SITES",
+    "SPECIAL_POWER_TEMPLATE_SIZE",
+    "SPECIAL_POWER_UNIT_COST",
+    "START_RECORDING",
+    "START_RECORDING_MODE_ARG",
     "TERRAIN_RESOURCE_BUILD_FIELD_PARSE",
     "TERRAIN_RESOURCE_DEFAULT_STORES",
     "TERRAIN_RESOURCE_DEFAULT_STORES_BYTES",
@@ -174,16 +229,6 @@ __all__ = [
     "TERRAIN_RESOURCE_UPDATE",
     "TERRAIN_RESOURCE_UPDATE_VTABLE",
     "TERRAIN_RESOURCE_UPDATE_VTABLE_SLOT",
-    "SPECIAL_POWER_FIELD_TABLE",
-    "SPECIAL_POWER_FIELD_TABLE_REFS",
-    "SPECIAL_POWER_FIELD_TABLE_REF_OPCODES",
-    "SPECIAL_POWER_TEMPLATE_COPY_TAIL",
-    "SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES",
-    "SPECIAL_POWER_TEMPLATE_NEW_SITES",
-    "SPECIAL_POWER_TEMPLATE_SIZE",
-    "SPECIAL_POWER_UNIT_COST",
-    "START_RECORDING",
-    "START_RECORDING_MODE_ARG",
     "THE_BUILD_ASSISTANT",
     "THE_GAME_INFO",
     "THE_GAME_LOGIC",
@@ -199,11 +244,25 @@ __all__ = [
     "THE_THING_FACTORY",
     "THE_UPGRADE_CENTER",
     "THE_VICTORY_CONDITIONS",
+    "THING_TEMPLATE_BUILD_COST",
     "THING_TEMPLATE_COPY_CALL",
     "THING_TEMPLATE_COPY_CALL_BYTES",
     "THING_TEMPLATE_COPY_FROM",
+    "THING_TEMPLATE_COPY_ID",
+    "THING_TEMPLATE_COPY_ID_BYTES",
+    "THING_TEMPLATE_COPY_ID_RESUME",
+    "THING_TEMPLATE_ID",
+    "THING_TEMPLATE_ID_COUNTER",
+    "THING_TEMPLATE_ID_SETTER",
+    "THING_TEMPLATE_REFUND_VALUE",
+    "TOOLTIP_COST_BUILD",
+    "TOOLTIP_COST_BUILD_RESUME",
+    "TOOLTIP_COST_BYTES",
+    "TOOLTIP_COST_REVIVE",
+    "TOOLTIP_COST_REVIVE_RESUME",
     "UNICODE_STRING_APPEND",
     "UNICODE_STRING_CONCAT",
+    "UNICODE_STRING_DTOR",
     "UNICODE_STRING_FORMAT",
     "UNICODE_STRING_FROM_WIDE",
     "VICTORY_CONDITIONS_HAS_ACHIEVED_VICTORY",
@@ -415,7 +474,7 @@ SPECIAL_POWER_FIELD_TABLE_REF_OPCODES = (0xB8, 0x68)
 #: and **five** references, each a bare imm32 one byte into its instruction.
 #:
 #: There is **no interior reference**. A byte scan reports one at `0x007162A4` pointing at entry
-#: 127, and `docs/ideas/second-resource-type.md` records it as something a relocation would have
+#: 127, and an earlier costing recorded it as something a relocation would have
 #: to re-derive - but disassembly says `0x007162A4` is `call 0x723CEE`, whose `E8` opcode plus the
 #: first three bytes of its displacement happen to spell `0x00DA45E8`. A false positive, so the
 #: table relocates as a unit.
@@ -931,28 +990,234 @@ AUTO_DEPOSIT_MODULE_DATA_EBP = -0x18
 OBJECT_FILTER_IS_VALID = 0x00762977
 OBJECT_FILTER_ALLOW = 0x007640C1
 
+#: `Player::forEachTeamObject(fn, ctx)` - thiscall, `ret 8`, walks the team list at `Player+0x34C`
+#: and stops early if `fn` returns 0. Pure: it writes nothing and takes no lock, so a HUD-side
+#: read of the same count the deposit computes is safe.
+#:
+#: `..._COUNT_CALLBACK` is the engine's own per-object counter, `cdecl (Object*, void *ctx)` with
+#: ``ctx = { ObjectFilter* filter; Int count; }``. It skips objects failing `testStatus(2)` and
+#: counts those the filter accepts - calling `allow(object, NULL)`, a **null player**, where the
+#: gate three instructions earlier passes the real one. Reusing it rather than writing a second
+#: counter is what makes a readout agree with the deposit by construction.
+PLAYER_FOR_EACH_TEAM_OBJECT = 0x006ABABD
+RESOURCE_MODIFIER_COUNT_CALLBACK = 0x00885230
+
+#: Float constants the inflation arithmetic reads, reused verbatim by anything that recomputes it.
+FLOAT_ONE = 0x00BD1908  # 1.0f  - the "no modifier" multiplier
+FLOAT_ONE_PERCENT = 0x00BE5600  # 0.01f - a percentage table entry into a multiplier
+FLOAT_TWO_PERCENT = 0x00BDC320  # 0.02f - the per-object slope past the end of the table
+
 #: `INI::getNextTokenOrNull(seps)` and `INI::scanInt(token)` - both thiscall on the `INI`, both
 #: `ret 4`. The pair the stock `ResourceModifierValues` parser (`0x005FD599`) loops over, and
 #: the only engine help a variable-length `Int` list parser needs.
 INI_NEXT_TOKEN_OR_NULL = 0x0042DBF5
 INI_SCAN_INT = 0x0042E9D7
 
-#: The palantir's command-point text, built and pushed to the movie in one place.
+#: The palantir's **resource-multiplier** readout - a slot that already exists, is already
+#: refreshed every frame, and is already blank in a skirmish.
 #:
-#: It is **not** a numeric data binding: `0x0080078F` formats `L"%d/%d"` (`0x00C4E594`) with
-#: `(used, cap)` into a `UnicodeString` and hands it to
-#: `TheAptPlayer::setValue("APT:PalantirCommandPoints", …)` (`0x00624FFD`). The mod's `.csf`
-#: entry of the same name is a design-time placeholder - Edain's reads `102/200` - overwritten
-#: every refresh, which is why a third number has to come from the engine and not from data.
+#: The text builder at `0x00800844` takes one **float** and blanks itself at exactly `1.0f`
+#: (`ucomiss` against `FLOAT_ONE`, then `L" "` at `0x00BD16E4`); anything else it formats with
+#: `L"x%g"` (`0x00C4E5BC`) and pushes to `TheAptPlayer::setValue("APT:PalantirResourceMultiplier",
+#: …)`. The `.csf` entry of that name is a design-time placeholder as usual - Edain's reads `x23`.
 #:
-#: The window is `cmp [ebp+0xC], edi` / `push dword ptr [ebp+8]`, six bytes, and it sits
-#: *before* the first vararg push - which is what makes room for a third one, since varargs are
-#: pushed last-argument-first.
-PALANTIR_COMMAND_POINTS = 0x008007DC
-PALANTIR_COMMAND_POINTS_BYTES = bytes.fromhex("397d0cff7508")
-PALANTIR_COMMAND_POINTS_RESUME = 0x008007E2
-PALANTIR_COMMAND_POINTS_DONE = 0x00800817
+#: The refresh at `0x006D577C` feeds it the War-of-the-Ring region bonus (`0x006E1F2F`, capped by
+#: `GameData.ResourceMultiplierLimit`) and otherwise **exactly `1.0f`**, at the window below.
+#: Replacing that constant load is therefore the whole of a readout: everything downstream - the
+#: `ucomiss` change filter against the cached float at `palantir+0x18`, the builder, the blanking
+#: rule - is untouched.
+#:
+#: The window is `movss xmm0, [FLOAT_ONE]` / `jmp 0x006D5A69`, thirteen bytes. All three branches
+#: into it (`0x006D5997`, `0x006D59A0`, `0x006D59A7`) target its **first** byte, so nothing lands
+#: inside and a five-byte `jmp` plus padding is safe.
+PALANTIR_RESOURCE_MULTIPLIER = 0x006D59B7
+PALANTIR_RESOURCE_MULTIPLIER_BYTES = bytes.fromhex("f30f10050819bd00e9a5000000")
+PALANTIR_RESOURCE_MULTIPLIER_RESUME = 0x006D5A69
 
 #: `UnicodeString::format(this, fmt, ...)` - cdecl, caller-cleaned, so one more vararg costs one
 #: more push and a `0x10 -> 0x14` on the cleanup.
 UNICODE_STRING_FORMAT = 0x00ADF750
+
+
+#: `INI::parseUnsignedShort`, the stock `UInt16` field parser: cdecl, same four arguments as
+#: `INI_PARSE_INT`, but it range-checks `0..0xFFFF` and stores a **word** through `store`. That
+#: word store is what lets a new field live in two bytes of a struct's alignment padding, the way
+#: `INI_PARSE_BOOL`'s byte store does for one.
+INI_PARSE_UNSIGNED_SHORT = 0x0042EC11
+
+#: `Money::deposit(amount, stats, playSound)` - thiscall on the `Money` subobject, three stack
+#: arguments, callee-cleaned. The sibling `Money::withdraw` at `0x007B17EF` **clamps to what is
+#: available and returns what it took**, which is why affordability is always decided upstream of
+#: it and never by it. 35 call sites deposit, 22 withdraw.
+MONEY_DEPOSIT = 0x007B18B8
+MONEY_WITHDRAW = 0x007B17EF
+
+#: `AutoDepositUpdate` - the "this structure pays you on a timer" module, and the one the
+#: second-resource grant rides on. Derived in `docs/second-resource.md`.
+#:
+#: **Not** the module `AUTO_DEPOSIT_SCALE` above names: that constant sits inside
+#: `TerrainResourceBehavior::update` (`0x008854D3`), the *other* income module, which is the only
+#: reader of `PlayerTemplate.ResourceModifierValues`. The two are easy to confuse and the fields
+#: read alike; the discriminator is the `ModuleData`, reached as `[ebp-0x18]` there and as
+#: `[esi-0x0C]` here.
+#:
+#: `ModuleData` is 0x24 bytes holding eight fields ending with two `Bool`s at +0x20/+0x21, so
+#: **+0x22 and +0x23 are alignment padding**: no field names them and the constructor never
+#: writes them. The two `Bool` stores at `..._CTOR_BOOLS` are six bytes for what `mov [esi+0x20],
+#: ebx` does in three with `ebx` already zero - and that one dword store clears the padding too,
+#: so the new field's default costs no bytes at all.
+AUTO_DEPOSIT_MODULE_DATA_CTOR = 0x00653EBA
+AUTO_DEPOSIT_MODULE_DATA_SIZE = 0x24
+AUTO_DEPOSIT_MODULE_DATA_CTOR_BOOLS = 0x00653EFB
+AUTO_DEPOSIT_MODULE_DATA_CTOR_BOOLS_BYTES = bytes.fromhex("885e20885e21")
+AUTO_DEPOSIT_FIELD_TABLE = 0x00C07FD8
+#: One reference in the whole image - the `push` immediate inside `buildFieldParse`
+#: (`0x00653F0E`) - and the table is walked to its terminator, so appending a field is one
+#: 4-byte repoint and no bound raised anywhere.
+AUTO_DEPOSIT_FIELD_TABLE_REFS = (0x00653F14,)
+AUTO_DEPOSIT_FIELD_TABLE_REF_OPCODES = (0x68,)  # push imm32
+
+#: The deposit inside `AutoDepositUpdate::update`, as a whole five-byte `call` - so the hook
+#: displaces one complete instruction and needs no padding.
+#:
+#: `esi` is the module (its `ModuleData` at `[esi-0x0C]`) and `edi` the controlling `Player`,
+#: both callee-saved across the deposit. `edi` stops being the player at the resume address,
+#: where it is reloaded with the depositing object's `ExperienceTracker`.
+AUTO_DEPOSIT_DEPOSIT = 0x0089DD08
+AUTO_DEPOSIT_DEPOSIT_BYTES = bytes.fromhex("e8ab3bf1ff")
+AUTO_DEPOSIT_DEPOSIT_RESUME = 0x0089DD0D
+AUTO_DEPOSIT_MODULE_DATA_ESI = -0x0C
+
+#: The `PlayerTemplate` block's name key, one instruction *before*
+#: `PLAYER_TEMPLATE_BLOCK_KEY` - `eax` already holds the key and the window is the six bytes of
+#: `mov ecx, [PlayerTemplateStore]`.
+#:
+#: Two hooks are needed here rather than one because a template's per-block key is the only
+#: identity a field callback can file against, and `command-point-upkeep` already owns the
+#: instruction pair at `PLAYER_TEMPLATE_BLOCK_KEY`. The two windows do not overlap and neither
+#: reads what the other writes: both only copy `eax`.
+PLAYER_TEMPLATE_BLOCK_KEY_EARLY = 0x005FE880
+PLAYER_TEMPLATE_BLOCK_KEY_EARLY_BYTES = bytes.fromhex("8b0d103bde00")
+PLAYER_TEMPLATE_BLOCK_KEY_EARLY_RESUME = 0x005FE886
+
+#: `Player::init(PlayerTemplate *)` - the one place a player's purse is seeded from its faction,
+#: and therefore the one place a second pool has to be seeded and cleared.
+#:
+#: `PlayerList`'s own reset (`0x006A8916`) calls it on **all twenty slots** with a NULL template,
+#: and the money block is inside the `template != NULL` branch - so a hook placed at the money
+#: block would never clear an unused slot. `..._ENTRY` is past the SEH prologue and before that
+#: branch, with `ecx` still the `Player` and `[ebp+8]` the template, so one hook both clears and
+#: seeds. Four callers, none of them a per-frame path.
+PLAYER_INIT = 0x006B0239
+PLAYER_INIT_ENTRY = 0x006B0243
+PLAYER_INIT_ENTRY_BYTES = bytes.fromhex("83ec0c8b4508")
+PLAYER_INIT_ENTRY_RESUME = 0x006B0249
+
+#: `AsciiString::format(this, fmt, ...)` - cdecl, caller-cleaned, so one more vararg costs one
+#: more push and a `0x0C -> 0x10` on the cleanup. The narrow sibling of `UNICODE_STRING_FORMAT`:
+#: the palantir's **resource** text is built as an `AsciiString` from an 8-bit `"%d"` and only
+#: widened on the way into the movie, where the command-point text is `UnicodeString` throughout.
+ASCII_STRING_FORMAT = 0x00437A90
+
+#: The palantir's resource text, built and pushed to the movie in one place - the same shape as
+#: `PALANTIR_COMMAND_POINTS`, and the reason a second number needs no `.apt` edit.
+#:
+#: `0x006D56E1` takes the amount as its only argument, formats `"%d"` (`0x00BD4194`, **8-bit**)
+#: into an `AsciiString` and hands it to `TheAptPlayer::setValue("APT:PalantirResources", …)`
+#: through the widening wrapper at `0x00625071`. A negative amount takes a `" "` placeholder
+#: (`0x00BD343C`) instead. So the movie's own text is overwritten every refresh and a mod's `.csf`
+#: entry of that name is a design-time placeholder, exactly as for the command-point readout.
+#:
+#: The window is `cmp [ebp+8], 0` / `mov [ebp-4], 1` - eleven bytes, sitting *before* the first
+#: vararg push, which is the only place a second one fits. `[ebp-4]` is the SEH state marking the
+#: `AsciiString` at `[ebp-0x10]` constructed, so a hook has to keep writing it on every path.
+PALANTIR_RESOURCES = 0x006D5721
+PALANTIR_RESOURCES_BYTES = bytes.fromhex("837d0800c745fc01000000")
+PALANTIR_RESOURCES_RESUME = 0x006D572C
+PALANTIR_RESOURCES_DONE = 0x006D5751  # the setValue, past the format
+
+#: The refresh's change filter, in the palantir update at `0x006D577C`.
+#:
+#: `edi` is the local player's gold (or -1 when there is no playable local player) and `[esi+0xC]`
+#: the last value pushed; the text call only happens when they differ. **A second number has to
+#: widen that filter or it goes stale**, because a game where gold is momentarily flat still moves
+#: the second pool. `cmp edi, [esi+0xC]` / `je` is exactly five bytes.
+PALANTIR_RESOURCES_CACHE = 0x006D5804
+PALANTIR_RESOURCES_CACHE_BYTES = bytes.fromhex("3b7e0c740a")
+PALANTIR_RESOURCES_CACHE_PUSH = 0x006D5809  # push the value and call the text builder
+PALANTIR_RESOURCES_CACHE_SKIP = 0x006D5813  # unchanged: no text this frame
+
+#: `ThingTemplate+0x5E8`, and why a second build cost cannot live there.
+#:
+#: The idea document costs the 2-byte gap between `CampnessValue` (an `Int` at +0x5E4) and
+#: `BuildCost` (a `UInt16` at +0x5EA) as possibly-free storage. **It is not.** It is the
+#: template's engine-assigned id: a dedicated setter at `0x006CFBC7`, a down-counting global
+#: allocator at `0x00DA18E4`, ~15 readers, and the ControlBar pushes it into build orders
+#: (`0x00940948`). An override *swaps* ids so the new template inherits the old one's identity.
+#:
+#: That is the second apparent hole in a template that turned out to be a real member - see
+#: `PlayerTemplate+0x34` in `docs/second-resource.md` §1.2 - and it is why `BuildCost2` is keyed
+#: in a cave rather than stored on the template.
+THING_TEMPLATE_ID = 0x5E8
+THING_TEMPLATE_ID_SETTER = 0x006CFBC7
+THING_TEMPLATE_ID_COUNTER = 0x00DA18E4
+THING_TEMPLATE_BUILD_COST = 0x5EA
+THING_TEMPLATE_REFUND_VALUE = 0x5EC
+
+#: The id copy **inside** `ThingTemplate::copyFrom`, where `eax` is the source template and `ebx`
+#: the destination. Anything keyed on a `ThingTemplate *` has to ride this, or an INI override
+#: block silently loses whatever the base template carried.
+#:
+#: `hero-mana` rides the same copy from the outside, by retargeting its **call site**
+#: (`THING_TEMPLATE_COPY_CALL`). This is the body, so the two do not share a byte - and hooking
+#: the body also covers any caller that is not that one call.
+THING_TEMPLATE_COPY_ID = 0x006D24B7
+THING_TEMPLATE_COPY_ID_BYTES = bytes.fromhex("668b88e8050000")
+THING_TEMPLATE_COPY_ID_RESUME = 0x006D24BE
+
+#: The one affordability comparison every human production path shares, inside `BuildAssistant`'s
+#: `+0x64` gate (`0x00793ECB`).
+#:
+#: `esi` is the `Player` (`+0x94` is its gold), `eax` the cost `calcCostToBuild` just returned
+#: (`0x0073C25F`), `ebx` gold plus the allowance the frame computed, and `[ebp+0xC]` the
+#: `ThingTemplate` being priced. The window is `cmp eax, ebx` / `jbe <affordable>` / `push 2` -
+#: six bytes - and **2 is the engine's own "not enough money" code**, so refusing here reuses the
+#: refusal message and the button tint that already exist.
+BUILD_GATE_AFFORD = 0x00794013
+BUILD_GATE_AFFORD_BYTES = bytes.fromhex("3bc376076a02")
+BUILD_GATE_AFFORD_OK = 0x0079401E  # affordable: on with the rest of the checks
+BUILD_GATE_AFFORD_REFUSE = 0x00794019  # the jmp that carries the pushed code out
+BUILD_GATE_TEMPLATE_EBP = 0x0C
+BUILD_GATE_NOT_ENOUGH_MONEY = 2
+
+#: `ProductionUpdate::queueCreateUnit`'s withdrawal, as a whole five-byte `call`.
+#:
+#: `[ebp-0x0C]` is the `Player` (`ecx` has already become `&player->m_money` by here) and
+#: `[ebp+8]` the `ThingTemplate` being produced - the same one the `ScoreKeeper` call three
+#: instructions later is given.
+PRODUCTION_WITHDRAW = 0x008A12A2
+PRODUCTION_WITHDRAW_BYTES = bytes.fromhex("e84805f1ff")
+PRODUCTION_WITHDRAW_RESUME = 0x008A12A7
+PRODUCTION_WITHDRAW_PLAYER_EBP = -0x0C
+PRODUCTION_WITHDRAW_TEMPLATE_EBP = 0x08
+
+#: The two `TOOLTIP:Cost` lines in the ControlBar's description builder that price a
+#: `ThingTemplate` - a unit or structure to build, and a hero to revive or recruit.
+#:
+#: `TOOLTIP:Cost` (`0x00C4F028`) has four call sites; these are the two where the thing being
+#: priced is a template in a known register, and they are exactly the two `BuildCost2` applies to.
+#: The other two price a science and a per-frame float.
+#:
+#: Every site shares one shape: three pushes, `TheGameText`'s vtable `+0x44` formats the localized
+#: line into `eax`, then the line is concatenated onto the description at `ebp-0x28`. The window
+#: named here is `push eax` / `lea eax, [ebp-0x28]` / `push eax` - five bytes, sitting **after**
+#: the line exists and **before** it is handed over, which is the one place a suffix can join it.
+TOOLTIP_COST_BUILD = 0x00807F82
+TOOLTIP_COST_BUILD_RESUME = 0x00807F87
+TOOLTIP_COST_REVIVE = 0x008085EC
+TOOLTIP_COST_REVIVE_RESUME = 0x008085F1
+TOOLTIP_COST_BYTES = bytes.fromhex("508d45d850")
+
+#: `UnicodeString::~UnicodeString` - thiscall, no arguments. Needed because a suffix built with
+#: `UNICODE_STRING_FORMAT` is a real string with a real allocation, not a literal.
+UNICODE_STRING_DTOR = 0x004367B0

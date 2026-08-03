@@ -82,7 +82,7 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   not a weak mechanic, it is a **no-op**. The patch grows `SpecialPowerTemplate` `0x88 → 0x94`,
   relocates both the `SpecialPower` field-parse table (**two** references, the smallest repoint
   here) and the `Object` one (**five**, and no interior reference despite what
-  `second-resource-type` records),
+  an earlier costing recorded),
   and enforces the cost at `SpecialPowerStore::canUseSpecialPower` — the one predicate the
   player's UI, the AI and every activation path all share, so **the AI is gated for free**. The
   pool is *computed on read* from the logic frame rather than ticked, which is what lets it need
@@ -91,6 +91,28 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   from the `TOOLTIP:ManaCost` key and carrying **both the price and what the caster currently has**;
   a `ManaPool` line sits under a hero's level on its revive/recruit button. `ManaCost = 0`, the default, leaves a power exactly as it is today.
 
+- **`second-resource`** gives every player a **second resource pool** alongside gold, granted per
+  tick by `AutoDepositUpdate.DepositAmount2` and seeded per faction by
+  `PlayerTemplate.StartMoney2`, and shows it in brackets after the palantir's own number
+  (`1000 (50)`), and lets an `Object.BuildCost2` price things in it — a priced button reads
+  `Cost: 100 (25)` and is refused when the player is short. The
+  counter is `UInt32 pool[20]` in the cave indexed by `Player::m_playerIndex` (no struct growth);
+  the new `UInt16` lands in `ModuleData`'s alignment padding at `+0x22` and its default costs
+  three bytes, because the constructor's two `Bool` stores collapse into one dword store that
+  clears the padding too; and `StartMoney2` lives in a row table keyed by the template's
+  `NameKeyType`, because `PlayerTemplate` has no hole (`+0x34` is the `Money` subobject's own
+  `m_playerIndex`, not padding). The display needs **no `.apt` and no `.csf`**: like
+  `APT:PalantirCommandPoints`, the resource text is formatted by the engine and pushed to the
+  movie every refresh, so a second number is one more vararg on a call it already makes — plus
+  widening the refresh's change filter, which otherwise leaves the bracket stale whenever gold
+  sits still. `--no-hud` keeps the text stock. **Savegames are not supported** — a cave counter
+  is not `Xfer`'d, so a load resets the pool. `BuildCost2` lives in the cave too, keyed by
+  `ThingTemplate *`: the 2-byte gap at `+0x5E8` that looks free is the template's engine-assigned
+  **id**, and the copy at `0x006D24AB` is field-by-field, so growing the struct would not even buy
+  the copy — both routes need the same hook inside `copyFrom`. **The AI is out of scope by
+  construction**: its unit variants leave `BuildCost2` at 0, and a cost of 0 short-circuits the
+  shared gate before the pool is read. **Enforcement is not complete** — structure placement and
+  upgrade research are refused correctly but not charged, and cancelling refunds no resource 2.
 - **`command-point-upkeep`** makes a large army **cost a player income**: the more command points
   they have in the field, the less their resource buildings pay. Two new `PlayerTemplate` fields
   declare the curve per faction — `UpkeepCommandPointStep` (how many command points move a player
@@ -157,6 +179,13 @@ sage-patch verify hero-mana --pool 100 --regen 30 game.dat
 # command-point text exactly as the stock engine draws it
 sage-patch apply command-point-upkeep --in game.dat.backup --out game.dat
 sage-patch verify command-point-upkeep game.dat
+
+# a second currency: granted, shown and spent
+sage-patch apply second-resource --in game.dat.backup --out game.dat
+sage-patch verify second-resource game.dat
+
+# the mechanic without the palantir bracket or the tooltip one
+sage-patch apply second-resource --no-hud --in game.dat.backup --out game.dat
 
 # rename only the skirmish recordings, leaving network ones (and Save Replay) as stock
 sage-patch apply skirmish-replay --rename added --in game.dat.backup --out game.dat
@@ -236,6 +265,8 @@ apply_patches(
 | [`patches/terrain_resource_exp.py`](patches/terrain_resource_exp.py) | `TerrainResourceExpPatch` — add a `GiveNoXP` boolean to `TerrainResourceBehavior` (rebuild its field table into a cave by pointer, put the new `Bool` in the struct's padding, gate the experience grant on it) |
 | [`patches/unique_production_id.py`](patches/unique_production_id.py) | `UniqueProductionIdPatch` — rewrite `requestUniqueUnitID` to mint from one game-wide counter instead of one per producer |
 | [`patches/replay_outcome.py`](patches/replay_outcome.py) | `ReplayOutcomePatch` — write every player's final victory/defeat state into the replay as the recorded game is torn down |
+| [`patches/second_resource.py`](patches/second_resource.py) | `SecondResourcePatch` — a second per-player pool in a cave, granted by `AutoDepositUpdate.DepositAmount2` (a `UInt16` in `ModuleData` padding) and seeded by `PlayerTemplate.StartMoney2` (a name-keyed row, since the template has no hole) shown in brackets on the palantir, and priced by `Object.BuildCost2` through the one
+affordability gate every human production path shares |
 | [`patches/skirmish_replay.py`](patches/skirmish_replay.py) | `SkirmishReplayPatch` — add the skirmish game mode to the recorder's whitelist, and name the file by timestamp and map |
 
 `CommandSetLimitPatch(count=N)`. **`count` may be 34–127**; every offset, the object size, the
@@ -313,6 +344,33 @@ is the replay menu's Save Replay button — see Status. See
 > `writeToFile` call — and neither reads what the other writes. Applied together, a skirmish
 > records **and** names its winner, which is the only way `sage_replay` can resolve a game
 > against an AI at all: the concession heuristic needs orders, and an AI issues none.
+
+`SecondResourcePatch(hud=True)`. Three INI fields — `AutoDepositUpdate.DepositAmount2`,
+`PlayerTemplate.StartMoney2`, `Object.BuildCost2` — and ten hooks around a `.res2` cave.
+
+The mechanic: the module's own `call Money::deposit` and `queueCreateUnit`'s
+`call Money::withdraw` (five bytes each, so one whole instruction displaced), `Player::init`'s
+entry (which both seeds the pool per faction and clears it per game, because `PlayerList`'s reset
+calls it on all twenty slots with a NULL template), the `PlayerTemplate` block key at `0x005FE880`
+— the six bytes *before* the ones `command-point-upkeep` takes, so the two compose — the one
+affordability comparison in `BuildAssistant`'s `+0x64` gate, and the id copy inside
+`ThingTemplate::copyFrom`, which is what carries a cost across an INI override block.
+`hero-mana` rides that same copy from its *call site*, so the two share no byte.
+
+The display: the palantir's text builder and its change filter, plus the two `TOOLTIP:Cost` lines
+that price a template. All three field tables are rebuilt in the cave from whatever is live, one
+4-byte repoint each (five for `Object`).
+
+**The bracket is decided at INI load**, by a flag both parse functions raise on a non-zero value,
+so a mod that mentions neither field gets the stock readout byte for byte and a mod that uses
+either always shows the bracket. Deciding it from the pool would make the readout grow and lose a
+number mid-game. `--no-hud` drops both palantir hooks and leaves the mechanic.
+
+**Savegames are not supported** — the pool lives in the cave and is not `Xfer`'d, so a load
+resets it. **Enforcement is partial**: the shared gate refuses everything a player cannot pay for,
+but only unit production debits the pool, so a structure placed or an upgrade researched is
+correctly refused and then costs nothing. See
+[`docs/second-resource.md`](docs/second-resource.md) §9.
 
 `UniqueProductionIdPatch()`. **No parameters** — there is one id mint and one right answer. It
 rewrites the ten bytes of `ProductionUpdateInterface::requestUniqueUnitID` in place (ten for ten,
@@ -400,6 +458,7 @@ a byte-identity check that `count=64` reproduces the shipped `game.dat`.
 | [`docs/terrain-resource-exp.md`](docs/terrain-resource-exp.md) | full RE writeup for `terrain-resource-exp`: the module's field table and the two padding bytes the new `Bool` goes in, the experience block at the tail of `update` and why its first instruction is the right thing to hook, the constructor rewrite that buys the default for nothing, and `AutoDepositUpdate::GiveNoXP` — the stock field, and stock gate, this reproduces. |
 | [`docs/hero-mana.md`](docs/hero-mana.md) | full RE writeup for `hero-mana`: why `UnitCost` is inert on a hero (the shared no-horde branch, at three sites), the activation path and the six callers of `canUseSpecialPower` that make one hook reach the AI too, `Object+0x74` as the object id, the `SpecialPower` table's two references and the `0x88 → 0x94` struct growth, and the compute-on-read pool that needs no per-frame, init, destroy or savegame hook. |
 | [`docs/unique-production-id.md`](docs/unique-production-id.md) | full RE writeup for `unique-production-id`: the path a hero recruit takes from `doCommandButton` to `ProductionUpdate::queueCreateUnit`, the per-player revive manager at `Player+0x758` and the `ProductionID` it keys entries on, where the money moves relative to the failure edge, and why the fix belongs at the mint rather than at the check or as a refund. |
+| [`docs/second-resource.md`](docs/second-resource.md) | full RE writeup for `second-resource`: the `Money` layout that makes `PlayerTemplate+0x34` look free and is not, why `Player::init`'s *entry* is the only hook that both seeds and clears, the `ModuleData` padding and the three-byte constructor rewrite that buys the default, the `UInt16` parser's word store, the two non-overlapping block-key windows this shares with `command-point-upkeep`, what two patches rebuilding one field table means for `verify`, and why the palantir's resource readout needs no `.apt` edit despite being a data binding. |
 | [`docs/command-point-upkeep.md`](docs/command-point-upkeep.md) | full RE writeup for `command-point-upkeep`: the one reader of `ResourceModifierValues` and the three properties upkeep inherits from it, the command-point bookkeeping at `Player+0x60`, why a `PlayerTemplate` cannot hold the numbers (no hole, 24 size literals, and a parse-time `this` that is a stack temporary) and why its `NameKeyType` can, the one-reference field table, and the cdecl vararg rule that decides where the palantir hook goes. |
 | [`docs/runtime-re-workflow.md`](docs/runtime-re-workflow.md) | the static+dynamic RE method (Ghidra, Cheat Engine, INI field tables) used to recover these offsets, with the verified `Player`/`ThingTemplate` layouts. |
 | [`docs/message-stream.md`](docs/message-stream.md) | `TheMessageStream` (`0x00DE6398`), `appendMessage` (vtable `+0x48`) and all eleven `append*Argument` helpers - the order-injection path - plus the authoritative 147-name `GameMessage::Type` network enum recovered from `getCommandTypeAsAsciiString`. Closes OPEN 10 of [`order_space_map.md`](../sage_replay/order_space_map.md). |

@@ -28,10 +28,6 @@ from sage_patch.addresses import (
     AUTO_DEPOSIT_SCALE_BYTES,
     AUTO_DEPOSIT_SCALE_RESUME,
     INI_PARSE_INT,
-    PALANTIR_COMMAND_POINTS,
-    PALANTIR_COMMAND_POINTS_BYTES,
-    PALANTIR_COMMAND_POINTS_DONE,
-    PALANTIR_COMMAND_POINTS_RESUME,
     PLAYER_TEMPLATE_BLOCK_KEY,
     PLAYER_TEMPLATE_BLOCK_KEY_BYTES,
     PLAYER_TEMPLATE_BLOCK_KEY_RESUME,
@@ -136,7 +132,6 @@ def plant_sites(data: bytearray, vas: list[int], strings: bytes) -> None:
     for va, window in (
         (PLAYER_TEMPLATE_BLOCK_KEY, PLAYER_TEMPLATE_BLOCK_KEY_BYTES),
         (AUTO_DEPOSIT_SCALE, AUTO_DEPOSIT_SCALE_BYTES),
-        (PALANTIR_COMMAND_POINTS, PALANTIR_COMMAND_POINTS_BYTES),
     ):
         data[at(va) : at(va) + len(window)] = window
 
@@ -153,20 +148,20 @@ def patched(image: bytearray) -> bytes:
     return bytes(data)
 
 
-def cave(data: bytes, *, hud: bool = True):
+def cave(data: bytes):
     """``(section VA, code VA, code bytes)`` for the emitted routines."""
     section_va, off, vsize = find_section(data, cpu.SECTION_NAME)
     all_entries = read_field_table(data, CommandPointUpkeepPatch._resolve(data))  # noqa: SLF001
     entries = all_entries[: len(all_entries) - len(cpu.FIELDS)]
-    code_off = CommandPointUpkeepPatch(hud=hud)._code_offset(entries)  # noqa: SLF001
+    code_off = CommandPointUpkeepPatch()._code_offset(entries)  # noqa: SLF001
     return section_va, section_va + code_off, bytes(data[off + code_off : off + vsize])
 
 
-def labels(data: bytes, *, hud: bool = True) -> dict[str, int]:
+def labels(data: bytes) -> dict[str, int]:
     section_va, _off, _vsize = find_section(data, cpu.SECTION_NAME)
     all_entries = read_field_table(data, CommandPointUpkeepPatch._resolve(data))  # noqa: SLF001
     entries = all_entries[: len(all_entries) - len(cpu.FIELDS)]
-    asm = CommandPointUpkeepPatch(hud=hud)._assemble(section_va, entries)  # noqa: SLF001
+    asm = CommandPointUpkeepPatch()._assemble(section_va, entries)  # noqa: SLF001
     return {name: asm.label_va(name) for name in asm._labels}  # noqa: SLF001
 
 
@@ -250,17 +245,19 @@ class TestTheCave:
         # one balanced pair of our own, plus the displaced `fild` the resume point consumes
         assert (pushes, pops) == (2, 1)
 
-    def test_the_format_string_carries_three_numbers(self):
-        assert cpu.FORMAT.count("%d") == 3
-        assert cpu.FORMAT == "%d/%d (-%d%%)"
-
-    def test_the_format_string_is_utf16_and_terminated(self, patched):
-        """Read the way the engine reads it - 16-bit units to the first null one - because a
-        byte-wise search for `00 00` lands off-boundary inside perfectly good text."""
+    def test_the_percent_export_points_at_the_percent_routine(self, patched):
+        """`inflation-readout` calls through this slot, so a stale or mis-sized value here is a
+        call into whatever the cave happens to hold at that address."""
         _va, off, _vsize = find_section(patched, cpu.SECTION_NAME)
-        raw = bytes(patched[off + cpu._FMT_OFF :])  # noqa: SLF001
-        units = [raw[i : i + 2] for i in range(0, len(raw) - 1, 2)]
-        assert b"".join(units[: units.index(b"\x00\x00")]).decode("utf-16-le") == cpu.FORMAT
+        exported = struct.unpack_from("<I", patched, off + cpu._EXPORT_OFF)  # noqa: SLF001
+        assert exported[0] == labels(patched)["percent"]
+
+    def test_the_export_sits_in_padding_the_cave_was_not_using(self):
+        """Exporting has to cost nothing: the block key is one dword at 0x00 and the rows start
+        at 0x10, so 0x04 is a hole. If either moved, this would be silently overlapping them."""
+        assert cpu._KEY_OFF == 0  # noqa: SLF001
+        assert cpu._KEY_OFF + 4 <= cpu._EXPORT_OFF  # noqa: SLF001
+        assert cpu._EXPORT_OFF + 4 <= cpu._ROWS_OFF  # noqa: SLF001
 
     def test_the_row_table_and_the_block_key_start_zeroed(self, patched):
         """A zero key is the empty marker, so a dirty table would hand a faction another
@@ -327,12 +324,6 @@ class TestTheHooks:
                 "block",
             ),
             (AUTO_DEPOSIT_SCALE, AUTO_DEPOSIT_SCALE_BYTES, AUTO_DEPOSIT_SCALE_RESUME, "deposit"),
-            (
-                PALANTIR_COMMAND_POINTS,
-                PALANTIR_COMMAND_POINTS_BYTES,
-                PALANTIR_COMMAND_POINTS_RESUME,
-                "text",
-            ),
         ],
     )
     def test_each_site_is_a_jump_to_its_routine_padded_with_nops(
@@ -352,7 +343,6 @@ class TestTheHooks:
         for window in (
             PLAYER_TEMPLATE_BLOCK_KEY_BYTES[:2],  # the `mov edi, eax`; the call is re-emitted
             AUTO_DEPOSIT_SCALE_BYTES,
-            PALANTIR_COMMAND_POINTS_BYTES,
         ):
             assert window in code
 
@@ -360,52 +350,26 @@ class TestTheHooks:
         spans = [
             range(PLAYER_TEMPLATE_BLOCK_KEY, PLAYER_TEMPLATE_BLOCK_KEY_RESUME),
             range(AUTO_DEPOSIT_SCALE, AUTO_DEPOSIT_SCALE_RESUME),
-            range(PALANTIR_COMMAND_POINTS, PALANTIR_COMMAND_POINTS_RESUME),
             range(PLAYER_TEMPLATE_FIELD_TABLE_REFS[0], PLAYER_TEMPLATE_FIELD_TABLE_REFS[0] + 5),
         ]
         for a, b in itertools.combinations(spans, 2):
             assert not set(a) & set(b)
 
-    def test_the_text_hook_rejoins_after_the_stock_cleanup(self, patched):
-        """The three-vararg path does its own `add esp, 20`, so it must not fall back into the
-        stock `add esp, 16`."""
-        capstone = pytest.importorskip("capstone")
-        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
-        _section, code_va, code = cave(patched)
-        text = labels(patched)["text"]
-        body = [i for i in md.disasm(code, code_va) if text <= i.address < text + 0x50]
-        cleanups = [i.op_str for i in body if i.mnemonic == "add" and i.op_str.startswith("esp")]
-        assert cleanups == ["esp, 0x14"]
-        assert any(
-            i.mnemonic == "jmp" and int(i.op_str, 16) == PALANTIR_COMMAND_POINTS_DONE for i in body
-        )
-
-
-class TestTheHudIsOptional:
-    def test_no_hud_leaves_the_palantir_bytes_alone(self, image):
-        data = bytearray(image)
-        CommandPointUpkeepPatch(hud=False).apply(data)
-        off = va_to_offset(data, PALANTIR_COMMAND_POINTS)
-        assert bytes(data[off : off + len(PALANTIR_COMMAND_POINTS_BYTES)]) == (
-            PALANTIR_COMMAND_POINTS_BYTES
-        )
-
-    def test_no_hud_still_charges(self, image):
-        data = bytearray(image)
-        CommandPointUpkeepPatch(hud=False).apply(data)
-        assert data[va_to_offset(data, AUTO_DEPOSIT_SCALE)] == 0xE9
-
-    def test_no_hud_applies_and_verifies(self, image):
-        data = bytearray(image)
-        patch = CommandPointUpkeepPatch(hud=False)
-        patch.apply(data)
-        assert patch.verify(data) == []
-
-    def test_a_hud_build_does_not_verify_as_a_no_hud_one(self, patched):
-        """`_edits` only lists bytes a configuration writes, so without an explicit check the
-        no-hud verifier would happily pass a build whose HUD half is installed."""
-        problems = CommandPointUpkeepPatch(hud=False).verify(patched)
-        assert any("HUD half off" in p for p in problems)
+    def test_it_draws_nothing(self, image, patched):
+        """This patch used to append `(-10%)` to the palantir's command-point text. That number
+        is a strict subset of what `inflation-readout`'s multiplier slot now shows, so the only
+        thing to assert about the display is that this patch no longer touches one."""
+        differing = {i for i in range(len(image)) if image[i] != patched[i]}
+        engine = {i for i in differing if i < len(image)}
+        hooks: set[int] = set()
+        for va, length in (
+            (PLAYER_TEMPLATE_FIELD_TABLE_REFS[0], 5),
+            (PLAYER_TEMPLATE_BLOCK_KEY, len(PLAYER_TEMPLATE_BLOCK_KEY_BYTES)),
+            (AUTO_DEPOSIT_SCALE, len(AUTO_DEPOSIT_SCALE_BYTES)),
+        ):
+            off = va_to_offset(image, va)
+            hooks |= set(range(off, off + length))
+        assert not engine - hooks - set(range(0, 0x400))
 
 
 class TestApply:
@@ -418,7 +382,6 @@ class TestApply:
             (PLAYER_TEMPLATE_FIELD_TABLE_REFS[0], 5),
             (PLAYER_TEMPLATE_BLOCK_KEY, len(PLAYER_TEMPLATE_BLOCK_KEY_BYTES)),
             (AUTO_DEPOSIT_SCALE, len(AUTO_DEPOSIT_SCALE_BYTES)),
-            (PALANTIR_COMMAND_POINTS, len(PALANTIR_COMMAND_POINTS_BYTES)),
         ):
             off = va_to_offset(image, va)
             edited |= set(range(off, off + length))
