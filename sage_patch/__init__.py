@@ -28,6 +28,9 @@ them), not one mod in particular.
 * :class:`TerrainResourceExpPatch` adds a `GiveNoXP` boolean to `TerrainResourceBehavior` -
   the field `AutoDepositUpdate` already has - so a resource spot can pay its owner without
   levelling its own building.
+* :class:`BannerFilterPatch` adds an `ObjectFilter` keyword to `BannerCarrierUpdate`, limiting
+  which nearby hordes a banner carrier replenishes - by kind, template, or (unlike the engine's
+  own ally-wide partition scan) to the banner owner's own hordes via `SAME_PLAYER`.
 
     from sage_patch import AiReviveGatePatch, apply_patches, CommandSetLimitPatch
     apply_patches(
@@ -40,6 +43,7 @@ them), not one mod in particular.
 from sage_patch.patcher import Patch, apply_patches
 from sage_patch.patches import (
     AiReviveGatePatch,
+    BannerFilterPatch,
     CahFactionsPatch,
     CommandPointUpkeepPatch,
     CommandSetLimitPatch,
@@ -54,6 +58,7 @@ from sage_patch.sagepatch import generate
 
 __all__ = [
     "AiReviveGatePatch",
+    "BannerFilterPatch",
     "CahFactionsPatch",
     "CommandPointUpkeepPatch",
     "CommandSetLimitPatch",

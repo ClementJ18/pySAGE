@@ -1,6 +1,7 @@
 """Concrete :class:`~sage_patch.patcher.Patch` implementations."""
 
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
+from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.cah_factions import CahFactionsPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
@@ -16,6 +17,7 @@ from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 
 __all__ = [
     "AiReviveGatePatch",
+    "BannerFilterPatch",
     "CahFactionsPatch",
     "CommandPointUpkeepPatch",
     "CommandSetLimitPatch",

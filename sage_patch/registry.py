@@ -3,6 +3,7 @@ lists, applies and verifies. Add a patch here to expose it on the command line."
 
 from sage_patch.patcher import Patch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
+from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.cah_factions import CahFactionsPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
@@ -30,6 +31,7 @@ PATCHES: dict[str, type[Patch]] = {
     TerrainResourceExpPatch.name: TerrainResourceExpPatch,
     HeroManaPatch.name: HeroManaPatch,
     CommandPointUpkeepPatch.name: CommandPointUpkeepPatch,
+    BannerFilterPatch.name: BannerFilterPatch,
 }
 
 __all__ = ["PATCHES"]
