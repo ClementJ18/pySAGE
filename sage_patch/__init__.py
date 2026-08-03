@@ -31,6 +31,9 @@ them), not one mod in particular.
 * :class:`TerrainResourceExpPatch` adds a `GiveNoXP` boolean to `TerrainResourceBehavior` -
   the field `AutoDepositUpdate` already has - so a resource spot can pay its owner without
   levelling its own building.
+* :class:`SciencePrereqPatch` lets `PrerequisiteSciences` name a science defined later in the
+  file, so a mutually dependent pair no longer has to be closed from `map.ini` - and, by
+  default, still reports any name that is missing once every science file has been read.
 * :class:`BannerFilterPatch` adds an `ObjectFilter` keyword to `BannerCarrierUpdate`, limiting
   which nearby hordes a banner carrier replenishes - by kind, template, or (unlike the engine's
   own ally-wide partition scan) to the banner owner's own hordes via `SAME_PLAYER`.
@@ -54,6 +57,7 @@ from sage_patch.patches import (
     InflationReadoutPatch,
     ProductionConditionPatch,
     ReplayOutcomePatch,
+    SciencePrereqPatch,
     SecondResourcePatch,
     SkirmishReplayPatch,
     TerrainResourceExpPatch,
@@ -72,6 +76,7 @@ __all__ = [
     "Patch",
     "ProductionConditionPatch",
     "ReplayOutcomePatch",
+    "SciencePrereqPatch",
     "SecondResourcePatch",
     "SkirmishReplayPatch",
     "TerrainResourceExpPatch",

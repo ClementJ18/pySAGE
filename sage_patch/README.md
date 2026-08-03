@@ -132,6 +132,20 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   engine's own formatter with a third vararg, so it needs no `.apt` and no `.csf`/`.str` edit
   (a mod's `APT:PalantirCommandPoints` string is a design-time placeholder the engine overwrites
   every refresh). `--no-hud` leaves the text stock.
+- **`science-prereqs`** lets **`PrerequisiteSciences` name a science defined later in the file**,
+  so a mutually dependent pair (`C` needs `A or D`, `D` needs `B or C`) no longer has to be closed
+  from `map.ini`. It is the smallest patch here — one `rel32` and a 16-byte cave — because
+  `ScienceType` **is** the `NameKeyType`: `getScienceFromInternalName` computes the key *before* it
+  checks the name is known, and `nameToKey` mints a key for a name it has not seen, so a forward
+  reference and a backward one store the identical dword. Removing the check cannot produce a
+  degraded value, and a key that never gets a definition is one no player can hold, so the group is
+  simply unsatisfiable. By default the safety net stays: every name that did not resolve is
+  recorded, and a detour immediately after the `initSubsystem` call that loads `TheScienceStore`
+  re-checks the list and throws the engine's own message for the first one still missing — the same
+  text a modder sees today, because this build's INI handler never adds file and line to begin
+  with. `--no-report-missing` drops that half; `--all-keywords` widens the relaxation to every
+  science-name keyword by repointing the shared thunk instead. A `map.ini` that defines a `Science`
+  block runs after the check and is not covered. **Not yet runtime-verified in game.**
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 

@@ -14,6 +14,7 @@ from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.live_bridge import LiveBridgePatch
 from sage_patch.patches.production_condition import ProductionConditionPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
+from sage_patch.patches.science_prereqs import SciencePrereqPatch
 from sage_patch.patches.second_resource import SecondResourcePatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
@@ -36,6 +37,7 @@ PATCHES: dict[str, type[Patch]] = {
     BannerFilterPatch.name: BannerFilterPatch,
     SecondResourcePatch.name: SecondResourcePatch,
     InflationReadoutPatch.name: InflationReadoutPatch,
+    SciencePrereqPatch.name: SciencePrereqPatch,
 }
 
 __all__ = ["PATCHES"]
