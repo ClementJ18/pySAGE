@@ -91,6 +91,25 @@ python -m sage_mods.edain.map_checks <path-to-map-file>
 python -m sage_mods.edain.map_checks --help     # list codes / exclude specific checks
 ```
 
+## Skirmish bot
+
+`sage_mods.edain.bot` plays a live skirmish through [`sage_live`](../../sage_live): it lays
+an economy, widens what it can recruit, buys the upgrades its buildings actually sell, and
+takes the map settlement by settlement. It needs the `live-bridge` patch and an elevated
+shell, like everything else that issues orders.
+
+```sh
+python -m sage_mods.edain.bot --game <install>            # play
+python -m sage_mods.edain.bot --game <install> --dry-run   # decide and print, send nothing
+```
+
+It is Edain-specific in the same way the rest of this package is - the build orders in
+`plans.py` name Edain templates - but nothing below `decide` is: classification comes from
+`KindOf`, the recruitable set from each building's live `CommandSet`, and the army mix from
+the faction's own `ArmyDefinition`. The package docstring is the design record, and
+`tuning.py` is the first place to look when a run goes wrong: every threshold there carries
+the measurement that put it at that number.
+
 ## Claude Code skill
 
 The `bfme-faction` skill packages the faction graph as an agent-facing tool - read,

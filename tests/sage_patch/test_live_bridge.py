@@ -11,23 +11,34 @@ import struct
 
 import pytest
 
+from sage_patch.addresses import (
+    THE_TACTICAL_VIEW,
+    VIEW_GET_LOCATION_VTABLE_SLOT,
+    VIEW_LOCATION_SIZE,
+    VIEW_SET_LOCATION_VTABLE_SLOT,
+)
 from sage_patch.patches.live_bridge import (
     ARG_APPENDERS,
     ARG_STRIDE,
     ARGS_OFF,
+    BUFFER_TAG,
     BY_POINTER,
+    CAMERA_OFF,
     CODE_OFF,
     GAME_LOGIC_UPDATE_VTABLE_SLOT,
     HOOK_ORIGINAL,
     HOOK_RETURN_VA,
     HOOK_VA,
+    LOCATION_OFF,
     MAX_ARGS,
     SECTION_NAME,
     TABLE_OFF,
+    TAG_OFF,
     THE_MESSAGE_STREAM,
     LiveBridgePatch,
     build_section,
 )
+from sage_patch.utils import find_section
 
 BASE = 0x00F00000
 
@@ -84,6 +95,45 @@ def test_section_layout_is_buffer_then_table_then_code():
     assert table == ARG_APPENDERS
     # the command buffer starts zeroed, so a freshly patched game has no pending order
     assert section[:ARGS_OFF] == b"\x00" * ARGS_OFF
+
+
+def test_the_buffer_carries_its_layout_tag():
+    """The writer computes its offsets from this module; the cave it addresses was built by
+    whichever version patched the binary. The tag is how those two are told apart."""
+    section = build_section(BASE)
+    assert struct.unpack_from("<I", section, TAG_OFF)[0] == BUFFER_TAG
+
+
+def test_the_camera_block_starts_idle_and_fits_a_view_location():
+    section = build_section(BASE)
+    assert struct.unpack_from("<I", section, CAMERA_OFF)[0] == 0
+    assert LOCATION_OFF + VIEW_LOCATION_SIZE == CODE_OFF
+    assert section[LOCATION_OFF:CODE_OFF] == b"\x00" * VIEW_LOCATION_SIZE
+
+
+def test_the_camera_block_calls_both_view_accessors_through_the_vtable():
+    """One call each way, and both on the view rather than on anything else the cave holds."""
+    calls = [i for i in disassemble() if i.mnemonic == "call"]
+    setters = [i for i in calls if hex(VIEW_SET_LOCATION_VTABLE_SLOT) in i.op_str]
+    getters = [i for i in calls if hex(VIEW_GET_LOCATION_VTABLE_SLOT) in i.op_str]
+    assert len(setters) == len(getters) == 1
+    assert setters[0].op_str == f"dword ptr [edx + {VIEW_SET_LOCATION_VTABLE_SLOT:#x}]"
+    assert getters[0].op_str == f"dword ptr [edx + {VIEW_GET_LOCATION_VTABLE_SLOT:#x}]"
+
+
+def test_the_camera_block_reads_the_tactical_view_global():
+    ops = [i.op_str for i in disassemble()]
+    assert any(f"[0x{THE_TACTICAL_VIEW:x}]" in op for op in ops)
+
+
+def test_a_camera_command_pushes_the_location_and_never_adjusts_the_stack():
+    """`setLocation` and `getLocation` are thiscall and clean their own argument. An
+    `add esp, 4` after either would unbalance the stack under the hook's pushad."""
+    insns = disassemble()
+    location = BASE + LOCATION_OFF
+    pushes = [i for i in insns if i.mnemonic == "push" and i.op_str == hex(location)]
+    assert len(pushes) == 2, "one push of the location per direction"
+    assert not [i for i in insns if i.mnemonic == "add" and i.op_str == "esp, 4"]
 
 
 def test_argument_area_holds_max_args():
@@ -164,7 +214,7 @@ def test_the_buffer_addresses_are_all_inside_the_section():
                 continue
             value = int(token[1:-1], 16)
             seen.add(value)
-    engine_globals = {THE_MESSAGE_STREAM}
+    engine_globals = {THE_MESSAGE_STREAM, THE_TACTICAL_VIEW}
     for value in seen - engine_globals:
         assert section_lo <= value < section_hi, f"{value:#010x} is outside the command buffer"
     assert seen & engine_globals == engine_globals
@@ -205,6 +255,17 @@ def test_apply_then_verify_round_trips():
     patch = LiveBridgePatch()
     patch.apply(image)
     assert patch.verify(image) == []
+
+
+def test_verify_reports_a_cave_built_to_another_layout():
+    """A patched-but-stale binary is the one case the import-the-offsets rule cannot cover."""
+    image = synthetic_image()
+    patch = LiveBridgePatch()
+    patch.apply(image)
+    located = find_section(image, SECTION_NAME)
+    assert located is not None
+    struct.pack_into("<I", image, located[1] + TAG_OFF, BUFFER_TAG - 1)
+    assert any("re-applied" in problem for problem in patch.verify(image))
 
 
 def test_apply_refuses_an_image_whose_hook_site_is_not_the_expected_bytes():

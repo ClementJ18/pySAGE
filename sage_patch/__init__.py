@@ -34,9 +34,15 @@ them), not one mod in particular.
 * :class:`SciencePrereqPatch` lets `PrerequisiteSciences` name a science defined later in the
   file, so a mutually dependent pair no longer has to be closed from `map.ini` - and, by
   default, still reports any name that is missing once every science file has been read.
+* :class:`MultiExecuteGatePatch` makes an `OK_FOR_MULTI_EXECUTE` button respect each selected
+  unit's own `EnableOnModelCondition` / `DisableOnModelCondition`, instead of running the
+  ability on the whole group as soon as one member qualifies.
 * :class:`BannerFilterPatch` adds an `ObjectFilter` keyword to `BannerCarrierUpdate`, limiting
   which nearby hordes a banner carrier replenishes - by kind, template, or (unlike the engine's
   own ally-wide partition scan) to the banner owner's own hordes via `SAME_PLAYER`.
+* :class:`SpawnUnionPatch` makes an object with several `SpawnBehavior`s use all of their spawns
+  rather than the first module's alone - which is what a `SPAWNS_ARE_THE_WEAPONS` structure
+  attacks with, and also what gets told that a slave died.
 
     from sage_patch import AiReviveGatePatch, apply_patches, CommandSetLimitPatch
     apply_patches(
@@ -54,12 +60,15 @@ from sage_patch.patches import (
     CommandPointUpkeepPatch,
     CommandSetLimitPatch,
     HeroManaPatch,
+    HordeOrphanTargetPatch,
     InflationReadoutPatch,
+    MultiExecuteGatePatch,
     ProductionConditionPatch,
     ReplayOutcomePatch,
     SciencePrereqPatch,
     SecondResourcePatch,
     SkirmishReplayPatch,
+    SpawnUnionPatch,
     TerrainResourceExpPatch,
     UniqueProductionIdPatch,
 )
@@ -72,13 +81,16 @@ __all__ = [
     "CommandPointUpkeepPatch",
     "CommandSetLimitPatch",
     "HeroManaPatch",
+    "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
+    "MultiExecuteGatePatch",
     "Patch",
     "ProductionConditionPatch",
     "ReplayOutcomePatch",
     "SciencePrereqPatch",
     "SecondResourcePatch",
     "SkirmishReplayPatch",
+    "SpawnUnionPatch",
     "TerrainResourceExpPatch",
     "UniqueProductionIdPatch",
     "apply_patches",

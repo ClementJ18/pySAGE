@@ -11,8 +11,8 @@ from dataclasses import dataclass
 import pytest
 
 from sage_live import LiveNames, NameLookup, NoNameLookup, Session, UnknownDefinition
-from sage_live.backend import LoopbackBackend
-from sage_live.naming import nearby
+from sage_live.backends.base import LoopbackBackend
+from sage_live.utils.naming import nearby
 
 
 @dataclass(frozen=True)

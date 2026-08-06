@@ -14,7 +14,7 @@ themselves (`Object+0x31C`, `Player+0x30C`) are recorded in `EngineLayout`.
 
 from __future__ import annotations
 
-from sage_live.observation import GameObject, Observation, PlayerState
+from sage_live.api.observation import GameObject, Observation, PlayerState
 
 
 def _object(object_id: int, side: str, owner: int | None) -> GameObject:

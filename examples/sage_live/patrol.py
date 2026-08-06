@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root on pat
 from _common import attach, centre_of, describe, issue, starter_units  # noqa: E402
 
 from sage_live import orders  # noqa: E402
-from sage_live.bridge import BridgeBackend  # noqa: E402
+from sage_live.backends.bridge import BridgeBackend  # noqa: E402
 
 
 def report(backend: BridgeBackend, ids: set[int]) -> None:

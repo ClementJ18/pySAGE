@@ -201,7 +201,11 @@ select = [
 
 [tool.mypy]
 python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
-files = ["sage_apt", "sage_asset", "sage_ini", "sage_live", "sage_map", "sage_mods", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah"]
+files = ["sage_apt", "sage_asset", "sage_ini", "sage_live", "sage_map", "sage_mods", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah", "examples/sage_live"]
+# `examples/sage_live` is checked because those scripts drive a *live* game: they cannot be
+# exercised by the data-free suite, so a typo in an attribute name surfaces mid-match against a
+# real process rather than in CI. Ruff alone does not catch that - it took an `AttributeError`
+# on a method that had been renamed. The rest of `examples/` is not checked yet.
 disable_error_code = ["annotation-unchecked"]
 # Same one-off RE scans ruff skips above (see [tool.ruff] extend-exclude): they import a sibling
 # `pe` module that is only resolvable with the scripts directory on sys.path.

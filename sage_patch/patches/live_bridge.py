@@ -9,6 +9,13 @@ the hook checks the buffer; when an order is pending it calls ``TheMessageStream
 ``appendMessage``, appends each argument through the engine's own ``append*Argument``
 helpers, and clears the pending flag.
 
+**The camera is the second, separate command.** It is not an order and does not go through
+the message stream: the camera is client state that the simulation never reads, so there is
+nothing to network-order and nothing to desync. The hook calls ``TheTacticalView``'s
+``setLocation`` (or ``getLocation``, to read the live camera back out) exactly as the game's
+own camera-bookmark hotkeys do. Both directions matter - reading first is what lets a caller
+change where the camera looks while keeping the zoom and facing it already had.
+
 **Why a patch and not a DLL.** Order injection needs only a per-frame callback on the logic
 thread and a place to read bytes from. With no ASLR the buffer's address is a constant, so
 the writer just uses ``WriteProcessMemory`` - no loader, no injector, no proxy library. Real
@@ -35,10 +42,20 @@ Buffer layout, at the section base::
     +0x08  arg_count    dword   number of arguments that follow
     +0x0C  (reserved)   dword
     +0x10  args         MAX_ARGS x 20 bytes: {type, v0, v1, v2, v3}
+           appenders    one address per OrderArgumentType
+           tag          dword   BUFFER_TAG - the layout this cave was built to
+           camera       dword   CAMERA_APPLY / CAMERA_CAPTURE, cleared by the hook
+           location     32 bytes ViewLocation, written by whichever direction ran
 
 An argument's four value slots carry either one value (the by-value types) or the bytes of a
 structure the engine reads through a pointer (`Position` is three floats, `ScreenRectangle`
 four, `ScreenPosition` two, `WideChar` one 16-bit unit).
+
+``tag`` exists because the writer computes these offsets from *this module* while the cave
+they address was assembled by whichever version of it patched the binary. Importing the
+offsets keeps one process consistent; it says nothing about a `game.dat` patched last month.
+A tag the writer does not recognise means the two disagree, and reading it is the difference
+between a clear "re-apply the patch" and a camera write landing in the appender table.
 """
 
 from __future__ import annotations
@@ -52,12 +69,24 @@ from ..addresses import (
     GAME_LOGIC_UPDATE_ENTRY,
     GAME_LOGIC_UPDATE_VTABLE_SLOT,
     THE_MESSAGE_STREAM,
+    THE_TACTICAL_VIEW,
+    VIEW_GET_LOCATION_VTABLE_SLOT,
+    VIEW_LOCATION_SIZE,
+    VIEW_SET_LOCATION_VTABLE_SLOT,
 )
 from ..asm import JA, JE, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
-__all__ = ["ARG_APPENDERS", "LiveBridgePatch", "MAX_ARGS", "SECTION_NAME"]
+__all__ = [
+    "ARG_APPENDERS",
+    "BUFFER_TAG",
+    "CAMERA_APPLY",
+    "CAMERA_CAPTURE",
+    "LiveBridgePatch",
+    "MAX_ARGS",
+    "SECTION_NAME",
+]
 
 SECTION_NAME = ".livebrg"
 
@@ -82,7 +111,62 @@ ORDER_TYPE_OFF = 0x04
 ARG_COUNT_OFF = 0x08
 ARGS_OFF = 0x10
 TABLE_OFF = ARGS_OFF + MAX_ARGS * ARG_STRIDE
-CODE_OFF = TABLE_OFF + len(ARG_APPENDERS) * 4
+TAG_OFF = TABLE_OFF + len(ARG_APPENDERS) * 4
+CAMERA_OFF = TAG_OFF + 4
+LOCATION_OFF = CAMERA_OFF + 4
+CODE_OFF = LOCATION_OFF + VIEW_LOCATION_SIZE
+
+# `'BL'` in the high half and the layout revision in the low, as one dword a stale binary
+# cannot plausibly hold. Bump the revision whenever an offset above moves, so a writer built
+# against the new layout refuses an image carrying the old one instead of writing into the
+# middle of it. Revision 1 is the order-only buffer, which carried no tag at all.
+BUFFER_TAG = 0x424C0002
+
+# The two camera directions, written into `camera` and cleared by the hook once served.
+CAMERA_APPLY = 1
+CAMERA_CAPTURE = 2
+
+
+def _emit_camera(a: Asm, base_va: int) -> None:
+    """Serve a pending camera command, then fall through to the hook's tail.
+
+    Nothing here touches `GameLogic`. The view is the client's, and the engine ticks logic and
+    client from the same loop on the same thread, so this runs where the camera's own code
+    runs - the reason the camera rides in the order hook rather than needing a second one.
+
+    `setLocation` and `getLocation` are `__thiscall` and clean their own argument, which is why
+    no `add esp, 4` follows either call; the engine's own bookmark sites do the same.
+    """
+    camera = base_va + CAMERA_OFF
+    location = base_va + LOCATION_OFF
+
+    a.emit(0xA1, struct.pack("<I", camera))  # mov eax, [camera]
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "done")
+
+    # No view means the client has not built one yet. Leave the command pending rather than
+    # dropping it: unlike an order it is not stale a frame later, and the next frame can serve
+    # it. A caller that cares is watching the flag anyway.
+    a.emit(0x8B, 0x0D, struct.pack("<I", THE_TACTICAL_VIEW))  # mov ecx, [TheTacticalView]
+    a.emit(0x85, 0xC9)  # test ecx, ecx
+    a.jcc(JE, "done")
+
+    a.emit(0x8B, 0x11)  # mov edx, [ecx]            ; vtable
+    a.emit(0x83, 0xF8, CAMERA_CAPTURE)  # cmp eax, CAMERA_CAPTURE
+    a.jcc(JE, "capture")
+
+    a.emit(0x68, struct.pack("<I", location))  # push location
+    a.emit(0xFF, 0x92, struct.pack("<I", VIEW_SET_LOCATION_VTABLE_SLOT))  # call [edx+0x174]
+    a.jmp("camera_clear")
+
+    a.label("capture")
+    a.emit(0x68, struct.pack("<I", location))  # push location
+    a.emit(0xFF, 0x92, struct.pack("<I", VIEW_GET_LOCATION_VTABLE_SLOT))  # call [edx+0x170]
+
+    # Cleared last, and only once the buffer holds the answer: on a capture the flag is what
+    # tells the reader the 32 bytes are the view's and not the ones it wrote itself.
+    a.label("camera_clear")
+    a.emit(0xC7, 0x05, struct.pack("<I", camera), b"\x00\x00\x00\x00")  # mov [camera], 0
 
 
 def _build_code(base_va: int) -> bytes:
@@ -99,7 +183,7 @@ def _build_code(base_va: int) -> bytes:
 
     a.emit(0xA1, struct.pack("<I", ready))  # mov eax, [ready]
     a.emit(0x85, 0xC0)  # test eax, eax
-    a.jcc(JE, "done")
+    a.jcc(JE, "camera")
 
     a.emit(0x8B, 0x0D, struct.pack("<I", THE_MESSAGE_STREAM))  # mov ecx, [TheMessageStream]
     a.emit(0x85, 0xC9)  # test ecx, ecx
@@ -145,6 +229,9 @@ def _build_code(base_va: int) -> bytes:
     a.label("clear")
     a.emit(0xC7, 0x05, struct.pack("<I", ready), b"\x00\x00\x00\x00")  # mov [ready], 0
 
+    a.label("camera")
+    _emit_camera(a, base_va)
+
     a.label("done")
     a.emit(0x61)  # popad
     a.emit(0x9D)  # popfd
@@ -154,9 +241,10 @@ def _build_code(base_va: int) -> bytes:
 
 
 def build_section(base_va: int) -> bytes:
-    """The whole ``.livebrg`` payload: command buffer, appender table, then code."""
+    """The whole ``.livebrg`` payload: command buffer, appender table, tag, then code."""
     body = bytearray(CODE_OFF)
     struct.pack_into(f"<{len(ARG_APPENDERS)}I", body, TABLE_OFF, *ARG_APPENDERS)
+    struct.pack_into("<I", body, TAG_OFF, BUFFER_TAG)
     return bytes(body) + _build_code(base_va)
 
 
@@ -164,7 +252,8 @@ class LiveBridgePatch(Patch):
     name = "live-bridge"
     description = (
         "Hook GameLogic::update so an external process can inject orders into the "
-        "message stream by writing a command buffer in the appended .livebrg section."
+        "message stream, and place the camera, by writing a command buffer in the "
+        "appended .livebrg section."
     )
 
     def apply(self, data: bytearray) -> None:
@@ -216,4 +305,10 @@ class LiveBridgePatch(Patch):
         table = struct.unpack_from(f"<{len(ARG_APPENDERS)}I", data, section_off + TABLE_OFF)
         if table != ARG_APPENDERS:
             problems.append("the argument-appender table does not match the expected addresses")
+        tag = struct.unpack_from("<I", data, section_off + TAG_OFF)[0]
+        if tag != BUFFER_TAG:
+            problems.append(
+                f"the command buffer is tagged {tag:#010x}, not {BUFFER_TAG:#010x} - this cave "
+                "was built to a different layout and must be re-applied"
+            )
         return problems

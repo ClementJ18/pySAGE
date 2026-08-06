@@ -193,7 +193,7 @@ right; the id is a genuine BFME2 addition, and `MSG_DO_SALVAGE` lives separately
 | id | map says | binary says | note |
 |---|---|---|---|
 | `0x419` | "Generals `MSG_DOZER_CONSTRUCT` signature" | **`MSG_FOUNDATION_CONSTRUCT`** | the *meaning* (placement-UI build) is right; only the Generals name attribution was off. `MSG_DOZER_CONSTRUCT` is `0x41A`, which the map already reads correctly as the mobile-builder case |
-| `0x444` | "camera jump (Generals `MSG_SET_REPLAY_CAMERA` raw id + signature)" 🟡 | **`MSG_PLACE_BEACON`** | `MSG_SET_REPLAY_CAMERA` is `0x447`. A beacon also carries a Position, so the observed `(Position)` signature stays consistent |
+| `0x444` | "camera jump (Generals `MSG_SET_REPLAY_CAMERA` raw id + signature)" 🟡 | **`MSG_PLACE_BEACON`** | `MSG_SET_REPLAY_CAMERA` is `0x447`. A beacon also carries a Position, so the observed `(Position)` signature stays consistent. That message is telemetry *out* rather than a way to drive the camera — see [`camera-control.md`](camera-control.md), which does it with one call on `TheTacticalView` instead |
 | `0x473`/`0x474`/`0x475` | "all-client echoes … prime **fortress-destroyed / defeat-event** candidate" 🟡 | **`MSG_ADD_TO_TEAM1/2/3`** | the fortress-destroyed hypothesis is **refuted**. The names are ground truth; the observed behaviour (every client emitting the same ObjectId within 1–2 frames, only in the final minutes) is *not* explained by a control-group add and needs revisiting |
 
 **Two ❓ entries newly named**, both fitting their observed behaviour well:
@@ -346,7 +346,7 @@ OPEN 8 — see [`live-object-model.md`](live-object-model.md) section 1.
 
 **The player index is not transmitted, and the two spaces disagree.** `encode_order` sends
 `order_type`, `arg_count` and the arguments — nothing else. The engine attributes the order to
-the local player itself, so the `player` argument on every `sage_live.orders` constructor is
+the local player itself, so the `player` argument on every `sage_live.api.orders` constructor is
 **inert for injection** and matters only when round-tripping through `serialize_replay`. In
 this game the in-memory `PlayerList` index was **3** and the replay recorded **player 2**. One
 data point: it may be a constant −1, or the replay may simply not number a leading slot. Do

@@ -2,7 +2,8 @@
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read from the repo's
 clean `game.dat`. Implemented by [`patches/command_point_upkeep.py`](../patches/command_point_upkeep.py);
-the pre-implementation cost estimate is in [`ideas/command-point-upkeep.md`](ideas/command-point-upkeep.md).
+the palantir side of it lives in [`inflation-readout.md`](inflation-readout.md), which draws the
+product of both patches' factors.
 
 **What it does.** A faction's resource buildings pay less as its army grows. Two new
 `PlayerTemplate` fields declare the curve, the deposit is scaled by it, and the palantir's

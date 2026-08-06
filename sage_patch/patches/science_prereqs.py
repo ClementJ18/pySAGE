@@ -1,7 +1,7 @@
 """Forward references in `PrerequisiteSciences`: let a science name one that is defined later.
 
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/ideas/science-forward-references.md``.
+in ``../docs/science-forward-references.md``.
 
 **What the engine does today.** `PrerequisiteSciences` has its own parse function,
 `0x0073BCBF` - the only one that understands the `OR` token, and the only field in the game that

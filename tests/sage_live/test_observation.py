@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from sage_live.observation import GameObject, Observation, PlayerState, ProductionItem, distance
+from sage_live.api.observation import GameObject, Observation, PlayerState, ProductionItem, distance
 
 
 def obj(
@@ -301,7 +301,14 @@ def _two_sided() -> Observation:
         frame=1,
         local_player=3,
         players=(
-            PlayerState(index=3, name="me", faction="Men", resources=900, power_points=4),
+            PlayerState(
+                index=3,
+                name="me",
+                faction="Men",
+                resources=900,
+                power_points=4,
+                sciences=frozenset({16, 36}),
+            ),
             PlayerState(
                 index=4,
                 name="foe",
@@ -309,6 +316,7 @@ def _two_sided() -> Observation:
                 resources=5000,
                 resources_collected=9000,
                 power_points=7,
+                sciences=frozenset({22, 192}),
                 command_points=(60, 500),
                 upgrades=frozenset({"Upgrade_MordorForgedBlades"}),
             ),
@@ -331,11 +339,13 @@ def test_my_own_production_is_untouched():
 
 def test_an_opponents_economy_is_hidden():
     """Gold, income, spellbook points, command points and researches are engine state with no
-    on-screen equivalent."""
+    on-screen equivalent - and so is which spellbook powers they have bought. A cast tells you
+    about the one power that fired; nothing shows the book."""
     foe = _two_sided().without_godsight().player(4)
     assert foe.resources == 0
     assert foe.resources_collected == 0
     assert foe.power_points == 0
+    assert foe.sciences == frozenset()
     assert foe.command_points == (0, 0)
     assert foe.upgrades == frozenset()
 
@@ -350,6 +360,7 @@ def test_who_an_opponent_is_stays_visible():
 def test_my_own_player_is_untouched():
     me = _two_sided().without_godsight().player(3)
     assert me.resources == 900 and me.power_points == 4
+    assert me.sciences == frozenset({16, 36})
 
 
 def test_the_objects_are_all_still_there():

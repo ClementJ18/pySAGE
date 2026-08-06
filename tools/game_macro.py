@@ -8,6 +8,18 @@ until a game is loaded. So the menus get driven the only way they can be - as in
     python tools/game_macro.py play skirmish.json       # replays it
     python tools/game_macro.py play skirmish.json --launch
 
+**Restarting without returning to the menu.** `record --in-match` captures the pause menu's
+restart button instead, and `play --restart` replays it into a live match. That is what makes an
+unattended loop possible: a defeat no longer has to be walked back through the post-match lobby,
+whose buttons sit at the same coordinates as the main menu's and mean different things there.
+
+    python tools/game_macro.py record restart.json --in-match   # F12 when done
+    python tools/game_macro.py play restart.json --restart
+
+The restart path is verified by the match **cycling** - `in_match` dropping and rising again -
+rather than by asking whether a match is running, which is already true when those clicks go in
+and would report success without a restart having happened.
+
 **Reproducible matches** come from pairing this with `skirmish_config`: the clicks get into a
 match, and the lobby file decides *which* match. `start` takes the lobby fields directly and
 applies them before launching, so one command produces the same game every time:
@@ -50,8 +62,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling tools, when 
 
 from skirmish_config import SkirmishConfig  # noqa: E402
 
-from sage_live.connect import AttachError, open_backend  # noqa: E402
-from sage_live.memory import MemoryBackend, find_game_processes  # noqa: E402
+from sage_live.api.connect import AttachError, open_backend  # noqa: E402
+from sage_live.backends.memory import MemoryBackend, find_game_processes  # noqa: E402
 from sage_replay.replay import ReplaySlotType  # noqa: E402
 
 __all__ = [
@@ -413,6 +425,22 @@ def wait_for_match(pid: int, timeout: float = 180.0) -> bool:
     return False
 
 
+def wait_for_restart(pid: int, timeout: float = 240.0) -> bool:
+    """Block until the match *cycles* - the one that was running ends and a new one comes up.
+
+    `wait_for_match` cannot verify a restart. A match is already running when the restart is
+    clicked, so it answers true on its first poll and reports success before anything has
+    happened - and a caller believing it then drives the match it meant to abandon. The honest
+    signal is the transition, so this waits for `in_match` to drop and only then to rise.
+    """
+    deadline = time.monotonic() + timeout
+    while in_match(pid):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.5)
+    return wait_for_match(pid, timeout=max(1.0, deadline - time.monotonic()))
+
+
 def wait_for_shell_map(pid: int, timeout: float = 120.0, advance: int = 60) -> bool:
     """Block until the menu's shell map is simulating - the honest "the menu is up" signal.
 
@@ -461,24 +489,34 @@ def await_menu(pid: int) -> None:
     time.sleep(BLIND_MENU_WAIT)
 
 
-def record(path: Path, pid: int | None = None) -> int:
+def record(path: Path, pid: int | None = None, in_match_mode: bool = False) -> int:
     """Capture input until a match starts (or F12 is pressed).
 
-    A recording has to begin at the menu, so if a match is already up this waits for it to end
-    rather than stopping on its own start condition the moment it is asked to record.
+    A menu recording has to begin at the menu, so if a match is already up this waits for it to
+    end rather than stopping on its own start condition the moment it is asked to record.
+
+    `in_match_mode` records the other kind: input given *inside* a running match, which is the
+    pause menu and its restart button. Both of those preconditions invert for it - it must not
+    wait for the menu, and it must not stop merely because a match is running, since one always
+    is. F12 is therefore the only way to end such a recording.
     """
     pid = pid or wait_for_process()
     hwnd = wait_for_window(pid)
     width, height = client_size(hwnd)
     print(f"recording against pid {pid}, game window {hwnd}, client {width}x{height}")
 
-    if in_match(pid):
-        print("a match is already running - quit to the main menu to start recording")
-        while in_match(pid):
-            time.sleep(0.5)
-        time.sleep(2.0)  # let the menu settle before the first sample
-
-    print("navigate the menus into a skirmish. Recording stops when the match starts (or F12).")
+    if in_match_mode:
+        if not in_match(pid):
+            print("no match is running - start one first; this records input from inside a match")
+            return 1
+        print("in-match recording: open the pause menu, click restart, then press F12.")
+    else:
+        if in_match(pid):
+            print("a match is already running - quit to the main menu to start recording")
+            while in_match(pid):
+                time.sleep(0.5)
+            time.sleep(2.0)  # let the menu settle before the first sample
+        print("navigate the menus into a skirmish. Recording stops when the match starts (or F12).")
 
     events: list[Event] = []
     started = time.monotonic()
@@ -495,7 +533,7 @@ def record(path: Path, pid: int | None = None) -> int:
         if _down(_VK_F12):
             print("\nF12 - stopping")
             break
-        if now >= next_match_check:
+        if not in_match_mode and now >= next_match_check:
             next_match_check = now + 1.0
             if in_match(pid):
                 print("\na match is running - stopping")
@@ -534,23 +572,37 @@ def play(
     speed: float = 1.0,
     settle: float = 2.0,
     wait_menu: bool = True,
+    restart: bool = False,
 ) -> int:
     """Replay a recording into the game, then wait for the match to actually start.
 
     A menu recording only means anything from the menu, so by default this waits for any
     running match to end rather than replaying clicks into a live game, where they would land
     on the battlefield as real orders.
+
+    `restart` is the inverse case - a recording of the pause menu's restart button, which is
+    only meaningful *inside* a match. It therefore waits for neither the menu nor the match to
+    end, and it verifies the result with `wait_for_restart`: a match is already running when
+    those clicks go in, so the ordinary "is a match up?" check would answer yes immediately and
+    call the restart a success without one having happened.
     """
     recording = Recording.from_json(path.read_text(encoding="utf-8"))
     pid = pid or wait_for_process()
     hwnd = wait_for_window(pid)
-    await_menu(pid)
 
-    if wait_menu and in_match(pid):
-        print("a match is running - waiting for it to end before replaying menu input")
-        while in_match(pid):
-            time.sleep(0.5)
-        time.sleep(settle)
+    if restart:
+        if not in_match(pid):
+            raise SystemExit(
+                "no match is running - a restart recording is pause-menu input and only means "
+                "anything inside one"
+            )
+    else:
+        await_menu(pid)
+        if wait_menu and in_match(pid):
+            print("a match is running - waiting for it to end before replaying menu input")
+            while in_match(pid):
+                time.sleep(0.5)
+            time.sleep(settle)
 
     want = (recording.client_width, recording.client_height)
     if not wait_for_client_size(hwnd, want):
@@ -583,6 +635,14 @@ def play(
             _send(_mouse_event(flags))
         elif event.kind in ("keydown", "keyup"):
             _send(_key_event(event.vk, event.kind == "keyup"))
+
+    if restart:
+        print("replay finished; waiting for the match to end and a new one to come up")
+        if wait_for_restart(pid):
+            print("a new match is running")
+            return 0
+        print("the match did not cycle - the pause menu probably did not take the clicks")
+        return 1
 
     print("replay finished; waiting for the match to start")
     if wait_for_match(pid):
@@ -678,6 +738,11 @@ def main(argv: list[str] | None = None) -> int:
 
     rec = sub.add_parser("record", help="capture menu navigation until a match starts")
     rec.add_argument("path", type=Path)
+    rec.add_argument(
+        "--in-match",
+        action="store_true",
+        help="record inside a running match (the pause menu's restart); stops on F12 only",
+    )
 
     run = sub.add_parser("play", help="replay a recording and wait for the match")
     run.add_argument("path", type=Path)
@@ -688,6 +753,11 @@ def main(argv: list[str] | None = None) -> int:
         "--now",
         action="store_true",
         help="replay immediately instead of waiting for any running match to end",
+    )
+    run.add_argument(
+        "--restart",
+        action="store_true",
+        help="an in-match restart recording: replay into the live match and verify it cycled",
     )
 
     start = sub.add_parser("start", help="click through a named-step script into a match")
@@ -707,10 +777,16 @@ def main(argv: list[str] | None = None) -> int:
             launch(args.launch)
         return run_script(args.path, settle=args.settle)
     if args.command == "record":
-        return record(args.path)
+        return record(args.path, in_match_mode=args.in_match)
     if args.launch:
         launch(args.launch)
-    return play(args.path, speed=args.speed, settle=args.settle, wait_menu=not args.now)
+    return play(
+        args.path,
+        speed=args.speed,
+        settle=args.settle,
+        wait_menu=not args.now,
+        restart=args.restart,
+    )
 
 
 if __name__ == "__main__":

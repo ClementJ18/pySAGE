@@ -16,36 +16,69 @@ with sage_live.attach() as game:
     print(observation.me.resources, len(observation.mine))
 ```
 
+Everything a consumer needs is re-exported here, so the short name is the supported one:
+`sage_live.attach`, `sage_live.Session`, `sage_live.Observation`. The three layers below are
+for reading the source and for the rarer imports, not for everyday use.
+
+- `sage_live.api` - the interface: `connect`, `session`, `observation`, `orders`.
+- `sage_live.backends` - where the bytes come from: `base` (and `LoopbackBackend`), `memory`,
+  `bridge`, and the `protocol` / `identity` / `snapshot` support beneath them.
+- `sage_live.utils` - the lookups: `naming`, `heroes`, and the two ini-backed ones, `resolve`
+  and `statics`.
+
 `Session` sits on a `Backend`. `LoopbackBackend` is scripted and in-process, so the whole
 Python surface is exercised with no game, no Windows and no reverse-engineering; other
 backends read a live process or talk to an injected bridge. Backends are constructed
 explicitly and check their platform in the constructor, never at import.
 
-This package root is **install-free**: nothing below needs a game on disk. Two modules do and
-are therefore not re-exported - import them from their own module:
+This package root is **install-free**: nothing re-exported below needs a game on disk. Two
+modules do, and are therefore reachable only from their own module:
 
-- `resolve` turns code names into a specific build's integer ids.
-- `statics` turns a template name into the ini facts about it, which is how a live object is
-  classified at all: a build plot, a horde container, a thing that counts for victory.
+```python
+from sage_live.utils.resolve import Resolver   # code names -> this build's integer ids
+from sage_live.utils.statics import Statics    # a template name -> the ini facts about it
+```
 
-Upgrade and template names need no such load: the engine's own registries are readable, and
-`attach` fits a `LiveNames` to the session automatically.
+`statics` is how a live object is classified at all: a build plot, a horde container, a thing
+that counts for victory. Upgrade and template names need no such load - the engine's own
+registries are readable, and `attach` fits a `LiveNames` to the session automatically.
 
 The live layouts these backends read are documented in `sage_patch/docs/engine-globals.md`,
 `sage_patch/docs/live-object-model.md` and `sage_patch/docs/message-stream.md`.
 """
 
-from sage_live.backend import Backend, ConnectionRefused, GameExited, LoopbackBackend
-from sage_live.bridge import BridgeBackend, BridgeUnavailable
-from sage_live.connect import (
+from sage_live.api import orders
+from sage_live.api.camera import CameraPan, ViewLocation
+from sage_live.api.connect import (
     AttachError,
     NoGameRunning,
     NotPermitted,
     attach,
     open_backend,
 )
-from sage_live.heroes import ReviveLookup, ReviveSlot
-from sage_live.memory import (
+from sage_live.api.observation import (
+    GameObject,
+    Observation,
+    PlayerState,
+    ProductionItem,
+    Vec3,
+    distance,
+)
+from sage_live.api.orders import OrderType
+from sage_live.api.session import (
+    BUILD_CONFIRM,
+    DEFAULT_APM_CAP,
+    DEFAULT_CONFIRM,
+    APMLimiter,
+    IllegitimateOrder,
+    NoReviveLookup,
+    NoSelection,
+    Sent,
+    Session,
+)
+from sage_live.backends.base import Backend, ConnectionRefused, GameExited, LoopbackBackend
+from sage_live.backends.bridge import BridgeBackend, BridgeUnavailable
+from sage_live.backends.memory import (
     LAYOUT_ROTWK_201,
     EngineLayout,
     MemoryBackend,
@@ -54,22 +87,7 @@ from sage_live.memory import (
     UpgradeDefinition,
     find_game_processes,
 )
-from sage_live.naming import (
-    LiveNames,
-    NameLookup,
-    NoNameLookup,
-    UnknownDefinition,
-)
-from sage_live.observation import (
-    GameObject,
-    Observation,
-    PlayerState,
-    ProductionItem,
-    Vec3,
-    distance,
-)
-from sage_live.orders import OrderType
-from sage_live.protocol import (
+from sage_live.backends.protocol import (
     OBSERVATION_STRUCT_VERSION,
     PROTOCOL_VERSION,
     Diagnostic,
@@ -84,18 +102,14 @@ from sage_live.protocol import (
     encode_handshake,
     encode_observation,
 )
-from sage_live.session import (
-    BUILD_CONFIRM,
-    DEFAULT_APM_CAP,
-    DEFAULT_CONFIRM,
-    APMLimiter,
-    IllegitimateOrder,
-    NoReviveLookup,
-    NoSelection,
-    Sent,
-    Session,
+from sage_live.backends.snapshot import RecordingSource, SnapshotSource
+from sage_live.utils.heroes import ReviveLookup, ReviveSlot
+from sage_live.utils.naming import (
+    LiveNames,
+    NameLookup,
+    NoNameLookup,
+    UnknownDefinition,
 )
-from sage_live.snapshot import RecordingSource, SnapshotSource
 
 __all__ = [
     "BUILD_CONFIRM",
@@ -109,6 +123,7 @@ __all__ = [
     "Backend",
     "BridgeBackend",
     "BridgeUnavailable",
+    "CameraPan",
     "ConnectionRefused",
     "Diagnostic",
     "DiagnosticLog",
@@ -138,19 +153,21 @@ __all__ = [
     "ReviveLookup",
     "ReviveSlot",
     "Sent",
-    "SnapshotSource",
     "Session",
+    "SnapshotSource",
     "UnknownDefinition",
     "UpgradeDefinition",
     "Vec3",
+    "ViewLocation",
     "attach",
-    "distance",
-    "find_game_processes",
-    "open_backend",
     "decode_frames",
     "decode_handshake",
     "decode_observation",
+    "distance",
     "encode_frame",
     "encode_handshake",
     "encode_observation",
+    "find_game_processes",
+    "open_backend",
+    "orders",
 ]

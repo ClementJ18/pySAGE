@@ -13,7 +13,7 @@ Fixtures below reproduce both states, so this stays in the data-free suite.
 
 from __future__ import annotations
 
-from sage_live.observation import GameObject, Observation, PlayerState
+from sage_live.api.observation import GameObject, Observation, PlayerState
 
 
 def _object(object_id: int, template: str, side: str = "Civilian") -> GameObject:

@@ -41,7 +41,8 @@ SCIENCE_OFFSET = 1
 # registration index, and the engine registers `Upgrade_Veterancy_VETERAN`, `_ELITE` and
 # `_HEROIC` as indices 0-2 before parsing any `Upgrade` block - none of the three is defined in
 # ini anywhere. So this offset exists only because the table is rebuilt from ini; a consumer
-# reading `TheUpgradeCenter` out of a running game needs no offset (see `sage_live.memory`).
+# reading `TheUpgradeCenter` out of a running game needs no offset (see
+# `sage_live.backends.memory`).
 # Confirmed live: 976/976 templates satisfy `engine index == ini index + 3`.
 UPGRADE_OFFSET = 3
 

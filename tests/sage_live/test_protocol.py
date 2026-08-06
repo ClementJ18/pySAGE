@@ -7,8 +7,8 @@ import logging
 
 import pytest
 
-from sage_live.observation import GameObject, Observation, PlayerState, ProductionItem
-from sage_live.protocol import (
+from sage_live.api.observation import GameObject, Observation, PlayerState, ProductionItem
+from sage_live.backends.protocol import (
     FRAME_HEADER,
     FRAME_MAGIC,
     OBSERVATION_STRUCT_VERSION,
@@ -38,6 +38,7 @@ def make_observation() -> Observation:
                 resources=2870,
                 resources_collected=5020,
                 power_points=4,
+                sciences=frozenset({16, 36}),
                 command_points=(12, 80),
                 upgrades=frozenset({"Upgrade_GondorForgedBlades", "Upgrade_GondorHeavyArmor"}),
             ),
@@ -288,6 +289,24 @@ def test_player_upgrades_in_progress_survive_the_round_trip():
     assert got is not None
     assert got.players[0].upgrades_in_progress == frozenset({"Upgrade_B"})
     assert got.players[0].researching("upgrade_b")
+
+
+def test_held_sciences_survive_the_round_trip():
+    """The field a policy asks "have I already bought that power". Dropping it over the wire
+    would make a bot on the bridge backend buy every power it already holds, for ever - which
+    is the failure the struct version records for `GameObject.upgrades`."""
+    obs = Observation(
+        frame=1,
+        local_player=0,
+        players=(
+            PlayerState(
+                index=0, name="Player_1", faction="Men", resources=0, sciences=frozenset({16, 36})
+            ),
+        ),
+    )
+    got, _ = decode_observation(encode_observation(obs))
+    assert got is not None
+    assert got.players[0].sciences == frozenset({16, 36})
 
 
 def test_a_production_queue_survives_the_round_trip():

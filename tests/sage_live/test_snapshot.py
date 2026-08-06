@@ -27,6 +27,11 @@ per-field path touched and the wide reads miss the gaps between them. The decode
 takes its fallback path here and still produces the golden result, which is the fallback's
 contract - but it means this fixture does not exercise the fast path. Re-capturing during any
 future match records the new pattern and fixes that; nothing is wrong until then.
+
+**Both bit-order name tables are outside the capture**, so `conditions` and `status` decode
+empty for every object in the golden file. That is the sparse snapshot behaving as documented,
+not the engine saying an object is in no state at all - do not read those two fields here as
+facts about the match.
 """
 
 from __future__ import annotations
@@ -36,8 +41,8 @@ from pathlib import Path
 
 import pytest
 
-from sage_live.memory import MemoryBackend
-from sage_live.snapshot import RecordingSource, SnapshotSource
+from sage_live.backends.memory import MemoryBackend
+from sage_live.backends.snapshot import RecordingSource, SnapshotSource
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SNAPSHOT = FIXTURES / "match.snapshot.gz"
@@ -93,6 +98,20 @@ def test_containment_survives_a_real_decode(observation):
     for parent_id in parents:
         assert observation.obj(parent_id) is not None, "a container that is not in the table"
     assert not (parents & {m.object_id for m in members}), "a container is not itself contained"
+
+
+def test_the_producer_id_agrees_with_containment_on_a_real_match(observation):
+    """`Object+0x78`. It is read for the case where the two *disagree* - a unit that has left
+    its battalion still names it - so what makes the offset right is that on a healthy match
+    they agree everywhere: all 40 members of this capture name their own container.
+
+    Objects produced by something that does not contain them are ordinary and left alone here:
+    a lair's spawned creeps and a structure's fences both carry a producer and no parent.
+    """
+    members = [o for o in observation.objects if o.parent_id is not None]
+    assert members, "the captured match had battalions in it"
+    assert all(o.producer_id == o.parent_id for o in members)
+    assert all(observation.obj(o.producer_id) is not None for o in members)
 
 
 def test_orderable_drops_the_members_of_a_real_battalion(observation):

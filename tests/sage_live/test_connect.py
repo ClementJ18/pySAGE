@@ -11,10 +11,10 @@ from __future__ import annotations
 import pytest
 
 import sage_live
-from sage_live import connect as connect_module
-from sage_live.connect import AttachError, NoGameRunning, NotPermitted, attach, open_backend
-from sage_live.memory import EngineLayout, MemoryBackend
-from sage_live.naming import LiveNames
+from sage_live.api import connect as connect_module
+from sage_live.api.connect import AttachError, NoGameRunning, NotPermitted, attach, open_backend
+from sage_live.backends.memory import EngineLayout, MemoryBackend
+from sage_live.utils.naming import LiveNames
 from tests.sage_live.test_memory import FakeImage
 
 

@@ -30,8 +30,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from sage_live.memory import MemoryBackend, ProcessMemory, find_game_processes  # noqa: E402
-from sage_live.snapshot import RecordingSource  # noqa: E402
+from sage_live.backends.memory import (  # noqa: E402
+    MemoryBackend,
+    ProcessMemory,
+    find_game_processes,
+)
+from sage_live.backends.snapshot import RecordingSource  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:

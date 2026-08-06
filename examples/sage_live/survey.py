@@ -39,11 +39,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root on path
 
-from sage_live.connect import AttachError, open_backend  # noqa: E402
-from sage_live.memory import MemoryBackend  # noqa: E402
-from sage_live.naming import LiveNames  # noqa: E402
-from sage_live.observation import GameObject, Observation  # noqa: E402
-from sage_live.statics import Statics  # noqa: E402
+from sage_live.api.connect import AttachError, open_backend  # noqa: E402
+from sage_live.api.observation import GameObject, Observation  # noqa: E402
+from sage_live.backends.memory import MemoryBackend  # noqa: E402
+from sage_live.utils.naming import LiveNames  # noqa: E402
+from sage_live.utils.statics import Statics  # noqa: E402
 
 __all__ = ["main", "report_ids", "report_plots", "report_players"]
 
@@ -227,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
             # loading once here means the two reports below do not each pay for it. Imported
             # at point of use: these pull in `sage_ini`, which the rest of the survey does not
             # need.
-            from sage_live.resolve import Resolver  # noqa: PLC0415
+            from sage_live.utils.resolve import Resolver  # noqa: PLC0415
             from sage_utils.gameroot import resolve_game_root  # noqa: PLC0415
 
             root = resolve_game_root(args.game)

@@ -38,12 +38,26 @@ The internal split copies `sage_replay`'s, which is deliberate and load-bearing.
 root is **install-free** — `narrate`, `stats`, `translated` and `retarget` import `sage_ini` and
 are therefore *not* re-exported from `__init__`. Same rule here:
 
-- **stdlib-only, no game install:** `transport`, `protocol`, `observation`, `orders`, `session`.
-  These are what the core test suite exercises.
-- **needs a loaded game (`sage_ini`):** `resolve` only. Import it from its own module.
+- **stdlib-only, no game install:** everything under `api/` and `backends/`, plus `utils/naming`
+  and `utils/heroes`. These are what the core test suite exercises.
+- **needs a loaded game (`sage_ini`):** `utils/resolve` and `utils/statics`. Import them from
+  their own module.
 
-That keeps `from sage_live import connect` working on a machine with no game data, and it keeps
+That keeps `from sage_live import attach` working on a machine with no game data, and it keeps
 CONVENTIONS rule 7 satisfiable — a bare `pytest` must stay data-free.
+
+Where `sage_replay` is flat, `sage_live` is three folders, because it has three genuinely
+different kinds of module and a consumer should not have to guess which is which:
+
+| folder | role | a consumer imports it |
+|---|---|---|
+| `api/` | the interface — `connect`, `session`, `observation`, `orders` | constantly, via the root re-exports |
+| `backends/` | where bytes come from — `base`, `memory`, `bridge`, and `protocol` / `identity` / `snapshot` | to choose or build a backend |
+| `utils/` | the lookups — `naming`, `heroes`, `resolve`, `statics` | to join a live name against static data |
+
+The dependency arrows only ever point down and sideways: `api` uses `backends` and `utils`,
+`backends` uses neither of the other two, and `utils` uses only `api.observation` and
+`api.orders` for the types it hands back.
 
 ## 3. Architecture: one interface, three backends
 
@@ -112,7 +126,8 @@ class PlayerState:
     index: int
     faction: str            # Side token, e.g. "Mordor"
     resources: int
-    power_points: int       # spellbook
+    power_points: int       # spellbook, spendable
+    sciences: frozenset[int]          # held spellbook powers, by id (names need an ini load)
     command_points: tuple[int, int]   # used, cap
     upgrades: frozenset[str]          # completed, PLAYER-scoped only
 
@@ -145,14 +160,18 @@ Four notes that shape the design:
 - **`template_name` carries the whole unit model.** Once an object names its template, `sage_ini`
   and `sage_mods.edain` supply cost, armour, weapons, build time, command points and the faction
   tree. The observation stays small and the consumer joins against static data it already has.
-- **Two separate problems, and the design used to name only one.** *Fog* is visibility, and it
-  must be applied per player and explicitly — the engine knows what a player can see and the API
-  must not quietly hand over the whole map. `PartitionData` carries `m_shroudedness[player]` per
-  **object**, so the filter is a per-object lookup rather than a grid query; that offset is the
-  remaining work. *Godsight* is knowledge, and fog does not fix it: an enemy building in plain
-  view still has no readable production queue, and an opponent's economy has no on-screen
-  equivalent at all. `attach(godsight=False)` removes that today. Both should end up defaulting
-  to the honest setting, so training on impossible information is a deliberate act.
+- **Two separate problems, and both are now named and implemented.** *Fog* is visibility, and it
+  is applied per player and explicitly — the engine knows what a player can see and the API must
+  not quietly hand over the whole map. It turned out to be a **grid** query rather than the
+  per-object lookup this section predicted: `TheShroudManager` keeps a per-cell, per-player
+  revealer count, and `PartitionData::m_shroudedness` was not needed. `attach(fog=True)` applies
+  it; see [`fog-of-war.md`](../sage_patch/docs/fog-of-war.md), which also records that the grid
+  has no explored-but-not-seen state, so this fog has no memory of a scouted building.
+  *Godsight* is knowledge, and fog does not fix it: an enemy building in plain view still has no
+  readable production queue, and an opponent's economy has no on-screen equivalent at all.
+  `attach(godsight=False)` removes that. Both still default to the permissive setting so existing
+  consumers do not change under them, and both should end up defaulting to the honest one, so
+  training on impossible information is a deliberate act.
 - **Frozen dataclasses.** An observation is a snapshot; making it immutable stops a whole class of
   bug where a policy mutates last frame's world.
 
@@ -219,6 +238,14 @@ the same conclusion the order map reaches for a narrator.
 **APM cap as a first-class session option.** An unthrottled agent can emit orders at a rate no
 human could and that the engine was never tested against. `sage_replay`'s own stats give the
 realistic distribution to calibrate against. Default it on.
+
+**The camera is deliberately outside all of this.** `Session.look_at` moves it, and it is not an
+`Order`, not throttled by the cap, and not routed through the message stream — the camera is
+client state that no logic reads, so a placement cannot desync a match and cannot be discarded
+by game logic the way a real order can. That makes it the one write into a running game with no
+correctness argument attached, and the reason it exists is that an agent whose matches are worth
+watching has to point the camera at what it is doing. See
+[`camera-control.md`](../sage_patch/docs/camera-control.md).
 
 ## 7. Frame model: async now, stepped later, decided now
 

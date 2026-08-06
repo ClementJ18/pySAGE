@@ -63,6 +63,15 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   exists only to rescue the file before it is overwritten (`--rename added` keeps the stock
   behaviour for network games). Client-local, like `replay-outcome`. **Gate runtime-verified,
   naming re-test open** — see Status.
+- **`observer-switch`** makes a **skirmish replay let you change seat** — next/prior player, and
+  with it that player's vision, palantir and unlocked spellbook — which a network replay already
+  does. The palantir shows the observer bar on two conditions, and the failing one whitelists the
+  *recorded* game mode against `{1, 5}`; a skirmish records **2**, so the buttons never appear.
+  Nothing downstream is gated: the observer seat is installed on the playback mode, and the switch
+  itself re-runs the shroud manager for the new seat. The engine already ships the same predicate
+  with mode 2 added, so the patch aims one `call` at it — five bytes, no cave. The natural
+  companion to `skirmish-replay`, and independent of it. Client-local. **Not yet runtime-verified
+  in game.**
 - **`terrain-resource-exp`** adds a **`GiveNoXP`** boolean to `TerrainResourceBehavior`, so a
   resource spot can pay its owner without levelling its own building. The module hands the integer
   it just deposited to the building's `ExperienceTracker` on every income tick, and no INI field
@@ -146,6 +155,56 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   with. `--no-report-missing` drops that half; `--all-keywords` widens the relaxation to every
   science-name keyword by repointing the shared thunk instead. A `map.ini` that defines a `Science`
   block runs after the check and is not covered. **Not yet runtime-verified in game.**
+- **`multi-execute-gate`** makes an **`OK_FOR_MULTI_EXECUTE` button respect each selected unit's own
+  `EnableOnModelCondition` / `DisableOnModelCondition`**. Today it does not: the ControlBar lights
+  the button if *any* member of the selection qualifies (reasonable), and the click then runs the
+  ability on *every* member (not). The two rules never meet, because the click emits
+  `MSG_DO_SPECIAL_POWER` with the button's `Options` word and an object id of **zero**, and zero
+  means "the issuing player's whole selection" — so the logic side gets a `SpecialPowerTemplate` and
+  never sees the `CommandButton` the masks live on. Its per-member gate does check required
+  sciences, `UnitCost` and recharge; model conditions are simply not among the things it can ask
+  about. This adds that one question to the two group loops, by recovering the button from the
+  member itself through the engine's own object → command set → button walk — which reads the
+  *effective* command set (the three per-object overrides ahead of the template's), so a mod that
+  swaps sets at runtime still agrees with the button that was clicked. Two `rel32` and a
+  `0xDB`-byte cave; the button stays `OK_FOR_MULTI_EXECUTE`, the loop still visits every member, and
+  a member whose own button is disabled is skipped exactly as if it had failed the recharge check.
+  This is what Edain's *Ambush of the Wood-elves* command-set swap works around, at the cost of the
+  mass trigger. **Not yet runtime-verified in game.**
+- **`spawn-union`** makes an object with several `SpawnBehavior`s use **all** of their spawns.
+  `Object::getSpawnBehaviorInterface` walks the module list and returns on the **first** module that
+  answers, so a structure with two of them orders only the first one's slaves to attack, asks only
+  the first whether any slave can attack, and finds the closest slave only among the first — which
+  is the whole of what `SPAWNS_ARE_THE_WEAPONS` means. The same getter carries a plain bug: a dying
+  slave's death is reported to the first behavior alone, and `onSpawnDeath` returns having done
+  nothing when the id is not in *its* list, so a second behavior's slaves die with no list removal,
+  no live-count decrement and no respawn timer. Both spawn normally either way; spawning is each
+  module's own update. The patch replaces the getter — one 5-byte `jmp` and a `0x4A7`-byte cave —
+  with one that returns the stock answer for none and for one, and for two or more returns a
+  **proxy** whose sixteen slots re-walk the list: `void` methods broadcast, predicates are OR'd
+  (asking every behavior, no short-circuit), and `getClosestSlave` re-runs the distance comparison
+  the stock implementation does internally, through the engine's own helper. Reentrancy is covered
+  by a ring of eight proxies, since ordering slaves runs slave AI that comes back through the
+  getter. **This one changes the simulation**, so it has to be on every peer and its replays will
+  not play back on a stock build. **Not yet runtime-verified in game.**
+
+- **`herobar`** adds a **`HEROBAR`** kindof: every instance of one `ThingTemplate` shares a single
+  hero-bar slot, two different templates take two slots, and clicking a grouped slot selects the
+  whole group. Different from `PORTER`, which collapses *every* porter into one slot whatever
+  template it came from and clicks through them one at a time. It is cheap for two reasons. The
+  kindof is free: `KindOfMaskType` is 224 bits with 222 named, so the new bit needs no
+  `ThingTemplate` growth and no savegame change, and the table move is 14 references and 6 counts
+  against `production-condition`'s 16 and 10. And the hero bar is already most of the way there -
+  `slot+0x16` is a generic **"this slot is a group"** byte the click handler already dispatches on,
+  and a group slot is drawn with the *same* ActionScript calls as a hero slot, so **no `.apt` edit
+  is needed**. So the patch adds no drawing code at all: `HEROBAR` objects join the **hero** list
+  the draw loop already walks, and three small detours around that loop clear a per-pass set of
+  templates, send a duplicate to the engine's own "next node, no slot consumed" label, and mark the
+  slot it did draw. The removal pair is not optional - the stock `onObjectRemoved` accepts only
+  `HERO` and `PORTER`, so without it a dead `HEROBAR` object's node would sit on the list forever.
+  **No count badge** (a group slot shows the representative's rank, not a member count) and the bar
+  is still **16 slots**, so enough distinct groups push heroes off the end. **Not yet
+  runtime-verified in game.**
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -184,6 +243,10 @@ sage-patch verify replay-outcome game.dat
 sage-patch apply skirmish-replay --in game.dat.backup --out game.dat  # --modes 2 --rename all
 sage-patch verify skirmish-replay game.dat
 
+# the other half of watching a skirmish replay: the next/prior player buttons
+sage-patch apply observer-switch --in game.dat.backup --out game.dat        # no parameters
+sage-patch verify observer-switch game.dat
+
 # --pool is the fallback maximum in whole points, --regen the fallback refill in hundredths of a
 # point per logic frame (30 == one point per second at 30fps); a SpecialPower may override both.
 sage-patch apply hero-mana --pool 100 --regen 30 --in game.dat.backup --out game.dat
@@ -198,6 +261,10 @@ sage-patch verify command-point-upkeep game.dat
 sage-patch apply second-resource --in game.dat.backup --out game.dat
 sage-patch verify second-resource game.dat
 
+# one hero-bar slot per object type; --kindof renames the token from the default HEROBAR
+sage-patch apply herobar --in game.dat.backup --out game.dat
+sage-patch verify herobar game.dat
+
 # the mechanic without the palantir bracket or the tooltip one
 sage-patch apply second-resource --no-hud --in game.dat.backup --out game.dat
 
@@ -206,6 +273,10 @@ sage-patch apply skirmish-replay --rename added --in game.dat.backup --out game.
 
 sage-patch apply terrain-resource-exp --in game.dat.backup --out game.dat   # --keyword GiveNoXP
 sage-patch verify terrain-resource-exp game.dat
+
+# no parameters; --slots is read out of the image (33, or commandset-limit's N) unless pinned
+sage-patch apply multi-execute-gate --in game.dat.backup --out game.dat
+sage-patch verify multi-execute-gate game.dat
 ```
 
 `verify` re-derives the expected tables, the repointed references and every patched site from the
@@ -282,6 +353,7 @@ apply_patches(
 | [`patches/second_resource.py`](patches/second_resource.py) | `SecondResourcePatch` — a second per-player pool in a cave, granted by `AutoDepositUpdate.DepositAmount2` (a `UInt16` in `ModuleData` padding) and seeded by `PlayerTemplate.StartMoney2` (a name-keyed row, since the template has no hole) shown in brackets on the palantir, and priced by `Object.BuildCost2` through the one
 affordability gate every human production path shares |
 | [`patches/skirmish_replay.py`](patches/skirmish_replay.py) | `SkirmishReplayPatch` — add the skirmish game mode to the recorder's whitelist, and name the file by timestamp and map |
+| [`patches/multi_execute_gate.py`](patches/multi_execute_gate.py) | `MultiExecuteGatePatch` — add the missing per-member `Enable`/`DisableOnModelCondition` check to the two `AIGroup` special-power loops, recovering each member's own command button from its command set |
 
 `CommandSetLimitPatch(count=N)`. **`count` may be 34–127**; every offset, the object size, the
 field-parse table, the slot-name strings and the AI's scan bound are derived from it.
@@ -359,6 +431,30 @@ is the replay menu's Save Replay button — see Status. See
 > records **and** names its winner, which is the only way `sage_replay` can resolve a game
 > against an AI at all: the concession heuristic needs orders, and an AI issues none.
 
+`ObserverSwitchPatch()`. No parameters, no cave, and one `call` — five bytes at `0x006D7813`.
+
+The palantir shows or hides the observer bar (the APT clip `ObserverStuff`, holding
+`NextPlayerBttn` and `PriorPlayerBttn`) on the AND of two predicates: *is the local player sitting
+out* — true in any replay — and `0x0062541E`, which whitelists the **recorded** game mode against
+`{1, 5}`. A skirmish records **2**, so a skirmish replay never gets the bar and there is no way to
+change seat. Everything downstream already works: the observer seat is installed on the *playback*
+mode (3, whatever was recorded), and `PlayerList::observeNextPlayer` gates on nothing that cares
+about skirmish — it sets the observed player and re-runs `TheShroudManager` for that seat, which is
+the vision. The engine even ships the right predicate: `0x00625456` is the same function with mode
+2 added on both sides, has 31 callers, and is the one `skirmish-replay` already cites as proof
+playback anticipates a mode-2 recording. So the patch aims the call at it. See
+[`docs/observer-switch.md`](docs/observer-switch.md).
+
+> **`0x0062541E` has exactly one caller**, and it is this gate — so retargeting the call removes
+> the network-only predicate from the running binary rather than changing what some other feature
+> sees. The two functions are **adjacent**, which is why the patch anchors both by their first
+> bytes: a displacement off by a few lands in real code, not in a hole.
+
+> **Client-local, like `replay-outcome` and `skirmish-replay`.** `observeNextPlayer` issues no
+> `GameMessage`; it moves a camera and re-evaluates a shroud. One spillover: the bar now also
+> appears in a *live* skirmish once the local player is defeated — exactly what the stock engine
+> does in a live network game, and impossible while you are still playing.
+
 `SecondResourcePatch(hud=True)`. Three INI fields — `AutoDepositUpdate.DepositAmount2`,
 `PlayerTemplate.StartMoney2`, `Object.BuildCost2` — and ten hooks around a `.res2` cave.
 
@@ -406,6 +502,29 @@ the table has exactly one reference and is read through its terminator rather th
 
 > **Every peer must run the same patched binary**, and a mod using the keyword cannot run without
 > it at all — an unknown field in a known block is an INI parse error, not a warning. See Status.
+
+`MultiExecuteGatePatch(slots=None)`. **Effectively no parameters** — there is one missing check and
+one place it belongs. Two `rel32` repoints and a `0xDB`-byte `.mxgate` cave holding one predicate
+and two shims: the `call <per-member precondition gate>` that opens each of the two `AIGroup`
+special-power loops (`0x0076F6DA` for the targetless form, `0x00770B67` for the targeted ones) is
+retargeted at a shim that asks the predicate first and otherwise tail-jumps to the stock gate, so
+its own `ret` lands back in the loop. The predicate resolves the member's *effective* command set
+(`Object::getCommandSetString`, which reads three per-object overrides before the template's own
+field — so a command-set swap is honoured), finds the `SPECIAL_POWER` button whose power id matches
+the one the group was told to run, and answers false only when
+[the engine's own model-condition gate](docs/multi-execute-gate.md) calls that button disabled on
+that object. No match, no command set, no masks — all answer true, which is the stock behaviour.
+
+`slots` is the `CommandSet` slot bound the walk uses; `None` reads it out of the image, which is
+`33` unless `commandset-limit` raised it. That makes this the one bundled pair with an **order**:
+apply `commandset-limit` first. Applied the other way round nothing corrupts — a button past the
+bound is not found, and that member takes the stock path — but `verify` reports the disagreement and
+`detect` answers "not patched". See [`docs/multi-execute-gate.md`](docs/multi-execute-gate.md).
+
+> **Every peer must run the same patched binary.** This changes which objects a logic-side order
+> reaches, so a patched and an unpatched client diverge on the first multi-execute activation of a
+> model-conditioned button, and replays do not cross — the same requirement `production-condition`
+> carries, and the opposite of the client-local `replay-outcome` / `skirmish-replay`.
 
 ### Composing patches
 
@@ -468,11 +587,15 @@ a byte-identity check that `count=64` reproduces the shipped `game.dat`.
 | [`docs/ai-revive-gate.md`](docs/ai-revive-gate.md) | full RE writeup for `ai-revive-gate`: `BuildAssistant::canMakeUnit`'s two branches, why only one checks `NeededUpgrade`, the three AI-only call sites that make the fix player-safe, the slot-accounting argument, and what the patch deliberately leaves alone. |
 | [`docs/production-model-condition.md`](docs/production-model-condition.md) | full RE writeup for `production-condition`: the `ModelConditionFlags` anatomy (591 names in 19 dwords, 17 spare), why the 74-byte `xfer` window makes **exactly one** new condition free, the terminator-driven parser that needs no patch, the ten count bounds, `ProductionUpdate`'s queue, and why `update` never sleeping is what makes a single entry hook correct. Settles the `Object`-vs-`Drawable` question left open by `ai-revive-gate`. |
 | [`docs/replay-outcome.md`](docs/replay-outcome.md) | full RE writeup for `replay-outcome`: the `VictoryConditions` layout and its defeat latch, `RecorderClass`'s file handle and chunk writer, why the recordable range being the *network* range rules out injecting a message, the thirteen emitters of `MSG_CLEAR_GAME_DATA` and why the hook belongs on the consumer instead, and the header fields that stay consistent. |
+| [`docs/multi-execute-gate.md`](docs/multi-execute-gate.md) | full RE writeup for `multi-execute-gate`: the one routine that evaluates a button's two model-condition masks and its three ControlBar callers, the multi-select availability walk that answers "any member", the `SPECIAL_POWER` emitter that sends an object id of zero, what zero means to the message dispatcher, the two `and eax, 0x100000` instructions that are the whole implementation of `OK_FOR_MULTI_EXECUTE`, the per-member gate that checks sciences and recharge but is never handed the button, and the object → command set → button walk the engine already does twice that makes the button recoverable logic-side. |
 | [`docs/skirmish-replay.md`](docs/skirmish-replay.md) | full RE writeup for `skirmish-replay`: the `MSG_NEW_GAME` branch that is the whole decision to record, the game-mode enum recovered from its emitters (and why 2 is skirmish), why `startRecording`'s non-network path and the engine's playback predicates already handle it, the three helpers behind the file name and the second caller that makes the *call site* the patchable thing. |
+| [`docs/observer-switch.md`](docs/observer-switch.md) | full RE writeup for `observer-switch`: the APT clip and the two `SetObserverStuffState` thunks that are the observer bar, the two predicates the palantir ANDs before showing it and which of them rejects a skirmish, the sibling function that already accepts a recorded mode of 2, the playback path that installs the observer seat regardless of what was recorded, and the shroud refresh inside `observeNextPlayer` that makes the vision follow the button. |
 | [`docs/terrain-resource-exp.md`](docs/terrain-resource-exp.md) | full RE writeup for `terrain-resource-exp`: the module's field table and the two padding bytes the new `Bool` goes in, the experience block at the tail of `update` and why its first instruction is the right thing to hook, the constructor rewrite that buys the default for nothing, and `AutoDepositUpdate::GiveNoXP` — the stock field, and stock gate, this reproduces. |
 | [`docs/hero-mana.md`](docs/hero-mana.md) | full RE writeup for `hero-mana`: why `UnitCost` is inert on a hero (the shared no-horde branch, at three sites), the activation path and the six callers of `canUseSpecialPower` that make one hook reach the AI too, `Object+0x74` as the object id, the `SpecialPower` table's two references and the `0x88 → 0x94` struct growth, and the compute-on-read pool that needs no per-frame, init, destroy or savegame hook. |
 | [`docs/unique-production-id.md`](docs/unique-production-id.md) | full RE writeup for `unique-production-id`: the path a hero recruit takes from `doCommandButton` to `ProductionUpdate::queueCreateUnit`, the per-player revive manager at `Player+0x758` and the `ProductionID` it keys entries on, where the money moves relative to the failure edge, and why the fix belongs at the mint rather than at the check or as a refund. |
 | [`docs/second-resource.md`](docs/second-resource.md) | full RE writeup for `second-resource`: the `Money` layout that makes `PlayerTemplate+0x34` look free and is not, why `Player::init`'s *entry* is the only hook that both seeds and clears, the `ModuleData` padding and the three-byte constructor rewrite that buys the default, the `UInt16` parser's word store, the two non-overlapping block-key windows this shares with `command-point-upkeep`, what two patches rebuilding one field table means for `verify`, and why the palantir's resource readout needs no `.apt` edit despite being a data binding. |
+| [`docs/herobar.md`](docs/herobar.md) | full RE writeup for `herobar`: the 224-bit `KindOfMaskType` with 222 names used and the two confirmations of its width, the 14 table references and 6 counts, the 42-byte classifier that is the whole seam, the loop label that skips a node *without consuming a slot* (which is why no drawing code is added), the flags-not-targets shape both removal hooks need, and the slot-node validation that makes a stale group mark harmless. |
+| [`docs/ideas/herobar-kindof.md`](docs/ideas/herobar-kindof.md) | the pre-implementation costing behind it, kept as written - including the open blocker the shipped design turned out not to need. |
 | [`docs/command-point-upkeep.md`](docs/command-point-upkeep.md) | full RE writeup for `command-point-upkeep`: the one reader of `ResourceModifierValues` and the three properties upkeep inherits from it, the command-point bookkeeping at `Player+0x60`, why a `PlayerTemplate` cannot hold the numbers (no hole, 24 size literals, and a parse-time `this` that is a stack temporary) and why its `NameKeyType` can, the one-reference field table, and the cdecl vararg rule that decides where the palantir hook goes. |
 | [`docs/runtime-re-workflow.md`](docs/runtime-re-workflow.md) | the static+dynamic RE method (Ghidra, Cheat Engine, INI field tables) used to recover these offsets, with the verified `Player`/`ThingTemplate` layouts. |
 | [`docs/message-stream.md`](docs/message-stream.md) | `TheMessageStream` (`0x00DE6398`), `appendMessage` (vtable `+0x48`) and all eleven `append*Argument` helpers - the order-injection path - plus the authoritative 147-name `GameMessage::Type` network enum recovered from `getCommandTypeAsAsciiString`. Closes OPEN 10 of [`order_space_map.md`](../sage_replay/order_space_map.md). |
@@ -558,6 +681,18 @@ NONE 2) · `writeToFile` `0x77d8fc` · `updateRecord` `0x77f8b0` (records `0x1D`
 `0x3e8 < type < 0x7cf`) · `stopRecording` `0x77d8c8` · `TheCommandList` `0xde639c` ·
 `GameLogic::clearGameData` `0x625e36`, hook site `0x625e84`, `0x1D` append `0x625e91` ·
 `fwrite` `[0xbd053c]` · `fflush` `[0xbd065c]`.
+
+`ControlBar`'s model-condition gate `0x942490` (`stdcall(button, object)`, `ret 8`; 3 callers, all
+in the ControlBar) · `CommandButton` `Command` `+0x14` (`SPECIAL_POWER` = `0x18`), `Options` `+0x1c`,
+`SpecialPower` `+0x44`, `EnableOnModelCondition` `+0x194`, `DisableOnModelCondition` `+0x1e0` ·
+`Options` name table `0xda4c88` (32 entries; `OK_FOR_MULTI_EXECUTE` = bit 20) · the ControlBar's
+command executor `0x940435`, its multi-select availability walk `0x94056c`, its `SPECIAL_POWER`
+emitter `0x94153c` (object id **0**) · `MSG_DO_SPECIAL_POWER` dispatcher case `0x77a42c` ·
+`AIGroup::doSpecialPower` `0x76f5db` (multi-execute test `0x76f5ff`, member loop `0x76f697`, gate
+call `0x76f6da`, loop tail `0x76f704`) · `AIGroup::doSpecialPowerAt*` `0x77097e` (test `0x7709bd`,
+gate call `0x770b67`) · the two precondition gates `0x82d5da` (`ret 0x14`) / `0x82d925` (`ret 0x18`)
+· `Object::getCommandSetString` `0x69156b` · `ControlBar::findCommandSet` `0x71efa2` ·
+`Object+0x438`/`+0x43c`/`+0x440` the per-object command-set overrides.
 
 `RecorderClass::startRecording` `0x77ea03` (only caller `0x77f96e`) · `m_gameMode` `+0xed4`
 (stored at `0x77f923`) · `updateRecord`'s `MSG_NEW_GAME` branch `0x77f8d1`, the game-mode

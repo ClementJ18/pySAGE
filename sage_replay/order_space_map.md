@@ -170,7 +170,7 @@ EA's released source (`MessageStream.h`; see section E).
 | `0x430` | (Position) | second ground command at ~5% of `0x42F` volume - **attack-move** candidate | 🟡 |
 | `0x435` | () | no-arg on selection, mash bursts - stop / hold-position candidate (vs `0x461`) | ❓ |
 | `0x436`/`0x437`/`0x439` | () / (ObjId) / (ObjId) | rare; `0x439` = repair candidate | ❓ |
-| `0x43D` | () | rare but near-universal (~2-3/game) - ESC / cancel-mode candidate | ❓ |
+| `0x43D` | () | **`MSG_CASTLE_UNPACK`** - claim the selected plot, the engine picking the base from the target's own `CastleToUnpackForFaction` row for the issuing faction. The argument-less sibling of `0x43F`, and the narrower of the two: RotWK+Edain gives it 17 of the 166 unpack buttons, all neutral claims (`Command_UnpackOutpost*`, `Command_UnpackCamp`, `Command_UnpackEconomyPlot`), because a plot inside a base you own has had its palette swapped to explicit buttons by a `CommandSetUpgrade`. The "~2-3/game, ESC/cancel-mode" reading was **wrong** - that frequency is just how often a game claims an outpost. Ground truths: name recovered from the binary ([`message-stream.md`](../sage_patch/docs/message-stream.md) §3), injected live 2026-07-31 (Isengard economy plot → `IsengardLumberMill`), and recorded from a human's own click 2026-08-04 (`unpack.BfME2Replay` @724) | ✅ |
 | `0x444` | (Position) | camera jump (Generals `MSG_SET_REPLAY_CAMERA` raw id + signature) | 🟡 |
 | `0x453` | (ObjectId) | **end-of-game sweep**: exactly 17 per player, every player, same frames, at decided ends; plus sporadic mid-game bursts | 🟡 pattern; ❓ meaning |
 | `0x457` | - (ObjId = runtime unit) | toggle weapon set (bow↔sword etc.) | ✅ meaning |

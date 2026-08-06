@@ -16,15 +16,23 @@ hard-won gotchas behind them.
 
 Run from the repo root, e.g. `python examples/sage_live/patrol.py`.
 
+**The bot lives elsewhere.** The scripted skirmish player that used to sit here is now
+[`sage_mods.edain.bot`](../../sage_mods/edain/bot) — it grew a build order, an army mix and a
+map plan, all of which name Edain templates, so it belongs with the rest of the mod overlay
+rather than among examples of the API. Run it with `python -m sage_mods.edain.bot --game
+<install>`; the scripts below stay here because each demonstrates one part of the surface.
+
 ## The scripts
 
 | script | needs the patch | what it does |
 |---|---|---|
 | [`inspect_game.py`](inspect_game.py) | — | A read-only tour of the whole observation surface: players, economy, upgrades in both scopes, your army by template, and the nearest enemy to each of your objects. **Run this first** — if something reads wrong here, the layout is wrong for this build. `--wait` sits at the menu until a match starts. |
 | [`patrol.py`](patrol.py) | yes | Selects the starting units and walks them back and forth. The short demo. `--game` names them exactly (see below); without it, it orders the first two things you own. |
-| [`recruit_by_name.py`](recruit_by_name.py) | yes | Recruits a unit by template *name* instead of a raw id, via `sage_live.resolve`. Needs a `--game` install to load the tables from. |
+| [`recruit_by_name.py`](recruit_by_name.py) | yes | Recruits a unit by template *name* instead of a raw id, via `sage_live.utils.resolve`. Needs a `--game` install to load the tables from. |
 | [`upgrades.py`](upgrades.py) | yes | Researches an upgrade by name and verifies it landed, in whichever of the two scopes it belongs to. `--list` first. Needs no `--game`: upgrade names are read out of the engine. |
 | [`check_bridge.py`](check_bridge.py) | yes | Staged diagnostic: attach → no-argument order → by-value arguments → by-pointer arguments. Run this first when something is wrong. |
+| [`follow_action.py`](follow_action.py) | yes | Keeps the camera on the fighting, so a bot's match films itself. Sends no orders and touches nothing about the match — the camera is client state — so it runs happily alongside a policy that is playing, or over a human's game. `--ease 1.0` cuts instead of panning. |
+| [`horde_formation.py`](horde_formation.py) | for trials | The half-formed-horde bug in [`horde-formation-orphans.md`](../../sage_patch/docs/horde-formation-orphans.md). Trials recruit a battalion and order it *n* frames after it appears, sampling every frame to see whether it comes apart; `--sweep` walks *n* to zero. `--observe SECONDS` instead watches every battalion in the match, orders nothing, and needs neither the patch nor `--game`. Read its docstring first — forming looks like the bug for 16 frames, and trials provably cannot interrupt it. |
 | [`acceptance_inject.py`](acceptance_inject.py) | yes | Injects a scripted opening and logs exactly what was sent. |
 | [`acceptance_verify.py`](acceptance_verify.py) | — | Parses the recorded replay and checks it against that log. |
 

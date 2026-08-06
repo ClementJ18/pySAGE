@@ -240,6 +240,42 @@ upgrades need, so the arrays are wider than the ids in use. Read only as far as 
 count (`ceil(count / 32)` dwords); a stray bit in the unused tail must never decode to an
 upgrade.
 
+## 3a-bis. Sciences — `Player+0x310`, a vector rather than a mask
+
+Recovered 2026-08-04 in a live RotWK+Edain skirmish, by scanning each `Player` for a pointer
+whose target decodes as ini-order science ids.
+
+| offset | field | notes |
+|---|---|---|
+| `Player+0x310` | held sciences | `std::vector<ScienceType>` — `{begin, end, capacity}` |
+
+**Not a bitset, unlike the upgrades next door.** With 263 sciences a mask would be 9 dwords and
+the obvious place to look; the engine keeps a vector of ids instead, so the count is
+`(end - begin) / 4` and — as with `TheSpecialPowerStore` — there is no count field to check the
+walk against. Reading to `capacity` rather than to `end` picks up whatever the allocation still
+holds, which decodes as perfectly plausible sciences belonging to other factions.
+
+**Pinned by what it decodes to, not by its shape.** Across one match's five seats: every seat
+carried the four view sciences (`SCIENCE_GENERAL_VIEW`, `..._COMMANDER_VIEW`, `..._UNIT_VIEW`,
+`..._GROUND_VIEW`), each playing seat carried its own faction science first (`SCIENCE_MEN` for
+the Men seat, `SCIENCE_MORDOR` for the Mordor one) and nobody else's, and the Mordor AI carried
+five Mordor spellbook powers on top. A wrong offset does not produce a per-seat spellbook.
+
+That also **corroborates the science id space independently of the replay corpus**: the ids the
+engine holds are `game.sciences` index + 1, which is what
+[`order_space_map.md`](../../sage_replay/order_space_map.md) §A derives from recorded
+`0x414` orders and what `sage_live.api.orders.purchase_power` sends.
+
+**The AI's set does not obey the ini's prerequisites.** The Mordor seat held `SCIENCE_Darkness`
+holding none of the three sciences `science.ini` says unlock it, so a skirmish AI is granted
+spells by script. This field answers what a player *has*, never how they got it — which is the
+right answer for "can I cast it", and the wrong one for inferring an opponent's spending.
+
+The name side is still shut: `TheScienceStore` is a 263-entry vector at `+0x0C` whose elements
+are separately allocated, differently sized, and expose no name at a constant offset — see
+[`sage_live/README.md`](../../sage_live/README.md) "Known gaps". So `sage_live` reports ids and
+leaves naming to an ini load.
+
 ## 3b. The upgrade registry — `TheUpgradeCenter`, and the end of OPEN 4
 
 `[0x00DE45A0]` is `TheUpgradeCenter`, and it carries the engine's own upgrade table:
@@ -274,7 +310,7 @@ templates were walked and **976/976** satisfy `engine index == ini index + 3`.
 
 Two consequences worth acting on:
 
-- A live consumer needs no ini load to name an upgrade, and no offset either. `sage_live.memory`
+- A live consumer needs no ini load to name an upgrade, and no offset either. `sage_live.backends.memory`
   reads this registry once and decodes the masks straight from it, which also makes it correct
   for whatever mod is loaded rather than for the one tree that was parsed.
 - The other three id-space stores (`TheThingFactory`, `TheSpecialPowerStore`,
@@ -401,7 +437,7 @@ several *different* expected values, then keep only the location consistent with
   at the `+0x0C` an upgrade uses — `queueCreateUnit` writes `[esi+4]=1; [esi+8]=what` for a
   build and `[esi+4]=3` for a hero revive, so `kind` is 1, 2 and 3 for unit, upgrade and revive.
 
-  `sage_live.memory` reads all of this per object, and checks the walk landed correctly by
+  `sage_live.backends.memory` reads all of this per object, and checks the walk landed correctly by
   requiring the module's own `Object*` back-pointer to name the object it was reached from.
 - ~~Horde membership~~ — **found: `Object+0x27C` is what contains this object.** The two link
   fields at `+0x8C`/`+0x90` really are the global list's `next`/`prev`, as recorded above; the
@@ -418,7 +454,18 @@ several *different* expected values, then keep only the location consistent with
 
   Presumably `m_containedBy`, so a garrisoned or transported object should report its holder
   here too; only horde membership has been observed, so only that is claimed.
-- **Per-object shroud — not found, and the cheap approach is ruled out.**
+- ~~Per-object shroud~~ — **fog of war is solved, though not by this route.** Per-player
+  visibility is now readable from `TheShroudManager`'s per-cell grid, which answers "can this
+  seat see that right now" without `PartitionData` at all — see
+  [`fog-of-war.md`](fog-of-war.md), and note that document's correction to
+  `ThePartitionManager`'s address (`0x00DE4354`; `0x00DE4358` is `TheShroudManager`, and the
+  109 references counted below are its).
+
+  What remains open is narrower than it was: the per-object `m_everSeenByPlayer`, which is what
+  keeps a scouted building drawn after the scout leaves. The grid has no such state, so a
+  consumer's fog has no memory. The record below stands as written.
+
+  **The original hunt, and why the cheap approach is ruled out.**
   [`max-player-count.md`](max-player-count.md) documents `PartitionData` as carrying
   `ObjectShroudStatus m_shroudedness[N]` **per object**, which would make fog a per-object
   lookup rather than a grid query. The hop from `Object` to it was hunted differentially in a
@@ -455,5 +502,7 @@ several *different* expected values, then keep only the location consistent with
   Needs the team list itself, presumably a `TheTeamFactory`-style global.
 - `Player+0x06C` sits with the command-point fields and moved 200 → 400 when a command-point
   grant fired, but has not been matched to anything the game displays.
-- Fog of war: nothing here is per-player filtered. Everything above reads the **whole map**, so a
-  consumer must apply fog itself, per [`live-api.md`](../../docs/live-api.md) §5.
+- ~~Fog of war~~ — **done.** Everything above still reads the whole map, which is the right
+  thing for it to do; the filter is a separate deliberate step built on the shroud grid.
+  `sage_live.api.shroud` holds the model, `Observation.under_fog` applies it, and
+  [`fog-of-war.md`](fog-of-war.md) records the recovery.

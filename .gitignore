@@ -149,6 +149,8 @@ OpenSAGE-master
 object_ids.*.json
 docs/apt_guidelines.pdf
 
+sage_patch/patches/template_checksum.py
+
 # Per-package planning / working notes are local scratch, not committed.
 _local/
 PLAN.md

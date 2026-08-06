@@ -34,8 +34,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root on pat
 from _common import attach, describe, issue  # noqa: E402
 
 from sage_live import orders  # noqa: E402
-from sage_live.bridge import BridgeBackend  # noqa: E402
-from sage_live.observation import GameObject  # noqa: E402
+from sage_live.api.observation import GameObject  # noqa: E402
+from sage_live.backends.bridge import BridgeBackend  # noqa: E402
 
 
 def show_state(backend: BridgeBackend) -> None:
@@ -117,6 +117,11 @@ def main() -> int:
     show_state(backend)
     me = backend.observe().local_player
     before = backend.observe().player(me)
+    if before is None:
+        # The menu is a running game with no faction in the local seat, so this is the
+        # ordinary "not in a match yet" case rather than an unexpected one.
+        print(f"seat {me} holds no player - is a match actually under way?")
+        return 1
     if not issue(backend, orders.select(me, [args.building]), "select"):
         return 1
     if not issue(backend, orders.research(me, definition.upgrade_id, args.building), "research"):

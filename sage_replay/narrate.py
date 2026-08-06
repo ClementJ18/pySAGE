@@ -186,6 +186,41 @@ class GameData:
             game = load_map(map_ini, root, bases=tuple(bases)).game
         else:
             game = load_game(root, bases=tuple(bases)).game
+        return cls.from_game(
+            game,
+            root,
+            bases=bases,
+            localize=localize,
+            map_sources=sources,
+            # A map loaded via `load_map` already baked its overrides into `hero_rosters`.
+            map_roster_cache={map_file: None} if map_ini is not None and map_file else {},
+        )
+
+    @classmethod
+    def from_game(
+        cls,
+        game: Game,
+        root: str | Path | Sequence[str | Path],
+        bases: Sequence[str | Path] = (),
+        localize: bool = False,
+        map_sources: Sequence[Path] = (),
+        map_roster_cache: Mapping[str, list[list[str]] | None] | None = None,
+    ) -> GameData:
+        """Build the tables from an already-loaded `Game`, without rebuilding the object model.
+
+        **Split out of `from_root` so one parse can serve two consumers.** A caller that also
+        wants `sage_live.utils.statics.Statics` was loading the tree twice - `Statics` takes a
+        `Game` and this took a path, so the only way to have both was to walk eleven thousand
+        definitions twice in a row. The live bot did exactly that at every start, for about a
+        minute of a match it was meant to be playing.
+
+        **`root` is still required, and it is not a leftover.** `object_order` is the engine's
+        `ThingTemplate` registration order, which `thing_template_order` reads from the tree's
+        subsystem legend rather than from the built model - and it is what every order id in
+        `sage_live` is an index into. A `Game` alone cannot answer it.
+
+        `from_root` is unchanged and still the entry point for a caller holding only a path.
+        """
         strings = {label.upper(): value for label, value in game.strings.items()}
 
         def localized(table: Mapping[str, IniObject]) -> dict[str, str]:
@@ -273,9 +308,8 @@ class GameData:
             player_upgrades=player_upgrades,
             upgrade_displaynames=upgrade_displaynames,
             faction_names=[name for name, _ in game.factions.items()],
-            map_sources=sources,
-            # A map loaded via `load_map` already baked its overrides into `hero_rosters`.
-            map_roster_cache={map_file: None} if map_ini is not None and map_file else {},
+            map_sources=tuple(map_sources),
+            map_roster_cache=dict(map_roster_cache or {}),
         )
 
     @staticmethod

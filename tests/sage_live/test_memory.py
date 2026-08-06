@@ -17,24 +17,29 @@ from collections.abc import Sequence
 
 import pytest
 
-from sage_live.backend import ConnectionRefused, GameExited
-from sage_live.identity import ROTWK_201_TIMESTAMP
-from sage_live.memory import LAYOUT_ROTWK_201, EngineLayout, MemoryBackend
-from sage_live.orders import move
-from sage_live.protocol import Handshake
+from sage_live.api.orders import move
+from sage_live.backends.base import ConnectionRefused, GameExited
+from sage_live.backends.identity import ROTWK_201_TIMESTAMP
+from sage_live.backends.memory import LAYOUT_ROTWK_201, EngineLayout, MemoryBackend
+from sage_live.backends.protocol import Handshake
 from sage_patch.addresses import IMAGE_BASE
 from sage_patch.pe import OPT_IMAGE_BASE, SECTION_HEADER_SIZE
 
 LAY = LAYOUT_ROTWK_201
 HEAP = 0x10000000
 # The real .data runs 0x00D89000-0x00E0A000. The fake covers the part holding every static
-# this reads: the subsystem globals near 0xDE4000 and the model-condition name table at
-# 0xD9FAD8, which is below them.
-STATIC = 0x00D90000
-STATIC_SIZE = 0x60000
+# this reads: the subsystem globals near 0xDE4000, and below them the two bit-order name
+# tables - model conditions at 0xD9FAD8 and object status at 0xD8AFF0, which is the lowest of
+# them and so what sets the base.
+STATIC = 0x00D88000
+STATIC_SIZE = 0x68000
 HEAP_SIZE = 0x40000
 # Enough for the DOS stub, the PE and optional headers, and a two-entry section table.
 HEADER_SIZE = 0x400
+# What a held-science vector's allocation holds past its `end`. A real one holds whatever the
+# heap left there, which decodes as a perfectly plausible science id - so the fake puts a
+# recognisable one in the gap rather than zeros, and a reader that walks to `capacity` says so.
+_PAST_THE_END = 999
 
 
 class FakeImage:
@@ -230,14 +235,19 @@ class FakeImage:
         self.u32(obj + LAY.obj_modules, array)
         return array
 
-    def model_condition_names(self, names: list[str]) -> int:
-        """The engine's NULL-terminated table of `ModelConditionFlags` names, in bit order."""
+    def bit_names(self, table: int, names: list[str]) -> int:
+        """A NULL-terminated table of `char*` in bit order - how the engine names a bitset."""
         pointers = [self.write_cstring(n) for n in names]
-        table = LAY.the_model_condition_names
         for i, p in enumerate(pointers):
             self.u32(table + i * 4, p)
         self.u32(table + len(pointers) * 4, 0)
         return table
+
+    def model_condition_names(self, names: list[str]) -> int:
+        return self.bit_names(LAY.the_model_condition_names, names)
+
+    def object_status_names(self, names: list[str]) -> int:
+        return self.bit_names(LAY.the_object_status_names, names)
 
     def write_cstring(self, text: str) -> int:
         """A bare NUL-terminated string - the name table points at these, not AsciiStrings."""
@@ -246,11 +256,10 @@ class FakeImage:
         self.write(address, raw)
         return address
 
-    def set_conditions(self, obj: int, names) -> None:
-        """Set the model-condition bits for `names`, by their index in the written table."""
-        table = LAY.the_model_condition_names
+    def set_bits(self, obj: int, table: int, declared: int, base: int, words: int, names) -> None:
+        """Set the bits for `names`, by their index in the name table already written."""
         order = []
-        for i in range(LAY.model_condition_count):
+        for i in range(declared):
             p = struct.unpack_from("<I", self.read(table + i * 4, 4), 0)[0]
             if p == 0:
                 break
@@ -258,8 +267,27 @@ class FakeImage:
         bits = 0
         for n in names:
             bits |= 1 << order.index(n)
-        raw = bits.to_bytes(LAY.model_condition_words * 4, "little")
-        self.write(obj + LAY.obj_model_conditions, raw)
+        self.write(obj + base, bits.to_bytes(words * 4, "little"))
+
+    def set_conditions(self, obj: int, names) -> None:
+        self.set_bits(
+            obj,
+            LAY.the_model_condition_names,
+            LAY.model_condition_count,
+            LAY.obj_model_conditions,
+            LAY.model_condition_words,
+            names,
+        )
+
+    def set_status(self, obj: int, names) -> None:
+        self.set_bits(
+            obj,
+            LAY.the_object_status_names,
+            LAY.object_status_count,
+            LAY.obj_status,
+            LAY.status_words,
+            names,
+        )
 
     def set_upgrade_bit(self, base_ptr: int, base: int, upgrade_id: int) -> None:
         """Set one upgrade's bit in a mask, the way the engine indexes it."""
@@ -277,6 +305,7 @@ class FakeImage:
         body: int | None = None,
         list_prev: int | None = None,
         contained_by: int | None = None,
+        producer: int | None = None,
     ) -> int:
         # 0x400, not 0x300: the object's upgrade mask runs to +0x308 and the team pointer sits
         # at +0x31C, so a smaller allocation would have one object's fields read as the next
@@ -294,6 +323,8 @@ class FakeImage:
             self.u32(address + LAY.obj_list_prev, list_prev)
         if contained_by is not None:
             self.u32(address + LAY.obj_contained_by, contained_by)
+        if producer is not None:
+            self.u32(address + LAY.obj_producer_id, producer)
         return address
 
     def entry(self, object_id: int, obj: int) -> int:
@@ -323,6 +354,21 @@ class FakeImage:
         self.write(address + LAY.player_resources_collected, struct.pack("<i", collected))
         return address
 
+    def set_sciences(self, player: int, ids: list[int], spare: int = 4) -> int:
+        """Give a player a held-science vector, the `{begin, end, capacity}` the engine keeps.
+
+        `spare` puts real capacity beyond `end`, because that gap is where a reader that trusts
+        the wrong pointer goes wrong: reading to `capacity` picks up whatever the allocation
+        happens to hold, which decodes as sciences the player does not have.
+        """
+        array = self.alloc((len(ids) + spare) * 4)
+        for i, science in enumerate([*ids, *([_PAST_THE_END] * spare)]):
+            self.write(array + i * 4, struct.pack("<i", science))
+        self.u32(player + LAY.player_sciences, array)
+        self.u32(player + LAY.player_sciences + 4, array + len(ids) * 4)
+        self.u32(player + LAY.player_sciences + 8, array + (len(ids) + spare) * 4)
+        return array
+
     def player_list(self, players: list[int], local: int) -> int:
         address = self.alloc(0x100)
         self.u32(address + LAY.pl_count, len(players))
@@ -340,6 +386,9 @@ def build_game() -> FakeImage:
     neutral = img.alloc(0x400)  # no name, no side: the placeholder slot
     creeps = img.player("PlyrCreeps", "Civilian", 1000)
     human = img.player("Player_1", "Men", 2870, collected=5020)
+    # `SCIENCE_MEN` plus one bought power, which is the shape a real seat has: the faction's own
+    # intrinsic science first and the spellbook after it.
+    img.set_sciences(human, [16, 36])
     img.player_list([neutral, creeps, human], local=2)
 
     fighter_t = img.template("GondorFighter", "Men")
@@ -481,7 +530,37 @@ def test_player_economy_reads_both_pool_and_cumulative():
     assert human.spent == 2150
 
 
-def test_local_player_index_matches_the_player_list_pointer():
+def test_held_sciences_are_read_as_ids_and_stop_at_the_vector_end():
+    """The one field that answers "have I already bought that power". `end` is what bounds it,
+    and the allocation deliberately holds a further id past that - a reader that used `capacity`
+    would report a science the player does not have, which is indistinguishable from data."""
+    players = {p.name: p for p in backend(build_game()).read_players()}
+    assert players["Player_1"].sciences == frozenset({16, 36})
+    assert _PAST_THE_END not in players["Player_1"].sciences
+
+
+def test_a_player_with_no_science_vector_holds_nothing():
+    """Every seat carries one in a real match, but a source that never recorded those bytes
+    reads as unreadable - and that is an empty spellbook, not a failed decode."""
+    assert not next(
+        p for p in backend(build_game()).read_players() if p.name == "PlyrCreeps"
+    ).sciences
+
+
+def test_an_implausible_science_vector_is_refused_and_diagnosed():
+    """Three pointers are all this has to go on, so a length that cannot be real is a bad read.
+    Walking one would turn garbage into a set of small numbers that looks exactly like data."""
+    img = FakeImage()
+    human = img.player("Player_1", "Men", 100)
+    array = img.set_sciences(human, [16])
+    # A plausible `begin` with an `end` far past it - the shape a torn or wrongly-based read has.
+    img.u32(human + LAY.player_sciences + 4, array + (LAY.max_sciences + 1) * 4)
+    img.player_list([human], local=0)
+    img.game_logic(1, [])
+
+    reader = backend(img)
+    assert not reader.read_players()[0].sciences
+    assert any("science count" in str(d) for d in reader.diagnostics)
     # slot 2 in the raw array, but slot 0 is skipped as a placeholder
     assert backend(build_game()).local_player_index() == 2
 
@@ -832,6 +911,73 @@ def test_an_object_contained_by_nothing_has_no_parent():
 
 
 #
+# The other half of containment: `ObjectStatus` and the producer id. Between them they are what
+# tells a battalion that is still forming from one that has come apart - see
+# `sage_patch/docs/horde-formation-orphans.md`.
+
+
+def half_formed_game() -> FakeImage:
+    """One battalion whose two members disagree about belonging to it.
+
+    `inside` is contained and flagged as a member, the way a formed battalion reads. `loose` is
+    neither, but still names the horde as what produced it - the state that survives an order
+    landing before the battalion finished coming out of the building.
+    """
+    img = FakeImage()
+    img.object_status_names(["DESTROYED", "HORDE_MEMBER", "IS_LEAVING_FACTORY", "UNATTACKABLE"])
+    horde_t = img.template("GondorFighterHorde", "Men")
+    fighter_t = img.template("GondorFighter", "Men")
+
+    horde = img.game_object(horde_t, (10.0, 10.0, 0.0), body=img.body(1.0, 1.0))
+    inside = img.game_object(
+        fighter_t, (11.0, 10.0, 0.0), body=img.body(255.0, 255.0), contained_by=horde, producer=20
+    )
+    loose = img.game_object(fighter_t, (60.0, 40.0, 0.0), body=img.body(255.0, 255.0), producer=20)
+    img.set_status(inside, ["HORDE_MEMBER"])
+    img.set_status(loose, ["HORDE_MEMBER", "IS_LEAVING_FACTORY"])
+
+    img.player_list([img.player("P", "Men", 10)], local=0)
+    img.game_logic(1, [img.entry(20, horde), img.entry(21, inside), img.entry(22, loose)])
+    return img
+
+
+def test_object_status_decodes_by_name():
+    obj = backend(half_formed_game()).observe().obj(21)
+    assert obj is not None
+    assert obj.status == frozenset({"HORDE_MEMBER"})
+    assert obj.has_status("horde_member"), "case-insensitive, like every other name"
+    assert not obj.has_status("UNATTACKABLE")
+
+
+def test_several_status_bits_decode_together():
+    obj = backend(half_formed_game()).observe().obj(22)
+    assert obj is not None
+    assert obj.status == frozenset({"HORDE_MEMBER", "IS_LEAVING_FACTORY"})
+
+
+def test_an_object_in_no_notable_state_has_no_status():
+    obj = backend(half_formed_game()).observe().obj(20)
+    assert obj is not None and obj.status == frozenset()
+
+
+def test_the_producer_id_survives_leaving_the_container():
+    """The asymmetry the whole diagnosis rests on: `parent_id` is cleared when an object leaves
+    its container and `producer_id` is not, so a loose unit still names the horde it came out
+    of - which is what the engine's own target resolution falls back to."""
+    obs = backend(half_formed_game()).observe()
+    inside, loose = obs.obj(21), obs.obj(22)
+    assert inside is not None and loose is not None
+    assert inside.parent_id == 20 and inside.producer_id == 20
+    assert loose.parent_id is None and loose.producer_id == 20
+
+
+def test_an_object_nothing_produced_has_no_producer():
+    obs = backend(half_formed_game()).observe()
+    horde = obs.obj(20)
+    assert horde is not None and horde.producer_id is None
+
+
+#
 # A budget, not a benchmark. Each `MemorySource.read` is a `ReadProcessMemory` syscall, and the
 # per-object count is what decides whether a policy can observe a few times a second or a few
 # dozen. It regressed silently once already - the module walk for production state added ten
@@ -969,3 +1115,71 @@ def test_conditions_cost_no_extra_read():
     """The mask sits inside the object header the reader already takes in one read, so this
     field is free - which is why it is on by default."""
     assert marginal_reads(wide=True) <= 3.0
+
+
+def _spell_module(img: FakeImage, name: str, ready_frame: int) -> int:
+    """A special-power module: `{ModuleData -> SpecialPowerTemplate -> name}` and a ready frame.
+
+    Laid out at the offsets `EngineLayout` declares, so a wrong offset in the layout cannot
+    cancel against a wrong offset in the reader - the same discipline the rest of this file
+    follows.
+    """
+    template = img.alloc(0x40)
+    img.u32(template + LAY.power_name, img.ascii(name))
+    data = img.alloc(0x40)
+    img.u32(data + LAY.module_data_template, template)
+    module = img.alloc(0x40)
+    img.u32(module + LAY.module_data, data)
+    img.write(module + LAY.module_ready_frame, struct.pack("<i", ready_frame))
+    return module
+
+
+def _spellbook(img: FakeImage, powers: list[tuple[str, int]], object_id: int = 900) -> FakeImage:
+    """A match holding one object that carries `powers` as special-power modules."""
+    book_t = img.template("GondorSpellBook", "Men")
+    book = img.game_object(book_t, (0.0, 0.0, 0.0))
+    mods = [_spell_module(img, name, ready) for name, ready in powers]
+    # A module family that is not a special power: its data names no template, which is the
+    # test the engine's own recharge path makes before touching anything else.
+    plain = img.alloc(0x40)
+    img.u32(plain + LAY.module_data, img.alloc(0x40))
+    img.modules(book, [*mods, plain])
+    img.game_logic(5000, [img.entry(object_id, book)])
+    return img
+
+
+def test_power_cooldowns_read_the_engines_own_ready_frame():
+    """The number `startPowerRecharge` writes, not one computed from `ReloadTime` - the ini
+    figure is undiscounted and measured 6x too long in a real match."""
+    img = _spellbook(FakeImage(), [("SpellBookRebuild", 4200), ("SpellBookAdler", 12000)])
+    reader = backend(img)
+    reader.read_objects()  # fills the id -> Object* map this resolves through
+    assert reader.power_cooldowns(900) == {"SpellBookRebuild": 4200, "SpellBookAdler": 12000}
+
+
+def test_a_ready_power_is_one_whose_frame_is_not_in_the_future():
+    img = _spellbook(FakeImage(), [("SpellBookRebuild", 4999), ("SpellBookAdler", 5001)])
+    reader = backend(img)
+    frame = reader.observe().frame
+    cooldowns = reader.power_cooldowns(900)
+    assert frame == 5000
+    assert cooldowns["SpellBookRebuild"] <= frame, "ready"
+    assert cooldowns["SpellBookAdler"] > frame, "still recharging"
+
+
+def test_a_module_that_is_not_a_special_power_is_skipped():
+    """Every other module family leaves the template unset, and the engine's own recharge path
+    bails on exactly that test. Reading them would invent powers with empty names."""
+    img = _spellbook(FakeImage(), [("SpellBookRebuild", 4200)])
+    reader = backend(img)
+    reader.read_objects()
+    assert list(reader.power_cooldowns(900)) == ["SpellBookRebuild"]
+
+
+def test_an_id_the_table_walk_never_saw_reads_as_no_powers():
+    """Ids are reused as objects die, so this resolves through the last walk rather than
+    scanning - and an id that walk did not see is unknown, not ready."""
+    img = _spellbook(FakeImage(), [("SpellBookRebuild", 4200)])
+    reader = backend(img)
+    reader.read_objects()
+    assert reader.power_cooldowns(4242) == {}

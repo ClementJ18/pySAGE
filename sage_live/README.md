@@ -45,6 +45,34 @@ engine's own `TheUpgradeCenter`, `TheThingFactory` and `TheSpecialPowerStore` �
 11,142 templates and 1,566 powers, with **no game files on disk at all**. Only science names
 still need an ini load; attach one with `session.names = Resolver.from_root(...)`.
 
+## Layout
+
+Three folders, because there are three genuinely different kinds of module here and a
+consumer should not have to guess which is which.
+
+```
+sage_live/
+  __init__.py     the supported surface — every name below is re-exported here
+  __main__.py     the `sage-live` inspector
+  api/            the interface      connect · session · observation · orders
+  backends/       where bytes come from   base (+ Loopback) · memory · bridge
+                                          protocol · identity · snapshot
+  utils/          the lookups        naming · heroes · resolve* · statics*
+```
+
+`* needs a game install` — `resolve` and `statics` import `sage_ini`, so they are the only two
+modules not reachable from the root. Import them from their own module:
+
+```python
+from sage_live.utils.statics import Statics
+from sage_live.utils.resolve import Resolver
+```
+
+Everything else is re-exported, so `sage_live.attach`, `sage_live.Observation` and
+`sage_live.orders.move` are the supported spellings; the folders are for reading the source,
+not for everyday imports. Dependencies point one way — `api` uses `backends` and `utils`,
+`backends` uses neither, `utils` uses only the two model modules in `api`.
+
 ## Command line
 
 ```sh
@@ -64,7 +92,7 @@ is a bug class this rules out entirely.
 | | carries |
 |---|---|
 | `Observation` | `frame`, `local_player`, `players`, `objects`, `fogged`, `godsight` |
-| `PlayerState` | economy, spellbook points, command points, PLAYER-scoped upgrades |
+| `PlayerState` | economy, spellbook points, held sciences, command points, PLAYER-scoped upgrades |
 | `GameObject` | id, template name and Side, position, facing, health, owner, OBJECT-scoped upgrades, production queue |
 
 `Observation` is also the query surface: `me`, `mine`, `opponents`, `player(i)`, `obj(id)`,
@@ -111,7 +139,7 @@ it off for a consumer polling every frame that does not need it.
 ## Recruiting a hero
 
 ```python
-from sage_live.statics import Statics
+from sage_live.utils.statics import Statics
 
 game.revives = Statics.from_root(root)          # the roster and the slot blocks
 game.select([barracks.object_id])
@@ -146,6 +174,91 @@ being consumed and silently discarded.
 Derivation, the two live recruits, and what is still open:
 [`hero-recruitment.md`](../sage_patch/docs/hero-recruitment.md).
 
+## Buying a spellbook power
+
+```python
+from sage_live.utils.statics import Statics
+
+statics = Statics.from_root(root)
+held = {n.lower() for n in ("SCIENCE_MEN",)}          # or read them live, see below
+for power in statics.spell_store("Men"):              # PurchaseScienceCommandSetMP
+    if power.purchasable and power.enabled_for(held) and power.cost <= me.power_points:
+        game.confirm_power(lambda: game.purchase_power(power.science), power.science)
+        break
+```
+
+Powers are bought with **spellbook points**, a currency that buys nothing else — so a policy
+that never spends them is throwing away everything they would have bought, and no gold decision
+is affected either way.
+
+`Statics.spell_store(faction)` is the store's own palette, the same command-set rule everything
+else here obeys: a `PURCHASE_SCIENCE` button on the faction's `PurchaseScienceCommandSetMP` is a
+button the spell store would have shown. Each `PowerButton` carries its price in points
+(`SciencePurchasePointCostMP` — **not** the single-player field, they differ for nearly every
+power) and its prerequisites as *alternative all-required groups*: `SCIENCE_GOOD OR SCIENCE_MEN
+SCIENCE_RebuildMen` is two ways in, and reading it as a flat list opens the whole book at once.
+Every store is padded to twenty slots with `Command_PurchaseSpellEmpty`, and `purchasable`
+excludes those by what the data says rather than by name.
+
+**What is already held is read, not remembered.** `PlayerState.sciences` is the player's own
+science vector, which is the only observable answer — a science lands in neither upgrade mask.
+It carries **ids**, not names, because naming them still needs an ini load (see Known gaps), so
+membership is tested through a resolver: `names.science("SCIENCE_RebuildMen") in me.sciences`.
+
+Bookkeeping would have been wrong as well as unnecessary: a skirmish AI is *granted* spells by
+script with the ini's prerequisites bypassed — one measured Mordor seat held `SCIENCE_Darkness`
+holding none of the three sciences that unlock it. `confirm_power` therefore watches the science
+appear rather than the points fall; points rise on their own clock, which is `confirm_spend`'s
+trap in a second currency.
+
+## What a bought power actually does
+
+```python
+for power in statics.spell_book("Men"):           # the SpellBookMp's command set
+    if power.castable and power.enabled_for(held):
+        print(power.power, power.form, power.effect, power.radius, power.reload_seconds)
+# SpellBookRebuild        location heal    150.0 180.0
+# SpellBookArrowVolleyGood location strike  95.0 360.0
+# SpellBookArmyoftheDead  location summon 200.0 830.0
+```
+
+Casting is a **different command set from buying** — the store hangs off the `PlayerTemplate`,
+the book off the `SpellBookMp` object, and they are different lengths (Gondor sells 11 powers
+and shows 15 buttons). The book is also what disambiguates the science: `RequiredSciences` is
+one-to-many, with three sub-faction variants requiring `SCIENCE_GraueSchaar` alone, and only one
+of each family is on the faction's actual book.
+
+**`form` decides the order** and comes from the firing button's `Options`, never from what the
+spell sounds like — the corpus confirms the engine picks the order type to match the
+`NEED_TARGET_*` bits on every recorded cast. A button with **no target and no recharge** is not
+an order at all: it is a power whose whole effect landed when it was bought (Gondor's Gandalf
+the White, Formationen Gondors). Casting one is discarded in silence.
+
+**`effect` is the one thing no ini field states**, so it is read off the module on the spellbook
+object that implements the power — the same "ask the module" rule behind production queues and
+lair spawns. `Enum` looks like it should answer and does not: Edain declares Army of the Dead as
+`SPECIAL_SPELL_BOOK_BOMBARD` with the army-of-the-dead slot commented out beside it.
+
+A summon and a bombardment are the *same* module (`OCLSpecialPower`), so what separates them is
+where the creation chain ends — and it never ends in one hop. Every one of these creates an
+**egg** that dies immediately and whose `SlowDeathBehavior` names the next list; `Statics.creates`
+follows that to the templates finally placed, guarded against cycles because `OCL_SpawnEagles`
+genuinely recreates its own members. Ending at units is a summon, at a structure a build, at
+`UNATTACKABLE` scenery a strike.
+
+**And scenery carrying a weapon is not proof of hostility.** Edain delivers friendly effects the
+same way: `EndloseHordenPing` fires a weapon that hands every horde a banner, and
+`BeistandinderNotNormalEgg` attaches to your own beacon before firing. The relationship token on
+the filters those created objects carry is what settles it — `SAME_PLAYER`/`ALLIES` against
+`ENEMIES`. Where nothing in the chain names a side, the effect is reported as **unknown** rather
+than guessed: 3 of Mordor's 16 buttons land there, and a wrong guess spends a recharge measured
+in minutes helping the wrong army.
+
+Recharge is the shape of the whole decision. `reload_seconds` runs from 180 to 940, so a power
+fires a handful of times a match — and it is the *undiscounted* figure, since Edain's
+`SpellRechargeModifierUpgrade` shortens it as live player state, so treating it as the cooldown
+is conservative and never early.
+
 ## Who is in a battalion
 
 ```python
@@ -167,10 +280,63 @@ container's address — 22 of 23 members agreed and no other offset managed more
 whole live match it never once pointed outside the object table or more than 200 units away,
 and the template pairs were right for four factions at once.
 
+**`producer_id` is the second link, and the two can disagree.** `Object+0x78` is an `ObjectID`
+naming whatever produced this object, and unlike `parent_id` it is *not* cleared when the object
+leaves what it names — the engine falls back to it when deciding which horde an attack should
+really be aimed at. On a healthy match they agree everywhere (all 40 members of the recorded
+fixture name their own container), so the interesting reading is a disagreement: a unit with no
+`parent_id` whose `producer_id` still names a live horde is a battalion that came apart. That,
+plus `status` — the engine's own `ObjectStatus` bits, where `HORDE_MEMBER` and
+`IS_LEAVING_FACTORY` say whether a unit is in a battalion and whether it has finished coming out
+of the building — is what
+[`horde_formation.py`](../examples/sage_live/horde_formation.py) watches; the engine side is
+[`horde-formation-orphans.md`](../sage_patch/docs/horde-formation-orphans.md).
+
+## Moving the camera
+
+```python
+here = game.camera()                      # the live ViewLocation, or None if unreadable
+game.look_at(centroid_of(fight))          # re-aim, and touch nothing else at all
+game.look_at(plot.position, zoom=0.6)     # override one scalar - see the warning below
+
+with CameraPan(game) as pan:              # a thread that eases toward whatever it is given
+    pan.aim(centroid_of(fight))           # cheap, and safe from any thread
+```
+
+**The camera is not an order and is not throttled.** No logic reads it, so a placement cannot
+desync a match, cannot be discarded by game logic, and never enters the message stream. It costs
+no APM either: a policy that frames what it is doing is not playing faster, it is being
+watchable.
+
+**Keeping the zoom means not writing it.** `look_at` writes the view's position field directly
+and does not read the camera first. It once did the obvious thing — capture the live
+`ViewLocation`, replace the position, hand it back — and that is broken at the engine level:
+`View::setLocation` writes all four scalars every call, and each is *read* from one field and
+*written* to another, so the zoom it reports cannot be written back. Measured live, echoing a
+just-captured location moved the zoom by 0.047 and the client restored it over the next 0.6
+seconds. A policy re-aiming every cycle therefore zoomed in and snapped out, forever. Passing
+`zoom`, `angle` or `pitch` asks for exactly that write, so those still take the old path — use
+them when you mean to, and not otherwise.
+
+It does not **interpolate**: a placement is a jump. `CameraPan` is the interpolation, and it is a
+thread because it has to be — a policy deciding every two seconds and easing one step per
+decision is a jump every two seconds, however small the step. A re-aim is twelve bytes with no
+handshake, so the pan can write at 160 Hz, which is what reads as a pan. It stops writing once it
+arrives, so a settled camera is still yours to move.
+
+Being served is not proof of arrival — the view clamps a placement to the map's camera limits, so
+`camera()` is what says where it actually ended up. `position` is the look-at point **on the
+terrain**, not the camera's eye; the camera's own altitude is derived from it and is not in the
+struct. Only a bridge-backed session can move a camera at all; every other backend answers None
+or False rather than pretending.
+
+Derivation, the live measurements, and the one field that is carried unnamed because nothing in
+the binary says what it is: [`camera-control.md`](../sage_patch/docs/camera-control.md).
+
 ## `Statics` — the join, and why you cannot skip it
 
 ```python
-from sage_live.statics import Statics          # imports sage_ini; not re-exported
+from sage_live.utils.statics import Statics          # imports sage_ini; not re-exported
 
 statics = Statics.from_root(root)              # one ini load, about a minute
 plots = [o for o in observation.mine if statics.is_build_site(o.template_name)]
@@ -186,10 +352,16 @@ needs are guessable from that name**. Each of these was got wrong in a real matc
 | did my building appear? | counting the ordered name — `BuildVariations` means it never appears | `same_building` / `canonical` |
 | who has lost? | "owns no objects", or "owns no buildings" — an economy building is `IGNORE_FOR_VICTORY` | `counts_for_victory` (`MP_COUNT_FOR_VICTORY`) |
 | what do I order? | the units you can see — they are horde *members*, and orders to them are ignored | `Observation.orderable` (live, exact); `is_horde_member` offline |
+| what is my army? | "mobile, has a body, not a structure" — that also counts a farm's civilians and a battalion's standard | `SELECTABLE` **and** not `is_slaved` |
+| is that an enemy? | "owned by someone else and it moves" — the map's rabbits and fish qualify | `INERT` rules them out |
+| why is this flag still guarded? | killing the defenders — a lair replaces every one of them | `spawns` finds the lair; then `is_rebuild_hole` finds the stump that rebuilds it |
 
 `kind_of` resolves inheritance and SAGE's delta form (`KindOf = +SUMMONED`), because a
 `ChildObject` does not restate its parent's flags — reading the field directly reports nothing
-for a large share of real templates, `GondorBuildingFoundation_Independant` among them.
+for a large share of real templates, `GondorBuildingFoundation_Independant` among them. It also
+expands `#define`s, because 136 templates write their whole `KindOf` as a macro and then answer
+"carries nothing" to every question — every animal in the tree is `NATUREUNITS_KINDOF`, and a
+lair's stump is `WILD_HOLE_KINDOF`.
 
 ## What an observation costs
 
@@ -306,11 +478,15 @@ comes back with no objects and no local player — which is what a match that en
 `poll` raises `GameExited` rather than handing that over, and `session.alive` is the loop
 condition to prefer over anything inferred from an observation.
 
-**Nothing here is fog-filtered, and some of it a player could never know at all.** These are
-two different problems and only one of them is about visibility.
+**Observations arrive whole-map, and some of what they carry a player could never know at
+all.** These are two different problems and only one of them is about visibility.
 
-*Visibility* is fog: `Observation.fogged` is always False, so you read the whole map. The
-engine's own per-object shroud state is the honest source and has not been read yet.
+*Visibility* is fog, and it is now readable. `attach(fog=True)` filters every observation down to
+what the seat can actually see, using the engine's own per-cell shroud grid, and the snapshot
+records `fogged` so a consumer can tell which it is holding. Left off — the default, because it
+changes what every existing consumer sees — you read the whole map. One thing the grid does not
+carry is a memory: a scouted building disappears again when the scout leaves, where a real player
+would still see it drawn. See [`fog-of-war.md`](../sage_patch/docs/fog-of-war.md).
 
 *Knowledge* is `godsight`, and it is not fixed by fog. A fully visible enemy barracks still has
 no readable production queue — the game gives a player no tell whatever — and an opponent's

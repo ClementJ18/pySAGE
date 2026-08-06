@@ -23,7 +23,7 @@ from sage_live import (
     Session,
     orders,
 )
-from sage_live import heroes as _heroes
+from sage_live.utils import heroes as _heroes
 
 # `FactionMen`'s roster as RotWK 2.01 + Edain defines it. Index 7 is the one a live recruit
 # confirmed: an order carrying 7 at a GondorBarracks produced Imrahil.

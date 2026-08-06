@@ -97,6 +97,7 @@ __all__ = [
     "FLOAT_TWO_PERCENT",
     "GAME_INFO_MAP",
     "GAME_LOGIC_FRAME",
+    "GAME_LOGIC_IS_IN_GAME",
     "GAME_LOGIC_UPDATE",
     "GAME_LOGIC_UPDATE_ENTRY",
     "GAME_LOGIC_UPDATE_VTABLE_SLOT",
@@ -115,6 +116,11 @@ __all__ = [
     "INI_PARSE_INT",
     "INI_PARSE_UNSIGNED_SHORT",
     "INI_SCAN_INT",
+    "IS_MULTIPLAYER_GAME",
+    "IS_MULTIPLAYER_OR_ITS_REPLAY",
+    "IS_MULTIPLAYER_OR_ITS_REPLAY_BYTES",
+    "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY",
+    "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY_BYTES",
     "MAX_PLAYER_COUNT",
     "MONEY_DEPOSIT",
     "MONEY_WITHDRAW",
@@ -128,7 +134,19 @@ __all__ = [
     "OBJECT_FILTER_IS_VALID",
     "OBJECT_ID",
     "OBJECT_MODULE_LIST",
+    "OBJECT_PRODUCER_ID",
+    "OBJECT_STATUS",
+    "OBJECT_STATUS_COUNT",
+    "OBJECT_STATUS_DWORDS",
+    "OBJECT_STATUS_NAMES",
+    "OBJECT_TEST_STATUS",
     "OBJECT_THING_TEMPLATE",
+    "OBSERVER_BAR_GATE_CALL",
+    "OBSERVER_BAR_GATE_CALL_BYTES",
+    "OBSERVER_BAR_GATE_FINGERPRINT",
+    "OBSERVER_BAR_GATE_FINGERPRINT_BYTES",
+    "OBSERVER_BAR_HIDE",
+    "OBSERVER_BAR_SHOW",
     "OPERATOR_NEW",
     "PALANTIR_RESOURCES",
     "PALANTIR_RESOURCES_BYTES",
@@ -141,6 +159,7 @@ __all__ = [
     "PALANTIR_RESOURCE_MULTIPLIER",
     "PALANTIR_RESOURCE_MULTIPLIER_BYTES",
     "PALANTIR_RESOURCE_MULTIPLIER_RESUME",
+    "PLAYBACK_INSTALLS_OBSERVER",
     "PLAYER_COMMAND_POINTS_USED",
     "PLAYER_DEFEAT_FRAME",
     "PLAYER_FOR_EACH_TEAM_OBJECT",
@@ -152,6 +171,8 @@ __all__ = [
     "PLAYER_IS_DEFEATED",
     "PLAYER_IS_OBSERVER",
     "PLAYER_LIST_GET_LOCAL_PLAYER",
+    "PLAYER_LIST_LOCAL_IS_NOT_ACTIVE",
+    "PLAYER_LIST_OBSERVE_NEXT_PLAYER",
     "PLAYER_PLAYER_TEMPLATE",
     "PLAYER_TEMPLATE_BLOCK_KEY",
     "PLAYER_TEMPLATE_BLOCK_KEY_BYTES",
@@ -182,6 +203,7 @@ __all__ = [
     "RECORDER_GAME_MODE",
     "RECORDER_GAME_MODE_RESET",
     "RECORDER_LAST_REPLAY_NAME",
+    "RECORDER_LOCAL_PLAYER_INDEX",
     "RECORDER_MODE",
     "RECORDER_MODE_GATE",
     "RECORDER_MODE_GATE_ACCEPT",
@@ -201,6 +223,18 @@ __all__ = [
     "REQUEST_UNIQUE_UNIT_ID_BODY",
     "REQUEST_UNIQUE_UNIT_ID_VTABLE_SLOT",
     "RESOURCE_MODIFIER_COUNT_CALLBACK",
+    "SHROUD_CELLS",
+    "SHROUD_CELLS_X",
+    "SHROUD_CELLS_Y",
+    "SHROUD_CELL_SIZE",
+    "SHROUD_CELL_STRIDE",
+    "SHROUD_FOG_ENABLED",
+    "SHROUD_IMPL",
+    "SHROUD_INV_CELL_SIZE",
+    "SHROUD_ORIGIN_X",
+    "SHROUD_ORIGIN_Y",
+    "SHROUD_RECORD_BASE",
+    "SHROUD_RECORD_STRIDE",
     "SPECIAL_POWER_FIELD_TABLE",
     "SPECIAL_POWER_FIELD_TABLE_REFS",
     "SPECIAL_POWER_FIELD_TABLE_REF_OPCODES",
@@ -239,8 +273,10 @@ __all__ = [
     "THE_PLAYER_LIST",
     "THE_RECORDER",
     "THE_SCIENCE_STORE",
+    "THE_SHROUD_MANAGER",
     "THE_SKIRMISH_GAME_INFO",
     "THE_SPECIAL_POWER_STORE",
+    "THE_TACTICAL_VIEW",
     "THE_THING_FACTORY",
     "THE_UPGRADE_CENTER",
     "THE_VICTORY_CONDITIONS",
@@ -272,6 +308,10 @@ __all__ = [
     "VICTORY_CONDITIONS_IS_DEFEATED",
     "VICTORY_CONDITIONS_PLAYERS",
     "VICTORY_CONDITIONS_VTABLE",
+    "VIEW_GET_LOCATION_VTABLE_SLOT",
+    "VIEW_LOCATION_SIZE",
+    "VIEW_POSITION_OFFSET",
+    "VIEW_SET_LOCATION_VTABLE_SLOT",
 ]
 
 BUILD = "RotWK 2.01.2614.37001"
@@ -288,17 +328,51 @@ THE_RECORDER = 0x00DE7CD8
 THE_BUILD_ASSISTANT = 0x00DE8200
 THE_VICTORY_CONDITIONS = 0x00DE89AC
 
-# `ThePartitionManager`, which owns the per-cell and per-object shroud state that fog filtering
-# needs (`PartitionCell::m_shroudLevel[N]`, `PartitionData::m_shroudedness[N]` - see
-# `docs/max-player-count.md`).
+# `ThePartitionManager` and `TheShroudManager`, the two subsystems holding visibility state.
 #
-# **Derived statically, not yet confirmed against a running process** - unlike every other
-# global here. The name string at `0x00BFDC08` is pushed at `0x0062CECB`, and the object built
-# immediately after (`push 0x14` - it is only 20 bytes - then a constructor) is stored to this
-# address at `0x0062CF01`. The same read of the `TheGameLogic` registration recovers its known
-# `0x00DE412C`, which is what makes the pattern trustworthy rather than suggestive. To confirm:
-# read it in a live match and expect a non-null pointer to a 20-byte object.
-THE_PARTITION_MANAGER = 0x00DE4358
+# ⚠ **`THE_PARTITION_MANAGER` used to read `0x00DE4358`, which is `TheShroudManager`.** The old
+# value came from reading the registration block as "the object built immediately after the name
+# string is pushed"; the block actually pushes each name *after* storing the object it names, so
+# that reading was one slot late. The decisive instruction is the `setName` call site, which
+# reloads the global it is about to name:
+#
+#     0x0062CEB3  mov [0x00DE4354], eax      ; store the object
+#     0x0062CECB  push 0x00BFDC08            ; "ThePartitionManager"
+#     0x0062CED5  mov ecx, [0x00DE4354]      ; <- names the object stored above
+#     0x0062CEDB  call 0x0046EC7F            ; setName
+#
+# Both are now **confirmed live** rather than statically: each object holds its own name as an
+# `AsciiString` at `+0x08`, and reading it back gives `ThePartitionManager` at `0x00DE4354` and
+# `TheShroudManager` at `0x00DE4358` (`TheTaintManager` and `TheCollisionManager` follow at
+# `0x00DE435C` and `0x00DE4360`). Nothing consumed the wrong value, so this corrects a
+# declaration rather than a behaviour.
+THE_PARTITION_MANAGER = 0x00DE4354
+
+# `TheShroudManager` owns the per-cell, per-player visibility grid that fog filtering needs.
+# See `docs/fog-of-war.md` for the model and `sage_live.backends.shroud` for the reader.
+#
+# Both managers are 20-byte **facades**: every method is `mov ecx, [ecx+0x10]; jmp <impl>`, so
+# the real object is the one at `+0x10` and every offset below is relative to *that*.
+THE_SHROUD_MANAGER = 0x00DE4358
+
+# The facade's pointer to the 0x70-byte implementation object.
+SHROUD_IMPL = 0x10
+
+# Implementation fields, all confirmed live on RotWK 2.01 + Edain.
+SHROUD_ORIGIN_X = 0x04
+SHROUD_ORIGIN_Y = 0x08
+SHROUD_CELL_SIZE = 0x1C  # 40.0 world units on the measured map
+SHROUD_INV_CELL_SIZE = 0x20  # 0.025 - the reciprocal the engine actually multiplies by
+SHROUD_CELLS_X = 0x24
+SHROUD_CELLS_Y = 0x28
+SHROUD_CELLS = 0x2C  # the cell array, row-major: index `cells_x * cy + cx`
+SHROUD_FOG_ENABLED = 0x68  # one byte, 0 when the match runs with fog switched off
+
+# One cell is 0xA8 bytes: a 4-byte head, then 20 eight-byte per-player records. The first `u16`
+# of a record is that player's shroud level; the other three are the cell's value maps.
+SHROUD_CELL_STRIDE = 0xA8
+SHROUD_RECORD_BASE = 0x04
+SHROUD_RECORD_STRIDE = 0x08
 
 # The lobby description of the game being played - map, seed, slots, factions - and the source
 # `RecorderClass::startRecording` builds a replay header's metadata string from.
@@ -322,15 +396,16 @@ GAME_INFO_MAP = 0x40
 # `docs/max-player-count.md` for why it cannot be raised.
 MAX_PLAYER_COUNT = 20
 
-# The four id-space stores. `sage_live.resolve` reconstructs these spaces from ini; reading the
-# engine's own tables instead is the alternative, and two of the four are now read that way.
+# The four id-space stores. `sage_live.utils.resolve` reconstructs these spaces from ini;
+# reading the engine's own tables instead is the alternative, and two of the four are now read
+# that way.
 #
 # `TheUpgradeCenter` settled the upgrade `+3` (order_space_map OPEN 4: three engine-registered
-# veterancy upgrades ahead of the ini's first) and is what `sage_live.memory` names upgrade bits
-# with. `TheThingFactory` has the same shape - list head at `+0x0C`, count at `+0x10`, and
-# `ThingTemplate+0x494` for `next` - and `sage_live.memory.thing_order` walks it, so a policy can
-# name a template with no ini load. Both are derived in `docs/live-object-model.md` sections 3b
-# and 3c.
+# veterancy upgrades ahead of the ini's first) and is what `sage_live.backends.memory` names
+# upgrade bits with. `TheThingFactory` has the same shape - list head at `+0x0C`, count at
+# `+0x10`, and `ThingTemplate+0x494` for `next` - and `sage_live.backends.memory.thing_order`
+# walks it, so a policy can name a template with no ini load. Both are derived in
+# `docs/live-object-model.md` sections 3b and 3c.
 #
 # `TheSpecialPowerStore` is walked too, and is the reason to check the *shape* before assuming
 # one: it is a `std::vector` (`{begin, end, capacity}` at `+0x0C`), not a linked list, which is
@@ -367,6 +442,33 @@ GAME_LOGIC_FRAME = 0x40
 # objects held ids `99999996`..`99999999` at slots 4403-4406. Anything indexing an array by this
 # value must fold or bound it - see `patches/hero_mana.py`, which masks it.
 OBJECT_ID = 0x74
+
+# The **second** `ObjectID` on an object, immediately after its own, and the engine's fallback
+# answer to "which horde does this belong to": `resolveAttackTarget` (`0x00668167`) looks it up
+# through `GameLogic::findObjectByID` when `m_containedBy` is null, and treats the result as
+# this object's horde if it is `KINDOF HORDE`. In the Generals-lineage layout that field is
+# `m_producerID` - who made me - which fits what the fallback is for and is why an object that
+# has *left* its horde still resolves back to it. Not measured live; see
+# `docs/horde-formation-orphans.md` section 6.
+OBJECT_PRODUCER_ID = 0x78
+
+# `Object::m_status`, the `ObjectStatusMaskType` bitset - 4 dwords, so 128 slots for the 106
+# names this build defines. Recovered from the one helper every test site goes through,
+# `Object::testStatus(bit)` at `0x0044DDEC`, whose body is
+# `and eax, [esi + edx*4 + 0x94]` with `edx = bit >> 5`.
+#
+# The bit numbering is the name table's index order, corroborated by the call sites rather than
+# assumed: 91 of them push a literal bit, and all 39 distinct values name a status that makes
+# sense where it is used - `HORDE_MEMBER` (38) in the horde target resolver, `IS_LEAVING_FACTORY`
+# (90) in the stance module's wait, `UNDER_CONSTRUCTION` (2) thirteen times.
+OBJECT_STATUS = 0x94
+OBJECT_STATUS_DWORDS = 4
+OBJECT_TEST_STATUS = 0x0044DDEC
+
+# The `ObjectStatus` names, a flat `const char*[]` in static data, in bit order and NULL
+# terminated. Index 0 is `DESTROYED`; the last named slot is 105, `USER_DEFINED_2`.
+OBJECT_STATUS_NAMES = 0x00D8AFF0
+OBJECT_STATUS_COUNT = 106
 
 # `Object::m_contain`, the `ContainModuleInterface*` a horde or transport carries and a lone
 # unit does not. Vtable `+0x7c` returns the horde interface, whose `+0x188` is the member count.
@@ -715,6 +817,77 @@ RECORDER_END_WRITE_CALL = 0x0077F98B
 RECORDER_END_WRITE_CALL_BYTES = bytes.fromhex("e86cdfffff")  # call 0x0077D8FC
 RECORDER_STOP_RECORDING = 0x0077D8C8
 
+# Two siblings that answer "is this a game the observer machinery applies to". Both are
+# thiscall on `TheGameLogic` and return a bool in `al`; they differ only in whether skirmish
+# counts. Derived in `docs/observer-switch.md`.
+#
+#     IS_MULTIPLAYER_GAME              `m_gameMode` in {1, 5} - the two network flavours.
+#     IS_MULTIPLAYER_OR_ITS_REPLAY     that, or a *playback* whose recorded mode is 1 or 5.
+#     IS_MULTIPLAYER_OR_SKIRMISH...    that, plus live mode 2 and a recorded mode of 2.
+#
+# The last one is the predicate `docs/skirmish-replay.md` §3 cites as proof the engine already
+# anticipates a mode-2 recording; it has 31 callers. The middle one has **exactly one**, the
+# observer bar's visibility gate below.
+IS_MULTIPLAYER_GAME = 0x00441B7C
+IS_MULTIPLAYER_OR_ITS_REPLAY = 0x0062541E
+IS_MULTIPLAYER_OR_ITS_REPLAY_BYTES = bytes.fromhex(
+    "e859c7e1ff84c075298b0dd87cde0085c97422e8efba180083f8017518a1d8"
+    "7cde008b80d40e000083f801740583f8057503b001c332c0c3"
+)
+IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY = 0x00625456
+IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY_BYTES = bytes.fromhex(
+    "568bf1e81ec7e1ff84c0753783be1001000002742e8b0dd87cde0085c97428"
+    "e8abba180083f801751ea1d87cde008b80d40e000083f802740a83f8017405"
+    "83f8057504b0015ec332c05ec3"
+)
+
+# The palantir's per-frame decision to show or hide the observer bar - the APT clip holding
+# `ObserverStuff/NextPlayerBttn` and `PriorPlayerBttn`, the only UI that reaches
+# `PlayerList::observeNextPlayer`:
+#
+#     mov  ecx, [TheGameLogic]         ; 0x006D7809
+#     test ecx, ecx ; je <hide>
+#     call 0x0062541E                  ; 0x006D7813  multiplayer, or a replay of one?
+#     test al, al   ; je <hide>
+#     mov  ecx, [ThePlayerList]
+#     call 0x006A87F5                  ; is the local player an observer (or defeated)?
+#     test al, al   ; je <hide>
+#     mov  bl, 1 / jmp / xor bl, bl    ; the answer
+#     <compare against the cached bit at Palantir+0x7E>
+#     call 0x008003F6                  ; SetObserverStuffState("_show")
+#     jmp
+#     call 0x0080041A                  ; SetObserverStuffState("_hide")
+#
+# `..._FINGERPRINT` is that whole 66-byte run, with `..._BYTES` at offset 10 of it. A bare
+# `call` says nothing about which one it is; the two predicates around it and the two APT
+# thunks below it do.
+OBSERVER_BAR_GATE_CALL = 0x006D7813
+OBSERVER_BAR_GATE_CALL_BYTES = bytes.fromhex("e806dcf4ff")  # call 0x0062541E
+OBSERVER_BAR_SHOW = 0x008003F6  # SetObserverStuffState("_show"), an APT invoke thunk
+OBSERVER_BAR_HIDE = 0x0080041A  # SetObserverStuffState("_hide")
+OBSERVER_BAR_GATE_FINGERPRINT = 0x006D7809
+OBSERVER_BAR_GATE_FINGERPRINT_BYTES = bytes.fromhex(
+    "8b0d2c41de0085c9741ce806dcf4ff84c074138b0d2849de00e8ce0ffdff84"
+    "c07404b301eb0232db8a467ec0e8073ad8741d84db7407e8b28b1200eb05e8"
+    "cf8b1200"
+)
+
+# `PlayerList::localPlayerIsNotActive` (`mov ecx, [this+0x10]` - the local player - then
+# `!Player::isPlayerActive`, which is `!m_isObserver && !m_isDefeated`). The second half of the
+# gate above, and the *only* other test `PlayerList::observeNextPlayer` makes beyond
+# `GameLogic::isInGame` (`0x00441B60`: mode not in {4, 7, 9}). Neither cares about skirmish.
+PLAYER_LIST_LOCAL_IS_NOT_ACTIVE = 0x006A87F5
+PLAYER_LIST_OBSERVE_NEXT_PLAYER = 0x006A8D2B
+GAME_LOGIC_IS_IN_GAME = 0x00441B60
+
+# Where playback makes the observer the local player: `cmp [TheGameLogic+0x110], 3` - the
+# playback game mode - then `setLocalPlayer(findPlayerWithNameKey("ReplayObserver"))` and
+# `ControlBar+0x218 = getNthPlayer(TheRecorder+0xECC)`, the recorded local player. Mode 3 is
+# mode 3 whatever was recorded, which is why a skirmish replay already gets a working observer
+# seat and only the bar above is missing.
+PLAYBACK_INSTALLS_OBSERVER = 0x006283D1
+RECORDER_LOCAL_PLAYER_INDEX = 0xECC
+
 # `msvcr71.dll` imports, by IAT slot. The engine calls them exactly this way
 # (`call dword ptr [slot]`, cdecl, caller cleans), so a cave can too.
 IMPORT_FWRITE = 0x00BD053C
@@ -760,6 +933,42 @@ PLAYER_IS_DEFEATED = 0x754
 # `MessageStream::appendMessage(GameMessage::Type)` is virtual, at this vtable offset, and
 # returns the new `GameMessage *`.
 APPEND_MESSAGE_VTABLE_SLOT = 0x48
+
+# `TheTacticalView` - the camera. **Not a subsystem singleton**, which is why it is absent from
+# `docs/engine-globals.md`'s registration walk: `TheGameClient` creates it at `0x0069EF61`
+# (`createView`, its own vtable slot `+0x1D8`), stores the result here, and calls `init` on it.
+# 423 xrefs across the client, and none at all from logic - the camera is presentation state
+# that the simulation never reads, which is what makes writing it desync-safe.
+THE_TACTICAL_VIEW = 0x00DE447C
+
+# `View::getLocation(ViewLocation *)` and `View::setLocation(const ViewLocation *)`, the pair
+# the camera-bookmark hotkeys use. Both are `__thiscall` taking one pointer, and the callee
+# cleans the argument (`ret 4`) - the engine's own call sites push and never adjust `esp`.
+#
+# The pair, and the struct's size, come from the bookmark handler reading its slot array with a
+# 32-byte stride: `0x0083B294` saves the live camera into slot *n* through `+0x170`, and
+# `0x0083B420` restores slot *n* through `+0x174`, both addressing `[base + n*32]`.
+VIEW_GET_LOCATION_VTABLE_SLOT = 0x170
+VIEW_SET_LOCATION_VTABLE_SLOT = 0x174
+
+# `ViewLocation`: a validity flag, a `Coord3D`, then four angles/distances. Its shape is fixed
+# by the `MSG_SET_REPLAY_CAMERA` emitter at `0x0083BA86`, which builds one on the stack and
+# ships it as a Position argument followed by exactly four Floats.
+VIEW_LOCATION_SIZE = 0x20
+
+# `View::m_pos` - the camera's look-at point on the terrain, and the one field of a placement
+# that can be written on its own. `setLocation` copies a `ViewLocation`'s three position floats
+# here with `lea edi,[ebx+0x0C]` and three MOVSDs (`0x0065E995`), and `getLocation` reads them
+# back from `[esi+0x0C]` (`0x0065E942`).
+#
+# **Writing these twelve bytes moves the camera by itself**, without the recompute `setLocation`
+# calls afterwards - measured live against a running match, at 160 writes a second. That matters
+# because `setLocation` is otherwise the only way in and it always writes all four scalars, one
+# of which it cannot write correctly: `zoom` is read from `+0x124` and written to `+0x128`, so
+# handing a captured location straight back still moved the live zoom from 1.281116 to 1.234136,
+# after which the client restored it over about 0.6 seconds. Asking for the reported zoom is
+# refused identically, so there is no value that makes `setLocation` a no-op.
+VIEW_POSITION_OFFSET = 0x0C
 
 # `BuildAssistant::canMakeUnit(Object *producer, const ThingTemplate *what, int reviveIndex)` -
 # the one gate the AI consults before deciding a producer may make something. It is virtual, at
@@ -825,7 +1034,7 @@ REQUEST_UNIQUE_UNIT_ID_VTABLE_SLOT = 0x08
 # (`0x008A1819`: `mov dword [esi], 0xc67ef4`). A vtable address is unique to its class, so
 # this is how a reader outside the process identifies which of an object's behaviour modules
 # is the `ProductionUpdate` - without calling the engine's own `getProductionUpdateInterface`,
-# which it cannot. Used by `sage_live.memory` to read production state; see
+# which it cannot. Used by `sage_live.backends.memory` to read production state; see
 # `docs/production-model-condition.md` §5.
 PRODUCTION_UPDATE_VTABLE = 0x00C67EF4
 

@@ -7,7 +7,7 @@ import json
 import pytest
 
 from sage_live import __main__ as cli
-from sage_live.memory import LAYOUT_ROTWK_201, MemoryBackend
+from sage_live.backends.memory import LAYOUT_ROTWK_201, MemoryBackend
 from tests.sage_live.test_memory import build_game
 
 

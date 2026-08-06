@@ -16,7 +16,9 @@ from sage_live import (
     PlayerState,
     ProductionItem,
     Session,
+    ViewLocation,
 )
+from sage_live.api.session import MAX_SELECTION, IllegitimateOrder
 
 
 class FakeClock:
@@ -125,6 +127,68 @@ def test_additive_selection_unions_without_duplicates():
     session.select([10, 11])
     session.select([11, 12], additive=True)
     assert session.selection == (10, 11, 12)
+
+
+def test_a_selection_larger_than_the_buffer_is_split_across_orders():
+    """One order cannot carry more ids than the command buffer has argument slots.
+
+    The encoder refuses an oversized order outright rather than truncating it, so before this
+    an army that outgrew the buffer was not selected at all - and the engine kept the previous
+    selection, which the next order then acted on.
+    """
+    backend = LoopbackBackend()
+    session = Session(backend, player_index=3)
+    session.connect()
+
+    ids = list(range(100, 100 + MAX_SELECTION + 5))
+    sent = session.select(ids)
+
+    assert sent == 2
+    assert session.selection == tuple(ids)
+    assert [o.order_type for o in backend.sent] == [OrderType.CREATE_SELECTED_GROUP] * 2
+    # The first chunk replaces the selection and the rest extend it, which is what makes the
+    # pieces add up to one selection rather than to the last chunk alone.
+    assert backend.sent[0].arguments[0].value is True
+    assert backend.sent[1].arguments[0].value is False
+    assert len(backend.sent[0].arguments) - 1 == MAX_SELECTION
+    assert len(backend.sent[1].arguments) - 1 == 5
+
+
+def test_a_selection_that_fits_still_goes_as_one_order():
+    backend = LoopbackBackend()
+    session = Session(backend, player_index=3)
+    session.connect()
+    assert session.select(list(range(MAX_SELECTION))) == 1
+    assert len(backend.sent) == 1
+
+
+def test_a_split_selection_stops_at_the_first_chunk_that_does_not_go():
+    """A cap that bites mid-selection leaves a partial selection, and says so by the count.
+
+    Continuing would leave the engine holding neither the old selection nor the requested one,
+    with nothing in the return value to tell the caller which.
+    """
+    clock = FakeClock()
+    backend = LoopbackBackend()
+    # The cap counts orders, not ids: two left, and the second select wants three.
+    session = Session(backend, player_index=3, apm_cap=2, clock=clock)
+    session.connect()
+
+    session.select(list(range(MAX_SELECTION)))  # one order, leaving room for one more
+    sent = session.select(list(range(500, 500 + MAX_SELECTION * 2)))
+
+    assert sent == 1
+    assert sent.throttled == 1
+    assert len(backend.sent) == 2
+    assert session.selection == tuple(range(500, 500 + MAX_SELECTION))
+
+
+def test_duplicate_ids_do_not_consume_buffer_slots():
+    backend = LoopbackBackend()
+    session = Session(backend, player_index=3)
+    session.connect()
+    assert session.select([7] * (MAX_SELECTION + 10)) == 1
+    assert session.selection == (7,)
 
 
 def test_selection_dependent_order_refuses_with_empty_selection():
@@ -454,3 +518,214 @@ def test_confirm_queued_measures_growth_not_emptiness():
     about twenty, so "is it busy" is not the question."""
     session = confirming([frame(1, [_barracks(7, 3)]), frame(2, [_barracks(7, 4)])])
     assert session.confirm_queued(lambda: session.select([7]), 7, timeout=2.0) is True
+
+
+def spellbook(n: int, sciences) -> Observation:
+    """One frame of a match where the only thing that moves is the spellbook."""
+    return Observation(
+        frame=n,
+        local_player=3,
+        players=(
+            PlayerState(
+                index=3,
+                name="Player_1",
+                faction="Men",
+                resources=1000,
+                power_points=11,
+                sciences=frozenset(sciences),
+            ),
+        ),
+    )
+
+
+def test_confirm_power_watches_the_science_rather_than_the_points():
+    """The direct signal. Points are the `confirm_spend` trap in a second currency - they rise
+    on their own clock, so this frame pair (a purchase *and* a tick of income) is exactly the
+    case a balance test calls a failure."""
+    session = confirming([spellbook(1, {16}), spellbook(2, {16, 36})])
+    assert session.confirm_power(lambda: session.select([10]), 36, timeout=2.0) is True
+
+
+def test_confirm_power_is_false_when_logic_discarded_the_purchase():
+    session = confirming([spellbook(n, {16}) for n in range(1, 6)])
+    assert session.confirm_power(lambda: session.select([10]), 36, timeout=1.0) is False
+
+
+def test_confirm_power_does_not_accept_a_different_power_landing():
+    """Two powers on one row cost the same, so "a science appeared" is not the question - the
+    one that was ordered is."""
+    session = confirming([spellbook(1, {16}), spellbook(2, {16, 37})])
+    assert session.confirm_power(lambda: session.select([10]), 36, timeout=1.0) is False
+
+
+def test_confirm_power_is_false_when_the_order_never_went():
+    """An order held back by the APM cap was never discarded by logic - it was never sent. The
+    science arrives in the very next frame here, and this must still not claim the purchase:
+    something else buying it (a scripted grant) is not this order having worked."""
+    script = [spellbook(1, {16}), spellbook(2, {16, 36})]
+    session = Session(LoopbackBackend(script), player_index=3, apm_cap=1, clock=TickingClock())
+    session.connect()
+    assert session.purchase_power(36)  # spends the cap's one allowance
+    assert session.confirm_power(lambda: session.purchase_power(36), 36, timeout=1.0) is False
+
+
+def test_cast_dispatches_on_the_form_the_button_declared():
+    """The three constructors send three different order types, and the button decides which.
+    A power sent through the wrong one is accepted, charged nothing and does nothing."""
+    backend = LoopbackBackend()
+    session = Session(backend, player_index=3)
+    session.connect()
+
+    session.cast(551, "location", (100.0, 200.0, 0.0))
+    assert backend.sent[-1].order_type == OrderType.DO_SPECIAL_POWER_AT_LOCATION
+
+    session.cast(551, "self")
+    assert backend.sent[-1].order_type == OrderType.DO_SPECIAL_POWER
+
+    session.cast(551, "object", (100.0, 200.0, 0.0), target_id=42)
+    assert backend.sent[-1].order_type == OrderType.DO_SPECIAL_POWER_AT_OBJECT
+
+
+def test_casting_a_passive_power_raises_rather_than_sending():
+    """Its whole effect landed when it was bought and the control bar shows no button. Sending
+    one anyway would be indistinguishable from a cast that failed."""
+    session = Session(LoopbackBackend(), player_index=3)
+    session.connect()
+    with pytest.raises(IllegitimateOrder, match="fired when it was bought"):
+        session.cast(551, "passive")
+
+
+def test_a_ground_cast_without_a_position_is_refused():
+    """The position is the target. Defaulting it to the origin would send a well-formed order
+    at the corner of the map."""
+    session = Session(LoopbackBackend(), player_index=3)
+    session.connect()
+    with pytest.raises(ValueError, match="needs a position"):
+        session.cast(551, "location")
+
+
+class CameraBackend(LoopbackBackend):
+    """A scripted backend that also carries a camera, as a bridge-backed one does."""
+
+    def __init__(self, view: ViewLocation | None = None) -> None:
+        super().__init__()
+        self.view = ViewLocation() if view is None else view
+        self.applied: list[ViewLocation] = []
+
+    def capture_camera(self) -> ViewLocation | None:
+        return self.view
+
+    def set_camera(self, location: ViewLocation) -> bool:
+        self.applied.append(location)
+        self.view = location
+        return True
+
+
+def test_a_session_whose_backend_has_no_camera_says_so():
+    """None is "this backend cannot say", never a default placement - a scripted or recorded
+    game has no camera at all, and inventing one would be a placement nobody asked for."""
+    session = Session(LoopbackBackend(), player_index=3)
+    session.connect()
+    assert session.camera() is None
+    assert session.set_camera(ViewLocation()) is False
+    assert session.look_at((100.0, 200.0, 0.0)) is False
+
+
+def test_look_at_re_aims_the_camera_and_keeps_everything_else():
+    """The zoom, facing and tilt are the player's. A "look over there" that also reset them
+    would fight whoever is at the keyboard and look nothing like the game it is filming."""
+    held = ViewLocation((10.0, 20.0, 0.0), angle=0.75, pitch=1.25, zoom=1.5, extra=2.5)
+    backend = CameraBackend(held)
+    session = Session(backend, player_index=3)
+    session.connect()
+
+    assert session.look_at((1200.0, 880.0, 0.0))
+    placed = backend.applied[-1]
+    assert placed.position == (1200.0, 880.0, 0.0)
+    assert (placed.angle, placed.pitch, placed.zoom, placed.extra) == (0.75, 1.25, 1.5, 2.5)
+
+
+def test_look_at_overrides_only_what_it_was_given():
+    backend = CameraBackend(ViewLocation((0.0, 0.0, 0.0), angle=0.75, pitch=1.25, zoom=1.5))
+    session = Session(backend, player_index=3)
+    session.connect()
+
+    assert session.look_at((5.0, 6.0, 7.0), zoom=0.5)
+    placed = backend.applied[-1]
+    assert placed.zoom == 0.5
+    assert (placed.angle, placed.pitch) == (0.75, 1.25)
+
+
+def test_look_at_refuses_when_the_camera_cannot_be_read():
+    """There is nothing to keep, and a placement with invented scalars is worse than none."""
+    backend = CameraBackend()
+    backend.view = None
+    session = Session(backend, player_index=3)
+    session.connect()
+    assert session.look_at((5.0, 6.0, 7.0)) is False
+    assert backend.applied == []
+
+
+class MovingCameraBackend(CameraBackend):
+    """A backend that can re-aim without a whole placement, as the live bridge can."""
+
+    def __init__(self, view: ViewLocation | None = None) -> None:
+        super().__init__(view)
+        self.moved: list[tuple[float, float, float]] = []
+
+    def move_camera(self, position) -> bool:
+        self.moved.append(position)
+        return True
+
+
+def test_look_at_re_aims_without_a_placement_where_the_backend_can():
+    """**Keeping the zoom means not writing it, not writing it back.**
+
+    `View::setLocation` writes all four scalars every call, and the zoom it writes is not the
+    zoom it reports - they are different fields. Measured live, handing back a location captured
+    a moment earlier still moved the zoom from 1.281116 to 1.234136 and the client restored it
+    over the next 0.6s; asking for the reported value was refused identically. At one placement
+    per policy cycle that is a permanent zoom-in-and-snap, so a re-aim must not go near it.
+    """
+    backend = MovingCameraBackend(ViewLocation((0.0, 0.0, 0.0), zoom=1.281116))
+    session = Session(backend, player_index=3)
+    session.connect()
+
+    assert session.look_at((1200.0, 880.0, 150.0))
+    assert backend.moved == [(1200.0, 880.0, 150.0)]
+    assert backend.applied == []  # setLocation was never called, so no zoom was written
+
+
+def test_look_at_takes_the_long_way_round_when_a_scalar_is_overridden():
+    """Asking for a zoom is asking for the write that the position-only path exists to avoid,
+    so it goes through the whole placement - deliberately, and only when told to."""
+    backend = MovingCameraBackend(ViewLocation((0.0, 0.0, 0.0), angle=0.75, zoom=1.5))
+    session = Session(backend, player_index=3)
+    session.connect()
+
+    assert session.look_at((5.0, 6.0, 7.0), zoom=0.5)
+    assert backend.moved == []
+    assert backend.applied[-1].zoom == 0.5
+    assert backend.applied[-1].angle == 0.75
+
+
+def test_a_re_aim_does_not_read_the_camera_first():
+    """The read was only ever there to have scalars to hand back. Dropping it also drops a
+    bridge round-trip per placement, which is what lets a pan run far faster than a policy."""
+    backend = MovingCameraBackend()
+    backend.view = None  # unreadable, and it must not matter
+    session = Session(backend, player_index=3)
+    session.connect()
+    assert session.look_at((5.0, 6.0, 7.0))
+    assert backend.moved == [(5.0, 6.0, 7.0)]
+
+
+def test_moving_the_camera_spends_no_apm():
+    """It is not an order: nothing enters the message stream and no logic reads the camera,
+    so throttling it would only stop a policy from framing what it is doing."""
+    backend = CameraBackend()
+    session = Session(backend, player_index=3, apm_cap=1)
+    session.connect()
+    for _ in range(5):
+        assert session.look_at((1.0, 2.0, 3.0))
+    assert session.throttled == 0

@@ -187,6 +187,8 @@ class Bfme2OrderType(IntEnum):
     CombineHordes = 0x423  # combine hordes (Edain horde-merge); arg = target/primary horde ObjectId
     BandBoxSelect = 0x424
     GroundMove = 0x42F  # ground smart command (move)
+    CastleUnpack = 0x43D  # claim a plot, engine picks the base by faction; carries no arguments
+    CastleUnpackExplicit = 0x43F  # build at the selected plot, naming the thing (one Integer)
     LeaveGame = 0x448  # voluntary leave-game
     ChecksumHeartbeat = 0x44A  # per-client checksum, every REPLAY_CRC_INTERVAL frames
     SpecialPowerGlobal = 0x456  # cast - untargeted / global

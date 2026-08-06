@@ -1,4 +1,4 @@
-"""Recruit a unit by **name** - the whole point of `sage_live.resolve`.
+"""Recruit a unit by **name** - the whole point of `sage_live.utils.resolve`.
 
 Everything else in these examples orders things by ids read live out of the game: select and
 move only ever name objects that already exist. Recruiting, building, researching and casting
@@ -29,8 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root on pat
 from _common import attach, describe, issue, my_units  # noqa: E402
 
 from sage_live import orders  # noqa: E402
-from sage_live.bridge import BridgeBackend  # noqa: E402
-from sage_live.resolve import Resolver, UnknownDefinition  # noqa: E402
+from sage_live.backends.bridge import BridgeBackend  # noqa: E402
+from sage_live.utils.resolve import Resolver, UnknownDefinition  # noqa: E402
 from sage_utils.gameroot import resolve_game_root  # noqa: E402
 
 

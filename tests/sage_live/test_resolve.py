@@ -9,8 +9,8 @@ from __future__ import annotations
 import pytest
 
 import sage_live
-from sage_live.orders import OrderType
-from sage_live.resolve import Resolver, UnknownDefinition
+from sage_live.api.orders import OrderType
+from sage_live.utils.resolve import Resolver, UnknownDefinition
 from sage_replay.idspace import UPGRADE_OFFSET
 from sage_replay.narrate import GameData
 from sage_replay.replay import OrderArgumentType
@@ -110,3 +110,37 @@ def test_resolve_is_not_exported_from_the_package_root():
     """It imports sage_ini, so the root must stay install-free."""
     assert "Resolver" not in sage_live.__all__
     assert not hasattr(sage_live, "Resolver")
+
+
+def test_a_name_resolves_whatever_its_case(resolver):
+    """ini identifiers are case-insensitive, and so is every other name surface in the package -
+    `Statics` and `Observation.find` both lowercase. A resolver that did not was how
+    `GondorMarketplace` classified fine and resolved to nothing, the real template being
+    `GondorMarketPlace`."""
+    assert resolver.thing("gondorbarracks") == resolver.thing("GondorBarracks")
+    assert resolver.thing("GONDORBARRACKS") == 3
+    assert resolver.upgrade("upgrade_mordorfirearrows") == UPGRADE_OFFSET + 1
+    assert resolver.science("science_gondor") == 1
+
+
+def test_knows_answers_exactly_what_the_resolver_would(resolver):
+    """A `knows` that says yes to a name the resolver then refuses is how a startup check
+    passes and the first order fails."""
+    assert resolver.knows("things", "gondorbarracks")
+    assert not resolver.knows("things", "NotAThing")
+
+
+def test_a_name_spelled_two_ways_still_needs_its_exact_case():
+    """RotWK + Edain really holds one such pair: `SCIENCE_IMLADRIS` and `SCIENCE_Imladris` are
+    different sciences with different ids. Folding them together would answer with whichever
+    came first, so an ambiguous name keeps failing instead."""
+    game = fake_game()
+    game.sciences = ["SCIENCE_IMLADRIS", "SCIENCE_Gondor", "SCIENCE_Imladris"]
+    resolver = Resolver(game)
+
+    assert resolver.science("SCIENCE_IMLADRIS") == 1
+    assert resolver.science("SCIENCE_Imladris") == 3
+    with pytest.raises(UnknownDefinition):
+        resolver.science("science_imladris")
+    # The collision must not poison the rest of the space.
+    assert resolver.science("science_gondor") == 2

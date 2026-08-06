@@ -35,9 +35,14 @@ from collections import Counter
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from sage_live.connect import AttachError, open_backend
-from sage_live.memory import LAYOUT_ROTWK_201, EngineLayout, MemoryBackend, find_game_processes
-from sage_live.observation import GameObject, Observation
+from sage_live.api.connect import AttachError, open_backend
+from sage_live.api.observation import GameObject, Observation
+from sage_live.backends.memory import (
+    LAYOUT_ROTWK_201,
+    EngineLayout,
+    MemoryBackend,
+    find_game_processes,
+)
 from sage_patch.patches.live_bridge import SECTION_NAME
 
 __all__ = ["main"]

@@ -45,7 +45,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sage_live.memory import find_game_processes  # noqa: E402
+from sage_live.backends.memory import find_game_processes  # noqa: E402
 from sage_replay.replay import (  # noqa: E402
     ReplayGameType,
     ReplayMetadata,
@@ -250,8 +250,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "show":
         print(f"{path}\n")
-        for entry in config.entries:
-            print(entry.describe())
+        for each in config.entries:
+            print(each.describe())
         print(f"\ncurrent user {config.plain.get('CurrentUserName', '?')}")
         print("a solo skirmish launched from the menu was observed running entry [0]")
         return 0

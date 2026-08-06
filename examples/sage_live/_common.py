@@ -13,9 +13,9 @@ from pathlib import Path
 
 from sage_ini import Game, parse_file
 from sage_ini.stats import ini_root
-from sage_live.bridge import BridgeBackend
-from sage_live.connect import AttachError, open_backend
-from sage_live.observation import GameObject, PlayerState, Vec3
+from sage_live.api.connect import AttachError, open_backend
+from sage_live.api.observation import GameObject, PlayerState, Vec3
+from sage_live.backends.bridge import BridgeBackend
 from sage_replay import Order
 from sage_utils.gameroot import resolve_game_root
 from sage_utils.views import faction_for_side, starting_units
