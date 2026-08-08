@@ -17,6 +17,7 @@ from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
 from sage_patch.patches.observer_switch import ObserverSwitchPatch
 from sage_patch.patches.production_condition import ProductionConditionPatch
+from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
 from sage_patch.patches.science_prereqs import SciencePrereqPatch
 from sage_patch.patches.second_resource import SecondResourcePatch
@@ -49,6 +50,7 @@ PATCHES: dict[str, type[Patch]] = {
     HeroBarPatch.name: HeroBarPatch,
     MultiExecuteGatePatch.name: MultiExecuteGatePatch,
     SpawnUnionPatch.name: SpawnUnionPatch,
+    QueueIgnoreCpPatch.name: QueueIgnoreCpPatch,
     MultiInstancePatch.name: MultiInstancePatch,
     MultiInstanceLauncherPatch.name: MultiInstanceLauncherPatch,
 }

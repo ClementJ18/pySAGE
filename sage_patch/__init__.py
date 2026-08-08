@@ -37,6 +37,9 @@ them), not one mod in particular.
 * :class:`MultiExecuteGatePatch` makes an `OK_FOR_MULTI_EXECUTE` button respect each selected
   unit's own `EnableOnModelCondition` / `DisableOnModelCondition`, instead of running the
   ability on the whole group as soon as one member qualifies.
+* :class:`QueueIgnoreCpPatch` adds a `QueueIgnoreCP` boolean to `CommandButton`, so a button the
+  engine presses on an object's behalf (a `DoCommandUpgrade`, say) can queue its unit while the
+  player is at the command-point cap - the stock queue then holds it until the points free up.
 * :class:`BannerFilterPatch` adds an `ObjectFilter` keyword to `BannerCarrierUpdate`, limiting
   which nearby hordes a banner carrier replenishes - by kind, template, or (unlike the engine's
   own ally-wide partition scan) to the banner owner's own hordes via `SAME_PLAYER`.
@@ -64,6 +67,7 @@ from sage_patch.patches import (
     InflationReadoutPatch,
     MultiExecuteGatePatch,
     ProductionConditionPatch,
+    QueueIgnoreCpPatch,
     ReplayOutcomePatch,
     SciencePrereqPatch,
     SecondResourcePatch,
@@ -86,6 +90,7 @@ __all__ = [
     "MultiExecuteGatePatch",
     "Patch",
     "ProductionConditionPatch",
+    "QueueIgnoreCpPatch",
     "ReplayOutcomePatch",
     "SciencePrereqPatch",
     "SecondResourcePatch",

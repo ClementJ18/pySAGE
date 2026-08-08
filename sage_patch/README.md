@@ -205,6 +205,23 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   **No count badge** (a group slot shows the representative's rank, not a member count) and the bar
   is still **16 slots**, so enough distinct groups push heroes off the end. **Not yet
   runtime-verified in game.**
+- **`queue-ignore-cp`** adds a **`QueueIgnoreCP`** boolean to `CommandButton`, so a button the
+  *engine* presses — a `DoCommandUpgrade`'s `GetUpgradeCommandButtonName`, which is how a power or
+  a research recruits a unit on an object's behalf — can queue its unit while the player is at the
+  command-point cap. Stock, that press meets the same gate a click does, the cap answers **7**, and
+  the whole feature is lost: the upgrade has already been granted and nothing will press the button
+  again. **The other half of "queue it now, build it later" is already in the engine** and needed no
+  patching: `ProductionUpdate::update` refuses to advance a head entry the player cannot afford in
+  command points, and a sibling routine pushes a revive's completion frame out one frame per tick
+  while the cap holds — so the unit sits at the head of the queue, charged, with the EVA cue firing,
+  and starts building the moment points free up. The field lands in `CommandButton+0x10D`, alignment
+  padding between `AutoAbility` and the `KindOfFlags`, so `sizeof` stays `0x2E0`; its default costs
+  **one byte** (the constructor's `mov byte` becomes a `mov dword`); and the button's answer reaches
+  the gate — which takes `(producer, what, reviveIndex)` and never sees a button — through a dword
+  in the cave raised for exactly the length of one `queueCreateUnit` call, by wrapping the
+  `UNIT_BUILD` and `REVIVE` cases of `Object::doCommandButton`. **The ControlBar is left stock**, so
+  a *visible* button carrying the field is still drawn unavailable at the cap. **Not yet
+  runtime-verified in game.**
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -277,6 +294,10 @@ sage-patch verify terrain-resource-exp game.dat
 # no parameters; --slots is read out of the image (33, or commandset-limit's N) unless pinned
 sage-patch apply multi-execute-gate --in game.dat.backup --out game.dat
 sage-patch verify multi-execute-gate game.dat
+
+# a CommandButton field that lets an engine-pressed button queue past the command-point cap
+sage-patch apply queue-ignore-cp --in game.dat.backup --out game.dat   # --keyword QueueIgnoreCP
+sage-patch verify queue-ignore-cp game.dat
 ```
 
 `verify` re-derives the expected tables, the repointed references and every patched site from the
@@ -354,6 +375,7 @@ apply_patches(
 affordability gate every human production path shares |
 | [`patches/skirmish_replay.py`](patches/skirmish_replay.py) | `SkirmishReplayPatch` — add the skirmish game mode to the recorder's whitelist, and name the file by timestamp and map |
 | [`patches/multi_execute_gate.py`](patches/multi_execute_gate.py) | `MultiExecuteGatePatch` — add the missing per-member `Enable`/`DisableOnModelCondition` check to the two `AIGroup` special-power loops, recovering each member's own command button from its command set |
+| [`patches/queue_ignore_cp.py`](patches/queue_ignore_cp.py) | `QueueIgnoreCpPatch` — add a `QueueIgnoreCP` boolean to `CommandButton` (the new `Bool` in the struct's alignment padding, the field table rebuilt in a cave, and a one-call flag that carries the pressed button's answer into `BuildAssistant`'s command-point verdict) |
 
 `CommandSetLimitPatch(count=N)`. **`count` may be 34–127**; every offset, the object size, the
 field-parse table, the slot-name strings and the AI's scan bound are derived from it.
@@ -526,6 +548,27 @@ bound is not found, and that member takes the stock path — but `verify` report
 > model-conditioned button, and replays do not cross — the same requirement `production-condition`
 > carries, and the opposite of the client-local `replay-outcome` / `skirmish-replay`.
 
+`QueueIgnoreCpPatch(keyword="QueueIgnoreCP")`. **One keyword**, and the default is the name the
+report asked for. Seven edits and one cave: the constructor's `AutoAbility` store widened from
+`mov byte` to `mov dword` (one byte, and it buys the `No` default because +0x10D..+0x10F is the
+padding the store now reaches); the field table rebuilt in the cave with a 56th row and its
+**three** references repointed — the static accessor plus the block parser's two `push`es, one for
+a fresh button and one for an override; and three hooks, the two `queueCreateUnit` calls in
+`Object::doCommandButton` (5 and 6 bytes, whole instructions both) and the gate's command-point
+verdict (8 bytes at `0x0079402B`, which the revive branch jumps into, so one site covers both
+cases).
+
+The flag the wrappers raise is the whole design: the gate takes `(producer, what, reviveIndex)`
+and has 14 callers, so nothing about the button can reach it by argument. Raising a dword for
+exactly the length of one `queueCreateUnit` call — set and cleared by the same routine, so nesting
+cannot leave it up — means the only frame that can observe it is the one it was raised for. See
+[`docs/queue-ignore-cp.md`](docs/queue-ignore-cp.md) §5.
+
+> **Every peer must run the same patched binary** — not for the flag, which is transient and
+> identical on every peer executing the same order, but for the consequence: an unpatched client
+> refuses a production a patched one accepts. And, as with `terrain-resource-exp`, the keyword is
+> an INI parse error on a stock build.
+
 ### Composing patches
 
 **Any subset of the bundled patches applies in any order**, and a patch is only considered done
@@ -597,6 +640,7 @@ a byte-identity check that `count=64` reproduces the shipped `game.dat`.
 | [`docs/herobar.md`](docs/herobar.md) | full RE writeup for `herobar`: the 224-bit `KindOfMaskType` with 222 names used and the two confirmations of its width, the 14 table references and 6 counts, the 42-byte classifier that is the whole seam, the loop label that skips a node *without consuming a slot* (which is why no drawing code is added), the flags-not-targets shape both removal hooks need, and the slot-node validation that makes a stale group mark harmless. |
 | [`docs/ideas/herobar-kindof.md`](docs/ideas/herobar-kindof.md) | the pre-implementation costing behind it, kept as written - including the open blocker the shipped design turned out not to need. |
 | [`docs/command-point-upkeep.md`](docs/command-point-upkeep.md) | full RE writeup for `command-point-upkeep`: the one reader of `ResourceModifierValues` and the three properties upkeep inherits from it, the command-point bookkeeping at `Player+0x60`, why a `PlayerTemplate` cannot hold the numbers (no hole, 24 size literals, and a parse-time `this` that is a stack temporary) and why its `NameKeyType` can, the one-reference field table, and the cdecl vararg rule that decides where the palantir hook goes. |
+| [`docs/queue-ignore-cp.md`](docs/queue-ignore-cp.md) | full RE writeup for `queue-ignore-cp`: how a `DoCommandUpgrade` presses a real `CommandButton` through `Object::doCommandButton`, the six verdicts of `BuildAssistant`'s `+0x64` gate and why the revive branch jumps into the command-point one, the stall `ProductionUpdate::update` already performs (and the revive completion-frame delay beside it) that makes the second half of the request free, why `CommandButton+0x10D` is padding and `+0x103` is not, and the one-call flag that carries a button's answer into a gate with no argument for it. |
 | [`docs/runtime-re-workflow.md`](docs/runtime-re-workflow.md) | the static+dynamic RE method (Ghidra, Cheat Engine, INI field tables) used to recover these offsets, with the verified `Player`/`ThingTemplate` layouts. |
 | [`docs/message-stream.md`](docs/message-stream.md) | `TheMessageStream` (`0x00DE6398`), `appendMessage` (vtable `+0x48`) and all eleven `append*Argument` helpers - the order-injection path - plus the authoritative 147-name `GameMessage::Type` network enum recovered from `getCommandTypeAsAsciiString`. Closes OPEN 10 of [`order_space_map.md`](../sage_replay/order_space_map.md). |
 | [`docs/engine-globals.md`](docs/engine-globals.md) | the 88 named engine singletons (`TheGameLogic`, `ThePlayerList`, `TheThingFactory`, `TheUpgradeCenter`, ...), the `PlayerList` layout and the `Player` economy/identity offsets. The starting point for any live-memory work. |
@@ -693,6 +737,16 @@ call `0x76f6da`, loop tail `0x76f704`) · `AIGroup::doSpecialPowerAt*` `0x77097e
 gate call `0x770b67`) · the two precondition gates `0x82d5da` (`ret 0x14`) / `0x82d925` (`ret 0x18`)
 · `Object::getCommandSetString` `0x69156b` · `ControlBar::findCommandSet` `0x71efa2` ·
 `Object+0x438`/`+0x43c`/`+0x440` the per-object command-set overrides.
+
+`CommandButton` `sizeof` `0x2e0` · alloc `0x71c439` · ctor `0x75d516` · its `AutoAbility` store
+`0x75d688` (the one-byte widening) · free padding `+0x10d`..`+0x10f` · `getBorderType` `0x75cba5`
+(the reader that rules out `+0x103`) · field-parse table `0xc2bac8` (55 rows) and its three refs
+`0x5da706`/`0x5da7b6`/`0x5da7d0` · `Object::doCommandButton` `0x696fd2` (button at `[ebp+8]`), its
+`UNIT_BUILD` queue call `0x697800` and `REVIVE` queue call `0x697403` ·
+`BuildAssistant::isPossibleToMakeUnit` `0x793ecb`, its command-point verdict `0x79402b`, accept
+`0x794033`, refusal tail `0x79409e` · `hasEnoughCommandPoints` `0x6a7f79` ·
+`ProductionUpdate::update`'s command-point stall `0x8a1e27` and the revive delay `0x8a0669` ·
+`DoCommandUpgrade` `0x8b8e2e` / `0x8b8dfc` · `ControlBar::findCommandButton` `0x71d6ea`.
 
 `RecorderClass::startRecording` `0x77ea03` (only caller `0x77f96e`) · `m_gameMode` `+0xed4`
 (stored at `0x77f923`) · `updateRecord`'s `MSG_NEW_GAME` branch `0x77f8d1`, the game-mode

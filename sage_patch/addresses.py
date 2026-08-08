@@ -57,6 +57,11 @@ __all__ = [
     "BUILD_GATE_AFFORD_BYTES",
     "BUILD_GATE_AFFORD_OK",
     "BUILD_GATE_AFFORD_REFUSE",
+    "BUILD_GATE_COMMAND_POINTS",
+    "BUILD_GATE_COMMAND_POINTS_BYTES",
+    "BUILD_GATE_COMMAND_POINTS_OK",
+    "BUILD_GATE_COMMAND_POINTS_REFUSE",
+    "BUILD_GATE_NOT_ENOUGH_COMMAND_POINTS",
     "BUILD_GATE_NOT_ENOUGH_MONEY",
     "BUILD_GATE_TEMPLATE_EBP",
     "CAN_MAKE_UNIT",
@@ -75,7 +80,19 @@ __all__ = [
     "CAN_USE_SPECIAL_POWER",
     "CAN_USE_SPECIAL_POWER_ENTRY",
     "CLEAR_GAME_DATA",
+    "COMMAND_BUTTON_AUTO_ABILITY",
+    "COMMAND_BUTTON_COMMAND",
+    "COMMAND_BUTTON_CTOR",
+    "COMMAND_BUTTON_CTOR_AUTO_ABILITY",
+    "COMMAND_BUTTON_CTOR_AUTO_ABILITY_BYTES",
+    "COMMAND_BUTTON_FIELD_TABLE",
+    "COMMAND_BUTTON_FIELD_TABLE_REFS",
+    "COMMAND_BUTTON_FIELD_TABLE_REF_OPCODES",
+    "COMMAND_BUTTON_FREE_OFFSET",
+    "COMMAND_BUTTON_SIZE",
     "COMMAND_BUTTON_SPECIAL_POWER",
+    "COMMAND_POINTS_HAS_ENOUGH",
+    "COMMAND_POINTS_IN_USE",
     "CONTROL_BAR_UNAVAILABLE",
     "CONTROL_BAR_UNIT_COST_CALL",
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
@@ -90,6 +107,16 @@ __all__ = [
     "DESCRIPTION_SPECIAL_POWER_CASE_BYTES",
     "DESCRIPTION_TEXT_EBP_OFFSET",
     "DESCRIPTION_UNIT_COST_BODY",
+    "DO_COMMAND_BUTTON",
+    "DO_COMMAND_BUTTON_BUTTON_EBP",
+    "DO_COMMAND_BUTTON_REVIVE_QUEUE",
+    "DO_COMMAND_BUTTON_REVIVE_QUEUE_BYTES",
+    "DO_COMMAND_BUTTON_REVIVE_QUEUE_RESUME",
+    "DO_COMMAND_BUTTON_UNIT_QUEUE",
+    "DO_COMMAND_BUTTON_UNIT_QUEUE_BYTES",
+    "DO_COMMAND_BUTTON_UNIT_QUEUE_RESUME",
+    "DO_COMMAND_UPGRADE_GET",
+    "DO_COMMAND_UPGRADE_REMOVE",
     "DO_SPECIAL_POWER_SITES",
     "FIELD_PARSE_STRIDE",
     "FLOAT_ONE",
@@ -188,7 +215,9 @@ __all__ = [
     "PLAYER_TEMPLATE_RESOURCE_FILTER",
     "PLAYER_TEMPLATE_RESOURCE_VALUES",
     "PLAYER_TEMPLATE_SIZE",
+    "PRODUCTION_UPDATE_COMMAND_POINT_STALL",
     "PRODUCTION_UPDATE_INTERFACE_VTABLE",
+    "PRODUCTION_UPDATE_REVIVE_COMMAND_POINT_DELAY",
     "PRODUCTION_UPDATE_VTABLE",
     "PRODUCTION_WITHDRAW",
     "PRODUCTION_WITHDRAW_BYTES",
@@ -1430,3 +1459,109 @@ TOOLTIP_COST_BYTES = bytes.fromhex("508d45d850")
 #: `UnicodeString::~UnicodeString` - thiscall, no arguments. Needed because a suffix built with
 #: `UNICODE_STRING_FORMAT` is a real string with a real allocation, not a literal.
 UNICODE_STRING_DTOR = 0x004367B0
+
+# --- CommandButton, and the command-point gate a button press meets -------------------------
+
+#: `CommandButton`, the INI block the ControlBar allocates one of per `CommandButton` definition.
+#: `operator new(0x2E0)` at `ControlBar::newCommandButton` (`0x0071C439`), then the constructor.
+COMMAND_BUTTON_SIZE = 0x2E0
+COMMAND_BUTTON_CTOR = 0x0075D516
+
+#: `Command`, the `GUICOMMAND` the button dispatches on - `Object::doCommandButton`'s switch
+#: reads exactly this (`0x00697086`). `3` is `UNIT_BUILD` and `46` is `REVIVE`
+#: (`GUICOMMAND_REVIVE`), the two cases that reach production.
+COMMAND_BUTTON_COMMAND = 0x14
+
+#: `AutoAbility`, the last `Bool` before the `KindOfFlags` at +0x110, and **the three bytes after
+#: it are alignment padding**: no field in the table names +0x10D..+0x10F, the constructor never
+#: writes them, and the `memset(this+0x110, 0, 0x1C)` that follows starts past them.
+#:
+#: That is what makes the new field's default free. The constructor's `mov byte [esi+0x10C], bl`
+#: becomes `mov dword [esi+0x10C], ebx` - **one byte changed, six for six** - and since `ebx` is
+#: the zero the whole constructor stores from (it is `xor ebx, ebx` at 0x0075D52A and is what
+#: `RequireLevel` is defaulted with six bytes earlier), the dword store leaves `AutoAbility` at
+#: `No` and clears the padding on the way past.
+#:
+#: +0x103, the other apparent hole, is **not** one: the constructor zeroes it explicitly and
+#: `CommandButton::getBorderType` (`0x0075CBA5`) returns border type 5 when it is set.
+COMMAND_BUTTON_AUTO_ABILITY = 0x10C
+COMMAND_BUTTON_FREE_OFFSET = 0x10D
+COMMAND_BUTTON_CTOR_AUTO_ABILITY = 0x0075D688
+COMMAND_BUTTON_CTOR_AUTO_ABILITY_BYTES = bytes.fromhex("889e0c010000")
+
+#: The `CommandButton` field-parse table (55 rows on the stock build) and its **three**
+#: references: the static accessor `mov eax, imm32` / `ret` at `0x005DA706`, and the two `push`
+#: immediates in the block parser (`0x005DA711`) - one for a fresh button, one for an override.
+#: The table is walked to its NULL terminator rather than to a count, so appending a row needs no
+#: bound raised anywhere.
+COMMAND_BUTTON_FIELD_TABLE = 0x00C2BAC8
+COMMAND_BUTTON_FIELD_TABLE_REFS = (0x005DA706, 0x005DA7B6, 0x005DA7D0)
+COMMAND_BUTTON_FIELD_TABLE_REF_OPCODES = (0xB8, 0x68, 0x68)  # mov eax, imm32 / push imm32
+
+#: `Object::doCommandButton(CommandButton *btn, ...)` - the one dispatcher every button press
+#: goes through, whether the press came from a player's order or from the engine itself
+#: (`DoCommandUpgrade` calls it directly). `btn` stays in `[ebp+8]` for the whole function.
+DO_COMMAND_BUTTON = 0x00696FD2
+DO_COMMAND_BUTTON_BUTTON_EBP = 0x08
+
+#: The `UNIT_BUILD` case's call to `ProductionUpdate::queueCreateUnit` (interface vtable +0x20),
+#: as `mov ecx, edi` plus the call - five bytes, two whole instructions, so the hook displaces no
+#: partial one. `edi` is the production interface and `esi` its vtable; every argument has
+#: already been pushed, and `eax` (the id `requestUniqueUnitID` just minted) is dead, having been
+#: pushed at 0x006977FA.
+DO_COMMAND_BUTTON_UNIT_QUEUE = 0x00697800
+DO_COMMAND_BUTTON_UNIT_QUEUE_BYTES = bytes.fromhex("8bcfff5620")
+DO_COMMAND_BUTTON_UNIT_QUEUE_RESUME = 0x00697805
+
+#: The `REVIVE` case's call to the same slot: `mov ecx, esi` / `push ebx` / `call [edi+0x20]`.
+#: Six bytes, so the hook is a `jmp rel32` plus one `nop`. Here `esi` is the interface and `edi`
+#: its vtable - the opposite of the `UNIT_BUILD` case - and `ebx` is the zero that stands in for
+#: the `ThingTemplate` a revive does not name.
+DO_COMMAND_BUTTON_REVIVE_QUEUE = 0x00697403
+DO_COMMAND_BUTTON_REVIVE_QUEUE_BYTES = bytes.fromhex("8bce53ff5720")
+DO_COMMAND_BUTTON_REVIVE_QUEUE_RESUME = 0x00697409
+
+#: `DoCommandUpgrade`'s two halves, and the reason a `CommandButton` field can carry engine-side
+#: behaviour at all: each looks its button up by name in `TheControlBar`
+#: (`ControlBar::findCommandButton`, `0x0071D6EA`, from `ModuleData+0x138` /  `+0x13C`) and then
+#: calls `DO_COMMAND_BUTTON` on the owning object with it.
+DO_COMMAND_UPGRADE_GET = 0x008B8E2E
+DO_COMMAND_UPGRADE_REMOVE = 0x008B8DFC
+
+#: `CommandPointBookkeeping::hasEnoughCommandPoints(const ThingTemplate *what, Int count)`, on
+#: the subobject at `Player+0x60`. Returns `inUse + what->CommandPoints <= cap`, or TRUE outright
+#: when `what` costs no command points or carries the `ARMY_OF_DEAD` KindOf. `count` is pushed by
+#: every caller and read by none.
+COMMAND_POINTS_HAS_ENOUGH = 0x006A7F79
+COMMAND_POINTS_IN_USE = 0x08
+
+#: The command-point verdict inside `BuildAssistant`'s `+0x64` gate
+#: (`CAN_MAKE_UNIT_PRODUCTION_GATE`), eight bytes: `test al, al` / `jne <ok>` / `push 7` /
+#: `jmp <carry the code out>`. It is the **last** refusal in the gate and it sits below the money
+#: one (`BUILD_GATE_AFFORD`, 24 bytes earlier, which `second-resource` takes), so the two do not
+#: share a byte.
+#:
+#: Both branches arrive here: `0x00793FED` jumps into the call at `0x00794023` with the revive's
+#: template, so hooking the verdict covers `UNIT_BUILD` and `REVIVE` at once.
+BUILD_GATE_COMMAND_POINTS = 0x0079402B
+BUILD_GATE_COMMAND_POINTS_BYTES = bytes.fromhex("84c075046a07eb6b")
+BUILD_GATE_COMMAND_POINTS_OK = 0x00794033  # enough: on with the rest of the checks
+BUILD_GATE_COMMAND_POINTS_REFUSE = 0x0079409E  # the `pop eax` that carries the pushed code out
+BUILD_GATE_NOT_ENOUGH_COMMAND_POINTS = 7
+
+#: Where the **stock** engine already holds a queue that has outrun the command-point cap, and
+#: the reason this patch needs no second half. Neither address is patched; they are named so the
+#: claim can be checked.
+#:
+#: `PRODUCTION_UPDATE_COMMAND_POINT_STALL` is inside `ProductionUpdate::update`: for a head entry
+#: of kind 1 (unit) or 3 (revive) it asks `COMMAND_POINTS_HAS_ENOUGH` about the entry's own
+#: template and, when the answer is no, plays EVA message 0x0B for the local player and returns
+#: **before** the block at `0x008A1EBC` that adds this frame's progress to `entry+0x1C`. The
+#: queue simply does not advance.
+#:
+#: `PRODUCTION_UPDATE_REVIVE_COMMAND_POINT_DELAY` is the revive-side equivalent, called from the
+#: top of `update` (`0x008A1C10`): it walks the queue and, for every kind-3 entry the player
+#: cannot afford, increments that hero's revive start frame (`ReviveMgr` entry +0xA8) - pushing
+#: the completion out by one frame for as long as the cap holds.
+PRODUCTION_UPDATE_COMMAND_POINT_STALL = 0x008A1E27
+PRODUCTION_UPDATE_REVIVE_COMMAND_POINT_DELAY = 0x008A0669
