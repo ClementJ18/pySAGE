@@ -960,6 +960,7 @@ class SecondResourcePatch(Patch):
     """
 
     name = "second-resource"
+    author = "officialNecro"
     description = (
         "A second per-player resource pool, granted by AutoDepositUpdate.DepositAmount2, seeded "
         "by PlayerTemplate.StartMoney2 and shown in brackets on the palantir (nothing costs it)"

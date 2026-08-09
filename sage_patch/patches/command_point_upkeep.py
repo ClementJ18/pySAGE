@@ -496,6 +496,7 @@ class CommandPointUpkeepPatch(Patch):
     """
 
     name = "command-point-upkeep"
+    author = "officialNecro"
     description = (
         "Scale resource-building income down as a player's command-point usage rises "
         "(PlayerTemplate.UpkeepCommandPointStep / UpkeepValues)"

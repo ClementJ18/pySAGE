@@ -126,6 +126,7 @@ class DesertWeatherWorldbuilderPatch(Patch):
     """Teach Worldbuilder's map-settings weather dropdown a third member."""
 
     name = "desert-weather-wb"
+    author = "officialNecro"
     description = (
         "Worldbuilder.exe (not game.dat): add DESERT to the map-settings weather dropdown, so a "
         "map can be authored with it and the dialog stops reverting it"

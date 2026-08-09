@@ -449,6 +449,7 @@ class SpawnUnionPatch(Patch):
     """Aggregate every `SpawnBehavior` on an object instead of using only the first."""
 
     name = "spawn-union"
+    author = "officialNecro"
     description = "SPAWNS_ARE_THE_WEAPONS uses every SpawnBehavior's spawns, not just the first"
 
     def apply(self, data: bytearray) -> None:

@@ -103,8 +103,8 @@ python -m sage_mods.edain.bot --game <install>            # play
 python -m sage_mods.edain.bot --game <install> --dry-run   # decide and print, send nothing
 ```
 
-It is Edain-specific in the same way the rest of this package is - the build orders in
-`plans.py` name Edain templates - but nothing below `decide` is: classification comes from
+It is Edain-specific in the same way the rest of this package is - the build orders under
+`bot/factions/` name Edain templates - but nothing below `decide` is: classification comes from
 `KindOf`, the recruitable set from each building's live `CommandSet`, and the army mix from
 the faction's own `ArmyDefinition`. The package docstring is the design record, and
 `tuning.py` is the first place to look when a run goes wrong: every threshold there carries

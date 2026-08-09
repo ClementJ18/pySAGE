@@ -303,6 +303,58 @@ sage-patch verify queue-ignore-cp game.dat
 `verify` re-derives the expected tables, the repointed references and every patched site from the
 same parameters and checks them against the file — a structural, disassembler-free pass/fail.
 
+## Credit
+
+**Every patch here names an author. `list` has a column for it and `apply` prints it:**
+
+```
+$ sage-patch list
+commandset-limit   officialNecro  Raise the CommandSet button limit from 33 to N
+cah-factions       officialNecro  Add mod sides + an 'All' token to the Create-A-Hero faction enum
+...
+
+$ sage-patch apply hero-mana --in game.dat.backup --out game.dat
+applying patch: hero-mana (by officialNecro)
+wrote game.dat
+```
+
+That line is not decoration. What makes a patch is not the assembly in `patches/` — it is knowing
+that `0x0077F98B` is the call every ending converges on out of thirteen emitters, that the revive
+gate counts buttons it never reads, that `SAND` is not a stock model condition and has to be
+created before it can be driven. Weeks of disassembly go into a finished patch and **none of it is
+visible in the diff afterwards**; the result reads like twenty lines of obvious code. Somebody did
+that work, and the attribute is where this repository says who.
+
+The patches in this package are engine-level: they apply to any ROTWK install of build
+`2.01.2614.37001` and benefit every mod on it. They are meant to be used. What is asked in return
+is attribution:
+
+- **If you ship a patched `game.dat`, credit the patch authors** in whatever your mod uses for
+  credits — a readme, a mod-page section, an in-game screen. The `applying patch:` lines from
+  `apply` name everyone whose work went into the binary, so the build log is the roster; you do
+  not have to read the source to find out.
+- **Credit by patch, not by package.** A build that carries three patches by three people should
+  name three people. This is why the author lives on the patch class rather than in one line at
+  the top of the repo.
+- **Carry the attribution downstream.** If your mod is forked, or your patched binary is
+  redistributed as part of a pack, the credit travels with it.
+- **A fix or an extension does not transfer authorship.** Add your own name beside the original
+  author's rather than in place of it — the addresses were somebody else's work first.
+
+For new patches, set `author` beside `name` on the class:
+
+```python
+class MyPatch(Patch):
+    name = "my-patch"
+    author = "yourNameHere"
+    description = "What it changes, in one line"
+```
+
+It is not optional in practice: `tests/sage_patch/test_patching.py::TestEveryPatchIsAttributed`
+fails the build for any registered patch that leaves it empty. The default is the empty string
+rather than a name, so an unattributed patch prints `(author unrecorded)` and is caught, instead
+of quietly crediting somebody else's work to whoever happened to be first in the file.
+
 ## Telling the linter what the engine now accepts
 
 A patch that adds an INI field or a name-table token changes what *valid data* looks like, and

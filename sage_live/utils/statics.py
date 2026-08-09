@@ -37,13 +37,19 @@ behind.
 from __future__ import annotations
 
 import re
-from collections.abc import Container, Iterable, Sequence
+from collections.abc import Container, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from sage_ini import load_game
 from sage_ini.model.game import Game
-from sage_ini.model.state import active_command_set_name
+from sage_ini.model.state import (
+    active_command_set_name,
+    armor_scalar_bonus,
+    modifier_entries,
+    modifier_product,
+    modifier_sum,
+)
 from sage_ini.model.types import eval_number
 from sage_live.api.orders import CAST_LOCATION, CAST_OBJECT, CAST_PASSIVE, CAST_SELF
 from sage_live.utils.heroes import ReviveSlot
@@ -57,19 +63,26 @@ __all__ = [
     "CAST_PASSIVE",
     "CAST_SELF",
     "CRUSHABLE_LEVEL",
+    "ALTERNATE_FORMATION",
     "CRUSHER_LEVEL",
     "CRUSHER_RESISTED",
     "EFFECT_BUFF",
     "EFFECT_BUILD",
     "EFFECT_GRANT",
     "EFFECT_HEAL",
+    "EFFECT_SELF_BUFF",
     "EFFECT_STRIKE",
     "EFFECT_SUMMON",
     "EFFECT_UNKNOWN",
+    "FORMATION_MODIFIERS",
+    "HORDE_TOGGLE_FORMATION",
     "LOGIC_FRAMES_PER_SECOND",
+    "MAIN_FORMATION",
     "MP_COUNT_FOR_VICTORY",
+    "NOT_AN_ABILITY",
     "PLOT_FAMILIES",
     "PURCHASE_SCIENCE",
+    "SPECIAL_POWER",
     "SPELL_BOOK",
     "SUMMON_KINDS",
     "REBUILD_HOLE",
@@ -83,6 +96,7 @@ __all__ = [
     "ArmyPlan",
     "CastablePower",
     "CostLadder",
+    "Formation",
     "PowerButton",
     "Statics",
     "UnpackButton",
@@ -106,6 +120,22 @@ PURCHASE_SCIENCE = "PURCHASE_SCIENCE"
 # spellbook are two different command sets on two different things - the store hangs off the
 # `PlayerTemplate` and sells, the book hangs off the `SpellBookMp` object and casts.
 SPELL_BOOK = "SPELL_BOOK"
+
+# The `CommandButton` command a **unit's own** ability sits behind - a hero's, and equally the
+# errand rider's summons. Same order shapes as `SPELL_BOOK` and a different command, because the
+# caster is the object rather than the player's book.
+SPECIAL_POWER = "SPECIAL_POWER"
+
+# `Options` tokens that mark a `SPECIAL_POWER` button as something other than an ability to fire.
+#
+# **The spellbook had an equivalent problem and solved it a way heroes cannot borrow.** There, a
+# UI button is one the spell store never sold; a hero has no store, so the button's own options
+# are what is left - and they are enough, because both cases declare themselves. `NONPRESSABLE`
+# is a portrait showing a passive aura and not a button at all (Beregond carries two of them),
+# and `TOGGLE_IMAGE_ON_WEAPONSET` is a mount, a dismount or a weapon swap - a real decision, and
+# not one that can be made by a stage looking for something to cast: firing Gandalf's would put
+# him back on foot.
+NOT_AN_ABILITY = frozenset({"NONPRESSABLE", "TOGGLE_IMAGE_ON_WEAPONSET"})
 
 # How a cast order must be addressed, read off the firing button's `Options`. The engine picks
 # the order type to match the `NEED_TARGET_*` bits and the corpus confirms the pairing on every
@@ -132,6 +162,12 @@ EFFECT_BUFF = "buff"
 EFFECT_HEAL = "heal"
 EFFECT_GRANT = "grant"
 EFFECT_UNKNOWN = "unknown"
+# A buff that lands on the **caster** and on nothing else - Boromir's Blade Master, Faramir's
+# poisoned blades. Kept apart from `EFFECT_BUFF` because the two are aimed by opposite questions:
+# an ally buff is worth firing where the most of your army is standing, and a self buff is worth
+# firing when the caster itself is in a fight, wherever that happens to be. Declared by a module
+# field of its own (`HeroAttributeModifier`) rather than inferred, so nothing has to guess.
+EFFECT_SELF_BUFF = "self buff"
 
 # The module field that names an `ObjectCreationList`, and the two that mark a power as a buff
 # or a heal. A module carrying `AttributeModifier` changes units in place; one carrying
@@ -140,6 +176,13 @@ EFFECT_UNKNOWN = "unknown"
 MODULE_OCL = "OCL"
 MODULE_MODIFIER = "AttributeModifier"
 MODULE_HEAL = "HealAffects"
+# The two shapes a **hero** ability uses that no spellbook power does, and without which the
+# whole roster classifies as `EFFECT_GRANT` and is skipped. `HeroAttributeModifier` is a buff on
+# the caster (`HeroModeSpecialAbilityUpdate`); `SpecialWeapon` is a weapon fired at whatever the
+# button was pointed at (`WeaponFireSpecialAbilityUpdate`) - Gandalf's Wizard Blast, Faramir's
+# Wound Arrow. See `Statics.hero_powers`.
+MODULE_SELF_MODIFIER = "HeroAttributeModifier"
+MODULE_WEAPON = "SpecialWeapon"
 
 # `KindOf` flags that make a created template an army rather than an effect. A summon ends at
 # one of these; a strike ends at `UNATTACKABLE` scenery that exists to carry a weapon.
@@ -153,7 +196,21 @@ FILTER_ENEMIES = "ENEMIES"
 # The relationship tokens that mean "your side". The engine's filter vocabulary distinguishes
 # your own objects from an ally's, and for aiming they are the same answer - both are somewhere
 # the power should be pointed at rather than away from.
-FRIENDLY_TOKENS = frozenset({"SAME_PLAYER", "ALLIES"})
+FILTER_ALLIES = "ALLIES"
+FRIENDLY_TOKENS = frozenset({"SAME_PLAYER", FILTER_ALLIES})
+
+# The `Options` tokens that say whose side a button's target is on, mapped to the filter
+# vocabulary the rest of this module already speaks.
+#
+# **The button is the only place some abilities say this.** A module that fires a `SpecialWeapon`
+# looks identical whether the weapon lands on an enemy or on a friend, and both exist: Gandalf's
+# Wizard Blast is `NEED_TARGET_ENEMY_OBJECT` and Beregond's four `TalkToMe` abilities are
+# `NEED_TARGET_ALLY_OBJECT` - the same module shape pointed the opposite way. Reading the module
+# alone calls both a strike, which would have a bot firing hero abilities at its own battalions.
+TARGET_SIDE = {
+    "NEED_TARGET_ENEMY_OBJECT": FILTER_ENEMIES,
+    "NEED_TARGET_ALLY_OBJECT": FILTER_ALLIES,
+}
 
 # An OCL chain longer than this is a cycle rather than a summon. Real ones are two or three
 # hops - a power creates an "egg", the egg dies, and its `SlowDeathBehavior` creates the units -
@@ -213,6 +270,32 @@ MP_COUNT_FOR_VICTORY = "MP_COUNT_FOR_VICTORY"
 # lair for good means naming the hole in an attack order, which is a thing a policy has to know
 # to do. This flag is how it is found, for every lair and every faction, with no name list.
 REBUILD_HOLE = "REBUILD_HOLE"
+
+# The `CommandButton` command that switches a battalion between its two formations. It carries
+# no `Object`, no cost and no argument of its own: what the alternate formation *is* is declared
+# on the horde, not on the button, and the button's only job is to say the interface offers the
+# switch at all.
+#
+# **Which is a real question rather than a formality**, because a command set may name a button
+# the tree does not declare and the engine simply draws nothing for it. RotWK's own
+# `commandbutton.ini` has most of the vanilla formation buttons commented out - including the
+# two `GondorArcherHordeCommandSet` and `GondorKnightHordeCommandSet` name in slot 2 - and it is
+# only Edain's `includes/commandbutton.inc`, 67 toggles of its own, that puts them back. So
+# whether a battalion can be switched is a fact about the merged tree, not about either file,
+# and `formation_button` asks the merged tree.
+HORDE_TOGGLE_FORMATION = "HORDE_TOGGLE_FORMATION"
+
+# The three `HordeContain` fields the formation system is written in.
+#
+# `AlternateFormation` names *another object* - a `ChildObject` of the horde whose only real
+# content is a second `HordeContain`. Toggling does not create it: the engine reads that module
+# and applies it to the battalion already standing there, which is what the tree's own comment
+# ("for alternate formations, all info outside of the Contain Behavior module is ignored") is
+# saying. Both objects name each other, so the link is a pair rather than a direction, and
+# `ThisFormationIsTheMainFormation` is the only thing that says which half is which.
+ALTERNATE_FORMATION = "AlternateFormation"
+MAIN_FORMATION = "ThisFormationIsTheMainFormation"
+FORMATION_MODIFIERS = "AttributeModifiers"
 
 # The `SpawnBehavior` field naming what a structure garrisons itself with. A creep lair is
 # nothing but this: `DunlandGoblinLair` spawns twelve wildmen and replaces each one that dies,
@@ -419,6 +502,35 @@ class CastablePower:
     # every cast as failed: measured on Gondor's book, 4 of the 8 real spells declare it, and
     # the four that do are exactly the four whose marker was seen live.
     view_seconds: float = 0.0
+    # The OBJECT-scoped upgrades this power permanently confers on what it touches, which is the
+    # one thing a buff leaves behind that an observation can see. A target already carrying them
+    # has had this power and would gain nothing from another - see `granted_upgrades` for why
+    # only the permanent ones are here.
+    grants: tuple[str, ...] = ()
+    # **The upgrade that unpauses this power, for a hero ability. Empty for a spellbook power**,
+    # which is gated by a science instead - see `sciences` and `enabled_for`.
+    #
+    # Every hero ability starts paused and is opened by an `UnpauseSpecialPowerUpgrade` naming
+    # `Upgrade_Level_N`, which is the hero's level. That upgrade is OBJECT-scoped, so it lands in
+    # the hero's own `GameObject.upgrades` and the gate is a live read rather than an experience
+    # counter something would otherwise have to keep. Measured across the Men roster: Beregond's
+    # eight abilities open at levels 1, 1, 3, 3, 5, 8, 8 and 10.
+    unlocked_by: str = ""
+    # `StartAbilityRange` - how close the caster must be before the ability fires at all. **The
+    # caster walks to it**, so this is not a filter on targets, it is the distance a policy is
+    # committing its hero to travelling: Gandalf's Wizard Blast is 80, so an order aimed across
+    # the map is a wizard walking alone into whatever is over there. Zero where the ability
+    # declares none, which means the engine imposes no approach of its own.
+    ability_range: float = 0.0
+
+    def unlocked_for(self, upgrades: Container[str]) -> bool:
+        """Whether the caster has reached the level this ability opens at, matched lowercased.
+
+        A power that names no unlock upgrade is open, which covers every spellbook power and the
+        handful of hero abilities that carry no `UnpauseSpecialPowerUpgrade` at all - Gandalf's
+        shield bubble among them.
+        """
+        return not self.unlocked_by or self.unlocked_by.lower() in upgrades
 
     @property
     def castable(self) -> bool:
@@ -478,6 +590,103 @@ class UnpackButton:
         if not self.needed_upgrades:
             return True
         return any(u.lower() in upgrades for u in self.needed_upgrades)
+
+
+@dataclass(frozen=True)
+class Formation:
+    """The alternate formation a battalion can be told to stand in, and what standing in it buys.
+
+    A battalion in this engine has at most two formations and one button that swaps between them.
+    The ordinary one carries no bonus - Gondor's spells that out, giving the main formation a
+    `RemoveFormationBoni` modifier list with nothing in it but the `Category` - and the alternate
+    carries a `ModifierList` that is the whole of the trade. `GondorFighterHordeBlock`'s is
+    `ARMOR 17%` and `SPEED 70%`, which the control bar shows as "+20% Armor, -30% Speed".
+
+    **The two numbers are combined differently and the difference is not cosmetic.**
+    `sage_ini.model.state` is the authority here and this reads through it rather than
+    reimplementing the arithmetic: `SPEED` and `DAMAGE_MULT` are *multipliers* where 1.0 is
+    neutral, while `ARMOR` is a summed *fraction* the engine feeds into `1/(1-v)`, so 0.0 is
+    neutral there and 0.17 is the +20% the tooltip claims. Reading either one as the other gets
+    the sign right and the size wrong, or - for a formation that trades the other way - the sign
+    wrong too.
+
+    **The armour comes in two kinds and collapsing them loses whole formations.** An `ARMOR`
+    line may name damage types it is scoped to, and several here do: the knights' wedge is
+    `ARMOR 33% SLASH SPECIALIST`, the Morthond ambush is armour against ranged fire only, and
+    Pelargir's shield wall is `ARMOR 50% WATER`. Summed with the untyped bonuses those read as
+    protection against everything, which is false; dropped, three of Gondor's formations read as
+    pure downside, which is also false. So `armour` is the bonus that applies to all damage and
+    `armour_scoped` the one that applies only to `armour_types`.
+    """
+
+    # The horde in its ordinary formation, and the child object the toggle swaps its contain
+    # module for. Both spelled as the tree spells them.
+    template: str
+    alternate: str
+    # The `HORDE_TOGGLE_FORMATION` button the owner's control bar really offers, and the
+    # `ModifierList` the alternate applies. Either may be empty, and they fail differently: no
+    # button means a human could not switch and neither may we, while no modifier list means the
+    # switch is legitimate and buys nothing worth spending an order on.
+    button: str
+    modifiers: str = ""
+    # Summed `ARMOR` fractions: the `v` in the engine's `1/(1-v)`. Positive is tougher, and
+    # negative happens - the Dol Amroth wedge buys its damage with `ARMOR -25%`.
+    armour: float = 0.0
+    armour_scoped: float = 0.0
+    armour_types: tuple[str, ...] = ()
+    # Multiplicative, 1.0 being unchanged.
+    speed: float = 1.0
+    damage: float = 1.0
+    # Summed, as `UnitState.vision` applies it: `base * (1 + vision)`.
+    vision: float = 0.0
+    # Whether the formation holds its ground - a pike wall, or a shield wall that cannot be
+    # knocked out of its ranks. **Not derivable from the numbers above**, which is why it is a
+    # field of its own: the pikemen's porcupine gives no armour at all and costs 90% of their
+    # vision, so by every figure here it makes the battalion strictly worse. What it actually
+    # does is `CRUSHED_DECELERATE 2000%` - a cavalry charge that hits it stops dead - and
+    # Pelargir's wall does the same job through `RESIST_KNOCKBACK`. Both are worth a great deal
+    # against the thing they are for and nothing at all against anything else.
+    braces: bool = False
+
+    @property
+    def tougher(self) -> bool:
+        """Whether the alternate is the more survivable of the two, against anything.
+
+        Scoped armour counts. A formation that is only tougher against slashing is still a
+        formation bought to survive, and the alternative reading - that a bonus against most of
+        what melees it is no bonus - would throw away three of Gondor's five usable formations.
+        """
+        return self.armour > 0.0 or self.armour_scoped > 0.0
+
+    @property
+    def slower(self) -> bool:
+        return self.speed < 1.0
+
+    @property
+    def deadlier(self) -> bool:
+        return self.damage > 1.0
+
+    @property
+    def worth_taking(self) -> bool:
+        """Whether the alternate buys anything at all a caller could want.
+
+        A formation with a button and no modifier list is real and empty - the toggle works and
+        changes only the ranks the units stand in. Nothing here is worth an order.
+        """
+        return bool(self.button) and (
+            self.tougher or self.deadlier or self.braces or self.vision > 0.0
+        )
+
+    @property
+    def defensive(self) -> bool:
+        """Whether this formation is bought to survive rather than to kill.
+
+        The distinction the caller acts on: a defensive formation is worth standing in while a
+        fight is being held and worth leaving the moment the battalion has somewhere to be, and
+        an offensive one is not obviously worth either. `braces` counts because a pike wall is a
+        defensive posture whatever its modifiers say.
+        """
+        return self.braces or (self.tougher and not self.deadlier)
 
 
 @dataclass(frozen=True)
@@ -625,6 +834,28 @@ def _number(block: object, field: str, fallback: float) -> float:
         return fallback
 
 
+class _Merged:
+    """Several modules implementing one power, read as though they were a single module.
+
+    Exists because a hero splits an ability across two or three of them and `_classify` reads
+    fields - see `Statics._ability_modules`. Presents the union of their raw fields, and forwards
+    anything else to the first source module that has it, so the **typed** accessors keep
+    working: a range written as a macro expands through `_float_field`'s typed path and floats to
+    nothing through the raw one, which is the trap `_float_field` itself was written for.
+    """
+
+    def __init__(self, fields: dict[str, object], sources: tuple[object, ...] = ()) -> None:
+        self.fields = fields
+        self._sources = sources
+
+    def __getattr__(self, name: str) -> object:
+        for source in self._sources:
+            found = getattr(source, name, None)
+            if found is not None:
+                return found
+        raise AttributeError(name)
+
+
 def _module_name(module: object) -> str:
     """A module's declared type - the `SlavedUpdate` of `Behavior = SlavedUpdate ModuleTag_Slave`.
 
@@ -751,6 +982,10 @@ class Statics:
         # armour block is worth against it. See `effectiveness`.
         self._weapons = {str(n).lower(): w for n, w in game.tables.get("weapons", {}).items()}
         self._armours = {str(n).lower(): a for n, a in game.tables.get("armorsets", {}).items()}
+        # `ModifierList` blocks, which are where a buff finally says what it does. Indexed
+        # because an upgrade granted through one is the only mark a permanent buff leaves on
+        # its target - see `granted_upgrades`.
+        self._modifiers = {str(n).lower(): m for n, m in game.tables.get("modifiers", {}).items()}
         # `PlayerTemplate` blocks live in the `factions` table, keyed `FactionMen` and so on.
         self._factions = {str(n).lower(): f for n, f in game.tables.get("factions", {}).items()}
         self._sciences = {str(n).lower(): s for n, s in game.tables.get("sciences", {}).items()}
@@ -1079,6 +1314,135 @@ class Statics:
         both roles - the container is always the correct thing to order.
         """
         return template.lower() in self.horde_members() and not self.is_horde(template)
+
+    def _contain(self, template: str) -> object | None:
+        """The `HordeContain` module governing this template, following the parent chain.
+
+        Found by what it declares rather than by its class name, the same way `spawns` finds a
+        `SpawnBehavior`: a `ChildObject` that restates the module carries its own, and one that
+        does not inherits its parent's. The three fields below are all read off the same module
+        object, so a template whose contain module is inherited answers consistently rather than
+        mixing one object's payload with another's formation.
+        """
+        obj = self._objects.get(template.lower())
+        for _ in range(_MAX_DEPTH):
+            if obj is None:
+                return None
+            for module in getattr(obj, "modules", ()) or ():
+                fields = getattr(module, "fields", {}) or {}
+                wanted = (ALTERNATE_FORMATION, MAIN_FORMATION, "InitialPayload")
+                if any(f in fields for f in wanted):
+                    return module
+            parent = getattr(obj, "parent_name", None)
+            obj = self._objects.get(str(parent).lower()) if parent else None
+        return None
+
+    def formation_button(self, template: str, upgrades: Iterable[str] = ()) -> str:
+        """The formation-toggle button this template's control bar really offers, or `""`.
+
+        **The legitimacy check for a formation switch.** A command set may name a toggle button
+        the tree never declares, and the engine draws nothing for a button it cannot find - so
+        the human would see no formation control while `AlternateFormation` sits on the horde
+        saying one exists. Reading the horde alone therefore finds formations a player may not
+        have; this is what keeps the bot to the ones they do.
+
+        `button_command` answers `""` for a button this tree lacks, which is what makes the
+        undeclared case fall out rather than needing its own test. It is not a hypothetical
+        case - RotWK's own file comments most of these buttons out and Edain declares its own
+        set, so the answer depends on the merge and is worth asking rather than assuming.
+
+        Read through `live_command_set` for the same reason `unpack_buttons` is: a
+        `CommandSetUpgrade` can swap the palette out from under the declared field.
+        """
+        command_set = self.live_command_set(template, upgrades)
+        if not command_set:
+            return ""
+        for _slot, button in self.command_buttons(command_set):
+            if self.button_command(button) == HORDE_TOGGLE_FORMATION:
+                return button
+        return ""
+
+    def alternate_formation(self, template: str, upgrades: Iterable[str] = ()) -> Formation | None:
+        """The other formation this battalion can stand in, or None when it has none.
+
+        None covers four different states and deliberately does not distinguish them, because a
+        caller can do nothing about any of them: the template is not a horde, its contain module
+        names no `AlternateFormation`, the object it names is not in this tree, or the object it
+        names is itself a main formation.
+
+        **That last one is the direction check, and without it this answers for both halves of
+        every pair.** The two objects name *each other*: `GondorFighterHorde` names
+        `GondorFighterHordeBlock` and the block names the fighter straight back. Only
+        `ThisFormationIsTheMainFormation` says which of them carries the bonus, so a formation is
+        returned only when the thing on the far end declares itself not to be the main one - and
+        asking this of a battalion that is already in its alternate formation answers None, which
+        is the truthful answer to "what else could it be standing in".
+
+        The modifiers are read through `sage_ini.model.state`, which owns how each modifier type
+        combines; see `Formation` for why that matters.
+        """
+        contain = self._contain(template)
+        if contain is None:
+            return None
+        named = str(getattr(contain, "fields", {}).get(ALTERNATE_FORMATION, "")).strip()
+        if not named:
+            return None
+        other = self._contain(named)
+        if other is None or _yes(other, MAIN_FORMATION):
+            return None
+        return self._formation_effect(
+            other, template, named, self.formation_button(template, upgrades)
+        )
+
+    def _formation_effect(
+        self, contain: object, template: str, alternate: str, button: str
+    ) -> Formation:
+        """What one alternate formation's `ModifierList` is worth, as the `Formation` itself.
+
+        Every combination rule here belongs to `sage_ini.model.state` and is called rather than
+        copied - `armor_scalar_bonus` for the summed armour fractions, `modifier_product` for the
+        two multipliers, `modifier_sum` for vision. A formation naming a list this tree does not
+        declare reads as the neutral formation it effectively is.
+        """
+        name = str(getattr(contain, "fields", {}).get(FORMATION_MODIFIERS, "")).split()
+        block = self._modifiers.get(name[0].lower()) if name else None
+        if block is None:
+            return Formation(template, alternate, button, name[0] if name else "")
+        lists = [block]
+        entries = modifier_entries(block)
+        types = {
+            damage
+            for kind, _value, damage_types in entries
+            if kind == "ARMOR"
+            for damage in damage_types
+        }
+        # `armor_scalar_bonus` sums the entries that apply to one damage type, counting untyped
+        # ones as applying to all - so asking it for a type no entry names returns exactly the
+        # untyped total, and the scoped remainder is what the whole sum has over that.
+        untyped = armor_scalar_bonus(lists, "")
+        return Formation(
+            template=template,
+            alternate=alternate,
+            button=button,
+            modifiers=name[0],
+            armour=untyped,
+            # The best of the scoped bonuses rather than their sum: they are alternatives, not
+            # cumulative, since an attack deals one damage type.
+            armour_scoped=max(
+                (armor_scalar_bonus(lists, damage) - untyped for damage in types), default=0.0
+            ),
+            armour_types=tuple(sorted(types)),
+            speed=modifier_product(lists, "SPEED"),
+            damage=modifier_product(lists, "DAMAGE_MULT"),
+            vision=modifier_sum(lists, "VISION"),
+            # The pike wall, by what it does rather than by the word "porcupine" in a template
+            # name. `CRUSHED_DECELERATE` is the modifier that stops a charge; `RESIST_KNOCKBACK`
+            # is the shield wall's version of the same idea, keeping the ranks standing through
+            # what would otherwise scatter them.
+            braces=any(
+                kind in ("CRUSHED_DECELERATE", "RESIST_KNOCKBACK") for kind, _v, _t in entries
+            ),
+        )
 
     def command_set(self, template: str) -> str | None:
         """The template's `CommandSet` name, following the parent chain."""
@@ -2017,6 +2381,7 @@ class Statics:
                     spawns=spawns,
                     affects=affects,
                     view_seconds=_float_field(definition, "ViewObjectDuration") / 1000.0,
+                    grants=self.granted_upgrades(spawns, module),
                 )
             )
         return tuple(found)
@@ -2042,14 +2407,158 @@ class Statics:
             current = self._objects.get(str(parent).lower()) if parent else None
         return table
 
+    def _ability_modules(self, template: str) -> dict[str, _Merged]:
+        """One object's special-power modules, **merged** per power rather than first-won.
+
+        The difference from `_spell_modules` is the whole reason heroes need their own walk. A
+        spellbook implements a power in one module, so taking the first is taking the only one. A
+        hero spreads each ability over two or three, and they carry different halves of the
+        answer:
+
+        | module | what it alone says |
+        |---|---|
+        | `UnpauseSpecialPowerUpgrade` | the level it opens at, and nothing else |
+        | `SpecialPowerModule` | that it starts paused, sometimes the modifier |
+        | `WeaponFireSpecialAbilityUpdate` | the weapon, and the range the caster closes to |
+        | `HeroModeSpecialAbilityUpdate` | the modifier it puts on the caster |
+        | `OCLSpecialPower` | what it summons |
+
+        And the one declared first is almost always `UnpauseSpecialPowerUpgrade`, which says
+        nothing about the effect at all. Measured before this was written: `_spell_modules` over
+        the Men roster classified **every** ability `EFFECT_GRANT`, so `AIMABLE` filtered the
+        whole roster out and a hero casting stage would have had nothing to fire, on any faction.
+
+        Merging is safe because the fields are near-disjoint; the one that genuinely collides is
+        `StartsPaused`, which is not read here - the unlock upgrade is what answers that question.
+
+        Walks the parent chain like `_spell_modules`, for the same reason: an Edain hero is
+        frequently a `ChildObject` of the vanilla one and restates only what it changes.
+        """
+        table: dict[str, dict[str, object]] = {}
+        sources: dict[str, list[object]] = {}
+        current = self._objects.get(template.lower())
+        for _ in range(_MAX_DEPTH):
+            if current is None:
+                break
+            for module in getattr(current, "modules", ()) or ():
+                fields = getattr(module, "fields", {}) or {}
+                named = str(fields.get("SpecialPowerTemplate", "")).strip()
+                if not named:
+                    continue
+                key = named.lower()
+                merged = table.setdefault(key, {})
+                sources.setdefault(key, []).append(module)
+                for field, value in fields.items():
+                    # The child's own modules are walked first, so whatever it declared stands
+                    # and the parent only fills gaps - the same override the engine applies.
+                    merged.setdefault(field, value)
+            parent = getattr(current, "parent_name", None)
+            current = self._objects.get(str(parent).lower()) if parent else None
+        return {
+            power: _Merged(fields, tuple(sources.get(power, ()))) for power, fields in table.items()
+        }
+
+    def hero_powers(self, template: str) -> tuple[CastablePower, ...]:
+        """Every ability a unit can fire from its own command set, in slot order.
+
+        The unit-scoped counterpart of `spell_book`, and the same three-part join: the command
+        set says which buttons exist, the button says how the order is addressed, and the module
+        on the object says what the power does. What differs is every one of those three sources
+        and none of the shape.
+
+        - **`SPECIAL_POWER`, not `SPELL_BOOK`.** The caster is the object rather than the
+          player's book, which is also why `Session.cast` takes the hero's id as the source for a
+          self or ground cast and 0 for an object cast - see `sage_live.api.orders.cast_at_object`,
+          whose whole note was written against Faramir's Wound Arrow.
+        - **Gated by a level, not by a science.** `unlocked_by` carries the `Upgrade_Level_N` the
+          ability's `UnpauseSpecialPowerUpgrade` names, and the hero's own `GameObject.upgrades`
+          answers it live.
+        - **Merged modules.** See `_ability_modules` for why first-won classifies the entire
+          roster as `EFFECT_GRANT`.
+
+        **Two kinds of button are dropped and neither by name**, which is the same standard the
+        spellbook's "the store never sold it" test meets: `NONPRESSABLE` is a portrait for a
+        passive aura, and `TOGGLE_IMAGE_ON_WEAPONSET` is a mount or weapon swap. See
+        `NOT_AN_ABILITY`.
+
+        A power whose merged modules say nothing recognisable is returned rather than dropped, so
+        a caller can see the ability exists and that nothing here can aim it. Measured on the Men
+        roster, that is a large minority of the buttons: Boromir's Last Stand and Gandalf's
+        Lightning Sword both carry a `SpecialPowerModule` saying only that the power starts
+        paused, and deliver their effect somewhere this walk cannot follow. Both come back
+        `EFFECT_GRANT` - the honest reading of "no heal, no modifier, no OCL and no weapon" - and
+        that is a different statement from `EFFECT_UNKNOWN`, which means a chain *was* followed
+        and named no side.
+        """
+        command_set = self.command_set(template) or ""
+        if not command_set:
+            return ()
+        modules = self._ability_modules(template)
+        found: list[CastablePower] = []
+        for slot, button in self.command_buttons(command_set):
+            entry = self._buttons.get(button.lower())
+            if entry is None or self.button_command(button) != SPECIAL_POWER:
+                continue
+            power = str(entry.fields.get("SpecialPower", "")).strip()
+            if not power:
+                continue
+            options = str(entry.fields.get("Options", "")).split()
+            tokens = {token.strip().upper() for token in options}
+            if NOT_AN_ABILITY & tokens:
+                continue
+            definition = self._powers.get(power.lower())
+            reload_ms = _int_field(definition, "ReloadTime")
+            module = modules.get(power.lower())
+            effect, spawns, affects, module_radius = self._classify(module)
+            side = {TARGET_SIDE[t] for t in tokens if t in TARGET_SIDE}
+            # **A weapon pointed at a friend is not a strike, and the module cannot tell.** See
+            # `TARGET_SIDE`: Beregond's `TalkToMe` abilities are the same
+            # `WeaponFireSpecialAbilityUpdate` shape as Wizard Blast and target an ally, so the
+            # module-only reading has four of his eight buttons down as attacks on our own side.
+            # What they actually do is not in any field read here, so they are reported unknown -
+            # a caller declines to fire what it cannot aim, which is the same answer `_classify`
+            # gives an OCL chain that names no side.
+            if effect == EFFECT_STRIKE and side == {FILTER_ALLIES}:
+                effect = EFFECT_UNKNOWN
+            found.append(
+                CastablePower(
+                    command_slot=slot,
+                    button=button,
+                    power=power,
+                    sciences=tuple(
+                        name
+                        for group in _science_groups(definition, "RequiredSciences")
+                        for name in group
+                    ),
+                    form=_cast_form(options, reload_ms),
+                    effect=effect,
+                    radius=_float_field(definition, "RadiusCursorRadius") or module_radius,
+                    reload_seconds=reload_ms / 1000.0,
+                    spawns=spawns,
+                    affects=(*affects, *sorted(side)),
+                    view_seconds=_float_field(definition, "ViewObjectDuration") / 1000.0,
+                    grants=self.granted_upgrades(spawns, module),
+                    unlocked_by=_definition_name(
+                        (getattr(module, "fields", {}) or {}).get("TriggeredBy", "")
+                    ),
+                    ability_range=_float_field(module, "StartAbilityRange"),
+                )
+            )
+        return tuple(found)
+
     def _classify(
         self, module: object | None
     ) -> tuple[str, tuple[str, ...], tuple[str, ...], float]:
         """What a power does, from the module implementing it: `(effect, spawns, affects, radius)`.
 
-        Four module shapes cover both books measured, and each is read by the field that carries
-        its meaning rather than by the module's class name - a mod is free to implement a buff
-        through a class this has never heard of, and `AttributeModifier` still says what it is.
+        Six module shapes cover both books and the hero rosters, and each is read by the field
+        that carries its meaning rather than by the module's class name - a mod is free to
+        implement a buff through a class this has never heard of, and `AttributeModifier` still
+        says what it is.
+
+        **The last two exist for heroes and neither appears on a spellbook.** A hero implements an
+        ability across two or three modules, so what is passed here is the *merge* of them - see
+        `_ability_modules`, which is what makes reading a field enough.
         """
         fields = getattr(module, "fields", {}) or {}
         if not fields:
@@ -2058,6 +2567,13 @@ class Statics:
         if fields.get(MODULE_HEAL):
             affects = tuple(str(fields[MODULE_HEAL]).split())
             return EFFECT_HEAL, (), affects, _float_field(module, "HealRadius")
+
+        # **Before the ordinary modifier, because a hero ability can declare both** and the
+        # narrower reading is the true one: `HeroModeSpecialAbilityUpdate` puts its modifier on
+        # the caster and nowhere else, so aiming it at the densest part of the army - which is
+        # what `EFFECT_BUFF` means to a caller - would be aiming a self buff at somebody else.
+        if fields.get(MODULE_SELF_MODIFIER):
+            return EFFECT_SELF_BUFF, (), (), 0.0
 
         if fields.get(MODULE_MODIFIER):
             affects = tuple(str(fields.get("AttributeModifierAffects", "")).split())
@@ -2078,6 +2594,28 @@ class Statics:
             built = [t for t in spawns if "STRUCTURE" in self.kind_of(t)]
             if built:
                 return EFFECT_BUILD, tuple(built), affects, 0.0
+
+            # **An egg can deliver its units through a `SpawnBehavior` rather than through another
+            # OCL, and `creates` follows only the OCL half.** Beregond's level-1 summon is the
+            # case: `OCL_SummonBeregondKompanie` makes one `BeregondKompanieObject`, an `INERT
+            # UNATTACKABLE` marker with a 40-second lifetime and six `SpawnBehavior` modules that
+            # put six citadel guards on the map. Read through the OCL alone it creates a piece of
+            # scenery naming no side, which is `EFFECT_UNKNOWN` and therefore unaimable; read with
+            # the spawns it is plainly a summon. This is the same reader `nests` uses to find what
+            # a creep lair replaces its slaves from - a lair and a summon egg are the same module,
+            # and only the lifetime tells them apart.
+            #
+            # **Last, and only for what neither branch above claimed, which is the whole of what
+            # makes it safe.** Buildings spawn things too: a lair spawns slaves, Isengard's summoned
+            # lumber mill spawns workers, and the Lone Tower spawns its guard. Asked before the
+            # `built` test, this turned three correct `EFFECT_BUILD` powers into summons - and a
+            # build is aimed at our own base while a summon is aimed at their army, so Untamed
+            # Allegiance would have gone from placing lairs at home to placing them on the enemy.
+            # Measured over all seven books: here, it changes nothing that was already classified.
+            hatched = tuple(dict.fromkeys(t for made in spawns for t in self.spawns(made)))
+            army = [t for t in hatched if self.kind_of(t) & SUMMON_KINDS]
+            if army:
+                return EFFECT_SUMMON, tuple(army), affects, 0.0
             # **What it puts down is neither a unit nor a building, and that alone does not say
             # whose side it is on.** Edain delivers friendly effects through the same shape as
             # hostile ones - `EndloseHordenPing` fires a weapon that hands every horde a banner,
@@ -2105,8 +2643,21 @@ class Statics:
             # here spends a recharge measured in minutes on helping the wrong army.
             return EFFECT_UNKNOWN, spawns, affects, 0.0
 
-        # No OCL, no modifier, no heal: it changes the player rather than the map. A granted
-        # upgrade (`PlayerUpgradeSpecialPower`) and a production bonus both land here.
+        # **A weapon fired at whatever the button was pointed at**, which is the shape most of a
+        # hero's offensive kit takes: Gandalf's Wizard Blast, his Istari Light and Faramir's Wound
+        # Arrow are all `WeaponFireSpecialAbilityUpdate` with a `SpecialWeapon` and no OCL,
+        # modifier or heal anywhere on them.
+        #
+        # Read as a strike because that is what firing a weapon at something does to it, and the
+        # one shape in this tree that fires a weapon at a *friend* is not reached from here: the
+        # errand rider's summons are a faction mechanic with its own module, and the rider is not
+        # a hero. A future caller that points this at some other unit's weapon ability should
+        # know that is the assumption being made.
+        if fields.get(MODULE_WEAPON):
+            return EFFECT_STRIKE, (), (), 0.0
+
+        # No OCL, no modifier, no heal, no weapon: it changes the player rather than the map. A
+        # granted upgrade (`PlayerUpgradeSpecialPower`) and a production bonus both land here.
         return EFFECT_GRANT, (), (), 0.0
 
     def _chain_filter(self, templates: Iterable[str]) -> frozenset[str]:
@@ -2137,6 +2688,80 @@ class Statics:
                 parent = getattr(current, "parent_name", None)
                 current = self._objects.get(str(parent).lower()) if parent else None
         return frozenset(found)
+
+    def granted_upgrades(
+        self, templates: Iterable[str], module: object | None = None
+    ) -> tuple[str, ...]:
+        """The permanent object-scoped upgrades anything this power creates confers.
+
+        **A buff is otherwise invisible after the fact.** An attribute modifier touches no field
+        an observation carries, so "has this building already had it" has no direct answer - and
+        a power on a three-minute recharge spent a second time on the same target is a charge
+        thrown away. Where the modifier grants an upgrade, though, the target carries that
+        upgrade in `GameObject.upgrades` forever after, and the question becomes a set test.
+
+        The chain is walked rather than guessed, because it is longer than it looks. Gondor's
+        Assistance in Time of Need goes power -> `OCL_BeistandinderNotNormalModifier` ->
+        `BeistandinderNotNormalEgg`, which attaches itself to the signal fire and dies; its
+        `SlowDeathBehavior` fires `BeistandinderNotNormalWeapon`, whose `AttributeModifierNugget`
+        names `BeistandinderNotNormalModifier`, and only there does `Upgrade =
+        Upgrade_SwitchToRockThrowing` appear. Four hops, none of which state the upgrade.
+
+        **Tokens are matched against the indexes rather than against field names.** `AttachUpdate`
+        names a weapon in `Weapon`, a slow death in `DeathWeapon`, a nugget names a modifier in
+        `AttributeModifier` and a bonus names one in `BonusName` - so every token of every field
+        is offered to `_weapons` and `_modifiers`, and a token those tables know is what it is.
+        The same rule `filter_targets` uses to tell a template from a `KindOf`.
+
+        **Only `Duration = 0` counts.** A timed modifier wears off, so its upgrade is a state the
+        target leaves again and recasting is the whole point; treating it as a permanent mark
+        would make a repeatable buff castable exactly once per target per match.
+        """
+        modifiers: set[str] = set()
+        weapons: set[str] = set()
+
+        def read(fields: Mapping[str, object] | None) -> None:
+            for value in (fields or {}).values():
+                for token in str(value).split():
+                    lowered = token.lower()
+                    if lowered in self._modifiers:
+                        modifiers.add(lowered)
+                    elif lowered in self._weapons:
+                        weapons.add(lowered)
+
+        if module is not None:
+            read(getattr(module, "fields", {}))
+        for template in templates:
+            current = self._objects.get(str(template).lower())
+            for _ in range(_MAX_DEPTH):
+                if current is None:
+                    break
+                for behaviour in getattr(current, "modules", ()) or ():
+                    read(getattr(behaviour, "fields", {}))
+                parent = getattr(current, "parent_name", None)
+                current = self._objects.get(str(parent).lower()) if parent else None
+        # A worklist rather than a loop over the set, because reading a nugget can name another
+        # weapon - a projectile's `WarheadTemplateName` is where the effect usually is, and the
+        # modifier can sit one hop further along than the weapon the module named.
+        seen: set[str] = set()
+        while weapons - seen:
+            weapon = (weapons - seen).pop()
+            seen.add(weapon)
+            block = self._weapons.get(weapon)
+            for nugget in (getattr(block, "Nuggets", ()) or ()) if block is not None else ():
+                read(getattr(nugget, "fields", {}))
+
+        found: set[str] = set()
+        for name in modifiers:
+            block = self._modifiers.get(name)
+            fields = getattr(block, "fields", {}) or {}
+            if str(fields.get("Duration", "0")).split()[:1] not in ([], ["0"]):
+                continue
+            # `Upgrade` is an `UpgradeWithDelay`, so a delay may follow the name.
+            granted = str(fields.get("Upgrade", "")).split()[:1]
+            if granted:
+                found.add(granted[0])
+        return tuple(sorted(found))
 
     def _expand_filter(self, tokens: Iterable[str]) -> list[str]:
         """An object filter's tokens with any `#define` expanded - `HORN_BUFF_FILTER` is one.

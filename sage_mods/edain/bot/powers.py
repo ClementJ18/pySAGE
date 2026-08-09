@@ -65,7 +65,6 @@ from sage_live.utils.statics import (
     PowerButton,
 )
 from sage_mods.edain.bot.economy import Economy
-from sage_mods.edain.bot.mechanics.signal_fire import SIGNAL_FIRE
 from sage_mods.edain.bot.tuning import (
     BASE_RADIUS,
     CAST_BACKOFF,
@@ -219,23 +218,37 @@ class Powers(Economy):
         """
         return frozenset(p.science.lower() for p in self.spell_store if p.purchasable)
 
-    def wait_for(self, power: CastablePower) -> float:
+    def wait_for(self, power: CastablePower, key: str | None = None) -> float:
         """How long the fallback clock makes this power wait, in seconds.
 
         The ini's declared recharge until the engine refuses a cast made on it, and longer after
         each one - see `CAST_BACKOFF`. Grown rather than tuned because the true figure is not in
         the data: Edain rescales it per player, so the only place the real number shows up is in
         which casts the engine takes.
+
+        **`key` is who is casting, and it exists because a power name is not unique across
+        casters.** The spellbook is one object and its powers name themselves; a hero ability does
+        not - `SpecialAbilityAragornBladeMaster` is on Boromir *and* on Aragorn, and
+        `SpecialAbilityCaptureBuilding` is on every hero in the game. Sharing one clock between
+        two heroes would have each of them silence the other's ability for its whole recharge.
+        Defaults to the power name, which is the spellbook's case and correct there.
         """
-        return self._cast_wait.get(power.power, power.reload_seconds)
+        return self._cast_wait.get(key or power.power, power.reload_seconds)
 
-    def back_off(self, power: CastablePower) -> None:
+    def back_off(self, power: CastablePower, key: str | None = None) -> None:
         """Make this power's fallback clock wait longer, after the engine refused it."""
-        grown = self.wait_for(power) * CAST_BACKOFF
-        self._cast_wait[power.power] = min(grown, power.reload_seconds * CAST_BACKOFF_CAP)
+        grown = self.wait_for(power, key) * CAST_BACKOFF
+        self._cast_wait[key or power.power] = min(grown, power.reload_seconds * CAST_BACKOFF_CAP)
 
-    def ready(self, power: CastablePower) -> bool:
+    def ready(
+        self, power: CastablePower, caster: int | None = None, key: str | None = None
+    ) -> bool:
         """Whether the engine will accept this power now.
+
+        `caster` is the object whose modules carry the recharge - the player's spellbook by
+        default, and a hero for one of its own abilities. The engine keeps the ready-frame on the
+        casting object either way, which is why `MemoryBackend.power_cooldowns` takes an id rather
+        than a player. `key` separates two casters holding the same ability - see `wait_for`.
 
         **The engine's own answer where it can be had.** Every special-power module carries the
         frame its power is next usable on, and `Session.power_cooldowns` reads it off the
@@ -268,12 +281,14 @@ class Powers(Economy):
         answers empty, and empty means "unknown" - so this falls back to counting from the last
         cast rather than treating silence as permission.
         """
-        cooldowns = self.session.power_cooldowns(self.spellbook_id())
+        marker = key or power.power
+        source = self.spellbook_id() if caster is None else caster
+        cooldowns = self.session.power_cooldowns(source)
         ready_frame = cooldowns.get(power.power)
-        if ready_frame is not None and ready_frame != self._cast_frame.get(power.power):
+        if ready_frame is not None and ready_frame != self._cast_frame.get(marker):
             return ready_frame <= self.observation.frame
-        last = self._cast_at.get(power.power)
-        return last is None or time.monotonic() - last >= self.wait_for(power)
+        last = self._cast_at.get(marker)
+        return last is None or time.monotonic() - last >= self.wait_for(power, marker)
 
     def castable_powers(self) -> list[CastablePower]:
         """Every power the book could fire this cycle, dearest recharge first.
@@ -408,15 +423,17 @@ class Powers(Economy):
         reference = threat_from if threat_from is not None else home
         wanted.sort(key=lambda o: distance(o.position, reference), reverse=threat_from is None)
 
-        # **The signal fire takes the first tower, ahead of whatever is nearest the enemy.** Every
-        # other outlying holding is replaceable - a farm razed is 200g and a walk - where the fire
-        # is bought once, is never rebuilt, and is only worth anything after its rider has spent
-        # ten minutes accruing. It is also the one holding that cannot defend itself at all: no
-        # garrison, no spawn, nothing but the rider standing next to it. So the tower that would
-        # have gone to the most exposed farm goes here instead, and the ordering below decides
-        # every tower after this one.
-        fires = [o for o in wanted if o.template_name.lower().startswith(SIGNAL_FIRE.lower())]
-        holding = fires[0] if fires else wanted[0]
+        # **A precious holding takes the first tower, ahead of whatever is nearest the enemy.**
+        # Almost every outlying holding is replaceable - a farm razed is 200g and a walk - and for
+        # those, most exposed is the right rule. The plan names the exceptions: Gondor's signal
+        # fire is bought once, is never rebuilt, cannot defend itself at all, and is worth nothing
+        # until its rider has accrued for ten minutes. So the tower that would have gone to the
+        # most exposed farm goes there instead, and the ordering below decides every tower after.
+        #
+        # Read off `Plan.precious` rather than named here, because this module plays any side.
+        precious = tuple(name.lower() for name in self.plan.precious)
+        first = [o for o in wanted if o.template_name.lower().startswith(precious)]
+        holding = first[0] if first else wanted[0]
         toward = threat_from if threat_from is not None else self._away_from(home, holding.position)
         aim = self._toward_point(holding.position, toward, TOWER_STANDOFF)
         spot = self.open_ground(aim)
@@ -554,12 +571,25 @@ class Powers(Economy):
         anything else is a flag this does not have to understand. **Not by whether one is
         standing** - that reads "the signal fire is destroyed" as "this power is not about
         signal fires" and aims it at the army again, which is the bug this exists to fix.
+
+        **A target that already carries what the power grants is dropped.** Assistance in Time of
+        Need leaves `Upgrade_SwitchToRockThrowing` on the signal fire permanently, and casting it
+        on a fire that has it does nothing at all - the engine accepts the order, spends the
+        charge and re-grants an upgrade already held. With two fires standing and one blessed,
+        the whole point is that the cast goes to the other one; with only a blessed fire standing
+        this returns the empty list, which the caller already reads as "keep the charge".
         """
         wanted = {t.lstrip("+-") for t in power.affects if t.startswith("+")}
         templates = {t.lower() for t in wanted if self.statics.known(t)}
         if not templates:
             return None
-        return [o for o in self.observation.mine if o.template_name.lower() in templates]
+        grants = {u.lower() for u in power.grants}
+        return [
+            o
+            for o in self.observation.mine
+            if o.template_name.lower() in templates
+            and not (grants and grants <= {u.lower() for u in o.upgrades})
+        ]
 
     def aim(self, power: CastablePower) -> tuple[Vec3, str] | None:
         """Where to fire this power, and what it is being fired at - None for nothing worth it.

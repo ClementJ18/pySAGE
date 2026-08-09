@@ -269,6 +269,7 @@ def build_section(base_va: int) -> bytes:
 
 class ReplayOutcomePatch(Patch):
     name = "replay-outcome"
+    author = "officialNecro"
     description = (
         "Write each player's final victory/defeat state into the replay, at the frame the "
         "recording ends - whether a player left or the game finished"

@@ -29,9 +29,20 @@ from sage_patch.sagepatch import Generated, differences, generate, generate_from
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
+    """Every registered patch: what it is called, whose work it is, and what it does.
+
+    **The author is a column rather than a footnote**, because this is the command somebody runs
+    when they are writing their mod's credits. The alternative is reading it back out of an
+    `apply` log, which only names the patches that particular build used - fine for a build, no
+    use at all for "who do I need to thank". See the README's "Credit" section.
+
+    `-` for a patch that names nobody, so the column stays readable and an unattributed patch is
+    visible as a gap rather than as a blank that reads like alignment.
+    """
     width = max((len(name) for name in PATCHES), default=0)
+    authors = max((len(cls.author) for cls in PATCHES.values()), default=0)
     for name, cls in PATCHES.items():
-        print(f"{name:<{width}}  {cls.description}")
+        print(f"{name:<{width}}  {cls.author or '-':<{authors}}  {cls.description}")
     return 0
 
 

@@ -114,6 +114,7 @@ def build_body(counter_va: int) -> bytes:
 
 class UniqueProductionIdPatch(Patch):
     name = "unique-production-id"
+    author = "officialNecro"
     description = "Mint production ids game-wide, so a hero recruit from a second building works"
 
     def apply(self, data: bytearray) -> None:

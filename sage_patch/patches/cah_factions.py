@@ -175,6 +175,7 @@ class CahFactionsPatch(Patch):
     """Add mod sides and an ``All`` token to the Create-A-Hero faction enum."""
 
     name = "cah-factions"
+    author = "officialNecro"
     description = "Add mod sides + an 'All' token to the Create-A-Hero faction enum"
 
     def __init__(self, sides: list[str] | tuple[str, ...] = ()):

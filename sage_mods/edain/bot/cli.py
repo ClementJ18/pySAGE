@@ -14,7 +14,7 @@ from argparse import ArgumentParser
 from sage_live.api.connect import AttachError, attach
 from sage_live.utils.statics import Statics
 from sage_mods.edain.bot.bot import Bot
-from sage_mods.edain.bot.plans import PLANS, Plan
+from sage_mods.edain.bot.factions import FACTIONS, Plan, faction_for
 
 __all__ = ["main", "report_pool", "report_spellbook"]
 
@@ -168,12 +168,13 @@ def main(argv: list[str] | None = None) -> int:
         if me is None:
             raise SystemExit("in a match but with no local player - this should not happen")
         side = (args.faction or me.faction).lower()
-        plan = PLANS.get(side)
-        if plan is None:
+        faction = faction_for(side)
+        if faction is None:
             raise SystemExit(
-                f"no plan for the faction {me.faction!r}. Known: {', '.join(sorted(PLANS))}. "
-                "Add one to PLANS, or pass --faction to borrow another."
+                f"no plan for the faction {me.faction!r}. Known: {', '.join(sorted(FACTIONS))}. "
+                "Add a package under `bot/factions/`, or pass --faction to borrow another."
             )
+        plan = faction.plan
         print(f"playing [{session.player_index}] {me.name} ({me.faction}) with the {side} plan")
 
         # Collect the load started before the wait. Already finished if the bot was launched at
@@ -187,6 +188,13 @@ def main(argv: list[str] | None = None) -> int:
             # which reports a parse error as a crash in the bot.
             raise failed[0]
         statics, session.names = loading[0]
+        # **The revive lookup, without which no hero can be recruited at all.** A hero is ordered
+        # by its position in the player's revive list rather than by template, and `Session` needs
+        # the roster and the producers' `REVIVE` slots to work that position out - and to refuse an
+        # order the control bar would not have offered. `Statics` satisfies the protocol; nothing
+        # was setting it, so `stage_hero_recruit` would have raised `NoReviveLookup` on its first
+        # attempt. See `sage_live.utils.heroes`.
+        session.revives = statics
         named = (plan.resource, *plan.production, *plan.research, plan.unit)
         for name in named:
             known = "" if statics.known(name) else "   <-- NOT IN THIS BUILD"

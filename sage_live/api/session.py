@@ -653,6 +653,21 @@ class Session:
         self._require_selection()
         return self.send(_orders.stop(self.player_index))
 
+    def toggle_formation(self, horde_id: int) -> Sent:
+        """Flip one battalion between its two formations - see `orders.toggle_formation`.
+
+        The horde is an argument *and* the selection is required, which is belt and braces on
+        purpose: the corpus records an `ObjectId` on this message, and every other button-driven
+        order in this engine also acts on what is selected. Sending both is what a click does.
+
+        **There is no way to ask for a named formation**, so a caller that wants a particular
+        one has to know which the battalion is in already. `Statics.alternate_formation` reads
+        what the other one would be; the engine's `ALTERNATE_FORMATION` model condition on the
+        battalion's members reads which one it is standing in now.
+        """
+        self._require_selection()
+        return self.send(_orders.toggle_formation(self.player_index, horde_id))
+
     def attack(self, target_id: int, position: Vec3) -> Sent:
         """`position` is where the target is - the engine records one on every attack order,
         and the caller has it from the observation it picked the target out of."""

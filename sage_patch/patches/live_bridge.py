@@ -250,6 +250,7 @@ def build_section(base_va: int) -> bytes:
 
 class LiveBridgePatch(Patch):
     name = "live-bridge"
+    author = "officialNecro"
     description = (
         "Hook GameLogic::update so an external process can inject orders into the "
         "message stream, and place the camera, by writing a command buffer in the "

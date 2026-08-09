@@ -240,6 +240,7 @@ class DesertWeatherPatch(Patch):
     """Add a third global weather and the model condition it drives."""
 
     name = "desert-weather"
+    author = "officialNecro"
     description = (
         "Add a DESERT global weather type that drives a new SAND model condition, the way the "
         "stock SNOWY drives SNOW"

@@ -303,6 +303,7 @@ class ProductionConditionPatch(Patch):
     """Name the first unused `ModelConditionFlags` bit and drive it from the production queue."""
 
     name = "production-condition"
+    author = "officialNecro"
     description = (
         "Add a model condition that is active while a building's production queue is non-empty "
         "(training a unit or researching an upgrade)"

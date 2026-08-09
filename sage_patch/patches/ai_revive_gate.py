@@ -170,6 +170,7 @@ def build_code(base_va: int) -> bytes:
 
 class AiReviveGatePatch(Patch):
     name = "ai-revive-gate"
+    author = "officialNecro"
     description = "Make the AI respect a REVIVE button's NeededUpgrade, as the player already does"
 
     def apply(self, data: bytearray) -> None:

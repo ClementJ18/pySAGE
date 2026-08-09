@@ -20,6 +20,7 @@ from sage_mods.edain.bot.tuning import (
     CRUSH_REVENGE_CHARGED,
     DEFEND_RADIUS,
     HARMLESS,
+    HERO,
     HOLDING_RADIUS,
     IN_FLIGHT,
     LAIR_RADIUS,
@@ -27,7 +28,9 @@ from sage_mods.edain.bot.tuning import (
     NOT_ARMY,
     OCCUPIED,
     PIKE,
+    PLOT_CONTESTED,
     PLOT_RADIUS,
+    PLOT_REBUILD_SECONDS,
     SELECTABLE,
     UNTOUCHABLE,
 )
@@ -82,6 +85,99 @@ class World(BotState):
     def occupied(self, plot: GameObject, standing: list[GameObject]) -> bool:
         return any(s.distance_to(plot.position) < PLOT_RADIUS for s in standing)
 
+    def is_flag(self, plot: GameObject) -> bool:
+        """Whether this build site is an external flag rather than an internal foundation.
+
+        The palette is the discriminator, as it is everywhere else here: a settlement, outpost,
+        castle or camp flag carries unpack buttons and a castle foundation carries
+        `FOUNDATION_CONSTRUCT` ones. `free_plots` tells them apart the same way and for the same
+        reason.
+
+        **The two obey different rules about when they can be built on**, which is the whole
+        reason this exists: a flag goes unbuildable for a while after whatever stood on it is
+        gone and while something hostile stands on it, and a foundation does neither.
+        """
+        return bool(self.statics.unpack_buttons(plot.template_name))
+
+    def buildable_sites(self) -> list[GameObject]:
+        """The flags on the map whose state is worth watching between cycles.
+
+        **Flags only.** A castle foundation has no rebuild cooldown, so there is nothing about it
+        to remember; watching one would fill `_plot_freed` with timestamps nothing ever reads and
+        imply a rule that does not exist. Read from `plots_now` rather than from what is owned, so
+        a flag razed while somebody else held it is still tracked.
+        """
+        return [
+            o
+            for o in self.plots_now()
+            if self.statics.is_build_site(o.template_name) and self.is_flag(o)
+        ]
+
+    def note_freed_plots(self) -> None:
+        """Record the frame each plot lost the thing standing on it. Once per cycle.
+
+        **The transition is the only observable, and nothing was watching for it.** A plot is
+        unbuildable for about twelve game seconds after its building goes away, and no field
+        reports that: the plot is owned, nothing stands on it, and it reads free on the very next
+        cycle. So the bot ordered a replacement immediately, the engine discarded the order in
+        silence, and the plot was parked for `PLOT_COOLDOWN` - after which it was tried again, and
+        again. Plot 527 was paid for five times in one match this way.
+
+        Watching what *was* occupied and is not any more gives the one timestamp the rule needs.
+        A plot built on normally is caught by the same transition when its building later dies,
+        and a plot that has always been empty never enters `_plot_held` and so is never rested -
+        which is right, because nothing was ever removed from it.
+
+        Called from `decide` beside `remember_keeps` rather than from `free_plots`, because it
+        mutates memory and `free_plots` is asked several times a cycle.
+        """
+        standing = self.structures()
+        held = {plot.object_id for plot in self.buildable_sites() if self.occupied(plot, standing)}
+        frame = self.observation.frame
+        for object_id in self._plot_held - held:
+            self._plot_freed[object_id] = frame
+        self._plot_held = held
+
+    def resting(self, plot: GameObject) -> bool:
+        """Whether this **flag** is still inside the engine's rebuild cooldown.
+
+        Foundations do not have one and are never tracked, so this answers False for every castle
+        plot - see `buildable_sites`.
+
+        Answers False for a plot nothing was ever seen standing on, which covers every plot at
+        the start of a match and every one this bot has not been watching long enough to have an
+        opinion about. That is the safe direction: the cost of trying a plot that turns out to be
+        resting is one refused order, and the cost of refusing to try one that was fine is a plot
+        the bot never builds on at all.
+        """
+        freed = self._plot_freed.get(plot.object_id)
+        if freed is None:
+            return False
+        return self.observation.frame - freed < PLOT_REBUILD_SECONDS * self._fps
+
+    def contested(self, plot: GameObject, raiders: list[GameObject] | None = None) -> bool:
+        """Whether something hostile is standing close enough to stop a building going up on a flag.
+
+        **The other reason a flag refuses a building, and it stacks with `resting` rather than
+        replacing it.** The two are different rules on different clocks: a flag inside its rebuild
+        cooldown refuses whatever is standing near it, and a flag with a raider on it refuses
+        however long ago the last building died. Both can be true of the same flag at the same
+        time, and each has to be asked separately.
+
+        **Flags only, like `resting`.** A castle foundation cannot be contested, so the callers
+        that build on one do not ask - see `free_plots`, which asks neither.
+
+        `hostile` and not "anything that is not a building": it already drops wildlife,
+        projectiles, spellbook eyes and horde members, all of which stand near plots harmlessly.
+        Our own battalions are deliberately not counted - they walk through the base constantly,
+        and a party that has just taken a flag is standing on it by definition, so counting them
+        would stop the bot building on the settlement it had only this moment captured.
+        """
+        threat = (
+            [o for o in self.observation.objects if self.hostile(o)] if raiders is None else raiders
+        )
+        return any(o.distance_to(plot.position) < PLOT_CONTESTED for o in threat)
+
     def free_plots(self) -> list[GameObject]:
         """Owned build plots with nothing standing on them, nearest the base first.
 
@@ -104,6 +200,10 @@ class World(BotState):
         palette rather than by distance: a settlement or outpost flag is built on with an unpack
         order, which is `stage_expand`'s job, and handing the same flag to `stage_build` has the
         two stages issuing different orders at one plot in the same cycle.
+
+        **Neither the rebuild cooldown nor contested ground is asked here**, and that is a fact
+        about foundations rather than an omission: both rules belong to flags, and this list is
+        foundations by construction. See `is_flag`.
         """
         anchor = self.base_centre()
         standing = self.structures()
@@ -263,6 +363,21 @@ class World(BotState):
     def cavalry(self) -> list[GameObject]:
         """The mounted part of the army. `CAVALRY` before `INFANTRY`, because a horse is both."""
         return [o for o in self.army() if self.role(o, CAVALRY)]
+
+    def heroes(self) -> list[GameObject]:
+        """The heroes in the army - the part of it that is worth micromanaging.
+
+        **Asked of the template rather than of the roster**, which is what makes this work on a
+        hero nobody bought: a summoned Osgiliath veteran captain and a Ring hero are `HERO` in the
+        object table exactly as Beregond is, and neither is in `BuildableHeroesMP`. It also needs
+        no faction table, so it answers on a side this bot has never played.
+
+        `role` rather than a flat `KindOf`, for the reason `cavalry` uses it too: a mounted hero
+        is a container over its rider on some templates, and the container carries none of the
+        flags. Heroes are not hordes, so this is almost always the template answering for itself -
+        but "almost always" is where the `GondorKnightHorde` bug came from.
+        """
+        return [o for o in self.army() if self.role(o, HERO)]
 
     def can_trample(self, force: list[GameObject], target: GameObject) -> bool:
         """Whether riding this force through `target` would knock it down rather than bounce.

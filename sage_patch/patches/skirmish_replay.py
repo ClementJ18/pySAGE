@@ -433,6 +433,7 @@ def build_section(
 
 class SkirmishReplayPatch(Patch):
     name = "skirmish-replay"
+    author = "officialNecro"
     description = (
         "Record single-player skirmish games, which the stock engine does not, and name each "
         "recording by timestamp and map instead of overwriting Last Replay"

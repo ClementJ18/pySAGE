@@ -256,6 +256,7 @@ class InflationReadoutPatch(Patch):
     """
 
     name = "inflation-readout"
+    author = "officialNecro"
     description = (
         "Show the local player's current income multiplier (PlayerTemplate.ResourceModifierValues, "
         "times command-point-upkeep's factor when that patch is present) in the palantir"

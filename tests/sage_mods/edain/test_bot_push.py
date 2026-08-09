@@ -20,6 +20,7 @@ from sage_mods.edain.bot.tuning import (
     PUSH_ARMY,
     PUSH_ARRIVED,
     PUSH_CONTROL,
+    PUSH_RAIDERS,
     PUSH_SPENT,
 )
 from sage_mods.edain.bot.warfare import Warfare
@@ -30,6 +31,7 @@ class Endgame:
     """`pushing` and the memory it leans on, over supplied readings."""
 
     pushing = Warfare.pushing
+    keep_raiders = Warfare.keep_raiders
     remember_keeps = Warfare.remember_keeps
     push_aim = Warfare.push_aim
     push_target = Warfare.push_target
@@ -44,7 +46,10 @@ class Endgame:
         self._party_flag: dict[int, int] = {}
         self._forming: tuple[int, ...] = ()
         self._cav: tuple[int, ...] = ()
+        self._raiders: tuple[int, ...] = ()
+        self._groups: dict[int, tuple[int, ...]] = {}
         self._army: list[SimpleNamespace] = []
+        self._horse: list[SimpleNamespace] = []
         self._visible: list[SimpleNamespace] = []
 
     def map_control(self) -> float:
@@ -55,6 +60,9 @@ class Endgame:
 
     def army(self) -> list[SimpleNamespace]:
         return self._army
+
+    def cavalry(self) -> list[SimpleNamespace]:
+        return self._horse
 
     def victory_targets(self) -> list[SimpleNamespace]:
         return self._visible
@@ -246,10 +254,17 @@ class Assault:
     push_target = Warfare.push_target
     push_aim = Warfare.push_aim
 
-    def __init__(self, army: list[SimpleNamespace], visible: list[SimpleNamespace]) -> None:
+    def __init__(
+        self,
+        army: list[SimpleNamespace],
+        visible: list[SimpleNamespace],
+        heroes: list[SimpleNamespace] | None = None,
+    ) -> None:
         self._army = army
         self._visible = visible
+        self._heroes = heroes or []
         self._groups: dict[int, tuple[int, ...]] = {}
+        self._raiders: tuple[int, ...] = ()
         self._seen_keeps: dict[int, tuple[float, float, float]] = {}
         self._siege = False
         self.engaged: list[SimpleNamespace] = []
@@ -258,6 +273,9 @@ class Assault:
 
     def army(self) -> list[SimpleNamespace]:
         return self._army
+
+    def heroes(self) -> list[SimpleNamespace]:
+        return self._heroes
 
     def victory_targets(self) -> list[SimpleNamespace]:
         return self._visible
@@ -287,6 +305,18 @@ def test_the_whole_force_goes_at_the_nearest_target() -> None:
     assert said is not None and "push" in said
     assert [o.object_id for o in assault.engaged] == [8]
     assert assault.sent == [6]
+
+
+def test_the_push_does_not_order_the_heroes() -> None:
+    """Not because a hero is unwanted at the keep - `stage_hero` sends it there, escorting this
+    very force - but because two stages must never command one object. Ordered from both it would
+    be sent at the keep by this one and home to heal by the other, on alternate cycles, and would
+    arrive nowhere."""
+    army = [_at(0.0, object_id=i) for i in range(1, 7)]
+    assault = Assault(army, [_at(600.0, object_id=8)], heroes=[army[0], army[1]])
+    assault.stage_push()
+
+    assert assault.sent == [4]
 
 
 def test_the_defence_keeps_what_it_claimed_and_the_rest_pushes() -> None:
@@ -328,3 +358,80 @@ def test_nothing_seen_and_nothing_remembered_says_so() -> None:
     that returned None would be indistinguishable from one that had already won."""
     assault = Assault([_at(0.0, object_id=1)], [])
     assert assault.stage_push() == "push: nothing of theirs has been seen to walk to"
+
+
+def _rider(object_id: int) -> SimpleNamespace:
+    return _at(0.0, object_id=object_id)
+
+
+def test_committing_keeps_a_raiding_party_back() -> None:
+    """**The map came apart behind the last push.** A measured run latched at 75% control and had
+    bled to 56% five hundred cycles later, because latching dissolves the parties and nothing was
+    left to answer. `PUSH_RAIDERS` battalions stay out so that the taking never fully stops."""
+    endgame = Endgame(control=0.94, fill=0.95)
+    endgame._army = [_rider(i) for i in range(1, 9)]
+    endgame._horse = [_rider(i) for i in (3, 4, 5)]
+
+    assert endgame.pushing()
+    assert len(endgame._raiders) == PUSH_RAIDERS
+    assert set(endgame._raiders) <= {3, 4, 5}, "horse first - the job is a circuit, not a fight"
+
+
+def test_the_raiders_are_topped_up_as_they_die() -> None:
+    """A party down to nobody claims nothing, and the push would never notice."""
+    endgame = Endgame(control=0.94, fill=0.95)
+    endgame._army = [_rider(i) for i in range(1, 9)]
+    endgame._horse = [_rider(i) for i in (3, 4)]
+    endgame.pushing()
+    assert set(endgame._raiders) == {3, 4}
+
+    endgame._army = [o for o in endgame._army if o.object_id != 3]
+    endgame._horse = [o for o in endgame._horse if o.object_id != 3]
+    endgame.pushing()
+    assert len(endgame._raiders) == PUSH_RAIDERS
+    assert 4 in endgame._raiders
+
+
+def test_a_push_with_no_horse_left_still_staffs_the_raid() -> None:
+    """Cavalry is the preference, not the condition. Refusing to staff this at all is how control
+    decayed unanswered - a run out of horse still needs the map held."""
+    endgame = Endgame(control=0.94, fill=0.95)
+    endgame._army = [_rider(i) for i in range(1, 9)]
+    endgame._horse = []
+
+    assert endgame.pushing()
+    assert len(endgame._raiders) == PUSH_RAIDERS
+
+
+def test_the_defence_is_never_raided_for_raiders() -> None:
+    """`stage_defend` has already spoken for those, and this runs after it in every list."""
+    endgame = Endgame(control=0.94, fill=0.95)
+    endgame._army = [_rider(i) for i in (1, 2, 3)]
+    endgame._horse = [_rider(1), _rider(2)]
+    endgame._groups = {0: (1, 2)}
+
+    endgame.pushing()
+    assert set(endgame._raiders) == {3}, "only the battalion the defence did not claim"
+
+
+def test_calling_the_push_off_hands_the_raiders_back() -> None:
+    """Released is released: the normal lists form parties out of the whole army again."""
+    endgame = Endgame(control=0.94, fill=0.95)
+    endgame._army = [_rider(i) for i in range(1, 9)]
+    endgame._horse = [_rider(3), _rider(4)]
+    endgame.pushing()
+    assert endgame._raiders
+
+    endgame._fill = PUSH_SPENT - 0.05
+    assert not endgame.pushing()
+    assert endgame._raiders == ()
+
+
+def test_the_push_leaves_without_the_raiders() -> None:
+    """The one part of "everything not holding the base" that is deliberately elsewhere."""
+    army = [_rider(i) for i in (1, 2, 3, 4)]
+    assault = Assault(army, [_at(500.0, object_id=9)])
+    assault._raiders = (3, 4)
+
+    assault.stage_push()
+    assert assault.sent == [2], "four in the army, two of them out taking the map"

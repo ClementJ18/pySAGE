@@ -323,6 +323,7 @@ class QueueIgnoreCpPatch(Patch):
     production the command-point cap would otherwise refuse."""
 
     name = "queue-ignore-cp"
+    author = "officialNecro"
     description = (
         "Add a QueueIgnoreCP boolean to CommandButton, so a button the engine presses (a "
         "DoCommandUpgrade, say) can queue its unit at the command-point cap - the stock queue "

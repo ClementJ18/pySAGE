@@ -58,6 +58,7 @@ def values(order) -> list:
             [T.Integer, T.ObjectId, T.Integer, T.ObjectId, T.Position],
         ),
         (orders.set_stance(0, 2), [T.Integer]),
+        (orders.toggle_formation(0, 7), [T.ObjectId]),
         (orders.unpack(0, 7), [T.Integer]),
         (orders.attack_move(0, POSITION), [T.Position]),
     ],
@@ -69,6 +70,15 @@ def test_argument_shape_matches_what_the_engine_records(order, expected):
 def test_unpack_carries_only_the_template_it_creates():
     """No position: the selected plot is the location. A single Int is the whole order."""
     assert values(orders.unpack(0, 4411)) == [4411]
+
+
+def test_toggle_formation_names_the_horde_and_carries_nothing_else():
+    """No formation id: the order flips whichever of the two the battalion is in, and which
+    that is comes from `HordeContain.AlternateFormation` rather than from the order. There is
+    no way to *ask* for a named formation - `MSG_HORDE_SET_FORMATION` is a separate message
+    and every button in RotWK+Edain that would send it is commented out."""
+    assert values(orders.toggle_formation(0, 4411)) == [4411]
+    assert int(orders.toggle_formation(0, 1).order_type) == 0x453
 
 
 def test_attack_move_is_a_distinct_type_from_move():

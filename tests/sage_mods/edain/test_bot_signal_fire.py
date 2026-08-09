@@ -16,7 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 from sage_live.api.orders import CAST_SELF
-from sage_mods.edain.bot.mechanics.signal_fire import (
+from sage_mods.edain.bot.factions.men.signal_fire import (
     MAX_CHARGES,
     SAVE_FOR,
     SAVE_FROM,

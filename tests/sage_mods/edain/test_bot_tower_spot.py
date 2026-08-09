@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from sage_mods.edain.bot.factions.men import MEN
 from sage_mods.edain.bot.powers import Powers
 from sage_mods.edain.bot.tuning import BASE_RADIUS, TOWER_STANDOFF
 
@@ -31,11 +32,14 @@ class Placing:
     _away_from = staticmethod(Powers._away_from)
     _toward_point = staticmethod(Powers._toward_point)
 
-    def __init__(self, holdings: list, enemy_at: tuple | None) -> None:
+    def __init__(self, holdings: list, enemy_at: tuple | None, plan=MEN) -> None:
         self._holdings = holdings
         self._enemy_at = enemy_at
         self._towered: set[int] = set()
         self.asked: list[tuple] = []
+        # Which holdings jump the queue is the plan's call now, not a template name in
+        # `powers.py` - so the real Men plan is what these run against.
+        self.plan = plan
 
     def base_centre(self):
         return HOME

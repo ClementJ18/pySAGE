@@ -32,13 +32,19 @@ class Building:
     _spent_plot = Orders._spent_plot
     _strike = Orders._strike
 
-    def __init__(self, places: bool, unpacks: bool = False) -> None:
+    def __init__(self, places: bool, unpacks: bool = False, has_unpack: bool = True) -> None:
         self._outcomes = [places, unpacks]
         self._blocked_plots: dict[int, float] = {}
         self._cooldowns: dict[str, float] = {}
         self._strikes: dict[str, int] = {}
         self.session = SimpleNamespace(
             build=lambda template, position: True, unpack=lambda template: True
+        )
+        # Whether this plot's palette offers an unpack at all. A castle plot's does not, and
+        # `build_on_plot` must not spend a confirmation window on a path that cannot work -
+        # see the ledger's `unpack never did anything` across three runs.
+        self.statics = SimpleNamespace(
+            unpack_buttons=lambda template: (("slot",),) if has_unpack else ()
         )
 
     def select(self, objects) -> bool:
@@ -56,7 +62,9 @@ class Building:
 
 
 def _plot() -> SimpleNamespace:
-    return SimpleNamespace(object_id=PLOT_ID, position=(100.0, 200.0, 0.0))
+    return SimpleNamespace(
+        object_id=PLOT_ID, position=(100.0, 200.0, 0.0), template_name="GondorBuildingFoundation"
+    )
 
 
 def test_a_plot_just_built_on_is_rested() -> None:
@@ -85,3 +93,27 @@ def test_a_plot_that_refused_both_paths_is_still_rested() -> None:
     builder = Building(places=False, unpacks=False)
     assert builder.build_on_plot("GondorWohnhaus", _plot()) is False
     assert builder._blocked_plots.get(PLOT_ID, 0.0) > time.monotonic()
+
+
+def test_a_castle_plot_is_not_offered_the_unpack_path() -> None:
+    """The fallback that never worked, in the only place it was ever run.
+
+    `free_plots` only ever hands `build_on_plot` plots with **no** unpack button - that is how
+    an internal castle plot is told from a settlement flag - so the unpack fallback was being
+    tried against plots it could not possibly rescue. Three archived runs agree: `unpack never
+    did anything`, 0 of 10, 0 of 14 and 0 of 4, while run 12 (which refused nothing) has no
+    such ledger line at all. Each attempt cost a selection and a full confirmation window.
+    """
+    builder = Building(places=False, unpacks=True, has_unpack=False)
+    assert builder.build_on_plot("GondorWohnhaus", _plot()) is False
+    # `unpacks=True` would have counted as a success had the path been taken; it was not, and
+    # the plot is still parked.
+    assert builder._outcomes == [True]
+    assert builder._blocked_plots.get(PLOT_ID, 0.0) > time.monotonic()
+
+
+def test_a_plot_whose_palette_does_offer_an_unpack_still_gets_the_second_chance() -> None:
+    """The mixed case the fallback was written for is untouched."""
+    builder = Building(places=False, unpacks=True, has_unpack=True)
+    assert builder.build_on_plot("GondorWohnhaus", _plot()) is True
+    assert builder._outcomes == []

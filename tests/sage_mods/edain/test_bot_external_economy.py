@@ -16,7 +16,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from sage_mods.edain.bot.economy import Economy
-from sage_mods.edain.bot.plans import Plan
+from sage_mods.edain.bot.factions import Plan
 
 FARM = "GondorFarm_Extern"
 TENTS = "GondorRangerTents"

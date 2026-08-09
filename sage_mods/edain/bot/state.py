@@ -10,9 +10,9 @@ from __future__ import annotations
 from sage_live.api.camera import CameraPan
 from sage_live.api.observation import GameObject, Observation, Vec3
 from sage_live.api.session import Session
-from sage_live.utils.statics import Statics
+from sage_live.utils.statics import CastablePower, Formation, Statics
+from sage_mods.edain.bot.factions import Plan
 from sage_mods.edain.bot.ledger import Ledger
-from sage_mods.edain.bot.plans import Plan
 from sage_mods.edain.bot.recording import Recorder
 
 
@@ -117,6 +117,19 @@ class BotState:
         # counts for victory. Before the map spawns, neither has, and nothing can be concluded.
         self._held = False
         self._opposed = False
+        # **Which plots and flags had something standing on them last cycle, and the frame each
+        # one lost it.** Together these are how the bot sees a rule the observation never states:
+        # a plot is unbuildable for about twelve game seconds after whatever stood on it goes
+        # away, and until `note_freed_plots` watched for the transition there was nothing to see
+        # it happen - a razed building's plot simply reappeared as free and was ordered onto
+        # again the next cycle, every cycle, until the cooldown happened to expire.
+        #
+        # By **frame** rather than by wall clock, unlike every other rest in this bot. Those are
+        # heuristics about contested ground and are rightly measured in the operator's time; this
+        # is the game's own rule and has to be measured in the game's own clock, which under the
+        # bridge runs five or six times slower. See `PLOT_REBUILD_SECONDS`.
+        self._plot_held: set[int] = set()
+        self._plot_freed: dict[int, int] = {}
         # Plots and upgrades that refused an order, and when to try them again. **A failed
         # order is information, not noise**: retrying the same plot every cycle spent the whole
         # opening on one spot that was never going to take a building, at two 4s confirmation
@@ -202,6 +215,35 @@ class BotState:
         self._shot_label: str | None = None
         self._shot_since = 0.0
         self.pan = CameraPan(session)
+        # **The hero mission, keyed by the hero's object id rather than by anything else.**
+        #
+        # By id and not by template, because a template is not an identity here: a hero that dies
+        # and is revived is a new object, and two heroes of one faction can share an ability name
+        # (`SpecialAbilityAragornBladeMaster` is Boromir's and Aragorn's, and every hero in the
+        # game carries `SpecialAbilityCaptureBuilding`). A clock keyed by power name alone would
+        # have one hero silencing the other's ability for a whole recharge - see `Powers.wait_for`,
+        # which takes a key for exactly this.
+        #
+        # `_hero_aim` and `_hero_ordered` are the same re-order suppression every other force
+        # here has: an order reissued every cycle restarts the path and the hero never arrives.
+        self._hero_aim: dict[int, Vec3] = {}
+        self._hero_ordered: dict[int, float] = {}
+        # Which force each hero is escorting, by hero id, as `Heroes.hero_forces` keys it
+        # (`party:3`, `group:118`, `push`). Held between cycles so a hero does not change which
+        # force it is standing with every time two of them are equidistant - the same flicker
+        # `Shot.label` exists to prevent one layer up. **A key rather than a position**, because a
+        # positional index silently re-points the commitment at somebody else the moment a party
+        # ahead of it dies.
+        self._hero_escort: dict[int, str] = {}
+        # **Heroes currently pulling out of a fight, latched.** A hero is added below
+        # `HERO_RETREAT` and removed above `HERO_RETURN`, and the gap between the two is the whole
+        # point: a single threshold makes a hero cross it, regenerate a percent while walking,
+        # turn round into the same fight and cross it again. The same argument as `_pushing`,
+        # which is latched for the same reason at the other end of the match.
+        self._retreating: set[int] = set()
+        # Each hero's abilities, by template - a pure `Statics` read over data that cannot change
+        # mid-match, and one that walks a command set and every module on the object.
+        self._hero_powers: dict[str, tuple[CastablePower, ...]] = {}
         # The cavalry mission and where it was last sent. Held apart from everything else because
         # its whole justification is going somewhere the rest of the army is not - see
         # `CAVALRY_MIN`.
@@ -229,6 +271,26 @@ class BotState:
         # push that un-commits on its first casualties is worse than never having gone.
         self._pushing = False
         self._push_since = 0.0
+        # The battalions held out of the push to go on taking the map - see `PUSH_RAIDERS`. Kept
+        # by id rather than as a party, because they are the only thing `expansion_parties` may
+        # draw on while the push is on and it has to be able to say so.
+        self._raiders: tuple[int, ...] = ()
+        # **The formation mechanic's three pieces of memory** - see `mechanics.formations`.
+        #
+        # `_formations` is a pure `Statics` cache keyed by *template*: which alternate formation
+        # a battalion has and whether its control bar offers the button is a fact about the ini
+        # tree, so it is answered once per template rather than once per battalion per cycle.
+        #
+        # The other two are keyed by object id and are the hysteresis. `_formation_seen` is where
+        # each battalion stood last cycle, which is the whole of how "is it standing still"
+        # is measured - the bot orders battalions from a dozen stages and only their positions
+        # can be compared. `_formation_since` counts the cycles one has wanted a formation it is
+        # not in, and `_formation_at` when it last changed, so a battalion cannot flip on the
+        # flicker of a fight that has not settled.
+        self._formations: dict[str, Formation | None] = {}
+        self._formation_seen: dict[int, Vec3] = {}
+        self._formation_since: dict[int, int] = {}
+        self._formation_at: dict[int, float] = {}
         # **Where their victory buildings were seen, by object id - the bot's own scouting.**
         #
         # The fogged view has no memory of what it saw before, so at 85% map control the force

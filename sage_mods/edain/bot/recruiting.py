@@ -48,10 +48,16 @@ class Recruiting(Powers):
         """
         if self.army_plan is None:
             return {}
+        # **The ban lifts for the push, because the reason for it does.** Siege is barred
+        # everywhere else for want of an escort - eight battering rams once walked to their
+        # targets alone - and a push is the one formation where that behaviour exists for free:
+        # the whole force moves to one place as one body, so a ram ordered during one arrives
+        # inside it. It also has something to do there, which it does not at a settlement flag.
         pool = {
             m.unit.lower(): m.unit
             for m in self.army_plan.members
-            if not self.statics.has_kind(
+            if self._pushing
+            or not self.statics.has_kind(
                 self.statics.fighting_template(m.unit) or m.unit, *RECRUIT_NEVER
             )
         }

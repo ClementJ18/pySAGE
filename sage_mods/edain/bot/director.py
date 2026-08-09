@@ -33,8 +33,8 @@ import time
 from dataclasses import dataclass
 
 from sage_live.api.observation import GameObject, Vec3
+from sage_mods.edain.bot.heroes import Heroes
 from sage_mods.edain.bot.tuning import SHOT_DWELL
-from sage_mods.edain.bot.warfare import Warfare
 
 __all__ = ["Director", "Shot"]
 
@@ -63,7 +63,7 @@ class Shot:
         return self.caption or self.label
 
 
-class Director(Warfare):
+class Director(Heroes):
     """Where the camera should be looking, and getting it there without jitter."""
 
     def stage_camera(self) -> str | None:
@@ -147,6 +147,22 @@ class Director(Warfare):
             force = [standing[i] for i in ids if i in standing]
             if force and self.in_contact(force):
                 found.append(Shot(_centre(force), f"group {key}", 1, f"group {key} holding"))
+
+        # **A hero pulling out ranks with a fight, because it is one being lost.** It is also the
+        # shot that says whether `HERO_RETREAT` is set anywhere near right: the numbers are
+        # unmeasured, and what a watcher needs to see is whether the withdrawal started early
+        # enough to work. Only while retreating - a hero standing with its party is already framed
+        # by that party's own shot.
+        for hero in self.heroes():
+            if hero.object_id in self._retreating:
+                found.append(
+                    Shot(
+                        hero.position,
+                        f"hero {hero.object_id}",
+                        1,
+                        f"{hero.template_name} pulling out at {hero.health:.0%}",
+                    )
+                )
 
         for party, ids in self._parties.items():
             force = [standing[i] for i in ids if i in standing]

@@ -208,6 +208,7 @@ class MultiInstancePatch(_MutexGuardPatch):
     """Let `game.dat` start while another copy of it is already running."""
 
     name = "multi-instance"
+    author = "officialNecro"
     description = (
         "Remove game.dat's one-instance-at-a-time limit: the silent WinMain abort and the wait "
         "loop that asks the running copy to quit. Needs multi-instance-launcher as well"
@@ -222,6 +223,7 @@ class MultiInstanceLauncherPatch(_MutexGuardPatch):
     """Stop the launcher shim refusing with `Launcher:GameRunning`."""
 
     name = "multi-instance-launcher"
+    author = "officialNecro"
     description = (
         "lotrbfme2ep1.exe (not game.dat): remove the 'game is already running' refusal, so the "
         "shim launches game.dat instead. Pair with multi-instance"

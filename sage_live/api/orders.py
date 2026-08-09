@@ -133,6 +133,7 @@ __all__ = [
     "select",
     "set_stance",
     "stop",
+    "toggle_formation",
     "unpack",
 ]
 
@@ -161,6 +162,7 @@ class OrderType(IntEnum):
     DO_ATTACKMOVETO = 0x430
     DO_STOP = 0x435
     CASTLE_UNPACK = 0x43D
+    HORDE_TOGGLE_FORMATION = 0x453
     CASTLE_UNPACK_EXPLICIT_OBJECT = 0x43F
     START_SELF_REPAIR = 0x45D
     CHANGE_STANCE = 0x468
@@ -549,6 +551,38 @@ def start_self_repair(player: int) -> Order:
     `sage_patch/docs/message-stream.md`.
     """
     return Order(player, OrderType.START_SELF_REPAIR, [])
+
+
+def toggle_formation(player: int, horde_id: int) -> Order:
+    """Switch one battalion between its two formations.
+
+    `Command_ToggleFormationGondorFighter`, `Command = HORDE_TOGGLE_FORMATION`. The button
+    carries no `Object` and no cost: which formation the battalion swaps to is declared on the
+    horde itself, as `HordeContain.AlternateFormation`, so the order names only *which*
+    battalion. See `sage_live.utils.statics.Formation`.
+
+    **A toggle rather than a set.** `MSG_HORDE_SET_FORMATION` exists separately at `0x460` and
+    every button in RotWK 2.01 + Edain that would send it is commented out, so there is no way
+    to ask for a *named* formation - only to flip the one the battalion is in. A caller that
+    wants a particular formation therefore has to read the battalion's current one and decide,
+    which is why `Formation` exists and why sending this blind is how a battalion ends up in
+    the formation you were trying to leave.
+
+    The horde and not its members: the members are slaved and an order naming one is recorded
+    and ignored, exactly as for every other order in this module.
+
+    `MSG_HORDE_TOGGLE_FORMATION` is `0x453` in the network range, recovered from
+    `GameMessage::getCommandTypeAsAsciiString` - see `sage_patch/docs/message-stream.md`. The
+    recorded corpus gives it a single `ObjectId` argument, which is the shape here.
+
+    **Unverified against a running game at the time of writing**, unlike the seventeen
+    constructors in the table above. The id and the argument shape are both ground truth - one
+    from the binary, one from the corpus - and neither says the engine will act, because a
+    well-formed order it declines is consumed in silence. `Statics.alternate_formation` gives
+    the oracle to check it with: a battalion that switched has members wearing the engine's
+    `ALTERNATE_FORMATION` model condition, and one whose order was dropped does not.
+    """
+    return Order(player, OrderType.HORDE_TOGGLE_FORMATION, [_obj(horde_id)])
 
 
 def set_stance(player: int, stance: int) -> Order:

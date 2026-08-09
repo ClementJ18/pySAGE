@@ -53,6 +53,26 @@ class Patch:
 
     name: str = ""
     description: str = ""
+    #: Who worked out this patch, for the credit line :func:`apply_patches` prints. A patch is
+    #: somebody's reverse engineering before it is anybody's code - the addresses, the call
+    #: convention and the reason the original bytes are what they are - and that work is invisible
+    #: in the diff once the assembly is written down. Naming the author here is how a mod that
+    #: ships the patched binary can say whose it was; see the README's "Credit" section.
+    #:
+    #: **Empty by default, deliberately.** A default naming a person attributes every future
+    #: patch to them silently, which is exactly the failure this attribute exists to prevent, so
+    #: an unattributed patch says so and a new one has to state its own.
+    author: str = ""
+
+    @property
+    def credit(self) -> str:
+        """This patch and who to credit for it, as one line - `name (by author)`.
+
+        Kept apart from :meth:`__str__`, which several callers use as an identifier: `verify`
+        prints it into an OK/FAIL line and `sagepatch` lists it as what was found in a binary,
+        and neither is asking who wrote it.
+        """
+        return f"{self} (by {self.author})" if self.author else f"{self} (author unrecorded)"
 
     def apply(self, data: bytearray) -> None:
         """Mutate ``data`` in place. Raise (typically ``ValueError``) if the image is not the
@@ -133,7 +153,9 @@ def apply_patches(
 
     patches = list(patches)
     for patch in patches:
-        log.info("applying patch: %s", patch)
+        # The author goes in the applying line rather than in a summary at the end, so that a run
+        # that fails halfway has still named everyone whose work went into the bytes it wrote.
+        log.info("applying patch: %s", patch.credit)
         patch.apply(data)
 
     dest = Path(output) if output is not None else src

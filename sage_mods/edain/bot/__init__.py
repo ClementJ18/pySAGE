@@ -14,12 +14,21 @@ it and can be read on its own:
 
 - `tuning` - every threshold, with the measurement that put it there. Start here when a run goes
   wrong: it is usually one of these.
-- `plans` - the build order per faction, and `ledger` - what each order type achieved.
+- `ledger` - what each order type actually achieved.
 - `state` - everything a run remembers between cycles.
 - `world` - reading the board: the army, the plots, the nests, who is hostile.
 - `orders` - issuing orders and proving they did something.
 - `economy`, `powers`, `recruiting`, `warfare` - the stages, which are where the decisions live.
 - `bot` - `decide`, `finished`, `run`; `cli` - attach, load the ini tree, report, play.
+
+Two packages sit beside that chain and the line between them is the one worth knowing:
+
+- `factions/` - one package per side, holding what the bot **cannot read off the tree**: the
+  build order, and any mechanic that only ever fires on that seat (Gondor's signal fire).
+  Powers, the spellbook, the hero roster and the army mix are all faction-specific and none of
+  them is here, because the game's own data already declares them and `Statics` reads it.
+- `mechanics/` - rules that are not a purchase, a unit or a place, and belong to **no** faction:
+  `formations`, which reads each battalion's own `HordeContain` and plays every side.
 
 **Every order is verified, never assumed.** Game logic silently discards a malformed or
 unaffordable order *after* the stream has taken it - no error, no diagnostic, and it still
@@ -268,7 +277,7 @@ real player would still see it drawn. See `sage_live.api.shroud`.
 
 from sage_mods.edain.bot.bot import Bot
 from sage_mods.edain.bot.cli import main
+from sage_mods.edain.bot.factions import FACTIONS, Faction, Plan
 from sage_mods.edain.bot.ledger import Ledger
-from sage_mods.edain.bot.plans import PLANS, Plan
 
-__all__ = ["PLANS", "Bot", "Ledger", "Plan", "main"]
+__all__ = ["FACTIONS", "Bot", "Faction", "Ledger", "Plan", "main"]

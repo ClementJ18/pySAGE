@@ -99,6 +99,7 @@ def patched_call_bytes() -> bytes:
 
 class ObserverSwitchPatch(Patch):
     name = "observer-switch"
+    author = "officialNecro"
     description = (
         "Show the replay observer's next/prior player buttons in a skirmish replay, so the "
         "camera, vision and spellbook can be switched between players as in a network replay"

@@ -1096,6 +1096,7 @@ class HeroManaPatch(Patch):
     """
 
     name = "hero-mana"
+    author = "officialNecro"
     description = "Give special powers a regenerating per-object mana cost (SpecialPower.ManaCost)"
 
     def __init__(

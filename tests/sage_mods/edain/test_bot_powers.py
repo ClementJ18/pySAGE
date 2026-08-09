@@ -332,3 +332,88 @@ def test_a_summon_falls_back_to_the_cluster_when_there_is_no_room_anywhere() -> 
         for step in range(8)
     ]
     assert Ground(packed).summon_spot(fight) == fight
+
+
+class Named:
+    """`filter_targets` over a stub - it needs the build's template names and what is owned."""
+
+    filter_targets = Powers.filter_targets
+
+    def __init__(self, mine: list[GameObject], templates: set[str]) -> None:
+        self.observation = _Mine(mine)
+        self.statics = _Known(templates)
+
+
+class _Mine:
+    def __init__(self, mine: list[GameObject]) -> None:
+        self.mine = mine
+
+
+class _Known:
+    def __init__(self, templates: set[str]) -> None:
+        self._templates = {t.lower() for t in templates}
+
+    def known(self, template: str) -> bool:
+        return template.lower() in self._templates
+
+
+def signal_fire(object_id: int, upgrades: frozenset[str] = frozenset()) -> GameObject:
+    return GameObject(
+        object_id=object_id,
+        template_name="GondorLeuchtfeuer",
+        template_side="Men",
+        position=(0.0, 0.0, 150.0),
+        angle=0.0,
+        health=1.0,
+        max_health=1000.0,
+        upgrades=upgrades,
+    )
+
+
+def aid(grants: tuple[str, ...] = ("Upgrade_SwitchToRockThrowing",)) -> CastablePower:
+    """Assistance in Time of Need, as `spell_book` reads it off the tree."""
+    return CastablePower(
+        command_slot=0,
+        button="Command_SpellBookBeistandinderNotNormal",
+        power="SpellBookBeistandinderNotNormal",
+        affects=("SAME_PLAYER", "+GondorLeuchtfeuer"),
+        grants=grants,
+    )
+
+
+BLESSED = frozenset({"Upgrade_SwitchToRockThrowing"})
+
+
+def test_a_signal_fire_that_already_has_the_blessing_is_not_offered_it_again() -> None:
+    """The cast is accepted, spends the charge and re-grants an upgrade already held.
+
+    With two fires standing and one blessed, the whole point is that the other one gets it.
+    """
+    field = Named([signal_fire(1, BLESSED), signal_fire(2)], {"GondorLeuchtfeuer"})
+    assert [o.object_id for o in field.filter_targets(aid()) or []] == [2]
+
+
+def test_every_signal_fire_blessed_keeps_the_charge() -> None:
+    """The empty list, not None - the caller already reads that as "do not fire"."""
+    field = Named([signal_fire(1, BLESSED), signal_fire(2, BLESSED)], {"GondorLeuchtfeuer"})
+    assert field.filter_targets(aid()) == []
+
+
+def test_the_upgrade_is_matched_without_regard_to_case() -> None:
+    """`GameObject.upgrades` carries the engine's spelling, which is not the ini's everywhere."""
+    field = Named(
+        [signal_fire(1, frozenset({"upgrade_switchtorockthrowing"}))], {"GondorLeuchtfeuer"}
+    )
+    assert field.filter_targets(aid()) == []
+
+
+def test_a_power_that_grants_nothing_permanent_still_names_every_target() -> None:
+    """A timed buff wears off, so recasting it on the same building is the whole point."""
+    field = Named([signal_fire(1, BLESSED), signal_fire(2)], {"GondorLeuchtfeuer"})
+    assert [o.object_id for o in field.filter_targets(aid(())) or []] == [1, 2]
+
+
+def test_a_power_naming_no_template_is_still_not_template_specific() -> None:
+    """None and the empty list mean different things, and the grant test must not confuse them."""
+    field = Named([signal_fire(1, BLESSED)], set())
+    assert field.filter_targets(aid()) is None

@@ -250,6 +250,7 @@ class HordeOrphanTargetPatch(Patch):
     """Let a stranded battalion member be attacked as itself instead of through its dead horde."""
 
     name = "horde-orphan-target"
+    author = "officialNecro"
     description = "Make units stranded by a broken battalion attackable again"
 
     def apply(self, data: bytearray) -> None:

@@ -1,5 +1,6 @@
 """Tests for the sage_patch binary-patch framework."""
 
+import logging
 import struct
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from sage_patch.cli import main
 from sage_patch.patches import cah_factions as cf
 from sage_patch.patches import commandset as cs
 from sage_patch.patches.commandset import MAX_COUNT, MIN_COUNT
+from sage_patch.registry import PATCHES
 from sage_patch.utils import (
     align_up,
     allocate_section,
@@ -168,6 +170,70 @@ class TestApplyPatches:
         with pytest.raises(ValueError, match="nope"):
             apply_patches(src, [_Boom()], output=out)
         assert not out.exists()
+
+    def test_applying_names_the_author(self, tmp_path, caplog):
+        """A patch is somebody's reverse engineering before it is anybody's code, and none of that
+        work is visible in the diff once the assembly is written down. The applying line is where
+        a run says whose it was."""
+        src = tmp_path / "in.bin"
+        src.write_bytes(b"\x00")
+
+        class _Credited(_AppendByte):
+            name = "credited"
+            author = "officialNecro"
+
+        with caplog.at_level(logging.INFO, logger="sage_patch"):
+            apply_patches(src, [_Credited()])
+        assert "credited (by officialNecro)" in caplog.text
+
+    def test_an_unattributed_patch_says_so_rather_than_going_quiet(self, tmp_path, caplog):
+        """Silence would read as "this one is nobody's", which is never true - it means the
+        attribute was not filled in. Every patch in the registry has one; see
+        `TestEveryPatchIsAttributed`."""
+        src = tmp_path / "in.bin"
+        src.write_bytes(b"\x00")
+
+        with caplog.at_level(logging.INFO, logger="sage_patch"):
+            apply_patches(src, [_NopPatch()])
+        assert "nop (author unrecorded)" in caplog.text
+
+
+class TestEveryPatchIsAttributed:
+    """**The gate that keeps the credit honest as patches are added.**
+
+    An `author` nobody fills in is worse than no author field at all: it puts a "(author
+    unrecorded)" line in front of work somebody did, and it does it silently, one new patch at a
+    time. The default is deliberately empty rather than a name so that the omission is visible -
+    and this is what makes it fail rather than merely be visible."""
+
+    @pytest.mark.parametrize("name", sorted(PATCHES), ids=sorted(PATCHES))
+    def test_a_registered_patch_names_its_author(self, name):
+        author = PATCHES[name].author
+        assert author, (
+            f'{name} has no author. Set `author = "..."` on the patch class beside its `name` - '
+            "whoever worked out the addresses and the call convention is not recoverable from the "
+            "assembly afterwards, and `apply` prints this as the credit line."
+        )
+        assert author.strip() == author, f"{name}'s author has stray whitespace: {author!r}"
+
+    def test_the_credit_line_carries_it(self):
+        """`apply` prints `credit`, not `author`, so the attribute being set is only half of it."""
+        for name, cls in PATCHES.items():
+            assert cls.author in cls().credit, name
+
+    def test_list_names_every_author(self, capsys):
+        """**The command somebody runs when they are writing their mod's credits.** An `apply` log
+        names only the patches that build used, which is the wrong question here - "who do I need
+        to thank" is asked of the whole registry, before any binary exists."""
+        assert main(["list"]) == 0
+        printed = capsys.readouterr().out
+        for name, cls in PATCHES.items():
+            line = next(row for row in printed.splitlines() if row.startswith(name))
+            # Against `-` rather than against `cls.author`, which an unattributed patch would
+            # satisfy vacuously: the empty string is a substring of every line, so the assertion
+            # that reads as the obvious one is the one that cannot fail.
+            assert "-" not in line.removeprefix(name).split()[0], f"{name} is unattributed"
+            assert cls.author in line, name
 
 
 class TestCommandSetLimitPatch:

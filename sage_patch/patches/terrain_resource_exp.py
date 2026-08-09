@@ -240,6 +240,7 @@ class TerrainResourceExpPatch(Patch):
     """Add a `GiveNoXP` boolean to `TerrainResourceBehavior`, gating its experience grant."""
 
     name = "terrain-resource-exp"
+    author = "officialNecro"
     description = (
         "Add a GiveNoXP boolean to TerrainResourceBehavior, so a resource spot can pay its "
         "owner without levelling its own building"

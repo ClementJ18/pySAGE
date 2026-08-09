@@ -17,6 +17,51 @@ from __future__ import annotations
 # comfortably tight enough not to let one plot claim its neighbour's building.
 PLOT_RADIUS = 100.0
 
+# **How long a plot or flag stays unbuildable after whatever stood on it goes away** - the
+# engine's own rule, in *game* seconds.
+#
+# Nothing in an observation reports this. A plot whose building has just been destroyed reads as
+# free by every test the bot has - it is owned, nothing is standing on it, `free_plots` offers it
+# on the very next cycle - and an order aimed at it is taken by the stream and discarded by logic
+# with no error, which is the failure mode this codebase keeps rediscovering.
+#
+# It is the whole of the "placement pathology" that cost three matches. Every mid-match refusal in
+# run 9 has one shape: `eco` falls as a building dies, `plots` rises by exactly one, the
+# replacement is ordered onto that plot on the next cycle, and it is refused. Plot 527 was paid
+# for five times that way in one match, at two four-second confirmation windows an attempt. Run
+# 12, in which nothing of ours was destroyed at home, refused nothing at all in 388 cycles.
+#
+# **Counted in logic frames, not in wall-clock seconds, and that is not a detail.** The engine
+# advances at roughly 4-6 logic frames per second against its nominal 30 under the bridge, so
+# twelve game seconds is a minute or more of real time - a wall-clock rest of twelve seconds would
+# expire while the plot was still refusing, which is the bug wearing a fix. Every other rest in
+# this bot (`PLOT_COOLDOWN`, `FLAG_COOLDOWN`) is a *heuristic* about contested ground and is
+# rightly wall-clock; this one is a *game rule* and has to be measured in the game's own clock.
+#
+# 14 rather than 12: the figure is approximate, a cycle samples every two seconds or so, and being
+# one cycle late costs nothing while being one cycle early costs the whole confirmation window.
+PLOT_REBUILD_SECONDS = 14.0
+
+# How close something hostile has to be to a plot or flag before a building will not go up on it.
+#
+# **The second reason ground refuses a building, and it is independent of the first.** A plot can
+# be inside its rebuild cooldown, or have a raider standing on it, or both at once - they are
+# different rules with different clocks, and a plot that clears one may still be refused by the
+# other. An earlier version of this file had only this rule and attributed the archived runs'
+# refusals to it; that was a correlate, not the cause (the raiders were there *because* they had
+# just destroyed the building, and the building's death is what started the cooldown). The
+# evidence for the timer lives on `PLOT_REBUILD_SECONDS`, where it belongs.
+#
+# So this is here on the game's rule rather than on a measurement: the engine will not place a
+# structure on ground somebody is standing on, and nothing in an observation reports it. It costs
+# a plot skipped for a cycle; the alternative is an order taken and silently discarded, which is
+# the more expensive half of the trade at two four-second confirmation windows an attempt.
+#
+# 120 rather than `PLOT_RADIUS`: this asks about a footprint plus whatever is milling around it,
+# where that one asks whether a building's centre belongs to this plot. The two only look alike.
+PLOT_CONTESTED = 120.0
+
+
 # How far from the last known base centre a building still counts as part of the base.
 #
 # **This anchors `base_centre`, and without it the base walks off across the map.** The centre
@@ -843,6 +888,22 @@ PUSH_ARMY = 0.75
 # and recruitment resume and the gates have to be met again from scratch.
 PUSH_SPENT = 0.40
 
+# How many battalions stay behind the push to go on taking and retaking the map.
+#
+# **The push used to take everything, and the map came apart behind it.** A measured run latched
+# at 75% control and had bled to 56% five hundred cycles later, losing built settlements at one
+# end while the whole force stood at the other - and nothing could answer, because latching
+# dissolves the parties and `stage_expand` had none left to send. The release is on army strength
+# alone, so control is never re-checked and the bot never comes back for it.
+#
+# Two, and horse for preference. It is small enough that the push is still the whole army in every
+# sense that matters to the fight at the keep, and a settlement is taken by standing on it rather
+# than by winning a battle there - so two battalions that nobody is contesting take exactly as much
+# ground as twenty. Cavalry because the job is a circuit rather than a fight: what is left loose at
+# this stage of a match is undefended flags and lone buildings, and the only thing that decides how
+# many of them get visited is how fast the party rides between them.
+PUSH_RAIDERS = 2
+
 # How near a remembered enemy building the force must get before its absence is believed.
 #
 # The fogged view has no memory, so what has been seen is remembered here rather than re-read -
@@ -850,3 +911,112 @@ PUSH_SPENT = 0.40
 # forgotten, or the force turns round the moment it loses vision of where it is going; one the
 # force is standing on top of and cannot see is genuinely gone.
 PUSH_ARRIVED = 400.0
+
+# How far a battalion may have drifted since last cycle and still count as **standing**.
+#
+# The whole formation decision turns on this number, because what a defensive formation costs is
+# speed and speed is only worth something to a battalion that is going somewhere. A shield wall
+# is +20% armour for -30% movement: free to a battalion holding a farm, and a real loss to one
+# still walking into the fight.
+#
+# Measured against the *previous cycle's* position rather than against an order, deliberately.
+# The bot issues orders from a dozen places and a battalion's intent is spread across all of
+# them, but where it actually is can be compared to where it actually was - and that is the same
+# question the engine is answering. A battalion crossing the map at 40-odd units a second covers
+# several hundred between cycles; one standing in a melee jostles by a few tens.
+FORMATION_STILL = 60.0
+
+# How long a battalion must have been standing and fighting before the formation is worth
+# changing, in cycles.
+#
+# **A formation change is not free and its cost is not the order.** The battalion re-forms its
+# ranks to get into it, which is seconds of a fight spent shuffling rather than swinging, so a
+# rule that flips on the first cycle of contact pays that price for every skirmish that is over
+# in four seconds. Two cycles of standing still with something hostile in reach is a fight that
+# has actually settled into one.
+FORMATION_PATIENCE = 2
+
+# The shortest time between two formation orders to the same battalion.
+#
+# Hysteresis, and the failure it prevents is the one every latch in this file exists for: contact
+# and stillness both flicker, and a battalion that toggles on the flicker spends the fight
+# re-forming in both directions and standing in neither. Long enough that a switch has to be
+# worth committing to, short enough that a battalion which has genuinely been sent somewhere gets
+# its speed back inside one march.
+FORMATION_HOLD = 20.0
+
+# Heroes are their own mission, and the reason is what they cost.
+#
+# **A hero is not a battalion with more hit points.** Beregond is 1300 gold and 30 command points
+# against a battalion's 200 and 12, and unlike a battalion it does not come back when it dies -
+# it goes to the tail of the revive list and has to be bought again. So the trade that makes a
+# battalion worth fielding, that it will probably die somewhere useful, is exactly wrong here.
+#
+# What makes it worth the money is a kit that nothing else in the army has, and a kit is spent by
+# firing it rather than by standing in a fight. `World.heroes` keeps them out of
+# `expansion_parties` for the same reason `stage_cavalry` keeps the horse out: a unit whose value
+# is a thing only it can do is worth nothing folded into a line of swordsmen.
+HERO = "HERO"
+
+# The health fraction at which a hero pulls out of a fight, and the one at which it goes back in.
+#
+# **Two numbers, and the gap between them is the whole design.** One threshold makes a hero
+# oscillate across it: pull out at 40%, regenerate to 41% while walking, turn round, take one hit,
+# turn round again. `stage_archers` is the cautionary case this bot already carries - it is
+# written, it worked, and it is disabled in `Bot.decide` because its trigger fired on proximity
+# and half its 202 firings were withdrawals from something that was not attacking. Health is the
+# honest trigger for a hero, and hysteresis is what keeps it from being a twitch.
+#
+# 0.40 rather than something tighter because the cycle is the real constraint: at `--interval 2.0`
+# the bot reads a hero's health every two seconds and a focused hero loses a great deal in two
+# seconds, so the threshold has to be set where the *next* reading is still above zero rather than
+# where the hero is nearly dead. Retreating early is cheap - heroes regenerate on their own - and
+# retreating late is the whole loss.
+#
+# Unmeasured, both of them. They are the reading of what a hero costs against what a cycle can
+# see, and the first live run is what should move them.
+HERO_RETREAT = 0.40
+HERO_RETURN = 0.75
+
+# How long a hero's movement order is left alone before it is reissued.
+#
+# Shorter than the field force's `FIELD_REORDER`, for the same reason `CAVALRY_REORDER` is: a hero
+# is one object rather than a party, what it is following moves, and a stale order costs more than
+# a fresh one. Long enough that a retreat is not restarted from a standing start every cycle -
+# which is `march`'s "3 battalions over 20 cycles, still 0 in range" failure applied to the one
+# unit that cannot afford it.
+HERO_REORDER = 8.0
+
+# How near the force it is escorting a hero has to be before it is left where it is.
+#
+# **A hero's job is to be in the fight the army is having, not to have its own.** Sent at its own
+# target it is one expensive object against whatever is there, which is how a 1300-gold purchase
+# dies to four orcs; standing with a party it is a party that fights better and a hero the party
+# is screening. So the mission is an escort, and this is what counts as escorting rather than as
+# needing another order.
+#
+# Sized between `DEFEND_CONTACT` and `HOLDING_RADIUS`: near enough that the hero is in the same
+# fight, far enough that it is not re-ordered every time the party shuffles.
+HERO_ESCORT = 300.0
+
+# How many enemies an area ability wants under it before it is worth firing.
+#
+# Lower than `CAST_MIN_TARGETS`, and the recharges are why: a hero ability runs from 30 to 360
+# seconds where a spellbook power runs from 180 to 940, so the same "wait for a better target"
+# arithmetic gives a different answer. Wizard Blast at 40 seconds is worth spending on two
+# battalions; Army of the Dead at 830 is not.
+HERO_CAST_TARGETS = 2
+
+# Gold above which the plan's hero is worth buying, and the reservation that holds it.
+#
+# **A hero is bought out of surplus, not out of the recruiting budget.** `stage_recruit` runs
+# first and spends whatever it can see, so a hero priced against the plain balance is a hero that
+# is never affordable - and one bought ahead of the army is a 1300-gold unit with nothing standing
+# next to it, which is the same hero dying to four orcs by a different route. So the floor is what
+# says the economy is already carrying production, and `HERO_PURPOSE` is what stops the rest of
+# the loop spending the price while the queue is being reached.
+#
+# The same shape and the same number as `RESEARCH_FLOOR`, which answers the same question about a
+# different purchase: what is this gold worth if the army is already being paid for.
+HERO_FLOOR = 1500
+HERO_PURPOSE = "hero"

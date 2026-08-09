@@ -328,6 +328,7 @@ class MultiExecuteGatePatch(Patch):
     special power under `OK_FOR_MULTI_EXECUTE`."""
 
     name = "multi-execute-gate"
+    author = "officialNecro"
     description = "OK_FOR_MULTI_EXECUTE respects each unit's Enable/DisableOnModelCondition"
 
     def __init__(self, slots: int | None = None):

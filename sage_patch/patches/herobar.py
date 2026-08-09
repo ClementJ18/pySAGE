@@ -422,6 +422,7 @@ class HeroBarPatch(Patch):
     """Add a `HEROBAR` kindof that groups a template's instances into one hero-bar slot."""
 
     name = "herobar"
+    author = "officialNecro"
     description = (
         "add a HEROBAR kindof: every instance of one template shares a hero-bar slot, "
         "and clicking it selects the whole group"

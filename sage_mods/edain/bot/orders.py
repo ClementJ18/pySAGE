@@ -309,10 +309,23 @@ class Orders(World):
 
         There are two, and the plot's own command set says which it takes: an internal castle
         plot carries `FOUNDATION_CONSTRUCT` buttons and takes `build_at`, while an external
-        plot carries unpack buttons and takes `unpack`/`castle_unpack`. `GondorFoundationCommandSet`
-        is eleven `FOUNDATION_CONSTRUCT` buttons and not one unpack, so the fallback below can
-        never rescue an internal plot - it is there for the mixed cases, not as a real second
-        chance.
+        plot carries unpack buttons and takes `unpack`/`castle_unpack`.
+
+        **The fallback is now asked whether it can possibly work, and on a castle plot it cannot.**
+        `GondorFoundationCommandSet` is eleven `FOUNDATION_CONSTRUCT` buttons and not one unpack,
+        and `free_plots` - the only thing that feeds this - filters to plots with no unpack button
+        at all. So the second path was being run against plots it could never rescue, every time
+        the first one failed. The ledger says exactly that: `unpack never did anything`, 0 of 10
+        in run 11, 0 of 14 in run 9, 0 of 4 in run 13, and no such line at all in run 12, the one
+        run that never needed it.
+
+        It was not free. Each attempt cost a selection and a full `BUILD_CONFIRM` window, so run
+        9 spent about a minute of wall time on an order that had no path to working, and every
+        one of those was logged as a discarded order rather than as a question that should not
+        have been asked.
+
+        Kept rather than deleted because the mixed case is real - a plot whose palette offers
+        both is what it was written for - and now it runs only there.
 
         **Select the plot first, even for the placement build.** A human's recorded clicks are
         `Select <plot>` and only then `FOUNDATION_CONSTRUCT`, and the order carries no object
@@ -332,19 +345,26 @@ class Orders(World):
         if placed:
             self._spent_plot(plot)
             return True
-        print(f"      placement build failed on plot {plot.object_id}; trying the unpack path")
-        if not self.select([plot]):
-            return False
-        unpacked = self.confirm_built(
-            template, plot, lambda: self._issue("unpack", lambda: self.session.unpack(template))
-        )
-        self._report("unpack", unpacked, "built", "NOTHING APPEARED - order discarded")
-        if unpacked:
-            self._spent_plot(plot)
-            return True
-        # Both paths refused. Something about this spot is wrong in a way the observation does
-        # not show - a building already on it whose centre is further off than PLOT_RADIUS, or
-        # a pad that takes a different order - so stop paying for it and try the next one.
+        if self.statics.unpack_buttons(plot.template_name):
+            print(f"      placement build failed on plot {plot.object_id}; trying the unpack path")
+            if not self.select([plot]):
+                return False
+            unpacked = self.confirm_built(
+                template, plot, lambda: self._issue("unpack", lambda: self.session.unpack(template))
+            )
+            self._report("unpack", unpacked, "built", "NOTHING APPEARED - order discarded")
+            if unpacked:
+                self._spent_plot(plot)
+                return True
+        else:
+            print(
+                f"      placement build failed on plot {plot.object_id}; "
+                "its palette offers no unpack, so there is no second path"
+            )
+        # Every path this plot has was refused. Something about the spot is wrong in a way the
+        # observation does not show - a building on it whose centre is further off than
+        # `PLOT_RADIUS`, ground that has not cleared since the last thing there died, or a pad
+        # that takes an order neither of these is - so stop paying for it and try the next one.
         self._blocked_plots[plot.object_id] = time.monotonic() + PLOT_COOLDOWN
         print(f"      plot {plot.object_id} refused both build paths; parking it")
         self._strike(f"build:{template}", False)

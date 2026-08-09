@@ -14,7 +14,8 @@ from math import ceil
 
 from sage_live.api.observation import GameObject, Vec3, distance
 from sage_live.api.session import Sent
-from sage_mods.edain.bot.mechanics.signal_fire import SignalFire
+from sage_mods.edain.bot.factions import FactionMechanics
+from sage_mods.edain.bot.mechanics.formations import Formations
 from sage_mods.edain.bot.recruiting import Recruiting
 from sage_mods.edain.bot.tuning import (
     AIM_STANDOFF,
@@ -44,6 +45,7 @@ from sage_mods.edain.bot.tuning import (
     FLAG_PATIENCE,
     GUARD_ODDS,
     GUARD_PER_RAIDER,
+    HERO,
     LAIR_RADIUS,
     MAX_CAVALRY_ORDERS,
     MAX_RESPONSES,
@@ -51,6 +53,7 @@ from sage_mods.edain.bot.tuning import (
     PUSH_ARMY,
     PUSH_ARRIVED,
     PUSH_CONTROL,
+    PUSH_RAIDERS,
     PUSH_SPENT,
     RAID_PARTY,
     RAID_STANDOFF,
@@ -69,13 +72,18 @@ def _centre_of(force: list[GameObject]) -> Vec3:
     )
 
 
-class Warfare(Recruiting, SignalFire):
+class Warfare(Recruiting, FactionMechanics, Formations):
     """Taking ground, holding it, and meeting what comes home.
 
     `SignalFire` is a faction mechanic mixed in beside the generic stages rather than woven into
     them - see `sage_mods.edain.bot.mechanics`. It is inert on any seat that is not Men, and it
     is here rather than lower down because the two places it touches are both warfare's: which
     building a claimed settlement raises, and the stage that spends the rider's charges.
+
+    `Formations` is the other mechanic and is **not** faction-scoped - it reads each battalion's
+    own `HordeContain` and so plays every side that has formations at all. It is here for the
+    same reason the signal fire is: what it needs is `army()` and `hostile()`, and the question
+    it answers - whether a battalion is standing in a fight or walking to one - is warfare's.
     """
 
     def expand_min_army(self) -> int:
@@ -108,9 +116,26 @@ class Warfare(Recruiting, SignalFire):
         with have nothing else to do and a settlement claimed in the first minute pays for the
         whole match. Every party after it waits until it is full, which is the difference
         between reinforcing a group and dribbling battalions across the map one at a time.
+
+        **Heroes are claimed here too, and that is a correction rather than a feature.** `army()`
+        deliberately keeps them, so before `stage_hero` existed a fielded hero was simply the
+        oldest object in a party and was marched at lairs like a swordsman - which is the most
+        expensive unit in the game fighting the one way it is worst at fighting, with no ability
+        fired and nobody watching its health. `_hero_escort` records which party each is attached
+        to; the hero is still *with* a party, it is just not one of its battalions.
         """
-        claimed = {i for ids in self._groups.values() for i in ids} | set(self._cav)
+        claimed = (
+            {i for ids in self._groups.values() for i in ids}
+            | set(self._cav)
+            | {o.object_id for o in self.heroes()}
+        )
         alive = {o.object_id: o for o in self.army() if o.object_id not in claimed}
+        # **During a push this stage owns the raiders and nothing else.** Without the narrowing
+        # the seeding branch below would sweep every spare battalion into one party on the first
+        # cycle of the endgame, which is the push undone by the stage that was meant to run
+        # alongside it. See `keep_raiders`.
+        if self._pushing:
+            alive = {i: o for i, o in alive.items() if i in set(self._raiders)}
 
         for party in list(self._parties):
             kept = tuple(i for i in self._parties[party] if i in alive)
@@ -379,11 +404,29 @@ class Warfare(Recruiting, SignalFire):
         three refused unpacks - which is what a measured run's `unpack 3/15` mostly consists of -
         benched the entire expansion for three minutes at a time, on a bot whose only job is
         expanding. A plot that will not take a building is one plot's problem.
+
+        **Two things make the ground itself refuse, and both are checked here rather than in
+        `external_plots`.** A flag is unbuildable for about twelve game seconds after whatever
+        stood on it is gone, and it is unbuildable while something hostile is standing on it -
+        independently, so a flag can be inside its cooldown *and* contested and has to clear both.
+        Neither belongs in the candidate list: that list is a **walk target**, chosen many cycles
+        before the build, and a flag being fought over is precisely the flag the bot should be
+        marching at. `worth_taking` already decides whether that fight is worth having.
+
+        So both are a **wait rather than a failure** - no strike, no parked flag, no dropped
+        commitment. The party is already standing there and the reason will pass on its own, which
+        is exactly the distinction `_strike` exists to draw: three refusals mean an order that is
+        never going to work, and this is an order that is not going to work *yet*. Counting these
+        as refusals is what would bench a settlement the bot had just paid a battalion to take.
         """
         chosen = self.unpack_plot(flag)
         if chosen is None:
             return f"plot {flag.object_id}: claimed, but its palette offers no unpack"
         send, label, template = chosen
+        if self.resting(flag):
+            return f"plot {flag.object_id}: claimed, waiting out its rebuild cooldown"
+        if self.contested(flag):
+            return f"plot {flag.object_id}: claimed, but something is still standing on it"
         if template is not None and not self.afford(template, purpose=CAPTURE):
             # The same silent discard as any other unaffordable order, and the one that hurts
             # most: a claimed flag left unbuilt is a capture paid for and never collected. The
@@ -815,6 +858,7 @@ class Warfare(Recruiting, SignalFire):
         if self._pushing:
             if fill < PUSH_SPENT:
                 self._pushing = False
+                self._raiders = ()
         elif self.map_control() >= PUSH_CONTROL and fill >= PUSH_ARMY:
             self._pushing = True
             self._push_since = time.monotonic()
@@ -825,7 +869,36 @@ class Warfare(Recruiting, SignalFire):
             self._party_flag.clear()
             self._forming = ()
             self._cav = ()
+        if self._pushing:
+            self._raiders = self.keep_raiders()
         return self._pushing
+
+    def keep_raiders(self) -> tuple[int, ...]:
+        """The battalions held back from the push to go on taking the map, topped up each cycle.
+
+        **Horse first, and only then anything else.** The job is a circuit of undefended flags
+        rather than a fight, so it is bought by speed - but a push that has run its cavalry into
+        the ground still needs the map held, and refusing to staff this at all is how control
+        decayed unanswered for five hundred cycles. `PUSH_RAIDERS` says how many; what they are is
+        a preference.
+
+        Topped up rather than fixed, because raiders die like anything else and a party that is
+        down to nobody claims nothing. The defence's own battalions are never taken - `stage_defend`
+        has already spoken for those, and this runs after it in every list.
+        """
+        claimed = {i for ids in self._groups.values() for i in ids}
+        alive = {o.object_id: o for o in self.army() if o.object_id not in claimed}
+        kept = [i for i in self._raiders if i in alive]
+        if len(kept) >= PUSH_RAIDERS:
+            return tuple(kept[:PUSH_RAIDERS])
+        horse = [o.object_id for o in self.cavalry() if o.object_id in alive]
+        for pool in (horse, list(alive)):
+            for object_id in pool:
+                if len(kept) >= PUSH_RAIDERS:
+                    break
+                if object_id not in kept:
+                    kept.append(object_id)
+        return tuple(kept)
 
     def push_target(self) -> GameObject | None:
         """The nearest of their victory buildings the force can currently see."""
@@ -871,7 +944,16 @@ class Warfare(Recruiting, SignalFire):
         """
         if self.besieged():
             return None
-        held = {i for ids in self._groups.values() for i in ids}
+        # The defence's groups, the raiders `keep_raiders` is holding out to go on taking the map,
+        # and the heroes - the three parts of "everything not holding the base" that are
+        # deliberately elsewhere. The heroes are not held *back*: `stage_hero` escorts whichever
+        # force is fighting, which during a push is this one. They are excluded so that one stage
+        # gives each of them its orders, the same reason they are out of the parties.
+        held = (
+            {i for ids in self._groups.values() for i in ids}
+            | set(self._raiders)
+            | {o.object_id for o in self.heroes()}
+        )
         force = [o for o in self.army() if o.object_id not in held]
         if not force:
             return None
@@ -933,9 +1015,17 @@ class Warfare(Recruiting, SignalFire):
         The fill is taken nearest the holding, because a response that arrives late is a response
         to a building that has already burned; existing members are kept where they are still
         available, so a group that is already fighting is not dissolved and re-formed each cycle.
+
+        **Heroes are not drafted, and that is about ownership rather than about worth.** A hero
+        at a threatened farm is a good thing to have there, and `stage_hero` sends it - it
+        escorts whichever force is in contact, and a defence group in a fight is exactly that. What
+        must not happen is both stages commanding one object: this one would order it to stand on
+        the holding while the hero stage ordered it home to heal, on alternate cycles, and the
+        hero would do neither. One stage owns each unit, which is the same rule that keeps the
+        cavalry out of the parties.
         """
         available = sorted(
-            (o for o in self.army() if o.object_id not in taken),
+            (o for o in self.army() if o.object_id not in taken and not self.role(o, HERO)),
             key=lambda o: o.distance_to(where),
         )
         wanted = min(len(available), ceil(len(threat) * RESPONSE_ODDS))

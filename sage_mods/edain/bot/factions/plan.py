@@ -1,10 +1,15 @@
-"""The build order, per faction - the part an ML policy replaces first."""
+"""The shape of a faction's build order - the part an ML policy replaces first.
+
+The *schema*, not the data. Each faction fills this in in its own package under
+`factions/<side>/plan.py`, and `factions/__init__.py` collects them; this file stays here beside
+them because it is the one thing every faction has in common and belongs to none of them.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ["PLANS", "Plan"]
+__all__ = ["Plan"]
 
 
 @dataclass(frozen=True)
@@ -93,6 +98,50 @@ class Plan:
     # moves most of the basic unit's share across instead - see `SUCCESSION_SHARE` for why most
     # and not all.
     succession: tuple[tuple[str, str], ...] = ()
+    # **The siege works, wanted only once the push is on.** It is worth no plot at all while
+    # there is map to take - it sells nothing that helps take a settlement, and every plot spent
+    # on it is a discount ladder that stops climbing - which is why this is a field of its own
+    # rather than another entry in `production`.
+    #
+    # The endgame is the one part of the match where that reverses. What is left to win is a keep,
+    # keeps are what siege is for, and the escort problem that banned siege everywhere else
+    # (`RECRUIT_NEVER`) does not exist during a push: the whole force is already walking to one
+    # place as one body, so a ram in it is escorted by definition.
+    #
+    # **Internal plots only, for Gondor.** `GondorFoundationCommandSet` slot 6 is
+    # `Command_ConstructGondorWorkshop` and no external palette offers it, so a base with its
+    # castle full has to sell something to raise one - which is `stage_sell`'s existing job the
+    # moment this names a building it wants.
+    siege: tuple[str, ...] = ()
+    # **The one hero worth fielding, by template. Empty means this faction fields none.**
+    #
+    # One rather than a list, and named here rather than derived, because a hero is the purchase
+    # the army mix cannot price. `wanted_mix` reasons in shares of an army - a unit is wanted
+    # because the army is short of what it does - and a hero is not a share of anything: it is one
+    # object at 1300 to 4000 gold whose value is a kit, a level curve and a body that has to be
+    # kept alive. Handing that to a ratio buys the cheapest hero on the roster forever, or six of
+    # them, depending on which way the arithmetic falls.
+    #
+    # Which one is a judgement, and the argument for Gondor's is cost against what the casting
+    # stage can actually use. `GondorBarracksCommandSet` - the plan's own first building - has
+    # exactly two ungated revive slots: Beregond at 1300g and 30 command points, and Boromir at
+    # 1800. Beregond's level-1 `Kompanie` is a summon of six citadel guards, which is the earliest
+    # aimable ability either of them has; Boromir's level-1 Last Stand is one of the abilities
+    # `Statics.hero_powers` cannot classify at all, and his Horn waits for level 3. So the cheaper
+    # hero is also the one that does something sooner.
+    hero: str = ""
+    # **Holdings worth defending ahead of whatever is simply nearest the enemy**, by template.
+    #
+    # `tower_spot` normally picks the most exposed outlying building, which is the right rule for
+    # the farms and tents that make up almost all of them: one razed is 200g and a walk. A few
+    # buildings are not like that, and the plan is the only thing that can say which - Gondor's
+    # signal fire is bought once, is never rebuilt, has no garrison and no spawn, and is worth
+    # nothing until its rider has spent ten minutes accruing charges.
+    #
+    # This field is why `powers.py` names no faction. It used to import `SIGNAL_FIRE` from the
+    # signal-fire mechanic to special-case exactly this, which put a Gondor template inside a
+    # module whose whole claim is that it plays any side.
+    precious: tuple[str, ...] = ()
     # How many economy buildings before spending on army. Low: an Easy AI does not punish a
     # fast army, and a bot that economises forever never attacks. **A floor, not a ceiling** -
     # `stage_build` keeps laying these on whatever plots are still free afterwards.
@@ -104,69 +153,3 @@ class Plan:
     # of 39); answering it with *different* buildings buys the same queue depth and a wider
     # army at once, which is the only version of this that pays for its plot twice.
     production_target: int = 4
-
-
-# Keyed by the engine's own `Side` token, which is what `PlayerState.faction` carries. Note
-# that Gondor's token is **`Men`** - keying this table on "gondor" matches nothing.
-#
-# **A plan names research centres, and the timing is the whole of why it can.** An earlier table
-# named Gondor's marketplace-then-forge chain unconditionally and it was a bad trade: a measured
-# match spent 1800g and two of a castle's handful of plots on the pair in the opening, bought
-# nothing at all from either, and never got the gold back - because a plot spent on a shop in the
-# first minutes is a plot not spent on the economy that would have paid for it.
-#
-# What was wrong there was not the buildings, it was laying them out of an opening's budget.
-# `RESEARCH_FLOOR` moves them behind a surplus: at 1500 gold the economy is already running, the
-# plots the economy wanted have been laid, and the money has nowhere better to go - which is the
-# state the same measured match reached by cycle 7 and then sat in for 145 cycles.
-#
-# `stage_upgrade` still names no upgrade. It buys whatever the buildings actually owned happen
-# to sell, because `upgrade_options` reads their live command sets; what a research centre does
-# is widen that set, not add a line to a table here.
-PLANS: dict[str, Plan] = {
-    "men": Plan(
-        resource="GondorWohnhaus",
-        # **No siege works.** `RECRUIT_NEVER` bans siege from the mix, so the workshop is a plot
-        # and 600 gold spent on a building whose whole output this bot will not order - and a
-        # castle has a handful of plots, every one of which an economy building would have paid
-        # back. It bought its own level-up in a measured run, which is a shop upgrading itself
-        # while nobody shops there. Put it back the same day escorts exist.
-        production=("GondorBarracks", "GondorArcherRange", "GondorStable"),
-        production_target=3,
-        unit="GondorFighterHorde",
-        research=("GondorMarketPlace", "GondorForge"),
-        # **The forge is a second town house, and the ini says so rather than the name.** It
-        # carries the same `TerrainResourceBehavior` with the same `EDAIN_ECONOMY_INTERNAL_MONEY`
-        # amount and interval, the same `EDAIN_ECONOMY_INTERNAL_BUILDCOST` of 400, and the same
-        # six-rung `CostModifierUpgrade` ladder - pointed at the five per-object unit upgrades
-        # where the house points its own at the elites. So as income the two are interchangeable
-        # and the only thing that distinguishes a plot spent on one is which ladder it climbs,
-        # which is exactly why they are laid in balance rather than in order.
-        #
-        # It stays in `research` as well, because the tech chain is still real: the three techs a
-        # forge sells are all gated on `Upgrade_MarketplaceUpgradeIronOre`. Once the economy path
-        # has put one up, `missing_research` is the marketplace alone and the plot reserve works
-        # for the building that actually still needs one.
-        economy=("GondorForge",),
-        # `GondorEconomyPlotCommandSet` slot 1 and slot 3. Slot 2 is `GondorLeuchtfeuer`, which
-        # is deliberately not here: at 400g it is twice the price, it earns nothing at all, and
-        # what it sells is the fiefdom units - a production building on a settlement, which is a
-        # different decision from this one and belongs to whatever stage learns to want them.
-        external=("GondorFarm_Extern", "GondorRangerTents"),
-        succession=(
-            # The barracks' level 2 replaces the pikeman with the citadel guard, and the archery
-            # range's replaces the archer with the ranger. Both elites deal the same damage type
-            # as the unit they succeed - SPECIALIST and PIERCE respectively - so the counter
-            # weighting that follows treats them as the same answer to the same threat, only a
-            # better one.
-            ("GondorSpearmanHorde", "GondorWachterderVesteHorde"),
-            ("GondorArcherHorde", "GondorRangerHorde"),
-        ),
-    ),
-    "mordor": Plan(
-        resource="MordorTributposten",
-        production=("MordorOrcPit", "MordorSiegeWorks", "MordorTrollCage"),
-        unit="MordorFighterHorde",
-        production_target=3,
-    ),
-}

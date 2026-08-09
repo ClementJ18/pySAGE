@@ -110,6 +110,7 @@ class CommandSetLimitPatch(Patch):
     """Raise the `CommandSet` button limit from the stock 33 to ``count`` (34..127)."""
 
     name = "commandset-limit"
+    author = "officialNecro"
     description = "Raise the CommandSet button limit from 33 to N"
 
     def __init__(self, count: int = 64):

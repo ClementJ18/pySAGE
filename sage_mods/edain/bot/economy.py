@@ -261,6 +261,18 @@ class Economy(Orders):
         """
         plan = self.plan
         wanted: list[str] = []
+        # **The siege works leads, and only while the push is on.** It is the one building whose
+        # worth is a function of the phase rather than of the base: nothing before the endgame,
+        # and ahead of everything once what is left to win is a keep. Reading `_pushing` rather
+        # than calling `pushing()` because that one latches and dissolves the parties - a query
+        # asked from here must not decide the match.
+        #
+        # First in the list is what makes `stage_sell` work for it. That stage sells a surplus
+        # house when something it wants has nowhere to stand, and Gondor's workshop is on an
+        # internal plot only - so on a full castle this entry is the whole mechanism by which a
+        # plot is freed for one.
+        if self._pushing:
+            wanted += [b for b in plan.siege if not self.owned_building(b)]
         if not self.production_buildings():
             wanted.append(plan.production[0])
         if len(self.owned_building(plan.resource)) < plan.resource_target:

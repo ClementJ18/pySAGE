@@ -99,9 +99,47 @@ class Bot(Director):
         **`stage_build` stays too**, which reads odd during an assault and is not: it lays
         economy on plots already held at home and never sends anyone across the map, so it
         competes with nothing the push is doing and keeps paying for the reinforcements.
+
+        **And `stage_sell` joins it here, which it does not do in the opening.** The push is the
+        one phase with a building it wants and no ground to put it on: Gondor's siege works is an
+        internal plot only, the castle is full by the first minute, and selling a surplus house is
+        the only way to free one. Outside the push there is nothing worth that trade, which is why
+        this is the second list rather than all three.
+
+        **`stage_formation` runs after every stage that can send a battalion somewhere, and that
+        is the only thing its placing is about.** It decides whether a battalion is standing in a
+        fight or on its way to one, and it reads that from where the battalion *is* rather than
+        from what was ordered - so running it before the movement stages would judge this cycle's
+        march on last cycle's position, and put a battalion into a shield wall on the frame it
+        was told to cross the map. It is out of the opening list for a simpler reason: the
+        opening's battalions are walking to their first flags and have nothing to brace against.
+
+        **The three hero stages, and the ordering between them is a real dependency in both
+        directions.** `stage_hero` attaches each hero to a force, and the forces are the parties
+        and the response groups - which `stage_defend` and `stage_expand` rebuild every cycle - so
+        it has to run after both or it escorts last cycle's arrangement. `stage_hero_cast` runs
+        after `stage_hero` for the same reason one layer down: whether a hero is retreating decides
+        which abilities it may fire, and the movement stage is what sets that latch.
+
+        `stage_hero_recruit` belongs with the other spends, immediately behind `stage_recruit` -
+        the army mix gets first call on the balance, and what is left over is what `HERO_FLOOR` is
+        measured against.
+
+        **It is written and deliberately in none of these lists, exactly as `stage_archers` is.**
+        Run 11 bought its hero on the first attempt and moved it all match - `hero 1/1` and
+        `hero move 89/99` - and then never landed a single ability: `hero buff never did
+        anything`, `hero summon never did anything`, both benched by the backoff after three
+        refusals each. A hero that only walks is an expensive battalion, so it is held out until
+        the ability path works. Putting it back is one line in each list, and its tests stay.
+
+        **The two that command the hero stay in every list**, and that is not an oversight. They
+        cost nothing when there is no hero, and a hero the *map* hands over would otherwise be
+        commanded by nothing at all, because `expansion_parties` refuses to put one in a party.
+        Before these stages existed that hero was a battalion; without them it would be a statue.
         """
         self.refresh()
         self.remember_keeps()
+        self.note_freed_plots()
         stages: tuple[Callable[[], str | None], ...]
         if self.opening():
             stages = (
@@ -109,6 +147,8 @@ class Bot(Director):
                 self.stage_build,
                 self.stage_defend,
                 self.stage_expand,
+                self.stage_hero,
+                self.stage_hero_cast,
                 self.stage_powers,
                 self.stage_cast,
                 self.stage_camera,
@@ -116,12 +156,17 @@ class Bot(Director):
         elif self.pushing():
             stages = (
                 self.stage_repair,
+                self.stage_sell,
                 self.stage_command_points,
                 self.stage_signal_fire,
                 self.stage_recruit,
                 self.stage_build,
                 self.stage_defend,
+                self.stage_expand,
                 self.stage_push,
+                self.stage_formation,
+                self.stage_hero,
+                self.stage_hero_cast,
                 self.stage_upgrade,
                 self.stage_powers,
                 self.stage_cast,
@@ -139,6 +184,9 @@ class Bot(Director):
                 self.stage_cavalry,
                 self.stage_expand,
                 self.stage_raid,
+                self.stage_formation,
+                self.stage_hero,
+                self.stage_hero_cast,
                 self.stage_upgrade,
                 self.stage_powers,
                 self.stage_cast,

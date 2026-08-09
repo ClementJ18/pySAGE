@@ -282,6 +282,7 @@ class BannerFilterPatch(Patch):
     """Add an `ObjectFilter` keyword to `BannerCarrierUpdate`'s nearby-horde replenish scan."""
 
     name = "banner-filter"
+    author = "officialNecro"
     description = "Add an ObjectFilter to BannerCarrierUpdate's nearby-horde replenish"
 
     def __init__(self, keyword: str = DEFAULT_KEYWORD, only_when_all: bool = False):

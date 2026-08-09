@@ -311,6 +311,7 @@ class SciencePrereqPatch(Patch):
     """Let `PrerequisiteSciences` name a science that has not been defined yet."""
 
     name = "science-prereqs"
+    author = "officialNecro"
     description = "Allow forward references (and so mutual prerequisites) in PrerequisiteSciences"
 
     def __init__(self, report_missing: bool = True, all_keywords: bool = False):
