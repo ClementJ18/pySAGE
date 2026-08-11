@@ -95,6 +95,13 @@ __all__ = [
     "CAN_USE_SPECIAL_POWER",
     "CAN_USE_SPECIAL_POWER_ENTRY",
     "CLEAR_GAME_DATA",
+    "CLI_COUNT_REF",
+    "CLI_DISPATCH",
+    "CLI_TABLE",
+    "CLI_TABLE_BYTES",
+    "CLI_TABLE_ENTRIES",
+    "CLI_TABLE_FINGERPRINT",
+    "CLI_TABLE_REF",
     "COMMAND_BUTTON_AUTO_ABILITY",
     "COMMAND_BUTTON_COMMAND",
     "COMMAND_BUTTON_CTOR",
@@ -111,6 +118,7 @@ __all__ = [
     "CONTROL_BAR_UNAVAILABLE",
     "CONTROL_BAR_UNIT_COST_CALL",
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
+    "CRT_ATOI",
     "DESCRIPTION_BUFFER_EBP_OFFSET",
     "DESCRIPTION_DONE",
     "DESCRIPTION_LINE_EBP_OFFSET",
@@ -122,6 +130,7 @@ __all__ = [
     "DESCRIPTION_SPECIAL_POWER_CASE_BYTES",
     "DESCRIPTION_TEXT_EBP_OFFSET",
     "DESCRIPTION_UNIT_COST_BODY",
+    "DISPLAY_DRAW_VTABLE_SLOT",
     "DO_COMMAND_BUTTON",
     "DO_COMMAND_BUTTON_BUTTON_EBP",
     "DO_COMMAND_BUTTON_REVIVE_QUEUE",
@@ -137,6 +146,8 @@ __all__ = [
     "FLOAT_ONE",
     "FLOAT_ONE_PERCENT",
     "FLOAT_TWO_PERCENT",
+    "GAME_CLIENT_DRAW",
+    "GAME_CLIENT_DRAW_BYTES",
     "GAME_INFO_MAP",
     "GAME_LOGIC_FRAME",
     "GAME_LOGIC_IS_IN_GAME",
@@ -146,6 +157,9 @@ __all__ = [
     "GAME_MODE_SKIRMISH",
     "GAME_TEXT_FORMAT_SLOT",
     "GET_FINAL_OVERRIDE",
+    "GLOBAL_DATA",
+    "GLOBAL_DATA_FPS_LIMIT",
+    "GLOBAL_DATA_USE_FPS_LIMIT",
     "GUICOMMAND_REVIVE",
     "GUI_COMMAND_SPECIAL_POWER",
     "IMAGE_BASE",
@@ -319,6 +333,7 @@ __all__ = [
     "TERRAIN_RESOURCE_UPDATE_VTABLE",
     "TERRAIN_RESOURCE_UPDATE_VTABLE_SLOT",
     "THE_BUILD_ASSISTANT",
+    "THE_DISPLAY",
     "THE_GAME_INFO",
     "THE_GAME_LOGIC",
     "THE_GAME_STATE",
@@ -1710,3 +1725,65 @@ CAMPAIGN_NAME_STATIC = 0x00DEA35C
 CAMPAIGN_NAME_STATIC_GUARD = 0x00DEA360
 CAMPAIGN_NAME_BIND = 0x0091BE96
 CAMPAIGN_NAME_BIND_BYTES = bytes.fromhex("f60560a3de000156be5ca3de007525")
+
+# --- the command line, and the two instructions that give it its length ----------------------
+#
+# `game.dat` parses argv against a table of `{const char *name, int (*handler)(char **argSlot,
+# int remaining)}`. The dispatcher compares with `_strnicmp` and requires equal length, rewrites
+# a leading `0x96` (a Word en-dash) to `-` first, and adds each handler's return value to the
+# argument index - so a handler returns how many arguments it consumed, 1 for a flag and 2 for
+# one that takes a value. Only `eax`, `ecx` and `edx` are free inside one.
+#
+# The table's address and its length reach the dispatcher from a single call site, as a
+# register load and a pushed constant. That is what makes the table extensible in six bytes:
+# repoint `CLI_TABLE_REF` at a copy with more rows and raise the count. `push imm8` reaches 127
+# entries, so the count edit keeps its length and nothing shifts.
+#
+# Derived in `docs/headless.md` §1.
+CLI_TABLE = 0x00C35DA8
+CLI_TABLE_ENTRIES = 16
+CLI_TABLE_BYTES = CLI_TABLE_ENTRIES * 8
+CLI_DISPATCH = 0x007BA7E1
+CLI_TABLE_REF = 0x007BAA4B  # mov ebx, 0x00C35DA8
+CLI_COUNT_REF = 0x007BAA54  # push 0x10
+
+#: The options at four positions of the stock table, as `{index: name}`. Enough to prove the
+#: table being copied is this build's - a table that has moved, or a build whose option list
+#: differs, fails here rather than being copied verbatim into the cave and dispatched to.
+CLI_TABLE_FINGERPRINT = {
+    0: "-noshellmap",
+    5: "-win",
+    14: "-resumeGame",
+    15: "-randomSeed",
+}
+
+#: `msvcr71.dll!atoi`, as its import-address-table slot. The stock `-xres` handler
+#: (`0x007BA104`) calls through this slot, which is how a new handler reads a numeric argument.
+CRT_ATOI = 0x00BD0628
+
+# --- the per-frame draw ------------------------------------------------------------------------
+#
+# `TheDisplay`, and the one call that draws a frame. `GameClient::update` reaches the display
+# twice: `update` through vtable `+0x28` at `0x00648838`, then `draw` through `+0x30` eleven
+# bytes later. Suppressing the second is what makes a headless run cheap; the first is left
+# alone, because everything downstream of the display's own update is state, not pixels.
+#
+# `THE_DISPLAY` has 540 references in `.text`, essentially none of them null-checked, which is
+# why a headless mode here suppresses drawing rather than removing the display.
+THE_DISPLAY = 0x00DE4418
+DISPLAY_DRAW_VTABLE_SLOT = 0x30
+GAME_CLIENT_DRAW = 0x00648861
+GAME_CLIENT_DRAW_BYTES = bytes.fromhex("8b0d1844de008b01ff5030")
+
+# --- `TheWritableGlobalData`, and the two frame-rate fields -------------------------------------
+#
+# The pointer, and the pair of `GameData` fields that cap the loop. Both are ordinary INI fields
+# (the field-parse table at `0x00BFF580` maps `UseFPSLimit` to `+0x26` and
+# `FramesPerSecondLimit` to `+0x28`) and both are read live - `0x0063A01B` copies `+0x26` into
+# the loop's own global, and `0x0062C6FF` already writes the pair at runtime.
+#
+# The command line is parsed *after* `GlobalData`'s INI is loaded (`0x0063AFA4` registers and
+# loads it, `0x0063AFB2` parses argv), so a handler writing these fields wins over the tree.
+GLOBAL_DATA = 0x00DE4364
+GLOBAL_DATA_USE_FPS_LIMIT = 0x26
+GLOBAL_DATA_FPS_LIMIT = 0x28

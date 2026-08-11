@@ -301,6 +301,19 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   touched. This is what Edain's Iron Hills vineyard works around with a hidden flag, a rebuild
   cooldown and a dummy building. **Simulation state**, so it has to be on every peer. **Not yet
   runtime-verified in game.**
+- **`headless`** makes a run cheap enough to automate: it adds **`-headless`**, **`-renderEvery n`**,
+  **`-maxfps n`** and **`-uncapped`** to the command line, and suppresses the per-frame
+  `Display::draw` when asked to. The command-line table is extensible in **six bytes** — the
+  dispatcher takes it in `ebx` and its length as a `push imm8`, both at one call site, so a cave
+  holding a copy of the stock 16 rows plus new ones is reachable without moving an instruction; the
+  draw call is a single 11-byte site in `GameClient::update`. **It does not remove the display**:
+  `TheDisplay` has 540 unguarded references, so the Direct3D device is still created and the assets
+  still load — what stops is drawing. It also does not reimplement `-noshellmap` or `-noaudio`,
+  which are stock and do more than set the flags they name; a headless run passes those too. Much
+  of what a test rig needs is **already in the retail binary** and needed no patch at all —
+  `-file <map>.map` starts a skirmish with no menu, `-file <replay>.rep` plays a replay, and
+  `GameData UseFPSLimit` already uncaps the loop — which is what makes this patch small. See
+  [`docs/headless.md`](docs/headless.md). **Not yet runtime-verified in game.**
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -388,6 +401,10 @@ sage-patch verify hero-bar-slots --count 21 game.dat
 # hand a settlement plot from the building a ReplaceSelfUpgrade destroys to the one it creates
 sage-patch apply foundation-rebind --in game.dat.backup --out game.dat  # no parameters
 sage-patch verify foundation-rebind game.dat
+
+# a command-line surface, and a game that does not draw
+sage-patch apply headless --in game.dat.backup --out game.dat          # no parameters
+sage-patch verify headless game.dat
 ```
 
 `verify` re-derives the expected tables, the repointed references and every patched site from the
