@@ -505,6 +505,13 @@ OBJECT_ID = 0x74
 # `m_producerID` - who made me - which fits what the fallback is for and is why an object that
 # has *left* its horde still resolves back to it. Not measured live; see
 # `docs/horde-formation-orphans.md` section 6.
+#
+# Corroborated statically from a second, unrelated consumer: on a structure standing on a build
+# plot this field is the **plot**, written by the build path (`0x00857AEA`) and by the plot's own
+# first-update adopt scan (`0x008584C7`), and read by `GettingBuiltBehavior::onDelete`
+# (`0x0085757F`) to free that plot when the structure goes away. Two producers and one consumer
+# that all mean "who made me" is about as far as this can be taken without a debugger; see
+# `docs/foundation-rebind.md` section 2.1.
 OBJECT_PRODUCER_ID = 0x78
 
 # `Object::m_status`, the `ObjectStatusMaskType` bitset - 4 dwords, so 128 slots for the 106

@@ -8,6 +8,7 @@ from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
 from sage_patch.patches.desert_weather import DesertWeatherPatch
 from sage_patch.patches.desert_weather_wb import DesertWeatherWorldbuilderPatch
+from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.hero_mana import HeroManaPatch
 from sage_patch.patches.horde_orphan_target import HordeOrphanTargetPatch
@@ -33,6 +34,7 @@ __all__ = [
     "CommandSetLimitPatch",
     "DesertWeatherPatch",
     "DesertWeatherWorldbuilderPatch",
+    "FoundationRebindPatch",
     "HeroBarSlotsPatch",
     "HeroManaPatch",
     "HordeOrphanTargetPatch",

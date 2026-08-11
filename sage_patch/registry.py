@@ -11,6 +11,7 @@ from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
 from sage_patch.patches.desert_weather import DesertWeatherPatch
 from sage_patch.patches.desert_weather_wb import DesertWeatherWorldbuilderPatch
+from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.hero_mana import HeroManaPatch
 from sage_patch.patches.herobar import HeroBarPatch
@@ -59,6 +60,7 @@ PATCHES: dict[str, type[Patch]] = {
     MultiInstancePatch.name: MultiInstancePatch,
     MultiInstanceLauncherPatch.name: MultiInstanceLauncherPatch,
     CampaignSelectPatch.name: CampaignSelectPatch,
+    FoundationRebindPatch.name: FoundationRebindPatch,
 }
 
 __all__ = ["PATCHES"]

@@ -281,6 +281,26 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   Unexpected Party* loaded **laketown** instead of the **Hobbiton** a stock engine can only ever
   give it. That run also put a `sage_apt` round-trip of a **shell** movie in front of the real game
   for the first time — `MainMenu.apt`, the file carrying the corpus's one unresolvable branch.
+- **`foundation-rebind`** lets a **`ReplaceSelfUpgrade` keep the settlement plot** its building
+  stands on, instead of freeing the flag between the destroy and the create. A plot's occupancy is
+  one dword - the `ObjectID` at `FoundationAIUpdate+0x28`, shared with `CastleBehavior`, which
+  derives from it - and `setBuiltOnObject` is the whole of the visual mechanic around it: non-zero
+  hides the flag and fades it out over 10 frames, zero brings it back over 30. The flag returns not
+  because anything is told the building *died* but because **`GettingBuiltBehavior::onDelete`
+  actively frees the plot** it finds through `Object+0x78`, and `destroyObject` broadcasts
+  `onDelete` to every module **inside the same call** - so the plot is free before the replacement
+  exists. (A per-frame `findObjectByID(m_builtOnID)` poll agrees with it, and the plot's
+  "what is standing on me" scan is **one-shot**, fired on its first update for map-placed
+  structures, so nothing ever re-adopts.) The engine already re-points references from the old
+  object to the new one in exactly this function - **for `WALL_HUB`, `WALL_UPGRADE` and
+  `WALL_SEGMENT` only**; this adds plots. Two `call rel32` and a `0x12A`-byte cave: before the
+  destroy, remember the plot and zero the link `onDelete` would follow; after the create, write the
+  new id into the plot's occupant field **directly** rather than through the setter, which would
+  reset the drawable's opacity and make the hidden flag blink. Every write is guarded by a proof of
+  ownership, so a unit's producer - a barracks, which answers no foundation interface - is never
+  touched. This is what Edain's Iron Hills vineyard works around with a hidden flag, a rebuild
+  cooldown and a dummy building. **Simulation state**, so it has to be on every peer. **Not yet
+  runtime-verified in game.**
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -364,6 +384,10 @@ sage-patch verify queue-ignore-cp game.dat
 # a wider hero bar; the .apt must define Hero17..HeroN clips to match (see sage_apt)
 sage-patch apply hero-bar-slots --count 21 --in game.dat.backup --out game.dat
 sage-patch verify hero-bar-slots --count 21 game.dat
+
+# hand a settlement plot from the building a ReplaceSelfUpgrade destroys to the one it creates
+sage-patch apply foundation-rebind --in game.dat.backup --out game.dat  # no parameters
+sage-patch verify foundation-rebind game.dat
 ```
 
 `verify` re-derives the expected tables, the repointed references and every patched site from the
