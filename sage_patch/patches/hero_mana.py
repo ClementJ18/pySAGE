@@ -27,9 +27,8 @@ that interface is absent - which is every lone hero - they branch to *the same l
 =========================  ==================================================================
 
 A hero has one pool and many abilities, so the pool and the regen are per *object* and only the
-cost is per *power*. (An earlier revision put all three on `SpecialPower`; that made the cap
-depend on which ability happened to be evaluated, and let two of a hero's powers disagree about
-it. It was wrong and is gone.)
+cost is per *power*. Putting all three on `SpecialPower` instead would make the cap depend on
+which ability happened to be evaluated, and let two of a hero's powers disagree about it.
 
 They are enforced in three places: the affordability predicate every caller *including the AI*
 goes through, the three activation entry points, and the ControlBar so the button greys out.
@@ -936,18 +935,17 @@ def _emit_revive_line(a: Asm, label_va: int) -> None:
 def _emit_dispatch_hook(a: Asm, index: int, window: bytes, resume_va: int, *, trace: bool) -> None:
     """An observation point on one `Object::doSpecialPower*` variant's dispatch. **Not a charge.**
 
-    This is where the cost used to be taken, and it was wrong twice over. A cast that a
-    `...SpecialAbilityUpdate` handles runs *both* this and the trigger that
-    :func:`_emit_ability_trigger` hooks, so charging here took the price twice. Measured live on
-    `SpecialAbilityLightningSword`:
+    Charging here is wrong twice over. A cast that a `...SpecialAbilityUpdate` handles runs
+    *both* this and the trigger that :func:`_emit_ability_trigger` hooks, so the price is taken
+    twice. Measured live on `SpecialAbilityLightningSword`:
 
     .. code-block:: none
 
         frame 1696  DISPATCH v1   cost=50 available=145    -> CHARGED   (the click)
         frame 1713  ABILITY-FIRE  cost=50 available=96.02  -> CHARGED   (the fire)
 
-    And it charged at the click, before the hero had walked or finished its wind-up, so a
-    cancelled order still cost the player.
+    And it would charge at the click, before the hero has walked or finished its wind-up, so a
+    cancelled order would still cost the player.
 
     The charge therefore lives at the trigger alone. The cost of that choice is that a power which
     dispatches without ever reaching an ability update - an instant one with no update module -

@@ -679,9 +679,9 @@ class Session:
         return self.send(_orders.recruit(self.player_index, self.resolve("thing", template)))
 
     #
-    # Hero recruitment is its own order shape and its own index space, and both were got wrong
-    # before they were identified: the engine takes a `CommandSet` slot number happily and buys
-    # a different hero with it. The derivation is in `sage_live.utils.heroes`; what lives here
+    # Hero recruitment is its own order shape and its own index space, and both are easy to get
+    # wrong: the engine takes a `CommandSet` slot number happily and buys a different hero with
+    # it. The derivation is in `sage_live.utils.heroes`; what lives here
     # is the part a single observation cannot answer - the list mutates as heroes field and die.
 
     def _track_heroes(self, obs: Observation) -> None:

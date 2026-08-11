@@ -209,9 +209,9 @@ finding the file it expects.
 
 ### 5.1 The trap: `m_gameMode` is already gone
 
-The first version of this patch decided whether to rename by reading `TheRecorder + 0xED4`, the
-mode `updateRecord` caches at `0x0077F923` immediately before calling `startRecording`. That is
-wrong, and it fails silently — the skirmish records, but keeps the stock name.
+Deciding whether to rename by reading `TheRecorder + 0xED4` — the mode `updateRecord` caches at
+`0x0077F923` immediately before calling `startRecording` — is wrong, and it fails silently: the
+skirmish records, but keeps the stock name.
 
 `startRecording`'s **first** act is `reset()` (vtable `+0x24`, `0x0077D86C`), which tail-jumps
 through vtable slot `+0x04` to `0x0077D7C1`, and there:

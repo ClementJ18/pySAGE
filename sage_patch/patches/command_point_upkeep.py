@@ -65,12 +65,12 @@ points, its template's name key, and the INI. No pointer *value* is read, and th
 happen at INI load.
 
 **The display lives in `inflation-readout`.** This patch draws nothing. It *exports* `percent`
-through :mod:`~sage_patch.patches.income_link`, and when
+through :mod:`~sage_patch.patches.utils.income_link`, and when
 [`inflation-readout`](../docs/inflation-readout.md) is also installed the palantir's
 resource-multiplier slot shows the **product** of both factors - which is what the deposit
-actually computes, since the two multiply the same `[ebp-0x1c]`. Earlier versions of this patch
-appended `(-10%)` to the command-point readout instead; that number is a strict subset of what
-the multiplier slot now shows, so it was removed rather than shown twice.
+actually computes, since the two multiply the same `[ebp-0x1c]`. The upkeep penalty on its own
+is a strict subset of what that slot shows, so it is not drawn a second time on the
+command-point readout.
 
 > **Every peer must run the same patched binary.** Income decides what gets built, so the effect
 > is inside the simulation: a patched and an unpatched client desync and replays do not cross.
@@ -113,7 +113,7 @@ from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offs
 # the patch that needed them first. This is a code import only - the two patches rewrite
 # different tables (`Object`/`SpecialPower` there, `PlayerTemplate` here) and share no byte.
 from .hero_mana import Entry, entries_before, read_field_table, resolve_table
-from .income_link import (
+from .utils.income_link import (
     READOUT_SECTION,
     UPKEEP_EXPORT_OFF,
     UPKEEP_SECTION,
@@ -132,7 +132,8 @@ __all__ = [
 ]
 
 #: 8 chars max: the PE name field truncates silently past 8. Owned by
-#: :mod:`~sage_patch.patches.income_link`, which also owns the offset in it that exports `percent`.
+#: :mod:`~sage_patch.patches.utils.income_link`, which also owns the offset in it that
+#: exports `percent`.
 SECTION_NAME = UPKEEP_SECTION
 
 # CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE. The cave holds code, the
@@ -490,9 +491,9 @@ class CommandPointUpkeepPatch(Patch):
     """Scale a faction's tick income down as its command-point usage crosses INI thresholds.
 
     Draws nothing itself. It publishes `percent` through
-    :mod:`~sage_patch.patches.income_link`, and a file that also carries `inflation-readout` shows
-    the resulting factor - multiplied by the stock inflation, exactly as the deposit computes it -
-    in the palantir's resource-multiplier slot.
+    :mod:`~sage_patch.patches.utils.income_link`, and a file that also carries
+    `inflation-readout` shows the resulting factor - multiplied by the stock inflation, exactly
+    as the deposit computes it - in the palantir's resource-multiplier slot.
     """
 
     name = "command-point-upkeep"

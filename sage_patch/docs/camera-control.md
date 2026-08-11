@@ -135,11 +135,11 @@ patched by an older version. `BridgeBackend.connect` refuses a tag it does not k
 every offset it would write at points somewhere else in that older cave — and the nearest thing
 to the camera block there is the appender table the hook calls through.
 
-## 6. Confirmed live, and what it changed
+## 6. Confirmed live
 
 Run against a live RotWK match, 2026-08-07 (`m_pos` at `view+0x0C`, `TheTacticalView` resolving
-to `0x069D1200`). The plan in the old §6 was "capture, nudge by hand, capture again". What it
-actually found was that the *capture-and-hand-back* half does not work at all.
+to `0x069D1200`). The headline is that *capture, replace the position, hand it back* does not
+work at all.
 
 **A round-trip is not a no-op.** Handing `setLocation` the location `getLocation` had just
 produced changed the zoom:
@@ -180,7 +180,7 @@ achieved **162 writes/second** with a p95 gap of 7 ms and rendered as a smooth p
 were needed for that: driving the interpolation off elapsed wall time rather than a step counter
 (so a late tick lands where the camera should be *now*), and asking for a 1 ms timer period.
 Coarser steps do not read as motion — a 250 ms step was described as snapping between locations,
-and one step per two-second policy cycle is what the bot did before.
+and one step per two-second policy cycle is a jump every two seconds however small the step.
 
 **`position` is the look-at point on the terrain**, not the camera's eye. A camera reporting
 `z=150.00` sat over 137 objects whose median `z` was `150.00`. The camera's own altitude is
@@ -197,8 +197,8 @@ mechanism reasserting itself after a write.
 
 - **The fourth scalar is unnamed** (§4).
 - **The engine's own interpolated move is still unidentified** — the `CAMERA_MOVE_TO_LOCATION`
-  script action drives some other View slot. It matters much less now: easing from outside at
-  160 Hz looks right, bar occasional stutters.
+  script action drives some other View slot. It matters little: easing from outside at 160 Hz
+  looks right, bar occasional stutters.
 - **What restores the zoom over 0.6 s has not been traced.** The behaviour is pinned by
   measurement and routed around; the field doing the restoring is not identified. Likely the
   client's per-frame camera update at `~0x0083B9A0`.

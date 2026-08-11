@@ -172,7 +172,7 @@ byte-identical `ModuleData` to stock.
 The table at `0x00C5FD78` has no room to grow: the eight rows are followed immediately by the
 terminator at `0x00C5FDF8` and then by unrelated `.rdata`, and the keyword strings its rows point
 at (`0x00C5FD44`-`0x00C5FD6C`) sit immediately *before* it. So the table is rebuilt into the cave —
-the same move [`patches/name_tables.py`](../patches/name_tables.py) makes for the name tables, at
+the same move [`patches/utils/name_tables.py`](../patches/utils/name_tables.py) makes for the name tables, at
 its cheapest possible size:
 
 **there is exactly one reference to `0x00C5FD78` in the whole image**, the `push` immediate at
@@ -398,10 +398,10 @@ What the static pass proved, applying to a real `game.dat`:
     +0x18  UpgradeMustBePresent …
   ```
 
-Two small changes to that script were needed to get there, and both are neutral on a stock binary:
-it refused to follow a table pointer into any section but `.rdata`/`.data` — which a relocated
-table never is — and it did not know that `and dword [x], 0` defaults all four bytes rather than
-one, so a `Bool` packed beside an `Int` read as having no compiled-in default. Regenerated against
+Reading a *patched* binary asks two things of that script, both neutral on a stock one: it has to
+follow a table pointer into any section, not just `.rdata`/`.data`, because a relocated table is
+in neither; and it has to treat `and dword [x], 0` as defaulting all four bytes rather than one,
+or a `Bool` packed beside an `Int` reads as having no compiled-in default. Regenerated against
 an unpatched `game.dat`, [`module-reference.json`](module-reference.json) is unchanged across all
 329 modules.
 

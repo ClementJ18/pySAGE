@@ -57,11 +57,9 @@ copy in [`live-object-model.md`](live-object-model.md) begins.
 
 ### 2a. Serialisation — three paths, and what actually bounds a new condition
 
-> ⚠ **Corrected 2026-07-30.** An earlier revision of this section said the 74-byte packer *was*
-> the savegame, and that a second condition would therefore be a savegame format change. That is
-> wrong: the packer is one of three branches, and it is not the save/load one. The mistake came
-> from reading `0x004B8D87` — which has no mode check inside it — without following its single
-> caller.
+> ⚠ **The 74-byte packer is not the savegame.** It is one of three branches and it is not the
+> save/load one, so a second condition is *not* a savegame format change. Reading `0x004B8D87`
+> alone suggests otherwise — it has no mode check inside it — so follow its single caller.
 
 `ModelConditionFlags::xfer` is `0x004BAEE4`. After `xferVersion` it branches twice:
 

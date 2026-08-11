@@ -11,13 +11,14 @@ Recovered against RotWK 2.01 + Edain, `game.dat`, 2026-08-05. Static analysis pl
 
 It does **not** close everything the fog does. See §6.
 
-## 1. Two corrections to the address table first
+## 1. The address table
 
-`ThePartitionManager` was recorded at `0x00DE4358`. That address is **`TheShroudManager`**.
+`ThePartitionManager` is `0x00DE4354`; `0x00DE4358` is **`TheShroudManager`**.
 
 The registration block builds each subsystem, stores it, and *then* pushes its name — so
-"the object built immediately after the name string is pushed" reads one slot late. The
-decisive instruction is the `setName` call site, which reloads the global it is naming:
+"the object built immediately after the name string is pushed" reads one slot late, which is
+the trap here. The decisive instruction is the `setName` call site, which reloads the global it
+is naming:
 
 ```
 0x0062CEB3  mov  [0x00DE4354], eax      ; store the object
@@ -26,7 +27,7 @@ decisive instruction is the `setName` call site, which reloads the global it is 
 0x0062CEDB  call 0x0046EC7F             ; setName
 ```
 
-Both are now confirmed **live** rather than statically, which is stronger than the disassembly:
+Both are confirmed **live** rather than statically, which is stronger than the disassembly:
 each subsystem carries its own name as an `AsciiString` at `+0x08`, so reading it back is a
 direct answer.
 
@@ -37,12 +38,10 @@ direct answer.
 | `0x00DE435C` | `TheTaintManager` |
 | `0x00DE4360` | `TheCollisionManager` |
 
-The "109 code references" that [`live-object-model.md`](live-object-model.md) §5 attributed to
-`ThePartitionManager` are `TheShroudManager`'s. The partition manager has 285.
+`TheShroudManager` has 109 code references; the partition manager has 285.
 
-**The second correction is that the 20-byte object is not a mistake, it is a facade.** The old
-note flagged `push 0x14` as implausibly small for a manager and suggested confirming it live.
-It is exactly right, and it is why: every method is a two-instruction thunk.
+**The 20-byte object is a facade, not a mistake.** `push 0x14` looks implausibly small for a
+manager, and the reason is that every method is a two-instruction thunk.
 
 ```
 0x00B4D9A0  mov  ecx, [ecx + 0x10]
@@ -165,11 +164,11 @@ enemy building drawn in the greyed-out fog; a consumer of this grid does not.
 
 The engine keeps that distinction **per object**, not per cell — `PartitionData` carries
 `Bool m_everSeenByPlayer[N]` alongside `ObjectShroudStatus m_shroudedness[N]`
-([`max-player-count.md`](max-player-count.md)). That structure is still not located, and the
-hunt for it recorded in [`live-object-model.md`](live-object-model.md) §5 remains open. What is
-new is that it is no longer on the critical path: the per-cell grid answers "can this seat see
-that *right now*", which is the whole of hiding units, and remembering what was seen is
-something a consumer can do honestly for itself.
+([`max-player-count.md`](max-player-count.md)). That structure is not located, and the hunt for
+it recorded in [`live-object-model.md`](live-object-model.md) §5 remains open. It is not on the
+critical path: the per-cell grid answers "can this seat see that *right now*", which is the
+whole of hiding units, and remembering what was seen is something a consumer can do honestly
+for itself.
 
 `Observation.under_fog` therefore hides what cannot be seen now and invents no memory. A policy
 that wants one should accumulate it across frames — it is the policy's memory, and making that

@@ -22,7 +22,7 @@ from sage_utils.cli import existing_dir, existing_file, utf8_stdout
 
 def _build_texture_resolver(path, game_dir):
     """Build an `AptTextureResolver` for real-artwork rendering, or None. Returns None
-    (placeholders) when no `--game-dir` was given or the `[apt]`/`[ui]` extras (Pillow +
+    (placeholders) when no `--game` was given or the `[apt]`/`[ui]` extras (Pillow +
     pyBIG) are not installed; the resolver code is imported lazily so the core needs no
     extra."""
     if not game_dir:
@@ -37,7 +37,7 @@ def _build_texture_resolver(path, game_dir):
 
 def _run_to_xml(args: argparse.Namespace) -> int:
     try:
-        xml_path = apt_to_xml(args.apt, game_dir=args.game_dir)
+        xml_path = apt_to_xml(args.apt, game_dir=args.game)
     except AptError as exc:
         print(exc, file=sys.stderr)
         return 1
@@ -80,7 +80,7 @@ def _run_check(args: argparse.Namespace) -> int:
 
 
 def _run_view(args: argparse.Namespace) -> int:
-    textures = _build_texture_resolver(args.xml, args.game_dir)
+    textures = _build_texture_resolver(args.xml, args.game)
     out = write_viewer_html(
         args.xml, args.out, frame=args.frame, label=args.label, textures=textures
     )
@@ -89,8 +89,15 @@ def _run_view(args: argparse.Namespace) -> int:
 
 
 def _run_edit(args: argparse.Namespace) -> int:
-    resolver = _build_texture_resolver(args.xml, args.game_dir)
-    serve(args.xml, port=args.port, open_browser=not args.no_browser, resolver=resolver)
+    resolver = _build_texture_resolver(args.xml, args.game)
+    serve(
+        args.xml,
+        port=args.port,
+        open_browser=not args.no_browser,
+        resolver=resolver,
+        frame=args.frame,
+        label=args.label,
+    )
     return 0
 
 
@@ -102,9 +109,10 @@ def main(argv: list[str] | None = None) -> int:
     to_xml = subparsers.add_parser("to-xml", help="decompile .apt/.const to .xml")
     to_xml.add_argument("apt", type=Path, help=".apt (or .const) file")
     to_xml.add_argument(
-        "--game-dir",
+        "--game",
         type=existing_dir,
         default=None,
+        metavar="ROOT",
         help="game directory to search for a .const (or the .apt) packed in a .big",
     )
     to_xml.set_defaults(func=_run_to_xml)
@@ -137,9 +145,10 @@ def main(argv: list[str] | None = None) -> int:
         help="render this frame label (root frame + biases each sprite's display state)",
     )
     view.add_argument(
-        "--game-dir",
+        "--game",
         type=existing_dir,
         default=None,
+        metavar="ROOT",
         help="texture directory for real artwork instead of placeholders (needs [apt]/[ui])",
     )
     view.set_defaults(func=_run_view)
@@ -149,9 +158,18 @@ def main(argv: list[str] | None = None) -> int:
     edit.add_argument("--port", type=int, default=8080)
     edit.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
     edit.add_argument(
-        "--game-dir",
+        "--frame", type=int, default=None, help="root frame index to open on (default: 0)"
+    )
+    edit.add_argument(
+        "--label",
+        default=None,
+        help="frame-label state to open in (root frame + each sprite's display state)",
+    )
+    edit.add_argument(
+        "--game",
         type=existing_dir,
         default=None,
+        metavar="ROOT",
         help="texture directory for real artwork instead of placeholders (needs [apt]/[ui])",
     )
     edit.set_defaults(func=_run_edit)

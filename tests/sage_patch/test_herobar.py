@@ -22,7 +22,6 @@ import struct
 
 import pytest
 
-from sage_patch.patches import kind_of
 from sage_patch.patches.herobar import (
     DEFAULT_KINDOF,
     GROUPED_HEROBAR,
@@ -34,6 +33,7 @@ from sage_patch.patches.herobar import (
     build_cave,
 )
 from sage_patch.patches.production_condition import ProductionConditionPatch
+from sage_patch.patches.utils import kind_of
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.synthetic import stock_kindof_name, synthetic_image
 

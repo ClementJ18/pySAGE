@@ -197,24 +197,23 @@ last chunk's timecode and `parse_replay`'s consistency check passes unchanged.
 
 ## 3. The hook — `RecorderClass::updateRecord`'s `0x1D` branch (`0x0077F98B`)
 
-### The wrong site, and how it failed
+### Why not `GameLogic::clearGameData`
 
-The first version hooked `GameLogic::clearGameData` (`0x00625E36`), on the reading that it was
-the single funnel both endings pass through:
+`GameLogic::clearGameData` (`0x00625E36`) reads like the single funnel both endings pass
+through:
 
 ```asm
 00625e36  cmp  byte [esp+4], 0        ; leaving?
 00625e3e  je   0x625e7e
 00625e6d  push 0x448                  ; MSG_SELF_DESTRUCT — the voluntary leave-game order
-00625e84  call 0x5ea8a5               ; <-- the old hook site
+00625e84  call 0x5ea8a5               ; <-- the tempting hook site
 00625e91  push 0x1d                   ; MSG_CLEAR_GAME_DATA
 00625e93  call dword [eax+0x48]
 ```
 
-**That reading was wrong**, and three test recordings from a patched build showed it: a *leave*
-wrote both chunks, a *win* and a *loss* wrote nothing at all while still carrying a `0x1D` chunk
-of their own. A scan for every `push 0x1D` feeding `appendMessage` explains it — there are
-**thirteen** such sites, not one:
+**It is not.** Hooked there, a *leave* writes both chunks while a *win* and a *loss* write
+nothing at all and still carry a `0x1D` chunk of their own. A scan for every `push 0x1D` feeding
+`appendMessage` explains it — there are **thirteen** such sites, not one:
 
 | site | reached by |
 |---|---|
@@ -326,22 +325,12 @@ with a non-answer.
 **Runtime-verified, 2026-07-31**, on two rounds of three recordings from a patched build
 (1v1 vs AI, Edain, one recording per ending).
 
-### Round 1 — the hook site was wrong
+The cave runs on the logic thread, the direct `fwrite` lands where the recorder's next chunk
+would have, the file still parses, the header's `num_timecodes` cross-check still passes, and
+**the player numbering is right** — the chunks carry 3 and 4, which `ReplayFile.slot_index` maps
+to slots 0 and 1 with no special case, AI included.
 
-With the hook on `clearGameData`, the *leave* recording carried two `0x7D0` chunks and the
-*win* and *loss* recordings carried none, because a finished game emits `MSG_CLEAR_GAME_DATA`
-from the score-screen code (§3). The leave chunks also read `undetermined`: at `clearGameData`
-the leave order has only been appended, not processed, so nothing was marked defeated yet.
-
-What round 1 did settle, and what carried over unchanged: the cave runs on the logic thread, the
-direct `fwrite` lands where the recorder's next chunk would have, the file still parses, the
-header's `num_timecodes` cross-check still passes, and **the player numbering is right** — the
-chunks carried 3 and 4, which `ReplayFile.slot_index` maps to slots 0 and 1 with no special
-case, AI included.
-
-### Round 2 — correct on all three endings
-
-Hook moved to `RecorderClass::updateRecord`'s `0x1D` branch:
+### Correct on all three endings
 
 | recording | ending | chunks | outcome |
 |---|---|---|---|
@@ -352,14 +341,13 @@ Hook moved to `RecorderClass::updateRecord`'s `0x1D` branch:
 Every chunk lands at the closing frame, immediately ahead of the `0x1D` marker, exactly one per
 player. Three further things this settles:
 
-- **`VictoryConditions` is still populated at the consumer.** Open question 3 of round 1 is
-  answered: the subsystem reset has *not* run by the time the recorder writes the end marker, so
-  reading the state there is sound and the fallback of latching at the transition
-  (`0x00809093`) is not needed.
+- **`VictoryConditions` is still populated at the consumer.** The subsystem reset has *not* run
+  by the time the recorder writes the end marker, so reading the state there is sound and the
+  fallback of latching at the transition (`0x00809093`) is not needed.
 - **The leave case resolves too, and precisely.** Recording 3's `0x448` is at frame 45 and the
   defeat frame written is 45 — the ~2-frame gap to the `0x1D` at 47 is enough for the leave to
-  be applied and for `VictoryConditions::update` to latch it. That is the whole reason moving
-  the hook downstream fixed the values as well as the coverage.
+  be applied and for `VictoryConditions::update` to latch it. Hooking this far downstream is
+  what buys correct values as well as full coverage.
 - **`Player+0x4CC` is the frame of the loss, not of the recording's end.** 795 against a
   close at 875, and 403 against 462.
 

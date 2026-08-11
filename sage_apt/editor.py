@@ -34,6 +34,8 @@ class _EditorHandler(BaseHTTPRequestHandler):
 
     xml_path: Path
     resolver = None  # AptTextureResolver | None - real-artwork lookup when a game dir is set
+    frame = None  # int | None - root frame the page opens on (`--frame`)
+    label = None  # str | None - frame-label state the page opens in (`--label`)
 
     def log_message(self, *_):
         pass
@@ -56,7 +58,12 @@ class _EditorHandler(BaseHTTPRequestHandler):
             self._send(200, "text/html; charset=utf-8", EDITOR_HTML)
         elif path == "/api/xml":
             self._json(
-                {"content": self.xml_path.read_text("utf-8"), "filename": self.xml_path.name}
+                {
+                    "content": self.xml_path.read_text("utf-8"),
+                    "filename": self.xml_path.name,
+                    "frame": self.frame,
+                    "label": self.label,
+                }
             )
         elif path == "/api/textures":
             # Manifest of image ids that resolve to real artwork, with each rect's size.
@@ -127,14 +134,23 @@ class _EditorHandler(BaseHTTPRequestHandler):
             self._send(404, "text/plain", "Not found")
 
 
-def serve(xml_path: Path, port: int = 8080, open_browser: bool = True, resolver=None) -> None:
+def serve(
+    xml_path: Path,
+    port: int = 8080,
+    open_browser: bool = True,
+    resolver=None,
+    frame: int | None = None,
+    label: str | None = None,
+) -> None:
     """Serve the editor for `xml_path` on localhost:`port` until interrupted. `resolver`,
     when given (an `AptTextureResolver`), backs `/api/texture/<id>` so `image` characters
-    render as real artwork instead of placeholders."""
+    render as real artwork instead of placeholders. `frame` / `label` pick the root frame
+    the page opens on - movies whose frame 0 is an empty `_hide` state need one of these to
+    show anything; the state dropdown takes over once the user touches it."""
     handler = type(
         "EditorHandler",
         (_EditorHandler,),
-        {"xml_path": Path(xml_path), "resolver": resolver},
+        {"xml_path": Path(xml_path), "resolver": resolver, "frame": frame, "label": label},
     )
     server = HTTPServer(("127.0.0.1", port), handler)
     url = f"http://127.0.0.1:{port}/"

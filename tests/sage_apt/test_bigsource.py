@@ -1,7 +1,7 @@
 """`to-xml` resolving a `.const` (or the `.apt`) out of a `.big` archive.
 
 Mirrors the game's load order - loose file beside the `.apt` first, then the same
-basename fished out of a `.big` under `--game-dir`. Needs the optional `[apt]` extra
+basename fished out of a `.big` under `--game`. Needs the optional `[apt]` extra
 (pyBIG); skipped cleanly when it isn't installed."""
 
 import shutil

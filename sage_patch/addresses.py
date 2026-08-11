@@ -31,9 +31,20 @@ __all__ = [
     "ABILITY_TRIGGER_PAY_BYTES",
     "ABILITY_TRIGGER_PAY_RESUME",
     "ABILITY_TRIGGER_VTABLE",
+    "AI_PRODUCER_ACCEPT",
+    "AI_PRODUCER_ANY_BRANCH",
+    "AI_PRODUCER_ANY_BRANCH_ENTRY",
+    "AI_PRODUCER_NEXT_CANDIDATE",
+    "AI_PRODUCER_PICKER",
+    "AI_PRODUCER_PICKER_CALL",
+    "AI_PRODUCER_PICKER_CALL_BYTES",
+    "AI_PRODUCER_PICKER_ENTRY",
+    "AI_PRODUCER_USABLE_TESTS",
     "APPEND_MESSAGE_VTABLE_SLOT",
     "ARG_APPENDERS",
     "ASCII_STRING_FORMAT",
+    "ASCII_STRING_SET",
+    "ASCII_STRING_SET_BYTES",
     "AUTO_DEPOSIT_DEPOSIT",
     "AUTO_DEPOSIT_DEPOSIT_BYTES",
     "AUTO_DEPOSIT_DEPOSIT_RESUME",
@@ -64,6 +75,10 @@ __all__ = [
     "BUILD_GATE_NOT_ENOUGH_COMMAND_POINTS",
     "BUILD_GATE_NOT_ENOUGH_MONEY",
     "BUILD_GATE_TEMPLATE_EBP",
+    "CAMPAIGN_NAME_BIND",
+    "CAMPAIGN_NAME_BIND_BYTES",
+    "CAMPAIGN_NAME_STATIC",
+    "CAMPAIGN_NAME_STATIC_GUARD",
     "CAN_MAKE_UNIT",
     "CAN_MAKE_UNIT_ACCEPT",
     "CAN_MAKE_UNIT_BUMP_SLOT",
@@ -148,6 +163,16 @@ __all__ = [
     "IS_MULTIPLAYER_OR_ITS_REPLAY_BYTES",
     "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY",
     "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY_BYTES",
+    "MAIN_MENU_CAMPAIGN_COMMAND",
+    "MAIN_MENU_CAMPAIGN_HANDLER",
+    "MAIN_MENU_CAMPAIGN_HANDLER_BYTES",
+    "MAIN_MENU_CAMPAIGN_REGISTRATION",
+    "MAIN_MENU_CAMPAIGN_REGISTRATION_BYTES",
+    "MAIN_MENU_CAMPAIGN_SELECTION_ID",
+    "MAIN_MENU_PHASE_LEAVING",
+    "MAIN_MENU_SCREEN_DIFFICULTY",
+    "MAIN_MENU_SCREEN_PHASE",
+    "MAIN_MENU_SCREEN_SELECTION",
     "MAX_PLAYER_COUNT",
     "MONEY_DEPOSIT",
     "MONEY_WITHDRAW",
@@ -166,6 +191,7 @@ __all__ = [
     "OBJECT_STATUS_COUNT",
     "OBJECT_STATUS_DWORDS",
     "OBJECT_STATUS_NAMES",
+    "OBJECT_STATUS_UNDER_CONSTRUCTION",
     "OBJECT_TEST_STATUS",
     "OBJECT_THING_TEMPLATE",
     "OBSERVER_BAR_GATE_CALL",
@@ -605,8 +631,7 @@ SPECIAL_POWER_FIELD_TABLE_REF_OPCODES = (0xB8, 0x68)
 #: and **five** references, each a bare imm32 one byte into its instruction.
 #:
 #: There is **no interior reference**. A byte scan reports one at `0x007162A4` pointing at entry
-#: 127, and an earlier costing recorded it as something a relocation would have
-#: to re-derive - but disassembly says `0x007162A4` is `call 0x723CEE`, whose `E8` opcode plus the
+#: 127, but disassembly says `0x007162A4` is `call 0x723CEE`, whose `E8` opcode plus the
 #: first three bytes of its displacement happen to spell `0x00DA45E8`. A false positive, so the
 #: table relocates as a unit.
 OBJECT_FIELD_TABLE = 0x00DA3DF8
@@ -1046,6 +1071,52 @@ CAN_MAKE_UNIT_SCAN_BOUND = 0x007950E2
 
 # `GUICommandType::GUICOMMAND_REVIVE`, entry 46 of the name table at 0x00DA4D10.
 GUICOMMAND_REVIVE = 46
+
+#
+# The `SkirmishAI` producer picker, and the construction check that is missing from it.
+# Derived in `docs/ai-construction-gate.md`.
+#
+# RotWK ships **two** AIs. The Generals/BFME1-lineage `AIPlayer::findFactory` at 0x008F5347 does
+# test `UNDER_CONSTRUCTION` (at 0x008F53A2) before it asks `canMakeUnit` - but a skirmish match
+# runs the BFME2-era `SkirmishAI` subsystem, whose own producer index and picker live in the
+# 0x0096xxxx-0x009Exxxx region and consult no status at all. The picker below is where the AI
+# chooses which of its buildings will make a thing, for units and for hero revives alike.
+
+# `SkirmishAI`'s "which of my producers should make this" - `__thiscall`, three stack arguments,
+# `ret 0xc`, returning the chosen `Object*` (or null). Six direct callers, **all** of them AI,
+# which is what makes a gate here AI-only without the return-address discrimination
+# `ai-revive-gate` needs. Not virtual, so it is anchored by its own prologue and by one of its
+# call sites rather than by a vtable slot.
+AI_PRODUCER_PICKER = 0x009A0705
+AI_PRODUCER_PICKER_ENTRY = bytes.fromhex("558bec51515356")
+# `AIPlayer`'s order pump, the caller that stamps the picked producer's id into a pending build
+# order (`mov [edi+8], eax` at 0x008F0FE4). Anchoring the call proves the picker being patched is
+# the one the AI's production actually reaches, the way `ai-revive-gate` anchors a vtable slot.
+AI_PRODUCER_PICKER_CALL = 0x008F0FD4
+AI_PRODUCER_PICKER_CALL_BYTES = bytes.fromhex("e82cf70a00")  # call 0x009A0705
+
+# `cmp byte [ebp+0x10], 0` then `jne ..._ACCEPT`. The picker's third argument splits it in two:
+# zero means "pick one to use **now**" and runs the usable-producer tests below; non-zero means
+# "could anything ever make this" and skips straight to accept. Six bytes, and a scan of every
+# branch displacement and imm32 in `.text` finds **no** inbound edge into them - the only way in
+# is fallthrough from the `je` at 0x009A0782 - which is what makes them hookable.
+AI_PRODUCER_ANY_BRANCH = 0x009A0784
+AI_PRODUCER_ANY_BRANCH_ENTRY = bytes.fromhex("807d10007516")
+# `mov eax, [esi]` - the head of the usable-producer tests: `ProductionUpdate` vtable `+0x64`
+# (is it disabled) then `+0x44` (is its queue empty). `esi` is the producer's `ProductionUpdate`,
+# `edi` the candidate `Object`. This is the run of tests `UNDER_CONSTRUCTION` belongs in.
+AI_PRODUCER_USABLE_TESTS = 0x009A078A
+# `xor dl, dl` - the accept path, shared by both arms.
+AI_PRODUCER_ACCEPT = 0x009A07A0
+# `push dword [ebp+8]` - release this candidate and go round for the next one. Every one of the
+# picker's rejection edges lands here.
+AI_PRODUCER_NEXT_CANDIDATE = 0x009A07C7
+
+# `ObjectStatus::UNDER_CONSTRUCTION`, bit 2 of the mask at `OBJECT_STATUS`, tested through
+# `OBJECT_TEST_STATUS`. Index 2 of the name table at `OBJECT_STATUS_NAMES`, and confirmed on
+# live-captured bytes: the half-built `ElvenMallornTree_Extern` in
+# `tests/sage_live/fixtures/match.snapshot.gz` reads `[obj+0x94] == 4`.
+OBJECT_STATUS_UNDER_CONSTRUCTION = 2
 
 # `ProductionUpdateInterface::requestUniqueUnitID()` - the mint for the `ProductionID` that
 # names one queued production. `ProductionUpdate` is its only implementer: the address below
@@ -1565,3 +1636,70 @@ BUILD_GATE_NOT_ENOUGH_COMMAND_POINTS = 7
 #: the completion out by one frame for as long as the cap holds.
 PRODUCTION_UPDATE_COMMAND_POINT_STALL = 0x008A1E27
 PRODUCTION_UPDATE_REVIVE_COMMAND_POINT_DELAY = 0x008A0669
+
+# --- the shell's campaign start ---------------------------------------------------------------
+#
+# Derived in `docs/campaign-select.md`. `AptMainMenu` registers a string-keyed callback map at
+# `this+0x21C` in its constructor (`0x0091CA80` onwards, one ~85-byte block per command); the
+# APT movie reaches those callbacks through `_root.GameCode(func, params)`, which is
+# `geturl2("FSCommand:AptMainMenu::" + func, params)`.
+
+#: `AsciiString::set(const char *)` - `strlen`s its argument and hands both to the buffer assign
+#: at `0x004360C0`, which releases or reuses whatever the string already held. Safe to call on a
+#: never-constructed (zeroed) `AsciiString` as well: the assign tests `m_data` against NULL first.
+#: `ret 4`, so it cleans its own argument; `esi`/`edi` are pushed and popped.
+ASCII_STRING_SET = 0x004050E6
+ASCII_STRING_SET_BYTES = bytes.fromhex("568b74240885f6578bf9740956e8187e6300")
+
+#: `AptMainMenu::Expansion1Campaign`, the FSCommand name, and the registration block that binds it
+#: to `MAIN_MENU_CAMPAIGN_HANDLER`: `push <name>` / `lea ecx, [ebp+8]` / `mov esi, <handler>`.
+#: Fingerprinting the registration rather than the handler alone is what proves `0x0091AF8C` is
+#: *this* command's callback and not the identically shaped `BonusCampaign` one 35 bytes later.
+MAIN_MENU_CAMPAIGN_COMMAND = 0x00C7D254
+MAIN_MENU_CAMPAIGN_REGISTRATION = 0x0091CB02
+MAIN_MENU_CAMPAIGN_REGISTRATION_BYTES = bytes.fromhex("6854d2c7008d4d08be8caf9100")
+
+#: The callback itself, whole (35 bytes, `thiscall`, `ret 4`, one `const char *` argument):
+#:
+#:     mov  eax, [esp+4]              ; the FSCommand's params string
+#:     mov  [ecx+0x288], 9            ; MAIN_MENU_PHASE_LEAVING
+#:     mov  [ecx+0x28C], 0Dh          ; MAIN_MENU_CAMPAIGN_SELECTION_ID
+#:     mov  al, [eax]                 ; **only the first byte is kept**
+#:     mov  [ecx+0x2A8], al           ; 'E' / 'M' / 'H', from "Easy" / "Medium" / "Hard"
+#:     ret  4
+#:
+#: The whole of `campaign-select` follows from line four: the params string is a `const char *`
+#: the engine already has in hand and already dereferences, and it throws away everything after
+#: the first character.
+MAIN_MENU_CAMPAIGN_HANDLER = 0x0091AF8C
+MAIN_MENU_CAMPAIGN_HANDLER_BYTES = bytes.fromhex(
+    "8b442404c7818802000009000000c7818c0200000d0000008a008881a8020000c20400"
+)
+
+#: The three `AptMainMenu` fields the callback writes, and the two constants it writes into the
+#: first two. `MAIN_MENU_SCREEN_SELECTION` indexes a 14-entry jump table at `0x0091C70B`
+#: (`0x0091C349`: `dec eax` / `cmp eax, 0Dh` / `ja` / `jmp [eax*4 + table]`), whose case 13 is the
+#: `ANGMAR_CAMPAIGN` start.
+MAIN_MENU_SCREEN_PHASE = 0x288
+MAIN_MENU_SCREEN_SELECTION = 0x28C
+MAIN_MENU_SCREEN_DIFFICULTY = 0x2A8
+MAIN_MENU_PHASE_LEAVING = 9
+MAIN_MENU_CAMPAIGN_SELECTION_ID = 0x0D
+
+#: The function-local `static AsciiString` that case 13's start thunk (`0x0091BE64`) passes to
+#: `startLinearCampaign` (`0x0091B1D2`, which resolves it through `TheCampaignManager` and does
+#: nothing if the name is unknown), and the MSVC magic-static guard beside it:
+#:
+#:     0091BE96  test byte ptr [0x00DEA360], 1   ; the guard
+#:     0091BE9D  push esi
+#:     0091BE9E  mov  esi, 0x00DEA35C            ; the static - loaded unconditionally
+#:     0091BEA3  jne  0x0091BECA                 ; already initialised -> straight to the start
+#:
+#: The initialisation the `jne` skips is the *only* place the hardcoded `ANGMAR_CAMPAIGN` string
+#: reaches the static, and it runs at most once per process. Filling the static and setting the
+#: guard before the thunk runs therefore substitutes the campaign name without touching the thunk,
+#: the jump table or the callback registry.
+CAMPAIGN_NAME_STATIC = 0x00DEA35C
+CAMPAIGN_NAME_STATIC_GUARD = 0x00DEA360
+CAMPAIGN_NAME_BIND = 0x0091BE96
+CAMPAIGN_NAME_BIND_BYTES = bytes.fromhex("f60560a3de000156be5ca3de007525")

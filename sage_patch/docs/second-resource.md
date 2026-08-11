@@ -339,15 +339,15 @@ thing is worth naming because it changed a sibling patch:
 **Two patches rebuilding the same field table is an ordered pair for `verify`, not for `apply`.**
 Both read the table live from its own reference, so whichever runs second rebuilds the first one's
 table — by pointer, so the first one's rows keep their own name strings and their own parse
-functions — and points the reference at its own copy. The binary is correct either way. What was
-not correct either way was `verify`:
+functions — and points the reference at its own copy. The binary is correct either way. Two
+rules keep `verify` correct with it:
 
-* It located its own rows by **counting back from the end of the table**, which is wrong as soon as
-  another patch appends past them — and that count sizes the rebuilt table, which places every
-  routine in the cave. Both patches now locate them **by name** (`entries_before`).
-* It asserted that the table reference still names *its* copy. A later patch is entitled to
-  overwrite exactly that one edit, so `verify` no longer checks it, and checks the thing that
-  actually has to hold instead: the live table still names its fields with its parse functions.
+* Rows are located **by name** (`entries_before`), never by counting back from the end of the
+  table — that count is wrong as soon as another patch appends past them, and it sizes the
+  rebuilt table, which places every routine in the cave.
+* `verify` does **not** assert that the table reference still names *its* copy, because a later
+  patch is entitled to overwrite exactly that one edit. It checks the thing that actually has to
+  hold: the live table still names its fields with its parse functions.
 
 ## 6. The display, for no `.apt` at all
 
@@ -370,14 +370,14 @@ against pointers into its own members and the teardown at `0x006D4B6E` unregiste
 006d62c6  call 0x6241ce                          ;   +0x08 = the captured pointer
 ```
 
-The watcher holds a **pointer to the value** and the movie re-reads it every frame. Costing the
-display off this — one more binding, a mirror `Int` fed from `pool[localPlayerIndex]`, and an
-edit to the `APT:PalantirResources` movie to add a second text field — is what made the movie half
-the schedule risk, because [`sage_apt`](../../sage_apt/README.md)'s own README says it is *"not
+The watcher holds a **pointer to the value** and the movie re-reads it every frame. Driving the
+display off this would mean one more binding, a mirror `Int` fed from `pool[localPlayerIndex]`,
+and an edit to the `APT:PalantirResources` movie to add a second text field — which is the
+expensive route, because [`sage_apt`](../../sage_apt/README.md)'s own README says it is *"not
 yet fully functional and largely untested"*.
 
-**That costing was wrong, in the cheap direction.** The readout has a numeric binding *and* an
-engine-formatted text string, and it is the second one that draws:
+**None of that is needed.** The readout has a numeric binding *and* an engine-formatted text
+string, and it is the second one that draws:
 
 ```
 006d56e1  <the setter, one argument: the amount>
@@ -430,8 +430,8 @@ local player's pool forces the push whatever gold did.
 neither field gets the stock readout byte for byte; a mod that uses either always shows the
 bracket, including at zero.
 
-The alternative — showing it when the pool is non-zero — was rejected: a readout that grows and
-loses a number mid-game reads as a bug, and it would flicker for any mod that spends down to 0.
+Not "whenever the pool is non-zero": a readout that grows and loses a number mid-game reads as a
+bug, and it would flicker for any mod that spends down to 0.
 
 `--no-hud` drops both hooks and the local-player read entirely, leaving the mechanic.
 
@@ -496,10 +496,9 @@ Five references is a smaller repoint than `production-condition`'s sixteen, and 
 walked to its terminator rather than to a count, so no bound needs raising.
 
 > **There is no interior reference.** A byte scan reports one at `0x7162A4` pointing into the
-> table, and an earlier costing recorded it as something a relocation would have to re-derive.
-> It is a false positive: that address disassembles to `call 0x723CEE`, whose `E8` opcode plus the
-> first three bytes of its displacement happen to spell `0x00DA45E8`.
-> [`hero-mana`](hero-mana.md) §7 established this; the table relocates as a unit.
+> table, and it is a false positive: that address disassembles to `call 0x723CEE`, whose `E8`
+> opcode plus the first three bytes of its displacement happen to spell `0x00DA45E8`.
+> [`hero-mana`](hero-mana.md) §7 establishes this; the table relocates as a unit.
 
 ### 7.3 Riding the copy
 

@@ -17,7 +17,7 @@ name list (`SWISS_1`, `SNOW_1`, `ASPHALT`, `CONCRETE`, `TRANSITION`, `SAND`, `WO
 
 So the patch has to create the condition as well as the weather. That is the same table extension
 `production-condition` performs, which is why both go through
-[`../patches/model_conditions.py`](../patches/model_conditions.py) rather than each owning a copy
+[`../patches/utils/model_conditions.py`](../patches/utils/model_conditions.py) rather than each owning a copy
 of the 16 references and 10 count bounds.
 
 ## 1. The global weather is a two-member enum in `GlobalData`
@@ -192,7 +192,7 @@ which is not worth a hitch; it is recorded here so it is a decision rather than 
 ## 7. The model condition
 
 `SAND` is appended to the `ModelConditionFlags` name table by
-[`../patches/model_conditions.py`](../patches/model_conditions.py) — 16 references repointed, 10
+[`../patches/utils/model_conditions.py`](../patches/utils/model_conditions.py) — 16 references repointed, 10
 count bounds raised, all read live out of the image rather than assumed. On a stock binary it
 lands on **bit 591**, the first unnamed slot and the last one the `xfer` packed blob already
 covers; applied alongside `production-condition` one of the two lands on 592 and the helper widens

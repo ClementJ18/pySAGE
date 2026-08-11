@@ -25,7 +25,7 @@ import struct
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from ..utils import allocate_section, apply_byte_patch
+from ...utils import allocate_section, apply_byte_patch
 from .name_tables import (
     SECTION_CHARACTERISTICS,
     NameTable,

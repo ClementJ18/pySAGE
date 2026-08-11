@@ -280,14 +280,13 @@ def castle_unpack(player: int) -> Order:
 
     **The plot must already be owned by the issuing player.** That precondition is a game rule
     rather than anything this can check, and an order that fails it is consumed and discarded in
-    silence, exactly like a malformed one - an earlier attempt against an *unclaimed* flag was
-    discarded four different ways, every one of which looked precisely like a broken
-    constructor.
+    silence, exactly like a malformed one - against an *unclaimed* flag the order is discarded
+    four different ways, every one of which looks precisely like a broken constructor.
 
     Ownership is taken by standing your own units next to the flag while no enemy is near it.
     The distances are **aims to move toward, not thresholds to test against**: three claims on
-    2026-08-04 flipped at 67-78 units - two settlements and a castle - not the ~10 this used to
-    quote, so a policy testing an exact radius refuses claims the game would have allowed. Read
+    2026-08-04 flipped at 67-78 units - two settlements and a castle - so a policy testing an
+    exact radius refuses claims the game would have allowed. Read
     ownership itself from `GameObject.owner_index`, which is the engine's own answer and needs
     no threshold.
 

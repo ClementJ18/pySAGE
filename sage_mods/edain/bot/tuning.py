@@ -185,6 +185,28 @@ SIEGE = "SIEGEENGINE"
 # `CRUSH_REVENGE_CHARGED` for the data-derived half that now sits beside it.
 PIKE = "PIKE"
 
+# The roles above read as a **partition** rather than as four independent questions, in this
+# order, with `INFANTRY` as what is left over.
+#
+# **The order is the whole content of it, and every entry is there because some unit carries two
+# flags.** A horse is `CAVALRY INFANTRY`, Gondor's spear line is `INFANTRY PIKE`, and the Morthond
+# bowmen are `INFANTRY ARCHER` - so read in this order and stopped at the first hit, each lands in
+# the bucket that says what it is *for*; read with `INFANTRY` anywhere but last, every fighting
+# unit in the game is infantry and the partition says nothing.
+#
+# This is a coarser reading than `Statics.effectiveness`, and deliberately so: a matchup is a
+# number about two specific templates, where this is the question "what kind of thing is the army
+# short of" - which has to survive units the plan has never heard of. See `World.role_of`.
+ROLES = (CAVALRY, SIEGE, ARCHER, PIKE)
+INFANTRY = "INFANTRY"
+
+# How much better a summon one charge away must be for the signal fire's rider to hold rather than
+# spend, measured in the share of the army the summon fills. Below this the two are answering the
+# same shortage and 75 seconds of accrual is not worth a coin-toss between them; above it the
+# rider is being asked to buy the wrong unit because it happened to be affordable first, which is
+# what `stage_signal_fire` did for three whole matches. See `signal_fire.role_wait`.
+ROLE_PATIENCE = 0.05
+
 # The crush-revenge multiplier at or above which a charge is refused, whatever flags the target
 # carries. See `Statics.crush_revenge_multiple` for where the number comes from.
 #
@@ -575,6 +597,26 @@ ARCHER_REACH = 333.0
 # this bot considers something "in reach" of a party, and a second nearly-equal radius would be
 # two constants describing one idea.
 SCREEN_REACH = ARCHER_REACH
+
+# How well a battalion must trade into what is standing on the party before it is peeled off to
+# fight it rather than left on the building - `Statics.effectiveness`, where 1.0 is an even
+# matchup.
+#
+# **This is what makes a lair a pike job without naming a warg or a troll.** The armour blocks say
+# it outright: every troll armour in the tree takes `SPECIALIST` at 90-170% and `SLASH` at 20-50%,
+# and `WargpackEdainArmor` reads `SPECIALIST 170%` against `SLASH 100%`. So a spear line clears
+# this comfortably against either and a swordsman is nowhere near it - which is the whole content
+# of "swordsmen take too much damage at these", arrived at from the data rather than from a list
+# of lairs that a mod would invalidate.
+#
+# Set above 1.0 rather than at it because the peel has to be worth the order. At 1.0 any unit the
+# matchup does not actively punish would qualify, which is most of an army against most things,
+# and `screen` would stop being a screen and become "everybody attack the nearest thing" - the
+# arrangement it exists to prevent. A quarter better than even is a real edge and it is roughly
+# where the tree's own numbers separate: the counters sit at 1.35-1.7 and the neutral matchups at
+# 0.9-1.1, with very little in between.
+COUNTER_EDGE = 1.25
+
 # **In the opening the starting battalions are exactly what claims plots**, so the rule above
 # is suspended until the first production building stands. That is not a contradiction of it:
 # the opening runs before anyone can contest a flag, the units have nothing else to do until
@@ -1006,6 +1048,36 @@ HERO_ESCORT = 300.0
 # arithmetic gives a different answer. Wizard Blast at 40 seconds is worth spending on two
 # battalions; Army of the Dead at 830 is not.
 HERO_CAST_TARGETS = 2
+
+# The `KindOf` marking a hero that fades on a clock rather than one the player bought.
+#
+# **A summon's abilities are worth nothing the moment it fades**, and its lifetime is shorter than
+# the abilities themselves: Gwaihir arrives from `SpellBookAdler` with `EAGLE_SUMMON_LIFETIME` to
+# live and a screech that recharges in 180 seconds, so it fires it once or not at all. The patience
+# `HERO_CAST_TARGETS` buys - hold out, a better crowd will come - is patience a summon does not
+# have, which is the same arithmetic `CAST_PATIENCE` applies to a spellbook power that has been
+# ready too long, arriving here as a fact about the caster instead of about the wait.
+#
+# The engine's own mark, so this needs no template list and reads the same on Theoden out of the
+# Rohan banner as it does on the eagles and on the Grey Company.
+SUMMONED = "SUMMONED"
+
+# How hurt a unit has to be to count toward a hero's area heal, and how many of them it wants.
+#
+# **An area heal is paid for in bodies, not in the one worst casualty**, and that makes it the one
+# hero ability whose bar has to go *up*. The twins' Healing Arts out of the Grey Company covers 200
+# units around them and recharges in 90 seconds; the general heal aim takes the worst-hurt object
+# anywhere within `HERO_ESCORT`, so a single battalion at 99% three hundred units away was reason
+# enough to spend it - and the heal does not even land there, since it is cast on self and goes off
+# where the twins are standing.
+#
+# The threshold matches `CAST_HEAL_THRESHOLD` because it answers the same question about the same
+# kind of spell, and the count is four battalions: enough that the circle is worth drawing, few
+# enough that an army in a real fight clears it within a cycle or two.
+#
+# Unmeasured. This is the reading of a 90-second recharge against a 200-unit circle, not a result.
+HERO_HEAL_THRESHOLD = 0.75
+HERO_HEAL_TARGETS = 4
 
 # Gold above which the plan's hero is worth buying, and the reservation that holds it.
 #

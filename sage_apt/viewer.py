@@ -8,8 +8,10 @@ also biases which display frame each sprite recurses into (a preferred label suc
 import html as html_mod
 from collections import Counter
 from pathlib import Path
+from typing import NamedTuple
 from xml.etree import ElementTree as ET
 
+from sage_apt.flags import _split_flags
 from sage_apt.geometry import invert_matrix
 
 SCREEN_W = 1024
@@ -25,6 +27,48 @@ TYPE_STYLE = {
 }
 
 PREFERRED_LABELS = ("_fade_in", "_on", "_active", "_purchased")
+
+# PlaceObject flag -> the attributes a record carries when that flag is set. A Move record
+# only overwrites the fields its own flags name; everything else stays as the placement left it.
+_MOVE_ATTRS = {
+    "hasmatrix": ("rotm00", "rotm01", "rotm10", "rotm11", "tx", "ty"),
+    "hascolortransform": ("red", "green", "blue", "alpha"),
+    "hasratio": ("ratio",),
+    "hasclipdepth": ("clipdepth",),
+}
+
+
+class Placed(NamedTuple):
+    """One live object on the stage: the placeobject that put it there, plus the attributes
+    and instance name left by any later Move records at the same depth. `elem` stays the
+    placing record so callers that edit the XML (the browser editor) write to the node that
+    actually owns the character."""
+
+    elem: ET.Element
+    attrs: dict[str, str]
+    name: str
+
+    @property
+    def character(self) -> int:
+        return int(self.attrs.get("character", -1))
+
+
+def _po_flags(item):
+    """The PlaceObject flags set on `item`, lowercased. Records with no `<poflags>` child
+    (hand-written XML, minimal fixtures) are read as a plain placement."""
+    flags_elem = item.find("poflags")
+    if flags_elem is None:
+        return {"hascharacter"} if int(item.get("character", -1)) >= 0 else set()
+    return set(_split_flags(flags_elem.get("value", "")))
+
+
+def _apply_move(placed, item, flags):
+    """Overlay a Move record's flagged fields onto the object already at that depth."""
+    attrs = dict(placed.attrs)
+    for flag, names in _MOVE_ATTRS.items():
+        if flag in flags:
+            attrs.update({n: item.get(n) for n in names if item.get(n) is not None})
+    return Placed(placed.elem, attrs, get_po_name(item) if "hasname" in flags else placed.name)
 
 
 def _frame_index_map(sprite_elem):
@@ -44,23 +88,39 @@ def _frame_index_map(sprite_elem):
 
 
 def _accumulate_to(frames, target_idx):
-    """Accumulate placeobject state from frame 0 to target_idx (inclusive).
-    Returns the live placeobjects sorted by depth, applying removals."""
-    state = {}  # depth -> placeobject elem
+    """Accumulate stage state from frame 0 to target_idx (inclusive), returning the live
+    `Placed` objects sorted by depth.
+
+    A placeobject with HasCharacter places a new object at its depth. One with Move and no
+    HasCharacter *updates* whatever already sits there - it carries no character (the XML
+    writes `character="-1"`) and only the fields its flags name, which is how a fade-in
+    frame raises alpha on objects an earlier frame placed. Removal is its own
+    `removeobject` record."""
+    state = {}  # depth -> Placed
     for frame in frames[: target_idx + 1]:
         for item in frame:
-            if item.tag == "placeobject":
-                depth = int(item.get("depth", 0))
-                char_id = int(item.get("character", -1))
-                if char_id < 0:
-                    state.pop(depth, None)
-                else:
-                    state[depth] = item
+            if item.tag == "removeobject":
+                state.pop(int(item.get("depth", 0)), None)
+                continue
+            if item.tag != "placeobject":
+                continue
+            depth = int(item.get("depth", 0))
+            flags = _po_flags(item)
+            if "hascharacter" in flags:
+                state[depth] = Placed(item, dict(item.attrib), get_po_name(item))
+            elif "move" in flags and depth in state:
+                state[depth] = _apply_move(state[depth], item, flags)
     return [state[d] for d in sorted(state)]
 
 
 def best_frame_items(sprite_elem, preferred_labels=PREFERRED_LABELS):
-    """Get accumulated placeobjects for the best display frame."""
+    """Get accumulated placeobjects for the best display frame: the first preferred label
+    that yields content, else frame 0.
+
+    When both come up empty the sprite is one whose frame 0 is a placeholder and whose real
+    content lives on named state frames - a faction switcher holding `_Men` / `_Elves` /
+    `_Mordor` images, say - so fall back to the earliest labelled frame that has anything.
+    Showing the sprite in *some* state beats leaving a hole on the stage."""
     label_idx, frames = _frame_index_map(sprite_elem)
     if not frames:
         return [], ""
@@ -69,7 +129,14 @@ def best_frame_items(sprite_elem, preferred_labels=PREFERRED_LABELS):
             items = _accumulate_to(frames, label_idx[lbl])
             if items:
                 return items, lbl
-    return _accumulate_to(frames, 0), ""
+    items = _accumulate_to(frames, 0)
+    if items:
+        return items, ""
+    for lbl, idx in sorted(label_idx.items(), key=lambda kv: kv[1]):
+        items = _accumulate_to(frames, idx)
+        if items:
+            return items, lbl
+    return [], ""
 
 
 def _resolve_target_frame(label_idx, frames, frame, label):
@@ -99,14 +166,15 @@ def svg_mat(m):
     return "matrix({:.4f},{:.4f},{:.4f},{:.4f},{:.3f},{:.3f})".format(*tuple(m))
 
 
-def po_to_local(item):
+def po_to_local(placed):
+    a = placed.attrs
     return [
-        float(item.get("rotm00", 1)),
-        float(item.get("rotm01", 0)),
-        float(item.get("rotm10", 0)),
-        float(item.get("rotm11", 1)),
-        float(item.get("tx", 0)),
-        float(item.get("ty", 0)),
+        float(a.get("rotm00", 1)),
+        float(a.get("rotm01", 0)),
+        float(a.get("rotm10", 0)),
+        float(a.get("rotm11", 1)),
+        float(a.get("tx", 0)),
+        float(a.get("ty", 0)),
     ]
 
 
@@ -320,17 +388,19 @@ def render_viewer_html(xml_path, frame=None, label=None, textures=None) -> str:
                 return
             visited.add(key)
             items, _lbl = best_frame_items(ch, sprite_prefs)
-            for item in items:
-                child_id = int(item.get("character", -1))
-                if child_id < 0:
+            for placed in items:
+                if placed.character < 0:
                     continue
                 render(
-                    child_id, mat_compose(world_t, po_to_local(item)), get_po_name(item), vdepth + 1
+                    placed.character,
+                    mat_compose(world_t, po_to_local(placed)),
+                    placed.name,
+                    vdepth + 1,
                 )
             visited.discard(key)
 
-    for item in _accumulate_to(root_frames, target_idx):
-        render(int(item.get("character", -1)), po_to_local(item), get_po_name(item), 0)
+    for placed in _accumulate_to(root_frames, target_idx):
+        render(placed.character, po_to_local(placed), placed.name, 0)
 
     layers.sort(key=lambda x: x[0])
     svg_body = "\n".join(s for _, s in layers)

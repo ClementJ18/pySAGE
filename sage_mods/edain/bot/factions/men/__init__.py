@@ -27,6 +27,7 @@ from sage_mods.edain.bot.factions.men.signal_fire import (
     CHARGE_SECONDS,
     MAX_CHARGES,
     RIDER_PREFIX,
+    SECOND_FIRE_EXTERNAL,
     SIGNAL_FIRE,
     SUMMONS,
     SignalFire,
@@ -34,6 +35,7 @@ from sage_mods.edain.bot.factions.men.signal_fire import (
     affordable,
     best_summon,
     charges_of,
+    role_wait,
 )
 
 __all__ = [
@@ -41,6 +43,7 @@ __all__ = [
     "MAX_CHARGES",
     "MEN",
     "RIDER_PREFIX",
+    "SECOND_FIRE_EXTERNAL",
     "SIGNAL_FIRE",
     "SUMMONS",
     "SignalFire",
@@ -48,4 +51,5 @@ __all__ = [
     "affordable",
     "best_summon",
     "charges_of",
+    "role_wait",
 ]

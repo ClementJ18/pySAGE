@@ -16,6 +16,22 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   unobtainable upgrade are player-only restrictions today. The gate applies **only to callers that
   ask `canMakeUnit` directly**, which is only ever the AI's own choice of producer; the ControlBar
   and production come in through `BuildAssistant`'s `+0x64` gate and keep the stock answer.
+- **`ai-construction-gate`** stops the skirmish AI queueing production out of a building that is
+  **still going up**. "Under construction may not produce" is a real rule, stated in three places —
+  the ControlBar, the legacy `AIPlayer::findFactory`, and `ProductionUpdate`'s exit step — and none
+  of them is on the path a RotWK skirmish takes. The BFME2-era `SkirmishAI` subsystem has its own
+  producer index (a structure enters it the frame its foundation is placed, hero revive slots
+  included) and its own picker, which filters candidates on dead / has-a-`ProductionUpdate` /
+  not-disabled / **idle** and stops there — and a construction site passes all four, emphatically
+  including idle. The patch adds the missing `UNDER_CONSTRUCTION` test to that picker. Note this
+  makes the AI **less bad, not less cheaty**, the opposite direction from `ai-revive-gate`: the
+  queue takes the money and keeps ticking, but the finished unit is held at the door until the
+  building completes, so the AI was paying to stall while a finished barracks next door looked
+  equally attractive. AI-only for free — the picker is inside `SkirmishAI` and all six of its
+  callers are AI, so unlike `ai-revive-gate` it needs no return-address discrimination. Only the
+  picker's "pick one to use **now**" arm is gated; the "could this ever be made here" arm keeps the
+  stock answer, because one caller *cancels* an order when that question comes back null.
+  **Not yet runtime-verified in game.**
 - **`production-condition`** adds a **model condition** that is active while a structure's
   production queue is non-empty — training a unit *or* researching an upgrade. The stock engine
   has no such state: the `DOOR_n_*` conditions run *after* a unit completes, as the buffer during
@@ -25,7 +41,8 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   and `--locomotor-set NAME` adds a `LocomotorSetType`, so `Locomotor = NAME <template>` can give
   it a different locomotor. Both of those tables are read through their terminator rather than a
   count, so each costs a relocation and nothing else, and objects declaring neither are
-  unaffected.
+  unaffected. The bit lives on the logic-side `Object` and is CRC'd, so **every peer must run the
+  same patched binary** and replays do not cross.
 - **`desert-weather`** adds a third global weather, **`DESERT`**, and a **`SAND`** model condition
   for it to drive - the pairing the engine already has for `SNOWY` → `SNOW`, and only for that one.
   A map carrying `weather = 2` (a plain `Integer` in its `WorldInfo` chunk, which is how the
@@ -47,8 +64,7 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   orders (and gives up entirely on elimination endings and on AI players). This adds one `0x7D0`
   chunk per player, written straight to the recorder's own file handle just before the `0x1D`
   end-of-recording marker. Client-local: nothing enters the simulation and nothing crosses the
-  network, so it does **not** have to be on every peer. **Runtime-verified** on all three endings
-  — see Status.
+  network, so it does **not** have to be on every peer. **Runtime-verified** on all three endings.
 - **`skirmish-replay`** makes a **single-player skirmish record a replay**, which the stock engine
   never does, and gives each recording a **timestamp + map** name instead of overwriting
   `Last Replay`. `startRecording` has exactly one caller — the `MSG_NEW_GAME` branch of
@@ -62,7 +78,7 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   makes replays impossible to collect. That costs the replay menu's Save Replay button, which
   exists only to rescue the file before it is overwritten (`--rename added` keeps the stock
   behaviour for network games). Client-local, like `replay-outcome`. **Gate runtime-verified,
-  naming re-test open** — see Status.
+  naming re-test open.**
 - **`observer-switch`** makes a **skirmish replay let you change seat** — next/prior player, and
   with it that player's vision, palantir and unlocked spellbook — which a network replay already
   does. The palantir shows the observer bar on two conditions, and the failing one whitelists the
@@ -77,7 +93,9 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   it just deposited to the building's `ExperienceTracker` on every income tick, and no INI field
   separates the two — while the sibling `AutoDepositUpdate` has shipped exactly this boolean, under
   exactly this name, since the stock build. The new field lands in `ModuleData+0x16`, alignment
-  padding the constructor never wrote, so nothing grows.
+  padding the constructor never wrote, so nothing grows. **Every peer must run the same patched
+  binary**, and a mod using the keyword cannot run without it at all — an unknown field in a known
+  block is an INI parse error, not a warning.
 - **`unique-production-id`** mints the `ProductionID` **game-wide** instead of per building. The
   stock counter lives on the producer, so every building's first production is id 1 — and hero
   recruitment keys the player's revive bookkeeping on that id, so recruiting a hero from a second
@@ -90,8 +108,7 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   it is absent, branch to *the same label as "cost is zero"* — so on a lone hero `UnitCost` is
   not a weak mechanic, it is a **no-op**. The patch grows `SpecialPowerTemplate` `0x88 → 0x94`,
   relocates both the `SpecialPower` field-parse table (**two** references, the smallest repoint
-  here) and the `Object` one (**five**, and no interior reference despite what
-  an earlier costing recorded),
+  here) and the `Object` one (**five**, with no interior reference),
   and enforces the cost at `SpecialPowerStore::canUseSpecialPower` — the one predicate the
   player's UI, the AI and every activation path all share, so **the AI is gated for free**. The
   pool is *computed on read* from the logic frame rather than ticked, which is what lets it need
@@ -170,7 +187,8 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   `0xDB`-byte cave; the button stays `OK_FOR_MULTI_EXECUTE`, the loop still visits every member, and
   a member whose own button is disabled is skipped exactly as if it had failed the recharge check.
   This is what Edain's *Ambush of the Wood-elves* command-set swap works around, at the cost of the
-  mass trigger. **Not yet runtime-verified in game.**
+  mass trigger. It changes which objects a logic-side order reaches, so **every peer must run the
+  same patched binary** and replays do not cross. **Not yet runtime-verified in game.**
 - **`spawn-union`** makes an object with several `SpawnBehavior`s use **all** of their spawns.
   `Object::getSpawnBehaviorInterface` walks the module list and returns on the **first** module that
   answers, so a structure with two of them orders only the first one's slaves to attack, asks only
@@ -205,6 +223,21 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   **No count badge** (a group slot shows the representative's rank, not a member count) and the bar
   is still **16 slots**, so enough distinct groups push heroes off the end. **Not yet
   runtime-verified in game.**
+- **`hero-bar-slots`** raises the in-game **hero bar from its stock 16 slots to any N** in
+  17..126 (the shipped build uses **21**). Adding `Hero17`+ clips to `InGameHeroSelect.apt`
+  achieves nothing on its own, and fails silently: the ctor registers `_OnBttnHeroSelect` for
+  `Hero1`..`Hero16` only, and the draw loop `break`s before it ever names index 17, so the extra
+  buttons stay in whatever state the movie parks them in. The ceiling looks like one constant and
+  is **ten** — the draw ceiling and the cleanup back edge count from *one*, the other eight from
+  zero, and one of them is the vector-ctor's element count, so raising the visible bound without
+  it would run every loop off the end of a 16-element array. The array cannot grow where it is:
+  `0x48 + 16*0x18` lands exactly on the iteration state that follows it. It moves anyway, because
+  **every reference to that state is already a disp32** — so the block slides up by `(N-16)*0x18`
+  and the class grows, in 27 same-length immediate rewrites, while the array stays at `+0x48` and
+  its four disp8 addressing sites are never touched. **No cave and no assembly**: 38 immediates.
+  Client-local, so it does not have to be on every peer and replays cross. The movie must define
+  matching `Hero<n>` / `FlashEffect<n>` clips in each frame state — that half is `sage_apt`'s.
+  **Not yet runtime-verified in game.**
 - **`queue-ignore-cp`** adds a **`QueueIgnoreCP`** boolean to `CommandButton`, so a button the
   *engine* presses — a `DoCommandUpgrade`'s `GetUpgradeCommandButtonName`, which is how a power or
   a research recruits a unit on an object's behalf — can queue its unit while the player is at the
@@ -220,8 +253,34 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   the gate — which takes `(producer, what, reviveIndex)` and never sees a button — through a dword
   in the cave raised for exactly the length of one `queueCreateUnit` call, by wrapping the
   `UNIT_BUILD` and `REVIVE` cases of `Object::doCommandButton`. **The ControlBar is left stock**, so
-  a *visible* button carrying the field is still drawn unavailable at the cap. **Not yet
-  runtime-verified in game.**
+  a *visible* button carrying the field is still drawn unavailable at the cap. **Every peer must
+  run the same patched binary** — not for the flag, which is transient and identical on every peer
+  executing the same order, but for the consequence: an unpatched client refuses a production a
+  patched one accepts. And, as with `terrain-resource-exp`, the keyword is an INI parse error on a
+  stock build. **Not yet runtime-verified in game.**
+- **`campaign-select`** lets the main menu start **any `LinearCampaign`, by name**, instead of the
+  two EA compiled in. The shipped `LinearCampaignExpansion1.ini` states the limit itself — *"campaign
+  names are basically hard-coded into the game engine … They must be named ANGMAR_CAMPAIGN"* — and
+  the binary agrees: each campaign button reaches a callback that differs from its sibling by one
+  screen id, and each id reaches a thunk holding one string literal. **Only the name is hardcoded,
+  though.** `startLinearCampaign` takes an `AsciiString *` and resolves it through
+  `TheCampaignManager`, so every `LinearCampaign` block in the mod's INI is *already* reachable —
+  the shell simply had no way to say which. Two facts make saying it cheap: the FSCommand callback
+  is handed the movie's whole params string and keeps **only its first byte** (the difficulty
+  letter), and the thunk's `AsciiString` is a function-local static behind an MSVC magic-static
+  guard, so filling that static and setting the guard bit means the literal is never reached. The
+  patch is therefore **one five-byte `jmp`** into a 129-byte cave — no jump-table relocation, no new
+  FSCommand registration, no functor construction — and the movie sends
+  `GameCode("Expansion1Campaign", "Hard:DWARVEN_CAMPAIGN")`. A params string with **no separator is
+  left completely alone**, so a stock `.apt` keeps stock behaviour (`_DEMO` variant included), and
+  `BonusCampaign` is untouched. Shell-only and **client-local**: it runs on a menu button press
+  before a game exists, nothing enters the simulation and replays cross unpatched builds — same rule
+  as `replay-outcome`. The other half is `.apt` work: the movie has to know the names.
+  **Runtime-verified in game**: with two instructions inserted into `MainMenu.apt`'s difficulty
+  sprite so the `Expansion1Campaign` button asks for `ANGMAR_BONUS_CAMPAIGN`, Solo Play → *An
+  Unexpected Party* loaded **laketown** instead of the **Hobbiton** a stock engine can only ever
+  give it. That run also put a `sage_apt` round-trip of a **shell** movie in front of the real game
+  for the first time — `MainMenu.apt`, the file carrying the corpus's one unresolvable branch.
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -241,6 +300,9 @@ sage-patch verify cah-factions --sides Rohan,Lothlorien game.dat
 
 sage-patch apply ai-revive-gate --in game.dat.backup --out game.dat   # no parameters
 sage-patch verify ai-revive-gate game.dat
+
+sage-patch apply ai-construction-gate --in game.dat.backup --out game.dat   # no parameters
+sage-patch verify ai-construction-gate game.dat
 
 sage-patch apply production-condition --condition PRODUCING \
     --in game.dat.backup --out game.dat
@@ -298,6 +360,10 @@ sage-patch verify multi-execute-gate game.dat
 # a CommandButton field that lets an engine-pressed button queue past the command-point cap
 sage-patch apply queue-ignore-cp --in game.dat.backup --out game.dat   # --keyword QueueIgnoreCP
 sage-patch verify queue-ignore-cp game.dat
+
+# a wider hero bar; the .apt must define Hero17..HeroN clips to match (see sage_apt)
+sage-patch apply hero-bar-slots --count 21 --in game.dat.backup --out game.dat
+sage-patch verify hero-bar-slots --count 21 game.dat
 ```
 
 `verify` re-derives the expected tables, the repointed references and every patched site from the
@@ -412,219 +478,14 @@ apply_patches(
 | [`addresses.py`](addresses.py) | every address of the target build, in one place — the globals, the hooked functions and the labels inside them that the caves jump to |
 | [`asm.py`](asm.py) | the tiny label-resolving x86 emitter the caves are written with |
 | [`utils.py`](utils.py) | PE/byte helpers (`allocate_section`/`find_section` — the pair that makes caves order-independent — plus `apply_byte_patch`, `va_to_offset`, `image_base`, …) operating on an in-memory `bytearray` |
-| [`patches/commandset.py`](patches/commandset.py) | `CommandSetLimitPatch` — raise the CommandSet button limit to any N (grow the object + relocate/enlarge the field-parse table + widen the AI's set-walk) |
-| [`patches/cah_factions.py`](patches/cah_factions.py) | `CahFactionsPatch` — add mod sides + an `All` token to the CAH faction enum (superset name table + a `UsableFactions` parser wrapper) |
-| [`patches/ai_revive_gate.py`](patches/ai_revive_gate.py) | `AiReviveGatePatch` — route `canMakeUnit`'s revive branch through the engine's own `NeededUpgrade` check |
-| [`patches/production_condition.py`](patches/production_condition.py) | `ProductionConditionPatch` — name the first unused model-condition bit and drive it from `ProductionUpdate`'s queue, optionally with a weapon-set flag and a locomotor set on the same trigger |
-| [`patches/name_tables.py`](patches/name_tables.py) | the three moves every name-table extension makes — read the live table, rebuild it into a cave by pointer, repoint every reference — shared by the three table owners below |
-| [`patches/model_conditions.py`](patches/model_conditions.py) | owner of the `ModelConditionFlags` table: its 16 references, its 10 count bounds and the `xfer` blob width |
-| [`patches/weapon_set_flags.py`](patches/weapon_set_flags.py) | owner of the `WeaponSetFlags` table: 8 references, `Object+0x38C`, and the count that must **not** move |
-| [`patches/locomotor_sets.py`](patches/locomotor_sets.py) | owner of the `LocomotorSetType` table: 8 references, and `chooseLocomotorSet` on the AI module |
-| [`patches/terrain_resource_exp.py`](patches/terrain_resource_exp.py) | `TerrainResourceExpPatch` — add a `GiveNoXP` boolean to `TerrainResourceBehavior` (rebuild its field table into a cave by pointer, put the new `Bool` in the struct's padding, gate the experience grant on it) |
-| [`patches/unique_production_id.py`](patches/unique_production_id.py) | `UniqueProductionIdPatch` — rewrite `requestUniqueUnitID` to mint from one game-wide counter instead of one per producer |
-| [`patches/replay_outcome.py`](patches/replay_outcome.py) | `ReplayOutcomePatch` — write every player's final victory/defeat state into the replay as the recorded game is torn down |
-| [`patches/second_resource.py`](patches/second_resource.py) | `SecondResourcePatch` — a second per-player pool in a cave, granted by `AutoDepositUpdate.DepositAmount2` (a `UInt16` in `ModuleData` padding) and seeded by `PlayerTemplate.StartMoney2` (a name-keyed row, since the template has no hole) shown in brackets on the palantir, and priced by `Object.BuildCost2` through the one
-affordability gate every human production path shares |
-| [`patches/skirmish_replay.py`](patches/skirmish_replay.py) | `SkirmishReplayPatch` — add the skirmish game mode to the recorder's whitelist, and name the file by timestamp and map |
-| [`patches/multi_execute_gate.py`](patches/multi_execute_gate.py) | `MultiExecuteGatePatch` — add the missing per-member `Enable`/`DisableOnModelCondition` check to the two `AIGroup` special-power loops, recovering each member's own command button from its command set |
-| [`patches/queue_ignore_cp.py`](patches/queue_ignore_cp.py) | `QueueIgnoreCpPatch` — add a `QueueIgnoreCP` boolean to `CommandButton` (the new `Bool` in the struct's alignment padding, the field table rebuilt in a cave, and a one-call flag that carries the pressed button's answer into `BuildAssistant`'s command-point verdict) |
-
-`CommandSetLimitPatch(count=N)`. **`count` may be 34–127**; every offset, the object size, the
-field-parse table, the slot-name strings and the AI's scan bound are derived from it.
-
-`CahFactionsPatch(sides=[...])`. **At most 22 sides**, each matching a `PlayerTemplate`'s `Side`
-string exactly; the table, the name strings, the parser wrapper and the resolver's scan bound are
-all derived from the list. `All` is always added, and expands to every bit at parse time so no
-gate needs patching. See [`docs/cah-faction-limit.md`](docs/cah-faction-limit.md).
-
-`AiReviveGatePatch()`. **No parameters** — there is one revive branch and one correct edge to add.
-It hooks 6 bytes and adds a 58-byte `.aigate` cave whose only job is to reach the engine's existing
-upgrade gate with the matched slot already counted — and only when the caller asked
-`canMakeUnit` directly, which is only ever the AI deciding which producer to use. Anything that
-came in through `BuildAssistant`'s `+0x64` gate (the ControlBar, `queueCreateUnit`, scripts) takes
-the stock edge, so the patch cannot hide a button or refuse a production. See
-[`docs/ai-revive-gate.md`](docs/ai-revive-gate.md).
-
-`ProductionConditionPatch(condition="PRODUCING", weapon_set_flag=None, locomotor_set=None)`.
-**One condition**, plus the two opt-in extras. It extends the `ModelConditionFlags` name table
-into a `.prodmc` cave, repoints its 16 references, raises 10 count bounds and hooks the 5-byte
-entry of `ProductionUpdate::update`; each extra adds its own table to the same cave and repoints
-its own 8 references. All three blocks are **level-triggered**, guarding on their own state rather
-than on one shared edge — the model-condition bit survives a savegame and the weapon-set bit does
-not, so an edge-triggered hook would come back from a load with the two disagreeing for good. See
-[`docs/production-model-condition.md`](docs/production-model-condition.md) §10-11.
-
-It installs one because it implements one *trigger*, not because bits are scarce: 591 names sit in
-a 19-dword mask, leaving 17 slots, and savegames store conditions as a **list of names** rather
-than a bit layout, so the count does not affect them. **If you only need more conditions and not
-more triggers, you probably need no patch at all** — the stock table already carries 75 `USER_*`
-conditions with no engine behaviour of their own, of which Edain references 49, leaving ~26 free.
-
-> **Every peer must run the same patched binary.** The bit lives on the logic-side `Object` and is
-> part of what the engine CRCs, so a patched and an unpatched client desync as soon as a building
-> starts producing, and replays do not cross. That is stricter than the other bundled patches,
-> which are data-shape changes.
-
-`ReplayOutcomePatch()`. **No parameters** — there is one moment a recorded game ends and one
-state to write at it. It retargets the five-byte `call writeToFile` at `0x0077F98B`, inside
-`RecorderClass::updateRecord`'s `MSG_CLEAR_GAME_DATA` branch — the consumer every ending
-converges on, since the message itself has **thirteen** emitters and a quit and a finished game
-use different ones — into a `.rpout` cave that walks `TheVictoryConditions`' player list and
-`fwrite`s one 23-byte chunk per player to the recorder's own `FILE*`: order type `0x7D0`, the
-player's `m_playerIndex` in the chunk's number field, then two Integers (outcome
-0 undetermined / 1 victorious / 2 defeated, and the frame that player was defeated on).
-`sage_replay.winner.recorded_outcomes` reads them back and `infer_winner` prefers them over the
-concession heuristic outright. See [`docs/replay-outcome.md`](docs/replay-outcome.md).
-
-> **This one does not need every peer.** The cave writes to a file the client already owns and
-> injects nothing into the message stream, so a patched and an unpatched client stay in sync and
-> replays still cross. That is the opposite of `production-condition`, whose bit is CRC'd.
-
-`SkirmishReplayPatch(modes=(2,), rename="all")`. **`modes` are the `MSG_NEW_GAME` game modes to
-record on top of the stock `{1, 5}`**; 2 is the one the skirmish setup screen emits, and a mode
-the engine already records is refused rather than silently accepted. Two edits, both inside the
-recorder: the nine-byte whitelist tail at `0x0077F910` (`cmp eax, 5` / `jne`) becomes a jump into
-a `.rpskir` cave that tests 5 plus the table and lands back on the recorder's own accept
-(`0x0077F919`) or reject (`0x0077F9DD`); and the `call` at `0x0077EA45` that asks for the file's
-base name is retargeted to a second routine that writes `YYYY-MM-DD HH-MM-SS <map>`.
-
-**`rename="all"` (the default) renames every recording**, so no two replays collide and a file
-can be handed to someone as-is. `rename="added"` renames only the modes `modes` enables and
-tail-jumps to the stock helper otherwise, leaving network recordings byte-identical. The trade
-is the replay menu's Save Replay button — see Status. See
-[`docs/skirmish-replay.md`](docs/skirmish-replay.md).
-
-> **Do not read `RecorderClass::m_gameMode` from inside `startRecording`.** `updateRecord`
-> caches the mode there, but `startRecording`'s first act is `reset()`, which overwrites it with
-> the sentinel 9 (`0x0077D7D2`) before the file is named. The mode is `startRecording`'s own
-> second argument, `[ebp+0x0C]` — the value it writes into the header. This cost a build.
-
-> **Also client-local, and it composes with `replay-outcome`.** The two hook opposite ends of
-> `RecorderClass::updateRecord` — the `MSG_NEW_GAME` whitelist and the `MSG_CLEAR_GAME_DATA`
-> `writeToFile` call — and neither reads what the other writes. Applied together, a skirmish
-> records **and** names its winner, which is the only way `sage_replay` can resolve a game
-> against an AI at all: the concession heuristic needs orders, and an AI issues none.
-
-`ObserverSwitchPatch()`. No parameters, no cave, and one `call` — five bytes at `0x006D7813`.
-
-The palantir shows or hides the observer bar (the APT clip `ObserverStuff`, holding
-`NextPlayerBttn` and `PriorPlayerBttn`) on the AND of two predicates: *is the local player sitting
-out* — true in any replay — and `0x0062541E`, which whitelists the **recorded** game mode against
-`{1, 5}`. A skirmish records **2**, so a skirmish replay never gets the bar and there is no way to
-change seat. Everything downstream already works: the observer seat is installed on the *playback*
-mode (3, whatever was recorded), and `PlayerList::observeNextPlayer` gates on nothing that cares
-about skirmish — it sets the observed player and re-runs `TheShroudManager` for that seat, which is
-the vision. The engine even ships the right predicate: `0x00625456` is the same function with mode
-2 added on both sides, has 31 callers, and is the one `skirmish-replay` already cites as proof
-playback anticipates a mode-2 recording. So the patch aims the call at it. See
-[`docs/observer-switch.md`](docs/observer-switch.md).
-
-> **`0x0062541E` has exactly one caller**, and it is this gate — so retargeting the call removes
-> the network-only predicate from the running binary rather than changing what some other feature
-> sees. The two functions are **adjacent**, which is why the patch anchors both by their first
-> bytes: a displacement off by a few lands in real code, not in a hole.
-
-> **Client-local, like `replay-outcome` and `skirmish-replay`.** `observeNextPlayer` issues no
-> `GameMessage`; it moves a camera and re-evaluates a shroud. One spillover: the bar now also
-> appears in a *live* skirmish once the local player is defeated — exactly what the stock engine
-> does in a live network game, and impossible while you are still playing.
-
-`SecondResourcePatch(hud=True)`. Three INI fields — `AutoDepositUpdate.DepositAmount2`,
-`PlayerTemplate.StartMoney2`, `Object.BuildCost2` — and ten hooks around a `.res2` cave.
-
-The mechanic: the module's own `call Money::deposit` and `queueCreateUnit`'s
-`call Money::withdraw` (five bytes each, so one whole instruction displaced), `Player::init`'s
-entry (which both seeds the pool per faction and clears it per game, because `PlayerList`'s reset
-calls it on all twenty slots with a NULL template), the `PlayerTemplate` block key at `0x005FE880`
-— the six bytes *before* the ones `command-point-upkeep` takes, so the two compose — the one
-affordability comparison in `BuildAssistant`'s `+0x64` gate, and the id copy inside
-`ThingTemplate::copyFrom`, which is what carries a cost across an INI override block.
-`hero-mana` rides that same copy from its *call site*, so the two share no byte.
-
-The display: the palantir's text builder and its change filter, plus the two `TOOLTIP:Cost` lines
-that price a template. All three field tables are rebuilt in the cave from whatever is live, one
-4-byte repoint each (five for `Object`).
-
-**The bracket is decided at INI load**, by a flag both parse functions raise on a non-zero value,
-so a mod that mentions neither field gets the stock readout byte for byte and a mod that uses
-either always shows the bracket. Deciding it from the pool would make the readout grow and lose a
-number mid-game. `--no-hud` drops both palantir hooks and leaves the mechanic.
-
-**Savegames are not supported** — the pool lives in the cave and is not `Xfer`'d, so a load
-resets it. **Enforcement is partial**: the shared gate refuses everything a player cannot pay for,
-but only unit production debits the pool, so a structure placed or an upgrade researched is
-correctly refused and then costs nothing. See
-[`docs/second-resource.md`](docs/second-resource.md) §9.
-
-`UniqueProductionIdPatch()`. **No parameters** — there is one id mint and one right answer. It
-rewrites the ten bytes of `ProductionUpdateInterface::requestUniqueUnitID` in place (ten for ten,
-so no hook and no displaced instruction) to draw from a four-byte counter in a `.prodid` section
-instead of the per-producer one at `ProductionUpdate+0x30`. The first id minted is still 1, and 0
-is still never minted — which matters, because 0 is what an idle hero's revive entry holds in the
-field the id is matched against. See [`docs/unique-production-id.md`](docs/unique-production-id.md).
-
-`TerrainResourceExpPatch(keyword="GiveNoXP")`. **One keyword**, and the default is the name the
-stock `AutoDepositUpdate` already gives the same field, so a mod writes one keyword for one concept
-across both income modules. Three edits and a `0xC5`-byte `.trexp` cave: the constructor's two
-`Bool` stores become `and dword [esi+0x14], 0` plus the same `Visible` store — eight bytes for
-eight, and the `and` clears the new field on the way past, so the default costs nothing; the
-field-parse table is rebuilt in the cave with a ninth row, which is **one** 4-byte repoint because
-the table has exactly one reference and is read through its terminator rather than a count; and a
-6-byte hook on the experience block runs `AutoDepositUpdate`'s own gate, `cmp byte
-[ModuleData+off], 0` / `jne <past the grant>`, instruction for instruction. See
-[`docs/terrain-resource-exp.md`](docs/terrain-resource-exp.md).
-
-> **Every peer must run the same patched binary**, and a mod using the keyword cannot run without
-> it at all — an unknown field in a known block is an INI parse error, not a warning. See Status.
-
-`MultiExecuteGatePatch(slots=None)`. **Effectively no parameters** — there is one missing check and
-one place it belongs. Two `rel32` repoints and a `0xDB`-byte `.mxgate` cave holding one predicate
-and two shims: the `call <per-member precondition gate>` that opens each of the two `AIGroup`
-special-power loops (`0x0076F6DA` for the targetless form, `0x00770B67` for the targeted ones) is
-retargeted at a shim that asks the predicate first and otherwise tail-jumps to the stock gate, so
-its own `ret` lands back in the loop. The predicate resolves the member's *effective* command set
-(`Object::getCommandSetString`, which reads three per-object overrides before the template's own
-field — so a command-set swap is honoured), finds the `SPECIAL_POWER` button whose power id matches
-the one the group was told to run, and answers false only when
-[the engine's own model-condition gate](docs/multi-execute-gate.md) calls that button disabled on
-that object. No match, no command set, no masks — all answer true, which is the stock behaviour.
-
-`slots` is the `CommandSet` slot bound the walk uses; `None` reads it out of the image, which is
-`33` unless `commandset-limit` raised it. That makes this the one bundled pair with an **order**:
-apply `commandset-limit` first. Applied the other way round nothing corrupts — a button past the
-bound is not found, and that member takes the stock path — but `verify` reports the disagreement and
-`detect` answers "not patched". See [`docs/multi-execute-gate.md`](docs/multi-execute-gate.md).
-
-> **Every peer must run the same patched binary.** This changes which objects a logic-side order
-> reaches, so a patched and an unpatched client diverge on the first multi-execute activation of a
-> model-conditioned button, and replays do not cross — the same requirement `production-condition`
-> carries, and the opposite of the client-local `replay-outcome` / `skirmish-replay`.
-
-`QueueIgnoreCpPatch(keyword="QueueIgnoreCP")`. **One keyword**, and the default is the name the
-report asked for. Seven edits and one cave: the constructor's `AutoAbility` store widened from
-`mov byte` to `mov dword` (one byte, and it buys the `No` default because +0x10D..+0x10F is the
-padding the store now reaches); the field table rebuilt in the cave with a 56th row and its
-**three** references repointed — the static accessor plus the block parser's two `push`es, one for
-a fresh button and one for an override; and three hooks, the two `queueCreateUnit` calls in
-`Object::doCommandButton` (5 and 6 bytes, whole instructions both) and the gate's command-point
-verdict (8 bytes at `0x0079402B`, which the revive branch jumps into, so one site covers both
-cases).
-
-The flag the wrappers raise is the whole design: the gate takes `(producer, what, reviveIndex)`
-and has 14 callers, so nothing about the button can reach it by argument. Raising a dword for
-exactly the length of one `queueCreateUnit` call — set and cleared by the same routine, so nesting
-cannot leave it up — means the only frame that can observe it is the one it was raised for. See
-[`docs/queue-ignore-cp.md`](docs/queue-ignore-cp.md) §5.
-
-> **Every peer must run the same patched binary** — not for the flag, which is transient and
-> identical on every peer executing the same order, but for the consequence: an unpatched client
-> refuses a production a patched one accepts. And, as with `terrain-resource-exp`, the keyword is
-> an INI parse error on a stock build.
+| [`patches/`](patches/) | every `Patch` lives here, one module per patch, and [`registry.py`](registry.py) names them all |
+| [`patches/utils/`](patches/utils/) | the machinery more than one patch needs and none of them owns — the three global name tables and the primitives every table extension shares, the `KindOf` mask, and the income link |
 
 ### Composing patches
 
-**Any subset of the bundled patches applies in any order**, and a patch is only considered done
-when it holds that. `apply_patches` takes a list precisely so they can be stacked:
+**Any subset of the bundled patches applies in any order**, with one exception named below, and a
+patch is only considered done when it holds that. `apply_patches` takes a list precisely so they
+can be stacked:
 
 ```sh
 sage-patch apply commandset-limit --count 64 --in game.dat.backup --out game.dat
@@ -650,9 +511,15 @@ The one pair worth naming: `commandset-limit` and `ai-revive-gate` both edit
 [`tests/sage_patch/test_ai_revive_gate.py`](../tests/sage_patch/test_ai_revive_gate.py) asserts
 both halves of that.
 
+**The exception is `multi-execute-gate`, which must be applied after `commandset-limit`.** Its
+`slots` defaults to reading the `CommandSet` bound out of the image, which is `33` until
+`commandset-limit` raises it. The other order corrupts nothing — a button past the bound is not
+found and that member takes the stock path — but `verify` reports the disagreement and `detect`
+answers "not patched". Pin `slots` explicitly to apply them the other way round.
+
 Placement being computed rather than hardcoded costs nothing: on an unpatched image
-`next_section_rva` returns exactly the `0xAD3000` that `commandset-limit` used to name as a
-constant, so a lone `commandset-limit` build still puts `.cmdext` where it always did.
+`next_section_rva` returns exactly `0xAD3000`, so a lone `commandset-limit` build puts `.cmdext`
+at the same RVA a fixed placement would have chosen.
 
 > **Why 127 and not more.** Six patch sites encode the limit as a *signed 8-bit* immediate
 > (`6a NN` push, `83 fa NN` / `83 fb NN` / `83 7d f8 NN` cmp). At 128 the byte `0x80` decodes as
@@ -663,45 +530,6 @@ constant, so a lone `commandset-limit` build still puts `.cmdext` where it alway
 Tests live in [`tests/sage_patch/test_patching.py`](../tests/sage_patch/test_patching.py) and
 [`tests/sage_patch/test_ai_revive_gate.py`](../tests/sage_patch/test_ai_revive_gate.py), including
 a byte-identity check that `count=64` reproduces the shipped `game.dat`.
-
-> **Rebuild `engine/game.dat` once after this change.** `commandset-limit` now writes a 15th
-> Phase-1 edit (the AI scan bound), so a `count=64` build no longer matches an `engine/game.dat`
-> produced before it, and the byte-identity check will fail until the artifact is rebuilt from
-> `game.dat.backup`.
-
-## Layout
-
-| path | what |
-|------|------|
-| [`engine/`](engine/) | thin build CLI ([`patch.py`](engine/patch.py), over the framework), verifiers, the clean input `game.dat.backup`, and the shipped `game.dat`. Start at [`engine/README.md`](engine/README.md). |
-| [`docs/commandset-button-limit.md`](docs/commandset-button-limit.md) | full RE writeup: how the limit is enforced, the object layout, every patch site, and how to raise it to N. |
-| [`docs/push-visible-command-range.md`](docs/push-visible-command-range.md) | the paging mechanism + the `start+count ≤ N` rule (and the exact crash it prevents). |
-| [`docs/max-player-count.md`](docs/max-player-count.md) | why a map caps at 20 sides (`MAX_PLAYER_COUNT`), the map census, and a costing of what raising it would take. **Assessed, not attempted.** |
-| [`docs/upgrade-mask-limit.md`](docs/upgrade-mask-limit.md) | why the engine caps at 1152 upgrades, and why passing it corrupts neighbouring masks instead of crashing. **Assessed, not attempted.** |
-| [`docs/cah-faction-limit.md`](docs/cah-faction-limit.md) | full RE writeup for `cah-factions`: the nine-side enum, the three gates that read its mask, every repointed site, and the two cheaper-but-cruder alternatives that were rejected. |
-| [`docs/ai-revive-gate.md`](docs/ai-revive-gate.md) | full RE writeup for `ai-revive-gate`: `BuildAssistant::canMakeUnit`'s two branches, why only one checks `NeededUpgrade`, the three AI-only call sites that make the fix player-safe, the slot-accounting argument, and what the patch deliberately leaves alone. |
-| [`docs/production-model-condition.md`](docs/production-model-condition.md) | full RE writeup for `production-condition`: the `ModelConditionFlags` anatomy (591 names in 19 dwords, 17 spare), why the 74-byte `xfer` window makes **exactly one** new condition free, the terminator-driven parser that needs no patch, the ten count bounds, `ProductionUpdate`'s queue, and why `update` never sleeping is what makes a single entry hook correct. Settles the `Object`-vs-`Drawable` question left open by `ai-revive-gate`. |
-| [`docs/replay-outcome.md`](docs/replay-outcome.md) | full RE writeup for `replay-outcome`: the `VictoryConditions` layout and its defeat latch, `RecorderClass`'s file handle and chunk writer, why the recordable range being the *network* range rules out injecting a message, the thirteen emitters of `MSG_CLEAR_GAME_DATA` and why the hook belongs on the consumer instead, and the header fields that stay consistent. |
-| [`docs/multi-execute-gate.md`](docs/multi-execute-gate.md) | full RE writeup for `multi-execute-gate`: the one routine that evaluates a button's two model-condition masks and its three ControlBar callers, the multi-select availability walk that answers "any member", the `SPECIAL_POWER` emitter that sends an object id of zero, what zero means to the message dispatcher, the two `and eax, 0x100000` instructions that are the whole implementation of `OK_FOR_MULTI_EXECUTE`, the per-member gate that checks sciences and recharge but is never handed the button, and the object → command set → button walk the engine already does twice that makes the button recoverable logic-side. |
-| [`docs/skirmish-replay.md`](docs/skirmish-replay.md) | full RE writeup for `skirmish-replay`: the `MSG_NEW_GAME` branch that is the whole decision to record, the game-mode enum recovered from its emitters (and why 2 is skirmish), why `startRecording`'s non-network path and the engine's playback predicates already handle it, the three helpers behind the file name and the second caller that makes the *call site* the patchable thing. |
-| [`docs/observer-switch.md`](docs/observer-switch.md) | full RE writeup for `observer-switch`: the APT clip and the two `SetObserverStuffState` thunks that are the observer bar, the two predicates the palantir ANDs before showing it and which of them rejects a skirmish, the sibling function that already accepts a recorded mode of 2, the playback path that installs the observer seat regardless of what was recorded, and the shroud refresh inside `observeNextPlayer` that makes the vision follow the button. |
-| [`docs/terrain-resource-exp.md`](docs/terrain-resource-exp.md) | full RE writeup for `terrain-resource-exp`: the module's field table and the two padding bytes the new `Bool` goes in, the experience block at the tail of `update` and why its first instruction is the right thing to hook, the constructor rewrite that buys the default for nothing, and `AutoDepositUpdate::GiveNoXP` — the stock field, and stock gate, this reproduces. |
-| [`docs/hero-mana.md`](docs/hero-mana.md) | full RE writeup for `hero-mana`: why `UnitCost` is inert on a hero (the shared no-horde branch, at three sites), the activation path and the six callers of `canUseSpecialPower` that make one hook reach the AI too, `Object+0x74` as the object id, the `SpecialPower` table's two references and the `0x88 → 0x94` struct growth, and the compute-on-read pool that needs no per-frame, init, destroy or savegame hook. |
-| [`docs/unique-production-id.md`](docs/unique-production-id.md) | full RE writeup for `unique-production-id`: the path a hero recruit takes from `doCommandButton` to `ProductionUpdate::queueCreateUnit`, the per-player revive manager at `Player+0x758` and the `ProductionID` it keys entries on, where the money moves relative to the failure edge, and why the fix belongs at the mint rather than at the check or as a refund. |
-| [`docs/second-resource.md`](docs/second-resource.md) | full RE writeup for `second-resource`: the `Money` layout that makes `PlayerTemplate+0x34` look free and is not, why `Player::init`'s *entry* is the only hook that both seeds and clears, the `ModuleData` padding and the three-byte constructor rewrite that buys the default, the `UInt16` parser's word store, the two non-overlapping block-key windows this shares with `command-point-upkeep`, what two patches rebuilding one field table means for `verify`, and why the palantir's resource readout needs no `.apt` edit despite being a data binding. |
-| [`docs/herobar.md`](docs/herobar.md) | full RE writeup for `herobar`: the 224-bit `KindOfMaskType` with 222 names used and the two confirmations of its width, the 14 table references and 6 counts, the 42-byte classifier that is the whole seam, the loop label that skips a node *without consuming a slot* (which is why no drawing code is added), the flags-not-targets shape both removal hooks need, and the slot-node validation that makes a stale group mark harmless. |
-| [`docs/ideas/herobar-kindof.md`](docs/ideas/herobar-kindof.md) | the pre-implementation costing behind it, kept as written - including the open blocker the shipped design turned out not to need. |
-| [`docs/command-point-upkeep.md`](docs/command-point-upkeep.md) | full RE writeup for `command-point-upkeep`: the one reader of `ResourceModifierValues` and the three properties upkeep inherits from it, the command-point bookkeeping at `Player+0x60`, why a `PlayerTemplate` cannot hold the numbers (no hole, 24 size literals, and a parse-time `this` that is a stack temporary) and why its `NameKeyType` can, the one-reference field table, and the cdecl vararg rule that decides where the palantir hook goes. |
-| [`docs/queue-ignore-cp.md`](docs/queue-ignore-cp.md) | full RE writeup for `queue-ignore-cp`: how a `DoCommandUpgrade` presses a real `CommandButton` through `Object::doCommandButton`, the six verdicts of `BuildAssistant`'s `+0x64` gate and why the revive branch jumps into the command-point one, the stall `ProductionUpdate::update` already performs (and the revive completion-frame delay beside it) that makes the second half of the request free, why `CommandButton+0x10D` is padding and `+0x103` is not, and the one-call flag that carries a button's answer into a gate with no argument for it. |
-| [`docs/runtime-re-workflow.md`](docs/runtime-re-workflow.md) | the static+dynamic RE method (Ghidra, Cheat Engine, INI field tables) used to recover these offsets, with the verified `Player`/`ThingTemplate` layouts. |
-| [`docs/message-stream.md`](docs/message-stream.md) | `TheMessageStream` (`0x00DE6398`), `appendMessage` (vtable `+0x48`) and all eleven `append*Argument` helpers - the order-injection path - plus the authoritative 147-name `GameMessage::Type` network enum recovered from `getCommandTypeAsAsciiString`. Closes OPEN 10 of [`order_space_map.md`](../sage_replay/order_space_map.md). |
-| [`docs/engine-globals.md`](docs/engine-globals.md) | the 88 named engine singletons (`TheGameLogic`, `ThePlayerList`, `TheThingFactory`, `TheUpgradeCenter`, ...), the `PlayerList` layout and the `Player` economy/identity offsets. The starting point for any live-memory work. |
-| [`docs/live-object-model.md`](docs/live-object-model.md) | enumerating live objects: `TheGameLogic`'s id table, the `Object` layout (template, transform, position, horde links) and the body module holding health. Solves unknowns 1-2 of [`live-api.md`](../docs/live-api.md). |
-| [`docs/module-reference.md`](docs/module-reference.md) | every engine module, its INI fields and their compiled-in defaults - 330 modules, 2658 fields, 97% of them typed. Generated by [`scripts/module_defaults.py`](scripts/module_defaults.py); `module-reference.json` is the same data machine-readable. |
-| [`docs/ini-types.json`](docs/ini-types.json) | everything a field's type alone cannot say: the 200 INI block types the loader dispatches on (`Object`, `Weapon`, `Locomotor`, `GameData`, ...) with 4247 fields of their own, the members behind every enum and flag type, the lookup lists, and the keywords of every nested sub-block. Same generator. |
-| [`scripts/build_wiki.py`](scripts/build_wiki.py) | renders those files into a browsable static site under `build/wiki/` - a page per module and per block type, plus the type and enum pages. Field tables take values, check them against the field's type and write them into a copyable INI block, and `check.html` validates a whole pasted block the same way. Fields the engine parses as plain strings are annotated with what `sage_ini` says they name (`&rarr; Upgrade`, `&rarr; Object`), the one thing on the site that is modelled rather than read from the binary. |
-| [`ghidra_scripts/`](ghidra_scripts/) | headless Ghidra analysis scripts + `run_ghidra.bat` runner (needs JDK 21). |
-| [`scripts/`](scripts/) | standalone capstone/pefile analysis helpers used during RE. |
 
 ## Module reference
 
@@ -733,80 +561,3 @@ cd engine
 OUT=game.dat python patch.py   # clean game.dat.backup -> N=64 game.dat  (COUNT=N for another limit)
 python verify.py && python finalcheck.py
 ```
-
-## Key addresses (VA, ImageBase 0x400000)
-
-Named in [`addresses.py`](addresses.py) where a patch needs them; this is the quick index.
-
-field-parse table `0xc4f3d8` · `parseCommandButton` `0x80c9e1` · ctor `0x80c949` ·
-alloc `0x720298` · `getCommandButton` `0x80c837` · new `.cmdext` table `0xed3000` (on a clean
-image; the RVA is computed, so it moves up if another patch's cave is already there) ·
-ControlBar singleton `0xde7744` (fixed 33-slot arrays at `+0xdc` / `+0x160`) ·
-paging-crash site `0x75d244`.
-
-`ModelConditionFlags` name table `0xd9fad8` (591 entries, 19 dwords wide) · `getBitCount`
-`0x444df5` · INI name→bit parser `0x4b3b5b` · `xfer` `0x4b8d87` · validating setter `0x8e2c1f` ·
-`Object` model-condition mask `+0x10c` · `Object::onModelConditionFlagsChanged` `0x68b53c` ·
-`ProductionUpdate::update` `0x8a1b9f` (vtable `0xc67e2c` slot 0) · its queue head `module+0x28`.
-
-`TheBuildAssistant` `0xde8200` (vtable `0xc307d8`) · `BuildAssistant::canMakeUnit` `0x794f38`
-(vtable `+0x68`, five call sites) · the `+0x64` gate `0x793ecb` that reaches it by a virtual
-self-call at `0x793f56` (14 callers, incl. the ControlBar's `0x940a3b`/`0x940b84`/`0x942ea9`/
-`0x942f3f` and `queueCreateUnit`'s `0x8a1205`) · its accept path `0x7950ad` ·
-its upgrade gate `0x79502a` · its revive branch `0x7950ce` · slot-count bump
-`0x7950dc` · next-slot step `0x7950df` · AI scan bound `0x7950e2` · `GUICOMMAND_REVIVE` = 46
-(name table `0xda4d10`, 61 entries) · the pre-production gate `0x793ecb` (vtable `+0x64`), which
-is how `queueCreateUnit` reaches `canMakeUnit`.
-
-`TerrainResourceBehavior` `ModuleData` ctor `0x88525d` (`sizeof` `0x24`, free padding `+0x16`/`+0x17`) · its two `Bool` defaults `0x88528b` · `buildFieldParse` `0x8852b8`, its `push` immediate `0x8852bf` · field-parse table `0xc5fd78` (8 rows, terminator `0xc5fdf8`, **one** reference) · `update` `0x8854d3` (slot 0 of `0xc5fbcc`), its `ModuleData` slot `[ebp-0x18]` · deposit `0x7b18b8` at `0x8856b0` · the experience block `0x88573c`-`0x885765`, rejoin `0x88576a` · `Object` `m_experienceTracker` `+0x26c` · `ExperienceTracker::isTrainable` `0x79d322` · `addExperiencePoints` `0x79d833` (15 call sites) · `AutoDepositUpdate`'s stock `GiveNoXP` gate `0x89dd16` (field at its `ModuleData+0x20`) · `INI::parseBool` `0x42e558` · `MultiIniFieldParse::add` `0x42b8d7`.
-
-`ProductionUpdateInterface` vtable `0xc67db0` (the subobject at `module+0x20`) ·
-`requestUniqueUnitID` `0x8a18fa` (slot `+0x08`) · `queueCreateUnit` `0x8a11d2` (slot `+0x20`) ·
-its money withdrawal `0x8a12a2` and revive failure edge `0x8a13d8` · per-producer id counter
-`module+0x30`, seeded by the ctor `0x8a17d8` · `ReviveMgr` `Player+0x758` (`0xe8`-byte entries;
-start frame `+0xa8`, `ProductionID` `+0xb4`) · `startRevive` `0x7812b2` ·
-`findByProductionID` `0x7808db` · `findByIndex` `0x7808ab` · `canRevive` `0x780c46` ·
-`cancelRevive` `0x780c64`.
-
-`TheVictoryConditions` `0xde89ac` (vtable `0xc4f108`, `sizeof` `0x94`) · `Player *m_players[20]`
-`+0x18` · `Bool m_isDefeated[20]` `+0x70` · `update` `0x808f53` and its defeat latch `0x80908a` ·
-`hasAchievedVictory` `0x808aa8` (slot `+0x38`) · `hasBeenDefeated` `0x80953c` (slot `+0x40`) ·
-`Player` `m_playerIndex` `+0x54`, `m_isObserver` `+0x35a`, `m_defeatedFrame` `+0x4cc`,
-`m_isDefeated` `+0x754` · `TheRecorder` `m_file` `+0x10` / `m_mode` `+0x1c` (RECORD 0, PLAYBACK 1,
-NONE 2) · `writeToFile` `0x77d8fc` · `updateRecord` `0x77f8b0` (records `0x1D` plus
-`0x3e8 < type < 0x7cf`) · `stopRecording` `0x77d8c8` · `TheCommandList` `0xde639c` ·
-`GameLogic::clearGameData` `0x625e36`, hook site `0x625e84`, `0x1D` append `0x625e91` ·
-`fwrite` `[0xbd053c]` · `fflush` `[0xbd065c]`.
-
-`ControlBar`'s model-condition gate `0x942490` (`stdcall(button, object)`, `ret 8`; 3 callers, all
-in the ControlBar) · `CommandButton` `Command` `+0x14` (`SPECIAL_POWER` = `0x18`), `Options` `+0x1c`,
-`SpecialPower` `+0x44`, `EnableOnModelCondition` `+0x194`, `DisableOnModelCondition` `+0x1e0` ·
-`Options` name table `0xda4c88` (32 entries; `OK_FOR_MULTI_EXECUTE` = bit 20) · the ControlBar's
-command executor `0x940435`, its multi-select availability walk `0x94056c`, its `SPECIAL_POWER`
-emitter `0x94153c` (object id **0**) · `MSG_DO_SPECIAL_POWER` dispatcher case `0x77a42c` ·
-`AIGroup::doSpecialPower` `0x76f5db` (multi-execute test `0x76f5ff`, member loop `0x76f697`, gate
-call `0x76f6da`, loop tail `0x76f704`) · `AIGroup::doSpecialPowerAt*` `0x77097e` (test `0x7709bd`,
-gate call `0x770b67`) · the two precondition gates `0x82d5da` (`ret 0x14`) / `0x82d925` (`ret 0x18`)
-· `Object::getCommandSetString` `0x69156b` · `ControlBar::findCommandSet` `0x71efa2` ·
-`Object+0x438`/`+0x43c`/`+0x440` the per-object command-set overrides.
-
-`CommandButton` `sizeof` `0x2e0` · alloc `0x71c439` · ctor `0x75d516` · its `AutoAbility` store
-`0x75d688` (the one-byte widening) · free padding `+0x10d`..`+0x10f` · `getBorderType` `0x75cba5`
-(the reader that rules out `+0x103`) · field-parse table `0xc2bac8` (55 rows) and its three refs
-`0x5da706`/`0x5da7b6`/`0x5da7d0` · `Object::doCommandButton` `0x696fd2` (button at `[ebp+8]`), its
-`UNIT_BUILD` queue call `0x697800` and `REVIVE` queue call `0x697403` ·
-`BuildAssistant::isPossibleToMakeUnit` `0x793ecb`, its command-point verdict `0x79402b`, accept
-`0x794033`, refusal tail `0x79409e` · `hasEnoughCommandPoints` `0x6a7f79` ·
-`ProductionUpdate::update`'s command-point stall `0x8a1e27` and the revive delay `0x8a0669` ·
-`DoCommandUpgrade` `0x8b8e2e` / `0x8b8dfc` · `ControlBar::findCommandButton` `0x71d6ea`.
-
-`RecorderClass::startRecording` `0x77ea03` (only caller `0x77f96e`) · `m_gameMode` `+0xed4`
-(stored at `0x77f923`) · `updateRecord`'s `MSG_NEW_GAME` branch `0x77f8d1`, the game-mode
-whitelist `0x77f910` (9 bytes, accepts 1 and 5), accept `0x77f919`, reject `0x77f9dd` ·
-`GameLogic::startNewGame` `0x77948e`, `m_gameMode` `TheGameLogic+0x110`, coarse game type
-`+0x114` (set to 3 at `0x779f20`) · the skirmish start handler `0x9287d9` (mode 2 at `0x928817`)
-· `TheGameInfo` `0xde892c` · `TheSkirmishGameInfo` `0xde8930` (ctor `0x628b3a`, `sizeof` `0xe9c`)
-· `GameInfo::m_map` `+0x40`, `getMap` `0x627692`, `setMap` `0x801c46` · `getReplayDir` `0x77de6f`
-· `getLastReplayFileName` `0x77defd` (2nd caller `0x817e49`) · `getReplayExtension` `0x77dee3` ·
-the name call site `0x77ea45` · `UnicodeString::UnicodeString(const WideChar *)` `0x437770` ·
-`swprintf` `[0xbd0490]` · `GetLocalTime` `[0xbd01d4]` · `_wfopen` `[0xbd052c]`.

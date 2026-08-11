@@ -39,6 +39,12 @@ class Recruiting(Powers):
         level-3 palettes at all - which is where the variety this stage is for actually lives.
         `stage_upgrade` buys those levels; this is what collects on them.
 
+        **And asked only of buildings that have finished going up.** A barracks at 10% answers
+        with its full palette and then *accepts* what is ordered against it - there is no refusal
+        to see. Its queue cannot move until it is built, and an empty queue is what `next_recruit`
+        prefers, so it collects orders ahead of every finished building until it is full. See
+        `production_sites`.
+
         **Minus what this bot will not field at all.** `RECRUIT_NEVER` is a `KindOf` test rather
         than a template list, and it currently holds siege: a measured run bought eight battering
         rams that walked to their targets alone and achieved nothing, because escorting them is a
@@ -62,7 +68,7 @@ class Recruiting(Powers):
             )
         }
         found: dict[str, list[GameObject]] = {}
-        for building in self.structures():
+        for building in self.production_sites():
             for made in self.statics.recruits(building.template_name, self.held_by(building)):
                 unit = pool.get(made)
                 if unit is not None:

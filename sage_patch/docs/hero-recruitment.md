@@ -4,8 +4,8 @@ How a hero is ordered, what index the order carries, and which building may legi
 recruit which hero. Targets RotWK 2.01 + Edain; the order shape is the engine's and the slot
 conventions are the mod's.
 
-The implementation is [`sage_live/heroes.py`](../../sage_live/heroes.py) and the revive half of
-[`sage_live/statics.py`](../../sage_live/statics.py).
+The implementation is [`sage_live/utils/heroes.py`](../../sage_live/utils/heroes.py) and the revive half of
+[`sage_live/utils/statics.py`](../../sage_live/utils/statics.py).
 
 ## 1. The order
 

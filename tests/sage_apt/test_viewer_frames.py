@@ -12,9 +12,14 @@ import pytest
 
 from sage_apt import apt_to_xml, render_viewer_html
 from sage_apt.geometry import Fill
-from sage_apt.viewer import _frame_index_map
+from sage_apt.viewer import _accumulate_to, _frame_index_map, best_frame_items
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _frames(xml: str):
+    """The root movieclip's frames, for driving `_accumulate_to` directly."""
+    return list(ET.fromstring(xml).find("movieclip").find("frames"))
 
 
 @pytest.fixture
@@ -63,6 +68,116 @@ def test_every_declared_label_renders(spellstore_xml):
 def test_out_of_range_frame_is_clamped(spellstore_xml):
     """An absurd frame index clamps to the last frame instead of raising."""
     assert render_viewer_html(spellstore_xml, frame=9999)
+
+
+_MOVE_XML = """<?xml version="1.0" ?>
+<aptdata>
+  <movieclip>
+    <imports/><exports/>
+    <frames>
+      <frame id="0">
+        <placeobject depth="1" character="2" tx="100" ty="50" alpha="0">
+          <poflags value="HasCharacter|HasColorTransform|HasMatrix|HasName"/>
+          <poname name="Hero1"/>
+        </placeobject>
+      </frame>
+      <frame id="1">
+        <framelabel label="_show"/>
+        <placeobject depth="1" character="-1" tx="0" ty="0" alpha="255">
+          <poflags value="HasColorTransform|Move"/>
+        </placeobject>
+      </frame>
+      <frame id="2">
+        <framelabel label="_gone"/>
+        <removeobject depth="1"/>
+      </frame>
+    </frames>
+  </movieclip>
+  <empty id="0"/>
+  <shape id="1" left="0" top="0" right="10" bottom="10"/>
+  <image id="2" image="2"/>
+</aptdata>
+"""
+
+
+def test_move_record_updates_instead_of_removing():
+    """A Move placeobject (no HasCharacter, so `character="-1"`) modifies the object already
+    at that depth. It must not be read as a removal - that blanked whole movies whose
+    content is placed on a fade-in frame and revealed by a later alpha Move."""
+    frames = _frames(_MOVE_XML)
+
+    placed = _accumulate_to(frames, 1)
+    assert len(placed) == 1
+    assert placed[0].character == 2  # character still comes from the placing record
+    assert placed[0].name == "Hero1"  # HasName absent on the Move, so the name survives
+    assert placed[0].attrs["alpha"] == "255"  # HasColorTransform field taken from the Move
+    # The Move carries no HasMatrix, so the placement's transform is left alone.
+    assert (placed[0].attrs["tx"], placed[0].attrs["ty"]) == ("100", "50")
+
+
+def test_move_record_keeps_the_placing_node_as_edit_target():
+    """`elem` stays the placeobject that owns the character - the browser editor writes
+    attribute edits to that node, so it must never be a Move record or a copy."""
+    frames = _frames(_MOVE_XML)
+    assert _accumulate_to(frames, 1)[0].elem is frames[0][0]
+
+
+def test_removeobject_clears_the_depth():
+    """Removal is its own record, and it is what actually empties a depth."""
+    assert _accumulate_to(_frames(_MOVE_XML), 2) == []
+
+
+_ORPHAN_MOVE_XML = """<?xml version="1.0" ?>
+<aptdata>
+  <movieclip>
+    <imports/><exports/>
+    <frames>
+      <frame id="0"/>
+      <frame id="1">
+        <placeobject depth="1" character="-1" alpha="255">
+          <poflags value="HasColorTransform|Move"/>
+        </placeobject>
+      </frame>
+    </frames>
+  </movieclip>
+  <empty id="0"/>
+</aptdata>
+"""
+
+
+def test_move_on_an_empty_depth_is_ignored():
+    """A Move with nothing to update places nothing - it carries no character of its own."""
+    assert _accumulate_to(_frames(_ORPHAN_MOVE_XML), 1) == []
+
+
+_STATE_SPRITE_XML = """<?xml version="1.0" ?>
+<aptdata>
+  <movieclip>
+    <imports/><exports/>
+    <frames><frame id="0"/></frames>
+  </movieclip>
+  <empty id="0"/>
+  <sprite id="1">
+    <frames>
+      <frame id="0"><framelabel label="_unused"/></frame>
+      <frame id="1">
+        <framelabel label="_Men"/>
+        <placeobject depth="1" character="2"><poflags value="HasCharacter"/></placeobject>
+      </frame>
+    </frames>
+  </sprite>
+  <image id="2" image="2"/>
+</aptdata>
+"""
+
+
+def test_sprite_falls_back_to_first_labelled_frame_with_content():
+    """Sprites whose frame 0 is an empty placeholder (a faction switcher parked on
+    `_unused`) render their earliest non-empty state instead of nothing."""
+    sprite = ET.fromstring(_STATE_SPRITE_XML).find("sprite")
+    items, label = best_frame_items(sprite)
+    assert label == "_Men"
+    assert [p.character for p in items] == [2]
 
 
 class _StubResolver:

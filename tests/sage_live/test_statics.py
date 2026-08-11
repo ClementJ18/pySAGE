@@ -115,6 +115,13 @@ def build() -> Statics:
                 "PlainChild": FakeObject(
                     {"KindOf": "INFANTRY SELECTABLE"}, parent_name="GondorBuildingFoundation"
                 ),
+                # One block stating the field twice, which the loader hands over as a list.
+                # `RohanTheoden_mod_Summoned` spells its flags out and then adds `+SUMMONED` on
+                # a line of its own, twenty lines further down.
+                "RestatedChild": FakeObject(
+                    {"KindOf": ["HERO SELECTABLE INFANTRY", "+SUMMONED"]},
+                    parent_name="GondorBuildingFoundation",
+                ),
                 # The real shape of an Edain economy building: what you order is never what
                 # appears, and each variation restates the same KindOf as its own Object.
                 "GondorWohnhaus": FakeObject(
@@ -217,6 +224,16 @@ def test_a_plain_kindof_on_a_child_replaces_rather_than_extends(statics):
     kinds = statics.kind_of("PlainChild")
     assert kinds == frozenset({"INFANTRY", "SELECTABLE"})
     assert not statics.is_build_site("PlainChild")
+
+
+def test_a_block_restating_kindof_edits_rather_than_replaces(statics):
+    """**Measured on `RohanTheoden_mod_Summoned`**, which spells its flags out and then adds
+    `KindOf = +SUMMONED` on a line of its own. The field arrives as a list of both declarations,
+    and stringifying that list produced tokens like `['HERO` and `SUMMONED',` - so Theoden
+    answered no to `HERO`, `World.heroes` never saw him, and Glorious Charge was never fired."""
+    kinds = statics.kind_of("RestatedChild")
+    assert kinds == frozenset({"HERO", "SELECTABLE", "INFANTRY", "SUMMONED"})
+    assert statics.has_kind("RestatedChild", "HERO")
 
 
 def test_a_kindof_written_as_a_macro_expands(statics):

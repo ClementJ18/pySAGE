@@ -309,20 +309,14 @@ Nothing new. `Command_ElvenAmbush` as it already stands starts behaving the way 
 - clicking it ambushes exactly the stealthed ones;
 - a group with no stealthed member does nothing, because the button is already greyed.
 
-## Design decisions, and what was rejected
+## Design decisions
 
-**Client-side filtering, rejected.** The ControlBar could emit one `MSG_DO_SPECIAL_POWER` per
-eligible selected object instead of one with a zero id. That would be *client-local* — the message
-stream is what crosses the network, so an unpatched peer would process the explicit per-object
-orders identically and replays would still cross, which is a genuine advantage over the logic-side
-fix. It was rejected on coverage: the emitter is one of ~60 cases in a 6.7 KB function, each with
-its own message shape, and it would leave the auto-ability, script and AI paths — which reach the
-same `AIGroup` loops — unfixed. The gate belongs where the decision is made.
-
-**Hooking `0x0082D5DA` / `0x0082D925` themselves, rejected.** Fewer bytes, but those two have nine
-callers between them, including the ControlBar's own availability evaluation and two update
-modules. Hooking the *call sites* inside the two group loops confines the change to the path that
-is actually wrong.
+**The gate belongs on the logic side, at the call sites inside the two group loops.** That is
+where the decision is made, so it covers the auto-ability, script and AI paths as well as the
+click — all of which reach the same `AIGroup` loops. Hooking the two gate functions
+(`0x0082D5DA` / `0x0082D925`) directly would be fewer bytes, but those two have nine callers
+between them, including the ControlBar's own availability evaluation and two update modules;
+hooking the call sites confines the change to the path that is actually wrong.
 
 **The single-member paths, deliberately left stock.** Both group functions have a second gate call
 (`0x0076F746`, `0x00770BD3`) on the "best member" the scoring pass picks when

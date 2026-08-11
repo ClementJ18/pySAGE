@@ -23,6 +23,7 @@ from sage_mods.edain.bot.tuning import (
     HERO,
     HOLDING_RADIUS,
     IN_FLIGHT,
+    INFANTRY,
     LAIR_RADIUS,
     NO_BASE_CAPTURE,
     NOT_ARMY,
@@ -31,6 +32,7 @@ from sage_mods.edain.bot.tuning import (
     PLOT_CONTESTED,
     PLOT_RADIUS,
     PLOT_REBUILD_SECONDS,
+    ROLES,
     SELECTABLE,
     UNTOUCHABLE,
 )
@@ -81,6 +83,37 @@ class World(BotState):
             if self.statics.has_kind(o.template_name, "STRUCTURE")
             and not self.statics.is_build_site(o.template_name)
         ]
+
+    def production_sites(self) -> list[GameObject]:
+        """Owned buildings whose queue will actually move - finished, and not wreckage.
+
+        **A building still going up accepts production orders and cannot work them, and the
+        acceptance is what makes this expensive.** There is no refusal to notice: the order is
+        taken, the cost is committed, and the item sits in the queue of a structure that will not
+        start it until it has finished being built. Nothing reports that, because from the
+        outside it is indistinguishable from an ordinary queued unit.
+
+        **And an empty queue is exactly what the producer choice rewards.** `next_recruit` picks
+        `min(usable, key=queued_units)` to spread orders across buildings, so a barracks placed
+        this cycle - queue empty, because nothing in it can start - outranks every finished
+        building on the map and keeps outranking them until `QUEUE_TARGET` units are stacked
+        behind it. `Recruiting.held` then counts all of them as already coming, so the mix reads
+        as satisfied and the finished buildings are left idle. One freshly-placed plot can absorb
+        the whole of production this way.
+
+        `under_construction` is the engine's own `ACTIVELY_BEING_CONSTRUCTED`. Health cannot
+        stand in for it: a structure ramps its hit points as it builds, so a half-built one is
+        indistinguishable from a damaged one by health alone.
+
+        Wreckage is out too, and is not the same state: a destroyed keep stays in the object
+        table wearing `RUBBLE`, owned and not under construction, and it sells nothing.
+        `stage_heal` already pairs these two checks for the same reason.
+
+        Separate from `structures()` rather than folded into it, because most callers want the
+        unfiltered list: a half-built building still occupies its plot, still counts toward map
+        control, and is still worth defending.
+        """
+        return [o for o in self.structures() if not o.under_construction and not o.is_rubble]
 
     def occupied(self, plot: GameObject, standing: list[GameObject]) -> bool:
         return any(s.distance_to(plot.position) < PLOT_RADIUS for s in standing)
@@ -359,6 +392,29 @@ class World(BotState):
         return self.statics.has_kind(
             self.statics.fighting_template(obj.template_name) or obj.template_name, *flags
         )
+
+    def role_of(self, template: str) -> str:
+        """The **one** role this template fights in - a member of `ROLES`, or `INFANTRY`.
+
+        `role` asks "is this thing any of these", which is the right question when a stage wants
+        the archers or wants to know whether a charge is safe. This asks the other one: *which*
+        of them is it, so that an army can be counted into buckets that add up to itself. A unit
+        counted twice is an army whose shares sum past one, and shares that do not sum to one
+        cannot say what the army is short of.
+
+        The order is `ROLES`, and it is doing real work rather than tidying - see there. Asked of
+        the fighting member for the reason `role` is: a `GondorKnightHorde` is a container and
+        carries none of these flags.
+
+        A template with no fighting member and no flags answers `INFANTRY`, which is the honest
+        default: it is the bucket that means "an ordinary body in the line", and a thing nobody
+        tagged is far more often that than it is a horse.
+        """
+        fighting = self.statics.fighting_template(template) or template
+        for flag in ROLES:
+            if self.statics.has_kind(fighting, flag):
+                return flag
+        return INFANTRY
 
     def cavalry(self) -> list[GameObject]:
         """The mounted part of the army. `CAVALRY` before `INFANTRY`, because a horse is both."""

@@ -121,10 +121,9 @@ Units and upgrades share **one** queue on the engine's `ProductionUpdate`, so a 
 training and an armoury researching are the same list with different `kind`s — that is the
 engine's shape, not a simplification.
 
-This was the interface's largest blind spot: a barracks already training read as idle, so a
-policy queued into a building that was busy and could not tell why nothing was charged. The
-missing piece was one hop, `Object` → its modules, and it is `Object+0x24C` — a
-NULL-terminated `BehaviorModule*` array, read off the engine's own
+Without this a barracks already training reads as idle, so a policy queues into a building that
+is busy and cannot tell why nothing was charged. It is one hop, `Object` → its modules, at
+`Object+0x24C` — a NULL-terminated `BehaviorModule*` array, read off the engine's own
 `getProductionUpdateInterface`. The module is then picked out by matching its **primary
 vtable**, because a vtable address is unique to its class and needs no call.
 
@@ -149,9 +148,9 @@ game.confirm_queued(lambda: game.recruit_hero("GondorBeregond"), barracks.object
 **A hero is not recruited by template id.** It is queued by its position in the player's
 `BuildableHeroesMP` list, through a `CommandButton` whose `Command` is `REVIVE` — the same
 `0x417` order as `recruit` with the leading flag set, and the second argument read as a revive
-index instead of a template. The two forms are otherwise byte-identical, which is why feeding a
-`CommandSet` slot number to the flagged one was charged in full and produced a hero nobody asked
-for, twice.
+index instead of a template. The two forms are otherwise byte-identical, so feeding a
+`CommandSet` slot number to the flagged one is charged in full and produces a hero nobody asked
+for.
 
 Heroes bind to those buttons **by position**, offset by one because position 0 is the Ring-hero
 slot. A building that recruits the fourth hero carries the first three slots too, disabled by an
@@ -309,14 +308,13 @@ no APM either: a policy that frames what it is doing is not playing faster, it i
 watchable.
 
 **Keeping the zoom means not writing it.** `look_at` writes the view's position field directly
-and does not read the camera first. It once did the obvious thing — capture the live
-`ViewLocation`, replace the position, hand it back — and that is broken at the engine level:
-`View::setLocation` writes all four scalars every call, and each is *read* from one field and
-*written* to another, so the zoom it reports cannot be written back. Measured live, echoing a
-just-captured location moved the zoom by 0.047 and the client restored it over the next 0.6
-seconds. A policy re-aiming every cycle therefore zoomed in and snapped out, forever. Passing
-`zoom`, `angle` or `pitch` asks for exactly that write, so those still take the old path — use
-them when you mean to, and not otherwise.
+and does not read the camera first. The obvious alternative — capture the live `ViewLocation`,
+replace the position, hand it back — is broken at the engine level: `View::setLocation` writes
+all four scalars every call, and each is *read* from one field and *written* to another, so the
+zoom it reports cannot be written back. Measured live, echoing a just-captured location moved
+the zoom by 0.047 and the client restored it over the next 0.6 seconds, so a policy re-aiming
+every cycle zooms in and snaps out, forever. Passing `zoom`, `angle` or `pitch` asks for exactly
+that write — use them when you mean to, and not otherwise.
 
 It does not **interpolate**: a placement is a jump. `CameraPan` is the interpolation, and it is a
 thread because it has to be — a policy deciding every two seconds and easing one step per
@@ -343,7 +341,7 @@ plots = [o for o in observation.mine if statics.is_build_site(o.template_name)]
 ```
 
 A live object carries a template name and nothing else, and **none of the categories a policy
-needs are guessable from that name**. Each of these was got wrong in a real match first:
+needs are guessable from that name**. Each has an obvious wrong answer that a real match punishes:
 
 | question | the wrong answer | what actually answers it |
 |---|---|---|
@@ -372,17 +370,9 @@ are real and they answer different questions, so it is worth being exact about w
 object header, and the body. Everything else on the header comes out of that one read.
 
 *Average* cost over a captured 386-object match is **15.1**, because a real match holds dozens
-of distinct templates and each pays once for its name, its Side and its module walk. Measured
-against the same capture, the improvements decompose as:
-
-| | reads per object |
-|---|---|
-| originally | 49.8 |
-| caching template facts | 29.1 |
-| + batching the reads | **15.1** |
-
-So batching is a 1.9x cut on top of a 1.7x from caching — **3.3x** together on real data, not the
-5.3x the marginal figure alone suggests. A 400-object observation took 0.32 s before any of it.
+of distinct templates and each pays once for its name, its Side and its module walk. Template
+facts are cached across objects and the header reads are batched into one wide read, which is
+what keeps the average this close to the marginal figure.
 
 Every wide read falls back to reading fields individually, and the two must decode identically
 - an object straddling an unmapped page fails the wide read while each field inside it reads
@@ -481,10 +471,10 @@ condition to prefer over anything inferred from an observation.
 **Observations arrive whole-map, and some of what they carry a player could never know at
 all.** These are two different problems and only one of them is about visibility.
 
-*Visibility* is fog, and it is now readable. `attach(fog=True)` filters every observation down to
+*Visibility* is fog, and it is readable. `attach(fog=True)` filters every observation down to
 what the seat can actually see, using the engine's own per-cell shroud grid, and the snapshot
-records `fogged` so a consumer can tell which it is holding. Left off — the default, because it
-changes what every existing consumer sees — you read the whole map. One thing the grid does not
+records `fogged` so a consumer can tell which it is holding. Left off, which is the default, you
+read the whole map. One thing the grid does not
 carry is a memory: a scouted building disappears again when the scout leaves, where a real player
 would still see it drawn. See [`fog-of-war.md`](../sage_patch/docs/fog-of-war.md).
 
@@ -552,10 +542,9 @@ Every offset was confirmed against a running process, not inferred from shape:
   hit pointed into the *middle* of a neighbouring string. Reading it needs the parser followed
   statically, not another differential.
 
-  `TheSpecialPowerStore` *is* walked — same vector shape, which is why the linked-list pass
-  first missed both — and its 1,566 names agree with the ini reconstruction position by
-  position on every single one.
-- **Thing ids are corroborated, not round-tripped** — but the corroboration is now measured.
+  `TheSpecialPowerStore` *is* walked — same vector shape — and its 1,566 names agree with the
+  ini reconstruction position by position on every single one.
+- **Thing ids are corroborated, not round-tripped**, and the corroboration is measured.
   `thing_order` anchors index 0 at `DefaultThingTemplate`, contains every template any live
   object uses, and has no duplicate names. Against the ini tree it reads 11,142 templates to
   11,132, and the two are **identical up to index 11,086**; in a live match all 69 templates in

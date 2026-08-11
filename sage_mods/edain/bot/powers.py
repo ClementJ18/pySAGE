@@ -141,17 +141,44 @@ class Powers(Economy):
             self._science_names = tuple(names)
         return self._science_names
 
+    def power_wanted(self, power: PowerButton) -> bool:
+        """Whether this purchase is worth its points now, or only once something is standing.
+
+        **Almost every power is worth buying the moment it is affordable**, which is why the rest
+        of `power_options` reads nothing but the store: a summon lands wherever it is aimed and a
+        bombardment needs only a target, so the question "is there anything to use it on" is one
+        the casting stage asks and the buying stage never has to.
+
+        A power that buys an *upgrade* is the exception, because an upgrade has to land on
+        something. Gondor's Gandalf the White is a `PlayerUpgradeSpecialPower` granting
+        `Upgrade_GandalfWhite`, which only Gandalf reads - so five of the book's points spent with
+        him off the map buy nothing at all, and a spellbook point is not refundable.
+
+        Read off `Plan.power_needs` rather than named here, for the reason `precious` is: this
+        module plays any side. Matched by prefix, so one entry covers a hero's variants.
+        """
+        needs = {
+            science.lower(): tuple(t.lower() for t in templates)
+            for science, templates in self.plan.power_needs
+        }
+        wanted = needs.get(power.science.lower())
+        if wanted is None:
+            return True
+        return any(o.template_name.lower().startswith(wanted) for o in self.observation.mine)
+
     def power_options(self) -> list[PowerButton]:
         """Every power the spell store would sell right now, cheapest first.
 
-        Four things disqualify a power, and each is the data saying so rather than a rule here:
+        Five things disqualify a power, and each is the data saying so rather than a rule here:
 
         - the slot sells nothing (`purchasable`) - every book is padded to twenty slots with
           `Command_PurchaseSpellEmpty`, and its `SCIENCE_Empty` is not grantable and asks for
           both alignments at once;
         - it is already held, which is the live answer and includes anything granted;
         - its prerequisites are unmet, so the store would show it greyed out;
-        - the points do not cover it.
+        - the points do not cover it;
+        - what it acts on is not on the map - see `power_wanted`, which is the one of the five
+          that reads the board rather than the store.
 
         **Cheapest first, which is what opens the tree.** The book is a tree with the powers
         worth having at the top of it, so buying by value would mean saving for something no
@@ -175,6 +202,7 @@ class Powers(Economy):
             and power.science.lower() not in held
             and power.enabled_for(held)
             and power.cost <= me.power_points
+            and self.power_wanted(power)
             and self.science_id(power.science) is not None
             and not self._cold(f"power:{power.science.lower()}")
         ]

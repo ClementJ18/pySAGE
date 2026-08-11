@@ -49,7 +49,7 @@ class Resolver:
     **Matching is case-insensitive where that is unambiguous**, because ini identifiers are and
     because every other name surface in `sage_live` already honours it - `Statics` and
     `Observation.find` both lowercase. Without this a name accepted by one half of the library
-    was rejected by the other: `GondorMarketplace` classifies fine and resolves to nothing,
+    is rejected by the other: `GondorMarketplace` classifies fine and resolves to nothing,
     and the real template is `GondorMarketPlace`.
 
     Where it is *not* unambiguous the exact spelling is still required. A table may hold two

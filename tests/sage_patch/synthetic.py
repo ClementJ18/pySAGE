@@ -26,16 +26,18 @@ from __future__ import annotations
 import struct
 
 from sage_patch import addresses as ad
+from sage_patch.patches import campaign_select as cs
 from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather_wb as wb
+from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
-from sage_patch.patches import kind_of as ko
-from sage_patch.patches import locomotor_sets as ls
-from sage_patch.patches import model_conditions as mc
 from sage_patch.patches import multi_instance as mi
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import production_condition as pc
-from sage_patch.patches import weapon_set_flags as ws
+from sage_patch.patches.utils import kind_of as ko
+from sage_patch.patches.utils import locomotor_sets as ls
+from sage_patch.patches.utils import model_conditions as mc
+from sage_patch.patches.utils import weapon_set_flags as ws
 
 IMAGE_BASE = 0x400000
 
@@ -285,6 +287,40 @@ def observer_switch_image() -> bytearray:
             **obs.ANCHORS,
         }
     )
+
+
+def campaign_select_image() -> bytearray:
+    """A stand-in carrying the shell's campaign callback and the three sites the patch reads.
+
+    Sparse for the usual reason: the callback, the start thunk's static bind and
+    `AsciiString::set` span most of five megabytes between them and the patch touches four pages
+    of it. Everything else reads as zero, so a check that looked one instruction to either side of
+    where it claims to would find nothing there.
+    """
+    return _sparse_image(
+        {
+            ad.MAIN_MENU_CAMPAIGN_HANDLER: ad.MAIN_MENU_CAMPAIGN_HANDLER_BYTES,
+            **cs.ANCHORS,
+        }
+    )
+
+
+def hero_bar_slots_image() -> bytearray:
+    """A stand-in carrying every site `hero-bar-slots` rewrites, in its stock 16-slot form.
+
+    Driven off the patch's own tables, so what it exercises is the arithmetic and the
+    apply/verify/detect machinery rather than the addresses - which a stand-in restating them
+    could only ever confirm against itself. The addresses are derived in
+    `docs/hero-bar-slots.md` and checked against the real binary by `TestInstalledBinary`.
+    """
+    planted: dict[int, bytes] = {
+        hbs.CLASS_SIZE_SITE: hbs.CLASS_SIZE_OPCODE + struct.pack("<I", hbs.STOCK_CLASS_SIZE)
+    }
+    for count_site in hbs.COUNT_SITES:
+        planted[count_site.va] = count_site.encode(hbs.STOCK_SLOTS)
+    for field_site in hbs.FIELD_SITES:
+        planted[field_site.va] = bytes.fromhex(field_site.original)
+    return _sparse_image(planted)
 
 
 def instance_guard_image(patch: mi._MutexGuardPatch) -> bytearray:

@@ -11,7 +11,7 @@ import math
 import time
 
 from sage_live.api.observation import GameObject, distance
-from sage_live.utils.statics import CastablePower
+from sage_live.utils.statics import CastablePower, PowerButton
 from sage_mods.edain.bot.ledger import Ledger
 from sage_mods.edain.bot.powers import Powers
 from sage_mods.edain.bot.tuning import (
@@ -417,3 +417,83 @@ def test_a_power_naming_no_template_is_still_not_template_specific() -> None:
     """None and the empty list mean different things, and the grant test must not confuse them."""
     field = Named([signal_fire(1, BLESSED)], set())
     assert field.filter_targets(aid()) is None
+
+
+#
+# What is worth buying. Almost every power is worth its points the moment it is affordable; the
+# ones that buy an upgrade are not, because an upgrade has to land on something.
+
+
+class Store:
+    """`power_wanted` over a stub - it needs the plan's table and what is standing."""
+
+    power_wanted = Powers.power_wanted
+
+    def __init__(self, mine: list[GameObject], needs: tuple) -> None:
+        self.observation = _Mine(mine)
+        self.plan = _Plan(needs)
+
+
+class _Plan:
+    def __init__(self, power_needs: tuple) -> None:
+        self.power_needs = power_needs
+
+
+def standing(template: str) -> GameObject:
+    return GameObject(
+        object_id=1,
+        template_name=template,
+        template_side="Men",
+        position=(0.0, 0.0, 0.0),
+        angle=0.0,
+        health=1.0,
+        max_health=1000.0,
+    )
+
+
+def white(cost: int = 5):  # noqa: ANN202
+    """Gandalf the White, as `spell_store` reads it off `MenPurchaseScienceCommandSetMP`."""
+    return PowerButton(
+        command_slot=6,
+        button="Command_PurchaseSpellGandalftheWhite",
+        science="SCIENCE_GandalftheWhite",
+        cost=cost,
+    )
+
+
+GANDALF = (("SCIENCE_GandalftheWhite", ("GondorGandalf",)),)
+
+
+def test_an_upgrade_power_waits_for_the_hero_that_wears_it() -> None:
+    """`SpellBookGandalftheWhite` grants `Upgrade_GandalfWhite`, which only Gandalf reads. Five of
+    the book's points spent with him off the map buy nothing at all, and points are not refunded."""
+    field = Store([standing("GondorBeregond")], GANDALF)
+    assert not field.power_wanted(white())
+
+
+def test_the_hero_on_the_map_opens_the_purchase() -> None:
+    """The cycle after he appears, out of the ring quest or the White Council - this plan does not
+    recruit him itself."""
+    field = Store([standing("GondorBeregond"), standing("GondorGandalf")], GANDALF)
+    assert field.power_wanted(white())
+
+
+def test_a_variant_of_the_same_hero_counts() -> None:
+    """Matched by prefix the way `precious` is: `GondorGandalf_WhiteCouncil` and the two ring-quest
+    forms are all the hero the upgrade is for, and a plan should not have to list them."""
+    field = Store([standing("GondorGandalf_WhiteCouncil")], GANDALF)
+    assert field.power_wanted(white())
+
+
+def test_every_other_power_is_wanted_on_sight() -> None:
+    """The rule this stage is built on - a summon lands wherever it is aimed, so "is there anything
+    to use it on" is the casting stage's question and never the store's."""
+    eagles = PowerButton(
+        command_slot=7, button="Command_PurchaseSpellAdler", science="SCIENCE_Adler", cost=7
+    )
+    assert Store([], GANDALF).power_wanted(eagles)
+
+
+def test_a_faction_whose_plan_names_no_such_power_gates_nothing() -> None:
+    """Mordor today. The table is empty and the filter must cost a lookup and nothing else."""
+    assert Store([], ()).power_wanted(white())

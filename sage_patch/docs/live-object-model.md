@@ -94,10 +94,11 @@ a 318-object match:
 | objects reached by walking `next` from the head | 318 of 318 |
 
 A star would be a container; a single chain with in-degree 1 and a clean head and tail is a
-list. So the earlier readings were both artefacts of **creation order**: a battalion's members
-are created consecutively, so `next` looks like "the next member of my horde" and `prev` looks
-like "my containing horde"; wall segments are created consecutively too, so the same fields
-looked like a neighbour chain. Neither reading survives asking the whole table at once.
+list. Reading these two fields as horde membership, or as a wall's neighbour chain, is an
+artefact of **creation order**: a battalion's members are created consecutively, so `next`
+looks like "the next member of my horde" and `prev` looks like "my containing horde"; wall
+segments are created consecutively too, so the same fields look like a neighbour chain. Neither
+reading survives asking the whole table at once.
 
 Two consequences. **Horde membership is not readable here at all** — `sage_live` leaves
 `parent_id` unset because the information is absent, not because it is ambiguous. And this is a
@@ -431,7 +432,7 @@ several *different* expected values, then keep only the location consistent with
   | `module+0x34` | queue **length** — a count, so "is it busy" needs no walk |
   | `entry+0x4C` | previous entry |
 
-  Two corrections while reading it. The queue is **appended** to, not prepended
+  Two things to get right while reading it. The queue is **appended** to, not prepended
   (`production-model-condition.md` says prepended): the head is written only when the list is
   empty, and the tail always. And a unit entry keeps its `ThingTemplate*` at `entry+0x08`, not
   at the `+0x0C` an upgrade uses — `queueCreateUnit` writes `[esi+4]=1; [esi+8]=what` for a
@@ -439,9 +440,9 @@ several *different* expected values, then keep only the location consistent with
 
   `sage_live.backends.memory` reads all of this per object, and checks the walk landed correctly by
   requiring the module's own `Object*` back-pointer to name the object it was reached from.
-- ~~Horde membership~~ — **found: `Object+0x27C` is what contains this object.** The two link
-  fields at `+0x8C`/`+0x90` really are the global list's `next`/`prev`, as recorded above; the
-  container link is a separate inline pointer, and a container's own is null.
+- **Horde membership: `Object+0x27C` is what contains this object.** The two link fields at
+  `+0x8C`/`+0x90` are the global list's `next`/`prev`, as recorded above; the container link is
+  a separate inline pointer, and a container's own is null.
 
   Found differentially rather than by disassembly, which a live match makes cheap: of all 256
   dwords in a member's first `0x400` bytes, this is the one holding its container's address,
@@ -454,18 +455,17 @@ several *different* expected values, then keep only the location consistent with
 
   Presumably `m_containedBy`, so a garrisoned or transported object should report its holder
   here too; only horde membership has been observed, so only that is claimed.
-- ~~Per-object shroud~~ — **fog of war is solved, though not by this route.** Per-player
-  visibility is now readable from `TheShroudManager`'s per-cell grid, which answers "can this
+- **Per-object shroud — fog of war is solved, though not by this route.** Per-player
+  visibility is readable from `TheShroudManager`'s per-cell grid, which answers "can this
   seat see that right now" without `PartitionData` at all — see
-  [`fog-of-war.md`](fog-of-war.md), and note that document's correction to
-  `ThePartitionManager`'s address (`0x00DE4354`; `0x00DE4358` is `TheShroudManager`, and the
-  109 references counted below are its).
+  [`fog-of-war.md`](fog-of-war.md). `ThePartitionManager` is `0x00DE4354`; `0x00DE4358` is
+  `TheShroudManager`, and the 109 references counted below are its.
 
-  What remains open is narrower than it was: the per-object `m_everSeenByPlayer`, which is what
-  keeps a scouted building drawn after the scout leaves. The grid has no such state, so a
-  consumer's fog has no memory. The record below stands as written.
+  What remains open is the per-object `m_everSeenByPlayer`, which is what keeps a scouted
+  building drawn after the scout leaves. The grid has no such state, so a consumer's fog has no
+  memory.
 
-  **The original hunt, and why the cheap approach is ruled out.**
+  **Why the cheap approach is ruled out.**
   [`max-player-count.md`](max-player-count.md) documents `PartitionData` as carrying
   `ObjectShroudStatus m_shroudedness[N]` **per object**, which would make fog a per-object
   lookup rather than a grid query. The hop from `Object` to it was hunted differentially in a
@@ -480,12 +480,10 @@ several *different* expected values, then keep only the location consistent with
   whatever holds it, or is keyed by the object's `m_lastCell` through `ThePartitionManager`
   rather than pointed at directly.
 
-  **The static attempt got as far as the manager and no further.** `ThePartitionManager` is
-  `0x00DE4358`, recovered from its registration site the way the other subsystem globals were
-  (name string at `0x00BFDC08` pushed at `0x0062CECB`; the 20-byte object built immediately
-  after is stored at `0x0062CF01`) - and the same reading of the `TheGameLogic` registration
-  returns its known `0x00DE412C`, which is what makes the method trustworthy here. It is
-  referenced from **109** sites, too many to read by hand.
+  **The static route reaches the manager and no further.** `ThePartitionManager` is
+  `0x00DE4354`, recovered from its registration site the way the other subsystem globals are
+  ([`fog-of-war.md`](fog-of-war.md) §1 has the derivation and the neighbouring globals). It is
+  referenced from **285** sites, too many to read by hand.
 
   A scan for the accessor's *shape* - load a member pointer out of `this`, then index an array
   by an argument - found nothing, because it required `this` to still be in `ecx`, which it
@@ -502,7 +500,7 @@ several *different* expected values, then keep only the location consistent with
   Needs the team list itself, presumably a `TheTeamFactory`-style global.
 - `Player+0x06C` sits with the command-point fields and moved 200 → 400 when a command-point
   grant fired, but has not been matched to anything the game displays.
-- ~~Fog of war~~ — **done.** Everything above still reads the whole map, which is the right
+- **Fog of war — done.** Everything above still reads the whole map, which is the right
   thing for it to do; the filter is a separate deliberate step built on the shroud grid.
   `sage_live.api.shroud` holds the model, `Observation.under_fog` applies it, and
   [`fog-of-war.md`](fog-of-war.md) records the recovery.

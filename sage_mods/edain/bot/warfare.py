@@ -32,6 +32,7 @@ from sage_mods.edain.bot.tuning import (
     CLOSING,
     CONTEST_ODDS,
     CONTEST_RADIUS,
+    COUNTER_EDGE,
     DEFEND_COMMITMENT,
     DEFEND_CONTACT,
     DEFEND_KEEPALIVE,
@@ -196,6 +197,18 @@ class Warfare(Recruiting, FactionMechanics, Formations):
         screen that takes half the party is just the fight the party was avoiding - and never the
         whole force, so there is always somebody still swinging at the target.
 
+        **And before the one-battalion rule, whoever actually beats the thing.** A creep lair is
+        the case that breaks "one, nearest": its slaves are output rather than opposition, so the
+        party stands in them for the whole demolition, and which battalions are standing in them
+        is a matchup the engine has already computed. `counters` reads it - see `COUNTER_EDGE`,
+        where the tree's own armour blocks make a spear line the answer to a warg or a troll and
+        a swordsman the wrong one by a factor of three. Those go and meet the slaves; the rest
+        knock the lair down while the slaves are busy, which is the arrangement rather than the
+        beating.
+
+        The one-battalion rule stays underneath as the answer for a party with nothing
+        distinctive in it, which is what it was measured for.
+
         Only when the party's own target is a building: against troops the party already has the
         right idea, and splitting there would be two half-strength fights. Returns whoever was
         given their own order, so the caller sends the rest at the structure without them.
@@ -217,8 +230,38 @@ class Warfare(Recruiting, FactionMechanics, Formations):
         mark = min(alive, key=lambda o: min(p.distance_to(o.position) for p in pointed))
         if archers and len(archers) < len(force):
             return archers, self.engage(archers, mark, "what is in reach", f"{key}:bows")
+        beating = self.counters(force, mark)
+        if beating:
+            what = f"what {len(beating)} of us beat"
+            return beating, self.engage(beating, mark, what, f"{key}:counter")
         nearest = min(force, key=lambda o: o.distance_to(mark.position))
         return [nearest], self.engage([nearest], mark, "what is on us", f"{key}:screen")
+
+    def trades_into(self, unit: GameObject, target: GameObject) -> float:
+        """How well `unit` trades into `target` - the engine's own number, 1.0 for an even fight.
+
+        A thin wrapper, and it is here so that the two callers below read as one idea rather than
+        as two copies of a `Statics` call. `effectiveness` makes the horde-to-payload hop itself,
+        so both templates go in exactly as the observation spells them.
+        """
+        return self.statics.effectiveness(unit.template_name, target.template_name)
+
+    def counters(self, force: list[GameObject], mark: GameObject) -> list[GameObject]:
+        """The battalions in `force` that beat `mark` clearly enough to be worth peeling off.
+
+        **Empty when everybody qualifies, and that is the important half.** The list is meant to
+        answer "who in this party is *for* this", so a party where every battalion clears
+        `COUNTER_EDGE` has no such answer - splitting it would put the whole force on the slaves
+        and leave nothing on the lair, which is the fight `screen` exists to avoid. Empty when
+        nobody clears it either, for the same reason from the other end: no edge is not a reason
+        to reorganise, and the caller's one-battalion rule is the right answer there.
+
+        Reads no template name, so it finds a Mordor pike answering an Angmar warg exactly as it
+        finds Gondor's answering a hill troll.
+        """
+        trades = {o.object_id: self.trades_into(o, mark) for o in force}
+        picked = [o for o in force if trades[o.object_id] >= COUNTER_EDGE]
+        return picked if 0 < len(picked) < len(force) else []
 
     def worth_taking(
         self, army: list[GameObject], held_flag: int | None, spoken_for: set[int]

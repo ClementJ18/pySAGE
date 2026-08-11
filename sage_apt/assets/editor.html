@@ -259,6 +259,7 @@ var selUid      = null;
 var dirty       = false;
 var renderTimer = null;
 var forcedLabel = '';          // frame-label state to render sprites in ('' = default heuristic)
+var forcedFrame = null;        // explicit root frame index from `--frame` (null = use the label)
 var textureManifest = {};      // image id -> [w,h] for images the server can render as artwork
 var geometryData = {};         // geometry id -> [fill,...] for textured/solid shape rendering
 var clipCounter = 0;           // unique ids for per-fill clipPaths, reset each render
@@ -289,6 +290,8 @@ function loadXML() {
     document.getElementById('fn').textContent = d.filename;
     xmlDoc = new DOMParser().parseFromString(d.content, 'text/xml');
     undoStack = []; redoStack = []; updateUndoButtons();
+    forcedLabel = d.label || '';
+    forcedFrame = (typeof d.frame === 'number') ? d.frame : null;
     buildCharMap();
     populateLabelSelect();
     populateAddCharSelect();
@@ -372,16 +375,79 @@ function getFrameData(spriteElem) {
   return {labelIdx:labelIdx, frames:frames};
 }
 
+// PlaceObject flag -> attributes a record carries when that flag is set (mirrors _MOVE_ATTRS).
+var MOVE_ATTRS = {
+  hasmatrix: ['rotm00','rotm01','rotm10','rotm11','tx','ty'],
+  hascolortransform: ['red','green','blue','alpha'],
+  hasratio: ['ratio'],
+  hasclipdepth: ['clipdepth']
+};
+
+// The flags set on a placeobject, lowercased. No <poflags> child means a plain placement.
+function poFlags(item) {
+  var out = {};
+  var el = null;
+  for (var i = 0; i < item.children.length; i++) {
+    if (item.children[i].tagName === 'poflags') { el = item.children[i]; break; }
+  }
+  if (!el) {
+    if (parseInt(item.getAttribute('character')) >= 0) out.hascharacter = true;
+    return out;
+  }
+  (el.getAttribute('value') || '').split('|').forEach(function(f) {
+    f = f.trim().toLowerCase();
+    if (f) out[f] = true;
+  });
+  return out;
+}
+
+// A live stage object: the placeobject that placed it (the node an edit writes to, and the
+// source of the character) plus the attributes/name any later Move records left on it.
+function placed(elem, attrs, name) { return {elem: elem, attrs: attrs, name: name}; }
+
+function poAttrs(item) {
+  var a = {};
+  for (var i = 0; i < item.attributes.length; i++) a[item.attributes[i].name] = item.attributes[i].value;
+  return a;
+}
+
+function poName(item) {
+  var el = item.querySelector('poname');
+  return el ? (el.getAttribute('name') || '') : '';
+}
+
+function poChar(rec) {
+  var c = parseInt(rec.attrs['character']);
+  return isNaN(c) ? -1 : c;
+}
+
+function applyMove(prev, item, flags) {
+  var attrs = {};
+  for (var k in prev.attrs) attrs[k] = prev.attrs[k];
+  Object.keys(MOVE_ATTRS).forEach(function(flag) {
+    if (!flags[flag]) return;
+    MOVE_ATTRS[flag].forEach(function(n) {
+      var v = item.getAttribute(n);
+      if (v !== null) attrs[n] = v;
+    });
+  });
+  return placed(prev.elem, attrs, flags.hasname ? poName(item) : prev.name);
+}
+
+// Accumulate stage state to targetIdx. A HasCharacter record places a new object; a Move
+// record with no character updates whatever is already at that depth (a fade-in raising
+// alpha, say) rather than removing it. Removal is its own `removeobject` record.
 function accumulateTo(frames, targetIdx) {
   var state = {};
   for (var i = 0; i <= targetIdx && i < frames.length; i++) {
     for (var j = 0; j < frames[i].children.length; j++) {
       var item = frames[i].children[j];
+      if (item.tagName === 'removeobject') { delete state[parseInt(item.getAttribute('depth'))]; continue; }
       if (item.tagName !== 'placeobject') continue;
-      var depth   = parseInt(item.getAttribute('depth'));
-      var charId  = parseInt(item.getAttribute('character'));
-      if (charId < 0) delete state[depth];
-      else state[depth] = item;
+      var depth = parseInt(item.getAttribute('depth'));
+      var flags = poFlags(item);
+      if (flags.hascharacter) state[depth] = placed(item, poAttrs(item), poName(item));
+      else if (flags.move && (depth in state)) state[depth] = applyMove(state[depth], item, flags);
     }
   }
   return Object.keys(state).sort(function(a,b){return a-b;}).map(function(d){return state[d];});
@@ -399,7 +465,16 @@ function bestFrameItems(spriteElem) {
       if (items.length) return items;
     }
   }
-  return accumulateTo(fd.frames, 0);
+  var items0 = accumulateTo(fd.frames, 0);
+  if (items0.length) return items0;
+  // Frame 0 is a placeholder and the content lives on named state frames (a faction
+  // switcher's _Men / _Elves / ...): show the earliest labelled frame that has any.
+  var byIdx = Object.keys(fd.labelIdx).sort(function(a,b){ return fd.labelIdx[a] - fd.labelIdx[b]; });
+  for (var q = 0; q < byIdx.length; q++) {
+    var it = accumulateTo(fd.frames, fd.labelIdx[byIdx[q]]);
+    if (it.length) return it;
+  }
+  return [];
 }
 
 // matrix utilities
@@ -411,14 +486,15 @@ function matCompose(P, C) {
     P[1]*C[4]+P[3]*C[5]+P[5]
   ];
 }
-function poLocal(po) {
+function poLocal(rec) {
+  var a = rec.attrs;
   return [
-    parseFloat(po.getAttribute('rotm00')||'1'),
-    parseFloat(po.getAttribute('rotm01')||'0'),
-    parseFloat(po.getAttribute('rotm10')||'0'),
-    parseFloat(po.getAttribute('rotm11')||'1'),
-    parseFloat(po.getAttribute('tx')||'0'),
-    parseFloat(po.getAttribute('ty')||'0')
+    parseFloat(a['rotm00']||'1'),
+    parseFloat(a['rotm01']||'0'),
+    parseFloat(a['rotm10']||'0'),
+    parseFloat(a['rotm11']||'1'),
+    parseFloat(a['tx']||'0'),
+    parseFloat(a['ty']||'0')
   ];
 }
 function matStr(m) {
@@ -460,16 +536,23 @@ function renderSVG() {
   }
   if (!mc) return;
 
-  // Root frame: default frame 0, or the frame a chosen label names on the root timeline.
+  // Root frame: an explicit frame index, the frame a chosen label names, else frame 0.
   var fd = getFrameData(mc);
   if (!fd.frames.length) return;
-  var targetIdx = (forcedLabel && (forcedLabel in fd.labelIdx)) ? fd.labelIdx[forcedLabel] : 0;
+  var targetIdx = rootFrameIndex(fd);
   var rootItems = accumulateTo(fd.frames, targetIdx);
   for (var j = 0; j < rootItems.length; j++) {
-    var po = rootItems[j];
-    var cid = parseInt(po.getAttribute('character'));
-    if (cid >= 0) renderChar(cid, poLocal(po), po, stage, 0, null);
+    var rec = rootItems[j];
+    if (poChar(rec) >= 0) renderChar(poChar(rec), poLocal(rec), rec, stage, 0, null);
   }
+}
+
+// The root frame on screen: `forcedFrame` (clamped) wins, else the frame `forcedLabel`
+// names on the root timeline, else frame 0.
+function rootFrameIndex(fd) {
+  if (forcedFrame !== null) return Math.max(0, Math.min(forcedFrame, fd.frames.length - 1));
+  if (forcedLabel && (forcedLabel in fd.labelIdx)) return fd.labelIdx[forcedLabel];
+  return 0;
 }
 
 // Populate the state dropdown with every frame label the movie declares (root + sprites).
@@ -537,12 +620,15 @@ function renderShapeFills(g, fills) {
   });
 }
 
+// rec: the `placed` record for this element. `rec.elem` is the placing placeobject - the
+// node the properties panel edits - while rec.attrs/rec.name carry any Move updates.
 // ownerUid: uid of the sprite instance that contains this element (null if top-level)
-function renderChar(charId, worldT, poNode, stage, depth, ownerUid) {
+function renderChar(charId, worldT, rec, stage, depth, ownerUid) {
   if (depth > 12) return;
   var ch = chars[charId];
   if (!ch) return;
   var tag = ch.tagName;
+  var poNode = rec.elem;
 
   if (tag === 'sprite') {
     var key = charId+','+Math.round(worldT[4])+','+Math.round(worldT[5]);
@@ -556,11 +642,10 @@ function renderChar(charId, worldT, poNode, stage, depth, ownerUid) {
     svgElems.set(spriteUid, []);
     var items = bestFrameItems(ch);
     for (var i = 0; i < items.length; i++) {
-      var po2 = items[i];
-      var cid2 = parseInt(po2.getAttribute('character'));
-      if (cid2 < 0) continue;
+      var rec2 = items[i];
+      if (poChar(rec2) < 0) continue;
       // Pass spriteUid so leaves inside inherit this sprite's uid
-      renderChar(cid2, matCompose(worldT, poLocal(po2)), po2, stage, depth+1, spriteUid);
+      renderChar(poChar(rec2), matCompose(worldT, poLocal(rec2)), rec2, stage, depth+1, spriteUid);
     }
     VISITED.delete(key);
     return;
@@ -606,8 +691,7 @@ function renderChar(charId, worldT, poNode, stage, depth, ownerUid) {
       g.appendChild(rc);
 
       if ((r-l) > 25 && (b-t) > 10) {
-        var pn2 = poNode.querySelector('poname');
-        var lbl = pn2 ? (pn2.getAttribute('name')||'') : '';
+        var lbl = rec.name;
         if (lbl) {
           var tx2 = document.createElementNS(SVG_NS, 'text');
           tx2.setAttribute('x', (l+r)/2); tx2.setAttribute('y', (t+b)/2+4);
@@ -1096,14 +1180,13 @@ function movieClipEl() {
   }
   return null;
 }
-// the root frame currently on screen (frame 0, or the frame the state dropdown names)
+// the root frame currently on screen (see rootFrameIndex: --frame, the state dropdown, or 0)
 function currentRootFrame() {
   var mc = movieClipEl();
   if (!mc) return null;
   var fd = getFrameData(mc);
   if (!fd.frames.length) return null;
-  var idx = (forcedLabel && (forcedLabel in fd.labelIdx)) ? fd.labelIdx[forcedLabel] : 0;
-  return fd.frames[idx] || null;
+  return fd.frames[rootFrameIndex(fd)] || null;
 }
 function maxDepth(frameNode) {
   var m = -1;
@@ -1287,6 +1370,7 @@ document.getElementById('del-btn').addEventListener('click', deleteSelected);
 // frame-label state dropdown: re-render sprites in the chosen state, keep the selection
 document.getElementById('label-select').addEventListener('change', function() {
   forcedLabel = this.value;
+  forcedFrame = null;  // an explicit --frame pin gives way once a state is picked by hand
   var savedPo = (selUid !== null) ? poRegistry.get(selUid) : null;
   renderSVG();
   if (savedPo) poRegistry.forEach(function(pn, uid){ if (pn === savedPo) selectElem(uid); });

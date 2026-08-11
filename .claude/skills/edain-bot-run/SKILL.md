@@ -59,9 +59,13 @@ python tools/game_macro.py start tools/recordings/cold-start-1080x720.json `
     --launch "C:\Users\Clement\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\ROTWK Debug"
 
 # 4. the bot - only once step 3 reports "match is running"
+New-Item -ItemType Directory -Force sage_mods/edain/bot/runs | Out-Null
 python -u -m sage_mods.edain.bot --game "C:\Program Files (x86)\Games\bfme\rotwk" `
-    --fog --no-camera --cycles 1400 --wait 3600 2>&1 | tee run.log
+    --fog --no-camera --cycles 1400 --wait 3600 2>&1 | tee sage_mods/edain/bot/runs/run.log
 ```
+
+`sage_mods/edain/bot/runs/` is gitignored, and it is where every run transcript belongs - the
+kept ones are renamed `run-<n>-<what-happened>.log` once the match is over.
 
 Step 3 prints `match is running` when the menus are through; that is the signal to start step 4.
 The bot then spends about a minute loading the ini tree before its first order, so the opening it
@@ -177,7 +181,7 @@ Budget `--cycles 1400`+ for a run intended to actually finish.
 Filter the log rather than reading it - 1400 cycles is ~2800 lines:
 
 ```bash
-tail -f run.log | grep -E --line-buffered -A 1 \
+tail -f sage_mods/edain/bot/runs/run.log | grep -E --line-buffered -A 1 \
   "the match ended|the game is gone|defeat:|victory:|stopped after|Traceback|NOT QUEUED|could not be sent|^\[ *[0-9]*00\] "
 ```
 

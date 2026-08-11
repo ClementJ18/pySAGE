@@ -3,7 +3,7 @@
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read from the repo's
 clean `game.dat`. This is the writeup for the **`inflation-readout`** patch,
 [`patches/inflation_readout.py`](../patches/inflation_readout.py), with the cross-patch link in
-[`patches/income_link.py`](../patches/income_link.py) and the tests in
+[`patches/utils/income_link.py`](../patches/utils/income_link.py) and the tests in
 [`tests/sage_patch/test_inflation_readout.py`](../../tests/sage_patch/test_inflation_readout.py).
 
 **What it does.** The local player's current *income* multiplier — the per-resource-building
@@ -286,7 +286,7 @@ Client-local and read-only means the multiplayer rule is `replay-outcome`'s, not
 cross. Nothing this patch reads or writes enters the simulation.
 
 Repo-side that came out as [`patches/inflation_readout.py`](../patches/inflation_readout.py), the
-shared [`patches/income_link.py`](../patches/income_link.py), one line in
+shared [`patches/utils/income_link.py`](../patches/utils/income_link.py), one line in
 [`registry.py`](../registry.py) and this document. `ini_surface()` stays `STOCK` — no
 `Engine`/`FieldDelta` work and no `docs/ini-types.json` follow-up, which is the open item both
 `hero-mana` and `command-point-upkeep` still carry.
@@ -367,7 +367,7 @@ here: if `inflation-readout` simply baked upkeep's address in when it found `.up
 applying the two in the other order would also "succeed" and silently drop the upkeep factor.
 Both orders pass, and they disagree. That is the one failure the framework cannot catch.
 
-The fix, in [`patches/income_link.py`](../patches/income_link.py), is a **null function pointer
+The fix, in [`patches/utils/income_link.py`](../patches/utils/income_link.py), is a **null function pointer
 that either patch can fill**, so whichever applies second completes the link:
 
 - **`.upkeep + 0x04` (`UPKEEP_EXPORT_OFF`) — the export slot.** `command-point-upkeep` already
@@ -406,9 +406,9 @@ ends up calling the same address either way.
 
 Two consequences worth knowing:
 
-- **Upkeep draws nothing of its own any more.** Earlier versions appended `(-10%)` to the
-  palantir's command-point line; that number is a strict subset of what the multiplier slot now
-  shows, so it was removed rather than shown twice, and with it upkeep's `--no-hud` flag.
+- **Upkeep draws nothing of its own.** Its penalty is a strict subset of what the multiplier
+  slot shows, so it is not drawn twice — which is why `command-point-upkeep` has no `--no-hud`
+  flag.
 - **No flag on `inflation-readout`.** If both patches are in the file the readout is combined,
   full stop; nobody wants a multiplier that is deliberately wrong. If an escape hatch is ever
   needed, a `0xFFFFFFFF` sentinel in the import slot that upkeep declines to overwrite costs three
@@ -424,7 +424,7 @@ Two consequences worth knowing:
   currently avoids, and collides with `second-resource`'s bracket.
 - **What to show.** The shipped form is the free one, `x0.7`. A penalty reading (`-30%`) would
   need the patch's own format string and a second hook at `0x00800844`, roughly what
-  `command-point-upkeep`'s old `_emit_text` cost. Add a `--style percent` only if `x0.7` reads
+  `second-resource`'s `_emit_text` costs. Add a `--style percent` only if `x0.7` reads
   badly in game; there is no flag today.
 - **War of the Ring.** In a live region battle the slot is the region bonus and this patch never
   runs — the hook is on the skirmish fallback only. That is the shipped default. Showing both

@@ -26,7 +26,7 @@ two ways to see what you are editing:
 python -m sage_apt to-xml SpellStore.apt
 
 # Decompile a .apt whose .const only lives inside the game's .big archives
-python -m sage_apt to-xml SpellStore.apt --game-dir "C:/.../BfME2"
+python -m sage_apt to-xml SpellStore.apt --game "C:/.../BfME2"
 
 # Compile the XML back into the binary pair
 python -m sage_apt to-apt SpellStore.xml
@@ -44,9 +44,14 @@ python -m sage_apt view SpellStore.xml --label _on
 # Open the interactive editor (saves the XML, exports .apt on demand)
 python -m sage_apt edit SpellStore.xml --port 8080
 
+# Open the editor on a given root frame / frame-label state, for movies whose frame 0 is
+# an empty hidden state (the in-game HUD ones: InGameHeroSelect parks on `_hide`)
+python -m sage_apt edit InGameHeroSelect.xml --label _show
+python -m sage_apt edit InGameHeroSelect.xml --frame 19
+
 # Render real artwork instead of image placeholders (needs the [apt]/[ui] extra)
-python -m sage_apt view Palantir.xml --game-dir "C:/.../Edain-Mod/_mod"
-python -m sage_apt edit Palantir.xml --game-dir "C:/.../Edain-Mod/_mod"
+python -m sage_apt view Palantir.xml --game "C:/.../Edain-Mod/_mod"
+python -m sage_apt edit Palantir.xml --game "C:/.../Edain-Mod/_mod"
 ```
 
 ## Library
@@ -70,16 +75,28 @@ never leaves a partial `.apt` beside a stale `.const`.
 
 ## Notes
 
-- With `--game-dir` and the `[apt]`/`[ui]` extra, both texture paths render real artwork:
+- With `--game` and the `[apt]`/`[ui]` extra, both texture paths render real artwork:
   `image` characters via the `.dat` image map (texture id + crop rectangle), and `shape`
   characters via their `<Movie>_geometry/<id>.ru` mesh (solid + textured fills, the latter
   UV-mapped from the `apt_<Movie>_<id>` atlas). This needs the movie's `.dat`, its
-  `_geometry/` directory, and the atlas texture reachable under `--game-dir`. Without the
+  `_geometry/` directory, and the atlas texture reachable under `--game`. Without the
   extra / game dir, elements fall back to placeholders.
-- `to-xml --game-dir <dir>` resolves the `.const` (or the `.apt` itself) out of the `.big`
+- `to-xml --game <dir>` resolves the `.const` (or the `.apt` itself) out of the `.big`
   archives beneath `<dir>` when it is not a loose file - a loose file beside the `.apt`
   still wins. Needs the optional `[apt]` extra (`pip install "pysage-tools[apt]"`, pulls in pyBIG);
   the core stays stdlib-only.
+- **A blank stage usually means frame 0, not a broken file.** Movies that the game shows and
+  hides put nothing on frame 0 - `InGameHeroSelect`'s is labelled `_hide` and holds only a
+  background, with all 33 elements placed on `_fadein` (frame 9) and revealed by `_show`
+  (frame 19). Pass `--frame` / `--label` (or pick a state from the editor's dropdown) to see
+  them. Sprites whose own frame 0 is an empty placeholder - a faction switcher parked on
+  `_unused`, its images on `_Men` / `_Elves` / ... - fall back to their earliest non-empty
+  labelled frame so they still draw.
+- A placeobject carrying `Move` without `HasCharacter` (written as `character="-1"`) *updates*
+  the object already at its depth, overwriting only the fields its own flags name - it is not
+  a removal, which is what `removeobject` is for. The renderers keep the placing record as the
+  node the editor writes to, so a `Move` that carries `HasMatrix` shows a position the
+  properties panel does not report; no shipped movie does that today.
 - `edittext` colour attributes are stored byte-swapped relative to placeobjects
   (red=alpha, green=red, blue=green, alpha=blue); the XML mirrors the raw layout and
   the editor shows a warning in the edittext panel.

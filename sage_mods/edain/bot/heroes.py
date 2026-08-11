@@ -47,11 +47,14 @@ from sage_mods.edain.bot.tuning import (
     HERO_CAST_TARGETS,
     HERO_ESCORT,
     HERO_FLOOR,
+    HERO_HEAL_TARGETS,
+    HERO_HEAL_THRESHOLD,
     HERO_PURPOSE,
     HERO_REORDER,
     HERO_RETREAT,
     HERO_RETURN,
     QUEUE_TARGET,
+    SUMMONED,
 )
 from sage_mods.edain.bot.warfare import Warfare
 
@@ -153,14 +156,18 @@ class Heroes(Warfare):
         an upgrade nobody has bought is a hero the control bar is not showing.
 
         A full queue disqualifies a building the same way it does for an ordinary recruit - the
-        order would be taken and dropped.
+        order would be taken and dropped. So does a building that has not finished going up, for
+        the opposite reason: its revive slots read as enabled while it is still a shell, the
+        order is *accepted*, and the hero then waits on the construction instead of on a revive
+        timer - with the price already committed and nothing to show that it is stalled. See
+        `production_sites`.
         """
         index = self.session.revive_index(hero)
         if index is None:
             # Not in the list at all - already on the map, or not a hero of this faction. Both
             # are ordinary answers, and neither is something to send an order about.
             return None
-        for building in self.structures():
+        for building in self.production_sites():
             if self.queued_units(building) >= QUEUE_TARGET:
                 continue
             slots = self.statics.revive_slots(building.template_name)
@@ -440,6 +447,22 @@ class Heroes(Warfare):
         """
         return power.ability_range or HERO_ESCORT
 
+    def hero_cast_targets(self, hero: GameObject) -> int:
+        """How many enemies an area ability wants under it before this hero fires it.
+
+        **A hero the player bought has the rest of the match to find a crowd; a summon has a
+        lifetime.** Gwaihir arrives from `SpellBookAdler` with a screech that recharges in 180
+        seconds and less than a minute to live, so waiting for a second battalion is how it fades
+        with the charge unspent - and the eagles are aimed at the enemy army in the first place,
+        which is where `Powers.aim` puts every summon. Same for Theoden out of the Rohan banner and
+        for the Grey Company: everything they carry has to be spent now or not at all.
+
+        See `SUMMONED`, which is the engine's own mark and is why this needs no template list.
+        """
+        if self.statics.has_kind(hero.template_name, SUMMONED):
+            return 1
+        return HERO_CAST_TARGETS
+
     def hero_aim(self, hero: GameObject, power: CastablePower) -> tuple[Vec3, int, str] | None:
         """Where to fire this ability and at what: `(position, target id, what)`, or None.
 
@@ -455,7 +478,9 @@ class Heroes(Warfare):
           proves nothing, and whether the army is *fighting* is what decides whether a speed buff
           is worth two minutes of recharge.
         - **an ally buff with a target** goes over the most of ours within reach.
-        - **a heal** goes to the worst hurt thing of ours within reach.
+        - **a heal with a target** goes to the worst hurt thing of ours within reach; one cast on
+          self is an area heal centred on the caster, so that one counts who is standing in the
+          circle instead - see `HERO_HEAL_TARGETS`.
         - **a strike** goes on the most of theirs; one cast on self goes off wherever the hero is
           standing, so that one asks whether enough of them are around the hero already.
         - **a summon** lands beside the fighting through `summon_spot`, for the same reason a
@@ -478,11 +503,36 @@ class Heroes(Warfare):
             if power.effect == EFFECT_STRIKE:
                 # A strike that goes off around the caster is worth its recharge only if there is
                 # a crowd around the caster - being in contact with one warg is not Word of Power.
+                # A summon settles for one, because it will not be here for the next crowd; see
+                # `hero_cast_targets`, and Gwaihir's screech for the ability that asked for it.
                 under = [o for o in self.enemies() if hero.distance_to(o.position) <= radius]
-                if len(under) < HERO_CAST_TARGETS:
+                if len(under) < self.hero_cast_targets(hero):
                     return None
                 return hero.position, 0, f"{len(under)} of theirs around it"
             return hero.position, 0, "the fight it is in"
+
+        if power.effect == EFFECT_HEAL and power.form == CAST_SELF:
+            # **An area heal lands where the caster is standing, not where the casualty is**, so
+            # naming a target is both the wrong question and a misleading answer. The twins' Healing
+            # Arts out of the Grey Company declares a `HealRadius` of 200 and recharges in 90
+            # seconds; the branch below would spend it on a single battalion at 99% anywhere inside
+            # `HERO_ESCORT`, and report a position the heal never reaches.
+            #
+            # So this counts what is actually in the circle and wants a real share of the army in
+            # it - see `HERO_HEAL_THRESHOLD` and `HERO_HEAL_TARGETS`. Over `army()` rather than
+            # everything owned, because these heals declare `INFANTRY CAVALRY MONSTER`: a farm at
+            # half health is not what the twins are for, and rubble is not a patient.
+            near_hurt = [
+                o
+                for o in self.army()
+                if o.has_body
+                and o.health < HERO_HEAL_THRESHOLD
+                and hero.distance_to(o.position) <= radius
+            ]
+            if len(near_hurt) < HERO_HEAL_TARGETS:
+                return None
+            worst = min(near_hurt, key=lambda o: o.health)
+            return hero.position, 0, f"{len(near_hurt)} hurt, worst at {worst.health:.0%}"
 
         if power.effect == EFFECT_HEAL:
             hurt = [
@@ -498,7 +548,7 @@ class Heroes(Warfare):
         if power.effect == EFFECT_BUFF:
             ours = [o for o in self.army() if near(o) and o.object_id != hero.object_id]
             found = self.densest(ours, radius)
-            if found is None or found[1] < HERO_CAST_TARGETS:
+            if found is None or found[1] < self.hero_cast_targets(hero):
                 return None
             return found[0], 0, f"{found[1]} of ours"
 
@@ -510,7 +560,7 @@ class Heroes(Warfare):
                 mark = min(targets, key=lambda o: hero.distance_to(o.position))
                 return mark.position, mark.object_id, mark.template_name
             found = self.densest(targets, radius)
-            if found is None or found[1] < HERO_CAST_TARGETS:
+            if found is None or found[1] < self.hero_cast_targets(hero):
                 return None
             where = self.summon_spot(found[0]) if power.effect == EFFECT_SUMMON else found[0]
             return where, 0, f"{found[1]} of theirs"

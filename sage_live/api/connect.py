@@ -4,10 +4,10 @@ The module is `connect` rather than `attach` so that the far more commonly used 
 can own the short name at the package root: `sage_live.attach()` is the front door, and a
 module of the same name would shadow it.
 
-Everything this does was previously done by hand at each call site: find the pid, open the
-process, choose a backend, connect it, and pick a player index. Five steps, four failure modes
-worth distinguishing, and one of them - the player index - was silently defaulting to 0 in
-every consumer, which is wrong for every seat but the first.
+It collapses what a caller would otherwise do by hand: find the pid, open the process, choose a
+backend, connect it, and pick a player index. Five steps and four failure modes worth
+distinguishing - and the player index is the one that fails quietly, since defaulting it to 0 is
+wrong for every seat but the first.
 
 **The local player is read, not assumed.** `PlayerList+0x10` names it, and orders are attributed
 to whoever the session says it is, so guessing here means a policy issues orders as someone

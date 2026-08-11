@@ -142,6 +142,24 @@ class Plan:
     # signal-fire mechanic to special-case exactly this, which put a Gondor template inside a
     # module whose whole claim is that it plays any side.
     precious: tuple[str, ...] = ()
+    # **Spellbook purchases whose whole worth is one object that may not be on the map**, as
+    # `(science, template prefixes)` pairs.
+    #
+    # Nearly every power is worth its points the moment it is bought: a summon puts units down
+    # wherever it is aimed, a bombardment needs only something to aim at. A few are not, and the
+    # ini says so rather than the name - Gondor's Gandalf the White is a `PlayerUpgradeSpecialPower`
+    # granting `Upgrade_GandalfWhite`, an upgrade one hero wears and nothing else reads. Five points
+    # spent on it with Gandalf off the map buy nothing at all, and points do not come back.
+    #
+    # Matched by prefix the way `precious` is, because a hero stands under several templates and a
+    # plan should not have to list them: `GondorGandalf` is also `GondorGandalf_WhiteCouncil` and
+    # two ring-quest forms, and every one of them is the hero the upgrade is for.
+    #
+    # **Deferred rather than renounced, and the tree is what makes that safe.** Nothing dead-ends
+    # behind it - the eagles unlock through `SCIENCE_ArrowVolleyGood` as well and Rohan Answers
+    # through `SCIENCE_BeistandinderNot` - so skipping it costs only the row it would have opened
+    # on its own, and it is bought the cycle after Gandalf appears.
+    power_needs: tuple[tuple[str, tuple[str, ...]], ...] = ()
     # How many economy buildings before spending on army. Low: an Easy AI does not punish a
     # fast army, and a bot that economises forever never attacks. **A floor, not a ceiling** -
     # `stage_build` keeps laying these on whatever plots are still free afterwards.

@@ -36,8 +36,8 @@ buildings - draws exactly what the stock engine draws.
 **Combining with `command-point-upkeep`.** Both patches scale the same income, and the deposit
 multiplies their factors, so the readout does too: `-15%` inflation with `-10%` upkeep draws
 ``x0.765``. The link is a null function pointer either patch can fill, described in
-:mod:`~sage_patch.patches.income_link`; the pair stays order-independent because neither patch's
-*code* depends on the other, only four bytes of data.
+:mod:`~sage_patch.patches.utils.income_link`; the pair stays order-independent because neither
+patch's *code* depends on the other, only four bytes of data.
 
 > **Client-local and read-only.** No simulation state is read or written, so - unlike
 > `command-point-upkeep`, whose mechanic is inside the simulation - a patched and an unpatched
@@ -67,7 +67,7 @@ from ..addresses import (
 from ..asm import JBE, JE, JGE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
-from .income_link import READOUT_IMPORT_OFF, READOUT_SECTION, UPKEEP_SECTION, read_export
+from .utils.income_link import READOUT_IMPORT_OFF, READOUT_SECTION, UPKEEP_SECTION, read_export
 
 __all__ = [
     "CODE_OFF",
@@ -299,7 +299,7 @@ class InflationReadoutPatch(Patch):
 
         The slot is `command-point-upkeep`'s `percent` when this file already carries it, and zero
         otherwise - in which case upkeep fills it in if it is applied later. Either order, one
-        link; see :mod:`~sage_patch.patches.income_link`.
+        link; see :mod:`~sage_patch.patches.utils.income_link`.
         """
         body = bytearray(CODE_OFF)
         struct.pack_into("<I", body, READOUT_IMPORT_OFF, read_export(data) or 0)

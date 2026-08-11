@@ -20,12 +20,34 @@ from sage_mods.edain.bot.factions.men.signal_fire import (
     MAX_CHARGES,
     SAVE_FOR,
     SAVE_FROM,
+    SECOND_FIRE_EXTERNAL,
     SUMMONS,
     SignalFire,
     affordable,
     best_summon,
     charges_of,
+    role_wait,
 )
+
+# The four fiefdoms bucketed the way `World.role_of` buckets them, read off the tree: Ring Vale's
+# swordsmen and Lossarnach's axes are both plain `INFANTRY`, Pelargir's spearmen carry `PIKE` on
+# top of it and Morthond's bowmen carry `ARCHER`. **That the two-charge summons are both infantry
+# is the entire shape of this mechanic's problem** - a rider that spends the moment it can afford
+# something can only ever buy infantry.
+ROLES = {
+    "RingValeSwordsmanHorde": "INFANTRY",
+    "LehenLossarnachAxteHorde": "INFANTRY",
+    "MorthondBowmenHorde": "ARCHER",
+    "PelegirSpearmenHorde": "PIKE",
+    "RingValeSwordsmanHorde_Veteranen": "INFANTRY",
+    "LehenLossarnachAxteHorde_Veteranen": "INFANTRY",
+    "MorthondBowmenHorde_Veteranen": "ARCHER",
+    "PelegirSpearmenHorde_Veteranen": "PIKE",
+    "GondorFighterHorde": "INFANTRY",
+    "GondorSpearmanHorde": "PIKE",
+    "GondorArcherHorde": "ARCHER",
+    "GondorKnightHorde": "CAVALRY",
+}
 
 
 def _rider(object_id: int, charges: int, x: float = 0.0) -> SimpleNamespace:
@@ -69,11 +91,18 @@ class Fires(SignalFire):
         selectable: bool = True,
         free_points: int | None = 9999,
         spends: bool = True,
+        fielded: tuple[str, ...] = (),
+        mix: dict[str, float] | None = None,
     ) -> None:
         self._owned = owned
         self.side = side
         self._selectable = selectable
         self._free = free_points
+        # The army as templates, and the mix the plan wants - the two halves `role_needs` joins.
+        # Both empty by default, which is the state that has no opinion and leaves every summon
+        # ranked by the table exactly as it was before there was a balance at all.
+        self._fielded = fielded
+        self._mix = mix or {}
         self.cast: list[tuple] = []
         self.reported: list[bool] = []
         # Whether the engine actually spends the charges. False reproduces the wrong-constructor
@@ -125,6 +154,21 @@ class Fires(SignalFire):
     def _report(self, label, ok, good, bad) -> bool:
         self.reported.append(ok)
         return ok
+
+    def role_of(self, template: str) -> str:
+        return ROLES.get(template, "INFANTRY")
+
+    def army(self) -> list:
+        return [
+            SimpleNamespace(object_id=9000 + i, template_name=t)
+            for i, t in enumerate(self._fielded)
+        ]
+
+    def heroes(self) -> list:
+        return []
+
+    def wanted_mix(self) -> dict[str, float]:
+        return self._mix
 
 
 def test_the_template_name_is_the_charge_count() -> None:
@@ -277,6 +321,88 @@ def test_no_charge_count_ever_overspends(charges: int) -> None:
     assert summon is None or summon.charges <= charges
 
 
+# A plan that wants a third of each of the three roles a fiefdom can fill. Real mixes are messier
+# - `MenOfTheWestArmy` phase 1 is roughly 37% infantry, 31% archers, 26% pikes, 5% horse - but the
+# arithmetic under test is "which role is furthest below its share", and an even target makes the
+# answer a statement about the *army* rather than about the plan.
+EVEN = {"GondorFighterHorde": 1 / 3, "GondorArcherHorde": 1 / 3, "GondorSpearmanHorde": 1 / 3}
+
+
+def test_the_summon_answers_the_role_the_army_is_short_of() -> None:
+    """The whole point of the change. An army of nothing but swordsmen wants bows and spears, and
+    which of the two it wants more is a question about the army rather than about the table."""
+    swords = ("GondorFighterHorde",) * 6
+    fires = Fires([_rider(1, 3), _fire(2, 300.0)], fielded=swords, mix=EVEN)
+    fires.stage_signal_fire()
+    assert fires.cast and fires.cast[0][0].endswith(("Morthond", "Pelagir"))
+
+
+def test_a_wall_of_archers_is_answered_with_spears_not_more_archers() -> None:
+    """The same rule pointed the other way, which is what makes it a balance and not a preference
+    for the three-charge summons."""
+    bows = ("GondorArcherHorde",) * 6
+    fires = Fires([_rider(1, 3), _fire(2, 300.0)], fielded=bows, mix=EVEN)
+    fires.stage_signal_fire()
+    assert fires.cast and fires.cast[0][0].endswith("Pelagir")
+
+
+def test_infantry_is_taken_when_infantry_is_what_is_missing() -> None:
+    """A party wiped out down to its bows and spears is the case the two-charge summons are for,
+    and the rider must not sit on its charges waiting for a role it already has."""
+    ranged = ("GondorArcherHorde",) * 3 + ("GondorSpearmanHorde",) * 3
+    fires = Fires([_rider(1, 2), _fire(2, 300.0)], fielded=ranged, mix=EVEN)
+    fires.stage_signal_fire()
+    assert fires.cast and fires.cast[0][0].endswith(("RingVale", "Lossarnach"))
+
+
+def test_a_rider_holds_one_charge_for_a_role_two_charges_cannot_buy() -> None:
+    """**The failure this whole change exists for.** Both two-charge summons are infantry, so a
+    rider that spends the moment it can afford anything resets to zero at two every time and never
+    reaches the bows and the spears at all. A measured match ended `summon LehenLossarn 3/3` -
+    three summons, all of them the same axes. One charge of patience is what unlocks the rest."""
+    swords = ("GondorFighterHorde",) * 6
+    fires = Fires([_rider(1, 2), _fire(2, 300.0)], fielded=swords, mix=EVEN)
+    line = fires.stage_signal_fire()
+    assert fires.cast == []
+    assert line is not None and "holding one more" in line
+
+
+def test_the_wait_is_one_charge_and_not_a_second_save_for_lehen() -> None:
+    """Patience bounded at `charges + 1`. Past three there is nothing between the fiefdoms and
+    Lehen's eight, so a rider at three spends rather than starting a five-charge wait it was never
+    asked for."""
+    swords = ("GondorFighterHorde",) * 6
+    needs = Fires([], fielded=swords, mix=EVEN).role_needs()
+    fires = Fires([], fielded=swords, mix=EVEN)
+    assert role_wait(2, fires.summon_fits, lambda s: fires.summon_balance(s, needs)) is not None
+    assert role_wait(3, fires.summon_fits, lambda s: fires.summon_balance(s, needs)) is None
+
+
+def test_no_wait_when_the_roles_are_already_even() -> None:
+    """`ROLE_PATIENCE` is what keeps this from being a hold on every cycle. An army already at its
+    intended shape has no role that is worth 75 seconds, so the rider spends."""
+    even = ("GondorFighterHorde", "GondorArcherHorde", "GondorSpearmanHorde")
+    fires = Fires([_rider(1, 2), _fire(2, 300.0)], fielded=even, mix=EVEN)
+    fires.stage_signal_fire()
+    assert fires.cast
+
+
+def test_an_army_with_nothing_in_it_falls_back_to_the_table() -> None:
+    """No producers and no battalions is no opinion, and a preference invented out of an empty
+    census would be worse than the arbitrary one it replaced."""
+    assert Fires([]).role_needs() == {}
+    assert Fires([]).summon_balance(SUMMONS[0], {}) == 0.0
+
+
+def test_heroes_are_not_counted_into_the_balance() -> None:
+    """They are in `army()` deliberately, and no `ArmyDefinition` lists one - so counting them
+    puts a body in a role that asked for none and tilts every summon away from it."""
+    fires = Fires([], fielded=("GondorFighterHorde",), mix=EVEN)
+    with_hero = Fires([], fielded=("GondorFighterHorde", "GondorKnightHorde"), mix=EVEN)
+    with_hero.heroes = lambda: [SimpleNamespace(object_id=9001)]
+    assert fires.role_needs() == with_hero.role_needs()
+
+
 def test_every_summon_recruits_a_pair() -> None:
     """The count is not visible in the OCL - it lists the type once - so it is stated here, and
     it is what makes the price a sum. Lehen is the exception: four, one of each fiefdom."""
@@ -366,11 +492,20 @@ class Siting(SignalFire):
         hostiles: list | None = None,
         enemy_at: tuple | None = None,
         home: tuple = (0.0, 0.0, 0.0),
+        externals: dict[str, int] | None = None,
     ) -> None:
         self._standing = standing
         self._hostiles = hostiles or []
         self._enemy_at = enemy_at
         self._home = home
+        # What `external_standing` reports: the farms and the ranger tents, counted per family.
+        # An empty opening is the default, which is one fire and only one.
+        self._externals = (
+            {"GondorFarm_Extern": 0, "GondorRangerTents": 0} if externals is None else externals
+        )
+
+    def external_standing(self) -> dict[str, int]:
+        return self._externals
 
     @property
     def observation(self) -> SimpleNamespace:
@@ -398,11 +533,38 @@ def test_a_quiet_settlement_near_home_gets_the_signal_fire() -> None:
     assert Siting().signal_fire_site(_plot(1, 500.0), PALETTE) == FIRE
 
 
-def test_never_two_at_once() -> None:
-    """400g buys a rider, and a second rider is a second trickle for the same price as two
-    battalions. One is the whole mechanic."""
+def test_one_while_the_map_is_still_being_taken() -> None:
+    """400g buys a rider, and against an empty map a second rider is a second trickle for the
+    price of two battalions or two farms. One, until the settlements have nothing better to
+    carry."""
     assert Siting(standing=1).signal_fire_site(_plot(1, 500.0), PALETTE) is None
     assert Siting(standing=2).signal_fire_site(_plot(1, 500.0), PALETTE) is None
+
+
+BUILT_OUT = {"GondorFarm_Extern": SECOND_FIRE_EXTERNAL, "GondorRangerTents": SECOND_FIRE_EXTERNAL}
+
+
+def test_a_second_fire_once_the_settlements_are_built_out() -> None:
+    """The opening's argument against a second one expires. A base with four farms and four
+    ranger tents is putting its next settlement on a fifth farm whose discount ladder stopped
+    improving two buildings ago; a second rider pays a battalion every 75 seconds instead."""
+    built = Siting(standing=1, externals=BUILT_OUT)
+    assert built.signal_fires_wanted() == 2
+    assert built.signal_fire_site(_plot(1, 500.0), PALETTE) == FIRE
+
+
+def test_a_third_is_still_refused() -> None:
+    """Two is a decision about a built-out base, not the removal of the cap."""
+    full = Siting(standing=2, externals=BUILT_OUT)
+    assert full.signal_fire_site(_plot(1, 500.0), PALETTE) is None
+
+
+def test_one_family_built_out_is_not_a_built_out_base() -> None:
+    """`min` rather than a sum, and this is why: eight farms and one tent is a base that still
+    has an obvious better thing to put on a settlement, which is the second tent."""
+    lopsided = {"GondorFarm_Extern": 8, "GondorRangerTents": 1}
+    assert Siting(standing=1, externals=lopsided).signal_fires_wanted() == 1
+    assert Siting(standing=1, externals=lopsided).signal_fire_site(_plot(1, 500.0), PALETTE) is None
 
 
 def test_a_razed_fire_is_replaced() -> None:

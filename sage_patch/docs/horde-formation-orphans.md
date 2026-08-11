@@ -170,7 +170,7 @@ Everything above is static. Two links remain open:
 2. Whether the ghost container is still damageable at all (it decides whether option C below
    is a fix or only a de-silencing).
 
-**`Object+0x78` is no longer a guess.** It is now decoded as `GameObject.producer_id`, and on
+**`Object+0x78` is `GameObject.producer_id`.** On
 the recorded match in `tests/sage_live/fixtures/match.snapshot.gz` it equals `parent_id` for
 **40 of 40** battalion members, every one of them naming a container that is really in the
 table. Objects produced by something that does not contain them behave sensibly too - a lair's
@@ -178,7 +178,7 @@ spawned creeps and a structure's fences carry a producer and no parent. So the f
 producer link the fallback treats as a horde link, measured rather than inferred, and the
 disagreement between the two is exactly what a broken battalion should show.
 
-`sage_live` reads both halves of the state now: `parent_id` (`Object+0x27C`), `producer_id`
+`sage_live` reads both halves of the state: `parent_id` (`Object+0x27C`), `producer_id`
 (`+0x78`), and `status` - the engine's `ObjectStatus` bits at `+0x94`, decoded through the
 image's own name table, so `HORDE_MEMBER` and `IS_LEAVING_FACTORY` read as names.
 
@@ -203,8 +203,7 @@ timing was identical in all six recruits:
 
 So `parent_id is None` beside a live `producer_id` is the *ordinary* state of a unit walking
 out of a barracks - fourteen of them at once, for up to fourteen frames. Anything hunting the
-broken state has to require it to **persist**; the first version of the script called every
-healthy recruit a break.
+broken state has to require it to **persist**, or it calls every healthy recruit a break.
 
 **This is a measured argument against option A.** During those sixteen frames the producer-id
 fallback at `0x6681D0` is the *only* thing tying a member to its battalion, which is evidently
@@ -252,15 +251,14 @@ a thousand units away, and never at the goblin standing on him. Trampling and sp
 because neither goes through this function. `IS_LEAVING_FACTORY` still set on a container whose
 units left long ago is the cause-side signature: the exit never completed.
 
-**Two corrections to what is written above.**
+**Two things the sweep has to get right.**
 
 1. **The broken units do not carry `HORDE_MEMBER`.** They kept the producer link and lost the
-   status. Section 6's "what to look for" was wrong to lead with that bit - it is why the first
-   sweep of this very save reported eight orphans and none of them these, having found only
-   corpses (`DEATH_1`, `SINKING`), which detach from a horde normally.
+   status, so hunting on that bit finds only corpses (`DEATH_1`, `SINKING`), which detach from a
+   horde normally.
 2. **An empty container is not by itself abnormal.** §6a measured members joining only at
-   `n+16`, so a *healthy* battalion's container is empty for the whole of forming. Option B as
-   written below would therefore fire during every normal recruit, not only on the fault.
+   `n+16`, so a *healthy* battalion's container is empty for the whole of forming. Emptiness
+   alone therefore fires during every normal recruit, not only on the fault.
 
 **The same save contains the healthy control**, which is what makes the discriminator solid
 rather than plausible - horde 8823, a `GoblinArcherHorde` caught mid-formation:
@@ -276,29 +274,27 @@ So forming and broken are told apart by one bit on the victim: **a unit still co
 building has `IS_LEAVING_FACTORY`; one this fault has stranded does not.** That is the condition
 the patch wants, and it is measured on both sides.
 
-## 6c. Both patches failed, and the probe says why they had to
+## 6c. The order is not refused inside `aiAttackObject`
 
-Two builds were applied and tested live against the save. **Neither changed anything**: Nar still
-never engaged, and his AI goal stayed `0` - the order refused outright rather than mis-aimed.
+Gating the target resolution does not help. Live against the save, gating the inlined fallback
+in `resolveAttackTarget` (§7 option D) has no effect, and gating the shared `Object::getHorde` -
+the helper with 114 callers - has no effect either: Nár still never engages and his AI goal
+stays `0`, the order refused outright rather than mis-aimed.
 
-- Gating the inlined fallback in `resolveAttackTarget` (§7 option D) - no effect.
-- Gating the shared `Object::getHorde` as well, the helper with 114 callers - no effect.
+A behaviour-free probe build says why. It records, into its own writable PE section, what
+`AIUpdateInterface::aiAttackObject` does: the victim handed to the resolver, what the resolver
+returned, and a counter on each of the function's two `or eax,-1` refusal paths (`0x0066BD5E`
+and `0x0066BDCB`).
 
-So a third build was made that changes **no** behaviour and only records, into its own writable
-PE section, what `AIUpdateInterface::aiAttackObject` does: the victim handed to the resolver,
-what the resolver returned, and a counter on each of the function's two `or eax,-1` refusal
-paths (`0x0066BD5E` and `0x0066BDCB`).
+**Neither refusal counter ever increments.** Not once - not while a whole battle resolves
+attacks through the same function (the resolver-entered counter runs to 161 at idle and climbs
+by ~100 per probe, so the instrument is plainly live). An order that visibly does nothing is
+therefore **not being refused inside `aiAttackObject` at all**.
 
-**The clean result: neither refusal counter ever incremented.** Not once - not while a whole
-battle resolved attacks through the same function (the resolver-entered counter ran to 161 at
-idle and climbed by ~100 per probe, so the instrument was plainly live). An order that visibly
-does nothing is therefore **not being refused inside `aiAttackObject` at all**, which is where
-every one of these patches was aimed.
-
-That retires the whole line of attack. The redirect is real, the discriminator is real, and
-neither is what drops the order: it is dropped **above** the AI layer, before `aiAttackObject`
-is reached. `AIGroup` - the layer a selection-based order actually goes through - is the next
-place to look, and it should be instrumented the same way rather than reasoned about.
+The redirect is real and the discriminator is real, but neither is what drops the order: it is
+dropped **above** the AI layer, before `aiAttackObject` is reached. `AIGroup` - the layer a
+selection-based order actually goes through - is the next place to look, and it should be
+instrumented the same way rather than reasoned about.
 
 Two practical notes for whoever picks this up. The probe section must be allocated
 **writable** (`0xE0000060`); allocated as code+read like the other caves, the first counter
@@ -326,16 +322,6 @@ against**: the fallback is load-bearing during every normal recruit, where fourt
 spend up to fourteen frames un-contained and it is the only thing making them a battalion.
 Applying this would make every freshly trained unit individually targetable for half a second.
 Keep it as the cheap experiment it is, not as the fix.
-
-**Option B - refuse the redirect to an empty container.** Keep the fallback, but require the
-horde to have at least one member before aiming at it, through the contain interface
-(`+0x258` → vt `+0x7C` → vt `+0x180`) the engine's own branch B already calls.
-
-**Superseded, on a measurement.** It reads as the surgical choice and is not: §6a timed members
-joining only at `n+16`, so a *healthy* container is empty for the whole of forming, and §6b
-found the fault's container empty too. Emptiness does not separate them - it is the one thing
-they have in common. Kept here because the reasoning is the same one anybody will arrive at,
-and this is where it fails.
 
 **Option C - never refuse the order.** Make branch B fall back to the horde object instead of
 returning `NULL`:
@@ -392,16 +378,15 @@ so the exit sequence is what failed to complete.
 
 ## 8. Suggested order of work
 
-1. ~~Reproduce through the live bridge~~ - done, and it returned a *negative* with a reason
-   (§6a). The player's order path cannot interrupt forming, so the trigger is not "an order
-   arriving early" as such. What the run did establish is the normal timing, which is the
-   baseline any further hunt measures against.
-2. ~~Catch the state rather than cause it~~ - done, from a save (§6b). Note for anyone
-   repeating it: hunt on **`parent_id` empty + a live horde producer**, and do *not* require
-   `HORDE_MEMBER` (the stranded units have lost it) or accept `DEATH_1`/`SINKING` (corpses
-   detach normally).
+1. Reproducing through the live bridge returns a *negative* with a reason (§6a). The player's
+   order path cannot interrupt forming, so the trigger is not "an order arriving early" as such.
+   What that run establishes is the normal timing, which is the baseline any further hunt
+   measures against.
+2. Catching the state rather than causing it works, from a save (§6b). Hunt on **`parent_id`
+   empty + a live horde producer**, and do *not* require `HORDE_MEMBER` (the stranded units have
+   lost it) or accept `DEATH_1`/`SINKING` (corpses detach normally).
 3. Apply **D**, and confirm against this save that Nár's attack now resolves to the goblin in
-   front of him. **A** and **B** are diagnostics, not candidates.
+   front of him. **A** is a diagnostic, not a candidate.
 4. For the cause, the AI's own path is where to look, since it is the one that can order a
    horde the player cannot: `AIHordeExitState` (`0x41`) and `AIHordeExitAndMoveToState`
    (`0x45`), and what drops a player order in that window - because whatever performs that drop

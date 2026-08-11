@@ -769,15 +769,23 @@ def main(argv: list[str] | None = None) -> int:
     start.add_argument("--seed", type=int, help="match seed - what makes two runs comparable")
     start.add_argument("--start-position", type=int, help="the slot's start-position field")
 
+    # Every subcommand resolves `pid or wait_for_process()`, and with the multi-instance patch
+    # applied "the first game.dat found" is an arbitrary one of several - so the window that
+    # gets the clicks is a coin toss. Naming the pid is the only way to drive one of them.
+    for sub_parser in (rec, run, start):
+        sub_parser.add_argument(
+            "--pid", type=int, help="which game.dat to drive (default: the first one found)"
+        )
+
     args = parser.parse_args(argv)
     if args.command == "start":
         if args.faction is not None or args.seed is not None or args.start_position is not None:
             configure(args.entry, args.faction, args.seed, args.start_position)
         if args.launch:
             launch(args.launch)
-        return run_script(args.path, settle=args.settle)
+        return run_script(args.path, settle=args.settle, pid=args.pid)
     if args.command == "record":
-        return record(args.path, in_match_mode=args.in_match)
+        return record(args.path, in_match_mode=args.in_match, pid=args.pid)
     if args.launch:
         launch(args.launch)
     return play(
@@ -786,6 +794,7 @@ def main(argv: list[str] | None = None) -> int:
         settle=args.settle,
         wait_menu=not args.now,
         restart=args.restart,
+        pid=args.pid,
     )
 
 

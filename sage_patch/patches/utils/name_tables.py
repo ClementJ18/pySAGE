@@ -30,7 +30,7 @@ import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from ..utils import va_to_offset
+from ...utils import va_to_offset
 
 __all__ = [
     "SECTION_CHARACTERISTICS",

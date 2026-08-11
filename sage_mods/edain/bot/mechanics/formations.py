@@ -27,18 +27,26 @@ over the `MenOfTheWestArmy` pool, so this is read rather than listed):
 | `GondorFighterHorde` | `...Block` | +17% armour, x0.70 speed |
 | `GondorWachterderVesteHorde` | `...ShieldWall` | +40% armour, x0.25 speed |
 | `GondorTowerShieldGuardHorde` | `...ShieldWall` | +33% armour, x0.25 speed |
-| `GondorSpearmanHorde` | `...Porcupine` | braces vs cavalry, -90% vision |
+| `GondorSpearmanHorde` | `...Porcupine` | braces, -90% vision - **refused**, see `blinding_brace` |
 | `PelegirSpearmenHorde` | `...ShieldWall` | braces, +50% armour vs water, x0.75 damage |
 | `GondorArcherHorde` | `...AmbushFormation` | x1.20 damage, x0.70 speed |
 | `GondorKnightHorde` | `...WedgeFormation` | +33% armour vs slash/specialist, x0.50 speed |
-| `MorthondBowmenHorde` | `...AmbushFormation` | x0.80 speed and nothing else |
+| `MorthondBowmenHorde` | `...AmbushFormation` | +25% scoped armour, x0.80 speed |
 | `GondorRangerHorde`, `RingValeSwordsmanHorde`, `LehenLossarnachAxteHorde` | - | none declared |
 | `GondorKnightsofDolHorde` | `...WedgeFormation` | **no button** - declared, unreachable |
 
-Two of those rows are why the stage weighs rather than switches. The Morthond ambush costs 20%
-of their speed and buys nothing at all in this build - `Formation.worth_taking` is what refuses
-it - and the Dol Amroth wedge is a full formation whose toggle button no command set offers, so
-switching it would be an order no human could have given.
+Three of those rows are why the stage weighs rather than switches, and each is refused by a
+different test. The Dol Amroth wedge is a full formation whose toggle button no command set
+offers, so switching it would be an order no human could have given - `worth_taking` refuses it
+on the missing button. The porcupine is reachable and does something real, and is refused anyway
+by `blinding_brace`: one stopped charge is not worth nine tenths of the battalion's sight. And a
+formation that is declared with no modifier list at all is real and empty, which `worth_taking`
+refuses on the bonus.
+
+**The Morthond ambush is not one of them, whatever this file used to say.** It was documented
+here as costing 20% speed and buying nothing, with `worth_taking` refusing it; read back out of
+the tree it carries `armour_scoped +0.25`, so it is `tougher`, `worth_taking` is true and the
+stage takes it like any other defensive formation. The claim predates whatever changed it.
 
 **The state a battalion is in is read from the engine, not remembered.** `ALTERNATE_FORMATION` is
 one of the engine's own `ModelConditionFlags` - it is in the image's name table beside
@@ -64,11 +72,37 @@ from sage_mods.edain.bot.tuning import (
     FORMATION_STILL,
 )
 
-__all__ = ["ALTERNATE", "Formations", "Posture"]
+__all__ = ["ALTERNATE", "Formations", "Posture", "blinding_brace"]
 
 # The engine's own `ModelCondition` for "this unit is standing in the alternate formation". Read
 # off the members rather than the container - see the module docstring.
 ALTERNATE = "ALTERNATE_FORMATION"
+
+
+def blinding_brace(formation: Formation) -> bool:
+    """Whether the only thing this formation buys is a brace, and it pays for it in sight.
+
+    **The porcupine, by what it does rather than by its name** - the same reading `braces` itself
+    is built on. Across the Men pool six templates take one (`GondorSpearmanHorde`, the three
+    `ArnorTowerShieldGuardHorde` variants, `AmrothSpearmenHorde`, `AmrothSquireSpearmenHorde`)
+    and all six carry identical numbers: no armour, no extra damage, no speed cost, and
+    `VISION -90%`.
+
+    So a braced battalion keeps a tenth of its sight, and under `--fog` that is the bot's own
+    sight of that part of the map. It stops one cavalry charge and blinds the stage that would
+    have seen the next one coming - `fighting` reads hostiles from the observation, so a
+    battalion that cannot see is a battalion the formation stage stops answering for.
+
+    The bracing shield walls are deliberately not caught by this: `PelegirSpearmenHorde` and
+    `TolFalasSpearmenHorde` brace *and* carry `armour_scoped +0.50` at no cost to vision, so
+    `tougher` separates them without anything here naming a template.
+    """
+    return (
+        formation.braces
+        and not formation.tougher
+        and not formation.deadlier
+        and formation.vision < 0.0
+    )
 
 
 @dataclass(frozen=True)
@@ -196,6 +230,8 @@ class Formations:
         for horde in self.army():
             formation = self.formation_of(horde)
             if formation is None or not formation.worth_taking:
+                continue
+            if blinding_brace(formation):
                 continue
             found.append(
                 Posture(

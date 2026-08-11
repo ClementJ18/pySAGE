@@ -4,19 +4,13 @@ Engine build `2.01.2614.37001`, ImageBase `0x400000`. Addresses are VAs, read st
 repo's clean [`game.dat`](../../game.dat). The one live fact (§3) was measured against the recorded
 match in [`match.snapshot.gz`](../../tests/sage_live/fixtures/match.snapshot.gz).
 
-Implemented by [`patches/hero_mana.py`](../patches/hero_mana.py) as `HeroManaPatch`. This file
-supersedes the scoping note that preceded it (`ideas/hero-mana-cost.md`, now removed): everything
-in it that survived contact with the engine is here, and the estimate itself was wrong in three
-places worth remembering - the pool is computed on read rather than ticked, rows are folded rather
-than indexed by raw id, and the caster's numbers live in a side table because `ThingTemplate` has
-nowhere safe to grow (§5, §8).
+Implemented by [`patches/hero_mana.py`](../patches/hero_mana.py) as `HeroManaPatch`.
 
 **Status: partly runtime-verified.** A traced build was played on 2026-08-01 (RotWK + Edain) and
 the core works: both field tables relocate, all three new fields parse, the side table populates,
-the pool deducts and regenerates, and the cost shows in the button description. Two bugs were
-found and fixed from that session, and **one is still open** — abilities driven by
-`WeaponFireSpecialAbilityUpdate` are not charged at all. §10 is the open-work list; §9 is the
-verification list.
+the pool deducts and regenerates, and the cost shows in the button description. **One issue is
+open** — abilities driven by `WeaponFireSpecialAbilityUpdate` are not charged at all. §10 is the
+open-work list; §9 is the verification list.
 
 ## 1. Why `UnitCost` is a no-op on a hero
 
@@ -156,9 +150,7 @@ stock `Int` parser at `0x42ec5e`, so no parser had to be written: its signature 
 
 The `Object` table is the same shape: base `0x00DA3DF8`, 191 entries, terminator at `0x00DA49E8`,
 **five** references (`0x73bdf4` a `mov`, four `push`es). It has **no interior reference** — a byte
-scan reports one at `0x7162a4`, and
-an earlier costing recorded it as something a relocation
-would have to re-derive, but that address disassembles to `call 0x723cee`, whose `E8`
+scan reports one at `0x7162a4`, but that address disassembles to `call 0x723cee`, whose `E8`
 opcode plus the first three bytes of its displacement happen to spell `0x00DA45E8`. A false
 positive; the table relocates as a unit.
 
@@ -236,8 +228,8 @@ Three specifics that keep it that way, and are easy to break:
   `value` are pure; a test disassembles the cave and asserts no store through a pointer exists
   outside `spend`. Only the logic-side charge writes a row, and it runs on all peers.
 - **No per-frame walk to schedule.** Computing the pool on read (§5) means there is no ticked pass
-  whose position in the frame or iteration order could differ. An earlier design had one, and it
-  would have had to be frame-locked and order-stable.
+  whose position in the frame or iteration order could differ; a ticked pool would have to be
+  frame-locked and order-stable.
 
 > **Every peer must run the same patched binary.** A patched and an unpatched client desync the
 > first time a costing power fires, and replays do not cross. Same rule as `production-condition`,

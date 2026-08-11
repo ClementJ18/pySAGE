@@ -84,7 +84,7 @@ back on the other. Nothing in the order stream changes.
 **Composition.** Order-independent: the cave is allocated past every existing section and
 :meth:`verify` finds it by name. The 5-byte entry of `ProductionUpdate::update` is touched by no
 other bundled patch. The name table and the ten counts **are** shared - `desert-weather` adds a
-condition too - so both go through :mod:`sage_patch.patches.model_conditions`, which reads the
+condition too - so both go through :mod:`sage_patch.patches.utils.model_conditions`, which reads the
 live table out of the image instead of assuming the stock one. Applied after another such patch
 this one lands on the next free bit rather than 591, which is why :meth:`verify` reads the bit
 back out of the table instead of hardcoding it.
@@ -101,7 +101,7 @@ from sage_ini.engine import Engine, EnumDelta
 from ..asm import JE, JNE, JNZ, JZ, Asm
 from ..patcher import Patch
 from ..utils import apply_byte_patch, find_section, va_to_offset
-from . import locomotor_sets, model_conditions, name_tables, weapon_set_flags
+from .utils import locomotor_sets, model_conditions, name_tables, weapon_set_flags
 
 if TYPE_CHECKING:
     import argparse

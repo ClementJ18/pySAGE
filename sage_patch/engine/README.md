@@ -3,7 +3,7 @@
 Reproducible binary patch built on the RE in
 [`../docs/commandset-button-limit.md`](../docs/commandset-button-limit.md). Applied and
 **runtime-verified in-game**: the build loads `CommandSet` blocks up to 64 entries and
-multi-select no longer crashes. See
+multi-select is stable. See
 [`../docs/push-visible-command-range.md`](../docs/push-visible-command-range.md) for the paging
 rule you must follow when surfacing buttons past 33.
 

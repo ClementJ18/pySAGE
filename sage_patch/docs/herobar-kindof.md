@@ -5,14 +5,13 @@ ROTWK `game.dat` (11,347,456 bytes — a stock 11,346,944-byte image with the `c
 section `.cahfac` already appended; `.text` is untouched by that patch, so every address below is
 also a stock address).
 
-**Built.** This shipped as [`herobar`](../../patches/herobar.py); the implementation writeup is
-[`../herobar.md`](../herobar.md). This document is the costing that preceded it, kept as written
-apart from the two corrections marked below. Two things it got wrong are worth reading for:
-the table has **14** references, not 12 ([§6](#6-the-kindof-itself-is-the-cheap-part)), and
-**Tier 2 did not cost what §8 says it would** — the shipped design reuses the engine's own draw
-loop instead of copying it, which removes both the per-group cursor problem and the open blocker
-in [§9](#9-open-questions). It also settles the click question §5 leaves open, in favour of
-selecting the group rather than iterating it.
+**Built.** This shipped as [`herobar`](../patches/herobar.py); the implementation writeup is
+[`../herobar.md`](herobar.md), and that is the description of what the patch does. This document
+is the static costing behind it — the kindof bit, the name-table relocation and the hero-bar
+model. Where the two differ, `herobar.md` wins: the shipped design reuses the engine's own draw
+loop instead of copying it (which removes both the per-group cursor problem and the blocker in
+[§9](#9-open-questions)), and it selects the group on a click rather than iterating it, which is
+the question §5 leaves open here.
 
 **Nothing here has been run.** Everything is static: disassembly, name tables, field tables, call
 graphs. Section [§10](#10-verifying-it-in-a-game) is the whole runtime list, and it is still open.
@@ -304,7 +303,7 @@ That means: **no `ThingTemplate` growth, no savegame length change, no `Object` 
 blob. A patched and an unpatched build write the same number of bytes.
 
 This is the whole reason a new kindof is affordable at all — contrast
-[`upgrade-mask-limit.md`](../upgrade-mask-limit.md), where the mask is full and the next entry
+[`upgrade-mask-limit.md`](upgrade-mask-limit.md), where the mask is full and the next entry
 corrupts its neighbour.
 
 ### Growing the table is a shape this repo already ships
@@ -312,16 +311,16 @@ corrupts its neighbour.
 The parser is `INI::scanIndexList` (`0x0042B914`), reached three times from the `KindOf` mask parser
 at `0x00655B0E` (`+NAME`, `-NAME`, bare `NAME`). It walks the table to its NULL terminator; there is
 no count on the parse path. That is exactly the contract
-[`name_tables.py`](../../patches/name_tables.py) was written for — read the table live, rebuild it
+[`name_tables.py`](../patches/utils/name_tables.py) was written for — read the table live, rebuild it
 into a cave with one more entry, repoint every reference.
 
 The table cannot grow in place: `0x00DA11E0` is its terminator and `0x00DA11E4` is already the first
 entry of the next table (`NONE`, `HOLD`, `KILL`, `SPAWN`).
 
-**References to relocate — 14 sites.** *(Corrected: this section originally said 12, and dismissed
-`0x007B3CDB` as a jump-table false positive. It is not one — `0x007B3CDA` is a six-byte
-`mov eax, <table>; ret` accessor sitting after a byte table. Nothing calls it, exactly like the
-dead `getCount` below, and it is repointed anyway.)*
+**References to relocate — 14 sites.** `0x007B3CDB` is among them and looks like a jump-table
+false positive but is not: `0x007B3CDA` is a six-byte `mov eax, <table>; ret` accessor sitting
+after a byte table. Nothing calls it, exactly like the dead `getCount` below, and it is
+repointed anyway.
 
 | VA | site |
 |---|---|
@@ -430,7 +429,7 @@ Options, cheapest first:
   struct changes at all. Loses nothing because the bar is a singleton and client-local.
 
 The side table is almost certainly right, and it is the same technique
-[`hero-mana`](../hero-mana.md) uses for per-object state the engine has no room for.
+[`hero-mana`](hero-mana.md) uses for per-object state the engine has no room for.
 
 ### 8.3 Sixteen slots, and what overflows
 

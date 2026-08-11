@@ -84,6 +84,13 @@ def report_spellbook(statics: Statics, side: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--game", required=True, help="install folder holding the .big archives")
+    # Without this every bot on the machine attaches to whichever `game.dat` is found first,
+    # which is silent and wrong rather than an error: four bots would drive one match together.
+    parser.add_argument(
+        "--pid",
+        type=int,
+        help="target game.dat (default: the first one found). Needed to run a bot per instance",
+    )
     parser.add_argument("--cycles", type=int, default=400, help="how many decisions to make")
     parser.add_argument("--interval", type=float, default=2.0, help="seconds between decisions")
     parser.add_argument("--dry-run", action="store_true", help="decide and print, send nothing")
@@ -118,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        session = attach(writable=True, fog=args.fog)
+        session = attach(args.pid, writable=True, fog=args.fog)
     except AttachError as exc:
         raise SystemExit(str(exc)) from exc
 

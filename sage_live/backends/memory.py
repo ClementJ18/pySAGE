@@ -24,15 +24,13 @@ header comes out of the one read, a template's name and Side are cached per temp
 than per object, and a template already known to carry no `ProductionUpdate` skips the module
 walk entirely. Averaged over a real 386-object match the figure is about **15**, because a
 match holds dozens of distinct templates and each pays once for its strings and its module
-walk; the decomposition (49.8 originally, 29.1 with the caches, 15.1 with batching too) is in
-the package README.
+walk.
 
 Every wide read has a **field-by-field fallback**, and the two must decode identically. That is
 not defensive decoration: an object whose header straddles into an unmapped page fails the wide
 read while each field inside it reads perfectly, and a recorded snapshot holds only the ranges
-its capture touched. The fallback is also what the reader did before it batched, which is how
-the improvement is measured - refusing the wide reads turns the fast path back into the old one
-on the same image, and the marginal cost goes from 3 back to 16.
+its capture touched. The fallback is also what the batching is measured against - refusing the
+wide reads on the same image takes the marginal cost from 3 to 16.
 
 Two limits worth knowing before building on this:
 
@@ -96,10 +94,10 @@ from sage_patch.addresses import (
     THE_THING_FACTORY,
     THE_UPGRADE_CENTER,
 )
-from sage_patch.patches.model_conditions import MASK_DWORDS as MODEL_CONDITION_DWORDS
-from sage_patch.patches.model_conditions import MASK_OFFSET as MODEL_CONDITION_MASK
-from sage_patch.patches.model_conditions import NAME_TABLE_VA as MODEL_CONDITION_NAMES
-from sage_patch.patches.model_conditions import STOCK_BIT_COUNT as MODEL_CONDITION_COUNT
+from sage_patch.patches.utils.model_conditions import MASK_DWORDS as MODEL_CONDITION_DWORDS
+from sage_patch.patches.utils.model_conditions import MASK_OFFSET as MODEL_CONDITION_MASK
+from sage_patch.patches.utils.model_conditions import NAME_TABLE_VA as MODEL_CONDITION_NAMES
+from sage_patch.patches.utils.model_conditions import STOCK_BIT_COUNT as MODEL_CONDITION_COUNT
 from sage_replay.replay import Order
 
 __all__ = [
@@ -343,7 +341,7 @@ class EngineLayout:
     # named by a NULL-terminated table of 591 strings in the image. This is how the game itself
     # knows a structure is still going up (`ACTIVELY_BEING_CONSTRUCTED`), a building is working
     # its door animation, or a unit is attacking - and it sits inside `obj_span`, so reading it
-    # costs no read of its own. Offsets are `sage_patch.patches.model_conditions`, whose
+    # costs no read of its own. Offsets are `sage_patch.patches.utils.model_conditions`, whose
     # production-condition patch writes to this same mask.
     obj_model_conditions: int = MODEL_CONDITION_MASK
     model_condition_words: int = MODEL_CONDITION_DWORDS
@@ -1232,8 +1230,8 @@ class MemoryBackend:
         scanning a summoned battalion's team for any pointer whose target held a known `Player*`,
         and **checked the only way that means anything**: run against the six teams the default
         map already resolves, it returns the same index for every one of them. On the same frame
-        it resolved all 41 previously-ownerless objects - 39 Isengard, 2 ours - with none left
-        over.
+        it resolves all 41 objects that read as ownerless without it - 39 Isengard, 2 ours -
+        with none left over.
 
         Memoised into `owners`, so a team costs two reads once rather than two per object on it.
         None only when the chain breaks or lands on a `Player*` that is not in the player list,

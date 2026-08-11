@@ -99,6 +99,24 @@ Fixed since:
   the `.big`s under `<dir>` when it is not a loose file, so the mod files that ship without
   a loose `.const` (`LoadScreen.apt`, ...) now decompile. Loose file wins; pyBIG is
   lazy-imported behind the optional `[apt]` extra so the core stays stdlib-only.
+- **`Move` placeobjects read as removals**: both renderers treated any placeobject with
+  `character="-1"` as "delete whatever is at this depth". That is a `Move` record — no
+  `HasCharacter`, so no character of its own — which *updates* the object already there,
+  and real removal is the separate `removeobject` record (which neither renderer handled).
+  Any movie that places its content on a fade-in frame and reveals it with a later alpha
+  `Move` therefore rendered as a blank stage: `InGameHeroSelect --label _show` dropped all
+  33 elements. `_accumulate_to` now classifies by flags and returns `Placed` records
+  (placing element + merged attributes + effective name), keeping the placing node as the
+  editor's edit target. Same fix mirrored in `editor.html`.
+- **Sprites stuck on an empty frame 0**: `best_frame_items` fell back to frame 0 and gave
+  up, so a sprite whose frame 0 is a placeholder (`_unused`) and whose content sits on
+  named state frames (`_Men` / `_Elves` / ... on the hero-select faction switcher) drew
+  nothing, blanking everything nested under it. It now falls back to the earliest labelled
+  frame that has content.
+- **`edit --frame N` / `--label X`**: the editor could only ever open on root frame 0,
+  which is an empty `_hide` state on the in-game HUD movies — it opened blank with no way
+  to say otherwise (`view` had these flags already). The state dropdown takes over once
+  the user picks from it.
 
 ## Broken / suspect
 

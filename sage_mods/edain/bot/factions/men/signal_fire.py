@@ -40,6 +40,16 @@ against the two ordinary battalions a three-charge summon gives, which is five o
 if the same eight charges are spent as they arrive. So Lehen buys *quality*, not quantity, and
 `best_summon` weighs it accordingly rather than treating the wait as free.
 
+**Which fiefdom is a question about the army, not about the table.** The four ordinary summons
+buy the same number of the same-sized bodies for two or three charges, so there is no ranking
+among them worth writing down in the abstract - and a version that took the last affordable entry
+spent a whole won match on Lossarnach's axes, three summons for three identical pairs, while the
+army it was topping up was short of spears and bows. `role_needs` and `summon_balance` ask
+instead which *role* the army is furthest below its own `ArmyDefinition` on, and `role_wait` lets
+the rider hold one charge - 75 seconds - when the role it wants is a three-charge summon and the
+affordable ones are not. Without that last part the rest cannot work: a rider that spends at two
+never reaches three, so the archers and the spearmen were unreachable rather than unwanted.
+
 `stage_signal_fire` runs in `Bot.decide` ahead of `stage_recruit` - it spends no gold, so the
 only thing it takes from the loop is command points, and a free pair of battalions beats a paid
 single one. It answers None on any seat that is not Men.
@@ -53,19 +63,21 @@ from dataclasses import dataclass
 from sage_live.api.observation import GameObject, Observation, Vec3, distance
 from sage_live.api.orders import CAST_SELF
 from sage_live.api.session import BUILD_CONFIRM
-from sage_mods.edain.bot.tuning import HOLDING_RADIUS
+from sage_mods.edain.bot.tuning import HOLDING_RADIUS, ROLE_PATIENCE
 
 __all__ = [
     "CHARGE_SECONDS",
     "FIEFDOM_SIDE",
     "MAX_CHARGES",
     "RIDER_PREFIX",
+    "SECOND_FIRE_EXTERNAL",
     "SIGNAL_FIRE",
     "SUMMONS",
     "SUMMON_RANGE",
     "SignalFire",
     "Summon",
     "charges_of",
+    "role_wait",
 ]
 
 SIGNAL_FIRE = "GondorLeuchtfeuer"
@@ -171,6 +183,14 @@ SUMMONS: tuple[Summon, ...] = (
     ),
 )
 
+# How many of **each** settlement building the plan names must be standing before a second signal
+# fire is worth a plot. The one-fire rule below is about the opening, where 400g is two battalions
+# and the map is still being taken; a base that has laid four farms and four ranger tents is past
+# that argument entirely - the plots it has left are going to a seventh farm whose ladder is
+# already capped, and a second rider is a second battalion every 75 seconds for the rest of the
+# match. See `signal_fires_wanted`.
+SECOND_FIRE_EXTERNAL = 4
+
 # What `best_summon` will hold charges for. Below this it spends on whatever is affordable,
 # because a charge saved earns nothing and a battalion on the map does.
 SAVE_FOR = SUMMONS[-1]
@@ -201,7 +221,47 @@ def affordable(charges: int) -> tuple[Summon, ...]:
     return tuple(summon for summon in SUMMONS if summon.charges <= charges)
 
 
-def best_summon(charges: int, fits: Callable[[Summon], bool] | None = None) -> Summon | None:
+def role_wait(
+    charges: int,
+    allowed: Callable[[Summon], bool],
+    value: Callable[[Summon], float],
+) -> Summon | None:
+    """The summon **one charge away** that is worth not spending for, or None to spend now.
+
+    **This is the whole of the fix to a fire that only ever bought axes**, and the arithmetic is
+    why it needed one. Ring Vale and Lossarnach cost two charges and Morthond and Pelargir cost
+    three, so a rider that spends the moment it can afford anything never reaches three - it
+    resets to zero at two, every time, for the whole match. A measured run ended `summon
+    LehenLossarn 3/3`: three summons, all of them the same axes, from a mechanic that offers four
+    fiefdoms. Ranking what is affordable cannot fix that on its own, because the two things
+    affordable at two charges are both infantry.
+
+    So the rider is allowed to hold **exactly one** more charge - 75 seconds - and only when the
+    summon that buys opens a role the affordable ones do not. `ROLE_PATIENCE` is the margin that
+    makes it "a different answer" rather than "a coin toss", and the one-charge bound is what
+    keeps this from becoming a second `SAVE_FROM`: past `charges + 1` there is nothing to wait
+    for, because the table has nothing between three charges and Lehen's eight.
+
+    None when there is nothing affordable anyway - that is the ordinary short-of-charges hold and
+    `signal_fire_holding` has better words for it than this does.
+    """
+    if charges >= MAX_CHARGES:
+        return None
+    ahead = [summon for summon in SUMMONS if summon.charges == charges + 1 and allowed(summon)]
+    now = [summon for summon in affordable(charges) if allowed(summon)]
+    if not ahead or not now:
+        return None
+    best_ahead = max(ahead, key=lambda summon: (value(summon), SUMMONS.index(summon)))
+    if value(best_ahead) - max(value(summon) for summon in now) > ROLE_PATIENCE:
+        return best_ahead
+    return None
+
+
+def best_summon(
+    charges: int,
+    fits: Callable[[Summon], bool] | None = None,
+    balance: Callable[[Summon], float] | None = None,
+) -> Summon | None:
     """What to spend on now, or None to keep saving.
 
     **The interesting case is the one where the answer is to buy nothing.** Lehen is four veteran
@@ -227,15 +287,28 @@ def best_summon(charges: int, fits: Callable[[Summon], bool] | None = None) -> S
     ceiling and a few cycles buys the room. At `MAX_CHARGES` that stops being true - accrual is
     being thrown away every 75 seconds - so at the cap this takes the best thing that does fit.
 
-    Ties inside a charge band go to the earlier entry, so the table's order is the preference.
+    **`balance` is what the summon is bought for, and without one this picks the same fiefdom
+    every time.** The charge table has no preference in it worth calling a decision - Ring Vale
+    and Lossarnach cost the same and buy the same number of the same kind of body - so ranking by
+    the table was ranking by the order the entries happen to be written in, and the log said so:
+    three summons in a won match, all three of them Lossarnach's axes. `SignalFire.summon_balance`
+    supplies the real question, which is which role the army is short of; ties fall back to the
+    table, so a caller that passes nothing gets exactly the old behaviour.
+
+    Ties inside a charge band go to the later entry, so the table's order is the tiebreak.
     """
     allowed = fits or (lambda _: True)
+    value = balance or (lambda _: 0.0)
     if charges >= SAVE_FOR.charges and allowed(SAVE_FOR):
         return SAVE_FOR
     if SAVE_FROM <= charges < MAX_CHARGES:
         return None
     options = [summon for summon in affordable(charges) if allowed(summon)]
-    return options[-1] if options else None
+    if not options:
+        return None
+    if role_wait(charges, allowed, value) is not None:
+        return None
+    return max(options, key=lambda summon: (value(summon), SUMMONS.index(summon)))
 
 
 class SignalFire:
@@ -246,14 +319,36 @@ class SignalFire:
     seat being Men and on a rider actually existing, so a Mordor run costs one string comparison.
     """
 
+    def signal_fires_wanted(self) -> int:
+        """How many signal fires this base is in the market for - one, or two once built out.
+
+        **One is the opening's answer and it stops being the right one.** 400g against an empty
+        map is two battalions or two farms, and the second rider trickles at exactly the rate of
+        the first, so a base still taking ground has better uses for both the gold and the plot.
+        None of that is true of a base whose farms and ranger tents are both at
+        `SECOND_FIRE_EXTERNAL`: the settlement it would go on is otherwise getting a fifth farm,
+        whose discount ladder stopped improving two buildings ago, and the fire it would go to
+        pays a battalion every 75 seconds until the match ends.
+
+        Read off `external_standing`, which counts the tiers as their own family, so a farm that
+        has upgraded itself to `GondorFarm_Extern3` still counts as the farm it was. **Every**
+        family the plan names has to be there - `min`, not a sum - because the point is a base
+        that has run out of better things to put on a settlement, and one family at eight while
+        the other is at one is a base that has not.
+        """
+        standing = self.external_standing()
+        if standing and min(standing.values()) >= SECOND_FIRE_EXTERNAL:
+            return 2
+        return 1
+
     def signal_fire_site(self, plot: GameObject, offered: tuple[str, ...]) -> str | None:
         """`SIGNAL_FIRE` when this claimed settlement is the one to spend on it, else None.
 
-        **One standing at all times - a target to hold, not a purchase to make once.** The
-        building earns nothing and defends nothing; what it buys is a rider, and one rider
-        accruing a charge every 75 seconds is the whole of the mechanic. A second fire doubles the
-        outlay for a second trickle, where 400g is two battalions or two farms - so the answer is
-        never two.
+        **A target to hold, not a purchase to make once**, and the target is
+        `signal_fires_wanted` rather than a constant - one while the map is still being taken,
+        two once the settlements have nothing better to carry. What it is never is "as many as
+        there are plots": the building earns nothing and defends nothing, and each one is a
+        trickle rather than a multiplier.
 
         But nor is the answer "one, ever". The test is `owned_building`, which counts what is
         *standing*, so a fire that is razed puts the bot back in the market for one and the next
@@ -273,7 +368,9 @@ class SignalFire:
         Returns None the moment either test fails, and the caller falls through to the ordinary
         farm-or-tents balance - a contested settlement is still worth a farm.
         """
-        if SIGNAL_FIRE not in offered or self.owned_building(SIGNAL_FIRE):
+        if SIGNAL_FIRE not in offered:
+            return None
+        if len(self.owned_building(SIGNAL_FIRE)) >= self.signal_fires_wanted():
             return None
         if any(
             self.hostile(other) and other.distance_to(plot.position) < HOLDING_RADIUS
@@ -352,6 +449,61 @@ class SignalFire:
         cost = self.summon_command_points(summon)
         return not cost or cost <= me.command_points_free
 
+    def role_needs(self) -> dict[str, float]:
+        """How far short of its intended share each fighting role is, as a fraction of the army.
+
+        **The two halves are already written and this only has to line them up.** `wanted_mix`
+        is the faction's own `ArmyDefinition` for this phase, already tilted toward what beats
+        what the opponent fielded; `army()` is what is actually standing. Both are collapsed onto
+        `role_of` so that four fiefdoms with no entry in any army definition can still be
+        compared against a plan that has never heard of them - which is the whole difficulty,
+        since nothing recruits a fiefdom battalion and so `producers` can never offer one.
+
+        Positive is short and negative is long, and the number is a share of the army either way,
+        so `ROLE_PATIENCE` is in the same units at both ends.
+
+        **Heroes are counted out.** They are in `army()` deliberately and they belong there, but
+        no army definition lists one, so leaving them in adds a body to a role that asked for
+        none and biases every summon away from whatever the hero happens to fight as.
+
+        An empty answer means there is nothing to say - no producers yet, no army yet - and
+        `summon_balance` turns that back into the table's own order rather than into a preference
+        invented out of nothing.
+        """
+        wanted: dict[str, float] = {}
+        for unit, share in self.wanted_mix().items():
+            role = self.role_of(unit)
+            wanted[role] = wanted.get(role, 0.0) + share
+        heroes = {hero.object_id for hero in self.heroes()}
+        fielded: dict[str, float] = {}
+        for owned in self.army():
+            if owned.object_id in heroes:
+                continue
+            role = self.role_of(owned.template_name)
+            fielded[role] = fielded.get(role, 0.0) + 1.0
+        total = sum(fielded.values())
+        return {
+            role: wanted.get(role, 0.0) - (fielded.get(role, 0.0) / total if total else 0.0)
+            for role in set(wanted) | set(fielded)
+        }
+
+    def summon_balance(self, summon: Summon, needs: dict[str, float]) -> float:
+        """How much of the army's shortfall this summon fills - per battalion it recruits.
+
+        **A mean rather than a sum, because the summons are not the same size.** Lehen puts four
+        battalions on the map and everything else two, so a sum would rank Lehen above the others
+        for being large rather than for being right - and `best_summon` already has a rule about
+        Lehen that this must not quietly become a second copy of.
+
+        `needs` is passed in because `role_needs` walks the army and the whole army definition,
+        and this is asked once per candidate summon.
+        """
+        if not needs:
+            return 0.0
+        return sum(needs.get(self.role_of(name), 0.0) for name in summon.spawns) / len(
+            summon.spawns
+        )
+
     def signal_fire_target(self, rider: GameObject) -> Vec3:
         """Where to aim the cast - the signal fire, falling back to the rider.
 
@@ -413,13 +565,17 @@ class SignalFire:
         landed = self.session.confirm(spent, timeout=BUILD_CONFIRM)
         return self._report(label, landed, "charges spent", "CHARGES UNSPENT - order discarded")
 
-    def signal_fire_holding(self, charges: int) -> str:
-        """Why nothing was spent, which is two different reasons and worth telling apart.
+    def signal_fire_holding(self, charges: int, needs: dict[str, float]) -> str:
+        """Why nothing was spent, which is three different reasons and worth telling apart.
 
         Short of charges is the mechanic working - time passes and it resolves itself. Short of
         command points is a state something else has to fix, and a run that spends the whole
         match reporting it is a run whose `stage_command_points` is not keeping up. Reading one
         as the other in a log is how a ceiling problem hides behind a currency that is fine.
+
+        The third is `role_wait`, and it is the one that has to name what it is waiting for: a
+        75-second hold with charges in hand looks identical in a log to a stage that has stopped
+        working, and this is the line that says it is a choice.
         """
         me = self.observation.me
         free = None if me is None else me.command_points_free
@@ -428,6 +584,15 @@ class SignalFire:
             return (
                 f"{charges} charges is enough for {SAVE_FOR.spawns[0]} and three more, "
                 f"but it costs {cost} command points and {free} are free"
+            )
+        waiting = role_wait(
+            charges, self.summon_fits, lambda summon: self.summon_balance(summon, needs)
+        )
+        if waiting is not None:
+            role = self.role_of(waiting.spawns[0]).lower()
+            return (
+                f"{charges} charges, holding one more for {waiting.spawns[0]} - the army is "
+                f"shorter of {role} than of anything {charges} charges buys"
             )
         missing = SAVE_FOR.charges - charges
         return (
@@ -439,6 +604,9 @@ class SignalFire:
 
         One order per cycle like every other stage, and the richest rider goes first - it is the
         one closest to Lehen and the one whose charges are closest to being wasted at the cap.
+
+        `role_needs` is read once and handed to both halves, because it walks the whole army and
+        the whole army definition and the two calls below would otherwise ask for it six times.
         """
         if self.side.lower() != FIEFDOM_SIDE:
             return None
@@ -446,9 +614,12 @@ class SignalFire:
         if not riders:
             return None
         rider, charges = riders[0]
-        summon = best_summon(charges, self.summon_fits)
+        needs = self.role_needs()
+        summon = best_summon(
+            charges, self.summon_fits, lambda option: self.summon_balance(option, needs)
+        )
         if summon is None:
-            return f"rider {rider.object_id}: {self.signal_fire_holding(charges)}"
+            return f"rider {rider.object_id}: {self.signal_fire_holding(charges, needs)}"
         if not self.summon_at(rider, summon, self.signal_fire_target(rider)):
             return f"rider {rider.object_id}: {summon.button} would not go out"
         left = charges - summon.charges

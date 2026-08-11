@@ -44,9 +44,10 @@ for the same reason. Nothing in the order stream changes.
 
 **Composition.** Order-independent. The model-condition name table and its ten count bounds are
 shared with `production-condition`, and both reach them through
-:mod:`sage_patch.patches.model_conditions`, which reads the live table rather than the stock one;
-whichever is applied second lands on the next free bit. The weather table, its four references,
-the two sentinel immediates and the two hooked blocks are touched by no other bundled patch.
+:mod:`sage_patch.patches.utils.model_conditions`, which reads the live table rather than the
+stock one; whichever is applied second lands on the next free bit. The weather table, its four
+references, the two sentinel immediates and the two hooked blocks are touched by no other
+bundled patch.
 """
 
 from __future__ import annotations
@@ -59,7 +60,7 @@ from sage_ini.engine import Engine, EnumDelta
 from ..asm import JNZ, JZ, Asm
 from ..patcher import Patch
 from ..utils import apply_byte_patch, find_section, va_to_offset
-from . import model_conditions
+from .utils import model_conditions
 
 if TYPE_CHECKING:
     import argparse

@@ -20,13 +20,14 @@ from types import SimpleNamespace
 from sage_live.api.orders import CAST_LOCATION, CAST_OBJECT, CAST_SELF
 from sage_live.utils.statics import (
     EFFECT_BUFF,
+    EFFECT_HEAL,
     EFFECT_SELF_BUFF,
     EFFECT_STRIKE,
     EFFECT_SUMMON,
     CastablePower,
 )
 from sage_mods.edain.bot.heroes import Heroes
-from sage_mods.edain.bot.tuning import HERO_RETREAT, HERO_RETURN
+from sage_mods.edain.bot.tuning import HERO_HEAL_TARGETS, HERO_RETREAT, HERO_RETURN
 from sage_mods.edain.bot.warfare import Warfare
 
 
@@ -36,7 +37,12 @@ def _obj(
     template: str = "GondorFighterHorde",
     health: float = 1.0,
     upgrades: frozenset[str] = frozenset(),
+    under_construction: bool = False,
+    is_rubble: bool = False,
 ) -> SimpleNamespace:
+    # `under_construction` and `is_rubble` are independent `ModelCondition` readings on the live
+    # object, not health thresholds - a structure ramps its hit points as it builds, and a
+    # destroyed keep sits at zero wearing `RUBBLE`. Defaulted rather than derived for that reason.
     return SimpleNamespace(
         object_id=object_id,
         template_name=template,
@@ -45,7 +51,8 @@ def _obj(
         max_health=1000.0,
         has_body=True,
         is_damaged=health < 1.0,
-        under_construction=False,
+        under_construction=under_construction,
+        is_rubble=is_rubble,
         upgrades=upgrades,
         distance_to=lambda point, _x=x: abs(point[0] - _x),
     )
@@ -97,7 +104,9 @@ class Field(Heroes):
         groups: dict[int, tuple[int, ...]] | None = None,
         cooldowns: dict[str, int] | None = None,
         contact: bool = False,
+        summoned: bool = False,
     ) -> None:
+        self._summoned = summoned
         self._my_heroes = heroes
         self._army = [*heroes, *(army or [])]
         self._enemies = enemies or []
@@ -135,7 +144,10 @@ class Field(Heroes):
             power_cooldowns=lambda object_id: self._cooldowns_read,
             confirm=lambda changed, timeout=0.0: True,
         )
-        self.statics = SimpleNamespace(hero_powers=lambda template: self._powers)
+        self.statics = SimpleNamespace(
+            hero_powers=lambda template: self._powers,
+            has_kind=lambda template, *flags: self._summoned,
+        )
 
     @property
     def observation(self) -> SimpleNamespace:
@@ -398,6 +410,69 @@ def test_a_ground_strike_wants_a_crowd() -> None:
     assert crowd.hero_aim(hero, volley) is not None
 
 
+def test_a_summoned_hero_settles_for_one_target() -> None:
+    """**A hero the player bought has the rest of the match to find a crowd; a summon has a
+    lifetime.** Gwaihir arrives from `SpellBookAdler` with a screech that recharges in 180 seconds
+    and less than a minute to live, so holding out for a second battalion is how it fades with the
+    charge unspent - and the eagles are aimed at the enemy army in the first place."""
+    eagle = _obj(1, x=0.0, template="ImladrisGwaihir_Summoned")
+    screech = _power("Screech", effect=EFFECT_STRIKE, form=CAST_SELF, reload_seconds=180.0)
+    alone = [_obj(5, x=100.0)]
+
+    bought = Field([eagle], enemies=alone, powers=(screech,), contact=True)
+    summoned = Field([eagle], enemies=alone, powers=(screech,), contact=True, summoned=True)
+
+    assert bought.hero_aim(eagle, screech) is None
+    assert summoned.hero_aim(eagle, screech) is not None
+
+
+def test_a_summon_with_nothing_to_hit_still_keeps_its_charge() -> None:
+    """Impatient is not indiscriminate. One is the floor, not zero - and being in contact is still
+    what says this is a fight at all."""
+    eagle = _obj(1, x=0.0, template="ImladrisGwaihir_Summoned")
+    screech = _power("Screech", effect=EFFECT_STRIKE, form=CAST_SELF)
+    field = Field([eagle], powers=(screech,), contact=True, summoned=True)
+
+    assert field.hero_aim(eagle, screech) is None
+
+
+def test_a_self_cast_heal_counts_the_circle_rather_than_the_worst_casualty() -> None:
+    """**An area heal lands where the caster stands, not where the casualty is.** The twins' Healing
+    Arts declares a `HealRadius` of 200 and recharges in 90 seconds; taking the worst-hurt object
+    anywhere within `HERO_ESCORT` spent it on one scratched battalion and reported a position the
+    heal never reached."""
+    twins = _obj(1, x=0.0, template="ImladrisZwillingeEdain_forMM_Summoned")
+    heal = _power("Healing", effect=EFFECT_HEAL, form=CAST_SELF, radius=200.0)
+    scratch = [_obj(2, x=50.0, health=0.99), _obj(3, x=50.0, health=0.5)]
+    chunk = [_obj(i, x=50.0, health=0.5) for i in range(2, 2 + HERO_HEAL_TARGETS)]
+
+    assert Field([twins], army=scratch, powers=(heal,)).hero_aim(twins, heal) is None
+    assert Field([twins], army=chunk, powers=(heal,)).hero_aim(twins, heal) is not None
+
+
+def test_a_self_cast_heal_ignores_the_hurt_standing_outside_its_radius() -> None:
+    """The circle is the ability's own, not `HERO_ESCORT`. A battalion 300 away is not in it, and
+    firing anyway spends 90 seconds of recharge on nobody."""
+    twins = _obj(1, x=0.0, template="ImladrisZwillingeEdain_forMM_Summoned")
+    heal = _power("Healing", effect=EFFECT_HEAL, form=CAST_SELF, radius=200.0)
+    far = [_obj(i, x=280.0, health=0.5) for i in range(2, 2 + HERO_HEAL_TARGETS)]
+
+    assert Field([twins], army=far, powers=(heal,)).hero_aim(twins, heal) is None
+
+
+def test_a_targeted_heal_still_goes_to_the_worst_hurt() -> None:
+    """The other shape of heal, and the branch the twins must not take over: an ability that names
+    a target heals that one thing, so the worst casualty is exactly the right answer."""
+    hero = _hero(1, x=0.0)
+    mend = _power("Mend", effect=EFFECT_HEAL, form=CAST_OBJECT, reach=500.0)
+    field = Field([hero], army=[_obj(2, x=50.0, health=0.9), _obj(3, x=60.0, health=0.3)])
+    field._powers = (mend,)
+    position, target_id, _ = field.hero_aim(hero, mend)
+
+    assert target_id == 3
+    assert position == (60.0, 0.0, 0.0)
+
+
 def test_a_summon_lands_beside_the_fighting() -> None:
     """The arrivals need room to unpack - the same reason a spellbook summon goes through
     `summon_spot` rather than into the middle of the crowd it was aimed at."""
@@ -563,8 +638,14 @@ class Hiring(Heroes):
         free_points: int = 999,
         index: int | None = 2,
         queued: int = 0,
+        sites: list | None = None,
     ) -> None:
         self.plan = SimpleNamespace(hero=HERO_TEMPLATE)
+        self._sites = (
+            sites
+            if sites is not None
+            else [_obj(10, template="GondorBarracks"), _obj(11, template="GondorForge")]
+        )
         self._gold = gold
         self._standing = standing or []
         self._slots = slots if slots is not None else {"GondorBarracks": (Slot(2),)}
@@ -597,7 +678,7 @@ class Hiring(Heroes):
         )
 
     def structures(self) -> list:
-        return [_obj(10, template="GondorBarracks"), _obj(11, template="GondorForge")]
+        return self._sites
 
     def queued_units(self, building) -> int:  # noqa: ANN001
         return self._queued
@@ -642,6 +723,40 @@ def test_a_slot_the_control_bar_would_hide_is_not_used() -> None:
     whatever the engine would accept."""
     hiring = Hiring(slots={"GondorBarracks": (Slot(2, needs="Upgrade_Never"),)})
     assert hiring.stage_hero_recruit() is None
+
+
+def test_a_building_still_going_up_is_not_asked_to_produce() -> None:
+    """**The order succeeds, and that is the whole problem.** An unfinished building answers with
+    its finished palette and its revive slots read as enabled while it is still a shell, so the
+    hire is accepted and the price committed - then waits on the construction rather than on a
+    revive timer, with nothing reporting that it is stalled. There is no refusal to catch."""
+    hiring = Hiring(sites=[_obj(10, template="GondorBarracks", under_construction=True)])
+    assert hiring.stage_hero_recruit() is None
+    assert hiring.ordered == []
+
+
+def test_a_keep_standing_as_wreckage_is_not_asked_to_produce() -> None:
+    """The other half of the same gate, and not the same state: a destroyed building stays in the
+    object table wearing `RUBBLE`, owned and not under construction, and it sells nothing."""
+    hiring = Hiring(sites=[_obj(10, template="GondorBarracks", health=0.0, is_rubble=True)])
+    assert hiring.stage_hero_recruit() is None
+    assert hiring.ordered == []
+
+
+def test_the_finished_building_is_preferred_over_the_one_going_up_beside_it() -> None:
+    """**The producer choice actively favours the shell, which is why the gate has to exist.**
+    Buildings are ranked by queue depth so orders spread out, and a building that cannot start
+    anything has the emptiest queue on the map - so it wins every comparison against the finished
+    barracks next door until it is full. The gate must narrow the list, not empty it."""
+    hiring = Hiring(
+        sites=[
+            _obj(10, template="GondorBarracks", under_construction=True),
+            _obj(12, template="GondorBarracks"),
+        ]
+    )
+    hiring.stage_hero_recruit()
+
+    assert hiring.ordered == [(HERO_TEMPLATE, 12)]
 
 
 def test_a_hero_already_on_the_map_is_not_bought_again() -> None:

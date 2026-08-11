@@ -44,8 +44,8 @@ and tail-jumps to the original helper when it is not one of ours.
    That decision must **not** read `RecorderClass::m_gameMode`. `updateRecord` caches the mode
    there before calling `startRecording`, but `startRecording`'s first act is ``reset()``
    (vtable ``+0x24``), which tail-jumps to ``0x0077D7C1`` and writes the sentinel **9** over it
-   forty bytes before the file is named. The first version of this patch read that field and
-   fell back to the stock name on every single skirmish.
+   forty bytes before the file is named. Reading that field falls back to the stock name on
+   every single skirmish, silently.
 
 **Why the call site and not the helper.** ``0x0077DEFD`` has that second caller. Patching the
 helper would rename the file *and* change what the menu looks for; patching the call site inside
@@ -264,9 +264,8 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
         # name and the recorded mode agree by construction.
         #
         # **Not** `TheRecorder`'s cached `m_gameMode`: `startRecording` calls `reset()` before
-        # it names the file, and that overwrites the field with the sentinel 9. Reading it here
-        # is what made the first version of this patch fall back to the stock name on every
-        # skirmish.
+        # it names the file, and that overwrites the field with the sentinel 9, so reading it
+        # here falls back to the stock name on every skirmish.
         a.emit(0x8B, 0x45, START_RECORDING_MODE_ARG)  # mov eax, [ebp+0x0c]
         a.emit(0x51)  # push ecx
         a.emit(0x52)  # push edx

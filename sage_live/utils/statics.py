@@ -1055,6 +1055,13 @@ class Statics:
         edit it. Collecting the chain first and applying it root-first is what gets both right;
         reading only the nearest declaration would drop a parent's flags whenever a child used
         the delta form.
+
+        **One block may state the field more than once, and the second line edits the first
+        rather than replacing it.** `RohanTheoden_mod_Summoned` spells its flags out and then
+        adds `KindOf = +SUMMONED` further down, so the field arrives here as a *list* of two
+        declarations - and stringifying that list produced tokens like `['HERO` and `SUMMONED',`,
+        which match nothing. Theoden therefore answered no to `HERO`, and the hero stages never
+        saw the one summon on Gondor's book carrying a 240-second ability.
         """
         chain = []
         current = self._objects.get(key)
@@ -1070,18 +1077,24 @@ class Statics:
             declared = obj.fields.get("KindOf")
             if declared is None:
                 continue
-            tokens = self._kind_tokens(str(declared))
-            if not any(t.startswith(("+", "-")) for t in tokens):
-                flags = {t.upper() for t in tokens}
-                continue
-            for token in tokens:
-                if token.startswith("+"):
-                    flags.add(token[1:].upper())
-                elif token.startswith("-"):
-                    flags.discard(token[1:].upper())
-                else:
-                    flags.add(token.upper())
+            statements = declared if isinstance(declared, (list, tuple)) else (declared,)
+            for statement in statements:
+                flags = self._apply_kinds(flags, self._kind_tokens(str(statement)))
         return frozenset(flags)
+
+    @staticmethod
+    def _apply_kinds(flags: set[str], tokens: list[str]) -> set[str]:
+        """One `KindOf` declaration applied to the flags standing before it."""
+        if not any(t.startswith(("+", "-")) for t in tokens):
+            return {t.upper() for t in tokens}
+        for token in tokens:
+            if token.startswith("+"):
+                flags.add(token[1:].upper())
+            elif token.startswith("-"):
+                flags.discard(token[1:].upper())
+            else:
+                flags.add(token.upper())
+        return flags
 
     def _kind_tokens(self, declared: str) -> list[str]:
         """One `KindOf` declaration split into flags, with any `#define` expanded.

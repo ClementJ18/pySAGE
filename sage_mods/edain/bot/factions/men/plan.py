@@ -72,4 +72,10 @@ MEN = Plan(
     # is nearest the enemy - see `Plan.precious` and `signal_fire`, which explains what makes it
     # unlike every other outlying building Gondor puts up.
     precious=("GondorLeuchtfeuer",),
+    # Slot 6 of `MenPurchaseScienceCommandSetMP`, and the one power on this book that buys an
+    # upgrade instead of a spell: `SpellBookGandalftheWhite` is a `PlayerUpgradeSpecialPower`
+    # granting `Upgrade_GandalfWhite`, which only Gandalf reads. Five points with him off the map
+    # buy nothing - and this plan does not even recruit him, so it is the ring quest or the White
+    # Council that puts him there. See `Plan.power_needs`.
+    power_needs=(("SCIENCE_GandalftheWhite", ("GondorGandalf",)),),
 )

@@ -26,7 +26,7 @@ from sage_patch.patches.desert_weather_wb import (
     WEATHER_TABLE_VA,
     DesertWeatherWorldbuilderPatch,
 )
-from sage_patch.patches.model_conditions import read_cstring
+from sage_patch.patches.utils.model_conditions import read_cstring
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.synthetic import worldbuilder_image
 

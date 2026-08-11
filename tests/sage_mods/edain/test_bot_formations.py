@@ -17,7 +17,12 @@ from types import SimpleNamespace
 
 from sage_live.utils.statics import Formation
 from sage_mods.edain.bot.ledger import Ledger
-from sage_mods.edain.bot.mechanics.formations import ALTERNATE, Formations, Posture
+from sage_mods.edain.bot.mechanics.formations import (
+    ALTERNATE,
+    Formations,
+    Posture,
+    blinding_brace,
+)
 from sage_mods.edain.bot.tuning import (
     DEFEND_CONTACT,
     FORMATION_HOLD,
@@ -187,6 +192,44 @@ def test_defensive_reads_the_trade_and_not_the_name():
     assert PORCUPINE.defensive and not PORCUPINE.tougher
     # Armour bought with damage is not a defensive formation.
     assert not UNREACHABLE.defensive
+
+
+def test_a_brace_bought_with_sight_is_refused():
+    """The porcupine is reachable and does something real, and is still not worth the blindness.
+
+    `worth_taking` says yes on `braces` alone, so the refusal has to be its own test - and it has
+    to read the trade rather than the template name, because six templates in the Men pool take
+    an identical porcupine.
+    """
+    assert PORCUPINE.worth_taking
+    assert blinding_brace(PORCUPINE)
+
+
+def test_a_brace_that_costs_no_sight_is_kept():
+    """Pelargir's wall braces too, and is separated by what it buys rather than by its name."""
+    wall = Formation(
+        template="PelegirSpearmenHorde",
+        alternate="PelegirSpearmenHordeShieldWall",
+        button="Command_ToggleFormationPelegirSpearmen",
+        armour_scoped=0.50,
+        armour_types=("WATER",),
+        damage=0.75,
+        braces=True,
+    )
+    assert not blinding_brace(wall)
+    # And nothing that fails to brace is caught by it either.
+    assert not blinding_brace(BLOCK)
+
+
+def test_spearmen_are_left_in_line_even_in_a_settled_fight():
+    """The stage-level consequence: a braced-worthy battalion that never gets the order."""
+    bot = Formed(
+        [_horde(1, "GondorSpearmanHorde")],
+        enemies=[_enemy(DEFEND_CONTACT / 2)],
+        formations={"gondorspearmanhorde": PORCUPINE},
+    )
+    assert _settle(bot, cycles=5) is None
+    assert bot.session.toggled == []
 
 
 def test_scoped_armour_still_counts_as_tougher():

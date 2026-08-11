@@ -37,7 +37,7 @@ from sage_patch.addresses import (
     RESOURCE_MODIFIER_COUNT_CALLBACK,
 )
 from sage_patch.patches import inflation_readout as ir
-from sage_patch.patches.income_link import (
+from sage_patch.patches.utils.income_link import (
     READOUT_IMPORT_OFF,
     UPKEEP_EXPORT_OFF,
     read_export,

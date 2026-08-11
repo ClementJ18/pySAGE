@@ -143,8 +143,8 @@ function boundary.
 `mov [esi+0x70], edx` — the same field through the same sub-struct base, reached from opposite
 directions.
 
-**The string header: he was right, and my first reading was wrong.** Chars start at `+8`, not the
-`+4` that stock Generals-lineage `AsciiString` uses:
+**The string header.** Chars start at `+8`, not the `+4` that stock Generals-lineage
+`AsciiString` uses:
 
 ```
 0x00448472  8b4704   mov eax, [edi+4]      ; obj -> ThingTemplate

@@ -21,7 +21,6 @@ import struct
 
 import pytest
 
-from sage_patch.patches import model_conditions
 from sage_patch.patches.desert_weather import (
     _ANY_WEATHER_DEFAULT_VA,
     _ANY_WEATHER_TEST_VA,
@@ -43,6 +42,7 @@ from sage_patch.patches.desert_weather import (
     build_upgrade_code,
 )
 from sage_patch.patches.production_condition import ProductionConditionPatch
+from sage_patch.patches.utils import model_conditions
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.synthetic import synthetic_image
 

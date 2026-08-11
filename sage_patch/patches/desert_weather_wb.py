@@ -60,7 +60,7 @@ from typing import TYPE_CHECKING
 
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
-from .model_conditions import read_cstring, validate_name
+from .utils.model_conditions import read_cstring, validate_name
 
 if TYPE_CHECKING:
     import argparse

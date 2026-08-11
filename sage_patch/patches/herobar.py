@@ -63,8 +63,8 @@ from sage_ini.engine import Engine, EnumDelta
 from ..asm import JAE, JE, JNE, JNZ, JZ, Asm
 from ..patcher import Patch
 from ..utils import apply_byte_patch, find_section
-from . import kind_of
-from .name_tables import offset as _offset
+from .utils import kind_of
+from .utils.name_tables import offset as _offset
 
 __all__ = [
     "DEFAULT_KINDOF",

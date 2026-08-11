@@ -12,7 +12,7 @@ a **single** slot regardless of template, and clicking it walks the mixed set on
 The grouping key changes from *nothing* to *the template*, and with it the number of slots stops
 being a constant.
 
-The pre-implementation costing is in [`ideas/herobar-kindof.md`](ideas/herobar-kindof.md), kept as
+The pre-implementation costing is in [`ideas/herobar-kindof.md`](herobar-kindof.md), kept as
 written; this document is what shipped. The one open blocker that document records — the model's
 allocation site — turned out not to need answering, because the design below never grows the model.
 
@@ -59,8 +59,8 @@ Two independent confirmations of the width:
 | `0x00444D39` | `push 0x1C` → the single-bit `KindOfMaskType` constructor |
 
 The table cannot grow in place — `0x00DA11E0` is its terminator and `0x00DA11E4` is already the
-first entry of the next table — so [`kind_of.py`](../patches/kind_of.py) rebuilds it into the
-patch's cave, exactly as [`model_conditions.py`](../patches/model_conditions.py) does for
+first entry of the next table — so [`kind_of.py`](../patches/utils/kind_of.py) rebuilds it into the
+patch's cave, exactly as [`model_conditions.py`](../patches/utils/model_conditions.py) does for
 `ModelConditionFlags`. It is the smaller job of the two: **14 references** against that table's 16,
 and **6 counts** against its 10.
 

@@ -18,7 +18,6 @@ import struct
 
 import pytest
 
-from sage_patch.patches import locomotor_sets, weapon_set_flags
 from sage_patch.patches.production_condition import (
     _COUNT_SITES,
     _NAME_TABLE_VA,
@@ -38,6 +37,7 @@ from sage_patch.patches.production_condition import (
     ProductionConditionPatch,
     build_hook_code,
 )
+from sage_patch.patches.utils import locomotor_sets, weapon_set_flags
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.synthetic import IMAGE_BASE, synthetic_image
 

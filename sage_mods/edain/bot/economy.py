@@ -582,6 +582,15 @@ class Economy(Orders):
         for obj in self.observation.mine:
             if self.statics.has_kind(obj.template_name, *NOT_WORTH_UPGRADING):
                 continue
+            if obj.under_construction:
+                # **A building still going up takes the order and cannot work it.** It carries
+                # its finished command set, so every prerequisite reads as met and the buy is
+                # accepted - into a queue that will not move until the structure is built. The
+                # cost is committed now for a tech that lands whenever construction happens to
+                # end, and `queued_upgrades` then reads this building as busy, so the one-at-a-
+                # time rule above holds it there. An upgrade is only worth its price if it
+                # changes the battalions being built *now*; bought against a shell it does not.
+                continue
             if self.queued_upgrades(obj) >= UPGRADE_QUEUE:
                 # **One at a time, per building.** The queue is shared with units and runs in
                 # order, so a second upgrade stacked behind the first arrives after everything

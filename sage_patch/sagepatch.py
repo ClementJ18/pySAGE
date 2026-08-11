@@ -37,8 +37,9 @@ from sage_ini.engine import Engine, EnumDelta, Source
 
 from .addresses import BUILD
 from .patcher import Patch
-from .patches import desert_weather, locomotor_sets, model_conditions, weapon_set_flags
-from .patches.name_tables import read_cstring, read_terminated, resolve_base
+from .patches import desert_weather
+from .patches.utils import locomotor_sets, model_conditions, weapon_set_flags
+from .patches.utils.name_tables import read_cstring, read_terminated, resolve_base
 from .registry import PATCHES
 
 __all__ = [

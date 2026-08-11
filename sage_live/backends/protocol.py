@@ -112,7 +112,7 @@ class Diagnostic:
 class DiagnosticLog(Sequence[Diagnostic]):
     """A backend's diagnostics: bounded, logged, and drainable.
 
-    Three things a plain list got wrong for a session that runs for an hour rather than for a
+    Three things a plain list does not give a session that runs for an hour rather than for a
     test. **Bounded**, because a backend appends per observation and a game that has gone away
     appends the same message every cycle forever - unbounded memory in exchange for a thousand
     copies of one sentence. **Logged**, because a diagnostic nobody reads is not a diagnostic;

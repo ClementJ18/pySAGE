@@ -316,10 +316,10 @@ passes, and the installed hook and cave disassemble to the intended instructions
 exits landing on the intended labels. Confirming in-game that the AI stops recruiting from disabled
 slots is open.
 
-**The player-side regression is fixed but not yet re-tested in game.** A build carrying the
-earlier, unconditional version of this patch made some heroes unrecruitable for the human player —
-reported for Rohan's Merry and Gamling and for a Create-A-Hero, while Hama and Théoden were
-unaffected. That is [the fifth caller](#the-fifth-caller-and-why-a-scan-misses-it): the ControlBar
-asks `+0x64`, which asks `canMakeUnit`. With the return-address test the player's path is
-byte-for-byte stock again, so the regression cannot recur by construction — but confirming it
-in a Rohan skirmish is open.
+**The player's own recruit path is not yet re-tested in game.** It runs through
+[the fifth caller](#the-fifth-caller-and-why-a-scan-misses-it): the ControlBar asks `+0x64`,
+which asks `canMakeUnit`. A gate applied unconditionally there makes heroes unrecruitable for
+the human player — Rohan's Merry and Gamling and a Create-A-Hero are the ones this shows on,
+while Hama and Théoden are unaffected. The return-address test keeps the player's path
+byte-for-byte stock, so it cannot happen by construction, but confirming it in a Rohan skirmish
+is open.
