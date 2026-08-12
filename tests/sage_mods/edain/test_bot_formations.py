@@ -124,7 +124,9 @@ class Formed(Formations):
         seen=None,
     ) -> None:
         self._army = list(army)
-        self.observation = _Observation(self._army, enemies, set(alternate))
+        # `BotState.observation` is a property, so the stand-in overrides it as one too rather
+        # than assigning over it.
+        self._observation = _Observation(self._army, enemies, set(alternate))
         self._formations = dict(formations or {"gondorfighterhorde": BLOCK})
         # `seen={}` is a real case - a battalion this bot has never sampled - so `or` would be
         # wrong here.
@@ -137,6 +139,10 @@ class Formed(Formations):
         self.ledger = Ledger()
         self.dry_run = False
         self.said: list[str] = []
+
+    @property
+    def observation(self) -> _Observation:
+        return self._observation
 
     def army(self):
         return list(self._army)
@@ -332,7 +338,7 @@ def test_a_switch_is_not_repeated_inside_its_hold():
     assert bot.session.toggled == [1]
     # The engine confirmed the switch, so the stub's `alternate` set is now stale - force the
     # disagreement back on and check the hold, not the state, is what refuses.
-    bot.observation = _Observation(bot.army(), [], set())
+    bot._observation = _Observation(bot.army(), [], set())
     for _ in range(5):
         bot.stage_formation()
     assert bot.session.toggled == [1]

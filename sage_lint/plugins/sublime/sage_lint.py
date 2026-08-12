@@ -32,6 +32,8 @@ directory. Configure the interpreter and the checkout path in `SageLint.sublime-
 - see the README.
 """
 
+from __future__ import annotations
+
 import html
 import json
 import os
@@ -41,6 +43,7 @@ import sys
 import textwrap
 import threading
 import time
+from typing import Any
 
 import sublime
 import sublime_plugin
@@ -74,14 +77,14 @@ INLINE_MESSAGE_LIMIT = 100
 
 # Diagnostics keyed by normalised absolute file path -> list of diagnostic dicts as emitted
 # by `sage_lint ... --output-format json`. The single source of truth the views render from.
-_diagnostics = {}
+_diagnostics: dict[str, list[dict[str, Any]]] = {}
 # Per-view debounce token for lint-on-idle.
-_pending_edits = {}
+_pending_edits: dict[int, int] = {}
 # One PhantomSet per view id, drawing diagnostic messages on their own line below the code
 # (an annotation right-aligns past the viewport on the long lines typical of ini data).
-_phantom_sets = {}
+_phantom_sets: dict[int, Any] = {}
 # Last caret row per view id, so caret-scoped phantoms only redraw when the row changes.
-_last_caret_row = {}
+_last_caret_row: dict[int, int] = {}
 _code_desc_cache = None
 _lock = threading.Lock()
 
@@ -89,9 +92,9 @@ _lock = threading.Lock()
 # lints deferred until that build's folder report lands - a request queued behind a build
 # would be answered seconds late, against content the user has since edited. Guarded by
 # `_state_lock` (touched from the main thread and Sublime's async worker alike).
-_building = set()
-_deferred = {}  # root key -> {path key: path} to re-lint once the build completes
-_pending_rebuilds = {}  # root key -> debounce token for defs-changed auto-rebuilds
+_building: set[str] = set()
+_deferred: dict[str, dict[str, str]] = {}  # root key -> {path key: path}, re-lint after the build
+_pending_rebuilds: dict[str, int] = {}  # root key -> debounce token for defs-changed rebuilds
 _state_lock = threading.Lock()
 
 
@@ -240,7 +243,7 @@ def _run_rename_json(args):
 # newline-delimited JSON on stdin/stdout (see `_run_serve` in the CLI): a `folder` message
 # after each build/rebuild, a `file` message per `lint_file` request.
 
-_daemons = {}  # root key -> Popen
+_daemons: dict[str, subprocess.Popen[str]] = {}  # root key -> Popen
 _daemon_lock = threading.Lock()
 
 
@@ -398,7 +401,7 @@ def _shutdown_daemons():
 # When each root's current build started (monotonic seconds), set on the daemon's `building`
 # message and consumed by the matching `folder` report to time the whole-folder lint. Both
 # handlers run on the main thread (via set_timeout), so no lock is needed.
-_build_started = {}
+_build_started: dict[str, float] = {}
 
 
 def _on_daemon_message(root, message):
@@ -762,28 +765,29 @@ def _code_descriptions():
 # completion from the real parse rather than re-deriving them with regexes.
 
 _index_lock = threading.Lock()
-_definitions = {}  # lower-cased name -> list of {name, kind, file, line}
-_macros = {}  # lower-cased name -> {name, value, file, line}
-_strings = {}  # lower-cased name -> {name, value}
+_definitions: dict[str, list[dict[str, Any]]] = {}  # lower name -> [{name, kind, file, line}]
+_macros: dict[str, dict[str, Any]] = {}  # lower-cased name -> {name, value, file, line}
+_strings: dict[str, dict[str, Any]] = {}  # lower-cased name -> {name, value}
 # Every modelled block class (top-level objects *and* module slots) -> {field: field_info},
 # where field_info is {"type": label, optional "enum": [members], optional "ref": table key}.
 # Backs field-name + value autocomplete, module documentation and field-type hovers.
-_blocks = {}  # block class name (e.g. "Object", "Weapon", "AutoHealBehavior") -> {field: info}
-_blocks_lower = {}  # lower-cased block class name -> canonical block class name
+# block class name (e.g. "Object", "Weapon", "AutoHealBehavior") -> {field: info}
+_blocks: dict[str, dict[str, dict[str, Any]]] = {}
+_blocks_lower: dict[str, str] = {}  # lower-cased block class name -> canonical block class name
 # The module classes valid after a `Behavior =`/`Body =`/… slot (a subset of `_blocks`), for
 # module-name completion and telling a module slot apart from a top-level block header.
-_module_slots = set()  # canonical module class names
-_module_slots_lower = {}  # lower-cased module class name -> canonical
+_module_slots: set[str] = set()  # canonical module class names
+_module_slots_lower: dict[str, str] = {}  # lower-cased module class name -> canonical
 # Block classes opened by their name with the label as a key (`ModelConditionState = DAMAGED`),
 # so a `Keyword = LABEL` header is told apart from a plain `Field = value` assignment.
-_keyed_by_label_lower = {}  # lower-cased class name -> canonical
+_keyed_by_label_lower: dict[str, str] = {}  # lower-cased class name -> canonical
 # Definition names grouped by their game table key (`obj.key`: "objects", "weapon", …), so a
 # reference-typed field can offer exactly the names its target table holds.
-_defs_by_table = {}  # table key -> sorted list of definition names
+_defs_by_table: dict[str, list[str]] = {}  # table key -> sorted list of definition names
 # Ordered include-resolution roots from the daemon (mod ini root, then any merged base game),
 # so an `#include` resolves the way the linter does - base-game includes included by a mod file
 # are found rather than reported missing. Empty until the first index arrives.
-_include_roots = []
+_include_roots: list[str] = []
 
 INCLUDE_RE = re.compile(r'#include\s+"([^"]+)"', re.I)
 # A `key = value` line: a module slot (`Behavior = AutoHealBehavior Tag`) when the value token

@@ -15,7 +15,9 @@ from sage_patch.patches.hero_mana import HeroManaPatch
 from sage_patch.patches.horde_orphan_target import HordeOrphanTargetPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.live_bridge import LiveBridgePatch
+from sage_patch.patches.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
+from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.production_condition import ProductionConditionPatch
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
@@ -42,7 +44,9 @@ __all__ = [
     "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
     "LiveBridgePatch",
+    "LivingWorldOverridePatch",
     "MultiExecuteGatePatch",
+    "ObjectivesScreenPatch",
     "ProductionConditionPatch",
     "QueueIgnoreCpPatch",
     "ReplayOutcomePatch",

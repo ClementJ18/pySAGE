@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from functools import partial
 from math import ceil
 
 from sage_live.api.observation import GameObject, Vec3, distance
@@ -73,7 +74,7 @@ def _centre_of(force: list[GameObject]) -> Vec3:
     )
 
 
-class Warfare(Recruiting, FactionMechanics, Formations):
+class Warfare(FactionMechanics, Formations, Recruiting):
     """Taking ground, holding it, and meeting what comes home.
 
     `SignalFire` is a faction mechanic mixed in beside the generic stages rather than woven into
@@ -85,6 +86,12 @@ class Warfare(Recruiting, FactionMechanics, Formations):
     own `HordeContain` and so plays every side that has formations at all. It is here for the
     same reason the signal fire is: what it needs is `army()` and `hostile()`, and the question
     it answers - whether a battalion is standing in a fight or walking to one - is warfare's.
+
+    **The mechanics come before `Recruiting` in the base list** because each of them now names
+    the layer it reads from as its own base - `Recruiting` for the signal fire, `Orders` for the
+    formations - and C3 will not put a class ahead of its own subclass. Nothing resolves
+    differently for it: neither mechanic defines a name that any layer below it also defines,
+    which is what makes them mechanics rather than overrides.
     """
 
     def expand_min_army(self) -> int:
@@ -1226,7 +1233,13 @@ class Warfare(Recruiting, FactionMechanics, Formations):
             if not self.select([archer]):
                 return None
             moved = self.manoeuvre(
-                "archers back", lambda point=spot: self.session.move(point), [archer]
+                # `partial` rather than a lambda: `spot` is a loop variable, and a lambda that
+                # closed over it would read whatever the last iteration left (B023). A default
+                # argument binds it eagerly too, but mypy cannot infer such a lambda against
+                # `manoeuvre`'s zero-argument `Callable`.
+                "archers back",
+                partial(self.session.move, spot),
+                [archer],
             )
             if moved:
                 return (
@@ -1362,7 +1375,8 @@ class Warfare(Recruiting, FactionMechanics, Formations):
                 continue
             if not self.select(members):
                 continue
-            self.manoeuvre("regroup", lambda back=home: self.session.attack_move(back), members)
+            # `partial` for the loop variable, as in `stage_disengage` above.
+            self.manoeuvre("regroup", partial(self.session.attack_move, home), members)
             self._group_aim[key] = home
             self._group_ordered[key] = now
             said.append(f"{len(members)} back to the holding they were raised for")

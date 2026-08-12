@@ -65,6 +65,7 @@ from dataclasses import dataclass
 
 from sage_live.api.observation import GameObject, Observation, distance
 from sage_live.utils.statics import Formation
+from sage_mods.edain.bot.orders import Orders
 from sage_mods.edain.bot.tuning import (
     DEFEND_CONTACT,
     FORMATION_HOLD,
@@ -142,13 +143,17 @@ class Posture:
         return self.alternate is not self.wants
 
 
-class Formations:
+class Formations(Orders):
     """Switching battalions into and out of their alternate formations.
 
     A mixin like the rest of the bot's stages, reading `observation`, `statics`, `session` and
-    `Orders.select`/`_issue`/`_report`. It costs one `Statics` lookup per battalion per cycle on
-    a faction whose units have no formations at all, and those lookups are pure ini reads over
-    data that cannot change, so the cache below is the whole of the performance story.
+    `Orders.select`/`_issue`/`_report` - which it takes as a base for the same reason every other
+    layer of the chain does, so those members are declared rather than assumed. `Warfare` already
+    put `Orders` behind this class in the MRO, so the base changes nothing at runtime.
+
+    It costs one `Statics` lookup per battalion per cycle on a faction whose units have no
+    formations at all, and those lookups are pure ini reads over data that cannot change, so the
+    cache below is the whole of the performance story.
     """
 
     def formation_of(self, horde: GameObject) -> Formation | None:

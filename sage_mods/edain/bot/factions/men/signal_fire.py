@@ -63,6 +63,7 @@ from dataclasses import dataclass
 from sage_live.api.observation import GameObject, Observation, Vec3, distance
 from sage_live.api.orders import CAST_SELF
 from sage_live.api.session import BUILD_CONFIRM
+from sage_mods.edain.bot.recruiting import Recruiting
 from sage_mods.edain.bot.tuning import HOLDING_RADIUS, ROLE_PATIENCE
 
 __all__ = [
@@ -311,12 +312,19 @@ def best_summon(
     return max(options, key=lambda summon: (value(summon), SUMMONS.index(summon)))
 
 
-class SignalFire:
+class SignalFire(Recruiting):
     """The signal fire mechanic, as a stage the generic loop can call on any faction.
 
     Mixed into the bot beside the other stages and reads the same members - `observation`,
-    `session`, `side`, and `Orders.select`/`_issue`/`_report`. Everything it does is gated on the
+    `session`, `side`, `Orders.select`/`_issue`/`_report`, and the two the summon choice rests on,
+    `Economy.external_standing` and `Recruiting.wanted_mix`. Everything it does is gated on the
     seat being Men and on a rider actually existing, so a Mordor run costs one string comparison.
+
+    **`Recruiting` is a base here rather than an assumption**, as it is for every other layer in
+    the chain, and it is the layer that owns the highest member this reads. It changes nothing at
+    runtime - `Warfare` already had all of it behind this class - but it is what makes those
+    members declared rather than merely expected, so a rename below is a type error here instead
+    of an `AttributeError` mid-match.
     """
 
     def signal_fires_wanted(self) -> int:

@@ -47,7 +47,7 @@ from sage_lint.fixer import fix_diagnostics
 from sage_lint.linter import build_cache, lint_file, lint_folder
 from sage_lint.ruleconfig import rule_options
 from sage_lint.rules.asset_dat import AssetDatMissingModelRule, AssetDatMissingTextureRule
-from sage_lint.rules.base import RULES
+from sage_lint.rules.base import RULES, Rule
 
 # Diagnostic codes emitted outside the rule framework (parser, loader, conversion)
 # that are still valid `--ignore`/`--select` targets. Rule codes are read live from
@@ -140,7 +140,7 @@ def _matches_filters(diag: Diagnostic, filters: set[str]) -> bool:
     return False
 
 
-def _rule_summary(rule: type) -> str:
+def _rule_summary(rule: type[Rule]) -> str:
     """The one-line summary of a rule, from the first line of its docstring."""
     for line in (rule.__doc__ or "").strip().splitlines():
         if line.strip():
@@ -152,7 +152,7 @@ def _diagnostic_catalog() -> list[tuple[str, dict[str, str]]]:
     """The `--ignore`/`--select`-able codes, grouped by source (rule codes read live). Opt-in
     rules (skipped by a plain run) are flagged so a reader knows to enable them with --assets."""
 
-    def _opt_in(rule: type) -> str:
+    def _opt_in(rule: type[Rule]) -> str:
         if rule.default:
             return ""
         return "  [opt-in: --assets]" if rule.assets else "  [opt-in: --select]"
@@ -340,35 +340,39 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
                     asset_dat_names=asset_dat_names,
                     engine=engine,
                 )
-            elif include_maps:
-                # Build the game once (keeping it), lint the ini, then also lint the binary
-                # `.map` layouts against that same game so a map referencing removed content is
-                # caught. The base layer is cleaned up once both passes are done.
-                game, diagnostics, base_layer = build_cache(
-                    root,
-                    rules=rules,
-                    exclude=tuple(excludes),
-                    bases=tuple(base_source(base) for base in bases),
-                    manifest=manifest,
-                    asset_dat_names=asset_dat_names,
-                    engine=engine,
-                )
-                try:
-                    diagnostics.items.extend(_lint_map_files(root, game, tuple(excludes)).items)
-                    diagnostics.items = list(dict.fromkeys(diagnostics.items))
-                finally:
-                    if base_layer is not None:
-                        base_layer.cleanup()
             else:
-                diagnostics = lint_folder(
-                    root,
-                    rules=rules,
-                    exclude=tuple(excludes),
-                    bases=tuple(base_source(base) for base in bases),
-                    manifest=manifest,
-                    asset_dat_names=asset_dat_names,
-                    engine=engine,
-                )
+                # A folder run always has a root: the CLI refuses `lint` given neither a
+                # positional root, a `--file`, nor a config `root`.
+                assert root is not None
+                if include_maps:
+                    # Build the game once (keeping it), lint the ini, then also lint the binary
+                    # `.map` layouts against that same game so a map referencing removed content
+                    # is caught. The base layer is cleaned up once both passes are done.
+                    game, diagnostics, base_layer = build_cache(
+                        root,
+                        rules=rules,
+                        exclude=tuple(excludes),
+                        bases=tuple(base_source(base) for base in bases),
+                        manifest=manifest,
+                        asset_dat_names=asset_dat_names,
+                        engine=engine,
+                    )
+                    try:
+                        diagnostics.items.extend(_lint_map_files(root, game, tuple(excludes)).items)
+                        diagnostics.items = list(dict.fromkeys(diagnostics.items))
+                    finally:
+                        if base_layer is not None:
+                            base_layer.cleanup()
+                else:
+                    diagnostics = lint_folder(
+                        root,
+                        rules=rules,
+                        exclude=tuple(excludes),
+                        bases=tuple(base_source(base) for base in bases),
+                        manifest=manifest,
+                        asset_dat_names=asset_dat_names,
+                        engine=engine,
+                    )
         except ManifestError as exc:
             # A bad --base-manifest / config base_manifest is a hard stop: report it cleanly
             # (matching the corrupt-baseline handling below) rather than let it traceback.
@@ -395,7 +399,10 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
 
     if args.write_baseline:
         # Snapshot exactly what a plain run would report (post select/ignore/filter/level, but
-        # unfixed and unsuppressed) as the accepted set, so the next run is clean.
+        # unfixed and unsuppressed) as the accepted set, so the next run is clean. The one case
+        # that leaves `_baseline_path` without an answer - `--no-config` and no `--baseline` -
+        # is refused by the CLI before it gets here.
+        assert baseline_path is not None
         recordable = _at_level(remaining)
         written = write_baseline(baseline_path, recordable, root)
         if args.output_format == "json":

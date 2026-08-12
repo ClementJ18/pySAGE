@@ -13,6 +13,7 @@ import sys
 import tempfile
 from dataclasses import replace
 
+from sage_ini.model.game import Game
 from sage_ini.model.objects import (
     REGISTRY,
     IniObject,
@@ -129,7 +130,7 @@ def _block_schemas() -> dict[str, dict[str, dict[str, object]]]:
     # configuration attributes (`key`, `unique_name`, the `_`-prefixed internals …), which are
     # never real INI fields. Drop everything declared on the infrastructure bases to leave only
     # the keys a block actually reads.
-    infrastructure = set()
+    infrastructure: set[str] = set()
     for base in (IniObject, Module, NestedAttribute, Nugget):
         infrastructure.update(getattr(base, "__annotations__", {}))
 
@@ -263,7 +264,7 @@ def _lint_request(game, path, content, root, rules, include_bases=()):
     return relabelled, None
 
 
-def _defs_changed(cache: object, built: object, path: str) -> bool:
+def _defs_changed(cache: Game, built: Game, path: str) -> bool:
     """Whether saving `path` changed the names it contributes to the assembled game - a
     definition or `#define` added, removed, or (for a macro) revalued. Such a change affects
     *sibling* files: their references start resolving or dangling, which a single-file re-lint
@@ -359,7 +360,7 @@ def run_serve(args: argparse.Namespace) -> int:
     # `#include`s that fall through to the base; each rebuild replaces it, shutdown removes it.
     base_layer = None
 
-    def rebuild() -> object:
+    def rebuild() -> Game:
         nonlocal base_layer
         _emit({"type": "building", "root": str(root)})
         if base_layer is not None:

@@ -297,7 +297,11 @@ def _lint_maps(
             game, map_path, include_root=root, rules=rules, include_bases=include_bases
         )
         if built is not None:
-            map_used.update((obj.key, obj.name) for obj in references_into(built, game))
+            # `key is None` is an unstored object - it registers into no table, so it is not a
+            # global definition anything could have retracted a finding for.
+            map_used.update(
+                (obj.key, obj.name) for obj in references_into(built, game) if obj.key is not None
+            )
         for diagnostic in cached.items:
             if is_map_path(diagnostic.span.file, root) and _keep(diagnostic, excluded):
                 diagnostics.append(diagnostic)

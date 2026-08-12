@@ -304,7 +304,7 @@ def table_offset_in_section(base_va: int, stock_table: bytes) -> int:
 
 class HeadlessPatch(Patch):
     name = "headless"
-    author = "ClementJ18"
+    author = "officialNecro"
     description = (
         "Add -headless / -renderEvery / -maxfps / -uncapped, and stop drawing when asked to"
     )

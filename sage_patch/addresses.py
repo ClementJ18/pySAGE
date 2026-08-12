@@ -75,10 +75,13 @@ __all__ = [
     "BUILD_GATE_NOT_ENOUGH_COMMAND_POINTS",
     "BUILD_GATE_NOT_ENOUGH_MONEY",
     "BUILD_GATE_TEMPLATE_EBP",
+    "CAMPAIGN_ADVANCE_GATE",
+    "CAMPAIGN_LIST_PREDICATE",
     "CAMPAIGN_NAME_BIND",
     "CAMPAIGN_NAME_BIND_BYTES",
     "CAMPAIGN_NAME_STATIC",
     "CAMPAIGN_NAME_STATIC_GUARD",
+    "CAMPAIGN_SELECT_GATE",
     "CAN_MAKE_UNIT",
     "CAN_MAKE_UNIT_ACCEPT",
     "CAN_MAKE_UNIT_BUMP_SLOT",
@@ -148,6 +151,9 @@ __all__ = [
     "FLOAT_TWO_PERCENT",
     "GAME_CLIENT_DRAW",
     "GAME_CLIENT_DRAW_BYTES",
+    "GAME_DATA_ASCIISTRING_PARSER",
+    "GAME_DATA_BOOL_PARSER",
+    "GAME_DATA_SHELL_MAP_NAME_ROW",
     "GAME_INFO_MAP",
     "GAME_LOGIC_FRAME",
     "GAME_LOGIC_IS_IN_GAME",
@@ -177,6 +183,9 @@ __all__ = [
     "IS_MULTIPLAYER_OR_ITS_REPLAY_BYTES",
     "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY",
     "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY_BYTES",
+    "LIVE_CAMPAIGN_MODE_OFFSET",
+    "LIVING_WORLD_OVERRIDE_OFFSET",
+    "LIVING_WORLD_OVERRIDE_ROW",
     "MAIN_MENU_CAMPAIGN_COMMAND",
     "MAIN_MENU_CAMPAIGN_HANDLER",
     "MAIN_MENU_CAMPAIGN_HANDLER_BYTES",
@@ -184,6 +193,8 @@ __all__ = [
     "MAIN_MENU_CAMPAIGN_REGISTRATION_BYTES",
     "MAIN_MENU_CAMPAIGN_SELECTION_ID",
     "MAIN_MENU_PHASE_LEAVING",
+    "MISSION_OBJECTIVE_LIST_OFFSET",
+    "MISSION_OBJECTIVE_TRACKER",
     "MAIN_MENU_SCREEN_DIFFICULTY",
     "MAIN_MENU_SCREEN_PHASE",
     "MAIN_MENU_SCREEN_SELECTION",
@@ -215,10 +226,30 @@ __all__ = [
     "OBSERVER_BAR_HIDE",
     "OBSERVER_BAR_SHOW",
     "OPERATOR_NEW",
+    "PALANTIR_BUTTON_ROUTE_CALL",
+    "PALANTIR_BUTTON_ROUTE_CALL_BYTES",
+    "PALANTIR_BUTTON_STATUS_CALL",
+    "PALANTIR_BUTTON_STATUS_CALL_BYTES",
+    "PALANTIR_BUTTON_TRIBUTE_CALL",
+    "PALANTIR_BUTTON_TRIBUTE_CALL_BYTES",
+    "PALANTIR_HOTKEY_ROUTE_CALL",
+    "PALANTIR_HOTKEY_ROUTE_CALL_BYTES",
+    "PALANTIR_HOTKEY_STATUS_CALL",
+    "PALANTIR_HOTKEY_STATUS_CALL_BYTES",
+    "PALANTIR_HOTKEY_TRIBUTE_CALL",
+    "PALANTIR_HOTKEY_TRIBUTE_CALL_BYTES",
+    "PALANTIR_OBJECTIVES_PUSH",
+    "PALANTIR_OBJECTIVES_PUSH_BYTES",
+    "PALANTIR_OPEN_STATUS_SCREEN",
+    "PALANTIR_OPEN_TRIBUTE_SCREEN",
+    "PALANTIR_PLAYER_STATUS_PUSH",
+    "PALANTIR_PLAYER_STATUS_PUSH_BYTES",
     "PALANTIR_RESOURCES",
     "PALANTIR_RESOURCES_BYTES",
     "PALANTIR_RESOURCES_CACHE",
     "PALANTIR_RESOURCES_CACHE_BYTES",
+    "PALANTIR_SCREEN_CHOICE_CALL",
+    "PALANTIR_SCREEN_CHOICE_CALL_BYTES",
     "PALANTIR_RESOURCES_CACHE_PUSH",
     "PALANTIR_RESOURCES_CACHE_SKIP",
     "PALANTIR_RESOURCES_DONE",
@@ -1787,3 +1818,105 @@ GAME_CLIENT_DRAW_BYTES = bytes.fromhex("8b0d1844de008b01ff5030")
 GLOBAL_DATA = 0x00DE4364
 GLOBAL_DATA_USE_FPS_LIMIT = 0x26
 GLOBAL_DATA_FPS_LIMIT = 0x28
+
+# --- `GameData`'s LivingWorldCampaignOverrride, and the two parsers -----------------------------
+#
+# A `GameData` field-table row is `{const char *name, parse_fn, user_data, offset}`. Two of the
+# parsers matter here, both identified by the fields that already use them: `0x0042E558` is the
+# `Bool` parser (`Windowed`, `AudioOn`, `ShellMapOn`), and ends in `mov byte ptr [ecx], al`;
+# `0x0042EE5E` is the `AsciiString` parser, which `ShellMapName` uses.
+#
+# `LivingWorldCampaignOverrride` (the engine's own spelling) names a `LivingWorldCampaign` to start
+# by name. Its row declares the **Bool** parser while `GlobalData+0x8C` is an `AsciiString` in
+# every code path - the constructor stores a pointer there (`0x00642AA3`), the campaign selector
+# calls `AsciiString::isEmpty` on it (`0x007B96E4`), and the orphaned command-line handler at
+# `0x007BAA28` sets it with `AsciiString::set`. Setting it in INI writes one byte over the pointer.
+#
+# Derived in `docs/living-world-campaign.md`.
+GAME_DATA_BOOL_PARSER = 0x0042E558
+GAME_DATA_ASCIISTRING_PARSER = 0x0042EE5E
+GAME_DATA_SHELL_MAP_NAME_ROW = 0x00C00500  # the anchor proving the AsciiString parser's address
+LIVING_WORLD_OVERRIDE_ROW = 0x00BFF740
+LIVING_WORLD_OVERRIDE_OFFSET = 0x8C
+
+# The two `LiveCampaignMode` gates, named so the doc's claims can be re-checked. Neither is
+# patched: the flag defaults to **1** (`GlobalData`'s constructor, `0x00642A91`), so both pass.
+LIVE_CAMPAIGN_MODE_OFFSET = 0x86
+CAMPAIGN_SELECT_GATE = 0x007B96DA
+CAMPAIGN_ADVANCE_GATE = 0x007B9714
+#: Answers "may this campaign appear in the War of the Ring scenario list" - and says no as soon as
+#: `IsScriptedCampaign` (`campaign+0x58`) is set.
+CAMPAIGN_LIST_PREDICATE = 0x007B9551
+
+# --- the Palantir's objectives button, and which screen it opens ---------------------------------
+#
+# The button does not show or hide: it pushes **one of three movies**, and
+# `IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY` (`0x00625456`, above) is asked **twice** on the way -
+# once to pick the handler, then again inside the handler it picked.
+#
+# The outer question runs in the button's own callback (`0x006D40C9`) and, identically, in the
+# hotkey dispatch (`0x0081FFAA`):
+#
+#     006d40d2  call 0x00625456
+#     006d40d9  je   0x006D40E2
+#     006d40db  call 0x00914EF0      ; pushes "PlayerTribute.apt" unconditionally
+#     006d40e2  call 0x008E8843      ; asks again, below
+#
+# and the inner one is inside `0x008E8843`:
+#
+#     008e8958  call 0x00625456
+#     008e8961  test al, al
+#     008e8968  je   0x008E8972
+#     008e896b  push 0x00C18C2C      ; "PlayerStatus.apt"  - the player/enemy list
+#     008e8972  push 0x00C18C5C      ; "Objectives.apt"
+#
+# Every term of that predicate is a game-type test; none of them consults the map. A War of the
+# Ring battle is skirmish-mode, so the outer question already routes it to the tribute screen and
+# `0x008E8843` never runs - which is why the campaign maps show the resource-transfer screen where
+# objectives belong. Redirecting only the inner call changes nothing outside the linear campaign.
+#
+# Not to be confused with `0x006D7873`, which gates the button's **flash** on whether the living
+# world is active (its helper targets the APT function `FlashObjectivesButton`). That one changes
+# no screen. Derived in `docs/objectives-in-any-map.md`.
+PALANTIR_SCREEN_CHOICE_CALL = 0x008E8958
+PALANTIR_SCREEN_CHOICE_CALL_BYTES = bytes.fromhex("e8f9cad3ff")
+#: The two edges, kept as anchors: a build whose branch moved fails on these rather than having
+#: some unrelated call redirected.
+PALANTIR_PLAYER_STATUS_PUSH = 0x008E896B
+PALANTIR_PLAYER_STATUS_PUSH_BYTES = bytes.fromhex("682c8cc100")
+PALANTIR_OBJECTIVES_PUSH = 0x008E8972
+PALANTIR_OBJECTIVES_PUSH_BYTES = bytes.fromhex("685c8cc100")
+
+#: The two handlers the outer question routes between. `PALANTIR_OPEN_TRIBUTE_SCREEN` pushes
+#: `PlayerTribute.apt` with no further question asked; `PALANTIR_OPEN_STATUS_SCREEN` is the one
+#: holding `PALANTIR_SCREEN_CHOICE_CALL`. Their guard chains are the same except for the
+#: already-open check each makes on its own screen, so anything that reaches one reaches the other.
+PALANTIR_OPEN_TRIBUTE_SCREEN = 0x00914EF0
+PALANTIR_OPEN_STATUS_SCREEN = 0x008E8843
+
+#: The outer question, in the button's callback (`0x006D40C9`) - the site that actually decides
+#: what a skirmish or War of the Ring battle sees, and the reason patching only the inner one had
+#: no effect. The two `call`s it branches between are anchors: they name the handlers, so a build
+#: whose branch moved or swapped fails rather than having an unrelated call redirected.
+PALANTIR_BUTTON_ROUTE_CALL = 0x006D40D2
+PALANTIR_BUTTON_ROUTE_CALL_BYTES = bytes.fromhex("e87f13f5ff")
+PALANTIR_BUTTON_TRIBUTE_CALL = 0x006D40DB
+PALANTIR_BUTTON_TRIBUTE_CALL_BYTES = bytes.fromhex("e8100e2400")
+PALANTIR_BUTTON_STATUS_CALL = 0x006D40E2
+PALANTIR_BUTTON_STATUS_CALL_BYTES = bytes.fromhex("e85c472100")
+
+#: The same question again in the hotkey dispatch (`0x0081FFAA`), which reaches the handlers
+#: without going through the button. Left alone, the key and the button would disagree.
+PALANTIR_HOTKEY_ROUTE_CALL = 0x0081FFD8
+PALANTIR_HOTKEY_ROUTE_CALL_BYTES = bytes.fromhex("e87954e0ff")
+PALANTIR_HOTKEY_TRIBUTE_CALL = 0x0081FFE1
+PALANTIR_HOTKEY_TRIBUTE_CALL_BYTES = bytes.fromhex("e80a4f0f00")
+PALANTIR_HOTKEY_STATUS_CALL = 0x0081FFEB
+PALANTIR_HOTKEY_STATUS_CALL_BYTES = bytes.fromhex("e853880c00")
+
+#: `TheMissionObjectiveTracker`, a startup subsystem registered at `0x0063BA12`. Its `+0x10` holds
+#: the objective list a map's `MissionObjectiveList` block installs (parser `0x00836497`, which
+#: sets the member only when it is null); the list is a vector of 8-byte entries at `+0x04`/`+0x08`.
+#: The HUD's own consumers read exactly these two fields - see `0x006D789C` and `0x0079DEA8`.
+MISSION_OBJECTIVE_TRACKER = 0x00DE8C94
+MISSION_OBJECTIVE_LIST_OFFSET = 0x10

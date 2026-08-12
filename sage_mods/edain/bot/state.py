@@ -11,7 +11,7 @@ from sage_live.api.camera import CameraPan
 from sage_live.api.observation import GameObject, Observation, Vec3
 from sage_live.api.session import Session
 from sage_live.utils.statics import CastablePower, Formation, Statics
-from sage_mods.edain.bot.factions import Plan
+from sage_mods.edain.bot.factions.plan import Plan
 from sage_mods.edain.bot.ledger import Ledger
 from sage_mods.edain.bot.recording import Recorder
 

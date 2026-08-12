@@ -12,6 +12,7 @@ import threading
 from argparse import ArgumentParser
 
 from sage_live.api.connect import AttachError, attach
+from sage_live.utils.naming import NameLookup
 from sage_live.utils.statics import Statics
 from sage_mods.edain.bot.bot import Bot
 from sage_mods.edain.bot.factions import FACTIONS, Plan, faction_for
@@ -148,7 +149,9 @@ def main(argv: list[str] | None = None) -> int:
 
         root = resolve_game_root(args.game)
         print(f"loading {root} in the background (about half a minute) ...")
-        loading: list[tuple[Statics, object]] = []
+        # `NameLookup` rather than the concrete `Resolver`: that class lives behind the deferred
+        # import below, and the protocol is what `Session.names` actually wants.
+        loading: list[tuple[Statics, NameLookup]] = []
         failed: list[BaseException] = []
 
         def load() -> None:

@@ -3,6 +3,7 @@
 from collections.abc import Iterator
 
 from sage_ini.model.game import Game
+from sage_ini.model.objects import IniObject
 from sage_ini.model.xref import Xref, referenceable_keys
 from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_lint.ruleconfig import always_referenced
@@ -44,7 +45,7 @@ def _createahero_injected(obj: object) -> bool:
     return any(field.lower().startswith("createaheroui") for field in fields)
 
 
-def _unused(game: Game, key: str) -> Iterator[tuple[object, str]]:
+def _unused(game: Game, key: str) -> Iterator[tuple[IniObject, str]]:
     """`(obj, name)` for each definition in table `key` that nothing in the game references.
     A kind named in the `always_referenced` config, a definition overriding one built
     elsewhere, and a create-a-hero button are skipped - all are reached in ways the

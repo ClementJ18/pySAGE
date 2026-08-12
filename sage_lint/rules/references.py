@@ -15,7 +15,7 @@ those wholesale rather than flagging all of them.
 from collections.abc import Iterator
 
 from sage_ini.model.game import Game
-from sage_ini.model.objects import resolve_annotation
+from sage_ini.model.objects import IniObject, resolve_annotation
 from sage_ini.model.types import KeyedRecord, Reference
 from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_ini.suggest import suggestion_hint
@@ -86,7 +86,7 @@ def _is_sentinel(name: str) -> bool:
     return lowered in ("", "none") or lowered in sentinels()
 
 
-def _iter_candidates(game: Game) -> Iterator[tuple[object, str, str, str]]:
+def _iter_candidates(game: Game) -> Iterator[tuple[IniObject, str, str, str]]:
     """`(obj, field, table_key, name)` for every unresolved reference in the game's typed
     fields - the shared front half of the dangling-reference checks. A name with a space or a
     colon is dropped here: a reference is one bareword, never a colon-keyed record value."""

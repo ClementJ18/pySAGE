@@ -416,10 +416,18 @@ class EngineLayout:
     entry_template: int = 0x08
     entry_upgrade: int = 0x0C
     entry_next: int = 0x48
-    # Walk guards. A queue longer than this, or an object with more modules, means a corrupt
-    # read rather than a real structure - refuse rather than spin.
+    # A queue longer than this means a corrupt read rather than a real structure - refuse rather
+    # than spin.
     max_queue: int = 64
-    max_modules: int = 64
+    # How many module slots `_production_module` covers, and deliberately *not* `max_modules`
+    # above even though both bound the same array. That one bounds a pointer-at-a-time walk that
+    # stops at the terminator, so raising it costs nothing; this one **is** the size of a single
+    # all-or-nothing `read`, and a 4KB read off a small heap block fails entirely the moment it
+    # crosses an unmapped page - taking every structure's production read with it. It was also
+    # the value `max_modules` itself had until this field was split out of it: the second
+    # `max_modules = 64` shadowed the 1024 above, so the spellbook walk had been silently
+    # stopping at 64 of its ~140 modules.
+    production_scan: int = 64
 
     # AsciiString: {u32 refcount; u32 allocated; char chars[]}
     string_chars: int = 8
@@ -1416,10 +1424,10 @@ class MemoryBackend:
         whole list and it is not there" may be remembered, "a read failed halfway" may not.
         """
         lay = self.layout
-        raw = self.source.read(array, lay.max_modules * 4)
+        raw = self.source.read(array, lay.production_scan * 4)
         if raw is None:
             return None, False
-        for module in struct.unpack(f"<{lay.max_modules}I", raw):
+        for module in struct.unpack(f"<{lay.production_scan}I", raw):
             if module == 0:  # the terminator: the list really does end without one
                 return None, True
             if not (_MIN_PTR <= module <= _MAX_PTR):

@@ -34,6 +34,7 @@ from sage_patch.patches import herobar as hb
 from sage_patch.patches import multi_instance as mi
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import production_condition as pc
+from sage_patch.patches import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
 from sage_patch.patches.utils import model_conditions as mc
@@ -321,6 +322,18 @@ def hero_bar_slots_image() -> bytearray:
     for field_site in hbs.FIELD_SITES:
         planted[field_site.va] = bytes.fromhex(field_site.original)
     return _sparse_image(planted)
+
+
+def standalone_launcher_image() -> bytearray:
+    """A stand-in for `lotrbfme2ep1.exe` carrying the token site in its stock form plus every
+    site `standalone-launcher` reads.
+
+    Sparse for the usual reason: the key derivation, the Blowfish schedule, the `gi.dat` accessor
+    and `strcpy` are spread over 0x45000 bytes and the patch touches four pages of it. The clamp
+    anchor sits immediately *before* the site, so a patch that started one instruction early would
+    collide with real bytes here rather than with zeroes.
+    """
+    return _sparse_image({sl.TOKEN_SITE: sl.TOKEN_SITE_STOCK, **sl.ANCHORS})
 
 
 def instance_guard_image(patch: mi._MutexGuardPatch) -> bytearray:

@@ -201,7 +201,7 @@ select = [
 
 [tool.mypy]
 python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
-files = ["sage_apt", "sage_asset", "sage_ini", "sage_live", "sage_map", "sage_mods", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah", "examples/sage_live"]
+files = ["sage_apt", "sage_asset", "sage_ini", "sage_lint", "sage_live", "sage_map", "sage_mods", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah", "examples/sage_live"]
 # `examples/sage_live` is checked because those scripts drive a *live* game: they cannot be
 # exercised by the data-free suite, so a typo in an attribute name surfaces mid-match against a
 # real process rather than in CI. Ruff alone does not catch that - it took an `AttributeError`
@@ -213,8 +213,10 @@ exclude = ["sage_patch/scripts/"]
 
 [[tool.mypy.overrides]]
 # capstone/pefile are the disassembler + PE reader behind the game.dat patch work; neither ships
-# stubs or a py.typed marker.
-module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*", "OpenGL.*", "numpy.*", "capstone.*", "pefile"]
+# stubs or a py.typed marker. `sublime`/`sublime_plugin` are not installable at all: they are the
+# Sublime Text editor's own built-ins, importable only inside its embedded interpreter, so the
+# plugin under sage_lint/plugins/sublime can never resolve them from this environment.
+module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*", "OpenGL.*", "numpy.*", "capstone.*", "pefile", "sublime", "sublime_plugin"]
 ignore_missing_imports = true
 
 # The Qt half of sage_utils (and the texture/source layer built on optional deps) is outside
@@ -235,10 +237,8 @@ ignore_errors = true
 module = ["sage_mods.edain.map_checks.ui.window", "sage_mods.edain.map_checks.ui.app"]
 ignore_errors = true
 
-# sage_lint is a tool package, not in the type-checked `files` set. sage_mods.edain.map_checks imports
-# its shared map-lint runner (add_map_lint_arguments / run_map_lint), which pulls sage_lint into
-# reach: follow the import so sage_mods.edain still sees real types, but don't gate on sage_lint's own
-# (pre-existing) errors here - it is checked on its own terms, not through this overlay.
+# The Qt half of the sage_lint desktop app, on the same terms as the Qt halves above: it needs
+# the [lint-ui] extra installed and predates annotations. Its Qt-free runner stays checked.
 [[tool.mypy.overrides]]
-module = ["sage_lint.*"]
-follow_imports = "silent"
+module = ["sage_lint.plugins.ui.window", "sage_lint.plugins.ui.app"]
+ignore_errors = true

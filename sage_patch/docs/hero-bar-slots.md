@@ -157,9 +157,162 @@ patch must not assume.
   path raises the same `MSG_CREATE_SELECTED_GROUP` it always did. A patched and a stock peer do
   not desync, and replays cross.
 
-## 7. Verifying it in a game
+## 7. The APT half: which movie, and what to add
 
-Everything above is static. The list that would make it real:
+**This is the half that costs the time.** The engine change is 38 immediates and applies blind;
+the movie edit needs you to find the right file first, and the obvious candidate is wrong.
+
+### 7.1 The movie is not the one named after the feature
+
+On Edain the hero bar is drawn by **`FactionFrame.apt`**. `InGameHeroSelect.apt` ships in the same
+archive, contains a full `Hero1`..`Hero16` bar, is byte-for-byte plausible — and **nothing loads
+it**. Editing it changes nothing, silently, exactly like not applying the patch at all.
+
+The engine gives no hint: it drives slot *i* through `%s/Hero%d/` (`0x00C7EF8C`) where `%s` is a
+path prefix held on the bar object at `+0x0C`, so the movie's *file name* never appears in the
+code. Do not infer it.
+
+**How to identify the real movie, in a running game.** Strings in a loaded `.apt` survive
+verbatim (only pointers are fixed up on load), so a string's offset *relative to the movie's own
+`Apt Data:` header* is a fingerprint that survives loading:
+
+1. find a hero-bar string in the process — `SelectAllHeroesBttn\0` works well;
+2. scan backwards from each hit for the `Apt Data:` magic. Expect several hits and only one
+   usable: the string is also copied into parsed structures elsewhere on the heap, and those
+   copies have no movie header behind them, which is exactly what identifies the real buffer;
+3. the delta from magic to string is the offset within the file. Search every `.apt` on disk
+   (loose and inside `.big`s) for the same string at the same file-relative offset.
+
+On this install that gave `0x2d0ac`, matching `FactionFrame.apt` and nothing else — Edain's
+`InGameHeroSelect.apt` has it at `0x2c0c0`, EA's stock one at `0x29678`.
+
+Two traps that cost real time here, both worth avoiding by using the offset method directly:
+
+* **Absence of a string is weak evidence, presence of one is weaker.** `Hero17` missing from
+  process memory proves the loaded movie lacks it, but says nothing about *which* movie it is.
+  Edain-only strings like `HeroRallyImla_reg.tga` or `_Imladris` are imports and frame labels that
+  also appear in `libInGameImagesMain` and other movies, so finding them proves nothing.
+* **The structural bytes around a name are not a fingerprint.** They differ between versions only
+  in embedded file offsets, which loading rewrites — so two different movies compare equal there.
+
+### 7.2 Where the file lives, and what actually gets loaded
+
+| | |
+|---|---|
+| source tree | `<mod>/_mod/apt/FactionFrame.apt` + `.const` (4:3) and `<mod>/_mod/apt_widescreen/FactionFrame.apt` + `.const` |
+| what the game reads | `<rotwk>/__edain_apt.big` and `<rotwk>/___edain_apt_widescreen.big`, entries stored **flat at the archive root** (`FactionFrame.apt`, not `apt\FactionFrame.apt`) |
+
+The loose `_mod/apt/` folder is **not** in the load path — it is the source the archives are built
+from. Editing it alone changes nothing; the archive must be repacked. And on Edain the archives
+are **not** produced by `final_big_builder_config.ini`, which has no section covering `_mod/apt`,
+so they are maintained outside that pipeline: edit the loose file *and* repack the archive, or the
+next rebuild silently drops the change.
+
+Both archives must be done. `apt_widescreen` wins at widescreen resolutions and the two variants
+have **different layouts** (§7.4), so they are not interchangeable copies.
+
+### 7.3 The records to add
+
+`FactionFrame`'s root timeline holds the bar on two frames, and a new slot needs an entry in both:
+
+| frame | label | what a slot has there |
+|---|---|---|
+| 9 | `_fadein` | the full `placeobject`: `HasCharacter\|HasColorTransform\|HasMatrix\|HasName\|HasRatio`, `alpha="0"` |
+| 19 | `_show` | a `HasColorTransform\|Move` record on the same depth, `alpha="255"` |
+
+Nothing else in the movie is per-slot, and **no ActionScript changes are needed**: every entry
+point (`SetButtonState`, `SetImageState`, `SetButtonSelectedHighlightState`,
+`SetButtonFlashEffectState`, `PlayButtonAttackedEffect`, `PlayButtonLevelUpEffect`,
+`KillButtonEffects`, `SetButtonHealthBar`, `SetButtonRankProgress`) resolves its target as
+`this["Hero" + index]` / `this["FlashEffect" + index]`. Clip names live in the `.apt` itself, not
+the `.const`, so no constant-pool authoring either.
+
+Copy `Hero16` and `FlashEffect16` as templates — the flash effect carries a `clipaction` that must
+come with it — then override `depth`, `tx`, `ty` and the `poname`. Two details that are easy to
+miss:
+
+* **Write the final position into `_fadein` and give `_show` a colour-only `Move`.** Slots 1..9 do
+  exactly this; slots 10..16 instead sit at a staging position on `_fadein` and are repositioned by
+  a `HasMatrix` `Move` on `_show`. Copying the second pattern works but is pointless indirection.
+* **Reset the matrix to identity** (`rotm00`/`rotm11 = 1`) — some templates carry a fade-in scale
+  like `0.99925202`.
+* **A `FlashEffect` sits at its hero's position plus a fixed offset**: `(+28.05, +28)` on the 4:3
+  variant, `(+28, +28)` on widescreen.
+
+Depths only have to be unused and ordered sensibly; flash effects draw over buttons. The shipped
+build used heroes `469, 496, 523, 550, 577` (continuing the stock `+27` spacing) and flash effects
+`604, 606, 608, 610, 612` (stock `+2`), all above the stock maximum of `467`. New heroes landing
+above the *stock* flash effects is harmless — a button never overlaps another slot's flash.
+
+### 7.4 The two variants have different grids
+
+Read the geometry out of the file you are editing; do not carry positions across.
+
+| variant | row 1 | row 2 | pitch |
+|---|---|---|---|
+| `apt/` (4:3) | `Hero1`..`Hero9`, x = 24 + 70k | `Hero10`..`Hero16`, x = 94..514, y = −70 | 70 |
+| `apt_widescreen/` | `Hero1`..`Hero13`, x = 24 + 75k | `Hero14`..`Hero16`, x = 99..249, y = −70 | 75 |
+
+The 4:3 grid is a centred pyramid (9 over 7, indented one column), so N = 21 continues it with a
+centred third row of five at y = −140, x = 164/234/304/374/444. The widescreen row 2 is simply
+filled left to right and has room to column 13, so N = 21 just keeps filling it at
+x = 324/399/474/549/624, y = −70.
+
+The two files are the same size and differ in only ~200 bytes — all layout numbers, **no string
+differences** — so nothing but the geometry distinguishes them. A probe that looks for a
+variant-only string will not find one.
+
+### 7.5 The numbers actually used
+
+`N = 21`, shipped and runtime-verified. Depths are shared by both variants; only the positions
+differ.
+
+| slot | depth | flash depth | 4:3 position | widescreen position |
+|---|---|---|---|---|
+| `Hero17` | 469 | 604 | (164, −140) | (324, −70) |
+| `Hero18` | 496 | 606 | (234, −140) | (399, −70) |
+| `Hero19` | 523 | 608 | (304, −140) | (474, −70) |
+| `Hero20` | 550 | 610 | (374, −140) | (549, −70) |
+| `Hero21` | 577 | 612 | (444, −140) | (624, −70) |
+
+`N = 25`, built and validated but **not installed** — kept here because the arithmetic is the
+part worth not redoing. The 4:3 variant gets a fourth row at y = −210, centred on x = 304 at
+half-pitch offsets (a centred pyramid staggers; grid-aligning four slots under a five-slot row
+cannot also centre them). Widescreen keeps filling row 2, which reaches its last column at 924.
+
+| slot | depth | flash depth | 4:3 position | widescreen position |
+|---|---|---|---|---|
+| `Hero22` | 614 | 722 | (199, −210) | (699, −70) |
+| `Hero23` | 641 | 724 | (269, −210) | (774, −70) |
+| `Hero24` | 668 | 726 | (339, −210) | (849, −70) |
+| `Hero25` | 695 | 728 | (409, −210) | (924, −70) |
+
+Sizes, as a sanity check when repacking: stock `FactionFrame.apt` is 191,060 bytes with a 3,436-byte
+`.const`; at N = 21 it is 193,140 / 3,496; at N = 25, 194,644 / 3,496.
+
+### 7.6 Reproducing it
+
+```sh
+# 1. decompile the variant you are editing (do both)
+python -m sage_apt to-xml  <mod>/_mod/apt/FactionFrame.apt
+python -m sage_apt to-xml  <mod>/_mod/apt_widescreen/FactionFrame.apt
+
+# 2. add the placeobjects on frame 9 and the alpha Moves on frame 19 (see 7.3),
+#    then compile back — this rewrites FactionFrame.apt and .const together
+python -m sage_apt to-apt  <mod>/_mod/apt/FactionFrame.xml
+
+# 3. prove the movie still round-trips before shipping it
+python -m sage_apt check   <mod>/_mod/apt/FactionFrame.apt
+
+# 4. repack BOTH archives, replacing FactionFrame.apt and FactionFrame.const
+#    (pyBIG: Archive.edit_file -> repack -> save; or FinalBIGv2)
+```
+
+Rebuild each archive **from a pristine copy** rather than from the previously patched one, so the
+diff stays exactly two entries. Verify by reading the entries back out of the written archive, not
+by trusting the write.
+
+### 7.7 Verifying it in a game
 
 1. **17+ heroes produce 17+ slots**, with the 17th drawing its portrait, rank and health like any
    other.
@@ -174,9 +327,18 @@ Everything above is static. The list that would make it real:
    16 heroes alive.
 8. **N=17 and N=126** both boot, to confirm nothing else assumed a small class.
 
-The `.apt` half is the precondition for all of it: the movie must define `Hero<n>` and
-`FlashEffect<n>` clips for every new slot, in each frame state the stock sixteen appear in
-(`_fadein` places them, `_show` reveals them). `sage_apt` is the tooling for that.
+**Checking the two halves separately is what makes this tractable**, and both can be read out of
+the live process without looking at the screen:
+
+* *engine half* — find the bar object by scanning the heap for its vtable `0x00C7EE88` at
+  offset `+0x00`, then read the slot array at `+0x48`, stride `0x18`. A slot showing a hero has a
+  non-null cached image at `+0x04`; an empty one reads rank/progress/health as `-1`. Slots past 16
+  holding real heroes is the patch working, regardless of what is drawn.
+* *movie half* — count occurrences of `Hero17\0` in process memory. The movie is only loaded once
+  a match starts, so this reads zero in the menus.
+
+The engine half can pass while the movie half fails, and that combination looks exactly like
+"nothing happened": the bar shows sixteen heroes and no error appears anywhere.
 
 ## 8. Composition
 

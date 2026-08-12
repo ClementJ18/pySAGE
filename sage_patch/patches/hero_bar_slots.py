@@ -5,10 +5,16 @@ derived in ``../docs/hero-bar-slots.md``; the class layout it builds on was reco
 ``../docs/herobar-kindof.md`` §1.
 
 **The gap.** The hero bar is 16 slots and nothing about that is data-driven. Adding `Hero17`+
-clips to `InGameHeroSelect.apt` therefore changes nothing at all: the constructor registers
+clips to the movie therefore changes nothing at all: the constructor registers
 `_OnBttnHeroSelect` on `Hero1`..`Hero16` only, so the new clips get no click callback, and the
 draw loop `break`s at slot 17, so nothing ever calls `SetButtonState` on them. The failure is
 silent - the extra buttons simply stay in whatever state the movie parks them in.
+
+**Which movie.** On Edain the bar is drawn by **`FactionFrame.apt`**, not by the
+`InGameHeroSelect.apt` that ships beside it and is never loaded. The engine names slots through
+`%s/Hero%d/` against a path prefix held on the bar object, so no file name appears in the code
+and the right one has to be identified from a running game. ``../docs/hero-bar-slots.md`` §7 has
+the method and the rest of the `.apt` half.
 
 **What it does.** Grows the bar's slot-cache array and raises the ten hardcoded counts that walk
 it. The bar is one class, constructed exactly once (`AptPalantir::OnHeroSelectLoaded`), holding
@@ -58,9 +64,11 @@ alone would run every other loop off the end of a 16-element array and into the 
 
 **The `.apt` is not optional.** The engine drives slot *i* through `%s/Hero%d/`,
 `_level%d.%s_Hero%dImage` and `APT:_level%d.%s_Hero%dRank`, so the movie must define `Hero17`..
-`Hero<count>` clips (and their `FlashEffect<n>` siblings) in every frame state the stock sixteen
-appear in. A movie without them leaves the extra slots inert exactly as before - this patch
-removes the engine's ceiling, it does not draw anything. `sage_apt` is the tooling for that half.
+`Hero<count>` clips (and their `FlashEffect<n>` siblings) on both frames the stock sixteen appear
+on - `_fadein` (frame 9) places them, `_show` (frame 19) reveals them - in **both** the `apt/` and
+`apt_widescreen/` variants, whose grids differ. A movie without them leaves the extra slots inert
+exactly as before: this patch removes the engine's ceiling, it does not draw anything. `sage_apt`
+is the tooling for that half, and ``../docs/hero-bar-slots.md`` §7 is the procedure.
 
 **Determinism.** The bar is client-local UI: it is built from the local player's own object
 lists, nothing here enters the simulation, and the click path raises the same

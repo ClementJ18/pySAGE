@@ -2359,7 +2359,7 @@ class Statics:
         block = self.faction_template(faction)
         if block is None:
             return ()
-        book = str(block.fields.get("SpellBookMp", "")).strip()
+        book = str(_fields(block).get("SpellBookMp", "")).strip()
         command_set = self.command_set(book) or ""
         if not command_set:
             return ()

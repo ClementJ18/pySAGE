@@ -4,7 +4,14 @@ Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR
 the stock `game.dat` (11,346,944 bytes) in this repo's fixtures. The launcher figures
 (`lotrbfme2ep1.exe`) are carried over from [`multi-instance.md`](multi-instance.md), which already
 reverse-engineered that shim; they are **not** re-derived here because the launcher binary was not
-in hand when this was scoped (see [Open questions](#open-questions)).
+in hand when this was scoped.
+
+> **The launcher half has since been done, and this document was wrong about it.** See
+> [`standalone-launcher.md`](standalone-launcher.md). The shim does not resolve `game.dat` through
+> the registry at all — it chdirs into its own image directory and spawns from there, so §2's third
+> requirement was already met by the stock binary. The real dependency is one this document did not
+> anticipate, on the far side of `CreateProcess`. §3's `StandaloneLauncherPatch` and §4's last row
+> are corrected below; the `game.dat` sections are as originally scoped and still unbuilt.
 
 - **Goal:** a `game.dat` that runs from wherever it sits, with **no dependency on the RotWK
   registry keys** and with the user-data / install folders **supplied by the operator**, so the
@@ -143,15 +150,25 @@ sets one `gi.dat` line. The `GameRegPath` / `InstallerRegPath` / `UserDataLeafNa
 and folding it into `gi.dat` keeps all path configuration in one operator-owned file rather than
 splitting it across a file and a patch flag.
 
-### `StandaloneLauncherPatch` — `lotrbfme2ep1.exe`
+### ~~`StandaloneLauncherPatch` — `lotrbfme2ep1.exe`~~ — superseded
 
-The launcher reads `lotrbfme2ep1.lcf`, resolves `game.dat`'s location, and starts it. Per
-[`multi-instance.md`](multi-instance.md) the shim already parses `gi.dat` for its GUIDs, so the
-registry-path fields are in reach. The patch makes it launch `.\game.dat` (relative to the
-launcher) instead of the registry-resolved path — one retargeted path build, analogous to the
-single-site edits multi-instance made. **This half cannot be finalised from the material in this
-repo:** the launcher binary was not provided, so its exact resolve site is an open item (§Open
-questions).
+> ~~The launcher reads `lotrbfme2ep1.lcf`, resolves `game.dat`'s location, and starts it. […] The
+> patch makes it launch `.\game.dat` (relative to the launcher) instead of the registry-resolved
+> path.~~
+
+Wrong on both counts, and the correction is in
+[`standalone-launcher.md`](standalone-launcher.md). The shim `chdir`s into the directory of its own
+image — `argv[0]`, which the MSVC CRT seeds from the module path, not from the command line — and
+then spawns with `lpApplicationName = NULL` and `lpCurrentDirectory = NULL`, so `game.dat` is found
+beside the launcher and the registry is nowhere on that route. A patch for the resolve site was
+built and measured to change nothing.
+
+What is registry-bound runs **after** `CreateProcessA` returns: the launcher hands the game a token
+through the `game2.dat` shared mapping, and derives it by Blowfish-decrypting a payload under a key
+built from `HKLM\<GameRegPath>\InstallPath` and that path's volume serial number. On a relocated
+copy every input to that key is wrong, and nothing refuses — the game simply receives the wrong
+plaintext. `standalone-launcher` replaces the derivation with `gi.dat`'s otherwise-unused `G4`
+field, in 38 bytes, in place.
 
 ### Why not just delete the registry keys or ship a `.reg`?
 
@@ -166,7 +183,7 @@ location-independent.
 | `game.dat` | `0x00640F00` | open `HKLM\<InstallerRegPath>`, query install path | return working dir / `gi.dat` `InstallPath` |
 | `game.dat` | `0x00978760` | read `InstallPath` value → `0x00DEBD6C` | same source as above |
 | `game.dat` | `0x00AAA5A0` | `gi.dat` field chain | *(B only)* one more `strcmp`/store for `InstallPath` |
-| `lotrbfme2ep1.exe` | *TBD* | resolve `game.dat` via registry | launch `.\game.dat` |
+| `lotrbfme2ep1.exe` | ~~*TBD*~~ `0x0040B533` | ~~resolve `game.dat` via registry~~ decrypt the shared-memory token under an `InstallPath` + volume-serial key | **built**: take it from `gi.dat`'s `G4` instead ([`standalone-launcher.md`](standalone-launcher.md) §3) |
 
 Left deliberately untouched: the `WinMain` chdir (§1a), the `UserDataLeafName` consumers (§1d), and
 the `gi.dat` parser's existing fields — all already do the right thing for a relocated install.
@@ -193,9 +210,11 @@ asserted once the launcher binary is in hand.
 
 ## Open questions
 
-- **The launcher binary.** `lotrbfme2ep1.exe` was not provided with this scope. The launcher-side
-  edit (§3, §4) is described from `multi-instance.md`'s prior RE, not re-derived; the exact
-  `game.dat`-resolution site needs the binary before it can be pinned and `verify`-backed.
+- ~~**The launcher binary.**~~ **Answered.** `lotrbfme2ep1.exe` was reverse-engineered against the
+  real file in [`standalone-launcher.md`](standalone-launcher.md), and the answer was not the one
+  §3 predicted: the resolution site does not exist, and the dependency that does is at
+  `0x0040B533`. The patch is built, and the instrumentation method it used (a `.probe` section
+  writing marker files, §4 there) is the tool for the two `game.dat` questions below.
 - **Second install-path reader.** `0x00978760` (→ `0x00DEBD6C`) and the `0x00640F00` subsystem may
   or may not be independently load-bearing at startup; which reads are actually consulted on the
   fatal path wants a runtime breakpoint pass (step 4 of the workflow doc) before both are assumed

@@ -3,7 +3,8 @@
 Reverse-engineering + binary-patch work on the ROTWK SAGE engine (build `2.01.2614.37001`). The
 patches below are all engine-level — they apply to any ROTWK install of that build and benefit
 every mod on it (Edain among them), not one in particular. All of them target `game.dat` except
-`desert-weather-wb`, which patches `Worldbuilder.exe` from the same install:
+two, which patch other binaries from the same install: `desert-weather-wb` patches
+`Worldbuilder.exe`, and `standalone-launcher` patches the launcher shim `lotrbfme2ep1.exe`:
 
 - **`commandset-limit`** raises the `CommandSet` button limit from its stock **33** to any **N** in
   34..127, plus the INI paging rule needed to surface the extra buttons, and widens the AI's
@@ -224,7 +225,7 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   is still **16 slots**, so enough distinct groups push heroes off the end. **Not yet
   runtime-verified in game.**
 - **`hero-bar-slots`** raises the in-game **hero bar from its stock 16 slots to any N** in
-  17..126 (the shipped build uses **21**). Adding `Hero17`+ clips to `InGameHeroSelect.apt`
+  17..126 (the shipped build uses **21**). Adding `Hero17`+ clips to the movie
   achieves nothing on its own, and fails silently: the ctor registers `_OnBttnHeroSelect` for
   `Hero1`..`Hero16` only, and the draw loop `break`s before it ever names index 17, so the extra
   buttons stay in whatever state the movie parks them in. The ceiling looks like one constant and
@@ -235,9 +236,14 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   **every reference to that state is already a disp32** — so the block slides up by `(N-16)*0x18`
   and the class grows, in 27 same-length immediate rewrites, while the array stays at `+0x48` and
   its four disp8 addressing sites are never touched. **No cave and no assembly**: 38 immediates.
-  Client-local, so it does not have to be on every peer and replays cross. The movie must define
-  matching `Hero<n>` / `FlashEffect<n>` clips in each frame state — that half is `sage_apt`'s.
-  **Not yet runtime-verified in game.**
+  Client-local, so it does not have to be on every peer and replays cross. The other half is an
+  `.apt` edit, and it is the expensive one: on Edain the bar is drawn by **`FactionFrame.apt`**,
+  *not* by the `InGameHeroSelect.apt` that ships beside it and is never loaded — the engine names
+  slots through `%s/Hero%d/` against a path prefix, so no file name appears in the code and the
+  right movie has to be identified from a running game. Both the `apt/` and `apt_widescreen/`
+  variants need it, their grids differ, and the loose `_mod/apt/` folder is a source tree that no
+  build step packs, so the two `.big`s must be repacked by hand. `docs/hero-bar-slots.md` §7 is
+  the procedure. **Runtime-verified in game at N = 21.**
 - **`queue-ignore-cp`** adds a **`QueueIgnoreCP`** boolean to `CommandButton`, so a button the
   *engine* presses — a `DoCommandUpgrade`'s `GetUpgradeCommandButtonName`, which is how a power or
   a research recruits a unit on an object's behalf — can queue its unit while the player is at the
@@ -301,6 +307,24 @@ every mod on it (Edain among them), not one in particular. All of them target `g
   touched. This is what Edain's Iron Hills vineyard works around with a hidden flag, a rebuild
   cooldown and a dummy building. **Simulation state**, so it has to be on every peer. **Not yet
   runtime-verified in game.**
+- **`standalone-launcher`** is the one patch here aimed at **`lotrbfme2ep1.exe`**, the launcher
+  shim, and it lets a **relocated install still hand the game a usable token**. Finding and
+  starting `game.dat` needed no patch and never did — the shim `chdir`s into its own image
+  directory (`argv[0]`, which the CRT seeds from the module path, not from the command line) and
+  spawns from there, with the registry nowhere on that route. What is registry-bound runs *after*
+  `CreateProcessA` returns: the launcher fills the `game2.dat` shared mapping the engine reads, and
+  it does not hold that value — it **decrypts** it, under a Blowfish key built from
+  `HKLM\<GameRegPath>\InstallPath` and the **volume serial number** of the drive that path names.
+  Copy the folder to a stick, a container or a machine that never ran the EA installer and every
+  input to that key is wrong, with nothing refusing: the game is simply handed the wrong plaintext.
+  The patch replaces the key schedule and the decrypt with a `strcpy` from **`gi.dat`'s `G4`
+  field** — the tenth and last, whose accessor has *zero* callers in the stock binary. 38 bytes in
+  place, no cave. It is **not** a way to run a copy you do not have: the `.big` archives and
+  `game.dat` are still required and unchanged, and the token gates nothing — the engine starts
+  perfectly well without the shim. **The edit is the Edain mod's**, shipped in its install as the
+  IDA difference file `lotrbfme2ep1.dif`; what is added here is the frame around it — the two
+  `rel32`s re-derived from the function addresses rather than transcribed, nine anchor sites, and a
+  test asserting `apply` reproduces the launcher Edain ships **byte for byte**.
 - **`headless`** makes a run cheap enough to automate: it adds **`-headless`**, **`-renderEvery n`**,
   **`-maxfps n`** and **`-uncapped`** to the command line, and suppresses the per-frame
   `Display::draw` when asked to. The command-line table is extensible in **six bytes** — the
@@ -405,6 +429,11 @@ sage-patch verify foundation-rebind game.dat
 # a command-line surface, and a game that does not draw
 sage-patch apply headless --in game.dat.backup --out game.dat          # no parameters
 sage-patch verify headless game.dat
+
+# the launcher, not game.dat: no install-location lock on the token it hands the engine
+sage-patch apply standalone-launcher \
+    --in lotrbfme2ep1.exe.backup --out lotrbfme2ep1.exe                # no parameters
+sage-patch verify standalone-launcher lotrbfme2ep1.exe
 ```
 
 `verify` re-derives the expected tables, the repointed references and every patched site from the

@@ -120,6 +120,7 @@ def _fix_file(path: str, diags: list[Diagnostic]) -> list[Diagnostic]:
         # value lives in the `#define` body (follow it there), and a repeated field is flagged on
         # its first occurrence while the value sits on a later line (nothing to rewrite, so skip
         # rather than "fix" a no-op that would resurface).
+        target: int | None
         if 1 <= line_no <= len(lines) and _token_in_value(lines[line_no - 1], given):
             target = line_no
         else:
