@@ -517,6 +517,12 @@ class ProcessMemory:
     # PROCESS_VM_WRITE | PROCESS_VM_OPERATION
     _WRITE = 0x0020 | 0x0008
 
+    # Declared rather than left to inference: everything below the platform check in `__init__`
+    # is unreachable to a type checker running as Linux, so the assignments there give these no
+    # type at all and every use in the methods below becomes an error on the CI runner.
+    writable: bool
+    _k32: ctypes.CDLL  # a `WinDLL` on Windows, which `CDLL` is the cross-platform spelling of
+
     def __init__(self, pid: int, writable: bool = False) -> None:
         if sys.platform != "win32":
             raise RuntimeError(

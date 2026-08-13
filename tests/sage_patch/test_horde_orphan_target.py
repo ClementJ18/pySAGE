@@ -15,9 +15,11 @@ from __future__ import annotations
 import struct
 
 import pytest
-from capstone import CS_ARCH_X86, CS_MODE_32, Cs
 
-from sage_patch import HordeOrphanTargetPatch, apply_patches
+pytest.importorskip("capstone", reason="the [patch] extra (capstone) is not installed")
+from capstone import CS_ARCH_X86, CS_MODE_32, Cs  # noqa: E402 - after the importorskip guard
+
+from sage_patch import HordeOrphanTargetPatch, apply_patches  # noqa: E402
 from sage_patch.patches.horde_orphan_target import (
     ENTRY_BRANCHES,
     FALLBACK_BYTES,

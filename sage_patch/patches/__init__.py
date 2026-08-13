@@ -18,6 +18,7 @@ from sage_patch.patches.live_bridge import LiveBridgePatch
 from sage_patch.patches.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
+from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.production_condition import ProductionConditionPatch
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
@@ -47,6 +48,7 @@ __all__ = [
     "LivingWorldOverridePatch",
     "MultiExecuteGatePatch",
     "ObjectivesScreenPatch",
+    "PlayerHealFilterPatch",
     "ProductionConditionPatch",
     "QueueIgnoreCpPatch",
     "ReplayOutcomePatch",

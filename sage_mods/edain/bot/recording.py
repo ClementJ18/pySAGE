@@ -89,6 +89,11 @@ def press_f8() -> bool:
     call answers how many events it inserted, and a refusal is a zero rather than an exception.
     Ignoring it is how a wrongly-sized `INPUT` shipped as a working feature.
     """
+    # `obs_running` already answers False off Windows, so no caller reaches here on another
+    # platform - but `ctypes.windll` only exists on Windows, and saying so is what lets the
+    # type checker read the rest of this function on a Linux runner.
+    if sys.platform != "win32":
+        return False
     user32 = ctypes.windll.user32
     kernel32 = ctypes.windll.kernel32
     ok = True

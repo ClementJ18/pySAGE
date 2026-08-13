@@ -289,6 +289,7 @@ _SCALARS: dict[str, object] = {
     "Label": _types.Label,
     "Opaque": _types.Opaque,
     "ModuleTag": _types.ModuleTag,
+    "ObjectFilter": _types.ObjectFilter,
 }
 
 

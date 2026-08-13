@@ -15,9 +15,11 @@ import struct
 from io import BytesIO
 
 import pytest
-from capstone import CS_ARCH_X86, CS_MODE_32, Cs
 
-from sage_patch.addresses import (
+pytest.importorskip("capstone", reason="the [patch] extra (capstone) is not installed")
+from capstone import CS_ARCH_X86, CS_MODE_32, Cs  # noqa: E402 - after the importorskip guard
+
+from sage_patch.addresses import (  # noqa: E402
     IMPORT_FFLUSH,
     IMPORT_FWRITE,
     MAX_PLAYER_COUNT,

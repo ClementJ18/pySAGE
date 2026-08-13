@@ -23,6 +23,7 @@ from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.observer_switch import ObserverSwitchPatch
+from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.production_condition import ProductionConditionPatch
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
@@ -55,6 +56,7 @@ PATCHES: dict[str, type[Patch]] = {
     HeroManaPatch.name: HeroManaPatch,
     CommandPointUpkeepPatch.name: CommandPointUpkeepPatch,
     BannerFilterPatch.name: BannerFilterPatch,
+    PlayerHealFilterPatch.name: PlayerHealFilterPatch,
     SecondResourcePatch.name: SecondResourcePatch,
     InflationReadoutPatch.name: InflationReadoutPatch,
     SciencePrereqPatch.name: SciencePrereqPatch,
