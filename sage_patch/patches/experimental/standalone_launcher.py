@@ -66,9 +66,9 @@ in a different function 0x2000 bytes away.
 
 from __future__ import annotations
 
-from ..asm import Asm
-from ..patcher import Patch
-from ..utils import apply_byte_patch, va_to_offset
+from ...asm import Asm
+from ...patcher import Patch
+from ...utils import apply_byte_patch, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -161,6 +161,7 @@ class StandaloneLauncherPatch(Patch):
 
     name = "standalone-launcher"
     author = "officialNecro"
+    experimental = True
     description = (
         "lotrbfme2ep1.exe (not game.dat): drop the install-location lock - the token handed to "
         "game.dat comes from gi.dat's G4 instead of an HKLM InstallPath + volume-serial key"

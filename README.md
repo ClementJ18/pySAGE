@@ -39,6 +39,7 @@ Can be downloaded pre-packaged from here: https://www.moddb.com/games/battle-for
 | [`sage_mods.edain`](sage_mods/edain/README.md) | Edain-mod overlay: builds a faction ownership graph (spellbook → base → structures → units/heroes/upgrades) and renders, diffs or serves it. |
 | [`sage_wiki`](sage_wiki/README.md) | Desktop tool that updates Edain wiki infoboxes from parsed game data through the MediaWiki API. |
 | [`sage_ui`](sage_ui/README.md) | PyQt6 desktop browser for SAGE game data: load sources, search an object, see its resolved stats. |
+| [`sage_verify`](sage_verify/README.md) | Maphack detection: follows a replay playing back in a live client and checks every targeted order against the engine's own shroud grid - you cannot click what you cannot see. Also compares a running client's `binary-attest` hash against the `game.dat` it should be running. |
 
 ### Shared
 

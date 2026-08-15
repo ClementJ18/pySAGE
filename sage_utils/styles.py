@@ -8,9 +8,13 @@ QWidget { background: $bg; color: $text; font-size: 14px; }
 /* Labels/checkboxes are transparent so they show the card behind them, not the
    window background painted by the QWidget rule above. */
 QLabel, QCheckBox { background: transparent; }
+/* The selection colours are set explicitly: without them Qt falls back to the desktop
+   palette for highlighted text, which on a light theme renders white on white and makes a
+   selected value unreadable. An editable QComboBox draws through this same rule. */
 QLineEdit {
     background: $surface; border: 1px solid $border; border-radius: 6px;
     padding: 8px 10px; font-size: 15px;
+    selection-background-color: $accent; selection-color: $accentInk;
 }
 QLineEdit:focus { border-color: $accent; }
 QScrollArea { border: none; }
@@ -30,6 +34,10 @@ QComboBox {
     padding: 5px 8px;
 }
 QComboBox:focus { border-color: $accent; }
+/* An editable combo embeds its own line edit; name it too rather than rely on inheritance. */
+QComboBox QLineEdit {
+    selection-background-color: $accent; selection-color: $accentInk;
+}
 QComboBox QAbstractItemView {
     background: $surface; border: 1px solid $border;
     selection-background-color: $accent; selection-color: $accentInk;

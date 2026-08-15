@@ -397,11 +397,10 @@ worth of sites:
 
 ## Status
 
-**Static-verified, not yet runtime-verified.** The patch applies to a clean `game.dat`, `verify`
+**Static-verified and runtime-verified.** The patch applies to a clean `game.dat`, `verify`
 passes, and the cave disassembles to the three intended routines with every branch landing on an
-engine instruction boundary. What is open is the in-game confirmation: a `DoCommandUpgrade` firing
-at the cap should queue its unit, the producer should hold it with the EVA cue, and it should
-start building the moment a unit dies.
+engine instruction boundary. In game, a `DoCommandUpgrade` firing at the cap queues its unit, the
+producer holds it with the EVA cue, and it starts building the moment a unit dies.
 
 ## Address index
 

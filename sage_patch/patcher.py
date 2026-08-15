@@ -22,6 +22,13 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("sage_patch")
 
+#: What :attr:`Patch.experimental` means, in one sentence, shared by everything that says it so the
+#: CLI and the log cannot drift into two different promises.
+EXPERIMENTAL_WARNING = (
+    "unstable and largely untested - it applies and verifies, but it has not been established in "
+    "play. Expect crashes, desyncs and save/replay incompatibility, and keep the unpatched binary."
+)
+
 
 class Patch:
     """One binary modification of a `game.dat` image.
@@ -63,6 +70,22 @@ class Patch:
     #: patch to them silently, which is exactly the failure this attribute exists to prevent, so
     #: an unattributed patch says so and a new one has to state its own.
     author: str = ""
+
+    #: Whether this patch is **experimental**, in the sense of :data:`EXPERIMENTAL_WARNING`: the
+    #: assembly is written and the binary comes out verifying, but the result has not been
+    #: established in a real game - so what the patch does past "the file still loads" is a claim
+    #: rather than an observation.
+    #:
+    #: This is not a quality grade and it is not about the RE being shakier. It marks the patches
+    #: that live in :mod:`sage_patch.patches.experimental`, and the two must agree: the module a
+    #: patch lives in is how a reader finds out, and this attribute is how ``apply`` says it out
+    #: loud to somebody who never opens the source. ``TestExperimentalPatchesAreDeclared`` fails
+    #: when they disagree in either direction.
+    #:
+    #: **False by default**, deliberately, for the mirror of the reason :attr:`author` is empty by
+    #: default: defaulting to True would put a warning in front of settled patches until each one
+    #: opted out, and a warning everything prints is a warning nobody reads.
+    experimental: bool = False
 
     @property
     def credit(self) -> str:
@@ -153,6 +176,11 @@ def apply_patches(
 
     patches = list(patches)
     for patch in patches:
+        # Warn *before* the applying line, not after and not in a summary at the end, because a
+        # patch that raises halfway has still been warned about - and because the last thing on
+        # screen when this succeeds should be "wrote ...", not a caveat scrolled off the top.
+        if patch.experimental:
+            log.warning("WARNING: %s is %s", patch, EXPERIMENTAL_WARNING)
         # The author goes in the applying line rather than in a summary at the end, so that a run
         # that fails halfway has still named everyone whose work went into the bytes it wrote.
         log.info("applying patch: %s", patch.credit)

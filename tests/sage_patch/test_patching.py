@@ -8,6 +8,7 @@ import pytest
 
 from sage_patch import CahFactionsPatch, CommandSetLimitPatch, Patch, apply_patches
 from sage_patch.cli import main
+from sage_patch.patcher import EXPERIMENTAL_WARNING
 from sage_patch.patches import cah_factions as cf
 from sage_patch.patches import commandset as cs
 from sage_patch.patches.commandset import MAX_COUNT, MIN_COUNT
@@ -234,6 +235,81 @@ class TestEveryPatchIsAttributed:
             # that reads as the obvious one is the one that cannot fail.
             assert "-" not in line.removeprefix(name).split()[0], f"{name} is unattributed"
             assert cls.author in line, name
+
+
+class TestExperimentalPatchesAreDeclared:
+    """**The gate that keeps the experimental warning attached to the right patches.**
+
+    "Experimental" is recorded twice - as the directory a module sits in, and as
+    `Patch.experimental` - because the two are read by different people. A contributor learns it
+    from the import path; somebody running `sage-patch apply` learns it from the warning, and never
+    opens the source at all. Neither is redundant, and either drifting on its own is worse than not
+    having marked it: a module moved up out of `experimental/` with the attribute left behind warns
+    about a patch that has been played, and one moved *in* without it stays silent about a patch
+    that has not.
+
+    So the move is the whole procedure, and this is what makes it so."""
+
+    @staticmethod
+    def _in_experimental_package(cls: type[Patch]) -> bool:
+        return cls.__module__.startswith("sage_patch.patches.experimental.")
+
+    @pytest.mark.parametrize("name", sorted(PATCHES), ids=sorted(PATCHES))
+    def test_the_flag_agrees_with_where_the_patch_lives(self, name):
+        cls = PATCHES[name]
+        if self._in_experimental_package(cls):
+            assert cls.experimental, (
+                f"{name} lives in sage_patch/patches/experimental/ but does not set "
+                "`experimental = True`, so `sage-patch list` and `sage-patch apply` present it as "
+                "a settled patch. Set it, or move the module up if it has been run in a game."
+            )
+        else:
+            assert not cls.experimental, (
+                f"{name} sets `experimental = True` but does not live in "
+                "sage_patch/patches/experimental/. Move the module there, or drop the attribute."
+            )
+
+    def test_list_marks_them_and_spells_the_warning_out(self, capsys):
+        """The marker and the sentence it stands for, in the output somebody reads *before*
+        choosing a patch - `apply` also warns, but by then the choice is made."""
+        assert main(["list"]) == 0
+        printed = capsys.readouterr().out
+        experimental = [name for name, cls in PATCHES.items() if cls.experimental]
+        assert experimental, "nothing to check - drop this test with the last experimental patch"
+        assert EXPERIMENTAL_WARNING in printed
+        for name, cls in PATCHES.items():
+            line = next(row for row in printed.splitlines() if row.startswith(name))
+            marked = "exp" in line.removeprefix(name).split()[:1]
+            assert marked == cls.experimental, f"{name}'s row disagrees with its flag: {line!r}"
+
+    def test_apply_warns_before_it_writes(self, tmp_path, caplog):
+        """A `WARNING` rather than a print, so it reaches a caller who never configured logging -
+        Python's last-resort handler puts warnings on stderr with no setup at all, which `log.info`
+        does not get."""
+
+        class _Experimental(Patch):
+            name = "experimental-nop"
+            author = "nobody"
+            experimental = True
+
+            def apply(self, data: bytearray) -> None:
+                data += b"\xff"
+
+        src = tmp_path / "in.bin"
+        src.write_bytes(b"\x00")
+        with caplog.at_level(logging.WARNING, logger="sage_patch"):
+            apply_patches(src, [_Experimental()], output=tmp_path / "out.bin")
+        assert EXPERIMENTAL_WARNING in caplog.text
+        assert "experimental-nop" in caplog.text
+
+    def test_a_settled_patch_stays_quiet(self, tmp_path, caplog):
+        """The other half, and the reason the default is False: a warning printed for everything
+        is a warning read for nothing."""
+        src = tmp_path / "in.bin"
+        src.write_bytes(b"\x00")
+        with caplog.at_level(logging.WARNING, logger="sage_patch"):
+            apply_patches(src, [_NopPatch()], output=tmp_path / "out.bin")
+        assert EXPERIMENTAL_WARNING not in caplog.text
 
 
 class TestCommandSetLimitPatch:

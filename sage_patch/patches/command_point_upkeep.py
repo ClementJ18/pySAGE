@@ -108,11 +108,7 @@ from ..addresses import (
 from ..asm import JAE, JBE, JE, JG, JLE, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
-
-# `read_field_table` and `resolve_table` are generic field-table helpers that happen to live in
-# the patch that needed them first. This is a code import only - the two patches rewrite
-# different tables (`Object`/`SpecialPower` there, `PlayerTemplate` here) and share no byte.
-from .hero_mana import Entry, entries_before, read_field_table, resolve_table
+from .utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 from .utils.income_link import (
     READOUT_SECTION,
     UPKEEP_EXPORT_OFF,

@@ -34,8 +34,8 @@ import sys
 import time
 
 from sage_live import ProcessMemory, find_game_processes
-from sage_patch.patches import hero_mana as hm
-from sage_patch.patches.hero_mana import SECTION_NAME, TRACE_RING, TRACE_STRIDE
+from sage_patch.patches.experimental import hero_mana as hm
+from sage_patch.patches.experimental.hero_mana import SECTION_NAME, TRACE_RING, TRACE_STRIDE
 from sage_patch.pe import find, mapped_sections
 
 TAGS = {

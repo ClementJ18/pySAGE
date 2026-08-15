@@ -223,7 +223,7 @@ it just gets larger numbers now.
 
 ## Status
 
-**Static-verified, not yet runtime-verified.** The patch applies to a clean `game.dat`, `verify`
+**Static-verified and runtime-verified.** The patch applies to a clean `game.dat`, `verify`
 passes, and the rewritten function disassembles to the four intended instructions ending exactly
-on the boundary of the next function (`0x008A1904`). Confirming in-game that a hero can be
-recruited from a second building while the first is still producing is open.
+on the boundary of the next function (`0x008A1904`). In game, a hero can be recruited from a
+second building while the first is still producing.

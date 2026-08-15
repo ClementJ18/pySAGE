@@ -18,9 +18,9 @@ UpkeepValues           = 100 90 80 70 60 50  ; percent of income kept, indexed b
 "−10% per 500 command points, floored at −50%", and a player sitting at 500 CP with a cap of
 1500 sees `500/1500 (-10%)` where the stock engine draws `500/1500`.
 
-**Status: built and static-verified; not yet runtime-verified in a game.** The bytes apply,
-disassemble as intended and verify. The in-game behaviour check is open — see
-[Verifying it in a game](#verifying-it-in-a-game).
+**Status: built, static-verified and runtime-verified in a game.** The bytes apply,
+disassemble as intended and verify, and the behaviour holds in game — see
+[Verifying it in a game](#verifying-it-in-a-game) for the procedure.
 
 ## 1. The mechanic it rides on
 

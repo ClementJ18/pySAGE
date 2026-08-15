@@ -38,7 +38,7 @@ from sage_patch.addresses import (
     PLAYER_TEMPLATE_RESOURCE_VALUES,
 )
 from sage_patch.patches import command_point_upkeep as cpu
-from sage_patch.patches.hero_mana import read_field_table
+from sage_patch.patches.utils.field_tables import read_field_table
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch import test_hero_mana as hm_test
 

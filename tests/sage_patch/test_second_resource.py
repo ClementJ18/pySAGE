@@ -80,8 +80,8 @@ from sage_patch.addresses import (
     UNICODE_STRING_DTOR,
     UNICODE_STRING_FORMAT,
 )
-from sage_patch.patches import second_resource as sr
-from sage_patch.patches.hero_mana import entries_before, read_field_table
+from sage_patch.patches.experimental import second_resource as sr
+from sage_patch.patches.utils.field_tables import entries_before, read_field_table
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch import test_command_point_upkeep as cpu_test
 

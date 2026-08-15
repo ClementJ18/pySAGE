@@ -10,6 +10,14 @@ list` prints, the module docstring in `sage_patch.patches` for why it is built t
 `docs/<patch>.md` for the reverse engineering behind it. Nothing here restates them, because a
 list in this file is a list that drifts.
 
+**Some of what this module exports is experimental** - unstable and largely untested, see
+:data:`~sage_patch.patcher.EXPERIMENTAL_WARNING` and :mod:`sage_patch.patches.experimental`. The
+names are flat here, so the import that reaches one reads exactly like the import that reaches a
+settled patch; :attr:`Patch.experimental` is the thing to ask, and `apply_patches` logs a warning
+per experimental patch it is handed. That warning is a `WARNING` rather than a print precisely so
+that it reaches a caller who never configured logging - Python's last-resort handler puts it on
+stderr with no setup at all.
+
     from sage_patch import AiReviveGatePatch, apply_patches, CommandSetLimitPatch
     apply_patches(
         "game.dat.backup",
@@ -18,7 +26,7 @@ list in this file is a list that drifts.
     )
 """
 
-from sage_patch.patcher import Patch, apply_patches
+from sage_patch.patcher import EXPERIMENTAL_WARNING, Patch, apply_patches
 from sage_patch.patches import (
     AiReviveGatePatch,
     BannerFilterPatch,
@@ -31,9 +39,12 @@ from sage_patch.patches import (
     HeroManaPatch,
     HordeOrphanTargetPatch,
     InflationReadoutPatch,
+    LargeGroupBonusFilterPatch,
+    LifetimeExtendUpgradePatch,
     MultiExecuteGatePatch,
     PlayerHealFilterPatch,
     ProductionConditionPatch,
+    ProductionSplitPatch,
     QueueIgnoreCpPatch,
     ReplayOutcomePatch,
     SciencePrereqPatch,
@@ -42,10 +53,12 @@ from sage_patch.patches import (
     SpawnUnionPatch,
     TerrainResourceExpPatch,
     UniqueProductionIdPatch,
+    UpgradeDescriptionPatch,
 )
 from sage_patch.sagepatch import generate
 
 __all__ = [
+    "EXPERIMENTAL_WARNING",
     "AiReviveGatePatch",
     "BannerFilterPatch",
     "CahFactionsPatch",
@@ -57,10 +70,13 @@ __all__ = [
     "HeroManaPatch",
     "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
+    "LargeGroupBonusFilterPatch",
+    "LifetimeExtendUpgradePatch",
     "MultiExecuteGatePatch",
     "Patch",
     "PlayerHealFilterPatch",
     "ProductionConditionPatch",
+    "ProductionSplitPatch",
     "QueueIgnoreCpPatch",
     "ReplayOutcomePatch",
     "SciencePrereqPatch",
@@ -69,6 +85,7 @@ __all__ = [
     "SpawnUnionPatch",
     "TerrainResourceExpPatch",
     "UniqueProductionIdPatch",
+    "UpgradeDescriptionPatch",
     "apply_patches",
     "generate",
 ]

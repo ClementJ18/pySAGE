@@ -296,6 +296,10 @@ changes, it is parsed-and-dropped and the feature needs the engine work, not the
 
 ## 5. `ForceAdvanceTurnPhase` — *unknown, now low priority*
 
+**Update 2026-08-14:** the Angmar scenario now sets it, and it reads **1** live at `campaign+0x5A` —
+so the field lands. Whether anything *consumes* it is still unproven, and the paragraph below stands
+otherwise.
+
 Parsed into `campaign+0x5A`, set by **no shipped campaign anywhere**, reads 0 live. It was the
 obvious candidate for "forced to press End Turn" — but scripted mode already removed that
 requirement, so it may be redundant. Byte reads at `+0x5A` exist at `0x006B2F20` and `0x006BE27E`
@@ -370,10 +374,10 @@ their parsers (`0x007B8500`, `0x007B88F0`) and look for the equivalent army fiel
 | 1 | `DisableRegions` + `EnableRegion` per act ([`region gating`](living-world-region-gating.md)) | **INI only** | both live and unused; fixes the wasted-act problem by construction |
 | 2 | Author revival entries for spawned heroes (§3) | **INI/script only** | a working example already exists in `map kampa evil 08` |
 | 3 | Flip one `IsControllableByOwner` to `Yes` (§2) | **one character** | traced end to end; only the live check is missing |
-| 4 | `objectives-screen` patch, now shipped ([`scope`](../objectives-in-any-map.md)) | applied, widened to three call sites after a failed live run | still needs a live run, including mission *two* |
+| 4 | `objectives-screen` patch, now shipped ([`scope`](../objectives-in-any-map.md)) | applied, widened to three call sites after a failed live run | **runtime-verified 2026-08-14** in a WotR battle; mission *two*, the hotkey and the no-objectives fallback are still open |
 | 5 | `SecondsPerReinforcement` (§4), `ArmyCarryoverPoints` (§3) | INI only | unknown, cheap, one line each |
 | 6 | Menu entry for scripted campaigns (§1) | patch, precedent exists | that code path has never run in a shipped build |
-| 7 | Third parties in a WotR battle ([`battle-sides`](battle-sides.md)) | RE | the `m_sides` prune is not located |
+| 7 | **Give a scripted battle its players** ([`battle-sides`](battle-sides.md)) | RE, then patch | **now the blocking item, measured 2026-08-14**: with `IsScriptedCampaign` set a battle has *no* faction players and the client is seated as an observer. The mechanism is not yet traced, and the older third-party prune is a second, separate reduction |
 | 8 | Split/merge/despawn armies (§6, [`act verbs`](bfme1-act-verbs.md)) | large patch | scaffolding is a one-dword relocation; the runtime is the cost |
 
 The top three are authoring, cost nothing, and between them address the wasted act, hero permadeath
@@ -385,11 +389,16 @@ everywhere (§3), and "is a spawned army's composition mutable?" is gone because
 [`bfme1-act-verbs.md`](bfme1-act-verbs.md) settled it — `LivingWorldPlayerArmy`/`ArmyEntry` parses
 today and `ModifyArmyEntry` only ever substituted one template for another.
 
-**Before any live test:** the mod tree is currently pristine — as of 2026-08-11 the recipe from
-[`living-world-campaign.md`](../living-world-campaign.md) is *not* applied. `wotrscenarioangmar.inc`
-has no `IsScriptedCampaign`, no `AddPlayer`, no `LocalPlayer`, and no `GameData` file sets
-`LivingWorldCampaignOverrride`. The `living-world-override` patch *is* still on the installed
-`game.dat` (verified). So a run needs the three INI changes re-applied first.
+**Before any live test:** ~~the mod tree is currently pristine~~ — **no longer true as of
+2026-08-14.** The recipe from [`living-world-campaign.md`](../living-world-campaign.md) is applied:
+`wotrscenarioangmar.inc` carries `IsScriptedCampaign`, `LocalPlayer` and its `AddPlayer` blocks, and
+`gamedata.ini` sets `LivingWorldCampaignOverrride = WOTRScenarioAngmar`. What still needs checking
+before a run is the **binary** — see [`verify`](../README.md#cli), and note that the mod's INI
+reaches the game only through a Mod Command repack, since the install has no loose `data/ini/`.
+
+**And the flag is now a switch, not a setting:** with `IsScriptedCampaign = Yes` the battles have no
+players (item 7). Turn it off to test anything *inside* a battle; turn it on to test act
+progression. They cannot currently both be true.
 
 ## Corrections to this plan
 

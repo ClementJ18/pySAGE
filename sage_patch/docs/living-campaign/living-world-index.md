@@ -44,21 +44,25 @@ persistence of death is the problem.
 
 One patch: [`objectives-screen`](../../patches/objectives_screen.py) — the Palantir button opens
 `Objectives.apt` on any map that declares objectives, instead of only in the linear campaign. Twelve
-tests, all disassembly-based.
+tests, all disassembly-based, and **runtime-verified in a War of the Ring battle on 2026-08-14**.
 
 ## What is still open
 
 | | question | where |
 |---|---|---|
-| 1 | What prunes `m_sides` for a WotR battle? | [`battle-sides.md`](battle-sides.md) |
+| 1 | What prunes `m_sides` for a WotR battle? | **still open, sharpened 2026-08-14** — a 7-side map seats 3 unscripted and 1 scripted, so the reduction is upstream of `newGame` in both. [`battle-sides.md`](battle-sides.md) |
+| 1b | How do the campaign's `AddPlayer` entries reach a **scripted** battle? | the blocking item: scripted battles have no faction players at all — [`battle-sides.md`](battle-sides.md) |
 | 2 | Does a revival entry survive the mission boundary? | [`living-world-parity.md`](living-world-parity.md) §3 |
 | 3 | Does `AptMainMenu::OnTutorial("Strategic")` work at all? | [`living-world-menu-entry.md`](living-world-menu-entry.md) |
 | 4 | Is `tracker->[0x10]` reset between maps? | [`objectives-in-any-map.md`](../objectives-in-any-map.md) |
 | 5 | What does `ArmyCarryoverPoints` do? | [`living-world-parity.md`](living-world-parity.md) §3 |
 
-**Nothing in this investigation has been run against the game.** Every claim is static analysis or
-map/INI data unless a document says otherwise. The one live-verified result predates it:
-`living-world-campaign.md`'s scripted campaign, confirmed in game on 2026-08-11.
+~~**Nothing in this investigation has been run against the game.**~~ **Out of date as of
+2026-08-14.** A live session that day settled question 1, runtime-verified the `objectives-screen`
+patch in a War of the Ring battle, and read `ForceAdvanceTurnPhase` set for the first time. Claims
+still carry their own provenance: everything not marked as measured is static analysis or map/INI
+data. The earlier live result was `living-world-campaign.md`'s scripted campaign, confirmed in game
+on 2026-08-11.
 
 ## A note on method
 

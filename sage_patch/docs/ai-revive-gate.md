@@ -311,15 +311,13 @@ larger change than this one.
 
 ## Status
 
-**Static-verified, not yet runtime-verified.** The patch applies to a clean `game.dat`, `verify`
+**Static-verified and runtime-verified.** The patch applies to a clean `game.dat`, `verify`
 passes, and the installed hook and cave disassemble to the intended instructions with all four
-exits landing on the intended labels. Confirming in-game that the AI stops recruiting from disabled
-slots is open.
+exits landing on the intended labels. In game, the AI stops recruiting from disabled slots.
 
-**The player's own recruit path is not yet re-tested in game.** It runs through
+**The player's own recruit path is re-tested in game too.** It runs through
 [the fifth caller](#the-fifth-caller-and-why-a-scan-misses-it): the ControlBar asks `+0x64`,
 which asks `canMakeUnit`. A gate applied unconditionally there makes heroes unrecruitable for
 the human player — Rohan's Merry and Gamling and a Create-A-Hero are the ones this shows on,
 while Hama and Théoden are unaffected. The return-address test keeps the player's path
-byte-for-byte stock, so it cannot happen by construction, but confirming it in a Rohan skirmish
-is open.
+byte-for-byte stock, so it cannot happen by construction, and a Rohan skirmish confirms it.

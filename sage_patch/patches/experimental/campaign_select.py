@@ -67,7 +67,7 @@ from __future__ import annotations
 
 import struct
 
-from ..addresses import (
+from ...addresses import (
     ASCII_STRING_SET,
     ASCII_STRING_SET_BYTES,
     CAMPAIGN_NAME_BIND,
@@ -84,9 +84,9 @@ from ..addresses import (
     MAIN_MENU_SCREEN_PHASE,
     MAIN_MENU_SCREEN_SELECTION,
 )
-from ..asm import JB, JE, JNE, Asm
-from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...asm import JB, JE, JNE, Asm
+from ...patcher import Patch
+from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -240,6 +240,7 @@ _DETOUR_LEN = 5
 class CampaignSelectPatch(Patch):
     name = "campaign-select"
     author = "officialNecro"
+    experimental = True
     description = (
         "Let the main menu start any LinearCampaign by name - the campaign button's FSCommand "
         "params carry '<Difficulty>:<CAMPAIGN_NAME>' instead of only a difficulty"

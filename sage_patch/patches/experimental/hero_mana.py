@@ -96,7 +96,7 @@ from typing import TYPE_CHECKING
 
 from sage_ini.engine import Engine, FieldDelta
 
-from ..addresses import (
+from ...addresses import (
     ABILITY_MODULEDATA_SPECIAL_POWER,
     ABILITY_TRIGGER,
     ABILITY_TRIGGER_MODULEDATA_EBP,
@@ -148,9 +148,10 @@ from ..addresses import (
     UNICODE_STRING_APPEND,
     UNICODE_STRING_CONCAT,
 )
-from ..asm import JB, JBE, JE, JLE, JNE, Asm
-from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...asm import JB, JBE, JE, JLE, JNE, Asm
+from ...patcher import Patch
+from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 if TYPE_CHECKING:
     import argparse
@@ -169,14 +170,7 @@ __all__ = [
     "TRACE_RING",
     "TRACE_STRIDE",
     "HeroManaPatch",
-    "entries_before",
-    "read_field_table",
-    "resolve_table",
 ]
-
-#: One `{const char *name, ParseFn, void *userData, UnsignedInt offset}` row of an INI
-#: field-parse table, as `struct` unpacks it.
-Entry = tuple[int, int, int, int]
 
 SECTION_NAME = ".heromna"  # 8 chars exactly: the PE name field truncates silently past 8
 
@@ -967,77 +961,6 @@ def _emit_dispatch_hook(a: Asm, index: int, window: bytes, resume_va: int, *, tr
     a.jmp_absolute(resume_va)
 
 
-def read_field_table(data: bytes | bytearray, base_va: int) -> tuple[Entry, ...]:
-    """The live field-parse table at ``base_va``, terminator excluded.
-
-    Read from the image rather than assumed, so that a patch which extended the table first still
-    composes - the rule :mod:`.name_tables` states for the name tables.
-    """
-    off = va_to_offset(data, base_va)
-    if off is None:
-        raise ValueError(f"the field table at 0x{base_va:08x} is not mapped")
-    entries: list[Entry] = []
-    for index in range(1024):
-        entry: Entry = struct.unpack_from("<IIII", data, off + index * 16)
-        if entry[0] == 0 and entry[1] == 0:
-            return tuple(entries)
-        entries.append(entry)
-    raise ValueError(f"the field table at 0x{base_va:08x} is not terminated")
-
-
-def entries_before(
-    data: bytes | bytearray, entries: tuple[Entry, ...], name: str
-) -> tuple[Entry, ...] | None:
-    """The rows that preceded ``name`` when the patch owning it rebuilt the table, or None if the
-    table does not name it.
-
-    Located **by name, never by counting back from the end**. A rebuilt table is
-    ``[what was live] + [the new rows] + terminator``, so a patch that extends the same table
-    afterwards appends past these - and counting back would then report the wrong number of
-    preceding rows. That number is not cosmetic: it sizes the rebuilt table, which places
-    everything the cave lays out after it, so getting it wrong moves every routine the patch
-    points the engine at.
-    """
-    for index, entry in enumerate(entries):
-        name_va = entry[0]
-        off = va_to_offset(data, name_va)
-        if off is None:
-            continue
-        end = bytes(data[off : off + 64]).find(b"\x00")
-        if end >= 0 and bytes(data[off : off + end]).decode("latin1") == name:
-            return entries[:index]
-    return None
-
-
-def resolve_table(
-    data: bytes | bytearray, ref_vas: tuple[int, ...], opcodes: tuple[int, ...], what: str
-) -> int:
-    """A field table's base VA, taken from the references that name it.
-
-    Read from the references rather than from the stock constant for two reasons. It is what
-    makes the patch compose with anything that relocated a table first - it appends to whatever
-    is live instead of dropping that patch's entries. And it is what makes **applying this patch
-    twice** fail cleanly: the second run reads its own rebuilt table and sees the fields already
-    there, where reading the stock base would find the untouched original and cheerfully install
-    a second copy.
-    """
-    bases = {}
-    for ref_va, opcode in zip(ref_vas, opcodes, strict=True):
-        off = va_to_offset(data, ref_va)
-        if off is None:
-            raise ValueError(f"0x{ref_va:08x} is not mapped - not the expected build")
-        if data[off] != opcode:
-            raise ValueError(
-                f"the {what} table reference at 0x{ref_va:08x} is opcode 0x{data[off]:02x}, "
-                f"expected 0x{opcode:02x} - not the expected build"
-            )
-        bases[ref_va] = struct.unpack_from("<I", data, off + 1)[0]
-    if len(set(bases.values())) != 1:
-        disagreement = ", ".join(f"0x{va:08x}->0x{base:08x}" for va, base in bases.items())
-        raise ValueError(f"the {len(ref_vas)} {what} table refs disagree: {disagreement}")
-    return next(iter(bases.values()))
-
-
 def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
     off = va_to_offset(data, va)
     if off is None:
@@ -1095,6 +1018,7 @@ class HeroManaPatch(Patch):
 
     name = "hero-mana"
     author = "officialNecro"
+    experimental = True
     description = "Give special powers a regenerating per-object mana cost (SpecialPower.ManaCost)"
 
     def __init__(

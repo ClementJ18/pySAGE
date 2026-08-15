@@ -159,7 +159,9 @@ def merge_shadowed(
     return merged
 
 
-def load_sources(sources: list[tuple[str, str]], progress=None) -> tuple[Game, list[str]]:
+def load_sources(
+    sources: list[tuple[str, str]], progress=None, *, bases: bool = True
+) -> tuple[Game, list[str]]:
     """Build the merged folder (extracting any .big) and load it into a Game, so the
     root/include machinery can resolve `#include`s across all sources; the temp tree
     is removed afterwards. `progress`, if given, gets status strings as work proceeds.
@@ -167,11 +169,18 @@ def load_sources(sources: list[tuple[str, str]], progress=None) -> tuple[Game, l
     Base layouts (`bases/*.bse`) are carried along and resolved once the game is built,
     attached as `game.base_layouts` - the faction graph reads them to decompose a plot
     flag's castle/camp base into its citadel and foundations (needs sagemap; without it
-    the table is simply empty)."""
+    the table is simply empty).
+
+    **`bases=False` is not a minor saving.** Each `.bse` is a binary map parsed in full to
+    read its object list, and Edain ships 480 of them at roughly 0.7s apiece - so the sweep
+    alone is over five minutes, several times the rest of the load. A front end that never
+    reads `game.base_layouts` should pass False: the `.bse` files are then left out of the
+    merged tree as well, since copying them only to ignore them buys nothing."""
     game = Game()
     workdir = Path(tempfile.mkdtemp(prefix="sage_sources_"))
+    suffixes = GAME_SUFFIXES if bases else LOAD_SUFFIXES
     try:
-        merged = build_merged(sources, workdir, progress=progress, suffixes=GAME_SUFFIXES)
+        merged = build_merged(sources, workdir, progress=progress, suffixes=suffixes)
 
         if progress is not None:
             progress("Parsing game data…")
@@ -194,9 +203,10 @@ def load_sources(sources: list[tuple[str, str]], progress=None) -> tuple[Game, l
 
         # Classification is KindOf-based, so the layouts resolve only after the game is
         # loaded - and must resolve before the merged tree is deleted.
-        if progress is not None:
-            progress("Reading base layouts…")
-        game.base_layouts = collect_base_layouts(game, merged)
+        if bases:
+            if progress is not None:
+                progress("Reading base layouts…")
+            game.base_layouts = collect_base_layouts(game, merged)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 

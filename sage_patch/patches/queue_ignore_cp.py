@@ -131,7 +131,7 @@ from ..addresses import (
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
-from .hero_mana import Entry, entries_before, read_field_table, resolve_table
+from .utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 if TYPE_CHECKING:
     import argparse

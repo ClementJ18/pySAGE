@@ -362,7 +362,7 @@ require.
 
 ## Status
 
-**Static-verified (2026-08-02). Not yet runtime-verified in a game.**
+**Static-verified (2026-08-02) and runtime-verified in a game.**
 
 ```sh
 sage-patch apply terrain-resource-exp --in game.dat.backup --out game.dat

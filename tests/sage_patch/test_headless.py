@@ -24,7 +24,7 @@ from sage_patch.addresses import (
     GAME_CLIENT_DRAW,
     GAME_CLIENT_DRAW_BYTES,
 )
-from sage_patch.patches.headless import (
+from sage_patch.patches.experimental.headless import (
     COUNTER_OFFSET,
     DEFAULT_RENDER_EVERY,
     OPTIONS,

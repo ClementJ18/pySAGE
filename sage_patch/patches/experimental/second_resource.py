@@ -110,7 +110,7 @@ from typing import TYPE_CHECKING
 
 from sage_ini.engine import Engine, FieldDelta
 
-from ..addresses import (
+from ...addresses import (
     ASCII_STRING_FORMAT,
     AUTO_DEPOSIT_DEPOSIT,
     AUTO_DEPOSIT_DEPOSIT_BYTES,
@@ -173,13 +173,10 @@ from ..addresses import (
     UNICODE_STRING_DTOR,
     UNICODE_STRING_FORMAT,
 )
-from ..asm import JA, JAE, JBE, JE, JGE, JL, JNC, JNE, Asm
-from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
-
-# `read_field_table` and `resolve_table` are generic field-table helpers that happen to live in
-# the patch that needed them first. This is a code import only.
-from .hero_mana import Entry, entries_before, read_field_table, resolve_table
+from ...asm import JA, JAE, JBE, JE, JGE, JL, JNC, JNE, Asm
+from ...patcher import Patch
+from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 if TYPE_CHECKING:
     import argparse
@@ -961,6 +958,7 @@ class SecondResourcePatch(Patch):
 
     name = "second-resource"
     author = "officialNecro"
+    experimental = True
     description = (
         "A second per-player resource pool, granted by AutoDepositUpdate.DepositAmount2, seeded "
         "by PlayerTemplate.StartMoney2 and shown in brackets on the palantir (nothing costs it)"

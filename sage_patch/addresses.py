@@ -121,11 +121,22 @@ __all__ = [
     "CONTROL_BAR_UNAVAILABLE",
     "CONTROL_BAR_UNIT_COST_CALL",
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
+    "CRC_EXCLUDE_SHROUD_FLAG",
     "CRT_ATOI",
+    "DESCRIPTION_BLOCKED_ASSIGN",
+    "DESCRIPTION_BLOCKED_ASSIGN_BYTES",
+    "DESCRIPTION_BLOCKED_RESUME",
+    "DESCRIPTION_BLOCKED_RUN",
+    "DESCRIPTION_BLOCKED_RUN_BYTES",
     "DESCRIPTION_BUFFER_EBP_OFFSET",
     "DESCRIPTION_DONE",
     "DESCRIPTION_LINE_EBP_OFFSET",
     "DESCRIPTION_OBJECT_EBP_OFFSET",
+    "DESCRIPTION_PURCHASED_ASSIGN",
+    "DESCRIPTION_PURCHASED_ASSIGN_BYTES",
+    "DESCRIPTION_PURCHASED_RESUME",
+    "DESCRIPTION_PURCHASED_RUN",
+    "DESCRIPTION_PURCHASED_RUN_BYTES",
     "DESCRIPTION_RANK_APPEND",
     "DESCRIPTION_RANK_APPEND_BYTES",
     "DESCRIPTION_RANK_RESUME",
@@ -186,6 +197,11 @@ __all__ = [
     "LIVE_CAMPAIGN_MODE_OFFSET",
     "LIVING_WORLD_OVERRIDE_OFFSET",
     "LIVING_WORLD_OVERRIDE_ROW",
+    "LOGIC_CRC_EMIT",
+    "LOGIC_CRC_EMIT_BYTES",
+    "LOGIC_CRC_EMIT_RESUME",
+    "LOGIC_CRC_SHROUD_XFER",
+    "LOGIC_CRC_SHROUD_XFER_BYTES",
     "MAIN_MENU_CAMPAIGN_COMMAND",
     "MAIN_MENU_CAMPAIGN_HANDLER",
     "MAIN_MENU_CAMPAIGN_HANDLER_BYTES",
@@ -309,6 +325,7 @@ __all__ = [
     "RECORDER_MODE_GATE_ACCEPT",
     "RECORDER_MODE_GATE_BYTES",
     "RECORDER_MODE_GATE_REJECT",
+    "RECORDER_MODE_PLAYBACK",
     "RECORDER_MODE_RECORD",
     "RECORDER_NAME_CALL",
     "RECORDER_NAME_CALL_BYTES",
@@ -363,12 +380,15 @@ __all__ = [
     "TERRAIN_RESOURCE_UPDATE",
     "TERRAIN_RESOURCE_UPDATE_VTABLE",
     "TERRAIN_RESOURCE_UPDATE_VTABLE_SLOT",
+    "TEXT_SECTION_LEN",
+    "TEXT_SECTION_VA",
     "THE_BUILD_ASSISTANT",
     "THE_DISPLAY",
     "THE_GAME_INFO",
     "THE_GAME_LOGIC",
     "THE_GAME_STATE",
     "THE_GAME_TEXT",
+    "THE_IN_GAME_UI",
     "THE_MESSAGE_STREAM",
     "THE_PARTITION_MANAGER",
     "THE_PLAYER_LIST",
@@ -398,7 +418,12 @@ __all__ = [
     "TOOLTIP_COST_REVIVE",
     "TOOLTIP_COST_REVIVE_RESUME",
     "UNICODE_STRING_APPEND",
+    "UNICODE_STRING_APPEND_BYTES",
+    "UNICODE_STRING_ASSIGN",
+    "UNICODE_STRING_ASSIGN_BYTES",
     "UNICODE_STRING_CONCAT",
+    "UNICODE_STRING_CONCAT_WIDE",
+    "UNICODE_STRING_CONCAT_WIDE_BYTES",
     "UNICODE_STRING_DTOR",
     "UNICODE_STRING_FORMAT",
     "UNICODE_STRING_FROM_WIDE",
@@ -413,10 +438,43 @@ __all__ = [
     "VIEW_LOCATION_SIZE",
     "VIEW_POSITION_OFFSET",
     "VIEW_SET_LOCATION_VTABLE_SLOT",
+    "WIDE_BLANK_LINE",
+    "WIDE_BLANK_LINE_BYTES",
+    "WIDE_NEWLINE",
+    "WIDE_NEWLINE_BYTES",
 ]
 
 BUILD = "RotWK 2.01.2614.37001"
 IMAGE_BASE = 0x00400000
+
+# `.text`, as this build's section table maps it. The image carries no `.reloc` and does not opt
+# into `DYNAMIC_BASE`, so the loader places it at `IMAGE_BASE` and never rewrites a byte of it:
+# the code in memory is the code in the file. That is what lets `binary-attest` hash this range
+# at runtime and lets the same hash be recomputed offline from the file - see
+# `docs/binary-attest.md`.
+TEXT_SECTION_VA = 0x00401000
+TEXT_SECTION_LEN = 0x007CF000
+
+# The `MSG_LOGIC_CRC` emitter in `GameLogic::update`, per `docs/message-stream.md` section 1. Two
+# paths compute the frame CRC into `edi` (`0x0062E7CE` and `0x0062E7F4`) and both converge here,
+# so a hook at this join sees the value on every route to it. `0x0062E7E2` jumps to exactly this
+# address and nothing in the function targets the five bytes after it, so the six displaced bytes
+# can be taken whole.
+LOGIC_CRC_EMIT = 0x0062E7FD
+LOGIC_CRC_EMIT_BYTES = bytes.fromhex("8b0d9863de00")  # mov ecx, [TheMessageStream]
+LOGIC_CRC_EMIT_RESUME = 0x0062E803
+
+# `mov eax, [TheShroudManager]` inside the CRC producer at `0x00625886`, where the shroud manager
+# is xfer'd into the frame checksum like every other logic subsystem.
+#
+# **This is the anchor for the claim the whole patch rests on**: fog of war is already part of the
+# sync hash on this build, so a client whose *shroud state* diverges already desyncs, and
+# attestation is aimed at the remaining hole - a client whose shroud state agrees because only its
+# code was changed. The contribution is guarded by `-xShroudCRC` (`0x00DE87BF`), which excludes it;
+# absent that flag it is always included.
+LOGIC_CRC_SHROUD_XFER = 0x00625983
+LOGIC_CRC_SHROUD_XFER_BYTES = bytes.fromhex("a15843de00")
+CRC_EXCLUDE_SHROUD_FLAG = 0x00DE87BF
 
 # Subsystem singletons. Each address holds a *pointer to* the object, not the object; they are
 # registered by name at startup, which is how they were found (see `docs/engine-globals.md`
@@ -424,6 +482,7 @@ IMAGE_BASE = 0x00400000
 THE_GAME_LOGIC = 0x00DE412C
 THE_PLAYER_LIST = 0x00DE4928
 THE_MESSAGE_STREAM = 0x00DE6398
+THE_IN_GAME_UI = 0x00DE4830
 THE_GAME_STATE = 0x00DE4AD4
 THE_RECORDER = 0x00DE7CD8
 THE_BUILD_ASSISTANT = 0x00DE8200
@@ -541,7 +600,7 @@ GAME_LOGIC_FRAME = 0x40
 #
 # ⚠ **The id space is not dense.** 382 of those 386 sat at `slot == id`; four engine-reserved
 # objects held ids `99999996`..`99999999` at slots 4403-4406. Anything indexing an array by this
-# value must fold or bound it - see `patches/hero_mana.py`, which masks it.
+# value must fold or bound it - see `patches/experimental/hero_mana.py`, which masks it.
 OBJECT_ID = 0x74
 
 # The **second** `ObjectID` on an object, immediately after its own, and the engine's fallback
@@ -740,6 +799,64 @@ DESCRIPTION_RANK_RESUME = 0x008085CC
 
 #: `UnicodeString::concat(other)` - `__thiscall`, one stack argument, `ret 4`.
 UNICODE_STRING_APPEND = 0x004065FE
+UNICODE_STRING_APPEND_BYTES = bytes.fromhex("8b4424048b0085c074060fb7")
+
+#: `UnicodeString::concat(const WideChar *)` - `__thiscall`, one stack argument, `ret 4`. The
+#: sibling of :data:`UNICODE_STRING_APPEND` for a literal rather than another `UnicodeString`;
+#: both end in the same `0x00436D50` worker with `this` still in `ecx`. It clobbers `eax`.
+UNICODE_STRING_CONCAT_WIDE = 0x00405183
+UNICODE_STRING_CONCAT_WIDE_BYTES = bytes.fromhex("568b74240885f6578bf9740a")
+
+#: `UnicodeString::operator=(const UnicodeString &)` - `__thiscall`, one stack argument, `ret 4`.
+#: It **releases** the current buffer and takes a reference on the source, which is why a site
+#: calling it *replaces* the string rather than adding to it.
+UNICODE_STRING_ASSIGN = 0x00436A90
+UNICODE_STRING_ASSIGN_BYTES = bytes.fromhex("6aff68f80eb70064a1000000")
+
+#: Two wide literals the description builder already joins lines with: `L"\n"` (the separator the
+#: `CONTROLBAR:Requirements` and `TOOLTIP:BuildDisabled` folds use) and `L"\n\n"` (the blank-line
+#: separator the two "cannot buy this" messages use). Neither is owned by any one site.
+WIDE_NEWLINE = 0x00BDBC40
+WIDE_NEWLINE_BYTES = bytes.fromhex("0a000000")
+WIDE_BLANK_LINE = 0x00C4F008
+WIDE_BLANK_LINE_BYTES = bytes.fromhex("0a000a000000")
+
+#: The same builder's **"you already have this upgrade"** case, where it hands the message over.
+#:
+#: The case is reached when `Player::hasUpgradeComplete` answers yes for the button's `Upgrade`
+#: (`CommandButton+0x24`) and the GUI command is one of the three upgrade kinds. It fetches the
+#: button's own `PurchasedLabel` (`CommandButton+0x70`), or `TOOLTIP:AlreadyUpgradedDefault` when
+#: that is empty, and **assigns** the result over the description at `ebp-0x18` - which is what
+#: throws away the `DescriptLabel` text fetched earlier at `0x00807DCF`.
+#:
+#: `..._ASSIGN` is the nine-byte `lea ecx, [ebp-0x18]` / `push eax` / `call <operator=>` window,
+#: `..._RESUME` the temporary's destructor immediately after it, and `..._RUN` the whole case
+#: (the `add esi, 0x70` that names the field, both fetch arms, and the window) for fingerprinting.
+#: `eax` holds the fetched `UnicodeString *` at `..._ASSIGN` on both arms.
+DESCRIPTION_PURCHASED_RUN = 0x0080833B
+DESCRIPTION_PURCHASED_RUN_BYTES = bytes.fromhex(
+    "8b760c83c6708bcee81c9bbfff8b0d044bde0084c08b018d55b46a00750b5652ff5038c645fc15eb0d68e4eec4"
+    "0052ff503cc645fc168d4de850e816e7c2ff8d4db4c645fc06e82ae4c2ff"
+)
+DESCRIPTION_PURCHASED_ASSIGN = 0x00808371
+DESCRIPTION_PURCHASED_ASSIGN_BYTES = bytes.fromhex("8d4de850e816e7c2ff")
+DESCRIPTION_PURCHASED_RESUME = 0x0080837A
+
+#: The sibling case, immediately before it: **"a conflicting upgrade"** / **"a prerequisite
+#: upgrade you do not have"**. Same shape, one field along (`ConflictingLabel` and
+#: `LacksPrerequisiteLabel` share `CommandButton+0x74`/`+0x78`, reached as `esi + 0x78`), two
+#: default keys instead of one, and the same assignment over the description.
+#:
+#: Note the window's first byte is the `push eax` rather than the `lea` - the two sites emit the
+#: argument and the `this` in opposite order - so the two are not interchangeable.
+DESCRIPTION_BLOCKED_RUN = 0x008082C7
+DESCRIPTION_BLOCKED_RUN_BYTES = bytes.fromhex(
+    "8b760c83c6788bcee8909bbfff8b0d044bde0084c08b018d55b46a00750b5652ff5038c645fc11eb1c682cefc4"
+    "0052ff503cc645fc12eb0d6804efc40052ff503cc645fc14508d4de8e87be7c2ff8d4db4c645fc06e88fe4c2ff"
+)
+DESCRIPTION_BLOCKED_ASSIGN = 0x0080830C
+DESCRIPTION_BLOCKED_ASSIGN_BYTES = bytes.fromhex("508d4de8e87be7c2ff")
+DESCRIPTION_BLOCKED_RESUME = 0x00808315
 
 #: Where the builder keeps the line it is composing, and the description it appends lines to.
 #: Both are `ebp`-relative in the builder's own frame, so a cave reached by `jmp` can use them.
@@ -817,6 +934,7 @@ GAME_MODE_SKIRMISH = 2
 # and the values.
 RECORDER_MODE = 0x1C
 RECORDER_MODE_RECORD = 0
+RECORDER_MODE_PLAYBACK = 1
 RECORDER_FILE = 0x10
 RECORDER_WRITE_TO_FILE = 0x0077D8FC
 

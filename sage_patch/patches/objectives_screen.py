@@ -53,6 +53,14 @@ intact.
 
 So the opt-in is the map's existing data. No new INI field, and nothing to clear between maps.
 
+**Runtime-verified in game** on 2026-08-14, in a War of the Ring battle on ``map kampa angmar 01``:
+the tracker held the map's **twelve** objectives, the cave's gate computed to "objectives" before
+the click, and the Palantir button opened ``Objectives.apt``. That is the case revision 2 failed -
+a skirmish-mode battle, where the *outer* ask routes the click before the inner one is reached - so
+it is the three-site redirect specifically that is confirmed. Still unverified: the second-mission
+case (whether ``tracker->[0x10]`` survives a map boundary), the hotkey path, and the stock fallback
+on a map declaring no objectives.
+
 **What it does not do.** It does not touch `0x00625456` itself, which has 31 callers and decides
 much more than this button - only these three call sites are redirected. It does not give the
 tribute or player-list screens a home on maps that declare objectives: on those the button now

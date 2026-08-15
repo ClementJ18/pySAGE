@@ -211,6 +211,21 @@ def test_load_sources_without_bse_leaves_empty_table(tmp_path: Path):
     assert game.base_layouts == {}
 
 
+def test_load_sources_can_skip_base_layouts(tmp_path: Path):
+    """`bases=False` skips the sweep entirely - the ini still loads and no layout table is
+    attached at all, which is what separates "not read" from "read and empty". The sweep is
+    minutes of binary map parsing on a real mod, so a front end that never looks at layouts
+    (one that wants only object or science names, say) has to be able to opt out."""
+    (tmp_path / "units.ini").write_bytes(b"Object Fighter\nEnd\n")
+    (tmp_path / "bases").mkdir()
+    (tmp_path / "bases" / "gondor_castle.bse").write_bytes(b"not a real bse")
+
+    game, names = load_sources([("folder", str(tmp_path))], bases=False)
+
+    assert "Fighter" in names
+    assert not hasattr(game, "base_layouts")
+
+
 VIEWS_FIXTURE = """
 Object PaidUnit
   BuildCost = 300

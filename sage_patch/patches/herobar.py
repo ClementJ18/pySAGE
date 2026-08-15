@@ -1,13 +1,23 @@
-"""`HEROBAR` - a kindof that gives an object a hero-bar slot shared with its own kind.
+"""`HEROBAR` - a kindof that puts an object on the hero bar without making it a `HERO`.
 
-Every instance of one `ThingTemplate` occupies **one** slot; two different templates occupy two.
-Clicking a grouped slot selects the whole group. That is deliberately not what `PORTER` does:
-`PORTER` collapses every porter into a **single** slot whatever template it came from, and
-clicking that slot walks the mixed set one object at a time.
+Two shapes, one patch.
 
-Why this is small
------------------
-The hero bar already has the shape this needs, for porters, and almost all of it is generic:
+**Membership**, the default, is the whole feature for most callers: a `HEROBAR` object joins the
+hero bar and nothing else about it changes. It is *not* a `HERO`, so nothing that asks "is this a
+hero" - armour, targeting, the AI, scripts, `ExcludedKindOf` lists - answers differently. It gets
+a slot of its own, drawn with the rank, health, highlight and flash every other slot has, and
+clicking it selects it. Three hooks, no runtime state, and a read-execute cave.
+
+**Grouping**, `--grouped`, adds slot sharing on top: every instance of one `ThingTemplate`
+occupies **one** slot, that slot draws **how many members the group has** where a hero's slot
+draws its rank, and clicking it selects the members **one at a time** - click again for the next
+one, the way `PORTER` steps through porters. It is still not what `PORTER` does: `PORTER` collapses
+every porter into a **single** slot whatever template it came from, so its grouping key is nothing
+at all where this one is the template.
+
+Why the grouped half is small
+-----------------------------
+The hero bar already has the shape it needs, for porters, and almost all of it is generic:
 
 * the slot cache is `0x18` bytes x 16 at `bar+0x48`, and `slot+0x16` is a **"this slot is a
   group" byte** that the click handler at `0x0092DBD6` already reads and dispatches on;
@@ -16,40 +26,106 @@ The hero bar already has the shape this needs, for porters, and almost all of it
 * `KindOfMaskType` has two free bits, so the kindof itself costs no data growth (see
   :mod:`.kind_of`).
 
-So this patch adds no drawing code at all. It puts `HEROBAR` objects on the **hero list** - the
-one the draw loop already walks, sorted, slot by slot - and then does three small things around
-that loop: reset a per-pass set of templates before it starts, skip a node whose template has
-already been drawn this pass, and mark the slot it did draw as a group. The engine draws the
-representative; the duplicates simply never reach a slot.
+So this patch adds no drawing code at all. Both modes put `HEROBAR` objects on the **hero list** -
+the one the draw loop already walks, sorted, slot by slot - and grouping then does four small
+things around that loop: reset a per-pass set of templates before it starts, skip a node whose
+template has already been drawn this pass, mark the slot it did draw as a group, and hand the
+engine a member count where it was about to draw a rank. The engine draws the representative; the
+duplicates simply never reach a slot.
 
-Six hooks, all five-to-seven-byte detours:
+The hooks, all five-to-seven-byte detours:
 
-===========  ==========================  ====================================================
-site         engine function             what the detour adds
-===========  ==========================  ====================================================
-`0x0092CD7F` `onObjectAdded`             `HEROBAR` joins `HERO` on the way to the hero list
-`0x0092C439` `onObjectRemoved` gate      `HEROBAR` is a thing this function accepts at all
-`0x0092C467` `onObjectRemoved` list      ...and removes from the hero list, not the porter one
-`0x0092D36F` draw-loop preheader         clear the per-pass template set
-`0x0092D3EE` draw loop, per node         skip a template already drawn; mark the slot
-`0x0092DBD6` click dispatch              a `2` in `slot+0x16` means "select this whole group"
-===========  ==========================  ====================================================
+===========  ==========================  ===========  =========================================
+site         engine function             mode         what the detour adds
+===========  ==========================  ===========  =========================================
+`0x0092CD7F` `onObjectAdded`             both         `HEROBAR` joins `HERO` on the way to the
+                                                      hero list
+`0x0092C439` `onObjectRemoved` gate      both         `HEROBAR` is a thing this function accepts
+`0x0092C467` `onObjectRemoved` list      both         ...and removes from the hero list
+`0x0092D36F` draw-loop preheader         `--grouped`  clear the per-pass template set
+`0x0092D3EE` draw loop, per node         `--grouped`  skip a drawn template; mark and count it
+`0x0092DBD6` click dispatch              `--grouped`  a `2` in `slot+0x16` means "step the group"
+===========  ==========================  ===========  =========================================
 
-The removal pair is not optional bookkeeping: without it a dead `HEROBAR` object's node stays on
-the hero list forever, because the stock gate accepts only `HERO` and `PORTER`.
+Plus one edit that is not a detour: `0x0092BF4E`, in the hover handler, which reads the same
+`slot+0x16` byte as a flag and would otherwise give a group the porter's *"select nearest unit"*
+tooltip. Two bytes, `--grouped` only - see :data:`TOOLTIP_EDIT`.
+
+The removal pair is not optional bookkeeping in either mode: without it a dead `HEROBAR` object's
+node stays on the hero list forever, because the stock gate accepts only `HERO` and `PORTER`.
+
+The count badge
+---------------
+A `PORTER` slot shows how many porters there are; a group slot here shows how many members the
+group has, and it costs no drawing code either. The number a hero slot draws is a single local,
+`[ebp-0x18]`, filled by the call at `0x0092D3AF` and then read three times - compared against the
+slot's cached number, formatted with the same wide `"%d"` at `0x00BDF1B0` the porter count uses,
+and cached. **All three of those reads happen after the `per_node` hook**, and the two reads that
+feed the level-up flash happen before it, so writing the count into that local is the entire badge:
+the rank still drives the flash, and the engine's own "has the number changed" test repaints the
+slot exactly when the count does.
+
+The count is not knowable when the representative is drawn, because its duplicates come later in
+the same pass. So the hook walks the rest of the list itself, applying the same two tests the draw
+loop applies to each node - `findObjectByID`, then the eligibility gate at `0x0092BBEF` - and
+counts the matches. Starting at the current node inclusive is exact: any earlier node of this
+template would have become the representative instead of this one.
+
+That walk is the badge's only real cost, and it is per drawn group per pass rather than per node.
+Past the sixteenth distinct template the per-pass set is full, and that path skips the count as
+well as the recording - a slot the engine is drawing ungrouped keeps the rank it was going to
+draw, rather than a count that would not match what the bar shows.
+
+Stepping a group
+----------------
+`PORTER`'s cycle keeps its cursor on the bar object - one "a cycle is in progress" byte and one
+frame stamp, for the single group the stock engine can have. There is no room there for one cursor
+per template, so this keeps its own: **16 dwords in the cave, indexed by slot, each holding the
+`ObjectID` this patch last selected out of that slot**. A click walks the hero list once and takes
+the first eligible member *after* that `ObjectID`, falling back to the first member when the
+cursor names nobody still on the list - which is what a fresh slot, a dead unit and a wrap-around
+all look like. Selection is then the engine's own single-object idiom, so a stepped member ends up
+selected exactly as clicking a hero's slot selects a hero.
+
+An `ObjectID` rather than a node pointer, because the cursor outlives the object it names: nothing
+runs when a group member dies, and a stale pointer would be dereferenced where a stale ID is
+simply not found.
+
+**Click again to jump.** A second click on the same slot, soon enough after the first, means "take
+me there" rather than "next one": it centres the camera on the member the previous click selected
+and leaves the cursor alone. "Soon enough" is the porter cycle's own window, taken from the engine
+routine at `0x0092BA91` that computes it out of `TheInGameUI+0x988` - so the two gestures agree on
+what a repeat click is, and neither carries a constant of its own. That routine writes into
+`bar+0x1DC`, which the porter cycle reads whenever *its* round is in progress, so the field is
+borrowed for the length of the call and put back exactly as it was.
+
+The mouse button is not available here to do this the obvious way. `_OnBttnHeroSelect` is called
+*by the movie*, with the button's path (`"Hero3"`) as its only argument, and the APT runtime's
+event vocabulary is Flash's - `onPress`, `onRelease`, `onReleaseOutside`, `onRollOver`, `onRollOut`,
+`onMouseWheel`, interned at `0x00B20E40`. There is no right-button event anywhere on that path, so
+"left selects, right jumps" cannot be told apart at this hook; a repeat click can.
 
 Known limits, stated rather than discovered
 -------------------------------------------
-* **No count badge.** A `PORTER` slot shows how many porters there are, because the porter path
-  writes the count where a hero's rank goes. Here the engine draws the representative unmodified,
-  so the slot shows *its* rank and health. Adding a badge means writing `SetButtonRankProgress`
-  from the cave, which is a call through the APT bridge and a much bigger patch.
-* **The bar is still 16 slots.** Groups consume slots, so enough distinct `HEROBAR` templates in
-  play push heroes off the end - the stock `buttonIndex >= 0x11` break at `0x0092D3E5`, which
-  drops them silently rather than crashing.
-* **`HERO` wins.** The classifier tests `HERO` first, so a template carrying both is a hero and
-  never groups.
-* **Not run in a game.** Everything below is derived statically. See ``../docs/herobar.md``.
+* **A group shows its member count where a hero shows a rank**, the way a `PORTER` slot does, and
+  a group of one therefore shows `1`. That is not a separate feature: grouping and the badge are
+  the same thing seen twice, so `--grouped` carries both.
+* **The veteran member's rank is not readable from the bar** once the number is a count. The
+  health bar and the rank progress ring still come from the representative.
+* **A repeat click always centres, where the porter only centres what is off screen.** The porter
+  cycle asks `0x0092BB2A` whether the object is already visible and skips the camera if it is.
+  Here the second click *is* the request, so it moves the camera either way.
+* **The bar is still 16 slots** unless `hero-bar-slots` widens it. Groups consume slots, so enough
+  distinct `HEROBAR` templates in play push heroes off the end - the stock `buttonIndex >= 0x11`
+  break at `0x0092D3E5`, which drops them silently rather than crashing. Past slot 16 the per-pass
+  set and the cursor table both clamp: grouping and stepping degrade, nothing corrupts.
+* **`HERO` and `HEROBAR` are not exclusive.** The classifier tests `HERO` first, but both arms
+  end on the same list, and the draw hook asks only whether the template is `HEROBAR` - so a
+  template carrying both is a hero *and* groups with its own kind.
+* **A template with no hero-bar button image is dropped** by `addHero`, in both modes, exactly as
+  a `HERO` without one is.
+* **Derived statically, then run in a game** - except the step-through cycle, which replaced a
+  select-the-whole-group click and has not been run. See ``../docs/herobar.md``.
 """
 
 from __future__ import annotations
@@ -68,25 +144,33 @@ from .utils.name_tables import offset as _offset
 
 __all__ = [
     "DEFAULT_KINDOF",
+    "GROUPING_HOOKS",
     "HOOKS",
+    "MEMBERSHIP_HOOKS",
     "SECTION_CHARACTERISTICS",
     "SECTION_NAME",
     "STATE_SIZE",
+    "TOOLTIP_EDIT",
+    "UNGROUPED_CHARACTERISTICS",
     "Cave",
     "HeroBarPatch",
     "build_cave",
+    "hooks",
+    "state_size",
 ]
 
 SECTION_NAME = ".hbar"
 
-#: `CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE`. The cave holds the
-#: rebuilt name table, the new name, the hook code *and* the scratch words the draw hook writes
-#: once per node, and a section carries one set of page permissions for all of it.
+#: `CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE`, for `--grouped`. That
+#: cave holds the rebuilt name table, the new name, the hook code *and* the scratch words the draw
+#: and click hooks write, and a section carries one set of page permissions for all of it.
 SECTION_CHARACTERISTICS = 0xE0000060
 
-DEFAULT_KINDOF = "HEROBAR"
+#: What a membership-only cave asks for instead: read-execute. It keeps no runtime state, so a
+#: writable cave would be a page permission granted for nothing.
+UNGROUPED_CHARACTERISTICS = kind_of.SECTION_CHARACTERISTICS
 
-# --- the engine, as this build has it -------------------------------------------------------
+DEFAULT_KINDOF = "HEROBAR"
 
 #: `KindOfMaskType` bit 90. Tested inline as `test byte [tmpl+0x113], 4` wherever the engine asks
 #: "is this a hero", which is the encoding :func:`kind_of.bit_test` reproduces.
@@ -98,20 +182,28 @@ _EAX, _ECX, _ESI = 0, 1, 6
 THE_GAME_LOGIC = 0x00DE412C
 THE_IN_GAME_UI = 0x00DE4830
 THE_MESSAGE_STREAM = 0x00DE6398
+THE_GAME_CLIENT = 0x00DE4388
+THE_TACTICAL_VIEW = 0x00DE447C
 
 FIND_OBJECT_BY_ID = 0x00449681  # thiscall(TheGameLogic, ObjectID) -> Object*, ret 4
 OBJECT_GET_DRAWABLE = 0x0070E013  # thiscall(Object) -> Drawable*, ret 0
 APPEND_BOOLEAN_ARGUMENT = 0x00711104  # thiscall(GameMessage, bool), ret 4
 APPEND_OBJECT_ID_ARGUMENT = 0x0071111A  # thiscall(GameMessage, ObjectID), ret 4
 BAR_ACCEPTS_OBJECT = 0x0092BBEF  # (Object*) -> bool: local player && !NO_HERO_PROPERTIES, ret 4
+DRAWABLE_POSITION = 0x00676711  # thiscall(Drawable) -> Coord3D*, ret 0
+#: `thiscall(bar)`, no arguments: writes `now + TheInGameUI+0x988` into :data:`BAR_CYCLE_DEADLINE`.
+#: The porter cycle's own "is this click a repeat" window, config value and all.
+BAR_SET_CYCLE_DEADLINE = 0x0092BA91
 
 #: `TheInGameUI` vtable slots, as the hero bar's own click path uses them.
 UI_DESELECT_ALL = 0x110
 UI_SELECT_DRAWABLE = 0x108
+#: `TheGameClient::getFrame()`, and `TheTacticalView::lookAt(Coord3D*)`.
+CLIENT_FRAME = 0x7C
+VIEW_LOOK_AT = 0x54
 #: `TheMessageStream::appendMessage(GameMessageType) -> GameMessage*`.
 STREAM_APPEND_MESSAGE = 0x48
-#: The message the hero bar's single-object click raises. Appending more than one `ObjectID` to
-#: it is what turns it into a group selection.
+#: The message the hero bar's single-object click raises: a boolean, then the `ObjectID`s.
 MSG_CREATE_SELECTED_GROUP = 0x3E9
 
 #: `bar+0x10` is the shared model; `model+0x10` is the hero list, whose head node doubles as the
@@ -120,6 +212,9 @@ BAR_MODEL = 0x10
 MODEL_HERO_LIST = 0x10
 SLOT_ARRAY = 0x48
 SLOT_STRIDE = 0x18
+#: Where the porter cycle keeps the frame its repeat-click window closes on. This patch borrows
+#: the field for the length of one call and puts back what it found.
+BAR_CYCLE_DEADLINE = 0x1DC
 #: Within a slot: the list node it is showing, and the "this slot is a group" byte.
 SLOT_NODE = 0x00
 SLOT_GROUPED = 0x16
@@ -127,11 +222,15 @@ SLOT_GROUPED = 0x16
 #: have to stay distinguishable because they dispatch to different click behaviour.
 GROUPED_HEROBAR = 2
 
+#: Within an `Object`: its `ThingTemplate` and its `ObjectID`. Within a hero-list node: the
+#: `ObjectID` that node names.
+OBJECT_TEMPLATE = 0x04
+OBJECT_ID = 0x74
+NODE_OBJECT_ID = 0x08
+
 #: The draw loop reaches its per-node hook with the slot pointer already biased by 4, so the
 #: group byte is at `edi + 0x12` and the node it is replacing is at `edi - 4`.
 _EDI_SLOT_BIAS = 4
-
-# --- the six hook sites ---------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -148,7 +247,8 @@ class _Hook:
         return len(self.original)
 
 
-HOOKS = (
+#: What every mode installs: how a `HEROBAR` object reaches the bar, and how it leaves again.
+MEMBERSHIP_HOOKS = (
     _Hook(
         0x0092CD7F,
         bytes.fromhex("f6801301000004"),  # test byte [eax+0x113], 4
@@ -167,6 +267,10 @@ HOOKS = (
         "remove_list",
         "onObjectRemoved: erase HEROBAR from the hero list",
     ),
+)
+
+#: What `--grouped` adds: which nodes reach a slot, and what a click on one of them does.
+GROUPING_HOOKS = (
     _Hook(
         0x0092D36F,
         bytes.fromhex("8b45dc8d4801"),  # mov eax,[ebp-0x24] ; lea ecx,[eax+1]
@@ -183,9 +287,46 @@ HOOKS = (
         0x0092DBD6,
         bytes.fromhex("807c315e00"),  # cmp byte [ecx+esi+0x5e], 0
         "click",
-        "click dispatch: select the whole group",
+        "click dispatch: step through the group",
     ),
 )
+
+HOOKS = MEMBERSHIP_HOOKS + GROUPING_HOOKS
+
+
+@dataclass(frozen=True)
+class _Edit:
+    """An in-place rewrite: no cave, no detour, just different bytes at a known address."""
+
+    va: int
+    original: bytes
+    patched: bytes
+    note: str
+
+
+#: The hover handler at `0x0092BF34` picks a tooltip off the *same* `slot+0x16` byte the click
+#: dispatches on, and it reads that byte as a flag rather than as a kind: `cmp ..., 0 ; je` sends
+#: **every** non-zero value down the porter arm, which looks up the command button named
+#: `NonCommand_SelectNearestBuilder` and shows its "select nearest unit" text. A `2` therefore
+#: inherits the porter's tooltip along with its own click behaviour.
+#:
+#: Narrowing the test to `cmp ..., 1 ; jne` costs two bytes and no cave: `1` still means the porter
+#: group, and `0` and `2` both take the arm that builds the tooltip from the slot's own node - which
+#: is the representative's object, drawn exactly as a hero's slot draws it. Grouped-only, because
+#: nothing writes a `2` without grouping.
+TOOLTIP_EDIT = _Edit(
+    0x0092BF4E,
+    bytes.fromhex("807816007456"),  # cmp byte [eax+0x16], 0 ; je 0x0092BFAA
+    bytes.fromhex("807816017556"),  # cmp byte [eax+0x16], 1 ; jne 0x0092BFAA
+    "hover: only the porter group gets the 'select nearest unit' tooltip",
+)
+
+
+def hooks(grouped: bool) -> tuple[_Hook, ...]:
+    """The detours a mode installs. The three it leaves out are asserted **unpatched** by
+    :meth:`HeroBarPatch.verify`, which is what keeps the two modes distinguishable in a binary."""
+    return HOOKS if grouped else MEMBERSHIP_HOOKS
+
 
 # Where each detour rejoins the engine.
 _CLASSIFY_HERO = 0x0092CD88  # push edx ; call addHero
@@ -200,19 +341,35 @@ _CLICK_PORTER = 0x0092DBDD  # the stock porter cycle
 _CLICK_SINGLE = 0x0092DBEB  # the stock single-object select
 _CLICK_DONE = 0x0092DDE1  # pop edi ; pop esi ; leave ; ret 4
 
-# --- the cave ------------------------------------------------------------------------------
-
-#: Scratch words at the head of the cave, in this order: the per-pass template set and its
-#: length, then the four values the click routine carries across the calls it makes. Sized to a
-#: round `0x60` so the code that follows starts on a recognisable boundary.
+#: Scratch words at the head of a `--grouped` cave, in this order: the per-pass template set and
+#: its length, the values the click routine carries across the calls it makes, the per-slot cursor
+#: table, and the two the badge count needs. Sized to a round `0xC0` so the code that follows
+#: starts on a recognisable boundary. A membership-only cave has none of this and opens with its
+#: code.
 _MAX_SLOTS = 16
-STATE_SIZE = 0x60
+STATE_SIZE = 0xC0
 _OFF_EMITTED_N = 0x00
 _OFF_EMITTED = 0x04  # 16 dwords, 0x04..0x43
 _OFF_TEMPLATE = 0x44
 _OFF_MESSAGE = 0x48
 _OFF_SENTINEL = 0x4C
 _OFF_NODE = 0x50
+_OFF_SLOT = 0x54
+_OFF_LAST = 0x58
+_OFF_FIRST = 0x5C
+_OFF_CHOSEN = 0x60
+_OFF_SEEN = 0x64
+_OFF_CURSOR = 0x68  # 16 dwords, 0x68..0xA7
+_OFF_COUNT = 0xA8
+_OFF_COUNT_TEMPLATE = 0xAC
+_OFF_CLICK_SLOT = 0xB0  # the last clicked slot, biased by 1 so that 0 means "none yet"
+_OFF_CLICK_DEADLINE = 0xB4
+
+
+def state_size(grouped: bool) -> int:
+    """How many bytes of scratch the cave opens with. Grouping keeps runtime state; membership
+    keeps none, which is also why its cave asks for no `MEM_WRITE`."""
+    return STATE_SIZE if grouped else 0
 
 
 def _u32(value: int) -> bytes:
@@ -235,27 +392,38 @@ class Cave:
     entries: dict[str, int]
 
 
-def build_cave(base_va: int, bit: int) -> Cave:
-    """The scratch words and all six hook routines, laid out at ``base_va``.
+def build_cave(base_va: int, bit: int, grouped: bool = False) -> Cave:
+    """One mode's hook routines - and, for ``grouped``, the scratch words they use - at
+    ``base_va``.
 
     Deterministic: :meth:`HeroBarPatch.apply` and :meth:`HeroBarPatch.verify` build the same
-    bytes from the same ``(base_va, bit)`` and compare them, which is what makes verification
-    possible without a disassembler."""
+    bytes from the same ``(base_va, bit, grouped)`` and compare them, which is what makes
+    verification possible without a disassembler."""
     emitted_n = base_va + _OFF_EMITTED_N
     emitted = base_va + _OFF_EMITTED
     template = base_va + _OFF_TEMPLATE
     message = base_va + _OFF_MESSAGE
     sentinel = base_va + _OFF_SENTINEL
     node = base_va + _OFF_NODE
+    slot = base_va + _OFF_SLOT
+    last = base_va + _OFF_LAST
+    first = base_va + _OFF_FIRST
+    chosen = base_va + _OFF_CHOSEN
+    seen = base_va + _OFF_SEEN
+    cursor = base_va + _OFF_CURSOR
+    count = base_va + _OFF_COUNT
+    count_template = base_va + _OFF_COUNT_TEMPLATE
+    click_slot = base_va + _OFF_CLICK_SLOT
+    click_deadline = base_va + _OFF_CLICK_DEADLINE
 
     is_hero = kind_of.bit_test(HERO_BIT, _EAX, kind_of.THING_TEMPLATE_MASK_OFFSET)
     is_herobar_eax = kind_of.bit_test(bit, _EAX, kind_of.THING_TEMPLATE_MASK_OFFSET)
     is_herobar_ecx = kind_of.bit_test(bit, _ECX, kind_of.THING_TEMPLATE_MASK_OFFSET)
     is_herobar_esi = kind_of.bit_test(bit, _ESI, kind_of.THING_TEMPLATE_MASK_OFFSET)
 
-    a = Asm(base_va + STATE_SIZE)
+    a = Asm(base_va + state_size(grouped))
 
-    # --- classify: eax = ThingTemplate, edx = Object ----------------------------------------
+    # classify: eax = ThingTemplate, edx = Object.
     # The stock code is `HERO ? addHero : PORTER ? addPorter`. This makes the first arm
     # `HERO || HEROBAR` by re-testing both bits and re-entering at whichever arm won, so neither
     # the `je` nor the two calls the engine already has need touching.
@@ -265,7 +433,7 @@ def build_cave(base_va: int, bit: int) -> Cave:
     a.jmp_absolute(_CLASSIFY_PORTER)
     a.label("classify_hero").jmp_absolute(_CLASSIFY_HERO)
 
-    # --- remove_gate: eax = ThingTemplate, edi = the HERO bit within dword 2 -----------------
+    # remove_gate: eax = ThingTemplate, edi = the HERO bit within dword 2.
     # Both removal hooks end by falling into the engine's own branch, so what they have to get
     # right is the flags, not a target: the last `test` executed is the one the engine reads.
     a.label("remove_gate")
@@ -273,27 +441,33 @@ def build_cave(base_va: int, bit: int) -> Cave:
     a.jmp_absolute(_REMOVE_GATE_RESUME)
     a.label("remove_gate_herobar").emit(is_herobar_eax).jmp_absolute(_REMOVE_GATE_RESUME)
 
-    # --- remove_list: esi = ThingTemplate, edi = the HERO bit --------------------------------
+    # remove_list: esi = ThingTemplate, edi = the HERO bit.
     a.label("remove_list")
     a.emit(bytes.fromhex("85be10010000")).jcc(JZ, "remove_list_herobar")  # test [esi+0x110],edi
     a.jmp_absolute(_REMOVE_LIST_RESUME)
     a.label("remove_list_herobar").emit(is_herobar_esi).jmp_absolute(_REMOVE_LIST_RESUME)
 
-    # --- pass_reset: the loop preheader, run once per draw pass ------------------------------
+    if not grouped:
+        return Cave(
+            content=a.finish(),
+            entries={hook.label: a.label_va(hook.label) for hook in MEMBERSHIP_HOOKS},
+        )
+
+    # pass_reset: the loop preheader, run once per draw pass.
     a.label("pass_reset")
     a.emit(_abs_mem(bytes.fromhex("8325"), emitted_n), 0x00)  # and dword [emitted_n], 0
     a.emit(bytes.fromhex("8b45dc"))  # mov eax, [ebp-0x24]   (the displaced pair)
     a.emit(bytes.fromhex("8d4801"))  # lea ecx, [eax+1]
     a.jmp_absolute(_PASS_RESET_RESUME)
 
-    # --- per_node: ebx = list node, edi = slot+4, [ebp-0x20] = Object -----------------------
+    # per_node: ebx = list node, edi = slot+4, [ebp-0x20] = Object.
     # Runs after the engine's own eligibility and slot-ceiling checks, so a node that reaches
     # here is one the engine was about to draw. Jumping to the engine's "next node" label skips
     # it *without* consuming the slot, which is exactly what a duplicate needs.
     a.label("per_node")
     a.emit(bytes.fromhex("505152"))  # push eax ; push ecx ; push edx
     a.emit(bytes.fromhex("8b4de0"))  # mov ecx, [ebp-0x20]   -> Object
-    a.emit(bytes.fromhex("8b4904"))  # mov ecx, [ecx+4]      -> ThingTemplate
+    a.emit(bytes.fromhex("8b49"), OBJECT_TEMPLATE)  # mov ecx, [ecx+4] -> ThingTemplate
     a.emit(is_herobar_ecx).jcc(JZ, "per_node_plain")
 
     a.emit(bytes.fromhex("33c0"))  # xor eax, eax
@@ -307,6 +481,43 @@ def build_cave(base_va: int, bit: int) -> Cave:
     a.emit(bytes.fromhex("83f8"), _MAX_SLOTS).jcc(JAE, "per_node_mark")  # cmp eax, 16
     a.emit(_abs_mem(bytes.fromhex("890c85"), emitted))  # mov [emitted + eax*4], ecx
     a.emit(_abs_mem(bytes.fromhex("ff05"), emitted_n))  # inc dword [emitted_n]
+
+    # The badge. `[ebp-0x18]` is the number the engine is about to draw on this slot - the
+    # representative's rank, already resolved by the call at `0x0092D3AF` and not read again until
+    # after this hook returns. Overwriting it with the member count is the whole of the badge: the
+    # engine's own "did the number change" test then repaints the slot exactly when the count does,
+    # through the same text write the porter count uses.
+    #
+    # The count is not knowable when the representative is drawn - its duplicates come later in the
+    # same pass - so this walks the rest of the list and applies the two tests the draw loop itself
+    # applies, `findObjectByID` and the eligibility gate. Starting at `ebx` inclusive is exact: any
+    # earlier node of this template would have become the representative instead of this one.
+    a.emit(_abs_mem(bytes.fromhex("890d"), count_template))  # mov [count_template], ecx
+    a.emit(_abs_mem(bytes.fromhex("8325"), count), 0x00)  # and dword [count], 0
+    a.emit(bytes.fromhex("8bd3"))  # mov edx, ebx
+
+    a.label("per_node_count")
+    a.emit(bytes.fromhex("8b45c4"))  # mov eax, [ebp-0x3c]  -> &the list head
+    a.emit(bytes.fromhex("3b10")).jcc(JE, "per_node_counted")  # cmp edx, [eax]
+    a.emit(bytes.fromhex("52"))  # push edx              (the walker, across the calls)
+    a.emit(bytes.fromhex("ff72"), NODE_OBJECT_ID)  # push dword [edx+8]
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_GAME_LOGIC))
+    a.call_absolute(FIND_OBJECT_BY_ID)  # ret 4
+    a.emit(bytes.fromhex("85c0")).jcc(JZ, "per_node_count_next")
+    a.emit(bytes.fromhex("8b48"), OBJECT_TEMPLATE)  # mov ecx, [eax+4]
+    a.emit(_abs_mem(bytes.fromhex("3b0d"), count_template)).jcc(JNE, "per_node_count_next")
+    a.emit(bytes.fromhex("50"))  # push eax
+    a.call_absolute(BAR_ACCEPTS_OBJECT)  # ret 4
+    a.emit(bytes.fromhex("84c0")).jcc(JZ, "per_node_count_next")  # test al, al
+    a.emit(_abs_mem(bytes.fromhex("ff05"), count))  # inc dword [count]
+
+    a.label("per_node_count_next")
+    a.emit(bytes.fromhex("5a"))  # pop edx
+    a.emit(bytes.fromhex("8b12")).jmp("per_node_count")  # mov edx, [edx]
+
+    a.label("per_node_counted")
+    a.emit(_abs_mem(bytes.fromhex("a1"), count))  # mov eax, [count]
+    a.emit(bytes.fromhex("8945e8"))  # mov [ebp-0x18], eax   -> the number the slot draws
 
     a.label("per_node_mark")
     a.emit(bytes.fromhex("c647"), SLOT_GROUPED - _EDI_SLOT_BIAS, GROUPED_HEROBAR)
@@ -326,7 +537,7 @@ def build_cave(base_va: int, bit: int) -> Cave:
     a.emit(bytes.fromhex("5a5958"))  # pop edx ; pop ecx ; pop eax
     a.jmp_absolute(_PER_NODE_SKIP)
 
-    # --- click: eax = slot index, ecx = index*0x18, esi = the bar ----------------------------
+    # click: eax = slot index, ecx = index*0x18, esi = the bar.
     # Three-way instead of the stock two-way. Reading the byte twice rather than caching it in a
     # register keeps every register the two stock arms expect exactly as they expect it.
     a.label("click")
@@ -335,8 +546,9 @@ def build_cave(base_va: int, bit: int) -> Cave:
     a.jmp_absolute(_CLICK_SINGLE)
     a.label("click_porter").jmp_absolute(_CLICK_PORTER)
 
-    # --- click_group: select every live member of the clicked slot's template ---------------
+    # click_group: select the member after the one this slot selected last.
     a.label("click_group")
+    a.emit(_abs_mem(bytes.fromhex("a3"), slot))  # mov [slot], eax
     a.emit(bytes.fromhex("6bc0"), SLOT_STRIDE)  # imul eax, eax, 0x18
     a.emit(bytes.fromhex("8b8430"), _u32(SLOT_ARRAY + SLOT_NODE))  # mov eax,[eax+esi+0x48]
     a.emit(bytes.fromhex("85c0")).jcc(JZ, "click_done")  # test eax, eax
@@ -355,12 +567,115 @@ def build_cave(base_va: int, bit: int) -> Cave:
     a.emit(bytes.fromhex("8b3f")).jmp("click_validate")  # mov edi, [edi]
 
     a.label("click_found")
-    a.emit(bytes.fromhex("ff7708"))  # push dword [edi+8]    (ObjectID)
+    a.emit(bytes.fromhex("ff77"), NODE_OBJECT_ID)  # push dword [edi+8]
     a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_GAME_LOGIC))
     a.call_absolute(FIND_OBJECT_BY_ID)
     a.emit(bytes.fromhex("85c0")).jcc(JZ, "click_done")
-    a.emit(bytes.fromhex("8b4004"))  # mov eax, [eax+4]      -> ThingTemplate
+    a.emit(bytes.fromhex("8b40"), OBJECT_TEMPLATE)  # mov eax, [eax+4] -> ThingTemplate
     a.emit(_abs_mem(bytes.fromhex("a3"), template))  # mov [template], eax
+
+    # The pick, in three words: the first eligible member (where a click wraps to), the one after
+    # the cursor (what this click wants), and whether the cursor has been passed yet. All four are
+    # cleared per click, the cursor last because a slot past the sixteenth has none to load.
+    for word in (first, chosen, seen, last):
+        a.emit(_abs_mem(bytes.fromhex("8325"), word), 0x00)  # and dword [word], 0
+    a.emit(_abs_mem(bytes.fromhex("a1"), slot))  # mov eax, [slot]
+    a.emit(bytes.fromhex("83f8"), _MAX_SLOTS).jcc(JAE, "click_scan")  # cmp eax, 16
+    a.emit(_abs_mem(bytes.fromhex("8b0485"), cursor))  # mov eax, [cursor + eax*4]
+    a.emit(_abs_mem(bytes.fromhex("a3"), last))  # mov [last], eax
+
+    # A second click on the same slot, inside the window the porter cycle uses for exactly this
+    # question, means "take me there" rather than "next one": centre the camera on the member the
+    # previous click selected and leave the cursor where it is. Anything else - a different slot,
+    # a slow click, a member that has died since - falls through and steps.
+    a.emit(_abs_mem(bytes.fromhex("a1"), slot))  # mov eax, [slot]
+    a.emit(bytes.fromhex("40"))  # inc eax               (0 means "no slot yet")
+    a.emit(_abs_mem(bytes.fromhex("3b05"), click_slot)).jcc(JNE, "click_scan")
+    a.emit(_abs_mem(bytes.fromhex("833d"), last), 0x00).jcc(JE, "click_scan")  # cmp [last], 0
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_GAME_CLIENT))
+    a.emit(bytes.fromhex("8b01"))  # mov eax, [ecx]
+    a.emit(bytes.fromhex("ff50"), CLIENT_FRAME)  # call [eax+0x7c]  -> the frame now
+    a.emit(_abs_mem(bytes.fromhex("3b05"), click_deadline)).jcc(JAE, "click_scan")
+
+    a.emit(_abs_mem(bytes.fromhex("ff35"), last))  # push dword [last]   (the ObjectID)
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_GAME_LOGIC))
+    a.call_absolute(FIND_OBJECT_BY_ID)
+    a.emit(bytes.fromhex("85c0")).jcc(JZ, "click_scan")  # gone since: step instead
+    a.emit(bytes.fromhex("8bc8"))  # mov ecx, eax
+    a.call_absolute(OBJECT_GET_DRAWABLE)
+    a.emit(bytes.fromhex("85c0")).jcc(JZ, "click_done")
+    a.emit(bytes.fromhex("8bc8"))  # mov ecx, eax          (the Drawable)
+    a.call_absolute(DRAWABLE_POSITION)  # -> Coord3D*
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_TACTICAL_VIEW))
+    a.emit(bytes.fromhex("8b11"))  # mov edx, [ecx]        (the vtable, read after the call)
+    a.emit(bytes.fromhex("50"))  # push eax
+    a.emit(bytes.fromhex("ff52"), VIEW_LOOK_AT)  # call [edx+0x54]
+    a.jmp("click_done")
+
+    a.label("click_scan")
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), sentinel))  # mov ecx, [sentinel]
+    a.emit(bytes.fromhex("8b39"))  # mov edi, [ecx]
+    a.label("click_loop")
+    a.emit(_abs_mem(bytes.fromhex("3b3d"), sentinel)).jcc(JE, "click_pick")
+    a.emit(bytes.fromhex("ff77"), NODE_OBJECT_ID)  # push dword [edi+8]
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_GAME_LOGIC))
+    a.call_absolute(FIND_OBJECT_BY_ID)
+    a.emit(bytes.fromhex("85c0")).jcc(JZ, "click_next")
+    a.emit(bytes.fromhex("8b48"), OBJECT_TEMPLATE)  # mov ecx, [eax+4]
+    a.emit(_abs_mem(bytes.fromhex("3b0d"), template)).jcc(JNE, "click_next")
+
+    a.emit(bytes.fromhex("50"))  # push eax              (keep the Object)
+    a.emit(bytes.fromhex("50"))  # push eax              (the argument)
+    a.call_absolute(BAR_ACCEPTS_OBJECT)  # ret 4
+    a.emit(bytes.fromhex("59"))  # pop ecx               -> the Object again
+    a.emit(bytes.fromhex("84c0")).jcc(JZ, "click_next")  # test al, al
+
+    a.emit(_abs_mem(bytes.fromhex("833d"), first), 0x00).jcc(JNE, "click_after")  # cmp [first],0
+    a.emit(_abs_mem(bytes.fromhex("890d"), first))  # mov [first], ecx
+
+    a.label("click_after")
+    a.emit(_abs_mem(bytes.fromhex("833d"), seen), 0x00).jcc(JE, "click_cursor")  # cmp [seen], 0
+    a.emit(_abs_mem(bytes.fromhex("890d"), chosen))  # mov [chosen], ecx
+    a.jmp("click_pick")
+
+    a.label("click_cursor")
+    a.emit(bytes.fromhex("8b41"), OBJECT_ID)  # mov eax, [ecx+0x74]
+    a.emit(_abs_mem(bytes.fromhex("3b05"), last)).jcc(JNE, "click_next")  # cmp eax, [last]
+    a.emit(_abs_mem(bytes.fromhex("c705"), seen), _u32(1))  # mov dword [seen], 1
+
+    a.label("click_next")
+    a.emit(bytes.fromhex("8b3f")).jmp("click_loop")  # mov edi, [edi]
+
+    # Nothing after the cursor means the cursor was the last member, or names nobody at all: both
+    # wrap to the first. No first member means the group is empty and there is nothing to select.
+    a.label("click_pick")
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), chosen))  # mov ecx, [chosen]
+    a.emit(bytes.fromhex("85c9")).jcc(JNZ, "click_select")  # test ecx, ecx
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), first))  # mov ecx, [first]
+    a.emit(bytes.fromhex("85c9")).jcc(JZ, "click_done")
+
+    a.label("click_select")
+    a.emit(bytes.fromhex("8b41"), OBJECT_ID)  # mov eax, [ecx+0x74]
+    a.emit(_abs_mem(bytes.fromhex("8b15"), slot))  # mov edx, [slot]
+    a.emit(bytes.fromhex("83fa"), _MAX_SLOTS).jcc(JAE, "click_message")  # cmp edx, 16
+    a.emit(_abs_mem(bytes.fromhex("890495"), cursor))  # mov [cursor + edx*4], eax
+
+    a.label("click_message")
+    a.emit(bytes.fromhex("51"))  # push ecx              (keep the Object)
+
+    # Remember which slot this click landed on and when a second one stops counting as a repeat.
+    # The deadline comes from the engine's own routine, so the window is the porter's window and
+    # its config value - `bar+0x1DC` is borrowed for the length of the call and put back, because
+    # the porter cycle reads that field whenever *its* round is in progress.
+    a.emit(_abs_mem(bytes.fromhex("a1"), slot))  # mov eax, [slot]
+    a.emit(bytes.fromhex("40"))  # inc eax
+    a.emit(_abs_mem(bytes.fromhex("a3"), click_slot))  # mov [click_slot], eax
+    a.emit(bytes.fromhex("ffb6"), _u32(BAR_CYCLE_DEADLINE))  # push dword [esi+0x1dc]
+    a.emit(bytes.fromhex("8bce"))  # mov ecx, esi
+    a.call_absolute(BAR_SET_CYCLE_DEADLINE)
+    a.emit(bytes.fromhex("8b86"), _u32(BAR_CYCLE_DEADLINE))  # mov eax, [esi+0x1dc]
+    a.emit(_abs_mem(bytes.fromhex("a3"), click_deadline))  # mov [click_deadline], eax
+    a.emit(bytes.fromhex("8f86"), _u32(BAR_CYCLE_DEADLINE))  # pop dword [esi+0x1dc]
 
     a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_IN_GAME_UI))
     a.emit(bytes.fromhex("8b01"))  # mov eax, [ecx]
@@ -375,38 +690,18 @@ def build_cave(base_va: int, bit: int) -> Cave:
     a.emit(bytes.fromhex("8bc8"))  # mov ecx, eax
     a.call_absolute(APPEND_BOOLEAN_ARGUMENT)
 
-    a.emit(_abs_mem(bytes.fromhex("8b0d"), sentinel))  # mov ecx, [sentinel]
-    a.emit(bytes.fromhex("8b39"))  # mov edi, [ecx]
-    a.label("click_loop")
-    a.emit(_abs_mem(bytes.fromhex("3b3d"), sentinel)).jcc(JE, "click_done")
-    a.emit(bytes.fromhex("ff7708"))  # push dword [edi+8]
-    a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_GAME_LOGIC))
-    a.call_absolute(FIND_OBJECT_BY_ID)
-    a.emit(bytes.fromhex("85c0")).jcc(JZ, "click_next")
-    a.emit(bytes.fromhex("8b4804"))  # mov ecx, [eax+4]
-    a.emit(_abs_mem(bytes.fromhex("3b0d"), template)).jcc(JNE, "click_next")
-
-    a.emit(bytes.fromhex("50"))  # push eax              (keep the Object)
-    a.emit(bytes.fromhex("50"))  # push eax              (the argument)
-    a.emit(bytes.fromhex("8bce"))  # mov ecx, esi
-    a.call_absolute(BAR_ACCEPTS_OBJECT)  # ret 4
     a.emit(bytes.fromhex("59"))  # pop ecx               -> the Object again
-    a.emit(bytes.fromhex("84c0")).jcc(JZ, "click_next")  # test al, al
-
     a.emit(bytes.fromhex("51"))  # push ecx
-    a.emit(bytes.fromhex("ff7174"))  # push dword [ecx+0x74]  (ObjectID)
+    a.emit(bytes.fromhex("ff71"), OBJECT_ID)  # push dword [ecx+0x74]
     a.emit(_abs_mem(bytes.fromhex("8b0d"), message))
     a.call_absolute(APPEND_OBJECT_ID_ARGUMENT)  # ret 4
     a.emit(bytes.fromhex("59"))  # pop ecx
     a.call_absolute(OBJECT_GET_DRAWABLE)  # -> eax
-    a.emit(bytes.fromhex("85c0")).jcc(JZ, "click_next")
+    a.emit(bytes.fromhex("85c0")).jcc(JZ, "click_done")
     a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_IN_GAME_UI))
     a.emit(bytes.fromhex("50"))  # push eax              (the Drawable)
     a.emit(bytes.fromhex("8b01"))  # mov eax, [ecx]
     a.emit(bytes.fromhex("ff90"), _u32(UI_SELECT_DRAWABLE))  # call [eax+0x108]
-
-    a.label("click_next")
-    a.emit(bytes.fromhex("8b3f")).jmp("click_loop")  # mov edi, [edi]
 
     a.label("click_done").jmp_absolute(_CLICK_DONE)
 
@@ -419,33 +714,44 @@ def build_cave(base_va: int, bit: int) -> Cave:
 
 @dataclass
 class HeroBarPatch(Patch):
-    """Add a `HEROBAR` kindof that groups a template's instances into one hero-bar slot."""
+    """Add a `HEROBAR` kindof: a hero-bar slot for an object that is not a `HERO`."""
 
     name = "herobar"
     author = "officialNecro"
     description = (
-        "add a HEROBAR kindof: every instance of one template shares a hero-bar slot, "
-        "and clicking it selects the whole group"
+        "add a HEROBAR kindof: an object gets a hero-bar slot without being a HERO; --grouped "
+        "shares one slot between every instance of a template and steps through them on click"
     )
 
     kindof: str = DEFAULT_KINDOF
+    grouped: bool = False
 
     def apply(self, data: bytearray) -> None:
         extension = kind_of.extend(
             data,
             SECTION_NAME,
             [self.kindof],
-            tail=lambda tail_va, bits: build_cave(tail_va, bits[0]).content,
-            characteristics=SECTION_CHARACTERISTICS,
+            tail=lambda tail_va, bits: build_cave(tail_va, bits[0], self.grouped).content,
+            characteristics=(
+                SECTION_CHARACTERISTICS if self.grouped else UNGROUPED_CHARACTERISTICS
+            ),
         )
-        cave = build_cave(extension.tail_va, extension.bits[0])
-        for hook in HOOKS:
+        cave = build_cave(extension.tail_va, extension.bits[0], self.grouped)
+        for hook in hooks(self.grouped):
             apply_byte_patch(
                 data,
                 _offset(data, hook.va),
                 hook.original,
                 _detour(hook, cave.entries[hook.label]),
                 f"{hook.note} @0x{hook.va:08x}",
+            )
+        if self.grouped:
+            apply_byte_patch(
+                data,
+                _offset(data, TOOLTIP_EDIT.va),
+                TOOLTIP_EDIT.original,
+                TOOLTIP_EDIT.patched,
+                f"{TOOLTIP_EDIT.note} @0x{TOOLTIP_EDIT.va:08x}",
             )
 
     def ini_surface(self) -> Engine:
@@ -456,12 +762,16 @@ class HeroBarPatch(Patch):
         return Engine(enum_members=(EnumDelta(enum="KindOf", name=self.kindof, patch=self.name),))
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch for exactly this kindof name.
+        """Structural check that ``data`` carries this patch, for this kindof name and this mode.
 
         Reads only via ``struct`` and the section table. Both the bit and the end of the table
         come from **the cave's own copy**, never from the live one: a second kindof-adding patch
         becomes the live table and shifts nothing about this one, and this patch is still
-        correctly installed. The live table is consulted only to confirm it still agrees."""
+        correctly installed. The live table is consulted only to confirm it still agrees.
+
+        The hooks a mode does *not* install are checked to still hold their stock bytes, which is
+        what makes the two modes tell each other apart rather than one verifying the other's
+        binary."""
         located = find_section(data, SECTION_NAME)
         if located is None:
             return [f"no {SECTION_NAME} section: the file does not carry this patch"]
@@ -478,7 +788,7 @@ class HeroBarPatch(Patch):
             return [f"the {SECTION_NAME} cave adds kindof {name!r}, not {self.kindof!r}"]
 
         tail_va = section_va + entries * 4 + 4 + _padded(len(self.kindof) + 1)
-        cave = build_cave(tail_va, bit)
+        cave = build_cave(tail_va, bit, self.grouped)
         if not section_va <= tail_va < section_va + vsize:
             return [f"the {SECTION_NAME} cave is too small to hold the hook code"]
 
@@ -496,12 +806,30 @@ class HeroBarPatch(Patch):
 
         off = _offset(data, tail_va)
         if bytes(data[off : off + len(cave.content)]) != cave.content:
+            mode = "--grouped" if self.grouped else "membership-only"
             problems.append(
-                f"the {SECTION_NAME} hook code at 0x{tail_va:08x} is not what bit {bit} builds"
+                f"the {SECTION_NAME} hook code at 0x{tail_va:08x} is not what bit {bit} builds "
+                f"for a {mode} patch"
             )
 
+        here = bytes(data[_offset(data, TOOLTIP_EDIT.va) :][: len(TOOLTIP_EDIT.patched)])
+        wanted = TOOLTIP_EDIT.patched if self.grouped else TOOLTIP_EDIT.original
+        if here != wanted:
+            problems.append(
+                f"{TOOLTIP_EDIT.note} @0x{TOOLTIP_EDIT.va:08x}: expected {wanted.hex()}, "
+                f"got {here.hex()}"
+            )
+
+        installed = hooks(self.grouped)
         for hook in HOOKS:
             here = bytes(data[_offset(data, hook.va) :][: hook.size])
+            if hook not in installed:
+                if here != hook.original:
+                    problems.append(
+                        f"{hook.note} @0x{hook.va:08x} is detoured, which only the --grouped "
+                        "patch does"
+                    )
+                continue
             if here == hook.original:
                 problems.append(f"{hook.note} @0x{hook.va:08x} is unpatched")
                 continue
@@ -520,8 +848,8 @@ class HeroBarPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> Patch | None:
-        """Recover the kindof name from the image: it is the last entry of the cave's own table,
-        which is the one parameter this patch has."""
+        """Recover both parameters from the image: the kindof name is the last entry of the cave's
+        own table, and the mode is whichever of the two the cave's code turns out to be."""
         try:
             located = find_section(data, SECTION_NAME)
             if located is None:
@@ -531,8 +859,11 @@ class HeroBarPatch(Patch):
             name = kind_of.read_cstring(data, _cave_entry(data, section_va, entries - 1))
             if name is None:
                 return None
-            patch = cls(kindof=name)
-            return None if patch.verify(data) else patch
+            for grouped in (False, True):
+                patch = cls(kindof=name, grouped=grouped)
+                if not patch.verify(data):
+                    return patch
+            return None
         except (ValueError, KeyError, IndexError, TypeError, struct.error):
             return None
 
@@ -543,10 +874,16 @@ class HeroBarPatch(Patch):
             default=DEFAULT_KINDOF,
             help=f"name of the kindof to add (default: {DEFAULT_KINDOF})",
         )
+        parser.add_argument(
+            "--grouped",
+            action="store_true",
+            help="share one slot between every instance of a template, and step through them one "
+            "at a time on click (default: no, one slot per object)",
+        )
 
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> Patch:
-        return cls(kindof=args.kindof)
+        return cls(kindof=args.kindof, grouped=args.grouped)
 
 
 def _detour(hook: _Hook, target_va: int) -> bytes:

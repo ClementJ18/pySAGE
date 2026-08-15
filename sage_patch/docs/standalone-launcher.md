@@ -1,5 +1,11 @@
 # The launcher half of standalone
 
+> ⚠ **Experimental.** This patch is **unstable and largely untested** — it lives in
+> [`patches/experimental/`](../patches/experimental/), `sage-patch list` marks it `exp`, and
+> `sage-patch apply` warns before it writes. The status note below says how far it actually
+> got; see the README's [Experimental patches](../README.md#-experimental-patches) note before
+> applying it.
+
 The launcher shim `lotrbfme2ep1.exe` shipped beside ROTWK's `game.dat` (499,712 bytes, ImageBase
 `0x400000`, `DllCharacteristics = 0` so no ASLR — a VA here is also where the byte sits in a
 running process). This is the binary [`standalone-game.md`](standalone-game.md) §3 scoped a
@@ -8,7 +14,7 @@ running process). This is the binary [`standalone-game.md`](standalone-game.md) 
 - **Cost:** 38 bytes, in place. No cave, no section, no relocation.
 - **Risk:** low, and unusually well evidenced: the patched image is **byte-identical to the
   launcher the Edain mod ships**, which is what `apply` is asserted to reproduce.
-- **Status:** **built** — [`patches/standalone_launcher.py`](../patches/standalone_launcher.py).
+- **Status:** **built** — [`patches/experimental/standalone_launcher.py`](../patches/experimental/standalone_launcher.py).
   The path half is **runtime-verified** (§2, §5); the token half is the edit Edain has shipped for
   years, and is verified here only as far as byte identity with theirs.
 

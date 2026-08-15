@@ -8,7 +8,7 @@ stock `game.dat` (11,346,944 bytes).
 - **Risk:** low, and bounded by construction — a member is only ever *skipped*, and only when its
   own command button carries a model condition that disables it.
 - **Status:** **built** — see [`patches/multi_execute_gate.py`](../patches/multi_execute_gate.py).
-  **Not yet runtime-verified in game.**
+  **Runtime-verified in game.**
 
 ```
 sage-patch apply multi-execute-gate --in game.dat.backup --out game.dat

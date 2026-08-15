@@ -321,6 +321,7 @@ def type_names() -> list[str]:
         *scalars,
         *(f"{name}[]" for name in scalars),
         "Ref:<table>",
+        "Ref[]:<table>",
         "Enum:<E>",
         "Enum[]:<E>",
         "Flags:<E>",
@@ -331,7 +332,8 @@ def parse_type(spec: str) -> tuple[object | None, str]:
     """The converter a type spelling names, as `(converter, error)` - exactly one is set.
 
     The grammar is small and closed: a scalar (`Int`), a list of one (`Int[]`), a cross-reference
-    to a Game table (`Ref:upgrades`), or an enum as a scalar, a list or a whole-set flag list
+    to a Game table as one name or several (`Ref:upgrades`, `Ref[]:upgrades` - the second is what
+    an upgrade mask like `TriggeredBy` is), or an enum as a scalar, a list or a whole-set flag list
     (`Enum:ModelCondition`, `Enum[]:WeaponSetConditions`, `Flags:ModelCondition`). Anything else
     is an error rather than a guess - the spelling comes from a file, so it is not trusted to
     name an arbitrary object."""
@@ -340,8 +342,9 @@ def parse_type(spec: str) -> tuple[object | None, str]:
         return None, "empty type"
     prefix, _, argument = spec.partition(":")
     if argument:
-        if prefix == "Ref":
-            return _types.Reference(argument), ""
+        if prefix in ("Ref", "Ref[]"):
+            reference = _types.Reference(argument)
+            return (_LIST[reference] if prefix == "Ref[]" else reference), ""
         if prefix in ("Enum", "Enum[]", "Flags"):
             enum_cls = _enum_classes().get(argument)
             if enum_cls is None:

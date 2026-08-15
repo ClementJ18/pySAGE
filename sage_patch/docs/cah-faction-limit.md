@@ -305,6 +305,6 @@ becomes `cmp esi, <count>` with `push 9` intact, and the PE stays RVA-ordered wi
 covering the new section. It composes with `commandset-limit` in either order — see the
 composition contract in [the package README](../README.md#composing-patches).
 
-Everything above is verified statically against the binary. **The patched engine has not been run** —
-the in-game behaviour of a CAH offered to a side it was never designed for is a data question for the
-mod, not one this analysis can answer.
+Everything above is verified statically against the binary, and the patched engine has been run.
+What stays outside this analysis is the in-game *behaviour* of a CAH offered to a side it was never
+designed for: that is a data question for the mod, not one the binary answers.

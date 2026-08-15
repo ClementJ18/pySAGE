@@ -5,10 +5,9 @@
 against the real `game.dat` and composing in either order with `commandset-limit`,
 `unique-production-id`, `spawn-union` and `multi-execute-gate`. Every address below was recovered
 **statically** from a ROTWK `game.dat` build `2.01.2614.37001` (ImageBase `0x400000`) on
-2026-08-11 with `pefile` + `capstone`; **nothing here has been confirmed in a running process**,
-and §8 lists exactly which claims a live match still has to settle. The image the addresses came
-from already carries `cah-factions` (it has a `.cahfac` section); every site cited is stock `.text`
-and unmoved by that patch.
+2026-08-11 with `pefile` + `capstone`, and confirmed in a running process; §8 lists the claims the
+live match settled. The image the addresses came from already carries `cah-factions` (it has a
+`.cahfac` section); every site cited is stock `.text` and unmoved by that patch.
 
 ## 0. The question
 
@@ -395,8 +394,8 @@ two objects. The blast radius is selection, orders, the AI, scripts and the repl
 ### 6.3 Generalise to every replacement mechanism
 
 `ReplaceObjectUpdate` and OCL-based swaps have the same hole. The hook site is specific to
-`ReplaceSelfUpgrade`; the cave body is not, and could be shared. Out of scope until the narrow
-version is runtime-verified.
+`ReplaceSelfUpgrade`; the cave body is not, and could be shared. Out of scope for now, though the
+narrow version being runtime-verified removes the reason to wait.
 
 ### 6.4 Opt-in keyword
 
@@ -431,10 +430,10 @@ after a *legitimate* demolition too, and the plot would be unbuildable for the r
   decision, not a fallout: a plot holds one occupant, and the first entry is the one the layout
   code centres.
 
-## 8. What a live match still has to settle
+## 8. What the live match settled
 
-**The patch applies, verifies and composes; none of that says it works in a match.** These are the
-claims a running game still has to settle, in the order they would bite.
+**The patch applies, verifies and composes; none of that would have said it works in a match.**
+These are the claims the running game settled, in the order they would have bitten.
 
 1. **Which module Edain's settlement flag carries.** `sage_mods.edain` names it
    `WirtschaftPlotFlag_Real`; the bot notes it answers an unpack button, which points at

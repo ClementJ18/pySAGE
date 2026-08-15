@@ -12,12 +12,12 @@ sage-patch apply science-prereqs --all-keywords --in ... --out ...        # ever
 sage-patch verify science-prereqs game.dat            # verify takes the flags apply was given
 ```
 
-**Status: built and static-verified; not yet runtime-verified in a game.** Both tiers ship. The
+**Status: built, static-verified and runtime-verified in a game.** Both tiers ship. The
 patch applies, verifies, round-trips through `detect` — which recovers *which* flags were used —
 and composes with every other `game.dat` patch in either order. This document is the derivation
 behind it, kept as written apart from [§4.2](#42-when-to-run-the-check) and
 [§4.3](#43-how-to-report), where the implementation settled questions the design left open, and
-[§8](#8-verifying-it-in-a-game), which is still the open list.
+[§8](#8-verifying-it-in-a-game), which is the in-game check list it passed.
 
 **What it does:** makes `PrerequisiteSciences` accept the name of a science that has not been
 defined *yet*, so a mutual pair
@@ -348,7 +348,7 @@ displacements against the pushes between them. `0x00BD0C3F` is the static empty 
 `AsciiString` with no allocated buffer stands for; a key that got into `pending` came from
 `nameToKey`, so it should always have a name, and the branch costs five bytes to not depend on it.
 
-The remaining catch is one only a running game can settle: the throw originates in
+The remaining catch was one only a running game could settle: the throw originates in
 `GameEngine::init` rather than inside `INI`'s field loop. That turns out to matter less than it
 looks: the four `"Error parsing field/block … in file '%s', line %i."` format strings
 (`0x00BD3EBB`, `0x00BD3F00`, `0x00BD3F4C`, `0x00BD3FA5`) have **no `imm32` reference anywhere in the

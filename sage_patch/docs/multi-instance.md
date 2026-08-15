@@ -7,7 +7,7 @@ stock `game.dat` (11,349,504 bytes) and the `lotrbfme2ep1.exe` shipped beside it
 - **Risk:** low. Every edit turns a `jcc` into a `jmp` with the same displacement, so the patched
   control flow is a path the stock binary already takes — just unconditionally.
 - **Status:** **built** — see [`patches/multi_instance.py`](../patches/multi_instance.py).
-  **Not yet runtime-verified in game.**
+  **Runtime-verified in game.**
 
 ```
 sage-patch apply multi-instance          --in game.dat.backup        --out game.dat

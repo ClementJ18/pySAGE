@@ -79,7 +79,7 @@ from __future__ import annotations
 
 import struct
 
-from ..addresses import (
+from ...addresses import (
     CLI_COUNT_REF,
     CLI_DISPATCH,
     CLI_TABLE,
@@ -96,9 +96,9 @@ from ..addresses import (
     GLOBAL_DATA_USE_FPS_LIMIT,
     THE_DISPLAY,
 )
-from ..asm import JE, JLE, JNE, Asm
-from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...asm import JE, JLE, JNE, Asm
+from ...patcher import Patch
+from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "COUNTER_OFFSET",
@@ -305,6 +305,7 @@ def table_offset_in_section(base_va: int, stock_table: bytes) -> int:
 class HeadlessPatch(Patch):
     name = "headless"
     author = "officialNecro"
+    experimental = True
     description = (
         "Add -headless / -renderEvery / -maxfps / -uncapped, and stop drawing when asked to"
     )

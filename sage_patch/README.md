@@ -4,7 +4,28 @@ Reverse-engineering + binary-patch work on the ROTWK SAGE engine (build `2.01.26
 patches below are all engine-level — they apply to any ROTWK install of that build and benefit
 every mod on it (Edain among them), not one in particular. All of them target `game.dat` except
 two, which patch other binaries from the same install: `desert-weather-wb` patches
-`Worldbuilder.exe`, and `standalone-launcher` patches the launcher shim `lotrbfme2ep1.exe`:
+`Worldbuilder.exe`, and `standalone-launcher` patches the launcher shim `lotrbfme2ep1.exe`.
+
+> ### ⚠ Experimental patches
+>
+> Five of the patches below — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
+> **`standalone-launcher`** and **`headless`** — are **experimental: unstable and largely
+> untested.** They live in [`patches/experimental/`](patches/experimental/), they are marked `exp`
+> by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
+>
+> What that means, precisely. The reverse engineering is written up, the assembly is there, the
+> patch applies to a clean `game.dat` and `sage-patch verify` confirms the result carries it. What
+> is missing is play — enough of it, across enough of what the patch touches, to know the
+> disassembly was read right. Some have had a session or two (each one's doc says exactly how far
+> it got, and `hero-mana`'s records a defect that is still open); none has had enough. A patch is a
+> reading of the machine code and its tests are written from the same reading, so a wrong reading
+> passes both — only the running game disagrees.
+>
+> Expect crashes, desyncs and save/replay incompatibility, **keep the unpatched binary**, and don't
+> ship these in a mod release.
+>
+> The rest of the list is not thereby certified. Entries saying **Runtime-verified in game** are
+> the ones observed doing what they claim; the others are merely not flagged.
 
 - **`commandset-limit`** raises the `CommandSet` button limit from its stock **33** to any **N** in
   34..127, plus the INI paging rule needed to surface the extra buttons, and widens the AI's
@@ -32,7 +53,7 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   callers are AI, so unlike `ai-revive-gate` it needs no return-address discrimination. Only the
   picker's "pick one to use **now**" arm is gated; the "could this ever be made here" arm keeps the
   stock answer, because one caller *cancels* an order when that question comes back null.
-  **Not yet runtime-verified in game.**
+  **Runtime-verified in game.**
 - **`production-condition`** adds a **model condition** that is active while a structure's
   production queue is non-empty — training a unit *or* researching an upgrade. The stock engine
   has no such state: the `DOOR_n_*` conditions run *after* a unit completes, as the buffer during
@@ -87,8 +108,7 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   Nothing downstream is gated: the observer seat is installed on the playback mode, and the switch
   itself re-runs the shroud manager for the new seat. The engine already ships the same predicate
   with mode 2 added, so the patch aims one `call` at it — five bytes, no cave. The natural
-  companion to `skirmish-replay`, and independent of it. Client-local. **Not yet runtime-verified
-  in game.**
+  companion to `skirmish-replay`, and independent of it. Client-local. **Runtime-verified in game.**
 - **`terrain-resource-exp`** adds a **`GiveNoXP`** boolean to `TerrainResourceBehavior`, so a
   resource spot can pay its owner without levelling its own building. The module hands the integer
   it just deposited to the building's `ExperienceTracker` on every income tick, and no INI field
@@ -102,7 +122,7 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   recruitment keys the player's revive bookkeeping on that id, so recruiting a hero from a second
   building while the first is still producing collides, and the click takes the money without
   starting anything.
-- **`hero-mana`** gives special powers a **regenerating per-object cost** — `SpecialPower.ManaCost`
+- **`hero-mana`** ⚠**(experimental)** gives special powers a **regenerating per-object cost** — `SpecialPower.ManaCost`
   for the price of one activation, and `Object.ManaPool` / `Object.ManaRegen` for the caster's
   single pool that all of its abilities draw on. The stock `UnitCost` field cannot do
   this: all three sites that read it ask `Object+0x258` for the horde interface first and, when
@@ -118,7 +138,7 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   from the `TOOLTIP:ManaCost` key and carrying **both the price and what the caster currently has**;
   a `ManaPool` line sits under a hero's level on its revive/recruit button. `ManaCost = 0`, the default, leaves a power exactly as it is today.
 
-- **`second-resource`** gives every player a **second resource pool** alongside gold, granted per
+- **`second-resource`** ⚠**(experimental)** gives every player a **second resource pool** alongside gold, granted per
   tick by `AutoDepositUpdate.DepositAmount2` and seeded per faction by
   `PlayerTemplate.StartMoney2`, and shows it in brackets after the palantir's own number
   (`1000 (50)`), and lets an `Object.BuildCost2` price things in it — a priced button reads
@@ -172,7 +192,7 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   text a modder sees today, because this build's INI handler never adds file and line to begin
   with. `--no-report-missing` drops that half; `--all-keywords` widens the relaxation to every
   science-name keyword by repointing the shared thunk instead. A `map.ini` that defines a `Science`
-  block runs after the check and is not covered. **Not yet runtime-verified in game.**
+  block runs after the check and is not covered. **Runtime-verified in game.**
 - **`multi-execute-gate`** makes an **`OK_FOR_MULTI_EXECUTE` button respect each selected unit's own
   `EnableOnModelCondition` / `DisableOnModelCondition`**. Today it does not: the ControlBar lights
   the button if *any* member of the selection qualifies (reasonable), and the click then runs the
@@ -189,7 +209,7 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   a member whose own button is disabled is skipped exactly as if it had failed the recharge check.
   This is what Edain's *Ambush of the Wood-elves* command-set swap works around, at the cost of the
   mass trigger. It changes which objects a logic-side order reaches, so **every peer must run the
-  same patched binary** and replays do not cross. **Not yet runtime-verified in game.**
+  same patched binary** and replays do not cross. **Runtime-verified in game.**
 - **`spawn-union`** makes an object with several `SpawnBehavior`s use **all** of their spawns.
   `Object::getSpawnBehaviorInterface` walks the module list and returns on the **first** module that
   answers, so a structure with two of them orders only the first one's slaves to attack, asks only
@@ -205,13 +225,17 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   the stock implementation does internally, through the engine's own helper. Reentrancy is covered
   by a ring of eight proxies, since ordering slaves runs slave AI that comes back through the
   getter. **This one changes the simulation**, so it has to be on every peer and its replays will
-  not play back on a stock build. **Not yet runtime-verified in game.**
+  not play back on a stock build. **Runtime-verified in game.**
 
-- **`herobar`** adds a **`HEROBAR`** kindof: every instance of one `ThingTemplate` shares a single
-  hero-bar slot, two different templates take two slots, and clicking a grouped slot selects the
-  whole group. Different from `PORTER`, which collapses *every* porter into one slot whatever
-  template it came from and clicks through them one at a time. It is cheap for two reasons. The
-  kindof is free: `KindOfMaskType` is 224 bits with 222 named, so the new bit needs no
+- **`herobar`** adds a **`HEROBAR`** kindof that puts an object on the hero bar **without making it
+  a `HERO`** — it gets a slot of its own, drawn and clicked exactly like a hero's, and nothing that
+  asks "is this a hero" (armour, targeting, the AI, scripts) answers differently. That is the
+  default and it is three detours. **`--grouped`** adds slot sharing on top: every instance of one
+  `ThingTemplate` shares a single slot, two different templates take two, the slot shows **how many
+  members the group has** where a hero's shows its rank, and clicking it steps through those members
+  **one at a time**, the way `PORTER` steps through porters — `PORTER` differs in collapsing *every*
+  porter into one slot whatever template it came from. It is cheap for two
+  reasons. The kindof is free: `KindOfMaskType` is 224 bits with 222 named, so the new bit needs no
   `ThingTemplate` growth and no savegame change, and the table move is 14 references and 6 counts
   against `production-condition`'s 16 and 10. And the hero bar is already most of the way there -
   `slot+0x16` is a generic **"this slot is a group"** byte the click handler already dispatches on,
@@ -219,11 +243,26 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   is needed**. So the patch adds no drawing code at all: `HEROBAR` objects join the **hero** list
   the draw loop already walks, and three small detours around that loop clear a per-pass set of
   templates, send a duplicate to the engine's own "next node, no slot consumed" label, and mark the
-  slot it did draw. The removal pair is not optional - the stock `onObjectRemoved` accepts only
-  `HERO` and `PORTER`, so without it a dead `HEROBAR` object's node would sit on the list forever.
-  **No count badge** (a group slot shows the representative's rank, not a member count) and the bar
-  is still **16 slots**, so enough distinct groups push heroes off the end. **Not yet
-  runtime-verified in game.**
+  slot it did draw. Stepping needs a cursor per group, which the bar object has no room for, so the
+  patch keeps its own: 16 dwords in the cave, indexed by slot, holding the `ObjectID` it last
+  selected there - an ID rather than a pointer, because a dead member has to read as "not found"
+  rather than as a freed pointer. The badge is free by the same trick as the rest: the number a
+  hero slot draws is a single local, filled *before* this patch's draw hook and read only after it,
+  and written through the same text field the porter count uses - so writing the member count into
+  that local is the whole feature, and the engine's own "has the number changed" test repaints the
+  slot when the count moves. The removal pair is not optional in either mode - the stock
+  `onObjectRemoved` accepts only `HERO` and `PORTER`, so without it a dead `HEROBAR` object's node
+  would sit on the list forever. Clicking a slot **twice in quick succession** centres the camera
+  on the member the first click picked instead of advancing - the mouse button never reaches this
+  hook (the movie calls the handler with the button's *name* as its only argument, and the APT
+  runtime's event set is Flash's, with no right-button event), so a repeat click is the gesture, and
+  its window is the porter cycle's own, borrowed from the routine that computes it and put back.
+  A seventh site, two bytes and no cave, stops a group inheriting the porter's *"select nearest
+  unit"* tooltip: the hover handler dispatches on the same `slot+0x16` byte and read it as a flag.
+  **A group of one shows `1`** (as a lone porter's slot does) and a veteran member's rank is no
+  longer readable from the bar; and the bar is still **16 slots**, so enough distinct groups push
+  heroes off the end.
+  **Runtime-verified in game, except everything grouping does on a click or a hover.**
 - **`hero-bar-slots`** raises the in-game **hero bar from its stock 16 slots to any N** in
   17..126 (the shipped build uses **21**). Adding `Hero17`+ clips to the movie
   achieves nothing on its own, and fails silently: the ctor registers `_OnBttnHeroSelect` for
@@ -263,8 +302,8 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   run the same patched binary** — not for the flag, which is transient and identical on every peer
   executing the same order, but for the consequence: an unpatched client refuses a production a
   patched one accepts. And, as with `terrain-resource-exp`, the keyword is an INI parse error on a
-  stock build. **Not yet runtime-verified in game.**
-- **`campaign-select`** lets the main menu start **any `LinearCampaign`, by name**, instead of the
+  stock build. **Runtime-verified in game.**
+- **`campaign-select`** ⚠**(experimental)** lets the main menu start **any `LinearCampaign`, by name**, instead of the
   two EA compiled in. The shipped `LinearCampaignExpansion1.ini` states the limit itself — *"campaign
   names are basically hard-coded into the game engine … They must be named ANGMAR_CAMPAIGN"* — and
   the binary agrees: each campaign button reaches a callback that differs from its sibling by one
@@ -305,9 +344,9 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   reset the drawable's opacity and make the hidden flag blink. Every write is guarded by a proof of
   ownership, so a unit's producer - a barracks, which answers no foundation interface - is never
   touched. This is what Edain's Iron Hills vineyard works around with a hidden flag, a rebuild
-  cooldown and a dummy building. **Simulation state**, so it has to be on every peer. **Not yet
-  runtime-verified in game.**
-- **`standalone-launcher`** is the one patch here aimed at **`lotrbfme2ep1.exe`**, the launcher
+  cooldown and a dummy building. **Simulation state**, so it has to be on every peer.
+  **Runtime-verified in game.**
+- **`standalone-launcher`** ⚠**(experimental)** is the one patch here aimed at **`lotrbfme2ep1.exe`**, the launcher
   shim, and it lets a **relocated install still hand the game a usable token**. Finding and
   starting `game.dat` needed no patch and never did — the shim `chdir`s into its own image
   directory (`argv[0]`, which the CRT seeds from the module path, not from the command line) and
@@ -325,7 +364,7 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   IDA difference file `lotrbfme2ep1.dif`; what is added here is the frame around it — the two
   `rel32`s re-derived from the function addresses rather than transcribed, nine anchor sites, and a
   test asserting `apply` reproduces the launcher Edain ships **byte for byte**.
-- **`headless`** makes a run cheap enough to automate: it adds **`-headless`**, **`-renderEvery n`**,
+- **`headless`** ⚠**(experimental)** makes a run cheap enough to automate: it adds **`-headless`**, **`-renderEvery n`**,
   **`-maxfps n`** and **`-uncapped`** to the command line, and suppresses the per-frame
   `Display::draw` when asked to. The command-line table is extensible in **six bytes** — the
   dispatcher takes it in `ebx` and its length as a `push imm8`, both at one call site, so a cave
@@ -337,7 +376,124 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   of what a test rig needs is **already in the retail binary** and needed no patch at all —
   `-file <map>.map` starts a skirmish with no menu, `-file <replay>.rep` plays a replay, and
   `GameData UseFPSLimit` already uncaps the loop — which is what makes this patch small. See
-  [`docs/headless.md`](docs/headless.md). **Not yet runtime-verified in game.**
+  [`docs/headless.md`](docs/headless.md). **Runtime-verified in game.**
+- **`production-split`** gives each of `PRODUCTION`'s meanings its own `ModifierList` keyword:
+  **`PRODUCTION_MONEY`** (resource output), **`PRODUCTION_UNIT`**, **`PRODUCTION_UPGRADE`** and
+  **`PRODUCTION_CONSTRUCTION`** — the last of which `PRODUCTION` never reached at all, because a
+  structure going up advances in one place the modifier system was never wired to. The engine had
+  already done the separating: type 13 is read at eight sites that fall into exactly those
+  buckets, so five of the six hooks are **one extra factor at a call that already asks for it**,
+  and the queue's two keywords come out of **one hook** reading the entry kind at `entry+0x04`.
+  `PRODUCTION` is left alone, so the patch is a no-op until INI uses the new names. The only
+  structural work is the modifier-type name table, which has no slack and is rebuilt in the cave.
+  The AI's three valuation sites are opt-in (`--ai-sites`). **There is deliberately no
+  `PRODUCTION_HERO`**: heroes are a third queue kind, but a hero's completion is decided by the
+  player's hero ledger rather than by the queue accrual this patch hooks, so the keyword measured
+  live as a progress bar that ran to 480% while the hero arrived on schedule. Kind 3 is handed
+  back to the stock callee untouched. See
+  [`docs/construction-speed-modifiers.md`](docs/construction-speed-modifiers.md). **Runtime-verified
+  in game for the queue hook; the money and construction hooks are not.**
+
+- **`large-group-bonus-filter`** lets a **`LargeGroupBonusUpdate` count objects that are not in a
+  horde**. `HordeMemberFilter` is an ordinary `ObjectFilter` — nothing about its grammar is
+  horde-specific — but it is **never evaluated against the object the scan returned**: it is only
+  ever passed one level down, to that object's *contain* interface, which counts its own contained
+  members against it. `Object::getContain` answers NULL for anything with no contain module, and the
+  same test runs **twice** — in the partition filter the scan is given, and again in the accumulator
+  — so a lone hero or a unit outside a horde is not merely uncounted, it is never even returned. A
+  new `CountLooseObjects` boolean makes both gates put a container-less candidate to the filter
+  directly, counting a match as one. The flag costs **no allocation**: `AlliesOnly` is written with a
+  *byte* store, so `+0x19`..`+0x1b` is padding and `sizeof` stays `0x30`; the field table has
+  **one** reference, the cheapest relocation here alongside `science-prereqs`; and the widened
+  `allow` is reached by installing a 12-byte cave **copy** of the wrapper vtable rather than editing
+  the stock one, so an unwidened module stays byte-identical. The source player relationship tokens
+  need is not in a frame slot — gate 2 reads it from `ebx`, and gate 1 from the wrapper's own `+4`
+  dword, which the engine zeroes and never reads. Two things it deliberately does **not** fix:
+  `AlliesOnly` is parsed and read by nothing (the scan is hardcoded same-player in a partition
+  filter shared with twelve other sites), and `FlagSubObjectNames` can only ever be *hidden* — the
+  visibility byte it would be shown from is written once, to zero, in the constructor. **Every peer
+  must run the same patched binary**, and the keyword is an INI parse error on a stock build.
+  See [`docs/large-group-bonus-filter.md`](docs/large-group-bonus-filter.md).
+  **Runtime-verified in game.**
+
+- **`lifetime-extend-upgrade`** adds an **`ExtendedByUpgrades`** upgrade mask and an
+  **`UpgradeLifetimeBonus`** duration to `LifetimeUpdate`, so gaining one of those upgrades pushes
+  a summon's death **back by that many milliseconds**. The framing is the surprise: **there is no
+  timer to extend**. `LifetimeUpdate` rolls one duration in its constructor, stores an absolute
+  death frame and sleeps to it; `update` runs *once*, on that frame, and kills the object without
+  ever reading the clock. So the extension itself is one `add` - and the whole cost of the patch is
+  *noticing when to do it*, because the engine has no "an upgrade arrived" hook a non-upgrade
+  module can subscribe to. The module therefore polls, and the engine already ships the shape of
+  that **inside the function being hooked**: `update` opens with "if this object is a
+  `THROWN_PROJECTILE`, come back next frame", which is how a rock in flight refuses to expire. The
+  trigger is the mask going **empty → non-empty**, latched in a byte of instance padding, because
+  an upgrade already held cannot be granted again - so a permanent player upgrade fires once per
+  object (including on the first poll of one created while it is already held, which is what makes
+  "this research makes every summon last 5 s longer" work) and an object-scoped one re-arms when
+  something strips it. Five edits, and three of them cost almost nothing: `ModuleData` grows
+  `0x18` → `0xac` for the mask and the bonus (**one hook**, because the `newModuleData` thunk is
+  LifetimeUpdate's own, and it zeroes them there so the constructor keeps every store it had), the
+  field table is rebuilt in the cave for its **one** reference, and the edge latch's default is a
+  single opcode byte - the constructor's `mov byte [esi+0x28], al` widened to a dword, clearing
+  tail padding the instance already carries. **No parse code and no arithmetic**: the mask row
+  names the engine's own `parseUpgradeMask`, the bonus row names the duration parser `MinLifetime`
+  and `MaxLifetime` already use (milliseconds in, frames out, scaled by the live logic rate), and
+  the cave calls the engine's own `testForAny` against the object's completed mask and its
+  player's, so "is it held" is answered exactly as `TriggeredBy` answers it. **The in-world timer
+  follows for free**, which is not obvious and had to be established rather than hoped for: the bar
+  over a summon is `(die - now) / (die - start)`, recomputed every frame from the live module, so
+  an extension grows both terms and the bar jumps up and drains over the new total - whereas
+  *pausing* the clock would freeze the numerator while the denominator kept growing, draining the
+  bar over an object that is not dying. The honest cost: an object carrying the field **wakes every
+  frame for its whole lifetime**; one that does not pays a single 36-dword scan on the frame it
+  dies and is otherwise byte-identical. **Every peer must run the same patched binary** - this
+  decides when objects die - and the keywords are an INI parse error on a stock build. Savegames
+  need no version bump, at the price of one quirk: the edge latch is not xfer'd, so a still-held
+  upgrade pays its bonus once more on the first poll after a load. See
+  [`docs/lifetime-extend-upgrade.md`](docs/lifetime-extend-upgrade.md). **Runtime-verified in game.**
+
+- **`upgrade-description`** keeps a `CommandButton`'s **`DescriptLabel` visible after its upgrade is
+  researched**, with *"this upgrade has already been researched"* appended **under** it instead of
+  written **over** it. Stock, the description is simply gone the moment you own the thing it
+  describes - which is the one moment a player most wants to re-read what it did. The cause is not
+  a design decision but one call: the ControlBar's tooltip builder assembles the description in a
+  single `UnicodeString` at `ebp-0x18` and adds every other status line to it with
+  `UnicodeString::concat`, and this case alone reaches the **adjacent** method
+  `UnicodeString::operator=`, which releases the buffer it is holding before taking the new one.
+  So the fix is nine bytes of engine and a 0x41-byte cave: concatenate rather than assign, with the
+  engine's own `L"\n"` in between and the engine's own *"is there anything to separate from"*
+  guard - the null-pointer plus zero-length pair the `CONTROLBAR:Requirements` and
+  `TOOLTIP:BuildDisabled` folds use twenty lines earlier - so a button carrying no `DescriptLabel`
+  comes out **byte-identical to stock** rather than gaining a leading blank line. **No `.csf`, no
+  `.apt`, no INI keyword**: the strings it joins are the two the engine had already fetched, the
+  button's own `PurchasedLabel` or `TOOLTIP:AlreadyUpgradedDefault`. `--separator blank-line` puts
+  a blank line between instead; `--also-blocked` gives the *conflicting upgrade* and *lacks
+  prerequisite* messages the same treatment, which is the identical nine-byte shape one
+  `CommandButton` field along. Deliberately **not** widened: a researched upgrade's tooltip still
+  shows no cost line, because there is nothing left to buy. Client-local and read-only - nothing
+  enters the simulation, so a patched and an unpatched client can play each other and replays
+  cross, same rule as `replay-outcome`. See
+  [`docs/upgrade-description.md`](docs/upgrade-description.md). **Runtime-verified in game.**
+- **`binary-attest`** folds a hash of the game's **own code** into the frame checksum, so a peer
+  running a modified `game.dat` goes **out of sync** instead of playing. It exists because of what
+  the RE found on the way: **fog of war is already in the sync hash** — the CRC producer at
+  `0x00625886` xfers `TheShroudManager` like every other logic subsystem, gated only by the
+  `-xShroudCRC` debug flag — so a maphack that writes revealer counts into the grid already
+  desyncs. What that cannot reach is a cheat that changes no state at all: the fog byte at
+  `ShroudImpl+0x68` is read at *lookup* time and clearing it leaves every shroud level
+  byte-identical. Only the code differs, so only the code is left to attest. One hook at the
+  `MSG_LOGIC_CRC` emitter's join (`0x0062E7FD`, where both producing paths converge) XORs an
+  FNV-1a fold of `.text` plus the cave's own code into `edi` before it goes on the wire; the
+  engine's existing `GameCRCMismatch` machinery does the rest, with no new message type. Computed
+  once and cached, ~135 bytes of code. **Replay playback is exempt** (`TheRecorder` mode 1) so old
+  recordings still play and `sage_verify` can follow one, and that exemption cannot conceal
+  anything — a live client that skipped the mix would desync against its peers anyway. Because the
+  image has no `.reloc`, the value is a property of the *file*: `expected_hash` recomputes it
+  offline and `sage-verify attest` compares it with a running process. **Every peer must run the
+  byte-identical binary** — that is the property being enforced. Honest limit: the hash is computed
+  by the client it attests, so it raises the floor, not the ceiling, and it cannot see an external
+  read-only overlay at all. See [`docs/binary-attest.md`](docs/binary-attest.md).
+  **Runtime-verified in game.**
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -346,7 +502,7 @@ Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 Bring your own `game.dat` (this repo ships the patch recipe, never the copyrighted binary):
 
 ```sh
-sage-patch list                                  # the registered patches
+sage-patch list                                  # the registered patches; `exp` = experimental
 sage-patch apply commandset-limit --count 64 \
     --in game.dat.backup --out game.dat          # --in is read, never modified
 sage-patch verify commandset-limit --count 64 game.dat   # exits non-zero on any mismatch
@@ -397,9 +553,13 @@ sage-patch verify command-point-upkeep game.dat
 sage-patch apply second-resource --in game.dat.backup --out game.dat
 sage-patch verify second-resource game.dat
 
-# one hero-bar slot per object type; --kindof renames the token from the default HEROBAR
+# a hero-bar slot for something that is not a HERO; --kindof renames the token
 sage-patch apply herobar --in game.dat.backup --out game.dat
 sage-patch verify herobar game.dat
+
+# one slot per object type instead, clicking through its members one at a time
+sage-patch apply herobar --grouped --in game.dat.backup --out game.dat
+sage-patch verify herobar --grouped game.dat
 
 # the mechanic without the palantir bracket or the tooltip one
 sage-patch apply second-resource --no-hud --in game.dat.backup --out game.dat
@@ -409,6 +569,16 @@ sage-patch apply skirmish-replay --rename added --in game.dat.backup --out game.
 
 sage-patch apply terrain-resource-exp --in game.dat.backup --out game.dat   # --keyword GiveNoXP
 sage-patch verify terrain-resource-exp game.dat
+
+# an upgrade pushes a summon's death back by UpgradeLifetimeBonus milliseconds
+sage-patch apply lifetime-extend-upgrade \
+    --in game.dat.backup --out game.dat        # --keyword / --bonus-keyword
+sage-patch verify lifetime-extend-upgrade game.dat
+
+# let a LargeGroupBonusUpdate's HordeMemberFilter also match objects outside a horde
+sage-patch apply large-group-bonus-filter \
+    --in game.dat.backup --out game.dat        # --keyword CountLooseObjects
+sage-patch verify large-group-bonus-filter game.dat
 
 # no parameters; --slots is read out of the image (33, or commandset-limit's N) unless pinned
 sage-patch apply multi-execute-gate --in game.dat.backup --out game.dat
@@ -422,6 +592,12 @@ sage-patch verify queue-ignore-cp game.dat
 sage-patch apply hero-bar-slots --count 21 --in game.dat.backup --out game.dat
 sage-patch verify hero-bar-slots --count 21 game.dat
 
+# keep an upgrade's description once it is researched, message appended under it
+sage-patch apply upgrade-description --in game.dat.backup --out game.dat
+sage-patch apply upgrade-description --separator blank-line --also-blocked \
+    --in game.dat.backup --out game.dat
+sage-patch verify upgrade-description game.dat
+
 # hand a settlement plot from the building a ReplaceSelfUpgrade destroys to the one it creates
 sage-patch apply foundation-rebind --in game.dat.backup --out game.dat  # no parameters
 sage-patch verify foundation-rebind game.dat
@@ -431,6 +607,7 @@ sage-patch apply headless --in game.dat.backup --out game.dat          # no para
 sage-patch verify headless game.dat
 
 # the launcher, not game.dat: no install-location lock on the token it hands the engine
+# EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
 sage-patch apply standalone-launcher \
     --in lotrbfme2ep1.exe.backup --out lotrbfme2ep1.exe                # no parameters
 sage-patch verify standalone-launcher lotrbfme2ep1.exe
@@ -445,12 +622,13 @@ same parameters and checks them against the file — a structural, disassembler-
 
 ```
 $ sage-patch list
-commandset-limit   officialNecro  Raise the CommandSet button limit from 33 to N
-cah-factions       officialNecro  Add mod sides + an 'All' token to the Create-A-Hero faction enum
+commandset-limit        officialNecro  Raise the CommandSet button limit from 33 to N
+cah-factions            officialNecro  Add mod sides + an 'All' token to the Create-A-Hero enum
+hero-mana          exp  officialNecro  Give special powers a regenerating per-object mana cost
 ...
 
-$ sage-patch apply hero-mana --in game.dat.backup --out game.dat
-applying patch: hero-mana (by officialNecro)
+$ sage-patch apply spawn-union --in game.dat.backup --out game.dat
+applying patch: spawn-union (by officialNecro)
 wrote game.dat
 ```
 
@@ -549,7 +727,8 @@ apply_patches(
 | [`asm.py`](asm.py) | the tiny label-resolving x86 emitter the caves are written with |
 | [`utils.py`](utils.py) | PE/byte helpers (`allocate_section`/`find_section` — the pair that makes caves order-independent — plus `apply_byte_patch`, `va_to_offset`, `image_base`, …) operating on an in-memory `bytearray` |
 | [`patches/`](patches/) | every `Patch` lives here, one module per patch, and [`registry.py`](registry.py) names them all |
-| [`patches/utils/`](patches/utils/) | the machinery more than one patch needs and none of them owns — the three global name tables and the primitives every table extension shares, the `KindOf` mask, and the income link |
+| [`patches/experimental/`](patches/experimental/) | the **unstable and largely untested** ones. Membership is the same fact as `Patch.experimental`, which is what makes `list` mark them `exp` and `apply_patches` log a warning; a test fails if the two disagree. Graduating one is a move plus dropping the attribute |
+| [`patches/utils/`](patches/utils/) | the machinery more than one patch needs and none of them owns — the three global name tables and the primitives every table extension shares, the INI field-parse tables that give a block a new keyword, the `KindOf` mask, and the income link |
 
 ### Composing patches
 

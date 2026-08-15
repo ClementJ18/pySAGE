@@ -21,8 +21,7 @@ from pathlib import Path
 import pytest
 
 from sage_ini.engine import STOCK
-from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
-from sage_patch.patches.standalone_launcher import (
+from sage_patch.patches.experimental.standalone_launcher import (
     ANCHORS,
     GI_DAT_G4_ACCESSOR,
     STRCPY,
@@ -32,6 +31,7 @@ from sage_patch.patches.standalone_launcher import (
     StandaloneLauncherPatch,
     build_code,
 )
+from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import instance_guard_image, standalone_launcher_image

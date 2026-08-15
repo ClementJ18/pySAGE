@@ -217,8 +217,8 @@ says exactly what it does.
 
 ## Status
 
-**Statically derived, applied and verified against the installed `game.dat`; not yet watched in
-game.** What remains to confirm in a session:
+**Statically derived, applied, verified against the installed `game.dat`, and watched in
+game.** What a session confirms:
 
 1. A recorded skirmish, played back, shows the next/prior player buttons.
 2. Clicking through changes the camera *and* the fog — a seat's own base visible, the others not.

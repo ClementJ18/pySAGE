@@ -55,6 +55,7 @@ class FakeImage:
         self.heap = bytearray(HEAP_SIZE)
         self.headers = bytearray(HEADER_SIZE)
         self._next = HEAP + 0x100
+        self._in_game_ui: int | None = None
         self.closed = False
         self.gone = False
         # `{name -> template address}`, so a test can point a production queue entry at the
@@ -135,19 +136,23 @@ class FakeImage:
         return address
 
     def ascii(self, text: str) -> int:
-        """An AsciiString allocation: {refcount, allocated, chars...}."""
-        raw = text.encode("latin-1") + b"\x00"
-        address = self.alloc(LAY.string_chars + len(raw))
-        self.u32(address, 1)
-        self.u32(address + 4, len(raw))
-        self.write(address + LAY.string_chars, raw)
-        return address
+        """An AsciiString allocation: {u32 refcount; u16 length; u16 allocated; chars...}.
+
+        Both counts are in characters and exclude the terminator, which is how the engine
+        writes them - see `EngineLayout.string_length`. A reader that takes the length as a
+        whole u32 sees a plausible-looking string here and nothing at all in a real game, so
+        the halves matter even though nothing in this image is near a page boundary.
+        """
+        return self._string(text.encode("latin-1"), len(text))
 
     def utf16(self, text: str) -> int:
-        raw = text.encode("utf-16-le") + b"\x00\x00"
-        address = self.alloc(LAY.string_chars + len(raw))
+        return self._string(text.encode("utf-16-le"), len(text))
+
+    def _string(self, raw: bytes, length: int) -> int:
+        allocated = length + 1
+        address = self.alloc(LAY.string_chars + len(raw) + 2)
         self.u32(address, 1)
-        self.u32(address + 4, len(raw))
+        self.write(address + LAY.string_length, struct.pack("<HH", length, allocated))
         self.write(address + LAY.string_chars, raw)
         return address
 
@@ -345,13 +350,37 @@ class FakeImage:
         self.u32(LAY.the_game_logic, address)
         return address
 
-    def player(self, name: str, side: str, resources: int, collected: int = 0) -> int:
+    def player(
+        self,
+        name: str,
+        side: str,
+        resources: int,
+        collected: int = 0,
+        display: str = "",
+        faction: str = "",
+    ) -> int:
+        """A seat. `display` and `faction` are the pair a person reads - the lobby name and the
+        seat's `PlayerTemplate` - as against the internal `name`/`side`, which several factions
+        of one side share. They default to the internal pair rather than to nothing, since a
+        seat that has one has both."""
         address = self.alloc(0x400)
         self.u32(address + LAY.player_name, self.ascii(name))
         self.u32(address + LAY.player_side, self.ascii(side))
-        self.u32(address + LAY.player_display_name, self.utf16(name))
+        self.u32(address + LAY.player_display_name, self.utf16(display or name))
+        self.u32(address + LAY.player_template, self.player_template(faction or side, side))
+        # The two flat command-point numbers every seat in a real match carries, engine-managed
+        # ones included: a base cap of 500 and a hard ceiling of 1500. Zeroes here would leave
+        # the clamp between them biting at nothing.
+        self.write(address + LAY.player_command_points_cap, struct.pack("<i", 500))
+        self.write(address + LAY.player_command_points_hard_cap, struct.pack("<i", 1500))
         self.write(address + LAY.player_resources, struct.pack("<i", resources))
         self.write(address + LAY.player_resources_collected, struct.pack("<i", collected))
+        return address
+
+    def player_template(self, faction: str, side: str) -> int:
+        address = self.alloc(0x200)
+        self.u32(address + LAY.template_faction, self.utf16(faction))
+        self.u32(address + LAY.template_side, self.ascii(side))
         return address
 
     def set_sciences(self, player: int, ids: list[int], spare: int = 4) -> int:
@@ -369,6 +398,32 @@ class FakeImage:
         self.u32(player + LAY.player_sciences + 8, array + (len(ids) + spare) * 4)
         return array
 
+    def select(self, objects: list[int]) -> int:
+        """Give `TheInGameUI` a selected-drawable list holding each object's drawable.
+
+        Built as the engine's own `std::list` is - a sentinel whose `next` walks the nodes and
+        comes back to it, each node `{next, prev, value}` - because an empty selection and the
+        end of a walk are the same sentinel, and a reader that assumes a null terminator would
+        pass against a simpler fake and spin against a real one.
+        """
+        ui = self._in_game_ui or self.alloc(0x100)
+        self._in_game_ui = ui
+        self.u32(LAY.the_in_game_ui, ui)
+
+        sentinel = self.alloc(0x10)
+        nodes = [self.alloc(0x10) for _ in objects]
+        ring = [sentinel, *nodes]
+        for i, node in enumerate(ring):
+            self.u32(node, ring[(i + 1) % len(ring)])
+            self.u32(node + 4, ring[i - 1])
+        for node, obj in zip(nodes, objects, strict=True):
+            drawable = self.alloc(0x200)
+            self.u32(drawable + LAY.drawable_object, obj)
+            self.u32(obj + LAY.obj_drawable, drawable)
+            self.u32(node + LAY.list_node_value, drawable)
+        self.u32(ui + LAY.ui_selected_drawables, sentinel)
+        return ui
+
     def player_list(self, players: list[int], local: int) -> int:
         address = self.alloc(0x100)
         self.u32(address + LAY.pl_count, len(players))
@@ -385,7 +440,7 @@ def build_game() -> FakeImage:
 
     neutral = img.alloc(0x400)  # no name, no side: the placeholder slot
     creeps = img.player("PlyrCreeps", "Civilian", 1000)
-    human = img.player("Player_1", "Men", 2870, collected=5020)
+    human = img.player("Player_1", "Men", 2870, collected=5020, display="Ben", faction="Gondor")
     # `SCIENCE_MEN` plus one bought power, which is the shape a real seat has: the faction's own
     # intrinsic science first and the spellbook after it.
     img.set_sciences(human, [16, 36])

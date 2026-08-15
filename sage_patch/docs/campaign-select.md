@@ -1,6 +1,12 @@
 # Starting a campaign by name — reverse-engineering notes
 
-The RE behind [`patches/campaign_select.py`](../patches/campaign_select.py). ROTWK `game.dat`
+> ⚠ **Experimental.** This patch is **unstable and largely untested** — it lives in
+> [`patches/experimental/`](../patches/experimental/), `sage-patch list` marks it `exp`, and
+> `sage-patch apply` warns before it writes. The status note below says how far it actually
+> got; see the README's [Experimental patches](../README.md#-experimental-patches) note before
+> applying it.
+
+The RE behind [`patches/experimental/campaign_select.py`](../patches/experimental/campaign_select.py). ROTWK `game.dat`
 build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-08-10.
 
 ## The gap
@@ -231,7 +237,7 @@ lives in zero-initialised data.
 _root.GameCode("Expansion1Campaign", "Hard:DWARVEN_CAMPAIGN")
 ```
 
-Byte 0 is still the difficulty. `sage_patch.patches.campaign_select.params()` builds the string and
+Byte 0 is still the difficulty. `sage_patch.patches.experimental.campaign_select.params()` builds the string and
 `campaign_of()` states the parse rule in Python; the test suite runs the emitted bytes through a
 20-opcode interpreter and asserts the two agree for every shape of input, including truncation at
 63 characters.

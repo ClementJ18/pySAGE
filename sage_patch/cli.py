@@ -23,13 +23,14 @@ import sys
 from pathlib import Path
 
 from sage_ini.engine import dump_engine, load_engine
-from sage_patch.patcher import apply_patches
+from sage_patch.patcher import EXPERIMENTAL_WARNING, apply_patches
 from sage_patch.registry import PATCHES
 from sage_patch.sagepatch import Generated, differences, generate, generate_from_patches
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
-    """Every registered patch: what it is called, whose work it is, and what it does.
+    """Every registered patch: what it is called, whether it is experimental, whose work it is,
+    and what it does.
 
     **The author is a column rather than a footnote**, because this is the command somebody runs
     when they are writing their mod's credits. The alternative is reading it back out of an
@@ -38,11 +39,22 @@ def _cmd_list(args: argparse.Namespace) -> int:
 
     `-` for a patch that names nobody, so the column stays readable and an unattributed patch is
     visible as a gap rather than as a blank that reads like alignment.
+
+    **`exp` is a column too, and it is spelled out again underneath.** A three-letter marker is
+    the only thing that fits between the name and the author, and on its own it is a riddle; a
+    footer with no marker above it is a list nobody maps back onto the rows. The pair is what
+    makes the warning land before somebody picks a patch, which is the one moment it is cheap to
+    act on - `apply` warns too, but by then they have chosen.
     """
     width = max((len(name) for name in PATCHES), default=0)
     authors = max((len(cls.author) for cls in PATCHES.values()), default=0)
+    experimental = [name for name, cls in PATCHES.items() if cls.experimental]
     for name, cls in PATCHES.items():
-        print(f"{name:<{width}}  {cls.author or '-':<{authors}}  {cls.description}")
+        mark = "exp" if cls.experimental else "   "
+        print(f"{name:<{width}}  {mark}  {cls.author or '-':<{authors}}  {cls.description}")
+    if experimental:
+        print(f"\nexp = {EXPERIMENTAL_WARNING}")
+        print(f"      {', '.join(experimental)}")
     return 0
 
 
@@ -182,7 +194,18 @@ def build_parser() -> argparse.ArgumentParser:
     verify_sub = verify_p.add_subparsers(dest="patch", required=True)
 
     for name, cls in PATCHES.items():
-        ap = apply_sub.add_parser(name, help=cls.description)
+        # `help` is the one-liner in `sage-patch apply --help`'s subcommand list, `description` the
+        # paragraph at the top of `sage-patch apply <name> --help`. An experimental patch says so in
+        # both: the first is where somebody browsing picks one, the second is where somebody who
+        # already typed the name goes to find out what its options are.
+        summary = f"EXPERIMENTAL - {cls.description}" if cls.experimental else cls.description
+        detail = f"{cls.description}.\n\nEXPERIMENTAL: {EXPERIMENTAL_WARNING}"
+        ap = apply_sub.add_parser(
+            name,
+            help=summary,
+            description=detail if cls.experimental else cls.description,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
         ap.add_argument(
             "--in",
             dest="src",
@@ -200,7 +223,7 @@ def build_parser() -> argparse.ArgumentParser:
         cls.add_cli_arguments(ap)
         ap.set_defaults(func=_cmd_apply)
 
-        vp = verify_sub.add_parser(name, help=cls.description)
+        vp = verify_sub.add_parser(name, help=summary)
         vp.add_argument("file", metavar="GAME_DAT", help="patched binary to check")
         cls.add_cli_arguments(vp)
         vp.set_defaults(func=_cmd_verify)

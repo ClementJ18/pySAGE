@@ -18,11 +18,11 @@ sage-patch apply inflation-readout --in game.dat.backup --out game.dat   # no pa
 sage-patch verify inflation-readout game.dat
 ```
 
-**Status: built and static-verified; not yet runtime-verified in a game.** The bytes apply,
+**Status: built, static-verified and runtime-verified in a game.** The bytes apply,
 disassemble as intended, verify, `detect` round-trips, and the link with `command-point-upkeep` is
-asserted in both application orders. Everything that needs a running game is still open — see
-[§8](#8-verifying-it-in-a-game), starting with whether the field is placed in the skirmish
-palantir layout at all.
+asserted in both application orders. The in-game behaviour holds too, starting with the field
+being placed in the skirmish palantir layout — see [§8](#8-verifying-it-in-a-game) for the
+procedure.
 
 **For a HUD feature it is remarkably small** — one 13-byte detour and a 286-byte section (270
 bytes of code plus a 16-byte header holding one import slot). Only

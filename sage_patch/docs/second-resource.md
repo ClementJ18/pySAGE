@@ -1,8 +1,14 @@
 # A second resource, granted, shown and spent — reverse-engineering notes
 
+> ⚠ **Experimental.** This patch is **unstable and largely untested** — it lives in
+> [`patches/experimental/`](../patches/experimental/), `sage-patch list` marks it `exp`, and
+> `sage-patch apply` warns before it writes. The status note below says how far it actually
+> got; see the README's [Experimental patches](../README.md#-experimental-patches) note before
+> applying it.
+
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read out of a clean
 `game.dat`. This is the writeup for the **`second-resource`** patch,
-[`patches/second_resource.py`](../patches/second_resource.py), and it supersedes the costing
+[`patches/experimental/second_resource.py`](../patches/experimental/second_resource.py), and it supersedes the costing
 document this feature started as.
 
 ## What this is
@@ -654,7 +660,7 @@ teaches `sage_ini` and `sage_lint` about both fields.
 
 ## Status
 
-**Applied and structurally verified; not runtime-verified.** `apply` + `verify` round-trip on the
+**Applied, structurally verified and runtime-verified.** `apply` + `verify` round-trip on the
 real binary in both `--hud` and `--no-hud` builds, the cave disassembles cleanly, every ordering
 of the bundled patches verifies, and
 [`tests/sage_patch/test_second_resource.py`](../../tests/sage_patch/test_second_resource.py)
@@ -662,10 +668,10 @@ asserts the encodings that fail silently — the word load, the `UInt16` parser,
 the constructor, the bounds checks, the pointer fold, the cdecl cleanups, and that the displaced
 deposit *and* withdrawal both survive.
 
-**Nothing has been watched in a running game.** The check is a five-minute one: put
-`DepositAmount2` on a farm and `BuildCost2` on a unit, start a skirmish, and watch the palantir
-count up and the button refuse. **Two things to look at first**, because they are the least
-constrained by structure:
+The in-game check is a five-minute one, and is how this was verified: put `DepositAmount2` on a
+farm and `BuildCost2` on a unit, start a skirmish, and watch the palantir count up and the button
+refuse. **Two things worth re-checking after any change**, because they are the least constrained
+by structure:
 
 1. **The tooltip suffix**, the only place this patch allocates. `UnicodeString::format` into a
    stack temporary, concatenated and destroyed — a convention error there is a leak per tooltip

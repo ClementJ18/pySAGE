@@ -49,6 +49,7 @@ sage-asset = "sage_asset.__main__:main"
 sage-w3d = "sage_w3d.__main__:main"
 sage-cah = "sage_cah.__main__:main"
 sage-patch = "sage_patch.cli:main"
+sage-verify = "sage_verify.__main__:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui / edain-ui).
 [project.gui-scripts]
@@ -129,7 +130,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_live*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*", "sage_w3d*", "sage_cah*"]
+include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_live*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*", "sage_w3d*", "sage_cah*", "sage_verify*"]
 
 [tool.setuptools.package-data]
 # Anything a package opens at runtime must be listed here, or it is absent from the wheel. The
@@ -140,6 +141,7 @@ sage_apt = ["assets/*.html", "py.typed"]
 sage_asset = ["py.typed", "ui/*.ico"]
 sage_w3d = ["py.typed"]
 sage_cah = ["py.typed"]
+sage_verify = ["py.typed"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
 sage_patch = ["py.typed"]
@@ -201,7 +203,7 @@ select = [
 
 [tool.mypy]
 python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
-files = ["sage_apt", "sage_asset", "sage_ini", "sage_lint", "sage_live", "sage_map", "sage_mods", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah", "examples/sage_live"]
+files = ["sage_apt", "sage_asset", "sage_ini", "sage_lint", "sage_live", "sage_map", "sage_mods", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah", "sage_verify", "examples/sage_live"]
 # `examples/sage_live` is checked because those scripts drive a *live* game: they cannot be
 # exercised by the data-free suite, so a typo in an attribute name surfaces mid-match against a
 # real process rather than in CI. Ruff alone does not catch that - it took an `AttributeError`

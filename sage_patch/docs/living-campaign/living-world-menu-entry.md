@@ -240,7 +240,7 @@ That is the whole point: the override was the authoring crutch, and this is what
 |---|---|---|---|
 | 1 | Does the `"Strategic"` path work at all, on any campaign? | **unproven — never run in a shipped build** | Option A: fill the static with `WOTRScenarioAngmar`, add a temporary button, launch |
 | 2 | What is `MSG 0x1F`'s arg1 (`[edi+0x114]`)? | unknown | read `edi` live at `0x00779D15` through `live-bridge`; compare tags 0/1/2 |
-| 3 | Does the campaign still need `IsScriptedCampaign`? | **likely yes** — this route skips the lobby exactly as the override route does, so the campaign must supply its own players | the same live run as (1) |
+| 3 | Does the campaign still need `IsScriptedCampaign`? | **yes, and that is now a blocker** — see below | the same live run as (1) |
 | 4 | Does `OnTutorial` leave shell state the linear path cleans up? | unknown — it stops the shell map at `0x0091B87E`, but the sequence differs from the linear route | observe the transition in (1) |
 | 5 | Does appending a constant to `MainMenu.const` round-trip? | high — the writer rebuilds the pool | a round-trip diff, no game needed |
 
@@ -250,6 +250,30 @@ static write plus a throwaway button, and if the chain does not run, the cave in
 work.
 
 **Do (1) before writing any cave.**
+
+## 9. This scope is blocked by the participant problem (2026-08-14)
+
+Reasoned from the live result in [`battle-sides.md`](battle-sides.md), and stated as inference:
+
+1. This route bypasses the lobby, so the `GameInfo` at `0x00DE892C` / `0x00DE8930` is never
+   populated by it.
+2. `LivingWorldCampaign::begin`'s unscripted builder *reads* that `GameInfo` to create the
+   campaign's `LivingWorldPlayer`s. With it empty, an unscripted campaign launched this way gets no
+   strategic players at all.
+3. So a campaign reached from the menu **must** set `IsScriptedCampaign`, which is what makes it
+   supply its own players from `AddPlayer`.
+4. And `IsScriptedCampaign` is exactly what leaves every battle with no faction players and the
+   client seated as `ReplayObserver`.
+
+**So the menu entry cannot produce a playable campaign on its own.** Built today it would give a
+nicer route to the same unplayable battles - the launch flow is the *how*, and the participant
+problem is the *what you get*. [`living-world-parity.md`](living-world-parity.md) item 7 therefore
+blocks item 1, which reverses the order those two were listed in.
+
+The assumption to check is step 1: if some other part of the `OnTutorial` path populates a
+`GameInfo`, the chain is not blocked at all. That is worth ten minutes with `live-bridge` before
+accepting the conclusion - and the run for question 1 above would show it, since a campaign that
+seats real players in its first battle disproves the whole argument.
 
 ## Method
 

@@ -63,7 +63,8 @@ from sage_patch.addresses import (
     UNICODE_STRING_CONCAT,
 )
 from sage_patch.patches import LiveBridgePatch
-from sage_patch.patches import hero_mana as hm
+from sage_patch.patches.experimental import hero_mana as hm
+from sage_patch.patches.utils.field_tables import read_field_table
 from sage_patch.utils import find_section, va_to_offset
 
 IMAGE_BASE = 0x400000
@@ -231,7 +232,7 @@ def name_of(data: bytes, entry) -> str | None:
 def entry_named(data: bytes, field: str):
     """The field-parse entry called ``field``, from whichever of the two tables holds it."""
     for base in resolved(data):
-        for entry in hm.read_field_table(data, base):
+        for entry in read_field_table(data, base):
             if name_of(data, entry) == field:
                 return entry
     raise AssertionError(f"no field-parse entry named {field}")
@@ -292,7 +293,7 @@ class TestApply:
     def test_the_pool_is_not_declared_on_special_power(self, patched: bytes):
         """The earlier revision put all three on `SpecialPower`, which let a hero's abilities
         disagree about the cap. Only the cost belongs there."""
-        power = hm.read_field_table(patched, resolved(patched)[0])
+        power = read_field_table(patched, resolved(patched)[0])
         names = {name_of(patched, e) for e in power}
         assert "ManaPool" not in names
         assert "ManaRegen" not in names

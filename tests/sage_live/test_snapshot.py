@@ -61,6 +61,27 @@ def golden():
     return json.loads(EXPECTED.read_text(encoding="utf-8"))
 
 
+def stable(value):
+    """The decoded structure with the last bits of `angle` taken off.
+
+    Every number in a decode is read out of the capture and is bit-identical on any machine -
+    every one except `angle`, which is `math.atan2` of two of them, and whose last bit is the
+    platform's libm rather than the engine's. The golden file was captured on Windows; two of
+    this match's objects come back one ULP away on a Linux runner (`3.12396693249735` against
+    `3.1239669324973502`), which says nothing about the decode.
+
+    Twelve decimals is orders of magnitude below that difference and orders of magnitude above
+    anything a wrong offset, scale or sign could hide in - those move a value, not its last bit.
+    """
+    if isinstance(value, float):
+        return round(value, 12)
+    if isinstance(value, dict):
+        return {key: stable(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [stable(item) for item in value]
+    return value
+
+
 def test_the_whole_observation_matches_the_golden_decode(observation, golden):
     """One assertion over every field of every object and player. A change anywhere in the
     decode - an offset, a scale, a sign - shows up here.
@@ -69,7 +90,7 @@ def test_the_whole_observation_matches_the_golden_decode(observation, golden):
     `position` is a tuple in the model and a list once written out, and `(0, 500) != [0, 500]`
     would fail for a reason that has nothing to do with the decode.
     """
-    assert json.loads(json.dumps(observation.to_dict())) == golden
+    assert stable(json.loads(json.dumps(observation.to_dict()))) == stable(golden)
 
 
 def test_connect_identifies_the_build_from_real_pe_headers(observation):

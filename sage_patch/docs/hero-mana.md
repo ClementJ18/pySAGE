@@ -1,10 +1,16 @@
 # A mana cost for hero abilities — the RE, and what the patch does with it
 
+> ⚠ **Experimental.** This patch is **unstable and largely untested** — it lives in
+> [`patches/experimental/`](../patches/experimental/), `sage-patch list` marks it `exp`, and
+> `sage-patch apply` warns before it writes. The status note below says how far it actually
+> got; see the README's [Experimental patches](../README.md#-experimental-patches) note before
+> applying it.
+
 Engine build `2.01.2614.37001`, ImageBase `0x400000`. Addresses are VAs, read statically from the
 repo's clean [`game.dat`](../../game.dat). The one live fact (§3) was measured against the recorded
 match in [`match.snapshot.gz`](../../tests/sage_live/fixtures/match.snapshot.gz).
 
-Implemented by [`patches/hero_mana.py`](../patches/hero_mana.py) as `HeroManaPatch`.
+Implemented by [`patches/experimental/hero_mana.py`](../patches/experimental/hero_mana.py) as `HeroManaPatch`.
 
 **Status: partly runtime-verified.** A traced build was played on 2026-08-01 (RotWK + Edain) and
 the core works: both field tables relocate, all three new fields parse, the side table populates,

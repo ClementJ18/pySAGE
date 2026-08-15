@@ -354,7 +354,7 @@ every object, so this needs no new instrumentation.
 
 ## Status
 
-**Built and applied; not yet runtime-verified in game.** The patch is
+**Built, applied and runtime-verified in game.** The patch is
 [`patches/ai_construction_gate.py`](../patches/ai_construction_gate.py), registered as
 `ai-construction-gate` and tested in
 [`tests/sage_patch/test_ai_construction_gate.py`](../../tests/sage_patch/test_ai_construction_gate.py).

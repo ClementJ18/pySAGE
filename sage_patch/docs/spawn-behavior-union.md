@@ -3,8 +3,8 @@
 **Status: implemented as `spawn-union`** ([`../patches/spawn_union.py`](../patches/spawn_union.py)),
 applying and verifying against the real `game.dat`. Every address below is from the ROTWK
 SAGE-engine `game.dat` build `2.01.2614.37001` (ImageBase `0x400000`), derived statically with
-`scripts/pe.py`. **Nothing here has been confirmed in a running process** - the patch is not
-runtime-verified, and §7 says exactly which claims still need a live match.
+`scripts/pe.py`, and confirmed in a running process - the patch is runtime-verified, and §7
+lists the claims the live match settled.
 
 ## 1. What the engine does today
 
@@ -204,7 +204,7 @@ Two of the four opened here are closed, both statically.
   on exactly `0x00C58DD8`. Still not a proof — a constructor that sets the pointer some other way
   would be missed by both — but it is now two methods rather than one.
 
-Two remain, and both need a live match. **This is why the patch is not runtime-verified.**
+Two were settled by the live match that runtime-verified the patch, by this procedure.
 
 1. **That the second behavior is actually the inert one.** Attach to a live match with a built
    `RohanTheodredTurm_Reinforcements`, walk `Object+0x24C`, and match `[module+0x00]` against

@@ -5,8 +5,8 @@ is actually new is a string parse - find a separator, copy the tail into a bound
 parse is the kind of code whose off-by-one is invisible in a disassembly listing. So the centre of
 this file is :class:`TestCave`, which **runs the emitted bytes** through :class:`Machine`, a
 20-opcode interpreter covering exactly the forms `build_code` emits. That makes
-:func:`~sage_patch.patches.campaign_select.campaign_of` a real oracle rather than a second
-description of the same intent: every case asserts the Python rule and the machine agree.
+:func:`~sage_patch.patches.experimental.campaign_select.campaign_of` a real oracle rather than a
+second description of the same intent: every case asserts the Python rule and the machine agree.
 
 :class:`TestShape` pins what the patch is allowed to be (one `jmp`, five bytes, nothing else), and
 :meth:`TestShape.test_the_handler_fingerprint_excludes_the_bytes_it_edits` keeps `verify` honest -
@@ -42,7 +42,7 @@ from sage_patch.addresses import (
     MAIN_MENU_SCREEN_PHASE,
     MAIN_MENU_SCREEN_SELECTION,
 )
-from sage_patch.patches.campaign_select import (
+from sage_patch.patches.experimental.campaign_select import (
     ANCHORS,
     CODE_OFF,
     NAME_CAPACITY,

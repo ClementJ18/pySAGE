@@ -107,17 +107,21 @@ comparison against `0x24`, `0x90`, or `1152`: **0 of 33**.
 ## What the overflow lands in
 
 Masks are allocated in adjacent pairs, so the write does not fall off into unmapped memory — it
-falls into a live mask. `0x006ae649` clears the same bit in both object masks back to back, which
-pins the object layout exactly:
+falls into a live mask. `0x006ae649` clears the same bit in both of the **player's** masks back to
+back, which pins that layout exactly:
 
 ```
 0x006ae649  8b4f38          mov ecx, [edi+0x38]
-0x006ae65a  8d9496bc000000  lea edx, [esi + edx*4 + 0xbc]    ; object mask A
+0x006ae65a  8d9496bc000000  lea edx, [esi + edx*4 + 0xbc]    ; Player: upgrades in progress
 0x006ae663  211a            and dword ptr [edx], ebx
 0x006ae665  8b4f38          mov ecx, [edi+0x38]
-0x006ae675  8d94964c010000  lea edx, [esi + edx*4 + 0x14c]   ; object mask B = 0xbc + 0x90
+0x006ae675  8d94964c010000  lea edx, [esi + edx*4 + 0x14c]   ; Player: completed = 0xbc + 0x90
 0x006ae67e  211a            and dword ptr [edx], ebx
 ```
+
+`esi` is a `Player`, not an `Object`: this is `Player::removeUpgrade`, and the same function walks
+the player's upgrade list off `[esi+0x9c]` (`0x006ae643`) while its caller at `0x006ae5d8` reads
+`[ebx+0x30c]`, the player's default `Team`.
 
 The same adjacency shows up at `0x0090da40` / `0x0090da7e` (`+0x04` / `+0x94`, the
 `RequiredUpgrades` / `ExcludedUpgrades` runtime pair) and at `0x006e2874` / `0x006e2887`
@@ -126,14 +130,24 @@ function is compiled with frame-pointer omission).
 
 | mask | base | first out-of-range dword |
 |---|---|---|
-| object mask A | `Object+0x0bc` | `Object+0x14c` — object mask B |
+| player, in progress | `Player+0x0bc` | `Player+0x14c` — the player's completed mask |
 | `TriggeredBy` | `+0x000` | `+0x090` — `ConflictsWith` |
 | `RequiredUpgrades` | `+0x004` | `+0x094` — `ExcludedUpgrades` |
 | `RequiredUpgrades` | `+0x0d4` | `+0x164` — `ForbiddenUpgrades` |
-| player mask | `Player+0x28c` | `Player+0x31c` — **not identified** |
+| object, completed | `Object+0x28c` | `Object+0x31c` — `Object::m_team` |
+
+**Which mask belongs to which owner**, since the two pairs are easy to swap: the object carries one
+mask and the player carries two. `UpgradeMux`'s condition test at `0x008b8fe0` names all three in six
+instructions — `lea ecx,[edi+0x28c]` on the `Object` it holds in `edi`, then
+`getControllingPlayer(edi)` (`0x0068b678`) and `lea ecx,[eax+0x14c]` on the result. That getter is
+`mov ecx,[this+0x31c] / jmp Team::getControllingPlayer`, so `Object+0x31c` is the object's `Team*` —
+the dword the object mask overflows into, and the reason the object-side overflow is *worse* than the
+player-side one: bit 1152 on an object does not alias another mask, it sets bit 0 of a pointer.
+[`live-object-model.md`](live-object-model.md) §3a pins the same three offsets live, with an
+observable effect rather than an inference.
 
 So upgrade 1152 aliases upgrade 0 of the neighbouring condition. `Required` reads as `Excluded`,
-`completed` reads as `in progress`, `TriggeredBy` reads as `ConflictsWith`. Symptoms are upgrades
+`in progress` reads as `completed`, `TriggeredBy` reads as `ConflictsWith`. Symptoms are upgrades
 that appear already researched, buttons permanently greyed out, prerequisites satisfied that should
 not be — affecting only upgrades defined late in load order, and presenting on units that have no
 obvious relationship to each other.
@@ -189,10 +203,9 @@ needing a `.cmdext` section. Not implemented.
 Verified directly against the binary: the 36-dword mask width (five independent sites plus the
 field-table offset deltas), the `newUpgrade` allocator and its absence of a cap, the override path
 reusing indices, `sizeof(UpgradeTemplate) = 0x9c` and the member offsets listed, the 33 index sites
-and the absence of a bound constant at every one, the `Object+0xbc` / `Object+0x14c` adjacency, and
-the upgrade counts in `data/data/ini`.
+and the absence of a bound constant at every one, the `Player+0xbc` / `Player+0x14c` adjacency and
+which owner each mask belongs to, and the upgrade counts in `data/data/ini`.
 
-Not established: what occupies `Player+0x31c`, so the player-side overflow target is unknown. How
-upgrade masks are serialized into savegames and replays was not examined — if that is by index
+Not established: how upgrade masks are serialized into savegames and replays — if that is by index
 rather than by name, adding or reordering upgrade definitions would break cross-version save
 compatibility as a separate issue from the count limit.

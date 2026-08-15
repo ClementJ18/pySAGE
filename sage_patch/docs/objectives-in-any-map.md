@@ -4,8 +4,10 @@ A patch scope. Engine build `2.01.2614.37001`, ImageBase `0x400000`, recovered s
 2026-08-12. Follows [`mission-objectives.md`](living-campaign/mission-objectives.md), which established that the
 objectives system is intact and already authored in Edain's campaign data.
 
-**Partly confirmed in game.** The tracker read and the symptom below come from a live RotWK process
-on `Erebor_gold`; everything else is static analysis. Revised 2026-08-12 after that run.
+**Confirmed in game.** The tracker read and the symptom below come from a live RotWK process on
+`Erebor_gold`; the shipped three-site patch was then verified in a **War of the Ring battle** on
+2026-08-14 (see *Verified in game*, below). Revised 2026-08-12 after the first run, 2026-08-14
+after the second.
 
 ## The mechanism: one button, three screens, and the chooser asked twice
 
@@ -138,6 +140,30 @@ by disassembling it back — `ecx` balanced on every edge, all three guards land
 fallback, the objectives edge returning zero, and the fallback tail-calling rather than calling —
 plus one asserting a file with any single site left stock does not verify.
 
+## Verified in game
+
+2026-08-14, `map kampa angmar 01` reached through the living-world campaign, read live with
+`sage_live` against the running process:
+
+| | |
+|---|---|
+| `TheMissionObjectiveTracker` | allocated; `+0x10` list non-null |
+| the list | `0x089F12B0`..`0x089F1310` - 96 bytes, **12 entries** |
+| the cave's verdict, computed before the click | objectives (`span >= 8`, so it returns 0) |
+| what the button opened | **`Objectives.apt`** |
+
+This is precisely the case revision 2 failed: a **skirmish-mode** battle, where the outer ask at
+`0x006D40D2` routes the click to `0x00914EF0` before `0x008E8843` is ever entered. So what is
+verified is the three-site redirect, not merely the predicate swap.
+
+It also held while the battle itself was broken - that run had no faction players at all (see
+[`battle-sides.md`](living-campaign/battle-sides.md)) - which is a small confirmation of the design:
+the cave reads the map's objective list, never the player table.
+
+Not yet verified: the second-mission case (unknown 2 below), the hotkey path at `0x0081FFD8`, and
+the stock fallback on a map that declares no objectives. The last is the one worth not skipping,
+since "indistinguishable from stock" is the patch's whole safety claim.
+
 ### If you want objectives everywhere regardless
 
 ```
@@ -168,7 +194,7 @@ hooks and a lifetime problem, against the shipped version's one hook and none.
 |---|---|---|
 | 1 | What are game types 1, 2 and 5 exactly? | Determines whether a WotR battle is caught by the first, second or third term — and whether a narrower patch could target only the living-world case |
 | 2 | Is `tracker->[0x10]` reset between maps? | The install at `0x008364D5` happens **only if currently null**, and the already-set path discards the new list. No reset was found at any of the 16 references to `0x00DE8C94` nor in the vtable (`0x00C537A0`). Since objectives work across successive linear-campaign missions, one must exist — most likely the tracker is rebuilt per map. **Partly answered:** in a live skirmish on `Erebor_gold` the tracker held that map's three entries and nothing else, so whatever the mechanism, the list is the current map's |
-| 3 | Does `Objectives.apt` render correctly when opened from a living-world battle? | It is opened as a normal screen push, so probably yes, but it has never been opened in that context — and until revision 3 it had never been opened at all outside the linear campaign |
+| ~~3~~ | ~~Does `Objectives.apt` render correctly when opened from a living-world battle?~~ | **settled — yes.** Opened from the Palantir button in a War of the Ring battle on `map kampa angmar 01`, 2026-08-14 |
 
 Unknown 2 matters for option three specifically, since that variant reads the list to make its
 decision.

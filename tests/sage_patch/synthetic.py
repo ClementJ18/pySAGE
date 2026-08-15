@@ -26,15 +26,18 @@ from __future__ import annotations
 import struct
 
 from sage_patch import addresses as ad
-from sage_patch.patches import campaign_select as cs
 from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather_wb as wb
 from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
+from sage_patch.patches import lifetime_extend_upgrade as lex
 from sage_patch.patches import multi_instance as mi
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import production_condition as pc
-from sage_patch.patches import standalone_launcher as sl
+from sage_patch.patches import production_split as ps
+from sage_patch.patches import upgrade_description as ud
+from sage_patch.patches.experimental import campaign_select as cs
+from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
 from sage_patch.patches.utils import model_conditions as mc
@@ -163,6 +166,7 @@ def synthetic_image() -> bytearray:
 
     for hook in hb.HOOKS:
         write(hook.va, hook.original)
+    write(hb.TOOLTIP_EDIT.va, hb.TOOLTIP_EDIT.original)
 
     return data
 
@@ -290,6 +294,26 @@ def observer_switch_image() -> bytearray:
     )
 
 
+def upgrade_description_image() -> bytearray:
+    """A stand-in carrying both of the tooltip builder's status-message cases and the three
+    `UnicodeString` methods plus two wide literals the cave reaches.
+
+    Sparse for the usual reason: the two cases sit together in one page, and `operator=`, both
+    `concat` forms and the separators are spread over four megabytes below them. Everything not
+    planted reads as zero, so a window aimed one instruction to either side of where it claims to
+    be would find nothing there - and the two cases are planted adjacently, as they are in the real
+    binary, which is what makes "the wrong case" a reachable failure rather than a walk into
+    zeroes.
+    """
+    return _sparse_image(
+        {
+            ad.DESCRIPTION_PURCHASED_RUN: ad.DESCRIPTION_PURCHASED_RUN_BYTES,
+            ad.DESCRIPTION_BLOCKED_RUN: ad.DESCRIPTION_BLOCKED_RUN_BYTES,
+            **ud.ANCHORS,
+        }
+    )
+
+
 def campaign_select_image() -> bytearray:
     """A stand-in carrying the shell's campaign callback and the three sites the patch reads.
 
@@ -349,3 +373,119 @@ def instance_guard_image(patch: mi._MutexGuardPatch) -> bytearray:
     for guard in patch.guards:
         planted[guard.va] = guard.stock
     return _sparse_image(planted)
+
+
+#: Where the `production-split` stand-in parks the modifier-type name strings. Any mapped address
+#: works - the patch reaches them through the table's own pointers - so this is simply a page
+#: nothing else in that image uses.
+MODIFIER_STRINGS_VA = 0x00DA4800
+
+
+def stock_modifier_name(index: int) -> str:
+    """The name the synthetic modifier-type table carries at ``index``: the real one where the
+    patch fingerprints it, an index-derived placeholder everywhere else."""
+    return ps.TABLE_FINGERPRINT.get(index, f"MODTYPE_{index}")
+
+
+def binary_attest_image(text_va: int = ad.TEXT_SECTION_VA) -> bytearray:
+    """A stand-in carrying a full-size `.text` plus the two sites `binary-attest` reads.
+
+    **Not sparse, and it cannot be.** Every other stand-in here maps only the pages its patch
+    touches, because the addresses are what the test is about. This patch's subject is the
+    *whole* code section: it hashes `TEXT_SECTION_LEN` bytes and the property under test is that
+    one changed byte anywhere in that range changes the published value. A sparse image would
+    read past its own section and answer a different question.
+
+    The content is a cheap deterministic filler rather than zeros, so that a fold over it is a
+    real mixing test - an all-zero range makes FNV-1a's `xor` a no-op and would hide a swapped
+    operand. `text_va` is a parameter so a test can build the "`.text` moved" build that the
+    patch must refuse.
+    """
+    text = bytearray(ad.TEXT_SECTION_LEN)
+    for index in range(0, ad.TEXT_SECTION_LEN, 4):
+        struct.pack_into("<I", text, index, (index * 2654435761) & 0xFFFFFFFF)
+
+    def plant(va: int, blob: bytes) -> None:
+        start = va - text_va
+        assert 0 <= start and start + len(blob) <= len(text), f"0x{va:08x} is outside .text"
+        text[start : start + len(blob)] = blob
+
+    plant(ad.LOGIC_CRC_EMIT, ad.LOGIC_CRC_EMIT_BYTES)
+    plant(ad.LOGIC_CRC_SHROUD_XFER, ad.LOGIC_CRC_SHROUD_XFER_BYTES)
+    return _pe32(
+        [(".text", text_va - IMAGE_BASE, bytes(text))],
+        text_va - IMAGE_BASE + ad.TEXT_SECTION_LEN,
+    )
+
+
+#: Where the `lifetime-extend-upgrade` stand-in parks the five field-name strings: a page in the
+#: same region as the table that points at them, and one nothing else in that image uses.
+LIFETIME_STRINGS_VA = 0x00C32800
+
+
+def lifetime_extend_upgrade_image() -> bytearray:
+    """A stand-in carrying every site `lifetime-extend-upgrade` reads or rewrites.
+
+    Sparse for the usual reason: the module's three functions, its factory thunk, the two mask
+    predicates, the sleepy-update driver and the client's timer widget are spread over most of five
+    megabytes and the patch touches a dozen pages of it. Everything not planted reads as zero, so
+    a hook aimed one instruction to either side of where it claims to be would find nothing there.
+
+    The field table is built here from the patch's own `STOCK_FIELDS` rather than pasted as a hex
+    blob, because what the table has to survive is being *copied* - the test that matters is that
+    the five rows come out of the cave unchanged, and a blob would only ever agree with itself.
+    """
+    strings = bytearray()
+    rows = bytearray()
+    for name, offset in lex.STOCK_FIELDS:
+        name_va = LIFETIME_STRINGS_VA + len(strings)
+        strings += name.encode("ascii") + b"\x00"
+        # `parse` and `userData` are not read by the patch (the rows are copied verbatim), so a
+        # recognisable filler stands in for everything but the offset the fingerprint checks.
+        rows += struct.pack("<IIII", name_va, 0x00730000 + offset, 0, offset)
+    rows += bytes(16)  # the terminator the patch requires before it will copy anything
+
+    return _sparse_image(
+        {
+            **lex.ANCHORS,
+            lex.ALLOC_VA: lex.ALLOC_BYTES,
+            lex.ARM_VA: lex.ARM_BYTES,
+            lex.UPDATE_VA: lex.UPDATE_BYTES,
+            lex.LATCH_DEFAULT_VA: lex.LATCH_DEFAULT_BYTES,
+            # `buildFieldParse`, whose one imm32 is the table's only reference in the image
+            0x007A7DFA: bytes.fromhex("8b4c24046a00")
+            + b"\x68"
+            + struct.pack("<I", lex.FIELD_TABLE_VA)
+            + bytes.fromhex("e8cd3ac8ffc3"),
+            lex.FIELD_TABLE_VA: bytes(rows),
+            LIFETIME_STRINGS_VA: bytes(strings),
+        }
+    )
+
+
+def production_split_image() -> bytearray:
+    """A stand-in carrying every site `production-split` reads or rewrites, plus the
+    modifier-type name table and the strings its pointers reach.
+
+    Sparse for the usual reason: the eight modifier sites, the name walk and the two callees are
+    spread over most of a megabyte and the patch touches a dozen pages of it. The AI windows are
+    planted whether or not the test hooks them, so the opt-in and the default run against the
+    same image.
+
+    The table is built here rather than copied as a hex blob so that the placeholder names differ
+    from the four the patch fingerprints - a check that read the wrong index would find
+    ``MODTYPE_13`` where it expected ``PRODUCTION``.
+    """
+    strings = bytearray()
+    pointers = []
+    for index in range(ps.STOCK_TYPE_COUNT):
+        pointers.append(MODIFIER_STRINGS_VA + len(strings))
+        strings += stock_modifier_name(index).encode("ascii") + b"\x00"
+    return _sparse_image(
+        {
+            **ps.ANCHORS,
+            **ps.AI_ANCHORS,
+            MODIFIER_STRINGS_VA: bytes(strings),
+            ps.TYPE_TABLE_VA: struct.pack(f"<{len(pointers) + 1}I", *pointers, 0),
+        }
+    )

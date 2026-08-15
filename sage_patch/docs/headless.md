@@ -1,15 +1,21 @@
 # Running the game headless
 
-Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR). Static
-derivation only — capstone over the image, no runtime observation.
+> ⚠ **Experimental.** This patch is **unstable and largely untested** — it lives in
+> [`patches/experimental/`](../patches/experimental/), `sage-patch list` marks it `exp`, and
+> `sage-patch apply` warns before it writes. The status note below says how far it actually
+> got; see the README's [Experimental patches](../README.md#-experimental-patches) note before
+> applying it.
+
+Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR). Derived
+statically — capstone over the image — and confirmed in game.
 
 - **Cost:** one cave (`.hless`, 0x190 bytes), two byte edits in the command-line caller, one
   11-byte redirect at the draw call.
 - **Risk:** low for what is built (§3a–c); §3d, the skirmish setup, is the real work and rests on
   a `GameInfo` layout nobody has mapped yet.
-- **Status:** §3a–c **built** — see [`patches/headless.py`](../patches/headless.py). §3d and §3e
-  are **scoped only**; §3d is blocked on question 2 in [Open](#open). **Not yet runtime-verified
-  in game.**
+- **Status:** §3a–c **built** — see [`patches/experimental/headless.py`](../patches/experimental/headless.py). §3d and §3e
+  are **scoped only**; §3d is blocked on question 2 in [Open](#open). **Runtime-verified in
+  game.**
 
 ```sh
 sage-patch apply headless --in game.dat.backup --out game.dat   # no parameters

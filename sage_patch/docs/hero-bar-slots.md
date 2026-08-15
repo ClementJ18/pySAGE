@@ -364,6 +364,13 @@ de-duplicated — each instance takes its own slot. Nothing corrupts and nothing
 degrades past 16 *kinds*. Widening that set is a one-constant change in `herobar`'s cave if the
 pair is ever shipped together.
 
+Its click cursor is 16 dwords in the same cave and clamps the same way, indexed by slot rather
+than by template: a group drawn in slot 17 or beyond reads and writes no cursor, so every click on
+it selects the group's first member instead of stepping to the next. Same one constant.
+
+Both only concern `herobar --grouped`. The default `herobar` keeps no state at all and is
+indifferent to how wide the bar is.
+
 ## 9. Key addresses
 
 | VA | meaning |

@@ -62,10 +62,10 @@ from __future__ import annotations
 
 import struct
 
-from ..addresses import OBJECT_PRODUCER_ID, OBJECT_TEST_STATUS, THE_GAME_LOGIC
-from ..asm import JE, Asm
-from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...addresses import OBJECT_PRODUCER_ID, OBJECT_TEST_STATUS, THE_GAME_LOGIC
+from ...asm import JE, Asm
+from ...patcher import Patch
+from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "FALLBACK_BYTES",
@@ -251,6 +251,7 @@ class HordeOrphanTargetPatch(Patch):
 
     name = "horde-orphan-target"
     author = "officialNecro"
+    experimental = True
     description = "Make units stranded by a broken battalion attackable again"
 
     def apply(self, data: bytearray) -> None:

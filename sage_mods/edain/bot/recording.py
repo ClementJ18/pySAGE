@@ -21,7 +21,6 @@ from __future__ import annotations
 import ctypes
 import sys
 import time
-from ctypes import wintypes
 
 from sage_live.backends.memory import find_game_processes
 
@@ -41,23 +40,29 @@ _INPUT_KEYBOARD = 1
 _HOLD = 0.05
 
 
+# Fixed-width types rather than `ctypes.wintypes`, which is only accidentally right here: it
+# spells `DWORD` as `c_ulong` and `LONG` as `c_long`, both of which are 8 bytes on a 64-bit Linux
+# host and 4 on Windows. Windows defines these as exactly 32 and 16 bits, so saying so gives the
+# layout Windows demands on whatever machine reads this file - which is what lets the size test
+# below guard the layout on a Linux CI runner instead of measuring that runner's own C compiler.
+# `dwExtraInfo` is `ULONG_PTR`, pointer-sized by definition, so a pointer type is right as-is.
 class _MOUSEINPUT(ctypes.Structure):
     _fields_ = [
-        ("dx", ctypes.c_long),
-        ("dy", ctypes.c_long),
-        ("mouseData", wintypes.DWORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
+        ("dx", ctypes.c_int32),
+        ("dy", ctypes.c_int32),
+        ("mouseData", ctypes.c_uint32),
+        ("dwFlags", ctypes.c_uint32),
+        ("time", ctypes.c_uint32),
         ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
     ]
 
 
 class _KEYBDINPUT(ctypes.Structure):
     _fields_ = [
-        ("wVk", wintypes.WORD),
-        ("wScan", wintypes.WORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
+        ("wVk", ctypes.c_uint16),
+        ("wScan", ctypes.c_uint16),
+        ("dwFlags", ctypes.c_uint32),
+        ("time", ctypes.c_uint32),
         ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
     ]
 
@@ -73,7 +78,7 @@ class _INPUTUNION(ctypes.Union):
 
 
 class _INPUT(ctypes.Structure):
-    _fields_ = [("type", wintypes.DWORD), ("u", _INPUTUNION)]
+    _fields_ = [("type", ctypes.c_uint32), ("u", _INPUTUNION)]
 
 
 def obs_running() -> bool:

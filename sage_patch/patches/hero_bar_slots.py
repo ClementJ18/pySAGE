@@ -79,10 +79,13 @@ every peer, and replays cross between patched and stock builds.
 writes. It shares a function with `herobar` but not a byte: that patch's detours sit at
 `0x0092D36F`/`0x0092D3EE` (the draw loop) and `0x0092DBD6` (the click), while the nearest sites
 here are `0x0092D3E5` and `0x0092DBC8`, three and eight bytes clear respectively. The one thing
-worth naming is behavioural rather than structural: `herobar`'s per-pass "already drawn" set is
-16 dwords in its own cave, and it *clamps* rather than overflows (`cmp eax,16 ; jae`), so on a
-bar wider than 16 the 17th and later distinct `HEROBAR` templates stop being de-duplicated - each
-instance takes its own slot. Nothing corrupts; grouping just degrades past 16 kinds.
+worth naming is behavioural rather than structural, and only for `herobar --grouped`: its
+per-pass "already drawn" set is 16 dwords in its own cave, and it *clamps* rather than overflows
+(`cmp eax,16 ; jae`), so on a bar wider than 16 the 17th and later distinct `HEROBAR` templates
+stop being de-duplicated - each instance takes its own slot. Its per-slot click cursor is 16
+dwords too and clamps the same way, so a group in slot 17 or beyond selects its first member on
+every click instead of stepping to the next. Nothing corrupts; grouping degrades past 16 kinds
+and stepping past 16 slots. The default `herobar` keeps no state and is indifferent to the width.
 """
 
 from __future__ import annotations

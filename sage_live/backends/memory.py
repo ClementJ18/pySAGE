@@ -69,6 +69,9 @@ from sage_live.backends.protocol import Diagnostic, DiagnosticLog, Handshake
 from sage_live.backends.shroud import ShroudGrid, read_shroud
 from sage_patch.addresses import (
     BUILD,
+    GLOBAL_DATA,
+    GLOBAL_DATA_FPS_LIMIT,
+    GLOBAL_DATA_USE_FPS_LIMIT,
     IMAGE_BASE,
     OBJECT_MODULE_LIST,
     OBJECT_PRODUCER_ID,
@@ -78,6 +81,7 @@ from sage_patch.addresses import (
     OBJECT_STATUS_NAMES,
     PRODUCTION_UPDATE_VTABLE,
     SHROUD_CELL_SIZE,
+    SHROUD_CELL_STRIDE,
     SHROUD_CELLS,
     SHROUD_CELLS_X,
     SHROUD_CELLS_Y,
@@ -86,9 +90,13 @@ from sage_patch.addresses import (
     SHROUD_INV_CELL_SIZE,
     SHROUD_ORIGIN_X,
     SHROUD_ORIGIN_Y,
+    SHROUD_RECORD_BASE,
+    SHROUD_RECORD_STRIDE,
     THE_GAME_LOGIC,
+    THE_IN_GAME_UI,
     THE_MESSAGE_STREAM,
     THE_PLAYER_LIST,
+    THE_SCIENCE_STORE,
     THE_SHROUD_MANAGER,
     THE_SPECIAL_POWER_STORE,
     THE_THING_FACTORY,
@@ -151,6 +159,12 @@ class EngineLayout:
     shroud_cells_y: int = SHROUD_CELLS_Y
     shroud_cells: int = SHROUD_CELLS
     shroud_fog_enabled: int = SHROUD_FOG_ENABLED
+    # The cell's own geometry, which `sage_live.backends.shroud` reads through directly and a
+    # writer needs by name: one cell is `0xA8` bytes, a 4-byte head then 20 eight-byte
+    # per-player records whose first `u16` is that seat's shroud level.
+    shroud_cell_stride: int = SHROUD_CELL_STRIDE
+    shroud_record_base: int = SHROUD_RECORD_BASE
+    shroud_record_stride: int = SHROUD_RECORD_STRIDE
 
     # PlayerList, from PlayerList::getNthPlayer
     pl_local_player: int = 0x10
@@ -158,10 +172,37 @@ class EngineLayout:
     pl_array: int = 0x18
     pl_max_players: int = 20
 
+    # InGameUI's selected-drawable list, which is what "my current selection" means. Read out of
+    # the engine's own accessor rather than searched for: `getAllSelectedDrawables` is virtual
+    # slot `+0x124` (the slot `multi-execute-gate.md` documents the ControlBar calling), and the
+    # function it points at is three bytes - `8d 41 20 c3`, `lea eax, [ecx+0x20]; ret`. So it
+    # returns the address of a member at `+0x20`, and that member is an MSVC `std::list` head:
+    # `*(InGameUI+0x20)` is the sentinel node, each node is `{next, prev, Drawable *}`, and an
+    # empty selection is a sentinel whose `next` is itself.
+    #
+    # This is **client state, not simulation state.** It is what this machine has selected and no
+    # part of the lockstep model, which is why it is safe to read and meaningless to compare
+    # across machines.
+    the_in_game_ui: int = THE_IN_GAME_UI
+    ui_selected_drawables: int = 0x20
+    list_node_value: int = 0x08
+    # A selection larger than this is a bad walk rather than a big army.
+    max_selection: int = 4096
+
     # Player
     player_display_name: int = 0x38
     player_name: int = 0x4C
     player_side: int = 0x58
+    # The seat's `PlayerTemplate`, which is where the *faction* is - `player_side` is the broad
+    # side and several factions share one. Measured live (2026-08-13) on a two-seat match: both
+    # seats read side `Men` while the template read `Gondor`, and walking the neighbouring
+    # templates gave the matching pairs `Civilian`/`Civilian`, `Dwarves`/`Dwarves` and
+    # `Evil Men`/`Evilmen` - the space in that last one is what says `+0x14` is the *display*
+    # name rather than an internal one. It is a UnicodeString; `+0x18` is the side again, as an
+    # AsciiString, and is what confirmed the two fields belong to the same object.
+    player_template: int = 0x34
+    template_faction: int = 0x14
+    template_side: int = 0x18
     player_resources: int = 0x94
     player_resources_collected: int = 0x3E0
     # Spellbook points. Found by granting points with the sandbox hero and then *spending*
@@ -200,6 +241,72 @@ class EngineLayout:
     # store carries 263 entries on RotWK 2.01 + Edain and a seat holds a handful of them, so
     # this is loose by two orders of magnitude on purpose - it is a sanity limit, not a count.
     max_sciences: int = 1 << 12
+    # `TheScienceStore`, the fourth id space, and the one that stays **unnamed**. It has the
+    # same `std::vector` shape as the special-power store - `{begin, end, capacity}` at `+0x0C`
+    # - and holds exactly the 263 entries the ini defines, but its elements are separately
+    # allocated at *different sizes*, so no fixed offset reads a name off one. What the vector
+    # does give is the **count**, and a count is what bounds a science id: the ids the engine
+    # holds are `game.sciences` index + 1 (`sage_replay.idspace.SCIENCE_OFFSET`), so a valid id
+    # runs 1..count and anything past that is a typo rather than a science. That is the whole
+    # of what is read here - naming a science still means reconstructing the space from ini
+    # through `sage_live.utils.resolve`.
+    the_science_store: int = THE_SCIENCE_STORE
+    sc_vector: int = 0x0C
+
+    # `TheWritableGlobalData`, and the pair of `GameData` fields that pace the main loop. Both
+    # are ordinary ini fields - the field-parse table at `0x00BFF580` maps `UseFPSLimit` to
+    # `+0x26` and `FramesPerSecondLimit` to `+0x28` - and **the engine writes both of them at
+    # runtime itself**: `0x0062C6FF` is `[GlobalData+0x28] = 10000; [GlobalData+0x26] = 0`,
+    # which is the engine's own idiom for taking the cap off.
+    #
+    # `+0x26` is not read where it is paced, though; it is copied into a loop-local flag at
+    # `0x0063A01B` (`mov al, [GlobalData+0x26]; mov [0x00DE4320], al`), and that flag is what
+    # gates the throttle: `0x0063A18E` compares it against zero and jumps clean over the frame
+    # pacing block at `0x0063A196` when it is unset. Several other sites in the same function
+    # force the flag either way on their own conditions, so it is **recomputed every frame** and
+    # a writer that wants it to stay unset has to re-apply every frame rather than write once.
+    # The cached flag is carried here beside the two ini fields for that reason.
+    the_global_data: int = GLOBAL_DATA
+    gd_use_fps_limit: int = GLOBAL_DATA_USE_FPS_LIMIT  # one byte
+    gd_fps_limit: int = GLOBAL_DATA_FPS_LIMIT
+    gd_fps_limit_flag: int = 0x00DE4320  # the loop's own copy, recomputed per frame
+
+    # `Object::m_experienceTracker`, and the tracker's own fields. The pointer is documented in
+    # `sage_patch/docs/terrain-resource-exp.md` (accessor `mov eax,[ecx+0x26c]; ret` at
+    # `0x008D7C63`); the fields below were read out of the tracker's own methods.
+    #
+    # `ExperienceTracker::addExperiencePoints` (`0x0079D68D`, the real body behind the sponsor
+    # walking wrapper at `0x0079D833`) ends:
+    #
+    #     0079d6e6  movss xmm1, [ecx+0x10]      ; the experience points
+    #     0079d6ee  addss xmm1, xmm0
+    #     0079d6f2  movss [ecx+0x10], xmm1
+    #     0079d6f7  call 0x79d141               ; the level-up cascade
+    #
+    # and it opens by refusing to grant at all when the level is capped, which is what names
+    # the other two:
+    #
+    #     0079d69e  mov  eax, [ecx+0x28]        ; max level, 0 when uncapped
+    #     0079d6a1  cmp  eax, edx               ; edx = 0
+    #     0079d6a3  jle  0x79d6aa               ; no cap: skip the test
+    #     0079d6a5  cmp  [ecx+0x24], eax        ; current level
+    #     0079d6a8  jge  0x79d6fc               ; at the cap: grant nothing
+    #
+    # `+0x24` is corroborated by the cascade itself, which returns it when nothing levelled and
+    # otherwise returns the reached `ExperienceLevel`'s own `+0xFC` - so the two are the same
+    # kind of number - and by the setter at `0x0079D72A` (`mov [ecx+0x24], eax`).
+    #
+    # **The cascade is only ever reached from a grant.** `0x0079D141` has three callers
+    # (`0x0079D6F7` here, `0x0079D92F` in the engine's own `set experience and level`, and one
+    # in the campaign block), and nothing polls it. So experience written from outside sits in
+    # `+0x10` until the object next gains any, at which point the engine levels it the whole way
+    # through its own path. That is a property a writer can rely on rather than work around: set
+    # the points and let the next grant run the cascade.
+    obj_experience_tracker: int = 0x26C
+    xt_experience: int = 0x10  # float
+    xt_scalar: int = 0x1C  # float, the multiplier applied to incoming grants
+    xt_level: int = 0x24
+    xt_max_level: int = 0x28
     # Command points, as (in use, cap). `+0x068` was confirmed by recruiting a horde: 120 -> 180.
     #
     # **`+0x064` is the *base* cap and excludes every bonus.** It reads a flat 500 for every
@@ -224,10 +331,28 @@ class EngineLayout:
     # finished and never crossed the sum, and the Mordor seat's bonus stepped 600 -> 800 mid
     # sample, which is a `CPObject` completing.
     #
-    # `+0x070` reads a flat 1500 for every seat, engine-managed ones included, and never moves.
-    # That has the shape of the absolute maximum the engine will allow rather than anything
-    # per-player, so it is recorded here and deliberately not applied: clamping to a number
-    # whose meaning is inferred would trade a measured ceiling for a guessed one.
+    # **`+0x070` is a hard ceiling over the sum, and it is enforced.** It reads a flat 1500 for
+    # every seat, engine-managed ones included, and never moves - which is why it was first
+    # recorded here as an inferred maximum and deliberately not applied. It is no longer
+    # inferred. `Player::getCommandPointCap` (`0x006A7B9F`, called on `Player+0x60`) ends:
+    #
+    #     006a7ba4  mov   ebx, [esi+0x0c]     ; +0x6C, the bonus
+    #     006a7bad  add   ebx, [esi+0x04]     ; +0x64, the base
+    #     ...                                 ; a filtered vector at +0x80/+0x84 adds more
+    #     006a7bf2  mov   esi, [esi+0x10]     ; +0x70
+    #     006a7bf5  cmp   ebx, esi
+    #     006a7bf7  cmovg ebx, esi            ; cap = min(base + bonus + extras, +0x70)
+    #
+    # and `hasEnoughCommandPoints` (`0x006A7F79`) - the gate that answers verdict 7 in
+    # `queue-ignore-cp.md` - compares `+0x68 + template->CommandPoints` against that return. So a
+    # raised bonus that pushes the sum past `+0x70` buys nothing: measured live on 2026-08-13, a
+    # seat written to base 500 + bonus 6000 recruited as though capped at 1500, and writing
+    # `+0x70` to 9000 moved the readout to the sum. Anything raising the ceiling must write both.
+    #
+    # The vector at `+0x80`/`+0x84` (stride 0xC, value at `+0x0`, an `ObjectFilter` at `+0x8`) is
+    # the third term. Entries whose filter is unset always count; the rest are asked. Evaluating
+    # a filter means calling the engine, so nothing here reads it - a ceiling computed from the
+    # two flat fields is a lower bound on the real one, not the whole of it.
     #
     # **Not covered by the snapshot fixture.** That capture predates this field, so `+0x06C`
     # reads unreadable there and falls back to zero - which happens to be the right answer for
@@ -237,6 +362,7 @@ class EngineLayout:
     player_command_points_used: int = 0x68
     player_command_points_cap: int = 0x64
     player_command_points_bonus: int = 0x6C
+    player_command_points_hard_cap: int = 0x70
     # The player's own Team. Ownership on an Object is a Team*, not a player index, so the
     # only way from an object to its owner is to invert this.
     player_default_team: int = 0x30C
@@ -385,6 +511,13 @@ class EngineLayout:
     obj_list_next: int = 0x8C
     obj_list_prev: int = 0x90
     obj_body: int = 0x25C
+    # The object's `Drawable`, and the drawable's way back. Only the reverse link is needed to
+    # turn a selection into objects, but both were measured together and the pair is what makes
+    # either trustworthy: the selected drawable was found by searching the whole object table for
+    # the pointer, which landed on exactly one object (a `GondorTrebuchet`, 2026-08-13), and that
+    # object's own address appears in the drawable at `+0xFC`.
+    obj_drawable: int = 0x84
+    drawable_object: int = 0xFC
     # How much of an `Object` one read takes. Sized to reach past the last field read inline -
     # the team pointer at `+0x31C` - so a single read serves the whole header, upgrade mask
     # included. Widening it costs bytes; narrowing it silently reintroduces per-field reads
@@ -416,6 +549,48 @@ class EngineLayout:
     entry_template: int = 0x08
     entry_upgrade: int = 0x0C
     entry_next: int = 0x48
+    # How far along this entry is, as three floats the engine writes together every logic frame.
+    # `ProductionUpdate::update` (`0x008A1B9F`, and see `production-model-condition.md` §5) ticks
+    # the head entry like this, with `ebx` the entry and `eax` the entry's build time in frames:
+    #
+    # ```
+    # 008a1ebc  movss xmm0, [0xbd1908]      ; 1.0 - one frame's worth
+    # 008a1ed6  call  0x68c82d              ; scaled by the object's own production bonus
+    # 008a1edb  movss xmm0, [ebx+0x1c]
+    # 008a1ee0  addss xmm0, [ebp-0x68]      ; progress += that step
+    # 008a1ee9  movss [ebx+0x1c], xmm0
+    # 008a1eee  call  0x8a04da              ; eax = build time, in frames
+    # 008a1ef7  movss xmm1, [0xbd88d8]      ; 100.0
+    # 008a1eff  movss xmm0, [ebx+0x1c]
+    # 008a1f04  cvtsi2ss xmm2, eax
+    # 008a1f08  divss xmm0, xmm2
+    # 008a1f0f  mulss xmm0, xmm1            ; progress / buildTime * 100
+    # 008a1f13  divss xmm3, xmm2            ; 100 / buildTime
+    # 008a1f17  movss [ebx+0x14], xmm0
+    # 008a1f1c  movss [ebx+0x18], xmm3
+    # 008a1f6b  comiss xmm0, xmm1           ; done at >= 100.0
+    # ```
+    #
+    # So `entry_progress` is the accumulator that actually decides completion, and the other two
+    # are recomputed from it - a reader wanting "how far along" should read `entry_percent`, and
+    # anything wanting to *move* production has to move `entry_progress`.
+    #
+    # **`entry_percent_per_frame` carries the build time with it**: it is `100 / buildTime`, so
+    # the frames an entry still needs is `(100 - percent) / percent_per_frame` with no ini load
+    # and no engine call. It reads 0.0 on an entry the engine has not ticked yet, which is the
+    # one state where all three are meaningless together.
+    #
+    # The step at `+0x1C` is one frame *before* the bonus at `0x68c82d` scales it, which is why
+    # progress is a float rather than the frame count it looks like: a production-speed bonus
+    # makes it advance by fractions.
+    #
+    # Corroborated by the module's own serializer, `ProductionUpdate::xfer` at `0x008A3111`,
+    # which walks the same queue and xfers `+0x14` and `+0x18` through the `Xfer` slot used for
+    # `Real` and treats `+0x1C` as a float it converts (`cvttss2si` / `cvtsi2ss`) around the
+    # save format's integer field.
+    entry_percent: int = 0x14
+    entry_percent_per_frame: int = 0x18
+    entry_progress: int = 0x1C
     # A queue longer than this means a corrupt read rather than a real structure - refuse rather
     # than spin.
     max_queue: int = 64
@@ -429,7 +604,15 @@ class EngineLayout:
     # stopping at 64 of its ~140 modules.
     production_scan: int = 64
 
-    # AsciiString: {u32 refcount; u32 allocated; char chars[]}
+    # AsciiString / UnicodeString: {u32 refcount; u16 length; u16 allocated; chars[]}, where
+    # both counts are in **characters** - so a UnicodeString's body is `length * 2` bytes.
+    #
+    # The half-word split was measured live (2026-08-13) rather than assumed: read as one u32,
+    # `+0x4` gives 786440 for `Player_1` and 262147 for `Men`, which are `0x000C0008` and
+    # `0x00040003` - the low half is the exact character count every time, and the high half is
+    # the allocation that count fits in. A reader that trusts the whole word sees a length of
+    # three quarters of a million and refuses the string.
+    string_length: int = 4
     string_chars: int = 8
 
 

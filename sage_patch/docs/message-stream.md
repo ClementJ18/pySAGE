@@ -352,6 +352,66 @@ this game the in-memory `PlayerList` index was **3** and the replay recorded **p
 data point: it may be a constant −1, or the replay may simply not number a leading slot. Do
 not assume one index works in both spaces until a game with a different slot says which.
 
+## 4d. The call command (`--cheats`) — the things orders cannot reach
+
+Recovered 2026-08-13 from a running match; implemented as the third `.livebrg` command, emitted
+only when `sage-patch apply live-bridge --cheats` is given.
+
+**Why an order is not enough.** An order is a request the simulation may refuse, and the whole
+list of them is what a human could have clicked. Several things a debugger wants are neither:
+they are engine *code* with no message behind them.
+
+- **Death.** Health is a value and can be written; dying is not. `ActiveBody::attemptDamage` is
+  what decides an object has died, and nothing polls the health field afterwards — a unit poked
+  to zero was measured **still in the object table 400 frames later**, still selectable.
+- **Typed damage.** A damage type only means something inside the damage resolution that looks
+  it up against the target's armor. Subtracting from health cannot apply one.
+- **Upgrade effects.** The `Object+0x28C` bitset can be set directly, but the effect an upgrade
+  grants is applied once, by the module that grants it. Measured A/B on two barracks in one
+  match: the level-1 control read `Upgrade_StructureLevel1` and 3500 max health, the upgraded one
+  `Upgrade_StructureLevel2` + `Upgrade_GondorStructureLevel2` and 5000. Setting the bit alone
+  produces a structure that claims the upgrade at 3500 health.
+
+**The command.** `mode` picks between calling `target` as an address and calling the slot
+`target` bytes into `this`'s vtable; `argc` arguments are pushed right-to-left; `cleanup` is
+added back to `esp` after the call (0 for the engine's `__thiscall`/`__stdcall`, `argc * 4` for
+`__cdecl`); `result` takes `eax` and is written **before** `ready` is cleared, so a reader that
+sees the flag drop is looking at this call's return value. A `scratch` area follows, because the
+calls worth making take a structure and an external writer has nowhere in the game's heap it may
+safely build one.
+
+**`BodyModule::attemptDamage` is vtable slot 0**, which is why the vtable mode exists. Every
+damageable body vtable in a live match points slot 0 at `0x008C3FA3` or at a subclass that
+tail-calls it:
+
+| vtable | count | example | slot 0 |
+|---|---|---|---|
+| `0x00C720F0` | 910 | `GondorBuildingIthilien48` | `0x008C3FA3` |
+| `0x00C72E58` | 45 | `GondorSpearman` 411/446 | `0x008C63C4` → `0x008C3FA3` |
+| `0x00C72430` | 8 | `GondorBeregond` 4500/4500 | `0x008C3FA3` |
+| `0x00C718C8` | 42 | `FarmTemplate` 0/0 | `0x008C1A75` — **immortal, discards damage** |
+
+Dispatching through the object's own vtable rather than calling `0x008C3FA3` directly is what
+keeps that last row honest: an immortal body goes on refusing damage instead of being fed a
+subclass's implementation it never had.
+
+**`DamageInfo`**, as far as the two implementations establish it:
+
+| offset | meaning | evidence |
+|---|---|---|
+| `+0x10` | damage **type** | `cmp [eax+0x10], 7` diverts to `attemptHealing` (slot 4); `cmp ecx, 8` is the type an immortal body still honours |
+| `+0x20` | **amount** | an indestructible body clamps exactly this field to "max health − 1" before passing the struct on |
+| `+0x70`, `+0x74` | damage dealt / clipped, written by the engine | both zeroed on entry by each implementation |
+| `+0x78` | a bool the engine writes back | set to 1 on the rejection path, 0 when honoured |
+
+The output fields are a bonus worth naming: after the call a caller can read what *actually*
+landed after armor, rather than what it asked for.
+
+**This is an arbitrary call into a running process**, on the logic thread, inside a frame — which
+is why it is opt-in per binary rather than always present, and why a plain build is byte-for-byte
+unchanged by its existence. It also breaks the rule §4a states for orders: a direct logic call is
+not network-ordered and **will desync a multiplayer match**. It is for offline debugging.
+
 ## 5. What this unblocks
 
 - **OPEN 10 is closed.** Every order type in the corpus now has an authoritative engine name.
