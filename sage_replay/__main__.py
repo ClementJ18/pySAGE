@@ -55,6 +55,11 @@
   verdict may be `undetermined` (see `winner.py`). `winner` and `aggregate` take
   `--winner-pov`: assume the recording player's team won any game the stream leaves
   undetermined (for corpora whose replays belong to the winner).
+- `annotations <replay>` - the records a recording client carrying `sage_patch`'s
+  `replay-annotations` patch wrote into the file: the manifest saying what that build records,
+  and each player's engine-counted score - units and structures built, lost and destroyed (per
+  opponent), money earned and spent. A replay from an unpatched client carries none, and says
+  so rather than printing an empty table (see `annotations.py`).
 - `coverage <replay|dir>...` - the format-coverage dashboard: distinct values of every
   still-opaque surface (header reserved blocks, unnamed order ids, raw slot fields,
   untyped metadata keys) across a corpus. `--strict` exits non-zero on any deviation from
@@ -80,6 +85,7 @@ from sage_replay.aggregate import (
     render_aggregate_html,
     render_aggregate_markdown,
 )
+from sage_replay.annotations import SCORE_FIELDS, manifest, player_scores
 from sage_replay.coverage import audit, diff_replays
 from sage_replay.ids import (
     AlignRow,
@@ -862,6 +868,108 @@ def _run_winner(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_annotations(args: argparse.Namespace) -> int:
+    """The annotation records a patched recording client wrote into the replay. A replay from
+    an unpatched client carries none, which is reported as such rather than as an empty table -
+    the two mean different things."""
+    replay = parse_replay_from_path(args.replay)
+    declared = manifest(replay)
+    scores = player_scores(replay)
+
+    if args.json:
+        payload = {
+            "manifest": (
+                None
+                if declared is None
+                else {
+                    "schema_version": declared.schema_version,
+                    "kinds": declared.kinds,
+                    "writer_id": declared.writer_id,
+                    "writes_player_scores": declared.writes_player_scores,
+                    "recorded_at": declared.recorded_at,
+                }
+            ),
+            "scores": [
+                {
+                    "slot_index": score.slot_index,
+                    "name": score.slot.human_name,
+                    "schema_version": score.schema_version,
+                    "recorded_at": score.recorded_at,
+                    **{
+                        name: (
+                            list(getattr(score, name))
+                            if isinstance(getattr(score, name), tuple)
+                            else getattr(score, name)
+                        )
+                        for name, _, _ in SCORE_FIELDS
+                    },
+                    "destroyed_by_slot": {
+                        str(index): {"units": units, "structures": structures}
+                        for index, (units, structures) in score.destroyed_by_slot(replay).items()
+                    },
+                }
+                for score in sorted(scores.values(), key=lambda s: s.slot_index)
+            ],
+        }
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    if declared is None and not scores:
+        print(
+            "No annotations: this replay was not recorded by a client carrying "
+            "the replay-annotations patch."
+        )
+        return 0
+    if declared is not None:
+        print(
+            f"Manifest: schema v{declared.schema_version}, writer 0x{declared.writer_id:08x}, "
+            f"at frame {declared.recorded_at}"
+        )
+        if not declared.writes_player_scores:
+            print("  the recording build does not write player scores")
+    if not scores:
+        print("Scores:   none recorded")
+        return 0
+
+    print("Scores:   (counted by the engine, not read off the order stream)")
+    for score in sorted(scores.values(), key=lambda s: s.slot_index):
+        name = score.slot.human_name or f"slot {score.slot_index}"
+        print(f"  {name}")
+        print(
+            f"    units       built {score.units_built:5d}  lost {score.units_lost:5d}  "
+            f"destroyed {score.total_units_destroyed:5d}  alive {score.units_alive:5d}"
+        )
+        print(
+            f"    structures  built {score.structures_built:5d}  lost {score.structures_lost:5d}"
+            f"  destroyed {score.total_structures_destroyed:5d}  alive {score.structures_alive:5d}"
+        )
+        print(
+            f"    money      earned {score.money_earned:5d}  spent {score.money_spent:5d}"
+            + (f"  balance {score.resources}" if score.resources is not None else "")
+            + (f"  defeated at frame {score.end_frame}" if score.end_frame else "")
+        )
+        # Schema v2 only, so a record from the first shipped build prints nothing here.
+        if score.command_points_used is not None:
+            ceiling = score.command_point_ceiling
+            print(
+                f"    command pts {score.command_points_used:5d} of at least {ceiling}"
+                f"  (base {score.command_points_cap} + bonus {score.command_points_bonus},"
+                f" hard cap {score.command_points_hard_cap})"
+            )
+        if score.power_points is not None:
+            print(
+                f"    spellbook  points {score.power_points:5d} unspent"
+                f"  of {score.power_points_total} earned"
+            )
+        if score.faction_name_key:
+            print(f"    faction    name key {score.faction_name_key} (resolved, not the lobby id)")
+        for index, (units, structures) in sorted(score.destroyed_by_slot(replay).items()):
+            victim = replay.header.metadata.players[index]
+            label = victim.human_name or f"slot {index}"
+            print(f"      took from {label:16s} {units:4d} units  {structures:4d} structures")
+    return 0
+
+
 def _run_coverage(args: argparse.Namespace) -> int:
     if args.diff is not None:
         a = parse_replay_from_path(args.diff[0])
@@ -1079,6 +1187,14 @@ def main(argv: list[str] | None = None) -> int:
     _add_winner_pov(winner_parser)
     winner_parser.add_argument("--json", action="store_true")
     winner_parser.set_defaults(func=_run_winner)
+
+    annotations_parser = subparsers.add_parser(
+        "annotations",
+        help="the score records a patched recording client wrote into the replay",
+    )
+    annotations_parser.add_argument("replay", type=existing_file)
+    annotations_parser.add_argument("--json", action="store_true")
+    annotations_parser.set_defaults(func=_run_annotations)
 
     coverage_parser = subparsers.add_parser(
         "coverage",

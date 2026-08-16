@@ -87,6 +87,18 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   chunk per player, written straight to the recorder's own file handle just before the `0x1D`
   end-of-recording marker. Client-local: nothing enters the simulation and nothing crosses the
   network, so it does **not** have to be on every peer. **Runtime-verified** on all three endings.
+- **`replay-annotations`** writes **each player's score-screen counters into the replay**: units
+  and structures built, lost and destroyed, money earned and spent, and the army and base size at
+  the closing frame. The engine keeps all of it in a `ScoreKeeper` embedded at `Player+0x3DC` and
+  never records a byte of it, so a corpus can count what players *did* but not what it cost them.
+  The two destroyed counters are `Int[20]` arrays indexed by the **victim's** `m_playerIndex`, so
+  the record is a per-opponent **kill matrix** - in a team game, who actually fought whom. Hooks
+  the *other* call of the branch `replay-outcome` hooks (`stopRecording` rather than
+  `writeToFile`), so the two compose in either order; client-local, same as `replay-outcome`.
+  **Verified statically** - the sites hold their stock bytes and apply/verify/detect round-trips
+  against the real binary - but **not yet observed in a recording**. Read back
+  with [`sage_replay.annotations`](../sage_replay/annotations.py) and folded into `aggregate`. See
+  [`docs/replay-annotations.md`](docs/replay-annotations.md).
 - **`skirmish-replay`** makes a **single-player skirmish record a replay**, which the stock engine
   never does, and gives each recording a **timestamp + map** name instead of overwriting
   `Last Replay`. `startRecording` has exactly one caller — the `MSG_NEW_GAME` branch of

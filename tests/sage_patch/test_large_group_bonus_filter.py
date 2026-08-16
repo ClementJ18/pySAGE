@@ -18,11 +18,13 @@ from __future__ import annotations
 import struct
 
 import pytest
-from capstone import CS_ARCH_X86, CS_MODE_32, Cs
 
-from sage_patch import LargeGroupBonusFilterPatch, apply_patches
-from sage_patch.addresses import FIELD_PARSE_STRIDE, INI_PARSE_BOOL
-from sage_patch.patches.large_group_bonus_filter import (
+pytest.importorskip("capstone", reason="the [patch] extra (capstone) is not installed")
+from capstone import CS_ARCH_X86, CS_MODE_32, Cs  # noqa: E402 - after the importorskip guard
+
+from sage_patch import LargeGroupBonusFilterPatch, apply_patches  # noqa: E402
+from sage_patch.addresses import FIELD_PARSE_STRIDE, INI_PARSE_BOOL  # noqa: E402
+from sage_patch.patches.large_group_bonus_filter import (  # noqa: E402
     ANCHORS,
     COUNT_WINDOW_BYTES,
     COUNT_WINDOW_VA,
@@ -52,10 +54,10 @@ from sage_patch.patches.large_group_bonus_filter import (
     build_new_allow,
     build_setup,
 )
-from sage_patch.patches.large_group_bonus_filter import (
+from sage_patch.patches.large_group_bonus_filter import (  # noqa: E402
     LargeGroupBonusFilterPatch as Patch,
 )
-from sage_patch.utils import find_section, va_to_offset
+from sage_patch.utils import find_section, va_to_offset  # noqa: E402
 
 IMAGE_BASE = 0x400000
 #: Where the synthetic image parks the field-name strings, past the table that points at them.

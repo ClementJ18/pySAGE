@@ -22,12 +22,18 @@ import struct
 from pathlib import Path
 
 import pytest
-from capstone import CS_ARCH_X86, CS_MODE_32, Cs
 
-from sage_ini.engine import parse_type
-from sage_patch import LifetimeExtendUpgradePatch, apply_patches
-from sage_patch.addresses import FIELD_PARSE_STRIDE, GAME_LOGIC_FRAME, THE_GAME_LOGIC
-from sage_patch.patches.lifetime_extend_upgrade import (
+pytest.importorskip("capstone", reason="the [patch] extra (capstone) is not installed")
+from capstone import CS_ARCH_X86, CS_MODE_32, Cs  # noqa: E402 - after the importorskip guard
+
+from sage_ini.engine import parse_type  # noqa: E402
+from sage_patch import LifetimeExtendUpgradePatch, apply_patches  # noqa: E402
+from sage_patch.addresses import (  # noqa: E402
+    FIELD_PARSE_STRIDE,
+    GAME_LOGIC_FRAME,
+    THE_GAME_LOGIC,
+)
+from sage_patch.patches.lifetime_extend_upgrade import (  # noqa: E402
     ALLOC_BYTES,
     ALLOC_RESUME_VA,
     ALLOC_VA,
@@ -71,12 +77,12 @@ from sage_patch.patches.lifetime_extend_upgrade import (
     validate_keywords,
     widened_latch_default,
 )
-from sage_patch.patches.lifetime_extend_upgrade import (
+from sage_patch.patches.lifetime_extend_upgrade import (  # noqa: E402
     LifetimeExtendUpgradePatch as Patch,
 )
-from sage_patch.registry import PATCHES
-from sage_patch.utils import find_section, va_to_offset
-from tests.sage_patch.synthetic import lifetime_extend_upgrade_image
+from sage_patch.registry import PATCHES  # noqa: E402
+from sage_patch.utils import find_section, va_to_offset  # noqa: E402
+from tests.sage_patch.synthetic import lifetime_extend_upgrade_image  # noqa: E402
 
 #: The repo's own clean build, for the address checks the synthetic image cannot make.
 _GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"

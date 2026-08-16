@@ -203,6 +203,13 @@ class Bfme2OrderType(IntEnum):
     # none, and no real order can be mistaken for one. Must stay equal to the patch's
     # `ORDER_TYPE`.
     GameOutcome = 0x7D0
+    # The rest of the reserved `0x7D0`-`0x7EF` annotation block, written by `sage_patch`'s
+    # `replay-annotations` patch at the same teardown moment: one manifest saying which record
+    # kinds that build writes, then one score record per player carrying the engine's own
+    # `ScoreKeeper` counters. `sage_replay.annotations` reads them back. Must stay equal to the
+    # patch's `MANIFEST_TYPE` / `SCORE_TYPE`.
+    AnnotationManifest = 0x7D1
+    PlayerScore = 0x7D3
 
 
 class ReplaySlotType(IntEnum):

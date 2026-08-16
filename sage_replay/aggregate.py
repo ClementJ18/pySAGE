@@ -75,6 +75,7 @@ from pathlib import Path
 from statistics import median
 
 from sage_replay import build_orders
+from sage_replay.annotations import PlayerScore, player_scores
 from sage_replay.build_orders import BuildNode
 from sage_replay.narrate import GameData
 from sage_replay.replay import ReplayFile, ReplaySlotType, find_replays, parse_replay_from_path
@@ -246,6 +247,10 @@ class PlayerGame:
     # The enemy factions faced (one label per occupied enemy slot, AI included; a slot is an
     # enemy unless it shares the player's nonnegative lobby team).
     opponents: tuple[str, ...] = ()
+    # The engine's own score-keeping for this slot, when the recording client carried
+    # `sage_patch`'s `replay-annotations` patch (`sage_replay.annotations`). None for every
+    # replay from an unpatched client, which is the whole existing corpus.
+    score: PlayerScore | None = None
 
 
 @dataclass(slots=True)
@@ -291,6 +296,61 @@ class ChoiceStat:
 
 
 @dataclass(slots=True)
+class ScoreStat:
+    """One score metric across a faction's games - what the engine counted, not what the order
+    stream shows. Only the player-games whose replay carried a `replay-annotations` record
+    contribute, so `games` is its own denominator and is never the faction's game count."""
+
+    label: str
+    values: list[float] = field(default_factory=list)
+    won: list[float] = field(default_factory=list)
+    lost: list[float] = field(default_factory=list)
+
+    @property
+    def games(self) -> int:
+        return len(self.values)
+
+    @property
+    def median(self) -> float | None:
+        return median(self.values) if self.values else None
+
+    @property
+    def median_won(self) -> float | None:
+        return median(self.won) if self.won else None
+
+    @property
+    def median_lost(self) -> float | None:
+        return median(self.lost) if self.lost else None
+
+    def to_dict(self) -> dict:
+        return {
+            "label": self.label,
+            "games": self.games,
+            "median": self.median,
+            "median_won": self.median_won,
+            "median_lost": self.median_lost,
+            "total": sum(self.values),
+        }
+
+
+#: The score metrics aggregated, in report order: what a player produced, what it cost them,
+#: and what they took off the other side. `*_destroyed` are the per-victim arrays summed - the
+#: breakdown survives on the `PlayerScore` itself for anyone who wants the kill matrix.
+_SCORE_METRICS: tuple[tuple[str, Callable[[PlayerScore], int]], ...] = (
+    ("units built", lambda s: s.units_built),
+    ("units lost", lambda s: s.units_lost),
+    ("units destroyed", lambda s: s.total_units_destroyed),
+    ("structures built", lambda s: s.structures_built),
+    ("structures lost", lambda s: s.structures_lost),
+    ("structures destroyed", lambda s: s.total_structures_destroyed),
+    ("money earned", lambda s: s.money_earned),
+    ("money spent", lambda s: s.money_spent),
+    ("units alive at the end", lambda s: s.units_alive),
+    ("structures alive at the end", lambda s: s.structures_alive),
+)
+
+
+@dataclass(slots=True)
 class FactionAggregate:
     """Everything the corpus shows about one faction's player-games."""
 
@@ -315,6 +375,12 @@ class FactionAggregate:
     # is the unpacked base name (`dunedain_outpost`), so the base gets its own translatable
     # aggregate name. None until a game unpacks one.
     outpost: ChoiceStat | None = None
+    # What the engine itself counted, from the `replay-annotations` records - keyed by metric
+    # label, in `_SCORE_METRICS` order. Empty unless the corpus carries patched replays, and
+    # `score_games` is how many player-games did (which is why the metrics have their own
+    # denominator: a corpus can be part patched).
+    scores: dict[str, ScoreStat] = field(default_factory=dict)
+    score_games: int = 0
     # The faction's openings as a pruned prefix tree (`build_orders.py`): None until a game
     # contributes one, and a tree pruned down to no children (`not build_orders.children`) is
     # treated as absent everywhere downstream, the same as None. The tree's identity is eco-only;
@@ -343,6 +409,10 @@ class FactionAggregate:
             "median_duration_seconds": median(self.durations) if self.durations else None,
             "sciences": [c.to_dict() for c in _ranked(self.sciences)],
             "first_science": [c.to_dict() for c in _ranked(self.first_science)],
+            "score_games": self.score_games,
+            "scores": [
+                self.scores[label].to_dict() for label, _ in _SCORE_METRICS if label in self.scores
+            ],
             "outpost": self.outpost.to_dict() if self.outpost is not None else None,
             "build_orders": (
                 self.build_orders.to_dict()
@@ -546,6 +616,8 @@ def player_games(
         }
     duration = replay.chunks[-1].timecode * replay.seconds_per_frame if replay.chunks else 0.0
     labels = _slot_labels(replay, data, stats, refine_faction)
+    # Ground truth where the recording client wrote it; an empty map for every unpatched replay.
+    scores = player_scores(replay)
 
     games = []
     for index, slot in enumerate(replay.header.metadata.players):
@@ -560,6 +632,7 @@ def player_games(
                 duration=duration,
                 stats=stats.get(slot.human_name) or PlayerStats(player=slot.human_name),
                 opponents=_opponents(replay, index, labels),
+                score=scores.get(index),
             )
         )
     return games
@@ -760,6 +833,20 @@ def _record_game(
     else:
         agg.undetermined += 1
 
+    # The engine's own counters, where the recording carried them. Split by outcome as well as
+    # pooled, because "the winner built 40 units and lost 12" is the shape of the question these
+    # numbers exist to answer.
+    if game.score is not None:
+        agg.score_games += 1
+        for label, read in _SCORE_METRICS:
+            stat = agg.scores.setdefault(label, ScoreStat(label=label))
+            value = float(read(game.score))
+            stat.values.append(value)
+            if game.outcome == "won":
+                stat.won.append(value)
+            elif game.outcome == "lost":
+                stat.lost.append(value)
+
     # Per category: one pick-rate row per label, counting the game once, keeping the
     # first occurrence's clock, and accumulating the per-game instance count. A tracked
     # `other` purchase instead numbers each instance into its own row (CPObject1,
@@ -911,6 +998,60 @@ def _choice_header(title: str) -> str:
     return f"  {title}  (games - won-lost - win% - median first - total):"
 
 
+def _amount(value: float | None) -> str:
+    """A score median, as a whole number where it is one - these are counts, and `41` reads
+    better than `41.0` in a column of them."""
+    if value is None:
+        return "-"
+    return f"{value:.0f}" if float(value).is_integer() else f"{value:.1f}"
+
+
+def _ranked_scores(agg: FactionAggregate) -> list[ScoreStat]:
+    """The faction's score metrics in report order, skipping any the corpus never carried."""
+    return [agg.scores[label] for label, _ in _SCORE_METRICS if label in agg.scores]
+
+
+def _score_lines(agg: FactionAggregate) -> list[str]:
+    """The engine's own counters as text. Empty unless some replay carried them, so an
+    unpatched corpus reads exactly as it did before."""
+    ranked = _ranked_scores(agg)
+    if not ranked:
+        return []
+    width = max(len(stat.label) for stat in ranked)
+    lines = [
+        f"  Score, from the recording client  ({agg.score_games} of {agg.games} games "
+        "recorded)  (median - won - lost):"
+    ]
+    lines.extend(
+        f"    {stat.label:{width}s}  {_amount(stat.median):>8s}  "
+        f"{_amount(stat.median_won):>8s}  {_amount(stat.median_lost):>8s}"
+        for stat in ranked
+    )
+    return lines
+
+
+def _score_markdown(agg: FactionAggregate, heading: str) -> list[str]:
+    ranked = _ranked_scores(agg)
+    if not ranked:
+        return []
+    lines = [
+        f"{heading} Score",
+        "",
+        f"_Counted by the engine, not read off the order stream; {agg.score_games} of "
+        f"{agg.games} games recorded._",
+        "",
+        "| Metric | Median | Won | Lost |",
+        "|---|--:|--:|--:|",
+    ]
+    lines.extend(
+        f"| {_cell(stat.label)} | {_amount(stat.median)} | {_amount(stat.median_won)} "
+        f"| {_amount(stat.median_lost)} |"
+        for stat in ranked
+    )
+    lines.append("")
+    return lines
+
+
 def _choice_lines(title: str, table: dict[str, ChoiceStat]) -> list[str]:
     if not table:
         return []
@@ -1033,6 +1174,7 @@ def _section_lines(agg: FactionAggregate, powers_heading: str) -> list[str]:
             lines.extend(hero_lines)
         else:
             lines.extend(_choice_lines(title, getattr(agg, attribute)))
+    lines.extend(_score_lines(agg))
     return lines
 
 
@@ -1191,6 +1333,7 @@ def _markdown_tables(agg: FactionAggregate, heading: str, powers_heading: str) -
             lines.extend(hero_lines)
         else:
             lines.extend(_markdown_table(getattr(agg, attribute), title, column, heading))
+    lines.extend(_score_markdown(agg, heading))
     return lines
 
 

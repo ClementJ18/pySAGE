@@ -91,6 +91,21 @@ python -m sage_mods.edain.map_checks <path-to-map-file>
 python -m sage_mods.edain.map_checks --help     # list codes / exclude specific checks
 ```
 
+## Patch notes
+
+`sage_mods.edain.patch_notes` turns the release spreadsheet's CSV export into the two BBcode
+forum posts a release needs - English and German - grouped by faction, nested by each note's
+leading dashes, and filtered by the beta flag or the date a batch was added.
+[`patch_notes/ui`](patch_notes/ui) is a small desktop window over it (`sage-edain-notes`, the
+`edain-ui` extra); a script can call the transform directly:
+
+```py
+from sage_mods.edain.patch_notes import read_notes, render_notes, write_notes
+
+result = render_notes(read_notes("Edain 4.8.csv"), beta=False)
+write_notes(result, ".", "Edain 4.8")
+```
+
 ## Skirmish bot
 
 `sage_mods.edain.bot` plays a live skirmish through [`sage_live`](../../sage_live): it lays

@@ -37,6 +37,7 @@ from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.production_condition import ProductionConditionPatch
 from sage_patch.patches.production_split import ProductionSplitPatch
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
+from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
 from sage_patch.patches.science_prereqs import SciencePrereqPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
@@ -55,6 +56,7 @@ PATCHES: dict[str, type[Patch]] = {
     DesertWeatherWorldbuilderPatch.name: DesertWeatherWorldbuilderPatch,
     UniqueProductionIdPatch.name: UniqueProductionIdPatch,
     ReplayOutcomePatch.name: ReplayOutcomePatch,
+    ReplayAnnotationsPatch.name: ReplayAnnotationsPatch,
     SkirmishReplayPatch.name: SkirmishReplayPatch,
     ObjectivesScreenPatch.name: ObjectivesScreenPatch,
     ObserverSwitchPatch.name: ObserverSwitchPatch,

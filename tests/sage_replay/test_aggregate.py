@@ -36,6 +36,7 @@ from sage_replay.aggregate import (
     version_groups,
     version_labels,
 )
+from sage_replay.annotations import MAX_PLAYER_COUNT, SCORE_FIELDS, PlayerScore
 from sage_replay.narrate import GameData, _command_points, _upgrade_tables
 from sage_replay.replay import (
     Order,
@@ -1742,3 +1743,100 @@ def test_version_groups_rejects_unlabeled_fingerprints():
     labels = {"Bfme2 data=0xAAA": "Edain 4.8.4.3", "Bfme2 data=0xBBB": ""}
     with pytest.raises(ValueError, match="Bfme2 data=0xBBB"):
         version_groups(groups, labels)
+
+
+def _score(**overrides):
+    """A `PlayerScore` as `annotations` hands one over, with everything not named zeroed."""
+    fields = {name: (0,) * MAX_PLAYER_COUNT if width > 1 else 0 for name, width, _ in SCORE_FIELDS}
+    fields.update(overrides)
+    return PlayerScore(
+        slot_index=0,
+        slot=ReplaySlot(slot_type=ReplaySlotType.Human, human_name="p"),
+        number=3,
+        schema_version=1,
+        recorded_at=1000,
+        **fields,
+    )
+
+
+def _scored_game(faction, outcome, score, *, duration=300.0):
+    return PlayerGame(
+        replay="r",
+        player="p",
+        faction=faction,
+        outcome=outcome,
+        duration=duration,
+        stats=PlayerStats(player="p"),
+        opponents=("Isengard",),
+        score=score,
+    )
+
+
+def test_scores_are_aggregated_per_faction_and_split_by_outcome():
+    """The question the engine's counters exist to answer: what the winners did differently."""
+    games = [
+        _scored_game("Rohan", "won", _score(units_built=40, units_lost=10)),
+        _scored_game("Rohan", "won", _score(units_built=44, units_lost=14)),
+        _scored_game("Rohan", "lost", _score(units_built=20, units_lost=30)),
+    ]
+    rohan = {a.faction: a for a in aggregate(games)}["Rohan"]
+    assert rohan.score_games == 3
+    built = rohan.scores["units built"]
+    assert built.games == 3
+    assert built.median == 40
+    assert built.median_won == 42
+    assert built.median_lost == 20
+    assert rohan.scores["units lost"].median_won == 12
+
+
+def test_the_destruction_arrays_are_summed_into_the_metric():
+    kills = tuple([0, 0, 0, 0, 17] + [0] * (MAX_PLAYER_COUNT - 5))
+    rohan = {
+        a.faction: a
+        for a in aggregate([_scored_game("Rohan", "won", _score(units_destroyed=kills))])
+    }["Rohan"]
+    assert rohan.scores["units destroyed"].median == 17
+
+
+def test_an_unpatched_corpus_reports_no_scores_at_all():
+    """Every existing replay. The section has to vanish, not render as a table of dashes."""
+    rohan = {a.faction: a for a in aggregate([_bo_game("Rohan", "won", [])])}["Rohan"]
+    assert rohan.scores == {} and rohan.score_games == 0
+    assert "Score" not in "\n".join(render_aggregate(Corpus(replays=1), [rohan]))
+    assert "Score" not in "\n".join(render_aggregate_markdown(Corpus(replays=1), [rohan]))
+    assert rohan.to_dict()["scores"] == []
+
+
+def test_a_part_patched_corpus_keeps_its_own_denominator():
+    """A corpus can be half patched, so the score metrics count only the games that carried
+    records - never the faction's game count."""
+    games = [
+        _scored_game("Rohan", "won", _score(units_built=40)),
+        _bo_game("Rohan", "lost", []),
+    ]
+    rohan = {a.faction: a for a in aggregate(games)}["Rohan"]
+    assert rohan.games == 2
+    assert rohan.score_games == 1
+    assert rohan.scores["units built"].games == 1
+    assert "1 of 2 games recorded" in "\n".join(render_aggregate(Corpus(replays=2), [rohan]))
+
+
+def test_the_score_section_renders_in_text_markdown_and_json():
+    rohan = {
+        a.faction: a
+        for a in aggregate([_scored_game("Rohan", "won", _score(units_built=40, money_spent=9100))])
+    }["Rohan"]
+    corpus = Corpus(replays=1)
+
+    text = "\n".join(render_aggregate(corpus, [rohan]))
+    assert "Score, from the recording client" in text
+    assert "units built" in text and "money spent" in text
+
+    markdown = "\n".join(render_aggregate_markdown(corpus, [rohan]))
+    assert "#### Score" in markdown or "### Score" in markdown
+    assert "| units built | 40 |" in markdown
+
+    payload = {row["label"]: row for row in rohan.to_dict()["scores"]}
+    assert payload["units built"]["median"] == 40
+    assert payload["money spent"]["median_won"] == 9100
+    assert rohan.to_dict()["score_games"] == 1

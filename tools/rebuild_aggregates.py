@@ -1011,7 +1011,10 @@ def _build_corpus(
         already, translated, failed, version_warnings = _ensure_version_cached(files, current_game)
         cache_warnings.extend(version_warnings)
         if files:
-            print("  " + _report(files, already, translated, failed, " (no game install needed)"))
+            print(
+                "  "
+                + _report(files, already, translated, failed, " (specific version not required)")
+            )
 
     # Phase two: the aggregate is built from the cache tree, every document under the corpus's
     # mirror folder rehydrated against the currently mounted install and run through the

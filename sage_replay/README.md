@@ -77,6 +77,9 @@ python -m sage_replay convert <doc.json|replay> --game <target install> --donor 
 # Parse + re-serialize a replay and compare byte-for-byte (the writer's self-test)
 python -m sage_replay roundtrip <replay>
 
+# The score records a patched recording client wrote in (see "What the engine counted")
+python -m sage_replay annotations <replay>
+
 # Infer the outcome from session-end signals (see below). --winner-pov (also on
 # aggregate) assumes the recording player's team won any game the stream leaves
 # undetermined - for corpora whose replays belong to the winner.
@@ -104,6 +107,25 @@ pyinstaller sage_replay/sage-replay.spec
 This produces `dist/sage_replay` (`dist/sage_replay.exe` on Windows) - one binary serving
 every subcommand, the `--game`-resolved ones included. PyInstaller binaries are not
 cross-platform, so build once per OS you support.
+
+## What the engine counted
+
+A replay records the orders a player issued, so it can say what they *built* and never what it
+cost them - kills, losses and income are simulation state. The engine keeps all of it, per player,
+in a `ScoreKeeper` it never writes down.
+
+[`sage_patch`](../sage_patch)'s **`replay-annotations`** patch writes it: one `0x7D3` chunk per
+player at the closing frame carrying units and structures built, lost and destroyed, money earned
+and spent, and the army and base size at the end - plus a `0x7D1` manifest saying which records
+that build writes, so a missing record can be told from an empty one. The two destroyed counters
+are arrays indexed by the *victim*, which makes them a per-opponent kill matrix: in a team game,
+who actually fought whom.
+
+[`annotations.py`](annotations.py) reads them (`manifest`, `player_scores`), `python -m
+sage_replay annotations <replay>` prints them, and `aggregate` folds them into per-faction medians
+split by won and lost - what the winners did differently. Every replay from an unpatched client
+carries none and reports so; a part-patched corpus keeps its own denominator rather than diluting
+the medians with games that recorded nothing.
 
 ## Who won?
 

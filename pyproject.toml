@@ -57,6 +57,7 @@ sage-ui = "sage_ui.app:main"
 sage-wiki = "sage_wiki.launcher:main"  # guards the [wiki] extra; app.py imports Qt at module scope
 sage-lint-ui = "sage_lint.plugins.ui.app:main"
 sage-edain-lint = "sage_mods.edain.map_checks.ui.app:main"
+sage-edain-notes = "sage_mods.edain.patch_notes.ui.app:main"
 sage-asset-ui = "sage_asset.ui.app:main"
 
 [project.optional-dependencies]
@@ -157,6 +158,7 @@ sage_mods = ["py.typed"]  # PEP 561 marker belongs on the top-level package, not
     "ui/*",
     "skill_assets/**/*",
     "map_checks/ui/*.ico",
+    "patch_notes/ui/*.ico",
     "icons/*.webp",  # faction emblems; the public ICONS_DIR / FACTION_ICONS in edain/replay.py
 ]
 
@@ -234,9 +236,15 @@ module = [
 ]
 ignore_errors = true
 
-# Same for the Qt half of the Edain Linter window; its Qt-free runner stays checked.
+# Same for the Qt half of the Edain Linter and Edain Patch Notes windows; the Qt-free modules
+# they drive (the map runner, the notes transform) stay checked.
 [[tool.mypy.overrides]]
-module = ["sage_mods.edain.map_checks.ui.window", "sage_mods.edain.map_checks.ui.app"]
+module = [
+    "sage_mods.edain.map_checks.ui.window",
+    "sage_mods.edain.map_checks.ui.app",
+    "sage_mods.edain.patch_notes.ui.window",
+    "sage_mods.edain.patch_notes.ui.app",
+]
 ignore_errors = true
 
 # The Qt half of the sage_lint desktop app, on the same terms as the Qt halves above: it needs

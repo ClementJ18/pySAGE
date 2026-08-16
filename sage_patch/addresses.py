@@ -209,12 +209,12 @@ __all__ = [
     "MAIN_MENU_CAMPAIGN_REGISTRATION_BYTES",
     "MAIN_MENU_CAMPAIGN_SELECTION_ID",
     "MAIN_MENU_PHASE_LEAVING",
-    "MISSION_OBJECTIVE_LIST_OFFSET",
-    "MISSION_OBJECTIVE_TRACKER",
     "MAIN_MENU_SCREEN_DIFFICULTY",
     "MAIN_MENU_SCREEN_PHASE",
     "MAIN_MENU_SCREEN_SELECTION",
     "MAX_PLAYER_COUNT",
+    "MISSION_OBJECTIVE_LIST_OFFSET",
+    "MISSION_OBJECTIVE_TRACKER",
     "MONEY_DEPOSIT",
     "MONEY_WITHDRAW",
     "MSG_CLEAR_GAME_DATA",
@@ -264,8 +264,6 @@ __all__ = [
     "PALANTIR_RESOURCES_BYTES",
     "PALANTIR_RESOURCES_CACHE",
     "PALANTIR_RESOURCES_CACHE_BYTES",
-    "PALANTIR_SCREEN_CHOICE_CALL",
-    "PALANTIR_SCREEN_CHOICE_CALL_BYTES",
     "PALANTIR_RESOURCES_CACHE_PUSH",
     "PALANTIR_RESOURCES_CACHE_SKIP",
     "PALANTIR_RESOURCES_DONE",
@@ -273,6 +271,8 @@ __all__ = [
     "PALANTIR_RESOURCE_MULTIPLIER",
     "PALANTIR_RESOURCE_MULTIPLIER_BYTES",
     "PALANTIR_RESOURCE_MULTIPLIER_RESUME",
+    "PALANTIR_SCREEN_CHOICE_CALL",
+    "PALANTIR_SCREEN_CHOICE_CALL_BYTES",
     "PLAYBACK_INSTALLS_OBSERVER",
     "PLAYER_COMMAND_POINTS_USED",
     "PLAYER_DEFEAT_FRAME",
@@ -286,8 +286,10 @@ __all__ = [
     "PLAYER_IS_OBSERVER",
     "PLAYER_LIST_GET_LOCAL_PLAYER",
     "PLAYER_LIST_LOCAL_IS_NOT_ACTIVE",
+    "PLAYER_LIST_LOCAL_PLAYER",
     "PLAYER_LIST_OBSERVE_NEXT_PLAYER",
     "PLAYER_PLAYER_TEMPLATE",
+    "PLAYER_SCORE_KEEPER",
     "PLAYER_TEMPLATE_BLOCK_KEY",
     "PLAYER_TEMPLATE_BLOCK_KEY_BYTES",
     "PLAYER_TEMPLATE_BLOCK_KEY_EARLY",
@@ -313,6 +315,10 @@ __all__ = [
     "PRODUCTION_WITHDRAW_TEMPLATE_EBP",
     "RECORDER_END_BRANCH",
     "RECORDER_END_BRANCH_BYTES",
+    "RECORDER_END_STOP_CALL",
+    "RECORDER_END_STOP_CALL_BYTES",
+    "RECORDER_END_STOP_SETUP",
+    "RECORDER_END_STOP_SETUP_BYTES",
     "RECORDER_END_WRITE_CALL",
     "RECORDER_END_WRITE_CALL_BYTES",
     "RECORDER_FILE",
@@ -340,6 +346,24 @@ __all__ = [
     "REQUEST_UNIQUE_UNIT_ID_BODY",
     "REQUEST_UNIQUE_UNIT_ID_VTABLE_SLOT",
     "RESOURCE_MODIFIER_COUNT_CALLBACK",
+    "SCORE_KEEPER_ADD_OBJECT_DESTROYED",
+    "SCORE_KEEPER_ADD_OBJECT_LOST",
+    "SCORE_KEEPER_COUNTER_BLOCK",
+    "SCORE_KEEPER_COUNTER_BLOCK_DWORDS",
+    "SCORE_KEEPER_END_FRAME",
+    "SCORE_KEEPER_LAYOUT_SITES",
+    "SCORE_KEEPER_MONEY_EARNED",
+    "SCORE_KEEPER_MONEY_SPENT",
+    "SCORE_KEEPER_PLAYER_REF",
+    "SCORE_KEEPER_PLAYER_REF_BYTES",
+    "SCORE_KEEPER_STRUCTURES_ALIVE",
+    "SCORE_KEEPER_STRUCTURES_BUILT",
+    "SCORE_KEEPER_STRUCTURES_DESTROYED",
+    "SCORE_KEEPER_STRUCTURES_LOST",
+    "SCORE_KEEPER_UNITS_ALIVE",
+    "SCORE_KEEPER_UNITS_BUILT",
+    "SCORE_KEEPER_UNITS_DESTROYED",
+    "SCORE_KEEPER_UNITS_LOST",
     "SHROUD_CELLS",
     "SHROUD_CELLS_X",
     "SHROUD_CELLS_Y",
@@ -1042,6 +1066,20 @@ RECORDER_END_WRITE_CALL = 0x0077F98B
 RECORDER_END_WRITE_CALL_BYTES = bytes.fromhex("e86cdfffff")  # call 0x0077D8FC
 RECORDER_STOP_RECORDING = 0x0077D8C8
 
+# The branch's *second* call - `stopRecording`, two instructions past the `writeToFile` one.
+# A cave here runs after the `0x1D` end marker has been written and before the file is closed,
+# which is the second and last such moment; `replay-annotations` takes it precisely because
+# `replay-outcome` owns the first (composing rule 2 - two patches must not edit one site).
+#
+# `..._SETUP_BYTES` is the `mov ecx, edi` that loads the recorder for the call. Together with
+# `RECORDER_END_BRANCH_BYTES` (which stops one byte short of the `writeToFile` call, so it stays
+# valid whether or not `replay-outcome` has rewritten those five bytes) it pins the site without
+# reading a byte any other patch may have changed.
+RECORDER_END_STOP_CALL = 0x0077F992
+RECORDER_END_STOP_CALL_BYTES = bytes.fromhex("e831dfffff")  # call 0x0077D8C8
+RECORDER_END_STOP_SETUP = 0x0077F990
+RECORDER_END_STOP_SETUP_BYTES = bytes.fromhex("8bcf")  # mov ecx, edi
+
 # Two siblings that answer "is this a game the observer machinery applies to". Both are
 # thiscall on `TheGameLogic` and return a bool in `al`; they differ only in whether skirmish
 # counts. Derived in `docs/observer-switch.md`.
@@ -1154,6 +1192,58 @@ PLAYER_INDEX = 0x54
 PLAYER_IS_OBSERVER = 0x35A
 PLAYER_DEFEAT_FRAME = 0x4CC
 PLAYER_IS_DEFEATED = 0x754
+
+# `ScoreKeeper`, embedded in `Player` (not a pointer) - the score-screen counters, which no
+# replay has ever carried. Derived in `docs/replay-annotations.md` §2.
+#
+# The base is pinned twice over: 107 `lea reg, [reg+0x3DC]` sites hand that address to the
+# method block at 0x0079DB00-0x0079DD00, and `PLAYER_SCORE_KEEPER + SCORE_KEEPER_END_FRAME`
+# is exactly `PLAYER_DEFEAT_FRAME` - the field `replay-outcome` already reads and has
+# runtime-verified, so the two readings check each other.
+PLAYER_SCORE_KEEPER = 0x3DC
+
+# The counters. `..._DESTROYED` are `Int[20]` arrays indexed by the *victim's*
+# `m_playerIndex`: `ScoreKeeper::addObjectDestroyed` resolves the destroyed object's owner and
+# indexes by `Player+0x54`, which is what makes the pair a per-opponent kill matrix rather
+# than a total. The five marked (*) are pinned by their own increment sites (below); the rest
+# hold by position in the stats-file writer's column order, which those five align.
+SCORE_KEEPER_MONEY_EARNED = 0x04
+SCORE_KEEPER_MONEY_SPENT = 0x08
+SCORE_KEEPER_UNITS_DESTROYED = 0x20  # (*) Int[20]
+SCORE_KEEPER_UNITS_BUILT = 0x70
+SCORE_KEEPER_UNITS_LOST = 0x74  # (*)
+SCORE_KEEPER_STRUCTURES_DESTROYED = 0x78  # (*) Int[20]
+SCORE_KEEPER_STRUCTURES_BUILT = 0xC8
+SCORE_KEEPER_STRUCTURES_LOST = 0xCC  # (*)
+SCORE_KEEPER_END_FRAME = 0xF0
+SCORE_KEEPER_UNITS_ALIVE = 0x108
+SCORE_KEEPER_STRUCTURES_ALIVE = 0x10C
+
+#: `SCORE_KEEPER_UNITS_DESTROYED` through `SCORE_KEEPER_STRUCTURES_LOST` are contiguous -
+#: `units_destroyed[20]`, `units_built`, `units_lost`, `structures_destroyed[20]`,
+#: `structures_built`, `structures_lost` - so all six counters copy in one `rep movsd`.
+SCORE_KEEPER_COUNTER_BLOCK = SCORE_KEEPER_UNITS_DESTROYED
+SCORE_KEEPER_COUNTER_BLOCK_DWORDS = (
+    SCORE_KEEPER_STRUCTURES_LOST + 4 - SCORE_KEEPER_UNITS_DESTROYED
+) // 4
+
+# The increment sites that pin four of the offsets, used as the patch's layout fingerprint.
+# `addObjectDestroyed` (0x0079F303) bumps the two per-victim arrays through `esi` = the victim's
+# `m_playerIndex`; `addObjectLost` (0x0079F486) bumps the two loss counters on `ebx` = `this`.
+# A build that moved a counter fails here instead of writing a chunk of the wrong numbers.
+SCORE_KEEPER_ADD_OBJECT_DESTROYED = 0x0079F303
+SCORE_KEEPER_ADD_OBJECT_LOST = 0x0079F486
+SCORE_KEEPER_LAYOUT_SITES = (
+    (0x0079F36A, bytes.fromhex("ff44b778")),  # inc [edi+esi*4+0x78]  structures destroyed
+    (0x0079F3B2, bytes.fromhex("ff44b720")),  # inc [edi+esi*4+0x20]  units destroyed
+    (0x0079F4E2, bytes.fromhex("ff83cc000000")),  # inc [ebx+0xcc]    structures lost
+    (0x0079F52C, bytes.fromhex("ff4374")),  # inc [ebx+0x74]          units lost
+)
+
+#: `ScoreKeeper::addObjectDestroyed`'s victim lookup, as the `lea ecx, [edi+0x3DC]` that hands
+#: a `Player`'s embedded keeper to a method - the fingerprint for `PLAYER_SCORE_KEEPER` itself.
+SCORE_KEEPER_PLAYER_REF = 0x006ABFE3
+SCORE_KEEPER_PLAYER_REF_BYTES = bytes.fromhex("8d8fdc030000")  # lea ecx, [edi+0x3dc]
 
 # `MessageStream::appendMessage(GameMessage::Type)` is virtual, at this vtable offset, and
 # returns the new `GameMessage *`.
@@ -1442,9 +1532,38 @@ PLAYER_TEMPLATE_FIND_BY_KEY = 0x005FCA2E
 PLAYER_PLAYER_TEMPLATE = 0x34
 PLAYER_COMMAND_POINTS_USED = 0x68
 
+#: The rest of the command-point block, as `Player::getCommandPointsAvailable` combines them:
+#: `cap = min(+0x64 base + +0x6C bonus + <filtered extras>, +0x70 hard)`. The extras are a
+#: vector at `+0x80`/`+0x84` whose entries carry an `ObjectFilter`, so evaluating them means
+#: calling the engine - a reader that copies only the flat fields gets a **lower bound** on the
+#: real ceiling, which is why all four are recorded rather than a computed total.
+#: Confirmed live 2026-08-16: a fresh Angmar seat read used 120 / base 500 / bonus 0 / hard 1500.
+PLAYER_COMMAND_POINTS_CAP = 0x64
+PLAYER_COMMAND_POINTS_BONUS = 0x6C
+PLAYER_COMMAND_POINTS_HARD_CAP = 0x70
+
+#: The player's spendable resource balance, and the spellbook point pair (`+0x24` is the
+#: spendable balance, `+0x1C` the lifetime total - only the former falls when a power is bought).
+#:
+#: **`+0x94` is not derivable from the `ScoreKeeper`'s money fields.** Measured live 2026-08-16
+#: over 130 frames: `+0x94` tracked `starting purse + ScoreKeeper.money_earned` exactly, while
+#: `money_spent` sat unchanged at 5000 from before the first order with `units_built` still 0 -
+#: so `money_spent` carries a setup charge that was never deducted from the balance, and only
+#: `+0x94` says what a player could actually afford.
+#:
+#: `Player+0x3E0` is deliberately absent: it is lifetime income and reads **byte-identical** to
+#: `ScoreKeeper+0x04` on every sample, so recording it would duplicate a field.
+PLAYER_RESOURCES = 0x94
+PLAYER_POWER_POINTS = 0x24
+PLAYER_POWER_POINTS_TOTAL = 0x1C
+
 #: `PlayerList::getLocalPlayer` - thiscall, no arguments. The palantir's own refresh
 #: (`0x006D577C`) reaches the displayed player through it, so a HUD-side read matches.
 PLAYER_LIST_GET_LOCAL_PLAYER = 0x006A8839
+
+#: The field that getter reads (`mov esi, [ecx+0x10]`), for a cave that wants the local player
+#: without a call. The engine inlines the same read itself, e.g. at `0x00819CEA`.
+PLAYER_LIST_LOCAL_PLAYER = 0x10
 
 #: `AutoDepositUpdate::update` (`0x008854D3`) - the tick income path, and the *only* reader of
 #: `PlayerTemplate.ResourceModifierValues` in the whole image.

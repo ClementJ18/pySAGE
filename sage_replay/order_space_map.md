@@ -197,6 +197,15 @@ Only `0x3E9`/`0x3EA` have two signatures (their ObjectId list may be empty).
 
 ### Session-end shapes → winner inference
 
+> **The `0x7D0`-`0x7EF` block is reserved for patch-written annotations**, and is unreachable
+> for the engine: the recorder only copies types `0x3E8 < t < 0x7CF` off the command list and
+> `GameMessage::Type` stops at `0x47B`, so an unpatched replay carries none of it and nothing the
+> engine emits can collide. Allocated so far - `0x7D0` match outcome
+> ([`replay-outcome`](../sage_patch/docs/replay-outcome.md)), `0x7D1` annotation manifest and
+> `0x7D3` player score ([`replay-annotations`](../sage_patch/docs/replay-annotations.md), read by
+> [`annotations.py`](annotations.py)). Integer argument 0 of every record is a schema version;
+> the registry is append-only.
+>
 > **`0x7D0` ends the guessing, where it is present.** `sage_patch`'s
 > [`replay-outcome`](../sage_patch/docs/replay-outcome.md) patch makes the recording client
 > write one chunk per player at the closing frame - `Integer` outcome
