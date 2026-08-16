@@ -34,6 +34,9 @@ from sage_mods.edain.bot.tuning import (
     CONTEST_ODDS,
     CONTEST_RADIUS,
     COUNTER_EDGE,
+    CRATE_ON,
+    CRATE_REACH,
+    CRATE_REORDER,
     DEFEND_COMMITMENT,
     DEFEND_CONTACT,
     DEFEND_KEEPALIVE,
@@ -57,11 +60,13 @@ from sage_mods.edain.bot.tuning import (
     PUSH_CONTROL,
     PUSH_RAIDERS,
     PUSH_SPENT,
+    RAID_FINISH,
     RAID_PARTY,
     RAID_STANDOFF,
     RESPONSE_ODDS,
     SCREEN_REACH,
     SIEGE,
+    SIEGE_SPREAD,
 )
 
 
@@ -168,6 +173,7 @@ class Warfare(FactionMechanics, Formations, Recruiting):
                 break
             room = EXPAND_PARTY - len(self._parties[party])
             if room > 0:
+                spare = self.escort_first(spare, alive, self._parties[party])
                 self._parties[party] += tuple(spare[:room])
                 spare = spare[room:]
 
@@ -181,6 +187,99 @@ class Warfare(FactionMechanics, Formations, Recruiting):
             party: [alive[i] for i in ids if i in alive]
             for party, ids in sorted(self._parties.items())
         }
+
+    def stage_crate(self) -> str | None:
+        """Send one nearby battalion to walk over a crate, or None when none is worth the walk.
+
+        **The only order in this file whose target is not a target.** A crate is collected by
+        colliding with it - `SalvageCrateCollide` - and is `NOT_AUTOACQUIRABLE` and
+        `UNATTACKABLE` besides, so no army collects one by fighting near it and no attack order
+        means anything against it. It is a move that happens to end in the right place, which is
+        exactly what a player does.
+
+        **Bounded by `CRATE_REACH`, because the crate is on a timer.** Thirty to thirty-five
+        seconds of `DeletionUpdate`, against an engine running at a fifth of its nominal rate -
+        so a battalion fetched from across the map arrives at bare ground having abandoned
+        whatever it was doing. Near enough to collect on the way past is the whole of the rule.
+
+        **`_forming` first, which is the only place a battalion ever idles.** Taking one from a
+        party is taking it off a flag that is being walked to; taking one from the pool that is
+        waiting to become a party costs nothing at all. A party battalion is used only when the
+        pool is empty and the crate is inside the reach anyway.
+
+        One order per cycle like every other stage, and one battalion rather than a group: a
+        crate is collected by the first body that touches it, so a second is a battalion spent
+        for nothing.
+        """
+        crates = self.crates()
+        if not crates:
+            return None
+        army = {o.object_id: o for o in self.army()}
+        idle = [army[i] for i in self._forming if i in army]
+        pool = idle or [o for ids in self._parties.values() for i in ids if (o := army.get(i))]
+        if not pool:
+            return None
+        now = time.monotonic()
+        for crate in crates:
+            nearest = min(pool, key=lambda o: o.distance_to(crate.position))
+            away = nearest.distance_to(crate.position)
+            if away > CRATE_REACH:
+                continue
+            # **Already standing on it is not a refusal and must not be ordered as one.** Pickup
+            # is a collision, so a battalion inside the crate's own footprint has either
+            # collected it or is about to; ordering a move to where it already is displaces
+            # nothing, and `manoeuvre` reads no displacement as an order the engine discarded.
+            if away < CRATE_ON:
+                continue
+            if now - self._crate_at.get(nearest.object_id, 0.0) < CRATE_REORDER:
+                continue
+            if not self.select([nearest]):
+                continue
+            self._crate_at[nearest.object_id] = now
+            # Bound by `partial` rather than closed over, the trap `Orders.attack_on` exists for:
+            # the order runs later, inside the confirmation, by which time the loop has moved on.
+            ok = self.manoeuvre("crate", partial(self.session.move, crate.position), [nearest])
+            # **The distance is in the line because without it a refusal says nothing.** The
+            # first live crate order came back `REFUSED` and left three candidate explanations
+            # that only this number separates: standing on it, too far to have started, or a
+            # spot nothing can path to.
+            went = "collected by" if ok else "REFUSED for"
+            return f"crate: {crate.template_name} {went} {nearest.object_id} at {away:.0f}"
+        return None
+
+    def escort_first(
+        self, spare: list[int], alive: dict[int, GameObject], force: tuple[int, ...]
+    ) -> list[int]:
+        """`spare`, reordered so a party with no melee in it is given melee first.
+
+        **A party was filled in object-id order, which is recruit order, which is whatever the
+        queues happened to finish.** Nothing in that says a party needs somebody who can stand in
+        a fight, so a run that recruited two archer battalions in a row sent them out as a party
+        of two bows - and an archer beats everything at range and loses to everything that
+        reaches it. A pure-bow party is not a weak party, it is a free kill: whatever finds it
+        closes, and there is nothing in the group whose job is to be closed with.
+
+        **An ordering rather than a refusal, which is what keeps it safe.** Nothing is ever held
+        back and no party is ever left short - the same battalions go out on the same cycle, and
+        only the order they are handed round changes. A refusal would have to answer "what if the
+        army is nothing but archers", and the answer is that it goes out anyway; this never has
+        to ask.
+
+        A party that already has one melee battalion is left alone. The rule is about the party
+        with *none* - the second swordsman matters much less than the first, and preferring melee
+        past that point would starve the parties that have no bows at all.
+
+        `stage_archers` is the other half of this and is switched off - see `Bot.decide`. That
+        one pulls bowmen out of a melee they are already in; this one is about not sending them
+        somewhere alone to begin with, which needs no damage reading and costs no shooting.
+        """
+        if any(not self.role(alive[i], ARCHER) for i in force if i in alive):
+            return spare
+        melee = [i for i in spare if i in alive and not self.role(alive[i], ARCHER)]
+        if not melee:
+            return spare
+        taken = set(melee)
+        return melee + [i for i in spare if i not in taken]
 
     def screen(
         self, force: list[GameObject], target: GameObject, key: str
@@ -239,8 +338,28 @@ class Warfare(FactionMechanics, Formations, Recruiting):
             return archers, self.engage(archers, mark, "what is in reach", f"{key}:bows")
         beating = self.counters(force, mark)
         if beating:
-            what = f"what {len(beating)} of us beat"
-            return beating, self.engage(beating, mark, what, f"{key}:counter")
+            # **The counters go at the building, and the rest hold the slaves off them.**
+            #
+            # This was the other way round, and the other way round is what a watched match kept
+            # showing: a party at a warg lair sent its spear line to meet the wargs and left
+            # Gondor's swordsmen hitting the lair - the one matchup on the field that the tree
+            # scores at a third of even. The spears then won their fight and stood in it, because
+            # a lair replaces every slave killed near it, so the battalions that could safely
+            # ignore the garrison were the ones tied up by it for the whole demolition.
+            #
+            # Inverted, the pair reads the way a player would arrange it. `engage` names the
+            # structure, so the counters walk to it and knock it down; the wargs that turn on
+            # them on the way are the fight those battalions were picked for winning. Whoever is
+            # left screens, which is the job the counters were doing and the one that does not
+            # care who does it.
+            #
+            # `counters` is empty when *everybody* clears `COUNTER_EDGE`, so this branch always
+            # leaves somebody behind to screen - the whole-party case falls through to the
+            # one-battalion rule below exactly as it did.
+            held = {o.object_id for o in beating}
+            holding = [o for o in force if o.object_id not in held]
+            what = f"what {len(holding)} of us hold off"
+            return holding, self.engage(holding, mark, what, f"{key}:screen")
         nearest = min(force, key=lambda o: o.distance_to(mark.position))
         return [nearest], self.engage([nearest], mark, "what is on us", f"{key}:screen")
 
@@ -270,6 +389,53 @@ class Warfare(FactionMechanics, Formations, Recruiting):
         picked = [o for o in force if trades[o.object_id] >= COUNTER_EDGE]
         return picked if 0 < len(picked) < len(force) else []
 
+    def expansion_order(self, flags: list[GameObject]) -> list[GameObject]:
+        """The flags in the order the opening should try them - cheapest first, then nearest.
+
+        **Outside the rush phase this changes nothing**, and that restraint is the design. Once
+        there is an army, an outpost is worth more than a settlement - it is a second castle -
+        and distance is the honest tiebreak between things the force can take either way. This
+        is about the opening's handful of battalions, for which the two kinds of plot are not
+        comparable purchases at all.
+
+        **The gate is `phase`, and it was `opening` first, which made this method almost
+        inert.** `opening` means "no production building is standing", and a barracks goes up
+        inside the first minute - measured live, `prod 1` by **cycle 5**, before a single party
+        had reached a flag. So the reordering applied for about four cycles and then stopped,
+        and the run went for an outpost exactly as it had before. `phase` is the faction's own
+        `PhaseDuration_Rush` - 300 match-seconds for Men - which is what "early" has to mean
+        here: long enough that the parties doing the expanding are still inside it.
+
+        Two keys, in this order:
+
+        **The family, because a settlement is the cheap expansion and an outpost is not.** They
+        look identical to `external_plots` - both are unclaimed flags offering the same neutral
+        claim button, which is why this asks `Statics.plot_family` rather than the palette - and
+        they are not remotely the same job. A settlement is one build order for an income
+        building; an outpost is a castle to garrison and the map's lairs are usually sitting on
+        it. Nearest-first walked the opening's party into whichever came first.
+
+        **Then the defenders, fewest first.** `worth_taking` already refuses what the party
+        cannot beat, but refusing is not the same as choosing: among several it *can* beat, the
+        one that costs the fewest battalions is the one that leaves an army to take the next.
+        Under fog this reads zero for a flag the seat cannot see, which is the same optimism
+        `plots_now` documents - the ghost says unclaimed and undefended because that is what it
+        was at frame 0, and walking there is how it gets settled.
+
+        Distance stays last, so among equally cheap and equally quiet flags the near one still
+        wins - which is the whole of the behaviour this replaces.
+        """
+        if self.phase() > 0:
+            return flags
+        return sorted(
+            flags,
+            key=lambda flag: (
+                self.statics.plot_family(flag.template_name) != "settlement",
+                len(self.defenders(flag)),
+                flag.distance_to(self.base_centre()),
+            ),
+        )
+
     def worth_taking(
         self, army: list[GameObject], held_flag: int | None, spoken_for: set[int]
     ) -> GameObject | None:
@@ -294,6 +460,12 @@ class Warfare(FactionMechanics, Formations, Recruiting):
 
         `spoken_for` is what the other parties are already going to, so two of them never walk
         to the same settlement - the whole point of splitting them up.
+
+        **In the opening, cheapness outranks nearness**, which is what `expansion_order` reorders
+        for. `external_plots` sorts by distance alone, and distance is the wrong first question
+        while the army is four battalions: the nearest flag is as often an outpost with a lair on
+        it as it is an empty settlement, and an opening spent failing at the expensive one is an
+        opening that builds nothing. See `expansion_order`.
         """
         mine = self.session.player_index
         # Measured against the party that would actually go, not against the army: an
@@ -301,19 +473,49 @@ class Warfare(FactionMechanics, Formations, Recruiting):
         # to send one out before it is full.
         beatable = len(army) * CONTEST_ODDS
         now = time.monotonic()
-        candidates = [
-            flag
-            for flag in self.external_plots()
-            if self._blocked_flags.get(flag.object_id, 0.0) <= now
-            and flag.object_id not in spoken_for
-        ]
+        candidates = self.expansion_order(
+            [
+                flag
+                for flag in self.external_plots()
+                if self._blocked_flags.get(flag.object_id, 0.0) <= now
+                and flag.object_id not in spoken_for
+            ]
+        )
         held = next((f for f in candidates if f.object_id == held_flag), None)
-        if held is not None:
+        if held is not None and not self.outranked_by_a_settlement(held, candidates):
             return held
         for flag in candidates:
             if flag.owner_index == mine or len(self.defenders(flag)) <= beatable:
                 return flag
         return None
+
+    def outranked_by_a_settlement(self, held: GameObject, candidates: list[GameObject]) -> bool:
+        """Whether a commitment made before the map existed should be given up on.
+
+        **The commitment is right and the moment it was made was not.** `worth_taking` holds a
+        flag until it is taken, abandoned or blocked, because re-deciding every cycle is what
+        stopped expansion dead after two settlements. But the first decision of a match is made
+        against a map that has not finished spawning: `wait_for_match` returns at frame 0, plots
+        arrive in object-id order, and on a measured Edain map the two `ExpansionPlotFlag`
+        outposts carried ids 123 and 124 while every settlement was numbered above 939.
+
+        So cycle 2 offered **exactly two flags, both of them outposts**, the opening party
+        committed to one, and `expansion_order` never got a say - the run then walked 1819 units
+        to an outpost with seventeen settlements spawning behind it. The ordering was correct
+        throughout; it was simply asked before the answer existed.
+
+        This is the narrowest possible release: only in the rush phase, only when the held flag
+        is not a settlement, and only when a settlement is actually available now. Everything
+        else about the commitment is untouched - a party holding a settlement keeps it, and past
+        `phase` 0 an outpost is a second castle and worth the walk.
+        """
+        if self.phase() > 0:
+            return False
+        if self.statics.plot_family(held.template_name) == "settlement":
+            return False
+        return any(
+            self.statics.plot_family(flag.template_name) == "settlement" for flag in candidates
+        )
 
     def unpack_plot(self, plot: GameObject) -> tuple[Callable[[], Sent], str, str | None] | None:
         """The order that builds on `plot`, chosen from the plot's own live buttons.
@@ -831,11 +1033,20 @@ class Warfare(FactionMechanics, Formations, Recruiting):
         for party, force in self._idle_parties.items():
             if len(force) < RAID_PARTY:
                 continue
-            chosen = self.raid_target(spoken_for)
+            # **Finish the spot before choosing a new one.** A razed lair leaves a stump at the
+            # same place with a new object id, so a party that re-decides from scratch treats it
+            # as one more nest on a list rather than as the job it is halfway through.
+            unfinished = self.unfinished_nest(party, spoken_for)
+            chosen = (
+                (unfinished, f"the {self.nest_word(unfinished)} it left")
+                if unfinished
+                else (self.raid_target(spoken_for))
+            )
             if chosen is None:
                 break
             target, what = chosen
             spoken_for.add(target.object_id)
+            self._raid_spot[party] = target.position
             key = f"raid:{party}"
             screened, fighting = self.screen(force, target, key)
             shot = {o.object_id for o in screened}
@@ -843,6 +1054,85 @@ class Warfare(FactionMechanics, Formations, Recruiting):
             line = f"raid: {self.engage(rest, target, what, key)}"
             said.append(f"{line}, screen: {fighting}" if fighting else line)
         return " | ".join(said) or None
+
+    def spread_siege(
+        self, force: list[GameObject], primary: GameObject
+    ) -> list[tuple[list[GameObject], GameObject]]:
+        """Send the spare siege engines at buildings the main push is *not* hitting.
+
+        **A building dies to one ram, and the rest of them arrive after it is rubble.** Siege is
+        the one part of the army where massing is actively wasteful: the damage is enormous and
+        per-target, so four engines on one structure spend three engines' worth of it on
+        something already falling over - and they are the slowest thing on the map, so the walk
+        they wasted is the longest one anybody made. Splitting them turns one demolition into
+        three or four happening at once, which is the whole of what siege is for.
+
+        **One engine stays with the push, and that is not a compromise.** `RECRUIT_NEVER`
+        documents why siege is barred outside a push at all: eight rams once walked to their
+        targets alone and achieved nothing, because escorting them is a behaviour this bot does
+        not have. The push is the escort. So the engines that leave it are the *surplus* ones -
+        the first stays where the army is, and only what would have been overkill goes elsewhere.
+
+        **Targets are taken nearest the push rather than nearest home**, because the escort's
+        reach is what makes a second front survivable: a structure beside the one being knocked
+        down is inside the same fight, and one across the map is a ram on its own again.
+
+        Empty whenever there is one engine or nothing else worth hitting, which is the ordinary
+        case and leaves `stage_push` exactly as it was.
+        """
+        engines = [o for o in force if self.role(o, SIEGE)]
+        if len(engines) < 2:
+            return []
+        elsewhere = [
+            o
+            for o in self.enemy_structures()
+            if o.object_id != primary.object_id and o.distance_to(primary.position) < SIEGE_SPREAD
+        ]
+        if not elsewhere:
+            return []
+        elsewhere.sort(key=lambda o: o.distance_to(primary.position))
+        # The first engine is left in `force` for the main engage; the rest go one apiece, and
+        # any surplus beyond the available targets stays with the push rather than doubling up.
+        spare = engines[1:]
+        return [([engine], aim) for engine, aim in zip(spare, elsewhere, strict=False)]
+
+    def unfinished_nest(self, party: int, spoken_for: set[int]) -> GameObject | None:
+        """Whatever is still re-arming where this party was last sent, or None once it is clear.
+
+        **A raid on a lair is a job with two buildings in it, and only the object id says
+        otherwise.** `RebuildHoleExposeDie` puts a `REBUILD_HOLE` stump exactly where the lair
+        stood, and `RebuildHoleBehavior` raises the lair again from it about two minutes later.
+        So razing a lair and walking away buys two minutes and nothing else - the party has to
+        expect the hole and finish it, which is what makes the kill permanent.
+
+        Read live, `raid_target` could not express that: the hole is a *new* object competing
+        with every other nest on the map by distance from home, so a party that had just cleared
+        the hardest part of a lair was as likely to be sent somewhere else as to stay. Measured
+        live, four battalions worked four nests for a hundred cycles and finished none of them
+        while the `nests` column oscillated 5-6-7 - lairs rebuilding as fast as they were razed.
+
+        The commitment is to the **ground**, not to the object: anything re-arming within
+        `RAID_FINISH` of where the party was sent is the same job. Cleared, this answers None and
+        the party goes back to `raid_target` for a fresh one.
+
+        A nest another party has already claimed this cycle is skipped, exactly as it is there -
+        two parties on one lair is the massing that `stage_raid` exists to avoid.
+        """
+        spot = self._raid_spot.get(party)
+        if spot is None:
+            return None
+        here = [
+            nest
+            for nest in self.nests()
+            if nest.object_id not in spoken_for and nest.distance_to(spot) < RAID_FINISH
+        ]
+        if not here:
+            self._raid_spot.pop(party, None)
+            return None
+        # The hole first where there is one, for the reason `garrison_of` gives: it only exists
+        # once the lair is down, and it is the cheaper target of the two.
+        holes = [o for o in here if self.statics.is_rebuild_hole(o.template_name)]
+        return min(holes or here, key=lambda o: o.distance_to(spot))
 
     def remember_keeps(self) -> None:
         """Record where their victory buildings are while they can be seen, and forget the dead.
@@ -1013,13 +1303,19 @@ class Warfare(FactionMechanics, Formations, Recruiting):
             screened, fighting = self.screen(force, target, "push")
             shot = {o.object_id for o in screened}
             rest = [o for o in force if o.object_id not in shot] or force
+            spread = self.spread_siege(rest, target)
+            shot |= {o.object_id for engines, _ in spread for o in engines}
+            rest = [o for o in force if o.object_id not in shot] or force
             said = f"push: {self.engage(rest, target, 'what is left to win', 'push')}"
+            for index, (engines, aim) in enumerate(spread):
+                what = f"a second front ({len(engines)})"
+                said += f" | siege: {self.engage(engines, aim, what, f'push:siege{index}')}"
             return f"{said}, screen: {fighting}" if fighting else said
 
-        aim = self.push_aim()
-        if aim is None:
+        where = self.push_aim()
+        if where is None:
             return "push: nothing of theirs has been seen to walk to"
-        return f"push: {self.march(force, aim, 'their base', 'push')}"
+        return f"push: {self.march(force, where, 'their base', 'push')}"
 
     def besieged(self) -> bool:
         """Whether what is in the base needs more battalions than there are.

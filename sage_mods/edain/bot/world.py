@@ -16,7 +16,9 @@ from sage_mods.edain.bot.state import BotState
 from sage_mods.edain.bot.tuning import (
     BASE_RADIUS,
     CAVALRY,
+    CIVILIAN_SEAT,
     CONTEST_RADIUS,
+    CRATE,
     CRUSH_REVENGE_CHARGED,
     DEFEND_RADIUS,
     HARMLESS,
@@ -25,6 +27,7 @@ from sage_mods.edain.bot.tuning import (
     IN_FLIGHT,
     INFANTRY,
     LAIR_RADIUS,
+    NEST_GONE,
     NO_BASE_CAPTURE,
     NOT_ARMY,
     OCCUPIED,
@@ -250,6 +253,71 @@ class World(BotState):
             and self._blocked_plots.get(o.object_id, 0.0) < now
         ]
         return sorted(plots, key=lambda o: o.distance_to(anchor))
+
+    def crates(self) -> list[GameObject]:
+        """Every pickup on the map the seat can see, nearest the base first.
+
+        **Picked up by walking over one, not by ordering anything at it.** `SalvageCrate` carries
+        a `SalvageCrateCollide`, so the whole interaction is a move order that happens to end on
+        top of it - which is also why a crate is `NOT_AUTOACQUIRABLE` and `UNATTACKABLE`, and why
+        nothing an army does of its own accord will ever collect one.
+
+        Found by the `CRATE` flag rather than by the fifteen names in `crate.ini`, the same rule
+        the rest of this file follows. That covers the ordinary treasure chests, the experience
+        chests, the palantír shards and `TheDroppedRing` without naming any of them.
+
+        **Not remembered, unlike the nests and the plots.** A crate is on a `DeletionUpdate` of
+        thirty to thirty-five seconds, so a remembered one is a battalion sent to stand where
+        something used to be. Where the fog is a reason to keep a lair on the books forever, it is
+        a reason to forget a crate immediately.
+        """
+        anchor = self.base_centre()
+        found = [
+            o for o in self.observation.objects if self.statics.has_kind(o.template_name, CRATE)
+        ]
+        return sorted(found, key=lambda o: o.distance_to(anchor))
+
+    def base_plots(self) -> list[GameObject]:
+        """Every build plot the starting base has, whether or not something stands on it.
+
+        **`free_plots` with the two filters that make it a to-do list taken off**, because this
+        answers a different question: not "where can I build now" but "how much base is there".
+        Occupancy is exactly what must not be filtered - a plot with a house on it is still one
+        of the base's plots, and a base is not smaller for having been built on.
+
+        **Kept to `BASE_RADIUS`, which `free_plots` deliberately is not.** That method dropped
+        the radius so a claimed camp's plots would be offered to `stage_build`, and it is right
+        to. Here the radius is the whole point: this is the size of the base the match *dealt*,
+        and counting a captured castle's plots into it would make the answer a running total of
+        conquest rather than a fact about the opening.
+        """
+        anchor = self.base_centre()
+        return [
+            o
+            for o in self.observation.mine
+            if self.statics.is_build_site(o.template_name)
+            and not self.statics.unpack_buttons(o.template_name)
+            and o.distance_to(anchor) < BASE_RADIUS
+        ]
+
+    def base_capacity(self) -> int:
+        """How many plots the starting base has - the largest honest reading so far.
+
+        **A latch, and the latch is the whole design.** The obvious version reads the plots once
+        at cycle 1 and keeps the number, and it reads **zero**: `wait_for_match` returns at frame
+        0 with the map still spawning, which is the same trap `plot_ghosts` records for the
+        claimable flags. Measured live, the bot's own status line sat at `plots 0` for the first
+        cycles of both runs of a session before the castle appeared.
+
+        Reading it fresh every cycle is wrong the other way: plots are destroyed and rebuilt, and
+        a base under siege would report itself shrinking and re-plan its economy around the
+        damage. The high-water mark answers what the base *is* rather than what is left of it.
+
+        Zero until the base exists, which callers must treat as "not known yet" rather than as a
+        base with nowhere to build - see `economy_room`, which stands aside while it is zero.
+        """
+        self._base_capacity = max(self._base_capacity, len(self.base_plots()))
+        return self._base_capacity
 
     def owned_building(self, template: str) -> list[GameObject]:
         """Owned instances of `template`, counting the variations it may have been built as.
@@ -540,9 +608,28 @@ class World(BotState):
         counting soldiers put a single enemy battalion on a flag at sixteen defenders against a
         squad of three - a comparison `worth_taking` could never pass, whatever the odds really
         were. `army` has always counted containers; now both sides of the comparison do.
+
+        **And the civilian seat is out entirely, which is the one test here that is about who
+        owns a thing rather than about what it is.** Every other exclusion reads a `KindOf`, and
+        that is precisely why they cannot be relied on alone: a flag the tree does not define
+        resolves to *no* flags at all, so `STRUCTURE`, `IMMOBILE`, `HARMLESS` and the rest all
+        fail open and the object reads as a mobile living thing. Measured live on an Edain map,
+        the complete list of civilian-owned objects this predicate accepted was three `Crow` -
+        whose `KindOf` is written out longhand and drops the `INERT` every other animal inherits
+        from `NATUREUNITS_KINDOF` - and one `Mirkwood_Vinecellar1`, a map-local object resolving
+        to an empty kind set. A battalion spent ten minutes of a push trying to attack a bird it
+        could not hit, and the order was refused every cycle without ever being given up on.
+
+        **`PlyrCreeps` stays hostile, and the split is the whole point.** Lairs and the slaves
+        they keep replacing are what a flag has to be cleared of, and they are the creeps' - the
+        same match had a `WargLair` and its `NeutralWarg` both on that seat. The civilians own
+        scenery, wildlife and map furniture, and none of it is ever worth an order. See `wild`,
+        which deliberately answers True for both because "is this the engine's" and "is this
+        something to fight" are different questions.
         """
         return (
             self.not_ours(obj)
+            and not self.civilian(obj)
             and obj.has_body
             and not self.statics.has_kind(obj.template_name, "STRUCTURE", "IMMOBILE")
             and not self.statics.has_kind(obj.template_name, *UNTOUCHABLE)
@@ -550,6 +637,24 @@ class World(BotState):
             and not self.statics.has_kind(obj.template_name, *IN_FLIGHT)
             and not self.statics.is_horde_member(obj.template_name)
         )
+
+    def civilian(self, obj: GameObject) -> bool:
+        """Whether `obj` belongs to the map's civilian seat - scenery, wildlife, furniture.
+
+        **Read off the seat's name, which is the one name test in this file that is safe.** The
+        codebase avoids matching template names because a mod renames templates freely; the
+        non-playing seats are engine fixtures, spelled `PlyrCivilian` and `PlyrCreeps` in every
+        match observed. Nothing else distinguishes them: both report a `Civilian` faction and
+        both answer False to `playing`, so `wild` cannot tell them apart and does not try.
+
+        False when the seat cannot be read at all, which keeps this from quietly disarming the
+        bot against a player whose entry is missing.
+        """
+        owner = obj.owner_index
+        if owner is None:
+            return False
+        player = self.observation.player(owner)
+        return player is not None and player.name == CIVILIAN_SEAT
 
     def not_ours(self, obj: GameObject) -> bool:
         """Whether `obj` belongs to somebody else - falling back to `Side` when nobody can be read.
@@ -613,8 +718,8 @@ class World(BotState):
             and bool(self.statics.spawns(obj.template_name))
         )
 
-    def nests(self) -> list[GameObject]:
-        """Everything on the map that will keep re-arming until it is knocked down.
+    def nests_visible(self) -> list[GameObject]:
+        """The nests the seat can see right now - what `remember_nests` writes its memory from.
 
         Two kinds, and clearing one means clearing both in order. A **lair** replaces every
         defender killed near it, so the fight for the flag it guards cannot be won by winning
@@ -624,9 +729,8 @@ class World(BotState):
         The hole is deliberately not filtered to the creep seat: an opponent's razed building
         leaves one too, and it rebuilds for them exactly the same way.
 
-        These are the targets that make a map a thing that can be taken rather than a thing to
-        be walked around, and they are also the answer to "what does an army do in a match with
-        no opponent" - see `raid_target` and `push_target`.
+        **The live reading only.** This was `nests` itself, and being live was the whole of what
+        was wrong with it - see `nests`.
         """
         return [
             o
@@ -636,6 +740,66 @@ class World(BotState):
             and not self.statics.has_kind(o.template_name, *UNTOUCHABLE)
             and (self.statics.is_rebuild_hole(o.template_name) or self.is_lair(o))
         ]
+
+    def remember_nests(self) -> None:
+        """Record every nest while it can be seen, and forget the ones proved gone.
+
+        **The same memory as `remember_keeps`, written for the same reason.** A nest does not
+        move, so a position once seen stays true; the fogged view simply has no way of saying so.
+
+        Forgetting needs the army standing there, exactly as it does for a keep: absence from
+        the fogged view is ordinarily distance, and dropping a nest for being out of sight is how
+        the list emptied itself in the first place. Within `NEST_GONE` the reading means the
+        opposite - something of ours is on top of the place and can see it, and it is not there.
+
+        **`NEST_GONE` rather than the `PUSH_ARRIVED` this first used, and the 400 was a bug.**
+        It is wider than a unit's vision, so a battalion walking past a fogged lair at 350 was
+        deleting it - "near it and not seeing it" is the ordinary state of moving through the
+        dark, not evidence. Measured live across two runs, the `nests` column fell 2 -> 0 and
+        4 -> 1 on maps where nothing had been destroyed, and a lair hole was abandoned
+        undestroyed because it had been forgotten rather than because anything gave up on it.
+
+        That rule is also what retires a razed lair. The party that knocks one down is standing
+        on it, so the lair goes on the cycle it dies and the hole underneath it is picked up as a
+        new object in the same breath.
+        """
+        visible = {o.object_id: o for o in self.nests_visible()}
+        self._seen_nests.update(visible)
+        army = self.army()
+        if not army:
+            return
+        for object_id, nest in list(self._seen_nests.items()):
+            if object_id in visible:
+                continue
+            if any(o.distance_to(nest.position) < NEST_GONE for o in army):
+                del self._seen_nests[object_id]
+
+    def nests(self) -> list[GameObject]:
+        """Everything on the map that will keep re-arming until it is knocked down, remembered.
+
+        **Live where the seat can see it, remembered everywhere else**, which is the same
+        arrangement `plots_now` uses and for the same reason: where a building is does not change
+        when the fog closes over it.
+
+        **This read the observation directly and nothing else, and that quietly cost the map.**
+        A nest was a target only on the cycles something of ours happened to be looking at it, so
+        the list emptied every time the army turned round. Measured live: the `nests` column read
+        21 at cycle 4, 2 at cycle 14, and 0 for most of the rest of a match on a map still
+        covered in lairs.
+
+        **The rebuild hole is the case that made it a bug rather than a limitation.** A hole
+        exists only once its lair is down - the one moment the force is guaranteed to be standing
+        on top of it - and `RebuildHoleBehavior` raises the lair again two minutes later. Read
+        live, the hole left the target list with the party that made it and the lair came back
+        untouched, so razing one bought exactly the two minutes the module docstring warns about.
+        Remembered, the hole stays a target until something of ours is standing where it was and
+        can see it is gone.
+
+        These are the targets that make a map a thing that can be taken rather than a thing to
+        be walked around, and they are also the answer to "what does an army do in a match with
+        no opponent" - see `raid_target` and `push_target`.
+        """
+        return list(self._seen_nests.values())
 
     def garrison_of(self, flag: GameObject) -> GameObject | None:
         """The nest that keeps `flag` defended, or None if nothing does.

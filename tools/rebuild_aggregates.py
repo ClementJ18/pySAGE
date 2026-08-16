@@ -141,9 +141,9 @@ from sage_mods.edain.replay import (  # noqa: E402
     edain_upgrade_recruits,
 )
 from sage_replay.aggregate import (  # noqa: E402
-    _HTML_STYLE,
     Corpus,
     _absorb,
+    _page_style,
     aggregate,
     command_point_weights,
     patch_groups,
@@ -161,6 +161,7 @@ from sage_replay.cache import (  # noqa: E402
 from sage_replay.narrate import GameData  # noqa: E402
 from sage_replay.replay import find_replays, parse_replay_from_path  # noqa: E402
 from sage_replay.sidecar import ensure_sidecars, sidecar_path  # noqa: E402
+from sage_utils import webtheme  # noqa: E402
 from sage_utils.clock import clock  # noqa: E402
 from sage_utils.gameroot import resolve_game_root, resolve_game_roots  # noqa: E402
 from tools.build_replay_site import export_corpus  # noqa: E402
@@ -362,6 +363,7 @@ def _write(
     index_href=None,
     icon=None,
     weight=None,
+    skin=None,
 ) -> None:
     html = "\n".join(
         render_aggregate_html(
@@ -374,6 +376,7 @@ def _write(
             index_href=index_href,
             icon=icon,
             weight=weight,
+            skin=skin,
         )
     )
     path.write_text(html, encoding="utf-8")
@@ -574,7 +577,7 @@ def render_corpora_index(out: Path, display_names: dict[str, str]) -> str:
         '<meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         "<title>Replay corpora</title>",
-        f"<style>{_HTML_STYLE}</style>",
+        f"<style>{_page_style(None)}</style>",
         "</head>",
         "<body><main>",
         "<h1>Replay corpora</h1>",
@@ -1187,6 +1190,7 @@ def _build_corpus(
                 index_href=_index_href(page),
                 icon=faction_icon,
                 weight=weight,
+                skin=webtheme.skin_for_label(label) or webtheme.skin_for_label(display(label)),
             )
 
         # The index sits at the tree root; its hrefs are relative to it, so the tree can move

@@ -26,6 +26,7 @@ from __future__ import annotations
 import struct
 
 from sage_patch import addresses as ad
+from sage_patch.patches import description_timers as dt
 from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather_wb as wb
 from sage_patch.patches import hero_bar_slots as hbs
@@ -37,6 +38,7 @@ from sage_patch.patches import production_condition as pc
 from sage_patch.patches import production_split as ps
 from sage_patch.patches import upgrade_description as ud
 from sage_patch.patches.experimental import campaign_select as cs
+from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
@@ -294,6 +296,28 @@ def observer_switch_image() -> bytearray:
     )
 
 
+def description_timers_image() -> bytearray:
+    """A stand-in carrying the tooltip builder's two windows and every routine the cave reaches.
+
+    Sparse for the usual reason: the builder's prologue and its tail are one page apart, and the
+    seven engine routines the cave calls or compares against are spread over five megabytes below
+    them. Everything not planted reads as zero, so a window aimed one instruction to either side of
+    where it claims to be would find nothing there.
+
+    The two `RECHARGE_FORMULA_ANCHORS` are planted too, even though the patch never jumps to them:
+    they are the instructions the cooldown transcription copies, and a build that encoded them
+    differently would be a build whose formula the cave is not reproducing.
+    """
+    return _sparse_image(
+        {
+            ad.DESCRIPTION_BUTTON_CAPTURE: ad.DESCRIPTION_BUTTON_CAPTURE_BYTES,
+            ad.DESCRIPTION_TAIL: ad.DESCRIPTION_TAIL_BYTES,
+            **dt.ANCHORS,
+            **dt.RECHARGE_FORMULA_ANCHORS,
+        }
+    )
+
+
 def upgrade_description_image() -> bytearray:
     """A stand-in carrying both of the tooltip builder's status-message cases and the three
     `UnicodeString` methods plus two wide literals the cave reaches.
@@ -489,3 +513,19 @@ def production_split_image() -> bytearray:
             ps.TYPE_TABLE_VA: struct.pack(f"<{len(pointers) + 1}I", *pointers, 0),
         }
     )
+
+
+def recharge_rescale_image() -> bytearray:
+    """A stand-in carrying every site `recharge-rescale` reads or rewrites.
+
+    Sparse for the usual reason: the hooked frame gate in `GameLogic::update`, both
+    `startPowerRecharge` implementations, the three readers that pin the interface layout and the
+    six callees the cave calls are spread over most of four megabytes, and the patch touches a
+    dozen pages of it. Everything not planted reads as zero, so a hook aimed one instruction to
+    either side of where it claims to be would find nothing there.
+
+    Driven straight off the patch's own anchor table, because that table *is* what the patch reads:
+    a second hardcoded copy here could only ever agree with it. Whether those addresses hold those
+    bytes in the real build is what `TestInstalledBinary` answers.
+    """
+    return _sparse_image(dict(rr.ANCHORS))

@@ -88,7 +88,9 @@ from sage_replay.stats import (
     compute_stats,
 )
 from sage_replay.winner import infer_winner
+from sage_utils import webtheme
 from sage_utils.clock import clock
+from sage_utils.webtheme import Skin
 
 __all__ = [
     "DEFAULT_POWERS_HEADING",
@@ -1391,39 +1393,30 @@ def render_aggregate_markdown(
     return lines
 
 
-# The HTML report's stylesheet. Colors are CSS custom properties so the dark theme swaps
-# in one place; the win-rate bar is a diverging mark around the 50% midpoint (blue above,
-# red below, neutral track), so a faction's polarity reads before the number does. The
-# `--s1`..`--s8` slots are the timeline graphs' categorical series palette in its fixed
-# order (a validated CVD-safe ordering; the dark column is the same eight hues re-stepped
-# for the dark surface, not an automatic flip) - a ninth series never gets a new hue, it
-# reuses the cycle with a dash pattern as the distinguishing second channel.
+# The HTML report's stylesheet, below the palette. Colors are CSS custom properties, so the
+# page's skin is one `:root` block in front of this: `sage_utils.webtheme` holds them, a
+# faction's page takes that faction's skin and everything else takes steel. The win-rate bar
+# is a diverging mark around the 50% midpoint (`--above`/`--below` around a neutral track),
+# so a faction's polarity reads before the number does. The `--s1`..`--s8` slots are the
+# timeline graphs' categorical series palette in its fixed order (a validated CVD-safe
+# ordering, stepped for a dark surface) - a ninth series never gets a new hue, it reuses the
+# cycle with a dash pattern as the distinguishing second channel. The series, the warning
+# amber and the type stack are the same in every skin: they mean the same thing on every page.
 _HTML_STYLE = """\
-:root {
-  --plane: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e;
-  --muted: #898781; --grid: #e1e0d9; --ring: rgba(11,11,11,0.10);
-  --track: #f0efec; --above: #2a78d6; --below: #e34948;
-  --warn-ink: #8a5a00; --warn-bg: #fbeccb;
-  --s1: #2a78d6; --s2: #1baf7a; --s3: #eda100; --s4: #008300;
-  --s5: #4a3aa7; --s6: #e34948; --s7: #e87ba4; --s8: #eb6834;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --plane: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7;
-    --muted: #898781; --grid: #2c2c2a; --ring: rgba(255,255,255,0.10);
-    --track: #383835; --above: #3987e5; --below: #e66767;
-    --warn-ink: #e7b95a; --warn-bg: #3a2f14;
-    --s1: #3987e5; --s2: #199e70; --s3: #c98500; --s4: #008300;
-    --s5: #9085e9; --s6: #e66767; --s7: #d55181; --s8: #d95926;
-  }
-}
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--plane); color: var(--ink);
   font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 64px; }
-h1 { font-size: 22px; margin: 0 0 4px; }
+/* The identity band under the title: on a faction's page that is the faction's own trim, the
+   only place the skin's accent shows as itself. Three Men factions share a near-black ground
+   (their emblems are drawn that way) and are told apart here. */
+h1 { font-size: 22px; margin: 0 0 4px; position: relative; padding-bottom: 9px; }
+h1::after {
+  content: ""; position: absolute; inset: auto 0 0 0; height: 1px;
+  background: linear-gradient(90deg, var(--trim), var(--ring) 32%, transparent);
+}
 h2 { font-size: 18px; margin: 32px 0 8px; }
 h3 { font-size: 13px; margin: 20px 0 6px; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.04em; }
 h4 { font-size: 12px; margin: 14px 0 6px 16px; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.04em; }
@@ -2536,6 +2529,16 @@ _ICICLE_SCRIPT = """\
 # shared sheet so the per-faction pages are untouched: the matchup matrix (vertical column
 # heads, tinted diverging cells). The link and nav-pill rules live in the shared sheet, as
 # the aggregate pages carry a back-to-index nav of their own.
+def _page_style(skin: Skin | None, *extra: str) -> str:
+    """A page's stylesheet: its skin's tokens, then the components that read them.
+
+    `skin` is the faction's own where the page is about one faction, and steel everywhere
+    else; None means steel too, so a caller with no faction in hand can just pass what
+    `webtheme.skin_for_label` gave it.
+    """
+    return webtheme.aggregate_tokens(skin or webtheme.STEEL) + _HTML_STYLE + "".join(extra)
+
+
 _INDEX_STYLE = """\
 table.matrix th, table.matrix td { text-align: center; }
 table.matrix td:first-child, table.matrix th:first-child { text-align: left; }
@@ -3179,9 +3182,10 @@ def render_aggregate_html(
     powers_heading: str = DEFAULT_POWERS_HEADING,
     icon: FactionIcon | None = None,
     weight: Weight | None = None,
+    skin: Skin | None = None,
 ) -> list[str]:
-    """The same aggregation as one self-contained HTML page (no external assets, light/dark via
-    `prefers-color-scheme`): per faction a stat-tile header and the pick-category tables
+    """The same aggregation as one self-contained HTML page (no external assets): per faction a
+    stat-tile header and the pick-category tables
     (tracked powers nested under Units as `powers_heading`), then a collapsible `vs <enemy>`
     block per matchup when the aggregation carried them. Win rates render as diverging bars
     around 50%. `translate` maps a code name to the display string shown for faction and
@@ -3214,7 +3218,9 @@ def render_aggregate_html(
     heads the page: over the factions for a multi-faction report, or over the one faction's own
     sections (each pick
     category present, then Matchups and, when `extra` renders one, Replays) for a single-faction
-    page - so `extra`'s replay heading should carry `id="replays"` to be linked."""
+    page - so `extra`'s replay heading should carry `id="replays"` to be linked.
+    `skin` is the page's palette (`sage_utils.webtheme`): pass the faction's own on a
+    single-faction page, and leave it None - steel - for a report over several."""
     tr = translate or _identity
     ic = icon or _no_icon
     graph_ids = count()
@@ -3225,7 +3231,7 @@ def render_aggregate_html(
         '<meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         f"<title>{escape(title)}</title>",
-        f"<style>{_HTML_STYLE}</style>",
+        f"<style>{_page_style(skin)}</style>",
         "</head>",
         "<body><main>",
         f"<h1>{escape(title)}</h1>",
@@ -3454,9 +3460,10 @@ def render_index_html(
     translate: Translate | None = None,
     nav: list[tuple[str, str]] | None = None,
     icon: FactionIcon | None = None,
+    skin: Skin | None = None,
 ) -> list[str]:
-    """A self-contained navigation index for a set of aggregate pages (same light/dark
-    styling as `render_aggregate_html`): corpus stat tiles, a link to the combined report,
+    """A self-contained navigation index for a set of aggregate pages (same styling as
+    `render_aggregate_html`): corpus stat tiles, a link to the combined report,
     a per-faction leaderboard linking out via `links` (raw faction code name -> href), the
     matchup win-rate matrix, and the unparseable / unresolved-faction warnings. `generated` is an optional build
     stamp; `translate` maps a faction code name to the display string (raw code name by
@@ -3464,7 +3471,8 @@ def render_index_html(
     `(label, href)` pills linking to sibling index pages (an empty href marks the current one).
     `icon`, if given, maps a faction code name to an icon URL (relative to this page) shown
     before the faction in the leaderboard and matchup matrix. The leaderboard's column headers
-    are clickable to sort (the matrix is left unsorted; see `_SORT_SCRIPT`)."""
+    are clickable to sort (the matrix is left unsorted; see `_SORT_SCRIPT`).
+    `skin` is the page's palette; an index spans every faction, so it stays steel."""
     tr = translate or _identity
     ic = icon or _no_icon
     meta = _corpus_summary(corpus)
@@ -3477,7 +3485,7 @@ def render_index_html(
         '<meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         f"<title>{escape(title)}</title>",
-        f"<style>{_HTML_STYLE}{_INDEX_STYLE}</style>",
+        f"<style>{_page_style(skin, _INDEX_STYLE)}</style>",
         "</head>",
         "<body><main>",
         f"<h1>{escape(title)}</h1>",

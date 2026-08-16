@@ -301,6 +301,43 @@ class BotState:
         # where it was and it is not there any more. Nothing here reads the unfogged snapshot;
         # what has never been seen is not in it. See `Warfare.remember_keeps`.
         self._seen_keeps: dict[int, Vec3] = {}
+        # **Every nest the seat has ever seen, by object id - the same memory as `_seen_keeps`,
+        # for the target list that needed it just as badly and did not have it.**
+        #
+        # `World.nests` read the live observation and nothing else, so under fog a lair was a
+        # target only while something of ours happened to be looking at it. Measured live over a
+        # single run: the `nests` column read 21 at cycle 4, 2 at cycle 14, and 0 for most of the
+        # rest of the match on a map that still had lairs standing everywhere. Twenty-one nests
+        # were not destroyed in ten cycles - they were forgotten.
+        #
+        # **The rebuild hole is what makes that a bug rather than a limitation.** The hole exists
+        # only after its lair dies, which is the one moment the force is standing on top of it;
+        # the fog closes as soon as the party walks away, the hole leaves this list, and
+        # `RebuildHoleBehavior` puts the lair back two minutes later with nothing having been
+        # gained. That is the loop a razed lair is supposed to end. See `World.nests`.
+        self._seen_nests: dict[int, GameObject] = {}
+        # Where each raiding party committed to clearing, by party. **A place rather than an
+        # object, which is the whole point**: a razed lair leaves a `REBUILD_HOLE` stump at
+        # the same spot with a *new* object id, and a raid that re-decides from scratch reads
+        # that as a fresh target competing with every other nest on the map. So the party is
+        # committed to the ground until nothing re-arming is standing on it - which is what
+        # makes razing a lair permanent rather than a two-minute reprieve. See
+        # `Warfare.unfinished_nest` and `RAID_FINISH`.
+        self._raid_spot: dict[int, Vec3] = {}
+        # Which battalion was last sent to collect a crate, and when. **A commitment, for the
+        # reason every other movement latch here exists**: re-issuing a move every cycle restarts
+        # the path, so a battalion re-aimed at the same crate takes one step per cycle and never
+        # reaches it. See `CRATE_REORDER`, which is short because the crate expires.
+        self._crate_at: dict[int, float] = {}
+        # **How many build plots the starting base has, at its high-water mark.**
+        #
+        # Not every base is the same size - a castle start and a camp start differ by several
+        # plots - and almost every decision the economy makes is really a decision about how to
+        # split a fixed, small number of them. Held as a latch rather than read fresh because the
+        # honest reading is only available *later*: `wait_for_match` returns at frame 0 with the
+        # map still spawning, so the first few cycles see a base that does not exist yet and
+        # report zero. See `World.base_capacity`.
+        self._base_capacity = 0
         # Where the base was last read to be, which is what the next reading is taken around.
         # See `BASE_RADIUS`: without it the centre walks out across the map behind the
         # expansions and takes `DEFEND_RADIUS` and `free_plots` with it.

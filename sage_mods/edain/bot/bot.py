@@ -40,6 +40,13 @@ class Bot(Director):
         win, then the ceiling that caps them, then buildings, then defence, then expansion, then
         raiding, and research last because it spends only what the rest could not.
 
+        **`stage_crate` sits behind `stage_expand` in all three lists**, and behind it for a
+        reason rather than by habit: expansion is what decides where a party is walking, and a
+        crate is a detour off that walk. Ahead of it, a battalion would be re-aimed at a pickup
+        on the cycle it was given a flag. It is in the push list too - a crate inside
+        `CRATE_REACH` of an army already committed is free, and the endgame is exactly when the
+        gold has nowhere else to come from.
+
         **`stage_archers` is written and deliberately not in either list.** It pulls bowmen out
         of melee and back behind the line, and it worked - but a measured run fired it 202 times
         and roughly half were withdrawals from a banner carrier or a ram crew, armed support that
@@ -139,6 +146,7 @@ class Bot(Director):
         """
         self.refresh()
         self.remember_keeps()
+        self.remember_nests()
         self.note_freed_plots()
         stages: tuple[Callable[[], str | None], ...]
         if self.opening():
@@ -147,6 +155,7 @@ class Bot(Director):
                 self.stage_build,
                 self.stage_defend,
                 self.stage_expand,
+                self.stage_crate,
                 self.stage_hero,
                 self.stage_hero_cast,
                 self.stage_powers,
@@ -163,6 +172,7 @@ class Bot(Director):
                 self.stage_build,
                 self.stage_defend,
                 self.stage_expand,
+                self.stage_crate,
                 self.stage_push,
                 self.stage_formation,
                 self.stage_hero,
@@ -183,6 +193,7 @@ class Bot(Director):
                 self.stage_defend,
                 self.stage_cavalry,
                 self.stage_expand,
+                self.stage_crate,
                 self.stage_raid,
                 self.stage_formation,
                 self.stage_hero,
@@ -304,7 +315,10 @@ class Bot(Director):
                 # failure mode worth watching for, which is all the plots going to one ladder.
                 f"eco {'/'.join(str(len(self.owned_building(b))) for b in self.economy_set())}  "
                 f"prod {len(self.production_buildings())}  "
-                f"plots {len(self.free_plots())}  "
+                # Free plots against the base's own size, because the first number alone cannot
+                # be read: `plots 0` is a full castle and an unspawned base and a razed one, and
+                # those are three different matches. See `World.base_capacity`.
+                f"plots {len(self.free_plots())}/{self.base_capacity()}  "
                 f"flags {len(self.external_plots())}  "
                 f"map {self.map_control():.0%}  "
                 f"parties {[len(p) for p in self._parties.values()]} forming {len(self._forming)} "

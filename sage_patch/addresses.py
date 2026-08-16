@@ -129,9 +129,13 @@ __all__ = [
     "DESCRIPTION_BLOCKED_RUN",
     "DESCRIPTION_BLOCKED_RUN_BYTES",
     "DESCRIPTION_BUFFER_EBP_OFFSET",
+    "DESCRIPTION_BUTTON_CAPTURE",
+    "DESCRIPTION_BUTTON_CAPTURE_BYTES",
+    "DESCRIPTION_BUTTON_CAPTURE_RESUME",
     "DESCRIPTION_DONE",
     "DESCRIPTION_LINE_EBP_OFFSET",
     "DESCRIPTION_OBJECT_EBP_OFFSET",
+    "DESCRIPTION_PLAYER_EBP_OFFSET",
     "DESCRIPTION_PURCHASED_ASSIGN",
     "DESCRIPTION_PURCHASED_ASSIGN_BYTES",
     "DESCRIPTION_PURCHASED_RESUME",
@@ -142,6 +146,9 @@ __all__ = [
     "DESCRIPTION_RANK_RESUME",
     "DESCRIPTION_SPECIAL_POWER_CASE",
     "DESCRIPTION_SPECIAL_POWER_CASE_BYTES",
+    "DESCRIPTION_TAIL",
+    "DESCRIPTION_TAIL_BYTES",
+    "DESCRIPTION_TAIL_RESUME",
     "DESCRIPTION_TEXT_EBP_OFFSET",
     "DESCRIPTION_UNIT_COST_BODY",
     "DISPLAY_DRAW_VTABLE_SLOT",
@@ -893,14 +900,64 @@ DESCRIPTION_TEXT_EBP_OFFSET = -0x18
 #: null when nothing is being described.
 DESCRIPTION_OBJECT_EBP_OFFSET = -0x1C
 
+#: That `Object`'s controlling `Player`, in the same frame - and **never null**, which is the
+#: useful part: `0x00807AD4` seeds the slot from `ThePlayerList` (`0x00DE4928`) and only then
+#: overwrites it with `getControllingPlayer` when there *is* an object. So a per-player value is
+#: answerable even for a button with nothing selected behind it.
+#:
+#: Both this and :data:`DESCRIPTION_OBJECT_EBP_OFFSET` are written **once**, in the prologue, and
+#: by nothing else in the function - unlike the button's `ThingTemplate` slot at `ebp-0x4c` and
+#: (on one path) its `UpgradeTemplate` slot at `ebp-0x24`, both of which later cases reuse as
+#: scratch. That is what makes these two safe to read from a hook at the end of the function.
+DESCRIPTION_PLAYER_EBP_OFFSET = -0x20
+
+#: The description builder's prologue, at the instruction that loads the `CommandButton`.
+#:
+#: `esi` is the builder's `this` here and `[esi+0xc]` is the button - but `esi` does **not** hold
+#: the `this` at the end of the function: three cases reassign it (`0x00808426`, `0x00808654`,
+#: `0x0080867A`), so a hook that runs after the switch cannot recover the button from it. This is
+#: where a patch that needs the button later takes a copy, because the path through here is
+#: unconditional: everything above it is straight-line from the function's entry, and the null
+#: button check (`0x00807AFF`) is the instruction immediately *after* the window.
+#:
+#: The window is the two instructions `mov [ebp-0x3c], edi` / `mov ecx, [esi+0xc]`; the resume
+#: point is the `cmp ecx, edi` that tests what the second one loaded.
+DESCRIPTION_BUTTON_CAPTURE = 0x00807AF9
+DESCRIPTION_BUTTON_CAPTURE_BYTES = bytes.fromhex("897dc48b4e0c")
+DESCRIPTION_BUTTON_CAPTURE_RESUME = 0x00807AFF
+
+#: The same builder's **tail**: the first instruction past the point where every case has finished.
+#:
+#: The whole switch converges on `0x008086AA`, and between there and the tooltip record's
+#: constructor at `0x008086E5` the only thing written is the hint slot at `ebp-0x48`. So the
+#: description at `ebp-0x18` is **final** here, which makes this the one site where a line can be
+#: appended and be genuinely last - the per-case sites cannot promise that, because the
+#: `CONTROLBAR:Requirements` and `TOOLTIP:BuildDisabled` folds run after several of them.
+#:
+#: `0x008086AA` and `0x008086AB` are both branch targets and this is not, and the four bytes it
+#: encodes appear as an imm32 nowhere in the image, so no jump table reaches it either. The window
+#: is the single `mov ecx, [0x00DE4A70]` that begins the hint block.
+DESCRIPTION_TAIL = 0x008086AE
+DESCRIPTION_TAIL_BYTES = bytes.fromhex("8b0d704ade00")
+DESCRIPTION_TAIL_RESUME = 0x008086B4
+
 #: `CommandButton::m_specialPower`, and the GUI command value that says a button has one.
 COMMAND_BUTTON_SPECIAL_POWER = 0x44
 GUI_COMMAND_SPECIAL_POWER = 0x18
 
-#: How the engine appends one `<label>: <number>` line to a description. Twelve sites share the
-#: idiom, so it is stable: fetch the localized label through `TheGameText`'s vtable `+0x44` with
-#: the caller's three already-pushed arguments, then concatenate onto the buffer the builder keeps
-#: at `ebp-0x28`, then drop all three.
+#: How the engine builds one `<label>: <number>` line. Twelve sites share the idiom, so it is
+#: stable: fetch the localized label through `TheGameText`'s vtable `+0x44` with the caller's three
+#: already-pushed arguments, then format it into the buffer the builder keeps at `ebp-0x28`, then
+#: drop all three.
+#:
+#: ⚠ **`UNICODE_STRING_CONCAT` does not concatenate - it replaces.** The name is kept because three
+#: patches import it, but `0x00ADF7E0` forwards to `0x00437120`, which `vswprintf`s into a `0x4000`
+#: scratch buffer and finishes with `UnicodeString::set` (`0x00436B20`) - so the destination's
+#: previous contents are gone. The twelve engine sites conceal this perfectly, because each formats
+#: into a slot it is the only writer of. A patch that formats into a slot something else has
+#: already written **deletes that text**, and neither `verify` nor a disassembly of the cave can
+#: see it. To add a line to an existing string, format into a temporary and join it with
+#: :data:`UNICODE_STRING_APPEND`, which is what the builder's own rank case does at `0x008085C4`.
 #:
 #: The three arguments are pushed *by the caller* as `(label key, 0, value)` and cleaned by the
 #: `add esp, 0xc` at the end, which is what makes the block copyable into a cave: it is

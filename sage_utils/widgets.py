@@ -184,14 +184,22 @@ def resource_path(name: str, anchor: str) -> Path:
     return base / name
 
 
-def run_app(window_factory, *, icon_file: str, anchor: str, app_name: str | None = None) -> None:
+def run_app(
+    window_factory,
+    *,
+    icon_file: str | None = None,
+    anchor: str | None = None,
+    app_name: str | None = None,
+) -> None:
     """Boot a QApplication with the shared dark theme and bundled window icon, show the
     window `window_factory()` builds, and run the event loop until exit. `anchor` is the app
-    module's `__file__` (for `resource_path`); `app_name`, if given, sets the application name."""
+    module's `__file__` (for `resource_path`); `app_name`, if given, sets the application name.
+    An app that ships no icon of its own passes neither and keeps the platform default."""
     app = QApplication(sys.argv)
     if app_name is not None:
         app.setApplicationName(app_name)
-    app.setWindowIcon(QIcon(str(resource_path(icon_file, anchor))))
+    if icon_file is not None and anchor is not None:
+        app.setWindowIcon(QIcon(str(resource_path(icon_file, anchor))))
     apply_theme(saved_dark_theme(), persist=False)  # last chosen theme, dark by default
     window = window_factory()
     window.show()

@@ -106,6 +106,31 @@ result = render_notes(read_notes("Edain 4.8.csv"), beta=False)
 write_notes(result, ".", "Edain 4.8")
 ```
 
+## Horde maker
+
+`sage_mods.edain.horde_maker` is a horde's formation - the `RankInfo` block a `HordeContain`
+carries - as a flat list of slots at game coordinates, rendered to that block or read back
+out of one. [`horde_maker/ui`](horde_maker/ui) is a small desktop window over it
+(`sage-edain-horde`, the `edain-ui` extra): click the soldiers onto a grid and the block is
+written for you, ranks numbered and each soldier tied to its leader in the rank ahead; paste
+an existing block in to see the shape it describes.
+
+```py
+from sage_mods.edain.horde_maker import Slot, parse_formation, render_formation
+
+block = render_formation(
+    [Slot("GondorSoldier", x=10.0, y=10.0), Slot("GondorSoldier", 10.0, -10.0)],
+    {"GondorSoldier": 8.0},
+)
+slots = parse_formation(block)
+```
+
+X is depth, growing towards the front of the formation; Y is lateral, growing to the left of
+the centre line. Whether a formation's soldiers overlap depends on how wide each unit is, which
+the ini never says - so the diameters they were drawn at ride along in a leading
+`; HordeMaker DotSizes` comment (`parse_sizes` reads it back), and the window draws each unit
+at its real size.
+
 ## Skirmish bot
 
 `sage_mods.edain.bot` plays a live skirmish through [`sage_live`](../../sage_live): it lays

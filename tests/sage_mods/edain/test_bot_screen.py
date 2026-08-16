@@ -122,23 +122,29 @@ def test_the_whole_force_is_never_peeled() -> None:
     assert len(screened) < len(force)
 
 
-def test_the_pikes_meet_the_wargs_and_the_swords_keep_demolishing() -> None:
-    """The arrangement the whole change is for. A warg takes 170% from a spear and 100% from a
-    sword, so the spears are what turns round - and every one of them, not the nearest body."""
+def test_the_pikes_take_the_lair_and_the_swords_hold_the_wargs_off_them() -> None:
+    """**The arrangement, and it is the inverse of the one this method shipped with.** A warg
+    takes 170% from a spear and 100% from a sword, so the spears are the battalions that can
+    walk through a warg lair's garrison - which makes them the ones to send at the lair, not the
+    ones to tie up in front of it. Watched live, the old split left Gondor's swordsmen hitting
+    the building while the spears stood in a fight a lair renews forever.
+
+    `screen` returns whoever was given their own order, so here that is the swords."""
     force = [_unit(1, SWORDS, 0.0), _unit(2, PIKES, 10.0), _unit(3, PIKES, 20.0)]
     party = Party(force, [_unit(9, WARG, 30.0)])
     screened, said = party.screen(force, _unit(50, LAIR, 0.0), "raid")
-    assert [o.object_id for o in screened] == [2, 3]
-    assert party.engaged[0][2] == "raid:counter" and said is not None
+    assert [o.object_id for o in screened] == [1]
+    assert party.engaged[0][2] == "raid:screen" and said is not None
 
 
 def test_proximity_no_longer_decides_who_meets_a_lair() -> None:
     """The old rule sent whoever was nearest, which at a lair is whoever happened to walk in
-    front. The swordsman is standing on the warg and it is still the spear that goes."""
+    front. The swordsman is standing on the warg and it is still the matchup that decides - the
+    spear goes at the lair and the sword is the one left holding the warg."""
     force = [_unit(1, SWORDS, 500.0), _unit(2, PIKES, 0.0)]
     party = Party(force, [_unit(9, WARG, 520.0)])
     screened, _ = party.screen(force, _unit(50, LAIR, 0.0), "raid")
-    assert [o.object_id for o in screened] == [2]
+    assert [o.object_id for o in screened] == [1]
 
 
 def test_a_party_with_no_counter_in_it_screens_the_way_it_always_did() -> None:

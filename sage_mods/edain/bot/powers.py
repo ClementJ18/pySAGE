@@ -53,6 +53,7 @@ import time
 from collections.abc import Callable
 
 from sage_live.api.observation import GameObject, Observation, Vec3, distance
+from sage_live.api.orders import CAST_SELF
 from sage_live.api.session import BUILD_CONFIRM, Sent
 from sage_live.utils.naming import UnknownDefinition
 from sage_live.utils.statics import (
@@ -219,6 +220,15 @@ class Powers(Economy):
         One per cycle, like every other spend here. The confirmation is direct - the science is
         either held afterwards or it is not - so a discarded purchase is visible immediately
         rather than inferred from a balance.
+
+        **And the science is not the whole purchase.** A store button may carry a
+        `CommandTrigger`, and for a passive that trigger is where the effect lives: the click a
+        player makes sends the purchase *and* fires the triggered button's `SpecialPower`, which
+        is what grants the upgrade the bonus is `TriggeredBy`. Sending the purchase alone buys a
+        science that does nothing, and does it invisibly - the science is held, so the
+        confirmation passes and the store shows the power as bought. Measured live: a run held
+        `SCIENCE_FormationenGondors` for a whole match with the formation aura never once
+        active. See `PowerButton.triggers`.
         """
         options = self.power_options()
         if not options:
@@ -231,9 +241,51 @@ class Powers(Economy):
         )
         self._report("power", ok, "bought", "NOT BOUGHT - logic discarded it")
         self._strike(key, ok)
+        applied = self.apply_purchase(power) if ok else None
         me = self.observation.me
         left = me.power_points if me else 0
-        return f"power: {power.science} ({power.cost}pt, {left} left)"
+        said = f"power: {power.science} ({power.cost}pt, {left} left)"
+        return f"{said}, {applied}" if applied else said
+
+    def apply_purchase(self, power: PowerButton) -> str | None:
+        """Fire the `SpecialPower` the purchase button triggers, or None where there is none.
+
+        **Only the passives need this**, which is why it is keyed off the button rather than off
+        a list of names: an active power is bought here and cast by `stage_cast` on its own
+        recharge, and firing it at purchase time would waste the first cast on nothing. A button
+        with no `CommandTrigger` returns None and this costs one attribute read.
+
+        **Sent as `CAST_SELF` rather than through the form `Statics` would derive, and that is a
+        deliberate override.** These triggered powers carry `ReloadTime = 0`, and
+        `Statics.cast_form` reads a zero reload as `CAST_PASSIVE` - a form `Session.cast` refuses
+        to send at all, on the reasoning that "a passive power's whole effect landed when it was
+        bought". That reasoning is what this method exists to correct: the effect lands when the
+        *trigger* fires, and the purchase alone does not fire it. A zero reload says the power
+        needs no recharge, which is true of something fired once at purchase; it does not say
+        there is nothing to send. `SPECIAL_SPELL_BOOK_ELVEN_GIFTS` takes no target, so the
+        targetless constructor is the right one.
+
+        **The spellbook is the source, for the reason `spellbook_id` records**: a book power cast
+        with the slot left at 0 is taken by the stream and discarded by logic in silence, which
+        here would look exactly like the bug being fixed.
+
+        **Failure is reported and not retried.** The science is already bought and the points are
+        already gone, so a refused trigger is not something a later cycle can undo by buying
+        again - `power_options` will never offer the science a second time. Saying so in the line
+        is the whole remedy available here, and it is what turns a silent no-op into a visible one.
+        """
+        trigger = power.triggers
+        if not trigger:
+            return None
+        book = self.spellbook_id()
+        ok = bool(
+            self._issue(
+                "power trigger",
+                lambda: self.session.cast(trigger, CAST_SELF, source_id=book),
+            )
+        )
+        self._report("power trigger", ok, "applied", "TRIGGER REFUSED - the passive is inert")
+        return f"trigger {trigger}" if ok else f"trigger {trigger} REFUSED"
 
     def sold_sciences(self) -> frozenset[str]:
         """The sciences this faction's spell store actually sells, lowercased.

@@ -1092,3 +1092,83 @@ HERO_HEAL_TARGETS = 4
 # different purchase: what is this gold worth if the army is already being paid for.
 HERO_FLOOR = 1500
 HERO_PURPOSE = "hero"
+
+# The `KindOf` that marks a pickup - a treasure chest, a salvage crate, a palantír shard, and
+# the one the whole map stops for, `TheDroppedRing`. Read from the flag rather than from the
+# fifteen names in `crate.ini`, because a mod that adds a sixteenth still marks it this way.
+CRATE = "CRATE"
+
+# How far a battalion will go out of its way for a crate.
+#
+# **Set by the crate's own clock, not by taste.** `SalvageCrate` carries a `DeletionUpdate` of
+# `MinLifetime = 30000` / `MaxLifetime = 35000` - it is gone in about half a minute - and the
+# engine advances at four to six logic frames a second under the bridge, so half a minute of
+# game time is most of a wall-clock cycle's worth of walking. A battalion sent from across the
+# map arrives at nothing, having stopped doing the thing it was sent out to do; one already
+# nearby collects on the way past. This is the distance at which the second is still true.
+CRATE_REACH = 600.0
+
+# How long a crate order is left alone before the same battalion may be re-aimed. Every re-issue
+# restarts the path, which is how a unit takes one step per cycle and never arrives - the failure
+# `_sent_at` exists for. Shorter than the field force's because the crate expires.
+CRATE_REORDER = 8.0
+
+# How near a remembered *nest* something of ours must be before its absence is believed.
+#
+# **Deliberately much tighter than `PUSH_ARRIVED`, and the difference is a vision radius.**
+# `remember_nests` first reused the 400 that `remember_keeps` uses, and it emptied the memory it
+# had just been given: measured live across two runs, the `nests` column fell 2 -> 0 and 4 -> 1
+# on maps where nothing had been destroyed. A battalion 350 away from a fogged lair cannot see
+# it, so "I am near it and it is not in view" was not evidence of anything - it was the ordinary
+# state of walking past something in the dark, and it deleted the lair.
+#
+# A keep survives that rule because it is enormous and the push walks onto it; a lair hole is a
+# stump. At this distance the unit is standing on the spot rather than near it, which is the only
+# reading that means the nest is genuinely gone. See `World.remember_nests`.
+NEST_GONE = 120.0
+
+# How close counts as standing on a crate rather than needing to walk to one.
+#
+# Pickup is a collision - `SalvageCrateCollide` - and the crate's own `GeometryMajorRadius` is
+# 12, so a battalion this near has collected it or is one step from doing so. Ordering a move to
+# where a unit already stands displaces nothing, and `Orders.manoeuvre` reads no displacement as
+# an order the engine threw away: the first crate order sent live came back `REFUSED` with no way
+# to tell that case from a real failure. Sized for a horde's own spread rather than for the box.
+CRATE_ON = 40.0
+
+# The engine's name for the seat that owns scenery, wildlife and map furniture.
+#
+# **A seat name rather than a template name, and that distinction is what makes it safe.** This
+# file avoids matching template names because a mod renames them at will; the non-playing seats
+# are engine fixtures and are spelled this way in every match observed. Nothing else separates
+# them from the creeps - both report a `Civilian` faction and both answer False to `playing`.
+#
+# `PlyrCreeps` is deliberately *not* here. Lairs and the slaves they keep replacing are the
+# creeps', and clearing them is how a flag is taken; the civilians own rocks, deer and pillars.
+# See `World.civilian`, and `World.hostile` for what a match cost before the two were told apart.
+CIVILIAN_SEAT = "PlyrCivilian"
+
+# How near the spot a party razed a nest at a replacement counts as the same job.
+#
+# **A lair and the hole it leaves are one target, and only the object id says otherwise.**
+# `RebuildHoleExposeDie` puts the stump where the building stood, so the hole is the same place
+# with a new id - and a raid that re-decides from scratch treats it as a fresh target competing
+# with every other nest on the map. Measured live, four battalions worked four nests for a
+# hundred cycles and finished none of them, because `RebuildHoleBehavior` raises the lair again
+# about two minutes after the stump appears and the party had wandered off by then.
+#
+# Sized for "the same building's footprint", not for a radius of influence - a lair is a few tens
+# of units across and the hole lands inside it. See `Warfare.unfinished_nest`.
+RAID_FINISH = 150.0
+
+# How far from the push's own target a second front may be opened for a spare siege engine.
+#
+# **Bounded by the escort, not by the map.** `RECRUIT_NEVER` records why siege is barred outside
+# a push at all - eight battering rams once walked to their targets alone and achieved nothing -
+# and the push is the escort that lifts the ban. A structure beside the one being knocked down is
+# inside the same fight and covered by the same battalions; one across the map is a ram on its
+# own again, which is the failure this constant exists to keep bounded.
+#
+# Wider than `SCREEN_REACH` because it measures building-to-building rather than who is in
+# contact, and far narrower than `RAID_STANDOFF`, which is about a different question entirely.
+SIEGE_SPREAD = 700.0

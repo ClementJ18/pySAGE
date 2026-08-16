@@ -14,11 +14,13 @@ from sage_patch.patches.binary_attest import BinaryAttestPatch
 from sage_patch.patches.cah_factions import CahFactionsPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
+from sage_patch.patches.description_timers import DescriptionTimersPatch
 from sage_patch.patches.desert_weather import DesertWeatherPatch
 from sage_patch.patches.desert_weather_wb import DesertWeatherWorldbuilderPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
+from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
@@ -86,6 +88,8 @@ PATCHES: dict[str, type[Patch]] = {
     ProductionSplitPatch.name: ProductionSplitPatch,
     BinaryAttestPatch.name: BinaryAttestPatch,
     UpgradeDescriptionPatch.name: UpgradeDescriptionPatch,
+    DescriptionTimersPatch.name: DescriptionTimersPatch,
+    RechargeRescalePatch.name: RechargeRescalePatch,
 }
 
 __all__ = ["PATCHES"]

@@ -226,6 +226,7 @@ def role_wait(
     charges: int,
     allowed: Callable[[Summon], bool],
     value: Callable[[Summon], float],
+    standing: Callable[[Summon], float] | None = None,
 ) -> Summon | None:
     """The summon **one charge away** that is worth not spending for, or None to spend now.
 
@@ -245,14 +246,20 @@ def role_wait(
 
     None when there is nothing affordable anyway - that is the ordinary short-of-charges hold and
     `signal_fire_holding` has better words for it than this does.
+
+    `standing` ranks within the band exactly as it does in `best_summon`, so the summon this
+    names as worth waiting for is the same one that would be bought on arriving there.
     """
     if charges >= MAX_CHARGES:
         return None
+    already = standing or (lambda _: 0.0)
     ahead = [summon for summon in SUMMONS if summon.charges == charges + 1 and allowed(summon)]
     now = [summon for summon in affordable(charges) if allowed(summon)]
     if not ahead or not now:
         return None
-    best_ahead = max(ahead, key=lambda summon: (value(summon), SUMMONS.index(summon)))
+    best_ahead = max(
+        ahead, key=lambda summon: (value(summon), -already(summon), SUMMONS.index(summon))
+    )
     if value(best_ahead) - max(value(summon) for summon in now) > ROLE_PATIENCE:
         return best_ahead
     return None
@@ -262,6 +269,7 @@ def best_summon(
     charges: int,
     fits: Callable[[Summon], bool] | None = None,
     balance: Callable[[Summon], float] | None = None,
+    standing: Callable[[Summon], float] | None = None,
 ) -> Summon | None:
     """What to spend on now, or None to keep saving.
 
@@ -296,10 +304,23 @@ def best_summon(
     supplies the real question, which is which role the army is short of; ties fall back to the
     table, so a caller that passes nothing gets exactly the old behaviour.
 
-    Ties inside a charge band go to the later entry, so the table's order is the tiebreak.
+    **`standing` is what breaks the tie `balance` cannot see, and without it the fire still only
+    ever bought axes.** `role_of` sorts every unit into four buckets, and Ring Vale's swordsmen
+    and Lossarnach's axes both land in `INFANTRY` - so to `summon_balance` the two two-charge
+    summons are the same summon, scored identically, every cycle of every match. The tiebreak
+    then decided, and a tiebreak on `SUMMONS.index` is a constant: Lossarnach is the later entry,
+    so an army that wanted infantry got axes and never once got swordsmen. Measured live across
+    two runs, and `role_wait` does not reach it - that rule holds a charge only when a *different
+    role* is worth waiting for, which is exactly the case this is not.
+
+    So where the roles genuinely tie, the fiefdom the army has fewer of wins. That is still the
+    composition question, asked one grain finer than `role_of` can put it.
+
+    Ties surviving both go to the later entry, so the table's order remains the last word.
     """
     allowed = fits or (lambda _: True)
     value = balance or (lambda _: 0.0)
+    already = standing or (lambda _: 0.0)
     if charges >= SAVE_FOR.charges and allowed(SAVE_FOR):
         return SAVE_FOR
     if SAVE_FROM <= charges < MAX_CHARGES:
@@ -307,9 +328,9 @@ def best_summon(
     options = [summon for summon in affordable(charges) if allowed(summon)]
     if not options:
         return None
-    if role_wait(charges, allowed, value) is not None:
+    if role_wait(charges, allowed, value, already) is not None:
         return None
-    return max(options, key=lambda summon: (value(summon), SUMMONS.index(summon)))
+    return max(options, key=lambda summon: (value(summon), -already(summon), SUMMONS.index(summon)))
 
 
 class SignalFire(Recruiting):
@@ -512,6 +533,34 @@ class SignalFire(Recruiting):
             summon.spawns
         )
 
+    def summon_standing(self, summon: Summon) -> float:
+        """How many of what this summon brings are already in the army, per battalion it brings.
+
+        **The question `role_needs` is too coarse to ask.** Ring Vale's swordsmen and
+        Lossarnach's axes are both `INFANTRY`, so an army made entirely of axes reports no
+        shortage of anything a second Lossarnach would fix, and `summon_balance` scores the two
+        summons the same forever. This counts the fiefdoms themselves, which is the only place
+        the difference between them is visible at all.
+
+        **Ranked low-is-better by the callers**, so it spreads rather than concentrates: with the
+        roles tied, the fiefdom least represented on the field is the one bought. It is
+        deliberately not a need - nothing says an army wants its fiefdoms even - it is a tiebreak,
+        and it only ever runs after `summon_balance` has had its say.
+
+        Counted with `descends_from` rather than by name, for the reason `external_family`
+        records: Lehen's battalions arrive as `_Veteranen` variants of the same four templates,
+        and an exact-name count would read a veteran Lossarnach as a fiefdom nobody has.
+
+        A mean per battalion, matching `summon_balance`, so Lehen's four are not read as four
+        times the concentration of a pair.
+        """
+        standing = [
+            owned
+            for owned in self.army()
+            if any(self.statics.descends_from(owned.template_name, name) for name in summon.spawns)
+        ]
+        return len(standing) / len(summon.spawns)
+
     def signal_fire_target(self, rider: GameObject) -> Vec3:
         """Where to aim the cast - the signal fire, falling back to the rider.
 
@@ -594,7 +643,10 @@ class SignalFire(Recruiting):
                 f"but it costs {cost} command points and {free} are free"
             )
         waiting = role_wait(
-            charges, self.summon_fits, lambda summon: self.summon_balance(summon, needs)
+            charges,
+            self.summon_fits,
+            lambda summon: self.summon_balance(summon, needs),
+            self.summon_standing,
         )
         if waiting is not None:
             role = self.role_of(waiting.spawns[0]).lower()
@@ -624,7 +676,10 @@ class SignalFire(Recruiting):
         rider, charges = riders[0]
         needs = self.role_needs()
         summon = best_summon(
-            charges, self.summon_fits, lambda option: self.summon_balance(option, needs)
+            charges,
+            self.summon_fits,
+            lambda option: self.summon_balance(option, needs),
+            self.summon_standing,
         )
         if summon is None:
             return f"rider {rider.object_id}: {self.signal_fire_holding(charges, needs)}"

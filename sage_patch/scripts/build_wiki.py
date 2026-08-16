@@ -27,6 +27,7 @@ from typing import Any, Optional
 import sage_ini.model.enums as sage_enums
 import sage_ini.model.types as sage_types
 from sage_ini.model.objects import REGISTRY as SAGE_REGISTRY
+from sage_utils import webtheme
 
 __all__ = ["build", "TYPE_DOCS", "CATEGORIES"]
 
@@ -1040,23 +1041,11 @@ def search_data(ref: Reference) -> str:
     return "window.WIKI = " + json.dumps(data, separators=(",", ":")) + ";\n"
 
 
-CSS = """
-:root {
-  --bg: #ffffff; --fg: #1c2024; --muted: #626b75; --line: #e3e7eb;
-  --panel: #f7f8fa; --accent: #2f5bd0; --accent-soft: #e8eefc;
-  --code: #f2f4f7; --warn: #9a5b00; --ok: #1c7c48; --part: #9a6a00;
-  --bad: #c02b3a; --bad-soft: #fdf1f2;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14171a; --fg: #e6e9ec; --muted: #98a2ad; --line: #262c33;
-    --panel: #1a1e22; --accent: #7aa2f7; --accent-soft: #1d2839;
-    --code: #1e2429; --warn: #e0a458; --ok: #6fcf97; --part: #e0b458;
-    --bad: #f2777a; --bad-soft: #2a1c1f;
-  }
-}
+# The reference is one site over every module, with no faction anywhere in it, so it takes the
+# default skin. `sage_utils.webtheme` holds the palette the aggregate pages and the replay
+# browser read too - the three are published side by side and used to disagree about what a
+# panel is.
+CSS = webtheme.wiki_tokens(webtheme.STEEL) + """
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans);
@@ -1197,13 +1186,13 @@ pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.55; }
   white-space: normal; box-shadow: 0 6px 20px rgba(0, 0, 0, .28); pointer-events: none;
 }
 td:last-child .t[data-tip]:hover::after { left: auto; right: 0; }
-.t-scalar { color: #1d6fb8; } .t-text { color: #1c7c48; } .t-enumeration { color: #8a4bbd; }
-.t-flag { color: #b4691a; } .t-reference { color: #b53d7a; } .t-sub { color: #556; }
+/* A field's type reads by hue, and the hue means the same thing on every page, so these are
+   not the skin's to set - only its ground is. The light column these had is gone with the
+   light page: keeping it would have painted #1d6fb8 scalars onto a gunmetal ground for any
+   reader whose OS asks for light. */
+.t-scalar { color: #74b6f0; } .t-text { color: #77d3a1; } .t-enumeration { color: #c39bec; }
+.t-flag { color: #e0a458; } .t-reference { color: #ef8fb8; } .t-sub { color: #aab; }
 .t-unknown { color: var(--muted); border-style: dashed; border-color: var(--line); }
-@media (prefers-color-scheme: dark) {
-  .t-scalar { color: #74b6f0; } .t-text { color: #77d3a1; } .t-enumeration { color: #c39bec; }
-  .t-flag { color: #e0a458; } .t-reference { color: #ef8fb8; } .t-sub { color: #aab; }
-}
 .enumref { font-size: 11.5px; margin-left: 6px; }
 .reflink {
   font-size: 11.5px; margin-left: 6px; color: var(--muted); position: relative;
@@ -1237,13 +1226,9 @@ select.fieldval[multiple] option { padding: 1px 4px; border-radius: 3px; }
   white-space: normal; box-shadow: 0 4px 14px rgba(0, 0, 0, .22);
 }
 .why:empty { display: none; }
-/* The checker is a working surface, not a page of prose: its own dark palette whichever
-   theme the reader is in, the editor as wide as the window, and the toolbar in reach. */
-:root[data-active="check"] {
-  --bg: #0d1117; --fg: #e8edf3; --muted: #8b98a8; --line: #232c37;
-  --panel: #161d26; --accent: #6ea8fe; --accent-soft: #17233a; --code: #111823;
-  --bad: #ff7b83; --bad-soft: #2a1519; --ok: #6fcf97; --part: #e0b458;
-}
+/* The checker is a working surface, not a page of prose: the editor as wide as the window and
+   the toolbar in reach. It used to force its own dark palette against a light page; the whole
+   reference is that dark now, so only the layout is left here. */
 :root[data-active="check"] main { max-width: none; }
 :root[data-active="check"] .lead { font-size: 14px; }
 
@@ -1254,8 +1239,9 @@ select.fieldval[multiple] option { padding: 1px 4px; border-radius: 3px; }
 .checkbar button {
   border: 1px solid transparent; border-radius: 10px; padding: 9px 20px; font-size: 13.5px;
   font-weight: 600; letter-spacing: .2px; cursor: pointer; font-family: var(--sans);
-  color: #0b1017; background: linear-gradient(180deg, #8cbcff, #5b95f5);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset, 0 8px 20px -10px #5b95f5;
+  color: var(--bg); background: linear-gradient(180deg, var(--accent-hi), var(--accent));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset,
+              0 8px 20px -10px var(--accent);
   transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
 .checkbar button:hover { filter: brightness(1.06); transform: translateY(-1px); }
@@ -1272,8 +1258,8 @@ select.fieldval[multiple] option { padding: 1px 4px; border-radius: 3px; }
   white-space: nowrap;
 }
 #checksummary:empty { display: none; }
-#checksummary.bad { color: var(--bad); border-color: rgba(255, 123, 131, .4); }
-#checksummary.good { color: var(--ok); border-color: rgba(111, 207, 151, .4); }
+#checksummary.bad { color: var(--bad); border-color: currentColor; }
+#checksummary.good { color: var(--ok); border-color: currentColor; }
 #checkinput {
   width: 100%; height: min(62vh, 720px); padding: 18px 20px; border-radius: 14px;
   border: 1px solid var(--line); background: var(--code); color: var(--fg);

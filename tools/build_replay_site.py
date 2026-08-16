@@ -39,6 +39,9 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))  # allow running this file directly, not just as a module
+
+from sage_utils import webtheme  # noqa: E402
 
 __all__ = ["Replay", "collect", "export_corpus", "build"]
 
@@ -341,19 +344,13 @@ def page(total: int, corpora: int) -> str:
 """
 
 
-CSS = """
-:root {
-  --bg: #ffffff; --fg: #1c2024; --muted: #626b75; --line: #e3e7eb;
-  --panel: #f7f8fa; --accent: #2f5bd0; --win: #1c7c48; --loss: #a33;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14171a; --fg: #e6e9ec; --muted: #98a2ad; --line: #262c33;
-    --panel: #1a1e22; --accent: #7aa2f7; --win: #6fcf97; --loss: #f2777a;
-  }
-}
+# The browser spans every corpus and every faction at once, so the page itself stays on steel;
+# the one faction-specific thing on it is the faction beside a player's name, which takes that
+# faction's own trim colour (`webtheme.faction_accents`) rather than restyling the page.
+CSS = (
+    webtheme.site_tokens(webtheme.STEEL)
+    + webtheme.faction_accents(".fac")
+    + """
 * { box-sizing: border-box; }
 body {
   margin: 0; padding: 30px 26px 70px; background: var(--bg); color: var(--fg);
@@ -407,10 +404,20 @@ footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--line);
          color: var(--muted); font-size: 12.5px; max-width: 90ch; }
 @media (max-width: 900px) { td.map, th:nth-child(5) { display: none; } }
 """
+)
 
 
-JS = """
+# The faction -> skin map, baked in so the page resolves a label the same way the aggregate
+# does: webtheme owns the spellings, and the JS normalises identically.
+JS = (
+    """
 (function () {
+  var FACTION_SKINS = """
+    + json.dumps(webtheme.label_slugs(), sort_keys=True)
+    + """;
+  function normalise(name) {
+    return String(name == null ? '' : name).toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
   var DATA = window.REPLAYS || { rows: [], corpora: [] };
   var rows = DATA.rows, page = 200, shown = page;
   var body = document.querySelector('#table tbody');
@@ -503,7 +510,14 @@ JS = """
         var cls = 'player' + outcome + (p[5] ? ' ai' : '');
         var span = el('span', cls);
         span.appendChild(document.createTextNode(p[0]));
-        if (p[2]) span.appendChild(el('span', 'fac', ' ' + p[2]));
+        if (p[2]) {
+          var fac = el('span', 'fac', ' ' + p[2]);
+          // the faction's own colour, keyed off the raw label so a corpus that renames it
+          // in its display map still lands on the right skin
+          var slug = FACTION_SKINS[normalise(p[1])] || FACTION_SKINS[normalise(p[2])];
+          if (slug) fac.setAttribute('data-fac', slug);
+          span.appendChild(fac);
+        }
         box.appendChild(span);
       });
       wrap.appendChild(box);
@@ -589,6 +603,7 @@ JS = """
   render();
 })();
 """
+)
 
 
 def main(argv: list[str] | None = None) -> int:

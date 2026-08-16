@@ -29,6 +29,10 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))  # allow running this file directly, not just as a module
+
+from sage_utils import webtheme  # noqa: E402
+
 DEFAULT_OUT = REPO / "build" / "site-root" / "index.html"
 DEFAULT_AGGREGATE_DIR = REPO / "build" / "aggregate"
 DEFAULT_REPLAY_DIR = REPO / "build" / "replays"
@@ -37,19 +41,11 @@ TYPE_JSON = REPO / "sage_patch" / "docs" / "ini-types.json"
 
 __all__ = ["build", "render"]
 
-CSS = """
-:root {
-  --bg: #ffffff; --fg: #1c2024; --muted: #626b75; --line: #e3e7eb;
-  --panel: #f7f8fa; --accent: #2f5bd0;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14171a; --fg: #e6e9ec; --muted: #98a2ad; --line: #262c33;
-    --panel: #1a1e22; --accent: #7aa2f7;
-  }
-}
+# The landing page is about the whole bucket, not any one faction: steel, like every other
+# surface that spans more than one.
+CSS = (
+    webtheme.site_tokens(webtheme.STEEL)
+    + """
 * { box-sizing: border-box; }
 body {
   margin: 0; padding: 8vh 24px 60px; background: var(--bg); color: var(--fg);
@@ -78,6 +74,7 @@ code { font-family: var(--mono); font-size: 12.5px; background: var(--panel);
 footer { margin-top: 44px; color: var(--muted); font-size: 12.5px;
          border-top: 1px solid var(--line); padding-top: 14px; }
 """
+)
 
 
 def _read_json(path: Path) -> dict | None:

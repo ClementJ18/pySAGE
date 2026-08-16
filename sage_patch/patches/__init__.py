@@ -11,6 +11,7 @@ from sage_patch.patches.desert_weather_wb import DesertWeatherWorldbuilderPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.horde_orphan_target import HordeOrphanTargetPatch
+from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
@@ -58,6 +59,7 @@ __all__ = [
     "ProductionConditionPatch",
     "ProductionSplitPatch",
     "QueueIgnoreCpPatch",
+    "RechargeRescalePatch",
     "ReplayOutcomePatch",
     "SciencePrereqPatch",
     "SecondResourcePatch",

@@ -58,6 +58,7 @@ sage-wiki = "sage_wiki.launcher:main"  # guards the [wiki] extra; app.py imports
 sage-lint-ui = "sage_lint.plugins.ui.app:main"
 sage-edain-lint = "sage_mods.edain.map_checks.ui.app:main"
 sage-edain-notes = "sage_mods.edain.patch_notes.ui.app:main"
+sage-edain-horde = "sage_mods.edain.horde_maker.ui.app:main"
 sage-asset-ui = "sage_asset.ui.app:main"
 
 [project.optional-dependencies]
@@ -236,14 +237,16 @@ module = [
 ]
 ignore_errors = true
 
-# Same for the Qt half of the Edain Linter and Edain Patch Notes windows; the Qt-free modules
-# they drive (the map runner, the notes transform) stay checked.
+# Same for the Qt half of the Edain Linter, Patch Notes and Horde Maker windows; the Qt-free
+# modules they drive (the map runner, the notes transform, the formation model) stay checked.
 [[tool.mypy.overrides]]
 module = [
     "sage_mods.edain.map_checks.ui.window",
     "sage_mods.edain.map_checks.ui.app",
     "sage_mods.edain.patch_notes.ui.window",
     "sage_mods.edain.patch_notes.ui.app",
+    "sage_mods.edain.horde_maker.ui.window",
+    "sage_mods.edain.horde_maker.ui.app",
 ]
 ignore_errors = true
 

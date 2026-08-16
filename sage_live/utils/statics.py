@@ -247,11 +247,17 @@ UNPACK_COMMANDS = frozenset({CASTLE_UNPACK, CASTLE_UNPACK_EXPLICIT})
 # palette only, and claiming the flag swaps that away for explicit per-building buttons, so a
 # player never sees it. This mapping is a guide to reading a map, not a substitute for
 # `unpack_buttons` - a family does not decide the order, the live palette does.
+# **The castle and camp entries carried a literal `<XX>` and matched nothing.** They were written
+# as `FestungPlotFlag<XX>_Real` and `LagerPlotFlag<XX>_Real`, as though the tree spelled a number
+# or a faction code into the middle of the name; it does not. Checked against RotWK 2.01 + Edain,
+# the declared objects are `FestungPlotFlag_Real` and `LagerPlotFlag_Real`, each beside a plain
+# form without the suffix. Nothing read this mapping until `Warfare.worth_taking` did, which is
+# why a constant that answered "no such plot family" for half its entries went unnoticed.
 PLOT_FAMILIES = {
-    "settlement": ("WirtschaftPlotFlag_Real",),
+    "settlement": ("WirtschaftPlotFlag_Real", "WirtschaftPlotFlag"),
     "outpost": ("ExpansionPlotFlag",),
-    "castle": ("FestungPlotFlag<XX>_Real",),
-    "camp": ("LagerPlotFlag<XX>_Real",),
+    "castle": ("FestungPlotFlag_Real", "FestungPlotFlag"),
+    "camp": ("LagerPlotFlag_Real", "LagerPlotFlag"),
 }
 
 # The two flags that mark somewhere a structure can be placed. Both, not either: `BASE_SITE`
@@ -424,6 +430,21 @@ class PowerButton:
     SCIENCE_MEN SCIENCE_RebuildMen` is two ways of unlocking, the second of which wants both of
     its entries. Whitespace is *and*, `OR` separates the alternatives - so reading the field as
     a flat list gets the tree wrong in both directions at once.
+
+    **`triggers` is the second half of buying a passive, and buying without it does nothing
+    visible.** A purchase button may carry a `CommandTrigger` naming another button, and the
+    engine fires that one as well - so the click a player makes is two orders, not one. For the
+    passives that is where the whole effect lives: `Command_PurchaseSpellFormationenGondors`
+    grants `SCIENCE_FormationenGondors` and triggers `Command_SpellBookFormationenGondors`,
+    whose `SpecialPower` is what actually turns the aura on. The science alone changes nothing -
+    the aura is `StartsActive = No` and is `TriggeredBy` an upgrade the science does not grant.
+
+    Measured live: a bot that sent only the `PURCHASE_SCIENCE` order held the science, passed
+    its own confirmation, showed the power as bought in the store, and never once put the
+    formation bonus on a battalion. 23 of the tree's 164 purchase buttons carry one of these.
+
+    None where the button names no trigger, which is the ordinary case - an active power is
+    bought and then cast on its own schedule, and needs nothing extra at purchase time.
     """
 
     command_slot: int
@@ -432,6 +453,7 @@ class PowerButton:
     cost: int = 0
     prerequisites: tuple[tuple[str, ...], ...] = ()
     grantable: bool = True
+    triggers: str | None = None
 
     def enabled_for(self, sciences: Container[str]) -> bool:
         """Whether some prerequisite group is fully held by `sciences`, which must be lowercased.
@@ -1134,6 +1156,27 @@ class Statics:
     def is_build_site(self, template: str) -> bool:
         """Whether a structure can be placed here - a castle plot or a settlement spot."""
         return bool(self.kind_of(template) & BASE_SITE_KINDS)
+
+    def plot_family(self, template: str) -> str | None:
+        """Which of `PLOT_FAMILIES` this plot belongs to, or None for anything that is not one.
+
+        **A guide to reading a map, and deliberately not a way of choosing an order.** What order
+        a plot takes is `unpack_buttons`' answer and only ever that - the live palette knows, and
+        a settlement's changes the moment it is claimed. This answers the different question a
+        policy asks before it walks anywhere: what *kind* of expansion is this, so that a cheap
+        settlement can be preferred to an outpost while both are still unclaimed and both are
+        still showing the same neutral claim button.
+
+        Matched by name, which is the one place in this class that is right rather than a
+        shortcut: a plot family is a fixed set of four map objects rather than a tier with
+        variations, so there is no `ChildObject` chain to follow and no `BuildVariations` to be
+        fooled by.
+        """
+        key = template.lower()
+        for family, templates in PLOT_FAMILIES.items():
+            if any(key == name.lower() for name in templates):
+                return family
+        return None
 
     def counts_for_victory(self, template: str) -> bool:
         """Whether losing this counts toward the engine's own multiplayer defeat check."""
@@ -2839,9 +2882,32 @@ class Statics:
                     cost=_int_field(definition, "SciencePurchasePointCostMP"),
                     prerequisites=_science_groups(definition),
                     grantable=_yes(definition, "IsGrantable"),
+                    triggers=self._triggered_power(button),
                 )
             )
         return tuple(found)
+
+    def _triggered_power(self, button: str) -> str | None:
+        """The `SpecialPower` a purchase button's `CommandTrigger` fires, if it has one.
+
+        **Two hops, and neither can be skipped.** The purchase button names a *button*, not a
+        power; that second button is what carries the `SpecialPower`. Reading `SpecialPower` off
+        the purchase button itself finds nothing, which is how this went unnoticed - a passive
+        looks like a power with no cast, rather than like a power whose cast was never sent.
+
+        The triggered button is `NONPRESSABLE` and appears on no palette a player can reach, so
+        it is deliberately not required to pass the command-set test the rest of this module
+        applies. It is not a button anybody clicks; it is the other half of the one they did.
+        """
+        entry = self._buttons.get(button.lower())
+        trigger = str(_fields(entry).get("CommandTrigger", "")).strip()
+        if not trigger:
+            return None
+        triggered = self._buttons.get(trigger.lower())
+        if triggered is None:
+            return None
+        power = str(_fields(triggered).get("SpecialPower", "")).strip()
+        return power or None
 
     def frames_per_second(self) -> float:
         """The logic frame rate, so a frame count can be read as a match age.

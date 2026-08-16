@@ -332,8 +332,43 @@ class Economy(Orders):
         """
         standing = {b: len(self.owned_building(b)) for b in self.economy_set()}
         order = {b: i for i, b in enumerate(self.economy_set())}
+        room = self.economy_room()
+        if sum(standing.values()) >= room:
+            return []
         behind = [b for b, count in standing.items() if count < ECONOMY_CAP]
         return sorted(behind, key=lambda b: (standing[b], order[b]))
+
+    def economy_room(self) -> int:
+        """How many plots the economy may take before the rest of the plan is squeezed out.
+
+        **`ECONOMY_CAP` is a ceiling on a ladder, not a budget for a base, and on a small base
+        the difference decides the match.** The cap says a seventh house buys no further
+        discount, which is true of every base; what it cannot say is that this base has five
+        plots and the plan still wants a stable and a marketplace. Capped alone, the economy
+        wants twelve plots for Men - and a base with nine gives it all nine, because economy sits
+        ahead of research in `wanted_buildings` and a plot spent is not returned.
+
+        So the budget is what is left after the plan's outstanding buildings are set aside: the
+        production buildings it has not raised yet, and the research centres. Those are the ones
+        with nowhere else to go - an economy building's alternative is another economy building,
+        while a barracks that never fits is a mix that can never be recruited.
+
+        **Only what is still missing counts against it**, so the reservation shrinks as the plan
+        completes and the last plots go back to the economy rather than being held forever. That
+        is the failure `held_for_research` documents from the other side, and this must not
+        recreate it: a reserve that never lifts starves the income that pays for everything.
+
+        **Unbounded while the capacity is unknown.** `base_capacity` reads zero until the base
+        has spawned, and a budget of zero there would refuse the opening's first farm - so an
+        unknown base is treated as a base with room, which is what the bot did before this
+        existed. `ECONOMY_CAP` still binds on top of this for a base large enough not to care.
+        """
+        capacity = self.base_capacity()
+        if capacity <= 0:
+            return ECONOMY_CAP * len(self.economy_set())
+        planned = self.plan.production[: self.plan.production_target]
+        outstanding = len([b for b in planned if not self.owned_building(b)])
+        return max(1, capacity - outstanding - len(self.missing_research()))
 
     def external_family(self, template: str) -> str | None:
         """Which of the plan's settlement buildings `template` is one of, or None.
@@ -581,6 +616,22 @@ class Economy(Orders):
         gates: set[str] = set()
         for obj in self.observation.mine:
             if self.statics.has_kind(obj.template_name, *NOT_WORTH_UPGRADING):
+                continue
+            # **A battalion is upgraded through its container, never through its soldiers**, and
+            # this walk offered both. A horde arrives as its fifteen members plus the container;
+            # the members carry the same command set, so every button reads as available on each
+            # of them and the order is accepted by the stream and discarded by logic - the same
+            # silent refusal `World.army` records for movement, in a different order type.
+            #
+            # **The cost is far worse than one wasted order, because a refusal is remembered per
+            # object.** `_upgrade_key` deliberately keys per-object so one battalion's refusal
+            # does not retire an upgrade everywhere - which means every member gets its own
+            # `UPGRADE_ATTEMPTS` budget, and a seat holding 21 `GondorSpearman` and 78
+            # `PelegirSpearmen` members has a hundred of them to burn through before the real
+            # container is ever reached. Measured live: 65 of one run's 86 research orders were
+            # `Upgrade_GondorBasicTraining on GondorSpearman`, all 65 refused, while the match
+            # banked 28,964 gold and the spearmen carried no upgrades at all.
+            if self.statics.is_horde_member(obj.template_name):
                 continue
             if obj.under_construction:
                 # **A building still going up takes the order and cannot work it.** It carries

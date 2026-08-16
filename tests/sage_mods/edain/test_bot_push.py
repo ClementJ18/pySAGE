@@ -61,6 +61,13 @@ class Endgame:
     def army(self) -> list[SimpleNamespace]:
         return self._army
 
+    def role(self, obj: SimpleNamespace, which: str) -> bool:
+        """No siege in these fixtures - `test_bot_siege_spread` covers that split."""
+        return False
+
+    def enemy_structures(self) -> list[SimpleNamespace]:
+        return []
+
     def cavalry(self) -> list[SimpleNamespace]:
         return self._horse
 
@@ -252,6 +259,7 @@ class Assault:
 
     stage_push = Warfare.stage_push
     push_target = Warfare.push_target
+    spread_siege = Warfare.spread_siege
     push_aim = Warfare.push_aim
 
     def __init__(
@@ -273,6 +281,13 @@ class Assault:
 
     def army(self) -> list[SimpleNamespace]:
         return self._army
+
+    def role(self, obj: SimpleNamespace, which: str) -> bool:
+        """No siege in these fixtures - `test_bot_siege_spread` covers that split."""
+        return False
+
+    def enemy_structures(self) -> list[SimpleNamespace]:
+        return []
 
     def heroes(self) -> list[SimpleNamespace]:
         return self._heroes

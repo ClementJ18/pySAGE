@@ -109,7 +109,14 @@ class Fires(SignalFire):
         # failure: the order is accepted, the rider keeps its charges, and nothing happens.
         self.spends = spends
         self.session = SimpleNamespace(cast=self._cast, confirm=self._confirm)
-        self.statics = SimpleNamespace(command_point_cost=lambda name: CP.get(name, 0))
+        # `descends_from` is what `summon_standing` counts fiefdoms with, so that a veteran
+        # Lossarnach off Lehen's summon is read as a Lossarnach. The stand-in keeps that: the
+        # `_Veteranen` templates carry their base name as a prefix in the tree, and here nothing
+        # else does.
+        self.statics = SimpleNamespace(
+            command_point_cost=lambda name: CP.get(name, 0),
+            descends_from=lambda template, ancestor: template.startswith(ancestor),
+        )
 
     @property
     def observation(self) -> SimpleNamespace:
@@ -353,6 +360,51 @@ def test_infantry_is_taken_when_infantry_is_what_is_missing() -> None:
     fires = Fires([_rider(1, 2), _fire(2, 300.0)], fielded=ranged, mix=EVEN)
     fires.stage_signal_fire()
     assert fires.cast and fires.cast[0][0].endswith(("RingVale", "Lossarnach"))
+
+
+def test_the_two_charge_band_does_not_buy_the_same_fiefdom_every_time() -> None:
+    """**The axes, again, from the one angle `role_wait` cannot cover.** Ring Vale and Lossarnach
+    are both `INFANTRY`, so whenever infantry is genuinely what the army wants the two summons
+    score identically and the tiebreak decides - and a tiebreak on `SUMMONS.index` is a constant.
+    Live, that meant an army that asked for infantry got axes and never once got swordsmen.
+
+    The army is short of infantry - which is what makes the two-charge band the right band, and
+    `role_wait` stay out of it - and the infantry it already has is all Lossarnach's."""
+    axes = ("GondorSpearmanHorde",) * 3 + ("GondorArcherHorde",) * 3
+    fires = Fires(
+        [_rider(1, 2), _fire(2, 300.0)],
+        fielded=axes + ("LehenLossarnachAxteHorde",) * 2,
+        mix=EVEN,
+    )
+    fires.stage_signal_fire()
+    assert fires.cast and fires.cast[0][0].endswith("RingVale")
+
+
+def test_the_fiefdom_tiebreak_points_both_ways() -> None:
+    """The other half, which is what makes it a spread rather than a new constant favouring Ring
+    Vale. Swap which fiefdom is standing and the answer swaps with it."""
+    line = ("GondorSpearmanHorde",) * 3 + ("GondorArcherHorde",) * 3
+    fires = Fires(
+        [_rider(1, 2), _fire(2, 300.0)],
+        fielded=line + ("RingValeSwordsmanHorde",) * 2,
+        mix=EVEN,
+    )
+    fires.stage_signal_fire()
+    assert fires.cast and fires.cast[0][0].endswith("Lossarnach")
+
+
+def test_a_veteran_fiefdom_counts_as_that_fiefdom() -> None:
+    """Lehen's battalions arrive as `_Veteranen` variants, and counting by exact name would read
+    a veteran Lossarnach as a fiefdom nobody has - which would send the next two charges straight
+    back to the axes. `descends_from` is what keeps the count honest."""
+    line = ("GondorSpearmanHorde",) * 3 + ("GondorArcherHorde",) * 3
+    fires = Fires(
+        [_rider(1, 2), _fire(2, 300.0)],
+        fielded=line + ("LehenLossarnachAxteHorde_Veteranen",) * 2,
+        mix=EVEN,
+    )
+    fires.stage_signal_fire()
+    assert fires.cast and fires.cast[0][0].endswith("RingVale")
 
 
 def test_a_rider_holds_one_charge_for_a_role_two_charges_cannot_buy() -> None:

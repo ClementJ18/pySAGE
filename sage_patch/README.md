@@ -8,9 +8,9 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
 
 > ### ⚠ Experimental patches
 >
-> Five of the patches below — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
-> **`standalone-launcher`** and **`headless`** — are **experimental: unstable and largely
-> untested.** They live in [`patches/experimental/`](patches/experimental/), they are marked `exp`
+> Six of the patches below — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
+> **`standalone-launcher`**, **`headless`** and **`recharge-rescale`** — are **experimental:
+> unstable and largely untested.** They live in [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
 >
 > What that means, precisely. The reverse engineering is written up, the assembly is there, the
@@ -486,6 +486,64 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   enters the simulation, so a patched and an unpatched client can play each other and replays
   cross, same rule as `replay-outcome`. See
   [`docs/upgrade-description.md`](docs/upgrade-description.md). **Runtime-verified in game.**
+- **`recharge-rescale`** ⚠**(experimental)** makes a cooldown **already running** respond to a recharge modifier that
+  arrives after the cast — a leadership aura, a temporary `RECHARGE_TIME` buff, the player
+  finishing a `SpellRechargeModifierUpgrade` mid-match. Stock, none of those can touch it:
+  `startPowerRecharge` computes the whole cooldown once, when the power fires, and stores an
+  **absolute ready frame**, so a discount only ever pays off on the *next* cast. The fix is cheap
+  for a reason that is not obvious until the layout is read: the module stores the cooldown
+  **twice** — the ready frame at `interface+0x08`, and beside it the *length* of the cooldown that
+  produced it, `max(1, ftol(ReloadTime * m))`, which exists to draw the button clock. That second
+  field is the record of the multiplier baked in at cast time, so recomputing the stock formula now
+  and comparing the two **integers** says whether anything has moved — exactly, with no tolerance
+  to choose — and the patch needs **no per-module storage, no struct growth and no INI keyword**.
+  When they differ it rescales the remainder, `remaining * frames_now / duration`, and stores the
+  new duration. That is not an approximation of a per-frame rate, it **is** one: the stored
+  remainder is the unscaled work times the multiplier, so a modifier held for part of a cooldown
+  produces the same finish frame as integrating a rate over that interval, and "150% cooldown speed
+  removes 1.5 seconds per second" falls out rather than being aimed at. The clock follows for free
+  and **does not jump**, because numerator and denominator are scaled together — writing the ready
+  frame alone, the tempting one-liner, would snap the pie forward when an aura landed and back when
+  it expired. There is **nothing to tick**: a cooldown is an absolute frame, so nothing runs while
+  it elapses and most special-power modules are not update modules at all — so the driver is a
+  sweep of the logic's own object list, from the one `call` whose flags gate the frame counter
+  (`0x0062E56A`), which is what keeps it in step across peers; `live-bridge` owns the *entry* of
+  the same function and the two compose. Two things are left alone and both fail closed: the
+  **second** `startPowerRecharge` at `0x00991500` (3 module vtables of 26) keeps no duration and so
+  cannot say what it baked in, and `SharedSyncedTimer` powers keep their frame on the `Player`.
+  Four bytes of `.text` and a 405-byte cave. **Simulation state**, so every peer needs the same
+  binary and replays do not cross — but a **no-op on data that never moves a multiplier
+  mid-cooldown**, since the rescale is gated on the stock formula's own answer. See
+  [`docs/recharge-rescale.md`](docs/recharge-rescale.md).
+
+- **`description-timers`** puts **how long a button's thing takes** at the bottom of its
+  description: a special power's **cooldown** — its full length while the power is ready, the
+  **time left** while it is recharging — a unit's or structure's **build time**, and an upgrade's
+  **research time**. Every number is the engine's own, which is what makes "with the reduction
+  applied" free rather than a second feature: the cooldown is
+  `SpecialAbilityUpdate::startPowerRecharge`'s arithmetic transcribed instruction for instruction,
+  so a `RECHARGE_TIME` aura that is up *right now* and a researched `SpellRechargeModifierUpgrade`
+  are both in the figure; and the two build times are the same `calcTimeToBuild` pair
+  `ProductionUpdate` asks for a queue entry's total, so the tooltip cannot disagree with what the
+  game then does — the producer's `ProductionModifier` time multiplier is applied inside the call.
+  The line goes at `0x008086AE`, the one instruction past the point where every case of the
+  builder's switch has converged, which is what makes it genuinely **last** where a per-case site
+  cannot be. The price of being that late is that `esi` no longer holds the builder's `this` —
+  three cases reassign it — so a **second six-byte window** in the prologue copies the
+  `CommandButton` into the cave; the builder has one caller and runs on hover, so the copy cannot
+  go stale. **Silent unless the mod declares the string**: the engine's text fetch has an `exists`
+  out-parameter all twelve stock callers pass `0` for, and passing a real one drops the whole line
+  when the key is missing — so on a string table without `TOOLTIP:Cooldown`,
+  `TOOLTIP:CooldownRemaining`, `TOOLTIP:BuildTime` and `TOOLTIP:ResearchTime` the tooltip is
+  byte-identical to stock. Two limits stated rather than hidden: **the tooltip is built once per
+  hover** (`0x00DE8998` latches and the same-request path returns early forever after), so the
+  remaining cooldown is a snapshot taken when it appeared rather than a countdown; and hero revive
+  buttons are **skipped**, because a hero's time comes off the player's ledger and not off its
+  `ThingTemplate` — tested with the engine's own hero bit, so the failure is a missing line, never
+  a wrong number. Client-local and read-only, so replays cross and peers need not match, same rule
+  as `upgrade-description`. See
+  [`docs/description-timers.md`](docs/description-timers.md). **Static only — not yet observed in
+  a running game.**
 - **`binary-attest`** folds a hash of the game's **own code** into the frame checksum, so a peer
   running a modified `game.dat` goes **out of sync** instead of playing. It exists because of what
   the RE found on the way: **fog of war is already in the sync hash** — the CRC producer at
@@ -604,6 +662,11 @@ sage-patch verify queue-ignore-cp game.dat
 sage-patch apply hero-bar-slots --count 21 --in game.dat.backup --out game.dat
 sage-patch verify hero-bar-slots --count 21 game.dat
 
+# a cooldown / build time / research time line at the bottom of a button's description;
+# --integer-seconds makes each key take a %d instead of a %.1f
+sage-patch apply description-timers --in game.dat.backup --out game.dat
+sage-patch verify description-timers game.dat
+
 # keep an upgrade's description once it is researched, message appended under it
 sage-patch apply upgrade-description --in game.dat.backup --out game.dat
 sage-patch apply upgrade-description --separator blank-line --also-blocked \
@@ -617,6 +680,11 @@ sage-patch verify foundation-rebind game.dat
 # a command-line surface, and a game that does not draw
 sage-patch apply headless --in game.dat.backup --out game.dat          # no parameters
 sage-patch verify headless game.dat
+
+# a cooldown already running responds to a recharge modifier granted after the cast
+# EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
+sage-patch apply recharge-rescale --in game.dat.backup --out game.dat   # no parameters
+sage-patch verify recharge-rescale game.dat
 
 # the launcher, not game.dat: no install-location lock on the token it hands the engine
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
