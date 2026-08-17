@@ -86,6 +86,8 @@ from __future__ import annotations
 import struct
 from typing import TYPE_CHECKING
 
+from sage_ini.engine import Engine, FieldDelta
+
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
@@ -388,6 +390,15 @@ class BannerFilterPatch(Patch):
             if not problems:
                 return patch
         return None
+
+    def ini_surface(self) -> Engine:
+        """The one `ObjectFilter` this patch adds to `BannerCarrierUpdate`, under whatever keyword
+        it was installed with. The constructor leaves it unspecified, so the default is "no
+        filter" - stock behaviour, which is what makes the field opt-in. `only_when_all` is not
+        part of the surface: it decides when the scan consults the filter, not whether the
+        keyword parses."""
+        field = FieldDelta("BannerCarrierUpdate", self.keyword, "ObjectFilter", None, self.name)
+        return Engine(fields=(field,))
 
     # --- CLI integration ---------------------------------------------------------------------
 

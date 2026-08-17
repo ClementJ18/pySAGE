@@ -213,6 +213,25 @@ def test_the_new_field_sits_past_the_stock_structure(image: bytearray) -> None:
     assert bytes(data[off : off + 2]) == bytes((0x6A, PATCHED_MODULEDATA_SIZE))
 
 
+def test_ini_surface_reports_the_new_field(image: bytearray) -> None:
+    surface = BannerFilterPatch(keyword="ReplenishTargetFilter").ini_surface()
+    assert [(f.block, f.name, f.type) for f in surface.fields] == [
+        ("BannerCarrierUpdate", "ReplenishTargetFilter", "ObjectFilter")
+    ]
+
+
+def test_the_ini_surface_actually_applies_to_the_model() -> None:
+    """A field the model cannot take is a declaration that silently does nothing - the surface
+    has to land on `BannerCarrierUpdate` itself, not just parse."""
+    with BannerFilterPatch().ini_surface().activate() as problems:
+        assert problems == []
+
+
+def test_only_when_all_is_not_part_of_the_ini_surface() -> None:
+    """It changes when the scan consults the filter, not whether the keyword parses."""
+    assert BannerFilterPatch(only_when_all=True).ini_surface() == BannerFilterPatch().ini_surface()
+
+
 # --- the build fingerprint -------------------------------------------------------------------
 
 
