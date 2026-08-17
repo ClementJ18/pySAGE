@@ -8,9 +8,10 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
 
 > ### ⚠ Experimental patches
 >
-> Eight of the registered patches — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
-> **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**, **`live-bridge`** and
-> **`living-world-override`** — are **experimental: unstable and largely untested.** They live in
+> Nine of the registered patches — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
+> **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**, **`live-bridge`**,
+> **`living-world-override`** and **`cooldown-through-death`** — are **experimental: unstable and
+> largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
 >
@@ -80,6 +81,25 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   pressing OK writes `-1` back into the map and silently reverts it. The patch grows the same
   table and raises that one bound. Dropdown only: the editor *viewport* keeps drawing the
   non-`SAND` variant, which needs Worldbuilder's own model-condition table extended too.
+- **`infantry-lighting`** decides **which kindofs get the map's infantry light environment**. A
+  `.map` carries three light sets per time of day - terrain, objects, infantry - and the renderer
+  picks the infantry one per render object from a flag set by a single `KindOf` test in the
+  model-draw path: `test byte [tmpl+0x109], 5`, i.e. `INFANTRY | MONSTER` and nothing else. So a
+  unit that is only `CAVALRY` is lit as scenery, alongside walls and rocks - and because the two
+  sets differ almost exclusively in the sun's **ambient** (stock `map mp amon sul fortress`:
+  `0.090, 0.071, 0.043` for objects against `0.290, 0.306, 0.290` for infantry, identical diffuse
+  and direction), the symptom reads as "mounted units are too dark". The stock cure is to add
+  `KINDOF_INFANTRY`, which also buys crush rules, `PATH_THROUGH_INFANTRY`, KindOf filters on
+  weapons, armor and powers, and AI target selection. This rewrites the immediate instead: the
+  default adds **`CAVALRY`**, `--kinds` names any of the eight kindofs in mask bits 8..15
+  (resolved against the image's own name table, not a hardcoded list), and **`--all`** defuses the
+  branch so every drawable takes the infantry environment. Nine bytes at each of two sites, no
+  cave. Client-side render state only - nothing enters the logic frame or the CRC, so it does
+  **not** have to be on every peer and replays cross both ways. Invisible on the maps whose two
+  sets are identical, which is 80 of the 103 stock maps and 205 of Edain's 510. **Statically
+  verified** - both sites hold their stock bytes in the real binary and apply/verify/detect
+  round-trip against it - but **not yet observed in game**. See
+  [`docs/infantry-lighting.md`](docs/infantry-lighting.md).
 - **`replay-outcome`** writes **each player's final victory/defeat state into the replay**, at
   the frame the recording ends - whether a player left or the game finished. A stock replay
   records inputs, not state, so no chunk says who won and
@@ -268,8 +288,12 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   would sit on the list forever. Clicking a slot **twice in quick succession** centres the camera
   on the member the first click picked instead of advancing - the mouse button never reaches this
   hook (the movie calls the handler with the button's *name* as its only argument, and the APT
-  runtime's event set is Flash's, with no right-button event), so a repeat click is the gesture, and
-  its window is the porter cycle's own, borrowed from the routine that computes it and put back.
+  runtime's event set is Flash's, with no right-button event), so a repeat click is the gesture.
+  Its window is **`--jump-window`, 500 ms by default** (`0` turns the jump off), scaled to logic
+  frames at runtime with the engine's own float. It is deliberately *not* the porter cycle's
+  `SelectNearestBuilderCycleTimeOut`, which an earlier version borrowed: that is 3500 ms, a length
+  that suits a porter round and not a double click, and the engine keeps it in a field past the
+  slot array that `hero-bar-slots` moves.
   A seventh site, two bytes and no cave, stops a group inheriting the porter's *"select nearest
   unit"* tooltip: the hover handler dispatches on the same `slot+0x16` byte and read it as a flag.
   **A group of one shows `1`** (as a lone porter's slot does) and a veteran member's rank is no
@@ -517,6 +541,28 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   mid-cooldown**, since the rescale is gated on the stock formula's own answer. See
   [`docs/recharge-rescale.md`](docs/recharge-rescale.md).
 
+- **`cooldown-through-death`** ⚠**(experimental)** carries a hero's **special-power cooldowns
+  across a citadel revive**, under two new `SpecialPower` booleans:
+  `PersistCooldownOnDeath = Yes` means a hero who dies halfway through a cooldown comes back
+  halfway through it, and `CooldownTicksWhileDead = Yes` lets the cooldown keep *elapsing* while
+  the hero is dead, so a long enough death clears it. Both default `No`, which is stock. **A hero
+  has two ways back and only one of them loses anything**: `RespawnUpdate` respawning in place
+  teleports *the object that died* to the keep, so its cooldowns were never lost, while the
+  citadel revive builds a **brand-new** object through `TheThingFactory` and re-applies a snapshot
+  taken at death — which is why the fix is not a gate to flip but one more field in a snapshot the
+  engine already takes. Nothing in the engine clears a cooldown on death: `setReadyFrame` has four
+  callers and they are three script actions and `HeroDie`, which clears the one power named on it.
+  The two keywords live in **`SpecialPowerTemplate`'s interior padding** at `+0x5A`/`+0x5B`, so
+  `sizeof` stays `0x88` and the three `operator new(0x88)` sites are untouched — three single-bit
+  opcode widenings zero them in the constructor and carry them through a `DefaultSpecialPower`
+  block. Two `call rel32` hooks (the revive-list add, the upgrade-mask restore), the field table
+  rebuilt with two rows, and a cave that — alone in this package — **writes**: 1024 slots of
+  banked `(readyFrame, duration, deathFrame)`, released by the restore that reads them and dropped
+  wholesale when the logic clock goes backwards, which is how a new match or a savegame load stops
+  inheriting the last one's. **Not in a savegame**: a save and load between the death and the
+  revive loses the snapshot and the hero returns ready — stock behaviour, not a corrupt one. See
+  [`docs/cooldown-through-death.md`](docs/cooldown-through-death.md).
+
 - **`description-timers`** puts **how long a button's thing takes** at the bottom of its
   description: a special power's **cooldown** — its full length while the power is ready, the
   **time left** while it is recharging — a unit's or structure's **build time**, and an upgrade's
@@ -632,6 +678,10 @@ sage-patch verify herobar game.dat
 sage-patch apply herobar --grouped --in game.dat.backup --out game.dat
 sage-patch verify herobar --grouped game.dat
 
+# a snappier (or disabled, with 0) click-again-to-jump gesture on those group slots
+sage-patch apply herobar --grouped --jump-window 300 --in game.dat.backup --out game.dat
+sage-patch verify herobar --grouped --jump-window 300 game.dat
+
 # the mechanic without the palantir bracket or the tooltip one
 sage-patch apply second-resource --no-hud --in game.dat.backup --out game.dat
 
@@ -686,6 +736,12 @@ sage-patch verify headless game.dat
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
 sage-patch apply recharge-rescale --in game.dat.backup --out game.dat   # no parameters
 sage-patch verify recharge-rescale game.dat
+
+# a hero's cooldowns survive a citadel revive; --ticks-keyword names the second bool, the one
+# that lets the cooldown keep elapsing while the hero is dead
+# EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
+sage-patch apply cooldown-through-death --in game.dat.backup --out game.dat
+sage-patch verify cooldown-through-death game.dat
 
 # the launcher, not game.dat: no install-location lock on the token it hands the engine
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top

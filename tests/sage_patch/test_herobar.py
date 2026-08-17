@@ -28,11 +28,13 @@ import struct
 import pytest
 
 from sage_patch.patches.herobar import (
+    DEFAULT_JUMP_WINDOW,
     DEFAULT_KINDOF,
     GROUPED_HEROBAR,
     GROUPING_HOOKS,
     HERO_BIT,
     HOOKS,
+    MAX_JUMP_WINDOW,
     MEMBERSHIP_HOOKS,
     SECTION_NAME,
     STATE_SIZE,
@@ -236,8 +238,14 @@ def test_the_scratch_words_start_zeroed(grouped: bytearray) -> None:
     """The per-pass template set is only correct if its length starts at zero; the draw hook
     clears it at the top of every pass, but the very first pass runs before that has happened
     for a freshly loaded image. The cursor table wants the same: zero means "no member picked
-    from this slot yet", which is what sends the first click to the first member."""
-    assert _bytes_at(grouped, _cave_base(grouped), STATE_SIZE) == bytes(STATE_SIZE)
+    from this slot yet", which is what sends the first click to the first member.
+
+    The jump window at `+0xB8` is the one word here the patcher fills in and the game only reads,
+    so it is the one exception."""
+    state = _bytes_at(grouped, _cave_base(grouped), STATE_SIZE)
+    assert state[:0xB8] == bytes(0xB8)
+    assert state[0xBC:] == bytes(STATE_SIZE - 0xBC)
+    assert struct.unpack_from("<I", state, 0xB8)[0] == DEFAULT_JUMP_WINDOW
 
 
 def test_grouping_narrows_the_hover_handlers_tooltip_test(
@@ -506,19 +514,65 @@ def test_a_repeat_click_only_counts_on_the_slot_that_was_clicked_last(
     assert rendered[reads[1] + 2] == ("mov", f"dword ptr [0x{click_slot:x}], eax")
 
 
-def test_the_repeat_window_is_borrowed_from_the_porter_cycle_and_put_back(
-    grouped: bytearray,
-) -> None:
-    """`0x0092BA91` writes the deadline into `bar+0x1DC`, which is the porter cycle's own field.
-    Taking the value that way keeps one window and one config value for both, but the field has to
-    hold what it held before, because the porter reads it whenever its round is in progress."""
+def test_the_repeat_window_is_the_patchs_own_millisecond_constant(grouped: bytearray) -> None:
+    """The window is `--jump-window` milliseconds, held as a word in the cave and scaled to logic
+    frames at runtime with the engine's own `.data` float and `_ftol` - the arithmetic
+    `0x0092BA91` does, without the engine value (3500ms, a porter *round*) or its store into
+    `bar+0x1DC` (a field `hero-bar-slots` moves)."""
+    base, _cave_ = _cave(grouped, True)
+    window_ms, deadline = base + 0xB8, base + 0xB4
     rendered = _routine(grouped, True, "click")
-    borrow = rendered.index(("push", "dword ptr [esi + 0x1dc]"))
-    assert rendered[borrow + 1 : borrow + 3] == [("mov", "ecx, esi"), ("call", "0x92ba91")]
-    assert ("pop", "dword ptr [esi + 0x1dc]") in rendered[borrow:], "the field is not put back"
-    assert [op for m, op in rendered if m == "pop" and op.endswith("0x1dc]")] == [
-        "dword ptr [esi + 0x1dc]"
+    window = rendered.index(("fild", f"dword ptr [0x{window_ms:x}]"))
+    assert rendered[window + 1 : window + 3] == [
+        ("fmul", "dword ptr [0xd9f624]"),
+        ("call", "0xa3cfa4"),
     ]
+    added = ("add", f"eax, dword ptr [0x{deadline:x}]")
+    assert added in rendered[window:], "the current frame is never added to the window"
+
+
+@pytest.mark.parametrize("ms", [0, 1, 250, DEFAULT_JUMP_WINDOW, MAX_JUMP_WINDOW])
+def test_the_jump_window_is_the_only_thing_the_setting_changes(ms: int) -> None:
+    """`--jump-window` is data, not code: it lands in one word of the state block and the routines
+    around it are byte-identical, which is why `detect` can read it back rather than guess."""
+    base = 0x00F00000
+    default = build_cave(base, BIT, True, DEFAULT_JUMP_WINDOW).content
+    tuned = build_cave(base, BIT, True, ms).content
+    assert len(tuned) == len(default)
+    differing = {index for index in range(len(tuned)) if tuned[index] != default[index]}
+    assert differing <= {0xB8, 0xB9, 0xBA, 0xBB}, "the window leaked out of its word"
+    assert struct.unpack_from("<I", tuned, 0xB8)[0] == ms
+
+
+def test_the_jump_window_round_trips_through_detect(clean: bytearray) -> None:
+    """A window recovered wrong would fail `verify` with nothing to say which of the two settings
+    the binary disagreed about, so `detect` reads the word instead of trying values."""
+    data = bytearray(clean)
+    HeroBarPatch(grouped=True, jump_window=250).apply(data)
+    found = HeroBarPatch.detect(data)
+    assert found == HeroBarPatch(grouped=True, jump_window=250)
+    assert not found.verify(data)
+
+
+@pytest.mark.parametrize("ms", [-1, MAX_JUMP_WINDOW + 1])
+def test_an_out_of_range_jump_window_is_refused(ms: int) -> None:
+    """The word is `fild`ed as a signed dword and the gesture is a gesture; a value outside the
+    range is a mistake worth a message rather than a cave that quietly never fires."""
+    with pytest.raises(ValueError, match="jump-window"):
+        HeroBarPatch(grouped=True, jump_window=ms)
+
+
+def test_the_repeat_window_reads_nothing_past_the_bars_slot_array(grouped: bytearray) -> None:
+    """`hero-bar-slots` grows the array in place and slides everything after it up, so
+    `bar+0x1C8`.. is not a fixed address on a patched build. The engine's own deadline routine
+    stores into `bar+0x1DC`; calling it and reading that back would take a slot's cached bytes for
+    a deadline on a widened bar, and stomp the porter's real field on the way past."""
+    rendered = _routine(grouped, True, "click")
+    assert ("call", "0x92ba91") not in rendered, "the deadline routine is called again"
+    # Slot addressing is scaled by the index and stays inside the array, which does not move; a
+    # bare `[esi + disp]` is the shape that would break, and the model pointer is the only one.
+    bare = [op for _m, op in rendered if "[esi + 0x" in op]
+    assert bare == ["ecx, dword ptr [esi + 0x10]"], f"the bar is read past its array: {bare}"
 
 
 def test_the_group_step_balances_every_call_it_makes(grouped: bytearray) -> None:

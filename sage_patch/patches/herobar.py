@@ -93,11 +93,26 @@ simply not found.
 
 **Click again to jump.** A second click on the same slot, soon enough after the first, means "take
 me there" rather than "next one": it centres the camera on the member the previous click selected
-and leaves the cursor alone. "Soon enough" is the porter cycle's own window, taken from the engine
-routine at `0x0092BA91` that computes it out of `TheInGameUI+0x988` - so the two gestures agree on
-what a repeat click is, and neither carries a constant of its own. That routine writes into
-`bar+0x1DC`, which the porter cycle reads whenever *its* round is in progress, so the field is
-borrowed for the length of the call and put back exactly as it was.
+and leaves the cursor alone. "Soon enough" is `--jump-window` milliseconds, :data:`500
+<DEFAULT_JUMP_WINDOW>` by default, scaled to logic frames at runtime with the engine's own `.data`
+float and `_ftol`. `--jump-window 0` turns the gesture off and leaves every click a step.
+
+Why it is a constant of this patch's own, and not the engine's. The obvious value to share is
+`SelectNearestBuilderCycleTimeOut` (`TheInGameUI+0x988`), which is what the porter's own repeat
+test uses, and an earlier version took it by calling the engine routine at `0x0092BA91`. Two
+things were wrong with that:
+
+* **It is the wrong quantity.** 3500 ms on this data - a reasonable length for a porter *round* to
+  stay open, and about seven times too long for "was that a double click". A gesture window and a
+  round timeout are different things that happen to be read by similar-looking comparisons.
+* **It is not at a fixed address.** That routine *stores* its answer in `bar+0x1DC`, past the slot
+  array, which `hero-bar-slots` slides up by `(count-16)*0x18`. On a 25-slot bar the cave was
+  reading byte `0x14` of slot 16 for a deadline - and stomping the porter's real field, at
+  `bar+0x2B4`, on the way past.
+
+So the window is a word in the cave and the scaling is re-emitted. Nothing here reads the bar
+object past the slot array, which is what keeps this patch and `hero-bar-slots` independent in
+either order.
 
 The mouse button is not available here to do this the obvious way. `_OnBttnHeroSelect` is called
 *by the movie*, with the button's path (`"Hero3"`) as its only argument, and the APT runtime's
@@ -143,8 +158,10 @@ from .utils import kind_of
 from .utils.name_tables import offset as _offset
 
 __all__ = [
+    "DEFAULT_JUMP_WINDOW",
     "DEFAULT_KINDOF",
     "GROUPING_HOOKS",
+    "MAX_JUMP_WINDOW",
     "HOOKS",
     "MEMBERSHIP_HOOKS",
     "SECTION_CHARACTERISTICS",
@@ -172,6 +189,15 @@ UNGROUPED_CHARACTERISTICS = kind_of.SECTION_CHARACTERISTICS
 
 DEFAULT_KINDOF = "HEROBAR"
 
+#: How long after a click a second one still means "take me there", in milliseconds, and the
+#: ceiling `--jump-window` accepts. 500 is what Windows itself calls a double click, and it is a
+#: gesture window rather than a timeout: the engine's own `SelectNearestBuilderCycleTimeOut` is
+#: 3500 on this data, but that number says how long a porter *round* stays open, which is a
+#: different quantity that happens to be read by a similar-looking comparison. `0` turns the jump
+#: off and leaves every click a step.
+DEFAULT_JUMP_WINDOW = 500
+MAX_JUMP_WINDOW = 60_000
+
 #: `KindOfMaskType` bit 90. Tested inline as `test byte [tmpl+0x113], 4` wherever the engine asks
 #: "is this a hero", which is the encoding :func:`kind_of.bit_test` reproduces.
 HERO_BIT = 90
@@ -191,9 +217,8 @@ APPEND_BOOLEAN_ARGUMENT = 0x00711104  # thiscall(GameMessage, bool), ret 4
 APPEND_OBJECT_ID_ARGUMENT = 0x0071111A  # thiscall(GameMessage, ObjectID), ret 4
 BAR_ACCEPTS_OBJECT = 0x0092BBEF  # (Object*) -> bool: local player && !NO_HERO_PROPERTIES, ret 4
 DRAWABLE_POSITION = 0x00676711  # thiscall(Drawable) -> Coord3D*, ret 0
-#: `thiscall(bar)`, no arguments: writes `now + TheInGameUI+0x988` into :data:`BAR_CYCLE_DEADLINE`.
-#: The porter cycle's own "is this click a repeat" window, config value and all.
-BAR_SET_CYCLE_DEADLINE = 0x0092BA91
+#: MSVC's `_ftol`: truncates `st(0)` into `eax`, no stack arguments, pops the value.
+FTOL = 0x00A3CFA4
 
 #: `TheInGameUI` vtable slots, as the hero bar's own click path uses them.
 UI_DESELECT_ALL = 0x110
@@ -201,6 +226,9 @@ UI_SELECT_DRAWABLE = 0x108
 #: `TheGameClient::getFrame()`, and `TheTacticalView::lookAt(Coord3D*)`.
 CLIENT_FRAME = 0x7C
 VIEW_LOOK_AT = 0x54
+#: The millisecond-to-logic-frame factor the engine scales its own window by at `0x0092BAB3`.
+#: Read at runtime rather than folded in here, because it is a `.data` word rather than a literal.
+MSEC_TO_FRAMES = 0x00D9F624
 #: `TheMessageStream::appendMessage(GameMessageType) -> GameMessage*`.
 STREAM_APPEND_MESSAGE = 0x48
 #: The message the hero bar's single-object click raises: a boolean, then the `ObjectID`s.
@@ -212,9 +240,6 @@ BAR_MODEL = 0x10
 MODEL_HERO_LIST = 0x10
 SLOT_ARRAY = 0x48
 SLOT_STRIDE = 0x18
-#: Where the porter cycle keeps the frame its repeat-click window closes on. This patch borrows
-#: the field for the length of one call and puts back what it found.
-BAR_CYCLE_DEADLINE = 0x1DC
 #: Within a slot: the list node it is showing, and the "this slot is a group" byte.
 SLOT_NODE = 0x00
 SLOT_GROUPED = 0x16
@@ -346,6 +371,11 @@ _CLICK_DONE = 0x0092DDE1  # pop edi ; pop esi ; leave ; ret 4
 #: table, and the two the badge count needs. Sized to a round `0xC0` so the code that follows
 #: starts on a recognisable boundary. A membership-only cave has none of this and opens with its
 #: code.
+#:
+#: The last word is the odd one out: :data:`_OFF_WINDOW_MS` is written by the patcher and only
+#: *read* at runtime. It sits here rather than in the code because `fild` wants a memory operand
+#: anyway, and because a word at a known offset is what lets :meth:`HeroBarPatch.detect` recover
+#: the setting from an image instead of guessing it.
 _MAX_SLOTS = 16
 STATE_SIZE = 0xC0
 _OFF_EMITTED_N = 0x00
@@ -364,6 +394,7 @@ _OFF_COUNT = 0xA8
 _OFF_COUNT_TEMPLATE = 0xAC
 _OFF_CLICK_SLOT = 0xB0  # the last clicked slot, biased by 1 so that 0 means "none yet"
 _OFF_CLICK_DEADLINE = 0xB4
+_OFF_WINDOW_MS = 0xB8  # written once by the patcher; the only word here the game never writes
 
 
 def state_size(grouped: bool) -> int:
@@ -392,13 +423,18 @@ class Cave:
     entries: dict[str, int]
 
 
-def build_cave(base_va: int, bit: int, grouped: bool = False) -> Cave:
+def build_cave(
+    base_va: int,
+    bit: int,
+    grouped: bool = False,
+    jump_window: int = DEFAULT_JUMP_WINDOW,
+) -> Cave:
     """One mode's hook routines - and, for ``grouped``, the scratch words they use - at
     ``base_va``.
 
     Deterministic: :meth:`HeroBarPatch.apply` and :meth:`HeroBarPatch.verify` build the same
-    bytes from the same ``(base_va, bit, grouped)`` and compare them, which is what makes
-    verification possible without a disassembler."""
+    bytes from the same ``(base_va, bit, grouped, jump_window)`` and compare them, which is what
+    makes verification possible without a disassembler."""
     emitted_n = base_va + _OFF_EMITTED_N
     emitted = base_va + _OFF_EMITTED
     template = base_va + _OFF_TEMPLATE
@@ -415,6 +451,7 @@ def build_cave(base_va: int, bit: int, grouped: bool = False) -> Cave:
     count_template = base_va + _OFF_COUNT_TEMPLATE
     click_slot = base_va + _OFF_CLICK_SLOT
     click_deadline = base_va + _OFF_CLICK_DEADLINE
+    window_ms = base_va + _OFF_WINDOW_MS
 
     is_hero = kind_of.bit_test(HERO_BIT, _EAX, kind_of.THING_TEMPLATE_MASK_OFFSET)
     is_herobar_eax = kind_of.bit_test(bit, _EAX, kind_of.THING_TEMPLATE_MASK_OFFSET)
@@ -664,18 +701,29 @@ def build_cave(base_va: int, bit: int, grouped: bool = False) -> Cave:
     a.emit(bytes.fromhex("51"))  # push ecx              (keep the Object)
 
     # Remember which slot this click landed on and when a second one stops counting as a repeat.
-    # The deadline comes from the engine's own routine, so the window is the porter's window and
-    # its config value - `bar+0x1DC` is borrowed for the length of the call and put back, because
-    # the porter cycle reads that field whenever *its* round is in progress.
+    # The window is `jump_window` milliseconds, scaled to logic frames the way the engine scales
+    # its own at `0x0092BAA4` - `fild`, the same `.data` float, the same `_ftol`.
+    #
+    # It is a constant of this patch's own rather than the engine's
+    # `SelectNearestBuilderCycleTimeOut`, which an earlier version read through
+    # `0x0092BA91`. Two things were wrong with that. It is 3500 ms on this data, which is a
+    # sensible length for a porter *round* and far too long for "was that a double click"; and
+    # the routine stores its answer in `bar+0x1DC`, a field past the slot array that
+    # `hero-bar-slots` slides up - so on a widened bar the cave read a slot's cached bytes for a
+    # deadline, and stomped the porter's real field on the way. Reading nothing off the bar keeps
+    # the two patches independent in either order.
     a.emit(_abs_mem(bytes.fromhex("a1"), slot))  # mov eax, [slot]
     a.emit(bytes.fromhex("40"))  # inc eax
     a.emit(_abs_mem(bytes.fromhex("a3"), click_slot))  # mov [click_slot], eax
-    a.emit(bytes.fromhex("ffb6"), _u32(BAR_CYCLE_DEADLINE))  # push dword [esi+0x1dc]
-    a.emit(bytes.fromhex("8bce"))  # mov ecx, esi
-    a.call_absolute(BAR_SET_CYCLE_DEADLINE)
-    a.emit(bytes.fromhex("8b86"), _u32(BAR_CYCLE_DEADLINE))  # mov eax, [esi+0x1dc]
+    a.emit(_abs_mem(bytes.fromhex("db05"), window_ms))  # fild dword [window_ms]
+    a.emit(_abs_mem(bytes.fromhex("d80d"), MSEC_TO_FRAMES))  # fmul dword [msec -> frames]
+    a.call_absolute(FTOL)  # -> eax, the window in frames
     a.emit(_abs_mem(bytes.fromhex("a3"), click_deadline))  # mov [click_deadline], eax
-    a.emit(bytes.fromhex("8f86"), _u32(BAR_CYCLE_DEADLINE))  # pop dword [esi+0x1dc]
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_GAME_CLIENT))
+    a.emit(bytes.fromhex("8b01"))  # mov eax, [ecx]
+    a.emit(bytes.fromhex("ff50"), CLIENT_FRAME)  # call [eax+0x7c]  -> the frame now
+    a.emit(_abs_mem(bytes.fromhex("0305"), click_deadline))  # add eax, [click_deadline]
+    a.emit(_abs_mem(bytes.fromhex("a3"), click_deadline))  # mov [click_deadline], eax
 
     a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_IN_GAME_UI))
     a.emit(bytes.fromhex("8b01"))  # mov eax, [ecx]
@@ -706,8 +754,10 @@ def build_cave(base_va: int, bit: int, grouped: bool = False) -> Cave:
     a.label("click_done").jmp_absolute(_CLICK_DONE)
 
     code = a.finish()
+    state = bytearray(STATE_SIZE)
+    struct.pack_into("<I", state, _OFF_WINDOW_MS, jump_window)
     return Cave(
-        content=bytes(STATE_SIZE) + code,
+        content=bytes(state) + code,
         entries={hook.label: a.label_va(hook.label) for hook in HOOKS},
     )
 
@@ -725,18 +775,29 @@ class HeroBarPatch(Patch):
 
     kindof: str = DEFAULT_KINDOF
     grouped: bool = False
+    jump_window: int = DEFAULT_JUMP_WINDOW
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.jump_window <= MAX_JUMP_WINDOW:
+            raise ValueError(
+                f"jump-window must be in 0..{MAX_JUMP_WINDOW} milliseconds, "
+                f"got {self.jump_window}"
+            )
+
+    def _cave(self, base_va: int, bit: int) -> Cave:
+        return build_cave(base_va, bit, self.grouped, self.jump_window)
 
     def apply(self, data: bytearray) -> None:
         extension = kind_of.extend(
             data,
             SECTION_NAME,
             [self.kindof],
-            tail=lambda tail_va, bits: build_cave(tail_va, bits[0], self.grouped).content,
+            tail=lambda tail_va, bits: self._cave(tail_va, bits[0]).content,
             characteristics=(
                 SECTION_CHARACTERISTICS if self.grouped else UNGROUPED_CHARACTERISTICS
             ),
         )
-        cave = build_cave(extension.tail_va, extension.bits[0], self.grouped)
+        cave = self._cave(extension.tail_va, extension.bits[0])
         for hook in hooks(self.grouped):
             apply_byte_patch(
                 data,
@@ -788,7 +849,7 @@ class HeroBarPatch(Patch):
             return [f"the {SECTION_NAME} cave adds kindof {name!r}, not {self.kindof!r}"]
 
         tail_va = section_va + entries * 4 + 4 + _padded(len(self.kindof) + 1)
-        cave = build_cave(tail_va, bit, self.grouped)
+        cave = self._cave(tail_va, bit)
         if not section_va <= tail_va < section_va + vsize:
             return [f"the {SECTION_NAME} cave is too small to hold the hook code"]
 
@@ -807,9 +868,10 @@ class HeroBarPatch(Patch):
         off = _offset(data, tail_va)
         if bytes(data[off : off + len(cave.content)]) != cave.content:
             mode = "--grouped" if self.grouped else "membership-only"
+            window = f" with a {self.jump_window}ms jump window" if self.grouped else ""
             problems.append(
                 f"the {SECTION_NAME} hook code at 0x{tail_va:08x} is not what bit {bit} builds "
-                f"for a {mode} patch"
+                f"for a {mode} patch{window}"
             )
 
         here = bytes(data[_offset(data, TOOLTIP_EDIT.va) :][: len(TOOLTIP_EDIT.patched)])
@@ -848,8 +910,13 @@ class HeroBarPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> Patch | None:
-        """Recover both parameters from the image: the kindof name is the last entry of the cave's
-        own table, and the mode is whichever of the two the cave's code turns out to be."""
+        """Recover every parameter from the image: the kindof name is the last entry of the cave's
+        own table, the window is the word the patcher left at :data:`_OFF_WINDOW_MS`, and the mode
+        is whichever of the two the cave's code then turns out to be.
+
+        The window is *read* rather than searched for because `verify` compares whole cave bytes:
+        a value guessed wrong would fail verification with nothing to say which of the two the
+        binary disagreed about."""
         try:
             located = find_section(data, SECTION_NAME)
             if located is None:
@@ -859,10 +926,18 @@ class HeroBarPatch(Patch):
             name = kind_of.read_cstring(data, _cave_entry(data, section_va, entries - 1))
             if name is None:
                 return None
-            for grouped in (False, True):
-                patch = cls(kindof=name, grouped=grouped)
-                if not patch.verify(data):
-                    return patch
+            membership = cls(kindof=name)
+            if not membership.verify(data):
+                return membership
+            # Only a grouped cave has a state block at all, so the window word is read *after* the
+            # membership mode has been ruled out - on a membership cave that offset is past the
+            # section entirely.
+            tail_va = section_va + entries * 4 + 4 + _padded(len(name) + 1)
+            window = struct.unpack_from("<I", data, _offset(data, tail_va + _OFF_WINDOW_MS))[0]
+            if 0 <= window <= MAX_JUMP_WINDOW:
+                grouped = cls(kindof=name, grouped=True, jump_window=window)
+                if not grouped.verify(data):
+                    return grouped
             return None
         except (ValueError, KeyError, IndexError, TypeError, struct.error):
             return None
@@ -880,10 +955,19 @@ class HeroBarPatch(Patch):
             help="share one slot between every instance of a template, and step through them one "
             "at a time on click (default: no, one slot per object)",
         )
+        parser.add_argument(
+            "--jump-window",
+            type=int,
+            default=DEFAULT_JUMP_WINDOW,
+            metavar="MS",
+            help="--grouped only: how long after a click a second one on the same slot centres "
+            f"the camera instead of stepping, in milliseconds, 0..{MAX_JUMP_WINDOW} "
+            f"(default: {DEFAULT_JUMP_WINDOW}; 0 turns the jump off)",
+        )
 
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> Patch:
-        return cls(kindof=args.kindof, grouped=args.grouped)
+        return cls(kindof=args.kindof, grouped=args.grouped, jump_window=args.jump_window)
 
 
 def _detour(hook: _Hook, target_va: int) -> bytes:

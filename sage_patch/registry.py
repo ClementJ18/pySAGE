@@ -18,6 +18,7 @@ from sage_patch.patches.description_timers import DescriptionTimersPatch
 from sage_patch.patches.desert_weather import DesertWeatherPatch
 from sage_patch.patches.desert_weather_wb import DesertWeatherWorldbuilderPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
+from sage_patch.patches.experimental.cooldown_through_death import CooldownThroughDeathPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
@@ -28,6 +29,7 @@ from sage_patch.patches.experimental.standalone_launcher import StandaloneLaunch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.herobar import HeroBarPatch
+from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus_filter import LargeGroupBonusFilterPatch
 from sage_patch.patches.lifetime_extend_upgrade import LifetimeExtendUpgradePatch
@@ -76,6 +78,7 @@ PATCHES: dict[str, type[Patch]] = {
     SciencePrereqPatch.name: SciencePrereqPatch,
     HeroBarPatch.name: HeroBarPatch,
     HeroBarSlotsPatch.name: HeroBarSlotsPatch,
+    InfantryLightingPatch.name: InfantryLightingPatch,
     MultiExecuteGatePatch.name: MultiExecuteGatePatch,
     SpawnUnionPatch.name: SpawnUnionPatch,
     QueueIgnoreCpPatch.name: QueueIgnoreCpPatch,
@@ -90,6 +93,7 @@ PATCHES: dict[str, type[Patch]] = {
     UpgradeDescriptionPatch.name: UpgradeDescriptionPatch,
     DescriptionTimersPatch.name: DescriptionTimersPatch,
     RechargeRescalePatch.name: RechargeRescalePatch,
+    CooldownThroughDeathPatch.name: CooldownThroughDeathPatch,
 }
 
 __all__ = ["PATCHES"]

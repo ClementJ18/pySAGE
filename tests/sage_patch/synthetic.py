@@ -31,6 +31,7 @@ from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather_wb as wb
 from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
+from sage_patch.patches import infantry_lighting as il
 from sage_patch.patches import lifetime_extend_upgrade as lex
 from sage_patch.patches import multi_instance as mi
 from sage_patch.patches import observer_switch as obs
@@ -369,6 +370,63 @@ def hero_bar_slots_image() -> bytearray:
         planted[count_site.va] = count_site.encode(hbs.STOCK_SLOTS)
     for field_site in hbs.FIELD_SITES:
         planted[field_site.va] = bytes.fromhex(field_site.original)
+    return _sparse_image(planted)
+
+
+#: Where the `infantry-lighting` stand-in parks the kindof name strings: a page in the same region
+#: as the table that points at them, and one nothing else in that image uses.
+KINDOF_STRINGS_VA = 0x00DA4000
+
+#: The stock kindof names in mask bits 8..15 - the lane `infantry-lighting` can name. Test data
+#: rather than patch data, deliberately: the patch resolves names through the image's *own* table
+#: and hardcodes none of them, so a stand-in has to carry the real ones for a name to resolve at
+#: all - and the check that `HERO` (bit 90) is refused needs a table where 90 really is `HERO`,
+#: which :data:`kind_of.TABLE_FINGERPRINT` already supplies.
+INFANTRY_LIGHTING_LANE = {
+    8: "INFANTRY",
+    9: "CAVALRY",
+    10: "MONSTER",
+    11: "MACHINE",
+    12: "AIRCRAFT",
+    13: "HUGE_VEHICLE",
+    14: "DOZER",
+    15: "SWARM_DOZER",
+}
+
+
+def infantry_lighting_image() -> bytearray:
+    """A stand-in carrying both lighting gates in their stock form, plus the whole kindof name
+    table the patch resolves names against.
+
+    Sparse for the usual reason: the two gates, the render loop that reads the flag back and the
+    kindof table are spread over most of ten megabytes, and the patch touches a dozen pages of it.
+    Everything not planted reads as zero, so a gate aimed one instruction to either side of where
+    it claims to be would find nothing there.
+
+    The table is planted one pointer at a time rather than as one blob because it crosses a page
+    boundary, which `_sparse_image` refuses per write.
+    """
+    planted: dict[int, bytes] = {}
+
+    strings_va = KINDOF_STRINGS_VA
+    for index in range(ko.STOCK_KIND_COUNT):
+        name = INFANTRY_LIGHTING_LANE.get(index, stock_kindof_name(index))
+        blob = name.encode("ascii") + b"\x00"
+        if (strings_va & 0xFFF) + len(blob) > 0x1000:  # never let one name straddle a page
+            strings_va = (strings_va & ~0xFFF) + 0x1000
+        planted[strings_va] = blob
+        planted[ko.NAME_TABLE_VA + index * 4] = struct.pack("<I", strings_va)
+        strings_va += len(blob)
+    planted[ko.NAME_TABLE_VA + ko.STOCK_KIND_COUNT * 4] = struct.pack("<I", 0)  # the terminator
+
+    for va in ko.TABLE_REF_VAS:
+        planted[va] = struct.pack("<I", ko.NAME_TABLE_VA)
+    for va, prefix in ko.COUNT_SITES:
+        planted[va] = prefix + struct.pack("<I", ko.STOCK_KIND_COUNT)
+
+    planted.update(il.FINGERPRINT)
+    for site in il.SITES:
+        planted[site.va] = site.stock
     return _sparse_image(planted)
 
 

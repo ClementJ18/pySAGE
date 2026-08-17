@@ -452,6 +452,9 @@ to skip: the sweep already reads `tmpl[+0x59]`.
 
 - **Making the recharge *start* respond to anything.** Untouched; `startPowerRecharge` keeps its
   stock arithmetic byte for byte, which is what keeps a stock-data game identical.
+- **Carrying a cooldown across a hero's death.** A separate question with a separate answer, because
+  a citadel revive builds a *new* object and this patch only ever rewrites a living one. Scoped in
+  [`cooldown-through-death.md`](cooldown-through-death.md), which composes with this patch.
 - **A per-power opt-out.** See §8 — the patch is already a no-op for any power whose multiplier
   never moves mid-cooldown, so a keyword would be gating something that mostly does not fire.
 

@@ -12,9 +12,9 @@ runtime state.
 **`--grouped`** adds slot sharing on top: every instance of one `ThingTemplate` shares **one** slot,
 two different templates take two, that slot shows **how many members the group has** where a hero's
 shows its rank, and clicking it selects the members **one at a time** — click again for the next
-one, or twice in quick succession to **centre the camera** on the one you just picked. Three more
-detours plus a two-byte tooltip fix, the count, and the cursors that make stepping and jumping
-work.
+one, or twice within `--jump-window` (500 ms by default) to **centre the camera** on the one you
+just picked. Three more detours plus a two-byte tooltip fix, the count, and the cursors that make
+stepping and jumping work.
 
 Even grouped, that is deliberately not what `PORTER` does. `PORTER` collapses every porter the
 player owns into a **single** slot regardless of template. The grouping key changes from *nothing*
@@ -318,7 +318,7 @@ patch last selected out of that slot:
     obj = chosen ? chosen : first
     if (!obj) done                           ; the group is empty
     if (slot < 16) cursor[slot] = obj+0x74
-    clickSlot = slot + 1 ; clickDeadline = <the porter window>   ; §3.4.1
+    clickSlot = slot + 1 ; clickDeadline = now + frames(jumpWindowMs)  ; §3.4.1
     call [TheInGameUI + 0x110]               ; deselectAllDrawables
     msg = TheMessageStream->appendMessage(0x3E9)
     msg->appendBooleanArgument(1)            ; create a new group
@@ -354,15 +354,37 @@ A second click on the same slot, soon enough after the first, means **"take me t
 where it is. A slow click, a different slot, or a member that died in between all fall through and
 step as normal. Nothing else changes — the first click of any pair still just selects.
 
-*Soon enough* is not a constant this patch invents. `0x0092BA91` is the engine's own "when does a
-repeat click stop counting" routine: it reads the timeout from `TheInGameUI+0x988` — the same
-`SelectNearestBuilderCycleTimeOut` the porter cycle uses — converts it to frames and stores
-`now + that` in `bar+0x1DC`. Calling it gives both gestures one window and one config value. It
-writes into the porter's field, which the porter reads whenever *its* round is in progress, so the
-routine saves `bar+0x1DC`, makes the call, takes the answer into its own word and puts the field
-back. `now` for the comparison comes from `TheGameClient`'s `getFrame` (`[0xDE4388]`, vtable
-`+0x7C`), and the camera move is the porter's own pair: the drawable's position through
+*Soon enough* is **`--jump-window` milliseconds, 500 by default**, held as a dword in the cave at
+`+0xB8` and scaled to logic frames at runtime the way the engine scales its own window at
+`0x0092BAA4`: `fild`, `fmul` against the milliseconds-to-frames float at `0x00D9F624`, and MSVC's
+`_ftol` at `0x00A3CFA4`. `--jump-window 0` makes the window zero frames, which turns the gesture
+off and leaves every click a step. `now` comes from `TheGameClient`'s `getFrame` (`[0xDE4388]`,
+vtable `+0x7C`), and the camera move is the porter's own pair: the drawable's position through
 `0x00676711`, into `TheTacticalView::lookAt` (`[0xDE447C]`, vtable `+0x54`).
+
+Because the setting is *data* and not code — one word, with byte-identical routines around it —
+`detect` reads it back out of the image rather than trying values against `verify`.
+
+**Why the window is this patch's own constant.** The obvious value to share is the one the porter's
+identical-looking question uses: `SelectNearestBuilderCycleTimeOut`, `TheInGameUI+0x988`, which the
+engine converts in the routine at `0x0092BA91`. An earlier version of this patch called that
+routine and read its answer back. Both halves of that were wrong.
+
+*The value is the wrong quantity.* It is **3500 ms** on this data. That is a sensible length for a
+porter *round* to stay open — you press the button, walk your eyes across the base, press it again —
+and roughly seven times too long for "was that a double click". A gesture window and a round
+timeout are different things that happen to be read by similar-looking comparisons, and sharing the
+number because the comparison rhymes is the mistake.
+
+*The answer is not at a fixed address.* `0x0092BA91` **stores** into `bar+0x1DC`, which sits past
+the slot array — and [`hero-bar-slots`](hero-bar-slots.md) grows that array in place and slides
+everything after it up by `(count-16)*0x18`. On a 25-slot bar `bar+0x1DC` is not the deadline at
+all: it is byte `0x14` of *slot 16*. So on that combination the window came out of a slot's cached
+bytes (the repeat click essentially never fired) **and** the porter's real deadline, by then at
+`bar+0x2B4`, was overwritten by the call and never put back.
+
+Emitting the scaling costs about twenty bytes and leaves this patch reading nothing off the bar
+object except the slot array itself, which does not move.
 
 One difference from the porter, deliberately: the porter cycle asks `0x0092BB2A` whether the object
 is already on screen and skips the camera if it is. Here the second click *is* the request, so it
@@ -487,7 +509,13 @@ Neither mode composes with the *other* mode: both claim `.hbar` and both add the
 applying one to a binary that carries the other fails at `allocate_section`. The two are choices,
 not layers.
 
-The one interaction worth naming is with a *future* second kindof-adding patch. `verify` reads the
+The one it has to *stay* clear of is [`hero-bar-slots`](hero-bar-slots.md), which grows the slot
+array in place and slides every field after it up. Nothing here reads past the array —
+`bar+0x10` (the model) is before it and the slot addressing is index-scaled — so a wider bar
+changes no address this patch assumes, in either order. §3.4.1 is the one place that had to be
+written that way on purpose.
+
+The other interaction worth naming is with a *future* second kindof-adding patch. `verify` reads the
 bit and the end of the table out of **the cave's own copy**, never the live one, so a later patch
 that appends to the table and becomes the live one leaves this patch correctly installed and still
 verifiable. The live table is consulted only to confirm it still agrees.
@@ -509,9 +537,9 @@ hover post-dates the run that cleared the rest:
    A group of one shows `1`. A member that is not the local player's, or is `NO_HERO_PROPERTIES`,
    is **not** counted — the number has to match what the clicks can reach, item 5.
 5. **Clicking a group steps.** Click once: the first member is selected, alone. Click again *after
-   a pause*: the next one, and nothing of the previous. Click past the last: back to the first.
-   Never a member of the other group, and never two at once. As many distinct members as the badge
-   claims.
+   the jump window has closed* — half a second on the default: the next one, and nothing of the
+   previous. Click past the last: back to the first. Never a member of the other group, and never
+   two at once. As many distinct members as the badge claims.
 6. **Clicking twice quickly jumps.** The second click centres the camera on the member the first
    one selected and does **not** advance — then a later click advances as normal. Clicking slot A
    then slot B quickly must *step* B rather than jump, since it is a different slot.
@@ -526,9 +554,9 @@ hover post-dates the run that cleared the rest:
    confirm the bar does not accumulate stale slots — the §3.2 failure, if either removal hook is
    wrong. Worth doing on **both** builds; the removal pair is shared.
 10. **Porters still behave exactly as before** on the same build: their single mixed slot, its
-    count badge, its tooltip, its click-to-iterate, its camera centring, and — the one this
-    patch could plausibly disturb — its *round timing*, since the repeat window is taken by
-    borrowing the porter's own `bar+0x1DC` and putting it back.
+    count badge, its tooltip, its click-to-iterate, its camera centring, and its *round timing* —
+    which this patch no longer touches at all now that it computes its own window (§3.4.1), but
+    which is worth confirming precisely because an earlier version did.
 11. **A hero that is also `HEROBAR`** groups with its own kind and counts — §3.1, and *not* what an
     earlier draft of this document predicted.
 12. **Overflow**: force more distinct `HEROBAR` templates than slots and confirm no crash, no blank
@@ -549,6 +577,10 @@ hover post-dates the run that cleared the rest:
 | `0x00449681` | `TheGameLogic::findObjectByID` |
 | `0x00655B0E` | the `KindOf` mask parser (`+`/`-`/bare, `NONE`) |
 | `0x0070E013` | `Object::getDrawable` |
+| `0x00676711` | `Drawable::getPosition` |
+| `0x00A3CFA4` | MSVC `_ftol` — `st(0)` truncated into `eax` |
+| `0x00D9F624` | the milliseconds-to-logic-frames float the repeat window is scaled by |
+| `0x0092BA91` | the engine's own deadline routine — the arithmetic §3.4.1 re-emits, **not** called |
 | `0x00711104` | `GameMessage::appendBooleanArgument` |
 | `0x0071111A` | `GameMessage::appendObjectIDArgument` |
 | `0x0092BBEF` | hero-bar eligibility: local player && !`NO_HERO_PROPERTIES` |
