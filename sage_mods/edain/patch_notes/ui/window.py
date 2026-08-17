@@ -50,8 +50,6 @@ from sage_utils.widgets import (
 
 APP_NAME = "sage_edain_patch_notes"
 APP_TITLE = "Edain Patch Notes"
-# Icon art by Ludovic Bourgeois-Lefèvre:
-# https://ludovicbourgeoislefevre.artstation.com/projects/2xL1WJ
 ICON_FILE = "icon.ico"
 
 # The remembered sheet, output folder and filter choices (per-user, beside the shared theme).
@@ -173,7 +171,6 @@ class PatchNotesWindow(QMainWindow):
                 f"<b>{APP_TITLE}</b> v{__version__}"
                 "<p>Turns the patch-notes spreadsheet into the English and German BBcode posts, "
                 "grouped by faction and nested by the notes' own leading dashes.</p>"
-                "<p>Icon art by Ludovic Bourgeois-Lefèvre.</p>"
             ),
             icon=QIcon(str(resource_path(ICON_FILE, __file__))),
         )

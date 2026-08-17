@@ -595,6 +595,46 @@ class ProductionConditionPatch(Patch):
         return pointers
 
     @classmethod
+    def detect(cls, data: bytes | bytearray) -> ProductionConditionPatch | None:
+        """Recognise this patch **and recover all three of its settings**.
+
+        The default probe only ever recognises ``PRODUCING`` with neither optional table, so a
+        binary carrying any other condition name - or either extra name at all - reads as
+        unpatched. Each setting is recoverable from the image's own evidence rather than guessed:
+        the cave opens with the model-condition table this patch wrote, whose last entry is the
+        condition, and each optional table was *relocated* into the cave, so whether the live
+        weapon-set-flag and locomotor-set tables point inside this section is exactly whether that
+        option was used - and if it was, that table's last entry is its name."""
+        located = find_section(data, _SECTION_NAME)
+        if located is None:
+            return None
+        section_va, _section_off, vsize = located
+        try:
+            pointers = name_tables.read_terminated(
+                data, section_va, f"the model-condition table in {_SECTION_NAME}"
+            )
+            condition = name_tables.read_cstring(data, pointers[-1]) if pointers else None
+            if condition is None:
+                return None
+
+            extras: list[str | None] = []
+            for ref_vas in (weapon_set_flags.TABLE_REF_VAS, locomotor_sets.TABLE_REF_VAS):
+                table_va = struct.unpack_from("<I", data, _offset(data, ref_vas[0]))[0]
+                if not section_va <= table_va < section_va + vsize:
+                    extras.append(None)  # still the stock table: this patch did not rebuild it
+                    continue
+                entries = name_tables.read_terminated(data, table_va, _SECTION_NAME)
+                name = name_tables.read_cstring(data, entries[-1]) if entries else None
+                if name is None:
+                    return None
+                extras.append(name)
+
+            patch = cls(condition, weapon_set_flag=extras[0], locomotor_set=extras[1])
+        except (ValueError, IndexError, struct.error):
+            return None
+        return None if patch.verify(data) else patch
+
+    @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             "--condition",

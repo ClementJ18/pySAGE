@@ -37,7 +37,7 @@ from sage_live.backends.protocol import DiagnosticLog, Handshake
 from sage_live.utils import heroes as _heroes
 from sage_live.utils.heroes import ReviveLookup
 from sage_live.utils.naming import NameLookup, NoNameLookup
-from sage_patch.patches.live_bridge import MAX_ARGS
+from sage_patch.patches.experimental.live_bridge import MAX_ARGS
 from sage_replay.replay import Order
 
 __all__ = [

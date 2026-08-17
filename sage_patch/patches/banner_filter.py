@@ -96,6 +96,7 @@ if TYPE_CHECKING:
 __all__ = [
     "DEFAULT_KEYWORD",
     "FILTER_OFFSET",
+    "KEYWORD_OFFSET",
     "PATCHED_MODULEDATA_SIZE",
     "SECTION_NAME",
     "SOURCE_PLAYER_ANCHOR",
@@ -167,6 +168,12 @@ STOCK_FIELDS = (
     ("ScanHordeDistance", 0x3C),
     ("UpgradeRequired", 0x40),
 )
+
+#: Where the keyword string lands in the cave: immediately past the relocated table, whose entry
+#: count is fixed by the build (the twelve stock fields, the new one, and the NULL terminator).
+#: :meth:`BannerFilterPatch.detect` reads the keyword back from here, so this is the one place the
+#: offset is written down and :meth:`BannerFilterPatch._compute_section` lays the cave out by it.
+KEYWORD_OFFSET = (len(STOCK_FIELDS) + 2) * FIELD_ENTRY_SIZE
 
 #: `ReplenishAllNearbyHordes`, for the ``--only-when-all`` gate.
 REPLENISH_ALL_OFFSET = 0x39
@@ -357,6 +364,31 @@ class BannerFilterPatch(Patch):
             )
         return problems
 
+    @classmethod
+    def detect(cls, data: bytes | bytearray) -> BannerFilterPatch | None:
+        """Recognise this patch **and recover its keyword and scope**.
+
+        The default probe only ever recognises the default settings, so a binary patched under any
+        other keyword reads as unpatched. The keyword sits at a fixed offset into the cave - past
+        the relocated table, whose entry count is fixed by the build - so it can be read back
+        rather than guessed. ``only_when_all`` changes only the filter stub's opening test and is
+        recorded nowhere else, so it is probed: off first, since that is the default."""
+        located = find_section(data, SECTION_NAME)
+        if located is None:
+            return None
+        keyword = _read_cstring(data, located[0] + KEYWORD_OFFSET)
+        if keyword is None:
+            return None
+        for only_when_all in (False, True):
+            try:
+                patch = cls(keyword, only_when_all=only_when_all)
+                problems = patch.verify(data)
+            except (ValueError, KeyError, IndexError, TypeError, struct.error):
+                return None  # not a keyword this patch could have written
+            if not problems:
+                return patch
+        return None
+
     # --- CLI integration ---------------------------------------------------------------------
 
     @classmethod
@@ -394,7 +426,7 @@ class BannerFilterPatch(Patch):
         keep pointing into ``.rdata`` — so their order and their strings are untouched."""
         stock = self._read_stock_table(data)
 
-        table_size = (len(STOCK_FIELDS) + 2) * FIELD_ENTRY_SIZE  # + the new entry + terminator
+        table_size = KEYWORD_OFFSET  # the stock entries + the new one + the NULL terminator
         keyword_va = section_va + table_size
 
         blob = bytearray(self.keyword.encode("ascii") + b"\x00")

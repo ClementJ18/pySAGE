@@ -193,7 +193,7 @@ value = min(cap, stored + clamp(now - stamp, 0, 0xFFFF) * regen)
 removes most of what the scoping note budgeted:
 
 - **No per-frame hook.** Nothing walks the table each frame, and in particular nothing has to hook
-  `GameLogic::update` — which matters, because [`live_bridge`](../patches/live_bridge.py) already
+  `GameLogic::update` — which matters, because [`live_bridge`](../patches/experimental/live_bridge.py) already
   owns those five bytes and the two would have collided. There is a test for the pair.
 - **No init hook.** A row whose `id` does not match reads as *full*, so a hero that has never cast
   is full by construction, at frame 0 or frame 40,000. Row 0 is never a false match: object ids

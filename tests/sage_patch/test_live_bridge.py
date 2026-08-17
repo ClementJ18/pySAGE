@@ -17,7 +17,7 @@ from sage_patch.addresses import (
     VIEW_LOCATION_SIZE,
     VIEW_SET_LOCATION_VTABLE_SLOT,
 )
-from sage_patch.patches.live_bridge import (
+from sage_patch.patches.experimental.live_bridge import (
     ARG_APPENDERS,
     ARG_COUNT_OFF,
     ARG_STRIDE,

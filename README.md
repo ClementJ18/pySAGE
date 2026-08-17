@@ -85,8 +85,8 @@ Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-
 `sage-replay`, `sage-apt`, `sage-map`, `sage-save`, `sage-asset`, `sage-w3d`, `sage-cah`,
 `sage-patch` (and the GUI scripts `sage-ui`,
 `sage-wiki`, `sage-lint-ui`, `sage-edain-lint` - the Edain Linter, which combines the ini and map
-checks in one window - `sage-edain-notes`, the Edain Patch Notes window, and `sage-asset-ui`, the
-SAGE Asset builder/combiner window).
+checks in one window - `sage-edain-notes`, the Edain Patch Notes window, `sage-edain-horde`, the
+Edain Horde Maker window, and `sage-asset-ui`, the SAGE Asset builder/combiner window).
 
 ## Tests
 

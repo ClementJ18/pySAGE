@@ -8,12 +8,14 @@ source tree and asserts they cover every runtime asset.
 Runs from the source checkout with no build step, so it is core-suite and platform-independent.
 """
 
+import re
 import tomllib
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
 # Files a package opens at runtime, by extension, plus the PEP 561 marker. Documentation that
 # merely lives inside a package directory (PLAN.md, TODO.md, order_space_map.md) is deliberately
@@ -104,4 +106,36 @@ def test_all_extra_aggregates_every_other_extra():
     assert referenced == others, (
         f"`all` must reference exactly the other extras - "
         f"missing {sorted(others - referenced)}, unknown {sorted(referenced - others)}"
+    )
+
+
+def _ci_checked_scripts() -> set[str]:
+    """The entry-point names CI's `package` job actually runs, read out of its two `for script in
+    ... ; do` loops. Scraped from the YAML as text rather than parsed: the core suite has no YAML
+    reader, and the shell loop - not the surrounding structure - is what decides the coverage."""
+    text = CI_WORKFLOW.read_text(encoding="utf-8")
+    loops = re.findall(r"for script in ([^;]+); do", text)
+    assert loops, f"no `for script in ...; do` loop found in {CI_WORKFLOW.name}"
+    return {name for loop in loops for name in loop.split()}
+
+
+def test_ci_runs_every_declared_entry_point():
+    """Every console and GUI script must be exercised by CI's `package` job - the CLIs with
+    `--help`, the desktop apps by asserting they name their missing extra. The lists there are
+    hand-written shell loops, so a newly added entry point is silently uncovered until something
+    checks: `sage-edain-horde` shipped exactly that way, and four CLIs had drifted out with it.
+    Parses only pyproject.toml and the workflow text, so it runs in the core suite."""
+    project = _pyproject()["project"]
+    declared = set(project["scripts"]) | set(project["gui-scripts"])
+    checked = _ci_checked_scripts()
+
+    assert declared <= checked, (
+        f"entry point(s) {sorted(declared - checked)} are declared in pyproject.toml but never run "
+        f"by CI's `package` job; add them to the matching `for script in ...` loop in "
+        f"{CI_WORKFLOW.name} (console scripts to the `--help` loop, desktop apps to the "
+        f"missing-extra loop)."
+    )
+    assert checked <= declared, (
+        f"CI's `package` job runs {sorted(checked - declared)}, which pyproject.toml does not "
+        f"declare as an entry point - a renamed or removed script leaves the job failing."
     )

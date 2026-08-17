@@ -1,8 +1,9 @@
 """The Edain Horde Maker window: click soldiers onto a grid, press Write block, and the
-`HordeContain` formation block appears below - slot count, `InitialPayload` per unit, the banner
-carrier's two lines and the numbered `RankInfo` ranks, ready to paste into the object. Paste a
-block into the same pane and press Read block to see the formation it describes, unit names and
-all.
+`HordeContain` formation block appears in the tab beside it - slot count, `InitialPayload` per
+unit, the banner carrier's two lines and the numbered `RankInfo` ranks, ready to paste into the
+object. Paste a block into that same tab and press Read block to see the formation it describes,
+unit names and all. The two tabs are the same horde from either side, and the buttons under them
+drive both.
 
 The grid is the game's own frame seen from above: one cell to a world unit, the top row the front
 of the horde and the marked column its centre line, so what the window draws is what marches.
@@ -16,7 +17,7 @@ Nothing about *how* a block is written lives here: that is the Qt-free
 from collections.abc import Iterable, Sequence
 
 from PyQt6.QtCore import QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QPainter, QPen
+from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPen
 from PyQt6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -27,6 +28,7 @@ from PyQt6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QRadioButton,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -41,12 +43,14 @@ from sage_utils.widgets import (
     ThemeToggle,
     add_help_menu,
     card,
+    resource_path,
     saved_dark_theme,
     theme_notifier,
 )
 
 APP_NAME = "sage_edain_horde_maker"
 APP_TITLE = "Edain Horde Maker"
+ICON_FILE = "icon.ico"
 
 # The soldier kinds a formation can mix, each with the colour it is drawn in and the object name
 # it starts out as. The banner carrier is one of them so the grid handles a single kind of thing;
@@ -76,6 +80,10 @@ _CELL = 4  # pixels to a world unit
 _GRID_STEP = 5  # a grid line every this many units; every cell would be a solid wash
 _MARGIN = 16  # px of room around the grid, so a dot on its edge is not clipped
 
+# The two views of the horde, in the order they are added.
+_FORMATION_TAB = 0
+_BLOCK_TAB = 1
+
 _GETTING_STARTED_HTML = """
 <h2>Getting started with Edain Horde Maker</h2>
 <p>This window lays out the formation of a horde - the block of <code>RankInfo</code> lines a
@@ -89,23 +97,26 @@ so twice a <code>GeometryMajorRadius</code>. The dots are drawn at that size, wh
 whether two soldiers would end up standing inside one another.</p>
 
 <h3>2. Place the soldiers</h3>
-<p><b>Left click</b> on the grid places the selected kind, <b>right click</b> removes the soldier
-under the cursor (hold it down to sweep several away). The <b>top row is the front</b> of the
-formation and the marked column is its centre line - the horde marches towards the top of the
-grid. Only one <b>banner carrier</b> exists per horde, so placing it again moves it.</p>
+<p>On the <b>Formation</b> tab, <b>left click</b> places the selected kind and <b>right click</b>
+removes the soldier under the cursor (hold it down to sweep several away). The <b>top row is the
+front</b> of the formation and the marked column is its centre line - the horde marches towards
+the top of the grid. Only one <b>banner carrier</b> exists per horde, so placing it again moves
+it.</p>
 
 <h3>3. Write the block</h3>
-<p><b>Write block</b> fills the pane below with the finished block: the slot count, an
+<p><b>Write block</b> fills the <b>Horde block</b> tab with the finished block: the slot count, an
 <code>InitialPayload</code> per unit, the banner carrier's <code>BannerCarriersAllowed</code> /
 <code>BannerCarrierPosition</code> pair, and one <code>RankInfo</code> per row, numbered front to
-back. <b>Copy</b> puts it on the clipboard.</p>
+back, and brings that tab up. <b>Copy</b> puts it on the clipboard. The buttons sit under both
+tabs, so either side can be acted on from wherever you are.</p>
 <p>Ranks are tied together for you: each soldier takes the one standing at its own index in the
 rank ahead as its <code>Leader</code>, which is what keeps a marching horde in shape.</p>
 
 <h3>Reading an existing horde</h3>
 <p>Paste a horde's block - or its whole <code>HordeContain</code>, the rest is ignored - into the
-pane and press <b>Read block</b>. Its positions are drawn on the grid and its unit names fill the
-fields, so an existing formation can be looked at and adjusted.</p>
+<b>Horde block</b> tab and press <b>Read block</b>. Its positions are drawn on the grid and its
+unit names fill the fields, and the <b>Formation</b> tab comes up showing the shape, so an
+existing horde can be looked at and adjusted.</p>
 <p>A block written here opens with a <code>; HordeMaker DotSizes</code> comment recording the
 diameter each placed unit was drawn at, since the ini itself says nothing about geometry.
 Reading such a block restores those sizes. It is a comment: the game never sees it, and a block
@@ -281,6 +292,7 @@ class HordeMakerWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"{APP_TITLE} v{__version__}")
+        self.setWindowIcon(QIcon(str(resource_path(ICON_FILE, __file__))))
         self.resize(1000, 940)
         self._build_menu()
 
@@ -301,8 +313,8 @@ class HordeMakerWindow(QMainWindow):
         self.grid = FormationGrid(self._diameter)
         self.grid.changed.connect(self._on_grid_changed)
         root.addWidget(self._units_card())
-        root.addWidget(self._grid_card())
-        root.addWidget(self._block_card(), 1)
+        root.addWidget(self._tabs(), 1)
+        root.addLayout(self._actions())
 
         self.status = QLabel("Place the soldiers, then press Write block.")
         self.status.setObjectName("muted")
@@ -320,6 +332,7 @@ class HordeMakerWindow(QMainWindow):
                 "<code>HordeContain</code> - on a grid, at the size the units really are, and "
                 "reads an existing block back onto it.</p>"
             ),
+            icon=QIcon(str(resource_path(ICON_FILE, __file__))),
         )
 
     def _units_card(self) -> QWidget:
@@ -370,8 +383,17 @@ class HordeMakerWindow(QMainWindow):
         self._sizes[kind] = size
         return row
 
-    def _grid_card(self) -> QWidget:
-        frame, layout = card("Formation")
+    def _tabs(self) -> QWidget:
+        """The two sides of the same horde - the formation drawn, and the block it is written
+        as - as tabs, since a formation worth laying out fills the window on its own. The
+        buttons below drive both, and switch to the tab whose side they just changed."""
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self._formation_tab(), "Formation")
+        self.tabs.addTab(self._block_tab(), "Horde block")
+        return self.tabs
+
+    def _formation_tab(self) -> QWidget:
+        page, layout = _tab_page()
         hint = QLabel(
             "Left click places the selected unit, right click removes it. The top row is the "
             "front of the horde, the dashed line its centre; one cell is one world unit."
@@ -383,20 +405,32 @@ class HordeMakerWindow(QMainWindow):
         centred.addWidget(self.grid)
         centred.addStretch(1)
         layout.addLayout(centred)
-        return frame
+        layout.addStretch(1)
+        return page
 
-    def _block_card(self) -> QWidget:
-        frame, layout = card("Horde block")
+    def _block_tab(self) -> QWidget:
+        page, layout = _tab_page()
+        self.block = QPlainTextEdit()
+        self.block.setFont(QFont("Consolas", 10))
+        self.block.setPlaceholderText(
+            "The formation block appears here once you press Write block - or paste one in and "
+            "press Read block."
+        )
+        layout.addWidget(self.block, 1)
+        return page
+
+    def _actions(self) -> QHBoxLayout:
+        """The buttons both tabs share, so neither side has to be in view to be acted on."""
         buttons = QHBoxLayout()
         buttons.setSpacing(8)
         for label, tooltip, slot in (
             ("Clear", "Remove every soldier from the grid.", self.grid.clear),
             (
                 "Read block",
-                "Draw the formation the block below describes, unit names and sizes and all.",
+                "Draw the formation the block describes, unit names and sizes and all.",
                 self._read,
             ),
-            ("Copy", "Copy the block below to the clipboard.", self._copy),
+            ("Copy", "Copy the block to the clipboard.", self._copy),
         ):
             button = QPushButton(label)
             button.setToolTip(tooltip)
@@ -408,16 +442,7 @@ class HordeMakerWindow(QMainWindow):
         write.setToolTip("Write the grid out as a HordeContain formation block.")
         write.clicked.connect(self._write)
         buttons.addWidget(write)
-        layout.addLayout(buttons)
-
-        self.block = QPlainTextEdit()
-        self.block.setFont(QFont("Consolas", 10))
-        self.block.setPlaceholderText(
-            "The formation block appears here once you press Write block - or paste one in and "
-            "press Read block."
-        )
-        layout.addWidget(self.block, 1)
-        return frame
+        return buttons
 
     def _select(self, kind: str, checked: bool) -> None:
         if checked:
@@ -433,12 +458,14 @@ class HordeMakerWindow(QMainWindow):
         sizes = {self._unit_name(kind): self._diameter(kind) for kind in self.grid.kinds()}
         block = render_formation(slots, sizes)
         self.block.setPlainText(block)
+        self.tabs.setCurrentIndex(_BLOCK_TAB)
         self.status.setText(f"{_soldiers(len(slots))} written as {_ranks(block)}.")
 
     def _read(self) -> None:
         text = self.block.toPlainText()
         slots = parse_formation(text)
         if not slots:
+            self.tabs.setCurrentIndex(_BLOCK_TAB)  # where the block that did not read is
             self.status.setText(
                 "No RankInfo or BannerCarrierPosition line in there - paste a horde's block first."
             )
@@ -451,6 +478,7 @@ class HordeMakerWindow(QMainWindow):
         dropped = self.grid.place(
             (kinds[slot.unit], slot.x, slot.y) for slot in slots if slot.unit in kinds
         )
+        self.tabs.setCurrentIndex(_FORMATION_TAB)
         told = [f"Read {_soldiers(len(slots))}."]
         if dropped:
             told.append(f"{dropped} fell outside the grid and were dropped.")
@@ -501,6 +529,16 @@ class HordeMakerWindow(QMainWindow):
 
     def _on_grid_changed(self) -> None:
         self.status.setText(f"{_soldiers(self.grid.count())} on the grid.")
+
+
+def _tab_page() -> tuple[QWidget, QVBoxLayout]:
+    """A tab's page and its layout, padded the way a card is - the tab pane is already the
+    surface the contents sit on, so all they need is room to breathe inside it."""
+    page = QWidget()
+    layout = QVBoxLayout(page)
+    layout.setContentsMargins(16, 14, 16, 14)
+    layout.setSpacing(8)
+    return page, layout
 
 
 def _swatch(colour: str) -> QLabel:

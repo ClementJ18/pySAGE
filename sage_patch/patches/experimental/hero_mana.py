@@ -1379,6 +1379,34 @@ class HeroManaPatch(Patch):
         return out
 
     @classmethod
+    def detect(cls, data: bytes | bytearray) -> HeroManaPatch | None:
+        """Recognise this patch **and recover its pool, regen and trace setting**.
+
+        The default probe only ever recognises the default tuning, so a binary built with any
+        other pool or regen reads as unpatched. The cave opens with both as plain dwords - the
+        emitted code reads them from there rather than as immediates - so they come straight back
+        out. ``trace`` changes only which call sites the body emits and is recorded nowhere, so it
+        is probed: untraced first, since that is the cheaper build and the common one."""
+        located = find_section(data, SECTION_NAME)
+        if located is None:
+            return None
+        _section_va, section_off, _vsize = located
+        try:
+            pool = struct.unpack_from("<I", data, section_off + _CFG_POOL_OFF)[0]
+            regen = struct.unpack_from("<I", data, section_off + _CFG_REGEN_OFF)[0]
+        except struct.error:
+            return None
+        for trace in (False, True):
+            try:
+                patch = cls(pool, regen, trace=trace)
+                problems = patch.verify(data)
+            except (ValueError, KeyError, IndexError, TypeError, struct.error):
+                return None
+            if not problems:
+                return patch
+        return None
+
+    @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             "--pool",

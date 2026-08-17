@@ -691,3 +691,37 @@ class TestComposition:
         bridge = find_section(data, ".livebrg")
         assert mana is not None and bridge is not None
         assert mana[0] + mana[2] <= bridge[0] or bridge[0] + bridge[2] <= mana[0]
+
+
+class TestDetect:
+    """**The gate on parameter recovery.** `verify` only answers "does this file carry *this*
+    tuning", so the default probe - which asks about the default pool and regen - reports a binary
+    built with any other numbers as unpatched, which is the case detection exists for."""
+
+    def test_it_recovers_a_non_default_tuning(self, image: bytearray):
+        data = bytearray(image)
+        HeroManaPatch(pool=250, regen=7).apply(data)
+        found = HeroManaPatch.detect(data)
+        assert found is not None, "a patch built with another tuning reports as absent"
+        assert (found.pool, found.regen, found.trace) == (250, 7, False)
+
+    @pytest.mark.parametrize("trace", [False, True], ids=["untraced", "traced"])
+    def test_it_recovers_the_trace_setting(self, image: bytearray, trace: bool):
+        """`trace` is recorded nowhere in the cave - it only changes which call sites the body
+        emits - so it is probed rather than read, and both builds must come back correctly."""
+        data = bytearray(image)
+        HeroManaPatch(pool=250, regen=7, trace=trace).apply(data)
+        found = HeroManaPatch.detect(data)
+        assert found is not None
+        assert found.trace is trace
+
+    def test_the_recovered_patch_verifies_against_the_binary_it_came_from(self, image: bytearray):
+        data = bytearray(image)
+        HeroManaPatch(pool=250, regen=7, trace=True).apply(data)
+        assert HeroManaPatch.detect(data).verify(data) == []
+
+    def test_an_unpatched_image_carries_nothing(self, image: bytearray):
+        assert HeroManaPatch.detect(image) is None
+
+    def test_detection_never_raises_on_something_that_is_not_a_game_dat(self):
+        assert HeroManaPatch.detect(bytearray(b"MZ" + bytes(4096))) is None

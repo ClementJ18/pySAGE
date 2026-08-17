@@ -1,4 +1,4 @@
-"""Build every PyInstaller spec in the repo and zip the binaries into pySAGE.zip.
+"""Build the repo's PyInstaller specs and zip the binaries into pySAGE.zip.
 
 Discovers the `*.spec` files that live next to each package (sage_ini/sage-ini.spec, ...),
 runs PyInstaller on each into a clean staging dir - not the repo's `dist/`, which holds stale
@@ -6,8 +6,14 @@ artifacts from ad-hoc builds - and zips whatever the specs emitted into `pySAGE.
 repo root. It also assembles the self-contained SageLint Sublime package (the loose folder
 Sublime installs, carrying the freshly built sage_lint CLI in its bin/) into the same zip.
 
-    python tools/build_release.py            # build all specs, write pySAGE.zip
+The mod overlays under `sage_mods` are left out of a plain run and built only when a filter
+names them: a release of the engine-generic tools is for everyone, while the Edain windows are
+for one mod's team, and shipping them to everybody costs build minutes and zip weight for an
+app most people cannot use.
+
+    python tools/build_release.py            # every generic spec, write pySAGE.zip
     python tools/build_release.py sage_ini   # only specs whose path contains "sage_ini"
+    python tools/build_release.py edain      # the mod overlays, which a plain run skips
 
 Each spec is a onefile build, so the staging dir ends up holding one binary per EXE the specs
 declare (a few specs declare two: a console CLI and a windowed app). PyInstaller binaries are
@@ -26,6 +32,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 STAGE_DIR = REPO_ROOT / "build" / "release-dist"
 WORK_DIR = REPO_ROOT / "build" / "release-work"
 ZIP_PATH = REPO_ROOT / "pySAGE.zip"
+
+# Trees whose specs a plain run leaves alone, matched against the repo-relative path. `sage_mods`
+# holds the mod overlays: their windows name one mod's data and are wanted by that mod's team, not
+# by everyone who downloads the release, so they are opt-in by filter.
+OPTIONAL_DIRS = ("sage_mods/",)
 
 # The Sublime plugin ships as a loose folder that carries a standalone sage_lint binary in bin/:
 # it execs that binary via subprocess, and files inside a .sublime-package zip are never
@@ -46,10 +57,14 @@ CLI_BINARY_NAME = "sage_lint.exe" if sys.platform == "win32" else "sage_lint"
 
 
 def find_specs(filters: list[str]) -> list[Path]:
+    """The specs to build: every one in the repo, or - with `filters` - those whose repo-relative
+    path contains one of them. The mod overlays are skipped unless a filter reaches them, so
+    `edain` (or the spec's own name) is how they get built."""
     specs = sorted(REPO_ROOT.glob("*/**/*.spec"))
+    paths = [(spec, spec.relative_to(REPO_ROOT).as_posix()) for spec in specs]
     if filters:
-        specs = [s for s in specs if any(f in str(s.relative_to(REPO_ROOT)) for f in filters)]
-    return specs
+        return [spec for spec, path in paths if any(f in path for f in filters)]
+    return [spec for spec, path in paths if not path.startswith(OPTIONAL_DIRS)]
 
 
 def build(spec: Path) -> None:
@@ -109,7 +124,11 @@ def main() -> None:
     parser.add_argument(
         "filters",
         nargs="*",
-        help="only build specs whose repo-relative path contains one of these substrings",
+        help=(
+            "only build specs whose repo-relative path contains one of these substrings; "
+            f"also the only way to build the specs under {', '.join(OPTIONAL_DIRS)}, which a "
+            "plain run skips"
+        ),
     )
     args = parser.parse_args()
 

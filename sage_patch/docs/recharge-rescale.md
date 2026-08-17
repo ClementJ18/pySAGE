@@ -343,7 +343,7 @@ is live and initialised on every path that reaches this instruction (`0x0062E550
 both under the `edi == 1` arm that leads here).
 
 `0x0062E577` itself is 3 bytes and is a fall-through target, which is why `live-bridge` does not
-take it either; see [`live-bridge`](../patches/live_bridge.py)'s docstring for the same finding.
+take it either; see [`live-bridge`](../patches/experimental/live_bridge.py)'s docstring for the same finding.
 
 **Alternative: `0x0062E6A4`** (`e8 60 21 e1 ff`, `call 0x440809`) — five bytes further down the
 unconditional main path, not a branch target, and simpler because it needs no flag reading. It sits

@@ -492,3 +492,40 @@ def test_it_does_not_touch_the_bytes_replay_outcome_hooks():
     assert not set(ours) & set(theirs)
     # and neither reads what the other writes: our fingerprint stops before their site
     assert RECORDER_NEW_GAME_BRANCH + len(RECORDER_NEW_GAME_BRANCH_BYTES) <= RECORDER_END_WRITE_CALL
+
+
+class TestDetect:
+    """**The gate on parameter recovery.** `verify` only answers "does this file carry *this*
+    configuration", so the default probe reports a binary recording any other mode set as
+    unpatched - which is the case detection exists for."""
+
+    def test_it_recovers_a_non_default_mode_set(self):
+        patch = SkirmishReplayPatch(modes=(3, 4))
+        data = patched_image(patch)
+        found = SkirmishReplayPatch.detect(data)
+        assert found is not None, "a patch recording other modes reports as absent"
+        assert found.modes == (3, 4)
+
+    @pytest.mark.parametrize("rename", [RENAME_ALL, RENAME_ADDED])
+    def test_it_recovers_the_rename_scope(self, rename: str):
+        data = patched_image(SkirmishReplayPatch(modes=(3,), rename=rename))
+        found = SkirmishReplayPatch.detect(data)
+        assert found is not None
+        assert found.rename == rename
+
+    def test_the_recovered_patch_verifies_against_the_binary_it_came_from(self):
+        data = patched_image(SkirmishReplayPatch(modes=(3, 4), rename=RENAME_ADDED))
+        assert SkirmishReplayPatch.detect(data).verify(data) == []
+
+    def test_a_full_mode_table_round_trips(self):
+        """The count is read from the cave and bounds the table read, so the largest legal table
+        must come back whole rather than truncated."""
+        modes = tuple(range(10, 10 + MAX_MODES))
+        data = patched_image(SkirmishReplayPatch(modes=modes))
+        assert SkirmishReplayPatch.detect(data).modes == modes
+
+    def test_an_unpatched_image_carries_nothing(self):
+        assert SkirmishReplayPatch.detect(synthetic_image()) is None
+
+    def test_detection_never_raises_on_something_that_is_not_a_game_dat(self):
+        assert SkirmishReplayPatch.detect(bytearray(b"MZ" + bytes(4096))) is None

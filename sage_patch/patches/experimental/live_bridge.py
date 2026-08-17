@@ -87,7 +87,7 @@ from __future__ import annotations
 import argparse
 import struct
 
-from ..addresses import (
+from ...addresses import (
     APPEND_MESSAGE_VTABLE_SLOT,
     ARG_APPENDERS,
     GAME_LOGIC_UPDATE,
@@ -99,9 +99,9 @@ from ..addresses import (
     VIEW_LOCATION_SIZE,
     VIEW_SET_LOCATION_VTABLE_SLOT,
 )
-from ..asm import JA, JE, JNE, Asm
-from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...asm import JA, JE, JNE, Asm
+from ...patcher import Patch
+from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "ARG_APPENDERS",
@@ -419,6 +419,7 @@ def build_section(base_va: int, cheats: bool = False) -> bytes:
 class LiveBridgePatch(Patch):
     name = "live-bridge"
     author = "officialNecro"
+    experimental = True
     description = (
         "Hook GameLogic::update so an external process can inject orders into the "
         "message stream, and place the camera, by writing a command buffer in the "

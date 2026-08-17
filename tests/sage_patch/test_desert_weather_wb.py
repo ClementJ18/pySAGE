@@ -21,6 +21,7 @@ from sage_patch.patches.desert_weather_wb import (
     _DIALOG_FINGERPRINT,
     _SECTION_NAME,
     COMBO_BOUND_VA,
+    DEFAULT_WEATHER,
     STOCK_WEATHER_NAMES,
     WEATHER_TABLE_REF_SITES,
     WEATHER_TABLE_VA,
@@ -165,3 +166,29 @@ class TestApply:
     def test_a_name_already_in_the_table_is_refused(self, image: bytearray):
         with pytest.raises(ValueError, match="already weather"):
             DesertWeatherWorldbuilderPatch(weather="SNOWY").apply(image)
+
+
+class TestDetect:
+    """**The gate on parameter recovery.** `verify` only answers "does this file carry *this*
+    name", so the default probe reports a Worldbuilder patched under any other token as
+    unpatched - which is the case detection exists for."""
+
+    def test_it_recovers_a_non_default_name(self, image: bytearray):
+        DesertWeatherWorldbuilderPatch(weather="ASHLAND").apply(image)
+        found = DesertWeatherWorldbuilderPatch.detect(image)
+        assert found is not None, "a patch applied under another name reports as absent"
+        assert found.weather == "ASHLAND"
+
+    def test_the_recovered_patch_verifies_against_the_binary_it_came_from(self, image: bytearray):
+        DesertWeatherWorldbuilderPatch(weather="ASHLAND").apply(image)
+        assert DesertWeatherWorldbuilderPatch.detect(image).verify(image) == []
+
+    def test_it_still_recovers_the_default(self, image: bytearray):
+        DesertWeatherWorldbuilderPatch().apply(image)
+        assert DesertWeatherWorldbuilderPatch.detect(image).weather == DEFAULT_WEATHER
+
+    def test_an_unpatched_image_carries_nothing(self, image: bytearray):
+        assert DesertWeatherWorldbuilderPatch.detect(image) is None
+
+    def test_detection_never_raises_on_something_that_is_not_a_worldbuilder(self):
+        assert DesertWeatherWorldbuilderPatch.detect(bytearray(b"MZ" + bytes(4096))) is None

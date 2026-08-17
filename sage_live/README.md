@@ -25,7 +25,7 @@ with sage_live.attach() as game:              # read-only; no injection, nothing
     closest = observation.nearest(barracks[0].position, owner=5)
 ```
 
-Ordering needs the live-bridge patch and a writable handle:
+Ordering needs the live-bridge patch (**experimental**, see Requirements) and a writable handle:
 
 ```python
 with sage_live.attach(writable=True) as game:
@@ -494,6 +494,9 @@ Training a policy on information a human never had should be a decision, not an 
 - **An elevated shell.** `game.dat` runs as administrator, so `ReadProcessMemory` is refused
   otherwise. `attach` says exactly that when it happens.
 - **A patched `game.dat`**, for `writable=True` only: `sage-patch apply live-bridge --in game.dat`.
+  That patch is **experimental** — unstable and largely untested, and `sage-patch apply` prints a
+  warning before it writes a byte. Keep the unpatched binary. Nothing on the *read* path needs it:
+  observing a live game is unpatched and read-only, and only issuing orders depends on the bridge.
 - **Addresses are build-specific, and the build is checked.** `LAYOUT_ROTWK_201` is verified
   against RotWK 2.01 (`game.dat`, PE timestamp `0x460DA09E`). `attach` reads that stamp out of
   the running image and **refuses a mismatch**, because reading another build with these

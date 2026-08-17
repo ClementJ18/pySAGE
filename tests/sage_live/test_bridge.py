@@ -1,5 +1,5 @@
 """BridgeBackend: argument marshalling, the ready-flag protocol, and the contract between
-the writer here and the cave in `sage_patch.patches.live_bridge`.
+the writer here and the cave in `sage_patch.patches.experimental.live_bridge`.
 
 The two halves are separate modules that must agree on a byte layout, so the invariants
 between them are asserted here rather than trusted.
@@ -25,7 +25,7 @@ from sage_live.backends.bridge import (
 from sage_live.backends.identity import ROTWK_201_TIMESTAMP
 from sage_live.backends.memory import MemoryBackend
 from sage_patch.addresses import THE_TACTICAL_VIEW, VIEW_LOCATION_SIZE, VIEW_POSITION_OFFSET
-from sage_patch.patches.live_bridge import (
+from sage_patch.patches.experimental.live_bridge import (
     ARG_COUNT_OFF,
     ARG_STRIDE,
     ARGS_OFF,

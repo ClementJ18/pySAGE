@@ -1,8 +1,8 @@
 """Tests for `sage_patch.sagepatch` - reading a patched binary back as a `.sagepatch`.
 
 The two passes are tested for what each is *for*: detection has to recover a patch's parameters
-(not just notice it), and the name-table pass has to find tokens whatever put them there,
-including a patch applied under a name detection cannot guess.
+(not just notice it), and the name-table pass has to find tokens whatever put them there -
+including in a binary where detection recognises nothing at all.
 
 The last class is the anti-drift gate. Every patch's `ini_surface` is a hand-written claim about
 what the engine will accept afterwards, sitting next to assembly that could be changed without it
@@ -25,7 +25,7 @@ from sage_patch.patcher import apply_patches
 from sage_patch.patches.commandset import CommandSetLimitPatch
 from sage_patch.patches.desert_weather import DesertWeatherPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
-from sage_patch.patches.production_condition import ProductionConditionPatch
+from sage_patch.patches.production_condition import _UPDATE_VA, ProductionConditionPatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
 from sage_patch.registry import PATCHES
 from sage_patch.sagepatch import (
@@ -35,6 +35,7 @@ from sage_patch.sagepatch import (
     generate_from_patches,
     name_table_members,
 )
+from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import synthetic_image
 from tests.sage_patch.test_terrain_resource_exp import _composable_image
 
@@ -67,12 +68,19 @@ class TestNameTables:
         assert all(delta.value is not None for delta in members)
 
     def test_a_token_is_found_even_when_the_patch_that_added_it_is_not_recognised(self):
-        """Detection probes each patch with its defaults, so a custom name defeats it. The table
-        pass is what keeps the `.sagepatch` correct anyway - the token is what the INI needs."""
+        """The two passes are independent, and this is the case that proves it: a token reaches
+        the `.sagepatch` even when no patch is recognised at all - the token is what the INI
+        needs, and something put it in the engine's live table whatever detection makes of it.
+
+        Detection is defeated here by damaging a site `verify` checks, since a custom name no
+        longer does it: every parameterized patch now recovers its own settings."""
         image = synthetic_image()
         ProductionConditionPatch(condition="SOMETHING_ELSE", weapon_set_flag="ALSO_CUSTOM").apply(
             image
         )
+        # Break the hook's `jmp` into the cave. The model-condition table still carries the token.
+        off = va_to_offset(image, _UPDATE_VA)
+        image[off] = 0x90
         generated = generate(image)
 
         assert generated.patches == ()

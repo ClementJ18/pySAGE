@@ -500,3 +500,49 @@ class TestNameValidation:
         ProductionConditionPatch(condition="TRAINING_OR_RESEARCHING").apply(image)
         base_va, off, _vsize = find_section(image, _SECTION_NAME)
         assert b"TRAINING_OR_RESEARCHING\x00" in bytes(image[off : off + 0xA00])
+
+
+class TestDetect:
+    """**The gate on parameter recovery.** `verify` only answers "does this file carry *these*
+    settings", so the default probe - `PRODUCING` with neither optional table - reports a binary
+    patched any other way as unpatched, which is the case detection exists for.
+
+    Whether each optional table was rebuilt is read from the image's own evidence rather than
+    guessed: the patch *relocates* the table it extends, so the live reference pointing inside
+    this cave is exactly what says the option was used."""
+
+    def test_it_recovers_a_non_default_condition(self, image: bytearray):
+        ProductionConditionPatch(condition="TRAINING").apply(image)
+        found = ProductionConditionPatch.detect(image)
+        assert found is not None, "a patch applied under another name reports as absent"
+        assert found.condition == "TRAINING"
+        assert (found.weapon_set_flag, found.locomotor_set) == (None, None)
+
+    @pytest.mark.parametrize(
+        "extras",
+        [
+            {},
+            {"weapon_set_flag": "MYFLAG"},
+            {"locomotor_set": "MYSET"},
+            {"weapon_set_flag": "MYFLAG", "locomotor_set": "MYSET"},
+        ],
+        ids=["neither", "weapon-only", "locomotor-only", "both"],
+    )
+    def test_it_recovers_whichever_optional_tables_were_used(self, image: bytearray, extras: dict):
+        ProductionConditionPatch(condition="TRAINING", **extras).apply(image)
+        found = ProductionConditionPatch.detect(image)
+        assert found is not None
+        assert found.weapon_set_flag == extras.get("weapon_set_flag")
+        assert found.locomotor_set == extras.get("locomotor_set")
+
+    def test_the_recovered_patch_verifies_against_the_binary_it_came_from(self, image: bytearray):
+        ProductionConditionPatch(
+            condition="TRAINING", weapon_set_flag="MYFLAG", locomotor_set="MYSET"
+        ).apply(image)
+        assert ProductionConditionPatch.detect(image).verify(image) == []
+
+    def test_an_unpatched_image_carries_nothing(self, image: bytearray):
+        assert ProductionConditionPatch.detect(image) is None
+
+    def test_detection_never_raises_on_something_that_is_not_a_game_dat(self):
+        assert ProductionConditionPatch.detect(bytearray(b"MZ" + bytes(4096))) is None

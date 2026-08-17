@@ -417,3 +417,34 @@ def test_apply_patches_round_trip(tmp_path, image: bytearray) -> None:
 
     assert src.read_bytes() == bytes(image)  # the input is never modified
     assert patch.verify(out.read_bytes()) == []
+
+
+class TestDetect:
+    """**The gate on parameter recovery.** `verify` only answers "does this file carry *these*
+    settings", so the framework's default probe - which builds the patch with its defaults -
+    reports a binary patched under any other keyword as unpatched. That is the case detection
+    exists for: a `game.dat` somebody else patched, whose keyword is what a reader cannot know."""
+
+    def test_it_recovers_a_non_default_keyword(self, image: bytearray):
+        data = _patched(image, keyword="HordeFilter")
+        found = BannerFilterPatch.detect(data)
+        assert found is not None, "a patch applied under another keyword reports as absent"
+        assert found.keyword == "HordeFilter"
+        assert found.only_when_all is False
+
+    @pytest.mark.parametrize("only_when_all", [False, True], ids=["both-modes", "only-when-all"])
+    def test_it_recovers_the_scope(self, image: bytearray, only_when_all: bool):
+        data = _patched(image, keyword="HordeFilter", only_when_all=only_when_all)
+        found = BannerFilterPatch.detect(data)
+        assert found is not None
+        assert found.only_when_all is only_when_all
+
+    def test_the_recovered_patch_verifies_against_the_binary_it_came_from(self, image: bytearray):
+        data = _patched(image, keyword="HordeFilter", only_when_all=True)
+        assert BannerFilterPatch.detect(data).verify(data) == []
+
+    def test_an_unpatched_image_carries_nothing(self, image: bytearray):
+        assert BannerFilterPatch.detect(image) is None
+
+    def test_detection_never_raises_on_something_that_is_not_a_game_dat(self):
+        assert BannerFilterPatch.detect(bytearray(b"MZ" + bytes(4096))) is None

@@ -178,6 +178,27 @@ class DesertWeatherWorldbuilderPatch(Patch):
         return problems
 
     @classmethod
+    def detect(cls, data: bytes | bytearray) -> DesertWeatherWorldbuilderPatch | None:
+        """Recognise this patch **and recover its weather name**.
+
+        The default probe only ever recognises the default name, so a Worldbuilder patched under
+        any other one reads as unpatched. The cave *is* the relocated weather table, so its third
+        entry is the token this patch added; :meth:`verify` then re-checks every repointed site
+        against it."""
+        located = find_section(data, _SECTION_NAME)
+        if located is None:
+            return None
+        section_va, _section_off, _vsize = located
+        try:
+            names = cls._read_weather_table(data, section_va)
+            if len(names) != len(STOCK_WEATHER_NAMES) + 1:
+                return None
+            patch = cls(weather=names[-1])
+        except (ValueError, IndexError, struct.error):
+            return None
+        return None if patch.verify(data) else patch
+
+    @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             "--weather",

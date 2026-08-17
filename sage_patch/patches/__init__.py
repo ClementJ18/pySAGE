@@ -11,6 +11,8 @@ from sage_patch.patches.desert_weather_wb import DesertWeatherWorldbuilderPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.horde_orphan_target import HordeOrphanTargetPatch
+from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
+from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
@@ -18,8 +20,6 @@ from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus_filter import LargeGroupBonusFilterPatch
 from sage_patch.patches.lifetime_extend_upgrade import LifetimeExtendUpgradePatch
-from sage_patch.patches.live_bridge import LiveBridgePatch
-from sage_patch.patches.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch

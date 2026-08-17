@@ -2,7 +2,7 @@
 
 Recovered from RotWK 2.01 `game.dat` (ImageBase `0x400000`), 2026-08-06, statically with
 `pefile` + `capstone` via [`../scripts/pe.py`](../scripts/pe.py). Shipped as the camera half of
-[`../patches/live_bridge.py`](../patches/live_bridge.py) and `sage_live`'s
+[`../patches/experimental/live_bridge.py`](../patches/experimental/live_bridge.py) and `sage_live`'s
 `Session.look_at` / `Session.camera`.
 
 **Verdict up front.** A camera *move* is **a twelve-byte write to one field** — no call, no

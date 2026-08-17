@@ -12,7 +12,7 @@ else is evidence feeding it.
 
 | document | what it establishes |
 |---|---|
-| [`living-world-campaign.md`](../living-world-campaign.md) | **Working.** A scripted campaign runs its acts with no End Turn: `IsScriptedCampaign = Yes`, declare players, name it through `LivingWorldCampaignOverrride`. One four-byte patch. |
+| [`living-world-campaign.md`](living-world-campaign.md) | **Working.** A scripted campaign runs its acts with no End Turn: `IsScriptedCampaign = Yes`, declare players, name it through `LivingWorldCampaignOverrride`. One four-byte patch. |
 | [`living-world-parity.md`](living-world-parity.md) | The plan. Ordered work items, the BFME1/RotWK feature diff, and five recorded corrections. |
 | [`living-world-region-gating.md`](living-world-region-gating.md) | Why the player can waste an act wandering into owned territory: `DisableRegions` + `EnableRegion` are live and **unused**. INI-only fix. |
 | [`bfme1-act-verbs.md`](bfme1-act-verbs.md) | RotWK has 15 campaign Act verbs to BFME1's 18. The four lost — `DespawnArmy`, `ModifyArmyEntry`, `MergePlayerArmy`, `RegionReinforcements` — with their exact INI field specs. |

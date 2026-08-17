@@ -8,9 +8,10 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
 
 > ### ⚠ Experimental patches
 >
-> Six of the patches below — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
-> **`standalone-launcher`**, **`headless`** and **`recharge-rescale`** — are **experimental:
-> unstable and largely untested.** They live in [`patches/experimental/`](patches/experimental/), they are marked `exp`
+> Eight of the registered patches — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
+> **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**, **`live-bridge`** and
+> **`living-world-override`** — are **experimental: unstable and largely untested.** They live in
+> [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
 >
 > What that means, precisely. The reverse engineering is written up, the assembly is there, the

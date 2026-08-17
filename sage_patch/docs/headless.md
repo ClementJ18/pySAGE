@@ -277,7 +277,7 @@ present as literals). A cave can post GUI messages to a named control, which bec
 `-click MapSelectMenu.wnd:ButtonOK`. This is the only route that reaches multi-client LAN tests,
 and it is how EA drove it. It carries one hard precondition — see [Open](#open).
 
-**3 — Inject at the message stream.** Already solved: [`live_bridge`](../patches/live_bridge.py)
+**3 — Inject at the message stream.** Already solved: [`live_bridge`](../patches/experimental/live_bridge.py)
 hooks `GameLogic::update` and appends orders through the engine's own `appendMessage`, camera
 control included. Note the boundary — shell and APT buttons are not message-stream orders, so this
 covers the match and never the menus.

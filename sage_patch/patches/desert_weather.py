@@ -383,6 +383,46 @@ class DesertWeatherPatch(Patch):
         return problems
 
     @classmethod
+    def detect(cls, data: bytes | bytearray) -> DesertWeatherPatch | None:
+        """Recognise this patch **and recover both names it was applied with**.
+
+        The default probe only ever recognises ``DESERT -> SAND``, so a binary patched under any
+        other pair reads as unpatched. Both names are in the cave: it opens with the
+        model-condition table this patch wrote, whose last entry is the condition, and the tail
+        that follows opens with the relocated weather table, whose third entry is the weather.
+        :meth:`verify` then re-checks the two code blocks against them."""
+        located = find_section(data, _SECTION_NAME)
+        if located is None:
+            return None
+        section_va, _section_off, _vsize = located
+        try:
+            off = _offset(data, section_va)
+            count = 0
+            while struct.unpack_from("<I", data, off + count * 4)[0] != 0:
+                count += 1
+                if count > model_conditions.MASK_DWORDS * 32:
+                    return None
+            if not count:
+                return None
+            condition = model_conditions.read_cstring(
+                data, struct.unpack_from("<I", data, off + (count - 1) * 4)[0]
+            )
+            if condition is None:
+                return None
+            # The tail sits past the table and the name this patch appended; the weather table is
+            # the first thing in it, so `_tail_addresses` is not needed to find it.
+            name_size = len(condition) + 1
+            name_size += -name_size % 4
+            tail_va = section_va + (count + 1) * 4 + name_size
+            names = cls._read_weather_table(data, tail_va)
+            if len(names) != len(STOCK_WEATHER_NAMES) + 1:
+                return None
+            patch = cls(weather=names[-1], condition=condition)
+        except (ValueError, IndexError, struct.error):
+            return None
+        return None if patch.verify(data) else patch
+
+    @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             "--weather",

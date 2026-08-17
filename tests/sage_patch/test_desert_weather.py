@@ -363,3 +363,39 @@ class TestComposition:
         section_va, _off, _vsize = find_section(image, _SECTION_NAME)
         assert name_at(image, section_va, SAND_BIT) == "SAND"
         assert DesertWeatherPatch().verify(image) == []
+
+
+class TestDetect:
+    """**The gate on parameter recovery.** `verify` only answers "does this file carry *these*
+    names", so the default probe - which asks about `DESERT` -> `SAND` - reports a binary patched
+    under any other pair as unpatched, which is the case detection exists for."""
+
+    def test_it_recovers_both_non_default_names(self, image: bytearray):
+        DesertWeatherPatch(weather="ASHLAND", condition="ASH").apply(image)
+        found = DesertWeatherPatch.detect(image)
+        assert found is not None, "a patch applied under other names reports as absent"
+        assert (found.weather, found.condition) == ("ASHLAND", "ASH")
+
+    def test_the_recovered_patch_verifies_against_the_binary_it_came_from(self, image: bytearray):
+        DesertWeatherPatch(weather="ASHLAND", condition="ASH").apply(image)
+        assert DesertWeatherPatch.detect(image).verify(image) == []
+
+    def test_it_still_recovers_the_defaults(self, image: bytearray):
+        DesertWeatherPatch().apply(image)
+        found = DesertWeatherPatch.detect(image)
+        assert (found.weather, found.condition) == ("DESERT", "SAND")
+
+    def test_a_second_condition_patch_on_top_does_not_confuse_it(self, image: bytearray):
+        """The condition is read out of this patch's own cave, not off the live table's tail, so
+        another condition-adding patch applied afterwards cannot be mistaken for it."""
+        DesertWeatherPatch(weather="ASHLAND", condition="ASH").apply(image)
+        ProductionConditionPatch().apply(image)
+        found = DesertWeatherPatch.detect(image)
+        assert found is not None
+        assert (found.weather, found.condition) == ("ASHLAND", "ASH")
+
+    def test_an_unpatched_image_carries_nothing(self, image: bytearray):
+        assert DesertWeatherPatch.detect(image) is None
+
+    def test_detection_never_raises_on_something_that_is_not_a_game_dat(self):
+        assert DesertWeatherPatch.detect(bytearray(b"MZ" + bytes(4096))) is None

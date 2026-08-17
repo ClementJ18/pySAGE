@@ -19,7 +19,7 @@ from sage_patch.addresses import (
     LIVING_WORLD_OVERRIDE_OFFSET,
     LIVING_WORLD_OVERRIDE_ROW,
 )
-from sage_patch.patches.living_world_override import (
+from sage_patch.patches.experimental.living_world_override import (
     FIELD_NAME,
     ROW_PARSE_OFFSET,
     LivingWorldOverridePatch,

@@ -259,6 +259,42 @@ class CahFactionsPatch(Patch):
         return problems
 
     @classmethod
+    def detect(cls, data: bytes | bytearray) -> CahFactionsPatch | None:
+        """Recognise this patch **and recover its sides** from ``data``.
+
+        The default probe cannot: it builds the patch with no sides and asks :meth:`verify`, which
+        answers "does this file carry *this* side list" - so a binary patched with any sides at all
+        reports the patch as absent, which is the one case worth detecting. `getSideIndex`'s
+        rewritten scan bound holds the entry count, and the cave opens with one name pointer per
+        entry, so the names read straight back out: everything past the stock nine and ``All``,
+        which the constructor re-adds. :meth:`verify` then re-checks all 30 sites against them."""
+        located = find_section(data, _SECTION_NAME)
+        if located is None:
+            return None
+        _section_va, section_off, _vsize = located
+        try:
+            bound_off = va_to_offset(data, _SCAN_BOUND_VA)
+            if bound_off is None:
+                return None
+            # `cmp esi, <entry count>` - the bound this patch rewrote. A `.cahfac` section with a
+            # stock bound still here reads as 9, which is one short of the `All` entry alone and
+            # so falls outside the range below rather than being taken for a zero-side patch.
+            entry_count = data[bound_off + 2]
+            if not 0 <= entry_count - ALL_INDEX - 1 <= MAX_SIDES:
+                return None
+            pointers = struct.unpack_from(f"<{entry_count}I", data, section_off)
+            sides: list[str] = []
+            for pointer in pointers[ALL_INDEX + 1 :]:
+                name = _read_cstring(data, pointer)
+                if name is None:
+                    return None
+                sides.append(name)
+            patch = cls(sides=sides)
+        except (ValueError, IndexError, struct.error):
+            return None
+        return None if patch.verify(data) else patch
+
+    @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             "--sides",

@@ -245,7 +245,7 @@ calls that function per frame. It was caught only by injecting an order and watc
 `ready` flag stay set while the frame counter advanced.
 
 **Find the entry in the vtable, and assert the dispatch before hooking.**
-`sage_patch.patches.live_bridge` refuses to apply unless `[0x00BD85C4] == HOOK_VA`.
+`sage_patch.patches.experimental.live_bridge` refuses to apply unless `[0x00BD85C4] == HOOK_VA`.
 
 Both functions happen to open with the same five-byte `mov eax, <SEH scope table>` shape,
 which is why the wrong one looked so plausible — `0xB841B0` at `0x0062DCE4` versus `0xB841DA`

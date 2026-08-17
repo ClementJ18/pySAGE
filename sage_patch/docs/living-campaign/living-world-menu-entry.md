@@ -12,7 +12,7 @@ not a result.
 
 ## The gap
 
-[`living-world-campaign.md`](../living-world-campaign.md) got a scripted Living World campaign
+[`living-world-campaign.md`](living-world-campaign.md) got a scripted Living World campaign
 running, but only by way of `LivingWorldCampaignOverrride` — a global that forces *one* campaign
 onto every War of the Ring start. You reach it through the War of the Ring flow, which is the wrong
 flow: it is a multiplayer scenario picker with a campaign bolted behind it.

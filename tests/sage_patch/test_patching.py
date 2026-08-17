@@ -1,6 +1,9 @@
 """Tests for the sage_patch binary-patch framework."""
 
+import inspect
+import itertools
 import logging
+import re
 import struct
 from pathlib import Path
 
@@ -26,6 +29,22 @@ from sage_patch.utils import (
 )
 
 _ENGINE = Path(__file__).resolve().parents[2] / "sage_patch" / "engine"
+_PATCH_README = Path(__file__).resolve().parents[2] / "sage_patch" / "README.md"
+#: How the README's experimental warning counts them - in words, as prose does.
+_NUMBER_WORDS = {
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten",
+    11: "eleven",
+    12: "twelve",
+}
 
 
 def _tiny_pe() -> bytearray:
@@ -282,6 +301,29 @@ class TestExperimentalPatchesAreDeclared:
             marked = "exp" in line.removeprefix(name).split()[:1]
             assert marked == cls.experimental, f"{name}'s row disagrees with its flag: {line!r}"
 
+    def test_the_readme_names_exactly_the_experimental_patches(self):
+        """The third place the same fact is written down, and the only one not executable: the
+        warning at the top of `sage_patch/README.md` names them one by one, for a reader deciding
+        what to apply before they ever run `list`. Moving a patch in or out of the package is a
+        move plus the attribute; this is what stops the prose being left behind - it had gone
+        stale at "Six" when two more patches were moved in."""
+        lines = _PATCH_README.read_text(encoding="utf-8").splitlines()
+        start = next(i for i, line in enumerate(lines) if "Experimental patches" in line)
+        quote = "\n".join(itertools.takewhile(lambda row: row.startswith(">"), lines[start + 1 :]))
+        # Only the opening sentence lists them; the paragraphs after it explain what it means.
+        named = set(re.findall(r"\*\*`([a-z0-9-]+)`\*\*", quote.split("are **experimental")[0]))
+        actual = {name for name, cls in PATCHES.items() if cls.experimental}
+
+        assert named == actual, (
+            f"the README's experimental warning is out of step with the registry - "
+            f"missing {sorted(actual - named)}, wrongly named {sorted(named - actual)}. Update the "
+            f"list (and the count that opens it) at the top of sage_patch/README.md."
+        )
+        # The sentence opens by counting them, in words, so the count drifts as silently as the list
+        assert _NUMBER_WORDS[len(actual)] in quote.split("**")[0].lower(), (
+            f"the README's warning does not open by counting {len(actual)} patches"
+        )
+
     def test_apply_warns_before_it_writes(self, tmp_path, caplog):
         """A `WARNING` rather than a print, so it reaches a caller who never configured logging -
         Python's last-resort handler puts warnings on stderr with no setup at all, which `log.info`
@@ -310,6 +352,51 @@ class TestExperimentalPatchesAreDeclared:
         with caplog.at_level(logging.WARNING, logger="sage_patch"):
             apply_patches(src, [_NopPatch()], output=tmp_path / "out.bin")
         assert EXPERIMENTAL_WARNING not in caplog.text
+
+
+class TestParameterizedPatchesRecoverTheirParameters:
+    """**The gate that keeps detection honest as parameterized patches are added.**
+
+    `Patch.detect`'s default probe builds the patch with its own defaults and asks `verify`, which
+    only ever answers "does this file carry *this* configuration". For a patch with parameters
+    that makes the default probe worse than useless: it reports a binary applied with any other
+    settings as carrying no patch at all - and a binary somebody else patched, whose settings are
+    exactly what cannot be guessed, is the only reason detection exists.
+
+    `Patch.detect`'s docstring states the rule ("a patch with parameters must override this"). A
+    docstring is not enforcement: `cah-factions` shipped taking the default, and six more patches
+    had drifted in behind it. This is what makes the rule fail rather than merely be written
+    down."""
+
+    @staticmethod
+    def _parameters(cls: type[Patch]) -> list[str]:
+        """The patch's own constructor parameters. A patch that defines no `__init__` inherits
+        `object`'s, whose signature is `(*args, **kwargs)` - not parameters of its own."""
+        if cls.__init__ is object.__init__:
+            return []
+        return [
+            p.name for p in inspect.signature(cls.__init__).parameters.values() if p.name != "self"
+        ]
+
+    @pytest.mark.parametrize("name", sorted(PATCHES), ids=sorted(PATCHES))
+    def test_a_parameterized_patch_overrides_detect(self, name):
+        cls = PATCHES[name]
+        parameters = self._parameters(cls)
+        if not parameters:
+            return  # nothing to recover; the default probe is exactly right
+        assert cls.detect.__func__ is not Patch.detect.__func__, (
+            f"{name} takes {parameters} but inherits the default `detect`, which probes with the "
+            f"defaults only - so a binary patched with any other {parameters[0]} reports the "
+            f"patch as absent. Override `detect` to read the settings back out of the image (see "
+            f"`commandset-limit` for reading an immediate, `science-prereqs` for probing a small "
+            f"flag space)."
+        )
+
+    def test_the_registry_still_holds_patches_with_parameters(self):
+        """Guards the guard: if the check above stopped recognising a parameterized constructor,
+        every case would return early and the whole class would pass vacuously."""
+        parameterized = [name for name, cls in PATCHES.items() if self._parameters(cls)]
+        assert len(parameterized) > 15, parameterized
 
 
 class TestCommandSetLimitPatch:
@@ -666,6 +753,47 @@ class TestCahFactionsVerify:
         assert CahFactionsPatch(sides=["Lothlorien"]).verify(data)
         assert CahFactionsPatch(sides=["Rohan", "Lothlorien"]).verify(data)
         assert CahFactionsPatch(sides=["Rohan"]).verify(data) == []
+
+
+class TestCahFactionsDetect:
+    """**The gate on parameter recovery.** `verify` only answers "does this file carry *this*
+    side list", so the framework's default probe - which builds the patch with no sides at all -
+    reports a binary patched with any sides as unpatched. That is the case detection exists for:
+    a `game.dat` somebody else patched, whose side list is exactly what a reader does not know.
+    `Patch.detect`'s docstring makes overriding it the rule for a parameterized patch."""
+
+    @pytest.mark.parametrize(
+        "sides",
+        [(), ("Rohan",), ("Rohan", "Lothlorien", "Harad"), tuple(f"S{i}" for i in range(22))],
+        ids=["no-sides", "one", "three", "the-full-22"],
+    )
+    def test_detect_recovers_the_sides_it_was_applied_with(self, sides):
+        data = _cah_game_dat()
+        CahFactionsPatch(sides=sides).apply(data)
+        found = CahFactionsPatch.detect(data)
+        assert found is not None, f"a binary patched with {sides} reports the patch as absent"
+        assert found.sides == sides
+        assert found.entry_count == len(cf.STOCK_SIDES) + 1 + len(sides)
+
+    def test_the_recovered_patch_verifies_against_the_binary_it_came_from(self):
+        data = _cah_game_dat()
+        CahFactionsPatch(sides=["Rohan", "Lothlorien"]).apply(data)
+        assert CahFactionsPatch.detect(data).verify(data) == []
+
+    def test_an_unpatched_file_carries_nothing(self):
+        assert CahFactionsPatch.detect(_cah_game_dat()) is None
+
+    def test_a_cave_left_with_a_stock_scan_bound_is_not_taken_for_a_zero_side_patch(self):
+        """A half-applied image - the section allocated, `getSideIndex` still bounded at the stock
+        9 - must read as absent rather than as the no-extra-sides configuration, whose bound is
+        10. Nothing should be recoverable from a patch that did not finish landing."""
+        data = _cah_game_dat()
+        CahFactionsPatch().apply(data)
+        struct.pack_into("<B", data, cf._SCAN_BOUND_VA - 0x400000 + 2, len(cf.STOCK_SIDES))
+        assert CahFactionsPatch.detect(data) is None
+
+    def test_detection_never_raises_on_something_that_is_not_a_game_dat(self):
+        assert CahFactionsPatch.detect(bytearray(b"MZ" + bytes(4096))) is None
 
 
 def _both_patches():

@@ -16,11 +16,12 @@ def main() -> None:
     # failure `require_extra` is here to report in plain language.
     from sage_mods.edain.horde_maker.ui.window import (  # noqa: PLC0415
         APP_NAME,
+        ICON_FILE,
         HordeMakerWindow,
     )
     from sage_utils.widgets import run_app  # noqa: PLC0415
 
-    run_app(HordeMakerWindow, app_name=APP_NAME)
+    run_app(HordeMakerWindow, icon_file=ICON_FILE, anchor=__file__, app_name=APP_NAME)
 
 
 if __name__ == "__main__":

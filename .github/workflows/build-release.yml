@@ -10,7 +10,8 @@ on:
       specs:
         description: >-
           Only build specs whose repo-relative path contains one of these, space-separated
-          (e.g. "sage_lint sage_ini"). Leave empty to build every spec.
+          (e.g. "sage_lint sage_ini"). Leave empty to build every generic spec; the mod
+          overlays under sage_mods are skipped unless named here (e.g. "edain").
         required: false
         default: ""
 

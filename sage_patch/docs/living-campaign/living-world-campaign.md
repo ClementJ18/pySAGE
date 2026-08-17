@@ -6,7 +6,7 @@ archives; BFME1 comparisons against `C:\BFME1\lotrbfme.exe`. **Confirmed in game
 
 - **Status:** **working.** Edain's twelve-act `WOTRScenarioAngmar` ran start to finish, advancing
   act by act with no End Turn, observed live through the `live-bridge` patch.
-- **Cost:** one four-byte patch ([`living-world-override`](../patches/living_world_override.py))
+- **Cost:** one four-byte patch ([`living-world-override`](../../patches/experimental/living_world_override.py))
   plus two INI changes on the campaign.
 
 ## The result
@@ -85,7 +85,7 @@ picker**. That is deliberate, and it leaves exactly two routes to one:
 The second is the data-driven route, and it was **unusable**: the field's `GameData` row
 (`0x00BFF740`) named the *Bool* parser while `GlobalData+0x8C` is an `AsciiString` everywhere in
 code. Setting it wrote `1` over the string pointer, and the next `AsciiString::isEmpty` would
-dereference address `0x1`. [`living-world-override`](../patches/living_world_override.py) repoints
+dereference address `0x1`. [`living-world-override`](../../patches/experimental/living_world_override.py) repoints
 that one dword at the `AsciiString` parser the sibling `ShellMapName` row already uses.
 
 ```sh

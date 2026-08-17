@@ -603,6 +603,30 @@ class SkirmishReplayPatch(Patch):
         return problems
 
     @classmethod
+    def detect(cls, data: bytes | bytearray) -> SkirmishReplayPatch | None:
+        """Recognise this patch **and recover its modes and rename scope**.
+
+        The default probe only ever recognises the default configuration, so a binary recording a
+        different mode set reads as unpatched. Both settings are plain dwords the cave carries for
+        its own gate to read - the mode count and table, and the rename flag - so they read
+        straight back out, and :meth:`verify` then re-checks the cave and both hooks against
+        them."""
+        located = find_section(data, SECTION_NAME)
+        if located is None:
+            return None
+        _section_va, section_off, _vsize = located
+        try:
+            count = struct.unpack_from("<I", data, section_off + MODE_COUNT_OFF)[0]
+            if not 0 < count <= MAX_MODES:
+                return None
+            modes = struct.unpack_from(f"<{count}I", data, section_off + MODE_TABLE_OFF)
+            stored = struct.unpack_from("<I", data, section_off + RENAME_ALL_OFF)[0]
+            patch = cls(modes=modes, rename=RENAME_ALL if stored else RENAME_ADDED)
+        except (ValueError, struct.error):
+            return None
+        return None if patch.verify(data) else patch
+
+    @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             "--modes",

@@ -45,15 +45,15 @@ import struct
 
 from sage_ini.engine import Engine, FieldDelta
 
-from ..addresses import (
+from ...addresses import (
     GAME_DATA_ASCIISTRING_PARSER,
     GAME_DATA_BOOL_PARSER,
     GAME_DATA_SHELL_MAP_NAME_ROW,
     LIVING_WORLD_OVERRIDE_OFFSET,
     LIVING_WORLD_OVERRIDE_ROW,
 )
-from ..patcher import Patch
-from ..utils import apply_byte_patch, va_to_offset
+from ...patcher import Patch
+from ...utils import apply_byte_patch, va_to_offset
 
 __all__ = ["FIELD_NAME", "LivingWorldOverridePatch", "ROW_NAME_OFFSET", "ROW_PARSE_OFFSET"]
 
@@ -88,6 +88,7 @@ def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | No
 class LivingWorldOverridePatch(Patch):
     name = "living-world-override"
     author = "officialNecro"
+    experimental = True
     description = (
         "Parse GameData's LivingWorldCampaignOverrride as the AsciiString it is, not as a Bool"
     )

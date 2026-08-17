@@ -1,7 +1,7 @@
 # Bringing War of the Ring closer to the BFME1 campaign
 
 A plan, written after scripted campaigns were made to work
-([`living-world-campaign.md`](../living-world-campaign.md)). Engine build `2.01.2614.37001`;
+([`living-world-campaign.md`](living-world-campaign.md)). Engine build `2.01.2614.37001`;
 BFME1 comparisons against `C:\BFME1\lotrbfme.exe`.
 
 Every item carries a **confidence** marker, because inferences in this investigation keep turning
@@ -390,7 +390,7 @@ everywhere (§3), and "is a spawned army's composition mutable?" is gone because
 today and `ModifyArmyEntry` only ever substituted one template for another.
 
 **Before any live test:** ~~the mod tree is currently pristine~~ — **no longer true as of
-2026-08-14.** The recipe from [`living-world-campaign.md`](../living-world-campaign.md) is applied:
+2026-08-14.** The recipe from [`living-world-campaign.md`](living-world-campaign.md) is applied:
 `wotrscenarioangmar.inc` carries `IsScriptedCampaign`, `LocalPlayer` and its `AddPlayer` blocks, and
 `gamedata.ini` sets `LivingWorldCampaignOverrride = WOTRScenarioAngmar`. What still needs checking
 before a run is the **binary** — see [`verify`](../README.md#cli), and note that the mod's INI
@@ -402,7 +402,7 @@ progression. They cannot currently both be true.
 
 ## Corrections to this plan
 
-Recorded in the manner of [`living-world-campaign.md`](../living-world-campaign.md), because the
+Recorded in the manner of [`living-world-campaign.md`](living-world-campaign.md), because the
 pattern matters more than the individual slips. All four came from reading the shipped INI data
 rather than the binary — the opposite failure mode from the two recorded there.
 
@@ -437,5 +437,5 @@ mechanism.
 **Verify live, not statically.** Two claims in this investigation were wrong — `LiveCampaignMode`'s
 default, and a commented-out line read as live — and static reading produced both. The install now
 carries `live-bridge`, and the campaign object's layout is written down in
-[`living-world-campaign.md`](../living-world-campaign.md), so any of these questions can be answered
+[`living-world-campaign.md`](living-world-campaign.md), so any of these questions can be answered
 by attaching and reading a field rather than by inferring one.

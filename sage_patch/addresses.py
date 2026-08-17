@@ -6,9 +6,9 @@ process).
 
 **Why this module exists.** These facts were being carried in two packages at once:
 `sage_live.EngineLayout` held the subsystem globals it reads, while
-`sage_patch.patches.live_bridge` held the ones its cave calls. Both describe the same build,
-so supporting a second one meant editing two files by two different mechanisms - and only one
-of them could be overridden without a code change. A build is one thing; it is described
+`sage_patch.patches.experimental.live_bridge` held the ones its cave calls. Both describe the
+same build, so supporting a second one meant editing two files by two different mechanisms - and
+only one of them could be overridden without a code change. A build is one thing; it is described
 here, once.
 
 `sage_patch` is the natural home: it is the lower layer, it already owns the binary-facing

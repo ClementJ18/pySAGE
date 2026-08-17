@@ -44,7 +44,7 @@ from sage_patch.addresses import (
     VIEW_LOCATION_SIZE,
     VIEW_POSITION_OFFSET,
 )
-from sage_patch.patches.live_bridge import (
+from sage_patch.patches.experimental.live_bridge import (
     BUFFER_TAG,
     CAMERA_APPLY,
     CAMERA_CAPTURE,

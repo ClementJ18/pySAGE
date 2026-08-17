@@ -120,6 +120,8 @@ def open_backend(
         source.close()
         raise AttachError(
             f"{exc}\napply it with:  sage-patch apply live-bridge --in game.dat"
+            "\n(live-bridge is experimental; keep the unpatched binary. Reading needs no patch - "
+            "attach without writable=True.)"
         ) from exc
     except ConnectionRefused as exc:
         source.close()
