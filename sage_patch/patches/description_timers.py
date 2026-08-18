@@ -600,9 +600,12 @@ class DescriptionTimersPatch(Patch):
     name = "description-timers"
     author = "officialNecro"
     description = (
-        "Put a button's timer at the bottom of its description: an ability's cooldown (full when "
-        "ready, remaining while recharging), a unit's build time and an upgrade's research time, "
-        "each with the modifiers that apply to it right now"
+        "Put a button's timer at the bottom of its description: an ability's cooldown (full "
+        "when ready, remaining while recharging), a unit's build time and an upgrade's research "
+        "time, each with the modifiers that apply to it right now. Each line stays silent until "
+        "the mod adds its .str/.csf key - TOOLTIP:Cooldown, TOOLTIP:CooldownRemaining, "
+        "TOOLTIP:BuildTime, TOOLTIP:ResearchTime - taking one %.1f each, or one %d under "
+        "--integer-seconds"
     )
 
     def __init__(self, integer_seconds: bool = False) -> None:

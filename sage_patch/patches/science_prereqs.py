@@ -312,7 +312,12 @@ class SciencePrereqPatch(Patch):
 
     name = "science-prereqs"
     author = "officialNecro"
-    description = "Allow forward references (and so mutual prerequisites) in PrerequisiteSciences"
+    description = (
+        "Allow forward references (and so mutual prerequisites) in PrerequisiteSciences, so a "
+        "dependent pair no longer has to be closed from map.ini. No INI change; by default a "
+        "name that never gets a Science block still throws the engine's own 'Science name %s not "
+        "known' at load, and --no-report-missing drops that check"
+    )
 
     def __init__(self, report_missing: bool = True, all_keywords: bool = False):
         self.report_missing = report_missing

@@ -198,7 +198,14 @@ def build_parser() -> argparse.ArgumentParser:
         # paragraph at the top of `sage-patch apply <name> --help`. An experimental patch says so in
         # both: the first is where somebody browsing picks one, the second is where somebody who
         # already typed the name goes to find out what its options are.
+        #
+        # A `help` string is %-formatted by argparse against its own parameter dict, so a
+        # description naming a format specifier - `description-timers` says its keys take a
+        # `%.1f`, `science-prereqs` quotes a message carrying `%s` - raises `TypeError` while
+        # `apply --help` is being printed. Doubling the percents here keeps the escape out of the
+        # descriptions themselves, which `list` and the paragraph below print verbatim.
         summary = f"EXPERIMENTAL - {cls.description}" if cls.experimental else cls.description
+        summary = summary.replace("%", "%%")
         detail = f"{cls.description}.\n\nEXPERIMENTAL: {EXPERIMENTAL_WARNING}"
         ap = apply_sub.add_parser(
             name,

@@ -439,7 +439,8 @@ class ReplayAnnotationsPatch(Patch):
     author = "officialNecro"
     description = (
         "Write each player's score-screen counters into the replay - units and structures "
-        "built, lost and destroyed (per opponent), money earned and spent"
+        "built, lost and destroyed (per opponent), money earned and spent. No INI change; read "
+        "the added 0x7D1/0x7D3 chunks back with sage_replay.annotations"
     )
 
     def apply(self, data: bytearray) -> None:

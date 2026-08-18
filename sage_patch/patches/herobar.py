@@ -828,9 +828,10 @@ class HeroBarPatch(Patch):
     name = "herobar"
     author = "officialNecro"
     description = (
-        "add two kindofs that put an object on the hero bar without making it a HERO: HEROBAR "
+        "Add two kindofs that put an object on the hero bar without making it a HERO: HEROBAR "
         "gives every object its own slot, HEROBAR_GROUP shares one slot between every instance "
-        "of a template and steps through them on click"
+        "of a template and steps through them on click. Write either name in the template's "
+        "KindOf list; no .apt change, and a template carrying both is grouped"
     )
 
     kindof: str = DEFAULT_KINDOF
@@ -980,12 +981,14 @@ class HeroBarPatch(Patch):
             entries = _cave_table_entries(data, section_va)
             if entries < 2:
                 return None
-            names = [
-                kind_of.read_cstring(data, _cave_entry(data, section_va, entries - 2 + index))
-                for index in range(2)
-            ]
-            if any(name is None for name in names):
-                return None
+            names: list[str] = []
+            for index in range(2):
+                name = kind_of.read_cstring(
+                    data, _cave_entry(data, section_va, entries - 2 + index)
+                )
+                if name is None:
+                    return None
+                names.append(name)
             tail_va = section_va + entries * 4 + 4 + _padded(sum(len(n) + 1 for n in names))
             window = struct.unpack_from("<I", data, _offset(data, tail_va + _OFF_WINDOW_MS))[0]
             if not 0 <= window <= MAX_JUMP_WINDOW:

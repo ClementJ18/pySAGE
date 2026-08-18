@@ -292,7 +292,12 @@ class BannerFilterPatch(Patch):
 
     name = "banner-filter"
     author = "officialNecro"
-    description = "Add an ObjectFilter to BannerCarrierUpdate's nearby-horde replenish"
+    description = (
+        "Add an ObjectFilter to BannerCarrierUpdate's nearby-horde replenish: ReplenishFilter = "
+        "<ObjectFilter> beside the ReplenishNearbyHorde that turns the scan on, to say which "
+        "nearby hordes - and, with a relationship term, whose - get topped up. An undeclared "
+        "filter leaves the module stock"
+    )
 
     def __init__(self, keyword: str = DEFAULT_KEYWORD, only_when_all: bool = False):
         self.keyword = keyword

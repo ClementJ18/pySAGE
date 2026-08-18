@@ -306,7 +306,11 @@ class ProductionConditionPatch(Patch):
     author = "officialNecro"
     description = (
         "Add a model condition that is active while a building's production queue is non-empty "
-        "(training a unit or researching an upgrade)"
+        "(training a unit or researching an upgrade). The new PRODUCING token (--condition) "
+        "parses anywhere a model condition does - ModelConditionState, DisableOnModelCondition, "
+        "HideSubObject; --weapon-set-flag NAME and --locomotor-set NAME add a WeaponSetFlag and "
+        "a LocomotorSetType off the same trigger, for WeaponSet Conditions = NAME and Locomotor "
+        "= NAME <template>"
     )
 
     def __init__(

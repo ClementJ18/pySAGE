@@ -115,7 +115,10 @@ def build_body(counter_va: int) -> bytes:
 class UniqueProductionIdPatch(Patch):
     name = "unique-production-id"
     author = "officialNecro"
-    description = "Mint production ids game-wide, so a hero recruit from a second building works"
+    description = (
+        "Mint production ids game-wide, so a hero recruit from a second building works. No INI "
+        "change"
+    )
 
     def apply(self, data: bytearray) -> None:
         body_off = va_to_offset(data, REQUEST_UNIQUE_UNIT_ID)

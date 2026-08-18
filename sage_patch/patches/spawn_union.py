@@ -450,7 +450,10 @@ class SpawnUnionPatch(Patch):
 
     name = "spawn-union"
     author = "officialNecro"
-    description = "SPAWNS_ARE_THE_WEAPONS uses every SpawnBehavior's spawns, not just the first"
+    description = (
+        "SPAWNS_ARE_THE_WEAPONS uses every SpawnBehavior's spawns, not just the first. No INI "
+        "change - declaring a second SpawnBehavior is all it takes"
+    )
 
     def apply(self, data: bytearray) -> None:
         self._check_getter(data)

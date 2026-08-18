@@ -243,7 +243,9 @@ class CampaignSelectPatch(Patch):
     experimental = True
     description = (
         "Let the main menu start any LinearCampaign by name - the campaign button's FSCommand "
-        "params carry '<Difficulty>:<CAMPAIGN_NAME>' instead of only a difficulty"
+        "params carry '<Difficulty>:<CAMPAIGN_NAME>' instead of only a difficulty. The mod "
+        "supplies both halves: the LinearCampaign block in INI, and a shell movie whose button "
+        "passes that name"
     )
 
     def apply(self, data: bytearray) -> None:

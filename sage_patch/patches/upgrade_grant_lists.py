@@ -325,7 +325,10 @@ class UpgradeGrantListsPatch(Patch):
     name = "upgrade-grant-lists"
     author = "officialNecro"
     description = (
-        "ObjectCreationUpgrade's GrantUpgrade and RemoveUpgrade take lists of upgrades, not one"
+        "ObjectCreationUpgrade's GrantUpgrade and RemoveUpgrade take lists of upgrades, not "
+        "one. Write the upgrade names space-separated on the one line - grants still run before "
+        "removals, 255 characters per name - and a mod writing two needs this patch, since a "
+        "stock build silently keeps only the first"
     )
 
     def apply(self, data: bytearray) -> None:

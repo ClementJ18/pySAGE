@@ -251,7 +251,9 @@ class BinaryAttestPatch(Patch):
     author = "unattributed"
     description = (
         "Mix a hash of the game's own code into the frame checksum, so a peer running a "
-        "modified game.dat goes out of sync instead of playing"
+        "modified game.dat goes out of sync instead of playing. No INI change; every peer needs "
+        "the byte-identical binary, so ship it with the patched game.dat rather than as an "
+        "option"
     )
 
     def apply(self, data: bytearray) -> None:

@@ -171,7 +171,11 @@ def build_code(base_va: int) -> bytes:
 class AiReviveGatePatch(Patch):
     name = "ai-revive-gate"
     author = "officialNecro"
-    description = "Make the AI respect a REVIVE button's NeededUpgrade, as the player already does"
+    description = (
+        "Make the AI respect a REVIVE button's NeededUpgrade, as the player already does. No "
+        "INI change: what gates the AI is the NeededUpgrade / NeededUpgradeAny already on the "
+        "CommandButton"
+    )
 
     def apply(self, data: bytearray) -> None:
         hook_off = va_to_offset(data, HOOK_VA)

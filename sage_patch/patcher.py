@@ -59,6 +59,16 @@ class Patch:
        structure another patch rebuilds, say so in its docstring and treat the pair as ordered."""
 
     name: str = ""
+
+    #: What the patch does and **what a mod has to write to use it**, as one unbroken line -
+    #: `sage-patch list` prints it in a table and `apply <name> --help` puts it at the top, and
+    #: both are read by somebody deciding whether to apply this. So the description names the
+    #: concrete surface: the INI keywords and enum tokens it adds, the `.str`/`.csf` keys a new
+    #: tooltip line stays silent without, the `.apt` clips a widened UI needs, the map data that
+    #: opts in - and, where a patch needs none of that, says so, because "is there something I
+    #: am supposed to declare" is the same question either way.
+    #:
+    #: No trailing full stop: `apply <name> --help` appends one for an experimental patch.
     description: str = ""
     #: Who worked out this patch, for the credit line :func:`apply_patches` prints. A patch is
     #: somebody's reverse engineering before it is anybody's code - the addresses, the call

@@ -277,7 +277,11 @@ class PlayerHealFilterPatch(Patch):
 
     name = "player-heal-filter"
     author = "officialNecro"
-    description = "Add an ObjectFilter to PlayerHealSpecialPower's heal scan"
+    description = (
+        "Add an ObjectFilter to PlayerHealSpecialPower's heal scan: HealFilter = "
+        "<ObjectFilter>, narrowing what the module's HealAffects mask and hardcoded ally test "
+        "would otherwise reach. An undeclared filter leaves the module stock"
+    )
 
     def __init__(self, keyword: str = DEFAULT_KEYWORD):
         self.keyword = keyword

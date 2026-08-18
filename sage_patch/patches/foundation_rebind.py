@@ -372,7 +372,11 @@ class FoundationRebindPatch(Patch):
 
     name = "foundation-rebind"
     author = "officialNecro"
-    description = "A ReplaceSelfUpgrade keeps the settlement plot instead of freeing its flag"
+    description = (
+        "A ReplaceSelfUpgrade keeps the settlement plot instead of freeing its flag. No INI "
+        "change - the existing ReplaceSelfUpgrade is what triggers it, and the plot no longer "
+        "needs a dummy building standing on it to read as occupied"
+    )
 
     # --- apply / verify ----------------------------------------------------------------------
 

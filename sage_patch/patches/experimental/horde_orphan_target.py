@@ -252,7 +252,7 @@ class HordeOrphanTargetPatch(Patch):
     name = "horde-orphan-target"
     author = "officialNecro"
     experimental = True
-    description = "Make units stranded by a broken battalion attackable again"
+    description = "Make units stranded by a broken battalion attackable again. No INI change"
 
     def apply(self, data: bytearray) -> None:
         self._check_sites(data)

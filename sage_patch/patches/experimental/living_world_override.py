@@ -90,7 +90,10 @@ class LivingWorldOverridePatch(Patch):
     author = "officialNecro"
     experimental = True
     description = (
-        "Parse GameData's LivingWorldCampaignOverrride as the AsciiString it is, not as a Bool"
+        "Parse GameData's LivingWorldCampaignOverrride as the AsciiString it is, not as a Bool, "
+        "so it can name a LivingWorldCampaign - including an IsScriptedCampaign one, which the "
+        "War of the Ring picker hides. On a stock binary the same line corrupts a string "
+        "pointer and crashes"
     )
 
     def apply(self, data: bytearray) -> None:

@@ -1019,7 +1019,12 @@ class HeroManaPatch(Patch):
     name = "hero-mana"
     author = "officialNecro"
     experimental = True
-    description = "Give special powers a regenerating per-object mana cost (SpecialPower.ManaCost)"
+    description = (
+        "Give special powers a regenerating per-object mana cost: SpecialPower ManaCost, and "
+        "Object ManaPool / ManaRegen for the caster's shared pool (ManaCost = 0, the default, "
+        "is stock). The two tooltip lines read as nothing until the mod adds TOOLTIP:ManaCost "
+        "(the price plus what the caster holds) and TOOLTIP:ManaPool to its .str/.csf"
+    )
 
     def __init__(
         self, pool: int = _DEFAULT_POOL, regen: int = _DEFAULT_REGEN, *, trace: bool = False

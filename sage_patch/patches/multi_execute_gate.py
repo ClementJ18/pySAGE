@@ -329,7 +329,11 @@ class MultiExecuteGatePatch(Patch):
 
     name = "multi-execute-gate"
     author = "officialNecro"
-    description = "OK_FOR_MULTI_EXECUTE respects each unit's Enable/DisableOnModelCondition"
+    description = (
+        "OK_FOR_MULTI_EXECUTE respects each unit's Enable/DisableOnModelCondition. No INI "
+        "change: the per-member gate is the mask already on the CommandButton, so a unit whose "
+        "own button is disabled is skipped instead of firing"
+    )
 
     def __init__(self, slots: int | None = None):
         if slots is not None and not 1 <= slots <= 127:

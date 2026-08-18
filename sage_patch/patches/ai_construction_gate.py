@@ -155,7 +155,10 @@ def build_code(base_va: int) -> bytes:
 class AiConstructionGatePatch(Patch):
     name = "ai-construction-gate"
     author = "officialNecro"
-    description = "Stop the skirmish AI producing from a building that is still under construction"
+    description = (
+        "Stop the skirmish AI producing from a building that is still under construction. No "
+        "INI change"
+    )
 
     def apply(self, data: bytearray) -> None:
         hook_off = va_to_offset(data, HOOK_VA)

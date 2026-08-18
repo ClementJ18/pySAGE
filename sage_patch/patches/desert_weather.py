@@ -244,7 +244,10 @@ class DesertWeatherPatch(Patch):
     author = "officialNecro"
     description = (
         "Add a DESERT global weather type that drives a new SAND model condition, the way the "
-        "stock SNOWY drives SNOW"
+        "stock SNOWY drives SNOW. A map opts in with weather = 2 in its WorldInfo chunk "
+        "(authored by desert-weather-wb, not map.ini), art with a SAND ModelConditionState or "
+        "WeatherTexture = DESERT <texture>, and models follow the weather only under GameData's "
+        "ForceModelsToFollowWeather"
     )
 
     def __init__(self, weather: str = DEFAULT_WEATHER, condition: str = DEFAULT_CONDITION):

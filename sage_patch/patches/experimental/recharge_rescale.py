@@ -453,7 +453,11 @@ class RechargeRescalePatch(Patch):
 
     name = "recharge-rescale"
     author = "officialNecro"
-    description = "A running cooldown responds to recharge modifiers granted after the cast"
+    description = (
+        "A running cooldown responds to recharge modifiers granted after the cast. No INI "
+        "change - the RECHARGE_TIME modifiers and SpellRechargeModifierUpgrade a mod already "
+        "writes are what it re-reads"
+    )
     experimental = True
 
     def apply(self, data: bytearray) -> None:

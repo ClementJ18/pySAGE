@@ -190,7 +190,9 @@ class ObjectivesScreenPatch(Patch):
     author = "officialNecro"
     description = (
         "Open Objectives.apt from the Palantir button on any map that declares objectives, "
-        "instead of only in the linear campaign"
+        "instead of only in the linear campaign. The opt-in is the map's own "
+        "MissionObjectiveList block in map.ini; a map that declares one can no longer reach the "
+        "tribute or player-list screen from that button"
     )
 
     def apply(self, data: bytearray) -> None:

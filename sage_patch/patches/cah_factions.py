@@ -176,7 +176,12 @@ class CahFactionsPatch(Patch):
 
     name = "cah-factions"
     author = "officialNecro"
-    description = "Add mod sides + an 'All' token to the Create-A-Hero faction enum"
+    description = (
+        "Add mod sides + an 'All' token to the Create-A-Hero faction enum, so a "
+        "CreateAHeroClass SubClass can name them in UsableFactions and DefaultFaction. Give "
+        "--sides each side name exactly as its PlayerTemplate Side string spells it; a side the "
+        "list omits gets only the subclasses that named All"
+    )
 
     def __init__(self, sides: list[str] | tuple[str, ...] = ()):
         self.sides = tuple(sides)

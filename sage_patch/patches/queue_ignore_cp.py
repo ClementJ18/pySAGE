@@ -327,7 +327,8 @@ class QueueIgnoreCpPatch(Patch):
     description = (
         "Add a QueueIgnoreCP boolean to CommandButton, so a button the engine presses (a "
         "DoCommandUpgrade, say) can queue its unit at the command-point cap - the stock queue "
-        "then holds it until the points free up"
+        "then holds it until the points free up. Write QueueIgnoreCP = Yes on that button; No, "
+        "the default, is stock, and the gold, producer and prerequisites are still required"
     )
 
     def __init__(self, keyword: str = DEFAULT_KEYWORD):

@@ -262,7 +262,11 @@ class TriggerRechargeListPatch(Patch):
 
     name = "trigger-recharge-list"
     author = "officialNecro"
-    description = "OnTriggerRechargeSpecialPower takes a list of special powers, not just one"
+    description = (
+        "OnTriggerRechargeSpecialPower takes a list of special powers, not just one. Write the "
+        "SpecialPower names space-separated on the one line, whole tokens and case-sensitive; a "
+        "mod writing two needs this patch, since a stock build silently keeps only the first"
+    )
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)

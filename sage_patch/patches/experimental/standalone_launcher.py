@@ -164,7 +164,8 @@ class StandaloneLauncherPatch(Patch):
     experimental = True
     description = (
         "lotrbfme2ep1.exe (not game.dat): drop the install-location lock - the token handed to "
-        "game.dat comes from gi.dat's G4 instead of an HKLM InstallPath + volume-serial key"
+        "game.dat comes from gi.dat's G4 instead of an HKLM InstallPath + volume-serial key. No "
+        "INI change; gi.dat has to sit beside the launcher"
     )
 
     binary = BINARY

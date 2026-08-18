@@ -435,7 +435,9 @@ class SkirmishReplayPatch(Patch):
     author = "officialNecro"
     description = (
         "Record single-player skirmish games, which the stock engine does not, and name each "
-        "recording by timestamp and map instead of overwriting Last Replay"
+        "recording by timestamp and map instead of overwriting Last Replay. No INI change; the "
+        "default --rename all renames network recordings too, which costs the replay menu's "
+        "Save Replay button"
     )
 
     def __init__(

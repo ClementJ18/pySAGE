@@ -111,7 +111,11 @@ class CommandSetLimitPatch(Patch):
 
     name = "commandset-limit"
     author = "officialNecro"
-    description = "Raise the CommandSet button limit from 33 to N"
+    description = (
+        "Raise the CommandSet button limit from 33 to N, so a CommandSet block may list N "
+        "buttons. The ControlBar still draws 33 at a time: reach the rest with "
+        "PUSH_VISIBLE_COMMAND_RANGE paging buttons"
+    )
 
     def __init__(self, count: int = 64):
         if not MIN_COUNT <= count <= MAX_COUNT:

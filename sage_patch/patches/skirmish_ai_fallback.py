@@ -228,7 +228,11 @@ def entry_points(base_va: int) -> tuple[int, int]:
 class SkirmishAiFallbackPatch(Patch):
     name = "skirmish-ai-fallback"
     author = "officialNecro"
-    description = "Give a faction a working AI on maps that carry no Skirmish<Faction> side for it"
+    description = (
+        "Give a faction a working AI on maps that carry no Skirmish<Faction> side for it. The "
+        "faction's own PlayerTemplate must name a DefaultPlayerAIType, and that AIPlayerType's "
+        "LibraryMap scripts are what the AI then runs - no map edit and no new INI field"
+    )
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)

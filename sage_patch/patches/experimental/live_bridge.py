@@ -421,9 +421,9 @@ class LiveBridgePatch(Patch):
     author = "officialNecro"
     experimental = True
     description = (
-        "Hook GameLogic::update so an external process can inject orders into the "
-        "message stream, and place the camera, by writing a command buffer in the "
-        "appended .livebrg section."
+        "Hook GameLogic::update so an external process can inject orders into the message "
+        "stream, and place the camera, by writing a command buffer in the appended .livebrg "
+        "section. No INI change: the writer is an external tool (sage_live), not mod data"
     )
 
     def __init__(self, cheats: bool = False) -> None:

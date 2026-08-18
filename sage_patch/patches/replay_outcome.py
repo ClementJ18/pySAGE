@@ -272,7 +272,8 @@ class ReplayOutcomePatch(Patch):
     author = "officialNecro"
     description = (
         "Write each player's final victory/defeat state into the replay, at the frame the "
-        "recording ends - whether a player left or the game finished"
+        "recording ends - whether a player left or the game finished. No INI change; read the "
+        "added 0x7D0 chunks back with sage_replay"
     )
 
     def apply(self, data: bytearray) -> None:

@@ -589,7 +589,9 @@ class LifetimeExtendUpgradePatch(Patch):
     author = "officialNecro"
     description = (
         "Add an ExtendedByUpgrades mask and a UpgradeLifetimeBonus duration to LifetimeUpdate, "
-        "so gaining one of those upgrades pushes an object's death back by that many milliseconds"
+        "so gaining one of those upgrades pushes an object's death back by that many "
+        "milliseconds. ExtendedByUpgrades takes upgrade names like any upgrade mask and pays "
+        "out once per object per grant; declaring neither keyword leaves the module stock"
     )
 
     def __init__(self, keyword: str = DEFAULT_KEYWORD, bonus_keyword: str = DEFAULT_BONUS_KEYWORD):

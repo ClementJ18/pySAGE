@@ -495,8 +495,11 @@ class CommandPointUpkeepPatch(Patch):
     name = "command-point-upkeep"
     author = "officialNecro"
     description = (
-        "Scale resource-building income down as a player's command-point usage rises "
-        "(PlayerTemplate.UpkeepCommandPointStep / UpkeepValues)"
+        "Scale resource-building income down as a player's command-point usage rises: "
+        "PlayerTemplate UpkeepCommandPointStep (command points per tier; 0, the default, is "
+        "upkeep off) and UpkeepValues (the percentage of income kept at each tier). Only income "
+        "from buildings the faction's ResourceModifierObjectFilter accepts is taxed, and the "
+        "palantir readout needs no .apt or .csf edit"
     )
 
     def apply(self, data: bytearray) -> None:

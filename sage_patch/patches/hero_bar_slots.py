@@ -255,7 +255,12 @@ class HeroBarSlotsPatch(Patch):
 
     name = "hero-bar-slots"
     author = "officialNecro"
-    description = "Raise the in-game hero bar from 16 slots to N"
+    description = (
+        "Raise the in-game hero bar from 16 slots to N. The movie must define the matching "
+        "Hero<n> clips (and their FlashEffect<n> siblings) on the _fadein and _show frames of "
+        "both the apt/ and apt_widescreen/ FactionFrame.apt, or the extra slots stay inert - "
+        "this lifts the engine's ceiling, it draws nothing"
+    )
 
     def __init__(self, count: int = 21):
         if not MIN_COUNT <= count <= MAX_COUNT:

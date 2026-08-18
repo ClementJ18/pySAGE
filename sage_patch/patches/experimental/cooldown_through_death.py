@@ -745,9 +745,11 @@ class CooldownThroughDeathPatch(Patch):
     author = "officialNecro"
     experimental = True
     description = (
-        "Carry a special-power cooldown across a hero's death (SpecialPower."
-        "PersistCooldownOnDeath), optionally letting it keep elapsing while the hero is dead "
-        "(CooldownTicksWhileDead) so a long enough death clears it"
+        "Carry a special-power cooldown across a hero's death (SpecialPower "
+        "PersistCooldownOnDeath = Yes), optionally letting it keep elapsing while the hero is "
+        "dead (CooldownTicksWhileDead) so a long enough death clears it. Both default to off, "
+        "and only Command = REVIVE heroes are affected - a RespawnUpdate hero already keeps its "
+        "cooldowns"
     )
 
     def __init__(

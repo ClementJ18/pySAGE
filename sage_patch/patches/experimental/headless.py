@@ -307,7 +307,8 @@ class HeadlessPatch(Patch):
     author = "officialNecro"
     experimental = True
     description = (
-        "Add -headless / -renderEvery / -maxfps / -uncapped, and stop drawing when asked to"
+        "Add -headless / -renderEvery / -maxfps / -uncapped, and stop drawing when asked to. "
+        "Command-line flags on game.dat, no INI change"
     )
 
     def apply(self, data: bytearray) -> None:

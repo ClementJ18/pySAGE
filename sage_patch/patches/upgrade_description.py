@@ -230,7 +230,9 @@ class UpgradeDescriptionPatch(Patch):
     author = "officialNecro"
     description = (
         "Keep a CommandButton's DescriptLabel visible once its upgrade is researched, with "
-        "PurchasedLabel / TOOLTIP:AlreadyUpgradedDefault appended under it rather than over it"
+        "PurchasedLabel / TOOLTIP:AlreadyUpgradedDefault appended under it rather than over it. "
+        "Both of those already exist in a stock string table, so no new key and no INI change "
+        "is needed"
     )
 
     def __init__(self, separator: str = "newline", also_blocked: bool = False) -> None:

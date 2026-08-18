@@ -5,10 +5,10 @@ copy of the binary and writes the result. Every patch exported here is engine-le
 to any ROTWK `game.dat` of the target build and benefits every mod built on it (Edain among
 them), not one mod in particular.
 
-What each patch does is on the patch itself - `Patch.description` for the one-liner `sage-patch
-list` prints, the module docstring in `sage_patch.patches` for why it is built the way it is, and
-`docs/<patch>.md` for the reverse engineering behind it. Nothing here restates them, because a
-list in this file is a list that drifts.
+What each patch does is on the patch itself - `Patch.description` for what `sage-patch list`
+prints and what a modder has to write to use it, the module docstring in `sage_patch.patches` for
+why it is built the way it is, and `docs/<patch>.md` for the reverse engineering behind it.
+Nothing here restates them, because a list in this file is a list that drifts.
 
 **Some of what this module exports is experimental** - unstable and largely untested, see
 :data:`~sage_patch.patcher.EXPERIMENTAL_WARNING` and :mod:`sage_patch.patches.experimental`. The

@@ -556,7 +556,8 @@ class LargeGroupBonusFilterPatch(Patch):
     author = "officialNecro"
     description = (
         "Add a CountLooseObjects boolean to LargeGroupBonusUpdate, so HordeMemberFilter also "
-        "matches objects that are not in a horde"
+        "matches objects that are not in a horde. Write CountLooseObjects = Yes beside the "
+        "existing HordeMemberFilter; No, the default, is bit-for-bit stock"
     )
 
     def __init__(self, keyword: str = DEFAULT_KEYWORD):

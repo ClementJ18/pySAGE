@@ -129,7 +129,9 @@ class DesertWeatherWorldbuilderPatch(Patch):
     author = "officialNecro"
     description = (
         "Worldbuilder.exe (not game.dat): add DESERT to the map-settings weather dropdown, so a "
-        "map can be authored with it and the dialog stops reverting it"
+        "map can be authored with it and the dialog stops reverting it. Pass the same --weather "
+        "name given to game.dat's desert-weather; the editor viewport still draws the non-SAND "
+        "variant"
     )
 
     def __init__(self, weather: str = DEFAULT_WEATHER):

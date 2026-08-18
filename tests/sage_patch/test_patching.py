@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import CahFactionsPatch, CommandSetLimitPatch, Patch, apply_patches
-from sage_patch.cli import main
+from sage_patch.cli import build_parser, main
 from sage_patch.patcher import EXPERIMENTAL_WARNING
 from sage_patch.patches import cah_factions as cf
 from sage_patch.patches import commandset as cs
@@ -873,6 +873,38 @@ class TestCahFactionsCli:
     def test_list_shows_the_patch(self, capsys):
         assert main(["list"]) == 0
         assert "cah-factions" in capsys.readouterr().out
+
+
+class TestDescriptionsRender:
+    """Every `Patch.description` has to survive being printed as argparse help.
+
+    A `help=` string is %-formatted by argparse against its own parameter dict, so a description
+    that names a format specifier - and several do, because the specifier is what the modder has
+    to write into a string-table key - takes down `apply --help` for *every* patch rather than
+    just its own. The CLI doubles the percents; these tests are what says so."""
+
+    def test_the_root_help_formats(self):
+        assert "sage-patch" in build_parser().format_help()
+
+    @pytest.mark.parametrize("verb", ["apply", "verify"])
+    def test_every_patch_formats_in_the_subcommand_list(self, verb, capsys):
+        with pytest.raises(SystemExit) as exit:
+            main([verb, "--help"])
+        assert exit.value.code == 0
+        assert "cah-factions" in capsys.readouterr().out
+
+    @pytest.mark.parametrize("name", sorted(PATCHES))
+    def test_every_patch_formats_its_own_help(self, name, capsys):
+        with pytest.raises(SystemExit) as exit:
+            main(["apply", name, "--help"])
+        assert exit.value.code == 0
+        assert name in capsys.readouterr().out
+
+    @pytest.mark.parametrize("name", sorted(PATCHES))
+    def test_no_description_ends_in_a_full_stop(self, name):
+        """`apply <name> --help` appends one for an experimental patch, and `list` reads as a
+        table rather than as sentences."""
+        assert not PATCHES[name].description.rstrip().endswith(".")
 
 
 @pytest.mark.skipif(

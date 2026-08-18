@@ -243,7 +243,9 @@ class TerrainResourceExpPatch(Patch):
     author = "officialNecro"
     description = (
         "Add a GiveNoXP boolean to TerrainResourceBehavior, so a resource spot can pay its "
-        "owner without levelling its own building"
+        "owner without levelling its own building. Write GiveNoXP = Yes on the module (No, the "
+        "default, is stock); a mod that writes the keyword will not load on an unpatched "
+        "binary, since an unknown field is an INI parse error"
     )
 
     def __init__(self, keyword: str = DEFAULT_KEYWORD):

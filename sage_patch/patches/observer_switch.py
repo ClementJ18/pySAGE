@@ -102,7 +102,8 @@ class ObserverSwitchPatch(Patch):
     author = "officialNecro"
     description = (
         "Show the replay observer's next/prior player buttons in a skirmish replay, so the "
-        "camera, vision and spellbook can be switched between players as in a network replay"
+        "camera, vision and spellbook can be switched between players as in a network replay. "
+        "No INI or .apt change - the ObserverStuff clip already carries the buttons"
     )
 
     def apply(self, data: bytearray) -> None:

@@ -960,8 +960,11 @@ class SecondResourcePatch(Patch):
     author = "officialNecro"
     experimental = True
     description = (
-        "A second per-player resource pool, granted by AutoDepositUpdate.DepositAmount2, seeded "
-        "by PlayerTemplate.StartMoney2 and shown in brackets on the palantir (nothing costs it)"
+        "A second per-player resource pool, granted by AutoDepositUpdate DepositAmount2, seeded "
+        "by PlayerTemplate StartMoney2, priced by Object BuildCost2 and shown in brackets on "
+        "the palantir - no .apt or .csf edit. TerrainResourceBehavior cannot grant it, a "
+        "BuildCost2 is refused when the player is short but not always charged, and a savegame "
+        "load resets the pool"
     )
 
     def __init__(self, *, hud: bool = True):
