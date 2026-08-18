@@ -142,6 +142,26 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   itself re-runs the shroud manager for the new seat. The engine already ships the same predicate
   with mode 2 added, so the patch aims one `call` at it — five bytes, no cave. The natural
   companion to `skirmish-replay`, and independent of it. Client-local. **Runtime-verified in game.**
+- **`skirmish-ai-fallback`** gives a faction a **working AI on a map that carries no
+  `Skirmish<Faction>` side for it**. A map's sides are capped at 20 — `SidesList::addSide` refuses
+  the 21st — so a mod past ten-odd factions runs out of room, and 63 of the 617 shipped maps are
+  already full while 106 carry no skirmish side at all. What a faction with no side gets today is
+  not a worse AI: `Player::initFromDict` falls into the arm that types it **0 = `PLAYER_HUMAN`**,
+  so the slot is a human nobody is driving. The side supplies exactly two things — the `isSkirmish`
+  flag that makes `setPlayerType` allocate an `AISkirmishPlayer`, and the faction's AI script
+  library, which `prepareForMP` stamps onto the side from *that side's* `DefaultPlayerAIType` and
+  `initFromDict` copies onto the player. The patch supplies both without a side: one hook routes a
+  side-less AI down the same arm a matched one takes, the other writes the player's **own**
+  `DefaultPlayerAIType` into its **own** side dict and calls the engine's single-side library
+  loader on it — a stock routine with **zero callers** in the unpatched image. So the faction runs
+  `ki <its own faction>`, not a borrowed one. Fallback only: where a `Skirmish<Faction>` side
+  exists it still matches first and both hooks return untouched, and no map is edited. Two
+  five-byte windows and a 110-byte cave; skirmish only, since the scan it hooks runs only for a
+  dict carrying `playerIsSkirmish`. Logic state, so every peer of a game that reaches it needs the
+  same binary. **Statically verified** — every anchor holds its stock bytes in the shipped
+  `game.dat`, nothing branches into either window, and apply/verify/detect round-trips against it —
+  but **not yet observed in game**. See
+  [`docs/skirmish-ai-fallback.md`](docs/skirmish-ai-fallback.md).
 - **`terrain-resource-exp`** adds a **`GiveNoXP`** boolean to `TerrainResourceBehavior`, so a
   resource spot can pay its owner without levelling its own building. The module hands the integer
   it just deposited to the building's `ExperienceTracker` on every income tick, and no INI field
@@ -260,32 +280,79 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   getter. **This one changes the simulation**, so it has to be on every peer and its replays will
   not play back on a stock build. **Runtime-verified in game.**
 
-- **`herobar`** adds a **`HEROBAR`** kindof that puts an object on the hero bar **without making it
-  a `HERO`** — it gets a slot of its own, drawn and clicked exactly like a hero's, and nothing that
-  asks "is this a hero" (armour, targeting, the AI, scripts) answers differently. That is the
-  default and it is three detours. **`--grouped`** adds slot sharing on top: every instance of one
-  `ThingTemplate` shares a single slot, two different templates take two, the slot shows **how many
-  members the group has** where a hero's shows its rank, and clicking it steps through those members
-  **one at a time**, the way `PORTER` steps through porters — `PORTER` differs in collapsing *every*
-  porter into one slot whatever template it came from. It is cheap for two
-  reasons. The kindof is free: `KindOfMaskType` is 224 bits with 222 named, so the new bit needs no
-  `ThingTemplate` growth and no savegame change, and the table move is 14 references and 6 counts
-  against `production-condition`'s 16 and 10. And the hero bar is already most of the way there -
-  `slot+0x16` is a generic **"this slot is a group"** byte the click handler already dispatches on,
-  and a group slot is drawn with the *same* ActionScript calls as a hero slot, so **no `.apt` edit
-  is needed**. So the patch adds no drawing code at all: `HEROBAR` objects join the **hero** list
-  the draw loop already walks, and three small detours around that loop clear a per-pass set of
-  templates, send a duplicate to the engine's own "next node, no slot consumed" label, and mark the
-  slot it did draw. Stepping needs a cursor per group, which the bar object has no room for, so the
+- **`trigger-recharge-list`** lets **`OnTriggerRechargeSpecialPower` name several special powers**
+  instead of one, so a single ability can reset a whole set of cooldowns.
+  `SpecialPowerTimerRefreshSpecialPower` is already a name-matched selector - it walks the object's
+  modules and recharges the one whose `SpecialPowerTemplate` carries the name in that field - and
+  the stock keyword is simply the singular of it: `INI::parseAsciiString` stores the **first** token
+  on the line and the rest is never read, so `= A B` loads on a stock build and silently means `A`.
+  The workaround does not exist either, because a second copy of the module needs its own
+  `SpecialPowerTemplate` to be driven by and there is only one power being used. This is the
+  cheapest patch of its kind here: the field is an `AsciiString`, one pointer to a refcounted
+  buffer, so **a list of names is just a longer string** - no `sizeof(ModuleData)` to raise, no
+  relocated field-parse table, no constructor or destructor shim. Two edits: the entry's parse
+  function (4 bytes of `.rdata`) points at a cave routine that consumes every token on the line, and
+  the walk's `AsciiString::compare` (5 bytes of `.text`) points at one that asks whether the
+  candidate is *one of* those tokens, whole tokens only and case-sensitive exactly as the compare it
+  replaces. A single name comes out byte-identical to stock, which is also what leaves the
+  function's other comparison - the early-out when the field names the module's own power -
+  correct without being touched. It changes which powers a logic-side activation recharges, so
+  **every peer must run the same patched binary**, and a mod writing two names needs it or the
+  second is dropped without a diagnostic. See
+  [`docs/trigger-recharge-list.md`](docs/trigger-recharge-list.md). **Statically verified - not yet
+  observed in game.**
+
+- **`upgrade-grant-lists`** does the same for **`ObjectCreationUpgrade`'s `GrantUpgrade` and
+  `RemoveUpgrade`**, so one upgrade can hand out a set and retire a set. Both keywords are
+  `AsciiString`s parsed by the same one-token parser, and both are used in one block at the end of
+  the module: `findUpgrade(&field)`, then `giveUpgrade` / `removeUpgrade` on the object, each
+  behind its own `test eax,eax / je`. That guard is what makes the hook free - a cave that answers
+  **NULL** turns the caller's own branch into a skip of the single-upgrade call it would otherwise
+  make, so nothing is displaced and the stock path stays in the binary unexecuted. The extra work
+  over its sibling is that `findUpgrade` wants an `AsciiString`, not a pointer into the middle of
+  one: each token is copied into the cave routine's own frame to be NUL-terminated, bounded at 255
+  characters, rather than NUL-ing the separator in the field's shared buffer. Grants still precede
+  removals, `ThingToSpawn` - the third `AsciiString` in the same table - is deliberately left
+  alone, and the table is located through the single `push imm32` that names it rather than by its
+  address, so a patch that relocated it first is followed rather than bypassed. **Every peer must
+  run the same patched binary**, and a mod writing two names needs it or the second is dropped
+  without a diagnostic. See [`docs/upgrade-grant-lists.md`](docs/upgrade-grant-lists.md).
+  **Statically verified - not yet observed in game.**
+
+- **`herobar`** adds **two** kindofs that put an object on the hero bar **without making it
+  a `HERO`** — nothing that asks "is this a hero" (armour, targeting, the AI, scripts) answers
+  differently for either, and they differ only in how many slots the instances take.
+  **`HEROBAR`** is a slot per object, drawn and clicked exactly like a hero's. **`HEROBAR_GROUP`**
+  is a slot per *template*: every instance of one `ThingTemplate` shares a single slot, two
+  different templates take two, the slot shows **how many members the group has** where a hero's
+  shows its rank, and clicking it steps through those members **one at a time**, the way `PORTER`
+  steps through porters — `PORTER` differs in collapsing *every* porter into one slot whatever
+  template it came from. One application adds both, and a mod picks per template; `--kindof` and
+  `--group-kindof` rename the tokens. It is cheap for two
+  reasons. The kindofs are free: `KindOfMaskType` is 224 bits with 222 named, so the two new bits
+  need no `ThingTemplate` growth and no savegame change, and the table move is 14 references and 6
+  counts against `production-condition`'s 16 and 10. **They are also the last two** — nothing else
+  can add a kindof to a binary carrying this patch. And the hero bar is already most of the way
+  there - `slot+0x16` is a generic **"this slot is a group"** byte the click handler already
+  dispatches on, and a group slot is drawn with the *same* ActionScript calls as a hero slot, so
+  **no `.apt` edit is needed**. So the patch adds no drawing code at all: objects of either kindof
+  join the **hero** list the draw loop already walks, and three small detours around that loop
+  clear a per-pass set of templates, send a duplicate to the engine's own "next node, no slot
+  consumed" label, and mark the slot it did draw. The membership hooks read either bit; only the
+  draw loop narrows to `HEROBAR_GROUP`, which is the entire difference between the two. Stepping needs a cursor per group, which the bar object has no room for, so the
   patch keeps its own: 16 dwords in the cave, indexed by slot, holding the `ObjectID` it last
   selected there - an ID rather than a pointer, because a dead member has to read as "not found"
   rather than as a freed pointer. The badge is free by the same trick as the rest: the number a
   hero slot draws is a single local, filled *before* this patch's draw hook and read only after it,
   and written through the same text field the porter count uses - so writing the member count into
   that local is the whole feature, and the engine's own "has the number changed" test repaints the
-  slot when the count moves. The removal pair is not optional in either mode - the stock
-  `onObjectRemoved` accepts only `HERO` and `PORTER`, so without it a dead `HEROBAR` object's node
-  would sit on the list forever. Clicking a slot **twice in quick succession** centres the camera
+  slot when the count moves. The removal pair is not optional for either kindof - the stock
+  `onObjectRemoved` accepts only `HERO` and `PORTER`, so without it a dead object's node
+  would sit on the list forever. Nor is the pair on the **select all heroes** button, which does
+  not ask `HERO` at all: it walks the slot array and selects what it finds, so being on the bar
+  was enough to be picked up by it. Two more detours, one on each of its passes, put back the
+  question it never asked - `HERO` first, so a template that is a hero *and* on the bar still
+  counts as one. Clicking a slot **twice in quick succession** centres the camera
   on the member the first click picked instead of advancing - the mouse button never reaches this
   hook (the movie calls the handler with the button's *name* as its only argument, and the APT
   runtime's event set is Flash's, with no right-button event), so a repeat click is the gesture.
@@ -299,7 +366,7 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   **A group of one shows `1`** (as a lone porter's slot does) and a veteran member's rank is no
   longer readable from the bar; and the bar is still **16 slots**, so enough distinct groups push
   heroes off the end.
-  **Runtime-verified in game, except everything grouping does on a click or a hover.**
+  **Runtime-verified in game, except everything `HEROBAR_GROUP` does on a click or a hover.**
 - **`hero-bar-slots`** raises the in-game **hero bar from its stock 16 slots to any N** in
   17..126 (the shipped build uses **21**). Adding `Hero17`+ clips to the movie
   achieves nothing on its own, and fails silently: the ctor registers `_OnBttnHeroSelect` for
@@ -656,6 +723,10 @@ sage-patch verify skirmish-replay game.dat
 sage-patch apply observer-switch --in game.dat.backup --out game.dat        # no parameters
 sage-patch verify observer-switch game.dat
 
+# every faction gets an AI on every map, running its own ki <faction> library
+sage-patch apply skirmish-ai-fallback --in game.dat.backup --out game.dat   # no parameters
+sage-patch verify skirmish-ai-fallback game.dat
+
 # --pool is the fallback maximum in whole points, --regen the fallback refill in hundredths of a
 # point per logic frame (30 == one point per second at 30fps); a SpecialPower may override both.
 sage-patch apply hero-mana --pool 100 --regen 30 --in game.dat.backup --out game.dat
@@ -670,17 +741,18 @@ sage-patch verify command-point-upkeep game.dat
 sage-patch apply second-resource --in game.dat.backup --out game.dat
 sage-patch verify second-resource game.dat
 
-# a hero-bar slot for something that is not a HERO; --kindof renames the token
+# hero-bar slots for things that are not HEROes: HEROBAR (one per object) and
+# HEROBAR_GROUP (one per template, clicking through its members one at a time)
 sage-patch apply herobar --in game.dat.backup --out game.dat
 sage-patch verify herobar game.dat
 
-# one slot per object type instead, clicking through its members one at a time
-sage-patch apply herobar --grouped --in game.dat.backup --out game.dat
-sage-patch verify herobar --grouped game.dat
+# rename either token
+sage-patch apply herobar --kindof SOLOSLOT --group-kindof SHAREDSLOT --in game.dat.backup --out game.dat
+sage-patch verify herobar --kindof SOLOSLOT --group-kindof SHAREDSLOT game.dat
 
-# a snappier (or disabled, with 0) click-again-to-jump gesture on those group slots
-sage-patch apply herobar --grouped --jump-window 300 --in game.dat.backup --out game.dat
-sage-patch verify herobar --grouped --jump-window 300 game.dat
+# a snappier (or disabled, with 0) click-again-to-jump gesture on the group slots
+sage-patch apply herobar --jump-window 300 --in game.dat.backup --out game.dat
+sage-patch verify herobar --jump-window 300 game.dat
 
 # the mechanic without the palantir bracket or the tooltip one
 sage-patch apply second-resource --no-hud --in game.dat.backup --out game.dat

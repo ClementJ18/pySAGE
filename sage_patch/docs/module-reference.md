@@ -1,7 +1,7 @@
 # Engine module reference - fields and compiled-in defaults
 
 Generated from `game.dat` by [`../scripts/module_defaults.py`](../scripts/module_defaults.py);
-regenerate rather than edit. **330 modules, 2658 fields, 1708 with a recovered default (64%).**
+regenerate rather than edit. **330 modules, 6563 fields, 5231 with a recovered default (80%).**
 
 A listed default is what the ModuleData constructor writes, so it is the value in
 force whenever an INI block omits that keyword. Field names and offsets come from
@@ -13,7 +13,7 @@ constant-tracking through each constructor.
 - `-` in the default column means the constructor's write was not resolvable by
   constant-tracking - typically a container or string built by a member
   constructor, which is to say "empty". It does not mean the field is unset.
-- `type` is derived from the field's parse function. 69 fields (3%) use a
+- `type` is derived from the field's parse function. 165 fields (3%) use a
   parse function that has not been identified and show its raw address instead.
 - Offsets are into ModuleData, not into the module instance.
 - Types are checked for internal consistency: no `Bool` resolves to a non-boolean.
@@ -22,11 +22,71 @@ constant-tracking through each constructor.
 
 ## ActivateModuleSpecialPower
 
-`sizeof(ModuleData)` = 0xdc, 1 field
+`sizeof(ModuleData)` = 0xdc, 61 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
 | `TriggerSpecialPower` | SpecialPowerFlags | `0x0` | - |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## ActiveBody
 
@@ -130,15 +190,34 @@ constant-tracking through each constructor.
 
 ## AnimalAIUpdate
 
-`sizeof(ModuleData)` = 0x80, 7 fields
+`sizeof(ModuleData)` = 0x80, 26 fields
 
 | field | type | offset | default |
 |---|---|---|---|
 | `AfraidOfCastles` | Bool | `0x7c` | `Yes` |
+| `AILuaEventsList` | AsciiString | `0x2c` | `0` |
+| `AttackPriority` | AsciiString | `0x44` | `"DefaultAttackPriority"` |
+| `AutoAcquireEnemiesWhenIdle` | BitFlags | `0x1c` | `0` |
+| `BurningDeathTime` | Duration | `0x40` | `0` |
+| `CanAttackWhileContained` | Bool | `0x25` | `No` |
+| `ComboLocoAttackDistance` | Real | `0x4c` | `80` |
+| `ComboLocomotorSet` | Enum | `0x50` | `0` |
+| `FadeOnPortals` | Bool | `0x54` | `No` |
 | `FleeDistance` | Int | `0x68` | `100` |
 | `FleeRange` | Int | `0x64` | `20` |
+| `HoldGroundCloseRangeDistance` | Real | `0x28` | `0` |
+| `MaxCowerTime` | Duration | `0x30` | `0` |
 | `MaxWanderDistance` | Int | `0x70` | - |
 | `MaxWanderRadius` | Int | `0x74` | - |
+| `MinCowerTime` | Duration | `0x34` | `0` |
+| `MoodAttackCheckRate` | Duration | `0x18` | - |
+| `RampageRequiresAflame` | Bool | `0x3c` | `No` |
+| `RampageTime` | Duration | `0x38` | `0` |
+| `SpecialContactPoints` | AsciiStringList | `0x58` | `0` |
+| `StandGround` | Bool | `0x24` | `No` |
+| `StopChaseDistance` | Real | `0x20` | `500` |
+| `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
+| `Turret` | 0x006620a2 | `0x14` | `0` |
 | `UpdateTimer` | Int | `0x78` | - |
 | `WanderPercentage` | Int | `0x6c` | `50` |
 
@@ -176,28 +255,134 @@ constant-tracking through each constructor.
 
 ## AODHordeContain
 
-`sizeof(ModuleData)` = 0x2cc, 18 fields
+`sizeof(ModuleData)` = 0x2cc, 124 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `AlternateFormation` | AsciiString | `0x1b0` | `0` |
 | `AmplitudeRandomness` | Real | `0x290` | `0` |
 | `AmplitudeRandomnessZ` | Real | `0x2a4` | `0` |
 | `AmplitudeScale` | Real | `0x28c` | `0` |
 | `AmplitudeScaleZ` | Real | `0x2a0` | `0` |
+| `AttributeModifiers` | AsciiStringList | `0x22c` | `0` |
+| `BackUpMaxDelayTime` | Duration | `0x1e0` | - |
+| `BackUpMaxDistance` | Real | `0x1e8` | `5` |
+| `BackUpMinDelayTime` | Duration | `0x1dc` | - |
+| `BackUpMinDistance` | Real | `0x1e4` | `3` |
+| `BackupPercentage` | Percent | `0x1ec` | `0.5` |
+| `BannerCarrierDestroyHordeOnDeath` | Bool | `0x224` | `No` |
+| `BannerCarrierHordeDeathType` | DeathTypeFlags | `0x228` | `0` |
+| `BannerCarrierMinLevel` | UInt8 | `0x27c` | `1` |
+| `BannerCarrierPosition` | BannerCarrierPosition | `0x20c` | `0` |
+| `BannerCarriersAllowed` | AsciiStringList | `0x218` | `0` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CanGrabStructure` | Bool | `0x13d` | `No` |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ComboHorde` | ComboHorde | `0x198` | `0` |
+| `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `CowerRadius` | Real | `0x1f0` | `0` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterFadeTime` | Real | `0x170` | `0` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `EvaEventLastMemberDeath` | EvaEvent | `0x250` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitBone` | AsciiString | `0xa0` | `0` |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitFadeTime` | Real | `0x174` | `0` |
+| `ExitPitchRate` | AngularVelocityReal | `0x9c` | `0` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `FadeFilter` | KindOfFilter | `0x168` | - |
+| `FadePassengerOnEnter` | Bool | `0x16c` | `No` |
+| `FadePassengerOnExit` | Bool | `0x16d` | `No` |
+| `FadeReverse` | Bool | `0x178` | `No` |
+| `FireGrabWeaponOnVictim` | Bool | `0x148` | `Yes` |
+| `FlankedDelay` | Duration | `0x268` | `0` |
+| `FlankedDuration` | Duration | `0x26c` | - |
+| `ForcedLocomotorSet` | Enum | `0x23c` | `-1` |
+| `ForceOrientationContainer` | Bool | `0x13c` | `Yes` |
 | `FrequencyRandomness` | Real | `0x288` | `0` |
 | `FrequencyRandomnessZ` | Real | `0x29c` | `0` |
 | `FrequencyScale` | Real | `0x284` | `0` |
 | `FrequencyScaleZ` | Real | `0x298` | `0` |
+| `FrontAngle` | Real | `0x264` | `360` |
+| `GoAggressiveOnExit` | Bool | `0x140` | `No` |
+| `GrabWeapon` | WeaponTemplate | `0x144` | `0` |
+| `HealthRegen%PerSec` | Real | `0xa8` | `0` |
+| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `IsPorcupineFormation` | Bool | `0x238` | `No` |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `LargeUnitHeightFactor` | Real | `0x2b0` | `0.45` |
 | `LargeUnitMaxHeight` | Real | `0x2b8` | `999999` |
 | `LargeUnitMinHeight` | Real | `0x2b4` | `0` |
 | `LargeUnitTailOff` | Real | `0x2c0` | `1` |
 | `LargeUnitTimeout` | Duration | `0x2bc` | `2` |
+| `LeaderPosition` | Coord3D | `0x200` | - |
+| `LeaderRank` | Int | `0x208` | `0` |
+| `LeadersAllowed` | AsciiStringList | `0x1f4` | `0` |
+| `LivingWorldOverloadTemplate` | AsciiString | `0x280` | `0` |
+| `MachineAllowed` | Bool | `0x240` | `No` |
+| `MachineType` | AsciiString | `0x244` | `0` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MeleeAttackLeashDistance` | Real | `0x24c` | `60` |
+| `MeleeBehavior` | MeleeBehavior | `0x260` | `0` |
+| `MinimumHordeSize` | Int | `0x270` | `0` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NotComboFormation` | Bool | `0x25c` | `No` |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
 | `OathFulfilledZFactor` | Real | `0x2ac` | `1` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `OrientLikeContainerOnExit` | Bool | `0x13f` | `No` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `RandomOffset` | Coord3D | `0x1d0` | - |
+| `RankInfo` | RankInfo | `0x18c` | `0` |
+| `RankSplit` | Bool | `0x254` | `No` |
+| `RanksThatStopAdvance` | 0x0086df0b | `0x1b4` | - |
+| `RanksToJustFreeWhenAttacking` | 0x0086ded1 | `0x1c4` | - |
+| `RanksToReleaseWhenAttacking` | 0x0086ded1 | `0x1b8` | - |
+| `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
+| `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
 | `ScatterRandomness` | Real | `0x2c8` | `0.4` |
 | `ScatterSpeedFactor` | Real | `0x2c4` | `0.3` |
+| `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
+| `ShowPips` | Bool | `0x80` | `No` |
+| `Slots` | Int | `0x98` | `0` |
+| `SplitHorde` | SplitHorde | `0x1a4` | `0` |
+| `SplitHordeNumber` | Int | `0x258` | `0` |
 | `StillAmplitude` | Real | `0x294` | `0` |
 | `StillAmplitudeZ` | Real | `0x2a8` | `0` |
+| `ThisFormationIsTheMainFormation` | Bool | `0x1d8` | `Yes` |
+| `ThrowOutPassengersDelay` | Duration | `0x154` | `0` |
+| `ThrowOutPassengersLandingWarhead` | WeaponTemplate | `0x164` | `0` |
+| `ThrowOutPassengersVelocity` | Coord3D | `0x158` | - |
+| `TypeOneForWeaponSet` | KindOfFlags | `0xb0` | - |
+| `TypeOneForWeaponState` | KindOfFlags | `0xe8` | - |
+| `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
+| `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | `0` |
+| `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
+| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
+| `UseMarchingAnims` | Bool | `0x25d` | `No` |
+| `UseSlowHordeMovement` | Bool | `0x248` | `Yes` |
+| `VisionRearOverride` | Percent | `0x274` | `0` |
+| `VisionSideOverride` | Percent | `0x278` | `0` |
 
 ## ArmorUpgrade
 
@@ -217,25 +402,104 @@ constant-tracking through each constructor.
 
 ## ArrowStormUpdate
 
-`sizeof(ModuleData)` = 0xe8, 6 fields
+`sizeof(ModuleData)` = 0xe8, 66 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
 | `CanShootEmptyGround` | Bool | `0xe4` | `No` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
 | `MaxShots` | Int | `0xe0` | `0` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
 | `ShotsPerBurst` | Int | `0xdc` | `0` |
 | `ShotsPerTarget` | Int | `0xd8` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
 | `TargetRadius` | Real | `0xd4` | `0` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 | `WeaponTemplate` | AsciiString | `0xd0` | `0` |
 
 ## AssaultTransportAIUpdate
 
-`sizeof(ModuleData)` = 0x6c, 2 fields
+`sizeof(ModuleData)` = 0x6c, 21 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AILuaEventsList` | AsciiString | `0x2c` | `0` |
+| `AttackPriority` | AsciiString | `0x44` | `"DefaultAttackPriority"` |
+| `AutoAcquireEnemiesWhenIdle` | BitFlags | `0x1c` | `0` |
+| `BurningDeathTime` | Duration | `0x40` | `0` |
+| `CanAttackWhileContained` | Bool | `0x25` | `No` |
 | `ClearRangeRequiredToContinueAttackMove` | Real | `0x68` | `50` |
+| `ComboLocoAttackDistance` | Real | `0x4c` | `80` |
+| `ComboLocomotorSet` | Enum | `0x50` | `0` |
+| `FadeOnPortals` | Bool | `0x54` | `No` |
+| `HoldGroundCloseRangeDistance` | Real | `0x28` | `0` |
+| `MaxCowerTime` | Duration | `0x30` | `0` |
 | `MembersGetHealedAtLifeRatio` | Real | `0x64` | `0` |
+| `MinCowerTime` | Duration | `0x34` | `0` |
+| `MoodAttackCheckRate` | Duration | `0x18` | - |
+| `RampageRequiresAflame` | Bool | `0x3c` | `No` |
+| `RampageTime` | Duration | `0x38` | `0` |
+| `SpecialContactPoints` | AsciiStringList | `0x58` | `0` |
+| `StandGround` | Bool | `0x24` | `No` |
+| `StopChaseDistance` | Real | `0x20` | `500` |
+| `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
+| `Turret` | 0x006620a2 | `0x14` | `0` |
 
 ## AssistedTargetingUpdate
 
@@ -740,12 +1004,47 @@ constant-tracking through each constructor.
 
 ## CashHackSpecialPower
 
-`sizeof(ModuleData)` = 0x8c, 2 fields
+`sizeof(ModuleData)` = 0x8c, 37 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
 | `MoneyAmount` | Int | `0x88` | `0` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
 | `UpgradeMoneyAmount` | 0x008c6b1e | `0x7c` | `0` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## CastleBehavior
 
@@ -809,21 +1108,93 @@ constant-tracking through each constructor.
 
 ## CaveContain
 
-`sizeof(ModuleData)` = 0x9c, 1 field
+`sizeof(ModuleData)` = 0x9c, 31 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
 | `CaveIndex` | Int | `0x98` | `0` |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShowPips` | Bool | `0x80` | `No` |
 
 ## CitadelSlaughterHordeContain
 
-`sizeof(ModuleData)` = 0x110, 4 fields
+`sizeof(ModuleData)` = 0x110, 46 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CanAlwaysEnter` | KindOfFilter | `0xd8` | - |
+| `CashBackPercent` | Percent | `0xd4` | `0.5` |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `EntryOffset` | Coord3D | `0xb0` | - |
+| `EntryPosition` | Coord3D | `0xbc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitOffset` | Coord3D | `0xc8` | `1` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
 | `FXForRingEntry` | FXList | `0x10c` | `0` |
+| `HealObjects` | Bool | `0x98` | `No` |
+| `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
+| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MobileGarrison` | Bool | `0xa0` | `No` |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | - |
 | `ObjectToDestroyForRingEntry` | KindOfFilter | `0xfc` | - |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShowPips` | Bool | `0x80` | `No` |
 | `StatusForRingEntry` | ObjectStatusFlags | `0xec` | - |
+| `StatusRequiredForCanAlwaysEnter` | ObjectStatusFlags | `0xdc` | - |
+| `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
 | `UpgradeForRingEntry` | AsciiStringList | `0x100` | `0` |
 
 ## CivilianSpawnCollide
@@ -847,7 +1218,7 @@ constant-tracking through each constructor.
 
 ## ClearanceTestingSlowDeathBehavior
 
-`sizeof(ModuleData)` = 0x208, 11 fields
+`sizeof(ModuleData)` = 0x208, 38 fields
 
 | field | type | offset | default |
 |---|---|---|---|
@@ -862,6 +1233,33 @@ constant-tracking through each constructor.
 | `ClearanceMaxHeightFraction` | NonNegativeReal | `0x1fc` | `1.1` |
 | `ClearanceMinHeight` | NonPositiveReal | `0x200` | `-20` |
 | `ClearanceMinHeightFraction` | NonNegativeReal | `0x204` | `1.1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DeathFlags` | 0x008612e7 | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DecayBeginTime` | Duration | `0x54` | `0` |
+| `DestructionDelay` | Duration | `0x4c` | `0` |
+| `DestructionDelayVariance` | Duration | `0x50` | `0` |
+| `DoNotRandomizeMidpoint` | Bool | `0x18e` | `No` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `FadeDelay` | Duration | `0x188` | `4207599104` |
+| `FadeTime` | Duration | `0x184` | `6` |
+| `FlingForce` | Real | `0x118` | `0` |
+| `FlingForceVariance` | Real | `0x11c` | `0` |
+| `FlingPitch` | AngleReal | `0x120` | `0` |
+| `FlingPitchVariance` | AngleReal | `0x124` | `0` |
+| `FX` | MomentFXList | `0x0` | - |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierBonusPerOverkillPercent` | Percent | `0x40` | `0` |
+| `OCL` | MomentOCL | `0x0` | - |
+| `ProbabilityModifier` | Int | `0x3c` | `10` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShadowWhenDead` | Bool | `0x18d` | `No` |
+| `SinkDelay` | Duration | `0x44` | `0` |
+| `SinkDelayVariance` | Duration | `0x48` | `0` |
+| `SinkRate` | VelocityReal | `0x38` | `0` |
+| `Sound` | MomentSound | `0x0` | - |
+| `Weapon` | MomentWeapon | `0x0` | - |
 
 ## ClickReactionBehavior
 
@@ -878,22 +1276,92 @@ constant-tracking through each constructor.
 
 ## CloudBreakSpecialPower
 
-`sizeof(ModuleData)` = 0x8c, 4 fields
+`sizeof(ModuleData)` = 0x8c, 39 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
 | `CloudBreakFX` | FXList | `0x80` | `0` |
 | `CloudBreakRadius` | Real | `0x7c` | `10` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
 | `ObjectSpacing` | Real | `0x88` | `100` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
 | `SunbeamObject` | AsciiString | `0x84` | `0` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## CombineHordeSpecialPower
 
-`sizeof(ModuleData)` = 0x80, 1 field
+`sizeof(ModuleData)` = 0x80, 36 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
 | `ScanRange` | Real | `0x7c` | `100` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## CommandButtonHuntUpdate
 
@@ -985,11 +1453,20 @@ constant-tracking through each constructor.
 
 ## CreateObjectDieIfEldestKindof
 
-`sizeof(ModuleData)` = 0x50, 1 field
+`sizeof(ModuleData)` = 0x50, 10 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `CreationList` | ObjectCreationList | `0x38` | `0` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DebrisPortionOfSelf` | AsciiString | `0x3c` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
 | `ObjectFilter` | KindOfFilter | `0x4c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `UpgradeRequired` | AsciiStringList | `0x40` | `0` |
 
 ## CritterEmitterUpdate
 
@@ -1022,20 +1499,84 @@ constant-tracking through each constructor.
 
 ## CurseSpecialPower
 
-`sizeof(ModuleData)` = 0xdc, 3 fields
+`sizeof(ModuleData)` = 0xdc, 63 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
 | `CursedFX` | FXList | `0xd4` | `0` |
 | `CursePercentage` | Percent | `0xd8` | `1` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
 | `TriggerFX` | FXList | `0xd0` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## DamageFieldUpdate
 
-`sizeof(ModuleData)` = 0x1c, 3 fields
+`sizeof(ModuleData)` = 0x1c, 7 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AliveOnly` | Bool | `0xe` | `No` |
+| `ChargingModeTrigger` | Bool | `0xd` | `No` |
+| `FireWeaponNugget` | FireWeaponNugget | `0x0` | - |
+| `HeroModeTrigger` | Bool | `0xc` | `No` |
 | `ObjectFilter` | KindOfFilter | `0x14` | - |
 | `Radius` | Int | `0x10` | `0` |
 | `RequiredUpgrade` | AsciiString | `0x18` | `0` |
@@ -1059,12 +1600,47 @@ constant-tracking through each constructor.
 
 ## DarknessSpecialPower
 
-`sizeof(ModuleData)` = 0x84, 2 fields
+`sizeof(ModuleData)` = 0x84, 37 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
 | `DarknessFX` | FXList | `0x80` | `0` |
 | `DarknessRadius` | Real | `0x7c` | `10` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## DefaultProductionExitUpdate
 
@@ -1077,23 +1653,91 @@ constant-tracking through each constructor.
 
 ## DefectorSpecialPower
 
-`sizeof(ModuleData)` = 0x80, 1 field
+`sizeof(ModuleData)` = 0x80, 36 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
 | `FatCursorRadius` | Real | `0x7c` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
+
+## DeflectSpecialPower
+
+`sizeof(ModuleData)` = 0x18, 3 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `InitiateSound` | AudioEventRTS | `0xc` | `-1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0x14` | `No` |
 
 ## DelayedDeathBody
 
-`sizeof(ModuleData)` = 0x80, 5 fields
+`sizeof(ModuleData)` = 0x80, 28 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `BurningDeathBehavior` | Bool | `0x51` | `No` |
+| `BurningDeathFX` | FXList | `0x54` | `0` |
+| `CanRespawn` | Bool | `0x68` | `Yes` |
+| `CheerRadius` | Real | `0x4c` | `200` |
+| `DamageCreationList` | DamageCreationList | `0x0` | - |
+| `DamagedAttributeModifier` | AsciiString | `0x30` | `0` |
 | `DelayedDeathPrerequisiteUpgrade` | UpgradeTemplate | `0x7c` | `0` |
 | `DelayedDeathTime` | Duration | `0x6c` | `0` |
+| `DodgePercent` | Percent | `0x18` | `0` |
 | `DoHealthCheck` | Bool | `0x78` | `Yes` |
+| `EnteringDamagedTransitionTime` | Duration | `0x1c` | `0` |
+| `EnteringReallyDamagedTransitionTime` | Duration | `0x20` | `0` |
+| `GrabDamage` | Real | `0x3c` | `200` |
+| `GrabFX` | FXList | `0x38` | `0` |
+| `GrabObject` | AsciiString | `0x2c` | - |
+| `GrabOffset` | Coord3D | `0x40` | `0` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `ImmortalUntilDeathTime` | Bool | `0x70` | `Yes` |
+| `InitialHealth` | Real | `0xc` | `-1` |
 | `InvulnerableFX` | FXList | `0x74` | `0` |
+| `MaxHealth` | Real | `0x8` | `0` |
+| `MaxHealthDamaged` | Real | `0x10` | `0` |
+| `MaxHealthReallyDamaged` | Real | `0x14` | `0` |
+| `PermanentlyKilledByFilter` | KindOfFilter | `0x64` | - |
+| `ReallyDamagedAttributeModifier` | AsciiString | `0x34` | `0` |
+| `RecoveryTime` | Duration | `0x24` | `0` |
+| `RemoveUpgradesOnDeath` | Bool | `0x50` | `No` |
+| `UseDefaultDamageSettings` | Bool | `0x28` | `Yes` |
 
 ## DelayedUpgrade
 
@@ -1137,14 +1781,33 @@ constant-tracking through each constructor.
 
 ## DeployStyleAIUpdate
 
-`sizeof(ModuleData)` = 0x74, 7 fields
+`sizeof(ModuleData)` = 0x74, 26 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AILuaEventsList` | AsciiString | `0x2c` | `0` |
+| `AttackPriority` | AsciiString | `0x44` | `"DefaultAttackPriority"` |
+| `AutoAcquireEnemiesWhenIdle` | BitFlags | `0x1c` | `0` |
+| `BurningDeathTime` | Duration | `0x40` | `0` |
+| `CanAttackWhileContained` | Bool | `0x25` | `No` |
+| `ComboLocoAttackDistance` | Real | `0x4c` | `80` |
+| `ComboLocomotorSet` | Enum | `0x50` | `0` |
 | `DeployedAttributeModifier` | AsciiString | `0x70` | `0` |
+| `FadeOnPortals` | Bool | `0x54` | `No` |
+| `HoldGroundCloseRangeDistance` | Real | `0x28` | `0` |
+| `MaxCowerTime` | Duration | `0x30` | `0` |
+| `MinCowerTime` | Duration | `0x34` | `0` |
+| `MoodAttackCheckRate` | Duration | `0x18` | - |
 | `MustDeployToAttack` | Bool | `0x6f` | `Yes` |
 | `PackTime` | Duration | `0x68` | `0` |
+| `RampageRequiresAflame` | Bool | `0x3c` | `No` |
+| `RampageTime` | Duration | `0x38` | `0` |
 | `ResetTurretBeforePacking` | Bool | `0x6c` | `No` |
+| `SpecialContactPoints` | AsciiStringList | `0x58` | `0` |
+| `StandGround` | Bool | `0x24` | `No` |
+| `StopChaseDistance` | Real | `0x20` | `500` |
+| `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
+| `Turret` | 0x006620a2 | `0x14` | `0` |
 | `TurretsFunctionOnlyWhenDeployed` | Bool | `0x6d` | `No` |
 | `TurretsMustCenterBeforePacking` | Bool | `0x6e` | `No` |
 | `UnpackTime` | Duration | `0x64` | `0` |
@@ -1173,19 +1836,40 @@ constant-tracking through each constructor.
 
 ## DetachableRiderBody
 
-`sizeof(ModuleData)` = 0x1a0, 9 fields
+`sizeof(ModuleData)` = 0x1a0, 30 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `BurningDeathBehavior` | Bool | `0x51` | `No` |
+| `BurningDeathFX` | FXList | `0x54` | `0` |
+| `CheerRadius` | Real | `0x4c` | `200` |
 | `ConflictsWith` | UpgradeMask | `0x90` | - |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `DamageCreationList` | DamageCreationList | `0x0` | - |
+| `DamagedAttributeModifier` | AsciiString | `0x30` | `0` |
+| `DodgePercent` | Percent | `0x18` | `0` |
+| `EnteringDamagedTransitionTime` | Duration | `0x1c` | `0` |
+| `EnteringReallyDamagedTransitionTime` | Duration | `0x20` | `0` |
+| `GrabDamage` | Real | `0x3c` | `200` |
+| `GrabFX` | FXList | `0x38` | `0` |
+| `GrabObject` | AsciiString | `0x2c` | - |
+| `GrabOffset` | Coord3D | `0x40` | `0` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `HealthPercentageWhenRiderDies` | Percent | `0x194` | `1` |
+| `InitialHealth` | Real | `0xc` | `-1` |
+| `MaxHealth` | Real | `0x8` | `0` |
+| `MaxHealthDamaged` | Real | `0x10` | `0` |
+| `MaxHealthReallyDamaged` | Real | `0x14` | `0` |
 | `Permanent` | Bool | `0x12e` | - |
+| `ReallyDamagedAttributeModifier` | AsciiString | `0x34` | `0` |
+| `RecoveryTime` | Duration | `0x24` | `0` |
+| `RemoveUpgradesOnDeath` | Bool | `0x50` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
 | `RequiresAllTriggers` | Bool | `0x12c` | - |
 | `RiderlessDeathChance` | Percent | `0x19c` | `0` |
 | `StartsActive` | Bool | `0x198` | `No` |
 | `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `UseDefaultDamageSettings` | Bool | `0x28` | `Yes` |
 
 ## DetachableRiderUpdate
 
@@ -1201,15 +1885,50 @@ constant-tracking through each constructor.
 
 ## DevastateSpecialPower
 
-`sizeof(ModuleData)` = 0x90, 5 fields
+`sizeof(ModuleData)` = 0x90, 40 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
 | `FireWeapon` | AsciiString | `0x8c` | `""` |
 | `FX` | FXList | `0x80` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
 | `Radius` | Real | `0x7c` | `0` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
 | `TreeValueMultiplier` | Percent | `0x84` | `0` |
 | `TreeValueTotalCap` | Real | `0x88` | `0` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## DoCommandUpgrade
 
@@ -1228,25 +1947,104 @@ constant-tracking through each constructor.
 
 ## DominateEnemySpecialPower
 
-`sizeof(ModuleData)` = 0xe4, 5 fields
+`sizeof(ModuleData)` = 0xe4, 65 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
 | `AttributeModifierAffects` | KindOfFilter | `0xe0` | - |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
 | `DominatedFX` | FXList | `0xd8` | `0` |
 | `DominateRadius` | Real | `0xd0` | `0` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
 | `PermanentlyConvert` | Bool | `0xdc` | `No` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
 | `TriggerFX` | FXList | `0xd4` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## DozerAIUpdate
 
-`sizeof(ModuleData)` = 0x70, 3 fields
+`sizeof(ModuleData)` = 0x70, 22 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AILuaEventsList` | AsciiString | `0x2c` | `0` |
+| `AttackPriority` | AsciiString | `0x44` | `"DefaultAttackPriority"` |
+| `AutoAcquireEnemiesWhenIdle` | BitFlags | `0x1c` | `0` |
 | `BoredRange` | Real | `0x6c` | `0` |
 | `BoredTime` | DurationReal | `0x68` | `0` |
+| `BurningDeathTime` | Duration | `0x40` | `0` |
+| `CanAttackWhileContained` | Bool | `0x25` | `No` |
+| `ComboLocoAttackDistance` | Real | `0x4c` | `80` |
+| `ComboLocomotorSet` | Enum | `0x50` | `0` |
+| `FadeOnPortals` | Bool | `0x54` | `No` |
+| `HoldGroundCloseRangeDistance` | Real | `0x28` | `0` |
+| `MaxCowerTime` | Duration | `0x30` | `0` |
+| `MinCowerTime` | Duration | `0x34` | `0` |
+| `MoodAttackCheckRate` | Duration | `0x18` | - |
+| `RampageRequiresAflame` | Bool | `0x3c` | `No` |
+| `RampageTime` | Duration | `0x38` | `0` |
 | `RepairHealthPercentPerSecond` | Percent | `0x64` | `0` |
+| `SpecialContactPoints` | AsciiStringList | `0x58` | `0` |
+| `StandGround` | Bool | `0x24` | `No` |
+| `StopChaseDistance` | Real | `0x20` | `500` |
+| `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
+| `Turret` | 0x006620a2 | `0x14` | `0` |
 
 ## DualWeaponBehavior
 
@@ -1302,16 +2100,51 @@ constant-tracking through each constructor.
 
 ## ElvenWoodSpecialPower
 
-`sizeof(ModuleData)` = 0x9c, 6 fields
+`sizeof(ModuleData)` = 0x9c, 41 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
 | `ElvenGroveObject` | AsciiString | `0x88` | `0` |
 | `ElvenNumObjects` | Int | `0x8c` | `0` |
 | `ElvenWoodFX` | FXList | `0x94` | `0` |
 | `ElvenWoodObject` | 0x008c81cd | `0x0` | - |
 | `ElvenWoodOCL` | ObjectCreationList | `0x98` | `0` |
 | `ElvenWoodRadius` | Real | `0x90` | `10` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## EmotionTrackerUpdate
 
@@ -1383,6 +2216,73 @@ constant-tracking through each constructor.
 | `TrackingTimeSpan` | Duration | `0x14` | `6` |
 | `WeaponThatCausesEvacuation` | 0x008bedf8 | `0x0` | `0` |
 
+## EvacuateGarrisonSpecialPower
+
+`sizeof(ModuleData)` = 0xd0, 60 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
+
 ## ExperienceLevelCreate
 
 `sizeof(ModuleData)` = 0x10, 2 fields
@@ -1433,11 +2333,71 @@ constant-tracking through each constructor.
 
 ## FellBeastSwoopPower
 
-`sizeof(ModuleData)` = 0xd8, 2 fields
+`sizeof(ModuleData)` = 0xd8, 62 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
 | `SpecialWeapon` | WeaponTemplate | `0xd0` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 | `WhichSpecialWeapon` | Int | `0xd4` | `0` |
 
 ## FireSpreadUpdate
@@ -1551,12 +2511,72 @@ constant-tracking through each constructor.
 
 ## FlingPassengerSpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xe0, 2 fields
+`sizeof(ModuleData)` = 0xe0, 62 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
 | `FlingPassengerLandingWarhead` | WeaponTemplate | `0xdc` | `0` |
 | `FlingPassengerVelocity` | Coord3D | `0xd0` | - |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## FloatUpdate
 
@@ -1587,25 +2607,83 @@ constant-tracking through each constructor.
 
 ## FreeLifeBody
 
-`sizeof(ModuleData)` = 0x88, 5 fields
+`sizeof(ModuleData)` = 0x88, 28 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `BurningDeathBehavior` | Bool | `0x51` | `No` |
+| `BurningDeathFX` | FXList | `0x54` | `0` |
+| `CanRespawn` | Bool | `0x68` | `Yes` |
+| `CheerRadius` | Real | `0x4c` | `200` |
+| `DamageCreationList` | DamageCreationList | `0x0` | - |
+| `DamagedAttributeModifier` | AsciiString | `0x30` | `0` |
+| `DodgePercent` | Percent | `0x18` | `0` |
+| `EnteringDamagedTransitionTime` | Duration | `0x1c` | `0` |
+| `EnteringReallyDamagedTransitionTime` | Duration | `0x20` | `0` |
 | `FreeLifeAnimAndDuration` | AnimAndDuration | `0x78` | - |
 | `FreeLifeHealthPercent` | Percent | `0x6c` | `0` |
 | `FreeLifeInvincible` | Bool | `0x74` | `No` |
 | `FreeLifePrerequisiteUpgrade` | UpgradeTemplate | `0x84` | `0` |
 | `FreeLifeTime` | Duration | `0x70` | `0` |
+| `GrabDamage` | Real | `0x3c` | `200` |
+| `GrabFX` | FXList | `0x38` | `0` |
+| `GrabObject` | AsciiString | `0x2c` | - |
+| `GrabOffset` | Coord3D | `0x40` | `0` |
+| `HealingBuffFx` | FXList | `0x48` | - |
+| `InitialHealth` | Real | `0xc` | `-1` |
+| `MaxHealth` | Real | `0x8` | `0` |
+| `MaxHealthDamaged` | Real | `0x10` | `0` |
+| `MaxHealthReallyDamaged` | Real | `0x14` | `0` |
+| `PermanentlyKilledByFilter` | KindOfFilter | `0x64` | - |
+| `ReallyDamagedAttributeModifier` | AsciiString | `0x34` | `0` |
+| `RecoveryTime` | Duration | `0x24` | `0` |
+| `RemoveUpgradesOnDeath` | Bool | `0x50` | `No` |
+| `UseDefaultDamageSettings` | Bool | `0x28` | `Yes` |
 
 ## FreezingRainSpecialPower
 
-`sizeof(ModuleData)` = 0x88, 3 fields
+`sizeof(ModuleData)` = 0x88, 38 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
 | `BurnRateModifier` | Int | `0x84` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
 | `FreezingRainFX` | FXList | `0x80` | `0` |
 | `FreezingRainRadius` | Real | `0x7c` | `10` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## FXListDie
 
@@ -1624,14 +2702,44 @@ constant-tracking through each constructor.
 
 ## GarrisonContain
 
-`sizeof(ModuleData)` = 0xac, 5 fields
+`sizeof(ModuleData)` = 0xac, 35 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
 | `HealObjects` | Bool | `0x98` | `No` |
 | `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
 | `InitialRoster` | 0x00653381 | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
 | `MobileGarrison` | Bool | `0xa0` | `No` |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShowPips` | Bool | `0x80` | `No` |
 | `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
 
 ## GarrisonUpgrade
@@ -1731,72 +2839,333 @@ constant-tracking through each constructor.
 
 ## GiantBirdAIUpdate
 
-`sizeof(ModuleData)` = 0x84, 8 fields
+`sizeof(ModuleData)` = 0x84, 27 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AILuaEventsList` | AsciiString | `0x2c` | `0` |
 | `AttackLocomotorType` | Enum | `0x64` | `0` |
+| `AttackPriority` | AsciiString | `0x44` | `"DefaultAttackPriority"` |
+| `AutoAcquireEnemiesWhenIdle` | BitFlags | `0x1c` | `0` |
+| `BurningDeathTime` | Duration | `0x40` | `0` |
+| `CanAttackWhileContained` | Bool | `0x25` | `No` |
+| `ComboLocoAttackDistance` | Real | `0x4c` | `80` |
+| `ComboLocomotorSet` | Enum | `0x50` | `0` |
+| `FadeOnPortals` | Bool | `0x54` | `No` |
 | `FollowThroughCheckStep` | Real | `0x78` | `10` |
 | `FollowThroughDistance` | Real | `0x74` | `100` |
 | `FollowThroughGradient` | Real | `0x7c` | `1` |
 | `GrabTossHeightTrigger` | Real | `0x70` | `0` |
 | `GrabTossTimeTrigger` | Real | `0x6c` | `0` |
+| `HoldGroundCloseRangeDistance` | Real | `0x28` | `0` |
+| `MaxCowerTime` | Duration | `0x30` | `0` |
+| `MinCowerTime` | Duration | `0x34` | `0` |
+| `MoodAttackCheckRate` | Duration | `0x18` | - |
+| `RampageRequiresAflame` | Bool | `0x3c` | `No` |
+| `RampageTime` | Duration | `0x38` | `0` |
 | `ReturnForAmmoLocomotorType` | Enum | `0x68` | `0` |
+| `SpecialContactPoints` | AsciiStringList | `0x58` | `0` |
+| `StandGround` | Bool | `0x24` | `No` |
+| `StopChaseDistance` | Real | `0x20` | `500` |
+| `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
 | `TossFX` | FXList | `0x80` | `0` |
+| `Turret` | 0x006620a2 | `0x14` | `0` |
 
 ## GiantBirdSlowDeathBehavior
 
-`sizeof(ModuleData)` = 0x1c4, 7 fields
+`sizeof(ModuleData)` = 0x1c4, 34 fields
 
 | field | type | offset | default |
 |---|---|---|---|
 | `CrashAvoidKindOfs` | KindOfFlags | `0x19c` | - |
 | `CrashAvoidRadius` | Real | `0x1b8` | `800` |
 | `CrashAvoidStrength` | Real | `0x1bc` | `0.1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DeathFlags` | 0x008612e7 | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DecayBeginTime` | Duration | `0x54` | `0` |
 | `DelayFromGroundToFinalDeath` | DurationReal | `0x198` | `0` |
+| `DestructionDelay` | Duration | `0x4c` | `0` |
+| `DestructionDelayVariance` | Duration | `0x50` | `0` |
+| `DoNotRandomizeMidpoint` | Bool | `0x18e` | `No` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `FadeDelay` | Duration | `0x188` | `4207599104` |
+| `FadeTime` | Duration | `0x184` | `6` |
+| `FlingForce` | Real | `0x118` | `0` |
+| `FlingForceVariance` | Real | `0x11c` | `0` |
+| `FlingPitch` | AngleReal | `0x120` | `0` |
+| `FlingPitchVariance` | AngleReal | `0x124` | `0` |
+| `FX` | MomentFXList | `0x0` | - |
 | `FXHitGround` | FXList | `0x190` | `0` |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierBonusPerOverkillPercent` | Percent | `0x40` | `0` |
 | `NeedToMaintainFlailingHeight` | Bool | `0x1c0` | `No` |
+| `OCL` | MomentOCL | `0x0` | - |
 | `OCLHitGround` | ObjectCreationList | `0x194` | `0` |
+| `ProbabilityModifier` | Int | `0x3c` | `10` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShadowWhenDead` | Bool | `0x18d` | `No` |
+| `SinkDelay` | Duration | `0x44` | `0` |
+| `SinkDelayVariance` | Duration | `0x48` | `0` |
+| `SinkRate` | VelocityReal | `0x38` | `0` |
+| `Sound` | MomentSound | `0x0` | - |
+| `Weapon` | MomentWeapon | `0x0` | - |
 
 ## GiveOrRestoreUpgradeSpecialPower
 
-`sizeof(ModuleData)` = 0xe8, 3 fields
+`sizeof(ModuleData)` = 0xe8, 63 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
 | `CommandButton` | AsciiString | `0xd0` | `0` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
 | `FlagsUsedForToggle` | WeaponSetFlags | `0xd8` | - |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 | `UpgradeToGive` | AsciiString | `0xd4` | `0` |
 
 ## GiveUpgradeUpdate
 
-`sizeof(ModuleData)` = 0xec, 4 fields
+`sizeof(ModuleData)` = 0xec, 64 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
 | `DeliverUpgrade` | Bool | `0xe8` | `No` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
 | `FadeOutSpeed` | Real | `0xe4` | `0.025` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
 | `GiveUpgradeEffect` | FXList | `0xdc` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
 | `SpawnOutFX` | FXList | `0xe0` | `0` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## GloriousChargeUpdate
 
-`sizeof(ModuleData)` = 0xdc, 3 fields
+`sizeof(ModuleData)` = 0xdc, 63 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
 | `BonusRadius` | Real | `0xd0` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
 | `SpeechDuration` | Duration | `0xd4` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 | `UpdateInterval` | Duration | `0xd8` | `0` |
 
 ## GrabPassengerSpecialPower
 
-`sizeof(ModuleData)` = 0x84, 2 fields
+`sizeof(ModuleData)` = 0x84, 37 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
 | `AllowTree` | Bool | `0x80` | `Yes` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
 | `GrabRadius` | Real | `0x7c` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## GrantUpgradeCreate
 
@@ -1810,10 +3179,40 @@ constant-tracking through each constructor.
 
 ## HealContain
 
-`sizeof(ModuleData)` = 0x9c, 1 field
+`sizeof(ModuleData)` = 0x9c, 31 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShowPips` | Bool | `0x80` | `No` |
 | `TimeForFullHeal` | Duration | `0x98` | `0` |
 
 ## HealCrateCollide
@@ -1863,13 +3262,73 @@ constant-tracking through each constructor.
 
 ## HeroModeSpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xdc, 4 fields
+`sizeof(ModuleData)` = 0xdc, 64 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
 | `HeroAttributeModifier` | AsciiString | `0xd0` | `""` |
 | `HeroEffectDuration` | Duration | `0xd4` | `0` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
 | `StopUnitBeforeActivating` | Bool | `0xd9` | `No` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 | `UseUSERModelcondition` | Bool | `0xd8` | `No` |
 
 ## HighlanderBody
@@ -1952,10 +3411,14 @@ constant-tracking through each constructor.
 
 ## HordeContain
 
-`sizeof(ModuleData)` = 0x284, 43 fields
+`sizeof(ModuleData)` = 0x284, 106 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
 | `AlternateFormation` | AsciiString | `0x1b0` | `0` |
 | `AttributeModifiers` | AsciiStringList | `0x22c` | `0` |
 | `BackUpMaxDelayTime` | Duration | `0x1e0` | - |
@@ -1968,48 +3431,184 @@ constant-tracking through each constructor.
 | `BannerCarrierMinLevel` | UInt8 | `0x27c` | `1` |
 | `BannerCarrierPosition` | BannerCarrierPosition | `0x20c` | `0` |
 | `BannerCarriersAllowed` | AsciiStringList | `0x218` | `0` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CanGrabStructure` | Bool | `0x13d` | `No` |
+| `CollidePickup` | Bool | `0x81` | `No` |
 | `ComboHorde` | ComboHorde | `0x198` | `0` |
+| `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
+| `ContainMax` | Int | `0x70` | `-1` |
 | `CowerRadius` | Real | `0x1f0` | `0` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterFadeTime` | Real | `0x170` | `0` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EvaEventLastMemberDeath` | EvaEvent | `0x250` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitBone` | AsciiString | `0xa0` | `0` |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitFadeTime` | Real | `0x174` | `0` |
+| `ExitPitchRate` | AngularVelocityReal | `0x9c` | `0` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `FadeFilter` | KindOfFilter | `0x168` | - |
+| `FadePassengerOnEnter` | Bool | `0x16c` | `No` |
+| `FadePassengerOnExit` | Bool | `0x16d` | `No` |
+| `FadeReverse` | Bool | `0x178` | `No` |
+| `FireGrabWeaponOnVictim` | Bool | `0x148` | `Yes` |
 | `FlankedDelay` | Duration | `0x268` | `0` |
 | `FlankedDuration` | Duration | `0x26c` | - |
 | `ForcedLocomotorSet` | Enum | `0x23c` | `-1` |
+| `ForceOrientationContainer` | Bool | `0x13c` | `Yes` |
 | `FrontAngle` | Real | `0x264` | `360` |
+| `GoAggressiveOnExit` | Bool | `0x140` | `No` |
+| `GrabWeapon` | WeaponTemplate | `0x144` | `0` |
+| `HealthRegen%PerSec` | Real | `0xa8` | `0` |
+| `InitialPayload` | 0x0086af0a | `0x0` | - |
 | `IsPorcupineFormation` | Bool | `0x238` | `No` |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `LeaderPosition` | Coord3D | `0x200` | - |
 | `LeaderRank` | Int | `0x208` | `0` |
 | `LeadersAllowed` | AsciiStringList | `0x1f4` | `0` |
 | `LivingWorldOverloadTemplate` | AsciiString | `0x280` | `0` |
 | `MachineAllowed` | Bool | `0x240` | `No` |
 | `MachineType` | AsciiString | `0x244` | `0` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
 | `MeleeAttackLeashDistance` | Real | `0x24c` | `60` |
 | `MeleeBehavior` | MeleeBehavior | `0x260` | `0` |
 | `MinimumHordeSize` | Int | `0x270` | `0` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NotComboFormation` | Bool | `0x25c` | `No` |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `OrientLikeContainerOnExit` | Bool | `0x13f` | `No` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
 | `RandomOffset` | Coord3D | `0x1d0` | - |
 | `RankInfo` | RankInfo | `0x18c` | `0` |
 | `RankSplit` | Bool | `0x254` | `No` |
 | `RanksThatStopAdvance` | 0x0086df0b | `0x1b4` | - |
 | `RanksToJustFreeWhenAttacking` | 0x0086ded1 | `0x1c4` | - |
 | `RanksToReleaseWhenAttacking` | 0x0086ded1 | `0x1b8` | - |
+| `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
+| `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
+| `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
+| `ShowPips` | Bool | `0x80` | `No` |
+| `Slots` | Int | `0x98` | `0` |
 | `SplitHorde` | SplitHorde | `0x1a4` | `0` |
 | `SplitHordeNumber` | Int | `0x258` | `0` |
 | `ThisFormationIsTheMainFormation` | Bool | `0x1d8` | `Yes` |
+| `ThrowOutPassengersDelay` | Duration | `0x154` | `0` |
+| `ThrowOutPassengersLandingWarhead` | WeaponTemplate | `0x164` | `0` |
+| `ThrowOutPassengersVelocity` | Coord3D | `0x158` | - |
+| `TypeOneForWeaponSet` | KindOfFlags | `0xb0` | - |
+| `TypeOneForWeaponState` | KindOfFlags | `0xe8` | - |
+| `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
+| `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | `0` |
+| `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
+| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
 | `UseMarchingAnims` | Bool | `0x25d` | `No` |
 | `UseSlowHordeMovement` | Bool | `0x248` | `Yes` |
 | `VisionRearOverride` | Percent | `0x274` | `0` |
 | `VisionSideOverride` | Percent | `0x278` | `0` |
 
-## HordeGarrisonContain
+## HordeDispatchSpecialPower
 
-`sizeof(ModuleData)` = 0xd4, 4 fields
+`sizeof(ModuleData)` = 0x7c, 35 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
+
+## HordeGarrisonContain
+
+`sizeof(ModuleData)` = 0xd4, 39 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EntryOffset` | Coord3D | `0xb0` | - |
 | `EntryPosition` | Coord3D | `0xbc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitOffset` | Coord3D | `0xc8` | `1` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `HealObjects` | Bool | `0x98` | `No` |
+| `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
+| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MobileGarrison` | Bool | `0xa0` | `No` |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShowPips` | Bool | `0x80` | `No` |
+| `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
 
 ## HordeNotifyTargetsOfImminentProbableCrushingUpdate
 
@@ -2063,10 +3662,14 @@ constant-tracking through each constructor.
 
 ## HorseHordeContain
 
-`sizeof(ModuleData)` = 0x284, 43 fields
+`sizeof(ModuleData)` = 0x284, 106 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
 | `AlternateFormation` | AsciiString | `0x1b0` | `0` |
 | `AttributeModifiers` | AsciiStringList | `0x22c` | `0` |
 | `BackUpMaxDelayTime` | Duration | `0x1e0` | - |
@@ -2079,33 +3682,92 @@ constant-tracking through each constructor.
 | `BannerCarrierMinLevel` | UInt8 | `0x27c` | `1` |
 | `BannerCarrierPosition` | BannerCarrierPosition | `0x20c` | `0` |
 | `BannerCarriersAllowed` | AsciiStringList | `0x218` | `0` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CanGrabStructure` | Bool | `0x13d` | `No` |
+| `CollidePickup` | Bool | `0x81` | `No` |
 | `ComboHorde` | ComboHorde | `0x198` | `0` |
+| `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
+| `ContainMax` | Int | `0x70` | `-1` |
 | `CowerRadius` | Real | `0x1f0` | `0` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterFadeTime` | Real | `0x170` | `0` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EvaEventLastMemberDeath` | EvaEvent | `0x250` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitBone` | AsciiString | `0xa0` | `0` |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitFadeTime` | Real | `0x174` | `0` |
+| `ExitPitchRate` | AngularVelocityReal | `0x9c` | `0` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `FadeFilter` | KindOfFilter | `0x168` | - |
+| `FadePassengerOnEnter` | Bool | `0x16c` | `No` |
+| `FadePassengerOnExit` | Bool | `0x16d` | `No` |
+| `FadeReverse` | Bool | `0x178` | `No` |
+| `FireGrabWeaponOnVictim` | Bool | `0x148` | `Yes` |
 | `FlankedDelay` | Duration | `0x268` | `0` |
 | `FlankedDuration` | Duration | `0x26c` | - |
 | `ForcedLocomotorSet` | Enum | `0x23c` | `-1` |
+| `ForceOrientationContainer` | Bool | `0x13c` | `Yes` |
 | `FrontAngle` | Real | `0x264` | `360` |
+| `GoAggressiveOnExit` | Bool | `0x140` | `No` |
+| `GrabWeapon` | WeaponTemplate | `0x144` | `0` |
+| `HealthRegen%PerSec` | Real | `0xa8` | `0` |
+| `InitialPayload` | 0x0086af0a | `0x0` | - |
 | `IsPorcupineFormation` | Bool | `0x238` | `No` |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `LeaderPosition` | Coord3D | `0x200` | - |
 | `LeaderRank` | Int | `0x208` | `0` |
 | `LeadersAllowed` | AsciiStringList | `0x1f4` | `0` |
 | `LivingWorldOverloadTemplate` | AsciiString | `0x280` | `0` |
 | `MachineAllowed` | Bool | `0x240` | `No` |
 | `MachineType` | AsciiString | `0x244` | `0` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
 | `MeleeAttackLeashDistance` | Real | `0x24c` | `60` |
 | `MeleeBehavior` | MeleeBehavior | `0x260` | `0` |
 | `MinimumHordeSize` | Int | `0x270` | `0` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NotComboFormation` | Bool | `0x25c` | `No` |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `OrientLikeContainerOnExit` | Bool | `0x13f` | `No` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
 | `RandomOffset` | Coord3D | `0x1d0` | - |
 | `RankInfo` | RankInfo | `0x18c` | `0` |
 | `RankSplit` | Bool | `0x254` | `No` |
 | `RanksThatStopAdvance` | 0x0086df0b | `0x1b4` | - |
 | `RanksToJustFreeWhenAttacking` | 0x0086ded1 | `0x1c4` | - |
 | `RanksToReleaseWhenAttacking` | 0x0086ded1 | `0x1b8` | - |
+| `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
+| `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
+| `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
+| `ShowPips` | Bool | `0x80` | `No` |
+| `Slots` | Int | `0x98` | `0` |
 | `SplitHorde` | SplitHorde | `0x1a4` | `0` |
 | `SplitHordeNumber` | Int | `0x258` | `0` |
 | `ThisFormationIsTheMainFormation` | Bool | `0x1d8` | `Yes` |
+| `ThrowOutPassengersDelay` | Duration | `0x154` | `0` |
+| `ThrowOutPassengersLandingWarhead` | WeaponTemplate | `0x164` | `0` |
+| `ThrowOutPassengersVelocity` | Coord3D | `0x158` | - |
+| `TypeOneForWeaponSet` | KindOfFlags | `0xb0` | - |
+| `TypeOneForWeaponState` | KindOfFlags | `0xe8` | - |
+| `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
+| `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | `0` |
+| `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
+| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
 | `UseMarchingAnims` | Bool | `0x25d` | `No` |
 | `UseSlowHordeMovement` | Bool | `0x248` | `Yes` |
 | `VisionRearOverride` | Percent | `0x274` | `0` |
@@ -2168,14 +3830,49 @@ constant-tracking through each constructor.
 
 ## InvisibilitySpecialPower
 
-`sizeof(ModuleData)` = 0x150, 4 fields
+`sizeof(ModuleData)` = 0x150, 39 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
 | `BroadcastRadius` | Real | `0x144` | `0` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
 | `Duration` | Duration | `0x14c` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
 | `InvisibilityNugget` | InvisibilityNugget | `0x7c` | `0` |
 | `ObjectFilter` | KindOfFilter | `0x148` | - |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## InvisibilityUpdate
 
@@ -2249,14 +3946,74 @@ constant-tracking through each constructor.
 
 ## LevelGrantSpecialPower
 
-`sizeof(ModuleData)` = 0xe0, 4 fields
+`sizeof(ModuleData)` = 0xe0, 64 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
 | `AcceptanceFilter` | KindOfFilter | `0xd8` | - |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
 | `Experience` | Int | `0xd0` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
 | `LevelFX` | FXList | `0xdc` | `0` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
 | `RadiusEffect` | Real | `0xd4` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## LevelUpUpgrade
 
@@ -2339,21 +4096,54 @@ constant-tracking through each constructor.
 
 ## MissileUpdate
 
-`sizeof(ModuleData)` = 0x11c, 11 fields
+`sizeof(ModuleData)` = 0x11c, 44 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `BounceCount` | Int | `0x1c` | `0` |
+| `BounceDistance` | Real | `0x20` | `0` |
+| `BounceFirstHeight` | Real | `0x24` | `0` |
+| `BounceFirstPercentIndent` | Percent | `0x2c` | `0` |
+| `BounceSecondHeight` | Real | `0x28` | `0` |
+| `BounceSecondPercentIndent` | Percent | `0x30` | `0` |
+| `CrushStyle` | Bool | `0x18` | `No` |
+| `CurveFlattenMinDist` | Real | `0x34` | `0` |
+| `DetonateCallsKill` | Bool | `0x4a` | `No` |
 | `DetonateOnNoFuel` | Bool | `0xd4` | `No` |
+| `DieOnImpact` | Bool | `0x19` | `No` |
 | `DistanceToTargetBeforeDiving` | Real | `0xcc` | `0` |
 | `DistanceToTravelBeforeTurning` | Real | `0xc8` | `0` |
 | `ExhaustTemplate` | AsciiString | `0x118` | `""` |
+| `FadeInTime` | Int | `0x44` | `0` |
+| `FinalStuckTime` | Duration | `0x38` | `0` |
+| `FirstHeight` | Real | `0x8` | `0` |
+| `FirstPercentHeight` | Percent | `0x94` | `0.33` |
+| `FirstPercentIndent` | Percent | `0x10` | `0` |
+| `FlightPathAdjustDistPerSecond` | VelocityReal | `0x8c` | `0` |
 | `FuelLifetime` | Duration | `0xc0` | `0` |
-| `GarrisonHitKillCount` | Int | `0xd8` | `0` |
-| `GarrisonHitKillForbiddenKindOf` | KindOfFlags | `0xf8` | - |
-| `GarrisonHitKillFX` | FXList | `0x114` | `0` |
-| `GarrisonHitKillRequiredKindOf` | KindOfFlags | `0xdc` | - |
+| `GarrisonHitKillCount` | Int | `0x4c` | `0` |
+| `GarrisonHitKillForbiddenKindOf` | KindOfFlags | `0x6c` | - |
+| `GarrisonHitKillFX` | FXList | `0x88` | `0` |
+| `GarrisonHitKillRequiredKindOf` | KindOfFlags | `0x50` | - |
+| `GroundBounceFX` | FXList | `0xa0` | `0` |
+| `GroundBounceWeapon` | WeaponTemplate | `0xa8` | `0` |
+| `GroundHitFX` | FXList | `0x9c` | `0` |
+| `GroundHitWeapon` | WeaponTemplate | `0xa4` | `0` |
 | `IgnitionDelay` | Duration | `0xc4` | `0` |
 | `IgnitionFX` | FXList | `0xd0` | `0` |
+| `IgnoreTerrainHeight` | Bool | `0x90` | `No` |
+| `InvisibleFrames` | Int | `0x40` | `0` |
+| `OrientToFlightPath` | Bool | `0x49` | `Yes` |
+| `PostLandingEmotion` | EmotionType | `0xb8` | `-1` |
+| `PostLandingEmotionRadius` | Real | `0xbc` | `0` |
+| `PostLandingStateTime` | Duration | `0xb4` | `0` |
+| `PreLandingEmotion` | EmotionType | `0xac` | `-1` |
+| `PreLandingEmotionRadius` | Real | `0xb0` | `0` |
+| `PreLandingStateTime` | Duration | `0x3c` | `0` |
+| `SecondHeight` | Real | `0xc` | `0` |
+| `SecondPercentHeight` | Percent | `0x98` | `0.66` |
+| `SecondPercentIndent` | Percent | `0x14` | `0` |
+| `TumbleRandomly` | Bool | `0x48` | `No` |
 
 ## ModelConditionAudioLoopClientBehavior
 
@@ -2373,14 +4163,74 @@ constant-tracking through each constructor.
 
 ## ModelConditionSpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xe0, 5 fields
+`sizeof(ModuleData)` = 0xe0, 65 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
 | `EmotionPulseRadius` | Real | `0xd8` | `50` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
 | `GenerateTerror` | Bool | `0xd4` | `No` |
 | `GenerateUncontrollableFear` | Bool | `0xd5` | `No` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
 | `ObjectFilter` | KindOfFilter | `0xdc` | - |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 | `WhichSpecialPower` | Int | `0xd0` | `1` |
 
 ## ModelConditionUpgrade
@@ -2403,11 +4253,22 @@ constant-tracking through each constructor.
 
 ## MoneyCrateCollide
 
-`sizeof(ModuleData)` = 0x60, 1 field
+`sizeof(ModuleData)` = 0x60, 12 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `BuildingPickup` | Bool | `0x41` | `No` |
+| `ExecuteAnimation` | AsciiString | `0x4c` | - |
+| `ExecuteAnimationFades` | Bool | `0x58` | `Yes` |
+| `ExecuteAnimationTime` | Real | `0x50` | `0` |
+| `ExecuteAnimationZRise` | Real | `0x54` | `0` |
+| `ExecuteFX` | FXList | `0x48` | `0` |
+| `ForbiddenKindOf` | KindOfFlags | `0x24` | - |
+| `ForbidOwnerPlayer` | Bool | `0x40` | `No` |
+| `HumanOnly` | Bool | `0x42` | `No` |
 | `MoneyProvided` | Int | `0x5c` | `0` |
+| `PickupScience` | ScienceType | `0x44` | `-1` |
+| `RequiredKindOf` | KindOfFlags | `0x8` | - |
 
 ## MonitorConditionUpdate
 
@@ -2422,12 +4283,14 @@ constant-tracking through each constructor.
 
 ## MonsterDockUpdate
 
-`sizeof(ModuleData)` = 0x18, 2 fields
+`sizeof(ModuleData)` = 0x18, 4 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowsPassthrough` | Bool | `0xc` | `Yes` |
 | `DockableObjectFilter` | KindOfFilter | `0x10` | - |
 | `DockedAnimationTime` | Duration | `0x14` | `0` |
+| `NumberApproachPositions` | Int | `0x8` | `0` |
 
 ## NotifyTargetsOfImminentProbableCrushingUpdate
 
@@ -2502,15 +4365,50 @@ constant-tracking through each constructor.
 
 ## OCLSpecialPower
 
-`sizeof(ModuleData)` = 0xa0, 5 fields
+`sizeof(ModuleData)` = 0xa0, 40 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
 | `CreateLocation` | Enum | `0x8c` | `0` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
 | `NearestSecondaryObjectFilter` | KindOfFilter | `0x9c` | - |
 | `OCL` | ObjectCreationList | `0x88` | `0` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
 | `UpgradeName` | 0x008c7acc | `0x90` | `0` |
 | `UpgradeOCL` | 0x008c7a8f | `0x7c` | `0` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## OCLUpdate
 
@@ -2526,11 +4424,15 @@ constant-tracking through each constructor.
 
 ## OilSpillUpdate
 
-`sizeof(ModuleData)` = 0x20, 4 fields
+`sizeof(ModuleData)` = 0x20, 8 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AliveOnly` | Bool | `0xe` | `No` |
 | `BreadcrumbName` | AsciiString | `0x10` | `0` |
+| `ChargingModeTrigger` | Bool | `0xd` | `No` |
+| `FireWeaponNugget` | FireWeaponNugget | `0x0` | - |
+| `HeroModeTrigger` | Bool | `0xc` | `No` |
 | `IgnitionWeaponName` | AsciiString | `0x14` | `0` |
 | `IgnitionWeaponSpacing` | Real | `0x18` | `0` |
 | `OilSpillFX` | FXList | `0x1c` | `0` |
@@ -2668,24 +4570,94 @@ constant-tracking through each constructor.
 
 ## PlayerHealSpecialPower
 
-`sizeof(ModuleData)` = 0xac, 6 fields
+`sizeof(ModuleData)` = 0xac, 41 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
 | `HealAffects` | KindOfFlags | `0x88` | - |
 | `HealAmount` | Real | `0x7c` | `0` |
 | `HealAsPercent` | Bool | `0x80` | `Yes` |
 | `HealFX` | FXList | `0xa4` | `0` |
 | `HealOCL` | ObjectCreationList | `0xa8` | `0` |
 | `HealRadius` | Real | `0x84` | `100` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## PlayerUpgradeSpecialPower
 
-`sizeof(ModuleData)` = 0x88, 1 field
+`sizeof(ModuleData)` = 0x88, 36 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
 | `UpgradeName` | 0x008cc228 | `0x7c` | `0` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## PoisonedBehavior
 
@@ -2698,31 +4670,126 @@ constant-tracking through each constructor.
 
 ## PorcupineFormationBodyModule
 
-`sizeof(ModuleData)` = 0x70, 3 fields
+`sizeof(ModuleData)` = 0x70, 24 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `BurningDeathBehavior` | Bool | `0x51` | `No` |
+| `BurningDeathFX` | FXList | `0x54` | `0` |
+| `CheerRadius` | Real | `0x4c` | `200` |
 | `CrushDamageWeaponTemplate` | WeaponTemplate | `0x68` | `0` |
 | `CrusherLevelResisted` | Int8 | `0x6c` | `0` |
+| `DamageCreationList` | DamageCreationList | `0x0` | - |
+| `DamagedAttributeModifier` | AsciiString | `0x30` | `0` |
 | `DamageWeaponTemplate` | WeaponTemplate | `0x64` | `0` |
+| `DodgePercent` | Percent | `0x18` | `0` |
+| `EnteringDamagedTransitionTime` | Duration | `0x1c` | `0` |
+| `EnteringReallyDamagedTransitionTime` | Duration | `0x20` | `0` |
+| `GrabDamage` | Real | `0x3c` | `200` |
+| `GrabFX` | FXList | `0x38` | `0` |
+| `GrabObject` | AsciiString | `0x2c` | - |
+| `GrabOffset` | Coord3D | `0x40` | `0` |
+| `HealingBuffFx` | FXList | `0x48` | - |
+| `InitialHealth` | Real | `0xc` | `-1` |
+| `MaxHealth` | Real | `0x8` | `0` |
+| `MaxHealthDamaged` | Real | `0x10` | `0` |
+| `MaxHealthReallyDamaged` | Real | `0x14` | `0` |
+| `ReallyDamagedAttributeModifier` | AsciiString | `0x34` | `0` |
+| `RecoveryTime` | Duration | `0x24` | `0` |
+| `RemoveUpgradesOnDeath` | Bool | `0x50` | `No` |
+| `UseDefaultDamageSettings` | Bool | `0x28` | `Yes` |
 
 ## ProductionQueueHordeContain
 
-`sizeof(ModuleData)` = 0xe0, 1 field
+`sizeof(ModuleData)` = 0xe0, 40 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
 | `DestinationTemplate` | 0x0088494c | `0xd4` | `0` |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `EntryOffset` | Coord3D | `0xb0` | - |
+| `EntryPosition` | Coord3D | `0xbc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitOffset` | Coord3D | `0xc8` | `1` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `HealObjects` | Bool | `0x98` | `No` |
+| `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
+| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MobileGarrison` | Bool | `0xa0` | `No` |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShowPips` | Bool | `0x80` | `No` |
+| `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
 
 ## ProductionSpeedBonus
 
-`sizeof(ModuleData)` = 0x90, 3 fields
+`sizeof(ModuleData)` = 0x90, 38 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
 | `NumberOfFrames` | Int | `0x7c` | `0` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
 | `SpeedMulitplier` | Real | `0x80` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
 | `Type` | AsciiStringList | `0x84` | - |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## ProductionUpdate
 
@@ -3006,22 +5073,126 @@ constant-tracking through each constructor.
 
 ## RepairDockUpdate
 
-`sizeof(ModuleData)` = 0x14, 1 field
+`sizeof(ModuleData)` = 0x14, 3 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowsPassthrough` | Bool | `0xc` | `Yes` |
+| `NumberApproachPositions` | Int | `0x8` | `0` |
 | `TimeForFullHeal` | DurationReal | `0x10` | `1` |
+
+## RepairSpecialPower
+
+`sizeof(ModuleData)` = 0x7c, 35 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## ReplaceObjectUpdate
 
-`sizeof(ModuleData)` = 0xe8, 4 fields
+`sizeof(ModuleData)` = 0xe8, 64 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
 | `ReplaceFX` | FXList | `0xe0` | `0` |
 | `ReplaceObject` | ReplaceObject | `0x0` | - |
 | `ReplaceRadius` | Real | `0xdc` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
 | `Scatter` | Bool | `0xe4` | `No` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## ReplaceSelfUpgrade
 
@@ -3060,12 +5231,33 @@ constant-tracking through each constructor.
 
 ## RespawnBody
 
-`sizeof(ModuleData)` = 0x6c, 2 fields
+`sizeof(ModuleData)` = 0x6c, 23 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `BurningDeathBehavior` | Bool | `0x51` | `No` |
+| `BurningDeathFX` | FXList | `0x54` | `0` |
 | `CanRespawn` | Bool | `0x68` | `Yes` |
+| `CheerRadius` | Real | `0x4c` | `200` |
+| `DamageCreationList` | DamageCreationList | `0x0` | - |
+| `DamagedAttributeModifier` | AsciiString | `0x30` | `0` |
+| `DodgePercent` | Percent | `0x18` | `0` |
+| `EnteringDamagedTransitionTime` | Duration | `0x1c` | `0` |
+| `EnteringReallyDamagedTransitionTime` | Duration | `0x20` | `0` |
+| `GrabDamage` | Real | `0x3c` | `200` |
+| `GrabFX` | FXList | `0x38` | `0` |
+| `GrabObject` | AsciiString | `0x2c` | - |
+| `GrabOffset` | Coord3D | `0x40` | `0` |
+| `HealingBuffFx` | FXList | `0x48` | - |
+| `InitialHealth` | Real | `0xc` | `-1` |
+| `MaxHealth` | Real | `0x8` | `0` |
+| `MaxHealthDamaged` | Real | `0x10` | `0` |
+| `MaxHealthReallyDamaged` | Real | `0x14` | `0` |
 | `PermanentlyKilledByFilter` | KindOfFilter | `0x64` | - |
+| `ReallyDamagedAttributeModifier` | AsciiString | `0x34` | `0` |
+| `RecoveryTime` | Duration | `0x24` | `0` |
+| `RemoveUpgradesOnDeath` | Bool | `0x50` | `No` |
+| `UseDefaultDamageSettings` | Bool | `0x28` | `Yes` |
 
 ## RespawnUpdate
 
@@ -3090,10 +5282,65 @@ constant-tracking through each constructor.
 
 ## RiderChangeContain
 
-`sizeof(ModuleData)` = 0x284, 10 fields
+`sizeof(ModuleData)` = 0x284, 80 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CanGrabStructure` | Bool | `0x13d` | `No` |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `CrewAllowedToFire` | Bool | `0x1a0` | `No` |
+| `CrewFilter` | KindOfFilter | `0x18c` | `0` |
+| `CrewMax` | Int | `0x190` | `0` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterFadeTime` | Real | `0x170` | `0` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitBone` | AsciiString | `0xa0` | `0` |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitFadeTime` | Real | `0x174` | `0` |
+| `ExitPitchRate` | AngularVelocityReal | `0x9c` | `0` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `FadeFilter` | KindOfFilter | `0x168` | - |
+| `FadePassengerOnEnter` | Bool | `0x16c` | `No` |
+| `FadePassengerOnExit` | Bool | `0x16d` | `No` |
+| `FadeReverse` | Bool | `0x178` | `No` |
+| `FireGrabWeaponOnVictim` | Bool | `0x148` | `Yes` |
+| `ForceOrientationContainer` | Bool | `0x13c` | `Yes` |
+| `GoAggressiveOnExit` | Bool | `0x140` | `No` |
+| `GrabWeapon` | WeaponTemplate | `0x144` | `0` |
+| `HealthRegen%PerSec` | Real | `0xa8` | `0` |
+| `InitialCrew` | 0x0087ec0b | `0x0` | - |
+| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `ObjectStatusOfCrew` | ObjectStatusFlags | `0x1a4` | `0` |
+| `OrientLikeContainerOnExit` | Bool | `0x13f` | `No` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
 | `Rider1` | RiderInfo | `0x1b8` | - |
 | `Rider2` | RiderInfo | `0x1d0` | - |
 | `Rider3` | RiderInfo | `0x1e8` | `3` |
@@ -3102,23 +5349,98 @@ constant-tracking through each constructor.
 | `Rider6` | RiderInfo | `0x230` | - |
 | `Rider7` | RiderInfo | `0x248` | - |
 | `Rider8` | RiderInfo | `0x260` | - |
+| `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
 | `ScuttleDelay` | Duration | `0x278` | `0` |
 | `ScuttleStatus` | Enum | `0x0` | - |
+| `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
+| `ShowPips` | Bool | `0x80` | `No` |
+| `Slots` | Int | `0x98` | `0` |
+| `SpeedPercentPerCrew` | Percent | `0x19c` | `1` |
+| `ThrowOutPassengersDelay` | Duration | `0x154` | `0` |
+| `ThrowOutPassengersLandingWarhead` | WeaponTemplate | `0x164` | `0` |
+| `ThrowOutPassengersVelocity` | Coord3D | `0x158` | - |
+| `TransferSelection` | Bool | `0x1b4` | `No` |
+| `TypeOneForWeaponSet` | KindOfFlags | `0xb0` | - |
+| `TypeOneForWeaponState` | KindOfFlags | `0xe8` | - |
+| `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
+| `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | `0` |
+| `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
+| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
 
 ## RousingSpeechUpdate
 
-`sizeof(ModuleData)` = 0x100, 10 fields
+`sizeof(ModuleData)` = 0x100, 70 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
 | `BonusRadius` | Real | `0xd0` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
 | `CreateWave` | Bool | `0xe4` | `No` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
 | `FollowerFX` | FXList | `0xe0` | `0` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
 | `LeaderFX` | FXList | `0xdc` | `0` |
 | `LevelUp` | Bool | `0xf8` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
 | `ModifierName` | AsciiStringList | `0xec` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
 | `ObjectFilter` | KindOfFilter | `0xfc` | - |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
 | `SpeechDuration` | Duration | `0xd4` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 | `UpdateInterval` | Duration | `0xd8` | `0` |
 | `WaveWidth` | Real | `0xe8` | `0` |
 
@@ -3158,35 +5480,141 @@ constant-tracking through each constructor.
 
 ## SalvageCrateCollide
 
-`sizeof(ModuleData)` = 0x80, 9 fields
+`sizeof(ModuleData)` = 0x80, 20 fields
 
 | field | type | offset | default |
 |---|---|---|---|
 | `AllowAIPickup` | Bool | `0x7c` | `No` |
 | `BannerChance` | Percent | `0x60` | `0` |
+| `BuildingPickup` | Bool | `0x41` | `No` |
+| `ExecuteAnimation` | AsciiString | `0x4c` | - |
+| `ExecuteAnimationFades` | Bool | `0x58` | `Yes` |
+| `ExecuteAnimationTime` | Real | `0x50` | `0` |
+| `ExecuteAnimationZRise` | Real | `0x54` | `0` |
+| `ExecuteFX` | FXList | `0x48` | `0` |
+| `ForbiddenKindOf` | KindOfFlags | `0x24` | - |
+| `ForbidOwnerPlayer` | Bool | `0x40` | `No` |
+| `HumanOnly` | Bool | `0x42` | `No` |
 | `LevelUpChance` | Percent | `0x64` | `0.5` |
 | `LevelUpRadius` | Percent | `0x68` | `100` |
 | `MaxResource` | Int | `0x74` | `5000` |
 | `MinResource` | Int | `0x70` | `100` |
+| `PickupScience` | ScienceType | `0x44` | `-1` |
 | `PorterChance` | Percent | `0x5c` | `0` |
+| `RequiredKindOf` | KindOfFlags | `0x8` | - |
 | `ResourceChance` | Percent | `0x6c` | `0.5` |
 | `Upgrade` | AsciiString | `0x78` | `0` |
 
 ## ScaleWallSpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xd4, 1 field
+`sizeof(ModuleData)` = 0xd4, 61 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
 | `DelayAtFootOfWall` | Duration | `0xd0` | `0` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## ScavengerSpecialPower
 
-`sizeof(ModuleData)` = 0x80, 1 field
+`sizeof(ModuleData)` = 0x80, 36 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
 | `BountyPercent` | Real | `0x7c` | `0` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## ShareExperienceBehavior
 
@@ -3198,6 +5626,40 @@ constant-tracking through each constructor.
 | `ObjectFilter` | KindOfFilter | `0x14` | - |
 | `Percentage` | Real | `0x10` | `1` |
 | `Radius` | Real | `0x8` | `0` |
+
+## ShipSlowDeathBehavior
+
+`sizeof(ModuleData)` = 0x190, 27 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DeathFlags` | 0x008612e7 | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DecayBeginTime` | Duration | `0x54` | `0` |
+| `DestructionDelay` | Duration | `0x4c` | `0` |
+| `DestructionDelayVariance` | Duration | `0x50` | `0` |
+| `DoNotRandomizeMidpoint` | Bool | `0x18e` | `No` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `FadeDelay` | Duration | `0x188` | `4207599104` |
+| `FadeTime` | Duration | `0x184` | `6` |
+| `FlingForce` | Real | `0x118` | `0` |
+| `FlingForceVariance` | Real | `0x11c` | `0` |
+| `FlingPitch` | AngleReal | `0x120` | `0` |
+| `FlingPitchVariance` | AngleReal | `0x124` | `0` |
+| `FX` | MomentFXList | `0x0` | - |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierBonusPerOverkillPercent` | Percent | `0x40` | `0` |
+| `OCL` | MomentOCL | `0x0` | - |
+| `ProbabilityModifier` | Int | `0x3c` | `10` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShadowWhenDead` | Bool | `0x18d` | `No` |
+| `SinkDelay` | Duration | `0x44` | `0` |
+| `SinkDelayVariance` | Duration | `0x48` | `0` |
+| `SinkRate` | VelocityReal | `0x38` | `0` |
+| `Sound` | MomentSound | `0x0` | - |
+| `Weapon` | MomentWeapon | `0x0` | - |
 
 ## ShroudCrateCollide
 
@@ -3217,17 +5679,46 @@ constant-tracking through each constructor.
 | `PickupScience` | ScienceType | `0x44` | `-1` |
 | `RequiredKindOf` | KindOfFlags | `0x8` | - |
 
+## SiegeAIUpdate
+
+`sizeof(ModuleData)` = 0x64, 19 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `AILuaEventsList` | AsciiString | `0x2c` | `0` |
+| `AttackPriority` | AsciiString | `0x44` | `"DefaultAttackPriority"` |
+| `AutoAcquireEnemiesWhenIdle` | BitFlags | `0x1c` | `0` |
+| `BurningDeathTime` | Duration | `0x40` | `0` |
+| `CanAttackWhileContained` | Bool | `0x25` | `No` |
+| `ComboLocoAttackDistance` | Real | `0x4c` | `80` |
+| `ComboLocomotorSet` | Enum | `0x50` | `0` |
+| `FadeOnPortals` | Bool | `0x54` | `No` |
+| `HoldGroundCloseRangeDistance` | Real | `0x28` | `0` |
+| `MaxCowerTime` | Duration | `0x30` | `0` |
+| `MinCowerTime` | Duration | `0x34` | `0` |
+| `MoodAttackCheckRate` | Duration | `0x18` | - |
+| `RampageRequiresAflame` | Bool | `0x3c` | `No` |
+| `RampageTime` | Duration | `0x38` | `0` |
+| `SpecialContactPoints` | AsciiStringList | `0x58` | `0` |
+| `StandGround` | Bool | `0x24` | `No` |
+| `StopChaseDistance` | Real | `0x20` | `500` |
+| `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
+| `Turret` | 0x006620a2 | `0x14` | `0` |
+
 ## SiegeDeployHordeSpecialPower
 
-`sizeof(ModuleData)` = 0x1c, 1 field
+`sizeof(ModuleData)` = 0x1c, 4 fields
 
 | field | type | offset | default |
 |---|---|---|---|
 | `HordeDeploy` | Bool | `0x18` | `No` |
+| `InitiateSound` | AudioEventRTS | `0xc` | `-1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0x14` | `No` |
 
 ## SiegeDeploySpecialPower
 
-`sizeof(ModuleData)` = 0x30, 8 fields
+`sizeof(ModuleData)` = 0x30, 11 fields
 
 | field | type | offset | default |
 |---|---|---|---|
@@ -3235,9 +5726,12 @@ constant-tracking through each constructor.
 | `EvacuateCrewOnDeploy` | Bool | `0x21` | `No` |
 | `EvacuatePassengersOnDeploy` | Bool | `0x20` | `Yes` |
 | `ExtraWallDistance` | Real | `0x2c` | `0` |
+| `InitiateSound` | AudioEventRTS | `0xc` | `-1` |
 | `LowerDelay` | Duration | `0x18` | `0` |
 | `RaiseDelay` | Duration | `0x1c` | `0` |
 | `SkipAdjustPosition` | Bool | `0x22` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0x14` | `No` |
 | `WallSearchDistance` | Real | `0x24` | `500` |
 
 ## SiegeDockingBehavior
@@ -3250,27 +5744,129 @@ constant-tracking through each constructor.
 
 ## SiegeEngineContain
 
-`sizeof(ModuleData)` = 0x1b8, 7 fields
+`sizeof(ModuleData)` = 0x1b8, 70 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CanGrabStructure` | Bool | `0x13d` | `No` |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
+| `ContainMax` | Int | `0x70` | `-1` |
 | `CrewAllowedToFire` | Bool | `0x1a0` | `No` |
 | `CrewFilter` | KindOfFilter | `0x18c` | `0` |
 | `CrewMax` | Int | `0x190` | `0` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterFadeTime` | Real | `0x170` | `0` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitBone` | AsciiString | `0xa0` | `0` |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitFadeTime` | Real | `0x174` | `0` |
+| `ExitPitchRate` | AngularVelocityReal | `0x9c` | `0` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `FadeFilter` | KindOfFilter | `0x168` | - |
+| `FadePassengerOnEnter` | Bool | `0x16c` | `No` |
+| `FadePassengerOnExit` | Bool | `0x16d` | `No` |
+| `FadeReverse` | Bool | `0x178` | `No` |
+| `FireGrabWeaponOnVictim` | Bool | `0x148` | `Yes` |
+| `ForceOrientationContainer` | Bool | `0x13c` | `Yes` |
+| `GoAggressiveOnExit` | Bool | `0x140` | `No` |
+| `GrabWeapon` | WeaponTemplate | `0x144` | `0` |
+| `HealthRegen%PerSec` | Real | `0xa8` | `0` |
 | `InitialCrew` | 0x0087ec0b | `0x0` | - |
+| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
 | `ObjectStatusOfCrew` | ObjectStatusFlags | `0x1a4` | `0` |
+| `OrientLikeContainerOnExit` | Bool | `0x13f` | `No` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
+| `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
+| `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
+| `ShowPips` | Bool | `0x80` | `No` |
+| `Slots` | Int | `0x98` | `0` |
 | `SpeedPercentPerCrew` | Percent | `0x19c` | `1` |
+| `ThrowOutPassengersDelay` | Duration | `0x154` | `0` |
+| `ThrowOutPassengersLandingWarhead` | WeaponTemplate | `0x164` | `0` |
+| `ThrowOutPassengersVelocity` | Coord3D | `0x158` | - |
 | `TransferSelection` | Bool | `0x1b4` | `No` |
+| `TypeOneForWeaponSet` | KindOfFlags | `0xb0` | - |
+| `TypeOneForWeaponState` | KindOfFlags | `0xe8` | - |
+| `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
+| `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | `0` |
+| `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
+| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
 
 ## SlaughterHordeContain
 
-`sizeof(ModuleData)` = 0xec, 3 fields
+`sizeof(ModuleData)` = 0xec, 42 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
 | `CanAlwaysEnter` | KindOfFilter | `0xd8` | - |
 | `CashBackPercent` | Percent | `0xd4` | `0.5` |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `EntryOffset` | Coord3D | `0xb0` | - |
+| `EntryPosition` | Coord3D | `0xbc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitOffset` | Coord3D | `0xc8` | `1` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `HealObjects` | Bool | `0x98` | `No` |
+| `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
+| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MobileGarrison` | Bool | `0xa0` | `No` |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShowPips` | Bool | `0x80` | `No` |
 | `StatusRequiredForCanAlwaysEnter` | ObjectStatusFlags | `0xdc` | - |
+| `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
 
 ## SlavedUpdate
 
@@ -3479,16 +6075,76 @@ constant-tracking through each constructor.
 
 ## SpecialDisguiseUpdate
 
-`sizeof(ModuleData)` = 0xe8, 6 fields
+`sizeof(ModuleData)` = 0xe8, 66 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
 | `DisguiseAsTemplate` | AsciiString | `0xd8` | `0` |
 | `DisguisedAsTemplate_EnemyPerspective` | AsciiString | `0xdc` | `0` |
 | `DisguiseFX` | FXList | `0xe0` | `0` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
 | `ForceMountedWhenDisguising` | Bool | `0xe4` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
 | `OpacityTarget` | Real | `0xd4` | `0` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
 | `TriggerInstantlyOnCreate` | Bool | `0xd0` | `No` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## SpecialEnemySenseUpdate
 
@@ -3639,11 +6295,19 @@ constant-tracking through each constructor.
 
 ## StatusBitsUpgradeIfEldestKindof
 
-`sizeof(ModuleData)` = 0x15c, 1 field
+`sizeof(ModuleData)` = 0x15c, 9 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `ConflictsWith` | UpgradeMask | `0x90` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
 | `ObjectFilter` | KindOfFilter | `0x158` | - |
+| `Permanent` | Bool | `0x12e` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
+| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `StatusToClear` | ObjectStatusFlags | `0x148` | - |
+| `StatusToSet` | ObjectStatusFlags | `0x138` | - |
+| `TriggeredBy` | UpgradeMask | `0x0` | - |
 
 ## StealthDetectorUpdate
 
@@ -3726,19 +6390,114 @@ constant-tracking through each constructor.
 
 ## StopSpecialPower
 
-`sizeof(ModuleData)` = 0x80, 1 field
+`sizeof(ModuleData)` = 0x80, 36 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
 | `StopPowerTemplate` | SpecialPowerTemplate | `0x7c` | `0` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## StoreObjectsSpecialPower
 
-`sizeof(ModuleData)` = 0xd4, 1 field
+`sizeof(ModuleData)` = 0xd4, 61 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
 | `Radius` | Real | `0xd0` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## StrafeAreaUpdate
 
@@ -3752,6 +6511,34 @@ constant-tracking through each constructor.
 | `SweepAmplitude` | Real | `0x14` | `100` |
 | `Sweepfrequency` | Real | `0x10` | `0.4` |
 | `WeaponName` | AsciiString | `0x8` | - |
+
+## StructureBody
+
+`sizeof(ModuleData)` = 0x64, 21 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `BurningDeathBehavior` | Bool | `0x51` | `No` |
+| `BurningDeathFX` | FXList | `0x54` | `0` |
+| `CheerRadius` | Real | `0x4c` | `200` |
+| `DamageCreationList` | DamageCreationList | `0x0` | - |
+| `DamagedAttributeModifier` | AsciiString | `0x30` | `0` |
+| `DodgePercent` | Percent | `0x18` | `0` |
+| `EnteringDamagedTransitionTime` | Duration | `0x1c` | `0` |
+| `EnteringReallyDamagedTransitionTime` | Duration | `0x20` | `0` |
+| `GrabDamage` | Real | `0x3c` | `200` |
+| `GrabFX` | FXList | `0x38` | `0` |
+| `GrabObject` | AsciiString | `0x2c` | - |
+| `GrabOffset` | Coord3D | `0x40` | `0` |
+| `HealingBuffFx` | FXList | `0x48` | - |
+| `InitialHealth` | Real | `0xc` | `-1` |
+| `MaxHealth` | Real | `0x8` | `0` |
+| `MaxHealthDamaged` | Real | `0x10` | `0` |
+| `MaxHealthReallyDamaged` | Real | `0x14` | `0` |
+| `ReallyDamagedAttributeModifier` | AsciiString | `0x34` | `0` |
+| `RecoveryTime` | Duration | `0x24` | `0` |
+| `RemoveUpgradesOnDeath` | Bool | `0x50` | `No` |
+| `UseDefaultDamageSettings` | Bool | `0x28` | `Yes` |
 
 ## StructureCollapseUpdate
 
@@ -3832,29 +6619,91 @@ constant-tracking through each constructor.
 
 ## SummonReplacementSpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xf8, 10 fields
+`sizeof(ModuleData)` = 0xf8, 70 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
 | `CancelDisguiseWhenDismounting` | Bool | `0xe5` | `No` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
 | `EmotionPulseRadius` | Real | `0xd8` | `50` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
 | `GenerateTerror` | Bool | `0xd4` | `No` |
 | `GenerateUncontrollableFear` | Bool | `0xd5` | `No` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
 | `MountedTemplate` | AsciiString | `0xe8` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
 | `ObjectFilter` | KindOfFilter | `0xdc` | - |
 | `OpacityTarget` | Real | `0xe0` | `0` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
 | `SynchronizeTimerOnSpecialPower` | AsciiStringList | `0xec` | `0` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
 | `TriggerInstantlyOnCreate` | Bool | `0xe4` | `No` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 | `WhichSpecialPower` | Int | `0xd0` | `1` |
 
 ## SupplyCenterDockUpdate
 
-`sizeof(ModuleData)` = 0x1c, 3 fields
+`sizeof(ModuleData)` = 0x1c, 5 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowsPassthrough` | Bool | `0xc` | `Yes` |
 | `BonusScience` | ScienceType | `0x14` | `-1` |
 | `BonusScienceMultiplier` | Percent | `0x18` | `1` |
+| `NumberApproachPositions` | Int | `0x8` | `0` |
 | `ValueMultiplier` | Real | `0x10` | `1` |
 
 ## SupplyCenterProductionExitUpdate
@@ -3868,18 +6717,37 @@ constant-tracking through each constructor.
 
 ## SupplyTruckAIUpdate
 
-`sizeof(ModuleData)` = 0x84, 8 fields
+`sizeof(ModuleData)` = 0x84, 27 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AILuaEventsList` | AsciiString | `0x2c` | `0` |
+| `AttackPriority` | AsciiString | `0x44` | `"DefaultAttackPriority"` |
+| `AutoAcquireEnemiesWhenIdle` | BitFlags | `0x1c` | `0` |
+| `BurningDeathTime` | Duration | `0x40` | `0` |
+| `CanAttackWhileContained` | Bool | `0x25` | `No` |
+| `ComboLocoAttackDistance` | Real | `0x4c` | `80` |
+| `ComboLocomotorSet` | Enum | `0x50` | `0` |
+| `FadeOnPortals` | Bool | `0x54` | `No` |
 | `HarvestActionTime` | Duration | `0x80` | `0` |
 | `HarvestActivationRange` | Real | `0x78` | `50` |
 | `HarvestPreparationTime` | Duration | `0x7c` | `0` |
 | `HarvestTrees` | Bool | `0x74` | `No` |
+| `HoldGroundCloseRangeDistance` | Real | `0x28` | `0` |
 | `MaxBoxes` | Int | `0x64` | `0` |
+| `MaxCowerTime` | Duration | `0x30` | `0` |
+| `MinCowerTime` | Duration | `0x34` | `0` |
+| `MoodAttackCheckRate` | Duration | `0x18` | - |
+| `RampageRequiresAflame` | Bool | `0x3c` | `No` |
+| `RampageTime` | Duration | `0x38` | `0` |
+| `SpecialContactPoints` | AsciiStringList | `0x58` | `0` |
+| `StandGround` | Bool | `0x24` | `No` |
+| `StopChaseDistance` | Real | `0x20` | `500` |
 | `SupplyCenterActionDelay` | Duration | `0x68` | `0` |
 | `SupplyWarehouseActionDelay` | Duration | `0x6c` | `0` |
 | `SupplyWarehouseScanDistance` | Real | `0x70` | `100` |
+| `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
+| `Turret` | 0x006620a2 | `0x14` | `0` |
 
 ## SupplyWarehouseCripplingBehavior
 
@@ -3893,54 +6761,232 @@ constant-tracking through each constructor.
 
 ## SupplyWarehouseDockUpdate
 
-`sizeof(ModuleData)` = 0x18, 2 fields
+`sizeof(ModuleData)` = 0x18, 4 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowsPassthrough` | Bool | `0xc` | `Yes` |
 | `DeleteWhenEmpty` | Bool | `0x14` | `No` |
+| `NumberApproachPositions` | Int | `0x8` | `0` |
 | `StartingBoxes` | Int | `0x10` | `1` |
 
 ## SymbioticStructuresBody
 
-`sizeof(ModuleData)` = 0x68, 1 field
+`sizeof(ModuleData)` = 0x68, 22 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `BurningDeathBehavior` | Bool | `0x51` | `No` |
+| `BurningDeathFX` | FXList | `0x54` | `0` |
+| `CheerRadius` | Real | `0x4c` | `200` |
+| `DamageCreationList` | DamageCreationList | `0x0` | `0` |
+| `DamagedAttributeModifier` | AsciiString | `0x30` | `0` |
+| `DodgePercent` | Percent | `0x18` | `0` |
+| `EnteringDamagedTransitionTime` | Duration | `0x1c` | `0` |
+| `EnteringReallyDamagedTransitionTime` | Duration | `0x20` | `0` |
+| `GrabDamage` | Real | `0x3c` | `200` |
+| `GrabFX` | FXList | `0x38` | `0` |
+| `GrabObject` | AsciiString | `0x2c` | - |
+| `GrabOffset` | Coord3D | `0x40` | `0` |
+| `HealingBuffFx` | FXList | `0x48` | - |
+| `InitialHealth` | Real | `0xc` | `-1` |
+| `MaxHealth` | Real | `0x8` | `0` |
+| `MaxHealthDamaged` | Real | `0x10` | `0` |
+| `MaxHealthReallyDamaged` | Real | `0x14` | `0` |
+| `ReallyDamagedAttributeModifier` | AsciiString | `0x34` | `0` |
+| `RecoveryTime` | Duration | `0x24` | `0` |
+| `RemoveUpgradesOnDeath` | Bool | `0x50` | `No` |
 | `Symbiote` | AsciiString | `0x64` | `"Not likely to duplicate this name, is he, Fred?"` |
+| `UseDefaultDamageSettings` | Bool | `0x28` | `Yes` |
 
 ## TaintSpecialPower
 
-`sizeof(ModuleData)` = 0x8c, 4 fields
+`sizeof(ModuleData)` = 0x8c, 39 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
 | `TaintFX` | FXList | `0x84` | `0` |
 | `TaintObject` | AsciiString | `0x7c` | `0` |
 | `TaintOCL` | ObjectCreationList | `0x88` | `0` |
 | `TaintRadius` | Real | `0x80` | `10` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## TeleportSpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xe0, 4 fields
+`sizeof(ModuleData)` = 0xe0, 64 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
 | `BusyForDuration` | Duration | `0xd0` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
 | `DestinationWeaponName` | AsciiString | `0xd4` | `0` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
 | `MaxDistance` | Real | `0xdc` | `-1` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
 | `SourceWeaponName` | AsciiString | `0xd8` | `0` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## TeleportToCasterSpecialPower
 
-`sizeof(ModuleData)` = 0xe4, 5 fields
+`sizeof(ModuleData)` = 0xe4, 65 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
 | `MaxDestinationRadius` | Real | `0xd8` | `0` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
 | `MinDestinationRadius` | Real | `0xd4` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
 | `Radius` | Real | `0xd0` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
 | `TargetFX` | FXList | `0xe0` | `0` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
 | `TriggerFX` | FXList | `0xdc` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## TemporarilyDefectUpdate
 
@@ -3975,32 +7021,212 @@ constant-tracking through each constructor.
 
 ## ToggleDeploySpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xd8, 2 fields
+`sizeof(ModuleData)` = 0xd8, 62 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
 | `SoundDeploy` | AudioEventRTS | `0xd0` | `0` |
 | `SoundUndeploy` | AudioEventRTS | `0xd4` | `0` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## ToggleHiddenSpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xd4, 1 field
+`sizeof(ModuleData)` = 0xd4, 61 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
 | `ShowPalantirTimer` | Bool | `0xd0` | `No` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## ToggleMountedSpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xe8, 5 fields
+`sizeof(ModuleData)` = 0xe8, 65 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
 | `CancelDisguiseWhenDismounting` | Bool | `0xd5` | `No` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
 | `MountedTemplate` | AsciiString | `0xd8` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
 | `OpacityTarget` | Real | `0xd0` | `0` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
 | `SynchronizeTimerOnSpecialPower` | AsciiStringList | `0xdc` | `0` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
 | `TriggerInstantlyOnCreate` | Bool | `0xd4` | `No` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## TooltipUpgrade
 
@@ -4191,18 +7417,34 @@ constant-tracking through each constructor.
 
 ## TransportContain
 
-`sizeof(ModuleData)` = 0x18c, 33 fields
+`sizeof(ModuleData)` = 0x18c, 63 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
 | `CanGrabStructure` | Bool | `0x13d` | `No` |
+| `CollidePickup` | Bool | `0x81` | `No` |
 | `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
 | `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
 | `EnterFadeTime` | Real | `0x170` | `0` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
 | `ExitBone` | AsciiString | `0xa0` | `0` |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitFadeTime` | Real | `0x174` | `0` |
 | `ExitPitchRate` | AngularVelocityReal | `0x9c` | `0` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
 | `FadeFilter` | KindOfFilter | `0x168` | - |
 | `FadePassengerOnEnter` | Bool | `0x16c` | `No` |
 | `FadePassengerOnExit` | Bool | `0x16d` | `No` |
@@ -4213,11 +7455,25 @@ constant-tracking through each constructor.
 | `GrabWeapon` | WeaponTemplate | `0x144` | `0` |
 | `HealthRegen%PerSec` | Real | `0xa8` | `0` |
 | `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
 | `OrientLikeContainerOnExit` | Bool | `0x13f` | `No` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
 | `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
 | `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
 | `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
 | `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
+| `ShowPips` | Bool | `0x80` | `No` |
 | `Slots` | Int | `0x98` | `0` |
 | `ThrowOutPassengersDelay` | Duration | `0x154` | `0` |
 | `ThrowOutPassengersLandingWarhead` | WeaponTemplate | `0x164` | `0` |
@@ -4231,20 +7487,136 @@ constant-tracking through each constructor.
 
 ## TunnelContain
 
-`sizeof(ModuleData)` = 0xd8, 1 field
+`sizeof(ModuleData)` = 0xd8, 39 fields
 
 | field | type | offset | default |
 |---|---|---|---|
-| `TimeForFullHeal` | DurationReal | `0xd4` | `1` |
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `EntryOffset` | Coord3D | `0xb0` | - |
+| `EntryPosition` | Coord3D | `0xbc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitOffset` | Coord3D | `0xc8` | `1` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `HealObjects` | Bool | `0x98` | `No` |
+| `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
+| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
+| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MobileGarrison` | Bool | `0xa0` | `No` |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ShowPips` | Bool | `0x80` | `No` |
+| `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
 
 ## UnitCrateCollide
 
-`sizeof(ModuleData)` = 0x64, 2 fields
+`sizeof(ModuleData)` = 0x64, 13 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `BuildingPickup` | Bool | `0x41` | `No` |
+| `ExecuteAnimation` | AsciiString | `0x4c` | - |
+| `ExecuteAnimationFades` | Bool | `0x58` | `Yes` |
+| `ExecuteAnimationTime` | Real | `0x50` | `0` |
+| `ExecuteAnimationZRise` | Real | `0x54` | `0` |
+| `ExecuteFX` | FXList | `0x48` | `0` |
+| `ForbiddenKindOf` | KindOfFlags | `0x24` | - |
+| `ForbidOwnerPlayer` | Bool | `0x40` | `No` |
+| `HumanOnly` | Bool | `0x42` | `No` |
+| `PickupScience` | ScienceType | `0x44` | `-1` |
+| `RequiredKindOf` | KindOfFlags | `0x8` | - |
 | `UnitCount` | Int | `0x5c` | `0` |
 | `UnitName` | AsciiString | `0x60` | `""` |
+
+## UnleashSpecialPower
+
+`sizeof(ModuleData)` = 0xd0, 60 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 
 ## UnpauseSpecialPowerUpgrade
 
@@ -4260,6 +7632,48 @@ constant-tracking through each constructor.
 | `RequiresAllTriggers` | Bool | `0x12c` | `No` |
 | `SpecialPowerTemplate` | SpecialPowerTemplate | `0x138` | `0` |
 | `TriggeredBy` | UpgradeMask | `0x0` | - |
+
+## UntamedAllegianceSpecialPower
+
+`sizeof(ModuleData)` = 0x7c, 35 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## UpgradeDie
 
@@ -4285,14 +7699,25 @@ constant-tracking through each constructor.
 
 ## VeterancyCrateCollide
 
-`sizeof(ModuleData)` = 0x68, 4 fields
+`sizeof(ModuleData)` = 0x68, 15 fields
 
 | field | type | offset | default |
 |---|---|---|---|
 | `AddsOwnerVeterancy` | Bool | `0x60` | `No` |
 | `AffectsUpToLevel` | Int | `0x64` | `10` |
+| `BuildingPickup` | Bool | `0x41` | `No` |
 | `EffectRange` | Int | `0x5c` | `0` |
+| `ExecuteAnimation` | AsciiString | `0x4c` | - |
+| `ExecuteAnimationFades` | Bool | `0x58` | `Yes` |
+| `ExecuteAnimationTime` | Real | `0x50` | `0` |
+| `ExecuteAnimationZRise` | Real | `0x54` | `0` |
+| `ExecuteFX` | FXList | `0x48` | `0` |
+| `ForbiddenKindOf` | KindOfFlags | `0x24` | - |
+| `ForbidOwnerPlayer` | Bool | `0x40` | `No` |
+| `HumanOnly` | Bool | `0x42` | `No` |
 | `IsPilot` | Bool | `0x61` | `No` |
+| `PickupScience` | ScienceType | `0x44` | `-1` |
+| `RequiredKindOf` | KindOfFlags | `0x8` | - |
 
 ## W3DBoatWakeModelDraw
 
@@ -4314,13 +7739,15 @@ constant-tracking through each constructor.
 
 ## W3DFloorDraw
 
-`sizeof(ModuleData)` = 0x30, 6 fields
+`sizeof(ModuleData)` = 0x30, 8 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `DistanceFog` | Bool | `0xc` | `Yes` |
 | `FloorFadeRateOnObjectDeath` | Real | `0x20` | `0` |
 | `ForceToBack` | Bool | `0x1d` | - |
 | `HideIfModelConditions` | 0x004cef06 | `0x0` | - |
+| `ModelName` | AsciiString | `0x8` | `0` |
 | `StartHidden` | Bool | `0x1e` | - |
 | `StaticModelLODMode` | Bool | `0x1c` | - |
 | `WeatherTexture` | 0x004cf066 | `0x10` | `0` |
@@ -4396,24 +7823,138 @@ constant-tracking through each constructor.
 
 ## W3DQuadrupedDraw
 
-`sizeof(ModuleData)` = 0x198, 4 fields
+`sizeof(ModuleData)` = 0x198, 61 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AffectedByStealth` | Bool | `0x15e` | `Yes` |
+| `AlphaCameraAtInnerRadius` | Percent | `0x14c` | `1` |
+| `AlphaCameraFadeInnerRadius` | PositiveReal | `0x148` | `0` |
+| `AlphaCameraFadeOuterRadius` | PositiveReal | `0x144` | `0` |
+| `AlphaRefAnimated` | Bool | `0x139` | `No` |
+| `AlphaRefRange` | IntRange | `0x13c` | - |
+| `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
+| `AnimationState` | AnimationState | `0x0` | - |
+| `AttachModel` | AttachModel | `0x0` | - |
+| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | `0` |
+| `BirthFadeAdditive` | Bool | `0x154` | `No` |
+| `BirthFadeTime` | Duration | `0x150` | `0` |
+| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
+| `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
+| `EmbedPortal` | 0x004c30bd | `0x11c` | `0` |
+| `ExtraPublicBone` | AsciiStringList | `0x30` | `0` |
+| `GlowEmissive` | Bool | `0x129` | `No` |
+| `GlowEnabled` | Bool | `0x128` | `No` |
+| `HighDetailLODThreshold` | Real | `0x12c` | `0` |
+| `HighDetailOnly` | Bool | `0x15f` | `No` |
+| `IdleAnimationState` | AnimationState | `0x0` | - |
+| `InitialRecoilSpeed` | VelocityReal | `0x54` | `2` |
 | `LeftFrontFootBone` | AsciiString | `0x188` | - |
 | `LeftRearFootBone` | AsciiString | `0x190` | - |
+| `LowDetailLODThreshold` | Real | `0x130` | `0` |
+| `MaxRecoilDistance` | Real | `0x58` | `3` |
+| `MinLODRequired` | Enum | `0x64` | `0` |
+| `ModelConditionState` | ModelConditionState | `0x0` | - |
+| `MultiPlayerOnly` | Bool | `0x15d` | `No` |
+| `NoRotate` | Bool | `0x69` | `No` |
+| `OkToChangeModelColor` | Bool | `0x68` | `No` |
+| `ParticleBonesCheckDrawable` | Bool | `0x12a` | `No` |
+| `ParticlesAttachedToAnimatedBones` | Bool | `0x108` | `No` |
+| `ProjectileBoneFeedbackEnabledSlots` | BitFlags | `0x50` | `0` |
+| `RaisedWallMesh` | AsciiString | `0x110` | `0` |
+| `RampMesh1` | AsciiString | `0x114` | `0` |
+| `RampMesh2` | AsciiString | `0x118` | `0` |
+| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
+| `RecoilDamping` | Real | `0x5c` | `0.4` |
+| `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.065` |
 | `RightFrontFootBone` | AsciiString | `0x18c` | - |
 | `RightRearFootBone` | AsciiString | `0x194` | - |
+| `ShadowForceDisable` | Bool | `0x12b` | `No` |
+| `ShowShadowWhileContained` | Bool | `0x136` | `No` |
+| `StaticModelLODMode` | Bool | `0x135` | `No` |
+| `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
+| `SwitchModelLODMode` | Bool | `0x134` | `No` |
+| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
+| `TrackMarks` | 0x004b65ba | `0x3c` | `0` |
+| `TrackMarksLeftBone` | AsciiString | `0x44` | `0` |
+| `TrackMarksRightBone` | AsciiString | `0x48` | `0` |
+| `TransitionState` | AnimationState | `0x0` | - |
+| `UseDefaultAnimation` | Bool | `0x138` | `No` |
+| `UseFiringArcRotation` | Bool | `0x6a` | `No` |
+| `UseProducerTexture` | Bool | `0xb8` | `No` |
+| `UseStandardModelNames` | Bool | `0x137` | `No` |
+| `WadingParticleSys` | AsciiString | `0x14` | `0` |
+| `WallBoundsMesh` | AsciiString | `0x10c` | `0` |
+| `ZWriteDisableOverride` | Bool | `0x15c` | `No` |
 
 ## W3DSailModelDraw
 
-`sizeof(ModuleData)` = 0x194, 3 fields
+`sizeof(ModuleData)` = 0x194, 60 fields
 
 | field | type | offset | default |
 |---|---|---|---|
 | `AboutDamping` | Real | `0x190` | `0.05` |
+| `AffectedByStealth` | Bool | `0x15e` | `Yes` |
+| `AlphaCameraAtInnerRadius` | Percent | `0x14c` | `1` |
+| `AlphaCameraFadeInnerRadius` | PositiveReal | `0x148` | `0` |
+| `AlphaCameraFadeOuterRadius` | PositiveReal | `0x144` | `0` |
+| `AlphaRefAnimated` | Bool | `0x139` | `No` |
+| `AlphaRefRange` | IntRange | `0x13c` | - |
+| `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
+| `AnimationState` | AnimationState | `0x0` | - |
+| `AttachModel` | AttachModel | `0x0` | - |
+| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | `0` |
+| `BirthFadeAdditive` | Bool | `0x154` | `No` |
+| `BirthFadeTime` | Duration | `0x150` | `0` |
 | `BlowingThresholdDegrees` | AngleReal | `0x18c` | `0.25` |
+| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
+| `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
+| `EmbedPortal` | 0x004c30bd | `0x11c` | `0` |
+| `ExtraPublicBone` | AsciiStringList | `0x30` | `0` |
+| `GlowEmissive` | Bool | `0x129` | `No` |
+| `GlowEnabled` | Bool | `0x128` | `No` |
+| `HighDetailLODThreshold` | Real | `0x12c` | `0` |
+| `HighDetailOnly` | Bool | `0x15f` | `No` |
+| `IdleAnimationState` | AnimationState | `0x0` | - |
+| `InitialRecoilSpeed` | VelocityReal | `0x54` | `2` |
+| `LowDetailLODThreshold` | Real | `0x130` | `0` |
+| `MaxRecoilDistance` | Real | `0x58` | `3` |
 | `MaxRotationDegrees` | AngleReal | `0x188` | `0` |
+| `MinLODRequired` | Enum | `0x64` | `0` |
+| `ModelConditionState` | ModelConditionState | `0x0` | - |
+| `MultiPlayerOnly` | Bool | `0x15d` | `No` |
+| `NoRotate` | Bool | `0x69` | `No` |
+| `OkToChangeModelColor` | Bool | `0x68` | `No` |
+| `ParticleBonesCheckDrawable` | Bool | `0x12a` | `No` |
+| `ParticlesAttachedToAnimatedBones` | Bool | `0x108` | `No` |
+| `ProjectileBoneFeedbackEnabledSlots` | BitFlags | `0x50` | `0` |
+| `RaisedWallMesh` | AsciiString | `0x110` | `0` |
+| `RampMesh1` | AsciiString | `0x114` | `0` |
+| `RampMesh2` | AsciiString | `0x118` | `0` |
+| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
+| `RecoilDamping` | Real | `0x5c` | `0.4` |
+| `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.065` |
+| `ShadowForceDisable` | Bool | `0x12b` | `No` |
+| `ShowShadowWhileContained` | Bool | `0x136` | `No` |
+| `StaticModelLODMode` | Bool | `0x135` | `No` |
+| `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
+| `SwitchModelLODMode` | Bool | `0x134` | `No` |
+| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
+| `TrackMarks` | 0x004b65ba | `0x3c` | `0` |
+| `TrackMarksLeftBone` | AsciiString | `0x44` | `0` |
+| `TrackMarksRightBone` | AsciiString | `0x48` | `0` |
+| `TransitionState` | AnimationState | `0x0` | - |
+| `UseDefaultAnimation` | Bool | `0x138` | `No` |
+| `UseFiringArcRotation` | Bool | `0x6a` | `No` |
+| `UseProducerTexture` | Bool | `0xb8` | `No` |
+| `UseStandardModelNames` | Bool | `0x137` | `No` |
+| `WadingParticleSys` | AsciiString | `0x14` | `0` |
+| `WallBoundsMesh` | AsciiString | `0x10c` | `0` |
+| `ZWriteDisableOverride` | Bool | `0x15c` | `No` |
 
 ## W3DScriptedModelDraw
 
@@ -4495,23 +8036,137 @@ constant-tracking through each constructor.
 
 ## W3DSupplyDraw
 
-`sizeof(ModuleData)` = 0x18c, 1 field
+`sizeof(ModuleData)` = 0x18c, 58 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AffectedByStealth` | Bool | `0x15e` | `Yes` |
+| `AlphaCameraAtInnerRadius` | Percent | `0x14c` | `1` |
+| `AlphaCameraFadeInnerRadius` | PositiveReal | `0x148` | `0` |
+| `AlphaCameraFadeOuterRadius` | PositiveReal | `0x144` | `0` |
+| `AlphaRefAnimated` | Bool | `0x139` | `No` |
+| `AlphaRefRange` | IntRange | `0x13c` | - |
+| `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
+| `AnimationState` | AnimationState | `0x0` | - |
+| `AttachModel` | AttachModel | `0x0` | - |
+| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | `0` |
+| `BirthFadeAdditive` | Bool | `0x154` | `No` |
+| `BirthFadeTime` | Duration | `0x150` | `0` |
+| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
+| `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
+| `EmbedPortal` | 0x004c30bd | `0x11c` | `0` |
+| `ExtraPublicBone` | AsciiStringList | `0x30` | `0` |
+| `GlowEmissive` | Bool | `0x129` | `No` |
+| `GlowEnabled` | Bool | `0x128` | `No` |
+| `HighDetailLODThreshold` | Real | `0x12c` | `0` |
+| `HighDetailOnly` | Bool | `0x15f` | `No` |
+| `IdleAnimationState` | AnimationState | `0x0` | - |
+| `InitialRecoilSpeed` | VelocityReal | `0x54` | `2` |
+| `LowDetailLODThreshold` | Real | `0x130` | `0` |
+| `MaxRecoilDistance` | Real | `0x58` | `3` |
+| `MinLODRequired` | Enum | `0x64` | `0` |
+| `ModelConditionState` | ModelConditionState | `0x0` | - |
+| `MultiPlayerOnly` | Bool | `0x15d` | `No` |
+| `NoRotate` | Bool | `0x69` | `No` |
+| `OkToChangeModelColor` | Bool | `0x68` | `No` |
+| `ParticleBonesCheckDrawable` | Bool | `0x12a` | `No` |
+| `ParticlesAttachedToAnimatedBones` | Bool | `0x108` | `No` |
+| `ProjectileBoneFeedbackEnabledSlots` | BitFlags | `0x50` | `0` |
+| `RaisedWallMesh` | AsciiString | `0x110` | `0` |
+| `RampMesh1` | AsciiString | `0x114` | `0` |
+| `RampMesh2` | AsciiString | `0x118` | `0` |
+| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
+| `RecoilDamping` | Real | `0x5c` | `0.4` |
+| `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.065` |
+| `ShadowForceDisable` | Bool | `0x12b` | `No` |
+| `ShowShadowWhileContained` | Bool | `0x136` | `No` |
+| `StaticModelLODMode` | Bool | `0x135` | `No` |
+| `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
 | `SupplyBonePrefix` | AsciiString | `0x188` | `0` |
+| `SwitchModelLODMode` | Bool | `0x134` | `No` |
+| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
+| `TrackMarks` | 0x004b65ba | `0x3c` | `0` |
+| `TrackMarksLeftBone` | AsciiString | `0x44` | `0` |
+| `TrackMarksRightBone` | AsciiString | `0x48` | `0` |
+| `TransitionState` | AnimationState | `0x0` | - |
+| `UseDefaultAnimation` | Bool | `0x138` | `No` |
+| `UseFiringArcRotation` | Bool | `0x6a` | `No` |
+| `UseProducerTexture` | Bool | `0xb8` | `No` |
+| `UseStandardModelNames` | Bool | `0x137` | `No` |
+| `WadingParticleSys` | AsciiString | `0x14` | `0` |
+| `WallBoundsMesh` | AsciiString | `0x10c` | `0` |
+| `ZWriteDisableOverride` | Bool | `0x15c` | `No` |
 
 ## W3DTankDraw
 
-`sizeof(ModuleData)` = 0x19c, 5 fields
+`sizeof(ModuleData)` = 0x19c, 62 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AffectedByStealth` | Bool | `0x15e` | `Yes` |
+| `AlphaCameraAtInnerRadius` | Percent | `0x14c` | `1` |
+| `AlphaCameraFadeInnerRadius` | PositiveReal | `0x148` | `0` |
+| `AlphaCameraFadeOuterRadius` | PositiveReal | `0x144` | `0` |
+| `AlphaRefAnimated` | Bool | `0x139` | `No` |
+| `AlphaRefRange` | IntRange | `0x13c` | - |
+| `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
+| `AnimationState` | AnimationState | `0x0` | - |
+| `AttachModel` | AttachModel | `0x0` | - |
+| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | `0` |
+| `BirthFadeAdditive` | Bool | `0x154` | `No` |
+| `BirthFadeTime` | Duration | `0x150` | `0` |
+| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
+| `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
+| `EmbedPortal` | 0x004c30bd | `0x11c` | `0` |
+| `ExtraPublicBone` | AsciiStringList | `0x30` | `0` |
+| `GlowEmissive` | Bool | `0x129` | `No` |
+| `GlowEnabled` | Bool | `0x128` | `No` |
+| `HighDetailLODThreshold` | Real | `0x12c` | `0` |
+| `HighDetailOnly` | Bool | `0x15f` | `No` |
+| `IdleAnimationState` | AnimationState | `0x0` | - |
+| `InitialRecoilSpeed` | VelocityReal | `0x54` | `2` |
+| `LowDetailLODThreshold` | Real | `0x130` | `0` |
+| `MaxRecoilDistance` | Real | `0x58` | `3` |
+| `MinLODRequired` | Enum | `0x64` | `0` |
+| `ModelConditionState` | ModelConditionState | `0x0` | - |
+| `MultiPlayerOnly` | Bool | `0x15d` | `No` |
+| `NoRotate` | Bool | `0x69` | `No` |
+| `OkToChangeModelColor` | Bool | `0x68` | `No` |
+| `ParticleBonesCheckDrawable` | Bool | `0x12a` | `No` |
+| `ParticlesAttachedToAnimatedBones` | Bool | `0x108` | `No` |
+| `ProjectileBoneFeedbackEnabledSlots` | BitFlags | `0x50` | `0` |
+| `RaisedWallMesh` | AsciiString | `0x110` | `0` |
+| `RampMesh1` | AsciiString | `0x114` | `0` |
+| `RampMesh2` | AsciiString | `0x118` | `0` |
+| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
+| `RecoilDamping` | Real | `0x5c` | `0.4` |
+| `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.065` |
+| `ShadowForceDisable` | Bool | `0x12b` | `No` |
+| `ShowShadowWhileContained` | Bool | `0x136` | `No` |
+| `StaticModelLODMode` | Bool | `0x135` | `No` |
+| `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
+| `SwitchModelLODMode` | Bool | `0x134` | `No` |
+| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
+| `TrackMarks` | 0x004b65ba | `0x3c` | `0` |
+| `TrackMarksLeftBone` | AsciiString | `0x44` | `0` |
+| `TrackMarksRightBone` | AsciiString | `0x48` | `0` |
+| `TransitionState` | AnimationState | `0x0` | - |
 | `TreadAnimationRate` | VelocityReal | `0x190` | `0` |
 | `TreadDebrisLeft` | AsciiString | `0x188` | `"TrackDebrisDirtLeft"` |
 | `TreadDebrisRight` | AsciiString | `0x18c` | `"TrackDebrisDirtRight"` |
 | `TreadDriveSpeedFraction` | Real | `0x198` | `0.3` |
 | `TreadPivotSpeedFraction` | Real | `0x194` | `0.6` |
+| `UseDefaultAnimation` | Bool | `0x138` | `No` |
+| `UseFiringArcRotation` | Bool | `0x6a` | `No` |
+| `UseProducerTexture` | Bool | `0xb8` | `No` |
+| `UseStandardModelNames` | Bool | `0x137` | `No` |
+| `WadingParticleSys` | AsciiString | `0x14` | `0` |
+| `WallBoundsMesh` | AsciiString | `0x10c` | `0` |
+| `ZWriteDisableOverride` | Bool | `0x15c` | `No` |
 
 ## W3DTornadoDraw
 
@@ -4556,18 +8211,43 @@ constant-tracking through each constructor.
 
 ## W3DTruckDraw
 
-`sizeof(ModuleData)` = 0x1f0, 26 fields
+`sizeof(ModuleData)` = 0x1f0, 83 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AffectedByStealth` | Bool | `0x15e` | `Yes` |
+| `AlphaCameraAtInnerRadius` | Percent | `0x14c` | `1` |
+| `AlphaCameraFadeInnerRadius` | PositiveReal | `0x148` | `0` |
+| `AlphaCameraFadeOuterRadius` | PositiveReal | `0x144` | `0` |
+| `AlphaRefAnimated` | Bool | `0x139` | `No` |
+| `AlphaRefRange` | IntRange | `0x13c` | - |
+| `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
+| `AnimationState` | AnimationState | `0x0` | - |
+| `AttachModel` | AttachModel | `0x0` | - |
+| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | `0` |
+| `BirthFadeAdditive` | Bool | `0x154` | `No` |
+| `BirthFadeTime` | Duration | `0x150` | `0` |
+| `BurntTexture` | 0x004c3321 | `0x0` | - |
 | `CabBone` | AsciiString | `0x1d4` | `0` |
 | `CabRotationMultiplier` | Real | `0x1dc` | `1` |
+| `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
+| `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
 | `DirtSpray` | AsciiString | `0x18c` | `0` |
 | `Dust` | AsciiString | `0x188` | `0` |
+| `EmbedPortal` | 0x004c30bd | `0x11c` | `0` |
+| `ExtraPublicBone` | AsciiStringList | `0x30` | `0` |
+| `GlowEmissive` | Bool | `0x129` | `No` |
+| `GlowEnabled` | Bool | `0x128` | `No` |
+| `HighDetailLODThreshold` | Real | `0x12c` | `0` |
+| `HighDetailOnly` | Bool | `0x15f` | `No` |
+| `IdleAnimationState` | AnimationState | `0x0` | - |
+| `InitialRecoilSpeed` | VelocityReal | `0x54` | `2` |
 | `LeftFrontTireBone` | AsciiString | `0x194` | `0` |
 | `LeftFrontTireBone2` | AsciiString | `0x1bc` | `0` |
 | `LeftRearTireBone` | AsciiString | `0x19c` | `0` |
 | `LeftRearTireBone2` | AsciiString | `0x1c4` | `0` |
+| `LowDetailLODThreshold` | Real | `0x130` | `0` |
+| `MaxRecoilDistance` | Real | `0x58` | `3` |
 | `MidLeftFrontTireBone` | AsciiString | `0x1a4` | `0` |
 | `MidLeftMidTireBone` | AsciiString | `0x1b4` | `0` |
 | `MidLeftMidTireBone2` | AsciiString | `0x1cc` | `0` |
@@ -4576,16 +8256,48 @@ constant-tracking through each constructor.
 | `MidRightMidTireBone` | AsciiString | `0x1b8` | `0` |
 | `MidRightMidTireBone2` | AsciiString | `0x1d0` | `0` |
 | `MidRightRearTireBone` | AsciiString | `0x1b0` | `0` |
+| `MinLODRequired` | Enum | `0x64` | `0` |
+| `ModelConditionState` | ModelConditionState | `0x0` | - |
+| `MultiPlayerOnly` | Bool | `0x15d` | `No` |
+| `NoRotate` | Bool | `0x69` | `No` |
+| `OkToChangeModelColor` | Bool | `0x68` | `No` |
+| `ParticleBonesCheckDrawable` | Bool | `0x12a` | `No` |
+| `ParticlesAttachedToAnimatedBones` | Bool | `0x108` | `No` |
 | `PowerslideRotationAddition` | Real | `0x1ec` | `0` |
 | `PowerslideSpray` | AsciiString | `0x190` | `0` |
+| `ProjectileBoneFeedbackEnabledSlots` | BitFlags | `0x50` | `0` |
+| `RaisedWallMesh` | AsciiString | `0x110` | `0` |
+| `RampMesh1` | AsciiString | `0x114` | `0` |
+| `RampMesh2` | AsciiString | `0x118` | `0` |
+| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
+| `RecoilDamping` | Real | `0x5c` | `0.4` |
+| `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.065` |
 | `RightFrontTireBone` | AsciiString | `0x198` | `0` |
 | `RightFrontTireBone2` | AsciiString | `0x1c0` | `0` |
 | `RightRearTireBone` | AsciiString | `0x1a0` | `0` |
 | `RightRearTireBone2` | AsciiString | `0x1c8` | `0` |
 | `RotationDamping` | Real | `0x1e4` | `1` |
+| `ShadowForceDisable` | Bool | `0x12b` | `No` |
+| `ShowShadowWhileContained` | Bool | `0x136` | `No` |
+| `StaticModelLODMode` | Bool | `0x135` | `No` |
+| `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
+| `SwitchModelLODMode` | Bool | `0x134` | `No` |
+| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
 | `TireRotationMultiplier` | Real | `0x1e8` | `1` |
+| `TrackMarks` | 0x004b65ba | `0x3c` | `0` |
+| `TrackMarksLeftBone` | AsciiString | `0x44` | `0` |
+| `TrackMarksRightBone` | AsciiString | `0x48` | `0` |
 | `TrailerBone` | AsciiString | `0x1d8` | `0` |
 | `TrailerRotationMultiplier` | Real | `0x1e0` | `1` |
+| `TransitionState` | AnimationState | `0x0` | - |
+| `UseDefaultAnimation` | Bool | `0x138` | `No` |
+| `UseFiringArcRotation` | Bool | `0x6a` | `No` |
+| `UseProducerTexture` | Bool | `0xb8` | `No` |
+| `UseStandardModelNames` | Bool | `0x137` | `No` |
+| `WadingParticleSys` | AsciiString | `0x14` | `0` |
+| `WallBoundsMesh` | AsciiString | `0x10c` | `0` |
+| `ZWriteDisableOverride` | Bool | `0x15c` | `No` |
 
 ## WallHubBehavior
 
@@ -4607,12 +8319,31 @@ constant-tracking through each constructor.
 
 ## WanderAIUpdate
 
-`sizeof(ModuleData)` = 0x74, 4 fields
+`sizeof(ModuleData)` = 0x74, 23 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AILuaEventsList` | AsciiString | `0x2c` | `0` |
+| `AttackPriority` | AsciiString | `0x44` | `"DefaultAttackPriority"` |
+| `AutoAcquireEnemiesWhenIdle` | BitFlags | `0x1c` | `0` |
+| `BurningDeathTime` | Duration | `0x40` | `0` |
+| `CanAttackWhileContained` | Bool | `0x25` | `No` |
+| `ComboLocoAttackDistance` | Real | `0x4c` | `80` |
+| `ComboLocomotorSet` | Enum | `0x50` | `0` |
 | `ConditionForEntry` | ModelConditionFlag | `0x68` | `-1` |
+| `FadeOnPortals` | Bool | `0x54` | `No` |
+| `HoldGroundCloseRangeDistance` | Real | `0x28` | `0` |
+| `MaxCowerTime` | Duration | `0x30` | `0` |
+| `MinCowerTime` | Duration | `0x34` | `0` |
+| `MoodAttackCheckRate` | Duration | `0x18` | - |
+| `RampageRequiresAflame` | Bool | `0x3c` | `No` |
+| `RampageTime` | Duration | `0x38` | `0` |
 | `Selectable` | Bool | `0x6c` | `Yes` |
+| `SpecialContactPoints` | AsciiStringList | `0x58` | `0` |
+| `StandGround` | Bool | `0x24` | `No` |
+| `StopChaseDistance` | Real | `0x20` | `500` |
+| `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
+| `Turret` | 0x006620a2 | `0x14` | `0` |
 | `WanderDistance` | Int | `0x70` | `30` |
 | `WildBeast` | Bool | `0x64` | `No` |
 
@@ -4644,46 +8375,204 @@ constant-tracking through each constructor.
 
 ## WeaponChangeSpecialPowerModule
 
-`sizeof(ModuleData)` = 0x9c, 5 fields
+`sizeof(ModuleData)` = 0x9c, 40 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
 | `FlagsUsedForToggle` | WeaponSetFlags | `0x7c` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
 | `ToggleOffAttributeModifier` | AsciiString | `0x98` | - |
 | `ToggleOffSleepFrames` | Int | `0x90` | `0` |
 | `ToggleOnAttributeModifier` | AsciiString | `0x94` | - |
 | `ToggleOnSleepFrames` | Int | `0x8c` | `0` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## WeaponFireSpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xe4, 6 fields
+`sizeof(ModuleData)` = 0xe4, 66 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
 | `BusyForDuration` | Duration | `0xdc` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
 | `NeedLivingTargets` | Bool | `0xe0` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
 | `PlayWeaponPreFireFX` | Bool | `0xe1` | `No` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
 | `SkipContinue` | Bool | `0xd8` | `No` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
 | `SpecialWeapon` | AsciiString | `0xd0` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 | `WhichSpecialWeapon` | Int | `0xd4` | `0` |
 
 ## WeaponModeSpecialPowerUpdate
 
-`sizeof(ModuleData)` = 0x34, 4 fields
+`sizeof(ModuleData)` = 0x34, 7 fields
 
 | field | type | offset | default |
 |---|---|---|---|
 | `AttributeModifier` | AsciiString | `0x18` | `0` |
 | `Duration` | Duration | `0x1c` | `0` |
+| `InitiateSound` | AudioEventRTS | `0xc` | `-1` |
 | `LockWeaponSlot` | LookupList | `0x20` | `5` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0x14` | `No` |
 | `WeaponSetFlags` | WeaponSetFlags | `0x24` | - |
 
 ## WeaponSetSpecialAbilityUpdate
 
-`sizeof(ModuleData)` = 0xd8, 2 fields
+`sizeof(ModuleData)` = 0xd8, 62 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |
 | `WeaponsetEffectDuration` | Duration | `0xd0` | `0` |
 | `WhichWeaponSet` | Int | `0xd4` | `0` |
 
@@ -4703,28 +8592,107 @@ constant-tracking through each constructor.
 
 ## WorkerAIUpdate
 
-`sizeof(ModuleData)` = 0x94, 12 fields
+`sizeof(ModuleData)` = 0x94, 31 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AILuaEventsList` | AsciiString | `0x2c` | `0` |
+| `AttackPriority` | AsciiString | `0x44` | `"DefaultAttackPriority"` |
+| `AutoAcquireEnemiesWhenIdle` | BitFlags | `0x1c` | `0` |
 | `BoredRange` | Real | `0x70` | `0` |
 | `BoredTime` | DurationReal | `0x6c` | `0` |
+| `BurningDeathTime` | Duration | `0x40` | `0` |
+| `CanAttackWhileContained` | Bool | `0x25` | `No` |
+| `ComboLocoAttackDistance` | Real | `0x4c` | `80` |
+| `ComboLocomotorSet` | Enum | `0x50` | `0` |
+| `FadeOnPortals` | Bool | `0x54` | `No` |
 | `HarvestActionTime` | Duration | `0x8c` | `0` |
 | `HarvestActivationRange` | Real | `0x84` | `50` |
 | `HarvestPreparationTime` | Duration | `0x88` | `0` |
 | `HarvestTrees` | Bool | `0x80` | `No` |
+| `HoldGroundCloseRangeDistance` | Real | `0x28` | `0` |
 | `MaxBoxes` | Int | `0x64` | `0` |
+| `MaxCowerTime` | Duration | `0x30` | `0` |
+| `MinCowerTime` | Duration | `0x34` | `0` |
+| `MoodAttackCheckRate` | Duration | `0x18` | - |
+| `RampageRequiresAflame` | Bool | `0x3c` | `No` |
+| `RampageTime` | Duration | `0x38` | `0` |
 | `RepairHealthPercentPerSecond` | Percent | `0x68` | `0` |
+| `SpecialContactPoints` | AsciiStringList | `0x58` | `0` |
+| `StandGround` | Bool | `0x24` | `No` |
+| `StopChaseDistance` | Real | `0x20` | `500` |
 | `SuppliesDepletedVoice` | AudioEventRTS | `0x90` | `0` |
 | `SupplyCenterActionDelay` | Duration | `0x74` | `0` |
 | `SupplyWarehouseActionDelay` | Duration | `0x78` | `0` |
 | `SupplyWarehouseScanDistance` | Real | `0x7c` | `100` |
+| `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
+| `Turret` | 0x006620a2 | `0x14` | `0` |
 
 ## WoundArrowUpdate
 
-`sizeof(ModuleData)` = 0xd8, 2 fields
+`sizeof(ModuleData)` = 0xd8, 62 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AbilityAbortRange` | Real | `0x50` | `1e+07` |
+| `ActiveLoopSound` | AudioEventRTS | `0x34` | `0` |
+| `AlwaysValidateSpecialObjects` | Bool | `0xae` | `No` |
+| `ApproachRequiresLOS` | Bool | `0xb1` | `No` |
+| `ApproachUntilMembersInRange` | Bool | `0xc5` | `No` |
+| `AttributeModifierDuration` | Duration | `0x98` | `0` |
+| `AwardXPForTriggering` | Int | `0x64` | `0` |
+| `ChainedButton` | AsciiString | `0xc0` | `""` |
+| `ChargeAttackSpeedBoost` | Bool | `0xb2` | `No` |
+| `ContactPointOverride` | AsciiString | `0xbc` | `0` |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x18` | `-1` |
+| `DisableFXParticleSystem` | ParticleSystem | `0x3c` | `0` |
+| `DisableWhenWearingTheRing` | Bool | `0xb6` | `No` |
+| `DoCaptureFX` | Bool | `0xaf` | `No` |
+| `EffectDuration` | Duration | `0x7c` | `0` |
+| `EffectRange` | Real | `0x60` | `0` |
+| `EffectValue` | Int | `0x5c` | `0` |
 | `FleeDistance` | Real | `0xd0` | `100` |
+| `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
+| `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
+| `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
 | `ForbiddenConditions` | BitFlags | `0xd4` | `0` |
+| `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
+| `GrabPassengerAnimAndDuration` | AnimAndDuration | `0x24` | `-1` |
+| `GrabPassengerHealGainPercent` | NonNegativeReal | `0x30` | `100` |
+| `IgnoreFacingCheck` | Bool | `0xc6` | `No` |
+| `Instant` | Bool | `0xb7` | `No` |
+| `KillAttributeModifierOnExit` | Bool | `0xb3` | `No` |
+| `KillAttributeModifierOnRejected` | Bool | `0xb4` | `No` |
+| `LoseStealthOnTrigger` | Bool | `0xb0` | `No` |
+| `MaxSpecialObjects` | Int | `0x80` | `0` |
+| `MustFinishAbility` | Bool | `0xb5` | `No` |
+| `NeedCollisionBeforeTrigger` | Bool | `0xb8` | `No` |
+| `PackSound` | AudioEventRTS | `0x8` | `0` |
+| `PackTime` | Duration | `0x84` | `0` |
+| `PackUnpackVariationFactor` | Real | `0x54` | `0` |
+| `ParalyzeDurationWhenAborted` | Duration | `0x94` | `0` |
+| `ParalyzeDurationWhenCompleted` | Duration | `0x90` | `0` |
+| `PersistentCount` | Int | `0x70` | `-1` |
+| `PersistentPrepTime` | Duration | `0x78` | `0` |
+| `PreparationTime` | Duration | `0x74` | `0` |
+| `PrepSoundLoop` | AudioEventRTS | `0x10` | `0` |
+| `PreTriggerUnstealthTime` | Duration | `0x8c` | `0` |
+| `RejectedConditions` | BitFlags | `0xa4` | `0` |
+| `RequiredConditions` | BitFlags | `0xa0` | `0` |
+| `SkillPointsForTriggering` | Int | `0x68` | `-1` |
+| `SkipPackingWithNoTarget` | Bool | `0xa8` | `No` |
+| `SpecialObject` | AsciiString | `0x40` | `0` |
+| `SpecialObjectAttachToBone` | AsciiString | `0x44` | `0` |
+| `SpecialObjectsPersistent` | Bool | `0xa9` | `No` |
+| `SpecialObjectsPersistWhenOwnerDies` | Bool | `0xab` | `No` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
+| `StartAbilityRange` | Real | `0x4c` | `1e+07` |
+| `SuppressForHordes` | Bool | `0xc4` | `No` |
+| `TriggerAttributeModifier` | AsciiString | `0x48` | `0` |
+| `TriggerModelCondition` | ModelConditionFlag | `0xc8` | `-1` |
+| `TriggerModelConditionDuration` | Real | `0xcc` | `0` |
+| `TriggerSound` | AudioEventRTS | `0x14` | `0` |
+| `UniqueSpecialObjectTargets` | Bool | `0xaa` | `No` |
+| `UnpackingVariation` | Int | `0x6c` | `0` |
+| `UnpackSound` | AudioEventRTS | `0xc` | `0` |
+| `UnpackTime` | Duration | `0x88` | `0` |

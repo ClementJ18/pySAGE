@@ -187,6 +187,13 @@ Its `doSpecialPower` is `0x00897987`:
 Note what this already is: **a name-matched special-power selector**, limited to exactly one name.
 The requested filter is the plural of a mechanism the module already has.
 
+That plural has since been built, for this keyword rather than for the discount:
+[`trigger-recharge-list`](trigger-recharge-list.md) makes `OnTriggerRechargeSpecialPower` take any
+number of names, by repointing the parse function at `0x00C64FA4` and the compare at `0x00897A21`.
+It is not this feature - it changes *which powers this module recharges*, not which powers respect
+a `SpellRechargeModifierUpgrade` - but it is the same function, and the two edits it makes are
+disjoint from the ones scoped here.
+
 ### Two paths that already ignore the flag
 
 Worth knowing before writing any bytes, because for some powers the feature is already shipped:

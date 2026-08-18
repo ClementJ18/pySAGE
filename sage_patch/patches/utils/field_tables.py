@@ -41,6 +41,7 @@ from ...utils import va_to_offset
 from .name_tables import read_cstring
 
 __all__ = [
+    "ROW_SIZE",
     "Entry",
     "entries_before",
     "read_field_table",

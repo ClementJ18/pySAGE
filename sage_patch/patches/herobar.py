@@ -1,32 +1,41 @@
-"""`HEROBAR` - a kindof that puts an object on the hero bar without making it a `HERO`.
+"""`HEROBAR` and `HEROBAR_GROUP` - two kindofs that put an object on the hero bar without making it
+a `HERO`.
 
-Two shapes, one patch.
+Neither is a `HERO`, so nothing that asks "is this a hero" - armour, targeting, the AI, scripts,
+`ExcludedKindOf` lists - answers differently for either one. They differ only in how many slots the
+instances of a template take.
 
-**Membership**, the default, is the whole feature for most callers: a `HEROBAR` object joins the
-hero bar and nothing else about it changes. It is *not* a `HERO`, so nothing that asks "is this a
-hero" - armour, targeting, the AI, scripts, `ExcludedKindOf` lists - answers differently. It gets
-a slot of its own, drawn with the rank, health, highlight and flash every other slot has, and
-clicking it selects it. Three hooks, no runtime state, and a read-execute cave.
+**`HEROBAR`** is a slot per object. It is drawn with the rank, health, highlight and flash every
+other slot has, clicking it selects that object, and nothing else about the object changes.
 
-**Grouping**, `--grouped`, adds slot sharing on top: every instance of one `ThingTemplate`
-occupies **one** slot, that slot draws **how many members the group has** where a hero's slot
-draws its rank, and clicking it selects the members **one at a time** - click again for the next
-one, the way `PORTER` steps through porters. It is still not what `PORTER` does: `PORTER` collapses
-every porter into a **single** slot whatever template it came from, so its grouping key is nothing
-at all where this one is the template.
+**`HEROBAR_GROUP`** is a slot per *template*: every instance of one `ThingTemplate` shares **one**
+slot, that slot draws **how many members the group has** where a hero's slot draws its rank, and
+clicking it selects the members **one at a time** - click again for the next one, the way `PORTER`
+steps through porters. It is still not what `PORTER` does: `PORTER` collapses every porter into a
+**single** slot whatever template it came from, so its grouping key is nothing at all where this
+one is the template.
 
-Why the grouped half is small
------------------------------
+One patch adds both, because both bits are spent either way: `KindOfMaskType` has exactly two free
+bits and this takes them, so a binary carrying this patch has no room for a third added kindof (see
+:mod:`.kind_of`). The choice that matters is per template rather than per binary anyway - `HEROBAR`
+on something there is one of, `HEROBAR_GROUP` on something there are many of - and a mod wants both
+answers available at once.
+
+A template carrying **both** kindofs is grouped: membership asks "either kindof" and the draw loop
+asks only `HEROBAR_GROUP`, so the group behaviour is what the pair adds up to.
+
+Why the grouping is small
+-------------------------
 The hero bar already has the shape it needs, for porters, and almost all of it is generic:
 
 * the slot cache is `0x18` bytes x 16 at `bar+0x48`, and `slot+0x16` is a **"this slot is a
   group" byte** that the click handler at `0x0092DBD6` already reads and dispatches on;
 * a group slot is drawn with the *same* ActionScript calls as a hero slot, so nothing about the
   `.apt` movie changes;
-* `KindOfMaskType` has two free bits, so the kindof itself costs no data growth (see
+* `KindOfMaskType` has two free bits, so the kindofs themselves cost no data growth (see
   :mod:`.kind_of`).
 
-So this patch adds no drawing code at all. Both modes put `HEROBAR` objects on the **hero list** -
+So this patch adds no drawing code at all. Both kindofs put their objects on the **hero list** -
 the one the draw loop already walks, sorted, slot by slot - and grouping then does four small
 things around that loop: reset a per-pass set of templates before it starts, skip a node whose
 template has already been drawn this pass, mark the slot it did draw as a group, and hand the
@@ -35,24 +44,38 @@ duplicates simply never reach a slot.
 
 The hooks, all five-to-seven-byte detours:
 
-===========  ==========================  ===========  =========================================
-site         engine function             mode         what the detour adds
-===========  ==========================  ===========  =========================================
-`0x0092CD7F` `onObjectAdded`             both         `HEROBAR` joins `HERO` on the way to the
-                                                      hero list
-`0x0092C439` `onObjectRemoved` gate      both         `HEROBAR` is a thing this function accepts
-`0x0092C467` `onObjectRemoved` list      both         ...and removes from the hero list
-`0x0092D36F` draw-loop preheader         `--grouped`  clear the per-pass template set
-`0x0092D3EE` draw loop, per node         `--grouped`  skip a drawn template; mark and count it
-`0x0092DBD6` click dispatch              `--grouped`  a `2` in `slot+0x16` means "step the group"
-===========  ==========================  ===========  =========================================
+============  ==========================  ===============  =====================================
+site          engine function             reads            what the detour adds
+============  ==========================  ===============  =====================================
+`0x0092CD7F`  `onObjectAdded`             either kindof    the object joins `HERO` on the way to
+                                                           the hero list
+`0x0092C439`  `onObjectRemoved` gate      either kindof    the object is a thing this function
+                                                           accepts
+`0x0092C467`  `onObjectRemoved` list      either kindof    ...and removes from the hero list
+`0x0092C911`  select-all-heroes, count    either kindof    a bar kindof that is not a `HERO` is
+                                                           not what that button selects
+`0x0092C999`  select-all-heroes, select   either kindof    ...and the same test in the pass that
+                                                           builds the selection
+`0x0092D36F`  draw-loop preheader         nothing          clear the per-pass template set
+`0x0092D3EE`  draw loop, per node         `HEROBAR_GROUP`  skip a drawn template; mark and count
+                                                           it
+`0x0092DBD6`  click dispatch              the slot byte    a `2` in `slot+0x16` means "step the
+                                                           group"
+============  ==========================  ===============  =====================================
 
 Plus one edit that is not a detour: `0x0092BF4E`, in the hover handler, which reads the same
 `slot+0x16` byte as a flag and would otherwise give a group the porter's *"select nearest unit"*
-tooltip. Two bytes, `--grouped` only - see :data:`TOOLTIP_EDIT`.
+tooltip. Two bytes - see :data:`TOOLTIP_EDIT`.
 
-The removal pair is not optional bookkeeping in either mode: without it a dead `HEROBAR` object's
-node stays on the hero list forever, because the stock gate accepts only `HERO` and `PORTER`.
+The removal pair is not optional bookkeeping for either kindof: without it a dead object's node
+stays on the hero list forever, because the stock gate accepts only `HERO` and `PORTER`.
+
+Neither is the select-all pair. `_OnBttnSelectAllHeroes` (`0x0092C8C4`) does not ask `HERO` at
+all - it walks the **slot array**, twice, and selects whatever each slot resolves to. Being on the
+bar is what that button means by "hero", so every object this patch put there came back selected.
+The two hooks apply one test, `HERO` first so that a template carrying `HERO` *and* a bar kindof
+still counts, and send a rejected object to each loop's own "next slot" label. Both passes get it
+because they have to agree: the first sizes the selection and the second fills it.
 
 The count badge
 ---------------
@@ -124,21 +147,25 @@ Known limits, stated rather than discovered
 -------------------------------------------
 * **A group shows its member count where a hero shows a rank**, the way a `PORTER` slot does, and
   a group of one therefore shows `1`. That is not a separate feature: grouping and the badge are
-  the same thing seen twice, so `--grouped` carries both.
+  the same thing seen twice, so `HEROBAR_GROUP` carries both, and `HEROBAR` is the kindof for a
+  template that wants the rank.
 * **The veteran member's rank is not readable from the bar** once the number is a count. The
   health bar and the rank progress ring still come from the representative.
 * **A repeat click always centres, where the porter only centres what is off screen.** The porter
   cycle asks `0x0092BB2A` whether the object is already visible and skips the camera if it is.
   Here the second click *is* the request, so it moves the camera either way.
 * **The bar is still 16 slots** unless `hero-bar-slots` widens it. Groups consume slots, so enough
-  distinct `HEROBAR` templates in play push heroes off the end - the stock `buttonIndex >= 0x11`
-  break at `0x0092D3E5`, which drops them silently rather than crashing. Past slot 16 the per-pass
-  set and the cursor table both clamp: grouping and stepping degrade, nothing corrupts.
-* **`HERO` and `HEROBAR` are not exclusive.** The classifier tests `HERO` first, but both arms
-  end on the same list, and the draw hook asks only whether the template is `HEROBAR` - so a
-  template carrying both is a hero *and* groups with its own kind.
-* **A template with no hero-bar button image is dropped** by `addHero`, in both modes, exactly as
-  a `HERO` without one is.
+  distinct `HEROBAR_GROUP` templates in play push heroes off the end - the stock
+  `buttonIndex >= 0x11` break at `0x0092D3E5`, which drops them silently rather than crashing.
+  Past slot 16 the per-pass set and the cursor table both clamp: grouping and stepping degrade,
+  nothing corrupts.
+* **`HERO` and either kindof are not exclusive.** The classifier tests `HERO` first, but every arm
+  ends on the same list, and the draw hook asks only whether the template is `HEROBAR_GROUP` - so
+  a template carrying `HERO` and `HEROBAR_GROUP` is a hero *and* groups with its own kind.
+* **A template with no hero-bar button image is dropped** by `addHero`, under either kindof,
+  exactly as a `HERO` without one is.
+* **This patch spends the last two kindof bits.** Nothing else can add a kindof to a binary that
+  carries it, and it cannot be applied to one that already carries an added kindof.
 * **Derived statically, then run in a game** - except the step-through cycle, which replaced a
   select-the-whole-group click and has not been run. See ``../docs/herobar.md``.
 """
@@ -158,36 +185,31 @@ from .utils import kind_of
 from .utils.name_tables import offset as _offset
 
 __all__ = [
+    "DEFAULT_GROUP_KINDOF",
     "DEFAULT_JUMP_WINDOW",
     "DEFAULT_KINDOF",
-    "GROUPING_HOOKS",
-    "MAX_JUMP_WINDOW",
     "HOOKS",
-    "MEMBERSHIP_HOOKS",
+    "MAX_JUMP_WINDOW",
     "SECTION_CHARACTERISTICS",
     "SECTION_NAME",
     "STATE_SIZE",
     "TOOLTIP_EDIT",
-    "UNGROUPED_CHARACTERISTICS",
     "Cave",
     "HeroBarPatch",
     "build_cave",
-    "hooks",
-    "state_size",
 ]
 
 SECTION_NAME = ".hbar"
 
-#: `CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE`, for `--grouped`. That
-#: cave holds the rebuilt name table, the new name, the hook code *and* the scratch words the draw
-#: and click hooks write, and a section carries one set of page permissions for all of it.
+#: `CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE`. The cave holds the
+#: rebuilt name table, the two new names, the hook code *and* the scratch words the draw and click
+#: hooks write, and a section carries one set of page permissions for all of it.
 SECTION_CHARACTERISTICS = 0xE0000060
 
-#: What a membership-only cave asks for instead: read-execute. It keeps no runtime state, so a
-#: writable cave would be a page permission granted for nothing.
-UNGROUPED_CHARACTERISTICS = kind_of.SECTION_CHARACTERISTICS
-
+#: A slot per object, and a slot per template. Both are added by one application of the patch; a
+#: template names whichever of the two it wants.
 DEFAULT_KINDOF = "HEROBAR"
+DEFAULT_GROUP_KINDOF = "HEROBAR_GROUP"
 
 #: How long after a click a second one still means "take me there", in milliseconds, and the
 #: ceiling `--jump-window` accepts. 500 is what Windows itself calls a double click, and it is a
@@ -216,6 +238,10 @@ OBJECT_GET_DRAWABLE = 0x0070E013  # thiscall(Object) -> Drawable*, ret 0
 APPEND_BOOLEAN_ARGUMENT = 0x00711104  # thiscall(GameMessage, bool), ret 4
 APPEND_OBJECT_ID_ARGUMENT = 0x0071111A  # thiscall(GameMessage, ObjectID), ret 4
 BAR_ACCEPTS_OBJECT = 0x0092BBEF  # (Object*) -> bool: local player && !NO_HERO_PROPERTIES, ret 4
+#: `Object::isSelectable()`: `ALWAYS_SELECTABLE`, else the status bits, `DRONE` and the rest. It is
+#: what both passes of the select-all-heroes button ask about a slot's object, and the call the two
+#: `select_all_*` hooks displace and re-issue.
+OBJECT_IS_SELECTABLE = 0x0068DE58  # thiscall(Object) -> bool, ret 0
 DRAWABLE_POSITION = 0x00676711  # thiscall(Drawable) -> Coord3D*, ret 0
 #: MSVC's `_ftol`: truncates `st(0)` into `eax`, no stack arguments, pops the value.
 FTOL = 0x00A3CFA4
@@ -272,30 +298,40 @@ class _Hook:
         return len(self.original)
 
 
-#: What every mode installs: how a `HEROBAR` object reaches the bar, and how it leaves again.
-MEMBERSHIP_HOOKS = (
+#: The first three are membership - how either kindof reaches the bar, and how it leaves again.
+#: The next two keep the *select all heroes* button off both kindofs. The last three are grouping:
+#: which nodes reach a slot, and what a click on one of them does.
+HOOKS = (
     _Hook(
         0x0092CD7F,
         bytes.fromhex("f6801301000004"),  # test byte [eax+0x113], 4
         "classify",
-        "onObjectAdded: route HEROBAR to the hero list",
+        "onObjectAdded: route both hero-bar kindofs to the hero list",
     ),
     _Hook(
         0x0092C439,
         bytes.fromhex("85b810010000"),  # test [eax+0x110], edi
         "remove_gate",
-        "onObjectRemoved: accept HEROBAR at all",
+        "onObjectRemoved: accept both hero-bar kindofs at all",
     ),
     _Hook(
         0x0092C467,
         bytes.fromhex("85be10010000"),  # test [esi+0x110], edi
         "remove_list",
-        "onObjectRemoved: erase HEROBAR from the hero list",
+        "onObjectRemoved: erase both hero-bar kindofs from the hero list",
     ),
-)
-
-#: What `--grouped` adds: which nodes reach a slot, and what a click on one of them does.
-GROUPING_HOOKS = (
+    _Hook(
+        0x0092C911,
+        bytes.fromhex("8bcee84015d6ff"),  # mov ecx,esi ; call Object::isSelectable
+        "select_all_scan",
+        "select-all-heroes, the counting pass: a hero-bar kindof is not a hero",
+    ),
+    _Hook(
+        0x0092C999,
+        bytes.fromhex("8bcee8b814d6ff"),  # mov ecx,esi ; call Object::isSelectable
+        "select_all_pick",
+        "select-all-heroes, the selecting pass: a hero-bar kindof is not a hero",
+    ),
     _Hook(
         0x0092D36F,
         bytes.fromhex("8b45dc8d4801"),  # mov eax,[ebp-0x24] ; lea ecx,[eax+1]
@@ -316,8 +352,6 @@ GROUPING_HOOKS = (
     ),
 )
 
-HOOKS = MEMBERSHIP_HOOKS + GROUPING_HOOKS
-
 
 @dataclass(frozen=True)
 class _Edit:
@@ -337,8 +371,7 @@ class _Edit:
 #:
 #: Narrowing the test to `cmp ..., 1 ; jne` costs two bytes and no cave: `1` still means the porter
 #: group, and `0` and `2` both take the arm that builds the tooltip from the slot's own node - which
-#: is the representative's object, drawn exactly as a hero's slot draws it. Grouped-only, because
-#: nothing writes a `2` without grouping.
+#: is the representative's object, drawn exactly as a hero's slot draws it.
 TOOLTIP_EDIT = _Edit(
     0x0092BF4E,
     bytes.fromhex("807816007456"),  # cmp byte [eax+0x16], 0 ; je 0x0092BFAA
@@ -347,17 +380,20 @@ TOOLTIP_EDIT = _Edit(
 )
 
 
-def hooks(grouped: bool) -> tuple[_Hook, ...]:
-    """The detours a mode installs. The three it leaves out are asserted **unpatched** by
-    :meth:`HeroBarPatch.verify`, which is what keeps the two modes distinguishable in a binary."""
-    return HOOKS if grouped else MEMBERSHIP_HOOKS
-
-
 # Where each detour rejoins the engine.
 _CLASSIFY_HERO = 0x0092CD88  # push edx ; call addHero
 _CLASSIFY_PORTER = 0x0092CD90  # the stock PORTER test
 _REMOVE_GATE_RESUME = 0x0092C43F  # mov ebx,ecx ; jne <hero>
 _REMOVE_LIST_RESUME = 0x0092C46D  # je <porter list>
+#: The select-all-heroes button walks the slot array twice - once to find the last eligible slot,
+#: once to append each one to the selection message - and both passes reach their hook with `esi`
+#: holding the slot's `Object`. Each has its own "next slot" label, which is where a rejected
+#: object goes.
+_SELECT_SCAN_RESUME = 0x0092C918  # test al, al   (after the displaced call)
+_SELECT_SCAN_SKIP = 0x0092C94E  # inc [ebp-8] ; add [ebp-0xc], 0x18
+_SELECT_PICK_RESUME = 0x0092C9A0
+_SELECT_PICK_SKIP = 0x0092CA5F
+
 _PASS_RESET_RESUME = 0x0092D375  # imul eax, eax, 0x18
 _PER_NODE_SAME = 0x0092D425  # the slot already shows this node
 _PER_NODE_DRAW = 0x0092D3F3  # draw the slot from scratch
@@ -366,11 +402,10 @@ _CLICK_PORTER = 0x0092DBDD  # the stock porter cycle
 _CLICK_SINGLE = 0x0092DBEB  # the stock single-object select
 _CLICK_DONE = 0x0092DDE1  # pop edi ; pop esi ; leave ; ret 4
 
-#: Scratch words at the head of a `--grouped` cave, in this order: the per-pass template set and
-#: its length, the values the click routine carries across the calls it makes, the per-slot cursor
-#: table, and the two the badge count needs. Sized to a round `0xC0` so the code that follows
-#: starts on a recognisable boundary. A membership-only cave has none of this and opens with its
-#: code.
+#: Scratch words at the head of the cave, in this order: the per-pass template set and its length,
+#: the values the click routine carries across the calls it makes, the per-slot cursor table, and
+#: the two the badge count needs. Sized to a round `0xC0` so the code that follows starts on a
+#: recognisable boundary.
 #:
 #: The last word is the odd one out: :data:`_OFF_WINDOW_MS` is written by the patcher and only
 #: *read* at runtime. It sits here rather than in the code because `fild` wants a memory operand
@@ -397,12 +432,6 @@ _OFF_CLICK_DEADLINE = 0xB4
 _OFF_WINDOW_MS = 0xB8  # written once by the patcher; the only word here the game never writes
 
 
-def state_size(grouped: bool) -> int:
-    """How many bytes of scratch the cave opens with. Grouping keeps runtime state; membership
-    keeps none, which is also why its cave asks for no `MEM_WRITE`."""
-    return STATE_SIZE if grouped else 0
-
-
 def _u32(value: int) -> bytes:
     return struct.pack("<I", value)
 
@@ -426,14 +455,17 @@ class Cave:
 def build_cave(
     base_va: int,
     bit: int,
-    grouped: bool = False,
+    group_bit: int,
     jump_window: int = DEFAULT_JUMP_WINDOW,
 ) -> Cave:
-    """One mode's hook routines - and, for ``grouped``, the scratch words they use - at
-    ``base_va``.
+    """The six hook routines, and the scratch words they use, at ``base_va``.
+
+    ``bit`` is the slot-per-object kindof and ``group_bit`` the slot-per-template one. Every hook
+    is emitted for every application: which of the two an object carries is a runtime question,
+    read from its `ThingTemplate`, not a build-time one.
 
     Deterministic: :meth:`HeroBarPatch.apply` and :meth:`HeroBarPatch.verify` build the same
-    bytes from the same ``(base_va, bit, grouped, jump_window)`` and compare them, which is what
+    bytes from the same ``(base_va, bit, group_bit, jump_window)`` and compare them, which is what
     makes verification possible without a disassembler."""
     emitted_n = base_va + _OFF_EMITTED_N
     emitted = base_va + _OFF_EMITTED
@@ -455,40 +487,66 @@ def build_cave(
 
     is_hero = kind_of.bit_test(HERO_BIT, _EAX, kind_of.THING_TEMPLATE_MASK_OFFSET)
     is_herobar_eax = kind_of.bit_test(bit, _EAX, kind_of.THING_TEMPLATE_MASK_OFFSET)
-    is_herobar_ecx = kind_of.bit_test(bit, _ECX, kind_of.THING_TEMPLATE_MASK_OFFSET)
     is_herobar_esi = kind_of.bit_test(bit, _ESI, kind_of.THING_TEMPLATE_MASK_OFFSET)
+    is_group_eax = kind_of.bit_test(group_bit, _EAX, kind_of.THING_TEMPLATE_MASK_OFFSET)
+    is_group_ecx = kind_of.bit_test(group_bit, _ECX, kind_of.THING_TEMPLATE_MASK_OFFSET)
+    is_group_esi = kind_of.bit_test(group_bit, _ESI, kind_of.THING_TEMPLATE_MASK_OFFSET)
 
-    a = Asm(base_va + state_size(grouped))
+    a = Asm(base_va + STATE_SIZE)
 
     # classify: eax = ThingTemplate, edx = Object.
     # The stock code is `HERO ? addHero : PORTER ? addPorter`. This makes the first arm
-    # `HERO || HEROBAR` by re-testing both bits and re-entering at whichever arm won, so neither
-    # the `je` nor the two calls the engine already has need touching.
+    # `HERO || HEROBAR || HEROBAR_GROUP` by re-testing the three bits and re-entering at whichever
+    # arm won, so neither the `je` nor the two calls the engine already has need touching.
     a.label("classify")
     a.emit(is_hero).jcc(JNZ, "classify_hero")
     a.emit(is_herobar_eax).jcc(JNZ, "classify_hero")
+    a.emit(is_group_eax).jcc(JNZ, "classify_hero")
     a.jmp_absolute(_CLASSIFY_PORTER)
     a.label("classify_hero").jmp_absolute(_CLASSIFY_HERO)
 
     # remove_gate: eax = ThingTemplate, edi = the HERO bit within dword 2.
     # Both removal hooks end by falling into the engine's own branch, so what they have to get
-    # right is the flags, not a target: the last `test` executed is the one the engine reads.
+    # right is the flags, not a target: the last `test` executed is the one the engine reads, and
+    # neither `jcc` nor `jmp` disturbs them on the way there. Testing the three bits in turn and
+    # stopping at the first that is set is therefore the whole of "either kindof counts".
     a.label("remove_gate")
-    a.emit(bytes.fromhex("85b810010000")).jcc(JZ, "remove_gate_herobar")  # test [eax+0x110],edi
-    a.jmp_absolute(_REMOVE_GATE_RESUME)
-    a.label("remove_gate_herobar").emit(is_herobar_eax).jmp_absolute(_REMOVE_GATE_RESUME)
+    a.emit(bytes.fromhex("85b810010000")).jcc(JNZ, "remove_gate_resume")  # test [eax+0x110],edi
+    a.emit(is_herobar_eax).jcc(JNZ, "remove_gate_resume")
+    a.emit(is_group_eax)
+    a.label("remove_gate_resume").jmp_absolute(_REMOVE_GATE_RESUME)
 
     # remove_list: esi = ThingTemplate, edi = the HERO bit.
     a.label("remove_list")
-    a.emit(bytes.fromhex("85be10010000")).jcc(JZ, "remove_list_herobar")  # test [esi+0x110],edi
-    a.jmp_absolute(_REMOVE_LIST_RESUME)
-    a.label("remove_list_herobar").emit(is_herobar_esi).jmp_absolute(_REMOVE_LIST_RESUME)
+    a.emit(bytes.fromhex("85be10010000")).jcc(JNZ, "remove_list_resume")  # test [esi+0x110],edi
+    a.emit(is_herobar_esi).jcc(JNZ, "remove_list_resume")
+    a.emit(is_group_esi)
+    a.label("remove_list_resume").jmp_absolute(_REMOVE_LIST_RESUME)
 
-    if not grouped:
-        return Cave(
-            content=a.finish(),
-            entries={hook.label: a.label_va(hook.label) for hook in MEMBERSHIP_HOOKS},
-        )
+    # select_all_scan / select_all_pick: esi = the slot's Object, eax dead (the engine is about
+    # to overwrite it with the call's result).
+    #
+    # `_OnBttnSelectAllHeroes` walks the slot array rather than testing `HERO`, so every slot this
+    # patch put on the bar was being selected by it. The two passes have to agree exactly - the
+    # first counts and the second appends - so both get the same test, and a rejected object goes
+    # to the loop's own "next slot" label rather than being dropped later.
+    #
+    # `HERO` first, so a template carrying `HERO` *and* a bar kindof is still a hero here; the
+    # button only stops picking up things that are on the bar **instead of** being heroes.
+    for label, resume, skip in (
+        ("select_all_scan", _SELECT_SCAN_RESUME, _SELECT_SCAN_SKIP),
+        ("select_all_pick", _SELECT_PICK_RESUME, _SELECT_PICK_SKIP),
+    ):
+        a.label(label)
+        a.emit(bytes.fromhex("8b46"), OBJECT_TEMPLATE)  # mov eax, [esi+4]
+        a.emit(is_hero).jcc(JNZ, f"{label}_hero")
+        a.emit(is_herobar_eax).jcc(JNZ, f"{label}_skip")
+        a.emit(is_group_eax).jcc(JNZ, f"{label}_skip")
+        a.label(f"{label}_hero")
+        a.emit(bytes.fromhex("8bce"))  # mov ecx, esi          (the displaced pair)
+        a.call_absolute(OBJECT_IS_SELECTABLE)
+        a.jmp_absolute(resume)
+        a.label(f"{label}_skip").jmp_absolute(skip)
 
     # pass_reset: the loop preheader, run once per draw pass.
     a.label("pass_reset")
@@ -505,7 +563,7 @@ def build_cave(
     a.emit(bytes.fromhex("505152"))  # push eax ; push ecx ; push edx
     a.emit(bytes.fromhex("8b4de0"))  # mov ecx, [ebp-0x20]   -> Object
     a.emit(bytes.fromhex("8b49"), OBJECT_TEMPLATE)  # mov ecx, [ecx+4] -> ThingTemplate
-    a.emit(is_herobar_ecx).jcc(JZ, "per_node_plain")
+    a.emit(is_group_ecx).jcc(JZ, "per_node_plain")
 
     a.emit(bytes.fromhex("33c0"))  # xor eax, eax
     a.label("per_node_scan")
@@ -764,41 +822,44 @@ def build_cave(
 
 @dataclass
 class HeroBarPatch(Patch):
-    """Add a `HEROBAR` kindof: a hero-bar slot for an object that is not a `HERO`."""
+    """Add `HEROBAR` and `HEROBAR_GROUP`: a hero-bar slot for something that is not a `HERO`,
+    one per object or one per template."""
 
     name = "herobar"
     author = "officialNecro"
     description = (
-        "add a HEROBAR kindof: an object gets a hero-bar slot without being a HERO; --grouped "
-        "shares one slot between every instance of a template and steps through them on click"
+        "add two kindofs that put an object on the hero bar without making it a HERO: HEROBAR "
+        "gives every object its own slot, HEROBAR_GROUP shares one slot between every instance "
+        "of a template and steps through them on click"
     )
 
     kindof: str = DEFAULT_KINDOF
-    grouped: bool = False
+    group_kindof: str = DEFAULT_GROUP_KINDOF
     jump_window: int = DEFAULT_JUMP_WINDOW
 
     def __post_init__(self) -> None:
         if not 0 <= self.jump_window <= MAX_JUMP_WINDOW:
             raise ValueError(
-                f"jump-window must be in 0..{MAX_JUMP_WINDOW} milliseconds, "
-                f"got {self.jump_window}"
+                f"jump-window must be in 0..{MAX_JUMP_WINDOW} milliseconds, got {self.jump_window}"
             )
 
-    def _cave(self, base_va: int, bit: int) -> Cave:
-        return build_cave(base_va, bit, self.grouped, self.jump_window)
+    @property
+    def _names(self) -> list[str]:
+        return [self.kindof, self.group_kindof]
+
+    def _cave(self, base_va: int, bit: int, group_bit: int) -> Cave:
+        return build_cave(base_va, bit, group_bit, self.jump_window)
 
     def apply(self, data: bytearray) -> None:
         extension = kind_of.extend(
             data,
             SECTION_NAME,
-            [self.kindof],
-            tail=lambda tail_va, bits: self._cave(tail_va, bits[0]).content,
-            characteristics=(
-                SECTION_CHARACTERISTICS if self.grouped else UNGROUPED_CHARACTERISTICS
-            ),
+            self._names,
+            tail=lambda tail_va, bits: self._cave(tail_va, *bits).content,
+            characteristics=SECTION_CHARACTERISTICS,
         )
-        cave = self._cave(extension.tail_va, extension.bits[0])
-        for hook in hooks(self.grouped):
+        cave = self._cave(extension.tail_va, *extension.bits)
+        for hook in HOOKS:
             apply_byte_patch(
                 data,
                 _offset(data, hook.va),
@@ -806,33 +867,32 @@ class HeroBarPatch(Patch):
                 _detour(hook, cave.entries[hook.label]),
                 f"{hook.note} @0x{hook.va:08x}",
             )
-        if self.grouped:
-            apply_byte_patch(
-                data,
-                _offset(data, TOOLTIP_EDIT.va),
-                TOOLTIP_EDIT.original,
-                TOOLTIP_EDIT.patched,
-                f"{TOOLTIP_EDIT.note} @0x{TOOLTIP_EDIT.va:08x}",
-            )
+        apply_byte_patch(
+            data,
+            _offset(data, TOOLTIP_EDIT.va),
+            TOOLTIP_EDIT.original,
+            TOOLTIP_EDIT.patched,
+            f"{TOOLTIP_EDIT.note} @0x{TOOLTIP_EDIT.va:08x}",
+        )
 
     def ini_surface(self) -> Engine:
-        """The one token this patch teaches the INI parser, as a `KindOf` member.
+        """The two tokens this patch teaches the INI parser, as `KindOf` members.
 
-        No index is stated: which bit the name lands on depends on what else the binary already
-        carries, so the generator reads it back from the live table instead."""
-        return Engine(enum_members=(EnumDelta(enum="KindOf", name=self.kindof, patch=self.name),))
+        No index is stated: which bits the names land on depends on what else the binary already
+        carries, so the generator reads them back from the live table instead."""
+        return Engine(
+            enum_members=tuple(
+                EnumDelta(enum="KindOf", name=name, patch=self.name) for name in self._names
+            )
+        )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch, for this kindof name and this mode.
+        """Structural check that ``data`` carries this patch, for these two kindof names.
 
-        Reads only via ``struct`` and the section table. Both the bit and the end of the table
-        come from **the cave's own copy**, never from the live one: a second kindof-adding patch
+        Reads only via ``struct`` and the section table. Both bits and the end of the table come
+        from **the cave's own copy**, never from the live one: a second kindof-adding patch
         becomes the live table and shifts nothing about this one, and this patch is still
-        correctly installed. The live table is consulted only to confirm it still agrees.
-
-        The hooks a mode does *not* install are checked to still hold their stock bytes, which is
-        what makes the two modes tell each other apart rather than one verifying the other's
-        binary."""
+        correctly installed. The live table is consulted only to confirm it still agrees."""
         located = find_section(data, SECTION_NAME)
         if located is None:
             return [f"no {SECTION_NAME} section: the file does not carry this patch"]
@@ -842,14 +902,19 @@ class HeroBarPatch(Patch):
             entries = _cave_table_entries(data, section_va)
         except (ValueError, struct.error) as exc:
             return [f"cannot read the {SECTION_NAME} cave's name table: {exc}"]
+        if entries < len(self._names):
+            return [f"the {SECTION_NAME} cave's table holds {entries} names, too few to be this"]
 
-        bit = entries - 1
-        name = kind_of.read_cstring(data, _cave_entry(data, section_va, bit))
-        if name != self.kindof:
-            return [f"the {SECTION_NAME} cave adds kindof {name!r}, not {self.kindof!r}"]
+        bits = (entries - 2, entries - 1)
+        names = [kind_of.read_cstring(data, _cave_entry(data, section_va, bit)) for bit in bits]
+        if names != self._names:
+            return [
+                f"the {SECTION_NAME} cave adds kindofs {names[0]!r} and {names[1]!r}, "
+                f"not {self.kindof!r} and {self.group_kindof!r}"
+            ]
 
-        tail_va = section_va + entries * 4 + 4 + _padded(len(self.kindof) + 1)
-        cave = self._cave(tail_va, bit)
+        tail_va = section_va + entries * 4 + 4 + _padded(sum(len(n) + 1 for n in self._names))
+        cave = self._cave(tail_va, *bits)
         if not section_va <= tail_va < section_va + vsize:
             return [f"the {SECTION_NAME} cave is too small to hold the hook code"]
 
@@ -859,39 +924,29 @@ class HeroBarPatch(Patch):
         except (ValueError, struct.error) as exc:
             problems.append(f"cannot read the live kindof name table (wrong build?): {exc}")
         else:
-            if table.index_of(data, self.kindof) != bit:
-                problems.append(
-                    f"{self.kindof!r} is kindof {table.index_of(data, self.kindof)} in the live "
-                    f"table but {bit} in the {SECTION_NAME} cave"
-                )
+            for name, bit in zip(self._names, bits, strict=True):
+                if table.index_of(data, name) != bit:
+                    problems.append(
+                        f"{name!r} is kindof {table.index_of(data, name)} in the live table "
+                        f"but {bit} in the {SECTION_NAME} cave"
+                    )
 
         off = _offset(data, tail_va)
         if bytes(data[off : off + len(cave.content)]) != cave.content:
-            mode = "--grouped" if self.grouped else "membership-only"
-            window = f" with a {self.jump_window}ms jump window" if self.grouped else ""
             problems.append(
-                f"the {SECTION_NAME} hook code at 0x{tail_va:08x} is not what bit {bit} builds "
-                f"for a {mode} patch{window}"
+                f"the {SECTION_NAME} hook code at 0x{tail_va:08x} is not what bits {bits[0]} and "
+                f"{bits[1]} build with a {self.jump_window}ms jump window"
             )
 
         here = bytes(data[_offset(data, TOOLTIP_EDIT.va) :][: len(TOOLTIP_EDIT.patched)])
-        wanted = TOOLTIP_EDIT.patched if self.grouped else TOOLTIP_EDIT.original
-        if here != wanted:
+        if here != TOOLTIP_EDIT.patched:
             problems.append(
-                f"{TOOLTIP_EDIT.note} @0x{TOOLTIP_EDIT.va:08x}: expected {wanted.hex()}, "
-                f"got {here.hex()}"
+                f"{TOOLTIP_EDIT.note} @0x{TOOLTIP_EDIT.va:08x}: expected "
+                f"{TOOLTIP_EDIT.patched.hex()}, got {here.hex()}"
             )
 
-        installed = hooks(self.grouped)
         for hook in HOOKS:
             here = bytes(data[_offset(data, hook.va) :][: hook.size])
-            if hook not in installed:
-                if here != hook.original:
-                    problems.append(
-                        f"{hook.note} @0x{hook.va:08x} is detoured, which only the --grouped "
-                        "patch does"
-                    )
-                continue
             if here == hook.original:
                 problems.append(f"{hook.note} @0x{hook.va:08x} is unpatched")
                 continue
@@ -910,9 +965,9 @@ class HeroBarPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> Patch | None:
-        """Recover every parameter from the image: the kindof name is the last entry of the cave's
-        own table, the window is the word the patcher left at :data:`_OFF_WINDOW_MS`, and the mode
-        is whichever of the two the cave's code then turns out to be.
+        """Recover every parameter from the image: the two kindof names are the last two entries
+        of the cave's own table, and the window is the word the patcher left at
+        :data:`_OFF_WINDOW_MS`.
 
         The window is *read* rather than searched for because `verify` compares whole cave bytes:
         a value guessed wrong would fail verification with nothing to say which of the two the
@@ -923,22 +978,20 @@ class HeroBarPatch(Patch):
                 return None
             section_va = located[0]
             entries = _cave_table_entries(data, section_va)
-            name = kind_of.read_cstring(data, _cave_entry(data, section_va, entries - 1))
-            if name is None:
+            if entries < 2:
                 return None
-            membership = cls(kindof=name)
-            if not membership.verify(data):
-                return membership
-            # Only a grouped cave has a state block at all, so the window word is read *after* the
-            # membership mode has been ruled out - on a membership cave that offset is past the
-            # section entirely.
-            tail_va = section_va + entries * 4 + 4 + _padded(len(name) + 1)
+            names = [
+                kind_of.read_cstring(data, _cave_entry(data, section_va, entries - 2 + index))
+                for index in range(2)
+            ]
+            if any(name is None for name in names):
+                return None
+            tail_va = section_va + entries * 4 + 4 + _padded(sum(len(n) + 1 for n in names))
             window = struct.unpack_from("<I", data, _offset(data, tail_va + _OFF_WINDOW_MS))[0]
-            if 0 <= window <= MAX_JUMP_WINDOW:
-                grouped = cls(kindof=name, grouped=True, jump_window=window)
-                if not grouped.verify(data):
-                    return grouped
-            return None
+            if not 0 <= window <= MAX_JUMP_WINDOW:
+                return None
+            found = cls(kindof=names[0], group_kindof=names[1], jump_window=window)
+            return found if not found.verify(data) else None
         except (ValueError, KeyError, IndexError, TypeError, struct.error):
             return None
 
@@ -947,27 +1000,31 @@ class HeroBarPatch(Patch):
         parser.add_argument(
             "--kindof",
             default=DEFAULT_KINDOF,
-            help=f"name of the kindof to add (default: {DEFAULT_KINDOF})",
+            help=f"name of the one-slot-per-object kindof to add (default: {DEFAULT_KINDOF})",
         )
         parser.add_argument(
-            "--grouped",
-            action="store_true",
-            help="share one slot between every instance of a template, and step through them one "
-            "at a time on click (default: no, one slot per object)",
+            "--group-kindof",
+            default=DEFAULT_GROUP_KINDOF,
+            help="name of the one-slot-per-template kindof to add, whose slot shows a member "
+            f"count and steps through its members on click (default: {DEFAULT_GROUP_KINDOF})",
         )
         parser.add_argument(
             "--jump-window",
             type=int,
             default=DEFAULT_JUMP_WINDOW,
             metavar="MS",
-            help="--grouped only: how long after a click a second one on the same slot centres "
+            help="on a group slot, how long after a click a second one on the same slot centres "
             f"the camera instead of stepping, in milliseconds, 0..{MAX_JUMP_WINDOW} "
             f"(default: {DEFAULT_JUMP_WINDOW}; 0 turns the jump off)",
         )
 
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> Patch:
-        return cls(kindof=args.kindof, grouped=args.grouped, jump_window=args.jump_window)
+        return cls(
+            kindof=args.kindof,
+            group_kindof=args.group_kindof,
+            jump_window=args.jump_window,
+        )
 
 
 def _detour(hook: _Hook, target_va: int) -> bytes:
@@ -977,7 +1034,10 @@ def _detour(hook: _Hook, target_va: int) -> bytes:
 
 
 def _padded(size: int) -> int:
-    """``size`` rounded up to a dword, the way :func:`kind_of.layout` pads its name strings."""
+    """``size`` rounded up to a dword, the way :func:`kind_of.layout` pads its name strings.
+
+    The padding goes on once, after the whole run of new strings, so this is called with their
+    summed length rather than once per name."""
     return size + (-size % 4)
 
 

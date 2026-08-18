@@ -5,9 +5,10 @@ ROTWK `game.dat` (11,347,456 bytes — a stock 11,346,944-byte image with the `c
 section `.cahfac` already appended; `.text` is untouched by that patch, so every address below is
 also a stock address).
 
-**Built.** This shipped as [`herobar`](../patches/herobar.py); the implementation writeup is
-[`../herobar.md`](herobar.md), and that is the description of what the patch does. This document
-is the static costing behind it — the kindof bit, the name-table relocation and the hero-bar
+**Built.** This shipped as [`herobar`](../patches/herobar.py), as **two** kindofs rather than one -
+`HEROBAR` for a slot per object and `HEROBAR_GROUP` for the shared slot this document costs. The
+implementation writeup is [`../herobar.md`](herobar.md), and that is the description of what the
+patch does. This document is the static costing behind it — the kindof bit, the name-table relocation and the hero-bar
 model. Where the two differ, `herobar.md` wins: the shipped design reuses the engine's own draw
 loop instead of copying it (which removes both the per-group cursor problem and the blocker in
 [§9](#9-open-questions)), and it selects the group on a click rather than iterating it, which is

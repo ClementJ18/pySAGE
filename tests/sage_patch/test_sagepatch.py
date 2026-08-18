@@ -157,6 +157,22 @@ class TestDrift:
         assert differences(rebuilt.engine, committed.engine)[0].startswith("limit in the file")
 
 
+def _same_converter(stock: object, declared: object) -> bool:
+    """Whether two converters mean the same thing.
+
+    Identity settles the scalars, which are shared singletons, and a class annotation like
+    `SpecialPower`, which is the class itself. The parametrized ones - `Reference`, `List` - are
+    built fresh by `parse_type` on every call and carry no `__eq__`, so they are compared by type
+    and instance state. Shallow on purpose: the comparison can only ever miss a redundant delta,
+    never reject a real re-typing.
+    """
+    if stock is declared:
+        return True
+    if type(stock) is not type(declared) or isinstance(stock, type):
+        return False
+    return getattr(stock, "__dict__", None) == getattr(declared, "__dict__", None)
+
+
 class TestPatchSurfacesMatchTheModel:
     """Every registered patch's declared INI surface, checked against the live model."""
 
@@ -173,14 +189,21 @@ class TestPatchSurfacesMatchTheModel:
             converter, error = parse_type(delta.type)
             assert converter is not None, f"{delta.block}.{delta.name}: {error}"
 
-    def test_no_field_is_one_the_stock_engine_already_had(self, surface):
-        """A patch that "adds" a field the model already declares is either describing the wrong
-        block or describing a field it does not actually add - both make the `.sagepatch` lie."""
+    def test_every_field_is_a_new_one_or_a_real_re_typing(self, surface):
+        """A patch that "adds" a field the model already declares, *with the type it already has*,
+        is either describing the wrong block or describing a field it does not actually change -
+        both make the `.sagepatch` lie. Re-typing a stock field is allowed and is a thing patches
+        do (`trigger-recharge-list` turns a single `SpecialPower` name into a list of them), so
+        what is asserted is that the delta changes something."""
         for delta in surface.fields:
             # No engine is applied here (the suite reverts after every test), so the fieldspec is
             # the stock schema.
-            assert delta.name not in REGISTRY[delta.block]._fieldspec, (
-                f"{delta.block}.{delta.name} is already in the model"
+            stock = REGISTRY[delta.block]._fieldspec.get(delta.name)
+            if stock is None:
+                continue
+            converter, _error = parse_type(delta.type)
+            assert not _same_converter(stock, converter), (
+                f"{delta.block}.{delta.name} is already in the model with that type"
             )
 
     def test_every_token_names_a_real_enum(self, surface):

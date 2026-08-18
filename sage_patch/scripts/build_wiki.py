@@ -626,7 +626,8 @@ def target_link(ref: Reference, owner: str, field: dict, base: str) -> str:
     return f' <span class="reflink" data-tip="{tip}">&rarr; {esc(block)}</span>'
 
 
-def field_rows(ref: Reference, owner: str, fields: list[dict], base: str) -> str:
+def field_rows(ref: Reference, owner: str, fields: list[dict], base: str,
+               origins: bool = False) -> str:
     rows = []
     for f in fields:
         enum = ref.enum_for_field(f)
@@ -645,8 +646,26 @@ def field_rows(ref: Reference, owner: str, fields: list[dict], base: str) -> str
             f'<td class="fname"><code>{esc(f["name"])}</code></td>'
             f'<td>{type_link(ref, f["type"], base)}{extra}</td>'
             f'<td class="num">{default}</td>'
+            f'{origin_cell(f) if origins else ""}'
             f'<td class="val">{control}<span class="why"></span></td></tr>')
     return "\n".join(rows)
+
+
+def origin_cell(field: dict) -> str:
+    """Which class in the chain declares a keyword, on a module that inherits some.
+
+    The engine searches the base's table first, so a keyword declared in both is the
+    base's - offset, type and default included - and the derived one's line is dead.
+    The link is to a sibling page: only modules ever carry this column, and they all
+    live in one directory.
+    """
+    if not field.get("inherited"):
+        return '<td class="from own">its own</td>'
+    parent = field.get("inherited_from")
+    if not parent:
+        return '<td class="from">a base class</td>'
+    return (f'<td class="from"><a href="{esc(slug(parent))}.html">'
+            f'<code>{esc(parent)}</code></a></td>')
 
 
 def ini_skeleton(header: str, fields: list[dict]) -> str:
@@ -666,6 +685,8 @@ def ini_skeleton(header: str, fields: list[dict]) -> str:
 def schema_page(ref: Reference, name: str, fields: list[dict], header: str,
                 lead: str, base: str, facts: str = "") -> str:
     """The page shared by a module and an INI block: its fields, and a block to paste."""
+    origins = any(f.get("inherited") for f in fields)
+    column = "<th>Declared in</th>" if origins else ""
     unknown = [f for f in fields if f["type"].startswith("0x")]
     warn = ""
     if unknown:
@@ -679,9 +700,9 @@ def schema_page(ref: Reference, name: str, fields: list[dict], header: str,
 {facts}
 {warn}
 <table class="fields sortable" data-module="{esc(header)}">
-<thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Value</th></tr></thead>
+<thead><tr><th>Field</th><th>Type</th><th>Default</th>{column}<th>Value</th></tr></thead>
 <tbody>
-{field_rows(ref, name, fields, base)}
+{field_rows(ref, name, fields, base, origins)}
 </tbody>
 </table>
 <div class="inirow">
@@ -699,12 +720,36 @@ left out until you give them a value. {lead}</p>
     return page(ref, name, body, base=base, active=name)
 
 
+def inherits_fact(module: dict) -> list[str]:
+    """What the module takes from its base classes, counted per class.
+
+    A module's own keywords are usually the smaller half: `OCLSpecialPower` declares
+    five and inherits thirty-five, and a page that showed only the five would describe
+    a module nobody could write a working block for.
+    """
+    inherited = [f for f in module["fields"] if f.get("inherited")]
+    if not inherited:
+        return []
+    per: dict[str, int] = {}
+    for f in inherited:
+        per[f.get("inherited_from") or ""] = per.get(f.get("inherited_from") or "", 0) + 1
+    parts = []
+    for parent, count in sorted(per.items(), key=lambda kv: (-kv[1], kv[0])):
+        where = (f'<a href="{esc(slug(parent))}.html"><code>{esc(parent)}</code></a>'
+                 if parent else "an unregistered base class")
+        parts.append(f"{count} from {where}")
+    own = len(module["fields"]) - len(inherited)
+    return [f'<div><dt>Fields</dt><dd>{own} of its own, '
+            f'{", ".join(parts)}</dd></div>']
+
+
 def module_page(ref: Reference, module: dict) -> str:
     mask = module.get("interface_mask") or ""
-    facts = ""
+    items = []
     if mask.startswith("0x") or mask.isdigit():
-        facts = (f'<dl class="facts"><div><dt>Interface mask</dt>'
-                 f'<dd><code>{esc(mask)}</code></dd></div></dl>')
+        items.append(f'<div><dt>Interface mask</dt><dd><code>{esc(mask)}</code></dd></div>')
+    items += inherits_fact(module)
+    facts = f'<dl class="facts">{"".join(items)}</dl>' if items else ""
     lead = ("The leading keyword (<code>Behavior</code>, <code>Draw</code>, "
             "<code>Body</code>, ...) depends on which interface you are attaching.")
     return schema_page(ref, module["name"], module["fields"],
@@ -1167,6 +1212,8 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 .fields tbody tr:hover { background: var(--panel); }
 .fields tbody tr:target { background: var(--accent-soft); }
 .fields .num { text-align: right; white-space: nowrap; }
+.fields .from { white-space: nowrap; font-size: 12.5px; }
+.fields .from.own { color: var(--muted); }
 .fname code { font-weight: 600; }
 .none { color: var(--muted); }
 code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }

@@ -151,6 +151,8 @@ __all__ = [
     "DESCRIPTION_TAIL_RESUME",
     "DESCRIPTION_TEXT_EBP_OFFSET",
     "DESCRIPTION_UNIT_COST_BODY",
+    "DICT_SET_ASCII_STRING",
+    "DICT_SET_ASCII_STRING_BYTES",
     "DISPLAY_DRAW_VTABLE_SLOT",
     "DO_COMMAND_BUTTON",
     "DO_COMMAND_BUTTON_BUTTON_EBP",
@@ -201,6 +203,8 @@ __all__ = [
     "IS_MULTIPLAYER_OR_ITS_REPLAY_BYTES",
     "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY",
     "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY_BYTES",
+    "KEY_PLAYER_AI_TYPE",
+    "KEY_PLAYER_AI_TYPE_BYTES",
     "LIVE_CAMPAIGN_MODE_OFFSET",
     "LIVING_WORLD_OVERRIDE_OFFSET",
     "LIVING_WORLD_OVERRIDE_ROW",
@@ -289,6 +293,8 @@ __all__ = [
     "PLAYER_INIT_ENTRY",
     "PLAYER_INIT_ENTRY_BYTES",
     "PLAYER_INIT_ENTRY_RESUME",
+    "PLAYER_INIT_FROM_DICT",
+    "PLAYER_INIT_FROM_DICT_BYTES",
     "PLAYER_IS_DEFEATED",
     "PLAYER_IS_OBSERVER",
     "PLAYER_LIST_GET_LOCAL_PLAYER",
@@ -297,17 +303,33 @@ __all__ = [
     "PLAYER_LIST_OBSERVE_NEXT_PLAYER",
     "PLAYER_PLAYER_TEMPLATE",
     "PLAYER_SCORE_KEEPER",
+    "PLAYER_SET_TYPE",
+    "PLAYER_SET_TYPE_BYTES",
+    "PLAYER_SKIRMISH_FOUND_EBP",
+    "PLAYER_SKIRMISH_IMPORT",
+    "PLAYER_SKIRMISH_IMPORT_BYTES",
+    "PLAYER_SKIRMISH_IMPORT_RESUME",
+    "PLAYER_SKIRMISH_IMPORT_SKIP",
+    "PLAYER_SKIRMISH_IMPORT_SKIP_BYTES",
+    "PLAYER_SKIRMISH_MISSING_EBP",
+    "PLAYER_SKIRMISH_ROUTE",
+    "PLAYER_SKIRMISH_ROUTE_BYTES",
+    "PLAYER_SKIRMISH_ROUTE_RESUME",
     "PLAYER_TEMPLATE_BLOCK_KEY",
     "PLAYER_TEMPLATE_BLOCK_KEY_BYTES",
     "PLAYER_TEMPLATE_BLOCK_KEY_EARLY",
     "PLAYER_TEMPLATE_BLOCK_KEY_EARLY_BYTES",
     "PLAYER_TEMPLATE_BLOCK_KEY_EARLY_RESUME",
     "PLAYER_TEMPLATE_BLOCK_KEY_RESUME",
+    "PLAYER_TEMPLATE_DEFAULT_AI_TYPE",
+    "PLAYER_TEMPLATE_FIELD_DEFAULT_AI_TYPE",
+    "PLAYER_TEMPLATE_FIELD_DEFAULT_AI_TYPE_BYTES",
     "PLAYER_TEMPLATE_FIELD_TABLE",
     "PLAYER_TEMPLATE_FIELD_TABLE_REFS",
     "PLAYER_TEMPLATE_FIELD_TABLE_REF_OPCODES",
     "PLAYER_TEMPLATE_FIND_BY_KEY",
     "PLAYER_TEMPLATE_NAME_KEY",
+    "PLAYER_TEMPLATE_PTR",
     "PLAYER_TEMPLATE_RESOURCE_FILTER",
     "PLAYER_TEMPLATE_RESOURCE_VALUES",
     "PLAYER_TEMPLATE_SIZE",
@@ -383,6 +405,11 @@ __all__ = [
     "SHROUD_ORIGIN_Y",
     "SHROUD_RECORD_BASE",
     "SHROUD_RECORD_STRIDE",
+    "SIDES_INFO_DICT",
+    "SIDES_LIST_GET_SIDE_INFO",
+    "SIDES_LIST_GET_SIDE_INFO_BYTES",
+    "SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE",
+    "SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE_BYTES",
     "SPECIAL_POWER_FIELD_TABLE",
     "SPECIAL_POWER_FIELD_TABLE_REFS",
     "SPECIAL_POWER_FIELD_TABLE_REF_OPCODES",
@@ -393,6 +420,8 @@ __all__ = [
     "SPECIAL_POWER_UNIT_COST",
     "START_RECORDING",
     "START_RECORDING_MODE_ARG",
+    "STATIC_NAME_KEY_KEY",
+    "STATIC_NAME_KEY_KEY_BYTES",
     "TERRAIN_RESOURCE_BUILD_FIELD_PARSE",
     "TERRAIN_RESOURCE_DEFAULT_STORES",
     "TERRAIN_RESOURCE_DEFAULT_STORES_BYTES",
@@ -426,6 +455,9 @@ __all__ = [
     "THE_RECORDER",
     "THE_SCIENCE_STORE",
     "THE_SHROUD_MANAGER",
+    "THE_SIDES_LIST",
+    "THE_SIDES_LIST_LOAD",
+    "THE_SIDES_LIST_LOAD_BYTES",
     "THE_SKIRMISH_GAME_INFO",
     "THE_SPECIAL_POWER_STORE",
     "THE_TACTICAL_VIEW",
@@ -2214,3 +2246,97 @@ PALANTIR_HOTKEY_STATUS_CALL_BYTES = bytes.fromhex("e853880c00")
 #: The HUD's own consumers read exactly these two fields - see `0x006D789C` and `0x0079DEA8`.
 MISSION_OBJECTIVE_TRACKER = 0x00DE8C94
 MISSION_OBJECTIVE_LIST_OFFSET = 0x10
+
+#: `TheSidesList`, the singleton the map's sides are read into and the skirmish sides parked in.
+#: `+0x3c`/`+0x40` are the live sides (`SidesInfo`, stride `0x60`); `+0x7c0`/`+0x7c4` the skirmish
+#: sides `SidesList::prepareForMP` (`0x0073193d`) moves everything but neutral, `PlyrCivilian` and
+#: `PlyrCreeps` into. Derived in `docs/skirmish-ai-fallback.md`.
+THE_SIDES_LIST = 0x00DE77A0
+
+#: One instruction that loads it, inside `Player::initFromDict` - so asserting these bytes proves
+#: the global *and* that the function around the hooks is this build's.
+THE_SIDES_LIST_LOAD = 0x006B0DC1
+THE_SIDES_LIST_LOAD_BYTES = bytes.fromhex("8b0da077de00")
+
+#: `SidesList::getSideInfo(Int)` - `__thiscall`, `ret 4`, bounds-checked against `+0x3c`, returns
+#: `this + 0x40 + i * 0x60` or NULL. The index is a *sides* index, which is what `Player+0x54`
+#: holds: `PlayerList::newGame` walks the sides in order and hands each one to `initFromDict`.
+SIDES_LIST_GET_SIDE_INFO = 0x00602F20
+SIDES_LIST_GET_SIDE_INFO_BYTES = bytes.fromhex("8b44240485c0")
+
+#: The `Dict` inside a `SidesInfo`. `PlayerList::newGame` passes `&sideInfo->m_dict` as
+#: `initFromDict`'s argument, so the player's own side dict is reachable both ways.
+SIDES_INFO_DICT = 0x04
+
+#: `SidesList::loadAILibraryForSide(Int)` - `__thiscall`, `ret 4`. Builds the loader's temporaries
+#: and calls the per-side loader at `0x0073161c`, which reads `playerAIType` off that side's dict,
+#: resolves it through `TheAIPlayerTypeStore` (`0x00DE3D5C`) and merges the named `LibraryMap`'s
+#: scripts into the side. **The stock image never calls it** - it is the single-side sibling of the
+#: whole-list `0x007318a1` that `prepareForMP` uses, which is exactly what a per-player load needs.
+SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE = 0x007318F4
+SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE_BYTES = bytes.fromhex("b89202b900e8")
+
+#: `Dict::setAsciiString(NameKey, const AsciiString&)` - `__thiscall`, `ret 8`, key pushed last.
+DICT_SET_ASCII_STRING = 0x00715028
+DICT_SET_ASCII_STRING_BYTES = bytes.fromhex("566a03ff7424")
+
+#: `StaticNameKey::key()` - `__thiscall`, no arguments, `ret`, interns on first use and caches into
+#: `[this]`. A `StaticNameKey` is `{ NameKey m_key; const char *m_name; }`, so `+4` is the name and
+#: the key slot reads zero in the file.
+STATIC_NAME_KEY_KEY = 0x00548930
+STATIC_NAME_KEY_KEY_BYTES = bytes.fromhex("568bf1833e00")
+
+#: The `StaticNameKey` for `playerAIType`, the side-dict key naming a `PlayerAIType` block. Its
+#: bytes are the empty key plus the pointer to the literal at `0x00C1FB20`.
+KEY_PLAYER_AI_TYPE = 0x00DA2FA4
+KEY_PLAYER_AI_TYPE_BYTES = bytes.fromhex("0000000020fbc100")
+
+#: `Player::m_playerTemplate`, set by `PLAYER_INIT`.
+PLAYER_TEMPLATE_PTR = 0x34
+
+#: `PlayerTemplate::m_defaultPlayerAIType` - the `DefaultPlayerAIType` INI field, which names the
+#: `PlayerAIType` block whose `LibraryMap` is that faction's AI script library. `prepareForMP`
+#: stamps it onto each skirmish side from *that side's* faction, which is why a borrowed side
+#: brings a borrowed library.
+PLAYER_TEMPLATE_DEFAULT_AI_TYPE = 0x1B0
+
+#: Its entry in the `PlayerTemplate` field table - name pointer, parser, userdata, offset. Asserting
+#: it is how `PLAYER_TEMPLATE_DEFAULT_AI_TYPE` stops being a number somebody wrote down: the INI
+#: parser itself says where that field lands.
+PLAYER_TEMPLATE_FIELD_DEFAULT_AI_TYPE = 0x00BF84C8
+PLAYER_TEMPLATE_FIELD_DEFAULT_AI_TYPE_BYTES = bytes.fromhex("f87dbf005eee420000000000b0010000")
+
+#: `Player::setPlayerType(PlayerType, Bool isSkirmish)` - `__thiscall`, `ret 8`. Type 1 is
+#: `PLAYER_COMPUTER`; with `isSkirmish` it allocates an `AISkirmishPlayer` (`0xa4`, ctor
+#: `0x008F3DF3`) and without it the legacy `AIPlayer` (`0x7c`, ctor `0x008F7F2B`). Type 0 gets
+#: neither unless `TheSkirmishAIManager+0x96c` (`MakeAllSkirmishSidesAIControlled`) is set.
+PLAYER_SET_TYPE = 0x006AA450
+PLAYER_SET_TYPE_BYTES = bytes.fromhex("b8989db800e8")
+
+#: `Player::initFromDict(Dict *)` - where a side becomes a player, and where both skirmish hooks
+#: live.
+PLAYER_INIT_FROM_DICT = 0x006B07EF
+PLAYER_INIT_FROM_DICT_BYTES = bytes.fromhex("b8dea0b800e8f7c6")
+
+#: Its two frame locals. `..._FOUND` is set to 1 when the skirmish-side scan matches this player's
+#: `Side`; `..._MISSING` is set to 1 when the scan runs out. Both are written as bytes and only the
+#: low byte of `..._FOUND` is ever read - it is pushed as `setPlayerType`'s `isSkirmish`, which is
+#: tested `cmp byte`.
+PLAYER_SKIRMISH_FOUND_EBP = -0x20
+PLAYER_SKIRMISH_MISSING_EBP = -0x25
+
+#: Hook 1: `cmp byte [ebp-0x25], al` / `jne 0x006B0A20` - the fork that sends a player with no
+#: matching skirmish side to the type-0 (human, no AI) path.
+PLAYER_SKIRMISH_ROUTE = 0x006B09F5
+PLAYER_SKIRMISH_ROUTE_BYTES = bytes.fromhex("3845db7526")
+PLAYER_SKIRMISH_ROUTE_RESUME = 0x006B09FA
+
+#: Hook 2: `cmp byte [ebp-0x20], 0` / `je 0x006B102E` - the fork that decides whether to import
+#: the matched side's script list and teams. `..._RESUME` is the matched path
+#: (`findSkirmishSideByFaction` at `0x006ACFA3`); `..._SKIP` is the continuation for a player
+#: with nothing to import from.
+PLAYER_SKIRMISH_IMPORT = 0x006B0D4E
+PLAYER_SKIRMISH_IMPORT_BYTES = bytes.fromhex("807de0000f84d6020000")
+PLAYER_SKIRMISH_IMPORT_RESUME = 0x006B0D58
+PLAYER_SKIRMISH_IMPORT_SKIP = 0x006B102E
+PLAYER_SKIRMISH_IMPORT_SKIP_BYTES = bytes.fromhex("8b8e04030000")

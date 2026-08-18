@@ -359,7 +359,7 @@ per_node_add:
     jae per_node_mark      ; past 16 kinds: mark the slot, record nothing
 ```
 
-So on a bar wider than 16, the 17th and later distinct `HEROBAR` templates stop being
+So on a bar wider than 16, the 17th and later distinct `HEROBAR_GROUP` templates stop being
 de-duplicated — each instance takes its own slot. Nothing corrupts and nothing crashes; grouping
 degrades past 16 *kinds*. Widening that set is a one-constant change in `herobar`'s cave if the
 pair is ever shipped together.
@@ -368,8 +368,8 @@ Its click cursor is 16 dwords in the same cave and clamps the same way, indexed 
 than by template: a group drawn in slot 17 or beyond reads and writes no cursor, so every click on
 it selects the group's first member instead of stepping to the next. Same one constant.
 
-Both only concern `herobar --grouped`. The default `herobar` keeps no state at all and is
-indifferent to how wide the bar is.
+Both only concern `herobar`'s `HEROBAR_GROUP` kindof. A plain `HEROBAR` object reads none of that
+state and is indifferent to how wide the bar is.
 
 ## 9. Key addresses
 

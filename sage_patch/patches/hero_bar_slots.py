@@ -82,19 +82,20 @@ here are `0x0092D3E5` and `0x0092DBC8`, three and eight bytes clear respectively
 
 What a patch **cannot** do beside this one is hard-code an offset past the array. Every field from
 `+0x1C8` up moves by ``(count-16)*0x18``, and on a widened bar the stock addresses land *inside*
-the array instead - `bar+0x1DC` at 25 slots is byte `0x14` of slot 16. `herobar --grouped` used to
+the array instead - `bar+0x1DC` at 25 slots is byte `0x14` of slot 16. `herobar` used to
 take its repeat-click window by calling `0x0092BA91` and reading `bar+0x1DC` back, which on this
 combination read a slot for a deadline and left the porter's real field stomped; it now does that
 arithmetic in its own cave and reads nothing here. Only the first ten sites above are counts - the
 other 27 exist precisely because these offsets are not stable.
 
-The remaining interaction is behavioural rather than structural, and only for `herobar --grouped`:
-its per-pass "already drawn" set is 16 dwords in its own cave, and it *clamps* rather than overflows
-(`cmp eax,16 ; jae`), so on a bar wider than 16 the 17th and later distinct `HEROBAR` templates
-stop being de-duplicated - each instance takes its own slot. Its per-slot click cursor is 16
-dwords too and clamps the same way, so a group in slot 17 or beyond selects its first member on
-every click instead of stepping to the next. Nothing corrupts; grouping degrades past 16 kinds
-and stepping past 16 slots. The default `herobar` keeps no state and is indifferent to the width.
+The remaining interaction is behavioural rather than structural, and only for `herobar`'s
+`HEROBAR_GROUP`: its per-pass "already drawn" set is 16 dwords in its own cave, and it *clamps*
+rather than overflows (`cmp eax,16 ; jae`), so on a bar wider than 16 the 17th and later distinct
+`HEROBAR_GROUP` templates stop being de-duplicated - each instance takes its own slot. Its
+per-slot click cursor is 16 dwords too and clamps the same way, so a group in slot 17 or beyond
+selects its first member on every click instead of stepping to the next. Nothing corrupts;
+grouping degrades past 16 kinds and stepping past 16 slots. A plain `HEROBAR` object reads none of
+that state and is indifferent to the width.
 """
 
 from __future__ import annotations

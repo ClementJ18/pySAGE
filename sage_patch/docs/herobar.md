@@ -1,30 +1,37 @@
-# `herobar` — a `HEROBAR` kindof: a hero-bar slot for something that is not a hero
+# `herobar` — `HEROBAR` and `HEROBAR_GROUP`: hero-bar slots for things that are not heroes
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`).
 
-**What it does.** Adds a kindof — `HEROBAR` by default, `--kindof` to rename — that puts an object
-on the hero bar **without making it a `HERO`**. That is the default and the whole feature for most
-callers: the object gets a slot of its own, drawn with the rank, health, highlight and flash every
-other slot has, clicking it selects it, and nothing that asks "is this a hero" — armour, targeting,
-the AI, scripts, `ExcludedKindOf` lists — answers differently because of it. Three detours, no
-runtime state.
+**What it does.** Adds **two** kindofs — `HEROBAR` and `HEROBAR_GROUP` by default, `--kindof` and
+`--group-kindof` to rename — that put an object on the hero bar **without making it a `HERO`**.
+Nothing that asks "is this a hero" — armour, targeting, the AI, scripts, `ExcludedKindOf` lists —
+answers differently for either, and they differ only in how many slots the instances of a template
+take.
 
-**`--grouped`** adds slot sharing on top: every instance of one `ThingTemplate` shares **one** slot,
-two different templates take two, that slot shows **how many members the group has** where a hero's
-shows its rank, and clicking it selects the members **one at a time** — click again for the next
-one, or twice within `--jump-window` (500 ms by default) to **centre the camera** on the one you
-just picked. Three more detours plus a two-byte tooltip fix, the count, and the cursors that make
-stepping and jumping work.
+**`HEROBAR`** is a slot per object: drawn with the rank, health, highlight and flash every other
+slot has, clicking it selects that object, and nothing else about the object changes.
+
+**`HEROBAR_GROUP`** is a slot per *template*: every instance of one `ThingTemplate` shares **one**
+slot, two different templates take two, that slot shows **how many members the group has** where a
+hero's shows its rank, and clicking it selects the members **one at a time** — click again for the
+next one, or twice within `--jump-window` (500 ms by default) to **centre the camera** on the one
+you just picked.
 
 Even grouped, that is deliberately not what `PORTER` does. `PORTER` collapses every porter the
 player owns into a **single** slot regardless of template. The grouping key changes from *nothing*
 to *the template*, and with it the number of slots stops being a constant.
 
+**Why one patch adds both.** The mask has exactly two free bits, so a build that wanted the pair
+could not have got it as two patches; and the interesting choice is per template rather than per
+binary. Six detours and one two-byte edit go in every time, and which behaviour an object gets is
+read from its `ThingTemplate` at runtime: membership asks "either kindof", and only the draw loop
+narrows to `HEROBAR_GROUP`.
+
 The pre-implementation costing is in [`ideas/herobar-kindof.md`](herobar-kindof.md), kept as
 written; this document is what shipped. The one open blocker that document records — the model's
 allocation site — turned out not to need answering, because the design below never grows the model.
 
-**Status: applies, verifies, round-trips through `detect` (mode included), composes with every
+**Status: applies, verifies, round-trips through `detect`, composes with every
 other `game.dat` patch in either order, and has been run in a game** — but everything grouping does
 on a *click* or a *hover* post-dates that run and is static: the step-through click
 ([§3.4](#34-the-click)), the jump on a repeat click ([§3.4.1](#341-click-again-to-jump-and-why-not-right-click)),
@@ -33,7 +40,7 @@ See [§7](#7-verifying-it-in-a-game).
 
 ## 1. The idea that makes it small
 
-This section is about the grouped half. The default costs one detour and two more to clean up
+This section is about `HEROBAR_GROUP`. `HEROBAR` costs one detour and two more to clean up
 after it ([§3.2](#32-removal-is-not-optional-bookkeeping)), because "put this object on the list
 the draw loop already walks" is the entire implementation.
 
@@ -97,30 +104,33 @@ after a byte table, but `0x007B3CDA` really is a six-byte `mov eax, <table>; ret
 `getCount`, nothing calls it. Both are repointed and raised anyway — "unreferenced today" is not a
 reason to leave a stale answer behind.
 
-**Only one bit is left after this.** A second kindof-adding patch fits; a third does not, and
-widening the mask is an `Object` and `ThingTemplate` layout change rather than a byte patch.
+**No bit is left after this.** The pair takes both, so nothing else can add a kindof to a binary
+carrying this patch — and this patch cannot be applied to one that already carries an added
+kindof. Widening the mask is an `Object` and `ThingTemplate` layout change rather than a byte
+patch.
 
-## 3. The hooks — three, or six
+## 3. The hooks — eight, plus an edit
 
-| VA | size | mode | engine function | what the detour adds |
+| VA | size | reads | engine function | what the detour adds |
 |---|---|---|---|---|
-| `0x0092CD7F` | 7 | both | `onObjectAdded` | `HEROBAR` joins `HERO` on the way to the hero list |
-| `0x0092C439` | 6 | both | `onObjectRemoved`, the accept gate | `HEROBAR` is a thing this function handles at all |
-| `0x0092C467` | 6 | both | `onObjectRemoved`, the list pick | …and erases from the hero list, not the porter one |
-| `0x0092D36F` | 6 | `--grouped` | draw-loop preheader | clear the per-pass template set |
-| `0x0092D3EE` | 5 | `--grouped` | draw loop, per node | skip a drawn template; mark and count it |
-| `0x0092DBD6` | 5 | `--grouped` | click dispatch | a `2` in `slot+0x16` means "step this group" |
-| `0x0092BF4E` | 6 | `--grouped` | hover, the tooltip pick | …and *not* "select nearest unit" (§3.5) |
+| `0x0092CD7F` | 7 | either kindof | `onObjectAdded` | the object joins `HERO` on the way to the hero list |
+| `0x0092C439` | 6 | either kindof | `onObjectRemoved`, the accept gate | the object is a thing this function handles at all |
+| `0x0092C467` | 6 | either kindof | `onObjectRemoved`, the list pick | …and erases from the hero list, not the porter one |
+| `0x0092C911` | 7 | either kindof | select-all-heroes, the counting pass | a bar kindof that is not a `HERO` is skipped (§3.6) |
+| `0x0092C999` | 7 | either kindof | select-all-heroes, the selecting pass | …and the same test where the message is built |
+| `0x0092D36F` | 6 | — | draw-loop preheader | clear the per-pass template set |
+| `0x0092D3EE` | 5 | `HEROBAR_GROUP` | draw loop, per node | skip a drawn template; mark and count it |
+| `0x0092DBD6` | 5 | the slot byte | click dispatch | a `2` in `slot+0x16` means "step this group" |
+| `0x0092BF4E` | 6 | the slot byte | hover, the tooltip pick | …and *not* "select nearest unit" (§3.5) |
 
-Each of the six is a `jmp rel32` padded with `nop` to cover the site exactly. The seventh is not a
+Each of the eight is a `jmp rel32` padded with `nop` to cover the site exactly. The ninth is not a
 detour at all: two of its bytes change, an immediate and a branch sense, and it needs no cave.
 
-The default is not a grouped patch with grouping switched off: the bottom three sites keep the
-engine's own bytes, so the draw loop and the click handler run exactly as they shipped and porters
-cannot regress. `verify` asserts that too — a mode is defined as much by what it leaves alone as by
-what it writes, and that is what lets `detect` report which of the two a binary carries. The
-membership-only cave keeps no runtime state either, so its section goes in read-execute where the
-grouped one needs `MEM_WRITE`.
+The `reads` column is the whole of the split between the two kindofs. Five of the seven sites are
+indifferent to which one an object carries — three ask "either", and the two that dispatch on
+`slot+0x16` are reading a decision the draw loop already made. Only `0x0092D3EE` tests
+`HEROBAR_GROUP` alone, and a template without that bit takes the arm that clears the group byte
+and gets a slot of its own.
 
 ### 3.1 The classifier
 
@@ -136,15 +146,16 @@ The stock code is 42 bytes and has no padding after it, so the third branch goes
 0092cd99  push edx ; call 0x92c809       ; -> porter list (model+0x14)
 ```
 
-The detour re-tests `HERO`, then `HEROBAR`, and re-enters at **the engine's own two arms** —
-`0x0092CD88` for the hero path, `0x0092CD90` for the stock `PORTER` test. Neither the `je` nor
-either call is touched.
+The detour re-tests `HERO`, then `HEROBAR`, then `HEROBAR_GROUP`, and re-enters at **the engine's
+own two arms** — `0x0092CD88` for the hero path, `0x0092CD90` for the stock `PORTER` test. Neither
+the `je` nor either call is touched.
 
-`HERO` wins the tie *in the classifier* — but that decides nothing, because both arms end on the
-same list. Under `--grouped` the draw hook asks only whether the template is `HEROBAR`, so a
-template carrying both is a hero **and** groups with its own kind. (An earlier version of this
-document said such a template "never groups". It does; the classifier's order is about which call
-runs, not about what the draw loop later sees.)
+`HERO` wins the tie *in the classifier* — but that decides nothing, because every arm ends on the
+same list. The draw hook asks only whether the template is `HEROBAR_GROUP`, so a template carrying
+`HERO` and `HEROBAR_GROUP` is a hero **and** groups with its own kind, and a template carrying both
+added kindofs simply groups. (An earlier version of this document said such a template "never
+groups". It does; the classifier's order is about which call runs, not about what the draw loop
+later sees.)
 
 ### 3.2 Removal is not optional bookkeeping
 
@@ -160,15 +171,65 @@ Both hooks rejoin *before* the engine's own `jne`/`je`, so what they have to get
 ```asm
 remove_gate:
     test dword [eax+0x110], edi     ; the displaced HERO test
-    jz   .herobar
-    jmp  0x0092C43F                 ; ZF=0 -> the engine's jne takes the hero path
-.herobar:
+    jnz  .resume                    ; ZF=0 -> the engine's jne takes the hero path
     test byte [eax+0x123], 0x40     ; HEROBAR
-    jmp  0x0092C43F                 ; ZF now reflects HEROBAR
+    jnz  .resume
+    test byte [eax+0x123], 0x80     ; HEROBAR_GROUP
+.resume:
+    jmp  0x0092C43F                 ; ZF reflects whichever test ran last
 ```
 
-`jz` and `jmp` do not write flags, so the last `test` executed is the one the engine reads. The
+`jnz` and `jmp` do not write flags, so the last `test` executed is the one the engine reads —
+which is what makes "stop at the first bit that is set" the whole of *either kindof counts*. The
 list-pick hook at `0x0092C467` has the same shape through `esi`.
+
+### 3.2.1 Select all heroes
+
+`_OnBttnSelectAllHeroes` — the button beside the bar, registered from `0x0092DF19` through the
+thunk at `0x0092CDA9` — is `0x0092C8C4`, and **it never asks `HERO`**. It walks the slot array
+`bar+0x48`, sixteen slots of `0x18`, resolves each slot's node through `findObjectByID`, and
+accepts whatever passes `Object::isSelectable` (`0x0068DE58`) and has a drawable. Being *on the
+bar* is the whole of what that button means by "hero".
+
+That is fine while only `HERO` and `PORTER` reach the bar, and wrong the moment this patch puts
+something else there: a `HEROBAR` mill or a `HEROBAR_GROUP` banner-carrier came back in the
+selection along with the actual heroes.
+
+It walks the array **twice** — once to find the index of the last eligible slot (which decides
+whether the message is `MSG_CREATE_SELECTED_GROUP` or its `+1`), once to append each eligible
+object. Both passes reach their hook with `esi` holding the resolved `Object` and `eax` about to
+be overwritten, so both take the same six-instruction test:
+
+```asm
+select_all_scan:                            ; esi = the slot's Object
+    mov  eax, [esi+4]                       ; -> ThingTemplate
+    test byte [eax+0x113], 4                ; HERO
+    jnz  .accept                            ; a hero that is also on the bar is still a hero
+    test byte [eax+0x123], 0x40             ; HEROBAR
+    jnz  .skip
+    test byte [eax+0x123], 0x80             ; HEROBAR_GROUP
+    jnz  .skip
+.accept:
+    mov  ecx, esi                           ; the displaced pair
+    call 0x0068DE58
+    jmp  0x0092C918
+.skip:
+    jmp  0x0092C94E                         ; the loop's own "next slot"
+```
+
+`0x0092C999` is the same routine against the second pass's labels, `0x0092C9A0` and `0x0092CA5F`.
+Filtering only one of them would be worse than filtering neither: the count and the selection
+would disagree, and the message would be built for a set the loop no longer produces.
+
+Leaving through the loop's own "next slot" label rather than failing the selectable test is what
+keeps the slot cursor and the `[ebp-8]` index consistent — the same reason the draw loop's
+duplicate skip goes to `0x0092D76F` rather than returning a `false`.
+
+**`HERO` first is a decision, not an accident.** A template carrying `HERO` and `HEROBAR_GROUP`
+is a hero that groups (§3.1), and the button should still pick it up; what it should stop picking
+up is a thing that is on the bar *instead of* being a hero. The alternative — "select all heroes
+selects `HERO`" — would also change what the button does with porters, which this patch has no
+business touching.
 
 ### 3.3 The draw pass
 
@@ -430,24 +491,23 @@ group said *select nearest unit* instead of naming the unit. Narrowing the test 
 and `2` both take the arm that builds the tooltip from the slot's own node, which is the
 representative's object, described exactly as a hero's slot describes its hero.
 
-That edit is `--grouped` only, because nothing writes a `2` without grouping, and `verify` asserts
-the site holds stock bytes in the other mode.
+Nothing but this patch writes a `2`, so the edit goes in with the rest of it.
 
 ## 4. What it does *not* need
 
 * **No `.apt` edit and no ActionScript.** A group slot is drawn through the same
   `_level%d.%s_Hero%dImage` / `SetButtonRankProgress` / `SetButtonHealthBar` calls a hero slot is.
-* **No new model list, no `Object` or `ThingTemplate` growth, no savegame change.** The one bit is
+* **No new model list, no `Object` or `ThingTemplate` growth, no savegame change.** Both bits are
   inside the existing mask, and the cave holds the only new state — including the per-slot cursor
   that `PORTER` keeps on the bar object, where there is no room for more than one.
 * **No init or destroy hook.** The cave's scratch words are zero in the image; the emitted set is
   rewritten at the top of every draw pass and a zero cursor already means "nothing picked yet".
-* **Nothing at all, for the default.** Membership installs three detours and no state: the cave is
-  the rebuilt name table, the new name, and about sixty bytes of code.
+* **No per-kindof code paths.** The two kindofs are two bits read at three sites, not two builds:
+  every hook is emitted once and every object is asked at runtime.
 
 ## 5. What it costs
 
-Everything here is about `--grouped`; the default costs the kindof bit and nothing else.
+Everything here is about `HEROBAR_GROUP`; a plain `HEROBAR` object costs its bit and nothing else.
 
 * **No rank survives on a group slot.** The number is the member count
   ([§3.3.1](#331-the-count-badge)), so two instances at different veterancy show `2` and neither
@@ -460,14 +520,16 @@ Everything here is about `--grouped`; the default costs the kindof bit and nothi
 * **No right-click gesture.** The mouse button does not reach this hook at all — §3.4.1.
 * **The representative is whichever member sorts first**, so the icon a group shows can change
   when that member dies, even though the group did not.
-* **The bar is still 16 slots.** Groups consume slots, so enough distinct `HEROBAR` templates in
-  play push heroes off the end. The overflow at `0x0092D3E5` is graceful — it jumps to the loop's
+* **The bar is still 16 slots.** Groups consume slots, so enough distinct `HEROBAR_GROUP`
+  templates in play push heroes off the end. The overflow at `0x0092D3E5` is graceful — it jumps to the loop's
   own "next node" label, and since that label leaves the slot cursor alone, every later node
   skips too, so it behaves as a `break`. Nothing crashes, the extra heroes are simply not drawn,
   but which side gets cut is now player-controlled rather than fixed. Raising the ceiling past 16
   is the one change that would need real `.apt` work.
-* **Slot order is `HeroSortOrder`.** `HEROBAR` objects go through `addHero`, whose sorted insert
-  keys on `ThingTemplate+0x648`. A `HEROBAR` template with no `HeroSortOrder` sorts as 0.
+* **Slot order is `HeroSortOrder`.** Objects of either kindof go through `addHero`, whose sorted
+  insert keys on `ThingTemplate+0x648`. A template with no `HeroSortOrder` sorts as 0.
+* **Both mask bits are gone.** The pair is the last two, so a build carrying this patch can add no
+  further kindof — the one cost that falls on things other than the hero bar.
 
 ### 5.1 What the badge cost
 
@@ -505,9 +567,10 @@ Order-independent with every other patch here. It allocates its cave with `alloc
 locates it with `find_section`, and it is the only patch that touches the kindof table or any of
 the seven sites.
 
-Neither mode composes with the *other* mode: both claim `.hbar` and both add the same kindof, so
-applying one to a binary that carries the other fails at `allocate_section`. The two are choices,
-not layers.
+It does not compose with a second application of itself — it claims `.hbar` and its names are
+already kindofs — and, more permanently, it does not compose with any *other* kindof-adding patch
+in either order: the pair spends the mask's last two bits, so whichever runs second finds nowhere
+to put its name and refuses before writing.
 
 The one it has to *stay* clear of is [`hero-bar-slots`](hero-bar-slots.md), which grows the slot
 array in place and slides every field after it up. Nothing here reads past the array —
@@ -515,23 +578,24 @@ array in place and slides every field after it up. Nothing here reads past the a
 changes no address this patch assumes, in either order. §3.4.1 is the one place that had to be
 written that way on purpose.
 
-The other interaction worth naming is with a *future* second kindof-adding patch. `verify` reads the
-bit and the end of the table out of **the cave's own copy**, never the live one, so a later patch
-that appends to the table and becomes the live one leaves this patch correctly installed and still
-verifiable. The live table is consulted only to confirm it still agrees.
+`verify` still reads both bits and the end of the table out of **the cave's own copy** rather than
+the live one, which is the shape a table-growing patch wants even though nothing can now grow the
+kindof table underneath this one. The live table is consulted only to confirm it still agrees.
 
 ## 7. Verifying it in a game
 
 The list. Items **4 to 8** are the ones outstanding — everything grouping does on a click or a
 hover post-dates the run that cleared the rest:
 
-1. **`KindOf = HEROBAR` parses** on an `Object` block, `-HEROBAR` unsets it, and an unpatched
-   `game.dat` still rejects the token — i.e. the table really moved.
-2. **Default: one object, one slot.** A `HEROBAR` unit that is not a `HERO` appears on the bar,
+1. **`KindOf = HEROBAR` and `KindOf = HEROBAR_GROUP` both parse** on an `Object` block, `-NAME`
+   unsets either, and an unpatched `game.dat` still rejects both tokens — i.e. the table really
+   moved, and it moved by two.
+2. **`HEROBAR`: one object, one slot.** A `HEROBAR` unit that is not a `HERO` appears on the bar,
    with its own icon, rank and health bar, and clicking it selects that one object. Two instances
-   take two slots — the grouping is the *other* build, not this one.
-3. **`--grouped`: one template, two instances ⇒ one slot.** Killing one leaves the slot; killing
-   both frees it and the heroes below shift up. Two templates ⇒ two slots, each with its own icon.
+   take two slots — the grouping is the *other* kindof, on the same build.
+3. **`HEROBAR_GROUP`: one template, two instances ⇒ one slot.** Killing one leaves the slot;
+   killing both frees it and the heroes below shift up. Two templates ⇒ two slots, each with its
+   own icon. Both kindofs in play at once, on the same bar, behave as their own halves say.
 4. **The slot counts.** Two instances show `2`; build a third and it becomes `3` **without a
    reload**, which is the engine's own change test firing on the new number. Kill one and it drops.
    A group of one shows `1`. A member that is not the local player's, or is `NO_HERO_PROPERTIES`,
@@ -550,17 +614,22 @@ hover post-dates the run that cleared the rest:
    the click has to land on a live member rather than doing nothing. Same for clicking group A,
    then B, then A — A resumes where it was, which is the per-bar cursor's failure if the table
    were not per slot.
-9. **A dead group member leaves the list.** Build and kill the same `HEROBAR` unit repeatedly and
-   confirm the bar does not accumulate stale slots — the §3.2 failure, if either removal hook is
-   wrong. Worth doing on **both** builds; the removal pair is shared.
+9. **A dead member leaves the list.** Build and kill the same unit repeatedly and confirm the bar
+   does not accumulate stale slots — the §3.2 failure, if either removal hook is wrong. Worth doing
+   with **both** kindofs; the removal pair is shared and reads either bit.
+9a. **Select all heroes selects only heroes.** With a real hero, a `HEROBAR` object and a
+   `HEROBAR_GROUP` group all on the bar, the button selects the hero alone — and still selects a
+   template carrying `HERO` *and* a bar kindof. On a build with no bar kindof in play it has to
+   behave exactly as stock, porters included (§3.2.1).
 10. **Porters still behave exactly as before** on the same build: their single mixed slot, its
     count badge, its tooltip, its click-to-iterate, its camera centring, and its *round timing* —
     which this patch no longer touches at all now that it computes its own window (§3.4.1), but
     which is worth confirming precisely because an earlier version did.
-11. **A hero that is also `HEROBAR`** groups with its own kind and counts — §3.1, and *not* what an
-    earlier draft of this document predicted.
-12. **Overflow**: force more distinct `HEROBAR` templates than slots and confirm no crash, no blank
-    buttons left behind, and that the templates past the sixteenth show a rank rather than a count.
+11. **A hero that is also `HEROBAR_GROUP`** groups with its own kind and counts — §3.1, and *not*
+    what an earlier draft of this document predicted.
+12. **Overflow**: force more distinct `HEROBAR_GROUP` templates than slots and confirm no crash, no
+    blank buttons left behind, and that the templates past the sixteenth show a rank rather than a
+    count.
 13. **Savegame**: save and load on a patched build; and confirm a stock-built save still loads,
     since the `xfer` blob length is unchanged.
 12. **Multiplayer**: the bar is client-local and selection goes through the ordinary message
@@ -570,7 +639,7 @@ hover post-dates the run that cleared the rest:
 
 | VA | meaning |
 |---|---|
-| `0x00DA0E68` | `KindOf` name table, 222 entries, NULL-terminated |
+| `0x00DA0E68` | `KindOf` name table, 222 entries, NULL-terminated — 224 after this patch |
 | `0x00DA4148` | `ThingTemplate` field entry `KindOf` → parse `0x006564E7`, offset `0x108` |
 | `0x0042B914` | `INI::scanIndexList` — the terminator-driven token lookup |
 | `0x00444D39` | single-bit `KindOfMaskType` constructor (`memset 0x1C`) |
@@ -583,7 +652,9 @@ hover post-dates the run that cleared the rest:
 | `0x0092BA91` | the engine's own deadline routine — the arithmetic §3.4.1 re-emits, **not** called |
 | `0x00711104` | `GameMessage::appendBooleanArgument` |
 | `0x0071111A` | `GameMessage::appendObjectIDArgument` |
+| `0x0068DE58` | `Object::isSelectable` — what both select-all passes ask about a slot |
 | `0x0092BBEF` | hero-bar eligibility: local player && !`NO_HERO_PROPERTIES` |
+| `0x0092C8C4` | `_OnBttnSelectAllHeroes` — walks the slot array, never asks `HERO` (§3.2.1) |
 | `0x0092C428` | `onObjectRemoved` |
 | `0x0092C734` | `addHero` — sorted insert by `HeroSortOrder` (`ThingTemplate+0x648`) |
 | `0x0092CD78` | `onObjectAdded` — the classifier |

@@ -120,6 +120,13 @@
    "PRIMARY_FORMATION",
    "TAKING_DAMAGE"
   ],
+  "0x00da0504": [
+   "YES",
+   "STEALTHED",
+   "NO",
+   "NOTWHILEATTACKING",
+   "ATTACK_BUILDINGS"
+  ],
   "0x00da5b38": [
    "NORMAL",
    "NONE",
@@ -176,27 +183,20 @@
    "POISON",
    "FROST"
   ],
-  "0x00da0504": [
-   "YES",
-   "STEALTHED",
-   "NO",
-   "NOTWHILEATTACKING",
-   "ATTACK_BUILDINGS"
-  ],
   "0x00db05ec": [
    "SAME_CURRENTHEALTH",
    "PRESERVE_RATIO",
    "ADD_CURRENT_HEALTH_TOO"
   ],
-  "0x00db094c": [
-   "MOUNTED",
-   "TAINT",
-   "ELVEN_WOOD"
-  ],
   "0x00dae0e0": [
    "MOUNTED",
    "WEAPON_TOGGLE",
    "MOVING"
+  ],
+  "0x00db094c": [
+   "MOUNTED",
+   "TAINT",
+   "ELVEN_WOOD"
   ],
   "0x00dad904": [
    "DEFAULT",

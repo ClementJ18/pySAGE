@@ -37,13 +37,17 @@ from sage_patch.patches import multi_instance as mi
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import production_condition as pc
 from sage_patch.patches import production_split as ps
+from sage_patch.patches import skirmish_ai_fallback as saf
+from sage_patch.patches import trigger_recharge_list as trl
 from sage_patch.patches import upgrade_description as ud
+from sage_patch.patches import upgrade_grant_lists as ugl
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
 from sage_patch.patches.utils import model_conditions as mc
+from sage_patch.patches.utils import token_lists as tl
 from sage_patch.patches.utils import weapon_set_flags as ws
 
 IMAGE_BASE = 0x400000
@@ -293,6 +297,25 @@ def observer_switch_image() -> bytearray:
         {
             ad.OBSERVER_BAR_GATE_FINGERPRINT: ad.OBSERVER_BAR_GATE_FINGERPRINT_BYTES,
             **obs.ANCHORS,
+        }
+    )
+
+
+def skirmish_ai_fallback_image() -> bytearray:
+    """A stand-in carrying both hook windows in `Player::initFromDict` and everything the cave
+    reaches.
+
+    Sparse for the usual reason: the two windows and the continuation sit in two pages of
+    `initFromDict`, and the four engine routines, the name-key object and the `PlayerTemplate`
+    field-table entry are spread over eight megabytes around them. Everything not planted reads as
+    zero, so a hook aimed one instruction to either side of where it claims to be would find
+    nothing there.
+    """
+    return _sparse_image(
+        {
+            ad.PLAYER_SKIRMISH_ROUTE: ad.PLAYER_SKIRMISH_ROUTE_BYTES,
+            ad.PLAYER_SKIRMISH_IMPORT: ad.PLAYER_SKIRMISH_IMPORT_BYTES,
+            **saf.ANCHORS,
         }
     )
 
@@ -587,3 +610,151 @@ def recharge_rescale_image() -> bytearray:
     bytes in the real build is what `TestInstalledBinary` answers.
     """
     return _sparse_image(dict(rr.ANCHORS))
+
+
+#: Where the `trigger-recharge-list` stand-in parks the 35 field-name strings: a page below the
+#: table that points at them, and one nothing else in that image uses.
+TRIGGER_RECHARGE_STRINGS_VA = 0x00C63000
+
+#: `SpecialAbilityUpdate`'s field-parse table as `(name, ModuleData offset)`, in **table order** -
+#: which is neither alphabetical nor offset order, and is what makes the patch's index meaningful.
+#: Planted in full so that a patch reading the wrong entry finds a real keyword there rather than
+#: zeroes, and so `AttributeModifier` - the other `AsciiString` field in the table, holding the
+#: same stock parse function - stands where a repoint aimed one entry short would land.
+SPECIAL_ABILITY_FIELDS = (
+    ("SpecialPowerTemplate", 0x08),
+    ("UpdateModuleStartsAttack", 0x0C),
+    ("StartsPaused", 0x0D),
+    ("InitiateSound", 0x10),
+    ("ReEnableAntiCategory", 0x42),
+    ("AntiCategory", 0x34),
+    ("AntiFX", 0x4C),
+    ("AttributeModifier", 0x18),
+    ("AttributeModifierRange", 0x1C),
+    ("AttributeModifierAffectsSelf", 0x20),
+    ("AttributeModifierAffects", 0x24),
+    ("AttributeModifierFX", 0x28),
+    ("AttributeModifierWeatherBased", 0x2C),
+    ("WeatherDuration", 0x30),
+    ("RequirementsFilterMPSkirmish", 0x38),
+    ("RequirementsFilterStrategic", 0x3C),
+    ("TargetEnemy", 0x40),
+    ("TargetAllSides", 0x41),
+    ("InitiateFX", 0x44),
+    ("TriggerFX", 0x48),
+    ("SetModelCondition", 0x50),
+    ("SetModelConditionTime", 0x54),
+    ("GiveLevels", 0x58),
+    ("DisableDuringAnimDuration", 0x5C),
+    ("IdleWhenStartingPower", 0x5D),
+    ("AffectGood", 0x5E),
+    ("AffectEvil", 0x5F),
+    ("AffectAllies", 0x60),
+    ("AvailableAtStart", 0x61),
+    ("ChangeWeather", 0x64),
+    ("AdjustVictim", 0x68),
+    ("OnTriggerRechargeSpecialPower", 0x6C),
+    ("BurnDecayModifier", 0x70),
+    ("UseDistanceFromCommandCenter", 0x74),
+    ("DistanceFromCommandCenter", 0x78),
+)
+
+
+def trigger_recharge_list_image() -> bytearray:
+    """A stand-in carrying `SpecialAbilityUpdate`'s field-parse table and the module walk that
+    reads the field it repoints.
+
+    Sparse for the usual reason: the table and the walk are three megabytes apart. The table is
+    built here from names and offsets rather than pasted as a hex blob, because what the patch
+    does to it is find *one* entry among 35 identically shaped ones - a blob would only ever agree
+    with itself about which.
+
+    Both `AsciiString` entries carry the real stock parse function, so "repointed the right entry"
+    is a check the image can actually fail.
+    """
+    strings = bytearray()
+    rows = bytearray()
+    for name, offset in SPECIAL_ABILITY_FIELDS:
+        name_va = TRIGGER_RECHARGE_STRINGS_VA + len(strings)
+        strings += name.encode("ascii") + b"\x00"
+        stock_ascii = name in ("AttributeModifier", trl.FIELD_NAME)
+        parse = tl.STOCK_ASCII_STRING_PARSER if stock_ascii else 0x00730000 + offset
+        rows += struct.pack("<IIII", name_va, parse, 0, offset)
+    rows += bytes(trl.FIELD_ENTRY_SIZE)  # the terminator
+
+    return _sparse_image(
+        {
+            **{va: blob for va, blob, _what in trl.ANCHORS},
+            trl.MATCH_CALL_VA: b"\xe8"
+            + struct.pack("<i", trl.ASCII_STRING_COMPARE - (trl.MATCH_CALL_VA + 5)),
+            trl.FIELD_TABLE_VA: bytes(rows),
+            # `buildFieldParse`, whose one imm32 is the table's only reference in the image
+            trl.FIELD_TABLE_REF_VA: b"h" + struct.pack("<I", trl.FIELD_TABLE_VA),
+            TRIGGER_RECHARGE_STRINGS_VA: bytes(strings),
+        }
+    )
+
+
+#: Where the `upgrade-grant-lists` stand-in parks the eleven field-name strings: a page below the
+#: table that points at them, and one nothing else in that image uses.
+UPGRADE_LIST_STRINGS_VA = 0x00C6D000
+
+#: `ObjectCreationUpgrade`'s field-parse table as `(name, ModuleData offset)`, in table order.
+#: Planted in full so that a patch reading the wrong entry finds a real keyword there rather than
+#: zeroes - and in particular so `ThingToSpawn`, the third `AsciiString` in the table and the one
+#: this patch must **not** touch, stands right beside the two it does.
+OBJECT_CREATION_UPGRADE_FIELDS = (
+    ("UpgradeObject", 0x008),
+    ("Delay", 0x00C),
+    ("RemoveUpgrade", 0x140),
+    ("GrantUpgrade", 0x144),
+    ("ThingToSpawn", 0x148),
+    ("Offset", 0x14C),
+    ("Angle", 0x158),
+    ("DestroyWhenSold", 0x15C),
+    ("DeathAnimAndDuration", 0x160),
+    ("FadeInTime", 0x16C),
+    ("UseBuildingProduction", 0x170),
+)
+
+#: Which of those rows carry the stock `AsciiString` parser in the real build - the three the
+#: patch has to tell apart by name.
+_UPGRADE_LIST_ASCII_FIELDS = ("RemoveUpgrade", "GrantUpgrade", "ThingToSpawn")
+
+
+def upgrade_grant_lists_image() -> bytearray:
+    """A stand-in carrying `ObjectCreationUpgrade`'s field-parse table and the upgrade step that
+    reads the two fields it re-types.
+
+    Sparse for the usual reason: the table, the module's code and the interface search the object
+    argument depends on are spread over two and a half megabytes. The table is built here from
+    names and offsets rather than pasted as a hex blob, because what the patch does to it is find
+    two rows among eleven identically shaped ones.
+    """
+    strings = bytearray()
+    rows = bytearray()
+    for name, offset in OBJECT_CREATION_UPGRADE_FIELDS:
+        name_va = UPGRADE_LIST_STRINGS_VA + len(strings)
+        strings += name.encode("ascii") + b"\x00"
+        stock_ascii = name in _UPGRADE_LIST_ASCII_FIELDS
+        parse = tl.STOCK_ASCII_STRING_PARSER if stock_ascii else 0x00730000 + offset
+        rows += struct.pack("<IIII", name_va, parse, 0, offset)
+    rows += bytes(16)  # the terminator
+
+    def call(from_va: int, to_va: int) -> bytes:
+        return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
+
+    return _sparse_image(
+        {
+            **{va: blob for va, blob, _what in ugl.ANCHORS},
+            ugl.GRANT_CALL_VA: call(ugl.GRANT_CALL_VA, ugl.FIND_UPGRADE),
+            ugl.REMOVE_CALL_VA: call(ugl.REMOVE_CALL_VA, ugl.FIND_UPGRADE),
+            # the stock give and remove, which the patch reads only to point its caves at them
+            ugl.GRANT_CALL_VA + 13: call(ugl.GRANT_CALL_VA + 13, ugl.OBJECT_GIVE_UPGRADE),
+            ugl.REMOVE_CALL_VA + 13: call(ugl.REMOVE_CALL_VA + 13, ugl.OBJECT_REMOVE_UPGRADE),
+            # `buildFieldParse`, whose one imm32 is the table's only reference in the image
+            ugl.FIELD_TABLE_REF_VA: b"\x68" + struct.pack("<I", ugl.FIELD_TABLE_VA),
+            ugl.FIELD_TABLE_VA: bytes(rows),
+            UPGRADE_LIST_STRINGS_VA: bytes(strings),
+        }
+    )

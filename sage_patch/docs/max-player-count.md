@@ -193,7 +193,15 @@ widening we scoped and declined, several times over.
    nearly every map. If any can be consolidated, each one recovered buys a faction on the 227 maps
    currently at 19, with zero binary risk. This is the highest value-per-effort option.
 2. **Share `Skirmish<Faction>` sides.** If two factions can be driven from one AI side selected at
-   runtime, the per-faction side cost drops.
+   runtime, the per-faction side cost drops. **Scoped and built as
+   [`skirmish-ai-fallback`](skirmish-ai-fallback.md), and it lands better than "share":** the engine
+   already picks the AI's map side at runtime, and the two things that side supplies — the
+   `AISkirmishPlayer` and the faction's script library — can both be supplied without it. Two
+   five-byte hooks in `Player::initFromDict` give a faction with *no* side on the map an AI running
+   *its own* library, so no map is edited and no limit moves. That doc also corrects two claims made
+   above: a 21st side is *refused* by `SidesList::addSide` (`0x0072ea27`, `cmp edi, 0x14 / jge`)
+   rather than written out of bounds, and the map's `Skirmish<Faction>` sides never become `Player`s
+   at all — `prepareForMP` moves them into `m_skirmishSides` before `PlayerList::newGame` runs.
 3. **Accept 20 and gate content per map.** Ship faction subsets per map rather than every faction on
    every map.
 

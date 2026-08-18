@@ -54,6 +54,12 @@ EH_PROLOG = 0xA3CEF0
 OPERATOR_NEW = (0x42F6E0, 0x42F6A0)
 STR_ASSIGN = (0x4374E0, 0x4050E6, 0x436030, 0x40611E)
 HELPERS = set(OPERATOR_NEW) | set(STR_ASSIGN) | {EH_PROLOG, 0x42DBBD, 0x435D50}
+# `MultiIniFieldParse::add`, the one call inside a `buildFieldParse` that takes a table
+# rather than contributing one. Every other call there is a base class's own.
+MULTI_FIELD_ADD = 0x42B8D7
+# The deepest chain the engine actually has is four (`CitadelSlaughterHordeContain`);
+# the cap is a guard against following a call that is not a base class at all.
+MAX_BASE_DEPTH = 8
 
 # Parse functions identified from their bodies and from the fields that use them.
 # Anything absent renders as the raw address.
@@ -575,24 +581,41 @@ def const_return(img: Image, fn: int) -> Optional[int]:
     return None
 
 
-def field_tables(img: Image, bfp: Optional[int]) -> list[int]:
-    """Field-table addresses appended inside buildFieldParse.
+def field_tables(img: Image, bfp: Optional[int], depth: int = 0,
+                 seen: Optional[set[int]] = None) -> list[tuple[int, int]]:
+    """(field table, the `buildFieldParse` that appended it) for one module.
 
-    A table is either pushed directly, or fetched from a base class through a
-    trivial constant-returning accessor and then pushed from `eax`.
+    A table is either pushed directly, fetched from a base class through a trivial
+    constant-returning accessor and then pushed from `eax`, or appended by the base
+    class's own `buildFieldParse`, which a derived one calls before adding its own.
+    That call is where inheritance lives: `OCLSpecialPower` declares five keywords
+    itself and takes the other thirty-five from `SpecialPowerModule` through it, so a
+    walk that does not follow it reports a module as accepting a fraction of what it
+    really accepts. Following it in place keeps the engine's own order, in which the
+    base's table is searched first and therefore wins a keyword declared in both.
+
+    The second element of each pair names the class the table belongs to, which is
+    what lets an inherited field say where it came from.
     """
-    tabs: list[int] = []
-    if not bfp:
+    tabs: list[tuple[int, int]] = []
+    if not bfp or depth > MAX_BASE_DEPTH:
         return tabs
+    seen = seen if seen is not None else set()
+    if bfp in seen:
+        return tabs
+    seen.add(bfp)
     for i in img.disasm(bfp, 0x120):
         if i.mnemonic == "push" and i.op_str.startswith("0x"):
             a = int(i.op_str, 16)
             if _looks_like_table(img, a):
-                tabs.append(a)
+                tabs.append((a, bfp))
         elif i.mnemonic == "call" and i.op_str.startswith("0x"):
-            a = const_return(img, int(i.op_str, 16))
+            target = int(i.op_str, 16)
+            a = const_return(img, target)
             if a is not None and _looks_like_table(img, a):
-                tabs.append(a)
+                tabs.append((a, bfp))
+            elif target not in HELPERS and target != MULTI_FIELD_ADD and img.is_text(target):
+                tabs.extend(field_tables(img, target, depth + 1, seen))
     return tabs
 
 
@@ -877,17 +900,32 @@ def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any]]:
     mods: list[ModuleInfo] = []
     cat = Catalogue()
     blocks, tables, lookups = cat.blocks, cat.tables, cat.lookups
-    for name, inst, md, mask in registrations(img):
-        size, ctor, bfp = moduledata_info(img, md)
+    reg = [(name, mask) + moduledata_info(img, md)
+           for name, inst, md, mask in registrations(img)]
+    # A base class is usually a registered module in its own right, which is what lets
+    # an inherited field name where it came from. Two things stop that being exact: the
+    # purely abstract bases (`DockUpdate`, `SpecialPowerUpdate`) are never registered,
+    # and several keywords can share one ModuleData class (`ActiveBody` is also
+    # `ImmortalBody`), in which case the first registered wins the name.
+    declared_by: dict[int, str] = {}
+    for name, _mask, _size, _ctor, bfp in reg:
+        if bfp and name:
+            declared_by.setdefault(bfp, name)
+    for name, mask, size, ctor, bfp in reg:
         defaults = ctor_defaults(img, ctor)
         fields: list[FieldInfo] = []
         seen: set[str] = set()
-        for tab in field_tables(img, bfp):
+        for tab, source in field_tables(img, bfp):
             for row in parse_table(img, tab):
                 if row[0] in seen:
                     continue
                 seen.add(row[0])
-                fields.append(cat.field(img, row, defaults))
+                field = cat.field(img, row, defaults)
+                if source != bfp:
+                    field["inherited"] = True
+                    if source in declared_by:
+                        field["inherited_from"] = declared_by[source]
+                fields.append(field)
         mods.append(ModuleInfo(
             name=name,
             interface_mask=mask,

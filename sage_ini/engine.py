@@ -104,9 +104,14 @@ class Source:
 
 @dataclass(frozen=True, slots=True)
 class FieldDelta:
-    """A field a patch added to a block. `type` is a spelling from the grammar `parse_type`
+    """What a field is in the patched engine. `type` is a spelling from the grammar `parse_type`
     accepts; `default` is what the block reads when the field is absent, matching the patch's
-    own default so an unmodified mod converts the way it runs."""
+    own default so an unmodified mod converts the way it runs.
+
+    Usually that means a field the patch **added**. It also covers a field the stock engine
+    already had whose *type* the patch changed - a keyword that took one name and now takes a
+    list - because the model only ever holds one converter per field and this is it either
+    way."""
 
     block: str
     name: str

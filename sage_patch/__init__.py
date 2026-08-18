@@ -52,8 +52,10 @@ from sage_patch.patches import (
     SkirmishReplayPatch,
     SpawnUnionPatch,
     TerrainResourceExpPatch,
+    TriggerRechargeListPatch,
     UniqueProductionIdPatch,
     UpgradeDescriptionPatch,
+    UpgradeGrantListsPatch,
 )
 from sage_patch.sagepatch import generate
 
@@ -84,8 +86,10 @@ __all__ = [
     "SkirmishReplayPatch",
     "SpawnUnionPatch",
     "TerrainResourceExpPatch",
+    "TriggerRechargeListPatch",
     "UniqueProductionIdPatch",
     "UpgradeDescriptionPatch",
+    "UpgradeGrantListsPatch",
     "apply_patches",
     "generate",
 ]
