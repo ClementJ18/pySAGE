@@ -26,6 +26,7 @@ from __future__ import annotations
 import struct
 
 from sage_patch import addresses as ad
+from sage_patch.patches import crash_dump as cd
 from sage_patch.patches import description_timers as dt
 from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather_wb as wb
@@ -316,6 +317,23 @@ def skirmish_ai_fallback_image() -> bytearray:
             ad.PLAYER_SKIRMISH_ROUTE: ad.PLAYER_SKIRMISH_ROUTE_BYTES,
             ad.PLAYER_SKIRMISH_IMPORT: ad.PLAYER_SKIRMISH_IMPORT_BYTES,
             **saf.ANCHORS,
+        }
+    )
+
+
+def crash_dump_image() -> bytearray:
+    """A stand-in carrying both crash-path windows and everything the cave reads through.
+
+    Sparse for the usual reason: `writeMiniDump`'s argument push and `Debug::crash`'s
+    `RaiseException` push sit in three pages a few kilobytes apart, and nothing else in the
+    11 MB image is touched. Everything not planted reads as zero, so a window aimed one
+    instruction to either side of where it claims to be would find nothing there.
+    """
+    return _sparse_image(
+        {
+            ad.MINI_DUMP_ARGS: ad.MINI_DUMP_ARGS_BYTES,
+            ad.DEBUG_CRASH_RAISE: ad.DEBUG_CRASH_RAISE_BYTES,
+            **cd.ANCHORS,
         }
     )
 

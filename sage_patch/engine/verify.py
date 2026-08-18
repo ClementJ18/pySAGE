@@ -66,7 +66,6 @@ for va, lbl in [
     (0x80C8E3, "clear stosd"),
     (0x80C91D, "reset stosd"),
     (0x943DF9, "consumer count read"),
-    (0x9A025E, "consumer count read"),
     (0x7950E2, "AI scan bound"),
     (0x72065C, "parser table ptr"),
     (0x71C2EE, "getFieldParse ptr"),

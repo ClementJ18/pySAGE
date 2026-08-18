@@ -678,6 +678,29 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   by the client it attests, so it raises the floor, not the ceiling, and it cannot see an external
   read-only overlay at all. See [`docs/binary-attest.md`](docs/binary-attest.md).
   **Runtime-verified in game.**
+- **`crash-dump`** makes the minidump the engine already writes on every unhandled exception worth
+  opening. The writer at `0x0043BE80` asks for `MiniDumpWithDataSegs` and passes **NULL for both
+  the callback and the user-stream parameter**, and those two nulls are the whole problem: measured
+  on six real dumps, **every engine singleton pointer is captured and nothing any of them points at
+  is** — `TheGameLogic` reads a heap address that falls in no captured range — while **73% of each
+  27 MB file is video-driver globals**, 20 MB of `nvd3dum.dll` and `igd9dxva32.dll`. One cave and
+  two windows fix both halves at once. The eighteen bytes that push `MiniDumpWriteDump`'s last four
+  arguments become a jump that pushes a **patch-owned dump type** — default `0x1b65`, the important
+  bit being `WithPrivateReadWriteMemory`, which captures the SAGE heap without the mapped images —
+  and a real `MINIDUMP_CALLBACK_INFORMATION`, whose routine clears `ModuleWriteDataSeg` for every
+  module that is not `game.dat`. So the dump gets **more useful and smaller**: the module filter is
+  what pays for the heap. The engine's own `fulldump` debug command still selects between the two
+  profiles, both of which are parameters (`--dump-type`, `--deep-dump-type`) that `detect` reads
+  back out of the cave. Separately, `Debug::crash` raises the engine's own `0x04560123` with **zero
+  exception parameters** — four of the six observed dumps are that code, i.e. four dumps that
+  record that an assert fired and not which one — so a second hook passes three: the formatted
+  crash text, the `.rdata` literal that tags it as an assertion or an error, and the mode. The text
+  is a heap pointer, which is why the two halves ship together. **The shipped 2003
+  `dbghelp.dll` (6.3.0005.1) supports every bit used**, so nothing here needs it renamed out of the
+  way. Client-local: no simulation, checksum, order stream or replay format is touched, and both
+  hooks are reached only from code that runs after a crash. See
+  [`docs/crash-dump.md`](docs/crash-dump.md), and
+  [`docs/crash-dump-quality.md`](docs/crash-dump-quality.md) for the measurements behind it.
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -814,6 +837,11 @@ sage-patch verify recharge-rescale game.dat
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
 sage-patch apply cooldown-through-death --in game.dat.backup --out game.dat
 sage-patch verify cooldown-through-death game.dat
+
+# a crash .dmp that carries the heap and not the video driver's globals; --dump-type and
+# --deep-dump-type are MINIDUMP_TYPE masks, the second selected by the `fulldump` debug command
+sage-patch apply crash-dump --in game.dat.backup --out game.dat        # defaults 0x1b65 / 0x1b67
+sage-patch verify crash-dump game.dat
 
 # the launcher, not game.dat: no install-location lock on the token it hands the engine
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top

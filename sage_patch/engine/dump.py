@@ -113,6 +113,27 @@ if 6 in streams:
                 return d[o : o + min(ln, sz - (addr - sa))]
         return None
 
+    # The engine's own "Game crash" code, raised by `Debug::crash`. Stock, it arrives with no
+    # parameters at all, which is why four of the six dumps in the install root say a crash
+    # happened and not which one. The `crash-dump` patch fills three: the formatted crash text,
+    # the .rdata literal saying whether it was an assertion or an error, and the mode. The first
+    # is a heap pointer, so it resolves only in a dump whose type carried the heap.
+    if code == 0x04560123:
+        if not nparam:
+            print("\nGame crash: no exception parameters (binary without the crash-dump patch)")
+        labels = ("message", "kind", "mode")
+        for k, value in enumerate(info):
+            label = labels[k] if k < len(labels) else f"param[{k}]"
+            pointerish = value > 0x10000
+            blob = read_mem(value, 0x400) if pointerish else None
+            if blob and b"\x00" in blob:
+                text = blob.partition(b"\x00")[0].decode("ascii", "replace")
+                print(f"\n{label}: {text}")
+            elif pointerish:
+                print(f"\n{label}: 0x{value:x}  (not in any captured range)")
+            else:
+                print(f"\n{label}: 0x{value:x}")
+
     if game:  # the stack walk is only meaningful relative to the game.dat module
         GB, GE = game[0], game[0] + game[1]
         stk = read_mem(Esp, 0x200)

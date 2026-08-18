@@ -145,6 +145,35 @@ bounds on the literal 33.
 **Because no consumer reads the count field, every one of these 42 loops must have its bound
 raised** for the extra buttons to be iterated / drawn — they don't scale automatically.
 
+### Reads of the count field outside those loops
+
+The classification above is about `getCommandButton` callers. Two other places read a
+`+0x98` field with the same `push dword [reg+0x98]` encoding, and only one of them is a
+`CommandSet`:
+
+| VA | object in the register | patched? |
+| --- | --- | --- |
+| `0x00943DF9` | `CommandSet` - `[ebp-0x18]`, freshly returned by `TheCommandSetStore` (`0x00DE7744` -> `0x0071EFA2`) | yes, it is a real count read |
+| `0x009A025E` | `UpgradeTemplate` - `ebx = [edi+0x24]` where `edi` came out of `getCommandButton` | **no** |
+
+`0x009A025E` is a trap: it sits four instructions after a genuine `CommandSet` in the same
+frame, so a scan keyed on the encoding rather than on the register finds it and reads as a
+third consumer. It is not one. `ebx` there is the button's `UpgradeTemplate`, `+0x98` is its
+`SkirmishAIHeuristic` (the field `0x008E02AF` parses and the ctor at `0x0066F939` defaults to
+`-1`), and the object is only `0x9C` bytes - `push 0x9C` at `0x0066FC34`.
+
+Rewriting it to the relocated count offset therefore reads past the allocation and passes
+uninitialised heap to `AIScience::setHeuristic` (`0x0099F52F`). Values outside `0..7` and
+`-1` take its default arm, which hands out the process-wide "unknown heuristic" singleton at
+`0x00DEBE3C` **while recording the garbage as the owned type**; `release` (`0x009EDD52`) only
+spares `0` and `-1`, so the next release destroys and frees that singleton. Its vptr becomes
+the abstract base `0x00C880D8`, and the next `AIScience::evaluate` on any other science that
+still points there calls slot 0 - `_purecall` at `0x0043B160` - and the skirmish AI takes the
+game down with "Pure virtual function called."
+
+This was shipped and observed: the `N=64` build crashed mid-match on 2026-08-18, with
+`[0x00DEBE3C] = 0x00C880D8` in the dump. The site is gone from `_phase1_edits`.
+
 ### The 42 literal-33 consumer functions (Ghidra `FUN_` entry, call count)
 
 ```

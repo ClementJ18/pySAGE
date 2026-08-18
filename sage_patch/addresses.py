@@ -123,6 +123,18 @@ __all__ = [
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
     "CRC_EXCLUDE_SHROUD_FLAG",
     "CRT_ATOI",
+    "DEBUG_CRASH_EXCEPTION_CODE",
+    "DEBUG_CRASH_MESSAGE_EBP",
+    "DEBUG_CRASH_MESSAGE_READ",
+    "DEBUG_CRASH_MESSAGE_READ_BYTES",
+    "DEBUG_CRASH_MODE_EBP",
+    "DEBUG_CRASH_RAISE",
+    "DEBUG_CRASH_RAISE_BYTES",
+    "DEBUG_CRASH_RAISE_RESUME",
+    "DEBUG_CRASH_RAISE_RESUME_BYTES",
+    "DEBUG_CRASH_TAG_EBP",
+    "DEBUG_CRASH_TAG_STORE",
+    "DEBUG_CRASH_TAG_STORE_BYTES",
     "DESCRIPTION_BLOCKED_ASSIGN",
     "DESCRIPTION_BLOCKED_ASSIGN_BYTES",
     "DESCRIPTION_BLOCKED_RESUME",
@@ -224,6 +236,14 @@ __all__ = [
     "MAIN_MENU_SCREEN_PHASE",
     "MAIN_MENU_SCREEN_SELECTION",
     "MAX_PLAYER_COUNT",
+    "MINI_DUMP_ARGS",
+    "MINI_DUMP_ARGS_BYTES",
+    "MINI_DUMP_ARGS_RESUME",
+    "MINI_DUMP_ARGS_RESUME_BYTES",
+    "MINI_DUMP_EXCEPTION_INFO_EBP",
+    "MINI_DUMP_FULL_DUMP_EBP",
+    "MINI_DUMP_NULL_EDI",
+    "MINI_DUMP_NULL_EDI_BYTES",
     "MISSION_OBJECTIVE_LIST_OFFSET",
     "MISSION_OBJECTIVE_TRACKER",
     "MONEY_DEPOSIT",
@@ -505,6 +525,8 @@ __all__ = [
     "WIDE_BLANK_LINE_BYTES",
     "WIDE_NEWLINE",
     "WIDE_NEWLINE_BYTES",
+    "WRITE_MINI_DUMP",
+    "WRITE_MINI_DUMP_BYTES",
 ]
 
 BUILD = "RotWK 2.01.2614.37001"
@@ -2340,3 +2362,69 @@ PLAYER_SKIRMISH_IMPORT_BYTES = bytes.fromhex("807de0000f84d6020000")
 PLAYER_SKIRMISH_IMPORT_RESUME = 0x006B0D58
 PLAYER_SKIRMISH_IMPORT_SKIP = 0x006B102E
 PLAYER_SKIRMISH_IMPORT_SKIP_BYTES = bytes.fromhex("8b8e04030000")
+
+#: `writeMiniDump(EXCEPTION_POINTERS *ep, BOOL fullDump)` - `cdecl`, two stack arguments, called
+#: from the unhandled-exception filter at `0x0043D610`. It resolves `MiniDumpWriteDump` out of the
+#: `dbghelp.dll` handle at `0x00DC62EC`, builds the file name, opens it, takes `SeDebugPrivilege`
+#: and calls through. `docs/crash-dump-quality.md` derives the whole body.
+WRITE_MINI_DUMP = 0x0043BE80
+WRITE_MINI_DUMP_BYTES = bytes.fromhex("558bec81ec50010000a1ec62dc00")
+
+#: `xor edi, edi` inside it, at the point the file name has been formatted. Every `push edi` from
+#: here to the `MiniDumpWriteDump` call is therefore a literal `NULL`, which is what makes the two
+#: at `MINI_DUMP_ARGS` the null user-stream and callback parameters rather than live values.
+MINI_DUMP_NULL_EDI = 0x0043BF24
+MINI_DUMP_NULL_EDI_BYTES = bytes.fromhex("33ff57576a02")
+
+#: `writeMiniDump`'s frame slots. `..._FULL_DUMP_EBP` is the second argument, the `fulldump` debug
+#: flag the engine reads off `Debug+0x9F56`; `..._EXCEPTION_INFO_EBP` is the
+#: `MINIDUMP_EXCEPTION_INFORMATION` the function fills at `0x0043BF9D`..`0x0043BFB7`.
+MINI_DUMP_FULL_DUMP_EBP = 0x0C
+MINI_DUMP_EXCEPTION_INFO_EBP = -0x10
+
+#: The eighteen bytes that push `MiniDumpWriteDump`'s last four arguments: `CallbackParam` and
+#: `UserStreamParam` (both `push edi`, both `NULL`), `ExceptionParam`, and the dump type - which
+#: the stock code derives as `1` or `2` from the `fulldump` flag and nothing else. `..._RESUME` is
+#: the `push esi` that follows with the file handle, the first byte the window does not cover.
+MINI_DUMP_ARGS = 0x0043C001
+MINI_DUMP_ARGS_BYTES = bytes.fromhex("8a550c33c984d20f95c157578d45f0504151")
+MINI_DUMP_ARGS_RESUME = 0x0043C013
+MINI_DUMP_ARGS_RESUME_BYTES = bytes.fromhex("56ff154401bd00")
+
+#: The engine's own "Game crash" exception code, raised at `DEBUG_CRASH_RAISE` and recognised by
+#: the unhandled-exception filter at `0x0043D673`. Four of the six dumps found in the install root
+#: carry it, which is why its (stock, empty) parameter block is worth filling.
+DEBUG_CRASH_EXCEPTION_CODE = 0x04560123
+
+#: `Debug::crash(int mode)` - `__thiscall` on the `Debug` singleton (`0x00DC62C0`), the function
+#: that formats the crash text, shows the message box and raises. Its three frame slots below are
+#: everything the exception record is missing.
+#:
+#: `..._MESSAGE_EBP` is the formatted crash text: allocated at `0x0043A91E` and filled with the
+#: current error record's expression, file and line followed by `..._TAG_EBP`'s literal. It is a
+#: heap pointer, so it is readable offline only in a dump that carries the heap.
+#: `..._TAG_EBP` is one of two `.rdata` literals chosen at `DEBUG_CRASH_TAG_STORE` by `mode`, and
+#: `..._MODE_EBP` is `mode` itself - 1 for an assertion, anything else for an error.
+DEBUG_CRASH_MESSAGE_EBP = -0x04
+DEBUG_CRASH_TAG_EBP = -0x08
+DEBUG_CRASH_MODE_EBP = 0x08
+
+#: `mov dword [ebp-8], 0x00BD4BAC` - the assertion arm of the tag choice, which is what pins
+#: `DEBUG_CRASH_TAG_EBP` to a slot holding a pointer rather than a count.
+DEBUG_CRASH_TAG_STORE = 0x0043A89B
+DEBUG_CRASH_TAG_STORE_BYTES = bytes.fromhex("c745f8ac4bbd00")
+
+#: `mov ecx, [ebp-4]` - the engine's own read of the message pointer, feeding the `MessageBoxA`
+#: five instructions later. It sits on the only path that reaches the raise, so asserting it is
+#: what says `DEBUG_CRASH_MESSAGE_EBP` is live there.
+DEBUG_CRASH_MESSAGE_READ = 0x0043AC2A
+DEBUG_CRASH_MESSAGE_READ_BYTES = bytes.fromhex("8b4dfc6810100100")
+
+#: `push edi ; push edi ; push edi ; push 0x04560123` - `RaiseException`'s four arguments, in
+#: which `lpArguments` and `nNumberOfArguments` are both zero, so the exception record reaches the
+#: dump with an empty `ExceptionInformation[]`. `..._RESUME` is the `call RaiseException` itself,
+#: the first byte the window does not cover.
+DEBUG_CRASH_RAISE = 0x0043AC57
+DEBUG_CRASH_RAISE_BYTES = bytes.fromhex("5757576823015604")
+DEBUG_CRASH_RAISE_RESUME = 0x0043AC5F
+DEBUG_CRASH_RAISE_RESUME_BYTES = bytes.fromhex("ff15d801bd00")

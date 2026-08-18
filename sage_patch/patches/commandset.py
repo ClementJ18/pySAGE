@@ -14,7 +14,7 @@ Two phases make up the patch:
 
 * **Phase 1** grows the `CommandSet` object from ``0xA0`` to ``0x14 + count*4 + 8`` bytes. The
   ``m_command[]`` array stays at ``+0x14``; the trailing count/flag fields move from ``0x98/0x9c``
-  to just past the enlarged array. Fifteen instruction immediates (the allocation size, the
+  to just past the enlarged array. Fourteen instruction immediates (the allocation size, the
   ctor's ``33`` fills, every field offset, and the AI's scan bound below) are rewritten.
 * **Phase 2** builds a fresh ``count``-slot field-parse table plus the new ``"34".."count"`` slot
   names in an appended ``.cmdext`` PE section, and repoints the two code references to it.
@@ -187,7 +187,7 @@ class CommandSetLimitPatch(Patch):
         The default probe cannot: it would ask `verify` about N=64 and call every other limit
         absent. The allocator's ``push <object size>`` is an imm32 holding
         ``0x14 + N*4 + 8``, so N reads straight back out of it, and `verify` then checks all
-        fifteen sites against that N."""
+        fourteen sites against that N."""
         if find_section(data, _SECTION_NAME) is None:
             return None
         try:
@@ -317,7 +317,13 @@ class CommandSetLimitPatch(Patch):
             (0x40C8C6, b"\x83\xfb\x21", b"\x83\xfb" + nb, "P1 slot-scan bound"),
             (0x40C8E3, b"\x6a\x21", b"\x6a" + nb, "P1 clear stosd"),
             (0x40C91D, b"\x6a\x21", b"\x6a" + nb, "P1 reset stosd"),
+            # The only consumer that reads the count field rather than a literal bound.
+            # `[ebp-0x18]` here is the `CommandSet` `TheCommandSetStore` (0x00DE7744 ->
+            # 0x0071EFA2) just returned. Do not widen this to every `push [reg+0x98]` the
+            # image holds: 0x009A025E looks identical and is an `UpgradeTemplate`'s
+            # `SkirmishAIHeuristic`, whose object is only 0x9C bytes - rewriting it reads
+            # past the allocation and feeds garbage to `AIScience::setHeuristic`, which
+            # eventually frees a shared heuristic singleton and purecalls the skirmish AI.
             (0x543DF9, b"\xff\xb0" + old_count, b"\xff\xb0" + new_count, "P1 consumer count read"),
-            (0x5A025E, b"\xff\xb3" + old_count, b"\xff\xb3" + new_count, "P1 consumer count read"),
             (_AI_SCAN_BOUND, b"\x83\x7d\xf8\x21", b"\x83\x7d\xf8" + nb, "P1 AI scan bound"),
         ]
