@@ -29,6 +29,7 @@ stderr with no setup at all.
 from sage_patch.patcher import EXPERIMENTAL_WARNING, Patch, apply_patches
 from sage_patch.patches import (
     AiReviveGatePatch,
+    AutoDepositInflationPatch,
     BannerFilterPatch,
     CahFactionsPatch,
     CommandPointUpkeepPatch,
@@ -41,6 +42,7 @@ from sage_patch.patches import (
     InflationReadoutPatch,
     LargeGroupBonusFilterPatch,
     LifetimeExtendUpgradePatch,
+    MaintenanceCostPatch,
     MultiExecuteGatePatch,
     PlayerHealFilterPatch,
     ProductionConditionPatch,
@@ -62,6 +64,7 @@ from sage_patch.sagepatch import generate
 __all__ = [
     "EXPERIMENTAL_WARNING",
     "AiReviveGatePatch",
+    "AutoDepositInflationPatch",
     "BannerFilterPatch",
     "CahFactionsPatch",
     "CommandPointUpkeepPatch",
@@ -74,6 +77,7 @@ __all__ = [
     "InflationReadoutPatch",
     "LargeGroupBonusFilterPatch",
     "LifetimeExtendUpgradePatch",
+    "MaintenanceCostPatch",
     "MultiExecuteGatePatch",
     "Patch",
     "PlayerHealFilterPatch",

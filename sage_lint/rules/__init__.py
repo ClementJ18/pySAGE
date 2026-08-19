@@ -19,6 +19,7 @@ from sage_lint.rules.definitions import (
     UnusedDefinitionRule,
     UnusedObjectRule,
 )
+from sage_lint.rules.experience import ExperienceLevelConflictRule
 from sage_lint.rules.macros import UndefinedMacroRule
 from sage_lint.rules.map_ini import MapBareModuleRule
 from sage_lint.rules.modifier_fx import ModifierFxDurationRule
@@ -45,6 +46,7 @@ __all__ = [
     "DanglingReferenceRule",
     "DuplicateDefinitionRule",
     "DuplicateReviveButtonRule",
+    "ExperienceLevelConflictRule",
     "InitialVisibleLimitRule",
     "MapBareModuleRule",
     "MapFolderNameRule",

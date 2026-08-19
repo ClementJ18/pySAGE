@@ -184,10 +184,33 @@ class TestPatchSurfacesMatchTheModel:
         assert surface.apply() == []
 
     def test_every_field_names_a_real_block_and_a_type_the_grammar_knows(self, surface):
+        """ "Real" means the stock model's, *or* one this same surface introduces - a patch that
+        registers a new module type with the engine's `ModuleFactory` necessarily declares fields
+        on a block no stock binary has."""
+        introduced = {b.name for b in surface.blocks if not b.removed}
         for delta in surface.fields:
-            assert delta.block in REGISTRY, f"{delta.block} is not a block type"
+            assert delta.block in REGISTRY or delta.block in introduced, (
+                f"{delta.block} is not a block type, and this surface does not introduce it"
+            )
             converter, error = parse_type(delta.type)
             assert converter is not None, f"{delta.block}.{delta.name}: {error}"
+
+    def test_no_field_lands_on_a_block_the_same_surface_removes(self, surface):
+        """Declaring a keyword on a block the patch just unregistered describes an INI nobody can
+        write: the whole block is a parse error before the field is ever reached."""
+        removed = {b.name for b in surface.blocks if b.removed}
+        for delta in surface.fields:
+            assert delta.block not in removed, f"{delta.block} is removed by this same patch"
+
+    def test_every_block_delta_is_coherent(self, surface):
+        """A removed block has to be one that exists to remove; a created one has to name a base
+        that does."""
+        for block in surface.blocks:
+            if block.removed:
+                assert block.name in REGISTRY, f"{block.name} is not a block type to remove"
+            else:
+                assert block.base in REGISTRY, f"{block.name}: base {block.base} is not a block"
+                assert block.name not in REGISTRY, f"{block.name} already exists"
 
     def test_every_field_is_a_new_one_or_a_real_re_typing(self, surface):
         """A patch that "adds" a field the model already declares, *with the type it already has*,
@@ -195,7 +218,10 @@ class TestPatchSurfacesMatchTheModel:
         both make the `.sagepatch` lie. Re-typing a stock field is allowed and is a thing patches
         do (`trigger-recharge-list` turns a single `SpecialPower` name into a list of them), so
         what is asserted is that the delta changes something."""
+        introduced = {b.name for b in surface.blocks if not b.removed}
         for delta in surface.fields:
+            if delta.block in introduced:
+                continue  # a block the stock model has never had cannot re-type anything
             # No engine is applied here (the suite reverts after every test), so the fieldspec is
             # the stock schema.
             stock = REGISTRY[delta.block]._fieldspec.get(delta.name)

@@ -2,6 +2,7 @@
 
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
+from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.cah_factions import CahFactionsPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
@@ -20,6 +21,7 @@ from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus_filter import LargeGroupBonusFilterPatch
 from sage_patch.patches.lifetime_extend_upgrade import LifetimeExtendUpgradePatch
+from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
@@ -39,6 +41,7 @@ from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
 __all__ = [
     "AiConstructionGatePatch",
     "AiReviveGatePatch",
+    "AutoDepositInflationPatch",
     "BannerFilterPatch",
     "CahFactionsPatch",
     "CommandPointUpkeepPatch",
@@ -53,6 +56,7 @@ __all__ = [
     "InflationReadoutPatch",
     "LargeGroupBonusFilterPatch",
     "LifetimeExtendUpgradePatch",
+    "MaintenanceCostPatch",
     "LiveBridgePatch",
     "LivingWorldOverridePatch",
     "MultiExecuteGatePatch",

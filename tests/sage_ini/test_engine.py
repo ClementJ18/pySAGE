@@ -18,6 +18,7 @@ import pytest
 from sage_ini.engine import (
     FORMAT_VERSION,
     STOCK,
+    BlockDelta,
     Engine,
     EnumDelta,
     FieldDelta,
@@ -254,3 +255,82 @@ def test_a_broken_sagepatch_becomes_a_diagnostic_not_an_exception(tmp_path):
     (tmp_path / ".sagepatch").write_text("version = 1\n[[fields]]\nnot = valid\n", encoding="utf-8")
     loaded = load_game(tmp_path, engine=load_engine(tmp_path / ".sagepatch"))
     assert [d.code for d in loaded.diagnostics.items] == ["engine-config"]
+
+
+class TestBlockDelta:
+    """A patch can change which blocks *exist*, not just what a known block accepts.
+
+    The properties worth pinning are the ones a naive `REGISTRY[name] = ...` would get wrong: a
+    created block has to be a real class with its base's schema flattened into it, and both
+    directions have to revert - a removed stock block must come back, or one test that removes it
+    breaks every test after."""
+
+    def test_a_created_block_is_registered_with_its_base_schema(self):
+        engine = _engine(blocks=(BlockDelta("ProximityCaptureUpdate", base="Behavior"),))
+        try:
+            assert engine.apply() == []
+            created = REGISTRY["ProximityCaptureUpdate"]
+            assert issubclass(created, REGISTRY["Behavior"])
+            assert created._fieldspec.keys() >= REGISTRY["Behavior"]._fieldspec.keys()
+        finally:
+            revert()
+        assert "ProximityCaptureUpdate" not in REGISTRY
+
+    def test_a_field_can_name_a_block_the_same_engine_creates(self):
+        """Blocks are applied before fields, which is the whole reason the order is fixed."""
+        engine = _engine(
+            blocks=(BlockDelta("ProximityCaptureUpdate"),),
+            fields=(FieldDelta("ProximityCaptureUpdate", "CaptureShare", "Int", 50),),
+        )
+        try:
+            assert engine.apply() == []
+            assert REGISTRY["ProximityCaptureUpdate"]._defaults["CaptureShare"] == 50
+        finally:
+            revert()
+
+    def test_a_removed_block_comes_back_on_revert(self):
+        engine = _engine(blocks=(BlockDelta("AutoFindHealingUpdate", removed=True),))
+        try:
+            assert engine.apply() == []
+            assert "AutoFindHealingUpdate" not in REGISTRY
+        finally:
+            revert()
+        assert "AutoFindHealingUpdate" in REGISTRY
+
+    def test_creating_a_block_that_already_exists_is_a_problem_not_a_clobber(self):
+        engine = _engine(blocks=(BlockDelta("AutoFindHealingUpdate"),))
+        try:
+            assert engine.apply() == ["'AutoFindHealingUpdate' is already a block type"]
+        finally:
+            revert()
+
+    def test_removing_a_block_that_does_not_exist_says_so(self):
+        engine = _engine(blocks=(BlockDelta("NoSuchModule", removed=True),))
+        try:
+            problems = engine.apply()
+            assert len(problems) == 1
+            assert "nothing for the patch to have removed" in problems[0]
+        finally:
+            revert()
+
+    def test_an_unknown_base_is_a_problem(self):
+        engine = _engine(blocks=(BlockDelta("Whatever", base="NoSuchBase"),))
+        try:
+            assert engine.apply() == ["Whatever: base unknown block type 'NoSuchBase'"]
+            assert "Whatever" not in REGISTRY
+        finally:
+            revert()
+
+    def test_blocks_round_trip_through_a_sagepatch(self):
+        engine = _engine(
+            blocks=(
+                BlockDelta("ProximityCaptureUpdate", base="Behavior", patch="capture-the-flag"),
+                BlockDelta("AutoFindHealingUpdate", removed=True, patch="capture-the-flag"),
+            )
+        )
+        reloaded = parse_engine(dump_engine(engine))
+        assert reloaded.warnings == ()
+        assert reloaded.blocks == engine.blocks
+
+    def test_an_engine_with_only_a_block_is_not_stock(self):
+        assert not _engine(blocks=(BlockDelta("Whatever"),)).is_stock

@@ -19,6 +19,9 @@ image is chosen by which patch is under test.
 
 :func:`observer_switch_image` is sparse for the same reason: `observer-switch` edits one `call` and
 reads two functions most of a megabyte away from it, so only those two pages need to exist.
+
+:func:`worldbuilder_mod_image` is the third Worldbuilder stand-in. Its hook sits in the editor's
+own `InitInstance` and its anchors are ~16 MB away in the file-system module, so it is sparse too.
 """
 
 from __future__ import annotations
@@ -42,7 +45,9 @@ from sage_patch.patches import skirmish_ai_fallback as saf
 from sage_patch.patches import trigger_recharge_list as trl
 from sage_patch.patches import upgrade_description as ud
 from sage_patch.patches import upgrade_grant_lists as ugl
+from sage_patch.patches import worldbuilder_mod as wbm
 from sage_patch.patches.experimental import campaign_select as cs
+from sage_patch.patches.experimental import capture_the_flag as ctf
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
@@ -300,6 +305,44 @@ def observer_switch_image() -> bytearray:
             **obs.ANCHORS,
         }
     )
+
+
+def capture_the_flag_image() -> bytearray:
+    """A stand-in carrying every site `capture-the-flag` rewrites, plus the field-parse table and
+    the name strings it asserts before replacing them.
+
+    Sparse for the usual reason: the two allocation literals in `newModule`/`newModuleData`, the
+    `ModuleFactory` registration, the module's own two name references and its vtable and field
+    table in `.rdata` are spread over six megabytes. The stock table is planted in full - keywords,
+    parse functions and offsets - because the patch refuses to run against a table that is not the
+    one it read, and that refusal is the check worth having.
+    """
+    call = bytes([0xE8])
+    push_imm32 = bytes([0x68])
+    nul = bytes([0])
+    planted: dict[int, bytes] = {
+        ctf.INSTANCE_SIZE_VA: bytes([0x6A, ctf.STOCK_INSTANCE_SIZE]),
+        ctf.MODULEDATA_SIZE_VA: bytes([0x6A, ctf.STOCK_MODULEDATA_SIZE]),
+        ctf.INSTANCE_CTOR_CALL_VA: call
+        + struct.pack("<i", ctf.INSTANCE_CTOR_VA - (ctf.INSTANCE_CTOR_CALL_VA + 5)),
+        ctf.MODULEDATA_CTOR_CALL_VA: call
+        + struct.pack("<i", ctf.MODULEDATA_CTOR_VA - (ctf.MODULEDATA_CTOR_CALL_VA + 5)),
+        ctf.UPDATE_VTABLE_VA: struct.pack("<I", ctf.STOCK_UPDATE_VA),
+        ctf.FIELD_TABLE_REF_VA - 1: push_imm32 + struct.pack("<I", ctf.FIELD_TABLE_VA),
+    }
+    for va, opcode in zip(ctf.NAME_REF_VAS, ctf.NAME_REF_OPCODES, strict=True):
+        planted[va - 1] = opcode + struct.pack("<I", ctf.STOCK_NAME_VA)
+    planted[ctf.STOCK_NAME_VA] = b"AutoFindHealingUpdate" + nul
+
+    keyword_va = ctf.STOCK_NAME_VA + 0x40
+    table = bytearray()
+    for keyword, parse, offset in ctf.STOCK_FIELD_TABLE:
+        planted[keyword_va] = keyword.encode() + nul
+        table += struct.pack("<IIII", keyword_va, parse, 0, offset)
+        keyword_va += 0x20
+    table += struct.pack("<IIII", 0, 0, 0, 0)
+    planted[ctf.FIELD_TABLE_VA] = bytes(table)
+    return _sparse_image(planted)
 
 
 def skirmish_ai_fallback_image() -> bytearray:
@@ -776,3 +819,15 @@ def upgrade_grant_lists_image() -> bytearray:
             UPGRADE_LIST_STRINGS_VA: bytes(strings),
         }
     )
+
+
+def worldbuilder_mod_image() -> bytearray:
+    """A stand-in for `Worldbuilder.exe` carrying `worldbuilder-mod`'s hook and every anchor.
+
+    The hook window and the INI read it has to precede are planted at their real offsets from one
+    another, so a patch that hooked *after* the read - which would arm the mod directory too late
+    to override anything - would have to name a different address to pass here.
+    """
+    planted = {wbm.HOOK_VA: wbm._HOOK_BYTES}
+    planted.update(wbm.ANCHORS)
+    return _sparse_image(planted)

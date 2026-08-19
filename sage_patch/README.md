@@ -3,15 +3,16 @@
 Reverse-engineering + binary-patch work on the ROTWK SAGE engine (build `2.01.2614.37001`). The
 patches below are all engine-level — they apply to any ROTWK install of that build and benefit
 every mod on it (Edain among them), not one in particular. All of them target `game.dat` except
-two, which patch other binaries from the same install: `desert-weather-wb` patches
-`Worldbuilder.exe`, and `standalone-launcher` patches the launcher shim `lotrbfme2ep1.exe`.
+three, which patch other binaries from the same install: `desert-weather-wb` and
+`worldbuilder-mod` patch `Worldbuilder.exe`, and `standalone-launcher` patches the launcher shim
+`lotrbfme2ep1.exe`.
 
 > ### ⚠ Experimental patches
 >
-> Nine of the registered patches — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
+> Ten of the registered patches — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
 > **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**, **`live-bridge`**,
-> **`living-world-override`** and **`cooldown-through-death`** — are **experimental: unstable and
-> largely untested.** They live in
+> **`living-world-override`**, **`cooldown-through-death`** and **`capture-the-flag`** — are
+> **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
 >
@@ -81,6 +82,17 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   pressing OK writes `-1` back into the map and silently reverts it. The patch grows the same
   table and raises that one bound. Dropdown only: the editor *viewport* keeps drawing the
   non-`SAND` variant, which needs Worldbuilder's own model-condition table extended too.
+- **`worldbuilder-mod`** gives **`Worldbuilder.exe`** the `-mod` switch the game has, so a mod's
+  loose files load in the editor without being packed into a `.big` first. The editor already
+  links the whole pipeline - the `-mod` table entry, `parseMod`, `ArchiveFileSystem::loadMods` -
+  but all of it hangs off `GameEngine::init`, and Worldbuilder never constructs a `GameEngine`,
+  so none of it runs. The patch calls the one function that arms a mod directory from
+  Worldbuilder's own startup, just before it reads its first INI. **Pass a map before `-mod`**
+  (`Worldbuilder.exe <some>.map -mod <dir>`): Worldbuilder is an MFC app, and MFC otherwise
+  claims the bare mod path as a document to open and fails with `Access to … was denied`. Point
+  `-mod` at the **subtree** being edited rather than a whole mod - a full one still kills the
+  editor partway through startup, where the game handles the same tree fine. See
+  [`docs/worldbuilder-mod.md`](docs/worldbuilder-mod.md).
 - **`infantry-lighting`** decides **which kindofs get the map's infantry light environment**. A
   `.map` carries three light sets per time of day - terrain, objects, infantry - and the renderer
   picks the infantry one per render object from a flag set by a single `KindOf` test in the
@@ -213,6 +225,45 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   construction**: its unit variants leave `BuildCost2` at 0, and a cost of 0 short-circuits the
   shared gate before the pool is read. **Enforcement is not complete** — structure placement and
   upgrade research are refused correctly but not charged, and cancelling refunds no resource 2.
+- **`maintenance-cost`** makes a **negative** `TerrainResourceBehavior.MaxIncome` or
+  `AutoDepositUpdate.DepositAmount` **take** that much gold per tick instead of being discarded, so
+  a structure can carry an upkeep. There is **no new INI keyword**: `INI::parseInt` is an
+  `sscanf("%d")` whose error message reads *"Expected signed integer"*, so `MaxIncome = -5` already
+  parses on a stock binary — it is the run-time paths that throw the sign away, at a
+  `jle` past the deposit, at the engine's never-round-below-one-gold floor, and at
+  `Money::deposit` itself. That last one is why the patch exists rather than being a data change:
+  the balance is **unsigned** and `deposit` is an unclamped `add`, so a negative deposited is not a
+  charge but about four billion gold. Every charge goes through `Money::withdraw` instead, which
+  clamps to what the player actually has, returns what it took and credits `MoneySpent` rather than
+  `MoneyEarned`. **A charge inherits whatever scales its module's income and computes nothing of
+  its own**, so a `TerrainResourceBehavior` upkeep falls with the faction's
+  `ResourceModifierValues` exactly as that spot's income does — stock arithmetic, not code this
+  patch wrote — while an `AutoDepositUpdate` upkeep is flat, like its income, unless
+  **`auto-deposit-inflation`** is applied too. It is drawn
+  with the engine's own red **`GUI:LoseCash`** floating text, so **no `.csf` and no `.apt` edit**,
+  and a charge tick grants **no experience** rather than negative experience. Nothing is destroyed
+  or disabled for want of upkeep — a player who cannot pay simply pays what they have. Money is
+  logic state, so **every peer must run the same patched binary**; and because there is no new
+  keyword, a mod using it still **loads** on an unpatched one and silently does not charge. See
+  [`docs/maintenance-cost.md`](docs/maintenance-cost.md).
+- **`auto-deposit-inflation`** makes **`AutoDepositUpdate` obey the income inflation** the engine
+  applies to `TerrainResourceBehavior` and to nothing else. `PlayerTemplate.ResourceModifierValues`
+  — the per-building penalty every Edain faction sets — is read in exactly **one** place in the
+  image, and it is the *other* income module; a structure paying through `AutoDepositUpdate` pays
+  `DepositAmount` flat for ever. In Edain that is not a corner case: the resource spots are
+  `TerrainResourceBehavior` and the **castle and camp keeps** are `AutoDepositUpdate`, so a keep's
+  40 gold a tick is the one income a player's building count never touches. The hook is a single
+  five-byte detour on `cvttss2si eax, [ebp-0x14]` — the instruction where the amount stops being a
+  float, and the point both the handicap and no-handicap paths converge on — and the cave
+  reproduces the engine's computation instruction for instruction, **including the
+  `filter.allow(thisObject, player)` gate**, so a faction whose `ResourceModifierObjectFilter` does
+  not accept its keeps is byte-for-byte unaffected. **No new INI field** — it reuses the two
+  `PlayerTemplate` fields every faction already declares. **Applying it re-balances a mod on
+  purpose**, and it costs one `Player::forEachTeamObject` walk per deposit tick, which is what the
+  other module already spends on each of its own. With `maintenance-cost` it scales a **charge**
+  by the same instruction that scales an income, which is the only way an `AutoDepositUpdate`
+  upkeep becomes inflation-sensitive. See
+  [`docs/auto-deposit-inflation.md`](docs/auto-deposit-inflation.md).
 - **`command-point-upkeep`** makes a large army **cost a player income**: the more command points
   they have in the field, the less their resource buildings pay. Two new `PlayerTemplate` fields
   declare the curve per faction — `UpkeepCommandPointStep` (how many command points move a player
@@ -608,6 +659,36 @@ two, which patch other binaries from the same install: `desert-weather-wb` patch
   mid-cooldown**, since the rescale is gated on the stock formula's own answer. See
   [`docs/recharge-rescale.md`](docs/recharge-rescale.md).
 
+- **`capture-the-flag`** ⚠**(experimental)** adds a **`ProximityCaptureUpdate`** behaviour that
+  captures its own object for whichever player is **standing on it**, rather than for whoever
+  right-clicked first. `ObjectFilter` says what counts, `Radius` how far, `TickRate` how often (in
+  **milliseconds**, since it inherits a `Duration` reader), `TickAmount` how much of 100 a tick is
+  worth, and `CaptureShare` what percentage of the units present a player needs to be the
+  contender; `CountHordeMembers` counts a horde's members rather than the horde, which in BFME is
+  the difference between a percentage that means something and one that scores a ten-man horde and
+  a lone hero alike. A contender's progress rises, a rival's drives it down, at zero the claim
+  passes over and at 100 the flag joins the contending units' team - **along with every
+  `LINKED_TO_FLAG` object in the same radius**, which is how "capture the flag, get the shipyard"
+  works: a `ShipWright` carries that kindof and not `CAPTURABLE`, so a flag is its only route and
+  no map script is involved. Ownership goes
+  through the engine's own `setTeam` with notifications **on**. **Known gap:** a captured
+  structure keeps its neutral command set - the faction trigger a `CommandSetUpgrade` gates on is
+  not re-evaluated for the new owner (doc §6.025). **A stock capture flag carries
+  no capture logic at all** — it is a body, a die, an AI stub and a draw, and the capture lives on
+  the *unit*, as a `SpecialAbilityUpdate` with a `PreparationTime` — so this adds a behaviour
+  rather than replacing one, and the stock right-click path can stay alive beside it. No new art or
+  strings: the shipped `CaptureFlag` already animates `START_CAPTURE`, `CANCEL_CAPTURE` and
+  `CAPTURED`, which are exactly the three conditions the
+  module sets. **It is `AutoFindHealingUpdate`, adopted**: that module is registered by the engine
+  and used by nothing in any `.big` the install ships, and it is already a periodic-scan
+  `UpdateModule` whose `ScanRate` and `ScanRange` sit at the two offsets wanted for `TickRate` and
+  `Radius` — so the block is renamed with three `imm32`s and its behaviour changed with one dword in
+  a vtable private to the class. **`AutoFindHealingUpdate` therefore stops existing.** Logic state,
+  so **every peer must run the same patched binary** and replays do not cross; progress is an
+  integer on a 0..100 scale and the share test an integer cross-multiply, so no float enters the
+  comparison. Saves keep the flag's owner (that is `Object` state) but not a part-finished bar,
+  which resets to zero identically on every peer. See
+  [`docs/capture-the-flag.md`](docs/capture-the-flag.md).
 - **`cooldown-through-death`** ⚠**(experimental)** carries a hero's **special-power cooldowns
   across a citadel revive**, under two new `SpecialPower` booleans:
   `PersistCooldownOnDeath = Yes` means a hero who dies halfway through a cooldown comes back
@@ -763,6 +844,14 @@ sage-patch verify command-point-upkeep game.dat
 # a second currency: granted, shown and spent
 sage-patch apply second-resource --in game.dat.backup --out game.dat
 sage-patch verify second-resource game.dat
+
+# a structure that costs its owner gold per tick instead of paying it (negative MaxIncome /
+# DepositAmount; no INI keyword to add, and no parameters here)
+sage-patch apply maintenance-cost --in game.dat.backup --out game.dat
+sage-patch verify maintenance-cost game.dat
+
+# and, if that upkeep (and the keeps' own income) should fall with the faction's inflation
+sage-patch apply auto-deposit-inflation --in game.dat.backup --out game.dat
 
 # hero-bar slots for things that are not HEROes: HEROBAR (one per object) and
 # HEROBAR_GROUP (one per template, clicking through its members one at a time)

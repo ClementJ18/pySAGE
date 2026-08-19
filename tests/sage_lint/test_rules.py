@@ -29,6 +29,7 @@ from sage_lint.rules.definitions import (
     UnusedDefinitionRule,
     UnusedObjectRule,
 )
+from sage_lint.rules.experience import ExperienceLevelConflictRule
 from sage_lint.rules.macros import UndefinedMacroRule
 from sage_lint.rules.map_ini import MapBareModuleRule
 from sage_lint.rules.modifier_fx import ModifierFxDurationRule
@@ -1586,3 +1587,63 @@ class TestExcludeFromLint:
         root = self._wip_folder(tmp_path)
         loaded = load_game(root)
         assert "Draft" in loaded.game.objects
+
+
+class TestExperienceLevelConflictRule:
+    """An object on two ExperienceLevels at one rank has an ambiguous ladder, and the engine
+    crashes rather than merging them."""
+
+    def test_flags_an_object_claimed_twice_at_the_same_rank(self):
+        game = _load(
+            "ExperienceLevel FooL1\n    TargetNames = Foo\n    Rank = 1\nEnd\n"
+            "ExperienceLevel BarL1\n    TargetNames = Foo Bar\n    Rank = 1\nEnd\n"
+        )
+        diags = list(run_rules(game, [ExperienceLevelConflictRule]))
+
+        assert len(diags) == 1
+        assert diags[0].code == "experience-level-conflict"
+        assert diags[0].severity is Severity.ERROR
+        assert "Foo" in diags[0].message and "FooL1" in diags[0].message
+        assert diags[0].extra["names"] == ["Foo"], "Bar is claimed only once"
+
+    def test_allows_the_same_object_across_its_own_ladder(self):
+        # The normal shape: one unit, one level per rank.
+        game = _load(
+            "ExperienceLevel FooL1\n    TargetNames = Foo\n    Rank = 1\nEnd\n"
+            "ExperienceLevel FooL2\n    TargetNames = Foo\n    Rank = 2\nEnd\n"
+            "ExperienceLevel FooL3\n    TargetNames = Foo\n    Rank = 3\nEnd\n"
+        )
+        assert not list(run_rules(game, [ExperienceLevelConflictRule]))
+
+    def test_allows_one_level_to_name_many_objects(self):
+        game = _load("ExperienceLevel Shared\n    TargetNames = A B C\n    Rank = 1\nEnd\n")
+        assert not list(run_rules(game, [ExperienceLevelConflictRule]))
+
+    def test_reports_one_diagnostic_per_pair_not_per_object(self):
+        # Two levels colliding on three units is one mistake, not three.
+        game = _load(
+            "ExperienceLevel AL1\n    TargetNames = A B C\n    Rank = 1\nEnd\n"
+            "ExperienceLevel BL1\n    TargetNames = A B C\n    Rank = 1\nEnd\n"
+        )
+        diags = list(run_rules(game, [ExperienceLevelConflictRule]))
+
+        assert len(diags) == 1
+        assert diags[0].extra["names"] == ["A", "B", "C"]
+
+    def test_ignores_a_level_with_no_rank(self):
+        # Without a Rank there is no key to collide on; defaulting one would invent conflicts.
+        game = _load(
+            "ExperienceLevel FooL1\n    TargetNames = Foo\nEnd\n"
+            "ExperienceLevel FooL2\n    TargetNames = Foo\nEnd\n"
+        )
+        assert not list(run_rules(game, [ExperienceLevelConflictRule]))
+
+    def test_diagnostic_lands_on_the_targetnames_line(self):
+        game = _load(
+            "ExperienceLevel FooL1\n    TargetNames = Foo\n    Rank = 1\nEnd\n"
+            "ExperienceLevel BarL1\n    Rank = 1\n    TargetNames = Foo\nEnd\n"
+        )
+        diags = list(run_rules(game, [ExperienceLevelConflictRule]))
+
+        assert len(diags) == 1
+        assert diags[0].span.line_start == 7, "should point at the claim, not the block head"

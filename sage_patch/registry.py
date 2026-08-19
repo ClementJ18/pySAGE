@@ -9,6 +9,7 @@ problem in, and the warning is the thing that makes offering it honest."""
 from sage_patch.patcher import Patch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
+from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.binary_attest import BinaryAttestPatch
 from sage_patch.patches.cah_factions import CahFactionsPatch
@@ -19,6 +20,7 @@ from sage_patch.patches.description_timers import DescriptionTimersPatch
 from sage_patch.patches.desert_weather import DesertWeatherPatch
 from sage_patch.patches.desert_weather_wb import DesertWeatherWorldbuilderPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
+from sage_patch.patches.experimental.capture_the_flag import CaptureTheFlagPatch
 from sage_patch.patches.experimental.cooldown_through_death import CooldownThroughDeathPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
@@ -34,6 +36,7 @@ from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus_filter import LargeGroupBonusFilterPatch
 from sage_patch.patches.lifetime_extend_upgrade import LifetimeExtendUpgradePatch
+from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
@@ -53,6 +56,7 @@ from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
+from sage_patch.patches.worldbuilder_mod import WorldbuilderModPatch
 
 PATCHES: dict[str, type[Patch]] = {
     CommandSetLimitPatch.name: CommandSetLimitPatch,
@@ -102,6 +106,10 @@ PATCHES: dict[str, type[Patch]] = {
     RechargeRescalePatch.name: RechargeRescalePatch,
     CooldownThroughDeathPatch.name: CooldownThroughDeathPatch,
     CrashDumpPatch.name: CrashDumpPatch,
+    CaptureTheFlagPatch.name: CaptureTheFlagPatch,
+    WorldbuilderModPatch.name: WorldbuilderModPatch,
+    MaintenanceCostPatch.name: MaintenanceCostPatch,
+    AutoDepositInflationPatch.name: AutoDepositInflationPatch,
 }
 
 __all__ = ["PATCHES"]

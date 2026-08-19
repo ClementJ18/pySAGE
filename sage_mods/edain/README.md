@@ -131,6 +131,37 @@ the ini never says - so the diameters they were drawn at ride along in a leading
 `; HordeMaker DotSizes` comment (`parse_sizes` reads it back), and the window draws each unit
 at its real size.
 
+## Worldbuilder launcher
+
+`sage_mods.edain.worldbuilder` starts Worldbuilder against the mod's **loose** files, so objects
+can be added and seen in the editor without building a `.big`. Built as an exe
+(`sage-edain-worldbuilder.spec`) it is meant to sit in the `Edain-Mod` folder, one level above
+`_mod`.
+
+```
+python -m sage_mods.edain.worldbuilder --subtree data/ini/object/civilian
+```
+
+It finds the RotWK install through [`sage_utils.installs`](../../sage_utils/installs.py) (the
+registry, not a hardcoded path), installs `sage_patch`'s `worldbuilder-mod` into
+`Worldbuilder.exe` if it is missing - keeping the stock binary as `Worldbuilder_stock.exe` - and
+then launches the editor.
+
+Three things it does that a bare `-mod` gets wrong, all derived in
+[`worldbuilder-mod.md`](../../sage_patch/docs/worldbuilder-mod.md):
+
+- **A map goes before `-mod`.** Worldbuilder is an MFC app; its `CCommandLineInfo` claims the
+  first non-flag argument as a document to open, so a bare mod path dies with
+  `Access to … was denied` before the editor starts.
+- **Only a subtree is served.** `-mod` pointed at a full Edain tree kills the editor partway
+  through startup; pointed at the subtree being edited it is stable. `--subtree` is repeatable,
+  and the served view is built from junctions, so edits still land in the real mod files.
+- **The path stays short.** The patch ignores a mod path of 128 characters or more, so the
+  staged view lives beside the mod rather than under the temp directory.
+
+`--full` serves the whole mod anyway, `--no-patch` leaves the binary alone, and `--dry-run`
+prints the command instead of running it.
+
 ## Skirmish bot
 
 `sage_mods.edain.bot` plays a live skirmish through [`sage_live`](../../sage_live): it lays

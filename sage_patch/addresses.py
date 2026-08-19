@@ -45,6 +45,7 @@ __all__ = [
     "ASCII_STRING_FORMAT",
     "ASCII_STRING_SET",
     "ASCII_STRING_SET_BYTES",
+    "AUTO_DEPOSIT_AMOUNT",
     "AUTO_DEPOSIT_DEPOSIT",
     "AUTO_DEPOSIT_DEPOSIT_BYTES",
     "AUTO_DEPOSIT_DEPOSIT_RESUME",
@@ -52,6 +53,7 @@ __all__ = [
     "AUTO_DEPOSIT_FIELD_TABLE_REFS",
     "AUTO_DEPOSIT_FIELD_TABLE_REF_OPCODES",
     "AUTO_DEPOSIT_FILTER_EBP",
+    "AUTO_DEPOSIT_GIVE_NO_XP",
     "AUTO_DEPOSIT_MODULE_DATA_CTOR",
     "AUTO_DEPOSIT_MODULE_DATA_CTOR_BOOLS",
     "AUTO_DEPOSIT_MODULE_DATA_CTOR_BOOLS_BYTES",
@@ -59,9 +61,21 @@ __all__ = [
     "AUTO_DEPOSIT_MODULE_DATA_ESI",
     "AUTO_DEPOSIT_MODULE_DATA_SIZE",
     "AUTO_DEPOSIT_MULTIPLIER_EBP",
+    "AUTO_DEPOSIT_OBJECT_ESI",
+    "AUTO_DEPOSIT_PAY",
+    "AUTO_DEPOSIT_PAY_BYTES",
+    "AUTO_DEPOSIT_PAY_RESUME",
     "AUTO_DEPOSIT_SCALE",
+    "AUTO_DEPOSIT_SCALE_AMOUNT_EBP",
     "AUTO_DEPOSIT_SCALE_BYTES",
     "AUTO_DEPOSIT_SCALE_RESUME",
+    "AUTO_DEPOSIT_TRUNCATE",
+    "AUTO_DEPOSIT_TRUNCATE_BYTES",
+    "AUTO_DEPOSIT_TRUNCATE_RESUME",
+    "AUTO_DEPOSIT_XP_GATE",
+    "AUTO_DEPOSIT_XP_GATE_BYTES",
+    "AUTO_DEPOSIT_XP_GATE_RESUME",
+    "AUTO_DEPOSIT_XP_GATE_SKIP",
     "BUILD",
     "BUILD_ASSISTANT_VTABLE",
     "BUILD_GATE_AFFORD",
@@ -200,6 +214,7 @@ __all__ = [
     "GLOBAL_DATA_USE_FPS_LIMIT",
     "GUICOMMAND_REVIVE",
     "GUI_COMMAND_SPECIAL_POWER",
+    "GUI_LOSE_CASH",
     "IMAGE_BASE",
     "IMPORT_FFLUSH",
     "IMPORT_FWRITE",
@@ -210,6 +225,7 @@ __all__ = [
     "INI_PARSE_INT",
     "INI_PARSE_UNSIGNED_SHORT",
     "INI_SCAN_INT",
+    "IN_GAME_UI_ADD_FLOATING_TEXT",
     "IS_MULTIPLAYER_GAME",
     "IS_MULTIPLAYER_OR_ITS_REPLAY",
     "IS_MULTIPLAYER_OR_ITS_REPLAY_BYTES",
@@ -225,6 +241,8 @@ __all__ = [
     "LOGIC_CRC_EMIT_RESUME",
     "LOGIC_CRC_SHROUD_XFER",
     "LOGIC_CRC_SHROUD_XFER_BYTES",
+    "LOSE_CASH_COLOR",
+    "LOSE_CASH_RISE",
     "MAIN_MENU_CAMPAIGN_COMMAND",
     "MAIN_MENU_CAMPAIGN_HANDLER",
     "MAIN_MENU_CAMPAIGN_HANDLER_BYTES",
@@ -246,6 +264,7 @@ __all__ = [
     "MINI_DUMP_NULL_EDI_BYTES",
     "MISSION_OBJECTIVE_LIST_OFFSET",
     "MISSION_OBJECTIVE_TRACKER",
+    "MONEY_AMOUNT",
     "MONEY_DEPOSIT",
     "MONEY_WITHDRAW",
     "MSG_CLEAR_GAME_DATA",
@@ -258,6 +277,7 @@ __all__ = [
     "OBJECT_FILTER_IS_VALID",
     "OBJECT_ID",
     "OBJECT_MODULE_LIST",
+    "OBJECT_POSITION",
     "OBJECT_PRODUCER_ID",
     "OBJECT_STATUS",
     "OBJECT_STATUS_COUNT",
@@ -321,6 +341,7 @@ __all__ = [
     "PLAYER_LIST_LOCAL_IS_NOT_ACTIVE",
     "PLAYER_LIST_LOCAL_PLAYER",
     "PLAYER_LIST_OBSERVE_NEXT_PLAYER",
+    "PLAYER_MONEY",
     "PLAYER_PLAYER_TEMPLATE",
     "PLAYER_SCORE_KEEPER",
     "PLAYER_SET_TYPE",
@@ -453,10 +474,19 @@ __all__ = [
     "TERRAIN_RESOURCE_FIELD_TABLE_PUSH",
     "TERRAIN_RESOURCE_FIELD_TABLE_PUSH_BYTES",
     "TERRAIN_RESOURCE_FIELD_TABLE_STOCK",
+    "TERRAIN_RESOURCE_FLOOR",
+    "TERRAIN_RESOURCE_FLOOR_BYTES",
+    "TERRAIN_RESOURCE_FLOOR_RESUME",
     "TERRAIN_RESOURCE_FREE_OFFSET",
+    "TERRAIN_RESOURCE_INCOME_FLOAT_EBP",
+    "TERRAIN_RESOURCE_INCOME_GATE",
+    "TERRAIN_RESOURCE_INCOME_GATE_BYTES",
     "TERRAIN_RESOURCE_MODULE_DATA_CTOR",
     "TERRAIN_RESOURCE_MODULE_DATA_EBP_SLOT",
     "TERRAIN_RESOURCE_MODULE_DATA_SIZE",
+    "TERRAIN_RESOURCE_PAY",
+    "TERRAIN_RESOURCE_PAY_BYTES",
+    "TERRAIN_RESOURCE_PAY_RESUME",
     "TERRAIN_RESOURCE_UPDATE",
     "TERRAIN_RESOURCE_UPDATE_VTABLE",
     "TERRAIN_RESOURCE_UPDATE_VTABLE_SLOT",
@@ -1585,6 +1615,45 @@ TERRAIN_RESOURCE_EXP_BLOCK_BYTES = bytes.fromhex("8bbf6c020000")  # mov edi, [ed
 TERRAIN_RESOURCE_EXP_BLOCK_RESUME = 0x00885742
 TERRAIN_RESOURCE_EXP_BLOCK_SKIP = 0x0088576A
 
+# The three sites a **negative** `MaxIncome` has to get past, in the order `update` reaches them.
+# Derived in `docs/maintenance-cost.md`; nothing here is a new field, because `INI::parseInt`
+# already accepts a minus sign - `INI::scanInt` is an `sscanf("%d")` - so a negative parses today
+# and is thrown away at run time instead.
+#
+# `..._INCOME_GATE` is `jle 0x0088573C`, taken when the income *before* inflation comes out <= 0.
+# It is the whole of why a negative does nothing today, and the one edit that needs no cave: the
+# condition wants to be "== 0" rather than "<= 0", which is `0F 8E` -> `0F 84` in place, the same
+# six bytes and the same target.
+TERRAIN_RESOURCE_INCOME_GATE = 0x0088567A
+TERRAIN_RESOURCE_INCOME_GATE_BYTES = bytes.fromhex("0f8ebc000000")  # jle 0x0088573c
+
+# `..._FLOOR` is the engine's "never round an income below 1 gold" rule, applied *after* the
+# inflation multiply: `test ebx, ebx / jg +3 / xor ebx, ebx / inc ebx`. Reachable in the stock
+# build only at exactly zero - the gate above has already established the value was positive and
+# the multiplier is never negative - so raising a zero is all it ever does there. A negative
+# arriving here would be turned into a **payment of one gold**, which is why it is a site.
+TERRAIN_RESOURCE_FLOOR = 0x0088569F
+TERRAIN_RESOURCE_FLOOR_BYTES = bytes.fromhex("85db7f0333db43")
+TERRAIN_RESOURCE_FLOOR_RESUME = 0x008856A6
+
+# The slot the income lives in as a **float** between the inflation multiply and the floor:
+# `fstp dword [ebp-0x20]` at 0x00885692 writes it, and the `fld`/`fistp` two instructions later
+# turn it into the `ebx` the floor tests. It is the same `ebp-0x20` that held
+# `&ResourceModifierObjectFilter` earlier in the function, reused - see `AUTO_DEPOSIT_FILTER_EBP`.
+#
+# Worth a name because the float **keeps a sign the integer loses**: an inflation multiplier of
+# zero turns a charge into an integer 0, but IEEE gives `-5.0f * 0.0f` the value `-0.0f`, whose
+# sign bit a `test` on the raw dword reads directly.
+TERRAIN_RESOURCE_INCOME_FLOAT_EBP = -0x20
+
+# `..._PAY` is the `lea ecx, [esi+0x90]` that addresses the player's `Money` for the deposit -
+# the instruction *before* the `call`, deliberately, so the call itself stays free for whatever
+# else wants it. `esi` is the controlling `Player`, `edi` the depositing `Object` and `ebx` the
+# signed amount; the three deposit arguments are already pushed, with the amount at `[esp]`.
+TERRAIN_RESOURCE_PAY = 0x008856B0
+TERRAIN_RESOURCE_PAY_BYTES = bytes.fromhex("8d8e90000000")  # lea ecx, [esi+0x90]
+TERRAIN_RESOURCE_PAY_RESUME = 0x008856B6
+
 # `GameMessage::append*Argument`, indexed by `sage_replay.OrderArgumentType`. All are thiscall
 # (ecx = the GameMessage) taking one stack argument, and clean it themselves (`ret 4`).
 # Position, ScreenPosition, ScreenRectangle and WideChar take the *address* of their data;
@@ -1762,6 +1831,34 @@ INI_PARSE_UNSIGNED_SHORT = 0x0042EC11
 MONEY_DEPOSIT = 0x007B18B8
 MONEY_WITHDRAW = 0x007B17EF
 
+#: `Player::m_money`, the `Money` subobject both income modules address as `lea ecx, [player+0x90]`
+#: before the deposit, and `Money::m_amount` inside it.
+#:
+#: ⚠ **The amount is unsigned, and `deposit` does not check.** `Money::deposit` is
+#: `add [this+4], amount` with no clamp, while `withdraw` compares with `cmova` - an *unsigned*
+#: compare. So a "negative deposit" is not a charge that happens to be written oddly: it rolls the
+#: balance through zero to about four billion gold. Anything charging a player goes through
+#: `MONEY_WITHDRAW`, which clamps to what is there and returns what it took.
+PLAYER_MONEY = 0x90
+MONEY_AMOUNT = 0x04
+
+#: The engine's own "you lost gold" floating text, at `0x008C6980` where a transfer pays one
+#: player and charges another: `GUI:LoseCash` in red at the payer, `GUI:AddCash` in green at the
+#: receiver, both lifted above the object by a constant. Reusing the pair is what keeps a charge
+#: looking like something the game already does.
+#:
+#: `..._RISE` is the float added to the object's `z` (30.0f; the `AddCash` site uses 20.0f), and
+#: the color is `ARGB`. `IN_GAME_UI_ADD_FLOATING_TEXT` is `TheInGameUI`'s vtable slot for
+#: `addFloatingText(UnicodeString*, Coord3D*, Color)` - callee-cleaned, `ret 0xC`.
+GUI_LOSE_CASH = 0x00C732F8
+LOSE_CASH_COLOR = 0xFFFF0000
+LOSE_CASH_RISE = 0x00BDAE54
+IN_GAME_UI_ADD_FLOATING_TEXT = 0x1A0
+
+#: `Object::m_position`, three floats. The floating-text sites read it as `[obj+0x38]`,
+#: `[obj+0x3c]`, `[obj+0x40]` and hand `addFloatingText` a `Coord3D` copy.
+OBJECT_POSITION = 0x38
+
 #: `AutoDepositUpdate` - the "this structure pays you on a timer" module, and the one the
 #: second-resource grant rides on. Derived in `docs/second-resource.md`.
 #:
@@ -1797,6 +1894,52 @@ AUTO_DEPOSIT_DEPOSIT = 0x0089DD08
 AUTO_DEPOSIT_DEPOSIT_BYTES = bytes.fromhex("e8ab3bf1ff")
 AUTO_DEPOSIT_DEPOSIT_RESUME = 0x0089DD0D
 AUTO_DEPOSIT_MODULE_DATA_ESI = -0x0C
+
+# The two sites a **negative** `DepositAmount` has to get past. Unlike `TerrainResourceBehavior`
+# this module clamps the amount nowhere - `cvttss2si`, the region bonus at `0x006AA858` and the
+# rounding helper at `0x00A3CFA4` all carry a sign through, and the floating `+N` text is already
+# gated on `DepositAmount > 0` at `0x0089DD52`. Only the deposit itself and the experience grant
+# need an edit.
+#
+# `..._PAY` is `lea ecx, [edi+0x90]`, the money pointer, chosen over the `call` five bytes later
+# for one reason: `second-resource` owns that call. `edi` is the controlling `Player`, `[esi-8]`
+# the depositing `Object`, `eax` and `[esp]` the signed amount. `..._PAY_RESUME` is the
+# `mov [ebp-0x14], eax` between the two, so a positive amount rejoins *above* the call and
+# whatever occupies it still runs.
+AUTO_DEPOSIT_PAY = 0x0089DCFF
+AUTO_DEPOSIT_PAY_BYTES = bytes.fromhex("8d8f90000000")  # lea ecx, [edi+0x90]
+AUTO_DEPOSIT_PAY_RESUME = 0x0089DD05
+AUTO_DEPOSIT_OBJECT_ESI = -0x08
+
+# `..._XP_GATE` is the module's stock `GiveNoXP` test - `cmp byte [eax+0x20], 0 / jne` with `eax`
+# already holding the `ModuleData`. It is the field `terrain-resource-exp` reproduces on the other
+# income module, and it is the natural place to add a second reason to skip the grant.
+# `..._XP_GATE_RESUME` is the null-tracker test the untaken branch falls into, `..._XP_GATE_SKIP`
+# the address the taken one jumps to.
+AUTO_DEPOSIT_XP_GATE = 0x0089DD19
+AUTO_DEPOSIT_XP_GATE_BYTES = bytes.fromhex("807820007530")  # cmp byte [eax+0x20], 0 / jne
+AUTO_DEPOSIT_XP_GATE_RESUME = 0x0089DD1F
+AUTO_DEPOSIT_XP_GATE_SKIP = 0x0089DD4F
+
+# Where `AutoDepositUpdate::update`'s amount stops being a float: `cvttss2si eax, [ebp-0x14]`,
+# after `UpgradeBonusPercent` (0x0089DC83) and the difficulty handicap (0x0089DCD2) and before the
+# War-of-the-Ring region bonus (0x0089DCE5) and the final rounding. Derived in
+# `docs/auto-deposit-inflation.md`.
+#
+# **Five bytes holding exactly one instruction**, so a detour needs no padding. The window's first
+# byte is a branch target - `je 0x0089DCDD` at 0x0089DCB7, the no-handicap path - which is what a
+# detour wants: both paths converge on it and both get scaled. Nothing lands in its interior, and
+# no byte of it appears as an imm32 anywhere in the image; `scripts/scan_branches.py` is what
+# establishes that, by decoding a branch at every byte offset rather than sweeping linearly.
+#
+# `edi` is the controlling `Player` and `[esi-8]` the depositing `Object` here, and `eax` is the
+# only register the resume point needs.
+AUTO_DEPOSIT_TRUNCATE = 0x0089DCDD
+AUTO_DEPOSIT_TRUNCATE_BYTES = bytes.fromhex("f30f2c45ec")  # cvttss2si eax, dword ptr [ebp-0x14]
+AUTO_DEPOSIT_TRUNCATE_RESUME = 0x0089DCE2
+AUTO_DEPOSIT_SCALE_AMOUNT_EBP = -0x14
+AUTO_DEPOSIT_GIVE_NO_XP = 0x20
+AUTO_DEPOSIT_AMOUNT = 0x0C
 
 #: The `PlayerTemplate` block's name key, one instruction *before*
 #: `PLAYER_TEMPLATE_BLOCK_KEY` - `eax` already holds the key and the window is the six bytes of

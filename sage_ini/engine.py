@@ -53,6 +53,7 @@ __all__ = [
     "SAGEPATCH_NAME",
     "STOCK",
     "STOCK_LIMITS",
+    "BlockDelta",
     "Engine",
     "EnumDelta",
     "FieldDelta",
@@ -137,6 +138,27 @@ class NoopDelta:
 
 
 @dataclass(frozen=True, slots=True)
+class BlockDelta:
+    """A **block type** the patched engine registers, or stops registering.
+
+    Every other delta here changes what a known block accepts. This one changes which blocks
+    exist at all, which is what a patch that touches the engine's `ModuleFactory` does: it can
+    register a name the stock build never had, and - because the cheap way to add a module is to
+    adopt one nothing uses - it can take a stock name away in the same move.
+
+    `base` names the block the new one inherits from, so a new behaviour module starts with the
+    fields every module slot has rather than an empty schema; it is ignored when `removed`.
+    Removal is deliberately *not* spelled as a `NoopDelta`: a `NoopDelta` says a keyword is
+    parsed and ignored, whereas a block the factory no longer registers is an INI parse error
+    for the whole block, and the two deserve different messages."""
+
+    name: str
+    base: str = "Behavior"
+    removed: bool = False
+    patch: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class EnumDelta:
     """A token a patch added to one of the engine's name tables (a model condition, a weapon-set
     flag, a locomotor set, a weather). `value` is the index the binary gives it, or None to let
@@ -165,6 +187,7 @@ class Engine:
     Instances are immutable and comparable, so a generated one can be diffed against a committed
     one to detect drift."""
 
+    blocks: tuple[BlockDelta, ...] = ()
     fields: tuple[FieldDelta, ...] = ()
     noops: tuple[NoopDelta, ...] = ()
     enum_members: tuple[EnumDelta, ...] = ()
@@ -177,7 +200,7 @@ class Engine:
     @property
     def is_stock(self) -> bool:
         """Whether this describes an unpatched engine (no deltas of any kind)."""
-        return not (self.fields or self.noops or self.enum_members or self.limits)
+        return not (self.blocks or self.fields or self.noops or self.enum_members or self.limits)
 
     def limit(self, name: str) -> int:
         """The value of engine limit `name` - this engine's, else the stock ceiling. Raises
@@ -195,6 +218,7 @@ class Engine:
         for other in others:
             merged = replace(
                 merged,
+                blocks=_last_wins(merged.blocks, other.blocks, lambda d: d.name),
                 fields=_last_wins(merged.fields, other.fields, lambda d: (d.block, d.name)),
                 noops=_last_wins(merged.noops, other.noops, lambda d: (d.block, d.name)),
                 enum_members=_last_wins(
@@ -214,6 +238,8 @@ class Engine:
         revert()
         problems: list[str] = []
         undo: list[Callable[[], None]] = []
+        for block in self.blocks:
+            problems.extend(_apply_block(block, undo))
         for delta in self.fields:
             problems.extend(_apply_field(delta, undo))
         for noop in self.noops:
@@ -398,6 +424,44 @@ def _block(name: str) -> tuple[type[IniObject] | None, str]:
     return cls, ""
 
 
+def _apply_block(delta: BlockDelta, undo: list[Callable[[], None]]) -> list[str]:
+    """Register or unregister a block type in `REGISTRY`, which is what every consumer reads to
+    turn a block header into a class.
+
+    A created block is a real subclass, so it inherits its base's schema and `IniObject`'s
+    `__init_subclass__` builds it exactly like a declared one. Undo removes the registry entry;
+    the class object itself stays reachable from its base's `__subclasses__`, which is harmless -
+    nothing can name it once it is out of the registry."""
+    if delta.removed:
+        existing = REGISTRY.get(delta.name)
+        if existing is None:
+            return [
+                f"{_where(delta.patch)}{delta.name!r} is not a block type, "
+                "so there is nothing for the patch to have removed"
+            ]
+
+        def restore_removed() -> None:
+            REGISTRY[delta.name] = existing
+
+        del REGISTRY[delta.name]
+        undo.append(restore_removed)
+        return []
+
+    if delta.name in REGISTRY:
+        return [f"{_where(delta.patch)}{delta.name!r} is already a block type"]
+    base, problem = _block(delta.base)
+    if base is None:
+        return [f"{_where(delta.patch)}{delta.name}: base {problem}"]
+    created = type(delta.name, (base,), {"__module__": base.__module__})
+    REGISTRY[delta.name] = created
+
+    def restore_created() -> None:
+        REGISTRY.pop(delta.name, None)
+
+    undo.append(restore_created)
+    return []
+
+
 def _apply_field(delta: FieldDelta, undo: list[Callable[[], None]]) -> list[str]:
     cls, problem = _block(delta.block)
     if cls is None:
@@ -474,7 +538,7 @@ def _where(patch: str) -> str:
     return f"{patch}: " if patch else ""
 
 
-_SECTIONS = {"fields", "noops", "enum_members", "limits"}
+_SECTIONS = {"blocks", "fields", "noops", "enum_members", "limits"}
 _KNOWN_KEYS = {"version", "source", *_SECTIONS}
 
 
@@ -528,6 +592,24 @@ def parse_engine(text: str, where: str = SAGEPATCH_NAME) -> Engine:
         )
     elif raw_source is not None:
         warn.append(f"{where}: 'source' must be a table (ignored)")
+
+    blocks: list[BlockDelta] = []
+    for entry in _table_list(data, "blocks", warn, where):
+        name = _string(entry, "name", warn, where)
+        if not name:
+            continue
+        removed = entry.get("removed")
+        if removed is not None and not isinstance(removed, bool):
+            warn.append(f"{where}: block {name} has a non-boolean 'removed' (ignored)")
+            removed = None
+        blocks.append(
+            BlockDelta(
+                name=name,
+                base=_string(entry, "base", warn, where, required=False) or "Behavior",
+                removed=bool(removed),
+                patch=_string(entry, "patch", warn, where, required=False),
+            )
+        )
 
     fields: list[FieldDelta] = []
     for entry in _table_list(data, "fields", warn, where):
@@ -603,6 +685,7 @@ def parse_engine(text: str, where: str = SAGEPATCH_NAME) -> Engine:
         )
 
     return Engine(
+        blocks=tuple(blocks),
         fields=tuple(fields),
         noops=tuple(noops),
         enum_members=tuple(members),
@@ -661,6 +744,19 @@ def dump_engine(engine: Engine, header: str = "") -> str:
         out.append("[source]")
         out.extend(f"{key} = {_toml_value(value)}" for key, value in source)
 
+    for block in engine.blocks:
+        out.append("")
+        out.append(
+            _toml_table(
+                "blocks",
+                [
+                    ("name", block.name),
+                    ("base", "" if block.removed else block.base),
+                    ("removed", block.removed or None),
+                    ("patch", block.patch),
+                ],
+            )
+        )
     for delta in engine.fields:
         out.append("")
         out.append(
