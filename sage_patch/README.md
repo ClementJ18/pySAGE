@@ -9,10 +9,10 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
 
 > ### ⚠ Experimental patches
 >
-> Ten of the registered patches — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
+> Eleven of the registered patches — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
 > **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**, **`live-bridge`**,
-> **`living-world-override`**, **`cooldown-through-death`** and **`capture-the-flag`** — are
-> **experimental: unstable and largely untested.** They live in
+> **`living-world-override`**, **`cooldown-through-death`**, **`capture-the-flag`** and
+> **`smart-rally`** — are **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
 >
@@ -20,7 +20,8 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
 > patch applies to a clean `game.dat` and `sage-patch verify` confirms the result carries it. What
 > is missing is play — enough of it, across enough of what the patch touches, to know the
 > disassembly was read right. Some have had a session or two (each one's doc says exactly how far
-> it got, and `hero-mana`'s records a defect that is still open); none has had enough. A patch is a
+> it got; `hero-mana`'s and `smart-rally`'s each record a defect that is still open); none has had
+> enough. A patch is a
 > reading of the machine code and its tests are written from the same reading, so a wrong reading
 > passes both — only the running game disagrees.
 >
@@ -458,6 +459,34 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
   executing the same order, but for the consequence: an unpatched client refuses a production a
   patched one accepts. And, as with `terrain-resource-exp`, the keyword is an INI parse error on a
   stock build. **Runtime-verified in game.**
+- **`command-point-cost`** adds a **`CommandPointCost`** integer to `CommandButton`, so a special
+  power or upgrade that **summons** units can be made unavailable while the player has fewer than
+  that many command points free. Stock, command points gate *recruitment and nothing else*: the
+  cost is a `ThingTemplate` field read by `hasEnoughCommandPoints` from inside the production gate,
+  and a summon queues nothing, so it fires at 1500/1500 and the army it makes arrives outside the
+  cap. **The refusal is the engine's own.** The ControlBar's availability evaluator already has a
+  verdict for this — **7**, which it pushes at `0x00942F47` when the production gate answers "not
+  enough command points" — and 7 greys the button and turns a click into
+  `GUI:ErrorNoMoreCommandPoints` rather than an order. So the patch answers with that number rather
+  than inventing a state, and "free" is the engine's own arithmetic:
+  `getCommandPointCap() - Player+0x68`, called rather than read, because the cap is
+  `min(base + CPObject bonus + terms, hard cap)` and reading any field short of that disagrees with
+  what the engine gates on. The check sits at the **top** of the one evaluator every draw path and
+  both click paths go through, not at its exit, and that is forced: `edi` is reloaded eleven times
+  inside the function and the `[ebp+8]` argument slot is reused as scratch by four of the command
+  cases, so by the time a verdict exists the button is unrecoverable — while nothing is lost by
+  answering early, since every refusal the evaluator reaches on its own answers 3 whether it is
+  reached or not. The field is an `UnsignedShort` at `CommandButton+0x10E`, the aligned word of the
+  same three-byte alignment hole `queue-ignore-cp` takes a byte out of, parsed by the stock
+  `INI::parseUnsignedShort` (`0..65535`, against a hard cap of 1500), so `sizeof` stays `0x2E0`;
+  its default is a displaced `RequireLevel` store, one instruction *before* the one
+  `queue-ignore-cp` widens, so the two compose in either order. **It gates the button, not the
+  power**: nothing is charged or reserved, the summoned units still cost their own `CommandPoints`
+  as they always did, and a script or the AI's own special-power evaluation is unaffected —
+  the AI asks `canUseSpecialPower`, not the ControlBar. Client-side UI only, so it does **not** have
+  to be on every peer for the simulation to agree; the keyword, as with `queue-ignore-cp`, is an INI
+  parse error on a stock build. See
+  [`docs/command-point-cost.md`](docs/command-point-cost.md).
 - **`campaign-select`** ⚠**(experimental)** lets the main menu start **any `LinearCampaign`, by name**, instead of the
   two EA compiled in. The shipped `LinearCampaignExpansion1.ini` states the limit itself — *"campaign
   names are basically hard-coded into the game engine … They must be named ANGMAR_CAMPAIGN"* — and
@@ -782,6 +811,125 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
   hooks are reached only from code that runs after a crash. See
   [`docs/crash-dump.md`](docs/crash-dump.md), and
   [`docs/crash-dump-quality.md`](docs/crash-dump-quality.md) for the measurements behind it.
+- **`wall-mesh-release`** makes a destroyed wall **give back the pathfinding data it registered**.
+  A walkable wall registers three things in one function (`0x00935FAA`) and returns none of them:
+  the walkable surface named by `RaisedWallMesh` claims a slot in the sixteen-entry table at
+  `Pathfinder+0x60`, the two `RampMesh` ramps allocate a record each onto the list at
+  `Pathfinder+0x5C`, and `WallBoundsMesh` marks a rectangle of cells. The ramps and the cells leak
+  because their removal **re-asks the drawable for a mesh** — and a dying structure has changed
+  model by the time the teardown reaches the pathfinder, so `RUBBLE` (no `P1`) and `POST_RUBBLE`
+  (no model at all) mean every lookup answers "not found" and the bounds query's NULL **returns
+  from the function** before one cell is unmarked. The walkable surface is worse and simpler: the
+  claim and the list push have **exactly one caller each and both are on the add path**, so that
+  leg is not a removal that fails, it is a removal that was never written — it leaks whatever the
+  model does. The symptom is units walking on air over a wall that is gone, and fourteen slots
+  never given back for the rest of the match (`Pathfinder::reset` is what eventually frees them,
+  so the leak is bounded by the game, not the process). The patch makes the engine **remember what
+  it registered** instead of re-deriving it: a ledger in the cave, keyed by `ObjectID`, filled by
+  four hooks on the add path and consumed by one on the remove path. Stamping the id into the
+  engine's own structures — the shape the RE document originally scoped — cannot work, because a
+  layer slot is **shared between walls of equal height** and so cannot say which of its members is
+  dying; and it is not needed, because `0x004BA693` hands the pathfinder an object *derived* from
+  the queried sub-object and releases the sub-object itself, so what the slot holds is the
+  pathfinder's own allocation and a pointer recorded at add time stays valid exactly as long as
+  the registration does. **No engine structure grows and no savegame changes.** The surface is
+  unlinked by that pointer and the slot handed back through the engine's own `0x00768AA7` — the
+  inverse the document had recorded as *not yet located*, identified by `Pathfinder::reset` looping
+  it over all sixteen slots — but only once the slot's list comes out empty, since a neighbour may
+  still be standing on it. The ramps are unlinked by pointer rather than by the four-float geometry
+  match `0x009356DF` does, which answers the same question without a mesh to ask it of. And the
+  cells need **no new loop at all**: the four frame slots holding the rectangle are restored and
+  control jumps to `0x0093682F`, the head of the stock unmark loop, which reads exactly those four
+  and — unlike the *mark* branch one instruction earlier — dereferences no mesh. `Pathfinder::reset`
+  drops the ledger at the one moment everything it describes stops existing, so a recycled
+  `ObjectID` in the next match matches nothing. A wall with no ledger row is registered and removed
+  exactly as it is today, which is also what a full table degrades to. **No INI keyword and no
+  opt-in** — it changes what an existing wall block already does. Simulation state, so **every peer
+  must run the same patched binary** and replays do not cross, the same rule as `spawn-union`. See
+  [`docs/raised-wall-mesh-removal.md`](docs/raised-wall-mesh-removal.md).
+- **`smart-rally`** (**experimental**) lets a structure's rally point **name a hero or a unit**
+  instead of a spot on the ground, so units coming out of a barracks go where the target *is* rather
+  than where it was standing when the order was given. Its `--guard` form does not guard yet: the
+  order is refused by `AIUpdate::privateGuardObject`'s three gates (`0x00664B19`), which returns
+  `-1` having touched nothing, leaving the unit with only its door-exit move — which is why it was
+  seen walking to the spawn-time position and then idling off. The arm now reads back the guarded
+  `ObjectID` the engine records on success and **falls back to the move form** when the order did
+  not take, so the worst case is that `--guard` behaves like the default rather than like nothing.
+  Which gate refuses is still open. The order stream already describes this: `MSG_SET_RALLY_POINT`
+  (`0x413`) carries **four** arguments and the fourth is the `ObjectID` of whatever was under the
+  cursor, which the client fills in at `0x0081F5D8` — the handler at `0x0077A26C` resolves it, tests
+  it for NULL to pick the global or single-producer arm, and then drops it. So no client edit, no
+  new message, and **replays still parse byte-for-byte on a stock build**. The rally point itself is
+  a `Coord3D` plus a flag on the `ExitInterface` and nothing more, so the patch grows
+  `QueueProductionExitUpdate` from `0x44` to `0x48` bytes — its factory has exactly one allocation
+  and its constructor exactly one caller — and keeps the target's id in the new dword. Four hooks
+  fill it in: the handler records the id once the engine has accepted the point (behind a vtable
+  check, because `getExitInterface` also answers with classes on which that offset is somebody
+  else's field), the position setter zeroes it whenever a plain point is stored — which is what
+  makes a ground click clear a standing target, and what covers the global arm the handler hook
+  cannot see — and the release routine spends it, diverting the new unit to a target that is still
+  alive and still allied (`Object::getRelationship == 2`, the same test the engine's own
+  rally-target scan makes) and otherwise falling through to the stock instruction byte for byte. A
+  fifth hook moves the **banner**: the ControlBar draws it at whatever `getRallyPoint` answers, from
+  two sites holding the identical seven bytes, so both are redirected through one routine — reached
+  by a `call` so its `ret` sorts out which — that answers with the target's live position instead.
+  That half is client-side and read-only, and it keeps NULL meaning "destroy the marker" so a
+  cleared rally point still puts the banner away. It changes *where* the banner is drawn, not how
+  often it is redrawn, so it snaps to the target on the ControlBar's context refresh rather than
+  gliding after a moving one. By
+  default the unit is sent to the target's **current position**, the same call the stock arm makes
+  with a different `Coord3D`; `--guard` issues `aiGuardObject` instead, so the units follow and
+  defend. Note the engine already had a rally-at-object path — the `0x008A3AB4` scan for something
+  to rally *into* — and it is **unreachable**: it demands `CanRallyToSlaughter`, which defaults to
+  `No` and appears **zero times** in `ini.big`, `_patch201ini.big` or `__edain_data.big`, so nothing
+  shipped can tell the difference between what these sites do today and what they do patched.
+  **No INI keyword and no opt-in.** The new field is deliberately left out of the module's xfer, so
+  the **save format does not change** — a rally target degrades to the stored position across a
+  save/load. Simulation state, so **every peer must run the same patched binary**, the same rule as
+  `production-condition`. See [`docs/smart-rally-points.md`](docs/smart-rally-points.md).
+- **`banner-modifier`** adds **`BannerCarrierInflictsModifierOnDeath`** to `HordeContain`,
+  naming a `ModifierList` the horde takes when its **banner carrier dies** - a bonus or a malus,
+  applied to every surviving member and to the horde object, and lifted again when the horde gets
+  a banner carrier back. The stock engine has one answer to a banner dying and it is
+  all-or-nothing: `BannerCarrierDestroyHordeOnDeath` either kills the whole horde or does
+  precisely nothing, so "the horde is shaken" is not expressible. Both halves are already written
+  - `HordeContain` owns the routine that applies a named `ModifierList` to its members (the one
+  behind the stock `AttributeModifiers`) and its exact inverse - so the patch is one field and the
+  glue between them, at the join point of the `No` arm and at the one call that installs a banner
+  carrier's id. The duration is the **`ModifierList`'s own**: the apply passes `-1`, which the
+  engine reads as "use the block's `Duration`", and a block without one lasts until the horde is
+  re-bannered (`--no-restore` keeps it forever instead). The awkward part is inheritance, not code:
+  `AODHordeContainModuleData` **derives** from `HordeContainModuleData` and already occupies the
+  space past its end, so the field goes past *both* layouts at `0x2CC` and all three
+  `newModuleData` allocations in the family grow to the same `0x2D0` - one offset that is correct
+  in every class sharing the code that reads it. `HorseHordeContain` and `AODHordeContain` inherit
+  the keyword for free, because `buildFieldParse` chains. Simulation state, so **every peer must
+  run the same patched binary**, and the keyword is an INI parse error on a stock build. See
+  [`docs/banner-carrier-modifier.md`](docs/banner-carrier-modifier.md).
+- **`detachable-rider-heal`** adds a **`HealOnDetach`** real to `DetachableRiderBody`, healing
+  the mount by that many hit points at the moment its rider is knocked off. The stock module has
+  one lever over what the riderless object is worth, `HealthPercentageWhenRiderDies`, and it is a
+  percentage of the object's **maximum** health spent out of the health it happened to have - so
+  "and give it 200 points back" is not expressible, and a flat grant is exactly the half that does
+  not scale with the unit. The mechanism is one function: `DetachableRiderBody::attemptDamage`
+  meets a killing blow by **rewriting the pending damage** so what lands leaves the object at that
+  percentage, clearing the instant-kill flag, finding the `DetachableRiderUpdate` by name and
+  calling it, and only then falling into `ActiveBody::attemptDamage` to apply the amount it wrote.
+  The obvious cheap edit - subtract the grant from that amount - is wrong twice, which is why this
+  patch does not: the amount is run through `Armor::adjustDamage` and a per-body scalar before it
+  lands, so a "flat" number spent that way is worth a different count of hit points per attacker,
+  and it is computed from the health the object had, so a grant folded into it can only give back
+  health already lost. The hook instead reproduces the stock tail and grants the field afterwards
+  through the engine's own `ActiveBody::internalChangeHealth` - the routine both `attemptDamage`
+  and `attemptHealing` end at - which takes hit points rather than damage and carries the clamp to
+  maximum health with it. It fires **only where the rider actually comes off**: the arm that finds
+  no `DetachableRiderUpdate` keeps the stock bytes, and an object the damage left at zero health is
+  left there, so the field tops a survivor up and never resurrects a corpse. The `ModuleData` has
+  no padding to move into - its three fields end exactly at `sizeof` - so it grows from `0x1A0` to
+  `0x1A4`, which costs one `push` (the class's only allocation) and a stub on its one constructor
+  call to zero the new dword. Health is simulation state, so **every peer must run the same patched
+  binary**, and the keyword is an INI parse error on a stock build. See
+  [`docs/detachable-rider-heal.md`](docs/detachable-rider-heal.md).
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -875,6 +1023,11 @@ sage-patch apply skirmish-replay --rename added --in game.dat.backup --out game.
 sage-patch apply terrain-resource-exp --in game.dat.backup --out game.dat   # --keyword GiveNoXP
 sage-patch verify terrain-resource-exp game.dat
 
+# a mount healed by a flat number of hit points when its rider is knocked off
+sage-patch apply detachable-rider-heal \
+    --in game.dat.backup --out game.dat     # --keyword HealOnDetach
+sage-patch verify detachable-rider-heal game.dat
+
 # an upgrade pushes a summon's death back by UpgradeLifetimeBonus milliseconds
 sage-patch apply lifetime-extend-upgrade \
     --in game.dat.backup --out game.dat        # --keyword / --bonus-keyword
@@ -892,6 +1045,10 @@ sage-patch verify multi-execute-gate game.dat
 # a CommandButton field that lets an engine-pressed button queue past the command-point cap
 sage-patch apply queue-ignore-cp --in game.dat.backup --out game.dat   # --keyword QueueIgnoreCP
 sage-patch verify queue-ignore-cp game.dat
+
+# a CommandButton field that greys the button unless that many command points are free
+sage-patch apply command-point-cost --in game.dat.backup --out game.dat  # --keyword CommandPointCost
+sage-patch verify command-point-cost game.dat
 
 # a wider hero bar; the .apt must define Hero17..HeroN clips to match (see sage_apt)
 sage-patch apply hero-bar-slots --count 21 --in game.dat.backup --out game.dat

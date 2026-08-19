@@ -5,6 +5,7 @@ from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
 from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.cah_factions import CahFactionsPatch
+from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
 from sage_patch.patches.desert_weather import DesertWeatherPatch
@@ -16,6 +17,7 @@ from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
+from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
@@ -44,6 +46,7 @@ __all__ = [
     "AutoDepositInflationPatch",
     "BannerFilterPatch",
     "CahFactionsPatch",
+    "CommandPointCostPatch",
     "CommandPointUpkeepPatch",
     "CommandSetLimitPatch",
     "DesertWeatherPatch",
@@ -70,6 +73,7 @@ __all__ = [
     "SciencePrereqPatch",
     "SecondResourcePatch",
     "SkirmishReplayPatch",
+    "SmartRallyPatch",
     "SpawnUnionPatch",
     "TerrainResourceExpPatch",
     "TriggerRechargeListPatch",

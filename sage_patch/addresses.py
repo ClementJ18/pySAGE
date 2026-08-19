@@ -223,6 +223,7 @@ __all__ = [
     "INI_NEXT_TOKEN_OR_NULL",
     "INI_PARSE_BOOL",
     "INI_PARSE_INT",
+    "INI_PARSE_REAL",
     "INI_PARSE_UNSIGNED_SHORT",
     "INI_SCAN_INT",
     "IN_GAME_UI_ADD_FLOATING_TEXT",
@@ -1557,6 +1558,11 @@ REQUEST_UNIQUE_UNIT_ID_BODY = bytes.fromhex("8b41108d5001895110c3")
 # forms as `store + offset`, which is what lets a `Bool` live in a struct's padding byte.
 FIELD_PARSE_STRIDE = 16
 INI_PARSE_BOOL = 0x0042E558
+
+# `INI::parseReal`, the parser every `Real` field names: it scans one token, converts it and
+# does `fstp dword [store]`, a single 4-byte float store through the same `store + offset`
+# pointer - so a new `Real` field needs an aligned 4-byte slot and nothing else.
+INI_PARSE_REAL = 0x0042ED00
 
 
 # The module on a claimed resource spot: it wakes every `IncomeInterval`, deposits an income, and

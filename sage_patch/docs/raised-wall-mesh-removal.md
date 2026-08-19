@@ -1,14 +1,25 @@
 # `RaisedWallMesh` geometry survives the wall that owned it
 
 RotWK 2.01 `game.dat`, ImageBase `0x400000`. Static recovery only — **nothing here has been
-confirmed against a running game yet**; §7 is the test that would.
+confirmed against a running game yet**; §7 is the test that would. Re-read end to end on
+2026-08-19 against `engine/game.dat.backup`, which corrected four things in §3 and §4 and located
+the release routine §7b had recorded as missing; the corrections are marked **(2026-08-19)** where
+they land. Shipped as
+[`../patches/wall_mesh_release.py`](../patches/wall_mesh_release.py), which implements §7b.
 
-**The finding in one sentence.** The pathfinder registers a wall's walkable surface by *asking the
-drawable for a named sub-object of its current model*, and it **un**registers it the same way — so
-the removal is not the inverse of the addition, it is the addition run again against whatever model
-the drawable is showing now. A dying wall changes model before it is destroyed, the named mesh is
-no longer in it, every lookup on the removal path answers "not found", and the walkable geometry is
-never taken back out.
+**The finding in one sentence.** A wall registers three separate things with the pathfinder and
+gives back **none** of them when it dies: the walkable surface leaks because nothing removes it at
+all, and the ramps and the bounds cells leak because their removal re-asks the drawable for a mesh
+that the dying wall's model no longer contains.
+
+**Two legs, and only one of them is a hypothesis (2026-08-19).** The original framing above — "the
+removal is the addition run again against whatever model the drawable is showing now" — is right
+about the ramps and the wall bounds, and those do depend on the unmeasured claim that the model has
+already changed by teardown time (§4). It does **not** describe the walkable surface, which is the
+leg the `RaisedWallMesh` keyword names: `Pathfinder::claimWallLayer` (`0x00768246`) and the
+list push beside it (`0x00768276`) have **exactly one caller each, both on the add path**, so
+there is no removal code to fail. That leg leaks whatever the model does, and it needs no
+triage in §6 to believe.
 
 ## 1. Where the field lives
 
@@ -102,17 +113,43 @@ and then, on **both** the add and the remove path, tail-calls the wall handler:
 
 `0x00935FAA` is where `RaisedWallMesh` becomes pathfinding data. Its shape:
 
+**(2026-08-19)** The table is at **`Pathfinder+0x60`**, sixteen slots of `0x40` — not `+0xE0`,
+which is slot **2**, where the *wall* scan starts (`push 2; pop edi` at `0x00935FFE`, running to
+index 15 inclusive at `0x0093605A`). `Pathfinder::reset` proves the base and the count by looping
+the release routine over exactly `[esi+0x60] .. +16*0x40` (`0x006F5B03`).
+
 | | add (`adding != 0`) | remove (`adding == 0`) |
 |---|---|---|
-| raised surface | `Drawable::0x67290D` → iface `+0x9C` → **`RaisedWallMesh`**; claims a slot in the 16-entry table at `Pathfinder+0xE0` (stride `0x40`), storing the *`RenderObjClass *`* of the mesh (`0x00768276` / `0x00768246`) | — |
+| raised surface | `Drawable::0x67290D` → iface `+0x9C` → **`RaisedWallMesh`**; claims a slot in the 16-entry table at `Pathfinder+0x60` (stride `0x40`, wall slots 2..15), storing the *`RenderObjClass *`* of the mesh (`0x00768276` / `0x00768246`) | **nothing at all** — no query, no release, no code |
 | ramp 1 | `Drawable::0x6729A3` → iface `+0xA8`; `new(0xCC)`, built by `0x0067FFA6`, linked into the list at `Pathfinder+0x5C` | same query; `new(0xCC)`, built the same way, then `0x009356DF(record, 0)` **removes by value** and the temporary is deleted |
 | ramp 2 | `Drawable::0x6729E9` → iface `+0xAC`; same | same |
-| wall bounds | — | `Drawable::0x6728D7` → iface `+0x98`; **`test eax,eax; je 0x936B6C`** — a NULL answer returns from the function; otherwise the returned height is matched against the wall-layer height array at `Pathfinder+0x1BEBC` (count at `+0x1BEB8`) to pick the layer to release |
+| wall bounds | `Drawable::0x6728D7` → iface `+0x98`; **`test eax,eax; je 0x936B6C`** — a NULL answer returns from the function; otherwise the returned height is matched against the wall-layer height array at `Pathfinder+0x1BEBC` (count at `+0x1BEB8`) to pick the layer, and the cell rectangle is marked | same query, same early-out; the same rectangle is **un**marked |
+
+**(2026-08-19) The wall-bounds row runs in both directions, and the two paths rejoin to reach it.**
+`adding` is branched on at `0x00935FDD`, which separates the raised surface and the ramps, and the
+two arms *rejoin* at `0x0093629C`; the bounds mesh is then queried once, for both. `adding` is read
+a **second** time at `0x009365F9`, after the cell rectangle has been computed, and only there does
+the mark/unmark choice happen — it is the last argument of `0x00935051`. So the NULL early-out at
+`0x009362AD` is not a removal-only weakness: it abandons the function in either direction, and a
+wall whose bounds mesh is missing at *add* time registers its ramps and never its cells.
+
+**(2026-08-19) The slot holds a list, and the pathfinder owns what is in it.** `0x00768246` claims
+an empty slot and `0x00768276` pushes onto it; the link is the **render object's own `+0x3C`**, and
+the slot's `+0x38` is the head. Sharing is by height — the scan at `0x00936012` looks for a slot
+already in use whose stored height matches this wall's, and appends to it (`0x00936080`) rather
+than taking a new one, so one slot can carry many walls. What it carries is not the drawable's live
+mesh: `0x004BA693` calls `Get_Sub_Object_By_Name`, passes the result through the virtual at
+`+0x14`, and **releases the queried sub-object** (`dec [esi+4]`, destroy at zero) before returning
+that derived object — which the pathfinder then destroys itself in `0x00768AA7`
+(`(*vt[0])(0); operator delete`). Two consequences, both load-bearing for §7b: a pointer cached at
+add time **stays valid**, because the pathfinder owns the referent; and the release frees **only
+the head**, so a slot shared by several walls leaks its tail even when the slot is reset.
 
 ## 4. The failure, stated exactly
 
 Nothing about the wall's footprint is *recorded* at add time in a form the remove path consults. The
-remove path rebuilds the same three queries and cancels whatever they return **now**:
+remove path rebuilds two of the three queries and cancels whatever they return **now** — and does
+not rebuild the third at all:
 
 1. Each removal step is guarded by its own query succeeding —
    `0x009361CF` (ramp 1), `0x00936242` (ramp 2), `0x009362AD` (wall bounds, an early **return**).
@@ -120,9 +157,15 @@ remove path rebuilds the same three queries and cancels whatever they return **n
    drawable is holding **at the moment of the call**.
 3. The layer is not identified by object id or by anything the wall owns. It is found by matching a
    *height* that the removal has to recompute from the mesh.
+4. **(2026-08-19)** The walkable surface is not on that list, because it has no removal step. The
+   claim and the list push have one caller each and both are on the add path; nothing anywhere in
+   the image unlinks a render object from a wall-layer slot. This leg does not depend on the
+   model-change hypothesis below — it leaks on every wall removal, for any reason, whatever the
+   drawable is showing.
 
-So the moment the model stops containing `P1`/`P2`/`P3`, the wall's pathfinding data becomes
-unreachable — not stale, *unreachable*. There is no code path left that can name it.
+So the moment the model stops containing `P2`/`P3`, the wall's ramp and cell data becomes
+unreachable — not stale, *unreachable*. There is no code path left that can name it. `P1`'s slot
+was already unreachable, from the moment it was claimed.
 
 And a dying structure does exactly that. In Edain's own wall data
 (`data/ini/object/goodfaction/structures/lothlorien/mirkwood_walls.ini`, `Mirkwood_Wall_02`):
@@ -138,6 +181,11 @@ ModelConditionState = POST_RUBBLE       Model = None
 destroy-time teardown that calls the pathfinder removal is `0x00692313` — it hides the drawable
 (`0x006718FB(1)`), drops the object from `TheRadar` (`0x006D876A`), and only then calls
 `0x006E85FB`. By then the death sequence has long since moved the drawable off the built model.
+
+**(2026-08-19) The leak is bounded by the match, not by the process.** `Pathfinder::reset`
+(`0x006F5B03`) frees the whole `+0x5C` ramp list and calls the slot release over all sixteen slots,
+so nothing survives into the next game. Within one match nothing is given back, and the sixteen
+slots — fourteen of them reachable by walls — are a hard resource.
 
 **This is the hypothesis the whole document points at, and it is the one thing still unverified.**
 The static facts (§1–§3, the guards in §4.1–4.3, the INI in §4) are all confirmed. The claim that
@@ -190,31 +238,65 @@ convention and nothing else; verifies the diagnosis at the same time. It does **
 object removed by `ReplaceSelfUpgrade` or by a script that deletes it outright, and it is a
 constraint every future wall model has to remember — which is why the patch below is worth scoping.
 
-### 7b. Patch — remove by identity instead of by re-query
+### 7b. Patch — remember what was registered, instead of re-deriving it
 
-The right shape, matching how the rest of this repo's patches work:
+**This is what `wall-mesh-release` does**; the shape below is the one it was built to.
 
-- **Record the owner.** At add time in `0x00935FAA`, stamp the `ObjectID` (`Object+0x74`) into the
-  wall-layer slot (`Pathfinder+0xE0 + i*0x40`) and into each `0xCC` ramp record. Both structures
-  need to be checked for slack first — `0x40` and `0xCC` are generous, but the constructors
-  (`0x00768276`, `0x0067FFA6`) have to be read for what they already write.
-- **Add an id-keyed removal.** A new cave routine that walks the 16 layer slots and the
-  `Pathfinder+0x5C` list, releasing everything stamped with the dying object's id, using the
-  engine's own release calls (`0x009356DF` for a ramp record; whatever `0x00768246`/`0x00768276`'s
-  inverse turns out to be for a layer — **this is the one piece not yet located**).
-- **Two hooks.** In `0x00935FAA`, take the remove path (`adding == 0`) to the id-keyed routine
-  instead of the three re-queries. That is one `jmp` at `0x009361B4` plus the cave. The add path is
-  untouched, so an object that never registered costs nothing.
-- **Do not touch `0x0067B405`'s gate.** Widening the `WALL_UPGRADE` mitigation is tempting and does
-  not help: it would still remove by re-query, against a model that has already changed.
+**(2026-08-19) This supersedes the plan that stood here**, which was to stamp an `ObjectID` into the
+layer slot and each ramp record and then sweep for it. Two things found on the re-read make a
+cave-owned ledger strictly better: the layer slot is **shared between walls of equal height** (§3),
+so an id stamped on the slot cannot say *which* of its members is dying; and the structures the plan
+wanted to grow are pathfinder-owned allocations whose pointers **stay valid** for as long as the
+registration does (§3), so there is nothing to key on that a side table cannot hold more cheaply.
+Nothing in the engine is grown, which also disposes of the savegame question below.
 
-Cost estimate: one `rel32`, a cave of a few hundred bytes, and two struct fields in space that has
-to be proven free. **Simulation state** — this decides where units can walk — so every peer must
-run the same binary and replays will not cross, the same rule as `spawn-union` and
-`multi-execute-gate`.
+**The ledger.** One entry per registered wall, keyed by `ObjectID`, written on the add path and
+consumed on the remove path:
 
-**Savegame note:** the layer table and the ramp list are pathfinder state; if they are `Xfer`'d, an
-added id field changes the blob and needs a version bump. Not yet checked.
+| field | taken from | needed by |
+|---|---|---|
+| `ObjectID` | `Object+0x74` | the key |
+| slot index | `edi` at `0x009360BB`/`0x0093609B` | leg 1 |
+| raised `RenderObjClass *` | `[ebp-0x14]` at the same point | leg 1 |
+| ramp record ×2 | `[ebp-0x24]` after each `0x0067FFA6` | leg 2 |
+| cell rectangle (4 dwords) | `[ebp-0x38]`, `[ebp-0x30]`, `[ebp-0x3C]`, `[ebp-0x34]` at `0x009365F9` | leg 3 |
+
+**Leg 1 — the walkable surface, which today has no removal at all.** Unlink the recorded render
+object from the recorded slot's list (the link is `renderObj+0x3C`, the head is `slot+0x38`),
+destroy it the way the engine does (`(*vt[0])(0)` then `operator delete`, as `0x00768AA7` does to
+the head), and when the list comes out empty call **`0x00768AA7`** on the slot to give it back.
+That routine is the inverse the old plan recorded as unlocated: it clears `+0x34`, calls
+`0x0076848F` to drop the cell data, destroys the head render object, and resets `+0x18`..`+0x2C`,
+`+0x38` and `+0x3C`. `Pathfinder::reset` is what identifies it, looping it over all sixteen slots
+at `0x006F5B03`.
+
+**Leg 2 — the ramps.** The two `0xCC` records are already reachable by pointer, so the recorded
+pointer is unlinked from the `Pathfinder+0x5C` list directly and freed. This *skips* `0x009356DF`
+rather than feeding it: that routine exists to find a record by matching its four-float geometry
+block at `record+0xB4`, and a pointer answers the same question exactly.
+
+**Leg 3 — the bounds cells.** This one needs no new loop. Restore the four rectangle dwords into
+their own frame slots and jump to **`0x0093682F`**, the head of the stock unmark loop, with `eax`
+holding the object's id — which is the whole of that loop's input. It reads `[ebp-0x30]`,
+`[ebp-0x34]`, `[ebp-0x38]` and `[ebp-0x3C]` and writes everything else it touches before reading
+it, and unlike the *mark* branch it never dereferences the bounds render object, so there is no
+pointer to reconstruct.
+
+**Where the hooks go.** Three on the add path, to fill the ledger, and one on the remove path — at
+`0x009362A3`'s `test eax,eax`, the bounds query's early-out, which is the point where a removal
+currently gives up. A removal with no ledger entry falls through to the stock behaviour untouched,
+which is what keeps a wall registered by some path this patch did not see behaving exactly as it
+does today.
+
+Cost estimate: four `rel32`, a cave of a few hundred bytes plus the ledger (11 dwords an entry;
+512 entries is 22 KB and covers any map's walls). **Simulation state** — this decides where units
+can walk — so every peer must run the same binary and replays will not cross, the same rule as
+`spawn-union` and `multi-execute-gate`.
+
+**Ledger lifetime.** Entries are dropped when consumed, and the whole table is cleared when the
+logic clock goes backwards, the trick `cooldown-through-death` uses to stop one match inheriting
+the last one's bank. That matches `Pathfinder::reset`, which frees everything this ledger describes
+between matches (§4).
 
 ### 7c. Rejected
 
@@ -243,7 +325,15 @@ added id field changes the blob and needs a version bump. Not yet checked.
 | **`0x00935FAA`** | **the wall handler — add vs remove, §3** |
 | `0x009361B4` | its remove path (the hook point in §7b) |
 | `0x009356DF` | remove a ramp record from `Pathfinder+0x5C` |
-| `0x00768276` / `0x00768246` / `0x00768326` | wall-layer slot init / claim / "is in use" |
+| `0x00768246` / `0x00768276` / `0x00768326` | wall-layer slot claim / list push / "is in use" |
+| **`0x00768AA7`** | **the slot release — §7b's missing inverse (2026-08-19)** |
+| `0x0076848F` | drops a slot's cell data; called by the release and by the share path |
+| `0x00768286` | the height match that decides whether a slot is shared |
+| `0x006F5B03` | `Pathfinder::reset` — the ramp list, then the release over all 16 slots |
+| `0x0093629C` | where the add and remove arms rejoin for the bounds query |
+| `0x009365F9` | the second read of `adding`: mark (`0x00936606`) vs unmark (`0x0093682F`) |
+| `0x0093682F` | the stock cell-unmark loop — leg 3's entry point |
+| `0x00935051` | marks or unmarks one cell; last argument is `adding` |
 | `0x00692313` | destroy teardown: hide drawable, drop from radar, pathfinder remove |
 | `0x008BAD8B` | `GeometryUpgrade::upgradeImplementation` — the only writer of the overrides |
 | `0x0067B405` / `0x0067B411` | the `WALL_UPGRADE` + `hasWallBoundsMesh` mitigation gate |

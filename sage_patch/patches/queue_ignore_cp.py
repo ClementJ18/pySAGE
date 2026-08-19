@@ -513,7 +513,7 @@ class QueueIgnoreCpPatch(Patch):
                 return [f"the live CommandButton table does not name {self.keyword!r}"]
             pieces = _layout(section_va, self.keyword, len(preceding))
             problems = self._verify_cave(data, pieces, preceding, section_va, vsize)
-            problems += self._verify_sites(data, pieces)
+            problems += self._verify_sites(data, pieces, rebuilt)
         except (ValueError, struct.error) as exc:
             return [f"cannot read back the patch (wrong build?): {exc}"]
         return problems
@@ -547,7 +547,19 @@ class QueueIgnoreCpPatch(Patch):
             problems.append(f"the code at 0x{pieces.code_va:08x} is not what this patch builds")
         return problems
 
-    def _verify_sites(self, data: bytes | bytearray, pieces: _Layout) -> list[str]:
+    def _verify_sites(
+        self, data: bytes | bytearray, pieces: _Layout, live: tuple[Entry, ...]
+    ) -> list[str]:
+        """The four edits, and the row the engine will actually parse this field through.
+
+        **The row is checked in the *live* table, not in this patch's own copy of it.** A patch
+        applied afterwards that extends the same block - `command-point-cost` is the one that does
+        - rebuilds the table again, copying this row across with every other live row, and
+        repoints the three references at *its* cave. That is exactly the composition the tables are
+        read live for, so demanding the references still name this cave would report a correctly
+        composed binary as broken. What has to hold is that whatever table the engine reaches
+        carries this keyword, pointing at this cave's string and at the parser and offset this
+        patch installed."""
         code = build_code(pieces.code_va, pieces.flag_va)
         checks: list[tuple[int, bytes, str]] = [
             (
@@ -583,24 +595,21 @@ class QueueIgnoreCpPatch(Patch):
                 f"the command-point verdict is not hooked to the {SECTION_NAME} gate",
             ),
         ]
-        table_ref = _u32(pieces.table_va)
-        for ref_va, opcode in zip(
-            COMMAND_BUTTON_FIELD_TABLE_REFS, COMMAND_BUTTON_FIELD_TABLE_REF_OPCODES, strict=True
-        ):
-            checks.append(
-                (
-                    ref_va,
-                    bytes([opcode]) + table_ref,
-                    f"this reference does not name the {SECTION_NAME} field table",
-                )
-            )
-
         problems: list[str] = []
         for va, want, complaint in checks:
             off = _offset(data, va)
             got = bytes(data[off : off + len(want)])
             if got != want:
                 problems.append(f"@0x{va:08x}: {complaint} (holds {got.hex()})")
+
+        want_row = (pieces.keyword_va, INI_PARSE_BOOL, 0, COMMAND_BUTTON_FREE_OFFSET)
+        row = next((e for e in live if _cstring(data, e[0]) == self.keyword), None)
+        if row != want_row:
+            problems.append(
+                f"the live CommandButton table's {self.keyword!r} row is "
+                f"{'absent' if row is None else tuple(hex(v) for v in row)}, expected "
+                f"{tuple(hex(v) for v in want_row)}"
+            )
         return problems
 
     @classmethod

@@ -49,6 +49,7 @@ from sage_patch.patches import worldbuilder_mod as wbm
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
 from sage_patch.patches.experimental import recharge_rescale as rr
+from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
@@ -831,3 +832,15 @@ def worldbuilder_mod_image() -> bytearray:
     planted = {wbm.HOOK_VA: wbm._HOOK_BYTES}
     planted.update(wbm.ANCHORS)
     return _sparse_image(planted)
+
+
+def smart_rally_image() -> bytearray:
+    """A stand-in carrying every site `smart-rally` rewrites, and every window it asserts first.
+
+    Its sites run from `GameLogic::findObjectByID` to the `ExitInterface` vtable in `.rdata`, most
+    of eight megabytes apart, so a sparse image maps six pages rather than the whole span. The four
+    hooks and the allocation size all live in `ANCHORS`, which is what makes the image negative as
+    well as positive: everything not planted reads as zero, so a hook aimed one instruction to
+    either side of where the patch says it is finds nothing there.
+    """
+    return _sparse_image(dict(sr.ANCHORS))
