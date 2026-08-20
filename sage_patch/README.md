@@ -9,10 +9,11 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
 
 > ### ⚠ Experimental patches
 >
-> Eleven of the registered patches — **`hero-mana`**, **`second-resource`**, **`campaign-select`**,
-> **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**, **`live-bridge`**,
-> **`living-world-override`**, **`cooldown-through-death`**, **`capture-the-flag`** and
-> **`smart-rally`** — are **experimental: unstable and largely untested.** They live in
+> Thirteen of the registered patches — **`hero-mana`**, **`second-resource`**,
+> **`campaign-select`**, **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**,
+> **`live-bridge`**, **`living-world-override`**, **`cooldown-through-death`**,
+> **`capture-the-flag`**, **`smart-rally`**, **`special-power-charges`** and **`render-rate`**
+> — are **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
 >
@@ -849,13 +850,14 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
   [`docs/raised-wall-mesh-removal.md`](docs/raised-wall-mesh-removal.md).
 - **`smart-rally`** (**experimental**) lets a structure's rally point **name a hero or a unit**
   instead of a spot on the ground, so units coming out of a barracks go where the target *is* rather
-  than where it was standing when the order was given. Its `--guard` form does not guard yet: the
-  order is refused by `AIUpdate::privateGuardObject`'s three gates (`0x00664B19`), which returns
-  `-1` having touched nothing, leaving the unit with only its door-exit move — which is why it was
-  seen walking to the spawn-time position and then idling off. The arm now reads back the guarded
-  `ObjectID` the engine records on success and **falls back to the move form** when the order did
-  not take, so the worst case is that `--guard` behaves like the default rather than like nothing.
-  Which gate refuses is still open. The order stream already describes this: `MSG_SET_RALLY_POINT`
+  than where it was standing when the order was given. The spend hook sits at the **head** of the
+  release routine's walk-to-the-point arm, not its tail, so that a smart rally suppresses the
+  exit-path call (`Object` vtable `+0x244`, `0x008A3D1D`) that arm opens with — the engine's own
+  rally-at-object arm does not make it either, and making it *and* issuing an object order gives the
+  unit a second destination that reasserts itself once it reaches the first. That is what walked
+  produced units to the hero and then back to the spot the rally was set on. The `--guard` form
+  additionally reads back the guarded `ObjectID` the engine records on success and **falls back to
+  the move form** if the order did not take, so it can never leave a unit with no order at all. The order stream already describes this: `MSG_SET_RALLY_POINT`
   (`0x413`) carries **four** arguments and the fourth is the `ObjectID` of whatever was under the
   cursor, which the client fills in at `0x0081F5D8` — the handler at `0x0077A26C` resolves it, tests
   it for NULL to pick the global or single-producer arm, and then drops it. So no client edit, no
@@ -930,6 +932,59 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
   call to zero the new dword. Health is simulation state, so **every peer must run the same patched
   binary**, and the keyword is an INI parse error on a stock build. See
   [`docs/detachable-rider-heal.md`](docs/detachable-rider-heal.md).
+
+- **`special-power-charges`** (**experimental**) gives a `SpecialPower` **charges**: `ChargeNumber = N` banks N casts
+  behind `ReloadTimeBetweenCharge`, a short cooldown, and `ReloadTime` becomes the time to regain
+  **one** charge - running from the moment the first charge goes missing, not from when the bank
+  empties. `ReplenishAllChargesOnReloadTime = Yes` returns the whole bank at once instead. A power
+  that does not set `ChargeNumber` is untouched. The trick that makes it cheap is that the engine's
+  cooldown is an **absolute frame**, not a countdown: nothing ticks a special power while it
+  recharges, so a charge bank does not need a per-frame driver either - the refill deadline is a
+  second absolute frame and the count is recovered from it by integer division at the two moments
+  anyone asks. **`isReady` is not patched**: with charges left `readyFrame` holds the short
+  cooldown, with the bank empty it holds the refill deadline, so the ControlBar, both click arms,
+  the AI and the button's pie clock all keep working untouched. **Which arm of `startPowerRecharge` counts as a use** is the whole
+  story of the patch, and it took two runs in a real game to get right. That function means "arm
+  the cooldown", which the engine does from **fourteen** places, so hooking it plainly made one
+  cast empty the bank; hooking instead the one call that looks like the cast
+  (`doSpecialPower`'s, on its own interface) missed every ability written with
+  `UpdateModuleStartsAttack = Yes` beside a `WeaponFireSpecialAbilityUpdate`, which is how most
+  targeted hero abilities in Edain are written. It now discriminates **on the caller**: the return
+  address at `[ebp+4]` excludes the two arms that are provably not a use - the module constructor
+  and the `OnTriggerRecharge` walk - and everything else is one, whichever module flavour drove
+  it. `edi` already holds the refill interval the engine computed, so the short cooldown is that
+  same ratio in integers and the patch runs no float of its own. Nothing that *clears* a cooldown is
+  hooked either and none of it needs to be: an empty bank holds `readyFrame` at the deadline, so a
+  reset is visible after the fact and hands a charge back. Nine bytes of `SpecialPowerTemplate`
+  (which grows `0x88` -> `0x94`) and six of module padding that is neither read nor `Xfer`'d - so
+  **charges do not survive a savegame**, which reloads at a full bank. The button description gains
+  a charge readout once the mod declares `TOOLTIP:SpecialPowerCharges` (two `%d`) and
+  `TOOLTIP:SpecialPowerChargesRecharging` (two `%d` and a `%.1f` of seconds); the tooltip is built
+  once per hover, so the seconds are a snapshot. Charges gate whether a power fires, so **every peer
+  must run the same patched binary** and replays do not cross. Spellbook spells are covered -
+  a spellbook is an ordinary object and its spells ordinary `SpecialPowerModule` /
+  `OCLSpecialPower` / `PlayerUpgradeSpecialPower` behaviours. See
+  [`docs/special-power-charges.md`](docs/special-power-charges.md).
+- **`render-rate`** ⚠**(experimental)** draws at **N frames per second instead of 30 without the simulation
+  speeding up**. SAGE already simulates at 5 logic frames per second and draws at 30, keeps a sub-frame
+  counter and hands the render path an interpolation alpha — what welds the two clocks back together is
+  **one comparison**, the wrap that ends a logic frame written against a literal `6` rather than against the
+  ratio the engine derives from the rates. Moving the client rate and that literal together is most of the
+  patch, and a rendered drawable then takes **11 distinct interpolated positions per logic frame at 60
+  against 5 at stock**: it is genuinely smoother, not merely faster. Two things break when it moves and
+  both are fixed here. The once-per-logic-frame latch fires on a sub-frame that **never occurs** at 60, so
+  every `previous = current` latch behind it stops and animations freeze — **one dword**, measured over 373
+  client frames before it was believed. And `ParticleSystemManager::update` runs once per client frame from
+  the draw path with lifetimes counted in *updates*, so every effect in the game ran at double speed; a
+  0x28-byte cave stamps the manager with `clientFrame * 30 / clientRate` instead of the raw frame, measured
+  live at **0.500 steps per client frame**. **The one INI change is not optional**: `FramesPerSecondLimit`
+  in `GameData` must be set to the same N, or the pace loop targets 30 against a 60 fps binary and the
+  **whole game runs at half speed** — no warning, no crash, just slow. This is **Edain's** binary's patch:
+  the latch divisor it edits does not exist on stock SAGE, and the patch refuses a build whose predicate is
+  not that shape rather than writing a dword into whatever lives there. Still open, and why it is
+  experimental rather than merely unplayed: the simulation runs **7–11% slow** at 60, which shifts replay
+  timing, so **every peer needs the same binary and the same N**. See
+  [`docs/render-rate.md`](docs/render-rate.md).
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 

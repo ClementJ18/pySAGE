@@ -277,52 +277,54 @@ Which order to issue is the one genuinely open design choice:
 | move to the target's current position | `0x0066C4CA` with `target+0x38` | units walk to where the hero is at the moment they spawn, then stop. Cheapest, and cannot behave differently from a normal rally in any way the AI or the pathfinder has not already seen. **This is the form that works.** |
 | guard the target | `0x00771805` | units are meant to follow and defend, as they do for `MSG_DO_GUARD_OBJECT`. **Defective - see below.** |
 
-**The guard form does not work in play**, twice over: the unit walks to the spawn-time position
-and then moves off somewhere unrelated. The arguments are not the problem, and neither, probably,
-is guard's behaviour.
+**The arm has two destinations, and that was the bug.** Reported from play: produced units walk to
+the hero and then back to the spot where the rally point was set on him. So the object order *was*
+taking - the walk to the hero is it working - and something else pulled them back afterwards.
 
-*The call is right.* Argument 1 lands at the state struct's `+0x14`, the same slot `aiEnter` puts
-an `Object *` in; argument 2 lands at `+0x34`, which all four guard-family entries (`0x1E`..`0x21`)
-write and nothing else does, so it is the mode, and the client appends `0` for it at `0x0081D77F`;
-argument 3 is the command source, and the first build passed `CMD_FROM_AI` where the guard handler
-passes `CMD_FROM_PLAYER` (`push ebx` at `0x0077ABEA`) - corrected, without changing the symptom.
+That something is the first instruction of the arm this patch was hooking:
 
-*The order is being refused.* `aiDoCommand` (`0x0066A7EC`, `AIUpdateInterface` vtable slot 0) is a
-switch on the state id, reached through the table at `0x0066B07C`; entry `0x1F` forwards to
-`AIUpdate::privateGuardObject` at module vtable `+0x100`, which is `0x00664B19`. That function opens
-with three gates and **returns `-1` having touched nothing** on any of them:
+```
+008a3d14  mov  ecx, [ebp-4]              ; the container the unit is leaving
+008a3d17  mov  eax, [ecx]
+008a3d19  lea  edx, [ebp-0x14]           ; the rally point copy
+008a3d1c  push edx
+008a3d1d  call [eax+0x244]               ; the exit path, aimed at that point
+008a3d23  ...                            ; and only then the move order
+```
 
-| gate | test | resolves to |
-|---|---|---|
-| 1 | `Object::testStatus(38)` on the unit | a dynamic status bit |
-| 2 | `0x00690E97` | not KindOf `IMMOBILE`, has a usable locomotor, `testStatus(0x81)`, and for `SIEGE_TOWER` also status 59 |
-| 3 | `template+0x10B & 2` | KindOf `PROJECTILE` |
+`Object` vtable `+0x244`, handed the stored rally point. The hook used to sit at `0x008A3D23`, so
+that call had already been made: the unit left the door with an exit path ending at the stored
+point *and* an order naming the target, and once it reached the target the first one reasserted
+itself. With the move form the two destinations are close enough to be invisible unless the target
+has moved since the order was given, which is why only the guard form looked broken.
 
-(The bit arithmetic is `THING_TEMPLATE_MASK_OFFSET`; the cross-check is that `template+0x110 & 0x20`
-decodes to bit 69 = `AUTO_RALLYPOINT`, which is exactly the flag the rally ground-test uses.)
+**The engine already knew not to do this.** Its own rally-at-object arm (`0x008A3CDE`, the
+slaughterhouse path) never makes that call - it sets two model conditions and goes straight to
+`aiEnter`. Hooking the *tail* of the walk-to-the-point arm inherited a step that belongs only to
+walking to a point.
 
-A refused order explains the whole symptom without guard misbehaving at all. The unit still carries
-the door-exit order from `0x008A3D1D`, which was handed the stored rally point - it walks to the
-spawn-time position - and then has nothing, so it idles. It also explains why the move form is
-untouched: it never goes through that function.
+So the hook moved to `0x008A3D14`, the head of the arm, displacing the whole fifteen-byte call. A
+live, allied target now suppresses it; anything else replays all fifteen bytes and re-enters the
+stock arm after them, so a rejected target still costs nothing.
 
-**So the guard arm now checks whether the order took.** `privateGuardObject` records the guarded
-`ObjectID` at module `+0x64` on success (`0x00664B73`), and the wrapper does not hand its verdict
-back usably - `0x0077185F` clobbers `eax` on one edge - so the cave reads that field back and
-compares it against the id it asked for. On a mismatch it issues the move form instead. The patch
-can no longer leave a produced unit with no order at all; the worst case is that `--guard` quietly
-behaves like the default.
+### The guard refusal that was not happening
 
-**That is a repair, not a diagnosis.** Which gate refuses is still unknown. Two of the three are
-static and clearly innocent for a produced battalion; the suspects are `testStatus(38)` and the
-predicate at `0x00690E97`, both dynamic, on a unit that is still in the doorway. Settling it needs
-the live read described in section 9.
+Before that, the arguments were checked and one was wrong: the command source was `CMD_FROM_AI`
+where the guard handler passes `CMD_FROM_PLAYER` (`push ebx` at `0x0077ABEA`). Corrected, without
+changing the symptom.
 
-Built as the `spend` routine, which the six bytes at `0x008A3D23` jump into. The move-to form is the
-default; `--guard` selects the other, and `detect` recovers which one a binary carries by asking
-`verify` for both. Every rejection edge - no target, an id that no longer resolves, a relationship
-that has changed - reloads the `ecx` the displaced instruction would have set and re-enters the
-stock arm at `0x008A3D29`, so a rejected target behaves byte for byte like no target at all.
+Reading further suggested guard was being *refused*: `aiDoCommand` (`0x0066A7EC`, `AIUpdateInterface`
+vtable slot 0) switches on the state id through the table at `0x0066B07C`, entry `0x1F` forwards to
+`AIUpdate::privateGuardObject` (module vtable `+0x100`, `0x00664B19`), and that opens with three
+gates - `Object::testStatus(38)`, the can-this-be-moved predicate at `0x00690E97`, and KindOf
+`PROJECTILE` - each of which makes it `return -1` having touched nothing.
+
+**That was not what was happening** - the units did reach the hero, so the order took. The check it
+produced is kept anyway, because it costs four instructions and closes a real hole:
+`privateGuardObject` records the guarded `ObjectID` at module `+0x64` on success (`0x00664B73`) and
+the wrapper does not hand its verdict back usably (`0x0077185F` clobbers `eax` on one edge), so the
+cave reads that field back, compares it against the id it asked for, and issues the move form when
+they differ. A refused guard degrades to the form that works rather than to no order at all.
 
 ### 5.5 The client needs no edit, and this is why
 
@@ -485,11 +487,9 @@ target walks is still open.
 - Whether the banner should be redrawn every frame while a smart rally is active, so that it glides
   after a moving target rather than snapping on the ControlBar's context refresh (5.6). The engine
   has no per-frame rally-marker update to hook, because a stock rally point never moves.
-- **Which of `privateGuardObject`'s three gates refuses a freshly produced unit** (5.4). The
-  fallback means the patch no longer misbehaves either way, but the guard form still does not
-  guard. The read that settles it: on a produced unit at the moment it leaves the door, sample
-  `Object+0x94` (the status bitfield - bits 38 and 59) and the answer of `0x00690E97`. Both are
-  reachable through `sage_live`'s raw reads once a match is running; neither needs a new patch.
+- What `Object` vtable `+0x244` is, precisely. It is called on the container a unit is leaving,
+  with a destination, only on the walk-to-the-point arm, and suppressing it is what fixed the two
+  destinations - but it has eighteen callers across the binary and none of them was read.
 - Chasing a target without `aiGuardObject` at all, if guard turns out to hold a post. `aiEnter`
   (state `0x42`) demonstrably chases a moving object - it is how a unit boards a moving transport,
   and it is what the dead slaughterhouse path uses - but what it does on arriving at something it

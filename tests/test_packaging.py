@@ -27,6 +27,12 @@ ASSET_NAMES = frozenset({"py.typed"})
 # (see its install.sh / install.bat), not by pip, so it is intentionally not package data.
 EXCLUDED_DIRS = ("sage_lint/plugins/sublime",)
 
+# Build-time-only assets: consumed by a PyInstaller spec, never opened by the running package, so
+# they have no reason to sit in the wheel. `worldbuilder.ico` is the icon PyInstaller *embeds* in
+# the launcher exe (`icon=[ICON]` in sage-edain-worldbuilder.spec, with an empty `datas`) - unlike
+# every other icon here, which the Qt windows load from disk at runtime and so must ship.
+EXCLUDED_FILES = ("sage_mods/edain/worldbuilder.ico",)
+
 
 def _pyproject() -> dict:
     with (REPO_ROOT / "pyproject.toml").open("rb") as handle:
@@ -61,6 +67,8 @@ def _runtime_assets() -> list[Path]:
             relative = path.relative_to(REPO_ROOT).as_posix()
             if any(relative.startswith(excluded) for excluded in EXCLUDED_DIRS):
                 continue
+            if relative in EXCLUDED_FILES:
+                continue
             if path.suffix.lower() in ASSET_SUFFIXES or path.name in ASSET_NAMES:
                 assets.append(path.resolve())
     return sorted(assets)
@@ -69,6 +77,15 @@ def _runtime_assets() -> list[Path]:
 def test_the_tree_actually_contains_assets_to_check():
     """Guards the guard: a bad glob or a moved package must not make this file vacuously pass."""
     assert len(_runtime_assets()) > 20
+
+
+def test_exemptions_still_point_at_something():
+    """A renamed or deleted exemption must not linger: a stale entry silently excuses whatever
+    later takes that path."""
+    for relative in EXCLUDED_DIRS:
+        assert (REPO_ROOT / relative).is_dir(), f"excluded directory {relative} no longer exists"
+    for relative in EXCLUDED_FILES:
+        assert (REPO_ROOT / relative).is_file(), f"excluded file {relative} no longer exists"
 
 
 @pytest.mark.parametrize(

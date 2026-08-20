@@ -46,6 +46,7 @@ from sage_patch.patches.experimental.smart_rally import (
     COMMAND_FROM_AI,
     COMMAND_FROM_PLAYER,
     CTOR_HOOK_VA,
+    EXIT_PATH_SLOT,
     EXIT_VTABLE,
     FIND_OBJECT_BY_ID,
     GET_EXIT_INTERFACE,
@@ -64,6 +65,7 @@ from sage_patch.patches.experimental.smart_rally import (
     SET_RALLY_POINT_FOR,
     SET_RALLY_POSITION,
     SPEND_FALLBACK_VA,
+    SPEND_HOOK_STOCK,
     SPEND_HOOK_VA,
     SPEND_RESUME_VA,
     STOCK_MODULE_SIZE,
@@ -346,20 +348,42 @@ class TestTheSpendRoutine:
         )
 
     @pytest.mark.parametrize("guard", [False, True])
-    def test_every_rejection_re_enters_the_stock_arm(self, guard: bool) -> None:
-        """The fallback reloads the `ecx` the displaced instruction would have set, then returns
-        to the instruction after it - so a rejected target behaves byte for byte like no target."""
+    def test_every_rejection_reproduces_what_it_displaced(self, guard: bool) -> None:
+        """A rejected target has to cost nothing, and this hook displaces a whole call - so the
+        reject edge replays all fifteen bytes and re-enters the stock arm after them."""
+        capstone = pytest.importorskip("capstone")
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
         insns = _routine("spend", guard)
         text = _text(insns)
+        stock = _text(list(md.disasm(SPEND_HOOK_STOCK, 0)))
+        assert text[-len(stock) - 2 : -2] == stock
         assert text[-2:] == ["mov ecx, dword ptr [edi + 0x260]", f"jmp {SPEND_FALLBACK_VA:#x}"]
-        stock_arm = insns[-2].address
-        # The guard form has one more conditional: "the order took, skip the fallback order",
-        # which lands on the `jmp` that rejoins after the stock call rather than on the stock arm.
+
+        reject = insns[-len(stock) - 2].address
+        # The guard form has one more conditional - "the order took, skip the fallback order" -
+        # which lands on the `jmp` that rejoins after the stock call, not on the reject edge.
         rejoin = next(i.address for i in insns if f"jmp {SPEND_RESUME_VA:#x}" == _text([i])[0])
-        allowed = {stock_arm, rejoin} if guard else {stock_arm}
+        allowed = {reject, rejoin} if guard else {reject}
         for insn in insns:
             if insn.mnemonic in {"je", "jne"}:
                 assert int(insn.op_str, 16) in allowed, f"{insn.mnemonic} at {insn.address:#x}"
+
+    @pytest.mark.parametrize("guard", [False, True])
+    def test_a_taken_target_suppresses_the_exit_path_call(self, guard: bool) -> None:
+        """The whole point of hooking the arm's head rather than its tail. The engine's own
+        rally-at-object arm never makes this call, and making it *and* issuing an object order
+        gives the unit a second destination - which is what walked produced units to the target
+        and then back to the stored rally point."""
+        insns = _routine("spend", guard)
+        text = _text(insns)
+        exit_call = f"call dword ptr [eax + {EXIT_PATH_SLOT:#x}]"
+        assert text.count(exit_call) == 1, "the displaced call is reproduced exactly once"
+        # ...and only on the reject edge, which is past every order this routine issues.
+        last_order = max(
+            text.index(f"call {AI_MOVE_TO_POSITION:#x}"),
+            text.index(f"call {AI_GUARD_OBJECT:#x}") if guard else -1,
+        )
+        assert text.index(exit_call) > last_order
 
     def test_the_guard_form_falls_back_when_the_order_is_refused(self) -> None:
         """`privateGuardObject` returns -1 having done nothing on any of its three gates, and the

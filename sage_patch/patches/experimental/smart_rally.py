@@ -34,9 +34,11 @@ today and what this patch makes them do.
   field whenever it stores a point. Every path that sets a plain rally point goes through it -
   including the global arm at ``0x007798D5``, which the handler hook cannot see - so a stale target
   cannot outlive the point it was set with.
-- **spend it.** At the release routine's walk-to-the-point arm (`SPEND_HOOK_VA`), a live and
-  still-allied target diverts the new unit to it instead. Anything else - no target, a dead one, a
-  relationship that has changed - falls through to the stock instruction, byte for byte.
+- **spend it.** At the head of the release routine's walk-to-the-point arm (`SPEND_HOOK_VA`), a
+  live and still-allied target diverts the new unit to it - **and suppresses the exit-path call**
+  that arm opens with, which would otherwise give the unit a second destination. Anything else - no
+  target, a dead one, a relationship that has changed - reproduces that call and re-enters the stock
+  arm, byte for byte.
 - **draw it in the right place.** The ControlBar places the rally banner at whatever
   `getRallyPoint` hands back, at two sites that are identical to the byte (`MARKER_HOOK_VAS`). Both
   are redirected through one routine that substitutes the target's live position, so the banner
@@ -253,10 +255,20 @@ MARKER_HOOK_VAS: tuple[int, ...] = (0x009443A0, 0x00945099)
 MARKER_HOOK_STOCK = bytes.fromhex("8b108bc8ff5220")
 MARKER_TAIL_STOCK = bytes.fromhex("508bcb")  # push eax; mov ecx,ebx - the answer goes to the marker
 
-#: The release routine's walk-to-the-point arm, at the one instruction both its edges share.
-#: Displaced whole, and reproduced on the fallback edge.
-SPEND_HOOK_VA = 0x008A3D23
-SPEND_HOOK_STOCK = bytes.fromhex("8b8f60020000")  # mov ecx,[edi+0x260]
+#: The head of the release routine's walk-to-the-point arm - the whole of the exit-path call,
+#: displaced so that a smart rally can decline to make it. `Object` vtable ``+0x244``, on the
+#: container the unit is leaving (`[ebp-4]`, from the contain module's vtable ``+0x7C``), handed
+#: the rally point copy at `[ebp-0x14]`. **The engine's own rally-at-object arm never calls it**
+#: (``0x008A3CDE`` goes straight to model conditions and `aiEnter`), and issuing it alongside an
+#: object order is what walked produced units to the target and then back to the stored point.
+SPEND_HOOK_VA = 0x008A3D14
+SPEND_HOOK_STOCK = bytes.fromhex("8b4dfc8b018d55ec52ff9044020000")
+
+#: `Object` vtable slot for that call, and the two frame slots it reads, as displacements from the
+#: release routine's `ebp`.
+EXIT_PATH_SLOT = 0x244
+FRAME_CONTAINER = -0x04
+FRAME_RALLY_COPY = -0x14
 SPEND_FALLBACK_VA = 0x008A3D29
 SPEND_RESUME_VA = 0x008A3D37
 
@@ -375,6 +387,9 @@ def _assemble(base_va: int, guard: bool) -> Asm:
     a.call_absolute(GET_RELATIONSHIP)
     a.emit(0x83, 0xF8, RELATIONSHIP_ALLIED)  # cmp eax, 2
     a.jcc(JNE, "spend_fallback")
+    # A live, allied target: order the unit at it and **do not** make the exit-path call. The
+    # engine's own rally-at-object arm does not make it either, and making it alongside an object
+    # order is a second destination that reasserts itself once the first one is reached.
     a.emit(0x8B, 0x8F, struct.pack("<I", OBJECT_AI_MODULE_OFFSET))  # mov ecx, [edi+0x260]
     a.emit(0x83, 0xC1, AI_INTERFACE_OFFSET)  # add ecx, 0x20
     if guard:
@@ -399,7 +414,14 @@ def _assemble(base_va: int, guard: bool) -> Asm:
     a.label("spend_done")
     a.jmp_absolute(SPEND_RESUME_VA)
 
+    # No target, a dead one, or one that stopped being allied: reproduce the fifteen displaced
+    # bytes exactly and re-enter the stock arm, so a rejected target costs nothing.
     a.label("spend_fallback")
+    a.emit(0x8B, 0x4D, FRAME_CONTAINER & 0xFF)  # mov ecx, [ebp-4]
+    a.emit(0x8B, 0x01)  # mov eax, [ecx]
+    a.emit(0x8D, 0x55, FRAME_RALLY_COPY & 0xFF)  # lea edx, [ebp-0x14]
+    a.emit(0x52)  # push edx
+    a.emit(0xFF, 0x90, struct.pack("<I", EXIT_PATH_SLOT))  # call [eax+0x244]
     a.emit(0x8B, 0x8F, struct.pack("<I", OBJECT_AI_MODULE_OFFSET))  # mov ecx, [edi+0x260]
     a.jmp_absolute(SPEND_FALLBACK_VA)
 

@@ -24,9 +24,11 @@ from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-try:  # not present off Windows; the registry half is skipped there
+if sys.platform == "win32":
     import winreg
-except ImportError:  # pragma: no cover - exercised only on non-Windows
+else:  # pragma: no cover - exercised only on non-Windows
+    # Not an `except ImportError` guard: the platform test is the form type checkers follow, so
+    # the registry half stays checked on Windows and reads as absent off it.
     winreg = None  # type: ignore[assignment]
 
 __all__ = [

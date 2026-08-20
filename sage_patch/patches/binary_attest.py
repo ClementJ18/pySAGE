@@ -248,7 +248,7 @@ def build_section(base_va: int) -> bytes:
 
 class BinaryAttestPatch(Patch):
     name = "binary-attest"
-    author = "unattributed"
+    author = "officialNecro"
     description = (
         "Mix a hash of the game's own code into the frame checksum, so a peer running a "
         "modified game.dat goes out of sync instead of playing. No INI change; every peer needs "

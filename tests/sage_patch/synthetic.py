@@ -49,6 +49,7 @@ from sage_patch.patches import worldbuilder_mod as wbm
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
 from sage_patch.patches.experimental import recharge_rescale as rr
+from sage_patch.patches.experimental import render_rate as rrate
 from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
@@ -844,3 +845,16 @@ def smart_rally_image() -> bytearray:
     either side of where the patch says it is finds nothing there.
     """
     return _sparse_image(dict(sr.ANCHORS))
+
+
+def render_rate_image() -> bytearray:
+    """A stand-in carrying every site `render-rate` rewrites, and every window it asserts first.
+
+    Sparse for the usual reason: the particle gate, the sub-frame arithmetic, the two rates in
+    `.data` and Edain's latch divisor are spread over nine megabytes, so this maps five pages
+    rather than the whole span. Everything the patch touches lives in `ANCHORS`, including the two
+    addresses its cave jumps to and the predicate shape it refuses a non-Edain build on - so the
+    image is negative as well as positive: an edit aimed one instruction to either side of where
+    the patch says it is finds zeroes.
+    """
+    return _sparse_image(dict(rrate.ANCHORS))
