@@ -60,6 +60,7 @@ sage-edain-lint = "sage_mods.edain.map_checks.ui.app:main"
 sage-edain-notes = "sage_mods.edain.patch_notes.ui.app:main"
 sage-edain-horde = "sage_mods.edain.horde_maker.ui.app:main"
 sage-asset-ui = "sage_asset.ui.app:main"
+sage-cah-ui = "sage_cah.ui.app:main"
 
 [project.optional-dependencies]
 ui = [
@@ -86,6 +87,13 @@ edain-ui = [
 
 asset-ui = [
     "PyQt6>=6.6",
+]
+
+# The Create-a-Hero editor. pyBIG is not optional here the way it is for a folder-only load:
+# a game's Create-a-Hero data ships inside `ini.big`, so completion needs the archive reader.
+cah-ui = [
+    "PyQt6>=6.6",
+    "pybig>=0.6",
 ]
 
 apt = [
@@ -118,6 +126,7 @@ all = [
     "pysage-tools[wiki]",
     "pysage-tools[edain-ui]",
     "pysage-tools[asset-ui]",
+    "pysage-tools[cah-ui]",
     "pysage-tools[apt]",
     "pysage-tools[w3d-view]",
     "pysage-tools[patch]",
@@ -142,7 +151,7 @@ include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "
 sage_apt = ["assets/*.html", "py.typed"]
 sage_asset = ["py.typed", "ui/*.ico"]
 sage_w3d = ["py.typed"]
-sage_cah = ["py.typed"]
+sage_cah = ["py.typed", "ui/*.ico"]
 sage_verify = ["py.typed"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
@@ -255,4 +264,10 @@ ignore_errors = true
 # the [lint-ui] extra installed and predates annotations. Its Qt-free runner stays checked.
 [[tool.mypy.overrides]]
 module = ["sage_lint.plugins.ui.window", "sage_lint.plugins.ui.app"]
+ignore_errors = true
+
+# And the Qt half of the Create-a-Hero editor; `sage_cah.gamedata` (the ini scan it drives) and
+# the format reader itself stay checked.
+[[tool.mypy.overrides]]
+module = ["sage_cah.ui.window", "sage_cah.ui.app"]
 ignore_errors = true

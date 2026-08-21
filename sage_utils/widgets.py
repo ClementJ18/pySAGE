@@ -169,6 +169,17 @@ def add_help_menu(
     menu.addAction(f"&{about_title}", show_about)
 
 
+def clear_layout(layout) -> None:
+    """Delete every widget (and nested layout) in `layout`, leaving it empty - what a panel
+    rebuilt from freshly loaded data needs before it lays its new rows out."""
+    while layout.count():
+        item = layout.takeAt(0)
+        if item.widget():
+            item.widget().deleteLater()
+        elif item.layout():
+            clear_layout(item.layout())
+
+
 def pil_to_pixmap(picture) -> QPixmap:
     """A QPixmap copy of a Pillow image (kept RGBA so transparency survives)."""
     picture = picture.convert("RGBA")

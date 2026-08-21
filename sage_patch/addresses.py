@@ -132,6 +132,23 @@ __all__ = [
     "COMMAND_BUTTON_SPECIAL_POWER",
     "COMMAND_POINTS_HAS_ENOUGH",
     "COMMAND_POINTS_IN_USE",
+    "CONTROL_BAR_CLICK_BUTTON_LOAD",
+    "CONTROL_BAR_CLICK_BUTTON_LOAD_BYTES",
+    "CONTROL_BAR_CLICK_GATE_CALL",
+    "CONTROL_BAR_CLICK_GATE_CALL_BYTES",
+    "CONTROL_BAR_CLICK_GATE_PREFIX",
+    "CONTROL_BAR_CLICK_GATE_PREFIX_BYTES",
+    "CONTROL_BAR_CLICK_GATE_SUFFIX",
+    "CONTROL_BAR_CLICK_GATE_SUFFIX_BYTES",
+    "CONTROL_BAR_COMMAND_DISPATCH",
+    "CONTROL_BAR_COMMAND_DISPATCH_BYTES",
+    "CONTROL_BAR_COMMAND_INDEX_TABLE",
+    "CONTROL_BAR_COMMAND_JUMP_TABLE",
+    "CONTROL_BAR_POP_RANGE_HANDLER",
+    "CONTROL_BAR_POP_RANGE_HANDLER_BYTES",
+    "CONTROL_BAR_PROCESS_COMMAND_UI",
+    "CONTROL_BAR_PUSH_RANGE_HANDLER",
+    "CONTROL_BAR_PUSH_RANGE_HANDLER_BYTES",
     "CONTROL_BAR_UNAVAILABLE",
     "CONTROL_BAR_UNIT_COST_CALL",
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
@@ -210,8 +227,11 @@ __all__ = [
     "GAME_TEXT_FORMAT_SLOT",
     "GET_FINAL_OVERRIDE",
     "GLOBAL_DATA",
+    "GLOBAL_DATA_ASSET_PROFILE",
     "GLOBAL_DATA_FPS_LIMIT",
     "GLOBAL_DATA_USE_FPS_LIMIT",
+    "GUICOMMAND_POP_VISIBLE_COMMAND_RANGE",
+    "GUICOMMAND_PUSH_VISIBLE_COMMAND_RANGE",
     "GUICOMMAND_REVIVE",
     "GUI_COMMAND_SPECIAL_POWER",
     "GUI_LOSE_CASH",
@@ -340,6 +360,7 @@ __all__ = [
     "PLAYER_IS_OBSERVER",
     "PLAYER_LIST_GET_LOCAL_PLAYER",
     "PLAYER_LIST_LOCAL_IS_NOT_ACTIVE",
+    "PLAYER_LIST_LOCAL_IS_NOT_ACTIVE_BYTES",
     "PLAYER_LIST_LOCAL_PLAYER",
     "PLAYER_LIST_OBSERVE_NEXT_PLAYER",
     "PLAYER_MONEY",
@@ -1281,7 +1302,11 @@ OBSERVER_BAR_GATE_FINGERPRINT_BYTES = bytes.fromhex(
 # `!Player::isPlayerActive`, which is `!m_isObserver && !m_isDefeated`). The second half of the
 # gate above, and the *only* other test `PlayerList::observeNextPlayer` makes beyond
 # `GameLogic::isInGame` (`0x00441B60`: mode not in {4, 7, 9}). Neither cares about skirmish.
+#
+# It has 12 callers, so it is never to be widened in place - a patch that wants a different
+# answer for one of them retargets that one `call`. See `CONTROL_BAR_CLICK_GATE_CALL`.
 PLAYER_LIST_LOCAL_IS_NOT_ACTIVE = 0x006A87F5
+PLAYER_LIST_LOCAL_IS_NOT_ACTIVE_BYTES = bytes.fromhex("8b4910e855240000f6d8")
 PLAYER_LIST_OBSERVE_NEXT_PLAYER = 0x006A8D2B
 GAME_LOGIC_IS_IN_GAME = 0x00441B60
 
@@ -1292,6 +1317,60 @@ GAME_LOGIC_IS_IN_GAME = 0x00441B60
 # seat and only the bar above is missing.
 PLAYBACK_INSTALLS_OBSERVER = 0x006283D1
 RECORDER_LOCAL_PLAYER_INDEX = 0xECC
+
+# `ControlBar::processCommandUI(GameWindow *, GadgetGameMessage)` - thiscall on `TheControlBar`,
+# `ret 8` - where a command-button click enters the engine. Reached from the window system
+# callback bound to the name `"ControlBarSystem"` (`0x0080406B`, through the thunk at
+# `0x0071C4EA`), which is the whole of the 33-slot command grid: the palantir's chrome is APT,
+# the grid is not. Derived in `docs/observer-command-range.md`.
+#
+#     call 0x0072979C                  ; 0x00941BB1  the window's CommandButton
+#     pop  ecx / mov esi, eax          ; 0x00941BB7  esi = the button, live to the end
+#     ...
+#     test esi, esi ; je <discard>     ; 0x00941BC8
+#     mov  ecx, [ThePlayerList]        ; 0x00941BCC
+#     call 0x006A87F5                  ; 0x00941BD2  is the local player an observer/defeated?
+#     test al, al ; jne <discard>      ; 0x00941BD7  <- every observer click dies here
+#     cmp  [esp+0x14], 0x400B          ; 0x00941BDB  the two bools the executor takes
+#
+# The gate is anchored either side of the `call` rather than across it, so the fingerprints stay
+# valid once the call is retargeted. `..._BUTTON_LOAD` pins where `esi` comes from, which nothing
+# else would catch: a cave reading `[esi+0x14]` off a different pointer simply reads garbage.
+CONTROL_BAR_PROCESS_COMMAND_UI = 0x00941B9F
+CONTROL_BAR_CLICK_BUTTON_LOAD = 0x00941BB1
+CONTROL_BAR_CLICK_BUTTON_LOAD_BYTES = bytes.fromhex("e8e67bdeff598bf0")
+CONTROL_BAR_CLICK_GATE_PREFIX = 0x00941BC8
+CONTROL_BAR_CLICK_GATE_PREFIX_BYTES = bytes.fromhex("85f674f88b0d2849de00")
+CONTROL_BAR_CLICK_GATE_CALL = 0x00941BD2
+CONTROL_BAR_CLICK_GATE_CALL_BYTES = bytes.fromhex("e81e6cd6ff")  # call 0x006A87F5
+CONTROL_BAR_CLICK_GATE_SUFFIX = 0x00941BD7
+CONTROL_BAR_CLICK_GATE_SUFFIX_BYTES = bytes.fromhex("84c075e9817c24140b400000")
+
+# The click executor's dispatch on `CommandButton+0x14`, and the two tables it dispatches
+# through - an MSVC two-level switch, so the handler for command `T` is
+# `jump_table[index_table[T - 1]]`:
+#
+#     mov   ecx, [esi+0x14]            ; the GUICOMMAND
+#     lea   edx, [ecx-1] ; cmp edx, 0x3b ; ja <unhandled>
+#     movzx edx, byte [0x00941B63 + edx]
+#     jmp   dword [0x00941AC3 + edx*4]
+#
+# Reading the pair back is how a patch proves the two paging commands are 55 and 56 in *this*
+# binary rather than trusting the name table's ordering.
+CONTROL_BAR_COMMAND_DISPATCH = 0x009408B3
+CONTROL_BAR_COMMAND_DISPATCH_BYTES = bytes.fromhex(
+    "8b4e148d51ff83fa3b0f87c3fbffff0fb692631b9400ff2495c31a9400"
+)
+CONTROL_BAR_COMMAND_JUMP_TABLE = 0x00941AC3
+CONTROL_BAR_COMMAND_INDEX_TABLE = 0x00941B63
+
+# The two paging handlers the tables above must reach. `PUSH` takes `&button->m_range`
+# (`CommandButton+0x22C`) and appends it to the stack at `ControlBar+0x2B0`; `POP` drops the top
+# 8-byte record. Both end in `switchToContext(current, current)` - a redraw, and nothing else.
+CONTROL_BAR_PUSH_RANGE_HANDLER = 0x00941A7D
+CONTROL_BAR_PUSH_RANGE_HANDLER_BYTES = bytes.fromhex("81c62c020000")  # add esi, 0x22c
+CONTROL_BAR_POP_RANGE_HANDLER = 0x00941A9C
+CONTROL_BAR_POP_RANGE_HANDLER_BYTES = bytes.fromhex("8b4dec8d81b0020000")
 
 # `msvcr71.dll` imports, by IAT slot. The engine calls them exactly this way
 # (`call dword ptr [slot]`, cdecl, caller cleans), so a cave can too.
@@ -1474,6 +1553,15 @@ CAN_MAKE_UNIT_SCAN_BOUND = 0x007950E2
 
 # `GUICommandType::GUICOMMAND_REVIVE`, entry 46 of the name table at 0x00DA4D10.
 GUICOMMAND_REVIVE = 46
+
+# The two paging commands, entries 55 and 56 of that same table. Neither issues a `GameMessage`:
+# `PUSH` appends the button's `CommandRangeStart`/`CommandRangeCount` pair to a stack on the
+# ControlBar and `POP` drops the top one, and both then re-run `switchToContext` to redraw. So
+# they are the only two GUI commands that change nothing but which slice of a `CommandSet` is on
+# screen - which is what makes them safe to hand an observer. Derived in
+# `docs/observer-command-range.md`.
+GUICOMMAND_PUSH_VISIBLE_COMMAND_RANGE = 55
+GUICOMMAND_POP_VISIBLE_COMMAND_RANGE = 56
 
 #
 # The `SkirmishAI` producer picker, and the construction check that is missing from it.
@@ -1745,10 +1833,17 @@ PLAYER_POWER_POINTS_TOTAL = 0x1C
 
 #: `PlayerList::getLocalPlayer` - thiscall, no arguments. The palantir's own refresh
 #: (`0x006D577C`) reaches the displayed player through it, so a HUD-side read matches.
+#:
+#: **It is not a plain getter.** When `m_local` is not active - an observer, or a defeated
+#: player - it returns `ControlBar+0x218`, the player being observed, and only falls back to
+#: `m_local` when there is none (`0x006A8850`). That redirect is what makes the whole command bar
+#: evaluate against the watched seat during a replay; see `docs/observer-command-range.md` §5.1.
 PLAYER_LIST_GET_LOCAL_PLAYER = 0x006A8839
 
 #: The field that getter reads (`mov esi, [ecx+0x10]`), for a cave that wants the local player
-#: without a call. The engine inlines the same read itself, e.g. at `0x00819CEA`.
+#: without a call. The engine inlines the same read itself, e.g. at `0x00819CEA`. Note this is
+#: the *raw* seat, so inlining the read skips the observer redirect above - which is right for a
+#: question about who is at the keyboard and wrong for one about whose HUD is on screen.
 PLAYER_LIST_LOCAL_PLAYER = 0x10
 
 #: `AutoDepositUpdate::update` (`0x008854D3`) - the tick income path, and the *only* reader of
@@ -2315,6 +2410,14 @@ GAME_CLIENT_DRAW_BYTES = bytes.fromhex("8b0d1844de008b01ff5030")
 GLOBAL_DATA = 0x00DE4364
 GLOBAL_DATA_USE_FPS_LIMIT = 0x26
 GLOBAL_DATA_FPS_LIMIT = 0x28
+
+# The asset-load profiler's switch, which is a `GlobalData` field only in the sense that it lives
+# in the struct: it is absent from the field-parse table, no command-line handler reaches it, and
+# the constructor is its only writer (`0x00643A79`, storing zero). Its three readers are
+# `0x0062ECD4`, `0x006314E2` and `0x0063160B`. Writable at run time, so a live session can toggle
+# it in a binary the `asset-load-profile` patch has defaulted on. Derived in
+# `docs/asset-demand-load.md`.
+GLOBAL_DATA_ASSET_PROFILE = 0x123D
 
 # --- `GameData`'s LivingWorldCampaignOverrride, and the two parsers -----------------------------
 #

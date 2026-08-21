@@ -9,6 +9,7 @@ problem in, and the warning is the thing that makes offering it honest."""
 from sage_patch.patcher import Patch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
+from sage_patch.patches.asset_load_profile import AssetLoadProfilePatch
 from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.banner_modifier import BannerModifierPatch
@@ -17,10 +18,13 @@ from sage_patch.patches.cah_factions import CahFactionsPatch
 from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
+from sage_patch.patches.commandset_button_upgrade import CommandSetButtonUpgradePatch
 from sage_patch.patches.crash_dump import CrashDumpPatch
 from sage_patch.patches.description_timers import DescriptionTimersPatch
-from sage_patch.patches.desert_weather import DesertWeatherPatch
-from sage_patch.patches.desert_weather_wb import DesertWeatherWorldbuilderPatch
+from sage_patch.patches.desert_weather import (
+    DesertWeatherPatch,
+    DesertWeatherWorldbuilderPatch,
+)
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
 from sage_patch.patches.experimental.capture_the_flag import CaptureTheFlagPatch
@@ -37,7 +41,7 @@ from sage_patch.patches.experimental.special_power_charges import SpecialPowerCh
 from sage_patch.patches.experimental.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
-from sage_patch.patches.herobar import HeroBarPatch
+from sage_patch.patches.herobar import HeroBarPatch, HeroBarWorldbuilderPatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus_filter import LargeGroupBonusFilterPatch
@@ -46,14 +50,24 @@ from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
+from sage_patch.patches.observer_command_range import ObserverCommandRangePatch
 from sage_patch.patches.observer_switch import ObserverSwitchPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
-from sage_patch.patches.production_condition import ProductionConditionPatch
-from sage_patch.patches.production_split import ProductionSplitPatch
+from sage_patch.patches.production_condition import (
+    ProductionConditionPatch,
+    ProductionConditionWorldbuilderPatch,
+)
+from sage_patch.patches.production_split import (
+    ProductionSplitPatch,
+    ProductionSplitWorldbuilderPatch,
+)
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
-from sage_patch.patches.science_prereqs import SciencePrereqPatch
+from sage_patch.patches.science_prereqs import (
+    SciencePrereqPatch,
+    SciencePrereqWorldbuilderPatch,
+)
 from sage_patch.patches.skirmish_ai_fallback import SkirmishAiFallbackPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
@@ -63,14 +77,23 @@ from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
 from sage_patch.patches.wall_mesh_release import WallMeshReleasePatch
+from sage_patch.patches.worldbuilder_label_assert import WorldbuilderLabelAssertPatch
 from sage_patch.patches.worldbuilder_mod import WorldbuilderModPatch
+from sage_patch.patches.worldbuilder_object_typeahead import (
+    WorldbuilderObjectTypeaheadPatch,
+)
+from sage_patch.patches.worldbuilder_silent_errors import (
+    WorldbuilderSilentErrorsPatch,
+)
 
 PATCHES: dict[str, type[Patch]] = {
     CommandSetLimitPatch.name: CommandSetLimitPatch,
+    CommandSetButtonUpgradePatch.name: CommandSetButtonUpgradePatch,
     CahFactionsPatch.name: CahFactionsPatch,
     AiReviveGatePatch.name: AiReviveGatePatch,
     AiConstructionGatePatch.name: AiConstructionGatePatch,
     ProductionConditionPatch.name: ProductionConditionPatch,
+    ProductionConditionWorldbuilderPatch.name: ProductionConditionWorldbuilderPatch,
     DesertWeatherPatch.name: DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch.name: DesertWeatherWorldbuilderPatch,
     UniqueProductionIdPatch.name: UniqueProductionIdPatch,
@@ -80,6 +103,7 @@ PATCHES: dict[str, type[Patch]] = {
     SkirmishAiFallbackPatch.name: SkirmishAiFallbackPatch,
     ObjectivesScreenPatch.name: ObjectivesScreenPatch,
     ObserverSwitchPatch.name: ObserverSwitchPatch,
+    ObserverCommandRangePatch.name: ObserverCommandRangePatch,
     LiveBridgePatch.name: LiveBridgePatch,
     LivingWorldOverridePatch.name: LivingWorldOverridePatch,
     TerrainResourceExpPatch.name: TerrainResourceExpPatch,
@@ -93,7 +117,9 @@ PATCHES: dict[str, type[Patch]] = {
     SecondResourcePatch.name: SecondResourcePatch,
     InflationReadoutPatch.name: InflationReadoutPatch,
     SciencePrereqPatch.name: SciencePrereqPatch,
+    SciencePrereqWorldbuilderPatch.name: SciencePrereqWorldbuilderPatch,
     HeroBarPatch.name: HeroBarPatch,
+    HeroBarWorldbuilderPatch.name: HeroBarWorldbuilderPatch,
     HeroBarSlotsPatch.name: HeroBarSlotsPatch,
     InfantryLightingPatch.name: InfantryLightingPatch,
     MultiExecuteGatePatch.name: MultiExecuteGatePatch,
@@ -106,6 +132,7 @@ PATCHES: dict[str, type[Patch]] = {
     FoundationRebindPatch.name: FoundationRebindPatch,
     HeadlessPatch.name: HeadlessPatch,
     ProductionSplitPatch.name: ProductionSplitPatch,
+    ProductionSplitWorldbuilderPatch.name: ProductionSplitWorldbuilderPatch,
     BinaryAttestPatch.name: BinaryAttestPatch,
     UpgradeDescriptionPatch.name: UpgradeDescriptionPatch,
     TriggerRechargeListPatch.name: TriggerRechargeListPatch,
@@ -116,6 +143,9 @@ PATCHES: dict[str, type[Patch]] = {
     CrashDumpPatch.name: CrashDumpPatch,
     CaptureTheFlagPatch.name: CaptureTheFlagPatch,
     WorldbuilderModPatch.name: WorldbuilderModPatch,
+    WorldbuilderLabelAssertPatch.name: WorldbuilderLabelAssertPatch,
+    WorldbuilderSilentErrorsPatch.name: WorldbuilderSilentErrorsPatch,
+    WorldbuilderObjectTypeaheadPatch.name: WorldbuilderObjectTypeaheadPatch,
     MaintenanceCostPatch.name: MaintenanceCostPatch,
     AutoDepositInflationPatch.name: AutoDepositInflationPatch,
     WallMeshReleasePatch.name: WallMeshReleasePatch,
@@ -124,6 +154,7 @@ PATCHES: dict[str, type[Patch]] = {
     DetachableRiderHealPatch.name: DetachableRiderHealPatch,
     SpecialPowerChargesPatch.name: SpecialPowerChargesPatch,
     RenderRatePatch.name: RenderRatePatch,
+    AssetLoadProfilePatch.name: AssetLoadProfilePatch,
 }
 
 __all__ = ["PATCHES"]

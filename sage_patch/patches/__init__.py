@@ -8,8 +8,10 @@ from sage_patch.patches.cah_factions import CahFactionsPatch
 from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
-from sage_patch.patches.desert_weather import DesertWeatherPatch
-from sage_patch.patches.desert_weather_wb import DesertWeatherWorldbuilderPatch
+from sage_patch.patches.desert_weather import (
+    DesertWeatherPatch,
+    DesertWeatherWorldbuilderPatch,
+)
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.horde_orphan_target import HordeOrphanTargetPatch

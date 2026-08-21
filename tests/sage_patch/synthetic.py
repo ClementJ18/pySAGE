@@ -17,11 +17,18 @@ exactly as it handles the real thing.
 pair needs: `game.dat`'s two guards and `lotrbfme2ep1.exe`'s one live in different binaries, so the
 image is chosen by which patch is under test.
 
+:func:`observer_command_range_image` is sparse too, and for the same reason as the one below it:
+`observer-command-range` edits one `call` in the ControlBar and reads a predicate and a pair of
+switch tables spread over 2.7 MB either side of it.
+
 :func:`observer_switch_image` is sparse for the same reason: `observer-switch` edits one `call` and
 reads two functions most of a megabyte away from it, so only those two pages need to exist.
 
 :func:`worldbuilder_mod_image` is the third Worldbuilder stand-in. Its hook sits in the editor's
 own `InitInstance` and its anchors are ~16 MB away in the file-system module, so it is sparse too.
+
+:func:`worldbuilder_object_typeahead_image` is the fourth, and the only one that plants a resource:
+the object picker's dialog template lives in `.rsrc`, 5 MB past the class that opens it.
 """
 
 from __future__ import annotations
@@ -29,15 +36,17 @@ from __future__ import annotations
 import struct
 
 from sage_patch import addresses as ad
+from sage_patch.patches import commandset_button_upgrade as cbu
 from sage_patch.patches import crash_dump as cd
 from sage_patch.patches import description_timers as dt
 from sage_patch.patches import desert_weather as dw
-from sage_patch.patches import desert_weather_wb as wb
+from sage_patch.patches import desert_weather as wb
 from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
 from sage_patch.patches import infantry_lighting as il
 from sage_patch.patches import lifetime_extend_upgrade as lex
 from sage_patch.patches import multi_instance as mi
+from sage_patch.patches import observer_command_range as ocr
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import production_condition as pc
 from sage_patch.patches import production_split as ps
@@ -46,6 +55,7 @@ from sage_patch.patches import trigger_recharge_list as trl
 from sage_patch.patches import upgrade_description as ud
 from sage_patch.patches import upgrade_grant_lists as ugl
 from sage_patch.patches import worldbuilder_mod as wbm
+from sage_patch.patches import worldbuilder_object_typeahead as wbt
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
 from sage_patch.patches.experimental import recharge_rescale as rr
@@ -253,15 +263,18 @@ def worldbuilder_image() -> bytearray:
         blob += name.encode("ascii") + b"\x00"
     write(WB_STRINGS_VA, bytes(blob))
     for index, va in enumerate(string_vas):
-        u32(wb.WEATHER_TABLE_VA + index * 4, va)
-    u32(wb.WEATHER_TABLE_VA + len(string_vas) * 4, 0)  # the terminator
+        u32(wb.WORLDBUILDER_WEATHER_TABLE_VA + index * 4, va)
+    u32(wb.WORLDBUILDER_WEATHER_TABLE_VA + len(string_vas) * 4, 0)  # the terminator
     # the next table starts immediately after it, which is why it cannot grow in place
-    u32(wb.WEATHER_TABLE_VA + (len(string_vas) + 1) * 4, WB_STRINGS_VA)
+    u32(wb.WORLDBUILDER_WEATHER_TABLE_VA + (len(string_vas) + 1) * 4, WB_STRINGS_VA)
 
-    for va, prefix in wb.WEATHER_TABLE_REF_SITES:
-        write(va, prefix + struct.pack("<I", wb.WEATHER_TABLE_VA))
-    write(wb.COMBO_BOUND_VA, bytes.fromhex("837de0") + bytes([len(wb.STOCK_WEATHER_NAMES)]))
-    for va, expected in wb._DIALOG_FINGERPRINT.items():
+    for va, prefix in wb.WORLDBUILDER_TABLE_REF_SITES:
+        write(va, prefix + struct.pack("<I", wb.WORLDBUILDER_WEATHER_TABLE_VA))
+    write(
+        wb.WORLDBUILDER_COMBO_BOUND_VA,
+        bytes.fromhex("837de0") + bytes([len(wb.STOCK_WEATHER_NAMES)]),
+    )
+    for va, expected in wb._WORLDBUILDER_DIALOG_FINGERPRINT.items():
         write(va, expected)
 
     sections = [
@@ -307,6 +320,36 @@ def observer_switch_image() -> bytearray:
             **obs.ANCHORS,
         }
     )
+
+
+#: The switch slots the real build maps the two paging commands to, i.e. what
+#: ``index_table[command - 1]`` holds there. Planted rather than invented so that
+#: `observer-command-range`'s table walk is exercised against the shape it will actually meet.
+PAGING_SWITCH_SLOTS = {
+    ad.GUICOMMAND_PUSH_VISIBLE_COMMAND_RANGE: 35,
+    ad.GUICOMMAND_POP_VISIBLE_COMMAND_RANGE: 36,
+}
+
+
+def observer_command_range_image() -> bytearray:
+    """A stand-in carrying the ControlBar's click gate, the click executor's switch and the
+    predicate the cave tail-jumps to.
+
+    Sparse: the gate and the predicate are ~2.7 MB apart. Only the two switch entries the patch
+    reads are planted, not the whole 60-entry table - every other command therefore resolves to
+    slot 0 and handler 0, which is what makes the "this command is not numbered that here" check
+    fail loudly if the walk is ever aimed a byte to either side.
+    """
+    planted: dict[int, bytes] = {
+        ad.CONTROL_BAR_CLICK_GATE_CALL: ad.CONTROL_BAR_CLICK_GATE_CALL_BYTES,
+        **ocr.ANCHORS,
+    }
+    for command, handler, head in ocr.PAGING_COMMANDS:
+        slot = PAGING_SWITCH_SLOTS[command]
+        planted[ad.CONTROL_BAR_COMMAND_INDEX_TABLE + command - 1] = bytes([slot])
+        planted[ad.CONTROL_BAR_COMMAND_JUMP_TABLE + slot * 4] = struct.pack("<I", handler)
+        planted[handler] = head
+    return _sparse_image(planted)
 
 
 def capture_the_flag_image() -> bytearray:
@@ -835,6 +878,22 @@ def worldbuilder_mod_image() -> bytearray:
     return _sparse_image(planted)
 
 
+def worldbuilder_object_typeahead_image() -> bytearray:
+    """A stand-in for `Worldbuilder.exe` carrying the object picker's dialog resource and map.
+
+    `worldbuilder-object-typeahead` reaches across the whole image - the class's code in `.text`,
+    its `AFX_MSGMAP` in `.rdata` and `IDD` 190's template 5 MB further on in `.rsrc` - so this is
+    sparse for the same reason the other Worldbuilder stand-ins are. The template is planted whole,
+    because the patch rewrites it in place and to the same length: a patch that grew it would have
+    to move the resource, and would fail here rather than silently repointing a directory entry.
+    """
+    planted = dict(wbt.ANCHORS)
+    planted[wbt.TEMPLATE_VA] = wbt.STOCK_TEMPLATE
+    for va in wbt.MESSAGE_MAP_SITES:
+        planted[va] = struct.pack("<BI", 0xB8, wbt._STOCK_MESSAGE_MAP)  # mov eax, <AFX_MSGMAP>
+    return _sparse_image(planted)
+
+
 def smart_rally_image() -> bytearray:
     """A stand-in carrying every site `smart-rally` rewrites, and every window it asserts first.
 
@@ -858,3 +917,48 @@ def render_rate_image() -> bytearray:
     the patch says it is finds zeroes.
     """
     return _sparse_image(dict(rrate.ANCHORS))
+
+
+COMMAND_BUTTON_UPGRADE_STRINGS_VA = 0x00C6D000
+
+
+def commandset_button_upgrade_image() -> bytearray:
+    """A stand-in carrying `CommandSetUpgrade`'s one-row field table and every site the button
+    overlay rewrites or reads.
+
+    Sparse for the usual reason: the table, the module's two implementations, the `ModuleData`
+    constructor and destructor, `Object::getCommandSetString` and `setCommandButton`'s slot guard
+    are spread over seven megabytes, so this maps eight pages rather than the whole span.
+    Everything not planted reads as zero, which is what makes the image negative as well: a hook
+    aimed one instruction to either side of where the patch says it is finds nothing there.
+
+    The one anchor that straddles a page boundary (the destructor's ``lea``, four bytes short of
+    `0x00656000`) is planted in two pieces, because `_sparse_image` maps one page per entry.
+    """
+    name_va = COMMAND_BUTTON_UPGRADE_STRINGS_VA
+    rows = struct.pack("<IIII", name_va, tl.STOCK_ASCII_STRING_PARSER, 0, cbu.COMMAND_SET_OFFSET)
+    rows += bytes(16)  # the terminator
+
+    def call(from_va: int, to_va: int) -> bytes:
+        return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
+
+    planted: dict[int, bytes] = {
+        cbu.FIELD_TABLE_REF_VA: b"\x68" + struct.pack("<I", cbu.FIELD_TABLE_VA),
+        cbu.FIELD_TABLE_VA: rows,
+        name_va: b"CommandSet\x00",
+        cbu.MODULE_DATA_SIZE_VA: b"\x68" + struct.pack("<I", cbu.MODULE_DATA_SIZE),
+        cbu.CTOR_ASSIGN_CALL_VA: call(cbu.CTOR_ASSIGN_CALL_VA, cbu.ASCII_STRING_ASSIGN),
+        cbu.DTOR_DTOR_CALL_VA: call(cbu.DTOR_DTOR_CALL_VA, tl.ASCII_STRING_DTOR),
+        cbu.UPGRADE_IMPL_VA: cbu.UPGRADE_IMPL_BYTES,
+        cbu.UNUPGRADE_IMPL_VA: cbu.UNUPGRADE_IMPL_BYTES,
+        # the slot guard's immediate, which the cave reads at run time rather than at apply time
+        cbu.SET_BUTTON_BOUND_IMM8_VA: bytes([33]),
+    }
+    for va, blob, _what in cbu.ANCHORS:
+        end = (va & ~0xFFF) + 0x1000
+        if va + len(blob) <= end:
+            planted.setdefault(va, blob)
+            continue
+        planted.setdefault(va, blob[: end - va])
+        planted.setdefault(end, blob[end - va :])
+    return _sparse_image(planted)

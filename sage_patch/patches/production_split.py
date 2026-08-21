@@ -68,6 +68,7 @@ from sage_ini.engine import Engine, EnumDelta
 from ..asm import JBE, JE, JGE, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from .utils import name_tables
 
 __all__ = [
     "ANCHORS",
@@ -78,6 +79,7 @@ __all__ = [
     "TABLE_FINGERPRINT",
     "TYPE_TABLE_VA",
     "ProductionSplitPatch",
+    "ProductionSplitWorldbuilderPatch",
     "build_section",
 ]
 
@@ -722,3 +724,190 @@ class ProductionSplitPatch(Patch):
         if problems:
             joined = "; ".join(problems)
             raise ValueError(f"production-split: this is not the expected build: {joined}")
+
+
+# The Worldbuilder half.
+#
+# The editor parses `attributemodifier.ini` too, and `Modifier = <ModifierType> <value>` resolves
+# its first token through Worldbuilder's own copy of the type name table. A name that copy does not
+# hold is an unknown token in a lookup, which throws, and a throw during INI load ends the editor.
+#
+# Worldbuilder's table is at `0x022343E0` and is **terminator-driven**, exactly like `game.dat`'s:
+#
+#     00e983a4  cmp dword [eax*4 + 0x022343E0], 0   ; walk to the NULL
+#     00e983ac  je  0x00E983D3
+#     00e983b5  mov eax, [edx*4 + 0x022343E0]       ; else compare this name
+#     00e983bd  call 0x016C37DE                     ; stricmp
+#
+# so there is **no count to raise** - the only two references in the image are the two above, both
+# inside that one loop. Relocating the table and repointing them is the whole patch, which makes
+# this the smallest of the Worldbuilder twins.
+#
+# Scope: parsing only. The editor gains no production behaviour and needs none; this exists so the
+# object and modifier data loads.
+
+#: Worldbuilder's own copy of the `ModifierType` name table.
+WORLDBUILDER_TYPE_TABLE_VA = 0x022343E0
+
+#: Both references, as ``(operand VA, the bytes before it)``. Both sit in the single lookup loop -
+#: the terminator test and the name fetch - so asserting the encoding pins them to that loop.
+WORLDBUILDER_TABLE_REF_SITES = (
+    (0x00E983A7, bytes.fromhex("833c85")),  # cmp dword [eax*4 + <table>], 0
+    (0x00E983B8, bytes.fromhex("8b0495")),  # mov eax, [edx*4 + <table>]
+)
+
+#: Names at these indices fingerprint the build far more tightly than the count alone.
+WORLDBUILDER_TABLE_FINGERPRINT = {
+    0: "ATTRIBUTE_NONE",
+    1: "ARMOR",
+    STOCK_TYPE_COUNT - 1: "INVULNERABLE",
+}
+
+#: The PE section name field is 8 bytes and truncates silently.
+WORLDBUILDER_SECTION_NAME = ".wbprod"
+
+# CNT_INITIALIZED_DATA | MEM_READ - a pointer table and four strings, no code.
+_WORLDBUILDER_CHARACTERISTICS = 0x40000040
+
+
+class ProductionSplitWorldbuilderPatch(Patch):
+    """Teach **Worldbuilder** the four production modifier types.
+
+    **This patch targets `Worldbuilder.exe`, not `game.dat`.** It is the authoring half of
+    `production-split`; give both binaries the same four names, since the index is what a parsed
+    modifier stores.
+    """
+
+    name = "production-split-wb"
+    author = "officialNecro"
+    description = (
+        "Worldbuilder.exe (not game.dat): add the four PRODUCTION_* ModifierType names to the "
+        "editor's own name table, so attribute modifiers using them parse instead of throwing on "
+        "an unknown token and ending the editor's load. Pass the same names given to game.dat's "
+        "production-split; the editor gains no production behaviour, only the ability to read it"
+    )
+
+    def __init__(self, types: tuple[str, ...] = NEW_TYPES):
+        self.types = tuple(types)
+        for name in self.types:
+            name_tables.validate_name(name, "modifier type name")
+
+    def __str__(self) -> str:
+        return f"{self.name} ({', '.join(self.types)})"
+
+    def apply(self, data: bytearray) -> None:
+        name_tables.check_not_rebased(data)
+        table = self._read(data)
+        for name in self.types:
+            if table.index_of(data, name) is not None:
+                raise ValueError(f"{name!r} is already a modifier type in this Worldbuilder")
+        if len(set(self.types)) != len(self.types):
+            raise ValueError(f"duplicate names in {list(self.types)}")
+
+        section_va = allocate_section(
+            data,
+            WORLDBUILDER_SECTION_NAME,
+            lambda base_va: name_tables.layout(table.pointers, self.types, base_va)[0],
+            _WORLDBUILDER_CHARACTERISTICS,
+        )
+        for file_off, old, new, note in self._edits(data, table, section_va):
+            apply_byte_patch(data, file_off, old, new, note)
+
+    def verify(self, data: bytes | bytearray) -> list[str]:
+        located = find_section(data, WORLDBUILDER_SECTION_NAME)
+        if located is None:
+            return [f"no {WORLDBUILDER_SECTION_NAME} section: the file does not carry this patch"]
+        section_va, _section_off, _vsize = located
+        try:
+            names = self._read_names(data, section_va)
+        except (ValueError, struct.error) as exc:
+            return [f"cannot read back the {WORLDBUILDER_SECTION_NAME} cave (wrong build?): {exc}"]
+
+        problems: list[str] = []
+        added = len(self.types)
+        if tuple(names[-added:]) != self.types:
+            problems.append(
+                f"the rebuilt type table ends {names[-added:]}, expected {list(self.types)}"
+            )
+        for va, _prefix in WORLDBUILDER_TABLE_REF_SITES:
+            off = _wb_offset(data, va)
+            got = bytes(data[off : off + 4])
+            if got != struct.pack("<I", section_va):
+                problems.append(
+                    f"modifier type table ref @0x{va:08x} holds {got.hex()}, "
+                    f"expected 0x{section_va:08x}"
+                )
+        return problems
+
+    @classmethod
+    def detect(cls, data: bytes | bytearray) -> Patch | None:
+        """Recognise this patch **and recover the names it was applied with**."""
+        located = find_section(data, WORLDBUILDER_SECTION_NAME)
+        if located is None:
+            return None
+        try:
+            names = cls._read_names(data, located[0])
+            if len(names) <= STOCK_TYPE_COUNT:
+                return None
+            patch = cls(types=tuple(names[STOCK_TYPE_COUNT:]))
+        except (ValueError, IndexError, struct.error):
+            return None
+        return None if patch.verify(data) else patch
+
+    @staticmethod
+    def _read(data: bytes | bytearray) -> name_tables.NameTable:
+        """The live table, taken from the references rather than from the stock constant."""
+        bases = set()
+        for va, prefix in WORLDBUILDER_TABLE_REF_SITES:
+            off = _wb_offset(data, va)
+            got = bytes(data[off - len(prefix) : off])
+            if got != prefix:
+                raise ValueError(
+                    f"modifier type table ref @0x{va:08x} is encoded as {got.hex()}, expected "
+                    f"{prefix.hex()} - not the expected build"
+                )
+            bases.add(struct.unpack_from("<I", data, off)[0])
+        if len(bases) != 1:
+            raise ValueError(f"the modifier type table refs disagree: {[hex(b) for b in bases]}")
+        base_va = bases.pop()
+        pointers = name_tables.read_terminated(
+            data, base_va, "Worldbuilder modifier type table", limit=256
+        )
+        if len(pointers) < STOCK_TYPE_COUNT:
+            raise ValueError(
+                f"the modifier type table holds {len(pointers)} names, below the stock "
+                f"{STOCK_TYPE_COUNT}"
+            )
+        name_tables.check_fingerprint(
+            data, pointers, WORLDBUILDER_TABLE_FINGERPRINT, "Worldbuilder modifier type"
+        )
+        return name_tables.NameTable(base_va=base_va, pointers=pointers)
+
+    @staticmethod
+    def _read_names(data: bytes | bytearray, base_va: int) -> list[str]:
+        pointers = name_tables.read_terminated(
+            data, base_va, "Worldbuilder modifier type table", limit=256
+        )
+        names = [name_tables.read_cstring(data, pointer) for pointer in pointers]
+        if any(entry is None for entry in names):
+            raise ValueError("a modifier type entry points at unmapped memory")
+        return [entry for entry in names if entry is not None]
+
+    def _edits(
+        self, data: bytes | bytearray, table: name_tables.NameTable, section_va: int
+    ) -> list[tuple[int, bytes, bytes, str]]:
+        """The two reference edits. There is no count edit: the lookup walks to the terminator."""
+        return name_tables.ref_edits(
+            data,
+            [va for va, _prefix in WORLDBUILDER_TABLE_REF_SITES],
+            table.base_va,
+            section_va,
+            "Worldbuilder modifier type table",
+        )
+
+
+def _wb_offset(data: bytes | bytearray, va: int) -> int:
+    off = va_to_offset(data, va)
+    if off is None:
+        raise ValueError(f"VA 0x{va:08x} is not mapped - not the expected build")
+    return off

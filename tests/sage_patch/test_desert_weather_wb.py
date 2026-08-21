@@ -17,14 +17,14 @@ import struct
 import pytest
 
 from sage_patch.patches import desert_weather as dw
-from sage_patch.patches.desert_weather_wb import (
-    _DIALOG_FINGERPRINT,
-    _SECTION_NAME,
-    COMBO_BOUND_VA,
+from sage_patch.patches.desert_weather import (
+    _WORLDBUILDER_DIALOG_FINGERPRINT,
     DEFAULT_WEATHER,
     STOCK_WEATHER_NAMES,
-    WEATHER_TABLE_REF_SITES,
-    WEATHER_TABLE_VA,
+    WORLDBUILDER_COMBO_BOUND_VA,
+    WORLDBUILDER_SECTION_NAME,
+    WORLDBUILDER_TABLE_REF_SITES,
+    WORLDBUILDER_WEATHER_TABLE_VA,
     DesertWeatherWorldbuilderPatch,
 )
 from sage_patch.patches.utils.model_conditions import read_cstring
@@ -53,7 +53,7 @@ def names_at(data: bytes | bytearray, table_va: int, count: int = 4) -> list[str
 
 def live_table_va(data: bytes | bytearray) -> int:
     """Wherever the combo loop currently reads its names from."""
-    va, prefix = WEATHER_TABLE_REF_SITES[0]
+    va, prefix = WORLDBUILDER_TABLE_REF_SITES[0]
     return struct.unpack_from("<I", data, va_to_offset(data, va) + len(prefix))[0]
 
 
@@ -87,15 +87,17 @@ class TestApply:
 
     def test_every_reference_is_repointed_into_the_cave(self, image: bytearray):
         DesertWeatherWorldbuilderPatch().apply(image)
-        section_va, _off, vsize = find_section(image, _SECTION_NAME)
-        for va, prefix in WEATHER_TABLE_REF_SITES:
+        section_va, _off, vsize = find_section(image, WORLDBUILDER_SECTION_NAME)
+        for va, prefix in WORLDBUILDER_TABLE_REF_SITES:
             got = struct.unpack_from("<I", image, va_to_offset(image, va) + len(prefix))[0]
-            assert got != WEATHER_TABLE_VA, f"{va:#010x} still points at the stock table"
+            assert got != WORLDBUILDER_WEATHER_TABLE_VA, (
+                f"{va:#010x} still points at the stock table"
+            )
             assert section_va <= got < section_va + vsize
 
     def test_the_dropdown_bound_is_raised_to_the_new_member_count(self, image: bytearray):
         DesertWeatherWorldbuilderPatch().apply(image)
-        off = va_to_offset(image, COMBO_BOUND_VA)
+        off = va_to_offset(image, WORLDBUILDER_COMBO_BOUND_VA)
         assert bytes(image[off : off + 3]) == bytes.fromhex("837de0"), "the cmp itself must stand"
         assert image[off + 3] == len(STOCK_WEATHER_NAMES) + 1
 
@@ -103,27 +105,30 @@ class TestApply:
         """A pointer table and a string. Marking it executable would be a claim this patch does
         not need to make."""
         DesertWeatherWorldbuilderPatch().apply(image)
-        section_va, _off, vsize = find_section(image, _SECTION_NAME)
+        section_va, _off, vsize = find_section(image, WORLDBUILDER_SECTION_NAME)
         assert vsize == (len(STOCK_WEATHER_NAMES) + 2) * 4 + 8  # table + NULL + "DESERT\0" padded
         e_lfanew = struct.unpack_from("<I", image, 0x3C)[0]
         nsec = struct.unpack_from("<H", image, e_lfanew + 6)[0]
         sectab = e_lfanew + 24 + struct.unpack_from("<H", image, e_lfanew + 20)[0]
         for index in range(nsec):
             header = sectab + index * 40
-            if bytes(image[header : header + 8]).rstrip(b"\x00") == _SECTION_NAME.encode():
+            if (
+                bytes(image[header : header + 8]).rstrip(b"\x00")
+                == WORLDBUILDER_SECTION_NAME.encode()
+            ):
                 characteristics = struct.unpack_from("<I", image, header + 36)[0]
                 assert not characteristics & 0x20000000, "MEM_EXECUTE"
                 assert not characteristics & 0x00000020, "CNT_CODE"
                 break
         else:
-            pytest.fail(f"no {_SECTION_NAME} section header")
+            pytest.fail(f"no {WORLDBUILDER_SECTION_NAME} section header")
 
     def test_the_stock_table_is_left_where_it_was(self, image: bytearray):
         """It is orphaned, not overwritten - there is nothing to gain from destroying it, and
         leaving it makes the patch's effect visible as a diff of the references alone."""
-        before = bytes(image[va_to_offset(image, WEATHER_TABLE_VA) :][:12])
+        before = bytes(image[va_to_offset(image, WORLDBUILDER_WEATHER_TABLE_VA) :][:12])
         DesertWeatherWorldbuilderPatch().apply(image)
-        assert bytes(image[va_to_offset(image, WEATHER_TABLE_VA) :][:12]) == before
+        assert bytes(image[va_to_offset(image, WORLDBUILDER_WEATHER_TABLE_VA) :][:12]) == before
 
     def test_applying_twice_raises_rather_than_corrupting(self, image: bytearray):
         DesertWeatherWorldbuilderPatch().apply(image)
@@ -131,12 +136,14 @@ class TestApply:
             DesertWeatherWorldbuilderPatch().apply(image)
 
     def test_a_wrong_build_is_refused_by_the_table_contents(self, image: bytearray):
-        pointer = struct.unpack_from("<I", image, va_to_offset(image, WEATHER_TABLE_VA) + 4)[0]
+        pointer = struct.unpack_from(
+            "<I", image, va_to_offset(image, WORLDBUILDER_WEATHER_TABLE_VA) + 4
+        )[0]
         image[va_to_offset(image, pointer)] = ord("X")
         with pytest.raises(ValueError, match="unexpected build"):
             DesertWeatherWorldbuilderPatch().apply(image)
 
-    @pytest.mark.parametrize("va", sorted(_DIALOG_FINGERPRINT))
+    @pytest.mark.parametrize("va", sorted(_WORLDBUILDER_DIALOG_FINGERPRINT))
     def test_a_build_whose_combo_box_moved_is_refused(self, image: bytearray, va: int):
         """The immediate being raised is an ordinary `cmp` against 2. Without the two window
         messages bracketing it, the same encoding elsewhere would be indistinguishable."""
@@ -145,7 +152,7 @@ class TestApply:
             DesertWeatherWorldbuilderPatch().apply(image)
 
     def test_a_moved_reference_is_refused(self, image: bytearray):
-        va, prefix = WEATHER_TABLE_REF_SITES[1]
+        va, prefix = WORLDBUILDER_TABLE_REF_SITES[1]
         struct.pack_into("<I", image, va_to_offset(image, va) + len(prefix), 0xDEADBEEF)
         with pytest.raises(ValueError, match="not the expected build"):
             DesertWeatherWorldbuilderPatch().apply(image)

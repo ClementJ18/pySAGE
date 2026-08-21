@@ -180,8 +180,8 @@ from sage_ini.engine import Engine, EnumDelta
 
 from ..asm import JAE, JE, JNE, JNZ, JZ, Asm
 from ..patcher import Patch
-from ..utils import apply_byte_patch, find_section
-from .utils import kind_of
+from ..utils import allocate_section, apply_byte_patch, find_section
+from .utils import kind_of, name_tables
 from .utils.name_tables import offset as _offset
 
 __all__ = [
@@ -1061,3 +1061,308 @@ def _cave_table_entries(data: bytes | bytearray, section_va: int, limit: int = 1
                 raise ValueError(f"the {SECTION_NAME} cave starts with an empty table")
             return index
     raise ValueError(f"the {SECTION_NAME} cave's table is not terminated within {limit} entries")
+
+
+# The Worldbuilder half.
+#
+# `Worldbuilder.exe` keeps its **own** copy of the kindof name table, and the editor parses the
+# same `data/ini` the game does. A template carrying `KindOf = HEROBAR_GROUP` therefore reaches a
+# name table that does not hold the name, and - unlike an unknown *field*, which the editor
+# reports and survives - an unknown **bit name** throws:
+#
+#     00952a81  push 0 ; push 0 ; lea ecx, [ebp-0x30] ; call 0x0169DE50
+#     00952a91  push 0x02105040 ; lea edx, [ebp-0x30] ; push edx
+#     00952a9a  call 0x016C371A            ; <- throw, 8 sites, all this shape
+#
+# The throw unwinds out of INI load and the process exits **0 with no dump**, which on screen is
+# the splash and the progress bar appearing and then vanishing.
+#
+# Two things have to move, not one. The lookup at `0x006CD120` returns an index, and every caller
+# then **hard-bounds it at the stock count**:
+#
+#     00bc66a7  call 0x006CD120           ; name -> index, found-flag at [ebp-1]
+#     00bc66b2  cmp  dword [ebp-8], 0xde  ; 222
+#     00bc66b9  jb   0x00BC6716           ; index >= 222 falls into the error path
+#
+# so extending the table without raising the bounds would leave `HEROBAR` (index 222) rejected by
+# the compare instead of by the table. Both edits, or neither.
+#
+# **Scope: parsing only.** This twin adds no behaviour and needs none - the editor has no hero
+# bar. It exists so that the object palette builds, and the templates carrying these kindofs then
+# appear in it like any other.
+
+#: The PE section name field is 8 bytes and truncates silently.
+WORLDBUILDER_SECTION_NAME = ".hbarwb"
+
+# CNT_INITIALIZED_DATA | MEM_READ - this cave is a pointer table and two strings, and no code.
+_WORLDBUILDER_CHARACTERISTICS = 0x40000040
+
+#: Worldbuilder's stock kindof name table, and the answer every count site below holds. Only used
+#: to recognise an unpatched image - :meth:`HeroBarWorldbuilderPatch._read` follows the references.
+WORLDBUILDER_NAME_TABLE_VA = 0x02231A30
+WORLDBUILDER_STOCK_KIND_COUNT = 222
+
+#: Every reference to it: 15 bare imm32/disp32 operands, all in `.text`. `0x00BC669C`,
+#: `0x00BC6787` and `0x00BC687E` are the INI mask parser's three forms (`+NAME`, `-NAME`, bare
+#: `NAME`); `0x00BC6A0A` is the terminator walk beside them; the rest are the editor's own kindof
+#: pickers and script-condition text.
+WORLDBUILDER_TABLE_REF_VAS = (
+    0x004F51A6,
+    0x00AA451A,
+    0x00AA45A1,
+    0x00AAD4DA,
+    0x00AAE5DD,
+    0x00AAE8CC,
+    0x00BC669C,
+    0x00BC6787,
+    0x00BC687E,
+    0x00BC6A0A,
+    0x00C066BD,
+    0x00C29C0C,
+    0x00C29C43,
+    0x00EDD1AC,
+    0x00EDD376,
+)
+
+#: Every site encoding the count, as ``(instruction VA, the bytes before its imm32)``. The prefix
+#: is asserted as well as the immediate, so a coincidental 222 elsewhere cannot be mistaken for
+#: one of these. Six index the table in the instruction that follows the compare; the other seven
+#: are the bounds-check-then-report shape the parse site uses. `0x00AAD4B3` is the only one that
+#: reads through a pointer (``cmp dword [eax+8], 222``) rather than a frame local - it is the
+#: outer guard on the same value `0x00AAD4CB` then re-checks and uses to index the table.
+WORLDBUILDER_COUNT_SITES = (
+    (0x004F5197, bytes.fromhex("817de4")),
+    (0x00AA450B, bytes.fromhex("817de4")),
+    (0x00AAD4B3, bytes.fromhex("817808")),
+    (0x00AAD4CB, bytes.fromhex("817dd4")),
+    (0x00AAE5CE, bytes.fromhex("817dfc")),
+    (0x00BC66B2, bytes.fromhex("817df8")),
+    (0x00BC679D, bytes.fromhex("817df4")),
+    (0x00BC6891, bytes.fromhex("817df0")),
+    (0x00BC69FB, bytes.fromhex("817dfc")),
+    (0x00C29B79, bytes.fromhex("817d08")),
+    (0x00C29C95, bytes.fromhex("817dfc")),
+    (0x00EDD228, bytes.fromhex("817de8")),
+    (0x00EDD3F2, bytes.fromhex("817de8")),
+)
+
+#: Names at these indices fingerprint the build far more tightly than the count alone, and they
+#: are the same four the `game.dat` table is checked at - the two tables agree entry for entry,
+#: which is what lets both binaries be given the same two names and land on the same two bits.
+WORLDBUILDER_TABLE_FINGERPRINT = {
+    0: "OBSTACLE",
+    90: "HERO",
+    143: "PORTER",
+    WORLDBUILDER_STOCK_KIND_COUNT - 1: "HORDE_MONSTER",
+}
+
+#: 222 names need 7 dwords, so `KindOfMaskType` is 224 bits in this build exactly as it is in
+#: `game.dat`, and the two names this patch adds are the last two bits that fit.
+_WORLDBUILDER_MASK_BITS = 224
+
+
+@dataclass
+class HeroBarWorldbuilderPatch(Patch):
+    """Teach **Worldbuilder** the two kindof names, so the editor can parse a mod that uses them.
+
+    **This patch targets `Worldbuilder.exe`, not `game.dat`.** It is the authoring half of
+    `herobar`: the game half adds the bar behaviour, this one only stops the editor throwing on
+    the names. Give both binaries the **same** two names.
+    """
+
+    name = "herobar-wb"
+    author = "officialNecro"
+    description = (
+        "Worldbuilder.exe (not game.dat): add the HEROBAR and HEROBAR_GROUP kindof names to the "
+        "editor's own name table, so KindOf lists using them parse instead of throwing 'invalid "
+        "bit name' and killing the editor during load. Pass the same names given to game.dat's "
+        "herobar patch; the editor gains no hero bar, only the ability to read the templates"
+    )
+
+    kindof: str = DEFAULT_KINDOF
+    group_kindof: str = DEFAULT_GROUP_KINDOF
+
+    @property
+    def _names(self) -> list[str]:
+        return [self.kindof, self.group_kindof]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({', '.join(self._names)})"
+
+    def apply(self, data: bytearray) -> None:
+        name_tables.check_not_rebased(data)
+        table, count = self._read(data)
+        for entry in self._names:
+            name_tables.validate_name(entry, "kindof name")
+            if table.index_of(data, entry) is not None:
+                raise ValueError(f"{entry!r} is already a kindof in this Worldbuilder")
+        if len(set(self._names)) != len(self._names):
+            raise ValueError(f"duplicate names in {self._names}")
+        if count + len(self._names) > _WORLDBUILDER_MASK_BITS:
+            raise ValueError(
+                f"{count} + {len(self._names)} kindofs overflows the "
+                f"{_WORLDBUILDER_MASK_BITS}-bit KindOfMaskType"
+            )
+
+        section_va = allocate_section(
+            data,
+            WORLDBUILDER_SECTION_NAME,
+            lambda base_va: name_tables.layout(table.pointers, self._names, base_va)[0],
+            _WORLDBUILDER_CHARACTERISTICS,
+        )
+        for file_off, old, new, note in self._edits(data, table, count, section_va):
+            apply_byte_patch(data, file_off, old, new, note)
+
+    def verify(self, data: bytes | bytearray) -> list[str]:
+        located = find_section(data, WORLDBUILDER_SECTION_NAME)
+        if located is None:
+            return [f"no {WORLDBUILDER_SECTION_NAME} section: the file does not carry this patch"]
+        section_va, _section_off, _vsize = located
+        try:
+            names = self._read_names(data, section_va)
+        except (ValueError, struct.error) as exc:
+            return [f"cannot read back the {WORLDBUILDER_SECTION_NAME} cave (wrong build?): {exc}"]
+
+        problems: list[str] = []
+        added = len(self._names)
+        if names[-added:] != self._names:
+            problems.append(
+                f"the rebuilt kindof table ends {names[-added:]}, expected {self._names}"
+            )
+        for va, prefix in WORLDBUILDER_COUNT_SITES:
+            off = _offset(data, va)
+            got = bytes(data[off : off + len(prefix) + 4])
+            expected = prefix + struct.pack("<I", len(names))
+            if got != expected:
+                problems.append(
+                    f"kindof count bound @0x{va:08x} is {got.hex()}, expected {expected.hex()}"
+                )
+        for va in WORLDBUILDER_TABLE_REF_VAS:
+            held = struct.unpack_from("<I", data, _offset(data, va))[0]
+            if held != section_va:
+                problems.append(
+                    f"kindof name table ref @0x{va:08x} holds 0x{held:08x}, "
+                    f"expected 0x{section_va:08x}"
+                )
+        return problems
+
+    @classmethod
+    def detect(cls, data: bytes | bytearray) -> Patch | None:
+        """Recognise this patch **and recover the two names it was applied with**.
+
+        The cave *is* the rebuilt table, so its last two entries are the tokens this patch added;
+        :meth:`verify` then re-checks every repointed site and every raised bound against them."""
+        located = find_section(data, WORLDBUILDER_SECTION_NAME)
+        if located is None:
+            return None
+        try:
+            names = cls._read_names(data, located[0])
+            if len(names) < WORLDBUILDER_STOCK_KIND_COUNT + 2:
+                return None
+            patch = cls(kindof=names[-2], group_kindof=names[-1])
+        except (ValueError, IndexError, struct.error):
+            return None
+        return None if patch.verify(data) else patch
+
+    @classmethod
+    def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "--kindof",
+            default=DEFAULT_KINDOF,
+            help="name of the one-slot-per-object kindof to add; must match the one given to "
+            f"game.dat's herobar patch (default: {DEFAULT_KINDOF})",
+        )
+        parser.add_argument(
+            "--group-kindof",
+            default=DEFAULT_GROUP_KINDOF,
+            help="name of the one-slot-per-template kindof to add; must match the one given to "
+            f"game.dat's herobar patch (default: {DEFAULT_GROUP_KINDOF})",
+        )
+
+    @classmethod
+    def from_cli_args(cls, args: argparse.Namespace) -> Patch:
+        return cls(kindof=args.kindof, group_kindof=args.group_kindof)
+
+    @staticmethod
+    def _read(data: bytes | bytearray) -> tuple[name_tables.NameTable, int]:
+        """The live table and the count every bound site agrees on.
+
+        Read from the image, never from the stock constants, so that a second Worldbuilder patch
+        which relocated the table first composes with this one instead of being dropped."""
+        base_va = name_tables.resolve_base(
+            data, WORLDBUILDER_TABLE_REF_VAS, "Worldbuilder kindof name table"
+        )
+        counts: dict[int, int] = {}
+        for va, prefix in WORLDBUILDER_COUNT_SITES:
+            off = _offset(data, va)
+            got = bytes(data[off : off + len(prefix)])
+            if got != prefix:
+                raise ValueError(
+                    f"Worldbuilder kindof count bound @0x{va:08x} is encoded as {got.hex()}, "
+                    f"expected {prefix.hex()} - not the expected build"
+                )
+            counts[va] = struct.unpack_from("<I", data, off + len(prefix))[0]
+        if len(set(counts.values())) != 1:
+            disagreement = ", ".join(f"0x{va:08x}={n}" for va, n in counts.items())
+            raise ValueError(
+                f"the {len(WORLDBUILDER_COUNT_SITES)} Worldbuilder kindof count sites disagree: "
+                f"{disagreement}"
+            )
+        count = next(iter(counts.values()))
+        if count < WORLDBUILDER_STOCK_KIND_COUNT:
+            raise ValueError(
+                f"the Worldbuilder kindof count is {count}, below the stock "
+                f"{WORLDBUILDER_STOCK_KIND_COUNT}"
+            )
+        pointers = name_tables.read_terminated(
+            data, base_va, "Worldbuilder kindof name table", limit=_WORLDBUILDER_MASK_BITS + 1
+        )
+        if len(pointers) != count:
+            raise ValueError(
+                f"the Worldbuilder kindof table at 0x{base_va:08x} holds {len(pointers)} names "
+                f"but the count sites say {count}"
+            )
+        name_tables.check_fingerprint(
+            data, pointers, WORLDBUILDER_TABLE_FINGERPRINT, "Worldbuilder kindof"
+        )
+        return name_tables.NameTable(base_va=base_va, pointers=pointers), count
+
+    @staticmethod
+    def _read_names(data: bytes | bytearray, base_va: int) -> list[str]:
+        pointers = name_tables.read_terminated(
+            data, base_va, "Worldbuilder kindof name table", limit=_WORLDBUILDER_MASK_BITS + 1
+        )
+        names = [name_tables.read_cstring(data, pointer) for pointer in pointers]
+        if any(entry is None for entry in names):
+            raise ValueError("a kindof entry points at unmapped memory")
+        return [entry for entry in names if entry is not None]
+
+    def _edits(
+        self,
+        data: bytes | bytearray,
+        table: name_tables.NameTable,
+        count: int,
+        section_va: int,
+    ) -> list[tuple[int, bytes, bytes, str]]:
+        """The 28 edits: 15 references moved to the rebuilt table, and 13 bounds raised past it.
+
+        Both halves are needed. The references alone would leave the new names present but
+        rejected by the compare; the bounds alone would admit indices the table does not hold."""
+        edits = name_tables.ref_edits(
+            data,
+            WORLDBUILDER_TABLE_REF_VAS,
+            table.base_va,
+            section_va,
+            "Worldbuilder kindof name table",
+        )
+        raised = count + len(self._names)
+        for va, prefix in WORLDBUILDER_COUNT_SITES:
+            edits.append(
+                (
+                    _offset(data, va),
+                    prefix + struct.pack("<I", count),
+                    prefix + struct.pack("<I", raised),
+                    f"Worldbuilder kindof count bound @0x{va:08x}",
+                )
+            )
+        return edits

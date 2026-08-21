@@ -135,3 +135,55 @@ sage-cah json <cah> [--out] [--compact]    # the parsed structure as JSON
 sage-cah check <path>                      # file or directory: round-trip + checksum check
 sage-cah fix <cah> -o OUT [--new-guid]     # rewrite with a refreshed checksum
 ```
+
+## Desktop editor
+
+```sh
+pip install "pysage-tools[cah-ui]"   # from a checkout: pip install -e ".[cah-ui]"
+sage-cah-ui                          # or: python -m sage_cah.ui
+```
+
+`sage-cah-ui` opens one `.cah` and edits it: name, class and sub-class, object id, the three
+colours, the GUID (with a **New GUID** button - a copied hero needs one), the fifteen power
+slots and every bling entry. Saving always writes a freshly computed checksum, so a hand-edited
+hero still loads in game. The fields the editor does not show - the two header ints, `version`,
+the reserved words - are written back exactly as they were read, so opening a hero and saving it
+untouched reproduces the file byte for byte.
+
+Everything above works with no game data at all. Loading a game (the **GAME DATA** card, or
+**Find installed game** for an install on this PC) adds completion, which is what makes the raw
+names readable:
+
+- the class and sub-class lists come from the data itself, in the order the file's indices count
+  them - a mod reorders and renames them freely, so a hero the built-in labels call a *Dwarf
+  Taskmaster* is a *Diener der Dunkelheit / Heerführer Carn Dûms* under Edain;
+- the power field completes over the `CommandButton`s that class can actually buy, and names
+  each one with the level it unlocks at;
+- each bling row names the choice its index picks.
+
+## Reading a game's Create-a-Hero data
+
+`sage_cah.gamedata` is the Qt-free half of that, usable on its own:
+
+```python
+from sage_cah.gamedata import scan_ini_root
+
+data = scan_ini_root("C:/Games/rotwk")             # a folder holding data/ini, or an ini root
+otwk")           # a folder holding data/ini, or an ini root
+data.classes[3].name                             # "Diener der Dunkelheit"
+[p.command_button for p in data.powers_for(3)]   # what class 3 may buy
+data.bling_choices("CreateAHero_Helmet", 3, 0)   # what a helmet index counts into
+```
+
+`load_cah_game_data([("big", "…/ini.big"), …])` is the same thing over an ordered source list
+(folders and `.big` archives, later overriding earlier), which is what the editor drives.
+
+Only the files declaring a `CommandButton` or the `CreateAHeroSystem` block are parsed - they
+are found by a text scan first - so a scan of a full Edain install takes a couple of seconds
+where a whole-game `sage_ini` load takes a minute. The two indexing rules worth knowing, both
+implemented by `bling_choices`:
+
+| stored value | counts into |
+| --- | --- |
+| an **attribute** group's `bling_index` (the five `*Attribute` groups) | that group's own options, so index 0 is in-game value 1 - the same for every class |
+| an **appearance** group's `bling_index` | the *sub-class's* `BlingUpgrades` for that group, so helmet 1 is a different helmet per sub-class |

@@ -79,6 +79,11 @@ job:
 | `.data 0xda3038` | `TheKey_Player_N_Start` NameKey array, 8 entries × 8 bytes |
 | `0x701b17` | `cmp dword ptr [ebp-4], 8`, beside the `MPPositionInfo` ctor at `0x701b3d` |
 
+That start-position count is one face of `MAX_SLOTS`, the lobby slot limit — the constant behind
+"only 8 players in a game", and a genuinely tractable patch rather than the wall described here.
+Scoped separately in [`max-slot-count.md`](max-slot-count.md), which also corrects the framing
+above: the `MPPositionList` sites are the *map* half of that job, not a standalone limit.
+
 ## The patch surface, in three tiers
 
 Enumerated from the Generals source (`MAX_PLAYER_COUNT`: **27** struct members, **9** stack arrays,

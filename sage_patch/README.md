@@ -3,9 +3,18 @@
 Reverse-engineering + binary-patch work on the ROTWK SAGE engine (build `2.01.2614.37001`). The
 patches below are all engine-level — they apply to any ROTWK install of that build and benefit
 every mod on it (Edain among them), not one in particular. All of them target `game.dat` except
-three, which patch other binaries from the same install: `desert-weather-wb` and
-`worldbuilder-mod` patch `Worldbuilder.exe`, and `standalone-launcher` patches the launcher shim
+ten, which patch other binaries from the same install. Nine patch `Worldbuilder.exe` —
+`worldbuilder-mod`, `worldbuilder-label-assert`, `worldbuilder-silent-errors` and
+`worldbuilder-object-typeahead`, plus the five **twins** that carry a game-side patch's INI surface
+across to the editor: `desert-weather-wb`, `herobar-wb`, `production-condition-wb`,
+`production-split-wb` and `science-prereqs-wb`. Each twin
+lives in the same module as its game-side half. `standalone-launcher` patches the launcher shim
 `lotrbfme2ep1.exe`.
+
+Worldbuilder needs twins at all because it is an **assert-enabled build** — it prints
+`_INTERNAL defined.` at startup — and keeps its *own* copies of the engine's name and field
+tables. A token added to `game.dat` alone is unknown to the editor, and an unknown token in a mask
+or lookup parse throws, which ends the editor's startup with exit code 0 and no dump.
 
 > ### ⚠ Experimental patches
 >
@@ -35,6 +44,24 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
 - **`commandset-limit`** raises the `CommandSet` button limit from its stock **33** to any **N** in
   34..127, plus the INI paging rule needed to surface the extra buttons, and widens the AI's
   set-walk to the same N. The shipped build uses **N = 64**.
+- **`commandset-button-upgrade`** lets `CommandSetUpgrade` add **individual command buttons** to
+  whatever set an object already shows, instead of swapping the whole set for another one written
+  out in INI. A new `CommandButtons` keyword takes a list of `CommandButton` names, each
+  optionally pinned to a slot with `:N` and otherwise taking the lowest free one, and several
+  such modules on one object **accumulate**. That is what removes the combinatorics: "this unit
+  can buy any of four abilities" costs four modules rather than 16 hand-written `CommandSet`
+  blocks naming every combination, and a fifth ability costs one more rather than doubling the
+  file. The engine already does exactly this for Create-A-Hero (`0x00809FFB` builds a hero's set
+  at runtime out of a base set plus a `(button, slot)` list), so the patch reuses that machinery
+  rather than inventing it: on each change it rebuilds the union of every applied module from
+  scratch, names the result after the base plus the tokens, and caches it in `TheCommandSetStore`
+  under that name — which makes the operation idempotent, order-independent and identical on
+  every peer. Removal works for free, because `Object::updateUpgradeModules` already resets and
+  re-evaluates every upgrade module on every pass. An object carrying no `CommandButtons` module
+  runs stock bytes, so the stock `CommandSet` keyword is untouched. Composes with
+  `commandset-limit` in either order: the slot bound is read from that patch's own guard byte at
+  **run time** rather than baked in. Logic-side, so **every peer needs the same binary**. See
+  [`docs/commandset-button-upgrade.md`](docs/commandset-button-upgrade.md).
 - **`cah-factions`** teaches the nine-name Create-A-Hero faction enum a caller-supplied list of mod
   sides plus an `All` token, so a `SubClass` can name them in `UsableFactions`.
 - **`ai-revive-gate`** makes the AI evaluate a `REVIVE` command button's `NeededUpgrade` before
@@ -77,8 +104,8 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
   snowy map sets `SNOW`, and `WeatherTexture = DESERT …` works too. Note that `SAND` is **not** a
   stock model condition: the patch creates it, out of the same name table `production-condition`
   extends, so the two compose in either order.
-- **`desert-weather-wb`** is the authoring half of that, and the one patch here that targets
-  **`Worldbuilder.exe`** rather than `game.dat`. Worldbuilder's map-settings weather dropdown is
+- **`desert-weather-wb`** is the authoring half of that, and lives in the same module.
+  Worldbuilder's map-settings weather dropdown is
   filled by a loop with a hardcoded member count, so `DESERT` never appears in it - and because
   the OK handler stores `CB_GETCURSEL` unvalidated, opening that dialog on a `DESERT` map and
   pressing OK writes `-1` back into the map and silently reverts it. The patch grows the same
@@ -95,6 +122,17 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
   `-mod` at the **subtree** being edited rather than a whole mod - a full one still kills the
   editor partway through startup, where the game handles the same tree fine. See
   [`docs/worldbuilder-mod.md`](docs/worldbuilder-mod.md).
+- **`worldbuilder-object-typeahead`** puts a **type-ahead box above the object tree** in the dialog
+  every script action's object argument opens - one class, `EditObjectParameter`, reached from two
+  places, so it covers every script that names an object type. The tree holds every `ThingTemplate`
+  in the game filed under its side and editor-sorting category, and opens with every folder
+  collapsed. Each keystroke now selects the first item whose label matches - exact, then prefix,
+  then substring, case-insensitively, leaves before folders - and clears the selection when nothing
+  matches. `OnOK` is **not** patched: it still reads the selected item's text, so the dialog cannot
+  write a name the stock one could not, and a typo falls into the stock "nothing selected" beep.
+  The control is added to `IDD` 190 in place, within its stock 292 bytes; the behaviour is one
+  extra `ON_EN_CHANGE` entry in a relocated `AFX_MSGMAP`, with no subclassing and no new imports.
+  See [`docs/worldbuilder-object-typeahead.md`](docs/worldbuilder-object-typeahead.md).
 - **`infantry-lighting`** decides **which kindofs get the map's infantry light environment**. A
   `.map` carries three light sets per time of day - terrain, objects, infantry - and the renderer
   picks the infantry one per render object from a flag set by a single `KindOf` test in the
@@ -156,6 +194,18 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
   itself re-runs the shroud manager for the new seat. The engine already ships the same predicate
   with mode 2 added, so the patch aims one `call` at it — five bytes, no cave. The natural
   companion to `skirmish-replay`, and independent of it. Client-local. **Runtime-verified in game.**
+- **`observer-command-range`** lets an observer **work a command bar's paging buttons** —
+  `PUSH_VISIBLE_COMMAND_RANGE` and `POP_VISIBLE_COMMAND_RANGE` — so what is being bought or
+  researched on page two can be read while watching a replay, or after being defeated. Today the
+  page is one click away and the click is discarded: `ControlBar::processCommandUI` asks
+  `localPlayerIsNotActive` before it dispatches anything at all, and that is true for the length
+  of any observed game. Everything else is already right — `getLocalPlayer` redirects to the
+  *observed* player when the local seat is inactive, so the whole bar is evaluated against the
+  player being watched, and both paging commands come out of the availability evaluator's default
+  case as enabled. So the patch retargets that one `call` into a cave that answers "active" for
+  those two commands and tail-calls the stock predicate for everything else — five bytes at the
+  call site. Every other command stays refused, because the rest of them post `GameMessage`s.
+  Client-local, and it needs nothing from the INI.
 - **`skirmish-ai-fallback`** gives a faction a **working AI on a map that carries no
   `Skirmish<Faction>` side for it**. A map's sides are capped at 20 — `SidesList::addSide` refuses
   the 21st — so a mod past ten-odd factions runs out of room, and 63 of the 617 shipped maps are
@@ -812,6 +862,26 @@ three, which patch other binaries from the same install: `desert-weather-wb` and
   hooks are reached only from code that runs after a crash. See
   [`docs/crash-dump.md`](docs/crash-dump.md), and
   [`docs/crash-dump-quality.md`](docs/crash-dump-quality.md) for the measurements behind it.
+- **`asset-load-profile`** turns on the **engine's own per-asset load timer**, which is a
+  diagnostic and not a fix. The engine loads a model the first time something needs it, on the main
+  thread, inside the frame — `AssetHandle::EnsureLoaded` (`0x00A32AD0`) falls through to a
+  synchronous load at `0x00A37320` — which is where a mid-match hitch on a high-vertex model comes
+  from, and the engine has always been able to say so: that function timestamps itself with
+  `rdtsc` and a writer at its tail emits one CSV row per load,
+  `frame,type,asset,tInit,tPreload,tLoad,tPostload,tTotal,recursion`, in milliseconds. The whole
+  thing is gated on **one byte**, `GlobalData+0x123D` — which is not in the 457-row `GameData`
+  field table, is not reachable from the sixteen-entry retail command-line table, and whose only
+  writer is `GlobalData`'s constructor storing zero. So the switch exists, nothing can flip it, and
+  this patch flips it: two adjacent byte stores in that constructor become one `mov word
+  [esi+0x123C], 0x0100` plus three `nop`s, twelve bytes for twelve, leaving `+0x123C` at the zero
+  the pair wrote and the uninitialised padding at `+0x123E` alone. The field stays a field, so a
+  live session can turn it back off through `sage_live` without unpatching. Output lands in the
+  process's working directory under the name the engine builds — `assetload <map>`, with no `.csv`
+  extension, because nothing appends one. Client-local: peers need not agree on it, so one player
+  can profile a match everyone else plays on stock binaries. Costs an `fopen`/`fprintf`/`fclose`
+  per load, which lands after the timestamps — the columns stay honest, the felt hitch gets worse.
+  See [`docs/asset-demand-load.md`](docs/asset-demand-load.md), which is also the scoping note for
+  what to do about the hitch once it has been measured.
 - **`wall-mesh-release`** makes a destroyed wall **give back the pathfinding data it registered**.
   A walkable wall registers three things in one function (`0x00935FAA`) and returns none of them:
   the walkable surface named by `RaisedWallMesh` claims a slot in the sixteen-entry table at

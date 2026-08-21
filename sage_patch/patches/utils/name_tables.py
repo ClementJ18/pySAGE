@@ -36,6 +36,7 @@ __all__ = [
     "SECTION_CHARACTERISTICS",
     "NameTable",
     "check_fingerprint",
+    "check_not_rebased",
     "layout",
     "offset",
     "read_cstring",
@@ -56,6 +57,28 @@ _NAME_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 def _u32(value: int) -> bytes:
     return struct.pack("<I", value)
+
+
+#: PE `DllCharacteristics` bit that lets the loader move the image.
+_DYNAMIC_BASE = 0x0040
+
+
+def check_not_rebased(data: bytes | bytearray) -> None:
+    """Raise if the loader could move the image out from under a rebuilt name table.
+
+    A cave built by :func:`layout` holds **absolute** string pointers and nothing adds
+    base-relocation entries covering them, so a rebased image would index strings that are no
+    longer there. `game.dat` ships `RELOCS_STRIPPED` and cannot be moved at all; `Worldbuilder.exe`
+    does carry a relocation directory, so its patches have to ask rather than assume.
+    """
+    e_lfanew = struct.unpack_from("<I", data, 0x3C)[0]
+    dll_characteristics = struct.unpack_from("<H", data, e_lfanew + 24 + 70)[0]
+    if dll_characteristics & _DYNAMIC_BASE:
+        raise ValueError(
+            "the image opts in to ASLR (DllCharacteristics DYNAMIC_BASE), so the absolute "
+            "pointers a rebuilt name table holds would need base-relocation entries - refusing "
+            "rather than writing a table that breaks when the image is rebased"
+        )
 
 
 def offset(data: bytes | bytearray, va: int) -> int:

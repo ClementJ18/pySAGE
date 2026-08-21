@@ -100,13 +100,19 @@ from sage_ini.engine import Engine, EnumDelta
 
 from ..asm import JE, JNE, JNZ, JZ, Asm
 from ..patcher import Patch
-from ..utils import apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 from .utils import locomotor_sets, model_conditions, name_tables, weapon_set_flags
 
 if TYPE_CHECKING:
     import argparse
 
-__all__ = ["MASK_OFFSET", "NEW_BIT", "STOCK_BIT_COUNT", "ProductionConditionPatch"]
+__all__ = [
+    "MASK_OFFSET",
+    "NEW_BIT",
+    "STOCK_BIT_COUNT",
+    "ProductionConditionPatch",
+    "ProductionConditionWorldbuilderPatch",
+]
 
 # The name table, its 16 references, the 10 count sites and the mask offset are shared with any
 # other patch that names a condition, so they live in `model_conditions` and are re-exported here.
@@ -691,3 +697,379 @@ class ProductionConditionPatch(Patch):
                 f"vtable slot {slot_va:#010x} dispatches to {target:#010x}, not "
                 f"{_UPDATE_VA:#010x} - the function being hooked is not ProductionUpdate::update"
             )
+
+
+# The Worldbuilder half.
+#
+# The editor parses the same object INI, so `ModelConditionState = PRODUCING`,
+# `WeaponSet Conditions = PLAYER_PRODUCING` and `Locomotor = SET_PRODUCING <template>` all reach
+# Worldbuilder's **own** copies of the three name tables. A name none of them holds is an unknown
+# token in a mask parse, which throws, and a throw during INI load ends the editor's startup.
+#
+# The three tables differ in whether a count has to move with them, exactly as they do in
+# `game.dat`, and for the same reason - it is the same source read twice:
+#
+# * `ModelConditionFlags` bakes its count into loop bounds, **nine** of them here. Three are the
+#   mask parser's own forms, and they hard-bound the lookup's result the way the kindof parser
+#   does, so the name would be found and then rejected by the compare if the bounds did not move:
+#
+#       00956867  call 0x006CD120           ; name -> index
+#       00956872  cmp  dword [ebp-8], 0x24f ; 591
+#       00956879  jb   0x009568D6           ; index >= 591 falls into the error path
+#
+#   The other six are enumeration loops that index the table immediately after the compare.
+# * `WeaponSetFlags` and `LocomotorSetType` are read **only through their terminator** and bake no
+#   count at all - the same finding :mod:`.weapon_set_flags` and :mod:`.locomotor_sets` record for
+#   the game binary - so those two need their references repointed and nothing else.
+#
+# All three rebuilt tables share one cave, laid out end to end, because they are added or not added
+# together and one section is easier to find than three.
+#
+# Scope: parsing only. The editor gets no production trigger and needs none - it does not simulate
+# a queue. What it gets is the ability to read templates that mention these names.
+
+#: Worldbuilder's own copies of the three tables.
+WORLDBUILDER_CONDITION_TABLE_VA = 0x02231078
+WORLDBUILDER_WEAPON_SET_TABLE_VA = 0x0222FE20
+WORLDBUILDER_LOCOMOTOR_TABLE_VA = 0x02233CA8
+
+#: Every reference to the model-condition table: 27 bare imm32/disp32 operands. `0x0095685C`,
+#: `0x00956947` and `0x00956A3E` are the mask parser's three forms (`+NAME`, `-NAME`, bare `NAME`).
+WORLDBUILDER_CONDITION_REF_VAS = (
+    0x005DFD3C,
+    0x0094C871,
+    0x0094E5DC,
+    0x0095257A,
+    0x00955D33,
+    0x0095685C,
+    0x00956947,
+    0x00956A3E,
+    0x0096AC65,
+    0x0097776D,
+    0x009777A7,
+    0x009777D1,
+    0x00C04E27,
+    0x00C0746C,
+    0x00FF3FFA,
+    0x0101A46E,
+    0x0101A5A3,
+    0x01024E4A,
+    0x010B3407,
+    0x010ED939,
+    0x010EDAD3,
+    0x011695D3,
+    0x011C229A,
+    0x011C236F,
+    0x011FA0A3,
+    0x01240172,
+    0x01253493,
+)
+
+#: Every site encoding the model-condition count, as ``(instruction VA, the bytes before its
+#: imm32)``. The prefix is asserted as well as the immediate: 591 is not a rare constant in this
+#: image, and proximity alone matches hundreds of unrelated compares. Each of these was confirmed
+#: by disassembly to either index the table in the instruction after the compare, or to be one of
+#: the mask parser's three bounds-check-then-report sites.
+WORLDBUILDER_CONDITION_COUNT_SITES = (
+    (0x005DFD2D, bytes.fromhex("817df0")),  # enumeration loop, indexes the table
+    (0x0095256B, bytes.fromhex("817dfc")),  # bound then terminator test on the table
+    (0x00956872, bytes.fromhex("817df8")),  # mask parser, `+NAME`
+    (0x0095695D, bytes.fromhex("817df4")),  # mask parser, `-NAME`
+    (0x00956A51, bytes.fromhex("817df0")),  # mask parser, bare `NAME`
+    (0x00956BD3, bytes.fromhex("817da4")),  # outer guard on the same local as the next
+    (0x00956BE0, bytes.fromhex("817da4")),  # inner bound before the report
+    (0x0101A45F, bytes.fromhex("817de0")),  # enumeration loop, indexes the table
+    (0x0101A594, bytes.fromhex("817de0")),  # enumeration loop, indexes the table
+)
+
+#: The weapon-set and locomotor tables carry no count anywhere, so these are references only.
+WORLDBUILDER_WEAPON_SET_REF_VAS = (
+    0x00BC5AB9,
+    0x00BC5AF3,
+    0x00BC618C,
+    0x00BC6274,
+    0x00BC6368,
+    0x00BC64E7,
+    0x011C22B8,
+)
+WORLDBUILDER_LOCOMOTOR_REF_VAS = (
+    0x00AF3F34,
+    0x00E3AE84,
+    0x011C2314,
+    0x01203F65,
+    0x01ED03F0,
+    0x01EEB2B8,
+    0x01EEB2C8,
+    0x01F1FEA8,
+)
+
+#: Names at these indices fingerprint the build far more tightly than the counts alone.
+WORLDBUILDER_CONDITION_FINGERPRINT = {0: "TOPPLED", 1: "FRONTCRUSHED", 590: "SPECIAL_WEAPON_SIX"}
+WORLDBUILDER_WEAPON_SET_FINGERPRINT = {
+    0: "VETERAN",
+    1: "ELITE",
+    103: "WEAPONSET_CREATE_A_HERO_WS_64",
+}
+WORLDBUILDER_LOCOMOTOR_FINGERPRINT = {0: "SET_NORMAL", 16: "SET_BURNINGDEATH"}
+
+#: The PE section name field is 8 bytes and truncates silently.
+WORLDBUILDER_SECTION_NAME = ".wbprodc"
+
+# CNT_INITIALIZED_DATA | MEM_READ - three pointer tables and their new strings, and no code.
+_WORLDBUILDER_CHARACTERISTICS = 0x40000040
+
+_WORLDBUILDER_STOCK_CONDITION_COUNT = 591
+
+
+class ProductionConditionWorldbuilderPatch(Patch):
+    """Teach **Worldbuilder** the production condition, weapon-set flag and locomotor set names.
+
+    **This patch targets `Worldbuilder.exe`, not `game.dat`.** It is the authoring half of
+    `production-condition`; pass it the same names, since the index is what the parsed data stores.
+    Names not given to the game half should not be given here either - an editor that accepts a
+    token the game rejects is a worse failure than one that rejects it too.
+    """
+
+    name = "production-condition-wb"
+    author = "officialNecro"
+    description = (
+        "Worldbuilder.exe (not game.dat): add the PRODUCING model condition (--condition) and "
+        "optionally a WeaponSetFlag (--weapon-set-flag) and LocomotorSetType (--locomotor-set) to "
+        "the editor's own name tables, so templates using them parse instead of throwing and "
+        "ending the editor's load. Pass the same names given to game.dat's production-condition; "
+        "the editor gains no production trigger, only the ability to read the templates"
+    )
+
+    def __init__(
+        self,
+        condition: str = DEFAULT_NAME,
+        weapon_set_flag: str | None = None,
+        locomotor_set: str | None = None,
+    ):
+        self.condition = condition
+        self.weapon_set_flag = weapon_set_flag
+        self.locomotor_set = locomotor_set
+        for label, value in (
+            ("model condition name", self.condition),
+            ("weapon set flag name", self.weapon_set_flag),
+            ("locomotor set name", self.locomotor_set),
+        ):
+            if value is not None:
+                name_tables.validate_name(value, label)
+
+    def __str__(self) -> str:
+        extras = "".join(
+            f", {label} {name}"
+            for label, name in (
+                ("weapon set flag", self.weapon_set_flag),
+                ("locomotor set", self.locomotor_set),
+            )
+            if name is not None
+        )
+        return f"{self.name} ({self.condition}{extras})"
+
+    def _plan(self) -> list[tuple[str, tuple[int, ...], str]]:
+        """``(what, reference VAs, the single name to append)`` for each table in play."""
+        plan: list[tuple[str, tuple[int, ...], str]] = [
+            ("model condition", WORLDBUILDER_CONDITION_REF_VAS, self.condition)
+        ]
+        if self.weapon_set_flag is not None:
+            plan.append(("weapon set flag", WORLDBUILDER_WEAPON_SET_REF_VAS, self.weapon_set_flag))
+        if self.locomotor_set is not None:
+            plan.append(("locomotor set", WORLDBUILDER_LOCOMOTOR_REF_VAS, self.locomotor_set))
+        return plan
+
+    def apply(self, data: bytearray) -> None:
+        name_tables.check_not_rebased(data)
+        tables = self._read(data)
+        for (what, _refs, new_name), table in zip(self._plan(), tables, strict=True):
+            if table.index_of(data, new_name) is not None:
+                raise ValueError(f"{new_name!r} is already a {what} in this Worldbuilder")
+
+        section_va = allocate_section(
+            data,
+            WORLDBUILDER_SECTION_NAME,
+            lambda base_va: self._cave(tables, base_va),
+            _WORLDBUILDER_CHARACTERISTICS,
+        )
+        for file_off, old, new, note in self._edits(data, tables, section_va):
+            apply_byte_patch(data, file_off, old, new, note)
+
+    def verify(self, data: bytes | bytearray) -> list[str]:
+        located = find_section(data, WORLDBUILDER_SECTION_NAME)
+        if located is None:
+            return [f"no {WORLDBUILDER_SECTION_NAME} section: the file does not carry this patch"]
+        section_va, _section_off, _vsize = located
+
+        problems: list[str] = []
+        base = section_va
+        try:
+            for (what, refs, new_name), _ in zip(self._plan(), self._plan(), strict=True):
+                names = self._read_names(data, base)
+                if names[-1] != new_name:
+                    problems.append(
+                        f"the rebuilt {what} table ends {names[-1]!r}, expected {new_name!r}"
+                    )
+                for va in refs:
+                    held = struct.unpack_from("<I", data, _wbc_offset(data, va))[0]
+                    if held != base:
+                        problems.append(
+                            f"{what} table ref @0x{va:08x} holds 0x{held:08x}, "
+                            f"expected 0x{base:08x}"
+                        )
+                base = self._table_end(base, len(names), new_name)
+        except (ValueError, struct.error) as exc:
+            return [f"cannot read back the {WORLDBUILDER_SECTION_NAME} cave (wrong build?): {exc}"]
+
+        raised = _WORLDBUILDER_STOCK_CONDITION_COUNT + 1
+        for va, prefix in WORLDBUILDER_CONDITION_COUNT_SITES:
+            off = _wbc_offset(data, va)
+            got = bytes(data[off : off + len(prefix) + 4])
+            want = prefix + struct.pack("<I", raised)
+            if got != want:
+                problems.append(
+                    f"model condition count bound @0x{va:08x} is {got.hex()}, expected {want.hex()}"
+                )
+        return problems
+
+    @classmethod
+    def detect(cls, data: bytes | bytearray) -> Patch | None:
+        """Recognise this patch. The cave holds one to three rebuilt tables laid end to end, and
+        which of the optional two are present is recovered from how many the references point at."""
+        located = find_section(data, WORLDBUILDER_SECTION_NAME)
+        if located is None:
+            return None
+        section_va = located[0]
+        try:
+            condition = cls._read_names(data, section_va)[-1]
+            weapon = cls._appended_name(data, WORLDBUILDER_WEAPON_SET_REF_VAS, section_va)
+            locomotor = cls._appended_name(data, WORLDBUILDER_LOCOMOTOR_REF_VAS, section_va)
+            patch = cls(condition=condition, weapon_set_flag=weapon, locomotor_set=locomotor)
+        except (ValueError, IndexError, struct.error):
+            return None
+        return None if patch.verify(data) else patch
+
+    @classmethod
+    def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "--condition",
+            default=DEFAULT_NAME,
+            metavar="NAME",
+            help=f"model condition name to add (default {DEFAULT_NAME}); must match the one given "
+            "to game.dat's production-condition",
+        )
+        parser.add_argument(
+            "--weapon-set-flag",
+            default=None,
+            metavar="NAME",
+            help="WeaponSetFlag name to add; pass it only if the game half was given it too",
+        )
+        parser.add_argument(
+            "--locomotor-set",
+            default=None,
+            metavar="NAME",
+            help="LocomotorSetType name to add; pass it only if the game half was given it too",
+        )
+
+    @classmethod
+    def from_cli_args(cls, args: argparse.Namespace) -> Patch:
+        return cls(
+            condition=args.condition,
+            weapon_set_flag=args.weapon_set_flag,
+            locomotor_set=args.locomotor_set,
+        )
+
+    @staticmethod
+    def _table_end(base_va: int, count: int, new_name: str) -> int:
+        """Where the table that starts at ``base_va`` and holds ``count`` names ends."""
+        size = (count + 1) * 4
+        strings = len(new_name.encode("ascii")) + 1
+        return base_va + size + strings + (-strings % 4)
+
+    def _cave(self, tables: list[name_tables.NameTable], base_va: int) -> bytes:
+        """The rebuilt tables, laid out end to end in one section."""
+        blob = b""
+        cursor = base_va
+        for (_what, _refs, new_name), table in zip(self._plan(), tables, strict=True):
+            content, _name_vas, end = name_tables.layout(table.pointers, [new_name], cursor)
+            blob += content
+            cursor = end
+        return blob
+
+    def _read(self, data: bytes | bytearray) -> list[name_tables.NameTable]:
+        """Each table in play, read live from its references rather than from the stock base."""
+        specs = [
+            (WORLDBUILDER_CONDITION_REF_VAS, WORLDBUILDER_CONDITION_FINGERPRINT, "model condition"),
+            (
+                WORLDBUILDER_WEAPON_SET_REF_VAS,
+                WORLDBUILDER_WEAPON_SET_FINGERPRINT,
+                "weapon set flag",
+            ),
+            (WORLDBUILDER_LOCOMOTOR_REF_VAS, WORLDBUILDER_LOCOMOTOR_FINGERPRINT, "locomotor set"),
+        ]
+        wanted = {refs for _what, refs, _name in self._plan()}
+        out: list[name_tables.NameTable] = []
+        for refs, fingerprint, what in specs:
+            if refs not in wanted:
+                continue
+            base_va = name_tables.resolve_base(data, refs, f"Worldbuilder {what} table")
+            pointers = name_tables.read_terminated(
+                data, base_va, f"Worldbuilder {what} table", limit=4096
+            )
+            name_tables.check_fingerprint(data, pointers, fingerprint, f"Worldbuilder {what}")
+            out.append(name_tables.NameTable(base_va=base_va, pointers=pointers))
+        return out
+
+    @staticmethod
+    def _read_names(data: bytes | bytearray, base_va: int) -> list[str]:
+        pointers = name_tables.read_terminated(data, base_va, "Worldbuilder table", limit=4096)
+        names = [name_tables.read_cstring(data, pointer) for pointer in pointers]
+        if any(entry is None for entry in names):
+            raise ValueError("a table entry points at unmapped memory")
+        return [entry for entry in names if entry is not None]
+
+    @classmethod
+    def _appended_name(
+        cls, data: bytes | bytearray, refs: tuple[int, ...], section_va: int
+    ) -> str | None:
+        """The name this patch appended to the table ``refs`` names, or None if it did not touch
+        it - which is what an optional table not given a name looks like."""
+        base = struct.unpack_from("<I", data, _wbc_offset(data, refs[0]))[0]
+        located = find_section(data, WORLDBUILDER_SECTION_NAME)
+        if located is None or not section_va <= base:
+            return None
+        try:
+            return cls._read_names(data, base)[-1]
+        except (ValueError, IndexError, struct.error):
+            return None
+
+    def _edits(
+        self, data: bytes | bytearray, tables: list[name_tables.NameTable], section_va: int
+    ) -> list[tuple[int, bytes, bytes, str]]:
+        """Every reference moved onto its rebuilt table, plus the nine model-condition bounds."""
+        edits: list[tuple[int, bytes, bytes, str]] = []
+        cursor = section_va
+        for (what, refs, new_name), table in zip(self._plan(), tables, strict=True):
+            edits += name_tables.ref_edits(
+                data, refs, table.base_va, cursor, f"Worldbuilder {what} table"
+            )
+            cursor = self._table_end(cursor, table.count + 1, new_name)
+
+        stock = _WORLDBUILDER_STOCK_CONDITION_COUNT
+        for va, prefix in WORLDBUILDER_CONDITION_COUNT_SITES:
+            edits.append(
+                (
+                    _wbc_offset(data, va),
+                    prefix + struct.pack("<I", stock),
+                    prefix + struct.pack("<I", stock + 1),
+                    f"Worldbuilder model condition count bound @0x{va:08x}",
+                )
+            )
+        return edits
+
+
+def _wbc_offset(data: bytes | bytearray, va: int) -> int:
+    off = va_to_offset(data, va)
+    if off is None:
+        raise ValueError(f"VA 0x{va:08x} is not mapped - not the expected build")
+    return off

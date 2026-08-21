@@ -1,11 +1,5 @@
 """Shared layout helper for the SAGE browser UI."""
 
+from sage_utils.widgets import clear_layout
 
-def clear_layout(layout) -> None:
-    """Delete every widget (and nested layout) in `layout`, leaving it empty."""
-    while layout.count():
-        item = layout.takeAt(0)
-        if item.widget():
-            item.widget().deleteLater()
-        elif item.layout():
-            clear_layout(item.layout())
+__all__ = ["clear_layout"]

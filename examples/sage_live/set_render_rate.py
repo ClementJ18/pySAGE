@@ -131,7 +131,15 @@ class Writer:
 
     _ACCESS = 0x0008 | 0x0010 | 0x0020 | 0x0400  # VM_OPERATION | VM_READ | VM_WRITE | QUERY_INFO
 
+    # Declared rather than left to inference, as in `ProcessMemory`: everything below the
+    # platform check is unreachable to a type checker running as Linux, so the assignments there
+    # give these no type at all and every use in the methods below becomes an error.
+    _k32: ctypes.CDLL  # a `WinDLL` on Windows, which `CDLL` is the cross-platform spelling of
+    _handle: int
+
     def __init__(self, pid: int) -> None:
+        if sys.platform != "win32":
+            raise SystemExit(f"This writes to a running Windows game; this is {sys.platform}.")
         self._k32 = ctypes.WinDLL("kernel32", use_last_error=True)
         self._k32.OpenProcess.restype = ctypes.c_void_p
         self._k32.OpenProcess.argtypes = (ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32)

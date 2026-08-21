@@ -524,3 +524,120 @@ class SciencePrereqPatch(Patch):
                 "after the science store loads -> cave",
             )
         return edits
+
+
+# The Worldbuilder half.
+#
+# The editor parses the same `Science.ini`, through its own copy of
+# `ScienceStore::getScienceFromInternalName` (`0x00B27400`), and that copy still validates. So a
+# mod whose `game.dat` carries `science-prereqs` loads in the game and stops the editor dead:
+#
+#     INI error: Science name SCIENCE_Adler not known! (Did you define it in Science.ini?)
+#     Error parsing field 'PrerequisiteSciences' in block 'Science' in file
+#     'Data\INI\Science.ini', line 193.
+#
+# Unlike `worldbuilder-label-assert`, this is **not** an internal-build assert - the message and
+# the `throw` behind it are in the shipping `game.dat` too. What differs is only which of the two
+# binaries got the game half of this patch.
+#
+# The editor's copy is smaller than the game's and needs no cave. `getScienceFromInternalName`
+# computes the key *before* validating and returns that same key on success, so the validation
+# contributes nothing to the value - exactly the observation the game half is built on:
+#
+#     00b27413  call 0x007288B0        ; nameToKey(name) - interns, mints on a miss
+#     00b27418  mov  [ebp-4], eax      ; the key, already final
+#     00b27428  call 0x00B27470        ; isValidScience(key)?
+#     00b27432  jne  0x00B27459        ;   -> return the key
+#     00b27438  push "Science name %s not known! ..."
+#     00b27454  call 0x016C371A        ; throw
+#     00b27459  mov  eax, [ebp-8]      ; return the key
+#
+# Taking that `jne` unconditionally returns the key the function had already computed, which is
+# the value the backward-reference case produces. Two bytes, no cave, no new control flow.
+#
+# **Scope differs from the game half, and only on paper.** The game patch redirects one *call
+# site* so that nothing but the prerequisite parser becomes permissive; this one makes the
+# function itself permissive. `0x00B27400` has exactly **one** direct caller in the whole image,
+# `0x00E6C9CD` - the prerequisite parser - so the two scopes coincide here, and the cheaper form
+# is the one that fits in an instruction.
+#
+# **No deferred report.** The game half's `report_missing` re-checks the recorded keys once
+# `TheScienceStore` has finished loading, so a genuinely missing science still fails loudly. The
+# editor gets no such report: it is not where a mod's data should be validated, and a modder
+# running the game with `science-prereqs` already has that check. A key nothing defines stays
+# benign for the same reason it does in the game - nothing resolves a prerequisite key back to a
+# `ScienceInfo`, and the editor does not evaluate prerequisites at all.
+
+#: The validation early-out inside Worldbuilder's `getScienceFromInternalName`, ``jne`` as a
+#: 2-byte short jump.
+WORLDBUILDER_VALIDATE_JUMP_VA = 0x00B27432
+_WORLDBUILDER_ORIGINAL = bytes.fromhex("7525")
+_WORLDBUILDER_PATCHED = bytes.fromhex("eb25")  # jmp short, same displacement
+
+#: Sites that identify the function beyond the jump's own two bytes, as ``(VA, bytes)``: its
+#: prologue, and the push of the very message this patch stops being reachable.
+_WORLDBUILDER_FINGERPRINT = {
+    0x00B27400: bytes.fromhex("558bec83ec14"),  # push ebp ; mov ebp, esp ; sub esp, 0x14
+    0x00B27438: bytes.fromhex("680497e701"),  # push "Science name %s not known! ..."
+}
+
+
+class SciencePrereqWorldbuilderPatch(Patch):
+    """Let **Worldbuilder** read a `PrerequisiteSciences` list that names a science defined later.
+
+    **This patch targets `Worldbuilder.exe`, not `game.dat`.** It is the authoring half of
+    `science-prereqs`; apply it to the editor whenever the game binary carries that one, or the
+    editor stops on the first forward reference the game accepts.
+    """
+
+    name = "science-prereqs-wb"
+    author = "officialNecro"
+    description = (
+        "Worldbuilder.exe (not game.dat): accept forward references in PrerequisiteSciences, so "
+        "the editor loads a Science.ini that a game.dat carrying science-prereqs already loads. "
+        "Needs no INI change; apply it whenever the game binary has the game-side patch, since "
+        "the editor otherwise halts during startup on the first forward reference"
+    )
+
+    def apply(self, data: bytearray) -> None:
+        self._check_worldbuilder_fingerprint(data)
+        apply_byte_patch(
+            data,
+            _wb_offset(data, WORLDBUILDER_VALIDATE_JUMP_VA),
+            _WORLDBUILDER_ORIGINAL,
+            _WORLDBUILDER_PATCHED,
+            f"science validation early-out @0x{WORLDBUILDER_VALIDATE_JUMP_VA:08x}",
+        )
+
+    def verify(self, data: bytes | bytearray) -> list[str]:
+        try:
+            off = _wb_offset(data, WORLDBUILDER_VALIDATE_JUMP_VA)
+        except ValueError as exc:
+            return [str(exc)]
+        got = bytes(data[off : off + len(_WORLDBUILDER_PATCHED)])
+        if got == _WORLDBUILDER_PATCHED:
+            return []
+        if got == _WORLDBUILDER_ORIGINAL:
+            return [f"the early-out @0x{WORLDBUILDER_VALIDATE_JUMP_VA:08x} is unpatched"]
+        return [
+            f"the early-out @0x{WORLDBUILDER_VALIDATE_JUMP_VA:08x} is {got.hex()}, expected "
+            f"{_WORLDBUILDER_PATCHED.hex()} (patched) or {_WORLDBUILDER_ORIGINAL.hex()} (stock)"
+        ]
+
+    @staticmethod
+    def _check_worldbuilder_fingerprint(data: bytes | bytearray) -> None:
+        for va, expected in _WORLDBUILDER_FINGERPRINT.items():
+            off = _wb_offset(data, va)
+            got = bytes(data[off : off + len(expected)])
+            if got != expected:
+                raise ValueError(
+                    f"unexpected build: 0x{va:08x} is {got.hex()}, expected {expected.hex()} - "
+                    "this is not the Worldbuilder these addresses were read from"
+                )
+
+
+def _wb_offset(data: bytes | bytearray, va: int) -> int:
+    off = va_to_offset(data, va)
+    if off is None:
+        raise ValueError(f"VA 0x{va:08x} is not mapped - not the expected build")
+    return off
