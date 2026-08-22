@@ -40,7 +40,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Iterable, Sequence
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from sage_patch.patches.worldbuilder_mod import MAX_MOD_PATH_CHARS, WorldbuilderModPatch
 from sage_utils.installs import find_install
@@ -121,9 +121,12 @@ def staging_plan(mod: Path, staging: Path, subtrees: Iterable[str]) -> list[tupl
     what the engine asks the file system for."""
     plan: list[tuple[Path, Path]] = []
     for subtree in subtrees:
-        relative = Path(subtree.replace("\\", "/"))
-        if relative.is_absolute() or ".." in relative.parts:
+        # Judged as a Windows path whatever the host runs: these are mod paths, and only
+        # PureWindowsPath reads the drive letter in "C:/x" as absolute.
+        windows = PureWindowsPath(subtree)
+        if windows.drive or windows.root or ".." in windows.parts:
             raise ValueError(f"{subtree!r} must be a path inside the mod, relative to it")
+        relative = Path(subtree.replace("\\", "/"))
         plan.append((staging / relative, mod / relative))
     return plan
 

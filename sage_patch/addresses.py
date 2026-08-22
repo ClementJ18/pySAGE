@@ -132,6 +132,9 @@ __all__ = [
     "COMMAND_BUTTON_SPECIAL_POWER",
     "COMMAND_POINTS_HAS_ENOUGH",
     "COMMAND_POINTS_IN_USE",
+    "CONTAIN_GET_HORDE_IFACE",
+    "CONTAIN_GET_HORDE_IFACE_ENTRY",
+    "CONTAIN_GET_HORDE_IFACE_SLOT",
     "CONTROL_BAR_CLICK_BUTTON_LOAD",
     "CONTROL_BAR_CLICK_BUTTON_LOAD_BYTES",
     "CONTROL_BAR_CLICK_GATE_CALL",
@@ -196,6 +199,10 @@ __all__ = [
     "DESCRIPTION_UNIT_COST_BODY",
     "DICT_SET_ASCII_STRING",
     "DICT_SET_ASCII_STRING_BYTES",
+    "DIE_MODULE_IS_APPLICABLE",
+    "DIE_MODULE_IS_APPLICABLE_ENTRY",
+    "DIE_MUX_IS_APPLICABLE",
+    "DIE_MUX_IS_APPLICABLE_ENTRY",
     "DISPLAY_DRAW_VTABLE_SLOT",
     "DO_COMMAND_BUTTON",
     "DO_COMMAND_BUTTON_BUTTON_EBP",
@@ -218,6 +225,8 @@ __all__ = [
     "GAME_DATA_BOOL_PARSER",
     "GAME_DATA_SHELL_MAP_NAME_ROW",
     "GAME_INFO_MAP",
+    "GAME_LOGIC_FIND_OBJECT_BY_ID",
+    "GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY",
     "GAME_LOGIC_FRAME",
     "GAME_LOGIC_IS_IN_GAME",
     "GAME_LOGIC_UPDATE",
@@ -235,6 +244,19 @@ __all__ = [
     "GUICOMMAND_REVIVE",
     "GUI_COMMAND_SPECIAL_POWER",
     "GUI_LOSE_CASH",
+    "HORDE_CONTAIN_BUILD_SLOTS_SLOT",
+    "HORDE_CONTAIN_IFACE",
+    "HORDE_IFACE_ASSIGN_SLOT",
+    "HORDE_IFACE_ASSIGN_SLOT_BYTES",
+    "HORDE_IFACE_ASSIGN_SLOT_SLOT",
+    "HORDE_IFACE_FREE_SLOTS",
+    "HORDE_IFACE_SLOTS_BUILT",
+    "HORDE_IFACE_SLOT_ARRAY",
+    "HORDE_IFACE_SLOT_INDEX",
+    "HORDE_IFACE_SLOT_STRIDE",
+    "HORDE_PAYLOAD_ENTRY_NAME",
+    "HORDE_PAYLOAD_LOOKUP",
+    "HORDE_PAYLOAD_LOOKUP_ENTRY",
     "IMAGE_BASE",
     "IMPORT_FFLUSH",
     "IMPORT_FWRITE",
@@ -396,8 +418,28 @@ __all__ = [
     "PLAYER_TEMPLATE_RESOURCE_FILTER",
     "PLAYER_TEMPLATE_RESOURCE_VALUES",
     "PLAYER_TEMPLATE_SIZE",
+    "PRODUCTION_ENTRY_KIND",
+    "PRODUCTION_ENTRY_KIND_REVIVE",
+    "PRODUCTION_ENTRY_NEXT",
+    "PRODUCTION_QUEUE_APPEND",
+    "PRODUCTION_QUEUE_APPEND_BYTES",
+    "PRODUCTION_QUEUE_HEAD",
+    "PRODUCTION_QUEUE_TAIL",
     "PRODUCTION_UPDATE_COMMAND_POINT_STALL",
+    "PRODUCTION_UPDATE_GET_NEXT",
     "PRODUCTION_UPDATE_INTERFACE_VTABLE",
+    "PRODUCTION_UPDATE_PICK_CALL",
+    "PRODUCTION_UPDATE_PICK_CALL_BYTES",
+    "PRODUCTION_UPDATE_PICK_ENTRY",
+    "PRODUCTION_UPDATE_PICK_ENTRY_BYTES",
+    "PRODUCTION_UPDATE_PICK_FALLBACK",
+    "PRODUCTION_UPDATE_PICK_FALLBACK_BYTES",
+    "PRODUCTION_UPDATE_PICK_RETURN",
+    "PRODUCTION_UPDATE_PICK_RETURN_BYTES",
+    "PRODUCTION_UPDATE_PICK_REVIVE_READY",
+    "PRODUCTION_UPDATE_PICK_REVIVE_READY_BYTES",
+    "PRODUCTION_UPDATE_PICK_REVIVE_SCAN",
+    "PRODUCTION_UPDATE_PICK_REVIVE_SCAN_BYTES",
     "PRODUCTION_UPDATE_REVIVE_COMMAND_POINT_DELAY",
     "PRODUCTION_UPDATE_VTABLE",
     "PRODUCTION_WITHDRAW",
@@ -405,6 +447,29 @@ __all__ = [
     "PRODUCTION_WITHDRAW_PLAYER_EBP",
     "PRODUCTION_WITHDRAW_RESUME",
     "PRODUCTION_WITHDRAW_TEMPLATE_EBP",
+    "QUEUE_EXIT_BIND_BLOCK",
+    "QUEUE_EXIT_BIND_BLOCK_BYTES",
+    "QUEUE_EXIT_FINISH",
+    "QUEUE_EXIT_FINISH_ENTRY",
+    "QUEUE_EXIT_HORDE_LOOKUP",
+    "QUEUE_EXIT_HORDE_LOOKUP_BYTES",
+    "QUEUE_EXIT_LONE_UNIT_FLAG",
+    "QUEUE_EXIT_LONE_UNIT_FLAG_BYTES",
+    "QUEUE_EXIT_OBJECT_VIA_DOOR",
+    "QUEUE_EXIT_OBJECT_VIA_DOOR_ENTRY",
+    "QUEUE_EXIT_PENDING_HORDE",
+    "QUEUE_EXIT_REMEMBER_HORDE",
+    "QUEUE_EXIT_REMEMBER_HORDE_BYTES",
+    "REBUILD_HOLE_CONSTRUCTION_GATE",
+    "REBUILD_HOLE_CONSTRUCTION_GATE_BYTES",
+    "REBUILD_HOLE_CONSTRUCTION_TEST",
+    "REBUILD_HOLE_CONSTRUCTION_TEST_BYTES",
+    "REBUILD_HOLE_ON_DIE",
+    "REBUILD_HOLE_ON_DIE_ENTRY",
+    "REBUILD_HOLE_SELF_KILL",
+    "REBUILD_HOLE_SELF_KILL_BYTES",
+    "REBUILD_HOLE_START_REBUILD",
+    "REBUILD_HOLE_START_REBUILD_BYTES",
     "RECORDER_END_BRANCH",
     "RECORDER_END_BRANCH_BYTES",
     "RECORDER_END_STOP_CALL",
@@ -438,6 +503,12 @@ __all__ = [
     "REQUEST_UNIQUE_UNIT_ID_BODY",
     "REQUEST_UNIQUE_UNIT_ID_VTABLE_SLOT",
     "RESOURCE_MODIFIER_COUNT_CALLBACK",
+    "REVIVE_MGR_ENTRY_START_FRAME",
+    "REVIVE_MGR_OFFSET",
+    "REVIVE_MGR_PROGRESS",
+    "REVIVE_MGR_PROGRESS_BYTES",
+    "REVIVE_MGR_START",
+    "REVIVE_MGR_START_BYTES",
     "SCORE_KEEPER_ADD_OBJECT_DESTROYED",
     "SCORE_KEEPER_ADD_OBJECT_LOST",
     "SCORE_KEEPER_COUNTER_BLOCK",
@@ -536,6 +607,8 @@ __all__ = [
     "THE_THING_FACTORY",
     "THE_UPGRADE_CENTER",
     "THE_VICTORY_CONDITIONS",
+    "THING_FACTORY_FIND_TEMPLATE",
+    "THING_FACTORY_FIND_TEMPLATE_ENTRY",
     "THING_TEMPLATE_BUILD_COST",
     "THING_TEMPLATE_COPY_CALL",
     "THING_TEMPLATE_COPY_CALL_BYTES",
@@ -546,6 +619,8 @@ __all__ = [
     "THING_TEMPLATE_ID",
     "THING_TEMPLATE_ID_COUNTER",
     "THING_TEMPLATE_ID_SETTER",
+    "THING_TEMPLATE_IS_EQUIVALENT",
+    "THING_TEMPLATE_IS_EQUIVALENT_ENTRY",
     "THING_TEMPLATE_REFUND_VALUE",
     "TOOLTIP_COST_BUILD",
     "TOOLTIP_COST_BUILD_RESUME",
@@ -1609,6 +1684,48 @@ AI_PRODUCER_NEXT_CANDIDATE = 0x009A07C7
 # `tests/sage_live/fixtures/match.snapshot.gz` reads `[obj+0x94] == 4`.
 OBJECT_STATUS_UNDER_CONSTRUCTION = 2
 
+# `RebuildHoleExposeDie::onDie` - the module that puts a rebuild hole where a structure stood.
+# `esi` is the module subobject on entry, from which it takes moduleData (`[esi-0xc]`) and the
+# dying `Object` (`[esi-8]`). Derived in `docs/rebuild-hole-construction.md`.
+REBUILD_HOLE_ON_DIE = 0x00889AAF
+REBUILD_HOLE_ON_DIE_ENTRY = bytes.fromhex("558bec83ec1456ff7508")
+
+# The three instructions that load the dying object's status bitset and isolate
+# `UNDER_CONSTRUCTION` from it, immediately before the branch below. Anchored as one run rather
+# than as a lone `jne`, because a bare conditional branch says nothing about what it tests.
+REBUILD_HOLE_CONSTRUCTION_TEST = 0x00889B03
+REBUILD_HOLE_CONSTRUCTION_TEST_BYTES = bytes.fromhex("8b8694000000c1e802a801")
+
+# `jne <return>` - the gate. A structure destroyed while it is still going up leaves no hole,
+# which for a creep lair means the rebuild loop (and the treasure that hangs off the hole's own
+# `CreateObjectDie`) ends there. Six bytes; a scan of every branch displacement and imm32 in the
+# image finds no inbound edge into them, so they are replaceable in place.
+REBUILD_HOLE_CONSTRUCTION_GATE = 0x00889B0E
+REBUILD_HOLE_CONSTRUCTION_GATE_BYTES = bytes.fromhex("0f8546010000")
+
+# `push [esi+0x74]` - the tail of `onDie`, where the fresh hole is told what to put back: the
+# dying object's `ThingTemplate` (`[esi+4]`) and id. Anchoring it proves the function being
+# edited is the one that arms the rebuild, not merely one that spawns an object.
+REBUILD_HOLE_START_REBUILD = 0x00889BE7
+REBUILD_HOLE_START_REBUILD_BYTES = bytes.fromhex("ff76748b4d08ff7604")
+
+# `RebuildHoleBehavior::update`'s self-kill: `Object::kill(UNRESISTABLE, FADED)` on the hole,
+# reached in the same pass that creates the structure it was holding the place for. This is why
+# every hole in the data writes `DeathTypes = ALL -FADED` on its treasure module, and why the
+# hole is already gone by the time the rebuilding structure can be attacked.
+REBUILD_HOLE_SELF_KILL = 0x00886C3A
+REBUILD_HOLE_SELF_KILL_BYTES = bytes.fromhex("6a166a088bcf")
+
+# `DieModule::isDieApplicable`, a thunk onto `DIE_MUX_IS_APPLICABLE`, and the shared filter it
+# calls. The filter reads `DeathTypes` (moduleData `+0x0`), `ExemptStatus` (`+0x4`) and
+# `RequiredStatus` (`+0x14`) against the dying object's status bitset at `+0x94`, then
+# `DamageAmountRequired` and the killer-angle window. Every die module opens with it, which is
+# what lets a hardcoded status rule be retired into `ExemptStatus` rather than simply deleted.
+DIE_MODULE_IS_APPLICABLE = 0x0085FED5
+DIE_MODULE_IS_APPLICABLE_ENTRY = bytes.fromhex("8b4108ff742404")
+DIE_MUX_IS_APPLICABLE = 0x008D29A9
+DIE_MUX_IS_APPLICABLE_ENTRY = bytes.fromhex("558bec83ec0c5657")
+
 # `ProductionUpdateInterface::requestUniqueUnitID()` - the mint for the `ProductionID` that
 # names one queued production. `ProductionUpdate` is its only implementer: the address below
 # appears in exactly one vtable slot in the image, the one named here.
@@ -2282,6 +2399,65 @@ BUILD_GATE_NOT_ENOUGH_COMMAND_POINTS = 7
 PRODUCTION_UPDATE_COMMAND_POINT_STALL = 0x008A1E27
 PRODUCTION_UPDATE_REVIVE_COMMAND_POINT_DELAY = 0x008A0669
 
+# --- the production queue's per-frame entry picker ---------------------------------------------
+#
+# Derived in `docs/hero-recruit-parallel.md`. `ProductionUpdate` keeps units, upgrades and hero
+# revives in one doubly-linked list appended at the tail (`PRODUCTION_QUEUE_APPEND`), and
+# `ProductionUpdate::update` advances exactly one entry per frame - whichever
+# `PRODUCTION_UPDATE_PICK_ENTRY` hands back. So queue order is press order and the picker is the
+# whole of the scheduling policy.
+
+#: `ProductionUpdate::pickEntryToAdvance()`, called once per tick from `update` at
+#: `PRODUCTION_UPDATE_PICK_CALL` and nowhere else. Four rules in order: an entry with a batch
+#: already part-produced; a `DOZER`; a revive whose player-side clock has reached 1.0
+#: (`PRODUCTION_UPDATE_PICK_REVIVE_SCAN` walks the list, `..._REVIVE_READY` asks); otherwise the
+#: head, at `PRODUCTION_UPDATE_PICK_FALLBACK`.
+PRODUCTION_UPDATE_PICK_ENTRY = 0x008A072F
+PRODUCTION_UPDATE_PICK_ENTRY_BYTES = bytes.fromhex("568bf18b4628")  # push esi; mov esi,ecx; head
+PRODUCTION_UPDATE_PICK_CALL = 0x008A1C17
+PRODUCTION_UPDATE_PICK_CALL_BYTES = bytes.fromhex("e813ebffff")
+
+#: The revive rule's loop body - `cmp dword [ebx+4], 3` - and the call inside it that asks how far
+#: along the hero is. The fallback that follows both, seven bytes wide, is what
+#: `hero-recruit-parallel` displaces: `test ebx,ebx` / `jne <the loop>` / the head load's first
+#: byte. Nothing in the image branches into `0x008A07D2`..`0x008A07D7`.
+PRODUCTION_UPDATE_PICK_REVIVE_SCAN = 0x008A078A
+PRODUCTION_UPDATE_PICK_REVIVE_SCAN_BYTES = bytes.fromhex("837b0403")
+PRODUCTION_UPDATE_PICK_REVIVE_READY = 0x008A07B7
+PRODUCTION_UPDATE_PICK_REVIVE_READY_BYTES = bytes.fromhex("e8e304eeff")  # call REVIVE_MGR_PROGRESS
+PRODUCTION_UPDATE_PICK_FALLBACK = 0x008A07D1
+PRODUCTION_UPDATE_PICK_FALLBACK_BYTES = bytes.fromhex("85db75b58b4628")
+PRODUCTION_UPDATE_PICK_RETURN = 0x008A07D8
+PRODUCTION_UPDATE_PICK_RETURN_BYTES = bytes.fromhex("5b5f5ec3")  # pop ebx/edi/esi; ret
+
+#: `ProductionUpdate::append(entry)` - unconditional, tail-first, identical for all three kinds.
+PRODUCTION_QUEUE_APPEND = 0x008A0C99
+PRODUCTION_QUEUE_APPEND_BYTES = bytes.fromhex("558bec83ec4c")
+
+#: `ProductionInterface::getNextProduction(entry)`, interface vtable `+0x58`, and literally
+#: `entry ? entry->next : NULL` - which is what makes a raw `PRODUCTION_ENTRY_NEXT` walk equivalent.
+PRODUCTION_UPDATE_GET_NEXT = 0x008A1904
+
+#: `ProductionUpdate` and `ProductionEntry` field offsets, and the one entry kind that is a hero.
+PRODUCTION_QUEUE_HEAD = 0x28
+PRODUCTION_QUEUE_TAIL = 0x2C
+PRODUCTION_ENTRY_KIND = 0x04
+PRODUCTION_ENTRY_NEXT = 0x48
+PRODUCTION_ENTRY_KIND_REVIVE = 3
+
+#: The revive manager, at `Player+0x758`: a vector of `0xE8`-byte roster records, one per
+#: `BuildableHeroesMP` entry. `REVIVE_MGR_START` stamps `TheGameLogic->frame` into a record's
+#: `+0xA8` when the hero is queued and refuses if `+0xA8` is not `-1`; `REVIVE_MGR_PROGRESS`
+#: answers `(now - +0xA8) / totalFrames` as a fraction of 1.0, or `0.0` when `+0xA8` is `-1`.
+#: A hero's recruitment therefore runs on the logic frame, not on the queue.
+REVIVE_MGR_OFFSET = 0x758
+REVIVE_MGR_START = 0x007812B2
+REVIVE_MGR_START_BYTES = bytes.fromhex("568b74240c")
+REVIVE_MGR_PROGRESS = 0x00780C9F
+REVIVE_MGR_PROGRESS_BYTES = bytes.fromhex("558bec56")
+REVIVE_MGR_ENTRY_START_FRAME = 0xA8
+
+
 # --- the shell's campaign start ---------------------------------------------------------------
 #
 # Derived in `docs/campaign-select.md`. `AptMainMenu` registers a string-keyed callback map at
@@ -2680,3 +2856,183 @@ DEBUG_CRASH_RAISE = 0x0043AC57
 DEBUG_CRASH_RAISE_BYTES = bytes.fromhex("5757576823015604")
 DEBUG_CRASH_RAISE_RESUME = 0x0043AC5F
 DEBUG_CRASH_RAISE_RESUME_BYTES = bytes.fromhex("ff15d801bd00")
+
+
+# --- combo-horde recruitment -------------------------------------------------------------------
+# Derived in `docs/combo-horde-recruitment.md`. A horde produced by a building never fills itself:
+# `HordeContain::onObjectCreated` returns at its second instruction when the object has a
+# producer, and the building fills it instead - through a production queue entry that carries one
+# `ThingTemplate` and one count, fed by a getter that answers only for single-payload hordes.
+
+#: `HordeContain::onObjectCreated` - module vtable slot `+0x70`, shared by `HordeContain`,
+#: `HorseHordeContain` and `AODHordeContain` (slots `0x00C5B668`, `0x00C5C2F8`, `0x00C5D460`).
+HORDE_CONTAIN_ON_OBJECT_CREATED = 0x00871B9B
+HORDE_CONTAIN_ON_OBJECT_CREATED_ENTRY = bytes.fromhex("b8dff7b900e84bb31c00")
+
+#: `mov eax, [esi+8]` / `mov eax, [eax+0x78]` - the producer read whose result the very next
+#: instruction turns into "skip the whole function". The six bytes `combo-horde-recruitment`
+#: replaces with a `call` into its cave.
+HORDE_CONTAIN_PRODUCED_GATE = 0x00871BAB
+HORDE_CONTAIN_PRODUCED_GATE_BYTES = bytes.fromhex("8b46088b4078")
+
+#: `test eax, eax` / `jne <epilogue>` - the branch itself, left stock by the patch, which only
+#: changes what `eax` holds when it is reached. Asserted so a build that moved the jump cannot be
+#: patched into falling through unconditionally.
+HORDE_CONTAIN_PRODUCED_GATE_TEST = 0x00871BB1
+HORDE_CONTAIN_PRODUCED_GATE_TEST_BYTES = bytes.fromhex("85c00f857b010000")
+
+#: The `call TransportContain::createPayload` the gate skips - the one path that reads every
+#: `InitialPayload` entry.
+HORDE_CONTAIN_CREATE_PAYLOAD_CALL = 0x00871BBB
+HORDE_CONTAIN_CREATE_PAYLOAD_CALL_BYTES = bytes.fromhex("e83a86ffff")
+
+#: `TransportContain::createPayload` - outer loop over the payload list, inner loop over each
+#: entry's count. `__thiscall`, no arguments.
+TRANSPORT_CONTAIN_CREATE_PAYLOAD = 0x0086A1FA
+TRANSPORT_CONTAIN_CREATE_PAYLOAD_ENTRY = bytes.fromhex("558bec83ec1456578bf98b47048945ec")
+
+#: `mov dword [esi+0x2a8], 0x64` in the `HordeContain` constructor - the strength percent the
+#: trim block below the gate reads. 100 means "destroy nobody", which is what makes it safe for a
+#: recruited combo horde to run that block for the first time.
+HORDE_CONTAIN_FULL_STRENGTH_INIT = 0x00872972
+HORDE_CONTAIN_FULL_STRENGTH_INIT_BYTES = bytes.fromhex("c786a802000064000000")
+
+#: The contain-module interface's `+0x24`: the `InitialPayload` template name, returned **only**
+#: when the list holds exactly one entry and the empty string otherwise. The single point at
+#: which a combo horde's mix is discarded.
+HORDE_CONTAIN_PAYLOAD_NAME = 0x0087048F
+HORDE_CONTAIN_PAYLOAD_NAME_ENTRY = bytes.fromhex("558bec518b91e8feffff8b8aa4000000")
+#: `cmp esi, 1` / `jne <empty string>` inside it - the defect, in two instructions.
+HORDE_CONTAIN_PAYLOAD_NAME_SINGLETON_TEST = 0x008704B2
+HORDE_CONTAIN_PAYLOAD_NAME_SINGLETON_TEST_BYTES = bytes.fromhex("83fe01750d")
+
+#: `call [eax+0x24]` in `ProductionUpdate::update` - the only caller of
+#: `HORDE_CONTAIN_PAYLOAD_NAME` in the image, and therefore the whole of recruitment's knowledge
+#: of what a horde is made of.
+PRODUCTION_HORDE_PAYLOAD_CALL = 0x008A2C91
+PRODUCTION_HORDE_PAYLOAD_CALL_BYTES = bytes.fromhex("ff5024")
+
+#: The queue-entry rewrite that follows it: `entry->template = the payload`,
+#: `entry->total = Slots + 1`, `entry+0x34 = 1`. Skipped entirely when the getter answered "".
+PRODUCTION_HORDE_ENTRY_REWRITE = 0x008A2CC4
+PRODUCTION_HORDE_ENTRY_REWRITE_BYTES = bytes.fromhex("8b4dbc4083632800894b08894320c6433401")
+
+#: `mov ecx, [ebx+8]` - the batch loop's read of the one template every object in this entry is
+#: made from, and the reason the mix cannot survive production.
+PRODUCTION_BATCH_TEMPLATE_READ = 0x008A1FB8
+PRODUCTION_BATCH_TEMPLATE_READ_BYTES = bytes.fromhex("8b4b088b432c")
+
+#: `Module+0x04` is its `ModuleData`, `Module+0x08` the `Object` that owns it - both read by the
+#: gate cave, and both pinned by `TRANSPORT_CONTAIN_CREATE_PAYLOAD_ENTRY`'s `mov eax,[edi+4]` and
+#: the stock gate's `mov eax,[esi+8]`.
+MODULE_MODULE_DATA = 0x04
+MODULE_OWNING_OBJECT = 0x08
+#: `TransportContainModuleData::m_initialPayload` - an MSVC `std::list` head (one pointer to a
+#: self-linked sentinel node); each node is `{next, prev, {AsciiString name, Int count}}`.
+TRANSPORT_CONTAIN_INITIAL_PAYLOAD = 0xA4
+# `QueueProductionExitUpdate` - the door every production building pushes its finished objects
+# out of, and the module `docs/horde-exit-absorption.md` derives. Its `ExitInterface` sub-object
+# sits at module `+0x20` (vtable `0x00C682C4`), and that sub-object is the `ecx` every routine
+# named here receives - so a field written `interface +N` below is module `+0x20+N`.
+QUEUE_EXIT_OBJECT_VIA_DOOR = 0x008A3DD5
+QUEUE_EXIT_OBJECT_VIA_DOOR_ENTRY = bytes.fromhex("b81e21ba00")
+#: `ExitInterface` slot `+0x2C`, called by `ProductionUpdate::update` once a whole queue entry
+#: has been emitted. It clears `QUEUE_EXIT_PENDING_HORDE` and takes the horde off
+#: `UNDER_CONSTRUCTION`/`UNSELECTABLE`, which is what ends the exit.
+QUEUE_EXIT_FINISH = 0x008A3BF8
+QUEUE_EXIT_FINISH_ENTRY = bytes.fromhex("558bec83ec1453568bf1")
+
+#: Interface `+0x20`, module `+0x40`: the `ObjectID` of the horde currently coming out of this
+#: door. Zeroed by the constructor, written by `QUEUE_EXIT_REMEMBER_HORDE` for a `KINDOF HORDE`
+#: object only, and cleared only by `QUEUE_EXIT_FINISH` - so it names one horde for the whole of
+#: that horde's production entry, which is `Slots + 1` objects long
+#: (`PRODUCTION_HORDE_ENTRY_REWRITE`).
+QUEUE_EXIT_PENDING_HORDE = 0x20
+
+#: The read of it, at the head of `exitObjectViaDoor`: `push [edi+0x20]` /
+#: `mov ecx, TheGameLogic` / `call findObjectByID`. The five bytes of that call are the
+#: `horde-exit-absorption` hook - a NULL answer is the "no horde is coming out" path the stock
+#: code already has.
+QUEUE_EXIT_HORDE_LOOKUP = 0x008A4036
+QUEUE_EXIT_HORDE_LOOKUP_BYTES = bytes.fromhex("e84656baff")
+
+#: What that lookup gates, in order: `obj->setProducer(horde)`, the horde interface's
+#: `+0x2C` slot-assignment (`HORDE_IFACE_ASSIGN_SLOT`), and `obj->setTeam(horde->m_team)`. None
+#: of the three tests what the exiting object is.
+QUEUE_EXIT_BIND_BLOCK = 0x008A4066
+QUEUE_EXIT_BIND_BLOCK_BYTES = bytes.fromhex("ff75e48bcbe83176deff8b06538bceff502c")
+
+#: `[ebp+0xB]` - "this is a lone unit": set when the exiting object is not itself `KINDOF HORDE`
+#: **and** no horde is pending. Only a lone unit gets the structure's rally point appended to its
+#: own exit path, so an object wrongly bound to a pending horde walks out of the door and stops.
+QUEUE_EXIT_LONE_UNIT_FLAG = 0x008A4169
+QUEUE_EXIT_LONE_UNIT_FLAG_BYTES = bytes.fromhex(
+    "8b4304f6801501000020750a837de400c6450b017404c6450b00"
+)
+
+#: The tail of `exitObjectViaDoor`: `test byte [tmpl+0x115], 0x20` (`KINDOF HORDE`, bit 109),
+#: then `UNSELECTABLE`/`UNDER_CONSTRUCTION` on the horde and `mov [edi+0x20], eax` - the only
+#: write of `QUEUE_EXIT_PENDING_HORDE` in the image.
+QUEUE_EXIT_REMEMBER_HORDE = 0x008A4267
+QUEUE_EXIT_REMEMBER_HORDE_BYTES = bytes.fromhex(
+    "8b4304f680150100002074428b076a018d4d98518bcfff50248d45985053e89bafe4ff59596a008d4598508bcb"
+    "e8ca2bdfff8b43746a016a038bcb894720"
+)
+
+#: `TheGameLogic::findObjectByID` - `__thiscall`, `ret 4`, NULL for an id nothing holds.
+GAME_LOGIC_FIND_OBJECT_BY_ID = 0x00449681
+GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY = bytes.fromhex("837c24040074148d")
+
+#: `ContainModuleInterface::getHordeIface`, vtable slot `+0x7C`, `__thiscall` with no arguments.
+#: `HordeContain`'s is `lea eax,[ecx-0x20]` / `add ecx, 0xFC` / a NULL-preserving `and` - that is,
+#: it hands back the sub-object at module `+0x11C` (`HORDE_CONTAIN_IFACE`), whose vtable is
+#: `0x00C5B1F8`. This is the pair of addresses that ties `[obj+0x258]` to the horde interface.
+CONTAIN_GET_HORDE_IFACE_SLOT = 0x7C
+CONTAIN_GET_HORDE_IFACE = 0x00872A6F
+CONTAIN_GET_HORDE_IFACE_ENTRY = bytes.fromhex("8d41e081c1fc000000f7")
+
+#: `HordeContain`'s horde-interface sub-object, at module `+0x11C`. Its methods reach the module
+#: back through `lea ecx, [this-0x11C]` and the `ModuleData` through `[this-0x118]`
+#: (= module `+0x04`, `MODULE_MODULE_DATA`).
+HORDE_CONTAIN_IFACE = 0x11C
+
+#: Horde-interface slot `+0x2C`: give this object a formation slot. It walks the horde's
+#: **remaining** slots and takes the first whose declared payload template is equivalent to the
+#: object's - so it is already the engine's own answer to "does this object belong in this
+#: horde", and `horde-exit-absorption` mirrors exactly this walk.
+HORDE_IFACE_ASSIGN_SLOT_SLOT = 0x2C
+HORDE_IFACE_ASSIGN_SLOT = 0x00873F30
+HORDE_IFACE_ASSIGN_SLOT_BYTES = bytes.fromhex(
+    "558bec515153568bf1807e7c005775108d8ee4feffff8b016a01ff90840000008b46788b383bf80f8484000000"
+    "8b5d088b47088b4e6c8945fc6bc01cff34088b8ee8feffffe86d84ffff85c0741c8b0d404ade0083c00450e878"
+    "d3e5ff8b4b0450e82c96ecff84c07509"
+)
+
+#: The fields of that interface the walk reads. `+0x78` is an MSVC `std::list` head - one pointer
+#: to a self-linked sentinel - of the slots still unfilled, each node carrying its index at
+#: `+0x08`; `+0x6C` is the slot array those index, stride `0x1C`, first dword the payload key;
+#: `+0x7C` is the "slots have been built" flag that makes the list lazy.
+HORDE_IFACE_SLOT_ARRAY = 0x6C
+HORDE_IFACE_FREE_SLOTS = 0x78
+HORDE_IFACE_SLOTS_BUILT = 0x7C
+HORDE_IFACE_SLOT_STRIDE = 0x1C
+HORDE_IFACE_SLOT_INDEX = 0x08
+#: `HordeContain` vtable `+0x84`, called with `1` when `HORDE_IFACE_SLOTS_BUILT` is still clear:
+#: it is what fills `HORDE_IFACE_FREE_SLOTS` in the first place.
+HORDE_CONTAIN_BUILD_SLOTS_SLOT = 0x84
+
+#: Payload key -> declared entry, over the `ModuleData` vector at `+0x18C`..`+0x190`.
+#: `__thiscall`, `ret 4`, NULL when the key names no entry; the entry's template **name** starts
+#: at `HORDE_PAYLOAD_ENTRY_NAME`.
+HORDE_PAYLOAD_LOOKUP = 0x0086C3E7
+HORDE_PAYLOAD_LOOKUP_ENTRY = bytes.fromhex("8b918c0100008b899001")
+HORDE_PAYLOAD_ENTRY_NAME = 0x04
+
+#: `ThingFactory::findTemplate(name)` - `__thiscall` on `THE_THING_FACTORY`, `ret 4`.
+THING_FACTORY_FIND_TEMPLATE = 0x006D1305
+THING_FACTORY_FIND_TEMPLATE_ENTRY = bytes.fromhex("558bec5151ff7508")
+
+#: `ThingTemplate::isEquivalentTo(other)` - `__thiscall`, `ret 4`. Compares final overrides first
+#: and then the two name lists at `+0x33C`/`+0x340`, so an upgraded variant still answers yes.
+THING_TEMPLATE_IS_EQUIVALENT = 0x0073D5C2
+THING_TEMPLATE_IS_EQUIVALENT_ENTRY = bytes.fromhex("558bec83ec0c5356")

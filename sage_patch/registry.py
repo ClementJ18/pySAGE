@@ -15,6 +15,7 @@ from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.banner_modifier import BannerModifierPatch
 from sage_patch.patches.binary_attest import BinaryAttestPatch
 from sage_patch.patches.cah_factions import CahFactionsPatch
+from sage_patch.patches.combo_horde_recruitment import ComboHordeRecruitmentPatch
 from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
@@ -41,7 +42,9 @@ from sage_patch.patches.experimental.special_power_charges import SpecialPowerCh
 from sage_patch.patches.experimental.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
+from sage_patch.patches.hero_recruit_parallel import HeroRecruitParallelPatch
 from sage_patch.patches.herobar import HeroBarPatch, HeroBarWorldbuilderPatch
+from sage_patch.patches.horde_exit_absorption import HordeExitAbsorptionPatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus_filter import LargeGroupBonusFilterPatch
@@ -62,6 +65,7 @@ from sage_patch.patches.production_split import (
     ProductionSplitWorldbuilderPatch,
 )
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
+from sage_patch.patches.rebuild_hole_construction import RebuildHoleConstructionPatch
 from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
 from sage_patch.patches.science_prereqs import (
@@ -125,6 +129,10 @@ PATCHES: dict[str, type[Patch]] = {
     MultiExecuteGatePatch.name: MultiExecuteGatePatch,
     SpawnUnionPatch.name: SpawnUnionPatch,
     QueueIgnoreCpPatch.name: QueueIgnoreCpPatch,
+    HeroRecruitParallelPatch.name: HeroRecruitParallelPatch,
+    RebuildHoleConstructionPatch.name: RebuildHoleConstructionPatch,
+    HordeExitAbsorptionPatch.name: HordeExitAbsorptionPatch,
+    ComboHordeRecruitmentPatch.name: ComboHordeRecruitmentPatch,
     MultiInstancePatch.name: MultiInstancePatch,
     MultiInstanceLauncherPatch.name: MultiInstanceLauncherPatch,
     StandaloneLauncherPatch.name: StandaloneLauncherPatch,

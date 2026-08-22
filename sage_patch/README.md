@@ -86,6 +86,60 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   picker's "pick one to use **now**" arm is gated; the "could this ever be made here" arm keeps the
   stock answer, because one caller *cancels* an order when that question comes back null.
   **Runtime-verified in game.**
+- **`rebuild-hole-construction`** lets a structure destroyed **while it is being rebuilt** leave
+  its rebuild hole behind again. A creep lair's loop hangs entirely off that hole: breaking the
+  lair makes one, breaking the *hole* is what pays out treasure (the `CreateObjectDie` is on the
+  hole, never on the lair), and left alone the hole puts the lair back and retires with DeathType
+  `FADED` — which is what `DeathTypes = ALL -FADED` on every hole in the data exists to catch. The
+  loop has one gap: `RebuildHoleExposeDie::onDie` refuses to create anything when the dying object
+  is `UNDER_CONSTRUCTION`, and a lair rebuilt by a hole is `UNDER_CONSTRUCTION` for the whole time
+  it rises — the engine's own babysitting loop is keyed on that exact bit. Kill it in that window
+  and it is gone permanently: the old hole was destroyed the frame the rebuild began, no new one
+  is made, and there is no treasure ever again. The patch erases the six-byte branch. The rule
+  moves into the INI rather than disappearing — every die module opens with the shared filter that
+  already evaluates `ExemptStatus` against live `ObjectStatus` bits, so
+  `ExemptStatus = SOLD UNDER_CONSTRUCTION` restores the stock behaviour per object, which matters
+  because the patch is global and reaches a faction's own lairs on their *first* build too.
+  Logic-side, so **every peer needs the same binary**. **Not runtime-verified.** See
+  [`docs/rebuild-hole-construction.md`](docs/rebuild-hole-construction.md).
+- **`combo-horde-recruitment`** lets a horde built from **several `InitialPayload` lines** be
+  recruited. A horde is filled by one of two mechanisms and its own `onObjectCreated` picks which:
+  placed by a map it calls `createPayload`, which walks the whole payload list; produced by a
+  building it returns at its second instruction, because `Object::m_producerID` is set, and the
+  *building* fills it instead. That second path runs off a production queue entry, and an entry
+  carries exactly **one `ThingTemplate` and one count** — it asks the horde for that template
+  through contain-interface vtable slot `+0x24`, whose implementation answers **only when the
+  payload list holds one entry** and returns the empty string otherwise. That call site is the
+  getter's only caller in the image, so a combo horde's mix has nowhere to go: `findTemplate("")`
+  fails, the entry is never re-aimed at the members, and it is freed having produced only the
+  container. The patch replaces the six-byte producer read with a `call` into a cave that returns
+  the same id unless the payload list holds two or more entries, in which case it returns `0` — so
+  a combo horde falls through the untouched `test`/`jne` into `createPayload` and fills itself, the
+  way a map-placed one always has. Single-payload hordes reach the branch with the identical value
+  and keep the stock building-driven fill, exit sequencing included; the patch needs no keyword
+  because the only data it can reach is data that is broken today. Logic-side, so **every peer
+  needs the same binary**. **Not runtime-verified.** See
+  [`docs/combo-horde-recruitment.md`](docs/combo-horde-recruitment.md).
+- **`horde-exit-absorption`** stops a hero recruited **in parallel** with a battalion from being
+  absorbed into it. `QueueProductionExitUpdate` — the door every production building pushes finished
+  objects out of — remembers exactly **one** horde, in an `ObjectID` at module `+0x40`. It is written
+  whenever the object leaving is `KINDOF HORDE`, and cleared only when a whole queue entry has been
+  emitted; a battalion's entry is `Slots + 1` objects long, so the field names that battalion for the
+  fourteen-odd frames its members take to come out. For every one of those frames the head of the
+  same routine resolves that id and **unconditionally** binds whatever is leaving to it:
+  `setProducer(horde)`, a formation-slot assignment, `setTeam(horde->m_team)` — and, further down,
+  reads the same answer to decide this is not a lone unit, which is what denies the hero its own
+  rally-point waypoint so it walks out of the door and is then dragged along by the battalion. Hero
+  revives queue in parallel with units, so a hero finishing inside that window is caught by all of
+  it. The patch redirects one five-byte `call` into a cave that asks the question the stock code
+  never does — does this object belong in that horde? — by walking the horde's own unfilled slots for
+  one whose declared payload template is equivalent to the object's, which is exactly the rule the
+  slot assignment applies a few instructions later. A rejection hands back NULL, which is the "no
+  battalion in the door" answer the engine already has a path for. A `KINDOF HERO` test would have
+  been four bytes and wrong: `LothlorienRumil` fields Rumil and Orophin as a two-slot battalion, so
+  that member really is a hero and really does belong. Logic-side, so **every peer needs the same
+  binary**. **Not runtime-verified.** See
+  [`docs/horde-exit-absorption.md`](docs/horde-exit-absorption.md).
 - **`production-condition`** adds a **model condition** that is active while a structure's
   production queue is non-empty — training a unit *or* researching an upgrade. The stock engine
   has no such state: the `DOOR_n_*` conditions run *after* a unit completes, as the buffer during
@@ -510,6 +564,24 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   executing the same order, but for the consequence: an unpatched client refuses a production a
   patched one accepts. And, as with `terrain-resource-exp`, the keyword is an INI parse error on a
   stock build. **Runtime-verified in game.**
+- **`hero-recruit-parallel`** stops a hero being recruited from **freezing the production queued
+  behind it**. A `ProductionUpdate` keeps units, upgrades and hero revives in one list appended at
+  the tail, and `update` advances **exactly one entry per frame** — whichever its picker returns.
+  The picker has four rules: a batch already part-produced, a `DOZER`, a revive whose clock has
+  reached 1.0, and failing all three **the head, whatever it is**. Meanwhile a revive's clock is
+  not the queue's at all: `queueCreateUnit` stamps the current logic frame into the hero's roster
+  record at `Player+0x758`, and the entry finishes when `(now − start) / totalFrames >= 1.0`,
+  whatever the queue is doing. Those two facts are the whole of the report: a hero queued *behind*
+  other entries still finishes on time, because the third rule scans the list and returns a ready
+  revive out of order — but a hero at the *head* is returned by the fourth rule every frame, fails
+  the completion test, and `update` returns, so everything queued *after* it is frozen for the rest
+  of the revive. The patch rewrites only the fourth rule: return the first entry that is **not** a
+  revive, falling back to the head when the queue holds nothing but revives. That loses nothing —
+  a ready hero is still caught one rule earlier, the command-point stall is separately applied to
+  every revive in the queue wherever it sits, and the progress and completion a selected revive
+  would get are dead for a revive anyway. **The hero's own revive time is untouched.** Seven bytes
+  and a 37-byte cave. Logic-side, so **every peer needs the same binary**. **Not runtime-verified.**
+  See [`docs/hero-recruit-parallel.md`](docs/hero-recruit-parallel.md).
 - **`command-point-cost`** adds a **`CommandPointCost`** integer to `CommandButton`, so a special
   power or upgrade that **summons** units can be made unavailable while the player has fewer than
   that many command points free. Stock, command points gate *recruitment and nothing else*: the
@@ -1077,6 +1149,15 @@ sage-patch verify ai-revive-gate game.dat
 
 sage-patch apply ai-construction-gate --in game.dat.backup --out game.dat   # no parameters
 sage-patch verify ai-construction-gate game.dat
+
+sage-patch apply rebuild-hole-construction --in game.dat.backup --out game.dat   # no parameters
+sage-patch verify rebuild-hole-construction game.dat
+
+sage-patch apply horde-exit-absorption --in game.dat.backup --out game.dat   # no parameters
+sage-patch verify horde-exit-absorption game.dat
+
+sage-patch apply combo-horde-recruitment --in game.dat.backup --out game.dat    # no parameters
+sage-patch verify combo-horde-recruitment game.dat
 
 sage-patch apply production-condition --condition PRODUCING \
     --in game.dat.backup --out game.dat
