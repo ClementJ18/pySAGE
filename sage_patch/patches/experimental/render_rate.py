@@ -19,6 +19,15 @@ the compiler folded from the client rate, and fixes the three things doing that 
   wrap sets the counter to 1 and Edain's always-running catch-up loop bumps it to 2 inside the
   same logic step. Every `previous = current` latch behind it stops firing and animations freeze.
   Holding the quotient at 3 keeps the answer on sub-frame 2 at any rate. One dword.
+- the interpolation alpha's denominator (§9.10). The wrap's new value has to be written to the
+  recompute gate at ``0x00632604`` as well, because the alpha is ``subFrame / [TheGameEngine+0x38]``
+  and that field is what the recompute sets. Gated on sub-frame 1 - which the catch-up loop steps
+  past inside the same logic step, exactly as in §9.2 - the recompute never fires, and `+0x38` is
+  left to `0x006323D2`'s one-way `inc`. That site is unreachable without a network object, so the
+  defect is invisible in single-player and in replays and compounds all match online: measured at
+  ratio 14 on the host and **31 on the off-host** against a wrap of 12, which is a **20x** velocity
+  spike at the logic-frame boundary where a correct build at any rate is 2x. One imm8, and the same
+  mistake §9.2 already caught once.
 - the particle rate (§9.4). `ParticleSystemManager::update` runs once per client frame from the
   draw path, and particle lifetimes are counted in *updates*, so at 60 every effect in the game
   runs at double speed. The cave stamps the manager with ``clientFrame * 30 / clientRate`` instead
@@ -61,9 +70,18 @@ and every peer's, so a match between a patched and an unpatched binary is not a 
 client-frame constants outside the §1 block are also unrescaled (§9.7), the visible one being an
 animation blend weight that completes transitions in half the intended wall-clock time.
 
-**Determinism.** The logic rate does not move and no simulation state depends on the sub-frame
-index, so the patch is not *itself* a desync — but §9.5's slowdown is a real timing difference and
-the whole lobby should run the same binary and the same `FramesPerSecondLimit`.
+**Determinism, and why this must not go near multiplayer.** The *stutter* half of this is fixed -
+that was §9.10's recompute gate, above, and it was a bug in this patch rather than a property of
+the approach. What follows is the half that is not fixed. The wrap counts *client* frames and
+the limiter is a ceiling, so the logic rate is the frame rate the machine actually achieves divided
+by the ratio — not the rate the binary names. At stock that is invisible because every machine
+renders 30; at 60 it means **each peer simulates at a speed set by its graphics performance**
+(§9.9). Played on 2026-08-23: the host rendered 60 and stuttered the whole match while a weaker
+peer that could not hold 60 ran slow, and the match desynced. Same binary on both sides, same
+`FramesPerSecondLimit`. The condition is load-bearing: a client that *does* hold 60 measured a flat
+5.000 Hz across a full 18.5-minute match, so this is an explanation for a peer dropping frames and
+not for a lobby where nobody is. Single-player and replays only until the wrap ends on elapsed
+milliseconds rather than on a count of draws, which is the separate patch §6 scopes.
 
 **Composition.** Order-independent: the cave is allocated past every existing section and
 :meth:`verify` finds it by name. No other bundled patch touches the pacing block, the wrap, the
@@ -586,7 +604,14 @@ class RenderRatePatch(Patch):
         ]
         narrow: list[tuple[int, bytes, bytes, str]] = [
             (WRAP + IMM8, bytes([6]), bytes([ratio]), "the wrap"),
-            (RECOMPUTE_GATE + IMM8, bytes([6]), bytes([1]), "recompute gate"),
+            # The gate takes the ratio, *not* 1 - the two must be the same number, which is the
+            # relationship stock has (gate 6, wrap 6) and the one 9.10 measures the cost of
+            # breaking. Keyed to 1 the recompute never fires, because the catch-up loop at
+            # 0x00632A9B steps the sub-frame past 1 inside the same logic step; `+0x38` is then
+            # left to `0x006323D2`'s one-way `inc`, which only runs on a networked peer. Measured
+            # on both sides of one live match: ratio 14 on the host and 31 on the off-host against
+            # a wrap of 12, a 4.0x and a 20.0x boundary spike where a correct build is 2.0x.
+            (RECOMPUTE_GATE + IMM8, bytes([6]), bytes([ratio]), "recompute gate"),
             *(
                 (va + IMM8, bytes([10]), bytes([stride]), f"timecode stride 0x{va:08X}")
                 for va in STRIDES

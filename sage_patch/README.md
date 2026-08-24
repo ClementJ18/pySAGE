@@ -420,6 +420,24 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   This is what Edain's *Ambush of the Wood-elves* command-set swap works around, at the cost of the
   mass trigger. It changes which objects a logic-side order reaches, so **every peer must run the
   same patched binary** and replays do not cross. **Runtime-verified in game.**
+- **`attack-requires-damage`** stops a unit **auto-acquiring or right-click-attacking a target it
+  cannot damage**. Whether one object can attack another ends, for auto-acquire and for a
+  right-click / attack order, in a routine that walks the weapon's nuggets and answers yes if
+  **any** nugget's per-victim test accepts the target — with no regard for whether that nugget deals
+  damage. So a weapon whose only matching nugget is a knockback (`MetaImpactNugget`) or an
+  `AttributeModifierNugget` reports itself able to attack something it does no damage to, and the
+  unit walks up and "attacks" for nothing — a frequent bug report. The patch redirects the **one**
+  `call` that is the attack-eligibility predicate's final answer into a cave that repeats the same
+  nugget walk but counts a nugget only when it both accepts the victim **and** deals damage —
+  direct damage (a `DamageNugget`) *or* through a sub-weapon (a `ProjectileNugget`, which is what
+  keeps archers and every projectile-only weapon working). Both facts are the engine's own, read off
+  two nugget vtable slots it already uses to answer "does this weapon deal damage type N". **Firing
+  is untouched**: the nugget-level valid-victim test the fire loop uses is a different, unhooked
+  call, so a knockback still knocks back once the weapon is engaged on a legitimately damageable
+  enemy — it just no longer causes the engagement on its own. **No INI change** — the filter is
+  global and reads only data every weapon already has. Logic-side, so **every peer must run the same
+  patched binary** and replays do not cross. **Statically verified, not runtime-verified.** See
+  [`docs/attack-requires-damage.md`](docs/attack-requires-damage.md).
 - **`spawn-union`** makes an object with several `SpawnBehavior`s use **all** of their spawns.
   `Object::getSpawnBehaviorInterface` walks the module list and returns on the **first** module that
   answers, so a structure with two of them orders only the first one's slaves to attack, asks only
@@ -934,6 +952,22 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   hooks are reached only from code that runs after a crash. See
   [`docs/crash-dump.md`](docs/crash-dump.md), and
   [`docs/crash-dump-quality.md`](docs/crash-dump-quality.md) for the measurements behind it.
+- **`quiet-exit`** stops the engine leaving a `.dmp` every time the game is closed. A benign
+  `DEBUG_CRASH` assert trips on the shutdown path, raises the engine's own `0x04560123`, and the
+  unhandled-exception filter at `0x0043D610` writes a minidump before the process dies — so a clean
+  exit through the menu looks like a crash, and with `crash-dump` applied it is a **large** one. The
+  filter's one `call writeMiniDump` (`0x0043D74E`) is redirected through a small cave that first
+  reads `GameEngine::m_quitting` — the byte the main loop already checks to decide whether to keep
+  running (`[TheGameEngine] + 0x10`). If the process is quitting, the dump is skipped; if it is not —
+  a real fault mid-game — the call is made exactly as before, so **an actual crash still dumps**. The
+  cave is `call`-ed in place of the original, tail-`jmp`s to `writeMiniDump` on the write path and
+  `ret`s on the skip path, so the stack the filter's following `add esp, 8` sees is identical either
+  way. Client-local: no simulation, checksum, order stream or replay format is touched, and the one
+  site edited runs only after an unhandled exception. Composes with `crash-dump` — the two patches
+  share the dump path but touch different bytes. **Static-verified**: it applies, verifies and
+  disassembles as intended, and the redirect is confirmed against the real binary; the one thing only
+  a live exit can settle is that `m_quitting` is already set when the shutdown assert fires — which is
+  what it is set for. See [`docs/quiet-exit.md`](docs/quiet-exit.md).
 - **`asset-load-profile`** turns on the **engine's own per-asset load timer**, which is a
   diagnostic and not a fix. The engine loads a model the first time something needs it, on the main
   thread, inside the frame — `AssetHandle::EnsureLoaded` (`0x00A32AD0`) falls through to a
@@ -1123,10 +1157,17 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   in `GameData` must be set to the same N, or the pace loop targets 30 against a 60 fps binary and the
   **whole game runs at half speed** — no warning, no crash, just slow. This is **Edain's** binary's patch:
   the latch divisor it edits does not exist on stock SAGE, and the patch refuses a build whose predicate is
-  not that shape rather than writing a dword into whatever lives there. Still open, and why it is
-  experimental rather than merely unplayed: the simulation runs **7–11% slow** at 60, which shifts replay
-  timing, so **every peer needs the same binary and the same N**. See
-  [`docs/render-rate.md`](docs/render-rate.md).
+  not that shape rather than writing a dword into whatever lives there. **Single-player and replays only,
+  and that is structural rather than a bug list.** The wrap counts *client* frames and the limiter is only a
+  ceiling, so the logic rate is the frame rate a machine actually achieves divided by the ratio — invisible
+  at stock, where every machine renders 30, and dominant at 60, where **each peer simulates at a speed set
+  by its graphics performance**. Played online on 2026-08-23 with identical binaries on both sides: the host
+  rendered 60 and stuttered for the whole match while a weaker peer that could not hold 60 ran slow, and it
+  desynced. **The condition matters, though**: a client measured over a full 18.5-minute match on hardware
+  that *does* hold 60 paced at a flat **5.000 Hz** with no stalls, so this mechanism explains a peer that
+  drops frames and not a match between two that do not. Network play needs the wrap to end on elapsed
+  milliseconds instead of a count of draws, which is a different patch. See
+  [`docs/render-rate.md`](docs/render-rate.md) §9.9.
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 

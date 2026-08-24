@@ -694,9 +694,10 @@ class World(BotState):
         every unclaimed flag are theirs. Anything that has to tell a creep camp from an
         opponent's farm has to ask this rather than ask who is playing.
         """
-        if obj.owner_index in (self.session.player_index, None):
+        owner = obj.owner_index
+        if owner is None or owner == self.session.player_index:
             return False
-        player = self.observation.player(obj.owner_index)
+        player = self.observation.player(owner)
         return player is not None and not player.playing
 
     def is_lair(self, obj: GameObject) -> bool:

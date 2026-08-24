@@ -45,6 +45,9 @@ __all__ = [
     "ASCII_STRING_FORMAT",
     "ASCII_STRING_SET",
     "ASCII_STRING_SET_BYTES",
+    "ATTACK_ELIGIBILITY_NUGGET_CALL",
+    "ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW",
+    "ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW_BYTES",
     "AUTO_DEPOSIT_AMOUNT",
     "AUTO_DEPOSIT_DEPOSIT",
     "AUTO_DEPOSIT_DEPOSIT_BYTES",
@@ -157,6 +160,10 @@ __all__ = [
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
     "CRC_EXCLUDE_SHROUD_FLAG",
     "CRT_ATOI",
+    "DAMAGE_NUGGET_DEALS_DAMAGE_BODY",
+    "DAMAGE_NUGGET_DEALS_DAMAGE_BODY_BYTES",
+    "DAMAGE_NUGGET_SUBWEAPON_BODY",
+    "DAMAGE_NUGGET_SUBWEAPON_BODY_BYTES",
     "DEBUG_CRASH_EXCEPTION_CODE",
     "DEBUG_CRASH_MESSAGE_EBP",
     "DEBUG_CRASH_MESSAGE_READ",
@@ -197,6 +204,10 @@ __all__ = [
     "DESCRIPTION_TAIL_RESUME",
     "DESCRIPTION_TEXT_EBP_OFFSET",
     "DESCRIPTION_UNIT_COST_BODY",
+    "DESYNC_DECLARE",
+    "DESYNC_DECLARED_OFFSET",
+    "DESYNC_FILE_WRITER",
+    "DESYNC_VERIFY_CLIENT_CRC_FLAG",
     "DICT_SET_ASCII_STRING",
     "DICT_SET_ASCII_STRING_BYTES",
     "DIE_MODULE_IS_APPLICABLE",
@@ -224,6 +235,8 @@ __all__ = [
     "GAME_DATA_ASCIISTRING_PARSER",
     "GAME_DATA_BOOL_PARSER",
     "GAME_DATA_SHELL_MAP_NAME_ROW",
+    "GAME_ENGINE",
+    "GAME_ENGINE_QUITTING",
     "GAME_INFO_MAP",
     "GAME_LOGIC_FIND_OBJECT_BY_ID",
     "GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY",
@@ -312,6 +325,9 @@ __all__ = [
     "MONEY_WITHDRAW",
     "MSG_CLEAR_GAME_DATA",
     "MSG_NEW_GAME",
+    "NUGGET_VTBL_DEALS_DAMAGE",
+    "NUGGET_VTBL_SUBWEAPON",
+    "NUGGET_VTBL_VALID_VICTIM",
     "OBJECT_CONTAIN",
     "OBJECT_FIELD_TABLE",
     "OBJECT_FIELD_TABLE_REFS",
@@ -648,12 +664,17 @@ __all__ = [
     "VIEW_LOCATION_SIZE",
     "VIEW_POSITION_OFFSET",
     "VIEW_SET_LOCATION_VTABLE_SLOT",
+    "WEAPONTEMPLATE_NUGGET_VECTOR_OFFSET",
+    "WEAPON_ANY_NUGGET_VALID_VICTIM",
+    "WEAPON_ANY_NUGGET_VALID_VICTIM_BYTES",
     "WIDE_BLANK_LINE",
     "WIDE_BLANK_LINE_BYTES",
     "WIDE_NEWLINE",
     "WIDE_NEWLINE_BYTES",
     "WRITE_MINI_DUMP",
     "WRITE_MINI_DUMP_BYTES",
+    "WRITE_MINI_DUMP_CALL_FILTER",
+    "WRITE_MINI_DUMP_CALL_FILTER_BYTES",
 ]
 
 BUILD = "RotWK 2.01.2614.37001"
@@ -687,6 +708,25 @@ LOGIC_CRC_EMIT_RESUME = 0x0062E803
 LOGIC_CRC_SHROUD_XFER = 0x00625983
 LOGIC_CRC_SHROUD_XFER_BYTES = bytes.fromhex("a15843de00")
 CRC_EXCLUDE_SHROUD_FLAG = 0x00DE87BF
+
+# The `GameLogic` method that declares this client out of sync and raises the `GUI:DesyncTitle` /
+# `GUI:DesyncText` box, and the byte it latches on the way - see `docs/desync-detection.md`.
+#
+# The latch is what an external observer watches: zero from `GameLogic`'s field initialisers
+# (`0x0063027D`) for the life of a match, 1 from `0x00629106` the moment the declaration happens,
+# and never cleared in between. So a poller sampling at the logic rate cannot step over the edge,
+# which a pulse would let it do. Static only: the transition has not yet been seen in a live match.
+DESYNC_DECLARE = 0x006290C7
+DESYNC_DECLARED_OFFSET = 0x1BC
+
+# The other path: a per-client-frame self-check that recomputes this client's CRC, compares it
+# against a caller-supplied value and appends `"Desync detected on frame %d ..."` to
+# `CLIENT_DESYNC_<name>.txt`. **It never runs on a retail build.** Its gate has exactly one writer,
+# at `0x007BA6D3`, inside the orphaned command-line region `docs/headless.md` section 5 documents -
+# the `-verifyClientCRC` handler, which no dispatch table names. Recorded so the next reader knows
+# the file exists in the code and not on disk, rather than waiting for one to appear.
+DESYNC_FILE_WRITER = 0x006CF681
+DESYNC_VERIFY_CLIENT_CRC_FLAG = 0x00DE87C5
 
 # Subsystem singletons. Each address holds a *pointer to* the object, not the object; they are
 # registered by name at startup, which is how they were found (see `docs/engine-globals.md`
@@ -2858,6 +2898,33 @@ DEBUG_CRASH_RAISE_RESUME = 0x0043AC5F
 DEBUG_CRASH_RAISE_RESUME_BYTES = bytes.fromhex("ff15d801bd00")
 
 
+# quiet-exit: suppress the shutdown-assert minidump.
+# The engine's own "Game crash" assert (`DEBUG_CRASH_EXCEPTION_CODE`) fires during a normal
+# shutdown; the unhandled-exception filter catches it and writes a minidump, so closing the game
+# leaves a `.dmp` every time. `quiet-exit` gates the filter's dump call on `m_quitting`, so the
+# artifact is written for a real in-game fault and not for a clean quit.
+
+#: `TheGameEngine` - the singleton pointer variable, not the object. `[GAME_ENGINE]` is the
+#: `GameEngine *` (`0x04b750d8` in a shutdown dump). Its `+0x10` byte is `m_quitting`, the flag the
+#: main loop reads at `0x00639EC6` (`cmp byte [esi+0x10], bl`) to decide whether to keep running;
+#: `docs/render-rate.md` §2 derives both. Set true by `GameEngine::setQuitting` (`0x0093D255`,
+#: `mov byte [ecx+0x10], 1 ; ret`) when the app is asked to exit, and stays true through teardown.
+GAME_ENGINE = 0x00DE4324
+
+#: `m_quitting`'s offset on the `GameEngine`: a byte, nonzero once the process is on its way out.
+GAME_ENGINE_QUITTING = 0x10
+
+#: The `call writeMiniDump` **inside the unhandled-exception filter** `0x0043D610` (the
+#: `SetUnhandledExceptionFilter` target, installed at `0x00437EB3` via the `push 0x43D610` at
+#: `0x00437EA6`). `esi` holds the `EXCEPTION_POINTERS` and `dl` the `fulldump` flag, both already
+#: pushed; the call returns to a `add esp, 8` at `0x0043D753` that cleans them. This is the site
+#: every observed `0x04560123` shutdown dump was written from, and the one `quiet-exit` redirects
+#: through its `m_quitting` gate. The image's other `call writeMiniDump` (`0x0043818B`, in a
+#: wrapper with no static callers) is left alone.
+WRITE_MINI_DUMP_CALL_FILTER = 0x0043D74E
+WRITE_MINI_DUMP_CALL_FILTER_BYTES = bytes.fromhex("e82de7ffff")
+
+
 # --- combo-horde recruitment -------------------------------------------------------------------
 # Derived in `docs/combo-horde-recruitment.md`. A horde produced by a building never fills itself:
 # `HordeContain::onObjectCreated` returns at its second instruction when the object has a
@@ -3036,3 +3103,43 @@ THING_FACTORY_FIND_TEMPLATE_ENTRY = bytes.fromhex("558bec5151ff7508")
 #: and then the two name lists at `+0x33C`/`+0x340`, so an upgraded variant still answers yes.
 THING_TEMPLATE_IS_EQUIVALENT = 0x0073D5C2
 THING_TEMPLATE_IS_EQUIVALENT_ENTRY = bytes.fromhex("558bec83ec0c5356")
+
+# --- attack eligibility: does a weapon's nugget actually damage the target -----------------------
+# All derived in `docs/attack-requires-damage.md`.
+
+#: `WeaponTemplate::<any-nugget-accepts-victim>` - `__thiscall`, `ret 8`, `this` = `WeaponTemplate`,
+#: stack args `victim` at `[esp+4]` and `weapon` at `[esp+8]`. Walks the nugget vector at
+#: `WEAPONTEMPLATE_NUGGET_VECTOR_OFFSET` and returns TRUE on the first nugget whose vtable
+#: `NUGGET_VTBL_VALID_VICTIM` accepts the victim - with no regard for whether that nugget deals
+#: damage. This is the check `attack-requires-damage` narrows.
+WEAPON_ANY_NUGGET_VALID_VICTIM = 0x006CB779
+WEAPON_ANY_NUGGET_VALID_VICTIM_BYTES = bytes.fromhex("837c240400578bf97504")
+
+#: The `call WEAPON_ANY_NUGGET_VALID_VICTIM` that is the final answer of the attack-eligibility
+#: predicate `0x006CDBF3` (auto-acquire, attack-move, right-click). The two other callers of that
+#: routine (`0x0090F527`, `0x0090F97E`) are sub-weapon nuggets' own valid-victim methods, used
+#: while firing, and are deliberately left stock - so only this call site is hooked.
+ATTACK_ELIGIBILITY_NUGGET_CALL = 0x006CDCD1
+#: The 16-byte run the call sits in: `mov ecx,[ebx+4]` / `push ebx` / `push esi` / `call` / `pop
+#: esi` / `mov ecx,[ebp-0xc]` / `pop edi` / `pop ebx`. Pins that this call really is the predicate's
+#: tail; the 5 call bytes start at offset 5.
+ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW = 0x006CDCCC
+ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW_BYTES = bytes.fromhex("8b4b045356e8a3daffff5e8b4df45f5b")
+
+#: `WeaponTemplate` nugget vector (`std::list`) head; each node's nugget pointer is at `+0x08`.
+WEAPONTEMPLATE_NUGGET_VECTOR_OFFSET = 0x17C
+#: Nugget vtable slots the cave uses. `+0x04` answers "is this a valid victim"; `+0x1C` is a bool
+#: "this nugget deals direct damage" (`DamageNugget` -> 1, base/knockback/attribute-modifier -> 0);
+#: `+0x2C` returns a sub-weapon `WeaponTemplate*` (a `ProjectileNugget`'s way of dealing damage,
+#: NULL on a `DamageNugget`). "Can damage the victim" = `+0x04` AND (`+0x1C` OR `+0x2C != 0`).
+NUGGET_VTBL_VALID_VICTIM = 0x04
+NUGGET_VTBL_DEALS_DAMAGE = 0x1C
+NUGGET_VTBL_SUBWEAPON = 0x2C
+
+#: The two `DamageNugget` vtable slot bodies the discriminator rests on, anchored so a build that
+#: read them differently fails before applying. `+0x1C` -> `mov al,1; ret`; `+0x2C` -> `xor
+#: eax,eax; ret`.
+DAMAGE_NUGGET_DEALS_DAMAGE_BODY = 0x008BD372
+DAMAGE_NUGGET_DEALS_DAMAGE_BODY_BYTES = bytes.fromhex("b001c3")
+DAMAGE_NUGGET_SUBWEAPON_BODY = 0x00851E97
+DAMAGE_NUGGET_SUBWEAPON_BODY_BYTES = bytes.fromhex("33c0c3")

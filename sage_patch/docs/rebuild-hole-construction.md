@@ -1,7 +1,9 @@
 # A structure destroyed while it is rebuilding leaves no rebuild hole
 
-RotWK `game.dat` 2.01.2614.37001, ImageBase `0x400000`. Static analysis only — nothing here has
-been confirmed against a running game.
+RotWK `game.dat` 2.01.2614.37001, ImageBase `0x400000`. Sections 1–4 are static analysis; §6
+records what a running game showed — the patch fires and the hole is created, but it spawns buried
+(`CollapseHeight` below ground) on the rebuild path. Read §6 before trusting §4's "nothing
+downstream differs."
 
 ## 1. The lifecycle, as the engine runs it
 
@@ -139,16 +141,88 @@ differ between a finished lair and one at 5% construction, and the template it h
 `startRebuild` is the lair either way — so the hole created from a half-built lair rebuilds the
 same thing the hole created from a finished one does.
 
-## 5. What is not established
+> **Correction (runtime, §6).** The position at `+0x38` *does* differ, and it is load-bearing.
+> `onDie` copies the dying object's live position onto the new hole (`0x00889B4E`,
+> `lea eax, [esi+0x38]` → `setPosition`), and for a lair that dies mid-rebuild that position has
+> already been dropped by the collapse — so the hole is stamped ~`CollapseHeight` below ground and
+> buried. The rest of this section holds; the "none of those differ" clause does not.
 
-- **Runtime.** Every claim above is a reading of the machine code. In particular, that a structure
-  destroyed while `UNDER_CONSTRUCTION` reaches `onDie` at all is inferred from the branch's own
-  existence — a test on a state the function is never entered in would be dead code — and from
-  `ExemptStatus` being wired to the same bits. It has not been watched happen.
-- **The sinking hole.** The retiring hole is killed, not deleted, and `NeutralStructureHole` gives
-  it `SlowDeathBehavior` with `DestructionDelay = 2000`. Killing the rebuilding lair inside that
-  ~2 s window creates a second hole while the first is still sinking. The sinking one is already
-  `DESTROYED` so it should not rebuild anything, but the overlap is cosmetically visible and has
-  not been observed.
-- **`0x006AAC52`**, the per-player predicate at `0x00889AF6`, and which player `ThePlayerList+0x18`
-  is, are both left unread. Neither is on the patched path.
+## 5. What was not established statically — now resolved in §6
+
+The static write-up left three things open. §6 closes them against a running game:
+
+- **Does the death reach `onDie` at all?** Yes — a lair killed mid-rebuild creates its hole.
+- **The two upstream player gates** (`0x00889AE7`, `0x00889AFD`) — these *are* on the path, ahead
+  of the erased branch, and the static doc wrongly waved them off as "not on the patched path."
+  Runtime shows they pass for a rebuilding lair, because it carries the same owner as an intact
+  one. Resolved below.
+- **The retiring first hole.** Watched: it retires with `FADED` (no payout) the moment its lair
+  dies, exactly as designed. It does not fight the new hole.
+
+## 6. Runtime verification (2026-08-23): the hole spawns, but buried
+
+Watched live against `C:\RotWK\game.dat` (the patch present and confirmed in the running
+process — the six bytes at `0x00889B0E` read back `66 0f 1f 44 00 00`, the `nop`, via
+`ReadProcessMemory`), through `sage_live`, on a paused skirmish with a Dunland lair caught
+mid-rebuild.
+
+**Setup.** The hole (`DunlandLairHole`, id 359) and the lair it was rebuilding
+(`DunlandGoblinLair`, id 361, `UNDER_CONSTRUCTION`, 19% built) both stood at `(905, 865, 396)`.
+Both were owned by player index 2, `PlyrCreeps` — the same owner as every intact lair on the map
+(`RECONSTRUCTING` was **not** set on 361, matching §3's finding that this build never sets it).
+
+**The two player gates are not the blocker.** `0x00889AE7` filters out a dying object whose
+`getControllingPlayer` (`0x0068B678`, reads team at `+0x31c`) equals `ThePlayerList+0x18`, which is
+`players[0]` — the neutral/civilian player (`engine-globals.md`, `getNthPlayer` array base `+0x18`).
+`0x00889AFD` filters on `0x006AAC52(player)`, true only when `[player+0x35a] == 0 && [player+0x754]
+== 0`. A creep lair is owned by `PlyrCreeps` (index 2), not `players[0]`, so gate one passes; and it
+shares its owner with the intact lairs that visibly drop holes, so gate two passes too. Both are
+irrelevant to the rebuild case.
+
+**The hole is created — the patch works.** On killing lair 361:
+
+```
+frame 2794   361 DunlandGoblinLair   3.6%  UNDER_CONSTRUCTION
+frame 2795   359 DunlandLairHole      0%   -     ; original hole retires (FADED)
+             361 DunlandGoblinLair     0%   -     ; the rebuilding lair, dead
+             362 DunlandLairHole    100%   -     ; *** a new hole, created by 361's onDie ***
+frame 2805   362 DunlandLairHole    100%   -     ; persists, alone
+```
+
+So a lair destroyed mid-rebuild *does* now leave a hole. The erased gate was the only logic
+suppressing it, and the two upstream gates pass. The patch's core claim is confirmed on hardware.
+
+**But the hole spawns underground.** The new hole 362 is stable — 100% health, not sinking, not
+retiring, across every sampled frame (2945–2994) — yet it sits at **Z = 280.4** while the lair it
+replaced, the hole before it, and every intact lair on the map all sit at **Z ≈ 396**. It is ~116
+units below the surface, so it cannot be seen or clicked, and holes are `NOT_AUTOACQUIRABLE`, so it
+cannot be loot-targeted either. It still rebuilds the lair underneath. From the player's chair this
+reads as "I killed it, no hole appeared, the lair just grew back" — which is the reported bug.
+
+**Control — a built lair drops its hole correctly.** Killing an intact, fully-built lair in the
+same session:
+
+```
+397 DunlandLairHole  (2488, 2956)  Z=396.0  100%   ; from a BUILT lair — ground level
+—   DunlandLairHole  ( 905,  865)  Z=280.6  100%   ; from the rebuilt lair — buried
+```
+
+So the burial is specific to the `UNDER_CONSTRUCTION` death path, not to `onDie` in general.
+
+**Cause.** `onDie` stamps the hole with the dying object's *live* position (`0x00889B4E`,
+`lea eax, [esi+0x38]` → `setPosition`). A built lair still sits at ground height at the instant its
+hole is placed. The rebuilding lair does not: its `StructureCollapseUpdate` carries
+`CollapseHeight = 120`, and `396 − 116 ≈ 280` — the collapse has already sunk the object by the
+time the hole is stamped. This is a latent flaw in the death path that the patch merely *exposed*,
+because stock never created a hole here to reveal it. It is **not** caused by the patched bytes,
+which touch only the branch and never the position.
+
+## 7. What a fix looks like
+
+The hole needs its Z snapped to terrain rather than inherited from a collapsing corpse: after
+`onDie` places the hole, overwrite its height with `TheTerrainLogic`'s ground height at the hole's
+`(x, y)`. That is a second, small patch (a code cave adding the terrain lookup and a `setPosition`
+Z write; the hole pointer is live at `0x00889BB8` where `onDie` hands it to `startRebuild`),
+composable with this one and touching bytes it does not. A data-only stopgap — lowering the lair's
+`CollapseHeight` — only shrinks the burial and distorts the collapse visual, so it is a mask, not a
+fix.

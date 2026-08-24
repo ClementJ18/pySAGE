@@ -253,6 +253,50 @@ class TestTheStockRateIsAnIdentity:
             assert STOCK_CLIENT_RATE / fps == pytest.approx(expected)
 
 
+class TestTheGateAndTheWrapAgree:
+    """**The recompute gate must hold the same number as the wrap**, at every rate.
+
+    `docs/render-rate.md` §9.10. The alpha is `subFrame / [TheGameEngine+0x38]`, and the recompute
+    at `0x0063260F` is what puts `clientRate / logicRate` in that field. It fires only on the
+    sub-frame index the gate names, so the gate has to name one that occurs - which means the
+    sub-frame the wrap ends on, exactly as stock does with 6 and 6.
+
+    The patch shipped this gate as a literal **1** for a while, on the reasoning that sub-frame 1
+    always occurs. It never occurs: the catch-up loop at `0x00632A9B` steps past it inside the same
+    logic step, which is the same thing §9.2 had already found out about the latch predicate. The
+    recompute then never ran, `+0x38` was left to `0x006323D2`'s one-way `inc` - a site reachable
+    only on a networked peer - and it ratcheted upward all match. Measured on both sides of one
+    live match: 14 on the host and 31 on the off-host against a wrap of 12, which is a 4x and a 20x
+    velocity spike at the logic-frame boundary where a correct build is 2x at any rate.
+
+    Single-player cannot see any of this, which is why it survived §9.1 through §9.7. These tests
+    are the cheap thing that would have.
+    """
+
+    @pytest.mark.parametrize("fps", [35, 60, 120, 300, MAX_FPS])
+    def test_the_gate_holds_the_same_byte_as_the_wrap(self, image: bytearray, fps: int) -> None:
+        data = _patched(image, fps)
+        wrap = at(data, WRAP + IMM8, 1)[0]
+        gate = at(data, RECOMPUTE_GATE + IMM8, 1)[0]
+        assert gate == wrap, f"at {fps} fps the gate is {gate} and the wrap is {wrap}"
+
+    @pytest.mark.parametrize("fps", [35, 60, 120, 300, MAX_FPS])
+    def test_the_gate_holds_the_ratio(self, image: bytearray, fps: int) -> None:
+        assert at(_patched(image, fps), RECOMPUTE_GATE + IMM8, 1)[0] == RenderRatePatch(fps).ratio
+
+    def test_the_gate_is_never_one(self, image: bytearray) -> None:
+        """The specific wrong answer, named so a regression says why it is wrong rather than only
+        that a number changed. Sub-frame 1 is not observable on this binary."""
+        for fps in (35, 60, 120, 300, MAX_FPS):
+            assert at(_patched(image, fps), RECOMPUTE_GATE + IMM8, 1)[0] != 1
+
+    def test_at_the_stock_rate_both_recompute_the_stock_byte(self, image: bytearray) -> None:
+        """The identity `TestTheStockRateIsAnIdentity` documents, extended to the gate: 30 fps
+        would write 6 into both, which is what the unpatched build already holds. A gate that did
+        not have this property would be writing a constant rather than deriving one."""
+        assert STOCK_CLIENT_RATE // STOCK_LOGIC_RATE == ANCHORS[RECOMPUTE_GATE][IMM8] == 6
+
+
 class TestTheAnchorsAgreeWithTheEdits:
     """The stock constants are written down twice - in `ANCHORS`, which the stand-in is built
     from, and on the "old" side of every edit. Two copies that agreed with each other but not with

@@ -10,6 +10,7 @@ from sage_patch.patcher import Patch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
 from sage_patch.patches.asset_load_profile import AssetLoadProfilePatch
+from sage_patch.patches.attack_requires_damage import AttackRequiresDamagePatch
 from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.banner_modifier import BannerModifierPatch
@@ -65,6 +66,7 @@ from sage_patch.patches.production_split import (
     ProductionSplitWorldbuilderPatch,
 )
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
+from sage_patch.patches.quiet_exit import QuietExitPatch
 from sage_patch.patches.rebuild_hole_construction import RebuildHoleConstructionPatch
 from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
@@ -127,6 +129,7 @@ PATCHES: dict[str, type[Patch]] = {
     HeroBarSlotsPatch.name: HeroBarSlotsPatch,
     InfantryLightingPatch.name: InfantryLightingPatch,
     MultiExecuteGatePatch.name: MultiExecuteGatePatch,
+    AttackRequiresDamagePatch.name: AttackRequiresDamagePatch,
     SpawnUnionPatch.name: SpawnUnionPatch,
     QueueIgnoreCpPatch.name: QueueIgnoreCpPatch,
     HeroRecruitParallelPatch.name: HeroRecruitParallelPatch,
@@ -149,6 +152,7 @@ PATCHES: dict[str, type[Patch]] = {
     RechargeRescalePatch.name: RechargeRescalePatch,
     CooldownThroughDeathPatch.name: CooldownThroughDeathPatch,
     CrashDumpPatch.name: CrashDumpPatch,
+    QuietExitPatch.name: QuietExitPatch,
     CaptureTheFlagPatch.name: CaptureTheFlagPatch,
     WorldbuilderModPatch.name: WorldbuilderModPatch,
     WorldbuilderLabelAssertPatch.name: WorldbuilderLabelAssertPatch,

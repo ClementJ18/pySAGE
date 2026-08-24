@@ -426,6 +426,18 @@ def crash_dump_image() -> bytearray:
     )
 
 
+def quiet_exit_image() -> bytearray:
+    """A stand-in carrying the unhandled-exception filter's `call writeMiniDump`, the one site
+    `quiet-exit` rewrites.
+
+    The smallest stand-in here: the patch reads and edits exactly one five-byte call, and its cave
+    reads `TheGameEngine` only at crash time, never at apply time - so nothing else has to exist.
+    Everything not planted reads as zero, which is what makes the image negative as well: a hook
+    aimed one instruction to either side of the call finds nothing there.
+    """
+    return _sparse_image({ad.WRITE_MINI_DUMP_CALL_FILTER: ad.WRITE_MINI_DUMP_CALL_FILTER_BYTES})
+
+
 def description_timers_image() -> bytearray:
     """A stand-in carrying the tooltip builder's two windows and every routine the cave reaches.
 

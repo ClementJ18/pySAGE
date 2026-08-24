@@ -19,12 +19,24 @@ two that decide whether the feature is reachable, because neither has ever been 
      client frame: an increment of 0.0333 per client frame is "FX at double speed" proved
      mechanically rather than argued.
 
+  3. **Does the alpha's denominator hold still on a networked client?**
+     `+0x38` is not a reporting field: it is what the alpha divides by, so every interpolated
+     transform and every W3D animation lerp is scaled by it. `0x006323D2` grows it while a peer
+     is behind, and that site is unreachable without a network object - so it can only ever
+     move off-host. §9.10 is that measurement, and it is the one the "multiplayer must work"
+     directive turns on.
+
 **Read-only, and needs no patch** - which is the point. Run it on a stock install first for the
 30 fps baseline, then on a render-rate build at 60 and diff the two JSON files. It does need an
 elevated shell, because `game.dat` runs as administrator.
 
     python examples/sage_live/render_rate_probe.py
     python examples/sage_live/render_rate_probe.py --seconds 5 --json baseline-30.json
+
+For the multiplayer question, run the frozen build on **both** machines during the same match -
+the host and the off-host - and diff the two files. `dist/render_rate_probe.exe`, built with:
+
+    pyinstaller examples/sage_live/render-rate-probe.spec
 """
 
 from __future__ import annotations
@@ -36,8 +48,10 @@ import sys
 import time
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root on path
+if not getattr(sys, "frozen", False):  # a frozen build carries its imports; the path would be junk
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root on path
 
 from sage_live.backends.memory import (  # noqa: E402
     LAYOUT_ROTWK_201,
@@ -69,6 +83,17 @@ ENGINE_MAX_FPS = 0x0C
 ENGINE_SUBFRAME = 0x34
 ENGINE_RATIO = 0x38
 ENGINE_ALPHA = 0x3C
+ENGINE_RATES_CHANGED = 0x40  # the latch the +0x38 recompute needs set before it will run
+ENGINE_SUBFRAME_HIGH = 0x44  # the float high-water mark 0x0063239D keeps beside the ratio
+
+# The network pacing state (render-rate.md §9.10). `+0x38` is the alpha's denominator, and on a
+# networked client it is not a constant: `0x0063239D` grows it with `inc dword [esi+0x38]` when a
+# peer is behind. Its only other writer is the recompute at `0x0063260F`, which the patch gates on
+# a sub-frame index that never occurs - so the growth is one-way. These are the fields that say so.
+NET_OBJECT = 0x00DE4468  # the network singleton; null in single-player and in replays
+NET_SLOWDOWN = 0x00D9F498  # the scalar the Sleep(0) pace multiplies m_maxFPS by (§2)
+RECOMPUTE_GATE_IMM = 0x00632606  # imm8 of `cmp ecx, N` at 0x00632604 - stock 6, the patch wrote 1
+WRAP_IMM = 0x0063264C  # imm8 of `cmp eax, N` at 0x0063264A - stock 6, the patch writes the ratio
 
 # GameClient+0x10 is the client frame; its getter is vtable +0x7C (`mov eax,[ecx+0x10]; ret`).
 CLIENT_FRAME = 0x10
@@ -118,6 +143,10 @@ class Probe:
     def u32(self, address: int) -> int | None:
         raw = self.memory.read(address, 4)
         return struct.unpack("<I", raw)[0] if raw else None
+
+    def u8(self, address: int) -> int | None:
+        raw = self.memory.read(address, 1)
+        return raw[0] if raw else None
 
     def i32(self, address: int) -> int | None:
         raw = self.memory.read(address, 4)
@@ -239,6 +268,7 @@ def measure_pace(probe: Probe, seconds: float) -> dict:
     first_logic = int(must(probe.u32(logic + LOGIC_FRAME), "the logic frame"))
     alphas: list[float] = []
     subframes: Counter[int] = Counter()
+    ratios: Counter[int] = Counter()
     seen_client = first_client
     start = time.perf_counter()
     while time.perf_counter() - start < seconds:
@@ -247,17 +277,20 @@ def measure_pace(probe: Probe, seconds: float) -> dict:
             seen_client = now
             alpha = probe.f32(engine + ENGINE_ALPHA)
             sub = probe.i32(engine + ENGINE_SUBFRAME)
+            ratio = probe.i32(engine + ENGINE_RATIO)
             if alpha is not None:
                 alphas.append(alpha)
             if sub is not None:
                 subframes[sub] += 1
+            if ratio is not None:
+                ratios[ratio] += 1
     elapsed = time.perf_counter() - start
     last_client = int(must(probe.u32(client + CLIENT_FRAME), "the client frame"))
     last_logic = int(must(probe.u32(logic + LOGIC_FRAME), "the logic frame"))
 
     client_hz = (last_client - first_client) / elapsed
     logic_hz = (last_logic - first_logic) / elapsed
-    result = {
+    result: dict[str, Any] = {
         "seconds": round(elapsed, 3),
         "client_frames": last_client - first_client,
         "logic_frames": last_logic - first_logic,
@@ -268,15 +301,131 @@ def measure_pace(probe: Probe, seconds: float) -> dict:
         "alpha_min": round(min(alphas), 4) if alphas else None,
         "alpha_max": round(max(alphas), 4) if alphas else None,
         "distinct_alphas": len({round(a, 4) for a in alphas}),
+        "alpha_saturated": (
+            round(sum(1 for a in alphas if a >= 1.0) / len(alphas), 3) if alphas else None
+        ),
+        "ratios_seen": sorted(ratios),
     }
     print("\npace")
     print(f"  client {result['client_hz']} fps over {result['seconds']}s")
     print(f"  logic  {result['logic_hz']} Hz    observed ratio {result['observed_ratio']}")
     print(f"  sub-frames seen: {result['subframes_seen']}")
+    print(f"  +0x38 ratio while sampling: {result['ratios_seen']}")
     print(
         f"  alpha {result['alpha_min']} .. {result['alpha_max']}"
         f" in {result['distinct_alphas']} distinct values"
     )
+    saturated = result["alpha_saturated"]
+    if saturated is not None:
+        print(f"  alpha pinned at 1.0 on {saturated:.0%} of client frames")
+        if saturated > 0.5:
+            print("    ! interpolation is mostly not happening - drawables snap once per")
+            print("      logic frame however many client frames are drawn between them")
+    # A sweep that neither starts at 0 nor finishes at 1 leaves a discontinuity at the logic
+    # frame boundary: the drawable stops short of the current position, then the matrices roll
+    # over and it restarts part-way into the next segment. That gap, once per logic frame, is
+    # what a stutter looks like from here - so name it rather than leaving it to be read off
+    # two numbers.
+    lo, hi = result["alpha_min"], result["alpha_max"]
+    ratio = ratios.most_common(1)[0][0] if ratios else None
+    if lo is not None and hi is not None:
+        snap = (1.0 - hi) + lo
+        result["snap_per_logic_frame"] = round(snap, 4)
+        # The gap on its own reads worse than it looks, because a healthy build has one too: the
+        # catch-up loop eats sub-frame 1, so the alpha starts at 2/ratio and the boundary frame
+        # always moves double. What matters is the gap measured *against the frame either side of
+        # it* - a healthy build spikes 2.0x at any rate, and anything above that is this defect.
+        spike = snap * ratio if ratio else None
+        result["boundary_spike"] = round(spike, 2) if spike else None
+        print(
+            f"  -> {snap:.0%} of each step is skipped at the logic-frame boundary,"
+            f" {result['logic_hz']} times a second"
+        )
+        if spike:
+            print(f"  -> the boundary frame moves {spike:.1f}x a normal frame (healthy is 2.0x)")
+    return result
+
+
+def measure_network(probe: Probe, seconds: float) -> dict:
+    """Whether the alpha's denominator holds still, and what moves it when it does not.
+
+    The interpolation alpha is `clamp(+0x34 / +0x38, 0, 1)` (`0x0063256F`), so `+0x38` is not a
+    reporting field - it is the divisor every interpolated transform and every W3D animation lerp
+    is scaled by. Two sites write it:
+
+      * `0x0063260F`, the recompute, which sets it to `clientRate / logicRate`. It needs both the
+        rates-changed latch at `+0x40` **and** the sub-frame index named by the imm8 at
+        `0x00632606`. Stock that imm8 is 6, which occurs; the patch wrote 1, which §9.2 measured
+        373 frames without ever seeing. A recompute that never runs leaves `+0x38` at the 1 the
+        constructor put there (`0x0063A4DE`).
+
+      * `0x006323D2`, `inc dword [esi+0x38]`, inside `0x0063239D`. That function returns early at
+        `0x006323A6` when `[0x00DE4468]` is null, so it cannot run in single-player or in a
+        replay - **only on a networked client**, and only while it is waiting on a peer.
+
+    So the two questions this phase answers are "is `+0x38` the ratio the wrap uses" and "is it
+    moving", and the second one can only ever be yes off-host. Run this on both machines during
+    the same match and diff the two JSON files.
+    """
+    engine = probe.pointer(THE_GAME_ENGINE)
+    if engine is None:
+        raise SystemExit("TheGameEngine is unreadable")
+
+    gate = probe.memory.read(RECOMPUTE_GATE_IMM, 1)
+    wrap = probe.memory.read(WRAP_IMM, 1)
+    if gate is None or wrap is None:
+        raise SystemExit("could not read the pacing code - is this shell elevated?")
+    gate_subframe, wrap_at = gate[0], wrap[0]
+
+    net = probe.pointer(NET_OBJECT)
+    ratios: list[int] = []
+    seen = None
+    start = time.perf_counter()
+    while time.perf_counter() - start < seconds:
+        ratio = probe.i32(engine + ENGINE_RATIO)
+        if ratio is not None and ratio != seen:
+            seen = ratio
+            ratios.append(ratio)
+
+    ratio_now = probe.i32(engine + ENGINE_RATIO)
+    result = {
+        "networked": net is not None,
+        "net_object": f"0x{net:08X}" if net else None,
+        "slowdown_scalar": probe.f32(NET_SLOWDOWN),
+        "rates_changed_latch": probe.u8(engine + ENGINE_RATES_CHANGED),
+        "subframe_high_water": probe.f32(engine + ENGINE_SUBFRAME_HIGH),
+        "recompute_gate_subframe": gate_subframe,
+        "wrap_at": wrap_at,
+        "ratio": ratio_now,
+        "ratio_track": ratios,
+        "ratio_moved": len(set(ratios)) > 1,
+        "ratio_matches_wrap": ratio_now == wrap_at,
+    }
+
+    print("\nnetwork pacing")
+    print(f"  [0x00DE4468] network object : {result['net_object'] or 'null (single-player)'}")
+    print(f"  [0x00D9F498] slowdown scalar: {result['slowdown_scalar']}")
+    print(f"  +0x38 ratio = {ratio_now}    wrap at 0x0063264A = {wrap_at}")
+    print(
+        f"  recompute gate fires on sub-frame {gate_subframe}    +0x40 latch ="
+        f" {result['rates_changed_latch']}"
+    )
+    if len(set(ratios)) > 1:
+        print(f"  ! +0x38 MOVED while sampling: {ratios}")
+        print("    0x006323D2 is growing it and nothing resets it - the alpha's denominator")
+        print("    is drifting away from the wrap, so interpolation runs short and then snaps")
+    if not result["ratio_matches_wrap"]:
+        print(
+            f"  ! +0x38 ({ratio_now}) disagrees with the wrap ({wrap_at}): the alpha spans"
+            f" {ratio_now} sub-frames"
+        )
+        print(
+            f"    but the logic frame spans {wrap_at}, so motion is wrong by"
+            f" {wrap_at / ratio_now if ratio_now else float('inf'):.2f}x"
+        )
+    if gate_subframe == 1:
+        print("  ! the recompute gate is sub-frame 1, which the catch-up loop at 0x00632A9B")
+        print("    skips past every logic frame - so +0x38 is never restored (see 9.10)")
     return result
 
 
@@ -503,6 +652,7 @@ def main() -> None:
         "rates": rates,
         "binary": describe_divergence(probe, int(rates["client_rate"])),
         "pace": measure_pace(probe, args.seconds),
+        "network": measure_network(probe, args.seconds),
         "interpolation": measure_interpolation(probe, args.seconds),
         "fx": measure_fx(probe, args.seconds),
     }

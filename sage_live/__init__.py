@@ -56,6 +56,14 @@ from sage_live.api.connect import (
     attach,
     open_backend,
 )
+from sage_live.api.desync import (
+    DEFAULT_HISTORY,
+    DesyncWatcher,
+    Divergence,
+    Sample,
+    compare,
+    read_log,
+)
 from sage_live.api.observation import (
     GameObject,
     Observation,
@@ -115,6 +123,7 @@ __all__ = [
     "BUILD_CONFIRM",
     "DEFAULT_APM_CAP",
     "DEFAULT_CONFIRM",
+    "DEFAULT_HISTORY",
     "LAYOUT_ROTWK_201",
     "OBSERVATION_STRUCT_VERSION",
     "PROTOCOL_VERSION",
@@ -127,6 +136,8 @@ __all__ = [
     "ConnectionRefused",
     "Diagnostic",
     "DiagnosticLog",
+    "DesyncWatcher",
+    "Divergence",
     "EngineLayout",
     "Frame",
     "GameExited",
@@ -152,6 +163,7 @@ __all__ = [
     "RecordingSource",
     "ReviveLookup",
     "ReviveSlot",
+    "Sample",
     "Sent",
     "Session",
     "SnapshotSource",
@@ -160,6 +172,7 @@ __all__ = [
     "Vec3",
     "ViewLocation",
     "attach",
+    "compare",
     "decode_frames",
     "decode_handshake",
     "decode_observation",
@@ -170,4 +183,5 @@ __all__ = [
     "find_game_processes",
     "open_backend",
     "orders",
+    "read_log",
 ]

@@ -53,6 +53,14 @@ do not cross. That is the same requirement `production-condition` and `multi-exe
 **Composition.** No cave and nothing read from another patch's output: six bytes rewritten in
 place, at an address no other bundled patch touches — they sit at ``0x0079``, ``0x008A``,
 ``0x0094``, ``0x009A`` and ``0x00DA``. Order-independent with everything.
+
+**Runtime caveat (see docs §6).** Confirmed on a running game: the hole *is* created, so the fix
+works as far as this patch goes. But ``onDie`` stamps the hole with the dying object's live
+position, and a lair killed mid-rebuild has already been sunk by its ``StructureCollapseUpdate``
+(``CollapseHeight``), so the hole spawns ~120 units underground — buried, unclickable, un-lootable,
+though it still rebuilds the lair. Fixing that (snap the hole's Z to terrain height) is a separate
+follow-up patch; the claim above that everything downstream "behaves identically for a half-built
+lair and a finished one" is wrong on exactly this point — the *position* differs.
 """
 
 from __future__ import annotations

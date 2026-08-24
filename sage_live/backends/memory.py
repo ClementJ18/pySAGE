@@ -379,6 +379,12 @@ class EngineLayout:
     gl_table_begin: int = 0xB8
     gl_table_end: int = 0xBC
     gl_object_count: int = 0xC4
+    # Set to 1 when this client declares itself out of sync, zero for the rest of the match. A
+    # latch rather than a pulse, which is what lets a 5 Hz poller be sure of catching the edge.
+    # Derived statically; see `sage_patch/docs/desync-detection.md` for the two sites that write
+    # it. Unlike its neighbours above this one has **not** been confirmed against a running
+    # process, because confirming it needs a match that actually desyncs.
+    gl_desync_declared: int = 0x1BC
 
     # Table entry: a wrapper, not the object itself
     entry_id: int = 0x04
@@ -1702,6 +1708,19 @@ class MemoryBackend:
         if gl is None:
             return 0
         return self._u32(gl + self.layout.gl_frame) or 0
+
+    def desync_declared(self) -> bool | None:
+        """Has this client declared itself out of sync?
+
+        None when the byte cannot be read at all - no `TheGameLogic`, or a handle that lost its
+        process - which is a different answer from False and must not be rounded down to it: a
+        watcher that reads None has stopped watching, and should say so rather than report sync.
+        """
+        gl = self._game_logic()
+        if gl is None:
+            return None
+        raw = self.source.read(gl + self.layout.gl_desync_declared, 1)
+        return None if raw is None else raw[0] != 0
 
     def read_shroud(self, players: Sequence[int]) -> ShroudGrid | None:
         """The visibility grid for `players`, or None when there is no readable one.
