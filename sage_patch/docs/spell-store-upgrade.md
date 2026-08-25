@@ -82,8 +82,12 @@ and therefore remains the single source of stock behaviour.
 | generic repeated-field parser and 128-row table | **HIGH** | apply/verify and synthetic disassembly tests; not yet played |
 | upgrade classification (`PLAYER_UPGRADE` vs `OBJECT_UPGRADE`) | **OPEN** | no type offset is known; an object-only upgrade simply has no completed bit in this player mask |
 
-The hardcoded index-149 prototype has been observed switching the SpellStore in play. The generic
-name-based parser and multi-mapping implementation have not, so this patch remains experimental.
+The hardcoded index-149 prototype has been observed switching the SpellStore in play.
+The Patch has been tested ingame as well. For now tested and confirmed:
+- Switching the CommandSet upon researching the referenced Player-Upgrade
+- Non-Existing Upgrades/CommandSets are ignored (no crash)
+- At least 3 PurchaseScienceCommandSetUpgrade Parameters are possible
+- The SpellStore CommandSet can be changed repeatedly upon researching new Player-Upgrades
 
 ## Static safety and composition
 

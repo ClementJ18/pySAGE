@@ -176,3 +176,4 @@ Worldbuilder.exe
 # Transcripts of live bot runs (`sage_mods.edain.bot ... | tee`). Local evidence of one match,
 # hundreds of KB each and only meaningful next to the build that produced them.
 sage_mods/edain/bot/runs/
+applymypatches.py

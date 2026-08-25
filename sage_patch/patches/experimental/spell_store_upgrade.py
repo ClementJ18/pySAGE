@@ -281,7 +281,7 @@ class SpellStoreUpgradePatch(Patch):
     """Install the INI mapping table and the spell-store-only selector."""
 
     name = "spell-store-upgrade"
-    author = "Ostkannit & OpenAI"
+    author = "Ostkannit"
     experimental = True
     description = (
         "Select the SpellStore CommandSet from the current player's completed upgrades through "
