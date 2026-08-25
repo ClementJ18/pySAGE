@@ -18,11 +18,11 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Fourteen of the registered patches — **`hero-mana`**, **`second-resource`**,
+> Thirteen of the registered patches — **`hero-mana`**, **`second-resource`**,
 > **`campaign-select`**, **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**,
 > **`live-bridge`**, **`living-world-override`**, **`cooldown-through-death`**,
-> **`capture-the-flag`**, **`smart-rally`**, **`special-power-charges`**,
-> **`spell-store-upgrade`** and **`render-rate`**
+> **`capture-the-flag`**, **`smart-rally`**, **`special-power-charges`**
+> and **`render-rate`**
 > — are **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
