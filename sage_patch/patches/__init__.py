@@ -20,6 +20,7 @@ from sage_patch.patches.experimental.living_world_override import LivingWorldOve
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
+from sage_patch.patches.experimental.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
@@ -76,6 +77,7 @@ __all__ = [
     "SecondResourcePatch",
     "SkirmishReplayPatch",
     "SmartRallyPatch",
+    "SpellStoreUpgradePatch",
     "SpawnUnionPatch",
     "TerrainResourceExpPatch",
     "TriggerRechargeListPatch",

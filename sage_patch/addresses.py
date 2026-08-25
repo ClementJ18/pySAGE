@@ -133,6 +133,8 @@ __all__ = [
     "COMMAND_BUTTON_FREE_OFFSET",
     "COMMAND_BUTTON_SIZE",
     "COMMAND_BUTTON_SPECIAL_POWER",
+    "COMMAND_SET_STORE_FIND_COMMAND_SET",
+    "COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET",
     "COMMAND_POINTS_HAS_ENOUGH",
     "COMMAND_POINTS_IN_USE",
     "CONTAIN_GET_HORDE_IFACE",
@@ -403,6 +405,8 @@ __all__ = [
     "PLAYER_LIST_OBSERVE_NEXT_PLAYER",
     "PLAYER_MONEY",
     "PLAYER_PLAYER_TEMPLATE",
+    "PLAYER_COMPLETED_UPGRADE_MASK",
+    "PLAYER_COMPLETED_UPGRADE_MASK_WORDS",
     "PLAYER_SCORE_KEEPER",
     "PLAYER_SET_TYPE",
     "PLAYER_SET_TYPE_BYTES",
@@ -431,6 +435,8 @@ __all__ = [
     "PLAYER_TEMPLATE_FIND_BY_KEY",
     "PLAYER_TEMPLATE_NAME_KEY",
     "PLAYER_TEMPLATE_PTR",
+    "PLAYER_TEMPLATE_PURCHASE_SCIENCE_COMMAND_SET",
+    "PLAYER_TEMPLATE_PURCHASE_SCIENCE_COMMAND_SET_MP",
     "PLAYER_TEMPLATE_RESOURCE_FILTER",
     "PLAYER_TEMPLATE_RESOURCE_VALUES",
     "PLAYER_TEMPLATE_SIZE",
@@ -572,6 +578,9 @@ __all__ = [
     "START_RECORDING_MODE_ARG",
     "STATIC_NAME_KEY_KEY",
     "STATIC_NAME_KEY_KEY_BYTES",
+    "SPELL_STORE_COMMAND_SET_CALL",
+    "SPELL_STORE_COMMAND_SET_CALL_BYTES",
+    "SPELL_STORE_INITIALIZE_SPELL_SLOTS",
     "TERRAIN_RESOURCE_BUILD_FIELD_PARSE",
     "TERRAIN_RESOURCE_DEFAULT_STORES",
     "TERRAIN_RESOURCE_DEFAULT_STORES_BYTES",
@@ -622,6 +631,7 @@ __all__ = [
     "THE_TACTICAL_VIEW",
     "THE_THING_FACTORY",
     "THE_UPGRADE_CENTER",
+    "UPGRADE_TEMPLATE_INDEX",
     "THE_VICTORY_CONDITIONS",
     "THING_FACTORY_FIND_TEMPLATE",
     "THING_FACTORY_FIND_TEMPLATE_ENTRY",
@@ -1943,6 +1953,8 @@ PLAYER_TEMPLATE_FIELD_TABLE_REF_OPCODES = (0x68,)  # push imm32
 #: `PlayerTemplateStore::findPlayerTemplate` (`0x005FCA2E`) walks that vector comparing exactly
 #: this dword, which is what proves it survives the copy.
 PLAYER_TEMPLATE_NAME_KEY = 0x10
+PLAYER_TEMPLATE_PURCHASE_SCIENCE_COMMAND_SET = 0x138
+PLAYER_TEMPLATE_PURCHASE_SCIENCE_COMMAND_SET_MP = 0x13C
 PLAYER_TEMPLATE_RESOURCE_FILTER = 0x1C8  # ResourceModifierObjectFilter (an interned handle)
 PLAYER_TEMPLATE_RESOURCE_VALUES = 0x1CC  # ResourceModifierValues, a std::vector<Int>
 PLAYER_TEMPLATE_SIZE = 0x1DC
@@ -1962,6 +1974,24 @@ PLAYER_TEMPLATE_FIND_BY_KEY = 0x005FCA2E
 #: `ThingTemplate.CommandPoints` (`+0x628`) as it is created and destroyed.
 PLAYER_PLAYER_TEMPLATE = 0x34
 PLAYER_COMMAND_POINTS_USED = 0x68
+
+# The completed per-player upgrade mask is a fixed 36-dword bitset. An upgrade's bit is selected
+# by `UpgradeTemplate::upgradeIndex`: word `index >> 5`, bit `index & 31`. The spell-store
+# override resolves names at run time, validates the index against this exact bound, and reads no
+# pending/requested mask beside it.
+PLAYER_COMPLETED_UPGRADE_MASK = 0x14C
+PLAYER_COMPLETED_UPGRADE_MASK_WORDS = 36
+UPGRADE_TEMPLATE_INDEX = 0x38
+
+# `AptSpellStore::initializeSpellSlots`, and its one call that asks for the player's purchase-
+# science CommandSet. The patch deliberately retargets this call rather than the shared callee,
+# so every other ControlBar/CommandSetStore consumer keeps stock behaviour. The stock rel32 lands
+# at `0x0071F933`; `0x0071EFA2` is the same store's name lookup used by the selector after a match.
+SPELL_STORE_INITIALIZE_SPELL_SLOTS = 0x00822A98
+SPELL_STORE_COMMAND_SET_CALL = 0x00822ACF
+SPELL_STORE_COMMAND_SET_CALL_BYTES = bytes.fromhex("e85fceefff")
+COMMAND_SET_STORE_FIND_COMMAND_SET = 0x0071EFA2
+COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET = 0x0071F933
 
 #: The rest of the command-point block, as `Player::getCommandPointsAvailable` combines them:
 #: `cap = min(+0x64 base + +0x6C bonus + <filtered extras>, +0x70 hard)`. The extras are a

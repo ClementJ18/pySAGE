@@ -18,10 +18,11 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Thirteen of the registered patches — **`hero-mana`**, **`second-resource`**,
+> Fourteen of the registered patches — **`hero-mana`**, **`second-resource`**,
 > **`campaign-select`**, **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**,
 > **`live-bridge`**, **`living-world-override`**, **`cooldown-through-death`**,
-> **`capture-the-flag`**, **`smart-rally`**, **`special-power-charges`** and **`render-rate`**
+> **`capture-the-flag`**, **`smart-rally`**, **`special-power-charges`**,
+> **`spell-store-upgrade`** and **`render-rate`**
 > — are **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -389,6 +390,17 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   engine's own formatter with a third vararg, so it needs no `.apt` and no `.csf`/`.str` edit
   (a mod's `APT:PalantirCommandPoints` string is a design-time placeholder the engine overwrites
   every refresh). `--no-hud` leaves the text stock.
+- **`spell-store-upgrade`** selects a different purchase-science `CommandSet` from the **current
+  player's completed upgrades**. A repeatable `PlayerTemplate` field declares each mapping as
+  `PurchaseScienceCommandSetUpgrade = Upgrade_Name CommandSet_Name`; names are retained until use,
+  then the upgrade is resolved, its `upgradeIndex` is tested against the player's 36-dword mask,
+  and the first active mapping whose CommandSet exists wins. Unknown names and no active mapping
+  fall through to the untouched stock selector. Only the call at `0x00822ACF` inside
+  `AptSpellStore::initializeSpellSlots` is redirected; the shared selector at `0x0071F933` and all
+  its other callers remain stock. Closing and reopening the SpellStore re-evaluates the table.
+  **Experimental:** the one-upgrade prototype was observed in play, but the generic INI parser and
+  multi-mapping table have only static coverage. See
+  [`docs/spell-store-upgrade.md`](docs/spell-store-upgrade.md).
 - **`science-prereqs`** lets **`PrerequisiteSciences` name a science defined later in the file**,
   so a mutually dependent pair (`C` needs `A or D`, `D` needs `B or C`) no longer has to be closed
   from `map.ini`. It is the smallest patch here — one `rel32` and a 16-byte cave — because
@@ -1235,6 +1247,10 @@ sage-patch verify hero-mana --pool 100 --regen 30 game.dat
 # command-point text exactly as the stock engine draws it
 sage-patch apply command-point-upkeep --in game.dat.backup --out game.dat
 sage-patch verify command-point-upkeep game.dat
+
+# spell-store CommandSets selected by completed PLAYER_UPGRADE mappings in PlayerTemplate INI
+sage-patch apply spell-store-upgrade --in game.dat.backup --out game.dat
+sage-patch verify spell-store-upgrade game.dat
 
 # a second currency: granted, shown and spent
 sage-patch apply second-resource --in game.dat.backup --out game.dat
