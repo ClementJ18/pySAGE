@@ -1,7 +1,7 @@
 """Select the spell-store CommandSet from a player's completed upgrades.
 
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. The hook and layouts are
-derived in ``../../docs/spell-store-upgrade.md``.
+derived in ``../docs/spell-store-upgrade.md``.
 
 The stock engine picks one `PurchaseScienceCommandSet` through the shared routine at
 ``0x0071F933``. Retargeting that routine would change every caller, so this patch redirects only
@@ -34,7 +34,7 @@ import struct
 
 from sage_ini.engine import Engine, FieldDelta
 
-from ...addresses import (
+from ..addresses import (
     COMMAND_SET_STORE_FIND_COMMAND_SET,
     COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET,
     PLAYER_COMPLETED_UPGRADE_MASK,
@@ -49,12 +49,12 @@ from ...addresses import (
     THE_UPGRADE_CENTER,
     UPGRADE_TEMPLATE_INDEX,
 )
-from ...asm import JAE, JE, JNE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
-from ..utils.field_tables import ROW_SIZE, Entry, entries_before, read_field_table, resolve_table
-from ..utils.name_tables import read_cstring
-from ..utils.token_lists import (
+from ..asm import JAE, JE, JNE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from .utils.field_tables import ROW_SIZE, Entry, entries_before, read_field_table, resolve_table
+from .utils.name_tables import read_cstring
+from .utils.token_lists import (
     ASCII_STRING_ASSIGN,
     ASCII_STRING_DTOR,
     ASCII_STRING_IS_EMPTY,
@@ -282,7 +282,7 @@ class SpellStoreUpgradePatch(Patch):
 
     name = "spell-store-upgrade"
     author = "Ostkannit"
-    experimental = True
+    experimental = False
     description = (
         "Select the SpellStore CommandSet from the current player's completed upgrades through "
         "repeatable PlayerTemplate PurchaseScienceCommandSetUpgrade = Upgrade CommandSet pairs; "

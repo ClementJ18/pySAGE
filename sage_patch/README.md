@@ -398,9 +398,7 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   fall through to the untouched stock selector. Only the call at `0x00822ACF` inside
   `AptSpellStore::initializeSpellSlots` is redirected; the shared selector at `0x0071F933` and all
   its other callers remain stock. Closing and reopening the SpellStore re-evaluates the table.
-  **Experimental:** the one-upgrade prototype was observed in play, but the generic INI parser and
-  multi-mapping table have only static coverage. See
-  [`docs/spell-store-upgrade.md`](docs/spell-store-upgrade.md).
+  Runtime selection and fallback have been verified in-game. The patch is intentionally scoped to the SpellStore callsite and composes with the existing PlayerTemplate field-table extension mechanism. The two helper ABIs remain reverse-engineered (HIGH confidence), so the implementation keeps explicit byte assertions, bounds checks, and stock fallback behavior. See  [`docs/spell-store-upgrade.md`](docs/spell-store-upgrade.md).
 - **`science-prereqs`** lets **`PrerequisiteSciences` name a science defined later in the file**,
   so a mutually dependent pair (`C` needs `A or D`, `D` needs `B or C`) no longer has to be closed
   from `map.ini`. It is the smallest patch here — one `rel32` and a 16-byte cave — because

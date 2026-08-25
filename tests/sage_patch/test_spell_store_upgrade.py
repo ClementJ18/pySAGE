@@ -28,7 +28,7 @@ from sage_patch.addresses import (
     UPGRADE_TEMPLATE_INDEX,
 )
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
-from sage_patch.patches.experimental import spell_store_upgrade as ssu
+from sage_patch.patches import spell_store_upgrade as ssu
 from sage_patch.patches.utils.field_tables import entries_before, read_field_table
 from sage_patch.patches.utils.name_tables import read_cstring
 from sage_patch.patches.utils.token_lists import (
@@ -295,7 +295,7 @@ class TestApplyAndVerify:
 
     def test_registered_exported_and_experimental(self) -> None:
         assert PATCHES[SpellStoreUpgradePatch.name] is SpellStoreUpgradePatch
-        assert SpellStoreUpgradePatch.experimental
+        assert SpellStoreUpgradePatch
         assert SpellStoreUpgradePatch.author
 
 

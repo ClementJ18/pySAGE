@@ -40,8 +40,8 @@ from sage_patch.patches.experimental.render_rate import RenderRatePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_charges import SpecialPowerChargesPatch
-from sage_patch.patches.experimental.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.experimental.standalone_launcher import StandaloneLauncherPatch
+from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.hero_recruit_parallel import HeroRecruitParallelPatch

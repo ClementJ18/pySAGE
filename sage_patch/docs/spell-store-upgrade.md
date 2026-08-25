@@ -1,7 +1,7 @@
 # Spell-store upgrade selection
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`). Implemented by
-[`patches/experimental/spell_store_upgrade.py`](../patches/experimental/spell_store_upgrade.py).
+[`patches/spell_store_upgrade.py`](../patches/spell_store_upgrade.py).
 
 ## INI surface
 
@@ -88,6 +88,11 @@ The Patch has been tested ingame as well. For now tested and confirmed:
 - Non-Existing Upgrades/CommandSets are ignored (no crash)
 - At least 3 PurchaseScienceCommandSetUpgrade Parameters are possible
 - The SpellStore CommandSet can be changed repeatedly upon researching new Player-Upgrades
+- Multiple Entries with differing CommandSets, but same Trigger-Upgrade will result in the last declared being used
+- Several identical Entries are possible
+- The UI updates the Cost of the Sciences to the new ones accordingly
+- Tested with CommandPointUpkeep Patch, as well as several other patches
+- Sciences can be bought without problem from the new spellstore, also after buying from another one before
 
 ## Static safety and composition
 
