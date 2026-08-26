@@ -198,6 +198,23 @@ class TestFileFormat:
             source=engine.source,
         )
 
+    def test_a_retired_source_key_is_dropped_without_complaint(self):
+        """`[source] game_dat` used to hold the path the file was generated from.
+
+        It was removed because `.sagepatch` is committed to the mod's repository and a path is
+        provenance nothing can use: `sha256` already identifies the binary exactly, while the path
+        writes a home directory into a tracked file. Files written before the removal are still
+        out there, so loading one has to drop the key silently - a warning would fire on every
+        load until every mod regenerated, for a key that never meant anything.
+        """
+        engine = parse_engine(
+            'version = 1\n\n[source]\nbuild = "RotWK 2.01"\n'
+            'sha256 = "abc"\ngame_dat = "C:\\\\Users\\\\somebody\\\\game.dat"\n'
+        )
+        assert engine.warnings == ()
+        assert engine.source == Source(build="RotWK 2.01", sha256="abc")
+        assert "game_dat" not in dump_engine(engine)
+
     def test_malformed_toml_degrades_to_stock_with_a_warning(self):
         engine = parse_engine("this is not = = toml")
         assert engine.is_stock

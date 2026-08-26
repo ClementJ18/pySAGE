@@ -10,16 +10,18 @@ sleeps until then — `update()` never looks at the clock and never reads its ow
 "push the death back by N ms" is **one add**, and the whole cost of the patch is *noticing when to
 do it*: nothing in the engine tells a module that an upgrade arrived.
 
-- **Cost:** 5 patch sites (one a `push` immediate, one a single opcode byte), 375 bytes of cave,
-  two new INI fields on `LifetimeUpdate`, `sizeof(ModuleData)` `0x18` → `0xac`. No relocation of
-  anything shared, no name table, no `.apt`, no `.csf`, and no client-side edit.
+- **Cost:** 5 patch sites (one a `push` immediate, one a single opcode byte), two new INI fields
+  on `LifetimeUpdate`, and the room in `ModuleData` for them. No relocation of anything shared, no
+  name table, no `.apt`, no `.csf`, and no client-side edit.
 - **Risk:** *low*. Every hook is inside `LifetimeUpdate.cpp`'s own three functions plus its private
   factory thunk, and the field table has exactly one reference. The one real cost is behavioural,
   not structural: an object carrying the field **wakes every frame for its whole lifetime**
   instead of sleeping to its death frame, because that is the only way to see an upgrade arrive.
-- **Status:** **built** as `lifetime-extend-upgrade`
-  ([`patches/lifetime_extend_upgrade.py`](../patches/lifetime_extend_upgrade.py)), applying and
-  verifying against the repo's own `game.dat`. **Runtime-verified in game.**
+- **Status:** **built** as two of `lifetime-fields`'s three keywords
+  ([`patches/lifetime_fields.py`](../patches/lifetime_fields.py)), applying and verifying against
+  the repo's own `game.dat`. **Runtime-verified in game.** The third keyword is
+  [`lifetime-transform.md`](lifetime-transform.md), and it shares this patch's sites 1 and 2 - so
+  the `ModuleData` size and the rebuilt table are that document's, not this one's.
 
 ```
 Behavior = LifetimeUpdate ModuleTag_Life
@@ -226,7 +228,8 @@ the cheapest relocation in this package, alongside `science-prereqs` and
 `large-group-bonus-filter`: rebuild the table in the cave with two more rows and repoint one `push`.
 
 `ModuleData` has no hole big enough (`+0x12`/`+0x13` is the only padding, two bytes), so it grows
-`0x18` → `0xac`: the mask at `+0x18`, the bonus at `+0xa8`. That is one hook, because
+past `0x18`: the mask at `+0x18`, the bonus at `+0xa8`, and whatever else the patch's other
+keywords need behind them. That is one hook, because
 `newModuleData` (`0x0064e08b`) is **LifetimeUpdate's own thunk** — it calls the ctor at `0x007a7e0b`
 directly, and a full `call`/`jmp` scan of `.text` finds one caller for each and no absolute
 reference to either outside the module-factory registration at `0x00658e2f`:
@@ -256,7 +259,7 @@ Five sites, one cave section (`sage_patch.utils.allocate_section`).
 
 | # | site | stock bytes | what |
 |---|---|---|---|
-| 1 | `0x0064e096` | `56 6a 18 e8 42 16 de ff` | `sizeof(ModuleData)` `0x18` → `0xac`, and zero what it added |
+| 1 | `0x0064e096` | `56 6a 18 e8 42 16 de ff` | `sizeof(ModuleData)` grown past `0x18`, and zero what it added |
 | 2 | `0x007a7e00` | `68 60 18 c3 00` | `push` the rebuilt field table (in place, 5 for 5) |
 | 3 | `0x007a7f04` | `88 46 28` | the ctor's byte store widened, so the latch defaults to "not held" |
 | 4 | `0x007a7dae` | `89 4e 20 5e c2 08 00` | arm the poll: return a sleep of 1 when the mask is declared |
@@ -269,13 +272,13 @@ live in `ecx` there — `update()` never spills it.
 ```asm
 cave_alloc:                        ; site 1. entered in place of the size push and the allocation
     push esi                       ;   the register save the window owed its caller
-    push 0xac
+    push <the grown sizeof>
     call 0x0042f6e0                ;   operator new — does not zero
     test eax, eax
     je   .done                     ;   `newModuleData` tests for null too; do not beat it to it
     push eax
     lea  edx, [eax+0x18]
-    mov  ecx, 37                   ;   the mask and the bonus
+    mov  ecx, <that many dwords>   ;   the mask, the bonus and the room behind them
     xor  eax, eax
 .zero:
     mov  [edx], eax
@@ -374,8 +377,9 @@ object was going to die still saves it.
 pops it on the way out — a dirty `edi` would be handed back to `update`'s caller rather than merely
 clobbered.
 
-**Cave budget, as built:** 40 (alloc) + 29 (arm) + 46 (held) + 106 (update) + 128 (seven rows and
-the terminator) + 40 (the two keyword strings) = **389 bytes**. One `0x1000` section.
+**Cave budget, as built:** 40 (alloc) + 29 (arm) + 46 (held) + 106 (update) = **221 bytes** of
+stubs, beside the rebuilt table and the keyword strings the patch's three keywords share. One
+`0x1000` section covers the lot.
 
 An object that does not declare the keyword pays one `any()` — 36 compares — once, on the frame it
 dies. Everything else about it is byte-identical to stock, including its sleep.
@@ -463,7 +467,7 @@ mask helpers and the two-mask idiom at `0x008b8fe0`; the sleepy-update driver at
 the timer widget at `0x0092f778`, its three module sources and its fraction.
 
 Every site and every anchor above is asserted against the real `game.dat` by
-[`tests/sage_patch/test_lifetime_extend_upgrade.py`](../../tests/sage_patch/test_lifetime_extend_upgrade.py)
+[`tests/sage_patch/test_lifetime_fields.py`](../../tests/sage_patch/test_lifetime_fields.py)
 (`TestInstalledBinary`, skipped where the binary is absent), and the four cave stubs are
 disassembled back and checked instruction by instruction against what this document says they do —
 including both load-bearing orderings.

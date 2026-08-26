@@ -22,7 +22,7 @@ tooltip's text is built **exactly once per hover** and never refreshed while the
 so a countdown does not count down. Making it tick is a separate, riskier hook into a second
 function, and it is not part of this patch.
 
-- **Cost:** two 6-byte windows + a ~690-byte cave. No structure grows, no `ModuleData` changes, no
+- **Cost:** two 6-byte windows + an ~830-byte cave. No structure grows, no `ModuleData` changes, no
   INI keyword, no `.sagepatch` entry, no `.apt`, no `.csf` the engine requires.
 - **Risk:** low. Client-local tooltip text, the same blast radius as `upgrade-description`.
 - **Status: implemented as `description-timers`**
@@ -32,7 +32,6 @@ function, and it is not part of this patch.
 
 ```
 sage-patch apply description-timers --in game.dat.backup --out game.dat
-sage-patch apply description-timers --integer-seconds --in ... --out ...
 sage-patch verify description-timers game.dat
 ```
 
@@ -57,7 +56,17 @@ rather than its remaining one (§4). Everything else scoped here is built.
   is what "takes cooldown reduction into account" — an aura that is up right now is in the number.
 - **The remaining cooldown is a subtraction, not an estimate.**
   `Object::getSpecialPowerModule(template)` (`0x0068C26D`) hands back the module; `readyFrame` is
-  at interface `+0x08` and `TheGameLogic`'s frame at `+0x40`. No float, no percentage.
+  at interface `+0x08` on flavour 1 and `+0x04` on flavour 2, and `TheGameLogic`'s frame is at
+  `+0x40`. No float, no percentage. **Both flavours are read** (§3.1.1), which matters far more
+  than the "3 of 26 vtables" count suggests: those three are *shared* vtables, and
+  `WeaponModeSpecialPowerUpdate` is behind one of them - 340 behaviours in Edain.
+- **A spellbook power is asked of the spellbook, not of the selection** (§3.1.2). The builder's
+  object slot holds whatever the player has selected, which for a palantir button is nothing or an
+  unrelated unit; the power lives on the player's spellbook object, found with the engine's own
+  `KINDOF SPELL_BOOK` predicate.
+- **A line whose number would be zero is not printed at all.** 204 of Edain's 835 `SpecialPower`
+  blocks have no `ReloadTime` - that is what a passive ability's button is - and stating `0` for
+  them is worse than saying nothing.
 - **Both build times are one call each, with the arguments already on hand.**
   `ThingTemplate::calcTimeToBuild(player, object, -1)` (`0x0073C39E`) and
   `UpgradeTemplate::calcTimeToBuild(player, object)` (`0x0066F1A8`) are the *same functions the
@@ -363,35 +372,122 @@ the field is small.
 **The remaining duration** is a subtraction:
 
 ```
-spi = Object::getSpecialPowerModule(tmpl)      ; 0x0068C26D, __thiscall, ret 4, NULL if absent
-if (spi->vtable[+0x3c] != 0x00896E31) -> fall back to the full duration    ; flavour check
+spi = getSpecialPowerModule(owner, tmpl)       ; 0x0068C26D, __thiscall, ret 4, NULL if absent
+fn  = spi->vtable[+0x3c]                       ; which startPowerRecharge -> which layout
+if      fn == 0x00896E31: pause = spi[+0x0c], ready = spi[+0x08]     ; flavour 1
+else if fn == 0x00991500: pause = spi[+0x08], ready = spi[+0x04]     ; flavour 2
+else                    -> fall back to the full duration
+if (pause != 0)         -> fall back: a paused recharge has not moved its ready frame yet
 now       = [[0x00DE412C] + 0x40]              ; TheGameLogic's frame
-remaining = spi[+0x08] - now                   ; readyFrame
+remaining = ready - now
 if (remaining <= 0) -> the power is ready: show the full duration instead
 ```
 
 `0x0068C26D` is the engine's own finder: it walks `Object+0x24C`, asks each module for its
 special-power interface (`[m+0xc]` vtable `+0x20`) and matches on interface slot `+0x00`
-(`0x008969D1`), which compares the module data's template pointer against the argument. The button
-holds the same raw pointer at `CommandButton+0x44`, so the two agree without a `getFinalOverride`
-on either side.
+(`0x008969D1` / `0x009911E0`), which compares the module data's template pointer against the
+argument. The button holds the same raw pointer at `CommandButton+0x44`, so the two agree without a
+`getFinalOverride` on either side. It returns the **first** match, which is also what the button's
+own clock reads (`CommandButton::getPercentReady`, `0x0075CCC5`) — so a template carried by two
+modules on one object is read the way the engine reads it, by construction.
 
-The flavour check is [`recharge-rescale.md`](recharge-rescale.md) §5.1's, and for the same reason:
-there are two `startPowerRecharge` implementations, and the second one (`0x00991500`, in 3 of 26
-vtables) keeps its ready frame at `+0x04` rather than `+0x08`. Reading the wrong field would print
-a duration as a frame number. **Fail closed** — a vtable slot holding neither known implementation
-falls back to the full duration, which costs a feature and not a wrong number.
+The pause count is the field `isReady` gates on before it looks at the ready frame at all, and it
+is worth honouring for the same reason: `0x00896756` (interface slot `+0x24`) parks a recharge by
+remembering the frame it stopped on and only pushes the ready frame forward when it resumes, so
+while `pause != 0` the subtraction above is counting down towards a frame that is going to move.
 
-Deliberately *not* used: `getPercentReady` (slot `+0x08`, `0x00896CF2`). It is the natural-looking
-route and it is wrong for flavour 2, whose implementation divides by the raw `ReloadTime` and so is
-already inconsistent with a cast that had a modifier applied.
+#### 3.1.1 Two flavours, two layouts
 
-**`SharedSyncedTimer = Yes` powers** — which is how a spellbook power's cooldown works — never
-reach the module timer at all: `0x00896E71` diverts them into `Player::startSharedSyncedTimer`
-(`0x006AD1B0`), which stores the ready frame in a list node off `Player+0x724`. The reader is
-`0x006AD26F`. Covering them is one extra arm gated on `tmpl+0x59`, and it is the arm that makes the
-palantir's spell buttons work, because those buttons have no `Object` behind them. Recommended, and
-flagged static-only.
+There are two implementations of `startPowerRecharge` and they keep the recharge in different
+places, so the vtable slot has to be read before either field is:
+
+| | flavour 1 | flavour 2 |
+|---|---|---|
+| `startPowerRecharge` | `0x00896E31` | `0x00991500` |
+| interface subobject at module | `+0x10` | `+0x24` |
+| ready frame | interface `+0x08` | interface `+0x04` |
+| pause count | interface `+0x0C` | interface `+0x08` |
+| `duration` kept | yes, at `+0x04` | no |
+| interface vtables | 23 | 3 |
+| `isReady` | `0x00896C72` (its field reads at `0x00896CD4`) | `0x0099135D` (at `0x0099139E`) |
+
+Those two `isReady` bodies are what the patch anchors, rather than the vtables: each one is a
+single window holding the pause test, the `TheGameLogic` frame load and the ready-frame compare, so
+one comparison pins both offsets of one flavour in the order the engine uses them.
+
+**"3 of 26 vtables" badly understates flavour 2**, and correcting that is why this section exists.
+Those three are *shared* interface vtables — a class that overrides no interface method gets the
+one its base already installed — so the module classes behind them outnumber them:
+
+| interface vtable | classes that install it |
+|---|---|
+| `0x00C650F0` | `WeaponModeSpecialPowerUpdate` (`0x00898249`), `DeflectSpecialPower` (`0x008C9920`), `SiegeDeployHordeSpecialPower` (`0x008CA84A`) |
+| `0x00C74878` | `SiegeDeploySpecialPower` (`0x008C9B7A`) |
+| `0x00C873E0` | `SpecialPowerUpdateModule`, the base itself (`0x0099115D`) |
+
+`WeaponModeSpecialPowerUpdate` alone is **340 behaviours in Edain** — it is the standard shape for
+a hero ability that switches weapon mode for a `Duration`, and Pippin's *Neugier des Narren* is one
+of them. Falling back to the full duration for all of those is why the remaining readout looked
+broken rather than merely absent. Both flavours are now read; a vtable holding neither still
+**fails closed** onto the full duration, which costs a feature and not a wrong number.
+
+Deliberately *not* used: `getPercentReady` (slot `+0x08`, `0x00896CF2` / `0x009913BC`). It is the
+natural-looking route and it is wrong for flavour 2, whose implementation divides by the raw
+`ReloadTime` and so is already inconsistent with a cast that had a modifier applied.
+
+#### 3.1.2 Which object owns the power
+
+Everything above needs an *owner*, and so does the `RECHARGE_TIME` query in the full duration. The
+builder's `ebp-0x1c` is **the selection**, which is the right answer for a hero ability and the
+wrong one for a palantir spell button: those are drawn with whatever the player happens to have
+selected behind them, usually nothing. Asking the selection for a spell's module returns NULL, and
+every spellbook power then reads as its full cooldown forever.
+
+**A spellbook is an ordinary `Object`.** `GoodSpellBook` / `EvilSpellBook` and a `ChildObject` per
+faction carry their spells as `Behavior = SpecialPowerModule`, `OCLSpecialPower` and
+`PlayerUpgradeSpecialPower`, all three of them flavour 1 with a plain `ReloadTime` — see
+[`special-power-charges.md`](special-power-charges.md) §6.1, which maps that side in full. So the
+only thing missing is the object itself, and the engine has a finder for it:
+
+```
+0x006AAE3C  cdecl (Object *obj, void *ctx) -> keep going?
+            takes the first obj whose template is KINDOF SPELL_BOOK (tmpl+0x117 bit 3) and whose
+            controlling player is ctx[0]; writes it to ctx[1] and stops the walk
+0x006ABABD  Player::forEachTeamObject(fn, ctx) - thiscall, ret 8, pure
+```
+
+The arm is therefore: **the selected object if it has a module for this template, otherwise the
+player's spellbook if it has one, otherwise nothing.** Keying on the module rather than on the
+button is what keeps the cave from having to recognise a spellbook button — a power neither object
+has finds no module and changes nothing — and it costs the walk only on the buttons that need it.
+
+**Not `Player::getSpellBookObject` (`0x006AD0F8`)**, which is the engine's own wrapper around that
+same pair and the obvious call to make. It memoises the answer into `Player+0x710`, and a tooltip
+may not write to a `Player`. The field is read at no other site and appears in no `Xfer`, so the
+write would in fact be harmless — but "client-local and read-only" is the promise this patch is
+built on, and a lazily-primed cache is not the place to start making exceptions to it.
+
+**`SharedSyncedTimer = Yes` powers** keep their cooldown on the `Player` rather than on any module:
+`0x00896E71` diverts them into `Player::startSharedSyncedTimer` (`0x006AD1B0`), which stores the
+ready frame in a list node off `Player+0x724`, and `0x006AD26F` reads it back. That is **three
+templates in the shipped INI** — `SuperweaponSpawnOrcs`, `SpecialPowerRevealArea` and
+`SuperweaponPartTheHeavens` — and not, despite the obvious guess, how a spellbook power works.
+Covering them is one extra arm gated on `tmpl+0x59`; it is not built, and those three fall back to
+the full duration.
+
+#### 3.1.3 A cooldown of zero is not printed
+
+`startPowerRecharge` clamps its result to `>= 1` before storing it, because a recharge has to end
+on some frame. There is nothing to clamp *to* in a tooltip: a `SpecialPower` with no `ReloadTime`
+has no cooldown, and that is exactly what a passive ability's button is — **204 of the 835
+`SpecialPower` blocks in Edain**. So the ability arm reads the pre-clamp value and emits nothing at
+all when it is `<= 0`.
+
+The same rule is applied one level down, in the shared line emitter, against the number the format
+will actually see: the integer quotient, so the test is exactly `frames < the frame rate` and a
+duration below one second drops the line. That test has to sit **ahead of the separator** — the
+emitter's late exit is reachable only before the line is built, and dropping any later leaves a
+newline behind on a description that then says nothing after it.
 
 ### 3.2 A unit's or structure's build time
 
@@ -544,11 +640,11 @@ As built, measured from the assembled cave rather than estimated:
 | the button stash and the four localization keys | 0x58 |
 | `capture` and `tail` thunks | 0x23 |
 | dispatcher on the button's three template fields | 0x2A |
-| ability arm — the `m` transcription, the module lookup, the flavour check | 0xF4 |
+| ability arm — owner resolution, the `m` transcription, both flavours of the remaining lookup | 0x16D |
 | upgrade arm | 0x39 |
 | unit arm | 0x53 |
-| shared emitter — fetch with `exists`, separator guard, format into a temporary, concat, release | 0x8D |
-| **total** | **690** |
+| shared emitter — zero guard, fetch with `exists`, separator guard, format into a temporary, concat, release | 0x9C |
+| **total** | **819** |
 
 One `0x1000` section via `allocate_section`, as every other patch here does — `MEM_WRITE` as well
 as executable, for the one dword §1.2a explains.
@@ -569,7 +665,7 @@ the feature:
 `MISSING:'TOOLTIP:Cooldown'` in the description, no stray separator, no reflow. A modder opts in per
 line by adding a string, and can ship cooldowns without build times or the reverse.
 
-The proposed keys, one `%.1f` each (or `%d` under `--integer-seconds`):
+The keys, **one `%d` each** — the duration in whole seconds:
 
 | key | when |
 |---|---|
@@ -582,7 +678,7 @@ The proposed keys, one `%.1f` each (or `%d` under `--integer-seconds`):
 Each key is fetched and tested independently, so a mod can declare `TOOLTIP:Cooldown` without
 `TOOLTIP:CooldownRemaining` and get a line only while the power is ready. There is deliberately no
 fallback from `…Remaining` to the plain key: the two say different things, and silently printing
-"Cooldown: 12.4" for a power that is *twelve seconds from ready* is the one wrong-number failure
+"Cooldown: 12" for a power that is *twelve seconds from ready* is the one wrong-number failure
 this design otherwise cannot produce.
 
 ## 7. What follows for free
@@ -603,22 +699,24 @@ this design otherwise cannot produce.
 ## 8. Out of scope, named
 
 - **Hero revive and recruit timings** (§3.4).
-- **The second `startPowerRecharge` flavour** (`0x00991500`, 3 vtables): the remaining readout falls
-  back to the full duration there rather than reading the wrong field.
+- **`SharedSyncedTimer = Yes` powers** (three templates in the shipped INI, none of them a
+  spellbook spell): their cooldown is a `Player`-side list node, and the remaining readout falls
+  back to the full duration for them rather than reading a module field they never wrote (§3.1.2).
+- **A recharge that is currently paused**: same fall-back, because its ready frame has not been
+  moved forward yet (§3.1).
 - **Weapon reload, `LifetimeUpdate` durations, and every other timer that is not on a button.**
 - **Making anything faster.** Every number here is read-only. The mechanisms that would *change*
   them are separate, already-scoped patches: [`recharge-rescale.md`](recharge-rescale.md) for a
   cooldown that responds to a modifier arriving mid-cooldown, and `production-split` for build
   speed. This patch is the readout those two would make legible, and it is independent of both.
-- **The palantir's spell-book buttons**, unless the shared-timer arm of §3.1 is built. Their
-  cooldown is on the `Player`, not on any object the builder is describing.
+- **A remaining cooldown that ticks.** It is a snapshot taken when the tooltip was built (§2).
 
 ## 9. Cost, risk and what it changes
 
 | | |
 |---|---|
 | edits to `.text` | 2 six-byte windows |
-| new sections | 1 (690 bytes) |
+| new sections | 1 (826 bytes) |
 | INI surface | **none** — no keyword, no `.sagepatch` entry, no `sage_ini` change |
 | structures | none grow; no ctor, dtor or xfer change |
 | effort | built in a day; the refresh and the queue walk are half a day each, if wanted |
@@ -644,9 +742,11 @@ window here.
 
 **Verification.** A `sage-patch verify` pass should assert the untouched cast-time arithmetic at
 `0x00896EBA` (`8b 40 18 c1 e8 05 a8 01`) and the `ReloadTime` read at `0x00896EE3`, the two
-`calcTimeToBuild` entry points, `0x0068C26D`'s match on interface slot `+0x00`, that `0x00896E31`
-still occupies slot `+0x3C` of exactly 23 vtables, and the twelve-site line idiom's cleanup
-constants — `0xC` for one dword vararg at `0x008083C4` and `0x10` for the `double` at `0x00677E7E`.
+`calcTimeToBuild` entry points, `0x0068C26D`'s match on interface slot `+0x00`, the prologues of
+both `startPowerRecharge` flavours out to the `mov edi, [esi-N]` that distinguishes them, both
+`isReady` field-read windows (`0x00896CD4` and `0x0099139E`, which pin the pause count and the
+ready frame of one flavour each), the spellbook finder and `forEachTeamObject`, and the twelve-site
+line idiom's cleanup constants — `0xC` for one dword vararg at `0x008083C4` and `0x10` for the `double` at `0x00677E7E`.
 If any of those moved, the transcription is not this build's.
 
 ## 10. What a live test has to settle
@@ -669,9 +769,13 @@ If any of those moved, the transcription is not this build's.
    an ability and an upgrade against what the tooltip claimed.
 7. **A structure placement button**, confirming the number matches the construction the
    `DozerAIUpdate` state machine then runs.
-8. **A spellbook button**, with and without the shared-timer arm, confirming the object-route
-   fallback prints the full duration rather than something wrong.
+8. **A spellbook button with nothing selected, and again with an unrelated unit selected**, which
+   is the §3.1.2 walk: both must print the same number, and it must count down after a cast.
 9. **A hero revive button prints no line**, which is §3.4 being kept out rather than being wrong.
+10. **A `WeaponModeSpecialPowerUpdate` ability counts down** — Pippin's *Neugier des Narren* is the
+    case that produced §3.1.1 — and a **passive ability prints no line at all**, which is §3.1.3.
+    Those two are the fixes this document's second pass exists for, so they are the two a live run
+    has to see.
 
 ## Appendix — every address this document depends on
 
@@ -726,11 +830,17 @@ If any of those moved, the transcription is not this build's.
 | `0x008086B4` | the resume point |
 | `0x008086E5` | the record's constructor, taking all five strings |
 | `0x00896CF2` | `getPercentReady` — deliberately not used |
+| `0x00896C72` | flavour-1 `isReady` — its field reads at `0x00896CD4` are the layout anchor |
 | `0x00896E31` | `startPowerRecharge`, flavour 1 — 23 vtables, the flavour constant |
 | `0x00896E71` | the `SharedSyncedTimer` divert (`tmpl+0x59`) |
 | `0x00896E87`..`0x00896F03` | the cast-time multiplier arithmetic §3.1 transcribes |
 | `0x008969D1` | interface slot `+0x00` — the template match `getSpecialPowerModule` uses |
-| `0x00991500` | `startPowerRecharge`, flavour 2 — ready frame at `+0x04`, no duration |
+| `0x0099135D` | flavour-2 `isReady` — its field reads at `0x0099139E` are the layout anchor |
+| `0x00991500` | `startPowerRecharge`, flavour 2 — ready frame at `+0x04`, pause count at `+0x08` |
+| `0x006AAE3C` | the `KINDOF SPELL_BOOK` predicate, `cdecl (Object *, ctx)` |
+| `0x006ABABD` | `Player::forEachTeamObject(fn, ctx)` — thiscall, `ret 8`, pure |
+| `0x006AD0F8` | `Player::getSpellBookObject` — **not called**, it memoises into `Player+0x710` |
+| `0x0075CCC5` | `CommandButton::getPercentReady` — the button clock, same first-module rule |
 | `0x009F9F37` | production interface slot `+0x44` — the queue count at `module+0x14` |
 | `0x008A04DA` | `ProductionUpdate::getTotalBuildTimeFrames(entry)` — branches on `entry+0x04` |
 | `0x008A1ED6` | the queue's per-frame `PRODUCTION` accrual into `entry+0x1c` |

@@ -36,15 +36,17 @@ from __future__ import annotations
 import struct
 
 from sage_patch import addresses as ad
+from sage_patch.patches import ai_flag_capture_gate as afc
 from sage_patch.patches import commandset_button_upgrade as cbu
 from sage_patch.patches import crash_dump as cd
 from sage_patch.patches import description_timers as dt
 from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather as wb
+from sage_patch.patches import healing_received as hr
 from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
 from sage_patch.patches import infantry_lighting as il
-from sage_patch.patches import lifetime_extend_upgrade as lex
+from sage_patch.patches import lifetime_fields as lf
 from sage_patch.patches import multi_instance as mi
 from sage_patch.patches import observer_command_range as ocr
 from sage_patch.patches import observer_switch as obs
@@ -65,6 +67,7 @@ from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
 from sage_patch.patches.utils import model_conditions as mc
+from sage_patch.patches.utils import modifier_types as mt
 from sage_patch.patches.utils import token_lists as tl
 from sage_patch.patches.utils import weapon_set_flags as ws
 
@@ -107,8 +110,18 @@ def synthetic_image() -> bytearray:
     weapon_set_vas = [intern(stock_weapon_set_name(i)) for i in range(ws.STOCK_FLAG_COUNT)]
     locomotor_vas = [intern(stock_locomotor_set_name(i)) for i in range(ls.STOCK_SET_COUNT)]
     kindof_vas = [intern(stock_kindof_name(i)) for i in range(ko.STOCK_KIND_COUNT)]
+    modifier_vas = [intern(stock_modifier_name(i)) for i in range(mt.STOCK_TYPE_COUNT)]
 
-    highest = STRINGS_VA + len(strings) - IMAGE_BASE + 0x100
+    # The modifier-type table sits above the string pool, so it - not the pool - is what decides
+    # how far the image has to reach.
+    highest = (
+        max(
+            STRINGS_VA + len(strings),
+            mt.NAME_TABLE_VA + (mt.STOCK_TYPE_COUNT + 1) * 4,
+        )
+        - IMAGE_BASE
+        + 0x100
+    )
     data = bytearray(((highest + 0x400) // 0x200 + 1) * 0x200)
 
     data[0:2] = b"MZ"
@@ -189,6 +202,12 @@ def synthetic_image() -> bytearray:
         write(va, prefix)
         u32(va + len(prefix), ko.STOCK_KIND_COUNT)
 
+    for index, va in enumerate(modifier_vas):
+        u32(mt.NAME_TABLE_VA + index * 4, va)
+    u32(mt.NAME_TABLE_VA + mt.STOCK_TYPE_COUNT * 4, 0)  # the terminator
+    for va in mt.TABLE_REF_VAS:
+        u32(va, mt.NAME_TABLE_VA)
+
     for hook in hb.HOOKS:
         write(hook.va, hook.original)
     write(hb.TOOLTIP_EDIT.va, hb.TOOLTIP_EDIT.original)
@@ -207,7 +226,11 @@ def _pe32(sections: list[tuple[str, int, bytes]], size_of_image: int) -> bytearr
     Several small sections rather than one big one is what keeps a synthetic image of a 34 MB
     binary down to a few KB: only the pages a patch reads or writes have to exist."""
     file_align, section_align = 0x200, 0x1000
-    headers = 0x400
+    # The header block has to hold the section table *plus* room for the caves a patch appends,
+    # which `append_section` refuses to write without. Sized from the mapping rather than fixed, so
+    # a stand-in that grows another anchor page does not silently run a patch out of headers.
+    sectab_end = 0x80 + 24 + 0xE0 + (len(sections) + 4) * 40
+    headers = max(0x400, (sectab_end + file_align - 1) // file_align * file_align)
     data = bytearray(headers)
     data[0:2] = b"MZ"
     e = 0x80
@@ -282,6 +305,36 @@ def worldbuilder_image() -> bytearray:
         for index, base in enumerate(sorted(pages))
     ]
     return _pe32(sections, max(pages) - IMAGE_BASE + 0x1000)
+
+
+#: Where the Worldbuilder modifier-type stand-in parks its name strings: a page nothing else in
+#: that image uses. The patches reach them through the table's own pointers.
+WB_MODIFIER_STRINGS_VA = 0x02235000
+
+
+def modifier_type_worldbuilder_image() -> bytearray:
+    """A stand-in for `Worldbuilder.exe`, mapping the pages the modifier-type twins touch.
+
+    One image for both twins - `production-split-wb` and `healing-received-wb` share this table
+    the same way their `game.dat` halves share the other one, so the tests that matter most are
+    the ones that apply both.
+    """
+    strings = bytearray()
+    pointers = []
+    for index in range(mt.STOCK_TYPE_COUNT):
+        pointers.append(WB_MODIFIER_STRINGS_VA + len(strings))
+        strings += stock_modifier_name(index).encode("ascii") + b"\x00"
+
+    table_va = mt.WORLDBUILDER_NAME_TABLE_VA
+    planted: dict[int, bytes] = {
+        WB_MODIFIER_STRINGS_VA: bytes(strings),
+        table_va: struct.pack(f"<{len(pointers) + 1}I", *pointers, 0),
+        # the next table starts immediately after it, which is why it cannot grow in place
+        table_va + (len(pointers) + 1) * 4: struct.pack("<I", WB_MODIFIER_STRINGS_VA),
+    }
+    for va, prefix in mt.WORLDBUILDER_TABLE_REF_SITES:
+        planted[va - len(prefix)] = prefix + struct.pack("<I", table_va)
+    return _sparse_image(planted)
 
 
 def _sparse_image(planted: dict[int, bytes]) -> bytearray:
@@ -426,6 +479,25 @@ def crash_dump_image() -> bytearray:
     )
 
 
+def ai_flag_capture_gate_image() -> bytearray:
+    """A stand-in carrying the flag picker's ownership test, everything the cave jumps to, and the
+    `AIFlagCaptureSquad` vtable slot the patch checks dispatch through.
+
+    Sparse for the usual reason: the picker and its two edges sit in one page of the tactic, the
+    constructor's name push is a page below them, and the vtable is three megabytes away in
+    `.rdata`. Everything not planted reads as zero, so a hook aimed one instruction to either side
+    of the five-byte test would find nothing there.
+    """
+    slot = ad.AI_FLAG_CAPTURE_SQUAD_VTABLE + ad.AI_FLAG_CAPTURE_SQUAD_UPDATE_SLOT
+    return _sparse_image(
+        {
+            ad.AI_FLAG_CAPTURE_RELATIONSHIP_TEST: ad.AI_FLAG_CAPTURE_RELATIONSHIP_TEST_BYTES,
+            slot: struct.pack("<I", ad.AI_FLAG_CAPTURE_SQUAD_UPDATE),
+            **afc.ANCHORS,
+        }
+    )
+
+
 def quiet_exit_image() -> bytearray:
     """A stand-in carrying the unhandled-exception filter's `call writeMiniDump`, the one site
     `quiet-exit` rewrites.
@@ -446,9 +518,11 @@ def description_timers_image() -> bytearray:
     them. Everything not planted reads as zero, so a window aimed one instruction to either side of
     where it claims to be would find nothing there.
 
-    The two `RECHARGE_FORMULA_ANCHORS` are planted too, even though the patch never jumps to them:
-    they are the instructions the cooldown transcription copies, and a build that encoded them
-    differently would be a build whose formula the cave is not reproducing.
+    The `RECHARGE_FORMULA_ANCHORS` and `INTERFACE_LAYOUT_ANCHORS` are planted too, even though the
+    patch never jumps to them: they are the instructions the cooldown transcription copies and the
+    two `isReady` windows that say where each recharge flavour keeps its fields, and a build that
+    encoded either differently would be a build whose formula the cave is not reproducing or whose
+    interface it is reading at the wrong offsets.
     """
     return _sparse_image(
         {
@@ -456,6 +530,7 @@ def description_timers_image() -> bytearray:
             ad.DESCRIPTION_TAIL: ad.DESCRIPTION_TAIL_BYTES,
             **dt.ANCHORS,
             **dt.RECHARGE_FORMULA_ANCHORS,
+            **dt.INTERFACE_LAYOUT_ANCHORS,
         }
     )
 
@@ -641,18 +716,19 @@ def binary_attest_image(text_va: int = ad.TEXT_SECTION_VA) -> bytearray:
     )
 
 
-#: Where the `lifetime-extend-upgrade` stand-in parks the five field-name strings: a page in the
+#: Where the `lifetime-fields` stand-in parks the five field-name strings: a page in the
 #: same region as the table that points at them, and one nothing else in that image uses.
 LIFETIME_STRINGS_VA = 0x00C32800
 
 
-def lifetime_extend_upgrade_image() -> bytearray:
-    """A stand-in carrying every site `lifetime-extend-upgrade` reads or rewrites.
+def lifetime_fields_image() -> bytearray:
+    """A stand-in carrying every site `lifetime-fields` reads or rewrites.
 
     Sparse for the usual reason: the module's three functions, its factory thunk, the two mask
-    predicates, the sleepy-update driver and the client's timer widget are spread over most of five
-    megabytes and the patch touches a dozen pages of it. Everything not planted reads as zero, so
-    a hook aimed one instruction to either side of where it claims to be would find nothing there.
+    predicates, the sleepy-update driver, the client's timer widget and the mount toggle's swap and
+    retire are spread over most of five megabytes and the patch touches a dozen pages of it.
+    Everything not planted reads as zero, so a hook aimed one instruction to either side of where
+    it claims to be would find nothing there.
 
     The field table is built here from the patch's own `STOCK_FIELDS` rather than pasted as a hex
     blob, because what the table has to survive is being *copied* - the test that matters is that
@@ -660,7 +736,7 @@ def lifetime_extend_upgrade_image() -> bytearray:
     """
     strings = bytearray()
     rows = bytearray()
-    for name, offset in lex.STOCK_FIELDS:
+    for name, offset in lf.STOCK_FIELDS:
         name_va = LIFETIME_STRINGS_VA + len(strings)
         strings += name.encode("ascii") + b"\x00"
         # `parse` and `userData` are not read by the patch (the rows are copied verbatim), so a
@@ -670,17 +746,18 @@ def lifetime_extend_upgrade_image() -> bytearray:
 
     return _sparse_image(
         {
-            **lex.ANCHORS,
-            lex.ALLOC_VA: lex.ALLOC_BYTES,
-            lex.ARM_VA: lex.ARM_BYTES,
-            lex.UPDATE_VA: lex.UPDATE_BYTES,
-            lex.LATCH_DEFAULT_VA: lex.LATCH_DEFAULT_BYTES,
+            **lf.ANCHORS,
+            lf.ALLOC_VA: lf.ALLOC_BYTES,
+            lf.ARM_VA: lf.ARM_BYTES,
+            lf.UPDATE_VA: lf.UPDATE_BYTES,
+            lf.EXPIRE_VA: lf.EXPIRE_BYTES,
+            lf.LATCH_DEFAULT_VA: lf.LATCH_DEFAULT_BYTES,
             # `buildFieldParse`, whose one imm32 is the table's only reference in the image
             0x007A7DFA: bytes.fromhex("8b4c24046a00")
             + b"\x68"
-            + struct.pack("<I", lex.FIELD_TABLE_VA)
+            + struct.pack("<I", lf.FIELD_TABLE_VA)
             + bytes.fromhex("e8cd3ac8ffc3"),
-            lex.FIELD_TABLE_VA: bytes(rows),
+            lf.FIELD_TABLE_VA: bytes(rows),
             LIFETIME_STRINGS_VA: bytes(strings),
         }
     )
@@ -710,6 +787,58 @@ def production_split_image() -> bytearray:
             **ps.AI_ANCHORS,
             MODIFIER_STRINGS_VA: bytes(strings),
             ps.TYPE_TABLE_VA: struct.pack(f"<{len(pointers) + 1}I", *pointers, 0),
+        }
+    )
+
+
+def _modifier_table_bytes() -> tuple[bytes, bytes]:
+    """``(the name strings, the pointer table)`` for a stock modifier-type table.
+
+    Built here rather than copied as a hex blob so that the placeholder names differ from the four
+    the patches fingerprint - a check that read the wrong index would find ``MODTYPE_13`` where it
+    expected ``PRODUCTION``."""
+    strings = bytearray()
+    pointers = []
+    for index in range(ps.STOCK_TYPE_COUNT):
+        pointers.append(MODIFIER_STRINGS_VA + len(strings))
+        strings += stock_modifier_name(index).encode("ascii") + b"\x00"
+    return bytes(strings), struct.pack(f"<{len(pointers) + 1}I", *pointers, 0)
+
+
+def healing_received_image() -> bytearray:
+    """A stand-in carrying every site `healing-received` reads or rewrites, plus the
+    modifier-type name table and the strings its pointers reach.
+
+    Sparse for the usual reason: `ActiveBody::attemptHealing`, `Object::attemptHealing`, the name
+    walk and the two query thunks are spread over more than two megabytes and the patch touches
+    five bytes of it. Everything not planted reads as zero, so a hook aimed one instruction to
+    either side of where it claims to be would find nothing there.
+    """
+    strings, table = _modifier_table_bytes()
+    return _sparse_image(
+        {
+            **hr.ANCHORS,
+            MODIFIER_STRINGS_VA: strings,
+            hr.modifier_types.NAME_TABLE_VA: table,
+        }
+    )
+
+
+def modifier_type_image() -> bytearray:
+    """A stand-in carrying every site **both** modifier-type-appending patches read or rewrite.
+
+    `production-split` and `healing-received` share one name table and have to compose in either
+    order, which needs an image where both can actually be applied - neither patch's own stand-in
+    carries the other's hook windows.
+    """
+    strings, table = _modifier_table_bytes()
+    return _sparse_image(
+        {
+            **ps.ANCHORS,
+            **ps.AI_ANCHORS,
+            **hr.ANCHORS,
+            MODIFIER_STRINGS_VA: strings,
+            ps.TYPE_TABLE_VA: table,
         }
     )
 

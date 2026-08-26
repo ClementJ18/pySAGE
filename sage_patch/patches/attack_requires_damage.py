@@ -16,10 +16,21 @@ bug.
 ``ATTACK_ELIGIBILITY_NUGGET_CALL`` (`0x006CDCD1`) - the final answer of the attack-eligibility
 predicate `0x006CDBF3`, which every acquire / attack-move / right-click path reaches - into an
 appended cave that repeats the same nugget walk but counts a nugget only when it both accepts the
-victim **and** deals damage. "Deals damage" is the engine's own notion, read off the nugget vtable:
-``NUGGET_VTBL_DEALS_DAMAGE`` (direct damage, e.g. a `DamageNugget`) **or** a non-NULL
-``NUGGET_VTBL_SUBWEAPON`` (indirect damage, e.g. a `ProjectileNugget` firing a projectile). The
-sub-weapon clause is what keeps archers and every projectile-only weapon working.
+victim **and** is one of the eight nugget kinds that are a reason to attack at all
+(``ATTACK_NUGGET_VTABLES``): `DamageNugget`, `ProjectileNugget`, `DOTNugget`,
+`DamageContainedNugget`, `DamageFieldNugget`, `GrabNugget`, `HordeAttackNugget` and
+`SlaveAttackNugget`. The kind test is a vtable compare, not a call.
+
+**Why an allowlist and not the engine's own damage getters.** The obvious implementation asks
+``NUGGET_VTBL_DEALS_DAMAGE`` (`+0x1c`) or ``NUGGET_VTBL_SUBWEAPON`` (`+0x2c`), and it gets the
+answer wrong in both directions. `AttributeModifierNugget`, `ParalyzeNugget`, `FireLogicNugget`
+and `EmotionWeaponNugget` all return `mov al,1` from `+0x1c` while being no reason to walk up to
+anything - so the very nugget this patch is named for was never actually excluded by it. And
+`HordeAttackNugget`, `SlaveAttackNugget`, `DamageFieldNugget` and `GrabNugget` answer false to
+`+0x1c` *and* NULL to `+0x2c` while being exactly how their weapon hurts the target. The worst
+of those is `HordeAttackNugget`: a horde acquires with a rangefinder weapon that carries it as
+its only nugget, so on the getters alone every horde in the game reports itself unable to attack
+anything at all. Nothing in the vtable separates the two groups, so they are named.
 
 **Firing is untouched.** The two other callers of `0x006CB779` (`0x0090F527`, `0x0090F97E`) are
 sub-weapon nuggets' own valid-victim methods, used while the weapon is firing; they keep the stock
@@ -47,12 +58,8 @@ from ..addresses import (
     ATTACK_ELIGIBILITY_NUGGET_CALL,
     ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW,
     ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW_BYTES,
-    DAMAGE_NUGGET_DEALS_DAMAGE_BODY,
-    DAMAGE_NUGGET_DEALS_DAMAGE_BODY_BYTES,
-    DAMAGE_NUGGET_SUBWEAPON_BODY,
-    DAMAGE_NUGGET_SUBWEAPON_BODY_BYTES,
-    NUGGET_VTBL_DEALS_DAMAGE,
-    NUGGET_VTBL_SUBWEAPON,
+    ATTACK_NUGGET_VTABLE_STORES,
+    ATTACK_NUGGET_VTABLES,
     NUGGET_VTBL_VALID_VICTIM,
     WEAPON_ANY_NUGGET_VALID_VICTIM,
     WEAPON_ANY_NUGGET_VALID_VICTIM_BYTES,
@@ -64,6 +71,7 @@ from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offs
 
 __all__ = [
     "ANCHORS",
+    "ATTACK_VTABLES",
     "CALL_VA",
     "SECTION_NAME",
     "AttackRequiresDamagePatch",
@@ -81,14 +89,16 @@ CALL_VA = ATTACK_ELIGIBILITY_NUGGET_CALL
 #: checked against an already-patched image, since those are the bytes this patch rewrites.
 _CALL_IN_WINDOW = CALL_VA - ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW
 
-#: Everything the cave depends on and does not rewrite: the stock head of the routine it replicates,
-#: and the two `DamageNugget` vtable slot bodies the damage discriminator rests on. A build that
-#: laid any of these out differently fails here instead of on a wrong answer in game.
+#: Everything the cave depends on and does not rewrite: the stock head of the routine it
+#: replicates, and the constructor store that identifies each allowlisted nugget's vtable. A
+#: build that laid any of them out differently fails here instead of on a wrong answer in game.
 ANCHORS = {
     WEAPON_ANY_NUGGET_VALID_VICTIM: WEAPON_ANY_NUGGET_VALID_VICTIM_BYTES,
-    DAMAGE_NUGGET_DEALS_DAMAGE_BODY: DAMAGE_NUGGET_DEALS_DAMAGE_BODY_BYTES,
-    DAMAGE_NUGGET_SUBWEAPON_BODY: DAMAGE_NUGGET_SUBWEAPON_BODY_BYTES,
+    **ATTACK_NUGGET_VTABLE_STORES,
 }
+
+#: The vtables the cave compares against, in the order it emits them.
+ATTACK_VTABLES = tuple(ATTACK_NUGGET_VTABLES.values())
 
 
 def _call_bytes(from_va: int, to_va: int) -> bytes:
@@ -98,14 +108,16 @@ def _call_bytes(from_va: int, to_va: int) -> bytes:
 
 def build_cave(base_va: int) -> bytes:
     """``bool cave(WeaponTemplate *this, Object *victim, Weapon *weapon)`` - ``__thiscall``,
-    ``ret 8``, a damage-filtered replica of ``WEAPON_ANY_NUGGET_VALID_VICTIM``.
+    ``ret 8``, an allowlist-filtered replica of ``WEAPON_ANY_NUGGET_VALID_VICTIM``.
 
     Walks the nugget vector exactly as the stock routine does and returns TRUE on the first nugget
-    that accepts the victim (`NUGGET_VTBL_VALID_VICTIM`) **and** deals damage - direct
-    (`NUGGET_VTBL_DEALS_DAMAGE`) or through a sub-weapon (`NUGGET_VTBL_SUBWEAPON`). All three vtable
-    methods are ``__thiscall`` getters that preserve ``ebx``/``esi``/``edi``/``ebp``, so the
-    `WeaponTemplate` (``edi``) and the current list node (``esi``) live in registers across the
-    walk; the victim and weapon are read from the frame.
+    that is one of ``ATTACK_VTABLES`` **and** accepts the victim (`NUGGET_VTBL_VALID_VICTIM`). The
+    kind test is a vtable compare rather than a call, so the only engine code the cave reaches is
+    the one valid-victim method the stock routine already called - and it is reached for a strict
+    subset of the nuggets, so nothing is asked a question it was not already asked. That method is
+    a ``__thiscall`` getter preserving ``ebx``/``esi``/``edi``/``ebp``, so the `WeaponTemplate`
+    (``edi``) and the current list node (``esi``) live in registers across the walk; the victim and
+    weapon are read from the frame.
     """
     disp = struct.pack("<I", WEAPONTEMPLATE_NUGGET_VECTOR_OFFSET)
     a = Asm(base_va)
@@ -124,17 +136,14 @@ def build_cave(base_va: int) -> bytes:
     a.label("loop")
     a.emit(b"\x8b\x4e\x08")  # mov ecx, [esi+8]        ; the nugget
     a.emit(b"\x8b\x01")  # mov eax, [ecx]          ; nugget vtable
-    a.emit(b"\xff\x50", NUGGET_VTBL_DEALS_DAMAGE)  # call [eax+0x1c] ; deals direct damage?
-    a.emit(b"\x84\xc0")  # test al, al
-    a.jcc(JNE, "valid")  # jne .valid
-    a.emit(b"\x8b\x4e\x08")  # mov ecx, [esi+8]
-    a.emit(b"\x8b\x01")  # mov eax, [ecx]
-    a.emit(b"\xff\x50", NUGGET_VTBL_SUBWEAPON)  # call [eax+0x2c] ; a damaging sub-weapon?
-    a.emit(b"\x85\xc0")  # test eax, eax
-    a.jcc(JE, "next")  # je .next                ; non-damaging nugget -> skip
+    for vtable in ATTACK_VTABLES:
+        a.emit(0x3D, struct.pack("<I", vtable))  # cmp eax, <nugget vtable>
+        a.jcc(JE, "valid")  # je .valid
+    a.jmp("next")  # jmp .next               ; not a kind of nugget worth attacking for
 
-    # Damaging nugget: does it accept this victim? (the stock question, unchanged - victim pushed
-    # first then weapon, so the callee sees them in the order the stock routine handed them.)
+    # An allowlisted nugget: does it accept this victim? (the stock question, unchanged -
+    # victim pushed first then weapon, so the callee sees them in the order the stock routine
+    # handed them.)
     a.label("valid")
     a.emit(b"\xff\x75\x08")  # push dword [ebp+8]      ; victim
     a.emit(b"\x8b\x4e\x08")  # mov ecx, [esi+8]        ; nugget = this
@@ -142,7 +151,7 @@ def build_cave(base_va: int) -> bytes:
     a.emit(b"\x8b\x01")  # mov eax, [ecx]
     a.emit(b"\xff\x50", NUGGET_VTBL_VALID_VICTIM)  # call [eax+0x04] ; valid victim? (ret 8)
     a.emit(b"\x84\xc0")  # test al, al
-    a.jcc(JNE, "ret1")  # jne .ret1               ; damaging AND accepts -> 1
+    a.jcc(JNE, "ret1")  # jne .ret1               ; allowlisted AND accepts -> 1
 
     a.label("next")
     a.emit(b"\x8b\x36")  # mov esi, [esi]          ; next node
@@ -166,9 +175,11 @@ class AttackRequiresDamagePatch(Patch):
     name = "attack-requires-damage"
     author = "officialNecro"
     description = (
-        "A unit only auto-acquires or right-click-attacks a target one of its weapon's nuggets can "
-        "actually damage; a knockback- or attribute-modifier-only weapon no longer picks victims "
-        "it cannot hurt. Weapon firing and effects are unchanged. No INI change"
+        "A unit only auto-acquires or right-click-attacks a target its weapon can actually "
+        "do something to: one of its nuggets must be a damage, projectile, DOT, "
+        "damage-contained, damage-field, grab, horde-attack or slave-attack nugget. A "
+        "knockback-, attribute-modifier-, paralyze- or emotion-only weapon no longer picks "
+        "victims it cannot hurt. Weapon firing and effects are unchanged. No INI change"
     )
 
     def apply(self, data: bytearray) -> None:

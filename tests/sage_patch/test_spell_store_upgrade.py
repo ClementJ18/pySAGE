@@ -27,8 +27,8 @@ from sage_patch.addresses import (
     THE_UPGRADE_CENTER,
     UPGRADE_TEMPLATE_INDEX,
 )
-from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches import spell_store_upgrade as ssu
+from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.utils.field_tables import entries_before, read_field_table
 from sage_patch.patches.utils.name_tables import read_cstring
 from sage_patch.patches.utils.token_lists import (

@@ -2,9 +2,9 @@
 
 The cave is hand-assembled x86 that cannot be executed here, so the tests that matter disassemble it
 back and assert it says what it was meant to say: it walks the weapon's nugget vector, and counts a
-nugget only when it both accepts the victim (`+0x04`) and deals damage (`+0x1c`, or a sub-weapon at
-`+0x2c`). Getting the damage gate wrong does not raise - it would either leave the bug in place or
-stop units attacking anything at all.
+nugget only when it both accepts the victim (`+0x04`) and is one of the eight allowlisted nugget
+kinds. Getting that gate wrong does not raise - it would either leave the bug in place or stop
+units attacking anything at all, which is what the `HordeAttackNugget` omission actually did.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import pytest
 from sage_patch.addresses import (
     ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW,
     ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW_BYTES,
+    ATTACK_NUGGET_VTABLES,
     NUGGET_VTBL_DEALS_DAMAGE,
     NUGGET_VTBL_SUBWEAPON,
     NUGGET_VTBL_VALID_VICTIM,
@@ -25,6 +26,7 @@ from sage_patch.addresses import (
 )
 from sage_patch.patches.attack_requires_damage import (
     ANCHORS,
+    ATTACK_VTABLES,
     CALL_VA,
     SECTION_NAME,
     AttackRequiresDamagePatch,
@@ -110,15 +112,63 @@ class TestTheCave:
         want = f"esi, dword ptr [edi + {WEAPONTEMPLATE_NUGGET_VECTOR_OFFSET:#x}]"
         assert any(i.mnemonic == "cmp" and i.op_str == want for i in insns)
 
-    def test_it_asks_the_damage_discriminator_before_accepting(self):
-        """Both damage questions the engine itself uses: direct damage (`+0x1c`) and a damaging
-        sub-weapon (`+0x2c`). Dropping either would exclude a whole class of real weapons."""
+    def test_it_compares_every_allowlisted_vtable(self):
+        """One missing compare is one nugget kind that silently stops attacking. `HordeAttackNugget`
+        is the case that proves it matters: a horde acquires with a rangefinder weapon carrying it
+        as the only nugget, so omitting it stops every horde in the game attacking anything."""
+        cmps = [i.op_str for i in disassemble() if i.mnemonic == "cmp"]
+        for name, vtable in ATTACK_NUGGET_VTABLES.items():
+            assert f"eax, {vtable:#x}" in cmps, f"{name} is never compared"
+
+    def test_it_compares_nothing_but_the_allowlist(self):
+        """A ninth vtable in the cave would be a nugget kind nobody decided to allow."""
+        compared = {
+            int(i.op_str.removeprefix("eax, "), 16)
+            for i in disassemble()
+            if i.mnemonic == "cmp" and i.op_str.startswith("eax, 0x")
+        }
+        assert compared == set(ATTACK_NUGGET_VTABLES.values())
+
+    def test_the_allowlist_is_the_documented_eight(self):
+        """The set is a decision about game behaviour, not an implementation detail - pinned here so
+        a change to it has to be deliberate."""
+        assert set(ATTACK_NUGGET_VTABLES) == {
+            "DOTNugget",
+            "DamageContainedNugget",
+            "DamageFieldNugget",
+            "DamageNugget",
+            "GrabNugget",
+            "HordeAttackNugget",
+            "ProjectileNugget",
+            "SlaveAttackNugget",
+        }
+        assert ATTACK_VTABLES == tuple(ATTACK_NUGGET_VTABLES.values())
+
+    def test_it_does_not_ask_the_engine_damage_getters(self):
+        """The two getters are not a reading of "this nugget hurts the target" - `+0x1c` is true for
+        `AttributeModifierNugget` and false for `HordeAttackNugget`, so consulting either would
+        re-admit nuggets the allowlist excludes and keep out ones it includes."""
         calls = [i.op_str for i in disassemble() if i.mnemonic == "call"]
-        assert f"dword ptr [eax + {NUGGET_VTBL_DEALS_DAMAGE:#x}]" in calls
-        assert f"dword ptr [eax + {NUGGET_VTBL_SUBWEAPON:#x}]" in calls
+        assert f"dword ptr [eax + {NUGGET_VTBL_DEALS_DAMAGE:#x}]" not in calls
+        assert f"dword ptr [eax + {NUGGET_VTBL_SUBWEAPON:#x}]" not in calls
+
+    def test_a_nugget_off_the_allowlist_skips_to_the_next(self):
+        """The fall-through past the last compare must reach the loop's advance, not the acceptance
+        test - landing on `valid` instead would accept every nugget and restore the stock bug."""
+        insns = disassemble()
+        last_cmp = max(
+            n for n, i in enumerate(insns) if i.mnemonic == "cmp" and i.op_str.startswith("eax, 0x")
+        )
+        fallthrough = insns[last_cmp + 2]
+        assert fallthrough.mnemonic == "jmp"
+        target = int(fallthrough.op_str, 16)
+        advance = next(
+            i for i in insns if i.mnemonic == "mov" and i.op_str == "esi, dword ptr [esi]"
+        )
+        assert target == advance.address
 
     def test_it_still_asks_the_stock_valid_victim_question(self):
-        """The damage gate is added to the acceptance test, not a replacement for it."""
+        """The kind gate is added to the acceptance test, not a replacement for it."""
         calls = [i.op_str for i in disassemble() if i.mnemonic == "call"]
         assert f"dword ptr [eax + {NUGGET_VTBL_VALID_VICTIM:d}]" in calls
 

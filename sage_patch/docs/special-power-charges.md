@@ -228,7 +228,7 @@ module +0x31            chargesSpent     byte, 0 .. ChargeNumber
 ```
 
 Six free bytes, five used, one left over. Zeroing costs two edits of the kind this repo has made
-twice before (`lifetime-extend-upgrade`, `cooldown-through-death` §2.1) - widen a `mov byte` to a
+twice before (`lifetime-fields`, `cooldown-through-death` §2.1) - widen a `mov byte` to a
 `mov dword`, `88` → `89`, **same instruction length**:
 
 ```
@@ -611,15 +611,29 @@ unlocked.
 ### 6.2 The other `startPowerRecharge`
 
 Three of the 26 vtables (`0x00C650F0`, `0x00C74878`, `0x00C873E0`) carry `0x00991500` in slot `+0x3C`
-instead, and they are the **`SpecialPowerUpdateModule` family**: the base itself (name accessor
-`0x00991166`), `DeflectSpecialPower` (`0x008C9939`) and `SiegeDeployHordeSpecialPower`
-(`0x008CA867`). They are a different class shape - the interface subobject sits at `+0x24` rather
-than `+0x10` (`0x008C9B77`) - and their implementation keeps no `duration` (`getPercentReady` at
-`0x009913BC` divides by the raw `ReloadTime`), so they have neither the field layout §2 assumes nor
-the multiplier §4 reuses. Powers on those modules ignore `ChargeNumber` entirely - the keys parse,
-nothing reads them. Same exclusion `recharge-rescale` §7.1 takes, for the same reason, and in
-`__edain_data.big` it costs 6 `DeflectSpecialPower` and 31 `SiegeDeployHordeSpecialPower`
-behaviours.
+instead, and they are the **`SpecialPowerUpdateModule` family**. They are a different class shape -
+the interface subobject sits at `+0x24` rather than `+0x10` (`0x008C9B77`) - and their
+implementation keeps no `duration` (`getPercentReady` at `0x009913BC` divides by the raw
+`ReloadTime`), so they have neither the field layout §2 assumes nor the multiplier §4 reuses.
+Powers on those modules ignore `ChargeNumber` entirely - the keys parse, nothing reads them. Same
+exclusion `recharge-rescale` §7.1 takes, for the same reason.
+
+**Three vtables is not three module types**, and the difference is what the exclusion actually
+costs. An interface vtable is shared by every class that overrides none of its methods, so the
+classes installing these three outnumber them - the writers of each vptr say which
+([`description-timers.md`](description-timers.md) §3.1.1 tabulates them):
+
+| interface vtable | classes that install it |
+|---|---|
+| `0x00C650F0` | `WeaponModeSpecialPowerUpdate` (`0x00898249`), `DeflectSpecialPower` (`0x008C9920`), `SiegeDeployHordeSpecialPower` (`0x008CA84A`) |
+| `0x00C74878` | `SiegeDeploySpecialPower` (`0x008C9B7A`) |
+| `0x00C873E0` | the base itself (`0x0099115D`; name accessor `0x00991166`) |
+
+In `__edain_data.big` that is 6 `DeflectSpecialPower`, 31 `SiegeDeployHordeSpecialPower`, 4
+`SiegeDeploySpecialPower` - and **340 `WeaponModeSpecialPowerUpdate`**, the standard shape for a
+hero ability that switches weapon mode for a `Duration`. So the exclusion is a real one, not the
+rounding error the vtable count suggests: `ChargeNumber` on a `WeaponModeSpecialPowerUpdate` power
+parses and does nothing.
 
 ### 6.3 Externally triggered recharges do **not** spend a charge
 
