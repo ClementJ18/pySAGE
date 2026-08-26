@@ -17,13 +17,14 @@ from sage_ini.model.objects import Nugget
 from sage_ini.model.types import (
     Bool,
     Coords,
+    FlagList,
     Float,
     FXList,
     Int,
     List,
     ObjectFilter,
     ScaledObjectFilter,
-    Untyped,
+    String,
 )
 
 if TYPE_CHECKING:
@@ -94,9 +95,8 @@ class MetaImpactNugget(WeaponEffectNugget):
 
 class ProjectileNugget(WeaponEffectNugget):
     WarheadTemplateName: "Weapon"
-    WeaponLaunchBoneSlotOverride: Untyped
+    WeaponLaunchBoneSlotOverride: e.SlotTypes
     ProjectileTemplateName: "Object"
-    # WeaponLaunchBoneSlotOverride : SECONDARY
     AlwaysAttackHereOffset: Coords
     UseAlwaysAttackOffset: Bool
 
@@ -107,7 +107,7 @@ class WeaponOCLNugget(WeaponEffectNugget):
 
 class AttributeModifierNugget(WeaponEffectNugget):
     AttributeModifier: "ModifierList"
-    AntiCategories: Untyped
+    AntiCategories: FlagList[e.ModifierCategories]
     Radius: Float
     DamageFXType: e.DamageFXType
     AffectHordeMembers: Bool
@@ -160,7 +160,7 @@ class DamageFieldNugget(WeaponEffectNugget):
 
 
 class HordeAttackNugget(WeaponEffectNugget):
-    LockWeaponSlot: Untyped
+    LockWeaponSlot: e.SlotTypes
 
 
 class SpawnAndFadeNugget(WeaponEffectNugget):
@@ -180,7 +180,7 @@ class GrabNugget(WeaponEffectNugget):
 
 
 class LuaEventNugget(WeaponEffectNugget):
-    LuaEvent: List[Untyped]  # `Frame:N Data:<event>`, repeats
+    LuaEvent: List[String]
     Radius: Float
     SendToEnemies: Bool
     SendToAllies: Bool
@@ -227,8 +227,8 @@ WEAPON_NUGGETS = [
 
 class InvisibilityNugget(Nugget):
     ForbiddenWeaponConditions: List[WeaponsetFlags]
-    InvisibilityType: Untyped
-    ForbiddenConditions: Untyped
+    InvisibilityType: e.InvisibilityType
+    ForbiddenConditions: FlagList[e.InvisibilityCondition]
     Options: e.InvisibilityOptions
     DetectionRange: Float
     IgnoreTreeCheckUpgrades: List["Upgrade"]

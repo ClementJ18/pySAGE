@@ -60,6 +60,7 @@ _SCALAR_CODES: dict[type, str] = {
     t._IntRange: "I2",
     t._FloatRange: "F2",
     t._RandomVariable: "rand",
+    t._FontSpec: "font",
     t._String: "S",
     t.String: "S",
     t.Untyped: "S",
@@ -77,6 +78,7 @@ LEGEND = """\
 # LEGEND  one line per field: `Name: <type-code>`
 #   I int  F float  B bool  S string  O opaque-token  tag module-tag  label UI-label
 #   I2 int-range  F2 float-range  deg degrees  rand random-var  S+ token-list
+#   font `"family" size bold` font spec
 #   xyz coords  xyz+ coords-list  rgb  rgba  file:ext on-disk asset
 #   R:<table>  cross-reference -> a definition in that Game table (where to look)
 #   @Name      link to a modeled block type that has no table of its own

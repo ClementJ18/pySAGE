@@ -135,6 +135,13 @@ class TestUnknownStringLabelRule:
         assert diags[0].severity is Severity.WARNING
         assert "OBJECT:Missing" in diags[0].message
 
+    def test_a_quoted_label_resolves(self):
+        # corpus: `DisplayNameTag = "LWA:MenGarrison"` - a Label keeps its quotes like any
+        # string scalar, so the lookup has to strip them.
+        game = _load('Upgrade Foo\n    DisplayName = "OBJECT:Present"\nEnd\n')
+        game.strings.update({"OBJECT:Present": "Present"})
+        assert not list(run_rules(game, [UnknownStringLabelRule]))
+
     def test_does_not_flag_a_label_present_in_the_table(self):
         game = _load("Upgrade Foo\n    DisplayName = OBJECT:Present\nEnd\n")
         game.strings.update({"OBJECT:Present": "Present"})

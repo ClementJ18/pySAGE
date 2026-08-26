@@ -2,6 +2,7 @@
 declares `RadiusCursorTemplate` ground cursors. Collected via `nested_attributes` on those
 data blocks. Percentage and `R:G:B:A:` values are kept as raw strings (no converter yet)."""
 
+import sage_ini.model.enums as e
 import sage_ini.model.types as t
 from sage_ini.model.objects import NestedAttribute
 
@@ -14,13 +15,13 @@ class Transition(NestedAttribute):
 
     StartFrame: t.Int
     EndFrame: t.Int
-    ViewsToFade: t.Untyped
+    ViewsToFade: t.FlagList[e.ViewType]
     LeaveSilent: t.Bool
 
     # World-map transition variant fields (the same `Transition = <type>` keyword also drives
     # the living-world view fades): the animation played and the fade colour/image.
-    AnimationName: t.Untyped
-    AnimationMode: t.Untyped
+    AnimationName: t.List[t.Animation]
+    AnimationMode: e.AnimationMode
     AnimationBlendTime: t.Int
     AnimationMustCompleteBlend: t.Bool
     AnimationSpeedFactorRange: t.List[t.Float]
@@ -36,7 +37,7 @@ class Window(NestedAttribute):
 
     nested_attributes = {"Transition": ["Transition"]}
 
-    WinName: t.Untyped
+    WinName: t.Opaque
     FrameDelay: t.Int
 
 
@@ -47,7 +48,7 @@ class RadiusCursorTemplate(NestedAttribute):
     keyed_by_label = True
 
     Texture: t.TextureFile
-    Style: t.Untyped
+    Style: t.FlagList[e.ObjectShadowType]
     OpacityMin: t.Float
     OpacityMax: t.Float
     OpacityThrobTime: t.Int

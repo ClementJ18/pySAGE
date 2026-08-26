@@ -7,6 +7,7 @@ numeric, raw strings for `R:G:B:`/`X:Y:Z:` and object-template names) so recogni
 never introduces a `conversion-error`; unmodelled inner keys surface as INFO coverage.
 """
 
+import sage_ini.model.enums as e
 import sage_ini.model.types as t
 from sage_ini.model.objects import NestedAttribute
 
@@ -19,7 +20,7 @@ class ParticleSystem(NestedAttribute):
     Offset: t.Coords
     Height: t.Float
     Radius: t.Float
-    InitialDelay: t.Untyped  # a `min max DISTRIBUTION` triple, not a scalar
+    InitialDelay: t.RandomVariable
     OrientToObject: t.Bool
     OnlyIfOnLand: t.Bool
     OnlyIfOnWater: t.Bool
@@ -33,7 +34,7 @@ class ParticleSystem(NestedAttribute):
     CreateAtGroundHeight: t.Bool
     AttachToBone: t.Bone
     ObjectFilter: t.ObjectFilter
-    Weather: t.Untyped
+    Weather: e.MapWeatherType
     TargetCoeff: t.Float
     SystemLife: t.Int
 
@@ -44,22 +45,22 @@ class Sound(NestedAttribute):
     Name: t.Sound
     Sound: t.Sound
     Key: t.Opaque
-    Duck: t.Untyped  # an `AudioMap:<map> Sound:<event>` ducking spec
+    Duck: t.KeyValuePair[t.Opaque, t.Sound, t.Float]
     StopIfNuggetPlayed: t.Bool
-    SourceObjectFilter: t.Untyped  # uses an `S:<name>` source-object form, not a KindOf filter
+    SourceObjectFilter: t.ObjectFilter
     ObjectFilter: t.ObjectFilter
-    RequiredSourceModelConditions: t.Untyped
-    ExcludedSourceModelConditions: t.Untyped
+    RequiredSourceModelConditions: t.FlagList[e.ModelCondition]
+    ExcludedSourceModelConditions: t.FlagList[e.ModelCondition]
 
 
 class EvaEvent(NestedAttribute):
     """An `EvaEvent` nugget: fire an EVA announcement to owner/ally/enemy."""
 
-    EvaEventOwner: t.Untyped
-    EvaEventAlly: t.Untyped
-    EvaEventEnemy: t.Untyped
-    RequiredSourceModelConditions: t.Untyped
-    ExcludedSourceModelConditions: t.Untyped
+    EvaEventOwner: t.EvaEvent
+    EvaEventAlly: t.EvaEvent
+    EvaEventEnemy: t.EvaEvent
+    RequiredSourceModelConditions: t.FlagList[e.ModelCondition]
+    ExcludedSourceModelConditions: t.FlagList[e.ModelCondition]
     AlwaysPlayFromHomeBase: t.Bool
     CountAsJumpToLocation: t.Bool
     ExpirationTimeMS: t.Int
@@ -76,11 +77,11 @@ class EvaEvent(NestedAttribute):
 class DynamicDecal(NestedAttribute):
     """A `DynamicDecal` nugget: a ground texture that fades in and out."""
 
-    DecalName: t.Untyped
+    DecalName: t.Image
     Offset: t.Coords
     Size: t.Float
     Color: t.RGB
-    Shader: t.Untyped
+    Shader: e.DecalShader
     OpacityStart: t.Int
     OpacityPeak: t.Int
     OpacityPeakTime: t.Int
@@ -96,14 +97,14 @@ class FXListAtBonePos(NestedAttribute):
 
     FX: t.FXList
     BoneName: t.Bone
-    Weather: t.Untyped
+    Weather: e.MapWeatherType
 
 
 class TerrainScorch(NestedAttribute):
     """A `TerrainScorch` nugget: burn a scorch mark into the terrain."""
 
-    Type: t.Untyped
-    Weather: t.Untyped
+    Type: e.ScorchType
+    Weather: e.MapWeatherType
     RandomRange: t.Coords
     Radius: t.Float
 
@@ -119,7 +120,7 @@ class CameraShakerVolume(NestedAttribute):
 class BuffNugget(NestedAttribute):
     """A `BuffNugget`: apply a buff, with per-kind replacement templates."""
 
-    BuffType: t.Untyped
+    BuffType: e.BuffType
     BuffName: t.Untyped
     BuffShipTemplate: t.Opaque
     BuffLifeTime: t.Int
@@ -166,4 +167,4 @@ class LightPulse(NestedAttribute):
 class AttachedModel(NestedAttribute):
     """An `AttachedModel` nugget: attach a model to the object for the effect."""
 
-    Modelname: t.Untyped
+    Modelname: t.ModelFile

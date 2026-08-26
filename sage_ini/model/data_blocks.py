@@ -55,11 +55,11 @@ class AudioEvent(IniObject):
     Sounds: List[Opaque]
     Attack: List[Opaque]
     Decay: List[Opaque]
-    PitchShift: Untyped
-    PerFilePitchShift: Untyped
-    VolumeShift: Untyped
-    PerFileVolumeShift: Untyped
-    Delay: Untyped
+    PitchShift: t.FloatRange
+    PerFilePitchShift: t.FloatRange
+    VolumeShift: t.Float
+    PerFileVolumeShift: t.Float
+    Delay: t.IntRange
     VolumeSliderMultiplier: t.VolumeSliderMultiplier
     ReverbEffectLevel: Float
     DryLevel: Float
@@ -245,7 +245,7 @@ class Video(IniObject):
     key = "videos"
 
     Filename: Opaque
-    Comment: Untyped
+    Comment: t.String
     Volume: Float
     IsDefault: Bool
 
@@ -260,7 +260,7 @@ class HouseColor(IniObject):
 class LivingWorldPlayerArmy(IniObject):
     key = "livingworldplayerarmys"
 
-    Name: Untyped
+    Name: t.Opaque
     DisplayNameTag: t.Label
     Color: t.RGB
     MinCommandPoints: t.Int
@@ -303,11 +303,11 @@ class AIBase(IniObject):
 class DebugCommandMap(IniObject):
     key = "debugcommandmaps"
 
-    Key: Untyped
-    Transition: Untyped
-    Modifiers: Untyped
-    UseableIn: Untyped
-    Category: Untyped
+    Key: e.MappableKey
+    Transition: e.KeyTransition
+    Modifiers: e.KeyModifier
+    UseableIn: t.FlagList[e.CommandUsableIn]
+    Category: e.CommandMapCategory
 
 
 class MouseCursor(IniObject):
@@ -381,7 +381,7 @@ class LivingWorldAnimObject(IniObject):
 
     Model: Opaque
     Pos: Coords
-    Shadow: Untyped
+    Shadow: e.ObjectShadowType
     HasAnim: Bool
     Xfer: Bool
     Frame: Float
@@ -396,9 +396,9 @@ class LargeGroupAudioMap(IniObject):
     StopThreshold: Int
     HandOffModeDuration: Int
     MaximumAudioSpeed: Int
-    ExcludedObjectStatusBits: Untyped
-    ExcludedModelConditionFlags: Untyped
-    RequiredModelConditionFlags: Untyped
+    ExcludedObjectStatusBits: t.FlagList[e.ObjectStatus]
+    ExcludedModelConditionFlags: t.FlagList[e.ModelCondition]
+    RequiredModelConditionFlags: t.FlagList[e.ModelCondition]
     IgnoreStealthedUnits: Bool
     Sound: Sound
 
@@ -464,7 +464,7 @@ class LivingWorldBuilding(IniObject):
     BuildingIcon: t.BuildingIconRef
     ConstructButtonImage: t.Label
     TurnsToBuild: Int
-    Type: Untyped
+    Type: e.LivingWorldBuildingType
     ConstructButtonTitle: t.Label
     ConstructButtonHelp: t.Label
     DisplayNameTag: t.Label
@@ -539,10 +539,10 @@ class DamageFX(IniObject):
     key = "damagefxs"
 
     # Per-`DamageType` FX bindings (`<DamageType> <value>`), each repeating once per type.
-    ThrottleTime: List[Untyped]
-    AmountForMajorFX: List[Untyped]
-    MajorFX: List[Untyped]
-    MinorFX: List[Untyped]
+    ThrottleTime: t.List[t.Tuple[e.DamageFXType, t.Int]]
+    AmountForMajorFX: t.List[t.Tuple[e.DamageFXType, t.Float]]
+    MajorFX: t.List[t.Tuple[e.DamageFXType, t.FXList]]
+    MinorFX: t.List[t.Tuple[e.DamageFXType, t.FXList]]
     VeterancyMajorFX: t.FXList
     VeterancyMinorFX: t.FXList
 
@@ -582,7 +582,7 @@ class MultiplayerColor(IniObject):
     RGBNightColor: RGBA
     LivingWorldColor: RGBA
     LivingWorldBannerColor: RGBA
-    TooltipName: Untyped
+    TooltipName: t.Label
     AvailableInWotR: Bool
 
 
@@ -601,7 +601,7 @@ class LivingWorldPlayerTemplate(IniObject):
     BuildPlotIconName: t.String
     BuildPlotSelectionPortraitName: t.String
     GarrisonSelectionPortraitName: t.String
-    GarrisonDisplayNameTag: Untyped
+    GarrisonDisplayNameTag: t.Label
     FactionDozerTemplateName: t.String
     FactionInnUnitTemplateName: t.String
     ScenarioMaxResources: t.Int
@@ -674,8 +674,8 @@ class ThingStat(NestedAttribute):
     """A tracked statistic in the `AwardSystem`: its id, display strings and the templates or
     kinds it counts."""
 
-    StatName: Untyped
-    NameTag: Untyped
+    StatName: t.String
+    NameTag: t.Label
     DescriptionTag: t.Label
     ThingTemplateNames: List["Object"]
     KindOf: List[e.KindOf]
@@ -688,7 +688,7 @@ class CreateAHeroBling(NestedAttribute):
 
     NameTag: t.Label
     DescriptionTag: t.Label
-    GroupName: Untyped
+    GroupName: t.String
     BlingUpgradeName: "Upgrade"
 
 
@@ -738,7 +738,7 @@ class ArmyDefinition(IniObject):
     CombatChainSearchDepthForTeamRecruits_DefenseTeams: Int
     CombatChainSearchDepthForTeamRecruits_ExploreTeams: Int
     TacticalAITargets: Untyped
-    MaxTeamsPerTarget: Untyped
+    MaxTeamsPerTarget: t.List[t.Int]
     SecondsTillTargetsCanExpire: Float
     ChanceForTargetToExpire: Float
     MaxBuildingsToBeDefensiveTarget_Small: Int
@@ -757,7 +757,7 @@ class ControlBarScheme(IniObject):
 
     nested_attributes = {"ImagePart": ["ImagePart"]}
 
-    ScreenCreationRes: Untyped  # a `width height` pair
+    ScreenCreationRes: t.Coords
     Side: e.FactionSide
     CommandBarBorderColor: RGBA
     BuildUpClockColor: RGBA
@@ -964,15 +964,15 @@ class LinearCampaign(IniObject):
 class StaticGameLOD(IniObject):
     key = "staticgamelods"
 
-    ModelLOD: Untyped
-    EffectsLOD: Untyped
-    ShadowLOD: Untyped
-    WaterLOD: Untyped
-    AnimationDetail: Untyped
-    ShaderLOD: Untyped
-    DecalLOD: Untyped
-    MinParticlePriority: Untyped
-    MinParticleSkipPriority: Untyped
+    ModelLOD: e.LodLevel
+    EffectsLOD: e.LodLevel
+    ShadowLOD: e.LodLevel
+    WaterLOD: e.LodLevel
+    AnimationDetail: e.LodLevel
+    ShaderLOD: e.LodLevel
+    DecalLOD: e.LodLevel
+    MinParticlePriority: e.ParticleSystemPriority
+    MinParticleSkipPriority: e.ParticleSystemPriority
     MaxParticleCount: Int
     MaxTankTrackEdges: Int
     MaxTankTrackOpaqueEdges: Int
@@ -1490,9 +1490,7 @@ class GameData(IniObject):
     WaterPositionY: t.Float
     WaterPositionZ: t.Float
     WaterType: t.Int
-    WeaponBonus: t.List[
-        t.Tuple[t.Untyped, t.Untyped, t.Untyped]
-    ]  # `<condition> <field> <value>`, one per repeat
+    WeaponBonus: t.List[t.Tuple[e.WeaponBonusCondition, e.WeaponBonusField, t.Float]]
     Weather: e.MapWeatherType
 
 
@@ -1712,11 +1710,11 @@ class Bridge(IniObject):
 class CommandMap(IniObject):
     key = "commandmaps"
 
-    Key: Untyped
-    Transition: Untyped
-    Modifiers: Untyped
-    UseableIn: Untyped
-    Category: Untyped
+    Key: e.MappableKey
+    Transition: e.KeyTransition
+    Modifiers: e.KeyModifier
+    UseableIn: t.FlagList[e.CommandUsableIn]
+    Category: e.CommandMapCategory
     Description: t.Label
     DisplayName: t.Label
 
@@ -1764,8 +1762,8 @@ class Credits(IniObject):
     TitleColor: RGBA
     MinorTitleColor: RGBA
     NormalColor: RGBA
-    Style: List[Untyped]
-    Text: List[Untyped]
+    Style: t.List[e.CreditStyle]
+    Text: t.RawList
     Blank: List[Opaque]
 
 
@@ -1792,7 +1790,7 @@ class FormationAssistant(IniObject):
 class InGameNotificationBox(IniObject):
     key = "ingamenotificationboxs"
 
-    DefaultMessageFont: Untyped
+    DefaultMessageFont: t.FontSpec
     DefaultMessageColor: RGBA
     DefaultOpenAudio: Sound
     Font: t.Opaque
@@ -1811,22 +1809,22 @@ class InGameUI(IniObject):
     MessageColor2: RGBA
     MessagePosition: Coords
     MessagePositionLW: Coords
-    MessageFont: Untyped
+    MessageFont: t.FontName
     MessagePointSize: Int
     MessageDelayMS: Int
 
     MilitaryCaptionColor: RGBA
     MilitaryCaptionPosition: Coords
     MilitaryCaptionCentered: Bool
-    MilitaryCaptionTitleFont: Untyped
+    MilitaryCaptionTitleFont: t.FontName
     MilitaryCaptionTitlePointSize: Int
     MilitaryCaptionTitleBold: Bool
-    MilitaryCaptionFont: Untyped
+    MilitaryCaptionFont: t.FontName
     MilitaryCaptionPointSize: Int
     MilitaryCaptionBold: Bool
     MilitaryCaptionDelayMS: Int
 
-    DrawableCaptionFont: Untyped
+    DrawableCaptionFont: t.FontName
     DrawableCaptionPointSize: Int
     DrawableCaptionBold: Bool
     DrawableCaptionColor: RGBA
@@ -1834,38 +1832,38 @@ class InGameUI(IniObject):
     SuperweaponCountdownPosition: Coords
     SuperweaponCountdownFlashDuration: Int
     SuperweaponCountdownFlashColor: RGBA
-    SuperweaponCountdownNormalFont: Untyped
+    SuperweaponCountdownNormalFont: t.FontName
     SuperweaponCountdownNormalPointSize: Int
     SuperweaponCountdownNormalBold: Bool
-    SuperweaponCountdownReadyFont: Untyped
+    SuperweaponCountdownReadyFont: t.FontName
     SuperweaponCountdownReadyPointSize: Int
     SuperweaponCountdownReadyBold: Bool
 
     NamedTimerCountdownPosition: Coords
     NamedTimerCountdownFlashDuration: Int
     NamedTimerCountdownFlashColor: RGBA
-    NamedTimerCountdownNormalFont: Untyped
+    NamedTimerCountdownNormalFont: t.FontName
     NamedTimerCountdownNormalPointSize: Int
     NamedTimerCountdownNormalBold: Bool
     NamedTimerCountdownNormalColor: RGBA
-    NamedTimerCountdownReadyFont: Untyped
+    NamedTimerCountdownReadyFont: t.FontName
     NamedTimerCountdownReadyPointSize: Int
     NamedTimerCountdownReadyBold: Bool
     NamedTimerCountdownReadyColor: RGBA
 
-    HelpBoxNameFont: Untyped
+    HelpBoxNameFont: t.FontName
     HelpBoxNamePointSize: Int
     HelpBoxNameBold: Bool
     HelpBoxNameColor: RGBA
-    HelpBoxCostFont: Untyped
+    HelpBoxCostFont: t.FontName
     HelpBoxCostPointSize: Int
     HelpBoxCostBold: Bool
     HelpBoxCostColor: RGBA
-    HelpBoxShortcutFont: Untyped
+    HelpBoxShortcutFont: t.FontName
     HelpBoxShortcutPointSize: Int
     HelpBoxShortcutBold: Bool
     HelpBoxShortcutColor: RGBA
-    HelpBoxDescriptionFont: Untyped
+    HelpBoxDescriptionFont: t.FontName
     HelpBoxDescriptionPointSize: Int
     HelpBoxDescriptionBold: Bool
     HelpBoxDescriptionColor: RGBA
@@ -1881,7 +1879,7 @@ class InGameUI(IniObject):
 
     TerrainResourceClaimDecal: Opaque
     PlaceTerrainResourceClaimantDecal: Opaque
-    PlaceTerrainResourceClaimantFont: Untyped
+    PlaceTerrainResourceClaimantFont: t.FontSpec
     PlaceTerrainResourceClaimantFontColor: RGBA
 
     HeroInitialSpawnNotificationMessage: t.Label
@@ -2138,7 +2136,7 @@ class MiscEvaData(IniObject):
 class Mouse(IniObject):
     key = "mouses"
 
-    TooltipFontName: Untyped
+    TooltipFontName: t.FontName
     TooltipFontSize: Int
     TooltipFontIsBold: Bool
     TooltipAnimateBackground: Bool
@@ -2401,9 +2399,9 @@ class CloudEffect(IniObject):
     JitterLightningLightIntensity: Bool
     JitterLightningLightPosition: Bool
     LightningChance: Float
-    LightningDuration: Untyped
+    LightningDuration: t.RandomVariable
     LightningFrequency: Float
-    LightningIntensity: Untyped
+    LightningIntensity: t.RandomVariable
     LightningShadowColor: RGBA
     LightningShadowIntensity: Float
     LightningLightPosition1: Coords
@@ -2415,8 +2413,8 @@ class CloudEffect(IniObject):
 class CreateAHeroClass(IniObject):
     key = "createaheroclass"
 
-    NameTag: Untyped
-    DescriptionTag: Untyped
+    NameTag: t.Label
+    DescriptionTag: t.Label
     PowersDescTag: t.Label
     UpgradeName: t.UpgradeRef
     IconImage: Opaque
@@ -2433,7 +2431,7 @@ class DrawGroupInfo(IniObject):
     ColorForTextDropShadow: RGBA
     DropShadowOffsetX: Int
     DropShadowOffsetY: Int
-    FontName: Untyped
+    FontName: t.FontName
     FontSize: Int
     FontIsBold: Bool
     DrawPositionXPercent: Float
@@ -2444,7 +2442,7 @@ class Fire(IniObject):
     key = "fires"
 
     AnimationName: t.ModelFile
-    AnimationMode: Untyped
+    AnimationMode: e.AnimationMode
     AnimationSpeedFactorRange: List[Float]
     BurntTerrainColor: t.RGB
     EnableScorches: t.Bool
@@ -2502,7 +2500,7 @@ class GlowEffect(IniObject):
 class LargeGroupAudioUnusedKnownKeys(IniObject):
     key = "largegroupaudiounusedknownkeys"
 
-    Key: List[Untyped]
+    Key: t.List[t.String]
 
 
 class LightPointLevel(IniObject):
@@ -2653,12 +2651,12 @@ class StreamedSound(IniObject):
     key = "streamedsounds"
 
     # A streamed (music/ambient) track: its file and playback parameters (mirrors AudioEvent).
-    Control: Untyped
+    Control: t.FlagList[e.AudioControlFlags]
     Filename: Opaque
     Priority: e.AudioPriority
     Limit: Int
     Volume: Float
-    Type: Untyped
+    Type: t.FlagList[e.AudioTypeFlags]
     SubmixSlider: e.AudioVolumeSlider
     Delay: t.IntRange
     DryLevel: t.Float

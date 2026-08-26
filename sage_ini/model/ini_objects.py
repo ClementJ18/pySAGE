@@ -72,7 +72,7 @@ class Upgrade(IniObject):
     GroupName: t.String
     GroupOrder: Int
     UpgradeFX: Opaque
-    UnitSpecificSound: Untyped
+    UnitSpecificSound: t.Sound
     DisplayName: Label
     BuildTime: Int = 0
     BuildCost: Int = 0
@@ -118,7 +118,7 @@ class TurretModule(IniObject):
 class Armor(IniObject):
     key = "armorsets"
 
-    Armor: List[Untyped]  # `<DamageType> <scalar%>`, one per repeat
+    Armor: t.List[t.Tuple[e.DamageType, t.Float]]
     FlankedPenalty: Float = 0
     DamageScalar: Float = 1
 
@@ -149,7 +149,7 @@ class SpecialPower(IniObject):
 
     Enum: SpecialPowerType
     InitiateSound: Sound
-    PreventActivationConditions: Untyped
+    PreventActivationConditions: t.FlagList[e.ObjectStatus]
     SharedSyncedTimer: Bool
     EvaEventToPlayOnSuccess: Opaque
     UnitSpecificSoundToUseAsInitiateIntendToDoVoice: Opaque
@@ -249,7 +249,7 @@ class CreateObject(IniObject):
     ForbiddenUpgrades: List[Opaque]
     DestinationPlayer: Opaque
     WaypointSpawnPoints: Opaque
-    VeterancyLevel: Untyped
+    VeterancyLevel: t.Int
     MinLifetime: Int
     MaxLifetime: Int
     SkipIfSignificantlyAirborne: Bool
@@ -469,10 +469,8 @@ class Weapon(IniObject):
 
     AttackRange: Float
     ScatterTargetScalar: Float
-    ScatterTarget: List[Untyped]  # `X: <n> Y: <n>` offsets, one per repeat
-    WeaponBonus: List[
-        Tuple[Untyped, Untyped, Untyped]
-    ]  # `<condition> <field> <value>`, one per repeat
+    ScatterTarget: t.CoordsList
+    WeaponBonus: List[Tuple[e.WeaponBonusCondition, e.WeaponBonusField, Float]]
     RangeBonusMinHeight: Float
     RangeBonus: Float
     RangeBonusPerFoot: Float
@@ -530,7 +528,7 @@ class Weapon(IniObject):
     ScatterIndependently: Bool
     PlayFXWhenStealthed: Bool
     AimDirection: Float
-    FXTrigger: Untyped  # a named trigger flag (e.g. CATAPULT_ROCK) FX gate on, not an FXList
+    FXTrigger: e.WeaponFXTrigger
     ShareTimers: Bool
     DisableScatterForTargetsOnWall: Bool
     DamageType: e.DamageType
@@ -603,10 +601,10 @@ class Locomotor(IniObject):
 
     # The terrain the locomotor crosses (flag set), its motion model on the Z axis, the visual
     # movement style, and how it slots into formations - all named token sets, kept as strings.
-    Surfaces: Untyped
-    ZAxisBehavior: Untyped
-    Appearance: Untyped
-    FormationPriority: Untyped
+    Surfaces: t.FlagList[e.LocomotorSurface]
+    ZAxisBehavior: e.ZAxisBehavior
+    Appearance: e.LocomotorAppearance
+    FormationPriority: e.FormationPriority
 
     # Core speeds, turning and braking (and their damaged-state variants). Distances are world
     # units, times are in milliseconds, rates are per-frame unless noted.
@@ -724,12 +722,12 @@ class WeaponSet(IniObject):
     Weapon: List[Tuple[SlotTypes, Nullable[io.Weapon]]]
     ReadyStatusSharedWithinSet: Bool
     ShareWeaponReloadTime: Bool
-    DefaultWeaponChoiceCritera: Untyped
+    DefaultWeaponChoiceCritera: e.WeaponChoiceCriteria
     # Per-slot gating lines (`PRIMARY <flags>`); each may repeat, one per weapon slot.
-    AutoChooseSources: List[Untyped]
-    OnlyAgainst: List[Untyped]
-    PreferredAgainst: List[Untyped]
-    OnlyInCondition: List[Untyped]
+    AutoChooseSources: t.List[t.Tuple[e.SlotTypes, t.FlagList[e.CommandSource]]]
+    OnlyAgainst: t.List[t.Tuple[e.SlotTypes, t.FlagList[e.KindOf]]]
+    PreferredAgainst: t.List[t.Tuple[e.SlotTypes, t.FlagList[e.KindOf]]]
+    OnlyInCondition: t.List[t.Tuple[e.SlotTypes, t.FlagList[e.ModelCondition]]]
 
 
 class ArmorSet(IniObject):
@@ -743,7 +741,7 @@ class ArmorSet(IniObject):
 class AutoResolveArmor(IniObject):
     key = None
 
-    Armor: Untyped
+    Armor: t.Opaque
     RequiredUpgrades: List[t.UpgradeRef]
     ExcludedUpgrades: List[t.UpgradeRef]
 
@@ -751,7 +749,7 @@ class AutoResolveArmor(IniObject):
 class AutoResolveWeapon(IniObject):
     key = None
 
-    Weapon: Untyped
+    Weapon: t.Opaque
     RequiredUpgrades: List[t.UpgradeRef]
     ExcludedUpgrades: List[t.UpgradeRef]
     DamagePerRound: t.Opaque
@@ -902,7 +900,7 @@ class Object(IniObject):
     DisplayName: Label
     RecruitText: Label
     ReviveText: Label
-    Hotkey: Untyped
+    Hotkey: t.Label
 
     VisionRange: Float
     RefundValue: Int
@@ -1040,10 +1038,10 @@ class Object(IniObject):
     Scale: Float
     SubObjects: Opaque
     OrientAngle: Float
-    ZOffset: Untyped  # a min/max pair on some props, not a scalar
+    ZOffset: t.Float
     Browser: t.String
-    VisibleArmySizes: Untyped
-    FadeMethod: Untyped
+    VisibleArmySizes: t.FlagList[e.ArmySize]
+    FadeMethod: e.FadeMethod
     UseHouseColor: Bool
     Clickable: Bool
     Pickbox: Opaque
@@ -1052,9 +1050,9 @@ class Object(IniObject):
         RawList  # a colon-keyed extra-geometry spec (`GeomType:BOX IsSmall:No ...`), one per repeat
     )
 
-    DescriptionStrategic: Untyped
-    DisplayNameStrategic: Untyped
-    DisplayNameInvisibleForEnemy: Untyped
+    DescriptionStrategic: t.Label
+    DisplayNameStrategic: t.Label
+    DisplayNameInvisibleForEnemy: t.Label
     AutoResolveUnitType: Opaque
     AutoResolveBody: t.AutoResolveBodyRef
     AutoResolveCombatChain: t.AutoResolveCombatChainRef
@@ -1072,11 +1070,11 @@ class Object(IniObject):
     DisplayAtRallyPoint: Bool
     ShowOnlyAfterMoveOrder: Bool
     ShowHealthInSelectionDecal: Bool
-    FadeTypeForHilighting: Untyped
-    FadeTypeForUnhilighting: Untyped
-    FadeTypeForSelection: Untyped
-    FadeTypeForShowing: Untyped
-    FadeTypeForHiding: Untyped
+    FadeTypeForHilighting: e.FadeType
+    FadeTypeForUnhilighting: e.FadeType
+    FadeTypeForSelection: e.FadeType
+    FadeTypeForShowing: e.FadeType
+    FadeTypeForHiding: e.FadeType
     FadeHoldPercent: Opaque  # a `#define`d percentage
     FadeInTime: Int
     FadeOutTime: Int
@@ -1098,7 +1096,7 @@ class Object(IniObject):
     FormationWidth: Int
     FormationDepth: Int
 
-    AnimMode: Untyped
+    AnimMode: e.AnimationMode
     PathfindDiameter: Float
     CamouflageDetectionMultiplier: t.Float  # a `#define`d distance
     CommandPointBonus: t.Int  # a `#define`d bonus
@@ -1111,7 +1109,7 @@ class Object(IniObject):
     IsGrabbable: Bool
     IsHarvestable: Bool
     MinZIncreaseForVoiceMoveToHigherGround: Float
-    DeadCollideSize: Untyped
+    DeadCollideSize: e.CollideSize
     LiveCameraOffset: Coords
     LiveCameraPitch: Float
     IsAutoBuilt: Bool
@@ -1237,7 +1235,7 @@ class Object(IniObject):
 
     # Inherited-module edits applied by a `ChildObject` (and harmless on a base object).
     # `RemoveModule = <tag>` is a plain attribute (may repeat); the others are blocks.
-    RemoveModule: List[Untyped]
+    RemoveModule: t.List[t.ModuleTag]
 
     nested_attributes = {
         "WeaponSet": [WeaponSet],
@@ -1327,7 +1325,7 @@ class PlayerTemplate(IniObject):
     IntrinsicSciences: Nullable[List[Science]]
     DisplayName: Label
     ScoreScreenImage: Image
-    LoadScreenMusic: Untyped
+    LoadScreenMusic: t.MusicTrackRef
     IsObserver: Bool
     LoadScreenImage: Image
     BeaconName: "Object"

@@ -7,16 +7,16 @@ each rule's hit count under a plausibility ceiling, so a future rule that floods
 fails here instead of drowning real findings in a report.
 
 The exhaustive coverage signals are exempt: `unrecognized-block` (every unmodeled
-sub-block) and `unknown-attribute` (every still-untyped field, ~58k of them), both
-raised at ERROR to drive the schema toward 100% coverage. They are meant to fire
-broadly until the schema catches up, so the ceiling applies only to the remaining
-judgment rules - the ones whose firing signals an actual mistake.
+sub-block) and `unknown-attribute` (every still-untyped field), both raised at ERROR
+to drive the schema toward 100% coverage. They are meant to fire broadly until the
+schema catches up, so the ceiling applies only to the remaining judgment rules - the
+ones whose firing signals an actual mistake.
 
-Measured on the base game (25,375 objects), for the record:
+Measured on the base game (25,368 objects), for the record:
     duplicate-definition       11      out-of-range                0
     undefined-macro             0      respawn-entry-order         0
-    respawn-unknown-level      44      unknown-string-label      307
-    repeated-field            247      unknown-attribute        58095
+    respawn-unknown-level      44      unknown-string-label      576
+    repeated-field            210      unknown-attribute          14
 """
 
 from collections import Counter

@@ -26,7 +26,7 @@ class ThreatBreakdown(NestedAttribute):
     keyed_by_label = True
     equals_is_spurious = True
 
-    AIKindOf: t.Untyped
+    AIKindOf: e.CombatChainUnitType
 
 
 class Flammability(NestedAttribute):
@@ -58,7 +58,7 @@ class Event(NestedAttribute):
     keyed_by_label = True
 
     EventFX: t.FXList
-    HeightOffset: t.Untyped  # a min/max pair, not a scalar
+    HeightOffset: t.RandomVariable
     OrientFXToTerrain: t.Bool
     PerParticle: t.Bool
     KillAfterEvent: t.Bool
@@ -148,7 +148,7 @@ class SoundUpgrade(_SoundSet):
     VoiceCreated: t.Sound
     VoiceFullyCreated: t.Sound
     ExcludedUpgrades: t.List[t.UpgradeRef]
-    RequiredModelConditions: t.Untyped
+    RequiredModelConditions: t.FlagList[e.ModelCondition]
 
 
 class SoundState(_SoundSet):
@@ -179,7 +179,7 @@ class Turret(NestedAttribute):
 
     TurretTurnRate: t.Int
     TurretPitchRate: t.Int
-    ControlledWeaponSlots: t.Untyped
+    ControlledWeaponSlots: t.FlagList[e.SlotTypes]
     AllowsPitch: t.Bool
     RecenterTime: t.Int
     InitialDirection: t.Untyped
@@ -203,9 +203,9 @@ class Stance(NestedAttribute):
 class CreateDebris(NestedAttribute):
     """A `CreateDebris` nugget of an `ObjectCreationList`: models flung out with a force."""
 
-    ModelNames: t.Untyped
+    ModelNames: t.List[t.ModelFile]
     Count: t.Int
-    Disposition: t.Untyped
+    Disposition: t.FlagList[e.Dispositions]
     Offset: t.Coords
     MinForceMagnitude: t.Float
     MaxForceMagnitude: t.Float
@@ -228,8 +228,8 @@ class Attack(NestedAttribute):
     """An `Attack` nugget: have the created object attack a target (with the attack animation
     binding the engine reads here)."""
 
-    AnimationName: t.Untyped
-    AnimationMode: t.Untyped
+    AnimationName: t.List[t.Animation]
+    AnimationMode: e.AnimationMode
     AnimationBlendTime: t.Int
     UseWeaponTiming: t.Bool
 
@@ -242,7 +242,7 @@ class DecalTemplate(NestedAttribute):
     """A ground decal template on a draw module (e.g. a tornado's shadow)."""
 
     Texture: t.TextureFile
-    Style: t.Untyped
+    Style: t.FlagList[e.ObjectShadowType]
     OpacityMin: t.Float
     OpacityMax: t.Float
     MaxRadius: t.Float
@@ -256,17 +256,17 @@ class AddPlayer(NestedAttribute):
     """A scripted player slot in a `LivingWorldCampaign`."""
 
     PlayerTemplate: t.PlayerTemplateRef
-    BaseRegion: t.Untyped
+    BaseRegion: t.Opaque
     MP_SlotColorIndex: t.Int
     TeamNumber: t.Int
-    AITemplate: t.Untyped
+    AITemplate: t.Opaque
     IsDumb: t.Bool
 
 
 class Trigger(NestedAttribute):
     """The condition that grants an `ObjectAward`."""
 
-    StatName: t.Untyped
+    StatName: t.String
     Stat: t.String
     Threshold: t.Int
 
@@ -274,10 +274,10 @@ class Trigger(NestedAttribute):
 class ObjectAward(NestedAttribute):
     """An award in the `AwardSystem`: its display strings, image and the trigger that earns it."""
 
-    AwardName: t.Untyped
+    AwardName: t.String
     ImageName: t.Image
-    NameTag: t.Untyped
-    DescriptionTag: t.Untyped
+    NameTag: t.Label
+    DescriptionTag: t.Label
 
     nested_attributes = {"Trigger": ["Trigger"]}
 
@@ -285,8 +285,8 @@ class ObjectAward(NestedAttribute):
 class NotificationType(NestedAttribute):
     """One notification kind in an `InGameNotificationBox`: its title and icon."""
 
-    Title: t.Untyped
-    Icon: t.Untyped
+    Title: t.Label
+    Icon: t.Image
 
 
 class ImagePart(NestedAttribute):
@@ -358,8 +358,8 @@ class CombatChainDefinition(NestedAttribute):
     """A skirmish-AI combat-chain entry: a unit and its target priorities."""
 
     Unit: e.CombatChainUnitType
-    TargetTypes: t.Untyped
-    TargetPriorityModifiers: t.Untyped
+    TargetTypes: t.List[e.CombatChainUnitType]
+    TargetPriorityModifiers: t.List[t.Float]
 
 
 class AIEconomyAssigment(NestedAttribute):
@@ -377,7 +377,7 @@ class AIWallNodeAssignment(NestedAttribute):
 class TerrainCellType(NestedAttribute):
     """A terrain cell's fire properties in a `FireLogicSystem`."""
 
-    Name: t.Untyped
+    Name: t.String
     Color: t.RGB
     Fuel: t.Int
     MaxBurnRate: t.Int
@@ -388,17 +388,17 @@ class TerrainCellType(NestedAttribute):
 class CreateAHeroBlingBinder(NestedAttribute):
     """Binds a Create-a-Hero bling option to a UI slot in `CreateAHeroSystem`."""
 
-    GroupName: t.Untyped
-    LabelTag: t.Untyped
-    DescriptionTag: t.Untyped
+    GroupName: t.String
+    LabelTag: t.Label
+    DescriptionTag: t.Label
     UISlot: t.Int
-    BlingType: t.Untyped
+    BlingType: e.BlingType
 
 
 class Attribute(NestedAttribute):
     """One tunable attribute of a `SubClass`: its group and the upgrades that bound it."""
 
-    GroupName: t.Untyped
+    GroupName: t.String
     MinValueUpgrade: t.UpgradeRef
     MaxValueUpgrade: t.UpgradeRef
     DefaultValueUpgrade: t.UpgradeRef
@@ -435,17 +435,17 @@ class ViewInfo(NestedAttribute):
 class SubClass(NestedAttribute):
     """A Create-a-Hero class variant in `CreateAHeroClass`: its stats, bling and awards."""
 
-    NameTag: t.Untyped
-    DescriptionTag: t.Untyped
+    NameTag: t.Label
+    DescriptionTag: t.Label
     UpgradeName: t.UpgradeRef
-    IconImage: t.Untyped
+    IconImage: t.Image
     ButtonImage: t.Image
-    Stats: t.List[t.Untyped]
+    Stats: t.List[t.String]
     BlingUpgrades: t.List[t.UpgradeRef]
-    Awards: t.List[t.Untyped]
+    Awards: t.List[t.String]
     SpendableAttributePoints: t.Int
     UsableFactions: t.Untyped
-    DefaultFaction: t.Untyped
+    DefaultFaction: e.CreateAHeroFaction
     DefaultPrimaryColor: t.RGBA
     DefaultSecondaryColor: t.RGBA
     DefaultTertiaryColor: t.RGBA

@@ -12,7 +12,7 @@ rates. So raising `FramesPerSecondLimit` alone does not buy frames; it makes the
 faster, which is the complaint this patch exists to answer.
 
 **What this does.** Moves the client rate and that literal together, rederives the four constants
-the compiler folded from the client rate, and fixes the three things doing that breaks:
+the compiler folded from the client rate, and fixes the four things doing that breaks:
 
 - the once-per-logic-frame latch (§9.2). Its predicate answers ``subFrame == 6 / (clientRate /
   [0x00ECA400])``, and at 60 that names sub-frame 1 — which is **never observable**, because the
@@ -33,6 +33,15 @@ the compiler folded from the client rate, and fixes the three things doing that 
   runs at double speed. The cave stamps the manager with ``clientFrame * 30 / clientRate`` instead
   of the raw frame — a tick that advances 30 times a second whatever the client rate is — and lets
   the engine's own compare and store do the rest. Measured live at 0.500 steps per client frame.
+- the **GPU** particle rate (§9.11), which is a second clock and needed a second fix. A
+  `Type = GPU_PARTICLE` system is never aged by the walk above, so that cave never reached it:
+  `GPUParticleSystemStorageModule` reads the W3D millisecond clock and converts it to frames with
+  ``ms * clientRate * 0.001`` at four sites, recovering the *client* frame count at any rate. Each
+  becomes ``imul eax, eax, 30`` — the authored rate — which is three bytes for seven and no cave at
+  all. Measured live at rate 60 before the fix: **1.920** GPU ticks per §9.4 tick, and a
+  `BarrageExplosion` particle stamped with a birth *client* frame against the authored lifetime of
+  30 beside it, giving it 0.50 s of life where the author wrote 1.00 s. Confirmed correct in play
+  on 2026-08-27.
 - the spell store (§9.6). `AptSpellStore::update` sends a button's state to the movie only when it
   differs from the value it cached at ``this+0x2AC``, and writes that cache whether or not the
   movie accepted the message — while the movie is entitled to drop one silently, both before the
@@ -88,7 +97,8 @@ one - per-peer rates were not logged and `desync-watch` was not run on both side
 
 **Composition.** Order-independent: the cave is allocated past every existing section and
 :meth:`verify` finds it by name. No other bundled patch touches the pacing block, the wrap, the
-timecode strides, `ParticleSystemManager::update` or `AptSpellStore::OnInitialized`.
+timecode strides, `ParticleSystemManager::update`, the GPU particle module's clock or
+`AptSpellStore::OnInitialized`.
 
 **The spell store fix is not rate-specific**, and ships here because this is where the bug is
 seen: the same race can tip on a stock 30 fps build, where nothing installs this. If it wants to
@@ -113,9 +123,11 @@ __all__ = [
     "SECTION_NAME",
     "STOCK_CLIENT_RATE",
     "STOCK_LOGIC_RATE",
+    "GPU_CLOCKS",
     "RenderRatePatch",
     "cave_code",
     "derived_floats",
+    "gpu_clock_bytes",
     "latch_divisor",
     "particle_gate_code",
     "defer_code",
@@ -190,6 +202,22 @@ PARTICLE_LANDINGS = {
 #: `TheGameClient` and the `getFrame` slot in its vtable, both as the displaced code used them.
 GAME_CLIENT = 0x00DE4388
 GET_FRAME_SLOT = 0x7C
+
+#: The GPU particle module's own clock (§9.11), and the four sites that convert it.
+#:
+#: A `Type = GPU_PARTICLE` system is never aged by the walk :data:`PARTICLE_GATE` sits in front of,
+#: so §9.4's cave does not reach it. `GPUParticleSystemStorageModule` reads the W3D millisecond
+#: clock at `0x00DD1E0C` and turns it into frames itself - `mov eax, [millis]` / `imul eax,
+#: [clientRate]` / `fild` / `fmul 0.001` - which recovers the *client* frame count at any rate.
+#: That is the defect: the content is authored in 30 Hz particle updates, so at 60 a GPU particle
+#: ages, grows and dies twice as fast. Each site is followed by `test eax, eax`, so nothing reads
+#: the flags the `imul` sets and the shorter form is a drop-in.
+#:
+#: Measured in a live paused match at rate 60 (§9.11): 1.920 GPU ticks per §9.4 tick, and
+#: `BarrageExplosion`'s particles carrying a birth *client* frame with the authored lifetime of 30
+#: beside it - 0.50 s of life where the author wrote 1.00 s.
+GPU_CLOCKS = (0x007B1102, 0x007B1160, 0x007B12FE, 0x007B140B)
+GPU_CLOCK_STOCK = bytes.fromhex("0faf050cf6d900")  # imul eax, dword [clientRate]
 
 #: `AptSpellStore::OnInitialized` (§9.6), the callback the movie fires once it is built. It
 #: already resets this panel's cached state - `+0x2A2`, `+0x348`, `+0x34C`, `+0x350` and `+0x354`,
@@ -268,6 +296,7 @@ ANCHORS: dict[int, bytes] = {
     STRIDES[2]: bytes.fromhex("6bc90a"),
     PARTICLE_GATE: PARTICLE_GATE_STOCK,
     **PARTICLE_LANDINGS,
+    **dict.fromkeys(GPU_CLOCKS, GPU_CLOCK_STOCK),
     STATE_RESET: STATE_RESET_STOCK,
     **STATE_RESET_LANDING,
     UPDATE_LOOP: UPDATE_LOOP_STOCK,
@@ -297,6 +326,26 @@ def derived_floats(fps: int) -> dict[int, bytes]:
 #: out: `derived_floats` is the one definition of what the compiler emitted, and a literal copy
 #: beside it is a second one to keep in step.
 ANCHORS.update(derived_floats(STOCK_CLIENT_RATE))
+
+
+def gpu_clock_bytes() -> bytes:
+    """`imul eax, eax, 30` - the authored rate in place of the live one (§9.11).
+
+    Three bytes where the stock `imul eax, [clientRate]` is seven, `nop`-padded to fill the window
+    rather than shuffling anything after it. The multiplier is the rate the *content* was authored
+    at, so unlike §9.4's divisor there is nothing to read out of `.data`: this constant does not
+    move when the client rate does, which is the entire point of the edit. It is also a byte-level
+    identity in behaviour at rate 30, which makes it safe on a binary whose rate has not moved.
+
+    **This does not make the GPU clock exact, and cannot.** The W3D millisecond clock it reads is
+    itself rate-derived and truncating - `0x00BC146C` stores `1000 / clientRate` as an integer, so
+    it accumulates 990 ms per real second at rate 30 and 960 at rate 60. The tick this produces
+    therefore lands on 29.7 Hz at rate 30 and 28.8 Hz at rate 60, against the authored 30. That
+    residual is §9.11's separately-named 4%; removing it means changing how the W3D clock is
+    represented, which every other consumer of that clock would feel.
+    """
+    patched = bytes((0x6B, 0xC0, STOCK_CLIENT_RATE))  # imul eax, eax, 30
+    return patched + b"\x90" * (len(GPU_CLOCK_STOCK) - len(patched))
 
 
 def latch_divisor(fps: int) -> int:
@@ -602,6 +651,10 @@ class RenderRatePatch(Patch):
                 for va, new in derived_floats(fps).items()
             ),
             (PARTICLE_GATE, PARTICLE_GATE_STOCK, b"", "particle rate gate -> the cave"),
+            *(
+                (va, GPU_CLOCK_STOCK, gpu_clock_bytes(), f"gpu particle clock 0x{va:08X}")
+                for va in GPU_CLOCKS
+            ),
             (STATE_RESET, STATE_RESET_STOCK, b"", "spell store state reset -> the cave"),
             (UPDATE_LOOP, UPDATE_LOOP_STOCK, b"", "spell store update loop -> the cave"),
         ]

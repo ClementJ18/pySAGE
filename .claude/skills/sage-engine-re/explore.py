@@ -314,6 +314,83 @@ def cmd_table(image: Image, args: argparse.Namespace) -> int:
     return 0
 
 
+def _data_sections(image: Image):
+    return [s for s in image.sections if s.name in (".rdata", ".data")]
+
+
+def _string_vas(image: Image, text: str) -> list[int]:
+    """Every VA in a data section holding exactly `text` as a NUL-terminated string."""
+    needle = b"\x00" + text.encode("latin-1") + b"\x00"
+    out = []
+    for section in _data_sections(image):
+        blob = image.data[section.raw_offset : section.raw_offset + section.raw_size]
+        start = 0
+        while True:
+            at = blob.find(needle, start)
+            if at < 0:
+                break
+            out.append(section.virtual_address + at + 1)
+            start = at + 1
+    return out
+
+
+def _dword_refs(image: Image, target: int) -> list[int]:
+    """Every 4-aligned data slot holding `target` - a table row's `name` field, among others."""
+    needle = struct.pack("<I", target)
+    out = []
+    for section in _data_sections(image):
+        blob = image.data[section.raw_offset : section.raw_offset + section.raw_size]
+        start = 0
+        while True:
+            at = blob.find(needle, start)
+            if at < 0:
+                break
+            if at % 4 == 0:
+                out.append(section.virtual_address + at)
+            start = at + 1
+    return out
+
+
+def _row_ok(image: Image, va: int) -> bool:
+    """Whether the 16 bytes at `va` read as a plausible `{name, parseFn, userData, offset}` row."""
+    raw = image.read(va, 16)
+    if len(raw) < 16:
+        return False
+    name_ptr, parse_fn, _userdata, offset = struct.unpack("<IIII", raw)
+    if not name_ptr or offset >= 0x4000:
+        return False
+    section = image.section_of(parse_fn)
+    if section is None or section.name != ".text":
+        return False
+    name = image.cstring(name_ptr, 64)
+    return bool(name) and len(name) >= 2 and name[0].isalpha()
+
+
+def cmd_keyword(image: Image, args: argparse.Namespace) -> int:
+    """The field-parse table(s) an INI keyword is a row of, each dumped in full.
+
+    A row starts with the keyword's string pointer, so a data slot holding that pointer *is* a
+    row: walk back to the table's first row and forward to its terminator. This reaches a block
+    the recovered JSON does not cover, and it names the parse function - the field's type.
+    """
+    seen: set[int] = set()
+    for string_va in _string_vas(image, args.name):
+        for row_va in _dword_refs(image, string_va):
+            if not _row_ok(image, row_va):
+                continue
+            first = row_va
+            while _row_ok(image, first - 16):
+                first -= 16
+            if first in seen:
+                continue
+            seen.add(first)
+            print(f"  table 0x{first:08x} ({args.name} is row {(row_va - first) // 16})")
+            cmd_table(image, argparse.Namespace(va=hex(first), max=args.max))
+    if not seen:
+        print(f"  {args.name!r} is in no field-parse table (not an INI keyword of this build)")
+    return 0
+
+
 def cmd_ptrs(image: Image, args: argparse.Namespace) -> int:
     """A run of dwords - a vtable, a jump table, a descriptor array - each one described."""
     va = parse_va(args.va)
@@ -517,6 +594,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("va")
     p.add_argument("--max", type=int, default=200)
     p.set_defaults(fn=cmd_table)
+
+    p = sub.add_parser("keyword", help="find the field-parse table(s) an INI keyword is a row of")
+    p.add_argument("name")
+    p.add_argument("--max", type=int, default=200)
+    p.set_defaults(fn=cmd_keyword)
 
     p = sub.add_parser("ptrs", help="dump a run of dwords (vtable, jump table, descriptors)")
     p.add_argument("va")

@@ -437,7 +437,7 @@ class SpecialAbilityUpdate(Behavior):
     ChargeAttackSpeedBoost: Bool
     Instant: Bool
     CustomAnimAndDuration: AnimAndDuration
-    ContactPointOverride: Untyped
+    ContactPointOverride: t.Opaque
     UnpackingVariation: Int
     TriggerAttributeModifier: ModifierList
     AttributeModifierDuration: Int
@@ -1173,7 +1173,7 @@ class TransportContain(OpenContain):
     ForceOrientationContainer: Bool
     CollidePickup: Bool
     AllowOwnPlayerInsideOverride: Bool
-    BoneSpecificConditionState: List[Untyped]
+    BoneSpecificConditionState: t.List[t.Tuple[t.Int, e.ModelCondition]]
     FadeFilter: ObjectFilter
     UpgradeCreationTrigger: List[Tuple[Upgrade, Object, Int]]
     FadePassengerOnEnter: Bool
@@ -1347,7 +1347,7 @@ class SiegeEngineContain(ContainBehavior):
     TypeOneForWeaponSet: KindOf
     EjectPassengersOnDeath: Bool
     PassengerBonePrefix: List[KeyValuePair]
-    BoneSpecificConditionState: List[Untyped]
+    BoneSpecificConditionState: t.List[t.Tuple[t.Int, e.ModelCondition]]
     ObjectStatusOfContained: List[ObjectStatus]
     ShowPips: Bool
     SpeedPercentPerCrew: Float
@@ -1430,10 +1430,10 @@ class DynamicPortalBehaviour(UpgradeBehavior):
     AllowEnemies: Bool
     ActivationDelaySeconds: Float
     ObjectFilter: t.ObjectFilter
-    BonePrefix: Untyped
+    BonePrefix: t.Opaque
     WayPoint: List[KeyValuePair]
     Link: List[KeyValuePair]
-    WallBoundsMesh: Untyped
+    WallBoundsMesh: t.SubObject
 
 
 class FakePathfindPortalBehaviour(UpgradeBehavior):
@@ -1557,7 +1557,7 @@ class ClearanceTestingSlowDeathBehavior(SlowDeathBehavior):
 class RunOffMapBehavior(Behavior):
     RunToLocation: Coords
     RequiresSpecificTrigger: Bool
-    RunOffMapWaypointName: Untyped
+    RunOffMapWaypointName: t.Opaque
     DieOnMap: Bool
 
 
@@ -1852,7 +1852,7 @@ class AnimationSoundClientBehavior(Behavior):
 
 
 class RadarMarkerClientUpdate(Behavior):
-    MarkerType: Untyped
+    MarkerType: t.Opaque
 
 
 class BeaconClientUpdate(Behavior):
@@ -1916,7 +1916,7 @@ class SpecialPowerBehavior(Behavior):
     DisableWhenWearingTheRing: Bool
     RequiredConditions: SpecialPowerUnpackConditions
     RejectedConditions: SpecialPowerUnpackConditions
-    ContactPointOverride: Untyped
+    ContactPointOverride: t.Opaque
     TriggerAttributeModifier: ModifierList
     AttributeModifierDuration: Int
     KillAttributeModifierOnExit: Bool
@@ -2444,8 +2444,8 @@ class ReplaceSelfUpgrade(UpgradeBehavior):
 
 
 class GeometryUpgrade(UpgradeBehavior):
-    ShowGeometry: List[Untyped]
-    HideGeometry: List[Untyped]
+    ShowGeometry: t.List[t.Opaque]
+    HideGeometry: t.List[t.Opaque]
     WallBoundsMesh: SubObject
     RampMesh1: SubObject
     RampMesh2: SubObject
@@ -2527,7 +2527,7 @@ class SubObjectsUpgrade(UpgradeBehavior):
     UnHideSubObjectsOnRemove: Bool
     ShowSubObjects: List[SubObject]
     HideSubObjects: List[SubObject]
-    UpgradeTexture: List[Tuple[Untyped, Int, Untyped]]
+    UpgradeTexture: t.List[t.Tuple[t.TextureFile, t.Int, t.TextureFile]]
     ExcludeSubobjects: List[SubObject]
 
 
@@ -2570,7 +2570,7 @@ class CommandSetUpgrade(UpgradeBehavior):
 
 class BaseUpgrade(UpgradeBehavior):
     BuildingTemplateName: Object
-    PlacementPrefix: Untyped
+    PlacementPrefix: t.Opaque
     PlacementIndex: Int
 
 
@@ -2692,7 +2692,7 @@ class AIUpdateBehavior(Behavior):
     AutoAcquireEnemiesWhenIdle: List[AllowedWhenConditions]
     MoodAttackCheckRate: Int
     ForbidPlayerCommands: Bool
-    AILuaEventsList: Untyped
+    AILuaEventsList: t.Opaque
     HoldGroundCloseRangeDistance: Float
     MinCowerTime: Int
     MaxCowerTime: Int
@@ -2700,7 +2700,7 @@ class AIUpdateBehavior(Behavior):
     RampageTime: Int
     TimeToEjectPassengersOnRampage: Int
     AttackPriority: io.AttackPriority
-    SpecialContactPoints: List[Untyped]
+    SpecialContactPoints: t.List[t.Opaque]
     FadeOnPortals: Bool
     StopChaseDistance: Float
     RampageRequiresAflame: Bool
@@ -2767,10 +2767,10 @@ class CastleBehavior(FoundationAIUpdate):
     Summoned: Bool
     TransferFoundationHealthToCastleUponUnpack: Bool
     CastleToUnpackForFaction: GroupedByKey[FactionSide, Untyped]
-    FactionDecal: Untyped
+    FactionDecal: t.List[t.Tuple[FactionSide, t.Opaque, t.Float]]
     PreBuiltList: List[Tuple[t.ObjectRef, Int]]
-    PreBuiltPlyr: Untyped
-    DecalName: Untyped
+    PreBuiltPlyr: t.Opaque
+    DecalName: t.Opaque
     DecalSize: Float
     CrewReleaseFX: FXList
     CrewPrepareFX: FXList
@@ -3120,7 +3120,7 @@ class ProductionUpdate(Behavior):
     ConstructionCompleteDuration: Int
     MaxQueueEntries: Int
     QuantityModifier: Opaque
-    DisabledTypesToProcess: List[Untyped]
+    DisabledTypesToProcess: t.FlagList[e.DisabledType]
     VeteranUnitsFromVeteranFactory: Bool
     SetBonusModelConditionOnSpeedBonus: Bool
     BonusForType: List[Object]
@@ -3283,7 +3283,7 @@ class NotifyTargetsOfImminentProbableCrushingUpdate(Behavior):
 
 class LargeGroupAudioUpdate(Behavior):
     UnitWeight: Int
-    Key: Untyped
+    Key: t.List[t.String]
 
 
 class GiveUpgradeUpdate(Behavior):
@@ -3363,10 +3363,10 @@ class GateBehavior(Behavior):
     OpenByDefault: Bool
     ResetTimeInMilliseconds: Int
     PercentOpenForPathing: Int
-    Proxy: Untyped
+    Proxy: t.ObjectRef
     RepelCollidingUnits: Bool
-    GeometryForOpen: List[Untyped]
-    GeometryForClosed: List[Untyped]
+    GeometryForOpen: t.List[t.Opaque]
+    GeometryForClosed: t.List[t.Opaque]
     SoundOpeningGateLoop: Sound
     SoundFinishedOpeningGate: Sound
     SoundClosingGateLoop: Sound
@@ -3401,16 +3401,16 @@ class BattlePlanUpdate(Behavior):
     VisionObjectName: Object
     BombardmentPlanUnpackSoundName: Sound
     BombardmentPlanPackSoundName: Sound
-    BombardmentMessageLabel: Untyped
+    BombardmentMessageLabel: t.Label
     BombardmentAnnouncementName: Sound
     SearchAndDestroyPlanUnpackSoundName: Sound
     SearchAndDestroyPlanIdleLoopSoundName: Sound
     SearchAndDestroyPlanPackSoundName: Sound
-    SearchAndDestroyMessageLabel: Untyped
+    SearchAndDestroyMessageLabel: t.Label
     SearchAndDestroyAnnouncementName: Sound
     HoldTheLinePlanUnpackSoundName: Sound
     HoldTheLinePlanPackSoundName: Sound
-    HoldTheLineMessageLabel: Untyped
+    HoldTheLineMessageLabel: t.Label
     HoldTheLineAnnouncementName: Sound
 
 
@@ -3678,7 +3678,7 @@ class LargeGroupBonusUpdate(Behavior):
     RubOffRadius: Float
     AlliesOnly: Bool
     AttributeModifier: ModifierList
-    FlagSubObjectNames: List[Untyped]
+    FlagSubObjectNames: t.List[t.SubObject]
 
 
 class DynamicShroudClearingRangeUpdate(Behavior):
