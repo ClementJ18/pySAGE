@@ -16,8 +16,9 @@ under construction advances in exactly one place, the `DozerAIUpdate` build stat
 divides `100` and `maxHealth` by the frame count `ThingTemplate::calcTimeToBuild` returns.
 
 **What this adds.** Four names on the end of the modifier-type table - `PRODUCTION_MONEY`,
-`PRODUCTION_UNIT`, `PRODUCTION_UPGRADE`, `PRODUCTION_CONSTRUCTION` (indices 28..31) - and six
-`call rel32` repointed so each site consults the keyword that belongs to it.
+`PRODUCTION_UNIT`, `PRODUCTION_UPGRADE`, `PRODUCTION_CONSTRUCTION` (indices 28..31 on a binary
+this patch reached first, higher behind another patch that appends a type) - and six `call rel32`
+repointed so each site consults the keyword that belongs to it.
 
 **`PRODUCTION` is deliberately left alone.** Each new keyword multiplies *in addition to*
 whatever type 13 already contributes at that site, and an absent modifier is 1.0, so applying
@@ -52,23 +53,25 @@ aura over the build site makes it go up faster".
 
 **Nothing else has to grow.** There is no array indexed by modifier type anywhere in the engine:
 `ModifierList::getValue` (``0x00805268``) is a linear scan comparing a stored dword, and the
-holder walk above it is type-agnostic. The one structural cost is the name table itself, which is
-a NULL-terminated ``const char *[28]`` at ``0x00DA6D28`` with the next enum's list starting four
-bytes past its terminator - no slack, so it is rebuilt in the cave and its two references are
-repointed.
+holder walk above it is type-agnostic. The one structural cost is the name table itself, which has
+no slack, so it is rebuilt in the cave and its two references are repointed -
+:mod:`.utils.modifier_types` owns that table and the rules for sharing it with `healing-received`,
+which appends to it too.
 """
 
 from __future__ import annotations
 
 import argparse
 import struct
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 from sage_ini.engine import Engine, EnumDelta
 
 from ..asm import JBE, JE, JGE, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
-from .utils import name_tables
+from .utils import modifier_types, name_tables
 
 __all__ = [
     "ANCHORS",
@@ -80,7 +83,9 @@ __all__ = [
     "TYPE_TABLE_VA",
     "ProductionSplitPatch",
     "ProductionSplitWorldbuilderPatch",
+    "TypeIndices",
     "build_section",
+    "type_indices",
 ]
 
 
@@ -94,42 +99,45 @@ GET_MODIFIER_MULTIPLIER = 0x0068C82D
 #: ``__thiscall``, ``ret 0xC``, returns the build time in frames.
 CALC_TIME_TO_BUILD = 0x0073C39E
 
-#: The stock modifier-type name table: a NULL-terminated ``const char *[28]`` whose index 0 is the
-#: `ATTRIBUTE_NONE` sentinel (which the parser also uses as "name not found"). Referenced from
-#: exactly two instructions, both inside the name walk at ``0x00804CAD``.
-TYPE_TABLE_VA = 0x00DA6D28
-STOCK_TYPE_COUNT = 28
-
-#: The two operands naming the table: the ``cmp [table], edi`` guard and the ``mov esi, table``
-#: that starts the walk.
-TABLE_REF_CMP_VA = 0x00804CB3
-TABLE_REF_MOV_VA = 0x00804CBA
-
-#: Indices whose spelling is asserted before the table is rebuilt. Four is enough to prove this is
-#: the modifier table and not another name list that happens to sit at the same address in some
-#: other build: the sentinel, the first real type, the one this patch is splitting, and the last.
-TABLE_FINGERPRINT = {
-    0: "ATTRIBUTE_NONE",
-    1: "ARMOR",
-    13: "PRODUCTION",
-    27: "INVULNERABLE",
-}
+#: The modifier-type name table, as :mod:`.utils.modifier_types` describes it. The stock address
+#: and count are here to recognise an unpatched image; the patch itself reads the **live** table
+#: through the references, so it composes with any other patch that appends a type.
+TYPE_TABLE_VA = modifier_types.NAME_TABLE_VA
+STOCK_TYPE_COUNT = modifier_types.STOCK_TYPE_COUNT
+TABLE_REF_CMP_VA, TABLE_REF_MOV_VA = modifier_types.TABLE_REF_VAS
+TABLE_FINGERPRINT = modifier_types.TABLE_FINGERPRINT
 
 #: The existing type every new keyword multiplies alongside.
-PRODUCTION_TYPE = 13
+PRODUCTION_TYPE = modifier_types.PRODUCTION_TYPE
 
-#: The new keywords, in the order they are appended to the table. Their indices are therefore
-#: ``STOCK_TYPE_COUNT + position``, which is what :meth:`ProductionSplitPatch.ini_surface`
-#: reports and what the cave pushes.
+#: The new keywords, in the order they are appended to the table.
 NEW_TYPES: tuple[str, ...] = (
     "PRODUCTION_MONEY",
     "PRODUCTION_UNIT",
     "PRODUCTION_UPGRADE",
     "PRODUCTION_CONSTRUCTION",
 )
-TYPE_MONEY, TYPE_UNIT, TYPE_UPGRADE, TYPE_CONSTRUCTION = (
-    STOCK_TYPE_COUNT + index for index in range(len(NEW_TYPES))
-)
+
+
+@dataclass(frozen=True, slots=True)
+class TypeIndices:
+    """The index each new keyword landed on, which the thunks push as an immediate.
+
+    Not constants: the four names go at the end of whatever table the image currently has, so a
+    binary that already carries another type-appending patch gives them higher indices. Every
+    emitter takes this rather than reading a module-level number, so the cave and the table it
+    was built beside cannot disagree."""
+
+    money: int
+    unit: int
+    upgrade: int
+    construction: int
+
+
+def type_indices(first_index: int) -> TypeIndices:
+    """The four indices for a table whose first free slot is ``first_index``."""
+    return TypeIndices(*(first_index + position for position in range(len(NEW_TYPES))))
+
 
 #: `ProductionUpdate`'s queue-entry kind, at ``entry+0x04``, and the values the engine's own two
 #: dispatches (``0x008A04F5`` for the total time, ``0x008A1F74`` at completion) branch on.
@@ -208,26 +216,13 @@ ANCHORS: dict[int, bytes] = {
         "8bcee82ce5eafff30f100dd888bd008b8f5c020000f30f2ac0f30f1145e4f30f5ec8"
         "f30f108788020000f30f58c1f30f1187880200008b316a00894df0ff561cd875e4518b4df0d91c24ff9684"
     ),
-    # the name walk: both table operands, the NULL terminator test, and the "index 0 == not
-    # found" contract the new names rely on
-    0x00804CAD: bytes.fromhex(
-        "565733ff393d286dda007423be286dda008bc6ff74240cff30e87582230085c05959"
-        "741283c60447833e008bc675e433c05f5ec204008bc7eb"
-    ),
-    # `Object::hasModifier` and `Object::getModifierMultiplier` - the thunk the cave forwards to,
-    # and its `ret 0x10`
-    0x0068C818: bytes.fromhex(
-        "e889fcffff85c0750532c0c20c008bc8e90c871700e874fcffff85c0750532c0c210008bc8e9bd871700"
-    ),
     # `calcTimeToBuild`'s head: `__thiscall`, three args, BuildTime read from template+0x4EC
     0x0073C39E: bytes.fromhex(
         "558bec837d10ff5356578bf1750fe88ffcfffff30f1080ec040000eb05f30f2a4510"
     ),
-    # `ModifierList::getValue`: the linear scan over 0x14-byte entries comparing the type dword.
-    # No table is indexed by type, which is why a new index needs nothing but a name.
-    0x00805268: bytes.fromhex(
-        "558bec568b318b490457eb0a8b063b4508740f83c6143bf175f232c05f5e5dc20c00837d10007428"
-    ),
+    # the name walk, `ModifierList::getValue` and the two query thunks - the modifier system
+    # working the way an appended type depends on, shared with every other patch that appends one
+    **modifier_types.ANCHORS,
 }
 
 #: The AI windows, checked only when those sites are hooked.
@@ -268,31 +263,15 @@ def _read_c_string(data: bytes | bytearray, va: int, limit: int = 64) -> str:
     return bytes(data[off:end]).decode("ascii", "replace")
 
 
-def read_stock_table(data: bytes | bytearray) -> list[int]:
-    """The stock table's ``STOCK_TYPE_COUNT`` name pointers, checked for shape and spelling.
+def read_table(data: bytes | bytearray) -> name_tables.NameTable:
+    """The live modifier-type table, wherever the image's two references now point.
 
-    Raises if the table is not the one this patch expects: a pointer that is zero before the end,
-    a terminator that is not zero, or a fingerprinted index that does not spell what it should.
-    Reading the *names* rather than only the pointers is what makes the check meaningful - the
-    pointers themselves are just plausible addresses, and ``.data`` holds some 135 identical
-    copies of this array for the linker's own reasons."""
-    off = va_to_offset(data, TYPE_TABLE_VA)
-    if off is None:
-        raise ValueError(f"the modifier-type table at 0x{TYPE_TABLE_VA:08x} is not mapped")
-    pointers = list(struct.unpack_from(f"<{STOCK_TYPE_COUNT + 1}I", data, off))
-    if pointers[STOCK_TYPE_COUNT] != 0:
-        raise ValueError(
-            f"the modifier-type table is not {STOCK_TYPE_COUNT} entries long: "
-            f"index {STOCK_TYPE_COUNT} is 0x{pointers[STOCK_TYPE_COUNT]:08x}, expected the "
-            "NULL terminator"
-        )
-    if 0 in pointers[:STOCK_TYPE_COUNT]:
-        raise ValueError("the modifier-type table terminates early")
-    for index, expected in TABLE_FINGERPRINT.items():
-        got = _read_c_string(data, pointers[index])
-        if got != expected:
-            raise ValueError(f"modifier type {index} spells {got!r}, expected {expected!r}")
-    return pointers[:STOCK_TYPE_COUNT]
+    Delegates to :func:`.modifier_types.read`, which checks that the references agree, that the
+    table is NULL-terminated and that the fingerprint names sit at their known indices. Reading
+    the *names* rather than only the pointers is what makes the check meaningful - the pointers
+    themselves are just plausible addresses, and ``.data`` holds some 135 identical copies of the
+    stock array for the linker's own reasons."""
+    return modifier_types.read(data)
 
 
 def _emit_widen(a: Asm, push_type: bytes) -> None:
@@ -345,15 +324,15 @@ def _emit_widen(a: Asm, push_type: bytes) -> None:
     a.emit(b"\xc2\x10\x00")  # ret  0x10
 
 
-def _build_money(base_va: int) -> bytes:
+def _build_money(base_va: int, types: TypeIndices) -> bytes:
     """The income thunk: `PRODUCTION` times `PRODUCTION_MONEY`, for the four deposit sites (and
     the AI's valuation sites, which read the same thing)."""
     a = Asm(base_va)
-    _emit_widen(a, bytes([0x6A, TYPE_MONEY]))  # push TYPE_MONEY
+    _emit_widen(a, modifier_types.push_type(types.money))
     return a.finish()
 
 
-def _build_queue(base_va: int) -> bytes:
+def _build_queue(base_va: int, types: TypeIndices) -> bytes:
     """The queue thunk: the same widening, with the second type chosen from the entry kind.
 
     ``ebx`` is `ProductionUpdate::update`'s queue entry and is callee-saved, so it still holds the
@@ -382,10 +361,10 @@ def _build_queue(base_va: int) -> bytes:
     a.emit(b"\x8b\x43", QUEUE_KIND_OFFSET)  # mov eax, [ebx+4]   ; the queue entry's kind
     a.emit(b"\x83\xf8", QUEUE_KIND_UPGRADE)  # cmp eax, 2
     a.jcc_short(JE, "upgrade")
-    a.emit(b"\xb8", struct.pack("<I", TYPE_UNIT))  # mov eax, TYPE_UNIT
+    a.emit(b"\xb8", struct.pack("<I", types.unit))  # mov eax, the unit type
     a.jmp_short("chosen")
     a.label("upgrade")
-    a.emit(b"\xb8", struct.pack("<I", TYPE_UPGRADE))
+    a.emit(b"\xb8", struct.pack("<I", types.upgrade))
     a.label("chosen")
     a.emit(b"\x89\x45\xec")  # mov [ebp-0x14], eax
 
@@ -410,7 +389,7 @@ def _widen_prologue_length() -> int:
 _WIDEN_PROLOGUE = _widen_prologue_length()
 
 
-def _build_construction(base_va: int, zero_va: int) -> bytes:
+def _build_construction(base_va: int, zero_va: int, types: TypeIndices) -> bytes:
     """The construction thunk: divide the build time by `PRODUCTION_CONSTRUCTION`.
 
     Entered by the repointed `call` to `calcTimeToBuild`, so the three arguments are on the stack
@@ -440,7 +419,7 @@ def _build_construction(base_va: int, zero_va: int) -> bytes:
     a.emit(b"\x6a\x00")  # push 0              ; ctx
     a.emit(b"\x8d\x45\xf8")  # lea  eax, [ebp-8]
     a.emit(0x50)  # push eax
-    a.emit(b"\x6a", TYPE_CONSTRUCTION)  # push TYPE_CONSTRUCTION
+    a.emit(modifier_types.push_type(types.construction))
     a.emit(b"\x8b\xcf")  # mov  ecx, edi       ; the structure being built
     a.call_absolute(GET_MODIFIER_MULTIPLIER)
 
@@ -465,17 +444,23 @@ def _build_construction(base_va: int, zero_va: int) -> bytes:
     return a.finish()
 
 
-def build_section(base_va: int, stock_pointers: list[int]) -> tuple[bytes, dict[str, int], int]:
+def build_section(
+    base_va: int, existing_pointers: Sequence[int]
+) -> tuple[bytes, dict[str, int], int]:
     """``(section content, {thunk name: VA}, rebuilt table VA)`` for a cave based at ``base_va``.
+
+    ``existing_pointers`` is the live table copied through by pointer, so every type already named
+    keeps its index and its original string, and the four new names take the slots after it.
 
     The layout is data first, code second, so the table and the constants sit at addresses the
     code can name and :meth:`ProductionSplitPatch.verify` can find without knowing how long the
-    code is: two floats, then the rebuilt ``STOCK_TYPE_COUNT + len(NEW_TYPES)`` pointer table and
-    its terminator, then the new name strings the tail of that table points at, then the thunks.
+    code is: two floats, then the rebuilt pointer table and its terminator, then the new name
+    strings the tail of that table points at, then the thunks.
     """
     zero_va = base_va
     table_va = base_va + len(_ZERO_F) + len(_ONE_F)
-    table_entries = STOCK_TYPE_COUNT + len(NEW_TYPES) + 1  # + the NULL terminator
+    types = type_indices(len(existing_pointers))
+    table_entries = len(existing_pointers) + len(NEW_TYPES) + 1  # + the NULL terminator
     strings_va = table_va + table_entries * 4
 
     strings = bytearray()
@@ -484,15 +469,15 @@ def build_section(base_va: int, stock_pointers: list[int]) -> tuple[bytes, dict[
         new_pointers.append(strings_va + len(strings))
         strings += name.encode("ascii") + b"\x00"
 
-    table = struct.pack(f"<{table_entries}I", *stock_pointers, *new_pointers, 0)
+    table = struct.pack(f"<{table_entries}I", *existing_pointers, *new_pointers, 0)
     data = _ZERO_F + _ONE_F + table + bytes(strings)
 
     thunks: dict[str, int] = {}
     code = bytearray()
     for thunk_name, build in (
-        ("money", _build_money),
-        ("queue", _build_queue),
-        ("construction", lambda va: _build_construction(va, zero_va)),
+        ("money", lambda va: _build_money(va, types)),
+        ("queue", lambda va: _build_queue(va, types)),
+        ("construction", lambda va: _build_construction(va, zero_va, types)),
     ):
         thunk_va = base_va + len(data) + len(code)
         thunks[thunk_name] = thunk_va
@@ -534,26 +519,33 @@ class ProductionSplitPatch(Patch):
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)
-        stock = read_stock_table(data)
+        name_tables.check_not_rebased(data)
+        table = read_table(data)
+        modifier_types.check_free(table, data, NEW_TYPES)
+        existing = list(table.pointers)
         section_va = allocate_section(
             data,
             SECTION_NAME,
-            lambda va: build_section(va, stock)[0],
+            lambda va: build_section(va, existing)[0],
             SECTION_CHARACTERISTICS,
         )
-        _content, thunks, table_va = build_section(section_va, stock)
-        for file_off, old, new, note in self._edits(data, thunks, table_va):
+        _content, thunks, table_va = build_section(section_va, existing)
+        for file_off, old, new, note in self._edits(data, table, thunks, table_va):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         """Structural check that ``data`` carries this patch (an empty list == verified).
 
         The rebuilt table is read back out of the cave rather than recomputed from the stock
-        table, because the stock table's pointers are exactly what the patch copies - recomputing
-        from them would only ever confirm the copy against itself. So: the cave's table must keep
-        the stock names in their stock indices, spell the four new ones after them, and terminate;
-        every hooked `call` must land on the thunk it belongs to; and the walk must name the
-        cave's table rather than the stock one."""
+        table, because the table the patch copies is exactly what it was handed - recomputing
+        from it would only ever confirm the copy against itself. So: the cave's table must keep
+        the names it copied at their own indices, spell the four new ones after them, and
+        terminate; and every hooked `call` must land on the thunk it belongs to.
+
+        **What is deliberately not checked is that the engine's name walk points here.** Another
+        patch appending a type owns those two operands once it is applied, and this patch is still
+        correctly installed. :meth:`_table_problems` checks the invariant that survives either
+        order instead: the live table gives the four names the indices this cave's thunks push."""
         located = find_section(data, SECTION_NAME)
         if located is None:
             return [f"no {SECTION_NAME} section: the file does not carry this patch"]
@@ -561,9 +553,9 @@ class ProductionSplitPatch(Patch):
 
         problems: list[str] = []
         try:
-            stock = self._stock_pointers_from_cave(data, section_va)
-            content, thunks, table_va = build_section(section_va, stock)
-            edits = self._edits(data, thunks, table_va)
+            existing = self._copied_pointers_from_cave(data, section_va)
+            content, thunks, table_va = build_section(section_va, existing)
+            edits = self._hook_edits(data, thunks)
         except (ValueError, struct.error, IndexError) as exc:
             return [f"cannot recompute the expected cave (wrong build?): {exc}"]
 
@@ -578,7 +570,7 @@ class ProductionSplitPatch(Patch):
             if found != new:
                 problems.append(f"{note} @0x{file_off:x}: expected {new.hex()}, got {found.hex()}")
 
-        problems += self._table_problems(data, table_va)
+        problems += self._table_problems(data, table_va, len(existing))
         problems += self._anchor_problems(data, patched=True)
         return problems
 
@@ -596,13 +588,16 @@ class ProductionSplitPatch(Patch):
         return None
 
     def ini_surface(self) -> Engine:
-        """The four tokens this patch adds to the `ModifierList` `Modifier` name table, at the
-        indices the rebuilt table gives them. Multiplicative, like the `PRODUCTION` they split:
-        the engine decides that per call site, and every site this patch touches multiplies."""
+        """The four tokens this patch adds to the `ModifierList` `Modifier` name table.
+        Multiplicative, like the `PRODUCTION` they split: the engine decides that per call site,
+        and every site this patch touches multiplies.
+
+        **No index is claimed here.** The four names go at the end of whatever table the image
+        had, so the index depends on what else has been applied; `sagepatch` reads it off the live
+        table and fuses it with the provenance this reports."""
         return Engine(
             enum_members=tuple(
-                EnumDelta("ModifierType", name, STOCK_TYPE_COUNT + index, self.name)
-                for index, name in enumerate(NEW_TYPES)
+                EnumDelta("ModifierType", name, None, self.name) for name in NEW_TYPES
             )
         )
 
@@ -619,27 +614,43 @@ class ProductionSplitPatch(Patch):
     def from_cli_args(cls, args: argparse.Namespace) -> ProductionSplitPatch:
         return cls(ai_sites=args.ai_sites)
 
-    def _stock_pointers_from_cave(self, data: bytes | bytearray, section_va: int) -> list[int]:
-        """The stock name pointers as the cave's own rebuilt table records them."""
-        table_va = section_va + len(_ZERO_F) + len(_ONE_F)
-        off = va_to_offset(data, table_va)
-        if off is None:
-            raise ValueError(f"the rebuilt table at 0x{table_va:08x} is not mapped")
-        return list(struct.unpack_from(f"<{STOCK_TYPE_COUNT}I", data, off))
+    def _copied_pointers_from_cave(self, data: bytes | bytearray, section_va: int) -> list[int]:
+        """The name pointers this cave copied through, as its own rebuilt table records them.
 
-    def _table_problems(self, data: bytes | bytearray, table_va: int) -> list[str]:
-        """What the rebuilt table has to spell: the fingerprinted stock names still at their stock
-        indices, and the four new ones after them."""
+        The count is recovered rather than assumed: the cave's table runs to a terminator, and
+        everything before its last :data:`NEW_TYPES` entries is what was copied - which is the
+        stock table on a binary this patch reached first, and a longer one otherwise."""
+        table_va = section_va + len(_ZERO_F) + len(_ONE_F)
+        pointers = name_tables.read_terminated(
+            data, table_va, f"the modifier-type table in {SECTION_NAME}"
+        )
+        if len(pointers) <= len(NEW_TYPES):
+            raise ValueError(
+                f"the table in {SECTION_NAME} holds {len(pointers)} entries, too few to carry "
+                f"the {len(NEW_TYPES)} names this patch appends"
+            )
+        return list(pointers[: -len(NEW_TYPES)])
+
+    def _table_problems(
+        self, data: bytes | bytearray, table_va: int, first_index: int
+    ) -> list[str]:
+        """What the cave's table has to spell, and what the **live** one has to agree about.
+
+        The cave's copy must keep the fingerprinted stock names at their stock indices and spell
+        the four new ones after whatever it copied. The live table - the one the engine's name
+        walk actually reaches, which a later type-appending patch may have rebuilt again - must
+        give those four names the same indices, because those are the immediates this cave's
+        thunks push."""
         problems: list[str] = []
         off = va_to_offset(data, table_va)
         if off is None:
             return [f"the rebuilt table at 0x{table_va:08x} is not mapped"]
-        total = STOCK_TYPE_COUNT + len(NEW_TYPES)
+        total = first_index + len(NEW_TYPES)
         pointers = struct.unpack_from(f"<{total + 1}I", data, off)
         if pointers[total] != 0:
             problems.append("the rebuilt modifier-type table is not NULL-terminated")
         expected = dict(TABLE_FINGERPRINT)
-        expected.update({STOCK_TYPE_COUNT + index: name for index, name in enumerate(NEW_TYPES)})
+        expected.update({first_index + index: name for index, name in enumerate(NEW_TYPES)})
         for index, name in expected.items():
             try:
                 got = _read_c_string(data, pointers[index])
@@ -648,13 +659,25 @@ class ProductionSplitPatch(Patch):
                 continue
             if got != name:
                 problems.append(f"modifier type {index} spells {got!r}, expected {name!r}")
+
+        try:
+            live = read_table(data)
+        except (ValueError, struct.error) as exc:
+            return [*problems, f"cannot read the live modifier-type table: {exc}"]
+        for index, name in enumerate(NEW_TYPES):
+            want = first_index + index
+            got_index = live.index_of(data, name)
+            if got_index != want:
+                problems.append(
+                    f"the live modifier-type table at 0x{live.base_va:08x} puts {name!r} at "
+                    f"{got_index}, but this cave's thunks push {want}"
+                )
         return problems
 
-    def _edits(
-        self, data: bytes | bytearray, thunks: dict[str, int], table_va: int
+    def _hook_edits(
+        self, data: bytes | bytearray, thunks: dict[str, int]
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites: one `call rel32` displacement per hook, and the
-        two operands that name the modifier-type name table."""
+        """One `call rel32` displacement per hook."""
         edits: list[tuple[int, bytes, bytes, str]] = []
         for call_va, stock_va, thunk, note in self.hooks:
             off = va_to_offset(data, call_va)
@@ -668,22 +691,23 @@ class ProductionSplitPatch(Patch):
                     f"{note} -> {thunk} thunk",
                 )
             )
-        for ref_va, note in (
-            (TABLE_REF_CMP_VA, "modifier-name walk: the empty-table guard"),
-            (TABLE_REF_MOV_VA, "modifier-name walk: the table it scans"),
-        ):
-            off = va_to_offset(data, ref_va)
-            if off is None:
-                raise ValueError(f"{note}: VA 0x{ref_va:08x} is not mapped")
-            edits.append(
-                (
-                    off,
-                    struct.pack("<I", TYPE_TABLE_VA),
-                    struct.pack("<I", table_va),
-                    note,
-                )
-            )
         return edits
+
+    def _edits(
+        self,
+        data: bytes | bytearray,
+        table: name_tables.NameTable,
+        thunks: dict[str, int],
+        table_va: int,
+    ) -> list[tuple[int, bytes, bytes, str]]:
+        """Every byte range this patch rewrites: the hooks, and the two operands naming the table.
+
+        The reference edits are computed against ``table.base_va`` - where the walk points *now* -
+        rather than the stock address, so appending after another type-adding patch repoints the
+        walk from its cave instead of failing the original-bytes assert."""
+        return self._hook_edits(data, thunks) + modifier_types.relocation_edits(
+            data, table, table_va
+        )
 
     def _anchor_problems(self, data: bytes | bytearray, patched: bool = False) -> list[str]:
         """Everything the patch depends on and does not rewrite.
@@ -696,9 +720,12 @@ class ProductionSplitPatch(Patch):
         linear scan rather than an indexed table.
 
         ``patched`` blanks the bytes this patch rewrites, which is what lets the same table check
-        an already-patched image."""
+        an already-patched image. The two table operands are blanked **unconditionally**: any
+        patch that appends a modifier type owns them, so their value says nothing about this one
+        either way, and `modifier_types.read` checks what they point at far more tightly than a
+        byte compare would."""
         rewritten = [(call_va, 5) for call_va, _stock, _thunk, _note in self.hooks]
-        rewritten += [(TABLE_REF_CMP_VA, 4), (TABLE_REF_MOV_VA, 4)]
+        always_blank = list(modifier_types.VOLATILE_SPANS)
 
         problems: list[str] = []
         for va, expected in self.anchors.items():
@@ -708,11 +735,10 @@ class ProductionSplitPatch(Patch):
                 continue
             got = bytearray(data[off : off + len(expected)])
             want = bytearray(expected)
-            if patched:
-                for site_va, width in rewritten:
-                    at = site_va - va
-                    if 0 <= at <= len(expected) - width:
-                        got[at : at + width] = want[at : at + width] = b"\x00" * width
+            for site_va, width in always_blank if not patched else always_blank + rewritten:
+                at = site_va - va
+                if 0 <= at <= len(expected) - width:
+                    got[at : at + width] = want[at : at + width] = b"\x00" * width
             if bytes(got) != bytes(want):
                 problems.append(
                     f"anchor 0x{va:08x}: expected {bytes(want).hex()}, got {bytes(got).hex()}"
@@ -731,37 +757,16 @@ class ProductionSplitPatch(Patch):
 # The editor parses `attributemodifier.ini` too, and `Modifier = <ModifierType> <value>` resolves
 # its first token through Worldbuilder's own copy of the type name table. A name that copy does not
 # hold is an unknown token in a lookup, which throws, and a throw during INI load ends the editor.
-#
-# Worldbuilder's table is at `0x022343E0` and is **terminator-driven**, exactly like `game.dat`'s:
-#
-#     00e983a4  cmp dword [eax*4 + 0x022343E0], 0   ; walk to the NULL
-#     00e983ac  je  0x00E983D3
-#     00e983b5  mov eax, [edx*4 + 0x022343E0]       ; else compare this name
-#     00e983bd  call 0x016C37DE                     ; stricmp
-#
-# so there is **no count to raise** - the only two references in the image are the two above, both
-# inside that one loop. Relocating the table and repointing them is the whole patch, which makes
-# this the smallest of the Worldbuilder twins.
+# That copy, its two references and the walk that reads them are described in
+# :mod:`.utils.modifier_types`; there is **no count to raise**, so relocating the table and
+# repointing them is the whole patch - the smallest of the Worldbuilder twins.
 #
 # Scope: parsing only. The editor gains no production behaviour and needs none; this exists so the
 # object and modifier data loads.
 
-#: Worldbuilder's own copy of the `ModifierType` name table.
-WORLDBUILDER_TYPE_TABLE_VA = 0x022343E0
-
-#: Both references, as ``(operand VA, the bytes before it)``. Both sit in the single lookup loop -
-#: the terminator test and the name fetch - so asserting the encoding pins them to that loop.
-WORLDBUILDER_TABLE_REF_SITES = (
-    (0x00E983A7, bytes.fromhex("833c85")),  # cmp dword [eax*4 + <table>], 0
-    (0x00E983B8, bytes.fromhex("8b0495")),  # mov eax, [edx*4 + <table>]
-)
-
-#: Names at these indices fingerprint the build far more tightly than the count alone.
-WORLDBUILDER_TABLE_FINGERPRINT = {
-    0: "ATTRIBUTE_NONE",
-    1: "ARMOR",
-    STOCK_TYPE_COUNT - 1: "INVULNERABLE",
-}
+WORLDBUILDER_TYPE_TABLE_VA = modifier_types.WORLDBUILDER_NAME_TABLE_VA
+WORLDBUILDER_TABLE_REF_SITES = modifier_types.WORLDBUILDER_TABLE_REF_SITES
+WORLDBUILDER_TABLE_FINGERPRINT = modifier_types.WORLDBUILDER_TABLE_FINGERPRINT
 
 #: The PE section name field is 8 bytes and truncates silently.
 WORLDBUILDER_SECTION_NAME = ".wbprod"
@@ -829,27 +834,37 @@ class ProductionSplitWorldbuilderPatch(Patch):
             problems.append(
                 f"the rebuilt type table ends {names[-added:]}, expected {list(self.types)}"
             )
-        for va, _prefix in WORLDBUILDER_TABLE_REF_SITES:
-            off = _wb_offset(data, va)
-            got = bytes(data[off : off + 4])
-            if got != struct.pack("<I", section_va):
+        # Not "the refs point here": a second type-appending patch owns them once applied, and
+        # this one is still installed. What has to hold either way is that the editor's lookup
+        # reaches a table naming these types.
+        try:
+            live = modifier_types.read_worldbuilder(data)
+        except (ValueError, struct.error) as exc:
+            return [*problems, f"cannot read the live Worldbuilder type table: {exc}"]
+        for name in self.types:
+            if live.index_of(data, name) is None:
                 problems.append(
-                    f"modifier type table ref @0x{va:08x} holds {got.hex()}, "
-                    f"expected 0x{section_va:08x}"
+                    f"the live type table at 0x{live.base_va:08x} does not name {name!r}"
                 )
         return problems
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> Patch | None:
-        """Recognise this patch **and recover the names it was applied with**."""
+        """Recognise this patch **and recover the names it was applied with**.
+
+        Which trailing entries are this patch's own is decided by where their strings live, not by
+        counting from the stock size: the cave copied the table it was handed through by pointer,
+        so the names it added are exactly the ones pointing into its own section - which stays
+        true however many types another patch had already appended."""
         located = find_section(data, WORLDBUILDER_SECTION_NAME)
         if located is None:
             return None
+        section_va, _section_off, vsize = located
         try:
-            names = cls._read_names(data, located[0])
-            if len(names) <= STOCK_TYPE_COUNT:
+            added = modifier_types.appended_names(data, section_va, vsize)
+            if not added:
                 return None
-            patch = cls(types=tuple(names[STOCK_TYPE_COUNT:]))
+            patch = cls(types=tuple(added))
         except (ValueError, IndexError, struct.error):
             return None
         return None if patch.verify(data) else patch
@@ -857,31 +872,7 @@ class ProductionSplitWorldbuilderPatch(Patch):
     @staticmethod
     def _read(data: bytes | bytearray) -> name_tables.NameTable:
         """The live table, taken from the references rather than from the stock constant."""
-        bases = set()
-        for va, prefix in WORLDBUILDER_TABLE_REF_SITES:
-            off = _wb_offset(data, va)
-            got = bytes(data[off - len(prefix) : off])
-            if got != prefix:
-                raise ValueError(
-                    f"modifier type table ref @0x{va:08x} is encoded as {got.hex()}, expected "
-                    f"{prefix.hex()} - not the expected build"
-                )
-            bases.add(struct.unpack_from("<I", data, off)[0])
-        if len(bases) != 1:
-            raise ValueError(f"the modifier type table refs disagree: {[hex(b) for b in bases]}")
-        base_va = bases.pop()
-        pointers = name_tables.read_terminated(
-            data, base_va, "Worldbuilder modifier type table", limit=256
-        )
-        if len(pointers) < STOCK_TYPE_COUNT:
-            raise ValueError(
-                f"the modifier type table holds {len(pointers)} names, below the stock "
-                f"{STOCK_TYPE_COUNT}"
-            )
-        name_tables.check_fingerprint(
-            data, pointers, WORLDBUILDER_TABLE_FINGERPRINT, "Worldbuilder modifier type"
-        )
-        return name_tables.NameTable(base_va=base_va, pointers=pointers)
+        return modifier_types.read_worldbuilder(data)
 
     @staticmethod
     def _read_names(data: bytes | bytearray, base_va: int) -> list[str]:
@@ -897,13 +888,7 @@ class ProductionSplitWorldbuilderPatch(Patch):
         self, data: bytes | bytearray, table: name_tables.NameTable, section_va: int
     ) -> list[tuple[int, bytes, bytes, str]]:
         """The two reference edits. There is no count edit: the lookup walks to the terminator."""
-        return name_tables.ref_edits(
-            data,
-            [va for va, _prefix in WORLDBUILDER_TABLE_REF_SITES],
-            table.base_va,
-            section_va,
-            "Worldbuilder modifier type table",
-        )
+        return modifier_types.worldbuilder_relocation_edits(data, table, section_va)
 
 
 def _wb_offset(data: bytes | bytearray, va: int) -> int:

@@ -228,7 +228,7 @@ module +0x31            chargesSpent     byte, 0 .. ChargeNumber
 ```
 
 Six free bytes, five used, one left over. Zeroing costs two edits of the kind this repo has made
-twice before (`lifetime-extend-upgrade`, `cooldown-through-death` §2.1) - widen a `mov byte` to a
+twice before (`lifetime-fields`, `cooldown-through-death` §2.1) - widen a `mov byte` to a
 `mov dword`, `88` → `89`, **same instruction length**:
 
 ```

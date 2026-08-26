@@ -277,7 +277,7 @@ snap it back when the aura expired, which is precisely the artefact that made
   is no per-frame fraction to carry. (A per-frame variant needs one, and the only room is the three
   bytes of tail padding at interface `+0x19`, reachable by widening the ctor's
   `mov byte [esi+0x28], bl` at `0x00897447` to a `mov dword` — same instruction length, `88` → `89`,
-  the trick `lifetime-extend-upgrade` uses. It is not needed here and is recorded only so the next
+  the trick `lifetime-fields` uses. It is not needed here and is recorded only so the next
   reader does not go looking.)
 - **No use of the public partial-recharge path.** `startPowerRecharge` with a **negative** argument
   does advance a cooldown — `frames = (1 - (percentReady - arg)) * fullFrames` at

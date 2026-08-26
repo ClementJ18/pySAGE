@@ -50,17 +50,19 @@ from sage_patch.patches.production_split import (
     TABLE_FINGERPRINT,
     TABLE_REF_CMP_VA,
     TABLE_REF_MOV_VA,
-    TYPE_CONSTRUCTION,
-    TYPE_MONEY,
     TYPE_TABLE_VA,
-    TYPE_UNIT,
-    TYPE_UPGRADE,
     build_section,
-    read_stock_table,
+    read_table,
+    type_indices,
 )
 from sage_patch.utils import find_section, va_to_offset
 
 from .synthetic import production_split_image, stock_modifier_name
+
+#: The indices the four keywords take on a binary this patch reached first. Not constants in the
+#: patch any more - they follow whatever the live table already held - so the tests that read the
+#: emitted immediates derive them the same way the patch does.
+STOCK_TYPES = type_indices(STOCK_TYPE_COUNT)
 
 
 @pytest.fixture
@@ -83,8 +85,8 @@ def _cave(data: bytes | bytearray) -> tuple[int, int, int]:
 def _layout(data: bytes | bytearray) -> tuple[dict[str, int], int]:
     """The thunk addresses and rebuilt-table VA the cave on disk actually carries."""
     section_va, _off, _vsize = _cave(data)
-    stock = ProductionSplitPatch()._stock_pointers_from_cave(data, section_va)
-    _content, thunks, table_va = build_section(section_va, stock)
+    existing = ProductionSplitPatch()._copied_pointers_from_cave(data, section_va)
+    _content, thunks, table_va = build_section(section_va, existing)
     return thunks, table_va
 
 
@@ -261,16 +263,23 @@ def test_the_rebuilt_table_appends_the_new_names_and_terminates(image: bytearray
     assert _read_u32(data, end) == 0
 
 
-def test_the_new_indices_follow_the_stock_ones(image: bytearray) -> None:
-    """The index a name resolves to is its position in the table, so the five new types must be
-    exactly the five past the stock count - anything else and the cave would push a type no name
-    resolves to."""
-    assert (TYPE_MONEY, TYPE_UNIT, TYPE_UPGRADE, TYPE_CONSTRUCTION) == tuple(
-        range(STOCK_TYPE_COUNT, STOCK_TYPE_COUNT + len(NEW_TYPES))
-    )
+def test_the_new_indices_follow_whatever_the_table_already_held(image: bytearray) -> None:
+    """The index a name resolves to is its position in the table, so the four new types are the
+    four slots past the end of the table the patch was handed - the stock count on a binary this
+    patch reached first, and higher behind another patch that appended a type. Anything else and
+    the cave would push a type no name resolves to."""
+    assert (
+        STOCK_TYPES.money,
+        STOCK_TYPES.unit,
+        STOCK_TYPES.upgrade,
+        STOCK_TYPES.construction,
+    ) == tuple(range(STOCK_TYPE_COUNT, STOCK_TYPE_COUNT + len(NEW_TYPES)))
+
+    shifted = type_indices(STOCK_TYPE_COUNT + 1)
+    assert shifted.money == STOCK_TYPE_COUNT + 1
 
 
-def test_read_stock_table_rejects_a_table_that_spells_something_else(image: bytearray) -> None:
+def test_read_table_rejects_a_table_that_spells_something_else(image: bytearray) -> None:
     """The fingerprint is what stops the patch rebuilding some other name list that happens to
     live at this address in a build it was not written for."""
     data = bytearray(image)
@@ -279,16 +288,18 @@ def test_read_stock_table_rejects_a_table_that_spells_something_else(image: byte
     assert off is not None
     data[off] = ord("X")
     with pytest.raises(ValueError, match="expected 'PRODUCTION'"):
-        read_stock_table(data)
+        read_table(data)
 
 
-def test_read_stock_table_rejects_a_table_of_another_length(image: bytearray) -> None:
+def test_read_table_rejects_a_table_shorter_than_the_stock_one(image: bytearray) -> None:
+    """A table may be *longer* than stock - that is another patch having appended to it - but one
+    that is shorter is not this engine's, and rebuilding from it would renumber every type."""
     data = bytearray(image)
-    off = va_to_offset(data, TYPE_TABLE_VA + STOCK_TYPE_COUNT * 4)
+    off = va_to_offset(data, TYPE_TABLE_VA + (STOCK_TYPE_COUNT - 1) * 4)
     assert off is not None
-    struct.pack_into("<I", data, off, 0x00BD0000)  # a 29th entry where the terminator was
-    with pytest.raises(ValueError, match="NULL terminator"):
-        read_stock_table(data)
+    struct.pack_into("<I", data, off, 0)  # a terminator one entry early
+    with pytest.raises(ValueError, match="below the stock"):
+        read_table(data)
 
 
 @pytest.mark.parametrize(
@@ -351,7 +362,7 @@ def test_a_widening_thunk_passes_the_stock_type_through_unchanged(image: bytearr
     code = _disassemble(data, thunks["money"])
     text = [f"{i.mnemonic} {i.op_str}" for i in code]
     assert "push dword ptr [ebp + 8]" in text  # the stock argument, forwarded
-    assert f"push {hex(TYPE_MONEY)}" in text  # and the new type, beside it
+    assert f"push {hex(STOCK_TYPES.money)}" in text  # and the new type, beside it
     assert f"push {hex(PRODUCTION_TYPE)}" not in text  # never hardcoded
 
 
@@ -366,11 +377,11 @@ def test_the_queue_thunk_maps_each_entry_kind_to_its_own_keyword(image: bytearra
     assert f"mov eax, dword ptr [ebx + {QUEUE_KIND_OFFSET}]" in text
     assert f"cmp eax, {QUEUE_KIND_UPGRADE}" in text
     assert f"cmp eax, {QUEUE_KIND_UNIT}" not in text  # the fall-through, not a test
-    for type_index in (TYPE_UNIT, TYPE_UPGRADE):
+    for type_index in (STOCK_TYPES.unit, STOCK_TYPES.upgrade):
         assert f"mov eax, {hex(type_index)}" in text
     assert "push dword ptr [ebp - 0x14]" in text  # the chosen type, not an immediate
     # no keyword is invented for a hero, so no third index is ever pushed
-    assert f"mov eax, {hex(TYPE_CONSTRUCTION)}" not in text
+    assert f"mov eax, {hex(STOCK_TYPES.construction)}" not in text
 
 
 def test_the_queue_thunk_hands_a_hero_entry_straight_to_the_stock_callee(
@@ -418,7 +429,7 @@ def test_the_construction_thunk_divides_and_clamps(image: bytearray) -> None:
     code = _disassemble(data, thunks["construction"])
     text = [f"{i.mnemonic} {i.op_str}" for i in code]
 
-    assert f"push {hex(TYPE_CONSTRUCTION)}" in text
+    assert f"push {hex(STOCK_TYPES.construction)}" in text
     assert "mov ecx, edi" in text  # the structure being built, not the builder
     assert f"comiss xmm0, dword ptr [{hex(section_va)}]" in text  # against the cave's own 0.0
     assert any(t.startswith("jbe") for t in text)  # unordered included: NaN is not a multiplier
@@ -434,11 +445,15 @@ def test_the_cave_carries_its_own_constants(image: bytearray) -> None:
     assert bytes(data[off : off + 8]) == struct.pack("<ff", 0.0, 1.0)
 
 
-def test_ini_surface_names_the_five_keywords_at_their_table_indices() -> None:
+def test_ini_surface_names_the_four_keywords_and_claims_no_index() -> None:
+    """The names are this patch's to declare; the index is not. Another type-appending patch
+    shifts it, so `sagepatch` reads it off the live table and fuses it with this provenance -
+    a claimed index would be a `.sagepatch` that lies as soon as anything else is applied."""
     surface = ProductionSplitPatch().ini_surface()
     assert [(d.enum, d.name, d.value) for d in surface.enum_members] == [
-        ("ModifierType", name, STOCK_TYPE_COUNT + index) for index, name in enumerate(NEW_TYPES)
+        ("ModifierType", name, None) for name in NEW_TYPES
     ]
+    assert all(d.patch == ProductionSplitPatch.name for d in surface.enum_members)
 
 
 def test_the_ini_surface_actually_applies_to_the_model() -> None:

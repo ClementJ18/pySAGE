@@ -574,6 +574,82 @@ class TestCli:
         assert main(["verify", "commandset-limit", "--count", "64", str(clean)]) == 1
 
 
+class TestInfoCommand:
+    """`info` is the one command that reads a patch's *documentation* rather than its bytes: the
+    author and description from the class, the write-up path out of the module docstring, the
+    parameters off the same `add_cli_arguments` `apply` uses, and the INI surface from
+    `ini_surface`. Each of those is a place it can silently stop finding anything, so each is
+    asserted on a patch that actually has one."""
+
+    def test_names_the_patch_its_author_and_its_source(self, capsys):
+        assert main(["info", "commandset-limit"]) == 0
+        out = capsys.readouterr().out
+        assert "commandset-limit" in out
+        assert "officialNecro" in out
+        assert "sage_patch/patches/commandset.py" in out
+
+    def test_points_at_the_write_up(self, capsys):
+        assert main(["info", "commandset-limit"]) == 0
+        assert "sage_patch/docs/commandset-button-limit.md" in capsys.readouterr().out
+
+    def test_lists_the_parameters_apply_would_take(self, capsys):
+        assert main(["info", "commandset-limit"]) == 0
+        assert "--count" in capsys.readouterr().out
+
+    def test_a_patch_without_parameters_says_none(self, capsys):
+        assert main(["info", "ai-revive-gate"]) == 0
+        out = capsys.readouterr().out
+        assert "parameters" in out
+        assert "none" in out.split("parameters", 1)[1]
+
+    def test_shows_the_ini_surface(self, capsys):
+        assert main(["info", "commandset-limit"]) == 0
+        assert "commandset.max_slots = 64" in capsys.readouterr().out
+
+    def test_a_patch_that_changes_no_ini_says_so_rather_than_printing_nothing(self, capsys):
+        assert main(["info", "ai-revive-gate"]) == 0
+        assert "INI surface" in capsys.readouterr().out
+
+    def test_marks_an_experimental_patch(self, capsys):
+        name = next(name for name, cls in PATCHES.items() if cls.experimental)
+        assert main(["info", name]) == 0
+        assert EXPERIMENTAL_WARNING in " ".join(capsys.readouterr().out.split())
+
+    def test_an_unknown_name_exits_nonzero_and_suggests_one(self, capsys):
+        assert main(["info", "commandst-limit"]) == 2
+        assert "commandset-limit" in capsys.readouterr().err
+
+    def test_with_a_file_it_reports_the_patch_as_applied(self, tmp_path, capsys):
+        src = tmp_path / "game.dat.backup"
+        src.write_bytes(bytes(_synthetic_game_dat()))
+        out = tmp_path / "game.dat"
+        assert (
+            main(
+                ["apply", "commandset-limit", "--count", "100", "--in", str(src), "--out", str(out)]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        assert main(["info", "commandset-limit", "--file", str(out)]) == 0
+        printed = capsys.readouterr().out
+        # The recovered count, not the default: `--file` describes the binary in hand.
+        assert "100" in printed
+        assert "commandset.max_slots = 100" in printed
+
+    def test_with_a_file_that_does_not_carry_it(self, tmp_path, capsys):
+        clean = tmp_path / "clean.dat"
+        clean.write_bytes(bytes(_synthetic_game_dat()))
+        assert main(["info", "commandset-limit", "--file", str(clean)]) == 0
+        assert "not found" in capsys.readouterr().out
+
+    @pytest.mark.parametrize("name", sorted(PATCHES))
+    def test_every_patch_can_be_described(self, name, capsys):
+        """The whole point is that this works for any name `list` prints, and every piece of it -
+        default construction, the docstring, the parameters, the surface - is per-patch code."""
+        assert main(["info", name]) == 0
+        assert name in capsys.readouterr().out
+
+
 def _cah_game_dat(base: int = 0x400000) -> bytearray:
     """A PE32 image carrying the clean bytes `CahFactionsPatch` expects at every site it touches,
     at their real file offsets, so the full apply + verify path runs in CI without the

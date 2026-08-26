@@ -8,6 +8,7 @@ problem in, and the warning is the thing that makes offering it honest."""
 
 from sage_patch.patcher import Patch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
+from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
 from sage_patch.patches.asset_load_profile import AssetLoadProfilePatch
 from sage_patch.patches.attack_requires_damage import AttackRequiresDamagePatch
@@ -41,8 +42,12 @@ from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_charges import SpecialPowerChargesPatch
 from sage_patch.patches.experimental.standalone_launcher import StandaloneLauncherPatch
-from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
+from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
+from sage_patch.patches.healing_received import (
+    HealingReceivedPatch,
+    HealingReceivedWorldbuilderPatch,
+)
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.hero_recruit_parallel import HeroRecruitParallelPatch
 from sage_patch.patches.herobar import HeroBarPatch, HeroBarWorldbuilderPatch
@@ -50,7 +55,7 @@ from sage_patch.patches.horde_exit_absorption import HordeExitAbsorptionPatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus_filter import LargeGroupBonusFilterPatch
-from sage_patch.patches.lifetime_extend_upgrade import LifetimeExtendUpgradePatch
+from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
@@ -78,6 +83,7 @@ from sage_patch.patches.science_prereqs import (
 from sage_patch.patches.skirmish_ai_fallback import SkirmishAiFallbackPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
+from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
@@ -99,11 +105,13 @@ PATCHES: dict[str, type[Patch]] = {
     CahFactionsPatch.name: CahFactionsPatch,
     AiReviveGatePatch.name: AiReviveGatePatch,
     AiConstructionGatePatch.name: AiConstructionGatePatch,
+    AiFlagCaptureGatePatch.name: AiFlagCaptureGatePatch,
     ProductionConditionPatch.name: ProductionConditionPatch,
     ProductionConditionWorldbuilderPatch.name: ProductionConditionWorldbuilderPatch,
     DesertWeatherPatch.name: DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch.name: DesertWeatherWorldbuilderPatch,
     UniqueProductionIdPatch.name: UniqueProductionIdPatch,
+    UnitPlateOptionPatch.name: UnitPlateOptionPatch,
     ReplayOutcomePatch.name: ReplayOutcomePatch,
     ReplayAnnotationsPatch.name: ReplayAnnotationsPatch,
     SkirmishReplayPatch.name: SkirmishReplayPatch,
@@ -120,7 +128,7 @@ PATCHES: dict[str, type[Patch]] = {
     BannerModifierPatch.name: BannerModifierPatch,
     PlayerHealFilterPatch.name: PlayerHealFilterPatch,
     LargeGroupBonusFilterPatch.name: LargeGroupBonusFilterPatch,
-    LifetimeExtendUpgradePatch.name: LifetimeExtendUpgradePatch,
+    LifetimeFieldsPatch.name: LifetimeFieldsPatch,
     SecondResourcePatch.name: SecondResourcePatch,
     InflationReadoutPatch.name: InflationReadoutPatch,
     SciencePrereqPatch.name: SciencePrereqPatch,
@@ -145,6 +153,8 @@ PATCHES: dict[str, type[Patch]] = {
     HeadlessPatch.name: HeadlessPatch,
     ProductionSplitPatch.name: ProductionSplitPatch,
     ProductionSplitWorldbuilderPatch.name: ProductionSplitWorldbuilderPatch,
+    HealingReceivedPatch.name: HealingReceivedPatch,
+    HealingReceivedWorldbuilderPatch.name: HealingReceivedWorldbuilderPatch,
     BinaryAttestPatch.name: BinaryAttestPatch,
     UpgradeDescriptionPatch.name: UpgradeDescriptionPatch,
     TriggerRechargeListPatch.name: TriggerRechargeListPatch,

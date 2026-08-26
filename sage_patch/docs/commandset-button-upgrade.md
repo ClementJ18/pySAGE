@@ -49,7 +49,7 @@ again. The combinatorics, not the engine, are what stop mods from doing this.
   `sizeof(ModuleData)` `0x13C` → `0x140`, the table rebuilt in the cave (it has one row and no
   slack), constructor and destructor shims, two entry hooks. **Six edits and a `0x4DF`-byte
   cave** — the same order as [`upgrade-grant-lists`](upgrade-grant-lists.md) and
-  [`lifetime-extend-upgrade`](lifetime-extend-upgrade.md).
+  [`lifetime-fields`](lifetime-extend-upgrade.md).
 
 INI:
 

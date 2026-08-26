@@ -38,7 +38,7 @@ from sage_ini.engine import Engine, EnumDelta, Source
 from .addresses import BUILD
 from .patcher import Patch
 from .patches import desert_weather
-from .patches.utils import locomotor_sets, model_conditions, weapon_set_flags
+from .patches.utils import locomotor_sets, model_conditions, modifier_types, weapon_set_flags
 from .patches.utils.name_tables import read_cstring, read_terminated, resolve_base
 from .registry import PATCHES
 
@@ -58,6 +58,7 @@ _NAME_TABLES: tuple[tuple[str, int, object], ...] = (
     ("ModelCondition", model_conditions.STOCK_BIT_COUNT, model_conditions.read),
     ("WeaponSetConditions", weapon_set_flags.STOCK_FLAG_COUNT, weapon_set_flags.read),
     ("LocomotorSetType", locomotor_sets.STOCK_SET_COUNT, locomotor_sets.read),
+    ("ModifierType", modifier_types.STOCK_TYPE_COUNT, modifier_types.read),
 )
 
 # What to write as the `[source] generator`: the distribution version, since the packages here

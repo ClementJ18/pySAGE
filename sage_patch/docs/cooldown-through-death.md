@@ -216,7 +216,7 @@ The ctor writes the two bools as **separate byte stores** and stops:
 so a new field at `+0x5A` would start as heap garbage - which would make the patch change behaviour
 on data that never names the keyword, the one thing it must not do. Widen the first store to a dword
 (`88` -> `89`, **same instruction length**) and `0x58`..`0x5B` are zeroed in one go; the second
-store becomes redundant and is left alone. This is the trick `lifetime-extend-upgrade` uses and that
+store becomes redundant and is left alone. This is the trick `lifetime-fields` uses and that
 [`recharge-rescale.md`](recharge-rescale.md) §3.4 records for exactly this situation.
 
 ### 2.2 `DefaultSpecialPower` inheritance is two more bytes
@@ -263,7 +263,7 @@ request asks for, and one token cannot express the second knob. Padding is cheap
 what was asked.
 
 **`sage_ini` / `sage_lint`.** The patch declares both keys in its `ini_surface()`, the way
-`lifetime-extend-upgrade` declares its two:
+`lifetime-fields` declares its two:
 
 ```python
 Engine(fields=(

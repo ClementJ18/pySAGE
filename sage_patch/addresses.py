@@ -31,6 +31,25 @@ __all__ = [
     "ABILITY_TRIGGER_PAY_BYTES",
     "ABILITY_TRIGGER_PAY_RESUME",
     "ABILITY_TRIGGER_VTABLE",
+    "ACTIVE_BODY_ATTEMPT_HEALING",
+    "ACTIVE_BODY_ATTEMPT_HEALING_AMOUNT_FSTP",
+    "ACTIVE_BODY_ATTEMPT_HEALING_AMOUNT_FSTP_BYTES",
+    "ACTIVE_BODY_ATTEMPT_HEALING_AMOUNT_TEST",
+    "ACTIVE_BODY_INTERNAL_CHANGE_HEALTH",
+    "ACTIVE_BODY_INTERNAL_CHANGE_HEALTH_SLOT",
+    "AI_FLAG_CAPTURE_KEEP",
+    "AI_FLAG_CAPTURE_PICKER",
+    "AI_FLAG_CAPTURE_PICKER_CALL",
+    "AI_FLAG_CAPTURE_PICKER_CALL_BYTES",
+    "AI_FLAG_CAPTURE_PICKER_ENTRY",
+    "AI_FLAG_CAPTURE_RELATIONSHIP_TEST",
+    "AI_FLAG_CAPTURE_RELATIONSHIP_TEST_BYTES",
+    "AI_FLAG_CAPTURE_SKIP",
+    "AI_FLAG_CAPTURE_SQUAD_NAME_PUSH",
+    "AI_FLAG_CAPTURE_SQUAD_NAME_PUSH_BYTES",
+    "AI_FLAG_CAPTURE_SQUAD_UPDATE",
+    "AI_FLAG_CAPTURE_SQUAD_UPDATE_SLOT",
+    "AI_FLAG_CAPTURE_SQUAD_VTABLE",
     "AI_PRODUCER_ACCEPT",
     "AI_PRODUCER_ANY_BRANCH",
     "AI_PRODUCER_ANY_BRANCH_ENTRY",
@@ -41,11 +60,30 @@ __all__ = [
     "AI_PRODUCER_PICKER_ENTRY",
     "AI_PRODUCER_USABLE_TESTS",
     "APPEND_MESSAGE_VTABLE_SLOT",
+    "APT_INIT_GADGETS_EPILOGUE",
+    "APT_INIT_GADGETS_LADDER",
+    "APT_INIT_GADGETS_LADDER_BYTES",
+    "APT_INIT_GADGETS_LADDER_HOOK",
+    "APT_INIT_GADGETS_LADDER_HOOK_BYTES",
+    "APT_INIT_GADGETS_RESOLUTION_ARM",
+    "APT_OPTIONS_SAVE",
+    "APT_OPTIONS_SAVE_BYTES",
+    "APT_OPTIONS_SAVE_FLUSH",
+    "APT_OPTIONS_SAVE_FLUSH_BYTES",
+    "APT_OPTIONS_SAVE_MAP_EBP",
+    "APT_OPTIONS_SAVE_PREFS_EBP",
+    "APT_OPTIONS_SAVE_RESUME",
     "ARG_APPENDERS",
+    "ARMOR_ADJUST_DAMAGE",
+    "ARMOR_ADJUST_DAMAGE_HEALING_PASSTHROUGH",
+    "ASCII_STRING_CTOR",
+    "ASCII_STRING_DTOR",
     "ASCII_STRING_FORMAT",
     "ASCII_STRING_SET",
     "ASCII_STRING_SET_BYTES",
     "ATTACK_ELIGIBILITY_NUGGET_CALL",
+    "ATTACK_NUGGET_VTABLES",
+    "ATTACK_NUGGET_VTABLE_STORES",
     "ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW",
     "ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW_BYTES",
     "AUTO_DEPOSIT_AMOUNT",
@@ -228,6 +266,7 @@ __all__ = [
     "DO_COMMAND_UPGRADE_GET",
     "DO_COMMAND_UPGRADE_REMOVE",
     "DO_SPECIAL_POWER_SITES",
+    "EMPTY_STRING",
     "FIELD_PARSE_STRIDE",
     "FLOAT_ONE",
     "FLOAT_ONE_PERCENT",
@@ -249,6 +288,7 @@ __all__ = [
     "GAME_LOGIC_UPDATE_VTABLE_SLOT",
     "GAME_MODE_SKIRMISH",
     "GAME_TEXT_FORMAT_SLOT",
+    "GET_CHECKBOX_STATE",
     "GET_FINAL_OVERRIDE",
     "GLOBAL_DATA",
     "GLOBAL_DATA_ASSET_PROFILE",
@@ -277,6 +317,7 @@ __all__ = [
     "IMPORT_FWRITE",
     "IMPORT_GET_LOCAL_TIME",
     "IMPORT_SWPRINTF",
+    "INACTIVE_BODY_ATTEMPT_HEALING",
     "INI_NEXT_TOKEN_OR_NULL",
     "INI_PARSE_BOOL",
     "INI_PARSE_INT",
@@ -291,6 +332,7 @@ __all__ = [
     "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY_BYTES",
     "KEY_PLAYER_AI_TYPE",
     "KEY_PLAYER_AI_TYPE_BYTES",
+    "KINDOF_BASE_SITE",
     "LIVE_CAMPAIGN_MODE_OFFSET",
     "LIVING_WORLD_OVERRIDE_OFFSET",
     "LIVING_WORLD_OVERRIDE_ROW",
@@ -322,20 +364,31 @@ __all__ = [
     "MINI_DUMP_NULL_EDI_BYTES",
     "MISSION_OBJECTIVE_LIST_OFFSET",
     "MISSION_OBJECTIVE_TRACKER",
+    "MODEL_FIELD_PARSER",
+    "MODEL_FIELD_PARSER_BYTES",
+    "MODEL_FIELD_STORE",
+    "MODEL_FIELD_STORE_BYTES",
+    "MODEL_FIELD_STORE_RESUME",
+    "MODEL_FIELD_TABLE_ROW",
+    "MODIFIER_LIST_GET_VALUE",
     "MONEY_AMOUNT",
     "MONEY_DEPOSIT",
     "MONEY_WITHDRAW",
     "MSG_CLEAR_GAME_DATA",
     "MSG_NEW_GAME",
+    "NUGGET_PARSE_TABLE",
     "NUGGET_VTBL_DEALS_DAMAGE",
     "NUGGET_VTBL_SUBWEAPON",
     "NUGGET_VTBL_VALID_VICTIM",
+    "OBJECT_ATTEMPT_HEALING",
     "OBJECT_CONTAIN",
     "OBJECT_FIELD_TABLE",
     "OBJECT_FIELD_TABLE_REFS",
     "OBJECT_FIELD_TABLE_REF_OPCODES",
     "OBJECT_FILTER_ALLOW",
     "OBJECT_FILTER_IS_VALID",
+    "OBJECT_GET_MODIFIER_MULTIPLIER",
+    "OBJECT_HAS_MODIFIER",
     "OBJECT_ID",
     "OBJECT_MODULE_LIST",
     "OBJECT_POSITION",
@@ -345,6 +398,7 @@ __all__ = [
     "OBJECT_STATUS_DWORDS",
     "OBJECT_STATUS_NAMES",
     "OBJECT_STATUS_UNDER_CONSTRUCTION",
+    "OBJECT_STATUS_UNSELECTABLE",
     "OBJECT_TEST_STATUS",
     "OBJECT_THING_TEMPLATE",
     "OBSERVER_BAR_GATE_CALL",
@@ -354,6 +408,12 @@ __all__ = [
     "OBSERVER_BAR_HIDE",
     "OBSERVER_BAR_SHOW",
     "OPERATOR_NEW",
+    "OPTION_PREFERENCES_CTOR",
+    "OPTION_PREFERENCES_CTOR_BYTES",
+    "OPTION_PREFERENCES_DTOR",
+    "OPTION_PREFERENCES_DTOR_BYTES",
+    "OPTION_PREFERENCES_GET_BOOL",
+    "OPTION_PREFERENCES_GET_BOOL_BYTES",
     "PALANTIR_BUTTON_ROUTE_CALL",
     "PALANTIR_BUTTON_ROUTE_CALL_BYTES",
     "PALANTIR_BUTTON_STATUS_CALL",
@@ -407,6 +467,7 @@ __all__ = [
     "PLAYER_PLAYER_TEMPLATE",
     "PLAYER_COMPLETED_UPGRADE_MASK",
     "PLAYER_COMPLETED_UPGRADE_MASK_WORDS",
+    "PLAYER_RELATIONSHIP_ALLIES",
     "PLAYER_SCORE_KEEPER",
     "PLAYER_SET_TYPE",
     "PLAYER_SET_TYPE_BYTES",
@@ -440,6 +501,8 @@ __all__ = [
     "PLAYER_TEMPLATE_RESOURCE_FILTER",
     "PLAYER_TEMPLATE_RESOURCE_VALUES",
     "PLAYER_TEMPLATE_SIZE",
+    "PREFERENCES_MAP_FIND",
+    "PREFERENCES_MAP_INDEX",
     "PRODUCTION_ENTRY_KIND",
     "PRODUCTION_ENTRY_KIND_REVIVE",
     "PRODUCTION_ENTRY_NEXT",
@@ -549,6 +612,7 @@ __all__ = [
     "SCORE_KEEPER_UNITS_BUILT",
     "SCORE_KEEPER_UNITS_DESTROYED",
     "SCORE_KEEPER_UNITS_LOST",
+    "SET_CHECKBOX_STATE",
     "SHROUD_CELLS",
     "SHROUD_CELLS_X",
     "SHROUD_CELLS_Y",
@@ -581,6 +645,7 @@ __all__ = [
     "SPELL_STORE_COMMAND_SET_CALL",
     "SPELL_STORE_COMMAND_SET_CALL_BYTES",
     "SPELL_STORE_INITIALIZE_SPELL_SLOTS",
+    "STRICMP",
     "TERRAIN_RESOURCE_BUILD_FIELD_PARSE",
     "TERRAIN_RESOURCE_DEFAULT_STORES",
     "TERRAIN_RESOURCE_DEFAULT_STORES_BYTES",
@@ -663,6 +728,7 @@ __all__ = [
     "UNICODE_STRING_DTOR",
     "UNICODE_STRING_FORMAT",
     "UNICODE_STRING_FROM_WIDE",
+    "USER_PREFERENCES_WRITE",
     "VICTORY_CONDITIONS_HAS_ACHIEVED_VICTORY",
     "VICTORY_CONDITIONS_HAS_ACHIEVED_VICTORY_SLOT",
     "VICTORY_CONDITIONS_HAS_BEEN_DEFEATED",
@@ -685,6 +751,7 @@ __all__ = [
     "WRITE_MINI_DUMP_BYTES",
     "WRITE_MINI_DUMP_CALL_FILTER",
     "WRITE_MINI_DUMP_CALL_FILTER_BYTES",
+    "YES_STRING",
 ]
 
 BUILD = "RotWK 2.01.2614.37001"
@@ -1728,6 +1795,60 @@ AI_PRODUCER_ACCEPT = 0x009A07A0
 # picker's rejection edges lands here.
 AI_PRODUCER_NEXT_CANDIDATE = 0x009A07C7
 
+# `AIFlagCaptureSquad::pickFlag` - the skirmish AI's flag-capture tactic choosing which capture
+# flag to send a squad at. Walks the global list of every `CAPTUREFLAG` object on the map, keeps
+# the nearest candidate that is not already allied, and returns it. Derived, with the whole tactic
+# around it, in `docs/ai-flag-capture-gate.md`.
+AI_FLAG_CAPTURE_PICKER = 0x009BC213
+AI_FLAG_CAPTURE_PICKER_ENTRY = bytes.fromhex("b80739bb00")
+
+# `cmp eax, 2` / `je AI_FLAG_CAPTURE_SKIP` - the picker's **only** ownership test, five bytes
+# exactly, on the result of `Player::getRelationship(flag)`. `esi` is the candidate `Object` and
+# `eax` is dead the instant this falls through, which is what makes it hookable in place.
+AI_FLAG_CAPTURE_RELATIONSHIP_TEST = 0x009BC28B
+AI_FLAG_CAPTURE_RELATIONSHIP_TEST_BYTES = bytes.fromhex("83f8027447")
+
+# `mov eax, [esi+4]` - the candidate survived the ownership test and the picker goes on to require
+# `KindOf CAPTUREFLAG` of it. The edge a gate has to give back to accept a flag.
+AI_FLAG_CAPTURE_KEEP = 0x009BC290
+
+# `add ebx, 4` - the loop step. Every one of the picker's rejection edges lands here, so this is
+# the edge a gate takes to drop a candidate.
+AI_FLAG_CAPTURE_SKIP = 0x009BC2D7
+
+# `call AI_FLAG_CAPTURE_PICKER`, inside `AIFlagCaptureSquad::update` - the tactic's one and only
+# use of the picker, and therefore what proves the function above belongs to this tactic rather
+# than being a same-shaped nearest-object scan somewhere else in the subsystem.
+AI_FLAG_CAPTURE_PICKER_CALL = 0x009BC477
+AI_FLAG_CAPTURE_PICKER_CALL_BYTES = bytes.fromhex("e897fdffff")
+
+# `AIFlagCaptureSquad`'s primary vtable and the slot holding the update above.
+AI_FLAG_CAPTURE_SQUAD_VTABLE = 0x00C8A2FC
+AI_FLAG_CAPTURE_SQUAD_UPDATE_SLOT = 0x1C
+AI_FLAG_CAPTURE_SQUAD_UPDATE = 0x009BC3F4
+
+# `push <"FlagCaptureSquad">` in the tactic's constructor - the human-legible end of the chain,
+# and the one anchor that cannot be a coincidence of layout.
+AI_FLAG_CAPTURE_SQUAD_NAME_PUSH = 0x009BC0A2
+AI_FLAG_CAPTURE_SQUAD_NAME_PUSH_BYTES = bytes.fromhex("68d0a3c800")
+
+# `Relationship::ALLIES`, the value `Player::getRelationship` returns for one's own and one's
+# allies' objects. `ENEMIES` is 0 and `NEUTRAL` is 1 - which is also what the accessor returns for
+# a null object, at `0x006ACEED`, and what an unlisted team defaults to.
+PLAYER_RELATIONSHIP_ALLIES = 2
+
+# `ObjectStatus::UNSELECTABLE`, bit 3 of the mask at `OBJECT_STATUS`. Index 3 of the name table at
+# `OBJECT_STATUS_NAMES`. On a plot flag this is the engine's own record that the plot has been
+# claimed: measured across all 20 capture flags of a live match, every unclaimed plot carried
+# `UNATTACKABLE` alone and every claimed one carried `UNATTACKABLE | UNSELECTABLE`.
+OBJECT_STATUS_UNSELECTABLE = 3
+
+# `KindOf BASE_SITE`, bit 120 of `KindOfMaskType` - index 120 of the name table at
+# `patches.utils.kind_of.NAME_TABLE_VA`. What separates a build **plot** (a flag a structure is
+# raised on, so an enemy-held one has to be destroyed rather than walked onto) from a plain
+# capture flag (recaptured by standing on it, which is the tactic's real purpose).
+KINDOF_BASE_SITE = 120
+
 # `ObjectStatus::UNDER_CONSTRUCTION`, bit 2 of the mask at `OBJECT_STATUS`, tested through
 # `OBJECT_TEST_STATUS`. Index 2 of the name table at `OBJECT_STATUS_NAMES`, and confirmed on
 # live-captured bytes: the half-built `ElvenMallornTree_Extern` in
@@ -2068,6 +2189,47 @@ OBJECT_FILTER_ALLOW = 0x007640C1
 #: counter is what makes a readout agree with the deposit by construction.
 PLAYER_FOR_EACH_TEAM_OBJECT = 0x006ABABD
 RESOURCE_MODIFIER_COUNT_CALLBACK = 0x00885230
+
+#: The healing path, per `docs/healing-received-modifier.md`. `ActiveBody::attemptHealing` is body
+#: vtable slot `+0x04` and is shared by nine body vtables; `InactiveBody` has its own, which
+#: discards the heal. Every heal in the engine becomes a `DamageInfo` of type 7 and reaches it,
+#: including the six sites that build one inline rather than going through
+#: `OBJECT_ATTEMPT_HEALING` (thiscall, `ret 8`, `(Real amount, Object *source)`).
+#:
+#: `..._AMOUNT_FSTP` is the `fstp dword [ebp-4]` storing what `Armor::adjustDamage` returned - the
+#: only place the amount exists, five bytes with the `fldz` after it and nothing branching into
+#: them, which is why `healing-received` hooks exactly there. The healed object is in `edi` across
+#: it, and the engine's own `<= 0` test at `..._AMOUNT_TEST` sits below, so a zero multiplier
+#: skips the health change, the observers and the `out` store together.
+ACTIVE_BODY_ATTEMPT_HEALING = 0x008C2FC1
+ACTIVE_BODY_ATTEMPT_HEALING_AMOUNT_FSTP = 0x008C3066
+ACTIVE_BODY_ATTEMPT_HEALING_AMOUNT_FSTP_BYTES = bytes.fromhex("d95dfcd9ee")
+ACTIVE_BODY_ATTEMPT_HEALING_AMOUNT_TEST = 0x008C3072
+INACTIVE_BODY_ATTEMPT_HEALING = 0x008C191D
+OBJECT_ATTEMPT_HEALING = 0x00690532
+
+#: `Armor::adjustDamage(DamageInfoInput*, Object *source, Int)` - thiscall, result in `st(0)`. It
+#: returns its input **unscaled** for damage type 7 at `..._HEALING_PASSTHROUGH`, which is the
+#: engine's own statement that a heal is the raw-amount path and armour has no opinion about it.
+ARMOR_ADJUST_DAMAGE = 0x005D893C
+ARMOR_ADJUST_DAMAGE_HEALING_PASSTHROUGH = 0x005D8963
+
+#: `ActiveBody::internalChangeHealth` - body vtable slot `+0x84`, thiscall, `ret 8`, taking the
+#: delta and the `DamageInfo`. Both `attemptHealing` and `attemptDamage` end at it, and so do the
+#: paths that are **not** heals - respawn, level-up and max-health changes through slots `+0x08`,
+#: `+0x0C` and `+0x14`, and the `DozerAIUpdate` construction ramp.
+ACTIVE_BODY_INTERNAL_CHANGE_HEALTH = 0x008C31A5
+ACTIVE_BODY_INTERNAL_CHANGE_HEALTH_SLOT = 0x84
+
+#: The two per-type modifier queries on `Object`, both thiscall. `hasModifier(type, Real *out,
+#: ctx)` is `ret 0xC` and **sums**; `getModifierMultiplier(type, Real *out, ctx, flag)` is
+#: `ret 0x10` and **multiplies**, seeding `*out` to 1.0 at `0x0080500F` - but returning at its own
+#: holder guard without writing through `out` at all when the object has never been modified,
+#: which is why every call site seeds the slot itself. Additive versus multiplicative is the
+#: caller's choice, not the type's.
+OBJECT_HAS_MODIFIER = 0x0068C818
+OBJECT_GET_MODIFIER_MULTIPLIER = 0x0068C82D
+MODIFIER_LIST_GET_VALUE = 0x00805268
 
 #: Float constants the inflation arithmetic reads, reused verbatim by anything that recomputes it.
 FLOAT_ONE = 0x00BD1908  # 1.0f  - the "no modifier" multiplier
@@ -3173,3 +3335,146 @@ DAMAGE_NUGGET_DEALS_DAMAGE_BODY = 0x008BD372
 DAMAGE_NUGGET_DEALS_DAMAGE_BODY_BYTES = bytes.fromhex("b001c3")
 DAMAGE_NUGGET_SUBWEAPON_BODY = 0x00851E97
 DAMAGE_NUGGET_SUBWEAPON_BODY_BYTES = bytes.fromhex("33c0c3")
+
+#: The nugget parse table: a NULL-terminated array of `{const char *name, ParseFn parse, 0, 0}`
+#: rows. Walking it is how every nugget's parse function - and through the `call OPERATOR_NEW`
+#: that follows, its constructor and vtable - was identified.
+NUGGET_PARSE_TABLE = 0x00C17458
+
+#: The nuggets whose presence makes a weapon able to attack a victim, as `{name: vtable}`.
+#:
+#: **An allowlist, because the engine's own damage getters do not answer this question.**
+#: `NUGGET_VTBL_DEALS_DAMAGE` is not a reliable reading of "this nugget hurts the target":
+#: `AttributeModifierNugget`, `ParalyzeNugget`, `FireLogicNugget` and `EmotionWeaponNugget` all
+#: return `mov al,1` from it and none of them is a reason to attack, while `HordeAttackNugget`,
+#: `SlaveAttackNugget`, `DamageFieldNugget` and `GrabNugget` return false from both it and
+#: `NUGGET_VTBL_SUBWEAPON` and every one of them is. Nothing in the vtable separates the two
+#: groups, so they are named.
+#:
+#: Order is irrelevant to the answer; this is the order the list was specified in.
+ATTACK_NUGGET_VTABLES = {
+    "DOTNugget": 0x00C7BAE8,
+    "DamageContainedNugget": 0x00C7BA60,
+    "DamageFieldNugget": 0x00C7B3A8,
+    "DamageNugget": 0x00C7AE78,
+    "GrabNugget": 0x00C7B970,
+    "HordeAttackNugget": 0x00C7BCAC,
+    "ProjectileNugget": 0x00C7B538,
+    "SlaveAttackNugget": 0x00C7B9B0,
+}
+
+#: The `mov dword ptr [esi], <vtable>` each of those nuggets' constructor executes, as
+#: `{VA: bytes}`. This is what ties a bare vtable address to the nugget it belongs to: the
+#: constructor is reached from that nugget's own `NUGGET_PARSE_TABLE` row, so a build that
+#: laid the nuggets out differently fails here rather than allowlisting the wrong eight.
+ATTACK_NUGGET_VTABLE_STORES = {
+    0x009114AA: bytes.fromhex("c706e8bac700"),  # DOTNugget
+    0x00911158: bytes.fromhex("c70660bac700"),  # DamageContainedNugget
+    0x0090F759: bytes.fromhex("c706a8b3c700"),  # DamageFieldNugget
+    0x0090DDF5: bytes.fromhex("c70678aec700"),  # DamageNugget
+    0x00910D62: bytes.fromhex("c70670b9c700"),  # GrabNugget
+    0x00911B41: bytes.fromhex("c706acbcc700"),  # HordeAttackNugget
+    0x0090FF04: bytes.fromhex("c70638b5c700"),  # ProjectileNugget
+    0x00910E97: bytes.fromhex("c706b0b9c700"),  # SlaveAttackNugget
+}
+
+
+# The unit-plate option: the `Model =` parse-time gate, and the preference plumbing it borrows.
+# Derived in `docs/options-menu-rows.md` (the options screen) and in
+# `patches/unit_plate_option.py`'s module docstring (the gate). Static only - none of this has
+# been confirmed against a running game.
+
+#: `ModelConditionState`'s `Model =` field parser, from the block's field-parse table. Reads the
+#: model name with `INI::getNextTokenOrNull`, then optionally `ExtraMesh <bool>`, then stores the
+#: name as an `AsciiString` at `ModelConditionState+0x4C`.
+MODEL_FIELD_PARSER = 0x004C21EE
+MODEL_FIELD_PARSER_BYTES = bytes.fromhex("b83a58b700e8f8ac570051538b5d0c85db0f")
+
+#: Inside it, the point where the parsed name is about to be copied into the `AsciiString`:
+#: `push dword [ebp-0x10]` / `lea ecx, [ebp+0xc]`. Six bytes, two whole instructions, and
+#: `[ebp-0x10]` is a plain `const char *` - which is what makes this the cheapest place to
+#: substitute one model name for another exactly once per `Model =` line.
+MODEL_FIELD_STORE = 0x004C2266
+MODEL_FIELD_STORE_BYTES = bytes.fromhex("ff75f08d4d0c")
+MODEL_FIELD_STORE_RESUME = 0x004C226C
+
+#: `OptionPreferences::OptionPreferences()` - sets the vtable (`0x00C1B180`) and loads the whole of
+#: `Options.ini` (`0x00C1B1C8`) into the string map at `+4`. Returns `this` in `eax`. Constructing
+#: one is a file parse, so a caller on a hot path resolves its preference once and caches it.
+OPTION_PREFERENCES_CTOR = 0x006E56F3
+OPTION_PREFERENCES_CTOR_BYTES = bytes.fromhex("b8b6d0b800e8f37735005151568bf18975ece840d40c")
+OPTION_PREFERENCES_DTOR = 0x006E562F
+OPTION_PREFERENCES_DTOR_BYTES = bytes.fromhex("c70180b1c100e984d40c00a1843bde00")
+
+#: `OptionPreferences::getAllHealthBars()` - the shape every boolean preference accessor has, and
+#: the one `unit-plate-option` clones with a different key: look the key up in the map at `this+4`,
+#: answer true only if the value `stricmp`s equal to `"yes"`, and false when the key is absent.
+OPTION_PREFERENCES_GET_BOOL = 0x006E6179
+OPTION_PREFERENCES_GET_BOOL_BYTES = bytes.fromhex(
+    "558bec5156578bf168b8b2c1008d4dfce85213d5ff8d45fc83c604508bce"
+)
+
+#: `std::map<AsciiString, AsciiString>::find(&key)` as the preference accessors call it - `this` is
+#: the map (`OptionPreferences+4`), and a miss returns the map's header node, which is also what
+#: `[this]` holds. So "not found" is `result == *this`, not NULL.
+PREFERENCES_MAP_FIND = 0x00456726
+
+#: `AsciiString`'s constructor-from-`const char *` and its destructor, and the CRT `stricmp` thunk
+#: (`jmp dword [0x00BD06B4]`). All three are called from more than one cave.
+ASCII_STRING_CTOR = 0x004374E0
+ASCII_STRING_DTOR = 0x00435D50
+STRICMP = 0x00A3CF40
+
+#: The two string literals the boolean accessors compare against and fall back to.
+YES_STRING = 0x00BD3D80
+EMPTY_STRING = 0x00BD0C3F
+
+#: The `ModelConditionState` field-parse row for `Model =`: `{name, parse, userData, offset}` with
+#: `name -> "Model"` and `parse -> MODEL_FIELD_PARSER`. The only dword in the image that points at
+#: that parser, which is what identifies it as the `Model =` handler rather than a lookalike.
+MODEL_FIELD_TABLE_ROW = 0x00BE0A78
+
+# The Options screen's gadget ladder and its save path, for `unit-plate-option`'s 20th row.
+# Derived in `docs/options-menu-rows.md` §2, §5 and §6a. Static only.
+
+#: `AptOptions::InitGadgets`' entry branch: the `jne` taken when the gadget is not
+#: `Options::Resolution`, which is what sends every other name into the 19-arm ladder. Six bytes,
+#: and the flags it reads survive an unconditional `jmp`, so a cave can re-take the branch. The
+#: ladder's *tail* `jne` at `0x00920DB9` is only two bytes and cannot hold a `jmp rel32`.
+APT_INIT_GADGETS_LADDER_HOOK = 0x00920602
+APT_INIT_GADGETS_LADDER_HOOK_BYTES = bytes.fromhex("0f8589010000")
+
+#: Where the two arms of that branch go: the `Options::Resolution` body, and the ladder head
+#: (`push "Options::Detail"`). Both are stock instruction boundaries.
+APT_INIT_GADGETS_RESOLUTION_ARM = 0x00920608
+APT_INIT_GADGETS_LADDER = 0x00920791
+APT_INIT_GADGETS_LADDER_BYTES = bytes.fromhex("68f0d8c700ff7508")
+
+#: The epilogue every matched arm jumps to.
+APT_INIT_GADGETS_EPILOGUE = 0x00920DF2
+
+#: `AptOptions::Save`. Its `OptionPreferences` is constructed at `0x0091FCC0` into `[ebp-0x34]`,
+#: so the string map it writes through is `[ebp-0x30]`.
+APT_OPTIONS_SAVE = 0x0091FC9C
+APT_OPTIONS_SAVE_BYTES = bytes.fromhex("b81aa2ba00e84ad2110083ec3c5333db")
+APT_OPTIONS_SAVE_PREFS_EBP = -0x34
+APT_OPTIONS_SAVE_MAP_EBP = -0x30
+
+#: Inside it, `lea ecx, [ebp-0x34]` / `call UserPreferences::write` - the flush, and the last point
+#: at which a key can be added to the map and still reach the file. Eight bytes, two whole
+#: instructions.
+APT_OPTIONS_SAVE_FLUSH = 0x009204D9
+APT_OPTIONS_SAVE_FLUSH_BYTES = bytes.fromhex("8d4dcce86b22e9ff")
+APT_OPTIONS_SAVE_RESUME = 0x009204E1
+
+#: `UserPreferences::write()` - serialises the map back to the file the object was loaded from.
+USER_PREFERENCES_WRITE = 0x007B274C
+
+#: The checkbox accessors the option rows use: `setCheckBoxState(gadget, bool)` and
+#: `getCheckBoxState(gadget)`, both `__cdecl` with the gadget as the first stack argument.
+SET_CHECKBOX_STATE = 0x00729534
+GET_CHECKBOX_STATE = 0x00729579
+
+#: `std::map<AsciiString, AsciiString>::operator[](&key)` - inserts if absent and returns the
+#: value slot. `__thiscall`, `ret 4`, `this` being the map (`OptionPreferences+4`).
+PREFERENCES_MAP_INDEX = 0x00602B76

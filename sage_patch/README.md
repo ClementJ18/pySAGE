@@ -3,11 +3,11 @@
 Reverse-engineering + binary-patch work on the ROTWK SAGE engine (build `2.01.2614.37001`). The
 patches below are all engine-level — they apply to any ROTWK install of that build and benefit
 every mod on it (Edain among them), not one in particular. All of them target `game.dat` except
-ten, which patch other binaries from the same install. Nine patch `Worldbuilder.exe` —
+eleven, which patch other binaries from the same install. Ten patch `Worldbuilder.exe` —
 `worldbuilder-mod`, `worldbuilder-label-assert`, `worldbuilder-silent-errors` and
-`worldbuilder-object-typeahead`, plus the five **twins** that carry a game-side patch's INI surface
-across to the editor: `desert-weather-wb`, `herobar-wb`, `production-condition-wb`,
-`production-split-wb` and `science-prereqs-wb`. Each twin
+`worldbuilder-object-typeahead`, plus the six **twins** that carry a game-side patch's INI surface
+across to the editor: `desert-weather-wb`, `healing-received-wb`, `herobar-wb`,
+`production-condition-wb`, `production-split-wb` and `science-prereqs-wb`. Each twin
 lives in the same module as its game-side half. `standalone-launcher` patches the launcher shim
 `lotrbfme2ep1.exe`.
 
@@ -18,11 +18,11 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Thirteen of the registered patches — **`hero-mana`**, **`second-resource`**,
+> Fourteen of the registered patches — **`hero-mana`**, **`second-resource`**,
 > **`campaign-select`**, **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**,
 > **`live-bridge`**, **`living-world-override`**, **`cooldown-through-death`**,
-> **`capture-the-flag`**, **`smart-rally`**, **`special-power-charges`**
-> and **`render-rate`**
+> **`capture-the-flag`**, **`smart-rally`**, **`special-power-charges`**,
+> **`render-rate`** and **`unit-plate-option`**
 > — are **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -87,6 +87,27 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   picker's "pick one to use **now**" arm is gated; the "could this ever be made here" arm keeps the
   stock answer, because one caller *cancels* an order when that question comes back null.
   **Runtime-verified in game.**
+- **`ai-flag-capture-gate`** stops the skirmish AI's flag-capture squads locking onto build
+  plots they can never take. `AIFlagCaptureSquad` is one of the engine's *targetless* tactics: it
+  builds a one-to-three-unit team named `TARGETLESS_FlagCaptureSquad_<n>_0` and sends it to stand
+  on a capture flag. Its picker filters that map's `CAPTUREFLAG` objects on two things only — not
+  already allied, and `KindOf CAPTUREFLAG` — then takes the **nearest**. It never asks whether the
+  flag can be captured, and settlement / camp / fortress / economy plots are `CAPTUREFLAG` too. A
+  plot somebody has claimed carries a structure, so the flag under it cannot be taken until that
+  structure is destroyed — and the squad's only release condition is the flag turning allied, so
+  there is no timeout. The units are given a plain move onto the flag's position, which is the
+  centre of the building standing on it and therefore unreachable, and the move state holds
+  `NO_AUTO_ACQUIRE`, which overrides their own `AutoAcquireEnemiesWhenIdle` — a battalion or two
+  circling an enemy building for the rest of the match without ever attacking it. The patch adds
+  one rejection to the picker: `KindOf BASE_SITE` **and** `ObjectStatus UNSELECTABLE`, which is a
+  build plot that has already been claimed. `BASE_SITE` is asked first and on its own, because a
+  plain `CaptureFlag` is recaptured by walking onto it whoever holds it and that is the tactic's
+  real purpose. Free plots stay targets, so the AI keeps grabbing economy and expansion plots;
+  enemy-held plots are already `AIFarmKillSquad`'s job, and it carries the structures on them in
+  its own candidate list. AI-only for free — the picker is inside `SkirmishAI` and its one caller
+  is the tactic's own update, so unlike `ai-revive-gate` it needs no return-address
+  discrimination. Logic-side, so **every peer needs the same binary**. See
+  [`docs/ai-flag-capture-gate.md`](docs/ai-flag-capture-gate.md).
 - **`rebuild-hole-construction`** lets a structure destroyed **while it is being rebuilt** leave
   its rebuild hole behind again. A creep lair's loop hangs entirely off that hole: breaking the
   lair makes one, breaking the *hole* is what pays out treasure (the `CreateObjectDie` is on the
@@ -249,6 +270,23 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   itself re-runs the shroud manager for the new seat. The engine already ships the same predicate
   with mode 2 added, so the patch aims one `call` at it — five bytes, no cave. The natural
   companion to `skirmish-replay`, and independent of it. Client-local. **Runtime-verified in game.**
+- **`unit-plate-option`** turns Edain's **unit plates into a player-side toggle** instead of a
+  submod, by adding a **20th row to the shell Options screen**. `unit_plate.inc` puts a
+  `W3DScriptedModelDraw` tagged `Module_UnitPlate` on 552 unit objects; the shipped game carries the
+  draw module but not the model, so the disc is invisible until a submod drops `unit_plate.w3d`
+  in — after which it is on forever, for everyone, at one extra render object per unit. Three hooks,
+  one cave: the ladder's entry branch (`0x00920602`), where `AptOptions::InitGadgets` is an inlined
+  chain of `stricmp`s with no table to extend, so the cave answers for its own gadget and hands
+  every other name back; `AptOptions::Save`, spliced in front of the `UserPreferences::write` at
+  `0x009204DC` because Save writes only six hardcoded keys; and the `ModelConditionState` `Model =`
+  parser (`0x004C2266` — the only dword in the image pointing at it), which substitutes `None`
+  unless the preference reads `yes`. The preference is read through a byte-for-byte clone of the
+  engine's own `getAllHealthBars`; the row reads it fresh, the model gate once per launch and
+  cached. The `off` state is not new behaviour — it is what ships today, and what
+  `unit_plate_remover.inc` already produces on 78 child objects. `--model`, `--key` and `--gadget`
+  make it work for any model/preference/row triple. **Needs a matching gadget in `Options.apt`**
+  (`docs/options-menu-rows.md` §4) — without it the patch is inert, not harmful. Client-local.
+  **Static only — not yet run in game.**
 - **`observer-command-range`** lets an observer **work a command bar's paging buttons** —
   `PUSH_VISIBLE_COMMAND_RANGE` and `POP_VISIBLE_COMMAND_RANGE` — so what is being bought or
   researched on page two can be read while watching a replay, or after being defeated. Today the
@@ -433,20 +471,25 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 - **`attack-requires-damage`** stops a unit **auto-acquiring or right-click-attacking a target it
   cannot damage**. Whether one object can attack another ends, for auto-acquire and for a
   right-click / attack order, in a routine that walks the weapon's nuggets and answers yes if
-  **any** nugget's per-victim test accepts the target — with no regard for whether that nugget deals
-  damage. So a weapon whose only matching nugget is a knockback (`MetaImpactNugget`) or an
-  `AttributeModifierNugget` reports itself able to attack something it does no damage to, and the
-  unit walks up and "attacks" for nothing — a frequent bug report. The patch redirects the **one**
-  `call` that is the attack-eligibility predicate's final answer into a cave that repeats the same
-  nugget walk but counts a nugget only when it both accepts the victim **and** deals damage —
-  direct damage (a `DamageNugget`) *or* through a sub-weapon (a `ProjectileNugget`, which is what
-  keeps archers and every projectile-only weapon working). Both facts are the engine's own, read off
-  two nugget vtable slots it already uses to answer "does this weapon deal damage type N". **Firing
-  is untouched**: the nugget-level valid-victim test the fire loop uses is a different, unhooked
-  call, so a knockback still knocks back once the weapon is engaged on a legitimately damageable
-  enemy — it just no longer causes the engagement on its own. **No INI change** — the filter is
-  global and reads only data every weapon already has. Logic-side, so **every peer must run the same
-  patched binary** and replays do not cross. **Statically verified, not runtime-verified.** See
+  **any** nugget's per-victim test accepts the target — with no regard for whether that nugget does
+  anything worth attacking for. So a weapon whose only matching nugget is a knockback
+  (`MetaImpactNugget`) or an `AttributeModifierNugget` reports itself able to attack something it
+  does no damage to, and the unit walks up and "attacks" for nothing — a frequent bug report. The
+  patch redirects the **one** `call` that is the attack-eligibility predicate's final answer into a
+  cave that repeats the same nugget walk but counts a nugget only when it accepts the victim **and**
+  is one of the eight kinds that are a reason to attack: `DamageNugget`, `ProjectileNugget`,
+  `DOTNugget`, `DamageContainedNugget`, `DamageFieldNugget`, `GrabNugget`, `HordeAttackNugget`,
+  `SlaveAttackNugget`. **A named list, because the engine's own damage getters answer this wrong in
+  both directions** — `AttributeModifierNugget`, `ParalyzeNugget`, `FireLogicNugget` and
+  `EmotionWeaponNugget` all report "deals direct damage", while `HordeAttackNugget` and
+  `SlaveAttackNugget` report neither direct damage nor a sub-weapon and are exactly how their
+  weapon hurts the target. Getting that last one wrong is not subtle: a horde acquires with a
+  rangefinder weapon whose only nugget is a `HordeAttackNugget`, so excluding it stops **every horde
+  in the game** attacking anything at all. **Firing is untouched**: the nugget-level valid-victim
+  test the fire loop uses is a different, unhooked call, so a knockback still knocks back once the
+  weapon is engaged on a legitimately damageable enemy — it just no longer causes the engagement on
+  its own. **No INI change** — the filter is global and reads only data every weapon already has.
+  Logic-side, so **every peer must run the same patched binary** and replays do not cross. See
   [`docs/attack-requires-damage.md`](docs/attack-requires-damage.md).
 - **`spawn-union`** makes an object with several `SpawnBehavior`s use **all** of their spawns.
   `Object::getSpawnBehaviorInterface` walks the module list and returns on the **first** module that
@@ -728,6 +771,18 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   back to the stock callee untouched. See
   [`docs/construction-speed-modifiers.md`](docs/construction-speed-modifiers.md). **Runtime-verified
   in game for the queue hook; the money and construction hooks are not.**
+- **`healing-received`** adds **`HEALING_RECEIVED`**, a `ModifierList` keyword that multiplies
+  **how much healing its target takes**, from any source — `25%` is a quarter, `200%` is double,
+  `0%` is immune to healing. It is one five-byte `call` swap, because every heal in the engine
+  becomes a `DamageInfo` of type 7 and funnels through a single `fstp` in
+  `ActiveBody::attemptHealing` where the amount exists exactly once and the healed object is
+  already in `edi`. The engine's own `<= 0` test sits below the hook, so a zero multiplier makes
+  the whole tail disappear — no health change, no healing observers — rather than needing an arm
+  of its own. Complementary to `AUTO_HEAL`, which is additive, read once and read on the *healer*.
+  Nothing changes until INI uses the name. Shares the modifier-type name table with
+  `production-split`; both read it live and compose in either order. See
+  [`docs/healing-received-modifier.md`](docs/healing-received-modifier.md). **Statically verified;
+  not yet runtime-verified.**
 
 - **`large-group-bonus-filter`** lets a **`LargeGroupBonusUpdate` count objects that are not in a
   horde**. `HordeMemberFilter` is an ordinary `ObjectFilter` — nothing about its grammar is
@@ -751,9 +806,11 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   See [`docs/large-group-bonus-filter.md`](docs/large-group-bonus-filter.md).
   **Runtime-verified in game.**
 
-- **`lifetime-extend-upgrade`** adds an **`ExtendedByUpgrades`** upgrade mask and an
-  **`UpgradeLifetimeBonus`** duration to `LifetimeUpdate`, so gaining one of those upgrades pushes
-  a summon's death **back by that many milliseconds**. The framing is the surprise: **there is no
+- **`lifetime-fields`** adds three fields to `LifetimeUpdate`. **`ExtendedByUpgrades`** and
+  **`UpgradeLifetimeBonus`** make gaining one of those upgrades push a summon's death **back by
+  that many milliseconds**; **`ExpirationTemplate`** makes the module **turn the object into
+  another one instead of killing it** when the time runs out. Each is armed by its own keyword,
+  and a block declaring none of them runs stock bytes. The framing is the surprise: **there is no
   timer to extend**. `LifetimeUpdate` rolls one duration in its constructor, stores an absolute
   death frame and sleeps to it; `update` runs *once*, on that frame, and kills the object without
   ever reading the clock. So the extension itself is one `add` - and the whole cost of the patch is
@@ -785,7 +842,30 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   decides when objects die - and the keywords are an INI parse error on a stock build. Savegames
   need no version bump, at the price of one quirk: the edge latch is not xfer'd, so a still-held
   upgrade pays its bonus once more on the first poll after a load. See
-  [`docs/lifetime-extend-upgrade.md`](docs/lifetime-extend-upgrade.md). **Runtime-verified in game.**
+  [`docs/lifetime-extend-upgrade.md`](docs/lifetime-extend-upgrade.md). **Runtime-verified in
+  game.**
+
+  **`ExpirationTemplate` is the same module's other half, and it costs almost nothing** because the
+  transform already exists: `ToggleMountedSpecialAbilityUpdate`'s mount swap is a self-contained
+  `__thiscall` that reads the `ModuleData` at `+0x04` and the `Object` at `+0x08` off the module it
+  is called on, writes a success flag at `+0x8c`, and makes **no virtual call on it** - and of that
+  `ModuleData` it reads only the template name at `0xd8` and the timer-sync vector behind it. So
+  the `ModuleData` grows to `0xe8`, which is that module's own `sizeof`, the new row lands exactly
+  where `MountedTemplate` lands, and the cave builds a module-shaped scratch **on the stack**,
+  hands it the real pair and calls the stock swap and the stock retire. Health, experience, team,
+  position, facing, selection and contained passengers move exactly as they do when a hero mounts,
+  because it is the same code. The hook is `update`'s `ScoreKill` compare and the `push esi` behind
+  it - five bytes of two whole instructions - rather than the kill twenty lines below, and that is
+  not cosmetic: the `ScoreKill = No` arm calls `ScoreKeeper::addObjectBuilt(obj, -1)` and **so does
+  the swap**, so a hook under it would walk the owner's "units built" down by one per transform.
+  A refused swap (no such template, or a build the engine will not make) falls through to the stock
+  death rather than leaving something immortal, and the retire is a `destroyObject`, not a kill -
+  no `DeathType`, no death FX, no `SlowDeathBehavior`, nothing scored. What this replaces in mod
+  data is a four-module contraption: a hidden `CommandButton` fired by a delayed upgrade, with a
+  `LifetimeUpdate` a few seconds longer standing behind it as a backstop - and because the button
+  is a special power it can be *refused*, at which point the backstop kills the unit instead of
+  reverting it. Ability cooldowns are the one thing that does not carry across yet. See
+  [`docs/lifetime-transform.md`](docs/lifetime-transform.md). **Not runtime-verified.**
 
 - **`upgrade-description`** keeps a `CommandButton`'s **`DescriptLabel` visible after its upgrade is
   researched**, with *"this upgrade has already been researched"* appended **under** it instead of
@@ -1187,6 +1267,10 @@ Bring your own `game.dat` (this repo ships the patch recipe, never the copyright
 
 ```sh
 sage-patch list                                  # the registered patches; `exp` = experimental
+sage-patch info commandset-limit                 # one patch: author, source, write-up,
+                                                 # parameters, and the INI surface it adds
+sage-patch info commandset-limit --file game.dat # ...and whether *this* binary carries it,
+                                                 # with the parameters recovered from it
 sage-patch apply commandset-limit --count 64 \
     --in game.dat.backup --out game.dat          # --in is read, never modified
 sage-patch verify commandset-limit --count 64 game.dat   # exits non-zero on any mismatch
@@ -1200,6 +1284,9 @@ sage-patch verify ai-revive-gate game.dat
 
 sage-patch apply ai-construction-gate --in game.dat.backup --out game.dat   # no parameters
 sage-patch verify ai-construction-gate game.dat
+
+sage-patch apply ai-flag-capture-gate --in game.dat.backup --out game.dat   # no parameters
+sage-patch verify ai-flag-capture-gate game.dat
 
 sage-patch apply rebuild-hole-construction --in game.dat.backup --out game.dat   # no parameters
 sage-patch verify rebuild-hole-construction game.dat
@@ -1231,6 +1318,9 @@ sage-patch verify skirmish-replay game.dat
 # the other half of watching a skirmish replay: the next/prior player buttons
 sage-patch apply observer-switch --in game.dat.backup --out game.dat        # no parameters
 sage-patch verify observer-switch game.dat
+
+sage-patch apply unit-plate-option --in game.dat.backup --out game.dat   # --model/--key/--gadget optional
+sage-patch verify unit-plate-option game.dat
 
 # every faction gets an AI on every map, running its own ki <faction> library
 sage-patch apply skirmish-ai-fallback --in game.dat.backup --out game.dat   # no parameters
@@ -1289,10 +1379,10 @@ sage-patch apply detachable-rider-heal \
     --in game.dat.backup --out game.dat     # --keyword HealOnDetach
 sage-patch verify detachable-rider-heal game.dat
 
-# an upgrade pushes a summon's death back by UpgradeLifetimeBonus milliseconds
-sage-patch apply lifetime-extend-upgrade \
-    --in game.dat.backup --out game.dat        # --keyword / --bonus-keyword
-sage-patch verify lifetime-extend-upgrade game.dat
+# an upgrade pushes a summon's death back, and expiry can transform instead of killing
+sage-patch apply lifetime-fields \
+    --in game.dat.backup --out game.dat  # --keyword / --bonus-keyword / --template-keyword
+sage-patch verify lifetime-fields game.dat
 
 # let a LargeGroupBonusUpdate's HordeMemberFilter also match objects outside a horde
 sage-patch apply large-group-bonus-filter \
