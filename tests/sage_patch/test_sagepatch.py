@@ -273,7 +273,7 @@ class TestAgainstARealBinary:
             [HeroManaPatch(), CommandSetLimitPatch(count=80)],
             output=patched,
         )
-        engine = generate(patched.read_bytes(), patched).engine
+        engine = generate(patched.read_bytes()).engine
         written = tmp_path / ".sagepatch"
         written.write_text(dump_engine(engine), encoding="utf-8")
 

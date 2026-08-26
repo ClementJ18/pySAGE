@@ -287,7 +287,7 @@ def _cmd_sagepatch(args: argparse.Namespace) -> int:
             )
     else:
         data = Path(args.file).read_bytes()
-        generated = generate(data, Path(args.file))
+        generated = generate(data)
 
     if args.check:
         # Drift check: does the committed file still describe this binary? `[source]` is excluded

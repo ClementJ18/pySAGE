@@ -94,11 +94,17 @@ STOCK_LIMITS: dict[str, int] = {
 class Source:
     """Where an engine description came from, for provenance and drift checks. Informational
     only - nothing in the model reads it - but it is what tells a mod team that the committed
-    `.sagepatch` was generated from a different binary than the one they are running."""
+    `.sagepatch` was generated from a different binary than the one they are running.
+
+    Every field here has to be worth committing, because `.sagepatch` lives in the mod's
+    repository. `sha256` identifies the binary exactly and `generated` says how stale the file is;
+    a **path** identifies nothing either of them does not - two machines with the same layout
+    produce the same string for different binaries - while writing a home directory into a tracked
+    file and churning its diff on every rebuild elsewhere. There used to be a `game_dat` key here
+    for that; a file still carrying one loads fine and simply drops it."""
 
     build: str = ""  # the engine build string, e.g. "2.01.2614.37001"
     sha256: str = ""  # of the game.dat it was generated from
-    game_dat: str = ""  # the path it was generated from, as typed (machine-specific)
     generator: str = ""  # what wrote it, e.g. "sage_patch 0.1.0"
     generated: str = ""  # ISO date
 
@@ -736,7 +742,7 @@ def dump_engine(engine: Engine, header: str = "") -> str:
 
     source = [
         (key, getattr(engine.source, key))
-        for key in ("build", "sha256", "game_dat", "generator", "generated")
+        for key in ("build", "sha256", "generator", "generated")
         if getattr(engine.source, key)
     ]
     if source:

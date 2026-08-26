@@ -518,9 +518,11 @@ def description_timers_image() -> bytearray:
     them. Everything not planted reads as zero, so a window aimed one instruction to either side of
     where it claims to be would find nothing there.
 
-    The two `RECHARGE_FORMULA_ANCHORS` are planted too, even though the patch never jumps to them:
-    they are the instructions the cooldown transcription copies, and a build that encoded them
-    differently would be a build whose formula the cave is not reproducing.
+    The `RECHARGE_FORMULA_ANCHORS` and `INTERFACE_LAYOUT_ANCHORS` are planted too, even though the
+    patch never jumps to them: they are the instructions the cooldown transcription copies and the
+    two `isReady` windows that say where each recharge flavour keeps its fields, and a build that
+    encoded either differently would be a build whose formula the cave is not reproducing or whose
+    interface it is reading at the wrong offsets.
     """
     return _sparse_image(
         {
@@ -528,6 +530,7 @@ def description_timers_image() -> bytearray:
             ad.DESCRIPTION_TAIL: ad.DESCRIPTION_TAIL_BYTES,
             **dt.ANCHORS,
             **dt.RECHARGE_FORMULA_ANCHORS,
+            **dt.INTERFACE_LAYOUT_ANCHORS,
         }
     )
 

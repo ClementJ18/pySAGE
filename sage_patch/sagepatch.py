@@ -31,7 +31,6 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from importlib.metadata import PackageNotFoundError, version
-from pathlib import Path
 
 from sage_ini.engine import Engine, EnumDelta, Source
 
@@ -155,11 +154,12 @@ def _fuse(surfaced: Sequence[EnumDelta], observed: Sequence[EnumDelta]) -> tuple
     return tuple(fused.values())
 
 
-def _source(data: bytes | bytearray, game_dat: Path | None) -> Source:
+def _source(data: bytes | bytearray) -> Source:
+    """Provenance for the generated file. Deliberately **not** the path it was read from: see
+    :class:`~sage_ini.engine.Source`."""
     return Source(
         build=BUILD,
         sha256=hashlib.sha256(bytes(data)).hexdigest(),
-        game_dat=str(game_dat) if game_dat is not None else "",
         generator=_GENERATOR,
         generated=date.today().isoformat(),
     )
@@ -179,7 +179,7 @@ def _combine(patches: Iterable[Patch], observed: Sequence[EnumDelta], source: So
     )
 
 
-def generate(data: bytes | bytearray, game_dat: Path | None = None) -> Generated:
+def generate(data: bytes | bytearray) -> Generated:
     """Read `data` (a `game.dat` image) and describe the INI surface it accepts."""
     notes: list[str] = []
     if len(data) < _EXPECTED_SIZE:
@@ -190,7 +190,7 @@ def generate(data: bytes | bytearray, game_dat: Path | None = None) -> Generated
     patches = detect_patches(data)
     observed, table_notes = name_table_members(data)
     notes.extend(table_notes)
-    engine = _combine(patches, observed, _source(data, game_dat))
+    engine = _combine(patches, observed, _source(data))
     unattributed = sorted(
         f"{delta.enum}.{delta.name}" for delta in engine.enum_members if not delta.patch
     )

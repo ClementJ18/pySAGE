@@ -829,7 +829,14 @@ last live frame as though it were a diagnosis.
   `0x00450119`) and a once-per-second gate (`frame % 30` at `0x0044B8C2`). Only `0x006A2451`
   derives its cadence correctly. Full table from the census script.
 
-### 9.9 The simulation rate is a function of each machine's frame rate, and that ends multiplayer
+### 9.9 The simulation rate is a function of each machine's frame rate — and it does not end multiplayer
+
+**Superseded in its conclusion, kept for its arithmetic.** The identity below is real and still
+governs the design. What this section originally concluded from it — that mixed hardware cannot
+play together — was tested directly on 2026-08-26 and did not hold; see
+[the mixed-rate match](#mixed-frame-rates-played-clean--2026-08-26) at the end. The 2026-08-23
+failure that motivated it is accounted for by §9.10, which was found and fixed afterwards. Read
+the rest of this section as the mechanism, not as the ceiling.
 
 Observed on 2026-08-23 in a real online match between two Edain installs carrying the 60 fps build,
 after a control match on the 30 fps build (the same patch set minus `render-rate`) ran clean:
@@ -877,10 +884,12 @@ sustaining 45 fps simulates at `45/11 ≈ 4.1 Hz` while a client sustaining 60 s
   problem is not the number — it is that the logic clock is denominated in rendered frames. Two
   machines with different GPUs disagree by construction.
 
-**So the ceiling for this patch is single-player and replays**, and even there the simulation runs
-at whatever fraction of the target rate the machine sustains. Multiplayer needs the wall-clock
-wrap [§6](#6-what-uncapped-would-cost) scopes — logic frames ending on elapsed milliseconds rather
-than on a count of draws — and that is a different patch, not a tuning of this one.
+**That was read, at the time, as putting the ceiling at single-player and replays.** The
+measurement below and the mixed-rate match at the end of this section both say otherwise: the
+divergence is real arithmetic, but it is bounded and the game absorbs it. The wall-clock wrap
+[§6](#6-what-uncapped-would-cost) scopes — logic frames ending on elapsed milliseconds rather than
+on a count of draws — would remove the term entirely and is still the right shape for this
+eventually. It is no longer a prerequisite for playing a match.
 
 #### What a machine that *does* hold 60 measures — and what it does not explain
 
@@ -910,6 +919,30 @@ dropping frames.
 clear throughout, and ended in a **client crash** rather than a mismatch — one of five that
 evening, two of which wrote no minidump at all. Whatever ends these sessions, this measurement
 does not show it being the pacing.
+
+#### Mixed frame rates played clean — 2026-08-26
+
+The test this section's conclusion asked for, and the one §9.8 item 1 said to run once §9.10 was
+in: online play on the 60 fps build **between peers that were not sustaining the same frame
+rate** — the exact condition the identity above predicts should diverge. It played clean. No
+desync, and none of the 2026-08-23 stutter.
+
+That is the discriminating case. Two peers both holding 60 would not have exercised the mechanism
+at all; peers at different achieved rates do, and the divergence did not surface as anything a
+player or the lockstep layer objected to.
+
+**What this settles, and what it does not.** It settles the conclusion: **the rendered-frame clock
+is not a barrier to network play**, and §9.10's recompute gate was indeed "the whole of what was
+reported" on 2026-08-23, as §9.8 item 1 guessed it might be. It does not overturn the arithmetic —
+`logic rate = achieved fps / ratio` still follows from the wrap counting draws, and a peer that
+drops frames still simulates slower than one that does not. What is now known is that lockstep
+absorbs that difference the way it absorbs ordinary network jitter, rather than compounding it.
+
+**Evidentiary status: field observation, not instrumented.** Per-peer achieved frame rates were
+not recorded, and `desync-watch` was not run on both sides. Two things would upgrade it — logging
+`TheGameLogic+0x1BC` on both peers across a match, and sampling each peer's achieved rate to put
+numbers on how far apart they actually were. Neither is needed to retire the "single-player only"
+framing; both would be needed before anyone quotes a bound on how far apart peers can drift.
 
 ### 9.10 The alpha's denominator ratchets on a networked client, and never resets
 
@@ -1127,27 +1160,30 @@ is exactly right.
 The list below is a real but bounded one, and still not the "per-subsystem work, the honest price
 of this feature" §8 concluded with — §9.10 adds an item to it, but the item is one byte.
 
-**Two things block network play, and they are not the same thing.** §9.10 is the stutter and it is
-a one-byte fix. §9.9 is the divergence and it is a different patch. Everything else on this list is
-smaller than either.
+**Nothing on this list now blocks network play.** Both things that did have been answered: §9.10
+was the stutter and it is fixed, and §9.9's divergence was tested on 2026-08-26 between peers at
+different frame rates and played clean. Items 1 and 2 record how each was closed; the rest are
+open but none of them is a barrier to a match.
 
-1. **§9.10's recompute gate — the multiplayer stutter. Fixed 2026-08-24; needs a match.**
+1. **§9.10's recompute gate — the multiplayer stutter. Fixed 2026-08-24; confirmed 2026-08-26.**
    `0x00632606` goes from 1 to the ratio. The alpha's denominator was left to a one-way
    `inc` that only runs on a networked peer, so it ratchets past the wrap and the boundary frame
    moves many times a normal frame's motion, five times a second, getting worse the longer the
    match runs. Measured on both peers of one live match: ratio **14 on the host** and **31 on the
    off-host** against a wrap of 12, a **4.0x** and a **20.0x** boundary spike where a correct build
-   at any rate is 2.0x. The edit is in and the suite covers it; what is outstanding is a two-machine
-   match with the probe run on both sides. This explains the reported symptom exactly,
-   including why idle animations were unaffected and why the host was fine, and it is the reason
-   §9.9's flat-5.000-Hz match still played badly.
-2. **§9.9's rendered-frame clock — the divergence. A separate patch, and the real ceiling.**
-   The logic clock is counted in draws, so a peer that cannot hold its target rate simulates slow
-   and lockstep stalls whoever is ahead. §9.9's own counter-evidence bounds this: a machine that
-   *does* hold 60 paced flat for 18.5 minutes, so this bites dropped frames rather than every
-   lobby. It still has to become the wall-clock wrap §6 scopes before "multiplayer must work" is
-   honestly true on mixed hardware. **Fix §9.10 first and re-test** — it is cheap, it is measured,
-   and it may well be the whole of what was reported.
+   at any rate is 2.0x. The edit is in, the suite covers it, and the 2026-08-26 match played
+   clean — so the fix holds in the case that produced the report. This explains the reported
+   symptom exactly, including why idle animations were unaffected and why the host was fine, and
+   it is the reason §9.9's flat-5.000-Hz match still played badly. Still outstanding, and now only
+   for completeness: the probe run on both sides of a match to put numbers on the fixed build.
+2. **§9.9's rendered-frame clock — the divergence. Real arithmetic, not a barrier. Closed
+   2026-08-26.** The logic clock is counted in draws, so a peer that cannot hold its target rate
+   simulates slower than one that can. Two measurements bound it: a machine that *does* hold 60
+   paced flat for 18.5 minutes, and a match between peers at *different* achieved rates — the
+   condition the identity predicts should diverge — played clean. Lockstep absorbs the difference
+   the way it absorbs ordinary jitter. The wall-clock wrap §6 scopes would remove the term
+   outright and is still the better design, but it is no longer a prerequisite. The field
+   observation is uninstrumented; §9.9 records what would upgrade it.
 3. **§9.3's limiter.** The build is only half the deliverable; `FramesPerSecondLimit` has to move
    with it. That is an INI change rather than a patch, but it is a thing a registered patch would
    have to say out loud, because going without is silent.

@@ -70,18 +70,21 @@ and every peer's, so a match between a patched and an unpatched binary is not a 
 client-frame constants outside the §1 block are also unrescaled (§9.7), the visible one being an
 animation blend weight that completes transitions in half the intended wall-clock time.
 
-**Determinism, and why this must not go near multiplayer.** The *stutter* half of this is fixed -
-that was §9.10's recompute gate, above, and it was a bug in this patch rather than a property of
-the approach. What follows is the half that is not fixed. The wrap counts *client* frames and
-the limiter is a ceiling, so the logic rate is the frame rate the machine actually achieves divided
-by the ratio — not the rate the binary names. At stock that is invisible because every machine
-renders 30; at 60 it means **each peer simulates at a speed set by its graphics performance**
-(§9.9). Played on 2026-08-23: the host rendered 60 and stuttered the whole match while a weaker
-peer that could not hold 60 ran slow, and the match desynced. Same binary on both sides, same
-`FramesPerSecondLimit`. The condition is load-bearing: a client that *does* hold 60 measured a flat
-5.000 Hz across a full 18.5-minute match, so this is an explanation for a peer dropping frames and
-not for a lobby where nobody is. Single-player and replays only until the wrap ends on elapsed
-milliseconds rather than on a count of draws, which is the separate patch §6 scopes.
+**Determinism, and where multiplayer actually stands.** Both things that blocked network play have
+been answered. The *stutter* was §9.10's recompute gate - a bug in this patch rather than a
+property of the approach - and it is fixed. The *divergence* is the one that follows from the
+design: the wrap counts *client* frames and the limiter is a ceiling, so the logic rate is the
+frame rate the machine actually achieves divided by the ratio, not the rate the binary names. At
+stock that is invisible because every machine renders 30; at 60 it means each peer simulates at a
+speed set by its graphics performance (§9.9). That arithmetic still holds. What does **not** hold
+is the conclusion once drawn from it. Played on 2026-08-26 between peers at *different* achieved
+frame rates - the condition it predicts should diverge - the match ran clean, no desync and none
+of the 2026-08-23 stutter that §9.10 has since explained. Lockstep absorbs the difference the way
+it absorbs ordinary jitter. So this is **no longer single-player and replays only**; the
+wall-clock wrap §6 scopes would remove the term outright and is still the better design, but it is
+not a prerequisite for a match. That result is a field observation rather than an instrumented
+one - per-peer rates were not logged and `desync-watch` was not run on both sides - so treat a
+*bound* on how far peers may drift as still unmeasured.
 
 **Composition.** Order-independent: the cave is allocated past every existing section and
 :meth:`verify` finds it by name. No other bundled patch touches the pacing block, the wrap, the

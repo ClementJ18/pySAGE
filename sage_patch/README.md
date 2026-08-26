@@ -990,7 +990,17 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   out-parameter all twelve stock callers pass `0` for, and passing a real one drops the whole line
   when the key is missing — so on a string table without `TOOLTIP:Cooldown`,
   `TOOLTIP:CooldownRemaining`, `TOOLTIP:BuildTime` and `TOOLTIP:ResearchTime` the tooltip is
-  byte-identical to stock. Two limits stated rather than hidden: **the tooltip is built once per
+  byte-identical to stock. Each key takes **one `%d`**, the duration in whole seconds — one width,
+  one format, because a `double` pushed under a `%d` reads as its low dword and prints `0` for most
+  durations and garbage for the rest. **A line whose number would be zero is not printed at all** — a
+  power with no `ReloadTime` is a passive ability, 204 of Edain's 835, and stating `0` for it is
+  worse than saying nothing. Two things the remaining cooldown needs and gets: **both**
+  `startPowerRecharge` implementations are read, because the second one keeps its ready frame at a
+  different offset and the "3 of 26 vtables" behind it are *shared* vtables covering
+  `WeaponModeSpecialPowerUpdate` — 340 behaviours in Edain, so falling back there is most hero
+  abilities; and a **spellbook** power is asked of the player's spellbook object rather than of the
+  selection, because a palantir button is drawn with whatever happens to be selected behind it and
+  that is never the caster. Two limits stated rather than hidden: **the tooltip is built once per
   hover** (`0x00DE8998` latches and the same-request path returns early forever after), so the
   remaining cooldown is a snapshot taken when it appeared rather than a countdown; and hero revive
   buttons are **skipped**, because a hero's time comes off the player's ledger and not off its
@@ -1247,17 +1257,18 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   in `GameData` must be set to the same N, or the pace loop targets 30 against a 60 fps binary and the
   **whole game runs at half speed** — no warning, no crash, just slow. This is **Edain's** binary's patch:
   the latch divisor it edits does not exist on stock SAGE, and the patch refuses a build whose predicate is
-  not that shape rather than writing a dword into whatever lives there. **Single-player and replays only,
-  and that is structural rather than a bug list.** The wrap counts *client* frames and the limiter is only a
-  ceiling, so the logic rate is the frame rate a machine actually achieves divided by the ratio — invisible
-  at stock, where every machine renders 30, and dominant at 60, where **each peer simulates at a speed set
-  by its graphics performance**. Played online on 2026-08-23 with identical binaries on both sides: the host
-  rendered 60 and stuttered for the whole match while a weaker peer that could not hold 60 ran slow, and it
-  desynced. **The condition matters, though**: a client measured over a full 18.5-minute match on hardware
-  that *does* hold 60 paced at a flat **5.000 Hz** with no stalls, so this mechanism explains a peer that
-  drops frames and not a match between two that do not. Network play needs the wrap to end on elapsed
-  milliseconds instead of a count of draws, which is a different patch. See
-  [`docs/render-rate.md`](docs/render-rate.md) §9.9.
+  not that shape rather than writing a dword into whatever lives there. **Network play works**, as of a
+  2026-08-26 match. The wrap counts *client* frames and the limiter is only a ceiling, so the logic rate is
+  the frame rate a machine actually achieves divided by the ratio — invisible at stock, where every machine
+  renders 30, and dominant at 60, where each peer simulates at a speed set by its graphics performance. That
+  arithmetic is real, and it was once read as making the patch single-player-only. Two results retired that:
+  a client on hardware that *does* hold 60 paced at a flat **5.000 Hz** across a full 18.5-minute match, and
+  a match between peers at **different** achieved frame rates — the case the identity predicts should
+  diverge — played clean, with no desync. The 2026-08-23 desync that motivated the original warning is
+  accounted for by the §9.10 recompute gate, found and fixed afterwards. Ending the wrap on elapsed
+  milliseconds instead of a count of draws would remove the term outright and is still the better design,
+  but it is no longer a prerequisite. The 2026-08-26 result is a field observation, not instrumented, so no
+  *bound* on peer drift is claimed. See [`docs/render-rate.md`](docs/render-rate.md) §9.9.
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -1406,7 +1417,7 @@ sage-patch apply hero-bar-slots --count 21 --in game.dat.backup --out game.dat
 sage-patch verify hero-bar-slots --count 21 game.dat
 
 # a cooldown / build time / research time line at the bottom of a button's description;
-# --integer-seconds makes each key take a %d instead of a %.1f
+# each key takes one %d, the duration in whole seconds
 sage-patch apply description-timers --in game.dat.backup --out game.dat
 sage-patch verify description-timers game.dat
 

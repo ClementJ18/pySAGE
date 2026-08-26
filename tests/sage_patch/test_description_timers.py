@@ -6,17 +6,17 @@ invisible to a byte comparison: a cave that pushed `calcTimeToBuild`'s arguments
 cleaned `0xc` where the callee cleans `0x10`, still assembles, still applies and still verifies
 against itself. So the cave is **disassembled back** and asserted to say what it was meant to say -
 which engine routine each `call` reaches, that every arm ends at the shared line emitter, and that
-the stack arithmetic around the `double` vararg balances.
+the stack arithmetic around the vararg balances.
 
 Two checks carry most of the weight:
 
 - :meth:`TestCave.test_the_stack_balances_through_the_line_emitter` walks the emitter's `sub`/
   `add`/`push`/`pop` arithmetic and asserts it returns to zero, because getting it wrong corrupts
   the *builder's* frame rather than failing anywhere near the cave.
-- :meth:`TestCave.test_the_remaining_lookup_is_pinned_to_flavour_one` is the one that keeps the
-  patch honest about a wrong *number*: there are two `startPowerRecharge` implementations keeping
-  their ready frame at different offsets, and reading the wrong one prints a frame counter as a
-  duration.
+- :meth:`TestCave.test_each_flavour_reads_its_own_recharge_fields` is the one that keeps the patch
+  honest about a wrong *number*: there are two `startPowerRecharge` implementations keeping their
+  ready frame and pause count at different offsets, and reading either at the other's offsets
+  prints a frame counter as a duration.
 
 The synthetic image is built from the patch's own tables, so it cannot confirm the addresses are
 the right ones; :class:`TestInstalledBinary` does that against the real `game.dat` when it is
@@ -40,6 +40,7 @@ from sage_patch.addresses import (
     DESCRIPTION_TAIL_BYTES,
     DESCRIPTION_TAIL_RESUME,
     GET_FINAL_OVERRIDE,
+    PLAYER_FOR_EACH_TEAM_OBJECT,
     UNICODE_STRING_APPEND,
     UNICODE_STRING_CONCAT,
     UNICODE_STRING_CONCAT_WIDE,
@@ -50,15 +51,21 @@ from sage_patch.patches.description_timers import (
     COMMAND_BUTTON_GET_THING_TEMPLATE,
     GET_MODIFIER_MULTIPLIER,
     GET_SPECIAL_POWER_MODULE,
+    INTERFACE_LAYOUT_ANCHORS,
     KEYS,
     LOGIC_FRAMES_PER_SECOND,
     PLAYER_HAS_UPGRADE_COMPLETE,
     PLAYER_RECHARGE_MODIFIER,
     RECHARGE_FORMULA_ANCHORS,
     SECTION_NAME,
+    SPECIAL_POWER_INTERFACE_PAUSE_COUNT,
+    SPECIAL_POWER_INTERFACE_PAUSE_COUNT_ALT,
     SPECIAL_POWER_INTERFACE_READY_FRAME,
+    SPECIAL_POWER_INTERFACE_READY_FRAME_ALT,
     SPECIAL_POWER_INTERFACE_RECHARGE_SLOT,
     SPECIAL_POWER_START_RECHARGE,
+    SPECIAL_POWER_START_RECHARGE_ALT,
+    SPELL_BOOK_FINDER,
     THING_TEMPLATE_CALC_TIME_TO_BUILD,
     UNICODE_STRING_DESTRUCT,
     UPGRADE_TEMPLATE_CALC_TIME_TO_BUILD,
@@ -159,17 +166,12 @@ class TestApply:
         with pytest.raises(ValueError, match="already carries"):
             DescriptionTimersPatch().apply(image)
 
-    def test_detect_recovers_the_configuration(self, image):
-        DescriptionTimersPatch(integer_seconds=True).apply(image)
-        found = DescriptionTimersPatch.detect(image)
-        assert found is not None and found.integer_seconds is True
+    def test_detect_finds_an_applied_patch(self, image):
+        DescriptionTimersPatch().apply(image)
+        assert DescriptionTimersPatch.detect(image) is not None
 
     def test_detect_says_no_on_a_clean_image(self, image):
         assert DescriptionTimersPatch.detect(image) is None
-
-    def test_the_two_configurations_do_not_verify_each_other(self, patched):
-        assert DescriptionTimersPatch().verify(patched) == []
-        assert DescriptionTimersPatch(integer_seconds=True).verify(patched)
 
     def test_a_stray_byte_in_a_window_is_refused(self, image):
         off = va_to_offset(image, DESCRIPTION_TAIL + 1)
@@ -183,7 +185,7 @@ class TestApply:
         with pytest.raises(ValueError, match="not this build"):
             DescriptionTimersPatch().apply(image)
 
-    @pytest.mark.parametrize("va", sorted(RECHARGE_FORMULA_ANCHORS))
+    @pytest.mark.parametrize("va", sorted({**RECHARGE_FORMULA_ANCHORS, **INTERFACE_LAYOUT_ANCHORS}))
     def test_a_changed_recharge_formula_is_refused(self, image, va):
         """The cave does not call these two instructions, it *transcribes* them.
 
@@ -298,24 +300,107 @@ class TestCave:
         assert THING_TEMPLATE_CALC_TIME_TO_BUILD in targets
         assert UPGRADE_TEMPLATE_CALC_TIME_TO_BUILD in targets
 
-    def test_the_remaining_lookup_is_pinned_to_flavour_one(self, patched):
-        """The ready frame is only at `+0x08` on one of the two implementations.
+    @pytest.mark.parametrize(
+        ("recharge", "pause_count", "ready_frame"),
+        [
+            (
+                SPECIAL_POWER_START_RECHARGE,
+                SPECIAL_POWER_INTERFACE_PAUSE_COUNT,
+                SPECIAL_POWER_INTERFACE_READY_FRAME,
+            ),
+            (
+                SPECIAL_POWER_START_RECHARGE_ALT,
+                SPECIAL_POWER_INTERFACE_PAUSE_COUNT_ALT,
+                SPECIAL_POWER_INTERFACE_READY_FRAME_ALT,
+            ),
+        ],
+        ids=["flavour-one", "flavour-two"],
+    )
+    def test_each_flavour_reads_its_own_recharge_fields(
+        self, patched, recharge, pause_count, ready_frame
+    ):
+        """Two implementations, two layouts, and the vtable slot decides which is read.
 
-        The other keeps it at `+0x04`, so a cave that skipped the vtable comparison would read a
-        neighbouring field on three module types and print a frame counter as a duration. The
-        comparison is against the flavour-1 function's address, which is why that address is also
-        an anchor.
+        The ready frame is at `+0x08` on one and `+0x04` on the other, and the pause count that
+        says whether it means anything moves with it. Reading either at the other's offset prints a
+        frame counter as a duration - a wrong *number*, which no byte comparison against the cave
+        itself could notice, because the cave would still be exactly what this code emits.
+
+        The check walks forward from each flavour's comparison to the loads it guards, so a cave
+        that compared both addresses and then read one layout for both fails here.
+        """
+        decoded = instructions(patched)
+        compare = next(
+            i
+            for i, insn in enumerate(decoded)
+            if insn.mnemonic == "cmp" and hex(recharge) in insn.op_str
+        )
+        assert displacement(decoded[compare].op_str) == SPECIAL_POWER_INTERFACE_RECHARGE_SLOT
+        # One flavour's arm is the fall-through and the other's is a jump away, so the branch the
+        # comparison drives is what says where to look; taking the next few instructions in
+        # address order would read the other flavour's offsets for one of the two.
+        branch = decoded[compare + 1]
+        assert branch.mnemonic in ("je", "jne")
+        if branch.mnemonic == "je":
+            target = int(branch.op_str, 16)
+            start = next(i for i, insn in enumerate(decoded) if insn.address == target)
+        else:
+            start = compare + 2
+        # Both fields come off the interface the comparison just vouched for, and the pause count
+        # is tested before the ready frame is trusted.
+        arm = decoded[start : start + 4]
+        pause = next(
+            i for i, insn in enumerate(arm) if insn.mnemonic == "cmp" and "edi" in insn.op_str
+        )
+        assert displacement(arm[pause].op_str) == pause_count
+        load = next(
+            i
+            for i, insn in enumerate(arm[pause:], pause)
+            if insn.mnemonic == "mov" and insn.op_str.startswith("eax, dword ptr [edi")
+        )
+        assert displacement(arm[load].op_str) == ready_frame
+
+    def test_a_button_with_no_object_falls_back_to_the_players_spellbook(self, patched):
+        """A palantir spell button is described with the selection, which is not the caster.
+
+        Without this the cooldown of every spellbook power reads as its full length forever,
+        because the selected object - usually nothing - has no module for the button's template.
+        The walk is the engine's own `forEachTeamObject` over the engine's own `KINDOF SPELL_BOOK`
+        predicate, so the cave never has to recognise a spellbook button by itself.
         """
         _base_va, body = cave(patched)
-        assert struct.pack("<I", SPECIAL_POWER_START_RECHARGE) in body
-        compare = next(
+        assert PLAYER_FOR_EACH_TEAM_OBJECT in branch_targets(patched)
+        assert struct.pack("<I", SPELL_BOOK_FINDER) in body
+        # Both routes end in the same module lookup, so the arm below them is written once.
+        lookups = [
             insn
             for insn in instructions(patched)
-            if insn.mnemonic == "cmp" and hex(SPECIAL_POWER_START_RECHARGE) in insn.op_str
+            if insn.mnemonic == "call" and insn.op_str == hex(GET_SPECIAL_POWER_MODULE)
+        ]
+        assert len(lookups) == 2
+
+    def test_a_line_that_would_read_zero_is_dropped_before_the_separator(self, patched):
+        """A passive ability has no cooldown, and `0` is worse than silence.
+
+        The guard has to be the emitter's *first* instruction: `el_drop`'s late exit is reachable
+        only before the line is built, and dropping any later would leave the newline separator
+        behind on a description that then says nothing after it.
+        """
+        decoded = instructions(patched)
+        locals_ = next(
+            i
+            for i, insn in enumerate(decoded)
+            if insn.mnemonic == "sub" and insn.op_str == "esp, 0x10"
         )
-        assert displacement(compare.op_str) == SPECIAL_POWER_INTERFACE_RECHARGE_SLOT
-        # The load has to come off the interface the comparison just vouched for, at +0x08.
-        assert bytes([0x8B, 0x40, SPECIAL_POWER_INTERFACE_READY_FRAME]) in body
+        window = decoded[max(locals_ - 3, 0) : locals_]
+        assert any(
+            insn.mnemonic == "cmp" and hex(LOGIC_FRAMES_PER_SECOND) in insn.op_str
+            for insn in window
+        )
+        assert window[-1].mnemonic == "jl"
+        # And the separator is still downstream of it.
+        separator = next(insn for insn in decoded if insn.op_str == hex(UNICODE_STRING_CONCAT_WIDE))
+        assert separator.address > window[-1].address
 
     def test_the_line_is_formatted_into_a_local_and_concatenated_on(self, patched):
         """The description is never the format call's destination. This is the bug it shipped with.
@@ -404,28 +489,26 @@ class TestCave:
         _base_va, body = cave(patched)
         assert struct.pack("<I", LOGIC_FRAMES_PER_SECOND) in body
 
-    def test_integer_seconds_divides_instead_of_scaling_a_double(self, image):
-        DescriptionTimersPatch(integer_seconds=True).apply(image)
-        mnemonics = {insn.mnemonic for insn in instructions(image)}
-        assert "idiv" in mnemonics
-        assert "fidiv" not in mnemonics
+    def test_the_duration_is_one_dword_of_whole_seconds(self, patched):
+        """An integer divide, one `push`, and a cleanup of `0xc`.
 
-    def test_the_default_passes_a_double(self, patched):
-        """`fstp qword`, and a cleanup of 0x10 rather than 0xc.
-
-        The engine's own `double` site (`CONTROLBAR:UnderConstructionDesc`) cleans four dwords
-        where the one-dword sites clean three. Getting that constant wrong corrupts the builder's
-        frame rather than failing anywhere the mistake is visible.
+        The vararg's *width* is the thing a `%d` key cannot survive being wrong about: a `double`
+        pushed under a `%d` is read as its low dword, which prints `0` for most durations and
+        garbage for the rest. So this asserts the shape end to end - `idiv` rather than `fidiv`, no
+        `fstp qword` anywhere, and three dwords cleaned rather than four.
         """
         decoded = instructions(patched)
-        assert any(insn.mnemonic == "fstp" and "qword" in insn.op_str for insn in decoded)
+        mnemonics = {insn.mnemonic for insn in decoded}
+        assert "idiv" in mnemonics
+        assert "fidiv" not in mnemonics
+        assert not any(insn.mnemonic == "fstp" and "qword" in insn.op_str for insn in decoded)
         concat = next(
             i
             for i, insn in enumerate(decoded)
             if insn.mnemonic == "call" and insn.op_str == hex(UNICODE_STRING_CONCAT)
         )
         cleanup = decoded[concat + 1]
-        assert cleanup.mnemonic == "add" and cleanup.op_str == "esp, 0x10"
+        assert cleanup.mnemonic == "add" and cleanup.op_str == "esp, 0xc"
 
     def test_the_stack_balances_through_the_line_emitter(self, patched):
         """Walk the emitter's own stack arithmetic and land back where it started.
@@ -465,19 +548,25 @@ class TestCave:
         which nothing else here would notice.
         """
         decoded = instructions(patched)
-        emitter = next(
-            insn.address
-            for insn in decoded
-            if insn.mnemonic == "sub" and insn.op_str == "esp, 0x10"
-        )
         keys = {
             insn.address for insn in decoded if insn.mnemonic == "mov" and "edx, 0x" in insn.op_str
         }
         assert len(keys) == len(KEYS), "one `mov edx, <key>` per key, and no more"
+        entries = set()
         for insn in decoded:
             if insn.mnemonic == "mov" and "edx, 0x" in insn.op_str:
                 nxt = next(x for x in decoded if x.address > insn.address)
-                assert nxt.mnemonic == "jmp" and int(nxt.op_str, 16) == emitter
+                assert nxt.mnemonic == "jmp"
+                entries.add(int(nxt.op_str, 16))
+        assert len(entries) == 1, "every arm reaches the same emitter"
+        # And that one address is the emitter's own entry - the zero guard, a few instructions
+        # ahead of the locals it protects.
+        emitter = entries.pop()
+        entry = next(i for i, insn in enumerate(decoded) if insn.address == emitter)
+        assert any(
+            insn.mnemonic == "sub" and insn.op_str == "esp, 0x10"
+            for insn in decoded[entry : entry + 4]
+        )
 
 
 #: What each callee removes on the way out. `UNICODE_STRING_CONCAT` is absent because it is
@@ -517,17 +606,16 @@ class TestInstalledBinary:
             (DESCRIPTION_TAIL, DESCRIPTION_TAIL_BYTES),
             *ANCHORS.items(),
             *RECHARGE_FORMULA_ANCHORS.items(),
+            *INTERFACE_LAYOUT_ANCHORS.items(),
         ):
             assert at(stock, va, len(expected)) == expected, f"0x{va:08x}"
 
     def test_apply_verify_detect_round_trip(self, stock):
-        for integer_seconds in (False, True):
-            data = bytearray(stock)
-            patch = DescriptionTimersPatch(integer_seconds=integer_seconds)
-            patch.apply(data)
-            assert patch.verify(data) == []
-            found = DescriptionTimersPatch.detect(data)
-            assert found is not None and found.integer_seconds is integer_seconds
+        data = bytearray(stock)
+        patch = DescriptionTimersPatch()
+        patch.apply(data)
+        assert patch.verify(data) == []
+        assert DescriptionTimersPatch.detect(data) is not None
 
     def test_the_tail_is_not_a_branch_target(self, stock):
         """Nothing may jump into the middle of the six bytes the tail window replaces.
