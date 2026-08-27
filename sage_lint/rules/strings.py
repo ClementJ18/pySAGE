@@ -42,7 +42,10 @@ def _is_map_file(path: str) -> bool:
 
 
 def _label_tokens(obj) -> Iterator[tuple[str, str]]:
-    """`(field_key, label_token)` for every `NAMESPACE:key` token in a `Label` field of `obj`."""
+    """`(field_key, label_token)` for every `NAMESPACE:key` token in a `Label` field of `obj`.
+
+    A label may be written `"LWA:MenGarrison"` - a `Label` keeps its quotes, as every string
+    scalar does, so they come off here before the name is looked up."""
     for key, value in obj.fields.items():
         if not _is_label(obj, key):
             continue
@@ -50,6 +53,7 @@ def _label_tokens(obj) -> Iterator[tuple[str, str]]:
             if not isinstance(entry, str):
                 continue
             for token in entry.split():
+                token = token.strip('"')
                 if ":" in token:
                     yield key, token
 

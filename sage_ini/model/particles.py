@@ -21,8 +21,8 @@ class System(NestedAttribute):
 
     keyed_by_label = True
 
-    Priority: t.Untyped
-    Shader: t.Untyped
+    Priority: e.ParticleSystemPriority
+    Shader: e.ParticleSystemShader
     Type: e.ParticleSystemType
     ParticleName: t.TextureFile
     SystemLifetime: t.Int
@@ -89,7 +89,7 @@ class Update(NestedAttribute):
     AngularRateZ: t.List[t.Float]
     AngularDamping: t.List[t.Float]
     AngularDampingXY: t.List[t.Float]
-    Rotation: t.Untyped
+    Rotation: e.ParticleRotation
     # Per-axis start size and size damping/rate; each a `min max` range read as a float list.
     StartSizeX: t.List[t.Float]
     StartSizeY: t.List[t.Float]
@@ -169,7 +169,7 @@ class Wind(NestedAttribute):
 
     keyed_by_label = True
 
-    WindMotion: t.Untyped
+    WindMotion: e.WindMotion
     WindAngleChangeMin: t.Float
     WindAngleChangeMax: t.Float
     WindPingPongStartAngleMin: t.Float

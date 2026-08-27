@@ -37,6 +37,8 @@ from sage_patch.patches.experimental.render_rate import (
     DEFER_MS,
     GAME_CLIENT,
     GET_TICK_COUNT,
+    GPU_CLOCK_STOCK,
+    GPU_CLOCKS,
     IMM8,
     LATCH_DIVISOR,
     LOGIC_RATE,
@@ -66,6 +68,7 @@ from sage_patch.patches.experimental.render_rate import (
     cave_code,
     defer_entry,
     derived_floats,
+    gpu_clock_bytes,
     latch_divisor,
     state_reset_entry,
     tick_stamp,
@@ -320,6 +323,7 @@ class TestTheAnchorsAgreeWithTheEdits:
             WRAP,
             RECOMPUTE_GATE,
             *STRIDES,
+            *GPU_CLOCKS,
             *derived_floats(60),
         }
         assert written <= set(ANCHORS), sorted(hex(va) for va in written - set(ANCHORS))
@@ -577,6 +581,67 @@ class TestItRefusesTheWrongBuild:
         image[off] ^= 0xFF
         with pytest.raises(ValueError, match="landing"):
             RenderRatePatch(60).apply(image)
+
+
+class TestTheGpuParticleClocks:
+    """§9.11: the second particle clock, and the only edit here that is **not** a function of `fps`.
+
+    A `Type = GPU_PARTICLE` system is never aged by the walk `PARTICLE_GATE` sits in front of, so
+    §9.4's cave never reached it. The GPU storage module converts the W3D millisecond clock into
+    frames itself, with the *live* client rate, at four sites - which is why the fix is four
+    identical byte edits and no cave, and why it does not move when `fps` does.
+    """
+
+    def test_the_stock_bytes_are_a_multiply_by_the_live_rate(self) -> None:
+        """`0F AF 05 <disp32>` is `imul eax, dword [disp32]`, and the operand must be the same
+        client rate the rest of this patch rewrites - otherwise the site is not the one §9.11
+        found."""
+        assert GPU_CLOCK_STOCK == bytes((0x0F, 0xAF, 0x05)) + struct.pack("<I", CLIENT_RATE)
+
+    def test_the_replacement_multiplies_by_the_authored_rate(self) -> None:
+        """`6B C0 ib` is `imul eax, eax, imm8`. The immediate is the rate the content was authored
+        at, not the rate the binary runs at."""
+        assert gpu_clock_bytes()[:3] == bytes((0x6B, 0xC0, STOCK_CLIENT_RATE))
+
+    def test_the_replacement_fills_the_window_it_shortens(self) -> None:
+        """Three bytes for seven, `nop`-padded rather than moving anything after it - each site is
+        followed by `test eax, eax`, which is also why the flags the two forms set differently do
+        not matter."""
+        patched = gpu_clock_bytes()
+        assert len(patched) == len(GPU_CLOCK_STOCK)
+        assert patched[3:] == b"\x90" * (len(GPU_CLOCK_STOCK) - 3)
+
+    def test_there_are_four_distinct_sites(self) -> None:
+        assert len(set(GPU_CLOCKS)) == len(GPU_CLOCKS) == 4
+
+    @pytest.mark.parametrize("fps", [MIN_FPS, 60, 90, 120, MAX_FPS])
+    def test_the_edit_is_the_same_at_every_rate(self, image: bytearray, fps: int) -> None:
+        """The whole point of the fix. Every other edit in this patch is a function of `fps`; this
+        one must not be, because the number it writes is what the *content* was authored against.
+        A version of this that scaled with the rate would reintroduce the defect it removes."""
+        data = _patched(image, fps)
+        for va in GPU_CLOCKS:
+            assert at(data, va, len(GPU_CLOCK_STOCK)) == gpu_clock_bytes(), f"0x{va:08X}"
+
+    @pytest.mark.parametrize("fps", [30, 60, 90, 120])
+    def test_the_fixed_clock_lands_on_the_authored_rate(self, fps: int) -> None:
+        """What the edit buys, as arithmetic rather than as bytes.
+
+        The W3D clock gains `1000 // fps` ms per client frame (`0x00BC146C`, truncated), so it
+        gains `(1000 // fps) * fps` ms per real second. Multiplied by the authored 30 and scaled by
+        0.001, the tick lands within 4% of 30 Hz at every client rate - the residual being that
+        truncation, which this patch does not remove.
+        """
+        per_second = (1000 // fps) * fps
+        assert per_second * STOCK_CLIENT_RATE / 1000 == pytest.approx(STOCK_CLIENT_RATE, rel=0.04)
+
+    @pytest.mark.parametrize("fps", [30, 60, 90, 120])
+    def test_the_stock_clock_tracks_the_client_rate_instead(self, fps: int) -> None:
+        """And the defect, stated the same way: stock multiplies by the live rate, so the tick
+        lands on the *client* rate. At 30 that is indistinguishable from correct, which is why
+        this survived to be found at 60."""
+        per_second = (1000 // fps) * fps
+        assert per_second * fps / 1000 == pytest.approx(fps, rel=0.04)
 
 
 class TestTheRealBinary:

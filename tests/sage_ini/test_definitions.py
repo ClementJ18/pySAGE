@@ -18,15 +18,22 @@ from sage_ini.model.data_blocks import (
     MiscAudio,
 )
 from sage_ini.model.enums import (
+    AnimationMode,
     ButtonBorderTypes,
+    CombatChainUnitType,
     DamageType,
     EditorSorting,
     EmotionNuggetAIState,
     EmotionTypes,
+    FadeType,
     GeometryType,
+    LocomotorAppearance,
+    LocomotorSurface,
     ModelCondition,
     RadarPriority,
     SlotTypes,
+    WeaponBonusCondition,
+    WeaponBonusField,
 )
 from sage_ini.model.game import Game
 from sage_ini.model.ini_objects import (
@@ -198,8 +205,9 @@ def test_keyed_model_and_animation_states_are_typed():
     # the animation clip nests one level deeper and is itself typed
     clip = anim_state.Animation[0]
     assert clip.name == "GUFaramir_CHRC"
-    assert clip.AnimationName == "GUFaramir_SKL.GUFaramir_CHRC"
-    assert clip.AnimationMode == "ONCE"
+    # `AnimationName` is a token list in the engine (a clip line may name several)
+    assert clip.AnimationName == ["GUFaramir_SKL.GUFaramir_CHRC"]
+    assert clip.AnimationMode is AnimationMode.ONCE
 
 
 def test_model_condition_state_keeps_extra_mesh_models():
@@ -249,15 +257,16 @@ def test_gamedata_fields_collect_repeated_lines():
             StandardPublicBone = Bone01
             StandardPublicBone = Bone02
             WeaponBonus = GARRISONED DAMAGE 0%
-            WeaponBonus = SCRIPT_ABLE DAMAGE 150%
+            WeaponBonus = HORDE RATE_OF_FIRE 150%
         End
         """
     )
     data = game.gamedatas["GameData"]
     assert data.StandardPublicBone == ["Bone01", "Bone02"]
     assert data.WeaponBonus == [
-        ("GARRISONED", "DAMAGE", "0%"),
-        ("SCRIPT_ABLE", "DAMAGE", "150%"),
+        (WeaponBonusCondition.GARRISONED, WeaponBonusField.DAMAGE, 0.0),
+        # a `%` value converts to its fraction, as everywhere else in the model
+        (WeaponBonusCondition.HORDE, WeaponBonusField.RATE_OF_FIRE, 1.5),
     ]
 
 
@@ -425,8 +434,8 @@ def test_living_world_campaign_nests_acts_and_armies():
     act = camp.Act[0]
     assert act.name == "One"
     assert act.extras == []  # SpawnArmy and EyeTowerPoints both typed, three levels deep
-    # repeated LookPoint lines collect into one list (tokens flattened, grouping not kept yet)
-    assert act.EyeTowerPoints[0].LookPoint == ["X:436", "Y:687", "X:481", "Y:287"]
+    # each repeated LookPoint line stays its own X/Y point
+    assert act.EyeTowerPoints[0].LookPoint == [[436.0, 687.0, 0.0], [481.0, 287.0, 0.0]]
     assert [type(a).__name__ for a in act.SpawnArmy] == ["SpawnArmy"]
 
 
@@ -474,7 +483,7 @@ def test_object_threat_and_flammability_subblocks_are_typed():
     )
     obj = game.objects["Foo"]
     assert obj.extras == []
-    assert obj.ThreatBreakdown[0].AIKindOf == "STRUCTURE"
+    assert obj.ThreatBreakdown[0].AIKindOf is CombatChainUnitType.STRUCTURE
     assert obj.Flammability[0].Fuel == 100
 
 
@@ -509,7 +518,7 @@ def test_threat_breakdown_with_a_stray_label_still_parses():
     )
     obj = game.objects["Foo"]
     assert obj.extras == []
-    assert obj.ThreatBreakdown[0].AIKindOf == "INFANTRY"
+    assert obj.ThreatBreakdown[0].AIKindOf is CombatChainUnitType.INFANTRY
     assert obj.ThreatBreakdown[0].name == "IsengardBeserker_DetailedThreat"
 
 
@@ -1224,12 +1233,12 @@ def test_locomotor_fields_are_typed():
     )
     loco = game.locomotors["HorseLoco"]
     assert isinstance(loco, Locomotor)
-    # Numeric fields convert; flag/enum fields stay raw strings.
     assert loco.Speed == 80 and loco.Acceleration == 25.5
     assert loco.TurnTime == 600 and loco.FrontWheelTurnAngle == 30
     assert loco.StickToGround is True and loco.CanMoveBackwards is False
-    assert loco.Surfaces == "GROUND RUBBLE"
-    assert loco.Appearance == "FOUR_WHEELS"
+    # `Surfaces` is a whole-set flag list, `Appearance` a single enum
+    assert loco.Surfaces == [LocomotorSurface.GROUND, LocomotorSurface.RUBBLE]
+    assert loco.Appearance is LocomotorAppearance.FOUR_WHEELS
 
 
 def test_audioevent_fields_are_typed():
@@ -1241,7 +1250,7 @@ def test_audioevent_fields_are_typed():
             Control = fade_on_kill RANDOMSTART
             SubmixSlider = SoundFX
             Delay = 200 600
-            VolumeShift = -5 5
+            VolumeShift = -5
             ReverbEffectLevel = 100
             VolumeSliderMultiplier = Slider:Voice Multiplier:70
             VolumeSliderMultiplier = Slider:SoundFX Multiplier:50
@@ -1250,9 +1259,10 @@ def test_audioevent_fields_are_typed():
     )
     snd = game.audioevents["Snd_Sword"]
     assert isinstance(snd, AudioEvent)
-    # The wave-file list splits into its filenames; the delay/shift ranges stay raw.
+    # The wave-file list splits into its filenames; `Delay` is a frame range, `VolumeShift`
+    # a single number (the engine parses it as one percent, not a range).
     assert snd.Sounds == ["WIImpac_sword01", "WIImpac_sword02"]
-    assert snd.Delay == "200 600" and snd.VolumeShift == "-5 5"
+    assert snd.Delay == (200, 600) and snd.VolumeShift == -5.0
     assert snd.ReverbEffectLevel == 100
     # Type/Control are bitflag sets (FlagList of the audio enums); SubmixSlider is a single
     # enum. Lower/mixed-case tokens match the members case-insensitively without warning.
@@ -1414,7 +1424,7 @@ def test_object_world_map_prop_fields_are_typed():
     assert obj.Scale == 1.5
     assert obj.Clickable is True
     assert obj.OrientAngle == 25
-    assert obj.FadeTypeForSelection == "INOUT"
+    assert obj.FadeTypeForSelection is FadeType.INOUT
     assert obj.DisplayColor == [100.0, 100.0, 100.0, 255.0]
     assert obj.LiveCameraOffset == [-112.0, 81.0, 57.0]
     assert obj.CrushKnockback == 40

@@ -51,7 +51,7 @@ subsystem.
   apply render-rate --fps 60` is the whole build.
 - **What is actually still broken:** a 7–11% simulation slowdown (§9.5), a handful of unrescaled
   constants (§9.7), and §9.9's rendered-frame clock, which is what still stands between this and
-  network play. §9.10's recompute gate — the multiplayer stutter — is fixed. The particle rate (§9.4) is fixed and measured live. Everything
+  network play. §9.10's recompute gate — the multiplayer stutter — is fixed. The particle rate is fixed on both of its clocks - the CPU one (§9.4, measured live) and the GPU one (§9.11, built and confirmed in play). Everything
   else §8 blamed has been accounted for.
 - **A 60 fps build must also raise the frame limiter** (§9.3): Edain's `GameData` sets
   `FramesPerSecondLimit = 30` where no patch reaches it, and a cold start on a 60 fps binary
@@ -372,6 +372,13 @@ that constant.
 | `TheGameEngine+0x40` / `+0x44` | the rates-changed latch, and `0x006323D2`'s float high-water |
 | `0x00DE3744` | `TheParticleSystemManager`; `+0x74` the step stamp the cave rewrites (§9.4) |
 | `0x005F5123` | `ParticleSystemManager::update`; `0x005F515F` the rate gate, `0x00449D48` its one caller |
+| `0x007B1102` / `0x007B1160` / `0x007B12FE` / `0x007B140B` | the GPU particle module's own clock: `ms * clientRate * 0.001` (§9.11) |
+| `0x007FB2CE` / `0x007FB334` | the `GpuDraw` flipbook step, `1.0f / ((n + 4) * clientRate)` (§9.11) |
+| `0x00DD1E0C` / `0x00DD1E10` | the W3D millisecond clock and its previous value; sole writer `0x00516E20` |
+| `0x00DC7580` / `0x00DC7A8C` | its accumulator, and the per-client-frame step `1000 / clientRate` set at `0x00BC146C` |
+| `0x0044B8B8`..`0x0044B929` | the two arms that advance it, selected by §9.7's `frame % 30` at `0x0044B8C2` |
+| `0x00C31A84` | the `ParticleSystemType` name table; `GPU_PARTICLE` is **7**, template `+0xC` (§9.11) |
+| `0x00C82D10` | the `GpuDraw` field table - `FramesPerRow` `+0xC`, `TotalFrames` `+0x10`, `DetailTexture` `+0x14`, `SpeedMultiplier` `+0x18` |
 
 ## 8. Why this approach does not work, and what would
 
@@ -1145,6 +1152,143 @@ render_rate_probe.exe --seconds 5 --json offhost.json
 `ratio_moved`, `ratio_matches_wrap` and `snap_per_logic_frame` are the three fields that carry this
 section's finding.
 
+### 9.11 GPU particles keep a second clock, and §9.4's cave does not reach it
+
+**Read statically on 2026-08-26 and confirmed in a live paused match on 2026-08-27** — the
+measurement is at the end of this section. The sites below are byte-identical in the repo's
+`game.dat` and in `C:\RotWK\game.dat`, so the reading applies to both.
+
+§9.4 fixed the particle rate by gating `ParticleSystemManager::update`, which walks the system list
+at `TheParticleSystemManager+0x4C` and calls each system's vtable `+0x10`. **A `Type = GPU_PARTICLE`
+system does not get its age from that walk.** The GPU particle storage module derives its own
+elapsed time from the W3D millisecond clock, and converts it to frames with the *live* client rate:
+
+```asm
+007b12f9  mov  eax, [0x00DD1E0C]     ; W3D accumulated milliseconds
+007b12fe  imul eax, [0x00D9F60C]     ;   * the client rate      <-- 30 authored, 60 patched
+007b1305  test eax, eax
+007b130e  fild dword [ebp-8]
+007b1319  fmul dword [0x00BD88A0]    ;   * 0.001  ->  elapsed CLIENT FRAMES
+```
+
+The same five-instruction idiom appears **four times**. Three are provably the module's own —
+`0x007B1102` and `0x007B1160` sit in its vtable slot 0 (`0x007B1098`) and `0x007B12FE` in slot
+`+0x28` (`0x007B12F4`, the pass that retires expired entries); the fourth, `0x007B140B`, is in the
+adjacent function at `0x007B13xx`..`0x007B17CB`, which reads `TheGameClient` and was not tied back
+to the vtable. The multiply is the whole defect. `ms * clientRate / 1000`
+recovers the client frame count correctly at *any* rate, which is exactly what is wrong with it:
+the content is authored in **30 Hz** particle updates, so at rate 60 a GPU particle is handed twice
+the age per wall-clock second.
+
+**Why that reads as "too large" rather than "too fast".** `BarrageExplosion` is
+`Size = 15 30`, `SizeRate = 1 1`, `SizeRateDamping = 1 1`, `Lifetime = 30 30` — size is
+`Size0 + SizeRate * age`, so doubling the age doubles the growth term. At the moment the eye
+catches it the particle is roughly twice the size it should be, and it should *also* be finishing
+its 30-frame life in half a second rather than a whole one. That prediction was checked and holds: the
+live particles die 30 client frames after birth, which is 0.50 s at rate 60.
+
+**The W3D clock itself is rate-derived and truncating.** `0x00DD1E0C` is written only by the
+two-line setter at `0x00516E20` (which also keeps the previous value at `0x00DD1E10`), from an
+accumulator `0x00DC7580` advanced once per client frame at `0x0044B8D8`/`0x0044B911` by
+`0x00DC7A8C` ms. That step is set at `0x00BC146C`:
+
+```asm
+00bc146c  mov  eax, 1000
+00bc1472  idiv dword [0x00D9F60C]    ; 1000 / clientRate, truncated
+00bc1478  mov  [0x00DC7A8C], eax     ; 33 at rate 30, 16 at rate 60
+```
+
+so the W3D clock runs 1% slow at 30 and **4% slow at 60** — the same `ftol`-class truncation §9.5
+found in the frame limiter, on a different clock. It does not cause the size defect (the multiply
+cancels it back out) but it is the reason nothing here is exactly 2.000.
+
+**`0x0044B8C2`'s `frame % 30` is in this same routine**, and §9.7 already listed it. It selects
+between two ways of advancing `0x00DC7580`; at rate 60 the "once per second" arm fires twice a
+second.
+
+**Two more sites take the same multiply, in the sprite-sheet path** — `0x007FB2CE` and
+`0x007FB334`, both `1.0f / ((n + 4) * clientRate)` stored to `[this+0x64]` and `[this+0x6C]`. That
+is the `GpuDraw` block's own business (`FramesPerRow` `+0xC`, `TotalFrames` `+0x10`,
+`DetailTexture` `+0x14`, `SpeedMultiplier` `+0x18`), and it is a *separate* symptom from size —
+expect the flipbook to run at the wrong speed, not to change the particle's dimensions.
+
+**The fix, built and confirmed in play on 2026-08-27.** `imul eax, [0x00D9F60C]` (seven bytes)
+becomes `imul eax, eax, 30` (three bytes plus four `nop`) at each of the four GPU-particle sites —
+a byte edit rather than a cave, an identity at rate 30, and the one edit in this patch that is
+deliberately *not* a function of `fps`, because the number it writes is what the content was
+authored against. It ships in `render-rate`; `gpu_clock_bytes` is the definition and
+`TestTheGpuParticleClocks` the coverage.
+
+**It does not make the clock exact, and cannot.** The W3D millisecond clock it reads is itself
+rate-derived and truncating, so the tick lands on 29.7 Hz at rate 30 and 28.8 Hz at rate 60
+against the authored 30. Removing that residual means changing how the W3D clock is represented,
+which every other consumer of that clock would feel — a different patch, and not obviously one
+worth having.
+
+**The two `0x007FB2xx` sites were left alone and no symptom followed.** They take the same
+multiply in the flipbook path, so the prediction was a sprite sheet running at the wrong speed;
+after the four-site fix the effects were reported correct with those two untouched. That is the
+absence of a reported symptom rather than a measurement — nobody has put a number on what the
+flipbook does at 60 — so it stays an open thread rather than a closed one.
+
+**One correction that falls out of this and belongs elsewhere.** The engine's
+`ParticleSystemType` name table is at `0x00C31A84`, and the indices are
+`NONE=0, PARTICLE=1, DRAWABLE=2, STREAK=3, VOLUME_PARTICLE=4, SMUDGE=5, TERRAIN_PARTICLE=6,
+GPU_PARTICLE=7, GPU_TERRAINFIRE=8` — the default is `PARTICLE`, which is why `0x005FACCB` skips
+writing `Type` when the field at template `+0xC` reads 1. `sage_ini`'s `ParticleSystemType` was
+surveyed from the corpus rather than from the binary and numbers its members differently.
+
+#### Measured in a paused match on 2026-08-27
+
+Confirmed live, in a 60 fps build with `BarrageExplosion` on screen and the game paused. Every
+number below is an absolute counter, which is why a paused game reads them as well as a running
+one — and better, because nothing moves between reads.
+
+| | |
+|---|---|
+| client rate `0x00D9F60C` | **60** |
+| ms per client frame `0x00DC7A8C` | **16** — `1000/60` truncated, the 4% of §9.11 |
+| W3D millis `0x00DD1E0C` | 73,648 (= 4,603 × 16 exactly) |
+| client frame | 4,603 |
+| §9.4 stamp `+0x74` | **2,301** = `4603 * 30 / 60` — **the §9.4 cave is working** |
+| GPU clock `ms * rate * 0.001` | **4,418.88** |
+| **GPU ticks per §9.4 tick** | **1.920** |
+| **GPU ticks per client frame** | **0.960** |
+
+`1.920` is `2.000 × 0.96`, which is the prediction and the truncation, to three figures. **The two
+particle clocks in one process disagree by a factor of two**: CPU-side systems step at the authored
+30 while GPU particles age at the client rate.
+
+**The live object layout**, recovered from the same read. `FXParticleSystem` (vtable `0x00BF7B48`)
+carries its parsed `System` block inline — `+0xC` `Type`, `+0x10` `ParticleName`, `+0x18`/`+0x1C`
+`Lifetime`, `+0x2C`/`+0x30` `Size` — and embeds the GPU storage module at **`+0x1E0`** (vtable
+`0x00C33B48`) **when it has one**: only two of the six live `GPU_PARTICLE` systems in this sample
+carried a store, and the other four held garbage at that offset, so anything reading it must guard
+on the vtable rather than on the type. The module's `+0x24`/`+0x28` are a vector of 12-byte entries
+`{float deadline, id, object *}` with the count at `+0x10`. Each particle (vtable `0x00BF7858`)
+holds `+0x10`..`+0x18` emission velocity, `+0x1C`..`+0x24` position, `+0x28`..`+0x30` the emitter
+origin, `+0x34` and `+0x54` its lifetime, and **`+0x58` its birth client frame**.
+
+Six live particles of that one system, against `Lifetime = 30 30`, `Size = 15 30`, `SizeRate = 1 1`:
+
+| # | birth frame | age | should be | life used | size now | size it should be |
+|---|---|---|---|---|---|---|
+| 0–2 | 4,596 | 7 | 3.5 | 23.3% | 22.0–37.0 | 18.5–33.5 |
+| 3–4 | 4,598 | 5 | 2.5 | 16.7% | 20.0–35.0 | 17.5–32.5 |
+| 5 | 4,600 | 3 | 1.5 | 10.0% | 18.0–33.0 | 16.5–31.5 |
+
+**The mismatch is visible inside that table, not only against it.** The three bursts are two client
+frames apart — one burst per §9.4 tick, so emission is correctly on the 30 Hz clock — while each
+particle's age is counted in client frames. `deadline - born` is exactly `30.00` GPU ticks and
+`born / 0.96` is exactly the birth client frame, so the deadline is the authored lifetime
+denominated in client frames: **the particle dies 30 client frames after birth, 0.50 s at rate 60
+where the author wrote 1.00 s.**
+
+**And that is the "too large".** The peak size is unchanged — `Size0 + SizeRate * 30` either way —
+but it is reached in half the time, so at every instant of the visible effect the particle is up to
+**twice as far along its growth curve as it should be**. The size columns above are that gap
+measured at one paused instant, 7 frames into an effect that has 23 to go.
+
 ### 9.8 Verdict
 
 **The directive is "multiplayer must work", so this section is now a list of what stands between
@@ -1191,7 +1335,14 @@ open but none of them is a barrier to a match.
    in a network game it is a per-peer offset, which makes it a determinism concern rather than only
    a timing one.
 5. **§9.7's constants.** Bounded, listed, and none observed to cause anything yet.
-6. **A match end to end.** Now partly answered: §9.9's 18.5-minute run is a real match, and it
+6. **§9.11's GPU particle clock.** `Type = GPU_PARTICLE` systems never went through §9.4's cave;
+   they read the W3D millisecond clock and multiply it by the live client rate at four sites, so
+   they age at the client rate rather than at the authored 30. **Measured live on 2026-08-27:
+   1.920 GPU ticks per §9.4 tick** at rate 60, and `BarrageExplosion`'s particles die 30 client
+   frames after birth - 0.50 s where the author wrote 1.00 s. **Fixed 2026-08-27** by a seven-byte
+   edit at each of the four sites, rebuilt into the mod's `game.dat`, and confirmed correct in
+   play.
+7. **A match end to end.** Now partly answered: §9.9's 18.5-minute run is a real match, and it
    ended in a client crash that this measurement does not explain. That crash is still open and is
    not accounted for by anything in §9.
 

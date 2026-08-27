@@ -557,6 +557,32 @@ else:
     QuotedList = _QuotedList()
 
 
+class FontSpecValue(NamedTuple):
+    """A UI font: family, point size, and whether it is bold."""
+
+    name: str
+    size: int
+    bold: bool
+
+
+class _FontSpec:
+    """A `"Family" <points> <Yes|No>` font spec. The family may be quoted (and then contain
+    spaces), so the line is split outside quotes rather than at every space."""
+
+    @staticmethod
+    def convert(game, value):
+        tokens = _QUOTED_TOKEN.findall(value)
+        if not tokens:
+            raise ValueError("expected a font spec but found nothing")
+        name = tokens[0].strip('"')
+        size = _Int.convert(game, tokens[1]) if len(tokens) > 1 else 0
+        bold = _Bool.convert(game, tokens[2]) if len(tokens) > 2 else False
+        return FontSpecValue(name, size, bold)
+
+
+FontSpec = Annotated[FontSpecValue, _FontSpec]
+
+
 class _Tuple(Multivalued):
     def __init__(self, *element_types):
         self.element_types = element_types
@@ -681,6 +707,10 @@ Bone = Annotated[str, _Opaque]
 # A model subobject (mesh part) name: opaque, checkable only against the model, never the ini.
 SubObject = Annotated[str, _Opaque]
 
+# A font family the UI draws with (`"Albertus MT"`, `Arial`): named by the OS/game font list,
+# not by anything in the ini, so it stays an opaque token.
+FontName = Annotated[str, _Opaque]
+
 
 class _AssetFile:
     """A reference to an on-disk asset file, kept as its raw path/name (runtime-identical to
@@ -748,6 +778,7 @@ RegionCampaignRef = Annotated[str, Reference("livingworldregioncampaigns")]
 BuildingIconRef = Annotated[str, Reference("livingworldbuildingicons")]
 DamageFXRef = Annotated[str, Reference("damagefxs")]
 LivingWorldAnimObjectRef = Annotated[str, Reference("livingworldanimobjects")]
+VideoRef = Annotated[str, Reference("videos")]
 
 # `AnimState:NAME AnimTime:0 TriggerTime:0` - the engine's colon-keyed pair form.
 AnimAndDuration = KeyValuePair
@@ -794,7 +825,16 @@ class FilterList:
 
 
 class ObjectFilter(FilterList):
+    """A filter over object names and `KindOf` flags. A member may also be written
+    `S:<object>` - the engine's "this specific template" form, which it builds by prefixing
+    the template name with `S:` - so the prefix is stripped before the name resolves."""
+
     members = [KindOf, "Object"]
+
+    def _resolve_member(self, game, name):
+        if name.startswith(("S:", "s:")):
+            name = name[2:]
+        return super()._resolve_member(game, name)
 
 
 class DeathTypeFilter(FilterList):

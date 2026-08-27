@@ -57,6 +57,7 @@ python .claude/skills/sage-engine-re/explore.py <command> [--game path/to/game.d
 | `fn <VA>` | disassemble a whole function (stops at the `ret` no internal branch jumps past) |
 | `ptrs <VA> [--count N]` | a run of dwords, each described - vtables, switch tables, descriptor arrays |
 | `table <VA>` | a NULL-terminated INI field-parse table: `{name, parseFn, userData, offset}` |
+| `keyword <Name>` | the table(s) an INI keyword is a row of - found from the keyword itself |
 | `enum <Name>` | an engine name table with each member's **mask byte and bit** |
 | `block <Name>` | an INI block or module: parse fn, field offsets, types, defaults |
 | `hex <VA>`, `sections` | bytes, and the section map |
@@ -87,6 +88,12 @@ a keyword tells you a **struct offset** and a **parse function**, and the parse 
 the type (the constant a real is scaled by, the range it complains about, the name table a token is
 resolved against). `block <Name>` reads the recovered answer; `table <VA>` reads a table live out of
 the image, which is what to use once a patch has relocated one.
+
+**Go from the keyword, not from the block.** `keyword <Name>` finds every table the keyword is a
+row of by looking for data slots that hold its string pointer, then walks the table out from there
+- so a block absent from the recovered JSON (the block list in `ini-types.json` is not complete)
+still yields its parse function, `userData` name array and struct offset. `docs/ini-field-types.md`
+is the worked example: it types a schema field by field this way, and records the traps.
 
 **A flag is an index into a name table.** `enum KindOf` prints `[9] bit 0x02 of byte +0x1 CAVALRY`,
 which is how a bare mask test like `test byte [tmpl+0x109], 5` becomes `INFANTRY | MONSTER`.

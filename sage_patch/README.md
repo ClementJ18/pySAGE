@@ -1648,6 +1648,12 @@ constructs its instance, the same constant tracking recovers that block's defaul
 
 The site is a build artefact and is not committed; the JSON it reads is.
 
+That JSON does not cover every block. To type a keyword whose block is missing from it, go from
+the keyword: `explore.py keyword <Name>` finds the field-parse table(s) it is a row of and dumps
+them. [`docs/ini-field-types.md`](docs/ini-field-types.md) works that method through - it is how
+`sage_ini`'s schema was typed off this build - and records the name arrays it recovered along with
+the traps (unterminated adjacent arrays, case-insensitive index lists, the `S:<name>` filter form).
+
 ## Reproduce the build
 
 ```sh

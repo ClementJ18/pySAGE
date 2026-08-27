@@ -601,7 +601,7 @@ class ParticleSystemType(BFMEEnum):
 
 class CombatChainUnitType(BFMEEnum):
     """A `CombatChainDefinition.Unit` category - the unit class an auto-resolve combat chain
-    targets. Members surveyed from the corpus."""
+    targets, and the `ThreatBreakdown.AIKindOf` an AI threat weight is keyed by."""
 
     INFANTRY = 0
     ARCHER = 1
@@ -616,6 +616,10 @@ class CombatChainUnitType(BFMEEnum):
     SHIP_BATTLESHIP = 10
     SHIP_BOMBARD = 11
     SHIP_SUICIDE = 12
+    CREEP_STRUCTURE = 13
+    EXPLORABLE_AREA = 14
+    SHIP_TRANSPORT = 15
+    SUPPORT = 16
 
 
 class CommandTypes(BFMEEnum):
@@ -1365,8 +1369,9 @@ class Dispositions(BFMEEnum):
     FLOATING = 7
     BUILDING_CHUNKS = 8
     FORWARD_IMPACT = 9
-    SPAWN_AROUND = 10
-    SET_ANGLE = 11
+    REVERSE_IMPACT = 10
+    SPAWN_AROUND = 11
+    SPAWNED_MODELCONDITION_TRIGGER = 18
     FADE_AND_DIE_ORNAMENT = 12
     ANIMATED = 13
     RELATIVE_ANGLE = 14
@@ -1451,6 +1456,9 @@ class DamageType(BFMEEnum):
     BECOME_UNDEAD_ONCE = 43
     NECRO1 = 44
     NECRO2 = 45
+    # The armor and damage-FX parsers test for `DEFAULT` before they scan the name array: it is
+    # the catch-all row, not a damage kind of its own.
+    DEFAULT = 46
     FIRE = (FLAME, LOGICAL_FIRE)
 
 
@@ -2126,22 +2134,40 @@ class DamageFXType(BFMEEnum):
     UNDEFINED = enum.auto()
     NECRO1 = enum.auto()
     NECRO2 = enum.auto()
+    NECRO3 = enum.auto()
+    NECRO4 = enum.auto()
+    NECRO5 = enum.auto()
+    NECRO6 = enum.auto()
+    BOLT2 = enum.auto()
+    MAGIC2 = enum.auto()
+    MAGIC3 = enum.auto()
+    SPARKS1 = enum.auto()
+    SPARKS2 = enum.auto()
+    EARTH1 = enum.auto()
+    EARTH2 = enum.auto()
+    DEFAULT = enum.auto()
 
 
 class ObjectShadowType(BFMEEnum):
     """How an object casts its `Shadow` - volume, decal, or one of the non-self/alpha variants."""
 
-    NONE = enum.auto()
-    SHADOW_VOLUME = enum.auto()
     SHADOW_DECAL = enum.auto()
+    SHADOW_VOLUME = enum.auto()
+    SHADOW_VOLUME_NEW = enum.auto()
+    SHADOW_DYNAMIC_PROJECTION = enum.auto()
+    SHADOW_DIRECTIONAL_PROJECTION = enum.auto()
+    SHADOW_ALPHA_DECAL = enum.auto()
+    SHADOW_ADDITIVE_DECAL = enum.auto()
     SHADOW_VOLUME_NON_SELF_1 = enum.auto()
     SHADOW_VOLUME_NON_SELF_2 = enum.auto()
-    SHADOW_VOLUME_NEW = enum.auto()
-    SHADOW_ADDITIVE_DECAL = enum.auto()
-    SHADOW_ADDITIVE_DECAL_DYNAMIC = enum.auto()
     SHADOW_VOLUME_NON_SELF_3 = enum.auto()
     SHADOW_ALPHA_DECAL_DYNAMIC = enum.auto()
-    SHADOW_ALPHA_DECAL = enum.auto()
+    SHADOW_ADDITIVE_DECAL_DYNAMIC = enum.auto()
+    SHADOW_MERGE_DECAL = enum.auto()
+    SHADOW_DECAL_TERRAIN_CLAIM = enum.auto()
+    SHADOW_VOLUME_OR_DECAL = enum.auto()
+    SHADOW_VOLUME_NEW_OR_DECAL = enum.auto()
+    SHADOW_SUBTRACT_DECAL_DYNAMIC = enum.auto()
 
 
 class VeterancyLevel(BFMEEnum):
@@ -2194,3 +2220,494 @@ class DistributionType(BFMEEnum):
 
     CONSTANT = enum.auto()
     UNIFORM = enum.auto()
+    GAUSSIAN = enum.auto()
+    TRIANGULAR = enum.auto()
+    LOW_BIAS = enum.auto()
+    HIGH_BIAS = enum.auto()
+
+
+class AnimationMode(BFMEEnum):
+    """How an animation plays (`Animation.AnimationMode`, `Object.AnimMode`, a UI
+    `Transition.AnimationMode`): once, looping, or driven by hand."""
+
+    MANUAL = enum.auto()
+    LOOP = enum.auto()
+    ONCE = enum.auto()
+    LOOP_PINGPONG = enum.auto()
+    PLAY_TO_FRAME = enum.auto()
+    LOOP_BACKWARDS = enum.auto()
+    ONCE_BACKWARDS = enum.auto()
+
+
+class AnimationFlag(BFMEEnum):
+    """A `ModelConditionState`/`AnimationState` `Flags` option - where the animation starts and
+    what it does when it finishes."""
+
+    RANDOMSTART = enum.auto()
+    START_FRAME_FIRST = enum.auto()
+    START_FRAME_LAST = enum.auto()
+    ADJUST_HEIGHT_BY_CONSTRUCTION_PERCENT = enum.auto()
+    MAINTAIN_FRAME_ACROSS_STATES = enum.auto()
+    RESTART_ANIM_WHEN_COMPLETE = enum.auto()
+    MAINTAIN_FRAME_ACROSS_STATES2 = enum.auto()
+    MAINTAIN_FRAME_ACROSS_STATES3 = enum.auto()
+    MAINTAIN_FRAME_ACROSS_STATES4 = enum.auto()
+
+
+class LodLevel(BFMEEnum):
+    """A detail tier a `StaticGameLOD` bucket or a draw module's `MinLODRequired` names. Which
+    members a field really offers differs (only the shadow and decal buckets take `Off`), but
+    the engine's name arrays for these run into one another with no terminator, so every one of
+    them resolves in every such field."""
+
+    Off = enum.auto()
+    VeryLow = enum.auto()
+    Low = enum.auto()
+    Medium = enum.auto()
+    High = enum.auto()
+    UltraHigh = enum.auto()
+
+
+class WeaponFXTrigger(BFMEEnum):
+    """What sets off a weapon's impact FX (`Weapon.FXTrigger`). `NONE` maps to `None`."""
+
+    CATAPULT_ROCK = enum.auto()
+    TREBUCHET_ROCK = enum.auto()
+
+
+class LocomotorSurface(BFMEEnum):
+    """A surface a `Locomotor` may travel over (`Surfaces`, a whole-set flag list)."""
+
+    GROUND = enum.auto()
+    WATER = enum.auto()
+    CLIFF = enum.auto()
+    AIR = enum.auto()
+    RUBBLE = enum.auto()
+    OBSTACLE = enum.auto()
+    IMPASSABLE = enum.auto()
+    DEEP_WATER = enum.auto()
+    WALL_RAILING = enum.auto()
+
+
+class ZAxisBehavior(BFMEEnum):
+    """How a `Locomotor` sets its height above the terrain."""
+
+    NO_Z_MOTIVE_FORCE = enum.auto()
+    SEA_LEVEL = enum.auto()
+    SURFACE_RELATIVE_HEIGHT = enum.auto()
+    ABSOLUTE_HEIGHT = enum.auto()
+    FIXED_SURFACE_RELATIVE_HEIGHT = enum.auto()
+    FIXED_ABSOLUTE_HEIGHT = enum.auto()
+    FIXED_RELATIVE_TO_GROUND_AND_BUILDINGS = enum.auto()
+    RELATIVE_TO_HIGHEST_LAYER = enum.auto()
+    FLOATING_Z = enum.auto()
+    SCALING_WALLS = enum.auto()
+
+
+class LocomotorAppearance(BFMEEnum):
+    """The movement style a `Locomotor.Appearance` drives - what the mover looks like moving,
+    which picks its animation and turning model."""
+
+    TWO_LEGS = enum.auto()
+    FOUR_WHEELS = enum.auto()
+    HOVER = enum.auto()
+    WINGS = enum.auto()
+    FOUR_LEGS_HUGE = enum.auto()
+    GIANT_BIRD = enum.auto()
+    HORDE = enum.auto()
+    HUGE_TWO_LEGS = enum.auto()
+    TREADS = enum.auto()
+    SHIP = enum.auto()
+    OTHER = enum.auto()
+
+
+class FormationPriority(BFMEEnum):
+    """Where a `Locomotor`'s owner sits in an army formation."""
+
+    NO_FORMATION = enum.auto()
+    CAVALRY1 = enum.auto()
+    CAVALRY2 = enum.auto()
+    CAVALRY3 = enum.auto()
+    MELEE1 = enum.auto()
+    MELEE2 = enum.auto()
+    MELEE3 = enum.auto()
+    RANGED1 = enum.auto()
+    RANGED2 = enum.auto()
+    RANGED3 = enum.auto()
+    ARTILLERY1 = enum.auto()
+    ARTILLERY2 = enum.auto()
+    ARTILLERY3 = enum.auto()
+    UNUSED = enum.auto()
+
+
+class WeaponChoiceCriteria(BFMEEnum):
+    """How a `WeaponSet` picks between the weapons that can hit a target."""
+
+    PREFER_MOST_DAMAGE = enum.auto()
+    PREFER_LONGEST_RANGE = enum.auto()
+    PREFER_GRAB_OVER_DAMAGE = enum.auto()
+    PREFER_LEAST_MOVEMENT = enum.auto()
+    SELECT_AT_RANDOM = enum.auto()
+    USE_WEAPONSET_DEFAULT_CRITERIA = enum.auto()
+
+
+class CommandSource(BFMEEnum):
+    """Who may choose a weapon slot (`WeaponSet.AutoChooseSources`). `NONE` maps to `None`."""
+
+    FROM_PLAYER = enum.auto()
+    FROM_SCRIPT = enum.auto()
+    FROM_AI = enum.auto()
+
+
+class WeaponBonusCondition(BFMEEnum):
+    """The state that earns a `WeaponBonus` line's multiplier."""
+
+    GARRISONED = enum.auto()
+    HORDE = enum.auto()
+    CONTINUOUS_FIRE_MEAN = enum.auto()
+    CONTINUOUS_FIRE_FAST = enum.auto()
+    NATIONALISM = enum.auto()
+    PLAYER_UPGRADE = enum.auto()
+    DRONE_SPOTTING = enum.auto()
+    DEMORALIZED_OBSOLETE = enum.auto()
+    ENTHUSIASTIC = enum.auto()
+    VETERAN = enum.auto()
+    ELITE = enum.auto()
+    HERO = enum.auto()
+    BATTLEPLAN_BOMBARDMENT = enum.auto()
+    BATTLEPLAN_HOLDTHELINE = enum.auto()
+    BATTLEPLAN_SEARCHANDDESTROY = enum.auto()
+    SUBLIMINAL = enum.auto()
+    SOLO_HUMAN_EASY = enum.auto()
+    SOLO_HUMAN_NORMAL = enum.auto()
+    SOLO_HUMAN_HARD = enum.auto()
+    SOLO_AI_EASY = enum.auto()
+    SOLO_AI_NORMAL = enum.auto()
+    SOLO_AI_HARD = enum.auto()
+
+
+class WeaponBonusField(BFMEEnum):
+    """Which weapon number a `WeaponBonus` line scales."""
+
+    DAMAGE = enum.auto()
+    RADIUS = enum.auto()
+    RANGE = enum.auto()
+    RATE_OF_FIRE = enum.auto()
+    PRE_ATTACK = enum.auto()
+    FIRING = enum.auto()
+
+
+class BuffType(BFMEEnum):
+    """The flavour of a `BuffNugget` - which buff/debuff bucket it counts against."""
+
+    DO_NOT_USE_THIS_TYPE = enum.auto()
+    Healing = enum.auto()
+    LeaderShip = enum.auto()
+    GloriousCharge = enum.auto()
+    Dominate = enum.auto()
+    Cursed = enum.auto()
+    Buff = enum.auto()
+    Debuff = enum.auto()
+    Poison = enum.auto()
+
+
+class FadeMethod(BFMEEnum):
+    """How an object fades (`Object.FadeMethod`): by opacity, or by additive blending."""
+
+    Opacity = enum.auto()
+    Additive = enum.auto()
+
+
+class FadeType(BFMEEnum):
+    """The direction of an object's fade (`Object.FadeTypeFor*`). `NONE` maps to `None`."""
+
+    IN = enum.auto()
+    OUT = enum.auto()
+    INOUT = enum.auto()
+    STOP = enum.auto()
+
+
+class ArmySize(BFMEEnum):
+    """A strategic-map army size an object is visible in (`Object.VisibleArmySizes`)."""
+
+    HERO_ONLY = enum.auto()
+    SMALL = enum.auto()
+    MEDIUM = enum.auto()
+    LARGE = enum.auto()
+
+
+class CollideSize(BFMEEnum):
+    """The size bucket a dead object still collides at (`Object.DeadCollideSize`)."""
+
+    SMALL = enum.auto()
+    MEDIUM = enum.auto()
+    LARGE = enum.auto()
+
+
+class InvisibilityType(BFMEEnum):
+    """How an `InvisibilityNugget` hides its owner."""
+
+    STEALTH = enum.auto()
+    CAMOUFLAGE = enum.auto()
+
+
+class InvisibilityCondition(BFMEEnum):
+    """A state that forbids (or breaks) invisibility."""
+
+    AWAY_FROM_TREES = enum.auto()
+    MOVING = enum.auto()
+    FIRING_PRIMARY = enum.auto()
+    FIRING_SECONDARY = enum.auto()
+    FIRING_TERTIARY = enum.auto()
+    FIRING_QUATERNARY = enum.auto()
+    FIRING_QUINARY = enum.auto()
+    FIRING_ANY = enum.auto()
+    TAKING_DAMAGE = enum.auto()
+    USING_ABILITY = enum.auto()
+
+
+class BlingType(BFMEEnum):
+    """Whether a Create-A-Hero bling group changes how the hero looks or what it can do."""
+
+    ATTRIBUTE = enum.auto()
+    APPEARANCE = enum.auto()
+    INVALID = enum.auto()
+
+
+class CreateAHeroFaction(BFMEEnum):
+    """A faction a Create-A-Hero subclass belongs to, or may be used by."""
+
+    Men = enum.auto()
+    Elves = enum.auto()
+    Dwarves = enum.auto()
+    Isengard = enum.auto()
+    Mordor = enum.auto()
+    Wild = enum.auto()
+    Angmar = enum.auto()
+    Arnor = enum.auto()
+    Neutral = enum.auto()
+
+
+class LivingWorldBonusType(BFMEEnum):
+    """Where a living-world building nugget's bonus applies: in tactical battles, or on the
+    strategic map."""
+
+    TACTICAL = enum.auto()
+    WORLD = enum.auto()
+
+
+class BuildingBonusScope(BFMEEnum):
+    """How far a living-world building nugget's strengthening reaches (the engine spells the
+    territory member `THIS_TERRIORITY`)."""
+
+    THIS_TERRIORITY = enum.auto()
+    ALL_ARMIES = enum.auto()
+
+
+class ParticleRotation(BFMEEnum):
+    """The axis a particle spins about (`Update.Rotation`). `NONE` maps to `None`."""
+
+    ROTATION_OFF = enum.auto()
+    ROTATE_X = enum.auto()
+    ROTATE_Y = enum.auto()
+    ROTATE_Z = enum.auto()
+    ROTATE_V = enum.auto()
+
+
+class WindMotion(BFMEEnum):
+    """How a particle system's wind direction moves (`Wind.WindMotion`). `NONE` maps to
+    `None`."""
+
+    Unused = enum.auto()
+    PingPong = enum.auto()
+    Circular = enum.auto()
+
+
+class DecalShader(BFMEEnum):
+    """The blend mode a decal or a W3D particle system draws with."""
+
+    ALPHA = enum.auto()
+    ADDITIVE = enum.auto()
+    SUBTRACT = enum.auto()
+
+
+class CommandUsableIn(BFMEEnum):
+    """Where a mapped command works (`CommandMap.UseableIn`)."""
+
+    SHELL = enum.auto()
+    GAME = enum.auto()
+    PLANNING = enum.auto()
+
+
+class KeyTransition(BFMEEnum):
+    """The key edge a `CommandMap` entry fires on."""
+
+    DOWN = 0
+    UP = 1
+    DOUBLEDOWN = 2
+
+
+class KeyModifier(BFMEEnum):
+    """The modifier combination a `CommandMap` entry needs. `NONE` maps to `None`."""
+
+    CTRL = 4
+    ALT = 64
+    SHIFT = 16
+    CTRL_ALT = 68
+    SHIFT_CTRL = 20
+    SHIFT_ALT = 80
+    SHIFT_ALT_CTRL = 84
+
+
+class CommandMapCategory(BFMEEnum):
+    """Which options-screen group a `CommandMap` entry is listed under."""
+
+    CONTROL = 0
+    INFORMATION = 1
+    INTERFACE = 2
+    SELECTION = 3
+    TAUNT = 4
+    TEAM = 5
+    MISC = 6
+    DEBUG = 7
+
+
+class MappableKey(BFMEEnum):
+    """A keyboard key a `CommandMap` entry binds to; the value is the engine's scan code."""
+
+    KEY_ESC = 1
+    KEY_BACKSPACE = 14
+    KEY_ENTER = 28
+    KEY_SPACE = 57
+    KEY_TAB = 15
+    KEY_F1 = 59
+    KEY_F2 = 60
+    KEY_F3 = 61
+    KEY_F4 = 62
+    KEY_F5 = 63
+    KEY_F6 = 64
+    KEY_F7 = 65
+    KEY_F8 = 66
+    KEY_F9 = 67
+    KEY_F10 = 68
+    KEY_F11 = 87
+    KEY_F12 = 88
+    KEY_A = 30
+    KEY_B = 48
+    KEY_C = 46
+    KEY_D = 32
+    KEY_E = 18
+    KEY_F = 33
+    KEY_G = 34
+    KEY_H = 35
+    KEY_I = 23
+    KEY_J = 36
+    KEY_K = 37
+    KEY_L = 38
+    KEY_M = 50
+    KEY_N = 49
+    KEY_O = 24
+    KEY_P = 25
+    KEY_Q = 16
+    KEY_R = 19
+    KEY_S = 31
+    KEY_T = 20
+    KEY_U = 22
+    KEY_V = 47
+    KEY_W = 17
+    KEY_X = 45
+    KEY_Y = 21
+    KEY_Z = 44
+    KEY_1 = 2
+    KEY_2 = 3
+    KEY_3 = 4
+    KEY_4 = 5
+    KEY_5 = 6
+    KEY_6 = 7
+    KEY_7 = 8
+    KEY_8 = 9
+    KEY_9 = 10
+    KEY_0 = 11
+    KEY_KP1 = 79
+    KEY_KP2 = 80
+    KEY_KP3 = 81
+    KEY_KP4 = 75
+    KEY_KP5 = 76
+    KEY_KP6 = 77
+    KEY_KP7 = 71
+    KEY_KP8 = 72
+    KEY_KP9 = 73
+    KEY_KP0 = 82
+    KEY_MINUS = 12
+    KEY_EQUAL = 13
+    KEY_LBRACKET = 26
+    KEY_RBRACKET = 27
+    KEY_SEMICOLON = 39
+    KEY_APOSTROPHE = 40
+    KEY_TICK = 41
+    KEY_BACKSLASH = 43
+    KEY_COMMA = 51
+    KEY_PERIOD = 52
+    KEY_SLASH = 53
+    KEY_UP = 200
+    KEY_DOWN = 208
+    KEY_LEFT = 203
+    KEY_RIGHT = 205
+    KEY_HOME = 199
+    KEY_END = 207
+    KEY_PGUP = 201
+    KEY_PGDN = 209
+    KEY_INS = 210
+    KEY_DEL = 211
+    KEY_KPSLASH = 181
+    KEY_NONE = 0
+
+
+class CreditStyle(BFMEEnum):
+    """How one credits line is laid out."""
+
+    TITLE = 0
+    MINORTITLE = 1
+    NORMAL = 2
+    COLUMN = 3
+
+
+class ViewType(CaseInsensitiveEnum):
+    """A screen a UI `Transition` fades (`ViewsToFade`). The engine's own names are
+    capitalized and the corpus writes them upper-cased, so case is not enforced."""
+
+    Tactical = enum.auto()
+    World = enum.auto()
+    Shell = enum.auto()
+
+
+class DisabledType(BFMEEnum):
+    """A reason an object is disabled - the states a `ProductionUpdate` still works through."""
+
+    DEFAULT = enum.auto()
+    DISABLED_USER_PARALYZED = enum.auto()
+    DISABLED_EMP = enum.auto()
+    DISABLED_HELD = enum.auto()
+    DISABLED_PARALYZED = enum.auto()
+    DISABLED_UNMANNED = enum.auto()
+    DISABLED_UNDERPOWERED = enum.auto()
+    DISABLED_FREEFALL = enum.auto()
+    DISABLED_TEMPORARILY_BUSY = enum.auto()
+    DISABLED_SCRIPT_DISABLED = enum.auto()
+    DISABLED_SCRIPT_UNDERPOWERED = enum.auto()
+    DISABLED_USER_FROZEN = enum.auto()
+
+
+class ScorchType(BFMEEnum):
+    """Which scorch decal a `TerrainScorch` FX burns into the ground; `RANDOM` picks one."""
+
+    SCORCH_1 = 0
+    SCORCH_2 = 1
+    SCORCH_3 = 2
+    SCORCH_4 = 3
+    SCORCH_5 = 4
+    SCORCH_6 = 5
+    SCORCH_7 = 6
+    SCORCH_8 = 7
+    SCORCH_9 = 8
+    RANDOM = -1

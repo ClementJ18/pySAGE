@@ -9,6 +9,7 @@ with the condition flags as a key (`keyed_by_label`), and collected into the nes
 declared on the base `Draw`; each animation state in turn holds typed `Animation` clips.
 """
 
+import sage_ini.model.enums as e
 import sage_ini.model.types as t
 from sage_ini.model.objects import Draw, NestedAttribute
 
@@ -19,8 +20,8 @@ class Animation(NestedAttribute):
 
     keyed_by_label = True
 
-    AnimationName: t.Untyped
-    AnimationMode: t.Untyped
+    AnimationName: t.List[t.Animation]
+    AnimationMode: e.AnimationMode
     AnimationBlendTime: t.Int
     AnimationPriority: t.Int
     AnimationSpeedFactorRange: t.List[t.Float]
@@ -47,27 +48,27 @@ class ModelConditionState(NestedAttribute):
     # `Model` repeats when extra meshes are attached (`Model = <name> ExtraMesh:Yes`), so it
     # reads as a list of the raw lines; a state with a single model is a one-element list.
     Model: t.RawList
-    Skeleton: t.Untyped
-    Flags: t.Untyped
+    Skeleton: t.ModelFile
+    Flags: t.FlagList[e.AnimationFlag]
     TransitionKey: t.Untyped
     WaitForStateToFinishIfPossible: t.Untyped
 
     # Per-state overrides shared by `ModelConditionState` and `DefaultModelConditionState`.
     # Bone/effect bindings repeat (one line per slot), so they read as lists.
     ParticleSysBone: t.List[t.Untyped]
-    WeaponLaunchBone: t.List[t.Untyped]
-    WeaponFireFXBone: t.List[t.Untyped]
+    WeaponLaunchBone: t.List[t.Tuple[e.SlotTypes, t.Bone]]
+    WeaponFireFXBone: t.List[t.Tuple[e.SlotTypes, t.Bone]]
     FXEvent: t.List[t.Untyped]
     Texture: t.List[t.TextureFile]
     RetainSubObjects: t.Bool
     ModelAnimationPrefix: t.String
     PortraitImageName: t.String
     ButtonImageName: t.String
-    OverrideTooltip: t.Untyped
+    OverrideTooltip: t.Label
     Turret: t.Opaque
     TurretArtAngle: t.Float
 
-    Shadow: t.Untyped
+    Shadow: e.ObjectShadowType
     ShadowSizeX: t.Int
     ShadowSizeY: t.Int
     ShadowTexture: t.Opaque
@@ -100,8 +101,8 @@ class AnimationState(NestedAttribute):
 
     nested_attributes = {"Animation": ["Animation"]}
 
-    StateName: t.Untyped
-    Flags: t.Untyped
+    StateName: t.String
+    Flags: t.FlagList[e.AnimationFlag]
     FrameForPristineBonePositions: t.Int
     SimilarRestart: t.Bool
     EnteringStateFX: t.FXList
@@ -144,10 +145,10 @@ class W3DModelDraw(Draw):
     IgnoreConditionStates: t.Untyped
     OkToChangeModelColor: t.Bool
     ReceivesDynamicLights: t.Bool
-    ProjectileBoneFeedbackEnabledSlots: t.Untyped
+    ProjectileBoneFeedbackEnabledSlots: t.FlagList[e.SlotTypes]
     AnimationsRequirePower: t.Bool
     ParticlesAttachedToAnimatedBones: t.Bool
-    MinLODRequired: t.Untyped
+    MinLODRequired: e.LodLevel
     ExtraPublicBone: t.List[t.Opaque]
     AttachToBoneInAnotherModule: t.Bone
     TrackMarks: t.TextureFile
@@ -178,14 +179,14 @@ class W3DScriptedModelDraw(W3DModelDraw):
     RampMesh1: t.Opaque
     RampMesh2: t.Opaque
     WadingParticleSys: t.Opaque
-    DependencySharedModelFlags: t.Untyped
+    DependencySharedModelFlags: t.FlagList[e.ModelCondition]
     AlphaCameraFadeOuterRadius: t.Int
     AlphaCameraFadeInnerRadius: t.Int
     AlphaCameraAtInnerRadius: t.Float
     StaticSortLevelWhileFading: t.Int
     BirthFadeAdditive: t.Bool
     BirthFadeTime: t.Int
-    TimeOfDayTexture: t.List[t.Untyped]  # repeats: one texture per time-of-day
+    TimeOfDayTexture: t.List[t.Tuple[t.TextureFile, e.TimeOfDay, t.Int]]
 
 
 class W3DHordeModelDraw(W3DScriptedModelDraw):
@@ -204,7 +205,7 @@ class W3DFloorDraw(Draw):
     FloorFadeRateOnObjectDeath: t.Float
     ModelName: t.ModelFile
     HideIfModelConditions: t.List[t.ModelCondition]
-    WeatherTexture: t.List[t.Untyped]
+    WeatherTexture: t.List[t.Tuple[e.MapWeatherType, t.TextureFile]]
     StaticModelLODMode: t.Bool
     StartHidden: t.Bool
     ForceToBack: t.Bool
@@ -254,7 +255,7 @@ class W3DStreakDraw(Draw):
     Color: t.RGBA
     Texture: t.TextureFile
     Additive: t.Bool
-    WeatherTexture: t.List[t.Untyped]
+    WeatherTexture: t.List[t.Tuple[e.MapWeatherType, t.TextureFile]]
 
 
 class StreakDraw(Draw):
@@ -266,7 +267,7 @@ class W3DTruckDraw(W3DModelDraw):
     TireRotationMultiplier: t.Float
     PowerslideRotationAddition: t.Float
     WadingParticleSys: t.String
-    DependencySharedModelFlags: t.Untyped
+    DependencySharedModelFlags: t.FlagList[e.ModelCondition]
     # Wheel/tire bones, front-to-rear, left/right, with a second row of `*2` variants.
     LeftFrontTireBone: t.Bone
     RightFrontTireBone: t.Bone

@@ -10,6 +10,7 @@ each container declares its child blocks via `nested_attributes`. The named bloc
 are `List`s so they are not mistaken for last-wins scalars.
 """
 
+import sage_ini.model.enums as e
 import sage_ini.model.types as t
 from sage_ini.model.objects import NestedAttribute
 
@@ -17,13 +18,13 @@ from sage_ini.model.objects import NestedAttribute
 class EyeTowerPoints(NestedAttribute):
     """The `EyeTowerPoints` block in an `Act`: the camera look-points the eye sweeps."""
 
-    LookPoint: t.List[t.Untyped]
+    LookPoint: t.CoordsList
 
 
 class WorldText(NestedAttribute):
     """A scripted on-screen caption during an `Act` (`StringTag` shown after a delay)."""
 
-    StringTag: t.Untyped
+    StringTag: t.Label
     DelayFromActStart: t.Float
 
 
@@ -39,8 +40,8 @@ class MoveCamera(NestedAttribute):
 class MoveArmy(NestedAttribute):
     """A scripted army move during an `Act`: send the named army to a region."""
 
-    ArmyScriptingName: t.Untyped
-    TargetRegionName: t.Untyped
+    ArmyScriptingName: t.Opaque
+    TargetRegionName: t.Opaque
     DefaultArmyMoveSpeed: t.Float
     DelayFromActStart: t.Float
 
@@ -48,7 +49,7 @@ class MoveArmy(NestedAttribute):
 class SetPlayerControlOfArmy(NestedAttribute):
     """Hand a scripted army to (or take it from) the owning player during an `Act`."""
 
-    ArmyScriptingName: t.Untyped
+    ArmyScriptingName: t.Opaque
     IsControllableByOwner: t.Bool
     DelayFromActStart: t.Float
 
@@ -56,8 +57,8 @@ class SetPlayerControlOfArmy(NestedAttribute):
 class EnableRegion(NestedAttribute):
     """Open a region for play during an `Act`."""
 
-    Region: t.Untyped
-    ArmyScriptingName: t.Untyped
+    Region: t.Opaque
+    ArmyScriptingName: t.Opaque
     DelayFromActStart: t.Float
 
 
@@ -79,9 +80,9 @@ _ACT_ACTIONS = {
 class StartingRestriction(NestedAttribute):
     """A `Scenario` starting restriction: which teams/factions may start in which regions."""
 
-    Teams: t.Untyped
-    Regions: t.Untyped
-    Factions: t.Untyped
+    Teams: t.List[t.Int]
+    Regions: t.List[t.Opaque]
+    Factions: t.List[t.FactionRef]
 
 
 class Act(NestedAttribute):
@@ -92,7 +93,7 @@ class Act(NestedAttribute):
 
 
 class _DefeatCondition(NestedAttribute):
-    Teams: t.Untyped
+    Teams: t.List[t.Int]
     LoseIfCapitalLost: t.Bool
     NumControlledRegionsLessOrEqualTo: t.Int
     ControlledRegions: t.Opaque
@@ -109,9 +110,9 @@ class TeamDefeatCondition(_DefeatCondition):
 
 
 class _VictoryCondition(NestedAttribute):
-    Teams: t.Untyped
+    Teams: t.List[t.Int]
     NumControlledRegionsGreaterOrEqualTo: t.Int
-    ControlledRegions: t.List[t.Untyped]
+    ControlledRegions: t.List[t.Opaque]
 
 
 class PlayerVictoryCondition(_VictoryCondition):
@@ -125,7 +126,7 @@ class TeamVictoryCondition(_VictoryCondition):
 class SpawnArmies(NestedAttribute):
     """Pre-placed armies in an `OwnershipSet`."""
 
-    Player: t.Untyped
+    Player: t.Opaque
     Army: t.List[t.Untyped]
     Armies: t.List[t.Opaque]
     Region: t.Opaque
@@ -134,8 +135,8 @@ class SpawnArmies(NestedAttribute):
 class SpawnBuildings(NestedAttribute):
     """Pre-placed buildings in an `OwnershipSet`."""
 
-    Player: t.Untyped
-    Building: t.List[t.Untyped]
+    Player: t.Opaque
+    Building: t.List[t.Opaque]
     Region: t.Opaque
     Buildings: t.List[t.Opaque]
 
@@ -143,8 +144,8 @@ class SpawnBuildings(NestedAttribute):
 class OwnershipSet(NestedAttribute):
     """A `Scenario` starting layout: which regions a player owns and what is placed on them."""
 
-    Regions: t.List[t.Untyped]
-    StartRegion: t.Untyped
+    Regions: t.List[t.Opaque]
+    StartRegion: t.Opaque
 
     nested_attributes = {"SpawnArmies": ["SpawnArmies"], "SpawnBuildings": ["SpawnBuildings"]}
 
@@ -153,13 +154,13 @@ class Scenario(NestedAttribute):
     """One `Scenario` of a `LivingWorldCampaign`: its display text, the region campaign it
     plays on, and the conditions that win or lose it."""
 
-    DisplayName: t.Untyped
-    DisplayDescription: t.Untyped
-    DisplayGameType: t.Untyped
-    DisplayObjectives: t.Untyped
-    DisplayFiction: t.Untyped
-    DisplayVictoriousText: t.Untyped
-    DisplayDefeatedText: t.Untyped
+    DisplayName: t.Label
+    DisplayDescription: t.Label
+    DisplayGameType: t.Label
+    DisplayObjectives: t.Label
+    DisplayFiction: t.Label
+    DisplayVictoriousText: t.Label
+    DisplayDefeatedText: t.Label
     RegionCampaign: t.RegionCampaignRef
     NumPlayers: t.Int
     MaxPlayers: t.Int
@@ -184,14 +185,14 @@ class Scenario(NestedAttribute):
 class Connection(NestedAttribute):
     """A map link between two `Region`s, via an optional detour point."""
 
-    Region: t.Untyped
-    DetourPoint: t.List[t.Untyped]
+    Region: t.Opaque
+    DetourPoint: t.CoordsList
 
 
 class RestrictBuildings(NestedAttribute):
     """A per-region cap on how many of certain buildings may be built."""
 
-    Buildings: t.Untyped
+    Buildings: t.List[t.Opaque]
     NumberAllowed: t.Int
 
 
@@ -199,13 +200,13 @@ class Region(NestedAttribute):
     """One `Region <name>` of a region campaign: its map, display, army/building spots, and
     the connections and build restrictions that shape it on the strategic map."""
 
-    DisplayName: t.Untyped
-    MapName: t.Untyped
-    HeroArmySpot: t.List[t.Untyped]
-    BuildingSpot: t.List[t.Untyped]
-    SubObject: t.List[t.Untyped]
-    ConqueredNotice: t.Untyped
-    SkirmishStillImage: t.Untyped
+    DisplayName: t.Label
+    MapName: t.MapFile
+    HeroArmySpot: t.CoordsList
+    BuildingSpot: t.CoordsList
+    SubObject: t.List[t.SubObject]
+    ConqueredNotice: t.Label
+    SkirmishStillImage: t.Image
 
     SkirmishMusicTrack: t.Opaque
     RegionPortrait: t.Opaque
@@ -230,8 +231,8 @@ class Region(NestedAttribute):
     # Auto-built fortress.
     CreateAutoFort: t.Bool
     FortressPortrait: t.Opaque
-    FortressDisplayName: t.Untyped
-    FortressDisplayDescription: t.Untyped
+    FortressDisplayName: t.Label
+    FortressDisplayDescription: t.Label
 
     nested_attributes = {"Connection": ["Connection"], "RestrictBuildings": ["RestrictBuildings"]}
 
@@ -239,14 +240,14 @@ class Region(NestedAttribute):
 class ArmyToSpawn(NestedAttribute):
     """The army a `BuildingNugget` can construct, with its build UI."""
 
-    PlayerArmy: t.Untyped
+    PlayerArmy: t.Opaque
     Icon: t.ArmyIcon
-    IconSize: t.Untyped
-    PalantirMovie: t.Untyped
+    IconSize: t.String
+    PalantirMovie: t.VideoRef
     BuildTime: t.Int
-    ConstructButtonImage: t.Untyped
-    ConstructButtonTitle: t.Untyped
-    ConstructButtonHelp: t.Untyped
+    ConstructButtonImage: t.Image
+    ConstructButtonTitle: t.Label
+    ConstructButtonHelp: t.Label
     HeroTemplateName: t.String
 
 
@@ -254,13 +255,13 @@ class BuildingNugget(NestedAttribute):
     """A buildable nugget of a `LivingWorldBuilding`: the bonus it grants, its queue and the
     armies it can spawn."""
 
-    Type: t.Untyped
+    Type: e.LivingWorldBonusType
     Amount: t.Int
     Bonus: t.List[t.Untyped]
-    BonusKey: t.Untyped
+    BonusKey: t.Opaque
     TreasureAmount: t.Int
     QueueSize: t.Int
-    StrengtheningRange: t.Untyped  # a named range keyword (e.g. THIS_TERRITORY), not a number
+    StrengtheningRange: e.BuildingBonusScope
     NumUpgradesPerTurn: t.Int
     UpgradeableUnits: t.List[t.ObjectRef]
 
@@ -270,10 +271,10 @@ class BuildingNugget(NestedAttribute):
 class Mission(NestedAttribute):
     """One `Mission` of a `LinearCampaign`: the map and the load/intro presentation."""
 
-    Map: t.Untyped
-    IntroMovie: t.Untyped
-    LoadScreenImage: t.Untyped
-    LoadScreenMusicTrack: t.Untyped
+    Map: t.MapFile
+    IntroMovie: t.VideoRef
+    LoadScreenImage: t.Image
+    LoadScreenMusicTrack: t.Sound
     DelayCarryoverSpawningOf: t.List[t.ObjectRef]
     MillisecondsAfterStartToStartFadeUp: t.Int
 
@@ -292,7 +293,7 @@ class _RegionEffect(NestedAttribute):
 
     nested_attributes = {"ColorIntensityControlPoint": ["ColorIntensityControlPoint"]}
 
-    Geometry: t.Untyped
+    Geometry: t.Opaque
     LoadInShell: t.Bool
 
 
@@ -323,7 +324,7 @@ class UnifiedEffect(_RegionEffect):
 class ArmyEntry(NestedAttribute):
     """One unit slot of a `LivingWorldPlayerArmy`: a template and how many of it."""
 
-    ThingTemplate: t.Untyped
+    ThingTemplate: t.ObjectRef
     Quantity: t.Int
 
 

@@ -34,12 +34,14 @@ from sage_ini.model.types import (
     FlagList,
     Float,
     FloatRange,
+    FontSpec,
     FXList,
     Int,
     IntRange,
     List,
     MapFile,
     Nullable,
+    ObjectFilter,
     QuotedList,
     RandomVariable,
     RangeDuration,
@@ -65,6 +67,7 @@ Bone = resolve_annotation(Bone)
 Degrees = resolve_annotation(Degrees)
 Float = resolve_annotation(Float)
 FloatRange = resolve_annotation(FloatRange)
+FontSpec = resolve_annotation(FontSpec)
 FXList = resolve_annotation(FXList)
 Int = resolve_annotation(Int)
 IntRange = resolve_annotation(IntRange)
@@ -218,6 +221,35 @@ class TestRanges:
     def test_range_duration_single_value_sets_both_bounds(self):
         rd = RangeDuration.convert(Game(), "4000")
         assert (rd.min, rd.max) == (4000, 4000)
+
+
+class TestFontSpec:
+    def test_quoted_family_stays_one_token(self):
+        # corpus: `DefaultMessageFont = "Albertus MT" 16 No`
+        font = FontSpec.convert(Game(), '"Albertus MT" 16 No')
+        assert (font.name, font.size, font.bold) == ("Albertus MT", 16, False)
+
+    def test_unquoted_family_and_bold(self):
+        font = FontSpec.convert(Game(), "Arial 12 Yes")
+        assert (font.name, font.size, font.bold) == ("Arial", 12, True)
+
+    def test_family_alone(self):
+        assert FontSpec.convert(Game(), "Arial").size == 0
+
+
+class TestObjectFilter:
+    def test_specific_object_prefix_resolves_to_the_object(self):
+        # The engine names one template in a filter as `S:<name>`, which it builds by prefixing
+        # the template name. corpus: `SourceObjectFilter = NONE +S:RohanPeasant1`
+        game = Game()
+        peasant = _Definition("objects", "RohanPeasant1")
+        game.register(peasant)
+        filt = ObjectFilter.convert(game, "NONE +S:RohanPeasant1")
+        assert filt.inclusion == [peasant]
+
+    def test_kindof_members_are_unaffected(self):
+        filt = ObjectFilter.convert(Game(), "NONE +INFANTRY -CAVALRY")
+        assert filt.inclusion == [KindOf.INFANTRY] and filt.exclusion == [KindOf.CAVALRY]
 
 
 class TestEnumCase:
