@@ -11,10 +11,10 @@ Targets ROTWK ``game.dat`` build ``2.01.2614.37001``.  The patch registers a new
 
 Only the two instance-aware UI image resolvers are intercepted. Recruitment buttons use the
 separate CommandButton path and remain stock. Applied modules live in a fixed sidecar keyed by
-``Object *`` and source module. UI resolution scans matching rows for a non-null image. Image names
-are resolved once on every successful apply. The result is deliberately sticky: later upgrade loss
-or a newly conflicting upgrade does not roll it back, while another successful apply can overwrite
-it.
+``Object *``, ObjectID and source module. UI resolution scans matching rows for a non-null image.
+Image names are resolved once on every successful apply. The result is deliberately sticky: later
+upgrade loss or a newly conflicting upgrade does not roll it back, while another successful apply
+can overwrite it.
 
 The sidecar contains presentation pointers only.  It is neither transferred nor CRC'd and uses
 no clock, RNG or simulation mutation, so identical binaries/data cannot introduce a simulation
@@ -71,7 +71,7 @@ _BUTTON_HOOK = 0x0073D0BA
 _BUTTON_BYTES = bytes.fromhex("837c240400")
 _BUTTON_RESUME = 0x0073D0BF
 _ROWS = 2048
-_ROW_SIZE = 16  # Object *, source, select Image *, button Image *
+_ROW_SIZE = 0x14  # Object *, ObjectID, source, select Image *, button Image *
 _SIDECAR_SIZE = _ROWS * _ROW_SIZE
 _MODULEDATA_SIZE = 0x140
 _RUNTIME_SIZE = 0x1C
@@ -225,23 +225,31 @@ class ObjectImageUpgradePatch(Patch):
         )
         a.jcc(JE, "apply_done")
 
-        # Keep an existing (Object*, source runtime*) row in a stack local. Rows are an occupied
-        # prefix. On reapply, close the old gap and rewrite the row at the occupied tail; this
+        # Keep an existing instance/source row, or a conclusively stale same-pointer row, in a
+        # stack local. On reuse, close the old gap and rewrite the row at the occupied tail; this
         # avoids duplicates while preserving the resolvers' "last matching row wins" ordering.
         a.emit(
             b"\x8d\x6e\xf0",            # lea ebp,[esi-10] ; source runtime
             b"\x6a\x00",                # existing-row local
             b"\xbb", _u32(layout["sidecar"]),
             b"\x31\xc0",
+            b"\x8b\x57\x74",            # mov edx,[edi+74] ; ObjectID
         )
         a.label("apply_scan")
         a.emit(b"\x83\x3b\x00")         # cmp dword ptr [ebx],0
         a.jcc(JE, "apply_scan_done")
         a.emit(b"\x39\x3b")              # cmp [ebx],edi ; same Object*?
         a.jcc(JNE, "apply_next")
-        a.emit(b"\x39\x6b\x04")          # cmp [ebx+04],ebp ; same source runtime?
+        a.emit(b"\x39\x53\x04")          # cmp [ebx+04],edx ; same ObjectID?
+        a.jcc(JE, "apply_same_instance")
+        a.emit(b"\x83\x3c\x24\x00")     # no better reusable row remembered yet?
         a.jcc(JNE, "apply_next")
-        a.emit(b"\x89\x1c\x24")          # existing = ebx
+        a.emit(b"\x89\x1c\x24")          # remember stale same-pointer row
+        a.jmp("apply_next")
+        a.label("apply_same_instance")
+        a.emit(b"\x39\x6b\x08")          # cmp [ebx+08],ebp ; same source runtime?
+        a.jcc(JNE, "apply_next")
+        a.emit(b"\x89\x1c\x24")          # exact match supersedes stale candidate
         a.label("apply_next")
         a.emit(b"\x83\xc3", bytes([_ROW_SIZE]), 0x40, b"\x3d", _u32(_ROWS))
         a.jcc(JB, "apply_scan")
@@ -253,13 +261,14 @@ class ObjectImageUpgradePatch(Patch):
         # Stable removal. EBX is the first free row (or one-past-table when full); EDX finishes at
         # the vacated occupied-tail row, which is then rewritten by the normal resolution path.
         a.label("apply_shift")
-        a.emit(b"\x8d\x4a\x10", b"\x3b\xcb")
+        a.emit(b"\x8d\x4a\x14", b"\x3b\xcb")
         a.jcc(JE, "apply_reused_slot")
         a.emit(
             b"\x8b\x01", b"\x89\x02",
             b"\x8b\x41\x04", b"\x89\x42\x04",
             b"\x8b\x41\x08", b"\x89\x42\x08",
             b"\x8b\x41\x0c", b"\x89\x42\x0c",
+            b"\x8b\x41\x10", b"\x89\x42\x10",
             b"\x8b\xd1",
         )
         a.jmp("apply_shift")
@@ -275,11 +284,13 @@ class ObjectImageUpgradePatch(Patch):
         a.label("apply_slot")
         a.emit(
             b"\x89\x3b",                # mov [ebx],edi    ; Object*
-            b"\x89\x6b\x04",            # source runtime
+            b"\x8b\x47\x74",            # mov eax,[edi+74] ; ObjectID
+            b"\x89\x43\x04",            # store ObjectID
+            b"\x89\x6b\x08",            # source runtime
             b"\x8b\x6e\xf4",            # mov ebp,[esi-0C] ; ModuleData*
 
-            b"\xc7\x43\x08\x00\x00\x00\x00",
             b"\xc7\x43\x0c\x00\x00\x00\x00",
+            b"\xc7\x43\x10\x00\x00\x00\x00",
         )
 
         # SelectPortrait
@@ -296,7 +307,7 @@ class ObjectImageUpgradePatch(Patch):
         a.call_absolute(_FIND_IMAGE)
 
         a.emit(
-            b"\x89\x43\x08",               # row.selectPortrait = eax
+            b"\x89\x43\x0c",               # row.selectPortrait = eax
         )
 
         # ButtonImage
@@ -314,7 +325,7 @@ class ObjectImageUpgradePatch(Patch):
         a.call_absolute(_FIND_IMAGE)
 
         a.emit(
-            b"\x89\x43\x0c",               # row.buttonImage = eax
+            b"\x89\x43\x10",               # row.buttonImage = eax
         )
 
         a.label("apply_dirty")
@@ -336,8 +347,8 @@ class ObjectImageUpgradePatch(Patch):
         
         # Select portrait hook. ECX = Object*.
         # Sidecar row:
-        #   +00 Object*, +04 source runtime*, +08 SelectPortrait Image*
-        #   +0C ButtonImage Image*
+        #   +00 Object*, +04 ObjectID, +08 source runtime*
+        #   +0C SelectPortrait Image*, +10 ButtonImage Image*
         a.label("select_hook")
         a.emit(
             0x53,                         # push ebx
@@ -346,6 +357,7 @@ class ObjectImageUpgradePatch(Patch):
             0x57,                         # push edi
 
             b"\x8b\xf9",                  # mov edi,ecx       ; Object*
+            b"\x8b\x77\x74",             # mov esi,[edi+74]  ; ObjectID
             b"\x31\xed",                  # xor ebp,ebp       ; result = nullptr
             b"\xb9", _u32(layout["sidecar"]),
             b"\x31\xc0",                  # xor eax,eax       ; row index
@@ -356,9 +368,11 @@ class ObjectImageUpgradePatch(Patch):
         # row.object == current Object* ?
         a.emit(b"\x39\x39")              # cmp [ecx],edi
         a.jcc(JNE, "select_next")
+        a.emit(b"\x39\x71\x04")          # cmp [ecx+04],esi
+        a.jcc(JNE, "select_next")
 
         a.emit(
-            b"\x8b\x59\x08",              # mov ebx,[ecx+08]  ; SelectPortrait Image*
+            b"\x8b\x59\x0c",              # mov ebx,[ecx+0C]  ; SelectPortrait Image*
             b"\x85\xdb",                  # test ebx,ebx
         )
         a.jcc(JE, "select_next")
@@ -419,6 +433,7 @@ class ObjectImageUpgradePatch(Patch):
         a.jcc(JE, "button_fallback")
 
         a.emit(
+            b"\x8b\x77\x74",             # mov esi,[edi+74] ; ObjectID
             b"\x31\xed",                  # xor ebp,ebp
             b"\xb9", _u32(layout["sidecar"]),
             b"\x31\xc0",
@@ -428,9 +443,11 @@ class ObjectImageUpgradePatch(Patch):
 
         a.emit(b"\x39\x39")              # cmp [ecx],edi
         a.jcc(JNE, "button_next")
+        a.emit(b"\x39\x71\x04")          # cmp [ecx+04],esi
+        a.jcc(JNE, "button_next")
 
         a.emit(
-            b"\x8b\x59\x0c",              # mov ebx,[ecx+0C]
+            b"\x8b\x59\x10",              # mov ebx,[ecx+10]
             b"\x85\xdb",
         )
         a.jcc(JE, "button_next")

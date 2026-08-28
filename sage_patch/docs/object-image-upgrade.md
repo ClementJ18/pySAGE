@@ -28,21 +28,24 @@ generic `TriggeredBy` processing. Its private ModuleData tail is:
 Apply resolves each name through `TheMappedImageCollection` on every successful trigger. The name
 must refer to a mapped image present in the active INI/assets; a missing name resolves to null and
 does not override that image field. A fixed patch-owned
-sidecar stores `(Object *, source module *, select Image *, button Image *)`.
+sidecar stores `(Object *, ObjectID, source module *, select Image *, button Image *)` in 20-byte
+rows. Combining the pointer with `Object + 0x74`'s ObjectID distinguishes a newly allocated object
+from a destroyed object whose address was recycled.
 The two UI getters scan only pointer rows; there are no per-frame string lookups or upgrade
 queries. The `+0x20` callback is intentionally a no-op; stock `+0x04`/`+0x08` upgrade evaluation is
 left untouched, and custom Apply occupies `+0x28`.
 
 The hooks scan matching rows from first to last and retain the last non-null image. Thus, when an
 object has multiple `ObjectImageUpgrade` behaviors, the last successfully applied behavior wins
-for each non-null field. Reapplying the same `(Object *, source module *)` does not allocate a
-duplicate row: its existing row is stably moved to the occupied tail and overwritten, so an
+for each non-null field. Reapplying the same `(Object *, ObjectID, source module *)` does not
+allocate a duplicate row: its existing row is stably moved to the occupied tail and overwritten, so an
 `A -> B -> A` sequence makes A win again without consuming a third slot. A later successful
 trigger, including a repeating or alternating upgrade sequence, can overwrite the image again.
 They never inspect the object's internal module storage and scan only patch-owned rows. The fixed table has
 2048 rows; if exhausted, a new source is ignored rather than writing out of bounds, while an
-existing source can still be moved to the tail and refreshed. Upgrade loss and late
-`ConflictsWith` use the documented sticky semantics below; row cleanup is intentionally absent.
+existing source can still be moved to the tail and refreshed. When Apply encounters the same
+pointer with a different ObjectID, that conclusively stale row can be reclaimed. Upgrade loss and
+late `ConflictsWith` use the documented sticky semantics below; row cleanup is intentionally absent.
 No object-destruction hook is installed because the former Drawable hook cannot safely clean a
 table keyed by Object pointers.
 
@@ -77,6 +80,8 @@ changes presentation only; it is not a desync path.
 The Apply/UI path has been exercised successfully in game with heroes and normal units, both image
 fields, multiple behaviors, last-triggered precedence, `TriggeredBy`, `ConflictsWith` at activation,
 and repeating or alternating upgrades. Hero recruitment remains vanilla because it uses the
-separate `CommandButton` path. The fixed sidecar is not reclaimed; long-running content that
-reaches 2048 distinct `(Object *, source module *)` pairs will have later new-source overrides
-ignored. Retriggering an existing pair reuses its row. No destructor cleanup is installed.
+separate `CommandButton` path. There is no general lifetime cleanup: sticky rows can remain until
+reclaimed. Recycled pointers are guarded by ObjectID, and Apply reclaims a
+same-pointer/different-ID row when encountered. Long-running content that fills all 2048 rows
+without such reuse will have later new-source overrides ignored. Retriggering an existing
+instance/source pair reuses its row. No destructor cleanup is installed.

@@ -13,6 +13,7 @@ from sage_patch.patches.object_image_upgrade import (
     SECTION_NAME,
     ObjectImageUpgradePatch,
 )
+from sage_patch.patches import object_image_upgrade as object_image_module
 from sage_patch.utils import find_section, va_to_offset
 
 _GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
@@ -137,7 +138,12 @@ def test_ui_hooks_never_read_unconfirmed_object_module_array(image: bytearray) -
         assert b"\x39\x39" in hook
 
 
-def test_ui_hooks_use_confirmed_16_byte_object_rows(image: bytearray) -> None:
+def test_sidecar_uses_20_byte_rows_and_expected_capacity() -> None:
+    assert object_image_module._ROW_SIZE == 0x14
+    assert object_image_module._SIDECAR_SIZE == 0xA000
+
+
+def test_ui_hooks_match_object_and_object_id_in_20_byte_rows(image: bytearray) -> None:
     patch = ObjectImageUpgradePatch()
     patch.apply(image)
     located = find_section(image, SECTION_NAME)
@@ -146,8 +152,8 @@ def test_ui_hooks_use_confirmed_16_byte_object_rows(image: bytearray) -> None:
     code = patch._assemble(base)
 
     for start, end, image_offset in (
-        ("select_hook", "button_hook", 0x08),
-        ("button_hook", None, 0x0C),
+        ("select_hook", "button_hook", 0x0C),
+        ("button_hook", None, 0x10),
     ):
         begin = section_off + code.label_va(start) - base
         finish = section_off + (
@@ -156,9 +162,14 @@ def test_ui_hooks_use_confirmed_16_byte_object_rows(image: bytearray) -> None:
             else code.base_va - base + len(code.finish())
         )
         hook = bytes(image[begin:finish])
+        assert b"\x8b\x77\x74" in hook  # current ObjectID = [Object+74]
+        object_match = hook.index(b"\x39\x39")
+        id_match = hook.index(b"\x39\x71\x04", object_match)
+        image_load = hook.index(b"\x8b\x59" + bytes([image_offset]), id_match)
         assert b"\x8b\x59" + bytes([image_offset]) + b"\x85\xdb" in hook
         assert b"\x8b\xeb" in hook
-        assert b"\x83\xc1\x10" in hook
+        assert b"\x83\xc1\x14" in hook
+        assert object_match < id_match < image_load
 
 
 def test_apply_uses_object_key_and_ascii_string_addresses(image: bytearray) -> None:
@@ -170,12 +181,15 @@ def test_apply_uses_object_key_and_ascii_string_addresses(image: bytearray) -> N
     end = section_off + code.label_va("unapply") - base
     body = bytes(image[begin:end])
     assert b"\x8b\x7e\xf8" in body  # [UpgradeMux-8] = Object*
+    assert b"\x8b\x57\x74" in body  # ObjectID = [Object+74]
+    assert b"\x8b\x47\x74\x89\x43\x04" in body  # store row.ObjectID
+    assert b"\x89\x6b\x08" in body  # store row.source
     assert b"\x8d\x85\x38\x01\x00\x00\x50" in body
     assert b"\x8d\x85\x3c\x01\x00\x00\x50" in body
     assert b"\x8b\x77\x84" not in body
 
 
-def test_apply_reuses_same_object_and_source_row_at_the_tail(image: bytearray) -> None:
+def test_apply_reuses_exact_or_same_pointer_stale_row_at_tail(image: bytearray) -> None:
     patch = ObjectImageUpgradePatch()
     patch.apply(image)
     base, section_off, _size = find_section(image, SECTION_NAME) or pytest.fail("missing section")
@@ -184,18 +198,32 @@ def test_apply_reuses_same_object_and_source_row_at_the_tail(image: bytearray) -
     end = section_off + code.label_va("unapply") - base
     body = bytes(image[begin:end])
 
-    # Match both keys, remember that row, then copy every later 16-byte row one slot left. The
+    # A stale same-pointer/different-ID row is a candidate; an exact Object/ID/source row takes
+    # precedence. Then copy every later 20-byte row left. The
     # vacated tail becomes apply_slot, so A -> B -> A has physical order B,A and A wins again.
     object_match = body.index(b"\x39\x3b")
-    source_match = body.index(b"\x39\x6b\x04", object_match)
-    remember = body.index(b"\x89\x1c\x24", source_match)
-    shift = body.index(b"\x8d\x4a\x10", remember)
-    four_dword_copy = bytes.fromhex(
-        "8b0189028b41048942048b41088942088b410c89420c8bd1"
+    id_match = body.index(b"\x39\x53\x04", object_match)
+    stale_free_check = body.index(b"\x83\x3c\x24\x00", id_match)
+    stale_remember = body.index(b"\x89\x1c\x24", stale_free_check)
+    source_match = body.index(b"\x39\x6b\x08", stale_remember)
+    exact_remember = body.index(b"\x89\x1c\x24", source_match)
+    shift = body.index(b"\x8d\x4a\x14", exact_remember)
+    five_dword_copy = bytes.fromhex(
+        "8b0189028b41048942048b41088942088b410c89420c8b41108942108bd1"
     )
-    copied = body.index(four_dword_copy, shift)
+    copied = body.index(five_dword_copy, shift)
     reuse_tail = body.index(b"\x8b\xda", copied)
-    assert object_match < source_match < remember < shift < copied < reuse_tail
+    assert (
+        object_match
+        < id_match
+        < stale_free_check
+        < stale_remember
+        < source_match
+        < exact_remember
+        < shift
+        < copied
+        < reuse_tail
+    )
 
 
 def test_reused_row_is_cleared_before_images_are_resolved_again(image: bytearray) -> None:
@@ -206,7 +234,7 @@ def test_reused_row_is_cleared_before_images_are_resolved_again(image: bytearray
     begin = section_off + code.label_va("apply_slot") - base
     end = section_off + code.label_va("unapply") - base
     body = bytes(image[begin:end])
-    clear = b"\xc7\x43\x08\x00\x00\x00\x00\xc7\x43\x0c\x00\x00\x00\x00"
+    clear = b"\xc7\x43\x0c\x00\x00\x00\x00\xc7\x43\x10\x00\x00\x00\x00"
     select_lookup = b"\x8d\x85\x38\x01\x00\x00\x50"
     button_lookup = b"\x8d\x85\x3c\x01\x00\x00\x50"
     assert body.index(clear) < body.index(select_lookup) < body.index(button_lookup)
@@ -247,8 +275,8 @@ def test_resolvers_scan_all_rows_and_keep_later_non_null_matches(image: bytearra
     code = patch._assemble(base)
 
     for start, end, field in (
-        ("select_hook", "button_hook", b"\x8b\x59\x08"),
-        ("button_hook", None, b"\x8b\x59\x0c"),
+        ("select_hook", "button_hook", b"\x8b\x59\x0c"),
+        ("button_hook", None, b"\x8b\x59\x10"),
     ):
         begin = section_off + code.label_va(start) - base
         finish = section_off + (
@@ -257,7 +285,7 @@ def test_resolvers_scan_all_rows_and_keep_later_non_null_matches(image: bytearra
         body = bytes(image[begin:finish])
         found = body.index(field)
         replace = body.index(b"\x8b\xeb", found)
-        advance = body.index(b"\x83\xc1\x10", replace)
+        advance = body.index(b"\x83\xc1\x14", replace)
         bound = body.index(b"\x3d" + struct.pack("<I", 2048), advance)
         assert found < replace < advance < bound
 
