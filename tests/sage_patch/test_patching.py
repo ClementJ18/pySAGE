@@ -574,6 +574,117 @@ class TestCli:
         assert main(["verify", "commandset-limit", "--count", "64", str(clean)]) == 1
 
 
+#: A hand-written manifest: the patch and the parameters it was built with, and none of the INI
+#: surface `sagepatch` would have written beside them - which is what `rebuild` has to cope with
+#: in a file somebody typed rather than generated.
+_MANIFEST_AT_100 = """version = 2
+
+[[patches]]
+name = "commandset-limit"
+options = { count = 100 }
+"""
+
+_MANIFEST_UNKNOWN = """version = 2
+
+[[patches]]
+name = "not-a-patch"
+"""
+
+
+class TestRebuildCommand:
+    """`rebuild` closes the loop `sagepatch` opens.
+
+    The manifest is only worth writing down if it is enough to make the binary again, so what is
+    asserted here is the whole round trip - patch a clean image, write the file, throw the patched
+    image away, and get the same bytes back from the file alone - rather than the command merely
+    exiting zero."""
+
+    def test_a_binary_round_trips_through_its_own_sagepatch(self, tmp_path):
+        clean = tmp_path / "game_original.dat"
+        clean.write_bytes(bytes(_synthetic_game_dat()))
+        built = tmp_path / "game.dat"
+        assert (
+            main(
+                [
+                    "apply",
+                    "commandset-limit",
+                    "--count",
+                    "100",
+                    "--in",
+                    str(clean),
+                    "--out",
+                    str(built),
+                ]
+            )
+            == 0
+        )
+        manifest = tmp_path / ".sagepatch"
+        assert main(["sagepatch", str(built), "-o", str(manifest)]) == 0
+
+        rebuilt = tmp_path / "rebuilt.dat"
+        assert main(["rebuild", str(manifest), "--in", str(clean), "--out", str(rebuilt)]) == 0
+
+        assert rebuilt.read_bytes() == built.read_bytes()
+        assert clean.read_bytes() == bytes(_synthetic_game_dat())  # the input is never modified
+
+    def test_it_rebuilds_at_the_parameters_the_file_records(self, tmp_path):
+        """Not at this version's defaults, which is the whole reason the parameters are written
+        down: `commandset-limit` defaults to 64 and this build is at 100."""
+        clean = tmp_path / "game_original.dat"
+        clean.write_bytes(bytes(_synthetic_game_dat()))
+        manifest = tmp_path / ".sagepatch"
+        manifest.write_text(_MANIFEST_AT_100, encoding="utf-8")
+        rebuilt = tmp_path / "game.dat"
+
+        assert main(["rebuild", str(manifest), "--in", str(clean), "--out", str(rebuilt)]) == 0
+        assert main(["verify", "commandset-limit", "--count", "100", str(rebuilt)]) == 0
+
+    def test_a_manifest_without_the_matching_deltas_rebuilds_and_says_it_is_stale(
+        self, tmp_path, capsys
+    ):
+        """The manifest is what the rebuild was asked for, so it decides pass or fail. A file
+        that lists the patches but not the INI surface they add - hand-written, or generated
+        before this version described them - still builds the binary somebody wanted, and is
+        told what to do about the half that is out of date."""
+        clean = tmp_path / "game_original.dat"
+        clean.write_bytes(bytes(_synthetic_game_dat()))
+        manifest = tmp_path / ".sagepatch"
+        manifest.write_text(_MANIFEST_AT_100, encoding="utf-8")
+
+        rc = main(
+            ["rebuild", str(manifest), "--in", str(clean), "--out", str(tmp_path / "game.dat")]
+        )
+
+        assert rc == 0
+        assert "regenerate it with `sage-patch sagepatch" in capsys.readouterr().err
+
+    def test_a_file_with_no_manifest_says_what_to_do_about_it(self, tmp_path, capsys):
+        """A `.sagepatch` written before the manifest existed describes the surface and nothing
+        else, so there is nothing to rebuild from - and the fix is to regenerate it."""
+        manifest = tmp_path / ".sagepatch"
+        manifest.write_text("version = 1\n", encoding="utf-8")
+        clean = tmp_path / "game_original.dat"
+        clean.write_bytes(bytes(_synthetic_game_dat()))
+
+        rc = main(
+            ["rebuild", str(manifest), "--in", str(clean), "--out", str(tmp_path / "out.dat")]
+        )
+
+        assert rc == 2
+        assert "sage-patch sagepatch" in capsys.readouterr().err
+
+    def test_an_entry_this_build_cannot_rebuild_stops_it_before_it_writes(self, tmp_path, capsys):
+        manifest = tmp_path / ".sagepatch"
+        manifest.write_text(_MANIFEST_UNKNOWN, encoding="utf-8")
+        clean = tmp_path / "game_original.dat"
+        clean.write_bytes(bytes(_synthetic_game_dat()))
+        out = tmp_path / "out.dat"
+
+        assert main(["rebuild", str(manifest), "--in", str(clean), "--out", str(out)]) == 2
+        assert "not-a-patch" in capsys.readouterr().err
+        assert not out.exists()
+
+
 class TestInfoCommand:
     """`info` is the one command that reads a patch's *documentation* rather than its bytes: the
     author and description from the class, the write-up path out of the module docstring, the

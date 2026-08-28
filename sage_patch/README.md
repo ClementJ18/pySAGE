@@ -18,11 +18,12 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Fourteen of the registered patches — **`hero-mana`**, **`second-resource`**,
+> Seventeen of the registered patches — **`hero-mana`**, **`second-resource`**,
 > **`campaign-select`**, **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**,
 > **`live-bridge`**, **`living-world-override`**, **`cooldown-through-death`**,
 > **`capture-the-flag`**, **`smart-rally`**, **`special-power-charges`**,
-> **`render-rate`** and **`unit-plate-option`**
+> **`render-rate`**, **`scenario-player-factions`**, **`campaign-army-verbs`**,
+> **`hero-army-carryover`** and **`unit-plate-option`**
 > — are **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -491,6 +492,55 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   its own. **No INI change** — the filter is global and reads only data every weapon already has.
   Logic-side, so **every peer must run the same patched binary** and replays do not cross. See
   [`docs/attack-requires-damage.md`](docs/attack-requires-damage.md).
+- **`fire-at-attacker`** adds a **`FireAtAttacker`** boolean to `FireWeaponWhenDamagedBehavior`, so
+  its `ReactionWeapon*` hits **whatever dealt the damage** instead of going off at the damaged
+  object's own feet. The engine ships two ways to hurt what just hurt you and each is missing the
+  other's half: `ReflectDamage` resolves the `DamageInfo`'s source object and damages it directly,
+  but has three fields and no upgrade mux at all, so it cannot be switched on at a level;
+  `FireWeaponWhenDamagedBehavior` carries the whole mux — `StartsActive`, `TriggeredBy`,
+  `ConflictsWith`, `Permanent` — and then fires its weapon through
+  `createAndFireTempWeapon(source, const Coord3D *at)` at the **owning object's own position**, with
+  the victim argument passed as NULL. So the only nugget that reaches anything is one with a
+  `Radius`, and that splashes every enemy standing near the defender rather than the one that swung
+  — while the attacker's `ObjectID` sits unread in the `DamageInfo` the whole time. "20% thorns,
+  from level 5" is not expressible in stock data. The patch reads that id, resolves it through
+  `TheGameLogic`, and calls the engine's **own** object-targeted sibling
+  `createAndFireTempWeapon(Object *source, Object *victim)` — the overload `TheWeaponStore` already
+  uses elsewhere — so a nugget lands on that one object with no `Radius` at all. The source of the
+  damage is still the reflecting unit, so kill credit and XP are unchanged, and `DamageTypes`,
+  `DamageAmount` and the mux all run stock and are reached before the aim. **It falls back rather
+  than failing**: damage with no resolvable source — fire, poison, a script, an attacker already
+  dead — takes the stock path, because a reaction weapon that silently stopped firing would be
+  worse to diagnose than one that occasionally goes off at home. The `Continuous*` weapons are
+  untouched; they fire from the module's `update`, where there is no attacker in scope. Unlike
+  `queue-ignore-cp`, there is no alignment hole to take: this `ModuleData`'s fields end flush at its
+  `0x164` `sizeof`, so the block is **grown** by four bytes and the field takes `0x164`, past every
+  stock field by construction. Write `FireAtAttacker = Yes` on the behavior; `No`, the default, is
+  stock. Logic-side, so **every peer needs the same binary**, and the keyword is fatal on a stock
+  build. **Not runtime-verified.** See [`docs/fire-at-attacker.md`](docs/fire-at-attacker.md).
+- **`deploy-before-attack`** makes **`MustDeployToAttack` gate an attack the AI starts**, not only
+  one the player orders. `MustDeployToAttack` is read in exactly one place that decides anything:
+  the `READY_TO_MOVE` arm of `DeployStyleAIUpdate::update`, and that arm is reached only once the
+  module has a **recorded command** to resolve. A command is recorded only by `aiDoCommand`, so
+  only an order that travels as an `AICommandParms` makes a unit stand up — and almost nothing the
+  engine starts on its own travels that way. A stationary unit sits in `AIGuardState`, whose
+  `AIGuardMachine` acquires and attacks from `AIGuardInnerState`; a moving one is in
+  `AIInternalMoveToState`, which drives the state machine to `AI_ATTACK_OBJECT` directly. Neither
+  builds an `AICommandParms` — nor even allocates one of the attack-machine slots the module knows
+  how to ask about — so a trebuchet with an enemy in range opens fire while still packed. The patch
+  stops asking *which command arrived* and asks *what the unit is doing*: nine bytes at the head of
+  `update`'s resolution become a cave that calls `setMyState(DEPLOY)` when no *targeted* order is
+  recorded (an attack-object or attack-position order is one the stock arm resolves and deploys for
+  itself; a guard or attack-move order names nothing and its arm comes back empty), the module is
+  packed, `MustDeployToAttack` is set, **`AIUpdateInterface::getCurrentVictim` returns an object**,
+  and the weapon says that object is in range. That field is written by all 27 call sites
+  of `setCurrentVictim` and cleared when the victim dies, so it sees the attack however the engine
+  started it. The cave writes nothing to the module; the deploy's own `aiIdle` takes the attack off
+  the state machine, and the unit re-acquires deployed — the same way a player-ordered attack
+  resumes after its deploy. **No INI change** — the keyword already exists; this makes it mean what
+  it says. Logic-side, so **every peer must run the same patched binary** and replays do not cross.
+  **Runtime-verified in game.** See
+  [`docs/deploy-before-attack.md`](docs/deploy-before-attack.md).
 - **`spawn-union`** makes an object with several `SpawnBehavior`s use **all** of their spawns.
   `Object::getSpawnBehaviorInterface` walks the module list and returns on the **first** module that
   answers, so a structure with two of them orders only the first one's slaves to attack, asks only
@@ -784,27 +834,37 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   [`docs/healing-received-modifier.md`](docs/healing-received-modifier.md). **Statically verified;
   not yet runtime-verified.**
 
-- **`large-group-bonus-filter`** lets a **`LargeGroupBonusUpdate` count objects that are not in a
-  horde**. `HordeMemberFilter` is an ordinary `ObjectFilter` — nothing about its grammar is
-  horde-specific — but it is **never evaluated against the object the scan returned**: it is only
-  ever passed one level down, to that object's *contain* interface, which counts its own contained
-  members against it. `Object::getContain` answers NULL for anything with no contain module, and the
-  same test runs **twice** — in the partition filter the scan is given, and again in the accumulator
-  — so a lone hero or a unit outside a horde is not merely uncounted, it is never even returned. A
-  new `CountLooseObjects` boolean makes both gates put a container-less candidate to the filter
-  directly, counting a match as one. The flag costs **no allocation**: `AlliesOnly` is written with a
-  *byte* store, so `+0x19`..`+0x1b` is padding and `sizeof` stays `0x30`; the field table has
-  **one** reference, the cheapest relocation here alongside `science-prereqs`; and the widened
+- **`large-group-bonus`** extends **`LargeGroupBonusUpdate`** twice over: it can **count objects
+  that are not in a horde**, and it can be **gated on upgrades**. `HordeMemberFilter` is an ordinary
+  `ObjectFilter` — nothing about its grammar is horde-specific — but it is **never evaluated against
+  the object the scan returned**: it is only ever passed one level down, to that object's *contain*
+  interface, which counts its own contained members against it. `Object::getContain` answers NULL
+  for anything with no contain module, and the same test runs **twice** — in the partition filter
+  the scan is given, and again in the accumulator — so a lone hero or a unit outside a horde is not
+  merely uncounted, it is never even returned. A new `CountLooseObjects` boolean makes both gates
+  put a container-less candidate to the filter directly, counting a match as one; the widened
   `allow` is reached by installing a 12-byte cave **copy** of the wrapper vtable rather than editing
   the stock one, so an unwidened module stays byte-identical. The source player relationship tokens
   need is not in a frame slot — gate 2 reads it from `ebx`, and gate 1 from the wrapper's own `+4`
-  dword, which the engine zeroes and never reads. Two things it deliberately does **not** fix:
-  `AlliesOnly` is parsed and read by nothing (the scan is hardcoded same-player in a partition
-  filter shared with twelve other sites), and `FlagSubObjectNames` can only ever be *hidden* — the
-  visibility byte it would be shown from is written once, to zero, in the constructor. **Every peer
-  must run the same patched binary**, and the keyword is an INI parse error on a stock build.
-  See [`docs/large-group-bonus-filter.md`](docs/large-group-bonus-filter.md).
-  **Runtime-verified in game.**
+  dword, which the engine zeroes and never reads. The module registers as an `Update` and nothing
+  else, so it has no `UpgradeMux` and never took the upgrade keywords; **`TriggeredBy`**,
+  **`ConflictsWith`**, **`RequiresAllTriggers`** and **`RequiresAllConflictingTriggers`** now gate
+  the whole module, tested at the top of `update` — before the partition scan, so an inactive module
+  is *cheaper* than an active one — and dropping the bonus through the engine's own removal call on
+  the falling edge. The gate is the mux's **condition**, not its execute: re-evaluated every poll,
+  no latch, so stripping the upgrade turns the bonus back off. Two 36-dword masks do not fit in the
+  three bytes of `ModuleData` padding, so `sizeof` grows `0x30` → `0x158` at the module's own
+  private `newModuleData` thunk and the allocator zeroes the tail — which is what gives all five
+  keywords their stock defaults and costs one hook **fewer** than a constructor shim would. Two
+  things it deliberately does **not** fix: `AlliesOnly` is parsed and read by nothing (the scan is
+  hardcoded same-player in a partition filter shared with twelve other sites), and
+  `FlagSubObjectNames` can only ever be *hidden* — the visibility byte it would be shown from is
+  written once, to zero, in the constructor. **Every peer must run the same patched binary**, and
+  the keywords are an INI parse error on a stock build. Supersedes `large-group-bonus-filter`,
+  whose flag sat at a different offset: a binary carrying that patch is refused rather than
+  upgraded, and has to be rebuilt from a clean image.
+  See [`docs/large-group-bonus.md`](docs/large-group-bonus.md).
+  **The loose-object half is runtime-verified in game; the upgrade gate is statically verified.**
 
 - **`lifetime-fields`** adds three fields to `LifetimeUpdate`. **`ExtendedByUpgrades`** and
   **`UpgradeLifetimeBonus`** make gaining one of those upgrades push a summon's death **back by
@@ -1269,6 +1329,78 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   milliseconds instead of a count of draws would remove the term outright and is still the better design,
   but it is no longer a prerequisite. The 2026-08-26 result is a field observation, not instrumented, so no
   *bound* on peer drift is claimed. See [`docs/render-rate.md`](docs/render-rate.md) §9.9.
+- **`scenario-player-factions`** ⚠**(experimental)** lets a War of the Ring `Scenario` say **which
+  faction each lobby slot may take**, not just which factions the scenario allows. A scripted
+  scenario that needs player 1 to be Angmar and player 2 to be Men can today only narrow the pool
+  and hope: `HistoricalScenario = Yes` forces the picks to be *different*, never *whose*, and
+  `Scenario::isFactionEnabled` answers a question about the scenario with no player in it.
+  (`StartingRestriction`'s `Factions` list looks like the missing piece and is not — it is a
+  per-start-region filter that the combo-box fill **skips outright** for a historical scenario,
+  which is the only kind that pins factions to regions in the first place.) The patch extends the
+  *value* syntax of the existing keyword rather than adding one:
+  `DisabledFactions = FactionArnor FactionMen:1 FactionAngmar:2` keeps the unqualified entries
+  scenario-wide and bars Men from slot 1 and Angmar from slot 2 — the `Name:N` form
+  `commandset-button-upgrade` already uses, counting players from 1 as the rest of the file does.
+  So there is **no new keyword, no field table to relocate and no new storage**: the qualifier
+  rides in the `AsciiString` vector the stock parser already builds, and nothing written before the
+  patch changes meaning. `isFactionEnabled` has exactly **four** callers — the combo-box fill (which
+  greys and disables a refused entry), the start-game gate behind `GUI:DisabledFaction`, the
+  historical-scenario validation pass and the pass that resolves a slot left on Random — and all
+  four are redirected, which is what makes the rule a rule rather than a UI hint: the host cannot
+  start a game that breaks it however the slot came to hold that faction. Each already has the slot
+  index it is asking about in a live `ebp`-relative local, so each site's five-byte `call` goes to
+  its own two-instruction trampoline that loads that local into `edx` and tail-jumps into the shared
+  replacement — no stack surgery, the stock `ret 4` kept, and the by-value `AsciiString` argument
+  destroyed as the stock function destroyed it. Case-**sensitive**, because the stock comparison
+  bottoms out in `memcmp` and not `_memicmp`; a bare `:`, a non-numeric qualifier and `:0` all
+  disable nothing rather than falling back to everybody. Lobby-side only — nothing here runs after
+  the game starts, so simulation, saves and replays are untouched — but the host's gate is the one
+  that counts, so every peer wants the same binary. See
+  [`docs/scenario-player-factions.md`](docs/scenario-player-factions.md).
+- **`campaign-army-verbs`** ⚠**(experimental)** restores the two BFME1 campaign `Act` verbs ROTWK
+  dropped: **`MergePlayerArmy`**, which moves roster entries from one living-world army into
+  another, and **`DespawnArmy = <name>`**, which takes an army off the world map. A merge either
+  pours the whole roster across (`SplitArmy = No`) or moves only the entries a
+  `SplitArmyTemplate` names — a `LivingWorldPlayerArmy` used purely as a **manifest of
+  `ThingTemplate` names**, which is what BFME1's Fellowship split is built out of. Edain's
+  `wotrscenarioangmar.inc` already carries two of these blocks, written correctly and commented out
+  with `; Doesn't work ;( - Necro`. **`SourceArmy` and `DestArmy` name `SpawnArmy` ScriptingNames,
+  not `PlayerArmy` templates as they did in BFME1** — the one deliberate divergence, and a mod
+  porting BFME1 campaign INI verbatim has to change those two fields. BFME1 could mutate templates
+  because a template was its only strategic state; ROTWK gives each live army its own roster at
+  `army+0x78` and rewrites it after every battle, so a template edit would touch only armies
+  spawned later and nothing standing on the map. Two five-byte sites: the `push` that names the Act
+  verb table is repointed at a 17-row copy in the cave, and pass nine of the act runner is
+  displaced into a trampoline that makes the call it replaced and then runs the new pass. The
+  records cannot live on the `Act` — it is `0xB8` bytes with three spare — so they live in
+  the cave keyed by the act's **name**, which is already how `CallActSubroutine` finds an act.
+  Moving a record is a move, not a copy: the roster's own erase hands back a reference and the
+  append takes its own. Also adds the optional **`DespawnSource = Yes`**, which is not a BFME1
+  field: the unsplit merge empties the source (leaving it populated would deploy those units
+  twice), and this removes the emptied army too, so one block does what BFME1 needed two lines for.
+  Static only — nothing here has been played. See
+  [`docs/living-campaign/merge-player-army.md`](docs/living-campaign/merge-player-army.md).
+- **`hero-army-carryover`** ⚠**(experimental)** gives `ArmyEntry` a **`Persistent`** keyword: a hero
+  written `Persistent = Yes` stays in his living-world army when he dies in a War of the Ring
+  battle, the way BFME1's heroes do, instead of being moved out of it into his faction's fortress
+  hero-spawn queue. Absent or `No` is the stock behaviour exactly. Measured on saves from **both**
+  games either side of a hero's death: both engines harvest a battle back into the army, and the
+  only difference is what becomes of a hero who did not survive — BFME1 keeps him
+  (`Evil_SarumanPlayerArmy` went into evil mission 1 with one `ArmyEntry` and came out with six,
+  `IsengardSaruman` among them), ROTWK files him on the `LivingWorldPlayer` instead. **He comes
+  back at the level and with the upgrades he died with**, that battle's progress included, because
+  he is rebuilt from the player's hero ledger (`Player+0x758`) — the same one the ControlBar offers
+  as revivable during the mission — by the engine's own `0x00780FEF`, the exact mirror of the
+  `Object -> record` builder the harvest uses for survivors. His *object* is no measure: it is gone
+  from the object list by the time a battle ends, which is why nothing simpler works. Three wrapped
+  calls and one repointed field table: the `ArmyEntry` sub-table gains the keyword's row, the
+  parse call turns a set flag into a remembered `ThingTemplate` name, the battle-start setup notes
+  which army each marked hero is in, and the harvest is followed by the ledger walk that puts them
+  back. Nothing is held by reference across a battle, so an abandoned one leaves nothing to clean
+  up. **Runtime-verified**: a marked hero died in an Angmar mission and came back in his army with
+  the four upgrades he earned in it. He also stays available at his faction's fortress, which is
+  intended — the patch adds BFME1's army rule without taking ROTWK's own away. See
+  [`docs/living-campaign/hero-permadeath.md`](docs/living-campaign/hero-permadeath.md).
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -1395,10 +1527,10 @@ sage-patch apply lifetime-fields \
     --in game.dat.backup --out game.dat  # --keyword / --bonus-keyword / --template-keyword
 sage-patch verify lifetime-fields game.dat
 
-# let a LargeGroupBonusUpdate's HordeMemberFilter also match objects outside a horde
-sage-patch apply large-group-bonus-filter \
+# count objects outside a horde, and gate the whole module on TriggeredBy / ConflictsWith
+sage-patch apply large-group-bonus \
     --in game.dat.backup --out game.dat        # --keyword CountLooseObjects
-sage-patch verify large-group-bonus-filter game.dat
+sage-patch verify large-group-bonus game.dat
 
 # no parameters; --slots is read out of the image (33, or commandset-limit's N) unless pinned
 sage-patch apply multi-execute-gate --in game.dat.backup --out game.dat
@@ -1411,6 +1543,10 @@ sage-patch verify queue-ignore-cp game.dat
 # a CommandButton field that greys the button unless that many command points are free
 sage-patch apply command-point-cost --in game.dat.backup --out game.dat  # --keyword CommandPointCost
 sage-patch verify command-point-cost game.dat
+
+# a FireWeaponWhenDamagedBehavior field that aims the reaction weapon at whatever dealt the damage
+sage-patch apply fire-at-attacker --in game.dat.backup --out game.dat   # --keyword FireAtAttacker
+sage-patch verify fire-at-attacker game.dat
 
 # a wider hero bar; the .apt must define Hero17..HeroN clips to match (see sage_apt)
 sage-patch apply hero-bar-slots --count 21 --in game.dat.backup --out game.dat
@@ -1541,6 +1677,39 @@ would rather not wire a path into CI, at the cost of describing every patch with
 `--check` is the drift guard: run it in CI, and a committed `.sagepatch` that no longer matches
 the binary the team ships fails the build instead of silently mislinting.
 
+### The file is also the build manifest
+
+The written file opens with a `[[patches]]` list — **every** patch found, with the parameters it
+was applied with, whether or not it changes any INI:
+
+```toml
+# Raise the CommandSet button limit from 33 to N, so a CommandSet block may list N buttons. The
+# ControlBar still draws 33 at a time: reach the rest with PUSH_VISIBLE_COMMAND_RANGE paging
+# buttons
+[[patches]]
+name = "commandset-limit"
+options = { count = 64 }
+author = "officialNecro"
+```
+
+Most patches add no field and no token, so a file holding only the surface deltas lists almost
+none of a build. Listed, they make the same committed file three things at once: the reference
+that says what this `game.dat` is and whose work went into it, the manifest `--check` compares so
+a repatched binary fails CI even when the new patch changes no INI, and the recipe `rebuild`
+replays:
+
+```sh
+sage-patch rebuild /path/to/mod/.sagepatch --in game_original.dat --out game.dat
+```
+
+That applies every patch the file lists, at the counts and keywords it records, to a clean
+binary — then reads the result back and compares it with the file, so a rebuild that came out as
+something else says so instead of shipping. What it reproduces is the *build*, not necessarily
+the bytes: caves are appended past whatever sections are already there, so a list applied in a
+different order lands them at different addresses and still verifies as the same engine. Without the list those parameters live only in the
+patched binary, which makes reproducing a build a matter of detecting it back out of the very
+file you are trying to rebuild.
+
 ## The patch framework
 
 `apply_patches(game_dat, patches, output=None)` applies an ordered list of `Patch` subclasses to a
@@ -1565,8 +1734,8 @@ apply_patches(
 | module | what |
 |--------|------|
 | [`patcher.py`](patcher.py) | the `Patch` base class (`apply` / `verify` / CLI hooks) + `apply_patches` driver |
-| [`cli.py`](cli.py) | the `sage-patch` console script (`apply` / `verify` / `list` / `sagepatch`) |
-| [`sagepatch.py`](sagepatch.py) | reads a patched binary back as the `.sagepatch` describing the INI it accepts — patch detection plus a live read of every engine name table |
+| [`cli.py`](cli.py) | the `sage-patch` console script (`apply` / `verify` / `list` / `info` / `sagepatch` / `rebuild`) |
+| [`sagepatch.py`](sagepatch.py) | reads a patched binary back as the `.sagepatch`: the manifest of patches it carries (with their recovered parameters) plus the INI surface they add — patch detection, a live read of every engine name table, and `rebuild` the other way |
 | [`registry.py`](registry.py) | the name→`Patch` map the CLI dispatches over; register a patch here to expose it |
 | [`addresses.py`](addresses.py) | every address of the target build, in one place — the globals, the hooked functions and the labels inside them that the caves jump to |
 | [`asm.py`](asm.py) | the tiny label-resolving x86 emitter the caves are written with |

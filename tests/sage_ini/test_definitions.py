@@ -1270,9 +1270,10 @@ def test_audioevent_fields_are_typed():
     assert [m.name for m in snd.Control] == ["FADE_ON_KILL", "RANDOMSTART"]
     assert snd.SubmixSlider.name == "SOUNDFX"
     # VolumeSliderMultiplier repeats (one per mixer slider): each colon-keyed line is its own
-    # typed record, not a clobbered last-wins scalar.
+    # typed record, not a clobbered last-wins scalar. `Slider` is the submix enum, matched
+    # case-insensitively like the other audio enums.
     mults = snd.VolumeSliderMultiplier
-    assert [(m.Slider, m.Multiplier) for m in mults] == [("Voice", 70), ("SoundFX", 50)]
+    assert [(m.Slider.name, m.Multiplier) for m in mults] == [("VOICE", 70), ("SOUNDFX", 50)]
 
 
 def test_audiosettings_fields_are_typed():

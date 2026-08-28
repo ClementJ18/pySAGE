@@ -71,7 +71,7 @@ class ModelConditionState(NestedAttribute):
     Shadow: e.ObjectShadowType
     ShadowSizeX: t.Int
     ShadowSizeY: t.Int
-    ShadowTexture: t.Opaque
+    ShadowTexture: t.TextureFile
     ShadowMaxHeight: t.Float
     ShadowOverrideLODVisibility: t.Bool
     ShadowOpacityStart: t.Int
@@ -149,11 +149,11 @@ class W3DModelDraw(Draw):
     AnimationsRequirePower: t.Bool
     ParticlesAttachedToAnimatedBones: t.Bool
     MinLODRequired: e.LodLevel
-    ExtraPublicBone: t.List[t.Opaque]
+    ExtraPublicBone: t.List[t.Bone]
     AttachToBoneInAnotherModule: t.Bone
     TrackMarks: t.TextureFile
-    TrackMarksLeftBone: t.Opaque
-    TrackMarksRightBone: t.Opaque
+    TrackMarksLeftBone: t.Bone
+    TrackMarksRightBone: t.Bone
     InitialRecoilSpeed: t.Float
     MaxRecoilDistance: t.Float
     RecoilSettleSpeed: t.Float
@@ -174,11 +174,11 @@ class W3DScriptedModelDraw(W3DModelDraw):
     HighDetailOnly: t.Bool
     ShadowForceDisable: t.Bool
     RandomTexture: t.List[t.Opaque]  # repeats: texture-swap variants
-    WallBoundsMesh: t.Opaque
-    RaisedWallMesh: t.Opaque
-    RampMesh1: t.Opaque
-    RampMesh2: t.Opaque
-    WadingParticleSys: t.Opaque
+    WallBoundsMesh: t.SubObject
+    RaisedWallMesh: t.SubObject
+    RampMesh1: t.SubObject
+    RampMesh2: t.SubObject
+    WadingParticleSys: t.ParticleSystem
     DependencySharedModelFlags: t.FlagList[e.ModelCondition]
     AlphaCameraFadeOuterRadius: t.Int
     AlphaCameraFadeInnerRadius: t.Int
@@ -234,18 +234,18 @@ class W3DTreeDraw(Draw):
 
 
 class RenderObjectDraw(Draw):
-    Shader1: t.Opaque
+    Shader1: e.W3DShader
 
 
 class GpuDraw(Draw):
     FramesPerRow: t.Int
     TotalFrames: t.Int
     SpeedMultiplier: t.Float
-    DetailTexture: t.Opaque
+    DetailTexture: t.TextureFile
 
 
 class W3DPropDraw(Draw):
-    ModelName: t.Opaque
+    ModelName: t.ModelFile
 
 
 class W3DStreakDraw(Draw):
@@ -290,9 +290,9 @@ class W3DTruckDraw(W3DModelDraw):
     CabRotationMultiplier: t.Float
     TrailerRotationMultiplier: t.Float
     RotationDamping: t.Float
-    Dust: t.Opaque
-    DirtSpray: t.Opaque
-    PowerslideSpray: t.Opaque
+    Dust: t.ParticleSystem
+    DirtSpray: t.ParticleSystem
+    PowerslideSpray: t.ParticleSystem
     RandomTexture: t.List[t.Opaque]
 
 
@@ -303,7 +303,7 @@ class LightningDraw(Draw):
 
 
 class W3DBuffDraw(W3DModelDraw):
-    ModelName: t.Opaque
+    ModelName: t.ModelFile
     PreDraw: t.Bool
     StaticModelLODMode: t.Bool
 
@@ -337,10 +337,10 @@ class W3DTornadoDraw(W3DModelDraw):
 
 class W3DQuadrupedDraw(W3DModelDraw):
     StaticModelLODMode: t.Bool
-    LeftFrontFootBone: t.Opaque
-    RightFrontFootBone: t.Opaque
-    LeftRearFootBone: t.Opaque
-    RightRearFootBone: t.Opaque
+    LeftFrontFootBone: t.Bone
+    RightFrontFootBone: t.Bone
+    LeftRearFootBone: t.Bone
+    RightRearFootBone: t.Bone
 
 
 class QuadDraw(Draw):

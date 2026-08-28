@@ -107,7 +107,7 @@ in stock RotWK.
 ```
 field table 0xC78544   ArmyScriptingName -> +0x4 (AsciiString)
                        IsControllableByOwner -> +0x8 (Bool)
-parse 0x008E6185    -> appends a 12-byte record to the act's list at act+0xA8
+parse 0x008E6185    -> appends a 16-byte record to the act's list at act+0xA8 (append 0x0096DF5D)
 execute 0x0096C4AB  -> pass 9 of the 10 the act runner makes:
                          army = lookupByScriptingName(rec+0x4)      ; 0x006B53A4
                          army->setControllableByOwner(rec+0x8)      ; 0x0071A64E -> army+0x58
@@ -134,6 +134,13 @@ live through `live-bridge` to confirm the value lands before concluding anything
 behaviour.
 
 ## 3. Heroes across the battle boundary — *every tool is live; two of them are used once between them*
+
+> **Superseded in part, 2026-08-27.** Problem (2) below — the dead hero — is answered in
+> [`hero-permadeath.md`](hero-permadeath.md): the mechanism is the post-battle harvest at
+> `0x00811E1F`, which records only the survivors, and the lever is `ArmyEntry`'s `Default` plus
+> `LivingWorldPlayerArmy`'s `SurvivalThreshhold`. The carryover/revival reading in this section is
+> a different system and was not the one that loses the hero. Problem (1), the per-hero ownership
+> transfer, still stands as written.
 
 **Your complaint, in your words.** Two separate problems, both at the **tactical** boundary rather
 than on the strategic map:
@@ -251,13 +258,24 @@ BFME1 contains **zero** carryover machinery. Counting strings across both binari
 | `ArmyCarryoverPoints`, `DelayCarryoverSpawningOf` | 1 each | **0** |
 | `MSG_REVIVE` | 1 | 1 |
 
-The only shared string is in-mission revive. BFME1's strategic armies are defined by
-`LivingWorldPlayerArmy` `ArmyEntry` rows, each battle instantiates from that roster afresh, and
-**nothing ever writes back** — so a hero killed in a battle is still on the roster afterwards and is
-instantiated again next time.
+The only shared string is in-mission revive.
 
-**Heroes come back in BFME1 because their death was never recorded, not because anything revives
-them.** RotWK added persistence, and persistence of death is the regression.
+> **Wrong, and measured wrong on 2026-08-28.** The string counts above are accurate; the paragraph
+> that used to follow them was not. It read: *"BFME1's strategic armies are defined by
+> `LivingWorldPlayerArmy` `ArmyEntry` rows, each battle instantiates from that roster afresh, and
+> nothing ever writes back — so a hero killed in a battle is still on the roster afterwards…
+> Heroes come back in BFME1 because their death was never recorded, not because anything revives
+> them. RotWK added persistence, and persistence of death is the regression."*
+>
+> **BFME1 writes back.** Read out of two BFME1 saves either side of Saruman's death in evil mission
+> 1: `Evil_SarumanPlayerArmy` went in holding one `ArmyEntry` and came out holding six — five
+> surviving Isengard hordes it never had, plus Saruman carrying an `Upgrade_SarumanFireBall` he
+> never had. Both games harvest a battle into their living-world armies. They differ in **one
+> rule**: BFME1 keeps a hero with no surviving object in his army, RotWK moves him out of it into
+> the faction's fortress hero-spawn queue. See [`hero-permadeath.md`](hero-permadeath.md).
+>
+> The absence of a `Carryover` string in BFME1 says BFME1 has no *carryover subsystem*. It does not
+> say BFME1 has no persistence, and reading it that way is what produced the wrong framing.
 
 That also explains why BFME1 needed [`ModifyArmyEntry`](bfme1-act-verbs.md) — swapping
 `CurUnitTemplate` for `NewUnitTemplate` was the *only* way to change an army's membership, precisely

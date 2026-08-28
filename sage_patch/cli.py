@@ -5,6 +5,7 @@
     sage-patch apply  commandset-limit --count 64 --in game.dat.backup --out game.dat
     sage-patch verify commandset-limit --count 64 game.dat
     sage-patch sagepatch game.dat -o /path/to/mod/.sagepatch
+    sage-patch rebuild /path/to/mod/.sagepatch --in game_original.dat --out game.dat
 
 ``list`` names every registered patch in a table; ``info`` opens one of them up - its author,
 its source and write-up, its parameters and the INI surface it adds - and reads a binary too
@@ -17,7 +18,9 @@ non-zero and prints the mismatches when a file does not carry the requested patc
 
 ``sagepatch`` goes the other way: instead of naming a patch, it reads a binary and reports what
 is *in* it, as the `.sagepatch` file `sage_ini` and `sage_lint` load so the mod's INI is checked
-against the engine it actually runs on (see :mod:`sage_patch.sagepatch`).
+against the engine it actually runs on (see :mod:`sage_patch.sagepatch`). That file also lists
+every patch found, with the parameters it was applied with, which makes it the build's manifest -
+and ``rebuild`` reads that list back and replays it onto a clean binary.
 """
 
 from __future__ import annotations
@@ -35,7 +38,14 @@ from pathlib import Path
 from sage_ini.engine import Engine, dump_engine, load_engine
 from sage_patch.patcher import EXPERIMENTAL_WARNING, Patch, apply_patches
 from sage_patch.registry import PATCHES
-from sage_patch.sagepatch import Generated, differences, generate, generate_from_patches
+from sage_patch.sagepatch import (
+    Generated,
+    differences,
+    generate,
+    generate_from_patches,
+    patch_differences,
+    rebuild,
+)
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
@@ -260,10 +270,70 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_rebuild(args: argparse.Namespace) -> int:
+    """Rebuild a `game.dat` from the manifest in a `.sagepatch`: apply every patch it lists, with
+    the parameters it records, to a clean binary.
+
+    The parameters are the reason this is not a shell script somebody keeps beside their mod. A
+    build is `commandset-limit` at *this* N, `cah-factions` with *these* sides, a keyword spelled
+    the way that mod's INI spells it - and without the manifest those live only in the patched
+    binary, which makes reproducing a build a matter of detecting it back out of the very file
+    you are trying to rebuild. With the file, a clean binary plus `.sagepatch` is the whole
+    recipe.
+
+    It verifies rather than trusts: the result is read back with `generate` and compared with the
+    manifest, so a rebuild that quietly came out as something else says so."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    committed = load_engine(args.manifest)
+    for warning in committed.warnings:
+        print(f"{args.manifest}: {warning}", file=sys.stderr)
+    if not committed.patches:
+        print(
+            f"{args.manifest} has no [[patches]] section, so there is nothing to rebuild from - "
+            "it describes the INI surface only. Regenerate it from the patched binary with "
+            "`sage-patch sagepatch <game.dat>`, or list the patches in it by hand",
+            file=sys.stderr,
+        )
+        return 2
+
+    patches, problems = rebuild(committed)
+    for problem in problems:
+        print(f"{args.manifest}: {problem}", file=sys.stderr)
+    if problems:
+        return 2
+
+    out = apply_patches(args.src, patches, output=args.out)
+    print(f"wrote {out}")
+
+    written = generate(Path(out).read_bytes()).engine
+    drift = patch_differences(committed, written)
+    if drift:
+        print(f"FAIL: {out} is not the build {args.manifest} describes:", file=sys.stderr)
+        for problem in drift:
+            print(f"  - {problem}", file=sys.stderr)
+        return 1
+    print(f"OK: {out} carries every patch {args.manifest} lists")
+
+    # The manifest is what the rebuild was asked for, so it decides pass or fail; a surface that
+    # disagrees is a *stale file* rather than a bad binary - a hand-written manifest that lists
+    # patches and no deltas, or one generated before this version described those patches - and
+    # the fix is to regenerate it from the binary now on disk.
+    stale = [problem for problem in differences(committed, written) if problem not in drift]
+    if stale:
+        print(
+            f"note: the INI surface in {args.manifest} is not the one this build produces; "
+            f"regenerate it with `sage-patch sagepatch {out}`",
+            file=sys.stderr,
+        )
+        for problem in stale:
+            print(f"  - {problem}", file=sys.stderr)
+    return 0
+
+
 def _report(generated: Generated, stream) -> None:
     """The human half of `sagepatch`: what was recognised and anything worth knowing."""
     if generated.patches:
-        print("patches found:", file=stream)
+        print(f"patches found ({len(generated.patches)}, all listed in the file):", file=stream)
         for patch in generated.patches:
             print(f"  - {patch}", file=stream)
     else:
@@ -305,9 +375,13 @@ def _cmd_sagepatch(args: argparse.Namespace) -> int:
         return 0
 
     header = (
-        "Written by `sage-patch sagepatch` - the INI surface this game.dat accepts.",
+        "Written by `sage-patch sagepatch` - what this game.dat is made of, and the INI surface",
+        "it accepts. [[patches]] is the build manifest: every patch found, with the parameters it",
+        "was applied with, whether or not it changes any INI.",
+        "",
         "Commit it beside .sagelint; sage_lint and sage_ini read it (see sage_ini.engine).",
         "Regenerate it whenever the binary is repatched: `sage-patch sagepatch <game.dat>`.",
+        "Rebuild the binary from it: `sage-patch rebuild <file> --in clean.dat --out game.dat`.",
     )
     text = dump_engine(generated.engine, "\n".join(header))
     if args.out is None:
@@ -349,10 +423,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sagepatch = sub.add_parser(
         "sagepatch",
-        help="write the .sagepatch describing the INI surface a patched game.dat accepts",
-        description="Read a patched game.dat and write the .sagepatch that teaches sage_ini and "
-        "sage_lint what INI it accepts: the fields, name-table tokens and raised limits its "
-        "patches add. Commit the result beside .sagelint.",
+        help="write the .sagepatch listing what a patched game.dat carries and accepts",
+        description="Read a patched game.dat and write its .sagepatch: the manifest of every "
+        "patch it carries, with the parameters each was applied with, and the INI surface those "
+        "patches add - the fields, name-table tokens and raised limits that teach sage_ini and "
+        "sage_lint what this engine accepts. Commit the result beside .sagelint.",
     )
     sagepatch.add_argument(
         "file",
@@ -386,6 +461,36 @@ def build_parser() -> argparse.ArgumentParser:
         "non-zero on any difference - the drift check for a committed file",
     )
     sagepatch.set_defaults(func=_cmd_sagepatch)
+
+    rebuild_p = sub.add_parser(
+        "rebuild",
+        help="rebuild a game.dat from the patch list in a .sagepatch",
+        description="Apply every patch a .sagepatch manifest lists, with the parameters it "
+        "records, to a clean game.dat - reproducing the build the file describes. The result is "
+        "read back and compared with the manifest: a patch it does not carry exits non-zero, and "
+        "an INI surface that no longer matches is reported as a file to regenerate.",
+    )
+    rebuild_p.add_argument(
+        "manifest",
+        metavar="SAGEPATCH",
+        help="the .sagepatch to rebuild from, as `sage-patch sagepatch` wrote it",
+    )
+    rebuild_p.add_argument(
+        "--in",
+        dest="src",
+        required=True,
+        metavar="GAME_DAT",
+        help="clean, unpatched input binary (read, never modified)",
+    )
+    rebuild_p.add_argument(
+        "--out",
+        dest="out",
+        required=True,
+        metavar="OUT",
+        help="where to write the rebuilt binary - required, so the clean input cannot be "
+        "overwritten by the build made from it",
+    )
+    rebuild_p.set_defaults(func=_cmd_rebuild)
 
     apply_p = sub.add_parser("apply", help="apply a patch to a copy of a game.dat")
     verify_p = sub.add_parser("verify", help="check a game.dat already carries a patch")

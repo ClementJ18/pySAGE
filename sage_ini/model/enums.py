@@ -2436,6 +2436,48 @@ class ArmySize(BFMEEnum):
     LARGE = enum.auto()
 
 
+class AutoResolveUnitType(BFMEEnum):
+    """The strategic-map combat class an object fights as when a battle is auto-resolved
+    (`Object.AutoResolveUnitType`), and the class an auto-resolve bonus targets."""
+
+    AutoResolveUnit_Soldier = enum.auto()
+    AutoResolveUnit_Archer = enum.auto()
+    AutoResolveUnit_Pikemen = enum.auto()
+    AutoResolveUnit_Cavalry = enum.auto()
+    AutoResolveUnit_Monster = enum.auto()
+    AutoResolveUnit_Hero = enum.auto()
+    AutoResolveUnit_Fortress = enum.auto()
+    AutoResolveUnit_Siege = enum.auto()
+    AutoResolveUnit_Support = enum.auto()
+    AutoResolveUnit_INVALID = enum.auto()
+
+
+class Difficulty(BFMEEnum):
+    """An AI difficulty tier (`DifficultyTuning.Difficulty`)."""
+
+    EASY = enum.auto()
+    NORMAL = enum.auto()
+    HARD = enum.auto()
+    BRUTAL = enum.auto()
+
+
+class W3DShader(BFMEEnum):
+    """The blend mode a `RenderObjectDraw` layer draws with. Distinct from
+    `ParticleSystemShader`: the engine resolves it against its own, wider array."""
+
+    NONE = enum.auto()
+    ADDITIVE = enum.auto()
+    ADDITIVE_ALPHA_TEST = enum.auto()
+    ALPHA = enum.auto()
+    ALPHA_TEST = enum.auto()
+    MULTIPLY = enum.auto()
+    ADDITIVE_NO_DEPTH_TEST = enum.auto()
+    ALPHA_NO_DEPTH_TEST = enum.auto()
+    W3D_DIFFUSE = enum.auto()
+    W3D_ALPHA = enum.auto()
+    W3D_EMISSIVE = enum.auto()
+
+
 class CollideSize(BFMEEnum):
     """The size bucket a dead object still collides at (`Object.DeadCollideSize`)."""
 

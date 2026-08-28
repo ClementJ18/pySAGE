@@ -69,7 +69,7 @@ class AudioEvent(IniObject):
     ZoomedInOffscreenOcclusionPercent: Float
     LoopCount: Int
     # A nested `AudioEvent` sequence entry: one sound played at a delay from the act start.
-    Sound: Opaque
+    Sound: t.Sound
     DelayFromActStart: Float
 
 
@@ -156,7 +156,7 @@ class DialogEvent(IniObject):
     Filename: t.AudioFile
     Type: FlagList[e.AudioTypeFlags]
     SubmixSlider: e.AudioVolumeSlider
-    Control: Opaque
+    Control: FlagList[e.AudioControlFlags]
     Delay: t.IntRange
     Limit: t.Int
     LowPassCutoff: t.Float
@@ -238,7 +238,7 @@ class NewEvaEvent(_EvaEventBase):
     key = "evaevents"
 
     MillisecondsToWaitBeforePlaying: Int
-    OtherEvaEventsToBlock: List[Opaque]
+    OtherEvaEventsToBlock: List[t.EvaEvent]
 
 
 class Video(IniObject):
@@ -266,6 +266,7 @@ class LivingWorldPlayerArmy(IniObject):
     MinCommandPoints: t.Int
     NightColor: t.RGB
     ReplenishArmyName: t.Opaque
+    SurvivalThreshhold: t.Int
 
     nested_attributes = {"ArmyEntry": ["ArmyEntry"]}
 
@@ -277,7 +278,7 @@ class Rank(IniObject):
     SkillPointsNeededCampaign: Int
     SciencePurchasePointsGranted: Int
     RankName: t.Label
-    SciencesGranted: t.Opaque
+    SciencesGranted: t.List[t.ScienceRef]
     SkillPointsNeeded: t.Int
 
 
@@ -328,27 +329,27 @@ class LivingWorldIconObject(NestedAttribute):
 
     key = None
 
-    Model: Opaque
-    SubObjects: Opaque
-    AnimMode: Opaque
+    Model: t.ModelFile
+    SubObjects: List[t.SubObject]
+    AnimMode: e.AnimationMode
     ZOffset: Float
     OrientAngle: Float
     Scale: Float
     Clickable: Bool
-    Pickbox: Opaque
-    Shadow: Opaque
+    Pickbox: t.ModelFile
+    Shadow: e.ObjectShadowType
     HideWhenUnderConstruction: Bool
     HideWhenNotUnderConstruction: Bool
     HideWhenUnhilighted: Bool
     HideWhenUnselected: Bool
     HideWhenNotProducing: Bool
     ShowOnlyForAllies: Bool
-    FadeMethod: Opaque
-    FadeTypeForHilighting: Opaque
-    FadeTypeForUnhilighting: Opaque
-    FadeTypeForSelection: Opaque
-    FadeTypeForShowing: Opaque
-    FadeTypeForHiding: Opaque
+    FadeMethod: e.FadeMethod
+    FadeTypeForHilighting: e.FadeType
+    FadeTypeForUnhilighting: e.FadeType
+    FadeTypeForSelection: e.FadeType
+    FadeTypeForShowing: e.FadeType
+    FadeTypeForHiding: e.FadeType
     FadeHoldPercent: Float
     FadeInTime: Float
     FadeOutTime: Float
@@ -356,7 +357,7 @@ class LivingWorldIconObject(NestedAttribute):
     DisplayAtRallyPoint: Bool
     ShowOnlyAfterMoveOrder: Bool
     UseHouseColor: Bool
-    VisibleArmySizes: Opaque
+    VisibleArmySizes: FlagList[e.ArmySize]
 
 
 class LivingWorldArmyIcon(IniObject):
@@ -371,15 +372,15 @@ class LivingWorldArmyIcon(IniObject):
     WelcomeReinforcementsSound: Sound
     KickOutReinforcementsSound: Sound
     DisbandUnitSound: Sound
-    RetreatTeleportToHomeRegionEvaEvent: Opaque
-    RetreatTeleportToNonHomeRegionEvaEvent: Opaque
+    RetreatTeleportToHomeRegionEvaEvent: t.EvaEvent
+    RetreatTeleportToNonHomeRegionEvaEvent: t.EvaEvent
     OnMoveSound: t.Opaque
 
 
 class LivingWorldAnimObject(IniObject):
     key = "livingworldanimobjects"
 
-    Model: Opaque
+    Model: t.ModelFile
     Pos: Coords
     Shadow: e.ObjectShadowType
     HasAnim: Bool
@@ -438,7 +439,7 @@ class LivingWorldCampaign(IniObject):
     StartingCashRTSWithFort: Int
     InitialRevivalCostMultiplier: Float
     InitialRevivalTimeMultiplier: Float
-    LocalPlayer: Opaque
+    LocalPlayer: t.FactionRef
     LivingWorldVictoryType: t.Opaque
     Tutorial: t.Opaque
 
@@ -447,11 +448,11 @@ class LoadSubsystem(IniObject):
     key = "loadsubsystems"
 
     Loader: e.SubsystemLoader
-    InitFile: Opaque
-    InitFileDebug: Opaque
-    InitPath: Opaque
-    ExcludePath: Opaque
-    IncludePathCinematics: Opaque
+    InitFile: List[t.IniFile]
+    InitFileDebug: t.IniFile
+    InitPath: List[t.String]
+    ExcludePath: List[t.IniFile]
+    IncludePathCinematics: List[t.String]
 
 
 class LivingWorldBuilding(IniObject):
@@ -560,7 +561,7 @@ class FactionVictoryData(IniObject):
 class AutoResolveLeadership(IniObject):
     key = "autoresolveleaderships"
 
-    Affects: List[Opaque]
+    Affects: FlagList[e.AutoResolveUnitType]
     AffectsHigherLevelFirst: Bool
 
     nested_attributes = {"BonusForLevel": ["BonusForLevel"]}
@@ -590,8 +591,8 @@ class LivingWorldPlayerTemplate(IniObject):
     key = "livingworldplayertemplates"
 
     Faction: t.FactionRef
-    Music: Opaque
-    AutoResolveLoop: Opaque
+    Music: t.Sound
+    AutoResolveLoop: t.Sound
     StartingWorldCP: Int
     MaxWorldCP: Int
     StartingHeroCP: Int
@@ -633,14 +634,14 @@ class SpawnArmy(IniObject):
 
     ScriptingName: Opaque
     SpawnForTemplates: t.PlayerTemplateRef
-    PlayerArmy: Opaque
+    PlayerArmy: t.PlayerArmyRef
     Icon: t.ArmyIcon
     HeroTemplateName: t.ObjectRef
     Banner: t.BannerTypeRef
     InitialRegion: Opaque
     MoveSpeed: Float
     IsCity: Bool
-    PalantirMovie: Opaque
+    PalantirMovie: t.VideoRef
     Position: Coords
 
 
@@ -749,7 +750,7 @@ class ArmyDefinition(IniObject):
 
     HeroBuildOrder: List[t.ObjectRef]
     OffensiveBuildings: List[t.ObjectRef]
-    ScavangedResourceBuildings: t.Opaque
+    ScavangedResourceBuildings: t.List[t.ObjectRef]
 
 
 class ControlBarScheme(IniObject):
@@ -832,8 +833,8 @@ class ConcurrentRegionBonus(IniObject):
     Territory: t.Label
     EffectName: t.String
     Regions: List[Opaque]
-    UnifiedEvaEvent: Opaque
-    LostEvaEvent: Opaque
+    UnifiedEvaEvent: t.EvaEvent
+    LostEvaEvent: t.EvaEvent
     LookAtCenter: Coords
     LookAtHeading: Float
     LookAtZoom: Float
@@ -877,11 +878,11 @@ class WaterTextureList(IniObject):
 class SkyboxTextureSet(IniObject):
     key = "skyboxtexturesets"
 
-    SkyboxTextureN: Opaque
-    SkyboxTextureE: Opaque
-    SkyboxTextureS: Opaque
-    SkyboxTextureW: Opaque
-    SkyboxTextureT: Opaque
+    SkyboxTextureN: t.TextureFile
+    SkyboxTextureE: t.TextureFile
+    SkyboxTextureS: t.TextureFile
+    SkyboxTextureW: t.TextureFile
+    SkyboxTextureT: t.TextureFile
 
 
 class LivingWorldRegionCampaign(IniObject):
@@ -956,7 +957,7 @@ class LinearCampaign(IniObject):
 
     CampaignDisplayNameLabel: t.Label
     CarryoverUnit: t.ObjectRef
-    OverallCampaignIntroMovie: Opaque
+    OverallCampaignIntroMovie: t.VideoRef
 
     nested_attributes = {"Mission": ["Mission"]}
 
@@ -1037,9 +1038,9 @@ class GameData(IniObject):
     DebugCashValueMapTileDuration: Int
     MaxDebugCashValueMapValue: Int
     AdjustCliffTextures: t.Bool
-    AdvancedTutorialLoadScreenMusicTrack: t.Opaque
-    AdvancedTutorialLoadScreenStillImage: t.Opaque
-    AdvancedTutorialMap: t.Opaque
+    AdvancedTutorialLoadScreenMusicTrack: t.MusicTrackRef
+    AdvancedTutorialLoadScreenStillImage: t.Image
+    AdvancedTutorialMap: t.MapFile
     AdvancedTutorialMillisecondsAfterStartToStartFadeUp: t.Int
     AdvancedTutorialObjective: t.Label
     AllowTreeFading: t.Bool
@@ -1058,30 +1059,30 @@ class GameData(IniObject):
     AudioOn: t.Bool
     AutoAflameParticleMax: t.Int
     AutoAflameParticlePrefix: t.String
-    AutoAflameParticleSystem: t.Opaque
+    AutoAflameParticleSystem: t.ParticleSystem
     AutoFireParticleLargeMax: t.Int
     AutoFireParticleLargePrefix: t.String
-    AutoFireParticleLargeSystem: t.Opaque
+    AutoFireParticleLargeSystem: t.ParticleSystem
     AutoFireParticleMediumMax: t.Int
     AutoFireParticleMediumPrefix: t.String
-    AutoFireParticleMediumSystem: t.Opaque
+    AutoFireParticleMediumSystem: t.ParticleSystem
     AutoFireParticleSmallMax: t.Int
     AutoFireParticleSmallPrefix: t.String
-    AutoFireParticleSmallSystem: t.Opaque
+    AutoFireParticleSmallSystem: t.ParticleSystem
     AutoSmokeParticleLargeMax: t.Int
     AutoSmokeParticleLargePrefix: t.String
-    AutoSmokeParticleLargeSystem: t.Opaque
+    AutoSmokeParticleLargeSystem: t.ParticleSystem
     AutoSmokeParticleMediumMax: t.Int
     AutoSmokeParticleMediumPrefix: t.String
-    AutoSmokeParticleMediumSystem: t.Opaque
+    AutoSmokeParticleMediumSystem: t.ParticleSystem
     AutoSmokeParticleSmallMax: t.Int
     AutoSmokeParticleSmallPrefix: t.String
-    AutoSmokeParticleSmallSystem: t.Opaque
-    BaseRegenDelay: t.Opaque
+    AutoSmokeParticleSmallSystem: t.ParticleSystem
+    BaseRegenDelay: t.Int
     BaseRegenHealthPercentPerSecond: t.Float
-    BasicTutorialLoadScreenMusicTrack: t.Opaque
-    BasicTutorialLoadScreenStillImage: t.Opaque
-    BasicTutorialMap: t.Opaque
+    BasicTutorialLoadScreenMusicTrack: t.MusicTrackRef
+    BasicTutorialLoadScreenStillImage: t.Image
+    BasicTutorialMap: t.MapFile
     BasicTutorialMillisecondsAfterStartToStartFadeUp: t.Int
     BasicTutorialObjective: t.Label
     BilinearTerrainTex: t.Bool
@@ -1116,9 +1117,9 @@ class GameData(IniObject):
     DefaultMaxDistanceForEngaged: t.Int
     DefaultOcclusionDelay: t.Int
     DefaultStartingCash: t.Int
-    DefaultStructureRepairBuffFxList: t.Opaque
+    DefaultStructureRepairBuffFxList: t.FXList
     DefaultStructureRubbleHeight: t.Float
-    DefaultUnitHealingBuffFxList: t.Opaque
+    DefaultUnitHealingBuffFxList: t.FXList
     DefaultVoiceAttackChargeTimeout: t.Int
     DisablePixelShader: t.Bool
     DownwindAngle: t.Float
@@ -1128,18 +1129,18 @@ class GameData(IniObject):
     EnableHouseColor: t.Bool
     EnforceMaxCameraHeight: t.Bool
     EvilCommandPointLimit: t.Int
-    EvilCommandPoints: t.Opaque
-    EvilCommandPointsAI: t.Opaque
+    EvilCommandPoints: t.IntRange
+    EvilCommandPointsAI: t.IntRange
     EvilCommandPointsBonus: t.Int
-    EvilCommandPointsMP2: t.Opaque
-    EvilCommandPointsMP3: t.Opaque
-    EvilCommandPointsMP4: t.Opaque
-    EvilCommandPointsMP5: t.Opaque
-    EvilCommandPointsMP56: t.Opaque
-    EvilCommandPointsMP6: t.Opaque
-    EvilCommandPointsMP7: t.Opaque
-    EvilCommandPointsMP78: t.Opaque
-    EvilCommandPointsMP8: t.Opaque
+    EvilCommandPointsMP2: t.IntRange
+    EvilCommandPointsMP3: t.IntRange
+    EvilCommandPointsMP4: t.IntRange
+    EvilCommandPointsMP5: t.IntRange
+    EvilCommandPointsMP56: t.IntRange
+    EvilCommandPointsMP6: t.IntRange
+    EvilCommandPointsMP7: t.IntRange
+    EvilCommandPointsMP78: t.IntRange
+    EvilCommandPointsMP8: t.IntRange
     FogAlpha: t.Int
     ForceModelsToFollowTimeOfDay: t.Bool
     ForceModelsToFollowWeather: t.Bool
@@ -1147,22 +1148,22 @@ class GameData(IniObject):
     GarrisonedRangeMultiplier: t.Float
     GenericDamageFieldName: t.Opaque
     GenericDamageWarningName: t.Opaque
-    GetHealedAnimationName: t.Opaque
+    GetHealedAnimationName: t.Animation
     GetHealedAnimationTime: t.Float
     GetHealedAnimationZRise: t.Float
     GoodCommandPointLimit: t.Int
-    GoodCommandPoints: t.Opaque
-    GoodCommandPointsAI: t.Opaque
+    GoodCommandPoints: t.IntRange
+    GoodCommandPointsAI: t.IntRange
     GoodCommandPointsBonus: t.Int
-    GoodCommandPointsMP2: t.Opaque
-    GoodCommandPointsMP3: t.Opaque
-    GoodCommandPointsMP4: t.Opaque
-    GoodCommandPointsMP5: t.Opaque
-    GoodCommandPointsMP56: t.Opaque
-    GoodCommandPointsMP6: t.Opaque
-    GoodCommandPointsMP7: t.Opaque
-    GoodCommandPointsMP78: t.Opaque
-    GoodCommandPointsMP8: t.Opaque
+    GoodCommandPointsMP2: t.IntRange
+    GoodCommandPointsMP3: t.IntRange
+    GoodCommandPointsMP4: t.IntRange
+    GoodCommandPointsMP5: t.IntRange
+    GoodCommandPointsMP56: t.IntRange
+    GoodCommandPointsMP6: t.IntRange
+    GoodCommandPointsMP7: t.IntRange
+    GoodCommandPointsMP78: t.IntRange
+    GoodCommandPointsMP8: t.IntRange
     Gravity: t.Float
     GroundStiffness: t.Float
     GroupMoveClickToGatherAreaFactor: t.Float
@@ -1208,7 +1209,7 @@ class GameData(IniObject):
     InvisibilityOpacityMin: t.Float
     KeyboardCameraRotateSpeed: t.Float
     KeyboardScrollSpeedFactor: t.Float
-    LevelGainAnimationName: t.Opaque
+    LevelGainAnimationName: t.Animation
     LevelGainAnimationTime: t.Float
     LevelGainAnimationZRise: t.Float
     LowEnergyPenaltyModifier: t.Float
@@ -1250,11 +1251,11 @@ class GameData(IniObject):
     MoveHintName: t.String
     MovementPenaltyDamageState: e.BodyDamageType
     MultiPassTerrain: t.Bool
-    MultiPlayBuildingSpeedMult: t.Opaque
-    MultiPlayBuildingXPMult: t.Opaque
-    MultiPlayMoneyMult: t.Opaque
-    MultiPlayUnitSpeedMult: t.Opaque
-    MultiPlayUnitXPMult: t.Opaque
+    MultiPlayBuildingSpeedMult: t.PerPlayerCountMultiplier
+    MultiPlayBuildingXPMult: t.PerPlayerCountMultiplier
+    MultiPlayMoneyMult: t.PerPlayerCountMultiplier
+    MultiPlayUnitSpeedMult: t.PerPlayerCountMultiplier
+    MultiPlayUnitXPMult: t.PerPlayerCountMultiplier
     MultipleFactory: t.Float
     MusicOn: t.Bool
     NetworkCushionHistoryLength: t.Int
@@ -1339,7 +1340,7 @@ class GameData(IniObject):
     SkyBoxScale: t.Float
     Sounds3DOn: t.Bool
     SoundsOn: t.Bool
-    SpecialPowerViewObject: t.Opaque
+    SpecialPowerViewObject: t.ObjectRef
     SpeechOn: t.Bool
     StandardMinefieldDensity: t.Float
     StandardMinefieldDistance: t.Float
@@ -1539,9 +1540,9 @@ class AIData(IniObject):
 
     UseLowLODTrees: Bool
     LowLodTreeScale: Float
-    LowLodTreeName: Opaque
-    LowLodTreeNameNoGrab: Opaque
-    LowLodTreeNameNoHarvest: Opaque
+    LowLodTreeName: t.ObjectRef
+    LowLodTreeNameNoGrab: t.ObjectRef
+    LowLodTreeNameNoHarvest: t.ObjectRef
 
     StructureSeconds: Float
     TeamSeconds: Float
@@ -1697,11 +1698,11 @@ class Bridge(IniObject):
     TowerObjectNameFromRight: t.ObjectRef
     TowerObjectNameToLeft: t.ObjectRef
     TowerObjectNameToRight: t.ObjectRef
-    ScaffoldObjectName: Opaque
-    ScaffoldSupportObjectName: Opaque
-    DamagedToSound: t.Opaque
+    ScaffoldObjectName: t.ObjectRef
+    ScaffoldSupportObjectName: t.ObjectRef
+    DamagedToSound: t.Sound
     NumFXPerType: t.Int
-    RepairedToSound: t.Opaque
+    RepairedToSound: t.Sound
     TransitionEffectsHeight: t.Float
     TransitionToFX: t.FXList
     TransitionToOCL: t.Opaque
@@ -2010,11 +2011,11 @@ class LivingWorldMapInfo(IniObject):
 
     nested_attributes = {"EyeTower": ["EyeTower"]}
 
-    MapObject: Opaque
+    MapObject: t.ModelFile
     NumWorldTiles: Int
-    CloudBorderSubObject: Opaque
-    TextLayerSubObject: Opaque
-    AddShadowSubObject: Opaque
+    CloudBorderSubObject: t.SubObject
+    TextLayerSubObject: t.SubObject
+    AddShadowSubObject: List[t.SubObject]
 
     Center: Coords
     Extent: Coords
@@ -2046,20 +2047,20 @@ class LivingWorldMapInfo(IniObject):
     Accent2Dir: Coords
     Accent2RGB: RGBA
 
-    MenBanner: Opaque
-    ElvesBanner: Opaque
-    DwarvesBanner: Opaque
-    IsengardBanner: Opaque
-    MordorBanner: Opaque
-    WildBanner: Opaque
-    NeutralBanner: Opaque
-    MenAnts: Opaque
-    ElvesAnts: Opaque
-    DwarvesAnts: Opaque
-    IsengardAnts: Opaque
-    MordorAnts: Opaque
-    WildAnts: Opaque
-    NeutralAnts: Opaque
+    MenBanner: t.ModelFile
+    ElvesBanner: t.ModelFile
+    DwarvesBanner: t.ModelFile
+    IsengardBanner: t.ModelFile
+    MordorBanner: t.ModelFile
+    WildBanner: t.ModelFile
+    NeutralBanner: t.ModelFile
+    MenAnts: t.ModelFile
+    ElvesAnts: t.ModelFile
+    DwarvesAnts: t.ModelFile
+    IsengardAnts: t.ModelFile
+    MordorAnts: t.ModelFile
+    WildAnts: t.ModelFile
+    NeutralAnts: t.ModelFile
 
     BannerScaleSpeed: Float
     BannerMaxScale: Float
@@ -2070,9 +2071,9 @@ class LivingWorldMapInfo(IniObject):
     DefaultArmyMoveSpeed: Float
     HeroArmyIconDiameter: Float
 
-    BattleMarker: Opaque
-    PalantirMarker: Opaque
-    RegionAwardDisputeMarker: Opaque
+    BattleMarker: t.ModelFile
+    PalantirMarker: t.ModelFile
+    RegionAwardDisputeMarker: t.ModelFile
     BattleMarkerCreatedSound: Sound
     EnterMapSound: Sound
 
@@ -2086,12 +2087,12 @@ class LivingWorldMapInfo(IniObject):
     AnimRaysCreateSound: Sound
 
     AnimCloud: Opaque
-    AnimCloudPartSys: Opaque
+    AnimCloudPartSys: t.ParticleSystem
     NumAnimClouds: Int
     AnimCloudRegionMin: Coords
     AnimCloudRegionMax: Coords
     AnimCloudLifetime: Int
-    EmbersPartSys: Opaque
+    EmbersPartSys: t.ParticleSystem
     CloudPos: Coords
     CloudGrowthPos: Coords
     ShadowColor: RGBA
@@ -2102,9 +2103,9 @@ class LivingWorldMapInfo(IniObject):
     ArmySelectedFadeOutEnd: Int
     ArmyHilightedFadeInTime: Int
     ArmyHilightedFadeOutTime: Int
-    AngmarAnts: t.Opaque
-    AngmarBanner: t.Opaque
-    AnimRaysPartSys: t.Opaque
+    AngmarAnts: t.ModelFile
+    AngmarBanner: t.ModelFile
+    AnimRaysPartSys: t.ParticleSystem
     ArmyHilightedIconObject: t.Opaque
     ArmySelectedIconObject: t.Opaque
     ArmySoldierLarge: t.Opaque
@@ -2115,11 +2116,11 @@ class LivingWorldMapInfo(IniObject):
     CloudInitialOpacity: t.Float
     CloudInitialSize: t.Float
     EnableMapShadows: t.Bool
-    GondorAnts: t.Opaque
-    GondorBanner: t.Opaque
+    GondorAnts: t.ModelFile
+    GondorBanner: t.ModelFile
     MordorCloud: t.Opaque
-    RohanAnts: t.Opaque
-    RohanBanner: t.Opaque
+    RohanAnts: t.ModelFile
+    RohanBanner: t.ModelFile
 
 
 class MiscEvaData(IniObject):
@@ -2208,7 +2209,7 @@ class RegionCampain(IniObject):
 class ScoredKillEvaAnnouncer(IniObject):
     key = "scoredkillevaannouncers"
 
-    EvaEvent: Opaque
+    EvaEvent: t.EvaEvent
     ObjectFilter: ObjectFilter
     CountOnlyKillsByLocalPlayer: Bool
     CountOnlyKillsAgainstLocalPlayer: Bool
@@ -2379,10 +2380,10 @@ class ButtonSet(IniObject):
 class CloudEffect(IniObject):
     key = "cloudeffects"
 
-    CloudTexture: Opaque
-    DarkCloudTexture: Opaque
-    AlphaTexture: Opaque
-    DissipateTexture: Opaque
+    CloudTexture: t.TextureFile
+    DarkCloudTexture: t.TextureFile
+    AlphaTexture: t.TextureFile
+    DissipateTexture: t.TextureFile
     PropagateSpeed: Float
     Angle: Float
     CloudScrollSpeed: Float
@@ -2417,7 +2418,7 @@ class CreateAHeroClass(IniObject):
     DescriptionTag: t.Label
     PowersDescTag: t.Label
     UpgradeName: t.UpgradeRef
-    IconImage: Opaque
+    IconImage: t.Image
 
     nested_attributes = {"SubClass": ["SubClass"]}
 
@@ -2450,8 +2451,8 @@ class Fire(IniObject):
     ScorchFrequency: t.RandomVariable
     ScorchIntensity: t.Float
     ScorchSize: t.Float
-    TerrainFireSystem: t.Opaque
-    TerrainSmokeSystem: t.Opaque
+    TerrainFireSystem: t.ParticleSystem
+    TerrainSmokeSystem: t.ParticleSystem
 
 
 class FireEffect(IniObject):
@@ -2683,14 +2684,14 @@ class WaterTransparency(IniObject):
     TransparentWaterDepth: Float
     RiverTransparencyMultiplier: Float
     StandingWaterColor: RGBA
-    StandingWaterTexture: Opaque
+    StandingWaterTexture: t.TextureFile
     AdditiveBlending: Bool
     RadarWaterColor: RGBA
     ReflectionPlaneZ: Float
     ReflectionOn: Bool
     ReflectionGuard: t.Coords
-    SkyboxTextureE: t.Opaque
-    SkyboxTextureN: t.Opaque
-    SkyboxTextureS: t.Opaque
-    SkyboxTextureT: t.Opaque
-    SkyboxTextureW: t.Opaque
+    SkyboxTextureE: t.TextureFile
+    SkyboxTextureN: t.TextureFile
+    SkyboxTextureS: t.TextureFile
+    SkyboxTextureT: t.TextureFile
+    SkyboxTextureW: t.TextureFile

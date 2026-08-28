@@ -218,11 +218,16 @@ That makes **the scaffolding cheap and the runtime the entire cost** for all fou
 | ~~1~~ | ~~Can the Act verb table grow in place?~~ | **settled** — no, but relocation is one dword at `0x0096E7F3` |
 | ~~2~~ | ~~Does RotWK still have the structure `ModifyArmyEntry` mutates?~~ | **settled** — yes, `LivingWorldPlayerArmy`/`ArmyEntry` parse today, offsets above |
 | 3 | Does anything in RotWK survive of the reinforcement-army list `RegionReinforcements` fed? | RotWK still has live `CREATE_REINFORCEMENT_TEAM`; check whether it shares a backing list |
-| 4 | What does BFME1's `MergePlayerArmy` runtime actually move — templates, or a sub-army object? | disassemble past `0x007B8500`'s parse into its executor |
+| ~~4~~ | ~~What does BFME1's `MergePlayerArmy` runtime actually move — templates, or a sub-army object?~~ | **settled** — neither: it moves `ArmyEntry` records, and `SplitArmyTemplate` is a manifest of which ones. Executor `0x007ADC30`, implementation `0x007B4510`. Scoped for RotWK in [`merge-player-army.md`](merge-player-army.md) |
 
-With 1 and 2 settled, **`ModifyArmyEntry` is the obvious first verb to build**: the parser
-scaffolding is a one-dword relocation, the data model is intact and populated, and the runtime is a
-string compare and a string write. Question 4 gates the most *visible* verb, and question 3 the
+With 1, 2 and 4 settled, the ordering has changed. `MergePlayerArmy` is scoped in
+[`merge-player-army.md`](merge-player-army.md), and scoping it turned up the one structural
+constraint all four verbs share: **the Act struct is `0xB8` bytes with three spare, so no verb can
+add a per-act list.** The records have to live in the patch's own cave, keyed by act name. That
+scaffolding is written once and reused, which makes `DespawnArmy` — one `AsciiString` and a single
+call to `0x006B9679` — near-free once `MergePlayerArmy` exists rather than a separate job.
+
+`ModifyArmyEntry` remains the smallest *runtime* of the three, and question 3 still gates the
 largest.
 
 ## Method

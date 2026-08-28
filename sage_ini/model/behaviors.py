@@ -437,7 +437,7 @@ class SpecialAbilityUpdate(Behavior):
     ChargeAttackSpeedBoost: Bool
     Instant: Bool
     CustomAnimAndDuration: AnimAndDuration
-    ContactPointOverride: t.Opaque
+    ContactPointOverride: t.Bone
     UnpackingVariation: Int
     TriggerAttributeModifier: ModifierList
     AttributeModifierDuration: Int
@@ -1916,7 +1916,7 @@ class SpecialPowerBehavior(Behavior):
     DisableWhenWearingTheRing: Bool
     RequiredConditions: SpecialPowerUnpackConditions
     RejectedConditions: SpecialPowerUnpackConditions
-    ContactPointOverride: t.Opaque
+    ContactPointOverride: t.Bone
     TriggerAttributeModifier: ModifierList
     AttributeModifierDuration: Int
     KillAttributeModifierOnExit: Bool
@@ -2769,7 +2769,7 @@ class CastleBehavior(FoundationAIUpdate):
     CastleToUnpackForFaction: GroupedByKey[FactionSide, Untyped]
     FactionDecal: t.List[t.Tuple[FactionSide, t.Opaque, t.Float]]
     PreBuiltList: List[Tuple[t.ObjectRef, Int]]
-    PreBuiltPlyr: t.Opaque
+    PreBuiltPlyr: t.FactionRef
     DecalName: t.Opaque
     DecalSize: Float
     CrewReleaseFX: FXList
@@ -3102,7 +3102,7 @@ class FadeAndDieOrnamentUpdate(Behavior):
 
 
 class HijackerUpdate(Behavior):
-    ParachuteName: Opaque
+    ParachuteName: t.ObjectRef
     AttachToTargetBone: Bone
 
 

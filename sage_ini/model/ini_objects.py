@@ -71,7 +71,7 @@ class Upgrade(IniObject):
     Type: UpgradeTypes
     GroupName: t.String
     GroupOrder: Int
-    UpgradeFX: Opaque
+    UpgradeFX: t.FXList
     UnitSpecificSound: t.Sound
     DisplayName: Label
     BuildTime: Int = 0
@@ -151,9 +151,9 @@ class SpecialPower(IniObject):
     InitiateSound: Sound
     PreventActivationConditions: t.FlagList[e.ObjectStatus]
     SharedSyncedTimer: Bool
-    EvaEventToPlayOnSuccess: Opaque
-    UnitSpecificSoundToUseAsInitiateIntendToDoVoice: Opaque
-    UnitSpecificSoundToUseAsEnterStateInitiateIntendToDoVoice: Opaque
+    EvaEventToPlayOnSuccess: t.EvaEvent
+    UnitSpecificSoundToUseAsInitiateIntendToDoVoice: t.Sound
+    UnitSpecificSoundToUseAsEnterStateInitiateIntendToDoVoice: t.Sound
     ReloadTime: Int
     PublicTimer: Bool = False
     Flags: List[FakeEnum]
@@ -167,7 +167,7 @@ class SpecialPower(IniObject):
     ForbiddenObjectRange: Float
     ObjectFilter: t.ObjectFilter
     AcademyClassify: e.AcademyType
-    PalantirMovie: t.Opaque
+    PalantirMovie: t.VideoRef
     RequiredScience: t.Opaque
     ShortcutPower: t.Bool
     UnitCost: t.Int
@@ -245,8 +245,8 @@ class CreateObject(IniObject):
     OffsetInLocalSpace: Bool
     PreserveLayer: Bool
     MoveUsesStrafeUpdate: Bool
-    ParticleSystem: Opaque
-    ForbiddenUpgrades: List[Opaque]
+    ParticleSystem: t.ParticleSystem
+    ForbiddenUpgrades: List[t.UpgradeRef]
     DestinationPlayer: Opaque
     WaypointSpawnPoints: Opaque
     VeterancyLevel: t.Int
@@ -337,7 +337,7 @@ class CommandButton(IniObject):
     CreateAHeroUICostIfSelected: Int
     Upgrade: io.Upgrade
     AffectsAllies: t.Bool
-    BuildUpgrades: t.Opaque
+    BuildUpgrades: t.List[t.UpgradeRef]
     MaxShotsToFire: t.Int
     UnitSpecificSound2: t.Opaque
 
@@ -346,7 +346,7 @@ class SelectionDecal(IniObject):
     key = None
 
     Texture: t.TextureFile
-    Texture2: Opaque
+    Texture2: t.TextureFile
     Style: FakeEnum
     OpacityMin: Float
     OpacityMax: Float
@@ -556,8 +556,8 @@ class Weapon(IniObject):
     ProjectileObject: "Object"
     ProjectileDetonationFX: FXList
     ProjectileDetonationOCL: ObjectCreationList
-    ProjectileExhaust: Opaque
-    VeterancyProjectileExhaust: Opaque
+    ProjectileExhaust: t.ParticleSystem
+    VeterancyProjectileExhaust: t.ParticleSystem
     VeterancyFireFX: FXList
     FireOCL: ObjectCreationList
     FireSound: Sound
@@ -936,7 +936,7 @@ class Object(IniObject):
     AttackContactPoint: ContactPoint
 
     Shadow: e.ObjectShadowType
-    ShadowTexture: Opaque
+    ShadowTexture: t.TextureFile
     ShadowSizeX: Int
     ShadowSizeY: Int
     ShadowOffsetX: Float
@@ -1034,9 +1034,9 @@ class Object(IniObject):
 
     # Presentation: the prop model and how it is drawn/oriented (used by simple decorative
     # and world-map objects). Reference-like names are kept raw (Opaque) for now.
-    Model: Opaque
+    Model: t.ModelFile
     Scale: Float
-    SubObjects: Opaque
+    SubObjects: List[t.SubObject]
     OrientAngle: Float
     ZOffset: t.Float
     Browser: t.String
@@ -1053,7 +1053,7 @@ class Object(IniObject):
     DescriptionStrategic: t.Label
     DisplayNameStrategic: t.Label
     DisplayNameInvisibleForEnemy: t.Label
-    AutoResolveUnitType: Opaque
+    AutoResolveUnitType: e.AutoResolveUnitType
     AutoResolveBody: t.AutoResolveBodyRef
     AutoResolveCombatChain: t.AutoResolveCombatChainRef
     AutoResolveLeadership: t.AutoResolveLeadershipRef
@@ -1075,7 +1075,7 @@ class Object(IniObject):
     FadeTypeForSelection: e.FadeType
     FadeTypeForShowing: e.FadeType
     FadeTypeForHiding: e.FadeType
-    FadeHoldPercent: Opaque  # a `#define`d percentage
+    FadeHoldPercent: Float  # a `#define`d percentage
     FadeInTime: Int
     FadeOutTime: Int
 
@@ -1384,7 +1384,7 @@ class PlayerTemplate(IniObject):
     MedallionRegular: Image
     MedallionHilite: Image
     MedallionSelect: Image
-    ScoreScreenMusic: Opaque
+    ScoreScreenMusic: t.Sound
     PurchaseScienceCommandSetRank1: CommandSet
     PurchaseScienceCommandSetRank3: CommandSet
     PurchaseScienceCommandSetRank8: CommandSet
@@ -1400,7 +1400,7 @@ class CrateData(IniObject):
     CrateObject: t.Opaque
     CreationChance: t.Float
     KilledByType: e.KindOf
-    KillerScience: t.Opaque
+    KillerScience: t.ScienceRef
     OwnedByMaker: t.Bool
     VeterancyLevel: e.VeterancyLevel
 

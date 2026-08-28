@@ -13,6 +13,10 @@ import os
 # This spec lives in sage_save/; anchor paths to the repo root so it builds from any cwd.
 ROOT = os.path.dirname(SPECPATH)
 
+# The shared pySAGE icon, carried by every console binary these specs build (the windowed
+# apps each carry their own, next to the window they title).
+CLI_ICON = os.path.join(ROOT, 'tools', 'icon.ico')
+
 a = Analysis(
     [os.path.join(ROOT, 'sage_save', '__main__.py')],
     pathex=[ROOT],
@@ -47,4 +51,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=[CLI_ICON],
 )

@@ -73,6 +73,15 @@ Applying is process-wide (the schema lives on the model classes), so one engine 
 time; use `Engine.activate()` when the change must be scoped. A malformed file never raises -
 it degrades to the stock engine and lands `engine-config` in `.diagnostics`.
 
+The same file also lists the binary patches the `game.dat` was built from, with the parameters
+each was built with, whether or not they change any INI - `engine.patches` reads them, and
+`sage-patch rebuild <file> --in clean.dat --out game.dat` builds the binary again from them:
+
+```python
+for patch in load_engine("data/.sagepatch").patches:
+    print(patch.name, patch.settings, patch.author)
+```
+
 ## Walk all objects of a KindOf
 
 `walk_objects` yields every typed object (descending into nested modules); `has_kindof`

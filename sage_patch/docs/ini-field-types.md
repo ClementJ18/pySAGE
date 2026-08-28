@@ -132,3 +132,44 @@ particle `Color` keyframes (`R:255 G:255 B:255 <frame>`), the `n : d` probabilit
 engine row at all: either the block has no field table (the FXParticleSystem sub-blocks) or the
 keyword is not in this build (see above) - those are schema entries to re-check, not fields to
 type.
+
+## The `Opaque` pass (2026-08-28)
+
+`Untyped` was the *unreviewed* backlog; `Opaque` is the other one - "a named scalar kept as its
+raw token", used wherever a field denotes an external entity the schema had no dedicated type
+for. The same table walk types those too, and it scales: instead of asking `keyword <Name>` once
+per field, scan every data section for `{name, parseFn, userData, offset}` runs in one pass, index
+them by keyword, and pick a class's table by how many of that class's *other* keywords it carries.
+427 `Opaque` fields, 492 tables, 4665 keywords, a few seconds.
+
+What the engine settles, in descending order of how much it tells you:
+
+| engine row | what it decides | example |
+|---|---|---|
+| `Enum` / `BitFlags` + `userData` | the whole member list, read straight out of the array | `Object.AutoResolveUnitType` -> the 10 `AutoResolveUnit_*` names at `0x00dadbe4` |
+| a subsystem lookup (`EvaEvent`, `AudioEventRTS`, `ScienceType`, `ParticleSystem`) | the table the name resolves in | `Rank.SciencesGranted` -> `"Science name %s not known!"` |
+| `AsciiStringList` vs `AsciiString` | **arity** - the highest-value bit, because a scalar annotation on a list field silently joins the tokens into one bogus name | `LoadSubsystem.InitFile` really takes several `.ini` paths; `Object.SubObjects = LWSTAFF LWBANNER` is two subobjects, not one |
+| a numeric parser | that it is not a name at all | `GoodCommandPoints` calls `INI_PARSE_INT` twice into `offset` and `offset+4`: a `<start> <max>` pair, not a token |
+| `AsciiString` | only that it is one token; the engine stores the raw string and resolves it later | the referent still has to come from the corpus |
+
+That last row is most of the bucket (152 of 427), which is the honest limit of this method: for a
+plain `AsciiString` the engine has no opinion about *what* the name names. Those were settled from
+corpus values instead and then **checked by conversion**: a `Reference` that names the wrong table
+reports every value as dangling, so the error census is the test. All 113 came back clean; the only
+new diagnostics in the whole pass were four `reference-case` findings on `Region.RegionPortrait`,
+which are real - `LWPBlacKGate`, `LWPRedHornPass`, `LWPBarrowDowns` and `LWPBrownlands` are spelled
+one way where they are defined and another where they are used, and the engine matches
+case-insensitively so the game never minded.
+
+**Two parse functions worth naming.** `0x00641911` is two `INI_PARSE_INT` calls back to back (the
+command-point pairs). `0x00642182` and its four siblings scan `MP1:`..`MP8:` - a colon-keyed record
+of one multiplier per player count, which is why `MultiPlayMoneyMult` never fit a scalar.
+
+**129 keywords have no row and no string in the image at all**, and no occurrence in either corpus:
+57 `InGameUI.*RadiusCursor` fields, 19 `StrategicHUD.*`, 11 `MiscAudio.*`, and the rest scattered.
+They are Generals/BFME2-era schema entries this build does not have - entries to re-check, not
+fields to type.
+
+**Watch the corpus underneath you.** The Edain root is a live mod tree; three diagnostics appeared
+and disappeared mid-pass because its author was editing `evilmenumbarlord.ini` at the time. Diff
+the in-repo `data` corpus when a census result needs to be trusted.

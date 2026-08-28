@@ -1,16 +1,18 @@
-"""Tests for the large-group-bonus filter patch.
+"""Tests for the large-group-bonus patch.
 
 The cave is hand-assembled x86 that cannot be executed here, so the tests that matter most
 disassemble it back and assert it says what it was meant to say. A wrong byte in a stub does not
-raise - it counts the wrong thing, or hands the filter evaluator a garbage source player and
-silently answers for the wrong side - so encoding errors have to be caught statically. Stack
-discipline gets the same treatment: both stubs park the candidate on the stack across two
-``__thiscall`` calls, and a ``push`` without its ``pop`` corrupts the caller's frame rather than
-faulting.
+raise - it counts the wrong thing, gates on the wrong mask, or hands the filter evaluator a garbage
+source player and silently answers for the wrong side - so encoding errors have to be caught
+statically. Stack discipline gets the same treatment: three stubs park values on the stack across
+``__thiscall`` calls, the allocation stub owes its caller an argument it does not clean, and the
+gate carries the caller's flags across two calls - a ``push`` without its ``pop`` corrupts the
+frame rather than faulting.
 
-The other half of the suite is the build fingerprint. This patch reads three things it does not
-rewrite - the stock field-parse table, the wrapper vtable it copies, and the register allocation
-`update` establishes - and each has to fail loudly on anything that is not the expected build.
+The other half of the suite is the build fingerprint. This patch reads four things it does not
+rewrite - the stock field-parse table, the wrapper vtable it copies, the register allocation
+`update` establishes, and the mask helpers the gate calls - and each has to fail loudly on anything
+that is not the expected build.
 """
 
 from __future__ import annotations
@@ -22,10 +24,20 @@ import pytest
 pytest.importorskip("capstone", reason="the [patch] extra (capstone) is not installed")
 from capstone import CS_ARCH_X86, CS_MODE_32, Cs  # noqa: E402 - after the importorskip guard
 
-from sage_patch import LargeGroupBonusFilterPatch, apply_patches  # noqa: E402
-from sage_patch.addresses import FIELD_PARSE_STRIDE, INI_PARSE_BOOL  # noqa: E402
-from sage_patch.patches.large_group_bonus_filter import (  # noqa: E402
+from sage_patch import LargeGroupBonusPatch, apply_patches  # noqa: E402
+from sage_patch.addresses import (  # noqa: E402
+    FIELD_PARSE_STRIDE,
+    INI_PARSE_BOOL,
+    OPERATOR_NEW,
+)
+from sage_patch.patches.large_group_bonus import (  # noqa: E402
+    ALLOC_RESUME_VA,
+    ALLOC_WINDOW_BYTES,
+    ALLOC_WINDOW_VA,
     ANCHORS,
+    ATTRIB_REMOVE_VA,
+    BONUS_HELD_OFFSET,
+    CONFLICTS_WITH_OFFSET,
     COUNT_WINDOW_BYTES,
     COUNT_WINDOW_VA,
     DEFAULT_KEYWORD,
@@ -33,29 +45,45 @@ from sage_patch.patches.large_group_bonus_filter import (  # noqa: E402
     FIELD_TABLE_VA,
     FILTER_OFFSET,
     FLAG_OFFSET,
+    GATE_RESUME_VA,
+    GATE_TAIL_VA,
+    GATE_WINDOW_BYTES,
+    GATE_WINDOW_VA,
     GET_CONTAIN_VA,
     GET_CONTROLLING_PLAYER_VA,
+    MASK_ANY_VA,
+    MASK_DWORDS,
+    MASK_TEST_ALL_VA,
+    MASK_TEST_ANY_VA,
     MODULEDATA_CTOR_CALL_VA,
     MODULEDATA_CTOR_VA,
-    MODULEDATA_SIZE_VA,
     OBJECT_FILTER_IS_DEFINED_VA,
     OBJECT_FILTER_PARSE_VA,
     OBJECT_FILTER_TEST_VA,
+    PARSE_UPGRADE_MASK_VA,
     PARTITION_ALLOW_VA,
+    PATCHED_MODULEDATA_SIZE,
+    REQUIRES_ALL_CONFLICTING_OFFSET,
+    REQUIRES_ALL_TRIGGERS_OFFSET,
     SECTION_NAME,
     SETUP_WINDOW_BYTES,
     SETUP_WINDOW_VA,
     STOCK_FIELDS,
+    STOCK_MODULEDATA_SIZE,
+    TRIGGERED_BY_OFFSET,
+    UPGRADE_FIELDS,
     WRAPPER_VTABLE_SLOTS,
     WRAPPER_VTABLE_VA,
+    ZERO_DWORDS,
     _layout,
+    build_alloc,
     build_count,
-    build_ctor,
+    build_gate,
     build_new_allow,
     build_setup,
 )
-from sage_patch.patches.large_group_bonus_filter import (  # noqa: E402
-    LargeGroupBonusFilterPatch as Patch,
+from sage_patch.patches.large_group_bonus import (  # noqa: E402
+    LargeGroupBonusPatch as Patch,
 )
 from sage_patch.utils import find_section, va_to_offset  # noqa: E402
 
@@ -117,7 +145,7 @@ def synthetic_image() -> bytearray:
 
     # The stock 8-entry field-parse table, plus its NULL terminator. `parse` and `userData` are not
     # read by the patch (the entries are copied verbatim), so a recognisable filler stands in -
-    # except `AlliesOnly`, whose real Bool parser is what the appended row must also name.
+    # except `AlliesOnly`, whose real Bool parser is what three appended rows must also name.
     table = bytearray()
     for name_va, (name, offset) in zip(name_vas, STOCK_FIELDS, strict=True):
         parse = INI_PARSE_BOOL if name == "AlliesOnly" else (0x00730000 | offset)
@@ -126,8 +154,9 @@ def synthetic_image() -> bytearray:
     write(FIELD_TABLE_VA, bytes(table))
 
     write(WRAPPER_VTABLE_VA, struct.pack(f"<{WRAPPER_VTABLE_SLOTS}I", *STOCK_VTABLE))
-    write(MODULEDATA_CTOR_CALL_VA, _call_bytes(MODULEDATA_CTOR_CALL_VA, MODULEDATA_CTOR_VA))
     write(FIELD_TABLE_REF_VA, struct.pack("<I", FIELD_TABLE_VA))
+    write(ALLOC_WINDOW_VA, ALLOC_WINDOW_BYTES)
+    write(GATE_WINDOW_VA, GATE_WINDOW_BYTES)
     write(SETUP_WINDOW_VA, SETUP_WINDOW_BYTES)
     write(COUNT_WINDOW_VA, COUNT_WINDOW_BYTES)
     for va, blob in ANCHORS.items():
@@ -161,7 +190,8 @@ def _dis(code: bytes, va: int) -> list[str]:
 def _stub(name: str, base: int = 0x00B00000) -> list[str]:
     """One stub, disassembled at a fixed base so the expected text is stable."""
     built = {
-        "ctor": lambda: build_ctor(base),
+        "alloc": lambda: build_alloc(base),
+        "gate": lambda: build_gate(base),
         "setup": lambda: build_setup(base, 0x00B01000, WRAPPER_VTABLE_VA),
         "allow": lambda: build_new_allow(base),
         "count": lambda: build_count(base),
@@ -202,7 +232,7 @@ def test_detect_finds_the_default(image: bytearray) -> None:
 
 def test_apply_is_idempotent_only_once(image: bytearray) -> None:
     """A second application must fail rather than double-patch: `apply_byte_patch` asserts the
-    original bytes, and the ctor call no longer points at the stock constructor."""
+    original bytes, and `newModuleData` no longer allocates the stock size."""
     data = _patched(image)
     with pytest.raises(ValueError):
         Patch().apply(data)
@@ -217,26 +247,75 @@ def test_apply_patches_writes_a_file(image: bytearray, tmp_path) -> None:
     assert src.read_bytes() == bytes(image)  # the input is never modified
 
 
-# --- the flag lands in padding, and nothing grows ----------------------------------------------
+# --- the grown ModuleData ----------------------------------------------------------------------
 
 
-def test_the_flag_uses_padding_the_ctor_never_writes(image: bytearray) -> None:
-    """`AlliesOnly` is a Bool at +0x18 written with a *byte* store, and the next field starts at
-    +0x1c - so +0x19..+0x1b is padding and `sizeof(ModuleData)` need not change."""
-    assert FLAG_OFFSET == 0x19
-    offsets = {off for _name, off in STOCK_FIELDS}
-    assert FLAG_OFFSET not in offsets
-    assert 0x18 in offsets and 0x1C in offsets
+def test_the_new_fields_land_past_the_stock_structure() -> None:
+    """Two 36-dword masks and three bools do not fit in the three bytes of padding the stock
+    structure has, so the allocation grows and every new field lives past `0x30` - in the region
+    the allocation stub zeroes, which is what gives all five their defaults."""
+    stock = {off for _name, off in STOCK_FIELDS}
+    new = (
+        TRIGGERED_BY_OFFSET,
+        CONFLICTS_WITH_OFFSET,
+        REQUIRES_ALL_TRIGGERS_OFFSET,
+        REQUIRES_ALL_CONFLICTING_OFFSET,
+        FLAG_OFFSET,
+    )
+    for offset in new:
+        assert offset >= STOCK_MODULEDATA_SIZE
+        assert offset < PATCHED_MODULEDATA_SIZE
+        assert offset not in stock
+    assert len(set(new)) == len(new)
+    # the two masks are adjacent and exactly 36 dwords apart, as every mask pair in the engine is
+    assert CONFLICTS_WITH_OFFSET - TRIGGERED_BY_OFFSET == MASK_DWORDS * 4
+    assert REQUIRES_ALL_TRIGGERS_OFFSET - CONFLICTS_WITH_OFFSET == MASK_DWORDS * 4
+    assert ZERO_DWORDS * 4 == PATCHED_MODULEDATA_SIZE - STOCK_MODULEDATA_SIZE
 
+
+def test_alloc_grows_the_block_and_zeroes_the_tail() -> None:
+    text = _stub("alloc")
+    assert text[:2] == ["push ecx", "push esi"]  # both displaced pushes, in order
+    assert f"push {PATCHED_MODULEDATA_SIZE:#x}" in text
+    assert f"call {OPERATOR_NEW:#x}" in text
+    assert f"lea edx, [eax + {STOCK_MODULEDATA_SIZE:#x}]" in text
+    assert f"mov ecx, {ZERO_DWORDS:#x}" in text
+    assert "mov dword ptr [edx], eax" in text  # the zeroing store
+    assert text[-1] == f"jmp {ALLOC_RESUME_VA:#x}"
+
+
+def test_alloc_leaves_the_size_argument_for_the_callers_pop() -> None:
+    """`operator new` is cdecl and the caller cleans the argument with the `pop ecx` this stub
+    rejoins at, so the stub must not clean it itself - and must not leave anything else behind."""
+    text = _stub("alloc")
+    assert not any(line.startswith("add esp") for line in text)
+    assert text.count("push eax") == text.count("pop eax") == 1  # only the zeroing loop's save
+
+
+def test_the_allocation_window_becomes_a_jump(image: bytearray) -> None:
     data = _patched(image)
-    off = va_to_offset(data, MODULEDATA_SIZE_VA)
+    section_va, _off = _cave(data)
+    pieces = _layout(section_va, DEFAULT_KEYWORD)
+    off = va_to_offset(data, ALLOC_WINDOW_VA)
     assert off is not None
-    assert bytes(data[off : off + 2]) == bytes.fromhex("6a30")  # still push 0x30
+    window = bytes(data[off : off + len(ALLOC_WINDOW_BYTES)])
+    assert window[:5] == b"\xe9" + struct.pack("<i", pieces.alloc_va - (ALLOC_WINDOW_VA + 5))
+    assert window[5:] == b"\x90" * (len(ALLOC_WINDOW_BYTES) - 5)
 
 
-def test_the_patch_reuses_the_stock_filter_field(image: bytearray) -> None:
-    """No second `ObjectFilter` is added: both stubs read `HordeMemberFilter` where it already
-    is."""
+def test_there_is_no_constructor_shim(image: bytearray) -> None:
+    """The stock constructor writes nothing past `0x30`, so zeroing in the allocator is enough and
+    the ctor call stays pointed at the engine's own constructor - one hook site fewer than the
+    `large-group-bonus-filter` this patch replaces."""
+    data = _patched(image)
+    off = va_to_offset(data, MODULEDATA_CTOR_CALL_VA)
+    assert off is not None
+    assert bytes(data[off : off + 5]) == _call_bytes(MODULEDATA_CTOR_CALL_VA, MODULEDATA_CTOR_VA)
+
+
+def test_the_patch_reuses_the_stock_filter_field() -> None:
+    """No second `ObjectFilter` is added: the filter stubs read `HordeMemberFilter` where it
+    already is."""
     assert FILTER_OFFSET == dict(STOCK_FIELDS)["HordeMemberFilter"]
 
 
@@ -245,8 +324,8 @@ def test_the_patch_reuses_the_stock_filter_field(image: bytearray) -> None:
 
 def test_table_keeps_the_stock_entries_verbatim(image: bytearray) -> None:
     data = _patched(image)
-    _section_va, _section_off = _cave(data)
-    pieces = _layout(_section_va, DEFAULT_KEYWORD)
+    section_va, _section_off = _cave(data)
+    pieces = _layout(section_va, DEFAULT_KEYWORD)
 
     stock_off = va_to_offset(image, FIELD_TABLE_VA)
     table_off = va_to_offset(data, pieces.table_va)
@@ -260,7 +339,9 @@ def test_table_keeps_the_stock_entries_verbatim(image: bytearray) -> None:
     assert struct.unpack_from("<I", data, ref_off)[0] == pieces.table_va
 
 
-def test_table_appends_a_bool_then_terminates(image: bytearray) -> None:
+def test_table_appends_five_rows_then_terminates(image: bytearray) -> None:
+    """The loose-object `Bool` under the installed keyword, then the four `UpgradeMuxData` rows
+    under the engine's own names, each with the engine's own parser and this module's offset."""
     data = _patched(image)
     section_va, _section_off = _cave(data)
     pieces = _layout(section_va, DEFAULT_KEYWORD)
@@ -268,25 +349,155 @@ def test_table_appends_a_bool_then_terminates(image: bytearray) -> None:
     assert at is not None
     at += len(STOCK_FIELDS) * FIELD_PARSE_STRIDE
 
-    name_va, parse_fn, userdata, offset = struct.unpack_from("<4I", data, at)
-    assert parse_fn == INI_PARSE_BOOL
-    assert parse_fn != OBJECT_FILTER_PARSE_VA  # a Bool, not another filter handle
-    assert userdata == 0
-    assert offset == FLAG_OFFSET
+    expected = [(DEFAULT_KEYWORD, INI_PARSE_BOOL, FLAG_OFFSET), *UPGRADE_FIELDS]
+    for index, (name, parse, offset) in enumerate(expected):
+        name_va, parse_fn, userdata, field_off = struct.unpack_from(
+            "<4I", data, at + index * FIELD_PARSE_STRIDE
+        )
+        assert parse_fn == parse
+        assert parse_fn != OBJECT_FILTER_PARSE_VA  # never another filter handle
+        assert userdata == 0
+        assert field_off == offset
+        name_off = va_to_offset(data, name_va)
+        assert name_off is not None
+        assert bytes(data[name_off : name_off + 64]).split(b"\x00")[0] == name.encode()
 
-    name_off = va_to_offset(data, name_va)
-    assert name_off is not None
-    assert bytes(data[name_off : name_off + 32]).split(b"\x00")[0] == DEFAULT_KEYWORD.encode()
-
-    terminator = bytes(data[at + FIELD_PARSE_STRIDE : at + 2 * FIELD_PARSE_STRIDE])
+    terminator = bytes(
+        data[
+            at + len(expected) * FIELD_PARSE_STRIDE : at + (len(expected) + 1) * FIELD_PARSE_STRIDE
+        ]
+    )
     assert terminator == bytes(FIELD_PARSE_STRIDE)
 
 
+def test_the_upgrade_rows_name_the_engines_own_parsers() -> None:
+    """The four rows are copied from the `UpgradeMuxData` base table at `0x00C76AD8`: two masks
+    parsed by `INI::parseUpgradeMask`, two bools by the same parser `AlliesOnly` uses."""
+    by_name = {name: (parse, offset) for name, parse, offset in UPGRADE_FIELDS}
+    assert by_name["TriggeredBy"] == (PARSE_UPGRADE_MASK_VA, TRIGGERED_BY_OFFSET)
+    assert by_name["ConflictsWith"] == (PARSE_UPGRADE_MASK_VA, CONFLICTS_WITH_OFFSET)
+    assert by_name["RequiresAllTriggers"] == (INI_PARSE_BOOL, REQUIRES_ALL_TRIGGERS_OFFSET)
+    assert by_name["RequiresAllConflictingTriggers"] == (
+        INI_PARSE_BOOL,
+        REQUIRES_ALL_CONFLICTING_OFFSET,
+    )
+
+
 def test_the_keyword_is_at_the_section_base(image: bytearray) -> None:
-    """`detect` reads it straight off the base, so the layout must keep it first."""
+    """`detect` reads it straight off the base, so the layout must keep it first - ahead of the
+    four fixed upgrade names."""
     data = _patched(image)
     _section_va, section_off = _cave(data)
     assert bytes(data[section_off : section_off + 32]).split(b"\x00")[0] == DEFAULT_KEYWORD.encode()
+
+
+# --- the upgrade gate --------------------------------------------------------------------------
+
+
+def test_the_gate_window_is_exactly_a_jump(image: bytearray) -> None:
+    """The window is one whole five-byte instruction, so the hook needs no padding at all."""
+    assert len(GATE_WINDOW_BYTES) == 5
+    data = _patched(image)
+    section_va, _off = _cave(data)
+    pieces = _layout(section_va, DEFAULT_KEYWORD)
+    off = va_to_offset(data, GATE_WINDOW_VA)
+    assert off is not None
+    window = bytes(data[off : off + 5])
+    assert window == b"\xe9" + struct.pack("<i", pieces.gate_va - (GATE_WINDOW_VA + 5))
+
+
+def test_gate_carries_the_callers_flags_and_template_across_itself() -> None:
+    """The branch at `GATE_RESUME_VA` consumes flags set before the window, and `ecx` is read again
+    just past it - so both are saved on entry and restored before either exit."""
+    text = _stub("gate")
+    assert text[:2] == ["pushfd", "push ecx"]
+    assert text.count("pushfd") == 1
+    assert text.count("popfd") == 2  # one per exit
+    for index, line in enumerate(text):
+        if line == "popfd":
+            assert text[index - 1] == "pop ecx"
+
+
+def test_gate_resumes_with_the_displaced_instruction() -> None:
+    """The active path owes the caller the instruction the window held, in `eax`."""
+    text = _stub("gate")
+    at = text.index(f"jmp {GATE_RESUME_VA:#x}")
+    assert text[at - 1] == "mov eax, dword ptr [0xde412c]"
+    assert _dis(GATE_WINDOW_BYTES, GATE_WINDOW_VA) == ["mov eax, dword ptr [0xde412c]"]
+
+
+def test_gate_tests_triggeredby_then_conflictswith() -> None:
+    """Both halves are optional: `any()` on an undeclared mask answers false, which is what makes
+    a module that declares neither resume unchanged."""
+    text = _stub("gate")
+    assert text.count(f"call {MASK_ANY_VA:#x}") == 2
+    first = text.index(f"call {MASK_ANY_VA:#x}")
+    second = text.index(f"call {MASK_ANY_VA:#x}", first + 1)
+    assert text[first - 1] == f"lea ecx, [edi + {TRIGGERED_BY_OFFSET:#x}]"
+    assert text[second - 1] == f"lea ecx, [edi + {CONFLICTS_WITH_OFFSET:#x}]"
+
+
+def test_gate_passes_each_mask_with_its_own_requires_all_flag() -> None:
+    text = _stub("gate")
+    assert f"movzx edx, byte ptr [edi + {REQUIRES_ALL_TRIGGERS_OFFSET:#x}]" in text
+    assert f"movzx edx, byte ptr [edi + {REQUIRES_ALL_CONFLICTING_OFFSET:#x}]" in text
+    for offset, mask in (
+        (REQUIRES_ALL_TRIGGERS_OFFSET, TRIGGERED_BY_OFFSET),
+        (REQUIRES_ALL_CONFLICTING_OFFSET, CONFLICTS_WITH_OFFSET),
+    ):
+        at = text.index(f"movzx edx, byte ptr [edi + {offset:#x}]")
+        assert text[at - 1] == f"lea eax, [edi + {mask:#x}]"
+        assert text[at + 1].startswith("call ")
+
+
+def test_gate_drops_the_bonus_before_entering_the_tail() -> None:
+    """An inactive module loses the bonus the way the stock falling edge does - and only when it
+    actually holds it - then enters `update`'s tail, which never built the iterator this path
+    skipped."""
+    text = _stub("gate")
+    at = text.index(f"cmp byte ptr [esi + {BONUS_HELD_OFFSET:#x}], 0")
+    assert text[at + 1].startswith("je ")  # never held -> nothing to undo
+    assert f"mov byte ptr [esi + {BONUS_HELD_OFFSET:#x}], 0" in text
+    assert "lea eax, [edi + 0x2c]" in text  # &AttributeModifier
+    assert f"call {ATTRIB_REMOVE_VA:#x}" in text
+    selector = text.index("mov byte ptr [ebp - 0xd], 0")  # the sleep selector the tail reads
+    assert text[selector + 1] == f"jmp {GATE_TAIL_VA:#x}"
+
+
+def test_held_picks_between_any_of_and_all_of() -> None:
+    """`RequiresAllTriggers` is a one-call swap, which is exactly what the stock mux does."""
+    text = _stub("gate")
+    assert f"mov ecx, {MASK_TEST_ANY_VA:#x}" in text
+    assert f"mov ecx, {MASK_TEST_ALL_VA:#x}" in text
+    at = text.index(f"mov ecx, {MASK_TEST_ANY_VA:#x}")
+    assert text[at + 1] == "test dl, dl"
+
+
+def test_held_tests_the_object_mask_then_the_players() -> None:
+    """The engine's own two-call idiom, in the engine's own order, with the NULL a player-less
+    object answers `getControllingPlayer` with."""
+    text = _stub("gate")
+    assert "lea ecx, [ebx + 0x28c]" in text  # Object+0x28c, completed
+    assert "lea ecx, [eax + 0x14c]" in text  # Player+0x14c, completed
+    at = text.index("lea ecx, [ebx + 0x28c]")
+    assert text[at + 1] == "call dword ptr [esp + 8]"
+    player = text.index(f"call {GET_CONTROLLING_PLAYER_VA:#x}")
+    assert text[player + 1] == "test eax, eax"
+    assert text[player + 2].startswith("je ")  # unowned -> its own mask alone
+
+
+def test_held_balances_its_stack() -> None:
+    """The test function and the mask are parked across two `ret 4` callees; both are dropped by
+    the single `add esp, 8` before the return."""
+    text = _stub("gate")
+    at = text.index(f"mov ecx, {MASK_TEST_ANY_VA:#x}")  # where `held` begins
+    held = text[at:]
+    assert held.count("push ecx") == 1
+    assert held.count("push eax") == 2  # the mask, kept, and this call's argument
+    assert held.count("push dword ptr [esp]") == 1  # the argument for the second call
+    assert held.count("add esp, 8") == 1
+    assert held[-1] == "ret"
+    assert held.count("ret") == 1
 
 
 # --- the copied wrapper vtable -----------------------------------------------------------------
@@ -324,10 +535,10 @@ def test_a_relocated_allow_is_rejected(image: bytearray) -> None:
         Patch().apply(image)
 
 
-# --- the two hooked windows --------------------------------------------------------------------
+# --- the two hooked windows of the loose-object count -------------------------------------------
 
 
-def test_gate1_keeps_the_lea_the_next_instruction_consumes(image: bytearray) -> None:
+def test_gate1_keeps_the_lea_the_next_instruction_consumes() -> None:
     """The window's `lea eax,[edi+0xc]` feeds a `mov [ebp-0x48], eax` outside it, so the shim has
     to leave the same value in eax - and it must write the wrapper's vtable slot either way."""
     text = _stub("setup")
@@ -371,7 +582,7 @@ def test_gate2_reproduces_the_windows_own_first_and_last_instruction(image: byte
 # --- the widened allow -------------------------------------------------------------------------
 
 
-def test_allow_keeps_the_stock_contain_path(image: bytearray) -> None:
+def test_allow_keeps_the_stock_contain_path() -> None:
     """A candidate that *does* carry a contain interface must be handled exactly as stock: hand
     `HordeMemberFilter` to vslot +0x180 and accept on a non-zero count."""
     text = _stub("allow")
@@ -382,7 +593,7 @@ def test_allow_keeps_the_stock_contain_path(image: bytearray) -> None:
     assert "sete al" in text  # ... and the reject one
 
 
-def test_allow_calls_the_three_argument_evaluator_not_the_wrapper(image: bytearray) -> None:
+def test_allow_calls_the_three_argument_evaluator_not_the_wrapper() -> None:
     """The two-argument wrapper starves the evaluator of a source player and makes every
     relationship token return false, so the loose path must not use it."""
     text = _stub("allow")
@@ -391,7 +602,7 @@ def test_allow_calls_the_three_argument_evaluator_not_the_wrapper(image: bytearr
     assert text.count(f"call 0x{GET_CONTROLLING_PLAYER_VA:x}") == 2  # source and candidate
 
 
-def test_allow_reads_the_source_player_from_the_wrapper_slot(image: bytearray) -> None:
+def test_allow_reads_the_source_player_from_the_wrapper_slot() -> None:
     """The partition scan has no register holding the module's own object, so the shim parks it in
     the wrapper's free +4 dword and `allow` reads it back from there."""
     text = _stub("allow")
@@ -401,12 +612,12 @@ def test_allow_reads_the_source_player_from_the_wrapper_slot(image: bytearray) -
     assert text[at + 2] == "push eax"  # arg3, the source player
 
 
-def test_allow_gates_the_loose_path_on_isdefined(image: bytearray) -> None:
+def test_allow_gates_the_loose_path_on_isdefined() -> None:
     """`CountLooseObjects` without a `HordeMemberFilter` must be inert, not sweeping."""
     assert f"call 0x{OBJECT_FILTER_IS_DEFINED_VA:x}" in _stub("allow")
 
 
-def test_allow_balances_its_stack_on_every_path(image: bytearray) -> None:
+def test_allow_balances_its_stack_on_every_path() -> None:
     text = _stub("allow")
     assert text[:2] == ["push ebx", "push esi"]
     assert text.count("pop esi") == 2  # one per exit
@@ -421,22 +632,22 @@ def test_allow_balances_its_stack_on_every_path(image: bytearray) -> None:
 # --- the count stub ------------------------------------------------------------------------------
 
 
-def test_count_returns_the_member_count_for_a_container(image: bytearray) -> None:
+def test_count_returns_the_member_count_for_a_container() -> None:
     text = _stub("count")
     assert text[0] == "push ecx"
     assert text[1] == f"call 0x{GET_CONTAIN_VA:x}"
     assert "call dword ptr [edx + 0x180]" in text
 
 
-def test_count_gates_the_loose_path_on_both_the_flag_and_the_filter(image: bytearray) -> None:
+def test_count_gates_the_loose_path_on_both_the_flag_and_the_filter() -> None:
     text = _stub("count")
-    assert f"cmp byte ptr [edi + 0x{FLAG_OFFSET:x}], 0" in text
+    assert f"cmp byte ptr [edi + {FLAG_OFFSET:#x}], 0" in text
     assert f"call 0x{OBJECT_FILTER_IS_DEFINED_VA:x}" in text
     assert f"call 0x{OBJECT_FILTER_TEST_VA:x}" in text
     assert "movzx eax, al" in text  # a loose match contributes exactly 1
 
 
-def test_count_reads_the_owner_from_ebx(image: bytearray) -> None:
+def test_count_reads_the_owner_from_ebx() -> None:
     """`ebx` holds the owning Object for the whole of `update`, which is what saves this stub a
     frame slot - and is why the register anchors are asserted before anything is written."""
     text = _stub("count")
@@ -444,7 +655,7 @@ def test_count_reads_the_owner_from_ebx(image: bytearray) -> None:
     assert text[at + 1] == f"call 0x{GET_CONTROLLING_PLAYER_VA:x}"
 
 
-def test_count_balances_its_stack_on_every_path(image: bytearray) -> None:
+def test_count_balances_its_stack_on_every_path() -> None:
     """The candidate is pushed once on entry and dropped before each of the three returns; the
     filter pointer handed to +0x180 is cleaned by that callee's own `ret 4`."""
     text = _stub("count")
@@ -454,33 +665,13 @@ def test_count_balances_its_stack_on_every_path(image: bytearray) -> None:
             assert text[index - 1] == "pop ecx"
 
 
-def test_count_leaves_the_callee_saved_registers_alone(image: bytearray) -> None:
+def test_count_leaves_the_callee_saved_registers_alone() -> None:
     """`esi`, `edi` and `ebx` are live across the loop; the stub may only clobber what the window
     it replaced clobbered."""
     text = _stub("count")
     for banned in ("push esi", "push edi", "push ebx", "pop esi", "pop edi", "pop ebx"):
         assert banned not in text
     assert not any(line.startswith(("mov esi,", "mov edi,", "mov ebx,")) for line in text)
-
-
-# --- the constructor shim -------------------------------------------------------------------
-
-
-def test_ctor_runs_the_stock_one_and_zeroes_the_flag(image: bytearray) -> None:
-    assert _stub("ctor") == [
-        f"call 0x{MODULEDATA_CTOR_VA:x}",
-        f"mov byte ptr [eax + 0x{FLAG_OFFSET:x}], 0",
-        "ret",
-    ]
-
-
-def test_ctor_call_is_repointed(image: bytearray) -> None:
-    data = _patched(image)
-    section_va, _off = _cave(data)
-    pieces = _layout(section_va, DEFAULT_KEYWORD)
-    off = va_to_offset(data, MODULEDATA_CTOR_CALL_VA)
-    assert off is not None
-    assert bytes(data[off : off + 5]) == _call_bytes(MODULEDATA_CTOR_CALL_VA, pieces.ctor_va)
 
 
 # --- the build fingerprint -------------------------------------------------------------------
@@ -519,6 +710,17 @@ def test_every_anchor_is_asserted_before_anything_is_written(
         Patch().apply(image)
 
 
+def test_an_older_filter_patch_is_refused(image: bytearray) -> None:
+    """A binary carrying the `large-group-bonus-filter` this patch replaces has a constructor shim
+    where the stock ctor call belongs. That is a different structure layout, so it must be rebuilt
+    from a clean image rather than patched on top of."""
+    off = va_to_offset(image, MODULEDATA_CTOR_CALL_VA)
+    assert off is not None
+    image[off : off + 5] = _call_bytes(MODULEDATA_CTOR_CALL_VA, 0x00B00000)
+    with pytest.raises(ValueError, match="not the expected build"):
+        Patch().apply(image)
+
+
 def test_verify_notices_a_corrupted_anchor(image: bytearray) -> None:
     data = _patched(image)
     off = va_to_offset(data, GET_CONTAIN_VA)
@@ -536,10 +738,14 @@ def test_bad_keywords_are_refused(keyword: str) -> None:
         Patch(keyword=keyword)
 
 
-@pytest.mark.parametrize("keyword", [name for name, _off in STOCK_FIELDS])
+@pytest.mark.parametrize(
+    "keyword",
+    [name for name, _off in STOCK_FIELDS] + [name for name, _p, _o in UPGRADE_FIELDS],
+)
 def test_a_keyword_the_module_already_parses_is_refused(keyword: str) -> None:
     """A duplicate row would parse - the reader takes the first match and never complains - so the
-    field would exist and silently do nothing."""
+    field would exist and silently write the wrong offset. That now covers the four keywords this
+    patch appends beside the renameable one."""
     with pytest.raises(ValueError, match="already"):
         Patch(keyword=keyword)
 
@@ -547,18 +753,29 @@ def test_a_keyword_the_module_already_parses_is_refused(keyword: str) -> None:
 # --- the INI surface --------------------------------------------------------------------------
 
 
-def test_ini_surface_declares_the_bool_under_the_installed_keyword() -> None:
-    surface = LargeGroupBonusFilterPatch(keyword="LooseObjects").ini_surface()
-    (delta,) = surface.fields
-    assert (delta.block, delta.name, delta.type, delta.default) == (
-        "LargeGroupBonusUpdate",
-        "LooseObjects",
-        "Bool",
-        False,
-    )
-    assert delta.patch == LargeGroupBonusFilterPatch.name
+def test_ini_surface_declares_all_five_fields() -> None:
+    surface = LargeGroupBonusPatch(keyword="LooseObjects").ini_surface()
+    declared = {delta.name: (delta.type, delta.default) for delta in surface.fields}
+    assert declared == {
+        "LooseObjects": ("Bool", False),
+        "TriggeredBy": ("Ref[]:upgrades", None),
+        "ConflictsWith": ("Ref[]:upgrades", None),
+        "RequiresAllTriggers": ("Bool", False),
+        "RequiresAllConflictingTriggers": ("Bool", False),
+    }
+    for delta in surface.fields:
+        assert delta.block == "LargeGroupBonusUpdate"
+        assert delta.patch == LargeGroupBonusPatch.name
+
+
+def test_the_upgrade_keywords_are_not_renameable() -> None:
+    """They are the engine's own spellings, taken row for row from `UpgradeMuxData` - a mod that
+    writes them expects them to mean here what they mean everywhere else."""
+    surface = LargeGroupBonusPatch(keyword="Whatever").ini_surface()
+    names = {delta.name for delta in surface.fields}
+    assert {name for name, _p, _o in UPGRADE_FIELDS} <= names
 
 
 def test_the_patch_is_attributed() -> None:
-    assert LargeGroupBonusFilterPatch.author
-    assert "(by " in LargeGroupBonusFilterPatch().credit
+    assert LargeGroupBonusPatch.author
+    assert "(by " in LargeGroupBonusPatch().credit

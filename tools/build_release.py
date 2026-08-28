@@ -16,8 +16,11 @@ app most people cannot use.
     python tools/build_release.py edain      # the mod overlays, which a plain run skips
 
 Each spec is a onefile build, so the staging dir ends up holding one binary per EXE the specs
-declare (a few specs declare two: a console CLI and a windowed app). PyInstaller binaries are
-not cross-platform, so the zip carries whatever this OS produced; build once per OS you ship.
+declare (a few specs declare two: a console CLI and a windowed app). Every console binary is
+built with `icon.ico` beside this script - one icon, so the release reads as one toolkit rather
+than a folder of unrelated exes; the windowed apps each carry their own, next to the window they
+title. PyInstaller binaries are not cross-platform, so the zip carries whatever this OS produced;
+build once per OS you ship.
 """
 
 import argparse

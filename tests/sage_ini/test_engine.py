@@ -18,11 +18,13 @@ import pytest
 from sage_ini.engine import (
     FORMAT_VERSION,
     STOCK,
+    AppliedPatch,
     BlockDelta,
     Engine,
     EnumDelta,
     FieldDelta,
     LimitDelta,
+    NestedDelta,
     NoopDelta,
     Source,
     active,
@@ -155,6 +157,67 @@ class TestEnumMembers:
             e.ModelCondition["PRODUCING"]
 
 
+class TestNestedBlocks:
+    """A sub-block a patch lets a block contain.
+
+    Registering the block type and nesting it are two different facts, and only the pair makes the
+    sub-block legal where it is written - the schema keeps nested groups in their own map, so a
+    block that exists but is not nested is reported as an unknown attribute of its parent."""
+
+    def _engine(self) -> Engine:
+        return Engine(
+            blocks=(BlockDelta("MergePlayerArmy", base="NestedAttribute", patch="p"),),
+            nested=(NestedDelta("Act", "MergePlayerArmy", patch="p"),),
+        )
+
+    def test_the_parent_gains_the_sub_block(self):
+        with self._engine().activate() as problems:
+            assert problems == []
+            assert REGISTRY["Act"]._nested["MergePlayerArmy"] == ["MergePlayerArmy"]
+
+    def test_the_parents_own_sub_blocks_survive(self):
+        stock = set(REGISTRY["Act"]._nested)
+        with self._engine().activate():
+            assert set(REGISTRY["Act"]._nested) == stock | {"MergePlayerArmy"}
+
+    def test_a_sibling_sharing_the_dict_does_not_gain_it(self):
+        """`Act` and `Scenario` are handed the *same* `nested_attributes` object by the stock
+        model, so an implementation that mutated it in place would nest the block under both."""
+        stock = set(REGISTRY["Scenario"]._nested)
+        with self._engine().activate():
+            assert set(REGISTRY["Scenario"]._nested) == stock
+
+    def test_reverting_takes_it_back_off(self):
+        stock = set(REGISTRY["Act"]._nested)
+        with self._engine().activate():
+            pass
+        assert set(REGISTRY["Act"]._nested) == stock
+
+    def test_type_names_the_class_when_it_differs_from_the_keyword(self):
+        engine = Engine(
+            blocks=(BlockDelta("SplitBlock", base="NestedAttribute", patch="p"),),
+            nested=(NestedDelta("Act", "MergePlayerArmy", type="SplitBlock", patch="p"),),
+        )
+        with engine.activate() as problems:
+            assert problems == []
+            assert REGISTRY["Act"]._nested["MergePlayerArmy"] == ["SplitBlock"]
+
+    def test_an_unknown_parent_is_reported_not_raised(self):
+        engine = Engine(nested=(NestedDelta("NoSuchBlock", "Whatever", patch="p"),))
+        with engine.activate() as problems:
+            assert any("NoSuchBlock" in problem for problem in problems)
+
+    def test_an_unknown_child_is_reported_not_raised(self):
+        engine = Engine(nested=(NestedDelta("Act", "NeverRegistered", patch="p"),))
+        with engine.activate() as problems:
+            assert any("NeverRegistered" in problem for problem in problems)
+            assert "NeverRegistered" not in REGISTRY["Act"]._nested
+
+    def test_nesting_alone_is_not_a_stock_engine(self):
+        assert not Engine(nested=(NestedDelta("Act", "X", patch="p"),)).is_stock
+        assert STOCK.is_stock
+
+
 class TestReverting:
     def test_revert_restores_the_stock_schema(self):
         before = dict(REGISTRY["Object"]._fieldspec)
@@ -179,10 +242,94 @@ class TestReverting:
         assert active() is STOCK
 
 
+class TestTheManifest:
+    """The `[[patches]]` list: what the binary is made of, as opposed to what it now accepts.
+
+    Its own section because it answers a different question from every delta beside it - most
+    patches change no INI at all, so a file that only recorded the surface would list none of
+    them - and because the model must stay indifferent to it: it is provenance, not schema."""
+
+    def test_the_list_round_trips_with_its_parameters(self):
+        engine = Engine(
+            patches=(
+                AppliedPatch("commandset-limit", (("count", 64),), author="officialNecro"),
+                AppliedPatch("cah-factions", (("sides", ("Rohan", "Lothlorien")),)),
+                AppliedPatch("headless", experimental=True),
+            )
+        )
+        back = parse_engine(dump_engine(engine))
+
+        assert back.warnings == ()
+        assert back.patches == engine.patches
+
+    def test_a_patch_that_changes_no_ini_is_still_listed(self):
+        """The whole point of the section. `is_stock` is about the INI surface, so a build made
+        only of patches that add no field and no token is stock *and* has a manifest."""
+        engine = parse_engine(
+            f"""version = {FORMAT_VERSION}
+[[patches]]
+name = "crash-dump"
+"""
+        )
+
+        assert engine.warnings == ()
+        assert engine.is_stock
+        assert engine.patches == (AppliedPatch("crash-dump"),)
+
+    def test_a_description_is_written_as_a_comment_and_not_read_back(self):
+        """Prose about a patch rather than a fact about the binary: it is in the file so a reader
+        with nothing installed knows what the build does, and out of the data so rewording one
+        can never read as drift."""
+        engine = Engine(patches=(AppliedPatch("crash-dump", description="Write a minidump"),))
+        text = dump_engine(engine)
+
+        assert "# Write a minidump" in text
+        assert parse_engine(text).patches == (AppliedPatch("crash-dump"),)
+
+    def test_an_option_the_file_spells_wrongly_is_dropped_with_a_warning(self):
+        engine = parse_engine(
+            f"""version = {FORMAT_VERSION}
+[[patches]]
+name = "commandset-limit"
+options = {{ count = 64, nested = {{ no = 1 }} }}
+"""
+        )
+
+        assert engine.patches == (AppliedPatch("commandset-limit", (("count", 64),)),)
+        assert any("nested" in w for w in engine.warnings)
+
+    def test_an_entry_without_a_name_is_dropped_with_a_warning(self):
+        engine = parse_engine(
+            f"""version = {FORMAT_VERSION}
+[[patches]]
+author = "somebody"
+"""
+        )
+
+        assert engine.patches == ()
+        assert any("name" in w for w in engine.warnings)
+
+    def test_merging_is_last_wins_per_patch_name(self):
+        first = _engine(patches=(AppliedPatch("commandset-limit", (("count", 40),)),))
+        second = _engine(patches=(AppliedPatch("commandset-limit", (("count", 80),)),))
+
+        assert first.merge(second).patches == second.patches
+
+    def test_the_manifest_changes_nothing_about_the_model(self):
+        """Applying an engine that is nothing but a manifest is a no-op, and reverts cleanly."""
+        engine = _engine(patches=(AppliedPatch("crash-dump"),))
+
+        with engine.activate() as problems:
+            assert problems == []
+            assert active() is engine
+
+
 class TestFileFormat:
     def test_a_full_document_round_trips(self):
         engine = Engine(
+            patches=(AppliedPatch("hero-mana", (("pool", 100),)),),
             fields=(FieldDelta("SpecialPower", "ManaCost", "Int", 0, "hero-mana"),),
+            nested=(NestedDelta("Act", "MergePlayerArmy", patch="campaign-army-verbs"),),
             noops=(NoopDelta("SpecialPower", "UnitCost", "no longer read", "hero-mana"),),
             enum_members=(EnumDelta("ModelCondition", "PRODUCING", 591, "production-condition"),),
             limits=(LimitDelta("commandset.max_slots", 64, "commandset-limit"),),
@@ -191,6 +338,8 @@ class TestFileFormat:
         back = parse_engine(dump_engine(engine))
         assert back.warnings == ()
         assert back == Engine(
+            patches=engine.patches,
+            nested=engine.nested,
             fields=engine.fields,
             noops=engine.noops,
             enum_members=engine.enum_members,

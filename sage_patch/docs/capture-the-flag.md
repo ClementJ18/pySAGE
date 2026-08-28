@@ -173,7 +173,7 @@ returns scores a full horde and a lone hero **1 apiece**, and the percentage rul
 nonsense to anyone watching.
 
 This is not speculation about this engine — it is the exact defect
-[`large-group-bonus-filter.md`](large-group-bonus-filter.md) documents in
+[`large-group-bonus.md`](large-group-bonus.md) documents in
 `LargeGroupBonusUpdate`, which hands its filter *down* into each candidate's contain interface
 (`Object::getContain` `0x0068C866`, then vslot `+0x180`, "how many of my members match this
 filter") instead of evaluating it on the candidate. The same two calls give this module member
@@ -248,11 +248,11 @@ binary for this document.
 | VA | what | provenance |
 |---|---|---|
 | `0x00DE4354` | `ThePartitionManager` | [`fog-of-war.md`](fog-of-war.md), confirmed live |
-| `0x00A39340` | `PartitionManager::iterateObjectsInRange`, NULL-terminated variadic filter list | [`player-heal-filter.md`](player-heal-filter.md), [`large-group-bonus-filter.md`](large-group-bonus-filter.md) |
+| `0x00A39340` | `PartitionManager::iterateObjectsInRange`, NULL-terminated variadic filter list | [`player-heal-filter.md`](player-heal-filter.md), [`large-group-bonus.md`](large-group-bonus.md) |
 | `0x00C10E20` / `0x00660E71` | stock partition filter: candidate is not dead | `LargeGroupBonusUpdate`'s own scan |
 | `0x00C10E14` / `0x00660AFE` | stock partition filter: `getControllingPlayer(candidate) == source player` | same |
 | `0x0068B678` | `Object::getControllingPlayer` | used by two shipped patches |
-| `0x0068C866` | `Object::getContain`, then vslot `+0x180` = count members matching a filter | [`large-group-bonus-filter.md`](large-group-bonus-filter.md) |
+| `0x0068C866` | `Object::getContain`, then vslot `+0x180` = count members matching a filter | [`large-group-bonus.md`](large-group-bonus.md) |
 | `0x0076392F` / `0x0076406F` / `0x007629B0` / `0x00762977` / `0x00763543` | the `ObjectFilter` ABI: parse fn, ctor, dtor, was-specified, evaluate (`ret 0xc`) | [`player-heal-filter.md`](player-heal-filter.md) |
 | `0x00697C09` | **`Object::setTeam`** (`ret 8`, second argument 1) | §4.1 |
 | `0x0068BC01` | `Object::setID` - **not** `setTeam`, and the trap §4.1 is about | §4.1 |

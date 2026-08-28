@@ -23,6 +23,7 @@ else:
 
 import sage_ini.model.types as t  # noqa: E402  (intentional self-reference)
 from sage_ini.model.enums import (
+    AudioVolumeSlider,
     DamageType,
     DeathType,
     Descriptors,
@@ -742,6 +743,12 @@ class _SoundFile(_AssetFile):
     extensions = (".wav", ".mp3")
 
 
+class _IniFile(_AssetFile):
+    # A data file a `LoadSubsystem` loads by path (`Data\INI\Weapon.ini`), rather than one the
+    # art pipeline resolves by name.
+    extensions = (".ini",)
+
+
 class _MapFile(_AssetFile):
     # A WorldBuilder layout: a playable map (`.map`) or an AI base/library layout (`.bse`).
     # A field like `AIBase.Map` names a base layout (`.bse`), `GameMapToUseOn` a map (`.map`);
@@ -754,6 +761,7 @@ ModelFile = Annotated[str, _ModelFile]
 AudioFile = Annotated[str, _AudioFile]
 SoundFile = Annotated[str, _SoundFile]
 MapFile = Annotated[str, _MapFile]
+IniFile = Annotated[str, _IniFile]
 
 # Soft cross-references (resolve when loaded, else the raw name passes through) to tables that
 # had no dedicated alias yet. Mirror `Animation`/`ObjectCreationListRef`: str-typed, the
@@ -775,6 +783,8 @@ AutoResolveBodyRef = Annotated[str, Reference("autoresolvebodys")]
 AutoResolveCombatChainRef = Annotated[str, Reference("autoresolvecombatchains")]
 AutoResolveLeadershipRef = Annotated[str, Reference("autoresolveleaderships")]
 RegionCampaignRef = Annotated[str, Reference("livingworldregioncampaigns")]
+PlayerArmyRef = Annotated[str, Reference("livingworldplayerarmys")]
+LivingWorldBuildingRef = Annotated[str, Reference("livingworldbuildings")]
 BuildingIconRef = Annotated[str, Reference("livingworldbuildingicons")]
 DamageFXRef = Annotated[str, Reference("damagefxs")]
 LivingWorldAnimObjectRef = Annotated[str, Reference("livingworldanimobjects")]
@@ -1252,11 +1262,28 @@ class _VolumeSliderMultiplier(KeyedRecordList):
     scales the event's volume by `Multiplier` percent for the named mixer `Slider`. Repeats,
     one entry per slider, so a field typed with it reads as a list."""
 
-    Slider: Opaque
+    Slider: AudioVolumeSlider
     Multiplier: Int
 
 
 VolumeSliderMultiplier = Annotated[list[_VolumeSliderMultiplier], _VolumeSliderMultiplier]
+
+
+class _PerPlayerCountMultiplier(KeyedRecord):
+    """A `GameData` rate scaled by how many players are in the game
+    (`MP1:1.0 MP2:1.0 ... MP8:1.0`): one multiplier per player count, on a single line."""
+
+    MP1: Float
+    MP2: Float
+    MP3: Float
+    MP4: Float
+    MP5: Float
+    MP6: Float
+    MP7: Float
+    MP8: Float
+
+
+PerPlayerCountMultiplier = Annotated[_PerPlayerCountMultiplier, _PerPlayerCountMultiplier]
 
 
 class _GroupedByKey(Multivalued):

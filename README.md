@@ -1,4 +1,4 @@
-# pySAGE
+# <img src="docs/icon.png" alt="" width="32"> pySAGE
 
 A collection of Python tools for reading, editing, linting and visualising the data
 formats of the **SAGE engine** - the engine behind *Command & Conquer: Generals* and
