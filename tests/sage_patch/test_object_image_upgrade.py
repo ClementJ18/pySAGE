@@ -175,6 +175,43 @@ def test_apply_uses_object_key_and_ascii_string_addresses(image: bytearray) -> N
     assert b"\x8b\x77\x84" not in body
 
 
+def test_apply_reuses_same_object_and_source_row_at_the_tail(image: bytearray) -> None:
+    patch = ObjectImageUpgradePatch()
+    patch.apply(image)
+    base, section_off, _size = find_section(image, SECTION_NAME) or pytest.fail("missing section")
+    code = patch._assemble(base)
+    begin = section_off + code.label_va("apply") - base
+    end = section_off + code.label_va("unapply") - base
+    body = bytes(image[begin:end])
+
+    # Match both keys, remember that row, then copy every later 16-byte row one slot left. The
+    # vacated tail becomes apply_slot, so A -> B -> A has physical order B,A and A wins again.
+    object_match = body.index(b"\x39\x3b")
+    source_match = body.index(b"\x39\x6b\x04", object_match)
+    remember = body.index(b"\x89\x1c\x24", source_match)
+    shift = body.index(b"\x8d\x4a\x10", remember)
+    four_dword_copy = bytes.fromhex(
+        "8b0189028b41048942048b41088942088b410c89420c8bd1"
+    )
+    copied = body.index(four_dword_copy, shift)
+    reuse_tail = body.index(b"\x8b\xda", copied)
+    assert object_match < source_match < remember < shift < copied < reuse_tail
+
+
+def test_reused_row_is_cleared_before_images_are_resolved_again(image: bytearray) -> None:
+    patch = ObjectImageUpgradePatch()
+    patch.apply(image)
+    base, section_off, _size = find_section(image, SECTION_NAME) or pytest.fail("missing section")
+    code = patch._assemble(base)
+    begin = section_off + code.label_va("apply_slot") - base
+    end = section_off + code.label_va("unapply") - base
+    body = bytes(image[begin:end])
+    clear = b"\xc7\x43\x08\x00\x00\x00\x00\xc7\x43\x0c\x00\x00\x00\x00"
+    select_lookup = b"\x8d\x85\x38\x01\x00\x00\x50"
+    button_lookup = b"\x8d\x85\x3c\x01\x00\x00\x50"
+    assert body.index(clear) < body.index(select_lookup) < body.index(button_lookup)
+
+
 def test_upgrade_vtable_patches_apply_and_unapply_slots(image: bytearray) -> None:
     patch = ObjectImageUpgradePatch()
     patch.apply(image)

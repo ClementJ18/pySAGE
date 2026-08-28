@@ -225,23 +225,58 @@ class ObjectImageUpgradePatch(Patch):
         )
         a.jcc(JE, "apply_done")
 
+        # Keep an existing (Object*, source runtime*) row in a stack local. Rows are an occupied
+        # prefix. On reapply, close the old gap and rewrite the row at the occupied tail; this
+        # avoids duplicates while preserving the resolvers' "last matching row wins" ordering.
         a.emit(
+            b"\x8d\x6e\xf0",            # lea ebp,[esi-10] ; source runtime
+            b"\x6a\x00",                # existing-row local
             b"\xbb", _u32(layout["sidecar"]),
             b"\x31\xc0",
         )
         a.label("apply_scan")
         a.emit(b"\x83\x3b\x00")         # cmp dword ptr [ebx],0
-        a.jcc(JE, "apply_slot")
+        a.jcc(JE, "apply_scan_done")
+        a.emit(b"\x39\x3b")              # cmp [ebx],edi ; same Object*?
+        a.jcc(JNE, "apply_next")
+        a.emit(b"\x39\x6b\x04")          # cmp [ebx+04],ebp ; same source runtime?
+        a.jcc(JNE, "apply_next")
+        a.emit(b"\x89\x1c\x24")          # existing = ebx
+        a.label("apply_next")
         a.emit(b"\x83\xc3", bytes([_ROW_SIZE]), 0x40, b"\x3d", _u32(_ROWS))
         a.jcc(JB, "apply_scan")
-        a.jmp("apply_done")
+
+        a.label("apply_scan_done")
+        a.emit(b"\x8b\x14\x24", b"\x85\xd2")  # edx = existing
+        a.jcc(JE, "apply_new_slot")
+
+        # Stable removal. EBX is the first free row (or one-past-table when full); EDX finishes at
+        # the vacated occupied-tail row, which is then rewritten by the normal resolution path.
+        a.label("apply_shift")
+        a.emit(b"\x8d\x4a\x10", b"\x3b\xcb")
+        a.jcc(JE, "apply_reused_slot")
+        a.emit(
+            b"\x8b\x01", b"\x89\x02",
+            b"\x8b\x41\x04", b"\x89\x42\x04",
+            b"\x8b\x41\x08", b"\x89\x42\x08",
+            b"\x8b\x41\x0c", b"\x89\x42\x0c",
+            b"\x8b\xd1",
+        )
+        a.jmp("apply_shift")
+
+        a.label("apply_reused_slot")
+        a.emit(b"\x8b\xda")              # ebx = vacated occupied-tail row
+        a.jmp("apply_slot")
+
+        a.label("apply_new_slot")
+        a.emit(b"\x3d", _u32(_ROWS))
+        a.jcc(JE, "apply_done_local")      # full and no reusable row
 
         a.label("apply_slot")
         a.emit(
-            b"\x8b\x6e\xf4",            # mov ebp,[esi-0C] ; ModuleData*
             b"\x89\x3b",                # mov [ebx],edi    ; Object*
-            b"\x8d\x46\xf0",            # lea eax,[esi-10] ; source runtime
-            b"\x89\x43\x04",            # source runtime
+            b"\x89\x6b\x04",            # source runtime
+            b"\x8b\x6e\xf4",            # mov ebp,[esi-0C] ; ModuleData*
 
             b"\xc7\x43\x08\x00\x00\x00\x00",
             b"\xc7\x43\x0c\x00\x00\x00\x00",
@@ -287,9 +322,11 @@ class ObjectImageUpgradePatch(Patch):
             b"\xa1", _u32(_THE_CONTROL_BAR),
             b"\x85\xc0",
         )
-        a.jcc(JE, "apply_done")
+        a.jcc(JE, "apply_done_local")
         a.emit(b"\xc6\x40\x28\x01")
 
+        a.label("apply_done_local")
+        a.emit(b"\x83\xc4\x04")          # discard existing-row local
         a.label("apply_done")
         a.emit(0x5F, 0x5E, 0x5D, 0x5B, 0xC3)
 

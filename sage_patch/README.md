@@ -871,9 +871,11 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   hero's or unit's `SelectPortrait` and `ButtonImage` after `TriggeredBy` succeeds. Recruitment
   remains vanilla because its `CommandButton` image is a separate path. Multiple behaviors are
   supported: the last successfully triggered non-null image wins, and later successful triggers
-  may overwrite it again. The result is deliberately sticky—later loss of the trigger upgrade or
-  a newly active `ConflictsWith` does not roll it back. Image names must exist in the active mapped
-  image assets. The implementation is presentation-only and keeps stock upgrade evaluation; see
+  may overwrite it again. Retriggering the same behavior reuses its sidecar row and moves it back
+  to winning position instead of consuming another slot. The result is deliberately sticky—later
+  loss of the trigger upgrade or a newly active `ConflictsWith` does not roll it back. Image names
+  must exist in the active mapped image assets. The implementation is presentation-only and keeps
+  stock upgrade evaluation; see
   [`docs/object-image-upgrade.md`](docs/object-image-upgrade.md). **Runtime-verified in game.**
 
 - **`upgrade-description`** keeps a `CommandButton`'s **`DescriptLabel` visible after its upgrade is

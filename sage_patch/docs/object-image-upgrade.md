@@ -35,11 +35,14 @@ left untouched, and custom Apply occupies `+0x28`.
 
 The hooks scan matching rows from first to last and retain the last non-null image. Thus, when an
 object has multiple `ObjectImageUpgrade` behaviors, the last successfully applied behavior wins
-for each non-null field. A later successful trigger, including a repeating or alternating upgrade
-sequence, can overwrite the image again. They never
-inspect the object's internal module storage and scan only patch-owned rows. The fixed table has
-2048 rows; if exhausted, a new override is ignored rather than writing out of bounds. Upgrade loss,
-late ConflictsWith, multi-behavior precedence and row cleanup remain open experimental semantics.
+for each non-null field. Reapplying the same `(Object *, source module *)` does not allocate a
+duplicate row: its existing row is stably moved to the occupied tail and overwritten, so an
+`A -> B -> A` sequence makes A win again without consuming a third slot. A later successful
+trigger, including a repeating or alternating upgrade sequence, can overwrite the image again.
+They never inspect the object's internal module storage and scan only patch-owned rows. The fixed table has
+2048 rows; if exhausted, a new source is ignored rather than writing out of bounds, while an
+existing source can still be moved to the tail and refreshed. Upgrade loss and late
+`ConflictsWith` use the documented sticky semantics below; row cleanup is intentionally absent.
 No object-destruction hook is installed because the former Drawable hook cannot safely clean a
 table keyed by Object pointers.
 
@@ -74,5 +77,6 @@ changes presentation only; it is not a desync path.
 The Apply/UI path has been exercised successfully in game with heroes and normal units, both image
 fields, multiple behaviors, last-triggered precedence, `TriggeredBy`, `ConflictsWith` at activation,
 and repeating or alternating upgrades. Hero recruitment remains vanilla because it uses the
-separate `CommandButton` path. The fixed sidecar is not reclaimed; long-running content that fills
-all 2048 rows will have later overrides ignored. No destructor cleanup is installed.
+separate `CommandButton` path. The fixed sidecar is not reclaimed; long-running content that
+reaches 2048 distinct `(Object *, source module *)` pairs will have later new-source overrides
+ignored. Retriggering an existing pair reuses its row. No destructor cleanup is installed.
