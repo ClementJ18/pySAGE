@@ -867,6 +867,15 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   reverting it. Ability cooldowns are the one thing that does not carry across yet. See
   [`docs/lifetime-transform.md`](docs/lifetime-transform.md). **Not runtime-verified.**
 
+- **`object-image-upgrade`** adds an INI `ObjectImageUpgrade` behavior that changes a concrete
+  hero's or unit's `SelectPortrait` and `ButtonImage` after `TriggeredBy` succeeds. Recruitment
+  remains vanilla because its `CommandButton` image is a separate path. Multiple behaviors are
+  supported: the last successfully triggered non-null image wins, and later successful triggers
+  may overwrite it again. The result is deliberately sticky—later loss of the trigger upgrade or
+  a newly active `ConflictsWith` does not roll it back. Image names must exist in the active mapped
+  image assets. The implementation is presentation-only and keeps stock upgrade evaluation; see
+  [`docs/object-image-upgrade.md`](docs/object-image-upgrade.md). **Runtime-verified in game.**
+
 - **`upgrade-description`** keeps a `CommandButton`'s **`DescriptLabel` visible after its upgrade is
   researched**, with *"this upgrade has already been researched"* appended **under** it instead of
   written **over** it. Stock, the description is simply gone the moment you own the thing it
