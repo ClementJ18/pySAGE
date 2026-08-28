@@ -613,7 +613,7 @@ class ObjectImageUpgradePatch(Patch):
         return Engine(
             blocks=(BlockDelta(BLOCK_NAME, base="Behavior", patch=self.name),),
             fields=tuple(
-                FieldDelta(BLOCK_NAME, name, "AsciiString", patch=self.name)
+                FieldDelta(BLOCK_NAME, name, "String", patch=self.name)
                 for name, _offset in FIELDS
             ),
         )
