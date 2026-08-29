@@ -95,7 +95,7 @@ def test_registration_calls_stock_wrapper_before_custom_registration(image: byte
     end = section_off + code.label_va("runtime_factory") - base
     body = bytes(image[begin:end])
     calls = [index for index in range(len(body) - 4) if body[index] == 0xE8]
-    targets = [code.label_va("register") + i + 5 + struct.unpack_from("<i", body, i + 1)[0] 
+    targets = [code.label_va("register") + i + 5 + struct.unpack_from("<i", body, i + 1)[0]
                for i in calls
                ]
     assert targets.count(OBJECT_IMAGE_UPGRADE_REGISTER) == 2
