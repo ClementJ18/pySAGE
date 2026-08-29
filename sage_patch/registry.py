@@ -58,8 +58,8 @@ from sage_patch.patches.large_group_bonus_filter import LargeGroupBonusFilterPat
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
-from sage_patch.patches.object_image_upgrade import ObjectImageUpgradePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
+from sage_patch.patches.object_image_upgrade import ObjectImageUpgradePatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.observer_command_range import ObserverCommandRangePatch
 from sage_patch.patches.observer_switch import ObserverSwitchPatch

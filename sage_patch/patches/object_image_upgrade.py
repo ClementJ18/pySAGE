@@ -32,9 +32,9 @@ from ..addresses import (
     ASCII_STRING_DTOR,
     GAME_DATA_ASCIISTRING_PARSER,
     OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE,
+    OBJECT_IMAGE_UPGRADE_BUILD_UPGRADE_FIELDS,
     OBJECT_IMAGE_UPGRADE_BUTTON_HOOK,
     OBJECT_IMAGE_UPGRADE_BUTTON_RESUME,
-    OBJECT_IMAGE_UPGRADE_BUILD_UPGRADE_FIELDS,
     OBJECT_IMAGE_UPGRADE_FIND_IMAGE,
     OBJECT_IMAGE_UPGRADE_MODULEDATA_CTOR,
     OBJECT_IMAGE_UPGRADE_MODULEDATA_VTABLE,
@@ -101,7 +101,8 @@ class ObjectImageUpgradePatch(Patch):
     name = "object-image-upgrade"
     author = "Ostkannit"
     description = (
-        "Adds a new Behavior ObjectImageUpgrade, which allows for per-object select-portrait and button-image overrides driven by an upgrade. "
+        "Adds a new Behavior ObjectImageUpgrade, which allows for per-object "
+        "select-portrait and button-image overrides driven by an upgrade. "
         "The Behavior should be triggered less than 2048 times in total per active game-session, "
         "as the patch uses a fixed-size sidecar to store the overrides"
     )
@@ -342,7 +343,7 @@ class ObjectImageUpgradePatch(Patch):
 
         a.label("unapply")
         a.emit(0xC3)
-        
+
         # Select portrait hook. ECX = Object*.
         # Sidecar row:
         #   +00 Object*, +04 ObjectID, +08 source runtime*
@@ -526,7 +527,7 @@ class ObjectImageUpgradePatch(Patch):
 
         table = bytearray()
 
-        for index, (name, offset) in enumerate(FIELDS):
+        for index, (_name, offset) in enumerate(FIELDS):
             name_va = layout[
                 "select_name" if index == 0 else "button_name"
             ]

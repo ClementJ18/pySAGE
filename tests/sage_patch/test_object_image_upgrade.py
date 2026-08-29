@@ -1,5 +1,3 @@
-"""Structural tests for the presentation-only ObjectImageUpgrade module."""
-
 from __future__ import annotations
 
 import struct
@@ -12,14 +10,18 @@ from sage_patch.addresses import (
     OBJECT_IMAGE_UPGRADE_REGISTER,
     OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE,
 )
+from sage_patch.patches import ObjectImageUpgradePatch as Exported
+from sage_patch.patches import object_image_upgrade as object_image_module
 from sage_patch.patches.object_image_upgrade import (
     BLOCK_NAME,
     FIELDS,
     SECTION_NAME,
     ObjectImageUpgradePatch,
 )
-from sage_patch.patches import object_image_upgrade as object_image_module
+from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
+
+"""Structural tests for the presentation-only ObjectImageUpgrade module."""
 
 _GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
 
@@ -93,7 +95,9 @@ def test_registration_calls_stock_wrapper_before_custom_registration(image: byte
     end = section_off + code.label_va("runtime_factory") - base
     body = bytes(image[begin:end])
     calls = [index for index in range(len(body) - 4) if body[index] == 0xE8]
-    targets = [code.label_va("register") + i + 5 + struct.unpack_from("<i", body, i + 1)[0] for i in calls]
+    targets = [code.label_va("register") + i + 5 + struct.unpack_from("<i", body, i + 1)[0] 
+               for i in calls
+               ]
     assert targets.count(OBJECT_IMAGE_UPGRADE_REGISTER) == 2
     assert targets.index(OBJECT_IMAGE_UPGRADE_REGISTER) < len(targets) - 1
 
@@ -296,8 +300,6 @@ def test_resolvers_scan_all_rows_and_keep_later_non_null_matches(image: bytearra
 
 
 def test_registered_exported_and_not_experimental() -> None:
-    from sage_patch.patches import ObjectImageUpgradePatch as Exported
-    from sage_patch.registry import PATCHES
 
     assert Exported is ObjectImageUpgradePatch
     assert PATCHES[ObjectImageUpgradePatch.name] is ObjectImageUpgradePatch
