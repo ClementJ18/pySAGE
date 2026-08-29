@@ -7,6 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from sage_ini.engine import parse_type
+from sage_patch.addresses import (
+    OBJECT_IMAGE_UPGRADE_REGISTER,
+    OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE,
+)
 from sage_patch.patches.object_image_upgrade import (
     BLOCK_NAME,
     FIELDS,
@@ -89,8 +94,8 @@ def test_registration_calls_stock_wrapper_before_custom_registration(image: byte
     body = bytes(image[begin:end])
     calls = [index for index in range(len(body) - 4) if body[index] == 0xE8]
     targets = [code.label_va("register") + i + 5 + struct.unpack_from("<i", body, i + 1)[0] for i in calls]
-    assert targets.count(0x006570FE) == 2
-    assert targets.index(0x006570FE) < len(targets) - 1
+    assert targets.count(OBJECT_IMAGE_UPGRADE_REGISTER) == 2
+    assert targets.index(OBJECT_IMAGE_UPGRADE_REGISTER) < len(targets) - 1
 
 
 def test_factories_delegate_to_stock_and_only_replace_upgrade_mux(image: bytearray) -> None:
@@ -247,7 +252,7 @@ def test_upgrade_vtable_patches_apply_and_unapply_slots(image: bytearray) -> Non
     layout = patch._layout(base)
     code = patch._assemble(base)
     table_off = va_to_offset(image, layout["upgrade"])
-    stock_off = va_to_offset(image, 0x00C6F820)
+    stock_off = va_to_offset(image, OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE)
     assert table_off is not None
     assert stock_off is not None
     assert image[table_off + 0x04 : table_off + 0x0C] == image[
@@ -318,3 +323,5 @@ def test_ini_surface_declares_the_new_behavior() -> None:
     surface = ObjectImageUpgradePatch().ini_surface()
     assert surface.blocks[0].name == BLOCK_NAME
     assert {field.name for field in surface.fields} == {"SelectPortrait", "ButtonImage"}
+    assert {field.type for field in surface.fields} == {"Ref:mappedimages"}
+    assert all(parse_type(field.type)[1] == "" for field in surface.fields)

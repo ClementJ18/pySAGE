@@ -28,6 +28,29 @@ import struct
 
 from sage_ini.engine import BlockDelta, Engine, FieldDelta
 
+from ..addresses import (
+    ASCII_STRING_DTOR,
+    GAME_DATA_ASCIISTRING_PARSER,
+    OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE,
+    OBJECT_IMAGE_UPGRADE_BUTTON_HOOK,
+    OBJECT_IMAGE_UPGRADE_BUTTON_RESUME,
+    OBJECT_IMAGE_UPGRADE_BUILD_UPGRADE_FIELDS,
+    OBJECT_IMAGE_UPGRADE_FIND_IMAGE,
+    OBJECT_IMAGE_UPGRADE_MODULEDATA_CTOR,
+    OBJECT_IMAGE_UPGRADE_MODULEDATA_VTABLE,
+    OBJECT_IMAGE_UPGRADE_REGISTER,
+    OBJECT_IMAGE_UPGRADE_REGISTER_CALL,
+    OBJECT_IMAGE_UPGRADE_REGISTER_CLEANUP,
+    OBJECT_IMAGE_UPGRADE_RUNTIME_FACTORY_STOCK,
+    OBJECT_IMAGE_UPGRADE_SELECT_DISPLACED_CALL,
+    OBJECT_IMAGE_UPGRADE_SELECT_HOOK,
+    OBJECT_IMAGE_UPGRADE_SELECT_RESUME,
+    OBJECT_IMAGE_UPGRADE_SET_ASCII_CSTR,
+    OBJECT_IMAGE_UPGRADE_THE_CONTROL_BAR,
+    OBJECT_IMAGE_UPGRADE_THE_IMAGES,
+    OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE,
+    OPERATOR_NEW,
+)
 from ..asm import JB, JE, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
@@ -39,37 +62,11 @@ BLOCK_NAME = "ObjectImageUpgrade"
 FIELDS = (("SelectPortrait", 0x138), ("ButtonImage", 0x13C))
 
 # TooltipUpgrade is the proven layout twin: ModuleData 0x140, runtime 0x1C, UpgradeMux at +0x10.
-_REGISTER_CALL = 0x0065A7F2
-_REGISTER = 0x006570FE
 _REGISTER_BYTES = bytes.fromhex("e807c9ffff")
-_RUNTIME_FACTORY_STOCK = 0x006504C2
-_MODULEDATA_CTOR = 0x0065563C
-_OPERATOR_NEW = 0x0042F6E0
-_ASCII_SET_CSTR = 0x0040611E
-_ASCII_DTOR = 0x00435D50
-_REGISTER_CLEANUP = 0x0042DBBD
-_BUILD_UPGRADE_FIELDS = 0x008D26E0
-_APPEND_FIELD_TABLE = 0x0042B8D7
-
-_UPGRADE_VTABLE = 0x00C6F820
 _UPGRADE_VTABLE_SIZE = 0x48
-_MODULEDATA_VTABLE = 0x00C09AD0
 _MODULEDATA_VTABLE_SIZE = 0x80
-
-_STOCK_FIELD_TABLE = 0x00C6F898
-_PARSE_ASCII_STRING = 0x0042EE5E
-
-_FIND_IMAGE = 0x006DA34C
-_THE_IMAGES = 0x00DE4AC0
-_THE_CONTROL_BAR = 0x00DE7744
-
-_SELECT_HOOK = 0x00694F06
 _SELECT_BYTES = bytes.fromhex("568bf1e8eafcffff")
-_SELECT_RESUME = 0x00694F0E
-_SELECT_DISPLACED_CALL = 0x00694BF8
-_BUTTON_HOOK = 0x0073D0BA
 _BUTTON_BYTES = bytes.fromhex("837c240400")
-_BUTTON_RESUME = 0x0073D0BF
 _ROWS = 2048
 _ROW_SIZE = 0x14  # Object *, ObjectID, source, select Image *, button Image *
 _SIDECAR_SIZE = _ROWS * _ROW_SIZE
@@ -104,8 +101,9 @@ class ObjectImageUpgradePatch(Patch):
     name = "object-image-upgrade"
     author = "Ostkannit"
     description = (
-        "add ObjectImageUpgrade with TriggeredBy, SelectPortrait and ButtonImage fields for "
-        "per-object presentation-only image changes"
+        "Adds a new Behavior ObjectImageUpgrade, which allows for per-object select-portrait and button-image overrides driven by an upgrade. "
+        "The Behavior should be triggered less than 2048 times in total per active game-session, "
+        "as the patch uses a fixed-size sidecar to store the overrides"
     )
 
     def _layout(self, base: int) -> dict[str, int]:
@@ -145,26 +143,26 @@ class ObjectImageUpgradePatch(Patch):
         for disp in (0x1C, 0x18, 0x14, 0x10, 0x0C, 0x08):
             a.emit(b"\xff\x75", bytes([disp]))
         a.emit(b"\x8b\xce")
-        a.call_absolute(_REGISTER)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_REGISTER)
         a.emit(b"\x83\xec\x04", b"\x83\x24\x24\x00", b"\x8b\xcc")
         a.emit(b"\x68", _u32(layout["block_name"]))
-        a.call_absolute(_ASCII_SET_CSTR)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_SET_ASCII_CSTR)
         a.emit(b"\x68\x84\x00\x00\x00", 0x50, b"\x6a\x00\x6a\x00")
         a.emit(0x68)
         a.label("moduledata_factory_imm")
         a.emit(bytes(4), 0x68)
         a.label("runtime_factory_imm")
         a.emit(bytes(4), b"\x8b\xce")
-        a.call_absolute(_REGISTER)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_REGISTER)
         a.emit(b"\x8b\xcc")
-        a.call_absolute(_ASCII_DTOR)
+        a.call_absolute(ASCII_STRING_DTOR)
         a.emit(b"\x83\xc4\x04", 0x5E, 0x5D, b"\xc2\x18\x00")
 
         a.label("runtime_factory")
         # Delegate allocation and construction to TooltipUpgrade's exact factory.  The callback
         # is cdecl (plain RET), while its thiscall constructor consumes its own two arguments.
         a.emit(0x55, b"\x8b\xec", 0x56, b"\xff\x75\x0c", b"\xff\x75\x08")
-        a.call_absolute(_RUNTIME_FACTORY_STOCK)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_RUNTIME_FACTORY_STOCK)
         a.emit(b"\x83\xc4\x08", b"\x8b\xf0", b"\x85\xf6")
         a.jcc(JE, "runtime_factory_done")
         # Preserve the constructor-set primary/behavior/aux vtables. Only UpgradeMux differs.
@@ -174,12 +172,12 @@ class ObjectImageUpgradePatch(Patch):
 
         a.label("moduledata_factory")
         a.emit(0x55, b"\x8b\xec", 0x56, b"\x68", _u32(_MODULEDATA_SIZE))
-        a.call_absolute(_OPERATOR_NEW)
+        a.call_absolute(OPERATOR_NEW)
         a.emit(0x59, b"\x8b\xf0", b"\x85\xf6")
         a.jcc(JE, "moduledata_factory_done")
 
         a.emit(b"\x8b\xce")
-        a.call_absolute(_MODULEDATA_CTOR)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_MODULEDATA_CTOR)
 
         a.emit(b"\xc7\x06", _u32(layout["moduledata"]))
 
@@ -189,7 +187,7 @@ class ObjectImageUpgradePatch(Patch):
         a.emit(0x68)
         a.label("build_fields_imm")
         a.emit(bytes(4), 0x56)
-        a.call_absolute(_REGISTER_CLEANUP)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_REGISTER_CLEANUP)
 
         a.label("moduledata_factory_done")
         a.emit(b"\x8b\xc6", 0x5E, 0x5D, 0xC3)
@@ -197,17 +195,17 @@ class ObjectImageUpgradePatch(Patch):
         a.label("build_fields")
 
         a.emit(b"\x6a\x08")
-        a.call_absolute(_BUILD_UPGRADE_FIELDS)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_BUILD_UPGRADE_FIELDS)
 
         a.emit(b"\x8b\x4c\x24\x08", 0x50)
-        a.call_absolute(_APPEND_FIELD_TABLE)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE)
 
         a.emit(
             b"\x8b\x4c\x24\x04",
             b"\x6a\x00",
             b"\x68", _u32(layout["table"]),
         )
-        a.call_absolute(_APPEND_FIELD_TABLE)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE)
 
         a.emit(0xC3)
 
@@ -295,7 +293,7 @@ class ObjectImageUpgradePatch(Patch):
 
         # SelectPortrait
         a.emit(
-            b"\x8b\x0d", _u32(_THE_IMAGES),
+            b"\x8b\x0d", _u32(OBJECT_IMAGE_UPGRADE_THE_IMAGES),
             b"\x85\xc9",
         )
         a.jcc(JE, "apply_button_image")
@@ -304,7 +302,7 @@ class ObjectImageUpgradePatch(Patch):
             b"\x8d\x85\x38\x01\x00\x00",  # lea eax,[ebp+138]
             0x50,                          # push eax
         )
-        a.call_absolute(_FIND_IMAGE)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_FIND_IMAGE)
 
         a.emit(
             b"\x89\x43\x0c",               # row.selectPortrait = eax
@@ -313,7 +311,7 @@ class ObjectImageUpgradePatch(Patch):
         # ButtonImage
         a.label("apply_button_image")
         a.emit(
-            b"\x8b\x0d", _u32(_THE_IMAGES),
+            b"\x8b\x0d", _u32(OBJECT_IMAGE_UPGRADE_THE_IMAGES),
             b"\x85\xc9",
         )
         a.jcc(JE, "apply_dirty")
@@ -322,7 +320,7 @@ class ObjectImageUpgradePatch(Patch):
             b"\x8d\x85\x3c\x01\x00\x00",  # lea eax,[ebp+13C]
             0x50,                          # push eax
         )
-        a.call_absolute(_FIND_IMAGE)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_FIND_IMAGE)
 
         a.emit(
             b"\x89\x43\x10",               # row.buttonImage = eax
@@ -330,7 +328,7 @@ class ObjectImageUpgradePatch(Patch):
 
         a.label("apply_dirty")
         a.emit(
-            b"\xa1", _u32(_THE_CONTROL_BAR),
+            b"\xa1", _u32(OBJECT_IMAGE_UPGRADE_THE_CONTROL_BAR),
             b"\x85\xc0",
         )
         a.jcc(JE, "apply_done_local")
@@ -410,8 +408,8 @@ class ObjectImageUpgradePatch(Patch):
             0x56,                         # push esi
             b"\x8b\xf1",                  # mov esi,ecx
         )
-        a.call_absolute(_SELECT_DISPLACED_CALL)
-        a.jmp_absolute(_SELECT_RESUME)
+        a.call_absolute(OBJECT_IMAGE_UPGRADE_SELECT_DISPLACED_CALL)
+        a.jmp_absolute(OBJECT_IMAGE_UPGRADE_SELECT_RESUME)
 
         # Button hook:
         # Image* __cdecl GetEffectiveObjectButtonImage(
@@ -481,7 +479,7 @@ class ObjectImageUpgradePatch(Patch):
             0x5B,
             b"\x83\x7c\x24\x04\x00",     # displaced vanilla CMP
         )
-        a.jmp_absolute(_BUTTON_RESUME)
+        a.jmp_absolute(OBJECT_IMAGE_UPGRADE_BUTTON_RESUME)
 
         a.finish()
         return a
@@ -508,7 +506,7 @@ class ObjectImageUpgradePatch(Patch):
         layout = self._layout(base)
 
         upgrade = bytearray(
-            _at(data, _UPGRADE_VTABLE, _UPGRADE_VTABLE_SIZE)
+            _at(data, OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE, _UPGRADE_VTABLE_SIZE)
         )
 
         code = self._assemble(base)
@@ -536,7 +534,7 @@ class ObjectImageUpgradePatch(Patch):
             table += struct.pack(
                 "<4I",
                 name_va,
-                _PARSE_ASCII_STRING,
+                GAME_DATA_ASCIISTRING_PARSER,
                 0,
                 offset,
             )
@@ -551,7 +549,7 @@ class ObjectImageUpgradePatch(Patch):
         out += upgrade
         out += _at(
             data,
-            _MODULEDATA_VTABLE,
+            OBJECT_IMAGE_UPGRADE_MODULEDATA_VTABLE,
             _MODULEDATA_VTABLE_SIZE,
         )
 
@@ -572,9 +570,9 @@ class ObjectImageUpgradePatch(Patch):
 
     def apply(self, data: bytearray) -> None:
         for va, expected in (
-            (_REGISTER_CALL, _REGISTER_BYTES),
-            (_SELECT_HOOK, _SELECT_BYTES),
-            (_BUTTON_HOOK, _BUTTON_BYTES),
+            (OBJECT_IMAGE_UPGRADE_REGISTER_CALL, _REGISTER_BYTES),
+            (OBJECT_IMAGE_UPGRADE_SELECT_HOOK, _SELECT_BYTES),
+            (OBJECT_IMAGE_UPGRADE_BUTTON_HOOK, _BUTTON_BYTES),
         ):
             if _at(data, va, len(expected)) != expected:
                 raise ValueError(f"unexpected build or overlapping patch at {va:#010x}")
@@ -585,21 +583,21 @@ class ObjectImageUpgradePatch(Patch):
 
         edits = (
             (
-                _REGISTER_CALL,
+                OBJECT_IMAGE_UPGRADE_REGISTER_CALL,
                 _REGISTER_BYTES,
-                _call(_REGISTER_CALL, code.label_va("register")),
+                _call(OBJECT_IMAGE_UPGRADE_REGISTER_CALL, code.label_va("register")),
                 "register ObjectImageUpgrade",
             ),
             (
-                _SELECT_HOOK,
+                OBJECT_IMAGE_UPGRADE_SELECT_HOOK,
                 _SELECT_BYTES,
-                _jmp(_SELECT_HOOK, code.label_va("select_hook")) + b"\x90" * 3,
+                _jmp(OBJECT_IMAGE_UPGRADE_SELECT_HOOK, code.label_va("select_hook")) + b"\x90" * 3,
                 "instance select portrait",
             ),
             (
-                _BUTTON_HOOK,
+                OBJECT_IMAGE_UPGRADE_BUTTON_HOOK,
                 _BUTTON_BYTES,
-                _jmp(_BUTTON_HOOK, code.label_va("button_hook")),
+                _jmp(OBJECT_IMAGE_UPGRADE_BUTTON_HOOK, code.label_va("button_hook")),
                 "instance button image",
             ),
         )
@@ -618,9 +616,18 @@ class ObjectImageUpgradePatch(Patch):
         if got != expected:
             problems.append(f"{SECTION_NAME} does not hold the expected sidecar, tables and code")
         for va, want in (
-            (_REGISTER_CALL, _call(_REGISTER_CALL, code.label_va("register"))),
-            (_SELECT_HOOK, _jmp(_SELECT_HOOK, code.label_va("select_hook")) + b"\x90" * 3),
-            (_BUTTON_HOOK, _jmp(_BUTTON_HOOK, code.label_va("button_hook"))),
+            (
+                OBJECT_IMAGE_UPGRADE_REGISTER_CALL,
+                _call(OBJECT_IMAGE_UPGRADE_REGISTER_CALL, code.label_va("register")),
+            ),
+            (
+                OBJECT_IMAGE_UPGRADE_SELECT_HOOK,
+                _jmp(OBJECT_IMAGE_UPGRADE_SELECT_HOOK, code.label_va("select_hook")) + b"\x90" * 3,
+            ),
+            (
+                OBJECT_IMAGE_UPGRADE_BUTTON_HOOK,
+                _jmp(OBJECT_IMAGE_UPGRADE_BUTTON_HOOK, code.label_va("button_hook")),
+            ),
         ):
             if _at(data, va, len(want)) != want:
                 problems.append(f"hook at {va:#010x} does not point into {SECTION_NAME}")
@@ -630,7 +637,7 @@ class ObjectImageUpgradePatch(Patch):
         return Engine(
             blocks=(BlockDelta(BLOCK_NAME, base="Behavior", patch=self.name),),
             fields=tuple(
-                FieldDelta(BLOCK_NAME, name, "String", patch=self.name)
+                FieldDelta(BLOCK_NAME, name, "Ref:mappedimages", patch=self.name)
                 for name, _offset in FIELDS
             ),
         )
