@@ -72,6 +72,17 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   unobtainable upgrade are player-only restrictions today. The gate applies **only to callers that
   ask `canMakeUnit` directly**, which is only ever the AI's own choice of producer; the ControlBar
   and production come in through `BuildAssistant`'s `+0x64` gate and keep the stock answer.
+- **`ai-command-null-target`** stops a `MountedTemplate` transform crashing when the unit's pending
+  AI order names an object that has since been removed. `AICommandParmsStorage::reconstitute`
+  turns a stored `ObjectID` back into a pointer through `GameLogic::findObjectByID` and stores the
+  result **unchecked**, so a dead id arrives as NULL — and the mount swap's "is this order still
+  worth re-issuing" test reads the target's position without a guard, faulting at `0x0066C410`.
+  Reached in practice by `PickupStuffUpdate`: the skirmish AI walks a hero to the One Ring with
+  `aiMoveToObject(ring, CMD_FROM_AI)`, the pickup destroys the Ring, no replacement order is
+  issued, and becoming a Ring hero fires the toggle onto the dangling id. The patch adds the
+  missing null test and answers "do not transfer", which is what a move-to-object with no object
+  means. Logic-side but decision-only, so it is replay- and network-safe. No INI change. See
+  [`docs/ai-command-null-target.md`](docs/ai-command-null-target.md).
 - **`ai-construction-gate`** stops the skirmish AI queueing production out of a building that is
   **still going up**. "Under construction may not produce" is a real rule, stated in three places —
   the ControlBar, the legacy `AIPlayer::findFactory`, and `ProductionUpdate`'s exit step — and none
@@ -469,6 +480,27 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   This is what Edain's *Ambush of the Wood-elves* command-set swap works around, at the cost of the
   mass trigger. It changes which objects a logic-side order reaches, so **every peer must run the
   same patched binary** and replays do not cross. **Runtime-verified in game.**
+- **`multi-select-group`** adds a **`MultiSelectGroup` number to `CommandButton`**, so two buttons a
+  mod declares interchangeable keep the slot they share when a mixed selection's command bars are
+  merged. Today they do not: `ControlBar::populateMultiSelect` fills the slots from the first
+  selected unit's `CommandSet` and merges every later unit in by comparing its button for each slot
+  **by pointer identity** — a difference clears the slot and `winHide`s the window, so the player
+  sees an empty socket, not a greyed icon. That is what a `CommandSetUpgrade` swap costs: the moment
+  a selection holds units at two upgrade stages, the slot the two sets disagree on goes black, and
+  the palantir draws six buttons for a unit so the slot cannot simply be moved elsewhere. Two
+  buttons carrying the same non-zero value now merge as one. **Which of the two survives is decided
+  by the data, not by selection order**: where both name an `Upgrade`, the merge asks the unit being
+  merged whether it already owns the installed button's upgrade (`Object::hasUpgrade`) and keeps the
+  earlier stage either way, converging on the least advanced button in the selection in any merge
+  order. That is a safety property rather than a preference — a click on an upgrade button sends
+  `MSG(0x415)` with an object id of **zero**, meaning the whole selection, and the logic side gates
+  each member on `hasUpgrade` / `canAcceptUpgrade` and never on whether the button was in *that*
+  unit's own set, so showing the later stage would let a unit still at stage one buy stage two
+  directly and skip the first purchase. Buttons with no `Upgrade` have no stage to compare and the
+  first unit's wins, which is what the rest of the bar already does. One `rel32`, one byte widened
+  in the constructor to default the field, the `CommandButton` field table rebuilt, and a `0x75`-byte
+  cave; the field is client-side UI only, so the orders a click produces are unchanged. **Not yet
+  runtime-verified in game.**
 - **`attack-requires-damage`** stops a unit **auto-acquiring or right-click-attacking a target it
   cannot damage**. Whether one object can attack another ends, for auto-acquire and for a
   right-click / attack order, in a routine that walks the weapon's nuggets and answers yes if
@@ -1205,6 +1237,20 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   opt-in** — it changes what an existing wall block already does. Simulation state, so **every peer
   must run the same patched binary** and replays do not cross, the same rule as `spawn-union`. See
   [`docs/raised-wall-mesh-removal.md`](docs/raised-wall-mesh-removal.md).
+- **`give-upgrade-all`** makes a porter deliver **every upgrade it carries**
+  instead of the one the upgrade registry happens to list first. `GiveUpgradeUpdate` asks
+  `UpgradeCenter::firstSetIn` for *the* upgrade set in the porter's own object mask — what
+  `GrantUpgradeCreate` writes — at three sites, and that single answer decides whether the cursor
+  accepts a target, whom a `DeliverUpgrade = Yes` porter walks to, and what the recipient is
+  handed. The registry is newest-first, so "the" upgrade is whichever the ini declared **last**,
+  and a porter carrying three of them is refused, with no diagnostic, by every battalion that can
+  take the other two but not that one. The patch makes all three sites plural: validity answers
+  yes if the recipient accepts **any** carried upgrade, the auto-deliver searches for a recipient
+  of any of them, and the trigger grants every acceptable one — through the engine's own
+  `HordeContain::giveUpgradeToMembers` / `Object::giveUpgrade`, each gated by the acceptance test
+  stock uses, so nothing is granted that stock would have refused. Logic-side and decision-only,
+  so replay- and network-safe. No INI change. See
+  [`docs/give-upgrade-all.md`](docs/give-upgrade-all.md).
 - **`smart-rally`** (**experimental**) lets a structure's rally point **name a hero or a unit**
   instead of a spot on the ground, so units coming out of a barracks go where the target *is* rather
   than where it was standing when the order was given. The spend hook sits at the **head** of the
@@ -1446,6 +1492,12 @@ sage-patch verify cah-factions --sides Rohan,Lothlorien game.dat
 sage-patch apply ai-revive-gate --in game.dat.backup --out game.dat   # no parameters
 sage-patch verify ai-revive-gate game.dat
 
+sage-patch apply give-upgrade-all --in game.dat.backup --out game.dat   # no parameters
+sage-patch verify give-upgrade-all game.dat
+
+sage-patch apply ai-command-null-target --in game.dat.backup --out game.dat   # no parameters
+sage-patch verify ai-command-null-target game.dat
+
 sage-patch apply ai-construction-gate --in game.dat.backup --out game.dat   # no parameters
 sage-patch verify ai-construction-gate game.dat
 
@@ -1564,6 +1616,11 @@ sage-patch verify queue-ignore-cp game.dat
 # a CommandButton field that greys the button unless that many command points are free
 sage-patch apply command-point-cost --in game.dat.backup --out game.dat  # --keyword CommandPointCost
 sage-patch verify command-point-cost game.dat
+
+# a CommandButton field that lets two buttons share a slot when a mixed selection is merged,
+# instead of blanking it - the upgrade-stage command-set swap, fixed
+sage-patch apply multi-select-group --in game.dat.backup --out game.dat  # --keyword MultiSelectGroup
+sage-patch verify multi-select-group game.dat
 
 # a FireWeaponWhenDamagedBehavior field that aims the reaction weapon at whatever dealt the damage
 sage-patch apply fire-at-attacker --in game.dat.backup --out game.dat   # --keyword FireAtAttacker

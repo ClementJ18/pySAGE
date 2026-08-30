@@ -1,5 +1,6 @@
 """Concrete :class:`~sage_patch.patcher.Patch` implementations."""
 
+from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
@@ -24,6 +25,7 @@ from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
+from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
 from sage_patch.patches.healing_received import HealingReceivedPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
@@ -31,6 +33,7 @@ from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
+from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.production_condition import ProductionConditionPatch
@@ -48,6 +51,7 @@ from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
 
 __all__ = [
+    "AiCommandNullTargetPatch",
     "AiConstructionGatePatch",
     "AiFlagCaptureGatePatch",
     "AiReviveGatePatch",
@@ -61,6 +65,7 @@ __all__ = [
     "DesertWeatherWorldbuilderPatch",
     "FireAtAttackerPatch",
     "FoundationRebindPatch",
+    "GiveUpgradeAllPatch",
     "HeadlessPatch",
     "HealingReceivedPatch",
     "HeroBarSlotsPatch",
@@ -69,10 +74,11 @@ __all__ = [
     "InflationReadoutPatch",
     "LargeGroupBonusPatch",
     "LifetimeFieldsPatch",
-    "MaintenanceCostPatch",
     "LiveBridgePatch",
     "LivingWorldOverridePatch",
+    "MaintenanceCostPatch",
     "MultiExecuteGatePatch",
+    "MultiSelectGroupPatch",
     "ObjectivesScreenPatch",
     "PlayerHealFilterPatch",
     "ProductionConditionPatch",
@@ -84,8 +90,8 @@ __all__ = [
     "SecondResourcePatch",
     "SkirmishReplayPatch",
     "SmartRallyPatch",
-    "SpellStoreUpgradePatch",
     "SpawnUnionPatch",
+    "SpellStoreUpgradePatch",
     "TerrainResourceExpPatch",
     "TriggerRechargeListPatch",
     "UniqueProductionIdPatch",

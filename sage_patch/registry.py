@@ -7,6 +7,7 @@ registered rather than hidden on purpose - a patch nobody can run is a patch nob
 problem in, and the warning is the thing that makes offering it honest."""
 
 from sage_patch.patcher import Patch
+from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
@@ -52,6 +53,7 @@ from sage_patch.patches.experimental.standalone_launcher import StandaloneLaunch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
+from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
 from sage_patch.patches.healing_received import (
     HealingReceivedPatch,
     HealingReceivedWorldbuilderPatch,
@@ -67,6 +69,7 @@ from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
+from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.observer_command_range import ObserverCommandRangePatch
 from sage_patch.patches.observer_switch import ObserverSwitchPatch
@@ -112,6 +115,8 @@ PATCHES: dict[str, type[Patch]] = {
     CommandSetButtonUpgradePatch.name: CommandSetButtonUpgradePatch,
     CahFactionsPatch.name: CahFactionsPatch,
     AiReviveGatePatch.name: AiReviveGatePatch,
+    AiCommandNullTargetPatch.name: AiCommandNullTargetPatch,
+    GiveUpgradeAllPatch.name: GiveUpgradeAllPatch,
     AiConstructionGatePatch.name: AiConstructionGatePatch,
     AiFlagCaptureGatePatch.name: AiFlagCaptureGatePatch,
     ProductionConditionPatch.name: ProductionConditionPatch,
@@ -146,6 +151,7 @@ PATCHES: dict[str, type[Patch]] = {
     HeroBarSlotsPatch.name: HeroBarSlotsPatch,
     InfantryLightingPatch.name: InfantryLightingPatch,
     MultiExecuteGatePatch.name: MultiExecuteGatePatch,
+    MultiSelectGroupPatch.name: MultiSelectGroupPatch,
     AttackRequiresDamagePatch.name: AttackRequiresDamagePatch,
     SpawnUnionPatch.name: SpawnUnionPatch,
     QueueIgnoreCpPatch.name: QueueIgnoreCpPatch,
