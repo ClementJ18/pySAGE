@@ -44,6 +44,10 @@ python -m sage_apt view SpellStore.xml --label _on
 # Open the interactive editor (saves the XML, exports .apt on demand)
 python -m sage_apt edit SpellStore.xml --port 8080
 
+# Copy a character - and everything it draws - from one movie into another
+python -m sage_apt import-character MainMenu.xml Bfme1MainMenu.xml 304 \
+    --geometry path/to/bfme1/apt --geometry-out MainMenu_geometry
+
 # Open the editor on a given root frame / frame-label state, for movies whose frame 0 is
 # an empty hidden state (the in-game HUD ones: InGameHeroSelect parks on `_hide`)
 python -m sage_apt edit InGameHeroSelect.xml --label _show
@@ -85,6 +89,20 @@ never leaves a partial `.apt` beside a stale `.const`.
   archives beneath `<dir>` when it is not a loose file - a loose file beside the `.apt`
   still wins. Needs the optional `[apt]` extra (`pip install "pysage-tools[apt]"`, pulls in pyBIG);
   the core stays stdlib-only.
+- **Merging characters between movies** (`merge.py`, `import-character`) is renumbering, not
+  copying. Characters are an array and every reference is an index into it - a `placeobject`'s
+  `character`, a button record's `character`, an `edittext`'s `font` - and two more namespaces hang
+  off it: a `shape` names a `<Movie>_geometry/<id>.ru` mesh, and that mesh's `s tc:` fills name
+  `image` characters back in the array. That last edge is **not in the XML**, so a merge without
+  `--geometry` silently leaves the copied shapes' textures behind. Imports are matched against the
+  destination's own by (movie, name) and only added when missing. The `.const` needs no attention:
+  it is rebuilt from the XML on every compile. `copy_functions` does the same job for a frame's
+  ActionScript, re-indexing a copied `definefunction` against the destination's constant pool -
+  which a one-byte operand caps at 256 entries, so it refuses rather than wrapping.
+- **An image's texture** is its `->` row if it has one; failing that, a `=` rectangle row means the
+  image samples a texture of **its own name**, and only an image with neither row falls back to the
+  shared `apt_<Movie>_1` atlas. Every rect key in the corpus - nineteen ROTWK movies and BFME1's
+  `MainMenu` - ships an `apt_<Movie>_<key>` beside it.
 - **A blank stage usually means frame 0, not a broken file.** Movies that the game shows and
   hides put nothing on frame 0 - `InGameHeroSelect`'s is labelled `_hide` and holds only a
   background, with all 33 elements placed on `_fadein` (frame 9) and revealed by `_show`

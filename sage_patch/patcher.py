@@ -9,6 +9,7 @@ patches succeed)."""
 
 from __future__ import annotations
 
+import inspect
 import logging
 import struct
 from collections.abc import Iterable
@@ -136,6 +137,32 @@ class Patch:
         except (ValueError, KeyError, IndexError, TypeError, struct.error):
             return None
         return None if problems else patch
+
+    def options(self) -> dict[str, object]:
+        """The parameters this instance was built with, as the keyword arguments that rebuild it
+        - `{"count": 64}` for a `commandset-limit` at 64, `{}` for a patch that takes none.
+
+        This is what makes a detected patch writable down and replayable: `sagepatch` records it
+        in the `.sagepatch` manifest and `rebuild` passes it straight back to the constructor, so
+        a build reproduces at the counts and keywords it was actually made with rather than at
+        this version's defaults.
+
+        The default reads the constructor's own named parameters off the instance, which is the
+        convention every bundled patch already follows (`__init__(self, count=64)` storing
+        `self.count`). A patch that keeps its parameters under other names overrides this; a
+        parameter with no matching attribute is skipped, and so is one that is None, which is how
+        an optional parameter says "left at the default" in a format that has no null.
+        """
+        found: dict[str, object] = {}
+        for name, parameter in inspect.signature(type(self).__init__).parameters.items():
+            variadic = (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD)
+            if name == "self" or parameter.kind in variadic:
+                continue
+            value = getattr(self, name, None)
+            if value is None:
+                continue
+            found[name] = tuple(value) if isinstance(value, list | tuple) else value
+        return found
 
     def ini_surface(self) -> Engine:
         """What this patch changes about the **INI** the engine accepts, as an

@@ -22,11 +22,12 @@ from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatc
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
+from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.healing_received import HealingReceivedPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
-from sage_patch.patches.large_group_bonus_filter import LargeGroupBonusFilterPatch
+from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
@@ -62,6 +63,7 @@ __all__ = [
     "CommandSetLimitPatch",
     "DesertWeatherPatch",
     "DesertWeatherWorldbuilderPatch",
+    "FireAtAttackerPatch",
     "FoundationRebindPatch",
     "HeadlessPatch",
     "HealingReceivedPatch",
@@ -69,7 +71,7 @@ __all__ = [
     "HeroManaPatch",
     "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
-    "LargeGroupBonusFilterPatch",
+    "LargeGroupBonusPatch",
     "LifetimeFieldsPatch",
     "MaintenanceCostPatch",
     "LiveBridgePatch",

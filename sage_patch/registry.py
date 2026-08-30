@@ -23,26 +23,34 @@ from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
 from sage_patch.patches.commandset_button_upgrade import CommandSetButtonUpgradePatch
 from sage_patch.patches.crash_dump import CrashDumpPatch
+from sage_patch.patches.deploy_before_attack import DeployBeforeAttackPatch
 from sage_patch.patches.description_timers import DescriptionTimersPatch
 from sage_patch.patches.desert_weather import (
     DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch,
 )
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
+from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
+from sage_patch.patches.experimental.campaign_army_verbs import CampaignArmyVerbsPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
 from sage_patch.patches.experimental.capture_the_flag import CaptureTheFlagPatch
 from sage_patch.patches.experimental.cooldown_through_death import CooldownThroughDeathPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
+from sage_patch.patches.experimental.hero_army_carryover import HeroArmyCarryoverPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.render_rate import RenderRatePatch
+from sage_patch.patches.experimental.scenario_player_factions import (
+    ScenarioPlayerFactionsPatch,
+)
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_charges import SpecialPowerChargesPatch
 from sage_patch.patches.experimental.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
+from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.healing_received import (
     HealingReceivedPatch,
@@ -54,7 +62,7 @@ from sage_patch.patches.herobar import HeroBarPatch, HeroBarWorldbuilderPatch
 from sage_patch.patches.horde_exit_absorption import HordeExitAbsorptionPatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
-from sage_patch.patches.large_group_bonus_filter import LargeGroupBonusFilterPatch
+from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
@@ -133,7 +141,7 @@ PATCHES: dict[str, type[Patch]] = {
     BannerFilterPatch.name: BannerFilterPatch,
     BannerModifierPatch.name: BannerModifierPatch,
     PlayerHealFilterPatch.name: PlayerHealFilterPatch,
-    LargeGroupBonusFilterPatch.name: LargeGroupBonusFilterPatch,
+    LargeGroupBonusPatch.name: LargeGroupBonusPatch,
     LifetimeFieldsPatch.name: LifetimeFieldsPatch,
     SecondResourcePatch.name: SecondResourcePatch,
     InflationReadoutPatch.name: InflationReadoutPatch,
@@ -155,7 +163,11 @@ PATCHES: dict[str, type[Patch]] = {
     MultiInstanceLauncherPatch.name: MultiInstanceLauncherPatch,
     StandaloneLauncherPatch.name: StandaloneLauncherPatch,
     CampaignSelectPatch.name: CampaignSelectPatch,
+    BattleSchoolPatch.name: BattleSchoolPatch,
+    CampaignArmyVerbsPatch.name: CampaignArmyVerbsPatch,
+    HeroArmyCarryoverPatch.name: HeroArmyCarryoverPatch,
     FoundationRebindPatch.name: FoundationRebindPatch,
+    FireAtAttackerPatch.name: FireAtAttackerPatch,
     HeadlessPatch.name: HeadlessPatch,
     ProductionSplitPatch.name: ProductionSplitPatch,
     ProductionSplitWorldbuilderPatch.name: ProductionSplitWorldbuilderPatch,
@@ -185,6 +197,8 @@ PATCHES: dict[str, type[Patch]] = {
     SpecialPowerChargesPatch.name: SpecialPowerChargesPatch,
     RenderRatePatch.name: RenderRatePatch,
     AssetLoadProfilePatch.name: AssetLoadProfilePatch,
+    ScenarioPlayerFactionsPatch.name: ScenarioPlayerFactionsPatch,
+    DeployBeforeAttackPatch.name: DeployBeforeAttackPatch,
 }
 
 __all__ = ["PATCHES"]

@@ -7,10 +7,17 @@ kinds, one per line (`;`-prefixed lines are comments):
     <imageId>-><textureId>      the image samples texture `apt_<Movie>_<textureId>`
     <imageId>=<x> <y> <w> <h>   the image crops this pixel rectangle from that texture
 
-An image with no assignment defaults to texture 1 (the movies observed only ever ship a
-single `apt_<Movie>_1` atlas); an image with no rectangle has no known size, so the viewer
-keeps drawing it as a placeholder. Stdlib-only - decoding the texture itself needs the
-optional `[apt]`/`[ui]` extras (see `sage_apt.textures`)."""
+The two rows are independent, and a movie can ship either or both - `apt/gadgettimer.big`
+has only rectangles, `apt/mainmenu.big` only assignments, `apt/ingamenotificationbox.big`
+some of each. What an image samples when it has no `->` row therefore depends on whether it
+has a rectangle: **a rectangle implies a texture of the image's own name**, which is what
+every rect row in the corpus does (each of the nineteen ROTWK movies with one, and BFME1's
+`MainMenu`, ships an `apt_<Movie>_<key>` per key and no atlas holding them); an image with
+neither row falls back to texture 1, the single atlas the `->` rows all point at. An image
+with no rectangle has no known size, so the viewer keeps drawing it as a placeholder.
+
+Stdlib-only - decoding the texture itself needs the optional `[apt]`/`[ui]` extras (see
+`sage_apt.textures`)."""
 
 from pathlib import Path
 
@@ -25,8 +32,17 @@ class ImageMap:
         self.rects: dict[int, tuple[int, int, int, int]] = {}  # image id -> (x, y, w, h)
 
     def texture_of(self, image_id: int) -> int:
-        """The texture id an image samples (falls back to texture 1)."""
-        return self.textures.get(image_id, self.DEFAULT_TEXTURE)
+        """The texture id an image samples.
+
+        An explicit `->` row wins. Failing that, an image with a **rectangle** row samples a
+        texture of its own, named after itself: across the nineteen ROTWK movies that ship rect
+        rows, and BFME1's `MainMenu`, every rect key has a matching `apt_<Movie>_<key>` beside it
+        and there is no shared atlas holding them. Only an image with neither row falls back to
+        texture 1, which is the single atlas the `->` rows all point at.
+        """
+        if image_id in self.textures:
+            return self.textures[image_id]
+        return image_id if image_id in self.rects else self.DEFAULT_TEXTURE
 
     def rect_of(self, image_id: int) -> tuple[int, int, int, int] | None:
         """The (x, y, w, h) crop rectangle for an image, or None when unmapped."""

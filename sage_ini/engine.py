@@ -10,6 +10,12 @@ An `Engine` is that difference, written down. It is inert data: load one from a 
 (`load_engine`), build one in code, merge several, compare or serialize them. `apply()` is what
 makes the model agree with it.
 
+It carries one thing the model never reads: `patches`, the list of binary patches the `game.dat`
+was built from, each with the parameters it was built with (see `AppliedPatch`). Most patches
+change no INI at all, so the surface deltas alone describe only a fraction of a build; with the
+list, the same committed file is also the manifest that says what the binary *is* and that
+`sage-patch rebuild` can replay onto a clean one.
+
 ## Applying is process-wide, and deliberately so
 
 The model's schema is flattened onto the classes themselves (`IniObject._fieldspec`) and enum
@@ -34,6 +40,7 @@ message in `Engine.warnings` or in the list `apply()` returns, and the rest stil
 """
 
 import enum as _enum
+import textwrap
 import tomllib
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
@@ -53,11 +60,13 @@ __all__ = [
     "SAGEPATCH_NAME",
     "STOCK",
     "STOCK_LIMITS",
+    "AppliedPatch",
     "BlockDelta",
     "Engine",
     "EnumDelta",
     "FieldDelta",
     "LimitDelta",
+    "NestedDelta",
     "NoopDelta",
     "Source",
     "active",
@@ -71,8 +80,12 @@ __all__ = [
 ]
 
 #: The `.sagepatch` schema version this module writes and understands. A file from a newer
-#: generator still loads: unknown sections and keys warn and are skipped.
-FORMAT_VERSION = 1
+#: generator still loads: unknown sections and keys warn and are skipped. Version 2 added the
+#: `[[patches]]` manifest, which a version-1 reader skips as an unknown section - so a v2 file
+#: still describes the same INI surface to it, minus the provenance it never knew to look for.
+#: Version 3 added `[[nested]]`, the same way: an older reader loses the sub-blocks a patch let a
+#: block contain, and everything else about the file still reads.
+FORMAT_VERSION = 3
 
 #: The file `sage_patch sagepatch` writes and `sage_lint` looks for beside `.sagelint`.
 SAGEPATCH_NAME = ".sagepatch"
@@ -88,6 +101,43 @@ STOCK_LIMITS: dict[str, int] = {
     # patch that raises the slot count. Listed so a future patch that does widen it has a name.
     "commandset.max_visible_buttons": 33,
 }
+
+
+@dataclass(frozen=True, slots=True)
+class AppliedPatch:
+    """One binary patch a `game.dat` carries, with the parameters it was built with.
+
+    Every other record here describes INI the patched engine now accepts; this one describes the
+    **binary**, and it is written down whether or not the patch touches the INI at all. Most
+    patches do not - a crash dumper, an observer camera, a launcher fix add no field and no token
+    - so a file holding only the surface deltas silently omits most of what a build is made of.
+
+    Recorded, the list is the build manifest: what is in this binary, at which count, under which
+    keyword, by whom. `sage-patch rebuild` replays it onto a clean binary, `sage-patch sagepatch
+    --check` fails when the binary stops matching it, and a reader with none of this installed can
+    still open the file and see what the engine they are modding has been taught.
+
+    `options` are the constructor keyword arguments that rebuild the patch, sorted by name so the
+    file diffs cleanly; a parameter left at its default is written down too, because a manifest
+    that omits it stops being a manifest the day the default changes. A list-valued option is a
+    tuple here and a TOML array in the file."""
+
+    name: str
+    options: tuple[tuple[str, object], ...] = ()
+    #: Whether the patch is one of the unstable, largely untested ones.
+    experimental: bool = False
+    #: Who worked out the patch, for the credit line a mod shipping the binary owes them.
+    author: str = ""
+    #: What the patch does, so the committed file reads as a reference on its own. Written into
+    #: the file as the comment lines above the entry, because it is prose about a patch rather
+    #: than a fact about the binary: it is not read back by `parse_engine`, and `differences`
+    #: does not compare it, so rewording one never reads as drift.
+    description: str = ""
+
+    @property
+    def settings(self) -> dict[str, object]:
+        """`options` as the keyword-argument mapping that rebuilds the patch."""
+        return dict(self.options)
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +215,28 @@ class BlockDelta:
 
 
 @dataclass(frozen=True, slots=True)
+class NestedDelta:
+    """A **sub-block** the patched engine lets a block contain: `block` is the parent, `name` the
+    keyword the child opens under, and `type` the block type it parses as (defaulting to `name`).
+
+    Distinct from `FieldDelta` because a nested block is not a field: it has its own schema and
+    its own diagnostics, and the model keeps the two in separate maps. Distinct from `BlockDelta`
+    because registering a block type says the type *exists*, not where it may appear - a patch
+    that adds an Act verb has to do both, and only the pair makes the sub-block legal where it is
+    actually written."""
+
+    block: str
+    name: str
+    type: str = ""
+    patch: str = ""
+
+    @property
+    def child(self) -> str:
+        """The block type this nests, which is `name` unless `type` overrides it."""
+        return self.type or self.name
+
+
+@dataclass(frozen=True, slots=True)
 class EnumDelta:
     """A token a patch added to one of the engine's name tables (a model condition, a weapon-set
     flag, a locomotor set, a weather). `value` is the index the binary gives it, or None to let
@@ -193,7 +265,11 @@ class Engine:
     Instances are immutable and comparable, so a generated one can be diffed against a committed
     one to detect drift."""
 
+    #: The patches the binary carries - the build manifest, independent of whether any of them
+    #: changes the INI surface below. Nothing in the model reads it; see :class:`AppliedPatch`.
+    patches: tuple[AppliedPatch, ...] = ()
     blocks: tuple[BlockDelta, ...] = ()
+    nested: tuple[NestedDelta, ...] = ()
     fields: tuple[FieldDelta, ...] = ()
     noops: tuple[NoopDelta, ...] = ()
     enum_members: tuple[EnumDelta, ...] = ()
@@ -205,8 +281,19 @@ class Engine:
 
     @property
     def is_stock(self) -> bool:
-        """Whether this describes an unpatched engine (no deltas of any kind)."""
-        return not (self.blocks or self.fields or self.noops or self.enum_members or self.limits)
+        """Whether this adds nothing to the INI the stock engine accepts (no deltas of any kind).
+
+        About the *surface*, not the binary: a build made entirely of patches that change no INI
+        is stock by this measure and still lists its `patches`, which is the distinction the
+        manifest exists to make."""
+        return not (
+            self.blocks
+            or self.nested
+            or self.fields
+            or self.noops
+            or self.enum_members
+            or self.limits
+        )
 
     def limit(self, name: str) -> int:
         """The value of engine limit `name` - this engine's, else the stock ceiling. Raises
@@ -224,7 +311,9 @@ class Engine:
         for other in others:
             merged = replace(
                 merged,
+                patches=_last_wins(merged.patches, other.patches, lambda d: d.name),
                 blocks=_last_wins(merged.blocks, other.blocks, lambda d: d.name),
+                nested=_last_wins(merged.nested, other.nested, lambda d: (d.block, d.name)),
                 fields=_last_wins(merged.fields, other.fields, lambda d: (d.block, d.name)),
                 noops=_last_wins(merged.noops, other.noops, lambda d: (d.block, d.name)),
                 enum_members=_last_wins(
@@ -246,6 +335,8 @@ class Engine:
         undo: list[Callable[[], None]] = []
         for block in self.blocks:
             problems.extend(_apply_block(block, undo))
+        for nested in self.nested:
+            problems.extend(_apply_nested(nested, undo))
         for delta in self.fields:
             problems.extend(_apply_field(delta, undo))
         for noop in self.noops:
@@ -468,6 +559,27 @@ def _apply_block(delta: BlockDelta, undo: list[Callable[[], None]]) -> list[str]
     return []
 
 
+def _apply_nested(delta: NestedDelta, undo: list[Callable[[], None]]) -> list[str]:
+    """Let `delta.block` contain a `delta.name` sub-block, which is what makes an added block type
+    legal where the patch actually lets it be written.
+
+    The parent's own `nested_attributes` is *copied* before the entry is added: the stock model
+    shares one dict between several classes (every `Act` verb list is the same object), and
+    mutating it in place would quietly give the sub-block to all of them."""
+    cls, problem = _block(delta.block)
+    if cls is None:
+        return [f"{_where(delta.patch)}{problem}"]
+    if delta.child not in REGISTRY:
+        return [
+            f"{_where(delta.patch)}{delta.block}.{delta.name}: unknown block type {delta.child!r}"
+        ]
+    nested = _own(cls, "nested_attributes")
+    nested[delta.name] = [delta.child]
+    _set_own(cls, "nested_attributes", nested, undo)
+    rebuild_schema_tree(cls)
+    return []
+
+
 def _apply_field(delta: FieldDelta, undo: list[Callable[[], None]]) -> list[str]:
     cls, problem = _block(delta.block)
     if cls is None:
@@ -544,7 +656,7 @@ def _where(patch: str) -> str:
     return f"{patch}: " if patch else ""
 
 
-_SECTIONS = {"blocks", "fields", "noops", "enum_members", "limits"}
+_SECTIONS = {"patches", "blocks", "nested", "fields", "noops", "enum_members", "limits"}
 _KNOWN_KEYS = {"version", "source", *_SECTIONS}
 
 
@@ -566,6 +678,19 @@ def _string(entry: dict, key: str, warn: list[str], where: str, required: bool =
     if required:
         warn.append(f"{where}: entry is missing a non-empty '{key}' (ignored)")
     return ""
+
+
+def _option_value(value: object) -> object | None:
+    """One patch option as it can be held and compared, or None when the file spells something
+    a constructor argument never is - a nested table, an array of tables - which is dropped with
+    a warning rather than carried as a value no rebuild could pass on."""
+    if isinstance(value, bool | int | float | str):
+        return value
+    if isinstance(value, list) and all(
+        isinstance(item, bool | int | float | str) for item in value
+    ):
+        return tuple(value)
+    return None
 
 
 def parse_engine(text: str, where: str = SAGEPATCH_NAME) -> Engine:
@@ -599,6 +724,36 @@ def parse_engine(text: str, where: str = SAGEPATCH_NAME) -> Engine:
     elif raw_source is not None:
         warn.append(f"{where}: 'source' must be a table (ignored)")
 
+    patches: list[AppliedPatch] = []
+    for entry in _table_list(data, "patches", warn, where):
+        name = _string(entry, "name", warn, where)
+        if not name:
+            continue
+        raw_options = entry.get("options")
+        if raw_options is not None and not isinstance(raw_options, dict):
+            warn.append(f"{where}: patch {name} has a non-table 'options' (ignored)")
+            raw_options = None
+        options: list[tuple[str, object]] = []
+        for key, value in sorted((raw_options or {}).items()):
+            cleaned = _option_value(value)
+            if cleaned is None:
+                warn.append(f"{where}: patch {name}: option {key!r} is not a value a patch takes")
+                continue
+            options.append((key, cleaned))
+        experimental = entry.get("experimental")
+        if experimental is not None and not isinstance(experimental, bool):
+            warn.append(f"{where}: patch {name} has a non-boolean 'experimental' (ignored)")
+            experimental = None
+        patches.append(
+            AppliedPatch(
+                name=name,
+                options=tuple(options),
+                experimental=bool(experimental),
+                author=_string(entry, "author", warn, where, required=False),
+                description=_string(entry, "description", warn, where, required=False),
+            )
+        )
+
     blocks: list[BlockDelta] = []
     for entry in _table_list(data, "blocks", warn, where):
         name = _string(entry, "name", warn, where)
@@ -613,6 +768,21 @@ def parse_engine(text: str, where: str = SAGEPATCH_NAME) -> Engine:
                 name=name,
                 base=_string(entry, "base", warn, where, required=False) or "Behavior",
                 removed=bool(removed),
+                patch=_string(entry, "patch", warn, where, required=False),
+            )
+        )
+
+    nested: list[NestedDelta] = []
+    for entry in _table_list(data, "nested", warn, where):
+        block = _string(entry, "block", warn, where)
+        name = _string(entry, "name", warn, where)
+        if not (block and name):
+            continue
+        nested.append(
+            NestedDelta(
+                block=block,
+                name=name,
+                type=_string(entry, "type", warn, where, required=False),
                 patch=_string(entry, "patch", warn, where, required=False),
             )
         )
@@ -691,7 +861,9 @@ def parse_engine(text: str, where: str = SAGEPATCH_NAME) -> Engine:
         )
 
     return Engine(
+        patches=tuple(patches),
         blocks=tuple(blocks),
+        nested=tuple(nested),
         fields=tuple(fields),
         noops=tuple(noops),
         enum_members=tuple(members),
@@ -719,6 +891,10 @@ def _toml_value(value: object) -> str:
         return "true" if value else "false"
     if isinstance(value, int | float):
         return str(value)
+    if isinstance(value, tuple | list):
+        return "[" + ", ".join(_toml_value(item) for item in value) + "]"
+    if isinstance(value, dict):
+        return "{ " + ", ".join(f"{k} = {_toml_value(v)}" for k, v in value.items()) + " }"
     text = str(value).replace("\\", "\\\\").replace('"', '\\"')
     return f'"{text}"'
 
@@ -750,6 +926,20 @@ def dump_engine(engine: Engine, header: str = "") -> str:
         out.append("[source]")
         out.extend(f"{key} = {_toml_value(value)}" for key, value in source)
 
+    for patch in engine.patches:
+        out.append("")
+        out.extend(f"# {line}" for line in textwrap.wrap(patch.description, width=96))
+        out.append(
+            _toml_table(
+                "patches",
+                [
+                    ("name", patch.name),
+                    ("options", patch.settings or None),
+                    ("experimental", patch.experimental or None),
+                    ("author", patch.author),
+                ],
+            )
+        )
     for block in engine.blocks:
         out.append("")
         out.append(
@@ -760,6 +950,19 @@ def dump_engine(engine: Engine, header: str = "") -> str:
                     ("base", "" if block.removed else block.base),
                     ("removed", block.removed or None),
                     ("patch", block.patch),
+                ],
+            )
+        )
+    for entry in engine.nested:
+        out.append("")
+        out.append(
+            _toml_table(
+                "nested",
+                [
+                    ("block", entry.block),
+                    ("name", entry.name),
+                    ("type", entry.type),
+                    ("patch", entry.patch),
                 ],
             )
         )

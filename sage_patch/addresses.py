@@ -39,6 +39,16 @@ __all__ = [
     "ACTIVE_BODY_ATTEMPT_HEALING_AMOUNT_TEST",
     "ACTIVE_BODY_INTERNAL_CHANGE_HEALTH",
     "ACTIVE_BODY_INTERNAL_CHANGE_HEALTH_SLOT",
+    "AI_ACTIVE_ATTACK_MACHINE",
+    "AI_ACTIVE_ATTACK_MACHINE_BYTES",
+    "AI_ATTACK_MACHINE_TARGET",
+    "AI_ATTACK_MACHINE_TARGET_BYTES",
+    "AI_COMMAND_SOURCE_FROM_AI",
+    "AI_COMMAND_SOURCE_OFFSET",
+    "AI_COMMAND_TYPE_OFFSET",
+    "AI_CURRENT_VICTIM",
+    "AI_CURRENT_VICTIM_BYTES",
+    "AI_CURRENT_VICTIM_ID_OFFSET",
     "AI_FLAG_CAPTURE_KEEP",
     "AI_FLAG_CAPTURE_PICKER",
     "AI_FLAG_CAPTURE_PICKER_CALL",
@@ -61,6 +71,8 @@ __all__ = [
     "AI_PRODUCER_PICKER_CALL_BYTES",
     "AI_PRODUCER_PICKER_ENTRY",
     "AI_PRODUCER_USABLE_TESTS",
+    "AI_SET_CURRENT_VICTIM",
+    "AI_SET_CURRENT_VICTIM_BYTES",
     "APPEND_MESSAGE_VTABLE_SLOT",
     "APT_INIT_GADGETS_EPILOGUE",
     "APT_INIT_GADGETS_LADDER",
@@ -78,16 +90,29 @@ __all__ = [
     "ARG_APPENDERS",
     "ARMOR_ADJUST_DAMAGE",
     "ARMOR_ADJUST_DAMAGE_HEALING_PASSTHROUGH",
+    "ARMY_ENTRY_DEFAULT_TABLE_BYTES",
+    "ARMY_ENTRY_DEFAULT_TABLE_PUSH",
+    "ARMY_ENTRY_DEFAULT_TABLE_PUSH_BYTES",
+    "ARMY_ENTRY_FIND_TEMPLATE",
+    "ARMY_ENTRY_PARSE_FIELDS",
+    "ARMY_ENTRY_PARSE_FIELDS_CALL",
+    "ARMY_ENTRY_PARSE_FIELDS_CALL_BYTES",
+    "ARMY_ENTRY_RECORD_CTOR",
+    "ARMY_ENTRY_REFCOUNT_COUNT",
+    "ARMY_ENTRY_SCRATCH_OFFSET",
+    "ASCII_STRING_CHARS_OFFSET",
     "ASCII_STRING_CTOR",
     "ASCII_STRING_DTOR",
     "ASCII_STRING_FORMAT",
     "ASCII_STRING_SET",
     "ASCII_STRING_SET_BYTES",
     "ATTACK_ELIGIBILITY_NUGGET_CALL",
-    "ATTACK_NUGGET_VTABLES",
-    "ATTACK_NUGGET_VTABLE_STORES",
     "ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW",
     "ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW_BYTES",
+    "ATTACK_NUGGET_VTABLES",
+    "ATTACK_NUGGET_VTABLE_STORES",
+    "AUDIO_MANAGER",
+    "AUDIO_STOP_SLOT",
     "AUTO_DEPOSIT_AMOUNT",
     "AUTO_DEPOSIT_DEPOSIT",
     "AUTO_DEPOSIT_DEPOSIT_BYTES",
@@ -119,6 +144,14 @@ __all__ = [
     "AUTO_DEPOSIT_XP_GATE_BYTES",
     "AUTO_DEPOSIT_XP_GATE_RESUME",
     "AUTO_DEPOSIT_XP_GATE_SKIP",
+    "BATTLE_SCHOOL_BLINK_REGISTRATION",
+    "BATTLE_SCHOOL_BLINK_REGISTRATION_BYTES",
+    "BATTLE_SCHOOL_COMMAND",
+    "BATTLE_SCHOOL_HANDLER",
+    "BATTLE_SCHOOL_HANDLER_BYTES",
+    "BATTLE_SCHOOL_REGISTRATION",
+    "BATTLE_SCHOOL_REGISTRATION_BYTES",
+    "BATTLE_SCHOOL_TRANSITION_NAME",
     "BUILD",
     "BUILD_ASSISTANT_VTABLE",
     "BUILD_GATE_AFFORD",
@@ -173,10 +206,10 @@ __all__ = [
     "COMMAND_BUTTON_FREE_OFFSET",
     "COMMAND_BUTTON_SIZE",
     "COMMAND_BUTTON_SPECIAL_POWER",
-    "COMMAND_SET_STORE_FIND_COMMAND_SET",
-    "COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET",
     "COMMAND_POINTS_HAS_ENOUGH",
     "COMMAND_POINTS_IN_USE",
+    "COMMAND_SET_STORE_FIND_COMMAND_SET",
+    "COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET",
     "CONTAIN_GET_HORDE_IFACE",
     "CONTAIN_GET_HORDE_IFACE_ENTRY",
     "CONTAIN_GET_HORDE_IFACE_SLOT",
@@ -201,7 +234,16 @@ __all__ = [
     "CONTROL_BAR_UNIT_COST_CALL",
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
     "CRC_EXCLUDE_SHROUD_FLAG",
+    "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION",
+    "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION_ENTRY",
+    "CREATE_AND_FIRE_TEMP_WEAPON_AT_VICTIM",
+    "CREATE_AND_FIRE_TEMP_WEAPON_AT_VICTIM_ENTRY",
+    "CREDITS_EXIT_AUDIO_TAIL",
+    "CREDITS_EXIT_AUDIO_TAIL_BYTES",
+    "CREDITS_EXIT_HANDLER",
     "CRT_ATOI",
+    "DAMAGE_INFO_DAMAGE_TYPE",
+    "DAMAGE_INFO_SOURCE_ID",
     "DAMAGE_NUGGET_DEALS_DAMAGE_BODY",
     "DAMAGE_NUGGET_DEALS_DAMAGE_BODY_BYTES",
     "DAMAGE_NUGGET_SUBWEAPON_BODY",
@@ -218,6 +260,43 @@ __all__ = [
     "DEBUG_CRASH_TAG_EBP",
     "DEBUG_CRASH_TAG_STORE",
     "DEBUG_CRASH_TAG_STORE_BYTES",
+    "DEPLOY_STYLE_AI_BYPASS_PATH",
+    "DEPLOY_STYLE_AI_BYPASS_PATH_BYTES",
+    "DEPLOY_STYLE_AI_DO_COMMAND",
+    "DEPLOY_STYLE_AI_DO_COMMAND_ENTRY",
+    "DEPLOY_STYLE_AI_RECORD_PATH",
+    "DEPLOY_STYLE_AI_RECORD_PATH_BYTES",
+    "DEPLOY_STYLE_AI_SOURCE_BRANCH",
+    "DEPLOY_STYLE_AI_SOURCE_BRANCH_BYTES",
+    "DEPLOY_STYLE_ATTACK_COMMANDS",
+    "DEPLOY_STYLE_MODULE_DATA_OFFSET",
+    "DEPLOY_STYLE_MOVE_ARM_MUST_DEPLOY",
+    "DEPLOY_STYLE_MOVE_ARM_MUST_DEPLOY_BYTES",
+    "DEPLOY_STYLE_MUST_DEPLOY_GETTER",
+    "DEPLOY_STYLE_MUST_DEPLOY_GETTER_BYTES",
+    "DEPLOY_STYLE_MUST_DEPLOY_OFFSET",
+    "DEPLOY_STYLE_RECORDED_COMMAND_OFFSETS",
+    "DEPLOY_STYLE_RECORD_STORES",
+    "DEPLOY_STYLE_SET_MY_STATE",
+    "DEPLOY_STYLE_SET_MY_STATE_BYTES",
+    "DEPLOY_STYLE_SET_STATE_STORE",
+    "DEPLOY_STYLE_SET_STATE_STORE_BYTES",
+    "DEPLOY_STYLE_STATE_DEPLOY",
+    "DEPLOY_STYLE_STATE_OFFSET",
+    "DEPLOY_STYLE_STATE_READY_TO_ATTACK",
+    "DEPLOY_STYLE_STATE_READY_TO_MOVE",
+    "DEPLOY_STYLE_TARGETED_COMMAND_OFFSETS",
+    "DEPLOY_STYLE_UPDATE",
+    "DEPLOY_STYLE_UPDATE_ENTRY",
+    "DEPLOY_STYLE_UPDATE_ESI_BIAS",
+    "DEPLOY_STYLE_UPDATE_OBJECT_PATH",
+    "DEPLOY_STYLE_UPDATE_OBJECT_PATH_BYTES",
+    "DEPLOY_STYLE_UPDATE_POSITION_PATH",
+    "DEPLOY_STYLE_UPDATE_POSITION_PATH_BYTES",
+    "DEPLOY_STYLE_UPDATE_RESOLVED",
+    "DEPLOY_STYLE_UPDATE_RESOLVED_BYTES",
+    "DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH",
+    "DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH_BYTES",
     "DESCRIPTION_BLOCKED_ASSIGN",
     "DESCRIPTION_BLOCKED_ASSIGN_BYTES",
     "DESCRIPTION_BLOCKED_RESUME",
@@ -270,9 +349,25 @@ __all__ = [
     "DO_SPECIAL_POWER_SITES",
     "EMPTY_STRING",
     "FIELD_PARSE_STRIDE",
+    "FIRE_WEAPON_WHEN_DAMAGED_ON_DAMAGE",
     "FLOAT_ONE",
     "FLOAT_ONE_PERCENT",
     "FLOAT_TWO_PERCENT",
+    "FWWD_FIELD_TABLE",
+    "FWWD_FIELD_TABLE_REFS",
+    "FWWD_FIELD_TABLE_REF_OPCODES",
+    "FWWD_IFACE_MODULE_DATA_DISP",
+    "FWWD_MODULEDATA_CTOR",
+    "FWWD_MODULEDATA_CTOR_CALL",
+    "FWWD_MODULEDATA_CTOR_CALL_BYTES",
+    "FWWD_MODULEDATA_NEW",
+    "FWWD_MODULEDATA_SIZE",
+    "FWWD_MODULEDATA_SIZE_BYTES",
+    "FWWD_MODULEDATA_SIZE_VA",
+    "FWWD_REACTION_AIM",
+    "FWWD_REACTION_AIM_BYTES",
+    "FWWD_REACTION_FIRE_CALL",
+    "FWWD_REACTION_FIRE_RESUME",
     "GAME_CLIENT_DRAW",
     "GAME_CLIENT_DRAW_BYTES",
     "GAME_DATA_ASCIISTRING_PARSER",
@@ -280,6 +375,7 @@ __all__ = [
     "GAME_DATA_SHELL_MAP_NAME_ROW",
     "GAME_ENGINE",
     "GAME_ENGINE_QUITTING",
+    "GAME_ENGINE_SET_FPS_SLOT",
     "GAME_INFO_MAP",
     "GAME_LOGIC_FIND_OBJECT_BY_ID",
     "GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY",
@@ -301,6 +397,12 @@ __all__ = [
     "GUICOMMAND_REVIVE",
     "GUI_COMMAND_SPECIAL_POWER",
     "GUI_LOSE_CASH",
+    "HERO_LEDGER_ENTRIES_BEGIN",
+    "HERO_LEDGER_ENTRIES_END",
+    "HERO_LEDGER_ENTRY_STRIDE",
+    "HERO_LEDGER_FIND_TEMPLATE",
+    "HERO_LEDGER_NAME_OFFSET",
+    "HERO_LEDGER_TO_RECORD",
     "HORDE_CONTAIN_BUILD_SLOTS_SLOT",
     "HORDE_CONTAIN_IFACE",
     "HORDE_IFACE_ASSIGN_SLOT",
@@ -334,10 +436,26 @@ __all__ = [
     "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY_BYTES",
     "KEY_PLAYER_AI_TYPE",
     "KEY_PLAYER_AI_TYPE_BYTES",
+    "KINDOF_ARMY_SUMMARY_BIT",
+    "KINDOF_ARMY_SUMMARY_BYTE",
     "KINDOF_BASE_SITE",
+    "KINDOF_HERO_BIT",
+    "KINDOF_HERO_BYTE",
     "LIVE_CAMPAIGN_MODE_OFFSET",
+    "LIVING_WORLD_ARMY_ROSTER_ID",
+    "LIVING_WORLD_BATTLE_HARVEST_CALL",
+    "LIVING_WORLD_BATTLE_HARVEST_CALL_BYTES",
+    "LIVING_WORLD_BATTLE_SETUP",
+    "LIVING_WORLD_BATTLE_SETUP_CALL",
+    "LIVING_WORLD_BATTLE_SETUP_CALL_BYTES",
+    "LIVING_WORLD_FIND_ARMY_BY_ID",
+    "LIVING_WORLD_LEDGER_TO_PLAYER",
     "LIVING_WORLD_OVERRIDE_OFFSET",
     "LIVING_WORLD_OVERRIDE_ROW",
+    "LIVING_WORLD_PLAYERS_BEGIN",
+    "LIVING_WORLD_PLAYERS_END",
+    "LIVING_WORLD_PLAYER_ARMIES_BEGIN",
+    "LIVING_WORLD_PLAYER_ARMIES_END",
     "LOGIC_CRC_EMIT",
     "LOGIC_CRC_EMIT_BYTES",
     "LOGIC_CRC_EMIT_RESUME",
@@ -345,6 +463,7 @@ __all__ = [
     "LOGIC_CRC_SHROUD_XFER_BYTES",
     "LOSE_CASH_COLOR",
     "LOSE_CASH_RISE",
+    "MAIN_MENU_BLINK_FLAG",
     "MAIN_MENU_CAMPAIGN_COMMAND",
     "MAIN_MENU_CAMPAIGN_HANDLER",
     "MAIN_MENU_CAMPAIGN_HANDLER_BYTES",
@@ -467,8 +586,11 @@ __all__ = [
     "PALANTIR_SCREEN_CHOICE_CALL_BYTES",
     "PLAYBACK_INSTALLS_OBSERVER",
     "PLAYER_COMMAND_POINTS_USED",
+    "PLAYER_COMPLETED_UPGRADE_MASK",
+    "PLAYER_COMPLETED_UPGRADE_MASK_WORDS",
     "PLAYER_DEFEAT_FRAME",
     "PLAYER_FOR_EACH_TEAM_OBJECT",
+    "PLAYER_HERO_LEDGER_OFFSET",
     "PLAYER_INDEX",
     "PLAYER_INIT",
     "PLAYER_INIT_ENTRY",
@@ -478,15 +600,16 @@ __all__ = [
     "PLAYER_INIT_FROM_DICT_BYTES",
     "PLAYER_IS_DEFEATED",
     "PLAYER_IS_OBSERVER",
+    "PLAYER_LIST_COUNT_OFFSET",
     "PLAYER_LIST_GET_LOCAL_PLAYER",
+    "PLAYER_LIST_GET_NTH",
     "PLAYER_LIST_LOCAL_IS_NOT_ACTIVE",
     "PLAYER_LIST_LOCAL_IS_NOT_ACTIVE_BYTES",
     "PLAYER_LIST_LOCAL_PLAYER",
     "PLAYER_LIST_OBSERVE_NEXT_PLAYER",
+    "PLAYER_LIVING_WORLD_ID_OFFSET",
     "PLAYER_MONEY",
     "PLAYER_PLAYER_TEMPLATE",
-    "PLAYER_COMPLETED_UPGRADE_MASK",
-    "PLAYER_COMPLETED_UPGRADE_MASK_WORDS",
     "PLAYER_RELATIONSHIP_ALLIES",
     "PLAYER_SCORE_KEEPER",
     "PLAYER_SET_TYPE",
@@ -633,6 +756,12 @@ __all__ = [
     "SCORE_KEEPER_UNITS_DESTROYED",
     "SCORE_KEEPER_UNITS_LOST",
     "SET_CHECKBOX_STATE",
+    "SHELL",
+    "SHELL_MOVIE_ACTIVE",
+    "SHELL_MUSIC_PLAYING",
+    "SHELL_MUSIC_PLAYING_BYTES",
+    "SHELL_PLAY_MUSIC",
+    "SHELL_PLAY_MUSIC_BYTES",
     "SHROUD_CELLS",
     "SHROUD_CELLS_X",
     "SHROUD_CELLS_Y",
@@ -658,13 +787,13 @@ __all__ = [
     "SPECIAL_POWER_TEMPLATE_NEW_SITES",
     "SPECIAL_POWER_TEMPLATE_SIZE",
     "SPECIAL_POWER_UNIT_COST",
+    "SPELL_STORE_COMMAND_SET_CALL",
+    "SPELL_STORE_COMMAND_SET_CALL_BYTES",
+    "SPELL_STORE_INITIALIZE_SPELL_SLOTS",
     "START_RECORDING",
     "START_RECORDING_MODE_ARG",
     "STATIC_NAME_KEY_KEY",
     "STATIC_NAME_KEY_KEY_BYTES",
-    "SPELL_STORE_COMMAND_SET_CALL",
-    "SPELL_STORE_COMMAND_SET_CALL_BYTES",
-    "SPELL_STORE_INITIALIZE_SPELL_SLOTS",
     "STRICMP",
     "TERRAIN_RESOURCE_BUILD_FIELD_PARSE",
     "TERRAIN_RESOURCE_DEFAULT_STORES",
@@ -716,7 +845,6 @@ __all__ = [
     "THE_TACTICAL_VIEW",
     "THE_THING_FACTORY",
     "THE_UPGRADE_CENTER",
-    "UPGRADE_TEMPLATE_INDEX",
     "THE_VICTORY_CONDITIONS",
     "THING_FACTORY_FIND_TEMPLATE",
     "THING_FACTORY_FIND_TEMPLATE_ENTRY",
@@ -748,6 +876,7 @@ __all__ = [
     "UNICODE_STRING_DTOR",
     "UNICODE_STRING_FORMAT",
     "UNICODE_STRING_FROM_WIDE",
+    "UPGRADE_TEMPLATE_INDEX",
     "USER_PREFERENCES_WRITE",
     "VICTORY_CONDITIONS_HAS_ACHIEVED_VICTORY",
     "VICTORY_CONDITIONS_HAS_ACHIEVED_VICTORY_SLOT",
@@ -763,10 +892,16 @@ __all__ = [
     "WEAPONTEMPLATE_NUGGET_VECTOR_OFFSET",
     "WEAPON_ANY_NUGGET_VALID_VICTIM",
     "WEAPON_ANY_NUGGET_VALID_VICTIM_BYTES",
+    "WEAPON_TARGET_IN_RANGE",
+    "WEAPON_TARGET_IN_RANGE_BYTES",
     "WIDE_BLANK_LINE",
     "WIDE_BLANK_LINE_BYTES",
     "WIDE_NEWLINE",
     "WIDE_NEWLINE_BYTES",
+    "WINDOW_TRANSITIONS_HANDLER",
+    "WINDOW_TRANSITION_REVERSE",
+    "WINDOW_TRANSITION_REVERSE_BYTES",
+    "WINDOW_TRANSITION_SET_GROUP",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_CTOR",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_DTOR",
@@ -2788,6 +2923,111 @@ CAMPAIGN_NAME_STATIC_GUARD = 0x00DEA360
 CAMPAIGN_NAME_BIND = 0x0091BE96
 CAMPAIGN_NAME_BIND_BYTES = bytes.fromhex("f60560a3de000156be5ca3de007525")
 
+# --- the Battle School command, and the shell services its exit needs -------------------------
+#
+# Derived in `docs/battle-school.md`. ROTWK still registers `AptMainMenu::BattleSchool` and its
+# handler is complete; what EA dropped is `AptMainMenu::TutorialExit`, the mirror command that
+# reverses the sound fade on the way out. `battle-school` supplies the missing half through the
+# surviving command's unused `params` argument rather than by registering a second one.
+
+#: `AptMainMenu::BattleSchool`, the FSCommand name, and the registration block that binds it to
+#: `BATTLE_SCHOOL_HANDLER`: `push <name>` / `lea ecx, [ebp+8]` / `mov esi, <handler>`. Same
+#: fingerprint shape as `MAIN_MENU_CAMPAIGN_REGISTRATION`, and for the same reason - the handler
+#: alone is not distinguishable from the other registration blocks around it.
+BATTLE_SCHOOL_COMMAND = 0x00C7D0A8
+BATTLE_SCHOOL_REGISTRATION = 0x0091D052
+BATTLE_SCHOOL_REGISTRATION_BYTES = bytes.fromhex("68a8d0c7008d4d08be40b59100")
+
+#: The handler, whole (169 bytes, `thiscall`, `ret 4`, one `const char *` argument it never
+#: reads). It marks the shell as movie-owned, fades the shell audio out through the
+#: `MainMenuToBattleSchool` transition, and persists `FlashTutorial = 0` so the menu stops
+#: blinking the button:
+#:
+#:     0091B54D  mov  eax, [SHELL] ; je ...
+#:     0091B55C  mov  byte ptr [eax+0x5D], 1     ; SHELL_MOVIE_ACTIVE
+#:     0091B567  push 0x00C7CE28                 ; BATTLE_SCHOOL_TRANSITION_NAME
+#:     0091B571  mov  ecx, [WINDOW_TRANSITIONS_HANDLER] ; call WINDOW_TRANSITION_SET_GROUP
+#:     0091B586  call 0x0075D9B1                 ; stop shell audio
+#:     0091B593  push 0x00C7CE18                 ; "FlashTutorial" -> 0, written to preferences
+#:     0091B5CE  mov  byte ptr [esi+0x281], bl   ; MAIN_MENU_BLINK_FLAG
+#:
+#: The first five bytes are the SEH prologue's cookie load, `mov eax, 0xBA9A56` - which is what
+#: makes a five-byte detour clean: the cave re-emits them and jumps back to the `call` at
+#: `BATTLE_SCHOOL_HANDLER + 5` with the stack exactly as the stock entry left it.
+BATTLE_SCHOOL_HANDLER = 0x0091B540
+BATTLE_SCHOOL_HANDLER_BYTES = bytes.fromhex(
+    "b8569aba00e8a619120083ec1ca19078de005333db3bc3568bf17404c6405d0153518965"
+    "ec8bcc6828cec700e86fbfb1ff8b0d5436de00e82a04ccff8b0d9078de003bcb7405e826"
+    "24e4ff8d4dd8e860a1dcff6818cec7008d4df0895dfce83dbfb1ff538d45f0508d4dd8c6"
+    "45fc01e8c570e9ff8d4df0885dfce891a7b1ff8d4dd8e88571e9ff834dfcff8d4dd8889e"
+    "81020000e856a0dcff8b4df45e64890d000000005bc9c20400"
+)
+
+#: `"MainMenuToBattleSchool"`, the `WindowTransition` group both directions name. Still defined in
+#: stock `data/ini/windowtransitions.ini`, byte-identical to BFME1's, as a `SOUNDFADE` with
+#: `LeaveSilent = Yes` - which is why leaving needs the reverse and cannot simply do nothing.
+BATTLE_SCHOOL_TRANSITION_NAME = 0x00C7CE28
+
+#: `BlinkBattleSchoolOff`'s registration in the sibling `GetExtern` map at `this+0x228`. Not
+#: touched by the patch; fingerprinted because it is the other half of the movie's contract, and a
+#: build where it had moved would be one where `BATTLE_SCHOOL_HANDLER` had moved too.
+BATTLE_SCHOOL_BLINK_REGISTRATION = 0x0091D2AA
+BATTLE_SCHOOL_BLINK_REGISTRATION_BYTES = bytes.fromhex("68f4cfc7008d4d08be6bbb9100")
+
+#: The `AptMainMenu` byte the shared `GetExtern` getter (`0x0091BB6B`, case 3 at `0x0091BB91`)
+#: answers `BlinkBattleSchoolOff` from: nonzero means "still blinking", and the getter returns
+#: `"0"`/`"1"` inverted from it. Seeded from the `FlashTutorial` preference at `0x0091D446` and
+#: self-cleared once `TimesInGame` passes 5 (`0x0091D477`).
+MAIN_MENU_BLINK_FLAG = 0x281
+
+#: `AptMainMenu::CreditsExit` and the tail `battle-school`'s exit arm is modelled on
+#: (`0x0091B733`..`0x0091B7B3`): restart the shell music if it stopped, reverse the screen's
+#: transition group, release `SHELL_MOVIE_ACTIVE`, restore the frame-rate limit. The patch copies
+#: the shape rather than calling into it, because the part above this tail tears down the credits
+#: movie player at `0x00DEBF50`, which Battle School never allocates.
+CREDITS_EXIT_HANDLER = 0x0091B6FD
+CREDITS_EXIT_AUDIO_TAIL = 0x0091B733
+CREDITS_EXIT_AUDIO_TAIL_BYTES = bytes.fromhex(
+    "8b0d9078de003bcb7409e88822e4ff84c0751e8b0dfc42de008b01536a016a02ff908c00"
+    "00008b0d9078de00e8c227e4ff518964240c8bcc6840cec700e86bbdb1ff8b0d5436de00"
+    "e81903ccff8d8ea4020000899e88020000e8bfa5b1ffa19078de0088585d8b156443de00"
+    "8b0d2443de00ff72288b01ff50485e5b59c20400"
+)
+
+#: `TheShell` - the singleton pointer, not the object. `+0x5D` is the flag both directions of a
+#: full-screen shell movie set and clear; `+0x68` holds the handle of the shell music track that
+#: `SHELL_MUSIC_PLAYING` asks `TheAudio` about.
+SHELL = 0x00DE7890
+SHELL_MOVIE_ACTIVE = 0x5D
+
+#: `Shell::isShellMusicPlaying()` (`thiscall`, no arguments, `al` nonzero when it still is) and
+#: `Shell::playShellMusic()` (`thiscall`, no arguments). `CreditsExit` uses the pair as a guard:
+#: only when the music has stopped does it stop the audio channels and start it again.
+SHELL_MUSIC_PLAYING = 0x0075D9CA
+SHELL_MUSIC_PLAYING_BYTES = bytes.fromhex("a1fc42de0085c07415ff71688b108bc8")
+SHELL_PLAY_MUSIC = 0x0075DF26
+SHELL_PLAY_MUSIC_BYTES = bytes.fromhex("b88b21b900e8c0ef2d0081ec8c000000")
+
+#: `TheAudio`, and the vtable slot both the enter and the exit path call with `(2, 1, 0)` to stop
+#: the playing audio channels. `docs/engine-globals.md` tabulates the pointer.
+AUDIO_MANAGER = 0x00DE42FC
+AUDIO_STOP_SLOT = 0x8C
+
+#: `TheWindowTransitionsHandler`, and the two `thiscall`s that drive a transition group by name.
+#: Both take one **by-value** `AsciiString` (a single pointer) and `ret 4`; MSVC has the callee
+#: destroy a by-value class argument, which `WINDOW_TRANSITION_REVERSE` does at `0x005DBB6A`, so a
+#: caller reserves the slot, constructs into it and lets the call clean up.
+WINDOW_TRANSITIONS_HANDLER = 0x00DE3654
+WINDOW_TRANSITION_SET_GROUP = 0x005DB9A6
+WINDOW_TRANSITION_REVERSE = 0x005DBA99
+WINDOW_TRANSITION_REVERSE_BYTES = bytes.fromhex("b801dbb700e84d14460051515356578b")
+
+#: `TheGameEngine`'s vtable slot that takes a frame-rate cap - `0x0066F0FD`, `mov [ecx+0xC], eax`
+#: / `ret 4`. Shell movies raise the cap while they play; `CreditsExit` restores it from
+#: `GLOBAL_DATA + GLOBAL_DATA_FPS_LIMIT` on the way out, and so does this patch's exit arm.
+#: `docs/render-rate.md` §2 derives the slot.
+GAME_ENGINE_SET_FPS_SLOT = 0x48
+
 # --- the command line, and the two instructions that give it its length ----------------------
 #
 # `game.dat` parses argv against a table of `{const char *name, int (*handler)(char **argSlot,
@@ -2886,6 +3126,305 @@ CAMPAIGN_ADVANCE_GATE = 0x007B9714
 #: Answers "may this campaign appear in the War of the Ring scenario list" - and says no as soon as
 #: `IsScriptedCampaign` (`campaign+0x58`) is set.
 CAMPAIGN_LIST_PREDICATE = 0x007B9551
+
+# The War of the Ring battle boundary: how a living-world army becomes units on a map, and what
+# comes back. Derived in `docs/living-campaign/hero-permadeath.md`.
+#
+# An army's force container is `army+0x78`: `+0x1C` army id, `+0x2C` phase, `+0x40` the record
+# vector, `+0x60` `SurvivalThreshhold`. A record is `0xD8` bytes and is the same object an
+# `ArmyEntry` parses into, so the INI field offsets below are also the runtime ones.
+
+#: `TheGameLogic`'s post-battle handler. Its first call hands the object list to the harvest.
+LIVING_WORLD_BATTLE_END = 0x00626662
+#: Walks the object list and records every **survivor** whose owner is a living-world player, whose
+#: template is `KindOf = ARMY_SUMMARY` (`tmpl+0x118` bit 0) and which carries an army id at
+#: `obj+0x47C`. Units that died are never written down; that is the whole of hero permadeath.
+LIVING_WORLD_BATTLE_HARVEST = 0x00811E1F
+#: Appends one record to a force container's `+0x40` vector. Shared by the harvest and `ArmyEntry`.
+LIVING_WORLD_ARMY_ADD_RECORD = 0x00811951
+#: Spawns an army's records into a battle. Reads `SurvivalThreshhold` and skips `Default` records
+#: unless the army's live strength has fallen below it.
+LIVING_WORLD_ARMY_DEPLOY = 0x00812119
+#: Sums `Quantity` over the records with `Default = No` - the army's strength for the threshold.
+LIVING_WORLD_ARMY_STRENGTH = 0x0080FA21
+#: Destroy an army: sets `army+0x75` and queues it on `TheLivingWorldLogic+0x118`.
+LIVING_WORLD_ARMY_DESTROY = 0x006B9679
+#: Queue a hero army for retreat on `TheLivingWorldLogic+0x10C`.
+LIVING_WORLD_ARMY_QUEUE_RETREAT = 0x006B921E
+#: Drains the retreat queue. A hero army with no adjacent friendly region raises
+#: `LW:HeroKilledTitle` and is destroyed.
+LIVING_WORLD_HERO_KILLED_RESOLVE = 0x006BABA8
+
+#: `LivingWorldPlayerArmy`: `Name` `+0x18`, `Color` `+0x24`, `NightColor` `+0x28`, the records at
+#: `+0x40`, `SurvivalThreshhold` `+0x60`, `DisplayNameTag` `+0x64`.
+LIVING_WORLD_PLAYER_ARMY_TABLE = 0x00C4FB58
+#: The unit count below which `Default` records deploy anyway. Set nowhere in Edain or BFME1.
+LIVING_WORLD_ARMY_SURVIVAL_THRESHOLD_OFFSET = 0x60
+#: `HeroTemplateName` on the live army - the engine's "is this a hero army" discriminator.
+LIVING_WORLD_ARMY_HERO_TEMPLATE_OFFSET = 0x18
+
+#: Allocates the `0xD8`-byte record an `ArmyEntry` becomes, then appends it.
+ARMY_ENTRY_PARSE = 0x00811CF9
+#: Copy-constructs a record. `0x0081205B` wraps it as clone-and-append on a roster container -
+#: which has no direct callers, so confirm it before a cave depends on it.
+ARMY_ENTRY_COPY = 0x0081019B
+ARMY_ENTRY_CLONE_AND_APPEND = 0x0081205B
+ARMY_ENTRY_FIELD_TABLE = 0x00C2F470  # ThingTemplate -> +0x04, Quantity -> +0xA0
+#: The second table the same parser walks, carrying the undocumented `Default` bool.
+ARMY_ENTRY_DEFAULT_TABLE = 0x00C4FA94
+#: Its stock bytes, terminator included - asserted before the table is relocated.
+ARMY_ENTRY_DEFAULT_TABLE_BYTES = bytes.fromhex(
+    "a0d2bd0058e5420000000000d500000000000000000000000000000000000000"
+)
+ARMY_ENTRY_QUANTITY_OFFSET = 0xA0
+ARMY_ENTRY_DEFAULT_OFFSET = 0xD5
+#: The record's `ThingTemplate` name, compared with `ASCII_STRING_COMPARE`.
+ARMY_ENTRY_TEMPLATE_OFFSET = 0x04
+#: Read the i-th record out of a roster container, and erase the i-th.
+LIVING_WORLD_ARMY_GET_RECORD = 0x0080F590
+LIVING_WORLD_ARMY_ERASE_RECORD = 0x00810840
+
+# The campaign Act, and the verb table that fills it. Derived in
+# `docs/living-campaign/merge-player-army.md`.
+#
+# `sizeof(Act)` is `0xB8` - a vtable, the act's name, fourteen 12-byte per-verb vectors,
+# `JumpToAct`'s string at `+0x50` and `EndAct`'s bool at `+0xB4`, leaving three padding bytes. No
+# new verb can add a per-act list; records for one have to live in the patch's own cave.
+
+#: The 15-row Act verb table, and the single `push` immediate that names it. Relocating the table
+#: to a cave to append a verb is that one dword.
+ACT_VERB_TABLE = 0x00C84030
+ACT_VERB_TABLE_PUSH = 0x0096E7F3
+#: The whole `push 0x00C84030`, so the site is asserted as an instruction rather than as four
+#: loose bytes that could be anything.
+ACT_VERB_TABLE_PUSH_SITE = 0x0096E7F2
+ACT_VERB_TABLE_PUSH_SITE_BYTES = b"\x68\x30\x40\xc8\x00"
+ACT_VERB_ROW_SIZE = 0x10
+ACT_VERB_ROW_COUNT = 15
+#: The stock table, terminator included - 15 `{name, parse, userData, offset}` rows. Asserted
+#: before it is copied into the cave, because the copy is only as good as what it copies.
+ACT_VERB_TABLE_BYTES = bytes.fromhex(
+    "e43fc800805a8e000000000000000000d83fc800e05b8e000000000000000000"
+    "58b0c100ce788e0000000000000000002085c70006618e000000000000000000"
+    "4888c700f25c8e000000000000000000c43fc8009ee542000000000044000000"
+    "b83fc8005eee42000000000050000000ac3fc8009c588e000000000000000000"
+    "9c3fc80081798e000000000000000000903fc800635e8e000000000000000000"
+    "1805bf00bc5d8e000000000000000000883fc80058e5420000000000b4000000"
+    "743fc8003a5f8e000000000000000000643fc800bc7e8e000000000000000000"
+    "7485c70085618e00000000000000000000000000000000000000000000000000"
+)
+#: Act struct: the name at `+0x04`, `SetPlayerControlOfArmy`'s 16-byte records at `+0xA8`, the
+#: `EndAct` bool at `+0xB4`, and the campaign's act vector strides by `ACT_SIZE`.
+ACT_NAME_OFFSET = 0x04
+ACT_SIZE = 0xB8
+#: Constructor, destructor, and the act parser that builds one on the stack and pushes it.
+ACT_CTOR = 0x0096E5E9
+ACT_DTOR = 0x0096DB26
+ACT_PARSE = 0x0096E776
+#: The act runner: ten per-verb passes, the last of them a tail call. `SetPlayerControlOfArmy` is
+#: pass nine and the call site an eleventh pass would displace.
+ACT_RUN = 0x0096E362
+ACT_RUN_PASS9_CALL = 0x0096E39D
+ACT_RUN_PASS9_CALL_BYTES = b"\xe8\x09\xe1\xff\xff"
+ACT_SET_PLAYER_CONTROL_EXEC = 0x0096C4AB
+#: The model parse function for a new verb: null-check, parse fields, append to the act.
+ACT_SET_PLAYER_CONTROL_PARSE = 0x008E6185
+ACT_SET_PLAYER_CONTROL_APPEND = 0x0096DF5D
+
+#: `LivingWorldLogic::findArmyByScriptingName(AsciiString*)` - thiscall, walks `+0x8C..+0x90`.
+LIVING_WORLD_FIND_ARMY_BY_NAME = 0x006B53A4
+#: `LivingWorldCampaignManager::findPlayerArmyByName(AsciiString*)` - thiscall on
+#: `THE_LIVING_WORLD_CAMPAIGN_MANAGER`, striding its store at `+0x20..+0x24` by `0x68`.
+LIVING_WORLD_FIND_PLAYER_ARMY_BY_NAME = 0x007B98EC
+THE_LIVING_WORLD_CAMPAIGN_MANAGER = 0x00DE87AC
+#: `sizeof(LivingWorldPlayerArmy)`. The INI template and a live army's roster container at
+#: `army+0x78` are the same class - `0x0071BC70` allocates this many bytes for the container and
+#: `0x0081176F` deep-copies one onto the other.
+LIVING_WORLD_PLAYER_ARMY_SIZE = 0x68
+# The battle boundary an army's heroes cross. Derived in
+# `docs/living-campaign/hero-permadeath.md`, and measured against BFME1 saves: both games harvest a
+# battle back into the living-world army, and differ only in what becomes of a hero record whose
+# object did not survive.
+
+#: `TheLivingWorldLogic`'s living-world players, and each player's armies - both plain pointer
+#: vectors. Walked to reach every army's roster without a name to look one up by.
+LIVING_WORLD_PLAYERS_BEGIN = 0x8C
+LIVING_WORLD_PLAYERS_END = 0x90
+LIVING_WORLD_PLAYER_ARMIES_BEGIN = 0x1E4
+LIVING_WORLD_PLAYER_ARMIES_END = 0x1E8
+#: `LivingWorldLogic::findArmyById(id)` - thiscall, `ret 4`. The id is stamped on the army's roster
+#: container at `LIVING_WORLD_ARMY_ROSTER_ID`, which is how an army is found again after a battle.
+LIVING_WORLD_FIND_ARMY_BY_ID = 0x006B5351
+LIVING_WORLD_ARMY_ROSTER_ID = 0x1C
+#: The battle-start counterpart of the harvest: restores each living-world player's money, sciences
+#: and upgrades onto its RTS player. Runs before any army deploys, which is what makes it the place
+#: to read rosters that the deployment is about to consume.
+LIVING_WORLD_BATTLE_SETUP = 0x008125FC
+LIVING_WORLD_BATTLE_SETUP_CALL = 0x0062565A
+LIVING_WORLD_BATTLE_SETUP_CALL_BYTES = b"\xe8\x9d\xcf\x1e\x00"
+#: The call site of `LIVING_WORLD_BATTLE_HARVEST`, in `TheGameLogic`'s post-battle handler.
+LIVING_WORLD_BATTLE_HARVEST_CALL = 0x0062667C
+LIVING_WORLD_BATTLE_HARVEST_CALL_BYTES = b"\xe8\x9e\xb7\x1e\x00"
+#: The player's in-mission hero ledger - what the ControlBar offers as revivable, and what the
+#: harvest copies onto the living-world player at `0x0078100E`. Entries are `0xE8` bytes with the
+#: hero's `ThingTemplate` name at `+0xE4`; a dead hero's level and upgrades survive **here**, not on
+#: his object, which is gone from the object list by the time the battle ends.
+PLAYER_HERO_LEDGER_OFFSET = 0x758
+HERO_LEDGER_ENTRIES_BEGIN = 0x04
+HERO_LEDGER_ENTRIES_END = 0x08
+HERO_LEDGER_ENTRY_STRIDE = 0xE8
+#: Copies the ledger's `KindOf HERO` + `KindOf ARMY_SUMMARY` entries onto the living-world player
+#: when a battle ends, which is what puts a dead hero's build button back in his faction's
+#: fortress. Called from inside `LIVING_WORLD_BATTLE_HARVEST`. **Deliberately untouched** by
+#: `hero-army-carryover`, so a hero who died is both back with his army and recruitable again.
+LIVING_WORLD_LEDGER_TO_PLAYER = 0x0078100E
+
+#: `entry -> ThingTemplate`, thiscall, no stack args.
+HERO_LEDGER_FIND_TEMPLATE = 0x007806FA
+#: **`entry -> roster record`**: name, `Quantity = 1`, the `0x90`-byte state block and the upgrade
+#: list, then `record+0xD0`. The exact mirror of `Object -> record` (`0x0069192F`), and what makes a
+#: hero carried over from the ledger arrive at the level and upgrades he died with. Thiscall on the
+#: entry, `ret 4`.
+HERO_LEDGER_TO_RECORD = 0x00780FEF
+#: `ThePlayerList::getNthPlayer(n)`, and the player count.
+PLAYER_LIST_GET_NTH = 0x006A844E
+PLAYER_LIST_COUNT_OFFSET = 0x14
+#: The living-world player id a `Player` carries, or -1.
+PLAYER_LIVING_WORLD_ID_OFFSET = 0x3CC
+
+#: The `ArmyEntry` record's constructor, and the sub-block parse the `Persistent` keyword is added
+#: to. `0x0080EF6D` pushes `ARMY_ENTRY_DEFAULT_TABLE`; that immediate is what relocation repoints.
+ARMY_ENTRY_RECORD_CTOR = 0x0080ECA7
+ARMY_ENTRY_PARSE_FIELDS = 0x0080EF6D
+ARMY_ENTRY_PARSE_FIELDS_CALL = 0x00811D41
+ARMY_ENTRY_PARSE_FIELDS_CALL_BYTES = b"\xe8\x27\xd2\xff\xff"
+ARMY_ENTRY_DEFAULT_TABLE_PUSH = 0x0080EF86
+ARMY_ENTRY_DEFAULT_TABLE_PUSH_BYTES = b"\x68\x94\xfa\xc4\x00"
+#: A record byte the constructor does not initialise, the copy-constructor does not carry and
+#: nothing else reads - so a keyword may borrow it for the length of one `ArmyEntry` block, which
+#: is all the `Persistent` flag needs before it is turned into a name in the patch's own table.
+ARMY_ENTRY_SCRATCH_OFFSET = 0xD7
+
+#: `record -> ThingTemplate`: `TheThingFactory->findTemplate(record + 4)`. Thiscall, no stack args.
+ARMY_ENTRY_FIND_TEMPLATE = 0x007800DC
+#: The reference count itself, one dword past the count object `REF_COUNT_RELEASE` is called on.
+ARMY_ENTRY_REFCOUNT_COUNT = 0xC0
+#: Where an `AsciiString`'s characters begin, past its length and reference fields.
+ASCII_STRING_CHARS_OFFSET = 0x08
+#: The hero's `ThingTemplate` name inside a `PLAYER_HERO_LEDGER_OFFSET` entry.
+HERO_LEDGER_NAME_OFFSET = 0xE4
+#: `KindOf ARMY_SUMMARY` is index 128 - bit `0x01` of KindOf byte `+0x10`, `template + 0x118`. The
+#: harvest requires it, and so does the engine's own ledger walk at `0x0078100E`.
+KINDOF_ARMY_SUMMARY_BYTE = 0x118
+KINDOF_ARMY_SUMMARY_BIT = 0x01
+
+#: `KindOf HERO` is index 90 - bit `0x04` of KindOf byte `+0xB`, which is `template + 0x113`.
+KINDOF_HERO_BYTE = 0x113
+KINDOF_HERO_BIT = 0x04
+
+#: Seed a live army's roster from its `PlayerArmy` template, and the assignment that does the copy.
+LIVING_WORLD_ARMY_SEED_FROM_TEMPLATE = 0x0071AD41
+LIVING_WORLD_PLAYER_ARMY_ASSIGN = 0x0081176F
+THE_LIVING_WORLD_LOGIC = 0x00DE4950
+#: A live army: its `ScriptingName` and the roster container the campaign verbs move records
+#: between. The container's record vector is `begin`/`end` of 8-byte `{id, record*}` elements.
+LIVING_WORLD_ARMY_SCRIPTING_NAME_OFFSET = 0x1C
+LIVING_WORLD_ARMY_ROSTER_OFFSET = 0x78
+LIVING_WORLD_ARMY_RECORDS_BEGIN = 0x40
+LIVING_WORLD_ARMY_RECORDS_END = 0x44
+LIVING_WORLD_ARMY_RECORD_STRIDE = 8
+#: The record's embedded reference count: `REF_COUNT_RELEASE` is called on `record + 0xBC` and the
+#: count itself lives one dword further in, at `ARMY_ENTRY_REFCOUNT_OFFSET + 4`.
+ARMY_ENTRY_REFCOUNT_OFFSET = 0xBC
+
+# The living-world turn phase, which is the only thing that advances a campaign act. Derived in
+# `docs/living-campaign/act-advance-stall.md`: the act cursor moves when the phase reaches 6, and
+# the phase is braked in four places by the strategic message-box gate.
+
+#: `LivingWorldLogic::update` - the per-frame tick. Everything below it is skipped unless the
+#: two-sides-still-standing test at `LIVING_WORLD_TICK_GATE` passes.
+LIVING_WORLD_UPDATE = 0x006BE50E
+LIVING_WORLD_TICK_GATE = 0x006BE57C
+#: The distinct-owner counts that gate drives on: live armies (`army+0x444` clear) and all armies.
+LIVING_WORLD_COUNT_LIVE_ARMY_OWNERS = 0x006B839A
+LIVING_WORLD_COUNT_ARMY_OWNERS = 0x006B83DF
+#: `LivingWorldLogic::updateTurnPhase` - computes one "may advance" boolean and acts on it. Its
+#: message-box brake is `LIVING_WORLD_TURN_PHASE_BOX_BRAKE`, its pending-advance drain the other.
+LIVING_WORLD_UPDATE_TURN_PHASE = 0x006BE20A
+LIVING_WORLD_TURN_PHASE_BOX_BRAKE = 0x006BE376
+LIVING_WORLD_TURN_PHASE_DRAIN = 0x006BE3B6
+#: Request an advance (posts message `0x6A6`, sets the pending byte), its precondition, and the
+#: increment the drain tail-jumps to once every army has settled.
+LIVING_WORLD_REQUEST_ADVANCE_TURN_PHASE = 0x006B6BA1
+LIVING_WORLD_CAN_ADVANCE_TURN_PHASE = 0x006B6ACC
+LIVING_WORLD_ADVANCE_TURN_PHASE = 0x006BDF30
+#: Phase 6: end the turn and advance the campaign act. The only live caller of the manager's
+#: `advanceAct`; the two other branches to it are in unreferenced, dead functions.
+LIVING_WORLD_END_TURN = 0x006BDEC7
+LIVING_WORLD_CAMPAIGN_MANAGER_ADVANCE_ACT = 0x007B970F
+LIVING_WORLD_CAMPAIGN_ADVANCE_ACT = 0x00932A57
+#: `TheLivingWorldLogic` turn state: the phase, the turn number, and the byte that says an advance
+#: has been requested and the drain path is running instead of the phase machine.
+LIVING_WORLD_TURN_PHASE_OFFSET = 0xF4
+LIVING_WORLD_TURN_NUMBER_OFFSET = 0xFC
+LIVING_WORLD_ADVANCE_PENDING_OFFSET = 0x10A
+
+# The strategic message-box gate. A box that is marked showing and never dismissed freezes the
+# campaign, because all four brakes below wait on it and none of them has a timeout.
+
+#: `LivingWorldLogic::isMessageBoxShowing` - `[this+0x160] && [[this+0x160]+0x25]`. Four callers,
+#: every one a brake: the turn-phase update, the advance precondition, the phase 1/5 predicate,
+#: and the queue pump itself.
+LIVING_WORLD_IS_MESSAGE_BOX_SHOWING = 0x006B4019
+#: The pump: release a finished box, then show the queue front. Called once per update, and the
+#: hook site for a watchdog because it already holds both the current box and the queue.
+LIVING_WORLD_PUMP_MESSAGE_BOXES = 0x006B74D5
+LIVING_WORLD_PUMP_MESSAGE_BOXES_CALL = 0x006BE5D7
+LIVING_WORLD_SHOW_QUEUE_FRONT = 0x006B67B2
+#: The queue and the box on screen, both refcounted, on `THE_LIVING_WORLD_LOGIC`.
+LIVING_WORLD_MESSAGE_BOX_QUEUE_BEGIN = 0x154
+LIVING_WORLD_MESSAGE_BOX_QUEUE_END = 0x158
+LIVING_WORLD_MESSAGE_BOX_CURRENT = 0x160
+
+#: The living-world strategic message-box manager, and the general one. Two instances of the same
+#: class; the living-world prompts go to the first, `0x0081A4EB`'s to the second.
+THE_STRATEGIC_MESSAGE_BOX = 0x00DEBA1C
+THE_GENERAL_MESSAGE_BOX = 0x00DE8A9C
+#: `StrategicMessageBox::add` and the five-argument wrapper the box's `show` calls. `add` begins by
+#: hiding the current box **without** notifying, so an add over a live box strands it.
+STRATEGIC_MESSAGE_BOX_ADD = 0x00953861
+STRATEGIC_MESSAGE_BOX_ADD_THUNK = 0x00953C0B
+#: `StrategicMessageBox::show(type)`, and `hide(notify)` - the notifying path is the only thing in
+#: the image that fires completion event 3, which is the only thing that clears the gate byte.
+STRATEGIC_MESSAGE_BOX_SHOW = 0x009539D3
+STRATEGIC_MESSAGE_BOX_HIDE = 0x00953243
+STRATEGIC_MESSAGE_BOX_HIDE_NOTIFY = 0x00953498
+#: Push the manager's state onto `THE_APT_PLAYER`. Skipped when the player is null, and then only
+#: `STRATEGIC_MESSAGE_BOX_RESHOW_OVERLAYS` re-applies it.
+STRATEGIC_MESSAGE_BOX_APPLY_TO_APT = 0x009532F3
+STRATEGIC_MESSAGE_BOX_APPLY_GUARD = 0x0095397F
+STRATEGIC_MESSAGE_BOX_RESHOW = 0x009534A0
+STRATEGIC_MESSAGE_BOX_RESHOW_OVERLAYS = 0x00782C56
+THE_APT_PLAYER = 0x00DE3F0C
+#: A living-world message box: its `show`, its completion delegate, and the byte the delegate
+#: clears on event 3. `+0x08`/`+0x0C` are the title and body, which name a stuck box in a live read.
+LIVING_WORLD_MESSAGE_BOX_SHOW = 0x00900CBC
+LIVING_WORLD_MESSAGE_BOX_ON_EVENT = 0x00900B6D
+LIVING_WORLD_MESSAGE_BOX_TITLE = 0x08
+LIVING_WORLD_MESSAGE_BOX_BODY = 0x0C
+LIVING_WORLD_MESSAGE_BOX_SHOWING = 0x25
+LIVING_WORLD_MESSAGE_BOX_FINISHED = 0x26
+
+#: `INI::parseFields(instance, table)` - the shared driver every block parser hands its field
+#: table to, and the two engine parsers a new table's rows can point at directly. A row is called
+#: `__cdecl parse(INI *ini, void *instance, void *store, const void *userData)`.
+INI_PARSE_FIELDS = 0x0042DB80
+#: `AsciiString::compare` - zero when equal, so the engine's own matching semantics are inherited
+#: rather than re-implemented.
+ASCII_STRING_COMPARE = 0x004065AA
+#: `RefCountable::releaseRef` on an embedded count: `--[ecx+4]`, deleting through the vtable at
+#: zero.
+REF_COUNT_RELEASE = 0x0047D8B0
 
 # --- the Palantir's objectives button, and which screen it opens ---------------------------------
 #
@@ -3410,6 +3949,72 @@ ATTACK_NUGGET_VTABLE_STORES = {
 }
 
 
+# Reaction weapons: where `FireWeaponWhenDamagedBehavior` aims the weapon it fires, and the
+# `WeaponTemplate` entry points it could aim it with. All derived in `docs/fire-at-attacker.md`.
+
+#: `WeaponTemplate::createAndFireTempWeapon(Object *source, Object *victim)` - `__thiscall`,
+#: `ret 8`, `this` = the `WeaponTemplate`. Fires the weapon **at an object**: it passes the victim
+#: and its `OBJECT_ID` into the shared firing routine `0x006CEF6D`, which is what makes a nugget
+#: with no `Radius` still land. Two stock callers, both inside `TheWeaponStore`.
+CREATE_AND_FIRE_TEMP_WEAPON_AT_VICTIM = 0x006CF3AE
+CREATE_AND_FIRE_TEMP_WEAPON_AT_VICTIM_ENTRY = bytes.fromhex("8b4424088b50746a006a00")
+
+#: `WeaponTemplate::createAndFireTempWeapon(Object *source, const Coord3D *at)` - `__thiscall`,
+#: `ret 8`. The **positional** sibling of the above: it passes the same firing routine a NULL
+#: victim object and a bare position, so only nuggets with a `Radius` reach anything. Six stock
+#: callers, two of them `FireWeaponWhenDamagedBehavior`'s.
+CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION = 0x006CF3D2
+CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION_ENTRY = bytes.fromhex("558bec5133c08d55fc")
+
+#: `DamageInfo` offsets. `+0x08` is the `ObjectID` of whatever dealt the damage - the field
+#: `ReflectDamage::onDamage` resolves through `GAME_LOGIC_FIND_OBJECT_BY_ID` and
+#: `FireWeaponWhenDamagedBehavior::onDamage` reads no part of. `+0x10` is the `DamageType`, which
+#: both of them filter on.
+DAMAGE_INFO_SOURCE_ID = 0x08
+DAMAGE_INFO_DAMAGE_TYPE = 0x10
+
+#: `FireWeaponWhenDamagedBehavior::onDamage` - slot 0 of the module's damage-interface vtable
+#: (`0x00C5FE10`), `__thiscall`, `ret 4`, the `DamageInfo*` at `[esp+4]` on entry. `esi` is the
+#: interface sub-object throughout and `edi` is the owning `Object` from `0x00885D12` on.
+FIRE_WEAPON_WHEN_DAMAGED_ON_DAMAGE = 0x00885CD5
+
+#: The `ModuleData` pointer, as `onDamage` reaches it: `[esi-0x24]`, the interface sub-object
+#: sitting at module `+0x28` and `MODULE_MODULE_DATA` at module `+0x04`. Pinned by the two
+#: stock reads through it - `DamageTypes` at `+0x13C` and `DamageAmount` at `+0x140`.
+FWWD_IFACE_MODULE_DATA_DISP = -0x24
+
+#: Where the four body-state arms converge to aim the reaction weapon: `lea eax,[edi+0x38]` /
+#: `push eax` / `push edi`, the owning object's **own** position and itself as the source. Every
+#: arm jumps here, so the whole block has one entry - and it is exactly five bytes, which is a
+#: `jmp rel32` and not one byte more.
+FWWD_REACTION_AIM = 0x00885D81
+FWWD_REACTION_AIM_BYTES = bytes.fromhex("8d47385057")
+#: The `call CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION` the aim falls into, and the instruction
+#: after it (`pop edi` / `pop esi` / `ret 4`) for a cave that made the call itself.
+FWWD_REACTION_FIRE_CALL = 0x00885D86
+FWWD_REACTION_FIRE_RESUME = 0x00885D8B
+
+#: `FireWeaponWhenDamagedBehavior`'s `newModuleData`: `operator new(0x164)` then the constructor.
+#: The size is a bare `push imm32`, which is what makes the block growable by four bytes.
+FWWD_MODULEDATA_NEW = 0x00653466
+FWWD_MODULEDATA_SIZE_VA = 0x00653467
+FWWD_MODULEDATA_SIZE_BYTES = bytes.fromhex("6864010000")
+FWWD_MODULEDATA_SIZE = 0x164
+
+#: Inside it, the `call` to the `ModuleData` constructor. `__thiscall` with no arguments,
+#: returning `this` in `eax`, which is what lets a shim run it and then write one more field.
+FWWD_MODULEDATA_CTOR = 0x006533E5
+FWWD_MODULEDATA_CTOR_CALL = 0x00653478
+FWWD_MODULEDATA_CTOR_CALL_BYTES = bytes.fromhex("e868ffffff")
+
+#: `FireWeaponWhenDamagedBehavior`'s own INI field-parse table, and the single instruction that
+#: names it - `push 0xC06698` inside the module's parse callback, which walks this table and then
+#: the shared `UpgradeMux` one at base offset 8.
+FWWD_FIELD_TABLE = 0x00C06698
+FWWD_FIELD_TABLE_REFS = (0x0065344A,)
+FWWD_FIELD_TABLE_REF_OPCODES = (0x68,)
+
+
 # The unit-plate option: the `Model =` parse-time gate, and the preference plumbing it borrows.
 # Derived in `docs/options-menu-rows.md` (the options screen) and in
 # `patches/unit_plate_option.py`'s module docstring (the gate). Static only - none of this has
@@ -3550,3 +4155,227 @@ GET_CHECKBOX_STATE = 0x00729579
 #: `std::map<AsciiString, AsciiString>::operator[](&key)` - inserts if absent and returns the
 #: value slot. `__thiscall`, `ret 4`, `this` being the map (`OptionPreferences+4`).
 PREFERENCES_MAP_INDEX = 0x00602B76
+
+# --- War of the Ring faction selection: `DisabledFactions` and the four readers of it ----------
+# Derived in `docs/scenario-player-factions.md`. Static only.
+
+#: `Scenario::isFactionEnabled(AsciiString side)` - walks the `DisabledFactions` vector comparing
+#: `side` (a `PlayerTemplate` *name*, `FactionMen` and so on, which is why the INI entries carry
+#: the `Faction` prefix) against each entry and answers `al = 0` on a hit. `__thiscall`, `ret 4`:
+#: the argument comes **by value and is destroyed by the callee**, which is what the `AsciiString`
+#: destructor at its tail does. It takes no player, which is the whole reason `DisabledFactions`
+#: can only be scenario-wide.
+SCENARIO_IS_FACTION_ENABLED = 0x0090182D
+SCENARIO_IS_FACTION_ENABLED_ENTRY = bytes.fromhex("b8be7dba00")
+
+#: `Scenario::hasDisabledFactions()` - `(end - begin) != 0`, and the gate the start-game check
+#: asks before it looks at any slot. A per-player entry is a vector element like any other, so a
+#: scenario that writes only those still opens this gate.
+SCENARIO_HAS_DISABLED_FACTIONS = 0x009012D7
+
+#: `begin` and `end` of the `DisabledFactions` `std::vector<AsciiString>` inside `Scenario`. The
+#: INI field-parse row writes `+0x40`; the same struct holds `MaxPlayers` at `+0x10` and
+#: `HistoricalScenario` at `+0xC0`.
+SCENARIO_DISABLED_FACTIONS_BEGIN = 0x40
+SCENARIO_DISABLED_FACTIONS_END = 0x44
+
+#: `(call VA, its stock bytes, the ebp displacement holding the lobby slot index)` for **every**
+#: `call SCENARIO_IS_FACTION_ENABLED` in the image - there are exactly four, all inside the
+#: multiplayer game-setup screen, and each already has the slot it is asking about in a local that
+#: is live and unwritten at the call. In order: the start-game gate that raises
+#: `GUI:DisabledFaction`; the historical-scenario pass that rejects a duplicate or disabled pick;
+#: the pass that resolves a slot left on Random; and the one that fills a slot's faction combo box,
+#: greying and disabling the entries it refuses.
+SCENARIO_FACTION_CALL_SITES = (
+    (0x0084348B, bytes.fromhex("e89de30b00"), -0x24),
+    (0x00844735, bytes.fromhex("e8f3d00b00"), -0x18),
+    (0x008448E1, bytes.fromhex("e847cf0b00"), -0x18),
+    (0x00844E51, bytes.fromhex("e8d7c90b00"), 0x08),
+)
+
+#: `mov [ebp-0x24], ebx` with `ebx` zero - what establishes the start-game gate's slot counter,
+#: and `push <"GUI:DisabledFaction">`, the message that loop exists to raise. Together they say
+#: the local at `-0x24` really is the slot index of the pass that reads `DisabledFactions`.
+MP_SETUP_START_GATE_LOOP_INIT = 0x008432E2
+MP_SETUP_START_GATE_LOOP_INIT_BYTES = bytes.fromhex("895ddc")
+MP_SETUP_DISABLED_FACTION_PUSH = 0x008435D9
+MP_SETUP_DISABLED_FACTION_PUSH_BYTES = bytes.fromhex("68cc42c500")
+
+#: The entry of the historical-scenario fixup, which holds both the validation pass and the
+#: Random-resolution pass, and the `and dword [ebp-0x18], 0` that starts each one's slot loop.
+MP_SETUP_HISTORICAL_FIXUP = 0x008445F2
+MP_SETUP_HISTORICAL_FIXUP_BYTES = bytes.fromhex("b895d1b900")
+MP_SETUP_VALIDATE_LOOP_INIT = 0x00844685
+MP_SETUP_VALIDATE_LOOP_INIT_BYTES = bytes.fromhex("8365e800")
+MP_SETUP_RANDOM_LOOP_INIT = 0x008447C8
+MP_SETUP_RANDOM_LOOP_INIT_BYTES = bytes.fromhex("8365e800")
+
+#: The entry of the combo-box fill, and the two instructions that prove its one argument is a
+#: lobby slot index: it is handed to `GameInfo::getSlot`, and it indexes the screen's array of
+#: per-slot faction windows at `this+0x334`.
+MP_SETUP_FACTION_COMBO = 0x00844BD4
+MP_SETUP_FACTION_COMBO_BYTES = bytes.fromhex("b8c1d1b900")
+MP_SETUP_FACTION_COMBO_SLOT_ARG = 0x00844BFB
+MP_SETUP_FACTION_COMBO_SLOT_ARG_BYTES = bytes.fromhex("8b7d0857")
+MP_SETUP_FACTION_COMBO_SLOT_WINDOW = 0x00844C0F
+MP_SETUP_FACTION_COMBO_SLOT_WINDOW_BYTES = bytes.fromhex("8bbcbe34030000")
+
+
+# `DeployStyleAIUpdate::aiDoCommand` - the module's whole "deploy before you attack" mechanism.
+# `__thiscall`, `ret 8`; vtable slot `+0x268` (`0x00C63498`). On entry `esi` is the module and
+# `edi` the `AICommandParms`, which the prologue establishes and which is what the cave of
+# `deploy-before-attack` relies on. Derived in `docs/deploy-before-attack.md`.
+DEPLOY_STYLE_AI_DO_COMMAND = 0x0089209F
+DEPLOY_STYLE_AI_DO_COMMAND_ENTRY = bytes.fromhex("56578b7c240c8bf1")
+
+# `cmp dword [edi+4], 2` + `je 0x008921C9` - the command-source test that sends every
+# `CMD_FROM_AI` order straight to the base state machine, past the record-and-deploy path. Ten
+# bytes, and the only inbound edge in `.text` lands on the first of them (the two `je`s at
+# 0x008920BD and 0x008920C2, the `AICMD_IDLE` and 0x35 shortcuts), which is what makes them
+# hookable.
+DEPLOY_STYLE_AI_SOURCE_BRANCH = 0x008920CE
+DEPLOY_STYLE_AI_SOURCE_BRANCH_BYTES = bytes.fromhex("837f04020f84f1000000")
+
+# `mov ecx, esi` / `call 0x00891CEB` - the record-and-deploy path the branch falls through to:
+# clear the recorded command, save the new one, forward it unless mid-deploy, then record what
+# kind it was.
+DEPLOY_STYLE_AI_RECORD_PATH = 0x008920D8
+DEPLOY_STYLE_AI_RECORD_PATH_BYTES = bytes.fromhex("8bcee80cfcffff")
+
+# `mov eax, [esi+0x574]` - the `CMD_FROM_AI` arm: snapshot what the unit was doing and hand the
+# command to the base state machine. The module's own re-issues need this and keep it.
+DEPLOY_STYLE_AI_BYPASS_PATH = 0x008921C9
+DEPLOY_STYLE_AI_BYPASS_PATH_BYTES = bytes.fromhex("8b8674050000578d4e20")
+
+# The whole of the `MustDeployToAttack` getter: `mov eax,[ecx+4]` (the `ModuleData`) then
+# `mov al,[eax+0x6f]`. Asserting these seven bytes fixes both offsets at once.
+DEPLOY_STYLE_MUST_DEPLOY_GETTER = 0x00891ED4
+DEPLOY_STYLE_MUST_DEPLOY_GETTER_BYTES = bytes.fromhex("8b41048a406fc3")
+
+# `mov [esi+0x578], ebx` in `setMyState` (0x008921E3) - where the state lives, written before the
+# switch on the new value.
+DEPLOY_STYLE_SET_STATE_STORE = 0x008921FE
+DEPLOY_STYLE_SET_STATE_STORE_BYTES = bytes.fromhex("899e78050000")
+
+# `mov eax,[esi-0xc]` / `cmp byte [eax+0x6f], bl` - `update`'s `READY_TO_MOVE` arm asking
+# `MustDeployToAttack` before it calls `setMyState(DEPLOY)`. This is the one place the keyword
+# decides anything, and it is reached only when a command has been recorded.
+DEPLOY_STYLE_MOVE_ARM_MUST_DEPLOY = 0x0089296D
+DEPLOY_STYLE_MOVE_ARM_MUST_DEPLOY_BYTES = bytes.fromhex("8b46f438586f")
+
+#: The three `mov byte [esi+<flag>], 1` stores that end `aiDoCommand`'s command switch, as
+#: `{va: bytes}`. They are what "a command is recorded" means, and the cave reads the same three
+#: flags to tell an acquire the engine started from a re-issue the module started.
+DEPLOY_STYLE_RECORD_STORES = {
+    0x00892175: bytes.fromhex("c6869405000001"),  # +0x594 no explicit target
+    0x008921AC: bytes.fromhex("c6869505000001"),  # +0x595 attack object
+    0x0089217E: bytes.fromhex("c6869605000001"),  # +0x596 attack position
+}
+
+# The module fields the cave reads, and the state value that means "standing, weapons free".
+DEPLOY_STYLE_MODULE_DATA_OFFSET = 0x04
+DEPLOY_STYLE_MUST_DEPLOY_OFFSET = 0x6F
+DEPLOY_STYLE_STATE_OFFSET = 0x578
+DEPLOY_STYLE_STATE_READY_TO_ATTACK = 2
+DEPLOY_STYLE_RECORDED_COMMAND_OFFSETS = (0x594, 0x595, 0x596)
+
+#: The subset of those that name something the `READY_TO_MOVE` arm can resolve on its own: an
+#: attack-object command (`+0x595`, with the `ObjectID` at `+0x584`) and an attack-position one
+#: (`+0x596`, with the `Coord3D` at `+0x588`). `+0x594` is deliberately absent - it means
+#: "attack-ish, no explicit target" (guard, attack-move, hunt), and its arm resolves a target only
+#: through the mood picker and the tracked id, both of which come back empty for a unit attacking
+#: out of its guard machine. That is the case `deploy-before-attack` has to answer for.
+DEPLOY_STYLE_TARGETED_COMMAND_OFFSETS = (0x595, 0x596)
+
+#: The `AICommandType` values `aiDoCommand`'s switch recognises, in the order its `cmp` chain
+#: tests them: attack object / force-attack object, attack position, the attack-move and hunt
+#: forms, the four guard forms, and a further attack-object form. `AICMD_ATTACK_TEAM` (0x0D) is
+#: explicitly skipped, and so is everything else.
+DEPLOY_STYLE_ATTACK_COMMANDS = (
+    0x0B,
+    0x0C,
+    0x0E,
+    0x0F,
+    0x10,
+    0x11,
+    0x12,
+    0x1E,
+    0x1F,
+    0x21,
+    0x23,
+    0x39,
+)
+
+# `DeployStyleAIUpdate::update` - vtable slot `+0x10` of the module (`0x00C63224`). On entry it
+# biases `esi` to `this + 0x10`, so every module field it names reads 0x10 lower than the same
+# field in `aiDoCommand`: `[esi-0x10]` is the module, `[esi-0xc]` the `ModuleData`, `[esi+0x568]`
+# the state and `[esi+0x584..0x586]` the three recorded-command flags. `ebx` holds the weapon it
+# fetched, `ebp` the owning `Object` and `edi` zero. Derived in `docs/deploy-before-attack.md`.
+DEPLOY_STYLE_UPDATE = 0x0089251C
+DEPLOY_STYLE_UPDATE_ENTRY = bytes.fromhex("51515355568bf18b")
+DEPLOY_STYLE_UPDATE_ESI_BIAS = 0x10
+
+# `cmp byte [esi+0x586], 0` + `je 0x00892578` - the head of the recorded-command resolution, the
+# first thing `update` does once it has a weapon. Nine bytes, and no branch in `.text` lands
+# inside them, which is what makes them hookable.
+DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH = 0x00892545
+DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH_BYTES = bytes.fromhex("80be8605000000742a")
+
+# The two arms the displaced branch chooses between: a recorded attack *position* falls through
+# to 0x0089254E, anything else goes to 0x00892578 to try the recorded attack *object*.
+DEPLOY_STYLE_UPDATE_POSITION_PATH = 0x0089254E
+DEPLOY_STYLE_UPDATE_POSITION_PATH_BYTES = bytes.fromhex("6a01d9ee51d9")
+DEPLOY_STYLE_UPDATE_OBJECT_PATH = 0x00892578
+DEPLOY_STYLE_UPDATE_OBJECT_PATH_BYTES = bytes.fromhex("80be8505000000")
+
+# `xor ebp, ebp` - where every arm of the resolution rejoins, with `edi` holding the resolved
+# target (zero when there is none) and `[esp+0x11]`/`[esp+0x12]` holding the range answer. The
+# cave jumps here after it has already decided, so the stock code runs on with nothing resolved.
+DEPLOY_STYLE_UPDATE_RESOLVED = 0x008926E7
+DEPLOY_STYLE_UPDATE_RESOLVED_BYTES = bytes.fromhex("33ed80be87050000")
+
+# `setMyState`, `__thiscall` on the module with the new state as its only argument. Its `DEPLOY`
+# arm opens with `aiIdle(CMD_FROM_AI)`, which is what takes the attack away from the base state
+# machine while the unit stands up.
+DEPLOY_STYLE_SET_MY_STATE = 0x008921E3
+DEPLOY_STYLE_SET_MY_STATE_BYTES = bytes.fromhex("b8b30eba00e803ad")
+DEPLOY_STYLE_STATE_READY_TO_MOVE = 0
+DEPLOY_STYLE_STATE_DEPLOY = 1
+
+# `AIUpdateInterface::getActiveAttackMachine` - scans the attack-machine slots at `this+0x20c`
+# and returns the index of the one that is running, or -1. `__thiscall`, no arguments. Only some
+# attack forms allocate one: a unit attacking out of its guard machine leaves the slots null, which
+# is why this is *not* the question `deploy-before-attack` asks. Kept because `update` itself calls
+# it at 0x008925D7.
+AI_ACTIVE_ATTACK_MACHINE = 0x0066243F
+AI_ACTIVE_ATTACK_MACHINE_BYTES = bytes.fromhex("565733ff8db10c0200")
+
+# `AIUpdateInterface::getCurrentVictim` - `m_currentVictimID` at `this+0x40`, resolved to an
+# `Object*` (NULL when there is none). `__thiscall`, no arguments, 71 callers. The id is written by
+# the setter at 0x006682B1, which every attack path in the AI goes through - 27 call sites across
+# the idle, move, guard, approach and pursue states - and cleared both by `setCurrentVictim(NULL)`
+# and by the victim's own death (0x00668280), so it cannot name a dead object. This is the one
+# field that sees an attack however the engine started it.
+AI_CURRENT_VICTIM = 0x00668303
+AI_CURRENT_VICTIM_BYTES = bytes.fromhex("8b414085c0740d8b0d2c41de00")
+AI_CURRENT_VICTIM_ID_OFFSET = 0x40
+AI_SET_CURRENT_VICTIM = 0x006682B1
+AI_SET_CURRENT_VICTIM_BYTES = bytes.fromhex("8b44240485c0568bf1753d")
+
+# `AIUpdateInterface::getAttackMachineTarget(index)` - the `Object*` that machine is attacking,
+# or NULL. `__thiscall`, `ret 4`.
+AI_ATTACK_MACHINE_TARGET = 0x006622E6
+AI_ATTACK_MACHINE_TARGET_BYTES = bytes.fromhex("558bec83ec0c8b4508")
+
+# `Weapon::isTargetObjectInRange(source, victim, extraRange, flag)` - `__thiscall` on the weapon,
+# `ret 0x10`, answering in `al`. `update` calls it at 0x0089269E with `(ebp, target, 0.0f, 1)`
+# and the cave copies that shape exactly.
+WEAPON_TARGET_IN_RANGE = 0x006CC653
+WEAPON_TARGET_IN_RANGE_BYTES = bytes.fromhex("8b54240485d27427")
+
+# `AICommandParms`, from its constructor 0x007536DD: the command type is the first dword and the
+# `CommandSourceType` the second. Source 2 is the engine's own AI - what auto-acquire issues with,
+# and what the module re-issues its own attacks with.
+AI_COMMAND_TYPE_OFFSET = 0x00
+AI_COMMAND_SOURCE_OFFSET = 0x04
+AI_COMMAND_SOURCE_FROM_AI = 2

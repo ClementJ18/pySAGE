@@ -137,6 +137,12 @@ active at a time and `Engine.activate()` is the scoped form. `sage-ini --engine 
 one to any command. Nothing in the path raises on a bad file: it degrades to the stock engine and
 says why.
 
+The same file carries a `[[patches]]` list: every binary patch the `game.dat` was built from,
+with the parameters it was built with, whether or not it changes any INI. The model never reads
+it - it is provenance, not schema - but it is what makes the committed file a build manifest as
+well as a schema difference: `engine.patches` says what the binary is, and `sage-patch rebuild`
+replays the list onto a clean binary to make it again.
+
 ## Public API & stability
 
 The supported surface is what `sage_ini` re-exports at the top level (and lists in its

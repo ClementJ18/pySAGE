@@ -17,7 +17,15 @@ from pathlib import Path
 
 import pytest
 
-from sage_ini.engine import STOCK_LIMITS, Engine, dump_engine, load_engine, parse_type
+from sage_ini.engine import (
+    STOCK_LIMITS,
+    AppliedPatch,
+    Engine,
+    dump_engine,
+    load_engine,
+    parse_engine,
+    parse_type,
+)
 from sage_ini.loader import load_game
 from sage_ini.model import enums as model_enums
 from sage_ini.model.objects import REGISTRY
@@ -34,6 +42,7 @@ from sage_patch.sagepatch import (
     generate,
     generate_from_patches,
     name_table_members,
+    rebuild,
 )
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import synthetic_image
@@ -152,9 +161,146 @@ class TestDrift:
         rebuilt, _ = generate_from_patches(["hero-mana", "commandset-limit"])
         problems = differences(committed.engine, rebuilt.engine)
 
+        assert problems == [
+            "patch in the binary but not in the file: commandset-limit (count=64)",
+            "limit in the binary but not in the file: "
+            "LimitDelta(name='commandset.max_slots', value=64, patch='commandset-limit')",
+        ]
+        assert differences(rebuilt.engine, committed.engine) == [
+            "patch in the file but not in the binary: commandset-limit (count=64)",
+            "limit in the file but not in the binary: "
+            "LimitDelta(name='commandset.max_slots', value=64, patch='commandset-limit')",
+        ]
+
+    def test_a_patch_that_changes_no_ini_still_fails_the_check(self):
+        """Why the manifest is compared at all: `crash-dump` adds no field, no token and no
+        limit, so on the deltas alone a binary that gained it is indistinguishable from the one
+        the committed file describes."""
+        committed, _ = generate_from_patches([])
+        rebuilt, _ = generate_from_patches(["crash-dump"])
+
+        assert differences(committed.engine, rebuilt.engine) == [
+            "patch in the binary but not in the file: crash-dump (deep=7015, normal=7013)"
+        ]
+
+    def test_the_same_patch_at_different_parameters_is_reported_as_such(self):
+        committed = Engine(patches=(AppliedPatch("commandset-limit", (("count", 64),)),))
+        rebuilt = Engine(patches=(AppliedPatch("commandset-limit", (("count", 80),)),))
+
+        assert differences(committed, rebuilt) == [
+            "patch commandset-limit was applied as commandset-limit (count=80), "
+            "the file says commandset-limit (count=64)"
+        ]
+
+    def test_prose_about_a_patch_is_not_drift(self):
+        """`author` and `description` are the generator's words about a patch, not facts about
+        the binary: a reworded description must not fail somebody's CI."""
+        committed = Engine(patches=(AppliedPatch("crash-dump", author="?", description="old"),))
+        rebuilt = Engine(
+            patches=(AppliedPatch("crash-dump", author="somebody", description="new"),)
+        )
+
+        assert differences(committed, rebuilt) == []
+
+
+class TestTheManifest:
+    """The `[[patches]]` list a generated file carries: every patch found, with what it was
+    applied with, whether or not it changes the INI - the build's manifest."""
+
+    def test_a_detected_patch_is_listed_with_the_parameters_recovered_from_the_binary(self):
+        image = synthetic_image()
+        ProductionConditionPatch(condition="BUSY", weapon_set_flag="BUSY_WEAPONS").apply(image)
+
+        record = generate(image).engine.patches[0]
+
+        assert record.name == "production-condition"
+        assert record.settings == {"condition": "BUSY", "weapon_set_flag": "BUSY_WEAPONS"}
+
+    def test_a_patch_that_changes_no_ini_is_listed_all_the_same(self):
+        generated, _ = generate_from_patches(["crash-dump"])
+
+        assert generated.engine.is_stock
+        assert [record.name for record in generated.engine.patches] == ["crash-dump"]
+
+    def test_an_entry_carries_the_credit_and_the_warning(self):
+        """So the committed file reads as a reference where none of this is installed: who to
+        thank, and which parts of the build are the unstable ones."""
+        generated, _ = generate_from_patches(["commandset-limit", "hero-mana"])
+        limit, mana = generated.engine.patches
+
+        assert limit.author == CommandSetLimitPatch.author
+        assert limit.description == CommandSetLimitPatch.description
+        assert not limit.experimental
+        assert mana.experimental
+
+    def test_every_registered_patch_can_be_written_down(self):
+        """Every patch's parameters have to survive the trip through the file, or a build using
+        that patch cannot be rebuilt from its manifest. Defaults are what the check has to go on;
+        `detect` recovers the same attributes on a real binary."""
+        generated, unknown = generate_from_patches(sorted(PATCHES))
+
+        assert unknown == []
+        assert [record.name for record in generated.engine.patches] == sorted(PATCHES)
+        assert [note for note in generated.notes if "cannot hold" in note] == []
+
+    def test_the_options_a_patch_reports_are_the_ones_that_rebuild_it(self):
+        patch = CommandSetLimitPatch(count=80)
+
+        assert type(patch)(**patch.options()).count == 80
+
+    def test_an_optional_parameter_left_alone_is_not_written_down(self):
+        """A file has no null: an option that is None is simply absent, and the constructor's own
+        default puts it back."""
+        assert "weapon_set_flag" not in ProductionConditionPatch(condition="BUSY").options()
+
+
+class TestRebuilding:
+    def test_the_written_file_rebuilds_the_binary_it_was_read_from(self):
+        """The manifest's whole promise, end to end: read a patched image, write the file, throw
+        the image away, and replay the file onto a clean one for the same bytes back."""
+        image = synthetic_image()
+        ProductionConditionPatch(condition="BUSY", weapon_set_flag="BUSY_WEAPONS").apply(image)
+        committed = parse_engine(dump_engine(generate(image).engine))
+
+        patches, problems = rebuild(committed)
+        again = synthetic_image()
+        for patch in patches:
+            patch.apply(again)
+
+        assert problems == []
+        assert bytes(again) == bytes(image)
+
+    def test_a_name_this_build_does_not_know_is_reported_rather_than_raised(self):
+        patches, problems = rebuild(Engine(patches=(AppliedPatch("not-a-patch"),)))
+
+        assert patches == []
+        assert problems == [
+            "not-a-patch: no patch of that name in this build - `sage-patch list` names them"
+        ]
+
+    def test_a_parameter_this_build_no_longer_takes_is_reported_per_entry(self):
+        """An older mod's file against a newer package: the entries that went stale are named,
+        and the ones that still work are still rebuilt."""
+        engine = Engine(
+            patches=(
+                AppliedPatch("commandset-limit", (("gone", 1),)),
+                AppliedPatch("crash-dump"),
+            )
+        )
+
+        patches, problems = rebuild(engine)
+
+        assert [patch.name for patch in patches] == ["crash-dump"]
         assert len(problems) == 1
-        assert "in the binary but not in the file" in problems[0]
-        assert differences(rebuilt.engine, committed.engine)[0].startswith("limit in the file")
+        assert problems[0].startswith("commandset-limit: ")
+
+    def test_a_parameter_out_of_range_is_reported_rather_than_raised(self):
+        patches, problems = rebuild(
+            Engine(patches=(AppliedPatch("commandset-limit", (("count", 500),)),))
+        )
+
+        assert patches == []
+        assert "count must be in" in problems[0]
 
 
 def _same_converter(stock: object, declared: object) -> bool:

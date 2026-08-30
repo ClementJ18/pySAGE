@@ -6,16 +6,21 @@
   per pair and exits non-zero on any failure (`--json` for machine-readable output).
 - `view <file.xml>` - write a self-contained HTML/SVG visualisation next to the file.
 - `edit <file.xml>` - serve the browser editor for the file (`--port`, `--no-browser`).
+- `import-character <dest.xml> <source.xml> <id>` - copy a character and everything it
+  draws from one movie into another, renumbering characters, meshes and textures.
 """
 
 import argparse
 import json
+import re
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from sage_apt.aptfile import AptError, apt_to_xml, xml_to_apt
 from sage_apt.check import OK, check_paths
 from sage_apt.editor import serve
+from sage_apt.merge import merge_character, rewrite_geometry
 from sage_apt.viewer import write_viewer_html
 from sage_utils.cli import existing_dir, existing_file, utf8_stdout
 
@@ -101,6 +106,64 @@ def _run_edit(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_meshes(directory: Path | None, movie: str) -> dict[int, str]:
+    """`geometry id -> .ru text` from a `<Movie>_geometry` folder, or `{}` when there is none.
+
+    Without it a merge cannot see which `image` characters a shape's mesh samples, so the copy
+    would leave its textures behind - which is why `import-character` warns when the source movie
+    has shapes and no meshes were found.
+    """
+    if directory is None:
+        return {}
+    folder = directory / f"{movie}_geometry"
+    if not folder.is_dir():
+        folder = directory
+    found: dict[int, str] = {}
+    for path in folder.glob("*.ru"):
+        if re.fullmatch(r"\d+", path.stem):
+            found[int(path.stem)] = path.read_text(encoding="latin-1")
+    return found
+
+
+def _run_import_character(args: argparse.Namespace) -> int:
+    destination_tree = ET.parse(args.destination)
+    destination = destination_tree.getroot()
+    source = ET.parse(args.source).getroot()
+    meshes = _load_meshes(args.geometry, args.source.stem)
+    if not meshes and any(source.iter("shape")):
+        print(
+            "note: the source has shapes but no geometry was found - pass --geometry so the "
+            "textures its meshes sample come across too",
+            file=sys.stderr,
+        )
+    try:
+        plan = merge_character(destination, source, args.character, meshes)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+
+    out = args.out or args.destination
+    destination_tree.write(out, encoding="utf-8", xml_declaration=True)
+    print(f"wrote {out}; the character is now {plan.character}")
+    if plan.imports:
+        for movie, name, slot in plan.imports:
+            print(f"  import  {name} from {movie} -> character {slot}")
+    if args.geometry_out and plan.geometry:
+        args.geometry_out.mkdir(parents=True, exist_ok=True)
+        for old, new in sorted(plan.geometry.items()):
+            (args.geometry_out / f"{new}.ru").write_text(
+                rewrite_geometry(meshes[old], plan), encoding="latin-1"
+            )
+        print(f"  wrote {len(plan.geometry)} renumbered meshes to {args.geometry_out}")
+    elif plan.geometry:
+        moved = ", ".join(f"{o}->{n}" for o, n in sorted(plan.geometry.items()))
+        print(f"  geometry to copy: {moved}")
+    if plan.textures:
+        moved = ", ".join(f"{o}->{n}" for o, n in sorted(plan.textures.items()))
+        print(f"  textures to copy: {moved}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     utf8_stdout()
     parser = argparse.ArgumentParser(prog="sage-apt", description=__doc__)
@@ -173,6 +236,32 @@ def main(argv: list[str] | None = None) -> int:
         help="texture directory for real artwork instead of placeholders (needs [apt]/[ui])",
     )
     edit.set_defaults(func=_run_edit)
+
+    imp = subparsers.add_parser(
+        "import-character",
+        help="copy a character and everything it draws from one movie's XML into another's",
+    )
+    imp.add_argument("destination", type=existing_file, help="the XML to copy into")
+    imp.add_argument("source", type=existing_file, help="the XML to copy from")
+    imp.add_argument("character", type=int, help="the source character id to copy")
+    imp.add_argument(
+        "--geometry",
+        type=existing_dir,
+        default=None,
+        metavar="DIR",
+        help="the source's <Movie>_geometry folder (or its parent), so mesh textures come too",
+    )
+    imp.add_argument(
+        "--geometry-out",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="write the renumbered meshes here (otherwise the renaming is only printed)",
+    )
+    imp.add_argument(
+        "--out", type=Path, default=None, help="output XML (default: overwrite the destination)"
+    )
+    imp.set_defaults(func=_run_import_character)
 
     args = parser.parse_args(argv)
     return args.func(args)

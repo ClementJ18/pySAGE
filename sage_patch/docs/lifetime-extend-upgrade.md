@@ -225,7 +225,7 @@ the byte *after* it — see §6.
 The stock field table is at `0x00c31860` — five rows plus its terminator, boxed in by its own
 keyword strings, and with **exactly one reference** (the `push` immediate at `0x007a7e01`). That is
 the cheapest relocation in this package, alongside `science-prereqs` and
-`large-group-bonus-filter`: rebuild the table in the cave with two more rows and repoint one `push`.
+`large-group-bonus`: rebuild the table in the cave with two more rows and repoint one `push`.
 
 `ModuleData` has no hole big enough (`+0x12`/`+0x13` is the only padding, two bytes), so it grows
 past `0x18`: the mask at `+0x18`, the bonus at `+0xa8`, and whatever else the patch's other

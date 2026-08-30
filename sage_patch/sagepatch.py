@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from datetime import date
 from importlib.metadata import PackageNotFoundError, version
 
-from sage_ini.engine import Engine, EnumDelta, Source
+from sage_ini.engine import AppliedPatch, Engine, EnumDelta, Source
 
 from .addresses import BUILD
 from .patcher import Patch
@@ -47,7 +47,10 @@ __all__ = [
     "differences",
     "generate",
     "generate_from_patches",
+    "manifest",
     "name_table_members",
+    "patch_differences",
+    "rebuild",
 ]
 
 #: Each engine name table, as `(model enum, how many entries the stock build names, reader)`. The
@@ -154,6 +157,51 @@ def _fuse(surfaced: Sequence[EnumDelta], observed: Sequence[EnumDelta]) -> tuple
     return tuple(fused.values())
 
 
+def _writable(value: object) -> bool:
+    """Whether a patch option is something the `.sagepatch` can hold and a constructor can take
+    back: a scalar, or a list of them."""
+    if isinstance(value, bool | int | float | str):
+        return True
+    return isinstance(value, tuple | list) and all(
+        isinstance(item, bool | int | float | str) for item in value
+    )
+
+
+def manifest(patches: Iterable[Patch]) -> tuple[tuple[AppliedPatch, ...], list[str]]:
+    """`patches` as the `[[patches]]` manifest plus anything that could not be written down.
+
+    Every patch is listed, whether or not it changes the INI: a build is made mostly of patches
+    that add no field and no token, and the list is what lets the committed file say what the
+    binary is and `rebuild` put it back together. Each entry carries the parameters the instance
+    holds - recovered from the image by `detect`, so a manifest describes the build rather than
+    this version's defaults - plus the author and the one-line description, so the file reads as
+    a reference where nothing else is installed."""
+    records: list[AppliedPatch] = []
+    notes: list[str] = []
+    for patch in patches:
+        options: list[tuple[str, object]] = []
+        for key, value in sorted(patch.options().items()):
+            if not _writable(value):
+                notes.append(
+                    f"{patch.name}: parameter {key!r} is a {type(value).__name__}, which a "
+                    "manifest entry cannot hold - it is listed without it, and a rebuild from "
+                    "this file would use the default"
+                )
+                continue
+            options.append((key, value))
+        cls = type(patch)
+        records.append(
+            AppliedPatch(
+                name=patch.name,
+                options=tuple(options),
+                experimental=cls.experimental,
+                author=cls.author,
+                description=cls.description,
+            )
+        )
+    return tuple(records), notes
+
+
 def _source(data: bytes | bytearray) -> Source:
     """Provenance for the generated file. Deliberately **not** the path it was read from: see
     :class:`~sage_ini.engine.Source`."""
@@ -165,18 +213,25 @@ def _source(data: bytes | bytearray) -> Source:
     )
 
 
-def _combine(patches: Iterable[Patch], observed: Sequence[EnumDelta], source: Source) -> Engine:
-    """One engine from the detected patches' surfaces plus the observed tokens."""
+def _combine(
+    patches: Sequence[Patch], observed: Sequence[EnumDelta], source: Source
+) -> tuple[Engine, list[str]]:
+    """One engine from the detected patches - their manifest entries and their surfaces - plus
+    the observed tokens, and whatever could not be written down."""
     surface = Engine()
     for patch in patches:
         surface = surface.merge(patch.ini_surface())
+    records, notes = manifest(patches)
     return Engine(
+        patches=records,
+        blocks=surface.blocks,
+        nested=surface.nested,
         fields=surface.fields,
         noops=surface.noops,
         enum_members=_fuse(surface.enum_members, observed),
         limits=surface.limits,
         source=source,
-    )
+    ), notes
 
 
 def generate(data: bytes | bytearray) -> Generated:
@@ -190,7 +245,8 @@ def generate(data: bytes | bytearray) -> Generated:
     patches = detect_patches(data)
     observed, table_notes = name_table_members(data)
     notes.extend(table_notes)
-    engine = _combine(patches, observed, _source(data))
+    engine, manifest_notes = _combine(patches, observed, _source(data))
+    notes.extend(manifest_notes)
     unattributed = sorted(
         f"{delta.enum}.{delta.name}" for delta in engine.enum_members if not delta.patch
     )
@@ -211,20 +267,88 @@ def generate_from_patches(names: Sequence[str]) -> tuple[Generated, list[str]]:
     different limit, a custom token) is described wrongly here and correctly by `generate`."""
     unknown = [name for name in names if name not in PATCHES]
     patches = [PATCHES[name]() for name in names if name in PATCHES]
-    engine = _combine(patches, (), Source(generator=_GENERATOR))
-    notes = (
+    engine, manifest_notes = _combine(patches, (), Source(generator=_GENERATOR))
+    notes = [
         "written from patch names, not from a binary: every patch is described with its default "
         "parameters",
-    )
-    return Generated(engine=engine, patches=tuple(patches), notes=notes), unknown
+        *manifest_notes,
+    ]
+    return Generated(engine=engine, patches=tuple(patches), notes=tuple(notes)), unknown
+
+
+def rebuild(engine: Engine) -> tuple[list[Patch], list[str]]:
+    """The patches an engine description's `[[patches]]` manifest names, rebuilt with the
+    parameters it records, plus the entries that could not be rebuilt.
+
+    This is the manifest's payoff: applying the result to a clean `game.dat` reproduces the build
+    the file describes, at the counts and keywords it was built with rather than at this version's
+    defaults. Order is the file's, which is the registration order `generate` writes; since the
+    bundled patches are order-independent (see the composition contract on
+    :class:`~sage_patch.patcher.Patch`), any order that lists them all yields the same *engine* -
+    the same patches at the same parameters, verifiable with `sagepatch --check`. It does not
+    promise the same *bytes* as some other build of the same list: each cave is appended past the
+    sections already present, so a different application order lands them at different addresses.
+
+    A name this build does not know, or a parameter it no longer takes, is reported rather than
+    raised: an older mod's file against a newer package should say which entries went stale, not
+    stop at the first one."""
+    patches: list[Patch] = []
+    problems: list[str] = []
+    for record in engine.patches:
+        cls = PATCHES.get(record.name)
+        if cls is None:
+            problems.append(
+                f"{record.name}: no patch of that name in this build - `sage-patch list` names them"
+            )
+            continue
+        try:
+            patches.append(cls(**record.settings))  # type: ignore[arg-type]
+        except (TypeError, ValueError) as exc:
+            problems.append(f"{record.name}: {exc}")
+    return patches, problems
+
+
+def _spelt(record: AppliedPatch) -> str:
+    """A manifest entry as `name (key=value, ...)` - what it was applied with, for a drift
+    report that has to say more than which names differ."""
+    options = ", ".join(f"{key}={value!r}" for key, value in record.options)
+    return f"{record.name} ({options})" if options else record.name
+
+
+def patch_differences(committed: Engine, generated: Engine) -> list[str]:
+    """How the two manifests disagree, by patch name.
+
+    Compared apart from the deltas, and on name plus parameters only: `author` and `description`
+    are the generator's prose about a patch rather than a fact about the binary, and a reworded
+    description must not fail a drift check."""
+    problems: list[str] = []
+    theirs = {record.name: record for record in committed.patches}
+    ours = {record.name: record for record in generated.patches}
+    for name, record in ours.items():
+        seen = theirs.get(name)
+        if seen is None:
+            problems.append(f"patch in the binary but not in the file: {_spelt(record)}")
+        elif seen.options != record.options:
+            problems.append(
+                f"patch {name} was applied as {_spelt(record)}, the file says {_spelt(seen)}"
+            )
+    for name, record in theirs.items():
+        if name not in ours:
+            problems.append(f"patch in the file but not in the binary: {_spelt(record)}")
+    return problems
 
 
 def differences(committed: Engine, generated: Engine) -> list[str]:
     """How `committed` disagrees with `generated`, ignoring `[source]` (a path and a hash, which
     differ per machine and per rebuild by design). An empty list means the committed file still
-    describes the binary."""
-    problems: list[str] = []
+    describes the binary.
+
+    Both halves are checked: the `[[patches]]` manifest, so a repatched binary fails the drift
+    check even when the patch added no INI, and the surface deltas."""
+    problems: list[str] = patch_differences(committed, generated)
     sections = (
+        ("block", committed.blocks, generated.blocks),
+        ("nested block", committed.nested, generated.nested),
         ("field", committed.fields, generated.fields),
         ("retired field", committed.noops, generated.noops),
         ("token", committed.enum_members, generated.enum_members),

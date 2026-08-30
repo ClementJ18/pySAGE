@@ -96,7 +96,7 @@ class _DefeatCondition(NestedAttribute):
     Teams: t.List[t.Int]
     LoseIfCapitalLost: t.Bool
     NumControlledRegionsLessOrEqualTo: t.Int
-    ControlledRegions: t.Opaque
+    ControlledRegions: t.List[t.Opaque]
     ControlledRegionsHeldForTurns: t.Int
     NumControlledRegionsGreaterOrEqualTo: t.Int
 
@@ -126,19 +126,19 @@ class TeamVictoryCondition(_VictoryCondition):
 class SpawnArmies(NestedAttribute):
     """Pre-placed armies in an `OwnershipSet`."""
 
-    Player: t.Opaque
+    Player: t.FactionRef
     Army: t.List[t.Untyped]
-    Armies: t.List[t.Opaque]
+    Armies: t.List[t.PlayerArmyRef]
     Region: t.Opaque
 
 
 class SpawnBuildings(NestedAttribute):
     """Pre-placed buildings in an `OwnershipSet`."""
 
-    Player: t.Opaque
-    Building: t.List[t.Opaque]
+    Player: t.FactionRef
+    Building: t.List[t.LivingWorldBuildingRef]
     Region: t.Opaque
-    Buildings: t.List[t.Opaque]
+    Buildings: t.List[t.LivingWorldBuildingRef]
 
 
 class OwnershipSet(NestedAttribute):
@@ -167,7 +167,7 @@ class Scenario(NestedAttribute):
     DefaultStartSpots: t.List[t.Opaque]
     DisallowStartInRegions: t.List[t.Opaque]
     DisableRegions: t.List[t.Opaque]
-    DisabledFactions: t.Opaque
+    DisabledFactions: t.List[t.FactionRef]
     HistoricalScenario: t.Bool
     MinPlayers: t.Int
 
@@ -208,16 +208,16 @@ class Region(NestedAttribute):
     ConqueredNotice: t.Label
     SkirmishStillImage: t.Image
 
-    SkirmishMusicTrack: t.Opaque
-    RegionPortrait: t.Opaque
+    SkirmishMusicTrack: t.Sound
+    RegionPortrait: t.Image
     ConnectsTo: t.List[t.Opaque]
     GarrisonArmySpot: t.Coords
     CenterPoint: t.Coords
     CustomCenterPoint: t.Bool
     CPLimit: t.Int
     AllyCPLimit: t.Int
-    MovieNameFirstTime: t.Opaque
-    MovieNameRepeat: t.Opaque
+    MovieNameFirstTime: t.VideoRef
+    MovieNameRepeat: t.VideoRef
 
     # Per-region strategic bonuses granted to its owner.
     AttackBonus: t.Int
@@ -230,7 +230,7 @@ class Region(NestedAttribute):
 
     # Auto-built fortress.
     CreateAutoFort: t.Bool
-    FortressPortrait: t.Opaque
+    FortressPortrait: t.Image
     FortressDisplayName: t.Label
     FortressDisplayDescription: t.Label
 
@@ -240,7 +240,7 @@ class Region(NestedAttribute):
 class ArmyToSpawn(NestedAttribute):
     """The army a `BuildingNugget` can construct, with its build UI."""
 
-    PlayerArmy: t.Opaque
+    PlayerArmy: t.PlayerArmyRef
     Icon: t.ArmyIcon
     IconSize: t.String
     PalantirMovie: t.VideoRef
@@ -322,10 +322,15 @@ class UnifiedEffect(_RegionEffect):
 
 
 class ArmyEntry(NestedAttribute):
-    """One unit slot of a `LivingWorldPlayerArmy`: a template and how many of it."""
+    """One unit slot of a `LivingWorldPlayerArmy`: a template and how many of it.
+
+    `Default` marks the entry as a fallback line: it is not counted toward the army's strength
+    and is deployed only once the surviving strength has fallen below the army's
+    `SurvivalThreshhold`."""
 
     ThingTemplate: t.ObjectRef
     Quantity: t.Int
+    Default: t.Bool
 
 
 class BonusForLevel(NestedAttribute):

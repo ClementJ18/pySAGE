@@ -39,6 +39,7 @@ from sage_patch import addresses as ad
 from sage_patch.patches import ai_flag_capture_gate as afc
 from sage_patch.patches import commandset_button_upgrade as cbu
 from sage_patch.patches import crash_dump as cd
+from sage_patch.patches import deploy_before_attack as dba
 from sage_patch.patches import description_timers as dt
 from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather as wb
@@ -59,10 +60,12 @@ from sage_patch.patches import upgrade_description as ud
 from sage_patch.patches import upgrade_grant_lists as ugl
 from sage_patch.patches import worldbuilder_mod as wbm
 from sage_patch.patches import worldbuilder_object_typeahead as wbt
+from sage_patch.patches.experimental import battle_school as bs
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import render_rate as rrate
+from sage_patch.patches.experimental import scenario_player_factions as spf
 from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
@@ -516,6 +519,21 @@ def ai_flag_capture_gate_image() -> bytearray:
     )
 
 
+def scenario_player_factions_image() -> bytearray:
+    """A stand-in carrying the four `call Scenario::isFactionEnabled` sites and every anchor that
+    says the local each trampoline reads is a lobby slot index.
+
+    Sparse for the usual reason: the four calls are spread over two pages of the game-setup screen
+    and the function they reach is 0.7 MB above them. Everything not planted reads as zero, so a
+    call redirected one instruction to either side of where it claims to be would find nothing
+    there - which matters more here than usual, because the patch's whole claim is about which
+    `ebp` displacement holds a slot, and the anchors are the only thing that can refuse a build
+    where it holds something else.
+    """
+    sites = {va: original for va, original, _ in ad.SCENARIO_FACTION_CALL_SITES}
+    return _sparse_image({**sites, **spf.ANCHORS})
+
+
 def quiet_exit_image() -> bytearray:
     """A stand-in carrying the unhandled-exception filter's `call writeMiniDump`, the one site
     `quiet-exit` rewrites.
@@ -585,6 +603,57 @@ def campaign_select_image() -> bytearray:
         {
             ad.MAIN_MENU_CAMPAIGN_HANDLER: ad.MAIN_MENU_CAMPAIGN_HANDLER_BYTES,
             **cs.ANCHORS,
+        }
+    )
+
+
+def battle_school_image() -> bytearray:
+    """A stand-in carrying the Battle School handler and every site `battle-school` reads.
+
+    Sparse, and spread wide: the handler and the `CreditsExit` tail it is modelled on share one
+    page in the shell, the two registration blocks share another, and the four engine routines the
+    cave calls are between one and five megabytes away from them. Everything else reads as zero, so
+    a cave calling one instruction to either side of a routine would call into nothing.
+    """
+    return _sparse_image(
+        {
+            ad.BATTLE_SCHOOL_HANDLER: ad.BATTLE_SCHOOL_HANDLER_BYTES,
+            **bs.ANCHORS,
+        }
+    )
+
+
+def hero_army_carryover_image() -> bytearray:
+    """A stand-in carrying the four sites `hero-army-carryover` touches.
+
+    Sparse, and spread over three modules: the `ArmyEntry` sub-table lives in `.rdata`, its parse
+    call and the table's `push` are a megabyte away in the living-world INI code, and the two
+    battle hooks are another two megabytes below that in `GameLogic`'s living-world bridge.
+    Everything else is zero, so a hook aimed one instruction to either side finds no call.
+    """
+    return _sparse_image(
+        {
+            ad.ARMY_ENTRY_DEFAULT_TABLE: ad.ARMY_ENTRY_DEFAULT_TABLE_BYTES,
+            ad.ARMY_ENTRY_DEFAULT_TABLE_PUSH: ad.ARMY_ENTRY_DEFAULT_TABLE_PUSH_BYTES,
+            ad.ARMY_ENTRY_PARSE_FIELDS_CALL: ad.ARMY_ENTRY_PARSE_FIELDS_CALL_BYTES,
+            ad.LIVING_WORLD_BATTLE_SETUP_CALL: ad.LIVING_WORLD_BATTLE_SETUP_CALL_BYTES,
+            ad.LIVING_WORLD_BATTLE_HARVEST_CALL: ad.LIVING_WORLD_BATTLE_HARVEST_CALL_BYTES,
+        }
+    )
+
+
+def campaign_army_verbs_image() -> bytearray:
+    """A stand-in carrying the Act verb table and the two sites `campaign-army-verbs` rewrites.
+
+    Sparse: the table lives in `.rdata` and both hooks are in the campaign parser and the act
+    runner, a bit over a megabyte away and on one page between them. Everything else reads as
+    zero, so a patch that relocated the wrong 256 bytes would copy nothing recognisable.
+    """
+    return _sparse_image(
+        {
+            ad.ACT_VERB_TABLE: ad.ACT_VERB_TABLE_BYTES,
+            ad.ACT_VERB_TABLE_PUSH_SITE: ad.ACT_VERB_TABLE_PUSH_SITE_BYTES,
+            ad.ACT_RUN_PASS9_CALL: ad.ACT_RUN_PASS9_CALL_BYTES,
         }
     )
 
@@ -1121,3 +1190,14 @@ def commandset_button_upgrade_image() -> bytearray:
         planted.setdefault(va, blob[: end - va])
         planted.setdefault(end, blob[end - va :])
     return _sparse_image(planted)
+
+
+def deploy_before_attack_image() -> bytearray:
+    """A stand-in carrying `DeployStyleAIUpdate`'s command-source test and every anchor around it.
+
+    Sparse for the usual reason: the module's `aiDoCommand`, its `MustDeployToAttack` getter and
+    the `READY_TO_MOVE` arm of its `update` sit within two pages of each other and nothing else in
+    the image matters. Everything not planted reads as zero, so a hook aimed one instruction to
+    either side of the ten-byte branch would find nothing there.
+    """
+    return _sparse_image({dba.HOOK_VA: dba.HOOK_ORIGINAL, **dba.ANCHORS})

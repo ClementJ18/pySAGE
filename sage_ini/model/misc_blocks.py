@@ -328,7 +328,7 @@ class DifficultyTuning(NestedAttribute):
     """A per-difficulty tuning profile in `SkirmishAIData` (`DifficultyTuning <name>`). The
     `* : *` probability fields are odds, kept raw."""
 
-    Difficulty: t.Opaque
+    Difficulty: e.Difficulty
     EconomyMaxFarms: t.Int
     EconomyUpgradeProbability: t.Untyped
     SpecialPowerActivationProbability: t.Untyped
@@ -346,8 +346,8 @@ class GridDecalTemplate(NestedAttribute):
     """A ground decal on an update module (e.g. a shroud-clearing range marker): its texture,
     blend style, opacity envelope and tint."""
 
-    Texture: t.Opaque
-    Style: t.Opaque
+    Texture: t.TextureFile
+    Style: e.ObjectShadowType
     OpacityMin: t.Float
     OpacityMax: t.Float
     OpacityThrobTime: t.Int
