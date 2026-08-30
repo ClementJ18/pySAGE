@@ -51,12 +51,29 @@ def test_crop_matches_rectangle():
 
 
 def test_data_uri_wraps_png():
-    imap = parse_image_map("5=0 0 10 20\n")  # texture defaults to 1 when unassigned
-    resolver = AptTextureResolver("MyMovie", imap, _StubSource("apt_MyMovie_1", _atlas()))
+    # No `->` row, so the rectangle names the texture: image 5 samples `apt_MyMovie_5`.
+    imap = parse_image_map("5=0 0 10 20\n")
+    resolver = AptTextureResolver("MyMovie", imap, _StubSource("apt_MyMovie_5", _atlas()))
     uri = resolver.image_data_uri(5)
     assert uri.startswith("data:image/png;base64,")
     raw = base64.b64decode(uri.split(",", 1)[1])
     assert Image.open(io.BytesIO(raw)).size == (10, 20)
+
+
+def test_a_rectangle_row_implies_a_texture_of_the_images_own_name():
+    """BFME1-style movies ship one `.tga` per image and no atlas, so a rect-only image cannot be
+    resolved against texture 1 - `apt/mainmenu.big` in a BFME1 install has no `apt_MainMenu_1`."""
+    imap = parse_image_map("29=0 0 10 20\n")
+    assert imap.texture_of(29) == 29
+
+
+def test_an_explicit_assignment_still_wins_over_the_rectangle():
+    imap = parse_image_map("5->1\n5=0 0 10 20\n")
+    assert imap.texture_of(5) == 1
+
+
+def test_an_image_with_neither_row_falls_back_to_the_atlas():
+    assert parse_image_map("").texture_of(7) == 1
 
 
 def test_no_rectangle_returns_none():

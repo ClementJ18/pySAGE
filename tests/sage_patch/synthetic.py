@@ -59,6 +59,7 @@ from sage_patch.patches import upgrade_description as ud
 from sage_patch.patches import upgrade_grant_lists as ugl
 from sage_patch.patches import worldbuilder_mod as wbm
 from sage_patch.patches import worldbuilder_object_typeahead as wbt
+from sage_patch.patches.experimental import battle_school as bs
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
 from sage_patch.patches.experimental import recharge_rescale as rr
@@ -584,6 +585,22 @@ def campaign_select_image() -> bytearray:
         {
             ad.MAIN_MENU_CAMPAIGN_HANDLER: ad.MAIN_MENU_CAMPAIGN_HANDLER_BYTES,
             **cs.ANCHORS,
+        }
+    )
+
+
+def battle_school_image() -> bytearray:
+    """A stand-in carrying the Battle School handler and every site `battle-school` reads.
+
+    Sparse, and spread wide: the handler and the `CreditsExit` tail it is modelled on share one
+    page in the shell, the two registration blocks share another, and the four engine routines the
+    cave calls are between one and five megabytes away from them. Everything else reads as zero, so
+    a cave calling one instruction to either side of a routine would call into nothing.
+    """
+    return _sparse_image(
+        {
+            ad.BATTLE_SCHOOL_HANDLER: ad.BATTLE_SCHOOL_HANDLER_BYTES,
+            **bs.ANCHORS,
         }
     )
 

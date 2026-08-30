@@ -18,12 +18,12 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Seventeen of the registered patches — **`hero-mana`**, **`second-resource`**,
-> **`campaign-select`**, **`standalone-launcher`**, **`headless`**, **`recharge-rescale`**,
-> **`live-bridge`**, **`living-world-override`**, **`cooldown-through-death`**,
-> **`capture-the-flag`**, **`smart-rally`**, **`special-power-charges`**,
-> **`render-rate`**, **`scenario-player-factions`**, **`campaign-army-verbs`**,
-> **`hero-army-carryover`** and **`unit-plate-option`**
+> Eighteen of the registered patches — **`hero-mana`**, **`second-resource`**,
+> **`campaign-select`**, **`battle-school`**, **`standalone-launcher`**, **`headless`**,
+> **`recharge-rescale`**, **`live-bridge`**, **`living-world-override`**,
+> **`cooldown-through-death`**, **`capture-the-flag`**, **`smart-rally`**,
+> **`special-power-charges`**, **`render-rate`**, **`scenario-player-factions`**,
+> **`campaign-army-verbs`**, **`hero-army-carryover`** and **`unit-plate-option`**
 > — are **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -754,6 +754,27 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   Unexpected Party* loaded **laketown** instead of the **Hobbiton** a stock engine can only ever
   give it. That run also put a `sage_apt` round-trip of a **shell** movie in front of the real game
   for the first time — `MainMenu.apt`, the file carrying the corpus's one unresolvable branch.
+- **`battle-school`** ⚠**(experimental)** restores the **way out of BFME1's Battle School**, the
+  parchment book of tutorial videos on the main menu. ROTWK kept almost all of it: the
+  `AptMainMenu::BattleSchool` FSCommand and its handler are intact, `BlinkBattleSchoolOff` still
+  answers whether the button should blink, `FlashTutorial` is still read and still self-clears
+  after five launches, `WindowTransition MainMenuToBattleSchool` is still in stock `ini.big`
+  byte-identical to BFME1's, and `GameWindowGadgets.apt` still exports the `BinkMovie` gadget.
+  What EA dropped is the **mirror command**, `AptMainMenu::TutorialExit` — so a shell can start the
+  sound fade but never end it, and since the transition is a `SOUNDFADE` with `LeaveSilent = Yes`
+  the menu goes permanently silent. **Adding it back is not a second registration.** The surviving
+  handler is `ret 4`: it takes a params string and never reads it, exactly the unused channel
+  `campaign-select` uses. So the patch is **one five-byte `jmp`** into a 172-byte cave that reads
+  `params[0]` — anything but an `l` re-emits the displaced `mov eax, imm32` and jumps back to the
+  `call __SEH_prolog` it came from, so the stock path is not merely equivalent, it *is* the stock
+  path — and the movie sends `GameCode("BattleSchool", "leave")` to take the other arm. That arm is
+  modelled on `AptMainMenu::CreditsExit`'s tail, which is the same function for the credits screen
+  and still ships: restart the shell music if it stopped, reverse the transition group, release the
+  shell's movie flag, restore the frame-rate cap. Shell-only and **client-local** — it runs on a
+  menu button press before a game exists, nothing enters the simulation, replays cross unpatched
+  builds. The other half is `.apt` and asset work: the tutorial book, its videos, and the
+  `APT:` strings, none of which ship with ROTWK. See
+  [`docs/battle-school.md`](docs/battle-school.md).
 - **`foundation-rebind`** lets a **`ReplaceSelfUpgrade` keep the settlement plot** its building
   stands on, instead of freeing the flag between the destroy and the create. A plot's occupancy is
   one dword - the `ObjectID` at `FoundationAIUpdate+0x28`, shared with `CastleBehavior`, which

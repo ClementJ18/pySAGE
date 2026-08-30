@@ -30,6 +30,7 @@ from sage_patch.patches.desert_weather import (
     DesertWeatherWorldbuilderPatch,
 )
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
+from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
 from sage_patch.patches.experimental.campaign_army_verbs import CampaignArmyVerbsPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
 from sage_patch.patches.experimental.capture_the_flag import CaptureTheFlagPatch
@@ -156,6 +157,7 @@ PATCHES: dict[str, type[Patch]] = {
     MultiInstanceLauncherPatch.name: MultiInstanceLauncherPatch,
     StandaloneLauncherPatch.name: StandaloneLauncherPatch,
     CampaignSelectPatch.name: CampaignSelectPatch,
+    BattleSchoolPatch.name: BattleSchoolPatch,
     CampaignArmyVerbsPatch.name: CampaignArmyVerbsPatch,
     HeroArmyCarryoverPatch.name: HeroArmyCarryoverPatch,
     FoundationRebindPatch.name: FoundationRebindPatch,

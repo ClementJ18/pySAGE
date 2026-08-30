@@ -109,6 +109,8 @@ __all__ = [
     "ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW_BYTES",
     "ATTACK_NUGGET_VTABLES",
     "ATTACK_NUGGET_VTABLE_STORES",
+    "AUDIO_MANAGER",
+    "AUDIO_STOP_SLOT",
     "AUTO_DEPOSIT_AMOUNT",
     "AUTO_DEPOSIT_DEPOSIT",
     "AUTO_DEPOSIT_DEPOSIT_BYTES",
@@ -140,6 +142,14 @@ __all__ = [
     "AUTO_DEPOSIT_XP_GATE_BYTES",
     "AUTO_DEPOSIT_XP_GATE_RESUME",
     "AUTO_DEPOSIT_XP_GATE_SKIP",
+    "BATTLE_SCHOOL_BLINK_REGISTRATION",
+    "BATTLE_SCHOOL_BLINK_REGISTRATION_BYTES",
+    "BATTLE_SCHOOL_COMMAND",
+    "BATTLE_SCHOOL_HANDLER",
+    "BATTLE_SCHOOL_HANDLER_BYTES",
+    "BATTLE_SCHOOL_REGISTRATION",
+    "BATTLE_SCHOOL_REGISTRATION_BYTES",
+    "BATTLE_SCHOOL_TRANSITION_NAME",
     "BUILD",
     "BUILD_ASSISTANT_VTABLE",
     "BUILD_GATE_AFFORD",
@@ -226,6 +236,9 @@ __all__ = [
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION_ENTRY",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_VICTIM",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_VICTIM_ENTRY",
+    "CREDITS_EXIT_AUDIO_TAIL",
+    "CREDITS_EXIT_AUDIO_TAIL_BYTES",
+    "CREDITS_EXIT_HANDLER",
     "CRT_ATOI",
     "DAMAGE_INFO_DAMAGE_TYPE",
     "DAMAGE_INFO_SOURCE_ID",
@@ -360,6 +373,7 @@ __all__ = [
     "GAME_DATA_SHELL_MAP_NAME_ROW",
     "GAME_ENGINE",
     "GAME_ENGINE_QUITTING",
+    "GAME_ENGINE_SET_FPS_SLOT",
     "GAME_INFO_MAP",
     "GAME_LOGIC_FIND_OBJECT_BY_ID",
     "GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY",
@@ -447,6 +461,7 @@ __all__ = [
     "LOGIC_CRC_SHROUD_XFER_BYTES",
     "LOSE_CASH_COLOR",
     "LOSE_CASH_RISE",
+    "MAIN_MENU_BLINK_FLAG",
     "MAIN_MENU_CAMPAIGN_COMMAND",
     "MAIN_MENU_CAMPAIGN_HANDLER",
     "MAIN_MENU_CAMPAIGN_HANDLER_BYTES",
@@ -721,6 +736,12 @@ __all__ = [
     "SCORE_KEEPER_UNITS_DESTROYED",
     "SCORE_KEEPER_UNITS_LOST",
     "SET_CHECKBOX_STATE",
+    "SHELL",
+    "SHELL_MOVIE_ACTIVE",
+    "SHELL_MUSIC_PLAYING",
+    "SHELL_MUSIC_PLAYING_BYTES",
+    "SHELL_PLAY_MUSIC",
+    "SHELL_PLAY_MUSIC_BYTES",
     "SHROUD_CELLS",
     "SHROUD_CELLS_X",
     "SHROUD_CELLS_Y",
@@ -857,6 +878,10 @@ __all__ = [
     "WIDE_BLANK_LINE_BYTES",
     "WIDE_NEWLINE",
     "WIDE_NEWLINE_BYTES",
+    "WINDOW_TRANSITIONS_HANDLER",
+    "WINDOW_TRANSITION_REVERSE",
+    "WINDOW_TRANSITION_REVERSE_BYTES",
+    "WINDOW_TRANSITION_SET_GROUP",
     "WRITE_MINI_DUMP",
     "WRITE_MINI_DUMP_BYTES",
     "WRITE_MINI_DUMP_CALL_FILTER",
@@ -2866,6 +2891,111 @@ CAMPAIGN_NAME_STATIC = 0x00DEA35C
 CAMPAIGN_NAME_STATIC_GUARD = 0x00DEA360
 CAMPAIGN_NAME_BIND = 0x0091BE96
 CAMPAIGN_NAME_BIND_BYTES = bytes.fromhex("f60560a3de000156be5ca3de007525")
+
+# --- the Battle School command, and the shell services its exit needs -------------------------
+#
+# Derived in `docs/battle-school.md`. ROTWK still registers `AptMainMenu::BattleSchool` and its
+# handler is complete; what EA dropped is `AptMainMenu::TutorialExit`, the mirror command that
+# reverses the sound fade on the way out. `battle-school` supplies the missing half through the
+# surviving command's unused `params` argument rather than by registering a second one.
+
+#: `AptMainMenu::BattleSchool`, the FSCommand name, and the registration block that binds it to
+#: `BATTLE_SCHOOL_HANDLER`: `push <name>` / `lea ecx, [ebp+8]` / `mov esi, <handler>`. Same
+#: fingerprint shape as `MAIN_MENU_CAMPAIGN_REGISTRATION`, and for the same reason - the handler
+#: alone is not distinguishable from the other registration blocks around it.
+BATTLE_SCHOOL_COMMAND = 0x00C7D0A8
+BATTLE_SCHOOL_REGISTRATION = 0x0091D052
+BATTLE_SCHOOL_REGISTRATION_BYTES = bytes.fromhex("68a8d0c7008d4d08be40b59100")
+
+#: The handler, whole (169 bytes, `thiscall`, `ret 4`, one `const char *` argument it never
+#: reads). It marks the shell as movie-owned, fades the shell audio out through the
+#: `MainMenuToBattleSchool` transition, and persists `FlashTutorial = 0` so the menu stops
+#: blinking the button:
+#:
+#:     0091B54D  mov  eax, [SHELL] ; je ...
+#:     0091B55C  mov  byte ptr [eax+0x5D], 1     ; SHELL_MOVIE_ACTIVE
+#:     0091B567  push 0x00C7CE28                 ; BATTLE_SCHOOL_TRANSITION_NAME
+#:     0091B571  mov  ecx, [WINDOW_TRANSITIONS_HANDLER] ; call WINDOW_TRANSITION_SET_GROUP
+#:     0091B586  call 0x0075D9B1                 ; stop shell audio
+#:     0091B593  push 0x00C7CE18                 ; "FlashTutorial" -> 0, written to preferences
+#:     0091B5CE  mov  byte ptr [esi+0x281], bl   ; MAIN_MENU_BLINK_FLAG
+#:
+#: The first five bytes are the SEH prologue's cookie load, `mov eax, 0xBA9A56` - which is what
+#: makes a five-byte detour clean: the cave re-emits them and jumps back to the `call` at
+#: `BATTLE_SCHOOL_HANDLER + 5` with the stack exactly as the stock entry left it.
+BATTLE_SCHOOL_HANDLER = 0x0091B540
+BATTLE_SCHOOL_HANDLER_BYTES = bytes.fromhex(
+    "b8569aba00e8a619120083ec1ca19078de005333db3bc3568bf17404c6405d0153518965"
+    "ec8bcc6828cec700e86fbfb1ff8b0d5436de00e82a04ccff8b0d9078de003bcb7405e826"
+    "24e4ff8d4dd8e860a1dcff6818cec7008d4df0895dfce83dbfb1ff538d45f0508d4dd8c6"
+    "45fc01e8c570e9ff8d4df0885dfce891a7b1ff8d4dd8e88571e9ff834dfcff8d4dd8889e"
+    "81020000e856a0dcff8b4df45e64890d000000005bc9c20400"
+)
+
+#: `"MainMenuToBattleSchool"`, the `WindowTransition` group both directions name. Still defined in
+#: stock `data/ini/windowtransitions.ini`, byte-identical to BFME1's, as a `SOUNDFADE` with
+#: `LeaveSilent = Yes` - which is why leaving needs the reverse and cannot simply do nothing.
+BATTLE_SCHOOL_TRANSITION_NAME = 0x00C7CE28
+
+#: `BlinkBattleSchoolOff`'s registration in the sibling `GetExtern` map at `this+0x228`. Not
+#: touched by the patch; fingerprinted because it is the other half of the movie's contract, and a
+#: build where it had moved would be one where `BATTLE_SCHOOL_HANDLER` had moved too.
+BATTLE_SCHOOL_BLINK_REGISTRATION = 0x0091D2AA
+BATTLE_SCHOOL_BLINK_REGISTRATION_BYTES = bytes.fromhex("68f4cfc7008d4d08be6bbb9100")
+
+#: The `AptMainMenu` byte the shared `GetExtern` getter (`0x0091BB6B`, case 3 at `0x0091BB91`)
+#: answers `BlinkBattleSchoolOff` from: nonzero means "still blinking", and the getter returns
+#: `"0"`/`"1"` inverted from it. Seeded from the `FlashTutorial` preference at `0x0091D446` and
+#: self-cleared once `TimesInGame` passes 5 (`0x0091D477`).
+MAIN_MENU_BLINK_FLAG = 0x281
+
+#: `AptMainMenu::CreditsExit` and the tail `battle-school`'s exit arm is modelled on
+#: (`0x0091B733`..`0x0091B7B3`): restart the shell music if it stopped, reverse the screen's
+#: transition group, release `SHELL_MOVIE_ACTIVE`, restore the frame-rate limit. The patch copies
+#: the shape rather than calling into it, because the part above this tail tears down the credits
+#: movie player at `0x00DEBF50`, which Battle School never allocates.
+CREDITS_EXIT_HANDLER = 0x0091B6FD
+CREDITS_EXIT_AUDIO_TAIL = 0x0091B733
+CREDITS_EXIT_AUDIO_TAIL_BYTES = bytes.fromhex(
+    "8b0d9078de003bcb7409e88822e4ff84c0751e8b0dfc42de008b01536a016a02ff908c00"
+    "00008b0d9078de00e8c227e4ff518964240c8bcc6840cec700e86bbdb1ff8b0d5436de00"
+    "e81903ccff8d8ea4020000899e88020000e8bfa5b1ffa19078de0088585d8b156443de00"
+    "8b0d2443de00ff72288b01ff50485e5b59c20400"
+)
+
+#: `TheShell` - the singleton pointer, not the object. `+0x5D` is the flag both directions of a
+#: full-screen shell movie set and clear; `+0x68` holds the handle of the shell music track that
+#: `SHELL_MUSIC_PLAYING` asks `TheAudio` about.
+SHELL = 0x00DE7890
+SHELL_MOVIE_ACTIVE = 0x5D
+
+#: `Shell::isShellMusicPlaying()` (`thiscall`, no arguments, `al` nonzero when it still is) and
+#: `Shell::playShellMusic()` (`thiscall`, no arguments). `CreditsExit` uses the pair as a guard:
+#: only when the music has stopped does it stop the audio channels and start it again.
+SHELL_MUSIC_PLAYING = 0x0075D9CA
+SHELL_MUSIC_PLAYING_BYTES = bytes.fromhex("a1fc42de0085c07415ff71688b108bc8")
+SHELL_PLAY_MUSIC = 0x0075DF26
+SHELL_PLAY_MUSIC_BYTES = bytes.fromhex("b88b21b900e8c0ef2d0081ec8c000000")
+
+#: `TheAudio`, and the vtable slot both the enter and the exit path call with `(2, 1, 0)` to stop
+#: the playing audio channels. `docs/engine-globals.md` tabulates the pointer.
+AUDIO_MANAGER = 0x00DE42FC
+AUDIO_STOP_SLOT = 0x8C
+
+#: `TheWindowTransitionsHandler`, and the two `thiscall`s that drive a transition group by name.
+#: Both take one **by-value** `AsciiString` (a single pointer) and `ret 4`; MSVC has the callee
+#: destroy a by-value class argument, which `WINDOW_TRANSITION_REVERSE` does at `0x005DBB6A`, so a
+#: caller reserves the slot, constructs into it and lets the call clean up.
+WINDOW_TRANSITIONS_HANDLER = 0x00DE3654
+WINDOW_TRANSITION_SET_GROUP = 0x005DB9A6
+WINDOW_TRANSITION_REVERSE = 0x005DBA99
+WINDOW_TRANSITION_REVERSE_BYTES = bytes.fromhex("b801dbb700e84d14460051515356578b")
+
+#: `TheGameEngine`'s vtable slot that takes a frame-rate cap - `0x0066F0FD`, `mov [ecx+0xC], eax`
+#: / `ret 4`. Shell movies raise the cap while they play; `CreditsExit` restores it from
+#: `GLOBAL_DATA + GLOBAL_DATA_FPS_LIMIT` on the way out, and so does this patch's exit arm.
+#: `docs/render-rate.md` §2 derives the slot.
+GAME_ENGINE_SET_FPS_SLOT = 0x48
 
 # --- the command line, and the two instructions that give it its length ----------------------
 #
