@@ -66,9 +66,7 @@ SOURCE_ENTRIES = (
 
 
 def _pool(*strings: str) -> str:
-    rows = "\n".join(
-        f'<constant id="{i}" string="{s}"/>' for i, s in enumerate(strings)
-    )
+    rows = "\n".join(f'<constant id="{i}" string="{s}"/>' for i, s in enumerate(strings))
     return f"<constantpool>{rows}</constantpool>"
 
 
@@ -95,7 +93,7 @@ def _nav_sprite(character: int, caption: str, entries, fixtures=True) -> str:
     ]
     frames += [f'<frame id="{i}"/>' for i in range(1, 9)]
 
-    show = [f'<action>{_pool("closeParent", "OptionsNav")}<end/></action>']
+    show = [f"<action>{_pool('closeParent', 'OptionsNav')}<end/></action>"]
     show.append(_po(1, 22, tx=95.6, ty=-150.0))  # the click-outside catcher
     show += [_po(depth, 10, name, tx=-1.15, ty=ty) for depth, ty, name in entries]
     if fixtures:
@@ -225,9 +223,7 @@ class TestTheFourthEntry:
 
     def test_the_deleted_entrys_name_survives_nowhere(self):
         gone = SOURCE_ENTRIES[4][2]
-        assert gone not in [
-            p.get("name") for p in misc_nav(built()).iter("poname")
-        ]
+        assert gone not in [p.get("name") for p in misc_nav(built()).iter("poname")]
 
     def test_the_four_that_remain_keep_their_positions(self):
         show = list(misc_nav(built()).find("frames"))[9]
@@ -241,11 +237,9 @@ class TestTheFourthEntry:
     def test_the_entries_are_named_top_of_screen_first(self):
         show = list(misc_nav(built()).find("frames"))[9]
         by_height = sorted(
-
-                (float(e.get("ty")), e.find("poname").get("name"))
-                for e in show.findall("placeobject")
-                if int(e.get("depth")) in ENTRY_DEPTHS
-
+            (float(e.get("ty")), e.find("poname").get("name"))
+            for e in show.findall("placeobject")
+            if int(e.get("depth")) in ENTRY_DEPTHS
         )
         assert [name for _, name in by_height] == [name for name, _ in MISC_ENTRIES]
 
@@ -292,9 +286,7 @@ class TestTheFixturesAbove:
     def test_the_masks_clip_range_follows_the_mask(self):
         show = list(misc_nav(built()).find("frames"))[9]
         mask = next(
-            e
-            for e in show.findall("placeobject")
-            if int(e.get("depth")) == FIXTURE_DEPTHS[77]
+            e for e in show.findall("placeobject") if int(e.get("depth")) == FIXTURE_DEPTHS[77]
         )
         # The mask must still clip the NavFrame that sits just above it.
         assert int(mask.get("clipdepth")) > FIXTURE_DEPTHS[79]
@@ -337,8 +329,7 @@ class TestThePanelArt:
     def test_the_nav_draws_the_four_entry_frame(self):
         root = built()
         imports = {
-            i.get("name"): int(i.get("character"))
-            for i in root.find("movieclip").find("imports")
+            i.get("name"): int(i.get("character")) for i in root.find("movieclip").find("imports")
         }
         drawn = {
             int(e.get("character"))

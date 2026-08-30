@@ -134,9 +134,9 @@ def geometry_images(text: str) -> set[int]:
 def rewrite_geometry(text: str, plan: MergePlan) -> str:
     """A copied mesh with its fills' `image` characters renumbered for their new movie."""
     return _FILL.sub(
-        lambda m: m.group(1)
-        + str(plan.characters.get(int(m.group(2)), int(m.group(2))))
-        + m.group(3),
+        lambda m: (
+            m.group(1) + str(plan.characters.get(int(m.group(2)), int(m.group(2)))) + m.group(3)
+        ),
         text,
     )
 

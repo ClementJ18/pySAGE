@@ -282,9 +282,9 @@ def _drop_fifth_entry(sprite: ET.Element) -> None:
     """Delete every record for the fifth entry, and the entry itself from the removal lists."""
     for frame in _frames_of(sprite):
         for element in list(frame):
-            if element.tag in ("placeobject", "removeobject") and element.get(
-                "depth"
-            ) == str(FIFTH_ENTRY_DEPTH):
+            if element.tag in ("placeobject", "removeobject") and element.get("depth") == str(
+                FIFTH_ENTRY_DEPTH
+            ):
                 frame.remove(element)
 
 
@@ -390,8 +390,18 @@ def _show_action() -> ET.Element:
     names = [name for name, _ in MISC_ENTRIES]
     captions = [caption for _, caption in MISC_ENTRIES]
 
-    pool = ["buttonName", "closeParent", "_over", "OpenButton", "gotoAndPlay", "_hide", "_parent",
-            "gotoAndStop", SOLO_PLAY_NAV, MULTI_PLAY_NAV]
+    pool = [
+        "buttonName",
+        "closeParent",
+        "_over",
+        "OpenButton",
+        "gotoAndPlay",
+        "_hide",
+        "_parent",
+        "gotoAndStop",
+        SOLO_PLAY_NAV,
+        MULTI_PLAY_NAV,
+    ]
     pool = names + captions + pool
     index = {value: position for position, value in enumerate(pool)}
 
@@ -555,9 +565,7 @@ def rewire_functions(root: ET.Element) -> None:
     function.set("size", "3")
     function_body = ET.SubElement(function, "body")
     ET.SubElement(function_body, "pushzero")
-    ET.SubElement(function_body, "callnamedfuncpop").set(
-        "val", slot("ShowBattleSchoolVideo")
-    )
+    ET.SubElement(function_body, "callnamedfuncpop").set("val", slot("ShowBattleSchoolVideo"))
 
     children = list(action)
     anchor = children.index(_function(action, "ExitTutorialButton"))
