@@ -178,3 +178,4 @@ Worldbuilder.exe
 sage_mods/edain/bot/runs/
 applymypatches.py
 *.backup
+sage_lint/.sagepatch

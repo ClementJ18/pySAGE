@@ -95,9 +95,9 @@ def test_registration_calls_stock_wrapper_before_custom_registration(image: byte
     end = section_off + code.label_va("runtime_factory") - base
     body = bytes(image[begin:end])
     calls = [index for index in range(len(body) - 4) if body[index] == 0xE8]
-    targets = [code.label_va("register") + i + 5 + struct.unpack_from("<i", body, i + 1)[0]
-               for i in calls
-               ]
+    targets = [
+        code.label_va("register") + i + 5 + struct.unpack_from("<i", body, i + 1)[0] for i in calls
+    ]
     assert targets.count(OBJECT_IMAGE_UPGRADE_REGISTER) == 2
     assert targets.index(OBJECT_IMAGE_UPGRADE_REGISTER) < len(targets) - 1
 
@@ -118,9 +118,7 @@ def test_factories_delegate_to_stock_and_only_replace_upgrade_mux(image: bytearr
     assert stock_call in runtime
     assert b"\x83\xc4\x08" in runtime
     # The sole post-factory write is [runtime+0x10], the UpgradeMux subobject.
-    expected_upgrade_write = b"\xc7\x46\x10" + struct.pack(
-        "<I", patch._layout(base)["upgrade"]
-    )
+    expected_upgrade_write = b"\xc7\x46\x10" + struct.pack("<I", patch._layout(base)["upgrade"])
     assert runtime.count(expected_upgrade_write) == 1
     assert b"\xc7\x06" not in runtime
     assert b"\xc7\x46\x0c" not in runtime
@@ -138,9 +136,7 @@ def test_ui_hooks_never_read_unconfirmed_object_module_array(image: bytearray) -
     for start, end in (("select_hook", "button_hook"), ("button_hook", None)):
         begin = section_off + code.label_va(start) - base
         finish = section_off + (
-            code.label_va(end) - base
-            if end
-            else code.base_va - base + len(code.finish())
+            code.label_va(end) - base if end else code.base_va - base + len(code.finish())
         )
         hook = bytes(image[begin:finish])
         assert b"\x8b\x9f\x4c\x02\x00\x00" not in hook
@@ -166,9 +162,7 @@ def test_ui_hooks_match_object_and_object_id_in_20_byte_rows(image: bytearray) -
     ):
         begin = section_off + code.label_va(start) - base
         finish = section_off + (
-            code.label_va(end) - base
-            if end
-            else code.base_va - base + len(code.finish())
+            code.label_va(end) - base if end else code.base_va - base + len(code.finish())
         )
         hook = bytes(image[begin:finish])
         assert b"\x8b\x77\x74" in hook  # current ObjectID = [Object+74]
@@ -217,9 +211,7 @@ def test_apply_reuses_exact_or_same_pointer_stale_row_at_tail(image: bytearray) 
     source_match = body.index(b"\x39\x6b\x08", stale_remember)
     exact_remember = body.index(b"\x89\x1c\x24", source_match)
     shift = body.index(b"\x8d\x4a\x14", exact_remember)
-    five_dword_copy = bytes.fromhex(
-        "8b0189028b41048942048b41088942088b410c89420c8b41108942108bd1"
-    )
+    five_dword_copy = bytes.fromhex("8b0189028b41048942048b41088942088b410c89420c8b41108942108bd1")
     copied = body.index(five_dword_copy, shift)
     reuse_tail = body.index(b"\x8b\xda", copied)
     assert (
@@ -259,9 +251,7 @@ def test_upgrade_vtable_patches_apply_and_unapply_slots(image: bytearray) -> Non
     stock_off = va_to_offset(image, OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE)
     assert table_off is not None
     assert stock_off is not None
-    assert image[table_off + 0x04 : table_off + 0x0C] == image[
-        stock_off + 0x04 : stock_off + 0x0C
-    ]
+    assert image[table_off + 0x04 : table_off + 0x0C] == image[stock_off + 0x04 : stock_off + 0x0C]
     assert struct.unpack_from("<I", image, table_off + 0x20)[0] == code.label_va("unapply")
     assert struct.unpack_from("<I", image, table_off + 0x28)[0] == code.label_va("apply")
 

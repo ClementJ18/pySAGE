@@ -164,6 +164,7 @@ class TestServeProtocol:
             [sys.executable, "-m", "sage_lint", "serve", str(root), *extra],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
         )

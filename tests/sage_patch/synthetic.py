@@ -48,6 +48,7 @@ from sage_patch.patches import herobar as hb
 from sage_patch.patches import infantry_lighting as il
 from sage_patch.patches import lifetime_fields as lf
 from sage_patch.patches import multi_instance as mi
+from sage_patch.patches import object_image_upgrade as oi
 from sage_patch.patches import observer_command_range as ocr
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import production_condition as pc
@@ -335,6 +336,23 @@ def modifier_type_worldbuilder_image() -> bytearray:
     for va, prefix in mt.WORLDBUILDER_TABLE_REF_SITES:
         planted[va - len(prefix)] = prefix + struct.pack("<I", table_va)
     return _sparse_image(planted)
+
+
+def object_image_upgrade_worldbuilder_image() -> bytearray:
+    """A stand-in carrying Worldbuilder's TooltipUpgrade ModuleFactory registration.
+
+    The generated cave only calls the editor routines at runtime, so apply/verify need to map the
+    registration window itself and nothing at the function targets. This deliberately plants the
+    two factory pushes and ModuleFactory load as well as the call: accepting a coincidental call
+    to the same addModule routine would not establish that the hook wraps TooltipUpgrade.
+    """
+    call_va = ad.WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL
+    prefix = oi._WORLDBUILDER_REGISTER_PREFIX
+    return _sparse_image(
+        {
+            call_va - len(prefix): prefix + oi._WORLDBUILDER_REGISTER_BYTES,
+        }
+    )
 
 
 def _sparse_image(planted: dict[int, bytes]) -> bytearray:

@@ -9,6 +9,19 @@ The patch affects only object-aware UI image resolution. In particular, an objec
 or build button remains unchanged: that UI path reads the image from its `CommandButton`, not from
 the concrete object. No gameplay attributes or simulation state are changed.
 
+The paired `object-image-upgrade-wb` patch targets the original RotWK 2.01
+`Worldbuilder.exe`. Worldbuilder links its own engine copy and constructs an independent
+`ModuleFactory`, so patching `game.dat` cannot make the new Behavior visible to the editor. Apply
+both halves when authoring maps or templates in Worldbuilder:
+
+```text
+sage-patch apply object-image-upgrade --in game.dat.backup --out game.dat
+sage-patch apply object-image-upgrade-wb --in Worldbuilder.exe --out Worldbuilder_patched.exe
+```
+
+The Worldbuilder half is parser-only. It lets the editor load `ObjectImageUpgrade`,
+`SelectPortrait` and `ButtonImage`; it does not reproduce the game's image sidecar or UI hooks.
+
 ## INI usage
 
 ```ini
@@ -152,6 +165,18 @@ patch intentionally does not intercept.
 This is expected sticky behavior. Trigger another `ObjectImageUpgrade` with the portrait or button
 image that should become active.
 
+### Worldbuilder closes during the loading screen
+
+First verify that the complete mod tree has reached the directory passed through `-mod`, including
+all object includes and the mapped-image data referenced by them. Worldbuilder can end its INI
+load with exit code `0` and no Windows crash event when that staging directory is only partially
+populated; this looks like a binary crash from the splash screen but is not one. Also confirm that
+the launcher's temporary Worldbuilder archives and combined `asset.dat` were built successfully.
+
+If the full mod is present, verify `object-image-upgrade-wb` against the exact installed
+`Worldbuilder.exe`. The game-side `object-image-upgrade` patch alone cannot register the Behavior
+in the editor's separate `ModuleFactory`.
+
 ## Implementation notes
 
 These details document the current RotWK `game.dat` implementation and are primarily useful to
@@ -172,6 +197,34 @@ contributors:
 - Each object-aware resolver scans matching records in order and retains the last non-null image
   for its field. Fallback paths replay the displaced vanilla instructions when there is no valid
   override.
+
+### Worldbuilder registration
+
+Worldbuilder's original `TooltipUpgrade` registration is the editor-side layout and parser twin:
+
+- registration call: `0x00C75BBF`, into `ModuleFactory::addModule` at `0x00C93CC0`;
+- runtime factory: `0x00C8B4A0`;
+- ModuleData factory/constructor: `0x00C8B510` / `0x00C8B5A0`;
+- ModuleData size: `0x140`, with Tooltip's two private strings already at `+0x138` and `+0x13C`;
+- UpgradeModule field builder: `0x00BEA580`;
+- field-table append helper: `0x006CD090`; and
+- AsciiString field parser: `0x006D4C30`.
+
+`object-image-upgrade-wb` wraps that one registration call. It first replays the original six
+TooltipUpgrade arguments, then adds `ObjectImageUpgrade` with interface mask `0x84`, the stock
+Tooltip runtime factory and a small custom ModuleData factory. The custom factory calls the stock
+Tooltip ModuleData constructor and substitutes only the field-table callback, which appends
+`SelectPortrait` and `ButtonImage` after the inherited UpgradeModule fields.
+
+That callback intentionally retains Worldbuilder's stock EBP frame. In this debug build,
+`buildUpgradeFields` does not pop its `8` argument; the following field-table append consumes the
+pending offset and returned table pointer together. Consequently the parser context must be read
+from `[ebp+8]`, as in stock `TooltipUpgrade`, rather than from a transient ESP-relative offset.
+
+There is intentionally no Worldbuilder copy of Apply/Unapply, sidecar storage, image lookup or
+ControlBar interception. Those operations are meaningful only in the running game. All editor
+addresses used by the twin live centrally in `sage_patch/addresses.py`; the patch module keeps
+only instruction fingerprints, layout sizes and the `0x84` interface value locally.
 
 The Apply and UI paths have been exercised in game with heroes and normal units, both image fields,
 multiple behaviors, last-triggered precedence, `TriggeredBy`, conflicts present at activation, and

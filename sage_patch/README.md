@@ -3,11 +3,12 @@
 Reverse-engineering + binary-patch work on the ROTWK SAGE engine (build `2.01.2614.37001`). The
 patches below are all engine-level — they apply to any ROTWK install of that build and benefit
 every mod on it (Edain among them), not one in particular. All of them target `game.dat` except
-eleven, which patch other binaries from the same install. Ten patch `Worldbuilder.exe` —
+twelve, which patch other binaries from the same install. Eleven patch `Worldbuilder.exe` —
 `worldbuilder-mod`, `worldbuilder-label-assert`, `worldbuilder-silent-errors` and
-`worldbuilder-object-typeahead`, plus the six **twins** that carry a game-side patch's INI surface
+`worldbuilder-object-typeahead`, plus the seven **twins** that carry a game-side patch's INI surface
 across to the editor: `desert-weather-wb`, `healing-received-wb`, `herobar-wb`,
-`production-condition-wb`, `production-split-wb` and `science-prereqs-wb`. Each twin
+`object-image-upgrade-wb`, `production-condition-wb`, `production-split-wb` and
+`science-prereqs-wb`. Each twin
 lives in the same module as its game-side half. `standalone-launcher` patches the launcher shim
 `lotrbfme2ep1.exe`.
 
@@ -877,6 +878,14 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   must exist in the active mapped image assets. The implementation is presentation-only and keeps
   stock upgrade evaluation; see
   [`docs/object-image-upgrade.md`](docs/object-image-upgrade.md). **Runtime-verified in game.**
+
+- **`object-image-upgrade-wb`** is the Worldbuilder authoring twin. The editor owns a separate
+  `ModuleFactory`, so the game-side registration alone leaves `ObjectImageUpgrade` unknown during
+  template parsing. This patch registers the same Behavior name and the `SelectPortrait` and
+  `ButtonImage` fields against Worldbuilder's own TooltipUpgrade layout. It deliberately reuses
+  the editor's stock TooltipUpgrade runtime: the sidecar and object-aware UI hooks remain solely
+  in `game.dat`, while Worldbuilder gains only the parser surface needed to load the templates.
+  Apply it to `Worldbuilder.exe` whenever the paired game binary carries `object-image-upgrade`.
 
 - **`upgrade-description`** keeps a `CommandButton`'s **`DescriptLabel` visible after its upgrade is
   researched**, with *"this upgrade has already been researched"* appended **under** it instead of
