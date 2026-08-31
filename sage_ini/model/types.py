@@ -954,7 +954,9 @@ class KeyedRecord:
         # Move class-body defaults out of the namespace so they don't shadow the parsed
         # attributes; keep them as each key's fallback (mirrors IniObject.__init_subclass__).
         own_defaults = {}
-        for field in list(cls.__dict__.get("__annotations__", {})):
+        # Python 3.14 stores annotations lazily, so they may not exist in
+        # ``cls.__dict__`` until the descriptor is accessed.
+        for field in list(getattr(cls, "__annotations__", {})):
             if field in cls.__dict__:
                 own_defaults[field] = cls.__dict__[field]
                 delattr(cls, field)

@@ -33,6 +33,10 @@ from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
+from sage_patch.patches.object_image_upgrade import (
+    ObjectImageUpgradePatch,
+    ObjectImageUpgradeWorldbuilderPatch,
+)
 from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
@@ -80,6 +84,8 @@ __all__ = [
     "MultiExecuteGatePatch",
     "MultiSelectGroupPatch",
     "ObjectivesScreenPatch",
+    "ObjectImageUpgradePatch",
+    "ObjectImageUpgradeWorldbuilderPatch",
     "PlayerHealFilterPatch",
     "ProductionConditionPatch",
     "ProductionSplitPatch",

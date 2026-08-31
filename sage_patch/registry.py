@@ -69,6 +69,10 @@ from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
+from sage_patch.patches.object_image_upgrade import (
+    ObjectImageUpgradePatch,
+    ObjectImageUpgradeWorldbuilderPatch,
+)
 from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.observer_command_range import ObserverCommandRangePatch
@@ -134,6 +138,8 @@ PATCHES: dict[str, type[Patch]] = {
     ObserverCommandRangePatch.name: ObserverCommandRangePatch,
     LiveBridgePatch.name: LiveBridgePatch,
     LivingWorldOverridePatch.name: LivingWorldOverridePatch,
+    ObjectImageUpgradePatch.name: ObjectImageUpgradePatch,
+    ObjectImageUpgradeWorldbuilderPatch.name: ObjectImageUpgradeWorldbuilderPatch,
     TerrainResourceExpPatch.name: TerrainResourceExpPatch,
     HeroManaPatch.name: HeroManaPatch,
     CommandPointUpkeepPatch.name: CommandPointUpkeepPatch,
