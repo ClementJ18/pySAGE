@@ -290,7 +290,6 @@ def test_resolvers_scan_all_rows_and_keep_later_non_null_matches(image: bytearra
 
 
 def test_registered_exported_and_not_experimental() -> None:
-
     assert Exported is ObjectImageUpgradePatch
     assert PATCHES[ObjectImageUpgradePatch.name] is ObjectImageUpgradePatch
     assert ObjectImageUpgradePatch.experimental is False

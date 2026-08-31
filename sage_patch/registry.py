@@ -43,9 +43,6 @@ from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.render_rate import RenderRatePatch
-from sage_patch.patches.experimental.scenario_player_factions import (
-    ScenarioPlayerFactionsPatch,
-)
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_charges import SpecialPowerChargesPatch
@@ -69,11 +66,11 @@ from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
+from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.object_image_upgrade import (
     ObjectImageUpgradePatch,
     ObjectImageUpgradeWorldbuilderPatch,
 )
-from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.observer_command_range import ObserverCommandRangePatch
 from sage_patch.patches.observer_switch import ObserverSwitchPatch
@@ -91,6 +88,7 @@ from sage_patch.patches.quiet_exit import QuietExitPatch
 from sage_patch.patches.rebuild_hole_construction import RebuildHoleConstructionPatch
 from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
+from sage_patch.patches.scenario_player_factions import ScenarioPlayerFactionsPatch
 from sage_patch.patches.science_prereqs import (
     SciencePrereqPatch,
     SciencePrereqWorldbuilderPatch,

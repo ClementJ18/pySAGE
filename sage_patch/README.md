@@ -19,12 +19,12 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Eighteen of the registered patches — **`hero-mana`**, **`second-resource`**,
+> Seventeen of the registered patches — **`hero-mana`**, **`second-resource`**,
 > **`campaign-select`**, **`battle-school`**, **`standalone-launcher`**, **`headless`**,
 > **`recharge-rescale`**, **`live-bridge`**, **`living-world-override`**,
 > **`cooldown-through-death`**, **`capture-the-flag`**, **`smart-rally`**,
-> **`special-power-charges`**, **`render-rate`**, **`scenario-player-factions`**,
-> **`campaign-army-verbs`**, **`hero-army-carryover`** and **`unit-plate-option`**
+> **`special-power-charges`**, **`render-rate`**, **`campaign-army-verbs`**,
+> **`hero-army-carryover`** and **`unit-plate-option`**
 > — are **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -483,25 +483,30 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   same patched binary** and replays do not cross. **Runtime-verified in game.**
 - **`multi-select-group`** adds a **`MultiSelectGroup` number to `CommandButton`**, so two buttons a
   mod declares interchangeable keep the slot they share when a mixed selection's command bars are
-  merged. Today they do not: `ControlBar::populateMultiSelect` fills the slots from the first
-  selected unit's `CommandSet` and merges every later unit in by comparing its button for each slot
-  **by pointer identity** — a difference clears the slot and `winHide`s the window, so the player
-  sees an empty socket, not a greyed icon. That is what a `CommandSetUpgrade` swap costs: the moment
-  a selection holds units at two upgrade stages, the slot the two sets disagree on goes black, and
-  the palantir draws six buttons for a unit so the slot cannot simply be moved elsewhere. Two
-  buttons carrying the same non-zero value now merge as one. **Which of the two survives is decided
-  by the data, not by selection order**: where both name an `Upgrade`, the merge asks the unit being
-  merged whether it already owns the installed button's upgrade (`Object::hasUpgrade`) and keeps the
-  earlier stage either way, converging on the least advanced button in the selection in any merge
-  order. That is a safety property rather than a preference — a click on an upgrade button sends
-  `MSG(0x415)` with an object id of **zero**, meaning the whole selection, and the logic side gates
-  each member on `hasUpgrade` / `canAcceptUpgrade` and never on whether the button was in *that*
-  unit's own set, so showing the later stage would let a unit still at stage one buy stage two
-  directly and skip the first purchase. Buttons with no `Upgrade` have no stage to compare and the
-  first unit's wins, which is what the rest of the bar already does. One `rel32`, one byte widened
-  in the constructor to default the field, the `CommandButton` field table rebuilt, and a `0x75`-byte
-  cave; the field is client-side UI only, so the orders a click produces are unchanged. **Not yet
-  runtime-verified in game.**
+  merged — and a click on that slot reaches every stage in the group. Today neither happens:
+  `ControlBar::populateMultiSelect` fills the slots from the first selected unit's `CommandSet` and
+  merges every later unit in by comparing its button for each slot **by pointer identity**, so a
+  difference clears the slot and `winHide`s the window and the player sees an empty socket, not a
+  greyed icon. That is what a `CommandSetUpgrade` swap costs the moment a selection holds units at
+  two upgrade stages, and the palantir draws six buttons for a unit so the slot cannot simply be
+  moved elsewhere. Buttons carrying the same non-zero value now merge as one. **The one displayed is
+  chosen by the data, not by selection order**: a button no selected unit can click never wins
+  against one something can (the merge asks `getCommandAvailability` and keeps a 33-byte per-slot
+  record of what the selection has been able to use), and when both are usable the tie goes to the
+  earlier stage, found by asking whether the unit being merged already owns the installed button's
+  upgrade. **And the click expands per member.** `MSG(0x415)` carries an object id of **zero**,
+  meaning the whole selection, and `AIGroup::doObjectUpgrade` grants the one upgrade the message
+  named to every member that will take it — gated on `hasUpgrade` / `canAcceptUpgrade` and never on
+  whose `CommandSet` the button came from. The patch rewrites `ebx` at the top of that member loop
+  with the upgrade *that member's own* command set names in the same group, so one click starts
+  `Upgrade_BruchtalFireArrows` on the battalions at stage one and
+  `Upgrade_BruchtalFireArrowsEregions` on the battalions at stage two, each paying its own price,
+  with no change to the message and nothing extra emitted. It is also what makes the field safe:
+  without it, showing the later stage would let a unit still at stage one buy stage two directly and
+  skip the first purchase. Four `rel32`, one byte widened in the constructor to default the field,
+  the `CommandButton` field table rebuilt, and a writable cave. The member-loop rewrite changes what
+  a logic-side order does, so **every peer must run the same patched binary and replays do not
+  cross**. **Not yet runtime-verified in game.**
 - **`attack-requires-damage`** stops a unit **auto-acquiring or right-click-attacking a target it
   cannot damage**. Whether one object can attack another ends, for auto-acquire and for a
   right-click / attack order, in a routine that walks the weapon's nuggets and answers yes if
@@ -1416,7 +1421,7 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   milliseconds instead of a count of draws would remove the term outright and is still the better design,
   but it is no longer a prerequisite. The 2026-08-26 result is a field observation, not instrumented, so no
   *bound* on peer drift is claimed. See [`docs/render-rate.md`](docs/render-rate.md) §9.9.
-- **`scenario-player-factions`** ⚠**(experimental)** lets a War of the Ring `Scenario` say **which
+- **`scenario-player-factions`** lets a War of the Ring `Scenario` say **which
   faction each lobby slot may take**, not just which factions the scenario allows. A scripted
   scenario that needs player 1 to be Angmar and player 2 to be Men can today only narrow the pool
   and hope: `HistoricalScenario = Yes` forces the picks to be *different*, never *whose*, and

@@ -25,7 +25,7 @@ else is evidence feeding it.
 | [`objectives-in-any-map.md`](../objectives-in-any-map.md) | Why the objectives button opens the player list outside the linear campaign, and the shipped [`objectives-screen`](../../patches/objectives_screen.py) patch that fixes it. |
 | [`living-world-menu-entry.md`](living-world-menu-entry.md) | `AptMainMenu::OnTutorial("Strategic")` is a menu-driven Living World launcher that **no shipped movie calls**. The route to a shippable menu entry. |
 | [`act-advance-stall.md`](act-advance-stall.md) | **Scoped, not yet measured.** Why a scripted act sometimes stops until you zoom out and back in. An act advances only when the turn phase reaches 6, and the phase is braked in four places by the strategic message-box gate — a box marked showing whose dialog was never pushed to `TheAptPlayer` freezes the campaign, and the camera round trip runs the overlay re-show hook that releases it. Carries the live read that separates the candidates and the `living-world-box-watchdog` patch scope. |
-| [`scenario-player-factions.md`](../scenario-player-factions.md) | Who may play what in a WotR scenario: `DisabledFactions` has no player in it, `StartingRestriction`'s faction filter is skipped for a `HistoricalScenario`, and the four readers a per-player rule has to reach. The [`scenario-player-factions`](../../patches/experimental/scenario_player_factions.py) patch. |
+| [`scenario-player-factions.md`](../scenario-player-factions.md) | Who may play what in a WotR scenario: `DisabledFactions` has no player in it, `StartingRestriction`'s faction filter is skipped for a `HistoricalScenario`, and the four readers a per-player rule has to reach. The [`scenario-player-factions`](../../patches/scenario_player_factions.py) patch. |
 
 ## The findings that changed the picture
 
@@ -69,7 +69,7 @@ the patch adds BFME1's army rule without removing ROTWK's own. See
 [`hero-permadeath.md`](hero-permadeath.md).
 
 Two more built but not played, both `experimental` and both static-only:
-[`scenario-player-factions`](../../patches/experimental/scenario_player_factions.py) — `DisabledFactions`
+[`scenario-player-factions`](../../patches/scenario_player_factions.py) — `DisabledFactions`
 gains a `:N` player qualifier, so a scenario can pin a faction to a lobby slot instead of only to the
 scenario (fifty-eight tests) — and
 [`campaign-army-verbs`](../../patches/experimental/campaign_army_verbs.py), which restores BFME1's

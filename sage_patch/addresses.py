@@ -83,6 +83,14 @@ __all__ = [
     "AI_FLAG_CAPTURE_SQUAD_UPDATE",
     "AI_FLAG_CAPTURE_SQUAD_UPDATE_SLOT",
     "AI_FLAG_CAPTURE_SQUAD_VTABLE",
+    "AI_GROUP_DO_OBJECT_UPGRADE",
+    "AI_GROUP_MEMBER_OBJECT",
+    "AI_GROUP_MEMBER_SENTINEL",
+    "AI_GROUP_UPGRADE_EBP",
+    "AI_GROUP_UPGRADE_MEMBER",
+    "AI_GROUP_UPGRADE_MEMBER_BYTES",
+    "AI_GROUP_UPGRADE_MEMBER_RESUME",
+    "AI_GROUP_UPGRADE_SELF_EBP",
     "AI_PRODUCER_ACCEPT",
     "AI_PRODUCER_ANY_BRANCH",
     "AI_PRODUCER_ANY_BRANCH_ENTRY",
@@ -249,12 +257,19 @@ __all__ = [
     "CONTROL_BAR_COMMAND_DISPATCH_BYTES",
     "CONTROL_BAR_COMMAND_INDEX_TABLE",
     "CONTROL_BAR_COMMAND_JUMP_TABLE",
+    "CONTROL_BAR_MERGE_CLEAR_SLOTS",
     "CONTROL_BAR_MERGE_HIDE",
     "CONTROL_BAR_MERGE_INSTALL",
+    "CONTROL_BAR_MERGE_INSTALL_FIRST",
+    "CONTROL_BAR_MERGE_INSTALL_FIRST_BYTES",
+    "CONTROL_BAR_MERGE_INSTALL_FIRST_RESUME",
     "CONTROL_BAR_MERGE_KEEP",
     "CONTROL_BAR_MERGE_OBJECT_EBP",
+    "CONTROL_BAR_MERGE_RESET",
+    "CONTROL_BAR_MERGE_RESET_BYTES",
     "CONTROL_BAR_MERGE_SLOT",
     "CONTROL_BAR_MERGE_SLOT_BYTES",
+    "CONTROL_BAR_MERGE_SLOT_EBP",
     "CONTROL_BAR_POPULATE_MULTI_SELECT",
     "CONTROL_BAR_POP_RANGE_HANDLER",
     "CONTROL_BAR_POP_RANGE_HANDLER_BYTES",
@@ -1805,6 +1820,31 @@ CONTROL_BAR_COMMAND_INDEX_TABLE = 0x00941B63
 # Three frame slots survive the loop: `[ebp-4]` the `ControlBar`, `[ebp-8]` this drawable's
 # `CommandSet`, and `[ebp-0x14]` its `Object` - stored at `0x00944556`, with the
 # `je 0x00944754` two instructions later proving it is non-NULL everywhere the loop runs.
+# `AIGroup::doObjectUpgrade(UpgradeTemplate *)` - `thiscall`, the logic-side end of an
+# `OBJECT_UPGRADE` click on a selection. `MSG(0x415)` carries an object id of **zero**, meaning the
+# issuing player's whole selection, so this is where one click reaches many units.
+#
+# `ebx` holds the message's upgrade for the whole member loop and `[ebp+8]` keeps the original
+# argument untouched, which is what lets a hook rewrite `ebx` per member and still re-derive the
+# message's own upgrade on the next pass. The per-member gate below it is
+# `canAffordAndLegal` / `Object::hasUpgrade` / `Object::canAcceptUpgrade` - and **none of them ask
+# which `CommandSet` the clicked button came from**.
+AI_GROUP_DO_OBJECT_UPGRADE = 0x0076FBFB
+AI_GROUP_UPGRADE_EBP = 0x08
+AI_GROUP_UPGRADE_SELF_EBP = -0x04
+
+# The member loop's top: `mov edi, [esi+8]` plus the first two argument pushes. Six bytes, three
+# whole instructions. `0x0076FC15` is the loop's own back-edge target, so a hook must start exactly
+# there; nothing branches into the two instructions behind it.
+AI_GROUP_UPGRADE_MEMBER = 0x0076FC15
+AI_GROUP_UPGRADE_MEMBER_BYTES = bytes.fromhex("8b7e086a0057")
+AI_GROUP_UPGRADE_MEMBER_RESUME = 0x0076FC1B
+
+# The member list, as the loop walks it: `[AIGroup+4]` is the sentinel node, `[node]` the next and
+# `[node+8]` the member `Object`. Iteration ends when the walk comes back round to the sentinel.
+AI_GROUP_MEMBER_SENTINEL = 0x04
+AI_GROUP_MEMBER_OBJECT = 0x08
+
 CONTROL_BAR_POPULATE_MULTI_SELECT = 0x00944534
 CONTROL_BAR_MERGE_OBJECT_EBP = -0x14
 
@@ -1833,6 +1873,30 @@ CONTROL_BAR_MERGE_SLOT_BYTES = bytes.fromhex("3bf8741884c97514")
 # empty-slot case takes, and it is reusable from anywhere **provided `eax` is zero**: it stores
 # `edi` into `[esi+0x84]`, then `winHide(eax)` - so a non-zero `eax` would hide the window it
 # means to show.
+# `populateMultiSelect`'s reset and its first-object install, the two other sites the merge rule
+# needs. `0x00944509` clears `[win+0x84]` on all 33 slots and has **exactly one caller** - the
+# `call` at `0x00944853`, inside the multi-select arm - which makes that call the one place a
+# per-populate scratch area can be zeroed. `ecx` is the `ControlBar` across it, so a shim must
+# preserve it.
+CONTROL_BAR_MERGE_RESET = 0x00944853
+CONTROL_BAR_MERGE_RESET_BYTES = bytes.fromhex("e8b1fcffff")
+CONTROL_BAR_MERGE_CLEAR_SLOTS = 0x00944509
+
+# The first object's install, in the `first == 1` loop: `mov [edi+0x84], ebx` with `edi` the
+# slot's window pointer, `ebx` the button and `esi` zero. Six bytes, one whole instruction.
+#
+# ⚠ **The flags are live across it.** `cmp ecx, esi` two bytes earlier is what the `je` at the
+# resume point reads, and `ecx` - the window - is live too, all the way to the `winHide` at
+# `0x009445F4`. A shim has to restore both.
+#
+# The slot index in that loop is `[ebp+8]`: the `Drawable` argument slot, reused as the counter
+# (`mov [ebp+8], ebx` at `0x009445B7`, `inc dword [ebp+8]` at `0x009446B5`). `[ebp-0x14]` still
+# holds the `Object`.
+CONTROL_BAR_MERGE_INSTALL_FIRST = 0x009445E8
+CONTROL_BAR_MERGE_INSTALL_FIRST_BYTES = bytes.fromhex("899f84000000")
+CONTROL_BAR_MERGE_INSTALL_FIRST_RESUME = 0x009445EE
+CONTROL_BAR_MERGE_SLOT_EBP = 0x08
+
 CONTROL_BAR_MERGE_HIDE = 0x00944736
 CONTROL_BAR_MERGE_KEEP = 0x0094474A
 CONTROL_BAR_MERGE_INSTALL = 0x00944704

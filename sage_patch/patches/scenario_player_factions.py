@@ -2,7 +2,7 @@
 slot may take, instead of only which factions the scenario as a whole allows.
 
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../../docs/scenario-player-factions.md``.
+in ``../docs/scenario-player-factions.md``.
 
 **The limitation.** A `LivingWorldCampaign`'s `Scenario` block can disable factions, and with
 ``HistoricalScenario = Yes`` the engine additionally requires every player to take a *different*
@@ -76,7 +76,7 @@ from __future__ import annotations
 
 import struct
 
-from ...addresses import (
+from ..addresses import (
     ASCII_STRING_DTOR,
     EMPTY_STRING,
     MP_SETUP_DISABLED_FACTION_PUSH,
@@ -101,13 +101,13 @@ from ...addresses import (
     SCENARIO_IS_FACTION_ENABLED,
     SCENARIO_IS_FACTION_ENABLED_ENTRY,
 )
-from ...asm import JA, JBE, JE, JNE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JA, JBE, JE, JNE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 # The one fact about an `AsciiString`'s buffer this cave needs - where the characters start - kept
 # where the token-list patches already keep it rather than restated here.
-from ..utils.token_lists import ASCII_STRING_CHARS
+from .utils.token_lists import ASCII_STRING_CHARS
 
 __all__ = [
     "ANCHORS",
@@ -311,7 +311,6 @@ def _trampolines(section_va: int) -> list[int]:
 class ScenarioPlayerFactionsPatch(Patch):
     name = "scenario-player-factions"
     author = "officialNecro"
-    experimental = True
     description = (
         "Let a War of the Ring Scenario disable a faction for one lobby slot instead of for "
         "everybody: an entry in the existing DisabledFactions list may be written Faction<X>:N, "

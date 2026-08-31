@@ -7,6 +7,10 @@ The RE behind [`patches/multi_select_group.py`](../patches/multi_select_group.py
 against a synthetic stand-in, and composing with `command-point-cost` and `queue-ignore-cp` in
 any order. **Static-verified only — not yet runtime-verified in game.**
 
+Three behaviours, four hooks: the slot survives a mixed selection (§1, §6); the button shown is one
+something can actually click (§2, §7); and one click starts every stage in the group, each on the
+units that are at it (§3, §8).
+
 ## The report
 
 > In Imladris, troops can upgrade their weapon twice. This is done by changing the command set.
@@ -43,6 +47,11 @@ second-stage button to a free slot is not available.
 - The new field goes in **`CommandButton+0x12E`**, the second three-byte alignment hole, and the
   constructor's `mov byte [esi+0x12C], bl` widened to a dword defaults it — **one byte changed, no
   constructor hook at all**.
+- **One click reaches every stage without a second message.** `AIGroup::doObjectUpgrade` carries the
+  message's upgrade in `ebx` for the whole member loop, and `[ebp+8]` keeps the original argument;
+  rewriting `ebx` per member from that member's *own* command set makes every downstream check —
+  legality, `hasUpgrade`, `canAcceptUpgrade`, the production queue — run on the right upgrade with
+  no further edits (§8).
 
 ## 1. Where the black slot comes from
 
@@ -171,12 +180,16 @@ side's `0x415` case is `0x0077A6FD`, which resolves the upgrade and calls
 **It never asks whose `CommandSet` the button came from.** A unit that has a module triggered by
 the upgrade accepts it, full stop.
 
-That is the constraint the merge rule has to satisfy. Showing a mixed selection the *second-stage*
-button would let a battalion still at stage zero take stage two directly — Edain's blades cost 300
-for stage one and 200 for stage two, so that is both a skipped prerequisite and 300 gold. Showing
-the *first-stage* button is harmless in the other direction: the units that already own it are
-skipped by `hasUpgrade` and the ones behind are advanced, which is what a player clicking a mixed
-group means.
+**That is the hazard, and it is why §8 exists.** Left alone, showing a mixed selection the
+*second-stage* button would let a battalion still at stage zero take stage two directly — Edain's
+blades cost 300 for stage one and 200 for stage two, so that is a skipped prerequisite and 300 gold.
+Choosing which button to display carefully would hide the hazard rather than remove it; §8 removes
+it, by making the member loop resolve the upgrade per member instead.
+
+It is also the mechanism the second half of this patch is built on. Since a click already reaches
+the whole selection and is already filtered per member, "start every stage in the group" needs no
+extra message and no extra order — only a different answer to *which upgrade this member is being
+offered*.
 
 ## 4. Ranking two grouped buttons without a second field
 
@@ -200,11 +213,38 @@ does not need to:
 00691435  ret  4
 ```
 
-The rule converges on the least advanced button in the selection **in any merge order**, which is
-what makes it safe to rely on: with three stages A/B/C selected, orders A,B,C and C,B,A and B,A,C
-all end on A's button. Where either button has no `Upgrade` (`+0x24 == 0`) there is no stage to
-compare and the installed one stands — the first selected unit's, which is what the rest of the bar
-already is.
+The rule converges on the least advanced button in the selection **in any merge order**: with three
+stages A/B/C selected, orders A,B,C and C,B,A and B,A,C all end on A's button. Where either button
+has no `Upgrade` (`+0x24 == 0`) there is no stage to compare and the installed one stands — the
+first selected unit's, which is what the rest of the bar already is.
+
+Since §8 makes the click correct whichever button is displayed, this is a **display preference**,
+not a safety property: it puts the icon and tooltip on the stage most of the selection is about to
+buy.
+
+### The rule the stage tie-break defers to
+
+A button no selected unit can click makes the slot unclickable, and then the click expansion never
+fires — so usability outranks stage. The merge asks
+`ControlBar::getCommandAvailability` (`0x00942733`, verdicts 1 and 2) about each candidate, passing
+a **NULL window**, which the click executor also does at `0x009405B0`, so no window pointer has to
+be found or tested.
+
+The awkward half is the *installed* button: the object that installed it is long gone by the time a
+later object disagrees, and asking a different object is asking a different question. So the answer
+is accumulated instead — a **33-byte record, one byte per slot**, saying whether anything in this
+selection has been able to use what is currently in that slot:
+
+| site | what it does to the record |
+|---|---|
+| `0x00944853` (§6) | zeroed, once per repopulate |
+| `0x009445E8` (§7) | the first object's verdict on its own button |
+| `0x0094472E` | union in each later object's verdict; reset to the new verdict when the slot is replaced |
+
+Ordering then falls out: exactly one usable → that one; both or neither → the stage rule above.
+The record is why the first object's install needs a hook of its own: without it the merge would
+never learn that object's opinion of its own button, and a slot only *it* could use would look dead
+to the very first object merged after it.
 
 ## 5. The field's home
 
@@ -239,12 +279,13 @@ constructor routine, no cave entry.
 
 +0x12D is left alone, the way +0x10D was, for whatever wants a byte next.
 
-## 6. The edit
+## 6. The merge edit
 
-One `rel32`, one widened store, the field table rebuilt and its three references repointed, and a
-`0x75`-byte cave holding one routine.
+Four `rel32`, one widened store, the field table rebuilt and its three references repointed, and a
+cave holding four hook routines and five helpers. The section is **writable**, unlike
+`command-point-cost`'s, because the per-slot record lives in it.
 
-The hook is `0x0094472E`, eight bytes and four whole instructions — the identity compare, the
+The first hook is `0x0094472E`, eight bytes and four whole instructions — the identity compare, the
 `ATTACK_MOVE` test, and the two branches out of them. Nothing jumps into the middle of it (`xref`
 finds branches to `0x0094472E` only, from `0x00944702`), so the window takes a `jmp rel32` and three
 `nop`. The cave reproduces both stock tests and dispatches to one of the loop's own three arms:
@@ -262,8 +303,92 @@ one property of the routine a running game would punish and a structural check w
 `tests/sage_patch/test_multi_select_group.py` asserts the two bytes before that jump specifically.
 
 `edx` is dead across the whole merge loop and `cl` is dead past its own test, which is what leaves
-the routine room to work; the one engine call is bracketed in `pushad`/`popad`, whose `popad` does
-not touch EFLAGS, so the answer rides out in the flags.
+the routine room to work; the `hasUpgrade` call is bracketed in `pushad`/`popad`, whose `popad` does
+not touch EFLAGS, so the answer rides out in the flags. Once the pair is known grouped the routine
+takes a two-dword frame — the installed button, which every call clobbers out of `eax`, and this
+object's verdict on the new one — and every exit past that point drops it.
+
+## 7. The other two ControlBar hooks
+
+**The reset, `0x00944853`.** The per-slot record has to be cleared once per repopulate, and
+`0x00944509` — which clears `[win+0x84]` on all 33 slots — has **exactly one caller**, this one. So
+the `call` becomes a `call` into the cave, which zeroes the record and then `jmp`s to the helper,
+leaving it to return to the engine's own caller. `ecx` is the `ControlBar` for that thiscall and is
+untouched.
+
+> ⚠ **A displaced `call` is not a displaced instruction like any other, and this one bit.** The
+> first build of this patch reached the routine with a `jmp`, the way the other three hooks are
+> reached — so the helper's `ret` popped a value that had never been a return address, and the game
+> crashed on the first multi-select. Two shapes work and they are not interchangeable:
+>
+> | site reached by | the routine must |
+> |---|---|
+> | `call` | end in a `jmp` to the callee, letting **its** `ret` return past the site |
+> | `jmp` | reproduce the `call` itself, then `jmp` to the resume point |
+>
+> [`cooldown-through-death`](cooldown-through-death.md) takes the second shape at its own displaced
+> call; this one takes the first. `tests/sage_patch/test_multi_select_group.py` now derives the
+> required opcode from the site's own **stock first byte** rather than from a table, so the two can
+> no longer disagree — and the write-up saying "call" while the code emitted `jmp` is exactly the
+> disagreement that shipped.
+
+**The first object's install, `0x009445E8`.** Six bytes, one whole instruction
+(`mov [edi+0x84], ebx`), and nothing branches into it. Two things are live across it and both have
+to be put back:
+
+```asm
+009445e4  mov  ecx, [edi]          ; the window — live to the winHide at 0x009445F4
+009445e6  cmp  ecx, esi            ; the flags the je at the resume point reads
+009445e8  mov  [edi+0x84], ebx     ; <-- displaced
+009445ee  je   0x9446b5
+```
+
+`popad` restores `ecx` and leaves EFLAGS alone, so the routine re-issues the `cmp` rather than
+assuming the flags survived a call. The slot index in that loop is `[ebp+8]` — the `Drawable`
+argument slot, reused as the counter at `0x009445B7` and `0x009446B5` — and `[ebp-0x14]` still holds
+the `Object`.
+
+## 8. Making one click start every stage
+
+`AIGroup::doObjectUpgrade` keeps the message's upgrade in `ebx` for the whole member loop:
+
+```asm
+0076fc00  mov  ebx, [ebp+8]           ; the UpgradeTemplate — set once
+…
+0076fc15  mov  edi, [esi+8]           ; <-- the member, and the loop's back-edge target
+0076fc18  push 0
+0076fc1a  push edi
+0076fc1b  push ebx                    ; every gate below reads ebx
+```
+
+**`[ebp+8]` is never written**, so a hook at the loop's top can rewrite `ebx` per member and still
+re-derive the message's own upgrade on the next pass. Six bytes, three whole instructions, and
+`0x0076FC15` is where the back-edge lands so the window starts exactly there.
+
+The resolver answers *what should this member be offered*:
+
+1. if the member's own effective command set already has a button buying the message's upgrade, it
+   is at the right stage — return it unchanged, which is also every ungrouped case;
+2. otherwise find the message upgrade's group, by walking the **selection** for whichever member
+   *does* name it — the click came from one of them;
+3. return the upgrade of the member's own button in that group, or the message's if it has none.
+
+The walk is the object → command set → button chain `multi-execute-gate` uses —
+`Object::getCommandSetString` (`0x0069156B`, the *effective* set, so a `CommandSetUpgrade` swap is
+what it sees) → `findCommandSet` (`0x0071EFA2`) → `getCommandButton` (`0x0080C837`), all three
+`ret`-cleaning their own arguments and preserving `ebx`/`esi`/`edi`.
+
+Everything downstream then runs on the right upgrade with no further edits: the legality gate,
+`hasUpgrade`, `canAcceptUpgrade` and the production queue all read `ebx`. One click on the shared
+slot starts stage one on the battalions at stage zero and stage two on the battalions at stage one,
+each paying its own price, with **no change to the message and nothing extra emitted**.
+
+It also closes §3's hazard structurally: a member is only ever offered a button from its own set, so
+no display choice can produce a stage skip.
+
+**This is the one part that is not client-side.** It changes which upgrade a logic-side order
+delivers to which object, so every peer must run the same patched binary and replays do not cross —
+the same caveat `multi-execute-gate` carries, and for the same reason.
 
 ## What is still unknown
 
@@ -271,6 +396,16 @@ not touch EFLAGS, so the answer rides out in the flags.
   (it is the shape the new rule was modelled on), but nothing here explains what it is *for*.
 - **Whether `Object::canAcceptUpgrade` (`0x00694914`) could be a cheaper stage test** than
   `hasUpgrade`. Not needed for this rule, so it was left unread.
-- **Runtime confirmation.** Everything above is static. The rule is a reading of the machine code
+- **The 33-slot bound is hardcoded** in the resolver's walks and in the record's size, where
+  `multi-execute-gate` reads its bound out of the image so `commandset-limit` can raise it. The
+  ControlBar only ever *draws* 33 and a unit's palantir only six, so a grouped button past slot 33
+  cannot be displayed or clicked — but a mod that put one there would not have it found. Raising
+  this means a `slots` parameter and the ordering constraint that comes with it.
+- **What a repopulate costs now.** The merge asks `getCommandAvailability` up to twice per
+  mismatched grouped slot, and the resolver walks the selection once per member per click. Both are
+  event-driven rather than per-frame, and neither has been measured.
+- **Runtime confirmation.** Everything above is static. The rules are a reading of the machine code
   and the tests are written from the same reading, so a wrong reading passes both; the honest claim
-  today is static-verified, not runtime-verified.
+  today is static-verified, not runtime-verified. The two things a live test would settle first are
+  whether re-entering `INSTALL` really refreshes the button's image rather than leaving a stale
+  icon, and whether the per-member rewrite charges each unit its own upgrade's price.

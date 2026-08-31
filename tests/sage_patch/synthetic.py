@@ -56,6 +56,7 @@ from sage_patch.patches import observer_command_range as ocr
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import production_condition as pc
 from sage_patch.patches import production_split as ps
+from sage_patch.patches import scenario_player_factions as spf
 from sage_patch.patches import skirmish_ai_fallback as saf
 from sage_patch.patches import trigger_recharge_list as trl
 from sage_patch.patches import upgrade_description as ud
@@ -67,7 +68,6 @@ from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import render_rate as rrate
-from sage_patch.patches.experimental import scenario_player_factions as spf
 from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko

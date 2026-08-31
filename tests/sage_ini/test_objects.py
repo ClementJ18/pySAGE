@@ -66,6 +66,17 @@ class PlayAliased(IniObject):
     field_aliases = {"Regen%PerSecond": "Regen_PerSecond"}
 
 
+class PlaySelfNamed(IniObject):
+    """A label-less definition that names itself through a field, the way
+    `LivingWorldPlayerArmy` does with `Name`."""
+
+    key = "playselfnamed"
+    name_field = "Handle"
+
+    Handle: String
+    Cost: Int
+
+
 def block_of(text: str):
     result = parse(text, file="t.ini")
     assert not result.diagnostics
@@ -448,6 +459,23 @@ class TestLoadDocument:
             parse("PlayThing A\nEnd\nPlayThing B\nEnd\nUnknownThing C\nEnd").document
         )
         assert set(game.tables["playthings"]) == {"A", "B"}
+
+    def test_label_less_block_registers_under_its_name_field(self):
+        game = Game()
+        text = "PlaySelfNamed\nHandle = Alpha\nEnd\nPlaySelfNamed\nHandle = Beta\nEnd"
+        game.load_document(parse(text).document)
+        assert set(game.tables["playselfnamed"]) == {"Alpha", "Beta"}
+
+    def test_name_field_repeat_in_one_file_is_a_redefinition(self):
+        game = Game()
+        text = "PlaySelfNamed\nHandle = Alpha\nEnd\nPlaySelfNamed\nHandle = Alpha\nEnd"
+        game.load_document(parse(text).document)
+        assert [(r.key, r.name) for r in game.redefinitions] == [("playselfnamed", "Alpha")]
+
+    def test_label_less_block_without_its_name_field_falls_back_to_the_keyword(self):
+        game = Game()
+        game.load_document(parse("PlaySelfNamed\nCost = 3\nEnd").document)
+        assert set(game.tables["playselfnamed"]) == {"PlaySelfNamed"}
 
     def test_macro_definitions_are_recorded(self):
         game = Game()

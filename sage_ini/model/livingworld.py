@@ -124,11 +124,13 @@ class TeamVictoryCondition(_VictoryCondition):
 
 
 class SpawnArmies(NestedAttribute):
-    """Pre-placed armies in an `OwnershipSet`."""
+    """Pre-placed armies in an `OwnershipSet`. The listed names are `SpawnArmy` scripting
+    handles, not `LivingWorldPlayerArmy` names - the `SpawnArmy` the engine picks for the
+    owning player carries the player army."""
 
     Player: t.FactionRef
     Army: t.List[t.Untyped]
-    Armies: t.List[t.PlayerArmyRef]
+    Armies: t.List[t.SpawnArmyRef]
     Region: t.Opaque
 
 

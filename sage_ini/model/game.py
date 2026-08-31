@@ -311,9 +311,12 @@ class Game:
                     self._note_definition(node, cls)
 
     def _note_definition(self, node: Block, cls: type[IniObject]) -> None:
-        """Record a same-file repeat of a unique-named, labelled definition. A label-less or
-        collection (`unique_name = False`) block names a category that repeats by design."""
-        if cls.key is None or node.label is None or not cls.unique_name:
+        """Record a same-file repeat of a unique-named definition. A collection
+        (`unique_name = False`) block names a category that repeats by design, and so does a
+        label-less block with no `name_field` to name it (the engine reads those as a list)."""
+        if cls.key is None or not cls.unique_name:
+            return
+        if node.label is None and cls.name_field is None:
             return
         # Key by the registered name, so a malformed `Object Foo Bar` pairs with `Object Foo`.
         name = cls.object_name(node)

@@ -213,6 +213,13 @@ class IniObject:
     # name + parent for a `ChildObject`. Extra tokens on a non-`=` header are engine-ignored
     # leftovers, flagged by `validate`.
     header_arity: int = 1
+    # The field a label-less definition names itself by. Some blocks carry no header label at
+    # all and declare their identity as an ordinary attribute instead (`LivingWorldPlayerArmy`
+    # with `Name = AragornPlayerArmy`, `SpawnArmy` with `ScriptingName`). Without this every
+    # such block would register under its bare keyword and the whole kind would collapse to a
+    # single table entry, leaving every reference to it dangling. A block that *does* carry a
+    # label is still named by the label; this only fills the label-less case.
+    name_field: str | None = None
     # Whether this block is typed by its *name* with the label as a key, not by the label's
     # first token as a class. `ModelConditionState = DAMAGED` is the `ModelConditionState`
     # class keyed by the condition `DAMAGED`, unlike a module slot (`Behavior = AutoHeal...`)
@@ -364,13 +371,26 @@ class IniObject:
     @classmethod
     def object_name(cls, block: Block) -> str:
         if block.label is None:
-            return block.name
+            return cls._self_named(block) or block.name
         # A `Type = ...` module header keeps its whole label (`Type Tag`); a `Keyword Name`
         # definition is named by its first token, the rest being leftovers.
         if block.uses_equals:
             return block.label
         tokens = _label_tokens(block.label)
         return tokens[0] if tokens else block.name
+
+    @classmethod
+    def _self_named(cls, block: Block) -> str | None:
+        """The name a label-less block declares through its `name_field` attribute, or None
+        when the class has no such field or the block omits it. The raw value is used as
+        written: the engine keys its table on the token, and a repeat of the key keeps the
+        first value the way the block's own field read would."""
+        if cls.name_field is None:
+            return None
+        for child in block.children:
+            if isinstance(child, Attribute) and child.key.lower() == cls.name_field.lower():
+                return child.value.strip() or None
+        return None
 
     @classmethod
     def header_extras(cls, block: Block) -> tuple:
