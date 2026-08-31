@@ -40,7 +40,6 @@ Issues = "https://github.com/ClementJ18/pySAGE/issues"
 [project.scripts]
 sage-lint = "sage_lint.cli:main"
 sage-ini = "sage_ini.__main__:main"
-sage-edain = "sage_mods.edain.__main__:main"
 sage-live = "sage_live.__main__:main"
 sage-replay = "sage_replay.__main__:main"
 sage-apt = "sage_apt.__main__:main"
@@ -52,14 +51,11 @@ sage-cah = "sage_cah.__main__:main"
 sage-patch = "sage_patch.cli:main"
 sage-verify = "sage_verify.__main__:main"
 
-# Desktop apps; each needs its extra installed (ui / wiki / lint-ui / edain-ui).
+# Desktop apps; each needs its extra installed (ui / wiki / lint-ui / asset-ui / cah-ui).
 [project.gui-scripts]
 sage-ui = "sage_ui.app:main"
 sage-wiki = "sage_wiki.launcher:main"  # guards the [wiki] extra; app.py imports Qt at module scope
 sage-lint-ui = "sage_lint.plugins.ui.app:main"
-sage-edain-lint = "sage_mods.edain.map_checks.ui.app:main"
-sage-edain-notes = "sage_mods.edain.patch_notes.ui.app:main"
-sage-edain-horde = "sage_mods.edain.horde_maker.ui.app:main"
 sage-asset-ui = "sage_asset.ui.app:main"
 sage-cah-ui = "sage_cah.ui.app:main"
 
@@ -80,10 +76,6 @@ wiki = [
     "PyQt6>=6.6", 
     "pybig>=0.6",
     "keyring>=24",
-]
-
-edain-ui = [
-    "PyQt6>=6.6",
 ]
 
 asset-ui = [
@@ -125,7 +117,6 @@ all = [
     "pysage-tools[ui]",
     "pysage-tools[lint-ui]",
     "pysage-tools[wiki]",
-    "pysage-tools[edain-ui]",
     "pysage-tools[asset-ui]",
     "pysage-tools[cah-ui]",
     "pysage-tools[apt]",
@@ -142,7 +133,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_live*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_mods*", "sage_w3d*", "sage_cah*", "sage_verify*"]
+include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_live*", "sage_replay*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_w3d*", "sage_cah*", "sage_verify*"]
 
 [tool.setuptools.package-data]
 # Anything a package opens at runtime must be listed here, or it is absent from the wheel. The
@@ -164,15 +155,6 @@ sage_ui = ["*.ico"]
 sage_wiki = ["*.ico"]
 sage_utils = ["assets/*.png"]  # portrait background + overlays; sage_utils/textures.py
 "sage_lint.plugins.ui" = ["*.ico"]
-sage_mods = ["py.typed"]  # PEP 561 marker belongs on the top-level package, not sage_mods.edain
-"sage_mods.edain" = [
-    "ui/*",
-    "skill_assets/**/*",
-    "map_checks/ui/*.ico",
-    "patch_notes/ui/*.ico",
-    "horde_maker/ui/*.ico",
-    "icons/*.webp",  # faction emblems; the public ICONS_DIR / FACTION_ICONS in edain/replay.py
-]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -217,7 +199,7 @@ select = [
 
 [tool.mypy]
 python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
-files = ["sage_apt", "sage_asset", "sage_ini", "sage_lint", "sage_live", "sage_map", "sage_mods", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah", "sage_verify", "examples/sage_live"]
+files = ["sage_apt", "sage_asset", "sage_ini", "sage_lint", "sage_live", "sage_map", "sage_patch", "sage_replay", "sage_save", "sage_utils", "sage_w3d", "sage_cah", "sage_verify", "examples/sage_live"]
 # `examples/sage_live` is checked because those scripts drive a *live* game: they cannot be
 # exercised by the data-free suite, so a typo in an attribute name surfaces mid-match against a
 # real process rather than in CI. Ruff alone does not catch that - it took an `AttributeError`
@@ -245,19 +227,6 @@ module = [
     "sage_utils.textures",
     "sage_utils.sources",
     "sage_utils.findings",
-]
-ignore_errors = true
-
-# Same for the Qt half of the Edain Linter, Patch Notes and Horde Maker windows; the Qt-free
-# modules they drive (the map runner, the notes transform, the formation model) stay checked.
-[[tool.mypy.overrides]]
-module = [
-    "sage_mods.edain.map_checks.ui.window",
-    "sage_mods.edain.map_checks.ui.app",
-    "sage_mods.edain.patch_notes.ui.window",
-    "sage_mods.edain.patch_notes.ui.app",
-    "sage_mods.edain.horde_maker.ui.window",
-    "sage_mods.edain.horde_maker.ui.app",
 ]
 ignore_errors = true
 

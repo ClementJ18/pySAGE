@@ -584,6 +584,49 @@ class _FontSpec:
 FontSpec = Annotated[FontSpecValue, _FontSpec]
 
 
+class FontSubstitutionValue(NamedTuple):
+    """One substitution row: requests for `requested` points are served by `name` at `size`
+    points. `bold` is the `+BOLD`/`-BOLD` override, None when the row keeps the requested
+    weight. The font manager interpolates sizes between adjacent rows."""
+
+    requested: int
+    size: int
+    name: str
+    bold: bool | None
+
+
+# A substitution row's tokens: '=' is a separator to the engine, so it never joins a token,
+# but a quoted family name keeps its spaces.
+_SUBSTITUTION_TOKEN = re.compile(r'"[^"]*"|[^\s=]+')
+
+_BOLD_MARKERS = {"+BOLD": True, "-BOLD": False}
+
+
+class _FontSubstitution(Multivalued):
+    """A `FontSubstitution` size row (`Size 8 = 12 "Omnia LT Std"`, `Size 10 = 10 +BOLD Arial`).
+    The key is the field name `Size`, so a block's rows all land under it - hence `Multivalued`,
+    one `FontSubstitutionValue` per line."""
+
+    @classmethod
+    def convert(cls, game, value):
+        lines = value if isinstance(value, list) else [value]
+        return [cls._one(game, line) for line in lines]
+
+    @classmethod
+    def _one(cls, game, line):
+        tokens = _SUBSTITUTION_TOKEN.findall(line)
+        if len(tokens) < 3:
+            raise ValueError(f"expected `<requested> = <size> [+BOLD|-BOLD] <font>`, got {line!r}")
+        requested = _Int.convert(game, tokens[0])
+        size = _Int.convert(game, tokens[1])
+        bold = _BOLD_MARKERS.get(tokens[2].upper())
+        name = " ".join(tokens[3 if bold is not None else 2 :]).strip('"')
+        return FontSubstitutionValue(requested, size, name, bold)
+
+
+FontSubstitutions = Annotated[list[FontSubstitutionValue], _FontSubstitution]
+
+
 class _Tuple(Multivalued):
     def __init__(self, *element_types):
         self.element_types = element_types

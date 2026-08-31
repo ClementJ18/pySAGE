@@ -8,8 +8,8 @@ Two layers:
 - **Qt-free data layer** - `config` (settings), `sources` (loose ini folders and `.big`
   archives as a uniform source), `textures` (game texture lookup), `views` (resolution
   helpers over the `sage_ini` model), `refpack` (a pure-Python EA RefPack codec for the
-  binary `.map`/`.bse` layer), the `factiongraph` ownership-graph types that
-  [`sage_mods.edain`](../sage_mods.edain) assembles, and the `cli` / `skill` command plumbing.
+  binary `.map`/`.bse` layer), the `factiongraph` ownership-graph types a mod overlay
+  ([`sage_edain`](https://github.com/ClementJ18/pySAGE-edain)) assembles, and the `cli` / `skill` command plumbing.
 - **Shared Qt pieces** - `styles`, `widgets` and `findings`, the desktop chrome shared by
   every SAGE front end ([`sage_ui`](../sage_ui), [`sage_wiki`](../sage_wiki), the SAGE Lint
   window and the Edain Linter). Notably:
@@ -21,6 +21,6 @@ Two layers:
   - `findings.FindingsView` - the searchable, sortable, severity-coloured diagnostics table
     (with CSV export and double-click-to-open) both linters report into.
 
-The data layer stays engine-generic; mod-specific names and paths live in the mod
-packages (e.g. `sage_mods.edain`) and wire in through hooks. The Qt half needs the `ui` extra
+The data layer stays engine-generic; mod-specific names and paths live in the mod's own
+overlay repository (e.g. `sage_edain`) and wire in through hooks. The Qt half needs the `ui` extra
 installed.

@@ -186,7 +186,8 @@ those factions' would-be players fall into the synthesised path instead of faili
    and confirm `sage_map` still round-trips it.
 3. **In game** — skirmish on that map with the AI set to that faction. Unpatched it sits inert (it
    is typed human and has no AI object); patched it should build and attack, using its own faction's
-   units. The [`edain-bot-run`](../../sage_mods/edain/bot) harness drives the lobby and the match.
+   units. The Edain overlay's bot harness (`sage_edain.bot`, in the separate pySAGE-edain
+   repository) drives the lobby and the match.
 4. **Negative** — a faction that *does* have a side on the map must behave byte-identically. Hook 2
    returns immediately on `[ebp-0x20] == 1`, so this is a check rather than a hope.
 

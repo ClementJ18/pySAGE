@@ -23,14 +23,20 @@ from sage_live.utils.statics import (
     CAST_SELF,
     EFFECT_BUFF,
     EFFECT_BUILD,
+    EFFECT_HEAL,
     EFFECT_SELF_BUFF,
     EFFECT_STRIKE,
     EFFECT_SUMMON,
     EFFECT_UNKNOWN,
     Statics,
 )
-from sage_mods.edain.bot.heroes import HERO_AIMABLE
 from tests.sage_live.test_statics import FakeGame, FakeModule, FakeObject, _link
+
+# The effects a caller can actually aim a hero ability at. `EFFECT_BUILD` is absent because no
+# hero on any roster measured places a structure, and `EFFECT_GRANT` / `EFFECT_UNKNOWN` are the
+# data declining to say what a power does. A consumer that aims abilities (a bot) keeps its own
+# copy of this policy; here it is only the yardstick for "the walk placed this power".
+AIMABLE = (EFFECT_SELF_BUFF, EFFECT_BUFF, EFFECT_HEAL, EFFECT_STRIKE, EFFECT_SUMMON)
 
 
 class FakeButton:
@@ -339,7 +345,7 @@ def test_an_ability_the_data_cannot_place_is_reported_rather_than_guessed() -> N
     both are unaimable: unknown means a chain was followed and named no side, and grant means
     there was no chain to follow. Neither is guessed at, which is the property that matters - a
     wrong guess spends a recharge helping the wrong army."""
-    assert _by_power(_hero(), "AbilityMystery").effect not in HERO_AIMABLE
+    assert _by_power(_hero(), "AbilityMystery").effect not in AIMABLE
 
 
 def test_a_summon_is_still_read_through_its_ocl() -> None:

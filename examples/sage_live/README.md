@@ -17,10 +17,10 @@ hard-won gotchas behind them.
 Run from the repo root, e.g. `python examples/sage_live/patrol.py`.
 
 **The bot lives elsewhere.** The scripted skirmish player that used to sit here is now
-[`sage_mods.edain.bot`](../../sage_mods/edain/bot) — it grew a build order, an army mix and a
-map plan, all of which name Edain templates, so it belongs with the rest of the mod overlay
-rather than among examples of the API. Run it with `python -m sage_mods.edain.bot --game
-<install>`; the scripts below stay here because each demonstrates one part of the surface.
+`sage_edain.bot`, in the Edain overlay repository ([pySAGE-edain](https://github.com/ClementJ18/pySAGE-edain)) — it grew a build order,
+an army mix and a map plan, all of which name Edain templates, so it belongs with the rest of
+the mod overlay rather than among examples of the API. The scripts below stay here because each
+demonstrates one part of the surface.
 
 ## The scripts
 

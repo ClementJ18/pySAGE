@@ -3,7 +3,7 @@
 The RE behind [`patches/observer_command_range.py`](../patches/observer_command_range.py), which
 lets an observer click `PUSH_VISIBLE_COMMAND_RANGE` and `POP_VISIBLE_COMMAND_RANGE` buttons so the
 pages behind them can be read while watching. ROTWK `game.dat` build `2.01.2614.37001`, ImageBase
-`0x400000`, recovered statically from `sage_mods/edain/patching/engine/game.dat.backup` on
+`0x400000`, recovered statically from `sage_patch/engine/game.dat.backup` on
 2026-08-21. Every site named below is byte-identical in the installed `game.dat`.
 
 ## The gap

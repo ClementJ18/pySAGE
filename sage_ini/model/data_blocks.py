@@ -2485,9 +2485,12 @@ class FireLogicSystem(IniObject):
 
 
 class FontSubstitution(IniObject):
+    """Substitutions for one font family, named by the block label: every `Size` row maps a
+    requested point size onto a replacement font and size."""
+
     key = "fontsubstitutions"
 
-    Size: Int
+    Size: t.FontSubstitutions
 
 
 class GlowEffect(IniObject):

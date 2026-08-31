@@ -3,7 +3,7 @@
 Scope for a hypothetical `multicore` patch. ROTWK `game.dat` build `2.01.2614.37001`, ImageBase
 `0x400000`, no ASLR; the file offset is `VA - 0x400000` for every site cited here. Read
 **statically** on 2026-08-18 with `pefile` + `capstone` from
-[`sage_mods/edain/patching/engine/game.dat.backup`](../../sage_mods/edain/patching/engine/game.dat.backup)
+`sage_patch/engine/game.dat.backup`
 (11,346,432 bytes). **Every site cited below was re-checked byte-for-byte against three other
 copies** — the repo-root `game.dat`, the Edain-built `game.dat`, and the installed
 `C:\Program Files (x86)\Games\bfme\rotwk\game.dat` — and is identical in all four. That matters

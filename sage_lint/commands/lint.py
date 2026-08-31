@@ -560,8 +560,8 @@ def run_map_lint(
     """Lint the `.map` file - or every `.map` under the folder - named by `args.target`, resolved
     against the game loaded with `--game`. Every map gets the game-resolved dangling-reference
     checks; `extra_checks`, when given, adds more findings per parsed map (an overlay's own rule
-    set, e.g. `sage_mods.edain.map_checks`). The object and GAME-scope reference checks need the
-    game
+    set, e.g. the Edain overlay's `sage_edain.map_checks`). The object and GAME-scope reference
+    checks need the game
     (pass the base game first, the mod after it; each `.big` install is mounted); with no `--game`
     the game is empty, so only the parse and map-local checks (teams, waypoints, trigger areas)
     run. The `sage_map` overlay and game loader are imported lazily so a `sage_lint` run that

@@ -251,6 +251,40 @@ class TestBareValueLines:
         (attr,) = doc.children
         assert attr == Attribute(key="Blank", value="", uses_equals=False, span=doc.span)
 
+    def test_extra_token_before_equals_stays_in_the_value(self):
+        # corpus: fontsubstitution.ini `Size 8 = 12 "Omnia LT Std"` - '=' is only a separator
+        # to the engine, so the field is `Size` and the row is its value.
+        doc = parse_clean(
+            """            FontSubstitution "SachaWynter"
+                Size 8  = 12 "Omnia LT Std"
+            End
+            """
+        )
+
+        (block,) = doc.children
+        assert block.children == [
+            Attribute(
+                key="Size",
+                value='8 = 12 "Omnia LT Std"',
+                uses_equals=False,
+                span=block.span,
+            )
+        ]
+
+    def test_repeated_equals_in_one_value(self):
+        # corpus: goodfactionsubobjects.ini `Envelope InitialOpacity = 0.0 PeakOpacity = 1.0`
+        doc = parse_clean(
+            """            Behavior = FadeAndDieOrnamentUpdate ModuleTag_01
+                Envelope InitialOpacity = 0.0 PeakOpacity = 1.0
+            End
+            """
+        )
+
+        (block,) = doc.children
+        (envelope,) = block.children
+        assert envelope.key == "Envelope"
+        assert envelope.value == "InitialOpacity = 0.0 PeakOpacity = 1.0"
+
     def test_side_is_a_value_inside_controlbarscheme(self):
         # corpus: controlbarscheme.ini
         doc = parse_clean(

@@ -47,7 +47,7 @@ More than it looks like. In rough order of value to an agent:
 | [`translated.py`](../sage_replay/translated.py) / [`cache.py`](../sage_replay/cache.py) | a version-independent corpus format. Parse once against the recording build, train against the documents forever |
 | [`stats.py`](../sage_replay/stats.py) / [`build_orders.py`](../sage_replay/build_orders.py) | the timeline is already reduced to clocked `StatEvent(seconds, category, label)` and folded into per-faction opening trees with win/loss splits - this is the training set, pre-built |
 | [`sidecar.py`](../sage_replay/sidecar.py) | **ground-truth labels.** Ladder replays carry a sidecar naming the winning team; strict structural matching means a label is trusted or refused, never guessed |
-| `sage_ini` + [`sage_mods.edain`](../sage_mods/edain/README.md) | every unit's cost, health, armor, weapon, build time, faction tree. Unit features are *given*, not learned |
+| `sage_ini` + the mod overlay ([`sage_edain`](https://github.com/ClementJ18/pySAGE-edain)) | every unit's cost, health, armor, weapon, build time, faction tree. Unit features are *given*, not learned |
 | `sage_map` | terrain, plot placements, start positions - the static half of a spatial observation |
 | [`runtime-re-workflow.md`](../sage_patch/docs/runtime-re-workflow.md) | verified live struct offsets: `PlayerList+0x10` → local player, `Player+0x3DC` stats block, object `+0x04` → `ThingTemplate`, template `+0x64` name / `+0x6C` Side / `+0x70` CommandSet. The seed of a memory-read observation API |
 | `sage_patch` | proof that engine intervention works and is repeatable: PE cave allocation, verified byte patches, headless Ghidra scripts, a minidump parser, and a build that runs in-game with no anti-tamper failure on 2.01.2614 |

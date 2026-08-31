@@ -207,7 +207,7 @@ sage-asset build <art_dir> -o <out>    # scan compiledtextures/ + w3d/ and write
 A small PyQt6 window for the two operations most useful outside a terminal - building an
 asset.dat from an art tree and combining a base with a mod overlay - with a progress bar on the
 build and both operations reporting their result counts, in the style of the other SAGE front
-ends (`sage-lint-ui`, `sage-edain-lint`). Install the `asset-ui` extra and launch it:
+ends (`sage-lint-ui`, `sage-ui`). Install the `asset-ui` extra and launch it:
 
 ```
 pip install "pysage-tools[asset-ui]"

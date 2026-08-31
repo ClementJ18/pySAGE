@@ -59,9 +59,10 @@ python -m sage_replay stats <replay> --game <install>
 # researches get pick tables, special-power casts get a table nested under Units, and
 # repeatable system purchases per-instance depth rows (CPObject1, CPObject2, ...), each
 # only for a tracked set: --track-upgrade / --track-power / --track-purchase NAME
-# (repeatable), or `sage-edain replay-aggregate` = this same command with Edain's sets
-# injected (its Imladris Loremaster shows as its element-specific horde, read off the
-# toggle cast a `power_recruits` hook counts as a recruit). Horde combines
+# (repeatable). A mod overlay registers this same command with its own sets injected -
+# `sage-edain replay-aggregate`, in the separate pySAGE-edain repository, does exactly that
+# (its Imladris Loremaster shows as its element-specific horde, read off the toggle cast a
+# `power_recruits` hook counts as a recruit). Horde combines
 # are shown only with --combines. --matchups appends the same tables per enemy faction (buildings built
 # vs Mordor, units vs Gondor) after each faction's own sections.
 # --faction / --player filter the player-games (case-insensitive substring);

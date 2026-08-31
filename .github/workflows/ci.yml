@@ -145,14 +145,14 @@ jobs:
       # with the pip command to fix it, rather than a bare ModuleNotFoundError traceback.
       - name: Console scripts work without extras
         run: |
-          for script in sage-lint sage-ini sage-edain sage-live sage-replay sage-apt sage-save sage-map sage-asset sage-w3d sage-cah sage-patch sage-verify; do
+          for script in sage-lint sage-ini sage-live sage-replay sage-apt sage-save sage-map sage-asset sage-w3d sage-cah sage-patch sage-verify; do
             echo "== $script"
             /tmp/wheelenv/bin/$script --help > /dev/null
           done
 
       - name: Desktop scripts explain the missing extra
         run: |
-          for script in sage-ui sage-wiki sage-lint-ui sage-edain-lint sage-edain-notes sage-edain-horde sage-asset-ui sage-cah-ui; do
+          for script in sage-ui sage-wiki sage-lint-ui sage-asset-ui sage-cah-ui; do
             echo "== $script"
             if /tmp/wheelenv/bin/$script > /tmp/out.txt 2>&1; then
               echo "expected a non-zero exit without the extra installed"; exit 1

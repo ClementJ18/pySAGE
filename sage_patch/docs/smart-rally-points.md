@@ -2,7 +2,7 @@
 
 **Status: implemented as `smart-rally`, and registered
 [experimental](../README.md)** ([`../patches/experimental/smart_rally.py`](../patches/experimental/smart_rally.py)).
-Every address below was read from the clean `sage_mods/edain/patching/engine/game.dat.backup`
+Every address below was read from the clean `sage_patch/engine/game.dat.backup`
 (ROTWK `2.01.2614.37001`), and every site was then asserted against the repo-root `game.dat` as well
 - both hold stock bytes at all nineteen. The patch applies, verifies and round-trips through
 `detect` on both binaries, and composes in either order with the other cave patches.

@@ -126,8 +126,8 @@ stops the run.
 
 `sage_lint` also exposes game-aware `.map` linting, which resolves script arguments and
 object references against the assembled game (see [`sage_map`](../sage_map)). Standalone,
-game-data-free map checks live in `sage_map.checks`, with mod-specific rule sets under the
-mod package (`sage_mods.edain.map_checks`).
+game-data-free map checks live in `sage_map.checks`, with mod-specific rule sets in the mod's
+own overlay package (`sage_edain.map_checks`, in [pySAGE-edain](https://github.com/ClementJ18/pySAGE-edain)).
 
 ## Desktop UI
 

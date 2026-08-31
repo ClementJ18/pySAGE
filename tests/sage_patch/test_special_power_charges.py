@@ -660,17 +660,13 @@ def test_declared_experimental() -> None:
 
 # --- against the real binaries ------------------------------------------------------------------
 
-#: The repo-root `game.dat` carries eleven modifications and the Edain backup is the clean
-#: reference, so a site is only safe to describe as stock when both agree - and none of this
-#: patch's does anything else.
+#: The repo-root `game.dat` carries eleven modifications and `sage_patch/engine/game.dat.backup`
+#: is the clean reference, so a site is only safe to describe as stock when both agree - and none
+#: of this patch's does anything else. Neither binary is committed, so each check skips when its
+#: file is absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "edain-backup": Path(__file__).resolve().parents[2]
-    / "sage_mods"
-    / "edain"
-    / "patching"
-    / "engine"
-    / "game.dat.backup",
+    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
 }
 
 

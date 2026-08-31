@@ -35,14 +35,14 @@ import bisect
 import struct
 import sys
 from collections import defaultdict
+from pathlib import Path
 
 import pefile
 from capstone import CS_ARCH_X86, CS_MODE_32, Cs, x86
 
-DEFAULT_PATH = (
-    r"C:\Users\Clement\Documents\GitHub\pySAGE"
-    r"\sage_mods\edain\patching\engine\game.dat.backup"
-)
+# The clean reference binary. Gitignored like every game binary here, so a checkout
+# supplies its own copy; pass a path on the command line to read a different one.
+DEFAULT_PATH = str(Path(__file__).resolve().parents[1] / "engine" / "game.dat.backup")
 
 # The engine's own names for what this census is about.
 THE_GAME_CLIENT = 0x00DE4388

@@ -36,7 +36,6 @@ Can be downloaded pre-packaged from here: https://www.moddb.com/games/battle-for
 
 | Project | What it is |
 | --- | --- |
-| [`sage_mods.edain`](sage_mods/edain/README.md) | Edain-mod overlay: builds a faction ownership graph (spellbook → base → structures → units/heroes/upgrades) and renders, diffs or serves it. |
 | [`sage_wiki`](sage_wiki/README.md) | Desktop tool that updates Edain wiki infoboxes from parsed game data through the MediaWiki API. |
 | [`sage_ui`](sage_ui/README.md) | PyQt6 desktop browser for SAGE game data: load sources, search an object, see its resolved stats. |
 | [`sage_verify`](sage_verify/README.md) | Maphack detection: follows a replay playing back in a live client and checks every targeted order against the engine's own shroud grid - you cannot click what you cannot see. Also compares a running client's `binary-attest` hash against the `game.dat` it should be running. |
@@ -59,7 +58,6 @@ Requires Python ≥ 3.12. The project is **pySAGE**; on PyPI it is published as 
 pip install pysage-tools             # core library + linter
 pip install "pysage-tools[ui]"       # + the PyQt6 desktop apps (sage-ui)
 pip install "pysage-tools[wiki]"     # + the wiki updater
-pip install "pysage-tools[edain-ui]" # + the Edain Linter desktop app
 pip install "pysage-tools[apt]"      # + reading .const/.apt out of .big archives
 pip install "pysage-tools[asset-ui]" # + the SAGE Asset desktop app (build/combine asset.dat)
 pip install "pysage-tools[w3d-view]" # + the OpenGL model viewer (sage-w3d view)
@@ -81,13 +79,19 @@ apply and verify a game.dat patch. The one non-optional dependency is `reversebo
 Windows, the native RefPack compressor that makes saving large maps fast (its DLL is Windows-only,
 so other platforms use the byte-identical pure-Python compressor).
 
-Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-edain`,
+Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`,
 `sage-replay`, `sage-apt`, `sage-map`, `sage-save`, `sage-asset`, `sage-w3d`, `sage-cah`,
-`sage-patch` (and the GUI scripts `sage-ui`,
-`sage-wiki`, `sage-lint-ui`, `sage-edain-lint` - the Edain Linter, which combines the ini and map
-checks in one window - `sage-edain-notes`, the Edain Patch Notes window, `sage-edain-horde`, the
-Edain Horde Maker window, `sage-asset-ui`, the SAGE Asset builder/combiner window, and
-`sage-cah-ui`, the SAGE Custom Hero editor).
+`sage-patch` (and the GUI scripts `sage-ui`, `sage-wiki`, `sage-lint-ui`, `sage-asset-ui`, the
+SAGE Asset builder/combiner window, and `sage-cah-ui`, the SAGE Custom Hero editor).
+
+### Mod overlays
+
+pySAGE stays engine-generic. Knowledge of one mod's data - which faction owns which structure,
+which powers field permanent units, which map conventions a mod expects - lives in its own
+overlay package, wired in through the hooks this repo exposes (`sage_utils.factiongraph`,
+`sage_replay`'s aggregate hooks, `sage_map.checks`, `sage_lint`'s rule interface). The Edain
+overlay is [pySAGE-edain](https://github.com/ClementJ18/pySAGE-edain) (`sage_edain`): faction
+graphs, map checks, patch notes, horde formations, a Worldbuilder launcher and a skirmish bot.
 
 ## Tests
 

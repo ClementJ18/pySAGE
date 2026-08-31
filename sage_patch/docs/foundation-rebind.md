@@ -435,7 +435,7 @@ after a *legitimate* demolition too, and the plot would be unbuildable for the r
 **The patch applies, verifies and composes; none of that would have said it works in a match.**
 These are the claims the running game settled, in the order they would have bitten.
 
-1. **Which module Edain's settlement flag carries.** `sage_mods.edain` names it
+1. **Which module Edain's settlement flag carries.** The Edain overlay (`sage_edain`) names it
    `WirtschaftPlotFlag_Real`; the bot notes it answers an unpack button, which points at
    `CastleBehavior`. Because both modules share the interface and the field (§5), a plot of either
    kind is rebound by what is shipped. What is *not* covered is a vineyard replacing a

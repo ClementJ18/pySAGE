@@ -33,10 +33,11 @@
   casts are reported only for a tracked set, horde combines only with `--combines`, and
   repeatable system purchases get per-instance depth rows (CPObject1, CPObject2, ...) only
   for one: `--track-upgrade` / `--track-power` / `--track-purchase NAME` (repeatable, powers
-  nested under Units), or the `sage-edain replay-aggregate` overlay, which registers this same
-  command with Edain's sets injected. The replays must all come from one patch/mod: a
-  corpus mixing patch fingerprints (the header's game-data checksum - recordings from
-  different game data do not simulate identically) exits 1 listing the groups, before
+  nested under Units), or a mod overlay that registers this same command with its own sets
+  injected (`sage-edain replay-aggregate`, in the separate pySAGE-edain repository).
+  The replays must all come from one patch/mod: a corpus mixing patch fingerprints (the
+  header's game-data checksum - recordings from different game data do not simulate
+  identically) exits 1 listing the groups, before
   any game root is loaded. `--matchups` appends the same tables per enemy
   faction (buildings built vs Mordor, units vs Gondor) after each faction's own sections.
   `--faction` / `--player` filter
@@ -685,7 +686,7 @@ def add_aggregate_command(
     deserve a pick-rate row, which system purchases
     are depth-comparable, and which special powers are worth a row registers the same command
     on its own CLI with its `tracked_upgrades` / `tracked_purchases` / `tracked_powers`
-    injected (sage_mods.edain's `replay-aggregate`); `--track-upgrade` / `--track-purchase` /
+    injected (the Edain overlay's `replay-aggregate`); `--track-upgrade` / `--track-purchase` /
     `--track-power` extend whatever was injected. Tracked powers render nested under Units as
     `powers_heading` (the casting unit's name - Edain's is "Loremaster"). `refine_faction` (a
     `FactionRefiner`) lets the overlay sharpen faction labels from each player's own stats,

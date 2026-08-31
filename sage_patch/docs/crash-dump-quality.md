@@ -2,7 +2,7 @@
 
 Scope for a `crash-dump` patch. ROTWK `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`,
 recovered statically 2026-08-18 from
-[`sage_mods/edain/patching/engine/game.dat.backup`](../../sage_mods/edain/patching/engine/game.dat.backup);
+`sage_patch/engine/game.dat.backup`;
 every site below was re-checked byte-for-byte against the **installed** Edain
 `C:\Program Files (x86)\Games\bfme\rotwk\game.dat` and is identical there. Measurements come from
 the six real dumps sitting in the install root.

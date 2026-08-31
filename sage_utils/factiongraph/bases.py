@@ -12,9 +12,9 @@ classifies them into citadel / foundation / prebuilt by KindOf. `sagemap` is an 
 dependency; without it base decomposition degrades to empty rather than failing.
 
 Two consumption paths: `resolve_base_layout` reads a mod checkout's `bases/` folder on demand
-(the `sage-edain` CLI), and `collect_base_layouts` sweeps every `.bse` under a root once - the
-source loader calls it on the merged tree extracted from `.big` archives, so a game loaded from
-archives carries its layouts (`game.base_layouts`) for the graph to use.
+(what a mod overlay's CLI uses), and `collect_base_layouts` sweeps every `.bse` under a root
+once - the source loader calls it on the merged tree extracted from `.big` archives, so a game
+loaded from archives carries its layouts (`game.base_layouts`) for the graph to use.
 """
 
 from __future__ import annotations
