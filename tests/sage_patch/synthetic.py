@@ -36,6 +36,7 @@ from __future__ import annotations
 import struct
 
 from sage_patch import addresses as ad
+from sage_patch.patches import ai_command_null_target as acnt
 from sage_patch.patches import ai_flag_capture_gate as afc
 from sage_patch.patches import commandset_button_upgrade as cbu
 from sage_patch.patches import crash_dump as cd
@@ -43,6 +44,7 @@ from sage_patch.patches import deploy_before_attack as dba
 from sage_patch.patches import description_timers as dt
 from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather as wb
+from sage_patch.patches import give_upgrade_all as gua
 from sage_patch.patches import healing_received as hr
 from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
@@ -500,6 +502,18 @@ def crash_dump_image() -> bytearray:
     )
 
 
+def ai_command_null_target_image() -> bytearray:
+    """A stand-in carrying the AI command transfer check's faulting instruction and every site the
+    null guard depends on.
+
+    Sparse for the usual reason: the check and its two jump targets share a page, and the two
+    `ToggleMountedSpecialAbilityUpdate` call sites are two megabytes away. Everything not planted
+    reads as zero, so a hook aimed one instruction to either side of the five-byte window - at the
+    `mov eax, [ebp+0x1c]` before it, say - would find nothing there.
+    """
+    return _sparse_image({acnt.HOOK_VA: acnt.HOOK_ORIGINAL, **acnt.ANCHORS})
+
+
 def ai_flag_capture_gate_image() -> bytearray:
     """A stand-in carrying the flag picker's ownership test, everything the cave jumps to, and the
     `AIFlagCaptureSquad` vtable slot the patch checks dispatch through.
@@ -515,6 +529,25 @@ def ai_flag_capture_gate_image() -> bytearray:
             ad.AI_FLAG_CAPTURE_RELATIONSHIP_TEST: ad.AI_FLAG_CAPTURE_RELATIONSHIP_TEST_BYTES,
             slot: struct.pack("<I", ad.AI_FLAG_CAPTURE_SQUAD_UPDATE),
             **afc.ANCHORS,
+        }
+    )
+
+
+def give_upgrade_all_image() -> bytearray:
+    """A stand-in carrying the porter's four delivery windows and every anchor the cave reads.
+
+    Sparse: `canGiveTo` and the auto-deliver's filter capture share a page, the trigger's pick is a
+    page past them, and the search filter's predicate is 2.4 MB below all three. Everything not
+    planted reads as zero, so a hook aimed one instruction to either side - at the `push eax` that
+    precedes the trigger's pick, say - would find nothing there.
+    """
+    return _sparse_image(
+        {
+            ad.GIVE_UPGRADE_CAN_GIVE: ad.GIVE_UPGRADE_CAN_GIVE_ENTRY,
+            ad.GIVE_UPGRADE_TRIGGER_PICK: ad.GIVE_UPGRADE_TRIGGER_PICK_BYTES,
+            ad.GIVE_UPGRADE_SEARCH_FILTER_OWNER: ad.GIVE_UPGRADE_SEARCH_FILTER_OWNER_BYTES,
+            ad.UPGRADE_FILTER_PREDICATE: ad.UPGRADE_FILTER_PREDICATE_ENTRY,
+            **gua.ANCHORS,
         }
     )
 

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from sage_ini.engine import STOCK
 from sage_patch import CahFactionsPatch, CommandSetLimitPatch, Patch, apply_patches
 from sage_patch.cli import build_parser, main
 from sage_patch.patcher import EXPERIMENTAL_WARNING
@@ -81,6 +82,29 @@ def _tiny_pe() -> bytearray:
     data[sectab : sectab + 40] = hdr
     data[0x200:0x204] = b"\xde\xad\xbe\xef"  # a byte at VA 0x401000
     return data
+
+
+#: The opening words of every patch that goes into `Worldbuilder.exe` rather than `game.dat` -
+#: the first thing `sage-patch list` prints for those rows, because "which binary" is the
+#: question a reader has before any other. Read here to tell the two families apart, since the
+#: name does not: `herobar-wb` is a twin, `herobar` is its game half, and `worldbuilder-mod`
+#: is neither.
+_WORLDBUILDER_MARKER = "Worldbuilder.exe (not game.dat):"
+
+
+def _targets_worldbuilder(cls: type[Patch]) -> bool:
+    return cls.description.startswith(_WORLDBUILDER_MARKER)
+
+
+#: The registered game-side patches that append a token to one of the engine's name tables, and
+#: so owe Worldbuilder a twin. Derived from `ini_surface().enum_members`, which the patch already
+#: declares for the `.sagepatch` manifest, rather than listed here - a list is exactly what the
+#: next patch would not be added to.
+_ADDS_TOKENS = {
+    name
+    for name, cls in PATCHES.items()
+    if not _targets_worldbuilder(cls) and cls().ini_surface().enum_members
+}
 
 
 class TestUtils:
@@ -360,6 +384,108 @@ class TestExperimentalPatchesAreDeclared:
         with caplog.at_level(logging.WARNING, logger="sage_patch"):
             apply_patches(src, [_NopPatch()], output=tmp_path / "out.bin")
         assert EXPERIMENTAL_WARNING not in caplog.text
+
+
+class TestNameTableTokensHaveAWorldbuilderTwin:
+    """**The gate that keeps the editor loadable as name-table patches are added.**
+
+    `Worldbuilder.exe` is an assert-enabled build of the same engine, and it carries its *own*
+    copies of the name tables the INI parser resolves a token through. So a patch that appends a
+    token to `game.dat`'s copy alone leaves the editor unable to read the very INI the patch
+    exists to let a mod write: the unknown token throws during load, and the editor exits with
+    code 0 and no dump - which reads, to whoever opens it next, as the editor simply refusing to
+    start.
+
+    That twin is easy to forget precisely because nothing the patch's author does will show it.
+    The game runs, the mod plays, `verify` passes, and the breakage lands on the person who opens
+    the editor afterwards with no way to connect it to a token added to the other binary.
+
+    What makes it checkable is that a patch already declares the tokens it adds - in
+    `ini_surface`, for the `.sagepatch` manifest - so the requirement is derived from the patch
+    rather than from a list here that a new patch would never be added to.
+
+    This says which patches *must* have a twin, never which may: `science-prereqs-wb` relaxes a
+    validation the editor does and carries no token at all, and is nobody's obligation."""
+
+    @pytest.mark.parametrize("name", sorted(_ADDS_TOKENS), ids=sorted(_ADDS_TOKENS))
+    def test_a_patch_that_adds_a_token_has_one(self, name):
+        game = PATCHES[name]
+        tokens = ", ".join(f"{d.enum}.{d.name}" for d in game().ini_surface().enum_members)
+        name_wb = f"{name}-wb"
+        assert name_wb in PATCHES, (
+            f"{name} adds {tokens} to an engine name table, but no {name_wb} is registered. "
+            "Worldbuilder holds its own copy of that table and throws on a token it does not "
+            "know, ending the editor's load, so the token has to be written into the editor too. "
+            "Write the twin beside the game half and register it - `production-split-wb` is the "
+            "shape for a ModifierType, `herobar-wb` for a KindOf. If the table genuinely has no "
+            "Worldbuilder counterpart, say so here rather than dropping the case silently."
+        )
+        twin = PATCHES[name_wb]
+        assert _targets_worldbuilder(twin), (
+            f"{name_wb} is registered but its description does not open with "
+            f"{_WORLDBUILDER_MARKER!r}, which is how `sage-patch list` tells somebody which "
+            "binary to point `apply` at - and how this file recognises a twin at all."
+        )
+        # One module for the pair, so the two are read and edited together: they have to be given
+        # the *same* token names, since what parsed data stores is the index the name resolved to,
+        # and a rename that reaches only one binary is a silent index shift, not a load error.
+        assert twin.__module__ == game.__module__, (
+            f"{name} is defined in {game.__module__} and {name_wb} in {twin.__module__}. Keep the "
+            "pair in one module - split across two files is how one side gets renamed alone."
+        )
+
+    def test_every_twin_names_a_game_side_half(self):
+        """The other direction: a `-wb` with nothing to be the twin *of* is either a patch that
+        outlived its game half or one whose half was never registered, and both present the editor
+        with a token the game will reject."""
+        for name in sorted(PATCHES):
+            if not name.endswith("-wb"):
+                continue
+            half = name.removesuffix("-wb")
+            assert half in PATCHES, f"{name} is registered but {half} is not"
+            assert not _targets_worldbuilder(PATCHES[half]), (
+                f"{half} says it targets Worldbuilder, so {name} is a twin of a twin"
+            )
+
+    def test_a_worldbuilder_patch_declares_no_game_ini_surface(self):
+        """A twin teaches the *editor* to read INI the patched game already reads; it adds nothing
+        to what the game accepts. Were it to report a surface, `sagepatch` would write the token
+        into `.sagepatch` twice - and a build carrying only the twin would claim a `game.dat`
+        surface its `game.dat` does not have."""
+        for name, cls in sorted(PATCHES.items()):
+            if _targets_worldbuilder(cls):
+                assert cls().ini_surface() == STOCK, (
+                    f"{name} patches Worldbuilder.exe but reports an INI surface. The surface "
+                    "belongs on the game-side half, which is what `.sagepatch` describes."
+                )
+
+    def test_the_readme_names_every_worldbuilder_patch(self):
+        """The one place this is written down that nothing executes: the opening paragraph of
+        `sage_patch/README.md` counts the Worldbuilder patches and names them, for a reader
+        working out which binaries a build touches before they run anything. A twin added without
+        it leaves the prose saying a build needs one file fewer than it does."""
+        blocks = _PATCH_README.read_text(encoding="utf-8").split("\n\n")
+        paragraph = next(block for block in blocks if "**twins**" in block)
+        # Backticked names without a dot: the patch names, as against `game.dat`, the build string
+        # and `lotrbfme2ep1.exe`, which the same paragraph also mentions.
+        named = {n for n in re.findall(r"`([A-Za-z0-9_.-]+)`", paragraph) if "." not in n}
+        worldbuilder = {n for n, cls in PATCHES.items() if _targets_worldbuilder(cls)}
+
+        assert named <= set(PATCHES), (
+            f"the README's opening paragraph names {sorted(named - set(PATCHES))}, which is not a "
+            "registered patch"
+        )
+        assert worldbuilder <= named, (
+            f"the README's opening paragraph does not name {sorted(worldbuilder - named)}. Add it "
+            "there (and update the counts, which are spelled out in words)."
+        )
+        twins = {n for n in worldbuilder if n.endswith("-wb")}
+        assert f"{_NUMBER_WORDS[len(worldbuilder)].capitalize()} patch `Worldbuilder.exe`" in (
+            paragraph
+        ), f"the README does not open by counting {len(worldbuilder)} Worldbuilder patches"
+        assert f"the {_NUMBER_WORDS[len(twins)]} **twins**" in paragraph, (
+            f"the README does not count {len(twins)} twins"
+        )
 
 
 class TestParameterizedPatchesRecoverTheirParameters:

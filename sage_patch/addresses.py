@@ -43,8 +43,29 @@ __all__ = [
     "AI_ACTIVE_ATTACK_MACHINE_BYTES",
     "AI_ATTACK_MACHINE_TARGET",
     "AI_ATTACK_MACHINE_TARGET_BYTES",
+    "AI_COMMAND_OBJECT_EBP",
     "AI_COMMAND_SOURCE_FROM_AI",
     "AI_COMMAND_SOURCE_OFFSET",
+    "AI_COMMAND_TRANSFER_ANSWER",
+    "AI_COMMAND_TRANSFER_ANSWER_BYTES",
+    "AI_COMMAND_TRANSFER_ANSWER_READ",
+    "AI_COMMAND_TRANSFER_ANSWER_READ_BYTES",
+    "AI_COMMAND_TRANSFER_BOOL_INIT",
+    "AI_COMMAND_TRANSFER_BOOL_INIT_BYTES",
+    "AI_COMMAND_TRANSFER_CHECK",
+    "AI_COMMAND_TRANSFER_CHECK_ENTRY",
+    "AI_COMMAND_TRANSFER_DISMOUNT_CALL",
+    "AI_COMMAND_TRANSFER_DISMOUNT_CALL_BYTES",
+    "AI_COMMAND_TRANSFER_MOUNT_CALL",
+    "AI_COMMAND_TRANSFER_MOUNT_CALL_BYTES",
+    "AI_COMMAND_TRANSFER_OBJECT_ARM",
+    "AI_COMMAND_TRANSFER_OBJECT_ARM_BYTES",
+    "AI_COMMAND_TRANSFER_RESUME",
+    "AI_COMMAND_TRANSFER_RESUME_BYTES",
+    "AI_COMMAND_TRANSFER_TARGET_LOAD",
+    "AI_COMMAND_TRANSFER_TARGET_LOAD_BYTES",
+    "AI_COMMAND_TRANSFER_TARGET_USE",
+    "AI_COMMAND_TRANSFER_TARGET_USE_BYTES",
     "AI_COMMAND_TYPE_OFFSET",
     "AI_CURRENT_VICTIM",
     "AI_CURRENT_VICTIM_BYTES",
@@ -200,12 +221,15 @@ __all__ = [
     "COMMAND_BUTTON_CTOR",
     "COMMAND_BUTTON_CTOR_AUTO_ABILITY",
     "COMMAND_BUTTON_CTOR_AUTO_ABILITY_BYTES",
+    "COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY",
+    "COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY_BYTES",
     "COMMAND_BUTTON_FIELD_TABLE",
     "COMMAND_BUTTON_FIELD_TABLE_REFS",
     "COMMAND_BUTTON_FIELD_TABLE_REF_OPCODES",
     "COMMAND_BUTTON_FREE_OFFSET",
     "COMMAND_BUTTON_SIZE",
     "COMMAND_BUTTON_SPECIAL_POWER",
+    "COMMAND_BUTTON_TRIGGER_WHEN_READY",
     "COMMAND_POINTS_HAS_ENOUGH",
     "COMMAND_POINTS_IN_USE",
     "COMMAND_SET_STORE_FIND_COMMAND_SET",
@@ -225,6 +249,13 @@ __all__ = [
     "CONTROL_BAR_COMMAND_DISPATCH_BYTES",
     "CONTROL_BAR_COMMAND_INDEX_TABLE",
     "CONTROL_BAR_COMMAND_JUMP_TABLE",
+    "CONTROL_BAR_MERGE_HIDE",
+    "CONTROL_BAR_MERGE_INSTALL",
+    "CONTROL_BAR_MERGE_KEEP",
+    "CONTROL_BAR_MERGE_OBJECT_EBP",
+    "CONTROL_BAR_MERGE_SLOT",
+    "CONTROL_BAR_MERGE_SLOT_BYTES",
+    "CONTROL_BAR_POPULATE_MULTI_SELECT",
     "CONTROL_BAR_POP_RANGE_HANDLER",
     "CONTROL_BAR_POP_RANGE_HANDLER_BYTES",
     "CONTROL_BAR_PROCESS_COMMAND_UI",
@@ -388,6 +419,26 @@ __all__ = [
     "GAME_TEXT_FORMAT_SLOT",
     "GET_CHECKBOX_STATE",
     "GET_FINAL_OVERRIDE",
+    "GIVE_UPGRADE_CAN_GIVE",
+    "GIVE_UPGRADE_CAN_GIVE_BODY",
+    "GIVE_UPGRADE_CAN_GIVE_BODY_BYTES",
+    "GIVE_UPGRADE_CAN_GIVE_ENTRY",
+    "GIVE_UPGRADE_PRODUCER_HORDE_IFACE",
+    "GIVE_UPGRADE_PRODUCER_HORDE_IFACE_ENTRY",
+    "GIVE_UPGRADE_SEARCH_FILTER_OWNER",
+    "GIVE_UPGRADE_SEARCH_FILTER_OWNER_BYTES",
+    "GIVE_UPGRADE_SEARCH_FILTER_VTABLE",
+    "GIVE_UPGRADE_SEARCH_FILTER_VTABLE_BYTES",
+    "GIVE_UPGRADE_SEARCH_OWNER_LOAD",
+    "GIVE_UPGRADE_SEARCH_OWNER_LOAD_BYTES",
+    "GIVE_UPGRADE_TRIGGER_MEMBER_ARM",
+    "GIVE_UPGRADE_TRIGGER_MEMBER_ARM_BYTES",
+    "GIVE_UPGRADE_TRIGGER_OWNER",
+    "GIVE_UPGRADE_TRIGGER_OWNER_BYTES",
+    "GIVE_UPGRADE_TRIGGER_PICK",
+    "GIVE_UPGRADE_TRIGGER_PICK_BYTES",
+    "GIVE_UPGRADE_TRIGGER_TARGET_ARM",
+    "GIVE_UPGRADE_TRIGGER_TARGET_ARM_BYTES",
     "GLOBAL_DATA",
     "GLOBAL_DATA_ASSET_PROFILE",
     "GLOBAL_DATA_FPS_LIMIT",
@@ -405,10 +456,12 @@ __all__ = [
     "HERO_LEDGER_TO_RECORD",
     "HORDE_CONTAIN_BUILD_SLOTS_SLOT",
     "HORDE_CONTAIN_IFACE",
+    "HORDE_IFACE_ANY_MEMBER_ACCEPTS_SLOT",
     "HORDE_IFACE_ASSIGN_SLOT",
     "HORDE_IFACE_ASSIGN_SLOT_BYTES",
     "HORDE_IFACE_ASSIGN_SLOT_SLOT",
     "HORDE_IFACE_FREE_SLOTS",
+    "HORDE_IFACE_GIVE_UPGRADE_SLOT",
     "HORDE_IFACE_SLOTS_BUILT",
     "HORDE_IFACE_SLOT_ARRAY",
     "HORDE_IFACE_SLOT_INDEX",
@@ -441,6 +494,8 @@ __all__ = [
     "KINDOF_BASE_SITE",
     "KINDOF_HERO_BIT",
     "KINDOF_HERO_BYTE",
+    "KINDOF_HORDE_BIT",
+    "KINDOF_HORDE_BYTE",
     "LIVE_CAMPAIGN_MODE_OFFSET",
     "LIVING_WORLD_ARMY_ROSTER_ID",
     "LIVING_WORLD_BATTLE_HARVEST_CALL",
@@ -502,14 +557,19 @@ __all__ = [
     "NUGGET_VTBL_SUBWEAPON",
     "NUGGET_VTBL_VALID_VICTIM",
     "OBJECT_ATTEMPT_HEALING",
+    "OBJECT_CAN_ACCEPT_UPGRADE",
     "OBJECT_CONTAIN",
+    "OBJECT_CONTAINED_BY",
     "OBJECT_FIELD_TABLE",
     "OBJECT_FIELD_TABLE_REFS",
     "OBJECT_FIELD_TABLE_REF_OPCODES",
     "OBJECT_FILTER_ALLOW",
     "OBJECT_FILTER_IS_VALID",
+    "OBJECT_GET_HORDE_IFACE",
     "OBJECT_GET_MODIFIER_MULTIPLIER",
+    "OBJECT_GIVE_UPGRADE",
     "OBJECT_HAS_MODIFIER",
+    "OBJECT_HAS_UPGRADE",
     "OBJECT_ID",
     "OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE",
     "OBJECT_IMAGE_UPGRADE_BUILD_UPGRADE_FIELDS",
@@ -540,6 +600,7 @@ __all__ = [
     "OBJECT_STATUS_UNSELECTABLE",
     "OBJECT_TEST_STATUS",
     "OBJECT_THING_TEMPLATE",
+    "OBJECT_UPGRADE_MASK",
     "OBSERVER_BAR_GATE_CALL",
     "OBSERVER_BAR_GATE_CALL_BYTES",
     "OBSERVER_BAR_GATE_FINGERPRINT",
@@ -876,7 +937,17 @@ __all__ = [
     "UNICODE_STRING_DTOR",
     "UNICODE_STRING_FORMAT",
     "UNICODE_STRING_FROM_WIDE",
+    "UPGRADE_CENTER_LIST",
+    "UPGRADE_FILTER_BODY",
+    "UPGRADE_FILTER_BODY_BYTES",
+    "UPGRADE_FILTER_OWNER_SLOT",
+    "UPGRADE_FILTER_PREDICATE",
+    "UPGRADE_FILTER_PREDICATE_ENTRY",
+    "UPGRADE_FILTER_UPGRADE_SLOT",
+    "UPGRADE_FIRST_SET",
+    "UPGRADE_FIRST_SET_ENTRY",
     "UPGRADE_TEMPLATE_INDEX",
+    "UPGRADE_TEMPLATE_NEXT",
     "USER_PREFERENCES_WRITE",
     "VICTORY_CONDITIONS_HAS_ACHIEVED_VICTORY",
     "VICTORY_CONDITIONS_HAS_ACHIEVED_VICTORY_SLOT",
@@ -1725,6 +1796,47 @@ CONTROL_BAR_COMMAND_INDEX_TABLE = 0x00941B63
 # The two paging handlers the tables above must reach. `PUSH` takes `&button->m_range`
 # (`CommandButton+0x22C`) and appends it to the stack at `ControlBar+0x2B0`; `POP` drops the top
 # 8-byte record. Both end in `switchToContext(current, current)` - a redraw, and nothing else.
+# `ControlBar::populateMultiSelect`'s per-drawable merge - `thiscall(Drawable *, Bool first)`,
+# `ret 8`. Called once per selected drawable from `0x009448A9`, with `first` set for the first one
+# only. The `first` pass installs that unit's `CommandSet` into the 33 slots (each button needing
+# `OK_FOR_MULTI_SELECT`, tested at `0x009445DA`); every later pass **intersects**, and the loop at
+# `0x009446CA` is the whole of that rule.
+#
+# Three frame slots survive the loop: `[ebp-4]` the `ControlBar`, `[ebp-8]` this drawable's
+# `CommandSet`, and `[ebp-0x14]` its `Object` - stored at `0x00944556`, with the
+# `je 0x00944754` two instructions later proving it is non-NULL everywhere the loop runs.
+CONTROL_BAR_POPULATE_MULTI_SELECT = 0x00944534
+CONTROL_BAR_MERGE_OBJECT_EBP = -0x14
+
+# The merge's verdict, and the three arms it dispatches to. `edi` is this object's button for the
+# slot, `eax` the button already installed there, `esi` the slot's window, `cl` the flag saying one
+# of the two is `ATTACK_MOVE` (GUI command 0xA, the stock exemption). Eight bytes, four whole
+# instructions:
+#
+#     0094472e  cmp  edi, eax        ; the comparison is **pointer identity**, nothing weaker
+#     00944730  je   0x94474a        ;   same button -> keep the slot
+#     00944732  test cl, cl
+#     00944734  jne  0x94474a        ;   ATTACK_MOVE involved -> keep the slot
+#     00944736  <clear the slot and hide the window>
+#
+# So two units whose sets name *different* buttons at one index lose that slot for the whole
+# selection - it is hidden, not greyed, which is why a mixed selection shows an empty socket rather
+# than a disabled icon.
+#
+# `edx` is dead across the loop and `cl` is dead past its own test, which is what leaves a cave
+# room to work without saving anything.
+CONTROL_BAR_MERGE_SLOT = 0x0094472E
+CONTROL_BAR_MERGE_SLOT_BYTES = bytes.fromhex("3bf8741884c97514")
+
+# The merge's three continuations. `HIDE` is the stock refusal - `[esi+0x84] = NULL` then
+# `winHide(TRUE)`. `KEEP` is the loop's own `inc ebx` / `add esi, 4`. `INSTALL` is the arm the
+# empty-slot case takes, and it is reusable from anywhere **provided `eax` is zero**: it stores
+# `edi` into `[esi+0x84]`, then `winHide(eax)` - so a non-zero `eax` would hide the window it
+# means to show.
+CONTROL_BAR_MERGE_HIDE = 0x00944736
+CONTROL_BAR_MERGE_KEEP = 0x0094474A
+CONTROL_BAR_MERGE_INSTALL = 0x00944704
+
 CONTROL_BAR_PUSH_RANGE_HANDLER = 0x00941A7D
 CONTROL_BAR_PUSH_RANGE_HANDLER_BYTES = bytes.fromhex("81c62c020000")  # add esi, 0x22c
 CONTROL_BAR_POP_RANGE_HANDLER = 0x00941A9C
@@ -2719,6 +2831,22 @@ COMMAND_BUTTON_AUTO_ABILITY = 0x10C
 COMMAND_BUTTON_FREE_OFFSET = 0x10D
 COMMAND_BUTTON_CTOR_AUTO_ABILITY = 0x0075D688
 COMMAND_BUTTON_CTOR_AUTO_ABILITY_BYTES = bytes.fromhex("889e0c010000")
+
+#: `TriggerWhenReady`, the `Bool` at +0x12C, and **the three bytes after it are alignment padding**
+#: - the second hole of the same shape as `AutoAbility`'s. No field in the table names
+#: +0x12D..+0x12F: `PresetRange` is the `Real` at +0x130, and the constructor's
+#: `memset(this+0x110, 0, 0x1C)` stops at +0x12B, one byte short of `TriggerWhenReady` itself.
+#:
+#: The constructor defaults it with `mov byte [esi+0x12C], bl`, six bytes at
+#: :data:`COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY`. Widening that to `mov dword [esi+0x12C], ebx`
+#: is **one byte changed, six for six**, and `ebx` is the zero the whole constructor stores from
+#: (`xor ebx, ebx` at 0x0075D52A; the dword store `mov [esi+0x2DC], ebx` at 0x0075D72B is the proof
+#: all four bytes of it are zero, not just `bl`). So the widened store leaves `TriggerWhenReady` at
+#: `No` and clears the padding on the way past, which is what makes a field parked there free to
+#: default without a constructor hook at all.
+COMMAND_BUTTON_TRIGGER_WHEN_READY = 0x12C
+COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY = 0x0075D69C
+COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY_BYTES = bytes.fromhex("889e2c010000")
 
 #: The `CommandButton` field-parse table (55 rows on the stock build) and its **three**
 #: references: the static accessor `mov eax, imm32` / `ret` at `0x005DA706`, and the two `push`
@@ -4379,3 +4507,168 @@ WEAPON_TARGET_IN_RANGE_BYTES = bytes.fromhex("8b54240485d27427")
 AI_COMMAND_TYPE_OFFSET = 0x00
 AI_COMMAND_SOURCE_OFFSET = 0x04
 AI_COMMAND_SOURCE_FROM_AI = 2
+
+#: `AICommandParms::m_obj`, the command's target `Object*`, at `+0x14` - written by
+#: `AICommandParmsStorage::reconstitute` (0x0075315B) from the stored `ObjectID` through
+#: `GameLogic::findObjectByID`, with no null check, so an id whose object has been removed
+#: arrives here as NULL. The struct travels by value, so in the frame of the transfer check
+#: below it is `[ebp+0x1c]`: `+0x8` for the return address and saved `ebp`, `+0x8` more for the
+#: `Coord3D` at struct offset `+0x8`.
+AI_COMMAND_OBJECT_EBP = 0x1C
+
+# `AIUpdateInterface::isCommandWorthTransferring(AICommandParms)` - the mount swap's "should the
+# replacement object inherit this pending order" test. `__thiscall` on the AIUpdate with the
+# parms by value (`ret 0xc0`), answering in `al`: **non-zero means do not transfer**. Switches on
+# the command type and, for the arms that name an object, measures the distance from the owner to
+# the target against the locomotor's `+0x3c`. Derived in `docs/ai-command-null-target.md`.
+AI_COMMAND_TRANSFER_CHECK = 0x0066C2BF
+AI_COMMAND_TRANSFER_CHECK_ENTRY = bytes.fromhex("b8fc72b800e8270c")
+
+# `xor ebx, ebx` + `inc ebx` - where the answer is seeded to 1 ("not worth transferring"). Every
+# arm that decides otherwise clears `bl`; the tail reads it back out. Anchored because the guard
+# jumps into that tail and has to know what the register there means.
+AI_COMMAND_TRANSFER_BOOL_INIT = 0x0066C2D1
+AI_COMMAND_TRANSFER_BOOL_INIT_BYTES = bytes.fromhex("33db43")
+
+# `mov eax, [ecx+8]` - the head of the object-target arm, reached for command types 1
+# (`AICMD_MOVE_TO_OBJECT`), 0x48 and 0x49. `[ecx+8]` is the AIUpdate's owning `Object`, whose
+# position the arm reads before it reads the target's.
+AI_COMMAND_TRANSFER_OBJECT_ARM = 0x0066C3FB
+AI_COMMAND_TRANSFER_OBJECT_ARM_BYTES = bytes.fromhex("8b4108")
+
+# `mov eax, [ebp+0x1c]` - the load of `AICommandParms::m_obj`. Anchoring these three bytes is
+# what pins `AI_COMMAND_OBJECT_EBP` to this frame: the guard tests whatever this instruction
+# produced, so a build that read the target from a different slot fails here.
+AI_COMMAND_TRANSFER_TARGET_LOAD = 0x0066C40D
+AI_COMMAND_TRANSFER_TARGET_LOAD_BYTES = bytes.fromhex("8b451c")
+
+# `subss xmm0, dword [eax+0x38]` - **the faulting instruction**, and the hook window. Five bytes,
+# exactly one `jmp rel32`, and nothing in `.text` branches into its interior.
+AI_COMMAND_TRANSFER_TARGET_USE = 0x0066C410
+AI_COMMAND_TRANSFER_TARGET_USE_BYTES = bytes.fromhex("f30f5c4038")
+
+# `subss xmm1, dword [eax+0x3c]` - where the displaced instruction returns to.
+AI_COMMAND_TRANSFER_RESUME = 0x0066C415
+AI_COMMAND_TRANSFER_RESUME_BYTES = bytes.fromhex("f30f5c483c")
+
+# `or dword [ebp-4], 0xffffffff` - the shared tail every arm reaches: restore the SEH state, free
+# the parms' waypoint vector at `[ebp+0x28]` if it has one, then `mov al, bl` and return. The
+# guard jumps here with `bl` set, which is what makes it answer without duplicating the cleanup.
+AI_COMMAND_TRANSFER_ANSWER = 0x0066C470
+AI_COMMAND_TRANSFER_ANSWER_BYTES = bytes.fromhex("834dfcff")
+
+# `mov al, bl` - the tail reading the answer back out of `bl`, four instructions later.
+AI_COMMAND_TRANSFER_ANSWER_READ = 0x0066C483
+AI_COMMAND_TRANSFER_ANSWER_READ_BYTES = bytes.fromhex("8ac3")
+
+# The two calls to `AI_COMMAND_TRANSFER_CHECK`, both inside
+# `ToggleMountedSpecialAbilityUpdate` - the mount swap at 0x008B140D and its sibling. Their five
+# bytes *are* the displacement, so asserting them asserts that the function this patch edits is
+# the one the swap reaches.
+AI_COMMAND_TRANSFER_MOUNT_CALL = 0x008B1644
+AI_COMMAND_TRANSFER_MOUNT_CALL_BYTES = bytes.fromhex("e876acdbff")
+AI_COMMAND_TRANSFER_DISMOUNT_CALL = 0x008B24C3
+AI_COMMAND_TRANSFER_DISMOUNT_CALL_BYTES = bytes.fromhex("e8f79ddbff")
+
+
+# The porter's upgrade delivery - `GiveUpgradeUpdate`, both its targeted (`SPECIAL_GIVE_UPGRADE`)
+# and its auto-deliver (`SPECIAL_GIVE_UPGRADE_NEAREST`) form. Derived in `docs/give-upgrade-all.md`,
+# which is also where the one-upgrade-per-porter limit these describe is laid out.
+
+# `UpgradeCenter::firstSetIn(mask)`: walks the `UpgradeTemplate` list at `TheUpgradeCenter+0x0C`
+# through `+0x64` and returns the first template whose `+0x38` index is set in the caller's bitset.
+# Thirteen callers; `GiveUpgradeUpdate` is three of them. The list is newest-first, so "first"
+# means the upgrade declared last in ini load order.
+UPGRADE_FIRST_SET = 0x0066F468
+UPGRADE_FIRST_SET_ENTRY = bytes.fromhex("8b410c56eb1c")
+UPGRADE_CENTER_LIST = 0x0C
+UPGRADE_TEMPLATE_NEXT = 0x64
+
+# The object-scoped completed-upgrade bitset, indexed exactly like the per-player one at
+# `PLAYER_COMPLETED_UPGRADE_MASK`: word `index >> 5`, bit `index & 31`. This is what
+# `GrantUpgradeCreate` writes and what a porter's carried upgrades are read out of.
+OBJECT_UPGRADE_MASK = 0x28C
+
+# `Object::m_containedBy` - the horde a battalion member belongs to, and the field every
+# member-versus-lone-unit test in the delivery path branches on.
+OBJECT_CONTAINED_BY = 0x27C
+
+# `Object::canAcceptUpgrade(u)`: the player must satisfy the upgrade's `RequiredObjectFilter`
+# (`UpgradeTemplate+0x80`), and the object must own a module whose upgrade interface says it would
+# fire on the resulting mask - `TriggeredBy` that upgrade, in ini terms. Recurses into `+0x258`,
+# so asking a horde container asks its members too.
+OBJECT_CAN_ACCEPT_UPGRADE = 0x00694914
+
+# `Object::giveUpgrade(u)` and `Object::hasUpgrade(u)`, both `ret 4`.
+OBJECT_GIVE_UPGRADE = 0x0069388B
+OBJECT_HAS_UPGRADE = 0x00691421
+
+# `Object::getHordeIface()`: `m_contain` then `CONTAIN_GET_HORDE_IFACE_SLOT`, NULL for anything
+# that contains nothing. No arguments.
+OBJECT_GET_HORDE_IFACE = 0x0068C866
+
+# On the horde interface: `+0xAC` `anyMemberCanAccept(u)` (`0x0086ECAB`, `ret 4`) and `+0xB8`
+# `giveUpgradeToMembers(u, force)` (`0x00871A90`, `ret 8`). The latter grants to the container
+# unconditionally and then gates every member on `OBJECT_CAN_ACCEPT_UPGRADE` unless `force`.
+HORDE_IFACE_ANY_MEMBER_ACCEPTS_SLOT = 0xAC
+HORDE_IFACE_GIVE_UPGRADE_SLOT = 0xB8
+
+# `KINDOF HORDE`, bit 109: bit 0x20 of the `KindOf` byte at `ThingTemplate+0x115`.
+KINDOF_HORDE_BYTE = 0x115
+KINDOF_HORDE_BIT = 0x20
+
+# `GiveUpgradeUpdate::canGiveTo(target)` - the whole validity predicate, and the only thing
+# standing between the cursor and a target once relationship and `KINDOF IMMOBILE` have passed.
+# The entry is the six-byte hook window (`push esi` / `mov esi, ecx` / `mov eax, [esi+8]`); the
+# body is the remaining 83 bytes, anchored so a build whose predicate differs fails before
+# anything is replaced.
+GIVE_UPGRADE_CAN_GIVE = 0x0089FE64
+GIVE_UPGRADE_CAN_GIVE_ENTRY = bytes.fromhex("568bf18b4608")
+GIVE_UPGRADE_CAN_GIVE_BODY = 0x0089FE6A
+GIVE_UPGRADE_CAN_GIVE_BODY_BYTES = bytes.fromhex(
+    "8b0da045de0057058c02000050e8ecf5dcff8bf885ff74348b4c240c83b97c02000000"
+    "7419518bcee8e0feffff85c0741b8b10578bc8ff92ac000000eb0657e8664adfff84c0"
+    "7404b001eb0232c05f5ec20400"
+)
+
+# `GiveUpgradeUpdate::producerHordeIface(target)`: `findObjectByID(target->+0x78)`, then that
+# object's contain module and its horde interface. How a picked battalion *member* is resolved
+# back to the horde that is the real recipient.
+GIVE_UPGRADE_PRODUCER_HORDE_IFACE = 0x0089FD77
+GIVE_UPGRADE_PRODUCER_HORDE_IFACE_ENTRY = bytes.fromhex("8b44240485c0741c")
+
+# Inside `GiveUpgradeUpdate::trigger` (`0x008A01B2`). `TRIGGER_PICK` is its call to
+# `UPGRADE_FIRST_SET`, the hook window; the other three are the anchors that pin the registers the
+# replacement reads - `ebx` the owning porter, `edi` the target, `esi` the module.
+GIVE_UPGRADE_TRIGGER_OWNER = 0x008A01D8
+GIVE_UPGRADE_TRIGGER_OWNER_BYTES = bytes.fromhex("8b5e08")
+GIVE_UPGRADE_TRIGGER_PICK = 0x008A021B
+GIVE_UPGRADE_TRIGGER_PICK_BYTES = bytes.fromhex("e848f2dcff")
+GIVE_UPGRADE_TRIGGER_TARGET_ARM = 0x008A022B
+GIVE_UPGRADE_TRIGGER_TARGET_ARM_BYTES = bytes.fromhex("8b4704f680150100002074098bcf")
+GIVE_UPGRADE_TRIGGER_MEMBER_ARM = 0x008A0240
+GIVE_UPGRADE_TRIGGER_MEMBER_ARM_BYTES = bytes.fromhex("578bcee82ffbffff")
+
+# Inside the `DeliverUpgrade = Yes` search (`0x0089FEC7`), which builds a filter functor on the
+# stack - `{vtable 0x00C67A88, 0, upgrade}` - and scans for the nearest object it accepts.
+# `SEARCH_OWNER_LOAD` is what puts the porter in `esi`; `SEARCH_FILTER_OWNER` is the store that
+# zeroes the functor's dead `+4` slot, which is where the owner is parked instead;
+# `SEARCH_FILTER_VTABLE` pins the functor's base, and therefore which frame slot `+4` is.
+GIVE_UPGRADE_SEARCH_OWNER_LOAD = 0x0089FEEB
+GIVE_UPGRADE_SEARCH_OWNER_LOAD_BYTES = bytes.fromhex("8b7708")
+GIVE_UPGRADE_SEARCH_FILTER_OWNER = 0x0089FF17
+GIVE_UPGRADE_SEARCH_FILTER_OWNER_BYTES = bytes.fromhex("895ddc")
+GIVE_UPGRADE_SEARCH_FILTER_VTABLE = 0x0089FF1A
+GIVE_UPGRADE_SEARCH_FILTER_VTABLE_BYTES = bytes.fromhex("c745d8887ac600")
+
+# `UpgradeFilter::operator()(candidate)` - `canAcceptUpgrade(+8) && !hasUpgrade(+8)`. Private to
+# `GiveUpgradeUpdate`: its vtable is built at exactly two sites, both in that class, and nothing
+# else branches here. The entry is the five-byte hook window, the body the remaining 40 bytes.
+UPGRADE_FILTER_PREDICATE = 0x00660E04
+UPGRADE_FILTER_PREDICATE_ENTRY = bytes.fromhex("568bf1ff76")
+UPGRADE_FILTER_BODY = 0x00660E09
+UPGRADE_FILTER_BODY_BYTES = bytes.fromhex(
+    "088b4c240ce8013b030084c07414ff76088b4c240ce8fe05030084c07504fec0eb0232c05ec20400"
+)
+UPGRADE_FILTER_OWNER_SLOT = 0x04
+UPGRADE_FILTER_UPGRADE_SLOT = 0x08
