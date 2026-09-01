@@ -344,6 +344,62 @@ def test_every_routine_is_reachable_and_distinct() -> None:
     assert all(_CODE_VA <= va < _CODE_VA + len(_code()) for va in entries.values())
 
 
+def _branch_target(code: bytes, at: int) -> int:
+    """Where the `jcc rel32` whose opcode pair starts at ``at`` lands, following one `jmp` hop.
+
+    The cave's exits are labels that each hold a single `jmp` to the engine, so a `jcc` aimed at
+    `keep` or `hide` reaches the engine one instruction later. Following that hop is what lets a
+    test say "this branch means KEEP" rather than "this branch goes somewhere in the cave"."""
+    assert code[at] == 0x0F and 0x80 <= code[at + 1] <= 0x8F
+    landed = _CODE_VA + at + 6 + struct.unpack_from("<i", code, at + 2)[0]
+    offset = landed - _CODE_VA
+    if 0 <= offset < len(code) - 4 and code[offset] == HOOK_JMP:
+        return _CODE_VA + offset + 5 + struct.unpack_from("<i", code, offset + 1)[0]
+    return landed
+
+
+def test_a_slot_only_one_set_fills_is_filled_rather_than_blanked() -> None:
+    """The union half of the rule, and the one part not gated on the new field: a set that says
+    nothing about a slot is not in conflict with one that does.
+
+    `test edi, edi` (this set has no button) must reach `KEEP`, so the installed one stands, and
+    `test eax, eax` (nothing installed) must reach the adopt arm rather than `HIDE`. Stock sends
+    both to the clear-and-hide, which is what puts an empty socket under a button only half the
+    selection owns."""
+    code = _code()
+    merge = entry_points(_CODE_VA, _FLAGS_VA)["merge"] - _CODE_VA
+    no_button = code.index(bytes([0x85, 0xFF]), merge)  # test edi, edi
+    nothing_installed = code.index(bytes([0x85, 0xC0]), no_button)  # test eax, eax
+    assert _branch_target(code, no_button + 2) == CONTROL_BAR_MERGE_KEEP
+    adopt = _branch_target(code, nothing_installed + 2)
+    assert adopt not in (CONTROL_BAR_MERGE_HIDE, CONTROL_BAR_MERGE_KEEP)
+    assert _CODE_VA <= adopt < _CODE_VA + len(code)
+
+
+def test_the_adopt_arm_re_tests_ok_for_multi_select() -> None:
+    """The first-object pass gates on `OK_FOR_MULTI_SELECT` at `0x009445DA` before it installs
+    anything, and the adopt arm bypasses that pass entirely - so it has to ask again, or the union
+    would put buttons in a group bar that are not meant to appear in one."""
+    code = _code()
+    merge = entry_points(_CODE_VA, _FLAGS_VA)["merge"] - _CODE_VA
+    nothing_installed = code.index(bytes([0x85, 0xC0]), code.index(bytes([0x85, 0xFF]), merge))
+    adopt = _branch_target(code, nothing_installed + 2) - _CODE_VA
+    assert code[adopt : adopt + 4] == bytes([0xF6, 0x47, 0x1D, 0x01])  # test byte [edi+0x1d], 1
+    assert _branch_target(code, adopt + 4) == CONTROL_BAR_MERGE_HIDE
+
+
+def test_the_adopt_arm_zeroes_eax_after_asking_availability() -> None:
+    """It arrives with `eax` already the NULL the install arm wants to hand to `winHide`, but
+    `avail` returns its answer there - so the zero has to be re-established, not assumed."""
+    code = _code()
+    merge = entry_points(_CODE_VA, _FLAGS_VA)["merge"] - _CODE_VA
+    nothing_installed = code.index(bytes([0x85, 0xC0]), code.index(bytes([0x85, 0xFF]), merge))
+    adopt = _branch_target(code, nothing_installed + 2) - _CODE_VA
+    body = code[adopt : adopt + 0x28]
+    assert bytes([0x33, 0xC0]) in body  # xor eax, eax
+    assert body.index(bytes([0x33, 0xC0])) < body.index(bytes([0xE9]))  # before the jmp to INSTALL
+
+
 def test_the_merge_reproduces_both_displaced_tests() -> None:
     """The identity compare and the `ATTACK_MOVE` flag test are the two things the hook displaced.
     If either were dropped, every slot in every mixed selection would go through the new code."""

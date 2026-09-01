@@ -483,13 +483,19 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   same patched binary** and replays do not cross. **Runtime-verified in game.**
 - **`multi-select-group`** adds a **`MultiSelectGroup` number to `CommandButton`**, so two buttons a
   mod declares interchangeable keep the slot they share when a mixed selection's command bars are
-  merged — and a click on that slot reaches every stage in the group. Today neither happens:
+  merged, fills a slot only one of them has instead of blanking it, and reaches every stage in the
+  group on a click. Today none of the three happens:
   `ControlBar::populateMultiSelect` fills the slots from the first selected unit's `CommandSet` and
   merges every later unit in by comparing its button for each slot **by pointer identity**, so a
   difference clears the slot and `winHide`s the window and the player sees an empty socket, not a
   greyed icon. That is what a `CommandSetUpgrade` swap costs the moment a selection holds units at
   two upgrade stages, and the palantir draws six buttons for a unit so the slot cannot simply be
-  moved elsewhere. Buttons carrying the same non-zero value now merge as one. **The one displayed is
+  moved elsewhere. Buttons carrying the same non-zero value now merge as one. **A slot only one
+  set fills is filled from that one**, which needs no field at all - a set that says nothing
+  about a slot is not in conflict with one that does, so selecting `OrkstadTunnelOrksCommandSet`
+  with `GundabadLancerCommandSet` keeps the lancers' forged-blades button on screen instead of
+  blanking it; the adopted button is re-tested for `OK_FOR_MULTI_SELECT` first, and the click
+  lands only where `canAcceptUpgrade` says a module actually consumes the upgrade. **The one displayed is
   chosen by the data, not by selection order**: a button no selected unit can click never wins
   against one something can (the merge asks `getCommandAvailability` and keeps a 33-byte per-slot
   record of what the selection has been able to use), and when both are usable the tie goes to the

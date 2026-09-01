@@ -7,9 +7,10 @@ The RE behind [`patches/multi_select_group.py`](../patches/multi_select_group.py
 against a synthetic stand-in, and composing with `command-point-cost` and `queue-ignore-cp` in
 any order. **Static-verified only — not yet runtime-verified in game.**
 
-Three behaviours, four hooks: the slot survives a mixed selection (§1, §6); the button shown is one
-something can actually click (§2, §7); and one click starts every stage in the group, each on the
-units that are at it (§3, §8).
+Four behaviours, four hooks: a slot two sets disagree on survives when they are grouped (§1, §6); a
+slot only one set fills is filled from that one (§6); the button shown is one something can actually
+click (§2, §7); and one click starts every stage in the group, each on the units that are at it
+(§3, §8).
 
 ## The report
 
@@ -389,6 +390,46 @@ no display choice can produce a stage skip.
 **This is the one part that is not client-side.** It changes which upgrade a logic-side order
 delivers to which object, so every peer must run the same patched binary and replays do not cross —
 the same caveat `multi-execute-gate` carries, and for the same reason.
+
+## 9. The union half, and why it needs no field
+
+The group field arbitrates a **conflict** - two sets naming different buttons at one index. A slot
+only one set fills is not a conflict, and stock blanks it anyway: `edi` (this object's button) is
+NULL, `eax` (the installed one) is not, they differ, and the mismatch arm clears and hides. That is
+what puts an empty socket under `Command_PurchaseUpgradeWildForgedBlades_Gundabad` the moment an
+`OrkstadTunnelOrksCommandSet` unit - which has nothing at slots 3, 5 and 7 - joins the selection.
+
+So the two null cases become the union instead:
+
+| case | stock | now |
+|---|---|---|
+| `edi == 0`, `eax != 0` | hide | `KEEP` - the installed button stands |
+| `edi != 0`, `eax == 0` | hide | adopt - install this set's button |
+| both 0 | keep (they compare equal) | unchanged |
+
+**The adopt arm re-tests `OK_FOR_MULTI_SELECT`.** The first-object pass gates on it at
+`0x009445DA` before installing anything, and this path never goes through that pass; without the
+re-test the union would put buttons in a group bar that are not meant to appear in one. It also
+re-zeroes `eax` after asking `avail`, since the install arm at `0x00944704` hands `eax` to
+`winHide` and `avail` returns its answer there.
+
+### What a click on an adopted button does
+
+Nothing new: `MSG(0x415)` already reaches the whole selection, and the per-member gate already
+decides who takes it. The relevant half is `Object::canAcceptUpgrade` (`0x00694914`), which walks
+the object's module list (`[Object+0x24C]`, vtable `+0x28` then `+0x8` per module) and reaches
+`mov al, 1` at `0x00694A41` **only** if some module consumes the upgrade — otherwise `xor al, al`.
+
+A unit with no button for an upgrade almost never has a module for it either, and the reported case
+is exactly that: the tunnel orcs consume `Upgrade_WildForgedBladesOrc` and `Upgrade_WildHeavyArmorOrc`
+where the lancers' buttons grant `Upgrade_WildForgedBlades`. They are skipped, and nothing is
+charged.
+
+**The residual.** A unit that carries a module for the upgrade but was deliberately denied the
+button can now be bought that upgrade from a mixed selection. Closing it means gating on "the
+member's own set offers this upgrade", which `resolve` is one line from — but that gate would sit on
+the path *every* object-upgrade click in the game takes, and would newly refuse orders there. Left
+open deliberately, and named here rather than in a commit message.
 
 ## What is still unknown
 

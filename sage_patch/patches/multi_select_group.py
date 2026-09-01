@@ -14,8 +14,25 @@ is an empty black socket where the upgrade icon was.
 
 **What this does.** Adds one field, `MultiSelectGroup`, to `CommandButton`. Default `0`, which is
 stock behaviour; two buttons carrying the *same* non-zero value are treated as the same button when
-the slots are merged, so the slot survives. Nothing else changes - a slot whose buttons disagree
-and are not grouped is still cleared and hidden.
+the slots are merged, so the slot survives. A slot whose buttons disagree and are not grouped is
+still cleared and hidden.
+
+**A slot only one of the sets fills is filled from the one that has it**, rather than blanked, and
+that half is **not** gated on the field: a set that says nothing about a slot is not in conflict
+with one that does, so there is nothing to arbitrate. Select `OrkstadTunnelOrksCommandSet` and
+`GundabadLancerCommandSet` together and the lancers' forged-blades and basic-training buttons stay
+on screen instead of going dark, because the tunnel orcs simply have nothing at those slots. The
+adopted button is re-tested for `OK_FOR_MULTI_SELECT` first, which is the gate the first-object
+pass applies and this path would otherwise bypass.
+
+The click then lands only where it can: `AIGroup::doObjectUpgrade` asks `Object::canAcceptUpgrade`
+(``0x00694914``) per member, and that answers true **only** if some module on the object consumes
+the upgrade. A unit that has no button for an upgrade almost never has a module for it either - the
+Edain tunnel orcs consume `Upgrade_WildForgedBladesOrc` where the lancers' button grants
+`Upgrade_WildForgedBlades` - so it is skipped, uncharged. The residual case is a unit that *does*
+carry a module for the upgrade and was deliberately denied the button; a mixed selection can now
+buy it that upgrade. Gating on "the member's own set offers this" would close it, at the cost of
+newly refusing orders on a path every object-upgrade click in the game goes through.
 
 **Which of the two the slot keeps is decided by the data, not by selection order.** A button that
 no selected unit can use is never shown while a grouped one that some unit can use is available -
@@ -429,10 +446,15 @@ def _emit_merge(a: Asm, flags_va: int) -> None:
 
     # A slot one side does not fill at all has nothing to group with. Both arms are reachable:
     # `edi` is NULL when this object's set is short, `eax` when nothing is installed yet.
+    # A slot only one of the two sets fills is filled from the one that has it, rather than blanked.
+    # This is the only rule here that is not gated on the new field: a set that says nothing about a
+    # slot is not in conflict with one that does, so there is nothing to arbitrate. Stock blanks it
+    # anyway, which is what puts an empty socket under `Command_PurchaseUpgradeWildForgedBlades` the
+    # moment a unit without that button joins the selection.
     a.emit(0x85, 0xFF)  # test edi, edi
-    a.jcc(JE, "hide")
+    a.jcc(JE, "keep")  # this set says nothing here; the installed button stands
     a.emit(0x85, 0xC0)  # test eax, eax
-    a.jcc(JE, "hide")
+    a.jcc(JE, "adopt")  # nothing installed here yet; this set supplies it
 
     # The field, on both buttons. Zero is the default and means "not grouped", so it can never
     # match - two ungrouped buttons take the stock path they always did.
@@ -506,6 +528,25 @@ def _emit_merge(a: Asm, flags_va: int) -> None:
     a.emit(0x88, 0x83, _u32(flags_va))  # mov [ebx+flags], al
     a.emit(0x83, 0xC4, 0x08)  # add esp, 8
     a.emit(0x33, 0xC0)  # xor eax, eax     ; the install arm passes eax to winHide
+    a.jmp_absolute(CONTROL_BAR_MERGE_INSTALL)
+
+    # The empty-slot half of the union: this set has a button where nothing is installed yet.
+    #
+    # `OK_FOR_MULTI_SELECT` is re-tested here because the first-object pass tests it before it
+    # installs anything (`0x009445DA`) and this path bypasses that pass entirely. Without it the
+    # union would put buttons in a group bar that are not meant to appear in one.
+    #
+    # `eax` is already the NULL that got here, which is exactly what the install arm wants to hand
+    # to `winHide` - but `avail` clobbers it, so it is zeroed again afterwards rather than assumed.
+    a.label("adopt")
+    a.emit(0xF6, 0x47, 0x1D, 0x01)  # test byte [edi+0x1d], 1
+    a.jcc(JE, "hide")
+    a.emit(0xFF, 0x75, CONTROL_BAR_MERGE_OBJECT_EBP & 0xFF)  # push [ebp-0x14]
+    a.emit(0x57)  # push edi
+    a.call("avail")
+    a.emit(0x83, 0xC4, 0x08)  # add esp, 8
+    a.emit(0x88, 0x83, _u32(flags_va))  # mov [ebx+flags], al
+    a.emit(0x33, 0xC0)  # xor eax, eax
     a.jmp_absolute(CONTROL_BAR_MERGE_INSTALL)
 
     a.label("keep_framed")
