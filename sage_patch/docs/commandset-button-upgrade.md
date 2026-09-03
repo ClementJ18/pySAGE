@@ -3,8 +3,8 @@
 The RE behind
 [`patches/commandset_button_upgrade.py`](../patches/commandset_button_upgrade.py). Engine build
 `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR), read statically from
-`sage_mods/edain/patching/engine/game.dat.backup` (11,346,432 bytes) — the clean reference,
-**not** the repo-root `game.dat`, which carries 11 modifications.
+`tools/BFME-FILES/game.dat.backup` (11,346,944 bytes) — the clean reference,
+**not** a generated patched `game.dat`.
 
 **Status: built** as `commandset-button-upgrade`, applying and verifying against the real binary
 and against a synthetic stand-in, and composing with `commandset-limit` in either order.

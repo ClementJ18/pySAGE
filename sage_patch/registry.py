@@ -49,6 +49,9 @@ from sage_patch.patches.experimental.scenario_player_factions import (
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_charges import SpecialPowerChargesPatch
+from sage_patch.patches.experimental.spellbook_commandset_refresh import (
+    SpellbookCommandSetRefreshPatch,
+)
 from sage_patch.patches.experimental.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
@@ -69,11 +72,11 @@ from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
+from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.object_image_upgrade import (
     ObjectImageUpgradePatch,
     ObjectImageUpgradeWorldbuilderPatch,
 )
-from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.observer_command_range import ObserverCommandRangePatch
 from sage_patch.patches.observer_switch import ObserverSwitchPatch
@@ -117,6 +120,7 @@ from sage_patch.patches.worldbuilder_silent_errors import (
 PATCHES: dict[str, type[Patch]] = {
     CommandSetLimitPatch.name: CommandSetLimitPatch,
     CommandSetButtonUpgradePatch.name: CommandSetButtonUpgradePatch,
+    SpellbookCommandSetRefreshPatch.name: SpellbookCommandSetRefreshPatch,
     CahFactionsPatch.name: CahFactionsPatch,
     AiReviveGatePatch.name: AiReviveGatePatch,
     AiCommandNullTargetPatch.name: AiCommandNullTargetPatch,

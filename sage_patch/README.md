@@ -19,12 +19,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Eighteen of the registered patches — **`hero-mana`**, **`second-resource`**,
+> Nineteen of the registered patches — **`hero-mana`**, **`second-resource`**,
 > **`campaign-select`**, **`battle-school`**, **`standalone-launcher`**, **`headless`**,
 > **`recharge-rescale`**, **`live-bridge`**, **`living-world-override`**,
 > **`cooldown-through-death`**, **`capture-the-flag`**, **`smart-rally`**,
 > **`special-power-charges`**, **`render-rate`**, **`scenario-player-factions`**,
-> **`campaign-army-verbs`**, **`hero-army-carryover`** and **`unit-plate-option`**
+> **`campaign-army-verbs`**, **`hero-army-carryover`**, **`unit-plate-option`** and
+> **`spellbook-commandset-refresh`**
 > — are **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -65,6 +66,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   `commandset-limit` in either order: the slot bound is read from that patch's own guard byte at
   **run time** rather than baked in. Logic-side, so **every peer needs the same binary**. See
   [`docs/commandset-button-upgrade.md`](docs/commandset-button-upgrade.md).
+- **`spellbook-commandset-refresh`** checks the persistent left spellbook bar's resolved
+  CommandSet even while the Player stays the same, rebuilding only on a pointer change. Separate
+  from the spellstore window and leaves CommandSetUpgrade's stock UI tail unchanged. No INI
+  change. **Its core function is runtime-verified in game**, both for an ordinary CommandSet
+  switch and with `commandset-button-upgrade`'s `CommandButtons`; it remains experimental pending
+  lifecycle, long-session and multiplayer checks. See
+  [the cache investigation and residual risks](docs/spellbook-commandset-refresh.md).
 - **`cah-factions`** teaches the nine-name Create-A-Hero faction enum a caller-supplied list of mod
   sides plus an `All` token, so a `SubClass` can name them in `UsableFactions`.
 - **`ai-revive-gate`** makes the AI evaluate a `REVIVE` command button's `NeededUpgrade` before

@@ -69,6 +69,7 @@ from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import render_rate as rrate
 from sage_patch.patches.experimental import scenario_player_factions as spf
 from sage_patch.patches.experimental import smart_rally as sr
+from sage_patch.patches.experimental import spellbook_commandset_refresh as sbcsr
 from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
@@ -78,6 +79,18 @@ from sage_patch.patches.utils import token_lists as tl
 from sage_patch.patches.utils import weapon_set_flags as ws
 
 IMAGE_BASE = 0x400000
+
+
+def spellbook_commandset_refresh_image() -> bytearray:
+    """A sparse image carrying the stock spellbook cache function and its read-only anchors."""
+    split = 0x1000 - (sbcsr.SPELLBOOK_UI_CACHE & 0xFFF)
+    planted = {
+        sbcsr.SPELLBOOK_UI_CACHE: sbcsr.CACHE_BYTES[:split],
+        sbcsr.SPELLBOOK_UI_CACHE + split: sbcsr.CACHE_BYTES[split:],
+        **sbcsr.ANCHORS,
+    }
+    return _sparse_image(planted)
+
 
 #: Where the image parks every name string, past the two tables that point into it.
 STRINGS_VA = 0x00DA4000
