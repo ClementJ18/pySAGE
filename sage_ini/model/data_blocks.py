@@ -435,6 +435,8 @@ class LivingWorldCampaign(IniObject):
 
     IsEvilCampaign: Bool
     IsScriptedCampaign: Bool
+    ForceAdvanceTurnPhase: Bool
+    ScriptHolder: t.Opaque
     SecondsPerReinforcement: Int
     StartingCashRTS: Int
     StartingCashRTSWithFort: Int

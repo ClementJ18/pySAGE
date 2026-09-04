@@ -33,6 +33,7 @@ directions:
 | Act verbs | **18** | **15** — missing `DespawnArmy`, `MergePlayerArmy`, `RegionReinforcements`, `ModifyArmyEntry` |
 | `IsScriptedCampaign` | absent | present |
 | `SecondsPerReinforcement`, `ForceAdvanceTurnPhase` | absent | present |
+| `ScriptHolder` + the `LivingWorldScripts\` asset root | absent | present, and unused by any shipped campaign - see [`script-holder.md`](script-holder.md) |
 | `AutoResolve*` stores | absent | 71 occurrences, six INI stores |
 | `ArmyCarryoverPoints`, `DelayCarryoverSpawningOf` | absent | present |
 | `SpawnArmy` fields | 9 used: `Name`, `PlayerArmy`, `Faction`, `Banner`, `Icon`, `IconSize`, `PalantirMovie`, `PlayerOwned`, `Position` | **18** (field table `0xC78380`): `ScriptingName`, `PlayerArmy`, `Banner`, `Icon`, `IconSize`, `PalantirMovie`, `Position`, `InitialRegion`, `SpawnForTemplates`, `HeroTemplateName`, `IsCity`, `MoveSpeed`, `BuildTime`, `SpawnAtActStart`, `TooltipStringTag`, three `ConstructButton*` |

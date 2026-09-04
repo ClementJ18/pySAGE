@@ -17,11 +17,11 @@ hide the settlement flag when it resurfaces, build a dud on the flag when the co
 and destroy the dud when the vineyard dies. All of it exists because `ReplaceSelfUpgrade`
 destroys the original, and the settlement flag treats that destruction as "my building is gone".
 
-**Can `ReplaceSelfUpgrade` replace a building without the flag noticing?** Yes. The plot's
-occupancy is one dword — an `ObjectID` — and every mechanism that pops the flag is downstream of
-that dword going to zero. The fix is to never let it reach zero: hand the plot straight from the
-old object to the new one. Two hooks, one cave, no drawable work, no INI required (though §6.4
-prices an opt-in keyword).
+**Can `ReplaceSelfUpgrade` replace a building without the flag noticing?** Yes. The fix is to hand
+the plot straight from the old object to the new one: two hooks, one cave, no INI required (though
+§6.4 prices an opt-in keyword). On a plain `FoundationAIUpdate` plot that is one `ObjectID` and no
+drawable work at all; on a `CastleBehavior` plot — which is what Edain's settlement flag is — the
+occupancy that the rest of the engine reads is three fields, and §5.1 is how they are set.
 
 ## TL;DR
 
@@ -47,10 +47,15 @@ prices an opt-in keyword).
   at `0x008BB8D9`. It already walks the whole object list afterwards to re-point references from
   the old object to the new one (`0x008BB955`–`0x008BB9E7`) — but **only for `WALL_HUB`,
   `WALL_UPGRADE` and `WALL_SEGMENT`**. The walls got a rebind; plots did not.
-- The patch is four stores and two lookups: before the destroy, stash the plot id and clear
-  `old->Object+0x78` so `onDelete` finds nothing; after the create, write the plot's `+0x28` to
-  the new id and set `new->Object+0x78`. **The flag never transitions**, so there is no fade, no
-  flicker, no cooldown to work around and no dud to clean up.
+- The patch is a stash and a rebind: before the destroy, stash the plot id and clear
+  `old->Object+0x78` so `onDelete` finds nothing; after the create, give the plot back its
+  occupant. On a plain foundation plot that is two stores and **the flag never transitions** — no
+  fade, no flicker, no cooldown to work around and no dud to clean up.
+- **`m_builtOnID` alone leaves a castle plot capturable.** A settlement flag is a `CastleBehavior`,
+  and what gates its capture is `module+0x34`, not the occupant id; the keep at `module+0x38`
+  clears itself a frame later. Hook 2 therefore calls the engine's own
+  `CastleBehavior::onStructureBuilt` (`0x0079AC19`) on a castle plot, which sets all of it. §5.1
+  has the live comparison that forced this.
 - **This is simulation state.** Every peer needs the patched binary and replays will not play back
   on a stock one.
 
@@ -296,7 +301,7 @@ There is no "the flag was told the building died" event to suppress. There is on
 ## 5. The fix, as built
 
 Keep the link. Two `call rel32` repointed at the two moments that matter, and one `.fndrbd` cave
-of **`0x12A` bytes** — a `0x20`-byte ring, a `0x77`-byte stash thunk, a `0x93`-byte rebind thunk.
+of **`0x17A` bytes** — a `0x20`-byte ring, a `0x77`-byte stash thunk, a `0xE3`-byte rebind thunk.
 Both hooks replace a `call` and tail-jump to the function that `call` named, so the stock return
 value and the stock `ret` size stay the caller's and no instruction is displaced.
 
@@ -326,22 +331,29 @@ new    = [ebp-0x20]                                     ; the object just create
 plot   = findObjectByID(plotId); iface = plot->getFoundationInterface()
 occupant = iface->[0x08]
 if (occupant == 0 || occupant == key) {                 ; free, or still naming the dead object
-    iface->[0x08] = new->[0x74]                         ; occupied again — a direct store
-    new->[0x78]   = plotId                              ; the replacement now owns the plot
+    module = iface - 0x20
+    if (module->[0x00] == 0x00C30ED8                    ; a CastleBehavior, not a plain foundation
+        && new->tmpl[0x10b] & 0x10) {                   ; and the replacement is a CASTLE_KEEP
+        if (module->[0x38] == key) module->[0x38] = 0   ; cut the keep naming the dead object
+        if (module->[0x38] == 0) {
+            module->onStructureBuilt(new)               ; 0x0079AC19 — the engine's own adoption
+            module->[0x34] = 4                          ; the state the capture tick gates on
+        }
+    } else {
+        iface->[0x08] = new->[0x74]                     ; occupied again — a direct store
+    }
+    new->[0x78] = plotId                                ; the replacement now owns the plot
     if (plot->[0x7c] == key) plot->[0x7c] = new->[0x74]  ; only when provably stale
 }
 ```
 
-Four properties are what make it cheap and what the tests pin:
+Properties that make it cheap, and that the tests pin:
 
-- **No visual transition ever happens.** The plot goes occupied → occupied. Writing `+0x28`
-  directly rather than through `setBuiltOnObject` is deliberate: the setter resets the drawable's
-  opacity to `1.0` before starting its 10-frame fade-out (`0x00670A50`), so calling it on an
-  already-hidden flag makes the flag blink. The status bit and the drawable are already in the
-  state we want, because hook 1 stopped anything from changing them.
-- **It needs no knowledge of which module the flag carries.** `FoundationAIUpdate` and
-  `CastleBehavior` share vtable `0x00C30DE8` and the same `+0x28`, so both are covered by the same
-  stores. This is what makes open question §8.1 a question about *scope*, not about correctness.
+- **A castle plot goes through the engine's own adoption; a plain one takes the direct store.**
+  §5.1 is why: `m_builtOnID` is not what a settlement flag is read by. On the direct-store path
+  no visual transition happens at all — writing `+0x28` rather than calling `setBuiltOnObject` is
+  deliberate, because the setter resets the drawable's opacity to `1.0` before starting its
+  10-frame fade-out (`0x00670A50`), which on an already-hidden flag is a blink.
 - **It covers both teardown mechanisms.** Hook 2 commits when the plot is free — the usual case,
   `onDelete` having run inside `destroyObject` — **or** when it still names the object just
   destroyed, which is what a structure carrying no `GettingBuiltBehavior` leaves behind and the
@@ -366,13 +378,61 @@ filled. Keying rather than stacking is what makes the failure mode safe: a neste
 `ReplaceSelfUpgrade` takes its own slot, a creation that fails leaves an entry no later object can
 match, and a fifth level of nesting loses a rebind instead of binding the wrong plot.
 
+### 5.1 Why `m_builtOnID` alone is not enough on a castle plot
+
+The first build rebound `m_builtOnID` and nothing else, on the reasoning that
+`FoundationAIUpdate` and `CastleBehavior` share the interface and the field. In a match it left a
+converted settlement **capturable**: the AI walked a squad onto the flag, took it, and the
+replacement went with it — because the patch had made the replacement the plot's occupant, and
+`CastleBehavior::forEachCastleObject` (`0x007999E2`) enumerates the occupant through interface
+slot `+0x18` and hands it to whoever captures the castle.
+
+Read live out of a running match (`sage_live`, one Edain skirmish, the two flags side by side):
+
+| | flag holding a mine shaft | flag holding a replacement | an unbuilt flag |
+|---|---|---|---|
+| `Object+0x94` status | `UNSELECTABLE` | — | — |
+| `module+0x28` `m_builtOnID` | the mine shaft | **the replacement** | 0 |
+| `module+0x34` state | 4 | 0 | 0 |
+| `module+0x38` keep | the mine shaft | 0 | 0 |
+
+In every field but the one the patch maintained, the converted plot was **byte-identical to an
+empty one**. Three mechanisms follow from that, and only the first reads `m_builtOnID`:
+
+- `isOccupied` (`0x0097031D`) — the interface's own question, and the one the patch answered.
+- **The capture tick.** `CastleBehavior`'s per-frame capture pass (`0x0079B3C4`) opens with a
+  gate at `0x007983E3` that returns false — no capture — unless `module+0x34` is zero *and* the
+  byte at `module+0x3c` is zero. `module+0x34` is what says "something stands on me". This is the
+  whole of why an ordinary farm's flag is never captured while the farm is up, and it is the field
+  the first build left at 0. (`CastleBehavior::isPlayerAllowedToCapture`, `0x0079A3D9`, is only
+  *who* may capture — not already mine, and my faction is in `CastleToUnpackForFaction`. It never
+  looks at occupancy, which is why the gate above has to.)
+- **The keep.** `module+0x38` is polled against `findObjectByID` every update (`0x00799B13`), so
+  it clears itself a frame after the replacement destroys the object it named.
+
+`CastleBehavior::onStructureBuilt` (`0x0079AC19`) is the engine's own "a structure now stands on
+me", and it sets all of it: it registers the object with its `CastleMemberBehavior`, adopts it as
+the keep when the template is `CASTLE_KEEP` (`0x0079ACA4`), and ends by calling
+`setBuiltOnObject(m_keepID)` itself (`0x0079ACFC`) — which is what sets `UNSELECTABLE` and fades
+the flag out. The stock caller at `0x0079B734` writes `module+0x34 = 4` beside it, and hook 2
+mirrors both.
+
+**The stale keep has to be cut before the call.** `onStructureBuilt` reads a non-zero
+`module+0x38` as "I already have a keep" and **destroys its argument** (`0x0079ACAD` →
+`0x0079AD06`). At hook 2 time the keep still names the object just destroyed — the poll that would
+clear it does not run until the next frame — so hook 2 zeroes it when, and only when, it names
+that object, and otherwise falls back to the direct store rather than risk the adoption.
+
 **What the tests check** ([`../../tests/sage_patch/test_foundation_rebind.py`](../../tests/sage_patch/test_foundation_rebind.py)).
 Three things here fail silently rather than loudly, so all three are asserted statically: both
 frame displacements are re-derived from the stock instructions that *fill* those slots (carried as
 fingerprint windows, so the test cannot merely agree with the patch); the cave is disassembled back
 and every structure offset it touches asserted, along with the fact that the only ways out of it
-are two `jmp`s to the replaced functions and two `call`s to the lookups; and each of the ten
-fingerprint windows is disturbed in turn and has to make both `apply` and `verify` fail.
+are two `jmp`s to the replaced functions and three `call`s to the routines it names; and each of
+the nineteen fingerprint windows is disturbed in turn and has to make both `apply` and `verify`
+fail. The castle fields are pinned from both ends — the offsets against `CastleBehavior`'s own
+constructor and against `onStructureBuilt`, and `module+0x34` against the capture gate that reads
+it — so a wrong offset fails the suite rather than silently writing into a live module.
 
 ## 6. Alternatives considered
 
@@ -435,14 +495,15 @@ after a *legitimate* demolition too, and the plot would be unbuildable for the r
 **The patch applies, verifies and composes; none of that would have said it works in a match.**
 These are the claims the running game settled, in the order they would have bitten.
 
-1. **Which module Edain's settlement flag carries.** The Edain overlay (`sage_edain`) names it
-   `WirtschaftPlotFlag_Real`; the bot notes it answers an unpack button, which points at
-   `CastleBehavior`. Because both modules share the interface and the field (§5), a plot of either
-   kind is rebound by what is shipped. What is *not* covered is a vineyard replacing a
-   `CastleBehavior` **keep** rather than a structure standing on a plot: the castle tracks its keep
-   in a second field (`+0x38`, polled at `0x00799B13`) and its members in a vector at
-   `+0x50`/`+0x74`, and neither is touched. **Read the mod's ini first**; if that is the shape, the
-   patch grows by one more rebind in the same cave.
+1. **Which module Edain's settlement flag carries — and that sharing the interface is not enough.**
+   `WirtschaftPlotFlag_Real` carries `CastleBehavior`, and the structures that stand on it are its
+   **keep**: `DwarvenMineShaft`, `DorwinionVineyard` and the `VineyardControlPing` dud are all
+   `CASTLE_KEEP`. The first build rebound only the field the two modules share, and the converted
+   plot came out capturable — §5.1 has the live comparison and the three fields that follow, which
+   hook 2 now maintains through `onStructureBuilt`. The castle's member vector (`+0x50`/`+0x74`) is
+   still untouched, and reads empty on both flags of the measured match: a settlement castle keeps
+   its occupant in the keep and the interface field, not in that vector. A camp whose members are
+   populated is the case that has not been exercised.
 2. **That `onDelete` is what pops the flag in the Iron Hills case**, i.e. that the settlement
    building really carries `GettingBuiltBehavior`. A breakpoint on `0x0085757F` during one vineyard
    conversion settles it. It is no longer load-bearing for correctness — hook 2 commits on a plot
@@ -477,6 +538,13 @@ somebody razed the building.
 | `CastleBehavior` instance / ModuleData factory | `0x0064A74F` / `0x0064A78A` |
 | `CastleBehavior` ctor (`sizeof` `0xAC`) / `update` | `0x0079A901` / `0x0079CF2A` |
 | `CastleBehavior` keep poll / free-plot test / unpack's `setBuiltOnObject` | `0x00799B13` / `0x007996D3` / `0x0079ACFC` |
+| `CastleBehavior` main vtable (`module+0x00`), the castle/foundation discriminator | `0x00C30ED8` |
+| **`CastleBehavior::onStructureBuilt(Object *)`** (`ret 4`), what hook 2 calls | **`0x0079AC19`** |
+| … its `CASTLE_KEEP` test / second-keep reject / keep store | `0x0079ACA4` / `0x0079ACAD` → `0x0079AD06` / `0x0079ACB9` |
+| … its other two callers, and the stock `module+0x34 = 4` beside one | `0x0079B94E`, `0x0079B9C8`; `0x0079B734` |
+| the capture tick, and its `module+0x34`/`module+0x3c` gate | `0x0079B3C4` / `0x007983E3` |
+| `CastleBehavior::isPlayerAllowedToCapture` (who, never whether) | `0x0079A3D9`, faction test `0x007998FF` |
+| `CastleBehavior::forEachCastleObject` — self, occupant (interface `+0x18`), members | `0x007999E2` |
 | `CastleMemberBehavior` ctor (`sizeof` `0x28`) | `0x00797FDD` |
 | `GettingBuiltBehavior` instance factory / ctor | `0x0064A68A` / `0x00857399` |
 | **`GettingBuiltBehavior::onDelete`** (main vtable `0x00C56D24` slot `+0x20`) | **`0x0085757F`** |
@@ -497,7 +565,7 @@ somebody razed the building.
 | … the wall-only rebind walk, whose opening `call` **hook 2** repoints | `0x008BB955` … `0x008BB9E7` |
 | `UpgradeMuxData` ctor (padding at table-offset `0x12F`) | `0x00653173` |
 | `KindOf` name table | `0x00DA0E68` |
-| the `.fndrbd` cave: ring / stash thunk / rebind thunk | `0x20` / `0x77` / `0x93` bytes |
+| the `.fndrbd` cave: ring / stash thunk / rebind thunk | `0x20` / `0x77` / `0xE3` bytes |
 
 `KindOf` indices used above: `FS_BASE_DEFENSE` 64, `BASE_FOUNDATION` 104, `NEED_BASE_FOUNDATION`
 105, `WALL_UPGRADE` 150, `BASE_DEFENSE_FOUNDATION` 153, `WALL_HUB` 156, `WALL_SEGMENT` 189.

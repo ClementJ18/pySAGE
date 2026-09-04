@@ -10,6 +10,7 @@ from sage_patch.patcher import Patch
 from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
+from sage_patch.patches.ai_hero_build_delay import AiHeroBuildDelayPatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
 from sage_patch.patches.asset_load_profile import AssetLoadProfilePatch
 from sage_patch.patches.attack_requires_damage import AttackRequiresDamagePatch
@@ -30,15 +31,18 @@ from sage_patch.patches.desert_weather import (
     DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch,
 )
+from sage_patch.patches.desync_debug import DesyncDebugPatch
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
 from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
 from sage_patch.patches.experimental.campaign_army_verbs import CampaignArmyVerbsPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
 from sage_patch.patches.experimental.capture_the_flag import CaptureTheFlagPatch
+from sage_patch.patches.experimental.command_line_skirmish import CommandLineSkirmishPatch
 from sage_patch.patches.experimental.cooldown_through_death import CooldownThroughDeathPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_army_carryover import HeroArmyCarryoverPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
+from sage_patch.patches.experimental.interpolation_alpha import InterpolationAlphaPatch
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
@@ -121,6 +125,7 @@ PATCHES: dict[str, type[Patch]] = {
     GiveUpgradeAllPatch.name: GiveUpgradeAllPatch,
     AiConstructionGatePatch.name: AiConstructionGatePatch,
     AiFlagCaptureGatePatch.name: AiFlagCaptureGatePatch,
+    AiHeroBuildDelayPatch.name: AiHeroBuildDelayPatch,
     ProductionConditionPatch.name: ProductionConditionPatch,
     ProductionConditionWorldbuilderPatch.name: ProductionConditionWorldbuilderPatch,
     DesertWeatherPatch.name: DesertWeatherPatch,
@@ -187,6 +192,7 @@ PATCHES: dict[str, type[Patch]] = {
     CrashDumpPatch.name: CrashDumpPatch,
     QuietExitPatch.name: QuietExitPatch,
     CaptureTheFlagPatch.name: CaptureTheFlagPatch,
+    CommandLineSkirmishPatch.name: CommandLineSkirmishPatch,
     WorldbuilderModPatch.name: WorldbuilderModPatch,
     WorldbuilderLabelAssertPatch.name: WorldbuilderLabelAssertPatch,
     WorldbuilderSilentErrorsPatch.name: WorldbuilderSilentErrorsPatch,
@@ -200,9 +206,11 @@ PATCHES: dict[str, type[Patch]] = {
     DetachableRiderHealPatch.name: DetachableRiderHealPatch,
     SpecialPowerChargesPatch.name: SpecialPowerChargesPatch,
     RenderRatePatch.name: RenderRatePatch,
+    InterpolationAlphaPatch.name: InterpolationAlphaPatch,
     AssetLoadProfilePatch.name: AssetLoadProfilePatch,
     ScenarioPlayerFactionsPatch.name: ScenarioPlayerFactionsPatch,
     DeployBeforeAttackPatch.name: DeployBeforeAttackPatch,
+    DesyncDebugPatch.name: DesyncDebugPatch,
 }
 
 __all__ = ["PATCHES"]

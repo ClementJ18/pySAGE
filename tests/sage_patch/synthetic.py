@@ -38,6 +38,7 @@ import struct
 from sage_patch import addresses as ad
 from sage_patch.patches import ai_command_null_target as acnt
 from sage_patch.patches import ai_flag_capture_gate as afc
+from sage_patch.patches import ai_hero_build_delay as ahbd
 from sage_patch.patches import commandset_button_upgrade as cbu
 from sage_patch.patches import crash_dump as cd
 from sage_patch.patches import deploy_before_attack as dba
@@ -66,6 +67,8 @@ from sage_patch.patches import worldbuilder_object_typeahead as wbt
 from sage_patch.patches.experimental import battle_school as bs
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
+from sage_patch.patches.experimental import command_line_skirmish as cls
+from sage_patch.patches.experimental import interpolation_alpha as ia
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import render_rate as rrate
 from sage_patch.patches.experimental import smart_rally as sr
@@ -502,6 +505,28 @@ def crash_dump_image() -> bytearray:
     )
 
 
+def desync_debug_image() -> bytearray:
+    """A stand-in carrying the three `.data` initialisers `desync-debug` writes.
+
+    Sparse and tiny: the patch has no code window at all, so all that has to exist is
+    `NetCRCInterval` holding its stock 100, the `-verifyClientCRC` gate holding 0, and the desync
+    focus frame holding its `-1` sentinel. `NET_CRC_INTERVAL` and the other two are ~0x4A00 apart,
+    which is two pages here rather than one.
+
+    Everything not planted reads as zero, which makes the image negative as well - and pointedly
+    so for this patch, because a zero is a *plausible* value at two of its three sites. A patch
+    that had the focus frame's address wrong by a dword would find 0 where the sentinel should be
+    and fail its stock-bytes assertion, which is the failure the real binary would give too.
+    """
+    return _sparse_image(
+        {
+            ad.NET_CRC_INTERVAL: struct.pack("<I", ad.NET_CRC_INTERVAL_STOCK),
+            ad.DESYNC_VERIFY_CLIENT_CRC_FLAG: bytes(1),
+            ad.DESYNC_FOCUS_FRAME: struct.pack("<I", ad.DESYNC_FOCUS_FRAME_UNSET),
+        }
+    )
+
+
 def ai_command_null_target_image() -> bytearray:
     """A stand-in carrying the AI command transfer check's faulting instruction and every site the
     null guard depends on.
@@ -529,6 +554,51 @@ def ai_flag_capture_gate_image() -> bytearray:
             ad.AI_FLAG_CAPTURE_RELATIONSHIP_TEST: ad.AI_FLAG_CAPTURE_RELATIONSHIP_TEST_BYTES,
             slot: struct.pack("<I", ad.AI_FLAG_CAPTURE_SQUAD_UPDATE),
             **afc.ANCHORS,
+        }
+    )
+
+
+#: How many `ArmyDefinition` rows the stand-in plants ahead of `HeroBuildOrder`, so that
+#: `entries_before` has the same number to count as it does in the real table. Only the row the
+#: patch repoints carries real contents; the rest exist to be counted and skipped by name.
+_ARMY_DEFINITION_ROWS = 29
+
+
+def ai_hero_build_delay_image() -> bytearray:
+    """A stand-in carrying the AI hero builder's gate site and the `ArmyDefinition` field table
+    whose `HeroBuildOrder` row the patch repoints.
+
+    Sparse, and for a reason the other AI stand-ins do not have: the two halves of this patch are
+    three megabytes apart - the gate is in the skirmish AI's hero builder, and the table is in
+    `.rdata`, reached through two instructions in the block parser a megabyte below it. The row is
+    located **by name**, so the table's name strings are planted too, on the page below it.
+    """
+    table = ad.ARMY_DEFINITION_FIELD_TABLE
+    strings_va = table & ~0xFFF
+    names = [f"Field{index}" for index in range(_ARMY_DEFINITION_ROWS)] + [ahbd.KEYWORD]
+
+    strings, pointers = bytearray(), []
+    for name in names:
+        pointers.append(strings_va + len(strings))
+        strings += name.encode("ascii") + b"\x00"
+
+    rows = bytearray()
+    for index, pointer in enumerate(pointers):
+        hero = index == _ARMY_DEFINITION_ROWS
+        parse = ad.INI_PARSE_STRING_LIST if hero else ad.INI_PARSE_REAL
+        offset = ad.ARMY_DEFINITION_HERO_BUILD_ORDER if hero else index * 4
+        rows += struct.pack("<IIII", pointer, parse, 0, offset)
+    rows += bytes(16)  # the NULL name the reader walks to
+
+    getter, call = ad.ARMY_DEFINITION_FIELD_TABLE_REFS
+    return _sparse_image(
+        {
+            strings_va: bytes(strings),
+            table: bytes(rows),
+            getter: b"\xb8" + struct.pack("<I", table),  # mov eax, <table>
+            call: b"\x68" + struct.pack("<I", table),  # push <table>
+            ad.AI_HERO_NAME_RESOLVED: ad.AI_HERO_NAME_RESOLVED_BYTES,
+            **ahbd.ANCHORS,
         }
     )
 
@@ -1234,3 +1304,41 @@ def deploy_before_attack_image() -> bytearray:
     either side of the ten-byte branch would find nothing there.
     """
     return _sparse_image({dba.HOOK_VA: dba.HOOK_ORIGINAL, **dba.ANCHORS})
+
+
+def command_line_skirmish_image() -> bytearray:
+    """A stand-in carrying both sites `command-line-skirmish` edits, and every anchor its cave
+    branches to.
+
+    Sparse because the two are two megabytes apart: the auto-start's nine-byte tail sits in
+    `GameEngine::init` and the progress update it null-guards is in the loading screen, with only
+    the two resume points and the two call targets between them mattering. Everything not planted
+    reads as zero, so a hook aimed one instruction to either side of either site finds nothing.
+    """
+    return _sparse_image(
+        {
+            ad.COMMAND_LINE_SKIRMISH_SETUP: ad.COMMAND_LINE_SKIRMISH_SETUP_BYTES,
+            ad.LOADING_SCREEN_PROGRESS: ad.LOADING_SCREEN_PROGRESS_BYTES,
+            **cls.ANCHORS,
+        }
+    )
+
+
+def interpolation_alpha_image() -> bytearray:
+    """A stand-in carrying `GameEngine::recomputeAlpha`, the catch-up escape that is the patch's
+    whole premise, and the 1.0f the cave subtracts and clamps against.
+
+    Sparse for the usual reason: the alpha routine and the catch-up loop are in the same page of
+    the pacing block but the float constant is 5.7 MB away in `.rdata`. Everything not planted
+    reads as zero, which makes the image negative too - a `comiss` against a constant one dword to
+    either side would be comparing against 0.0 rather than 1.0, and the anchor refuses it.
+
+    The escape is planted in its **always-runs** form, because that is the build this patch
+    corrects. `TestItRefusesAStockCatchUpLoop` re-plants the stock bytes to check the refusal.
+    """
+    return _sparse_image(
+        {
+            ad.ALPHA_RECOMPUTE: ad.ALPHA_RECOMPUTE_ENTRY + ad.ALPHA_RECOMPUTE_BODY_BYTES,
+            **ia.ANCHORS,
+        }
+    )

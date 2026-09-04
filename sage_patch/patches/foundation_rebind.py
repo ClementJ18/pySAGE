@@ -49,11 +49,36 @@ on a unit it is the building that made it. Hook 1 clears it only after resolving
 that has a foundation interface *and* is holding the dying object, which no barracks is and no
 producer of anything but a plot-built structure can be.
 
-**One module, both flavours of flag.** `FoundationAIUpdate` and `CastleBehavior` write the same
-vtable ``0x00C30DE8`` into ``module+0x20`` and share ``module+0x28``, so a settlement plot and a
-camp flag are the same four stores. A `CastleBehavior` that has *unpacked* tracks its keep in a
-second field (``+0x38``, polled at ``0x00799B13``) which this patch does not touch: a keep that is
-replaced rather than destroyed still repacks its castle.
+**A castle plot needs more than the one dword.** `FoundationAIUpdate` and `CastleBehavior` write
+the same vtable ``0x00C30DE8`` into ``module+0x20`` and share ``module+0x28``, but a
+`CastleBehavior` - which is what Edain's settlement flag carries - keeps two more fields that the
+rest of the engine reads *instead of* `m_builtOnID`:
+
+- ``module+0x38``, the keep, polled against `findObjectByID` every update (``0x00799B13``);
+- ``module+0x34``, the occupancy state, and **the field that decides whether the plot can be
+  captured**: the capture tick at ``0x007983E3`` refuses to run only when that dword and the byte
+  at ``module+0x3c`` are both zero.
+
+Read live out of a running match, a settlement flag holding an ordinary mine shaft has
+``m_builtOnID`` and the keep both naming it, ``+0x34`` = 4 and `UNSELECTABLE` set; rebinding
+`m_builtOnID` alone left the flag under a replacement identical to an *empty* plot in every one of
+those, which is why the AI walked onto it, captured it, and took the replacement with it.
+
+So when the plot is a castle - ``module+0x00`` is `CastleBehavior`'s own vtable
+:data:`CASTLE_BEHAVIOR_VTABLE`, which `FoundationAIUpdate` never writes - and the replacement is a
+`CASTLE_KEEP`, hook 2 hands it to the engine's own
+`CastleBehavior::onStructureBuilt` (:data:`CASTLE_ON_STRUCTURE_BUILT`) instead of writing fields:
+that registers the object with its `CastleMemberBehavior`, adopts it as the keep, and ends by
+calling `setBuiltOnObject` itself, which is what sets `UNSELECTABLE` and fades the flag out. The
+caller-side ``module+0x34`` write is mirrored from the stock adoption at ``0x0079B734``.
+
+**The stale keep is cut first.** `onStructureBuilt` destroys its argument when the castle already
+holds a keep (``0x0079ACAD`` → ``0x0079AD06``), and at hook 2 time the keep still names the object
+just destroyed - the poll that would clear it does not run until the next frame. Hook 2 zeroes it
+only when it names *that* object, and otherwise takes the plain path rather than the castle one.
+
+Anything that is not a castle, or a replacement that is not a `CASTLE_KEEP`, takes the original
+three stores.
 
 **Scope.** `ReplaceSelfUpgrade` only. Objects destroyed any other way free their plot exactly as
 today, including the replacement itself when it dies. When `ReplaceWith` names several objects the
@@ -140,6 +165,47 @@ OBJECT_BUILT_BACK_LINK_OFFSET = 0x7C
 #: ``cmp [ecx+8], eax``.
 FOUNDATION_BUILT_ON_OFFSET = 0x08
 
+#: The interface subobject sits at ``module+0x20``, so this is what turns the pointer
+#: `getFoundationInterface` hands back into the module the castle routines want in ecx.
+MODULE_FROM_INTERFACE = 0x20
+
+#: `CastleBehavior`'s main vtable, written into ``module+0x00`` by its constructor
+#: (``0x0079A947``). `FoundationAIUpdate` writes a different one there and shares only the
+#: interface vtable at ``module+0x20``, so this is the test for "this plot is a castle" - and
+#: therefore for whether the three fields below exist at all.
+CASTLE_BEHAVIOR_VTABLE = 0x00C30ED8
+
+#: `CastleBehavior::onStructureBuilt(Object *)` - ``__thiscall``, ``ret 4``. The engine's own
+#: "this structure now stands on me": it registers the object with its `CastleMemberBehavior`,
+#: adopts it as the keep when the template is `CASTLE_KEEP`, and finishes by calling
+#: `setBuiltOnObject(keep)` - which is what sets `UNSELECTABLE` and fades the flag out.
+CASTLE_ON_STRUCTURE_BUILT = 0x0079AC19
+
+#: `CastleBehavior::m_keepID`. Zeroed by the ctor (``0x0079A935``), written by
+#: `onStructureBuilt` (``0x0079ACB9``) and polled every update against `findObjectByID`
+#: (``0x00799B13``). **A non-zero keep makes `onStructureBuilt` destroy its argument**
+#: (``0x0079ACAD`` → ``0x0079AD06``), so a stale keep has to be cut before the call.
+CASTLE_KEEP_OFFSET = 0x38
+
+#: `CastleBehavior`'s occupancy state, and **the field that decides whether the plot can be
+#: captured**: the capture tick refuses to run unless ``[module+0x34]`` is zero and the byte at
+#: ``module+0x3c`` is zero (``0x00798468``). Zero from the ctor, set to
+#: :data:`CASTLE_STATE_OCCUPIED` beside an `onStructureBuilt` at ``0x0079B734``.
+CASTLE_STATE_OFFSET = 0x34
+
+#: The value that site writes, and the value a live claimed settlement flag reads back. A second
+#: site (``0x0079CB64``) writes 5; what distinguishes the two states is not established, so this
+#: mirrors the one that accompanies an adoption.
+CASTLE_STATE_OCCUPIED = 4
+
+#: `Object::m_template`, and `KindOf` `CASTLE_KEEP` within it - index 28, so bit ``0x10`` of
+#: ``template+0x108 + 3``. The test `onStructureBuilt` itself makes at ``0x0079ACA4`` to decide
+#: between adopting a keep and filing a plain member, made here first so the patch only takes the
+#: castle path when the engine would reach the branch that sets `m_builtOnID`.
+OBJECT_TEMPLATE_OFFSET = 0x04
+TEMPLATE_CASTLE_KEEP_BYTE = 0x10B
+TEMPLATE_CASTLE_KEEP_BIT = 0x10
+
 # --- the hooks ----------------------------------------------------------------------------------
 
 #: The `call GameLogic::destroyObject` inside `ReplaceSelfUpgrade::upgradeImplementation`
@@ -190,6 +256,24 @@ ANCHORS: dict[int, bytes] = {
     # the two tail-jump targets
     0x0062BBAB: bytes.fromhex("53578b7c240c85ff8bd9746cf6"),
     0x0097338F: bytes.fromhex("8b81ac000000c3"),
+    # `CastleBehavior`'s ctor zeroing the three fields the castle path maintains, and writing the
+    # vtable that tells a castle plot from a plain `FoundationAIUpdate` one
+    0x0079A932: bytes.fromhex("89463489463888463c8846448d450f8d7e50508bcfc706d80ec300c7460c18"),
+    # `onStructureBuilt`'s prologue - the routine the castle path calls
+    0x0079AC19: bytes.fromhex("b89654b900e8cd222a00"),
+    # its `CASTLE_KEEP` test, its "already have a keep -> destroy the argument" reject, and the
+    # keep store. All three are why the call is guarded the way it is.
+    0x0079ACA1: bytes.fromhex("8b4704f6800b01000010746a837e380075538b47740f57c0894638f30f10"),
+    # its tail: `setBuiltOnObject(m_keepID)`, which is what re-hides the flag
+    0x0079ACF7: bytes.fromhex("ff76388bcee8ddd50b00"),
+    # its epilogue, pinning `ret 4`
+    0x0079ADDE: bytes.fromhex("64890d00000000c9c20400"),
+    # the capture tick's gate: `module+0x3c` byte and `module+0x34` must both be zero
+    0x00798468: bytes.fromhex("385e3c751e395e340f94c03ac37416385c24"),
+    # the stock site that writes CASTLE_STATE_OCCUPIED beside an `onStructureBuilt`
+    0x0079B72F: bytes.fromhex("e8e5f4ffffc7463404000000"),
+    # the keep poll this patch exists to keep satisfied
+    0x00799B13: bytes.fromhex("ff76388b6e048bcfe861fbcaff8bf83bfb750b38"),
 }
 
 # --- the cave -----------------------------------------------------------------------------------
@@ -330,12 +414,49 @@ def _build_rebind(base_va: int, ring_va: int) -> bytes:
     a.emit(b"\x3b\xd7")  # cmp edx, edi
     a.jcc(JNE, "out")  # somebody else's now
 
+    # A castle plot takes the engine's own adoption routine rather than a field write, because
+    # `m_builtOnID` is not the only thing a settlement flag is read by: `module+0x34` is what the
+    # capture tick gates on, `module+0x38` is the keep the castle polls every frame, and
+    # `setBuiltOnObject` - which `onStructureBuilt` ends with - is what re-hides the flag.
     a.label("commit")
+    a.emit(b"\x8d\x50", 0x100 - MODULE_FROM_INTERFACE)  # lea edx, [eax-0x20]  ; the module
+    a.emit(b"\x81\x3a", struct.pack("<I", CASTLE_BEHAVIOR_VTABLE))  # cmp [edx], <castle vtable>
+    a.jcc(JNE, "plain")
+    a.emit(b"\x8b\x56", OBJECT_TEMPLATE_OFFSET)  # mov edx, [esi+4]      ; the replacement's tmpl
+    # Not a keep: `onStructureBuilt` would file it as a plain member and never touch
+    # `m_builtOnID`, so the plot would still read empty. Fall back to the field write.
+    a.emit(b"\xf6\x82", struct.pack("<I", TEMPLATE_CASTLE_KEEP_BYTE), TEMPLATE_CASTLE_KEEP_BIT)
+    a.jcc(JE, "plain")
+    a.emit(b"\x8d\x50", 0x100 - MODULE_FROM_INTERFACE)  # lea edx, [eax-0x20]
+
+    # The keep still names the object being replaced - cut it, or the adoption below reads it as
+    # "I already have a keep" and destroys the replacement (`0x0079ACAD` -> `0x0079AD06`).
+    a.emit(b"\x39\x7a", CASTLE_KEEP_OFFSET)  # cmp [edx+0x38], edi
+    a.jcc_short(JNE, "keep_free")
+    a.emit(b"\x83\x62", CASTLE_KEEP_OFFSET, 0x00)  # and dword [edx+0x38], 0
+    a.label("keep_free")
+    a.emit(b"\x83\x7a", CASTLE_KEEP_OFFSET, 0x00)  # cmp dword [edx+0x38], 0
+    a.jcc(JNE, "plain")  # a keep this patch cannot prove is ours
+
+    a.emit(0x51)  # push ecx                      ; the plot, across the call
+    a.emit(0x52)  # push edx                      ; the module, same
+    a.emit(0x56)  # push esi                      ; the argument: the replacement
+    a.emit(b"\x8b\xca")  # mov ecx, edx
+    a.call_absolute(CASTLE_ON_STRUCTURE_BUILT)  # call onStructureBuilt  ; ret 4
+    a.emit(0x5A)  # pop edx
+    a.emit(0x59)  # pop ecx
+    a.emit(b"\xc7\x42", CASTLE_STATE_OFFSET, struct.pack("<I", CASTLE_STATE_OCCUPIED))
+    a.jmp("links")
+
+    a.label("plain")
     a.emit(b"\x8b\x56", OBJECT_ID_OFFSET)  # mov edx, [esi+0x74]   ; the replacement's id
     a.emit(b"\x89\x50", FOUNDATION_BUILT_ON_OFFSET)  # mov [eax+8], edx   ; occupied again
+
+    a.label("links")
     a.emit(b"\x89\x5e", OBJECT_PRODUCER_ID_OFFSET)  # mov [esi+0x78], ebx ; and it owns the plot
     # The plot's own back-link, and only when it is provably stale - it names the object that has
     # just been destroyed. Anything else there was not this pairing's to rewrite.
+    a.emit(b"\x8b\x56", OBJECT_ID_OFFSET)  # mov edx, [esi+0x74]
     a.emit(b"\x39\x79", OBJECT_BUILT_BACK_LINK_OFFSET)  # cmp [ecx+0x7c], edi
     a.jcc(JNE, "out")
     a.emit(b"\x89\x51", OBJECT_BUILT_BACK_LINK_OFFSET)  # mov [ecx+0x7c], edx

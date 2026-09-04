@@ -417,6 +417,8 @@ def test_living_world_campaign_nests_acts_and_armies():
     game = load(
         """\
         LivingWorldCampaign WotR
+            IsEvilCampaign        = Yes
+            ForceAdvanceTurnPhase = Yes
             Act One
                 EyeTowerPoints
                     LookPoint = X:436 Y:687
@@ -431,6 +433,8 @@ def test_living_world_campaign_nests_acts_and_armies():
     )
     camp = game.tables["livingworldcampaigns"]["WotR"]
     assert camp.extras == []
+    assert camp.IsEvilCampaign is True
+    assert camp.ForceAdvanceTurnPhase is True
     act = camp.Act[0]
     assert act.name == "One"
     assert act.extras == []  # SpawnArmy and EyeTowerPoints both typed, three levels deep

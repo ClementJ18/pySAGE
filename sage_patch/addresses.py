@@ -91,6 +91,24 @@ __all__ = [
     "AI_GROUP_UPGRADE_MEMBER_BYTES",
     "AI_GROUP_UPGRADE_MEMBER_RESUME",
     "AI_GROUP_UPGRADE_SELF_EBP",
+    "AI_HERO_ARMY_DEFINITION_LIST",
+    "AI_HERO_ARMY_DEFINITION_LIST_BYTES",
+    "AI_HERO_LIST_BEGIN",
+    "AI_HERO_LIST_ELEMENT",
+    "AI_HERO_LIST_ELEMENT_BYTES",
+    "AI_HERO_NAME_RESOLVED",
+    "AI_HERO_NAME_RESOLVED_BYTES",
+    "AI_HERO_NAME_RESOLVED_RESUME",
+    "AI_HERO_PICK_INDEX",
+    "AI_HERO_PICK_INDEX_CALL",
+    "AI_HERO_PICK_INDEX_CALL_BYTES",
+    "AI_HERO_PICK_INDEX_ENTRY",
+    "AI_HERO_REJECT",
+    "AI_HERO_REJECT_BYTES",
+    "AI_HERO_REQUEST",
+    "AI_HERO_REQUEST_CALL",
+    "AI_HERO_REQUEST_CALL_BYTES",
+    "AI_HERO_REQUEST_ENTRY",
     "AI_PRODUCER_ACCEPT",
     "AI_PRODUCER_ANY_BRANCH",
     "AI_PRODUCER_ANY_BRANCH_ENTRY",
@@ -102,6 +120,10 @@ __all__ = [
     "AI_PRODUCER_USABLE_TESTS",
     "AI_SET_CURRENT_VICTIM",
     "AI_SET_CURRENT_VICTIM_BYTES",
+    "ALPHA_RECOMPUTE",
+    "ALPHA_RECOMPUTE_BODY",
+    "ALPHA_RECOMPUTE_BODY_BYTES",
+    "ALPHA_RECOMPUTE_ENTRY",
     "APPEND_MESSAGE_VTABLE_SLOT",
     "APT_INIT_GADGETS_EPILOGUE",
     "APT_INIT_GADGETS_LADDER",
@@ -119,6 +141,10 @@ __all__ = [
     "ARG_APPENDERS",
     "ARMOR_ADJUST_DAMAGE",
     "ARMOR_ADJUST_DAMAGE_HEALING_PASSTHROUGH",
+    "ARMY_DEFINITION_FIELD_TABLE",
+    "ARMY_DEFINITION_FIELD_TABLE_REFS",
+    "ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES",
+    "ARMY_DEFINITION_HERO_BUILD_ORDER",
     "ARMY_ENTRY_DEFAULT_TABLE_BYTES",
     "ARMY_ENTRY_DEFAULT_TABLE_PUSH",
     "ARMY_ENTRY_DEFAULT_TABLE_PUSH_BYTES",
@@ -216,6 +242,8 @@ __all__ = [
     "CAN_MAKE_UNIT_VTABLE_SLOT",
     "CAN_USE_SPECIAL_POWER",
     "CAN_USE_SPECIAL_POWER_ENTRY",
+    "CATCHUP_ESCAPE",
+    "CATCHUP_ESCAPE_ALWAYS_RUNS",
     "CLEAR_GAME_DATA",
     "CLI_COUNT_REF",
     "CLI_DISPATCH",
@@ -238,6 +266,9 @@ __all__ = [
     "COMMAND_BUTTON_SIZE",
     "COMMAND_BUTTON_SPECIAL_POWER",
     "COMMAND_BUTTON_TRIGGER_WHEN_READY",
+    "COMMAND_LINE_SKIRMISH_SETUP",
+    "COMMAND_LINE_SKIRMISH_SETUP_BYTES",
+    "COMMAND_LINE_SKIRMISH_SETUP_RESUME",
     "COMMAND_POINTS_HAS_ENOUGH",
     "COMMAND_POINTS_IN_USE",
     "COMMAND_SET_STORE_FIND_COMMAND_SET",
@@ -280,6 +311,7 @@ __all__ = [
     "CONTROL_BAR_UNIT_COST_CALL",
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
     "CRC_EXCLUDE_SHROUD_FLAG",
+    "CRC_LITE_FLAG",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION_ENTRY",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_VICTIM",
@@ -373,7 +405,12 @@ __all__ = [
     "DESCRIPTION_UNIT_COST_BODY",
     "DESYNC_DECLARE",
     "DESYNC_DECLARED_OFFSET",
+    "DESYNC_DEEP_CRC_FLAG",
     "DESYNC_FILE_WRITER",
+    "DESYNC_FOCUS_FRAME",
+    "DESYNC_FOCUS_FRAME_FILTER_FLAG",
+    "DESYNC_FOCUS_FRAME_GATE",
+    "DESYNC_FOCUS_FRAME_UNSET",
     "DESYNC_VERIFY_CLIENT_CRC_FLAG",
     "DICT_SET_ASCII_STRING",
     "DICT_SET_ASCII_STRING_BYTES",
@@ -420,9 +457,20 @@ __all__ = [
     "GAME_DATA_BOOL_PARSER",
     "GAME_DATA_SHELL_MAP_NAME_ROW",
     "GAME_ENGINE",
+    "GAME_ENGINE_ALPHA",
     "GAME_ENGINE_QUITTING",
     "GAME_ENGINE_SET_FPS_SLOT",
+    "GAME_ENGINE_SUB_FRAME",
+    "GAME_ENGINE_SUB_FRAME_RATIO",
     "GAME_INFO_MAP",
+    "GAME_INFO_MAP_CRC",
+    "GAME_INFO_MAP_SIZE",
+    "GAME_INFO_OPTIONS",
+    "GAME_INFO_SIZE",
+    "GAME_INFO_SLOT_ARRAY",
+    "GAME_INFO_SLOT_COUNT",
+    "GAME_INFO_SLOT_DATA",
+    "GAME_INFO_STARTING_RESOURCES",
     "GAME_LOGIC_FIND_OBJECT_BY_ID",
     "GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY",
     "GAME_LOGIC_FRAME",
@@ -430,7 +478,24 @@ __all__ = [
     "GAME_LOGIC_UPDATE",
     "GAME_LOGIC_UPDATE_ENTRY",
     "GAME_LOGIC_UPDATE_VTABLE_SLOT",
+    "GAME_MESSAGE_APPEND_INTEGER",
     "GAME_MODE_SKIRMISH",
+    "GAME_SLOT_ACCEPTED",
+    "GAME_SLOT_COLOR",
+    "GAME_SLOT_MAP_PLAYER",
+    "GAME_SLOT_NAME",
+    "GAME_SLOT_ORIGINAL_COLOR",
+    "GAME_SLOT_ORIGINAL_PLAYER_TEMPLATE",
+    "GAME_SLOT_ORIGINAL_START_POS",
+    "GAME_SLOT_PLAYER_TEMPLATE",
+    "GAME_SLOT_SIZE",
+    "GAME_SLOT_START_POS",
+    "GAME_SLOT_START_POS_GRANTED",
+    "GAME_SLOT_STATE",
+    "GAME_SLOT_STATE_CLOSED",
+    "GAME_SLOT_STATE_EASY_AI",
+    "GAME_SLOT_STATE_LOCAL_HUMAN",
+    "GAME_SLOT_TEAM",
     "GAME_TEXT_FORMAT_SLOT",
     "GET_CHECKBOX_STATE",
     "GET_FINAL_OVERRIDE",
@@ -494,6 +559,8 @@ __all__ = [
     "INI_PARSE_BOOL",
     "INI_PARSE_INT",
     "INI_PARSE_REAL",
+    "INI_PARSE_STRING_LIST",
+    "INI_PARSE_STRING_LIST_BYTES",
     "INI_PARSE_UNSIGNED_SHORT",
     "INI_SCAN_INT",
     "IN_GAME_UI_ADD_FLOATING_TEXT",
@@ -526,11 +593,18 @@ __all__ = [
     "LIVING_WORLD_PLAYERS_END",
     "LIVING_WORLD_PLAYER_ARMIES_BEGIN",
     "LIVING_WORLD_PLAYER_ARMIES_END",
+    "LOADING_SCREEN_PROGRESS",
+    "LOADING_SCREEN_PROGRESS_BYTES",
+    "LOADING_SCREEN_PROGRESS_REPORT",
+    "LOADING_SCREEN_PROGRESS_RESUME",
+    "LOADING_SCREEN_PROGRESS_SINK",
+    "LOADING_SCREEN_PROGRESS_WINDOW",
     "LOGIC_CRC_EMIT",
     "LOGIC_CRC_EMIT_BYTES",
     "LOGIC_CRC_EMIT_RESUME",
     "LOGIC_CRC_SHROUD_XFER",
     "LOGIC_CRC_SHROUD_XFER_BYTES",
+    "LOGIC_FRAMES_PER_SECOND",
     "LOSE_CASH_COLOR",
     "LOSE_CASH_RISE",
     "MAIN_MENU_BLINK_FLAG",
@@ -567,6 +641,14 @@ __all__ = [
     "MONEY_WITHDRAW",
     "MSG_CLEAR_GAME_DATA",
     "MSG_NEW_GAME",
+    "NAME_KEY_FROM_STRING",
+    "NET_CRC_INTERVAL",
+    "NET_CRC_INTERVAL_GAME_INFO_CTOR",
+    "NET_CRC_INTERVAL_GAME_INFO_OFFSET",
+    "NET_CRC_INTERVAL_HEARTBEAT_GATE",
+    "NET_CRC_INTERVAL_REPLAY_HEADER",
+    "NET_CRC_INTERVAL_SKIRMISH_CLAMP",
+    "NET_CRC_INTERVAL_STOCK",
     "NUGGET_PARSE_TABLE",
     "NUGGET_VTBL_DEALS_DAMAGE",
     "NUGGET_VTBL_SUBWEAPON",
@@ -908,6 +990,7 @@ __all__ = [
     "THE_GAME_TEXT",
     "THE_IN_GAME_UI",
     "THE_MESSAGE_STREAM",
+    "THE_NAME_KEY_GENERATOR",
     "THE_PARTITION_MANAGER",
     "THE_PLAYER_LIST",
     "THE_RECORDER",
@@ -1057,12 +1140,78 @@ DESYNC_DECLARED_OFFSET = 0x1BC
 DESYNC_FILE_WRITER = 0x006CF681
 DESYNC_VERIFY_CLIENT_CRC_FLAG = 0x00DE87C5
 
+# `NetCRCInterval` - the cadence of the `MSG_LOGIC_CRC` (`0x44A`) heartbeat, and therefore the
+# resolution of every out-of-sync answer this engine can give. See `docs/desync-debug.md` section
+# 2. The engine's own name for it, from the flag reporter's `NetCRCInterval: %d` line at
+# `0x00BFDCE4`.
+#
+# Its only writer is `0x007BA6F5`, in the orphaned command-line region `docs/headless.md` section 5
+# documents, so on a retail build the shipped 100 is the only value it ever holds. Three live
+# readers, which is what makes changing the initialiser sufficient rather than a hook:
+# the `GameInfo` constructor seeds `+0xC` from it unclamped, the skirmish start re-seeds the same
+# field through a `min(x, 100)` clamp - so *lowering* it passes through every path - and the
+# recorder copies it into the replay header block that `sage_replay` reads back as `crc_interval`.
+NET_CRC_INTERVAL = 0x00DA1880
+NET_CRC_INTERVAL_STOCK = 100
+
+# `mov eax, [TheGameInfo]` / `mov ecx, [eax+0xC]` / `div ecx` in `GameLogic::update`: the frame is
+# divided by the interval and the heartbeat goes out on a zero remainder. **There is no zero
+# guard** - an interval of 0 faults on the logic thread on the first frame - which is the reason
+# `desync-debug` refuses one.
+NET_CRC_INTERVAL_HEARTBEAT_GATE = 0x0062E714
+
+# Where `GameInfo::+0xC` (the per-match copy the gate above divides by) comes from: the constructor
+# at `0x00801AE1`, unclamped, and the skirmish re-seed at `0x0077ED5D`, which clamps to at most
+# 100. Both read `NET_CRC_INTERVAL`.
+NET_CRC_INTERVAL_GAME_INFO_CTOR = 0x00801AE1
+NET_CRC_INTERVAL_GAME_INFO_OFFSET = 0x0C
+NET_CRC_INTERVAL_SKIRMISH_CLAMP = 0x0077ED5D
+
+# `mov ecx, [NetCRCInterval]` in the recorder's header writer, stored to `recorder+0xEC0` - the
+# `crc_interval` field of a `.rep`. A recording made by a patched build carries the patched
+# cadence here, which is how `sage_replay` sees it.
+NET_CRC_INTERVAL_REPLAY_HEADER = 0x0077D260
+
+# The desync **focus frame**: `-1` when unset, else a frame number that overrides the interval
+# entirely - per-frame heartbeats across the window ending on it (`0x0062E736`, from
+# `target - [TheNetwork+0xC18] - 2` inclusive), and silence on every other frame. See
+# `docs/desync-debug.md` section 3.
+#
+# Six live readers; only the heartbeat gate and `0x006290E7` have been read. Its handler
+# (`0x007BA690`) is separate from the one that arms the declaration filter below, so the frame can
+# be set on its own.
+DESYNC_FOCUS_FRAME = 0x00DA62EC
+DESYNC_FOCUS_FRAME_UNSET = 0xFFFFFFFF
+DESYNC_FOCUS_FRAME_GATE = 0x0062E736
+
+# The declaration filter. When set, `DESYNC_DECLARE` reports a desync **only** if it happens on
+# exactly `DESYNC_FOCUS_FRAME` - a filter, not a trigger. Left at 0 the message box and the latch
+# behave normally, which is what a focus frame used only to steer the heartbeat wants.
+DESYNC_FOCUS_FRAME_FILTER_FLAG = 0x00DE87CA
+
+# `-deepCRC`: a second route through the emitter (`0x0062E774`) that logs the CRC's constituents
+# into a named sink. **The sink is a growable heap buffer, not a file** - written by `0x00A15F27`,
+# opened against the `Debug` named-channel registry at `[0x00DF1F40]` that no shipping config
+# drains - so enabling this buys a per-frame allocation and no log. Recorded so the next reader
+# does not re-derive that; see `docs/desync-debug.md` section 4.
+DESYNC_DEEP_CRC_FLAG = 0x00DE87C6
+
+# `-liteCRC`, and the reason the nine `-x<Subsystem>CRC` exclusion flags (`0x00DE87BC` through
+# `0x00DE87C4`, `0x00DE87C8`, `CRC_EXCLUDE_SHROUD_FLAG` among them) are inert on a retail build:
+# each subsystem's contribution is included when *either* this is set or its own exclusion is
+# clear, and the plain emitter path sets this for the duration of the call (`0x0062E7E8`, cleared
+# at `0x0062E7F6`). So
+# the exclusions are only consulted on the `-deepCRC` route above. See `docs/desync-debug.md`
+# section 5.
+CRC_LITE_FLAG = 0x00DE87C7
+
 # Subsystem singletons. Each address holds a *pointer to* the object, not the object; they are
 # registered by name at startup, which is how they were found (see `docs/engine-globals.md`
 # for the full 88).
 THE_GAME_LOGIC = 0x00DE412C
 THE_PLAYER_LIST = 0x00DE4928
 THE_MESSAGE_STREAM = 0x00DE6398
+THE_NAME_KEY_GENERATOR = 0x00DD90E4
 THE_IN_GAME_UI = 0x00DE4830
 THE_GAME_STATE = 0x00DE4AD4
 THE_RECORDER = 0x00DE7CD8
@@ -1132,6 +1281,64 @@ THE_SKIRMISH_GAME_INFO = 0x00DE8930
 # would then have to destroy. An `AsciiString` is one pointer; the characters begin at `+8`,
 # and a null pointer is the empty string.
 GAME_INFO_MAP = 0x40
+
+# `GameInfo`'s remaining layout and `GameSlot`, recovered in `docs/game-info.md`. The slot array
+# is eight pointers into the object's own tail (`0xDC + i * 0x1B8`, which runs exactly to the end
+# of the object), and the options block is what the skirmish menu fills and what a `-file`
+# auto-start leaves at -1 - including the starting resources, whose unset value leaves every
+# player one short of a fortress.
+GAME_INFO_SIZE = 0xE9C
+GAME_INFO_SLOT_ARRAY = 0x18
+GAME_INFO_SLOT_COUNT = 8
+GAME_INFO_SLOT_DATA = 0xDC
+GAME_INFO_MAP_CRC = 0x44
+GAME_INFO_MAP_SIZE = 0x48
+GAME_INFO_OPTIONS = 0x5C
+GAME_INFO_STARTING_RESOURCES = 0x70
+
+# `GameSlot`, `0x1B8` bytes. The three `ORIGINAL_` fields mirror their counterparts - the lobby's
+# requested-versus-granted pair - and every sample taken has them equal. `MAP_PLAYER` is an
+# `AsciiString` reading `Player_<START_POS + 1>`: it binds a seat to the map-side player that owns
+# the pre-placed objects at that start position, and it follows the start position rather than the
+# slot index.
+GAME_SLOT_SIZE = 0x1B8
+GAME_SLOT_STATE = 0x04
+GAME_SLOT_ACCEPTED = 0x08
+GAME_SLOT_COLOR = 0x0C
+GAME_SLOT_START_POS = 0x10
+GAME_SLOT_START_POS_GRANTED = 0x14
+GAME_SLOT_PLAYER_TEMPLATE = 0x18
+GAME_SLOT_TEAM = 0x1C
+GAME_SLOT_ORIGINAL_COLOR = 0x24
+GAME_SLOT_ORIGINAL_START_POS = 0x28
+GAME_SLOT_ORIGINAL_PLAYER_TEMPLATE = 0x2C
+GAME_SLOT_NAME = 0x30
+GAME_SLOT_MAP_PLAYER = 0x34
+
+# `GameSlot::m_state`. 1, 2 and 6 are the values observed; the display name at `GAME_SLOT_NAME`
+# reads "Closed" and "Easy" against the first two, which is what names them.
+GAME_SLOT_STATE_CLOSED = 1
+GAME_SLOT_STATE_EASY_AI = 2
+GAME_SLOT_STATE_LOCAL_HUMAN = 6
+
+# The tail of the `-file` auto-start's skirmish branch: `push 2` / `mov ecx, edi` /
+# `GameMessage::appendIntegerArgument`, by which point the engine has finished building the
+# `GameInfo` and filled slot 0. Nothing branches into these nine bytes.
+COMMAND_LINE_SKIRMISH_SETUP = 0x0063CB7B
+COMMAND_LINE_SKIRMISH_SETUP_BYTES = bytes.fromhex("6a028bcfe861460d00")
+COMMAND_LINE_SKIRMISH_SETUP_RESUME = 0x0063CB84
+GAME_MESSAGE_APPEND_INTEGER = 0x007111E5
+
+# The loading screen's progress update. `[this + 0x88]` is a window the shell creates, so a
+# menu-less start dereferences null here; the engine treats the same member as nullable at
+# `0x0081C5C4`, whose whole body clears it. The twenty-four bytes run to a resume point two
+# nearby branches already target.
+LOADING_SCREEN_PROGRESS = 0x0081C64A
+LOADING_SCREEN_PROGRESS_BYTES = bytes.fromhex("8b8e880000008b0157ff50348b0d2c41de0050e82c9ee0ff")
+LOADING_SCREEN_PROGRESS_RESUME = 0x0081C662
+LOADING_SCREEN_PROGRESS_WINDOW = 0x88
+LOADING_SCREEN_PROGRESS_SINK = 0x00DE412C
+LOADING_SCREEN_PROGRESS_REPORT = 0x0062648E
 
 # `MAX_PLAYER_COUNT`. Every per-player array the engine embeds is this wide; see
 # `docs/max-player-count.md` for why it cannot be raised.
@@ -2137,6 +2344,83 @@ AI_PRODUCER_ACCEPT = 0x009A07A0
 # picker's rejection edges lands here.
 AI_PRODUCER_NEXT_CANDIDATE = 0x009A07C7
 
+#
+# `HeroBuildOrder`, and the skirmish AI's hero builder that spends a purse against it. Derived in
+# `docs/ai-hero-build-delay.md`.
+#
+# The keyword is row 29 of the `ArmyDefinition` field table and stores a plain
+# `std::vector<AsciiString>` of names; the builder copies that vector wholesale and picks an entry
+# out of it at random. There is no clock anywhere on the path, which is why the AI empties its
+# purse into whichever hero it happened to draw as soon as it can afford one.
+
+# The `ArmyDefinition` field-parse table, and the two instructions that name it - a getter
+# (`mov eax, imm32`) and the `parseFields` call (`push imm32`). Resolved *through the references*
+# rather than from the constant, so a patch composes with anything that rebuilt the table first.
+ARMY_DEFINITION_FIELD_TABLE = 0x00C52B40
+ARMY_DEFINITION_FIELD_TABLE_REFS = (0x00830103, 0x008302A0)
+ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES = (0xB8, 0x68)
+
+# `HeroBuildOrder`'s `store + offset` inside the 0xEC-byte `ArmyDefinition`. The row's parse
+# function is `INI_PARSE_STRING_LIST` and its `userData` is null.
+ARMY_DEFINITION_HERO_BUILD_ORDER = 0x8C
+
+# `TheNameKeyGenerator::nameToKey(const AsciiString *)` - `__thiscall` on
+# `THE_NAME_KEY_GENERATOR`, `ret 4`, returning the interned key. The same interning the hero
+# builder itself applies to these names at 0x009A08B6 and 0x009A0948, which is what makes a key
+# taken at parse time comparable with one taken during a match.
+NAME_KEY_FROM_STRING = 0x0049F474
+
+# The logic rate in frames per second - **5**, not the 30 four bytes above it at 0x00D9F60C,
+# which is the client rate. Seconds become logic frames through this, read from the global rather
+# than baked in.
+LOGIC_FRAMES_PER_SECOND = 0x00D9F608
+
+# `mov eax, [eax+0x160]` / `add eax, 0x8c` / `lea edi, [esi+0x4c]` - the one place the AI's hero
+# builder takes its list, copying `ArmyDefinition+0x8C` into its own `+0x4C`. The anchor that ties
+# everything below to the `HeroBuildOrder` keyword: without it, `+0x4C` is just a vector of names.
+AI_HERO_ARMY_DEFINITION_LIST = 0x009A10E1
+AI_HERO_ARMY_DEFINITION_LIST_BYTES = bytes.fromhex("8b8060010000058c0000008d7e4c")
+
+# The hero build order on the builder, `{begin, end}` at `+0x4C`/`+0x50`. Logic state: xfered at
+# 0x009A11C8, so it is saved into a `.sav` and folded into the per-frame CRC.
+AI_HERO_LIST_BEGIN = 0x4C
+
+# `pickHeroIndex` - returns an index into that list. Three rules: retry an index already requested,
+# else a random index in `1..count-1`, else force 0 when the player holds the Ring. No cost term
+# and no clock.
+AI_HERO_PICK_INDEX = 0x009A05DB
+AI_HERO_PICK_INDEX_ENTRY = bytes.fromhex("b80a1fbb00")
+
+# `createHeroBuildRequest` and its single call site. The caller runs the AI's **unit** builder when
+# this answers null, so refusing a hero here costs the AI nothing but the hero.
+AI_HERO_REQUEST = 0x009A0993
+AI_HERO_REQUEST_ENTRY = bytes.fromhex("b84d1fbb00")
+AI_HERO_REQUEST_CALL = 0x009A1063
+AI_HERO_REQUEST_CALL_BYTES = bytes.fromhex("e82bf9ffff")
+
+# `call AI_HERO_PICK_INDEX`, then `mov ecx, [esi+0x4c]` / `lea edi, [ecx+eax*4]` - what makes `edi`
+# the chosen hero's `AsciiString` and `eax` its index at the site below.
+AI_HERO_PICK_INDEX_CALL = 0x009A09D8
+AI_HERO_PICK_INDEX_CALL_BYTES = bytes.fromhex("e8fefbffff")
+AI_HERO_LIST_ELEMENT = 0x009A09DD
+AI_HERO_LIST_ELEMENT_BYTES = bytes.fromhex("8b4e4c8d3c81")
+
+# `mov ecx, [THE_THING_FACTORY]` - six bytes between "the name is resolved" and "the template is
+# looked up", and the last point before anything is committed. `edi` holds the name, `eax` the
+# index (**live** - it is stored to `[ebp-0x20]` one instruction later, so a cave here must
+# preserve it), and `ebx`/`ecx`/`edx` are dead. A sweep of every branch displacement and imm32 in
+# `.text` finds no inbound edge into the six bytes, so the only way in is fallthrough.
+AI_HERO_NAME_RESOLVED = 0x009A09E3
+AI_HERO_NAME_RESOLVED_BYTES = bytes.fromhex("8b0d404ade00")
+AI_HERO_NAME_RESOLVED_RESUME = 0x009A09E9
+
+# `or dword [esi+0x38], -1` - the engine's own rejection edge, reached from two stock branches at
+# this same stack depth. It forgets the chosen index, so the next tick re-picks and the rest of the
+# list stays reachable, then falls into the return-null tail. `[ebp-0x14]`, the local read two
+# instructions later, is zeroed at 0x009A09B6 on every path that reaches here.
+AI_HERO_REJECT = 0x009A0AE1
+AI_HERO_REJECT_BYTES = bytes.fromhex("834e38ff")
+
 # `AIFlagCaptureSquad::pickFlag` - the skirmish AI's flag-capture tactic choosing which capture
 # flag to send a squad at. Walks the global list of every `CAPTUREFLAG` object on the map, keeps
 # the nearest candidate that is not already allied, and returns it. Derived, with the whole tactic
@@ -2281,6 +2565,15 @@ INI_PARSE_BOOL = 0x0042E558
 # does `fstp dword [store]`, a single 4-byte float store through the same `store + offset`
 # pointer - so a new `Real` field needs an aligned 4-byte slot and nothing else.
 INI_PARSE_REAL = 0x0042ED00
+
+# `INI::parseAsciiStringVector`, the parser behind every whitespace-separated **list of names**:
+# it erases the `std::vector<AsciiString>` at `store` (`{begin, end, capacity}`, four bytes an
+# element) and appends one entry per token, macros expanded. `HeroBuildOrder`,
+# `OffensiveBuildings` and `ScavangedResourceBuildings` all name it, which is why a patch wanting
+# a richer token syntax for one of them repoints that field's **row** rather than this function.
+# Nothing here resolves a name, so the vector holds text until a consumer looks it up.
+INI_PARSE_STRING_LIST = 0x0042EED6
+INI_PARSE_STRING_LIST_BYTES = bytes.fromhex("568b742410ff7604")
 
 
 # The module on a claimed resource spot: it wakes every `IncomeInterval`, deposits an income, and
@@ -2465,6 +2758,42 @@ COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET = 0x0071F933
 PLAYER_COMMAND_POINTS_CAP = 0x64
 PLAYER_COMMAND_POINTS_BONUS = 0x6C
 PLAYER_COMMAND_POINTS_HARD_CAP = 0x70
+
+#: The command-point accounting an object performs as it is gained, lost and modified, and the
+#: leak in it - see `docs/command-point-leak.md`. The two `Player` wrappers pick their counter by
+#: `ThingTemplate.CommandPointBonus` (`+0x62C`): positive goes to the cap bonus (`Player+0x6C`)
+#: via `0x006A7C3E`/`0x006A7C51`, everything else to points-in-use via `0x006A7FDA`/`0x006A7FEB`.
+#: `0x006A7C01` values a cap-granting object as its template bonus **plus** every live
+#: `COMMAND_POINT_BONUS` attribute modifier (type 24), which is why applying a modifier has to
+#: re-do the accounting at all.
+PLAYER_ADD_COMMAND_POINTS_FOR_OBJECT = 0x006AA56D
+PLAYER_REMOVE_COMMAND_POINTS_FOR_OBJECT = 0x006AA590
+PLAYER_TRANSFER_COMMAND_POINTS_FOR_OBJECT = 0x006914B7
+COMMAND_POINT_CAP_BONUS_ADD = 0x006A7C3E
+COMMAND_POINT_CAP_BONUS_REMOVE = 0x006A7C51
+COMMAND_POINT_CAP_BONUS_VALUE = 0x006A7C01
+THING_TEMPLATE_COMMAND_POINT_BONUS = 0x62C
+MODIFIER_TYPE_COMMAND_POINT_BONUS = 24
+
+#: `Object::applyModifierList`, the single door all 32 attribute-modifier call sites go through.
+#: It subtracts the object's cap contribution at `0x0068F225`, applies, and re-adds at
+#: `0x0068F243` - but `0x0068F23A` returns FALSE without re-adding when the apply is refused,
+#: which permanently deletes that object's contribution from `Player+0x6C`. `0x0068F2A0` is the
+#: removal counterpart and is correctly symmetric. The refusals live in
+#: `ModifierHolder::applyModifierList`; `ModifierList+0xD2`/`+0xD3` are
+#: `ReplaceInCategoryIfLongest` and `IgnoreIfAnticategoryActive`, and a `Duration` of 0 becomes
+#: expiry `0x3FFFFFFF` at `0x00805B39`, so a permanent list outlasts and refuses every shorter
+#: one sharing its `Category`.
+OBJECT_APPLY_MODIFIER_LIST = 0x0068F1A8
+OBJECT_APPLY_MODIFIER_LIST_SUBTRACT = 0x0068F225
+OBJECT_APPLY_MODIFIER_LIST_FAIL_BRANCH = 0x0068F23A
+OBJECT_APPLY_MODIFIER_LIST_READD = 0x0068F243
+OBJECT_REMOVE_MODIFIER_LIST = 0x0068F2A0
+MODIFIER_HOLDER_APPLY_MODIFIER_LIST = 0x00805A8E
+MODIFIER_HOLDER_APPLY_REFUSE_CATEGORY = 0x00805B9C
+MODIFIER_HOLDER_APPLY_REFUSE_LOOKUP = 0x00805B01
+MODIFIER_LIST_REPLACE_IN_CATEGORY_IF_LONGEST = 0xD2
+MODIFIER_LIST_IGNORE_IF_ANTICATEGORY_ACTIVE = 0xD3
 
 #: The player's spendable resource balance, and the spellbook point pair (`+0x24` is the
 #: spendable balance, `+0x1C` the lifetime total - only the former falls when a power is bought).
@@ -4736,3 +5065,41 @@ UPGRADE_FILTER_BODY_BYTES = bytes.fromhex(
 )
 UPGRADE_FILTER_OWNER_SLOT = 0x04
 UPGRADE_FILTER_UPGRADE_SLOT = 0x08
+
+
+# The sub-frame pacing block, derived in `docs/interpolation-alpha.md`. `GameEngine::update`
+# advances a counter once per rendered frame and ends a logic frame when it passes the wrap, and
+# the render path interpolates transforms across the gap with an alpha recomputed on every
+# sub-frame. `docs/render-rate.md` §3 derives the surrounding loop.
+
+#: `TheGameEngine+0x34` - the sub-frame counter, reset to 1 by the wrap at `0x0063264A`.
+GAME_ENGINE_SUB_FRAME = 0x34
+
+#: `TheGameEngine+0x38` - the alpha's denominator. The constructor (`0x0063A4DE`) leaves it at 1
+#: and the recompute at `0x0063260F` sets it to `clientRate / logicRate`, so it is 1 until the
+#: first logic frame ends.
+GAME_ENGINE_SUB_FRAME_RATIO = 0x38
+
+#: `TheGameEngine+0x3C` - the interpolation alpha, read by seven render sites.
+GAME_ENGINE_ALPHA = 0x3C
+
+#: `GameEngine::recomputeAlpha` - `+0x3C = clamp(+0x34 / +0x38, 0, 1)`, called from `0x00632642`,
+#: `0x006326BE`, `0x006326E4` and `0x00632AF0`, all inside the pacing loop. Nothing branches into
+#: its body, so the five-byte `cvtsi2ss` at its head is a whole hook window.
+ALPHA_RECOMPUTE = 0x0063256F
+ALPHA_RECOMPUTE_ENTRY = bytes.fromhex("f30f2a4938")
+#: The 44 bytes after the hook window: the second convert, the divide, and the two-sided clamp
+#: that pins the result into `[0, 1]`. Anchored, never written - a build that computes the alpha
+#: some other way is not the build this is a correction for.
+ALPHA_RECOMPUTE_BODY = 0x00632574
+ALPHA_RECOMPUTE_BODY_BYTES = bytes.fromhex(
+    "f30f2a4134f30f5ec10f57c90f2fc8f30f11413c770df30f100d0819bd000f2fc176030f28c1f30f11413cc3"
+)
+
+#: The catch-up loop's escape (`docs/render-rate.md` §3.4). Stock derives `clientRate / logicRate`
+#: here and skips the loop when it is 6 or more, which on a 30 fps client it always is. The Edain
+#: and AotR binaries replace those seven bytes with `mov eax, 2` / `jmp 0x00632ABB`, so the loop
+#: runs one iteration every logic frame and its `inc dword [ebp+0x34]` at `0x00632AC0` steps the
+#: sub-frame counter past 1 before any client code can observe it.
+CATCHUP_ESCAPE = 0x00632A9B
+CATCHUP_ESCAPE_ALWAYS_RUNS = bytes.fromhex("b802000000eb19")

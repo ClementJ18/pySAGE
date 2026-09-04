@@ -176,3 +176,4 @@ Worldbuilder.exe
 applymypatches.py
 *.backup
 sage_lint/.sagepatch
+game_original.dat

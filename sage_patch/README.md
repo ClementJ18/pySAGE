@@ -19,12 +19,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Seventeen of the registered patches — **`hero-mana`**, **`second-resource`**,
+> Nineteen of the registered patches — **`hero-mana`**, **`second-resource`**,
 > **`campaign-select`**, **`battle-school`**, **`standalone-launcher`**, **`headless`**,
 > **`recharge-rescale`**, **`live-bridge`**, **`living-world-override`**,
 > **`cooldown-through-death`**, **`capture-the-flag`**, **`smart-rally`**,
-> **`special-power-charges`**, **`render-rate`**, **`campaign-army-verbs`**,
-> **`hero-army-carryover`** and **`unit-plate-option`**
+> **`special-power-charges`**, **`render-rate`**, **`interpolation-alpha`**,
+> **`campaign-army-verbs`**,
+> **`hero-army-carryover`**, **`unit-plate-option`** and **`command-line-skirmish`**
 > — are **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -121,6 +122,29 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   is the tactic's own update, so unlike `ai-revive-gate` it needs no return-address
   discrimination. Logic-side, so **every peer needs the same binary**. See
   [`docs/ai-flag-capture-gate.md`](docs/ai-flag-capture-gate.md).
+- **`ai-hero-build-delay`** lets a `HeroBuildOrder` entry say **when** the skirmish AI may start
+  wanting that hero: a token stays a bare `Name`, or becomes `Name:Seconds` — seconds from the
+  start of the match — so `MordorWitchKing:420` keeps the Witch-king off the AI's shopping list
+  for the first seven minutes. The keyword needs it because it is not a build *order* at all
+  today: the AI copies the list off its faction's `ArmyDefinition` and its picker draws from it
+  **uniformly at random**, with no cost term and no clock anywhere on the path. The one thing
+  between it and the most expensive hero in the list is an affordability test, and that is not a
+  policy — it asks whether the purse covers the hero right now, so the AI banks until it does and
+  then spends everything, which is how a player meets an AI that fielded Gandalf on minute three
+  and no army. Two edits: the keyword's **row** in the `ArmyDefinition` field table is repointed
+  at a parser that splits the suffix off and records it (the row, not the parse function, which
+  `OffensiveBuildings` and `ScavangedResourceBuildings` share and where a colon must keep meaning
+  nothing), and the six bytes between "the hero's name is resolved" and "its template is looked
+  up" become a gate. Splitting at parse time is what keeps it to one gate: the template lookup,
+  the name interning, the AI's already-queued check, the save-game xfer and the frame CRC all see
+  exactly the string a stock build would. A hero on the clock is **skipped, not blocked** — the
+  gate hands it to the engine's own rejection edge, which forgets the choice so the next tick
+  draws again — and a refused hero request costs nothing, because the AI's order pump runs its
+  unit builder in the same call, so the money goes into an army instead. A bare `Name` is stock
+  instruction for instruction. One limit worth knowing: a delay is keyed by hero **name**, not by
+  `ArmyDefinition`, so a hero two factions list with two different delays keeps the last one
+  parsed. Logic-side, so **every peer needs the same binary** — and the same INI. **Not
+  runtime-verified.** See [`docs/ai-hero-build-delay.md`](docs/ai-hero-build-delay.md).
 - **`rebuild-hole-construction`** lets a structure destroyed **while it is being rebuilt** leave
   its rebuild hole behind again. A creep lair's loop hangs entirely off that hole: breaking the
   lair makes one, breaking the *hole* is what pays out treasure (the `CreateObjectDie` is on the
@@ -831,14 +855,19 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   "what is standing on me" scan is **one-shot**, fired on its first update for map-placed
   structures, so nothing ever re-adopts.) The engine already re-points references from the old
   object to the new one in exactly this function - **for `WALL_HUB`, `WALL_UPGRADE` and
-  `WALL_SEGMENT` only**; this adds plots. Two `call rel32` and a `0x12A`-byte cave: before the
-  destroy, remember the plot and zero the link `onDelete` would follow; after the create, write the
-  new id into the plot's occupant field **directly** rather than through the setter, which would
-  reset the drawable's opacity and make the hidden flag blink. Every write is guarded by a proof of
-  ownership, so a unit's producer - a barracks, which answers no foundation interface - is never
-  touched. This is what Edain's Iron Hills vineyard works around with a hidden flag, a rebuild
-  cooldown and a dummy building. **Simulation state**, so it has to be on every peer.
-  **Runtime-verified in game.**
+  `WALL_SEGMENT` only**; this adds plots. Two `call rel32` and a `0x17A`-byte cave: before the
+  destroy, remember the plot and zero the link `onDelete` would follow; after the create, give the
+  plot back its occupant. On a plain foundation plot that is a **direct** write of the new id
+  rather than a call to the setter, which would reset the drawable's opacity and make the hidden
+  flag blink. **A settlement flag is a `CastleBehavior`, and one dword is not enough for it**: what
+  gates its capture is the occupancy state at `module+0x34`, and the keep at `module+0x38` clears
+  itself a frame after the object it named dies - measured live, a plot rebound by id alone was
+  otherwise identical to an *empty* one, and the AI captured it and took the replacement with it.
+  So a castle plot goes through the engine's own `CastleBehavior::onStructureBuilt`, which adopts
+  the keep and calls `setBuiltOnObject` itself. Every write is guarded by a proof of ownership, so
+  a unit's producer - a barracks, which answers no foundation interface - is never touched. This is
+  what Edain's Iron Hills vineyard works around with a hidden flag, a rebuild cooldown and a dummy
+  building. **Simulation state**, so it has to be on every peer. **Runtime-verified in game.**
 - **`standalone-launcher`** ⚠**(experimental)** is the one patch here aimed at **`lotrbfme2ep1.exe`**, the launcher
   shim, and it lets a **relocated install still hand the game a usable token**. Finding and
   starting `game.dat` needed no patch and never did — the shim `chdir`s into its own image
@@ -1232,6 +1261,43 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   per load, which lands after the timestamps — the columns stay honest, the felt hitch gets worse.
   See [`docs/asset-demand-load.md`](docs/asset-demand-load.md), which is also the scoping note for
   what to do about the hitch once it has been measured.
+- **`desync-debug`** turns on the **engine's own out-of-sync instrumentation**, which ships
+  complete and unreachable. The `MSG_LOGIC_CRC` (`0x44A`) heartbeat peers compare goes out every
+  `NetCRCInterval` frames and that interval is **100**, so the engine's answer to "when did we
+  desync" is a hundred-frame window and a message box. The engine was built with better - a
+  tunable interval, a focus frame, a per-frame self-check that writes a file - and stranded every
+  switch behind the orphaned command-line region `docs/headless.md` §5 documents, so they are
+  `.data` initialisers with no live writer and nothing on a retail build can flip one. This patch
+  writes three of them: **no cave, no hook, no assembly**, one dword and one byte and one dword.
+  `--crc-interval N` (1..99, default 1) is the one that matters, and it pays twice, because the
+  global has two live consumers - the `GameInfo` constructor seeds `+0xC` from it and
+  `GameLogic::update` divides the frame by that, so the **declaration** narrows from a 100-frame
+  upper bound to an N-frame one; and the recorder copies the same global into the replay header,
+  so **every player's own `.rep` gains a CRC sample every N frames** and two recordings of one
+  match diff to the frame they parted (`sage_replay`'s `ChecksumHeartbeat`). The latch says *this
+  client disagrees*; the diff says *from here*. `--verify-client-crc` arms the per-frame
+  self-check at `0x006CF681` that appends to `CLIENT_DESYNC_<name>.txt` — code that is complete,
+  reached, and which `docs/desync-detection.md` §3 records as unarmable on retail.
+  `--focus-frame F` overrides the interval near one frame: per-frame checksums across the window
+  ending at F, silence everywhere else, for a second pass once a first has narrowed it down.
+  Lowering the interval is free of clamps in a way raising it is not — the skirmish re-seed is
+  `min(x, 100)` and the constructor is unclamped — and **zero is refused**, because the gate's
+  `div ecx` has no guard. What it costs is real: at interval 1 the CRC producer runs every logic
+  frame instead of every hundredth and one extra message per client per frame goes on the wire and
+  into every replay, which is why the interval is a parameter and 5 or 10 keeps most of the
+  resolution for a tenth of the work. **Every peer must run the same binary** — a heartbeat cadence
+  is a protocol detail, not a client-local preference, so this is the `binary-attest` rule and not
+  the `crash-dump` one, and replays made on a patched build should be played back on it.
+  Deliberately *not* exposed, with the disassembly to say why: `-deepCRC` logs into a growable heap
+  buffer no shipping config drains (a per-frame allocation and no file), the nine
+  `-x<Subsystem>CRC` exclusions are consulted only when `-liteCRC` is clear and the plain emitter
+  path sets it around every call, and `-debugCRCFromFrame`/`-debugCRCUntilFrame` have no reader
+  outside the flag-reporting function at all. See
+  [`docs/desync-debug.md`](docs/desync-debug.md), and
+  [`docs/desync-detection.md`](docs/desync-detection.md) for the latch that says a desync happened
+  at all. **Static-verified** — the addresses, the readers and the clamp are read out of the
+  binary and it applies, verifies and round-trips; what has not been done is play a patched match
+  and watch a desync land on a known frame.
 - **`wall-mesh-release`** makes a destroyed wall **give back the pathfinding data it registered**.
   A walkable wall registers three things in one function (`0x00935FAA`) and returns none of them:
   the walkable surface named by `RaisedWallMesh` claims a slot in the sixteen-entry table at
@@ -1427,6 +1493,29 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   milliseconds instead of a count of draws would remove the term outright and is still the better design,
   but it is no longer a prerequisite. The 2026-08-26 result is a field observation, not instrumented, so no
   *bound* on peer drift is claimed. See [`docs/render-rate.md`](docs/render-rate.md) §9.9.
+- **`interpolation-alpha`** ⚠**(experimental)** stops every interpolated transform taking a
+  **doubled step at the logic-frame boundary, five times a second**. The engine bridges the gap
+  between two logic frames with an alpha, `TheGameEngine+0x3C = +0x34 / +0x38`, that seven render
+  sites lerp against — drawable transforms, three W3D animation lerps and the counter readout. On
+  a stock binary the sub-frame counter takes every value from 1 to the wrap and the sweep is even.
+  On the Edain and AotR binaries it does not: the catch-up loop's escape is replaced with `mov
+  eax, 2` / `jmp`, so the loop runs every logic frame and its `inc dword [ebp+0x34]` steps the
+  counter past 1 **inside the same logic step** — measured over 373 client frames, the counter took
+  2..6 at rate 30 and 2..12 at rate 60, never 1. The denominator never moved with it, so the alpha
+  sweeps `2/N .. N/N`: N−1 normal steps and then a **double** one, every logic frame. That is the
+  jitter in offset animations and in the resource readout, and it is invisible to the engine
+  because `2/N` is a perfectly legal alpha. A `.alpha` cave replaces the alpha routine with
+  `(subFrame − 1) / (ratio − 1)`, which maps the range the client actually observes onto
+  `1/(N−1) .. 1` in even steps and still ends at exactly 1.0, the phase the seven readers are
+  written against. **The stolen sub-frame is deliberately left alone**: reverting the catch-up loop
+  would also remove the jitter, but that sub-frame is what raises the logic clock from 5 Hz to 6 Hz
+  on a 30 fps client and shortens a frame-counted network run-ahead by a sixth — reverting it buys
+  the jitter fix by giving the delay fix up. Composes with `render-rate`, which rewrites the wrap
+  and the recompute gate this reads neither of; the alpha is taken over `+0x38` at run time, so
+  whatever ratio that patch establishes is the one used. Refuses a binary whose catch-up loop still
+  carries its stock escape, where sub-frame 1 *is* observable and the same correction would put a
+  zero-length step at the boundary instead. **Static only — built and unit-tested, not yet played.**
+  See [`docs/interpolation-alpha.md`](docs/interpolation-alpha.md).
 - **`scenario-player-factions`** lets a War of the Ring `Scenario` say **which
   faction each lobby slot may take**, not just which factions the scenario allows. A scripted
   scenario that needs player 1 to be Angmar and player 2 to be Men can today only narrow the pool
@@ -1695,6 +1784,23 @@ sage-patch verify cooldown-through-death game.dat
 # --deep-dump-type are MINIDUMP_TYPE masks, the second selected by the `fulldump` debug command
 sage-patch apply crash-dump --in game.dat.backup --out game.dat        # defaults 0x1b65 / 0x1b67
 sage-patch verify crash-dump game.dat
+
+# find the frame a match went out of sync: tighten the checksum heartbeat from every 100 frames
+# to every N, so the desync box lands within N frames and every player's replay carries a CRC
+# sample that often - two recordings of one match then diff to the frame they parted.
+# EVERY PEER MUST RUN THE SAME BINARY; --crc-interval 5 or 10 costs a tenth of the work of 1
+sage-patch apply desync-debug --crc-interval 1 --in game.dat.backup --out game.dat
+sage-patch verify desync-debug --crc-interval 1 game.dat
+# second pass, once the first has said roughly where, plus the CLIENT_DESYNC_<name>.txt self-check
+sage-patch apply desync-debug --focus-frame 3500 --verify-client-crc --in game.dat.backup --out game.dat
+
+# make `-file maps\<name>.map` start a playable skirmish instead of an empty one: fills the
+# GameInfo slots the auto-start leaves random, sets the starting resources, and null-guards a
+# loading-screen window a menu-less start never creates. --human-faction / --ai-faction are
+# indices into the loaded mod's PlayerTemplate order (3 and 10 are Men and Mordor in Edain)
+# EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
+sage-patch apply command-line-skirmish --in game.dat.backup --out game.dat
+sage-patch verify command-line-skirmish game.dat
 
 # the launcher, not game.dat: no install-location lock on the token it hands the engine
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top

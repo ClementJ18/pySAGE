@@ -25,6 +25,7 @@ else is evidence feeding it.
 | [`objectives-in-any-map.md`](../objectives-in-any-map.md) | Why the objectives button opens the player list outside the linear campaign, and the shipped [`objectives-screen`](../../patches/objectives_screen.py) patch that fixes it. |
 | [`living-world-menu-entry.md`](living-world-menu-entry.md) | `AptMainMenu::OnTutorial("Strategic")` is a menu-driven Living World launcher that **no shipped movie calls**. The route to a shippable menu entry. |
 | [`act-advance-stall.md`](act-advance-stall.md) | **Scoped, not yet measured.** Why a scripted act sometimes stops until you zoom out and back in. An act advances only when the turn phase reaches 6, and the phase is braked in four places by the strategic message-box gate — a box marked showing whose dialog was never pushed to `TheAptPlayer` freezes the campaign, and the camera round trip runs the overlay re-show hook that releases it. Carries the live read that separates the candidates and the `living-world-box-watchdog` patch scope. |
+| [`script-holder.md`](script-holder.md) | **Measured 2026-09-04.** `LivingWorldCampaign`'s `ScriptHolder` names a WorldBuilder layout the campaign loads as its strategic session, at `LivingWorldScripts\<name>\<name>.lws`, and game mode 8 is the living-world mode. The file loads; its scripts never run, because no player in a living-world session has a script list at all. Also: why the "Game crash" box localises nothing. |
 | [`scenario-player-factions.md`](../scenario-player-factions.md) | Who may play what in a WotR scenario: `DisabledFactions` has no player in it, `StartingRestriction`'s faction filter is skipped for a `HistoricalScenario`, and the four readers a per-player rule has to reach. The [`scenario-player-factions`](../../patches/scenario_player_factions.py) patch. |
 
 ## The findings that changed the picture
@@ -87,6 +88,7 @@ scenario (fifty-eight tests) — and
 | 3 | Does `AptMainMenu::OnTutorial("Strategic")` work at all? | [`living-world-menu-entry.md`](living-world-menu-entry.md) |
 | 4 | Is `tracker->[0x10]` reset between maps? | [`objectives-in-any-map.md`](../objectives-in-any-map.md) |
 | 6 | Which candidate in [`act-advance-stall.md`](act-advance-stall.md) §5 is the real stall? | needs one live read while stuck — §6 lists it in order |
+| 7 | What installs a map's script lists onto players, and why does no player in a living-world session get one? | the blocker for `ScriptHolder` - [`script-holder.md`](script-holder.md) §5 |
 | 5 | What does `ArmyCarryoverPoints` do? | [`living-world-parity.md`](living-world-parity.md) §3 — lower priority now that `SurvivalThreshhold` is the identified knob |
 
 ~~**Nothing in this investigation has been run against the game.**~~ **Out of date as of
