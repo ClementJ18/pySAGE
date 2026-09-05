@@ -28,6 +28,7 @@ Can be downloaded pre-packaged from here: https://www.moddb.com/games/battle-for
 | [`sage_w3d`](sage_w3d/README.md) | Lossless reader/writer for `.w3d` model files - meshes, materials, skeletons, uncompressed and compressed animation, HLOD level-of-detail data, collision boxes, and dazzles - plus a scene-assembly + PyQt6/OpenGL viewer (`sage-w3d view`, the `w3d-view` extra). |
 | [`sage_cah`](sage_cah/README.md) | Reader/writer for `.cah`, the BFME2/RotWK Create-a-Hero file - identity, class, colors, powers, "bling" customization/attributes, GUID, and the validating checksum - plus a PyQt6 editor (`sage-cah-ui`, the `cah-ui` extra) that completes over a loaded game's own classes, powers and bling. |
 | [`sage_replay`](sage_replay/README.md) | Reader for SAGE replay files (Generals `.rep`, BFME / BFME2 / RotWK) - the recorded order stream, decoded into build orders, APM and command timing. |
+| [`sage_save`](sage_save/README.md) | Reader and editor for BFME2/RotWK save games (`.BfME2Skirmish` and friends) - a lossless container round-trip and a JSON view of the decoded chunks. **Work in progress**: most per-object state is still being reverse-engineered. |
 | [`sage_live`](sage_live/README.md) | Python API for a *running* BFME2/RotWK game - attach to the process, read players, objects and upgrades as typed snapshots, and issue orders through the engine's own message stream. |
 | [`sage_apt`](sage_apt/README.md) | Converter, viewer and editor for `.apt` UI movies (the Flash-derived format behind BFME's menus and HUD). **Work in progress**, not yet fully functional. |
 | [`sage_patch`](sage_patch/README.md) | Binary patches for the ROTWK `game.dat` engine, with the reverse-engineering behind them - raising the `CommandSet` button limit from 33 to 64, opening the Create-A-Hero faction enum to mod sides, and making the AI respect a disabled hero-revive button; `verify` re-checks a patched binary without a disassembler. |
@@ -39,6 +40,7 @@ Can be downloaded pre-packaged from here: https://www.moddb.com/games/battle-for
 | [`sage_wiki`](sage_wiki/README.md) | Desktop tool that updates Edain wiki infoboxes from parsed game data through the MediaWiki API. |
 | [`sage_ui`](sage_ui/README.md) | PyQt6 desktop browser for SAGE game data: load sources, search an object, see its resolved stats. |
 | [`sage_verify`](sage_verify/README.md) | Maphack detection: follows a replay playing back in a live client and checks every targeted order against the engine's own shroud grid - you cannot click what you cannot see. Also compares a running client's `binary-attest` hash against the `game.dat` it should be running. |
+| [`sage_test`](sage_test/README.md) | System tests that run against the real engine: declare a match and its starting objects, compile it into a `.map`, launch the game and assert on what it actually did. |
 
 ### Shared
 
@@ -71,7 +73,7 @@ From a clone, for development, swap the name for an editable install of the chec
 pip install -e ".[ui]"
 ```
 
-The extras (`ui`, `lint-ui`, `wiki`, `edain-ui`, `apt`, `asset-ui`, `cah-ui`, `w3d-view`, `patch`, and
+The extras (`ui`, `lint-ui`, `wiki`, `apt`, `asset-ui`, `cah-ui`, `w3d-view`, `patch`, and
 `all` for the lot) pull in the optional dependencies each peripheral tool needs. The ini, map,
 replay, asset, w3d, cah and patch layers are stdlib-only and always ship, so no extra is needed
 to parse, lint or diff a map, to build and combine an asset.dat from the command line, or to
@@ -79,10 +81,11 @@ apply and verify a game.dat patch. The one non-optional dependency is `reversebo
 Windows, the native RefPack compressor that makes saving large maps fast (its DLL is Windows-only,
 so other platforms use the byte-identical pure-Python compressor).
 
-Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`,
+Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-live`,
 `sage-replay`, `sage-apt`, `sage-map`, `sage-save`, `sage-asset`, `sage-w3d`, `sage-cah`,
-`sage-patch` (and the GUI scripts `sage-ui`, `sage-wiki`, `sage-lint-ui`, `sage-asset-ui`, the
-SAGE Asset builder/combiner window, and `sage-cah-ui`, the SAGE Custom Hero editor).
+`sage-patch`, `sage-verify` (and the GUI scripts `sage-ui`, `sage-wiki`, `sage-lint-ui`,
+`sage-asset-ui`, the SAGE Asset builder/combiner window, and `sage-cah-ui`, the SAGE Custom
+Hero editor).
 
 ### Mod overlays
 

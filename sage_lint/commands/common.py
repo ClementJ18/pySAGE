@@ -13,6 +13,7 @@ from sage_ini.engine import SAGEPATCH_NAME, Engine, load_engine
 from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_lint.config import Config, load_config
 from sage_lint.rules.base import RULES, Rule
+from sage_utils.progress import TerminalProgress, want_progress
 
 # ANSI SGR codes used to colour the severity word in text output.
 SEVERITY_COLOR: dict[Severity, str] = {
@@ -45,6 +46,29 @@ def want_color(choice: str, stream) -> bool:
     if choice == "never":
         return False
     return bool(getattr(stream, "isatty", lambda: False)())
+
+
+def add_progress_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the shared `--progress` option: a live status line naming the file or rule the run
+    is on. On by default at a terminal, off when the output is piped."""
+    parser.add_argument(
+        "--progress",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="show a live status line on stderr naming what the run is working on "
+        "(default: auto, on when stderr is a tty; a --quiet run stays silent unless 'always')",
+    )
+
+
+def progress_reporter(args: argparse.Namespace) -> TerminalProgress | None:
+    """The progress reporter for a run, or None to stay silent. It writes to stderr and rubs
+    its line out when done, so stdout - the report a pipe or an editor plugin reads - is
+    untouched whatever the output format. A `--quiet` run reports nothing unless progress was
+    asked for outright."""
+    choice = getattr(args, "progress", "auto")
+    if getattr(args, "quiet", False) and choice != "always":
+        return None
+    return TerminalProgress() if want_progress(choice, sys.stderr) else None
 
 
 def diag_line(diag: Diagnostic, color: bool) -> str:

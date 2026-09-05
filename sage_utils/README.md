@@ -9,7 +9,9 @@ Two layers:
   archives as a uniform source), `textures` (game texture lookup), `views` (resolution
   helpers over the `sage_ini` model), `refpack` (a pure-Python EA RefPack codec for the
   binary `.map`/`.bse` layer), the `factiongraph` ownership-graph types a mod overlay
-  ([`sage_edain`](https://github.com/ClementJ18/pySAGE-edain)) assembles, and the `cli` / `skill` command plumbing.
+  ([`sage_edain`](https://github.com/ClementJ18/pySAGE-edain)) assembles, `progress` (the
+  live status line a command-line run prints while it works), and the `cli` / `skill`
+  command plumbing.
 - **Shared Qt pieces** - `styles`, `widgets` and `findings`, the desktop chrome shared by
   every SAGE front end ([`sage_ui`](../sage_ui), [`sage_wiki`](../sage_wiki), the SAGE Lint
   window and the Edain Linter). Notably:

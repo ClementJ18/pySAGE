@@ -28,6 +28,14 @@ python -m sage_lint duplicates <dir> [--min-lines N] [-v]
 python -m sage_lint rename <dir> <old> <new> [--table objects] [--apply]
 ```
 
+`lint` and `format` show a live status line while they work - the file being built, the
+rule being run, the map being checked - so a long run on a big mod is not a silent
+terminal. It is written to stderr and rubbed out when the run ends, leaving stdout as
+exactly the report a pipe or an editor plugin reads. It is on at a terminal and off when
+the output is redirected (where it degrades to one plain line per phase with
+`--progress always`); `--progress never` silences it, and a `--quiet` run is silent
+already.
+
 ## Renaming a definition
 
 `rename` moves a definition's name and every reference to it in one pass. References come from

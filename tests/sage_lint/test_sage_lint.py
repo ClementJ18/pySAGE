@@ -199,6 +199,37 @@ class TestCli:
         assert main(["lint", str(tmp_path)]) == 1
         assert "unknown-attribute" in capsys.readouterr().out
 
+    def test_lint_progress_names_its_phases_on_stderr(self, tmp_path, capsys):
+        (tmp_path / "a.ini").write_text("Object Foo\n    BuildCost = 1\nEnd\n", encoding="utf-8")
+
+        assert main(["lint", str(tmp_path), "--progress", "always"]) == 0
+        captured = capsys.readouterr()
+        assert "building" in captured.err
+        assert "running rules" in captured.err
+        # The report on stdout stays exactly what a pipe or an editor plugin reads.
+        assert "building" not in captured.out
+
+    def test_lint_progress_never_is_silent(self, tmp_path, capsys):
+        (tmp_path / "a.ini").write_text("Object Foo\n    BuildCost = 1\nEnd\n", encoding="utf-8")
+
+        assert main(["lint", str(tmp_path), "--progress", "never"]) == 0
+        assert capsys.readouterr().err == ""
+
+    def test_lint_quiet_keeps_progress_off(self, tmp_path, capsys):
+        (tmp_path / "a.ini").write_text("Object Foo\n    BuildCost = 1\nEnd\n", encoding="utf-8")
+
+        assert main(["lint", str(tmp_path), "-q"]) == 0
+        assert capsys.readouterr().err == ""
+
+    def test_format_progress_names_the_files_pass(self, tmp_path, capsys):
+        self._make(tmp_path, "Object Foo\n  A = 1\nEnd\n")
+
+        assert main(["format", "--check", str(tmp_path), "--progress", "always"]) == 1
+        captured = capsys.readouterr()
+        assert "finding files" in captured.err
+        assert "checking" in captured.err
+        assert "would reformat" in captured.out
+
     def test_lint_list_codes_lists_rules_and_parse_codes(self, capsys):
         # works without a root argument and exits zero
         assert main(["lint", "--list-codes"]) == 0
@@ -1090,7 +1121,7 @@ class TestLintMaps:
         assert main(["lint-maps", str(self._LOOSE_MAP), "--output-format", "json"]) == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["diagnostics"] == []
-        assert set(payload["summary"]) == {"errors", "warnings", "hidden"}
+        assert set(payload["summary"]) == {"errors", "warnings", "hidden", "baselined"}
 
     def test_game_enables_the_object_resolution_check(self, tmp_path, capsys):
         # With --game loaded, placed objects resolve against it: a root defining only one object
@@ -1118,6 +1149,125 @@ class TestLintMaps:
         # A target that names neither a file nor a folder is a usage error.
         with pytest.raises(SystemExit):
             main(["lint-maps", str(tmp_path / "nope.map")])
+
+
+# Crawls the same real .map fixtures, so it is full-suite too (CONVENTIONS.md rule 7).
+@pytest.mark.full
+class TestLintMapsBaseline:
+    """`lint-maps --write-baseline` records today's findings; `--baseline` then reports only what
+    is new against them - the same file format and matching rules `lint` uses. Findings come from
+    a --game that defines one object, so every other placed type reads as dangling."""
+
+    _MAPS_DIR = Path(__file__).parent.parent / "sage_map" / "fixtures" / "maps"
+    _LOOSE_MAP = _MAPS_DIR / "map edain ford of bruinen.map"
+
+    @pytest.fixture
+    def game(self, tmp_path):
+        root = tmp_path / "game"
+        root.mkdir()
+        (root / "a.ini").write_text("Object Foo\n    BuildCost = 1\nEnd\n", encoding="utf-8")
+        return str(root)
+
+    def test_write_then_run_is_clean(self, tmp_path, game, capsys):
+        bl = tmp_path / "maps.baseline"
+        argv = ["lint-maps", str(self._MAPS_DIR), "--game", game, "--baseline", str(bl)]
+        assert main([*argv, "--write-baseline"]) == 0
+        assert "baseline entry(ies)" in capsys.readouterr().out
+        assert bl.is_file()
+
+        assert main(argv) == 0
+        out = capsys.readouterr().out
+        assert "0 error(s), 0 warning(s)" in out
+        assert "baselined)" in out
+
+    def test_findings_outside_the_baseline_are_still_reported(self, tmp_path, game, capsys):
+        # Baseline one map, then lint the whole folder: that map stays quiet and the rest do not.
+        bl = tmp_path / "maps.baseline"
+        assert (
+            main(
+                [
+                    "lint-maps",
+                    str(self._LOOSE_MAP),
+                    "--game",
+                    game,
+                    "--baseline",
+                    str(bl),
+                    "--write-baseline",
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        assert main(["lint-maps", str(self._MAPS_DIR), "--game", game, "--baseline", str(bl)]) == 1
+        out = capsys.readouterr().out
+        # The baselined map contributes nothing; the others still report.
+        assert self._LOOSE_MAP.name not in out
+        assert "map-dangling-object" in out
+
+    def test_baseline_paths_are_root_relative(self, tmp_path, game):
+        bl = tmp_path / "maps.baseline"
+        main(
+            [
+                "lint-maps",
+                str(self._MAPS_DIR),
+                "--game",
+                game,
+                "--baseline",
+                str(bl),
+                "--write-baseline",
+            ]
+        )
+        entries = json.loads(bl.read_text(encoding="utf-8"))["entries"]
+        # Portability hinges on this: relative to the crawl root, forward slashes only, so the
+        # file matches on a machine that keeps the checkout somewhere else.
+        assert entries
+        assert all(not Path(entry["file"]).is_absolute() for entry in entries)
+        assert all("\\" not in entry["file"] for entry in entries)
+
+    def test_json_report_counts_what_was_baselined(self, tmp_path, game, capsys):
+        bl = tmp_path / "maps.baseline"
+        argv = ["lint-maps", str(self._MAPS_DIR), "--game", game, "--baseline", str(bl)]
+        main([*argv, "--write-baseline"])
+        capsys.readouterr()
+        assert main([*argv, "--output-format", "json"]) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["diagnostics"] == []
+        assert payload["summary"]["baselined"] > 0
+
+    def test_write_baseline_reports_what_it_wrote_as_json(self, tmp_path, game, capsys):
+        bl = tmp_path / "maps.baseline"
+        assert (
+            main(
+                [
+                    "lint-maps",
+                    str(self._MAPS_DIR),
+                    "--game",
+                    game,
+                    "--baseline",
+                    str(bl),
+                    "--write-baseline",
+                    "--output-format",
+                    "json",
+                ]
+            )
+            == 0
+        )
+        payload = json.loads(capsys.readouterr().out)["baseline"]
+        assert payload["entries"] > 0
+        assert payload["diagnostics"] >= payload["entries"]
+
+    def test_write_baseline_needs_a_path(self, capsys):
+        assert main(["lint-maps", str(self._MAPS_DIR), "--write-baseline"]) == 2
+        assert "--write-baseline needs a path" in capsys.readouterr().err
+
+    def test_a_corrupt_baseline_is_loud_and_suppresses_nothing(self, tmp_path, game, capsys):
+        bl = tmp_path / "maps.baseline"
+        bl.write_text("not json", encoding="utf-8")
+        assert main(["lint-maps", str(self._MAPS_DIR), "--game", game, "--baseline", str(bl)]) == 1
+        captured = capsys.readouterr()
+        assert "not a valid baseline file" in captured.err
+        assert "map-dangling-object" in captured.out
 
 
 class TestLintIncludesMaps:

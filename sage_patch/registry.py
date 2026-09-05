@@ -4,7 +4,12 @@ lists, applies and verifies. Add a patch here to expose it on the command line.
 Patches imported from :mod:`sage_patch.patches.experimental` are **unstable and largely untested**
 and set :attr:`Patch.experimental`, which is what makes `list` mark them and `apply` warn. They are
 registered rather than hidden on purpose - a patch nobody can run is a patch nobody can find the
-problem in, and the warning is the thing that makes offering it honest."""
+problem in, and the warning is the thing that makes offering it honest.
+
+That attribute is also what orders them: the settled patches come first and the experimental ones
+after, each block alphabetical (see :func:`_order`). Everything that walks the registry inherits
+it, so a patch is added to :data:`_REGISTERED` wherever its import goes and lands in the right
+place in every list on its own."""
 
 from sage_patch.patcher import Patch
 from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
@@ -63,6 +68,7 @@ from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.hero_recruit_parallel import HeroRecruitParallelPatch
 from sage_patch.patches.herobar import HeroBarPatch, HeroBarWorldbuilderPatch
 from sage_patch.patches.horde_exit_absorption import HordeExitAbsorptionPatch
+from sage_patch.patches.horde_member_speed import HordeMemberSpeedPatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
@@ -116,101 +122,121 @@ from sage_patch.patches.worldbuilder_silent_errors import (
     WorldbuilderSilentErrorsPatch,
 )
 
-PATCHES: dict[str, type[Patch]] = {
-    CommandSetLimitPatch.name: CommandSetLimitPatch,
-    CommandSetButtonUpgradePatch.name: CommandSetButtonUpgradePatch,
-    CahFactionsPatch.name: CahFactionsPatch,
-    AiReviveGatePatch.name: AiReviveGatePatch,
-    AiCommandNullTargetPatch.name: AiCommandNullTargetPatch,
-    GiveUpgradeAllPatch.name: GiveUpgradeAllPatch,
-    AiConstructionGatePatch.name: AiConstructionGatePatch,
-    AiFlagCaptureGatePatch.name: AiFlagCaptureGatePatch,
-    AiHeroBuildDelayPatch.name: AiHeroBuildDelayPatch,
-    ProductionConditionPatch.name: ProductionConditionPatch,
-    ProductionConditionWorldbuilderPatch.name: ProductionConditionWorldbuilderPatch,
-    DesertWeatherPatch.name: DesertWeatherPatch,
-    DesertWeatherWorldbuilderPatch.name: DesertWeatherWorldbuilderPatch,
-    UniqueProductionIdPatch.name: UniqueProductionIdPatch,
-    UnitPlateOptionPatch.name: UnitPlateOptionPatch,
-    ReplayOutcomePatch.name: ReplayOutcomePatch,
-    ReplayAnnotationsPatch.name: ReplayAnnotationsPatch,
-    SkirmishReplayPatch.name: SkirmishReplayPatch,
-    SkirmishAiFallbackPatch.name: SkirmishAiFallbackPatch,
-    ObjectivesScreenPatch.name: ObjectivesScreenPatch,
-    ObserverSwitchPatch.name: ObserverSwitchPatch,
-    ObserverCommandRangePatch.name: ObserverCommandRangePatch,
-    LiveBridgePatch.name: LiveBridgePatch,
-    LivingWorldOverridePatch.name: LivingWorldOverridePatch,
-    ObjectImageUpgradePatch.name: ObjectImageUpgradePatch,
-    ObjectImageUpgradeWorldbuilderPatch.name: ObjectImageUpgradeWorldbuilderPatch,
-    TerrainResourceExpPatch.name: TerrainResourceExpPatch,
-    HeroManaPatch.name: HeroManaPatch,
-    CommandPointUpkeepPatch.name: CommandPointUpkeepPatch,
-    BannerFilterPatch.name: BannerFilterPatch,
-    BannerModifierPatch.name: BannerModifierPatch,
-    PlayerHealFilterPatch.name: PlayerHealFilterPatch,
-    LargeGroupBonusPatch.name: LargeGroupBonusPatch,
-    LifetimeFieldsPatch.name: LifetimeFieldsPatch,
-    SecondResourcePatch.name: SecondResourcePatch,
-    InflationReadoutPatch.name: InflationReadoutPatch,
-    SciencePrereqPatch.name: SciencePrereqPatch,
-    SciencePrereqWorldbuilderPatch.name: SciencePrereqWorldbuilderPatch,
-    HeroBarPatch.name: HeroBarPatch,
-    HeroBarWorldbuilderPatch.name: HeroBarWorldbuilderPatch,
-    HeroBarSlotsPatch.name: HeroBarSlotsPatch,
-    InfantryLightingPatch.name: InfantryLightingPatch,
-    MultiExecuteGatePatch.name: MultiExecuteGatePatch,
-    MultiSelectGroupPatch.name: MultiSelectGroupPatch,
-    AttackRequiresDamagePatch.name: AttackRequiresDamagePatch,
-    SpawnUnionPatch.name: SpawnUnionPatch,
-    QueueIgnoreCpPatch.name: QueueIgnoreCpPatch,
-    HeroRecruitParallelPatch.name: HeroRecruitParallelPatch,
-    RebuildHoleConstructionPatch.name: RebuildHoleConstructionPatch,
-    HordeExitAbsorptionPatch.name: HordeExitAbsorptionPatch,
-    ComboHordeRecruitmentPatch.name: ComboHordeRecruitmentPatch,
-    MultiInstancePatch.name: MultiInstancePatch,
-    MultiInstanceLauncherPatch.name: MultiInstanceLauncherPatch,
-    StandaloneLauncherPatch.name: StandaloneLauncherPatch,
-    CampaignSelectPatch.name: CampaignSelectPatch,
-    BattleSchoolPatch.name: BattleSchoolPatch,
-    CampaignArmyVerbsPatch.name: CampaignArmyVerbsPatch,
-    HeroArmyCarryoverPatch.name: HeroArmyCarryoverPatch,
-    FoundationRebindPatch.name: FoundationRebindPatch,
-    FireAtAttackerPatch.name: FireAtAttackerPatch,
-    HeadlessPatch.name: HeadlessPatch,
-    ProductionSplitPatch.name: ProductionSplitPatch,
-    ProductionSplitWorldbuilderPatch.name: ProductionSplitWorldbuilderPatch,
-    HealingReceivedPatch.name: HealingReceivedPatch,
-    HealingReceivedWorldbuilderPatch.name: HealingReceivedWorldbuilderPatch,
-    BinaryAttestPatch.name: BinaryAttestPatch,
-    UpgradeDescriptionPatch.name: UpgradeDescriptionPatch,
-    TriggerRechargeListPatch.name: TriggerRechargeListPatch,
-    UpgradeGrantListsPatch.name: UpgradeGrantListsPatch,
-    DescriptionTimersPatch.name: DescriptionTimersPatch,
-    RechargeRescalePatch.name: RechargeRescalePatch,
-    CooldownThroughDeathPatch.name: CooldownThroughDeathPatch,
-    CrashDumpPatch.name: CrashDumpPatch,
-    QuietExitPatch.name: QuietExitPatch,
-    CaptureTheFlagPatch.name: CaptureTheFlagPatch,
-    CommandLineSkirmishPatch.name: CommandLineSkirmishPatch,
-    WorldbuilderModPatch.name: WorldbuilderModPatch,
-    WorldbuilderLabelAssertPatch.name: WorldbuilderLabelAssertPatch,
-    WorldbuilderSilentErrorsPatch.name: WorldbuilderSilentErrorsPatch,
-    WorldbuilderObjectTypeaheadPatch.name: WorldbuilderObjectTypeaheadPatch,
-    MaintenanceCostPatch.name: MaintenanceCostPatch,
-    AutoDepositInflationPatch.name: AutoDepositInflationPatch,
-    WallMeshReleasePatch.name: WallMeshReleasePatch,
-    SmartRallyPatch.name: SmartRallyPatch,
-    SpellStoreUpgradePatch.name: SpellStoreUpgradePatch,
-    CommandPointCostPatch.name: CommandPointCostPatch,
-    DetachableRiderHealPatch.name: DetachableRiderHealPatch,
-    SpecialPowerChargesPatch.name: SpecialPowerChargesPatch,
-    RenderRatePatch.name: RenderRatePatch,
-    InterpolationAlphaPatch.name: InterpolationAlphaPatch,
-    AssetLoadProfilePatch.name: AssetLoadProfilePatch,
-    ScenarioPlayerFactionsPatch.name: ScenarioPlayerFactionsPatch,
-    DeployBeforeAttackPatch.name: DeployBeforeAttackPatch,
-    DesyncDebugPatch.name: DesyncDebugPatch,
-}
+#: Every registered patch, in class-name order so a new one is added beside its import. This is
+#: **not** the order they are presented in: :data:`PATCHES` is built from this by sorting, and
+#: every command that walks the registry - `list`, the `apply` and `verify` sub-command lists,
+#: `sagepatch` - inherits that order rather than an order maintained by hand here.
+_REGISTERED: tuple[type[Patch], ...] = (
+    AiCommandNullTargetPatch,
+    AiConstructionGatePatch,
+    AiFlagCaptureGatePatch,
+    AiHeroBuildDelayPatch,
+    AiReviveGatePatch,
+    AssetLoadProfilePatch,
+    AttackRequiresDamagePatch,
+    AutoDepositInflationPatch,
+    BannerFilterPatch,
+    BannerModifierPatch,
+    BattleSchoolPatch,
+    BinaryAttestPatch,
+    CahFactionsPatch,
+    CampaignArmyVerbsPatch,
+    CampaignSelectPatch,
+    CaptureTheFlagPatch,
+    ComboHordeRecruitmentPatch,
+    CommandLineSkirmishPatch,
+    CommandPointCostPatch,
+    CommandPointUpkeepPatch,
+    CommandSetButtonUpgradePatch,
+    CommandSetLimitPatch,
+    CooldownThroughDeathPatch,
+    CrashDumpPatch,
+    DeployBeforeAttackPatch,
+    DescriptionTimersPatch,
+    DesertWeatherPatch,
+    DesertWeatherWorldbuilderPatch,
+    DesyncDebugPatch,
+    DetachableRiderHealPatch,
+    FireAtAttackerPatch,
+    FoundationRebindPatch,
+    GiveUpgradeAllPatch,
+    HeadlessPatch,
+    HealingReceivedPatch,
+    HealingReceivedWorldbuilderPatch,
+    HeroArmyCarryoverPatch,
+    HeroBarPatch,
+    HeroBarSlotsPatch,
+    HeroBarWorldbuilderPatch,
+    HeroManaPatch,
+    HeroRecruitParallelPatch,
+    HordeExitAbsorptionPatch,
+    HordeMemberSpeedPatch,
+    InfantryLightingPatch,
+    InflationReadoutPatch,
+    InterpolationAlphaPatch,
+    LargeGroupBonusPatch,
+    LifetimeFieldsPatch,
+    LiveBridgePatch,
+    LivingWorldOverridePatch,
+    MaintenanceCostPatch,
+    MultiExecuteGatePatch,
+    MultiInstanceLauncherPatch,
+    MultiInstancePatch,
+    MultiSelectGroupPatch,
+    ObjectImageUpgradePatch,
+    ObjectImageUpgradeWorldbuilderPatch,
+    ObjectivesScreenPatch,
+    ObserverCommandRangePatch,
+    ObserverSwitchPatch,
+    PlayerHealFilterPatch,
+    ProductionConditionPatch,
+    ProductionConditionWorldbuilderPatch,
+    ProductionSplitPatch,
+    ProductionSplitWorldbuilderPatch,
+    QueueIgnoreCpPatch,
+    QuietExitPatch,
+    RebuildHoleConstructionPatch,
+    RechargeRescalePatch,
+    RenderRatePatch,
+    ReplayAnnotationsPatch,
+    ReplayOutcomePatch,
+    ScenarioPlayerFactionsPatch,
+    SciencePrereqPatch,
+    SciencePrereqWorldbuilderPatch,
+    SecondResourcePatch,
+    SkirmishAiFallbackPatch,
+    SkirmishReplayPatch,
+    SmartRallyPatch,
+    SpawnUnionPatch,
+    SpecialPowerChargesPatch,
+    SpellStoreUpgradePatch,
+    StandaloneLauncherPatch,
+    TerrainResourceExpPatch,
+    TriggerRechargeListPatch,
+    UniqueProductionIdPatch,
+    UnitPlateOptionPatch,
+    UpgradeDescriptionPatch,
+    UpgradeGrantListsPatch,
+    WallMeshReleasePatch,
+    WorldbuilderLabelAssertPatch,
+    WorldbuilderModPatch,
+    WorldbuilderObjectTypeaheadPatch,
+    WorldbuilderSilentErrorsPatch,
+)
+
+
+def _order(cls: type[Patch]) -> tuple[bool, str]:
+    """Settled patches first, then the experimental ones, each block alphabetical by name.
+
+    The split is the point of the ordering: somebody reading a list top to bottom meets everything
+    that has been played before anything that has not, and the `exp` rows arrive together instead
+    of scattered through the settled ones where a marker is easy to read past. Alphabetical within
+    each block is what makes a name findable once the reader knows what they are looking for."""
+    return (cls.experimental, cls.name)
+
+
+#: The name -> patch map the CLI dispatches over, in the order everything lists them: see
+#: :func:`_order`. Dicts keep insertion order, so iterating this is already sorted.
+PATCHES: dict[str, type[Patch]] = {cls.name: cls for cls in sorted(_REGISTERED, key=_order)}
 
 __all__ = ["PATCHES"]

@@ -29,6 +29,7 @@ from sage_ini.parser.location import Span
 from sage_ini.stats import ini_root, is_map_path
 from sage_lint.rules.base import Rule, run_rules
 from sage_lint.suppressions import filter_suppressed
+from sage_utils import progress
 from sage_utils.sources import (
     LOAD_SUFFIXES,
     big_member_basenames,
@@ -65,6 +66,9 @@ def _prepare_base(root: str | Path, bases: tuple[tuple[str, str], ...]) -> BaseL
     there are no bases."""
     if not bases:
         return None
+    # Extracting a .big is the slowest step of a run that has one, and it happens before any
+    # file is built, so say so rather than leaving the terminal blank through it.
+    progress.phase("merging base game")
     workdir = Path(tempfile.mkdtemp(prefix="sage_lint_bases_"))
     try:
         shadow = frozenset(rel for rel, _ in loadable_files(Path(root), _BASE_MERGE_SUFFIXES))
@@ -156,6 +160,7 @@ def lint_game(
     excluded = tuple(Path(directory).resolve() for directory in exclude)
     diagnostics = Diagnostics()
     diagnostics.items.extend(loaded.diagnostics.items)
+    progress.phase("checking values")
     diagnostics.items.extend(loaded.game.validate().items)
     diagnostics.items.extend(run_rules(loaded.game, rules).items)
     kept = (d for d in diagnostics.items if _keep(d, excluded))
@@ -290,12 +295,19 @@ def _lint_maps(
     root = Path(root)
     diagnostics: list[Diagnostic] = []
     map_used: set[tuple[str, str]] = set()
-    for map_path in map_files(root):
+    paths = map_files(root)
+    if paths:
+        progress.phase("linting map.ini", len(paths))
+    for map_path in paths:
         if excluded and _under(str(map_path), excluded):
             continue
-        cached, built = lint_file_cached_game(
-            game, map_path, include_root=root, rules=rules, include_bases=include_bases
-        )
+        progress.step(str(map_path))
+        # Each map re-parses and re-runs the rules in its own context; those inner phases are
+        # muted so the line keeps counting maps rather than flickering per map.
+        with progress.muted():
+            cached, built = lint_file_cached_game(
+                game, map_path, include_root=root, rules=rules, include_bases=include_bases
+            )
         if built is not None:
             # `key is None` is an unstored object - it registers into no table, so it is not a
             # global definition anything could have retracted a finding for.

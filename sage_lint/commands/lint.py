@@ -1,6 +1,6 @@
 """The `lint` family: assemble a game from a folder and report its problems (`lint`, with
-`--fix`, baselines and filtering), lint the binary `.map` layouts against it (`lint-maps`),
-and list the accepted diagnostic codes (`--list-codes`).
+`--fix`, baselines and filtering), lint the binary `.map` layouts against it (`lint-maps`, with
+baselines of its own), and list the accepted diagnostic codes (`--list-codes`).
 """
 
 import argparse
@@ -30,12 +30,14 @@ from sage_lint.baseline import (
 from sage_lint.commands.common import (
     SEVERITY_ORDER,
     SORTERS,
+    add_progress_argument,
     base_paths,
     base_source,
     config_dir,
     config_path,
     diag_line,
     diagnostic_dict,
+    progress_reporter,
     project_engine,
     resolve_rule_set,
     select_and_summarize,
@@ -48,6 +50,8 @@ from sage_lint.linter import build_cache, lint_file, lint_folder
 from sage_lint.ruleconfig import rule_options
 from sage_lint.rules.asset_dat import AssetDatMissingModelRule, AssetDatMissingTextureRule
 from sage_lint.rules.base import RULES, Rule
+from sage_utils import progress
+from sage_utils.progress import progress_to
 
 # Diagnostic codes emitted outside the rule framework (parser, loader, conversion)
 # that are still valid `--ignore`/`--select` targets. Rule codes are read live from
@@ -188,6 +192,9 @@ def _lint_map_files(root: Path, game, excludes: tuple[Path, ...]) -> Diagnostics
         for path in game.map_files
         if not any(path.resolve().is_relative_to(directory) for directory in excluded)
     ]
+    # The map layer parses each binary layout in one call, so this reports the pass, not
+    # each map inside it.
+    progress.phase("linting .map layouts", len(paths))
     return lint_maps(root, game=game, paths=paths)
 
 
@@ -286,6 +293,10 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
         else [config_path(conf_dir, p) for p in config.asset_dat]
     )
 
+    # One reporter for the whole run, installed around each stretch of work that has
+    # something to say; it writes to stderr and clears its line before the report prints.
+    reporter = progress_reporter(args)
+
     asset_dat_names: frozenset[str] = frozenset()
     if asset_dat_paths:
         try:
@@ -302,9 +313,12 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
             return 2
         names: set[str] = set()
         try:
-            for asset_dat_path in asset_dat_paths:
-                ad = parse_asset_dat_from_path(asset_dat_path)
-                names |= {entry.name.lower() for entry in ad.files}
+            with progress_to(reporter):
+                progress.phase("reading asset.dat", len(asset_dat_paths))
+                for asset_dat_path in asset_dat_paths:
+                    progress.step(str(asset_dat_path))
+                    ad = parse_asset_dat_from_path(asset_dat_path)
+                    names |= {entry.name.lower() for entry in ad.files}
         except (AssetDatError, OSError) as exc:
             print(f"sage_lint: failed to parse asset.dat: {exc}", file=sys.stderr)
             return 2
@@ -324,6 +338,7 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
     # them only for the build/validate that produces this report. The reference/unused rules read
     # the project's `sentinels`/`always_referenced` from process state for the same window.
     with (
+        progress_to(reporter),
         suggestions_enabled(args.suggest or config.suggest),
         rule_options(sentinels=config.sentinels, always_referenced=config.always_referenced),
     ):
@@ -427,7 +442,9 @@ def run_lint(args: argparse.Namespace, config: Config, root: Path | None) -> int
 
     fixed_count = 0
     if args.fix:
-        fixed_by_file, applied = fix_diagnostics(remaining)
+        with progress_to(reporter):
+            progress.phase("applying fixes")
+            fixed_by_file, applied = fix_diagnostics(remaining)
         fixed_count = len(applied)
         if applied:
             applied_set = set(applied)
@@ -534,7 +551,22 @@ def add_map_lint_arguments(parser: argparse.ArgumentParser, *, game_help: str) -
         choices=[level.name for level in Severity],
         help="define the diagnostic level to show",
     )
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="a baseline of already-accepted findings; only findings new against it are "
+        "reported. Unlike `lint`, there is no config file to sit beside, so the path is "
+        "always given explicitly",
+    )
+    parser.add_argument(
+        "--write-baseline",
+        action="store_true",
+        help="record what this run reports as the accepted baseline at --baseline, then exit",
+    )
     parser.add_argument("-q", "--quiet", action="store_true", help="print only the summary line")
+    add_progress_argument(parser)
     parser.add_argument(
         "--color",
         choices=("auto", "always", "never"),
@@ -560,12 +592,18 @@ def run_map_lint(
     """Lint the `.map` file - or every `.map` under the folder - named by `args.target`, resolved
     against the game loaded with `--game`. Every map gets the game-resolved dangling-reference
     checks; `extra_checks`, when given, adds more findings per parsed map (an overlay's own rule
-    set, e.g. the Edain overlay's `sage_edain.map_checks`). The object and GAME-scope reference
-    checks need the game
+    set, e.g. the Edain overlay's `sage_edain.map_checks`). `--baseline` accepts a snapshot of
+    today's findings so that only new ones are reported, and `--write-baseline` records that
+    snapshot; both use the same file format and matching rules `lint` does. The object and
+    GAME-scope reference checks need the game
     (pass the base game first, the mod after it; each `.big` install is mounted); with no `--game`
     the game is empty, so only the parse and map-local checks (teams, waypoints, trigger areas)
     run. The `sage_map` overlay and game loader are imported lazily so a `sage_lint` run that
     never touches a map does not pay for them."""
+    if args.write_baseline and args.baseline is None:
+        print("sage_lint: --write-baseline needs a path: pass --baseline", file=sys.stderr)
+        return 2
+
     try:
         from sage_map import MapModel, lint_map  # noqa: PLC0415 - lazy: paid for only on map runs
     except ImportError:
@@ -582,24 +620,90 @@ def run_map_lint(
 
     selected = split_codes(args.select)
     ignored = split_codes(args.ignore)
-    game = load_game(resolve_game_roots(args.game, args.cache)).game if args.game else Game()
+    reporter = progress_reporter(args)
+    with progress_to(reporter):
+        game = load_game(resolve_game_roots(args.game, args.cache)).game if args.game else Game()
 
-    paths = _crawl_maps(args.target)
+    # Resolved, so a finding's file is the same string however the target was spelled on the
+    # command line. That is what lets a baseline written on one machine match on another
+    # (see sage_lint.baseline), and it matches how `lint` reports its own diagnostics.
+    paths = [path.resolve() for path in _crawl_maps(args.target)]
     diagnostics = Diagnostics()
-    for path in paths:
-        # Parse each map once and run every check over it. A binary map that fails to parse (or a
-        # check that blows up on it) becomes one map-parse-error rather than aborting the batch.
-        try:
-            model = MapModel.from_path(str(path))
-            found = list(lint_map(model, game, path).items)
-            if extra_checks is not None:
-                found.extend(extra_checks(model.raw, path))
-        except Exception as exc:  # noqa: BLE001 - one bad binary map must not abort the run
-            diagnostics.add("map-parse-error", f"failed to parse map: {exc}", Span(str(path), 1, 1))
-            continue
-        diagnostics.items.extend(found)
+    with progress_to(reporter):
+        progress.phase("linting maps", len(paths))
+        for path in paths:
+            # Parse each map once and run every check over it. A binary map that fails to parse
+            # (or a check that blows up on it) becomes one map-parse-error rather than aborting
+            # the batch.
+            progress.step(str(path))
+            try:
+                model = MapModel.from_path(str(path))
+                found = list(lint_map(model, game, path).items)
+                if extra_checks is not None:
+                    found.extend(extra_checks(model.raw, path))
+            except Exception as exc:  # noqa: BLE001 - one bad map must not abort the run
+                diagnostics.add(
+                    "map-parse-error", f"failed to parse map: {exc}", Span(str(path), 1, 1)
+                )
+                continue
+            diagnostics.items.extend(found)
 
-    shown, summary = select_and_summarize(diagnostics.items, selected, ignored, args.level)
+    # Code filtering first, so a baseline records (and matches) exactly what a plain run
+    # reports - the same order `run_lint` applies them in.
+    remaining = list(diagnostics.items)
+    if selected:
+        remaining = [d for d in remaining if d.code in selected]
+    if ignored:
+        remaining = [d for d in remaining if d.code not in ignored]
+
+    # A baseline stores each finding's file relative to the run's root, so the file is portable
+    # across machines and checkouts. For a folder target that root is the folder itself; for a
+    # single map it is the folder holding it, which keeps one map's entries matching whether it
+    # was linted alone or as part of its folder.
+    root = args.target if args.target.is_dir() else args.target.parent
+
+    if args.write_baseline:
+        # Snapshot exactly what a plain run would report - post select/ignore and at the level
+        # asked for, but unsuppressed - as the accepted set, so the next run is clean.
+        recordable, _ = select_and_summarize(remaining, set(), set(), args.level)
+        written = write_baseline(args.baseline, recordable, root)
+        if args.output_format == "json":
+            print(
+                json.dumps(
+                    {
+                        "baseline": {
+                            "path": str(args.baseline),
+                            "entries": written,
+                            "diagnostics": len(recordable),
+                        }
+                    },
+                    indent=2,
+                )
+            )
+        elif not args.quiet:
+            print(
+                f"wrote {written} baseline entry(ies) covering {len(recordable)} "
+                f"finding(s) to {args.baseline}"
+            )
+        return 0
+
+    # Suppress accepted findings before the level filter, so only genuinely new ones are
+    # reported and counted.
+    baselined = 0
+    if args.baseline is not None:
+        try:
+            baseline = load_baseline(args.baseline)
+        except BaselineError as exc:
+            # A corrupt baseline must not silently let everything through: report it and treat
+            # the baseline as empty, so the run is loud rather than falsely clean.
+            print(f"sage_lint: {exc}", file=sys.stderr)
+            baseline = None
+        if baseline is not None and baseline.counts:
+            remaining, suppressed = baseline.partition(remaining, root)
+            baselined = len(suppressed)
+
+    shown, summary = select_and_summarize(remaining, set(), set(), args.level)
+    summary["baselined"] = baselined
 
     if args.output_format == "json":
         print(
@@ -616,5 +720,8 @@ def run_map_lint(
             print(diag_line(diag, color))
 
     maps = "1 map" if len(paths) == 1 else f"{len(paths)} maps"
-    print(f"{summary['errors']} error(s), {summary['warnings']} warning(s) across {maps}")
+    line = f"{summary['errors']} error(s), {summary['warnings']} warning(s) across {maps}"
+    if baselined:
+        line += f" ({baselined} baselined)"
+    print(line)
     return 0 if args.exit_zero else (1 if shown else 0)

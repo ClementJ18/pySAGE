@@ -59,6 +59,18 @@ INCIDENTAL_EXTRA = frozenset(
         "start",  # CommandRangeStart
         "suggestion",  # --suggest fuzzy match, absent unless suggestions are on
         "value",  # the offending value itself
+        # The map checks report the terrain they measured around an object and the threshold
+        # they measured it against, alongside the object itself. Both move without the problem
+        # changing: a mapper who plants a few more trees, or a run given a different threshold
+        # on the command line, would otherwise resurface every accepted finding as new. Only
+        # keys that sit beside an identifying fact are listed - a finding whose `extra` is
+        # entirely incidental falls back to its message either way.
+        "flat_percentage",  # how flat the ground under a template actually is
+        "min_distance",  # the border clearance being compared against
+        "radius",  # the radius sampled or searched around the object
+        "required",  # how many of something the convention wants nearby
+        "threshold",  # the flatness fraction being compared against
+        "tree_count",  # how many trees are actually in reach
     }
 )
 

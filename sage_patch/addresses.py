@@ -120,6 +120,9 @@ __all__ = [
     "AI_PRODUCER_USABLE_TESTS",
     "AI_SET_CURRENT_VICTIM",
     "AI_SET_CURRENT_VICTIM_BYTES",
+    "AI_UPDATE_LOCOMOTOR_SET_SPEED",
+    "AI_UPDATE_SET_LOCOMOTOR_SET",
+    "AI_UPDATE_SET_LOCOMOTOR_SET_SPEED_STORE",
     "ALPHA_RECOMPUTE",
     "ALPHA_RECOMPUTE_BODY",
     "ALPHA_RECOMPUTE_BODY_BYTES",
@@ -276,6 +279,10 @@ __all__ = [
     "CONTAIN_GET_HORDE_IFACE",
     "CONTAIN_GET_HORDE_IFACE_ENTRY",
     "CONTAIN_GET_HORDE_IFACE_SLOT",
+    "CONTAIN_ITEM_LIST",
+    "CONTAIN_ITEM_LIST_NODE_OBJECT",
+    "CONTAIN_ITEM_LIST_WALK",
+    "CONTAIN_ITEM_LIST_WALK_ENTRY",
     "CONTROL_BAR_CLICK_BUTTON_LOAD",
     "CONTROL_BAR_CLICK_BUTTON_LOAD_BYTES",
     "CONTROL_BAR_CLICK_GATE_CALL",
@@ -599,6 +606,14 @@ __all__ = [
     "LOADING_SCREEN_PROGRESS_RESUME",
     "LOADING_SCREEN_PROGRESS_SINK",
     "LOADING_SCREEN_PROGRESS_WINDOW",
+    "LOCOMOTOR_GET_MAX_SPEED",
+    "LOCOMOTOR_GET_MAX_SPEED_ENTRY",
+    "LOCOMOTOR_SPEED_MODIFIER_CALL",
+    "LOCOMOTOR_SPEED_MODIFIER_CALL_BYTES",
+    "LOCOMOTOR_SPEED_MODIFIER_FOLD",
+    "LOCOMOTOR_SPEED_MODIFIER_FOLD_BYTES",
+    "LOCOMOTOR_SPEED_MODIFIER_SETUP",
+    "LOCOMOTOR_SPEED_MODIFIER_SETUP_BYTES",
     "LOGIC_CRC_EMIT",
     "LOGIC_CRC_EMIT_BYTES",
     "LOGIC_CRC_EMIT_RESUME",
@@ -636,6 +651,7 @@ __all__ = [
     "MODEL_FIELD_STORE_RESUME",
     "MODEL_FIELD_TABLE_ROW",
     "MODIFIER_LIST_GET_VALUE",
+    "MODIFIER_TYPE_SPEED",
     "MONEY_AMOUNT",
     "MONEY_DEPOSIT",
     "MONEY_WITHDRAW",
@@ -653,6 +669,7 @@ __all__ = [
     "NUGGET_VTBL_DEALS_DAMAGE",
     "NUGGET_VTBL_SUBWEAPON",
     "NUGGET_VTBL_VALID_VICTIM",
+    "OBJECT_AI_UPDATE",
     "OBJECT_ATTEMPT_HEALING",
     "OBJECT_CAN_ACCEPT_UPGRADE",
     "OBJECT_CONTAIN",
@@ -692,6 +709,7 @@ __all__ = [
     "OBJECT_STATUS",
     "OBJECT_STATUS_COUNT",
     "OBJECT_STATUS_DWORDS",
+    "OBJECT_STATUS_HORDE_MEMBER",
     "OBJECT_STATUS_NAMES",
     "OBJECT_STATUS_UNDER_CONSTRUCTION",
     "OBJECT_STATUS_UNSELECTABLE",
@@ -1019,6 +1037,7 @@ __all__ = [
     "THING_TEMPLATE_ID_SETTER",
     "THING_TEMPLATE_IS_EQUIVALENT",
     "THING_TEMPLATE_IS_EQUIVALENT_ENTRY",
+    "THING_TEMPLATE_LOCOMOTOR_SET_SPEED",
     "THING_TEMPLATE_REFUND_VALUE",
     "TOOLTIP_COST_BUILD",
     "TOOLTIP_COST_BUILD_RESUME",
@@ -5103,3 +5122,66 @@ ALPHA_RECOMPUTE_BODY_BYTES = bytes.fromhex(
 #: sub-frame counter past 1 before any client code can observe it.
 CATCHUP_ESCAPE = 0x00632A9B
 CATCHUP_ESCAPE_ALWAYS_RUNS = bytes.fromhex("b802000000eb19")
+
+
+# The horde-pace block, derived in `docs/horde-member-speed.md`. A battalion's speed is the
+# container's `LocomotorSet` `Speed`, not its members'; `SPEED` attribute modifiers are folded in
+# per object by `Locomotor::getMaxSpeed`, so a modifier on a member scales the member and never
+# the pace the formation advances at.
+
+#: `Locomotor::getMaxSpeed(Object *obj)` - `__thiscall` on the `Locomotor`, `ret 4`. Forty call
+#: sites reach it, `getMaxAcceleration` (`0x005E40AD`) among them, so it is the single place a
+#: locomotor speed becomes a number. The entry pins the function: the prologue, `edi` as the
+#: object argument, the body-module damage-state call and the read of the AI's cached set speed.
+LOCOMOTOR_GET_MAX_SPEED = 0x005E3F49
+LOCOMOTOR_GET_MAX_SPEED_ENTRY = bytes.fromhex(
+    "558bec51515356578b7d088bf18b8f5c0200008b01ff50248b8f60020000f30f1089f80100008b0d6443de0033db"
+)
+
+#: Its `SPEED` query, in three anchored runs so the middle one can be rewritten while the two
+#: around it stay asserted. The setup pushes `flag`, `ctx`, `&out = [ebp-8]` and the type, seeds
+#: the slot to 0.0 and puts the object in `ecx`; the call is the five bytes a hook replaces; the
+#: fold is `test al,al` / `je` / `mulss` into the running speed at `[ebp-4]`, which is what makes
+#: "nothing contributed" mean "leave the speed exactly alone".
+LOCOMOTOR_SPEED_MODIFIER_SETUP = 0x005E4002
+LOCOMOTOR_SPEED_MODIFIER_SETUP_BYTES = bytes.fromhex("0f57c06a01538d45f8506a088bcff30f1145f8")
+LOCOMOTOR_SPEED_MODIFIER_CALL = 0x005E4015
+LOCOMOTOR_SPEED_MODIFIER_CALL_BYTES = bytes.fromhex("e813880a00")
+LOCOMOTOR_SPEED_MODIFIER_FOLD = 0x005E401A
+LOCOMOTOR_SPEED_MODIFIER_FOLD_BYTES = bytes.fromhex("84c0740ff30f1045f8f30f5945fcf30f1145fc")
+
+#: `SPEED`, index 8 of the attribute-modifier name table at `0x00D8AF48` (index 0 is
+#: `ATTRIBUTE_NONE`). Named directly by the `push 8` in `LOCOMOTOR_SPEED_MODIFIER_SETUP`.
+MODIFIER_TYPE_SPEED = 8
+
+#: `Object+0x260` - the `AIUpdate` module, and `AIUpdate+0x1F8` the speed of the object's current
+#: `LocomotorSet`. Written in exactly one place in the image, `AIUpdate::setLocomotorSet` at
+#: `AI_UPDATE_SET_LOCOMOTOR_SET_SPEED_STORE`, from `THING_TEMPLATE_LOCOMOTOR_SET_SPEED`, which
+#: reads the per-set `Speed` line out of the map at `ThingTemplate+0x3A0` (entry `+0x14`). So the
+#: container's speed and the member's are two independent INI numbers on two independent objects.
+OBJECT_AI_UPDATE = 0x260
+AI_UPDATE_LOCOMOTOR_SET_SPEED = 0x1F8
+AI_UPDATE_SET_LOCOMOTOR_SET = 0x006680B2
+AI_UPDATE_SET_LOCOMOTOR_SET_SPEED_STORE = 0x006680FB
+THING_TEMPLATE_LOCOMOTOR_SET_SPEED = 0x0073DD2A
+
+#: The contained-items list, on the `ContainModuleInterface` at `OBJECT_CONTAIN`: `+0x34` is a
+#: pointer to an MSVC `std::list` sentinel node, `+0x00` of a node is the next and `+0x08` the
+#: contained `Object`. A base-class property, not a `HordeContain` one - the walk below is a slot
+#: in 17 contain vtables, `0x00C5B510` being `HordeContain`'s.
+CONTAIN_ITEM_LIST = 0x34
+CONTAIN_ITEM_LIST_NODE_OBJECT = 0x08
+
+#: That walk, anchored for the layout it proves rather than for anything anybody rewrites: it
+#: takes the sentinel, steps to the first node, stops when the two are equal, and reads
+#: `[node+8]->tmpl` to test a `KindOf` on it - which is only meaningful if `+8` is an `Object`.
+CONTAIN_ITEM_LIST_WALK = 0x0086620E
+CONTAIN_ITEM_LIST_WALK_ENTRY = bytes.fromhex(
+    "538bd98b4334568b303bf07449578b7e088b4704f6800c01000002"
+)
+
+#: `ObjectStatus HORDE_MEMBER`, bit 38 of the mask at `OBJECT_STATUS` - so bit `0x40` of the byte
+#: at `Object+0x98`, by `OBJECT_TEST_STATUS`'s own encoding. `HordeContain::addToContain`
+#: (`0x0086CF2A`) clears it for a `MACHINE`, `HERO` or `SIEGE_TOWER` that joins a battalion, which
+#: makes it the engine's own answer to "is this one of the rank and file".
+OBJECT_STATUS_HORDE_MEMBER = 38

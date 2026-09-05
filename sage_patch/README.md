@@ -19,14 +19,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Nineteen of the registered patches — **`hero-mana`**, **`second-resource`**,
-> **`campaign-select`**, **`battle-school`**, **`standalone-launcher`**, **`headless`**,
-> **`recharge-rescale`**, **`live-bridge`**, **`living-world-override`**,
-> **`cooldown-through-death`**, **`capture-the-flag`**, **`smart-rally`**,
-> **`special-power-charges`**, **`render-rate`**, **`interpolation-alpha`**,
-> **`campaign-army-verbs`**,
-> **`hero-army-carryover`**, **`unit-plate-option`** and **`command-line-skirmish`**
-> — are **experimental: unstable and largely untested.** They live in
+> Nineteen of the registered patches — **`battle-school`**, **`campaign-army-verbs`**,
+> **`campaign-select`**, **`capture-the-flag`**, **`command-line-skirmish`**,
+> **`cooldown-through-death`**, **`headless`**, **`hero-army-carryover`**, **`hero-mana`**,
+> **`interpolation-alpha`**, **`live-bridge`**, **`living-world-override`**,
+> **`recharge-rescale`**, **`render-rate`**, **`second-resource`**, **`smart-rally`**,
+> **`special-power-charges`**, **`standalone-launcher`** and **`unit-plate-option`** — are
+> **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
 >
@@ -45,35 +44,6 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 > The rest of the list is not thereby certified. Entries saying **Runtime-verified in game** are
 > the ones observed doing what they claim; the others are merely not flagged.
 
-- **`commandset-limit`** raises the `CommandSet` button limit from its stock **33** to any **N** in
-  34..127, plus the INI paging rule needed to surface the extra buttons, and widens the AI's
-  set-walk to the same N. The shipped build uses **N = 64**.
-- **`commandset-button-upgrade`** lets `CommandSetUpgrade` add **individual command buttons** to
-  whatever set an object already shows, instead of swapping the whole set for another one written
-  out in INI. A new `CommandButtons` keyword takes a list of `CommandButton` names, each
-  optionally pinned to a slot with `:N` and otherwise taking the lowest free one, and several
-  such modules on one object **accumulate**. That is what removes the combinatorics: "this unit
-  can buy any of four abilities" costs four modules rather than 16 hand-written `CommandSet`
-  blocks naming every combination, and a fifth ability costs one more rather than doubling the
-  file. The engine already does exactly this for Create-A-Hero (`0x00809FFB` builds a hero's set
-  at runtime out of a base set plus a `(button, slot)` list), so the patch reuses that machinery
-  rather than inventing it: on each change it rebuilds the union of every applied module from
-  scratch, names the result after the base plus the tokens, and caches it in `TheCommandSetStore`
-  under that name — which makes the operation idempotent, order-independent and identical on
-  every peer. Removal works for free, because `Object::updateUpgradeModules` already resets and
-  re-evaluates every upgrade module on every pass. An object carrying no `CommandButtons` module
-  runs stock bytes, so the stock `CommandSet` keyword is untouched. Composes with
-  `commandset-limit` in either order: the slot bound is read from that patch's own guard byte at
-  **run time** rather than baked in. Logic-side, so **every peer needs the same binary**. See
-  [`docs/commandset-button-upgrade.md`](docs/commandset-button-upgrade.md).
-- **`cah-factions`** teaches the nine-name Create-A-Hero faction enum a caller-supplied list of mod
-  sides plus an `All` token, so a `SubClass` can name them in `UsableFactions`.
-- **`ai-revive-gate`** makes the AI evaluate a `REVIVE` command button's `NeededUpgrade` before
-  recruiting or reviving through it. The engine checks that requirement for the player and for
-  `UNIT_BUILD` buttons, but not on the AI's revive path — so hero slots disabled by an
-  unobtainable upgrade are player-only restrictions today. The gate applies **only to callers that
-  ask `canMakeUnit` directly**, which is only ever the AI's own choice of producer; the ControlBar
-  and production come in through `BuildAssistant`'s `+0x64` gate and keep the stock answer.
 - **`ai-command-null-target`** stops a `MountedTemplate` transform crashing when the unit's pending
   AI order names an object that has since been removed. `AICommandParmsStorage::reconstitute`
   turns a stored `ObjectID` back into a pointer through `GameLogic::findObjectByID` and stores the
@@ -145,398 +115,32 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   `ArmyDefinition`, so a hero two factions list with two different delays keeps the last one
   parsed. Logic-side, so **every peer needs the same binary** — and the same INI. **Not
   runtime-verified.** See [`docs/ai-hero-build-delay.md`](docs/ai-hero-build-delay.md).
-- **`rebuild-hole-construction`** lets a structure destroyed **while it is being rebuilt** leave
-  its rebuild hole behind again. A creep lair's loop hangs entirely off that hole: breaking the
-  lair makes one, breaking the *hole* is what pays out treasure (the `CreateObjectDie` is on the
-  hole, never on the lair), and left alone the hole puts the lair back and retires with DeathType
-  `FADED` — which is what `DeathTypes = ALL -FADED` on every hole in the data exists to catch. The
-  loop has one gap: `RebuildHoleExposeDie::onDie` refuses to create anything when the dying object
-  is `UNDER_CONSTRUCTION`, and a lair rebuilt by a hole is `UNDER_CONSTRUCTION` for the whole time
-  it rises — the engine's own babysitting loop is keyed on that exact bit. Kill it in that window
-  and it is gone permanently: the old hole was destroyed the frame the rebuild began, no new one
-  is made, and there is no treasure ever again. The patch erases the six-byte branch. The rule
-  moves into the INI rather than disappearing — every die module opens with the shared filter that
-  already evaluates `ExemptStatus` against live `ObjectStatus` bits, so
-  `ExemptStatus = SOLD UNDER_CONSTRUCTION` restores the stock behaviour per object, which matters
-  because the patch is global and reaches a faction's own lairs on their *first* build too.
-  Logic-side, so **every peer needs the same binary**. **Not runtime-verified.** See
-  [`docs/rebuild-hole-construction.md`](docs/rebuild-hole-construction.md).
-- **`combo-horde-recruitment`** lets a horde built from **several `InitialPayload` lines** be
-  recruited. A horde is filled by one of two mechanisms and its own `onObjectCreated` picks which:
-  placed by a map it calls `createPayload`, which walks the whole payload list; produced by a
-  building it returns at its second instruction, because `Object::m_producerID` is set, and the
-  *building* fills it instead. That second path runs off a production queue entry, and an entry
-  carries exactly **one `ThingTemplate` and one count** — it asks the horde for that template
-  through contain-interface vtable slot `+0x24`, whose implementation answers **only when the
-  payload list holds one entry** and returns the empty string otherwise. That call site is the
-  getter's only caller in the image, so a combo horde's mix has nowhere to go: `findTemplate("")`
-  fails, the entry is never re-aimed at the members, and it is freed having produced only the
-  container. The patch replaces the six-byte producer read with a `call` into a cave that returns
-  the same id unless the payload list holds two or more entries, in which case it returns `0` — so
-  a combo horde falls through the untouched `test`/`jne` into `createPayload` and fills itself, the
-  way a map-placed one always has. Single-payload hordes reach the branch with the identical value
-  and keep the stock building-driven fill, exit sequencing included; the patch needs no keyword
-  because the only data it can reach is data that is broken today. Logic-side, so **every peer
-  needs the same binary**. **Not runtime-verified.** See
-  [`docs/combo-horde-recruitment.md`](docs/combo-horde-recruitment.md).
-- **`horde-exit-absorption`** stops a hero recruited **in parallel** with a battalion from being
-  absorbed into it. `QueueProductionExitUpdate` — the door every production building pushes finished
-  objects out of — remembers exactly **one** horde, in an `ObjectID` at module `+0x40`. It is written
-  whenever the object leaving is `KINDOF HORDE`, and cleared only when a whole queue entry has been
-  emitted; a battalion's entry is `Slots + 1` objects long, so the field names that battalion for the
-  fourteen-odd frames its members take to come out. For every one of those frames the head of the
-  same routine resolves that id and **unconditionally** binds whatever is leaving to it:
-  `setProducer(horde)`, a formation-slot assignment, `setTeam(horde->m_team)` — and, further down,
-  reads the same answer to decide this is not a lone unit, which is what denies the hero its own
-  rally-point waypoint so it walks out of the door and is then dragged along by the battalion. Hero
-  revives queue in parallel with units, so a hero finishing inside that window is caught by all of
-  it. The patch redirects one five-byte `call` into a cave that asks the question the stock code
-  never does — does this object belong in that horde? — by walking the horde's own unfilled slots for
-  one whose declared payload template is equivalent to the object's, which is exactly the rule the
-  slot assignment applies a few instructions later. A rejection hands back NULL, which is the "no
-  battalion in the door" answer the engine already has a path for. A `KINDOF HERO` test would have
-  been four bytes and wrong: `LothlorienRumil` fields Rumil and Orophin as a two-slot battalion, so
-  that member really is a hero and really does belong. Logic-side, so **every peer needs the same
-  binary**. **Not runtime-verified.** See
-  [`docs/horde-exit-absorption.md`](docs/horde-exit-absorption.md).
-- **`production-condition`** adds a **model condition** that is active while a structure's
-  production queue is non-empty — training a unit *or* researching an upgrade. The stock engine
-  has no such state: the `DOOR_n_*` conditions run *after* a unit completes, as the buffer during
-  which it walks out, and `ModelConditionUpgrade` fires on an upgrade's completion. Two **opt-in**
-  extras ride the same trigger: `--weapon-set-flag NAME` adds a `WeaponSetFlag`, so a
-  `WeaponSet Conditions = NAME` block can give a producer a different loadout while it is busy,
-  and `--locomotor-set NAME` adds a `LocomotorSetType`, so `Locomotor = NAME <template>` can give
-  it a different locomotor. Both of those tables are read through their terminator rather than a
-  count, so each costs a relocation and nothing else, and objects declaring neither are
-  unaffected. The bit lives on the logic-side `Object` and is CRC'd, so **every peer must run the
-  same patched binary** and replays do not cross.
-- **`desert-weather`** adds a third global weather, **`DESERT`**, and a **`SAND`** model condition
-  for it to drive - the pairing the engine already has for `SNOWY` → `SNOW`, and only for that one.
-  A map carrying `weather = 2` (a plain `Integer` in its `WorldInfo` chunk, which is how the
-  engine actually gets its weather - not `map.ini`) then sets `SAND` on every drawable the way a
-  snowy map sets `SNOW`, and `WeatherTexture = DESERT …` works too. Note that `SAND` is **not** a
-  stock model condition: the patch creates it, out of the same name table `production-condition`
-  extends, so the two compose in either order.
-- **`desert-weather-wb`** is the authoring half of that, and lives in the same module.
-  Worldbuilder's map-settings weather dropdown is
-  filled by a loop with a hardcoded member count, so `DESERT` never appears in it - and because
-  the OK handler stores `CB_GETCURSEL` unvalidated, opening that dialog on a `DESERT` map and
-  pressing OK writes `-1` back into the map and silently reverts it. The patch grows the same
-  table and raises that one bound. Dropdown only: the editor *viewport* keeps drawing the
-  non-`SAND` variant, which needs Worldbuilder's own model-condition table extended too.
-- **`worldbuilder-mod`** gives **`Worldbuilder.exe`** the `-mod` switch the game has, so a mod's
-  loose files load in the editor without being packed into a `.big` first. The editor already
-  links the whole pipeline - the `-mod` table entry, `parseMod`, `ArchiveFileSystem::loadMods` -
-  but all of it hangs off `GameEngine::init`, and Worldbuilder never constructs a `GameEngine`,
-  so none of it runs. The patch calls the one function that arms a mod directory from
-  Worldbuilder's own startup, just before it reads its first INI. **Pass a map before `-mod`**
-  (`Worldbuilder.exe <some>.map -mod <dir>`): Worldbuilder is an MFC app, and MFC otherwise
-  claims the bare mod path as a document to open and fails with `Access to … was denied`. Point
-  `-mod` at the **subtree** being edited rather than a whole mod - a full one still kills the
-  editor partway through startup, where the game handles the same tree fine. See
-  [`docs/worldbuilder-mod.md`](docs/worldbuilder-mod.md).
-- **`worldbuilder-object-typeahead`** puts a **type-ahead box above the object tree** in the dialog
-  every script action's object argument opens - one class, `EditObjectParameter`, reached from two
-  places, so it covers every script that names an object type. The tree holds every `ThingTemplate`
-  in the game filed under its side and editor-sorting category, and opens with every folder
-  collapsed. Each keystroke now selects the first item whose label matches - exact, then prefix,
-  then substring, case-insensitively, leaves before folders - and clears the selection when nothing
-  matches. `OnOK` is **not** patched: it still reads the selected item's text, so the dialog cannot
-  write a name the stock one could not, and a typo falls into the stock "nothing selected" beep.
-  The control is added to `IDD` 190 in place, within its stock 292 bytes; the behaviour is one
-  extra `ON_EN_CHANGE` entry in a relocated `AFX_MSGMAP`, with no subclassing and no new imports.
-  See [`docs/worldbuilder-object-typeahead.md`](docs/worldbuilder-object-typeahead.md).
-- **`infantry-lighting`** decides **which kindofs get the map's infantry light environment**. A
-  `.map` carries three light sets per time of day - terrain, objects, infantry - and the renderer
-  picks the infantry one per render object from a flag set by a single `KindOf` test in the
-  model-draw path: `test byte [tmpl+0x109], 5`, i.e. `INFANTRY | MONSTER` and nothing else. So a
-  unit that is only `CAVALRY` is lit as scenery, alongside walls and rocks - and because the two
-  sets differ almost exclusively in the sun's **ambient** (stock `map mp amon sul fortress`:
-  `0.090, 0.071, 0.043` for objects against `0.290, 0.306, 0.290` for infantry, identical diffuse
-  and direction), the symptom reads as "mounted units are too dark". The stock cure is to add
-  `KINDOF_INFANTRY`, which also buys crush rules, `PATH_THROUGH_INFANTRY`, KindOf filters on
-  weapons, armor and powers, and AI target selection. This rewrites the immediate instead: the
-  default adds **`CAVALRY`**, `--kinds` names any of the eight kindofs in mask bits 8..15
-  (resolved against the image's own name table, not a hardcoded list), and **`--all`** defuses the
-  branch so every drawable takes the infantry environment. Nine bytes at each of two sites, no
-  cave. Client-side render state only - nothing enters the logic frame or the CRC, so it does
-  **not** have to be on every peer and replays cross both ways. Invisible on the maps whose two
-  sets are identical, which is 80 of the 103 stock maps and 205 of Edain's 510. **Statically
-  verified** - both sites hold their stock bytes in the real binary and apply/verify/detect
-  round-trip against it - but **not yet observed in game**. See
-  [`docs/infantry-lighting.md`](docs/infantry-lighting.md).
-- **`replay-outcome`** writes **each player's final victory/defeat state into the replay**, at
-  the frame the recording ends - whether a player left or the game finished. A stock replay
-  records inputs, not state, so no chunk says who won and
-  [`sage_replay.winner`](../sage_replay/winner.py) has to infer it from who stopped issuing
-  orders (and gives up entirely on elimination endings and on AI players). This adds one `0x7D0`
-  chunk per player, written straight to the recorder's own file handle just before the `0x1D`
-  end-of-recording marker. Client-local: nothing enters the simulation and nothing crosses the
-  network, so it does **not** have to be on every peer. **Runtime-verified** on all three endings.
-- **`replay-annotations`** writes **each player's score-screen counters into the replay**: units
-  and structures built, lost and destroyed, money earned and spent, and the army and base size at
-  the closing frame. The engine keeps all of it in a `ScoreKeeper` embedded at `Player+0x3DC` and
-  never records a byte of it, so a corpus can count what players *did* but not what it cost them.
-  The two destroyed counters are `Int[20]` arrays indexed by the **victim's** `m_playerIndex`, so
-  the record is a per-opponent **kill matrix** - in a team game, who actually fought whom. Hooks
-  the *other* call of the branch `replay-outcome` hooks (`stopRecording` rather than
-  `writeToFile`), so the two compose in either order; client-local, same as `replay-outcome`.
-  **Verified statically** - the sites hold their stock bytes and apply/verify/detect round-trips
-  against the real binary - but **not yet observed in a recording**. Read back
-  with [`sage_replay.annotations`](../sage_replay/annotations.py) and folded into `aggregate`. See
-  [`docs/replay-annotations.md`](docs/replay-annotations.md).
-- **`skirmish-replay`** makes a **single-player skirmish record a replay**, which the stock engine
-  never does, and gives each recording a **timestamp + map** name instead of overwriting
-  `Last Replay`. `startRecording` has exactly one caller — the `MSG_NEW_GAME` branch of
-  `RecorderClass::updateRecord` — and it whitelists the game mode against `{1, 5}`, the two
-  network flavours; a skirmish emits **2** and falls off the end of the list. Everything
-  downstream already works: `startRecording` has a complete non-network path that builds the
-  header from `TheSkirmishGameInfo`, and the engine's own playback predicate already accepts a
-  *recorded* mode of 2. So the patch replaces nine bytes of whitelist and retargets the call that
-  names the file. **By default every recording is renamed**, not just skirmishes: the fixed name
-  means each game overwrites the last, and a file every player has under the same name is what
-  makes replays impossible to collect. That costs the replay menu's Save Replay button, which
-  exists only to rescue the file before it is overwritten (`--rename added` keeps the stock
-  behaviour for network games). Client-local, like `replay-outcome`. **Gate runtime-verified,
-  naming re-test open.**
-- **`observer-switch`** makes a **skirmish replay let you change seat** — next/prior player, and
-  with it that player's vision, palantir and unlocked spellbook — which a network replay already
-  does. The palantir shows the observer bar on two conditions, and the failing one whitelists the
-  *recorded* game mode against `{1, 5}`; a skirmish records **2**, so the buttons never appear.
-  Nothing downstream is gated: the observer seat is installed on the playback mode, and the switch
-  itself re-runs the shroud manager for the new seat. The engine already ships the same predicate
-  with mode 2 added, so the patch aims one `call` at it — five bytes, no cave. The natural
-  companion to `skirmish-replay`, and independent of it. Client-local. **Runtime-verified in game.**
-- **`unit-plate-option`** turns Edain's **unit plates into a player-side toggle** instead of a
-  submod, by adding a **20th row to the shell Options screen**. `unit_plate.inc` puts a
-  `W3DScriptedModelDraw` tagged `Module_UnitPlate` on 552 unit objects; the shipped game carries the
-  draw module but not the model, so the disc is invisible until a submod drops `unit_plate.w3d`
-  in — after which it is on forever, for everyone, at one extra render object per unit. Three hooks,
-  one cave: the ladder's entry branch (`0x00920602`), where `AptOptions::InitGadgets` is an inlined
-  chain of `stricmp`s with no table to extend, so the cave answers for its own gadget and hands
-  every other name back; `AptOptions::Save`, spliced in front of the `UserPreferences::write` at
-  `0x009204DC` because Save writes only six hardcoded keys; and the `ModelConditionState` `Model =`
-  parser (`0x004C2266` — the only dword in the image pointing at it), which substitutes `None`
-  unless the preference reads `yes`. The preference is read through a byte-for-byte clone of the
-  engine's own `getAllHealthBars`; the row reads it fresh, the model gate once per launch and
-  cached. The `off` state is not new behaviour — it is what ships today, and what
-  `unit_plate_remover.inc` already produces on 78 child objects. `--model`, `--key` and `--gadget`
-  make it work for any model/preference/row triple. **Needs a matching gadget in `Options.apt`**
-  (`docs/options-menu-rows.md` §4) — without it the patch is inert, not harmful. Client-local.
-  **Static only — not yet run in game.**
-- **`observer-command-range`** lets an observer **work a command bar's paging buttons** —
-  `PUSH_VISIBLE_COMMAND_RANGE` and `POP_VISIBLE_COMMAND_RANGE` — so what is being bought or
-  researched on page two can be read while watching a replay, or after being defeated. Today the
-  page is one click away and the click is discarded: `ControlBar::processCommandUI` asks
-  `localPlayerIsNotActive` before it dispatches anything at all, and that is true for the length
-  of any observed game. Everything else is already right — `getLocalPlayer` redirects to the
-  *observed* player when the local seat is inactive, so the whole bar is evaluated against the
-  player being watched, and both paging commands come out of the availability evaluator's default
-  case as enabled. So the patch retargets that one `call` into a cave that answers "active" for
-  those two commands and tail-calls the stock predicate for everything else — five bytes at the
-  call site. Every other command stays refused, because the rest of them post `GameMessage`s.
-  Client-local, and it needs nothing from the INI.
-- **`skirmish-ai-fallback`** gives a faction a **working AI on a map that carries no
-  `Skirmish<Faction>` side for it**. A map's sides are capped at 20 — `SidesList::addSide` refuses
-  the 21st — so a mod past ten-odd factions runs out of room, and 63 of the 617 shipped maps are
-  already full while 106 carry no skirmish side at all. What a faction with no side gets today is
-  not a worse AI: `Player::initFromDict` falls into the arm that types it **0 = `PLAYER_HUMAN`**,
-  so the slot is a human nobody is driving. The side supplies exactly two things — the `isSkirmish`
-  flag that makes `setPlayerType` allocate an `AISkirmishPlayer`, and the faction's AI script
-  library, which `prepareForMP` stamps onto the side from *that side's* `DefaultPlayerAIType` and
-  `initFromDict` copies onto the player. The patch supplies both without a side: one hook routes a
-  side-less AI down the same arm a matched one takes, the other writes the player's **own**
-  `DefaultPlayerAIType` into its **own** side dict and calls the engine's single-side library
-  loader on it — a stock routine with **zero callers** in the unpatched image. So the faction runs
-  `ki <its own faction>`, not a borrowed one. Fallback only: where a `Skirmish<Faction>` side
-  exists it still matches first and both hooks return untouched, and no map is edited. Two
-  five-byte windows and a 110-byte cave; skirmish only, since the scan it hooks runs only for a
-  dict carrying `playerIsSkirmish`. Logic state, so every peer of a game that reaches it needs the
-  same binary. **Statically verified** — every anchor holds its stock bytes in the shipped
-  `game.dat`, nothing branches into either window, and apply/verify/detect round-trips against it —
-  but **not yet observed in game**. See
-  [`docs/skirmish-ai-fallback.md`](docs/skirmish-ai-fallback.md).
-- **`terrain-resource-exp`** adds a **`GiveNoXP`** boolean to `TerrainResourceBehavior`, so a
-  resource spot can pay its owner without levelling its own building. The module hands the integer
-  it just deposited to the building's `ExperienceTracker` on every income tick, and no INI field
-  separates the two — while the sibling `AutoDepositUpdate` has shipped exactly this boolean, under
-  exactly this name, since the stock build. The new field lands in `ModuleData+0x16`, alignment
-  padding the constructor never wrote, so nothing grows. **Every peer must run the same patched
-  binary**, and a mod using the keyword cannot run without it at all — an unknown field in a known
-  block is an INI parse error, not a warning.
-- **`unique-production-id`** mints the `ProductionID` **game-wide** instead of per building. The
-  stock counter lives on the producer, so every building's first production is id 1 — and hero
-  recruitment keys the player's revive bookkeeping on that id, so recruiting a hero from a second
-  building while the first is still producing collides, and the click takes the money without
-  starting anything.
-- **`hero-mana`** ⚠**(experimental)** gives special powers a **regenerating per-object cost** — `SpecialPower.ManaCost`
-  for the price of one activation, and `Object.ManaPool` / `Object.ManaRegen` for the caster's
-  single pool that all of its abilities draw on. The stock `UnitCost` field cannot do
-  this: all three sites that read it ask `Object+0x258` for the horde interface first and, when
-  it is absent, branch to *the same label as "cost is zero"* — so on a lone hero `UnitCost` is
-  not a weak mechanic, it is a **no-op**. The patch grows `SpecialPowerTemplate` `0x88 → 0x94`,
-  relocates both the `SpecialPower` field-parse table (**two** references, the smallest repoint
-  here) and the `Object` one (**five**, with no interior reference),
-  and enforces the cost at `SpecialPowerStore::canUseSpecialPower` — the one predicate the
-  player's UI, the AI and every activation path all share, so **the AI is gated for free**. The
-  pool is *computed on read* from the logic frame rather than ticked, which is what lets it need
-  no per-frame hook (avoiding a collision with `live-bridge`), no init hook, no destroy hook and
-  no savegame change. A `ManaCost` line joins the stock `UnitCost` one in a button's description,
-  from the `TOOLTIP:ManaCost` key and carrying **both the price and what the caster currently has**;
-  a `ManaPool` line sits under a hero's level on its revive/recruit button. `ManaCost = 0`, the default, leaves a power exactly as it is today.
-
-- **`second-resource`** ⚠**(experimental)** gives every player a **second resource pool** alongside gold, granted per
-  tick by `AutoDepositUpdate.DepositAmount2` and seeded per faction by
-  `PlayerTemplate.StartMoney2`, and shows it in brackets after the palantir's own number
-  (`1000 (50)`), and lets an `Object.BuildCost2` price things in it — a priced button reads
-  `Cost: 100 (25)` and is refused when the player is short. The
-  counter is `UInt32 pool[20]` in the cave indexed by `Player::m_playerIndex` (no struct growth);
-  the new `UInt16` lands in `ModuleData`'s alignment padding at `+0x22` and its default costs
-  three bytes, because the constructor's two `Bool` stores collapse into one dword store that
-  clears the padding too; and `StartMoney2` lives in a row table keyed by the template's
-  `NameKeyType`, because `PlayerTemplate` has no hole (`+0x34` is the `Money` subobject's own
-  `m_playerIndex`, not padding). The display needs **no `.apt` and no `.csf`**: like
-  `APT:PalantirCommandPoints`, the resource text is formatted by the engine and pushed to the
-  movie every refresh, so a second number is one more vararg on a call it already makes — plus
-  widening the refresh's change filter, which otherwise leaves the bracket stale whenever gold
-  sits still. `--no-hud` keeps the text stock. **Savegames are not supported** — a cave counter
-  is not `Xfer`'d, so a load resets the pool. `BuildCost2` lives in the cave too, keyed by
-  `ThingTemplate *`: the 2-byte gap at `+0x5E8` that looks free is the template's engine-assigned
-  **id**, and the copy at `0x006D24AB` is field-by-field, so growing the struct would not even buy
-  the copy — both routes need the same hook inside `copyFrom`. **The AI is out of scope by
-  construction**: its unit variants leave `BuildCost2` at 0, and a cost of 0 short-circuits the
-  shared gate before the pool is read. **Enforcement is not complete** — structure placement and
-  upgrade research are refused correctly but not charged, and cancelling refunds no resource 2.
-- **`maintenance-cost`** makes a **negative** `TerrainResourceBehavior.MaxIncome` or
-  `AutoDepositUpdate.DepositAmount` **take** that much gold per tick instead of being discarded, so
-  a structure can carry an upkeep. There is **no new INI keyword**: `INI::parseInt` is an
-  `sscanf("%d")` whose error message reads *"Expected signed integer"*, so `MaxIncome = -5` already
-  parses on a stock binary — it is the run-time paths that throw the sign away, at a
-  `jle` past the deposit, at the engine's never-round-below-one-gold floor, and at
-  `Money::deposit` itself. That last one is why the patch exists rather than being a data change:
-  the balance is **unsigned** and `deposit` is an unclamped `add`, so a negative deposited is not a
-  charge but about four billion gold. Every charge goes through `Money::withdraw` instead, which
-  clamps to what the player actually has, returns what it took and credits `MoneySpent` rather than
-  `MoneyEarned`. **A charge inherits whatever scales its module's income and computes nothing of
-  its own**, so a `TerrainResourceBehavior` upkeep falls with the faction's
-  `ResourceModifierValues` exactly as that spot's income does — stock arithmetic, not code this
-  patch wrote — while an `AutoDepositUpdate` upkeep is flat, like its income, unless
-  **`auto-deposit-inflation`** is applied too. It is drawn
-  with the engine's own red **`GUI:LoseCash`** floating text, so **no `.csf` and no `.apt` edit**,
-  and a charge tick grants **no experience** rather than negative experience. Nothing is destroyed
-  or disabled for want of upkeep — a player who cannot pay simply pays what they have. Money is
-  logic state, so **every peer must run the same patched binary**; and because there is no new
-  keyword, a mod using it still **loads** on an unpatched one and silently does not charge. See
-  [`docs/maintenance-cost.md`](docs/maintenance-cost.md).
-- **`auto-deposit-inflation`** makes **`AutoDepositUpdate` obey the income inflation** the engine
-  applies to `TerrainResourceBehavior` and to nothing else. `PlayerTemplate.ResourceModifierValues`
-  — the per-building penalty every Edain faction sets — is read in exactly **one** place in the
-  image, and it is the *other* income module; a structure paying through `AutoDepositUpdate` pays
-  `DepositAmount` flat for ever. In Edain that is not a corner case: the resource spots are
-  `TerrainResourceBehavior` and the **castle and camp keeps** are `AutoDepositUpdate`, so a keep's
-  40 gold a tick is the one income a player's building count never touches. The hook is a single
-  five-byte detour on `cvttss2si eax, [ebp-0x14]` — the instruction where the amount stops being a
-  float, and the point both the handicap and no-handicap paths converge on — and the cave
-  reproduces the engine's computation instruction for instruction, **including the
-  `filter.allow(thisObject, player)` gate**, so a faction whose `ResourceModifierObjectFilter` does
-  not accept its keeps is byte-for-byte unaffected. **No new INI field** — it reuses the two
-  `PlayerTemplate` fields every faction already declares. **Applying it re-balances a mod on
-  purpose**, and it costs one `Player::forEachTeamObject` walk per deposit tick, which is what the
-  other module already spends on each of its own. With `maintenance-cost` it scales a **charge**
-  by the same instruction that scales an income, which is the only way an `AutoDepositUpdate`
-  upkeep becomes inflation-sensitive. See
-  [`docs/auto-deposit-inflation.md`](docs/auto-deposit-inflation.md).
-- **`command-point-upkeep`** makes a large army **cost a player income**: the more command points
-  they have in the field, the less their resource buildings pay. Two new `PlayerTemplate` fields
-  declare the curve per faction — `UpkeepCommandPointStep` (how many command points move a player
-  one tier; **0, the default, is upkeep off**) and `UpkeepValues` (the percentage of income kept
-  at each tier, the last entry held for everything past it). It is not a new mechanic so much as a
-  second dial on an old one: `ResourceModifierValues` — the per-building "inflation" every Edain
-  faction sets — is read in exactly **one** place, `AutoDepositUpdate::update`, which turns a
-  *count* into a percentage and scales the deposit by it. Upkeep swaps the count for command
-  points and multiplies the same slot, so the two stack and the engine's "never round income below
-  1 gold" floor still applies. Only income the faction's own `ResourceModifierObjectFilter`
-  accepts is taxed, because `AutoDepositUpdate` is *all* tick income and would otherwise catch
-  captured neutral structures too. The per-faction rows live in the cave keyed by the template's
-  `NameKeyType`, not by a pointer — a `PlayerTemplate` is parsed into a **stack temporary** before
-  being copied into the store's vector — which is also what leaves **no savegame change and no
-  init hook**. The `PlayerTemplate` field table has **one** reference, the smallest repoint here.
-  The palantir's command-point readout gains the current loss: `500/1500 (-10%)`, produced by the
-  engine's own formatter with a third vararg, so it needs no `.apt` and no `.csf`/`.str` edit
-  (a mod's `APT:PalantirCommandPoints` string is a design-time placeholder the engine overwrites
-  every refresh). `--no-hud` leaves the text stock.
-- **`spell-store-upgrade`** selects a different purchase-science `CommandSet` from the **current
-  player's completed upgrades**. A repeatable `PlayerTemplate` field declares each mapping as
-  `PurchaseScienceCommandSetUpgrade = Upgrade_Name CommandSet_Name`; names are retained until use,
-  then the upgrade is resolved, its `upgradeIndex` is tested against the player's 36-dword mask,
-  and the first active mapping whose CommandSet exists wins. Unknown names and no active mapping
-  fall through to the untouched stock selector. Only the call at `0x00822ACF` inside
-  `AptSpellStore::initializeSpellSlots` is redirected; the shared selector at `0x0071F933` and all
-  its other callers remain stock. Closing and reopening the SpellStore re-evaluates the table.
-  Runtime selection and fallback have been verified in-game. The patch is intentionally scoped to the SpellStore callsite and composes with the existing PlayerTemplate field-table extension mechanism. The two helper ABIs remain reverse-engineered (HIGH confidence), so the implementation keeps explicit byte assertions, bounds checks, and stock fallback behavior. See  [`docs/spell-store-upgrade.md`](docs/spell-store-upgrade.md).
-- **`science-prereqs`** lets **`PrerequisiteSciences` name a science defined later in the file**,
-  so a mutually dependent pair (`C` needs `A or D`, `D` needs `B or C`) no longer has to be closed
-  from `map.ini`. It is the smallest patch here — one `rel32` and a 16-byte cave — because
-  `ScienceType` **is** the `NameKeyType`: `getScienceFromInternalName` computes the key *before* it
-  checks the name is known, and `nameToKey` mints a key for a name it has not seen, so a forward
-  reference and a backward one store the identical dword. Removing the check cannot produce a
-  degraded value, and a key that never gets a definition is one no player can hold, so the group is
-  simply unsatisfiable. By default the safety net stays: every name that did not resolve is
-  recorded, and a detour immediately after the `initSubsystem` call that loads `TheScienceStore`
-  re-checks the list and throws the engine's own message for the first one still missing — the same
-  text a modder sees today, because this build's INI handler never adds file and line to begin
-  with. `--no-report-missing` drops that half; `--all-keywords` widens the relaxation to every
-  science-name keyword by repointing the shared thunk instead. A `map.ini` that defines a `Science`
-  block runs after the check and is not covered. **Runtime-verified in game.**
-- **`multi-execute-gate`** makes an **`OK_FOR_MULTI_EXECUTE` button respect each selected unit's own
-  `EnableOnModelCondition` / `DisableOnModelCondition`**. Today it does not: the ControlBar lights
-  the button if *any* member of the selection qualifies (reasonable), and the click then runs the
-  ability on *every* member (not). The two rules never meet, because the click emits
-  `MSG_DO_SPECIAL_POWER` with the button's `Options` word and an object id of **zero**, and zero
-  means "the issuing player's whole selection" — so the logic side gets a `SpecialPowerTemplate` and
-  never sees the `CommandButton` the masks live on. Its per-member gate does check required
-  sciences, `UnitCost` and recharge; model conditions are simply not among the things it can ask
-  about. This adds that one question to the two group loops, by recovering the button from the
-  member itself through the engine's own object → command set → button walk — which reads the
-  *effective* command set (the three per-object overrides ahead of the template's), so a mod that
-  swaps sets at runtime still agrees with the button that was clicked. Two `rel32` and a
-  `0xDB`-byte cave; the button stays `OK_FOR_MULTI_EXECUTE`, the loop still visits every member, and
-  a member whose own button is disabled is skipped exactly as if it had failed the recharge check.
-  This is what Edain's *Ambush of the Wood-elves* command-set swap works around, at the cost of the
-  mass trigger. It changes which objects a logic-side order reaches, so **every peer must run the
-  same patched binary** and replays do not cross. **Runtime-verified in game.**
-- **`multi-select-group`** adds a **`MultiSelectGroup` number to `CommandButton`**, so two buttons a
-  mod declares interchangeable keep the slot they share when a mixed selection's command bars are
-  merged, fills a slot only one of them has instead of blanking it, and reaches every stage in the
-  group on a click. Today none of the three happens:
-  `ControlBar::populateMultiSelect` fills the slots from the first selected unit's `CommandSet` and
-  merges every later unit in by comparing its button for each slot **by pointer identity**, so a
-  difference clears the slot and `winHide`s the window and the player sees an empty socket, not a
-  greyed icon. That is what a `CommandSetUpgrade` swap costs the moment a selection holds units at
-  two upgrade stages, and the palantir draws six buttons for a unit so the slot cannot simply be
-  moved elsewhere. Buttons carrying the same non-zero value now merge as one. **A slot only one
-  set fills is filled from that one**, which needs no field at all - a set that says nothing
-  about a slot is not in conflict with one that does, so selecting `OrkstadTunnelOrksCommandSet`
-  with `GundabadLancerCommandSet` keeps the lancers' forged-blades button on screen instead of
-  blanking it; the adopted button is re-tested for `OK_FOR_MULTI_SELECT` first, and the click
-  lands only where `canAcceptUpgrade` says a module actually consumes the upgrade. **The one displayed is
-  chosen by the data, not by selection order**: a button no selected unit can click never wins
-  against one something can (the merge asks `getCommandAvailability` and keeps a 33-byte per-slot
-  record of what the selection has been able to use), and when both are usable the tie goes to the
-  earlier stage, found by asking whether the unit being merged already owns the installed button's
-  upgrade. **And the click expands per member.** `MSG(0x415)` carries an object id of **zero**,
-  meaning the whole selection, and `AIGroup::doObjectUpgrade` grants the one upgrade the message
-  named to every member that will take it — gated on `hasUpgrade` / `canAcceptUpgrade` and never on
-  whose `CommandSet` the button came from. The patch rewrites `ebx` at the top of that member loop
-  with the upgrade *that member's own* command set names in the same group, so one click starts
-  `Upgrade_BruchtalFireArrows` on the battalions at stage one and
-  `Upgrade_BruchtalFireArrowsEregions` on the battalions at stage two, each paying its own price,
-  with no change to the message and nothing extra emitted. It is also what makes the field safe:
-  without it, showing the later stage would let a unit still at stage one buy stage two directly and
-  skip the first purchase. Four `rel32`, one byte widened in the constructor to default the field,
-  the `CommandButton` field table rebuilt, and a writable cave. The member-loop rewrite changes what
-  a logic-side order does, so **every peer must run the same patched binary and replays do not
-  cross**. **Not yet runtime-verified in game.**
+- **`ai-revive-gate`** makes the AI evaluate a `REVIVE` command button's `NeededUpgrade` before
+  recruiting or reviving through it. The engine checks that requirement for the player and for
+  `UNIT_BUILD` buttons, but not on the AI's revive path — so hero slots disabled by an
+  unobtainable upgrade are player-only restrictions today. The gate applies **only to callers that
+  ask `canMakeUnit` directly**, which is only ever the AI's own choice of producer; the ControlBar
+  and production come in through `BuildAssistant`'s `+0x64` gate and keep the stock answer.
+- **`asset-load-profile`** turns on the **engine's own per-asset load timer**, which is a
+  diagnostic and not a fix. The engine loads a model the first time something needs it, on the main
+  thread, inside the frame — `AssetHandle::EnsureLoaded` (`0x00A32AD0`) falls through to a
+  synchronous load at `0x00A37320` — which is where a mid-match hitch on a high-vertex model comes
+  from, and the engine has always been able to say so: that function timestamps itself with
+  `rdtsc` and a writer at its tail emits one CSV row per load,
+  `frame,type,asset,tInit,tPreload,tLoad,tPostload,tTotal,recursion`, in milliseconds. The whole
+  thing is gated on **one byte**, `GlobalData+0x123D` — which is not in the 457-row `GameData`
+  field table, is not reachable from the sixteen-entry retail command-line table, and whose only
+  writer is `GlobalData`'s constructor storing zero. So the switch exists, nothing can flip it, and
+  this patch flips it: two adjacent byte stores in that constructor become one `mov word
+  [esi+0x123C], 0x0100` plus three `nop`s, twelve bytes for twelve, leaving `+0x123C` at the zero
+  the pair wrote and the uninitialised padding at `+0x123E` alone. The field stays a field, so a
+  live session can turn it back off through `sage_live` without unpatching. Output lands in the
+  process's working directory under the name the engine builds — `assetload <map>`, with no `.csv`
+  extension, because nothing appends one. Client-local: peers need not agree on it, so one player
+  can profile a match everyone else plays on stock binaries. Costs an `fopen`/`fprintf`/`fclose`
+  per load, which lands after the timestamps — the columns stay honest, the felt hitch gets worse.
+  See [`docs/asset-demand-load.md`](docs/asset-demand-load.md), which is also the scoping note for
+  what to do about the hitch once it has been measured.
 - **`attack-requires-damage`** stops a unit **auto-acquiring or right-click-attacking a target it
   cannot damage**. Whether one object can attack another ends, for auto-acquire and for a
   right-click / attack order, in a routine that walks the weapon's nuggets and answers yes if
@@ -560,6 +164,311 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   its own. **No INI change** — the filter is global and reads only data every weapon already has.
   Logic-side, so **every peer must run the same patched binary** and replays do not cross. See
   [`docs/attack-requires-damage.md`](docs/attack-requires-damage.md).
+- **`auto-deposit-inflation`** makes **`AutoDepositUpdate` obey the income inflation** the engine
+  applies to `TerrainResourceBehavior` and to nothing else. `PlayerTemplate.ResourceModifierValues`
+  — the per-building penalty every Edain faction sets — is read in exactly **one** place in the
+  image, and it is the *other* income module; a structure paying through `AutoDepositUpdate` pays
+  `DepositAmount` flat for ever. In Edain that is not a corner case: the resource spots are
+  `TerrainResourceBehavior` and the **castle and camp keeps** are `AutoDepositUpdate`, so a keep's
+  40 gold a tick is the one income a player's building count never touches. The hook is a single
+  five-byte detour on `cvttss2si eax, [ebp-0x14]` — the instruction where the amount stops being a
+  float, and the point both the handicap and no-handicap paths converge on — and the cave
+  reproduces the engine's computation instruction for instruction, **including the
+  `filter.allow(thisObject, player)` gate**, so a faction whose `ResourceModifierObjectFilter` does
+  not accept its keeps is byte-for-byte unaffected. **No new INI field** — it reuses the two
+  `PlayerTemplate` fields every faction already declares. **Applying it re-balances a mod on
+  purpose**, and it costs one `Player::forEachTeamObject` walk per deposit tick, which is what the
+  other module already spends on each of its own. With `maintenance-cost` it scales a **charge**
+  by the same instruction that scales an income, which is the only way an `AutoDepositUpdate`
+  upkeep becomes inflation-sensitive. See
+  [`docs/auto-deposit-inflation.md`](docs/auto-deposit-inflation.md).
+- **`banner-modifier`** adds **`BannerCarrierInflictsModifierOnDeath`** to `HordeContain`,
+  naming a `ModifierList` the horde takes when its **banner carrier dies** - a bonus or a malus,
+  applied to every surviving member and to the horde object, and lifted again when the horde gets
+  a banner carrier back. The stock engine has one answer to a banner dying and it is
+  all-or-nothing: `BannerCarrierDestroyHordeOnDeath` either kills the whole horde or does
+  precisely nothing, so "the horde is shaken" is not expressible. Both halves are already written
+  - `HordeContain` owns the routine that applies a named `ModifierList` to its members (the one
+  behind the stock `AttributeModifiers`) and its exact inverse - so the patch is one field and the
+  glue between them, at the join point of the `No` arm and at the one call that installs a banner
+  carrier's id. The duration is the **`ModifierList`'s own**: the apply passes `-1`, which the
+  engine reads as "use the block's `Duration`", and a block without one lasts until the horde is
+  re-bannered (`--no-restore` keeps it forever instead). The awkward part is inheritance, not code:
+  `AODHordeContainModuleData` **derives** from `HordeContainModuleData` and already occupies the
+  space past its end, so the field goes past *both* layouts at `0x2CC` and all three
+  `newModuleData` allocations in the family grow to the same `0x2D0` - one offset that is correct
+  in every class sharing the code that reads it. `HorseHordeContain` and `AODHordeContain` inherit
+  the keyword for free, because `buildFieldParse` chains. Simulation state, so **every peer must
+  run the same patched binary**, and the keyword is an INI parse error on a stock build. See
+  [`docs/banner-carrier-modifier.md`](docs/banner-carrier-modifier.md).
+- **`binary-attest`** folds a hash of the game's **own code** into the frame checksum, so a peer
+  running a modified `game.dat` goes **out of sync** instead of playing. It exists because of what
+  the RE found on the way: **fog of war is already in the sync hash** — the CRC producer at
+  `0x00625886` xfers `TheShroudManager` like every other logic subsystem, gated only by the
+  `-xShroudCRC` debug flag — so a maphack that writes revealer counts into the grid already
+  desyncs. What that cannot reach is a cheat that changes no state at all: the fog byte at
+  `ShroudImpl+0x68` is read at *lookup* time and clearing it leaves every shroud level
+  byte-identical. Only the code differs, so only the code is left to attest. One hook at the
+  `MSG_LOGIC_CRC` emitter's join (`0x0062E7FD`, where both producing paths converge) XORs an
+  FNV-1a fold of `.text` plus the cave's own code into `edi` before it goes on the wire; the
+  engine's existing `GameCRCMismatch` machinery does the rest, with no new message type. Computed
+  once and cached, ~135 bytes of code. **Replay playback is exempt** (`TheRecorder` mode 1) so old
+  recordings still play and `sage_verify` can follow one, and that exemption cannot conceal
+  anything — a live client that skipped the mix would desync against its peers anyway. Because the
+  image has no `.reloc`, the value is a property of the *file*: `expected_hash` recomputes it
+  offline and `sage-verify attest` compares it with a running process. **Every peer must run the
+  byte-identical binary** — that is the property being enforced. Honest limit: the hash is computed
+  by the client it attests, so it raises the floor, not the ceiling, and it cannot see an external
+  read-only overlay at all. See [`docs/binary-attest.md`](docs/binary-attest.md).
+  **Runtime-verified in game.**
+- **`cah-factions`** teaches the nine-name Create-A-Hero faction enum a caller-supplied list of mod
+  sides plus an `All` token, so a `SubClass` can name them in `UsableFactions`.
+- **`combo-horde-recruitment`** lets a horde built from **several `InitialPayload` lines** be
+  recruited. A horde is filled by one of two mechanisms and its own `onObjectCreated` picks which:
+  placed by a map it calls `createPayload`, which walks the whole payload list; produced by a
+  building it returns at its second instruction, because `Object::m_producerID` is set, and the
+  *building* fills it instead. That second path runs off a production queue entry, and an entry
+  carries exactly **one `ThingTemplate` and one count** — it asks the horde for that template
+  through contain-interface vtable slot `+0x24`, whose implementation answers **only when the
+  payload list holds one entry** and returns the empty string otherwise. That call site is the
+  getter's only caller in the image, so a combo horde's mix has nowhere to go: `findTemplate("")`
+  fails, the entry is never re-aimed at the members, and it is freed having produced only the
+  container. The patch replaces the six-byte producer read with a `call` into a cave that returns
+  the same id unless the payload list holds two or more entries, in which case it returns `0` — so
+  a combo horde falls through the untouched `test`/`jne` into `createPayload` and fills itself, the
+  way a map-placed one always has. Single-payload hordes reach the branch with the identical value
+  and keep the stock building-driven fill, exit sequencing included; the patch needs no keyword
+  because the only data it can reach is data that is broken today. Logic-side, so **every peer
+  needs the same binary**. **Not runtime-verified.** See
+  [`docs/combo-horde-recruitment.md`](docs/combo-horde-recruitment.md).
+- **`command-point-cost`** adds a **`CommandPointCost`** integer to `CommandButton`, so a special
+  power or upgrade that **summons** units can be made unavailable while the player has fewer than
+  that many command points free. Stock, command points gate *recruitment and nothing else*: the
+  cost is a `ThingTemplate` field read by `hasEnoughCommandPoints` from inside the production gate,
+  and a summon queues nothing, so it fires at 1500/1500 and the army it makes arrives outside the
+  cap. **The refusal is the engine's own.** The ControlBar's availability evaluator already has a
+  verdict for this — **7**, which it pushes at `0x00942F47` when the production gate answers "not
+  enough command points" — and 7 greys the button and turns a click into
+  `GUI:ErrorNoMoreCommandPoints` rather than an order. So the patch answers with that number rather
+  than inventing a state, and "free" is the engine's own arithmetic:
+  `getCommandPointCap() - Player+0x68`, called rather than read, because the cap is
+  `min(base + CPObject bonus + terms, hard cap)` and reading any field short of that disagrees with
+  what the engine gates on. The check sits at the **top** of the one evaluator every draw path and
+  both click paths go through, not at its exit, and that is forced: `edi` is reloaded eleven times
+  inside the function and the `[ebp+8]` argument slot is reused as scratch by four of the command
+  cases, so by the time a verdict exists the button is unrecoverable — while nothing is lost by
+  answering early, since every refusal the evaluator reaches on its own answers 3 whether it is
+  reached or not. The field is an `UnsignedShort` at `CommandButton+0x10E`, the aligned word of the
+  same three-byte alignment hole `queue-ignore-cp` takes a byte out of, parsed by the stock
+  `INI::parseUnsignedShort` (`0..65535`, against a hard cap of 1500), so `sizeof` stays `0x2E0`;
+  its default is a displaced `RequireLevel` store, one instruction *before* the one
+  `queue-ignore-cp` widens, so the two compose in either order. **It gates the button, not the
+  power**: nothing is charged or reserved, the summoned units still cost their own `CommandPoints`
+  as they always did, and a script or the AI's own special-power evaluation is unaffected —
+  the AI asks `canUseSpecialPower`, not the ControlBar. Client-side UI only, so it does **not** have
+  to be on every peer for the simulation to agree; the keyword, as with `queue-ignore-cp`, is an INI
+  parse error on a stock build. See
+  [`docs/command-point-cost.md`](docs/command-point-cost.md).
+- **`command-point-upkeep`** makes a large army **cost a player income**: the more command points
+  they have in the field, the less their resource buildings pay. Two new `PlayerTemplate` fields
+  declare the curve per faction — `UpkeepCommandPointStep` (how many command points move a player
+  one tier; **0, the default, is upkeep off**) and `UpkeepValues` (the percentage of income kept
+  at each tier, the last entry held for everything past it). It is not a new mechanic so much as a
+  second dial on an old one: `ResourceModifierValues` — the per-building "inflation" every Edain
+  faction sets — is read in exactly **one** place, `AutoDepositUpdate::update`, which turns a
+  *count* into a percentage and scales the deposit by it. Upkeep swaps the count for command
+  points and multiplies the same slot, so the two stack and the engine's "never round income below
+  1 gold" floor still applies. Only income the faction's own `ResourceModifierObjectFilter`
+  accepts is taxed, because `AutoDepositUpdate` is *all* tick income and would otherwise catch
+  captured neutral structures too. The per-faction rows live in the cave keyed by the template's
+  `NameKeyType`, not by a pointer — a `PlayerTemplate` is parsed into a **stack temporary** before
+  being copied into the store's vector — which is also what leaves **no savegame change and no
+  init hook**. The `PlayerTemplate` field table has **one** reference, the smallest repoint here.
+  The palantir's command-point readout gains the current loss: `500/1500 (-10%)`, produced by the
+  engine's own formatter with a third vararg, so it needs no `.apt` and no `.csf`/`.str` edit
+  (a mod's `APT:PalantirCommandPoints` string is a design-time placeholder the engine overwrites
+  every refresh). `--no-hud` leaves the text stock.
+- **`commandset-button-upgrade`** lets `CommandSetUpgrade` add **individual command buttons** to
+  whatever set an object already shows, instead of swapping the whole set for another one written
+  out in INI. A new `CommandButtons` keyword takes a list of `CommandButton` names, each
+  optionally pinned to a slot with `:N` and otherwise taking the lowest free one, and several
+  such modules on one object **accumulate**. That is what removes the combinatorics: "this unit
+  can buy any of four abilities" costs four modules rather than 16 hand-written `CommandSet`
+  blocks naming every combination, and a fifth ability costs one more rather than doubling the
+  file. The engine already does exactly this for Create-A-Hero (`0x00809FFB` builds a hero's set
+  at runtime out of a base set plus a `(button, slot)` list), so the patch reuses that machinery
+  rather than inventing it: on each change it rebuilds the union of every applied module from
+  scratch, names the result after the base plus the tokens, and caches it in `TheCommandSetStore`
+  under that name — which makes the operation idempotent, order-independent and identical on
+  every peer. Removal works for free, because `Object::updateUpgradeModules` already resets and
+  re-evaluates every upgrade module on every pass. An object carrying no `CommandButtons` module
+  runs stock bytes, so the stock `CommandSet` keyword is untouched. Composes with
+  `commandset-limit` in either order: the slot bound is read from that patch's own guard byte at
+  **run time** rather than baked in. Logic-side, so **every peer needs the same binary**. See
+  [`docs/commandset-button-upgrade.md`](docs/commandset-button-upgrade.md).
+- **`commandset-limit`** raises the `CommandSet` button limit from its stock **33** to any **N** in
+  34..127, plus the INI paging rule needed to surface the extra buttons, and widens the AI's
+  set-walk to the same N. The shipped build uses **N = 64**.
+- **`crash-dump`** makes the minidump the engine already writes on every unhandled exception worth
+  opening. The writer at `0x0043BE80` asks for `MiniDumpWithDataSegs` and passes **NULL for both
+  the callback and the user-stream parameter**, and those two nulls are the whole problem: measured
+  on six real dumps, **every engine singleton pointer is captured and nothing any of them points at
+  is** — `TheGameLogic` reads a heap address that falls in no captured range — while **73% of each
+  27 MB file is video-driver globals**, 20 MB of `nvd3dum.dll` and `igd9dxva32.dll`. One cave and
+  two windows fix both halves at once. The eighteen bytes that push `MiniDumpWriteDump`'s last four
+  arguments become a jump that pushes a **patch-owned dump type** — default `0x1b65`, the important
+  bit being `WithPrivateReadWriteMemory`, which captures the SAGE heap without the mapped images —
+  and a real `MINIDUMP_CALLBACK_INFORMATION`, whose routine clears `ModuleWriteDataSeg` for every
+  module that is not `game.dat`. So the dump gets **more useful and smaller**: the module filter is
+  what pays for the heap. The engine's own `fulldump` debug command still selects between the two
+  profiles, both of which are parameters (`--dump-type`, `--deep-dump-type`) that `detect` reads
+  back out of the cave. Separately, `Debug::crash` raises the engine's own `0x04560123` with **zero
+  exception parameters** — four of the six observed dumps are that code, i.e. four dumps that
+  record that an assert fired and not which one — so a second hook passes three: the formatted
+  crash text, the `.rdata` literal that tags it as an assertion or an error, and the mode. The text
+  is a heap pointer, which is why the two halves ship together. **The shipped 2003
+  `dbghelp.dll` (6.3.0005.1) supports every bit used**, so nothing here needs it renamed out of the
+  way. Client-local: no simulation, checksum, order stream or replay format is touched, and both
+  hooks are reached only from code that runs after a crash. See
+  [`docs/crash-dump.md`](docs/crash-dump.md), and
+  [`docs/crash-dump-quality.md`](docs/crash-dump-quality.md) for the measurements behind it.
+- **`deploy-before-attack`** makes **`MustDeployToAttack` gate an attack the AI starts**, not only
+  one the player orders. `MustDeployToAttack` is read in exactly one place that decides anything:
+  the `READY_TO_MOVE` arm of `DeployStyleAIUpdate::update`, and that arm is reached only once the
+  module has a **recorded command** to resolve. A command is recorded only by `aiDoCommand`, so
+  only an order that travels as an `AICommandParms` makes a unit stand up — and almost nothing the
+  engine starts on its own travels that way. A stationary unit sits in `AIGuardState`, whose
+  `AIGuardMachine` acquires and attacks from `AIGuardInnerState`; a moving one is in
+  `AIInternalMoveToState`, which drives the state machine to `AI_ATTACK_OBJECT` directly. Neither
+  builds an `AICommandParms` — nor even allocates one of the attack-machine slots the module knows
+  how to ask about — so a trebuchet with an enemy in range opens fire while still packed. The patch
+  stops asking *which command arrived* and asks *what the unit is doing*: nine bytes at the head of
+  `update`'s resolution become a cave that calls `setMyState(DEPLOY)` when no *targeted* order is
+  recorded (an attack-object or attack-position order is one the stock arm resolves and deploys for
+  itself; a guard or attack-move order names nothing and its arm comes back empty), the module is
+  packed, `MustDeployToAttack` is set, **`AIUpdateInterface::getCurrentVictim` returns an object**,
+  and the weapon says that object is in range. That field is written by all 27 call sites
+  of `setCurrentVictim` and cleared when the victim dies, so it sees the attack however the engine
+  started it. The cave writes nothing to the module; the deploy's own `aiIdle` takes the attack off
+  the state machine, and the unit re-acquires deployed — the same way a player-ordered attack
+  resumes after its deploy. **No INI change** — the keyword already exists; this makes it mean what
+  it says. Logic-side, so **every peer must run the same patched binary** and replays do not cross.
+  **Runtime-verified in game.** See
+  [`docs/deploy-before-attack.md`](docs/deploy-before-attack.md).
+- **`description-timers`** puts **how long a button's thing takes** at the bottom of its
+  description: a special power's **cooldown** — its full length while the power is ready, the
+  **time left** while it is recharging — a unit's or structure's **build time**, and an upgrade's
+  **research time**. Every number is the engine's own, which is what makes "with the reduction
+  applied" free rather than a second feature: the cooldown is
+  `SpecialAbilityUpdate::startPowerRecharge`'s arithmetic transcribed instruction for instruction,
+  so a `RECHARGE_TIME` aura that is up *right now* and a researched `SpellRechargeModifierUpgrade`
+  are both in the figure; and the two build times are the same `calcTimeToBuild` pair
+  `ProductionUpdate` asks for a queue entry's total, so the tooltip cannot disagree with what the
+  game then does — the producer's `ProductionModifier` time multiplier is applied inside the call.
+  The line goes at `0x008086AE`, the one instruction past the point where every case of the
+  builder's switch has converged, which is what makes it genuinely **last** where a per-case site
+  cannot be. The price of being that late is that `esi` no longer holds the builder's `this` —
+  three cases reassign it — so a **second six-byte window** in the prologue copies the
+  `CommandButton` into the cave; the builder has one caller and runs on hover, so the copy cannot
+  go stale. **Silent unless the mod declares the string**: the engine's text fetch has an `exists`
+  out-parameter all twelve stock callers pass `0` for, and passing a real one drops the whole line
+  when the key is missing — so on a string table without `TOOLTIP:Cooldown`,
+  `TOOLTIP:CooldownRemaining`, `TOOLTIP:BuildTime` and `TOOLTIP:ResearchTime` the tooltip is
+  byte-identical to stock. Each key takes **one `%d`**, the duration in whole seconds — one width,
+  one format, because a `double` pushed under a `%d` reads as its low dword and prints `0` for most
+  durations and garbage for the rest. **A line whose number would be zero is not printed at all** — a
+  power with no `ReloadTime` is a passive ability, 204 of Edain's 835, and stating `0` for it is
+  worse than saying nothing. Two things the remaining cooldown needs and gets: **both**
+  `startPowerRecharge` implementations are read, because the second one keeps its ready frame at a
+  different offset and the "3 of 26 vtables" behind it are *shared* vtables covering
+  `WeaponModeSpecialPowerUpdate` — 340 behaviours in Edain, so falling back there is most hero
+  abilities; and a **spellbook** power is asked of the player's spellbook object rather than of the
+  selection, because a palantir button is drawn with whatever happens to be selected behind it and
+  that is never the caster. Two limits stated rather than hidden: **the tooltip is built once per
+  hover** (`0x00DE8998` latches and the same-request path returns early forever after), so the
+  remaining cooldown is a snapshot taken when it appeared rather than a countdown; and hero revive
+  buttons are **skipped**, because a hero's time comes off the player's ledger and not off its
+  `ThingTemplate` — tested with the engine's own hero bit, so the failure is a missing line, never
+  a wrong number. Client-local and read-only, so replays cross and peers need not match, same rule
+  as `upgrade-description`. See
+  [`docs/description-timers.md`](docs/description-timers.md). **Static only — not yet observed in
+  a running game.**
+- **`desert-weather`** adds a third global weather, **`DESERT`**, and a **`SAND`** model condition
+  for it to drive - the pairing the engine already has for `SNOWY` → `SNOW`, and only for that one.
+  A map carrying `weather = 2` (a plain `Integer` in its `WorldInfo` chunk, which is how the
+  engine actually gets its weather - not `map.ini`) then sets `SAND` on every drawable the way a
+  snowy map sets `SNOW`, and `WeatherTexture = DESERT …` works too. Note that `SAND` is **not** a
+  stock model condition: the patch creates it, out of the same name table `production-condition`
+  extends, so the two compose in either order.
+- **`desert-weather-wb`** is the authoring half of that, and lives in the same module.
+  Worldbuilder's map-settings weather dropdown is
+  filled by a loop with a hardcoded member count, so `DESERT` never appears in it - and because
+  the OK handler stores `CB_GETCURSEL` unvalidated, opening that dialog on a `DESERT` map and
+  pressing OK writes `-1` back into the map and silently reverts it. The patch grows the same
+  table and raises that one bound. Dropdown only: the editor *viewport* keeps drawing the
+  non-`SAND` variant, which needs Worldbuilder's own model-condition table extended too.
+- **`desync-debug`** turns on the **engine's own out-of-sync instrumentation**, which ships
+  complete and unreachable. The `MSG_LOGIC_CRC` (`0x44A`) heartbeat peers compare goes out every
+  `NetCRCInterval` frames and that interval is **100**, so the engine's answer to "when did we
+  desync" is a hundred-frame window and a message box. The engine was built with better - a
+  tunable interval, a focus frame, a per-frame self-check that writes a file - and stranded every
+  switch behind the orphaned command-line region `docs/headless.md` §5 documents, so they are
+  `.data` initialisers with no live writer and nothing on a retail build can flip one. This patch
+  writes three of them: **no cave, no hook, no assembly**, one dword and one byte and one dword.
+  `--crc-interval N` (1..99, default 1) is the one that matters, and it pays twice, because the
+  global has two live consumers - the `GameInfo` constructor seeds `+0xC` from it and
+  `GameLogic::update` divides the frame by that, so the **declaration** narrows from a 100-frame
+  upper bound to an N-frame one; and the recorder copies the same global into the replay header,
+  so **every player's own `.rep` gains a CRC sample every N frames** and two recordings of one
+  match diff to the frame they parted (`sage_replay`'s `ChecksumHeartbeat`). The latch says *this
+  client disagrees*; the diff says *from here*. `--verify-client-crc` arms the per-frame
+  self-check at `0x006CF681` that appends to `CLIENT_DESYNC_<name>.txt` — code that is complete,
+  reached, and which `docs/desync-detection.md` §3 records as unarmable on retail.
+  `--focus-frame F` overrides the interval near one frame: per-frame checksums across the window
+  ending at F, silence everywhere else, for a second pass once a first has narrowed it down.
+  Lowering the interval is free of clamps in a way raising it is not — the skirmish re-seed is
+  `min(x, 100)` and the constructor is unclamped — and **zero is refused**, because the gate's
+  `div ecx` has no guard. What it costs is real: at interval 1 the CRC producer runs every logic
+  frame instead of every hundredth and one extra message per client per frame goes on the wire and
+  into every replay, which is why the interval is a parameter and 5 or 10 keeps most of the
+  resolution for a tenth of the work. **Every peer must run the same binary** — a heartbeat cadence
+  is a protocol detail, not a client-local preference, so this is the `binary-attest` rule and not
+  the `crash-dump` one, and replays made on a patched build should be played back on it.
+  Deliberately *not* exposed, with the disassembly to say why: `-deepCRC` logs into a growable heap
+  buffer no shipping config drains (a per-frame allocation and no file), the nine
+  `-x<Subsystem>CRC` exclusions are consulted only when `-liteCRC` is clear and the plain emitter
+  path sets it around every call, and `-debugCRCFromFrame`/`-debugCRCUntilFrame` have no reader
+  outside the flag-reporting function at all. See
+  [`docs/desync-debug.md`](docs/desync-debug.md), and
+  [`docs/desync-detection.md`](docs/desync-detection.md) for the latch that says a desync happened
+  at all. **Static-verified** — the addresses, the readers and the clamp are read out of the
+  binary and it applies, verifies and round-trips; what has not been done is play a patched match
+  and watch a desync land on a known frame.
+- **`detachable-rider-heal`** adds a **`HealOnDetach`** real to `DetachableRiderBody`, healing
+  the mount by that many hit points at the moment its rider is knocked off. The stock module has
+  one lever over what the riderless object is worth, `HealthPercentageWhenRiderDies`, and it is a
+  percentage of the object's **maximum** health spent out of the health it happened to have - so
+  "and give it 200 points back" is not expressible, and a flat grant is exactly the half that does
+  not scale with the unit. The mechanism is one function: `DetachableRiderBody::attemptDamage`
+  meets a killing blow by **rewriting the pending damage** so what lands leaves the object at that
+  percentage, clearing the instant-kill flag, finding the `DetachableRiderUpdate` by name and
+  calling it, and only then falling into `ActiveBody::attemptDamage` to apply the amount it wrote.
+  The obvious cheap edit - subtract the grant from that amount - is wrong twice, which is why this
+  patch does not: the amount is run through `Armor::adjustDamage` and a per-body scalar before it
+  lands, so a "flat" number spent that way is worth a different count of hit points per attacker,
+  and it is computed from the health the object had, so a grant folded into it can only give back
+  health already lost. The hook instead reproduces the stock tail and grants the field afterwards
+  through the engine's own `ActiveBody::internalChangeHealth` - the routine both `attemptDamage`
+  and `attemptHealing` end at - which takes hit points rather than damage and carries the clamp to
+  maximum health with it. It fires **only where the rider actually comes off**: the arm that finds
+  no `DetachableRiderUpdate` keeps the stock bytes, and an object the damage left at zero health is
+  left there, so the field tops a survivor up and never resurrects a corpse. The `ModuleData` has
+  no padding to move into - its three fields end exactly at `sizeof` - so it grows from `0x1A0` to
+  `0x1A4`, which costs one `push` (the class's only allocation) and a stub on its one constructor
+  call to zero the new dword. Health is simulation state, so **every peer must run the same patched
+  binary**, and the keyword is an INI parse error on a stock build. See
+  [`docs/detachable-rider-heal.md`](docs/detachable-rider-heal.md).
+
 - **`fire-at-attacker`** adds a **`FireAtAttacker`** boolean to `FireWeaponWhenDamagedBehavior`, so
   its `ReactionWeapon*` hits **whatever dealt the damage** instead of going off at the damaged
   object's own feet. The engine ships two ways to hurt what just hurt you and each is missing the
@@ -586,85 +495,96 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   stock field by construction. Write `FireAtAttacker = Yes` on the behavior; `No`, the default, is
   stock. Logic-side, so **every peer needs the same binary**, and the keyword is fatal on a stock
   build. **Not runtime-verified.** See [`docs/fire-at-attacker.md`](docs/fire-at-attacker.md).
-- **`deploy-before-attack`** makes **`MustDeployToAttack` gate an attack the AI starts**, not only
-  one the player orders. `MustDeployToAttack` is read in exactly one place that decides anything:
-  the `READY_TO_MOVE` arm of `DeployStyleAIUpdate::update`, and that arm is reached only once the
-  module has a **recorded command** to resolve. A command is recorded only by `aiDoCommand`, so
-  only an order that travels as an `AICommandParms` makes a unit stand up — and almost nothing the
-  engine starts on its own travels that way. A stationary unit sits in `AIGuardState`, whose
-  `AIGuardMachine` acquires and attacks from `AIGuardInnerState`; a moving one is in
-  `AIInternalMoveToState`, which drives the state machine to `AI_ATTACK_OBJECT` directly. Neither
-  builds an `AICommandParms` — nor even allocates one of the attack-machine slots the module knows
-  how to ask about — so a trebuchet with an enemy in range opens fire while still packed. The patch
-  stops asking *which command arrived* and asks *what the unit is doing*: nine bytes at the head of
-  `update`'s resolution become a cave that calls `setMyState(DEPLOY)` when no *targeted* order is
-  recorded (an attack-object or attack-position order is one the stock arm resolves and deploys for
-  itself; a guard or attack-move order names nothing and its arm comes back empty), the module is
-  packed, `MustDeployToAttack` is set, **`AIUpdateInterface::getCurrentVictim` returns an object**,
-  and the weapon says that object is in range. That field is written by all 27 call sites
-  of `setCurrentVictim` and cleared when the victim dies, so it sees the attack however the engine
-  started it. The cave writes nothing to the module; the deploy's own `aiIdle` takes the attack off
-  the state machine, and the unit re-acquires deployed — the same way a player-ordered attack
-  resumes after its deploy. **No INI change** — the keyword already exists; this makes it mean what
-  it says. Logic-side, so **every peer must run the same patched binary** and replays do not cross.
-  **Runtime-verified in game.** See
-  [`docs/deploy-before-attack.md`](docs/deploy-before-attack.md).
-- **`spawn-union`** makes an object with several `SpawnBehavior`s use **all** of their spawns.
-  `Object::getSpawnBehaviorInterface` walks the module list and returns on the **first** module that
-  answers, so a structure with two of them orders only the first one's slaves to attack, asks only
-  the first whether any slave can attack, and finds the closest slave only among the first — which
-  is the whole of what `SPAWNS_ARE_THE_WEAPONS` means. The same getter carries a plain bug: a dying
-  slave's death is reported to the first behavior alone, and `onSpawnDeath` returns having done
-  nothing when the id is not in *its* list, so a second behavior's slaves die with no list removal,
-  no live-count decrement and no respawn timer. Both spawn normally either way; spawning is each
-  module's own update. The patch replaces the getter — one 5-byte `jmp` and a `0x4A7`-byte cave —
-  with one that returns the stock answer for none and for one, and for two or more returns a
-  **proxy** whose sixteen slots re-walk the list: `void` methods broadcast, predicates are OR'd
-  (asking every behavior, no short-circuit), and `getClosestSlave` re-runs the distance comparison
-  the stock implementation does internally, through the engine's own helper. Reentrancy is covered
-  by a ring of eight proxies, since ordering slaves runs slave AI that comes back through the
-  getter. **This one changes the simulation**, so it has to be on every peer and its replays will
-  not play back on a stock build. **Runtime-verified in game.**
+- **`foundation-rebind`** lets a **`ReplaceSelfUpgrade` keep the settlement plot** its building
+  stands on, instead of freeing the flag between the destroy and the create. A plot's occupancy is
+  one dword - the `ObjectID` at `FoundationAIUpdate+0x28`, shared with `CastleBehavior`, which
+  derives from it - and `setBuiltOnObject` is the whole of the visual mechanic around it: non-zero
+  hides the flag and fades it out over 10 frames, zero brings it back over 30. The flag returns not
+  because anything is told the building *died* but because **`GettingBuiltBehavior::onDelete`
+  actively frees the plot** it finds through `Object+0x78`, and `destroyObject` broadcasts
+  `onDelete` to every module **inside the same call** - so the plot is free before the replacement
+  exists. (A per-frame `findObjectByID(m_builtOnID)` poll agrees with it, and the plot's
+  "what is standing on me" scan is **one-shot**, fired on its first update for map-placed
+  structures, so nothing ever re-adopts.) The engine already re-points references from the old
+  object to the new one in exactly this function - **for `WALL_HUB`, `WALL_UPGRADE` and
+  `WALL_SEGMENT` only**; this adds plots. Two `call rel32` and a `0x17A`-byte cave: before the
+  destroy, remember the plot and zero the link `onDelete` would follow; after the create, give the
+  plot back its occupant. On a plain foundation plot that is a **direct** write of the new id
+  rather than a call to the setter, which would reset the drawable's opacity and make the hidden
+  flag blink. **A settlement flag is a `CastleBehavior`, and one dword is not enough for it**: what
+  gates its capture is the occupancy state at `module+0x34`, and the keep at `module+0x38` clears
+  itself a frame after the object it named dies - measured live, a plot rebound by id alone was
+  otherwise identical to an *empty* one, and the AI captured it and took the replacement with it.
+  So a castle plot goes through the engine's own `CastleBehavior::onStructureBuilt`, which adopts
+  the keep and calls `setBuiltOnObject` itself. Every write is guarded by a proof of ownership, so
+  a unit's producer - a barracks, which answers no foundation interface - is never touched. This is
+  what Edain's Iron Hills vineyard works around with a hidden flag, a rebuild cooldown and a dummy
+  building. **Simulation state**, so it has to be on every peer. **Runtime-verified in game.**
+- **`give-upgrade-all`** makes a porter deliver **every upgrade it carries**
+  instead of the one the upgrade registry happens to list first. `GiveUpgradeUpdate` asks
+  `UpgradeCenter::firstSetIn` for *the* upgrade set in the porter's own object mask — what
+  `GrantUpgradeCreate` writes — at three sites, and that single answer decides whether the cursor
+  accepts a target, whom a `DeliverUpgrade = Yes` porter walks to, and what the recipient is
+  handed. The registry is newest-first, so "the" upgrade is whichever the ini declared **last**,
+  and a porter carrying three of them is refused, with no diagnostic, by every battalion that can
+  take the other two but not that one. The patch makes all three sites plural: validity answers
+  yes if the recipient accepts **any** carried upgrade, the auto-deliver searches for a recipient
+  of any of them, and the trigger grants every acceptable one — through the engine's own
+  `HordeContain::giveUpgradeToMembers` / `Object::giveUpgrade`, each gated by the acceptance test
+  stock uses, so nothing is granted that stock would have refused. Logic-side and decision-only,
+  so replay- and network-safe. No INI change. See
+  [`docs/give-upgrade-all.md`](docs/give-upgrade-all.md).
+- **`healing-received`** adds **`HEALING_RECEIVED`**, a `ModifierList` keyword that multiplies
+  **how much healing its target takes**, from any source — `25%` is a quarter, `200%` is double,
+  `0%` is immune to healing. It is one five-byte `call` swap, because every heal in the engine
+  becomes a `DamageInfo` of type 7 and funnels through a single `fstp` in
+  `ActiveBody::attemptHealing` where the amount exists exactly once and the healed object is
+  already in `edi`. The engine's own `<= 0` test sits below the hook, so a zero multiplier makes
+  the whole tail disappear — no health change, no healing observers — rather than needing an arm
+  of its own. Complementary to `AUTO_HEAL`, which is additive, read once and read on the *healer*.
+  Nothing changes until INI uses the name. Shares the modifier-type name table with
+  `production-split`; both read it live and compose in either order. See
+  [`docs/healing-received-modifier.md`](docs/healing-received-modifier.md). **Statically verified;
+  not yet runtime-verified.**
 
-- **`trigger-recharge-list`** lets **`OnTriggerRechargeSpecialPower` name several special powers**
-  instead of one, so a single ability can reset a whole set of cooldowns.
-  `SpecialPowerTimerRefreshSpecialPower` is already a name-matched selector - it walks the object's
-  modules and recharges the one whose `SpecialPowerTemplate` carries the name in that field - and
-  the stock keyword is simply the singular of it: `INI::parseAsciiString` stores the **first** token
-  on the line and the rest is never read, so `= A B` loads on a stock build and silently means `A`.
-  The workaround does not exist either, because a second copy of the module needs its own
-  `SpecialPowerTemplate` to be driven by and there is only one power being used. This is the
-  cheapest patch of its kind here: the field is an `AsciiString`, one pointer to a refcounted
-  buffer, so **a list of names is just a longer string** - no `sizeof(ModuleData)` to raise, no
-  relocated field-parse table, no constructor or destructor shim. Two edits: the entry's parse
-  function (4 bytes of `.rdata`) points at a cave routine that consumes every token on the line, and
-  the walk's `AsciiString::compare` (5 bytes of `.text`) points at one that asks whether the
-  candidate is *one of* those tokens, whole tokens only and case-sensitive exactly as the compare it
-  replaces. A single name comes out byte-identical to stock, which is also what leaves the
-  function's other comparison - the early-out when the field names the module's own power -
-  correct without being touched. It changes which powers a logic-side activation recharges, so
-  **every peer must run the same patched binary**, and a mod writing two names needs it or the
-  second is dropped without a diagnostic. See
-  [`docs/trigger-recharge-list.md`](docs/trigger-recharge-list.md). **Statically verified - not yet
-  observed in game.**
-
-- **`upgrade-grant-lists`** does the same for **`ObjectCreationUpgrade`'s `GrantUpgrade` and
-  `RemoveUpgrade`**, so one upgrade can hand out a set and retire a set. Both keywords are
-  `AsciiString`s parsed by the same one-token parser, and both are used in one block at the end of
-  the module: `findUpgrade(&field)`, then `giveUpgrade` / `removeUpgrade` on the object, each
-  behind its own `test eax,eax / je`. That guard is what makes the hook free - a cave that answers
-  **NULL** turns the caller's own branch into a skip of the single-upgrade call it would otherwise
-  make, so nothing is displaced and the stock path stays in the binary unexecuted. The extra work
-  over its sibling is that `findUpgrade` wants an `AsciiString`, not a pointer into the middle of
-  one: each token is copied into the cave routine's own frame to be NUL-terminated, bounded at 255
-  characters, rather than NUL-ing the separator in the field's shared buffer. Grants still precede
-  removals, `ThingToSpawn` - the third `AsciiString` in the same table - is deliberately left
-  alone, and the table is located through the single `push imm32` that names it rather than by its
-  address, so a patch that relocated it first is followed rather than bypassed. **Every peer must
-  run the same patched binary**, and a mod writing two names needs it or the second is dropped
-  without a diagnostic. See [`docs/upgrade-grant-lists.md`](docs/upgrade-grant-lists.md).
-  **Statically verified - not yet observed in game.**
-
+- **`hero-bar-slots`** raises the in-game **hero bar from its stock 16 slots to any N** in
+  17..126 (the shipped build uses **21**). Adding `Hero17`+ clips to the movie
+  achieves nothing on its own, and fails silently: the ctor registers `_OnBttnHeroSelect` for
+  `Hero1`..`Hero16` only, and the draw loop `break`s before it ever names index 17, so the extra
+  buttons stay in whatever state the movie parks them in. The ceiling looks like one constant and
+  is **ten** — the draw ceiling and the cleanup back edge count from *one*, the other eight from
+  zero, and one of them is the vector-ctor's element count, so raising the visible bound without
+  it would run every loop off the end of a 16-element array. The array cannot grow where it is:
+  `0x48 + 16*0x18` lands exactly on the iteration state that follows it. It moves anyway, because
+  **every reference to that state is already a disp32** — so the block slides up by `(N-16)*0x18`
+  and the class grows, in 27 same-length immediate rewrites, while the array stays at `+0x48` and
+  its four disp8 addressing sites are never touched. **No cave and no assembly**: 38 immediates.
+  Client-local, so it does not have to be on every peer and replays cross. The other half is an
+  `.apt` edit, and it is the expensive one: on Edain the bar is drawn by **`FactionFrame.apt`**,
+  *not* by the `InGameHeroSelect.apt` that ships beside it and is never loaded — the engine names
+  slots through `%s/Hero%d/` against a path prefix, so no file name appears in the code and the
+  right movie has to be identified from a running game. Both the `apt/` and `apt_widescreen/`
+  variants need it, their grids differ, and the loose `_mod/apt/` folder is a source tree that no
+  build step packs, so the two `.big`s must be repacked by hand. `docs/hero-bar-slots.md` §7 is
+  the procedure. **Runtime-verified in game at N = 21.**
+- **`hero-recruit-parallel`** stops a hero being recruited from **freezing the production queued
+  behind it**. A `ProductionUpdate` keeps units, upgrades and hero revives in one list appended at
+  the tail, and `update` advances **exactly one entry per frame** — whichever its picker returns.
+  The picker has four rules: a batch already part-produced, a `DOZER`, a revive whose clock has
+  reached 1.0, and failing all three **the head, whatever it is**. Meanwhile a revive's clock is
+  not the queue's at all: `queueCreateUnit` stamps the current logic frame into the hero's roster
+  record at `Player+0x758`, and the entry finishes when `(now − start) / totalFrames >= 1.0`,
+  whatever the queue is doing. Those two facts are the whole of the report: a hero queued *behind*
+  other entries still finishes on time, because the third rule scans the list and returns a ready
+  revive out of order — but a hero at the *head* is returned by the fourth rule every frame, fails
+  the completion test, and `update` returns, so everything queued *after* it is frozen for the rest
+  of the revive. The patch rewrites only the fourth rule: return the first entry that is **not** a
+  revive, falling back to the head when the queue holds nothing but revives. That loses nothing —
+  a ready hero is still caught one rule earlier, the command-point stall is separately applied to
+  every revive in the queue wherever it sits, and the progress and completion a selected revive
+  would get are dead for a revive anyway. **The hero's own revive time is untouched.** Seven bytes
+  and a 37-byte cave. Logic-side, so **every peer needs the same binary**. **Not runtime-verified.**
+  See [`docs/hero-recruit-parallel.md`](docs/hero-recruit-parallel.md).
 - **`herobar`** adds **two** kindofs that put an object on the hero bar **without making it
   a `HERO`** — nothing that asks "is this a hero" (armour, targeting, the AI, scripts) answers
   differently for either, and they differ only in how many slots the instances take.
@@ -713,221 +633,63 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   longer readable from the bar; and the bar is still **16 slots**, so enough distinct groups push
   heroes off the end.
   **Runtime-verified in game, except everything `HEROBAR_GROUP` does on a click or a hover.**
-- **`hero-bar-slots`** raises the in-game **hero bar from its stock 16 slots to any N** in
-  17..126 (the shipped build uses **21**). Adding `Hero17`+ clips to the movie
-  achieves nothing on its own, and fails silently: the ctor registers `_OnBttnHeroSelect` for
-  `Hero1`..`Hero16` only, and the draw loop `break`s before it ever names index 17, so the extra
-  buttons stay in whatever state the movie parks them in. The ceiling looks like one constant and
-  is **ten** — the draw ceiling and the cleanup back edge count from *one*, the other eight from
-  zero, and one of them is the vector-ctor's element count, so raising the visible bound without
-  it would run every loop off the end of a 16-element array. The array cannot grow where it is:
-  `0x48 + 16*0x18` lands exactly on the iteration state that follows it. It moves anyway, because
-  **every reference to that state is already a disp32** — so the block slides up by `(N-16)*0x18`
-  and the class grows, in 27 same-length immediate rewrites, while the array stays at `+0x48` and
-  its four disp8 addressing sites are never touched. **No cave and no assembly**: 38 immediates.
-  Client-local, so it does not have to be on every peer and replays cross. The other half is an
-  `.apt` edit, and it is the expensive one: on Edain the bar is drawn by **`FactionFrame.apt`**,
-  *not* by the `InGameHeroSelect.apt` that ships beside it and is never loaded — the engine names
-  slots through `%s/Hero%d/` against a path prefix, so no file name appears in the code and the
-  right movie has to be identified from a running game. Both the `apt/` and `apt_widescreen/`
-  variants need it, their grids differ, and the loose `_mod/apt/` folder is a source tree that no
-  build step packs, so the two `.big`s must be repacked by hand. `docs/hero-bar-slots.md` §7 is
-  the procedure. **Runtime-verified in game at N = 21.**
-- **`queue-ignore-cp`** adds a **`QueueIgnoreCP`** boolean to `CommandButton`, so a button the
-  *engine* presses — a `DoCommandUpgrade`'s `GetUpgradeCommandButtonName`, which is how a power or
-  a research recruits a unit on an object's behalf — can queue its unit while the player is at the
-  command-point cap. Stock, that press meets the same gate a click does, the cap answers **7**, and
-  the whole feature is lost: the upgrade has already been granted and nothing will press the button
-  again. **The other half of "queue it now, build it later" is already in the engine** and needed no
-  patching: `ProductionUpdate::update` refuses to advance a head entry the player cannot afford in
-  command points, and a sibling routine pushes a revive's completion frame out one frame per tick
-  while the cap holds — so the unit sits at the head of the queue, charged, with the EVA cue firing,
-  and starts building the moment points free up. The field lands in `CommandButton+0x10D`, alignment
-  padding between `AutoAbility` and the `KindOfFlags`, so `sizeof` stays `0x2E0`; its default costs
-  **one byte** (the constructor's `mov byte` becomes a `mov dword`); and the button's answer reaches
-  the gate — which takes `(producer, what, reviveIndex)` and never sees a button — through a dword
-  in the cave raised for exactly the length of one `queueCreateUnit` call, by wrapping the
-  `UNIT_BUILD` and `REVIVE` cases of `Object::doCommandButton`. **The ControlBar is left stock**, so
-  a *visible* button carrying the field is still drawn unavailable at the cap. **Every peer must
-  run the same patched binary** — not for the flag, which is transient and identical on every peer
-  executing the same order, but for the consequence: an unpatched client refuses a production a
-  patched one accepts. And, as with `terrain-resource-exp`, the keyword is an INI parse error on a
-  stock build. **Runtime-verified in game.**
-- **`hero-recruit-parallel`** stops a hero being recruited from **freezing the production queued
-  behind it**. A `ProductionUpdate` keeps units, upgrades and hero revives in one list appended at
-  the tail, and `update` advances **exactly one entry per frame** — whichever its picker returns.
-  The picker has four rules: a batch already part-produced, a `DOZER`, a revive whose clock has
-  reached 1.0, and failing all three **the head, whatever it is**. Meanwhile a revive's clock is
-  not the queue's at all: `queueCreateUnit` stamps the current logic frame into the hero's roster
-  record at `Player+0x758`, and the entry finishes when `(now − start) / totalFrames >= 1.0`,
-  whatever the queue is doing. Those two facts are the whole of the report: a hero queued *behind*
-  other entries still finishes on time, because the third rule scans the list and returns a ready
-  revive out of order — but a hero at the *head* is returned by the fourth rule every frame, fails
-  the completion test, and `update` returns, so everything queued *after* it is frozen for the rest
-  of the revive. The patch rewrites only the fourth rule: return the first entry that is **not** a
-  revive, falling back to the head when the queue holds nothing but revives. That loses nothing —
-  a ready hero is still caught one rule earlier, the command-point stall is separately applied to
-  every revive in the queue wherever it sits, and the progress and completion a selected revive
-  would get are dead for a revive anyway. **The hero's own revive time is untouched.** Seven bytes
-  and a 37-byte cave. Logic-side, so **every peer needs the same binary**. **Not runtime-verified.**
-  See [`docs/hero-recruit-parallel.md`](docs/hero-recruit-parallel.md).
-- **`command-point-cost`** adds a **`CommandPointCost`** integer to `CommandButton`, so a special
-  power or upgrade that **summons** units can be made unavailable while the player has fewer than
-  that many command points free. Stock, command points gate *recruitment and nothing else*: the
-  cost is a `ThingTemplate` field read by `hasEnoughCommandPoints` from inside the production gate,
-  and a summon queues nothing, so it fires at 1500/1500 and the army it makes arrives outside the
-  cap. **The refusal is the engine's own.** The ControlBar's availability evaluator already has a
-  verdict for this — **7**, which it pushes at `0x00942F47` when the production gate answers "not
-  enough command points" — and 7 greys the button and turns a click into
-  `GUI:ErrorNoMoreCommandPoints` rather than an order. So the patch answers with that number rather
-  than inventing a state, and "free" is the engine's own arithmetic:
-  `getCommandPointCap() - Player+0x68`, called rather than read, because the cap is
-  `min(base + CPObject bonus + terms, hard cap)` and reading any field short of that disagrees with
-  what the engine gates on. The check sits at the **top** of the one evaluator every draw path and
-  both click paths go through, not at its exit, and that is forced: `edi` is reloaded eleven times
-  inside the function and the `[ebp+8]` argument slot is reused as scratch by four of the command
-  cases, so by the time a verdict exists the button is unrecoverable — while nothing is lost by
-  answering early, since every refusal the evaluator reaches on its own answers 3 whether it is
-  reached or not. The field is an `UnsignedShort` at `CommandButton+0x10E`, the aligned word of the
-  same three-byte alignment hole `queue-ignore-cp` takes a byte out of, parsed by the stock
-  `INI::parseUnsignedShort` (`0..65535`, against a hard cap of 1500), so `sizeof` stays `0x2E0`;
-  its default is a displaced `RequireLevel` store, one instruction *before* the one
-  `queue-ignore-cp` widens, so the two compose in either order. **It gates the button, not the
-  power**: nothing is charged or reserved, the summoned units still cost their own `CommandPoints`
-  as they always did, and a script or the AI's own special-power evaluation is unaffected —
-  the AI asks `canUseSpecialPower`, not the ControlBar. Client-side UI only, so it does **not** have
-  to be on every peer for the simulation to agree; the keyword, as with `queue-ignore-cp`, is an INI
-  parse error on a stock build. See
-  [`docs/command-point-cost.md`](docs/command-point-cost.md).
-- **`campaign-select`** ⚠**(experimental)** lets the main menu start **any `LinearCampaign`, by name**, instead of the
-  two EA compiled in. The shipped `LinearCampaignExpansion1.ini` states the limit itself — *"campaign
-  names are basically hard-coded into the game engine … They must be named ANGMAR_CAMPAIGN"* — and
-  the binary agrees: each campaign button reaches a callback that differs from its sibling by one
-  screen id, and each id reaches a thunk holding one string literal. **Only the name is hardcoded,
-  though.** `startLinearCampaign` takes an `AsciiString *` and resolves it through
-  `TheCampaignManager`, so every `LinearCampaign` block in the mod's INI is *already* reachable —
-  the shell simply had no way to say which. Two facts make saying it cheap: the FSCommand callback
-  is handed the movie's whole params string and keeps **only its first byte** (the difficulty
-  letter), and the thunk's `AsciiString` is a function-local static behind an MSVC magic-static
-  guard, so filling that static and setting the guard bit means the literal is never reached. The
-  patch is therefore **one five-byte `jmp`** into a 129-byte cave — no jump-table relocation, no new
-  FSCommand registration, no functor construction — and the movie sends
-  `GameCode("Expansion1Campaign", "Hard:DWARVEN_CAMPAIGN")`. A params string with **no separator is
-  left completely alone**, so a stock `.apt` keeps stock behaviour (`_DEMO` variant included), and
-  `BonusCampaign` is untouched. Shell-only and **client-local**: it runs on a menu button press
-  before a game exists, nothing enters the simulation and replays cross unpatched builds — same rule
-  as `replay-outcome`. The other half is `.apt` work: the movie has to know the names.
-  **Runtime-verified in game**: with two instructions inserted into `MainMenu.apt`'s difficulty
-  sprite so the `Expansion1Campaign` button asks for `ANGMAR_BONUS_CAMPAIGN`, Solo Play → *An
-  Unexpected Party* loaded **laketown** instead of the **Hobbiton** a stock engine can only ever
-  give it. That run also put a `sage_apt` round-trip of a **shell** movie in front of the real game
-  for the first time — `MainMenu.apt`, the file carrying the corpus's one unresolvable branch.
-- **`battle-school`** ⚠**(experimental)** restores the **way out of BFME1's Battle School**, the
-  parchment book of tutorial videos on the main menu. ROTWK kept almost all of it: the
-  `AptMainMenu::BattleSchool` FSCommand and its handler are intact, `BlinkBattleSchoolOff` still
-  answers whether the button should blink, `FlashTutorial` is still read and still self-clears
-  after five launches, `WindowTransition MainMenuToBattleSchool` is still in stock `ini.big`
-  byte-identical to BFME1's, and `GameWindowGadgets.apt` still exports the `BinkMovie` gadget.
-  What EA dropped is the **mirror command**, `AptMainMenu::TutorialExit` — so a shell can start the
-  sound fade but never end it, and since the transition is a `SOUNDFADE` with `LeaveSilent = Yes`
-  the menu goes permanently silent. **Adding it back is not a second registration.** The surviving
-  handler is `ret 4`: it takes a params string and never reads it, exactly the unused channel
-  `campaign-select` uses. So the patch is **one five-byte `jmp`** into a 172-byte cave that reads
-  `params[0]` — anything but an `l` re-emits the displaced `mov eax, imm32` and jumps back to the
-  `call __SEH_prolog` it came from, so the stock path is not merely equivalent, it *is* the stock
-  path — and the movie sends `GameCode("BattleSchool", "leave")` to take the other arm. That arm is
-  modelled on `AptMainMenu::CreditsExit`'s tail, which is the same function for the credits screen
-  and still ships: restart the shell music if it stopped, reverse the transition group, release the
-  shell's movie flag, restore the frame-rate cap. Shell-only and **client-local** — it runs on a
-  menu button press before a game exists, nothing enters the simulation, replays cross unpatched
-  builds. The other half is `.apt` and asset work: the tutorial book, its videos, and the
-  `APT:` strings, none of which ship with ROTWK. See
-  [`docs/battle-school.md`](docs/battle-school.md).
-- **`foundation-rebind`** lets a **`ReplaceSelfUpgrade` keep the settlement plot** its building
-  stands on, instead of freeing the flag between the destroy and the create. A plot's occupancy is
-  one dword - the `ObjectID` at `FoundationAIUpdate+0x28`, shared with `CastleBehavior`, which
-  derives from it - and `setBuiltOnObject` is the whole of the visual mechanic around it: non-zero
-  hides the flag and fades it out over 10 frames, zero brings it back over 30. The flag returns not
-  because anything is told the building *died* but because **`GettingBuiltBehavior::onDelete`
-  actively frees the plot** it finds through `Object+0x78`, and `destroyObject` broadcasts
-  `onDelete` to every module **inside the same call** - so the plot is free before the replacement
-  exists. (A per-frame `findObjectByID(m_builtOnID)` poll agrees with it, and the plot's
-  "what is standing on me" scan is **one-shot**, fired on its first update for map-placed
-  structures, so nothing ever re-adopts.) The engine already re-points references from the old
-  object to the new one in exactly this function - **for `WALL_HUB`, `WALL_UPGRADE` and
-  `WALL_SEGMENT` only**; this adds plots. Two `call rel32` and a `0x17A`-byte cave: before the
-  destroy, remember the plot and zero the link `onDelete` would follow; after the create, give the
-  plot back its occupant. On a plain foundation plot that is a **direct** write of the new id
-  rather than a call to the setter, which would reset the drawable's opacity and make the hidden
-  flag blink. **A settlement flag is a `CastleBehavior`, and one dword is not enough for it**: what
-  gates its capture is the occupancy state at `module+0x34`, and the keep at `module+0x38` clears
-  itself a frame after the object it named dies - measured live, a plot rebound by id alone was
-  otherwise identical to an *empty* one, and the AI captured it and took the replacement with it.
-  So a castle plot goes through the engine's own `CastleBehavior::onStructureBuilt`, which adopts
-  the keep and calls `setBuiltOnObject` itself. Every write is guarded by a proof of ownership, so
-  a unit's producer - a barracks, which answers no foundation interface - is never touched. This is
-  what Edain's Iron Hills vineyard works around with a hidden flag, a rebuild cooldown and a dummy
-  building. **Simulation state**, so it has to be on every peer. **Runtime-verified in game.**
-- **`standalone-launcher`** ⚠**(experimental)** is the one patch here aimed at **`lotrbfme2ep1.exe`**, the launcher
-  shim, and it lets a **relocated install still hand the game a usable token**. Finding and
-  starting `game.dat` needed no patch and never did — the shim `chdir`s into its own image
-  directory (`argv[0]`, which the CRT seeds from the module path, not from the command line) and
-  spawns from there, with the registry nowhere on that route. What is registry-bound runs *after*
-  `CreateProcessA` returns: the launcher fills the `game2.dat` shared mapping the engine reads, and
-  it does not hold that value — it **decrypts** it, under a Blowfish key built from
-  `HKLM\<GameRegPath>\InstallPath` and the **volume serial number** of the drive that path names.
-  Copy the folder to a stick, a container or a machine that never ran the EA installer and every
-  input to that key is wrong, with nothing refusing: the game is simply handed the wrong plaintext.
-  The patch replaces the key schedule and the decrypt with a `strcpy` from **`gi.dat`'s `G4`
-  field** — the tenth and last, whose accessor has *zero* callers in the stock binary. 38 bytes in
-  place, no cave. It is **not** a way to run a copy you do not have: the `.big` archives and
-  `game.dat` are still required and unchanged, and the token gates nothing — the engine starts
-  perfectly well without the shim. **The edit is the Edain mod's**, shipped in its install as the
-  IDA difference file `lotrbfme2ep1.dif`; what is added here is the frame around it — the two
-  `rel32`s re-derived from the function addresses rather than transcribed, nine anchor sites, and a
-  test asserting `apply` reproduces the launcher Edain ships **byte for byte**.
-- **`headless`** ⚠**(experimental)** makes a run cheap enough to automate: it adds **`-headless`**, **`-renderEvery n`**,
-  **`-maxfps n`** and **`-uncapped`** to the command line, and suppresses the per-frame
-  `Display::draw` when asked to. The command-line table is extensible in **six bytes** — the
-  dispatcher takes it in `ebx` and its length as a `push imm8`, both at one call site, so a cave
-  holding a copy of the stock 16 rows plus new ones is reachable without moving an instruction; the
-  draw call is a single 11-byte site in `GameClient::update`. **It does not remove the display**:
-  `TheDisplay` has 540 unguarded references, so the Direct3D device is still created and the assets
-  still load — what stops is drawing. It also does not reimplement `-noshellmap` or `-noaudio`,
-  which are stock and do more than set the flags they name; a headless run passes those too. Much
-  of what a test rig needs is **already in the retail binary** and needed no patch at all —
-  `-file <map>.map` starts a skirmish with no menu, `-file <replay>.rep` plays a replay, and
-  `GameData UseFPSLimit` already uncaps the loop — which is what makes this patch small. See
-  [`docs/headless.md`](docs/headless.md). **Runtime-verified in game.**
-- **`production-split`** gives each of `PRODUCTION`'s meanings its own `ModifierList` keyword:
-  **`PRODUCTION_MONEY`** (resource output), **`PRODUCTION_UNIT`**, **`PRODUCTION_UPGRADE`** and
-  **`PRODUCTION_CONSTRUCTION`** — the last of which `PRODUCTION` never reached at all, because a
-  structure going up advances in one place the modifier system was never wired to. The engine had
-  already done the separating: type 13 is read at eight sites that fall into exactly those
-  buckets, so five of the six hooks are **one extra factor at a call that already asks for it**,
-  and the queue's two keywords come out of **one hook** reading the entry kind at `entry+0x04`.
-  `PRODUCTION` is left alone, so the patch is a no-op until INI uses the new names. The only
-  structural work is the modifier-type name table, which has no slack and is rebuilt in the cave.
-  The AI's three valuation sites are opt-in (`--ai-sites`). **There is deliberately no
-  `PRODUCTION_HERO`**: heroes are a third queue kind, but a hero's completion is decided by the
-  player's hero ledger rather than by the queue accrual this patch hooks, so the keyword measured
-  live as a progress bar that ran to 480% while the hero arrived on schedule. Kind 3 is handed
-  back to the stock callee untouched. See
-  [`docs/construction-speed-modifiers.md`](docs/construction-speed-modifiers.md). **Runtime-verified
-  in game for the queue hook; the money and construction hooks are not.**
-- **`healing-received`** adds **`HEALING_RECEIVED`**, a `ModifierList` keyword that multiplies
-  **how much healing its target takes**, from any source — `25%` is a quarter, `200%` is double,
-  `0%` is immune to healing. It is one five-byte `call` swap, because every heal in the engine
-  becomes a `DamageInfo` of type 7 and funnels through a single `fstp` in
-  `ActiveBody::attemptHealing` where the amount exists exactly once and the healed object is
-  already in `edi`. The engine's own `<= 0` test sits below the hook, so a zero multiplier makes
-  the whole tail disappear — no health change, no healing observers — rather than needing an arm
-  of its own. Complementary to `AUTO_HEAL`, which is additive, read once and read on the *healer*.
-  Nothing changes until INI uses the name. Shares the modifier-type name table with
-  `production-split`; both read it live and compose in either order. See
-  [`docs/healing-received-modifier.md`](docs/healing-received-modifier.md). **Statically verified;
-  not yet runtime-verified.**
-
+- **`horde-exit-absorption`** stops a hero recruited **in parallel** with a battalion from being
+  absorbed into it. `QueueProductionExitUpdate` — the door every production building pushes finished
+  objects out of — remembers exactly **one** horde, in an `ObjectID` at module `+0x40`. It is written
+  whenever the object leaving is `KINDOF HORDE`, and cleared only when a whole queue entry has been
+  emitted; a battalion's entry is `Slots + 1` objects long, so the field names that battalion for the
+  fourteen-odd frames its members take to come out. For every one of those frames the head of the
+  same routine resolves that id and **unconditionally** binds whatever is leaving to it:
+  `setProducer(horde)`, a formation-slot assignment, `setTeam(horde->m_team)` — and, further down,
+  reads the same answer to decide this is not a lone unit, which is what denies the hero its own
+  rally-point waypoint so it walks out of the door and is then dragged along by the battalion. Hero
+  revives queue in parallel with units, so a hero finishing inside that window is caught by all of
+  it. The patch redirects one five-byte `call` into a cave that asks the question the stock code
+  never does — does this object belong in that horde? — by walking the horde's own unfilled slots for
+  one whose declared payload template is equivalent to the object's, which is exactly the rule the
+  slot assignment applies a few instructions later. A rejection hands back NULL, which is the "no
+  battalion in the door" answer the engine already has a path for. A `KINDOF HERO` test would have
+  been four bytes and wrong: `LothlorienRumil` fields Rumil and Orophin as a two-slot battalion, so
+  that member really is a hero and really does belong. Logic-side, so **every peer needs the same
+  binary**. **Not runtime-verified.** See
+  [`docs/horde-exit-absorption.md`](docs/horde-exit-absorption.md).
+- **`horde-member-speed`** makes a battalion respect the `SPEED` modifiers on its **members**. A
+  battalion is two kinds of object and only one of them is moving: the horde container declares its
+  own `LocomotorSet`, pathfinds and sets the pace, while the members are formation slots being
+  dragged behind it. `SPEED` is folded in per object, by `Locomotor::getMaxSpeed`, from the speed
+  of *the object it was asked about* — so a `ModifierList` on a member scales a number the member
+  was not using. Stock RotWK says so in its own tuning: `NORMAL_FOOT_MED_HORDE_SPEED` is 50 and
+  `NORMAL_FOOT_MED_MEMBER_SPEED` is 55, the member's deliberately larger "so when the formation
+  wheels the unit can catch up". The patch replaces the five bytes of that query with a `call` into
+  a cave that forwards the site's own question for the object itself and then, **only** for a
+  `KINDOF HORDE` object with a contain module, asks the same question of every contained object
+  carrying `HORDE_MEMBER` — the bit `HordeContain::addToContain` clears for a `MACHINE`, `HERO` or
+  `SIEGE_TOWER`, so a hero who joined the battalion cannot skew the answer. What the caller gets
+  back is the object's own multiplier times the members', aggregated with `--aggregate min`
+  (default: the slowest member sets the pace, which is also what makes `SPEED 0%` root a whole
+  battalion) or `max`. Where nothing contributes it returns the stock "no modifier" answer and the
+  engine skips its multiply byte for byte, so every unmodified object in the game is unchanged.
+  Needs no INI keyword. Logic-side, so **every peer needs the same binary**. **Not
+  runtime-verified.** See [`docs/horde-member-speed.md`](docs/horde-member-speed.md).
+- **`infantry-lighting`** decides **which kindofs get the map's infantry light environment**. A
+  `.map` carries three light sets per time of day - terrain, objects, infantry - and the renderer
+  picks the infantry one per render object from a flag set by a single `KindOf` test in the
+  model-draw path: `test byte [tmpl+0x109], 5`, i.e. `INFANTRY | MONSTER` and nothing else. So a
+  unit that is only `CAVALRY` is lit as scenery, alongside walls and rocks - and because the two
+  sets differ almost exclusively in the sun's **ambient** (stock `map mp amon sul fortress`:
+  `0.090, 0.071, 0.043` for objects against `0.290, 0.306, 0.290` for infantry, identical diffuse
+  and direction), the symptom reads as "mounted units are too dark". The stock cure is to add
+  `KINDOF_INFANTRY`, which also buys crush rules, `PATH_THROUGH_INFANTRY`, KindOf filters on
+  weapons, armor and powers, and AI target selection. This rewrites the immediate instead: the
+  default adds **`CAVALRY`**, `--kinds` names any of the eight kindofs in mask bits 8..15
+  (resolved against the image's own name table, not a hardcoded list), and **`--all`** defuses the
+  branch so every drawable takes the infantry environment. Nine bytes at each of two sites, no
+  cave. Client-side render state only - nothing enters the logic frame or the CRC, so it does
+  **not** have to be on every peer and replays cross both ways. Invisible on the maps whose two
+  sets are identical, which is 80 of the 103 stock maps and 205 of Edain's 510. **Statically
+  verified** - both sites hold their stock bytes in the real binary and apply/verify/detect
+  round-trip against it - but **not yet observed in game**. See
+  [`docs/infantry-lighting.md`](docs/infantry-lighting.md).
 - **`large-group-bonus`** extends **`LargeGroupBonusUpdate`** twice over: it can **count objects
   that are not in a horde**, and it can be **gated on upgrades**. `HordeMemberFilter` is an ordinary
   `ObjectFilter` — nothing about its grammar is horde-specific — but it is **never evaluated against
@@ -1021,6 +783,76 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   reverting it. Ability cooldowns are the one thing that does not carry across yet. See
   [`docs/lifetime-transform.md`](docs/lifetime-transform.md). **Not runtime-verified.**
 
+- **`maintenance-cost`** makes a **negative** `TerrainResourceBehavior.MaxIncome` or
+  `AutoDepositUpdate.DepositAmount` **take** that much gold per tick instead of being discarded, so
+  a structure can carry an upkeep. There is **no new INI keyword**: `INI::parseInt` is an
+  `sscanf("%d")` whose error message reads *"Expected signed integer"*, so `MaxIncome = -5` already
+  parses on a stock binary — it is the run-time paths that throw the sign away, at a
+  `jle` past the deposit, at the engine's never-round-below-one-gold floor, and at
+  `Money::deposit` itself. That last one is why the patch exists rather than being a data change:
+  the balance is **unsigned** and `deposit` is an unclamped `add`, so a negative deposited is not a
+  charge but about four billion gold. Every charge goes through `Money::withdraw` instead, which
+  clamps to what the player actually has, returns what it took and credits `MoneySpent` rather than
+  `MoneyEarned`. **A charge inherits whatever scales its module's income and computes nothing of
+  its own**, so a `TerrainResourceBehavior` upkeep falls with the faction's
+  `ResourceModifierValues` exactly as that spot's income does — stock arithmetic, not code this
+  patch wrote — while an `AutoDepositUpdate` upkeep is flat, like its income, unless
+  **`auto-deposit-inflation`** is applied too. It is drawn
+  with the engine's own red **`GUI:LoseCash`** floating text, so **no `.csf` and no `.apt` edit**,
+  and a charge tick grants **no experience** rather than negative experience. Nothing is destroyed
+  or disabled for want of upkeep — a player who cannot pay simply pays what they have. Money is
+  logic state, so **every peer must run the same patched binary**; and because there is no new
+  keyword, a mod using it still **loads** on an unpatched one and silently does not charge. See
+  [`docs/maintenance-cost.md`](docs/maintenance-cost.md).
+- **`multi-execute-gate`** makes an **`OK_FOR_MULTI_EXECUTE` button respect each selected unit's own
+  `EnableOnModelCondition` / `DisableOnModelCondition`**. Today it does not: the ControlBar lights
+  the button if *any* member of the selection qualifies (reasonable), and the click then runs the
+  ability on *every* member (not). The two rules never meet, because the click emits
+  `MSG_DO_SPECIAL_POWER` with the button's `Options` word and an object id of **zero**, and zero
+  means "the issuing player's whole selection" — so the logic side gets a `SpecialPowerTemplate` and
+  never sees the `CommandButton` the masks live on. Its per-member gate does check required
+  sciences, `UnitCost` and recharge; model conditions are simply not among the things it can ask
+  about. This adds that one question to the two group loops, by recovering the button from the
+  member itself through the engine's own object → command set → button walk — which reads the
+  *effective* command set (the three per-object overrides ahead of the template's), so a mod that
+  swaps sets at runtime still agrees with the button that was clicked. Two `rel32` and a
+  `0xDB`-byte cave; the button stays `OK_FOR_MULTI_EXECUTE`, the loop still visits every member, and
+  a member whose own button is disabled is skipped exactly as if it had failed the recharge check.
+  This is what Edain's *Ambush of the Wood-elves* command-set swap works around, at the cost of the
+  mass trigger. It changes which objects a logic-side order reaches, so **every peer must run the
+  same patched binary** and replays do not cross. **Runtime-verified in game.**
+- **`multi-select-group`** adds a **`MultiSelectGroup` number to `CommandButton`**, so two buttons a
+  mod declares interchangeable keep the slot they share when a mixed selection's command bars are
+  merged, fills a slot only one of them has instead of blanking it, and reaches every stage in the
+  group on a click. Today none of the three happens:
+  `ControlBar::populateMultiSelect` fills the slots from the first selected unit's `CommandSet` and
+  merges every later unit in by comparing its button for each slot **by pointer identity**, so a
+  difference clears the slot and `winHide`s the window and the player sees an empty socket, not a
+  greyed icon. That is what a `CommandSetUpgrade` swap costs the moment a selection holds units at
+  two upgrade stages, and the palantir draws six buttons for a unit so the slot cannot simply be
+  moved elsewhere. Buttons carrying the same non-zero value now merge as one. **A slot only one
+  set fills is filled from that one**, which needs no field at all - a set that says nothing
+  about a slot is not in conflict with one that does, so selecting `OrkstadTunnelOrksCommandSet`
+  with `GundabadLancerCommandSet` keeps the lancers' forged-blades button on screen instead of
+  blanking it; the adopted button is re-tested for `OK_FOR_MULTI_SELECT` first, and the click
+  lands only where `canAcceptUpgrade` says a module actually consumes the upgrade. **The one displayed is
+  chosen by the data, not by selection order**: a button no selected unit can click never wins
+  against one something can (the merge asks `getCommandAvailability` and keeps a 33-byte per-slot
+  record of what the selection has been able to use), and when both are usable the tie goes to the
+  earlier stage, found by asking whether the unit being merged already owns the installed button's
+  upgrade. **And the click expands per member.** `MSG(0x415)` carries an object id of **zero**,
+  meaning the whole selection, and `AIGroup::doObjectUpgrade` grants the one upgrade the message
+  named to every member that will take it — gated on `hasUpgrade` / `canAcceptUpgrade` and never on
+  whose `CommandSet` the button came from. The patch rewrites `ebx` at the top of that member loop
+  with the upgrade *that member's own* command set names in the same group, so one click starts
+  `Upgrade_BruchtalFireArrows` on the battalions at stage one and
+  `Upgrade_BruchtalFireArrowsEregions` on the battalions at stage two, each paying its own price,
+  with no change to the message and nothing extra emitted. It is also what makes the field safe:
+  without it, showing the later stage would let a unit still at stage one buy stage two directly and
+  skip the first purchase. Four `rel32`, one byte widened in the constructor to default the field,
+  the `CommandButton` field table rebuilt, and a writable cave. The member-loop rewrite changes what
+  a logic-side order does, so **every peer must run the same patched binary and replays do not
+  cross**. **Not yet runtime-verified in game.**
 - **`object-image-upgrade`** adds an INI `ObjectImageUpgrade` behavior that changes a concrete
   hero's or unit's `SelectPortrait` and `ButtonImage` after `TriggeredBy` succeeds. Recruitment
   remains vanilla because its `CommandButton` image is a separate path. Multiple behaviors are
@@ -1040,6 +872,262 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   in `game.dat`, while Worldbuilder gains only the parser surface needed to load the templates.
   Apply it to `Worldbuilder.exe` whenever the paired game binary carries `object-image-upgrade`.
 
+- **`observer-command-range`** lets an observer **work a command bar's paging buttons** —
+  `PUSH_VISIBLE_COMMAND_RANGE` and `POP_VISIBLE_COMMAND_RANGE` — so what is being bought or
+  researched on page two can be read while watching a replay, or after being defeated. Today the
+  page is one click away and the click is discarded: `ControlBar::processCommandUI` asks
+  `localPlayerIsNotActive` before it dispatches anything at all, and that is true for the length
+  of any observed game. Everything else is already right — `getLocalPlayer` redirects to the
+  *observed* player when the local seat is inactive, so the whole bar is evaluated against the
+  player being watched, and both paging commands come out of the availability evaluator's default
+  case as enabled. So the patch retargets that one `call` into a cave that answers "active" for
+  those two commands and tail-calls the stock predicate for everything else — five bytes at the
+  call site. Every other command stays refused, because the rest of them post `GameMessage`s.
+  Client-local, and it needs nothing from the INI.
+- **`observer-switch`** makes a **skirmish replay let you change seat** — next/prior player, and
+  with it that player's vision, palantir and unlocked spellbook — which a network replay already
+  does. The palantir shows the observer bar on two conditions, and the failing one whitelists the
+  *recorded* game mode against `{1, 5}`; a skirmish records **2**, so the buttons never appear.
+  Nothing downstream is gated: the observer seat is installed on the playback mode, and the switch
+  itself re-runs the shroud manager for the new seat. The engine already ships the same predicate
+  with mode 2 added, so the patch aims one `call` at it — five bytes, no cave. The natural
+  companion to `skirmish-replay`, and independent of it. Client-local. **Runtime-verified in game.**
+- **`production-condition`** adds a **model condition** that is active while a structure's
+  production queue is non-empty — training a unit *or* researching an upgrade. The stock engine
+  has no such state: the `DOOR_n_*` conditions run *after* a unit completes, as the buffer during
+  which it walks out, and `ModelConditionUpgrade` fires on an upgrade's completion. Two **opt-in**
+  extras ride the same trigger: `--weapon-set-flag NAME` adds a `WeaponSetFlag`, so a
+  `WeaponSet Conditions = NAME` block can give a producer a different loadout while it is busy,
+  and `--locomotor-set NAME` adds a `LocomotorSetType`, so `Locomotor = NAME <template>` can give
+  it a different locomotor. Both of those tables are read through their terminator rather than a
+  count, so each costs a relocation and nothing else, and objects declaring neither are
+  unaffected. The bit lives on the logic-side `Object` and is CRC'd, so **every peer must run the
+  same patched binary** and replays do not cross.
+- **`production-split`** gives each of `PRODUCTION`'s meanings its own `ModifierList` keyword:
+  **`PRODUCTION_MONEY`** (resource output), **`PRODUCTION_UNIT`**, **`PRODUCTION_UPGRADE`** and
+  **`PRODUCTION_CONSTRUCTION`** — the last of which `PRODUCTION` never reached at all, because a
+  structure going up advances in one place the modifier system was never wired to. The engine had
+  already done the separating: type 13 is read at eight sites that fall into exactly those
+  buckets, so five of the six hooks are **one extra factor at a call that already asks for it**,
+  and the queue's two keywords come out of **one hook** reading the entry kind at `entry+0x04`.
+  `PRODUCTION` is left alone, so the patch is a no-op until INI uses the new names. The only
+  structural work is the modifier-type name table, which has no slack and is rebuilt in the cave.
+  The AI's three valuation sites are opt-in (`--ai-sites`). **There is deliberately no
+  `PRODUCTION_HERO`**: heroes are a third queue kind, but a hero's completion is decided by the
+  player's hero ledger rather than by the queue accrual this patch hooks, so the keyword measured
+  live as a progress bar that ran to 480% while the hero arrived on schedule. Kind 3 is handed
+  back to the stock callee untouched. See
+  [`docs/construction-speed-modifiers.md`](docs/construction-speed-modifiers.md). **Runtime-verified
+  in game for the queue hook; the money and construction hooks are not.**
+- **`queue-ignore-cp`** adds a **`QueueIgnoreCP`** boolean to `CommandButton`, so a button the
+  *engine* presses — a `DoCommandUpgrade`'s `GetUpgradeCommandButtonName`, which is how a power or
+  a research recruits a unit on an object's behalf — can queue its unit while the player is at the
+  command-point cap. Stock, that press meets the same gate a click does, the cap answers **7**, and
+  the whole feature is lost: the upgrade has already been granted and nothing will press the button
+  again. **The other half of "queue it now, build it later" is already in the engine** and needed no
+  patching: `ProductionUpdate::update` refuses to advance a head entry the player cannot afford in
+  command points, and a sibling routine pushes a revive's completion frame out one frame per tick
+  while the cap holds — so the unit sits at the head of the queue, charged, with the EVA cue firing,
+  and starts building the moment points free up. The field lands in `CommandButton+0x10D`, alignment
+  padding between `AutoAbility` and the `KindOfFlags`, so `sizeof` stays `0x2E0`; its default costs
+  **one byte** (the constructor's `mov byte` becomes a `mov dword`); and the button's answer reaches
+  the gate — which takes `(producer, what, reviveIndex)` and never sees a button — through a dword
+  in the cave raised for exactly the length of one `queueCreateUnit` call, by wrapping the
+  `UNIT_BUILD` and `REVIVE` cases of `Object::doCommandButton`. **The ControlBar is left stock**, so
+  a *visible* button carrying the field is still drawn unavailable at the cap. **Every peer must
+  run the same patched binary** — not for the flag, which is transient and identical on every peer
+  executing the same order, but for the consequence: an unpatched client refuses a production a
+  patched one accepts. And, as with `terrain-resource-exp`, the keyword is an INI parse error on a
+  stock build. **Runtime-verified in game.**
+- **`quiet-exit`** stops the engine leaving a `.dmp` every time the game is closed. A benign
+  `DEBUG_CRASH` assert trips on the shutdown path, raises the engine's own `0x04560123`, and the
+  unhandled-exception filter at `0x0043D610` writes a minidump before the process dies — so a clean
+  exit through the menu looks like a crash, and with `crash-dump` applied it is a **large** one. The
+  filter's one `call writeMiniDump` (`0x0043D74E`) is redirected through a small cave that first
+  reads `GameEngine::m_quitting` — the byte the main loop already checks to decide whether to keep
+  running (`[TheGameEngine] + 0x10`). If the process is quitting, the dump is skipped; if it is not —
+  a real fault mid-game — the call is made exactly as before, so **an actual crash still dumps**. The
+  cave is `call`-ed in place of the original, tail-`jmp`s to `writeMiniDump` on the write path and
+  `ret`s on the skip path, so the stack the filter's following `add esp, 8` sees is identical either
+  way. Client-local: no simulation, checksum, order stream or replay format is touched, and the one
+  site edited runs only after an unhandled exception. Composes with `crash-dump` — the two patches
+  share the dump path but touch different bytes. **Static-verified**: it applies, verifies and
+  disassembles as intended, and the redirect is confirmed against the real binary; the one thing only
+  a live exit can settle is that `m_quitting` is already set when the shutdown assert fires — which is
+  what it is set for. See [`docs/quiet-exit.md`](docs/quiet-exit.md).
+- **`rebuild-hole-construction`** lets a structure destroyed **while it is being rebuilt** leave
+  its rebuild hole behind again. A creep lair's loop hangs entirely off that hole: breaking the
+  lair makes one, breaking the *hole* is what pays out treasure (the `CreateObjectDie` is on the
+  hole, never on the lair), and left alone the hole puts the lair back and retires with DeathType
+  `FADED` — which is what `DeathTypes = ALL -FADED` on every hole in the data exists to catch. The
+  loop has one gap: `RebuildHoleExposeDie::onDie` refuses to create anything when the dying object
+  is `UNDER_CONSTRUCTION`, and a lair rebuilt by a hole is `UNDER_CONSTRUCTION` for the whole time
+  it rises — the engine's own babysitting loop is keyed on that exact bit. Kill it in that window
+  and it is gone permanently: the old hole was destroyed the frame the rebuild began, no new one
+  is made, and there is no treasure ever again. The patch erases the six-byte branch. The rule
+  moves into the INI rather than disappearing — every die module opens with the shared filter that
+  already evaluates `ExemptStatus` against live `ObjectStatus` bits, so
+  `ExemptStatus = SOLD UNDER_CONSTRUCTION` restores the stock behaviour per object, which matters
+  because the patch is global and reaches a faction's own lairs on their *first* build too.
+  Logic-side, so **every peer needs the same binary**. **Not runtime-verified.** See
+  [`docs/rebuild-hole-construction.md`](docs/rebuild-hole-construction.md).
+- **`replay-annotations`** writes **each player's score-screen counters into the replay**: units
+  and structures built, lost and destroyed, money earned and spent, and the army and base size at
+  the closing frame. The engine keeps all of it in a `ScoreKeeper` embedded at `Player+0x3DC` and
+  never records a byte of it, so a corpus can count what players *did* but not what it cost them.
+  The two destroyed counters are `Int[20]` arrays indexed by the **victim's** `m_playerIndex`, so
+  the record is a per-opponent **kill matrix** - in a team game, who actually fought whom. Hooks
+  the *other* call of the branch `replay-outcome` hooks (`stopRecording` rather than
+  `writeToFile`), so the two compose in either order; client-local, same as `replay-outcome`.
+  **Verified statically** - the sites hold their stock bytes and apply/verify/detect round-trips
+  against the real binary - but **not yet observed in a recording**. Read back
+  with [`sage_replay.annotations`](../sage_replay/annotations.py) and folded into `aggregate`. See
+  [`docs/replay-annotations.md`](docs/replay-annotations.md).
+- **`replay-outcome`** writes **each player's final victory/defeat state into the replay**, at
+  the frame the recording ends - whether a player left or the game finished. A stock replay
+  records inputs, not state, so no chunk says who won and
+  [`sage_replay.winner`](../sage_replay/winner.py) has to infer it from who stopped issuing
+  orders (and gives up entirely on elimination endings and on AI players). This adds one `0x7D0`
+  chunk per player, written straight to the recorder's own file handle just before the `0x1D`
+  end-of-recording marker. Client-local: nothing enters the simulation and nothing crosses the
+  network, so it does **not** have to be on every peer. **Runtime-verified** on all three endings.
+- **`scenario-player-factions`** lets a War of the Ring `Scenario` say **which
+  faction each lobby slot may take**, not just which factions the scenario allows. A scripted
+  scenario that needs player 1 to be Angmar and player 2 to be Men can today only narrow the pool
+  and hope: `HistoricalScenario = Yes` forces the picks to be *different*, never *whose*, and
+  `Scenario::isFactionEnabled` answers a question about the scenario with no player in it.
+  (`StartingRestriction`'s `Factions` list looks like the missing piece and is not — it is a
+  per-start-region filter that the combo-box fill **skips outright** for a historical scenario,
+  which is the only kind that pins factions to regions in the first place.) The patch extends the
+  *value* syntax of the existing keyword rather than adding one:
+  `DisabledFactions = FactionArnor FactionMen:1 FactionAngmar:2` keeps the unqualified entries
+  scenario-wide and bars Men from slot 1 and Angmar from slot 2 — the `Name:N` form
+  `commandset-button-upgrade` already uses, counting players from 1 as the rest of the file does.
+  So there is **no new keyword, no field table to relocate and no new storage**: the qualifier
+  rides in the `AsciiString` vector the stock parser already builds, and nothing written before the
+  patch changes meaning. `isFactionEnabled` has exactly **four** callers — the combo-box fill (which
+  greys and disables a refused entry), the start-game gate behind `GUI:DisabledFaction`, the
+  historical-scenario validation pass and the pass that resolves a slot left on Random — and all
+  four are redirected, which is what makes the rule a rule rather than a UI hint: the host cannot
+  start a game that breaks it however the slot came to hold that faction. Each already has the slot
+  index it is asking about in a live `ebp`-relative local, so each site's five-byte `call` goes to
+  its own two-instruction trampoline that loads that local into `edx` and tail-jumps into the shared
+  replacement — no stack surgery, the stock `ret 4` kept, and the by-value `AsciiString` argument
+  destroyed as the stock function destroyed it. Case-**sensitive**, because the stock comparison
+  bottoms out in `memcmp` and not `_memicmp`; a bare `:`, a non-numeric qualifier and `:0` all
+  disable nothing rather than falling back to everybody. Lobby-side only — nothing here runs after
+  the game starts, so simulation, saves and replays are untouched — but the host's gate is the one
+  that counts, so every peer wants the same binary. See
+  [`docs/scenario-player-factions.md`](docs/scenario-player-factions.md).
+- **`science-prereqs`** lets **`PrerequisiteSciences` name a science defined later in the file**,
+  so a mutually dependent pair (`C` needs `A or D`, `D` needs `B or C`) no longer has to be closed
+  from `map.ini`. It is the smallest patch here — one `rel32` and a 16-byte cave — because
+  `ScienceType` **is** the `NameKeyType`: `getScienceFromInternalName` computes the key *before* it
+  checks the name is known, and `nameToKey` mints a key for a name it has not seen, so a forward
+  reference and a backward one store the identical dword. Removing the check cannot produce a
+  degraded value, and a key that never gets a definition is one no player can hold, so the group is
+  simply unsatisfiable. By default the safety net stays: every name that did not resolve is
+  recorded, and a detour immediately after the `initSubsystem` call that loads `TheScienceStore`
+  re-checks the list and throws the engine's own message for the first one still missing — the same
+  text a modder sees today, because this build's INI handler never adds file and line to begin
+  with. `--no-report-missing` drops that half; `--all-keywords` widens the relaxation to every
+  science-name keyword by repointing the shared thunk instead. A `map.ini` that defines a `Science`
+  block runs after the check and is not covered. **Runtime-verified in game.**
+- **`skirmish-ai-fallback`** gives a faction a **working AI on a map that carries no
+  `Skirmish<Faction>` side for it**. A map's sides are capped at 20 — `SidesList::addSide` refuses
+  the 21st — so a mod past ten-odd factions runs out of room, and 63 of the 617 shipped maps are
+  already full while 106 carry no skirmish side at all. What a faction with no side gets today is
+  not a worse AI: `Player::initFromDict` falls into the arm that types it **0 = `PLAYER_HUMAN`**,
+  so the slot is a human nobody is driving. The side supplies exactly two things — the `isSkirmish`
+  flag that makes `setPlayerType` allocate an `AISkirmishPlayer`, and the faction's AI script
+  library, which `prepareForMP` stamps onto the side from *that side's* `DefaultPlayerAIType` and
+  `initFromDict` copies onto the player. The patch supplies both without a side: one hook routes a
+  side-less AI down the same arm a matched one takes, the other writes the player's **own**
+  `DefaultPlayerAIType` into its **own** side dict and calls the engine's single-side library
+  loader on it — a stock routine with **zero callers** in the unpatched image. So the faction runs
+  `ki <its own faction>`, not a borrowed one. Fallback only: where a `Skirmish<Faction>` side
+  exists it still matches first and both hooks return untouched, and no map is edited. Two
+  five-byte windows and a 110-byte cave; skirmish only, since the scan it hooks runs only for a
+  dict carrying `playerIsSkirmish`. Logic state, so every peer of a game that reaches it needs the
+  same binary. **Statically verified** — every anchor holds its stock bytes in the shipped
+  `game.dat`, nothing branches into either window, and apply/verify/detect round-trips against it —
+  but **not yet observed in game**. See
+  [`docs/skirmish-ai-fallback.md`](docs/skirmish-ai-fallback.md).
+- **`skirmish-replay`** makes a **single-player skirmish record a replay**, which the stock engine
+  never does, and gives each recording a **timestamp + map** name instead of overwriting
+  `Last Replay`. `startRecording` has exactly one caller — the `MSG_NEW_GAME` branch of
+  `RecorderClass::updateRecord` — and it whitelists the game mode against `{1, 5}`, the two
+  network flavours; a skirmish emits **2** and falls off the end of the list. Everything
+  downstream already works: `startRecording` has a complete non-network path that builds the
+  header from `TheSkirmishGameInfo`, and the engine's own playback predicate already accepts a
+  *recorded* mode of 2. So the patch replaces nine bytes of whitelist and retargets the call that
+  names the file. **By default every recording is renamed**, not just skirmishes: the fixed name
+  means each game overwrites the last, and a file every player has under the same name is what
+  makes replays impossible to collect. That costs the replay menu's Save Replay button, which
+  exists only to rescue the file before it is overwritten (`--rename added` keeps the stock
+  behaviour for network games). Client-local, like `replay-outcome`. **Gate runtime-verified,
+  naming re-test open.**
+- **`spawn-union`** makes an object with several `SpawnBehavior`s use **all** of their spawns.
+  `Object::getSpawnBehaviorInterface` walks the module list and returns on the **first** module that
+  answers, so a structure with two of them orders only the first one's slaves to attack, asks only
+  the first whether any slave can attack, and finds the closest slave only among the first — which
+  is the whole of what `SPAWNS_ARE_THE_WEAPONS` means. The same getter carries a plain bug: a dying
+  slave's death is reported to the first behavior alone, and `onSpawnDeath` returns having done
+  nothing when the id is not in *its* list, so a second behavior's slaves die with no list removal,
+  no live-count decrement and no respawn timer. Both spawn normally either way; spawning is each
+  module's own update. The patch replaces the getter — one 5-byte `jmp` and a `0x4A7`-byte cave —
+  with one that returns the stock answer for none and for one, and for two or more returns a
+  **proxy** whose sixteen slots re-walk the list: `void` methods broadcast, predicates are OR'd
+  (asking every behavior, no short-circuit), and `getClosestSlave` re-runs the distance comparison
+  the stock implementation does internally, through the engine's own helper. Reentrancy is covered
+  by a ring of eight proxies, since ordering slaves runs slave AI that comes back through the
+  getter. **This one changes the simulation**, so it has to be on every peer and its replays will
+  not play back on a stock build. **Runtime-verified in game.**
+
+- **`spell-store-upgrade`** selects a different purchase-science `CommandSet` from the **current
+  player's completed upgrades**. A repeatable `PlayerTemplate` field declares each mapping as
+  `PurchaseScienceCommandSetUpgrade = Upgrade_Name CommandSet_Name`; names are retained until use,
+  then the upgrade is resolved, its `upgradeIndex` is tested against the player's 36-dword mask,
+  and the first active mapping whose CommandSet exists wins. Unknown names and no active mapping
+  fall through to the untouched stock selector. Only the call at `0x00822ACF` inside
+  `AptSpellStore::initializeSpellSlots` is redirected; the shared selector at `0x0071F933` and all
+  its other callers remain stock. Closing and reopening the SpellStore re-evaluates the table.
+  Runtime selection and fallback have been verified in-game. The patch is intentionally scoped to the SpellStore callsite and composes with the existing PlayerTemplate field-table extension mechanism. The two helper ABIs remain reverse-engineered (HIGH confidence), so the implementation keeps explicit byte assertions, bounds checks, and stock fallback behavior. See  [`docs/spell-store-upgrade.md`](docs/spell-store-upgrade.md).
+- **`terrain-resource-exp`** adds a **`GiveNoXP`** boolean to `TerrainResourceBehavior`, so a
+  resource spot can pay its owner without levelling its own building. The module hands the integer
+  it just deposited to the building's `ExperienceTracker` on every income tick, and no INI field
+  separates the two — while the sibling `AutoDepositUpdate` has shipped exactly this boolean, under
+  exactly this name, since the stock build. The new field lands in `ModuleData+0x16`, alignment
+  padding the constructor never wrote, so nothing grows. **Every peer must run the same patched
+  binary**, and a mod using the keyword cannot run without it at all — an unknown field in a known
+  block is an INI parse error, not a warning.
+- **`trigger-recharge-list`** lets **`OnTriggerRechargeSpecialPower` name several special powers**
+  instead of one, so a single ability can reset a whole set of cooldowns.
+  `SpecialPowerTimerRefreshSpecialPower` is already a name-matched selector - it walks the object's
+  modules and recharges the one whose `SpecialPowerTemplate` carries the name in that field - and
+  the stock keyword is simply the singular of it: `INI::parseAsciiString` stores the **first** token
+  on the line and the rest is never read, so `= A B` loads on a stock build and silently means `A`.
+  The workaround does not exist either, because a second copy of the module needs its own
+  `SpecialPowerTemplate` to be driven by and there is only one power being used. This is the
+  cheapest patch of its kind here: the field is an `AsciiString`, one pointer to a refcounted
+  buffer, so **a list of names is just a longer string** - no `sizeof(ModuleData)` to raise, no
+  relocated field-parse table, no constructor or destructor shim. Two edits: the entry's parse
+  function (4 bytes of `.rdata`) points at a cave routine that consumes every token on the line, and
+  the walk's `AsciiString::compare` (5 bytes of `.text`) points at one that asks whether the
+  candidate is *one of* those tokens, whole tokens only and case-sensitive exactly as the compare it
+  replaces. A single name comes out byte-identical to stock, which is also what leaves the
+  function's other comparison - the early-out when the field names the module's own power -
+  correct without being touched. It changes which powers a logic-side activation recharges, so
+  **every peer must run the same patched binary**, and a mod writing two names needs it or the
+  second is dropped without a diagnostic. See
+  [`docs/trigger-recharge-list.md`](docs/trigger-recharge-list.md). **Statically verified - not yet
+  observed in game.**
+
+- **`unique-production-id`** mints the `ProductionID` **game-wide** instead of per building. The
+  stock counter lives on the producer, so every building's first production is id 1 — and hero
+  recruitment keys the player's revive bookkeeping on that id, so recruiting a hero from a second
+  building while the first is still producing collides, and the click takes the money without
+  starting anything.
 - **`upgrade-description`** keeps a `CommandButton`'s **`DescriptLabel` visible after its upgrade is
   researched**, with *"this upgrade has already been researched"* appended **under** it instead of
   written **over** it. Stock, the description is simply gone the moment you own the thing it
@@ -1062,36 +1150,148 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   enters the simulation, so a patched and an unpatched client can play each other and replays
   cross, same rule as `replay-outcome`. See
   [`docs/upgrade-description.md`](docs/upgrade-description.md). **Runtime-verified in game.**
-- **`recharge-rescale`** ⚠**(experimental)** makes a cooldown **already running** respond to a recharge modifier that
-  arrives after the cast — a leadership aura, a temporary `RECHARGE_TIME` buff, the player
-  finishing a `SpellRechargeModifierUpgrade` mid-match. Stock, none of those can touch it:
-  `startPowerRecharge` computes the whole cooldown once, when the power fires, and stores an
-  **absolute ready frame**, so a discount only ever pays off on the *next* cast. The fix is cheap
-  for a reason that is not obvious until the layout is read: the module stores the cooldown
-  **twice** — the ready frame at `interface+0x08`, and beside it the *length* of the cooldown that
-  produced it, `max(1, ftol(ReloadTime * m))`, which exists to draw the button clock. That second
-  field is the record of the multiplier baked in at cast time, so recomputing the stock formula now
-  and comparing the two **integers** says whether anything has moved — exactly, with no tolerance
-  to choose — and the patch needs **no per-module storage, no struct growth and no INI keyword**.
-  When they differ it rescales the remainder, `remaining * frames_now / duration`, and stores the
-  new duration. That is not an approximation of a per-frame rate, it **is** one: the stored
-  remainder is the unscaled work times the multiplier, so a modifier held for part of a cooldown
-  produces the same finish frame as integrating a rate over that interval, and "150% cooldown speed
-  removes 1.5 seconds per second" falls out rather than being aimed at. The clock follows for free
-  and **does not jump**, because numerator and denominator are scaled together — writing the ready
-  frame alone, the tempting one-liner, would snap the pie forward when an aura landed and back when
-  it expired. There is **nothing to tick**: a cooldown is an absolute frame, so nothing runs while
-  it elapses and most special-power modules are not update modules at all — so the driver is a
-  sweep of the logic's own object list, from the one `call` whose flags gate the frame counter
-  (`0x0062E56A`), which is what keeps it in step across peers; `live-bridge` owns the *entry* of
-  the same function and the two compose. Two things are left alone and both fail closed: the
-  **second** `startPowerRecharge` at `0x00991500` (3 module vtables of 26) keeps no duration and so
-  cannot say what it baked in, and `SharedSyncedTimer` powers keep their frame on the `Player`.
-  Four bytes of `.text` and a 405-byte cave. **Simulation state**, so every peer needs the same
-  binary and replays do not cross — but a **no-op on data that never moves a multiplier
-  mid-cooldown**, since the rescale is gated on the stock formula's own answer. See
-  [`docs/recharge-rescale.md`](docs/recharge-rescale.md).
+- **`upgrade-grant-lists`** does the same for **`ObjectCreationUpgrade`'s `GrantUpgrade` and
+  `RemoveUpgrade`**, so one upgrade can hand out a set and retire a set. Both keywords are
+  `AsciiString`s parsed by the same one-token parser, and both are used in one block at the end of
+  the module: `findUpgrade(&field)`, then `giveUpgrade` / `removeUpgrade` on the object, each
+  behind its own `test eax,eax / je`. That guard is what makes the hook free - a cave that answers
+  **NULL** turns the caller's own branch into a skip of the single-upgrade call it would otherwise
+  make, so nothing is displaced and the stock path stays in the binary unexecuted. The extra work
+  over its sibling is that `findUpgrade` wants an `AsciiString`, not a pointer into the middle of
+  one: each token is copied into the cave routine's own frame to be NUL-terminated, bounded at 255
+  characters, rather than NUL-ing the separator in the field's shared buffer. Grants still precede
+  removals, `ThingToSpawn` - the third `AsciiString` in the same table - is deliberately left
+  alone, and the table is located through the single `push imm32` that names it rather than by its
+  address, so a patch that relocated it first is followed rather than bypassed. **Every peer must
+  run the same patched binary**, and a mod writing two names needs it or the second is dropped
+  without a diagnostic. See [`docs/upgrade-grant-lists.md`](docs/upgrade-grant-lists.md).
+  **Statically verified - not yet observed in game.**
 
+- **`wall-mesh-release`** makes a destroyed wall **give back the pathfinding data it registered**.
+  A walkable wall registers three things in one function (`0x00935FAA`) and returns none of them:
+  the walkable surface named by `RaisedWallMesh` claims a slot in the sixteen-entry table at
+  `Pathfinder+0x60`, the two `RampMesh` ramps allocate a record each onto the list at
+  `Pathfinder+0x5C`, and `WallBoundsMesh` marks a rectangle of cells. The ramps and the cells leak
+  because their removal **re-asks the drawable for a mesh** — and a dying structure has changed
+  model by the time the teardown reaches the pathfinder, so `RUBBLE` (no `P1`) and `POST_RUBBLE`
+  (no model at all) mean every lookup answers "not found" and the bounds query's NULL **returns
+  from the function** before one cell is unmarked. The walkable surface is worse and simpler: the
+  claim and the list push have **exactly one caller each and both are on the add path**, so that
+  leg is not a removal that fails, it is a removal that was never written — it leaks whatever the
+  model does. The symptom is units walking on air over a wall that is gone, and fourteen slots
+  never given back for the rest of the match (`Pathfinder::reset` is what eventually frees them,
+  so the leak is bounded by the game, not the process). The patch makes the engine **remember what
+  it registered** instead of re-deriving it: a ledger in the cave, keyed by `ObjectID`, filled by
+  four hooks on the add path and consumed by one on the remove path. Stamping the id into the
+  engine's own structures — the shape the RE document originally scoped — cannot work, because a
+  layer slot is **shared between walls of equal height** and so cannot say which of its members is
+  dying; and it is not needed, because `0x004BA693` hands the pathfinder an object *derived* from
+  the queried sub-object and releases the sub-object itself, so what the slot holds is the
+  pathfinder's own allocation and a pointer recorded at add time stays valid exactly as long as
+  the registration does. **No engine structure grows and no savegame changes.** The surface is
+  unlinked by that pointer and the slot handed back through the engine's own `0x00768AA7` — the
+  inverse the document had recorded as *not yet located*, identified by `Pathfinder::reset` looping
+  it over all sixteen slots — but only once the slot's list comes out empty, since a neighbour may
+  still be standing on it. The ramps are unlinked by pointer rather than by the four-float geometry
+  match `0x009356DF` does, which answers the same question without a mesh to ask it of. And the
+  cells need **no new loop at all**: the four frame slots holding the rectangle are restored and
+  control jumps to `0x0093682F`, the head of the stock unmark loop, which reads exactly those four
+  and — unlike the *mark* branch one instruction earlier — dereferences no mesh. `Pathfinder::reset`
+  drops the ledger at the one moment everything it describes stops existing, so a recycled
+  `ObjectID` in the next match matches nothing. A wall with no ledger row is registered and removed
+  exactly as it is today, which is also what a full table degrades to. **No INI keyword and no
+  opt-in** — it changes what an existing wall block already does. Simulation state, so **every peer
+  must run the same patched binary** and replays do not cross, the same rule as `spawn-union`. See
+  [`docs/raised-wall-mesh-removal.md`](docs/raised-wall-mesh-removal.md).
+- **`worldbuilder-mod`** gives **`Worldbuilder.exe`** the `-mod` switch the game has, so a mod's
+  loose files load in the editor without being packed into a `.big` first. The editor already
+  links the whole pipeline - the `-mod` table entry, `parseMod`, `ArchiveFileSystem::loadMods` -
+  but all of it hangs off `GameEngine::init`, and Worldbuilder never constructs a `GameEngine`,
+  so none of it runs. The patch calls the one function that arms a mod directory from
+  Worldbuilder's own startup, just before it reads its first INI. **Pass a map before `-mod`**
+  (`Worldbuilder.exe <some>.map -mod <dir>`): Worldbuilder is an MFC app, and MFC otherwise
+  claims the bare mod path as a document to open and fails with `Access to … was denied`. Point
+  `-mod` at the **subtree** being edited rather than a whole mod - a full one still kills the
+  editor partway through startup, where the game handles the same tree fine. See
+  [`docs/worldbuilder-mod.md`](docs/worldbuilder-mod.md).
+- **`worldbuilder-object-typeahead`** puts a **type-ahead box above the object tree** in the dialog
+  every script action's object argument opens - one class, `EditObjectParameter`, reached from two
+  places, so it covers every script that names an object type. The tree holds every `ThingTemplate`
+  in the game filed under its side and editor-sorting category, and opens with every folder
+  collapsed. Each keystroke now selects the first item whose label matches - exact, then prefix,
+  then substring, case-insensitively, leaves before folders - and clears the selection when nothing
+  matches. `OnOK` is **not** patched: it still reads the selected item's text, so the dialog cannot
+  write a name the stock one could not, and a typo falls into the stock "nothing selected" beep.
+  The control is added to `IDD` 190 in place, within its stock 292 bytes; the behaviour is one
+  extra `ON_EN_CHANGE` entry in a relocated `AFX_MSGMAP`, with no subclassing and no new imports.
+  See [`docs/worldbuilder-object-typeahead.md`](docs/worldbuilder-object-typeahead.md).
+- **`battle-school`** ⚠**(experimental)** restores the **way out of BFME1's Battle School**, the
+  parchment book of tutorial videos on the main menu. ROTWK kept almost all of it: the
+  `AptMainMenu::BattleSchool` FSCommand and its handler are intact, `BlinkBattleSchoolOff` still
+  answers whether the button should blink, `FlashTutorial` is still read and still self-clears
+  after five launches, `WindowTransition MainMenuToBattleSchool` is still in stock `ini.big`
+  byte-identical to BFME1's, and `GameWindowGadgets.apt` still exports the `BinkMovie` gadget.
+  What EA dropped is the **mirror command**, `AptMainMenu::TutorialExit` — so a shell can start the
+  sound fade but never end it, and since the transition is a `SOUNDFADE` with `LeaveSilent = Yes`
+  the menu goes permanently silent. **Adding it back is not a second registration.** The surviving
+  handler is `ret 4`: it takes a params string and never reads it, exactly the unused channel
+  `campaign-select` uses. So the patch is **one five-byte `jmp`** into a 172-byte cave that reads
+  `params[0]` — anything but an `l` re-emits the displaced `mov eax, imm32` and jumps back to the
+  `call __SEH_prolog` it came from, so the stock path is not merely equivalent, it *is* the stock
+  path — and the movie sends `GameCode("BattleSchool", "leave")` to take the other arm. That arm is
+  modelled on `AptMainMenu::CreditsExit`'s tail, which is the same function for the credits screen
+  and still ships: restart the shell music if it stopped, reverse the transition group, release the
+  shell's movie flag, restore the frame-rate cap. Shell-only and **client-local** — it runs on a
+  menu button press before a game exists, nothing enters the simulation, replays cross unpatched
+  builds. The other half is `.apt` and asset work: the tutorial book, its videos, and the
+  `APT:` strings, none of which ship with ROTWK. See
+  [`docs/battle-school.md`](docs/battle-school.md).
+- **`campaign-army-verbs`** ⚠**(experimental)** restores the two BFME1 campaign `Act` verbs ROTWK
+  dropped: **`MergePlayerArmy`**, which moves roster entries from one living-world army into
+  another, and **`DespawnArmy = <name>`**, which takes an army off the world map. A merge either
+  pours the whole roster across (`SplitArmy = No`) or moves only the entries a
+  `SplitArmyTemplate` names — a `LivingWorldPlayerArmy` used purely as a **manifest of
+  `ThingTemplate` names**, which is what BFME1's Fellowship split is built out of. Edain's
+  `wotrscenarioangmar.inc` already carries two of these blocks, written correctly and commented out
+  with `; Doesn't work ;( - Necro`. **`SourceArmy` and `DestArmy` name `SpawnArmy` ScriptingNames,
+  not `PlayerArmy` templates as they did in BFME1** — the one deliberate divergence, and a mod
+  porting BFME1 campaign INI verbatim has to change those two fields. BFME1 could mutate templates
+  because a template was its only strategic state; ROTWK gives each live army its own roster at
+  `army+0x78` and rewrites it after every battle, so a template edit would touch only armies
+  spawned later and nothing standing on the map. Two five-byte sites: the `push` that names the Act
+  verb table is repointed at a 17-row copy in the cave, and pass nine of the act runner is
+  displaced into a trampoline that makes the call it replaced and then runs the new pass. The
+  records cannot live on the `Act` — it is `0xB8` bytes with three spare — so they live in
+  the cave keyed by the act's **name**, which is already how `CallActSubroutine` finds an act.
+  Moving a record is a move, not a copy: the roster's own erase hands back a reference and the
+  append takes its own. Also adds the optional **`DespawnSource = Yes`**, which is not a BFME1
+  field: the unsplit merge empties the source (leaving it populated would deploy those units
+  twice), and this removes the emptied army too, so one block does what BFME1 needed two lines for.
+  Static only — nothing here has been played. See
+  [`docs/living-campaign/merge-player-army.md`](docs/living-campaign/merge-player-army.md).
+- **`campaign-select`** ⚠**(experimental)** lets the main menu start **any `LinearCampaign`, by name**, instead of the
+  two EA compiled in. The shipped `LinearCampaignExpansion1.ini` states the limit itself — *"campaign
+  names are basically hard-coded into the game engine … They must be named ANGMAR_CAMPAIGN"* — and
+  the binary agrees: each campaign button reaches a callback that differs from its sibling by one
+  screen id, and each id reaches a thunk holding one string literal. **Only the name is hardcoded,
+  though.** `startLinearCampaign` takes an `AsciiString *` and resolves it through
+  `TheCampaignManager`, so every `LinearCampaign` block in the mod's INI is *already* reachable —
+  the shell simply had no way to say which. Two facts make saying it cheap: the FSCommand callback
+  is handed the movie's whole params string and keeps **only its first byte** (the difficulty
+  letter), and the thunk's `AsciiString` is a function-local static behind an MSVC magic-static
+  guard, so filling that static and setting the guard bit means the literal is never reached. The
+  patch is therefore **one five-byte `jmp`** into a 129-byte cave — no jump-table relocation, no new
+  FSCommand registration, no functor construction — and the movie sends
+  `GameCode("Expansion1Campaign", "Hard:DWARVEN_CAMPAIGN")`. A params string with **no separator is
+  left completely alone**, so a stock `.apt` keeps stock behaviour (`_DEMO` variant included), and
+  `BonusCampaign` is untouched. Shell-only and **client-local**: it runs on a menu button press
+  before a game exists, nothing enters the simulation and replays cross unpatched builds — same rule
+  as `replay-outcome`. The other half is `.apt` work: the movie has to know the names.
+  **Runtime-verified in game**: with two instructions inserted into `MainMenu.apt`'s difficulty
+  sprite so the `Expansion1Campaign` button asks for `ANGMAR_BONUS_CAMPAIGN`, Solo Play → *An
+  Unexpected Party* loaded **laketown** instead of the **Hobbiton** a stock engine can only ever
+  give it. That run also put a `sage_apt` round-trip of a **shell** movie in front of the real game
+  for the first time — `MainMenu.apt`, the file carrying the corpus's one unresolvable branch.
 - **`capture-the-flag`** ⚠**(experimental)** adds a **`ProximityCaptureUpdate`** behaviour that
   captures its own object for whichever player is **standing on it**, rather than for whoever
   right-clicked first. `ObjectFilter` says what counts, `Radius` how far, `TickRate` how often (in
@@ -1144,211 +1344,160 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   revive loses the snapshot and the hero returns ready — stock behaviour, not a corrupt one. See
   [`docs/cooldown-through-death.md`](docs/cooldown-through-death.md).
 
-- **`description-timers`** puts **how long a button's thing takes** at the bottom of its
-  description: a special power's **cooldown** — its full length while the power is ready, the
-  **time left** while it is recharging — a unit's or structure's **build time**, and an upgrade's
-  **research time**. Every number is the engine's own, which is what makes "with the reduction
-  applied" free rather than a second feature: the cooldown is
-  `SpecialAbilityUpdate::startPowerRecharge`'s arithmetic transcribed instruction for instruction,
-  so a `RECHARGE_TIME` aura that is up *right now* and a researched `SpellRechargeModifierUpgrade`
-  are both in the figure; and the two build times are the same `calcTimeToBuild` pair
-  `ProductionUpdate` asks for a queue entry's total, so the tooltip cannot disagree with what the
-  game then does — the producer's `ProductionModifier` time multiplier is applied inside the call.
-  The line goes at `0x008086AE`, the one instruction past the point where every case of the
-  builder's switch has converged, which is what makes it genuinely **last** where a per-case site
-  cannot be. The price of being that late is that `esi` no longer holds the builder's `this` —
-  three cases reassign it — so a **second six-byte window** in the prologue copies the
-  `CommandButton` into the cave; the builder has one caller and runs on hover, so the copy cannot
-  go stale. **Silent unless the mod declares the string**: the engine's text fetch has an `exists`
-  out-parameter all twelve stock callers pass `0` for, and passing a real one drops the whole line
-  when the key is missing — so on a string table without `TOOLTIP:Cooldown`,
-  `TOOLTIP:CooldownRemaining`, `TOOLTIP:BuildTime` and `TOOLTIP:ResearchTime` the tooltip is
-  byte-identical to stock. Each key takes **one `%d`**, the duration in whole seconds — one width,
-  one format, because a `double` pushed under a `%d` reads as its low dword and prints `0` for most
-  durations and garbage for the rest. **A line whose number would be zero is not printed at all** — a
-  power with no `ReloadTime` is a passive ability, 204 of Edain's 835, and stating `0` for it is
-  worse than saying nothing. Two things the remaining cooldown needs and gets: **both**
-  `startPowerRecharge` implementations are read, because the second one keeps its ready frame at a
-  different offset and the "3 of 26 vtables" behind it are *shared* vtables covering
-  `WeaponModeSpecialPowerUpdate` — 340 behaviours in Edain, so falling back there is most hero
-  abilities; and a **spellbook** power is asked of the player's spellbook object rather than of the
-  selection, because a palantir button is drawn with whatever happens to be selected behind it and
-  that is never the caster. Two limits stated rather than hidden: **the tooltip is built once per
-  hover** (`0x00DE8998` latches and the same-request path returns early forever after), so the
-  remaining cooldown is a snapshot taken when it appeared rather than a countdown; and hero revive
-  buttons are **skipped**, because a hero's time comes off the player's ledger and not off its
-  `ThingTemplate` — tested with the engine's own hero bit, so the failure is a missing line, never
-  a wrong number. Client-local and read-only, so replays cross and peers need not match, same rule
-  as `upgrade-description`. See
-  [`docs/description-timers.md`](docs/description-timers.md). **Static only — not yet observed in
-  a running game.**
-- **`binary-attest`** folds a hash of the game's **own code** into the frame checksum, so a peer
-  running a modified `game.dat` goes **out of sync** instead of playing. It exists because of what
-  the RE found on the way: **fog of war is already in the sync hash** — the CRC producer at
-  `0x00625886` xfers `TheShroudManager` like every other logic subsystem, gated only by the
-  `-xShroudCRC` debug flag — so a maphack that writes revealer counts into the grid already
-  desyncs. What that cannot reach is a cheat that changes no state at all: the fog byte at
-  `ShroudImpl+0x68` is read at *lookup* time and clearing it leaves every shroud level
-  byte-identical. Only the code differs, so only the code is left to attest. One hook at the
-  `MSG_LOGIC_CRC` emitter's join (`0x0062E7FD`, where both producing paths converge) XORs an
-  FNV-1a fold of `.text` plus the cave's own code into `edi` before it goes on the wire; the
-  engine's existing `GameCRCMismatch` machinery does the rest, with no new message type. Computed
-  once and cached, ~135 bytes of code. **Replay playback is exempt** (`TheRecorder` mode 1) so old
-  recordings still play and `sage_verify` can follow one, and that exemption cannot conceal
-  anything — a live client that skipped the mix would desync against its peers anyway. Because the
-  image has no `.reloc`, the value is a property of the *file*: `expected_hash` recomputes it
-  offline and `sage-verify attest` compares it with a running process. **Every peer must run the
-  byte-identical binary** — that is the property being enforced. Honest limit: the hash is computed
-  by the client it attests, so it raises the floor, not the ceiling, and it cannot see an external
-  read-only overlay at all. See [`docs/binary-attest.md`](docs/binary-attest.md).
-  **Runtime-verified in game.**
-- **`crash-dump`** makes the minidump the engine already writes on every unhandled exception worth
-  opening. The writer at `0x0043BE80` asks for `MiniDumpWithDataSegs` and passes **NULL for both
-  the callback and the user-stream parameter**, and those two nulls are the whole problem: measured
-  on six real dumps, **every engine singleton pointer is captured and nothing any of them points at
-  is** — `TheGameLogic` reads a heap address that falls in no captured range — while **73% of each
-  27 MB file is video-driver globals**, 20 MB of `nvd3dum.dll` and `igd9dxva32.dll`. One cave and
-  two windows fix both halves at once. The eighteen bytes that push `MiniDumpWriteDump`'s last four
-  arguments become a jump that pushes a **patch-owned dump type** — default `0x1b65`, the important
-  bit being `WithPrivateReadWriteMemory`, which captures the SAGE heap without the mapped images —
-  and a real `MINIDUMP_CALLBACK_INFORMATION`, whose routine clears `ModuleWriteDataSeg` for every
-  module that is not `game.dat`. So the dump gets **more useful and smaller**: the module filter is
-  what pays for the heap. The engine's own `fulldump` debug command still selects between the two
-  profiles, both of which are parameters (`--dump-type`, `--deep-dump-type`) that `detect` reads
-  back out of the cave. Separately, `Debug::crash` raises the engine's own `0x04560123` with **zero
-  exception parameters** — four of the six observed dumps are that code, i.e. four dumps that
-  record that an assert fired and not which one — so a second hook passes three: the formatted
-  crash text, the `.rdata` literal that tags it as an assertion or an error, and the mode. The text
-  is a heap pointer, which is why the two halves ship together. **The shipped 2003
-  `dbghelp.dll` (6.3.0005.1) supports every bit used**, so nothing here needs it renamed out of the
-  way. Client-local: no simulation, checksum, order stream or replay format is touched, and both
-  hooks are reached only from code that runs after a crash. See
-  [`docs/crash-dump.md`](docs/crash-dump.md), and
-  [`docs/crash-dump-quality.md`](docs/crash-dump-quality.md) for the measurements behind it.
-- **`quiet-exit`** stops the engine leaving a `.dmp` every time the game is closed. A benign
-  `DEBUG_CRASH` assert trips on the shutdown path, raises the engine's own `0x04560123`, and the
-  unhandled-exception filter at `0x0043D610` writes a minidump before the process dies — so a clean
-  exit through the menu looks like a crash, and with `crash-dump` applied it is a **large** one. The
-  filter's one `call writeMiniDump` (`0x0043D74E`) is redirected through a small cave that first
-  reads `GameEngine::m_quitting` — the byte the main loop already checks to decide whether to keep
-  running (`[TheGameEngine] + 0x10`). If the process is quitting, the dump is skipped; if it is not —
-  a real fault mid-game — the call is made exactly as before, so **an actual crash still dumps**. The
-  cave is `call`-ed in place of the original, tail-`jmp`s to `writeMiniDump` on the write path and
-  `ret`s on the skip path, so the stack the filter's following `add esp, 8` sees is identical either
-  way. Client-local: no simulation, checksum, order stream or replay format is touched, and the one
-  site edited runs only after an unhandled exception. Composes with `crash-dump` — the two patches
-  share the dump path but touch different bytes. **Static-verified**: it applies, verifies and
-  disassembles as intended, and the redirect is confirmed against the real binary; the one thing only
-  a live exit can settle is that `m_quitting` is already set when the shutdown assert fires — which is
-  what it is set for. See [`docs/quiet-exit.md`](docs/quiet-exit.md).
-- **`asset-load-profile`** turns on the **engine's own per-asset load timer**, which is a
-  diagnostic and not a fix. The engine loads a model the first time something needs it, on the main
-  thread, inside the frame — `AssetHandle::EnsureLoaded` (`0x00A32AD0`) falls through to a
-  synchronous load at `0x00A37320` — which is where a mid-match hitch on a high-vertex model comes
-  from, and the engine has always been able to say so: that function timestamps itself with
-  `rdtsc` and a writer at its tail emits one CSV row per load,
-  `frame,type,asset,tInit,tPreload,tLoad,tPostload,tTotal,recursion`, in milliseconds. The whole
-  thing is gated on **one byte**, `GlobalData+0x123D` — which is not in the 457-row `GameData`
-  field table, is not reachable from the sixteen-entry retail command-line table, and whose only
-  writer is `GlobalData`'s constructor storing zero. So the switch exists, nothing can flip it, and
-  this patch flips it: two adjacent byte stores in that constructor become one `mov word
-  [esi+0x123C], 0x0100` plus three `nop`s, twelve bytes for twelve, leaving `+0x123C` at the zero
-  the pair wrote and the uninitialised padding at `+0x123E` alone. The field stays a field, so a
-  live session can turn it back off through `sage_live` without unpatching. Output lands in the
-  process's working directory under the name the engine builds — `assetload <map>`, with no `.csv`
-  extension, because nothing appends one. Client-local: peers need not agree on it, so one player
-  can profile a match everyone else plays on stock binaries. Costs an `fopen`/`fprintf`/`fclose`
-  per load, which lands after the timestamps — the columns stay honest, the felt hitch gets worse.
-  See [`docs/asset-demand-load.md`](docs/asset-demand-load.md), which is also the scoping note for
-  what to do about the hitch once it has been measured.
-- **`desync-debug`** turns on the **engine's own out-of-sync instrumentation**, which ships
-  complete and unreachable. The `MSG_LOGIC_CRC` (`0x44A`) heartbeat peers compare goes out every
-  `NetCRCInterval` frames and that interval is **100**, so the engine's answer to "when did we
-  desync" is a hundred-frame window and a message box. The engine was built with better - a
-  tunable interval, a focus frame, a per-frame self-check that writes a file - and stranded every
-  switch behind the orphaned command-line region `docs/headless.md` §5 documents, so they are
-  `.data` initialisers with no live writer and nothing on a retail build can flip one. This patch
-  writes three of them: **no cave, no hook, no assembly**, one dword and one byte and one dword.
-  `--crc-interval N` (1..99, default 1) is the one that matters, and it pays twice, because the
-  global has two live consumers - the `GameInfo` constructor seeds `+0xC` from it and
-  `GameLogic::update` divides the frame by that, so the **declaration** narrows from a 100-frame
-  upper bound to an N-frame one; and the recorder copies the same global into the replay header,
-  so **every player's own `.rep` gains a CRC sample every N frames** and two recordings of one
-  match diff to the frame they parted (`sage_replay`'s `ChecksumHeartbeat`). The latch says *this
-  client disagrees*; the diff says *from here*. `--verify-client-crc` arms the per-frame
-  self-check at `0x006CF681` that appends to `CLIENT_DESYNC_<name>.txt` — code that is complete,
-  reached, and which `docs/desync-detection.md` §3 records as unarmable on retail.
-  `--focus-frame F` overrides the interval near one frame: per-frame checksums across the window
-  ending at F, silence everywhere else, for a second pass once a first has narrowed it down.
-  Lowering the interval is free of clamps in a way raising it is not — the skirmish re-seed is
-  `min(x, 100)` and the constructor is unclamped — and **zero is refused**, because the gate's
-  `div ecx` has no guard. What it costs is real: at interval 1 the CRC producer runs every logic
-  frame instead of every hundredth and one extra message per client per frame goes on the wire and
-  into every replay, which is why the interval is a parameter and 5 or 10 keeps most of the
-  resolution for a tenth of the work. **Every peer must run the same binary** — a heartbeat cadence
-  is a protocol detail, not a client-local preference, so this is the `binary-attest` rule and not
-  the `crash-dump` one, and replays made on a patched build should be played back on it.
-  Deliberately *not* exposed, with the disassembly to say why: `-deepCRC` logs into a growable heap
-  buffer no shipping config drains (a per-frame allocation and no file), the nine
-  `-x<Subsystem>CRC` exclusions are consulted only when `-liteCRC` is clear and the plain emitter
-  path sets it around every call, and `-debugCRCFromFrame`/`-debugCRCUntilFrame` have no reader
-  outside the flag-reporting function at all. See
-  [`docs/desync-debug.md`](docs/desync-debug.md), and
-  [`docs/desync-detection.md`](docs/desync-detection.md) for the latch that says a desync happened
-  at all. **Static-verified** — the addresses, the readers and the clamp are read out of the
-  binary and it applies, verifies and round-trips; what has not been done is play a patched match
-  and watch a desync land on a known frame.
-- **`wall-mesh-release`** makes a destroyed wall **give back the pathfinding data it registered**.
-  A walkable wall registers three things in one function (`0x00935FAA`) and returns none of them:
-  the walkable surface named by `RaisedWallMesh` claims a slot in the sixteen-entry table at
-  `Pathfinder+0x60`, the two `RampMesh` ramps allocate a record each onto the list at
-  `Pathfinder+0x5C`, and `WallBoundsMesh` marks a rectangle of cells. The ramps and the cells leak
-  because their removal **re-asks the drawable for a mesh** — and a dying structure has changed
-  model by the time the teardown reaches the pathfinder, so `RUBBLE` (no `P1`) and `POST_RUBBLE`
-  (no model at all) mean every lookup answers "not found" and the bounds query's NULL **returns
-  from the function** before one cell is unmarked. The walkable surface is worse and simpler: the
-  claim and the list push have **exactly one caller each and both are on the add path**, so that
-  leg is not a removal that fails, it is a removal that was never written — it leaks whatever the
-  model does. The symptom is units walking on air over a wall that is gone, and fourteen slots
-  never given back for the rest of the match (`Pathfinder::reset` is what eventually frees them,
-  so the leak is bounded by the game, not the process). The patch makes the engine **remember what
-  it registered** instead of re-deriving it: a ledger in the cave, keyed by `ObjectID`, filled by
-  four hooks on the add path and consumed by one on the remove path. Stamping the id into the
-  engine's own structures — the shape the RE document originally scoped — cannot work, because a
-  layer slot is **shared between walls of equal height** and so cannot say which of its members is
-  dying; and it is not needed, because `0x004BA693` hands the pathfinder an object *derived* from
-  the queried sub-object and releases the sub-object itself, so what the slot holds is the
-  pathfinder's own allocation and a pointer recorded at add time stays valid exactly as long as
-  the registration does. **No engine structure grows and no savegame changes.** The surface is
-  unlinked by that pointer and the slot handed back through the engine's own `0x00768AA7` — the
-  inverse the document had recorded as *not yet located*, identified by `Pathfinder::reset` looping
-  it over all sixteen slots — but only once the slot's list comes out empty, since a neighbour may
-  still be standing on it. The ramps are unlinked by pointer rather than by the four-float geometry
-  match `0x009356DF` does, which answers the same question without a mesh to ask it of. And the
-  cells need **no new loop at all**: the four frame slots holding the rectangle are restored and
-  control jumps to `0x0093682F`, the head of the stock unmark loop, which reads exactly those four
-  and — unlike the *mark* branch one instruction earlier — dereferences no mesh. `Pathfinder::reset`
-  drops the ledger at the one moment everything it describes stops existing, so a recycled
-  `ObjectID` in the next match matches nothing. A wall with no ledger row is registered and removed
-  exactly as it is today, which is also what a full table degrades to. **No INI keyword and no
-  opt-in** — it changes what an existing wall block already does. Simulation state, so **every peer
-  must run the same patched binary** and replays do not cross, the same rule as `spawn-union`. See
-  [`docs/raised-wall-mesh-removal.md`](docs/raised-wall-mesh-removal.md).
-- **`give-upgrade-all`** makes a porter deliver **every upgrade it carries**
-  instead of the one the upgrade registry happens to list first. `GiveUpgradeUpdate` asks
-  `UpgradeCenter::firstSetIn` for *the* upgrade set in the porter's own object mask — what
-  `GrantUpgradeCreate` writes — at three sites, and that single answer decides whether the cursor
-  accepts a target, whom a `DeliverUpgrade = Yes` porter walks to, and what the recipient is
-  handed. The registry is newest-first, so "the" upgrade is whichever the ini declared **last**,
-  and a porter carrying three of them is refused, with no diagnostic, by every battalion that can
-  take the other two but not that one. The patch makes all three sites plural: validity answers
-  yes if the recipient accepts **any** carried upgrade, the auto-deliver searches for a recipient
-  of any of them, and the trigger grants every acceptable one — through the engine's own
-  `HordeContain::giveUpgradeToMembers` / `Object::giveUpgrade`, each gated by the acceptance test
-  stock uses, so nothing is granted that stock would have refused. Logic-side and decision-only,
-  so replay- and network-safe. No INI change. See
-  [`docs/give-upgrade-all.md`](docs/give-upgrade-all.md).
-- **`smart-rally`** (**experimental**) lets a structure's rally point **name a hero or a unit**
+- **`headless`** ⚠**(experimental)** makes a run cheap enough to automate: it adds **`-headless`**, **`-renderEvery n`**,
+  **`-maxfps n`** and **`-uncapped`** to the command line, and suppresses the per-frame
+  `Display::draw` when asked to. The command-line table is extensible in **six bytes** — the
+  dispatcher takes it in `ebx` and its length as a `push imm8`, both at one call site, so a cave
+  holding a copy of the stock 16 rows plus new ones is reachable without moving an instruction; the
+  draw call is a single 11-byte site in `GameClient::update`. **It does not remove the display**:
+  `TheDisplay` has 540 unguarded references, so the Direct3D device is still created and the assets
+  still load — what stops is drawing. It also does not reimplement `-noshellmap` or `-noaudio`,
+  which are stock and do more than set the flags they name; a headless run passes those too. Much
+  of what a test rig needs is **already in the retail binary** and needed no patch at all —
+  `-file <map>.map` starts a skirmish with no menu, `-file <replay>.rep` plays a replay, and
+  `GameData UseFPSLimit` already uncaps the loop — which is what makes this patch small. See
+  [`docs/headless.md`](docs/headless.md). **Runtime-verified in game.**
+- **`hero-army-carryover`** ⚠**(experimental)** gives `ArmyEntry` a **`Persistent`** keyword: a hero
+  written `Persistent = Yes` stays in his living-world army when he dies in a War of the Ring
+  battle, the way BFME1's heroes do, instead of being moved out of it into his faction's fortress
+  hero-spawn queue. Absent or `No` is the stock behaviour exactly. Measured on saves from **both**
+  games either side of a hero's death: both engines harvest a battle back into the army, and the
+  only difference is what becomes of a hero who did not survive — BFME1 keeps him
+  (`Evil_SarumanPlayerArmy` went into evil mission 1 with one `ArmyEntry` and came out with six,
+  `IsengardSaruman` among them), ROTWK files him on the `LivingWorldPlayer` instead. **He comes
+  back at the level and with the upgrades he died with**, that battle's progress included, because
+  he is rebuilt from the player's hero ledger (`Player+0x758`) — the same one the ControlBar offers
+  as revivable during the mission — by the engine's own `0x00780FEF`, the exact mirror of the
+  `Object -> record` builder the harvest uses for survivors. His *object* is no measure: it is gone
+  from the object list by the time a battle ends, which is why nothing simpler works. Three wrapped
+  calls and one repointed field table: the `ArmyEntry` sub-table gains the keyword's row, the
+  parse call turns a set flag into a remembered `ThingTemplate` name, the battle-start setup notes
+  which army each marked hero is in, and the harvest is followed by the ledger walk that puts them
+  back. Nothing is held by reference across a battle, so an abandoned one leaves nothing to clean
+  up. **Runtime-verified**: a marked hero died in an Angmar mission and came back in his army with
+  the four upgrades he earned in it. He also stays available at his faction's fortress, which is
+  intended — the patch adds BFME1's army rule without taking ROTWK's own away. See
+  [`docs/living-campaign/hero-permadeath.md`](docs/living-campaign/hero-permadeath.md).
+- **`hero-mana`** ⚠**(experimental)** gives special powers a **regenerating per-object cost** — `SpecialPower.ManaCost`
+  for the price of one activation, and `Object.ManaPool` / `Object.ManaRegen` for the caster's
+  single pool that all of its abilities draw on. The stock `UnitCost` field cannot do
+  this: all three sites that read it ask `Object+0x258` for the horde interface first and, when
+  it is absent, branch to *the same label as "cost is zero"* — so on a lone hero `UnitCost` is
+  not a weak mechanic, it is a **no-op**. The patch grows `SpecialPowerTemplate` `0x88 → 0x94`,
+  relocates both the `SpecialPower` field-parse table (**two** references, the smallest repoint
+  here) and the `Object` one (**five**, with no interior reference),
+  and enforces the cost at `SpecialPowerStore::canUseSpecialPower` — the one predicate the
+  player's UI, the AI and every activation path all share, so **the AI is gated for free**. The
+  pool is *computed on read* from the logic frame rather than ticked, which is what lets it need
+  no per-frame hook (avoiding a collision with `live-bridge`), no init hook, no destroy hook and
+  no savegame change. A `ManaCost` line joins the stock `UnitCost` one in a button's description,
+  from the `TOOLTIP:ManaCost` key and carrying **both the price and what the caster currently has**;
+  a `ManaPool` line sits under a hero's level on its revive/recruit button. `ManaCost = 0`, the default, leaves a power exactly as it is today.
+
+- **`interpolation-alpha`** ⚠**(experimental)** stops every interpolated transform taking a
+  **doubled step at the logic-frame boundary, five times a second**. The engine bridges the gap
+  between two logic frames with an alpha, `TheGameEngine+0x3C = +0x34 / +0x38`, that seven render
+  sites lerp against — drawable transforms, three W3D animation lerps and the counter readout. On
+  a stock binary the sub-frame counter takes every value from 1 to the wrap and the sweep is even.
+  On the Edain and AotR binaries it does not: the catch-up loop's escape is replaced with `mov
+  eax, 2` / `jmp`, so the loop runs every logic frame and its `inc dword [ebp+0x34]` steps the
+  counter past 1 **inside the same logic step** — measured over 373 client frames, the counter took
+  2..6 at rate 30 and 2..12 at rate 60, never 1. The denominator never moved with it, so the alpha
+  sweeps `2/N .. N/N`: N−1 normal steps and then a **double** one, every logic frame. That is the
+  jitter in offset animations and in the resource readout, and it is invisible to the engine
+  because `2/N` is a perfectly legal alpha. A `.alpha` cave replaces the alpha routine with
+  `(subFrame − 1) / (ratio − 1)`, which maps the range the client actually observes onto
+  `1/(N−1) .. 1` in even steps and still ends at exactly 1.0, the phase the seven readers are
+  written against. **The stolen sub-frame is deliberately left alone**: reverting the catch-up loop
+  would also remove the jitter, but that sub-frame is what raises the logic clock from 5 Hz to 6 Hz
+  on a 30 fps client and shortens a frame-counted network run-ahead by a sixth — reverting it buys
+  the jitter fix by giving the delay fix up. Composes with `render-rate`, which rewrites the wrap
+  and the recompute gate this reads neither of; the alpha is taken over `+0x38` at run time, so
+  whatever ratio that patch establishes is the one used. Refuses a binary whose catch-up loop still
+  carries its stock escape, where sub-frame 1 *is* observable and the same correction would put a
+  zero-length step at the boundary instead. **Static only — built and unit-tested, not yet played.**
+  See [`docs/interpolation-alpha.md`](docs/interpolation-alpha.md).
+- **`recharge-rescale`** ⚠**(experimental)** makes a cooldown **already running** respond to a recharge modifier that
+  arrives after the cast — a leadership aura, a temporary `RECHARGE_TIME` buff, the player
+  finishing a `SpellRechargeModifierUpgrade` mid-match. Stock, none of those can touch it:
+  `startPowerRecharge` computes the whole cooldown once, when the power fires, and stores an
+  **absolute ready frame**, so a discount only ever pays off on the *next* cast. The fix is cheap
+  for a reason that is not obvious until the layout is read: the module stores the cooldown
+  **twice** — the ready frame at `interface+0x08`, and beside it the *length* of the cooldown that
+  produced it, `max(1, ftol(ReloadTime * m))`, which exists to draw the button clock. That second
+  field is the record of the multiplier baked in at cast time, so recomputing the stock formula now
+  and comparing the two **integers** says whether anything has moved — exactly, with no tolerance
+  to choose — and the patch needs **no per-module storage, no struct growth and no INI keyword**.
+  When they differ it rescales the remainder, `remaining * frames_now / duration`, and stores the
+  new duration. That is not an approximation of a per-frame rate, it **is** one: the stored
+  remainder is the unscaled work times the multiplier, so a modifier held for part of a cooldown
+  produces the same finish frame as integrating a rate over that interval, and "150% cooldown speed
+  removes 1.5 seconds per second" falls out rather than being aimed at. The clock follows for free
+  and **does not jump**, because numerator and denominator are scaled together — writing the ready
+  frame alone, the tempting one-liner, would snap the pie forward when an aura landed and back when
+  it expired. There is **nothing to tick**: a cooldown is an absolute frame, so nothing runs while
+  it elapses and most special-power modules are not update modules at all — so the driver is a
+  sweep of the logic's own object list, from the one `call` whose flags gate the frame counter
+  (`0x0062E56A`), which is what keeps it in step across peers; `live-bridge` owns the *entry* of
+  the same function and the two compose. Two things are left alone and both fail closed: the
+  **second** `startPowerRecharge` at `0x00991500` (3 module vtables of 26) keeps no duration and so
+  cannot say what it baked in, and `SharedSyncedTimer` powers keep their frame on the `Player`.
+  Four bytes of `.text` and a 405-byte cave. **Simulation state**, so every peer needs the same
+  binary and replays do not cross — but a **no-op on data that never moves a multiplier
+  mid-cooldown**, since the rescale is gated on the stock formula's own answer. See
+  [`docs/recharge-rescale.md`](docs/recharge-rescale.md).
+
+- **`render-rate`** ⚠**(experimental)** draws at **N frames per second instead of 30 without the simulation
+  speeding up**. SAGE already simulates at 5 logic frames per second and draws at 30, keeps a sub-frame
+  counter and hands the render path an interpolation alpha — what welds the two clocks back together is
+  **one comparison**, the wrap that ends a logic frame written against a literal `6` rather than against the
+  ratio the engine derives from the rates. Moving the client rate and that literal together is most of the
+  patch, and a rendered drawable then takes **11 distinct interpolated positions per logic frame at 60
+  against 5 at stock**: it is genuinely smoother, not merely faster. Two things break when it moves and
+  both are fixed here. The once-per-logic-frame latch fires on a sub-frame that **never occurs** at 60, so
+  every `previous = current` latch behind it stops and animations freeze — **one dword**, measured over 373
+  client frames before it was believed. And `ParticleSystemManager::update` runs once per client frame from
+  the draw path with lifetimes counted in *updates*, so every effect in the game ran at double speed; a
+  0x28-byte cave stamps the manager with `clientFrame * 30 / clientRate` instead of the raw frame, measured
+  live at **0.500 steps per client frame**. **The one INI change is not optional**: `FramesPerSecondLimit`
+  in `GameData` must be set to the same N, or the pace loop targets 30 against a 60 fps binary and the
+  **whole game runs at half speed** — no warning, no crash, just slow. This is **Edain's** binary's patch:
+  the latch divisor it edits does not exist on stock SAGE, and the patch refuses a build whose predicate is
+  not that shape rather than writing a dword into whatever lives there. **Network play works**, as of a
+  2026-08-26 match. The wrap counts *client* frames and the limiter is only a ceiling, so the logic rate is
+  the frame rate a machine actually achieves divided by the ratio — invisible at stock, where every machine
+  renders 30, and dominant at 60, where each peer simulates at a speed set by its graphics performance. That
+  arithmetic is real, and it was once read as making the patch single-player-only. Two results retired that:
+  a client on hardware that *does* hold 60 paced at a flat **5.000 Hz** across a full 18.5-minute match, and
+  a match between peers at **different** achieved frame rates — the case the identity predicts should
+  diverge — played clean, with no desync. The 2026-08-23 desync that motivated the original warning is
+  accounted for by the §9.10 recompute gate, found and fixed afterwards. Ending the wrap on elapsed
+  milliseconds instead of a count of draws would remove the term outright and is still the better design,
+  but it is no longer a prerequisite. The 2026-08-26 result is a field observation, not instrumented, so no
+  *bound* on peer drift is claimed. See [`docs/render-rate.md`](docs/render-rate.md) §9.9.
+- **`second-resource`** ⚠**(experimental)** gives every player a **second resource pool** alongside gold, granted per
+  tick by `AutoDepositUpdate.DepositAmount2` and seeded per faction by
+  `PlayerTemplate.StartMoney2`, and shows it in brackets after the palantir's own number
+  (`1000 (50)`), and lets an `Object.BuildCost2` price things in it — a priced button reads
+  `Cost: 100 (25)` and is refused when the player is short. The
+  counter is `UInt32 pool[20]` in the cave indexed by `Player::m_playerIndex` (no struct growth);
+  the new `UInt16` lands in `ModuleData`'s alignment padding at `+0x22` and its default costs
+  three bytes, because the constructor's two `Bool` stores collapse into one dword store that
+  clears the padding too; and `StartMoney2` lives in a row table keyed by the template's
+  `NameKeyType`, because `PlayerTemplate` has no hole (`+0x34` is the `Money` subobject's own
+  `m_playerIndex`, not padding). The display needs **no `.apt` and no `.csf`**: like
+  `APT:PalantirCommandPoints`, the resource text is formatted by the engine and pushed to the
+  movie every refresh, so a second number is one more vararg on a call it already makes — plus
+  widening the refresh's change filter, which otherwise leaves the bracket stale whenever gold
+  sits still. `--no-hud` keeps the text stock. **Savegames are not supported** — a cave counter
+  is not `Xfer`'d, so a load resets the pool. `BuildCost2` lives in the cave too, keyed by
+  `ThingTemplate *`: the 2-byte gap at `+0x5E8` that looks free is the template's engine-assigned
+  **id**, and the copy at `0x006D24AB` is field-by-field, so growing the struct would not even buy
+  the copy — both routes need the same hook inside `copyFrom`. **The AI is out of scope by
+  construction**: its unit variants leave `BuildCost2` at 0, and a cost of 0 short-circuits the
+  shared gate before the pool is read. **Enforcement is not complete** — structure placement and
+  upgrade research are refused correctly but not charged, and cancelling refunds no resource 2.
+- **`smart-rally`** ⚠**(experimental)** lets a structure's rally point **name a hero or a unit**
   instead of a spot on the ground, so units coming out of a barracks go where the target *is* rather
   than where it was standing when the order was given. The spend hook sits at the **head** of the
   release routine's walk-to-the-point arm, not its tail, so that a smart rally suppresses the
@@ -1389,51 +1538,7 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   the **save format does not change** — a rally target degrades to the stored position across a
   save/load. Simulation state, so **every peer must run the same patched binary**, the same rule as
   `production-condition`. See [`docs/smart-rally-points.md`](docs/smart-rally-points.md).
-- **`banner-modifier`** adds **`BannerCarrierInflictsModifierOnDeath`** to `HordeContain`,
-  naming a `ModifierList` the horde takes when its **banner carrier dies** - a bonus or a malus,
-  applied to every surviving member and to the horde object, and lifted again when the horde gets
-  a banner carrier back. The stock engine has one answer to a banner dying and it is
-  all-or-nothing: `BannerCarrierDestroyHordeOnDeath` either kills the whole horde or does
-  precisely nothing, so "the horde is shaken" is not expressible. Both halves are already written
-  - `HordeContain` owns the routine that applies a named `ModifierList` to its members (the one
-  behind the stock `AttributeModifiers`) and its exact inverse - so the patch is one field and the
-  glue between them, at the join point of the `No` arm and at the one call that installs a banner
-  carrier's id. The duration is the **`ModifierList`'s own**: the apply passes `-1`, which the
-  engine reads as "use the block's `Duration`", and a block without one lasts until the horde is
-  re-bannered (`--no-restore` keeps it forever instead). The awkward part is inheritance, not code:
-  `AODHordeContainModuleData` **derives** from `HordeContainModuleData` and already occupies the
-  space past its end, so the field goes past *both* layouts at `0x2CC` and all three
-  `newModuleData` allocations in the family grow to the same `0x2D0` - one offset that is correct
-  in every class sharing the code that reads it. `HorseHordeContain` and `AODHordeContain` inherit
-  the keyword for free, because `buildFieldParse` chains. Simulation state, so **every peer must
-  run the same patched binary**, and the keyword is an INI parse error on a stock build. See
-  [`docs/banner-carrier-modifier.md`](docs/banner-carrier-modifier.md).
-- **`detachable-rider-heal`** adds a **`HealOnDetach`** real to `DetachableRiderBody`, healing
-  the mount by that many hit points at the moment its rider is knocked off. The stock module has
-  one lever over what the riderless object is worth, `HealthPercentageWhenRiderDies`, and it is a
-  percentage of the object's **maximum** health spent out of the health it happened to have - so
-  "and give it 200 points back" is not expressible, and a flat grant is exactly the half that does
-  not scale with the unit. The mechanism is one function: `DetachableRiderBody::attemptDamage`
-  meets a killing blow by **rewriting the pending damage** so what lands leaves the object at that
-  percentage, clearing the instant-kill flag, finding the `DetachableRiderUpdate` by name and
-  calling it, and only then falling into `ActiveBody::attemptDamage` to apply the amount it wrote.
-  The obvious cheap edit - subtract the grant from that amount - is wrong twice, which is why this
-  patch does not: the amount is run through `Armor::adjustDamage` and a per-body scalar before it
-  lands, so a "flat" number spent that way is worth a different count of hit points per attacker,
-  and it is computed from the health the object had, so a grant folded into it can only give back
-  health already lost. The hook instead reproduces the stock tail and grants the field afterwards
-  through the engine's own `ActiveBody::internalChangeHealth` - the routine both `attemptDamage`
-  and `attemptHealing` end at - which takes hit points rather than damage and carries the clamp to
-  maximum health with it. It fires **only where the rider actually comes off**: the arm that finds
-  no `DetachableRiderUpdate` keeps the stock bytes, and an object the damage left at zero health is
-  left there, so the field tops a survivor up and never resurrects a corpse. The `ModuleData` has
-  no padding to move into - its three fields end exactly at `sizeof` - so it grows from `0x1A0` to
-  `0x1A4`, which costs one `push` (the class's only allocation) and a stub on its one constructor
-  call to zero the new dword. Health is simulation state, so **every peer must run the same patched
-  binary**, and the keyword is an INI parse error on a stock build. See
-  [`docs/detachable-rider-heal.md`](docs/detachable-rider-heal.md).
-
-- **`special-power-charges`** (**experimental**) gives a `SpecialPower` **charges**: `ChargeNumber = N` banks N casts
+- **`special-power-charges`** ⚠**(experimental)** gives a `SpecialPower` **charges**: `ChargeNumber = N` banks N casts
   behind `ReloadTimeBetweenCharge`, a short cooldown, and `ReloadTime` becomes the time to regain
   **one** charge - running from the moment the first charge goes missing, not from when the bank
   empties. `ReplenishAllChargesOnReloadTime = Yes` returns the whole bank at once instead. A power
@@ -1465,129 +1570,41 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   a spellbook is an ordinary object and its spells ordinary `SpecialPowerModule` /
   `OCLSpecialPower` / `PlayerUpgradeSpecialPower` behaviours. See
   [`docs/special-power-charges.md`](docs/special-power-charges.md).
-- **`render-rate`** ⚠**(experimental)** draws at **N frames per second instead of 30 without the simulation
-  speeding up**. SAGE already simulates at 5 logic frames per second and draws at 30, keeps a sub-frame
-  counter and hands the render path an interpolation alpha — what welds the two clocks back together is
-  **one comparison**, the wrap that ends a logic frame written against a literal `6` rather than against the
-  ratio the engine derives from the rates. Moving the client rate and that literal together is most of the
-  patch, and a rendered drawable then takes **11 distinct interpolated positions per logic frame at 60
-  against 5 at stock**: it is genuinely smoother, not merely faster. Two things break when it moves and
-  both are fixed here. The once-per-logic-frame latch fires on a sub-frame that **never occurs** at 60, so
-  every `previous = current` latch behind it stops and animations freeze — **one dword**, measured over 373
-  client frames before it was believed. And `ParticleSystemManager::update` runs once per client frame from
-  the draw path with lifetimes counted in *updates*, so every effect in the game ran at double speed; a
-  0x28-byte cave stamps the manager with `clientFrame * 30 / clientRate` instead of the raw frame, measured
-  live at **0.500 steps per client frame**. **The one INI change is not optional**: `FramesPerSecondLimit`
-  in `GameData` must be set to the same N, or the pace loop targets 30 against a 60 fps binary and the
-  **whole game runs at half speed** — no warning, no crash, just slow. This is **Edain's** binary's patch:
-  the latch divisor it edits does not exist on stock SAGE, and the patch refuses a build whose predicate is
-  not that shape rather than writing a dword into whatever lives there. **Network play works**, as of a
-  2026-08-26 match. The wrap counts *client* frames and the limiter is only a ceiling, so the logic rate is
-  the frame rate a machine actually achieves divided by the ratio — invisible at stock, where every machine
-  renders 30, and dominant at 60, where each peer simulates at a speed set by its graphics performance. That
-  arithmetic is real, and it was once read as making the patch single-player-only. Two results retired that:
-  a client on hardware that *does* hold 60 paced at a flat **5.000 Hz** across a full 18.5-minute match, and
-  a match between peers at **different** achieved frame rates — the case the identity predicts should
-  diverge — played clean, with no desync. The 2026-08-23 desync that motivated the original warning is
-  accounted for by the §9.10 recompute gate, found and fixed afterwards. Ending the wrap on elapsed
-  milliseconds instead of a count of draws would remove the term outright and is still the better design,
-  but it is no longer a prerequisite. The 2026-08-26 result is a field observation, not instrumented, so no
-  *bound* on peer drift is claimed. See [`docs/render-rate.md`](docs/render-rate.md) §9.9.
-- **`interpolation-alpha`** ⚠**(experimental)** stops every interpolated transform taking a
-  **doubled step at the logic-frame boundary, five times a second**. The engine bridges the gap
-  between two logic frames with an alpha, `TheGameEngine+0x3C = +0x34 / +0x38`, that seven render
-  sites lerp against — drawable transforms, three W3D animation lerps and the counter readout. On
-  a stock binary the sub-frame counter takes every value from 1 to the wrap and the sweep is even.
-  On the Edain and AotR binaries it does not: the catch-up loop's escape is replaced with `mov
-  eax, 2` / `jmp`, so the loop runs every logic frame and its `inc dword [ebp+0x34]` steps the
-  counter past 1 **inside the same logic step** — measured over 373 client frames, the counter took
-  2..6 at rate 30 and 2..12 at rate 60, never 1. The denominator never moved with it, so the alpha
-  sweeps `2/N .. N/N`: N−1 normal steps and then a **double** one, every logic frame. That is the
-  jitter in offset animations and in the resource readout, and it is invisible to the engine
-  because `2/N` is a perfectly legal alpha. A `.alpha` cave replaces the alpha routine with
-  `(subFrame − 1) / (ratio − 1)`, which maps the range the client actually observes onto
-  `1/(N−1) .. 1` in even steps and still ends at exactly 1.0, the phase the seven readers are
-  written against. **The stolen sub-frame is deliberately left alone**: reverting the catch-up loop
-  would also remove the jitter, but that sub-frame is what raises the logic clock from 5 Hz to 6 Hz
-  on a 30 fps client and shortens a frame-counted network run-ahead by a sixth — reverting it buys
-  the jitter fix by giving the delay fix up. Composes with `render-rate`, which rewrites the wrap
-  and the recompute gate this reads neither of; the alpha is taken over `+0x38` at run time, so
-  whatever ratio that patch establishes is the one used. Refuses a binary whose catch-up loop still
-  carries its stock escape, where sub-frame 1 *is* observable and the same correction would put a
-  zero-length step at the boundary instead. **Static only — built and unit-tested, not yet played.**
-  See [`docs/interpolation-alpha.md`](docs/interpolation-alpha.md).
-- **`scenario-player-factions`** lets a War of the Ring `Scenario` say **which
-  faction each lobby slot may take**, not just which factions the scenario allows. A scripted
-  scenario that needs player 1 to be Angmar and player 2 to be Men can today only narrow the pool
-  and hope: `HistoricalScenario = Yes` forces the picks to be *different*, never *whose*, and
-  `Scenario::isFactionEnabled` answers a question about the scenario with no player in it.
-  (`StartingRestriction`'s `Factions` list looks like the missing piece and is not — it is a
-  per-start-region filter that the combo-box fill **skips outright** for a historical scenario,
-  which is the only kind that pins factions to regions in the first place.) The patch extends the
-  *value* syntax of the existing keyword rather than adding one:
-  `DisabledFactions = FactionArnor FactionMen:1 FactionAngmar:2` keeps the unqualified entries
-  scenario-wide and bars Men from slot 1 and Angmar from slot 2 — the `Name:N` form
-  `commandset-button-upgrade` already uses, counting players from 1 as the rest of the file does.
-  So there is **no new keyword, no field table to relocate and no new storage**: the qualifier
-  rides in the `AsciiString` vector the stock parser already builds, and nothing written before the
-  patch changes meaning. `isFactionEnabled` has exactly **four** callers — the combo-box fill (which
-  greys and disables a refused entry), the start-game gate behind `GUI:DisabledFaction`, the
-  historical-scenario validation pass and the pass that resolves a slot left on Random — and all
-  four are redirected, which is what makes the rule a rule rather than a UI hint: the host cannot
-  start a game that breaks it however the slot came to hold that faction. Each already has the slot
-  index it is asking about in a live `ebp`-relative local, so each site's five-byte `call` goes to
-  its own two-instruction trampoline that loads that local into `edx` and tail-jumps into the shared
-  replacement — no stack surgery, the stock `ret 4` kept, and the by-value `AsciiString` argument
-  destroyed as the stock function destroyed it. Case-**sensitive**, because the stock comparison
-  bottoms out in `memcmp` and not `_memicmp`; a bare `:`, a non-numeric qualifier and `:0` all
-  disable nothing rather than falling back to everybody. Lobby-side only — nothing here runs after
-  the game starts, so simulation, saves and replays are untouched — but the host's gate is the one
-  that counts, so every peer wants the same binary. See
-  [`docs/scenario-player-factions.md`](docs/scenario-player-factions.md).
-- **`campaign-army-verbs`** ⚠**(experimental)** restores the two BFME1 campaign `Act` verbs ROTWK
-  dropped: **`MergePlayerArmy`**, which moves roster entries from one living-world army into
-  another, and **`DespawnArmy = <name>`**, which takes an army off the world map. A merge either
-  pours the whole roster across (`SplitArmy = No`) or moves only the entries a
-  `SplitArmyTemplate` names — a `LivingWorldPlayerArmy` used purely as a **manifest of
-  `ThingTemplate` names**, which is what BFME1's Fellowship split is built out of. Edain's
-  `wotrscenarioangmar.inc` already carries two of these blocks, written correctly and commented out
-  with `; Doesn't work ;( - Necro`. **`SourceArmy` and `DestArmy` name `SpawnArmy` ScriptingNames,
-  not `PlayerArmy` templates as they did in BFME1** — the one deliberate divergence, and a mod
-  porting BFME1 campaign INI verbatim has to change those two fields. BFME1 could mutate templates
-  because a template was its only strategic state; ROTWK gives each live army its own roster at
-  `army+0x78` and rewrites it after every battle, so a template edit would touch only armies
-  spawned later and nothing standing on the map. Two five-byte sites: the `push` that names the Act
-  verb table is repointed at a 17-row copy in the cave, and pass nine of the act runner is
-  displaced into a trampoline that makes the call it replaced and then runs the new pass. The
-  records cannot live on the `Act` — it is `0xB8` bytes with three spare — so they live in
-  the cave keyed by the act's **name**, which is already how `CallActSubroutine` finds an act.
-  Moving a record is a move, not a copy: the roster's own erase hands back a reference and the
-  append takes its own. Also adds the optional **`DespawnSource = Yes`**, which is not a BFME1
-  field: the unsplit merge empties the source (leaving it populated would deploy those units
-  twice), and this removes the emptied army too, so one block does what BFME1 needed two lines for.
-  Static only — nothing here has been played. See
-  [`docs/living-campaign/merge-player-army.md`](docs/living-campaign/merge-player-army.md).
-- **`hero-army-carryover`** ⚠**(experimental)** gives `ArmyEntry` a **`Persistent`** keyword: a hero
-  written `Persistent = Yes` stays in his living-world army when he dies in a War of the Ring
-  battle, the way BFME1's heroes do, instead of being moved out of it into his faction's fortress
-  hero-spawn queue. Absent or `No` is the stock behaviour exactly. Measured on saves from **both**
-  games either side of a hero's death: both engines harvest a battle back into the army, and the
-  only difference is what becomes of a hero who did not survive — BFME1 keeps him
-  (`Evil_SarumanPlayerArmy` went into evil mission 1 with one `ArmyEntry` and came out with six,
-  `IsengardSaruman` among them), ROTWK files him on the `LivingWorldPlayer` instead. **He comes
-  back at the level and with the upgrades he died with**, that battle's progress included, because
-  he is rebuilt from the player's hero ledger (`Player+0x758`) — the same one the ControlBar offers
-  as revivable during the mission — by the engine's own `0x00780FEF`, the exact mirror of the
-  `Object -> record` builder the harvest uses for survivors. His *object* is no measure: it is gone
-  from the object list by the time a battle ends, which is why nothing simpler works. Three wrapped
-  calls and one repointed field table: the `ArmyEntry` sub-table gains the keyword's row, the
-  parse call turns a set flag into a remembered `ThingTemplate` name, the battle-start setup notes
-  which army each marked hero is in, and the harvest is followed by the ledger walk that puts them
-  back. Nothing is held by reference across a battle, so an abandoned one leaves nothing to clean
-  up. **Runtime-verified**: a marked hero died in an Angmar mission and came back in his army with
-  the four upgrades he earned in it. He also stays available at his faction's fortress, which is
-  intended — the patch adds BFME1's army rule without taking ROTWK's own away. See
-  [`docs/living-campaign/hero-permadeath.md`](docs/living-campaign/hero-permadeath.md).
+- **`standalone-launcher`** ⚠**(experimental)** is the one patch here aimed at **`lotrbfme2ep1.exe`**, the launcher
+  shim, and it lets a **relocated install still hand the game a usable token**. Finding and
+  starting `game.dat` needed no patch and never did — the shim `chdir`s into its own image
+  directory (`argv[0]`, which the CRT seeds from the module path, not from the command line) and
+  spawns from there, with the registry nowhere on that route. What is registry-bound runs *after*
+  `CreateProcessA` returns: the launcher fills the `game2.dat` shared mapping the engine reads, and
+  it does not hold that value — it **decrypts** it, under a Blowfish key built from
+  `HKLM\<GameRegPath>\InstallPath` and the **volume serial number** of the drive that path names.
+  Copy the folder to a stick, a container or a machine that never ran the EA installer and every
+  input to that key is wrong, with nothing refusing: the game is simply handed the wrong plaintext.
+  The patch replaces the key schedule and the decrypt with a `strcpy` from **`gi.dat`'s `G4`
+  field** — the tenth and last, whose accessor has *zero* callers in the stock binary. 38 bytes in
+  place, no cave. It is **not** a way to run a copy you do not have: the `.big` archives and
+  `game.dat` are still required and unchanged, and the token gates nothing — the engine starts
+  perfectly well without the shim. **The edit is the Edain mod's**, shipped in its install as the
+  IDA difference file `lotrbfme2ep1.dif`; what is added here is the frame around it — the two
+  `rel32`s re-derived from the function addresses rather than transcribed, nine anchor sites, and a
+  test asserting `apply` reproduces the launcher Edain ships **byte for byte**.
+- **`unit-plate-option`** ⚠**(experimental)** turns Edain's **unit plates into a player-side toggle** instead of a
+  submod, by adding a **20th row to the shell Options screen**. `unit_plate.inc` puts a
+  `W3DScriptedModelDraw` tagged `Module_UnitPlate` on 552 unit objects; the shipped game carries the
+  draw module but not the model, so the disc is invisible until a submod drops `unit_plate.w3d`
+  in — after which it is on forever, for everyone, at one extra render object per unit. Three hooks,
+  one cave: the ladder's entry branch (`0x00920602`), where `AptOptions::InitGadgets` is an inlined
+  chain of `stricmp`s with no table to extend, so the cave answers for its own gadget and hands
+  every other name back; `AptOptions::Save`, spliced in front of the `UserPreferences::write` at
+  `0x009204DC` because Save writes only six hardcoded keys; and the `ModelConditionState` `Model =`
+  parser (`0x004C2266` — the only dword in the image pointing at it), which substitutes `None`
+  unless the preference reads `yes`. The preference is read through a byte-for-byte clone of the
+  engine's own `getAllHealthBars`; the row reads it fresh, the model gate once per launch and
+  cached. The `off` state is not new behaviour — it is what ships today, and what
+  `unit_plate_remover.inc` already produces on 78 child objects. `--model`, `--key` and `--gadget`
+  make it work for any model/preference/row triple. **Needs a matching gadget in `Options.apt`**
+  (`docs/options-menu-rows.md` §4) — without it the patch is inert, not harmful. Client-local.
+  **Static only — not yet run in game.**
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -1632,6 +1649,11 @@ sage-patch verify horde-exit-absorption game.dat
 
 sage-patch apply combo-horde-recruitment --in game.dat.backup --out game.dat    # no parameters
 sage-patch verify combo-horde-recruitment game.dat
+
+# the slowest member sets the battalion's pace; --aggregate max is the other reading
+sage-patch apply horde-member-speed --in game.dat.backup --out game.dat
+sage-patch apply horde-member-speed --aggregate max --in game.dat.backup --out game.dat
+sage-patch verify horde-member-speed --aggregate max game.dat
 
 sage-patch apply production-condition --condition PRODUCING \
     --in game.dat.backup --out game.dat

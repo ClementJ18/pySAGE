@@ -17,7 +17,12 @@ from pathlib import Path
 from sage_ini.parser.diagnostics import Severity
 from sage_ini.parser.io import INI_SUFFIXES
 from sage_lint.baseline import BASELINE_NAME
-from sage_lint.commands.common import SORTERS, effective_root, load_lint_config
+from sage_lint.commands.common import (
+    SORTERS,
+    add_progress_argument,
+    effective_root,
+    load_lint_config,
+)
 from sage_lint.commands.diff import run_diff, run_diff_maps
 from sage_lint.commands.duplicates import run_duplicates
 from sage_lint.commands.format import run_format
@@ -60,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
         help="do not write; list files that need formatting and exit non-zero",
     )
     fmt.add_argument("--quiet", action="store_true", help="only print summaries and skips")
+    add_progress_argument(fmt)
     fmt.add_argument(
         "--align-equals",
         action="store_true",
@@ -303,6 +309,7 @@ def main(argv: list[str] | None = None) -> int:
         default="auto",
         help="colour the severity in text output (default: auto, on when a tty)",
     )
+    add_progress_argument(lint)
     _add_output_format(lint)
 
     lint_maps_cmd = subparsers.add_parser(

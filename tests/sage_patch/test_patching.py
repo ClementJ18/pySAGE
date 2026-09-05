@@ -1,5 +1,6 @@
 """Tests for the sage_patch binary-patch framework."""
 
+import argparse
 import inspect
 import itertools
 import logging
@@ -384,6 +385,79 @@ class TestExperimentalPatchesAreDeclared:
         with caplog.at_level(logging.WARNING, logger="sage_patch"):
             apply_patches(src, [_NopPatch()], output=tmp_path / "out.bin")
         assert EXPERIMENTAL_WARNING not in caplog.text
+
+
+class TestPatchesAreListedInOneOrder:
+    """**Settled patches first, then the experimental ones, each block alphabetical.**
+
+    One order, decided once in the registry and inherited by everything that walks it, because a
+    reader who meets the patches in `list` and then again in `apply --help` is reading what they
+    take to be the same list; two orders make them re-scan it as if it were a different one. The
+    experimental split is the half that carries the warning - `exp` rows together at the end are
+    read as a block, `exp` rows scattered through ninety-odd settled ones are read past - and
+    alphabetical inside each block is what makes a name findable once it is known.
+
+    Registration order is deliberately *not* the presented order: the registry sorts, so a patch
+    added anywhere in `_REGISTERED` lands where it belongs in every list without anybody keeping
+    a hand-maintained order true."""
+
+    @staticmethod
+    def _expected() -> list[str]:
+        return sorted(PATCHES, key=lambda name: (PATCHES[name].experimental, name))
+
+    @staticmethod
+    def _subcommands(verb: str) -> list[str]:
+        """The patch sub-commands of `apply` / `verify`, in the order argparse will print them -
+        which is the order they were added in, which is the order the registry is walked in."""
+        root = next(
+            action
+            for action in build_parser()._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        patches = next(
+            action
+            for action in root.choices[verb]._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        return list(patches.choices)
+
+    def test_the_registry_is_in_that_order(self):
+        assert list(PATCHES) == self._expected()
+
+    def test_list_prints_its_rows_in_it(self, capsys):
+        assert main(["list"]) == 0
+        rows = [
+            line.split()[0]
+            for line in capsys.readouterr().out.splitlines()
+            if line[:1].isalnum() and line.split()[0] in PATCHES
+        ]
+        assert rows == self._expected()
+
+    def test_the_experimental_footer_is_alphabetical(self, capsys):
+        """The footer names them a second time, under the marker, and is read as the list of what
+        to be careful with - so it is alphabetical rather than in whatever order the rows fell."""
+        assert main(["list"]) == 0
+        named = capsys.readouterr().out.splitlines()[-1].strip().split(", ")
+        assert named == sorted(name for name, cls in PATCHES.items() if cls.experimental)
+
+    @pytest.mark.parametrize("verb", ["apply", "verify"])
+    def test_the_subcommand_lists_are_in_it(self, verb):
+        assert self._subcommands(verb) == self._expected()
+
+    def test_the_readme_walks_them_in_it_too(self):
+        """The one list nothing generates: the entry per patch in `sage_patch/README.md`, which is
+        where somebody browsing for a patch actually reads them. It covers most of the registry
+        rather than all of it, so what is checked is the relative order of the entries it does
+        carry - and, with it, that the experimental ones sit together at the end."""
+        found = re.findall(r"^- \*\*`([a-z0-9-]+)`\*\*", _PATCH_README.read_text("utf-8"), re.M)
+        named = [name for name in found if name in PATCHES]
+        assert len(named) > len(PATCHES) // 2, (
+            "the README's per-patch entries moved or changed shape"
+        )
+        assert named == [name for name in self._expected() if name in set(named)], (
+            "sage_patch/README.md lists its patch entries in a different order from `sage-patch "
+            "list` - settled first, then experimental, each block alphabetical by name"
+        )
 
 
 class TestNameTableTokensHaveAWorldbuilderTwin:
