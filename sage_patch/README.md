@@ -19,12 +19,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Nineteen of the registered patches — **`battle-school`**, **`campaign-army-verbs`**,
+> Twenty-two of the registered patches — **`battle-school`**, **`campaign-army-verbs`**,
 > **`campaign-select`**, **`capture-the-flag`**, **`command-line-skirmish`**,
 > **`cooldown-through-death`**, **`headless`**, **`hero-army-carryover`**, **`hero-mana`**,
 > **`interpolation-alpha`**, **`live-bridge`**, **`living-world-override`**,
-> **`recharge-rescale`**, **`render-rate`**, **`second-resource`**, **`smart-rally`**,
-> **`special-power-charges`**, **`standalone-launcher`** and **`unit-plate-option`** — are
+> **`rebuild-hole-repair`**, **`recharge-rescale`**, **`render-rate`**,
+> **`script-debug-window`**, **`second-resource`**, **`smart-rally`**, **`special-power-charges`**,
+> **`standalone-launcher`**, **`unit-plate-option`** and **`wotr-battle-observers`** — are
 > **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -308,7 +309,12 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   [`docs/commandset-button-upgrade.md`](docs/commandset-button-upgrade.md).
 - **`commandset-limit`** raises the `CommandSet` button limit from its stock **33** to any **N** in
   34..127, plus the INI paging rule needed to surface the extra buttons, and widens the AI's
-  set-walk to the same N. The shipped build uses **N = 64**.
+  set-walk to the same N. It also **clamps the ControlBar's visible-command window**, which is a
+  stock crash the raised limit inherits: `ControlBar::populate` walks that window in three loops
+  and only the first stops at the 33 on-screen widgets, so an `InitialVisible` above 33 or a
+  `PUSH_VISIBLE_COMMAND_RANGE` button that overshoots runs both the widget array and
+  `m_command[]` off their ends. The clamp trims the window where it is read, so an oversized page
+  draws the buttons it has and nothing faults. The shipped build uses **N = 64**.
 - **`crash-dump`** makes the minidump the engine already writes on every unhandled exception worth
   opening. The writer at `0x0043BE80` asks for `MiniDumpWithDataSegs` and passes **NULL for both
   the callback and the user-stream parameter**, and those two nulls are the whole problem: measured
@@ -605,7 +611,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   join the **hero** list the draw loop already walks, and three small detours around that loop
   clear a per-pass set of templates, send a duplicate to the engine's own "next node, no slot
   consumed" label, and mark the slot it did draw. The membership hooks read either bit; only the
-  draw loop narrows to `HEROBAR_GROUP`, which is the entire difference between the two. Stepping needs a cursor per group, which the bar object has no room for, so the
+  draw loop narrows to `HEROBAR_GROUP`, which is the entire difference between the two.
+  A group slot is drawn **lit whenever any of its members is selected**, the way a porter slot is:
+  stock, that state is read off the *representative's* drawable alone, so the icon stayed dark
+  while a different member of the same group was the one selected. The walk that counts the
+  members answers this too - each accepted member is asked for its drawable's selected flag and
+  the result OR-ed into a byte - and one more detour, at `0x0092D662`, branches on that byte for a
+  group slot and hands every other slot the stock reading unchanged. Stepping needs a cursor per group, which the bar object has no room for, so the
   patch keeps its own: 16 dwords in the cave, indexed by slot, holding the `ObjectID` it last
   selected there - an ID rather than a pointer, because a dead member has to read as "not found"
   rather than as a freed pointer. The badge is free by the same trick as the rest: the number a
@@ -627,8 +639,15 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   `SelectNearestBuilderCycleTimeOut`, which an earlier version borrowed: that is 3500 ms, a length
   that suits a porter round and not a double click, and the engine keeps it in a field past the
   slot array that `hero-bar-slots` moves.
-  A seventh site, two bytes and no cave, stops a group inheriting the porter's *"select nearest
-  unit"* tooltip: the hover handler dispatches on the same `slot+0x16` byte and read it as a flag.
+  One more detour makes the **hover** three-way on that same `slot+0x16` byte, which the stock
+  handler reads as a flag — so a group inherited the porter's *"select nearest unit"* tooltip
+  along with its click behaviour. A group slot now describes its unit, exactly as a hero slot
+  does, and leaves the node's `ObjectID` behind; a last detour, in the object tooltip builder,
+  recognises that one object and appends **one line of the mod's own text** under the unit's
+  description — `--group-tooltip`, a string-table label, which is where to say what a click and a
+  double click do. Gated on the id rather than on a flag, because five sites build that request
+  and only one is the hero bar. **Empty by default**, so the tooltip is untouched until a label
+  is named.
   **A group of one shows `1`** (as a lone porter's slot does) and a veteran member's rank is no
   longer readable from the bar; and the bar is still **16 slots**, so enough distinct groups push
   heroes off the end.
@@ -955,22 +974,6 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   disassembles as intended, and the redirect is confirmed against the real binary; the one thing only
   a live exit can settle is that `m_quitting` is already set when the shutdown assert fires — which is
   what it is set for. See [`docs/quiet-exit.md`](docs/quiet-exit.md).
-- **`rebuild-hole-construction`** lets a structure destroyed **while it is being rebuilt** leave
-  its rebuild hole behind again. A creep lair's loop hangs entirely off that hole: breaking the
-  lair makes one, breaking the *hole* is what pays out treasure (the `CreateObjectDie` is on the
-  hole, never on the lair), and left alone the hole puts the lair back and retires with DeathType
-  `FADED` — which is what `DeathTypes = ALL -FADED` on every hole in the data exists to catch. The
-  loop has one gap: `RebuildHoleExposeDie::onDie` refuses to create anything when the dying object
-  is `UNDER_CONSTRUCTION`, and a lair rebuilt by a hole is `UNDER_CONSTRUCTION` for the whole time
-  it rises — the engine's own babysitting loop is keyed on that exact bit. Kill it in that window
-  and it is gone permanently: the old hole was destroyed the frame the rebuild began, no new one
-  is made, and there is no treasure ever again. The patch erases the six-byte branch. The rule
-  moves into the INI rather than disappearing — every die module opens with the shared filter that
-  already evaluates `ExemptStatus` against live `ObjectStatus` bits, so
-  `ExemptStatus = SOLD UNDER_CONSTRUCTION` restores the stock behaviour per object, which matters
-  because the patch is global and reaches a faction's own lairs on their *first* build too.
-  Logic-side, so **every peer needs the same binary**. **Not runtime-verified.** See
-  [`docs/rebuild-hole-construction.md`](docs/rebuild-hole-construction.md).
 - **`replay-annotations`** writes **each player's score-screen counters into the replay**: units
   and structures built, lost and destroyed, money earned and spent, and the army and base size at
   the closing frame. The engine keeps all of it in a `ScoreKeeper` embedded at `Player+0x3DC` and
@@ -1128,6 +1131,24 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   recruitment keys the player's revive bookkeeping on that id, so recruiting a hero from a second
   building while the first is still producing collides, and the click takes the money without
   starting anything.
+- **`upgrade-alias`** lets an upgrade **reference** carry a descriptive suffix the engine ignores:
+  `Upgrade_TestBuilding@SmithyLevel2`. Upgrades are a fixed global bit space of 1152 that nothing
+  bounds-checks, so a mod near the ceiling reuses a handful of generic upgrades as object-local
+  flags — and `Upgrade_TestBuilding` then gates a tent's banner on one object and something
+  unrelated on the next, with two uses of one bit on a single object silently driving each other.
+  The hook goes on `UpgradeCenter::findUpgrade`, the single place a *name* becomes an
+  `UpgradeTemplate`, so it covers the INI mask and scalar parsers, the Lua bindings and the
+  map-script actions in one edit rather than per parser. A name with no interior `@` falls straight
+  through to the stock body, so nothing existing pays for it. The separator must be **interior**:
+  a *leading* `@` already marks the default option in a create-a-hero `BlingUpgrades` list, and
+  truncating those at position zero would hash the empty string and break every create-a-hero
+  default. The aliased path NULs the separator in place, hashes, and restores it before returning —
+  safe where its sibling `upgrade-grant-lists` copies to a frame instead, because this is one call
+  with the byte back before it returns, and because `nameToKey`'s intern path copies the name
+  rather than keeping the pointer. **An alias creates no upgrade and consumes no bit**, which is
+  the point. On a stock binary the data does not run: an aliased name is a fatal INI load error,
+  and — worse — a silent no-op from Lua or a map script. `sage_ini` implements the same split and
+  `sage_lint` has four rules over it, so the linter agrees with a patched engine.
 - **`upgrade-description`** keeps a `CommandButton`'s **`DescriptLabel` visible after its upgrade is
   researched**, with *"this upgrade has already been researched"* appended **under** it instead of
   written **over** it. Stock, the description is simply gone the moment you own the thing it
@@ -1417,6 +1438,30 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   carries its stock escape, where sub-frame 1 *is* observable and the same correction would put a
   zero-length step at the boundary instead. **Static only — built and unit-tested, not yet played.**
   See [`docs/interpolation-alpha.md`](docs/interpolation-alpha.md).
+- **`rebuild-hole-repair`** ⚠**(experimental)** fixes both halves of a creep lair that is killed
+  **while it is being rebuilt**. The lair's whole loop hangs off its hole: breaking the lair makes
+  one, breaking the *hole* is what pays out treasure (the `CreateObjectDie` is on the hole, never
+  on the lair), and left alone the hole puts the lair back and retires with DeathType `FADED` —
+  which is what `DeathTypes = ALL -FADED` on every hole in the data exists to catch. Two things
+  break it. `RebuildHoleExposeDie::onDie` refuses to create anything when the dying object is
+  `UNDER_CONSTRUCTION`, and a lair rebuilt by a hole is `UNDER_CONSTRUCTION` for the whole time it
+  rises — the engine's own babysitting loop is keyed on that exact bit — so kill it in that window
+  and it is gone permanently, with no treasure ever again. Erase that branch and the hole appears,
+  but buried: `onDie` also stamps the hole with the *dying* object's live position, and a lair
+  killed mid-rebuild has already left the terrain, so the hole lands ~116 units underground where
+  it cannot be seen, clicked or looted. So the patch does both — it nops the six-byte gate, and it
+  redirects the eleven-byte placement into a cave that takes the corpse's x and y but reads z from
+  `TheTerrainLogic`, hooking *before* the engine's `setPosition` so the hole is placed once and the
+  partition and layer bookkeeping sees the final height. The snap is unconditional: a structure
+  that dies on the terrain already carries the height the lookup returns, so the healthy case is a
+  no-op — at the cost of ignoring layers, so a hole on a bridge or a wall top would be pulled to
+  the ground under it. The gate's rule moves into the INI rather than disappearing — every die
+  module opens with the shared filter that already evaluates `ExemptStatus` against live
+  `ObjectStatus` bits, so `ExemptStatus = SOLD UNDER_CONSTRUCTION` restores the stock behaviour per
+  object, which matters because the patch is global and reaches a faction's own lairs on their
+  *first* build too. Logic-side, so **every peer needs the same binary**. The gate half has been
+  watched in a running game; the ground snap has not, which is why the patch is experimental. See
+  [`docs/rebuild-hole-repair.md`](docs/rebuild-hole-repair.md).
 - **`recharge-rescale`** ⚠**(experimental)** makes a cooldown **already running** respond to a recharge modifier that
   arrives after the cast — a leadership aura, a temporary `RECHARGE_TIME` buff, the player
   finishing a `SpellRechargeModifierUpgrade` mid-match. Stock, none of those can touch it:
@@ -1475,6 +1520,26 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   milliseconds instead of a count of draws would remove the term outright and is still the better design,
   but it is no longer a prerequisite. The 2026-08-26 result is a field observation, not instrumented, so no
   *bound* on peer drift is claimed. See [`docs/render-rate.md`](docs/render-rate.md) §9.9.
+- **`script-debug-window`** ⚠**(experimental)** stops the script debug window **rebuilding its whole
+  log every time a line is added**, which is what makes a script-heavy map stutter worse the longer it
+  runs. **This patch is applied to `DebugWindowLite.dll`, not to `game.dat`** — the dialog both
+  `-scriptDebug2` and `-scriptDebugLite` load, and the only binary the defect is in. The dialog keeps
+  every message of the session in a vector and, on each append, walks it from the first message ever
+  logged, concatenates the lot into one string and hands that to `SetWindowTextA`, then drives the
+  caret to the end. So line *N* costs *O(N)* and a session costs *O(N²)*, all of it on the game's own
+  thread inside the logic frame that produced the message. The cave replaces that rebuild with an
+  `EM_REPLACESEL` at the caret, so appending one line costs the same whether it is the tenth or the
+  ten-thousandth. The pane next door is the evidence that this is an oversight: the **variables** list
+  sets a dirty byte and rebuilds at most once a frame, and the message list has no such flag. The
+  `push_back` is deliberately left standing so the window's own **Clear** button still works, which
+  means the log's *memory* still grows without bound — a second defect, not fixed here. Reloc-free by
+  construction: the DLL can be rebased and this patch writes no relocation entries, so the cave
+  recovers its own load address from a `call`/`pop` pair and builds its `
+
+` on the stack rather
+  than pointing at `.rdata`. **No INI change, and no `game.dat` change.** Static only — the reading is
+  off the shipped binaries and has not been watched running. See
+  [`docs/script-debug-window.md`](docs/script-debug-window.md).
 - **`second-resource`** ⚠**(experimental)** gives every player a **second resource pool** alongside gold, granted per
   tick by `AutoDepositUpdate.DepositAmount2` and seeded per faction by
   `PlayerTemplate.StartMoney2`, and shows it in brackets after the palantir's own number
@@ -1605,6 +1670,39 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   make it work for any model/preference/row triple. **Needs a matching gadget in `Options.apt`**
   (`docs/options-menu-rows.md` §4) — without it the patch is inert, not harmful. Client-local.
   **Static only — not yet run in game.**
+- **`wotr-battle-observers`** ⚠**(experimental)** lets a **multiplayer War of the Ring battle be
+  fought when only some of the players are in it**, with the rest watching. Stock, the vote handler
+  compares the battle's participant count against the number of active human living-world players
+  and, when it is short, strips the real-time bit out of the mask and forces auto-resolve
+  (`0x006BEBE5`) — which in a three-player co-op game is most battles. **The same rule is written
+  down twice**: `LivingWorldBattle::getAllowedResolutions` builds the mask the battle prompt shifts
+  into its three buttons, and leaves the real-time bit out unless the two counts are *equal*
+  (`0x007F67DB`), so the Real Time button is greyed and the vote is never cast — that copy is the
+  one that shows in play, and both are cleared. The gate is not about networking: the vote goes through `TheMessageStream`, so every peer already runs the handler and
+  enters the battle. It is about seating. `GameLogic::buildSidesFromGameInfo` names a slot's side
+  `Player_1` if it owns the region and `Player_<slot index + 2>` otherwise, so a third player is
+  named `Player_4`, no map declares that side, nothing marks a side local for that peer, and
+  `PlayerList::newGame` hands it **somebody else's army**. Four hooks and one cave: a shared
+  predicate answers *is this human seat out of this battle* by walking the battle's side and member
+  vectors. A pre-pass at the top of the function marks such a seat `isOccupied` — without it both
+  loops skip it and no other hook is ever reached, which is exactly how the second build still put
+  the client on `PlyrCivilian`. Then two hooks force `GameSlot::m_playerTemplate`'s sign negative so the seat takes the
+  observer arm for its name (`0x00627C6E`) and faction (`0x00627E20`), and a third (`0x00627CEB`)
+  renames it to **`ReplayObserver`** — the one side `startNewGame` adds to every game
+  unconditionally. `Observer_%d`, the arm the engine's own lobby observers take, is **not** enough:
+  no War of the Ring map declares such a side, and measured live the peer ended up with no side, no
+  `multiplayerIsLocal` anywhere, and seated on `PlyrCivilian`. The
+  fourth numbers the seats that *are* fighting by participation instead of slot index, so an
+  attacker outside slot 0 stops being called `Player_3`. Two more give the seat somewhere to look
+  from: the map-wide reveal `startNewGame` hands the `ReplayObserver` player (`0x0062FE3D`) is right
+  for a replay and wrong for a peer with allies to watch through, so it is skipped whenever the
+  pre-pass seated anybody; and the opening camera, a `Player_%d_Start` waypoint built from the
+  seat's own start position (`0x006311D3`), borrows a participant's — an ally's where the lobby team
+  says which side the observer is on — rather than pointing at a waypoint no two-army battle map
+  declares. No INI, `.str` or `.apt` change; the
+  observer camera and command bar are `observer-switch` and `observer-command-range`.
+  **Static only — not yet run in game**, and `docs/living-campaign/mp-battle-participation.md`
+  names the three readings that would change it if wrong.
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 
@@ -1641,8 +1739,8 @@ sage-patch verify ai-construction-gate game.dat
 sage-patch apply ai-flag-capture-gate --in game.dat.backup --out game.dat   # no parameters
 sage-patch verify ai-flag-capture-gate game.dat
 
-sage-patch apply rebuild-hole-construction --in game.dat.backup --out game.dat   # no parameters
-sage-patch verify rebuild-hole-construction game.dat
+sage-patch apply rebuild-hole-repair --in game.dat.backup --out game.dat   # no parameters
+sage-patch verify rebuild-hole-repair game.dat
 
 sage-patch apply horde-exit-absorption --in game.dat.backup --out game.dat   # no parameters
 sage-patch verify horde-exit-absorption game.dat

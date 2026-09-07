@@ -3,11 +3,12 @@
 There is no hand-written assembly in either, so the interesting properties are about the *shape*
 of the edit and about the checks that stop it landing on the wrong thing.
 
-Two of them carry most of the weight. :meth:`TestShape.test_a_guard_edit_moves_exactly_one_byte`
-pins down what these patches are allowed to be: a `jcc` becoming a `jmp`, same length, same target,
-one byte different. And :meth:`TestShape.test_guards_and_fingerprints_are_disjoint` is what keeps
-`verify` meaningful — a fingerprint overlapping a guard would still hold its stock bytes after
-`apply`, so `verify` would report a correctly patched file as broken.
+Three of them carry most of the weight. The two shape tests pin down what these patches are
+allowed to be: a `jcc` that skips a refusal becomes a `jmp` of the same length and target, and a
+`jcc` that *is* the refusal becomes two `nop` — nothing else, and never a change of length. And
+:meth:`TestShape.test_guards_and_fingerprints_are_disjoint` is what keeps `verify` meaningful — a
+fingerprint overlapping a guard would still hold its stock bytes after `apply`, so `verify` would
+report a correctly patched file as broken.
 
 The synthetic images are built from the patches' own tables, so they cannot confirm the addresses
 are the right ones; :class:`TestInstalledBinaries` does that against the real files when they are
@@ -27,6 +28,7 @@ from sage_patch.patches.multi_instance import (
     JMP_SHORT,
     LAUNCHER_FINGERPRINT,
     LAUNCHER_GUARDS,
+    NOP,
     MultiInstanceLauncherPatch,
     MultiInstancePatch,
 )
@@ -70,23 +72,46 @@ def image(patch) -> bytearray:
 
 class TestShape:
     @pytest.mark.parametrize("guard", [*GAME_GUARDS, *LAUNCHER_GUARDS], ids=lambda g: g.note)
-    def test_a_guard_edit_moves_exactly_one_byte(self, guard):
-        """The whole method: rewrite the condition away, keep the jump.
+    def test_a_guard_edit_never_changes_length(self, guard):
+        """Same length means nothing downstream shifts, whichever shape the guard is."""
+        assert len(guard.stock) == len(guard.patched)
 
-        Same length means nothing downstream shifts; the same `rel8` displacement means the branch
-        still lands where the compiler put it, so the patched path is a path the stock binary
-        already takes — just unconditionally now."""
+    @pytest.mark.parametrize(
+        "guard",
+        [g for g in (*GAME_GUARDS, *LAUNCHER_GUARDS) if g.always_taken],
+        ids=lambda g: g.note,
+    )
+    def test_an_always_taken_guard_moves_exactly_one_byte(self, guard):
+        """Where the branch skips a refusal: rewrite the condition away, keep the jump.
+
+        The same `rel8` displacement means the branch still lands where the compiler put it, so
+        the patched path is a path the stock binary already takes — just unconditionally now."""
         stock, patched = guard.stock, guard.patched
-        assert len(stock) == len(patched)
         differing = [i for i, (a, b) in enumerate(zip(stock, patched, strict=True)) if a != b]
         assert differing == [len(guard.run_up)]
         assert patched[differing[0]] == JMP_SHORT
         assert patched[-1] == stock[-1] == guard.displacement
 
+    @pytest.mark.parametrize(
+        "guard",
+        [g for g in (*GAME_GUARDS, *LAUNCHER_GUARDS) if not g.always_taken],
+        ids=lambda g: g.note,
+    )
+    def test_a_never_taken_guard_becomes_two_nops(self, guard):
+        """Where the branch *is* the refusal there is no path to force, so it is removed: control
+        falls into the instruction after it, which is where the non-refusing case already went.
+        Two `nop` rather than a zero-displacement `jmp` so the fall-through is the literal
+        behaviour and not a jump that happens to land next door."""
+        stock, patched = guard.stock, guard.patched
+        differing = [i for i, (a, b) in enumerate(zip(stock, patched, strict=True)) if a != b]
+        assert differing == [len(guard.run_up), len(guard.run_up) + 1]
+        assert patched[len(guard.run_up) :] == bytes((NOP, NOP))
+        assert guard.displacement > 0, "the arm being cut off is ahead of the branch"
+
     @pytest.mark.parametrize("guard", [*GAME_GUARDS, *LAUNCHER_GUARDS], ids=lambda g: g.note)
     def test_every_guard_is_a_short_conditional(self, guard):
-        assert guard.opcode in (0x74, 0x75), "je/jne are the only forms these three gates use"
-        assert 0 <= guard.displacement <= 0x7F, "a forward rel8, i.e. the skip-the-refusal arm"
+        assert guard.opcode in (0x74, 0x75), "je/jne are the only forms these four gates use"
+        assert 0 <= guard.displacement <= 0x7F, "a forward rel8"
 
     def test_guards_and_fingerprints_are_disjoint(self, patch):
         previous_end, previous_what = 0, "start of image"

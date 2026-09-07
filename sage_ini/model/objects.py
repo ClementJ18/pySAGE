@@ -7,6 +7,7 @@ through the `Game` tables at access time.
 import re
 from typing import Self
 
+from sage_ini.model.aliases import strip_alias
 from sage_ini.parser.ast import Attribute, Block
 from sage_ini.parser.diagnostics import Severity
 from sage_ini.suggest import suggestion_hint
@@ -583,6 +584,9 @@ class IniObject:
                     {"value": value, "used": first},
                 )
             value = first
+        # A table that takes descriptive aliases resolves the name up to the first `@`, the way
+        # the engine's hooked upgrade lookup does; the annotation is not part of the identity.
+        value = strip_alias(cls.key, value)
         obj, canonical = game.lookup(cls.key, value)
         if obj is None:
             hint, _ = suggestion_hint(value, game.tables.get(cls.key, {}))

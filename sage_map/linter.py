@@ -21,6 +21,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from sage_ini.loader import load_game
+from sage_ini.model.aliases import strip_alias
 from sage_ini.model.game import Game
 from sage_ini.parser.diagnostics import Diagnostic, Diagnostics, Severity
 from sage_ini.parser.location import Span
@@ -97,7 +98,7 @@ def _check(
         assert spec.target is not None
         if not game.tables.get(spec.target):
             return None  # that table was never built: nothing to resolve against
-        obj, _ = game.lookup(spec.target, name)
+        obj, _ = game.lookup(spec.target, strip_alias(spec.target, name))
         if obj is None:
             noun = _NOUNS.get(spec.target, spec.target)
             return _diagnostic(ref, map_path, noun, "is not defined in the game")
@@ -184,7 +185,11 @@ def _check_object_properties(model: MapModel, game: Game, map_path: str) -> list
                     if model.symbols.resolve(spec.target, name) is False:
                         missing[(key, name)] += 1
                 elif spec.scope is Scope.GAME:
-                    if game.tables.get(spec.target) and game.lookup(spec.target, name)[0] is None:
+                    resolved = strip_alias(spec.target, name)
+                    if (
+                        game.tables.get(spec.target)
+                        and game.lookup(spec.target, resolved)[0] is None
+                    ):
                         missing[(key, name)] += 1
 
     diagnostics = []

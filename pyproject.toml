@@ -106,6 +106,10 @@ w3d-view = [
 patch = [
     "capstone>=5",
     "pefile>=2023",
+    # Executes a cave over a synthetic world, so a hook's offsets and register discipline are a
+    # test rather than a network session. `tests/sage_patch/wotr_world.py` is the harness; every
+    # test using it is `importorskip`-guarded, so the suite still runs without this.
+    "unicorn>=2.0",
 ]
 
 # Every optional extra at once: `pip install "pysage-tools[all]"` (and CI's full job) installs
@@ -215,7 +219,7 @@ exclude = ["sage_patch/scripts/"]
 # stubs or a py.typed marker. `sublime`/`sublime_plugin` are not installable at all: they are the
 # Sublime Text editor's own built-ins, importable only inside its embedded interpreter, so the
 # plugin under sage_lint/plugins/sublime can never resolve them from this environment.
-module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*", "OpenGL.*", "numpy.*", "capstone.*", "pefile", "sublime", "sublime_plugin"]
+module = ["reversebox.*", "PyQt6.*", "pyBIG.*", "PIL.*", "OpenGL.*", "numpy.*", "capstone.*", "pefile", "unicorn.*", "sublime", "sublime_plugin"]
 ignore_missing_imports = true
 
 # The Qt half of sage_utils (and the texture/source layer built on optional deps) is outside

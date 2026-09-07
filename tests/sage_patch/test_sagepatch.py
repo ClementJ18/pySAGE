@@ -165,11 +165,15 @@ class TestDrift:
             "patch in the binary but not in the file: commandset-limit (count=64)",
             "limit in the binary but not in the file: "
             "LimitDelta(name='commandset.max_slots', value=64, patch='commandset-limit')",
+            "limit in the binary but not in the file: "
+            "LimitDelta(name='commandset.range_clamped', value=1, patch='commandset-limit')",
         ]
         assert differences(rebuilt.engine, committed.engine) == [
             "patch in the file but not in the binary: commandset-limit (count=64)",
             "limit in the file but not in the binary: "
             "LimitDelta(name='commandset.max_slots', value=64, patch='commandset-limit')",
+            "limit in the file but not in the binary: "
+            "LimitDelta(name='commandset.range_clamped', value=1, patch='commandset-limit')",
         ]
 
     def test_a_patch_that_changes_no_ini_still_fails_the_check(self):

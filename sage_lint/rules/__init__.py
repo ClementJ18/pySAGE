@@ -36,6 +36,12 @@ from sage_lint.rules.schema import (
     UnknownAttributeRule,
 )
 from sage_lint.rules.strings import MapLocalStringRule, UnknownStringLabelRule
+from sage_lint.rules.upgrade_alias import (
+    UpgradeAliasConflictRule,
+    UpgradeAliasInconsistentRule,
+    UpgradeAliasInDefinitionRule,
+    UpgradeAliasMalformedRule,
+)
 
 __all__ = [
     "RULES",
@@ -69,6 +75,10 @@ __all__ = [
     "UnknownAttributeRule",
     "UnrecognizedBlockRule",
     "UnknownStringLabelRule",
+    "UpgradeAliasConflictRule",
+    "UpgradeAliasInDefinitionRule",
+    "UpgradeAliasInconsistentRule",
+    "UpgradeAliasMalformedRule",
     "UnusedDefinitionRule",
     "UnusedObjectRule",
     "run_rules",

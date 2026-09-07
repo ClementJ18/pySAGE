@@ -57,7 +57,7 @@ whose horde has its list built a little sooner than it otherwise would and needs
 **Every peer must run the same patched binary.** Which objects a horde contains is logic state
 feeding the per-frame CRC, so a patched and an unpatched client diverge the first time a hero is
 recruited during a battalion's exit, and replays do not cross. Same requirement as
-`production-condition`, `hero-recruit-parallel` and `rebuild-hole-construction`.
+`production-condition`, `hero-recruit-parallel` and `rebuild-hole-repair`.
 
 **Composition.** Order-independent: the cave is allocated with
 :func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name.

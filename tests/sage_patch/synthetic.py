@@ -29,6 +29,9 @@ own `InitInstance` and its anchors are ~16 MB away in the file-system module, so
 
 :func:`worldbuilder_object_typeahead_image` is the fourth, and the only one that plants a resource:
 the object picker's dialog template lives in `.rsrc`, 5 MB past the class that opens it.
+
+:func:`script_debug_window_image` is the odd one out: it stands in for `DebugWindowLite.dll`, so it
+is the only image here built at a base other than `0x400000`.
 """
 
 from __future__ import annotations
@@ -60,6 +63,7 @@ from sage_patch.patches import production_split as ps
 from sage_patch.patches import scenario_player_factions as spf
 from sage_patch.patches import skirmish_ai_fallback as saf
 from sage_patch.patches import trigger_recharge_list as trl
+from sage_patch.patches import upgrade_alias as ua
 from sage_patch.patches import upgrade_description as ud
 from sage_patch.patches import upgrade_grant_lists as ugl
 from sage_patch.patches import worldbuilder_mod as wbm
@@ -71,6 +75,7 @@ from sage_patch.patches.experimental import command_line_skirmish as cls
 from sage_patch.patches.experimental import interpolation_alpha as ia
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import render_rate as rrate
+from sage_patch.patches.experimental import script_debug_window as sdw
 from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
@@ -219,7 +224,6 @@ def synthetic_image() -> bytearray:
 
     for hook in hb.HOOKS:
         write(hook.va, hook.original)
-    write(hb.TOOLTIP_EDIT.va, hb.TOOLTIP_EDIT.original)
 
     return data
 
@@ -229,7 +233,11 @@ def synthetic_image() -> bytearray:
 WB_STRINGS_VA = 0x0056B000 + 0x800
 
 
-def _pe32(sections: list[tuple[str, int, bytes]], size_of_image: int) -> bytearray:
+def _pe32(
+    sections: list[tuple[str, int, bytes]],
+    size_of_image: int,
+    base: int = IMAGE_BASE,
+) -> bytearray:
     """A minimal PE32 whose section table maps ``(name, rva, content)``, in ascending RVA order.
 
     Several small sections rather than one big one is what keeps a synthetic image of a 34 MB
@@ -250,7 +258,7 @@ def _pe32(sections: list[tuple[str, int, bytes]], size_of_image: int) -> bytearr
     struct.pack_into("<H", data, e + 20, 0xE0)  # SizeOfOptionalHeader
     opt = e + 24
     struct.pack_into("<H", data, opt, 0x10B)  # PE32 magic
-    struct.pack_into("<I", data, opt + 28, IMAGE_BASE)
+    struct.pack_into("<I", data, opt + 28, base)
     struct.pack_into("<I", data, opt + 32, section_align)
     struct.pack_into("<I", data, opt + 36, file_align)
     struct.pack_into("<I", data, opt + 56, size_of_image)
@@ -363,12 +371,16 @@ def object_image_upgrade_worldbuilder_image() -> bytearray:
     )
 
 
-def _sparse_image(planted: dict[int, bytes]) -> bytearray:
+def _sparse_image(planted: dict[int, bytes], image_base: int = IMAGE_BASE) -> bytearray:
     """A PE32 mapping one section per touched page, each holding the bytes ``planted`` puts in it.
 
     Everything not planted reads as zero, which is what makes these images useful negatively as
     well: a patch that looked one instruction to either side of where it claims to would find
     nothing there.
+
+    ``image_base`` is a parameter because not every binary `sage_patch` targets is an executable:
+    a DLL stand-in has to answer `image_base()` with the DLL's own base, or every VA a patch looks
+    up lands in a different section.
     """
     pages: dict[int, bytearray] = {}
     for va, blob in planted.items():
@@ -378,10 +390,20 @@ def _sparse_image(planted: dict[int, bytes]) -> bytearray:
         pages.setdefault(base, bytearray(0x1000))[start : start + len(blob)] = blob
 
     sections = [
-        (f".s{index}", base - IMAGE_BASE, bytes(pages[base]))
+        (f".s{index}", base - image_base, bytes(pages[base]))
         for index, base in enumerate(sorted(pages))
     ]
-    return _pe32(sections, max(pages) - IMAGE_BASE + 0x1000)
+    return _pe32(sections, max(pages) - image_base + 0x1000, image_base)
+
+
+def upgrade_alias_image() -> bytearray:
+    """A stand-in carrying `UpgradeCenter::findUpgrade` and the two helpers its cave calls.
+
+    Sparse: the name-key generator's C-string overload sits ~1.2 MB below the lookup. The hooked
+    five bytes and the resume point two bytes on are planted adjacently, exactly as the real body
+    runs them, so a hook written one byte long would overwrite the resume point and fail here.
+    """
+    return _sparse_image({ua.HOOK_VA: ua.HOOK_ORIGINAL, **ua.ANCHORS})
 
 
 def observer_switch_image() -> bytearray:
@@ -1342,3 +1364,12 @@ def interpolation_alpha_image() -> bytearray:
             **ia.ANCHORS,
         }
     )
+
+
+def script_debug_window_image() -> bytearray:
+    """A stand-in for `DebugWindowLite.dll`, mapping only the pages `script-debug-window` reads.
+
+    Built at the DLL's own `0x10000000`, and sparse for the usual reason: the append method and
+    the two exports that call it sit in one page, while the import-using instructions that
+    identify the `GetDlgItem` and `SendMessageA` slots are up to 0xD000 away."""
+    return _sparse_image({**sdw.ANCHORS, sdw.HOOK_VA: sdw.HOOK_ORIGINAL}, image_base=0x10000000)

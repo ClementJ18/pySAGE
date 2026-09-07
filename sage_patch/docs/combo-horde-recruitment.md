@@ -283,7 +283,7 @@ transparent to the `__EH_prolog` frame the function set up at `0x00871B9B`.
 
 **Every peer must run the same patched binary.** Creating objects is logic state, so a patched
 and an unpatched client diverge the first frame anybody recruits a combo horde, and replays do
-not cross. Same requirement as `rebuild-hole-construction` and `production-condition`.
+not cross. Same requirement as `rebuild-hole-repair` and `production-condition`.
 
 **Composition.** One cave, allocated with `allocate_section`, and six bytes rewritten at an
 address no other bundled patch touches. Nothing it reads is a structure another patch rewrites.

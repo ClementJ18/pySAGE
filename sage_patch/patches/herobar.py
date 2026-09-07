@@ -57,15 +57,17 @@ site          engine function             reads            what the detour adds
 `0x0092C999`  select-all-heroes, select   either kindof    ...and the same test in the pass that
                                                            builds the selection
 `0x0092D36F`  draw-loop preheader         nothing          clear the per-pass template set
-`0x0092D3EE`  draw loop, per node         `HEROBAR_GROUP`  skip a drawn template; mark and count
-                                                           it
+`0x0092D3EE`  draw loop, per node         `HEROBAR_GROUP`  skip a drawn template; mark, count
+                                                           and poll it
+`0x0092D662`  draw loop, the highlight    the slot byte    a group slot lights up when *any*
+                                                           member is selected
 `0x0092DBD6`  click dispatch              the slot byte    a `2` in `slot+0x16` means "step the
                                                            group"
+`0x0092BF4E`  hover, the tooltip pick     the slot byte    ...and that its tooltip is the unit's,
+                                                           not the porter's
+`0x008EC119`  the object tooltip builder  the object's id  add the group's own line under that
+                                                           unit's description
 ============  ==========================  ===============  =====================================
-
-Plus one edit that is not a detour: `0x0092BF4E`, in the hover handler, which reads the same
-`slot+0x16` byte as a flag and would otherwise give a group the porter's *"select nearest unit"*
-tooltip. Two bytes - see :data:`TOOLTIP_EDIT`.
 
 The removal pair is not optional bookkeeping for either kindof: without it a dead object's node
 stays on the hero list forever, because the stock gate accepts only `HERO` and `PORTER`.
@@ -98,6 +100,67 @@ That walk is the badge's only real cost, and it is per drawn group per pass rath
 Past the sixteenth distinct template the per-pass set is full, and that path skips the count as
 well as the recording - a slot the engine is drawing ungrouped keeps the rank it was going to
 draw, rather than a count that would not match what the bar shows.
+
+The group highlight
+-------------------
+The slot's lit state is `0x0092D662`, and stock it is one object's answer: resolve `[ebp-0x20]` to
+a `Drawable` and read the selected flag at `Drawable+0x43C`. On a group slot `[ebp-0x18]`'s object
+is the *representative*, so the icon stayed dark whenever the selected member was any of the
+others - which is most of the time on a group of more than one, and is not what `PORTER` does.
+
+The fix is a second reader of the walk the badge already does. Each member the count accepts is
+also asked for its drawable's selected flag, and the answer is OR-ed into a byte in the cave; the
+hook at `0x0092D662` then branches on that byte for a group slot and re-issues the displaced pair
+for every other one, landing on the engine's own `mov bl, 1` / `xor bl, bl`. So the slot cache at
+`slot+0x14` and the repaint test around it stay exactly as the engine wrote them.
+
+Two details make the byte safe to read a hundred instructions later. It is written in the same loop
+iteration that draws the slot, because `per_node` runs at `0x0092D3EE` and every path out of it
+that does not skip the node reaches `0x0092D662`. And it is cleared on entry to the group arm
+rather than beside the count, so a group past the sixteenth distinct template - the path that skips
+the count entirely - is drawn dark rather than inheriting the previous group's answer.
+
+The member is carried across the two calls in a cave word rather than a register, because
+`barAcceptsObject` and `Object::getDrawable` are both free to clobber every caller-saved one and
+the walker itself already occupies the stack slot.
+
+The group tooltip
+-----------------
+The hover handler (`0x0092BF34`) picks its tooltip off the **same** `slot+0x16` byte the click
+dispatches on, and stock it reads that byte as a flag: `cmp ..., 0 ; je` sends every non-zero
+value down the porter arm, which looks up the command button `NonCommand_SelectNearestBuilder`
+and shows its *"select nearest unit"* text. So a `2` inherited the porter's tooltip along with its
+own click behaviour.
+
+The hook makes the test three-way, the way the click dispatch already is. `1` reaches the porter
+arm untouched, and `0` **and** `2` both build the tooltip from the slot's own node - so a group
+slot is titled with its representative's name and carries its description, exactly as a hero slot
+is. What `2` adds is the node's `ObjectID`, left in a cave word for `group_line` to recognise.
+
+`group_line` sits in the object tooltip builder (`0x008EC119`), after the description at
+`[ebp-0x1c]` is finished and before the record is made from it. When the object being described is
+the one a group hover named, it fetches `--group-tooltip` out of `TheGameText` and hands it to the
+builder's own append helper (`0x008EBC3B`), which is what puts the newline in. So the group slot's
+tooltip is the unit's name, the unit's description, and then one line of the mod's own:
+
+    CONTROLBAR:GroupedUnitBar
+    "Click to select the next one. Double click to jump to it."
+
+Three things keep that narrow. The gate is an **`ObjectID`**, not a flag, because this builder
+serves five request sites and only one of them is the hero bar - and the other two hover arms clear
+it, so at most one object at a time carries the line. An **empty** label is a byte test on the
+first character, which is the default and leaves every tooltip in the game exactly as it was. And
+an **empty fetch** is caught with the engine's own `UnicodeString::isEmpty`, the same test the
+builder applies to its own description lines.
+
+The label lives in the state block rather than beside the code so that :meth:`HeroBarPatch.detect`
+can read it back, and the `UnicodeString` the lookup fills is a cave word kept between hovers
+rather than a frame local: there is no spare slot in a frame this hook does not own, and assigning
+over a `UnicodeString` releases what it held.
+
+The residual: hovering the same object somewhere *else* that uses this builder, without touching
+the bar in between, shows the line there too. Closing that would mean gating on the request site
+as well as the object, which is more machinery than the artefact is worth.
 
 Stepping a group
 ----------------
@@ -186,14 +249,15 @@ from .utils.name_tables import offset as _offset
 
 __all__ = [
     "DEFAULT_GROUP_KINDOF",
+    "DEFAULT_GROUP_TOOLTIP",
     "DEFAULT_JUMP_WINDOW",
     "DEFAULT_KINDOF",
     "HOOKS",
+    "MAX_GROUP_TOOLTIP",
     "MAX_JUMP_WINDOW",
     "SECTION_CHARACTERISTICS",
     "SECTION_NAME",
     "STATE_SIZE",
-    "TOOLTIP_EDIT",
     "Cave",
     "HeroBarPatch",
     "build_cave",
@@ -210,6 +274,15 @@ SECTION_CHARACTERISTICS = 0xE0000060
 #: template names whichever of the two it wants.
 DEFAULT_KINDOF = "HEROBAR"
 DEFAULT_GROUP_KINDOF = "HEROBAR_GROUP"
+
+#: A string-table label whose text is appended to a group slot's tooltip, under the unit name and
+#: description that slot already shows - the place to say what a click and a double click do. Off
+#: by default: there is no label this patch could name that a mod is guaranteed to have written,
+#: and a missing one would show as whatever `TheGameText` returns for it.
+DEFAULT_GROUP_TOOLTIP = ""
+
+#: How much room the state block reserves for that label, including its terminator.
+MAX_GROUP_TOOLTIP = 0x40
 
 #: How long after a click a second one still means "take me there", in milliseconds, and the
 #: ceiling `--jump-window` accepts. 500 is what Windows itself calls a double click, and it is a
@@ -232,9 +305,24 @@ THE_IN_GAME_UI = 0x00DE4830
 THE_MESSAGE_STREAM = 0x00DE6398
 THE_GAME_CLIENT = 0x00DE4388
 THE_TACTICAL_VIEW = 0x00DE447C
+THE_GAME_TEXT = 0x00DE4B04
 
 FIND_OBJECT_BY_ID = 0x00449681  # thiscall(TheGameLogic, ObjectID) -> Object*, ret 4
 OBJECT_GET_DRAWABLE = 0x0070E013  # thiscall(Object) -> Drawable*, ret 0
+#: `Drawable+0x43C`: the selected flag the draw loop reads to decide a slot's highlight.
+DRAWABLE_SELECTED = 0x043C
+
+#: `TheGameText`'s vtable slot for `fetch(UnicodeString *out, const char *label, Bool *found)`:
+#: the string-table lookup the tooltip builders themselves use, at `0x00807ED6` and `0x0073D412`.
+#: Callee-cleaned, and it returns ``out``.
+GAME_TEXT_FETCH = 0x3C
+#: `UnicodeString::isEmpty()` - true for a null buffer and for a zero-length one, which is the
+#: test the object builder applies to its own description lines before appending them.
+UNICODE_STRING_IS_EMPTY = 0x00435090  # thiscall(UnicodeString*) -> Bool, ret 0
+#: The object tooltip builder's own "append this line to the description" helper: cdecl
+#: `(UnicodeString *description, UnicodeString *line)`, and it puts a newline between them unless
+#: the description is still empty.
+TOOLTIP_APPEND_LINE = 0x008EBC3B  # cdecl(dest, line), caller cleans 8
 APPEND_BOOLEAN_ARGUMENT = 0x00711104  # thiscall(GameMessage, bool), ret 4
 APPEND_OBJECT_ID_ARGUMENT = 0x0071111A  # thiscall(GameMessage, ObjectID), ret 4
 BAR_ACCEPTS_OBJECT = 0x0092BBEF  # (Object*) -> bool: local player && !NO_HERO_PROPERTIES, ret 4
@@ -299,8 +387,8 @@ class _Hook:
 
 
 #: The first three are membership - how either kindof reaches the bar, and how it leaves again.
-#: The next two keep the *select all heroes* button off both kindofs. The last three are grouping:
-#: which nodes reach a slot, and what a click on one of them does.
+#: The next two keep the *select all heroes* button off both kindofs. The last six are grouping:
+#: which nodes reach a slot, when one is drawn lit, and what a click or a hover does with it.
 HOOKS = (
     _Hook(
         0x0092CD7F,
@@ -345,38 +433,29 @@ HOOKS = (
         "draw loop: one slot per template, and mark it",
     ),
     _Hook(
+        0x0092D662,
+        bytes.fromhex("8b4de0e8a909deff"),  # mov ecx,[ebp-0x20] ; call Object::getDrawable
+        "highlight",
+        "draw loop: a group slot lights up when any member is selected",
+    ),
+    _Hook(
         0x0092DBD6,
         bytes.fromhex("807c315e00"),  # cmp byte [ecx+esi+0x5e], 0
         "click",
         "click dispatch: step through the group",
     ),
-)
-
-
-@dataclass(frozen=True)
-class _Edit:
-    """An in-place rewrite: no cave, no detour, just different bytes at a known address."""
-
-    va: int
-    original: bytes
-    patched: bytes
-    note: str
-
-
-#: The hover handler at `0x0092BF34` picks a tooltip off the *same* `slot+0x16` byte the click
-#: dispatches on, and it reads that byte as a flag rather than as a kind: `cmp ..., 0 ; je` sends
-#: **every** non-zero value down the porter arm, which looks up the command button named
-#: `NonCommand_SelectNearestBuilder` and shows its "select nearest unit" text. A `2` therefore
-#: inherits the porter's tooltip along with its own click behaviour.
-#:
-#: Narrowing the test to `cmp ..., 1 ; jne` costs two bytes and no cave: `1` still means the porter
-#: group, and `0` and `2` both take the arm that builds the tooltip from the slot's own node - which
-#: is the representative's object, drawn exactly as a hero's slot draws it.
-TOOLTIP_EDIT = _Edit(
-    0x0092BF4E,
-    bytes.fromhex("807816007456"),  # cmp byte [eax+0x16], 0 ; je 0x0092BFAA
-    bytes.fromhex("807816017556"),  # cmp byte [eax+0x16], 1 ; jne 0x0092BFAA
-    "hover: only the porter group gets the 'select nearest unit' tooltip",
+    _Hook(
+        0x0092BF4E,
+        bytes.fromhex("807816007456"),  # cmp byte [eax+0x16], 0 ; je 0x0092BFAA
+        "tooltip",
+        "hover: a group slot describes its unit, not the porter's nearest builder",
+    ),
+    _Hook(
+        0x008EC119,
+        bytes.fromhex("8d4dd8c645fc0c"),  # lea ecx,[ebp-0x28] ; mov byte [ebp-4], 0xc
+        "group_line",
+        "object tooltip: add the group's own line under the unit's description",
+    ),
 )
 
 
@@ -398,21 +477,27 @@ _PASS_RESET_RESUME = 0x0092D375  # imul eax, eax, 0x18
 _PER_NODE_SAME = 0x0092D425  # the slot already shows this node
 _PER_NODE_DRAW = 0x0092D3F3  # draw the slot from scratch
 _PER_NODE_SKIP = 0x0092D76F  # next node, without consuming a slot
+_HIGHLIGHT_RESUME = 0x0092D66A  # test eax, eax   (after the displaced call)
+_HIGHLIGHT_SET = 0x0092D677  # mov bl, 1
+_HIGHLIGHT_CLEAR = 0x0092D67B  # xor bl, bl
+_TOOLTIP_PORTER = 0x0092BF54  # the stock "select nearest unit" arm
+_TOOLTIP_PLAIN = 0x0092BFAA  # build the tooltip from the slot's own node
+#: In the object tooltip builder: the instruction after the pair the description hook displaces.
+_GROUP_LINE_RESUME = 0x008EC120
 _CLICK_PORTER = 0x0092DBDD  # the stock porter cycle
 _CLICK_SINGLE = 0x0092DBEB  # the stock single-object select
 _CLICK_DONE = 0x0092DDE1  # pop edi ; pop esi ; leave ; ret 4
 
 #: Scratch words at the head of the cave, in this order: the per-pass template set and its length,
-#: the values the click routine carries across the calls it makes, the per-slot cursor table, and
-#: the two the badge count needs. Sized to a round `0xC0` so the code that follows starts on a
-#: recognisable boundary.
+#: the values the click routine carries across the calls it makes, the per-slot cursor table, the
+#: words the badge count and the group highlight need, and the hover hook's button name.
 #:
-#: The last word is the odd one out: :data:`_OFF_WINDOW_MS` is written by the patcher and only
-#: *read* at runtime. It sits here rather than in the code because `fild` wants a memory operand
-#: anyway, and because a word at a known offset is what lets :meth:`HeroBarPatch.detect` recover
-#: the setting from an image instead of guessing it.
+#: Two of these are the odd ones out: :data:`_OFF_WINDOW_MS` and :data:`_OFF_TOOLTIP_LABEL` are
+#: written by the patcher and only *read* at runtime. They sit here rather than in the code
+#: because a value at a known offset is what lets :meth:`HeroBarPatch.detect` recover the setting
+#: from an image instead of guessing it - and, for the window, because `fild` wants a memory
+#: operand anyway.
 _MAX_SLOTS = 16
-STATE_SIZE = 0xC0
 _OFF_EMITTED_N = 0x00
 _OFF_EMITTED = 0x04  # 16 dwords, 0x04..0x43
 _OFF_TEMPLATE = 0x44
@@ -430,6 +515,12 @@ _OFF_COUNT_TEMPLATE = 0xAC
 _OFF_CLICK_SLOT = 0xB0  # the last clicked slot, biased by 1 so that 0 means "none yet"
 _OFF_CLICK_DEADLINE = 0xB4
 _OFF_WINDOW_MS = 0xB8  # written once by the patcher; the only word here the game never writes
+_OFF_GROUP_SELECTED = 0xBC  # byte: does any member of the group being drawn have a selection
+_OFF_COUNT_OBJECT = 0xC0  # the member the count loop is holding, across the calls it makes
+_OFF_GROUP_OBJECT = 0xC4  # the `ObjectID` whose tooltip the description hook adds a line to
+_OFF_LINE_STRING = 0xC8  # the `UnicodeString` the string-table lookup fills, kept between hovers
+_OFF_TOOLTIP_LABEL = 0xCC  # its label: `MAX_GROUP_TOOLTIP` bytes, written by the patcher
+STATE_SIZE = _OFF_TOOLTIP_LABEL + MAX_GROUP_TOOLTIP
 
 
 def _u32(value: int) -> bytes:
@@ -457,16 +548,17 @@ def build_cave(
     bit: int,
     group_bit: int,
     jump_window: int = DEFAULT_JUMP_WINDOW,
+    group_tooltip: str = DEFAULT_GROUP_TOOLTIP,
 ) -> Cave:
-    """The six hook routines, and the scratch words they use, at ``base_va``.
+    """The hook routines, and the scratch words they use, at ``base_va``.
 
     ``bit`` is the slot-per-object kindof and ``group_bit`` the slot-per-template one. Every hook
     is emitted for every application: which of the two an object carries is a runtime question,
     read from its `ThingTemplate`, not a build-time one.
 
     Deterministic: :meth:`HeroBarPatch.apply` and :meth:`HeroBarPatch.verify` build the same
-    bytes from the same ``(base_va, bit, group_bit, jump_window)`` and compare them, which is what
-    makes verification possible without a disassembler."""
+    bytes from the same ``(base_va, bit, group_bit, jump_window, group_tooltip)`` and compare
+    them, which is what makes verification possible without a disassembler."""
     emitted_n = base_va + _OFF_EMITTED_N
     emitted = base_va + _OFF_EMITTED
     template = base_va + _OFF_TEMPLATE
@@ -481,9 +573,14 @@ def build_cave(
     cursor = base_va + _OFF_CURSOR
     count = base_va + _OFF_COUNT
     count_template = base_va + _OFF_COUNT_TEMPLATE
+    count_object = base_va + _OFF_COUNT_OBJECT
+    group_selected = base_va + _OFF_GROUP_SELECTED
     click_slot = base_va + _OFF_CLICK_SLOT
     click_deadline = base_va + _OFF_CLICK_DEADLINE
     window_ms = base_va + _OFF_WINDOW_MS
+    group_object = base_va + _OFF_GROUP_OBJECT
+    line_string = base_va + _OFF_LINE_STRING
+    tooltip_label = base_va + _OFF_TOOLTIP_LABEL
 
     is_hero = kind_of.bit_test(HERO_BIT, _EAX, kind_of.THING_TEMPLATE_MASK_OFFSET)
     is_herobar_eax = kind_of.bit_test(bit, _EAX, kind_of.THING_TEMPLATE_MASK_OFFSET)
@@ -565,6 +662,10 @@ def build_cave(
     a.emit(bytes.fromhex("8b49"), OBJECT_TEMPLATE)  # mov ecx, [ecx+4] -> ThingTemplate
     a.emit(is_group_ecx).jcc(JZ, "per_node_plain")
 
+    # Cleared here rather than beside the count, so that a group the emitted set was too full to
+    # count still reaches the highlight hook with a value from this slot rather than the last one.
+    a.emit(_abs_mem(bytes.fromhex("c605"), group_selected), 0x00)
+
     a.emit(bytes.fromhex("33c0"))  # xor eax, eax
     a.label("per_node_scan")
     a.emit(_abs_mem(bytes.fromhex("3b05"), emitted_n)).jcc(JAE, "per_node_add")  # cmp eax,[n]
@@ -601,10 +702,22 @@ def build_cave(
     a.emit(bytes.fromhex("85c0")).jcc(JZ, "per_node_count_next")
     a.emit(bytes.fromhex("8b48"), OBJECT_TEMPLATE)  # mov ecx, [eax+4]
     a.emit(_abs_mem(bytes.fromhex("3b0d"), count_template)).jcc(JNE, "per_node_count_next")
+    a.emit(_abs_mem(bytes.fromhex("a3"), count_object))  # mov [count_object], eax
     a.emit(bytes.fromhex("50"))  # push eax
     a.call_absolute(BAR_ACCEPTS_OBJECT)  # ret 4
     a.emit(bytes.fromhex("84c0")).jcc(JZ, "per_node_count_next")  # test al, al
     a.emit(_abs_mem(bytes.fromhex("ff05"), count))  # inc dword [count]
+
+    # The same walk answers the highlight, because it is over the same members: a group lights up
+    # when *any* of them is selected, where the stock draw reads only the representative's own
+    # drawable. `count_object` carries the member across the two calls, since both are free to
+    # clobber every caller-saved register and the walker itself is already on the stack.
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), count_object))  # mov ecx, [count_object]
+    a.call_absolute(OBJECT_GET_DRAWABLE)  # ret 0 -> eax
+    a.emit(bytes.fromhex("85c0")).jcc(JZ, "per_node_count_next")
+    a.emit(bytes.fromhex("80b8"), _u32(DRAWABLE_SELECTED), 0x00)  # cmp byte [eax+0x43c], 0
+    a.jcc(JZ, "per_node_count_next")
+    a.emit(_abs_mem(bytes.fromhex("c605"), group_selected), 0x01)
 
     a.label("per_node_count_next")
     a.emit(bytes.fromhex("5a"))  # pop edx
@@ -631,6 +744,25 @@ def build_cave(
     a.label("per_node_dup")
     a.emit(bytes.fromhex("5a5958"))  # pop edx ; pop ecx ; pop eax
     a.jmp_absolute(_PER_NODE_SKIP)
+
+    # highlight: edi = slot+4, [ebp-0x20] = the Object the slot is drawn from, bl about to be
+    # written. The stock code resolves that object's drawable and reads its selected flag, which
+    # on a group slot is the representative alone - so the icon stayed dark while another member
+    # of the same group was selected. `per_node` has already answered the question for the whole
+    # group this iteration, so a group slot needs no walk here: it reads the byte and lands on one
+    # of the engine's own two arms. Every other slot takes the displaced pair unchanged.
+    a.label("highlight")
+    a.emit(bytes.fromhex("807f"), SLOT_GROUPED - _EDI_SLOT_BIAS, GROUPED_HEROBAR)
+    a.jcc(JNE, "highlight_plain")
+    a.emit(_abs_mem(bytes.fromhex("803d"), group_selected), 0x00)
+    a.jcc(JNE, "highlight_set")
+    a.jmp_absolute(_HIGHLIGHT_CLEAR)
+    a.label("highlight_set").jmp_absolute(_HIGHLIGHT_SET)
+
+    a.label("highlight_plain")
+    a.emit(bytes.fromhex("8b4de0"))  # mov ecx, [ebp-0x20]   (the displaced pair)
+    a.call_absolute(OBJECT_GET_DRAWABLE)
+    a.jmp_absolute(_HIGHLIGHT_RESUME)
 
     # click: eax = slot index, ecx = index*0x18, esi = the bar.
     # Three-way instead of the stock two-way. Reading the byte twice rather than caching it in a
@@ -811,9 +943,84 @@ def build_cave(
 
     a.label("click_done").jmp_absolute(_CLICK_DONE)
 
+    # tooltip: eax = the slot, edx = the bar, ecx = the hover functor (dead from here).
+    # The stock test is a flag - `cmp ..., 0 ; je` sends every non-zero value down the porter arm,
+    # so a group inherited *"select nearest unit"* along with its own click behaviour. This makes
+    # it a three-way dispatch on the same byte the click hook already dispatches on: `1` is still
+    # the porter group and takes its arm untouched, and `0` and `2` both describe the slot's own
+    # node - which is what puts the unit's name and description on a group slot.
+    #
+    # What `2` adds is the `ObjectID` it leaves in `group_object` for `group_line` to recognise
+    # when that tooltip is built. The other two arms clear it, so the extra line is attached to
+    # one object at a time and only ever by a group slot's hover.
+    a.label("tooltip")
+    a.emit(bytes.fromhex("8078"), SLOT_GROUPED, GROUPED_HEROBAR).jcc(JE, "tooltip_group")
+    a.emit(_abs_mem(bytes.fromhex("8325"), group_object), 0x00)  # and dword [group_object], 0
+    a.emit(bytes.fromhex("8078"), SLOT_GROUPED, 0x00).jcc(JE, "tooltip_plain")
+    a.jmp_absolute(_TOOLTIP_PORTER)
+
+    # The node and the sentinel are read the way the arm this falls into reads them, at
+    # `0x0092BFAA`: `slot+0` is the list node and the model's own head doubles as the end of the
+    # list, so a slot showing nothing leaves the `ObjectID` at zero and gets no line.
+    a.label("tooltip_group")
+    a.emit(_abs_mem(bytes.fromhex("8325"), group_object), 0x00)
+    a.emit(bytes.fromhex("50"))  # push eax                  (the slot, restored below)
+    a.emit(bytes.fromhex("8b4a"), BAR_MODEL)  # mov ecx, [edx+0x10]
+    a.emit(bytes.fromhex("8b00"))  # mov eax, [eax]          -> the slot's node
+    a.emit(bytes.fromhex("83c1"), MODEL_HERO_LIST)  # add ecx, 0x10
+    a.emit(bytes.fromhex("3b01")).jcc(JE, "tooltip_group_done")  # cmp eax, [ecx]
+    a.emit(bytes.fromhex("8b48"), NODE_OBJECT_ID)  # mov ecx, [eax+8]
+    a.emit(_abs_mem(bytes.fromhex("890d"), group_object))  # mov [group_object], ecx
+
+    a.label("tooltip_group_done")
+    a.emit(bytes.fromhex("58"))  # pop eax
+
+    a.label("tooltip_plain")
+    a.jmp_absolute(_TOOLTIP_PLAIN)
+
+    # group_line: esi = the Object, [ebp-0x1c] = the description the record is about to be built
+    # from, ebx = 0. Runs once per tooltip *build*, which is once per hover rather than per frame.
+    #
+    # The gate is the `ObjectID` rather than a flag, so the line lands on the tooltip for the
+    # object a group slot's hover named and not on whatever else this builder is asked for next -
+    # it serves five request sites, only one of which is the hero bar.
+    #
+    # The `UnicodeString` the lookup fills is a cave word kept between hovers rather than a frame
+    # local: there is no spare slot in a frame this hook does not own, and assigning over a
+    # `UnicodeString` releases what it held.
+    a.label("group_line")
+    a.emit(_abs_mem(bytes.fromhex("a1"), group_object))  # mov eax, [group_object]
+    a.emit(bytes.fromhex("85c0")).jcc(JZ, "group_line_resume")
+    a.emit(bytes.fromhex("3b46"), OBJECT_ID).jcc(JNE, "group_line_resume")  # cmp eax, [esi+0x74]
+    a.emit(_abs_mem(bytes.fromhex("803d"), tooltip_label), 0x00).jcc(JE, "group_line_resume")
+
+    a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_GAME_TEXT))  # mov ecx, [TheGameText]
+    a.emit(bytes.fromhex("8b11"))  # mov edx, [ecx]
+    a.emit(bytes.fromhex("6a00"))  # push 0                  (no found-flag)
+    a.emit(bytes.fromhex("68"), _u32(tooltip_label))  # push <the label>
+    a.emit(bytes.fromhex("68"), _u32(line_string))  # push <the out UnicodeString>
+    a.emit(bytes.fromhex("ff52"), GAME_TEXT_FETCH)  # call [edx+0x3c]   (callee-cleaned)
+
+    a.emit(bytes.fromhex("b9"), _u32(line_string))  # mov ecx, <the UnicodeString>
+    a.call_absolute(UNICODE_STRING_IS_EMPTY)
+    a.emit(bytes.fromhex("84c0")).jcc(JNZ, "group_line_resume")  # test al, al
+
+    a.emit(bytes.fromhex("68"), _u32(line_string))  # push <the line>
+    a.emit(bytes.fromhex("8d45e4"))  # lea eax, [ebp-0x1c]   -> the description
+    a.emit(bytes.fromhex("50"))  # push eax
+    a.call_absolute(TOOLTIP_APPEND_LINE)  # cdecl
+    a.emit(bytes.fromhex("83c408"))  # add esp, 8
+
+    a.label("group_line_resume")
+    a.emit(bytes.fromhex("8d4dd8"))  # lea ecx, [ebp-0x28]   (the displaced pair)
+    a.emit(bytes.fromhex("c645fc0c"))  # mov byte [ebp-4], 0xc
+    a.jmp_absolute(_GROUP_LINE_RESUME)
+
     code = a.finish()
     state = bytearray(STATE_SIZE)
     struct.pack_into("<I", state, _OFF_WINDOW_MS, jump_window)
+    tooltip = group_tooltip.encode("ascii")
+    state[_OFF_TOOLTIP_LABEL : _OFF_TOOLTIP_LABEL + len(tooltip)] = tooltip
     return Cave(
         content=bytes(state) + code,
         entries={hook.label: a.label_va(hook.label) for hook in HOOKS},
@@ -837,11 +1044,22 @@ class HeroBarPatch(Patch):
     kindof: str = DEFAULT_KINDOF
     group_kindof: str = DEFAULT_GROUP_KINDOF
     jump_window: int = DEFAULT_JUMP_WINDOW
+    group_tooltip: str = DEFAULT_GROUP_TOOLTIP
 
     def __post_init__(self) -> None:
         if not 0 <= self.jump_window <= MAX_JUMP_WINDOW:
             raise ValueError(
                 f"jump-window must be in 0..{MAX_JUMP_WINDOW} milliseconds, got {self.jump_window}"
+            )
+        if not self.group_tooltip.isascii():
+            raise ValueError(f"group-tooltip must be ASCII, got {self.group_tooltip!r}")
+        if len(self.group_tooltip) >= MAX_GROUP_TOOLTIP or any(
+            character.isspace() or not character.isprintable() for character in self.group_tooltip
+        ):
+            raise ValueError(
+                f"group-tooltip must be a bare string-table label under "
+                f"{MAX_GROUP_TOOLTIP} characters with no whitespace, got "
+                f"{self.group_tooltip!r}"
             )
 
     @property
@@ -849,7 +1067,7 @@ class HeroBarPatch(Patch):
         return [self.kindof, self.group_kindof]
 
     def _cave(self, base_va: int, bit: int, group_bit: int) -> Cave:
-        return build_cave(base_va, bit, group_bit, self.jump_window)
+        return build_cave(base_va, bit, group_bit, self.jump_window, self.group_tooltip)
 
     def apply(self, data: bytearray) -> None:
         extension = kind_of.extend(
@@ -868,13 +1086,6 @@ class HeroBarPatch(Patch):
                 _detour(hook, cave.entries[hook.label]),
                 f"{hook.note} @0x{hook.va:08x}",
             )
-        apply_byte_patch(
-            data,
-            _offset(data, TOOLTIP_EDIT.va),
-            TOOLTIP_EDIT.original,
-            TOOLTIP_EDIT.patched,
-            f"{TOOLTIP_EDIT.note} @0x{TOOLTIP_EDIT.va:08x}",
-        )
 
     def ini_surface(self) -> Engine:
         """The two tokens this patch teaches the INI parser, as `KindOf` members.
@@ -936,14 +1147,8 @@ class HeroBarPatch(Patch):
         if bytes(data[off : off + len(cave.content)]) != cave.content:
             problems.append(
                 f"the {SECTION_NAME} hook code at 0x{tail_va:08x} is not what bits {bits[0]} and "
-                f"{bits[1]} build with a {self.jump_window}ms jump window"
-            )
-
-        here = bytes(data[_offset(data, TOOLTIP_EDIT.va) :][: len(TOOLTIP_EDIT.patched)])
-        if here != TOOLTIP_EDIT.patched:
-            problems.append(
-                f"{TOOLTIP_EDIT.note} @0x{TOOLTIP_EDIT.va:08x}: expected "
-                f"{TOOLTIP_EDIT.patched.hex()}, got {here.hex()}"
+                f"{bits[1]} build with a {self.jump_window}ms jump window and a "
+                f"{self.group_tooltip!r} group tooltip label"
             )
 
         for hook in HOOKS:
@@ -967,8 +1172,8 @@ class HeroBarPatch(Patch):
     @classmethod
     def detect(cls, data: bytes | bytearray) -> Patch | None:
         """Recover every parameter from the image: the two kindof names are the last two entries
-        of the cave's own table, and the window is the word the patcher left at
-        :data:`_OFF_WINDOW_MS`.
+        of the cave's own table, and the window and the group tooltip's button name are what the
+        patcher left at :data:`_OFF_WINDOW_MS` and :data:`_OFF_TOOLTIP_LABEL`.
 
         The window is *read* rather than searched for because `verify` compares whole cave bytes:
         a value guessed wrong would fail verification with nothing to say which of the two the
@@ -993,7 +1198,15 @@ class HeroBarPatch(Patch):
             window = struct.unpack_from("<I", data, _offset(data, tail_va + _OFF_WINDOW_MS))[0]
             if not 0 <= window <= MAX_JUMP_WINDOW:
                 return None
-            found = cls(kindof=names[0], group_kindof=names[1], jump_window=window)
+            tooltip = kind_of.read_cstring(data, tail_va + _OFF_TOOLTIP_LABEL)
+            if tooltip is None:
+                return None
+            found = cls(
+                kindof=names[0],
+                group_kindof=names[1],
+                jump_window=window,
+                group_tooltip=tooltip,
+            )
             return found if not found.verify(data) else None
         except (ValueError, KeyError, IndexError, TypeError, struct.error):
             return None
@@ -1020,6 +1233,15 @@ class HeroBarPatch(Patch):
             f"the camera instead of stepping, in milliseconds, 0..{MAX_JUMP_WINDOW} "
             f"(default: {DEFAULT_JUMP_WINDOW}; 0 turns the jump off)",
         )
+        parser.add_argument(
+            "--group-tooltip",
+            default=DEFAULT_GROUP_TOOLTIP,
+            metavar="LABEL",
+            help="a string-table label (CONTROLBAR:Something) whose text a group slot adds to "
+            "its tooltip, under the unit name and description it already shows - the place to "
+            "explain what a click and a double click do (default: none, which leaves the tooltip "
+            "exactly as it is)",
+        )
 
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> Patch:
@@ -1027,6 +1249,7 @@ class HeroBarPatch(Patch):
             kindof=args.kindof,
             group_kindof=args.group_kindof,
             jump_window=args.jump_window,
+            group_tooltip=args.group_tooltip,
         )
 
 

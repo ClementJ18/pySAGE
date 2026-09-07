@@ -295,6 +295,8 @@ __all__ = [
     "CONTROL_BAR_COMMAND_DISPATCH_BYTES",
     "CONTROL_BAR_COMMAND_INDEX_TABLE",
     "CONTROL_BAR_COMMAND_JUMP_TABLE",
+    "CONTROL_BAR_GET_VISIBLE_RANGE",
+    "CONTROL_BAR_MAX_VISIBLE",
     "CONTROL_BAR_MERGE_CLEAR_SLOTS",
     "CONTROL_BAR_MERGE_HIDE",
     "CONTROL_BAR_MERGE_INSTALL",
@@ -314,6 +316,16 @@ __all__ = [
     "CONTROL_BAR_PROCESS_COMMAND_UI",
     "CONTROL_BAR_PUSH_RANGE_HANDLER",
     "CONTROL_BAR_PUSH_RANGE_HANDLER_BYTES",
+    "CONTROL_BAR_RANGE_COUNT_EBP",
+    "CONTROL_BAR_RANGE_FETCH",
+    "CONTROL_BAR_RANGE_FETCH_BYTES",
+    "CONTROL_BAR_RANGE_FETCH_RESUME",
+    "CONTROL_BAR_RANGE_LOOP_CAPPED",
+    "CONTROL_BAR_RANGE_LOOP_PRODUCTION",
+    "CONTROL_BAR_RANGE_LOOP_PRODUCTION_BYTES",
+    "CONTROL_BAR_RANGE_LOOP_REVIVE",
+    "CONTROL_BAR_RANGE_LOOP_REVIVE_BYTES",
+    "CONTROL_BAR_RANGE_START_EBP",
     "CONTROL_BAR_UNAVAILABLE",
     "CONTROL_BAR_UNIT_COST_CALL",
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
@@ -469,6 +481,7 @@ __all__ = [
     "GAME_ENGINE_SET_FPS_SLOT",
     "GAME_ENGINE_SUB_FRAME",
     "GAME_ENGINE_SUB_FRAME_RATIO",
+    "GAME_INFO_GET_SLOT",
     "GAME_INFO_MAP",
     "GAME_INFO_MAP_CRC",
     "GAME_INFO_MAP_SIZE",
@@ -482,6 +495,8 @@ __all__ = [
     "GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY",
     "GAME_LOGIC_FRAME",
     "GAME_LOGIC_IS_IN_GAME",
+    "GAME_LOGIC_LIVING_WORLD_TYPE",
+    "GAME_LOGIC_LIVING_WORLD_TYPE_MP_BATTLE",
     "GAME_LOGIC_UPDATE",
     "GAME_LOGIC_UPDATE_ENTRY",
     "GAME_LOGIC_UPDATE_VTABLE_SLOT",
@@ -489,12 +504,16 @@ __all__ = [
     "GAME_MODE_SKIRMISH",
     "GAME_SLOT_ACCEPTED",
     "GAME_SLOT_COLOR",
+    "GAME_SLOT_IS_OCCUPIED",
+    "GAME_SLOT_LIVING_WORLD_PLAYER_ID",
     "GAME_SLOT_MAP_PLAYER",
     "GAME_SLOT_NAME",
+    "GAME_SLOT_OBSERVER_TEMPLATE",
     "GAME_SLOT_ORIGINAL_COLOR",
     "GAME_SLOT_ORIGINAL_PLAYER_TEMPLATE",
     "GAME_SLOT_ORIGINAL_START_POS",
     "GAME_SLOT_PLAYER_TEMPLATE",
+    "GAME_SLOT_SET_IS_OCCUPIED",
     "GAME_SLOT_SIZE",
     "GAME_SLOT_START_POS",
     "GAME_SLOT_START_POS_GRANTED",
@@ -589,17 +608,33 @@ __all__ = [
     "LIVING_WORLD_ARMY_ROSTER_ID",
     "LIVING_WORLD_BATTLE_HARVEST_CALL",
     "LIVING_WORLD_BATTLE_HARVEST_CALL_BYTES",
+    "LIVING_WORLD_BATTLE_MEMBERS_BEGIN",
+    "LIVING_WORLD_BATTLE_MEMBERS_END",
+    "LIVING_WORLD_BATTLE_MEMBER_STRIDE",
+    "LIVING_WORLD_BATTLE_REGION",
     "LIVING_WORLD_BATTLE_SETUP",
     "LIVING_WORLD_BATTLE_SETUP_CALL",
     "LIVING_WORLD_BATTLE_SETUP_CALL_BYTES",
+    "LIVING_WORLD_BATTLE_SIDES_BEGIN",
+    "LIVING_WORLD_BATTLE_SIDES_END",
+    "LIVING_WORLD_BATTLE_SIDE_STRIDE",
+    "LIVING_WORLD_CURRENT_REGION",
     "LIVING_WORLD_FIND_ARMY_BY_ID",
+    "LIVING_WORLD_FIND_PLAYER_BY_ID",
     "LIVING_WORLD_LEDGER_TO_PLAYER",
+    "LIVING_WORLD_LOGIC_BATTLE_STORE",
+    "LIVING_WORLD_LOGIC_CURRENT_REGION_ID",
     "LIVING_WORLD_OVERRIDE_OFFSET",
     "LIVING_WORLD_OVERRIDE_ROW",
     "LIVING_WORLD_PLAYERS_BEGIN",
     "LIVING_WORLD_PLAYERS_END",
     "LIVING_WORLD_PLAYER_ARMIES_BEGIN",
     "LIVING_WORLD_PLAYER_ARMIES_END",
+    "LIVING_WORLD_PLAYER_ID",
+    "LIVING_WORLD_REGION_ID",
+    "LIVING_WORLD_REGION_OWNER",
+    "LIVING_WORLD_STORE_BATTLES_BEGIN",
+    "LIVING_WORLD_STORE_BATTLES_END",
     "LOADING_SCREEN_PROGRESS",
     "LOADING_SCREEN_PROGRESS_BYTES",
     "LOADING_SCREEN_PROGRESS_REPORT",
@@ -657,6 +692,7 @@ __all__ = [
     "MONEY_WITHDRAW",
     "MSG_CLEAR_GAME_DATA",
     "MSG_NEW_GAME",
+    "NAME_KEY_FROM_CSTR",
     "NAME_KEY_FROM_STRING",
     "NET_CRC_INTERVAL",
     "NET_CRC_INTERVAL_GAME_INFO_CTOR",
@@ -679,6 +715,8 @@ __all__ = [
     "OBJECT_FIELD_TABLE_REF_OPCODES",
     "OBJECT_FILTER_ALLOW",
     "OBJECT_FILTER_IS_VALID",
+    "OBJECT_GET_HEIGHT_ABOVE_TERRAIN",
+    "OBJECT_GET_HEIGHT_ABOVE_TERRAIN_BYTES",
     "OBJECT_GET_HORDE_IFACE",
     "OBJECT_GET_MODIFIER_MULTIPLIER",
     "OBJECT_GIVE_UPGRADE",
@@ -706,6 +744,8 @@ __all__ = [
     "OBJECT_MODULE_LIST",
     "OBJECT_POSITION",
     "OBJECT_PRODUCER_ID",
+    "OBJECT_SET_POSITION",
+    "OBJECT_SET_POSITION_ENTRY",
     "OBJECT_STATUS",
     "OBJECT_STATUS_COUNT",
     "OBJECT_STATUS_DWORDS",
@@ -872,6 +912,9 @@ __all__ = [
     "REBUILD_HOLE_ON_DIE_ENTRY",
     "REBUILD_HOLE_SELF_KILL",
     "REBUILD_HOLE_SELF_KILL_BYTES",
+    "REBUILD_HOLE_SET_POSITION",
+    "REBUILD_HOLE_SET_POSITION_BYTES",
+    "REBUILD_HOLE_SET_POSITION_RESUME",
     "REBUILD_HOLE_START_REBUILD",
     "REBUILD_HOLE_START_REBUILD_BYTES",
     "RECORDER_END_BRANCH",
@@ -931,6 +974,13 @@ __all__ = [
     "SCORE_KEEPER_UNITS_BUILT",
     "SCORE_KEEPER_UNITS_DESTROYED",
     "SCORE_KEEPER_UNITS_LOST",
+    "SCRIPT_DEBUG_ADJUST_VARIABLE",
+    "SCRIPT_DEBUG_APPEND_MESSAGE",
+    "SCRIPT_DEBUG_FLAG_HANDLER",
+    "SCRIPT_DEBUG_LITE_FLAG_HANDLER",
+    "SCRIPT_DEBUG_MODULE",
+    "SCRIPT_DEBUG_SUPPRESS",
+    "SCRIPT_DEBUG_USE_LITE_DLL",
     "SET_CHECKBOX_STATE",
     "SHELL",
     "SHELL_MOVIE_ACTIVE",
@@ -971,6 +1021,7 @@ __all__ = [
     "STATIC_NAME_KEY_KEY",
     "STATIC_NAME_KEY_KEY_BYTES",
     "STRICMP",
+    "TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT",
     "TERRAIN_RESOURCE_BUILD_FIELD_PARSE",
     "TERRAIN_RESOURCE_DEFAULT_STORES",
     "TERRAIN_RESOURCE_DEFAULT_STORES_BYTES",
@@ -1020,6 +1071,7 @@ __all__ = [
     "THE_SKIRMISH_GAME_INFO",
     "THE_SPECIAL_POWER_STORE",
     "THE_TACTICAL_VIEW",
+    "THE_TERRAIN_LOGIC",
     "THE_THING_FACTORY",
     "THE_UPGRADE_CENTER",
     "THE_VICTORY_CONDITIONS",
@@ -1055,6 +1107,11 @@ __all__ = [
     "UNICODE_STRING_FORMAT",
     "UNICODE_STRING_FROM_WIDE",
     "UPGRADE_CENTER_LIST",
+    "UPGRADE_CENTER_FIND_UPGRADE",
+    "UPGRADE_CENTER_FIND_UPGRADE_BY_KEY",
+    "UPGRADE_CENTER_FIND_UPGRADE_BY_KEY_ENTRY",
+    "UPGRADE_CENTER_FIND_UPGRADE_ENTRY",
+    "UPGRADE_CENTER_FIND_UPGRADE_RESUME",
     "UPGRADE_FILTER_BODY",
     "UPGRADE_FILTER_BODY_BYTES",
     "UPGRADE_FILTER_OWNER_SLOT",
@@ -1334,8 +1391,38 @@ GAME_SLOT_ORIGINAL_PLAYER_TEMPLATE = 0x2C
 GAME_SLOT_NAME = 0x30
 GAME_SLOT_MAP_PLAYER = 0x34
 
+# The `LivingWorldPlayer` id this seat plays in a War of the Ring session, in the unidentified
+# span `docs/game-info.md` leaves at `+0x4C`-`+0x9F`. `GameLogic::buildSidesFromGameInfo`
+# (`0x00627C82`) and the living-world message router (`0x006BE766`) both hand it to
+# `LIVING_WORLD_FIND_PLAYER_BY_ID`, which is what identifies it. -1 in a game with no living
+# world, where that lookup returns NULL immediately.
+GAME_SLOT_LIVING_WORLD_PLAYER_ID = 0x4C
+
+# `GameSlot::m_isOccupied`, and the setter that writes it. Nonzero means the seat is **in this
+# game**: `GameSlot::isOccupied` (`0x008009B1`) is `m_state in {2..6} and m_isOccupied != 0`, and
+# `GameLogic::buildSidesFromGameInfo` skips any slot it answers no for, so such a seat gets no
+# side and no player. Measured live in a War of the Ring battle 2026-09-06: 1 on the two seats
+# fighting it, 0 on the third human, who was consequently never named, never seated, and fell
+# through to `PlyrCivilian`. Some other start path sets it on all eight slots at once
+# (`0x006277A4`), so 1 is an ordinary value for it to hold.
+GAME_SLOT_IS_OCCUPIED = 0x1AC
+GAME_SLOT_SET_IS_OCCUPIED = 0x00625171
+
+# `GameSlot::m_playerTemplate` is negative for a seat that is not playing a faction, and
+# `buildSidesFromGameInfo` keys the whole observer path off that sign: the side is named
+# `Observer_%d` (`0x00627C74`) and built with `FactionObserver` (`0x00627E25`) rather than an
+# indexed `PlayerTemplate`. -2 specifically is what `GameLogic::startNewGame` tests at
+# `0x0062FE9C` before granting full-map vision.
+GAME_SLOT_OBSERVER_TEMPLATE = -2
+
+# `GameInfo::getSlot(i)` - `__thiscall`, one stack argument, `ret 4`. Bounds-checked to
+# 0..`GAME_INFO_SLOT_COUNT`-1 and returns NULL outside it, so a cave can walk the array without
+# its own guard.
+GAME_INFO_GET_SLOT = 0x00800B55
+
 # `GameSlot::m_state`. 1, 2 and 6 are the values observed; the display name at `GAME_SLOT_NAME`
-# reads "Closed" and "Easy" against the first two, which is what names them.
+# reads "Closed" and "Easy" against the first two, which is what names them. `GameSlot::isHuman`
+# (`0x008009A7`) is exactly `m_state == 6`.
 GAME_SLOT_STATE_CLOSED = 1
 GAME_SLOT_STATE_EASY_AI = 2
 GAME_SLOT_STATE_LOCAL_HUMAN = 6
@@ -1380,6 +1467,13 @@ MAX_PLAYER_COUNT = 20
 # position by position on every entry. `TheScienceStore` has the same vector shape and exactly
 # the 263 entries the ini defines, but its elements are separately allocated at *different
 # sizes*, so no fixed offset names them and it is still unwalked.
+# `TheTerrainLogic`, registered at `0x0062D0C9` beside its own name string (`0x00BFDBD0`), and
+# the vtable slot holding `Real getGroundHeight(Real x, Real y, Coord3D *normal)` - `__thiscall`,
+# returning in `st0`, cleaning its own twelve bytes of arguments. Read the shape off
+# `Object::getHeightAboveTerrain` (`0x0070BC6E`), which is that call and one `fsubr`.
+THE_TERRAIN_LOGIC = 0x00DE4690
+TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT = 0x18
+
 THE_THING_FACTORY = 0x00DE4A40
 THE_UPGRADE_CENTER = 0x00DE45A0
 THE_SPECIAL_POWER_STORE = 0x00DE878C
@@ -1435,6 +1529,23 @@ OBJECT_PRODUCER_ID = 0x78
 # assumed: 91 of them push a literal bit, and all 39 distinct values name a status that makes
 # sense where it is used - `HORDE_MEMBER` (38) in the horde target resolver, `IS_LEAVING_FACTORY`
 # (90) in the stance module's wait, `UNDER_CONSTRUCTION` (2) thirteen times.
+# `Object::getHeightAboveTerrain` - the whole function is one `getGroundHeight` call and an
+# `fsubr`, so its 28 bytes pin `THE_TERRAIN_LOGIC`, the vtable slot and the calling convention at
+# once: the two floats and the NULL normal go on the stack, the answer comes back in `st0`, and
+# the `ret` that follows adds nothing to `esp`. Anything calling ground height through a cave
+# anchors here rather than asserting a `.data` slot whose contents only exist at runtime.
+OBJECT_GET_HEIGHT_ABOVE_TERRAIN = 0x0070BC6E
+OBJECT_GET_HEIGHT_ABOVE_TERRAIN_BYTES = bytes.fromhex(
+    "8b0d9046de00d9463c8b016a005151d95c2404d94638d91c24ff5018"
+)
+
+# `Object::setPosition(const Coord3D *)` - `__thiscall`, `ret 4` (`0x0070C31B`). Writes the
+# object's `Coord3D` at `+0x38` and carries the partition, layer and drawable bookkeeping that
+# goes with a move, which is why a cave that wants to change where an object lands calls this
+# rather than storing the three floats itself. Derived in `docs/rebuild-hole-repair.md`.
+OBJECT_SET_POSITION = 0x0070C201
+OBJECT_SET_POSITION_ENTRY = bytes.fromhex("558bec83ec4053")
+
 OBJECT_STATUS = 0x94
 OBJECT_STATUS_DWORDS = 4
 OBJECT_TEST_STATUS = 0x0044DDEC
@@ -2132,6 +2243,42 @@ CONTROL_BAR_PUSH_RANGE_HANDLER_BYTES = bytes.fromhex("81c62c020000")  # add esi,
 CONTROL_BAR_POP_RANGE_HANDLER = 0x00941A9C
 CONTROL_BAR_POP_RANGE_HANDLER_BYTES = bytes.fromhex("8b4dec8d81b0020000")
 
+# `ControlBar::populate`'s single-object path, and the one place it reads the visible range the
+# handlers above maintain. `CONTROL_BAR_RANGE_FETCH` is eleven bytes - three whole instructions
+# plus the `call` - that load the top `{start, count}` record into the frame:
+#
+#     00943e11  lea  eax, [ebp-0x48]          ; &range
+#     00943e14  push eax
+#     00943e15  mov  ecx, ebx                 ; the ControlBar
+#     00943e17  call 0x0071cf0a               ; getVisibleRange(&range)
+#
+# `0x00943DF4` jumps to the first byte, and nothing branches into the other ten, which is what
+# makes the whole span replaceable. Derived in `docs/push-visible-command-range.md`.
+CONTROL_BAR_RANGE_FETCH = 0x00943E11
+CONTROL_BAR_RANGE_FETCH_BYTES = bytes.fromhex("8d45b8508bcbe8ee90ddff")
+CONTROL_BAR_RANGE_FETCH_RESUME = 0x00943E1C
+CONTROL_BAR_GET_VISIBLE_RANGE = 0x0071CF0A
+
+# The frame slots that record holds, as every consumer of it addresses them.
+CONTROL_BAR_RANGE_START_EBP = -0x48
+CONTROL_BAR_RANGE_COUNT_EBP = -0x44
+
+# The three loops `ControlBar::populate` runs over that range. Only the first stops at the
+# ControlBar's 33 button widgets; the other two run `count` times whatever `count` is, and each
+# walks the 33-entry widget array at `ControlBar+0xDC` in step with the slot index. So an
+# unclamped range runs both arrays off their ends - which is the crash `CommandSetLimitPatch`
+# fixes by clamping the record once, at the fetch above.
+CONTROL_BAR_RANGE_LOOP_CAPPED = 0x00943E29
+CONTROL_BAR_RANGE_LOOP_REVIVE = 0x00943F2B
+CONTROL_BAR_RANGE_LOOP_REVIVE_BYTES = bytes.fromhex("8b45b88b4dd403c8518b4de8")
+CONTROL_BAR_RANGE_LOOP_PRODUCTION = 0x0094426A
+CONTROL_BAR_RANGE_LOOP_PRODUCTION_BYTES = bytes.fromhex("8b45b803c8518b4de8")
+
+# How many command buttons the ControlBar can draw at once: the length of its widget array, and
+# the bound the first loop carries as a literal. Untouched by the button-limit patch, which
+# raises how many buttons a `CommandSet` may *define*, not how many fit on screen.
+CONTROL_BAR_MAX_VISIBLE = 33
+
 # `msvcr71.dll` imports, by IAT slot. The engine calls them exactly this way
 # (`call dword ptr [slot]`, cdecl, caller cleans), so a cave can too.
 IMPORT_FWRITE = 0x00BD053C
@@ -2383,6 +2530,33 @@ ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES = (0xB8, 0x68)
 # function is `INI_PARSE_STRING_LIST` and its `userData` is null.
 ARMY_DEFINITION_HERO_BUILD_ORDER = 0x8C
 
+# `TheNameKeyGenerator::nameToKey(const char *)` - the C-string overload the `AsciiString` one
+# calls through to (0x0049F483 loads a pointer to a lone NUL for an empty string, so the key is
+# taken off a NUL-terminated buffer, never a stored length). `__thiscall` on
+# `THE_NAME_KEY_GENERATOR`, `ret 4`. A caller holding raw chars keys them without building an
+# `AsciiString` first, which is what lets the upgrade-alias cave hash a truncated name.
+NAME_KEY_FROM_CSTR = 0x005487EC
+
+# `UpgradeCenter::findUpgrade(const AsciiString *)` - `__thiscall` on `THE_UPGRADE_CENTER`,
+# `ret 4`, NULL for an unknown name. **The one place a name becomes an upgrade**: 84 direct
+# callers cover the INI mask and scalar parsers, the Lua bindings (`ObjectGrantUpgrade` reaches
+# it at 0x00736E6C) and the map-script actions, so a change here reaches every name source.
+UPGRADE_CENTER_FIND_UPGRADE = 0x0066F5E5
+
+# Its whole body, for reference: `push esi` / `push [esp+8]` / `mov esi, ecx` /
+# `mov ecx, [THE_NAME_KEY_GENERATOR]` / `call NAME_KEY_FROM_STRING` / `push eax` / `mov ecx, esi`
+# / `call UPGRADE_CENTER_FIND_UPGRADE_BY_KEY` / `pop esi` / `ret 4`. The first five bytes are the
+# hook site and the rest is what a cave has to reproduce.
+UPGRADE_CENTER_FIND_UPGRADE_ENTRY = bytes.fromhex("56ff742408")
+
+# Where the stock body resumes once `push esi` / `push [esp+8]` have been reproduced.
+UPGRADE_CENTER_FIND_UPGRADE_RESUME = 0x0066F5EA
+
+# `UpgradeCenter::findUpgradeByKey(NameKeyType)` - `__thiscall`, `ret 4`. Walks the template list
+# from `UPGRADE_CENTER_LIST` comparing `UpgradeTemplate+0x0C`, chaining on `+0x64`.
+UPGRADE_CENTER_FIND_UPGRADE_BY_KEY = 0x0066F230
+UPGRADE_CENTER_FIND_UPGRADE_BY_KEY_ENTRY = bytes.fromhex("8b410c")
+
 # `TheNameKeyGenerator::nameToKey(const AsciiString *)` - `__thiscall` on
 # `THE_NAME_KEY_GENERATOR`, `ret 4`, returning the interned key. The same interning the hero
 # builder itself applies to these names at 0x009A08B6 and 0x009A0948, which is what makes a key
@@ -2502,7 +2676,7 @@ OBJECT_STATUS_UNDER_CONSTRUCTION = 2
 
 # `RebuildHoleExposeDie::onDie` - the module that puts a rebuild hole where a structure stood.
 # `esi` is the module subobject on entry, from which it takes moduleData (`[esi-0xc]`) and the
-# dying `Object` (`[esi-8]`). Derived in `docs/rebuild-hole-construction.md`.
+# dying `Object` (`[esi-8]`). Derived in `docs/rebuild-hole-repair.md`.
 REBUILD_HOLE_ON_DIE = 0x00889AAF
 REBUILD_HOLE_ON_DIE_ENTRY = bytes.fromhex("558bec83ec1456ff7508")
 
@@ -2522,6 +2696,15 @@ REBUILD_HOLE_CONSTRUCTION_GATE_BYTES = bytes.fromhex("0f8546010000")
 # `push [esi+0x74]` - the tail of `onDie`, where the fresh hole is told what to put back: the
 # dying object's `ThingTemplate` (`[esi+4]`) and id. Anchoring it proves the function being
 # edited is the one that arms the rebuild, not merely one that spawns an object.
+# The eleven bytes in `onDie` that place the fresh hole: `lea eax, [esi+0x38]` / `push eax` /
+# `mov ecx, edi` / `call OBJECT_SET_POSITION`, giving the hole the *dying* object's live position.
+# For a structure killed mid-rebuild that position has already left the terrain, so the hole is
+# buried. No branch or dword in the image reaches any byte of the run, so all eleven are
+# replaceable in place. `RESUME` is the next instruction, the angle copy.
+REBUILD_HOLE_SET_POSITION = 0x00889B4E
+REBUILD_HOLE_SET_POSITION_BYTES = bytes.fromhex("8d4638508bcfe8a826e8ff")
+REBUILD_HOLE_SET_POSITION_RESUME = 0x00889B59
+
 REBUILD_HOLE_START_REBUILD = 0x00889BE7
 REBUILD_HOLE_START_REBUILD_BYTES = bytes.fromhex("ff76748b4d08ff7604")
 
@@ -3792,6 +3975,53 @@ LIVING_WORLD_PLAYERS_BEGIN = 0x8C
 LIVING_WORLD_PLAYERS_END = 0x90
 LIVING_WORLD_PLAYER_ARMIES_BEGIN = 0x1E4
 LIVING_WORLD_PLAYER_ARMIES_END = 0x1E8
+
+# Who is fighting the battle the engine is loading a map for. Derived in
+# `docs/living-campaign/mp-battle-participation.md`, which also carries the evidence for the two
+# vector layouts below - both are read straight out of the accessors the engine ships,
+# `0x007F6403` (member count) and `0x007F5D2B` (member at).
+
+#: `TheGameLogic`'s living-world session type, distinct from `m_gameMode` at `+0x110`. 0 is the
+#: strategic map, 1 a multiplayer battle, 2 a single-player one and 3 everything that is not a
+#: living-world session at all - `0x0062602B` maps the first three onto a game mode and leaves 3
+#: alone, and `0x00610A21` answers "in a living-world battle" for {1, 2}.
+GAME_LOGIC_LIVING_WORLD_TYPE = 0x114
+GAME_LOGIC_LIVING_WORLD_TYPE_MP_BATTLE = 1
+
+#: `LivingWorldPlayer::m_id`, the value `GAME_SLOT_LIVING_WORLD_PLAYER_ID` names and the one
+#: `LIVING_WORLD_REGION_OWNER` is compared against to find a battle's defender.
+LIVING_WORLD_PLAYER_ID = 0x14
+#: `LivingWorldLogic::findPlayerById(id, int *outIndex)` - thiscall, `ret 8`, walking
+#: `LIVING_WORLD_PLAYERS_BEGIN`. Returns NULL for id -1 without touching the vector.
+LIVING_WORLD_FIND_PLAYER_BY_ID = 0x006B5DE0
+
+#: The store on `THE_LIVING_WORLD_LOGIC` that holds both the battles and the regions, and the
+#: region id of the battle currently being entered - written by `LivingWorldLogic::
+#: enterRealtimeBattle` (`0x006B95F5`) from the battle's own region, before the map loads.
+LIVING_WORLD_LOGIC_BATTLE_STORE = 0xB0
+LIVING_WORLD_LOGIC_CURRENT_REGION_ID = 0xB8
+#: The store's battle vector: plain pointers, walked by `0x0060E2AB` to find one by its id.
+LIVING_WORLD_STORE_BATTLES_BEGIN = 0x14
+LIVING_WORLD_STORE_BATTLES_END = 0x18
+#: `LivingWorldLogic::getCurrentRegion()` - thiscall, `ret 0`. The region the battle is being
+#: fought over, looked up by `LIVING_WORLD_LOGIC_CURRENT_REGION_ID`.
+LIVING_WORLD_CURRENT_REGION = 0x006B351E
+LIVING_WORLD_REGION_ID = 0x14C
+#: The region's owning `LivingWorldPlayer` id. `buildSidesFromGameInfo` gives that player the
+#: `Player_1` side and every other seat a `Player_%d` numbered off its slot index.
+LIVING_WORLD_REGION_OWNER = 0x15C
+
+#: A battle's sides - a vector of `LIVING_WORLD_BATTLE_SIDE_STRIDE`-byte records - and, inside
+#: each record, the vector of `LIVING_WORLD_BATTLE_MEMBER_STRIDE`-byte member records whose first
+#: dword is the `LivingWorldPlayer` fighting on that side.
+LIVING_WORLD_BATTLE_SIDES_BEGIN = 0x18
+LIVING_WORLD_BATTLE_SIDES_END = 0x1C
+LIVING_WORLD_BATTLE_SIDE_STRIDE = 0x1C
+LIVING_WORLD_BATTLE_MEMBERS_BEGIN = 0x04
+LIVING_WORLD_BATTLE_MEMBERS_END = 0x08
+LIVING_WORLD_BATTLE_MEMBER_STRIDE = 0x30
+#: The region a battle is fought in, restored by id on load (`0x007F8822`).
+LIVING_WORLD_BATTLE_REGION = 0x24
 #: `LivingWorldLogic::findArmyById(id)` - thiscall, `ret 4`. The id is stamped on the army's roster
 #: container at `LIVING_WORLD_ARMY_ROSTER_ID`, which is how an army is found again after a battle.
 LIVING_WORLD_FIND_ARMY_BY_ID = 0x006B5351
@@ -5185,3 +5415,22 @@ CONTAIN_ITEM_LIST_WALK_ENTRY = bytes.fromhex(
 #: (`0x0086CF2A`) clears it for a `MACHINE`, `HERO` or `SIEGE_TOWER` that joins a battalion, which
 #: makes it the engine's own answer to "is this one of the rank and file".
 OBJECT_STATUS_HORDE_MEMBER = 38
+
+#: The script debug window, engine side. `-scriptDebug2` and `-scriptDebugLite` both set
+#: `SCRIPT_DEBUG_USE_LITE_DLL`, so both load `DebugWindowLite.dll`; the handle `LoadLibraryA`
+#: returns is kept in `SCRIPT_DEBUG_MODULE`. `SCRIPT_DEBUG_SUPPRESS` is what separates the two
+#: flags - only `-scriptDebugLite` sets it, and it is tested at the head of both the append
+#: wrapper and the adjust-variable wrapper, each of which then does nothing. Derived in
+#: `docs/script-debug-window.md`; the cost this names lives in the DLL, not here.
+SCRIPT_DEBUG_FLAG_HANDLER = 0x007BA1D4
+SCRIPT_DEBUG_LITE_FLAG_HANDLER = 0x007BA1FB
+SCRIPT_DEBUG_USE_LITE_DLL = 0x00DE87BA
+SCRIPT_DEBUG_SUPPRESS = 0x00DE87B8
+SCRIPT_DEBUG_MODULE = 0x00DE3B98
+
+#: The engine's `AppendMessage` wrapper, with 87 direct callers across the script engine. It
+#: resolves the export **by name on every message** (`GetProcAddress` at `0x00604DAD`, and again
+#: at `0x00604FE8` for the pause variant) before formatting the frame-number prefix and calling
+#: it. Real overhead, and not where the stutter is.
+SCRIPT_DEBUG_APPEND_MESSAGE = 0x00604D85
+SCRIPT_DEBUG_ADJUST_VARIABLE = 0x00605021

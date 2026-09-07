@@ -10,7 +10,7 @@ build, not one in particular), so a `CommandSet` INI block may define more than 
 derives its table only from the stock one, which nothing else rewrites. See the composition
 contract on :class:`~..patcher.Patch`.
 
-Two phases make up the patch:
+Three phases make up the patch:
 
 * **Phase 1** grows the `CommandSet` object from ``0xA0`` to ``0x14 + count*4 + 8`` bytes. The
   ``m_command[]`` array stays at ``+0x14``; the trailing count/flag fields move from ``0x98/0x9c``
@@ -18,12 +18,35 @@ Two phases make up the patch:
   ctor's ``33`` fills, every field offset, and the AI's scan bound below) are rewritten.
 * **Phase 2** builds a fresh ``count``-slot field-parse table plus the new ``"34".."count"`` slot
   names in an appended ``.cmdext`` PE section, and repoints the two code references to it.
+* **Phase 3** appends a clamp routine to that same section and routes
+  `ControlBar::populate`'s visible-range fetch through it, so a paging window that reaches past
+  the array or past the 33 on-screen widgets is trimmed instead of crashing (below).
 
 Together these let a `CommandSet` *define* and *store* up to ``count`` buttons. The ControlBar
 still *draws* only 33 at a time; reach the rest by paging with ``PUSH_VISIBLE_COMMAND_RANGE``.
 Widening the drawing loops instead is a dead end — those ``getCommandButton``-caller loops
 populate the ControlBar's fixed 33-slot UI arrays, so raising their bounds overruns those arrays
 and crashes. See ``../docs/push-visible-command-range.md``.
+
+The visible-range clamp
+-----------------------
+`ControlBar::populate` reads the top ``{start, count}`` record of the paging stack once, at
+`CONTROL_BAR_RANGE_FETCH`, then walks it in **three** loops. Only the first stops at the
+ControlBar's 33 button widgets. The other two — the revive pass and the production pass — run
+``count`` iterations whatever ``count`` is, and each steps through the 33-entry widget array at
+``ControlBar+0xDC`` alongside the slot index. So an oversized record runs *two* arrays off their
+ends: the widget array past 33, and ``m_command[]`` past ``count`` slots, where the object's own
+count field gets dereferenced as a `CommandButton` and the game faults.
+
+Both ways of writing an oversized record are ordinary INI. ``InitialVisible`` above 33 seeds the
+record with ``{0, InitialVisible}`` directly, and a ``PUSH_VISIBLE_COMMAND_RANGE`` button whose
+``CommandRangeStart + CommandRangeCount`` overshoots writes one on click.
+
+Phase 3 trims the record in place, right where it is read, to ``0 <= start < count`` and
+``0 <= visible <= min(33, count - start)``. Every loop downstream then walks a window that is
+inside both arrays, out-of-range slots simply are not visited, and a page shows the buttons it
+has. Clamping the fetch is also the cheap form: the three loops would otherwise need three hooks,
+and two of them have no spare bytes.
 
 The AI's scan bound
 -------------------
@@ -53,7 +76,22 @@ from typing import TYPE_CHECKING
 
 from sage_ini.engine import Engine, LimitDelta
 
-from ..addresses import CAN_MAKE_UNIT_SCAN_BOUND, IMAGE_BASE
+from ..addresses import (
+    CAN_MAKE_UNIT_SCAN_BOUND,
+    CONTROL_BAR_GET_VISIBLE_RANGE,
+    CONTROL_BAR_MAX_VISIBLE,
+    CONTROL_BAR_RANGE_COUNT_EBP,
+    CONTROL_BAR_RANGE_FETCH,
+    CONTROL_BAR_RANGE_FETCH_BYTES,
+    CONTROL_BAR_RANGE_FETCH_RESUME,
+    CONTROL_BAR_RANGE_LOOP_PRODUCTION,
+    CONTROL_BAR_RANGE_LOOP_PRODUCTION_BYTES,
+    CONTROL_BAR_RANGE_LOOP_REVIVE,
+    CONTROL_BAR_RANGE_LOOP_REVIVE_BYTES,
+    CONTROL_BAR_RANGE_START_EBP,
+    IMAGE_BASE,
+)
+from ..asm import JAE, JG, JLE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, image_base
 
@@ -82,7 +120,18 @@ _ALLOC_SIZE_SITE = 0x320298
 # throughout this build's `.text`, which is what every offset below already assumes.
 _AI_SCAN_BOUND = CAN_MAKE_UNIT_SCAN_BOUND - IMAGE_BASE
 
-_SECTION_CHARACTERISTICS = 0x40000040  # IMAGE_SCN_CNT_INITIALIZED_DATA | MEM_READ
+#: The visible-range fetch Phase 3 reroutes, and the sites that make the reroute meaningful. The
+#: two loop heads are read-only anchors: they are what the clamp protects, so a build where they
+#: are not the shape this patch was derived against must not be clamped silently.
+_RANGE_FETCH_SITE = CONTROL_BAR_RANGE_FETCH - IMAGE_BASE
+_RANGE_LOOP_ANCHORS = {
+    CONTROL_BAR_RANGE_LOOP_REVIVE - IMAGE_BASE: CONTROL_BAR_RANGE_LOOP_REVIVE_BYTES,
+    CONTROL_BAR_RANGE_LOOP_PRODUCTION - IMAGE_BASE: CONTROL_BAR_RANGE_LOOP_PRODUCTION_BYTES,
+}
+
+# IMAGE_SCN_CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ. The section carries the
+# field-parse table and the slot names as data and the Phase-3 clamp as code, so it needs both.
+_SECTION_CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000
 
 #: Largest limit this patch can install. Bounded by the signed-imm8 encoding of five Phase-1
 #: sites (see the module docstring), not by the object layout or the new section.
@@ -106,6 +155,67 @@ def _imm8(value: int) -> bytes:
     return bytes([value])
 
 
+def _slot_names(n: int) -> bytes:
+    """The NUL-terminated ``"34".."n"`` field names the enlarged table points at. Slots 1..33
+    reuse the original table's pointers, so only the new ones need storing."""
+    return b"".join(str(k).encode("ascii") + b"\x00" for k in range(_ORIGINAL_MAX + 1, n + 1))
+
+
+def _clamp_offset(n: int) -> int:
+    """Where the Phase-3 routine starts within the ``.cmdext`` section: past the ``n``-slot table
+    and the slot names it points into."""
+    return (n + 2) * 16 + len(_slot_names(n))
+
+
+def build_clamp(base_va: int, n: int) -> bytes:
+    """`ControlBar::populate`'s visible-range fetch, plus the clamp that makes it safe.
+
+    Replaces `CONTROL_BAR_RANGE_FETCH` whole, so it begins by doing exactly what those eleven
+    bytes did - ``getVisibleRange(&range)`` on the ControlBar in ``ebx`` - and returns to
+    `CONTROL_BAR_RANGE_FETCH_RESUME` with the record trimmed:
+
+    * ``start`` outside ``0 .. n-1`` leaves nothing to draw, so the count goes to zero. The
+      test is unsigned, which folds a negative ``CommandRangeStart`` into the same arm.
+    * the count is capped at the ControlBar's 33 widgets and at ``n - start``, whichever binds
+      first, and a negative one becomes zero.
+
+    ``start`` itself is left alone: with a zero count no loop reads it. Only ``eax``, ``ecx``,
+    ``edx`` and the flags are touched, all of which the stock ``call`` already clobbered, and
+    ``ebx`` - the ControlBar the caller keeps using - is only read."""
+    start, count = CONTROL_BAR_RANGE_START_EBP & 0xFF, CONTROL_BAR_RANGE_COUNT_EBP & 0xFF
+    a = Asm(base_va)
+    a.emit(0x8D, 0x45, start)  # lea  eax, [ebp+start]   ; the displaced fetch, verbatim
+    a.emit(0x50)  # push eax
+    a.emit(0x8B, 0xCB)  # mov  ecx, ebx           ; the ControlBar
+    a.call_absolute(CONTROL_BAR_GET_VISIBLE_RANGE)  # call getVisibleRange(&range)
+
+    a.emit(0x8B, 0x45, start)  # mov  eax, [ebp+start]
+    a.emit(0x8B, 0x4D, count)  # mov  ecx, [ebp+count]
+    a.emit(0x83, 0xF8, _imm8(n))  # cmp  eax, n
+    a.jcc(JAE, "empty")  # start past the array (or negative) -> draw nothing
+
+    a.emit(0x83, 0xF9, _imm8(CONTROL_BAR_MAX_VISIBLE))  # cmp  ecx, 33
+    a.jcc(JLE, "fits_screen")
+    a.emit(0xB9, _u32(CONTROL_BAR_MAX_VISIBLE))  # mov  ecx, 33
+    a.label("fits_screen")
+
+    a.emit(0xBA, _u32(n))  # mov  edx, n
+    a.emit(0x2B, 0xD0)  # sub  edx, eax           ; slots left after start
+    a.emit(0x3B, 0xCA)  # cmp  ecx, edx
+    a.jcc(JLE, "fits_array")
+    a.emit(0x8B, 0xCA)  # mov  ecx, edx
+    a.label("fits_array")
+
+    a.emit(0x85, 0xC9)  # test ecx, ecx
+    a.jcc(JG, "store")  # a negative count falls through to zero
+    a.label("empty")
+    a.emit(0x33, 0xC9)  # xor  ecx, ecx
+    a.label("store")
+    a.emit(0x89, 0x4D, count)  # mov  [ebp+count], ecx
+    a.jmp_absolute(CONTROL_BAR_RANGE_FETCH_RESUME)
+    return a.finish()
+
+
 class CommandSetLimitPatch(Patch):
     """Raise the `CommandSet` button limit from the stock 33 to ``count`` (34..127)."""
 
@@ -114,7 +224,8 @@ class CommandSetLimitPatch(Patch):
     description = (
         "Raise the CommandSet button limit from 33 to N, so a CommandSet block may list N "
         "buttons. The ControlBar still draws 33 at a time: reach the rest with "
-        "PUSH_VISIBLE_COMMAND_RANGE paging buttons"
+        "PUSH_VISIBLE_COMMAND_RANGE paging buttons. A paging window or an InitialVisible that "
+        "overshoots is trimmed to what fits instead of crashing the game"
     )
 
     def __init__(self, count: int = 64):
@@ -132,21 +243,30 @@ class CommandSetLimitPatch(Patch):
 
     def apply(self, data: bytearray) -> None:
         n = self.count
+        self._check_loop_anchors(data)
         new_base_va = allocate_section(
             data,
             _SECTION_NAME,
-            lambda section_va: self._compute_table(data, section_va, n),
+            lambda section_va: self._compute_section(data, section_va, n),
             _SECTION_CHARACTERISTICS,
         )
         self._link_table(data, new_base_va)
+        apply_byte_patch(
+            data,
+            _RANGE_FETCH_SITE,
+            CONTROL_BAR_RANGE_FETCH_BYTES,
+            self._clamp_jump(new_base_va, n),
+            "P3 visible-range fetch -> .cmdext clamp",
+        )
         for file_off, old, new, note in self._phase1_edits(n):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         """Structural check that ``data`` already carries this patch at ``count`` (an empty list
-        == verified). Locates the ``.cmdext`` cave, recomputes the table, the two repointed
-        references and the Phase-1 site bytes for ``count``, and compares them to what is on disk.
-        Reads only via ``struct`` + the section table, so it needs no disassembler."""
+        == verified). Locates the ``.cmdext`` cave, recomputes its content, the two repointed
+        references, the Phase-3 jump and the Phase-1 site bytes for ``count``, and compares them
+        to what is on disk. Reads only via ``struct`` + the section table, so it needs no
+        disassembler."""
         n = self.count
         problems: list[str] = []
         located = find_section(data, _SECTION_NAME)
@@ -155,13 +275,13 @@ class CommandSetLimitPatch(Patch):
         new_base_va, table_off, _vsize = located
 
         try:
-            content = self._compute_table(data, new_base_va, n)
+            content = self._compute_section(data, new_base_va, n)
         except (ValueError, struct.error) as exc:
             return [f"cannot recompute the expected table (wrong build?): {exc}"]
 
         if bytes(data[table_off : table_off + len(content)]) != content:
             problems.append(
-                f"the {_SECTION_NAME} field-parse table / slot names do not match N={n}"
+                f"the {_SECTION_NAME} field-parse table / slot names / clamp do not match N={n}"
             )
 
         for ref_off, label in (
@@ -173,6 +293,14 @@ class CommandSetLimitPatch(Patch):
                 problems.append(
                     f"{label} @0x{ref_off:x} -> 0x{got:08x}, expected 0x{new_base_va:08x}"
                 )
+
+        expected = self._clamp_jump(new_base_va, n)
+        got = bytes(data[_RANGE_FETCH_SITE : _RANGE_FETCH_SITE + len(expected)])
+        if got != expected:
+            problems.append(
+                f"P3 visible-range fetch @0x{_RANGE_FETCH_SITE:x}: expected {expected.hex()}, "
+                f"got {got.hex()}"
+            )
 
         for file_off, _old, new, note in self._phase1_edits(n):
             got = bytes(data[file_off : file_off + len(new)])
@@ -201,10 +329,15 @@ class CommandSetLimitPatch(Patch):
         return None if patch.verify(data) else patch
 
     def ini_surface(self) -> Engine:
-        """The raised ceiling, as the `commandset.max_slots` engine limit the lint rules read.
+        """The raised ceiling and the Phase-3 clamp, as the engine limits the lint rules read.
         The ControlBar's separate 33-button *display* ceiling is untouched, so it is not named
         here and stays at its stock value."""
-        return Engine(limits=(LimitDelta("commandset.max_slots", self.count, self.name),))
+        return Engine(
+            limits=(
+                LimitDelta("commandset.max_slots", self.count, self.name),
+                LimitDelta("commandset.range_clamped", 1, self.name),
+            )
+        )
 
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
@@ -220,10 +353,11 @@ class CommandSetLimitPatch(Patch):
     def from_cli_args(cls, args: argparse.Namespace) -> CommandSetLimitPatch:
         return cls(count=args.count)
 
-    def _compute_table(self, data: bytes | bytearray, section_va: int, n: int) -> bytes:
-        """Return the ``.cmdext`` content for an ``n``-slot table placed at ``section_va``. Reads
-        the original 34-entry table to reuse its slot-name pointers and parse fn; raises on an
-        unrecognised build (slot 0's parse fn not where this build keeps it)."""
+    def _compute_section(self, data: bytes | bytearray, section_va: int, n: int) -> bytes:
+        """Return the ``.cmdext`` content for ``n`` slots placed at ``section_va``: the enlarged
+        field-parse table, the ``"34".."n"`` slot names it points into, and the Phase-3 clamp.
+        Reads the original 34-entry table to reuse its slot-name pointers and parse fn; raises on
+        an unrecognised build (slot 0's parse fn not where this build keeps it)."""
         tab_foff = _TABLE_VA - image_base(data)
         original = [struct.unpack_from("<IIII", data, tab_foff + i * 16) for i in range(34)]
         parse_fn = original[0][1]
@@ -252,7 +386,33 @@ class CommandSetLimitPatch(Patch):
         table += struct.pack("<IIII", initial_visible[0], initial_visible[1], 0, initvis_off)
         table += struct.pack("<IIII", 0, 0, 0, 0)  # terminator
         assert len(table) == table_size
-        return bytes(table) + bytes(str_bytes)
+        assert bytes(str_bytes) == _slot_names(n)
+        content = bytes(table) + bytes(str_bytes)
+        assert len(content) == _clamp_offset(n)
+        return content + build_clamp(section_va + _clamp_offset(n), n)
+
+    @staticmethod
+    def _clamp_jump(section_va: int, n: int) -> bytes:
+        """The eleven bytes that replace the stock visible-range fetch: a ``jmp`` to the clamp,
+        then ``nop`` out to the end of the displaced span. The span is a whole number of
+        instructions with no inbound branch past its first byte, so the padding is never
+        executed and only keeps the site the length `verify` expects."""
+        clamp_va = section_va + _clamp_offset(n)
+        jump = b"\xe9" + struct.pack("<i", clamp_va - (CONTROL_BAR_RANGE_FETCH + 5))
+        return jump.ljust(len(CONTROL_BAR_RANGE_FETCH_BYTES), b"\x90")
+
+    @staticmethod
+    def _check_loop_anchors(data: bytes | bytearray) -> None:
+        """Refuse to clamp a build whose uncapped range loops are not the ones this was derived
+        against. Nothing else in the patch would notice: the clamp would apply cleanly and simply
+        guard code that is no longer there."""
+        for file_off, expected in _RANGE_LOOP_ANCHORS.items():
+            got = bytes(data[file_off : file_off + len(expected)])
+            if got != expected:
+                raise ValueError(
+                    f"unexpected build: ControlBar range loop @0x{file_off:x} is "
+                    f"{got.hex()}, expected {expected.hex()}"
+                )
 
     def _link_table(self, data: bytearray, new_base_va: int) -> None:
         """Repoint the two code references from the old table VA to the new ``.cmdext`` table."""

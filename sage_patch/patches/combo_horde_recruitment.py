@@ -57,7 +57,7 @@ frame of its own, so it stays transparent to the ``__EH_prolog`` frame the funct
 
 **Every peer must run the same patched binary.** Creating objects is logic state, so a patched
 and an unpatched client diverge the first frame anybody recruits a combo horde, and replays do
-not cross. The same requirement `rebuild-hole-construction` and `production-condition` carry.
+not cross. The same requirement `rebuild-hole-repair` and `production-condition` carry.
 
 **Composition.** One cave, allocated with :func:`~..utils.allocate_section` past every existing
 section and found by name in :meth:`verify`; six bytes rewritten at an address no other bundled

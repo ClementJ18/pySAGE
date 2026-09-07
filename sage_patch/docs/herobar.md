@@ -35,7 +35,8 @@ allocation site — turned out not to need answering, because the design below n
 other `game.dat` patch in either order, and has been run in a game** — but everything grouping does
 on a *click* or a *hover* post-dates that run and is static: the step-through click
 ([§3.4](#34-the-click)), the jump on a repeat click ([§3.4.1](#341-click-again-to-jump-and-why-not-right-click)),
-the count badge ([§3.3.1](#331-the-count-badge)) and the tooltip fix ([§3.5](#35-the-tooltip)).
+the count badge ([§3.3.1](#331-the-count-badge)), the group highlight
+([§3.3.2](#332-the-group-highlight)) and the tooltip line ([§3.5.1](#351-the-line-under-it)).
 See [§7](#7-verifying-it-in-a-game).
 
 ## 1. The idea that makes it small
@@ -109,7 +110,7 @@ carrying this patch — and this patch cannot be applied to one that already car
 kindof. Widening the mask is an `Object` and `ThingTemplate` layout change rather than a byte
 patch.
 
-## 3. The hooks — eight, plus an edit
+## 3. The hooks — eleven
 
 | VA | size | reads | engine function | what the detour adds |
 |---|---|---|---|---|
@@ -119,15 +120,18 @@ patch.
 | `0x0092C911` | 7 | either kindof | select-all-heroes, the counting pass | a bar kindof that is not a `HERO` is skipped (§3.6) |
 | `0x0092C999` | 7 | either kindof | select-all-heroes, the selecting pass | …and the same test where the message is built |
 | `0x0092D36F` | 6 | — | draw-loop preheader | clear the per-pass template set |
-| `0x0092D3EE` | 5 | `HEROBAR_GROUP` | draw loop, per node | skip a drawn template; mark and count it |
+| `0x0092D3EE` | 5 | `HEROBAR_GROUP` | draw loop, per node | skip a drawn template; mark, count and poll it |
+| `0x0092D662` | 8 | the slot byte | draw loop, the highlight | a group slot lights up when *any* member is selected (§3.3.2) |
 | `0x0092DBD6` | 5 | the slot byte | click dispatch | a `2` in `slot+0x16` means "step this group" |
-| `0x0092BF4E` | 6 | the slot byte | hover, the tooltip pick | …and *not* "select nearest unit" (§3.5) |
+| `0x0092BF4E` | 6 | the slot byte | hover, the tooltip pick | …and that its tooltip is the unit's, not the porter's (§3.5) |
+| `0x008EC119` | 7 | the object's id | the object tooltip builder | add the group's own line under that unit's description (§3.5.1) |
 
-Each of the eight is a `jmp rel32` padded with `nop` to cover the site exactly. The ninth is not a
-detour at all: two of its bytes change, an immediate and a branch sense, and it needs no cave.
+Each of the eleven is a `jmp rel32` padded with `nop` to cover the site exactly. Ten of them sit
+in the hero bar's own module; `0x008EC119` is the one that does not, and it is gated on an
+`ObjectID` for exactly that reason (§3.5.1).
 
-The `reads` column is the whole of the split between the two kindofs. Five of the seven sites are
-indifferent to which one an object carries — three ask "either", and the two that dispatch on
+The `reads` column is the whole of the split between the two kindofs. Every site but one is
+indifferent to which one an object carries — five ask "either", and the four that dispatch on
 `slot+0x16` are reading a decision the draw loop already made. Only `0x0092D3EE` tests
 `HEROBAR_GROUP` alone, and a template without that bit takes the arm that clears the group byte
 and gets a slot of its own.
@@ -339,6 +343,77 @@ Three things make that exact rather than approximate:
 Cost: one walk per *drawn group* per pass, not per node — the duplicates never reach it. `edx` is
 the walker, saved around both calls, which is why the hook has two `push edx` and three `pop edx`.
 
+### 3.3.2 The group highlight
+
+The lit state of a slot is `0x0092D662`, and stock it is one object's answer:
+
+```asm
+0092d662  mov  ecx, [ebp-0x20]            ; the Object the slot is drawn from   <-- replaced
+0092d665  call 0x70e013                   ; Object::getDrawable                 <-- replaced
+0092d66a  test eax, eax ; je 0x92d67b
+0092d66e  cmp  byte [eax+0x43c], 0        ; Drawable+0x43C = selected
+0092d675  je   0x92d67b
+0092d677  mov  bl, 1
+0092d67b  xor  bl, bl
+0092d67d  cmp  bl, [edi+0x10]             ; slot+0x14, the cached highlight
+```
+
+On a group slot `[ebp-0x20]` is the **representative**, so the icon was lit only while the group's
+first member happened to be the selected one and dark for every other member — which is not what a
+`PORTER` slot does. The porter block asks the whole list: `0x0092D25F` walks it, `0x0092D290` sets
+a local on the first selected member it finds, and `0x0092D294` compares that against the cache.
+
+The group answer is the *same walk* as §3.3.1, because it is over the same members. Each member
+the count accepts is asked for its drawable's selected flag and the answer is OR-ed into a byte in
+the cave; the member is carried across the two calls in a cave word, since `0x0092BBEF` and
+`0x0070E013` are both free to clobber every caller-saved register and the walker already occupies
+the stack slot:
+
+```asm
+    mov  [count_object], eax
+    push eax ; call 0x0092BBEF          ; the eligibility gate
+    test al, al ; jz .next
+    inc  dword [count]
+    mov  ecx, [count_object]
+    call 0x0070E013                     ; Object::getDrawable
+    test eax, eax ; jz .next
+    cmp  byte [eax+0x43c], 0 ; jz .next
+    mov  byte [group_selected], 1
+```
+
+The hook at `0x0092D662` then reads that byte and lands on one of the engine's **own** two arms:
+
+```asm
+highlight:
+    cmp  byte [edi+0x12], 2             ; slot+0x16: a group?
+    jne  .plain
+    cmp  byte [group_selected], 0
+    jne  .lit
+    jmp  0x0092D67B                     ; xor bl, bl
+.lit:
+    jmp  0x0092D677                     ; mov bl, 1
+.plain:
+    mov  ecx, [ebp-0x20]                ; the displaced pair
+    call 0x0070E013
+    jmp  0x0092D66A
+```
+
+So the cache at `slot+0x14`, the change test around it and the `SetButtonSelectedHighlightState`
+call all stay exactly as the engine wrote them, and a hero slot, a plain `HEROBAR` slot and the
+porter group are byte-for-byte unaffected.
+
+Two things make a byte written a hundred instructions earlier safe to read here:
+
+* **Same iteration.** `per_node` is `0x0092D3EE` and every path out of it that does not skip the
+  node reaches `0x0092D662` before the loop's back edge, so the byte is always this slot's answer.
+* **Cleared on entry to the group arm**, not beside the count. Past sixteen distinct templates the
+  set is full and the count is skipped (§3.3.1); clearing earlier is what stops such a slot
+  inheriting whatever the previous group in the same pass answered.
+
+A member the count rejects is a member this ignores too, deliberately: a dead or foreign member is
+one a click could not reach, so lighting the slot for it would promise a selection the group cannot
+honour.
+
 ### 3.4 The click
 
 The stock dispatch is two-way — `0` selects one object, non-zero runs the porter cycle. It becomes
@@ -479,19 +554,132 @@ byte as a flag rather than as a kind:
 
 ```asm
 0092bf41  eax = bar + 0x48 + slot*0x18        ; the slot
-0092bf4e  cmp  byte [eax+0x16], 0
+0092bf4e  cmp  byte [eax+0x16], 0             ; <-- replaced
 0092bf52  je   0x0092BFAA                     ; plain: build the tooltip from slot.node's object
-          ; else: look up the command button "NonCommand_SelectNearestBuilder" (0x0071D6EA)
-          ;       and show its text — "select nearest unit"
+0092bf54  ; else: the porter arm — a function-static AsciiString "NonCommand_SelectNearestBuilder",
+0092bf8f  ;       ControlBar::findCommandButton (0x0071D6EA), then the show call (0x00807A00)
+0092bfaa  ; plain: {vtable 0x00C130E8, ObjectID} on the stack, installed by 0x00807848
 ```
 
-So a `2` inherited the porter's tooltip along with its own click behaviour: hovering a `HEROBAR`
-group said *select nearest unit* instead of naming the unit. Narrowing the test to
-`cmp ..., 1 ; jne` fixes it in **two bytes** and no cave — `1` is still the porter group, and `0`
-and `2` both take the arm that builds the tooltip from the slot's own node, which is the
-representative's object, described exactly as a hero's slot describes its hero.
+So a `2` inherited the porter's tooltip along with its own click behaviour: hovering a group said
+*select nearest unit*.
 
-Nothing but this patch writes a `2`, so the edit goes in with the rest of it.
+The hook makes the test three-way, matching the click dispatch — but `2` does **not** get an arm of
+its own. It joins `0`:
+
+```asm
+tooltip:
+    cmp  byte [eax+0x16], 2 ; je .group
+    and  dword [group_object], 0        ; not a group: nothing carries the extra line
+    cmp  byte [eax+0x16], 0             ; the displaced test
+    je   .plain
+    jmp  0x0092BF54                     ; the porter arm, byte-for-byte as it was
+
+.group:
+    and  dword [group_object], 0
+    push eax
+    mov  ecx, [edx+0x10] ; add ecx, 0x10    ; -> &model->heroList, the sentinel
+    mov  eax, [eax]                          ; slot.node
+    cmp  eax, [ecx] ; je .done               ; an empty slot names nothing
+    mov  ecx, [eax+8] ; mov [group_object], ecx
+.done:
+    pop  eax
+.plain:
+    jmp  0x0092BFAA
+```
+
+**A group slot therefore gets the unit's tooltip**, title and description, exactly as a hero slot
+does — the representative's name is the title for free, because the object arm is the engine's own
+and untouched. The node and the sentinel are read the way `0x0092BFAA` itself reads them, three
+instructions later, which is why an empty slot needs no special case: it leaves the id at zero.
+
+`edx` is never written and `eax` is pushed and popped around the walk, because the arm this falls
+into wants the bar in one and the slot in the other.
+
+### 3.5.1 The line under it
+
+The extra line goes on in the **object tooltip builder**, `0x008EBC61`, which is where the
+description is assembled. Its shape at the end:
+
+```asm
+008ec0fd  ; if the last line is non-empty, 0x008EBC3B(&[ebp-0x1c], &[ebp-0x28])
+008ec119  lea  ecx, [ebp-0x28] ; mov byte [ebp-4], 0xc      ; <-- replaced
+008ec120  call 0x004367B0                                   ; the line's dtor
+008ec13d  push 0xc ; call operator new                      ; the record
+008ec150  lea ecx, [ebp-0x1c] ; push ecx                    ; the description
+008ec154  lea ecx, [ebp-0x14] ; push ecx                    ; the title — the unit's name
+008ec158  mov ecx, eax ; call 0x009402E7
+```
+
+`0x008EC119` is the convergence point: the description at `[ebp-0x1c]` is finished, the record has
+not been made, and `esi` still holds the `Object`. The hook appends there:
+
+```asm
+group_line:
+    mov  eax, [group_object] ; test eax, eax ; jz .resume
+    cmp  eax, [esi+0x74] ; jne .resume       ; is this the object a group hover named?
+    cmp  byte [tooltip_label], 0 ; je .resume
+
+    mov  ecx, [0x00DE4B04] ; mov edx, [ecx]  ; TheGameText
+    push 0 ; push tooltip_label ; push line_string
+    call [edx+0x3c]                          ; fetch(out, label, found) — callee-cleaned
+
+    mov  ecx, line_string ; call 0x00435090  ; UnicodeString::isEmpty
+    test al, al ; jnz .resume
+    push line_string
+    lea  eax, [ebp-0x1c] ; push eax
+    call 0x008EBC3B                          ; the builder's own append, cdecl
+    add  esp, 8
+.resume:
+    lea  ecx, [ebp-0x28] ; mov byte [ebp-4], 0xc     ; the displaced pair
+    jmp  0x008EC120
+```
+
+`0x008EBC3B` is the engine's own line-appender and it is what puts the separator in — it prepends
+`
+` unless the description is still empty — so the result reads as one more paragraph of the
+unit's own tooltip:
+
+```ini
+CONTROLBAR:GroupedUnitBar
+"Click to select the next one. Double click to jump to it."
+```
+
+`--group-tooltip` names the label. **It is empty by default**: there is no label this patch could
+name that a mod is guaranteed to have written, and a missing one shows as whatever `TheGameText`
+returns for it.
+
+Three things keep this narrow, and they matter because this is the one hook in the patch that is
+not in the hero bar's own module:
+
+* **The gate is an `ObjectID`, not a flag.** Five sites construct this request kind — `0x0069BD7A`,
+  `0x0069FC0C`, `0x008EBAFB`, `0x0092BFBF` and `0x009309E1` — and only one of them is the hero
+  bar. Matching `Object+0x74` against the id a group hover left behind is what stops the line
+  turning up on somebody else's tooltip, and the other two hover arms clear the id so that at most
+  one object carries it.
+* **An empty label never reaches the string table**, which is the default and leaves every tooltip
+  in the game exactly as it was.
+* **An empty fetch is caught** with `UnicodeString::isEmpty` (`0x00435090`), the same test the
+  builder applies to its own description lines before appending them.
+
+The `UnicodeString` the lookup fills is a cave word kept between hovers rather than a frame local:
+there is no spare slot in a frame this hook does not own, and assigning over a `UnicodeString`
+releases what it held. It is outside the frame's SEH scope, so a throw inside the fetch would leak
+it — the same trade the engine's own function-static string beside `0x0092BF63` makes.
+
+**The residual**: hovering the same object somewhere *else* that uses this builder, without
+touching the bar in between, shows the line there too. Closing it would mean gating on the request
+site as well as the object, which is more machinery than the artefact is worth.
+
+**Why not a `CommandButton`.** The obvious alternative is to give `2` an arm of its own that shows
+a named `CommandButton`'s `TextLabel` and `DescriptLabel`, the way the porter arm shows
+`NonCommand_SelectNearestBuilder`'s. It works, and it was built first, but the title is then a
+fixed string rather than the unit's name — and patching the title in is worse than it looks,
+because `0x008075A3` compares two tooltip requests by asking the request itself (vtable `+0x10`),
+and a `CommandButton` request compares by button. Two group slots sharing one button are therefore
+the *same* request, so moving the cursor from one to the other does not rebuild the tooltip and the
+title would keep naming the previous group's unit. The object request is keyed per `ObjectID` and
+has no such problem.
 
 ## 4. What it does *not* need
 
@@ -519,7 +707,13 @@ Everything here is about `HEROBAR_GROUP`; a plain `HEROBAR` object costs its bit
   it is honoured either way. ([§3.4.1](#341-click-again-to-jump-and-why-not-right-click))
 * **No right-click gesture.** The mouse button does not reach this hook at all — §3.4.1.
 * **The representative is whichever member sorts first**, so the icon a group shows can change
-  when that member dies, even though the group did not.
+  when that member dies, even though the group did not. The health bar and the progress ring are
+  still its own; only the count and the highlight are the group's
+  ([§3.3.2](#332-the-group-highlight)).
+* **A group slot's tooltip carries one extra line** once `--group-tooltip` names a label
+  ([§3.5.1](#351-the-line-under-it)), and the same line appears on that one unit's tooltip
+  anywhere else it is hovered until the bar is touched again. Leaving the option unset — the
+  default — leaves every tooltip in the game as it was.
 * **The bar is still 16 slots.** Groups consume slots, so enough distinct `HEROBAR_GROUP`
   templates in play push heroes off the end. The overflow at `0x0092D3E5` is graceful — it jumps to the loop's
   own "next node" label, and since that label leaves the slot cursor alone, every later node
@@ -584,8 +778,8 @@ kindof table underneath this one. The live table is consulted only to confirm it
 
 ## 7. Verifying it in a game
 
-The list. Items **4 to 8** are the ones outstanding — everything grouping does on a click or a
-hover post-dates the run that cleared the rest:
+The list. Items **4 to 8** are the ones outstanding — everything grouping does on a click, a hover
+or a selection post-dates the run that cleared the rest:
 
 1. **`KindOf = HEROBAR` and `KindOf = HEROBAR_GROUP` both parse** on an `Object` block, `-NAME`
    unsets either, and an unpatched `game.dat` still rejects both tokens — i.e. the table really
@@ -600,6 +794,11 @@ hover post-dates the run that cleared the rest:
    reload**, which is the engine's own change test firing on the new number. Kill one and it drops.
    A group of one shows `1`. A member that is not the local player's, or is `NO_HERO_PROPERTIES`,
    is **not** counted — the number has to match what the clicks can reach, item 5.
+4a. **The slot lights up for any member.** Select a member that is *not* the one the slot's icon
+   came from: the slot has to be highlighted, and go dark again when the selection moves off the
+   whole group. Selecting two members at once keeps it lit, and a member the badge does not count
+   must **not** light it (§3.3.2). On a bar with two groups, selecting in one must not light the
+   other — the failure if the byte were not cleared per slot.
 5. **Clicking a group steps.** Click once: the first member is selected, alone. Click again *after
    the jump window has closed* — half a second on the default: the next one, and nothing of the
    previous. Click past the last: back to the first. Never a member of the other group, and never
@@ -607,9 +806,14 @@ hover post-dates the run that cleared the rest:
 6. **Clicking twice quickly jumps.** The second click centres the camera on the member the first
    one selected and does **not** advance — then a later click advances as normal. Clicking slot A
    then slot B quickly must *step* B rather than jump, since it is a different slot.
-7. **Hovering a group names the unit.** The tooltip is the representative's own, not
-   *"select nearest unit"* — and hovering the **porter** slot on the same build still says exactly
-   that, which is the §3.5 edit not having gone one value too far.
+7. **Hovering a group names the unit and adds one line.** The tooltip is the representative's
+   own name and description, not *"select nearest unit"*, with the `--group-tooltip` text as a
+   further paragraph. Hovering the **porter** slot on the same build still says *select nearest
+   unit*, which is the §3.5 dispatch not having gone one value too far; hovering a plain hero, or
+   any unit anywhere else, shows **no** extra line, which is the §3.5.1 `ObjectID` gate; and a
+   build applied without `--group-tooltip` shows the tooltip exactly as an unpatched one does.
+   Move the cursor between two group slots and the tooltip has to follow — different objects, so
+   different requests.
 8. **The cursor survives the group changing.** Kill the member a slot is parked on, then click:
    the click has to land on a live member rather than doing nothing. Same for clicking group A,
    then B, then A — A resumes where it was, which is the per-bar cursor's failure if the table

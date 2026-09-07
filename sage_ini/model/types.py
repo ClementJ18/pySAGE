@@ -22,6 +22,7 @@ else:
 
 
 import sage_ini.model.types as t  # noqa: E402  (intentional self-reference)
+from sage_ini.model.aliases import resolve_alias
 from sage_ini.model.enums import (
     AudioVolumeSlider,
     DamageType,
@@ -351,13 +352,18 @@ Label = Annotated[str, _Label]
 class Reference:
     """A named cross-reference to a top-level definition in `game.tables[key]`, resolving to
     the registered object when present. An unknown name passes through unchanged; strict
-    dangling-reference checking is the linter's job."""
+    dangling-reference checking is the linter's job.
+
+    A table that takes descriptive aliases (`sage_ini.model.aliases`) resolves the name up to
+    the first `@`, the way the engine's hooked lookup does. The alias annotates the reference
+    and is not part of the identity, so what comes back here is the plain definition; the lint
+    rules read the annotation off the raw text."""
 
     def __init__(self, key):
         self.key = key
 
     def convert(self, game, value):
-        name = game.get_macro(value)
+        name, _alias = resolve_alias(game, self.key, value)
         obj, canonical = game.lookup(self.key, name)
         if obj is None:
             return (

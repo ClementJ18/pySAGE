@@ -967,14 +967,26 @@ class TestInitialVisibleLimitRule:
 
         assert len(diags) == 1
         assert diags[0].code == "initial-visible-over-max"
-        assert diags[0].severity is Severity.WARNING
+        assert diags[0].severity is Severity.ERROR
         assert diags[0].extra == {
             "type": "CommandSet",
             "commandset": "Set",
             "key": "InitialVisible",
             "value": 64,
             "maximum": 33,
+            "crashes": True,
         }
+
+    def test_a_clamping_engine_downgrades_it_to_a_warning(self):
+        """`InitialVisible` seeds the ControlBar's visible window, and two of the loops over that
+        window are unbounded, so on a stock build an over-large value is fatal. The
+        commandset-limit patch trims the window, which leaves only the buttons that never show."""
+        with Engine(limits=(LimitDelta("commandset.range_clamped", 1),)).activate():
+            diags = self._run("64")
+
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.WARNING
+        assert diags[0].extra["crashes"] is False
 
     def test_does_not_flag_exactly_33(self):
         assert not self._run("33")
@@ -1035,6 +1047,23 @@ class TestPushCommandRangeOverflowRule:
         assert widened[0].severity is Severity.WARNING
         assert widened[0].extra["crashes"] is False
         assert widened[0].extra["highest_slot"] == 40
+
+    def test_a_clamping_engine_downgrades_an_overrun_to_a_warning(self):
+        """The same window that crashes a stock build is trimmed by the commandset-limit patch,
+        which leaves blank positions on the page and nothing worse."""
+        clamped = Engine(
+            limits=(
+                LimitDelta("commandset.max_slots", 64),
+                LimitDelta("commandset.range_clamped", 1),
+            )
+        )
+        with clamped.activate():
+            diags = self._run("33", "33")
+
+        assert len(diags) == 1
+        assert diags[0].severity is Severity.WARNING
+        assert diags[0].extra["crashes"] is False
+        assert diags[0].extra["overruns"] is True
 
     def test_does_not_flag_a_range_within_the_set(self):
         # start 33 + count 7 = 40 == highest slot: exactly fits.

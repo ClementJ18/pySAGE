@@ -44,6 +44,11 @@ numbered slots, a `ChildObject`'s parent, and the `#define` body a field reaches
 so the rewrite follows the reference graph rather than grepping for a string. Matching is
 case-insensitive, the way the engine resolves names.
 
+A descriptive upgrade alias is rewritten through, not around: `Upgrade_Old@SmithyLevel2` becomes
+`Upgrade_New@SmithyLevel2`, since the alias annotates the reference and is not part of the name.
+The annotation itself is never a rename target, so an upgrade that happens to share its spelling
+is not rewritten inside somebody else's annotation.
+
 ```sh
 python -m sage_lint rename <dir> OldSword NewSword          # report the plan, write nothing
 python -m sage_lint rename <dir> OldSword NewSword --apply  # perform it

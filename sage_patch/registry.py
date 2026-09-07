@@ -50,13 +50,16 @@ from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.interpolation_alpha import InterpolationAlphaPatch
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
+from sage_patch.patches.experimental.rebuild_hole_repair import RebuildHoleRepairPatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.render_rate import RenderRatePatch
+from sage_patch.patches.experimental.script_debug_window import ScriptDebugWindowPatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_charges import SpecialPowerChargesPatch
 from sage_patch.patches.experimental.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
+from sage_patch.patches.experimental.wotr_battle_observers import WotrBattleObserversPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
@@ -95,7 +98,6 @@ from sage_patch.patches.production_split import (
 )
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.quiet_exit import QuietExitPatch
-from sage_patch.patches.rebuild_hole_construction import RebuildHoleConstructionPatch
 from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
 from sage_patch.patches.scenario_player_factions import ScenarioPlayerFactionsPatch
@@ -110,6 +112,7 @@ from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
+from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
 from sage_patch.patches.wall_mesh_release import WallMeshReleasePatch
@@ -195,7 +198,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     ProductionSplitWorldbuilderPatch,
     QueueIgnoreCpPatch,
     QuietExitPatch,
-    RebuildHoleConstructionPatch,
+    RebuildHoleRepairPatch,
     RechargeRescalePatch,
     RenderRatePatch,
     ReplayAnnotationsPatch,
@@ -203,6 +206,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     ScenarioPlayerFactionsPatch,
     SciencePrereqPatch,
     SciencePrereqWorldbuilderPatch,
+    ScriptDebugWindowPatch,
     SecondResourcePatch,
     SkirmishAiFallbackPatch,
     SkirmishReplayPatch,
@@ -216,12 +220,14 @@ _REGISTERED: tuple[type[Patch], ...] = (
     UniqueProductionIdPatch,
     UnitPlateOptionPatch,
     UpgradeDescriptionPatch,
+    UpgradeAliasPatch,
     UpgradeGrantListsPatch,
     WallMeshReleasePatch,
     WorldbuilderLabelAssertPatch,
     WorldbuilderModPatch,
     WorldbuilderObjectTypeaheadPatch,
     WorldbuilderSilentErrorsPatch,
+    WotrBattleObserversPatch,
 )
 
 

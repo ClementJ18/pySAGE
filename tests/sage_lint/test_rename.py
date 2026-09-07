@@ -200,6 +200,49 @@ class TestApplyPlan:
         assert "Object Champion" in text
         assert "ChildObject HeroChild Champion" in text  # the child's own name is untouched
 
+    def test_renames_through_a_descriptive_alias(self, tmp_path):
+        # An alias annotates the reference and is not part of the name, so the rename has to
+        # reach the name half and leave the annotation alone. Missing these would leave a silent
+        # half-rename: the definition renamed, the annotated references still naming the old one.
+        path = _write(
+            tmp_path,
+            "data/ini/u.ini",
+            "Upgrade Upgrade_Old\n    Type = OBJECT\nEnd\n"
+            "Object Tent\n"
+            "    Behavior = SubObjectsUpgrade ModuleTag_01\n"
+            "        TriggeredBy = Upgrade_Old@SmithyLevel2\n"
+            "    End\n"
+            "End\n",
+        )
+
+        _rename(tmp_path, "upgrades", "Upgrade_Old", "Upgrade_New")
+
+        text = path.read_text(encoding="utf-8")
+        assert "Upgrade Upgrade_New" in text
+        assert "TriggeredBy = Upgrade_New@SmithyLevel2" in text
+        assert "Upgrade_Old" not in text
+
+    def test_renames_only_the_name_half_of_an_aliased_token(self, tmp_path):
+        # The alias is an annotation, never a definition, so a definition that happens to share
+        # its spelling must not be rewritten inside somebody else's annotation.
+        path = _write(
+            tmp_path,
+            "data/ini/u.ini",
+            "Upgrade Upgrade_Keep\n    Type = OBJECT\nEnd\n"
+            "Upgrade SmithyLevel2\n    Type = OBJECT\nEnd\n"
+            "Object Tent\n"
+            "    Behavior = SubObjectsUpgrade ModuleTag_01\n"
+            "        TriggeredBy = Upgrade_Keep@SmithyLevel2\n"
+            "    End\n"
+            "End\n",
+        )
+
+        _rename(tmp_path, "upgrades", "SmithyLevel2", "Renamed")
+
+        text = path.read_text(encoding="utf-8")
+        assert "Upgrade Renamed" in text
+        assert "TriggeredBy = Upgrade_Keep@SmithyLevel2" in text  # the annotation is untouched
+
     def test_does_not_rewrite_a_comment(self, tmp_path):
         path = _write(
             tmp_path,

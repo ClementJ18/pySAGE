@@ -12,6 +12,12 @@ import pytest
 
 from sage_ini.engine import STOCK
 from sage_patch import CahFactionsPatch, CommandSetLimitPatch, Patch, apply_patches
+from sage_patch.addresses import (
+    CONTROL_BAR_MAX_VISIBLE,
+    CONTROL_BAR_RANGE_FETCH,
+    CONTROL_BAR_RANGE_FETCH_BYTES,
+    CONTROL_BAR_RANGE_FETCH_RESUME,
+)
 from sage_patch.cli import build_parser, main
 from sage_patch.patcher import EXPERIMENTAL_WARNING
 from sage_patch.patches import cah_factions as cf
@@ -54,6 +60,11 @@ _NUMBER_WORDS = {
     18: "eighteen",
     19: "nineteen",
     20: "twenty",
+    21: "twenty-one",
+    22: "twenty-two",
+    23: "twenty-three",
+    24: "twenty-four",
+    25: "twenty-five",
 }
 
 
@@ -646,6 +657,9 @@ def _synthetic_game_dat(base: int = 0x400000) -> bytearray:
     for off, old, _new, _note in probe._phase1_edits(64):
         highest = max(highest, off + len(old))
     highest = max(highest, cs._PARSER_TABLE_REF + 5, cs._GETFIELDPARSE_REF + 5)
+    highest = max(highest, cs._RANGE_FETCH_SITE + len(CONTROL_BAR_RANGE_FETCH_BYTES))
+    for off, anchor in cs._RANGE_LOOP_ANCHORS.items():
+        highest = max(highest, off + len(anchor))
     data = bytearray(align_up(highest + 0x400, 0x200))
     data[0:2] = b"MZ"
 
@@ -687,6 +701,13 @@ def _plant_commandset_sites(data: bytearray, base: int = 0x400000) -> None:
     data[cs._GETFIELDPARSE_REF : cs._GETFIELDPARSE_REF + 5] = b"\xb8" + struct.pack(
         "<I", cs._TABLE_VA
     )
+
+    # Phase 3: the visible-range fetch the clamp replaces, and the two uncapped loop heads it
+    # protects - which `apply` refuses to clamp unless it recognises them.
+    fetch = cs._RANGE_FETCH_SITE
+    data[fetch : fetch + len(CONTROL_BAR_RANGE_FETCH_BYTES)] = CONTROL_BAR_RANGE_FETCH_BYTES
+    for off, anchor in cs._RANGE_LOOP_ANCHORS.items():
+        data[off : off + len(anchor)] = anchor
 
     # Plant the original 34-entry field-parse table (33 numbered slots + InitialVisible).
     tab_foff = cs._TABLE_VA - base
@@ -735,6 +756,40 @@ class TestApplyProducesVerifiablePatch:
         highest_index_visited = count - 1
         count_field_index = (cs._ARRAY_OFF + count * 4 - cs._ARRAY_OFF) // 4
         assert highest_index_visited < count_field_index
+
+    @pytest.mark.parametrize("count", [MIN_COUNT, 64, MAX_COUNT])
+    def test_the_range_fetch_jumps_to_the_clamp(self, count):
+        """Phase 3 replaces the whole eleven-byte fetch with a jump into the cave, padded with
+        `nop` so the site keeps its length. The clamp sits past the table and the slot names."""
+        data = _synthetic_game_dat()
+        CommandSetLimitPatch(count=count).apply(data)
+        site = cs._RANGE_FETCH_SITE
+        written = bytes(data[site : site + len(CONTROL_BAR_RANGE_FETCH_BYTES)])
+        assert written[0] == 0xE9
+        assert written[5:] == b"\x90" * (len(CONTROL_BAR_RANGE_FETCH_BYTES) - 5)
+        new_va, _off, _vsize = find_section(data, cs._SECTION_NAME)
+        target = CONTROL_BAR_RANGE_FETCH + 5 + struct.unpack_from("<i", written, 1)[0]
+        assert target == new_va + cs._clamp_offset(count)
+
+    @pytest.mark.parametrize("count", [MIN_COUNT, 64, MAX_COUNT])
+    def test_the_clamp_carries_both_ceilings_and_returns(self, count):
+        """The routine bounds `start` by the array and the visible count by the 33 on-screen
+        widgets, then resumes at the instruction after the displaced fetch."""
+        code = cs.build_clamp(0xED3000, count)
+        assert b"\x83\xf8" + bytes([count]) in code  # cmp eax, N          (start vs the array)
+        assert b"\x83\xf9" + bytes([CONTROL_BAR_MAX_VISIBLE]) in code  # cmp ecx, 33
+        assert b"\xba" + struct.pack("<I", count) in code  # mov edx, N    (slots left after start)
+        resume = CONTROL_BAR_RANGE_FETCH_RESUME - (0xED3000 + len(code))
+        assert code.endswith(b"\xe9" + struct.pack("<i", resume))
+
+    def test_apply_refuses_a_build_whose_range_loops_moved(self):
+        """The clamp only means anything against the two uncapped loops it was derived from. A
+        build where those bytes differ is not this build, and is refused rather than clamped."""
+        data = _synthetic_game_dat()
+        site = next(iter(cs._RANGE_LOOP_ANCHORS))
+        data[site] ^= 0xFF
+        with pytest.raises(ValueError, match="ControlBar range loop"):
+            CommandSetLimitPatch(count=64).apply(data)
 
     def test_different_counts_produce_different_output(self):
         a, b = _synthetic_game_dat(), _synthetic_game_dat()

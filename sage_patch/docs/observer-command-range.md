@@ -257,7 +257,8 @@ composable with the other section-adding patches.
 - **It does not add a UI.** The paging buttons revealed are the ones the mod's `CommandSet`
   already defines; a set with no `PUSH_VISIBLE_COMMAND_RANGE` button gains nothing.
 - **The page ceiling still applies.** `CommandRangeStart + CommandRangeCount ≤ N` — an INI-side
-  overrun reads off the end of `m_command` and crashes, observer or not. See
+  overrun reads off the end of `m_command` and crashes, observer or not, unless
+  `commandset-limit` is applied and trimming the window. See
   [`push-visible-command-range.md`](push-visible-command-range.md).
 - **A page does not survive re-selection.** `switchToContext` clears `ControlBar+0x2B0` on any
   context or drawable change, which is stock behaviour.

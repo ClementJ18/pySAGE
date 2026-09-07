@@ -51,8 +51,9 @@ python finalcheck.py           # pefile sanity check
    `"Error parsing field '34'…"`; multi-select is stable.
 4. **Paging.** Only 33 buttons draw at once. To reach entries past 33, page with a
    `PUSH_VISIBLE_COMMAND_RANGE` button — see [`../docs/push-visible-command-range.md`](../docs/push-visible-command-range.md).
-   The hard rule: `CommandRangeStart + CommandRangeCount ≤ 64`, or you read off the end of the
-   array (slot 64 = the count field) and crash.
+   The rule to author against stays `CommandRangeStart + CommandRangeCount ≤ 64` (and
+   `CommandRangeCount ≤ 33`); a window past either is now trimmed to what fits rather than
+   crashing, so it costs blank positions instead of the match.
 
 ## Caveats / known risks
 

@@ -7,8 +7,9 @@ surface that has to change to raise it to an arbitrary **N** — engine **and** 
 
 The applied patch that implements this — generalised to any N in 34..127 — is
 [`patches/commandset.py`](../patches/commandset.py) (`CommandSetLimitPatch(count=N)`); this doc
-is the reverse-engineering behind it. Paging past the on-screen 33 once a set holds more is
-covered in [`push-visible-command-range.md`](push-visible-command-range.md).
+is the reverse-engineering behind it. Paging past the on-screen 33 once a set holds more, and the
+visible-window clamp the same patch installs as Phase 3, are covered in
+[`push-visible-command-range.md`](push-visible-command-range.md).
 
 > Scope: static analysis of a game the author owns, for modding. Addresses are for
 > `game.dat` v2.01.2614.37001 (T3A/Edain community patch), ImageBase `0x00400000`.
@@ -212,6 +213,16 @@ short of index N, where the patch relocates the count field; at N+1 it would rea
 The same function's revive branch is what [`ai-revive-gate.md`](ai-revive-gate.md) patches, 20
 bytes earlier. The two edits do not overlap and neither reads the other's bytes.
 
+### Three of the 42 are not bounded on 33 at all
+
+The classification counts a function once, by the bound its *first* slot loop carries.
+`ControlBar::populate` (`0x00943D6F`) runs three, and only the first has the `cmp edi,0x21`;
+its revive pass (`0x00943F2B`) and production pass (`0x0094426A`) are bounded solely by the
+visible-window count the paging buttons and `InitialVisible` write. That is a stock crash rather
+than a missed bound — raising anything there would make it worse — so the patch clamps the window
+where it is read instead. See
+[`push-visible-command-range.md`](push-visible-command-range.md).
+
 ### Mirror array
 
 The ControlBar/store object (ctor region `0x00720302`, fields out to `+0x2b0`) keeps its own
@@ -277,6 +288,7 @@ cleanly; an unpatched *read* loop simply won't show the extra buttons.
 | Goal | Sites | Nature |
 |------|-------|--------|
 | Stop the >33 load crash | ~4 | table relocate + alloc + ctor |
+| Survive an oversized paging window | 1 + cave | clamp the visible range at its single read |
 | All N buttons fully functional (engine) | ~50 | mostly 1-byte `0x21→N` + struct growth |
 | Show >33 at once on screen (UI) | design | APT layout/paging + engine positioning; movie creates clips dynamically already |
 
@@ -299,6 +311,7 @@ more buttons at once rather than merely to stop the crash.
 | `setCommandButton` | `0x0080c8ef` |
 | `clearCommandButtons` | `0x0080c8e2` |
 | CommandSet vtable | `0x00c4f688` |
+| Visible-range fetch (Phase 3 clamp) | `0x00943e11` |
 | Apt command-bar handler | `0x0092f4c0` |
 | Error: unknown field | string `0x007d3e98` |
 | Error: unknown command in set | string `0x00c4f68c` |
