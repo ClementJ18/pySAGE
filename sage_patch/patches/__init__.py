@@ -49,6 +49,7 @@ from sage_patch.patches.production_split import ProductionSplitPatch
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
 from sage_patch.patches.science_prereqs import SciencePrereqPatch
+from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
 from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
@@ -102,6 +103,7 @@ __all__ = [
     "ReplayOutcomePatch",
     "SciencePrereqPatch",
     "SecondResourcePatch",
+    "ShareExperienceAllPatch",
     "SkirmishReplayPatch",
     "SmartRallyPatch",
     "SpawnUnionPatch",

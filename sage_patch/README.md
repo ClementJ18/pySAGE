@@ -1154,6 +1154,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   with. `--no-report-missing` drops that half; `--all-keywords` widens the relaxation to every
   science-name keyword by repointing the shared thunk instead. A `map.ini` that defines a `Science`
   block runs after the check and is not covered. **Runtime-verified in game.**
+- **`share-experience-all`** sends the same original XP to every `ShareExperienceBehavior`
+  on an object, in deterministic module order. Declare behaviors with distinct ModuleTags;
+  no new INI fields or persistent state are introduced. Recipient scaling uses the original XP
+  independently, and `DropOff` becomes a clamped 0..1 strength (0 and 1 stay compatible).
+  The stock first-match helper and savegame/object layouts remain untouched.
+  See [`docs/share-experience-all.md`](docs/share-experience-all.md) for the confirmed
+  disassembly and runtime evidence.
 - **`skirmish-ai-fallback`** gives a faction a **working AI on a map that carries no
   `Skirmish<Faction>` side for it**. A map's sides are capped at 20 — `SidesList::addSide` refuses
   the 21st — so a mod past ten-odd factions runs out of room, and 63 of the 617 shipped maps are
