@@ -354,6 +354,16 @@ store a plain int, and the per-set locomotors live in a tree keyed by that int. 
 value costs a table relocation and nothing else — no count, no array, no struct growth. It is the
 cheapest of the three tables by some distance.
 
+**One of those eight references moves.** `0x00C5BCC8` is not a standalone dword: it is the
+`userData` slot of `HordeContain`'s `ForcedLocomotorSet` descriptor, the 24th entry of the
+field-parse table at `0x00C5BB50`. `banner-modifier` copies that whole table into a cave to append
+a field to `HordeContain`, and the copy is what `buildFieldParse` hands the parser from then on —
+so a patch that repoints `0x00C5BCC8` and stops there leaves the *live* descriptor naming the old
+name table, and `ForcedLocomotorSet` refuses the new token while every other field accepts it.
+`locomotor_sets.ref_vas` therefore reads the table pointer out of the `push` at `0x00878B74` and
+adds `+ 23*16 + 8` from wherever it currently points, repointing the stock copy alongside it so a
+cave built from stock *after* the relocation still copies a row that names the live table.
+
 ### 11b. The fallback is what makes driving it safe
 
 `chooseLocomotorSet` (`0x006680B2`) is a no-op in every case worth worrying about:

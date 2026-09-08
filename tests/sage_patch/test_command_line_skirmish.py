@@ -20,7 +20,6 @@ from __future__ import annotations
 import struct
 from pathlib import Path
 
-import capstone
 import pytest
 
 from sage_patch.addresses import (
@@ -63,6 +62,7 @@ def _jump_target(data: bytes | bytearray, va: int) -> int:
 
 
 def _disasm(data: bytes | bytearray, start_va: int, count: int) -> list:
+    capstone = pytest.importorskip("capstone")
     base_va, file_off, size = find_section(data, SECTION_NAME)
     blob = bytes(data)[file_off : file_off + size]
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
@@ -232,6 +232,7 @@ class TestTheGuard:
         """The relocated block must be instruction-for-instruction what it replaced, apart from
         the recomputed displacement on its one relative call. Anything dropped here is a silent
         behaviour change on the path that used to work."""
+        capstone = pytest.importorskip("capstone")
         md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
         original = [
             (i.mnemonic, i.op_str)

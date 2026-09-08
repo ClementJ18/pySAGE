@@ -13,7 +13,7 @@ build, and absent on stock.
 can actually observe, so every interpolated thing on screen moves a normal step N−1 times and then
 a **double** step, once per logic frame.
 
-- **Status: built, unit-tested, not played.** It is the registered experimental
+- **Status: built, unit-tested, not played.** It is the registered
   `interpolation-alpha` patch; `sage-patch apply interpolation-alpha` is the whole build.
 - **Cost:** one five-byte hook and an 81-byte cave.
 - **Precondition:** the binary's catch-up loop must always run (§4). Stock is not affected by this

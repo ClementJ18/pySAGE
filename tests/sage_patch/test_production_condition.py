@@ -424,6 +424,27 @@ class TestApplyingTheOptionalHalves:
         assert patched.pointers[:stock_count] == stock.pointers, "every name keeps its index"
         assert patched.index_of(image, name) == stock_count
 
+    def test_a_relocated_locomotor_descriptor_is_repointed_too(self, image: bytearray):
+        """`ForcedLocomotorSet`'s reference to the name table is a `userData` slot in
+        `HordeContain`'s field-parse table, and `banner-modifier` copies that table into a cave of
+        its own. The live descriptor is then the copy, so repointing the stock address alone would
+        leave `HordeContain` resolving its token against the table without the new name in it."""
+        moved_table = 0x00DA6000  # a mapped page the stock field table does not use
+        struct.pack_into(
+            "<I",
+            image,
+            va_to_offset(image, locomotor_sets.HORDE_FIELD_TABLE_REF_VA),
+            moved_table,
+        )
+        slot = moved_table + locomotor_sets.HORDE_FORCED_LOCOMOTOR_SLOT
+        struct.pack_into("<I", image, va_to_offset(image, slot), locomotor_sets.NAME_TABLE_VA)
+
+        ProductionConditionPatch(locomotor_set=LOCOMOTOR_SET).apply(image)
+
+        rebuilt = locomotor_sets.read(image)
+        got = struct.unpack_from("<I", image, va_to_offset(image, slot))[0]
+        assert got == rebuilt.base_va, "the copy still names the old table"
+
     def test_the_weapon_set_count_is_deliberately_left_alone(self, image: bytearray):
         """Raising it would walk the 104-entry weaponset-to-model-condition map out of bounds and
         start saving a bit whose whole value is that it is recomputed. See `weapon_set_flags`."""

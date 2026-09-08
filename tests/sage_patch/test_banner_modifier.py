@@ -58,6 +58,7 @@ from sage_patch.patches.banner_modifier import (
     STOCK_FIELDS,
     BannerModifierPatch,
 )
+from sage_patch.patches.utils import locomotor_sets
 from sage_patch.utils import append_section, find_section, next_section_rva, va_to_offset
 
 from .synthetic import IMAGE_BASE, _sparse_image
@@ -493,6 +494,23 @@ def test_bad_keywords_are_refused(keyword: str) -> None:
 
 
 # --- composition ---------------------------------------------------------------------------------
+
+
+def test_the_locomotor_set_reference_travels_with_the_table(image: bytearray) -> None:
+    """`ForcedLocomotorSet` resolves its token through the engine's locomotor-set name table, and
+    the reference it resolves through is the `userData` slot of one of the descriptors copied into
+    the cave - so relocating the table moves that reference. A patch that rebuilds the name table
+    has to repoint the copy, which it finds through the same push this patch rewrites; looking it
+    up at its stock address alone would leave `HordeContain` reading a table nothing else uses."""
+    index = [name for name, _offset in STOCK_FIELDS].index("ForcedLocomotorSet")
+    assert index * FIELD_ENTRY_SIZE + 8 == locomotor_sets.HORDE_FORCED_LOCOMOTOR_SLOT
+
+    assert locomotor_sets.ref_vas(image) == locomotor_sets.TABLE_REF_VAS  # nothing has moved yet
+
+    data = _patched(image)
+    section_va, _off, _vsize = _cave(data)
+    moved = section_va + locomotor_sets.HORDE_FORCED_LOCOMOTOR_SLOT
+    assert locomotor_sets.ref_vas(data) == (*locomotor_sets.TABLE_REF_VAS, moved)
 
 
 def test_the_cave_lands_past_a_section_another_patch_appended(image: bytearray) -> None:

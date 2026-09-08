@@ -42,6 +42,7 @@ from sage_patch import addresses as ad
 from sage_patch.patches import ai_command_null_target as acnt
 from sage_patch.patches import ai_flag_capture_gate as afc
 from sage_patch.patches import ai_hero_build_delay as ahbd
+from sage_patch.patches import banner_modifier as bm
 from sage_patch.patches import commandset_button_upgrade as cbu
 from sage_patch.patches import crash_dump as cd
 from sage_patch.patches import deploy_before_attack as dba
@@ -53,7 +54,7 @@ from sage_patch.patches import healing_received as hr
 from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
 from sage_patch.patches import infantry_lighting as il
-from sage_patch.patches import lifetime_fields as lf
+from sage_patch.patches import interpolation_alpha as ia
 from sage_patch.patches import multi_instance as mi
 from sage_patch.patches import object_image_upgrade as oi
 from sage_patch.patches import observer_command_range as ocr
@@ -72,7 +73,9 @@ from sage_patch.patches.experimental import battle_school as bs
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
 from sage_patch.patches.experimental import command_line_skirmish as cls
-from sage_patch.patches.experimental import interpolation_alpha as ia
+from sage_patch.patches.experimental import map_transition as mtr
+from sage_patch.patches.experimental import mod_load_order as mlo
+from sage_patch.patches.experimental import multi_mod as mm
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import render_rate as rrate
 from sage_patch.patches.experimental import script_debug_window as sdw
@@ -192,6 +195,12 @@ def synthetic_image() -> bytearray:
         for va in ref_vas:
             u32(va, table_va)
     write(ws.BIT_COUNT_VA, ws.BIT_COUNT_BYTES)
+
+    # `ForcedLocomotorSet`'s descriptor is reached through `HordeContain`'s field-parse table
+    # pointer rather than at a fixed address, because a patch that appends a field to
+    # `HordeContain` moves that table. Unrelocated, the pointer names the stock table and the
+    # descriptor is the reference planted just above.
+    write(ls.HORDE_FIELD_TABLE_REF_VA - 1, b"h" + struct.pack("<I", bm.FIELD_TABLE_VA))
 
     for index, va in enumerate(weather_vas):
         u32(dw.WEATHER_TABLE_VA + index * 4, va)
@@ -948,7 +957,7 @@ def lifetime_fields_image() -> bytearray:
     """
     strings = bytearray()
     rows = bytearray()
-    for name, offset in lf.STOCK_FIELDS:
+    for name, offset in ad.LIFETIME_STOCK_FIELDS:
         name_va = LIFETIME_STRINGS_VA + len(strings)
         strings += name.encode("ascii") + b"\x00"
         # `parse` and `userData` are not read by the patch (the rows are copied verbatim), so a
@@ -958,18 +967,18 @@ def lifetime_fields_image() -> bytearray:
 
     return _sparse_image(
         {
-            **lf.ANCHORS,
-            lf.ALLOC_VA: lf.ALLOC_BYTES,
-            lf.ARM_VA: lf.ARM_BYTES,
-            lf.UPDATE_VA: lf.UPDATE_BYTES,
-            lf.EXPIRE_VA: lf.EXPIRE_BYTES,
-            lf.LATCH_DEFAULT_VA: lf.LATCH_DEFAULT_BYTES,
+            **ad.LIFETIME_ANCHORS,
+            ad.LIFETIME_ALLOC: ad.LIFETIME_ALLOC_BYTES,
+            ad.LIFETIME_ARM: ad.LIFETIME_ARM_BYTES,
+            ad.LIFETIME_UPDATE: ad.LIFETIME_UPDATE_BYTES,
+            ad.LIFETIME_EXPIRE: ad.LIFETIME_EXPIRE_BYTES,
+            ad.LIFETIME_LATCH_DEFAULT: ad.LIFETIME_LATCH_DEFAULT_BYTES,
             # `buildFieldParse`, whose one imm32 is the table's only reference in the image
             0x007A7DFA: bytes.fromhex("8b4c24046a00")
             + b"\x68"
-            + struct.pack("<I", lf.FIELD_TABLE_VA)
+            + struct.pack("<I", ad.LIFETIME_FIELD_TABLE)
             + bytes.fromhex("e8cd3ac8ffc3"),
-            lf.FIELD_TABLE_VA: bytes(rows),
+            ad.LIFETIME_FIELD_TABLE: bytes(rows),
             LIFETIME_STRINGS_VA: bytes(strings),
         }
     )
@@ -1231,6 +1240,54 @@ def worldbuilder_mod_image() -> bytearray:
     return _sparse_image(planted)
 
 
+def mod_load_order_image() -> bytearray:
+    """A stand-in carrying `GameEngine::init`'s startup and everything the `.modord` cave calls.
+
+    The two rewritten sites and the ten anchors span `GameEngine::init`, the command-line module,
+    the file system, the startup switch table and one dword of `GlobalData`'s vtable - roughly
+    8 MB apart end to end - so this is sparse for the same reason the other wide patches'
+    stand-ins are. Planting the argument setup and the `add esp, 0x1c` beside the hook is what
+    makes the cave's ``[esp+0x18]`` and its `argc`/`argv` frame reads checkable here: a patch that
+    read a different stack slot would still apply, but against bytes that no longer say the
+    registration takes seven arguments.
+    """
+    planted = dict(mlo.ANCHORS)
+    planted[mlo.GLOBAL_DATA_CALL] = mlo.GLOBAL_DATA_CALL_ORIGINAL
+    # The whole mount block, not just the six bytes the jump replaces: the cave is a transcription
+    # of it, so the bytes it was transcribed from have to be here to be compared against.
+    planted[mlo.MOD_MOUNT_BLOCK] = mlo.MOD_MOUNT_BLOCK_ORIGINAL
+    return _sparse_image(planted)
+
+
+def multi_mod_image() -> bytearray:
+    """A stand-in carrying the `-mod` handler's store and the four file-system mod branches.
+
+    `multi-mod` rewrites five windows spread over 2.5 MB, and reads three CRT thunks, a vtable
+    slot and a `.rdata` format string on top of that, so this is sparse for the same reason the
+    other wide patches' stand-ins are. Each block is planted whole rather than only the five bytes
+    the `call` replaces: the patch nop-pads out to the block's length, so the length it believes
+    the block has is exactly what has to be checkable here.
+    """
+    planted = dict(mm.ANCHORS)
+    planted.update(mm.SITES)
+    return _sparse_image(planted)
+
+
+def multi_mod_and_mod_load_order_image() -> bytearray:
+    """One stand-in carrying both mod patches' sites, for the tests that apply them together.
+
+    They are the only two patches that reach into the same pipeline, and the claim that they
+    compose is the one thing neither patch's own tests can establish: each is checked against an
+    image that maps only its own sites, so a collision would simply be unmapped. Here both are
+    mapped at once, and `MOD_MOUNT_DIRECTORY` - the one window both anchor - is planted from
+    `mod-load-order`'s longer reading, of which `multi-mod`'s is a prefix.
+    """
+    planted = {**mm.ANCHORS, **mm.SITES, **mlo.ANCHORS}
+    planted[mlo.GLOBAL_DATA_CALL] = mlo.GLOBAL_DATA_CALL_ORIGINAL
+    planted[mlo.MOD_MOUNT_BLOCK] = mlo.MOD_MOUNT_BLOCK_ORIGINAL
+    return _sparse_image(planted)
+
+
 def worldbuilder_object_typeahead_image() -> bytearray:
     """A stand-in for `Worldbuilder.exe` carrying the object picker's dialog resource and map.
 
@@ -1373,3 +1430,86 @@ def script_debug_window_image() -> bytearray:
     the two exports that call it sit in one page, while the import-using instructions that
     identify the `GetDlgItem` and `SendMessageA` slots are up to 0xD000 away."""
     return _sparse_image({**sdw.ANCHORS, sdw.HOOK_VA: sdw.HOOK_ORIGINAL}, image_base=0x10000000)
+
+
+def map_transition_image() -> bytearray:
+    """A stand-in carrying both sites `map-transition` takes over, and the two it returns into.
+
+    Sparse: the hooked `GameLogic::update` entry, the script-action jump-table slot that must
+    still hold the shared epilogue, the epilogue itself, and the vtable slot the patch checks
+    before hooking. The stolen prologue and the instruction the cave returns to are contiguous,
+    so they are planted as one blob.
+    """
+    return _sparse_image(
+        {
+            mtr.HOOK_VA: mtr.HOOK_ORIGINAL + mtr.ANCHORS[mtr.HOOK_RETURN_VA],
+            mtr.TABLE_SLOT_VA: mtr.TABLE_SLOT_STOCK,
+            ad.SCRIPT_ACTION_EPILOGUE: mtr.ANCHORS[ad.SCRIPT_ACTION_EPILOGUE],
+            ad.GAME_LOGIC_UPDATE_VTABLE_SLOT: struct.pack("<I", mtr.HOOK_VA),
+        }
+    )
+
+
+#: Where `map_list_symbols_image` parks the 24 `MapCache` keyword strings the copied field-table
+#: rows point at - a page of its own, so a row whose name pointer was rebuilt rather than copied
+#: would read as zero rather than as the right string by accident.
+MAP_CACHE_STRINGS_VA = 0x00C7E100
+
+
+def map_list_symbols_image() -> bytearray:
+    """A stand-in carrying every site `map-list-symbols` reads or rewrites.
+
+    Sparse for the usual reason: the `MapCache` field table, the block parser that walks it, the
+    entry's assignment operator, the lobby's two fill passes and the mapped-image lookup are
+    spread over four megabytes and the patch touches five pages of it. Everything not planted
+    reads as zero, so a hook aimed one instruction to either side of where it claims to be would
+    find nothing there.
+
+    The three code hooks are planted **with the bytes they return into**, contiguously, because
+    each one's correctness is partly a claim about where it rejoins: pass 1's per-entry preamble
+    is followed by the branch whose flags it must not disturb, pass 1's tail by the pointer bump,
+    and pass 2's ladder entry by the two instructions a declined row still needs run.
+
+    The field table is built here from the patch's own `STOCK_FIELDS` rather than pasted as a hex
+    blob, because what the table has to survive is being *copied* - the test that matters is that
+    the 24 rows come out of the cave unchanged, and a blob would only ever agree with itself.
+    """
+    strings = bytearray()
+    rows = bytearray()
+    for name, offset in ad.MAP_CACHE_STOCK_FIELDS:
+        name_va = MAP_CACHE_STRINGS_VA + len(strings)
+        strings += name.encode("ascii") + bytes(1)
+        # `parse` and `userData` are not read by the patch (the rows are copied verbatim), so a
+        # recognisable filler stands in for everything but the offset the fingerprint checks.
+        rows += struct.pack("<IIII", name_va, 0x0042E000 + offset, 0, offset)
+    rows += bytes(16)  # the terminator the patch requires before it will copy anything
+
+    return _sparse_image(
+        {
+            **ad.MAP_LIST_ANCHORS,
+            # the comparator's key delta, with the `and dword [ebp+0xc], 0` it returns into, so a
+            # `--sort-by-symbol` hook that displaced one byte too many would overwrite the resume
+            ad.MAP_LIST_COMPARE_KEY: ad.MAP_LIST_COMPARE_KEY_BYTES + bytes.fromhex("83650c00"),
+            ad.MAP_CACHE_FIELD_TABLE: bytes(rows),
+            MAP_CACHE_STRINGS_VA: bytes(strings),
+            # the getter, whose imm32 is one of the table's two references
+            ad.MAP_CACHE_FIELD_TABLE_GETTER_REF - 1: bytes.fromhex("b8")
+            + struct.pack("<I", ad.MAP_CACHE_FIELD_TABLE)
+            + bytes.fromhex("c3"),
+            # the parse call site: the other reference, the `store` argument between them, and the
+            # `call INI_PARSE_FIELDS` the patch redirects
+            ad.MAP_CACHE_FIELD_TABLE_PARSE_REF - 1: bytes.fromhex("68")
+            + struct.pack("<I", ad.MAP_CACHE_FIELD_TABLE)
+            + bytes.fromhex("8d8594fdffff50")
+            + ad.MAP_CACHE_PARSE_FIELDS_BYTES,
+            ad.MAP_CACHE_ASSIGN_CALL: ad.MAP_CACHE_ASSIGN_CALL_BYTES,
+            ad.MAP_LIST_RESOLVE: ad.MAP_LIST_RESOLVE_BYTES,
+            # `cmp dword [ebp-0x10], 0` sets the flags the save hook has to carry across itself,
+            # and `je` two bytes past the hook is what consumes them
+            ad.MAP_LIST_SAVE_KEY - 4: bytes.fromhex("837df000")
+            + ad.MAP_LIST_SAVE_KEY_BYTES
+            + bytes.fromhex("0f843b010000"),
+            ad.MAP_LIST_OFFICIAL_BIT: ad.MAP_LIST_OFFICIAL_BIT_BYTES + bytes.fromhex("83450804"),
+            ad.MAP_LIST_ICON_LADDER: ad.MAP_LIST_ICON_LADDER_BYTES + bytes.fromhex("8b4dcc894d08"),
+        }
+    )

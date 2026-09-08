@@ -2,7 +2,7 @@
 
 RotWK `game.dat` 2.01.2614.37001, ImageBase `0x400000`. The write-up behind
 `rebuild-hole-repair`, in
-[`patches/experimental/rebuild_hole_repair.py`](../patches/experimental/rebuild_hole_repair.py).
+[`patches/rebuild_hole_repair.py`](../patches/rebuild_hole_repair.py).
 
 Two defects, one function. Sections 1–4 cover the first: `RebuildHoleExposeDie::onDie` refuses to
 make a hole for a structure that is still going up. §6 records what a running game showed when
@@ -382,7 +382,7 @@ the moment of death — which would be a fact worth writing down on its own.
 
 ## 13. What is not yet done
 
-The patch as it stands is **static only**, which is why it is experimental. The gate erase has been
+The patch as it stands is **static only**. The gate erase has been
 played (§6) and the ground snap has not: it applies to a clean `game.dat`, `sage-patch verify`
 confirms the result carries it, and the cave is unit-tested by disassembling it back — but a wrong
 reading of the machine code passes both, because the tests are written from the same reading. What

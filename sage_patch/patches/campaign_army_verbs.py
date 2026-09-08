@@ -2,7 +2,7 @@
 army's units around and take an army off the map, re-implemented for ROTWK.
 
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../../docs/living-campaign/merge-player-army.md``.
+in ``../docs/living-campaign/merge-player-army.md``.
 
 **What BFME1 had.** A campaign `Act` could split a named group of units out of one army into
 another (`MergePlayerArmy` with `SplitArmy = Yes` - the Fellowship breaking apart), pour one army
@@ -65,7 +65,7 @@ at :data:`~sage_patch.addresses.ACT_VERB_TABLE_PUSH_SITE` and pass nine's `call`
 stock table it copies is rewritten by none either.
 
 **Untested in game.** Every address is read out of the disassembly and the tests are written from
-the same reading, so this is `experimental` until a scenario has actually been played with it.
+the same reading, so nothing here is confirmed by a scenario having actually been played with it.
 """
 
 from __future__ import annotations
@@ -74,7 +74,7 @@ import struct
 
 from sage_ini.engine import BlockDelta, Engine, FieldDelta, NestedDelta
 
-from ...addresses import (
+from ..addresses import (
     ACT_NAME_OFFSET,
     ACT_RUN_PASS9_CALL,
     ACT_RUN_PASS9_CALL_BYTES,
@@ -107,12 +107,12 @@ from ...addresses import (
     THE_LIVING_WORLD_CAMPAIGN_MANAGER,
     THE_LIVING_WORLD_LOGIC,
 )
-from ...asm import JAE, JB, JE, JGE, JLE, JNE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JAE, JB, JE, JGE, JLE, JNE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 # Where an `AsciiString`'s characters start, kept where the other string-reading patches keep it.
-from ..utils.token_lists import ASCII_STRING_CHARS
+from .utils.token_lists import ASCII_STRING_CHARS
 
 __all__ = [
     "FIELD_ROWS",
@@ -711,7 +711,6 @@ def _hook_targets(section_va: int) -> tuple[int, int]:
 class CampaignArmyVerbsPatch(Patch):
     name = "campaign-army-verbs"
     author = "officialNecro"
-    experimental = True
     description = (
         "Restore BFME1's two missing campaign Act verbs. MergePlayerArmy { SourceArmy, DestArmy, "
         "SplitArmyTemplate, SplitArmy, DespawnSource } moves roster entries from one living-world "

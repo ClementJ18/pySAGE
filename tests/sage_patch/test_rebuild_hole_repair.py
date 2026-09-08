@@ -29,7 +29,7 @@ from sage_patch.addresses import (
     TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT,
     THE_TERRAIN_LOGIC,
 )
-from sage_patch.patches.experimental.rebuild_hole_repair import (
+from sage_patch.patches.rebuild_hole_repair import (
     ANCHORS,
     COORD3D_SIZE,
     GATE_ORIGINAL,

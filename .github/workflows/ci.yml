@@ -30,6 +30,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           pip install ruff==0.15.22 mypy==2.3.0  # pinned ruff matches .pre-commit-config.yaml
+          # `sage_test.plugin` is a pytest plugin: pytest ships type hints, so mypy checks its
+          # fixtures and hooks properly rather than reporting the import as missing.
+          pip install pytest
 
       - name: Ruff lint
         run: ruff check .

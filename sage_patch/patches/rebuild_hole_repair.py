@@ -2,7 +2,7 @@
 rebuild hole behind again, and the hole lands on the ground.
 
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../../docs/rebuild-hole-repair.md``.
+derived in ``../docs/rebuild-hole-repair.md``.
 
 **The defect.** A creep lair's whole loop hangs off its hole. `RebuildHoleExposeDie` puts a hole
 where the lair stood; the hole's `CreateObjectDie` is what pays out treasure when a player breaks
@@ -87,7 +87,7 @@ from __future__ import annotations
 
 import struct
 
-from ...addresses import (
+from ..addresses import (
     DIE_MODULE_IS_APPLICABLE,
     DIE_MODULE_IS_APPLICABLE_ENTRY,
     DIE_MUX_IS_APPLICABLE,
@@ -112,9 +112,9 @@ from ...addresses import (
     TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT,
     THE_TERRAIN_LOGIC,
 )
-from ...asm import JE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -232,7 +232,6 @@ def build_code(base_va: int) -> bytes:
 class RebuildHoleRepairPatch(Patch):
     name = "rebuild-hole-repair"
     author = "officialNecro"
-    experimental = True
     description = (
         "Let a structure destroyed while it is being rebuilt leave its rebuild hole again, and "
         "put that hole on the terrain rather than at the dying structure's own height, so a creep "

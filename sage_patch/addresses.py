@@ -141,6 +141,10 @@ __all__ = [
     "APT_OPTIONS_SAVE_MAP_EBP",
     "APT_OPTIONS_SAVE_PREFS_EBP",
     "APT_OPTIONS_SAVE_RESUME",
+    "ARCHIVE_FILE_SYSTEM",
+    "ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE",
+    "ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE_SLOT",
+    "ARCHIVE_FILE_SYSTEM_VTABLE",
     "ARG_APPENDERS",
     "ARMOR_ADJUST_DAMAGE",
     "ARMOR_ADJUST_DAMAGE_HEALING_PASSTHROUGH",
@@ -158,10 +162,18 @@ __all__ = [
     "ARMY_ENTRY_RECORD_CTOR",
     "ARMY_ENTRY_REFCOUNT_COUNT",
     "ARMY_ENTRY_SCRATCH_OFFSET",
+    "ARMY_RECORD_CREATE_OBJECT",
+    "ARMY_RECORD_HEALTH",
+    "ARMY_RECORD_SIZE",
+    "ARMY_RECORD_SPAWN",
+    "ARMY_RECORD_UPGRADE_LIST",
+    "ASCII_STRING_ASSIGN",
     "ASCII_STRING_CHARS_OFFSET",
+    "ASCII_STRING_COPY",
     "ASCII_STRING_CTOR",
     "ASCII_STRING_DTOR",
     "ASCII_STRING_FORMAT",
+    "ASCII_STRING_IS_EMPTY",
     "ASCII_STRING_SET",
     "ASCII_STRING_SET_BYTES",
     "ATTACK_ELIGIBILITY_NUGGET_CALL",
@@ -269,9 +281,18 @@ __all__ = [
     "COMMAND_BUTTON_SIZE",
     "COMMAND_BUTTON_SPECIAL_POWER",
     "COMMAND_BUTTON_TRIGGER_WHEN_READY",
+    "COMMAND_LINE_MOD_HANDLER",
+    "COMMAND_LINE_MOD_HANDLER_STORE",
+    "COMMAND_LINE_MOD_HANDLER_STORE_BYTES",
+    "COMMAND_LINE_MOD_HANDLER_TARGET",
+    "COMMAND_LINE_MOD_HANDLER_TARGET_BYTES",
+    "COMMAND_LINE_PARSE",
+    "COMMAND_LINE_PARSE_AND_MOUNT_MODS",
     "COMMAND_LINE_SKIRMISH_SETUP",
     "COMMAND_LINE_SKIRMISH_SETUP_BYTES",
     "COMMAND_LINE_SKIRMISH_SETUP_RESUME",
+    "COMMAND_LINE_STARTUP_TABLE",
+    "COMMAND_LINE_STARTUP_TABLE_COUNT",
     "COMMAND_POINTS_HAS_ENOUGH",
     "COMMAND_POINTS_IN_USE",
     "COMMAND_SET_STORE_FIND_COMMAND_SET",
@@ -450,7 +471,15 @@ __all__ = [
     "DO_COMMAND_UPGRADE_REMOVE",
     "DO_SPECIAL_POWER_SITES",
     "EMPTY_STRING",
+    "EXPERIENCE_LEVELS_FOR_TEMPLATE",
     "FIELD_PARSE_STRIDE",
+    "FILE_SYSTEM",
+    "FILE_SYSTEM_CREATE_CALL",
+    "FILE_SYSTEM_CREATE_CALL_BYTES",
+    "FILE_SYSTEM_DOES_FILE_EXIST",
+    "FILE_SYSTEM_GET_FILE_INFO",
+    "FILE_SYSTEM_GET_FILE_LIST_IN_DIRECTORY",
+    "FILE_SYSTEM_OPEN_FILE",
     "FIRE_WEAPON_WHEN_DAMAGED_ON_DAMAGE",
     "FLOAT_ONE",
     "FLOAT_ONE_PERCENT",
@@ -477,6 +506,11 @@ __all__ = [
     "GAME_DATA_SHELL_MAP_NAME_ROW",
     "GAME_ENGINE",
     "GAME_ENGINE_ALPHA",
+    "GAME_ENGINE_INIT",
+    "GAME_ENGINE_INIT_GLOBAL_DATA_CALL",
+    "GAME_ENGINE_INIT_GLOBAL_DATA_CALL_BYTES",
+    "GAME_ENGINE_INIT_MOD_CALL",
+    "GAME_ENGINE_INIT_MOD_CALL_BYTES",
     "GAME_ENGINE_QUITTING",
     "GAME_ENGINE_SET_FPS_SLOT",
     "GAME_ENGINE_SUB_FRAME",
@@ -491,12 +525,16 @@ __all__ = [
     "GAME_INFO_SLOT_COUNT",
     "GAME_INFO_SLOT_DATA",
     "GAME_INFO_STARTING_RESOURCES",
+    "GAME_LOGIC_BUILD_WORLD",
+    "GAME_LOGIC_CREATE_OBJECT",
     "GAME_LOGIC_FIND_OBJECT_BY_ID",
     "GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY",
     "GAME_LOGIC_FRAME",
     "GAME_LOGIC_IS_IN_GAME",
     "GAME_LOGIC_LIVING_WORLD_TYPE",
     "GAME_LOGIC_LIVING_WORLD_TYPE_MP_BATTLE",
+    "GAME_LOGIC_LOAD_MAP",
+    "GAME_LOGIC_START_NEW_GAME",
     "GAME_LOGIC_UPDATE",
     "GAME_LOGIC_UPDATE_ENTRY",
     "GAME_LOGIC_UPDATE_VTABLE_SLOT",
@@ -522,6 +560,7 @@ __all__ = [
     "GAME_SLOT_STATE_EASY_AI",
     "GAME_SLOT_STATE_LOCAL_HUMAN",
     "GAME_SLOT_TEAM",
+    "GAME_STATE_REGISTER_SNAPSHOT",
     "GAME_TEXT_FORMAT_SLOT",
     "GET_CHECKBOX_STATE",
     "GET_FINAL_OVERRIDE",
@@ -546,9 +585,15 @@ __all__ = [
     "GIVE_UPGRADE_TRIGGER_TARGET_ARM",
     "GIVE_UPGRADE_TRIGGER_TARGET_ARM_BYTES",
     "GLOBAL_DATA",
+    "GLOBAL_DATA_ACTIVE_MAP",
     "GLOBAL_DATA_ASSET_PROFILE",
     "GLOBAL_DATA_FPS_LIMIT",
+    "GLOBAL_DATA_MOD_BIG",
+    "GLOBAL_DATA_MOD_DIR",
+    "GLOBAL_DATA_SHELL_MAP",
+    "GLOBAL_DATA_STAGED_MAP",
     "GLOBAL_DATA_USE_FPS_LIMIT",
+    "GLOBAL_DATA_VTABLE",
     "GUICOMMAND_POP_VISIBLE_COMMAND_RANGE",
     "GUICOMMAND_PUSH_VISIBLE_COMMAND_RANGE",
     "GUICOMMAND_REVIVE",
@@ -581,13 +626,21 @@ __all__ = [
     "IMPORT_GET_LOCAL_TIME",
     "IMPORT_SWPRINTF",
     "INACTIVE_BODY_ATTEMPT_HEALING",
+    "INI_LOAD",
+    "INI_LOAD_DIRECTORY",
+    "INI_LOAD_INNER",
+    "INI_MACRO_LOOKUP",
+    "INI_MACRO_TABLE",
     "INI_NEXT_TOKEN_OR_NULL",
     "INI_PARSE_BOOL",
+    "INI_PARSE_DURATION",
+    "INI_PARSE_FIELDS",
     "INI_PARSE_INT",
     "INI_PARSE_REAL",
     "INI_PARSE_STRING_LIST",
     "INI_PARSE_STRING_LIST_BYTES",
     "INI_PARSE_UNSIGNED_SHORT",
+    "INI_PARSE_UPGRADE_MASK",
     "INI_SCAN_INT",
     "IN_GAME_UI_ADD_FLOATING_TEXT",
     "IS_MULTIPLAYER_GAME",
@@ -604,6 +657,29 @@ __all__ = [
     "KINDOF_HERO_BYTE",
     "KINDOF_HORDE_BIT",
     "KINDOF_HORDE_BYTE",
+    "LIFETIME_ALLOC",
+    "LIFETIME_ALLOC_BYTES",
+    "LIFETIME_ALLOC_RESUME",
+    "LIFETIME_ANCHORS",
+    "LIFETIME_ARM",
+    "LIFETIME_ARM_BYTES",
+    "LIFETIME_DIE_FRAME",
+    "LIFETIME_EXPIRE",
+    "LIFETIME_EXPIRE_BYTES",
+    "LIFETIME_EXPIRE_RESUME",
+    "LIFETIME_FIELD_TABLE",
+    "LIFETIME_FIELD_TABLE_REF",
+    "LIFETIME_KILL_RETURN",
+    "LIFETIME_LATCH_DEFAULT",
+    "LIFETIME_LATCH_DEFAULT_BYTES",
+    "LIFETIME_MODULE_DATA_SIZE",
+    "LIFETIME_START_FRAME",
+    "LIFETIME_STOCK_FIELDS",
+    "LIFETIME_UI_FRACTION",
+    "LIFETIME_UI_MODULE_READ",
+    "LIFETIME_UPDATE",
+    "LIFETIME_UPDATE_BYTES",
+    "LIFETIME_UPDATE_RESUME",
     "LIVE_CAMPAIGN_MODE_OFFSET",
     "LIVING_WORLD_ARMY_ROSTER_ID",
     "LIVING_WORLD_BATTLE_HARVEST_CALL",
@@ -615,6 +691,7 @@ __all__ = [
     "LIVING_WORLD_BATTLE_SETUP",
     "LIVING_WORLD_BATTLE_SETUP_CALL",
     "LIVING_WORLD_BATTLE_SETUP_CALL_BYTES",
+    "LIVING_WORLD_BATTLE_SETUP_UPGRADE_LOOP",
     "LIVING_WORLD_BATTLE_SIDES_BEGIN",
     "LIVING_WORLD_BATTLE_SIDES_END",
     "LIVING_WORLD_BATTLE_SIDE_STRIDE",
@@ -641,6 +718,11 @@ __all__ = [
     "LOADING_SCREEN_PROGRESS_RESUME",
     "LOADING_SCREEN_PROGRESS_SINK",
     "LOADING_SCREEN_PROGRESS_WINDOW",
+    "LOCAL_FILE_SYSTEM",
+    "LOCAL_FILE_SYSTEM_DOES_FILE_EXIST_SLOT",
+    "LOCAL_FILE_SYSTEM_GET_FILE_INFO_SLOT",
+    "LOCAL_FILE_SYSTEM_GET_FILE_LIST_SLOT",
+    "LOCAL_FILE_SYSTEM_OPEN_FILE_SLOT",
     "LOCOMOTOR_GET_MAX_SPEED",
     "LOCOMOTOR_GET_MAX_SPEED_ENTRY",
     "LOCOMOTOR_SPEED_MODIFIER_CALL",
@@ -668,6 +750,35 @@ __all__ = [
     "MAIN_MENU_SCREEN_DIFFICULTY",
     "MAIN_MENU_SCREEN_PHASE",
     "MAIN_MENU_SCREEN_SELECTION",
+    "MAP_CACHE_ASSIGN_CALL",
+    "MAP_CACHE_ASSIGN_CALL_BYTES",
+    "MAP_CACHE_FIELD_TABLE",
+    "MAP_CACHE_FIELD_TABLE_GETTER_REF",
+    "MAP_CACHE_FIELD_TABLE_PARSE_REF",
+    "MAP_CACHE_PARSE_FIELDS",
+    "MAP_CACHE_PARSE_FIELDS_BYTES",
+    "MAP_CACHE_STOCK_FIELDS",
+    "MAP_LIST_COMPARE_KEY",
+    "MAP_LIST_COMPARE_KEY_BYTES",
+    "MAP_LIST_COMPARE_KEY_RESUME",
+    "MAP_LIST_ANCHORS",
+    "MAP_LIST_ICON_LADDER",
+    "MAP_LIST_ICON_LADDER_BYTES",
+    "MAP_LIST_ICON_LADDER_RESUME",
+    "MAP_LIST_OFFICIAL_BIT",
+    "MAP_LIST_OFFICIAL_BIT_BYTES",
+    "MAP_LIST_OFFICIAL_BIT_RESUME",
+    "MAP_LIST_RESOLVE",
+    "MAP_LIST_RESOLVE_BYTES",
+    "MAP_LIST_RESOLVE_RESUME",
+    "MAP_LIST_ROW_ADD",
+    "MAP_LIST_SAVE_KEY",
+    "MAP_LIST_SAVE_KEY_BYTES",
+    "MAP_LIST_SAVE_KEY_RESUME",
+    "MAP_META_DATA_ASSIGN",
+    "MAP_META_DATA_IS_OFFICIAL",
+    "MAP_META_DATA_SORT_KEY",
+    "MAP_PATH_FORMAT",
     "MAX_PLAYER_COUNT",
     "MINI_DUMP_ARGS",
     "MINI_DUMP_ARGS_BYTES",
@@ -687,6 +798,10 @@ __all__ = [
     "MODEL_FIELD_TABLE_ROW",
     "MODIFIER_LIST_GET_VALUE",
     "MODIFIER_TYPE_SPEED",
+    "MOD_DIRECTORY",
+    "MOD_MOUNT_DIRECTORY",
+    "MOD_PATH_FORMAT",
+    "MOD_PREFER_LOCAL_FLAG",
     "MONEY_AMOUNT",
     "MONEY_DEPOSIT",
     "MONEY_WITHDRAW",
@@ -706,6 +821,10 @@ __all__ = [
     "NUGGET_VTBL_SUBWEAPON",
     "NUGGET_VTBL_VALID_VICTIM",
     "OBJECT_AI_UPDATE",
+    "OBJECT_ANGLE",
+    "OBJECT_APPLY_UPGRADE_LIST",
+    "OBJECT_ARMY_EXCLUDED",
+    "OBJECT_ARMY_EXCLUDED_BIT",
     "OBJECT_ATTEMPT_HEALING",
     "OBJECT_CAN_ACCEPT_UPGRADE",
     "OBJECT_CONTAIN",
@@ -715,6 +834,7 @@ __all__ = [
     "OBJECT_FIELD_TABLE_REF_OPCODES",
     "OBJECT_FILTER_ALLOW",
     "OBJECT_FILTER_IS_VALID",
+    "OBJECT_GET_CONTROLLING_PLAYER",
     "OBJECT_GET_HEIGHT_ABOVE_TERRAIN",
     "OBJECT_GET_HEIGHT_ABOVE_TERRAIN_BYTES",
     "OBJECT_GET_HORDE_IFACE",
@@ -744,6 +864,8 @@ __all__ = [
     "OBJECT_MODULE_LIST",
     "OBJECT_POSITION",
     "OBJECT_PRODUCER_ID",
+    "OBJECT_SCRIPT_NAME",
+    "OBJECT_SET_ORIENTATION",
     "OBJECT_SET_POSITION",
     "OBJECT_SET_POSITION_ENTRY",
     "OBJECT_STATUS",
@@ -753,9 +875,12 @@ __all__ = [
     "OBJECT_STATUS_NAMES",
     "OBJECT_STATUS_UNDER_CONSTRUCTION",
     "OBJECT_STATUS_UNSELECTABLE",
+    "OBJECT_TEAM",
     "OBJECT_TEST_STATUS",
     "OBJECT_THING_TEMPLATE",
+    "OBJECT_TO_ARMY_RECORD",
     "OBJECT_UPGRADE_MASK",
+    "OBJECT_WRITE_ARMY_RECORD_STATE",
     "OBSERVER_BAR_GATE_CALL",
     "OBSERVER_BAR_GATE_CALL_BYTES",
     "OBSERVER_BAR_GATE_FINGERPRINT",
@@ -804,8 +929,10 @@ __all__ = [
     "PLAYER_COMMAND_POINTS_USED",
     "PLAYER_COMPLETED_UPGRADE_MASK",
     "PLAYER_COMPLETED_UPGRADE_MASK_WORDS",
+    "PLAYER_DEFAULT_TEAM",
     "PLAYER_DEFEAT_FRAME",
     "PLAYER_FOR_EACH_TEAM_OBJECT",
+    "PLAYER_GRANT_UPGRADE",
     "PLAYER_HERO_LEDGER_OFFSET",
     "PLAYER_INDEX",
     "PLAYER_INIT",
@@ -823,11 +950,14 @@ __all__ = [
     "PLAYER_LIST_LOCAL_IS_NOT_ACTIVE_BYTES",
     "PLAYER_LIST_LOCAL_PLAYER",
     "PLAYER_LIST_OBSERVE_NEXT_PLAYER",
+    "PLAYER_LIST_PLAYER_FROM_INDEX",
     "PLAYER_LIVING_WORLD_ID_OFFSET",
     "PLAYER_MONEY",
     "PLAYER_PLAYER_TEMPLATE",
     "PLAYER_RELATIONSHIP_ALLIES",
+    "PLAYER_SCIENCES",
     "PLAYER_SCORE_KEEPER",
+    "PLAYER_SET_SCIENCES",
     "PLAYER_SET_TYPE",
     "PLAYER_SET_TYPE_BYTES",
     "PLAYER_SKIRMISH_FOUND_EBP",
@@ -840,6 +970,7 @@ __all__ = [
     "PLAYER_SKIRMISH_ROUTE",
     "PLAYER_SKIRMISH_ROUTE_BYTES",
     "PLAYER_SKIRMISH_ROUTE_RESUME",
+    "PLAYER_TEAM_LIST",
     "PLAYER_TEMPLATE_BLOCK_KEY",
     "PLAYER_TEMPLATE_BLOCK_KEY_BYTES",
     "PLAYER_TEMPLATE_BLOCK_KEY_EARLY",
@@ -974,6 +1105,18 @@ __all__ = [
     "SCORE_KEEPER_UNITS_BUILT",
     "SCORE_KEEPER_UNITS_DESTROYED",
     "SCORE_KEEPER_UNITS_LOST",
+    "SCRIPT_ACTIONS_CREATE_UNIT_REVIVAL_ENTRY",
+    "SCRIPT_ACTIONS_EXECUTE_ACTION",
+    "SCRIPT_ACTION_ENABLED",
+    "SCRIPT_ACTION_EPILOGUE",
+    "SCRIPT_ACTION_GET_PARAMETER",
+    "SCRIPT_ACTION_JUMP_TABLE",
+    "SCRIPT_ACTION_PARAM_ARRAY",
+    "SCRIPT_ACTION_PARAM_COUNT",
+    "SCRIPT_ACTION_TYPE",
+    "SCRIPT_COUNTER_IS_SECONDS",
+    "SCRIPT_COUNTER_IS_TIMER",
+    "SCRIPT_COUNTER_VALUE",
     "SCRIPT_DEBUG_ADJUST_VARIABLE",
     "SCRIPT_DEBUG_APPEND_MESSAGE",
     "SCRIPT_DEBUG_FLAG_HANDLER",
@@ -981,6 +1124,27 @@ __all__ = [
     "SCRIPT_DEBUG_MODULE",
     "SCRIPT_DEBUG_SUPPRESS",
     "SCRIPT_DEBUG_USE_LITE_DLL",
+    "SCRIPT_ENGINE_BIND_OBJECT_NAME",
+    "SCRIPT_ENGINE_COUNTER_MAP",
+    "SCRIPT_ENGINE_FIND_FLAG",
+    "SCRIPT_ENGINE_FIND_OR_CREATE_COUNTER",
+    "SCRIPT_ENGINE_FIND_OR_CREATE_FLAG",
+    "SCRIPT_ENGINE_FLAG_MAP",
+    "SCRIPT_ENGINE_NAMED_OBJECT_MAP",
+    "SCRIPT_ENGINE_PLAYER_NAME_TO_INDEX",
+    "SCRIPT_ENGINE_SCOPE",
+    "SCRIPT_ENGINE_SCOPED_KEY",
+    "SCRIPT_ENGINE_SET_COUNTER",
+    "SCRIPT_ENGINE_SET_FLAG",
+    "SCRIPT_ENGINE_SET_TIMER",
+    "SCRIPT_ENGINE_TIMER_TICK_SITE",
+    "SCRIPT_KEY_COMPOSE",
+    "SCRIPT_PARAMETER_INT",
+    "SCRIPT_PARAMETER_NUMBER",
+    "SCRIPT_PARAMETER_STRING",
+    "SCRIPT_PARAMETER_TYPE",
+    "SCRIPT_TIMER_FRAMES_PER_MS",
+    "SCRIPT_TIMER_MS_PER_SECOND",
     "SET_CHECKBOX_STATE",
     "SHELL",
     "SHELL_MOVIE_ACTIVE",
@@ -1005,9 +1169,12 @@ __all__ = [
     "SIDES_LIST_GET_SIDE_INFO_BYTES",
     "SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE",
     "SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE_BYTES",
+    "SLEEPY_UPDATE_DISPATCH",
     "SPECIAL_POWER_FIELD_TABLE",
     "SPECIAL_POWER_FIELD_TABLE_REFS",
     "SPECIAL_POWER_FIELD_TABLE_REF_OPCODES",
+    "SPECIAL_POWER_READY_FRAME",
+    "SPECIAL_POWER_START_RECHARGE",
     "SPECIAL_POWER_TEMPLATE_COPY_TAIL",
     "SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES",
     "SPECIAL_POWER_TEMPLATE_NEW_SITES",
@@ -1016,11 +1183,21 @@ __all__ = [
     "SPELL_STORE_COMMAND_SET_CALL",
     "SPELL_STORE_COMMAND_SET_CALL_BYTES",
     "SPELL_STORE_INITIALIZE_SPELL_SLOTS",
+    "SPRINTF_SLOT",
     "START_RECORDING",
     "START_RECORDING_MODE_ARG",
     "STATIC_NAME_KEY_KEY",
     "STATIC_NAME_KEY_KEY_BYTES",
+    "STD_MAP_ITERATOR_INCREMENT",
+    "STD_MAP_NODE_VALUE",
+    "STRCMPI",
+    "STRCPY",
     "STRICMP",
+    "STRLEN",
+    "SUBSYSTEM_INIT",
+    "SUBSYSTEM_LEGEND",
+    "SUBSYSTEM_LOAD_LEGEND_FILES",
+    "SUBSYSTEM_REGISTER",
     "TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT",
     "TERRAIN_RESOURCE_BUILD_FIELD_PARSE",
     "TERRAIN_RESOURCE_DEFAULT_STORES",
@@ -1053,6 +1230,7 @@ __all__ = [
     "TEXT_SECTION_VA",
     "THE_BUILD_ASSISTANT",
     "THE_DISPLAY",
+    "THE_EXPERIENCE_LEVEL_SYSTEM",
     "THE_GAME_INFO",
     "THE_GAME_LOGIC",
     "THE_GAME_STATE",
@@ -1064,6 +1242,7 @@ __all__ = [
     "THE_PLAYER_LIST",
     "THE_RECORDER",
     "THE_SCIENCE_STORE",
+    "THE_SCRIPT_ENGINE",
     "THE_SHROUD_MANAGER",
     "THE_SIDES_LIST",
     "THE_SIDES_LIST_LOAD",
@@ -1077,6 +1256,7 @@ __all__ = [
     "THE_VICTORY_CONDITIONS",
     "THING_FACTORY_FIND_TEMPLATE",
     "THING_FACTORY_FIND_TEMPLATE_ENTRY",
+    "THING_FACTORY_NEW_OBJECT",
     "THING_TEMPLATE_BUILD_COST",
     "THING_TEMPLATE_COPY_CALL",
     "THING_TEMPLATE_COPY_CALL_BYTES",
@@ -1091,6 +1271,13 @@ __all__ = [
     "THING_TEMPLATE_IS_EQUIVALENT_ENTRY",
     "THING_TEMPLATE_LOCOMOTOR_SET_SPEED",
     "THING_TEMPLATE_REFUND_VALUE",
+    "TOGGLE_MOUNTED_INSTANCE_SIZE",
+    "TOGGLE_MOUNTED_MODULE_DATA_SIZE",
+    "TOGGLE_MOUNTED_RETIRE",
+    "TOGGLE_MOUNTED_SWAP",
+    "TOGGLE_MOUNTED_SWAP_FLAG",
+    "TOGGLE_MOUNTED_SYNC_SKIP",
+    "TOGGLE_MOUNTED_TEMPLATE",
     "TOOLTIP_COST_BUILD",
     "TOOLTIP_COST_BUILD_RESUME",
     "TOOLTIP_COST_BYTES",
@@ -1106,12 +1293,16 @@ __all__ = [
     "UNICODE_STRING_DTOR",
     "UNICODE_STRING_FORMAT",
     "UNICODE_STRING_FROM_WIDE",
-    "UPGRADE_CENTER_LIST",
+    "UPDATE_MODULE_DATA",
+    "UPDATE_MODULE_OBJECT",
+    "UPDATE_MODULE_SLEEP_FOREVER",
+    "UPDATE_MODULE_THIS_DELTA",
     "UPGRADE_CENTER_FIND_UPGRADE",
     "UPGRADE_CENTER_FIND_UPGRADE_BY_KEY",
     "UPGRADE_CENTER_FIND_UPGRADE_BY_KEY_ENTRY",
     "UPGRADE_CENTER_FIND_UPGRADE_ENTRY",
     "UPGRADE_CENTER_FIND_UPGRADE_RESUME",
+    "UPGRADE_CENTER_LIST",
     "UPGRADE_FILTER_BODY",
     "UPGRADE_FILTER_BODY_BYTES",
     "UPGRADE_FILTER_OWNER_SLOT",
@@ -1120,6 +1311,8 @@ __all__ = [
     "UPGRADE_FILTER_UPGRADE_SLOT",
     "UPGRADE_FIRST_SET",
     "UPGRADE_FIRST_SET_ENTRY",
+    "UPGRADE_MASK_ANY",
+    "UPGRADE_MASK_TEST_ANY",
     "UPGRADE_TEMPLATE_INDEX",
     "UPGRADE_TEMPLATE_NEXT",
     "USER_PREFERENCES_WRITE",
@@ -3012,6 +3205,26 @@ PLAYER_RESOURCES = 0x94
 PLAYER_POWER_POINTS = 0x24
 PLAYER_POWER_POINTS_TOTAL = 0x1C
 
+#: The player's purchased sciences - a `std::vector<ScienceType>`, so `+0x310` begin, `+0x314` end.
+#: Found from `LIVING_WORLD_BATTLE_SETUP`, which restores a living-world player's list onto its RTS
+#: player through `PLAYER_SET_SCIENCES` at `0x008126CF`. Confirmed live 2026-09-08: every seat in a
+#: skirmish carries the four baseline sciences 30-33 and only the human seat had a fifth, 16.
+PLAYER_SCIENCES = 0x310
+#: `__thiscall(const std::vector<ScienceType> *)`, `ret 4`. Assigns the whole list, and **returns
+#: without doing anything when the source is empty** (`0x006ACEFD`), so restoring nothing is safe.
+#: It only reads `[src]` and `[src+4]`, which means a three-word header built on the stack over a
+#: caller-owned buffer is a valid argument.
+PLAYER_SET_SCIENCES = 0x006ACEF4
+
+#: `__thiscall(UpgradeTemplate *, 2, 0)`, `ret 0xC` - the engine's own "this player has completed
+#: this upgrade" path, which sets the bit in `PLAYER_COMPLETED_UPGRADE_MASK` *and* runs whatever
+#: the upgrade does on completion. `LIVING_WORLD_BATTLE_SETUP` restores a saved mask by driving it
+#: rather than writing the bitset: `UPGRADE_FIRST_SET` turns the mask into a template, this grants
+#: it, and the caller clears the bit and goes round again (`0x008126E5`-`0x0081271C`). That loop is
+#: the reference for replaying a mask onto a player without half-applying anything.
+PLAYER_GRANT_UPGRADE = 0x006AEE22
+LIVING_WORLD_BATTLE_SETUP_UPGRADE_LOOP = 0x008126E5
+
 #: `PlayerList::getLocalPlayer` - thiscall, no arguments. The palantir's own refresh
 #: (`0x006D577C`) reaches the displayed player through it, so a HUD-side read matches.
 #:
@@ -4087,6 +4300,13 @@ HERO_LEDGER_NAME_OFFSET = 0xE4
 #: harvest requires it, and so does the engine's own ledger walk at `0x0078100E`.
 KINDOF_ARMY_SUMMARY_BYTE = 0x118
 KINDOF_ARMY_SUMMARY_BIT = 0x01
+
+#: The fourth of `LIVING_WORLD_BATTLE_HARVEST`'s per-object filters (`0x00811EA2`): bit 0 set
+#: disqualifies an object from an army. Still unidentified, but measured across a live 221-object
+#: skirmish it is set only on `FarmTemplate`, `GondorSpellBook` and `EdainTroopSpawnPoint` - map
+#: furniture, never a unit or a horde - so mirroring the engine costs nothing.
+OBJECT_ARMY_EXCLUDED = 0x458
+OBJECT_ARMY_EXCLUDED_BIT = 0x01
 
 #: `KindOf HERO` is index 90 - bit `0x04` of KindOf byte `+0xB`, which is `template + 0x113`.
 KINDOF_HERO_BYTE = 0x113
@@ -5434,3 +5654,693 @@ SCRIPT_DEBUG_MODULE = 0x00DE3B98
 #: it. Real overhead, and not where the stutter is.
 SCRIPT_DEBUG_APPEND_MESSAGE = 0x00604D85
 SCRIPT_DEBUG_ADJUST_VARIABLE = 0x00605021
+
+#: The `-mod` pipeline, and the INI loads that run before it. `GAME_ENGINE_INIT` registers
+#: `TheSubsystemLegend`, loads `Data\INI\Default\SubsystemLegendExpansion1.ini`, then registers
+#: `TheWritableGlobalData` at `GAME_ENGINE_INIT_GLOBAL_DATA_CALL` - which reaches
+#: `SUBSYSTEM_INIT`, the legend loader in `GLOBAL_DATA_VTABLE` slot `+8`, and so `INI_LOAD`s
+#: `Data\INI\GameData.ini`. Only afterwards, at `GAME_ENGINE_INIT_MOD_CALL`, does
+#: `COMMAND_LINE_PARSE_AND_MOUNT_MODS` run `COMMAND_LINE_PARSE` over the 16-entry
+#: `COMMAND_LINE_STARTUP_TABLE` and mount what `-mod` named. Derived in `docs/mod-load-order.md`.
+GAME_ENGINE_INIT = 0x0063AD4F
+GAME_ENGINE_INIT_GLOBAL_DATA_CALL = 0x0063AFA4
+GAME_ENGINE_INIT_GLOBAL_DATA_CALL_BYTES = bytes.fromhex("e85bb4ffff")
+GAME_ENGINE_INIT_MOD_CALL = 0x0063AFB2
+GAME_ENGINE_INIT_MOD_CALL_BYTES = bytes.fromhex("e88dfa1700")
+COMMAND_LINE_PARSE_AND_MOUNT_MODS = 0x007BAA44
+COMMAND_LINE_PARSE = 0x007BA7E1
+COMMAND_LINE_STARTUP_TABLE = 0x00C35DA8
+COMMAND_LINE_STARTUP_TABLE_COUNT = 0x10
+COMMAND_LINE_MOD_HANDLER = 0x007BADB9
+
+#: Where the `-mod` handler ends: `AsciiString::operator=` writing the finished absolute path into
+#: whichever `GlobalData` field `_stat` selected. `COMMAND_LINE_MOD_HANDLER_TARGET` is the tail
+#: that picks between the two fields and pushes the source, so at the store `ecx` is the
+#: destination - which is what says whether this `-mod` named a directory or an archive - and
+#: `[esp+4]` is the string. A second `-mod` reaches the same store and overwrites the first.
+#: Derived in `docs/multi-mod.md`.
+COMMAND_LINE_MOD_HANDLER_TARGET = 0x007BAF06
+COMMAND_LINE_MOD_HANDLER_TARGET_BYTES = bytes.fromhex(
+    "8b0d6443de0081c1380d0000eb0c8b0d6443de0081c13c0d00008d45f050"
+)
+COMMAND_LINE_MOD_HANDLER_STORE = 0x007BAF24
+COMMAND_LINE_MOD_HANDLER_STORE_BYTES = bytes.fromhex("e8c7ccc7ff")
+SUBSYSTEM_LEGEND = 0x00DE337C
+SUBSYSTEM_REGISTER = 0x00636404
+SUBSYSTEM_INIT = 0x005B4A7C
+SUBSYSTEM_LOAD_LEGEND_FILES = 0x005B4B9A
+GLOBAL_DATA_VTABLE = 0x00C04220
+
+#: Where `-mod` lands. The handler stores an absolute path into one of two `GlobalData`
+#: `AsciiString`s depending on what `_stat` says it is - a directory into `GLOBAL_DATA_MOD_DIR`,
+#: a file into `GLOBAL_DATA_MOD_BIG` - and `MOD_MOUNT_DIRECTORY` is what turns the directory form
+#: on: it copies the path to `MOD_DIRECTORY`, raises `MOD_PREFER_LOCAL_FLAG` and mounts every
+#: `*.BIG` beneath it. Those last two globals are the whole of the file system's mod awareness;
+#: `-preferLocalFiles` raises the same flag with an empty directory.
+GLOBAL_DATA_MOD_DIR = 0xD38
+GLOBAL_DATA_MOD_BIG = 0xD3C
+MOD_MOUNT_DIRECTORY = 0x00A14313
+MOD_PREFER_LOCAL_FLAG = 0x00DEC490
+MOD_DIRECTORY = 0x00DEC498
+
+#: The three file-system singletons and the two `TheFileSystem` entry points that consult the mod
+#: directory. `FILE_SYSTEM_OPEN_FILE` tries `<modDir>\<file>` before the archives and restores the
+#: logical name on a hit; `FILE_SYSTEM_GET_FILE_LIST_IN_DIRECTORY` merges the mod listing into the
+#: same set under logical names, so a file present both loosely and in a `.big` is enumerated once.
+FILE_SYSTEM = 0x00DEC598
+LOCAL_FILE_SYSTEM = 0x00DEC9AC
+ARCHIVE_FILE_SYSTEM = 0x00DEC9A4
+ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE_SLOT = 0x14
+FILE_SYSTEM_OPEN_FILE = 0x00A149A2
+FILE_SYSTEM_GET_FILE_LIST_IN_DIRECTORY = 0x00A14D2B
+FILE_SYSTEM_DOES_FILE_EXIST = 0x00A14AEB
+FILE_SYSTEM_GET_FILE_INFO = 0x00A14BA8
+
+#: `TheLocalFileSystem`'s vtable slots, as each of those four reaches them. Every mod branch ends
+#: in one of these calls on the path it just formatted, which is what makes the branches
+#: interchangeable enough to be rewritten as one loop. Derived in `docs/multi-mod.md`.
+LOCAL_FILE_SYSTEM_OPEN_FILE_SLOT = 0x0C
+LOCAL_FILE_SYSTEM_DOES_FILE_EXIST_SLOT = 0x14
+LOCAL_FILE_SYSTEM_GET_FILE_LIST_SLOT = 0x18
+LOCAL_FILE_SYSTEM_GET_FILE_INFO_SLOT = 0x28
+
+#: `TheArchiveFileSystem`'s class vtable and the function its mount slot holds. `loadArchive`
+#: takes the archive path and an **overwrite** flag; at `0x00A18384` an entry already in the
+#: shared file map is kept when that flag is clear and replaced when it is set, and every mod
+#: mount passes it set - so several mounted archives stack, last one winning.
+ARCHIVE_FILE_SYSTEM_VTABLE = 0x00C9341C
+ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE = 0x00A183AA
+
+#: `GameEngine::init`'s call to the routine that builds `TheLocalFileSystem` and
+#: `TheArchiveFileSystem` (`0x00A14275`). It runs long before either the subsystem registration or
+#: the startup parse, which is what makes it safe to mount a mod from inside a switch handler.
+FILE_SYSTEM_CREATE_CALL = 0x0063AE22
+FILE_SYSTEM_CREATE_CALL_BYTES = bytes.fromhex("e84e943d00")
+
+#: `sprintf`'s import slot and the format the file system builds every mod path with - note the
+#: separator, which is why a mod directory is stored with a trailing one and the result carries
+#: two. `AsciiString::operator=` is the assignment the `-mod` handler ends on.
+SPRINTF_SLOT = 0x00BD06C0
+MOD_PATH_FORMAT = 0x00BF5128
+ASCII_STRING_ASSIGN = 0x00437BF0
+
+#: The CRT thunks the caves call, each a `jmp` through the import table. `STRCMPI` is the
+#: case-insensitive comparison (`_strcmpi`); `STRICMP` above, despite its name, thunks `strcmp`.
+STRLEN = 0x00A3CF10
+STRCPY = 0x00A3CF16
+STRCMPI = 0x00A3D79A
+
+#: `INI::load`. `INI_LOAD` is the public wrapper (`AsciiString` by value, load type, `Xfer *`);
+#: `INI_LOAD_INNER` is where the work happens, including the `#define` pre-pass that fills
+#: `INI_MACRO_TABLE` - a `std::map<AsciiString, AsciiString>` whose `insert` keeps the first
+#: value, so a redefinition throws rather than replacing. `INI_MACRO_LOOKUP` is the read side.
+INI_LOAD = 0x0042D97D
+INI_LOAD_INNER = 0x0042CFC9
+INI_LOAD_DIRECTORY = 0x0042DA40
+INI_MACRO_TABLE = 0x00DC51D4
+INI_MACRO_LOOKUP = 0x0042CDB1
+
+#: `AsciiString::isEmpty` - null data pointer or zero length. The test the mod mount uses on both
+#: `GlobalData` path fields.
+ASCII_STRING_IS_EMPTY = 0x00401E64
+
+
+#: The mid-session map swap, as `LivingWorldLogic::startCampaign` performs it at `0x006B532B`.
+#: Both are `__thiscall` on `THE_GAME_LOGIC`: `GAME_LOGIC_START_NEW_GAME` stages the mode and
+#: promotes `GLOBAL_DATA_STAGED_MAP` over `GLOBAL_DATA_ACTIVE_MAP` (clearing the staged copy),
+#: then `GAME_LOGIC_LOAD_MAP` tears the session down and rebuilds it, reaching the world builder
+#: `GAME_LOGIC_BUILD_WORLD` at `0x0063157B`. Naming the destination means formatting
+#: `MAP_PATH_FORMAT` ("maps\%s\%s.map") with `ASCII_STRING_FORMAT`. Derived in
+#: `docs/map-transition.md`.
+GAME_LOGIC_START_NEW_GAME = 0x0077948E
+GAME_LOGIC_LOAD_MAP = 0x006314CD
+GAME_LOGIC_BUILD_WORLD = 0x0062F91A
+GLOBAL_DATA_ACTIVE_MAP = 0xC
+GLOBAL_DATA_STAGED_MAP = 0xAC0
+MAP_PATH_FORMAT = 0x00BF51B4
+
+#: `GameState::registerSnapshot(AsciiString name, Snapshot *obj, int list)` - appends a
+#: `{name, snapshot}` pair to a list at `this + 0x10 + list*4`. `0x006DF904` registers
+#: `CHUNK_ScriptEngine` against `THE_SCRIPT_ENGINE + 0xC`; `0x006DFCA5` is the load-side twin.
+#: The chunk's own byte layout is decoded in `sage_save/sav_format.md`.
+GAME_STATE_REGISTER_SNAPSHOT = 0x006DF45B
+
+#: `ScriptActions::executeAction` and its 600-case jump table. A table entry that *is*
+#: `SCRIPT_ACTION_EPILOGUE` is a stub - the action exists in WorldBuilder and does nothing, which
+#: is what makes one repointable to a cave. Case bodies end with `jmp SCRIPT_ACTION_EPILOGUE`,
+#: with `esi` holding the action and `edi` the `ScriptActions` object.
+SCRIPT_ACTIONS_EXECUTE_ACTION = 0x007CAFA5
+SCRIPT_ACTION_JUMP_TABLE = 0x007CF857
+SCRIPT_ACTION_EPILOGUE = 0x007CF846
+
+#: `ScriptAction::getParameter(int)` - `__thiscall`, `ret 4`, bounds-checked against
+#: `SCRIPT_ACTION_PARAM_COUNT`, returning the `Parameter *` or NULL. Live case bodies inline it as
+#: `[action + SCRIPT_ACTION_PARAM_ARRAY + i*4]`. `SCRIPT_ACTION_ENABLED` clear makes the
+#: dispatcher skip the action outright.
+SCRIPT_ACTION_GET_PARAMETER = 0x00602EFB
+SCRIPT_ACTION_TYPE = 0x4
+SCRIPT_ACTION_PARAM_COUNT = 0x8
+SCRIPT_ACTION_PARAM_ARRAY = 0xC
+SCRIPT_ACTION_ENABLED = 0x41
+
+#: `Parameter`. The type tag is compared against `0x10` for a `Coord3D` at `0x007B3305`; the
+#: numeric slot is what the timer path reads as a float; the string slot is an `AsciiString`,
+#: so its characters start at `[param + SCRIPT_PARAMETER_STRING] + 8`.
+SCRIPT_PARAMETER_TYPE = 0x0
+SCRIPT_PARAMETER_NUMBER = 0xC
+SCRIPT_PARAMETER_STRING = 0x10
+
+#: `TheScriptEngine` and the two name-keyed maps holding the state a map script accumulates.
+#: Counters and timers share one map - a timer is a counter record with `SCRIPT_COUNTER_IS_TIMER`
+#: set. Two further sibling maps at `+0x191B8` and `+0x191C4` are name-to-id tables that have not
+#: been told apart yet. All four are `std::map`: the mapped value sits at `STD_MAP_NODE_VALUE`
+#: inside the node, iteration walks `[map + 8]` until it returns to the header, and
+#: `STD_MAP_ITERATOR_INCREMENT` is the step.
+THE_SCRIPT_ENGINE = 0x00DE3BAC
+SCRIPT_ENGINE_COUNTER_MAP = 0x191A0
+SCRIPT_ENGINE_FLAG_MAP = 0x191AC
+STD_MAP_NODE_VALUE = 0x18
+STD_MAP_ITERATOR_INCREMENT = 0x00423EA0
+
+#: Lookup-or-create by name, `__thiscall` on `THE_SCRIPT_ENGINE`, taking an `AsciiString` by value
+#: and returning the record. These are the cheap way to write script state from a cave - the
+#: `SET_*` entry points below all take a whole `ScriptAction` and read the name out of parameter 0.
+SCRIPT_ENGINE_FIND_OR_CREATE_COUNTER = 0x0060817A
+SCRIPT_ENGINE_FIND_OR_CREATE_FLAG = 0x006082CF
+SCRIPT_ENGINE_FIND_FLAG = 0x00608249
+
+#: The stage-1 script action implementations, reached from the chain at `0x0060C211` before it
+#: delegates to `SCRIPT_ACTIONS_EXECUTE_ACTION`: `SET_FLAG` (1), `SET_COUNTER` (2) and `SET_TIMER`
+#: (6) among 32 ids the script engine handles itself.
+SCRIPT_ENGINE_SET_COUNTER = 0x00608D0B
+SCRIPT_ENGINE_SET_FLAG = 0x00608FCC
+SCRIPT_ENGINE_SET_TIMER = 0x00609092
+
+#: A counter record, at `STD_MAP_NODE_VALUE` inside its node. `SCRIPT_COUNTER_IS_TIMER` gates the
+#: countdown at `SCRIPT_ENGINE_TIMER_TICK_SITE`, which decrements `SCRIPT_COUNTER_VALUE` by one per
+#: tick and stops at -1 - so a timer holds ticks *remaining* and never references the frame
+#: counter. `SCRIPT_COUNTER_IS_SECONDS` only records that the value was authored in seconds;
+#: the conversion (`SCRIPT_TIMER_FRAMES_PER_MS * SCRIPT_TIMER_MS_PER_SECOND` = 5 per second,
+#: agreeing with `LOGIC_FRAMES_PER_SECOND`) happens once at write time.
+SCRIPT_COUNTER_VALUE = 0x0
+SCRIPT_COUNTER_IS_TIMER = 0x4
+SCRIPT_COUNTER_IS_SECONDS = 0x5
+SCRIPT_ENGINE_TIMER_TICK_SITE = 0x0060CD4B
+SCRIPT_TIMER_FRAMES_PER_MS = 0x00D9F610
+SCRIPT_TIMER_MS_PER_SECOND = 0x00BD4388
+
+
+#: Making an object and dressing it to match one that no longer exists - the sequence
+#: `RebuildHoleBehavior::onDie` runs at `0x00889B14`. `THING_FACTORY_NEW_OBJECT` is `__thiscall` on
+#: `THE_THING_FACTORY` and takes **four** stack arguments (`ret 0x10`): the template, the owning
+#: `Team`, a pointer to a zeroed `OBJECT_STATUS_DWORDS`-wide status mask, and a fourth passed as 0
+#: at every site read so far. It forwards to `GAME_LOGIC_CREATE_OBJECT` on `THE_GAME_LOGIC`.
+#: Objects are created onto a `Team` (`OBJECT_TEAM`), not a `Player`. Veterancy needs no separate
+#: call: it rides `OBJECT_UPGRADE_MASK` as three engine-registered upgrades at indices 0, 1 and 2
+#: (`docs/live-object-model.md`), so rank and purchased upgrades are one field.
+#: Derived in `docs/map-transition.md`.
+THING_FACTORY_NEW_OBJECT = 0x006D165E
+GAME_LOGIC_CREATE_OBJECT = 0x00625841
+OBJECT_SET_ORIENTATION = 0x0070C31E
+OBJECT_ANGLE = 0x44
+OBJECT_TEAM = 0x31C
+OBJECT_SCRIPT_NAME = 0x88
+
+#: `TheExperienceLevelSystem` and the lookup resolving a template plus a level index to its
+#: `ExperienceLevel`, as `SCRIPT_ACTIONS_CREATE_UNIT_REVIVAL_ENTRY` uses it.
+THE_EXPERIENCE_LEVEL_SYSTEM = 0x00DE4704
+EXPERIENCE_LEVELS_FOR_TEMPLATE = 0x00689509
+
+#: `ScriptActions::createUnitRevivalEntry(AsciiString *player, AsciiString *unit, int level)` -
+#: the body behind `CREATE_UNIT_REVIVAL_ENTRY` (595) and `..._AT_LEVEL` (597), which passes -1 for
+#: "no level". It resolves the player through `SCRIPT_ENGINE_PLAYER_NAME_TO_INDEX` and
+#: `PLAYER_LIST_PLAYER_FROM_INDEX` (which takes a *pointer* to the index), then appends to the
+#: hero ledger at `PLAYER_HERO_LEDGER_OFFSET`. That ledger dies with the player on a map swap, but
+#: this call rebuilds an entry from nothing but the three values a snapshot would hold.
+SCRIPT_ACTIONS_CREATE_UNIT_REVIVAL_ENTRY = 0x007C6D8E
+SCRIPT_ENGINE_PLAYER_NAME_TO_INDEX = 0x00758F7C
+PLAYER_LIST_PLAYER_FROM_INDEX = 0x006A85EE
+
+#: `ScriptEngine::bindObjectName(AsciiString *, Object *)` - the script `unitName` binding, whose
+#: string lives at `OBJECT_SCRIPT_NAME` on the object. `SCRIPT_ENGINE_NAMED_OBJECT_MAP` is the
+#: sibling map it most likely writes; the only walker that types that map's value as an object id
+#: is dead code, so treat the identification as unconfirmed.
+SCRIPT_ENGINE_BIND_OBJECT_NAME = 0x00759467
+SCRIPT_ENGINE_NAMED_OBJECT_MAP = 0x191B8
+
+#: Counter and flag keys are **scoped**. `SCRIPT_ENGINE_SCOPED_KEY` composes the lookup key through
+#: `SCRIPT_KEY_COMPOSE(out, name, scope)`, taking the scope from `SCRIPT_ENGINE_SCOPE` - the script
+#: player currently being evaluated, empty for globals, and the same string the save chunk records.
+#: A name containing `/` overrides it, so `Player_1/MyCounter` is an explicit cross-scope reference.
+#: Anything writing counters from outside a script must set `SCRIPT_ENGINE_SCOPE` first or it will
+#: create a second, unrelated symbol.
+SCRIPT_ENGINE_SCOPE = 0x1A20C
+SCRIPT_ENGINE_SCOPED_KEY = 0x00604043
+SCRIPT_KEY_COMPOSE = 0x0072C43C
+
+#: The integer slot of a script `Parameter`, beside `SCRIPT_PARAMETER_NUMBER` (real) and
+#: `SCRIPT_PARAMETER_STRING`. `CREATE_UNIT_REVIVAL_ENTRY_AT_LEVEL` reads its level from here.
+SCRIPT_PARAMETER_INT = 0x8
+
+
+#: `Object::toArmyRecord(record)` - thiscall on the **Object**, `ret 4`, no living-world state
+#: involved. It fills the same `0xD8` record an `ArmyEntry` parses into: the template name,
+#: `Quantity = 1`, a `0x90`-byte state block and the upgrade list, then copies `Object+0x480` to
+#: `record+0xD0`. `OBJECT_WRITE_ARMY_RECORD_STATE` is the inner half, and it resolves a horde to
+#: its member template rather than writing the horde object itself. `HERO_LEDGER_TO_RECORD` is the
+#: exact mirror for a dead hero's ledger entry, which is why a revived hero keeps the level and
+#: upgrades he died with.
+#:
+#: `ARMY_RECORD_CREATE_OBJECT` is the exact inverse and is equally free of living-world state:
+#: thiscall on the record, one argument (the receiving `Player`), returning the new `Object`. It
+#: resolves the template through `ARMY_ENTRY_FIND_TEMPLATE`, creates through
+#: `THING_FACTORY_NEW_OBJECT` onto `PLAYER_DEFAULT_TEAM`, applies `ARMY_RECORD_HEALTH` to the body,
+#: copies `ARMY_RECORD_UPGRADE_LIST` onto `OBJECT_UPGRADE_MASK` (so veterancy rides along), and
+#: pushes the same upgrade list into the object's contain so **horde members** are dressed too.
+#:
+#: `ARMY_RECORD_SPAWN` is the loop above it - thiscall on a pointer to the record, `ret 0x10`,
+#: creating `Quantity` copies. It is the layer that pulls in living-world state, resolving the
+#: `Player` from an army id at `record+0x1C`; calling `ARMY_RECORD_CREATE_OBJECT` directly with a
+#: `Player` skips that entirely. `LIVING_WORLD_ARMY_DEPLOY` above *both* is army- and battle-bound
+#: and is not reusable.
+OBJECT_TO_ARMY_RECORD = 0x0069192F
+OBJECT_WRITE_ARMY_RECORD_STATE = 0x006917BB
+ARMY_RECORD_SPAWN = 0x00811104
+
+
+#: The record half of an army carryover, usable on any player. `ARMY_RECORD_SIZE` is what
+#: `ARMY_ENTRY_RECORD_CTOR` constructs, and the same record an `ArmyEntry` line parses into, so the
+#: `ARMY_ENTRY_*` offsets apply to it. `ARMY_RECORD_HEALTH` is a float applied to the body only
+#: when it exceeds the template maximum; `ARMY_RECORD_UPGRADE_LIST` is copied onto
+#: `OBJECT_UPGRADE_MASK` through `OBJECT_APPLY_UPGRADE_LIST`.
+ARMY_RECORD_CREATE_OBJECT = 0x00780172
+ARMY_RECORD_SIZE = 0xD8
+ARMY_RECORD_HEALTH = 0x08
+ARMY_RECORD_UPGRADE_LIST = 0x10
+OBJECT_APPLY_UPGRADE_LIST = 0x0068CC6C
+
+#: A `Player`'s default team - what `ARMY_RECORD_CREATE_OBJECT` hands to `THING_FACTORY_NEW_OBJECT`,
+#: since objects are owned by a `Team` and not by a `Player`. `PLAYER_TEAM_LIST` is the separate
+#: list `PLAYER_FOR_EACH_TEAM_OBJECT` walks.
+PLAYER_DEFAULT_TEAM = 0x30C
+PLAYER_TEAM_LIST = 0x34C
+
+
+#: A special power's cooldown, on the power interface. `SPECIAL_POWER_READY_FRAME` is an **absolute
+#: logic frame**, written as `frame + duration` by `SPECIAL_POWER_START_RECHARGE` and compared
+#: against `TheGameLogic`'s frame on demand rather than counted down (`docs/recharge-rescale.md`).
+#: That makes it the opposite of a script timer, which holds ticks *remaining*
+#: (`SCRIPT_COUNTER_VALUE`): anything that restarts the frame counter must rebase this and must not
+#: touch the other. `docs/recharge-rescale.md` §168 has the engine's own after-the-fact adjustment.
+SPECIAL_POWER_READY_FRAME = 0x08
+SPECIAL_POWER_START_RECHARGE = 0x00896F70
+
+
+#: `AsciiString::operator=(const AsciiString &)` - thiscall on the destination, one argument,
+#: `ret 4`. It is what `GAME_LOGIC_START_NEW_GAME` uses at `0x007794DA` to promote the staged map
+#: name over the active one. Distinct from `ASCII_STRING_ASSIGN`, which takes a `char *`.
+ASCII_STRING_COPY = 0x00436030
+
+#: `GameData`'s `ShellMapName`, row 248 of the field table (`GAME_DATA_SHELL_MAP_NAME_ROW`), an
+#: `AsciiString` defaulting to the full path `Maps\ShellMap1\ShellMap1.map` written by
+#: `GlobalData`'s constructor at `0x0064306B`. Same shape as `GLOBAL_DATA_ACTIVE_MAP`, which is
+#: what makes copying one onto the other a valid way to ask for the shell map: posting
+#: `MSG_NEW_GAME` with the shell's mode does **not** select the shell map by itself - the loader
+#: reads the active map name, so without this the engine reloads whatever is already running.
+GLOBAL_DATA_SHELL_MAP = 0xAEC
+
+
+# `LifetimeUpdate`, the `ToggleMountedSpecialAbilityUpdate` whose swap and retire it borrows,
+# and the `UpdateModule` contract both sit on. Derived in `docs/lifetime-extend-upgrade.md` and
+# `docs/lifetime-transform.md`; read by `patches/lifetime_fields.py`, which imports them under
+# shorter local names.
+#: `LifetimeUpdate::newModuleData`'s ``push esi`` / ``push 0x18`` / ``call operator new``, and the
+#: ``pop ecx`` that cleans the argument, which is where the cave rejoins. Eight bytes for a
+#: ``jmp rel32`` and three of padding.
+LIFETIME_ALLOC = 0x0064E096
+LIFETIME_ALLOC_BYTES = bytes.fromhex("566a18e84216deff")
+LIFETIME_ALLOC_RESUME = 0x0064E09E
+
+#: `LifetimeUpdate::ModuleData`'s stock ``sizeof``, which is what `LIFETIME_ALLOC` asks
+#: `operator new` for and therefore the offset any added field has to start past.
+LIFETIME_MODULE_DATA_SIZE = 0x18
+#: `MountedTemplate`'s offset in `ToggleMountedSpecialAbilityUpdate`'s `ModuleData`, which is what
+#: `TOGGLE_MOUNTED_SWAP` reads, and therefore where a transform's keyword has to land - not a
+#: free choice. The three dwords behind it are that module's `SynchronizeTimerOnSpecialPower`
+#: vector; zeroed, they read as empty and the swap's timer pass does nothing (see
+#: `TOGGLE_MOUNTED_SYNC_SKIP`).
+TOGGLE_MOUNTED_TEMPLATE = 0xD8
+#: `ToggleMountedSpecialAbilityUpdate`'s own ``sizeof``, which is what growing to
+#: `TOGGLE_MOUNTED_TEMPLATE` plus that vector comes to. Nothing past the template is ever
+#: written; it is allocated and zeroed so the vector the swap reads is an empty one rather
+#: than heap litter.
+TOGGLE_MOUNTED_MODULE_DATA_SIZE = 0xE8
+
+#: The 16-byte-stride field-parse table, and the single imm32 that loads it (inside
+#: ``push 0xc31860`` at ``0x007A7E00``, so the operand starts one byte later).
+LIFETIME_FIELD_TABLE = 0x00C31860
+LIFETIME_FIELD_TABLE_REF = 0x007A7E01
+
+#: The stock table in table order, as ``(name, ModuleData offset)``. Used as a fingerprint before
+#: anything is written: all five names *and* offsets must match, which is a far stronger build
+#: check than any single literal, and the rows are copied wholesale so a mismatch would otherwise
+#: rebuild the table wrong and silently.
+LIFETIME_STOCK_FIELDS = (
+    ("MinLifetime", 0x08),
+    ("MaxLifetime", 0x0C),
+    ("WaitForWakeUp", 0x10),
+    ("ScoreKill", 0x11),
+    ("DeathType", 0x14),
+)
+
+#: `INI::parseUpgradeMask`, the parse function the engine's own `TriggeredBy` row names.
+INI_PARSE_UPGRADE_MASK = 0x0066F603
+#: The duration parser `MinLifetime` and `MaxLifetime` use: **milliseconds in, frames out**, scaled
+#: by the live logic rate (`0x00D9F610`, written from the frame rate at `0x00644F11`). Naming it
+#: here is what makes the bonus authorable in the same units as the lifetime it extends, and
+#: rate-independent without the patch doing any arithmetic.
+INI_PARSE_DURATION = 0x0073A429
+
+#: `setLifetimeRange`'s tail: the death-frame store, the ``pop esi`` and the ``ret 8``. Seven
+#: bytes, all three reproduced by the cave. ``esi`` is the module and ``eax`` the duration, which
+#: is what the two call sites push as the sleep.
+LIFETIME_ARM = 0x007A7DAE
+LIFETIME_ARM_BYTES = bytes.fromhex("894e205ec20800")
+
+#: `LifetimeUpdate::update`'s prologue - ``push ebp`` / ``mov ebp,esp`` / ``push ecx`` /
+#: ``push ebx``, exactly five bytes of whole instructions - and where the cave rejoins it.
+LIFETIME_UPDATE = 0x007A7F8B
+LIFETIME_UPDATE_BYTES = bytes.fromhex("558bec5153")
+LIFETIME_UPDATE_RESUME = 0x007A7F90
+
+#: `update`'s `ScoreKill` test and the ``push esi`` behind it - five bytes of two whole
+#: instructions, and the last point before either scoring arm runs. ``ebx`` is the `ModuleData`
+#: and ``edi`` the `Object` here, and the `THROWN_PROJECTILE` reprieve above has already been
+#: taken, so a projectile in flight never reaches the transform either.
+LIFETIME_EXPIRE = 0x007A7FAF
+LIFETIME_EXPIRE_BYTES = bytes.fromhex("807b110056")
+#: The ``je`` that picks a scoring arm, which is where the cave rejoins after re-executing the
+#: displaced pair. It consumes the ``cmp``'s flags, so the cave has to set them again.
+LIFETIME_EXPIRE_RESUME = 0x007A7FB4
+#: `update`'s epilogue *before* its ``pop esi`` - ``pop edi`` / ``pop ebx`` / ``leave`` / ``ret``.
+#: The stock `THROWN_PROJECTILE` arm returns through exactly this address from above the
+#: ``push esi``, which is what makes it the right exit for a hook that displaced that push.
+LIFETIME_KILL_RETURN = 0x007A8038
+#: `update`'s "sleep forever" - what the stock kill returns, and what a completed transform
+#: returns, since in both cases the object this module belongs to is on its way out.
+UPDATE_MODULE_SLEEP_FOREVER = 0x3FFFFFFF
+
+#: `ToggleMountedSpecialAbilityUpdate`'s mount swap: ``__thiscall``, no arguments, and of the
+#: module it is handed it reads only `UPDATE_MODULE_DATA` and `UPDATE_MODULE_OBJECT` and writes
+#: only `TOGGLE_MOUNTED_SWAP_FLAG`. It makes no virtual call on that pointer, which is what lets a
+#: `LifetimeUpdate` supply a plain stack frame in place of one.
+TOGGLE_MOUNTED_SWAP = 0x008B140D
+#: The byte the swap sets last, after the replacement exists and everything has moved onto it. It
+#: stays clear when `findTemplate` finds nothing or the build refuses, and it is the only way to
+#: ask whether the transform happened.
+TOGGLE_MOUNTED_SWAP_FLAG = 0x8C
+#: The swap's timer pass, which walks the `SynchronizeTimerOnSpecialPower` vector at
+#: ``ModuleData+0xdc``. Anchored because "a zeroed vector is safe to read" is the claim that lets
+#: `LifetimeUpdate`'s grown `ModuleData` stand in: it compares ``+0xdc`` against ``+0xe0`` and
+#: returns when they match.
+TOGGLE_MOUNTED_SYNC_SKIP = 0x008B12BF
+#: The retire the mount toggle runs a step later: hide the drawable, drop the object out of the
+#: UI, `GameLogic::destroyObject`. ``__thiscall``, and it reads `UPDATE_MODULE_OBJECT` and nothing
+#: else. A retire is not a kill - no `DeathType`, no death FX, no `SlowDeathBehavior`, nothing
+#: scored.
+TOGGLE_MOUNTED_RETIRE = 0x008B1E9A
+
+
+#: The stack the cave hands the swap in place of a `ToggleMountedSpecialAbilityUpdate` instance:
+#: that module's ``sizeof``, so `TOGGLE_MOUNTED_SWAP_FLAG` lands inside it. Only three slots
+#: are ever touched - the two pointers and the flag - so the rest is left as whatever the
+#: stack held.
+TOGGLE_MOUNTED_INSTANCE_SIZE = 0x90
+
+#: The constructor's ``mov byte [esi+0x28], al`` with ``eax`` already zero, widened to a dword so
+#: it clears the edge latch in the instance's tail padding as well. One byte changed, three for
+#: three: the stores that follow it are untouched and `sizeof` does not move.
+LIFETIME_LATCH_DEFAULT = 0x007A7F04
+LIFETIME_LATCH_DEFAULT_BYTES = bytes.fromhex("884628")
+
+#: The module instance, as `update` and `setLifetimeRange` address it. `update` runs on the
+#: `UpdateModule` subobject at ``module+0x10``, which is why it reads the others as negative
+#: displacements - and why the cave's own reads are ``0x10`` lower than these.
+UPDATE_MODULE_DATA = 0x04
+UPDATE_MODULE_OBJECT = 0x08
+UPDATE_MODULE_THIS_DELTA = 0x10
+LIFETIME_DIE_FRAME = 0x20
+LIFETIME_START_FRAME = 0x24
+
+#: `UpgradeMaskType::any()` - ``__thiscall(ecx = mask) -> al``, no arguments - and
+#: `testForAny(const UpgradeMaskType &)` - ``__thiscall``, ``ret 4``. Both are 36-dword loops that
+#: touch only ``eax``/``ecx``/``edx`` and (in `testForAny`) a saved ``esi``.
+UPGRADE_MASK_ANY = 0x00444DCE
+UPGRADE_MASK_TEST_ANY = 0x008097D6
+
+#: `Object::getControllingPlayer()` - ``__thiscall(ecx = Object*) -> Player*``, NULL for an
+#: unowned object. It is ``mov ecx,[this+0x31c] / jmp Team::getControllingPlayer``, which is what
+#: pins ``Object+0x31c`` as the team and therefore the object's mask as the one ending before it.
+OBJECT_GET_CONTROLLING_PLAYER = 0x0068B678
+
+
+#: `GameLogic`'s sleepy-update driver, the one site that calls an `UpdateModule`'s `update`. It
+#: reads ``lea ecx,[module+0x10]``, takes the return as a **sleep in frames** (clamped to a minimum
+#: of 1) and stores ``now + sleep`` into the module's wake frame at ``+0x14``. Both hooks depend on
+#: all three of those, and none of them is checkable from `LifetimeUpdate` alone.
+SLEEPY_UPDATE_DISPATCH = 0x0062EA97
+
+#: The client's timer-widget source: it finds the `LifetimeUpdate` module by class name, skips it
+#: while the `WaitForWakeUp` byte at ``+0x28`` is set, and otherwise reads the death frame and the
+#: start frame straight off the instance...
+LIFETIME_UI_MODULE_READ = 0x0092F7C5
+#: ... and turns them into the bar's fill, ``(die - now) / (die - start)``, every frame. The patch
+#: writes nothing here; it is anchored because "the in-world timer follows the extension" is a
+#: claim about *this* code, and a build that computed the fill from the template's `MaxLifetime`
+#: instead would leave the bar stuck while the object lived on.
+LIFETIME_UI_FRACTION = 0x0092F8C8
+
+
+#: Byte windows the patch depends on and does not rewrite. The register anchors matter most: the
+#: cave reads ``esi`` as the module in `setLifetimeRange` and ``[ecx-0xc]``/``[ecx-8]`` as the
+#: `ModuleData`/`Object` in `update`, and nothing the patch writes would catch a build that
+#: allocated them differently - the cave would simply dereference whatever the registers held.
+LIFETIME_ANCHORS: dict[int, bytes] = {
+    # `setLifetimeRange`'s prologue: esi = the module, and the two duration arguments
+    0x007A7D7E: bytes.fromhex("566a7668e017c300ff7424148bf1ff742414"),
+    # ... and its tail up to the hook: the duration clamp, TheGameLogic's frame, m_startFrame
+    0x007A7D98: bytes.fromhex("83f801730333c0408b0d2c41de008b4940894e2403c8"),
+    # the ModuleData constructor, in full: the five stock fields, and no sixth
+    0x007A7E0B: bytes.fromhex("8bc133c9c700307ac00089480889480c884810884811894814c3"),
+    # `setLifetimeRangeAndWake`: the call, and the `push eax` handing the return to setWakeFrame
+    0x007A7E4C: bytes.fromhex("e82dffffff50ff76088bcee8d68d0a005ec2"),
+    # `wakeUp`, which clears the WaitForWakeUp byte at +0x28 with a *byte* store - the reason the
+    # latch at +0x29 is the module's own and nothing else writes it
+    0x007A7E6F: bytes.fromhex("817c2404ffffff3f740cc641180083c1f0e8dbffffff"),
+    # the two stores that follow the widened one, and `eax` being zero across all three
+    0x007A7F02: bytes.fromhex("33c0"),
+    0x007A7F07: bytes.fromhex("894620894624"),
+    # ... and the WaitForWakeUp latch, written as a byte after the zeroing
+    0x007A7F27: bytes.fromhex("8a481080f901884e28"),
+    # the constructor's arming path, which hands setLifetimeRange's return to setWakeFrame
+    0x007A7F6A: bytes.fromhex("e80ffeffff50ff76088bcee8b88c0a00"),
+    # `update` past the prologue: ebx = [ecx-0xc], edi = [ecx-8], then the THROWN_PROJECTILE gate
+    # whose `return 1` is the idiom the poll reuses
+    LIFETIME_UPDATE_RESUME: bytes.fromhex("8b59f4578b79f8689a0000008bcfe87569ccff84c07408"),
+    # ... and the arm that gate takes: `return 1` through LIFETIME_KILL_RETURN, from above the
+    # `push esi`. The transform's exit is this one, so a build that returned through the pop
+    # instead would be refused rather than unbalancing the stack
+    0x007A7FA7: bytes.fromhex("33c040e989000000"),
+    # the `je` the displaced pair falls into, so the cave rejoins a branch that is still there
+    LIFETIME_EXPIRE_RESUME: bytes.fromhex("743b8db75c020000"),
+    # the sleep-forever the stock kill returns, and the epilogue behind it: `pop esi` is *last*
+    # in, so LIFETIME_KILL_RETURN is the entry for a path that never pushed it
+    0x007A8032: bytes.fromhex("b8ffffff3f5e5f5bc9c3"),
+    # the mount swap from its entry: the frame it sets up, ModuleData at +4, the template at
+    # +0xd8, findTemplate, the null exit that leaves the flag clear, and the Object at +8. Every
+    # offset the scratch has to satisfy, and the entry the cave calls
+    TOGGLE_MOUNTED_SWAP: bytes.fromhex(
+        "b8a82bba00e8d9ba180081ecd40000005356578bf98b47048b0d404ade0005d8000000"
+        "50897de8e8ccfee1ff85c08945ec0f843d0200008b7f088bcfe8c5cbe5ff"
+    ),
+    # ... and its tail: the success flag at +0x8c, then the register restores that make the swap
+    # safe to call with `ebx` and `edi` still holding the caller's ModuleData and Object
+    0x008B167A: bytes.fromhex("c6838c000000018b4df45f5e64890d000000005b"),
+    # the timer pass: `+0xdc` against `+0xe0`, and the jump taken when they match - which is what
+    # makes a zeroed vector in the grown ModuleData an empty one rather than a fault
+    TOGGLE_MOUNTED_SYNC_SKIP: bytes.fromhex("558bec5151538b59048d83dc0000008b103b500456570f848200"),
+    # the retire, reading the Object off +8 and nothing else off the pointer it is given
+    TOGGLE_MOUNTED_RETIRE: bytes.fromhex("568b71088bcee8eaa2ddff8bcee842a8ddff8bcee860c1e5"),
+    # `AsciiString::isEmpty` in full: NULL buffer or zero length -> 1, and `eax` is all it touches
+    ASCII_STRING_IS_EMPTY: bytes.fromhex("8b0185c0740a6683780400740333c0c333c040c3"),
+    # `MountedTemplate`'s row and the `SynchronizeTimerOnSpecialPower` row behind it, verbatim:
+    # the parse function the transform's row copies and the two offsets the grown ModuleData has
+    # to reproduce, read from the engine's own table rather than asserted
+    0x00C05A48: bytes.fromhex("b859c0005eee420000000000d80000009859c000d6ee420000000000dc000000"),
+    # `newModuleData`'s ctor call and the null test the cave's zeroing has to respect
+    0x0064E09E: bytes.fromhex("598bc8894df08365fc0085c97409e85a9d1500"),
+    # `UpgradeMaskType::any()` - the 36-dword scan, ecx = the mask, no arguments
+    UPGRADE_MASK_ANY: bytes.fromhex("33c0833c810075094083f82472f432c0c3b001c3"),
+    # `testForAny` - the same width, one stack argument, `ret 4`
+    UPGRADE_MASK_TEST_ANY: bytes.fromhex(
+        "8b44240433d22bc1568b34088531750f4283c10483fa2472f032c05ec20400"
+    ),
+    # `Object::getControllingPlayer` - the team hop that pins Object+0x31c
+    OBJECT_GET_CONTROLLING_PLAYER: bytes.fromhex("8b891c03000085c97405e9e846110033c0c3"),
+    # `UpdateModule::setWakeFrame`: `frame = TheGameLogic->frame + delta`, which is what makes the
+    # value the arming hook returns a sleep rather than a frame
+    0x00850C32: bytes.fromhex("a12c41de008b5040035424085251ff74240c8bc8"),
+    # the sleepy-update driver, the whole contract both hooks rely on: `update` is called on the
+    # `module+0x10` interface, its return is a delta clamped to a minimum of 1, and the next wake
+    # is recomputed as `now + delta` at the moment of the call - so a poll of 1 is every frame and
+    # cannot drift
+    SLEEPY_UPDATE_DISPATCH: bytes.fromhex(
+        "8d4b108b01ff1083f8018945ec7d07c745ec0100000083a60401000000"
+        "a12c41de008b40408b4dec03c1b9ffffff3f3bc10f47c1894314"
+    ),
+    # `INI::parseUpgradeMask`'s entry, and the ms -> frames duration parser: the two functions the
+    # appended rows name, so a build where either moved is refused rather than mis-parsed
+    INI_PARSE_UPGRADE_MASK: bytes.fromhex("b86375b800e8e3d83c0083ec1453565768900000"),
+    INI_PARSE_DURATION: bytes.fromhex(
+        "558bec518b4d086a00e86838cfff8b4d0850e80246cfff85c08945fcdb45"
+    ),
+    # the client's timer widget: the module lookup, the WaitForWakeUp skip, and the two loads that
+    # make the bar follow the death frame this patch moves
+    LIFETIME_UI_MODULE_READ: bytes.fromhex(
+        "8b7d0cff35e0a3de008bcfe8d0c5d5ff3bc6741480782800750e895de08b50248b4820e9db000000"
+    ),
+    # ... and the fill itself: remaining / span, both derived from the live module every frame
+    LIFETIME_UI_FRACTION: bytes.fromhex(
+        "3bca0f869f000000a12c41de008b40408bf12bf085f68975ecdb45ec7d06d8059886bd00"
+        "8bf12bf285f68975ecdb45ec7d06d8059886bd003bc1def9d95de877"
+    ),
+}
+
+# An INI keyword is matched by exact compare, so anything the parser could never match is a typo
+
+
+# The `MapCache` INI block, the `MapMetaData` it parses into, and the lobby map list that
+# turns that entry into a row. Derived in `docs/map-list-symbols.md`; read by
+# `patches/map_list_symbols.py`, which imports them under shorter local names.
+#: The `MapCache` field-parse table: 24 rows of ``{name, parseFn, userData, offset}`` and a NULL
+#: terminator. ``offset`` is into the parse-time temporary, not into the `MapMetaData` the entry
+#: ends up as - `parseMapCacheDefinition` copies the one into the other field by field.
+MAP_CACHE_FIELD_TABLE = 0x00C7FAE8
+
+#: The table's only two references, each the imm32 of one instruction: the getter's
+#: ``mov eax, 0xc7fae8`` and the ``push 0xc7fae8`` that hands it to `INI_PARSE_FIELDS`. Repointing
+#: both is what moves the table, and having exactly two is what makes moving it cheap.
+MAP_CACHE_FIELD_TABLE_GETTER_REF = 0x0093B447
+MAP_CACHE_FIELD_TABLE_PARSE_REF = 0x0093BA81
+
+#: `parseMapCacheDefinition`'s ``call INI_PARSE_FIELDS``. Hooked to clear the pending symbol before
+#: a block's fields are read, which is what stops a `mapSymbol` on a block whose entry is then
+#: rejected - a missing file, an empty name - from leaking into the next block.
+MAP_CACHE_PARSE_FIELDS = 0x0093BA8C
+MAP_CACHE_PARSE_FIELDS_BYTES = bytes.fromhex("e8ef20afff")
+
+#: ``call MapMetaData::operator=`` on the entry `MapCache::insert` just returned - the last thing
+#: `parseMapCacheDefinition` does to a block, and the first moment the *stored* entry exists. The
+#: insert is ``ret 4`` and leaves the source pointer on the stack as this call's argument, so the
+#: cave has to re-push it rather than tail-jump.
+MAP_CACHE_ASSIGN_CALL = 0x0093BCE4
+MAP_CACHE_ASSIGN_CALL_BYTES = bytes.fromhex("e8798ddcff")
+
+#: `MapMetaData::operator=` itself - ``__thiscall``, one stack argument, ``ret 4``, returning the
+#: destination in ``eax``. It copies ``+0xF4`` from the source, which is why the symbol is written
+#: after it and not before.
+MAP_META_DATA_ASSIGN = 0x00704A62
+
+#: The two `MapMetaData` offsets this patch reads: the sort/icon key, and the `isOfficial` byte
+#: whose only job in the stock engine is to set bit 15 of that key.
+MAP_META_DATA_SORT_KEY = 0xF4
+MAP_META_DATA_IS_OFFICIAL = 0x26
+
+#: The lobby fill's first mapped-image lookup, ``push <"AptDifficultyNotConquered">``. Hooked to
+#: resolve this patch's own images once per fill, on the same schedule as the stock twelve.
+MAP_LIST_RESOLVE = 0x008460E7
+MAP_LIST_RESOLVE_BYTES = bytes.fromhex("689045c500")
+MAP_LIST_RESOLVE_RESUME = 0x008460EC
+
+#: Pass 1's per-entry preamble, ``mov eax, [ebp+8]`` / ``mov esi, [eax]`` - the two instructions
+#: that pick the next `MapMetaData` up, and the last point before the difficulty stores overwrite
+#: its key. The `ZF` set by the ``cmp`` three bytes earlier is live across them and is consumed at
+#: the resume point, which is why the cave saves the flags.
+MAP_LIST_SAVE_KEY = 0x00846443
+MAP_LIST_SAVE_KEY_BYTES = bytes.fromhex("8b45088b30")
+MAP_LIST_SAVE_KEY_RESUME = 0x00846448
+
+#: Pass 1's tail: ``cmp byte [esi+0x26], 0`` / ``jne`` / ``or byte [esi+0xF5], 0x80``. Thirteen
+#: bytes, reached on both of the pass's paths - the one that computed a difficulty and the one
+#: that zeroed the key for a non-multiplayer map - which is what makes it the place to put the
+#: symbol back.
+MAP_LIST_OFFICIAL_BIT = 0x00846590
+MAP_LIST_OFFICIAL_BIT_BYTES = bytes.fromhex("807e26007507808ef500000080")
+MAP_LIST_OFFICIAL_BIT_RESUME = 0x0084659D
+
+#: Pass 2's ladder entry: ``mov eax, [esi+0xF4]`` / ``cmp eax, 0x8001``. The ``cmp``'s flags are
+#: consumed five bytes past the resume point, so a cave that declines to handle a row has to set
+#: them again on its way back.
+MAP_LIST_ICON_LADDER = 0x008465EA
+MAP_LIST_ICON_LADDER_BYTES = bytes.fromhex("8b86f40000003d01800000")
+MAP_LIST_ICON_LADDER_RESUME = 0x008465F5
+
+#: Where the ladder's arms converge: the row is added with the key as its item data and
+#: ``[ebp+8]`` as its image. A cave that picked an image jumps straight here.
+MAP_LIST_ROW_ADD = 0x00846674
+
+#: The 24 stock rows, ``(keyword, offset into the parse temporary)``, in table order. Checked
+#: before the table is copied, so a build whose table is not this one fails loudly rather than
+#: having a row appended to whatever is there.
+MAP_CACHE_STOCK_FIELDS = (
+    ("isOfficial", 0x28),
+    ("isMultiplayer", 0x1C),
+    ("isScenarioMP", 0x1D),
+    ("extentMin", 0x00),
+    ("extentMax", 0x0C),
+    ("numPlayers", 0x18),
+    ("fileSize", 0x34),
+    ("fileCRC", 0x38),
+    ("timestampLo", 0x2C),
+    ("timestampHi", 0x30),
+    ("displayName", 0x20),
+    ("description", 0x24),
+    ("supplyPosition", 0x00),
+    ("techPosition", 0x00),
+    ("Player_1_Start", 0x3C),
+    ("Player_2_Start", 0x48),
+    ("Player_3_Start", 0x54),
+    ("Player_4_Start", 0x60),
+    ("Player_5_Start", 0x6C),
+    ("Player_6_Start", 0x78),
+    ("Player_7_Start", 0x84),
+    ("Player_8_Start", 0x90),
+    ("InitialCameraPosition", 0x9C),
+    ("PlayerPosition", 0x00),
+)
+
+#: The map-list comparator's third delta, ``a->key - b->key``, and the two instructions
+#: interleaved with it: ``mov eax, [ebx+0xF4]`` / ``mov ecx, [ebp-0x10]`` / ``sub eax, [edi+0xF4]``
+#: / ``mov ecx, [ecx]``, seventeen contiguous bytes. This arm is what makes ``+0xF4`` a sort key at
+#: all, and it compares the **whole** dword - so a sort that is to ignore part of the key has to
+#: mask both operands here. ``ebx`` and ``edi`` are the two entries, ``[ebp-0x10]`` the sort
+#: functor, and ``edx`` is free (the stock code zeroes it four bytes past the resume point).
+MAP_LIST_COMPARE_KEY = 0x008424E2
+MAP_LIST_COMPARE_KEY_BYTES = bytes.fromhex("8b83f40000008b4df02b87f40000008b09")
+MAP_LIST_COMPARE_KEY_RESUME = 0x008424F3
+
+#: Everything the map-list patch depends on and does not rewrite: the table it copies, the
+#: assignment operator its store hook calls, the insert whose ``ret 4`` leaves that call's
+#: argument on the stack, and the mapped-image lookup. The comparator arm is checked separately,
+#: because one of the patch's options rewrites it.
+MAP_LIST_ANCHORS: dict[int, bytes] = {
+    MAP_META_DATA_ASSIGN: bytes.fromhex("5355"),
+    # `MapCache::insert`'s `ret 4` and the `lea eax, [esi+0x14]` that makes its return value the
+    # stored entry rather than the node.
+    0x0070662A: bytes.fromhex("8d4614"),
+    0x00706636: bytes.fromhex("c20400"),
+    # `findImageByName`: thiscall on the collection, an `AsciiString *`, `ret 4`, NULL on a miss.
+    OBJECT_IMAGE_UPGRADE_FIND_IMAGE: bytes.fromhex("558bec56"),
+    0x006DA376: bytes.fromhex("33c0"),
+    0x006DA37E: bytes.fromhex("c20400"),
+}

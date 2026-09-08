@@ -576,7 +576,9 @@ class ProductionConditionPatch(Patch):
                 )
         for table_va, ref_vas, what in (
             (pieces.weapon_table_va, weapon_set_flags.TABLE_REF_VAS, "weapon-set-flag"),
-            (pieces.locomotor_table_va, locomotor_sets.TABLE_REF_VAS, "locomotor-set"),
+            # Asked of the image rather than taken as a constant: one locomotor-set reference is a
+            # field descriptor another patch can have moved into a cave of its own.
+            (pieces.locomotor_table_va, locomotor_sets.ref_vas(data), "locomotor-set"),
         ):
             if table_va is None:
                 continue

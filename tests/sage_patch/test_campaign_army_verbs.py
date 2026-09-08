@@ -19,8 +19,8 @@ from sage_ini.engine import Engine, dump_engine, parse_engine
 from sage_ini.model.objects import REGISTRY
 from sage_ini.parser import parse
 from sage_patch import addresses as ad
-from sage_patch.patches.experimental import campaign_army_verbs as cav
-from sage_patch.patches.experimental.campaign_army_verbs import (
+from sage_patch.patches import campaign_army_verbs as cav
+from sage_patch.patches.campaign_army_verbs import (
     FIELD_ROWS,
     NAME_CAPACITY,
     RECORD_CAPACITY,
@@ -536,9 +536,11 @@ class TestSagepatchDocument:
 
 
 class TestRegistration:
-    def test_it_is_registered_and_experimental(self) -> None:
+    def test_it_is_registered_and_not_experimental(self) -> None:
+        """The module lives outside `experimental/`, so the attribute has to agree - the two are
+        the same fact, and `TestExperimentalPatchesAreDeclared` fails on either mismatch."""
         assert PATCHES["campaign-army-verbs"] is CampaignArmyVerbsPatch
-        assert CampaignArmyVerbsPatch().experimental is True
+        assert CampaignArmyVerbsPatch().experimental is False
 
     def test_the_description_names_both_verbs(self) -> None:
         description = CampaignArmyVerbsPatch.description

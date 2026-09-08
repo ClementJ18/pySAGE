@@ -166,6 +166,14 @@ script-holder flag. The layout's script lists are parsed and then never installe
 exactly what the next pass needs: what attaches a map's `PlayerScriptsList` to players, and what
 mode 8 does differently. The chunk itself is registered at `0x007B3F65`.
 
+**A lead, from [`../map-transition.md`](../map-transition.md) §6.10.** `0x0079FA5C` has one caller,
+`0x007A6DEA`, inside the team-instantiation routine at `0x007A6C91` — the same routine that logs
+`- creating team instance.` So there *is* an installer, and it runs per team instance during the
+load. It also suggests the `+0x334` owner is not a `Player`: the runner fetches its holder from
+`0x007A2C47`, a two-name keyed lookup into a map at `holder+0x150` returning node `+0x18`, and that
+returned object is what carries `+0x334`. If the lists never live on `Player`, a `Player`-side
+installer would not exist to be found.
+
 ## 6. Reproducing it
 
 Uncommitted in the Edain tree, on the `engine-patching` branch:

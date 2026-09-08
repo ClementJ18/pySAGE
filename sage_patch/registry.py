@@ -24,6 +24,8 @@ from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.banner_modifier import BannerModifierPatch
 from sage_patch.patches.binary_attest import BinaryAttestPatch
 from sage_patch.patches.cah_factions import CahFactionsPatch
+from sage_patch.patches.campaign_army_verbs import CampaignArmyVerbsPatch
+from sage_patch.patches.castle_unpack_clearance import CastleUnpackClearancePatch
 from sage_patch.patches.combo_horde_recruitment import ComboHordeRecruitmentPatch
 from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
@@ -39,7 +41,6 @@ from sage_patch.patches.desert_weather import (
 from sage_patch.patches.desync_debug import DesyncDebugPatch
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
 from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
-from sage_patch.patches.experimental.campaign_army_verbs import CampaignArmyVerbsPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
 from sage_patch.patches.experimental.capture_the_flag import CaptureTheFlagPatch
 from sage_patch.patches.experimental.command_line_skirmish import CommandLineSkirmishPatch
@@ -47,10 +48,11 @@ from sage_patch.patches.experimental.cooldown_through_death import CooldownThrou
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_army_carryover import HeroArmyCarryoverPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
-from sage_patch.patches.experimental.interpolation_alpha import InterpolationAlphaPatch
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
-from sage_patch.patches.experimental.rebuild_hole_repair import RebuildHoleRepairPatch
+from sage_patch.patches.experimental.map_transition import MapTransitionPatch
+from sage_patch.patches.experimental.mod_load_order import ModLoadOrderPatch
+from sage_patch.patches.experimental.multi_mod import MultiModPatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.render_rate import RenderRatePatch
 from sage_patch.patches.experimental.script_debug_window import ScriptDebugWindowPatch
@@ -74,9 +76,11 @@ from sage_patch.patches.horde_exit_absorption import HordeExitAbsorptionPatch
 from sage_patch.patches.horde_member_speed import HordeMemberSpeedPatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
+from sage_patch.patches.interpolation_alpha import InterpolationAlphaPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
+from sage_patch.patches.map_list_symbols import MapListSymbolsPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
 from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
@@ -98,6 +102,7 @@ from sage_patch.patches.production_split import (
 )
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.quiet_exit import QuietExitPatch
+from sage_patch.patches.rebuild_hole_repair import RebuildHoleRepairPatch
 from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
 from sage_patch.patches.scenario_player_factions import ScenarioPlayerFactionsPatch
@@ -146,6 +151,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CampaignArmyVerbsPatch,
     CampaignSelectPatch,
     CaptureTheFlagPatch,
+    CastleUnpackClearancePatch,
     ComboHordeRecruitmentPatch,
     CommandLineSkirmishPatch,
     CommandPointCostPatch,
@@ -180,11 +186,15 @@ _REGISTERED: tuple[type[Patch], ...] = (
     LargeGroupBonusPatch,
     LifetimeFieldsPatch,
     LiveBridgePatch,
+    MapTransitionPatch,
     LivingWorldOverridePatch,
     MaintenanceCostPatch,
+    MapListSymbolsPatch,
+    ModLoadOrderPatch,
     MultiExecuteGatePatch,
     MultiInstanceLauncherPatch,
     MultiInstancePatch,
+    MultiModPatch,
     MultiSelectGroupPatch,
     ObjectImageUpgradePatch,
     ObjectImageUpgradeWorldbuilderPatch,

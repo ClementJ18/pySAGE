@@ -19,13 +19,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Twenty-two of the registered patches — **`battle-school`**, **`campaign-army-verbs`**,
-> **`campaign-select`**, **`capture-the-flag`**, **`command-line-skirmish`**,
-> **`cooldown-through-death`**, **`headless`**, **`hero-army-carryover`**, **`hero-mana`**,
-> **`interpolation-alpha`**, **`live-bridge`**, **`living-world-override`**,
-> **`rebuild-hole-repair`**, **`recharge-rescale`**, **`render-rate`**,
-> **`script-debug-window`**, **`second-resource`**, **`smart-rally`**, **`special-power-charges`**,
-> **`standalone-launcher`**, **`unit-plate-option`** and **`wotr-battle-observers`** — are
+> Twenty-two of the registered patches — **`battle-school`**, **`campaign-select`**,
+> **`capture-the-flag`**, **`command-line-skirmish`**, **`cooldown-through-death`**,
+> **`headless`**, **`hero-army-carryover`**, **`hero-mana`**, **`live-bridge`**,
+> **`living-world-override`**, **`map-transition`**, **`mod-load-order`**, **`multi-mod`**,
+> **`recharge-rescale`**, **`render-rate`**, **`script-debug-window`**, **`second-resource`**,
+> **`smart-rally`**, **`special-power-charges`**, **`standalone-launcher`**,
+> **`unit-plate-option`** and **`wotr-battle-observers`** — are
 > **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -224,6 +224,52 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   **Runtime-verified in game.**
 - **`cah-factions`** teaches the nine-name Create-A-Hero faction enum a caller-supplied list of mod
   sides plus an `All` token, so a `SubClass` can name them in `UsableFactions`.
+- **`campaign-army-verbs`** restores the two BFME1 campaign `Act` verbs ROTWK
+  dropped: **`MergePlayerArmy`**, which moves roster entries from one living-world army into
+  another, and **`DespawnArmy = <name>`**, which takes an army off the world map. A merge either
+  pours the whole roster across (`SplitArmy = No`) or moves only the entries a
+  `SplitArmyTemplate` names — a `LivingWorldPlayerArmy` used purely as a **manifest of
+  `ThingTemplate` names**, which is what BFME1's Fellowship split is built out of. Edain's
+  `wotrscenarioangmar.inc` already carries two of these blocks, written correctly and commented out
+  with `; Doesn't work ;( - Necro`. **`SourceArmy` and `DestArmy` name `SpawnArmy` ScriptingNames,
+  not `PlayerArmy` templates as they did in BFME1** — the one deliberate divergence, and a mod
+  porting BFME1 campaign INI verbatim has to change those two fields. BFME1 could mutate templates
+  because a template was its only strategic state; ROTWK gives each live army its own roster at
+  `army+0x78` and rewrites it after every battle, so a template edit would touch only armies
+  spawned later and nothing standing on the map. Two five-byte sites: the `push` that names the Act
+  verb table is repointed at a 17-row copy in the cave, and pass nine of the act runner is
+  displaced into a trampoline that makes the call it replaced and then runs the new pass. The
+  records cannot live on the `Act` — it is `0xB8` bytes with three spare — so they live in
+  the cave keyed by the act's **name**, which is already how `CallActSubroutine` finds an act.
+  Moving a record is a move, not a copy: the roster's own erase hands back a reference and the
+  append takes its own. Also adds the optional **`DespawnSource = Yes`**, which is not a BFME1
+  field: the unsplit merge empties the source (leaving it populated would deploy those units
+  twice), and this removes the emptied army too, so one block does what BFME1 needed two lines for.
+  Static only — nothing here has been played. See
+  [`docs/living-campaign/merge-player-army.md`](docs/living-campaign/merge-player-army.md).
+- **`castle-unpack-clearance`** stops a **camp or castle unpack silently dropping structures**.
+  `CastleBehavior`'s per-entry builder (`0x007987EE`) asks `BuildAssistant::isLocationLegalToBuild`
+  once per prefab entry and, on any non-zero answer, abandons that entry for good — the loop hands
+  the resulting NULL to `onStructureBuilt`, which null-checks and does nothing, so the camp comes up
+  with a hole in it and nothing is logged. Two things reach that refusal and they are the same
+  refusal: an **object in the way** (a unit standing on the spot, a rock, a plot flag, somebody's
+  building — only `SHRUBBERY`, `CLEARED_BY_BUILD`, `INERT` and `AIRCRAFT` step aside), and
+  **rotation**, which is a veto by proxy. The prefab is placed through the flag's own 3×4 transform,
+  so the layout is rigid and turning a camp cannot make its own structures collide; what rotation
+  changes is the ground and the scenery underneath, and the same flags word runs the footprint
+  flatness and pathfind-cell tests against exactly that. Hence "some buildings are missing when the
+  camp is rotated", terrain-dependent rather than deterministic. The keep is already exempt — the
+  gate is skipped for a `KindOf COMMANDCENTER` template — which is why the fortress always appears
+  and only the rest of the camp is at risk. The patch repoints the builder's five-byte `call` into a
+  cave that asks the same question twice: the stock ask, and on failure a second ask with a flags
+  word of **zero**, whose answer is returned. Zero is not "skip the test" — the map-extent,
+  `CANNOT_BUILD_NEAR_SUPPLIES` and `WALL_HUB` tests are unflagged and keep their veto — so nothing
+  lands off the map, and the change reads as "refuse only for a reason the flags word never
+  controlled". Nothing is destroyed or pushed aside, so a refused structure now overlaps whatever
+  was standing there. Only the prefab path changes: `CASTLE_UNPACK_EXPLICIT_OBJECT` asks no legality
+  question and already spawned unconditionally. Logic-side, so **every peer needs the same binary**.
+  No INI change. See
+  [`docs/castle-unpack-clearance.md`](docs/castle-unpack-clearance.md). **Not runtime-verified.**
 - **`combo-horde-recruitment`** lets a horde built from **several `InitialPayload` lines** be
   recruited. A horde is filled by one of two mechanisms and its own `onObjectCreated` picks which:
   placed by a map it calls `createPayload`, which walks the whole payload list; produced by a
@@ -709,6 +755,29 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   verified** - both sites hold their stock bytes in the real binary and apply/verify/detect
   round-trip against it - but **not yet observed in game**. See
   [`docs/infantry-lighting.md`](docs/infantry-lighting.md).
+- **`interpolation-alpha`** stops every interpolated transform taking a
+  **doubled step at the logic-frame boundary, five times a second**. The engine bridges the gap
+  between two logic frames with an alpha, `TheGameEngine+0x3C = +0x34 / +0x38`, that seven render
+  sites lerp against — drawable transforms, three W3D animation lerps and the counter readout. On
+  a stock binary the sub-frame counter takes every value from 1 to the wrap and the sweep is even.
+  On the Edain and AotR binaries it does not: the catch-up loop's escape is replaced with `mov
+  eax, 2` / `jmp`, so the loop runs every logic frame and its `inc dword [ebp+0x34]` steps the
+  counter past 1 **inside the same logic step** — measured over 373 client frames, the counter took
+  2..6 at rate 30 and 2..12 at rate 60, never 1. The denominator never moved with it, so the alpha
+  sweeps `2/N .. N/N`: N−1 normal steps and then a **double** one, every logic frame. That is the
+  jitter in offset animations and in the resource readout, and it is invisible to the engine
+  because `2/N` is a perfectly legal alpha. A `.alpha` cave replaces the alpha routine with
+  `(subFrame − 1) / (ratio − 1)`, which maps the range the client actually observes onto
+  `1/(N−1) .. 1` in even steps and still ends at exactly 1.0, the phase the seven readers are
+  written against. **The stolen sub-frame is deliberately left alone**: reverting the catch-up loop
+  would also remove the jitter, but that sub-frame is what raises the logic clock from 5 Hz to 6 Hz
+  on a 30 fps client and shortens a frame-counted network run-ahead by a sixth — reverting it buys
+  the jitter fix by giving the delay fix up. Composes with `render-rate`, which rewrites the wrap
+  and the recompute gate this reads neither of; the alpha is taken over `+0x38` at run time, so
+  whatever ratio that patch establishes is the one used. Refuses a binary whose catch-up loop still
+  carries its stock escape, where sub-frame 1 *is* observable and the same correction would put a
+  zero-length step at the boundary instead. **Static only — built and unit-tested, not yet played.**
+  See [`docs/interpolation-alpha.md`](docs/interpolation-alpha.md).
 - **`large-group-bonus`** extends **`LargeGroupBonusUpdate`** twice over: it can **count objects
   that are not in a horde**, and it can be **gated on upgrades**. `HordeMemberFilter` is an ordinary
   `ObjectFilter` — nothing about its grammar is horde-specific — but it is **never evaluated against
@@ -823,6 +892,31 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   logic state, so **every peer must run the same patched binary**; and because there is no new
   keyword, a mod using it still **loads** on an unpatched one and silently does not charge. See
   [`docs/maintenance-cost.md`](docs/maintenance-cost.md).
+- **`map-list-symbols`** adds **`mapSymbol`** to a `MapCache` entry, so a map can carry **its own
+  icon** in the skirmish and multiplayer map list instead of the stock star or hammer - and its own
+  place in the sort. The star and the hammer are not a boolean the UI reads: the lobby writes a
+  32-bit key into `MapMetaData+0xF4`, `1..6` for the highest difficulty the map has been beaten on
+  with **bit 15** set when `isOfficial` is No, sorts the list on that key, and then reads it back
+  through a ladder that picks one of twelve mapped images. `mapSymbol` is packed into **bits 16 and
+  up of the same key**, which is what makes the sorting free: the icon column header already sorts
+  on the whole key, so a symbol becomes the primary grouping and official-versus-user the tiebreak
+  inside it. **The conquered medal is kept** - symbol `NN` draws the `MappedImage`
+  **`AptMapSymbolNN<state>`**, `<state>` being `NotConquered`, `EasyConquered`, `MedConquered`,
+  `HardConquered`, `BrutalConquered` or `MaxConquered` - and a symbol that defines only a bare
+  **`AptMapSymbolNN`** gets that one image at every difficulty. Missing images fall back to the
+  stock medal, which is also what `mapSymbol = 0`, the default, means. **No `.wnd` and no `.apt`
+  edit**, and nothing here is logic-side, so patched and unpatched peers can play together and
+  replays cross. Two things to know: a `mapcache.ini` using the keyword **will not load on an
+  unpatched `game.dat`** (an unknown keyword is a parse error), and `MapCache::writeCacheINI` is not
+  patched, so a `mapSymbol` hand-written into the **user** maps folder's own cache is dropped when
+  the engine regenerates it - maps a mod ships in its archives are unaffected, because that file is
+  never rewritten. **`--sort-by-symbol`** changes what that column sorts on. By default it sorts on the
+  whole key, so maps sharing a symbol are contiguous but ordered *inside* the group by how far each
+  has been beaten; the option masks the comparator to the symbol alone, so they tie and fall through
+  to the secondary column - the map name unless another header has been clicked. The icon still
+  tracks the conquered state either way; the cost is that untagged maps tie too, so that column
+  stops separating official from custom. `--keyword` renames the field and `--symbols` sets how many
+  the binary makes room for. See [`docs/map-list-symbols.md`](docs/map-list-symbols.md).
 - **`multi-execute-gate`** makes an **`OK_FOR_MULTI_EXECUTE` button respect each selected unit's own
   `EnableOnModelCondition` / `DisableOnModelCondition`**. Today it does not: the ControlBar lights
   the button if *any* member of the selection qualifies (reasonable), and the click then runs the
@@ -974,6 +1068,30 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   disassembles as intended, and the redirect is confirmed against the real binary; the one thing only
   a live exit can settle is that `m_quitting` is already set when the shutdown assert fires — which is
   what it is set for. See [`docs/quiet-exit.md`](docs/quiet-exit.md).
+- **`rebuild-hole-repair`** fixes both halves of a creep lair that is killed
+  **while it is being rebuilt**. The lair's whole loop hangs off its hole: breaking the lair makes
+  one, breaking the *hole* is what pays out treasure (the `CreateObjectDie` is on the hole, never
+  on the lair), and left alone the hole puts the lair back and retires with DeathType `FADED` —
+  which is what `DeathTypes = ALL -FADED` on every hole in the data exists to catch. Two things
+  break it. `RebuildHoleExposeDie::onDie` refuses to create anything when the dying object is
+  `UNDER_CONSTRUCTION`, and a lair rebuilt by a hole is `UNDER_CONSTRUCTION` for the whole time it
+  rises — the engine's own babysitting loop is keyed on that exact bit — so kill it in that window
+  and it is gone permanently, with no treasure ever again. Erase that branch and the hole appears,
+  but buried: `onDie` also stamps the hole with the *dying* object's live position, and a lair
+  killed mid-rebuild has already left the terrain, so the hole lands ~116 units underground where
+  it cannot be seen, clicked or looted. So the patch does both — it nops the six-byte gate, and it
+  redirects the eleven-byte placement into a cave that takes the corpse's x and y but reads z from
+  `TheTerrainLogic`, hooking *before* the engine's `setPosition` so the hole is placed once and the
+  partition and layer bookkeeping sees the final height. The snap is unconditional: a structure
+  that dies on the terrain already carries the height the lookup returns, so the healthy case is a
+  no-op — at the cost of ignoring layers, so a hole on a bridge or a wall top would be pulled to
+  the ground under it. The gate's rule moves into the INI rather than disappearing — every die
+  module opens with the shared filter that already evaluates `ExemptStatus` against live
+  `ObjectStatus` bits, so `ExemptStatus = SOLD UNDER_CONSTRUCTION` restores the stock behaviour per
+  object, which matters because the patch is global and reaches a faction's own lairs on their
+  *first* build too. Logic-side, so **every peer needs the same binary**. The gate half has been
+  watched in a running game; the ground snap has not. See
+  [`docs/rebuild-hole-repair.md`](docs/rebuild-hole-repair.md).
 - **`replay-annotations`** writes **each player's score-screen counters into the replay**: units
   and structures built, lost and destroyed, money earned and spent, and the army and base size at
   the closing frame. The engine keeps all of it in a `ScoreKeeper` embedded at `Player+0x3DC` and
@@ -1267,29 +1385,6 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   builds. The other half is `.apt` and asset work: the tutorial book, its videos, and the
   `APT:` strings, none of which ship with ROTWK. See
   [`docs/battle-school.md`](docs/battle-school.md).
-- **`campaign-army-verbs`** ⚠**(experimental)** restores the two BFME1 campaign `Act` verbs ROTWK
-  dropped: **`MergePlayerArmy`**, which moves roster entries from one living-world army into
-  another, and **`DespawnArmy = <name>`**, which takes an army off the world map. A merge either
-  pours the whole roster across (`SplitArmy = No`) or moves only the entries a
-  `SplitArmyTemplate` names — a `LivingWorldPlayerArmy` used purely as a **manifest of
-  `ThingTemplate` names**, which is what BFME1's Fellowship split is built out of. Edain's
-  `wotrscenarioangmar.inc` already carries two of these blocks, written correctly and commented out
-  with `; Doesn't work ;( - Necro`. **`SourceArmy` and `DestArmy` name `SpawnArmy` ScriptingNames,
-  not `PlayerArmy` templates as they did in BFME1** — the one deliberate divergence, and a mod
-  porting BFME1 campaign INI verbatim has to change those two fields. BFME1 could mutate templates
-  because a template was its only strategic state; ROTWK gives each live army its own roster at
-  `army+0x78` and rewrites it after every battle, so a template edit would touch only armies
-  spawned later and nothing standing on the map. Two five-byte sites: the `push` that names the Act
-  verb table is repointed at a 17-row copy in the cave, and pass nine of the act runner is
-  displaced into a trampoline that makes the call it replaced and then runs the new pass. The
-  records cannot live on the `Act` — it is `0xB8` bytes with three spare — so they live in
-  the cave keyed by the act's **name**, which is already how `CallActSubroutine` finds an act.
-  Moving a record is a move, not a copy: the roster's own erase hands back a reference and the
-  append takes its own. Also adds the optional **`DespawnSource = Yes`**, which is not a BFME1
-  field: the unsplit merge empties the source (leaving it populated would deploy those units
-  twice), and this removes the emptied army too, so one block does what BFME1 needed two lines for.
-  Static only — nothing here has been played. See
-  [`docs/living-campaign/merge-player-army.md`](docs/living-campaign/merge-player-army.md).
 - **`campaign-select`** ⚠**(experimental)** lets the main menu start **any `LinearCampaign`, by name**, instead of the
   two EA compiled in. The shipped `LinearCampaignExpansion1.ini` states the limit itself — *"campaign
   names are basically hard-coded into the game engine … They must be named ANGMAR_CAMPAIGN"* — and
@@ -1415,53 +1510,50 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   from the `TOOLTIP:ManaCost` key and carrying **both the price and what the caster currently has**;
   a `ManaPool` line sits under a hero's level on its revive/recruit button. `ManaCost = 0`, the default, leaves a power exactly as it is today.
 
-- **`interpolation-alpha`** ⚠**(experimental)** stops every interpolated transform taking a
-  **doubled step at the logic-frame boundary, five times a second**. The engine bridges the gap
-  between two logic frames with an alpha, `TheGameEngine+0x3C = +0x34 / +0x38`, that seven render
-  sites lerp against — drawable transforms, three W3D animation lerps and the counter readout. On
-  a stock binary the sub-frame counter takes every value from 1 to the wrap and the sweep is even.
-  On the Edain and AotR binaries it does not: the catch-up loop's escape is replaced with `mov
-  eax, 2` / `jmp`, so the loop runs every logic frame and its `inc dword [ebp+0x34]` steps the
-  counter past 1 **inside the same logic step** — measured over 373 client frames, the counter took
-  2..6 at rate 30 and 2..12 at rate 60, never 1. The denominator never moved with it, so the alpha
-  sweeps `2/N .. N/N`: N−1 normal steps and then a **double** one, every logic frame. That is the
-  jitter in offset animations and in the resource readout, and it is invisible to the engine
-  because `2/N` is a perfectly legal alpha. A `.alpha` cave replaces the alpha routine with
-  `(subFrame − 1) / (ratio − 1)`, which maps the range the client actually observes onto
-  `1/(N−1) .. 1` in even steps and still ends at exactly 1.0, the phase the seven readers are
-  written against. **The stolen sub-frame is deliberately left alone**: reverting the catch-up loop
-  would also remove the jitter, but that sub-frame is what raises the logic clock from 5 Hz to 6 Hz
-  on a 30 fps client and shortens a frame-counted network run-ahead by a sixth — reverting it buys
-  the jitter fix by giving the delay fix up. Composes with `render-rate`, which rewrites the wrap
-  and the recompute gate this reads neither of; the alpha is taken over `+0x38` at run time, so
-  whatever ratio that patch establishes is the one used. Refuses a binary whose catch-up loop still
-  carries its stock escape, where sub-frame 1 *is* observable and the same correction would put a
-  zero-length step at the boundary instead. **Static only — built and unit-tested, not yet played.**
-  See [`docs/interpolation-alpha.md`](docs/interpolation-alpha.md).
-- **`rebuild-hole-repair`** ⚠**(experimental)** fixes both halves of a creep lair that is killed
-  **while it is being rebuilt**. The lair's whole loop hangs off its hole: breaking the lair makes
-  one, breaking the *hole* is what pays out treasure (the `CreateObjectDie` is on the hole, never
-  on the lair), and left alone the hole puts the lair back and retires with DeathType `FADED` —
-  which is what `DeathTypes = ALL -FADED` on every hole in the data exists to catch. Two things
-  break it. `RebuildHoleExposeDie::onDie` refuses to create anything when the dying object is
-  `UNDER_CONSTRUCTION`, and a lair rebuilt by a hole is `UNDER_CONSTRUCTION` for the whole time it
-  rises — the engine's own babysitting loop is keyed on that exact bit — so kill it in that window
-  and it is gone permanently, with no treasure ever again. Erase that branch and the hole appears,
-  but buried: `onDie` also stamps the hole with the *dying* object's live position, and a lair
-  killed mid-rebuild has already left the terrain, so the hole lands ~116 units underground where
-  it cannot be seen, clicked or looted. So the patch does both — it nops the six-byte gate, and it
-  redirects the eleven-byte placement into a cave that takes the corpse's x and y but reads z from
-  `TheTerrainLogic`, hooking *before* the engine's `setPosition` so the hole is placed once and the
-  partition and layer bookkeeping sees the final height. The snap is unconditional: a structure
-  that dies on the terrain already carries the height the lookup returns, so the healthy case is a
-  no-op — at the cost of ignoring layers, so a hole on a bridge or a wall top would be pulled to
-  the ground under it. The gate's rule moves into the INI rather than disappearing — every die
-  module opens with the shared filter that already evaluates `ExemptStatus` against live
-  `ObjectStatus` bits, so `ExemptStatus = SOLD UNDER_CONSTRUCTION` restores the stock behaviour per
-  object, which matters because the patch is global and reaches a faction's own lairs on their
-  *first* build too. Logic-side, so **every peer needs the same binary**. The gate half has been
-  watched in a running game; the ground snap has not, which is why the patch is experimental. See
-  [`docs/rebuild-hole-repair.md`](docs/rebuild-hole-repair.md).
+- **`mod-load-order`** ⚠**(experimental)** mounts **`-mod` before the first INI file is read**, so
+  a loose (uncompiled) mod tree overrides `GameData.ini` — and the macros it `#include`s — the way
+  it already overrides everything else. `GameEngine::init` registers `TheWritableGlobalData` at
+  `0x0063AFA4`, and that registration is not a bare allocation: it reaches `initSubsystem`, whose
+  `vtbl+8` is the legend-driven loader, which `INI::load`s the `InitFile`s the subsystem legend
+  declares — `Data\INI\Default\GameData.ini` and `Data\INI\GameData.ini`. The startup switches
+  are parsed and the mod mounted fourteen bytes later, at `0x0063AFB2`. Until that runs the file
+  system's two mod globals are clear and every mod-aware lookup skips its mod branch, so
+  `GameData.ini` always comes out of the `.big`s. It presents as "a changed `#define` is ignored",
+  because a mod keeps its shared macros in a file `GameData.ini` includes and everything loaded
+  after the mount does pick up loose edits. A `.modord` cave takes the registration's place: it
+  publishes the object to `TheWritableGlobalData` (the `-mod` handler is a silent no-op while that
+  is null, which is why the parse cannot just be moved up), parses the startup table, mounts —
+  transcribing the stock mount instruction for instruction — then tail-jumps into the registration
+  with the stack untouched. The stock mount at `0x007BAA5B` is jumped over so nothing mounts twice;
+  the stock call is **left alone**, so the switches are still parsed after `GameData.ini` and a
+  switch still beats the tree, and so `headless` can keep pointing that function at its own
+  extended switch table. `-preferLocalFiles` moves with `-mod`, being the same table and the same
+  flag. The subsystem legend itself is read earlier still and is **not** covered. Nothing new to
+  declare: no INI change. **Static only — built and unit-tested, not yet played.** See
+  [`docs/mod-load-order.md`](docs/mod-load-order.md).
+- **`multi-mod`** ⚠**(experimental)** makes the engine honour **every `-mod` on the command
+  line** instead of only the last one. `-mod` is an ordinary startup switch: its handler resolves
+  the argument, asks `_stat` whether it names a directory or a `.big`, and *assigns* the result
+  into one of two `GlobalData` fields, so a second `-mod` overwrites the first and
+  `-mod A -mod B` runs B alone. The loose-file half is single-valued twice over — the mount
+  copies the directory into one global, and the four file-system entry points that consult it
+  (`openFile`, `doesFileExist`, `getFileInfo`, `getFileListInDirectory`) each format
+  `<modDir>\<name>` once and try it once. Archives were already the exception: they are inserted
+  into `TheArchiveFileSystem`'s shared file map with the overwrite flag set, so several mounted
+  `.big`s stack, last one winning. A `.modmul` cave holds a sixteen-entry table; the
+  `AsciiString::operator=` that ends the `-mod` handler is repointed to a stand-in that performs
+  that assignment unchanged, then records the path it just stored — tagged archive or directory
+  by which field was written — and mounts it on the spot, in command-line order. The four mod
+  branches become loops over the table, walked backwards, so **the last `-mod` wins** on loose
+  files exactly as it already did on archives, and a listing unions the trees rather than
+  shadowing them. Recording is idempotent, which is what lets `mod-load-order` — which makes the
+  whole startup table parse twice — compose with it; the stock mount block is **left alone**, so
+  neither patch touches a byte the other does, and the stock rule that a `-mod` directory
+  outranks a `-mod` archive survives. Sixteen mods, paths under 260 bytes; anything past either
+  bound falls back to the stock single-mod lookup rather than being truncated. Every peer needs
+  the same mods in the same order, the way a `.big` change already had to match. Nothing new to
+  declare: no INI change. **Static only — built and unit-tested, not yet played.** See
+  [`docs/multi-mod.md`](docs/multi-mod.md).
 - **`recharge-rescale`** ⚠**(experimental)** makes a cooldown **already running** respond to a recharge modifier that
   arrives after the cast — a leadership aura, a temporary `RECHARGE_TIME` buff, the player
   finishing a `SpellRechargeModifierUpgrade` mid-match. Stock, none of those can touch it:
@@ -1888,6 +1980,13 @@ sage-patch verify foundation-rebind game.dat
 # a command-line surface, and a game that does not draw
 sage-patch apply headless --in game.dat.backup --out game.dat          # no parameters
 sage-patch verify headless game.dat
+
+# a script action that loads another map without leaving the session, so one scenario can span
+# several map files; the destination goes in the string parameter of the stock WorldBuilder action
+# PLAYER_ASSIMILATE_WITH_ARMY_BY_NAME, which the unpatched engine ignores
+# EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
+sage-patch apply map-transition --in game.dat.backup --out game.dat     # no parameters
+sage-patch verify map-transition game.dat
 
 # a cooldown already running responds to a recharge modifier granted after the cast
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top

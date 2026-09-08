@@ -1,7 +1,7 @@
 """The interpolation-alpha patch: take the alpha over the sub-frames the client can actually see.
 
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001`` **as Edain and AotR ship it**.
-Every address below is derived in ``../../docs/interpolation-alpha.md``.
+Every address below is derived in ``../docs/interpolation-alpha.md``.
 
 **The defect.** ``GameEngine::update`` counts rendered frames in ``TheGameEngine+0x34`` and ends a
 logic frame when the count passes the wrap at ``0x0063264A``. The render path bridges the gap with
@@ -55,7 +55,7 @@ already even, and subtracting one from the numerator would put a zero-length ste
 instead of a doubled one - the same defect with the sign flipped.
 
 **Composition.** Order-independent, and specifically with
-:mod:`~sage_patch.patches.experimental.render_rate`, which is the other patch in this block. That
+:mod:`~sage_patch.patches.experimental.render_rate`, the other patch that edits this loop. That
 one rewrites the wrap and the recompute gate; this one reads neither, and reads ``+0x38`` at run
 time rather than deriving anything from the bytes that set it - so whatever ratio `render-rate`
 establishes, the alpha is taken over it. The only engine bytes this edits are the five at
@@ -66,7 +66,7 @@ from __future__ import annotations
 
 import struct
 
-from ...addresses import (
+from ..addresses import (
     ALPHA_RECOMPUTE,
     ALPHA_RECOMPUTE_BODY,
     ALPHA_RECOMPUTE_BODY_BYTES,
@@ -78,9 +78,9 @@ from ...addresses import (
     GAME_ENGINE_SUB_FRAME,
     GAME_ENGINE_SUB_FRAME_RATIO,
 )
-from ...asm import JBE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JBE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -159,7 +159,6 @@ def build_code(base_va: int) -> bytes:
 class InterpolationAlphaPatch(Patch):
     name = "interpolation-alpha"
     author = "officialNecro"
-    experimental = True
     description = (
         "Stop every interpolated transform taking a doubled step at the logic-frame boundary, "
         "five times a second, by taking the interpolation alpha over the sub-frames the client "

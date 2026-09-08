@@ -365,7 +365,7 @@ Two things, both smaller than "he dies":
 ### And `MergePlayerArmy` cannot fix (2) as things stand
 
 The obvious move — re-buy him, then fold `DurmarthArmy` into the Witch-king's army with
-[`campaign-army-verbs`](../../patches/experimental/campaign_army_verbs.py) — **does not work**,
+[`campaign-army-verbs`](../../patches/campaign_army_verbs.py) — **does not work**,
 and the reason is worth writing down rather than discovering later. `MergePlayerArmy` resolves
 `SourceArmy` through `findArmyByScriptingName` (`0x006B53A4`), which matches `army+0x1C`, copied
 from a `SpawnArmy` block's `ScriptingName`. **`ArmyToSpawn` has no `ScriptingName` field** — the
@@ -600,7 +600,7 @@ Two things, both smaller than "he dies":
 ### And `MergePlayerArmy` cannot fix (2) as things stand
 
 The obvious move — re-buy him, then fold `DurmarthArmy` into the Witch-king's army with
-[`campaign-army-verbs`](../../patches/experimental/campaign_army_verbs.py) — **does not work**,
+[`campaign-army-verbs`](../../patches/campaign_army_verbs.py) — **does not work**,
 and the reason is worth writing down rather than discovering later. `MergePlayerArmy` resolves
 `SourceArmy` through `findArmyByScriptingName` (`0x006B53A4`), which matches `army+0x1C`, copied
 from a `SpawnArmy` block's `ScriptingName`. **`ArmyToSpawn` has no `ScriptingName` field** — the

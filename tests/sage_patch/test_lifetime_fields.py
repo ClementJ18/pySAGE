@@ -31,61 +31,61 @@ from capstone import CS_ARCH_X86, CS_MODE_32, Cs  # noqa: E402 - after the impor
 from sage_ini.engine import parse_type  # noqa: E402
 from sage_patch import LifetimeFieldsPatch, apply_patches  # noqa: E402
 from sage_patch.addresses import (  # noqa: E402
+    ASCII_STRING_IS_EMPTY,
     FIELD_PARSE_STRIDE,
+    GAME_DATA_ASCIISTRING_PARSER,
     GAME_LOGIC_FRAME,
+    INI_PARSE_DURATION,
+    INI_PARSE_UPGRADE_MASK,
+    LIFETIME_ALLOC,
+    LIFETIME_ALLOC_BYTES,
+    LIFETIME_ALLOC_RESUME,
+    LIFETIME_ANCHORS,
+    LIFETIME_ARM,
+    LIFETIME_ARM_BYTES,
+    LIFETIME_DIE_FRAME,
+    LIFETIME_EXPIRE,
+    LIFETIME_EXPIRE_BYTES,
+    LIFETIME_EXPIRE_RESUME,
+    LIFETIME_FIELD_TABLE,
+    LIFETIME_FIELD_TABLE_REF,
+    LIFETIME_KILL_RETURN,
+    LIFETIME_LATCH_DEFAULT,
+    LIFETIME_LATCH_DEFAULT_BYTES,
+    LIFETIME_MODULE_DATA_SIZE,
+    LIFETIME_STOCK_FIELDS,
+    LIFETIME_UI_FRACTION,
+    LIFETIME_UI_MODULE_READ,
+    LIFETIME_UPDATE,
+    LIFETIME_UPDATE_BYTES,
+    LIFETIME_UPDATE_RESUME,
+    OBJECT_GET_CONTROLLING_PLAYER,
+    OBJECT_UPGRADE_MASK,
+    PLAYER_COMPLETED_UPGRADE_MASK,
+    PLAYER_COMPLETED_UPGRADE_MASK_WORDS,
     THE_GAME_LOGIC,
+    TOGGLE_MOUNTED_INSTANCE_SIZE,
+    TOGGLE_MOUNTED_MODULE_DATA_SIZE,
+    TOGGLE_MOUNTED_RETIRE,
+    TOGGLE_MOUNTED_SWAP,
+    TOGGLE_MOUNTED_SWAP_FLAG,
+    TOGGLE_MOUNTED_SYNC_SKIP,
+    TOGGLE_MOUNTED_TEMPLATE,
+    UPDATE_MODULE_DATA,
+    UPDATE_MODULE_OBJECT,
+    UPDATE_MODULE_SLEEP_FOREVER,
+    UPDATE_MODULE_THIS_DELTA,
+    UPGRADE_MASK_ANY,
+    UPGRADE_MASK_TEST_ANY,
 )
 from sage_patch.patches.lifetime_fields import (  # noqa: E402
-    ALLOC_BYTES,
-    ALLOC_RESUME_VA,
-    ALLOC_VA,
-    ANCHORS,
-    ARM_BYTES,
-    ARM_VA,
-    ASCIISTRING_IS_EMPTY_VA,
     BONUS_OFFSET,
     DEFAULT_BONUS_KEYWORD,
     DEFAULT_KEYWORD,
     DEFAULT_TEMPLATE_KEYWORD,
-    DIE_FRAME_OFFSET,
-    EXPIRE_BYTES,
-    EXPIRE_RESUME_VA,
-    EXPIRE_VA,
-    FIELD_TABLE_REF_VA,
-    FIELD_TABLE_VA,
-    GET_CONTROLLING_PLAYER_VA,
-    KILL_RETURN_VA,
-    LATCH_DEFAULT_BYTES,
-    LATCH_DEFAULT_VA,
     LATCH_OFFSET,
-    MASK_ANY_VA,
-    MASK_DWORDS,
     MASK_OFFSET,
-    MASK_TEST_ANY_VA,
-    MODULE_DATA_OFFSET,
-    MODULE_OBJECT_OFFSET,
-    OBJECT_UPGRADES_COMPLETED,
-    PARSE_ASCIISTRING_VA,
-    PARSE_DURATION_VA,
-    PARSE_UPGRADE_MASK_VA,
-    PATCHED_MODULEDATA_SIZE,
-    PLAYER_UPGRADES_COMPLETED,
-    RETIRE_VA,
-    SCRATCH_SIZE,
     SECTION_NAME,
-    SLEEP_FOREVER,
-    STOCK_FIELDS,
-    STOCK_MODULEDATA_SIZE,
-    SWAP_FLAG_OFFSET,
-    SWAP_VA,
-    SYNC_SKIP_VA,
-    TEMPLATE_OFFSET,
-    UI_FRACTION_VA,
-    UI_MODULE_READ_VA,
-    UPDATE_BYTES,
-    UPDATE_RESUME_VA,
-    UPDATE_THIS_DELTA,
-    UPDATE_VA,
     ZERO_DWORDS,
     _layout,
     build_alloc,
@@ -96,12 +96,16 @@ from sage_patch.patches.lifetime_fields import (  # noqa: E402
     validate_keywords,
     widened_latch_default,
 )
-from sage_patch.patches.lifetime_fields import (  # noqa: E402
+from sage_patch.patches.lifetime_fields import (
     LifetimeFieldsPatch as Patch,
 )
 from sage_patch.registry import PATCHES  # noqa: E402
 from sage_patch.utils import find_section, va_to_offset  # noqa: E402
 from tests.sage_patch.synthetic import lifetime_fields_image  # noqa: E402
+
+#: `update` runs on the `UpdateModule` subobject at ``module+0x10``, so the death frame it
+#: addresses is this much lower than `LIFETIME_DIE_FRAME`.
+DIE_FRAME_DISP = LIFETIME_DIE_FRAME - UPDATE_MODULE_THIS_DELTA
 
 #: The repo's own clean build, for the address checks the synthetic image cannot make.
 _GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
@@ -185,9 +189,10 @@ class TestRoundTrip:
     def test_verify_catches_a_reverted_site(self, image: bytearray) -> None:
         patch = LifetimeFieldsPatch()
         patch.apply(image)
-        off = va_to_offset(image, UPDATE_VA)
+        off = va_to_offset(image, LIFETIME_UPDATE)
         assert off is not None
-        image[off : off + len(UPDATE_BYTES)] = UPDATE_BYTES  # someone un-hooked `update`
+        # someone un-hooked `update`
+        image[off : off + len(LIFETIME_UPDATE_BYTES)] = LIFETIME_UPDATE_BYTES
         assert any("update" in problem for problem in patch.verify(image))
 
     def test_apply_writes_a_file_and_leaves_the_input_alone(self, tmp_path: Path) -> None:
@@ -204,10 +209,10 @@ class TestTheEdits:
         """Each site is displaced in full and rejoined explicitly; nothing is half-overwritten."""
         data = patched()
         sites = (
-            (ALLOC_VA, ALLOC_BYTES),
-            (ARM_VA, ARM_BYTES),
-            (UPDATE_VA, UPDATE_BYTES),
-            (EXPIRE_VA, EXPIRE_BYTES),
+            (LIFETIME_ALLOC, LIFETIME_ALLOC_BYTES),
+            (LIFETIME_ARM, LIFETIME_ARM_BYTES),
+            (LIFETIME_UPDATE, LIFETIME_UPDATE_BYTES),
+            (LIFETIME_EXPIRE, LIFETIME_EXPIRE_BYTES),
         )
         for va, stock in sites:
             new = at(data, va, len(stock))
@@ -227,19 +232,19 @@ class TestTheEdits:
         located = find_section(data, SECTION_NAME)
         assert located is not None
         pieces = _layout(located[0], *_DEFAULTS)
-        assert struct.unpack("<I", at(data, FIELD_TABLE_REF_VA, 4))[0] == pieces.table_va
+        assert struct.unpack("<I", at(data, LIFETIME_FIELD_TABLE_REF, 4))[0] == pieces.table_va
         # ... and the stock table is left exactly where it was, since it is copied, not moved
         stock = lifetime_fields_image()
-        assert at(data, FIELD_TABLE_VA, 16) == at(stock, FIELD_TABLE_VA, 16)
+        assert at(data, LIFETIME_FIELD_TABLE, 16) == at(stock, LIFETIME_FIELD_TABLE, 16)
 
     def test_the_latch_default_widens_one_store_and_nothing_else(self) -> None:
         """`eax` is already zero there, the instance is 0x2c bytes, and the two stores after it are
         untouched - so the whole cost of the new instance field is one opcode byte."""
         data = patched()
-        assert widened_latch_default() == b"\x89" + LATCH_DEFAULT_BYTES[1:]
-        assert at(data, LATCH_DEFAULT_VA, 3) == widened_latch_default()
-        assert disassemble(data, LATCH_DEFAULT_VA, 3) == ["mov dword ptr [esi + 0x28], eax"]
-        assert at(data, LATCH_DEFAULT_VA + 3, 6) == bytes.fromhex("894620894624")
+        assert widened_latch_default() == b"\x89" + LIFETIME_LATCH_DEFAULT_BYTES[1:]
+        assert at(data, LIFETIME_LATCH_DEFAULT, 3) == widened_latch_default()
+        assert disassemble(data, LIFETIME_LATCH_DEFAULT, 3) == ["mov dword ptr [esi + 0x28], eax"]
+        assert at(data, LIFETIME_LATCH_DEFAULT + 3, 6) == bytes.fromhex("894620894624")
 
     def test_the_latch_lives_in_the_instances_own_padding(self) -> None:
         """0x2c is the stock `sizeof`, and the WaitForWakeUp byte at 0x28 is the last thing in it,
@@ -255,8 +260,8 @@ class TestTheTable:
         located = find_section(data, SECTION_NAME)
         assert located is not None
         pieces = _layout(located[0], *_DEFAULTS)
-        size = len(STOCK_FIELDS) * FIELD_PARSE_STRIDE
-        assert at(data, pieces.table_va, size) == at(stock, FIELD_TABLE_VA, size)
+        size = len(LIFETIME_STOCK_FIELDS) * FIELD_PARSE_STRIDE
+        assert at(data, pieces.table_va, size) == at(stock, LIFETIME_FIELD_TABLE, size)
 
     def test_every_row_names_an_engine_parser(self) -> None:
         """No field needs parse code: the mask reuses `parseUpgradeMask`, the bonus reuses the
@@ -267,14 +272,14 @@ class TestTheTable:
         located = find_section(data, SECTION_NAME)
         assert located is not None
         pieces = _layout(located[0], *_NAMES)
-        base = pieces.table_va + len(STOCK_FIELDS) * FIELD_PARSE_STRIDE
+        base = pieces.table_va + len(LIFETIME_STOCK_FIELDS) * FIELD_PARSE_STRIDE
 
         name_va, parse_fn, userdata, offset = struct.unpack("<4I", at(data, base, 16))
-        assert (parse_fn, userdata, offset) == (PARSE_UPGRADE_MASK_VA, 0, MASK_OFFSET)
+        assert (parse_fn, userdata, offset) == (INI_PARSE_UPGRADE_MASK, 0, MASK_OFFSET)
         assert at(data, name_va, len(_KEYWORD) + 1) == _KEYWORD.encode() + b"\x00"
 
         name_va, parse_fn, userdata, offset = struct.unpack("<4I", at(data, base + 16, 16))
-        assert (parse_fn, userdata, offset) == (PARSE_DURATION_VA, 0, BONUS_OFFSET)
+        assert (parse_fn, userdata, offset) == (INI_PARSE_DURATION, 0, BONUS_OFFSET)
         assert at(data, name_va, len(_BONUS) + 1) == _BONUS.encode() + b"\x00"
 
     def test_the_table_is_terminated(self) -> None:
@@ -282,11 +287,11 @@ class TestTheTable:
         located = find_section(data, SECTION_NAME)
         assert located is not None
         pieces = _layout(located[0], *_DEFAULTS)
-        end = pieces.table_va + (len(STOCK_FIELDS) + 3) * FIELD_PARSE_STRIDE
+        end = pieces.table_va + (len(LIFETIME_STOCK_FIELDS) + 3) * FIELD_PARSE_STRIDE
         assert at(data, end, FIELD_PARSE_STRIDE) == bytes(FIELD_PARSE_STRIDE)
 
     def test_a_keyword_the_module_already_parses_is_refused(self) -> None:
-        for name, _offset in STOCK_FIELDS:
+        for name, _offset in LIFETIME_STOCK_FIELDS:
             for index in range(3):
                 names = list(_DEFAULTS)
                 names[index] = name.lower()
@@ -311,23 +316,25 @@ class TestTheTable:
 
 class TestTheAllocator:
     def test_the_moduledata_grows_to_hold_all_three_fields(self) -> None:
-        assert BONUS_OFFSET == MASK_OFFSET + MASK_DWORDS * 4
-        assert MASK_OFFSET == STOCK_MODULEDATA_SIZE  # the mask starts where the structure ended
-        assert BONUS_OFFSET + 4 <= TEMPLATE_OFFSET  # ... and the bonus clears the template's slot
-        assert ZERO_DWORDS * 4 == PATCHED_MODULEDATA_SIZE - STOCK_MODULEDATA_SIZE
+        assert BONUS_OFFSET == MASK_OFFSET + PLAYER_COMPLETED_UPGRADE_MASK_WORDS * 4
+        assert MASK_OFFSET == LIFETIME_MODULE_DATA_SIZE  # the mask starts where the structure ended
+        # ... and the bonus clears the template's slot
+        assert BONUS_OFFSET + 4 <= TOGGLE_MOUNTED_TEMPLATE
+        assert ZERO_DWORDS * 4 == TOGGLE_MOUNTED_MODULE_DATA_SIZE - LIFETIME_MODULE_DATA_SIZE
 
     def test_the_structure_reaches_past_the_template_and_its_vector(self) -> None:
-        """`TEMPLATE_OFFSET` is `MountedTemplate`'s offset, not a free choice, and the three dwords
+        """`TOGGLE_MOUNTED_TEMPLATE` is `MountedTemplate`'s offset, not a free choice, and the
+        three dwords
         behind it are the vector the swap's timer pass reads. All four have to be inside the
         allocation and zeroed, or that pass walks heap litter."""
-        assert TEMPLATE_OFFSET + 4 + 12 <= PATCHED_MODULEDATA_SIZE
+        assert TOGGLE_MOUNTED_TEMPLATE + 4 + 12 <= TOGGLE_MOUNTED_MODULE_DATA_SIZE
 
     def test_the_stub_allocates_the_grown_size_and_zeroes_everything_it_added(self) -> None:
         text = stub(patched(), "alloc")
         assert text[0] == "push esi"  # the register save the window owed its caller
-        assert text[1] == f"push {PATCHED_MODULEDATA_SIZE:#x}"
+        assert text[1] == f"push {TOGGLE_MOUNTED_MODULE_DATA_SIZE:#x}"
         assert text[2].startswith("call")
-        assert f"lea edx, [eax + {STOCK_MODULEDATA_SIZE:#x}]" in text
+        assert f"lea edx, [eax + {LIFETIME_MODULE_DATA_SIZE:#x}]" in text
         assert f"mov ecx, {ZERO_DWORDS:#x}" in text
         assert "mov dword ptr [edx], eax" in text  # the zeroing loop's body
 
@@ -345,21 +352,22 @@ class TestTheAllocator:
         assert text.index("push eax") < text.index("pop eax")
 
     def test_the_stub_rejoins_where_the_argument_is_cleaned(self) -> None:
-        assert stub(patched(), "alloc")[-1] == f"jmp {ALLOC_RESUME_VA:#x}"
+        assert stub(patched(), "alloc")[-1] == f"jmp {LIFETIME_ALLOC_RESUME:#x}"
 
 
 class TestTheArmingHook:
     def test_the_displaced_store_is_reproduced_first(self) -> None:
         text = stub(patched(), "arm")
-        assert text[0] == f"mov dword ptr [esi + {DIE_FRAME_OFFSET:#x}], ecx"
+        assert text[0] == f"mov dword ptr [esi + {LIFETIME_DIE_FRAME:#x}], ecx"
 
     def test_the_sleep_becomes_one_frame_only_when_the_mask_is_declared(self) -> None:
         """Without the poll there is no edge to see: the module would sleep to its death frame and
         wake once, long after the upgrade arrived."""
         text = stub(patched(), "arm")
-        assert f"call {MASK_ANY_VA:#x}" in text
+        assert f"call {UPGRADE_MASK_ANY:#x}" in text
         assert "mov eax, 1" in text
-        assert text.index("push eax") < text.index(f"call {MASK_ANY_VA:#x}") < text.index("pop eax")
+        call_any = text.index(f"call {UPGRADE_MASK_ANY:#x}")
+        assert text.index("push eax") < call_any < text.index("pop eax")
         assert text.index("pop eax") < text.index("mov eax, 1")
 
     def test_the_stub_returns_the_way_the_stock_tail_did(self) -> None:
@@ -369,12 +377,12 @@ class TestTheArmingHook:
 class TestTheHeldPredicate:
     def test_both_completed_masks_are_asked_in_the_engines_own_order(self) -> None:
         text = stub(patched(), "held")
-        assert f"lea ecx, [esi + {OBJECT_UPGRADES_COMPLETED:#x}]" in text
-        assert f"call {GET_CONTROLLING_PLAYER_VA:#x}" in text
-        assert f"lea ecx, [eax + {PLAYER_UPGRADES_COMPLETED:#x}]" in text
-        assert text.count(f"call {MASK_TEST_ANY_VA:#x}") == 2
-        assert text.index(f"lea ecx, [esi + {OBJECT_UPGRADES_COMPLETED:#x}]") < text.index(
-            f"call {GET_CONTROLLING_PLAYER_VA:#x}"
+        assert f"lea ecx, [esi + {OBJECT_UPGRADE_MASK:#x}]" in text
+        assert f"call {OBJECT_GET_CONTROLLING_PLAYER:#x}" in text
+        assert f"lea ecx, [eax + {PLAYER_COMPLETED_UPGRADE_MASK:#x}]" in text
+        assert text.count(f"call {UPGRADE_MASK_TEST_ANY:#x}") == 2
+        assert text.index(f"lea ecx, [esi + {OBJECT_UPGRADE_MASK:#x}]") < text.index(
+            f"call {OBJECT_GET_CONTROLLING_PLAYER:#x}"
         )
 
     def test_the_mask_is_pushed_afresh_for_each_call(self) -> None:
@@ -385,7 +393,7 @@ class TestTheHeldPredicate:
 
     def test_an_unowned_object_answers_on_its_own_mask_alone(self) -> None:
         text = stub(patched(), "held")
-        player = text.index(f"call {GET_CONTROLLING_PLAYER_VA:#x}")
+        player = text.index(f"call {OBJECT_GET_CONTROLLING_PLAYER:#x}")
         assert text[player + 1] == "test eax, eax"
         assert text[player + 2].startswith("je ")
 
@@ -393,7 +401,7 @@ class TestTheHeldPredicate:
         text = stub(patched(), "held")
         assert "mov al, 1" in text
         assert "xor al, al" in text
-        last = len(text) - 1 - text[::-1].index(f"call {MASK_TEST_ANY_VA:#x}")
+        last = len(text) - 1 - text[::-1].index(f"call {UPGRADE_MASK_TEST_ANY:#x}")
         assert text[last + 1] == "ret"
 
 
@@ -406,13 +414,13 @@ class TestTheUpdateHook:
 
     def test_a_module_with_no_mask_takes_the_stock_path(self) -> None:
         text = stub(patched(), "update")
-        assert f"call {MASK_ANY_VA:#x}" in text
+        assert f"call {UPGRADE_MASK_ANY:#x}" in text
         assert text[-5:] == [
             "push ebp",
             "mov ebp, esp",
             "push ecx",
             "push ebx",
-            f"jmp {UPDATE_RESUME_VA:#x}",
+            f"jmp {LIFETIME_UPDATE_RESUME:#x}",
         ]
 
     def test_the_latch_is_read_before_it_is_written(self) -> None:
@@ -420,7 +428,7 @@ class TestTheUpdateHook:
         read straight back and the answer is always 'held last frame too', so the bonus is paid
         exactly never."""
         text = stub(patched(), "update")
-        slot = LATCH_OFFSET - UPDATE_THIS_DELTA
+        slot = LATCH_OFFSET - UPDATE_MODULE_THIS_DELTA
         read = text.index(f"mov dl, byte ptr [ecx + {slot:#x}]")
         write = text.index(f"mov byte ptr [ecx + {slot:#x}], al")
         assert read + 1 == write
@@ -429,7 +437,7 @@ class TestTheUpdateHook:
         """Both arms of the edge test are reached *after* the store, which is what re-arms the
         trigger when the upgrade goes away rather than latching it forever."""
         text = stub(patched(), "update")
-        slot = LATCH_OFFSET - UPDATE_THIS_DELTA
+        slot = LATCH_OFFSET - UPDATE_MODULE_THIS_DELTA
         write = text.index(f"mov byte ptr [ecx + {slot:#x}], al")
         assert text[write + 1] == "test al, al"  # held now?
         assert text[write + 3] == "test dl, dl"  # held last frame?
@@ -437,9 +445,9 @@ class TestTheUpdateHook:
     def test_the_bonus_is_added_to_the_death_frame(self) -> None:
         text = stub(patched(), "update")
         assert f"mov edx, dword ptr [ebx + {BONUS_OFFSET:#x}]" in text
-        assert f"add dword ptr [ecx + {DIE_FRAME_OFFSET - UPDATE_THIS_DELTA:#x}], edx" in text
+        assert f"add dword ptr [ecx + {DIE_FRAME_DISP:#x}], edx" in text
         assert text.index(f"mov edx, dword ptr [ebx + {BONUS_OFFSET:#x}]") + 1 == text.index(
-            f"add dword ptr [ecx + {DIE_FRAME_OFFSET - UPDATE_THIS_DELTA:#x}], edx"
+            f"add dword ptr [ecx + {LIFETIME_DIE_FRAME - UPDATE_MODULE_THIS_DELTA:#x}], edx"
         )
 
     def test_a_poll_that_is_not_yet_due_sleeps_instead_of_killing(self) -> None:
@@ -448,7 +456,7 @@ class TestTheUpdateHook:
         text = stub(patched(), "update")
         assert f"mov eax, dword ptr [{THE_GAME_LOGIC:#x}]" in text
         assert f"mov eax, dword ptr [eax + {GAME_LOGIC_FRAME:#x}]" in text
-        assert f"cmp eax, dword ptr [ecx + {DIE_FRAME_OFFSET - UPDATE_THIS_DELTA:#x}]" in text
+        assert f"cmp eax, dword ptr [ecx + {DIE_FRAME_DISP:#x}]" in text
         assert any(line.startswith("jae ") for line in text)
         assert text[text.index("mov eax, 1") + 1] == "ret"  # UPDATE_SLEEP(1), and out
 
@@ -456,8 +464,8 @@ class TestTheUpdateHook:
         """Paid first, compared second: an upgrade gained on the very frame the object was due to
         die still saves it."""
         text = stub(patched(), "update")
-        add = text.index(f"add dword ptr [ecx + {DIE_FRAME_OFFSET - UPDATE_THIS_DELTA:#x}], edx")
-        cmp_ = text.index(f"cmp eax, dword ptr [ecx + {DIE_FRAME_OFFSET - UPDATE_THIS_DELTA:#x}]")
+        add = text.index(f"add dword ptr [ecx + {DIE_FRAME_DISP:#x}], edx")
+        cmp_ = text.index(f"cmp eax, dword ptr [ecx + {DIE_FRAME_DISP:#x}]")
         assert add < cmp_
 
     def test_the_module_pointer_survives_both_predicates(self) -> None:
@@ -487,8 +495,9 @@ class TestTheExpireHook:
     def test_the_hook_displaces_two_whole_instructions(self) -> None:
         """The `ScoreKill` compare and the `push esi` behind it, and nothing half of anything - a
         `jmp rel32` is exactly their five bytes, so there is not even padding to check."""
-        assert len(EXPIRE_BYTES) == 5
-        assert disassemble(lifetime_fields_image(), EXPIRE_VA, len(EXPIRE_BYTES)) == [
+        assert len(LIFETIME_EXPIRE_BYTES) == 5
+        stock = lifetime_fields_image()
+        assert disassemble(stock, LIFETIME_EXPIRE, len(LIFETIME_EXPIRE_BYTES)) == [
             "cmp byte ptr [ebx + 0x11], 0",
             "push esi",
         ]
@@ -497,18 +506,19 @@ class TestTheExpireHook:
         """The whole feature is gated on one `AsciiString::isEmpty`, so an object that does not
         declare the keyword runs the two displaced instructions and carries on."""
         text = stub(patched(), "expire")
-        assert text[0] == f"lea ecx, [ebx + {TEMPLATE_OFFSET:#x}]"
-        assert text[1] == f"call {ASCIISTRING_IS_EMPTY_VA:#x}"
+        assert text[0] == f"lea ecx, [ebx + {TOGGLE_MOUNTED_TEMPLATE:#x}]"
+        assert text[1] == f"call {ASCII_STRING_IS_EMPTY:#x}"
         assert text[2] == "test al, al"
         assert text[3].startswith("jne ")
         assert text[-3:] == [
             "push esi",
             "cmp byte ptr [ebx + 0x11], 0",
-            f"jmp {EXPIRE_RESUME_VA:#x}",
+            f"jmp {LIFETIME_EXPIRE_RESUME:#x}",
         ]
 
     def test_the_displaced_pair_is_re_executed_with_the_compare_last(self) -> None:
-        """`EXPIRE_RESUME_VA` is a `je` that consumes the compare's flags. `push` sets none, so
+        """`LIFETIME_EXPIRE_RESUME` is a `je` that consumes the compare's flags. `push` sets
+        none, so
         putting it first is what leaves the answer intact across the rejoin."""
         text = stub(patched(), "expire")
         assert text.index("push esi") + 1 == text.index("cmp byte ptr [ebx + 0x11], 0")
@@ -517,79 +527,83 @@ class TestTheExpireHook:
         """The swap belongs to another module, and reads exactly three things off the pointer it
         is handed. All three have to be at the offsets a real one would have them at."""
         text = stub(patched(), "expire")
-        assert f"sub esp, {SCRATCH_SIZE:#x}" in text
-        assert f"mov dword ptr [esp + {MODULE_DATA_OFFSET}], ebx" in text
-        assert f"mov dword ptr [esp + {MODULE_OBJECT_OFFSET}], edi" in text
-        assert f"mov byte ptr [esp + {SWAP_FLAG_OFFSET:#x}], 0" in text
-        assert SWAP_FLAG_OFFSET < SCRATCH_SIZE  # ... and the flag is inside the frame
+        assert f"sub esp, {TOGGLE_MOUNTED_INSTANCE_SIZE:#x}" in text
+        assert f"mov dword ptr [esp + {UPDATE_MODULE_DATA}], ebx" in text
+        assert f"mov dword ptr [esp + {UPDATE_MODULE_OBJECT}], edi" in text
+        assert f"mov byte ptr [esp + {TOGGLE_MOUNTED_SWAP_FLAG:#x}], 0" in text
+        # ... and the flag is inside the frame
+        assert TOGGLE_MOUNTED_SWAP_FLAG < TOGGLE_MOUNTED_INSTANCE_SIZE
 
     def test_the_flag_is_cleared_before_the_swap_and_read_after_it(self) -> None:
         """It is the only way to tell a transform that happened from one the template store
         refused, and the stack it lives on holds whatever the last call left there."""
         text = stub(patched(), "expire")
-        clear = text.index(f"mov byte ptr [esp + {SWAP_FLAG_OFFSET:#x}], 0")
-        swap = text.index(f"call {SWAP_VA:#x}")
-        test = text.index(f"cmp byte ptr [esp + {SWAP_FLAG_OFFSET:#x}], 0")
+        clear = text.index(f"mov byte ptr [esp + {TOGGLE_MOUNTED_SWAP_FLAG:#x}], 0")
+        swap = text.index(f"call {TOGGLE_MOUNTED_SWAP:#x}")
+        test = text.index(f"cmp byte ptr [esp + {TOGGLE_MOUNTED_SWAP_FLAG:#x}], 0")
         assert clear < swap < test
 
     def test_a_refused_swap_falls_through_to_the_stock_death(self) -> None:
         """No such template, or a build the engine would not make: the object dies the way it
         would have without the keyword, rather than living forever."""
         text = stub(patched(), "expire")
-        test = text.index(f"cmp byte ptr [esp + {SWAP_FLAG_OFFSET:#x}], 0")
+        test = text.index(f"cmp byte ptr [esp + {TOGGLE_MOUNTED_SWAP_FLAG:#x}], 0")
         assert text[test + 1].startswith("je ")
         # ... and that arm unwinds the scratch before rejoining the path that never allocated one
         stock = text.index("push esi")
-        assert text[stock - 1] == f"add esp, {SCRATCH_SIZE:#x}"
+        assert text[stock - 1] == f"add esp, {TOGGLE_MOUNTED_INSTANCE_SIZE:#x}"
 
     def test_the_retire_runs_only_after_a_swap_that_happened(self) -> None:
         text = stub(patched(), "expire")
-        assert text.index(f"call {SWAP_VA:#x}") < text.index(f"call {RETIRE_VA:#x}")
-        assert text.index(f"cmp byte ptr [esp + {SWAP_FLAG_OFFSET:#x}], 0") < text.index(
-            f"call {RETIRE_VA:#x}"
+        swap = text.index(f"call {TOGGLE_MOUNTED_SWAP:#x}")
+        assert swap < text.index(f"call {TOGGLE_MOUNTED_RETIRE:#x}")
+        assert text.index(f"cmp byte ptr [esp + {TOGGLE_MOUNTED_SWAP_FLAG:#x}], 0") < text.index(
+            f"call {TOGGLE_MOUNTED_RETIRE:#x}"
         )
 
     def test_both_calls_are_made_on_the_scratch(self) -> None:
         """`mov ecx, esp` twice, not once: the swap is a `__thiscall` and so is the retire, and
         the second cannot rely on the first having left `ecx` alone."""
         text = stub(patched(), "expire")
-        for callee in (SWAP_VA, RETIRE_VA):
+        for callee in (TOGGLE_MOUNTED_SWAP, TOGGLE_MOUNTED_RETIRE):
             assert text[text.index(f"call {callee:#x}") - 1] == "mov ecx, esp"
 
     def test_the_transform_exit_balances_the_stack_and_sleeps_forever(self) -> None:
-        """`KILL_RETURN_VA` pops `edi` and `ebx` before its `leave`, so the scratch has to be gone
+        """`LIFETIME_KILL_RETURN` pops `edi` and `ebx` before its `leave`, so the scratch has to
+        be gone
         by then - and the sleep is the one the stock kill returns, because either way this module's
         object is on its way out."""
         text = stub(patched(), "expire")
-        out = text.index(f"jmp {KILL_RETURN_VA:#x}")
+        out = text.index(f"jmp {LIFETIME_KILL_RETURN:#x}")
         assert text[out - 2 : out] == [
-            f"add esp, {SCRATCH_SIZE:#x}",
-            f"mov eax, {SLEEP_FOREVER:#x}",
+            f"add esp, {TOGGLE_MOUNTED_INSTANCE_SIZE:#x}",
+            f"mov eax, {UPDATE_MODULE_SLEEP_FOREVER:#x}",
         ]
 
     def test_it_returns_above_the_push_it_displaced(self) -> None:
         """The exit is the one the `THROWN_PROJECTILE` arm already uses from the same side of the
         `push esi`, which is what makes an unpushed `esi` correct rather than lucky."""
         stock = lifetime_fields_image()
-        assert disassemble(stock, KILL_RETURN_VA, 4) == ["pop edi", "pop ebx", "leave", "ret"]
+        assert disassemble(stock, LIFETIME_KILL_RETURN, 4) == ["pop edi", "pop ebx", "leave", "ret"]
         thrown = 0x007A7FA7  # the reprieve arm, which is above the push and returns the same way
-        assert disassemble(stock, thrown, len(ANCHORS[thrown])) == [
+        assert disassemble(stock, thrown, len(LIFETIME_ANCHORS[thrown])) == [
             "xor eax, eax",
             "inc eax",
-            f"jmp {KILL_RETURN_VA:#x}",
+            f"jmp {LIFETIME_KILL_RETURN:#x}",
         ]
 
     def test_the_scratch_is_never_touched_outside_the_transform_arm(self) -> None:
         """Everything between the `sub` and the two `add`s, and nothing else - so an object with no
         keyword never moves the stack pointer at all."""
         text = stub(patched(), "expire")
-        assert text.count(f"sub esp, {SCRATCH_SIZE:#x}") == 1
-        assert text.count(f"add esp, {SCRATCH_SIZE:#x}") == 2  # the transform and the abort
+        assert text.count(f"sub esp, {TOGGLE_MOUNTED_INSTANCE_SIZE:#x}") == 1
+        # the transform and the abort
+        assert text.count(f"add esp, {TOGGLE_MOUNTED_INSTANCE_SIZE:#x}") == 2
 
 
 class TestTheBuildFingerprint:
     def test_a_changed_anchor_is_refused(self) -> None:
-        for va in ANCHORS:
+        for va in LIFETIME_ANCHORS:
             data = lifetime_fields_image()
             off = va_to_offset(data, va)
             assert off is not None
@@ -602,38 +616,47 @@ class TestTheBuildFingerprint:
         the widget reads the death frame and the start frame off the live module every frame. A
         build that computed the fill any other way would leave the bar wrong, and nothing else here
         would notice."""
-        assert UI_MODULE_READ_VA in ANCHORS
-        assert UI_FRACTION_VA in ANCHORS
+        assert LIFETIME_UI_MODULE_READ in LIFETIME_ANCHORS
+        assert LIFETIME_UI_FRACTION in LIFETIME_ANCHORS
         data = patched()
-        for va in (UI_MODULE_READ_VA, UI_FRACTION_VA):
-            assert at(data, va, len(ANCHORS[va])) == ANCHORS[va]
+        for va in (LIFETIME_UI_MODULE_READ, LIFETIME_UI_FRACTION):
+            assert at(data, va, len(LIFETIME_ANCHORS[va])) == LIFETIME_ANCHORS[va]
 
     def test_the_borrowed_mount_code_is_anchored_even_though_it_is_never_written(self) -> None:
         """The transform is three calls into another module's code, and every layout assumption it
-        makes lives there: the swap's reads of the scratch and of `TEMPLATE_OFFSET`, the timer
+        makes lives there: the swap's reads of the scratch and of `TOGGLE_MOUNTED_TEMPLATE`, the
+        timer
         pass's short-circuit on an empty vector - which is the whole reason a zeroed one is safe -
         and the retire's single read of the `Object`. A build where any of those moved would run
         the transform on nonsense, and nothing else here would notice."""
         data = patched()
-        for va in (SWAP_VA, SYNC_SKIP_VA, RETIRE_VA, ASCIISTRING_IS_EMPTY_VA):
-            assert va in ANCHORS, f"0x{va:08x} is not fingerprinted"
-            assert at(data, va, len(ANCHORS[va])) == ANCHORS[va]
+        borrowed = (
+            TOGGLE_MOUNTED_SWAP,
+            TOGGLE_MOUNTED_SYNC_SKIP,
+            TOGGLE_MOUNTED_RETIRE,
+            ASCII_STRING_IS_EMPTY,
+        )
+        for va in borrowed:
+            assert va in LIFETIME_ANCHORS, f"0x{va:08x} is not fingerprinted"
+            assert at(data, va, len(LIFETIME_ANCHORS[va])) == LIFETIME_ANCHORS[va]
 
     def test_the_template_offset_is_read_out_of_the_engines_own_table(self) -> None:
-        """`TEMPLATE_OFFSET` is `MountedTemplate`'s offset and `PARSE_ASCIISTRING_VA` its parse
+        """`TOGGLE_MOUNTED_TEMPLATE` is `MountedTemplate`'s offset and
+        `GAME_DATA_ASCIISTRING_PARSER` its parse
         function, both of which the transform copies rather than chooses. The row they come from
         is anchored, so a build that spelled either differently is refused."""
         row = 0x00C05A48
-        name_va, parse_fn, userdata, offset = struct.unpack("<4I", ANCHORS[row][:16])
-        assert (parse_fn, userdata, offset) == (PARSE_ASCIISTRING_VA, 0, TEMPLATE_OFFSET)
+        name_va, parse_fn, userdata, offset = struct.unpack("<4I", LIFETIME_ANCHORS[row][:16])
+        expected = (GAME_DATA_ASCIISTRING_PARSER, 0, TOGGLE_MOUNTED_TEMPLATE)
+        assert (parse_fn, userdata, offset) == expected
         assert name_va  # the keyword string, wherever `.rdata` put it
         # ... and the row behind it is the vector, which is what fixes the structure's tail
-        _name_va, _parse, _ud, vector = struct.unpack("<4I", ANCHORS[row][16:32])
-        assert vector == TEMPLATE_OFFSET + 4
+        _name_va, _parse, _ud, vector = struct.unpack("<4I", LIFETIME_ANCHORS[row][16:32])
+        assert vector == TOGGLE_MOUNTED_TEMPLATE + 4
 
     def test_a_renamed_field_is_refused(self) -> None:
         data = lifetime_fields_image()
-        name_va = struct.unpack("<I", at(data, FIELD_TABLE_VA, 4))[0]
+        name_va = struct.unpack("<I", at(data, LIFETIME_FIELD_TABLE, 4))[0]
         off = va_to_offset(data, name_va)
         assert off is not None
         data[off] = ord("X")
@@ -642,7 +665,7 @@ class TestTheBuildFingerprint:
 
     def test_a_moved_field_is_refused(self) -> None:
         data = lifetime_fields_image()
-        off = va_to_offset(data, FIELD_TABLE_VA + 12)  # the first row's ModuleData offset
+        off = va_to_offset(data, LIFETIME_FIELD_TABLE + 12)  # the first row's ModuleData offset
         assert off is not None
         data[off] = 0x44
         with pytest.raises(ValueError, match="expected offset"):
@@ -650,7 +673,8 @@ class TestTheBuildFingerprint:
 
     def test_an_unterminated_table_is_refused(self) -> None:
         data = lifetime_fields_image()
-        off = va_to_offset(data, FIELD_TABLE_VA + len(STOCK_FIELDS) * FIELD_PARSE_STRIDE)
+        past_stock = LIFETIME_FIELD_TABLE + len(LIFETIME_STOCK_FIELDS) * FIELD_PARSE_STRIDE
+        off = va_to_offset(data, past_stock)
         assert off is not None
         data[off] = 0x01
         with pytest.raises(ValueError, match="NULL-terminated"):
@@ -708,21 +732,21 @@ class TestInstalledBinary:
 
     def test_every_site_holds_its_stock_bytes(self, real: bytes) -> None:
         for va, stock in (
-            (ALLOC_VA, ALLOC_BYTES),
-            (ARM_VA, ARM_BYTES),
-            (UPDATE_VA, UPDATE_BYTES),
-            (LATCH_DEFAULT_VA, LATCH_DEFAULT_BYTES),
+            (LIFETIME_ALLOC, LIFETIME_ALLOC_BYTES),
+            (LIFETIME_ARM, LIFETIME_ARM_BYTES),
+            (LIFETIME_UPDATE, LIFETIME_UPDATE_BYTES),
+            (LIFETIME_LATCH_DEFAULT, LIFETIME_LATCH_DEFAULT_BYTES),
         ):
             assert at(real, va, len(stock)) == stock, f"{va:#010x}"
-        assert struct.unpack("<I", at(real, FIELD_TABLE_REF_VA, 4))[0] == FIELD_TABLE_VA
+        assert struct.unpack("<I", at(real, LIFETIME_FIELD_TABLE_REF, 4))[0] == LIFETIME_FIELD_TABLE
 
     def test_every_anchor_holds_what_the_patch_expects(self, real: bytes) -> None:
-        for va, expected in ANCHORS.items():
+        for va, expected in LIFETIME_ANCHORS.items():
             assert at(real, va, len(expected)) == expected, f"{va:#010x}"
 
     def test_the_field_table_is_the_module_the_patch_thinks_it_is(self, real: bytes) -> None:
-        for index, (name, offset) in enumerate(STOCK_FIELDS):
-            row = at(real, FIELD_TABLE_VA + index * FIELD_PARSE_STRIDE, FIELD_PARSE_STRIDE)
+        for index, (name, offset) in enumerate(LIFETIME_STOCK_FIELDS):
+            row = at(real, LIFETIME_FIELD_TABLE + index * FIELD_PARSE_STRIDE, FIELD_PARSE_STRIDE)
             name_va, _parse, _ud, field_off = struct.unpack("<4I", row)
             assert at(real, name_va, len(name) + 1) == name.encode() + b"\x00"
             assert field_off == offset
@@ -730,11 +754,11 @@ class TestInstalledBinary:
     def test_the_bonus_reuses_the_parser_the_lifetime_fields_use(self, real: bytes) -> None:
         """`MinLifetime` and `MaxLifetime` are milliseconds in, frames out. The bonus is added to a
         frame, so it has to be parsed by that same function and no other."""
-        for index, (name, _offset) in enumerate(STOCK_FIELDS):
+        for index, (name, _offset) in enumerate(LIFETIME_STOCK_FIELDS):
             if name not in ("MinLifetime", "MaxLifetime"):
                 continue
-            row = at(real, FIELD_TABLE_VA + index * FIELD_PARSE_STRIDE, FIELD_PARSE_STRIDE)
-            assert struct.unpack("<4I", row)[1] == PARSE_DURATION_VA
+            row = at(real, LIFETIME_FIELD_TABLE + index * FIELD_PARSE_STRIDE, FIELD_PARSE_STRIDE)
+            assert struct.unpack("<4I", row)[1] == INI_PARSE_DURATION
 
     def test_the_installed_binary_is_not_already_patched(self, real: bytes) -> None:
         assert LifetimeFieldsPatch.detect(real) is None

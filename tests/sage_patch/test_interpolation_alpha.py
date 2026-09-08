@@ -26,7 +26,7 @@ from sage_patch.addresses import (
     GAME_ENGINE_SUB_FRAME_RATIO,
 )
 from sage_patch.patches.experimental import render_rate as rr
-from sage_patch.patches.experimental.interpolation_alpha import (
+from sage_patch.patches.interpolation_alpha import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,
@@ -252,8 +252,10 @@ class TestRegistration:
     def test_it_is_offered_on_the_cli(self):
         assert PATCHES[InterpolationAlphaPatch.name] is InterpolationAlphaPatch
 
-    def test_it_is_declared_experimental(self):
-        assert InterpolationAlphaPatch.experimental is True
+    def test_it_is_not_declared_experimental(self):
+        """The module lives outside `experimental/`, so the attribute has to agree - the two are
+        the same fact, and `TestExperimentalPatchesAreDeclared` fails on either mismatch."""
+        assert InterpolationAlphaPatch.experimental is False
 
     def test_it_changes_no_ini(self):
         assert InterpolationAlphaPatch().ini_surface() is STOCK

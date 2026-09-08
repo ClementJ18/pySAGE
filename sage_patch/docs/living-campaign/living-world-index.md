@@ -18,7 +18,7 @@ else is evidence feeding it.
 | [`bfme1-act-verbs.md`](bfme1-act-verbs.md) | RotWK has 15 campaign Act verbs to BFME1's 18. The four lost — `DespawnArmy`, `ModifyArmyEntry`, `MergePlayerArmy`, `RegionReinforcements` — with their exact INI field specs. |
 | [`bfme1-vs-rotwk-actions.md`](bfme1-vs-rotwk-actions.md) | Name-based script-action diff: exactly **8** regressed, none improved, 52 added. Living-world army scripting never worked in *either* game. |
 | [`dead-script-actions.md`](dead-script-actions.md) | 66 stub slots + 19 gutted bodies; 34 genuinely unimplemented after accounting for the two-stage dispatch. Includes a traced route to reviving the assimilate block. |
-| [`merge-player-army.md`](merge-player-army.md) | **Built.** BFME1's `MergePlayerArmy` traced end to end — it moves `ArmyEntry` records, with `SplitArmyTemplate` as the manifest — and the RotWK re-implementation, shipped with `DespawnArmy` as [`campaign-army-verbs`](../../patches/experimental/campaign_army_verbs.py). Establishes that the Act struct is `0xB8` bytes with three spare, so no new verb can add a per-act list. |
+| [`merge-player-army.md`](merge-player-army.md) | **Built.** BFME1's `MergePlayerArmy` traced end to end — it moves `ArmyEntry` records, with `SplitArmyTemplate` as the manifest — and the RotWK re-implementation, shipped with `DespawnArmy` as [`campaign-army-verbs`](../../patches/campaign_army_verbs.py). Establishes that the Act struct is `0xB8` bytes with three spare, so no new verb can add a per-act list. |
 | [`hero-permadeath.md`](hero-permadeath.md) | **Resolved, both games measured.** Both BFME1 and RotWK harvest a battle back into the living-world army. The single difference: BFME1 keeps a hero with no surviving object **in his army**; RotWK moves him **out**, to the fortress hero-spawn queue, re-buyable with his upgrades. Includes the BFME1 control experiment, the failed `Default`/`SurvivalThreshhold` fix, and the four wrong readings on the way. |
 | [`battle-sides.md`](battle-sides.md) | Who plays in a battle. `SidesList`'s two arrays, the `Player_1` = owner / `Player_2` = attacker convention, the `AddPlayer` trace, and the unresolved `m_sides` prune. |
 | [`mp-battle-participation.md`](mp-battle-participation.md) | **Built, static only.** Why a co-op War of the Ring battle auto-resolves: one gate at `0x006BEBE5` forces it whenever the battle has fewer participants than the session has humans. The gate exists because `buildSidesFromGameInfo` names sides by slot index and leaves a non-participant with no seat. Shipped as [`wotr-battle-observers`](../../patches/experimental/wotr_battle_observers.py), which seats them on the engine's own observer path instead. |
@@ -74,7 +74,7 @@ Two more built but not played, both `experimental` and both static-only:
 [`scenario-player-factions`](../../patches/scenario_player_factions.py) — `DisabledFactions`
 gains a `:N` player qualifier, so a scenario can pin a faction to a lobby slot instead of only to the
 scenario (fifty-eight tests) — and
-[`campaign-army-verbs`](../../patches/experimental/campaign_army_verbs.py), which restores BFME1's
+[`campaign-army-verbs`](../../patches/campaign_army_verbs.py), which restores BFME1's
 `MergePlayerArmy` and `DespawnArmy` Act verbs (forty-nine tests, see
 [`merge-player-army.md`](merge-player-army.md)).
 
