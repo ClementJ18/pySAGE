@@ -3,7 +3,7 @@
 The RE behind [`patches/observer_command_range.py`](../patches/observer_command_range.py), which
 lets an observer click `PUSH_VISIBLE_COMMAND_RANGE` and `POP_VISIBLE_COMMAND_RANGE` buttons so the
 pages behind them can be read while watching. ROTWK `game.dat` build `2.01.2614.37001`, ImageBase
-`0x400000`, recovered statically from `sage_mods/edain/patching/engine/game.dat.backup` on
+`0x400000`, recovered statically from `sage_patch/engine/game.dat.backup` on
 2026-08-21. Every site named below is byte-identical in the installed `game.dat`.
 
 ## The gap
@@ -257,7 +257,8 @@ composable with the other section-adding patches.
 - **It does not add a UI.** The paging buttons revealed are the ones the mod's `CommandSet`
   already defines; a set with no `PUSH_VISIBLE_COMMAND_RANGE` button gains nothing.
 - **The page ceiling still applies.** `CommandRangeStart + CommandRangeCount ≤ N` — an INI-side
-  overrun reads off the end of `m_command` and crashes, observer or not. See
+  overrun reads off the end of `m_command` and crashes, observer or not, unless
+  `commandset-limit` is applied and trimming the window. See
   [`push-visible-command-range.md`](push-visible-command-range.md).
 - **A page does not survive re-selection.** `switchToContext` clears `ControlBar+0x2B0` on any
   context or drawable change, which is stock behaviour.

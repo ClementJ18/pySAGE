@@ -14,7 +14,7 @@ from sage_ini.model.objects import REGISTRY, IniObject, resolve_annotation
 from sage_ini.model.types import KeyedRecord, Reference
 from sage_ini.walk import walk_objects
 
-__all__ = ["Xref", "referenceable_keys", "references_into"]
+__all__ = ["Xref", "annotation_keys", "referenceable_keys", "references_into"]
 
 # Converted values that hold no reference and must not be descended into.
 _SCALAR = (str, bytes, bool, int, float, enum.Enum)
@@ -55,6 +55,16 @@ def _resolve_into(annotation, keys: set[str], seen: set[int]) -> None:
         _collect_keys(resolve_annotation(annotation), keys, seen)
     except (KeyError, TypeError):
         pass  # a name with no registered class is not a reference target
+
+
+def annotation_keys(annotation) -> frozenset[str]:
+    """Every Game table one field annotation can point at, through whatever container,
+    `KeyedRecord` or definition-class shape it is written as. Answers "does this field carry an
+    upgrade reference?" for a rule that has to read the field's *raw* text rather than its
+    converted value."""
+    keys: set[str] = set()
+    _resolve_into(annotation, keys, set())
+    return frozenset(keys)
 
 
 def referenceable_keys() -> frozenset[str]:

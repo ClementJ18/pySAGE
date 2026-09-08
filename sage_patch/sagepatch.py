@@ -127,7 +127,8 @@ def name_table_members(data: bytes | bytearray) -> tuple[tuple[EnumDelta, ...], 
 
 def detect_patches(data: bytes | bytearray) -> tuple[Patch, ...]:
     """Every registered patch the image carries, each built with the parameters recovered from
-    it. Registration order, which is stable and therefore keeps a generated file diffable."""
+    it. Registry order - settled patches then experimental, each alphabetical - which is stable and
+    therefore keeps a generated file diffable."""
     found = [patch for cls in PATCHES.values() if (patch := cls.detect(data)) is not None]
     return tuple(found)
 

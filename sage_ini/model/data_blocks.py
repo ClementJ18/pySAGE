@@ -259,6 +259,7 @@ class HouseColor(IniObject):
 
 class LivingWorldPlayerArmy(IniObject):
     key = "livingworldplayerarmys"
+    name_field = "Name"  # the header carries no label; the block names itself here
 
     Name: t.Opaque
     DisplayNameTag: t.Label
@@ -434,6 +435,8 @@ class LivingWorldCampaign(IniObject):
 
     IsEvilCampaign: Bool
     IsScriptedCampaign: Bool
+    ForceAdvanceTurnPhase: Bool
+    ScriptHolder: t.Opaque
     SecondsPerReinforcement: Int
     StartingCashRTS: Int
     StartingCashRTSWithFort: Int
@@ -631,6 +634,12 @@ class LivingWorldBuildPlotIcon(IniObject):
 
 class SpawnArmy(IniObject):
     key = "spawnarmys"
+    # The header carries no label; the block names itself by its scripting handle, which an
+    # `OwnershipSet`'s `SpawnArmies.Armies` list names. The handle repeats once per
+    # `SpawnForTemplates` (every faction declares a `HeroArmy1`), so it is a category rather
+    # than a unique definition - the engine picks the one matching the owning player.
+    name_field = "ScriptingName"
+    unique_name = False
 
     ScriptingName: Opaque
     SpawnForTemplates: t.PlayerTemplateRef
@@ -2478,9 +2487,12 @@ class FireLogicSystem(IniObject):
 
 
 class FontSubstitution(IniObject):
+    """Substitutions for one font family, named by the block label: every `Size` row maps a
+    requested point size onto a replacement font and size."""
+
     key = "fontsubstitutions"
 
-    Size: Int
+    Size: t.FontSubstitutions
 
 
 class GlowEffect(IniObject):

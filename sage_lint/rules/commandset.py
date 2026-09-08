@@ -30,6 +30,11 @@ _VISIBLE_LIMIT = "commandset.max_visible_buttons"
 # button pointer -> crash.
 _SLOT_LIMIT = "commandset.max_slots"
 
+# Whether the engine trims an oversized visible window instead of running off the end of either
+# array. Set by the commandset-limit patch. It decides severity and nothing else: the same INI is
+# a crash on a stock build and blank slots on a clamped one.
+_CLAMPED = "commandset.range_clamped"
+
 
 class CommandSetButtonRule(Rule):
     """A numbered CommandSet slot (`3 = Command_Foo`) naming a CommandButton no definition
@@ -75,14 +80,20 @@ class CommandSetButtonRule(Rule):
 class InitialVisibleLimitRule(Rule):
     """A CommandSet whose `InitialVisible` exceeds the on-screen button ceiling. The ControlBar
     has a fixed number of button widgets (33 on the stock build); asking for more can never draw
-    them, and in practice the over-large count breaks the bar's layout (buttons past the limit go
-    missing). The engine patch that lifts the *data* limit does not raise this display ceiling, so
-    the rule holds regardless. WARNING - it converts fine, the bar just misbehaves."""
+    them. `InitialVisible` is not a hint either - it seeds the ControlBar's visible window
+    directly, and two of the three loops that walk that window carry no bound of their own, so on
+    an unclamped engine an over-large value walks the widget array off its end and takes the game
+    with it. The patch that lifts the *data* limit clamps the window but does not raise this
+    display ceiling, so the value is still wrong either way.
+
+    ERROR on an unclamped engine (a crash); WARNING once the window is clamped, where the extra
+    buttons simply never appear."""
 
     code = "initial-visible-over-max"
 
     def check(self, game: Game) -> Iterator[Diagnostic]:
         maximum = active().limit(_VISIBLE_LIMIT)
+        clamped = bool(active().limit(_CLAMPED))
         for commandset in game.commandsets.values():
             try:
                 value = commandset.InitialVisible
@@ -90,20 +101,26 @@ class InitialVisibleLimitRule(Rule):
                 continue  # a non-numeric value is the conversion pass's job, not ours
             if value is None or value <= maximum:
                 continue
+            detail = (
+                f"buttons past {maximum} cannot be shown"
+                if clamped
+                else f"the bar walks its {maximum} button widgets off the end and the game crashes"
+            )
             yield Diagnostic(
                 code=self.code,
                 message=(
                     f"CommandSet {commandset.name!r} sets InitialVisible = {value}, above the "
-                    f"{maximum}-button on-screen limit; buttons past {maximum} cannot be shown."
+                    f"{maximum}-button on-screen limit; {detail}."
                 ),
                 span=commandset._field_spans.get("InitialVisible", commandset.span),
-                severity=Severity.WARNING,
+                severity=Severity.WARNING if clamped else Severity.ERROR,
                 extra={
                     "type": "CommandSet",
                     "commandset": commandset.name,
                     "key": "InitialVisible",
                     "value": value,
                     "maximum": maximum,
+                    "crashes": not clamped,
                 },
             )
 
@@ -127,13 +144,15 @@ class PushCommandRangeOverflowRule(Rule):
     `PUSH_VISIBLE_COMMAND_RANGE` crash documented in sage_patch). How long that array is depends
     on the engine: 33 stock, more under the commandset-limit patch a `.sagepatch` declares.
 
-    ERROR when the window runs off the array end (a hard crash); WARNING when it only overshoots
-    into empty slots of the same set."""
+    ERROR when the window runs off the array end on an engine that does not clamp it (a hard
+    crash); WARNING when it only overshoots into empty slots, and when the commandset-limit patch
+    is trimming the window, where an overshoot costs blank positions and nothing else."""
 
     code = "command-range-overflow"
 
     def check(self, game: Game) -> Iterator[Diagnostic]:
         array_size = active().limit(_SLOT_LIMIT)
+        clamped = bool(active().limit(_CLAMPED))
         for commandset in game.commandsets.values():
             slots = [int(slot) for slot in commandset._fields if slot.isdigit()]
             if not slots:
@@ -154,14 +173,23 @@ class PushCommandRangeOverflowRule(Rule):
                 end = start + count  # exclusive; last slot index read is end-1 (0-based)
                 if end <= highest_slot:
                     continue  # stays within the set's defined slots
-                crashes = end > array_size
-                detail = (
-                    f"runs off the {array_size}-slot command array (reaching slot "
-                    f"{end}) into the set's count field - the engine dereferences that as a "
-                    f"button pointer and crashes"
-                    if crashes
-                    else f"overshoots the set's highest slot {highest_slot} into empty positions"
-                )
+                overruns = end > array_size
+                crashes = overruns and not clamped
+                if crashes:
+                    detail = (
+                        f"runs off the {array_size}-slot command array (reaching slot "
+                        f"{end}) into the set's count field - the engine dereferences that as a "
+                        f"button pointer and crashes"
+                    )
+                elif overruns:
+                    detail = (
+                        f"runs off the {array_size}-slot command array (reaching slot {end}); the "
+                        f"commandset-limit patch trims the window, so the page draws blank there"
+                    )
+                else:
+                    detail = (
+                        f"overshoots the set's highest slot {highest_slot} into empty positions"
+                    )
                 yield Diagnostic(
                     code=self.code,
                     message=(
@@ -181,6 +209,7 @@ class PushCommandRangeOverflowRule(Rule):
                         "count": count,
                         "highest_slot": highest_slot,
                         "crashes": crashes,
+                        "overruns": overruns,
                     },
                 )
 

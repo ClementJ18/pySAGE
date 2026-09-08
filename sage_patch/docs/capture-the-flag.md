@@ -6,7 +6,7 @@ offset is `VA - 0x400000` throughout. Read statically from the repo's own `game.
 `.big` archives.
 
 **On which binary this was read from.** The repo-root `game.dat` is *not* stock — it differs from
-the clean reference `sage_mods/edain/patching/engine/game.dat.backup` in eleven runs, mostly the
+the clean reference `sage_patch/engine/game.dat.backup` in eleven runs, mostly the
 logic/render-rate `idiv` sites around `0x00632537` and the LAN transport around `0x0084B43D`. None
 of them is within 32 bytes of any site this patch edits, or of any routine the cave calls, and the
 patch applies and verifies against the clean reference as well as against the repo copy. The check

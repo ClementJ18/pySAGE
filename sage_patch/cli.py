@@ -65,6 +65,11 @@ def _cmd_list(args: argparse.Namespace) -> int:
     footer with no marker above it is a list nobody maps back onto the rows. The pair is what
     makes the warning land before somebody picks a patch, which is the one moment it is cheap to
     act on - `apply` warns too, but by then they have chosen.
+
+    **The rows arrive settled-first, then experimental, each block alphabetical.** That is the
+    registry's own order (see :func:`~sage_patch.registry._order`), so this command, `apply --help`
+    and `verify --help` all present the same list the same way; the `exp` rows sitting together at
+    the bottom is what stops a marker being read past in the middle of a run of settled ones.
     """
     width = max((len(name) for name in PATCHES), default=0)
     authors = max((len(cls.author) for cls in PATCHES.values()), default=0)

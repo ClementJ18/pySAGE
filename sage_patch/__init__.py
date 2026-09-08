@@ -62,8 +62,10 @@ from sage_patch.patches import (
     TriggerRechargeListPatch,
     UniqueProductionIdPatch,
     UnitPlateOptionPatch,
+    UpgradeAliasPatch,
     UpgradeDescriptionPatch,
     UpgradeGrantListsPatch,
+    WotrBattleObserversPatch,
 )
 from sage_patch.sagepatch import generate
 
@@ -105,7 +107,9 @@ __all__ = [
     "UniqueProductionIdPatch",
     "UnitPlateOptionPatch",
     "UpgradeDescriptionPatch",
+    "UpgradeAliasPatch",
     "UpgradeGrantListsPatch",
+    "WotrBattleObserversPatch",
     "apply_patches",
     "generate",
 ]

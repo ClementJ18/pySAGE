@@ -34,10 +34,10 @@ from sage_patch.patches.herobar import (
     GROUPED_HEROBAR,
     HERO_BIT,
     HOOKS,
+    MAX_GROUP_TOOLTIP,
     MAX_JUMP_WINDOW,
     SECTION_NAME,
     STATE_SIZE,
-    TOOLTIP_EDIT,
     Cave,
     HeroBarPatch,
     build_cave,
@@ -121,6 +121,13 @@ def _routine_ins(data: bytes | bytearray, label: str) -> list:
 
 def _routine(data: bytes | bytearray, label: str) -> list[tuple[str, str]]:
     return [(i.mnemonic, i.op_str) for i in _routine_ins(data, label)]
+
+
+def _patched_with(clean: bytes | bytearray, group_tooltip: str) -> bytearray:
+    """A fresh image carrying the patch with a non-default group tooltip name."""
+    data = bytearray(clean)
+    HeroBarPatch(group_tooltip=group_tooltip).apply(data)
+    return data
 
 
 def test_the_mask_has_room_for_both_kindofs() -> None:
@@ -243,43 +250,124 @@ def test_the_scratch_words_start_zeroed(patched: bytearray) -> None:
     from this slot yet", which is what sends the first click to the first member.
 
     The jump window at `+0xB8` is the one word here the patcher fills in and the game only reads,
-    so it is the one exception."""
+    so it is the one exception - the group tooltip's label beside it is empty by default, which
+    is what turns that feature off."""
     state = _bytes_at(patched, _cave_base(patched), STATE_SIZE)
     assert state[:0xB8] == bytes(0xB8)
     assert state[0xBC:] == bytes(STATE_SIZE - 0xBC)
     assert struct.unpack_from("<I", state, 0xB8)[0] == DEFAULT_JUMP_WINDOW
 
 
-def test_the_patch_narrows_the_hover_handlers_tooltip_test(
-    clean: bytearray, patched: bytearray
-) -> None:
-    """The hover handler reads `slot+0x16` as a flag, so every non-zero value would take the
-    porter's "select nearest unit" tooltip. Narrowing it to `== 1` leaves `2` on the arm that
-    builds the tooltip from the slot's own node."""
-    size = len(TOOLTIP_EDIT.patched)
-    assert _bytes_at(clean, TOOLTIP_EDIT.va, size) == TOOLTIP_EDIT.original
-    assert _bytes_at(patched, TOOLTIP_EDIT.va, size) == TOOLTIP_EDIT.patched
+def test_the_hover_handler_dispatches_three_ways_on_the_same_byte(patched: bytearray) -> None:
+    """The stock test reads `slot+0x16` as a flag, so every non-zero value took the porter's
+    "select nearest unit" tooltip. The hook makes it a kind: `1` is still the porter group and
+    reaches its arm untouched, and `0` and `2` both describe the slot's own node - which is what
+    puts the unit's name and description on a group slot."""
+    rendered = _routine(patched, "tooltip")
+    assert rendered[0] == ("cmp", f"byte ptr [eax + 0x16], {GROUPED_HEROBAR}")
+    assert ("cmp", "byte ptr [eax + 0x16], 0") in rendered
+    assert ("jmp", "0x92bf54") in rendered, "the porter arm is unreachable"
+    assert rendered[-1] == ("jmp", "0x92bfaa"), "the per-node arm is not the fall-through"
 
 
-def test_the_narrowed_tooltip_test_still_reads_the_same_byte_and_jumps_the_same_way(
-    patched: bytearray,
-) -> None:
-    """Two bytes change: the immediate and the branch sense. The operand and the target have to
-    survive, or the handler would dispatch on something else or land somewhere else."""
-    rendered = [
-        (i.mnemonic, i.op_str)
-        for i in _disassemble(patched, TOOLTIP_EDIT.va, len(TOOLTIP_EDIT.patched))
+def test_a_group_hover_names_the_object_its_line_belongs_to(patched: bytearray) -> None:
+    """The gate on the extra line is an `ObjectID`, not a flag, so it lands on the tooltip for
+    the object a group slot's hover named. The node and the sentinel are read exactly as the arm
+    this falls into reads them."""
+    base, _cave_ = _cave(patched)
+    rendered = _routine(patched, "tooltip")
+    assert ("mov", "ecx, dword ptr [edx + 0x10]") in rendered, "not the model"
+    assert ("add", "ecx, 0x10") in rendered, "not the hero list"
+    assert ("cmp", "eax, dword ptr [ecx]") in rendered, "the sentinel is not tested"
+    assert ("mov", "ecx, dword ptr [eax + 8]") in rendered, "not the node's ObjectID"
+    assert ("mov", f"dword ptr [0x{base + 0xC4:x}], ecx") in rendered
+
+
+def test_the_other_two_hover_arms_clear_the_object(patched: bytearray) -> None:
+    """A slot that is not a group has to take the id back off, or the line would follow the
+    object to whatever the tooltip builder is asked for next."""
+    base, _cave_ = _cave(patched)
+    rendered = _routine(patched, "tooltip")
+    clears = [step for step in rendered if step == ("and", f"dword ptr [0x{base + 0xC4:x}], 0")]
+    assert len(clears) == 2, "both the group arm and the other two do not clear it"
+
+
+def test_the_hover_hook_leaves_the_registers_the_per_node_arm_reads(patched: bytearray) -> None:
+    """`0x0092BFAA` reads the bar out of `edx` and the slot out of `eax`, and the group arm
+    borrows `eax` to walk to the node. One push, one pop, and `edx` is never written."""
+    rendered = _routine(patched, "tooltip")
+    assert [step for step in rendered if step[0] == "push"] == [("push", "eax")]
+    assert [step for step in rendered if step[0] == "pop"] == [("pop", "eax")]
+    assert not [step for step in rendered if step[0] == "mov" and step[1].startswith("edx,")]
+
+
+def test_the_group_line_is_gated_on_the_object_the_hover_named(patched: bytearray) -> None:
+    """This builder serves five request sites and only one of them is the hero bar, so the line
+    is attached by identity rather than by a flag left lying around."""
+    base, _cave_ = _cave(patched)
+    rendered = _routine(patched, "group_line")
+    assert rendered[0] == ("mov", f"eax, dword ptr [0x{base + 0xC4:x}]")
+    assert ("cmp", "eax, dword ptr [esi + 0x74]") in rendered, "not the Object's own id"
+    assert ("cmp", f"byte ptr [0x{base + 0xCC:x}], 0") in rendered, "the label is not tested"
+
+
+def test_the_group_line_fetches_its_label_and_appends_it(patched: bytearray) -> None:
+    """`TheGameText`'s own `fetch` through vtable `+0x3c`, then the builder's own append helper,
+    which is what puts the newline between the unit's description and this line."""
+    base, _cave_ = _cave(patched)
+    rendered = _routine(patched, "group_line")
+    assert ("mov", "ecx, dword ptr [0xde4b04]") in rendered, "not TheGameText"
+    assert ("call", "dword ptr [edx + 0x3c]") in rendered, "not the string-table fetch"
+    assert ("push", f"0x{base + 0xCC:x}") in rendered, "the label is not passed"
+    assert ("call", "0x435090") in rendered, "an empty string would still be appended"
+    assert ("lea", "eax, [ebp - 0x1c]") in rendered, "not the description"
+    assert ("call", "0x8ebc3b") in rendered, "the append helper is not called"
+
+
+def test_the_group_line_cleans_up_after_the_cdecl_append(patched: bytearray) -> None:
+    """`0x008EBC3B` ends on a bare `ret`, so its two arguments are the caller's to remove."""
+    rendered = _routine(patched, "group_line")
+    call = rendered.index(("call", "0x8ebc3b"))
+    assert rendered[call + 1] == ("add", "esp, 8")
+
+
+def test_the_group_line_re_issues_the_pair_it_displaced(patched: bytearray) -> None:
+    """Both displaced instructions come back, in order, and the hook re-enters at the builder's
+    own next instruction - which is the dtor that reads the `ecx` the first one loads."""
+    rendered = _routine(patched, "group_line")
+    assert rendered[-3:] == [
+        ("lea", "ecx, [ebp - 0x28]"),
+        ("mov", "byte ptr [ebp - 4], 0xc"),
+        ("jmp", "0x8ec120"),
     ]
-    assert rendered[0] == ("cmp", "byte ptr [eax + 0x16], 1")
-    assert rendered[1] == ("jne", "0x92bfaa")
 
 
-def test_verify_notices_a_reverted_tooltip_edit(patched: bytearray) -> None:
-    off = va_to_offset(patched, TOOLTIP_EDIT.va)
-    assert off is not None
-    patched[off : off + len(TOOLTIP_EDIT.original)] = TOOLTIP_EDIT.original
-    problems = HeroBarPatch().verify(patched)
-    assert any("select nearest unit" in problem for problem in problems)
+def test_an_empty_group_label_never_reaches_the_string_table(clean: bytearray) -> None:
+    """Off by default, and turning it off is a runtime test on the first byte of the label rather
+    than a different cave: the code has one shape whatever the label is."""
+    data = _patched_with(clean, "")
+    base = _cave_base(data)
+    rendered = _routine(data, "group_line")
+    instructions = _routine_ins(data, "group_line")
+    empty = rendered.index(("cmp", f"byte ptr [0x{base + 0xCC:x}], 0"))
+    assert rendered[empty + 1][0] == "je"
+    assert int(rendered[empty + 1][1], 16) == instructions[-3].address, "not the resume label"
+    assert _bytes_at(data, base + 0xCC, MAX_GROUP_TOOLTIP) == bytes(MAX_GROUP_TOOLTIP)
+    assert HeroBarPatch().verify(data) == []
+
+
+def test_the_group_label_round_trips_through_detect(clean: bytearray) -> None:
+    data = _patched_with(clean, "CONTROLBAR:GroupedUnitBar")
+    found = HeroBarPatch.detect(data)
+    assert isinstance(found, HeroBarPatch)
+    assert found.group_tooltip == "CONTROLBAR:GroupedUnitBar"
+    assert found.verify(data) == []
+
+
+@pytest.mark.parametrize("label", ["a" * MAX_GROUP_TOOLTIP, "has space", "café"])
+def test_an_unusable_group_label_is_rejected(label: str) -> None:
+    with pytest.raises(ValueError, match="group-tooltip"):
+        HeroBarPatch(group_tooltip=label)
 
 
 def test_the_cave_is_writable_and_executable(patched: bytearray) -> None:
@@ -424,6 +512,58 @@ def test_the_per_node_hook_marks_and_unmarks_the_slot(patched: bytearray) -> Non
     rendered = _routine(patched, "per_node")
     writes = [op for m, op in rendered if m == "mov" and op.startswith("byte ptr [edi + 0x12]")]
     assert writes == [f"byte ptr [edi + 0x12], {GROUPED_HEROBAR}", "byte ptr [edi + 0x12], 0"]
+
+
+def test_the_badge_count_also_answers_the_groups_highlight(patched: bytearray) -> None:
+    """One walk, two answers. The count loop already visits every member the badge counts, so
+    asking each one's drawable whether it is selected costs the walk nothing - and it is the only
+    place the whole group is in hand before the slot is drawn."""
+    base, _cave_ = _cave(patched)
+    selected = base + 0xBC
+    member = base + 0xC0
+    rendered = _routine(patched, "per_node")
+    assert ("mov", f"byte ptr [0x{selected:x}], 0") in rendered, "the flag is never cleared"
+    assert ("mov", f"byte ptr [0x{selected:x}], 1") in rendered, "the flag is never set"
+    # the member survives `barAcceptsObject`, which is free to clobber every caller-saved register
+    assert ("mov", f"dword ptr [0x{member:x}], eax") in rendered
+    assert ("mov", f"ecx, dword ptr [0x{member:x}]") in rendered
+    assert ("cmp", "byte ptr [eax + 0x43c], 0") in rendered, "not the drawable's selected flag"
+
+
+def test_the_group_flag_is_cleared_before_the_set_can_turn_the_count_away(
+    patched: bytearray,
+) -> None:
+    """A group the emitted set was too full to count still reaches the highlight hook. Clearing
+    on entry to the group arm rather than beside the count is what stops it from being drawn lit
+    by whatever the previous group in the same pass answered."""
+    base, _cave_ = _cave(patched)
+    rendered = _routine(patched, "per_node")
+    clear = rendered.index(("mov", f"byte ptr [0x{base + 0xBC:x}], 0"))
+    ceiling = rendered.index(("cmp", "eax, 0x10"))
+    assert clear < ceiling, "the flag is cleared after the path that skips the count"
+
+
+def test_a_group_slot_lights_up_when_any_member_is_selected(patched: bytearray) -> None:
+    """The stock draw reads the representative's own drawable, so a group stayed dark while
+    another of its members was selected. A group slot instead branches on the byte `per_node`
+    filled in this same iteration, and lands on one of the engine's own two arms."""
+    base, _cave_ = _cave(patched)
+    rendered = _routine(patched, "highlight")
+    assert rendered[0] == ("cmp", f"byte ptr [edi + 0x12], {GROUPED_HEROBAR}")
+    assert ("cmp", f"byte ptr [0x{base + 0xBC:x}], 0") in rendered
+    assert ("jmp", "0x92d677") in rendered, "the lit arm is gone"
+    assert ("jmp", "0x92d67b") in rendered, "the dark arm is gone"
+
+
+def test_every_other_slot_takes_the_displaced_pair_unchanged(patched: bytearray) -> None:
+    """A hero slot, a plain `HEROBAR` slot and the porter group all keep the stock reading. The
+    hook re-issues the two instructions it replaced and re-enters at the engine's own next one."""
+    rendered = _routine(patched, "highlight")
+    resume = rendered.index(("jmp", "0x92d66a"))
+    assert rendered[resume - 2 : resume] == [
+        ("mov", "ecx, dword ptr [ebp - 0x20]"),
+        ("call", "0x70e013"),
+    ]
 
 
 def test_a_group_slot_draws_a_member_count_where_a_hero_draws_its_rank(

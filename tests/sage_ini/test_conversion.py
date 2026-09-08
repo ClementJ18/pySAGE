@@ -35,6 +35,7 @@ from sage_ini.model.types import (
     Float,
     FloatRange,
     FontSpec,
+    FontSubstitutions,
     FXList,
     Int,
     IntRange,
@@ -68,6 +69,7 @@ Degrees = resolve_annotation(Degrees)
 Float = resolve_annotation(Float)
 FloatRange = resolve_annotation(FloatRange)
 FontSpec = resolve_annotation(FontSpec)
+FontSubstitutions = resolve_annotation(FontSubstitutions)
 FXList = resolve_annotation(FXList)
 Int = resolve_annotation(Int)
 IntRange = resolve_annotation(IntRange)
@@ -235,6 +237,33 @@ class TestFontSpec:
 
     def test_family_alone(self):
         assert FontSpec.convert(Game(), "Arial").size == 0
+
+
+class TestFontSubstitutions:
+    def test_one_row_per_repeated_size_line(self):
+        # corpus: fontsubstitution.ini - the whole block lands under the `Size` key.
+        rows = FontSubstitutions.convert(
+            Game(), ['8 = 12 "Omnia LT Std"', '40 = 70 "Omnia LT Std"']
+        )
+        assert [(r.requested, r.size, r.name, r.bold) for r in rows] == [
+            (8, 12, "Omnia LT Std", None),
+            (40, 70, "Omnia LT Std", None),
+        ]
+
+    def test_bold_markers(self):
+        # The EA header documents `Size 10 = 10 +BOLD Arial` / `-BOLD` to force the weight.
+        [plus] = FontSubstitutions.convert(Game(), "10 = 10 +BOLD Arial")
+        [minus] = FontSubstitutions.convert(Game(), "10 = 10 -BOLD Arial")
+        assert (plus.name, plus.bold) == ("Arial", True)
+        assert (minus.name, minus.bold) == ("Arial", False)
+
+    def test_unquoted_family_with_spaces(self):
+        [row] = FontSubstitutions.convert(Game(), "24 = 18 Times New Roman")
+        assert row.name == "Times New Roman"
+
+    def test_row_without_a_font_is_rejected(self):
+        with pytest.raises(ValueError):
+            FontSubstitutions.convert(Game(), "8 = 12")
 
 
 class TestObjectFilter:

@@ -83,6 +83,32 @@ __all__ = [
     "AI_FLAG_CAPTURE_SQUAD_UPDATE",
     "AI_FLAG_CAPTURE_SQUAD_UPDATE_SLOT",
     "AI_FLAG_CAPTURE_SQUAD_VTABLE",
+    "AI_GROUP_DO_OBJECT_UPGRADE",
+    "AI_GROUP_MEMBER_OBJECT",
+    "AI_GROUP_MEMBER_SENTINEL",
+    "AI_GROUP_UPGRADE_EBP",
+    "AI_GROUP_UPGRADE_MEMBER",
+    "AI_GROUP_UPGRADE_MEMBER_BYTES",
+    "AI_GROUP_UPGRADE_MEMBER_RESUME",
+    "AI_GROUP_UPGRADE_SELF_EBP",
+    "AI_HERO_ARMY_DEFINITION_LIST",
+    "AI_HERO_ARMY_DEFINITION_LIST_BYTES",
+    "AI_HERO_LIST_BEGIN",
+    "AI_HERO_LIST_ELEMENT",
+    "AI_HERO_LIST_ELEMENT_BYTES",
+    "AI_HERO_NAME_RESOLVED",
+    "AI_HERO_NAME_RESOLVED_BYTES",
+    "AI_HERO_NAME_RESOLVED_RESUME",
+    "AI_HERO_PICK_INDEX",
+    "AI_HERO_PICK_INDEX_CALL",
+    "AI_HERO_PICK_INDEX_CALL_BYTES",
+    "AI_HERO_PICK_INDEX_ENTRY",
+    "AI_HERO_REJECT",
+    "AI_HERO_REJECT_BYTES",
+    "AI_HERO_REQUEST",
+    "AI_HERO_REQUEST_CALL",
+    "AI_HERO_REQUEST_CALL_BYTES",
+    "AI_HERO_REQUEST_ENTRY",
     "AI_PRODUCER_ACCEPT",
     "AI_PRODUCER_ANY_BRANCH",
     "AI_PRODUCER_ANY_BRANCH_ENTRY",
@@ -94,6 +120,13 @@ __all__ = [
     "AI_PRODUCER_USABLE_TESTS",
     "AI_SET_CURRENT_VICTIM",
     "AI_SET_CURRENT_VICTIM_BYTES",
+    "AI_UPDATE_LOCOMOTOR_SET_SPEED",
+    "AI_UPDATE_SET_LOCOMOTOR_SET",
+    "AI_UPDATE_SET_LOCOMOTOR_SET_SPEED_STORE",
+    "ALPHA_RECOMPUTE",
+    "ALPHA_RECOMPUTE_BODY",
+    "ALPHA_RECOMPUTE_BODY_BYTES",
+    "ALPHA_RECOMPUTE_ENTRY",
     "APPEND_MESSAGE_VTABLE_SLOT",
     "APT_INIT_GADGETS_EPILOGUE",
     "APT_INIT_GADGETS_LADDER",
@@ -111,6 +144,10 @@ __all__ = [
     "ARG_APPENDERS",
     "ARMOR_ADJUST_DAMAGE",
     "ARMOR_ADJUST_DAMAGE_HEALING_PASSTHROUGH",
+    "ARMY_DEFINITION_FIELD_TABLE",
+    "ARMY_DEFINITION_FIELD_TABLE_REFS",
+    "ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES",
+    "ARMY_DEFINITION_HERO_BUILD_ORDER",
     "ARMY_ENTRY_DEFAULT_TABLE_BYTES",
     "ARMY_ENTRY_DEFAULT_TABLE_PUSH",
     "ARMY_ENTRY_DEFAULT_TABLE_PUSH_BYTES",
@@ -208,6 +245,8 @@ __all__ = [
     "CAN_MAKE_UNIT_VTABLE_SLOT",
     "CAN_USE_SPECIAL_POWER",
     "CAN_USE_SPECIAL_POWER_ENTRY",
+    "CATCHUP_ESCAPE",
+    "CATCHUP_ESCAPE_ALWAYS_RUNS",
     "CLEAR_GAME_DATA",
     "CLI_COUNT_REF",
     "CLI_DISPATCH",
@@ -230,6 +269,9 @@ __all__ = [
     "COMMAND_BUTTON_SIZE",
     "COMMAND_BUTTON_SPECIAL_POWER",
     "COMMAND_BUTTON_TRIGGER_WHEN_READY",
+    "COMMAND_LINE_SKIRMISH_SETUP",
+    "COMMAND_LINE_SKIRMISH_SETUP_BYTES",
+    "COMMAND_LINE_SKIRMISH_SETUP_RESUME",
     "COMMAND_POINTS_HAS_ENOUGH",
     "COMMAND_POINTS_IN_USE",
     "COMMAND_SET_STORE_FIND_COMMAND_SET",
@@ -237,6 +279,10 @@ __all__ = [
     "CONTAIN_GET_HORDE_IFACE",
     "CONTAIN_GET_HORDE_IFACE_ENTRY",
     "CONTAIN_GET_HORDE_IFACE_SLOT",
+    "CONTAIN_ITEM_LIST",
+    "CONTAIN_ITEM_LIST_NODE_OBJECT",
+    "CONTAIN_ITEM_LIST_WALK",
+    "CONTAIN_ITEM_LIST_WALK_ENTRY",
     "CONTROL_BAR_CLICK_BUTTON_LOAD",
     "CONTROL_BAR_CLICK_BUTTON_LOAD_BYTES",
     "CONTROL_BAR_CLICK_GATE_CALL",
@@ -249,22 +295,42 @@ __all__ = [
     "CONTROL_BAR_COMMAND_DISPATCH_BYTES",
     "CONTROL_BAR_COMMAND_INDEX_TABLE",
     "CONTROL_BAR_COMMAND_JUMP_TABLE",
+    "CONTROL_BAR_GET_VISIBLE_RANGE",
+    "CONTROL_BAR_MAX_VISIBLE",
+    "CONTROL_BAR_MERGE_CLEAR_SLOTS",
     "CONTROL_BAR_MERGE_HIDE",
     "CONTROL_BAR_MERGE_INSTALL",
+    "CONTROL_BAR_MERGE_INSTALL_FIRST",
+    "CONTROL_BAR_MERGE_INSTALL_FIRST_BYTES",
+    "CONTROL_BAR_MERGE_INSTALL_FIRST_RESUME",
     "CONTROL_BAR_MERGE_KEEP",
     "CONTROL_BAR_MERGE_OBJECT_EBP",
+    "CONTROL_BAR_MERGE_RESET",
+    "CONTROL_BAR_MERGE_RESET_BYTES",
     "CONTROL_BAR_MERGE_SLOT",
     "CONTROL_BAR_MERGE_SLOT_BYTES",
+    "CONTROL_BAR_MERGE_SLOT_EBP",
     "CONTROL_BAR_POPULATE_MULTI_SELECT",
     "CONTROL_BAR_POP_RANGE_HANDLER",
     "CONTROL_BAR_POP_RANGE_HANDLER_BYTES",
     "CONTROL_BAR_PROCESS_COMMAND_UI",
     "CONTROL_BAR_PUSH_RANGE_HANDLER",
     "CONTROL_BAR_PUSH_RANGE_HANDLER_BYTES",
+    "CONTROL_BAR_RANGE_COUNT_EBP",
+    "CONTROL_BAR_RANGE_FETCH",
+    "CONTROL_BAR_RANGE_FETCH_BYTES",
+    "CONTROL_BAR_RANGE_FETCH_RESUME",
+    "CONTROL_BAR_RANGE_LOOP_CAPPED",
+    "CONTROL_BAR_RANGE_LOOP_PRODUCTION",
+    "CONTROL_BAR_RANGE_LOOP_PRODUCTION_BYTES",
+    "CONTROL_BAR_RANGE_LOOP_REVIVE",
+    "CONTROL_BAR_RANGE_LOOP_REVIVE_BYTES",
+    "CONTROL_BAR_RANGE_START_EBP",
     "CONTROL_BAR_UNAVAILABLE",
     "CONTROL_BAR_UNIT_COST_CALL",
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
     "CRC_EXCLUDE_SHROUD_FLAG",
+    "CRC_LITE_FLAG",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION_ENTRY",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_VICTIM",
@@ -358,7 +424,12 @@ __all__ = [
     "DESCRIPTION_UNIT_COST_BODY",
     "DESYNC_DECLARE",
     "DESYNC_DECLARED_OFFSET",
+    "DESYNC_DEEP_CRC_FLAG",
     "DESYNC_FILE_WRITER",
+    "DESYNC_FOCUS_FRAME",
+    "DESYNC_FOCUS_FRAME_FILTER_FLAG",
+    "DESYNC_FOCUS_FRAME_GATE",
+    "DESYNC_FOCUS_FRAME_UNSET",
     "DESYNC_VERIFY_CLIENT_CRC_FLAG",
     "DICT_SET_ASCII_STRING",
     "DICT_SET_ASCII_STRING_BYTES",
@@ -405,17 +476,52 @@ __all__ = [
     "GAME_DATA_BOOL_PARSER",
     "GAME_DATA_SHELL_MAP_NAME_ROW",
     "GAME_ENGINE",
+    "GAME_ENGINE_ALPHA",
     "GAME_ENGINE_QUITTING",
     "GAME_ENGINE_SET_FPS_SLOT",
+    "GAME_ENGINE_SUB_FRAME",
+    "GAME_ENGINE_SUB_FRAME_RATIO",
+    "GAME_INFO_GET_SLOT",
     "GAME_INFO_MAP",
+    "GAME_INFO_MAP_CRC",
+    "GAME_INFO_MAP_SIZE",
+    "GAME_INFO_OPTIONS",
+    "GAME_INFO_SIZE",
+    "GAME_INFO_SLOT_ARRAY",
+    "GAME_INFO_SLOT_COUNT",
+    "GAME_INFO_SLOT_DATA",
+    "GAME_INFO_STARTING_RESOURCES",
     "GAME_LOGIC_FIND_OBJECT_BY_ID",
     "GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY",
     "GAME_LOGIC_FRAME",
     "GAME_LOGIC_IS_IN_GAME",
+    "GAME_LOGIC_LIVING_WORLD_TYPE",
+    "GAME_LOGIC_LIVING_WORLD_TYPE_MP_BATTLE",
     "GAME_LOGIC_UPDATE",
     "GAME_LOGIC_UPDATE_ENTRY",
     "GAME_LOGIC_UPDATE_VTABLE_SLOT",
+    "GAME_MESSAGE_APPEND_INTEGER",
     "GAME_MODE_SKIRMISH",
+    "GAME_SLOT_ACCEPTED",
+    "GAME_SLOT_COLOR",
+    "GAME_SLOT_IS_OCCUPIED",
+    "GAME_SLOT_LIVING_WORLD_PLAYER_ID",
+    "GAME_SLOT_MAP_PLAYER",
+    "GAME_SLOT_NAME",
+    "GAME_SLOT_OBSERVER_TEMPLATE",
+    "GAME_SLOT_ORIGINAL_COLOR",
+    "GAME_SLOT_ORIGINAL_PLAYER_TEMPLATE",
+    "GAME_SLOT_ORIGINAL_START_POS",
+    "GAME_SLOT_PLAYER_TEMPLATE",
+    "GAME_SLOT_SET_IS_OCCUPIED",
+    "GAME_SLOT_SIZE",
+    "GAME_SLOT_START_POS",
+    "GAME_SLOT_START_POS_GRANTED",
+    "GAME_SLOT_STATE",
+    "GAME_SLOT_STATE_CLOSED",
+    "GAME_SLOT_STATE_EASY_AI",
+    "GAME_SLOT_STATE_LOCAL_HUMAN",
+    "GAME_SLOT_TEAM",
     "GAME_TEXT_FORMAT_SLOT",
     "GET_CHECKBOX_STATE",
     "GET_FINAL_OVERRIDE",
@@ -479,6 +585,8 @@ __all__ = [
     "INI_PARSE_BOOL",
     "INI_PARSE_INT",
     "INI_PARSE_REAL",
+    "INI_PARSE_STRING_LIST",
+    "INI_PARSE_STRING_LIST_BYTES",
     "INI_PARSE_UNSIGNED_SHORT",
     "INI_SCAN_INT",
     "IN_GAME_UI_ADD_FLOATING_TEXT",
@@ -500,22 +608,53 @@ __all__ = [
     "LIVING_WORLD_ARMY_ROSTER_ID",
     "LIVING_WORLD_BATTLE_HARVEST_CALL",
     "LIVING_WORLD_BATTLE_HARVEST_CALL_BYTES",
+    "LIVING_WORLD_BATTLE_MEMBERS_BEGIN",
+    "LIVING_WORLD_BATTLE_MEMBERS_END",
+    "LIVING_WORLD_BATTLE_MEMBER_STRIDE",
+    "LIVING_WORLD_BATTLE_REGION",
     "LIVING_WORLD_BATTLE_SETUP",
     "LIVING_WORLD_BATTLE_SETUP_CALL",
     "LIVING_WORLD_BATTLE_SETUP_CALL_BYTES",
+    "LIVING_WORLD_BATTLE_SIDES_BEGIN",
+    "LIVING_WORLD_BATTLE_SIDES_END",
+    "LIVING_WORLD_BATTLE_SIDE_STRIDE",
+    "LIVING_WORLD_CURRENT_REGION",
     "LIVING_WORLD_FIND_ARMY_BY_ID",
+    "LIVING_WORLD_FIND_PLAYER_BY_ID",
     "LIVING_WORLD_LEDGER_TO_PLAYER",
+    "LIVING_WORLD_LOGIC_BATTLE_STORE",
+    "LIVING_WORLD_LOGIC_CURRENT_REGION_ID",
     "LIVING_WORLD_OVERRIDE_OFFSET",
     "LIVING_WORLD_OVERRIDE_ROW",
     "LIVING_WORLD_PLAYERS_BEGIN",
     "LIVING_WORLD_PLAYERS_END",
     "LIVING_WORLD_PLAYER_ARMIES_BEGIN",
     "LIVING_WORLD_PLAYER_ARMIES_END",
+    "LIVING_WORLD_PLAYER_ID",
+    "LIVING_WORLD_REGION_ID",
+    "LIVING_WORLD_REGION_OWNER",
+    "LIVING_WORLD_STORE_BATTLES_BEGIN",
+    "LIVING_WORLD_STORE_BATTLES_END",
+    "LOADING_SCREEN_PROGRESS",
+    "LOADING_SCREEN_PROGRESS_BYTES",
+    "LOADING_SCREEN_PROGRESS_REPORT",
+    "LOADING_SCREEN_PROGRESS_RESUME",
+    "LOADING_SCREEN_PROGRESS_SINK",
+    "LOADING_SCREEN_PROGRESS_WINDOW",
+    "LOCOMOTOR_GET_MAX_SPEED",
+    "LOCOMOTOR_GET_MAX_SPEED_ENTRY",
+    "LOCOMOTOR_SPEED_MODIFIER_CALL",
+    "LOCOMOTOR_SPEED_MODIFIER_CALL_BYTES",
+    "LOCOMOTOR_SPEED_MODIFIER_FOLD",
+    "LOCOMOTOR_SPEED_MODIFIER_FOLD_BYTES",
+    "LOCOMOTOR_SPEED_MODIFIER_SETUP",
+    "LOCOMOTOR_SPEED_MODIFIER_SETUP_BYTES",
     "LOGIC_CRC_EMIT",
     "LOGIC_CRC_EMIT_BYTES",
     "LOGIC_CRC_EMIT_RESUME",
     "LOGIC_CRC_SHROUD_XFER",
     "LOGIC_CRC_SHROUD_XFER_BYTES",
+    "LOGIC_FRAMES_PER_SECOND",
     "LOSE_CASH_COLOR",
     "LOSE_CASH_RISE",
     "MAIN_MENU_BLINK_FLAG",
@@ -547,15 +686,26 @@ __all__ = [
     "MODEL_FIELD_STORE_RESUME",
     "MODEL_FIELD_TABLE_ROW",
     "MODIFIER_LIST_GET_VALUE",
+    "MODIFIER_TYPE_SPEED",
     "MONEY_AMOUNT",
     "MONEY_DEPOSIT",
     "MONEY_WITHDRAW",
     "MSG_CLEAR_GAME_DATA",
     "MSG_NEW_GAME",
+    "NAME_KEY_FROM_CSTR",
+    "NAME_KEY_FROM_STRING",
+    "NET_CRC_INTERVAL",
+    "NET_CRC_INTERVAL_GAME_INFO_CTOR",
+    "NET_CRC_INTERVAL_GAME_INFO_OFFSET",
+    "NET_CRC_INTERVAL_HEARTBEAT_GATE",
+    "NET_CRC_INTERVAL_REPLAY_HEADER",
+    "NET_CRC_INTERVAL_SKIRMISH_CLAMP",
+    "NET_CRC_INTERVAL_STOCK",
     "NUGGET_PARSE_TABLE",
     "NUGGET_VTBL_DEALS_DAMAGE",
     "NUGGET_VTBL_SUBWEAPON",
     "NUGGET_VTBL_VALID_VICTIM",
+    "OBJECT_AI_UPDATE",
     "OBJECT_ATTEMPT_HEALING",
     "OBJECT_CAN_ACCEPT_UPGRADE",
     "OBJECT_CONTAIN",
@@ -566,6 +716,8 @@ __all__ = [
     "OBJECT_FILTER_ALLOW",
     "OBJECT_FILTER_IS_VALID",
     "OBJECT_GET_COMMAND_SET_STRING",
+    "OBJECT_GET_HEIGHT_ABOVE_TERRAIN",
+    "OBJECT_GET_HEIGHT_ABOVE_TERRAIN_BYTES",
     "OBJECT_GET_HORDE_IFACE",
     "OBJECT_GET_MODIFIER_MULTIPLIER",
     "OBJECT_GIVE_UPGRADE",
@@ -593,9 +745,12 @@ __all__ = [
     "OBJECT_MODULE_LIST",
     "OBJECT_POSITION",
     "OBJECT_PRODUCER_ID",
+    "OBJECT_SET_POSITION",
+    "OBJECT_SET_POSITION_ENTRY",
     "OBJECT_STATUS",
     "OBJECT_STATUS_COUNT",
     "OBJECT_STATUS_DWORDS",
+    "OBJECT_STATUS_HORDE_MEMBER",
     "OBJECT_STATUS_NAMES",
     "OBJECT_STATUS_UNDER_CONSTRUCTION",
     "OBJECT_STATUS_UNSELECTABLE",
@@ -759,6 +914,9 @@ __all__ = [
     "REBUILD_HOLE_ON_DIE_ENTRY",
     "REBUILD_HOLE_SELF_KILL",
     "REBUILD_HOLE_SELF_KILL_BYTES",
+    "REBUILD_HOLE_SET_POSITION",
+    "REBUILD_HOLE_SET_POSITION_BYTES",
+    "REBUILD_HOLE_SET_POSITION_RESUME",
     "REBUILD_HOLE_START_REBUILD",
     "REBUILD_HOLE_START_REBUILD_BYTES",
     "RECORDER_END_BRANCH",
@@ -818,6 +976,13 @@ __all__ = [
     "SCORE_KEEPER_UNITS_BUILT",
     "SCORE_KEEPER_UNITS_DESTROYED",
     "SCORE_KEEPER_UNITS_LOST",
+    "SCRIPT_DEBUG_ADJUST_VARIABLE",
+    "SCRIPT_DEBUG_APPEND_MESSAGE",
+    "SCRIPT_DEBUG_FLAG_HANDLER",
+    "SCRIPT_DEBUG_LITE_FLAG_HANDLER",
+    "SCRIPT_DEBUG_MODULE",
+    "SCRIPT_DEBUG_SUPPRESS",
+    "SCRIPT_DEBUG_USE_LITE_DLL",
     "SET_CHECKBOX_STATE",
     "SHELL",
     "SHELL_MOVIE_ACTIVE",
@@ -865,6 +1030,7 @@ __all__ = [
     "STATIC_NAME_KEY_KEY",
     "STATIC_NAME_KEY_KEY_BYTES",
     "STRICMP",
+    "TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT",
     "TERRAIN_RESOURCE_BUILD_FIELD_PARSE",
     "TERRAIN_RESOURCE_DEFAULT_STORES",
     "TERRAIN_RESOURCE_DEFAULT_STORES_BYTES",
@@ -903,6 +1069,7 @@ __all__ = [
     "THE_GAME_TEXT",
     "THE_IN_GAME_UI",
     "THE_MESSAGE_STREAM",
+    "THE_NAME_KEY_GENERATOR",
     "THE_PARTITION_MANAGER",
     "THE_PLAYER_LIST",
     "THE_RECORDER",
@@ -914,6 +1081,7 @@ __all__ = [
     "THE_SKIRMISH_GAME_INFO",
     "THE_SPECIAL_POWER_STORE",
     "THE_TACTICAL_VIEW",
+    "THE_TERRAIN_LOGIC",
     "THE_THING_FACTORY",
     "THE_UPGRADE_CENTER",
     "THE_VICTORY_CONDITIONS",
@@ -931,6 +1099,7 @@ __all__ = [
     "THING_TEMPLATE_ID_SETTER",
     "THING_TEMPLATE_IS_EQUIVALENT",
     "THING_TEMPLATE_IS_EQUIVALENT_ENTRY",
+    "THING_TEMPLATE_LOCOMOTOR_SET_SPEED",
     "THING_TEMPLATE_REFUND_VALUE",
     "TOOLTIP_COST_BUILD",
     "TOOLTIP_COST_BUILD_RESUME",
@@ -948,6 +1117,11 @@ __all__ = [
     "UNICODE_STRING_FORMAT",
     "UNICODE_STRING_FROM_WIDE",
     "UPGRADE_CENTER_LIST",
+    "UPGRADE_CENTER_FIND_UPGRADE",
+    "UPGRADE_CENTER_FIND_UPGRADE_BY_KEY",
+    "UPGRADE_CENTER_FIND_UPGRADE_BY_KEY_ENTRY",
+    "UPGRADE_CENTER_FIND_UPGRADE_ENTRY",
+    "UPGRADE_CENTER_FIND_UPGRADE_RESUME",
     "UPGRADE_FILTER_BODY",
     "UPGRADE_FILTER_BODY_BYTES",
     "UPGRADE_FILTER_OWNER_SLOT",
@@ -1052,12 +1226,78 @@ DESYNC_DECLARED_OFFSET = 0x1BC
 DESYNC_FILE_WRITER = 0x006CF681
 DESYNC_VERIFY_CLIENT_CRC_FLAG = 0x00DE87C5
 
+# `NetCRCInterval` - the cadence of the `MSG_LOGIC_CRC` (`0x44A`) heartbeat, and therefore the
+# resolution of every out-of-sync answer this engine can give. See `docs/desync-debug.md` section
+# 2. The engine's own name for it, from the flag reporter's `NetCRCInterval: %d` line at
+# `0x00BFDCE4`.
+#
+# Its only writer is `0x007BA6F5`, in the orphaned command-line region `docs/headless.md` section 5
+# documents, so on a retail build the shipped 100 is the only value it ever holds. Three live
+# readers, which is what makes changing the initialiser sufficient rather than a hook:
+# the `GameInfo` constructor seeds `+0xC` from it unclamped, the skirmish start re-seeds the same
+# field through a `min(x, 100)` clamp - so *lowering* it passes through every path - and the
+# recorder copies it into the replay header block that `sage_replay` reads back as `crc_interval`.
+NET_CRC_INTERVAL = 0x00DA1880
+NET_CRC_INTERVAL_STOCK = 100
+
+# `mov eax, [TheGameInfo]` / `mov ecx, [eax+0xC]` / `div ecx` in `GameLogic::update`: the frame is
+# divided by the interval and the heartbeat goes out on a zero remainder. **There is no zero
+# guard** - an interval of 0 faults on the logic thread on the first frame - which is the reason
+# `desync-debug` refuses one.
+NET_CRC_INTERVAL_HEARTBEAT_GATE = 0x0062E714
+
+# Where `GameInfo::+0xC` (the per-match copy the gate above divides by) comes from: the constructor
+# at `0x00801AE1`, unclamped, and the skirmish re-seed at `0x0077ED5D`, which clamps to at most
+# 100. Both read `NET_CRC_INTERVAL`.
+NET_CRC_INTERVAL_GAME_INFO_CTOR = 0x00801AE1
+NET_CRC_INTERVAL_GAME_INFO_OFFSET = 0x0C
+NET_CRC_INTERVAL_SKIRMISH_CLAMP = 0x0077ED5D
+
+# `mov ecx, [NetCRCInterval]` in the recorder's header writer, stored to `recorder+0xEC0` - the
+# `crc_interval` field of a `.rep`. A recording made by a patched build carries the patched
+# cadence here, which is how `sage_replay` sees it.
+NET_CRC_INTERVAL_REPLAY_HEADER = 0x0077D260
+
+# The desync **focus frame**: `-1` when unset, else a frame number that overrides the interval
+# entirely - per-frame heartbeats across the window ending on it (`0x0062E736`, from
+# `target - [TheNetwork+0xC18] - 2` inclusive), and silence on every other frame. See
+# `docs/desync-debug.md` section 3.
+#
+# Six live readers; only the heartbeat gate and `0x006290E7` have been read. Its handler
+# (`0x007BA690`) is separate from the one that arms the declaration filter below, so the frame can
+# be set on its own.
+DESYNC_FOCUS_FRAME = 0x00DA62EC
+DESYNC_FOCUS_FRAME_UNSET = 0xFFFFFFFF
+DESYNC_FOCUS_FRAME_GATE = 0x0062E736
+
+# The declaration filter. When set, `DESYNC_DECLARE` reports a desync **only** if it happens on
+# exactly `DESYNC_FOCUS_FRAME` - a filter, not a trigger. Left at 0 the message box and the latch
+# behave normally, which is what a focus frame used only to steer the heartbeat wants.
+DESYNC_FOCUS_FRAME_FILTER_FLAG = 0x00DE87CA
+
+# `-deepCRC`: a second route through the emitter (`0x0062E774`) that logs the CRC's constituents
+# into a named sink. **The sink is a growable heap buffer, not a file** - written by `0x00A15F27`,
+# opened against the `Debug` named-channel registry at `[0x00DF1F40]` that no shipping config
+# drains - so enabling this buys a per-frame allocation and no log. Recorded so the next reader
+# does not re-derive that; see `docs/desync-debug.md` section 4.
+DESYNC_DEEP_CRC_FLAG = 0x00DE87C6
+
+# `-liteCRC`, and the reason the nine `-x<Subsystem>CRC` exclusion flags (`0x00DE87BC` through
+# `0x00DE87C4`, `0x00DE87C8`, `CRC_EXCLUDE_SHROUD_FLAG` among them) are inert on a retail build:
+# each subsystem's contribution is included when *either* this is set or its own exclusion is
+# clear, and the plain emitter path sets this for the duration of the call (`0x0062E7E8`, cleared
+# at `0x0062E7F6`). So
+# the exclusions are only consulted on the `-deepCRC` route above. See `docs/desync-debug.md`
+# section 5.
+CRC_LITE_FLAG = 0x00DE87C7
+
 # Subsystem singletons. Each address holds a *pointer to* the object, not the object; they are
 # registered by name at startup, which is how they were found (see `docs/engine-globals.md`
 # for the full 88).
 THE_GAME_LOGIC = 0x00DE412C
 THE_PLAYER_LIST = 0x00DE4928
 THE_MESSAGE_STREAM = 0x00DE6398
+THE_NAME_KEY_GENERATOR = 0x00DD90E4
 THE_IN_GAME_UI = 0x00DE4830
 THE_COMMAND_SET_STORE = 0x00DE7744
 THE_GAME_STATE = 0x00DE4AD4
@@ -1129,6 +1369,94 @@ THE_SKIRMISH_GAME_INFO = 0x00DE8930
 # and a null pointer is the empty string.
 GAME_INFO_MAP = 0x40
 
+# `GameInfo`'s remaining layout and `GameSlot`, recovered in `docs/game-info.md`. The slot array
+# is eight pointers into the object's own tail (`0xDC + i * 0x1B8`, which runs exactly to the end
+# of the object), and the options block is what the skirmish menu fills and what a `-file`
+# auto-start leaves at -1 - including the starting resources, whose unset value leaves every
+# player one short of a fortress.
+GAME_INFO_SIZE = 0xE9C
+GAME_INFO_SLOT_ARRAY = 0x18
+GAME_INFO_SLOT_COUNT = 8
+GAME_INFO_SLOT_DATA = 0xDC
+GAME_INFO_MAP_CRC = 0x44
+GAME_INFO_MAP_SIZE = 0x48
+GAME_INFO_OPTIONS = 0x5C
+GAME_INFO_STARTING_RESOURCES = 0x70
+
+# `GameSlot`, `0x1B8` bytes. The three `ORIGINAL_` fields mirror their counterparts - the lobby's
+# requested-versus-granted pair - and every sample taken has them equal. `MAP_PLAYER` is an
+# `AsciiString` reading `Player_<START_POS + 1>`: it binds a seat to the map-side player that owns
+# the pre-placed objects at that start position, and it follows the start position rather than the
+# slot index.
+GAME_SLOT_SIZE = 0x1B8
+GAME_SLOT_STATE = 0x04
+GAME_SLOT_ACCEPTED = 0x08
+GAME_SLOT_COLOR = 0x0C
+GAME_SLOT_START_POS = 0x10
+GAME_SLOT_START_POS_GRANTED = 0x14
+GAME_SLOT_PLAYER_TEMPLATE = 0x18
+GAME_SLOT_TEAM = 0x1C
+GAME_SLOT_ORIGINAL_COLOR = 0x24
+GAME_SLOT_ORIGINAL_START_POS = 0x28
+GAME_SLOT_ORIGINAL_PLAYER_TEMPLATE = 0x2C
+GAME_SLOT_NAME = 0x30
+GAME_SLOT_MAP_PLAYER = 0x34
+
+# The `LivingWorldPlayer` id this seat plays in a War of the Ring session, in the unidentified
+# span `docs/game-info.md` leaves at `+0x4C`-`+0x9F`. `GameLogic::buildSidesFromGameInfo`
+# (`0x00627C82`) and the living-world message router (`0x006BE766`) both hand it to
+# `LIVING_WORLD_FIND_PLAYER_BY_ID`, which is what identifies it. -1 in a game with no living
+# world, where that lookup returns NULL immediately.
+GAME_SLOT_LIVING_WORLD_PLAYER_ID = 0x4C
+
+# `GameSlot::m_isOccupied`, and the setter that writes it. Nonzero means the seat is **in this
+# game**: `GameSlot::isOccupied` (`0x008009B1`) is `m_state in {2..6} and m_isOccupied != 0`, and
+# `GameLogic::buildSidesFromGameInfo` skips any slot it answers no for, so such a seat gets no
+# side and no player. Measured live in a War of the Ring battle 2026-09-06: 1 on the two seats
+# fighting it, 0 on the third human, who was consequently never named, never seated, and fell
+# through to `PlyrCivilian`. Some other start path sets it on all eight slots at once
+# (`0x006277A4`), so 1 is an ordinary value for it to hold.
+GAME_SLOT_IS_OCCUPIED = 0x1AC
+GAME_SLOT_SET_IS_OCCUPIED = 0x00625171
+
+# `GameSlot::m_playerTemplate` is negative for a seat that is not playing a faction, and
+# `buildSidesFromGameInfo` keys the whole observer path off that sign: the side is named
+# `Observer_%d` (`0x00627C74`) and built with `FactionObserver` (`0x00627E25`) rather than an
+# indexed `PlayerTemplate`. -2 specifically is what `GameLogic::startNewGame` tests at
+# `0x0062FE9C` before granting full-map vision.
+GAME_SLOT_OBSERVER_TEMPLATE = -2
+
+# `GameInfo::getSlot(i)` - `__thiscall`, one stack argument, `ret 4`. Bounds-checked to
+# 0..`GAME_INFO_SLOT_COUNT`-1 and returns NULL outside it, so a cave can walk the array without
+# its own guard.
+GAME_INFO_GET_SLOT = 0x00800B55
+
+# `GameSlot::m_state`. 1, 2 and 6 are the values observed; the display name at `GAME_SLOT_NAME`
+# reads "Closed" and "Easy" against the first two, which is what names them. `GameSlot::isHuman`
+# (`0x008009A7`) is exactly `m_state == 6`.
+GAME_SLOT_STATE_CLOSED = 1
+GAME_SLOT_STATE_EASY_AI = 2
+GAME_SLOT_STATE_LOCAL_HUMAN = 6
+
+# The tail of the `-file` auto-start's skirmish branch: `push 2` / `mov ecx, edi` /
+# `GameMessage::appendIntegerArgument`, by which point the engine has finished building the
+# `GameInfo` and filled slot 0. Nothing branches into these nine bytes.
+COMMAND_LINE_SKIRMISH_SETUP = 0x0063CB7B
+COMMAND_LINE_SKIRMISH_SETUP_BYTES = bytes.fromhex("6a028bcfe861460d00")
+COMMAND_LINE_SKIRMISH_SETUP_RESUME = 0x0063CB84
+GAME_MESSAGE_APPEND_INTEGER = 0x007111E5
+
+# The loading screen's progress update. `[this + 0x88]` is a window the shell creates, so a
+# menu-less start dereferences null here; the engine treats the same member as nullable at
+# `0x0081C5C4`, whose whole body clears it. The twenty-four bytes run to a resume point two
+# nearby branches already target.
+LOADING_SCREEN_PROGRESS = 0x0081C64A
+LOADING_SCREEN_PROGRESS_BYTES = bytes.fromhex("8b8e880000008b0157ff50348b0d2c41de0050e82c9ee0ff")
+LOADING_SCREEN_PROGRESS_RESUME = 0x0081C662
+LOADING_SCREEN_PROGRESS_WINDOW = 0x88
+LOADING_SCREEN_PROGRESS_SINK = 0x00DE412C
+LOADING_SCREEN_PROGRESS_REPORT = 0x0062648E
+
 # `MAX_PLAYER_COUNT`. Every per-player array the engine embeds is this wide; see
 # `docs/max-player-count.md` for why it cannot be raised.
 MAX_PLAYER_COUNT = 20
@@ -1150,6 +1478,13 @@ MAX_PLAYER_COUNT = 20
 # position by position on every entry. `TheScienceStore` has the same vector shape and exactly
 # the 263 entries the ini defines, but its elements are separately allocated at *different
 # sizes*, so no fixed offset names them and it is still unwalked.
+# `TheTerrainLogic`, registered at `0x0062D0C9` beside its own name string (`0x00BFDBD0`), and
+# the vtable slot holding `Real getGroundHeight(Real x, Real y, Coord3D *normal)` - `__thiscall`,
+# returning in `st0`, cleaning its own twelve bytes of arguments. Read the shape off
+# `Object::getHeightAboveTerrain` (`0x0070BC6E`), which is that call and one `fsubr`.
+THE_TERRAIN_LOGIC = 0x00DE4690
+TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT = 0x18
+
 THE_THING_FACTORY = 0x00DE4A40
 THE_UPGRADE_CENTER = 0x00DE45A0
 THE_SPECIAL_POWER_STORE = 0x00DE878C
@@ -1205,6 +1540,23 @@ OBJECT_PRODUCER_ID = 0x78
 # assumed: 91 of them push a literal bit, and all 39 distinct values name a status that makes
 # sense where it is used - `HORDE_MEMBER` (38) in the horde target resolver, `IS_LEAVING_FACTORY`
 # (90) in the stance module's wait, `UNDER_CONSTRUCTION` (2) thirteen times.
+# `Object::getHeightAboveTerrain` - the whole function is one `getGroundHeight` call and an
+# `fsubr`, so its 28 bytes pin `THE_TERRAIN_LOGIC`, the vtable slot and the calling convention at
+# once: the two floats and the NULL normal go on the stack, the answer comes back in `st0`, and
+# the `ret` that follows adds nothing to `esp`. Anything calling ground height through a cave
+# anchors here rather than asserting a `.data` slot whose contents only exist at runtime.
+OBJECT_GET_HEIGHT_ABOVE_TERRAIN = 0x0070BC6E
+OBJECT_GET_HEIGHT_ABOVE_TERRAIN_BYTES = bytes.fromhex(
+    "8b0d9046de00d9463c8b016a005151d95c2404d94638d91c24ff5018"
+)
+
+# `Object::setPosition(const Coord3D *)` - `__thiscall`, `ret 4` (`0x0070C31B`). Writes the
+# object's `Coord3D` at `+0x38` and carries the partition, layer and drawable bookkeeping that
+# goes with a move, which is why a cave that wants to change where an object lands calls this
+# rather than storing the three floats itself. Derived in `docs/rebuild-hole-repair.md`.
+OBJECT_SET_POSITION = 0x0070C201
+OBJECT_SET_POSITION_ENTRY = bytes.fromhex("558bec83ec4053")
+
 OBJECT_STATUS = 0x94
 OBJECT_STATUS_DWORDS = 4
 OBJECT_TEST_STATUS = 0x0044DDEC
@@ -1816,6 +2168,31 @@ CONTROL_BAR_COMMAND_INDEX_TABLE = 0x00941B63
 # Three frame slots survive the loop: `[ebp-4]` the `ControlBar`, `[ebp-8]` this drawable's
 # `CommandSet`, and `[ebp-0x14]` its `Object` - stored at `0x00944556`, with the
 # `je 0x00944754` two instructions later proving it is non-NULL everywhere the loop runs.
+# `AIGroup::doObjectUpgrade(UpgradeTemplate *)` - `thiscall`, the logic-side end of an
+# `OBJECT_UPGRADE` click on a selection. `MSG(0x415)` carries an object id of **zero**, meaning the
+# issuing player's whole selection, so this is where one click reaches many units.
+#
+# `ebx` holds the message's upgrade for the whole member loop and `[ebp+8]` keeps the original
+# argument untouched, which is what lets a hook rewrite `ebx` per member and still re-derive the
+# message's own upgrade on the next pass. The per-member gate below it is
+# `canAffordAndLegal` / `Object::hasUpgrade` / `Object::canAcceptUpgrade` - and **none of them ask
+# which `CommandSet` the clicked button came from**.
+AI_GROUP_DO_OBJECT_UPGRADE = 0x0076FBFB
+AI_GROUP_UPGRADE_EBP = 0x08
+AI_GROUP_UPGRADE_SELF_EBP = -0x04
+
+# The member loop's top: `mov edi, [esi+8]` plus the first two argument pushes. Six bytes, three
+# whole instructions. `0x0076FC15` is the loop's own back-edge target, so a hook must start exactly
+# there; nothing branches into the two instructions behind it.
+AI_GROUP_UPGRADE_MEMBER = 0x0076FC15
+AI_GROUP_UPGRADE_MEMBER_BYTES = bytes.fromhex("8b7e086a0057")
+AI_GROUP_UPGRADE_MEMBER_RESUME = 0x0076FC1B
+
+# The member list, as the loop walks it: `[AIGroup+4]` is the sentinel node, `[node]` the next and
+# `[node+8]` the member `Object`. Iteration ends when the walk comes back round to the sentinel.
+AI_GROUP_MEMBER_SENTINEL = 0x04
+AI_GROUP_MEMBER_OBJECT = 0x08
+
 CONTROL_BAR_POPULATE_MULTI_SELECT = 0x00944534
 CONTROL_BAR_MERGE_OBJECT_EBP = -0x14
 
@@ -1844,6 +2221,30 @@ CONTROL_BAR_MERGE_SLOT_BYTES = bytes.fromhex("3bf8741884c97514")
 # empty-slot case takes, and it is reusable from anywhere **provided `eax` is zero**: it stores
 # `edi` into `[esi+0x84]`, then `winHide(eax)` - so a non-zero `eax` would hide the window it
 # means to show.
+# `populateMultiSelect`'s reset and its first-object install, the two other sites the merge rule
+# needs. `0x00944509` clears `[win+0x84]` on all 33 slots and has **exactly one caller** - the
+# `call` at `0x00944853`, inside the multi-select arm - which makes that call the one place a
+# per-populate scratch area can be zeroed. `ecx` is the `ControlBar` across it, so a shim must
+# preserve it.
+CONTROL_BAR_MERGE_RESET = 0x00944853
+CONTROL_BAR_MERGE_RESET_BYTES = bytes.fromhex("e8b1fcffff")
+CONTROL_BAR_MERGE_CLEAR_SLOTS = 0x00944509
+
+# The first object's install, in the `first == 1` loop: `mov [edi+0x84], ebx` with `edi` the
+# slot's window pointer, `ebx` the button and `esi` zero. Six bytes, one whole instruction.
+#
+# ⚠ **The flags are live across it.** `cmp ecx, esi` two bytes earlier is what the `je` at the
+# resume point reads, and `ecx` - the window - is live too, all the way to the `winHide` at
+# `0x009445F4`. A shim has to restore both.
+#
+# The slot index in that loop is `[ebp+8]`: the `Drawable` argument slot, reused as the counter
+# (`mov [ebp+8], ebx` at `0x009445B7`, `inc dword [ebp+8]` at `0x009446B5`). `[ebp-0x14]` still
+# holds the `Object`.
+CONTROL_BAR_MERGE_INSTALL_FIRST = 0x009445E8
+CONTROL_BAR_MERGE_INSTALL_FIRST_BYTES = bytes.fromhex("899f84000000")
+CONTROL_BAR_MERGE_INSTALL_FIRST_RESUME = 0x009445EE
+CONTROL_BAR_MERGE_SLOT_EBP = 0x08
+
 CONTROL_BAR_MERGE_HIDE = 0x00944736
 CONTROL_BAR_MERGE_KEEP = 0x0094474A
 CONTROL_BAR_MERGE_INSTALL = 0x00944704
@@ -1852,6 +2253,42 @@ CONTROL_BAR_PUSH_RANGE_HANDLER = 0x00941A7D
 CONTROL_BAR_PUSH_RANGE_HANDLER_BYTES = bytes.fromhex("81c62c020000")  # add esi, 0x22c
 CONTROL_BAR_POP_RANGE_HANDLER = 0x00941A9C
 CONTROL_BAR_POP_RANGE_HANDLER_BYTES = bytes.fromhex("8b4dec8d81b0020000")
+
+# `ControlBar::populate`'s single-object path, and the one place it reads the visible range the
+# handlers above maintain. `CONTROL_BAR_RANGE_FETCH` is eleven bytes - three whole instructions
+# plus the `call` - that load the top `{start, count}` record into the frame:
+#
+#     00943e11  lea  eax, [ebp-0x48]          ; &range
+#     00943e14  push eax
+#     00943e15  mov  ecx, ebx                 ; the ControlBar
+#     00943e17  call 0x0071cf0a               ; getVisibleRange(&range)
+#
+# `0x00943DF4` jumps to the first byte, and nothing branches into the other ten, which is what
+# makes the whole span replaceable. Derived in `docs/push-visible-command-range.md`.
+CONTROL_BAR_RANGE_FETCH = 0x00943E11
+CONTROL_BAR_RANGE_FETCH_BYTES = bytes.fromhex("8d45b8508bcbe8ee90ddff")
+CONTROL_BAR_RANGE_FETCH_RESUME = 0x00943E1C
+CONTROL_BAR_GET_VISIBLE_RANGE = 0x0071CF0A
+
+# The frame slots that record holds, as every consumer of it addresses them.
+CONTROL_BAR_RANGE_START_EBP = -0x48
+CONTROL_BAR_RANGE_COUNT_EBP = -0x44
+
+# The three loops `ControlBar::populate` runs over that range. Only the first stops at the
+# ControlBar's 33 button widgets; the other two run `count` times whatever `count` is, and each
+# walks the 33-entry widget array at `ControlBar+0xDC` in step with the slot index. So an
+# unclamped range runs both arrays off their ends - which is the crash `CommandSetLimitPatch`
+# fixes by clamping the record once, at the fetch above.
+CONTROL_BAR_RANGE_LOOP_CAPPED = 0x00943E29
+CONTROL_BAR_RANGE_LOOP_REVIVE = 0x00943F2B
+CONTROL_BAR_RANGE_LOOP_REVIVE_BYTES = bytes.fromhex("8b45b88b4dd403c8518b4de8")
+CONTROL_BAR_RANGE_LOOP_PRODUCTION = 0x0094426A
+CONTROL_BAR_RANGE_LOOP_PRODUCTION_BYTES = bytes.fromhex("8b45b803c8518b4de8")
+
+# How many command buttons the ControlBar can draw at once: the length of its widget array, and
+# the bound the first loop carries as a literal. Untouched by the button-limit patch, which
+# raises how many buttons a `CommandSet` may *define*, not how many fit on screen.
+CONTROL_BAR_MAX_VISIBLE = 33
 
 # `msvcr71.dll` imports, by IAT slot. The engine calls them exactly this way
 # (`call dword ptr [slot]`, cdecl, caller cleans), so a cave can too.
@@ -2084,6 +2521,110 @@ AI_PRODUCER_ACCEPT = 0x009A07A0
 # picker's rejection edges lands here.
 AI_PRODUCER_NEXT_CANDIDATE = 0x009A07C7
 
+#
+# `HeroBuildOrder`, and the skirmish AI's hero builder that spends a purse against it. Derived in
+# `docs/ai-hero-build-delay.md`.
+#
+# The keyword is row 29 of the `ArmyDefinition` field table and stores a plain
+# `std::vector<AsciiString>` of names; the builder copies that vector wholesale and picks an entry
+# out of it at random. There is no clock anywhere on the path, which is why the AI empties its
+# purse into whichever hero it happened to draw as soon as it can afford one.
+
+# The `ArmyDefinition` field-parse table, and the two instructions that name it - a getter
+# (`mov eax, imm32`) and the `parseFields` call (`push imm32`). Resolved *through the references*
+# rather than from the constant, so a patch composes with anything that rebuilt the table first.
+ARMY_DEFINITION_FIELD_TABLE = 0x00C52B40
+ARMY_DEFINITION_FIELD_TABLE_REFS = (0x00830103, 0x008302A0)
+ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES = (0xB8, 0x68)
+
+# `HeroBuildOrder`'s `store + offset` inside the 0xEC-byte `ArmyDefinition`. The row's parse
+# function is `INI_PARSE_STRING_LIST` and its `userData` is null.
+ARMY_DEFINITION_HERO_BUILD_ORDER = 0x8C
+
+# `TheNameKeyGenerator::nameToKey(const char *)` - the C-string overload the `AsciiString` one
+# calls through to (0x0049F483 loads a pointer to a lone NUL for an empty string, so the key is
+# taken off a NUL-terminated buffer, never a stored length). `__thiscall` on
+# `THE_NAME_KEY_GENERATOR`, `ret 4`. A caller holding raw chars keys them without building an
+# `AsciiString` first, which is what lets the upgrade-alias cave hash a truncated name.
+NAME_KEY_FROM_CSTR = 0x005487EC
+
+# `UpgradeCenter::findUpgrade(const AsciiString *)` - `__thiscall` on `THE_UPGRADE_CENTER`,
+# `ret 4`, NULL for an unknown name. **The one place a name becomes an upgrade**: 84 direct
+# callers cover the INI mask and scalar parsers, the Lua bindings (`ObjectGrantUpgrade` reaches
+# it at 0x00736E6C) and the map-script actions, so a change here reaches every name source.
+UPGRADE_CENTER_FIND_UPGRADE = 0x0066F5E5
+
+# Its whole body, for reference: `push esi` / `push [esp+8]` / `mov esi, ecx` /
+# `mov ecx, [THE_NAME_KEY_GENERATOR]` / `call NAME_KEY_FROM_STRING` / `push eax` / `mov ecx, esi`
+# / `call UPGRADE_CENTER_FIND_UPGRADE_BY_KEY` / `pop esi` / `ret 4`. The first five bytes are the
+# hook site and the rest is what a cave has to reproduce.
+UPGRADE_CENTER_FIND_UPGRADE_ENTRY = bytes.fromhex("56ff742408")
+
+# Where the stock body resumes once `push esi` / `push [esp+8]` have been reproduced.
+UPGRADE_CENTER_FIND_UPGRADE_RESUME = 0x0066F5EA
+
+# `UpgradeCenter::findUpgradeByKey(NameKeyType)` - `__thiscall`, `ret 4`. Walks the template list
+# from `UPGRADE_CENTER_LIST` comparing `UpgradeTemplate+0x0C`, chaining on `+0x64`.
+UPGRADE_CENTER_FIND_UPGRADE_BY_KEY = 0x0066F230
+UPGRADE_CENTER_FIND_UPGRADE_BY_KEY_ENTRY = bytes.fromhex("8b410c")
+
+# `TheNameKeyGenerator::nameToKey(const AsciiString *)` - `__thiscall` on
+# `THE_NAME_KEY_GENERATOR`, `ret 4`, returning the interned key. The same interning the hero
+# builder itself applies to these names at 0x009A08B6 and 0x009A0948, which is what makes a key
+# taken at parse time comparable with one taken during a match.
+NAME_KEY_FROM_STRING = 0x0049F474
+
+# The logic rate in frames per second - **5**, not the 30 four bytes above it at 0x00D9F60C,
+# which is the client rate. Seconds become logic frames through this, read from the global rather
+# than baked in.
+LOGIC_FRAMES_PER_SECOND = 0x00D9F608
+
+# `mov eax, [eax+0x160]` / `add eax, 0x8c` / `lea edi, [esi+0x4c]` - the one place the AI's hero
+# builder takes its list, copying `ArmyDefinition+0x8C` into its own `+0x4C`. The anchor that ties
+# everything below to the `HeroBuildOrder` keyword: without it, `+0x4C` is just a vector of names.
+AI_HERO_ARMY_DEFINITION_LIST = 0x009A10E1
+AI_HERO_ARMY_DEFINITION_LIST_BYTES = bytes.fromhex("8b8060010000058c0000008d7e4c")
+
+# The hero build order on the builder, `{begin, end}` at `+0x4C`/`+0x50`. Logic state: xfered at
+# 0x009A11C8, so it is saved into a `.sav` and folded into the per-frame CRC.
+AI_HERO_LIST_BEGIN = 0x4C
+
+# `pickHeroIndex` - returns an index into that list. Three rules: retry an index already requested,
+# else a random index in `1..count-1`, else force 0 when the player holds the Ring. No cost term
+# and no clock.
+AI_HERO_PICK_INDEX = 0x009A05DB
+AI_HERO_PICK_INDEX_ENTRY = bytes.fromhex("b80a1fbb00")
+
+# `createHeroBuildRequest` and its single call site. The caller runs the AI's **unit** builder when
+# this answers null, so refusing a hero here costs the AI nothing but the hero.
+AI_HERO_REQUEST = 0x009A0993
+AI_HERO_REQUEST_ENTRY = bytes.fromhex("b84d1fbb00")
+AI_HERO_REQUEST_CALL = 0x009A1063
+AI_HERO_REQUEST_CALL_BYTES = bytes.fromhex("e82bf9ffff")
+
+# `call AI_HERO_PICK_INDEX`, then `mov ecx, [esi+0x4c]` / `lea edi, [ecx+eax*4]` - what makes `edi`
+# the chosen hero's `AsciiString` and `eax` its index at the site below.
+AI_HERO_PICK_INDEX_CALL = 0x009A09D8
+AI_HERO_PICK_INDEX_CALL_BYTES = bytes.fromhex("e8fefbffff")
+AI_HERO_LIST_ELEMENT = 0x009A09DD
+AI_HERO_LIST_ELEMENT_BYTES = bytes.fromhex("8b4e4c8d3c81")
+
+# `mov ecx, [THE_THING_FACTORY]` - six bytes between "the name is resolved" and "the template is
+# looked up", and the last point before anything is committed. `edi` holds the name, `eax` the
+# index (**live** - it is stored to `[ebp-0x20]` one instruction later, so a cave here must
+# preserve it), and `ebx`/`ecx`/`edx` are dead. A sweep of every branch displacement and imm32 in
+# `.text` finds no inbound edge into the six bytes, so the only way in is fallthrough.
+AI_HERO_NAME_RESOLVED = 0x009A09E3
+AI_HERO_NAME_RESOLVED_BYTES = bytes.fromhex("8b0d404ade00")
+AI_HERO_NAME_RESOLVED_RESUME = 0x009A09E9
+
+# `or dword [esi+0x38], -1` - the engine's own rejection edge, reached from two stock branches at
+# this same stack depth. It forgets the chosen index, so the next tick re-picks and the rest of the
+# list stays reachable, then falls into the return-null tail. `[ebp-0x14]`, the local read two
+# instructions later, is zeroed at 0x009A09B6 on every path that reaches here.
+AI_HERO_REJECT = 0x009A0AE1
+AI_HERO_REJECT_BYTES = bytes.fromhex("834e38ff")
+
 # `AIFlagCaptureSquad::pickFlag` - the skirmish AI's flag-capture tactic choosing which capture
 # flag to send a squad at. Walks the global list of every `CAPTUREFLAG` object on the map, keeps
 # the nearest candidate that is not already allied, and returns it. Derived, with the whole tactic
@@ -2146,7 +2687,7 @@ OBJECT_STATUS_UNDER_CONSTRUCTION = 2
 
 # `RebuildHoleExposeDie::onDie` - the module that puts a rebuild hole where a structure stood.
 # `esi` is the module subobject on entry, from which it takes moduleData (`[esi-0xc]`) and the
-# dying `Object` (`[esi-8]`). Derived in `docs/rebuild-hole-construction.md`.
+# dying `Object` (`[esi-8]`). Derived in `docs/rebuild-hole-repair.md`.
 REBUILD_HOLE_ON_DIE = 0x00889AAF
 REBUILD_HOLE_ON_DIE_ENTRY = bytes.fromhex("558bec83ec1456ff7508")
 
@@ -2166,6 +2707,15 @@ REBUILD_HOLE_CONSTRUCTION_GATE_BYTES = bytes.fromhex("0f8546010000")
 # `push [esi+0x74]` - the tail of `onDie`, where the fresh hole is told what to put back: the
 # dying object's `ThingTemplate` (`[esi+4]`) and id. Anchoring it proves the function being
 # edited is the one that arms the rebuild, not merely one that spawns an object.
+# The eleven bytes in `onDie` that place the fresh hole: `lea eax, [esi+0x38]` / `push eax` /
+# `mov ecx, edi` / `call OBJECT_SET_POSITION`, giving the hole the *dying* object's live position.
+# For a structure killed mid-rebuild that position has already left the terrain, so the hole is
+# buried. No branch or dword in the image reaches any byte of the run, so all eleven are
+# replaceable in place. `RESUME` is the next instruction, the angle copy.
+REBUILD_HOLE_SET_POSITION = 0x00889B4E
+REBUILD_HOLE_SET_POSITION_BYTES = bytes.fromhex("8d4638508bcfe8a826e8ff")
+REBUILD_HOLE_SET_POSITION_RESUME = 0x00889B59
+
 REBUILD_HOLE_START_REBUILD = 0x00889BE7
 REBUILD_HOLE_START_REBUILD_BYTES = bytes.fromhex("ff76748b4d08ff7604")
 
@@ -2228,6 +2778,15 @@ INI_PARSE_BOOL = 0x0042E558
 # does `fstp dword [store]`, a single 4-byte float store through the same `store + offset`
 # pointer - so a new `Real` field needs an aligned 4-byte slot and nothing else.
 INI_PARSE_REAL = 0x0042ED00
+
+# `INI::parseAsciiStringVector`, the parser behind every whitespace-separated **list of names**:
+# it erases the `std::vector<AsciiString>` at `store` (`{begin, end, capacity}`, four bytes an
+# element) and appends one entry per token, macros expanded. `HeroBuildOrder`,
+# `OffensiveBuildings` and `ScavangedResourceBuildings` all name it, which is why a patch wanting
+# a richer token syntax for one of them repoints that field's **row** rather than this function.
+# Nothing here resolves a name, so the vector holds text until a consumer looks it up.
+INI_PARSE_STRING_LIST = 0x0042EED6
+INI_PARSE_STRING_LIST_BYTES = bytes.fromhex("568b742410ff7604")
 
 
 # The module on a claimed resource spot: it wakes every `IncomeInterval`, deposits an income, and
@@ -2412,6 +2971,42 @@ COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET = 0x0071F933
 PLAYER_COMMAND_POINTS_CAP = 0x64
 PLAYER_COMMAND_POINTS_BONUS = 0x6C
 PLAYER_COMMAND_POINTS_HARD_CAP = 0x70
+
+#: The command-point accounting an object performs as it is gained, lost and modified, and the
+#: leak in it - see `docs/command-point-leak.md`. The two `Player` wrappers pick their counter by
+#: `ThingTemplate.CommandPointBonus` (`+0x62C`): positive goes to the cap bonus (`Player+0x6C`)
+#: via `0x006A7C3E`/`0x006A7C51`, everything else to points-in-use via `0x006A7FDA`/`0x006A7FEB`.
+#: `0x006A7C01` values a cap-granting object as its template bonus **plus** every live
+#: `COMMAND_POINT_BONUS` attribute modifier (type 24), which is why applying a modifier has to
+#: re-do the accounting at all.
+PLAYER_ADD_COMMAND_POINTS_FOR_OBJECT = 0x006AA56D
+PLAYER_REMOVE_COMMAND_POINTS_FOR_OBJECT = 0x006AA590
+PLAYER_TRANSFER_COMMAND_POINTS_FOR_OBJECT = 0x006914B7
+COMMAND_POINT_CAP_BONUS_ADD = 0x006A7C3E
+COMMAND_POINT_CAP_BONUS_REMOVE = 0x006A7C51
+COMMAND_POINT_CAP_BONUS_VALUE = 0x006A7C01
+THING_TEMPLATE_COMMAND_POINT_BONUS = 0x62C
+MODIFIER_TYPE_COMMAND_POINT_BONUS = 24
+
+#: `Object::applyModifierList`, the single door all 32 attribute-modifier call sites go through.
+#: It subtracts the object's cap contribution at `0x0068F225`, applies, and re-adds at
+#: `0x0068F243` - but `0x0068F23A` returns FALSE without re-adding when the apply is refused,
+#: which permanently deletes that object's contribution from `Player+0x6C`. `0x0068F2A0` is the
+#: removal counterpart and is correctly symmetric. The refusals live in
+#: `ModifierHolder::applyModifierList`; `ModifierList+0xD2`/`+0xD3` are
+#: `ReplaceInCategoryIfLongest` and `IgnoreIfAnticategoryActive`, and a `Duration` of 0 becomes
+#: expiry `0x3FFFFFFF` at `0x00805B39`, so a permanent list outlasts and refuses every shorter
+#: one sharing its `Category`.
+OBJECT_APPLY_MODIFIER_LIST = 0x0068F1A8
+OBJECT_APPLY_MODIFIER_LIST_SUBTRACT = 0x0068F225
+OBJECT_APPLY_MODIFIER_LIST_FAIL_BRANCH = 0x0068F23A
+OBJECT_APPLY_MODIFIER_LIST_READD = 0x0068F243
+OBJECT_REMOVE_MODIFIER_LIST = 0x0068F2A0
+MODIFIER_HOLDER_APPLY_MODIFIER_LIST = 0x00805A8E
+MODIFIER_HOLDER_APPLY_REFUSE_CATEGORY = 0x00805B9C
+MODIFIER_HOLDER_APPLY_REFUSE_LOOKUP = 0x00805B01
+MODIFIER_LIST_REPLACE_IN_CATEGORY_IF_LONGEST = 0xD2
+MODIFIER_LIST_IGNORE_IF_ANTICATEGORY_ACTIVE = 0xD3
 
 #: The player's spendable resource balance, and the spellbook point pair (`+0x24` is the
 #: spendable balance, `+0x1C` the lifetime total - only the former falls when a power is bought).
@@ -3391,6 +3986,53 @@ LIVING_WORLD_PLAYERS_BEGIN = 0x8C
 LIVING_WORLD_PLAYERS_END = 0x90
 LIVING_WORLD_PLAYER_ARMIES_BEGIN = 0x1E4
 LIVING_WORLD_PLAYER_ARMIES_END = 0x1E8
+
+# Who is fighting the battle the engine is loading a map for. Derived in
+# `docs/living-campaign/mp-battle-participation.md`, which also carries the evidence for the two
+# vector layouts below - both are read straight out of the accessors the engine ships,
+# `0x007F6403` (member count) and `0x007F5D2B` (member at).
+
+#: `TheGameLogic`'s living-world session type, distinct from `m_gameMode` at `+0x110`. 0 is the
+#: strategic map, 1 a multiplayer battle, 2 a single-player one and 3 everything that is not a
+#: living-world session at all - `0x0062602B` maps the first three onto a game mode and leaves 3
+#: alone, and `0x00610A21` answers "in a living-world battle" for {1, 2}.
+GAME_LOGIC_LIVING_WORLD_TYPE = 0x114
+GAME_LOGIC_LIVING_WORLD_TYPE_MP_BATTLE = 1
+
+#: `LivingWorldPlayer::m_id`, the value `GAME_SLOT_LIVING_WORLD_PLAYER_ID` names and the one
+#: `LIVING_WORLD_REGION_OWNER` is compared against to find a battle's defender.
+LIVING_WORLD_PLAYER_ID = 0x14
+#: `LivingWorldLogic::findPlayerById(id, int *outIndex)` - thiscall, `ret 8`, walking
+#: `LIVING_WORLD_PLAYERS_BEGIN`. Returns NULL for id -1 without touching the vector.
+LIVING_WORLD_FIND_PLAYER_BY_ID = 0x006B5DE0
+
+#: The store on `THE_LIVING_WORLD_LOGIC` that holds both the battles and the regions, and the
+#: region id of the battle currently being entered - written by `LivingWorldLogic::
+#: enterRealtimeBattle` (`0x006B95F5`) from the battle's own region, before the map loads.
+LIVING_WORLD_LOGIC_BATTLE_STORE = 0xB0
+LIVING_WORLD_LOGIC_CURRENT_REGION_ID = 0xB8
+#: The store's battle vector: plain pointers, walked by `0x0060E2AB` to find one by its id.
+LIVING_WORLD_STORE_BATTLES_BEGIN = 0x14
+LIVING_WORLD_STORE_BATTLES_END = 0x18
+#: `LivingWorldLogic::getCurrentRegion()` - thiscall, `ret 0`. The region the battle is being
+#: fought over, looked up by `LIVING_WORLD_LOGIC_CURRENT_REGION_ID`.
+LIVING_WORLD_CURRENT_REGION = 0x006B351E
+LIVING_WORLD_REGION_ID = 0x14C
+#: The region's owning `LivingWorldPlayer` id. `buildSidesFromGameInfo` gives that player the
+#: `Player_1` side and every other seat a `Player_%d` numbered off its slot index.
+LIVING_WORLD_REGION_OWNER = 0x15C
+
+#: A battle's sides - a vector of `LIVING_WORLD_BATTLE_SIDE_STRIDE`-byte records - and, inside
+#: each record, the vector of `LIVING_WORLD_BATTLE_MEMBER_STRIDE`-byte member records whose first
+#: dword is the `LivingWorldPlayer` fighting on that side.
+LIVING_WORLD_BATTLE_SIDES_BEGIN = 0x18
+LIVING_WORLD_BATTLE_SIDES_END = 0x1C
+LIVING_WORLD_BATTLE_SIDE_STRIDE = 0x1C
+LIVING_WORLD_BATTLE_MEMBERS_BEGIN = 0x04
+LIVING_WORLD_BATTLE_MEMBERS_END = 0x08
+LIVING_WORLD_BATTLE_MEMBER_STRIDE = 0x30
+#: The region a battle is fought in, restored by id on load (`0x007F8822`).
+LIVING_WORLD_BATTLE_REGION = 0x24
 #: `LivingWorldLogic::findArmyById(id)` - thiscall, `ret 4`. The id is stamped on the army's roster
 #: container at `LIVING_WORLD_ARMY_ROSTER_ID`, which is how an army is found again after a battle.
 LIVING_WORLD_FIND_ARMY_BY_ID = 0x006B5351
@@ -4695,3 +5337,123 @@ UPGRADE_FILTER_BODY_BYTES = bytes.fromhex(
 )
 UPGRADE_FILTER_OWNER_SLOT = 0x04
 UPGRADE_FILTER_UPGRADE_SLOT = 0x08
+
+
+# The sub-frame pacing block, derived in `docs/interpolation-alpha.md`. `GameEngine::update`
+# advances a counter once per rendered frame and ends a logic frame when it passes the wrap, and
+# the render path interpolates transforms across the gap with an alpha recomputed on every
+# sub-frame. `docs/render-rate.md` §3 derives the surrounding loop.
+
+#: `TheGameEngine+0x34` - the sub-frame counter, reset to 1 by the wrap at `0x0063264A`.
+GAME_ENGINE_SUB_FRAME = 0x34
+
+#: `TheGameEngine+0x38` - the alpha's denominator. The constructor (`0x0063A4DE`) leaves it at 1
+#: and the recompute at `0x0063260F` sets it to `clientRate / logicRate`, so it is 1 until the
+#: first logic frame ends.
+GAME_ENGINE_SUB_FRAME_RATIO = 0x38
+
+#: `TheGameEngine+0x3C` - the interpolation alpha, read by seven render sites.
+GAME_ENGINE_ALPHA = 0x3C
+
+#: `GameEngine::recomputeAlpha` - `+0x3C = clamp(+0x34 / +0x38, 0, 1)`, called from `0x00632642`,
+#: `0x006326BE`, `0x006326E4` and `0x00632AF0`, all inside the pacing loop. Nothing branches into
+#: its body, so the five-byte `cvtsi2ss` at its head is a whole hook window.
+ALPHA_RECOMPUTE = 0x0063256F
+ALPHA_RECOMPUTE_ENTRY = bytes.fromhex("f30f2a4938")
+#: The 44 bytes after the hook window: the second convert, the divide, and the two-sided clamp
+#: that pins the result into `[0, 1]`. Anchored, never written - a build that computes the alpha
+#: some other way is not the build this is a correction for.
+ALPHA_RECOMPUTE_BODY = 0x00632574
+ALPHA_RECOMPUTE_BODY_BYTES = bytes.fromhex(
+    "f30f2a4134f30f5ec10f57c90f2fc8f30f11413c770df30f100d0819bd000f2fc176030f28c1f30f11413cc3"
+)
+
+#: The catch-up loop's escape (`docs/render-rate.md` §3.4). Stock derives `clientRate / logicRate`
+#: here and skips the loop when it is 6 or more, which on a 30 fps client it always is. The Edain
+#: and AotR binaries replace those seven bytes with `mov eax, 2` / `jmp 0x00632ABB`, so the loop
+#: runs one iteration every logic frame and its `inc dword [ebp+0x34]` at `0x00632AC0` steps the
+#: sub-frame counter past 1 before any client code can observe it.
+CATCHUP_ESCAPE = 0x00632A9B
+CATCHUP_ESCAPE_ALWAYS_RUNS = bytes.fromhex("b802000000eb19")
+
+
+# The horde-pace block, derived in `docs/horde-member-speed.md`. A battalion's speed is the
+# container's `LocomotorSet` `Speed`, not its members'; `SPEED` attribute modifiers are folded in
+# per object by `Locomotor::getMaxSpeed`, so a modifier on a member scales the member and never
+# the pace the formation advances at.
+
+#: `Locomotor::getMaxSpeed(Object *obj)` - `__thiscall` on the `Locomotor`, `ret 4`. Forty call
+#: sites reach it, `getMaxAcceleration` (`0x005E40AD`) among them, so it is the single place a
+#: locomotor speed becomes a number. The entry pins the function: the prologue, `edi` as the
+#: object argument, the body-module damage-state call and the read of the AI's cached set speed.
+LOCOMOTOR_GET_MAX_SPEED = 0x005E3F49
+LOCOMOTOR_GET_MAX_SPEED_ENTRY = bytes.fromhex(
+    "558bec51515356578b7d088bf18b8f5c0200008b01ff50248b8f60020000f30f1089f80100008b0d6443de0033db"
+)
+
+#: Its `SPEED` query, in three anchored runs so the middle one can be rewritten while the two
+#: around it stay asserted. The setup pushes `flag`, `ctx`, `&out = [ebp-8]` and the type, seeds
+#: the slot to 0.0 and puts the object in `ecx`; the call is the five bytes a hook replaces; the
+#: fold is `test al,al` / `je` / `mulss` into the running speed at `[ebp-4]`, which is what makes
+#: "nothing contributed" mean "leave the speed exactly alone".
+LOCOMOTOR_SPEED_MODIFIER_SETUP = 0x005E4002
+LOCOMOTOR_SPEED_MODIFIER_SETUP_BYTES = bytes.fromhex("0f57c06a01538d45f8506a088bcff30f1145f8")
+LOCOMOTOR_SPEED_MODIFIER_CALL = 0x005E4015
+LOCOMOTOR_SPEED_MODIFIER_CALL_BYTES = bytes.fromhex("e813880a00")
+LOCOMOTOR_SPEED_MODIFIER_FOLD = 0x005E401A
+LOCOMOTOR_SPEED_MODIFIER_FOLD_BYTES = bytes.fromhex("84c0740ff30f1045f8f30f5945fcf30f1145fc")
+
+#: `SPEED`, index 8 of the attribute-modifier name table at `0x00D8AF48` (index 0 is
+#: `ATTRIBUTE_NONE`). Named directly by the `push 8` in `LOCOMOTOR_SPEED_MODIFIER_SETUP`.
+MODIFIER_TYPE_SPEED = 8
+
+#: `Object+0x260` - the `AIUpdate` module, and `AIUpdate+0x1F8` the speed of the object's current
+#: `LocomotorSet`. Written in exactly one place in the image, `AIUpdate::setLocomotorSet` at
+#: `AI_UPDATE_SET_LOCOMOTOR_SET_SPEED_STORE`, from `THING_TEMPLATE_LOCOMOTOR_SET_SPEED`, which
+#: reads the per-set `Speed` line out of the map at `ThingTemplate+0x3A0` (entry `+0x14`). So the
+#: container's speed and the member's are two independent INI numbers on two independent objects.
+OBJECT_AI_UPDATE = 0x260
+AI_UPDATE_LOCOMOTOR_SET_SPEED = 0x1F8
+AI_UPDATE_SET_LOCOMOTOR_SET = 0x006680B2
+AI_UPDATE_SET_LOCOMOTOR_SET_SPEED_STORE = 0x006680FB
+THING_TEMPLATE_LOCOMOTOR_SET_SPEED = 0x0073DD2A
+
+#: The contained-items list, on the `ContainModuleInterface` at `OBJECT_CONTAIN`: `+0x34` is a
+#: pointer to an MSVC `std::list` sentinel node, `+0x00` of a node is the next and `+0x08` the
+#: contained `Object`. A base-class property, not a `HordeContain` one - the walk below is a slot
+#: in 17 contain vtables, `0x00C5B510` being `HordeContain`'s.
+CONTAIN_ITEM_LIST = 0x34
+CONTAIN_ITEM_LIST_NODE_OBJECT = 0x08
+
+#: That walk, anchored for the layout it proves rather than for anything anybody rewrites: it
+#: takes the sentinel, steps to the first node, stops when the two are equal, and reads
+#: `[node+8]->tmpl` to test a `KindOf` on it - which is only meaningful if `+8` is an `Object`.
+CONTAIN_ITEM_LIST_WALK = 0x0086620E
+CONTAIN_ITEM_LIST_WALK_ENTRY = bytes.fromhex(
+    "538bd98b4334568b303bf07449578b7e088b4704f6800c01000002"
+)
+
+#: `ObjectStatus HORDE_MEMBER`, bit 38 of the mask at `OBJECT_STATUS` - so bit `0x40` of the byte
+#: at `Object+0x98`, by `OBJECT_TEST_STATUS`'s own encoding. `HordeContain::addToContain`
+#: (`0x0086CF2A`) clears it for a `MACHINE`, `HERO` or `SIEGE_TOWER` that joins a battalion, which
+#: makes it the engine's own answer to "is this one of the rank and file".
+OBJECT_STATUS_HORDE_MEMBER = 38
+
+#: The script debug window, engine side. `-scriptDebug2` and `-scriptDebugLite` both set
+#: `SCRIPT_DEBUG_USE_LITE_DLL`, so both load `DebugWindowLite.dll`; the handle `LoadLibraryA`
+#: returns is kept in `SCRIPT_DEBUG_MODULE`. `SCRIPT_DEBUG_SUPPRESS` is what separates the two
+#: flags - only `-scriptDebugLite` sets it, and it is tested at the head of both the append
+#: wrapper and the adjust-variable wrapper, each of which then does nothing. Derived in
+#: `docs/script-debug-window.md`; the cost this names lives in the DLL, not here.
+SCRIPT_DEBUG_FLAG_HANDLER = 0x007BA1D4
+SCRIPT_DEBUG_LITE_FLAG_HANDLER = 0x007BA1FB
+SCRIPT_DEBUG_USE_LITE_DLL = 0x00DE87BA
+SCRIPT_DEBUG_SUPPRESS = 0x00DE87B8
+SCRIPT_DEBUG_MODULE = 0x00DE3B98
+
+#: The engine's `AppendMessage` wrapper, with 87 direct callers across the script engine. It
+#: resolves the export **by name on every message** (`GetProcAddress` at `0x00604DAD`, and again
+#: at `0x00604FE8` for the pause variant) before formatting the frame-number prefix and calling
+#: it. Real overhead, and not where the stutter is.
+SCRIPT_DEBUG_APPEND_MESSAGE = 0x00604D85
+SCRIPT_DEBUG_ADJUST_VARIABLE = 0x00605021

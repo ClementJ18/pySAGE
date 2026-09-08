@@ -9,14 +9,17 @@ import sys
 from pathlib import Path
 
 from sage_ini.parser.io import iter_ini_files
-from sage_lint.commands.common import diagnostic_dict, split_codes
+from sage_lint.commands.common import diagnostic_dict, progress_reporter, split_codes
 from sage_lint.config import Config, load_config
 from sage_lint.formatter import FormatResult, format_file, format_text
+from sage_utils import progress
+from sage_utils.progress import progress_to
 
 
 def _discover(paths: list[Path]) -> list[Path]:
     files: list[Path] = []
     seen: set[Path] = set()
+    progress.phase("finding files")
     for path in paths:
         candidates = iter_ini_files(path) if path.is_dir() else [path]
         for candidate in candidates:
@@ -24,6 +27,7 @@ def _discover(paths: list[Path]) -> list[Path]:
             if resolved not in seen:
                 seen.add(resolved)
                 files.append(candidate)
+                progress.step(str(candidate))
     return files
 
 
@@ -66,10 +70,15 @@ def run_format(args: argparse.Namespace) -> int:
     if args.stdin:
         return _run_format_stdin(args)
     align_equals, exclude = _format_align(args, _load_format_config(args))
-    results = [
-        format_file(path, align_equals=align_equals, align_exclude=exclude)
-        for path in _discover(args.paths)
-    ]
+    # Parsing and reprinting each file is the slow part, and a folder of a few thousand inis
+    # takes long enough that a silent terminal reads as a hang - so name the file in hand.
+    with progress_to(progress_reporter(args)):
+        files = _discover(args.paths)
+        progress.phase("checking" if args.check else "formatting", len(files))
+        results = []
+        for path in files:
+            progress.step(str(path))
+            results.append(format_file(path, align_equals=align_equals, align_exclude=exclude))
     if args.output_format == "json":
         return _format_json(results, args.check)
     return _format_text(results, args)

@@ -22,6 +22,7 @@ else:
 
 
 import sage_ini.model.types as t  # noqa: E402  (intentional self-reference)
+from sage_ini.model.aliases import resolve_alias
 from sage_ini.model.enums import (
     AudioVolumeSlider,
     DamageType,
@@ -351,13 +352,18 @@ Label = Annotated[str, _Label]
 class Reference:
     """A named cross-reference to a top-level definition in `game.tables[key]`, resolving to
     the registered object when present. An unknown name passes through unchanged; strict
-    dangling-reference checking is the linter's job."""
+    dangling-reference checking is the linter's job.
+
+    A table that takes descriptive aliases (`sage_ini.model.aliases`) resolves the name up to
+    the first `@`, the way the engine's hooked lookup does. The alias annotates the reference
+    and is not part of the identity, so what comes back here is the plain definition; the lint
+    rules read the annotation off the raw text."""
 
     def __init__(self, key):
         self.key = key
 
     def convert(self, game, value):
-        name = game.get_macro(value)
+        name, _alias = resolve_alias(game, self.key, value)
         obj, canonical = game.lookup(self.key, name)
         if obj is None:
             return (
@@ -584,6 +590,49 @@ class _FontSpec:
 FontSpec = Annotated[FontSpecValue, _FontSpec]
 
 
+class FontSubstitutionValue(NamedTuple):
+    """One substitution row: requests for `requested` points are served by `name` at `size`
+    points. `bold` is the `+BOLD`/`-BOLD` override, None when the row keeps the requested
+    weight. The font manager interpolates sizes between adjacent rows."""
+
+    requested: int
+    size: int
+    name: str
+    bold: bool | None
+
+
+# A substitution row's tokens: '=' is a separator to the engine, so it never joins a token,
+# but a quoted family name keeps its spaces.
+_SUBSTITUTION_TOKEN = re.compile(r'"[^"]*"|[^\s=]+')
+
+_BOLD_MARKERS = {"+BOLD": True, "-BOLD": False}
+
+
+class _FontSubstitution(Multivalued):
+    """A `FontSubstitution` size row (`Size 8 = 12 "Omnia LT Std"`, `Size 10 = 10 +BOLD Arial`).
+    The key is the field name `Size`, so a block's rows all land under it - hence `Multivalued`,
+    one `FontSubstitutionValue` per line."""
+
+    @classmethod
+    def convert(cls, game, value):
+        lines = value if isinstance(value, list) else [value]
+        return [cls._one(game, line) for line in lines]
+
+    @classmethod
+    def _one(cls, game, line):
+        tokens = _SUBSTITUTION_TOKEN.findall(line)
+        if len(tokens) < 3:
+            raise ValueError(f"expected `<requested> = <size> [+BOLD|-BOLD] <font>`, got {line!r}")
+        requested = _Int.convert(game, tokens[0])
+        size = _Int.convert(game, tokens[1])
+        bold = _BOLD_MARKERS.get(tokens[2].upper())
+        name = " ".join(tokens[3 if bold is not None else 2 :]).strip('"')
+        return FontSubstitutionValue(requested, size, name, bold)
+
+
+FontSubstitutions = Annotated[list[FontSubstitutionValue], _FontSubstitution]
+
+
 class _Tuple(Multivalued):
     def __init__(self, *element_types):
         self.element_types = element_types
@@ -784,6 +833,7 @@ AutoResolveCombatChainRef = Annotated[str, Reference("autoresolvecombatchains")]
 AutoResolveLeadershipRef = Annotated[str, Reference("autoresolveleaderships")]
 RegionCampaignRef = Annotated[str, Reference("livingworldregioncampaigns")]
 PlayerArmyRef = Annotated[str, Reference("livingworldplayerarmys")]
+SpawnArmyRef = Annotated[str, Reference("spawnarmys")]
 LivingWorldBuildingRef = Annotated[str, Reference("livingworldbuildings")]
 BuildingIconRef = Annotated[str, Reference("livingworldbuildingicons")]
 DamageFXRef = Annotated[str, Reference("damagefxs")]

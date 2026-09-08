@@ -421,17 +421,13 @@ def test_it_composes_with_the_other_field_adder(tmp_path: Path) -> None:
             assert patch.verify(result) == []
 
 
-#: Both copies in the tree. The repo-root `game.dat` carries eleven modifications and is **not**
-#: stock, so a site is only safe to describe as stock when both agree - and none of this patch's
-#: does anything else.
+#: Both copies a checkout can hold. The repo-root `game.dat` carries eleven modifications and is
+#: **not** stock, so a site is only safe to describe as stock when it agrees with the clean
+#: `sage_patch/engine/game.dat.backup` - and none of this patch's does anything else. Neither
+#: binary is committed (both are gitignored), so each check skips when its file is absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "edain-backup": Path(__file__).resolve().parents[2]
-    / "sage_mods"
-    / "edain"
-    / "patching"
-    / "engine"
-    / "game.dat.backup",
+    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
 }
 
 

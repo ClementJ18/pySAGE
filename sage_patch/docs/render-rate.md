@@ -21,7 +21,7 @@
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR); the file offset
 is `VA - 0x400000` for everything cited here. Read **statically** on 2026-08-18 with `pefile` +
-`capstone` from `sage_mods/edain/patching/engine/game.dat.backup` (11,346,432 bytes) — see
+`capstone` from `sage_patch/engine/game.dat.backup` (11,346,432 bytes) — see
 [§0](#0-which-game-dat) for why that file and not the one in the repo root — and confirmed against
 the running process with `sage_live`.
 
@@ -82,7 +82,7 @@ subsystem.
 ## 0. Which `game.dat`
 
 **The `game.dat` in the repo root is not stock**, and two of its differences are inside the pacing
-code this patch is about. Diffed against `sage_mods/edain/patching/engine/game.dat.backup` it has
+code this patch is about. Diffed against `sage_patch/engine/game.dat.backup` it has
 eleven differing runs, including:
 
 | VA | backup | repo root |

@@ -100,8 +100,8 @@ is a bug class this rules out entirely.
 `find` is keyword-only and every criterion is optional, so a call reads as its own
 documentation; all string matching is case-insensitive because ini identifiers are.
 
-`template_name` is the join key. Once an object names its template, `sage_ini` and
-`sage_mods.edain` supply cost, armour, weapons, build time, command points and the faction
+`template_name` is the join key. Once an object names its template, `sage_ini` and a mod
+overlay (`sage_edain`) supply cost, armour, weapons, build time, command points and the faction
 tree — so the observation stays small and the consumer joins against static data it already
 holds.
 

@@ -342,13 +342,31 @@ def parse_lines(
             stack.append(block)
             continue
 
-        if "=" in content:
+        key_text, equals, value_text = content.partition("=")
+        if equals and len(key_text.split()) > 1:
+            # More than one token ahead of the '=' (`Size 8 = 12 "Omnia LT Std"`,
+            # `Envelope InitialOpacity = 0.0 PeakOpacity = 1.0 ...`): '=' is only a separator
+            # to the engine, so the field name is the first token and everything after it -
+            # the '=' included - is the value the field's parser reads. Kept as a bare value
+            # line so a reprint restores the written form rather than inserting a second '='.
             flush_blank()
-            key, _, value = content.partition("=")
             children().append(
                 Attribute(
-                    key=key.strip(),
-                    value=_normalize_value(value),
+                    key=head,
+                    value=_normalize_value(rest),
+                    uses_equals=False,
+                    comment=line.comment,
+                    span=line.span,
+                )
+            )
+            continue
+
+        if equals:
+            flush_blank()
+            children().append(
+                Attribute(
+                    key=key_text.strip(),
+                    value=_normalize_value(value_text),
                     comment=line.comment,
                     span=line.span,
                 )

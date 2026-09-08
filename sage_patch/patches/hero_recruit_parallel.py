@@ -44,7 +44,7 @@ queue completes on exactly the frame it does today.
 **Every peer must run the same patched binary.** Which entry advances is logic state feeding the
 per-frame CRC, so a patched and an unpatched client diverge the first frame a hero sits at the head
 of a non-empty queue, and replays do not cross. That is the same requirement `production-condition`
-and `rebuild-hole-construction` carry.
+and `rebuild-hole-repair` carry.
 
 **Composition.** Order-independent: the cave is allocated past every existing section and
 :meth:`verify` finds it by name. The only engine bytes it edits are the seven at

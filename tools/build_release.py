@@ -6,14 +6,8 @@ artifacts from ad-hoc builds - and zips whatever the specs emitted into `pySAGE.
 repo root. It also assembles the self-contained SageLint Sublime package (the loose folder
 Sublime installs, carrying the freshly built sage_lint CLI in its bin/) into the same zip.
 
-The mod overlays under `sage_mods` are left out of a plain run and built only when a filter
-names them: a release of the engine-generic tools is for everyone, while the Edain windows are
-for one mod's team, and shipping them to everybody costs build minutes and zip weight for an
-app most people cannot use.
-
-    python tools/build_release.py            # every generic spec, write pySAGE.zip
+    python tools/build_release.py            # every spec in the repo, write pySAGE.zip
     python tools/build_release.py sage_ini   # only specs whose path contains "sage_ini"
-    python tools/build_release.py edain      # the mod overlays, which a plain run skips
 
 Each spec is a onefile build, so the staging dir ends up holding one binary per EXE the specs
 declare (a few specs declare two: a console CLI and a windowed app). Every console binary is
@@ -36,11 +30,6 @@ STAGE_DIR = REPO_ROOT / "build" / "release-dist"
 WORK_DIR = REPO_ROOT / "build" / "release-work"
 ZIP_PATH = REPO_ROOT / "pySAGE.zip"
 
-# Trees whose specs a plain run leaves alone, matched against the repo-relative path. `sage_mods`
-# holds the mod overlays: their windows name one mod's data and are wanted by that mod's team, not
-# by everyone who downloads the release, so they are opt-in by filter.
-OPTIONAL_DIRS = ("sage_mods/",)
-
 # The Sublime plugin ships as a loose folder that carries a standalone sage_lint binary in bin/:
 # it execs that binary via subprocess, and files inside a .sublime-package zip are never
 # extracted to disk, so a zip install would leave nothing to run. sage-lint.spec already emits
@@ -61,13 +50,12 @@ CLI_BINARY_NAME = "sage_lint.exe" if sys.platform == "win32" else "sage_lint"
 
 def find_specs(filters: list[str]) -> list[Path]:
     """The specs to build: every one in the repo, or - with `filters` - those whose repo-relative
-    path contains one of them. The mod overlays are skipped unless a filter reaches them, so
-    `edain` (or the spec's own name) is how they get built."""
+    path contains one of them."""
     specs = sorted(REPO_ROOT.glob("*/**/*.spec"))
+    if not filters:
+        return specs
     paths = [(spec, spec.relative_to(REPO_ROOT).as_posix()) for spec in specs]
-    if filters:
-        return [spec for spec, path in paths if any(f in path for f in filters)]
-    return [spec for spec, path in paths if not path.startswith(OPTIONAL_DIRS)]
+    return [spec for spec, path in paths if any(f in path for f in filters)]
 
 
 def build(spec: Path) -> None:
@@ -129,8 +117,7 @@ def main() -> None:
         nargs="*",
         help=(
             "only build specs whose repo-relative path contains one of these substrings; "
-            f"also the only way to build the specs under {', '.join(OPTIONAL_DIRS)}, which a "
-            "plain run skips"
+            "a plain run builds every spec in the repo"
         ),
     )
     args = parser.parse_args()

@@ -1,7 +1,7 @@
 """Command-line entry point: `python -m sage_map <command>` (or `sage-map`).
 
 Engine-generic map tooling - no game data required. The mod-specific map *checks* deliberately
-live in their mod package (`sage_mods.edain.map_checks`), and game-aware linting is exposed
+live in their mod's own package (`sage_edain.map_checks`), and game-aware linting is exposed
 through the `sage-lint` CLI; this front end is the parse / inspect / serialize / diff layer that
 `sage_map` provides on its own.
 

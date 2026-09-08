@@ -353,9 +353,16 @@ def _word_re(name: str) -> re.Pattern[str]:
     `\\b` is wrong here: a definition name routinely holds characters Python calls
     non-word (`Command_Foo:Bar`, `GondorTower-Upgrade`), and a `\\b` next to one of those
     matches inside a longer token. The boundaries are instead "not one of the characters a
-    bareword is made of", which is what the engine's own tokenizer splits on."""
+    bareword is made of", which is what the engine's own tokenizer splits on.
+
+    The two sides are deliberately not symmetric about `@`. A descriptive alias
+    (`Upgrade_X@SmithyLevel2`, see `sage_ini.model.aliases`) ends the *name* at the separator, so
+    `@` closes a match on the right - without that, renaming an aliased upgrade would skip every
+    annotated reference and leave a silent half-rename. It does not open one on the left, because
+    what follows a separator is an annotation and never a definition: an upgrade that happened to
+    be named `SmithyLevel2` must not match the alias in `Upgrade_X@SmithyLevel2`."""
     escaped = re.escape(name)
-    return re.compile(rf"(?<![^\s=,:]){escaped}(?![^\s=,:])", re.IGNORECASE)
+    return re.compile(rf"(?<![^\s=,:]){escaped}(?![^\s=,:@])", re.IGNORECASE)
 
 
 def _region(line: str, site: RenameSite) -> tuple[int, int]:

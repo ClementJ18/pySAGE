@@ -158,7 +158,7 @@ Four notes that shape the design:
   §3a, including the in-progress mask that the engine never clears for object-scoped upgrades.
 
 - **`template_name` carries the whole unit model.** Once an object names its template, `sage_ini`
-  and `sage_mods.edain` supply cost, armour, weapons, build time, command points and the faction
+  and a mod overlay (`sage_edain`) supply cost, armour, weapons, build time, command points and the faction
   tree. The observation stays small and the consumer joins against static data it already has.
 - **Two separate problems, and both are now named and implemented.** *Fog* is visibility, and it
   is applied per player and explicitly — the engine knows what a player can see and the API must

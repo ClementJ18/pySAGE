@@ -14,8 +14,8 @@ the `content_type` action table are deferred. See docs/sage_map_plan.md.
 `sage_map.diff` adds a human-readable content diff of two maps (or of the map files a git commit
 touches), reporting moved objects, script edits and terrain summaries where git can only say
 "binary files differ". `sage_map.checks` is the architecture for standalone (no game data) map
-checks - findings, rule-runner, terrain helpers; the Edain rule set lives in
-`sage_mods.edain.map_checks`.
+checks - findings, rule-runner, terrain helpers; the Edain rule set lives in its own
+repository, as `sage_edain.map_checks`.
 """
 
 from sage_map.diff import (

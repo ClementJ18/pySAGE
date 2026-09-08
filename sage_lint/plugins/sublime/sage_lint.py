@@ -798,8 +798,11 @@ MODULE_DECL_RE = re.compile(r"^\s*(\w+)\s*=\s*(\w+)", re.I)
 # Foo`): the first token names the block class.
 BLOCK_HEADER_RE = re.compile(r"^\s*(\w+)", re.I)
 # Characters that make up a symbol name: words, the `NAMESPACE:key` colon of a string label,
-# and the `+`/`-` a faction-prefixed name can carry.
-_NAME_CHAR_RE = re.compile(r"[\w:+\-]")
+# the `+`/`-` a faction-prefixed name can carry, and the `@` of a descriptive upgrade alias
+# (`Upgrade_X@SmithyLevel2`) or a create-a-hero default-bling marker (`@Upgrade_NoHelmet`). The
+# `@` is kept so the caret resolves from anywhere in the token, including the annotation half;
+# `_name_variants` is what turns the token back into the name the index holds.
+_NAME_CHAR_RE = re.compile(r"[\w:+\-@]")
 
 
 def _apply_index_message(message):
@@ -855,13 +858,31 @@ def _name_variants(name):
     """The names to try for a symbol lookup, most specific first: the raw token, then with a
     leading `+`/`-` operator stripped (a `#define` value like `+ElvenVigilantEnt` references the
     object `ElvenVigilantEnt`), then with the `NAMESPACE:key` string-label colon removed, then
-    both. Duplicates and empties are dropped so the caller tries each key once."""
+    both. Duplicates and empties are dropped so the caller tries each key once.
+
+    A `@` is peeled two ways, because the character means two different things. A *leading* one
+    is the create-a-hero default-bling marker, so `@Upgrade_NoHelmet` names `Upgrade_NoHelmet`;
+    an *interior* one opens a descriptive alias, so `Upgrade_X@SmithyLevel2` names `Upgrade_X`.
+    Between them the caret resolves from either half of an annotated reference. Mirrors
+    `sage_ini.model.aliases`, which this plugin cannot import - it runs inside Sublime's own
+    interpreter and talks to the daemon over a pipe."""
+
+    def unmarked(text):
+        return text[1:] if text.startswith("@") else text
+
+    def unaliased(text):
+        head = unmarked(text).split("@", 1)[0]
+        return head if head else text
+
     variants = []
     for candidate in (
         name,
+        unaliased(name),
         name.lstrip("+-"),
+        unaliased(name.lstrip("+-")),
         name.replace(":", ""),
         name.lstrip("+-").replace(":", ""),
+        unaliased(name.lstrip("+-").replace(":", "")),
     ):
         if candidate and candidate not in variants:
             variants.append(candidate)

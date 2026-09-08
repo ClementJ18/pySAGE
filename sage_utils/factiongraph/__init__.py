@@ -4,8 +4,8 @@ A `FactionGraph` links a `PlayerTemplate` to everything a player of it can field
 spellbook powers, the start points that unpack its base, the structures placed or built,
 and the units / heroes / upgrades those structures produce. The walk handles both base
 mechanics - BFME1-style build plots (Edain) and vanilla builder units - see `graph`.
-`sage_mods.edain` layers the Edain-specific pieces (a mod checkout's `bases/` folder, the CLI,
-report and diff) on top; `sage_ui` renders the drill-down.
+A mod overlay layers the mod-specific pieces on top - `sage_edain`, in its own repository, adds
+a mod checkout's `bases/` folder, the CLI, report and diff; `sage_ui` renders the drill-down.
 """
 
 from sage_utils.factiongraph.bases import (

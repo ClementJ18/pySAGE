@@ -44,7 +44,7 @@ from sage_patch.addresses import (
     SCENARIO_FACTION_CALL_SITES,
     SCENARIO_IS_FACTION_ENABLED,
 )
-from sage_patch.patches.experimental.scenario_player_factions import (
+from sage_patch.patches.scenario_player_factions import (
     ANCHORS,
     PLAYER_SEPARATOR,
     SECTION_NAME,
@@ -387,8 +387,10 @@ class TestRegistration:
     def test_it_is_registered_under_its_name(self):
         assert PATCHES[ScenarioPlayerFactionsPatch.name] is ScenarioPlayerFactionsPatch
 
-    def test_it_is_experimental(self):
-        assert ScenarioPlayerFactionsPatch.experimental
+    def test_it_is_not_experimental(self):
+        """The module lives outside `experimental/`, so the attribute has to agree - the two are
+        the same fact, and `TestExperimentalPatchesAreDeclared` fails on either mismatch."""
+        assert not ScenarioPlayerFactionsPatch.experimental
 
 
 @pytest.mark.skipif(not _GAME_DAT.exists(), reason="needs the real game.dat")

@@ -16,6 +16,7 @@ from collections.abc import Iterable, Iterator
 from sage_ini.model.game import Game
 from sage_ini.parser.diagnostics import Diagnostic, Diagnostics
 from sage_ini.parser.location import Span
+from sage_utils import progress
 
 RULES: list[type["Rule"]] = []
 
@@ -44,7 +45,10 @@ def run_rules(game: Game, rules: Iterable[type[Rule]] | None = None) -> Diagnost
     registered rule except those marked `default = False`); pass an explicit list to run exactly
     those, opt-in rules included."""
     diagnostics = Diagnostics()
-    for rule_cls in default_rules() if rules is None else rules:
+    selected = default_rules() if rules is None else list(rules)
+    progress.phase("running rules", len(selected))
+    for rule_cls in selected:
+        progress.step(rule_cls.code)
         rule = rule_cls()
         try:
             diagnostics.items.extend(rule.check(game))

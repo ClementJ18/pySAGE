@@ -2,8 +2,8 @@
 
 An `Observation` is what a policy sees on a single logic frame. It is deliberately small:
 an object names its `ThingTemplate`, and every static fact about that template - cost,
-armour, weapons, build time, command points - is already available from `sage_ini` and
-`sage_mods.edain`. The consumer joins against data it holds, rather than the engine
+armour, weapons, build time, command points - is already available from `sage_ini` and a
+mod overlay (`sage_edain`). The consumer joins against data it holds, rather than the engine
 re-sending it every frame.
 
 Snapshots are frozen: a policy that mutates last frame's world is a bug class this rules

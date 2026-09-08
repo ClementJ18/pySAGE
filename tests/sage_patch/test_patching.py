@@ -1,5 +1,6 @@
 """Tests for the sage_patch binary-patch framework."""
 
+import argparse
 import inspect
 import itertools
 import logging
@@ -11,6 +12,12 @@ import pytest
 
 from sage_ini.engine import STOCK
 from sage_patch import CahFactionsPatch, CommandSetLimitPatch, Patch, apply_patches
+from sage_patch.addresses import (
+    CONTROL_BAR_MAX_VISIBLE,
+    CONTROL_BAR_RANGE_FETCH,
+    CONTROL_BAR_RANGE_FETCH_BYTES,
+    CONTROL_BAR_RANGE_FETCH_RESUME,
+)
 from sage_patch.cli import build_parser, main
 from sage_patch.patcher import EXPERIMENTAL_WARNING
 from sage_patch.patches import cah_factions as cf
@@ -53,6 +60,11 @@ _NUMBER_WORDS = {
     18: "eighteen",
     19: "nineteen",
     20: "twenty",
+    21: "twenty-one",
+    22: "twenty-two",
+    23: "twenty-three",
+    24: "twenty-four",
+    25: "twenty-five",
 }
 
 
@@ -386,6 +398,79 @@ class TestExperimentalPatchesAreDeclared:
         assert EXPERIMENTAL_WARNING not in caplog.text
 
 
+class TestPatchesAreListedInOneOrder:
+    """**Settled patches first, then the experimental ones, each block alphabetical.**
+
+    One order, decided once in the registry and inherited by everything that walks it, because a
+    reader who meets the patches in `list` and then again in `apply --help` is reading what they
+    take to be the same list; two orders make them re-scan it as if it were a different one. The
+    experimental split is the half that carries the warning - `exp` rows together at the end are
+    read as a block, `exp` rows scattered through ninety-odd settled ones are read past - and
+    alphabetical inside each block is what makes a name findable once it is known.
+
+    Registration order is deliberately *not* the presented order: the registry sorts, so a patch
+    added anywhere in `_REGISTERED` lands where it belongs in every list without anybody keeping
+    a hand-maintained order true."""
+
+    @staticmethod
+    def _expected() -> list[str]:
+        return sorted(PATCHES, key=lambda name: (PATCHES[name].experimental, name))
+
+    @staticmethod
+    def _subcommands(verb: str) -> list[str]:
+        """The patch sub-commands of `apply` / `verify`, in the order argparse will print them -
+        which is the order they were added in, which is the order the registry is walked in."""
+        root = next(
+            action
+            for action in build_parser()._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        patches = next(
+            action
+            for action in root.choices[verb]._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        return list(patches.choices)
+
+    def test_the_registry_is_in_that_order(self):
+        assert list(PATCHES) == self._expected()
+
+    def test_list_prints_its_rows_in_it(self, capsys):
+        assert main(["list"]) == 0
+        rows = [
+            line.split()[0]
+            for line in capsys.readouterr().out.splitlines()
+            if line[:1].isalnum() and line.split()[0] in PATCHES
+        ]
+        assert rows == self._expected()
+
+    def test_the_experimental_footer_is_alphabetical(self, capsys):
+        """The footer names them a second time, under the marker, and is read as the list of what
+        to be careful with - so it is alphabetical rather than in whatever order the rows fell."""
+        assert main(["list"]) == 0
+        named = capsys.readouterr().out.splitlines()[-1].strip().split(", ")
+        assert named == sorted(name for name, cls in PATCHES.items() if cls.experimental)
+
+    @pytest.mark.parametrize("verb", ["apply", "verify"])
+    def test_the_subcommand_lists_are_in_it(self, verb):
+        assert self._subcommands(verb) == self._expected()
+
+    def test_the_readme_walks_them_in_it_too(self):
+        """The one list nothing generates: the entry per patch in `sage_patch/README.md`, which is
+        where somebody browsing for a patch actually reads them. It covers most of the registry
+        rather than all of it, so what is checked is the relative order of the entries it does
+        carry - and, with it, that the experimental ones sit together at the end."""
+        found = re.findall(r"^- \*\*`([a-z0-9-]+)`\*\*", _PATCH_README.read_text("utf-8"), re.M)
+        named = [name for name in found if name in PATCHES]
+        assert len(named) > len(PATCHES) // 2, (
+            "the README's per-patch entries moved or changed shape"
+        )
+        assert named == [name for name in self._expected() if name in set(named)], (
+            "sage_patch/README.md lists its patch entries in a different order from `sage-patch "
+            "list` - settled first, then experimental, each block alphabetical by name"
+        )
+
+
 class TestNameTableTokensHaveAWorldbuilderTwin:
     """**The gate that keeps the editor loadable as name-table patches are added.**
 
@@ -572,6 +657,9 @@ def _synthetic_game_dat(base: int = 0x400000) -> bytearray:
     for off, old, _new, _note in probe._phase1_edits(64):
         highest = max(highest, off + len(old))
     highest = max(highest, cs._PARSER_TABLE_REF + 5, cs._GETFIELDPARSE_REF + 5)
+    highest = max(highest, cs._RANGE_FETCH_SITE + len(CONTROL_BAR_RANGE_FETCH_BYTES))
+    for off, anchor in cs._RANGE_LOOP_ANCHORS.items():
+        highest = max(highest, off + len(anchor))
     data = bytearray(align_up(highest + 0x400, 0x200))
     data[0:2] = b"MZ"
 
@@ -613,6 +701,13 @@ def _plant_commandset_sites(data: bytearray, base: int = 0x400000) -> None:
     data[cs._GETFIELDPARSE_REF : cs._GETFIELDPARSE_REF + 5] = b"\xb8" + struct.pack(
         "<I", cs._TABLE_VA
     )
+
+    # Phase 3: the visible-range fetch the clamp replaces, and the two uncapped loop heads it
+    # protects - which `apply` refuses to clamp unless it recognises them.
+    fetch = cs._RANGE_FETCH_SITE
+    data[fetch : fetch + len(CONTROL_BAR_RANGE_FETCH_BYTES)] = CONTROL_BAR_RANGE_FETCH_BYTES
+    for off, anchor in cs._RANGE_LOOP_ANCHORS.items():
+        data[off : off + len(anchor)] = anchor
 
     # Plant the original 34-entry field-parse table (33 numbered slots + InitialVisible).
     tab_foff = cs._TABLE_VA - base
@@ -661,6 +756,40 @@ class TestApplyProducesVerifiablePatch:
         highest_index_visited = count - 1
         count_field_index = (cs._ARRAY_OFF + count * 4 - cs._ARRAY_OFF) // 4
         assert highest_index_visited < count_field_index
+
+    @pytest.mark.parametrize("count", [MIN_COUNT, 64, MAX_COUNT])
+    def test_the_range_fetch_jumps_to_the_clamp(self, count):
+        """Phase 3 replaces the whole eleven-byte fetch with a jump into the cave, padded with
+        `nop` so the site keeps its length. The clamp sits past the table and the slot names."""
+        data = _synthetic_game_dat()
+        CommandSetLimitPatch(count=count).apply(data)
+        site = cs._RANGE_FETCH_SITE
+        written = bytes(data[site : site + len(CONTROL_BAR_RANGE_FETCH_BYTES)])
+        assert written[0] == 0xE9
+        assert written[5:] == b"\x90" * (len(CONTROL_BAR_RANGE_FETCH_BYTES) - 5)
+        new_va, _off, _vsize = find_section(data, cs._SECTION_NAME)
+        target = CONTROL_BAR_RANGE_FETCH + 5 + struct.unpack_from("<i", written, 1)[0]
+        assert target == new_va + cs._clamp_offset(count)
+
+    @pytest.mark.parametrize("count", [MIN_COUNT, 64, MAX_COUNT])
+    def test_the_clamp_carries_both_ceilings_and_returns(self, count):
+        """The routine bounds `start` by the array and the visible count by the 33 on-screen
+        widgets, then resumes at the instruction after the displaced fetch."""
+        code = cs.build_clamp(0xED3000, count)
+        assert b"\x83\xf8" + bytes([count]) in code  # cmp eax, N          (start vs the array)
+        assert b"\x83\xf9" + bytes([CONTROL_BAR_MAX_VISIBLE]) in code  # cmp ecx, 33
+        assert b"\xba" + struct.pack("<I", count) in code  # mov edx, N    (slots left after start)
+        resume = CONTROL_BAR_RANGE_FETCH_RESUME - (0xED3000 + len(code))
+        assert code.endswith(b"\xe9" + struct.pack("<i", resume))
+
+    def test_apply_refuses_a_build_whose_range_loops_moved(self):
+        """The clamp only means anything against the two uncapped loops it was derived from. A
+        build where those bytes differ is not this build, and is refused rather than clamped."""
+        data = _synthetic_game_dat()
+        site = next(iter(cs._RANGE_LOOP_ANCHORS))
+        data[site] ^= 0xFF
+        with pytest.raises(ValueError, match="ControlBar range loop"):
+            CommandSetLimitPatch(count=64).apply(data)
 
     def test_different_counts_produce_different_output(self):
         a, b = _synthetic_game_dat(), _synthetic_game_dat()

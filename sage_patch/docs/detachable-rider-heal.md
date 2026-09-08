@@ -2,7 +2,7 @@
 
 The RE behind [`patches/detachable_rider_heal.py`](../patches/detachable_rider_heal.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-08-19 from
-`sage_mods/edain/patching/engine/game.dat.backup`, with every site re-checked against the repo's
+`sage_patch/engine/game.dat.backup`, with every site re-checked against the repo's
 own `game.dat`.
 
 ## The gap

@@ -29,6 +29,9 @@ own `InitInstance` and its anchors are ~16 MB away in the file-system module, so
 
 :func:`worldbuilder_object_typeahead_image` is the fourth, and the only one that plants a resource:
 the object picker's dialog template lives in `.rsrc`, 5 MB past the class that opens it.
+
+:func:`script_debug_window_image` is the odd one out: it stands in for `DebugWindowLite.dll`, so it
+is the only image here built at a base other than `0x400000`.
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ import struct
 from sage_patch import addresses as ad
 from sage_patch.patches import ai_command_null_target as acnt
 from sage_patch.patches import ai_flag_capture_gate as afc
+from sage_patch.patches import ai_hero_build_delay as ahbd
 from sage_patch.patches import commandset_button_upgrade as cbu
 from sage_patch.patches import crash_dump as cd
 from sage_patch.patches import deploy_before_attack as dba
@@ -56,8 +60,10 @@ from sage_patch.patches import observer_command_range as ocr
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import production_condition as pc
 from sage_patch.patches import production_split as ps
+from sage_patch.patches import scenario_player_factions as spf
 from sage_patch.patches import skirmish_ai_fallback as saf
 from sage_patch.patches import trigger_recharge_list as trl
+from sage_patch.patches import upgrade_alias as ua
 from sage_patch.patches import upgrade_description as ud
 from sage_patch.patches import upgrade_grant_lists as ugl
 from sage_patch.patches import worldbuilder_mod as wbm
@@ -65,9 +71,11 @@ from sage_patch.patches import worldbuilder_object_typeahead as wbt
 from sage_patch.patches.experimental import battle_school as bs
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
+from sage_patch.patches.experimental import command_line_skirmish as cls
+from sage_patch.patches.experimental import interpolation_alpha as ia
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import render_rate as rrate
-from sage_patch.patches.experimental import scenario_player_factions as spf
+from sage_patch.patches.experimental import script_debug_window as sdw
 from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import spellbook_commandset_refresh as sbcsr
 from sage_patch.patches.experimental import standalone_launcher as sl
@@ -229,7 +237,6 @@ def synthetic_image() -> bytearray:
 
     for hook in hb.HOOKS:
         write(hook.va, hook.original)
-    write(hb.TOOLTIP_EDIT.va, hb.TOOLTIP_EDIT.original)
 
     return data
 
@@ -239,7 +246,11 @@ def synthetic_image() -> bytearray:
 WB_STRINGS_VA = 0x0056B000 + 0x800
 
 
-def _pe32(sections: list[tuple[str, int, bytes]], size_of_image: int) -> bytearray:
+def _pe32(
+    sections: list[tuple[str, int, bytes]],
+    size_of_image: int,
+    base: int = IMAGE_BASE,
+) -> bytearray:
     """A minimal PE32 whose section table maps ``(name, rva, content)``, in ascending RVA order.
 
     Several small sections rather than one big one is what keeps a synthetic image of a 34 MB
@@ -260,7 +271,7 @@ def _pe32(sections: list[tuple[str, int, bytes]], size_of_image: int) -> bytearr
     struct.pack_into("<H", data, e + 20, 0xE0)  # SizeOfOptionalHeader
     opt = e + 24
     struct.pack_into("<H", data, opt, 0x10B)  # PE32 magic
-    struct.pack_into("<I", data, opt + 28, IMAGE_BASE)
+    struct.pack_into("<I", data, opt + 28, base)
     struct.pack_into("<I", data, opt + 32, section_align)
     struct.pack_into("<I", data, opt + 36, file_align)
     struct.pack_into("<I", data, opt + 56, size_of_image)
@@ -373,12 +384,16 @@ def object_image_upgrade_worldbuilder_image() -> bytearray:
     )
 
 
-def _sparse_image(planted: dict[int, bytes]) -> bytearray:
+def _sparse_image(planted: dict[int, bytes], image_base: int = IMAGE_BASE) -> bytearray:
     """A PE32 mapping one section per touched page, each holding the bytes ``planted`` puts in it.
 
     Everything not planted reads as zero, which is what makes these images useful negatively as
     well: a patch that looked one instruction to either side of where it claims to would find
     nothing there.
+
+    ``image_base`` is a parameter because not every binary `sage_patch` targets is an executable:
+    a DLL stand-in has to answer `image_base()` with the DLL's own base, or every VA a patch looks
+    up lands in a different section.
     """
     pages: dict[int, bytearray] = {}
     for va, blob in planted.items():
@@ -388,10 +403,20 @@ def _sparse_image(planted: dict[int, bytes]) -> bytearray:
         pages.setdefault(base, bytearray(0x1000))[start : start + len(blob)] = blob
 
     sections = [
-        (f".s{index}", base - IMAGE_BASE, bytes(pages[base]))
+        (f".s{index}", base - image_base, bytes(pages[base]))
         for index, base in enumerate(sorted(pages))
     ]
-    return _pe32(sections, max(pages) - IMAGE_BASE + 0x1000)
+    return _pe32(sections, max(pages) - image_base + 0x1000, image_base)
+
+
+def upgrade_alias_image() -> bytearray:
+    """A stand-in carrying `UpgradeCenter::findUpgrade` and the two helpers its cave calls.
+
+    Sparse: the name-key generator's C-string overload sits ~1.2 MB below the lookup. The hooked
+    five bytes and the resume point two bytes on are planted adjacently, exactly as the real body
+    runs them, so a hook written one byte long would overwrite the resume point and fail here.
+    """
+    return _sparse_image({ua.HOOK_VA: ua.HOOK_ORIGINAL, **ua.ANCHORS})
 
 
 def observer_switch_image() -> bytearray:
@@ -515,6 +540,28 @@ def crash_dump_image() -> bytearray:
     )
 
 
+def desync_debug_image() -> bytearray:
+    """A stand-in carrying the three `.data` initialisers `desync-debug` writes.
+
+    Sparse and tiny: the patch has no code window at all, so all that has to exist is
+    `NetCRCInterval` holding its stock 100, the `-verifyClientCRC` gate holding 0, and the desync
+    focus frame holding its `-1` sentinel. `NET_CRC_INTERVAL` and the other two are ~0x4A00 apart,
+    which is two pages here rather than one.
+
+    Everything not planted reads as zero, which makes the image negative as well - and pointedly
+    so for this patch, because a zero is a *plausible* value at two of its three sites. A patch
+    that had the focus frame's address wrong by a dword would find 0 where the sentinel should be
+    and fail its stock-bytes assertion, which is the failure the real binary would give too.
+    """
+    return _sparse_image(
+        {
+            ad.NET_CRC_INTERVAL: struct.pack("<I", ad.NET_CRC_INTERVAL_STOCK),
+            ad.DESYNC_VERIFY_CLIENT_CRC_FLAG: bytes(1),
+            ad.DESYNC_FOCUS_FRAME: struct.pack("<I", ad.DESYNC_FOCUS_FRAME_UNSET),
+        }
+    )
+
+
 def ai_command_null_target_image() -> bytearray:
     """A stand-in carrying the AI command transfer check's faulting instruction and every site the
     null guard depends on.
@@ -542,6 +589,51 @@ def ai_flag_capture_gate_image() -> bytearray:
             ad.AI_FLAG_CAPTURE_RELATIONSHIP_TEST: ad.AI_FLAG_CAPTURE_RELATIONSHIP_TEST_BYTES,
             slot: struct.pack("<I", ad.AI_FLAG_CAPTURE_SQUAD_UPDATE),
             **afc.ANCHORS,
+        }
+    )
+
+
+#: How many `ArmyDefinition` rows the stand-in plants ahead of `HeroBuildOrder`, so that
+#: `entries_before` has the same number to count as it does in the real table. Only the row the
+#: patch repoints carries real contents; the rest exist to be counted and skipped by name.
+_ARMY_DEFINITION_ROWS = 29
+
+
+def ai_hero_build_delay_image() -> bytearray:
+    """A stand-in carrying the AI hero builder's gate site and the `ArmyDefinition` field table
+    whose `HeroBuildOrder` row the patch repoints.
+
+    Sparse, and for a reason the other AI stand-ins do not have: the two halves of this patch are
+    three megabytes apart - the gate is in the skirmish AI's hero builder, and the table is in
+    `.rdata`, reached through two instructions in the block parser a megabyte below it. The row is
+    located **by name**, so the table's name strings are planted too, on the page below it.
+    """
+    table = ad.ARMY_DEFINITION_FIELD_TABLE
+    strings_va = table & ~0xFFF
+    names = [f"Field{index}" for index in range(_ARMY_DEFINITION_ROWS)] + [ahbd.KEYWORD]
+
+    strings, pointers = bytearray(), []
+    for name in names:
+        pointers.append(strings_va + len(strings))
+        strings += name.encode("ascii") + b"\x00"
+
+    rows = bytearray()
+    for index, pointer in enumerate(pointers):
+        hero = index == _ARMY_DEFINITION_ROWS
+        parse = ad.INI_PARSE_STRING_LIST if hero else ad.INI_PARSE_REAL
+        offset = ad.ARMY_DEFINITION_HERO_BUILD_ORDER if hero else index * 4
+        rows += struct.pack("<IIII", pointer, parse, 0, offset)
+    rows += bytes(16)  # the NULL name the reader walks to
+
+    getter, call = ad.ARMY_DEFINITION_FIELD_TABLE_REFS
+    return _sparse_image(
+        {
+            strings_va: bytes(strings),
+            table: bytes(rows),
+            getter: b"\xb8" + struct.pack("<I", table),  # mov eax, <table>
+            call: b"\x68" + struct.pack("<I", table),  # push <table>
+            ad.AI_HERO_NAME_RESOLVED: ad.AI_HERO_NAME_RESOLVED_BYTES,
+            **ahbd.ANCHORS,
         }
     )
 
@@ -1247,3 +1339,50 @@ def deploy_before_attack_image() -> bytearray:
     either side of the ten-byte branch would find nothing there.
     """
     return _sparse_image({dba.HOOK_VA: dba.HOOK_ORIGINAL, **dba.ANCHORS})
+
+
+def command_line_skirmish_image() -> bytearray:
+    """A stand-in carrying both sites `command-line-skirmish` edits, and every anchor its cave
+    branches to.
+
+    Sparse because the two are two megabytes apart: the auto-start's nine-byte tail sits in
+    `GameEngine::init` and the progress update it null-guards is in the loading screen, with only
+    the two resume points and the two call targets between them mattering. Everything not planted
+    reads as zero, so a hook aimed one instruction to either side of either site finds nothing.
+    """
+    return _sparse_image(
+        {
+            ad.COMMAND_LINE_SKIRMISH_SETUP: ad.COMMAND_LINE_SKIRMISH_SETUP_BYTES,
+            ad.LOADING_SCREEN_PROGRESS: ad.LOADING_SCREEN_PROGRESS_BYTES,
+            **cls.ANCHORS,
+        }
+    )
+
+
+def interpolation_alpha_image() -> bytearray:
+    """A stand-in carrying `GameEngine::recomputeAlpha`, the catch-up escape that is the patch's
+    whole premise, and the 1.0f the cave subtracts and clamps against.
+
+    Sparse for the usual reason: the alpha routine and the catch-up loop are in the same page of
+    the pacing block but the float constant is 5.7 MB away in `.rdata`. Everything not planted
+    reads as zero, which makes the image negative too - a `comiss` against a constant one dword to
+    either side would be comparing against 0.0 rather than 1.0, and the anchor refuses it.
+
+    The escape is planted in its **always-runs** form, because that is the build this patch
+    corrects. `TestItRefusesAStockCatchUpLoop` re-plants the stock bytes to check the refusal.
+    """
+    return _sparse_image(
+        {
+            ad.ALPHA_RECOMPUTE: ad.ALPHA_RECOMPUTE_ENTRY + ad.ALPHA_RECOMPUTE_BODY_BYTES,
+            **ia.ANCHORS,
+        }
+    )
+
+
+def script_debug_window_image() -> bytearray:
+    """A stand-in for `DebugWindowLite.dll`, mapping only the pages `script-debug-window` reads.
+
+    Built at the DLL's own `0x10000000`, and sparse for the usual reason: the append method and
+    the two exports that call it sit in one page, while the import-using instructions that
+    identify the `GetDlgItem` and `SendMessageA` slots are up to 0xD000 away."""
+    return _sparse_image({**sdw.ANCHORS, sdw.HOOK_VA: sdw.HOOK_ORIGINAL}, image_base=0x10000000)

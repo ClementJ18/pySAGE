@@ -1,10 +1,10 @@
-"""Rebuild Edain replay-corpora's aggregate HTML pages.
+"""Rebuild a replay corpus's aggregate HTML pages.
 
-A corpus is a subfolder of `downloads/replays/` (e.g. `edain-4.8.4.3`); pass one or more
+A corpus is a subfolder of `downloads/replays/` (e.g. `rotwk202-9.7.7`); pass one or more
 folder names as positional arguments and each is built in turn. Corpora of different mods
 require a different game version installed at C:\\BFME2 / C:\\RotWK, and every corpus in one
 run resolves against the same install (loaded once and shared), so only build folders together
-when they share the installed game version (e.g. edain-4.8.4.3 and loriencup, both Edain).
+when they share the installed game version.
 Each corpus's pages land under its own folder name inside the output dir
 (`build/aggregate/` by default, which is not distributed with the repository), and that
 dir is the shared ROOT all corpora build into:
@@ -12,7 +12,7 @@ dir is the shared ROOT all corpora build into:
     build/aggregate/
       index.html                       global index over every corpus built here (this
                                         script also regenerates it every run, scanning disk)
-      <folder>/                        one corpus, e.g. edain-4.8.4.3/
+      <folder>/                        one corpus, e.g. rotwk202-9.7.7/
         index.html                     navigation index (corpus tiles, leaderboard, matrix)
         aggregate.html                 the combined report over every faction
         corpus.json                    summary metadata read back by the global index
@@ -27,21 +27,23 @@ Within a corpus, the overall index is the whole corpus plus a nav row to each pe
 count's per-faction pages. The player-count splits mirror the corpus layout: the replays live
 in `<corpus>/<mode>/` subfolders, one per player count.
 
-A corpus is resolved against the live BFME2 + RotWK/Edain installs. This mirrors `sage-edain
-replay-aggregate --html` with Edain's knowledge injected (economy/library research rows,
-CP-purchase depth, Dwarves split into their realm, Men split into Gondor/Arnor/Belfalas by the
-map's Gondor roster, Imladris's Lichtbringer element toggles nested under the Loremaster, and
-the Mordor summons / Leuchtfeuer signal-fire casts that field permanent units counted as
-ordinary recruits) and `--matchups` on.
+A corpus is resolved against the live BFME2 + RotWK installs. This mirrors `sage-replay
+aggregate --html --matchups`, driven by the corpus's own `settings.json` rather than by
+hard-coded knowledge of any one mod: this script stays engine-generic. A mod overlay that
+knows more than the raw recording does - which faction a pick really belongs to, which
+powers field permanent units, which upgrades are worth a row - injects that through the
+aggregate hooks from its own package. The Edain overlay does exactly that, in its own copy
+of this script in the pySAGE-edain repository.
 
 Most corpora are one mod version, resolved against that version installed at the `--game` roots
-in a single pass. A tournament played across two Edain releases is instead one corpus whose
+in a single pass. A tournament played across two releases is instead one corpus whose
 replays span two patches, and recordings from different patches do not simulate identically, so
 each patch must be parsed under its own installed game version. Such a corpus carries a
 hand-maintained `versions.json` beside its replays (so the label map travels with the corpus): the
 first run over a multi-patch corpus generates it with one blank entry per patch fingerprint and
 stops, reporting each fingerprint's replay count and a couple of example filenames so you can fill
-every entry with its version name (e.g. "Edain 4.8.5"). A rerun then makes one pass per version,
+every entry with its version name (e.g. "RotWK 2.02 v9.7.7"). A rerun then makes one pass per
+version,
 prompting you to switch the install(s) at the `--game` roots to that version before each pass
 (just press Enter when the first version is already installed), and pools every pass into the one
 aggregate tree - pooling across patches is the whole point of a tournament corpus. Each version's
@@ -81,7 +83,7 @@ localisation file: a `{code name: display string}` map. Each corpus picks its fi
 `settings.json` beside its replays - a single `"names"` key whose path resolves relative to the
 corpus folder (an absolute path passes through) - and the files live under `downloads/names/`,
 one per mod: hand translations carry over between corpora of the same mod, whose code names
-recur release to release (edain-4.8.4.3 and loriencup share edain_names.json), but not across
+recur release to release (two corpora of one mod share its names file), but not across
 mods, whose code names diverge. `--names` overrides the settings.json for one run. Each
 rebuild adds any code name it renders that the file is missing, with an empty string to fill
 in by hand. A filled entry renders as `display string (code name)` - the raw code name stays
@@ -100,7 +102,7 @@ counts the global index reads) and regenerates `<out>/index.html`: a landing pag
 corpus folder found on disk under `<out>/` (each one this script has ever built), pulling its
 headline numbers from its own corpus.json when present.
 
-Run from anywhere:  python tools/rebuild_aggregates.py edain-4.8.4.3 [loriencup ...]
+Run from anywhere:  python tools/rebuild_aggregates.py rotwk202-9.7.7 [<folder> ...]
 Override the paths with --corpus-root / --game / --out if your installs live elsewhere;
 --names bypasses the corpus's settings.json for one run, and --title overrides the
 folder-derived default corpus title. `--index-only` regenerates just the global index from
@@ -130,16 +132,6 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))  # allow running this file directly, not just as a module
 
-from sage_mods.edain.replay import (  # noqa: E402
-    FACTION_ICONS,
-    ICONS_DIR,
-    IGNORED_RECRUITS,
-    TRACKED_PURCHASES,
-    TRACKED_UPGRADES,
-    edain_faction_refiner,
-    edain_power_recruits,
-    edain_upgrade_recruits,
-)
 from sage_replay.aggregate import (  # noqa: E402
     Corpus,
     _absorb,
@@ -194,8 +186,7 @@ def _rel(path: Path) -> Path:
 
 
 _SETTINGS_SHAPE = (
-    'expected {"names": "../../names/<mod>_names.json", "edain": true|false, '
-    '"factions": {"<code>": "<display>", ...}}'
+    'expected {"names": "../../names/<mod>_names.json", "factions": {"<code>": "<display>", ...}}'
 )
 
 
@@ -231,10 +222,12 @@ def _resolve_names_path(corpus_dir: Path) -> Path:
 
 
 def _faction_relabeler(mapping: dict[str, str]):
-    """A generic `FactionRefiner` for a non-Edain corpus: relabel a raw faction code name to
-    the display name the corpus's `settings.json` `factions` map gives it, so the aggregation
-    key is the shown faction name (a code the map doesn't list passes through unchanged). Unlike
-    Edain's refiner it reads no stats/map/game - a vanilla faction is fixed at the lobby pick."""
+    """The corpus's `FactionRefiner`: relabel a raw faction code name to the display name
+    the corpus's `settings.json` `factions` map gives it, so the aggregation key is the
+    shown faction name (a code the map doesn't list passes through unchanged). It reads no
+    stats/map/game - a faction the lobby pick already fixes needs nothing else. A mod whose
+    lobby pick is *not* the faction played (one code covering several rosters) replaces this
+    with a refiner of its own, which is what the hook is for."""
 
     def refine(label: str, stats, data, map_file) -> str:
         return mapping.get(label, label)
@@ -265,16 +258,18 @@ def _drop_excluded(corpus: Corpus, exclude: frozenset[str]) -> int:
     return dropped
 
 
-def _copy_icons(dest: Path, faction_icons: dict[str, str]) -> int:
-    """Copy the faction emblems (`sage_mods/edain/icons/*.webp`) named in `faction_icons` into the
-    site at `dest`, returning how many landed. They live once per corpus, beside its indexes, so
-    a corpus stays a movable, self-relative unit; a missing source file is skipped so a partial
-    icon set still builds. A non-Edain corpus ships no emblems (`faction_icons` empty), so
-    nothing is copied."""
+def _copy_icons(dest: Path, faction_icons: dict[str, str], source: Path | None) -> int:
+    """Copy the faction emblems named in `faction_icons` out of `source` into the site at
+    `dest`, returning how many landed. They live once per corpus, beside its indexes, so a
+    corpus stays a movable, self-relative unit; a missing source file is skipped so a partial
+    icon set still builds. A corpus that ships no emblems (`faction_icons` empty, or no
+    `source`) copies nothing and renders without them."""
+    if not faction_icons or source is None:
+        return 0
     dest.mkdir(parents=True, exist_ok=True)
     copied = 0
     for name in sorted(set(faction_icons.values())):
-        src = ICONS_DIR / name
+        src = source / name
         if src.is_file():
             shutil.copy2(src, dest / name)
             copied += 1
@@ -285,7 +280,7 @@ def _icon_urls(page_dir: Path, icons_dir: Path, faction_icons: dict[str, str]):
     """A `FactionIcon` for a page living in `page_dir`: a faction label -> its emblem's URL
     relative to that page (`""` when the faction ships no icon), so the same shared `icons_dir`
     is addressed correctly from the corpus root, a mode split, or a `factions/` subfolder. With
-    an empty `faction_icons` (a non-Edain corpus) every label resolves to no icon."""
+    an empty `faction_icons` every label resolves to no icon."""
     prefix = relpath(icons_dir, page_dir).replace("\\", "/")
 
     def icon(label: str) -> str:
@@ -588,7 +583,7 @@ def render_corpora_index(out: Path, display_names: dict[str, str]) -> str:
     if not entries:
         lines.append(
             '<p class="meta">No corpus has been built here yet - run this script with a '
-            "corpus folder name (e.g. edain-4.8.4.3) to build one.</p>"
+            "corpus folder name (e.g. rotwk202-9.7.7) to build one.</p>"
         )
     else:
         lines.extend(
@@ -613,7 +608,7 @@ def main(argv: list[str] | None = None) -> int:
         "folders",
         nargs="*",
         metavar="folder",
-        help="corpus subfolder(s) under --corpus-root to build, in order (e.g. edain-4.8.4.3 "
+        help="corpus subfolder(s) under --corpus-root to build, in order (e.g. rotwk202-9.7.7 "
         "loriencup); folders built together must share the installed game version",
     )
     parser.add_argument(
@@ -777,17 +772,23 @@ def _build_corpus(
             parser.error(str(error))
     print(f"names file: {_rel(names_path)}")
 
-    # The corpus's overlay, from its settings.json: `edain` true injects Edain's faction refiner,
-    # fielding-power recruits, ignored recruit, and tracked upgrade/purchase tables (and its
-    # shipped emblems); false is a generic corpus that only relabels raw faction code names to
-    # the display names in the `factions` map (see `_faction_relabeler`) and tracks nothing
-    # Edain-specific. --names overrides the names file but not the overlay - that is a property
-    # of the corpus, not the run.
+    # Everything this script knows about a corpus comes from its settings.json: the display
+    # names its raw faction codes relabel to, the labels to drop, the upgrades never worth a
+    # row, and the emblems to copy in. --names overrides the names file but nothing else -
+    # the rest is a property of the corpus, not of the run.
     try:
         settings = _load_settings(corpus_dir)
     except ValueError as error:
         parser.error(str(error))
-    edain = bool(settings.get("edain", False))
+    if settings.get("edain"):
+        # This script is engine-generic; the Edain overlay lives in the pySAGE-edain
+        # repository and ships its own copy, wired to the same aggregate hooks. Refusing
+        # beats quietly building the corpus without the knowledge it asked for.
+        parser.error(
+            f'"edain": true in {corpus_dir / "settings.json"} - the Edain overlay moved to the '
+            "pySAGE-edain repository; build this corpus with that repo's copy of "
+            "tools/rebuild_aggregates.py, or drop the key to build it generically."
+        )
     faction_map = settings.get("factions") or {}
     if not isinstance(faction_map, dict):
         parser.error(f'"factions" in {corpus_dir / "settings.json"} must be a code -> name object')
@@ -811,26 +812,25 @@ def _build_corpus(
             "upgrade code names"
         )
     ignore_upgrades = frozenset(ignore_upgrades)
-    if edain:
-        refine_faction = edain_faction_refiner
-        power_recruits = edain_power_recruits
-        upgrade_recruits = edain_upgrade_recruits
-        ignore_recruits = IGNORED_RECRUITS
-        tracked_upgrades = TRACKED_UPGRADES
-        tracked_purchases = TRACKED_PURCHASES
-        faction_icons = FACTION_ICONS
-        print(
-            "overlay: Edain (refiner, power/upgrade recruits, tracked upgrades/purchases, emblems)"
+    # Faction emblems: a `{aggregation label: filename}` map plus the folder those files sit
+    # in (`icons/` beside the replays unless `icon_dir` says otherwise, resolved relative to
+    # the corpus). Both optional - a corpus without them renders text-only faction rows.
+    faction_icons = settings.get("faction_icons") or {}
+    if not isinstance(faction_icons, dict):
+        parser.error(
+            f'"faction_icons" in {corpus_dir / "settings.json"} must be a label -> filename object'
         )
-    else:
-        refine_faction = _faction_relabeler(faction_map)
-        power_recruits = None
-        upgrade_recruits = None
-        ignore_recruits = frozenset()
-        tracked_upgrades = frozenset()
-        tracked_purchases = frozenset()
-        faction_icons = {}
-        print(f"overlay: generic ({len(faction_map)} faction name(s), no Edain-specific tracking)")
+    icon_source = corpus_dir / (settings.get("icon_dir") or "icons")
+    refine_faction = _faction_relabeler(faction_map)
+    power_recruits = None
+    upgrade_recruits = None
+    ignore_recruits: frozenset[str] = frozenset()
+    tracked_upgrades: frozenset[str] = frozenset()
+    tracked_purchases: frozenset[str] = frozenset()
+    print(
+        f"corpus: {len(faction_map)} faction name(s), "
+        f"{len(faction_icons)} emblem(s), {len(exclude)} excluded label(s)"
+    )
 
     def _cache_file(replay_path: Path) -> Path:
         """The replay's document in the mirrored cache tree: `<cache root>/<same relative
@@ -977,8 +977,8 @@ def _build_corpus(
                     f'[{examples}] = "{labels.get(fingerprint, "")}"{mark}'
                 )
             print(
-                'fill each blank label with its version name (e.g. "Edain 4.8.5"), then rerun to '
-                "build the pooled corpus."
+                'fill each blank label with its version name (e.g. "RotWK 2.02 v9.7.7"), '
+                "then rerun to build the pooled corpus."
             )
             return 1
 
@@ -1074,15 +1074,15 @@ def _build_corpus(
     # each to its display string (blank/absent -> the raw code name). The per-mode splits are
     # subsets of the overall corpus, so the overall aggregate already carries every label.
     combined = _aggregate(corpus.games)
-    # The names file translates pick labels (buildings/units/...). A non-Edain corpus already
-    # names its factions through the settings `factions` map, so those display names are the
-    # aggregation labels themselves and don't belong in the names file - drop every faction label
-    # (each aggregate's own, plus every matchup enemy) so it isn't re-added there as a blank.
+    # The names file translates pick labels (buildings/units/...). The corpus already names
+    # its factions through the settings `factions` map, so those display names are the
+    # aggregation labels themselves and don't belong in the names file - drop every faction
+    # label (each aggregate's own, plus every matchup enemy) so it isn't re-added there as a
+    # blank.
     labels = _collect_labels(combined)
-    if not edain:
-        faction_labels = {agg.faction for agg in combined}
-        faction_labels |= {enemy for agg in combined for enemy in agg.matchups}
-        labels -= faction_labels
+    faction_labels = {agg.faction for agg in combined}
+    faction_labels |= {enemy for agg in combined for enemy in agg.matchups}
+    labels -= faction_labels
     # The corpus folder name is itself a translatable code name (its blank entry surfaces here
     # like any pick label), so the whole corpus can be given a display name by hand. Tracked
     # upgrade rows seed their display string from the upgrade's own DisplayName, so they never
@@ -1213,7 +1213,10 @@ def _build_corpus(
     # The faction emblems, copied once into the corpus root; every page in the tree (and its
     # mode splits) links them from here, relative to its own depth (see `_icon_urls`).
     icons_dir = out_root / "icons"
-    print(f"copied {_copy_icons(icons_dir, faction_icons)} faction icon(s) -> {_rel(icons_dir)}")
+    print(
+        f"copied {_copy_icons(icons_dir, faction_icons, icon_source)} faction icon(s) -> "
+        f"{_rel(icons_dir)}"
+    )
 
     # The overall tree at this corpus's own output root (everything, plus the nav to each
     # split and back up to the global corpora index), then one mirroring subtree per present

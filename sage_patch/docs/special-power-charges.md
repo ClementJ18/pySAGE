@@ -2,7 +2,7 @@
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR); file offset is
 `VA - 0x400000` for everything cited here. Read **statically** on 2026-08-20 from
-[`../../sage_mods/edain/patching/engine/game.dat.backup`](../../sage_mods/edain/patching/engine/game.dat.backup)
+`sage_patch/engine/game.dat.backup`
 (11,346,432 bytes) with `pefile` + `capstone` - the clean reference, not the repo-root `game.dat`,
 which carries eleven modifications. **Nothing below has been observed in a running game.**
 

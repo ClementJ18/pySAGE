@@ -5,8 +5,14 @@ This cannot: it treats every offset as a possible instruction start, so it produ
 positives but never a false negative. A window with no hits here is definitively unreachable
 by a direct branch."""
 import struct, sys, pefile
+from pathlib import Path
 
-PATH = r"C:\Users\Clement\Documents\GitHub\pySAGE\sage_mods\edain\patching\engine\game.dat.backup"
+# The clean reference binary (gitignored, supplied per checkout); override with argv[1].
+PATH = (
+    sys.argv[1]
+    if len(sys.argv) > 1
+    else str(Path(__file__).resolve().parents[1] / "engine" / "game.dat.backup")
+)
 pe = pefile.PE(PATH, fast_load=True); BASE = pe.OPTIONAL_HEADER.ImageBase
 DATA = open(PATH, "rb").read()
 sec = next(s for s in pe.sections if s.Name.rstrip(b"\x00") == b".text")

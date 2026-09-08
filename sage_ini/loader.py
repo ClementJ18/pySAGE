@@ -18,6 +18,7 @@ from sage_ini.parser.io import iter_asset_files, iter_map_files
 from sage_ini.parser.location import Span
 from sage_ini.stats import as_root_list, ini_root, is_map_path, root_files
 from sage_ini.strings import load_string_locations, load_strings
+from sage_utils import progress
 
 __all__ = ["LoadedGame", "load_game", "load_map", "map_files"]
 
@@ -111,12 +112,15 @@ def load_game(
             winner[key] = index  # a later (higher-priority) layer overwrites the winner
         per_layer.append(entries)
 
+    progress.phase("building", len(winner))  # one file per winning relative path
     for index, entries in enumerate(per_layer):
         for key, path, reported in entries:
             if winner[key] == index:
+                progress.step(str(path))
                 _load_into(game, diagnostics if reported else None, path, layers)
 
     # Strings: highest-priority root first (first definition wins), then overlays and bases.
+    progress.phase("reading string tables")
     string_layers = [*reversed(roots), *overlays, *bases]
     game.strings.update(load_strings(string_layers[0], tuple(string_layers[1:])))
     locations: dict[str, Span] = {}
@@ -127,6 +131,7 @@ def load_game(
 
     # Index assets and map layouts from every layer so a mod reference to a base-game asset
     # resolves. Membership-only, so layer order and duplicate names are immaterial.
+    progress.phase("indexing assets and maps")
     for source in (*roots, *overlays, *bases):
         game.assets.update(path.name.lower() for path in iter_asset_files(source))
         game.map_files.extend(iter_map_files(source))

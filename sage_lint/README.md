@@ -28,6 +28,14 @@ python -m sage_lint duplicates <dir> [--min-lines N] [-v]
 python -m sage_lint rename <dir> <old> <new> [--table objects] [--apply]
 ```
 
+`lint` and `format` show a live status line while they work - the file being built, the
+rule being run, the map being checked - so a long run on a big mod is not a silent
+terminal. It is written to stderr and rubbed out when the run ends, leaving stdout as
+exactly the report a pipe or an editor plugin reads. It is on at a terminal and off when
+the output is redirected (where it degrades to one plain line per phase with
+`--progress always`); `--progress never` silences it, and a `--quiet` run is silent
+already.
+
 ## Renaming a definition
 
 `rename` moves a definition's name and every reference to it in one pass. References come from
@@ -35,6 +43,11 @@ the typed model - fields (including lists, tuples and `KeyedRecord` keys), a `Co
 numbered slots, a `ChildObject`'s parent, and the `#define` body a field reaches a name through -
 so the rewrite follows the reference graph rather than grepping for a string. Matching is
 case-insensitive, the way the engine resolves names.
+
+A descriptive upgrade alias is rewritten through, not around: `Upgrade_Old@SmithyLevel2` becomes
+`Upgrade_New@SmithyLevel2`, since the alias annotates the reference and is not part of the name.
+The annotation itself is never a rename target, so an upgrade that happens to share its spelling
+is not rewritten inside somebody else's annotation.
 
 ```sh
 python -m sage_lint rename <dir> OldSword NewSword          # report the plan, write nothing
@@ -126,8 +139,8 @@ stops the run.
 
 `sage_lint` also exposes game-aware `.map` linting, which resolves script arguments and
 object references against the assembled game (see [`sage_map`](../sage_map)). Standalone,
-game-data-free map checks live in `sage_map.checks`, with mod-specific rule sets under the
-mod package (`sage_mods.edain.map_checks`).
+game-data-free map checks live in `sage_map.checks`, with mod-specific rule sets in the mod's
+own overlay package (`sage_edain.map_checks`, in [pySAGE-edain](https://github.com/ClementJ18/pySAGE-edain)).
 
 ## Desktop UI
 

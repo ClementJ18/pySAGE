@@ -100,6 +100,11 @@ STOCK_LIMITS: dict[str, int] = {
     # How many buttons the ControlBar can draw at once - a fixed-size UI array, untouched by the
     # patch that raises the slot count. Listed so a future patch that does widen it has a name.
     "commandset.max_visible_buttons": 33,
+    # Whether the engine trims an oversized visible-command window instead of running off the
+    # end of `m_command[]` and the ControlBar's widget array. 0 on the stock build, where the
+    # overshoot is a crash; the commandset-limit patch sets it to 1, which makes the same INI a
+    # cosmetic bug (blank slots) rather than a fatal one.
+    "commandset.range_clamped": 0,
 }
 
 

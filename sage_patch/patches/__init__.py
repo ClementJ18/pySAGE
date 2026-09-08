@@ -23,6 +23,7 @@ from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatc
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
+from sage_patch.patches.experimental.wotr_battle_observers import WotrBattleObserversPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
@@ -51,6 +52,7 @@ from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
+from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
 
@@ -103,5 +105,7 @@ __all__ = [
     "UniqueProductionIdPatch",
     "UnitPlateOptionPatch",
     "UpgradeDescriptionPatch",
+    "UpgradeAliasPatch",
     "UpgradeGrantListsPatch",
+    "WotrBattleObserversPatch",
 ]

@@ -3,11 +3,15 @@
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR), derived from a
 stock `game.dat` (11,349,504 bytes) and the `lotrbfme2ep1.exe` shipped beside it (499,712 bytes).
 
-- **Cost:** three bytes, one per gate. No cave, no section, no structure grows, no INI keyword.
-- **Risk:** low. Every edit turns a `jcc` into a `jmp` with the same displacement, so the patched
-  control flow is a path the stock binary already takes — just unconditionally.
-- **Status:** **built** — see [`patches/multi_instance.py`](../patches/multi_instance.py).
-  **Runtime-verified in game.**
+- **Cost:** five bytes across four gates. No cave, no section, no structure grows, no INI keyword.
+- **Risk:** low for the three launch gates — each turns a `jcc` into a `jmp` with the same
+  displacement, so the patched control flow is a path the stock binary already takes, just
+  unconditionally. The fourth, the LAN join gate, removes a branch rather than forcing one.
+- **Status:** **built** — see [`patches/multi_instance.py`](../patches/multi_instance.py). The
+  three launch gates are **runtime-verified in game**; the LAN gate is **static only**.
+- **It removes a licence check.** The fourth gate stops a LAN host refusing a joiner for sharing
+  its serial, which is what makes two clients on one machine able to play each other at all. That
+  belongs in a development build and not in anything shipped to players.
 
 ```
 sage-patch apply multi-instance          --in game.dat.backup        --out game.dat
@@ -26,11 +30,13 @@ quits. For anyone testing a mod that is a real cost: two clients on one machine 
 a network match, compare a change against an unchanged build side by side, or watch a replay while
 the game that produced it is still open.
 
-## Three gates, not one
+## Four gates, not one
 
 The message comes from the launcher, so that is where the search starts — but removing it only
-reveals the next gate. All three are the same construction: name a mutex, `CreateMutex`, read
-`GetLastError` for `ERROR_ALREADY_EXISTS` (`0xB7`), branch.
+reveals the next gate. The first three are the same construction: name a mutex, `CreateMutex`, read
+`GetLastError` for `ERROR_ALREADY_EXISTS` (`0xB7`), branch. The fourth is not a launch gate at all
+and was found only once the first three worked and the two clients tried to reach each other; it is
+below, under *Two clients on one machine*.
 
 ### 1. The launcher's message — `lotrbfme2ep1.exe`
 
@@ -177,9 +183,12 @@ rather than one.
 | `lotrbfme2ep1.exe` | `0x004092F5` | `3D B7 00 00 00 75 42` | `3D B7 00 00 00 EB 42` | the message |
 | `game.dat` | `0x00402AFB` | `3D B7 00 00 00 75 5A` | `3D B7 00 00 00 EB 5A` | the silent abort |
 | `game.dat` | `0x00402C6E` | `E8 1A CA 23 00 84 C0 74 2D` | `E8 1A CA 23 00 84 C0 EB 2D` | the wait loop |
+| `game.dat` | `0x0098AAA4` | `74 08` | `90 90` | the LAN duplicate-serial deny |
 
-Only the opcode byte changes in each; the `rel8` displacement is untouched, so every branch still
-lands exactly where it landed before. `CreateMutex` still runs and its handle is still closed on
+Only the opcode byte changes in the first three; the `rel8` displacement is untouched, so every
+branch still lands exactly where it landed before. The fourth is the other shape — the branch *is*
+the refusal, so there is no path to force and it is removed instead, leaving control to fall into
+the instruction after it, which is where a non-matching serial already went. `CreateMutex` still runs and its handle is still closed on
 the normal path — the mutex remains a correct "a copy of the game is running" signal for anything
 else that reads it, it simply no longer stops a launch. The probe call at `0x00402C6E` is likewise
 left standing rather than `nop`ped out; it has no effect beyond its own handle, and keeping it
@@ -200,5 +209,43 @@ path resolution rather than a branch.
 
 Networking is untested and there is no command-line escape hatch for it: `game.dat` has no `-port`
 option (the only port controls in the build are the `GameData` INI fields `FirewallPortOverride`
-and `FirewallPortAllocationDelta`). Whether two clients on one machine can see each other on LAN
-has not been checked.
+and `FirewallPortAllocationDelta`).
+
+**Two clients on one machine cannot join each other — measured 2026-09-06.** The second instance
+launches, sees the game and is refused on join with *"your serial is already in use"*. That message
+is `WOL:ChatErrorSerialDup` (`0x00C049D0`), and it is reached through the **LAN** error table:
+`0x00648BA7` switches a code 0-9 through the jump table at `0x00648C2A` onto ten strings, of which
+nine are `LAN:Error*` and the tenth — **code 5** — is this one. So the refusal is produced by a
+copy of the game, not by an online service, which is what makes it patchable in principle.
+
+### The check, and the two bytes that remove it
+
+Found 2026-09-06. It is the fourth gate this patch defuses, at `0x0098AAA4`.
+
+The refusal is built by the **host**. Its `MSG_REQUEST_JOIN` handler is `0x0098A7F1`, reached
+through the LAN message dispatcher at `0x0084D851` (`cmp eax, 0x13`, table at `0x0084DEC9`, case 3;
+the type names are the debug table at `0x0084C96B`, where `MSG_JOIN_DENY` is type 5). The handler
+walks its eight slots and compares each occupant's serial against the joiner's:
+
+```asm
+0098a9d9  cmp  [ebp-0x10], 8            ; for each of the 8 slots
+0098a9e9  call 0x0084A419               ; GameInfo::getSlot(i)
+0098aa2a  call 0x0064148E               ;   slot 0 -> the host's own \ergc, from the registry
+0098aa45  call 0x009897EC               ;   any other -> that slot's stored serial
+0098aa8f  push 0x17                     ; 23 characters
+0098aa91  add  ecx, 0x3a                ;   the joiner's serial, at packet+0x3A
+0098aa99  call [0x00BD056C]             ; msvcr71!strncmp
+0098aaa4  je   0x0098AAAE               ; equal -> deny
+0098aaa6  inc  [ebp-0x10]               ; else -> next slot
+0098aab1  [ebp-0x208] = 5               ; MSG_JOIN_DENY
+0098aab7  [ebp-0x1bc] = 5               ; reason 5 -> WOL:ChatErrorSerialDup
+```
+
+Two instances of one install read one registry value, so the comparison always matches. The patch
+turns the `je` at `0x0098AAA4` into two `nop`s: an equal serial then takes the loop's own continue
+path, and the handler's other five reasons — game full, game started, duplicate name, CRC mismatch,
+game gone — are untouched, as is the loop that reads the serials.
+
+The serial's own read at `0x0078D847` is a **different** consumer: its only caller (`0x007917C4`)
+is in the online-login region, which is why that lead looked cold at first. The LAN path reaches
+the same registry value through `0x0064148E` inside the loop above.

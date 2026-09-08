@@ -28,10 +28,10 @@ ASSET_NAMES = frozenset({"py.typed"})
 EXCLUDED_DIRS = ("sage_lint/plugins/sublime",)
 
 # Build-time-only assets: consumed by a PyInstaller spec, never opened by the running package, so
-# they have no reason to sit in the wheel. `worldbuilder.ico` is the icon PyInstaller *embeds* in
-# the launcher exe (`icon=[ICON]` in sage-edain-worldbuilder.spec, with an empty `datas`) - unlike
-# every other icon here, which the Qt windows load from disk at runtime and so must ship.
-EXCLUDED_FILES = ("sage_mods/edain/worldbuilder.ico",)
+# they have no reason to sit in the wheel. An icon PyInstaller *embeds* in an exe (`icon=[ICON]`
+# in a spec, with an empty `datas`) belongs here - unlike every icon a Qt window loads from disk
+# at runtime, which must ship. Empty today: every asset under a shipped package is a runtime one.
+EXCLUDED_FILES: tuple[str, ...] = ()
 
 
 def _pyproject() -> dict:
@@ -75,8 +75,11 @@ def _runtime_assets() -> list[Path]:
 
 
 def test_the_tree_actually_contains_assets_to_check():
-    """Guards the guard: a bad glob or a moved package must not make this file vacuously pass."""
-    assert len(_runtime_assets()) > 20
+    """Guards the guard: a bad glob or a moved package must not make this file vacuously pass.
+
+    A floor well under the current count, not a target - a package leaving the repo (as the mod
+    overlays did) legitimately lowers it, and only a collapse to near-nothing is a broken glob."""
+    assert len(_runtime_assets()) > 12
 
 
 def test_exemptions_still_point_at_something():
@@ -140,7 +143,7 @@ def test_ci_runs_every_declared_entry_point():
     """Every console and GUI script must be exercised by CI's `package` job - the CLIs with
     `--help`, the desktop apps by asserting they name their missing extra. The lists there are
     hand-written shell loops, so a newly added entry point is silently uncovered until something
-    checks: `sage-edain-horde` shipped exactly that way, and four CLIs had drifted out with it.
+    checks - a GUI script once shipped exactly that way, with four CLIs drifted out beside it.
     Parses only pyproject.toml and the workflow text, so it runs in the core suite."""
     project = _pyproject()["project"]
     declared = set(project["scripts"]) | set(project["gui-scripts"])

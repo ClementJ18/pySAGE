@@ -27,6 +27,11 @@ import pytest
 from sage_patch import FoundationRebindPatch, apply_patches
 from sage_patch.patches.foundation_rebind import (
     ANCHORS,
+    CASTLE_BEHAVIOR_VTABLE,
+    CASTLE_KEEP_OFFSET,
+    CASTLE_ON_STRUCTURE_BUILT,
+    CASTLE_STATE_OCCUPIED,
+    CASTLE_STATE_OFFSET,
     DESTROY_OBJECT,
     FIND_OBJECT_BY_ID,
     FOUNDATION_BUILT_ON_OFFSET,
@@ -39,9 +44,11 @@ from sage_patch.patches.foundation_rebind import (
     OBJECT_BUILT_BACK_LINK_OFFSET,
     OBJECT_ID_OFFSET,
     OBJECT_PRODUCER_ID_OFFSET,
+    OBJECT_TEMPLATE_OFFSET,
     RING_SIZE,
     RING_SLOTS,
     SECTION_NAME,
+    TEMPLATE_CASTLE_KEEP_BYTE,
     build_section,
 )
 from sage_patch.utils import find_section, va_to_offset
@@ -223,6 +230,7 @@ def test_the_cave_leaves_only_by_the_engine_routines_it_names(image: bytearray) 
     assert {target for kind, target in external if kind == "call"} == {
         FIND_OBJECT_BY_ID,
         GET_FOUNDATION_INTERFACE,
+        CASTLE_ON_STRUCTURE_BUILT,
     }
     assert {kind for kind, _target in external} == {"jmp", "call"}
 
@@ -245,13 +253,14 @@ def test_hook_two_reads_the_frame_slots_the_stock_code_fills(image: bytearray) -
     assert reads == {hex(-FRAME_OLD_ID), hex(-FRAME_NEW_OBJECT)}
 
 
-def test_the_cave_touches_only_the_four_object_fields_it_documents(image: bytearray) -> None:
+def test_the_cave_touches_only_the_fields_it_documents(image: bytearray) -> None:
     """Every structure access, by offset: the occupant field on the plot's foundation interface,
-    and the id, producer and back-link fields on an `Object`. A stray offset here is a write into
-    an unrelated member of a live object, which nothing else in the suite would catch."""
+    the id, producer, back-link and template fields on an `Object`, the two `CastleBehavior`
+    fields, and the `KindOf` byte. A stray offset here is a write into an unrelated member of a
+    live object, which nothing else in the suite would catch."""
     displacements = set()
     for i in _disassembled(_patched(image)):
-        for register in ("eax", "ebx", "ecx", "esi", "esp"):
+        for register in ("eax", "ebx", "ecx", "edx", "esi", "esp"):
             marker = f"[{register} + "
             if marker in i.op_str:
                 displacements.add(int(i.op_str.split(marker)[1].split("]")[0], 16))
@@ -260,9 +269,61 @@ def test_the_cave_touches_only_the_four_object_fields_it_documents(image: bytear
         OBJECT_ID_OFFSET,
         OBJECT_PRODUCER_ID_OFFSET,
         OBJECT_BUILT_BACK_LINK_OFFSET,
-        4,  # the ring slot's second dword, the plot id
+        OBJECT_TEMPLATE_OFFSET,  # also the ring slot's second dword, the plot id
+        CASTLE_STATE_OFFSET,
+        CASTLE_KEEP_OFFSET,
+        TEMPLATE_CASTLE_KEEP_BYTE,
         0x10,  # hook 1's `[esp+0x10]`, the argument destroyObject is about to be given
     }
+
+
+def test_the_castle_path_is_taken_only_on_a_castle_holding_a_keep(image: bytearray) -> None:
+    """The three guards in front of `onStructureBuilt`, by encoding, because each one prevents a
+    different disaster: the vtable test keeps the two castle-only fields off a plain
+    `FoundationAIUpdate` module, the `CASTLE_KEEP` test keeps the call off a replacement the
+    castle would file as a member and never make the occupant, and the keep test is what stops
+    the adoption destroying the very object it was given (`0x0079ACAD` -> `0x0079AD06`)."""
+    data = _patched(image)
+    _va, off, vsize = _cave(data)
+    code = bytes(data[off + RING_SIZE : off + vsize])
+
+    assert code.count(b"\x81\x3a" + struct.pack("<I", CASTLE_BEHAVIOR_VTABLE)) == 1
+    assert code.count(bytes([0xF6, 0x82]) + struct.pack("<I", TEMPLATE_CASTLE_KEEP_BYTE)) == 1
+    # cut the stale keep, then refuse unless it really is clear
+    assert code.count(bytes([0x83, 0x62, CASTLE_KEEP_OFFSET, 0x00])) == 1
+    assert code.count(bytes([0x83, 0x7A, CASTLE_KEEP_OFFSET, 0x00])) == 1
+
+
+def test_the_castle_discriminator_is_the_vtable_the_ctor_writes(image: bytearray) -> None:
+    """`CastleBehavior` and `FoundationAIUpdate` share the interface vtable at `module+0x20`, so
+    the only thing separating them is the one the castle ctor stores at `module+0x00`. If this
+    drifted, the patch would write `m_keepID` and the occupancy state into whatever a plain
+    foundation module keeps at those offsets."""
+    ctor = ANCHORS[0x0079A932]
+    assert bytes([0xC7, 0x06]) + struct.pack("<I", CASTLE_BEHAVIOR_VTABLE) in ctor
+    # and the same ctor is what zeroes the two fields, which is why they read as an empty plot
+    assert ctor.startswith(bytes([0x89, 0x46, CASTLE_STATE_OFFSET, 0x89, 0x46, CASTLE_KEEP_OFFSET]))
+
+
+def test_the_occupancy_state_is_what_the_capture_tick_gates_on(image: bytearray) -> None:
+    """`0x00798468` is the whole reason this patch writes `module+0x34`: the capture tick runs
+    only when that dword is zero, so a plot that keeps its occupant but not its state is
+    capturable while occupied."""
+    gate = ANCHORS[0x00798468]
+    assert bytes([0x39, 0x5E, CASTLE_STATE_OFFSET]) in gate  # cmp [esi+0x34], ebx
+    # the value written is the one the stock adoption at 0x0079B734 writes beside its own call
+    adopt = ANCHORS[0x0079B72F]
+    expected = bytes([0xC7, 0x46, CASTLE_STATE_OFFSET]) + struct.pack("<I", CASTLE_STATE_OCCUPIED)
+    assert expected in adopt
+
+
+def test_the_keep_offset_is_the_one_on_structure_built_writes(image: bytearray) -> None:
+    """Both ends of the keep: the adoption stores the new object's id into `module+0x38`, and the
+    castle's own update polls that field against `findObjectByID` every frame."""
+    adoption = ANCHORS[0x0079ACA1]
+    assert bytes([0x89, 0x46, CASTLE_KEEP_OFFSET]) in adoption  # mov [esi+0x38], eax
+    assert bytes([0x83, 0x7E, CASTLE_KEEP_OFFSET, 0x00]) in adoption  # the second-keep reject
+    assert ANCHORS[0x00799B13].startswith(bytes([0xFF, 0x76, CASTLE_KEEP_OFFSET]))  # the poll
 
 
 def test_hook_one_cuts_the_link_get_built_behavior_would_follow(image: bytearray) -> None:

@@ -2,7 +2,7 @@
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR); the file offset
 is `VA - 0x400000` for everything cited here. Read from
-`sage_mods/edain/patching/engine/game.dat.backup` (11,346,432 bytes — the clean Edain backup), and
+`sage_patch/engine/game.dat.backup` (11,346,432 bytes — the clean Edain backup), and
 every site cited below is byte-identical in the repo's own `game.dat`.
 
 **Verdict up front: the behaviour is already written, twice.** `HordeContain` already notices its

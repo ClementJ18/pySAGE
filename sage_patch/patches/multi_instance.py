@@ -56,8 +56,10 @@ __all__ = [
     "MultiInstancePatch",
 ]
 
-#: The one-byte encoding of ``jmp rel8``, which every guard's conditional jump becomes.
+#: The one-byte encoding of ``jmp rel8``, which an always-taken guard's conditional jump becomes.
 JMP_SHORT = 0xEB
+#: What a never-taken guard's conditional jump becomes instead, both bytes of it.
+NOP = 0x90
 
 
 class Guard(NamedTuple):
@@ -66,7 +68,14 @@ class Guard(NamedTuple):
     ``va`` addresses ``run_up``, not the jump: asserting the instructions that compute the
     condition alongside the jump is what stops a two-byte ``75 xx`` somewhere else in a different
     build from being mistaken for this site. ``opcode`` and ``displacement`` are the stock ``jcc
-    rel8``; only ``opcode`` is rewritten, so the branch keeps its target and its length.
+    rel8``.
+
+    Two shapes, because the gates are not all the same shape. Where the branch **skips** a refusal,
+    ``always_taken`` leaves the displacement alone and rewrites only the opcode, so the branch keeps
+    its target and its length and the patched path is one the stock binary already takes. Where the
+    branch **is** the refusal, there is no such path to force: the jump is replaced by two ``nop``
+    and control falls into the instruction after it, which is where the non-refusing case already
+    went.
     """
 
     va: int
@@ -74,6 +83,7 @@ class Guard(NamedTuple):
     opcode: int
     displacement: int
     note: str
+    always_taken: bool = True
 
     @property
     def stock(self) -> bytes:
@@ -81,7 +91,9 @@ class Guard(NamedTuple):
 
     @property
     def patched(self) -> bytes:
-        return self.run_up + bytes((JMP_SHORT, self.displacement))
+        if self.always_taken:
+            return self.run_up + bytes((JMP_SHORT, self.displacement))
+        return self.run_up + bytes((NOP, NOP))
 
 
 #: ``cmp eax, 0xB7`` — the ``GetLastError`` test all three gates share, and the run-up asserted
@@ -104,6 +116,17 @@ GAME_GUARDS = (
         displacement=0x2D,
         note="WinMain wait-for-other-instance loop",
     ),
+    Guard(
+        va=0x0098AA8C,
+        # The host's MSG_REQUEST_JOIN handler comparing one slot's serial with the joiner's:
+        # mov ecx, [ebp+8] / push 0x17 / add ecx, 0x3a / add eax, 8 / push ecx / push eax /
+        # call [msvcr71!strncmp] / add esp, 0xc / test eax, eax
+        run_up=bytes.fromhex("8b4d086a1783c13a83c0085150ff156c05bd0083c40c85c0"),
+        opcode=0x74,  # je 0x0098AAAE -> deny the join
+        displacement=0x08,
+        note="LAN duplicate-serial join deny",
+        always_taken=False,
+    ),
 )
 
 #: Calls that pin :data:`GAME_GUARDS` to the code that really is the instance check, asserted
@@ -115,6 +138,10 @@ GAME_FINGERPRINT = {
     0x00402B0B: bytes.fromhex("ff150409bd00"),  # call FindWindowW, in the arm being cut off
     0x0063F699: bytes.fromhex("ff151c02bd00"),  # call CreateMutexA, inside the probe
     0x00402C77: bytes.fromhex("e843ca2300"),  # call 0x0063F6BF, the wait loop itself
+    # The arm the fourth guard stops reaching, and what makes that site unmistakable: `push 5`
+    # into both the outgoing message type (MSG_JOIN_DENY) and the deny reason the joiner renders
+    # as `WOL:ChatErrorSerialDup`.
+    0x0098AAAE: bytes.fromhex("6a05588985f8fdffff898544feffff"),
 }
 
 LAUNCHER_GUARDS = (
@@ -210,9 +237,10 @@ class MultiInstancePatch(_MutexGuardPatch):
     name = "multi-instance"
     author = "officialNecro"
     description = (
-        "Remove game.dat's one-instance-at-a-time limit: the silent WinMain abort and the wait "
-        "loop that asks the running copy to quit. Needs multi-instance-launcher as well. No INI "
-        "change"
+        "Remove game.dat's one-instance-at-a-time limit: the silent WinMain abort, the wait loop "
+        "that asks the running copy to quit, and the LAN host's refusal to let a second client "
+        "with the same serial join. That last one removes a licence check, so this belongs in a "
+        "development build. Needs multi-instance-launcher as well. No INI change"
     )
 
     binary = "game.dat"

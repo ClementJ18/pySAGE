@@ -21,11 +21,13 @@ else is evidence feeding it.
 | [`merge-player-army.md`](merge-player-army.md) | **Built.** BFME1's `MergePlayerArmy` traced end to end — it moves `ArmyEntry` records, with `SplitArmyTemplate` as the manifest — and the RotWK re-implementation, shipped with `DespawnArmy` as [`campaign-army-verbs`](../../patches/experimental/campaign_army_verbs.py). Establishes that the Act struct is `0xB8` bytes with three spare, so no new verb can add a per-act list. |
 | [`hero-permadeath.md`](hero-permadeath.md) | **Resolved, both games measured.** Both BFME1 and RotWK harvest a battle back into the living-world army. The single difference: BFME1 keeps a hero with no surviving object **in his army**; RotWK moves him **out**, to the fortress hero-spawn queue, re-buyable with his upgrades. Includes the BFME1 control experiment, the failed `Default`/`SurvivalThreshhold` fix, and the four wrong readings on the way. |
 | [`battle-sides.md`](battle-sides.md) | Who plays in a battle. `SidesList`'s two arrays, the `Player_1` = owner / `Player_2` = attacker convention, the `AddPlayer` trace, and the unresolved `m_sides` prune. |
+| [`mp-battle-participation.md`](mp-battle-participation.md) | **Built, static only.** Why a co-op War of the Ring battle auto-resolves: one gate at `0x006BEBE5` forces it whenever the battle has fewer participants than the session has humans. The gate exists because `buildSidesFromGameInfo` names sides by slot index and leaves a non-participant with no seat. Shipped as [`wotr-battle-observers`](../../patches/experimental/wotr_battle_observers.py), which seats them on the engine's own observer path instead. |
 | [`mission-objectives.md`](mission-objectives.md) | The objectives system is entirely intact and already authored — the only system in this investigation where nothing was removed. |
 | [`objectives-in-any-map.md`](../objectives-in-any-map.md) | Why the objectives button opens the player list outside the linear campaign, and the shipped [`objectives-screen`](../../patches/objectives_screen.py) patch that fixes it. |
 | [`living-world-menu-entry.md`](living-world-menu-entry.md) | `AptMainMenu::OnTutorial("Strategic")` is a menu-driven Living World launcher that **no shipped movie calls**. The route to a shippable menu entry. |
 | [`act-advance-stall.md`](act-advance-stall.md) | **Scoped, not yet measured.** Why a scripted act sometimes stops until you zoom out and back in. An act advances only when the turn phase reaches 6, and the phase is braked in four places by the strategic message-box gate — a box marked showing whose dialog was never pushed to `TheAptPlayer` freezes the campaign, and the camera round trip runs the overlay re-show hook that releases it. Carries the live read that separates the candidates and the `living-world-box-watchdog` patch scope. |
-| [`scenario-player-factions.md`](../scenario-player-factions.md) | Who may play what in a WotR scenario: `DisabledFactions` has no player in it, `StartingRestriction`'s faction filter is skipped for a `HistoricalScenario`, and the four readers a per-player rule has to reach. The [`scenario-player-factions`](../../patches/experimental/scenario_player_factions.py) patch. |
+| [`script-holder.md`](script-holder.md) | **Measured 2026-09-04.** `LivingWorldCampaign`'s `ScriptHolder` names a WorldBuilder layout the campaign loads as its strategic session, at `LivingWorldScripts\<name>\<name>.lws`, and game mode 8 is the living-world mode. The file loads; its scripts never run, because no player in a living-world session has a script list at all. Also: why the "Game crash" box localises nothing. |
+| [`scenario-player-factions.md`](../scenario-player-factions.md) | Who may play what in a WotR scenario: `DisabledFactions` has no player in it, `StartingRestriction`'s faction filter is skipped for a `HistoricalScenario`, and the four readers a per-player rule has to reach. The [`scenario-player-factions`](../../patches/scenario_player_factions.py) patch. |
 
 ## The findings that changed the picture
 
@@ -69,7 +71,7 @@ the patch adds BFME1's army rule without removing ROTWK's own. See
 [`hero-permadeath.md`](hero-permadeath.md).
 
 Two more built but not played, both `experimental` and both static-only:
-[`scenario-player-factions`](../../patches/experimental/scenario_player_factions.py) — `DisabledFactions`
+[`scenario-player-factions`](../../patches/scenario_player_factions.py) — `DisabledFactions`
 gains a `:N` player qualifier, so a scenario can pin a faction to a lobby slot instead of only to the
 scenario (fifty-eight tests) — and
 [`campaign-army-verbs`](../../patches/experimental/campaign_army_verbs.py), which restores BFME1's
@@ -87,6 +89,7 @@ scenario (fifty-eight tests) — and
 | 3 | Does `AptMainMenu::OnTutorial("Strategic")` work at all? | [`living-world-menu-entry.md`](living-world-menu-entry.md) |
 | 4 | Is `tracker->[0x10]` reset between maps? | [`objectives-in-any-map.md`](../objectives-in-any-map.md) |
 | 6 | Which candidate in [`act-advance-stall.md`](act-advance-stall.md) §5 is the real stall? | needs one live read while stuck — §6 lists it in order |
+| 7 | What installs a map's script lists onto players, and why does no player in a living-world session get one? | the blocker for `ScriptHolder` - [`script-holder.md`](script-holder.md) §5 |
 | 5 | What does `ArmyCarryoverPoints` do? | [`living-world-parity.md`](living-world-parity.md) §3 — lower priority now that `SurvivalThreshhold` is the identified knob |
 
 ~~**Nothing in this investigation has been run against the game.**~~ **Out of date as of

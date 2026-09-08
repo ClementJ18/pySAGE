@@ -1,7 +1,7 @@
 # `MAX_SLOTS` — more than 8 players in one game
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), verified against the
-clean `sage_mods/edain/patching/engine/game.dat.backup`
+clean `sage_patch/engine/game.dat.backup`
 (`md5 08b9e9c3c79ad70af3dcc973bdcdd66a`).
 
 **Verdict up front:** this one is tractable, and it is *not* the wall that
