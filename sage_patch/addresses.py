@@ -25,6 +25,20 @@ addresses were confirmed statically and, for `GAME_LOGIC_UPDATE`, by the hook fi
 from __future__ import annotations
 
 __all__ = [
+    "SPM_FRAME_HOOK",
+    "SPM_FRAME_HOOK_BYTES",
+    "SPM_FRAME_RESUME",
+    "SPM_MUSIC_POP",
+    "SPM_MUSIC_PUSH",
+    "SPM_MUSIC_RESUME",
+    "SPM_SCRIPT_MUSIC_PUSH",
+    "SPM_STOCK_ANCHORS",
+    "SPM_TEMPLATE_ID",
+    "SPM_THE_AUDIO",
+    "SPM_TIME_GET_TIME_IAT",
+    "SPM_TRIGGER_HOOK",
+    "SPM_TRIGGER_HOOK_BYTES",
+    "SPECIAL_POWER_NOTIFY_TRIGGERED_AND_PLAY_INITIATE_AUDIO",
     "ABILITY_MODULEDATA_SPECIAL_POWER",
     "ABILITY_TRIGGER",
     "ABILITY_TRIGGER_MODULEDATA_EBP",
@@ -1853,6 +1867,43 @@ DO_SPECIAL_POWER_SITES = (
 #: `SpecialPowerTemplate`: `0x88` bytes, id at `+0x14`, `UnitCost`/`UnitCostDeathType` the last
 #: two fields. The ctor zeroes both at `0x007B2007`/`0x007B200D`, so there is no padding to hide
 #: a new field in and the struct has to grow.
+# RotWK 2.01, SHA256 948bac5ed89e33c605ac8b7e5c901e4b2554d953bc35b4ca3be4d7ff7c46cbd8.
+# Verified against game.dat.backup and the MusicSkriptParameter disassembly, 2026-09-09.
+# These are VAs. The CALL returns the final template in EAX; a pending push 0 at
+# 0x89718B belongs to the later AudioEvent constructor, NOT to this no-argument call.
+SPECIAL_POWER_NOTIFY_TRIGGERED_AND_PLAY_INITIATE_AUDIO = 0x0089713F
+SPM_TRIGGER_HOOK = 0x0089718C
+SPM_TRIGGER_HOOK_BYTES = bytes.fromhex("e8ab1bdfff")
+# After the application frame and profiling end, before frame pacing. +0x0C of
+# subsystem vtables is an init lifecycle callback, not an established frame update.
+SPM_FRAME_HOOK = 0x00639EEB
+SPM_FRAME_HOOK_BYTES = bytes.fromhex("e9ff000000")
+SPM_FRAME_RESUME = 0x00639FEF
+SPM_TIME_GET_TIME_IAT = 0x00BD0920  # WINMM!timeGetTime, DWORD milliseconds, stdcall ()
+SPM_THE_AUDIO = 0x00DE42FC  # AudioManager* global, not the vtable
+SPM_MUSIC_PUSH = 0x00459EC2  # vtable +0x84; thiscall (AudioEvent*, immediate), ret 8
+SPM_MUSIC_POP = 0x00455242  # +0x88; thiscall (channel, level, immediateOut, immediateIn), ret 16
+SPM_MUSIC_RESUME = 0x00456192  # +0x94; same arguments, music channel=0, level=1, ret 16
+# thiscall, ret 24: (AsciiString* name, fadeOut, noFadeIn, count, flag*, level).
+# Resolves the music name (+0x12C), constructs AudioEvent, tags the local player,
+# sets count, and calls +0x84. An empty flag skips all ScriptEngine flag work.
+# The level is written into AudioEvent +0x78 at 0x7C0F34. The push consumer
+# 0x45D313 indexes channel*2 + level; the Resume consumer 0x457EBF only returns
+# to a lower level when the requested level equals the current one. Use level 1,
+# reserving level 0 for normal scripting. A level-0 push cannot be undone by Resume(0, 1).
+SPM_SCRIPT_MUSIC_PUSH = 0x007C0EB8
+# Assigned by 0x7B1ACD before INI parsing and copied by 0x7B1E6C. This is the
+# store's numeric template ID, NOT a NameKey; the actual name is AsciiString +0x10.
+SPM_TEMPLATE_ID = 0x14
+
+# Short ABI anchors for routines called directly by the music cave. Hook windows
+# alone do not prove that a different executable has the same audio-action ABI.
+SPM_STOCK_ANCHORS = {
+    SPM_MUSIC_POP: bytes.fromhex("b8eb1bb700e8a47c5e0083ec1453"),
+    SPM_MUSIC_RESUME: bytes.fromhex("b8eb1bb700e8546d5e0083ec1453"),
+    SPM_SCRIPT_MUSIC_PUSH: bytes.fromhex("b82970b900e82ec0270081ec88000000"),
+}
+
 SPECIAL_POWER_TEMPLATE_SIZE = 0x88
 SPECIAL_POWER_UNIT_COST = 0x80
 
