@@ -1,9 +1,9 @@
 # Persistent spellbook CommandSet refresh
 
-**Status: experimental; core function runtime-verified in game.** The automatic patch switched
-the permanently visible left spellbook bar both for a normal CommandSetUpgrade and for a set built through
-`commandset-button-upgrade`'s new `CommandButtons` field. It does **not** change the separately
-opened spellstore window.
+**Status: stable for the supported scope below; runtime-verified in game.** The automatic patch
+switches the permanently visible left spellbook bar both for a normal CommandSetUpgrade and for a
+set built through `commandset-button-upgrade`'s new `CommandButtons` field. The added spells were
+used successfully. It does **not** change the separately opened spellstore window.
 
 ## Diagnosis and binary identity
 
@@ -54,7 +54,7 @@ function, both caller windows and helper ABI windows are fingerprinted before an
 Verify checks the same untouched bytes, exact detour and exact cave. The public Object getter
 may be detoured by another patch; its original call target, not an immutable prologue, is pinned.
 
-## ABI, isolation and residual risks
+## ABI, isolation and supported scope
 
 The hook is a JMP, not a CALL. No extra stack frame is introduced. ESI/EDI remain callee-saved
 across the three helpers; the first two take no stack arguments and the lookup consumes its one
@@ -68,32 +68,34 @@ UnUpgrade/re-evaluation cycle, or spellstore are modified. The transient cleared
 observed during normal re-evaluation is not patched out. `THE_IN_GAME_UI` keeps its existing
 meaning and address.
 
-The successful cases establish the core purpose, but do not yet justify graduation under the
-repository's deliberately conservative definition: the patch changes a regularly invoked path
-and the lifecycle and multiplayer cases below have not run in game. It changes only five stock
-bytes, has exact whole-function and helper-ABI fingerprints, reuses the stock rebuild path, and
-has no INI or persistent-data format. Remaining risks do not currently indicate a concrete
-defect, but bound what has and has not been demonstrated:
+The patch is graduated from experimental after successful normal play, a 20-minute online
+multiplayer match, replay playback, repeated transitions between player 1, observer and player 2,
+whole-CommandSet changes, individual CommandButton overlays and actual use of the added spells.
+Repeated execution produced no visible slowdown or flicker. These runs exercise both important
+arms: the stock rebuild for a changed Player and the added same-Player comparison.
 
-- It compares `CommandSet *` identity. Mutating the contents of the same set in place will not
-  invalidate the bar; `commandset-button-upgrade` creates/chooses distinct sets for different
-  overlay combinations, which is why the tested composition is covered.
-- A same-Player update performs up to three extra existing calls. This is client UI work, but a
-  very large increase in UI update frequency has not been profiled over long sessions.
-- Loss of a SpellBookObject or a failed set lookup changes the cached pointer to null through the
-  stock path. The null and recovery paths are structurally and execution-tested, but were not
-  among the reported in-game cases.
-- `Player::getSpellBookObject` can initialize its own cached ObjectID. Stock already calls it on
-  Player changes, but this patch can call it on same-Player updates too. Tests preserve its ABI;
-  they cannot prove that this extra cache initialization is irrelevant to every synced-state path.
-- The engine's observer, save/load, reconnect, multiplayer and replay machinery is not modified.
-  Tests exercise the cache's Player/null branches, not those end-to-end lifecycles; none of these
-  sessions was part of the reported playtest.
-- The reference build has the SHA-256 above. Installation checks exact cache/helper fingerprints,
-  not the whole-file hash, so other patches on disjoint bytes can compose. Another executable
+The stable contract is deliberately narrow:
+
+- It targets the original RotWK `game.dat` 2.01.2614.37001 identified above. Installation checks
+  exact cache/helper fingerprints rather than only trusting the version string. Another executable
   version needs new reverse engineering rather than reused VAs.
+- Every multiplayer peer must use an identical patched binary. The online test met that condition;
+  mixed binaries are unsupported.
+- The intended trigger is a permanently granted `PlayerUpgrade`. Revoking and regranting upgrades
+  is not part of the supported gameplay contract, although the generated-code tests exercise the
+  resulting pointer changes.
+- Invalidation compares `CommandSet *` identity. Mutating one CommandSet allocation in place will
+  not refresh the bar. `CommandSetUpgrade` and `commandset-button-upgrade` select or create distinct
+  sets, so the supported paths satisfy this requirement.
 
-## Verification and remaining in-game coverage
+Within an ordinary match the Player's SpellBookObject is expected to persist. The defensive null,
+loss and recovery branches remain structurally and execution-tested for teardown, load or
+reinitialization paths. `Player::getSpellBookObject` may initialize its cached ObjectID, but the
+same-binary multiplayer and replay tests showed no divergence. A same-Player update still performs
+up to three existing helper calls; extended repeated play showed no visible performance impact.
+No concrete defect remains known within the supported scope.
+
+## Verification and runtime coverage
 
 The data-free tests execute the emitted cave against mocked engine calls (including volatile
 register clobbers and stack cleanup), check the stock write/marking boundaries, reject changed
@@ -103,16 +105,11 @@ and verify an in-memory copy of the clean backup, including both orders with
 
 The address audit decodes the actual rel32 calls, globals and vtable slots from that backup,
 including the stock Apply/setter/UI chain. Tests pin the 75-byte emitted refresh code to the
-in-game-tested version. Repeated-update execution tests cover upgrade/revoke, stable-pointer
-no-op, loss/recovery of the Object and Player changes. None substitutes for a multiplayer or
-save/load session.
+runtime-tested version. Repeated-update execution tests cover upgrade/revoke, stable-pointer no-op,
+loss/recovery of the Object and Player changes.
 
-To remove an already installed diagnostic guard, regenerate the patched game.dat from this clean
-backup with the updated patch list. Deleting its Python module does not undo a detour in an
-existing binary. No installed game.dat is modified as part of this source-code cleanup.
-
-The core visible result is established. Useful follow-up coverage is still to revoke/regrant,
-change Player/observer context, save/load, replay and leave the set unchanged through a long
-session while watching for repeated rebuilding or flicker. Until a mixed-binary multiplayer test
-shows otherwise, use the same patched binary on every peer; presentation-only intent is not enough
-to dismiss the helper's internal cache write without runtime evidence.
+Runtime coverage now includes normal play, 20 minutes of online multiplayer with identical
+binaries, CommandSet and individual CommandButton changes, successful activation of the added
+spells, replay playback, repeated player/observer switching and extended repeated checks without
+visible performance degradation. Save/load during an active match and mixed-binary multiplayer
+remain unclaimed rather than release blockers for the supported scope.

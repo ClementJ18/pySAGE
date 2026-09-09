@@ -1,20 +1,21 @@
 """Refresh the persistent spellbook bar when its Object's resolved CommandSet changes.
 
-Original RotWK game.dat 2.01.2614.37001; see ``../../docs/spellbook-commandset-refresh.md``.
+Original RotWK game.dat 2.01.2614.37001; see ``../docs/spellbook-commandset-refresh.md``.
 The stock function's game-state and player-validity gates remain in front of the hook. A player
 change takes the original path. With the same non-null player, resolve the Object's current set
 and compare pointers: only a difference re-enters the stock cache store / button-marking path.
 
-Runtime-verified in game for CommandSet switching, including the CommandButtons extension.
-Pointer-stable edits, lifecycle paths and long-session / multiplayer behaviour are not covered;
-the patch therefore remains experimental. The stock CommandSetUpgrade UI tail stays untouched.
+Runtime-verified in ordinary play, online multiplayer and replay playback for CommandSet switching,
+including the CommandButtons extension and repeated observer/player changes. The supported use is
+the exact reference build, identical multiplayer binaries and permanently granted PlayerUpgrades.
+The stock CommandSetUpgrade UI tail stays untouched.
 """
 
 from __future__ import annotations
 
 import struct
 
-from ...addresses import (
+from ..addresses import (
     COMMAND_SET_STORE_FIND_COMMAND_SET,
     OBJECT_GET_COMMAND_SET_STRING,
     PLAYER_GET_SPELLBOOK_OBJECT,
@@ -27,9 +28,9 @@ from ...addresses import (
     SPELLBOOK_UI_UPDATE_COMMAND_BUTTON,
     THE_COMMAND_SET_STORE,
 )
-from ...asm import JE, JNE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JE, JNE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -126,7 +127,6 @@ class SpellbookCommandSetRefreshPatch(Patch):
 
     name = "spellbook-commandset-refresh"
     author = "Ostkannit"
-    experimental = True
     description = (
         "Makes the CommandSetUpgrade work for the Spellbook-Object "
         "by letting the game refresh its cache afterwards"

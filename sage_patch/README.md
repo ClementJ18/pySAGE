@@ -19,13 +19,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Twenty-three of the registered patches — **`battle-school`**, **`campaign-select`**,
+> Twenty-two of the registered patches — **`battle-school`**, **`campaign-select`**,
 > **`capture-the-flag`**, **`command-line-skirmish`**, **`cooldown-through-death`**,
 > **`headless`**, **`hero-army-carryover`**, **`hero-mana`**, **`live-bridge`**,
 > **`living-world-override`**, **`map-transition`**, **`mod-load-order`**, **`multi-mod`**,
 > **`recharge-rescale`**, **`render-rate`**, **`script-debug-window`**, **`second-resource`**,
-> **`smart-rally`**, **`special-power-charges`**, **`spellbook-commandset-refresh`**
-> **`standalone-launcher`**, **`unit-plate-option`** and **`wotr-battle-observers`** — are
+> **`smart-rally`**, **`special-power-charges`**, **`standalone-launcher`**,
+> **`unit-plate-option`** and **`wotr-battle-observers`** — are
 > **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -1221,6 +1221,15 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   `AptSpellStore::initializeSpellSlots` is redirected; the shared selector at `0x0071F933` and all
   its other callers remain stock. Closing and reopening the SpellStore re-evaluates the table.
   Runtime selection and fallback have been verified in-game. The patch is intentionally scoped to the SpellStore callsite and composes with the existing PlayerTemplate field-table extension mechanism. The two helper ABIs remain reverse-engineered (HIGH confidence), so the implementation keeps explicit byte assertions, bounds checks, and stock fallback behavior. See  [`docs/spell-store-upgrade.md`](docs/spell-store-upgrade.md).
+- **`spellbook-commandset-refresh`** checks the persistent left spellbook bar's resolved
+  CommandSet even while the Player stays the same, rebuilding only on a pointer change. It is
+  separate from the spellstore window, leaves CommandSetUpgrade's stock UI tail unchanged and
+  adds no INI or persistent format. **Runtime-verified in normal play, a 20-minute online match
+  with identical binaries, replay playback, repeated player/observer changes, whole-CommandSet
+  switches and `commandset-button-upgrade` overlays whose new spells were used successfully.**
+  Supported for the original RotWK `game.dat` 2.01.2614.37001 with permanently granted
+  PlayerUpgrades; in-place mutation of one existing CommandSet remains outside its pointer-based
+  invalidation contract. See [the implementation and validation record](docs/spellbook-commandset-refresh.md).
 - **`terrain-resource-exp`** adds a **`GiveNoXP`** boolean to `TerrainResourceBehavior`, so a
   resource spot can pay its owner without levelling its own building. The module hands the integer
   it just deposited to the building's `ExperienceTracker` on every income tick, and no INI field
@@ -1734,13 +1743,6 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   a spellbook is an ordinary object and its spells ordinary `SpecialPowerModule` /
   `OCLSpecialPower` / `PlayerUpgradeSpecialPower` behaviours. See
   [`docs/special-power-charges.md`](docs/special-power-charges.md).
-- **`spellbook-commandset-refresh`** checks the persistent left spellbook bar's resolved
-  CommandSet even while the Player stays the same, rebuilding only on a pointer change. Separate
-  from the spellstore window and leaves CommandSetUpgrade's stock UI tail unchanged. No INI
-  change. **Its core function is runtime-verified in game**, both for an ordinary CommandSet
-  switch and with `commandset-button-upgrade`'s `CommandButtons` in Singleplayer and Multiplayer; 
-  it remains experimental pending lifecycle, long-session and multiplayer checks. See
-  [the cache investigation and residual risks](docs/spellbook-commandset-refresh.md).
 - **`standalone-launcher`** ⚠**(experimental)** is the one patch here aimed at **`lotrbfme2ep1.exe`**, the launcher
   shim, and it lets a **relocated install still hand the game a usable token**. Finding and
   starting `game.dat` needed no patch and never did — the shim `chdir`s into its own image

@@ -63,6 +63,7 @@ from sage_patch.patches import production_condition as pc
 from sage_patch.patches import production_split as ps
 from sage_patch.patches import scenario_player_factions as spf
 from sage_patch.patches import skirmish_ai_fallback as saf
+from sage_patch.patches import spellbook_commandset_refresh as sbcsr
 from sage_patch.patches import trigger_recharge_list as trl
 from sage_patch.patches import upgrade_alias as ua
 from sage_patch.patches import upgrade_description as ud
@@ -80,7 +81,6 @@ from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import render_rate as rrate
 from sage_patch.patches.experimental import script_debug_window as sdw
 from sage_patch.patches.experimental import smart_rally as sr
-from sage_patch.patches.experimental import spellbook_commandset_refresh as sbcsr
 from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls

@@ -9,9 +9,10 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
+from sage_patch.patches import SpellbookCommandSetRefreshPatch as Exported
 from sage_patch.patches import commandset_button_upgrade as buttons
+from sage_patch.patches import spellbook_commandset_refresh as refresh
 from sage_patch.patches.commandset_button_upgrade import CommandSetButtonUpgradePatch
-from sage_patch.patches.experimental import spellbook_commandset_refresh as refresh
 from sage_patch.registry import PATCHES
 from sage_patch.utils import allocate_section, find_section, va_to_offset
 
@@ -36,14 +37,16 @@ def _at(data: bytes | bytearray, va: int, size: int) -> bytes:
 
 def test_surface() -> None:
     cls = refresh.SpellbookCommandSetRefreshPatch
+    assert Exported is cls
     assert PATCHES[cls.name] is cls
-    assert cls.experimental and cls().ini_surface().is_stock
+    assert not cls.experimental and ".experimental." not in cls.__module__
+    assert cls().ini_surface().is_stock
     assert cls.detect(spellbook_commandset_refresh_image()) is None
     assert len(refresh.SECTION_NAME) <= 8
     assert "command-set-upgrade-drawable-guard" not in PATCHES
 
 
-def test_review_does_not_change_the_live_tested_refresh_machine_code() -> None:
+def test_promotion_does_not_change_the_live_tested_refresh_machine_code() -> None:
     code = refresh.build_guard(_BASE)
     assert len(code) == 75
     assert hashlib.sha256(code).hexdigest() == (
