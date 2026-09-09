@@ -19,12 +19,12 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Twenty-two of the registered patches — **`battle-school`**, **`campaign-select`**,
+> Twenty-three of the registered patches — **`battle-school`**, **`campaign-select`**,
 > **`capture-the-flag`**, **`command-line-skirmish`**, **`cooldown-through-death`**,
 > **`headless`**, **`hero-army-carryover`**, **`hero-mana`**, **`live-bridge`**,
 > **`living-world-override`**, **`map-transition`**, **`mod-load-order`**, **`multi-mod`**,
 > **`recharge-rescale`**, **`render-rate`**, **`script-debug-window`**, **`second-resource`**,
-> **`smart-rally`**, **`special-power-charges`**, **`standalone-launcher`**,
+> **`smart-rally`**, **`special-power-charges`**, **`special-power-music`**, **`standalone-launcher`**,
 > **`unit-plate-option`** and **`wotr-battle-observers`** — are
 > **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`

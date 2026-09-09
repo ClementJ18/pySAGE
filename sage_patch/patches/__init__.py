@@ -24,6 +24,7 @@ from sage_patch.patches.experimental.map_transition import MapTransitionPatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
+from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
 from sage_patch.patches.experimental.wotr_battle_observers import WotrBattleObserversPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
@@ -82,6 +83,7 @@ __all__ = [
     "HealingReceivedPatch",
     "HeroBarSlotsPatch",
     "HeroManaPatch",
+    "SpecialPowerMusicPatch",
     "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
     "LargeGroupBonusPatch",
