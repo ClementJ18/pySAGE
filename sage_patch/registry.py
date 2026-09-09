@@ -59,6 +59,9 @@ from sage_patch.patches.experimental.script_debug_window import ScriptDebugWindo
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_charges import SpecialPowerChargesPatch
+from sage_patch.patches.experimental.spellbook_commandset_refresh import (
+    SpellbookCommandSetRefreshPatch,
+)
 from sage_patch.patches.experimental.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
 from sage_patch.patches.experimental.wotr_battle_observers import WotrBattleObserversPatch
@@ -225,6 +228,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     SmartRallyPatch,
     SpawnUnionPatch,
     SpecialPowerChargesPatch,
+    SpellbookCommandSetRefreshPatch,
     SpellStoreUpgradePatch,
     StandaloneLauncherPatch,
     TerrainResourceExpPatch,

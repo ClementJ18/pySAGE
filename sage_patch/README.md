@@ -19,13 +19,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Twenty-two of the registered patches — **`battle-school`**, **`campaign-select`**,
+> Twenty-three of the registered patches — **`battle-school`**, **`campaign-select`**,
 > **`capture-the-flag`**, **`command-line-skirmish`**, **`cooldown-through-death`**,
 > **`headless`**, **`hero-army-carryover`**, **`hero-mana`**, **`live-bridge`**,
 > **`living-world-override`**, **`map-transition`**, **`mod-load-order`**, **`multi-mod`**,
 > **`recharge-rescale`**, **`render-rate`**, **`script-debug-window`**, **`second-resource`**,
-> **`smart-rally`**, **`special-power-charges`**, **`standalone-launcher`**,
-> **`unit-plate-option`** and **`wotr-battle-observers`** — are
+> **`smart-rally`**, **`special-power-charges`**, **`spellbook-commandset-refresh`**
+> **`standalone-launcher`**, **`unit-plate-option`** and **`wotr-battle-observers`** — are
 > **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -1734,6 +1734,13 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   a spellbook is an ordinary object and its spells ordinary `SpecialPowerModule` /
   `OCLSpecialPower` / `PlayerUpgradeSpecialPower` behaviours. See
   [`docs/special-power-charges.md`](docs/special-power-charges.md).
+- **`spellbook-commandset-refresh`** checks the persistent left spellbook bar's resolved
+  CommandSet even while the Player stays the same, rebuilding only on a pointer change. Separate
+  from the spellstore window and leaves CommandSetUpgrade's stock UI tail unchanged. No INI
+  change. **Its core function is runtime-verified in game**, both for an ordinary CommandSet
+  switch and with `commandset-button-upgrade`'s `CommandButtons` in Singleplayer and Multiplayer; 
+  it remains experimental pending lifecycle, long-session and multiplayer checks. See
+  [the cache investigation and residual risks](docs/spellbook-commandset-refresh.md).
 - **`standalone-launcher`** ⚠**(experimental)** is the one patch here aimed at **`lotrbfme2ep1.exe`**, the launcher
   shim, and it lets a **relocated install still hand the game a usable token**. Finding and
   starting `game.dat` needed no patch and never did — the shim `chdir`s into its own image
