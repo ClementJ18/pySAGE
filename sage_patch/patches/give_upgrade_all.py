@@ -3,6 +3,25 @@
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
 derived in ``../docs/give-upgrade-all.md``.
 
+.. warning::
+
+   **Known crash, not yet fixed: the porter must not live in the functor's ``+4``.** The edit at
+   ``0x0089FF17`` below parks the owning porter in the `DeliverUpgrade` search functor's ``+4``
+   slot, on the reasoning that the stock store there is a zero and nothing reads it. That slot is
+   the `next` pointer of the intrusive partition-filter list, and the zero is the terminator:
+   ``0x0089FF66``-``0x0089FF74`` chain this functor into a four-node list through it, and
+   `PartitionFilter::append` (``0x00A394C0``) walks ``+4`` to find the tail. With an `Object`
+   parked there, `append` walks out of the list and into the object graph, stores a stack address
+   into the first thing it finds whose ``+4`` is null, and the scan then calls vslot ``+8`` on
+   something that is not a filter.
+
+   `large-group-bonus` made the same mistake and crashed on the first poll of any module that used
+   the feature; see ``../docs/large-group-bonus.md`` §8.1 for the dump. That patch now parks the
+   owner in its own `ModuleData`, which this one has no equivalent of - the carrier has to be
+   chosen before the edit at :data:`GIVE_UPGRADE_SEARCH_FILTER_OWNER` can be made safe. Until then
+   a `DeliverUpgrade = Yes` porter is a crash, and the rest of the patch (the cursor and the
+   trigger, which do not go through the search) is unaffected.
+
 **The limit.** `GiveUpgradeUpdate` treats "the upgrade this porter carries" as a singular. Three
 sites ask `UpgradeCenter::firstSetIn` (``0x0066F468``) for *the* upgrade set in the porter's own
 object-upgrade mask (`Object+0x28C`, which is what `GrantUpgradeCreate` writes), and everything
@@ -497,8 +516,10 @@ class GiveUpgradeAllPatch(Patch):
             _call(GIVE_UPGRADE_TRIGGER_PICK, grant_rest),
             "the trigger's UpgradeCenter::firstSetIn -> grant_rest",
         )
-        # `mov [ebp-0x24], esi` for `mov [ebp-0x24], ebx`: the filter's dead `+4` slot gains the
-        # owning porter, which is the only thing `filter_any` needs and cannot otherwise reach.
+        # `mov [ebp-0x24], esi` for `mov [ebp-0x24], ebx`: the filter's `+4` slot gains the owning
+        # porter, which is the only thing `filter_any` needs and cannot otherwise reach.
+        # BROKEN - see the module docstring. `+4` is the filter list's `next`, not a dead slot,
+        # and `0x0089FF66`-`0x0089FF74` chain this functor through it.
         yield (
             self._offset(data, GIVE_UPGRADE_SEARCH_FILTER_OWNER),
             GIVE_UPGRADE_SEARCH_FILTER_OWNER_BYTES,

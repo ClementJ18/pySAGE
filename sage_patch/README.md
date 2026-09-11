@@ -19,13 +19,12 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Twenty-three of the registered patches — **`battle-school`**, **`campaign-select`**,
+> Eighteen of the registered patches — **`battle-school`**, **`campaign-select`**,
 > **`capture-the-flag`**, **`command-line-skirmish`**, **`cooldown-through-death`**,
 > **`headless`**, **`hero-army-carryover`**, **`hero-mana`**, **`live-bridge`**,
-> **`living-world-override`**, **`map-transition`**, **`mod-load-order`**, **`multi-mod`**,
-> **`recharge-rescale`**, **`render-rate`**, **`script-debug-window`**, **`second-resource`**,
-> **`smart-rally`**, **`special-power-charges`**, **`special-power-music`**, **`standalone-launcher`**,
-> **`unit-plate-option`** and **`wotr-battle-observers`** — are
+> **`living-world-override`**, **`map-transition`**, **`ranged-stand-off`**,
+> **`recharge-rescale`**, **`second-resource`**, **`smart-rally`**,
+> **`special-power-charges`**, **`special-power-music`** and **`unit-plate-option`** — are
 > **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -361,6 +360,29 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   `PUSH_VISIBLE_COMMAND_RANGE` button that overshoots runs both the widget array and
   `m_command[]` off their ends. The clamp trims the window where it is read, so an oversized page
   draws the buttons it has and nothing faults. The shipped build uses **N = 64**.
+- **`contained-horde-respawn`** makes **`RespawnNearbyHordeMembers` work alongside
+  `AffectsContained`** on `AutoHealBehavior`, so a garrison tower or a transport **replenishes** the
+  battalion inside it instead of only healing it. `AutoHealBehavior::update` is an if/else chain over
+  four `ModuleData` flags, and a scan of `.text` for the flag's displacement finds it read at
+  **exactly one site in the whole image** — inside the *fourth* arm, the partition-range scan. `AffectsContained` is the second arm and jumps to the shared tail before
+  reaching it, so writing both keyword lines today silently gets only the healing, and **no module in
+  the engine can replenish a contained horde at all**: `ReplenishUnitsBehavior`, the only other one
+  that repopulates a battalion, is a range query too. The patch replaces the `AffectsContained` arm's
+  own closing `jmp` — **five bytes with nothing else in them** — with a jump into a 228-byte
+  `.cnthrd` cave that re-checks the same `RespawnNearbyHordeMembers` and `RespawnMinimumDelay`, walks
+  the passengers through the **same `iterateContained` slot the arm called three instructions
+  earlier**, and runs the stock respawn block on each before returning to the tail, so the sleep the
+  module asks for is unchanged. Every passenger is gated exactly as the radius arm gates a horde it
+  finds — `KindOf HORDE`, not under construction, a horde interface, and live members below that
+  contain's `Slots` — with `RespawnFXList` played through the same null-safe wrapper. `HealingDelay`
+  stays the real cadence, because the update reschedules itself that far out whatever
+  `RespawnMinimumDelay` says. Costs one compare for a module that sets `AffectsContained` without the
+  respawn flag, and **nothing at all** for every other module, because the five bytes are inside that
+  one arm. Needs no INI, `.str` or map change — both keywords already exist, and a module without
+  `AffectsContained` is untouched. **Static-verified**: it applies, verifies and disassembles as
+  intended, every anchor is confirmed against the real binary, and the cave is an
+  instruction-for-instruction copy of the stock block; a replenished garrison has not been watched in
+  a running game. See [`docs/contained-horde-respawn.md`](docs/contained-horde-respawn.md).
 - **`crash-dump`** makes the minidump the engine already writes on every unhandled exception worth
   opening. The writer at `0x0043BE80` asks for `MiniDumpWithDataSegs` and passes **NULL for both
   the callback and the user-stream parameter**, and those two nulls are the whole problem: measured
@@ -442,9 +464,14 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   buttons are **skipped**, because a hero's time comes off the player's ledger and not off its
   `ThingTemplate` — tested with the engine's own hero bit, so the failure is a missing line, never
   a wrong number. Client-local and read-only, so replays cross and peers need not match, same rule
-  as `upgrade-description`. See
-  [`docs/description-timers.md`](docs/description-timers.md). **Static only — not yet observed in
-  a running game.**
+  as `upgrade-description`. **Whether an upgrade is already researched is asked of the owner its
+  `Type` names** — the player for a `Type = PLAYER` upgrade, the selected object for a
+  `Type = OBJECT` one — because an object upgrade lives in the object's mask and never in the
+  player's, and asking only the player left an object upgrade's research time on its button for the
+  rest of the game. See
+  [`docs/description-timers.md`](docs/description-timers.md). **The upgrade line is runtime-verified
+  in game** (Edain, 2026-09-11); the cooldown and build-time lines are **static only — not yet
+  observed in a running game.**
 - **`desert-weather`** adds a third global weather, **`DESERT`**, and a **`SAND`** model condition
   for it to drive - the pairing the engine already has for `SNOWY` → `SNOW`, and only for that one.
   A map carrying `weather = 2` (a plain `Integer` in its `WorldInfo` chunk, which is how the
@@ -586,6 +613,10 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   stock uses, so nothing is granted that stock would have refused. Logic-side and decision-only,
   so replay- and network-safe. No INI change. See
   [`docs/give-upgrade-all.md`](docs/give-upgrade-all.md).
+  **Known crash, do not ship yet:** the auto-deliver search parks the porter in the filter
+  functor's `+4`, which is the partition-filter list's `next` pointer, so a `DeliverUpgrade = Yes`
+  porter walks the engine off the end of the list. Same mistake `large-group-bonus` shipped and
+  fixed — see [`docs/large-group-bonus.md`](docs/large-group-bonus.md) §8.1.
 - **`healing-received`** adds **`HEALING_RECEIVED`**, a `ModifierList` keyword that multiplies
   **how much healing its target takes**, from any source — `25%` is a quarter, `200%` is double,
   `0%` is immune to healing. It is one five-byte `call` swap, because every heal in the engine
@@ -809,6 +840,8 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   upgraded, and has to be rebuilt from a clean image.
   See [`docs/large-group-bonus.md`](docs/large-group-bonus.md).
   **The loose-object half is runtime-verified in game; the upgrade gate is statically verified.**
+  Builds before the `+4` fix of §8.1 crash on the first poll of any module that wrote
+  `CountLooseObjects`, and have to be rebuilt.
 
 - **`lifetime-fields`** adds three fields to `LifetimeUpdate`. **`ExtendedByUpgrades`** and
   **`UpgradeLifetimeBonus`** make gaining one of those upgrades push a summon's death **back by
@@ -910,13 +943,39 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   unpatched `game.dat`** (an unknown keyword is a parse error), and `MapCache::writeCacheINI` is not
   patched, so a `mapSymbol` hand-written into the **user** maps folder's own cache is dropped when
   the engine regenerates it - maps a mod ships in its archives are unaffected, because that file is
-  never rewritten. **`--sort-by-symbol`** changes what that column sorts on. By default it sorts on the
-  whole key, so maps sharing a symbol are contiguous but ordered *inside* the group by how far each
-  has been beaten; the option masks the comparator to the symbol alone, so they tie and fall through
-  to the secondary column - the map name unless another header has been clicked. The icon still
-  tracks the conquered state either way; the cost is that untagged maps tie too, so that column
-  stops separating official from custom. `--keyword` renames the field and `--symbols` sets how many
-  the binary makes room for. See [`docs/map-list-symbols.md`](docs/map-list-symbols.md).
+  never rewritten. **Two options change what that column sorts on**, and at most one can be
+  installed because both rewrite the same seventeen bytes of the comparator. By default it sorts on
+  the whole key: symbol first, then official-before-user, then how far each map has been beaten.
+  **`--sort-by-symbol`** masks the comparator to the symbol alone, so maps sharing one tie and fall
+  through to the secondary column - the map name unless another header has been clicked; the cost is
+  that untagged maps tie too, so that column stops separating official from custom.
+  **`--sort-by-icon`** instead sorts by the picture actually drawn: symbol, then the conquered medal,
+  then the star or hammer. That is the ordering that puts every castle map beaten on Easy in one
+  run, where the default splits it in two around the official bit; nothing is masked away, so
+  untagged maps still order by medal and then by star or hammer. The icon tracks the conquered state
+  under all three. `--keyword` renames the field and `--symbols` sets how many the binary makes room
+  for. See [`docs/map-list-symbols.md`](docs/map-list-symbols.md).
+- **`mod-load-order`** mounts **`-mod` before the first INI file is read**, so
+  a loose (uncompiled) mod tree overrides `GameData.ini` — and the macros it `#include`s — the way
+  it already overrides everything else. `GameEngine::init` registers `TheWritableGlobalData` at
+  `0x0063AFA4`, and that registration is not a bare allocation: it reaches `initSubsystem`, whose
+  `vtbl+8` is the legend-driven loader, which `INI::load`s the `InitFile`s the subsystem legend
+  declares — `Data\INI\Default\GameData.ini` and `Data\INI\GameData.ini`. The startup switches
+  are parsed and the mod mounted fourteen bytes later, at `0x0063AFB2`. Until that runs the file
+  system's two mod globals are clear and every mod-aware lookup skips its mod branch, so
+  `GameData.ini` always comes out of the `.big`s. It presents as "a changed `#define` is ignored",
+  because a mod keeps its shared macros in a file `GameData.ini` includes and everything loaded
+  after the mount does pick up loose edits. A `.modord` cave takes the registration's place: it
+  publishes the object to `TheWritableGlobalData` (the `-mod` handler is a silent no-op while that
+  is null, which is why the parse cannot just be moved up), parses the startup table, mounts —
+  transcribing the stock mount instruction for instruction — then tail-jumps into the registration
+  with the stack untouched. The stock mount at `0x007BAA5B` is jumped over so nothing mounts twice;
+  the stock call is **left alone**, so the switches are still parsed after `GameData.ini` and a
+  switch still beats the tree, and so `headless` can keep pointing that function at its own
+  extended switch table. `-preferLocalFiles` moves with `-mod`, being the same table and the same
+  flag. The subsystem legend itself is read earlier still and is **not** covered. Nothing new to
+  declare: no INI change. **Runtime-verified in game.** See
+  [`docs/mod-load-order.md`](docs/mod-load-order.md).
 - **`multi-execute-gate`** makes an **`OK_FOR_MULTI_EXECUTE` button respect each selected unit's own
   `EnableOnModelCondition` / `DisableOnModelCondition`**. Today it does not: the ControlBar lights
   the button if *any* member of the selection qualifies (reasonable), and the click then runs the
@@ -934,6 +993,38 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   This is what Edain's *Ambush of the Wood-elves* command-set swap works around, at the cost of the
   mass trigger. It changes which objects a logic-side order reaches, so **every peer must run the
   same patched binary** and replays do not cross. **Runtime-verified in game.**
+- **`multi-mod`** makes the engine honour **every `-mod` on the command
+  line** instead of only the last one. `-mod` is an ordinary startup switch: its handler resolves
+  the argument, asks `_stat` whether it names a directory or a `.big`, and *assigns* the result
+  into one of two `GlobalData` fields, so a second `-mod` overwrites the first and
+  `-mod A -mod B` runs B alone. The loose-file half is single-valued twice over — the mount
+  copies the directory into one global, and the four file-system entry points that consult it
+  (`openFile`, `doesFileExist`, `getFileInfo`, `getFileListInDirectory`) each format
+  `<modDir>\<name>` once and try it once. Archives were already the exception: they are inserted
+  into `TheArchiveFileSystem`'s shared file map with the overwrite flag set, so several mounted
+  `.big`s stack, last one winning. The **asset cache** is single-valued a third time and not
+  through the file system at all: its loader `fopen`s `asset.dat` under `m_modBIG`, then under
+  `m_modDir`, then in the working directory, so only the last `-mod`'s copy is read and every
+  model and texture the earlier mods add draws in the missing-texture magenta. A `.modmul` cave
+  holds a sixteen-entry table; the
+  `AsciiString::operator=` that ends the `-mod` handler is repointed to a stand-in that performs
+  that assignment unchanged, then records the path it just stored — tagged archive or directory
+  by which field was written — and mounts it on the spot, in command-line order. The four mod
+  branches become loops over the table, walked backwards, so **the last `-mod` wins** on loose
+  files exactly as it already did on archives, and a listing unions the trees rather than
+  shadowing them. A sixth site, the two instructions that open the asset loader's own first
+  attempt, reads `<dir>\asset.dat` out of every recorded directory before those three attempts
+  run — backwards again, because the cache keeps the *first* file to name an asset, which is the
+  same last-`-mod`-wins answer reached from the other side, with the base game's copy still
+  underneath. Recording is idempotent, which is what lets `mod-load-order` — which makes the
+  whole startup table parse twice — compose with it; the stock mount block is **left alone**, so
+  neither patch touches a byte the other does, and the stock rule that a `-mod` directory
+  outranks a `-mod` archive survives. Sixteen mods, paths under 260 bytes; anything past either
+  bound falls back to the stock single-mod lookup rather than being truncated. Every peer needs
+  the same mods in the same order, the way a `.big` change already had to match. Nothing new to
+  declare: no INI change. The five original sites are **runtime-verified in game**; the asset-cache
+  site is static-verified only, and the check for it is two trees whose art the other does not
+  ship, both drawing. See [`docs/multi-mod.md`](docs/multi-mod.md).
 - **`multi-select-group`** adds a **`MultiSelectGroup` number to `CommandButton`**, so two buttons a
   mod declares interchangeable keep the slot they share when a mixed selection's command bars are
   merged, fills a slot only one of them has instead of blanking it, and reaches every stage in the
@@ -1005,6 +1096,39 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   itself re-runs the shroud manager for the new seat. The engine already ships the same predicate
   with mode 2 added, so the patch aims one `call` at it — five bytes, no cave. The natural
   companion to `skirmish-replay`, and independent of it. Client-local. **Runtime-verified in game.**
+- **`passive-aura-revive`** stops an **aura being lost for good when the building carrying it is
+  rebuilt**. Both of the engine's aura modules return the sleep-forever sentinel the first time they
+  tick on a dead object, and **nothing in the engine wakes an update module when an object is
+  revived** — `setEffectivelyDead(FALSE)` clears the flag and pokes the drawable, and the body's
+  damage-state walk that calls it goes on to animations. Their only wake source was their own return
+  value. That is invisible for a building the engine deletes, and permanent for one that **survives
+  death**: `KeepObjectDie` plus `RubbleRiseUpdate` is how every castle keep, wall, gate and camp
+  citadel becomes rubble instead of a hole, and the object that repairs itself out of rubble is the
+  same object — forty-four of them in Edain for `PassiveAreaEffectBehavior` and another hundred and
+  seven for `AttributeModifierAuraUpdate`. The patch returns each module's ordinary sleep on that
+  arm instead, so it keeps its place in the schedule. `PassiveAreaEffectBehavior` takes **five bytes
+  and no cave** — its `PingDelay` sleep is already in a frame slot every other path returns.
+  `AttributeModifierAuraUpdate` takes **24 bytes and an 87-byte `.aurevi` cave** for two reasons: it
+  computes its sleep at the exit, its sentinel is shared with the module's designed idle state (an
+  aura waiting on its `TriggeredBy` upgrade is *meant* to sleep until `giveSelfUpgrade` wakes it),
+  and it has **no construction gate**. That last one decides when the aura comes back: the
+  effectively-dead flag is rewritten from `health <= 0` on every health change, so it clears on the
+  *first* repair tick, and only `GettingBuiltBehavior::isStillBuilding` stays true for the rest of
+  the rebuild. So the cave transcribes the gate `PassiveAreaEffectBehavior` already has, and the
+  aura resumes when the structure is **finished** rather than when the rubble starts rising. The
+  cost of that symmetry is that an `AttributeModifierAuraUpdate` on a structure now also stays quiet
+  while it is built for the first time — 154 Edain objects, units unaffected. Both dead arms still
+  return *before* the scan, so **no aura is applied while the object is dead**. Needs no INI change
+  — the modules and their fields are untouched — and neither INI alternative works: an aura whose
+  `UpgradeRequired` is *satisfied* reaches the same arm, and `RunWhileDead = Yes` keeps the aura on
+  through the rubble rather than restarting it after. `AttributeModifierUpgrade` is not affected and
+  is not touched — it is not an update module, and the modifier it applies outlives its object's
+  death on its own. The cave's scan arm **puts `this` back in `ecx`** before it jumps back into the
+  update, because the two gate calls leave their own there and the resume point dereferences it ten
+  instructions on — the first build of this patch did not, and crashed on the first aura tick of the
+  first match. **Static-verified**: it applies, verifies and disassembles as intended, and both
+  sites are confirmed against the real binary; the resumption itself has not been watched in a
+  running game. See [`docs/passive-aura-revive.md`](docs/passive-aura-revive.md).
 - **`production-condition`** adds a **model condition** that is active while a structure's
   production queue is non-empty — training a unit *or* researching an upgrade. The stock engine
   has no such state: the `DOOR_n_*` conditions run *after* a unit completes, as the buffer during
@@ -1092,6 +1216,34 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   *first* build too. Logic-side, so **every peer needs the same binary**. The gate half has been
   watched in a running game; the ground snap has not. See
   [`docs/rebuild-hole-repair.md`](docs/rebuild-hole-repair.md).
+- **`render-rate`** draws at **N frames per second instead of 30 without the simulation
+  speeding up**. SAGE already simulates at 5 logic frames per second and draws at 30, keeps a sub-frame
+  counter and hands the render path an interpolation alpha — what welds the two clocks back together is
+  **one comparison**, the wrap that ends a logic frame written against a literal `6` rather than against the
+  ratio the engine derives from the rates. Moving the client rate and that literal together is most of the
+  patch, and a rendered drawable then takes **11 distinct interpolated positions per logic frame at 60
+  against 5 at stock**: it is genuinely smoother, not merely faster. Two things break when it moves and
+  both are fixed here. The once-per-logic-frame latch fires on a sub-frame that **never occurs** at 60, so
+  every `previous = current` latch behind it stops and animations freeze — **one dword**, measured over 373
+  client frames before it was believed. And `ParticleSystemManager::update` runs once per client frame from
+  the draw path with lifetimes counted in *updates*, so every effect in the game ran at double speed; a
+  0x28-byte cave stamps the manager with `clientFrame * 30 / clientRate` instead of the raw frame, measured
+  live at **0.500 steps per client frame**. **The one INI change is not optional**: `FramesPerSecondLimit`
+  in `GameData` must be set to the same N, or the pace loop targets 30 against a 60 fps binary and the
+  **whole game runs at half speed** — no warning, no crash, just slow. This is **Edain's** binary's patch:
+  the latch divisor it edits does not exist on stock SAGE, and the patch refuses a build whose predicate is
+  not that shape rather than writing a dword into whatever lives there. **Network play works**, as of a
+  2026-08-26 match. The wrap counts *client* frames and the limiter is only a ceiling, so the logic rate is
+  the frame rate a machine actually achieves divided by the ratio — invisible at stock, where every machine
+  renders 30, and dominant at 60, where each peer simulates at a speed set by its graphics performance. That
+  arithmetic is real, and it was once read as making the patch single-player-only. Two results retired that:
+  a client on hardware that *does* hold 60 paced at a flat **5.000 Hz** across a full 18.5-minute match, and
+  a match between peers at **different** achieved frame rates — the case the identity predicts should
+  diverge — played clean, with no desync. The 2026-08-23 desync that motivated the original warning is
+  accounted for by the §9.10 recompute gate, found and fixed afterwards. Ending the wrap on elapsed
+  milliseconds instead of a count of draws would remove the term outright and is still the better design,
+  but it is no longer a prerequisite. The 2026-08-26 result is a field observation, not instrumented, so no
+  *bound* on peer drift is claimed. See [`docs/render-rate.md`](docs/render-rate.md) §9.9.
 - **`replay-annotations`** writes **each player's score-screen counters into the replay**: units
   and structures built, lost and destroyed, money earned and spent, and the army and base size at
   the closing frame. The engine keeps all of it in a `ScoreKeeper` embedded at `Player+0x3DC` and
@@ -1154,6 +1306,25 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   with. `--no-report-missing` drops that half; `--all-keywords` widens the relaxation to every
   science-name keyword by repointing the shared thunk instead. A `map.ini` that defines a `Science`
   block runs after the check and is not covered. **Runtime-verified in game.**
+- **`script-debug-window`** stops the script debug window **rebuilding its whole
+  log every time a line is added**, which is what makes a script-heavy map stutter worse the longer it
+  runs. **This patch is applied to `DebugWindowLite.dll`, not to `game.dat`** — the dialog both
+  `-scriptDebug2` and `-scriptDebugLite` load, and the only binary the defect is in. The dialog keeps
+  every message of the session in a vector and, on each append, walks it from the first message ever
+  logged, concatenates the lot into one string and hands that to `SetWindowTextA`, then drives the
+  caret to the end. So line *N* costs *O(N)* and a session costs *O(N²)*, all of it on the game's own
+  thread inside the logic frame that produced the message. The cave replaces that rebuild with an
+  `EM_REPLACESEL` at the caret, so appending one line costs the same whether it is the tenth or the
+  ten-thousandth. The pane next door is the evidence that this is an oversight: the **variables** list
+  sets a dirty byte and rebuilds at most once a frame, and the message list has no such flag. The
+  `push_back` is deliberately left standing so the window's own **Clear** button still works, which
+  means the log's *memory* still grows without bound — a second defect, not fixed here. Reloc-free by
+  construction: the DLL can be rebased and this patch writes no relocation entries, so the cave
+  recovers its own load address from a `call`/`pop` pair and builds its `
+
+` on the stack rather
+  than pointing at `.rdata`. **No INI change, and no `game.dat` change.** **Runtime-verified in game.** See
+  [`docs/script-debug-window.md`](docs/script-debug-window.md).
 - **`share-experience-all`** sends the same original XP to every `ShareExperienceBehavior`
   on an object, in deterministic module order. Declare behaviors with distinct ModuleTags;
   no new INI fields or persistent state are introduced. Recipient scaling uses the original XP
@@ -1230,6 +1401,24 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   Supported for the original RotWK `game.dat` 2.01.2614.37001 with permanently granted
   PlayerUpgrades; in-place mutation of one existing CommandSet remains outside its pointer-based
   invalidation contract. See [the implementation and validation record](docs/spellbook-commandset-refresh.md).
+- **`standalone-launcher`** is the one patch here aimed at **`lotrbfme2ep1.exe`**, the launcher
+  shim, and it lets a **relocated install still hand the game a usable token**. Finding and
+  starting `game.dat` needed no patch and never did — the shim `chdir`s into its own image
+  directory (`argv[0]`, which the CRT seeds from the module path, not from the command line) and
+  spawns from there, with the registry nowhere on that route. What is registry-bound runs *after*
+  `CreateProcessA` returns: the launcher fills the `game2.dat` shared mapping the engine reads, and
+  it does not hold that value — it **decrypts** it, under a Blowfish key built from
+  `HKLM\<GameRegPath>\InstallPath` and the **volume serial number** of the drive that path names.
+  Copy the folder to a stick, a container or a machine that never ran the EA installer and every
+  input to that key is wrong, with nothing refusing: the game is simply handed the wrong plaintext.
+  The patch replaces the key schedule and the decrypt with a `strcpy` from **`gi.dat`'s `G4`
+  field** — the tenth and last, whose accessor has *zero* callers in the stock binary. 38 bytes in
+  place, no cave. It is **not** a way to run a copy you do not have: the `.big` archives and
+  `game.dat` are still required and unchanged, and the token gates nothing — the engine starts
+  perfectly well without the shim. **The edit is the Edain mod's**, shipped in its install as the
+  IDA difference file `lotrbfme2ep1.dif`; what is added here is the frame around it — the two
+  `rel32`s re-derived from the function addresses rather than transcribed, nine anchor sites, and a
+  test asserting `apply` reproduces the launcher Edain ships **byte for byte**.
 - **`terrain-resource-exp`** adds a **`GiveNoXP`** boolean to `TerrainResourceBehavior`, so a
   resource spot can pay its owner without levelling its own building. The module hands the integer
   it just deposited to the building's `ExperienceTracker` on every income tick, and no INI field
@@ -1380,6 +1569,38 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   The control is added to `IDD` 190 in place, within its stock 292 bytes; the behaviour is one
   extra `ON_EN_CHANGE` entry in a relocated `AFX_MSGMAP`, with no subclassing and no new imports.
   See [`docs/worldbuilder-object-typeahead.md`](docs/worldbuilder-object-typeahead.md).
+- **`wotr-battle-observers`** lets a **multiplayer War of the Ring battle be
+  fought when only some of the players are in it**, with the rest watching. Stock, the vote handler
+  compares the battle's participant count against the number of active human living-world players
+  and, when it is short, strips the real-time bit out of the mask and forces auto-resolve
+  (`0x006BEBE5`) — which in a three-player co-op game is most battles. **The same rule is written
+  down twice**: `LivingWorldBattle::getAllowedResolutions` builds the mask the battle prompt shifts
+  into its three buttons, and leaves the real-time bit out unless the two counts are *equal*
+  (`0x007F67DB`), so the Real Time button is greyed and the vote is never cast — that copy is the
+  one that shows in play, and both are cleared. The gate is not about networking: the vote goes through `TheMessageStream`, so every peer already runs the handler and
+  enters the battle. It is about seating. `GameLogic::buildSidesFromGameInfo` names a slot's side
+  `Player_1` if it owns the region and `Player_<slot index + 2>` otherwise, so a third player is
+  named `Player_4`, no map declares that side, nothing marks a side local for that peer, and
+  `PlayerList::newGame` hands it **somebody else's army**. Four hooks and one cave: a shared
+  predicate answers *is this human seat out of this battle* by walking the battle's side and member
+  vectors. A pre-pass at the top of the function marks such a seat `isOccupied` — without it both
+  loops skip it and no other hook is ever reached, which is exactly how the second build still put
+  the client on `PlyrCivilian`. Then two hooks force `GameSlot::m_playerTemplate`'s sign negative so the seat takes the
+  observer arm for its name (`0x00627C6E`) and faction (`0x00627E20`), and a third (`0x00627CEB`)
+  renames it to **`ReplayObserver`** — the one side `startNewGame` adds to every game
+  unconditionally. `Observer_%d`, the arm the engine's own lobby observers take, is **not** enough:
+  no War of the Ring map declares such a side, and measured live the peer ended up with no side, no
+  `multiplayerIsLocal` anywhere, and seated on `PlyrCivilian`. The
+  fourth numbers the seats that *are* fighting by participation instead of slot index, so an
+  attacker outside slot 0 stops being called `Player_3`. Two more give the seat somewhere to look
+  from: the map-wide reveal `startNewGame` hands the `ReplayObserver` player (`0x0062FE3D`) is right
+  for a replay and wrong for a peer with allies to watch through, so it is skipped whenever the
+  pre-pass seated anybody; and the opening camera, a `Player_%d_Start` waypoint built from the
+  seat's own start position (`0x006311D3`), borrows a participant's — an ally's where the lobby team
+  says which side the observer is on — rather than pointing at a waypoint no two-army battle map
+  declares. No INI, `.str` or `.apt` change; the
+  observer camera and command bar are `observer-switch` and `observer-command-range`.
+  **Runtime-verified in game**, in a three-player War of the Ring match on 2026-09-06.
 - **`battle-school`** ⚠**(experimental)** restores the **way out of BFME1's Battle School**, the
   parchment book of tutorial videos on the main menu. ROTWK kept almost all of it: the
   `AptMainMenu::BattleSchool` FSCommand and its handler are intact, `BlinkBattleSchoolOff` still
@@ -1526,50 +1747,27 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   from the `TOOLTIP:ManaCost` key and carrying **both the price and what the caster currently has**;
   a `ManaPool` line sits under a hero's level on its revive/recruit button. `ManaCost = 0`, the default, leaves a power exactly as it is today.
 
-- **`mod-load-order`** ⚠**(experimental)** mounts **`-mod` before the first INI file is read**, so
-  a loose (uncompiled) mod tree overrides `GameData.ini` — and the macros it `#include`s — the way
-  it already overrides everything else. `GameEngine::init` registers `TheWritableGlobalData` at
-  `0x0063AFA4`, and that registration is not a bare allocation: it reaches `initSubsystem`, whose
-  `vtbl+8` is the legend-driven loader, which `INI::load`s the `InitFile`s the subsystem legend
-  declares — `Data\INI\Default\GameData.ini` and `Data\INI\GameData.ini`. The startup switches
-  are parsed and the mod mounted fourteen bytes later, at `0x0063AFB2`. Until that runs the file
-  system's two mod globals are clear and every mod-aware lookup skips its mod branch, so
-  `GameData.ini` always comes out of the `.big`s. It presents as "a changed `#define` is ignored",
-  because a mod keeps its shared macros in a file `GameData.ini` includes and everything loaded
-  after the mount does pick up loose edits. A `.modord` cave takes the registration's place: it
-  publishes the object to `TheWritableGlobalData` (the `-mod` handler is a silent no-op while that
-  is null, which is why the parse cannot just be moved up), parses the startup table, mounts —
-  transcribing the stock mount instruction for instruction — then tail-jumps into the registration
-  with the stack untouched. The stock mount at `0x007BAA5B` is jumped over so nothing mounts twice;
-  the stock call is **left alone**, so the switches are still parsed after `GameData.ini` and a
-  switch still beats the tree, and so `headless` can keep pointing that function at its own
-  extended switch table. `-preferLocalFiles` moves with `-mod`, being the same table and the same
-  flag. The subsystem legend itself is read earlier still and is **not** covered. Nothing new to
-  declare: no INI change. **Static only — built and unit-tested, not yet played.** See
-  [`docs/mod-load-order.md`](docs/mod-load-order.md).
-- **`multi-mod`** ⚠**(experimental)** makes the engine honour **every `-mod` on the command
-  line** instead of only the last one. `-mod` is an ordinary startup switch: its handler resolves
-  the argument, asks `_stat` whether it names a directory or a `.big`, and *assigns* the result
-  into one of two `GlobalData` fields, so a second `-mod` overwrites the first and
-  `-mod A -mod B` runs B alone. The loose-file half is single-valued twice over — the mount
-  copies the directory into one global, and the four file-system entry points that consult it
-  (`openFile`, `doesFileExist`, `getFileInfo`, `getFileListInDirectory`) each format
-  `<modDir>\<name>` once and try it once. Archives were already the exception: they are inserted
-  into `TheArchiveFileSystem`'s shared file map with the overwrite flag set, so several mounted
-  `.big`s stack, last one winning. A `.modmul` cave holds a sixteen-entry table; the
-  `AsciiString::operator=` that ends the `-mod` handler is repointed to a stand-in that performs
-  that assignment unchanged, then records the path it just stored — tagged archive or directory
-  by which field was written — and mounts it on the spot, in command-line order. The four mod
-  branches become loops over the table, walked backwards, so **the last `-mod` wins** on loose
-  files exactly as it already did on archives, and a listing unions the trees rather than
-  shadowing them. Recording is idempotent, which is what lets `mod-load-order` — which makes the
-  whole startup table parse twice — compose with it; the stock mount block is **left alone**, so
-  neither patch touches a byte the other does, and the stock rule that a `-mod` directory
-  outranks a `-mod` archive survives. Sixteen mods, paths under 260 bytes; anything past either
-  bound falls back to the stock single-mod lookup rather than being truncated. Every peer needs
-  the same mods in the same order, the way a `.big` change already had to match. Nothing new to
-  declare: no INI change. **Static only — built and unit-tested, not yet played.** See
-  [`docs/multi-mod.md`](docs/multi-mod.md).
+- **`ranged-stand-off`** ⚠**(experimental)** makes a ranged unit given a **direct attack order**
+  stop as soon as its target is in weapon range, instead of walking onto the target first and
+  shooting from arm's length. `AIAttackApproachTargetState` has an exit for exactly that
+  (`0x00749F1A`) and a state byte at `+0x6E` that gates it — and the state derives that byte from
+  `AIUpdateInterface`'s "the move goal is an object" flag, then ends every ordinary attack order by
+  calling `setGoalObject`, which sets that flag. So the state shuts its own range exit, and the
+  path it follows has the target's **body** as its destination with no stand-off subtracted
+  anywhere. EA knew: the stock weapon data carries the comment `MeleeWeapon = Yes ; Sorry, stand
+  off doesn't work.  This is just a melee weapon.` The fix is **three bytes** — the `sete al` that
+  derives the byte becomes `mov al, 1` — and it needs no cave, no INI keyword and no new section.
+  **Melee is unaffected by the engine's own hand**: twelve bytes further on the state clears the
+  same byte when the current weapon's `MeleeWeapon` is set, and that clear runs *after* the patched
+  instruction. The one thing a mod has to get right is that `MeleeWeapon` **defaults to `No`**, so
+  a genuinely melee weapon that omits it now stops at its own `AttackRange` rather than at contact
+  — for a melee weapon those are nearly the same place, but it is a real change and it is
+  data-dependent. The same byte gates a second range check in the state's attack-a-position arm
+  (`0x0074A231`), which comes alive too. `AIAttackPursueTargetState` is a different state that
+  never reads the flag, so pursuit is neither helped nor harmed. **Simulation state**: every peer
+  needs the same binary and replays do not cross. See
+  [`docs/ranged-approach-overshoot.md`](docs/ranged-approach-overshoot.md).
+
 - **`recharge-rescale`** ⚠**(experimental)** makes a cooldown **already running** respond to a recharge modifier that
   arrives after the cast — a leadership aura, a temporary `RECHARGE_TIME` buff, the player
   finishing a `SpellRechargeModifierUpgrade` mid-match. Stock, none of those can touch it:
@@ -1600,54 +1798,6 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   mid-cooldown**, since the rescale is gated on the stock formula's own answer. See
   [`docs/recharge-rescale.md`](docs/recharge-rescale.md).
 
-- **`render-rate`** ⚠**(experimental)** draws at **N frames per second instead of 30 without the simulation
-  speeding up**. SAGE already simulates at 5 logic frames per second and draws at 30, keeps a sub-frame
-  counter and hands the render path an interpolation alpha — what welds the two clocks back together is
-  **one comparison**, the wrap that ends a logic frame written against a literal `6` rather than against the
-  ratio the engine derives from the rates. Moving the client rate and that literal together is most of the
-  patch, and a rendered drawable then takes **11 distinct interpolated positions per logic frame at 60
-  against 5 at stock**: it is genuinely smoother, not merely faster. Two things break when it moves and
-  both are fixed here. The once-per-logic-frame latch fires on a sub-frame that **never occurs** at 60, so
-  every `previous = current` latch behind it stops and animations freeze — **one dword**, measured over 373
-  client frames before it was believed. And `ParticleSystemManager::update` runs once per client frame from
-  the draw path with lifetimes counted in *updates*, so every effect in the game ran at double speed; a
-  0x28-byte cave stamps the manager with `clientFrame * 30 / clientRate` instead of the raw frame, measured
-  live at **0.500 steps per client frame**. **The one INI change is not optional**: `FramesPerSecondLimit`
-  in `GameData` must be set to the same N, or the pace loop targets 30 against a 60 fps binary and the
-  **whole game runs at half speed** — no warning, no crash, just slow. This is **Edain's** binary's patch:
-  the latch divisor it edits does not exist on stock SAGE, and the patch refuses a build whose predicate is
-  not that shape rather than writing a dword into whatever lives there. **Network play works**, as of a
-  2026-08-26 match. The wrap counts *client* frames and the limiter is only a ceiling, so the logic rate is
-  the frame rate a machine actually achieves divided by the ratio — invisible at stock, where every machine
-  renders 30, and dominant at 60, where each peer simulates at a speed set by its graphics performance. That
-  arithmetic is real, and it was once read as making the patch single-player-only. Two results retired that:
-  a client on hardware that *does* hold 60 paced at a flat **5.000 Hz** across a full 18.5-minute match, and
-  a match between peers at **different** achieved frame rates — the case the identity predicts should
-  diverge — played clean, with no desync. The 2026-08-23 desync that motivated the original warning is
-  accounted for by the §9.10 recompute gate, found and fixed afterwards. Ending the wrap on elapsed
-  milliseconds instead of a count of draws would remove the term outright and is still the better design,
-  but it is no longer a prerequisite. The 2026-08-26 result is a field observation, not instrumented, so no
-  *bound* on peer drift is claimed. See [`docs/render-rate.md`](docs/render-rate.md) §9.9.
-- **`script-debug-window`** ⚠**(experimental)** stops the script debug window **rebuilding its whole
-  log every time a line is added**, which is what makes a script-heavy map stutter worse the longer it
-  runs. **This patch is applied to `DebugWindowLite.dll`, not to `game.dat`** — the dialog both
-  `-scriptDebug2` and `-scriptDebugLite` load, and the only binary the defect is in. The dialog keeps
-  every message of the session in a vector and, on each append, walks it from the first message ever
-  logged, concatenates the lot into one string and hands that to `SetWindowTextA`, then drives the
-  caret to the end. So line *N* costs *O(N)* and a session costs *O(N²)*, all of it on the game's own
-  thread inside the logic frame that produced the message. The cave replaces that rebuild with an
-  `EM_REPLACESEL` at the caret, so appending one line costs the same whether it is the tenth or the
-  ten-thousandth. The pane next door is the evidence that this is an oversight: the **variables** list
-  sets a dirty byte and rebuilds at most once a frame, and the message list has no such flag. The
-  `push_back` is deliberately left standing so the window's own **Clear** button still works, which
-  means the log's *memory* still grows without bound — a second defect, not fixed here. Reloc-free by
-  construction: the DLL can be rebased and this patch writes no relocation entries, so the cave
-  recovers its own load address from a `call`/`pop` pair and builds its `
-
-` on the stack rather
-  than pointing at `.rdata`. **No INI change, and no `game.dat` change.** Static only — the reading is
-  off the shipped binaries and has not been watched running. See
-  [`docs/script-debug-window.md`](docs/script-debug-window.md).
 - **`second-resource`** ⚠**(experimental)** gives every player a **second resource pool** alongside gold, granted per
   tick by `AutoDepositUpdate.DepositAmount2` and seeded per faction by
   `PlayerTemplate.StartMoney2`, and shows it in brackets after the palantir's own number
@@ -1743,24 +1893,6 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   a spellbook is an ordinary object and its spells ordinary `SpecialPowerModule` /
   `OCLSpecialPower` / `PlayerUpgradeSpecialPower` behaviours. See
   [`docs/special-power-charges.md`](docs/special-power-charges.md).
-- **`standalone-launcher`** ⚠**(experimental)** is the one patch here aimed at **`lotrbfme2ep1.exe`**, the launcher
-  shim, and it lets a **relocated install still hand the game a usable token**. Finding and
-  starting `game.dat` needed no patch and never did — the shim `chdir`s into its own image
-  directory (`argv[0]`, which the CRT seeds from the module path, not from the command line) and
-  spawns from there, with the registry nowhere on that route. What is registry-bound runs *after*
-  `CreateProcessA` returns: the launcher fills the `game2.dat` shared mapping the engine reads, and
-  it does not hold that value — it **decrypts** it, under a Blowfish key built from
-  `HKLM\<GameRegPath>\InstallPath` and the **volume serial number** of the drive that path names.
-  Copy the folder to a stick, a container or a machine that never ran the EA installer and every
-  input to that key is wrong, with nothing refusing: the game is simply handed the wrong plaintext.
-  The patch replaces the key schedule and the decrypt with a `strcpy` from **`gi.dat`'s `G4`
-  field** — the tenth and last, whose accessor has *zero* callers in the stock binary. 38 bytes in
-  place, no cave. It is **not** a way to run a copy you do not have: the `.big` archives and
-  `game.dat` are still required and unchanged, and the token gates nothing — the engine starts
-  perfectly well without the shim. **The edit is the Edain mod's**, shipped in its install as the
-  IDA difference file `lotrbfme2ep1.dif`; what is added here is the frame around it — the two
-  `rel32`s re-derived from the function addresses rather than transcribed, nine anchor sites, and a
-  test asserting `apply` reproduces the launcher Edain ships **byte for byte**.
 - **`unit-plate-option`** ⚠**(experimental)** turns Edain's **unit plates into a player-side toggle** instead of a
   submod, by adding a **20th row to the shell Options screen**. `unit_plate.inc` puts a
   `W3DScriptedModelDraw` tagged `Module_UnitPlate` on 552 unit objects; the shipped game carries the
@@ -1778,39 +1910,6 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   make it work for any model/preference/row triple. **Needs a matching gadget in `Options.apt`**
   (`docs/options-menu-rows.md` §4) — without it the patch is inert, not harmful. Client-local.
   **Static only — not yet run in game.**
-- **`wotr-battle-observers`** ⚠**(experimental)** lets a **multiplayer War of the Ring battle be
-  fought when only some of the players are in it**, with the rest watching. Stock, the vote handler
-  compares the battle's participant count against the number of active human living-world players
-  and, when it is short, strips the real-time bit out of the mask and forces auto-resolve
-  (`0x006BEBE5`) — which in a three-player co-op game is most battles. **The same rule is written
-  down twice**: `LivingWorldBattle::getAllowedResolutions` builds the mask the battle prompt shifts
-  into its three buttons, and leaves the real-time bit out unless the two counts are *equal*
-  (`0x007F67DB`), so the Real Time button is greyed and the vote is never cast — that copy is the
-  one that shows in play, and both are cleared. The gate is not about networking: the vote goes through `TheMessageStream`, so every peer already runs the handler and
-  enters the battle. It is about seating. `GameLogic::buildSidesFromGameInfo` names a slot's side
-  `Player_1` if it owns the region and `Player_<slot index + 2>` otherwise, so a third player is
-  named `Player_4`, no map declares that side, nothing marks a side local for that peer, and
-  `PlayerList::newGame` hands it **somebody else's army**. Four hooks and one cave: a shared
-  predicate answers *is this human seat out of this battle* by walking the battle's side and member
-  vectors. A pre-pass at the top of the function marks such a seat `isOccupied` — without it both
-  loops skip it and no other hook is ever reached, which is exactly how the second build still put
-  the client on `PlyrCivilian`. Then two hooks force `GameSlot::m_playerTemplate`'s sign negative so the seat takes the
-  observer arm for its name (`0x00627C6E`) and faction (`0x00627E20`), and a third (`0x00627CEB`)
-  renames it to **`ReplayObserver`** — the one side `startNewGame` adds to every game
-  unconditionally. `Observer_%d`, the arm the engine's own lobby observers take, is **not** enough:
-  no War of the Ring map declares such a side, and measured live the peer ended up with no side, no
-  `multiplayerIsLocal` anywhere, and seated on `PlyrCivilian`. The
-  fourth numbers the seats that *are* fighting by participation instead of slot index, so an
-  attacker outside slot 0 stops being called `Player_3`. Two more give the seat somewhere to look
-  from: the map-wide reveal `startNewGame` hands the `ReplayObserver` player (`0x0062FE3D`) is right
-  for a replay and wrong for a peer with allies to watch through, so it is skipped whenever the
-  pre-pass seated anybody; and the opening camera, a `Player_%d_Start` waypoint built from the
-  seat's own start position (`0x006311D3`), borrows a participant's — an ally's where the lobby team
-  says which side the observer is on — rather than pointing at a waypoint no two-army battle map
-  declares. No INI, `.str` or `.apt` change; the
-  observer camera and command bar are `observer-switch` and `observer-command-range`.
-  **Static only — not yet run in game**, and `docs/living-campaign/mp-battle-participation.md`
-  names the three readings that would change it if wrong.
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 

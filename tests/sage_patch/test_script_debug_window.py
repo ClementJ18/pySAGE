@@ -10,8 +10,8 @@ import struct
 import pytest
 
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.experimental import script_debug_window as sdw
-from sage_patch.patches.experimental.script_debug_window import ScriptDebugWindowPatch
+from sage_patch.patches import script_debug_window as sdw
+from sage_patch.patches.script_debug_window import ScriptDebugWindowPatch
 from sage_patch.utils import find_section, image_base, va_to_offset
 
 from .synthetic import quiet_exit_image, script_debug_window_image

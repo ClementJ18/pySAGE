@@ -8,7 +8,8 @@ after that. Addresses are VAs in whichever binary the section names.
 rebuild the entire window text from the first message of the session onwards and hand the whole
 buffer to `SetWindowTextA`, on the game's own thread. Cost per line is proportional to the number
 of lines already logged, so a session's total is quadratic. One redirected `call` in the DLL turns
-the rebuild into an append.
+the rebuild into an append. Read statically off the shipped binaries and confirmed in a running
+game.
 
 ## 1. Getting to the window — the two command-line flags
 
@@ -225,8 +226,6 @@ so a second DLL patch would compose with it.
 
 ## 8. What is unknown
 
-- **Not runtime-verified.** The reading above is static, off the shipped `game.dat` and
-  `debugwindowlite.dll`. Nothing here has been watched running.
 - **`WM_GETTEXTLENGTH` on a multiline edit** is assumed cheap relative to a full `SetWindowTextA`.
   That is near-certainly true and is not measured. If it turns out to walk the buffer, caching the
   running length in the cave removes it.

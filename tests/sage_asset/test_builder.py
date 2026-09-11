@@ -1,5 +1,5 @@
 """Data-free tests for `sage_asset.builder`. A tiny W3D file (mesh/hierarchy/box/HLOD chunks)
-and a small compiledtextures tree are synthesized under `tmp_path` with `struct`, independent
+and a small texture tree are synthesized under `tmp_path` with `struct`, independent
 of the parser under test, so a scan of them exercises the real chunk-walking and cross-
 reference logic rather than just round-tripping the builder's own output."""
 
@@ -137,6 +137,49 @@ def test_collect_art_index_matches_builder_entry_names_without_parsing_chunks(tm
     path, filetime = index["model.w3d"]
     assert path == w3d_path
     assert filetime == _expected_filetime(w3d_path)
+
+
+def test_apt_textures_are_indexed_from_the_textures_folder(tmp_path):
+    # An `apt_` name is read by the engine from art/Textures/, so a file only ever placed
+    # there still gets its TEX entry.
+    art_dir = _build_art_tree(tmp_path)
+    loose_dir = art_dir / "Textures"
+    loose_dir.mkdir()
+    (loose_dir / "apt_MainMenu_1.tga").write_bytes(b"apt-bytes")
+
+    ad = build_asset_dat(art_dir)
+
+    entry = next(f for f in ad.files if f.name == "apt_mainmenu_1.tga")
+    assert entry.assets == [Asset(name="apt_mainmenu_1.tga", type="TEX", offset=0, size=0)]
+    assert entry.file_time == _expected_filetime(loose_dir / "apt_MainMenu_1.tga")
+    assert collect_art_index(art_dir)["apt_mainmenu_1.tga"][0] == loose_dir / "apt_MainMenu_1.tga"
+
+
+def test_a_texture_in_both_folders_takes_the_one_the_engine_reads(tmp_path):
+    # Same stem, same extension, in both texture folders: the `apt_` name resolves to
+    # art/Textures/ and the plain one to art/CompiledTextures/, whichever was scanned first.
+    art_dir = _build_art_tree(tmp_path)
+    compiled_dir = art_dir / "compiledtextures"
+    loose_dir = art_dir / "Textures"
+    loose_dir.mkdir()
+    for directory in (compiled_dir, loose_dir):
+        (directory / "apt_MainMenu_1.tga").write_bytes(b"apt-bytes")
+        (directory / "plain.tga").write_bytes(b"plain-bytes")
+
+    index = collect_art_index(art_dir)
+
+    assert index["apt_mainmenu_1.tga"][0] == loose_dir / "apt_MainMenu_1.tga"
+    assert index["plain.tga"][0] == compiled_dir / "plain.tga"
+
+
+def test_texture_folders_are_matched_case_insensitively(tmp_path):
+    art_dir = tmp_path / "art"
+    (art_dir / "CompiledTextures" / "ap").mkdir(parents=True)
+    (art_dir / "textures").mkdir()
+    (art_dir / "CompiledTextures" / "ap" / "aptcomponents_001.tga").write_bytes(b"a")
+    (art_dir / "textures" / "apt_MainMenu_1.tga").write_bytes(b"b")
+
+    assert set(collect_art_index(art_dir)) == {"aptcomponents_001.tga", "apt_mainmenu_1.tga"}
 
 
 def test_collect_art_index_empty_for_a_tree_with_no_art(tmp_path):

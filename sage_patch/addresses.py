@@ -190,11 +190,39 @@ __all__ = [
     "ASCII_STRING_IS_EMPTY",
     "ASCII_STRING_SET",
     "ASCII_STRING_SET_BYTES",
+    "ASSET_CACHE_HAS_ASSET",
+    "ASSET_CACHE_HAS_ASSET_BYTES",
+    "ASSET_CACHE_LOAD",
+    "ASSET_CACHE_LOAD_BYTES",
+    "ASSET_CACHE_MOD_BIG_BRANCH",
+    "ASSET_CACHE_MOD_BIG_BRANCH_BYTES",
+    "ASSET_CACHE_MOD_BIG_TEST",
+    "ASSET_CACHE_MOD_BIG_TEST_BYTES",
+    "ASSET_CACHE_READ_FILE",
+    "ASSET_CACHE_READ_FILE_BYTES",
+    "ASSET_CACHE_REGISTER_GATE",
+    "ASSET_CACHE_REGISTER_GATE_BYTES",
+    "ASSET_CACHE_WORKING_DIR_ATTEMPT",
+    "ASSET_CACHE_WORKING_DIR_ATTEMPT_BYTES",
+    "ASSET_DAT_NAME",
+    "ASSET_DAT_NAME_BYTES",
     "ATTACK_ELIGIBILITY_NUGGET_CALL",
     "ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW",
     "ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW_BYTES",
     "ATTACK_NUGGET_VTABLES",
     "ATTACK_NUGGET_VTABLE_STORES",
+    "ATTRIBUTE_MODIFIER_AURA_ANCHORS",
+    "ATTRIBUTE_MODIFIER_AURA_DEAD_SLEEP",
+    "ATTRIBUTE_MODIFIER_AURA_DEAD_SLEEP_BYTES",
+    "ATTRIBUTE_MODIFIER_AURA_GATES",
+    "ATTRIBUTE_MODIFIER_AURA_GATES_BYTES",
+    "ATTRIBUTE_MODIFIER_AURA_MODULE_NAME_STRING",
+    "ATTRIBUTE_MODIFIER_AURA_NORMAL_SLEEP",
+    "ATTRIBUTE_MODIFIER_AURA_RUN_WHILE_DEAD_OFFSET",
+    "ATTRIBUTE_MODIFIER_AURA_SCAN",
+    "ATTRIBUTE_MODIFIER_AURA_THIS_EBP_OFFSET",
+    "ATTRIBUTE_MODIFIER_AURA_UPDATE",
+    "ATTRIBUTE_MODIFIER_AURA_UPDATE_VTABLE",
     "AUDIO_MANAGER",
     "AUDIO_STOP_SLOT",
     "AUTO_DEPOSIT_AMOUNT",
@@ -228,6 +256,23 @@ __all__ = [
     "AUTO_DEPOSIT_XP_GATE_BYTES",
     "AUTO_DEPOSIT_XP_GATE_RESUME",
     "AUTO_DEPOSIT_XP_GATE_SKIP",
+    "AUTO_HEAL_AFFECTS_CONTAINED",
+    "AUTO_HEAL_ANCHORS",
+    "AUTO_HEAL_CONTAINED_EXIT",
+    "AUTO_HEAL_CONTAINED_EXIT_BYTES",
+    "AUTO_HEAL_CONTAINED_ITERATE",
+    "AUTO_HEAL_LAST_RESPAWN_FRAME",
+    "AUTO_HEAL_MODULE_BASE_SLOT",
+    "AUTO_HEAL_MODULE_NAME_STRING",
+    "AUTO_HEAL_RESPAWN_BLOCK",
+    "AUTO_HEAL_RESPAWN_FX_LIST",
+    "AUTO_HEAL_RESPAWN_MEMBER_FIXUP",
+    "AUTO_HEAL_RESPAWN_MINIMUM_DELAY",
+    "AUTO_HEAL_RESPAWN_NEARBY_HORDE_MEMBERS",
+    "AUTO_HEAL_SCOPE_INDEX_SLOT",
+    "AUTO_HEAL_UPDATE",
+    "AUTO_HEAL_UPDATE_TAIL",
+    "AUTO_HEAL_UPDATE_VTABLE",
     "BATTLE_SCHOOL_BLINK_REGISTRATION",
     "BATTLE_SCHOOL_BLINK_REGISTRATION_BYTES",
     "BATTLE_SCHOOL_COMMAND",
@@ -318,6 +363,7 @@ __all__ = [
     "CONTAIN_ITEM_LIST_NODE_OBJECT",
     "CONTAIN_ITEM_LIST_WALK",
     "CONTAIN_ITEM_LIST_WALK_ENTRY",
+    "CONTAIN_ITERATE_SLOT",
     "CONTROL_BAR_CLICK_BUTTON_LOAD",
     "CONTROL_BAR_CLICK_BUTTON_LOAD_BYTES",
     "CONTROL_BAR_CLICK_GATE_CALL",
@@ -515,6 +561,7 @@ __all__ = [
     "FWWD_REACTION_AIM_BYTES",
     "FWWD_REACTION_FIRE_CALL",
     "FWWD_REACTION_FIRE_RESUME",
+    "FX_LIST_PLAY_AT_OBJECT",
     "GAME_CLIENT_DRAW",
     "GAME_CLIENT_DRAW_BYTES",
     "GAME_DATA_ASCIISTRING_PARSER",
@@ -582,6 +629,7 @@ __all__ = [
     "GET_FINAL_OVERRIDE",
     "GIVE_UPGRADE_CAN_GIVE",
     "GIVE_UPGRADE_CAN_GIVE_BODY",
+    "GETTING_BUILT_STILL_BUILDING_SLOT",
     "GIVE_UPGRADE_CAN_GIVE_BODY_BYTES",
     "GIVE_UPGRADE_CAN_GIVE_ENTRY",
     "GIVE_UPGRADE_PRODUCER_HORDE_IFACE",
@@ -629,6 +677,9 @@ __all__ = [
     "HORDE_IFACE_ASSIGN_SLOT_SLOT",
     "HORDE_IFACE_FREE_SLOTS",
     "HORDE_IFACE_GIVE_UPGRADE_SLOT",
+    "HORDE_IFACE_MAX_MEMBERS_SLOT",
+    "HORDE_IFACE_MEMBER_COUNT_SLOT",
+    "HORDE_IFACE_RESPAWN_MEMBER_SLOT",
     "HORDE_IFACE_SLOTS_BUILT",
     "HORDE_IFACE_SLOT_ARRAY",
     "HORDE_IFACE_SLOT_INDEX",
@@ -637,7 +688,9 @@ __all__ = [
     "HORDE_PAYLOAD_LOOKUP",
     "HORDE_PAYLOAD_LOOKUP_ENTRY",
     "IMAGE_BASE",
+    "IMPORT_FCLOSE",
     "IMPORT_FFLUSH",
+    "IMPORT_FOPEN",
     "IMPORT_FWRITE",
     "IMPORT_GET_LOCAL_TIME",
     "IMPORT_SWPRINTF",
@@ -850,7 +903,10 @@ __all__ = [
     "OBJECT_FIELD_TABLE_REF_OPCODES",
     "OBJECT_FILTER_ALLOW",
     "OBJECT_FILTER_IS_VALID",
+    "OBJECT_EFFECTIVELY_DEAD_FLAG",
     "OBJECT_GET_CONTROLLING_PLAYER",
+    "OBJECT_GET_GETTING_BUILT_BEHAVIOR",
+    "OBJECT_GET_GETTING_BUILT_BEHAVIOR_ENTRY",
     "OBJECT_GET_HEIGHT_ABOVE_TERRAIN",
     "OBJECT_GET_HEIGHT_ABOVE_TERRAIN_BYTES",
     "OBJECT_GET_COMMAND_SET_STRING",
@@ -896,6 +952,7 @@ __all__ = [
     "OBJECT_TEST_STATUS",
     "OBJECT_THING_TEMPLATE",
     "OBJECT_TO_ARMY_RECORD",
+    "OBJECT_TRANSFORM",
     "OBJECT_UPGRADE_MASK",
     "OBJECT_WRITE_ARMY_RECORD_STATE",
     "OBSERVER_BAR_GATE_CALL",
@@ -942,6 +999,18 @@ __all__ = [
     "PALANTIR_RESOURCE_MULTIPLIER_RESUME",
     "PALANTIR_SCREEN_CHOICE_CALL",
     "PALANTIR_SCREEN_CHOICE_CALL_BYTES",
+    "PASSIVE_AREA_EFFECT_ANCHORS",
+    "PASSIVE_AREA_EFFECT_CONSTRUCTION_FALLBACK",
+    "PASSIVE_AREA_EFFECT_CONSTRUCTION_FALLBACK_BYTES",
+    "PASSIVE_AREA_EFFECT_CONSTRUCTION_GATE",
+    "PASSIVE_AREA_EFFECT_CONSTRUCTION_GATE_BYTES",
+    "PASSIVE_AREA_EFFECT_DEAD_SLEEP",
+    "PASSIVE_AREA_EFFECT_DEAD_SLEEP_BYTES",
+    "PASSIVE_AREA_EFFECT_DEAD_TEST",
+    "PASSIVE_AREA_EFFECT_MODULE_NAME_STRING",
+    "PASSIVE_AREA_EFFECT_PING_SLOT_OFFSET",
+    "PASSIVE_AREA_EFFECT_UPDATE",
+    "PASSIVE_AREA_EFFECT_UPDATE_VTABLE",
     "PLAYBACK_INSTALLS_OBSERVER",
     "PLAYER_COMMAND_POINTS_USED",
     "PLAYER_COMPLETED_UPGRADE_MASK",
@@ -1053,6 +1122,8 @@ __all__ = [
     "QUEUE_EXIT_PENDING_HORDE",
     "QUEUE_EXIT_REMEMBER_HORDE",
     "QUEUE_EXIT_REMEMBER_HORDE_BYTES",
+    "READ_BINARY_MODE",
+    "READ_BINARY_MODE_BYTES",
     "REBUILD_HOLE_CONSTRUCTION_GATE",
     "REBUILD_HOLE_CONSTRUCTION_GATE_BYTES",
     "REBUILD_HOLE_CONSTRUCTION_TEST",
@@ -5454,6 +5525,51 @@ AI_SET_CURRENT_VICTIM_BYTES = bytes.fromhex("8b44240485c0568bf1753d")
 AI_ATTACK_MACHINE_TARGET = 0x006622E6
 AI_ATTACK_MACHINE_TARGET_BYTES = bytes.fromhex("558bec83ec0c8b4508")
 
+# `AIAttackApproachTargetState`, the state a unit runs while walking to the target of a direct
+# attack order. Its vtable is installed at 0x00744328; the class-name getter at 0x007443BA reads
+# back "AIAttackApproachTargetState". `computePath` is the vtable `+0x44` slot and is named by its
+# own debug trace, "CritterDesync: ComputePath10". See `docs/ranged-approach-overshoot.md`.
+ATTACK_APPROACH_VTABLE = 0x00C28C70
+ATTACK_APPROACH_UPDATE_INTERNAL = 0x00749D46
+ATTACK_APPROACH_UPDATE_INTERNAL_BYTES = bytes.fromhex("558bec83ec2c568bf18b")
+ATTACK_APPROACH_COMPUTE_PATH = 0x00749A3E
+ATTACK_APPROACH_COMPUTE_PATH_BYTES = bytes.fromhex("558bec83ec24803d8591")
+
+#: The state's goal position, handed to the pathfinder. `computePath` fills it with the victim's
+#: own position and never pulls it back by the weapon's range.
+ATTACK_APPROACH_GOAL_POS_OFFSET = 0x20
+
+#: The state byte that permits it to end because the target is in range. `updateInternal` derives
+#: it from `AI_GOAL_IS_OBJECT_OFFSET` every frame, forces it on while the unit is blocked, and
+#: forces it off for a `MeleeWeapon`.
+ATTACK_APPROACH_MAY_STOP_OFFSET = 0x6E
+
+# The `sete` that derives it: `cmp byte [edi+0x3b2], 0` / `sete al` / the blocked-wait override /
+# `mov [esi+0x6e], al`. An object goal makes `al` zero, which is what strands a ranged unit on top
+# of its target.
+ATTACK_APPROACH_MAY_STOP_GATE = 0x00749D83
+ATTACK_APPROACH_MAY_STOP_GATE_BYTES = bytes.fromhex("80bfb2030000000f94c0807e710088466e")
+
+#: `AIUpdateInterface`'s flag for what the current move goal is: 1 an object, 0 a position. Written
+#: by both setters below, read at 0x00669049 and 0x00749D83.
+AI_GOAL_IS_OBJECT_OFFSET = 0x3B2
+
+# `AIUpdateInterface::setGoalObject(ObjectID, const Coord3D *)` - `__thiscall`, the id first. Sets
+# the goal object at `this+0x144`, the position at `+0x148`, and `AI_GOAL_IS_OBJECT_OFFSET` to 1.
+AI_SET_GOAL_OBJECT = 0x00663802
+AI_SET_GOAL_OBJECT_BYTES = bytes.fromhex("803d8591de00005356")
+
+# `AIUpdateInterface::setGoalPosition(const Coord3D *, Bool)` - the sibling that clears the goal
+# object and `AI_GOAL_IS_OBJECT_OFFSET` instead.
+AI_SET_GOAL_POSITION = 0x00667ED1
+AI_SET_GOAL_POSITION_BYTES = bytes.fromhex("538bd983bbdc010000")
+
+# `WeaponTemplate::isMeleeWeapon` - the whole function is `mov al, [ecx+0x125]; ret`. The offset is
+# row 45 of the weapon field table at 0x00C16DD8, which is `MeleeWeapon`.
+WEAPON_IS_MELEE = 0x00441B59
+WEAPON_IS_MELEE_BYTES = bytes.fromhex("8a8125010000c3")
+WEAPON_TEMPLATE_MELEE_OFFSET = 0x125
+
 # `Weapon::isTargetObjectInRange(source, victim, extraRange, flag)` - `__thiscall` on the weapon,
 # `ret 0x10`, answering in `al`. `update` calls it at 0x0089269E with `(ebp, target, 0.0f, 1)`
 # and the cave copies that shape exactly.
@@ -5799,6 +5915,49 @@ GLOBAL_DATA_MOD_BIG = 0xD3C
 MOD_MOUNT_DIRECTORY = 0x00A14313
 MOD_PREFER_LOCAL_FLAG = 0x00DEC490
 MOD_DIRECTORY = 0x00DEC498
+
+#: How the asset cache finds its `asset.dat`, which is not a `TheFileSystem` lookup at all.
+#: `ASSET_CACHE_LOAD` is the loader `W3DDisplay::init` calls with `m_modDir`, `m_modBIG` and a
+#: flag by value; it `fopen`s `<m_modBIG>\asset.dat`, then `<m_modDir>\asset.dat`, then plain
+#: `asset.dat` in the working directory, handing each open file to `ASSET_CACHE_READ_FILE`. So
+#: only the **last** `-mod` is ever consulted, whatever else is mounted.
+#:
+#: `ASSET_CACHE_MOD_BIG_TEST` is the `mov eax, [ebp+0xc]` / `test eax, eax` pair that opens the
+#: first of those three attempts, and `ASSET_CACHE_MOD_BIG_BRANCH` the `je` that reads the flags
+#: it sets - which is why a stand-in in front of it has to end on that same pair.
+#:
+#: Precedence inside the cache is **first-wins**: `ASSET_CACHE_REGISTER_GATE` lowercases each
+#: asset name and skips the whole registration when `ASSET_CACHE_HAS_ASSET` already knows it, so
+#: the earlier a file is read the higher it ranks. Derived in `docs/multi-mod.md`.
+ASSET_CACHE_LOAD = 0x0052C9B0
+ASSET_CACHE_LOAD_BYTES = bytes.fromhex("b8c098b700e836055100")
+ASSET_CACHE_READ_FILE = 0x0052C577
+ASSET_CACHE_READ_FILE_BYTES = bytes.fromhex("b89698b700e86f095100")
+ASSET_CACHE_MOD_BIG_TEST = 0x0052CA0C
+ASSET_CACHE_MOD_BIG_TEST_BYTES = bytes.fromhex("8b450c85c0")
+ASSET_CACHE_MOD_BIG_BRANCH = 0x0052CA11
+ASSET_CACHE_MOD_BIG_BRANCH_BYTES = bytes.fromhex("0f84af0100006683780400")
+ASSET_CACHE_REGISTER_GATE = 0x0052C6EF
+ASSET_CACHE_REGISTER_GATE_BYTES = bytes.fromhex("8d85b4feffff50e88566500084c05959")
+ASSET_CACHE_HAS_ASSET = 0x00A32D80
+ASSET_CACHE_HAS_ASSET_BYTES = bytes.fromhex("8b44240485c07411")
+
+#: The `asset.dat` file name and the `fopen` mode the third attempt uses, both already in
+#: `.rdata` as NUL-terminated narrow strings, and the two CRT slots a cave needs to reach them.
+#: `ASSET_CACHE_WORKING_DIR_ATTEMPT` is that whole third attempt - `fclose` on the previous file,
+#: then `fopen("asset.dat", "rb")` - which is the one window that pins both slots and both
+#: strings at once, and so is the anchor to read rather than the slots themselves: an import
+#: table is filled at load time and says nothing on disk.
+ASSET_DAT_NAME = 0x00BE8408
+ASSET_DAT_NAME_BYTES = b"asset.dat\x00"
+READ_BINARY_MODE = 0x00BE83EC
+READ_BINARY_MODE_BYTES = b"rb\x00"
+IMPORT_FOPEN = 0x00BD0554
+IMPORT_FCLOSE = 0x00BD0560
+ASSET_CACHE_WORKING_DIR_ATTEMPT = 0x0052CC1F
+ASSET_CACHE_WORKING_DIR_ATTEMPT_BYTES = bytes.fromhex(
+    "56ff156005bd0083c40c8d4df0c645fc01e87b9bf0ff8b1d5405bd0068ec83be00bf0884be0057ffd3"
+)
 
 #: The three file-system singletons and the two `TheFileSystem` entry points that consult the mod
 #: directory. `FILE_SYSTEM_OPEN_FILE` tries `<modDir>\<file>` before the archives and restores the
@@ -6481,3 +6640,369 @@ SHARE_EXPERIENCE_LOOP_BACK = 0x008834A0
 COORD3D_GET_LENGTH = 0x004054F5
 # Semantic name for the confirmed float XP path; original EA name is unknown.
 EXPERIENCE_TRACKER_ADD_EXPERIENCE_POINTS = 0x0079D833
+
+# Derived in `docs/passive-aura-revive.md`. `PassiveAreaEffectBehavior` parks its update at the
+# sleep-forever sentinel the first time it ticks on a dead object, and nothing wakes an update
+# module when an object is revived - so an aura on a structure that survives death as rubble is
+# gone for the rest of the game once the structure is rebuilt.
+
+#: `PassiveAreaEffectBehavior::update` - slot 0 of the module's `UpdateModule` sub-object, whose
+#: vtable is :data:`PASSIVE_AREA_EFFECT_UPDATE_VTABLE`. `this` is the sub-object at module `+0x10`,
+#: so `[this-0xc]` is the `ModuleData` and `[this-0x8]` the `Object`.
+PASSIVE_AREA_EFFECT_UPDATE = 0x00887DF7
+
+#: The `UpdateModule` vtable `PassiveAreaEffectBehavior`'s constructor stores at module `+0x10`
+#: (`0x00887D2E`, `mov dword [esi+0x10], 0xC60C28`). Three slots; the first is the update above.
+PASSIVE_AREA_EFFECT_UPDATE_VTABLE = 0x00C60C28
+
+#: The class's `getModuleName` (`0x00887D63`, `mov eax, 0xC0AD50 ; ret`) returns this, so the
+#: string is what ties every address in this block to `PassiveAreaEffectBehavior` by name rather
+#: than by position.
+PASSIVE_AREA_EFFECT_MODULE_NAME_STRING = 0x00C0AD50
+
+#: `test byte [ebx+0x458], 1 ; je 0x00887E76` - the update's "is my own object effectively dead"
+#: test and the branch that skips it. `ebx` is the `Object`; bit 0 of `+0x458` is the flag
+#: `Object::setEffectivelyDead` (`0x0068D950`) writes. Falls straight through into
+#: :data:`PASSIVE_AREA_EFFECT_DEAD_SLEEP`, which is what makes that site the dead arm and not
+#: some other return.
+PASSIVE_AREA_EFFECT_DEAD_TEST = 0x00887E5B
+
+#: The dead arm's `mov eax, 0x3FFFFFFF` - `UPDATE_SLEEP_FOREVER`, returned through the `jmp` two
+#: bytes on. This is the whole bug and the whole patch: five bytes that decide whether the module
+#: is ever scheduled again.
+PASSIVE_AREA_EFFECT_DEAD_SLEEP = 0x00887E64
+PASSIVE_AREA_EFFECT_DEAD_SLEEP_BYTES = bytes.fromhex("b8ffffff3f")
+
+#: Where the update keeps the sleep it returns on every other path: a scratch dword in the frame,
+#: written from `ModuleData+0x10` (`PingDelay`, floored at 1) at `0x00887E09` and read back by the
+#: normal return at `0x00887EBE`. The five pushes in the prologue are still on the stack at
+#: :data:`PASSIVE_AREA_EFFECT_DEAD_SLEEP` and every call in between is callee-balanced, so the
+#: same `[esp+0x10]` names the same slot there.
+PASSIVE_AREA_EFFECT_PING_SLOT_OFFSET = 0x10
+
+#: The gate that keeps this module quiet while its object is being **built** - including the
+#: rebuild out of rubble, which is a `GettingBuiltBehavior` with `RebuildTimeSeconds`. It returns
+#: the ordinary `PingDelay` sleep, and it sits *above* the dead test, so this module already
+#: resumes when a rebuild finishes rather than when it starts::
+#:
+#:     00887e45  mov  ecx, ebx              ; the Object
+#:     00887e47  call 0x0068c3e6            ; Object::getGettingBuiltBehavior -> iface or NULL
+#:     00887e4c  test eax, eax
+#:     00887e4e  je   0x00887e6b            ;   none -> the status-bit fallback
+#:     00887e50  mov  edx, [eax]
+#:     00887e52  mov  ecx, eax
+#:     00887e54  call [edx+0x2c]            ;   isStillBuilding()
+#:     00887e57  test al, al
+#:     00887e59  jne  0x00887ebe            ; yes -> the ordinary sleep
+#:
+#: `passive-aura-revive` transcribes this into its cave to give `AttributeModifierAuraUpdate`, which
+#: has no gate of its own, the same behaviour - so both are anchored rather than merely read.
+PASSIVE_AREA_EFFECT_CONSTRUCTION_GATE = 0x00887E45
+PASSIVE_AREA_EFFECT_CONSTRUCTION_GATE_BYTES = bytes.fromhex(
+    "8bcbe89a45e0ff85c0741b8b108bc8ff522c84c0"
+)
+
+#: The other arm of the gate above, for an object with no `GettingBuiltBehavior` at all:
+#: `push 2 ; mov ecx, ebx ; call OBJECT_TEST_STATUS ; jmp back to the test`. `2` is
+#: :data:`OBJECT_STATUS_UNDER_CONSTRUCTION`.
+PASSIVE_AREA_EFFECT_CONSTRUCTION_FALLBACK = 0x00887E6B
+PASSIVE_AREA_EFFECT_CONSTRUCTION_FALLBACK_BYTES = bytes.fromhex("6a028bcbe8785fbcffebe1")
+
+#: Everything the patch reads and does not rewrite. The vtable slot and the module-name string
+#: identify the function; the `PingDelay` read and the normal return frame the scratch slot; the
+#: dead test abuts the rewritten instruction; the construction gate is the routine the cave
+#: transcribes for the sibling module.
+PASSIVE_AREA_EFFECT_ANCHORS: dict[int, bytes] = {
+    # `mov dword [esi+0x10], 0xC60C28` in the constructor: this vtable is this module's.
+    0x00887D2E: bytes.fromhex("c74610280cc600"),
+    # `getModuleName`: `mov eax, 0xC0AD50 ; ret`.
+    0x00887D63: bytes.fromhex("b850adc000c3"),
+    # `mov eax, [edi+0x10]` (`PingDelay`) / `test eax, eax` / `mov [esp+0x10], eax`.
+    0x00887E04: bytes.fromhex("8b471085c089442410"),
+    PASSIVE_AREA_EFFECT_DEAD_TEST: bytes.fromhex("f68358040000017412"),
+    PASSIVE_AREA_EFFECT_CONSTRUCTION_GATE: PASSIVE_AREA_EFFECT_CONSTRUCTION_GATE_BYTES,
+    PASSIVE_AREA_EFFECT_CONSTRUCTION_FALLBACK: PASSIVE_AREA_EFFECT_CONSTRUCTION_FALLBACK_BYTES,
+    # The normal return: `mov eax, [esp+0x10]` then the five pops matching the prologue, and `ret`.
+    0x00887EBE: bytes.fromhex("8b4424105f5e5d5b59c3"),
+    # Slot 0 of the update vtable is the function above.
+    PASSIVE_AREA_EFFECT_UPDATE_VTABLE: PASSIVE_AREA_EFFECT_UPDATE.to_bytes(4, "little"),
+    PASSIVE_AREA_EFFECT_MODULE_NAME_STRING: b"PassiveAreaEffectBehavior\x00",
+}
+
+# Derived in `docs/passive-aura-revive.md` §8.2. `AttributeModifierAuraUpdate` carries the same
+# defect as `PassiveAreaEffectBehavior` above, in a shape that needs a cave rather than a five-byte
+# rewrite: its sleep-forever sentinel is shared with the module's designed idle state - an aura
+# still waiting on its `TriggeredBy` upgrade - so the dead arm has to be split off from it.
+
+#: `AttributeModifierAuraUpdate::update` - slot 0 of the module's `UpdateModule` sub-object, whose
+#: vtable is :data:`ATTRIBUTE_MODIFIER_AURA_UPDATE_VTABLE`. Same `this-0x10` layout as the passive
+#: module: `[this-0xc]` is the `ModuleData` and `[this-0x8]` the `Object`, loaded into `edi` and
+#: `esi` at `0x0089F449` and `0x0089F43C`.
+ATTRIBUTE_MODIFIER_AURA_UPDATE = 0x0089F42D
+
+#: The `UpdateModule` vtable the constructor stores at module `+0x10` (`0x0089ED9B`,
+#: `mov dword [esi+0x10], 0xC67598`). Slot 0 is the update above.
+ATTRIBUTE_MODIFIER_AURA_UPDATE_VTABLE = 0x00C67598
+
+#: What the class's `getModuleName` (`0x0089EDD2`, `mov eax, 0xC0B290 ; ret`) returns - the string
+#: that ties every address in this block to `AttributeModifierAuraUpdate` by name, not by position.
+ATTRIBUTE_MODIFIER_AURA_MODULE_NAME_STRING = 0x00C0B290
+
+#: The whole gate block the patch rewrites, twenty-four bytes::
+#:
+#:     0089f441  test byte [esi+0x458], 1   ; effectively dead?
+#:     0089f448  push edi
+#:     0089f449  mov  edi, [ecx-0xc]        ; the ModuleData
+#:     0089f44c  mov  [ebp-0x14], ecx       ; `this`, read back further down the update
+#:     0089f44f  je   0x0089f459            ;   not dead -> the scan
+#:     0089f451  cmp  byte [edi+0x16a], bl  ; RunWhileDead (`ebx` is 0 from 0x0089F43F)
+#:     0089f457  je   0x0089f474            ;   dead and No -> UPDATE_SLEEP_FOREVER
+#:
+#: The `push` and the two loads are displaced with the gates because the cave has to re-emit them
+#: before it can test anything, and nothing in the update branches into these bytes.
+ATTRIBUTE_MODIFIER_AURA_GATES = 0x0089F441
+ATTRIBUTE_MODIFIER_AURA_GATES_BYTES = bytes.fromhex(
+    "f6865804000001578b79f4894dec7408389f6a010000741b"
+)
+
+#: `RunWhileDead` on the `ModuleData` - `Bool`, default `No`. Confirmed against the recovered field
+#: table for the block as well as against the compare above.
+ATTRIBUTE_MODIFIER_AURA_RUN_WHILE_DEAD_OFFSET = 0x16A
+
+#: Bit 0 of `Object+0x458`, the effectively-dead flag `Object::setEffectivelyDead` (`0x0068D950`)
+#: writes and both aura updates test. `ActiveBody::internalChangeHealth` (`0x008C31A5`) rewrites it
+#: on every health change from `health <= 0` (`0x008C32B1`), so it clears on the **first** frame a
+#: rubble structure repairs above zero - which is why resuming on it alone would restart an aura at
+#: the start of a rebuild rather than at its end.
+OBJECT_EFFECTIVELY_DEAD_FLAG = 0x458
+
+#: Where the gate falls through to when `RunWhileDead = Yes`, and where the cave sends that case
+#: unchanged: the next gate, `mov eax, [esi+0x11c]`, and then the scan.
+#:
+#: **`ecx` must still be `this` when this address is reached.** Ten instructions on, at
+#: `0x0089F469`, the update does `add ecx, 0x10` / `mov eax, [ecx]` / `call [eax]` - the
+#: `UpgradeMux::isAlreadyUpgraded` test - off whatever `ecx` holds, because stock nothing between
+#: the `__thiscall` prologue and there touches it. Anything that calls out before jumping here has
+#: to reload it from :data:`ATTRIBUTE_MODIFIER_AURA_THIS_EBP_OFFSET` first; a `__thiscall` callee
+#: leaves its own `this` in `ecx`, so the read lands ten bytes into the wrong module and calls
+#: through whatever is there.
+ATTRIBUTE_MODIFIER_AURA_SCAN = 0x0089F459
+
+#: The update's own scratch slot for `this`, written by the displaced `mov [ebp-0x14], ecx` at
+#: `0x0089F44C` and read back by the stock code at `0x0089F4A0`. It is what makes `ecx` recoverable
+#: after a call, and the frame pointer it hangs off is set up by the `__EH_prolog` at `0x0089F432`,
+#: so it is live for the whole body.
+ATTRIBUTE_MODIFIER_AURA_THIS_EBP_OFFSET = -0x14
+
+#: `mov eax, 0x3FFFFFFF` - `UPDATE_SLEEP_FOREVER`. **The patch leaves this stock**, because the
+#: dead arm is not its only reader: the `UpgradeMux::isAlreadyUpgraded` test four instructions
+#: above falls into it too, and for an aura still waiting on its `TriggeredBy` upgrade sleeping
+#: forever is correct - `giveSelfUpgrade` (`0x00855388`) wakes it through this module's
+#: `upgradeImplementation` (`0x008554D6`, a bare `setWakeFrame`). Rewriting it in place would put
+#: every un-triggered aura in the game back on a `RefreshDelay` poll.
+ATTRIBUTE_MODIFIER_AURA_DEAD_SLEEP = 0x0089F474
+ATTRIBUTE_MODIFIER_AURA_DEAD_SLEEP_BYTES = bytes.fromhex("b8ffffff3f")
+
+#: The sleep every ordinary path returns, computed at the exit rather than stashed in a slot the
+#: way `PassiveAreaEffectBehavior` does it: `RefreshDelay` (`ModuleData+0x18`) plus the object's id
+#: modulo five, a stagger so that not every aura in a game scans on the same frame. The cave jumps
+#: here, and falls straight into the epilogue two instructions on.
+ATTRIBUTE_MODIFIER_AURA_NORMAL_SLEEP = 0x0089F6BD
+
+#: `Object::getGettingBuiltBehavior` - walks `Object+0x24C` and returns the first module whose
+#: behaviour interface answers `[iface+0x80]` with a non-NULL `GettingBuiltBehaviorInterface`, or
+#: NULL. `__thiscall`, no arguments, and it saves `esi`.
+OBJECT_GET_GETTING_BUILT_BEHAVIOR = 0x0068C3E6
+OBJECT_GET_GETTING_BUILT_BEHAVIOR_ENTRY = bytes.fromhex("568bb14c020000")
+
+#: `GettingBuiltBehaviorInterface::isStillBuilding` - slot `+0x2C` of the interface
+#: :data:`OBJECT_GET_GETTING_BUILT_BEHAVIOR` returns. True for the whole of a build **and** of a
+#: rebuild out of rubble, which is what makes it the "the structure is not finished yet" test that
+#: the effectively-dead flag is not.
+GETTING_BUILT_STILL_BUILDING_SLOT = 0x2C
+
+#: Everything the aura half of the patch reads and does not rewrite. The vtable slot and the
+#: module-name string identify the function; the dead test abuts the rewritten gate; the sentinel
+#: and the sleep computation are the two exits the cave has to keep telling apart.
+ATTRIBUTE_MODIFIER_AURA_ANCHORS: dict[int, bytes] = {
+    # `mov dword [esi+0x10], 0xC67598` in the constructor: this vtable is this module's.
+    0x0089ED9B: bytes.fromhex("c746109875c600"),
+    # `getModuleName`: `mov eax, 0xC0B290 ; ret`.
+    0x0089EDD2: bytes.fromhex("b890b2c000c3"),
+    # `mov eax, [esi+0x11c]` - the gate the cave hands `RunWhileDead = Yes` back to.
+    ATTRIBUTE_MODIFIER_AURA_SCAN: bytes.fromhex("8b861c010000"),
+    # The sentinel the un-triggered arm still needs, which is why the patch does not touch it.
+    ATTRIBUTE_MODIFIER_AURA_DEAD_SLEEP: ATTRIBUTE_MODIFIER_AURA_DEAD_SLEEP_BYTES,
+    # `mov eax, [esi+0x74]` / `cdq` / `push 5` / `pop ecx` / `idiv ecx` / `mov eax, edx` /
+    # `add eax, [edi+0x18]` - the ordinary sleep, which is what the cave jumps to.
+    ATTRIBUTE_MODIFIER_AURA_NORMAL_SLEEP: bytes.fromhex("8b4674996a0559f7f98bc2034718"),
+    # Slot 0 of the update vtable is the function above.
+    ATTRIBUTE_MODIFIER_AURA_UPDATE_VTABLE: ATTRIBUTE_MODIFIER_AURA_UPDATE.to_bytes(4, "little"),
+    ATTRIBUTE_MODIFIER_AURA_MODULE_NAME_STRING: b"AttributeModifierAuraUpdate\x00",
+    # The two routines the cave calls, so a build that moved either fails here rather than on a
+    # wild call: the module-array walk and the status test its empty-handed arm falls back to.
+    OBJECT_GET_GETTING_BUILT_BEHAVIOR: OBJECT_GET_GETTING_BUILT_BEHAVIOR_ENTRY,
+    OBJECT_TEST_STATUS: bytes.fromhex("8b54240433c0568bf140"),
+}
+
+
+# Derived in `docs/contained-horde-respawn.md`. `AutoHealBehavior::update` is an if/else chain over
+# four `ModuleData` flags, and `RespawnNearbyHordeMembers` is read in exactly one of the four arms
+# - the radius scan. `AffectsContained` is the arm above it and returns before reaching it, so in
+# the stock engine the two fields are mutually exclusive and a garrison can be healed or a horde
+# replenished but never both.
+
+#: `AutoHealBehavior::update` - slot 0 of the module's `UpdateModule` sub-object, whose vtable is
+#: :data:`AUTO_HEAL_UPDATE_VTABLE`. `this` is the sub-object at module `+0x10`, so the body opens by
+#: reaching back past it: `[this-0xc]` is the `ModuleData` (kept in `ebx` for the whole function),
+#: `[this-0x8]` the `Object`, and `this-0x10` - the module base - is stashed in the frame slot
+#: :data:`AUTO_HEAL_MODULE_BASE_SLOT`. The same `this-0x10` idiom as `LifetimeUpdate` and both aura
+#: modules.
+AUTO_HEAL_UPDATE = 0x008558C0
+
+#: The `UpdateModule` vtable the constructor stores at module `+0x10` (`0x00855673`,
+#: `mov dword [esi+0x10], 0xC564F8`). Slot 0 is the update above.
+AUTO_HEAL_UPDATE_VTABLE = 0x00C564F8
+
+#: What the class's `getModuleName` (`0x00855415`, `mov eax, 0xC0BED4 ; ret`) returns - the string
+#: that ties every address in this block to `AutoHealBehavior` by name rather than by position.
+AUTO_HEAL_MODULE_NAME_STRING = 0x00C0BED4
+
+#: `ModuleData` offsets, each read at exactly one site in the image. `AffectsContained` at
+#: `0x00855A25` selects the arm this patch extends; the three respawn fields are read only inside
+#: the radius arm, at `0x00855D1C`, `0x00855D85` and `0x00855B04`. `RespawnMinimumDelay` is an
+#: `Int` of raw frames, not a `Duration`.
+AUTO_HEAL_AFFECTS_CONTAINED = 0x14D
+AUTO_HEAL_RESPAWN_NEARBY_HORDE_MEMBERS = 0x175
+AUTO_HEAL_RESPAWN_FX_LIST = 0x178
+AUTO_HEAL_RESPAWN_MINIMUM_DELAY = 0x17C
+
+#: `[ebp-0x20]`, written once at `0x008558F2` from `lea eax, [ecx-0x10]` and never again: the
+#: module base, which is also the `this` `AutoHealBehavior::healObject` (`0x00855761`) is called on
+#: throughout the function. The update's own `[ebp-0x18]` holds the same pointer plus `0x10` at the
+#: top of the function but is **reused as a list head** by the `AffectsContained` and
+#: `AffectsWholePlayer` arms, so a cave entered from either of those has to go through this slot.
+AUTO_HEAL_MODULE_BASE_SLOT = 0x20
+
+#: `[ebp-0x04]`, the MSVC `__EH_prolog` scope index (the prologue is `0x008558C0`'s
+#: `mov eax, 0xB9E267 ; call 0x00A3CEF0`, and the epilogue restores `fs:[0]` from `[ebp-0xc]`).
+#: The `AffectsContained` arm sets it to `1` when it builds its list at `0x00855A6A` and, unlike
+#: the radius arm at `0x00855DC1`, never resets it after destroying that list.
+AUTO_HEAL_SCOPE_INDEX_SLOT = 0x04
+
+#: Module base `+0x34` - the frame the last respawn was stamped at. Zeroed by the constructor
+#: (`0x0085568D`, `and dword [esi+0x34], 0`), compared against `RespawnMinimumDelay` at
+#: `0x00855B15` and written at `0x00855DBE`, both of which reach it as `+0x24` off the
+#: `UpdateModule` sub-object.
+AUTO_HEAL_LAST_RESPAWN_FRAME = 0x34
+
+#: The `AffectsContained` arm's own `iterateContained` call, twenty-six bytes ending three
+#: instructions before the hook. It is where the callback ABI comes from: `push 1` / `push
+#: userData` / `push func` with `ecx` the interface and the slot at
+#: :data:`CONTAIN_ITERATE_SLOT`, callee-cleaned, and `func` (`0x0085584B`) ends in a plain `ret`.
+#: It is also the arm's `mov [ebp-4], 1`, the scope index the cave has to clear.
+AUTO_HEAL_CONTAINED_ITERATE = 0x00855A64
+
+#: The end of the `AffectsContained` arm: a `jmp` to :data:`AUTO_HEAL_UPDATE_TAIL`, five bytes with
+#: nothing else in them, which is the whole hook site. `ebx` still holds the `ModuleData` and `edi`
+#: the `ContainModuleInterface` the arm selected - either the object's own (`0x00855A32`) or, for a
+#: module on a passenger, the one containing it (`0x00855A4A`).
+AUTO_HEAL_CONTAINED_EXIT = 0x00855AC1
+AUTO_HEAL_CONTAINED_EXIT_BYTES = bytes.fromhex("e907030000")
+
+#: Where every arm but `AffectsWholePlayer` converges: `SingleBurst` decides between
+#: `UPDATE_SLEEP_FOREVER` and `HealingDelay`, both read off `ebx`. The cave returns here, so the
+#: sleep the module asks for is unchanged.
+AUTO_HEAL_UPDATE_TAIL = 0x00855DCD
+
+#: The stock respawn, inside the radius arm's per-object loop and reachable from nowhere else. The
+#: cave transcribes it: `KindOf HORDE` on the found object, not `UNDER_CONSTRUCTION`, a non-NULL
+#: horde interface, live members below the contain's `Slots`, then the spawn slot and the effect
+#: list. Anchored in full because it is what the cave claims to reproduce.
+AUTO_HEAL_RESPAWN_BLOCK = 0x00855D16
+
+#: The `__thiscall` helper the stock respawn calls on the newly spawned member (`0x00855D80`), with
+#: no arguments and a plain `ret`. It reaches a virtual base through the vbtable at `Object+0x68`,
+#: calls that base's vtable `+0x10`, and hands a non-NULL answer to `0x00B4F410`, which unlinks a
+#: node from a doubly-linked list and frees it. What the node is has not been established; the cave
+#: makes the call because the stock respawn makes it, and one of its ten callers is the engine's own
+#: change-of-owner path at `0x0068DAAE`.
+AUTO_HEAL_RESPAWN_MEMBER_FIXUP = 0x0068C7E9
+
+#: `__cdecl(FXList *fx, Object *at, void *unused)` - the null-and-empty-safe wrapper every caller
+#: plays an `FXList` on an object through. Returns without doing anything for a NULL `fx`, so a
+#: `RespawnFXList` left out of the INI costs a compare.
+FX_LIST_PLAY_AT_OBJECT = 0x004B1B5A
+
+#: `ContainModuleInterface::iterateContained(func, userData, Bool)`, a vtable slot on the interface
+#: at :data:`OBJECT_CONTAIN`. `__thiscall`, callee-cleaned, and `func` is `__cdecl(Object *,
+#: void *)` returning nothing - the shape of `0x0085584B`, the callback the `AffectsContained` arm
+#: hands it at `0x00855A78`. Preferred over walking :data:`CONTAIN_ITEM_LIST` by hand when the
+#: concrete contain type is whatever the object happened to have.
+CONTAIN_ITERATE_SLOT = 0x110
+
+#: Three more slots on the horde interface :data:`OBJECT_GET_HORDE_IFACE` returns, all `__thiscall`
+#: with no arguments except the last. `+0x17C` (`0x0086C8DE`) is the contain's `Slots` field, `0` if
+#: the module data is missing; `+0x188` (`0x0086C09B`) is the live member count; `+0x18C`
+#: (`0x00873AE3`, `ret 4`) creates one member at a `Matrix3D *` and returns it, which is the banner
+#: carrier's own respawn.
+HORDE_IFACE_MAX_MEMBERS_SLOT = 0x17C
+HORDE_IFACE_MEMBER_COUNT_SLOT = 0x188
+HORDE_IFACE_RESPAWN_MEMBER_SLOT = 0x18C
+
+#: `Object`'s `Matrix3D`, three rows of four floats at `+0x08`. What the respawn slot above takes,
+#: and what the stock respawn passes it with `add esi, 8` at `0x00855D6E`.
+OBJECT_TRANSFORM = 0x08
+
+#: Everything the patch reads and does not rewrite. The constructor's vtable store, the vtable slot
+#: and the module-name string identify the function; the prologue names the `ModuleData` register
+#: and the module-base slot; the `AffectsContained` gate and the contain fetch say what `edi` holds
+#: at the hook, and the list destructor abuts it; the delay computation and the write-back say where
+#: the respawn timestamp lives; the respawn block is what the cave transcribes; and the four
+#: routines are the ones it calls.
+AUTO_HEAL_ANCHORS: dict[int, bytes] = {
+    # `mov dword [esi+0x10], 0xC564F8` in the constructor: this vtable is this module's.
+    0x00855673: bytes.fromhex("c74610f864c500"),
+    # `getModuleName`: `mov eax, 0xC0BED4 ; ret`.
+    0x00855415: bytes.fromhex("b8d4bec000c3"),
+    # The prologue: `push ebx` / `mov ebx, [ecx-0xc]` / `lea eax, [ecx-0x10]` / `push esi` /
+    # `mov esi, [ecx-8]` / `lea ecx, [eax+0x20]` / `mov [ebp-0x20], eax` / the upgrade gate call.
+    0x008558E4: bytes.fromhex("538b59f48d41f0568b71f88d48208945e08b01ff10"),
+    # `cmp byte [ebx+0x14d], 0` / `je 0x00855AC6` - the arm the cave extends, and the only read of
+    # `AffectsContained` in the image.
+    0x00855A25: bytes.fromhex("80bb4d010000000f8494000000"),
+    # The contain fetch: `[esi+0x258]`, else `[esi+0x27c]`'s `[+0x258]`, else straight to the tail.
+    # This is `edi`'s last write before the hook.
+    0x00855A32: bytes.fromhex(
+        "8bbe5802000085ff751c8bb67c02000085f60f84830300008bbe5802000085ff0f8475030000"
+    ),
+    # The arm's own `iterateContained` call: the slot, the argument order and the scope index the
+    # cave clears, all in one window.
+    AUTO_HEAL_CONTAINED_ITERATE: bytes.fromhex(
+        "8b1733c040508945fc8d45e850684b5885008bcfff9210010000"
+    ),
+    # `lea ecx, [ebp-0x18]` / `call 0x005EAEA2` - the list destructor, which ends where the hook
+    # begins. The second of the two calls `edi` has to survive, both callee-saved `__thiscall`.
+    0x00855AB9: bytes.fromhex("8d4de8e8e153d9ff"),
+    # The radius arm's respawn-delay gate: `RespawnMinimumDelay` plus the module's `+0x24` (module
+    # base `+0x34`) against `TheGameLogic`'s frame, into `[ebp-0xd]`.
+    0x00855B04: bytes.fromhex("8b8b7c0100008b55e8a12c41de008b4040034a24897dc43bc11ac0fec08845f3"),
+    # The whole stock respawn block, which the cave transcribes.
+    AUTO_HEAL_RESPAWN_BLOCK: bytes.fromhex(
+        "807df300747e80bb750100000074758b4604f680150100002074696a028bcee8b280bfff84c0755c8bcee821"
+        "6be3ff3bc78945ec744e8b108bc8ff927c0100008b4dec8945dc8b01ff90880100003b45dc73318b4dec8b01"
+        "83c60856ff908c0100008bf03bf7741c8bcee8646ae3ff8b83780100003bc7740b575650e8c3bdc5ff83c40c"
+    ),
+    # The write-back: if the gate was open, stamp `TheGameLogic`'s frame into the module.
+    0x00855DAD: bytes.fromhex("807df300740ea12c41de008b40408b4de8894124"),
+    # The shared tail the cave returns to.
+    AUTO_HEAL_UPDATE_TAIL: bytes.fromhex("80bb3a01000000b8ffffff3f750d8b8340010000eb05b8ffffff3f"),
+    # The four routines the cave calls, at their entries.
+    OBJECT_TEST_STATUS: bytes.fromhex("8b54240433c0568bf140"),
+    OBJECT_GET_HORDE_IFACE: bytes.fromhex("8b895802000085c97503"),
+    AUTO_HEAL_RESPAWN_MEMBER_FIXUP: bytes.fromhex("568bf18b46688b40048d"),
+    FX_LIST_PLAY_AT_OBJECT: bytes.fromhex("558bec837d0800741a"),
+    # Slot 0 of the update vtable is the function above.
+    AUTO_HEAL_UPDATE_VTABLE: AUTO_HEAL_UPDATE.to_bytes(4, "little"),
+    AUTO_HEAL_MODULE_NAME_STRING: b"AutoHealBehavior\x00",
+}

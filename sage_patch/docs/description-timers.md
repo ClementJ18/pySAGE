@@ -2,8 +2,9 @@
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR); file offset is
 `VA - 0x400000` for everything cited here. Read **statically** on 2026-08-16 from the stock
-`game.dat` in this repo (11,346,944 bytes) with `pefile` + `capstone`. Nothing below has been
-observed in a running game.
+`game.dat` in this repo (11,346,944 bytes) with `pefile` + `capstone`. The only part of it a
+running game has confirmed so far is §3.3's upgrade line, whose live run in Edain Unchained on
+2026-09-11 is also what found the object-scope defect that section now records.
 
 **The ask.** A `CommandButton`'s description gains one more line at the bottom saying how long the
 thing it triggers takes: an ability's **cooldown** (its full length when the power is ready, the
@@ -28,7 +29,9 @@ function, and it is not part of this patch.
 - **Status: implemented as `description-timers`**
   ([`../patches/description_timers.py`](../patches/description_timers.py)), applying, verifying and
   detecting against the real `game.dat` and composing in either order with `upgrade-description`.
-  **Static only - not yet observed in a running game;** §10 is what a live test has to settle.
+  **Seen in a running game** (Edain Unchained, Rohan, 2026-09-11) on upgrade buttons, which is what
+  found the object-scope defect §3.3 now records; the rest of §10 is still what a live test has to
+  settle.
 
 ```
 sage-patch apply description-timers --in game.dat.backup --out game.dat
@@ -562,12 +565,42 @@ difference — but a modder reading these lines does.
 The first arm (`0x0066F1B4`, taken when `0x006AA61B` on the player answers 3) folds in a handicap
 read from `[0x00DE4938] + 0x960`. Nothing to do; it is inside the call.
 
-**Skip the line when the player already owns the upgrade.** The description builder's own test is
-`Player::hasUpgradeComplete` (`0x006AC2AF`, called at `0x0080816E` with the button's
-`CommandButton+0x24`), and its result is cached in the frame byte at `ebp-0x0d`. Re-asking is one
-call and does not depend on which path reached the hook, so re-ask. A researched upgrade already
-takes the early exit at `0x0080838A` and shows no cost line; showing it a research time would be
-worse than showing it nothing.
+**Skip the line when the upgrade is already researched — and *who* owns it depends on its `Type`.**
+The description builder's own test is `Player::hasUpgradeComplete` (`0x006AC2AF`, called at
+`0x0080816E` with the button's `CommandButton+0x24`), and its result is cached in the frame byte at
+`ebp-0x0d`. Re-asking is one call and does not depend on which path reached the hook, so re-ask. A
+researched upgrade already takes the early exit at `0x0080838A` and shows no cost line; showing it
+a research time would be worse than showing it nothing.
+
+But that test answers **no forever** for a `Type = OBJECT` upgrade. An object upgrade is recorded
+in the object's own completed mask (`Object+0x28C`) and never in the player's (`Player+0x14C`), so
+a button for one kept its research time for the rest of the game after it finished, while a
+`Type = PLAYER` button lost its line the moment it completed. That asymmetry is what a live run
+found, on Rohan's Arsenal and Recruit Camp against its Forged Blades and economy upgrades.
+
+The scope test is the engine's own, at `0x00795045` in the `canMakeUnit` gate:
+
+```
+00795045  8b 04 98        mov  eax, [eax + ebx*4]   ; the NeededUpgrade entry
+0079504c  8b 48 04        mov  ecx, [eax + 4]       ; UpgradeTemplate::Type
+0079504f  83 f9 01        cmp  ecx, 1               ; OBJECT
+00795052  75 0b           jne  0x79505f
+00795054  8b 4d 08        mov  ecx, [ebp + 8]       ;   the Object
+00795058  e8 ...          call 0x691421             ;   Object::hasUpgrade
+...
+00795067  e8 ...          call 0x68b678             ;   getControllingPlayer
+0079506e  e8 ...          call 0x6ac2af             ;   Player::hasUpgradeComplete
+```
+
+`Type` is `UpgradeTemplate+0x04`, an `Enum` over the name array at `0x00DA05C8` — `PLAYER` 0,
+`OBJECT` 1 — and `Object::hasUpgrade` (`0x00691421`) has the same shape as the `Player` one:
+`__thiscall`, one `UpgradeTemplate *`, `ret 4`, answers in `al`. The two functions are **identical
+for their first sixteen bytes** and differ only in one `rel32`, so the patch anchors both out to
+the `ret`.
+
+The object to ask is the builder's own object slot, `ebp-0x1c` — the same one the builder hands
+`Object::hasUpgrade` at `0x00808197`. With nothing selected the arm keeps the line: an unanswerable
+question is not an answer of "researched".
 
 ### 3.4 Heroes — named, not covered
 
@@ -672,7 +705,7 @@ The keys, **one `%d` each** — the duration in whole seconds:
 | `TOOLTIP:Cooldown` | a special-power button whose power is ready |
 | `TOOLTIP:CooldownRemaining` | …and while it is recharging |
 | `TOOLTIP:BuildTime` | a button with a `ThingTemplate` |
-| `TOOLTIP:ResearchTime` | an upgrade button the player does not already own |
+| `TOOLTIP:ResearchTime` | an upgrade button whose upgrade is not already researched — asked of the player for `Type = PLAYER`, of the selected object for `Type = OBJECT` |
 | `TOOLTIP:BuildTimeRemaining` / `TOOLTIP:ResearchTimeRemaining` | not built — the queue walk of §4 |
 
 Each key is fetched and tested independently, so a mod can declare `TOOLTIP:Cooldown` without
@@ -798,6 +831,9 @@ If any of those moved, the transcription is not this build's.
 | `0x006AAAD2` | `fld [Player+0x718]` — the spell-recharge discount |
 | `0x006AA61B` | the player query `UpgradeTemplate::calcTimeToBuild` compares against 3 |
 | `0x006AC2AF` | `Player::hasUpgradeComplete` |
+| `0x00691421` | `Object::hasUpgrade` — the same shape, for a `Type = OBJECT` upgrade |
+| `0x00795045` | the engine's own scope test: `UpgradeTemplate+0x04` against `1`, then one of the two |
+| `0x00DA05C8` | the `Upgrade.Type` name array — `PLAYER` 0, `OBJECT` 1 |
 | `0x006AD1B0` / `0x006AD26F` | `Player::startSharedSyncedTimer` / its reader (`Player+0x724`) |
 | `0x006AF484` | the player's per-template production bonus, applied as `1 + bonus` |
 | `0x006D4728` | hands the finished tooltip record to the movie |

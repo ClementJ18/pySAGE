@@ -31,6 +31,7 @@ from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
 from sage_patch.patches.commandset_button_upgrade import CommandSetButtonUpgradePatch
+from sage_patch.patches.contained_horde_respawn import ContainedHordeRespawnPatch
 from sage_patch.patches.crash_dump import CrashDumpPatch
 from sage_patch.patches.deploy_before_attack import DeployBeforeAttackPatch
 from sage_patch.patches.description_timers import DescriptionTimersPatch
@@ -51,18 +52,13 @@ from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.experimental.map_transition import MapTransitionPatch
-from sage_patch.patches.experimental.mod_load_order import ModLoadOrderPatch
-from sage_patch.patches.experimental.multi_mod import MultiModPatch
+from sage_patch.patches.experimental.ranged_stand_off import RangedStandOffPatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
-from sage_patch.patches.experimental.render_rate import RenderRatePatch
-from sage_patch.patches.experimental.script_debug_window import ScriptDebugWindowPatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_charges import SpecialPowerChargesPatch
 from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
-from sage_patch.patches.experimental.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
-from sage_patch.patches.experimental.wotr_battle_observers import WotrBattleObserversPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
@@ -82,8 +78,10 @@ from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.map_list_symbols import MapListSymbolsPatch
+from sage_patch.patches.mod_load_order import ModLoadOrderPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
+from sage_patch.patches.multi_mod import MultiModPatch
 from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.object_image_upgrade import (
     ObjectImageUpgradePatch,
@@ -92,6 +90,7 @@ from sage_patch.patches.object_image_upgrade import (
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.observer_command_range import ObserverCommandRangePatch
 from sage_patch.patches.observer_switch import ObserverSwitchPatch
+from sage_patch.patches.passive_aura_revive import PassiveAuraRevivePatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.production_condition import (
     ProductionConditionPatch,
@@ -104,6 +103,7 @@ from sage_patch.patches.production_split import (
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.quiet_exit import QuietExitPatch
 from sage_patch.patches.rebuild_hole_repair import RebuildHoleRepairPatch
+from sage_patch.patches.render_rate import RenderRatePatch
 from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
 from sage_patch.patches.scenario_player_factions import ScenarioPlayerFactionsPatch
@@ -111,12 +111,14 @@ from sage_patch.patches.science_prereqs import (
     SciencePrereqPatch,
     SciencePrereqWorldbuilderPatch,
 )
+from sage_patch.patches.script_debug_window import ScriptDebugWindowPatch
 from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_ai_fallback import SkirmishAiFallbackPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
 from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetRefreshPatch
+from sage_patch.patches.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
@@ -132,6 +134,7 @@ from sage_patch.patches.worldbuilder_object_typeahead import (
 from sage_patch.patches.worldbuilder_silent_errors import (
     WorldbuilderSilentErrorsPatch,
 )
+from sage_patch.patches.wotr_battle_observers import WotrBattleObserversPatch
 
 #: Every registered patch, in class-name order so a new one is added beside its import. This is
 #: **not** the order they are presented in: :data:`PATCHES` is built from this by sorting, and
@@ -162,6 +165,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CommandSetButtonUpgradePatch,
     CommandSetLimitPatch,
     CooldownThroughDeathPatch,
+    ContainedHordeRespawnPatch,
     CrashDumpPatch,
     DeployBeforeAttackPatch,
     DescriptionTimersPatch,
@@ -204,6 +208,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     ObjectivesScreenPatch,
     ObserverCommandRangePatch,
     ObserverSwitchPatch,
+    PassiveAuraRevivePatch,
     PlayerHealFilterPatch,
     ProductionConditionPatch,
     ProductionConditionWorldbuilderPatch,
@@ -212,6 +217,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     QueueIgnoreCpPatch,
     QuietExitPatch,
     RebuildHoleRepairPatch,
+    RangedStandOffPatch,
     RechargeRescalePatch,
     RenderRatePatch,
     ReplayAnnotationsPatch,

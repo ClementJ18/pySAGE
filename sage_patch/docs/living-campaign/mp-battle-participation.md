@@ -3,7 +3,7 @@
 Engine build `2.01.2614.37001`, ImageBase `0x400000`. Static analysis 2026-09-06,
 **confirmed against a running three-player game on 2026-09-06** - see *Measured live*.
 The fix is built as
-[`wotr-battle-observers`](../../patches/experimental/wotr_battle_observers.py).
+[`wotr-battle-observers`](../../patches/wotr_battle_observers.py).
 
 ## The symptom
 
@@ -256,9 +256,9 @@ slot of its own.
 
 ## The patch
 
-Built as [`wotr-battle-observers`](../../patches/experimental/wotr_battle_observers.py). Nine
-rewritten sites, one cave, no INI surface. It applies and verifies against the build; **it has not
-been run in a game.**
+Built as [`wotr-battle-observers`](../../patches/wotr_battle_observers.py). Nine
+rewritten sites, one cave, no INI surface. It applies and verifies against the build, and **it is
+confirmed in a running three-player game on 2026-09-06** - see *Measured live*.
 
 **1 — Stop forcing auto-resolve, in both places.** `0x006BEBE5`, `jge` to `jmp` (`0x7D` to
 `0xEB`), file offset `0x2BEBE5`. Stock bytes at `0x006BEBBF` are

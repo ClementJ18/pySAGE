@@ -53,7 +53,8 @@ This window does the two things you need for a mod's asset.dat, each on its own 
 
 <h3>Build an asset.dat from your art</h3>
 <p>On the <b>Build</b> card, press <b>Browse…</b> next to <b>Art folder</b> and choose the
-folder that holds your <code>compiledtextures/</code> and <code>w3d/</code> subfolders. Pick an
+folder that holds your <code>compiledtextures/</code>, <code>Textures/</code> and
+<code>w3d/</code> subfolders. Pick an
 <b>Output .dat</b> path, then press <b>Build</b>. The whole art tree is scanned and the
 asset.dat it describes is written. Rebuild whenever you add or change art, or the game will not
 see the new files.</p>
@@ -144,7 +145,7 @@ class AssetWindow(QMainWindow):
         frame, layout = card("Build")
 
         self.art_field = self._path_row(
-            layout, "Art folder", "compiledtextures/ + w3d/", self._pick_art_dir
+            layout, "Art folder", "compiledtextures/ + Textures/ + w3d/", self._pick_art_dir
         )
         self.build_out_field = self._path_row(
             layout, "Output .dat", "where to write asset.dat", self._pick_build_out
@@ -161,7 +162,8 @@ class AssetWindow(QMainWindow):
         self.build_button = QPushButton("Build")
         self.build_button.setObjectName("primary")
         self.build_button.setToolTip(
-            "Scan the art folder's compiledtextures/ and w3d/ and write the asset.dat it describes."
+            "Scan the art folder's texture and w3d/ subfolders and write the asset.dat "
+            "it describes."
         )
         self.build_button.clicked.connect(self._run_build)
         row.addWidget(self.build_button)

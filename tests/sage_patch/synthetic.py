@@ -30,6 +30,10 @@ own `InitInstance` and its anchors are ~16 MB away in the file-system module, so
 :func:`worldbuilder_object_typeahead_image` is the fourth, and the only one that plants a resource:
 the object picker's dialog template lives in `.rsrc`, 5 MB past the class that opens it.
 
+:func:`contained_horde_respawn_image` is sparse for the usual reason: `contained-horde-respawn`
+hooks one instruction in `AutoHealBehavior::update` and reads four routines spread over four
+megabytes below it, plus a vtable and a string in `.rdata` above.
+
 :func:`script_debug_window_image` is the odd one out: it stands in for `DebugWindowLite.dll`, so it
 is the only image here built at a base other than `0x400000`.
 """
@@ -55,15 +59,20 @@ from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
 from sage_patch.patches import infantry_lighting as il
 from sage_patch.patches import interpolation_alpha as ia
+from sage_patch.patches import mod_load_order as mlo
 from sage_patch.patches import multi_instance as mi
+from sage_patch.patches import multi_mod as mm
 from sage_patch.patches import object_image_upgrade as oi
 from sage_patch.patches import observer_command_range as ocr
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import production_condition as pc
 from sage_patch.patches import production_split as ps
+from sage_patch.patches import render_rate as rrate
 from sage_patch.patches import scenario_player_factions as spf
+from sage_patch.patches import script_debug_window as sdw
 from sage_patch.patches import skirmish_ai_fallback as saf
 from sage_patch.patches import spellbook_commandset_refresh as sbcsr
+from sage_patch.patches import standalone_launcher as sl
 from sage_patch.patches import trigger_recharge_list as trl
 from sage_patch.patches import upgrade_alias as ua
 from sage_patch.patches import upgrade_description as ud
@@ -75,13 +84,9 @@ from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
 from sage_patch.patches.experimental import command_line_skirmish as cls
 from sage_patch.patches.experimental import map_transition as mtr
-from sage_patch.patches.experimental import mod_load_order as mlo
-from sage_patch.patches.experimental import multi_mod as mm
+from sage_patch.patches.experimental import ranged_stand_off as rso
 from sage_patch.patches.experimental import recharge_rescale as rr
-from sage_patch.patches.experimental import render_rate as rrate
-from sage_patch.patches.experimental import script_debug_window as sdw
 from sage_patch.patches.experimental import smart_rally as sr
-from sage_patch.patches.experimental import standalone_launcher as sl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
 from sage_patch.patches.utils import model_conditions as mc
@@ -691,6 +696,51 @@ def quiet_exit_image() -> bytearray:
     aimed one instruction to either side of the call finds nothing there.
     """
     return _sparse_image({ad.WRITE_MINI_DUMP_CALL_FILTER: ad.WRITE_MINI_DUMP_CALL_FILTER_BYTES})
+
+
+def passive_aura_revive_image() -> bytearray:
+    """A stand-in carrying both aura updates and the anchors that identify each of them.
+
+    Sparse, and the pages are what the patch's claim rests on: each update's own body is one page,
+    its module constructor and `getModuleName` a page below it, and the update vtables and the
+    module-name strings live in `.rdata` almost four megabytes away. Everything not planted reads as
+    zero, so a patch aimed one instruction to either side of a dead arm - or at the same bytes in
+    some other module's update - finds nothing there.
+
+    `AttributeModifierAuraUpdate`'s sentinel is planted like any other anchor rather than as a
+    patch site, because the patch deliberately leaves it stock: it is still the right answer for an
+    aura waiting on its `TriggeredBy` upgrade. So are the passive module's construction gate, which
+    the cave transcribes, and the two routines that transcription calls.
+    """
+    return _sparse_image(
+        {
+            ad.PASSIVE_AREA_EFFECT_DEAD_SLEEP: ad.PASSIVE_AREA_EFFECT_DEAD_SLEEP_BYTES,
+            **ad.PASSIVE_AREA_EFFECT_ANCHORS,
+            ad.ATTRIBUTE_MODIFIER_AURA_GATES: ad.ATTRIBUTE_MODIFIER_AURA_GATES_BYTES,
+            **ad.ATTRIBUTE_MODIFIER_AURA_ANCHORS,
+        }
+    )
+
+
+def contained_horde_respawn_image() -> bytearray:
+    """A stand-in carrying `AutoHealBehavior::update` and everything the cave transcribes or calls.
+
+    Sparse, and the spread is the claim: the update's body and its constructor sit in one page, the
+    four routines the cave calls are spread over four megabytes below them, and the update vtable
+    and the module-name string live in `.rdata` almost four megabytes above. Everything not planted
+    reads as zero, so a hook aimed one instruction to either side of the `AffectsContained` arm's
+    exit - or at the same five bytes in some other module - finds nothing there.
+
+    The whole stock respawn block is planted even though the patch never jumps to it: it is what
+    the cave reproduces, so a build that encoded it differently is a build the cave is not a copy
+    of.
+    """
+    return _sparse_image(
+        {
+            ad.AUTO_HEAL_CONTAINED_EXIT: ad.AUTO_HEAL_CONTAINED_EXIT_BYTES,
+            **ad.AUTO_HEAL_ANCHORS,
+        }
+    )
 
 
 def description_timers_image() -> bytearray:
@@ -1526,3 +1576,15 @@ def map_list_symbols_image() -> bytearray:
             ad.MAP_LIST_ICON_LADDER: ad.MAP_LIST_ICON_LADDER_BYTES + bytes.fromhex("8b4dcc894d08"),
         }
     )
+
+
+def ranged_stand_off_image() -> bytearray:
+    """A stand-in carrying the attack-approach may-stop gate and every site it is read against.
+
+    Sparse for the usual reason: the gate, the `MeleeWeapon` clear that has to keep running after
+    it, the two range exits it unblocks and `computePath`'s `call setGoalObject` sit within two
+    pages of each other, and the `setGoalObject` stamp that makes the flag one is a megabyte below.
+    Everything not planted reads as zero, so a patch aimed one instruction to either side of the
+    three-byte `sete` would find nothing there.
+    """
+    return _sparse_image({rso.MAY_STOP_SETE_VA: rso.STOCK_BYTES, **rso.ANCHORS})

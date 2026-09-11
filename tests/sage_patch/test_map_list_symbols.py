@@ -25,6 +25,8 @@ not the expected build.
 
 from __future__ import annotations
 
+import argparse
+import itertools
 import struct
 from pathlib import Path
 
@@ -73,11 +75,16 @@ from sage_patch.addresses import (  # noqa: E402
 )
 from sage_patch.patches.map_list_symbols import (  # noqa: E402
     DEFAULT_KEYWORD,
+    DEFAULT_SORT,
     DEFAULT_SYMBOLS,
+    DIFFICULTY_MASK,
+    FLAG_SORT_BY_ICON,
     FLAG_SORT_BY_SYMBOL,
     IMAGE_STATES,
     MAX_SYMBOLS,
+    OFFICIAL_SHIFT,
     SECTION_NAME,
+    SORT_MODES,
     SYMBOL_MASK,
     SYMBOL_SHIFT,
     _layout,
@@ -118,10 +125,10 @@ def disassemble(data: bytes | bytearray, va: int, size: int) -> list[str]:
 def patched(
     keyword: str = DEFAULT_KEYWORD,
     symbols: int = DEFAULT_SYMBOLS,
-    sort_by_symbol: bool = False,
+    sort: str = DEFAULT_SORT,
 ) -> bytearray:
     data = map_list_symbols_image()
-    MapListSymbolsPatch(keyword, symbols, sort_by_symbol).apply(data)
+    MapListSymbolsPatch(keyword, symbols, sort).apply(data)
     return data
 
 
@@ -175,7 +182,7 @@ class TestRoundTrip:
         assert found.options() == {
             "keyword": "mapIcon",
             "symbols": 3,
-            "sort_by_symbol": False,
+            "sort": "key",
         }
 
     def test_verify_names_the_parameters_rather_than_a_size(self) -> None:
@@ -639,8 +646,9 @@ class TestSortBySymbol:
             MAP_LIST_COMPARE_KEY_BYTES
         )
 
-    def test_it_hooks_the_comparator_and_pads_what_it_displaced(self) -> None:
-        data = patched(sort_by_symbol=True)
+    @pytest.mark.parametrize("sort", ["symbol", "icon"])
+    def test_it_hooks_the_comparator_and_pads_what_it_displaced(self, sort: str) -> None:
+        data = patched(sort=sort)
         replacement = at(data, MAP_LIST_COMPARE_KEY, len(MAP_LIST_COMPARE_KEY_BYTES))
         assert replacement[:1] == bytes.fromhex("e9")
         assert replacement[5:] == bytes.fromhex("90") * (len(MAP_LIST_COMPARE_KEY_BYTES) - 5)
@@ -652,7 +660,7 @@ class TestSortBySymbol:
     def test_both_operands_are_masked_to_the_symbol(self) -> None:
         """One masked operand would order by the *difference* of two unmasked keys, which is not
         the same relation and is not even a consistent one."""
-        data = patched(sort_by_symbol=True)
+        data = patched(sort="symbol")
         text = compare(data)
         assert text.count(f"and eax, {SYMBOL_MASK:#x}") == 1
         assert text.count(f"and edx, {SYMBOL_MASK:#x}") == 1
@@ -668,37 +676,37 @@ class TestSortBySymbol:
         """The stock arm is `mov eax` / `mov ecx, [ebp-0x10]` / `sub eax` / `mov ecx, [ecx]` - the
         functor load sits *between* the two halves of the subtraction, so a hook that took the
         whole span owes the caller both."""
-        data = patched(sort_by_symbol=True)
+        data = patched(sort="symbol")
         text = compare(data)
         assert text[-3:-1] == ["mov ecx, dword ptr [ebp - 0x10]", "mov ecx, dword ptr [ecx]"]
         assert text[-1] == f"jmp 0x{MAP_LIST_COMPARE_KEY_RESUME:x}"
 
     def test_it_reads_the_two_entries_the_comparator_was_given(self) -> None:
-        data = patched(sort_by_symbol=True)
+        data = patched(sort="symbol")
         text = compare(data)
         assert f"mov eax, dword ptr [ebx + {MAP_META_DATA_SORT_KEY:#x}]" in text
         assert f"mov edx, dword ptr [edi + {MAP_META_DATA_SORT_KEY:#x}]" in text
 
     def test_the_option_round_trips(self) -> None:
-        found = MapListSymbolsPatch.detect(bytes(patched("mapIcon", 3, sort_by_symbol=True)))
+        found = MapListSymbolsPatch.detect(bytes(patched("mapIcon", 3, sort="symbol")))
         assert found is not None
         assert found.options() == {
             "keyword": "mapIcon",
             "symbols": 3,
-            "sort_by_symbol": True,
+            "sort": "symbol",
         }
 
     def test_the_two_builds_do_not_verify_as_each_other(self) -> None:
-        assert MapListSymbolsPatch(sort_by_symbol=True).verify(bytes(patched())) != []
-        assert MapListSymbolsPatch().verify(bytes(patched(sort_by_symbol=True))) != []
+        assert MapListSymbolsPatch(sort="symbol").verify(bytes(patched())) != []
+        assert MapListSymbolsPatch().verify(bytes(patched(sort="symbol"))) != []
 
     def test_the_flag_is_recorded_in_the_cave_rather_than_inferred(self) -> None:
         """`detect` reads it, so it cannot be confused with a binary somebody hooked by hand."""
-        for flag in (False, True):
-            data = patched(sort_by_symbol=flag)
+        expected = {"key": 0, "symbol": FLAG_SORT_BY_SYMBOL, "icon": FLAG_SORT_BY_ICON}
+        for mode in SORT_MODES:
+            data = patched(sort=mode)
             layout = pieces(data)
-            expected = FLAG_SORT_BY_SYMBOL if flag else 0
-            assert struct.unpack("<I", at(data, layout.flags_va, 4))[0] == expected
+            assert struct.unpack("<I", at(data, layout.flags_va, 4))[0] == expected[mode]
 
     def test_a_cave_with_flags_this_build_does_not_know_is_refused(self) -> None:
         data = patched()
@@ -710,15 +718,161 @@ class TestSortBySymbol:
 
     def test_the_stub_is_absent_from_a_default_build(self) -> None:
         assert pieces(patched()).compare_va is None
-        assert pieces(patched(sort_by_symbol=True)).compare_va is not None
+        assert pieces(patched(sort="symbol")).compare_va is not None
+        assert pieces(patched(sort="icon")).compare_va is not None
 
-    def test_the_icon_still_tracks_the_conquered_state(self) -> None:
-        """The option changes the *comparator*, not the key and not the ladder, so a masked sort
-        and a per-difficulty icon are independent."""
-        plain, sorted_ = patched(), patched(sort_by_symbol=True)
+    @pytest.mark.parametrize("sort", ["symbol", "icon"])
+    def test_the_icon_still_tracks_the_conquered_state(self, sort: str) -> None:
+        """The options change the *comparator*, not the key and not the ladder, so the order the
+        column takes and the picture each row draws are independent."""
+        plain, sorted_ = patched(), patched(sort=sort)
         assert stub(plain, pieces(plain).pick_va, pieces(plain).pick_va + 0x40) == stub(
             sorted_, pieces(sorted_).pick_va, pieces(sorted_).pick_va + 0x40
         )
+
+
+class TestSortByIcon:
+    """``--sort-by-icon``: the icon column orders by the picture it draws.
+
+    The stock key is ``symbol | official << 15 | difficulty``, so subtracting whole keys puts the
+    star/hammer bit *between* the symbol and the medal and splits a symbol's easy-conquered maps
+    in two. The stub ranks each operand as ``symbol | difficulty << 1 | official`` instead, which
+    is the same three fields with the last two swapped."""
+
+    @staticmethod
+    def rank(key: int) -> int:
+        """What the stub computes, in Python - the reference the ordering tests read from."""
+        return (key & SYMBOL_MASK) | (key & DIFFICULTY_MASK) << 1 | (key >> OFFICIAL_SHIFT) & 1
+
+    @staticmethod
+    def key(symbol: int, official: bool, difficulty: int) -> int:
+        """A key as pass 1 leaves it: the symbol above bit 15, `isOfficial` being *No* at bit 15,
+        and the highest difficulty the map has been beaten on in the low nibble."""
+        return symbol << SYMBOL_SHIFT | (0 if official else 1) << OFFICIAL_SHIFT | difficulty
+
+    def test_it_ranks_both_operands_and_subtracts_the_ranks(self) -> None:
+        """A ranked operand against a raw one would order by a difference of two different
+        quantities, which is not a consistent relation at all."""
+        text = compare(patched(sort="icon"))
+        assert len([line for line in text if line.startswith("call ")]) == 2
+        assert "sub eax, edx" in text
+        assert f"mov eax, dword ptr [ebx + {MAP_META_DATA_SORT_KEY:#x}]" in text
+        assert f"mov eax, dword ptr [edi + {MAP_META_DATA_SORT_KEY:#x}]" in text
+
+    def test_the_ranking_is_a_subroutine_both_calls_reach(self) -> None:
+        data = patched(sort="icon")
+        text = compare(data)
+        targets = {line.split()[1] for line in text if line.startswith("call ")}
+        assert len(targets) == 1
+        target = int(next(iter(targets)), 16)
+
+        located = find_section(data, SECTION_NAME)
+        assert located is not None
+        section_va, _off, vsize = located
+        body = stub(data, target, section_va + vsize)
+        assert body[: body.index("ret")] == [
+            "mov ecx, eax",
+            f"and ecx, {SYMBOL_MASK:#x}",
+            "mov edx, eax",
+            f"and edx, {DIFFICULTY_MASK:#x}",
+            f"shr eax, {OFFICIAL_SHIFT:#x}",
+            "and eax, 1",
+            "lea eax, [eax + edx*2]",
+            "or eax, ecx",
+        ]
+
+    def test_the_ranking_spends_only_the_three_registers_this_arm_owns(self) -> None:
+        """`ebx` and `edi` are the two entries and `[ebp-0x10]` the sort functor. `ecx` is free
+        because the displaced load rewrites it on the way out and `edx` because the stock code
+        zeroes it four bytes past the resume point."""
+        data = patched(sort="icon")
+        text = compare(data)
+        targets = {line.split()[1] for line in text if line.startswith("call ")}
+        located = find_section(data, SECTION_NAME)
+        assert located is not None
+        section_va, _off, vsize = located
+        body = stub(data, int(next(iter(targets)), 16), section_va + vsize)
+        written = {line.split()[1].rstrip(",") for line in body[: body.index("ret")]}
+        assert written <= {"eax", "ecx", "edx"}
+
+    def test_it_reproduces_the_two_instructions_interleaved_with_the_delta(self) -> None:
+        text = compare(patched(sort="icon"))
+        assert text[-3:-1] == ["mov ecx, dword ptr [ebp - 0x10]", "mov ecx, dword ptr [ecx]"]
+        assert text[-1] == f"jmp 0x{MAP_LIST_COMPARE_KEY_RESUME:x}"
+
+    def test_the_rank_keeps_the_symbol_where_it_was(self) -> None:
+        for symbol in (0, 1, 7, 0xFFFF):
+            for official in (True, False):
+                for difficulty in range(7):
+                    key = self.key(symbol, official, difficulty)
+                    assert self.rank(key) & SYMBOL_MASK == symbol << SYMBOL_SHIFT
+
+    def test_the_two_low_fields_cannot_carry_into_the_symbol(self) -> None:
+        """The difficulty is 0..6 and the official bit is one bit, so the rank's low half reaches
+        13 - nowhere near bit 15, let alone bit 16."""
+        worst = self.rank(self.key(0, official=False, difficulty=6))
+        assert worst == 13
+        assert worst < 1 << OFFICIAL_SHIFT
+
+    def test_a_symbol_beaten_on_one_difficulty_is_contiguous(self) -> None:
+        """The whole point: with the stock key an official and a user map sharing a symbol and a
+        medal are separated by every other official map in that symbol."""
+        keys = [
+            self.key(symbol, official, difficulty)
+            for symbol in (1, 2)
+            for official in (True, False)
+            for difficulty in (1, 3)
+        ]
+        groups = [
+            [k for k in sorted(keys, key=self.rank) if (k & SYMBOL_MASK, k & DIFFICULTY_MASK) == g]
+            for g in {(k & SYMBOL_MASK, k & DIFFICULTY_MASK) for k in keys}
+        ]
+        order = sorted(keys, key=self.rank)
+        for group in groups:
+            positions = [order.index(k) for k in group]
+            assert max(positions) - min(positions) == len(group) - 1
+
+    def test_the_star_and_the_hammer_still_break_the_tie(self) -> None:
+        """Nothing is masked away, so the option reorders the column rather than coarsening it:
+        two maps alike but for `isOfficial` still order, official first."""
+        official = self.key(3, official=True, difficulty=4)
+        user = self.key(3, official=False, difficulty=4)
+        assert self.rank(official) < self.rank(user)
+
+    def test_the_symbol_still_outranks_everything(self) -> None:
+        assert self.rank(self.key(1, official=True, difficulty=6)) < self.rank(
+            self.key(2, official=True, difficulty=0)
+        )
+
+    def test_the_option_round_trips(self) -> None:
+        found = MapListSymbolsPatch.detect(bytes(patched("mapIcon", 3, sort="icon")))
+        assert found is not None
+        assert found.options() == {"keyword": "mapIcon", "symbols": 3, "sort": "icon"}
+
+    def test_the_three_builds_do_not_verify_as_each_other(self) -> None:
+        for built, checked in itertools.permutations(SORT_MODES, 2):
+            assert MapListSymbolsPatch(sort=checked).verify(bytes(patched(sort=built))) != []
+
+    def test_the_two_sort_options_are_refused_together(self) -> None:
+        parser = argparse.ArgumentParser()
+        MapListSymbolsPatch.add_cli_arguments(parser)
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--sort-by-symbol", "--sort-by-icon"])
+
+    def test_the_cli_names_each_mode(self) -> None:
+        parser = argparse.ArgumentParser()
+        MapListSymbolsPatch.add_cli_arguments(parser)
+        for argv, expected in (
+            ([], "key"),
+            (["--sort-by-symbol"], "symbol"),
+            (["--sort-by-icon"], "icon"),
+        ):
+            built = MapListSymbolsPatch.from_cli_args(parser.parse_args(argv))
+            assert built.sort == expected
+
+    def test_an_unknown_mode_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="sort must be one of"):
+            MapListSymbolsPatch(sort="medal")
 
 
 class TestTheBuildFingerprint:

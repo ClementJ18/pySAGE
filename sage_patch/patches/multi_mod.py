@@ -1,7 +1,7 @@
 r"""The multi-mod patch: honour every `-mod` on the command line, not just the last one.
 
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../../docs/multi-mod.md``.
+in ``../docs/multi-mod.md``.
 
 **The defect.** `-mod` is a startup switch like any other: its handler
 (`COMMAND_LINE_MOD_HANDLER`) resolves the argument to an absolute path, asks `_stat` whether it is
@@ -19,8 +19,14 @@ overwrite flag set (`ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE` takes it as its second ar
 `0x00A18384` is where an existing entry is kept or replaced on it), so several mounted ``.big``\ s
 already stack - **last mounted wins**.
 
+The **asset cache** is single-valued a third time, and not through the file system at all.
+`ASSET_CACHE_LOAD` opens `asset.dat` with `fopen` - once under `GLOBAL_DATA_MOD_BIG`, once under
+`GLOBAL_DATA_MOD_DIR`, once in the working directory - so the four blocks above never see it and
+only the last `-mod`'s copy is read. A mod whose art the cache does not list draws in the missing
+-texture magenta, which is what ``-mod A -mod B`` does to every model and texture A adds.
+
 **What this does.** Adds a ``.modmul`` cave holding a sixteen-entry table of mod paths, and makes
-five edits: one that fills the table, and four that read it.
+six edits: one that fills the table, and five that read it.
 
 * :data:`MOD_HANDLER_STORE`, the `AsciiString::operator=` that ends the `-mod` handler, is
   repointed to a stand-in that performs that assignment unchanged and then records the path it
@@ -29,12 +35,23 @@ five edits: one that fills the table, and four that read it.
   than the source is deliberate: it is the finished absolute path, trailing separator and all.
 * The four file-system blocks are replaced by cave routines that loop the same formatting and the
   same `TheLocalFileSystem` call over every recorded directory instead of running it once.
+* :data:`ASSET_CACHE_BLOCK` - the first two instructions of the asset loader's own body - is
+  replaced by a routine that reads ``<dir>\asset.dat`` out of every recorded directory before the
+  loader's three stock attempts run, then ends on the same two instructions so the branch after
+  it reads the flags it expects.
 
 **Precedence: the last `-mod` wins.** That is not a choice so much as the rule the archive file
 system already follows, extended to loose files: mounting happens in command-line order, so a
 later mod's ``.big``\ s overwrite an earlier one's map entries, and the loose search therefore runs
 the table backwards - last recorded first - so both halves agree. With one `-mod` the order is a
 single element either way and nothing changes.
+
+The asset cache reaches the same answer from the other side. Registration there is **first-wins** -
+`ASSET_CACHE_REGISTER_GATE` skips any asset whose name `ASSET_CACHE_HAS_ASSET` already knows - so
+the cave reads the recorded directories in the same backwards order the loose search walks, and
+the first `asset.dat` to name an asset is the one that keeps it. Running before the loader's own
+three attempts is what puts every `-mod` ahead of the working directory's base-game copy, which is
+where the stock code already put the last one.
 
 **Mounting from the handler.** The stock mount runs a few instructions after the parse returns,
 inside the same function; this one runs during it. Both sit after `FILE_SYSTEM_CREATE_CALL`, which
@@ -76,7 +93,7 @@ from __future__ import annotations
 
 import struct
 
-from ...addresses import (
+from ..addresses import (
     ARCHIVE_FILE_SYSTEM,
     ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE,
     ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE_SLOT,
@@ -84,6 +101,22 @@ from ...addresses import (
     ASCII_STRING_ASSIGN,
     ASCII_STRING_CHARS_OFFSET,
     ASCII_STRING_SET,
+    ASSET_CACHE_HAS_ASSET,
+    ASSET_CACHE_HAS_ASSET_BYTES,
+    ASSET_CACHE_LOAD,
+    ASSET_CACHE_LOAD_BYTES,
+    ASSET_CACHE_MOD_BIG_BRANCH,
+    ASSET_CACHE_MOD_BIG_BRANCH_BYTES,
+    ASSET_CACHE_MOD_BIG_TEST,
+    ASSET_CACHE_MOD_BIG_TEST_BYTES,
+    ASSET_CACHE_READ_FILE,
+    ASSET_CACHE_READ_FILE_BYTES,
+    ASSET_CACHE_REGISTER_GATE,
+    ASSET_CACHE_REGISTER_GATE_BYTES,
+    ASSET_CACHE_WORKING_DIR_ATTEMPT,
+    ASSET_CACHE_WORKING_DIR_ATTEMPT_BYTES,
+    ASSET_DAT_NAME,
+    ASSET_DAT_NAME_BYTES,
     COMMAND_LINE_MOD_HANDLER_STORE,
     COMMAND_LINE_MOD_HANDLER_STORE_BYTES,
     COMMAND_LINE_MOD_HANDLER_TARGET,
@@ -92,6 +125,8 @@ from ...addresses import (
     FILE_SYSTEM_CREATE_CALL_BYTES,
     GLOBAL_DATA,
     GLOBAL_DATA_MOD_BIG,
+    IMPORT_FCLOSE,
+    IMPORT_FOPEN,
     LOCAL_FILE_SYSTEM,
     LOCAL_FILE_SYSTEM_DOES_FILE_EXIST_SLOT,
     LOCAL_FILE_SYSTEM_GET_FILE_INFO_SLOT,
@@ -100,17 +135,22 @@ from ...addresses import (
     MOD_DIRECTORY,
     MOD_MOUNT_DIRECTORY,
     MOD_PATH_FORMAT,
+    READ_BINARY_MODE,
+    READ_BINARY_MODE_BYTES,
     SPRINTF_SLOT,
     STRCMPI,
     STRCPY,
     STRLEN,
 )
-from ...asm import JAE, JE, JNE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JAE, JE, JNE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
+    "ASSET_CACHE_BLOCK",
+    "ASSET_CACHE_BLOCK_ORIGINAL",
+    "ASSET_PATH_SIZE",
     "BLOCKS",
     "COUNT_OFFSET",
     "DOES_FILE_EXIST_BLOCK",
@@ -222,6 +262,20 @@ GET_FILE_LIST_BLOCK_ORIGINAL = bytes.fromhex(
     "3f0cbd00ff75148b0dacc9de00ff75108b11ff75f08d9ddcfeffff535650ff5218"
 )
 
+#: The asset loader's first two instructions, which open its first `asset.dat` attempt: `eax`
+#: takes `m_modBIG` and `test` sets the flags the `je` five bytes later reads. Five bytes for
+#: five, so nothing pads - and a stand-in in front of them has to end on the same pair, since
+#: :data:`ASSET_CACHE_MOD_BIG_BRANCH` is left standing and still branches on those flags.
+#:
+#: Standing here rather than in front of the loader's `call` puts the loop *after* the loader's
+#: own one-time resets, which would otherwise throw away everything it had just registered.
+ASSET_CACHE_BLOCK = ASSET_CACHE_MOD_BIG_TEST
+ASSET_CACHE_BLOCK_ORIGINAL = ASSET_CACHE_MOD_BIG_TEST_BYTES
+
+#: How much stack the asset routine takes for the path it builds: the longest path the table can
+#: hold, plus ``\asset.dat`` and its terminator, rounded up to keep `esp` aligned.
+ASSET_PATH_SIZE = PATH_SIZE + 0x10
+
 #: The guard each file-system block is entered through - ``cmp byte [MOD_DIRECTORY], 0``, the
 #: `sprintf` load beside it and the branch past the block. Anchored, not edited: keeping the stock
 #: guard is what makes a run with no mod at all take the stock path, and anchoring it is what
@@ -284,15 +338,24 @@ ANCHORS = {
     STRCPY: STRCPY_BYTES,
     STRCMPI: STRCMPI_BYTES,
     MOD_PATH_FORMAT: MOD_PATH_FORMAT_BYTES,
+    ASSET_CACHE_LOAD: ASSET_CACHE_LOAD_BYTES,
+    ASSET_CACHE_MOD_BIG_BRANCH: ASSET_CACHE_MOD_BIG_BRANCH_BYTES,
+    ASSET_CACHE_READ_FILE: ASSET_CACHE_READ_FILE_BYTES,
+    ASSET_CACHE_REGISTER_GATE: ASSET_CACHE_REGISTER_GATE_BYTES,
+    ASSET_CACHE_HAS_ASSET: ASSET_CACHE_HAS_ASSET_BYTES,
+    ASSET_CACHE_WORKING_DIR_ATTEMPT: ASSET_CACHE_WORKING_DIR_ATTEMPT_BYTES,
+    ASSET_DAT_NAME: ASSET_DAT_NAME_BYTES,
+    READ_BINARY_MODE: READ_BINARY_MODE_BYTES,
 }
 
-#: The five sites the patch rewrites, each with the bytes it expects to find there.
+#: The six sites the patch rewrites, each with the bytes it expects to find there.
 SITES = {
     MOD_HANDLER_STORE: MOD_HANDLER_STORE_ORIGINAL,
     OPEN_FILE_BLOCK: OPEN_FILE_BLOCK_ORIGINAL,
     DOES_FILE_EXIST_BLOCK: DOES_FILE_EXIST_BLOCK_ORIGINAL,
     GET_FILE_INFO_BLOCK: GET_FILE_INFO_BLOCK_ORIGINAL,
     GET_FILE_LIST_BLOCK: GET_FILE_LIST_BLOCK_ORIGINAL,
+    ASSET_CACHE_BLOCK: ASSET_CACHE_BLOCK_ORIGINAL,
 }
 
 #: Each replaced block, paired with the cave routine that stands in for it. `apply` and `verify`
@@ -302,6 +365,7 @@ BLOCKS = {
     DOES_FILE_EXIST_BLOCK: ("does_file_exist", DOES_FILE_EXIST_BLOCK_ORIGINAL),
     GET_FILE_INFO_BLOCK: ("get_file_info", GET_FILE_INFO_BLOCK_ORIGINAL),
     GET_FILE_LIST_BLOCK: ("get_file_list", GET_FILE_LIST_BLOCK_ORIGINAL),
+    ASSET_CACHE_BLOCK: ("asset_cache", ASSET_CACHE_BLOCK_ORIGINAL),
 }
 
 
@@ -501,6 +565,71 @@ def _mod_directory(a: Asm, table: int) -> None:
     a.emit(0xC3)  # ret
 
 
+def _asset_cache(a: Asm, table: int) -> None:
+    r"""The asset loader's `asset.dat` search, run over every recorded mod directory.
+
+    Stands in for the two instructions that open the loader's own first attempt, and so runs
+    inside its frame, after its one-time resets and before any of its three `fopen`s. Each
+    directory's ``asset.dat`` is opened and handed to `ASSET_CACHE_READ_FILE` exactly the way the
+    loader hands it its own - the same `__cdecl` pair, the loader's own third argument forwarded
+    from `[ebp+0x10]` so that whether textures are registered is decided the same way.
+
+    The table is walked backwards, newest first, because the cache keeps the **first** file to
+    name an asset. Running before the loader's attempts is what puts every `-mod` ahead of the
+    working directory's base-game `asset.dat`.
+
+    An empty table returns before the loop, so a run with no `-mod` reaches the loader having
+    done nothing at all. The routine ends on the pair it replaced, `ret` being the one way back
+    that leaves the flags the branch after the site still reads.
+    """
+    a.label("asset_cache")
+    a.emit(0x53, 0x56, 0x57)  # push ebx / esi / edi
+    a.emit(0x81, 0xEC, _u32(ASSET_PATH_SIZE))  # sub  esp, <path size>
+    a.emit(0x8B, 0xDC)  # mov  ebx, esp     ; the path being built
+    a.emit(0x83, 0x3D, _u32(table + COUNT_OFFSET), 0x00)  # cmp  dword [count], 0
+    a.jcc(JE, "asset_cache_done")
+    a.emit(0x33, 0xFF)  # xor  edi, edi     ; the search index
+
+    a.label("asset_cache_next")
+    a.emit(0x8B, 0xC7)  # mov  eax, edi
+    a.call("mod_directory")
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "asset_cache_done")
+    a.emit(0x68, _u32(ASSET_DAT_NAME))  # push "asset.dat"
+    a.emit(0x50)  # push eax          ; the mod directory
+    a.emit(0x68, _u32(MOD_PATH_FORMAT))  # push "%s\%s"
+    a.emit(0x53)  # push ebx
+    a.emit(0xFF, 0x15, _u32(SPRINTF_SLOT))  # call [sprintf]
+    a.emit(0x83, 0xC4, 0x10)  # add  esp, 0x10
+
+    a.emit(0x68, _u32(READ_BINARY_MODE))  # push "rb"
+    a.emit(0x53)  # push ebx
+    a.emit(0xFF, 0x15, _u32(IMPORT_FOPEN))  # call [fopen]
+    a.emit(0x83, 0xC4, 0x08)  # add  esp, 8
+    a.emit(0x8B, 0xF0)  # mov  esi, eax
+    a.emit(0x85, 0xF6)  # test esi, esi
+    a.jcc(JE, "asset_cache_step")  # no asset.dat in this mod
+
+    a.emit(0xFF, 0x75, 0x10)  # push [ebp+0x10]   ; the loader's own third argument
+    a.emit(0x56)  # push esi
+    a.call_absolute(ASSET_CACHE_READ_FILE)
+    a.emit(0x83, 0xC4, 0x08)  # add  esp, 8
+    a.emit(0x56)  # push esi
+    a.emit(0xFF, 0x15, _u32(IMPORT_FCLOSE))  # call [fclose]
+    a.emit(0x59)  # pop  ecx
+
+    a.label("asset_cache_step")
+    a.emit(0x47)  # inc  edi
+    a.jmp("asset_cache_next")
+
+    a.label("asset_cache_done")
+    a.emit(0x81, 0xC4, _u32(ASSET_PATH_SIZE))  # add  esp, <path size>
+    a.emit(0x5F, 0x5E, 0x5B)  # pop  edi / esi / ebx
+    a.emit(0x8B, 0x45, 0x0C)  # mov  eax, [ebp+0x0c]  ; the two instructions this
+    a.emit(0x85, 0xC0)  # test eax, eax         ; site replaced, run last
+    a.emit(0xC3)  # ret
+
+
 def _open_file(a: Asm) -> None:
     """`FileSystem::openFile`'s mod branch, looped.
 
@@ -689,6 +818,7 @@ def _layout(base_va: int) -> Asm:
     _record(a)
     _add_mod(a, table)
     _mod_directory(a, table)
+    _asset_cache(a, table)
     _open_file(a)
     _does_file_exist(a)
     _get_file_info(a)
@@ -713,11 +843,10 @@ def entry_points(base_va: int) -> dict[str, int]:
 class MultiModPatch(Patch):
     name = "multi-mod"
     author = "officialNecro"
-    experimental = True
     description = (
         "Honour every -mod on the command line instead of only the last: all of them mount, and "
-        "loose-file lookups search all of them, the last one given winning. Nothing new to "
-        "declare: no INI change"
+        "loose-file lookups, listings and the asset cache's asset.dat search all of them, the "
+        "last one given winning. Nothing new to declare: no INI change"
     )
 
     def apply(self, data: bytearray) -> None:
@@ -738,7 +867,7 @@ class MultiModPatch(Patch):
                 self._offset(data, block_va),
                 original,
                 _call(block_va, routines[routine]) + b"\x90" * (len(original) - 5),
-                f"the mod branch at {block_va:#010x} -> multi-mod's {routine} loop",
+                f"the single-valued block at {block_va:#010x} -> multi-mod's {routine} loop",
             )
 
     @staticmethod

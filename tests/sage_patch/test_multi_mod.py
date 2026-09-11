@@ -1,7 +1,7 @@
 """Tests for `multi-mod`, which honours every `-mod` rather than only the last.
 
 The cave is hand-assembled x86 that cannot be executed here, so the tests that matter disassemble
-it back and assert it says what it was meant to say. Five things can go wrong and none of them
+it back and assert it says what it was meant to say. Six things can go wrong and none of them
 raises on its own.
 
 The first is the **calling convention of the recording stand-in**. It takes the place of
@@ -25,9 +25,15 @@ remainder is nop-padded out to exactly the block's length. Padding one byte shor
 truncated instruction; one byte long overwrites the continuation - which is why the byte *after*
 each block is asserted not to be a `nop`.
 
-The fifth is the **build fingerprint**. The patch rewrites five windows and reads nineteen it does
-not, including a vtable dword, three CRT thunks and a format string in `.rdata`; every one of them
-has to fail loudly on anything else.
+The fifth is the **asset routine's stack**. It is the only one that takes stack of its own, and it
+is entered by a `call` that stands in front of a branch reading flags it must leave set - so it has
+to give back every byte it took, and end on the very instructions it replaced, with nothing after
+them that writes a flag.
+
+The sixth is the **build fingerprint**. The patch rewrites six windows and reads twenty-seven it
+does not, including a vtable dword, three CRT thunks, three strings in `.rdata` and the one call
+site that names the engine's `fopen` and `fclose` slots; every one has to fail loudly on anything
+else.
 
 `TestItComposesWithModLoadOrder` is the one class here that needs a second patch. The two are the
 only ones that reach into the mod pipeline, and each one's own stand-in maps only its own sites -
@@ -47,8 +53,14 @@ from sage_patch.addresses import (
     ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE_SLOT,
     ASCII_STRING_ASSIGN,
     ASCII_STRING_SET,
+    ASSET_CACHE_MOD_BIG_BRANCH,
+    ASSET_CACHE_READ_FILE,
+    ASSET_CACHE_WORKING_DIR_ATTEMPT,
+    ASSET_DAT_NAME,
     GLOBAL_DATA,
     GLOBAL_DATA_MOD_BIG,
+    IMPORT_FCLOSE,
+    IMPORT_FOPEN,
     LOCAL_FILE_SYSTEM,
     LOCAL_FILE_SYSTEM_DOES_FILE_EXIST_SLOT,
     LOCAL_FILE_SYSTEM_GET_FILE_INFO_SLOT,
@@ -57,20 +69,24 @@ from sage_patch.addresses import (
     MOD_DIRECTORY,
     MOD_MOUNT_DIRECTORY,
     MOD_PATH_FORMAT,
+    READ_BINARY_MODE,
     SPRINTF_SLOT,
     STRCMPI,
     STRCPY,
     STRLEN,
 )
-from sage_patch.patches.experimental import mod_load_order as mlo
-from sage_patch.patches.experimental import multi_mod as mm
-from sage_patch.patches.experimental.mod_load_order import (
+from sage_patch.patches import mod_load_order as mlo
+from sage_patch.patches import multi_mod as mm
+from sage_patch.patches.mod_load_order import (
     MOD_MOUNT_BLOCK,
     MOD_MOUNT_BLOCK_ORIGINAL,
     ModLoadOrderPatch,
 )
-from sage_patch.patches.experimental.multi_mod import (
+from sage_patch.patches.multi_mod import (
     ANCHORS,
+    ASSET_CACHE_BLOCK,
+    ASSET_CACHE_BLOCK_ORIGINAL,
+    ASSET_PATH_SIZE,
     BLOCKS,
     COUNT_OFFSET,
     ENTRIES_OFFSET,
@@ -103,6 +119,7 @@ _ROUTINES = (
     "record",
     "add_mod",
     "mod_directory",
+    "asset_cache",
     "open_file",
     "does_file_exist",
     "get_file_info",
@@ -425,6 +442,120 @@ class TestTheBlockReplacements:
         assert ("push", f"{mm.EMPTY_STRING:#x}") in text("get_file_list")
 
 
+class TestTheAssetCacheSearch:
+    """The one routine that is not a file-system block. `asset.dat` is read with `fopen`, so the
+    four loops above never see it and only the last `-mod`'s copy was ever loaded - which shows up
+    as every model and texture the earlier mods add drawing in the missing-texture magenta."""
+
+    def test_it_loops_the_table_the_way_the_others_do(self):
+        """The same `mod_directory`, so the asset cache and the loose search agree about which
+        `-mod` outranks which. A second source of truth here would let a model resolve to one mod
+        and its cache entry to another."""
+        insns = routine("asset_cache")
+        assert len(calls_to(insns, address_of("mod_directory"))) == 1
+        backward = [
+            i for i in insns if i.mnemonic.startswith("j") and int(i.op_str, 16) < i.address
+        ]
+        assert backward, "the asset routine never retries - it is not a loop"
+
+    def test_it_returns_before_the_loop_when_no_mod_was_recorded(self):
+        """`mod_directory` answers `MOD_DIRECTORY` for an empty table, which would put the engine
+        through an `fopen` of a path built from an empty string. The count is read first instead,
+        so a run with no `-mod` reaches the loader having done nothing."""
+        insns = routine("asset_cache")
+        guard = next(
+            n
+            for n, i in enumerate(insns)
+            if i.mnemonic == "cmp" and i.op_str == f"dword ptr [{BASE + COUNT_OFFSET:#x}], 0"
+        )
+        walk = address_of("mod_directory")
+        searched = next(n for n, i in enumerate(insns) if calls_to([i], walk))
+        assert guard < searched
+
+    def test_it_opens_each_mod_s_asset_dat_by_name(self):
+        """The engine's own `asset.dat` and `rb` literals, formatted with the same `sprintf` and
+        the same separator the file-system loops use."""
+        assert ("push", f"{ASSET_DAT_NAME:#x}") in text("asset_cache")
+        assert ("push", f"{MOD_PATH_FORMAT:#x}") in text("asset_cache")
+        assert ("call", f"dword ptr [{SPRINTF_SLOT:#x}]") in text("asset_cache")
+        assert ("push", f"{READ_BINARY_MODE:#x}") in text("asset_cache")
+        assert ("call", f"dword ptr [{IMPORT_FOPEN:#x}]") in text("asset_cache")
+
+    def test_it_reads_and_then_closes_every_file_it_opens(self):
+        """One read, one close, the close after the read - a handle leaked per mod would be
+        invisible until the process ran out of them."""
+        insns = routine("asset_cache")
+        assert len(calls_to(insns, ASSET_CACHE_READ_FILE)) == 1
+        read = next(n for n, i in enumerate(insns) if calls_to([i], ASSET_CACHE_READ_FILE))
+        closes = [
+            n
+            for n, i in enumerate(insns)
+            if i.mnemonic == "call" and i.op_str == f"dword ptr [{IMPORT_FCLOSE:#x}]"
+        ]
+        assert closes == [n for n in closes if n > read]
+        assert len(closes) == 1
+
+    def test_it_forwards_the_loader_s_own_third_argument(self):
+        """Whether textures are registered at all is that argument, and the routine runs in the
+        loader's frame - so reading it back is how the mods' files are read on exactly the terms
+        the loader reads its own."""
+        assert ("push", "dword ptr [ebp + 0x10]") in text("asset_cache")
+
+    def test_it_gives_back_every_byte_of_stack_it_takes(self):
+        """It is the only routine with a buffer of its own, and it is entered by a `call` from the
+        middle of a function that goes on using its frame."""
+        assert ("sub", f"esp, {ASSET_PATH_SIZE:#x}") in text("asset_cache")
+        assert ("add", f"esp, {ASSET_PATH_SIZE:#x}") in text("asset_cache")
+        insns = routine("asset_cache")
+        pushed = [i.op_str for i in itertools.takewhile(lambda i: i.mnemonic == "push", insns)]
+        # The epilogue's own pops - the run ending at the two instructions the site gave back,
+        # not the `pop ecx` that cleans up after `fclose`.
+        restored = itertools.takewhile(lambda i: i.mnemonic == "pop", reversed(insns[:-3]))
+        assert [i.op_str for i in restored] == pushed
+
+    def test_it_never_touches_ebp(self):
+        """The argument it forwards is the loader's frame local, reachable only because the
+        routine leaves the frame pointer alone."""
+        assert not writes(routine("asset_cache"), "ebp")
+
+    def test_it_ends_on_the_pair_it_replaced_with_nothing_after_them(self):
+        """The `je` five bytes past the site is left standing and branches on the flags this pair
+        sets, so the pair has to be the last thing before the `ret` - and `ret` is the only way
+        back that leaves a flag alone."""
+        assert text("asset_cache")[-3:] == [
+            ("mov", "eax, dword ptr [ebp + 0xc]"),
+            ("test", "eax, eax"),
+            ("ret", ""),
+        ]
+
+    def test_the_branch_it_leaves_standing_reads_those_flags(self):
+        """Asserted against the stock bytes rather than against the routine, so it is the engine
+        that says the site's flags are still live."""
+        assert ASSET_CACHE_MOD_BIG_BRANCH == ASSET_CACHE_BLOCK + len(ASSET_CACHE_BLOCK_ORIGINAL)
+        assert ANCHORS[ASSET_CACHE_MOD_BIG_BRANCH][:2] == b"\x0f\x84"  # je rel32
+
+    def test_the_slots_and_literals_are_the_loader_s_own(self):
+        """Read out of the loader's third attempt rather than asserted separately: that one
+        window calls `fopen` through a slot with `asset.dat` and `rb` pushed, so it is the engine
+        saying what the cave's two import slots and two string addresses are. An import table is
+        filled at load time, so the slots themselves say nothing on disk."""
+        attempt = ANCHORS[ASSET_CACHE_WORKING_DIR_ATTEMPT]
+        assert struct.pack("<I", IMPORT_FCLOSE) in attempt
+        assert struct.pack("<I", IMPORT_FOPEN) in attempt
+        assert struct.pack("<I", ASSET_DAT_NAME) in attempt
+        assert struct.pack("<I", READ_BINARY_MODE) in attempt
+
+    def test_the_site_is_exactly_the_call_that_replaces_it(self):
+        """Five bytes for five, so the `je` after it is not reached by a single pad byte."""
+        assert len(ASSET_CACHE_BLOCK_ORIGINAL) == 5
+
+    def test_the_buffer_holds_the_longest_path_the_table_can(self):
+        """`sprintf` writes the recorded directory, a separator, `asset.dat` and a terminator, and
+        a recorded path is bounded by `PATH_SIZE` including its own terminator."""
+        assert ASSET_PATH_SIZE >= PATH_SIZE - 1 + len("\\asset.dat") + 1
+        assert ASSET_PATH_SIZE % 4 == 0
+
+
 class TestApply:
     def test_apply_then_verify(self, image):
         assert MultiModPatch().verify(_patched(image)) == []
@@ -535,9 +666,11 @@ class TestTheBuildFingerprint:
 
 
 class TestTheRegistry:
-    def test_it_is_registered_and_marked_experimental(self):
+    def test_it_is_registered_and_is_not_experimental(self):
+        """The module lives outside `experimental/`, so the attribute has to agree - the two are
+        the same fact, and `TestExperimentalPatchesAreDeclared` fails on either mismatch."""
         assert PATCHES["multi-mod"] is MultiModPatch
-        assert MultiModPatch.experimental
+        assert not MultiModPatch.experimental
 
     def test_it_takes_no_parameters(self):
         assert MultiModPatch().options() == {}

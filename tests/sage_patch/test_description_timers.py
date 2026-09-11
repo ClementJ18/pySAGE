@@ -36,10 +36,13 @@ from sage_patch.addresses import (
     DESCRIPTION_BUTTON_CAPTURE,
     DESCRIPTION_BUTTON_CAPTURE_BYTES,
     DESCRIPTION_BUTTON_CAPTURE_RESUME,
+    DESCRIPTION_OBJECT_EBP_OFFSET,
+    DESCRIPTION_PLAYER_EBP_OFFSET,
     DESCRIPTION_TAIL,
     DESCRIPTION_TAIL_BYTES,
     DESCRIPTION_TAIL_RESUME,
     GET_FINAL_OVERRIDE,
+    OBJECT_HAS_UPGRADE,
     PLAYER_FOR_EACH_TEAM_OBJECT,
     UNICODE_STRING_APPEND,
     UNICODE_STRING_CONCAT,
@@ -69,6 +72,8 @@ from sage_patch.patches.description_timers import (
     THING_TEMPLATE_CALC_TIME_TO_BUILD,
     UNICODE_STRING_DESTRUCT,
     UPGRADE_TEMPLATE_CALC_TIME_TO_BUILD,
+    UPGRADE_TEMPLATE_TYPE,
+    UPGRADE_TYPE_OBJECT,
     DescriptionTimersPatch,
 )
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
@@ -116,13 +121,16 @@ def disassemble(base_va: int, body: bytes) -> list:
 
 
 def displacement(op_str: str) -> int | None:
-    """The `[reg + N]` displacement in an operand string, as an int.
+    """The `[reg +/- N]` displacement in an operand string, as a signed int.
 
     Capstone prints small displacements in decimal and larger ones in hex, so a substring match
-    against a hex literal quietly passes on some offsets and quietly fails on others.
+    against a hex literal quietly passes on some offsets and quietly fails on others. The sign is
+    read too, because the builder's own locals are all `[ebp - N]`.
     """
-    match = re.search(r"\[\w+ \+ (0x[0-9a-f]+|\d+)\]", op_str)
-    return int(match.group(1), 0) if match else None
+    match = re.search(r"\[\w+ ([-+]) (0x[0-9a-f]+|\d+)\]", op_str)
+    if not match:
+        return None
+    return int(match.group(2), 0) * (-1 if match.group(1) == "-" else 1)
 
 
 def instructions(data: bytes | bytearray) -> list:
@@ -279,6 +287,7 @@ class TestCave:
             GET_SPECIAL_POWER_MODULE,
             PLAYER_RECHARGE_MODIFIER,
             PLAYER_HAS_UPGRADE_COMPLETE,
+            OBJECT_HAS_UPGRADE,
             THING_TEMPLATE_CALC_TIME_TO_BUILD,
             UPGRADE_TEMPLATE_CALC_TIME_TO_BUILD,
             COMMAND_BUTTON_GET_THING_TEMPLATE,
@@ -378,6 +387,36 @@ class TestCave:
             if insn.mnemonic == "call" and insn.op_str == hex(GET_SPECIAL_POWER_MODULE)
         ]
         assert len(lookups) == 2
+
+    def test_an_upgrade_is_asked_of_the_owner_its_type_names(self, patched):
+        """A researched upgrade gets no research time, and which mask holds it depends on `Type`.
+
+        `Player::hasUpgradeComplete` answers no for every `Type = OBJECT` upgrade no matter how
+        long ago it was researched, because an object upgrade is recorded in the object's own mask.
+        Asking only the player is what left an Arsenal's research time on its button for the rest of
+        the game while a Forged Blades button lost its own the moment it completed.
+        """
+        decoded = instructions(patched)
+        scope = next(
+            insn
+            for insn in decoded
+            if insn.mnemonic == "cmp"
+            and insn.op_str == f"dword ptr [ebx + {UPGRADE_TEMPLATE_TYPE}], {UPGRADE_TYPE_OBJECT}"
+        )
+        owners = {}
+        for insn in decoded:
+            if insn.mnemonic != "call" or insn.op_str not in (
+                hex(PLAYER_HAS_UPGRADE_COMPLETE),
+                hex(OBJECT_HAS_UPGRADE),
+            ):
+                continue
+            assert insn.address > scope.address, "the scope test comes first"
+            load = [x for x in decoded if x.address < insn.address and x.mnemonic == "mov"][-1]
+            owners[int(insn.op_str, 16)] = displacement(load.op_str)
+        assert owners == {
+            PLAYER_HAS_UPGRADE_COMPLETE: DESCRIPTION_PLAYER_EBP_OFFSET,
+            OBJECT_HAS_UPGRADE: DESCRIPTION_OBJECT_EBP_OFFSET,
+        }
 
     def test_a_line_that_would_read_zero_is_dropped_before_the_separator(self, patched):
         """A passive ability has no cooldown, and `0` is worse than silence.

@@ -32,7 +32,7 @@ from sage_patch.addresses import (  # noqa: E402
     LIVING_WORLD_CURRENT_REGION,
     LIVING_WORLD_FIND_PLAYER_BY_ID,
 )
-from sage_patch.patches.experimental.wotr_battle_observers import (  # noqa: E402
+from sage_patch.patches.wotr_battle_observers import (  # noqa: E402
     ANCHORS,
     ASCII_STRING_ASSIGN,
     ASSIGN_NAME_BYTES,

@@ -23,19 +23,21 @@ register for the whole of `update`, and a falling edge that already removes the 
 call — so the gate costs a test at the top of `update` and nothing else. See §4.
 
 - **Cost to widen the filter:** 2 rel32/imm32 repoints + 2 short code windows + a 12-byte vtable
-  copy + 273 bytes of stubs.
+  copy + 282 bytes of stubs.
 - **Cost of the gate:** 1 five-byte window + 203 bytes of stubs, plus the 41-byte allocation stub
   the `ModuleData` growth below needs.
 - **Cost of both:** one field-table relocation (144 → 224 bytes) and `sizeof(ModuleData)`
-  `0x30` → `0x158`, because two 36-dword upgrade masks do not fit in three bytes of padding. 849
+  `0x30` → `0x158`, because two 36-dword upgrade masks do not fit in three bytes of padding. 858
   bytes of cave, five edited sites.
 - **Risk:** low. Every widened or gated path is dead unless the INI writes a new keyword, the gate
   reuses the engine's own mask helpers and its own bonus-removal call, and the allocation growth
   ends at the module's private `newModuleData` thunk — nothing else in the image reads that
   `sizeof`, and the destructor's `operator delete` is the unsized form.
 - **Status:** **built** — see [`patches/large_group_bonus.py`](../patches/large_group_bonus.py).
-  The loose-object half is **runtime-verified in game**; the upgrade gate is verified statically
-  and against the real binary's rebuilt table, and has not yet been run in a match.
+  The loose-object half is **runtime-verified in game** as of the `+4` fix in §8.1 — the version
+  before it crashed on the first poll of any module that wrote the keyword. The upgrade gate is
+  verified statically and against the real binary's rebuilt table, and has not yet been run in a
+  match.
 
 ```
 sage-patch apply large-group-bonus --in game.dat.backup --out game.dat
@@ -145,8 +147,21 @@ Four `PartitionFilter`s are built as stack temporaries and passed to
 008939c3  call 0xa39340               ; iterate
 ```
 
-Note `0x0089393f` `and dword [ebp-0x4c], 0` — the wrapper's `+4` slot is zeroed and **never read
-by anything**. That free dword is what §6 uses to carry a source player into the filter.
+Note `0x0089393f` `and dword [ebp-0x4c], 0` — the wrapper's `+4` slot. It is **not** a free dword,
+however much it looks like one: `+4` is the `next` pointer of the intrusive list every partition
+filter is a node of. `0x0089393f` is the list terminator, and the three
+`0x00a394c0` (`append`) calls at `0x00893994`–`0x008939a6` chain the four stack filters through it:
+
+```
+00893988  push ecx                    ; the NULL that terminates iterate's variadic filter list
+00893994  call 0xa394c0               ; ecx = [ebp-0x28] -> its next = [ebp-0x34]
+0089399d  call 0xa394c0               ; ecx = [ebp-0x40] -> ... -> [ebp-0x28]
+008939a6  call 0xa394c0               ; ecx = [ebp-0x50] -> ... -> [ebp-0x40]
+```
+
+`append` walks `this->+4` to the tail before storing, and both of the scan's walks
+(`0x00a39460` for `allow`, `0x00a394a0` for the `+8` slot) follow `+4` from node to node. Anything
+parked there is walked as though it were a filter. See §8.1.
 
 ### Pass A — the count, `0x008939db`–`0x00893a12`
 
@@ -544,7 +559,8 @@ Ten bytes at `0x00893946` (`lea eax,[edi+0xc]` + `mov dword [ebp-0x50], 0xc63870
 `call` and five `nop`s. The shim owes the caller both of their effects — the wrapper's vtable slot
 written, and `eax` holding `&HordeMemberFilter` for the `mov [ebp-0x48], eax` that follows the
 window — and then, only on the widened path, swaps in a cave-built copy of the wrapper vtable whose
-`allow` is the widened one and parks the owning `Object` in the wrapper's free `+4` slot:
+`allow` is the widened one and parks the owning `Object` in a spare dword of the grown
+`ModuleData`:
 
 ```asm
 cave_setup:                      ; ebp = update's frame, edi = ModuleData, ebx = the owner
@@ -556,16 +572,21 @@ cave_setup:                      ; ebp = update's frame, edi = ModuleData, ebx =
     test al, al
     je   .done                   ; no filter written -> stock
     mov  dword [ebp-0x50], <cave vtable>
-    mov  [ebp-0x4c], ebx         ; the wrapper's +4: the source Object
+    mov  [edi+0x154], ebx        ; the ModuleData's scratch dword: the source Object
 .done:
     lea  eax, [edi+0xc]          ; what the window left in eax
-    ret                          ; 50 bytes
+    ret                          ; 53 bytes
 ```
 
 Choosing the vtable rather than editing `0x00660c72` in place is what keeps the stock path
-byte-identical, and `[ebp-0x4c]` is safe because `0x0089393f` zeroes it and nothing reads it.
-`eax`/`ecx`/`edx` are dead at the window on every incoming path and `isDefined` is `__thiscall`, so
-nothing has to be saved.
+byte-identical. `eax`/`ecx`/`edx` are dead at the window on every incoming path and `isDefined` is
+`__thiscall`, so nothing has to be saved.
+
+`0x154` is the padding the five appended fields leave at the end of the grown `ModuleData` — past
+`CountLooseObjects` at `0x152`, inside the `0x158` §6.1 already allocates and zeroes. It is shared
+by every instance of the template, which is safe because it is written and read inside a single
+`update`: the scan is synchronous and no other module's `update` interleaves between the store and
+the last `allow` that reads it. **Not** `[ebp-0x4c]` — see §8.1 for what that cost.
 
 The cave vtable is a 12-byte copy of `0x00c63870` — the class has exactly three slots, since
 `0x00c6387c` is where the module's `LargeGroupBonus` interface vtable begins — with slot `+4`
@@ -593,7 +614,9 @@ new_allow:                       ; __thiscall(ecx = wrapper, Object *cand) -> bo
     call 0x762977                ; isDefined?
     test al, al
     je   .nomatch
-    mov  ecx, [esi+4]            ; the owning Object, stashed by cave_setup
+    mov  eax, [esi+8]            ; &HordeMemberFilter == ModuleData+0xc
+    mov  ecx, [eax+0x148]        ; ... so +0x148 is the scratch at ModuleData+0x154
+                                 ; the owning Object, stashed by cave_setup
     call 0x68b678                ; -> the source Player
     push eax                     ; arg3
     mov  ecx, ebx
@@ -615,7 +638,7 @@ new_allow:                       ; __thiscall(ecx = wrapper, Object *cand) -> bo
     sete al
     pop  esi
     pop  ebx
-    ret  4                       ; 122 bytes
+    ret  4                       ; 128 bytes
 ```
 
 Calling `0x00763543` directly rather than the two-argument wrapper `0x007640c1` is the same
@@ -693,10 +716,10 @@ stub reads `ebx` as the owning `Object` and `edi` as the `ModuleData`, and clobb
 | relocated field table (14 × 16) | 224 |
 | `cave_alloc` | 41 |
 | `cave_gate` + `held` | 203 |
-| `cave_setup` | 50 |
-| `new_allow` | 122 |
+| `cave_setup` | 53 |
+| `new_allow` | 128 |
 | `cave_count` | 101 |
-| **total** | **849** |
+| **total** | **858** |
 
 One `0x1000` section (`.lgbupd`), as every other patch here allocates. The renameable keyword is
 first so `detect` can read it straight off the section base; the four fixed names follow it.
@@ -782,6 +805,37 @@ have it".
   five engine helpers the cave calls, none of which the patch writes anything that would otherwise
   catch.
 
+### 8.1 The wrapper's `+4` is not free — the crash this shipped with
+
+The first build of this patch parked the owning `Object` in the partition-filter wrapper's `+4`
+slot, on the reasoning that `update` zeroes it at `0x0089393f` and the stock `allow` reads only
+`+8` and `+0xc`. Both halves of that are true and the conclusion is wrong: `+4` is the `next`
+pointer of the intrusive filter list, and the zero is the terminator, not a spare dword.
+
+What a crash dump of `Object AngmarThrallMaster` with `CountLooseObjects = Yes` showed, frame by
+frame:
+
+| where | what |
+|---|---|
+| `[ebp-0x50]+4` | `0x099848d0` — the owning `Object`, still there; `append` never overwrote it |
+| `0x00a394c0` | walked `[ebp-0x50]` → the `Object` → `[Object+4]`, its `ThingTemplate`, and stored `[ebp-0x40]` into `ThingTemplate+4` — live corruption of shared template data |
+| `0x00a394a4` | `call [eax+8]` with `eax = [ThingTemplate]` = `0x00c272ac`, `.rdata` that is not a vtable |
+| `eip` | `0x70557265` — the bytes `erUp`, from the string `"PlayerUpgrade"` at `0x00c272b0` |
+
+So the failure is immediate and total: the first poll of the first such module, on the third
+`append` call, before `iterateObjectsInRange` is even entered. There is no partial-success mode to
+misread it as, which is worth knowing — a `LargeGroupBonusUpdate` that writes `CountLooseObjects`
+either works or takes the process down on the update tick after the object spawns.
+
+The fix is §6.4: the owner goes into the grown `ModuleData` at `+0x154`, and `allow` reaches it
+back through the `ObjectFilter` handle the wrapper already carries at `+8`. Nothing this patch
+writes touches `+4` any more, and `ANCHORS` now pins `append` and its three call sites so the fact
+that `+4` is load-bearing is asserted against the binary rather than remembered.
+
+**The same reasoning is wrong wherever it appears.** `give-upgrade-all` parks a porter in the
+`DeliverUpgrade` search functor's `+4` at `0x0089ff17`, and that functor is chained by the same
+`append` at `0x0089ff6d`. See that patch's notes.
+
 ## 9. Appendix — every address this document depends on
 
 | VA | meaning |
@@ -835,7 +889,9 @@ have it".
 | `0x0089390f` | the five-byte gate window — **hook 6.3** |
 | `0x00893914` | the branch that consumes those flags — where the active path resumes |
 | `0x00893932` | `mov byte [ebp-0xd], 0` — the sleep selector |
-| `0x0089393f` | `and dword [ebp-0x4c], 0` — the wrapper's unread `+4` slot |
+| `0x0089393f` | `and dword [ebp-0x4c], 0` — the wrapper's `+4`, the filter list's terminator |
+| `0x00a394c0` | `PartitionFilter::append` — walks `+4` to the tail and links the next node on |
+| `0x00893994`, `0x0089399d`, `0x008939a6` | the three `append` calls that chain the four filters |
 | `0x00893946` | `lea eax,[edi+0xc]` — **the 10-byte window, filter gate 1** |
 | `0x0089394c` | the wrapper-vtable imm32 |
 | `0x0089396a` | the same-player filter's vtable imm32 (for the `AlliesOnly` follow-up) |

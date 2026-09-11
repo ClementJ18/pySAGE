@@ -1,7 +1,7 @@
 """War of the Ring co-op: play the battles the engine auto-resolves, with the rest watching.
 
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address here is derived
-in ``../../docs/living-campaign/mp-battle-participation.md``.
+in ``../docs/living-campaign/mp-battle-participation.md``.
 
 **The gap.** In multiplayer War of the Ring a battle is fought in real time only when the number of
 armies in it is at least the number of humans in the session. With three or more people most
@@ -85,7 +85,7 @@ from __future__ import annotations
 
 import struct
 
-from ...addresses import (
+from ..addresses import (
     GAME_INFO_GET_SLOT,
     GAME_INFO_SLOT_COUNT,
     GAME_LOGIC_LIVING_WORLD_TYPE,
@@ -118,9 +118,9 @@ from ...addresses import (
     THE_GAME_LOGIC,
     THE_LIVING_WORLD_LOGIC,
 )
-from ...asm import JAE, JE, JGE, JL, JNE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JAE, JE, JGE, JL, JNE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -804,7 +804,6 @@ class WotrBattleObserversPatch(Patch):
 
     name = "wotr-battle-observers"
     author = "officialNecro"
-    experimental = True
     description = (
         "Stop multiplayer War of the Ring auto-resolving a battle just because not everyone is "
         "in it, and seat the players who are not as observers instead of on somebody else's "

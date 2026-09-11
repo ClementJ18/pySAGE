@@ -29,7 +29,11 @@ nibble.
   ``mapSymbol = 0`` (the default) means.
 * **The sorting.** Free. The icon column header already sorts on the whole key, so packing the
   symbol above bit 15 makes it the primary grouping, official-versus-user the tiebreak inside a
-  symbol, and difficulty the tiebreak inside that.
+  symbol, and difficulty the tiebreak inside that. Two options rewrite the seventeen bytes that
+  subtract the key if that order is not the wanted one: ``--sort-by-symbol`` masks everything
+  below the symbol away, so maps sharing one tie and fall through to the name; ``--sort-by-icon``
+  lifts the difficulty above the star/hammer bit, so a symbol's maps beaten on one difficulty are
+  contiguous rather than split in two.
 
 **Why the symbol lives in the key rather than in a table beside it.** `MapMetaData` is full - it
 ends at ``+0xFC`` with two `UnicodeString`s - and it sits inline in a `std::map` node, so it cannot
@@ -124,16 +128,22 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DEFAULT_KEYWORD",
+    "DEFAULT_SORT",
     "DEFAULT_SYMBOLS",
+    "DIFFICULTY_MASK",
+    "FLAG_SORT_BY_ICON",
     "FLAG_SORT_BY_SYMBOL",
     "IMAGE_STATES",
     "MAX_SYMBOLS",
+    "OFFICIAL_SHIFT",
     "SECTION_CHARACTERISTICS",
     "SECTION_NAME",
+    "SORT_MODES",
     "SYMBOL_MASK",
     "SYMBOL_SHIFT",
     "MapListSymbolsPatch",
     "build_apply_key",
+    "build_compare_icons",
     "build_compare_symbols",
     "build_parse_symbol",
     "build_pick_image",
@@ -154,9 +164,32 @@ SYMBOL_SHIFT = 16
 #: of the comparator's key delta so that everything below the symbol stops ordering the list.
 SYMBOL_MASK = 0xFFFFFFFF << SYMBOL_SHIFT & 0xFFFFFFFF
 
-#: The cave's flag word, which is how :meth:`MapListSymbolsPatch.detect` recovers a boolean
-#: parameter that would otherwise only be visible as the presence of one more rewritten site.
+#: The rest of the key, as `--sort-by-icon` reads it: pass 1 writes the conquered difficulty into
+#: the low nibble (``1``..``6``, ``0`` for a map that is not multiplayer) and `isOfficial` being No
+#: into bit 15. Those are the two fields that choose *which* stock image a row draws, and the
+#: option's whole job is to reorder them - the medal above the star/hammer instead of below it.
+DIFFICULTY_MASK = 0xF
+OFFICIAL_SHIFT = 15
+
+#: The cave's flag word, which is how :meth:`MapListSymbolsPatch.detect` recovers a parameter that
+#: would otherwise only be visible as the presence of one more rewritten site. The two sort flags
+#: are mutually exclusive: both name the same seventeen bytes of the comparator.
 FLAG_SORT_BY_SYMBOL = 1
+FLAG_SORT_BY_ICON = 2
+
+#: How the icon column orders the list, and the name each mode carries in `options` and in the
+#: `.sagepatch` manifest.
+#:
+#: * ``"key"`` - stock. The comparator subtracts whole keys, so the order is symbol, then
+#:   official-before-user, then difficulty.
+#: * ``"symbol"`` - the symbol alone. Maps sharing one tie and fall through to the secondary
+#:   column, which is the display name unless another header has been clicked.
+#: * ``"icon"`` - symbol, then difficulty, then official-before-user. Every map carrying one
+#:   symbol and beaten on one difficulty is contiguous, which is what makes the column group by
+#:   the picture it is drawing.
+SORT_MODES = ("key", "symbol", "icon")
+
+DEFAULT_SORT = "key"
 
 SECTION_NAME = ".mapsym"  # 7 chars: the PE name field is 8 bytes and truncates silently
 
@@ -241,8 +274,9 @@ class _Layout:
     :meth:`MapListSymbolsPatch.detect` can read all three straight off the section base without
     knowing how long anything after them is.
 
-    ``compare_va`` is None unless ``--sort-by-symbol`` is installed, because that is the one stub
-    a default build has no use for."""
+    ``compare_va`` is None unless a sort mode other than ``"key"`` is installed, because that is
+    the one stub a default build has no use for. Both modes that do want it hook the same
+    seventeen bytes and put their stub in the same place, so only its body differs."""
 
     count_va: int
     flags_va: int
@@ -263,7 +297,7 @@ class _Layout:
     compare_va: int | None
 
 
-def _layout(base_va: int, keyword: str, count: int, sort_by_symbol: bool = False) -> _Layout:
+def _layout(base_va: int, keyword: str, count: int, sort: str = DEFAULT_SORT) -> _Layout:
     names = image_names(count)
     keyword_va = base_va + 8
     after_keyword = keyword_va + len(keyword) + 1
@@ -285,7 +319,7 @@ def _layout(base_va: int, keyword: str, count: int, sort_by_symbol: bool = False
     key_va = save_va + len(build_save_key(save_va, carry_va))
     pick_va = key_va + len(build_apply_key(key_va, carry_va))
     after_pick = pick_va + len(build_pick_image(pick_va, images_va, count))
-    compare_va = after_pick if sort_by_symbol else None
+    compare_va = after_pick if sort != "key" else None
     return _Layout(
         base_va,
         base_va + 4,
@@ -547,6 +581,51 @@ def build_compare_symbols(base_va: int) -> bytes:
     return a.finish()
 
 
+def build_compare_icons(base_va: int) -> bytes:
+    """The comparator's key delta, with the difficulty lifted above the `isOfficial` bit.
+
+    Installed only by ``--sort-by-icon``. The stock key packs the symbol at bit 16, `isOfficial`
+    being No at bit 15 and the conquered difficulty in the low nibble, so subtracting whole keys
+    orders the column symbol, then star-before-hammer, then medal - and a symbol's maps beaten on
+    one difficulty are split in two by that middle field. This ranks each operand as
+    ``symbol | difficulty << 1 | official`` instead, which is the same three fields with the last
+    two swapped, and subtracts the ranks.
+
+    The rank cannot carry into the symbol: the difficulty is ``0``..``6``, so the two low fields
+    together reach ``13`` and bit 15 is left clear. Nothing is masked away, so untagged maps keep
+    ordering against each other exactly as the difficulty and the star/hammer say - the option
+    reorders the column, it does not coarsen it.
+
+    All four displaced instructions are reproduced. The ranking is a local subroutine because it
+    runs on both operands; it reads ``eax`` and writes ``eax``, ``ecx`` and ``edx``, all three of
+    which this arm is free to spend - ``ecx`` because the displaced load rewrites it on the way
+    out, ``edx`` because the stock code zeroes it four bytes past the resume point."""
+    a = Asm(base_va)
+    a.emit(b"\x8b\x83", _u32(MAP_META_DATA_SORT_KEY))  # mov  eax, [ebx+0xF4]
+    a.call("rank")
+    a.emit(0x50)  # push eax               ; the left rank
+    a.emit(b"\x8b\x87", _u32(MAP_META_DATA_SORT_KEY))  # mov  eax, [edi+0xF4]
+    a.call("rank")
+    a.emit(b"\x8b\xd0")  # mov  edx, eax          ; the right rank
+    a.emit(0x58)  # pop  eax               ; ... and the left one back
+    a.emit(b"\x2b\xc2")  # sub  eax, edx
+    a.emit(b"\x8b\x4d\xf0")  # mov  ecx, [ebp-0x10]   ; the displaced load
+    a.emit(b"\x8b\x09")  # mov  ecx, [ecx]        ; ... and its deref
+    a.jmp_absolute(MAP_LIST_COMPARE_KEY_RESUME)
+
+    a.label("rank")
+    a.emit(b"\x8b\xc8")  # mov  ecx, eax
+    a.emit(0x81, 0xE1, _u32(SYMBOL_MASK))  # and  ecx, 0xFFFF0000   ; the symbol, kept in place
+    a.emit(b"\x8b\xd0")  # mov  edx, eax
+    a.emit(0x83, 0xE2, DIFFICULTY_MASK)  # and  edx, 0xF          ; the conquered difficulty
+    a.emit(0xC1, 0xE8, OFFICIAL_SHIFT)  # shr  eax, 15
+    a.emit(b"\x83\xe0\x01")  # and  eax, 1            ; isOfficial == No
+    a.emit(b"\x8d\x04\x50")  # lea  eax, [eax+edx*2]  ; difficulty above it
+    a.emit(b"\x0b\xc1")  # or   eax, ecx
+    a.emit(0xC3)  # ret
+    return a.finish()
+
+
 def _jmp_bytes(from_va: int, to_va: int, width: int) -> bytes:
     """A ``jmp rel32`` to ``to_va``, padded with ``nop`` out to ``width``."""
     return b"\xe9" + struct.pack("<i", to_va - (from_va + 5)) + b"\x90" * (width - 5)
@@ -566,7 +645,8 @@ class MapListSymbolsPatch(Patch):
         "MedConquered, HardConquered, BrutalConquered or MaxConquered, and falls back to a bare "
         "AptMapSymbolNN and then to the stock medal; mapSymbol 0, the default, is stock. "
         "--sort-by-symbol makes that column sort by the symbol alone, so maps sharing one group "
-        "together in name order rather than by how far each has been beaten. Note that a "
+        "together in name order rather than by how far each has been beaten, and --sort-by-icon "
+        "sorts it by the picture drawn - symbol, then medal, then star or hammer. Note that a "
         "mapcache.ini using the keyword will not load on an unpatched game.dat"
     )
 
@@ -574,22 +654,24 @@ class MapListSymbolsPatch(Patch):
         self,
         keyword: str = DEFAULT_KEYWORD,
         symbols: int = DEFAULT_SYMBOLS,
-        sort_by_symbol: bool = False,
+        sort: str = DEFAULT_SORT,
     ):
         self.keyword = keyword
         self.symbols = symbols
-        self.sort_by_symbol = sort_by_symbol
+        self.sort = sort
         validate_keyword(keyword)
         if not 1 <= symbols <= MAX_SYMBOLS:
             raise ValueError(f"symbols must be between 1 and {MAX_SYMBOLS}, not {symbols}")
+        if sort not in SORT_MODES:
+            raise ValueError(f"sort must be one of {', '.join(SORT_MODES)}, not {sort!r}")
 
     def __str__(self) -> str:
-        sorting = ", symbol-only sort" if self.sort_by_symbol else ""
-        return f"{self.name} ({self.keyword}, {self.symbols} symbols{sorting})"
+        sorting = {"key": "", "symbol": ", symbol-only sort", "icon": ", icon-order sort"}
+        return f"{self.name} ({self.keyword}, {self.symbols} symbols{sorting[self.sort]})"
 
     @property
     def _flags(self) -> int:
-        return FLAG_SORT_BY_SYMBOL if self.sort_by_symbol else 0
+        return {"key": 0, "symbol": FLAG_SORT_BY_SYMBOL, "icon": FLAG_SORT_BY_ICON}[self.sort]
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)
@@ -601,7 +683,7 @@ class MapListSymbolsPatch(Patch):
             lambda va: self._build(va, stock_rows),
             SECTION_CHARACTERISTICS,
         )
-        pieces = _layout(base_va, self.keyword, self.symbols, self.sort_by_symbol)
+        pieces = _layout(base_va, self.keyword, self.symbols, self.sort)
         for file_off, old, new, note in self._edits(data, pieces):
             apply_byte_patch(data, file_off, old, new, note)
 
@@ -621,10 +703,10 @@ class MapListSymbolsPatch(Patch):
         section_va, section_off, vsize = located
 
         installed = self._installed_parameters(data, section_va)
-        if installed != (self.keyword, self.symbols, self.sort_by_symbol):
+        if installed != (self.keyword, self.symbols, self.sort):
             return [f"{SECTION_NAME} was built for {installed!r}, not this patch's parameters"]
 
-        pieces = _layout(section_va, self.keyword, self.symbols, self.sort_by_symbol)
+        pieces = _layout(section_va, self.keyword, self.symbols, self.sort)
         problems: list[str] = []
         try:
             content = self._build(section_va, self._copied_rows(data, pieces))
@@ -697,24 +779,38 @@ class MapListSymbolsPatch(Patch):
             ),
         )
 
-        parser.add_argument(
+        # The two hook the same seventeen bytes of the comparator, so at most one can be installed.
+        sorting = parser.add_mutually_exclusive_group()
+        sorting.add_argument(
             "--sort-by-symbol",
             action="store_true",
             help=(
                 "sort the icon column by the symbol alone. Without it that column sorts on the "
                 "whole key, so maps sharing a symbol are grouped but ordered inside the group by "
-                "how far each has been beaten; with it they tie and fall through to the secondary "
-                "column, which is the map name unless another header has been clicked. The icon "
-                "still tracks the conquered state either way"
+                "the star/hammer and then by how far each has been beaten; with it they tie and "
+                "fall through to the secondary column, which is the map name unless another "
+                "header has been clicked. The icon still tracks the conquered state either way"
+            ),
+        )
+        sorting.add_argument(
+            "--sort-by-icon",
+            action="store_true",
+            help=(
+                "sort the icon column by the picture it draws: the symbol first, then the "
+                "conquered medal, then the star/hammer. Every map carrying one symbol and beaten "
+                "on one difficulty is contiguous, where the default splits that run in two "
+                "because it puts official-before-user above the medal. Nothing is discarded, so "
+                "untagged maps still order by medal and then star/hammer"
             ),
         )
 
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> MapListSymbolsPatch:
-        return cls(keyword=args.keyword, symbols=args.symbols, sort_by_symbol=args.sort_by_symbol)
+        sort = "symbol" if args.sort_by_symbol else "icon" if args.sort_by_icon else DEFAULT_SORT
+        return cls(keyword=args.keyword, symbols=args.symbols, sort=sort)
 
     @staticmethod
-    def _installed_parameters(data: bytes | bytearray, section_va: int) -> tuple[str, int, bool]:
+    def _installed_parameters(data: bytes | bytearray, section_va: int) -> tuple[str, int, str]:
         off = va_to_offset(data, section_va)
         if off is None:
             raise ValueError(f"the {SECTION_NAME} base 0x{section_va:08x} is not mapped")
@@ -722,15 +818,16 @@ class MapListSymbolsPatch(Patch):
         keyword = _read_cstring(data, section_va + 8)
         if keyword is None:
             raise ValueError(f"no keyword string at the {SECTION_NAME} base")
-        if flags & ~FLAG_SORT_BY_SYMBOL:
+        sort = {0: "key", FLAG_SORT_BY_SYMBOL: "symbol", FLAG_SORT_BY_ICON: "icon"}.get(flags)
+        if sort is None:
             raise ValueError(f"unrecognised {SECTION_NAME} flags 0x{flags:x}")
-        return keyword, count, bool(flags & FLAG_SORT_BY_SYMBOL)
+        return keyword, count, sort
 
     def _build(self, base_va: int, stock_rows: bytes) -> bytes:
         """The cave: the count, the keyword, the two globals, the image array and its names, the
         rebuilt field table, then the seven stubs - in that order, so :meth:`detect` finds both
         parameters at the section base."""
-        pieces = _layout(base_va, self.keyword, self.symbols, self.sort_by_symbol)
+        pieces = _layout(base_va, self.keyword, self.symbols, self.sort)
         names = image_names(self.symbols)
 
         blob = bytearray(_u32(self.symbols) + _u32(self._flags))
@@ -758,7 +855,8 @@ class MapListSymbolsPatch(Patch):
         blob += build_apply_key(pieces.key_va, pieces.carry_va)
         blob += build_pick_image(pieces.pick_va, pieces.images_va, self.symbols)
         if pieces.compare_va is not None:
-            blob += build_compare_symbols(pieces.compare_va)
+            builder = build_compare_symbols if self.sort == "symbol" else build_compare_icons
+            blob += builder(pieces.compare_va)
         return bytes(blob)
 
     def _read_stock_table(self, data: bytes | bytearray) -> bytes:
@@ -840,11 +938,11 @@ class MapListSymbolsPatch(Patch):
         hook wraps, the insert whose ``ret 4`` leaves that call's argument behind, and the
         mapped-image lookup's convention.
 
-        The comparator's key delta joins them only when ``--sort-by-symbol`` is off, because that
-        option rewrites it - and then the edit's own stock-byte assertion is the check instead. It
-        is the same evidence either way: this arm is what makes ``+0xF4`` order the list."""
+        The comparator's key delta joins them only in the stock sort mode, because the other two
+        rewrite it - and then the edit's own stock-byte assertion is the check instead. It is the
+        same evidence either way: this arm is what makes ``+0xF4`` order the list."""
         anchors = dict(MAP_LIST_ANCHORS)
-        if not self.sort_by_symbol:
+        if self.sort == "key":
             anchors[MAP_LIST_COMPARE_KEY] = MAP_LIST_COMPARE_KEY_BYTES
         problems: list[str] = []
         for va, expected in anchors.items():
@@ -929,6 +1027,10 @@ class MapListSymbolsPatch(Patch):
                 _jmp_bytes(
                     MAP_LIST_COMPARE_KEY, pieces.compare_va, len(MAP_LIST_COMPARE_KEY_BYTES)
                 ),
-                f"the icon column sorts on {self.keyword} alone",
+                (
+                    f"the icon column sorts on {self.keyword} alone"
+                    if self.sort == "symbol"
+                    else f"the icon column sorts on {self.keyword}, then the conquered medal"
+                ),
             )
         return edits

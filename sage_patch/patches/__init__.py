@@ -26,7 +26,6 @@ from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
-from sage_patch.patches.experimental.wotr_battle_observers import WotrBattleObserversPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
@@ -61,6 +60,7 @@ from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
+from sage_patch.patches.wotr_battle_observers import WotrBattleObserversPatch
 
 __all__ = [
     "AiCommandNullTargetPatch",

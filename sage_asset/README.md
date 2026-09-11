@@ -114,20 +114,33 @@ shadowed name with its tag.
 
 ## Building an asset.dat
 
-`sage_asset.builder` scans an unpacked art tree - `compiledtextures/` for textures, `w3d/` for
-models - and builds the `AssetDat` it describes: every texture becomes a TEX entry (the
-lowest-priority extension wins when a stem has more than one - dds < tga < jpg < jpeg < png -
-and the entry is always named `<stem>.tga`), and every `.w3d` file is walked chunk by chunk to
+`sage_asset.builder` scans an unpacked art tree - `compiledtextures/` and `Textures/` for
+textures, `w3d/` for models - and builds the `AssetDat` it describes: every texture becomes a
+TEX entry (the lowest-priority extension wins when a stem has more than one - dds < tga < jpg < jpeg < png -
+and the entry is always named `<stem>.tga`; an extension tie between the two texture folders
+goes to the one the engine reads that name from, `Textures/` for `apt_*` and
+`compiledtextures/` for everything else), and every `.w3d` file is walked chunk by chunk to
 list its mesh/hierarchy/animation/HLOD/box sub-assets with their byte range, and to record
 which known textures each mesh references and which sub-objects each HLOD covers. This is a
 faithful port of Brechstange's Edain-Toolbar builder - see the credit above - checked
 byte-for-byte identical to it on the same art tree.
 
+### Where a texture has to live on disk
+
+The engine derives a texture's path from its file name alone, so an entry in the asset.dat is
+only half the job - the file also has to sit where that derivation points. A name starting
+with `apt_` (the APT user-interface atlases) is read from `art/Textures/`; every other image
+name is read from `art/CompiledTextures/XX/`, where `XX` is the name's first two letters.
+`apt_MainMenu_1.tga` therefore belongs in `art/Textures/` and is invisible from
+`art/CompiledTextures/ap/`, while `aptcomponents_001.tga` - which lacks the underscore - is a
+normal texture and belongs in `art/CompiledTextures/ap/`. Both folders are scanned so either
+kind gets its cache entry from the one place the engine will actually load it.
+
 ```python
 from pathlib import Path
 from sage_asset import build_asset_dat, write_asset_dat_to_path
 
-ad = build_asset_dat(Path("art"))  # compiledtextures/ and w3d/ under here
+ad = build_asset_dat(Path("art"))  # compiledtextures/, Textures/ and w3d/ under here
 write_asset_dat_to_path(ad, "asset.dat")
 
 # report progress (e.g. from a UI) with a callback: percent (0-100), status message
@@ -166,7 +179,7 @@ AssetDat(version: int, files: list[FileEntry], references: list[ReferenceRecord]
 wild), and `asset_counts()` (asset tally by type).
 
 `w3d_references(data: bytes) -> W3dRefs` reads a single `.w3d` file's outward references
-without a `compiledtextures/`/`w3d/` tree or an asset.dat: `W3dRefs.textures` is the texture
+without a texture or `w3d/` tree or an asset.dat: `W3dRefs.textures` is the texture
 names its meshes carry, `W3dRefs.hierarchies` the external skeleton stem(s) its HLOD(s) pull
 in (empty when the file carries its own hierarchy-def).
 
@@ -199,7 +212,7 @@ sage-asset check <dat> [--art <art_dir>]   # round-trip + consistency + dangling
 sage-asset diff <a> <b>                # files added / removed / changed
 sage-asset combine <base> <overlay> [<overlay> ...] -o <out> [--show-overrides]
                                         # concatenate base + overlay(s); reports shadowing
-sage-asset build <art_dir> -o <out>    # scan compiledtextures/ + w3d/ and write asset.dat
+sage-asset build <art_dir> -o <out>    # scan the art tree and write asset.dat
 ```
 
 ## Desktop UI

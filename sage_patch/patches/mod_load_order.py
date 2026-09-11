@@ -1,7 +1,7 @@
 r"""The mod-load-order patch: mount `-mod` before the first INI file is read.
 
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../../docs/mod-load-order.md``.
+in ``../docs/mod-load-order.md``.
 
 **The defect.** `GameEngine::init` registers `TheWritableGlobalData` at :data:`GLOBAL_DATA_CALL`
 and only then parses the startup switches at :data:`MOD_CALL`. The registration is not a bare
@@ -75,7 +75,7 @@ from __future__ import annotations
 
 import struct
 
-from ...addresses import (
+from ..addresses import (
     ARCHIVE_FILE_SYSTEM,
     ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE_SLOT,
     ASCII_STRING_IS_EMPTY,
@@ -95,9 +95,9 @@ from ...addresses import (
     SUBSYSTEM_LOAD_LEGEND_FILES,
     SUBSYSTEM_REGISTER,
 )
-from ...asm import JE, JNE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JE, JNE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -338,7 +338,6 @@ def build_code(base_va: int) -> bytes:
 class ModLoadOrderPatch(Patch):
     name = "mod-load-order"
     author = "officialNecro"
-    experimental = True
     description = (
         "Mount -mod before the first INI file is read, so a loose GameData.ini - and the macros "
         "it includes - overrides the archives the way the rest of the tree already does. Nothing "

@@ -2,7 +2,7 @@
 
 **Targets `DebugWindowLite.dll`, not `game.dat`** - the 172,032-byte MFC 7.1 dialog that ships
 beside the game and that both `-scriptDebug2` and `-scriptDebugLite` load. Every address below is
-derived in ``../../docs/script-debug-window.md``.
+derived in ``../docs/script-debug-window.md``.
 
 **The defect.** The dialog keeps every message of the session in a `std::vector<std::string>` at
 `+0xEC` and rebuilds the whole window text from it on **every** appended line: `0x10002680` walks
@@ -40,7 +40,7 @@ are reached by recovering the load address from a ``call``/``pop`` pair, and the
 appends is built on the stack rather than pointed at in `.rdata`.
 
 **Composition.** Nothing else in this package touches this binary, so the question is close to
-moot - but the cave is allocated with :func:`~...utils.allocate_section` and located by name in
+moot - but the cave is allocated with :func:`~..utils.allocate_section` and located by name in
 :meth:`verify` all the same, so a second DLL patch would compose with it.
 """
 
@@ -48,9 +48,9 @@ from __future__ import annotations
 
 import struct
 
-from ...asm import JB, JE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JB, JE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -198,7 +198,6 @@ def build_code(base_va: int) -> bytes:
 class ScriptDebugWindowPatch(Patch):
     name = "script-debug-window"
     author = "officialNecro"
-    experimental = True
     description = (
         "Stop the script debug window rebuilding its whole log on every line, which makes the "
         "game stutter worse the longer it runs. Applied to DebugWindowLite.dll, not game.dat. No "

@@ -31,7 +31,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import apply_patches
-from sage_patch.patches.experimental.render_rate import (
+from sage_patch.patches.render_rate import (
     ANCHORS,
     CLIENT_RATE,
     DEFER_MS,

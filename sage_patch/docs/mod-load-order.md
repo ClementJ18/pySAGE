@@ -2,8 +2,8 @@
 
 Why a `#define` changed in a loose (uncompiled) `-mod` tree has no effect, and what the
 `mod-load-order` patch moves to fix it. Addresses recovered statically from `game.dat` build
-`2.01.2614.37001` (ImageBase `0x400000`) with `pefile` + `capstone`. Static analysis only - the
-ordering below is read off the machine code and has not yet been confirmed in a running game.
+`2.01.2614.37001` (ImageBase `0x400000`) with `pefile` + `capstone`. The ordering below is read
+off the machine code, and the patch built from it is confirmed in a running game.
 
 ## 1. The symptom
 
@@ -110,7 +110,7 @@ lives in the same table and is parsed at the same moment, so it has the same bli
 ## 5. The fix
 
 Built as `mod-load-order`, in
-[`patches/experimental/mod_load_order.py`](../patches/experimental/mod_load_order.py).
+[`patches/mod_load_order.py`](../patches/mod_load_order.py).
 
 The mod has to be mounted before the first `INI::load`. The startup switches cannot simply be
 parsed earlier as they stand: the `-mod` handler (`0x007BADB9`) writes into `GlobalData+0xD38` /

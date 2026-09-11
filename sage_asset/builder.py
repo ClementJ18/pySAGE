@@ -1,8 +1,8 @@
-"""Builds an `AssetDat` model by scanning an unpacked SAGE art tree: `compiledtextures/` for
-textures and `w3d/` for models. Each W3D file's chunk structure is walked to enumerate its
-sub-assets (mesh/hierarchy/animation/HLOD/box) with their byte range and the textures a mesh
-references, matching what the community `asset-combiner`/`AssetCacheBuilder` tools produce.
-Ported from Brechstange's Edain-Toolbar (`core/utils/asset_builder.py`)."""
+"""Builds an `AssetDat` model by scanning an unpacked SAGE art tree: `compiledtextures/` and
+`Textures/` for textures and `w3d/` for models. Each W3D file's chunk structure is walked to
+enumerate its sub-assets (mesh/hierarchy/animation/HLOD/box) with their byte range and the
+textures a mesh references, matching what the community `asset-combiner`/`AssetCacheBuilder`
+tools produce. Ported from Brechstange's Edain-Toolbar (`core/utils/asset_builder.py`)."""
 
 import os
 import struct
@@ -22,6 +22,13 @@ _CHUNK_ANIMATION = 0x00000200
 _CHUNK_COMPRESSED_ANIMATION = 0x00000280
 _CHUNK_HLOD = 0x00000700
 _CHUNK_BOX = 0x00000740
+
+# The engine builds a texture's path from its name alone: an `apt_`-prefixed name (an APT UI
+# atlas) is read from `art/Textures/`, every other one from `art/CompiledTextures/XX/` where XX
+# is the name's first two letters. Both directories are scanned, so a texture gets its cache
+# entry wherever the engine will actually read it from.
+_TEXTURE_DIRS = ("compiledtextures", "Textures")
+_APT_PREFIX = "apt_"
 
 _TEXTURE_EXTENSIONS = {".dds", ".tga", ".jpg", ".jpeg", ".png"}
 _IGNORED_EXTENSIONS = {".ini", ".db", ".credits", ".lnk", ".txt", ".log"}
@@ -229,8 +236,8 @@ class W3dRefs(NamedTuple):
 
 def w3d_references(data: bytes) -> W3dRefs:
     """Every texture a `.w3d`'s meshes name and every external skeleton its HLOD(s) pull in -
-    the outward edges a model asset carries, read straight off its chunks (no `compiledtextures/`
-    or `w3d/` tree needed). A file that carries its own hierarchy-def needs no external
+    the outward edges a model asset carries, read straight off its chunks (no texture or `w3d/`
+    tree needed). A file that carries its own hierarchy-def needs no external
     skeleton; only a skinned mesh, whose HLOD names a *different* file's hierarchy, does."""
     textures: list[str] = []
     has_own_hierarchy = False
@@ -254,33 +261,57 @@ def w3d_references(data: bytes) -> W3dRefs:
     return W3dRefs(textures, hierarchies)
 
 
-def _collect_best_textures(compiledtextures_dir: Path) -> dict[str, Path]:
-    """The winning file for each `.tga`-named entry under `compiledtextures_dir`: when more
-    than one extension provides the same stem, the lowest-priority extension (dds < tga < jpg
-    < jpeg < png) wins - every texture is stored as a TEX asset under its `.tga` name on disk
+def _art_subdir(art_dir: Path, name: str) -> Path | None:
+    """`art_dir/name`, matched case-insensitively, or None when the art tree has no such
+    directory. An unpacked art tree mixes cases (`compiledtextures/` beside `Textures/`) and
+    may sit on a case-sensitive filesystem."""
+    direct = art_dir / name
+    if direct.is_dir():
+        return direct
+    if not art_dir.is_dir():
+        return None
+    lowered = name.lower()
+    return next((c for c in art_dir.iterdir() if c.is_dir() and c.name.lower() == lowered), None)
+
+
+def _engine_texture_dir(entry_name: str) -> str:
+    """The one directory of `_TEXTURE_DIRS` the engine will read `entry_name` from."""
+    return "Textures" if entry_name.startswith(_APT_PREFIX) else "compiledtextures"
+
+
+def _collect_best_textures(art_dir: Path) -> dict[str, Path]:
+    """The winning file for each `.tga`-named entry under the art tree's texture directories:
+    when more than one file provides the same stem, the lowest-priority extension (dds < tga <
+    jpg < jpeg < png) wins, and an extension tie goes to the directory the engine would read
+    that name from. Every texture is stored as a TEX asset under its `.tga` name on disk
     regardless of which extension actually won."""
-    if not compiledtextures_dir.is_dir():
-        return {}
-
-    best: dict[str, tuple[int, Path]] = {}
-    for file in compiledtextures_dir.rglob("*"):
-        if not file.is_file():
+    best: dict[str, tuple[int, int, Path]] = {}
+    for dir_name in _TEXTURE_DIRS:
+        directory = _art_subdir(art_dir, dir_name)
+        if directory is None:
             continue
-        ext = file.suffix.lower()
-        if ext in _IGNORED_EXTENSIONS or ext not in _TEXTURE_EXTENSIONS:
-            continue
-        entry_name = _latin1_safe(unicodedata.normalize("NFC", file.stem + ".tga").lower())
-        priority = _EXTENSION_PRIORITY.get(ext, 99)
-        prev = best.get(entry_name)
-        if prev is None or priority < prev[0]:
-            best[entry_name] = (priority, file)
+        for file in directory.rglob("*"):
+            if not file.is_file():
+                continue
+            ext = file.suffix.lower()
+            if ext in _IGNORED_EXTENSIONS or ext not in _TEXTURE_EXTENSIONS:
+                continue
+            entry_name = _latin1_safe(unicodedata.normalize("NFC", file.stem + ".tga").lower())
+            rank = (
+                _EXTENSION_PRIORITY.get(ext, 99),
+                0 if dir_name == _engine_texture_dir(entry_name) else 1,
+            )
+            prev = best.get(entry_name)
+            if prev is None or rank < prev[:2]:
+                best[entry_name] = (*rank, file)
 
-    return {entry_name: file for entry_name, (_, file) in best.items()}
+    return {entry_name: file for entry_name, (_, _, file) in best.items()}
 
 
-def _collect_w3d_paths(w3d_dir: Path) -> list[Path]:
-    """Every `.w3d` file under `w3d_dir`."""
-    if not w3d_dir.is_dir():
+def _collect_w3d_paths(art_dir: Path) -> list[Path]:
+    """Every `.w3d` file under the art tree's `w3d/` directory."""
+    w3d_dir = _art_subdir(art_dir, "w3d")
+    if w3d_dir is None:
         return []
     return [f for f in w3d_dir.rglob("*") if f.is_file() and f.suffix.lower() == ".w3d"]
 
@@ -297,17 +328,17 @@ def collect_art_index(art_dir: Path) -> dict[str, tuple[Path, int]]:
     existing asset.dat against the art tree's current state (`sage-asset check --art`) without
     paying for a full rebuild."""
     index: dict[str, tuple[Path, int]] = {}
-    for entry_name, file in _collect_best_textures(art_dir / "compiledtextures").items():
+    for entry_name, file in _collect_best_textures(art_dir).items():
         index[entry_name] = (file, _filetime_from_path(file))
-    for file in _collect_w3d_paths(art_dir / "w3d"):
+    for file in _collect_w3d_paths(art_dir):
         index[_w3d_entry_name(file)] = (file, _filetime_from_path(file))
     return index
 
 
-def _collect_texture_entries(compiledtextures_dir: Path) -> Iterator[FileEntry]:
-    """One `FileEntry` per distinct texture stem under `compiledtextures_dir` (see
-    `_collect_best_textures` for which file wins a stem with more than one extension)."""
-    best = _collect_best_textures(compiledtextures_dir)
+def _collect_texture_entries(art_dir: Path) -> Iterator[FileEntry]:
+    """One `FileEntry` per distinct texture stem under the art tree's texture directories (see
+    `_collect_best_textures` for which file wins a stem more than one file provides)."""
+    best = _collect_best_textures(art_dir)
     for entry_name in sorted(best):
         file = best[entry_name]
         yield FileEntry(
@@ -318,14 +349,14 @@ def _collect_texture_entries(compiledtextures_dir: Path) -> Iterator[FileEntry]:
 
 
 def _collect_w3d_entries(
-    w3d_dir: Path, known_textures: set[str]
+    art_dir: Path, known_textures: set[str]
 ) -> Iterator[tuple[FileEntry, list[ReferenceRecord]]]:
-    """One `(FileEntry, references)` pair per `.w3d` file under `w3d_dir`. A mesh's references
-    are limited to textures also present under `compiledtextures/` (`known_textures`); an
+    """One `(FileEntry, references)` pair per `.w3d` file under the art tree's `w3d/`. A mesh's
+    references are limited to textures the texture scan found (`known_textures`); an
     HLOD's references are its sub-object names seen so far in chunk order, plus a hierarchy
     reference - the file's own hierarchy-def if it has one, else `h*<hier_ref>` when `hier_ref`
     names a different, known w3d file."""
-    all_w3d = _collect_w3d_paths(w3d_dir)
+    all_w3d = _collect_w3d_paths(art_dir)
     known_w3d_stems = {unicodedata.normalize("NFC", f.stem).lower() for f in all_w3d}
 
     for file in sorted(all_w3d, key=lambda p: p.name.lower()):
@@ -384,22 +415,19 @@ def _collect_w3d_entries(
 def build_asset_dat(
     art_dir: Path, *, progress: Callable[[int, str], None] | None = None
 ) -> AssetDat:
-    """Scan `art_dir` (`compiledtextures/` and `w3d/`) and build the `AssetDat` model it
-    describes. `progress` is called a handful of times with a 0-100 percentage and a short
-    status message, for a UI to report while the scan runs."""
-    compiledtextures_dir = art_dir / "compiledtextures"
-    w3d_dir = art_dir / "w3d"
-
+    """Scan `art_dir` (`compiledtextures/`, `Textures/` and `w3d/`) and build the `AssetDat`
+    model it describes. `progress` is called a handful of times with a 0-100 percentage and a
+    short status message, for a UI to report while the scan runs."""
     if progress:
         progress(5, "Scanning texture files...")
     tex_entries: list[tuple[FileEntry, list[ReferenceRecord]]] = [
-        (entry, []) for entry in _collect_texture_entries(compiledtextures_dir)
+        (entry, []) for entry in _collect_texture_entries(art_dir)
     ]
     known_textures = {entry.name for entry, _ in tex_entries}
 
     if progress:
         progress(30, "Scanning W3D model files...")
-    w3d_entries = list(_collect_w3d_entries(w3d_dir, known_textures))
+    w3d_entries = list(_collect_w3d_entries(art_dir, known_textures))
 
     if progress:
         progress(60, "Sorting entries...")

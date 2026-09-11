@@ -47,14 +47,14 @@ carrying that older patch is not recognised by this one and has to be rebuilt fr
 
 Five edits, one cave
 --------------------
-1. **The allocation.** `ModuleData` grows ``0x30`` -> ``0x158`` to hold two 36-dword upgrade masks
-   and three bools. The nine bytes at `ALLOC_WINDOW_VA` - `newModuleData`'s ``push ecx`` /
-   ``push esi`` / ``push 0x30`` / ``call operator new`` - become a jump into a cave stub that does
-   the same with the larger size and zeroes everything past ``0x30``, then rejoins at the caller's
-   ``pop ecx`` with the size argument still on the stack. `operator new` does not zero, so that
-   loop **is** the defaults: no upgrade required, none conflicting, `CountLooseObjects = No`.
-   Nothing else in the image reads this ``sizeof``, and the destructor's ``operator delete`` is the
-   unsized form, so the growth ends here.
+1. **The allocation.** `ModuleData` grows ``0x30`` -> ``0x158`` to hold two 36-dword upgrade masks,
+   three bools and gate 1's scratch dword. The nine bytes at `ALLOC_WINDOW_VA` -
+   `newModuleData`'s ``push ecx`` / ``push esi`` / ``push 0x30`` / ``call operator new`` - become
+   a jump into a cave stub that does the same with the larger size and zeroes everything past
+   ``0x30``, then rejoins at the caller's ``pop ecx`` with the size argument still on the stack.
+   `operator new` does not zero, so that loop **is** the defaults: no upgrade required, none
+   conflicting, `CountLooseObjects = No`. Nothing else in the image reads this ``sizeof``, and the
+   destructor's ``operator delete`` is the unsized form, so the growth ends here.
 2. **The keywords.** The field-parse table at `FIELD_TABLE_VA` cannot grow in place - it ends at
    ``0x00C63A68`` where an unrelated ``.rdata`` path string begins. It is named by **exactly one**
    instruction, so the patch copies the eight stock rows verbatim - their name pointers are
@@ -71,8 +71,8 @@ Five edits, one cave
    plus the store of the wrapper vtable) become a ``call`` into a shim that does the same two
    things and then, only when the flag is set *and* `HordeMemberFilter` was actually written, swaps
    in a cave-built copy of the vtable whose `allow` is the widened one, parking the owning `Object`
-   in the wrapper's free ``+4`` slot. Choosing the vtable rather than editing `PARTITION_ALLOW_VA`
-   in place is what keeps the unwidened path byte-identical.
+   in the `ModuleData`'s own scratch dword. Choosing the vtable rather than editing
+   `PARTITION_ALLOW_VA` in place is what keeps the unwidened path byte-identical.
 5. **Gate 2.** The 28 bytes at `COUNT_WINDOW_VA` - the whole "getContain, bail on null, else count"
    block plus its accumulate - become ``mov ecx,eax`` / ``call`` / ``add [ebp-0x18],eax`` and
    padding. The window is self-contained: its only inbound branch is the loop's own back edge at
@@ -98,9 +98,23 @@ directly with the module owner's own player, exactly as `banner-filter` and `pla
 
 The source player is not read out of a frame slot. Gate 2 has the owning `Object` in ``ebx``, live
 since ``0x008938EA`` and unclobbered for the whole function; gate 1's `allow` runs inside the
-partition scan with no such register, so the shim stashes the same pointer in the wrapper's ``+4``
-slot - a dword the update zeroes at ``0x0089393F`` and **nothing reads**, since the stock
-`allow` looks only at ``+8`` (the filter) and ``+0xc`` (its accept/reject polarity).
+partition scan with no such register, so the shim stashes the same pointer in a spare dword of the
+grown `ModuleData` at :data:`OWNER_SCRATCH_OFFSET`, and `allow` reaches it back through the only
+pointer the wrapper hands it - the `ObjectFilter` at ``+8``, which *is* the `ModuleData` biased by
+:data:`FILTER_OFFSET`.
+
+**Not the wrapper's ``+4``.** That dword looks free - the update zeroes it at ``0x0089393F`` and
+the stock `allow` reads only ``+8`` and ``+0xc`` - and it is not. Every partition filter is an
+intrusive list node whose `next` lives at ``+4``: the three `FILTER_APPEND_VA` calls at
+``0x00893994``-``0x008939A6`` chain the four stack filters through it, and both of the scan's walks
+follow it. A pointer parked there is walked as a filter. Earlier versions of this patch did park
+the `Object` there, and the result was `append` writing a stack address into whatever object it
+reached first and the scan calling vslot ``+8`` on a `ThingTemplate` - an immediate crash on the
+first poll of any `LargeGroupBonusUpdate` that wrote the keyword.
+
+The `ModuleData` is shared by every instance of the template, so the scratch dword is too. That is
+safe because it is written and read inside one `update`: the scan is synchronous, and no other
+module's `update` can interleave between the store and the last `allow` that reads it.
 
 `isDefined` gates the widened path as well as the flag
 ------------------------------------------------------
@@ -162,6 +176,7 @@ __all__ = [
     "DEFAULT_KEYWORD",
     "FIELD_TABLE_REF_VA",
     "FIELD_TABLE_VA",
+    "FILTER_APPEND_VA",
     "FILTER_OFFSET",
     "FLAG_OFFSET",
     "GATE_RESUME_VA",
@@ -175,6 +190,8 @@ __all__ = [
     "MODULEDATA_CTOR_CALL_VA",
     "MODULEDATA_CTOR_VA",
     "OBJECT_UPGRADES_COMPLETED",
+    "OWNER_FROM_FILTER",
+    "OWNER_SCRATCH_OFFSET",
     "PARSE_UPGRADE_MASK_VA",
     "PARTITION_ALLOW_VA",
     "PATCHED_MODULEDATA_SIZE",
@@ -219,8 +236,9 @@ MODULEDATA_CTOR_CALL_VA = 0x0064D139
 MODULEDATA_CTOR_VA = 0x00893871
 
 STOCK_MODULEDATA_SIZE = 0x30
-#: What the structure grows to: the stock ``0x30``, two `UpgradeMaskType`s and three bools, dword
-#: aligned. `UpgradeMaskType` is 36 dwords - see ``../docs/upgrade-mask-limit.md``.
+#: What the structure grows to: the stock ``0x30``, two `UpgradeMaskType`s, three bools and the
+#: dword at :data:`OWNER_SCRATCH_OFFSET`, which is exactly the padding the bools leave behind.
+#: `UpgradeMaskType` is 36 dwords - see ``../docs/upgrade-mask-limit.md``.
 PATCHED_MODULEDATA_SIZE = 0x158
 MASK_DWORDS = 0x24
 #: What the allocation stub zeroes: everything past the stock structure.
@@ -243,13 +261,20 @@ FIELD_TABLE_REF_VA = 0x0089375B
 WRAPPER_VTABLE_VA = 0x00C63870
 WRAPPER_VTABLE_SLOTS = 3
 PARTITION_ALLOW_VA = 0x00660C72
-#: The wrapper's own layout: ``+4`` free, ``+8`` the `ObjectFilter *`, ``+0xc`` the polarity byte.
-WRAPPER_OWNER_SLOT = 0x04
+#: The wrapper's own layout: ``+4`` the **next filter in the chain**, ``+8`` the `ObjectFilter *`,
+#: ``+0xc`` the polarity byte. Every partition filter in this engine is an intrusive list node:
+#: `FILTER_APPEND_VA` walks ``+4`` to find the tail and links the next one on, and both of
+#: `iterateObjectsInRange`'s walks follow ``+4`` from node to node. ``+4`` is therefore **not**
+#: scratch space, whatever the stock ``and dword [ebp-0x4c], 0`` that initialises it looks like.
 WRAPPER_FILTER_SLOT = 0x08
 WRAPPER_POLARITY_SLOT = 0x0C
-#: ``[ebp-0x50]`` and ``[ebp-0x4c]`` - where `update` builds the wrapper in its own frame.
+#: ``[ebp-0x50]`` - where `update` builds the wrapper in its own frame.
 WRAPPER_VTABLE_DISP8 = -0x50
-WRAPPER_OWNER_DISP8 = -0x4C
+
+#: ``PartitionFilter::append(next)`` - ``__thiscall``, ``ret 4``, walks ``this->+4`` to the tail
+#: and stores ``next`` there. `update` calls it three times at ``0x00893994``-``0x008939a6`` to
+#: chain its four stack filters, which is what makes ``+4`` load-bearing.
+FILTER_APPEND_VA = 0x00A394C0
 
 #: The upgrade gate's window: ``mov eax, [TheGameLogic]``, one whole instruction, five bytes, the
 #: last before the KindOf branch at `GATE_RESUME_VA` consumes the flags set at ``0x00893901``.
@@ -328,6 +353,14 @@ CONFLICTS_WITH_OFFSET = TRIGGERED_BY_OFFSET + MASK_DWORDS * 4
 REQUIRES_ALL_TRIGGERS_OFFSET = CONFLICTS_WITH_OFFSET + MASK_DWORDS * 4
 REQUIRES_ALL_CONFLICTING_OFFSET = REQUIRES_ALL_TRIGGERS_OFFSET + 1
 FLAG_OFFSET = REQUIRES_ALL_CONFLICTING_OFFSET + 1
+#: A dword of scratch in the grown `ModuleData`'s own tail, where gate 1 parks the owning `Object`
+#: for the widened `allow` to read back - see :func:`build_setup`. It lands in the padding the
+#: five fields above leave behind, so it costs no extra bytes and :func:`build_alloc` zeroes it
+#: along with everything else past ``0x30``.
+OWNER_SCRATCH_OFFSET = 0x154
+#: The same slot reached from the `ObjectFilter` handle the wrapper carries at ``+8``, which is
+#: ``ModuleData + FILTER_OFFSET`` - the only route `allow` has back to the `ModuleData`.
+OWNER_FROM_FILTER = OWNER_SCRATCH_OFFSET - FILTER_OFFSET
 
 #: The stock table, in table order, as ``(name, ModuleData offset)``. Used as a fingerprint: all
 #: eight names *and* offsets must match before anything is written, which is a far stronger build
@@ -384,8 +417,18 @@ ANCHORS: dict[int, bytes] = {
     0x00893901: bytes.fromhex("f6810901000001"),
     # the branch that consumes them, which is where the active path resumes
     GATE_RESUME_VA: bytes.fromhex("0f85b8000000"),
-    # `and dword [ebp-0x4c], 0` - the wrapper's +4 slot, zeroed and read by nothing
+    # `and dword [ebp-0x4c], 0` - the wrapper's +4 slot, the filter chain's `next`, initialised
+    # to the list terminator here and linked to the second filter by the append below. The patch
+    # leaves it alone; see `FILTER_APPEND_VA`.
     0x0089393F: bytes.fromhex("8365b400"),
+    # `PartitionFilter::append` - `edx = this->+4`, walk `+4` to the tail, store the argument
+    # there. This is what makes the wrapper's +4 load-bearing, so it is anchored even though the
+    # patch never writes to it.
+    FILTER_APPEND_VA: bytes.fromhex("8bc18b500485d2741b568d9b000000008bf28b560485d275f7"),
+    # the three `append` calls that chain `update`'s four stack filters into one list
+    0x00893994: bytes.fromhex("e8275b1a00"),
+    0x0089399D: bytes.fromhex("e81e5b1a00"),
+    0x008939A6: bytes.fromhex("e8155b1a00"),
     # `mov byte [ebp-0xd], 0` - the sleep selector the inactive path writes for itself
     0x00893932: bytes.fromhex("c645f300"),
     # the instruction after gate 1's window, which consumes the `lea`'s result
@@ -712,7 +755,11 @@ def build_setup(base_va: int, vtable_va: int, stock_vtable_va: int) -> bytes:
     everything else, so nothing has to be saved.
 
     The widened vtable is installed only when the flag is set **and** the filter was written; see
-    the module docstring on why an unwritten filter is not taken to mean "count everything"."""
+    the module docstring on why an unwritten filter is not taken to mean "count everything".
+
+    The owning `Object` goes into the `ModuleData`'s own scratch dword, not into the wrapper - the
+    wrapper's ``+4`` is the filter chain's `next` pointer, and parking anything there sends
+    `FILTER_APPEND_VA` and the scan walking off into the object graph."""
     a = Asm(base_va)
     a.emit(b"\xc7\x45", _disp8(WRAPPER_VTABLE_DISP8), _u32(stock_vtable_va))
     #                       mov dword [ebp-0x50], <stock vtable>
@@ -724,7 +771,7 @@ def build_setup(base_va: int, vtable_va: int, stock_vtable_va: int) -> bytes:
     a.jcc(JE, "done")  # je .done                ; no filter written -> stock
     a.emit(b"\xc7\x45", _disp8(WRAPPER_VTABLE_DISP8), _u32(vtable_va))
     #                       mov dword [ebp-0x50], <cave vtable>
-    a.emit(b"\x89\x5d", _disp8(WRAPPER_OWNER_DISP8))  # mov [ebp-0x4c], ebx  ; the owning Object
+    a.emit(b"\x89\x9f", _u32(OWNER_SCRATCH_OFFSET))  # mov [edi+0x154], ebx ; the owning Object
     a.label("done")
     a.emit(b"\x8d\x47", FILTER_OFFSET)  # lea eax, [edi+0xc]      ; what the window left in eax
     a.emit(0xC3)  # ret
@@ -739,9 +786,10 @@ def build_new_allow(base_va: int) -> bytes:
     interface, which the stock version rejects outright, is instead put to the `ObjectFilter`
     directly.
 
-    The source player comes from the wrapper's ``+4`` slot, which :func:`build_setup` filled - the
-    partition scan runs with no register holding the module's own object, and the stock `allow`
-    reads only ``+8`` and ``+0xc``, so that dword is free.
+    The source player comes from the `ModuleData`'s scratch dword, which :func:`build_setup`
+    filled - the partition scan runs with no register holding the module's own object, and the
+    only pointer the wrapper carries is the `ObjectFilter` handle at ``+8``, which is the
+    `ModuleData` biased by :data:`FILTER_OFFSET`.
 
     Both exits reproduce the stock polarity contract exactly: a match returns the wrapper's ``+0xc``
     byte, a non-match returns whether that byte is zero."""
@@ -768,7 +816,8 @@ def build_new_allow(base_va: int) -> bytes:
     a.call_absolute(OBJECT_FILTER_IS_DEFINED_VA)  # call <isDefined>
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "nomatch")  # je .nomatch            ; unwritten -> contributes nothing
-    a.emit(b"\x8b\x4e", WRAPPER_OWNER_SLOT)  # mov ecx, [esi+4]    ; the owning Object
+    a.emit(b"\x8b\x46", WRAPPER_FILTER_SLOT)  # mov eax, [esi+8]    ; &HordeMemberFilter
+    a.emit(b"\x8b\x88", _u32(OWNER_FROM_FILTER))  # mov ecx, [eax+0x148] ; the owning Object
     a.call_absolute(GET_CONTROLLING_PLAYER_VA)
     a.emit(0x50)  # push eax                ; arg3 = the source player
     a.emit(b"\x8b\xcb")  # mov  ecx, ebx

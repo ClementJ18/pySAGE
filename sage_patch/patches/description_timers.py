@@ -13,7 +13,9 @@ is written down anywhere the player can read.
 - a **special-power** button gets its cooldown - the full length while the power is ready, the
   **time left** while it is recharging;
 - a button carrying a **`ThingTemplate`** gets its build time;
-- an **upgrade** button the player does not already own gets its research time.
+- an **upgrade** button whose upgrade is not already researched gets its research time - asked of
+  the *player* for a `Type = PLAYER` upgrade and of the *selected object* for a `Type = OBJECT`
+  one, because those are the two places the engine records a completed upgrade.
 
 **A line whose number would be zero is not printed.** A `SpecialPower` with no `ReloadTime` has no
 cooldown - which is what a passive ability's button is, 204 of the 835 powers in Edain - and a
@@ -122,6 +124,7 @@ from ..addresses import (
     GAME_LOGIC_FRAME,
     GAME_TEXT_FORMAT_SLOT,
     GET_FINAL_OVERRIDE,
+    OBJECT_HAS_UPGRADE,
     PLAYER_FOR_EACH_TEAM_OBJECT,
     THE_GAME_LOGIC,
     THE_GAME_TEXT,
@@ -190,8 +193,26 @@ PLAYER_RECHARGE_MODIFIER_BYTES = bytes.fromhex("d98118070000c3")
 #: `Player::hasUpgradeComplete(UpgradeTemplate *)` - `__thiscall`, `ret 4`, answers in `al`. The
 #: builder asks it at `0x0080816E`; this patch asks again rather than reading the frame byte it
 #: caches the answer in, because that byte is only meaningful on the upgrade path.
+#:
+#: **The anchor is the whole function, `rel32` included.** These twenty-three bytes are identical
+#: to :data:`OBJECT_HAS_UPGRADE`'s but for the call operand, so a prefix would not tell the two
+#: apart - and asking the wrong one of them is exactly the failure this arm was fixed for.
 PLAYER_HAS_UPGRADE_COMPLETE = 0x006AC2AF
-PLAYER_HAS_UPGRADE_COMPLETE_BYTES = bytes.fromhex("8b44240485c07504")
+PLAYER_HAS_UPGRADE_COMPLETE_BYTES = bytes.fromhex("8b44240485c0750432c0eb08ff7038e8eeefffffc20400")
+
+#: `Object::hasUpgrade(UpgradeTemplate *)` - `__thiscall`, `ret 4`, answers in `al`, and the same
+#: shape as the `Player` one above. An **object-scoped** upgrade is recorded in the object's own
+#: completed mask (`Object+0x28C`) and never in the player's, so this is the only question that can
+#: say whether a `Type = OBJECT` upgrade is already researched. The builder itself asks it at
+#: `0x00808197`, of the same object slot this arm uses.
+OBJECT_HAS_UPGRADE_BYTES = bytes.fromhex("8b44240485c0750432c0eb08ff7038e80bccffffc20400")
+
+#: `UpgradeTemplate`'s `Type` field and the value that means `OBJECT`, from the `Upgrade` block's
+#: own parse table (`+0x04`, an `Enum` over the name array at `0x00DA05C8`: `PLAYER` 0, `OBJECT` 1).
+#: The engine's own scope test is this comparison followed by one of the two `hasUpgrade` calls -
+#: see `0x00795045`, where `canMakeUnit` gates a button on its `NeededUpgrade` list.
+UPGRADE_TEMPLATE_TYPE = 0x04
+UPGRADE_TYPE_OBJECT = 1
 
 #: `ThingTemplate::calcTimeToBuild(Player *, Object *, Int override)` - `__thiscall`, `ret 0xC`,
 #: returns frames. `-1` means "use the template's own `BuildTime`". The identical call shape one
@@ -326,6 +347,7 @@ ANCHORS: dict[int, bytes] = {
     PLAYER_FOR_EACH_TEAM_OBJECT: PLAYER_FOR_EACH_TEAM_OBJECT_BYTES,
     PLAYER_RECHARGE_MODIFIER: PLAYER_RECHARGE_MODIFIER_BYTES,
     PLAYER_HAS_UPGRADE_COMPLETE: PLAYER_HAS_UPGRADE_COMPLETE_BYTES,
+    OBJECT_HAS_UPGRADE: OBJECT_HAS_UPGRADE_BYTES,
     SPELL_BOOK_FINDER: SPELL_BOOK_FINDER_BYTES,
     THING_TEMPLATE_CALC_TIME_TO_BUILD: THING_TEMPLATE_CALC_TIME_TO_BUILD_BYTES,
     UPGRADE_TEMPLATE_CALC_TIME_TO_BUILD: UPGRADE_TEMPLATE_CALC_TIME_TO_BUILD_BYTES,
@@ -624,15 +646,36 @@ def _emit_ability(a: Asm) -> None:
 
 
 def _emit_upgrade(a: Asm) -> None:
-    """`esi` = the CommandButton, `ebx` = its UpgradeTemplate."""
+    """`esi` = the CommandButton, `ebx` = its UpgradeTemplate.
+
+    **Who owns an upgrade depends on its `Type`**, and asking the wrong owner is a question that
+    always answers no: a `Type = OBJECT` upgrade lands in the object's mask and never in the
+    player's, so putting the player's test on both scopes leaves an object upgrade's research time
+    on its button forever after it is researched. The scope test and the two calls are the engine's
+    own, transcribed from `0x00795045`.
+    """
     a.label("upgrade")
     a.emit(0x8B, 0x4D, _EBP_PLAYER)  # mov ecx, [ebp-0x20]
     a.emit(0x85, 0xC9)  # test ecx, ecx
-    a.jcc(JE, "up_out")
+    a.jcc(JE, "up_out")  # calcTimeToBuild wants a player either way
+    a.emit(0x83, 0x7B, UPGRADE_TEMPLATE_TYPE, UPGRADE_TYPE_OBJECT)  # cmp dword [ebx+4], 1
+    a.jcc(JE, "up_object")
     a.emit(0x53)  # push ebx
     a.call_absolute(PLAYER_HAS_UPGRADE_COMPLETE)  # ret 4
     a.emit(0x84, 0xC0)  # test al, al
     a.jcc(JNE, "up_out")  # already researched: there is nothing left to time
+    a.jmp("up_time")
+
+    a.label("up_object")
+    a.emit(0x8B, 0x4D, _EBP_OBJECT)  # mov ecx, [ebp-0x1c]
+    a.emit(0x85, 0xC9)  # test ecx, ecx
+    a.jcc(JE, "up_time")  # nothing selected to ask: leave the line in
+    a.emit(0x53)  # push ebx
+    a.call_absolute(OBJECT_HAS_UPGRADE)  # ret 4
+    a.emit(0x84, 0xC0)  # test al, al
+    a.jcc(JNE, "up_out")
+
+    a.label("up_time")
     a.emit(0x8B, 0xCB)  # mov ecx, ebx
     a.emit(0xFF, 0x75, _EBP_OBJECT)  # push dword [ebp-0x1c]
     a.emit(0xFF, 0x75, _EBP_PLAYER)  # push dword [ebp-0x20]

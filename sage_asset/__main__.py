@@ -19,7 +19,8 @@ file itself is required.
 - `combine <base> <overlay> [<overlay> ...] -o <out> [--show-overrides]` - concatenate a base
   asset.dat with one or more overlays (base first, overlays after, in order), write the result,
   and report the shadowing it produced; `--show-overrides` lists each shadowed name.
-- `build <art_dir> -o <out>` - scan an unpacked art tree (`compiledtextures/`, `w3d/`) and
+- `build <art_dir> -o <out>` - scan an unpacked art tree (`compiledtextures/`, `Textures/`,
+  `w3d/`) and
   write the asset.dat it describes.
 """
 

@@ -1,7 +1,7 @@
 """The render-rate patch: draw at more than 30 fps without the game running faster.
 
 Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001`` **as Edain ships it**. Every
-address below is derived in ``../../docs/render-rate.md``; §-references are to that document.
+address below is derived in ``../docs/render-rate.md``; §-references are to that document.
 
 **What the engine does today.** SAGE simulates at 5 logic frames per second and draws at 30, and
 the two are already decoupled: `TheGameEngine` keeps a sub-frame counter at ``+0x34``, a ratio at
@@ -72,7 +72,7 @@ the client rate; the INI owns the pace, through `TheGameEngine+0x0C`, and it liv
 runs at half speed** — measured 2.67 Hz logic against the 5.67 Hz it should have (§9.3). Nothing
 warns, nothing crashes; it is just slow. This is the one thing a mod has to write.
 
-**What is still wrong**, and why this is experimental rather than only untested. The simulation
+**What is still wrong**, and is a defect rather than a gap in testing. The simulation
 runs **7–11% slow** at 60 (§9.5): Edain's always-running catch-up loop spends an extra sub-frame
 per logic frame, and the frame limiter truncates ``1000/60`` to 16 ms. That shifts replay timing
 and every peer's, so a match between a patched and an unpatched binary is not a match. A handful of
@@ -110,9 +110,9 @@ from __future__ import annotations
 import struct
 from typing import TYPE_CHECKING
 
-from ...asm import JB, JE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JB, JE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 if TYPE_CHECKING:
     import argparse
@@ -507,7 +507,6 @@ class RenderRatePatch(Patch):
         "FramesPerSecondLimit in GameData to the same N, or the game runs at 30/N speed with no "
         "warning. Every peer in a match needs the same binary and the same N"
     )
-    experimental = True
 
     def __init__(self, fps: int = 60):
         if fps % STOCK_LOGIC_RATE or not MIN_FPS <= fps <= MAX_FPS:

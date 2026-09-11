@@ -55,7 +55,7 @@ already even, and subtracting one from the numerator would put a zero-length ste
 instead of a doubled one - the same defect with the sign flipped.
 
 **Composition.** Order-independent, and specifically with
-:mod:`~sage_patch.patches.experimental.render_rate`, the other patch that edits this loop. That
+:mod:`~sage_patch.patches.render_rate`, the other patch that edits this loop. That
 one rewrites the wrap and the recompute gate; this one reads neither, and reads ``+0x38`` at run
 time rather than deriving anything from the bytes that set it - so whatever ratio `render-rate`
 establishes, the alpha is taken over it. The only engine bytes this edits are the five at

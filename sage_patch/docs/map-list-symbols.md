@@ -216,7 +216,7 @@ the same iteration.
 ## 5. The patch
 
 `map-list-symbols`, in [`../patches/map_list_symbols.py`](../patches/map_list_symbols.py). One
-`.mapsym` cave, eight rewritten sites - nine with `--sort-by-symbol` - no `.wnd` and no `.apt`
+`.mapsym` cave, eight rewritten sites - nine with either sort option - no `.wnd` and no `.apt`
 change.
 
 Every address below is named in [`../addresses.py`](../addresses.py) under `MAP_CACHE_*`,
@@ -248,11 +248,12 @@ the schema - so the patch declares no `ini_surface`.
 | `0x00846443` | pass 1's per-entry preamble | save the entry's symbol bits before the difficulty stores land |
 | `0x00846590` | pass 1's `isOfficial` bit, 13 bytes | the stock bit, then the symbol back on top |
 | `0x008465EA` | pass 2's ladder entry, 11 bytes | draw the symbol's image, or hand the row back to the ladder |
-| `0x008424E2` | the comparator's key delta, 17 bytes | **`--sort-by-symbol` only** - mask both operands so nothing below the symbol orders the list |
+| `0x008424E2` | the comparator's key delta, 17 bytes | **the sort options only** - `--sort-by-symbol` masks both operands so nothing below the symbol orders the list; `--sort-by-icon` ranks both so the difficulty outranks the `isOfficial` bit |
 
 Three of those are load-bearing in a way the bytes do not show.
 
-**The comparator hook takes seventeen bytes, not twelve.** The stock arm is
+**The comparator hook takes seventeen bytes, not twelve**, and both sort options pay it. The stock
+arm is
 `mov eax, [ebx+0xF4]` / `mov ecx, [ebp-0x10]` / `sub eax, [edi+0xF4]` / `mov ecx, [ecx]` - the sort
 functor's load sits *between* the two halves of the subtraction, so a hook over the delta owes the
 caller both. `edx` is free scratch: the stock code zeroes it four bytes past the resume point.
@@ -287,19 +288,40 @@ sorted, with official-versus-user the tiebreak inside a symbol and difficulty th
 that. The comparator subtracts whole keys, and the largest key a 99-symbol build can produce is
 `0x00638006`, so nothing overflows into the sign.
 
-That tiebreak is what `--sort-by-symbol` removes. Maps sharing a symbol are contiguous either way -
-the symbol is the high half of the key - but by default the order *within* a group is
-official-then-difficulty, which reads as arbitrary to anyone who wanted the group sorted by name.
-The option hooks the comparator's key delta (`0x008424E2`, seventeen bytes) and masks both operands
-to `0xFFFF0000`, so two maps carrying the same symbol **tie**. A tie is what sends the comparator
-on to its next key, which is the secondary sort column - the display name unless another header has
-been clicked.
+That tiebreak is what the two sort options rework. Maps sharing a symbol are contiguous under all
+three - the symbol is the high half of the key - but by default the order *within* a group is
+official-then-difficulty, and that middle field is the problem: it splits a symbol's easy-conquered
+maps in two, one run of official ones and one of user ones, with every other official difficulty in
+between. Both options hook the same seventeen bytes, the comparator's key delta at `0x008424E2`, so
+**at most one can be installed**.
 
-It changes nothing else. The key still carries the difficulty and the `isOfficial` bit, and pass 2
-still reads them, so the icon tracks the conquered state exactly as before. The cost is that
-untagged maps tie with each other too: with the option installed, sorting by the icon column no
-longer separates official from user maps, because that distinction lives in a bit the comparator
-has stopped looking at.
+**`--sort-by-symbol`** masks both operands to `0xFFFF0000`, so two maps carrying the same symbol
+**tie**. A tie is what sends the comparator on to its next key, which is the secondary sort column -
+the display name unless another header has been clicked. The cost is that untagged maps tie with
+each other too: with it installed, sorting by the icon column no longer separates official from user
+maps, because that distinction lives in a bit the comparator has stopped looking at.
+
+**`--sort-by-icon`** keeps every field and reorders two of them. It ranks each operand as
+
+```
+symbol | difficulty << 1 | isOfficial-is-No
+```
+
+and subtracts the ranks, which is the stock key with its low two fields swapped: symbol, then the
+conquered medal, then the star or hammer. Every map carrying one symbol and beaten on one difficulty
+is then contiguous, which is the ordering the icon column looks like it should have - it groups by
+the picture it is drawing. Nothing is masked away, so untagged maps still order by medal and then by
+star-before-hammer rather than tying.
+
+The rank cannot carry into the symbol. The difficulty is `0`..`6` and the official bit is one bit,
+so the two low fields together reach `13`, and bits 4-15 stay clear. The ranking is a local
+subroutine in the cave because it runs on both operands; it spends `eax`, `ecx` and `edx`, which are
+exactly the three this arm owns - `ecx` because the displaced functor load rewrites it on the way
+out, `edx` because the stock code zeroes it four bytes past the resume point.
+
+Neither option changes anything else. The key still carries the difficulty and the `isOfficial` bit,
+and pass 2 still reads the key itself, so the icon tracks the conquered state exactly as before
+under all three modes.
 
 ### 5.4 The images
 
@@ -347,7 +369,8 @@ and:
 1. opens the skirmish lobby and confirms both rows draw their own icon and the rest draw the stock
    star or hammer;
 2. clicks the icon column header and confirms the symbols group, with official and user maps
-   separating inside each group;
+   separating inside each group - and, on a `--sort-by-icon` build, that the medal separates first
+   instead, so one symbol's easy-conquered maps are a single run;
 3. beats one of them on a difficulty and confirms the row's icon follows the medal;
 4. defines only a bare `AptMapSymbolNN` for the second symbol and confirms it draws at every
    difficulty;

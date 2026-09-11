@@ -60,6 +60,7 @@ from sage_patch.patches.large_group_bonus import (  # noqa: E402
     OBJECT_FILTER_IS_DEFINED_VA,
     OBJECT_FILTER_PARSE_VA,
     OBJECT_FILTER_TEST_VA,
+    OWNER_SCRATCH_OFFSET,
     PARSE_UPGRADE_MASK_VA,
     PARTITION_ALLOW_VA,
     PATCHED_MODULEDATA_SIZE,
@@ -115,7 +116,8 @@ def synthetic_image() -> bytearray:
 
     name_vas = [intern(name) for name, _off in STOCK_FIELDS]
 
-    highest = STRINGS_VA + len(strings) - IMAGE_BASE + 0x100
+    top = max([STRINGS_VA + len(strings)] + [va + len(blob) for va, blob in ANCHORS.items()])
+    highest = top - IMAGE_BASE + 0x100
     data = bytearray(((highest + 0x400) // 0x200 + 1) * 0x200)
 
     data[0:2] = b"MZ"
@@ -546,7 +548,26 @@ def test_gate1_keeps_the_lea_the_next_instruction_consumes() -> None:
     assert text[-2] == "lea eax, [edi + 0xc]"
     assert text[-1] == "ret"
     assert "mov dword ptr [ebp - 0x50], 0xb01000" in text  # the cave vtable, on the widened path
-    assert "mov dword ptr [ebp - 0x4c], ebx" in text  # the owning Object, into the free slot
+    # the owning Object, into the ModuleData's own scratch dword
+    assert f"mov dword ptr [edi + {OWNER_SCRATCH_OFFSET:#x}], ebx" in text
+
+
+def test_no_stub_writes_the_wrappers_next_pointer() -> None:
+    """The wrapper's ``+4`` is the filter chain's `next`: `update` chains its four stack filters
+    through it and the scan walks it. Parking the owning Object there - which an earlier version
+    of this patch did - makes `append` walk out of the list and into the object graph, and the
+    scan call vslot ``+8`` on a `ThingTemplate`. Nothing this patch writes may touch it."""
+    for stub in ("setup", "gate", "allow", "count", "alloc"):
+        assert not any("[ebp - 0x4c]" in line for line in _stub(stub))
+
+
+def test_the_scratch_dword_fits_the_grown_moduledata() -> None:
+    """It has to land past every parsed field and inside what `build_alloc` allocates and zeroes,
+    or it is either a field's storage or somebody else's heap."""
+    assert OWNER_SCRATCH_OFFSET > FLAG_OFFSET
+    assert OWNER_SCRATCH_OFFSET % 4 == 0
+    assert OWNER_SCRATCH_OFFSET + 4 <= PATCHED_MODULEDATA_SIZE
+    assert STOCK_MODULEDATA_SIZE + ZERO_DWORDS * 4 >= OWNER_SCRATCH_OFFSET + 4
 
 
 def test_gate1_is_a_call_and_padding(image: bytearray) -> None:
@@ -602,14 +623,16 @@ def test_allow_calls_the_three_argument_evaluator_not_the_wrapper() -> None:
     assert text.count(f"call 0x{GET_CONTROLLING_PLAYER_VA:x}") == 2  # source and candidate
 
 
-def test_allow_reads_the_source_player_from_the_wrapper_slot() -> None:
+def test_allow_reads_the_source_player_from_the_moduledata_scratch() -> None:
     """The partition scan has no register holding the module's own object, so the shim parks it in
-    the wrapper's free +4 dword and `allow` reads it back from there."""
+    the `ModuleData`, and `allow` walks back to it through the only pointer the wrapper hands it:
+    the `ObjectFilter` at +8, which is the `ModuleData` biased by `FILTER_OFFSET`."""
     text = _stub("allow")
-    assert "mov ecx, dword ptr [esi + 4]" in text
-    at = text.index("mov ecx, dword ptr [esi + 4]")
-    assert text[at + 1] == f"call 0x{GET_CONTROLLING_PLAYER_VA:x}"
-    assert text[at + 2] == "push eax"  # arg3, the source player
+    assert "mov eax, dword ptr [esi + 8]" in text
+    at = text.index("mov eax, dword ptr [esi + 8]")
+    assert text[at + 1] == f"mov ecx, dword ptr [eax + {OWNER_SCRATCH_OFFSET - FILTER_OFFSET:#x}]"
+    assert text[at + 2] == f"call 0x{GET_CONTROLLING_PLAYER_VA:x}"
+    assert text[at + 3] == "push eax"  # arg3, the source player
 
 
 def test_allow_gates_the_loose_path_on_isdefined() -> None:

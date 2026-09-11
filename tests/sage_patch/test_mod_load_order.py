@@ -40,7 +40,7 @@ from sage_patch.addresses import (
     GLOBAL_DATA,
     MOD_MOUNT_DIRECTORY,
 )
-from sage_patch.patches.experimental.mod_load_order import (
+from sage_patch.patches.mod_load_order import (
     ANCHORS,
     EMPTY_STRING,
     GLOBAL_DATA_CALL,
@@ -344,9 +344,11 @@ class TestTheBuildFingerprint:
 
 
 class TestTheRegistry:
-    def test_it_is_registered_and_marked_experimental(self):
+    def test_it_is_registered_and_is_not_experimental(self):
+        """The module lives outside `experimental/`, so the attribute has to agree - the two are
+        the same fact, and `TestExperimentalPatchesAreDeclared` fails on either mismatch."""
         assert PATCHES["mod-load-order"] is ModLoadOrderPatch
-        assert ModLoadOrderPatch.experimental
+        assert not ModLoadOrderPatch.experimental
 
     def test_it_takes_no_parameters(self):
         assert ModLoadOrderPatch().options() == {}

@@ -25,7 +25,7 @@ from sage_patch.addresses import (
     GAME_ENGINE_SUB_FRAME,
     GAME_ENGINE_SUB_FRAME_RATIO,
 )
-from sage_patch.patches.experimental import render_rate as rr
+from sage_patch.patches import render_rate as rr
 from sage_patch.patches.interpolation_alpha import (
     ANCHORS,
     HOOK_ORIGINAL,

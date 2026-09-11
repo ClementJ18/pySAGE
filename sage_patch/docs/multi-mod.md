@@ -3,8 +3,8 @@
 Why `-mod A -mod B` runs B alone, which parts of the mod pipeline are single-valued and which
 were never single-valued at all, and what the `multi-mod` patch changes. Addresses recovered
 statically from `game.dat` build `2.01.2614.37001` (ImageBase `0x400000`) with `pefile` +
-`capstone`. Static analysis only - the reading below is off the machine code and has not yet been
-confirmed in a running game.
+`capstone`. The reading below is off the machine code, and the patch built from it is confirmed
+in a running game.
 
 ## 1. The symptom
 
@@ -98,11 +98,62 @@ why running it once per mod unions the trees instead of shadowing them.
 None of the four blocks is jumped into from outside; `xref` on interior addresses of each finds no
 branches, so each is replaceable as a unit.
 
+## 4b. The asset cache is single-valued a third time, and not through the file system
+
+`asset.dat` is the art cache's index - every `.w3d` model and every texture the engine will load,
+with the byte range each asset occupies in its source file. A model whose entry the cache does not
+hold does not draw; a texture whose entry it does not hold draws in the missing-texture magenta.
+
+None of the four blocks above is involved, because the cache does not open its index through
+`TheFileSystem` at all. `0x0052C9B0` is the loader, called once from `W3DDisplay::init`
+(`0x004467B6`) with three arguments built at the call site:
+
+```
+004467a1  ...                         ; AsciiString copy of GlobalData+0xD38 -> arg 1 (m_modDir)
+00446791  ...                         ; AsciiString copy of GlobalData+0xD3C -> arg 2 (m_modBIG)
+00446789  push ecx                    ; GlobalData+0xD48 > 0                 -> arg 3
+004467b6  call 0x0052C9B0
+```
+
+and it makes three attempts, in this order:
+
+| where | how | site |
+|---|---|---|
+| `<arg 2>\asset.dat` | `_wfopen` on the wide concatenation with `L"\asset.dat"` (`0x00BE83F0`) | `0x0052CA49` |
+| `<arg 1>\asset.dat` | the same, on the other argument | `0x0052CC08` |
+| `asset.dat` | `fopen` in the process's working directory | `0x0052CC46` |
+
+Each open file goes to `0x0052C577`, `__cdecl (FILE *, bool)`, which reads the `ALAE` header and
+version `0x102` and walks section 1 - and it is the *only* consumer, so an `asset.dat` reached any
+other way would be read on exactly the same terms.
+
+Both arguments are copies of the same two single-valued `GlobalData` fields section 2 describes,
+so **only the last `-mod` is ever consulted**, whatever else is mounted. That is the defect: with
+`-mod A -mod B`, every model and texture A adds is absent from the cache and draws magenta, and
+moving A's `asset.dat` into B is the only thing that fixes it.
+
+### Precedence inside the cache is first-wins
+
+Every asset name, of every type, passes one gate before it is registered:
+
+```
+0052c6e2  lea eax, [ebp-0x14c] / call [_strlwr]   ; names are matched lowercased
+0052c6ef  lea eax, [ebp-0x14c] / push eax
+0052c6f6  call 0x00A32D80                        ; does the cache already hold this name
+0052c6ff  jne 0x0052C81C                         ;   yes - skip it entirely
+```
+
+`0x00A32D80` is a lookup on the cache singleton at `0x00DEF75C`, and the `jne` jumps past the
+type dispatch - `TEX`, `MESH`, `HIER`, `HLOD`, `ANIM`, `BOX`, `AGGR`, `FXSH`, `PART` alike. So the
+**first** file to name an asset is the one that keeps it, which is what makes the stock order put
+the mod ahead of the working directory's base-game copy. It is also why a combined `asset.dat`
+built base-first is not a mod override at load time: within one file, first-wins too.
+
 ## 5. The fix
 
-Built as `multi-mod`, in [`patches/experimental/multi_mod.py`](../patches/experimental/multi_mod.py).
+Built as `multi-mod`, in [`patches/multi_mod.py`](../patches/multi_mod.py).
 
-A `.modmul` section carries a sixteen-entry table of `{kind, path[260]}` plus a count, and five
+A `.modmul` section carries a sixteen-entry table of `{kind, path[260]}` plus a count, and six
 sites are rewritten.
 
 **Site 1** - `0x007BAF24`, `E8 C7 CC C7 FF` (`call 0x00437BF0`). Repointed to a stand-in that:
@@ -139,6 +190,27 @@ for `openFile`, `al` for the two predicates, nothing for the listing merge.
 
 The stock guard in front of each block is kept, so a run with no mod takes exactly the stock path.
 
+**Site 6** - `0x0052CA0C`, `8B 45 0C 85 C0`, the `mov eax, [ebp+0xc]` / `test eax, eax` that opens
+the asset loader's first attempt. Five bytes for five, so nothing pads. The routine it calls runs
+the table backwards and, for each recorded directory, builds `<dir>\asset.dat` with the same
+`sprintf` and the same `"%s\%s"` the file-system loops use, `fopen`s it `"rb"`, and hands the file
+to `0x0052C577` with the loader's own third argument forwarded from `[ebp+0x10]` - so whether
+textures are registered is decided exactly as it is for the loader's own three attempts. Each file
+is closed before the next is opened.
+
+Three things fix that site rather than the `call` at `0x004467B6`:
+
+- it is **inside** the loader, past the three one-time resets at `0x0052C9E2`-`0x0052CA07`, which
+  would otherwise throw away everything the loop had just registered;
+- the loader keeps its frame pointer, so the routine reads the loader's arguments as frame locals
+  the way the other four read their callers' buffers;
+- the stock three attempts still run afterwards, and first-wins makes every one of them a no-op
+  for an asset the loop already registered - including the working directory's base-game
+  `asset.dat`, which stays exactly where it was, underneath every mod.
+
+The `je` at `0x0052CA11` is left standing and branches on the flags the replaced pair sets, so the
+routine ends on that same pair with `ret` after it - the one return that leaves `EFLAGS` alone.
+
 ### Precedence
 
 The table is walked **backwards** - last `-mod` first - because that is what the archive side
@@ -146,11 +218,21 @@ already does, and the two halves have to agree or a file present loosely in one 
 another would resolve differently depending on how it was shipped. Mounting therefore runs
 forwards, in command-line order, and searching runs backwards.
 
+The asset cache lands on the same order from the other direction. It keeps the *first* file to
+name an asset rather than the last, so reading the directories backwards is what makes the last
+`-mod`'s `asset.dat` the one whose entries survive - the same answer the loose search gives, for
+the opposite reason.
+
 ### Bounds, and what happens past them
 
 Sixteen mods, and paths shorter than 260 bytes. A path past either bound is not recorded and not
 truncated. The loop then falls back to `0x00DEC498` itself when the table holds no directory at
 all, so such a run degrades to the stock single-mod lookup rather than to no lookup.
+
+The asset routine takes the other half of that: it returns before its loop when the table's count
+is zero, so a run with no `-mod` reaches the loader having done nothing at all and takes exactly
+the stock three attempts. A path the table declined to record is still covered, because the
+loader's own attempt on `m_modDir` is left standing.
 
 ### What this does not change
 
@@ -163,7 +245,7 @@ all, so such a run degrades to the stock single-mod lookup rather than to no loo
 
 ## 6. Testing
 
-Static assertions on the stock bytes at all five sites and the fourteen windows the cave reads,
+Static assertions on the stock bytes at all six sites and the twenty-seven windows the cave reads,
 a disassembly of the cave, and an apply/verify/detect round-trip are the floor, and are what
 [`tests/sage_patch/test_multi_mod.py`](../../tests/sage_patch/test_multi_mod.py) covers.
 
@@ -173,11 +255,24 @@ The claim only becomes real in a running game. The cheapest check: two loose tre
 B's. `sage_live` can read a `GameData` field back to confirm the last-wins half without leaving
 the game.
 
+The asset half needs its own check, because nothing about it shows up in an INI value: give each
+tree an `asset.dat` naming art only that tree ships, put a unit from each on the map, and look at
+them. Both should draw. Before this site existed, only the second tree's did and the first's came
+up magenta.
+
 ## 7. What is still unknown
 
-- Whether anything besides the mount reads `GlobalData+0xD38` / `+0xD3C`. The patch does not need
-  to know - it leaves both fields holding exactly what they held before - but a future change that
-  wanted to *stop* the stock mount re-running would.
+- Whether anything besides the mount and the asset loader reads `GlobalData+0xD38` / `+0xD3C`. The
+  patch does not need to know - it leaves both fields holding exactly what they held before - but
+  a future change that wanted to *stop* the stock mount re-running would. The asset loader is the
+  one such reader found so far, and it was found by looking, not by an exhaustive `xref`.
+- What `GlobalData+0xD48` is. It is the asset loader's third argument, and inside `0x0052C577` a
+  nonzero value skips every `TEX` registration while leaving models alone. The cave forwards
+  whatever the loader was given rather than deciding for itself, so the answer is not load-bearing
+  here.
+- Whether the loader's **first** attempt, `<m_modBIG>\asset.dat`, can ever open anything.
+  `m_modBIG` names a `.big` *file*, so the concatenation is a path through a file rather than a
+  directory. It is left standing untouched either way.
 - Whether `loadArchivesFromDir` on a directory already mounted is as cheap as it is harmless. It
   is re-run once per launch for the last `-mod` directory, so the cost is bounded by one
   directory's archives, but it has not been measured.

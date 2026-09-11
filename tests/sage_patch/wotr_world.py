@@ -242,16 +242,30 @@ class Emulator:
             end = section.VirtualAddress + max(section.Misc_VirtualSize, len(section.get_data()))
             span = max(span, end)
 
+        # The globals the cave dereferences, pointed at the synthetic objects.
+        globals_ = (
+            (ad.THE_GAME_LOGIC, world.game_logic),
+            (ad.THE_GAME_INFO, world.game_info),
+            (ad.THE_LIVING_WORLD_LOGIC, world.living_world),
+        )
+        # The real `game.dat` carries those globals inside its own image, but the synthetic PE is
+        # only as long as the furthest site the patch asserts, so they land off the end of it. Map
+        # the pages that fall outside, and the run is the same over either image.
+        image_end = base + ((span + 0xFFF) & ~0xFFF)
+        spare = sorted({va & ~0xFFF for va, _ in globals_ if not base <= va < image_end})
+
         # `mem_map` raises and catches an SEH access violation inside Unicorn 2.1.4 on Windows -
         # every map still succeeds, but Python's fault handler prints a stack for each one, which
         # would bury the test output. Silenced around the mapping only.
         was_enabled = faulthandler.is_enabled()
         faulthandler.disable()
         try:
-            self.uc.mem_map(base, (span + 0xFFF) & ~0xFFF)
+            self.uc.mem_map(base, image_end - base)
             self.uc.mem_map(HEAP_BASE, HEAP_SIZE)
             self.uc.mem_map(STACK_BASE, STACK_SIZE)
             self.uc.mem_map(DONE, 0x1000)
+            for page in spare:
+                self.uc.mem_map(page, 0x1000)
         finally:
             if was_enabled:
                 faulthandler.enable()
@@ -261,12 +275,7 @@ class Emulator:
         for at, blob in mem.items():
             self.uc.mem_write(at, blob)
 
-        # The globals the cave dereferences, pointed at the synthetic objects.
-        for global_va, value in (
-            (ad.THE_GAME_LOGIC, world.game_logic),
-            (ad.THE_GAME_INFO, world.game_info),
-            (ad.THE_LIVING_WORLD_LOGIC, world.living_world),
-        ):
+        for global_va, value in globals_:
             self.uc.mem_write(global_va, struct.pack("<I", value))
 
         #: Every `AsciiString::operator=` the run made, as ``(this, source)``.

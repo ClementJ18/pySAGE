@@ -19,7 +19,7 @@ pytest.importorskip("unicorn", reason="the emulator harness needs unicorn")
 
 from sage_patch import WotrBattleObserversPatch  # noqa: E402
 from sage_patch import addresses as ad  # noqa: E402
-from sage_patch.patches.experimental.wotr_battle_observers import (  # noqa: E402
+from sage_patch.patches.wotr_battle_observers import (  # noqa: E402
     NAME_OFFSET,
     SECTION_NAME,
     build_cave,
