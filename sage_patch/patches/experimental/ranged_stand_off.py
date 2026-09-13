@@ -93,7 +93,7 @@ class RangedStandOffPatch(Patch):
     """End the attack approach when the target is in weapon range, not when the unit reaches it."""
 
     name = "ranged-stand-off"
-    author = "Claude"
+    author = "officialNecro"
     experimental = True
     description = (
         "Ranged units given a direct attack order stop as soon as the target is in weapon range "

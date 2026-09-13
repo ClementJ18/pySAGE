@@ -645,6 +645,7 @@ class SpawnArmy(IniObject):
     SpawnForTemplates: t.PlayerTemplateRef
     PlayerArmy: t.PlayerArmyRef
     Icon: t.ArmyIcon
+    IconSize: Opaque
     HeroTemplateName: t.ObjectRef
     Banner: t.BannerTypeRef
     InitialRegion: Opaque
@@ -652,6 +653,12 @@ class SpawnArmy(IniObject):
     IsCity: Bool
     PalantirMovie: t.VideoRef
     Position: Coords
+    TooltipStringTag: t.Label
+    BuildTime: Int
+    ConstructButtonImage: Image
+    ConstructButtonTitle: t.Label
+    ConstructButtonHelp: t.Label
+    SpawnAtActStart: Bool
 
 
 class AIDozerAssignment(IniObject):

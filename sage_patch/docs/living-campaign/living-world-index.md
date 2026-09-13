@@ -15,6 +15,9 @@ else is evidence feeding it.
 | [`living-world-campaign.md`](living-world-campaign.md) | **Working.** A scripted campaign runs its acts with no End Turn: `IsScriptedCampaign = Yes`, declare players, name it through `LivingWorldCampaignOverrride`. One four-byte patch. |
 | [`living-world-parity.md`](living-world-parity.md) | The plan. Ordered work items, the BFME1/RotWK feature diff, and five recorded corrections. |
 | [`living-world-region-gating.md`](living-world-region-gating.md) | Why the player can waste an act wandering into owned territory: `DisableRegions` + `EnableRegion` are live and **unused**. INI-only fix. |
+| [`ai-disabled-regions.md`](ai-disabled-regions.md) | **Read from crash dumps, 2026-09-13.** Any scenario with `DisableRegions` crashes on the AI's first turn: the AI region graph skips disabled regions and the planner looks them up unchecked. Fixed statically by [`ai-disabled-regions`](../../patches/experimental/ai_disabled_regions.py). |
+| [`hide-selection-details.md`](hide-selection-details.md) | **Built, static only, 2026-09-13.** The selection-details tray is `StrategicDetailsTray.apt`, driven by one engine class whose `setHasContent` decides whether the HUD's refresh closes it. A `Scenario` `HideSelectionDetails` flag, read through the campaign manager's current campaign, keeps it shut: [`hide-selection-details`](../../patches/experimental/hide_selection_details.py). |
+| [`force-battle.md`](force-battle.md) | **Built, static only, 2026-09-13.** `ForceBattle`'s battle form calls a bare `ret 0xC`; the engine's one live battle creator (`RegionStore::createBattle`, phase 1) and how `SpawnArmy` snaps a `Position` to a region slot. Both re-implemented in [`campaign-army-verbs`](../../patches/campaign_army_verbs.py): `ForceBattle` builds the battle the conflict pass would, `ExactPosition = Yes` keeps a spawned army on its point. |
 | [`bfme1-act-verbs.md`](bfme1-act-verbs.md) | RotWK has 15 campaign Act verbs to BFME1's 18. The four lost — `DespawnArmy`, `ModifyArmyEntry`, `MergePlayerArmy`, `RegionReinforcements` — with their exact INI field specs. |
 | [`bfme1-vs-rotwk-actions.md`](bfme1-vs-rotwk-actions.md) | Name-based script-action diff: exactly **8** regressed, none improved, 52 added. Living-world army scripting never worked in *either* game. |
 | [`dead-script-actions.md`](dead-script-actions.md) | 66 stub slots + 19 gutted bodies; 34 genuinely unimplemented after accounting for the two-stage dispatch. Includes a traced route to reviving the assimilate block. |
@@ -35,8 +38,10 @@ else is evidence feeding it.
 `IsScriptedCampaign`; it dropped 8 script actions and 4 Act verbs. The gap is specific, not general.
 
 **Most of the complaints are authoring, not engine.** `EnableRegion`, `DisableRegions`,
-`ForceBattle`, `IsControllableByOwner = Yes` and the revival-entry actions are all live and unused
+`IsControllableByOwner = Yes` and the revival-entry actions are all live and unused
 or near-unused in the mod. Two of them were written into the INI and commented out.
+`ForceBattle` was on this list and is not live: its battle form calls an empty stub — see
+[`force-battle.md`](force-battle.md).
 
 **The strategic layer was never script-driven.** Every `LIVING_WORLD_*_ARMY` action is a stub or
 gutted in *both* games. BFME1 moved armies through campaign-INI Act verbs, which is where the real

@@ -25,20 +25,6 @@ addresses were confirmed statically and, for `GAME_LOGIC_UPDATE`, by the hook fi
 from __future__ import annotations
 
 __all__ = [
-    "SPM_FRAME_HOOK",
-    "SPM_FRAME_HOOK_BYTES",
-    "SPM_FRAME_RESUME",
-    "SPM_MUSIC_POP",
-    "SPM_MUSIC_PUSH",
-    "SPM_MUSIC_RESUME",
-    "SPM_SCRIPT_MUSIC_PUSH",
-    "SPM_STOCK_ANCHORS",
-    "SPM_TEMPLATE_ID",
-    "SPM_THE_AUDIO",
-    "SPM_TIME_GET_TIME_IAT",
-    "SPM_TRIGGER_HOOK",
-    "SPM_TRIGGER_HOOK_BYTES",
-    "SPECIAL_POWER_NOTIFY_TRIGGERED_AND_PLAY_INITIATE_AUDIO",
     "ABILITY_MODULEDATA_SPECIAL_POWER",
     "ABILITY_TRIGGER",
     "ABILITY_TRIGGER_MODULEDATA_EBP",
@@ -141,6 +127,7 @@ __all__ = [
     "ALPHA_RECOMPUTE_BODY",
     "ALPHA_RECOMPUTE_BODY_BYTES",
     "ALPHA_RECOMPUTE_ENTRY",
+    "AMPERSAND_SCAN",
     "APPEND_MESSAGE_VTABLE_SLOT",
     "APT_INIT_GADGETS_EPILOGUE",
     "APT_INIT_GADGETS_LADDER",
@@ -155,6 +142,7 @@ __all__ = [
     "APT_OPTIONS_SAVE_MAP_EBP",
     "APT_OPTIONS_SAVE_PREFS_EBP",
     "APT_OPTIONS_SAVE_RESUME",
+    "APT_PLAYER_MODE",
     "ARCHIVE_FILE_SYSTEM",
     "ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE",
     "ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE_SLOT",
@@ -337,6 +325,7 @@ __all__ = [
     "COMMAND_BUTTON_FIELD_TABLE_REFS",
     "COMMAND_BUTTON_FIELD_TABLE_REF_OPCODES",
     "COMMAND_BUTTON_FREE_OFFSET",
+    "COMMAND_BUTTON_GET_TEXT_LABEL",
     "COMMAND_BUTTON_SIZE",
     "COMMAND_BUTTON_SPECIAL_POWER",
     "COMMAND_BUTTON_TRIGGER_WHEN_READY",
@@ -354,6 +343,7 @@ __all__ = [
     "COMMAND_LINE_STARTUP_TABLE_COUNT",
     "COMMAND_POINTS_HAS_ENOUGH",
     "COMMAND_POINTS_IN_USE",
+    "COMMAND_SET_GET_COMMAND_BUTTON",
     "COMMAND_SET_STORE_FIND_COMMAND_SET",
     "COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET",
     "CONTAIN_GET_HORDE_IFACE",
@@ -364,6 +354,9 @@ __all__ = [
     "CONTAIN_ITEM_LIST_WALK",
     "CONTAIN_ITEM_LIST_WALK_ENTRY",
     "CONTAIN_ITERATE_SLOT",
+    "CONTROL_BAR_AVAILABILITY_OK_HIGH",
+    "CONTROL_BAR_AVAILABILITY_OK_LOW",
+    "CONTROL_BAR_AVAILABILITY_TEST",
     "CONTROL_BAR_CLICK_BUTTON_LOAD",
     "CONTROL_BAR_CLICK_BUTTON_LOAD_BYTES",
     "CONTROL_BAR_CLICK_GATE_CALL",
@@ -376,6 +369,8 @@ __all__ = [
     "CONTROL_BAR_COMMAND_DISPATCH_BYTES",
     "CONTROL_BAR_COMMAND_INDEX_TABLE",
     "CONTROL_BAR_COMMAND_JUMP_TABLE",
+    "CONTROL_BAR_DO_COMMAND",
+    "CONTROL_BAR_GET_COMMAND_AVAILABILITY",
     "CONTROL_BAR_GET_VISIBLE_RANGE",
     "CONTROL_BAR_MAX_VISIBLE",
     "CONTROL_BAR_MERGE_CLEAR_SLOTS",
@@ -528,6 +523,7 @@ __all__ = [
     "DO_COMMAND_BUTTON_UNIT_QUEUE",
     "DO_COMMAND_BUTTON_UNIT_QUEUE_BYTES",
     "DO_COMMAND_BUTTON_UNIT_QUEUE_RESUME",
+    "DO_COMMAND_SPELL_BOOK_EXEMPTION",
     "DO_COMMAND_UPGRADE_GET",
     "DO_COMMAND_UPGRADE_REMOVE",
     "DO_SPECIAL_POWER_SITES",
@@ -625,11 +621,11 @@ __all__ = [
     "GAME_SLOT_TEAM",
     "GAME_STATE_REGISTER_SNAPSHOT",
     "GAME_TEXT_FORMAT_SLOT",
+    "GETTING_BUILT_STILL_BUILDING_SLOT",
     "GET_CHECKBOX_STATE",
     "GET_FINAL_OVERRIDE",
     "GIVE_UPGRADE_CAN_GIVE",
     "GIVE_UPGRADE_CAN_GIVE_BODY",
-    "GETTING_BUILT_STILL_BUILDING_SLOT",
     "GIVE_UPGRADE_CAN_GIVE_BODY_BYTES",
     "GIVE_UPGRADE_CAN_GIVE_ENTRY",
     "GIVE_UPGRADE_PRODUCER_HORDE_IFACE",
@@ -687,6 +683,20 @@ __all__ = [
     "HORDE_PAYLOAD_ENTRY_NAME",
     "HORDE_PAYLOAD_LOOKUP",
     "HORDE_PAYLOAD_LOOKUP_ENTRY",
+    "HOT_KEY_EXECUTE",
+    "HOT_KEY_EXECUTE_FLAG_EBP",
+    "HOT_KEY_EXECUTE_HIT",
+    "HOT_KEY_EXECUTE_HOOK",
+    "HOT_KEY_EXECUTE_HOOK_BYTES",
+    "HOT_KEY_EXECUTE_KEY_EBP",
+    "HOT_KEY_EXECUTE_MISS",
+    "HOT_KEY_EXECUTE_RESUME",
+    "HOT_KEY_MANAGER_HOTKEY_FROM_LABEL",
+    "HOT_KEY_TRANSLATOR_FLAG_EBP",
+    "HOT_KEY_TRANSLATOR_MODIFIER_GATE",
+    "HOT_KEY_TRANSLATOR_MODIFIER_GATE_BYTES",
+    "HOT_KEY_TRANSLATOR_PROCEED",
+    "HOT_KEY_TRANSLATOR_REJECT",
     "IMAGE_BASE",
     "IMPORT_FCLOSE",
     "IMPORT_FFLUSH",
@@ -722,10 +732,18 @@ __all__ = [
     "KINDOF_ARMY_SUMMARY_BIT",
     "KINDOF_ARMY_SUMMARY_BYTE",
     "KINDOF_BASE_SITE",
+    "KINDOF_DEAD_SLOTS",
     "KINDOF_HERO_BIT",
     "KINDOF_HERO_BYTE",
     "KINDOF_HORDE_BIT",
     "KINDOF_HORDE_BYTE",
+    "KINDOF_MASK_OFFSET",
+    "KINDOF_NAME_TABLE",
+    "KINDOF_NAME_TABLE_COUNT",
+    "KINDOF_NAME_TABLE_REFS",
+    "KINDOF_PARSE",
+    "KINDOF_SUMMONED_BIT",
+    "KINDOF_SUMMONED_BYTE",
     "LIFETIME_ALLOC",
     "LIFETIME_ALLOC_BYTES",
     "LIFETIME_ALLOC_RESUME",
@@ -750,12 +768,20 @@ __all__ = [
     "LIFETIME_UPDATE_BYTES",
     "LIFETIME_UPDATE_RESUME",
     "LIVE_CAMPAIGN_MODE_OFFSET",
+    "LIVING_WORLD_ARMY_RECORD_SPAWN_INTO",
     "LIVING_WORLD_ARMY_ROSTER_ID",
+    "LIVING_WORLD_ARMY_ROSTER_TEAM",
+    "LIVING_WORLD_ASSIGN_OBJECT_TO_ARMY",
+    "LIVING_WORLD_ASSIGN_OBJECT_TO_ARMY_THUNK",
+    "LIVING_WORLD_BATTLE_ARMY_IDS_BEGIN",
+    "LIVING_WORLD_BATTLE_ARMY_IDS_END",
+    "LIVING_WORLD_BATTLE_BRIDGE_OFFSET",
     "LIVING_WORLD_BATTLE_HARVEST_CALL",
     "LIVING_WORLD_BATTLE_HARVEST_CALL_BYTES",
     "LIVING_WORLD_BATTLE_MEMBERS_BEGIN",
     "LIVING_WORLD_BATTLE_MEMBERS_END",
     "LIVING_WORLD_BATTLE_MEMBER_STRIDE",
+    "LIVING_WORLD_BATTLE_PRIMARY_ARMY_ID",
     "LIVING_WORLD_BATTLE_REGION",
     "LIVING_WORLD_BATTLE_SETUP",
     "LIVING_WORLD_BATTLE_SETUP_CALL",
@@ -765,8 +791,12 @@ __all__ = [
     "LIVING_WORLD_BATTLE_SIDES_END",
     "LIVING_WORLD_BATTLE_SIDE_STRIDE",
     "LIVING_WORLD_CURRENT_REGION",
+    "LIVING_WORLD_DEPLOY_AT_BATTLE_START",
     "LIVING_WORLD_FIND_ARMY_BY_ID",
+    "LIVING_WORLD_FIND_ARMY_ROSTER",
     "LIVING_WORLD_FIND_PLAYER_BY_ID",
+    "LIVING_WORLD_HARVEST_ARMY_ID_TEST",
+    "LIVING_WORLD_HARVEST_ARMY_ID_TEST_BYTES",
     "LIVING_WORLD_LEDGER_TO_PLAYER",
     "LIVING_WORLD_LOGIC_BATTLE_STORE",
     "LIVING_WORLD_LOGIC_CURRENT_REGION_ID",
@@ -827,10 +857,10 @@ __all__ = [
     "MAP_CACHE_PARSE_FIELDS",
     "MAP_CACHE_PARSE_FIELDS_BYTES",
     "MAP_CACHE_STOCK_FIELDS",
+    "MAP_LIST_ANCHORS",
     "MAP_LIST_COMPARE_KEY",
     "MAP_LIST_COMPARE_KEY_BYTES",
     "MAP_LIST_COMPARE_KEY_RESUME",
-    "MAP_LIST_ANCHORS",
     "MAP_LIST_ICON_LADDER",
     "MAP_LIST_ICON_LADDER_BYTES",
     "MAP_LIST_ICON_LADDER_RESUME",
@@ -894,22 +924,23 @@ __all__ = [
     "OBJECT_APPLY_UPGRADE_LIST",
     "OBJECT_ARMY_EXCLUDED",
     "OBJECT_ARMY_EXCLUDED_BIT",
+    "OBJECT_ARMY_ID",
     "OBJECT_ATTEMPT_HEALING",
     "OBJECT_CAN_ACCEPT_UPGRADE",
     "OBJECT_CONTAIN",
     "OBJECT_CONTAINED_BY",
+    "OBJECT_EFFECTIVELY_DEAD_FLAG",
     "OBJECT_FIELD_TABLE",
     "OBJECT_FIELD_TABLE_REFS",
     "OBJECT_FIELD_TABLE_REF_OPCODES",
     "OBJECT_FILTER_ALLOW",
     "OBJECT_FILTER_IS_VALID",
-    "OBJECT_EFFECTIVELY_DEAD_FLAG",
+    "OBJECT_GET_COMMAND_SET_STRING",
     "OBJECT_GET_CONTROLLING_PLAYER",
     "OBJECT_GET_GETTING_BUILT_BEHAVIOR",
     "OBJECT_GET_GETTING_BUILT_BEHAVIOR_ENTRY",
     "OBJECT_GET_HEIGHT_ABOVE_TERRAIN",
     "OBJECT_GET_HEIGHT_ABOVE_TERRAIN_BYTES",
-    "OBJECT_GET_COMMAND_SET_STRING",
     "OBJECT_GET_HORDE_IFACE",
     "OBJECT_GET_MODIFIER_MULTIPLIER",
     "OBJECT_GIVE_UPGRADE",
@@ -938,6 +969,7 @@ __all__ = [
     "OBJECT_POSITION",
     "OBJECT_PRODUCER_ID",
     "OBJECT_SCRIPT_NAME",
+    "OBJECT_SET_ARMY_ID",
     "OBJECT_SET_ORIENTATION",
     "OBJECT_SET_POSITION",
     "OBJECT_SET_POSITION_ENTRY",
@@ -1018,8 +1050,8 @@ __all__ = [
     "PLAYER_DEFAULT_TEAM",
     "PLAYER_DEFEAT_FRAME",
     "PLAYER_FOR_EACH_TEAM_OBJECT",
-    "PLAYER_GRANT_UPGRADE",
     "PLAYER_GET_SPELLBOOK_OBJECT",
+    "PLAYER_GRANT_UPGRADE",
     "PLAYER_HERO_LEDGER_OFFSET",
     "PLAYER_INDEX",
     "PLAYER_INIT",
@@ -1083,6 +1115,7 @@ __all__ = [
     "PRODUCTION_ENTRY_KIND",
     "PRODUCTION_ENTRY_KIND_REVIVE",
     "PRODUCTION_ENTRY_NEXT",
+    "PRODUCTION_INHERIT_ARMY_ID",
     "PRODUCTION_QUEUE_APPEND",
     "PRODUCTION_QUEUE_APPEND_BYTES",
     "PRODUCTION_QUEUE_HEAD",
@@ -1202,6 +1235,8 @@ __all__ = [
     "SCRIPT_ACTION_JUMP_TABLE",
     "SCRIPT_ACTION_PARAM_ARRAY",
     "SCRIPT_ACTION_PARAM_COUNT",
+    "SCRIPT_ACTION_TEAM_TO_ARMY",
+    "SCRIPT_ACTION_TEAM_TO_ARMY_ID",
     "SCRIPT_ACTION_TYPE",
     "SCRIPT_COUNTER_IS_SECONDS",
     "SCRIPT_COUNTER_IS_TIMER",
@@ -1283,6 +1318,7 @@ __all__ = [
     "SPECIAL_POWER_FIELD_TABLE",
     "SPECIAL_POWER_FIELD_TABLE_REFS",
     "SPECIAL_POWER_FIELD_TABLE_REF_OPCODES",
+    "SPECIAL_POWER_NOTIFY_TRIGGERED_AND_PLAY_INITIATE_AUDIO",
     "SPECIAL_POWER_READY_FRAME",
     "SPECIAL_POWER_START_RECHARGE",
     "SPECIAL_POWER_TEMPLATE_COPY_TAIL",
@@ -1295,11 +1331,25 @@ __all__ = [
     "SPELLBOOK_UI_CACHE_PLAYER_CHANGED",
     "SPELLBOOK_UI_CACHE_REBUILD",
     "SPELLBOOK_UI_CACHE_RETURN",
+    "SPELLBOOK_UI_SLOT_LIMIT",
     "SPELLBOOK_UI_UPDATE_CACHE_CALL",
     "SPELLBOOK_UI_UPDATE_COMMAND_BUTTON",
     "SPELL_STORE_COMMAND_SET_CALL",
     "SPELL_STORE_COMMAND_SET_CALL_BYTES",
     "SPELL_STORE_INITIALIZE_SPELL_SLOTS",
+    "SPM_FRAME_HOOK",
+    "SPM_FRAME_HOOK_BYTES",
+    "SPM_FRAME_RESUME",
+    "SPM_MUSIC_POP",
+    "SPM_MUSIC_PUSH",
+    "SPM_MUSIC_RESUME",
+    "SPM_SCRIPT_MUSIC_PUSH",
+    "SPM_STOCK_ANCHORS",
+    "SPM_TEMPLATE_ID",
+    "SPM_THE_AUDIO",
+    "SPM_TIME_GET_TIME_IAT",
+    "SPM_TRIGGER_HOOK",
+    "SPM_TRIGGER_HOOK_BYTES",
     "SPRINTF_SLOT",
     "START_RECORDING",
     "START_RECORDING_MODE_ARG",
@@ -1353,6 +1403,7 @@ __all__ = [
     "THE_GAME_LOGIC",
     "THE_GAME_STATE",
     "THE_GAME_TEXT",
+    "THE_HOT_KEY_MANAGER",
     "THE_IN_GAME_UI",
     "THE_MESSAGE_STREAM",
     "THE_NAME_KEY_GENERATOR",
@@ -4322,6 +4373,139 @@ ACT_SET_PLAYER_CONTROL_EXEC = 0x0096C4AB
 #: The model parse function for a new verb: null-check, parse fields, append to the act.
 ACT_SET_PLAYER_CONTROL_PARSE = 0x008E6185
 ACT_SET_PLAYER_CONTROL_APPEND = 0x0096DF5D
+#: `ForceBattle`: parse, append to the Act's `0x28`-byte records at `+0x14`, and pass two of the act
+#: runner. Derived in `docs/living-campaign/force-battle.md`.
+ACT_FORCE_BATTLE_PARSE = 0x008E5BE0
+ACT_FORCE_BATTLE_APPEND = 0x0096DF22
+ACT_FORCE_BATTLE_EXEC = 0x0096C74B
+#: The two calls the battle form makes - `(Region, UseArmy, &ArmyAttackDirection)` and
+#: `(&Position, UseArmy, &ArmyAttackDirection)`, thiscall on `TheLivingWorldLogic` - both into
+#: `LIVING_WORLD_FORCE_BATTLE_STUB`, so a `ForceBattle` without `Movie` does nothing.
+ACT_FORCE_BATTLE_REGION_CALL = 0x0096C897
+ACT_FORCE_BATTLE_REGION_CALL_BYTES = b"\xe8\x04\xc3\xfa\xff"
+ACT_FORCE_BATTLE_POSITION_CALL = 0x0096C8D4
+ACT_FORCE_BATTLE_POSITION_CALL_BYTES = b"\xe8\xc7\xc2\xfa\xff"
+#: A bare `ret 0xC`, referenced 172 times - a linker-folded empty body.
+LIVING_WORLD_FORCE_BATTLE_STUB = 0x00918BA0
+#: `ForceBattle`'s `Movie` form: add a named movie event to the strategic map, or remove one.
+LIVING_WORLD_ADD_MOVIE_EVENT = 0x006B9341
+LIVING_WORLD_REMOVE_MOVIE_EVENT = 0x006B8372
+
+# How the engine builds a living-world battle, which is what `ForceBattle` needs to do for real.
+# Derived in `docs/living-campaign/force-battle.md`. The region store is
+# `[TheLivingWorldLogic + LIVING_WORLD_LOGIC_BATTLE_STORE]` and every `REGION_STORE_*` method is
+# thiscall on it.
+
+#: `RegionStore::findRegionByName(AsciiString*)`, `ret 4`, returning the `Region*` or NULL.
+REGION_STORE_FIND_REGION_BY_NAME = 0x00610278
+#: `RegionStore::regionAt(const Coord2D*, Region *hint)`, `ret 8`: the region containing a point.
+#: A NULL hint is what the army constructor passes for a brand-new army.
+REGION_STORE_REGION_AT = 0x0060F8AC
+#: `RegionStore::battlePoint(Region*, Coord2D *out)`, `ret 8`, returning `al`: the point a battle in
+#: that region is marked at on the world map.
+REGION_STORE_BATTLE_POINT = 0x0060E83D
+#: `RegionStore::findBattle(Region*)`, `ret 4`: the pending battle in a region, or NULL.
+REGION_STORE_FIND_BATTLE = 0x0060E329
+#: `RegionStore::createBattle(Region*, vector<Army*>*, vector<LivingWorldPlayer*>*, Coord2D*)`,
+#: `ret 0x10`. Returns early if the region already has a battle; otherwise allocates the `0x40`-byte
+#: `LivingWorldBattle`, files it in the store's battle vector and adds the owner's garrison. Reads
+#: only `begin`/`end` of the two vectors.
+REGION_STORE_CREATE_BATTLE = 0x0060F9D1
+#: `RegionStore::detectConflicts()` - the only caller of `REGION_STORE_CREATE_BATTLE`, reached from
+#: `LIVING_WORLD_CONFLICT_PASS` when the turn phase enters 1.
+REGION_STORE_DETECT_CONFLICTS = 0x0060FBA1
+LIVING_WORLD_CONFLICT_PASS = 0x006B4706
+#: `LivingWorldBattle::LivingWorldBattle(id, Region*, armies*, players*, Coord2D*)`, `ret 0x14`.
+LIVING_WORLD_BATTLE_CTOR = 0x007F869C
+#: `Region::isDefended()` - owned, and flagged or holding a qualifying building. Thiscall, `al`.
+REGION_IS_DEFENDED = 0x007F1437
+#: `Region::defendsAgainst(LivingWorldPlayer*)`, `ret 4`: the owner is not allied with that player
+#: and the region is defended. The test `detectConflicts` uses before seating the owner.
+REGION_DEFENDS_AGAINST = 0x007F1489
+#: `Army::updateRegion()`: recomputes the region from the army's position, caches it at `+0x8C` and
+#: returns it. Thiscall, no stack args.
+ARMY_UPDATE_REGION = 0x0071A56C
+#: `Army::isEmptyPlaceholder()`: no `ScriptingName` and an empty roster. Such an army counts towards
+#: a region's conflict only where its owner holds the region and the region is defended.
+ARMY_IS_EMPTY_PLACEHOLDER = 0x0071AA69
+#: `Army::setPosition(const Coord2D*)`, `ret 4`.
+ARMY_SET_POSITION = 0x0071B39E
+#: A live army's `HeroTemplateName` and `ScriptingName` strings, copied from the `SpawnArmy` record
+#: by the army constructor (`0x0071BC70`). `spawnArmy` tests the hero at `0x006B735C`: empty sends
+#: the new army to `LIVING_WORLD_MERGE_INTO_REGION_ARMY`.
+ARMY_HERO_TEMPLATE_OFFSET = 0x18
+ARMY_SCRIPTING_NAME_OFFSET = 0x1C
+#: `LivingWorldLogic::mergeIntoRegionArmy(player, region, army)`: finds the player's army already
+#: in the region, folds the new army's roster into it (`0x0071B202`) and destroys the new army
+#: (`0x006B674D`), returning the survivor - or NULL, when there is none to merge into.
+LIVING_WORLD_MERGE_INTO_REGION_ARMY = 0x006B540B
+#: A live army's owning `LivingWorldPlayer` id, and the roster flag `detectConflicts` sets on every
+#: army it puts into a battle.
+LIVING_WORLD_ARMY_OWNER_ID = 0x54
+LIVING_WORLD_ROSTER_IN_BATTLE = 0x2C
+
+# `SpawnArmy` inside an Act, and where it puts the army. Derived in
+# `docs/living-campaign/force-battle.md`: an army whose `Position` lies inside a region is moved to
+# one of that region's slots if it names a hero, and merged into the army its player already has in
+# the region if it does not - losing its `ScriptingName`. Only a point outside every region is kept.
+
+#: `LivingWorldLogic::spawnArmy(record, LivingWorldPlayer*, controllable)`, `ret 0xC`, returning
+#: the army (or the existing army an unnamed spawn merged into).
+LIVING_WORLD_SPAWN_ARMY = 0x006B7229
+#: Pass three of the act runner, and its call for a record with a non-zero `Position`.
+ACT_SPAWN_ARMY_EXEC = 0x0096E0B8
+ACT_SPAWN_ARMY_AT_POSITION_CALL = 0x0096E1D8
+ACT_SPAWN_ARMY_AT_POSITION_CALL_BYTES = b"\xe8\x4c\x90\xd4\xff"
+#: The Act's `SpawnArmy` parser, the push of its field table and its `INI::parseFields` call. The
+#: table has two other users (`0x008E5748`, `0x008E8298`) that are left alone.
+ACT_SPAWN_ARMY_PARSE = 0x008E78CE
+ACT_SPAWN_ARMY_TABLE_PUSH_SITE = 0x008E7902
+ACT_SPAWN_ARMY_TABLE_PUSH_SITE_BYTES = b"\x68\x80\x83\xc7\x00"
+ACT_SPAWN_ARMY_PARSE_FIELDS_CALL = 0x008E790B
+ACT_SPAWN_ARMY_PARSE_FIELDS_CALL_BYTES = b"\xe8\x70\x62\xb4\xff"
+SPAWN_ARMY_FIELD_TABLE = 0x00C78380
+SPAWN_ARMY_FIELD_ROW_COUNT = 18
+SPAWN_ARMY_FIELD_TABLE_BYTES = bytes.fromhex(
+    "4cbdbf005eee420000000000040000003c59c3005eee42000000000008000000"
+    "f499be0098f2420000000000200000007083c7005eee42000000000028000000"
+    "6483c7005eee4200000000002c0000003c50c3005eee42000000000030000000"
+    "5883c7005eee420000000000340000004483c700d6ee42000000000038000000"
+    "3483c7005eee420000000000180000002083c7005eee4200000000001c000000"
+    "1883c70058e5420000000000540000000483c7005eee42000000000050000000"
+    "f882c70000ed420000000000440000007c0bc1005eec42000000000048000000"
+    "14a8c1005eee4200000000000c000000fca7c1005eee42000000000010000000"
+    "e8a7c1005eee42000000000014000000e882c70058e542000000000055000000"
+    "00000000000000000000000000000000"
+)
+#: `SpawnArmy` record fields: the `ScriptingName` string and the `Position` x, y.
+SPAWN_ARMY_SCRIPTING_NAME_OFFSET = 0x18
+SPAWN_ARMY_POSITION_OFFSET = 0x20
+
+# The War of the Ring AI's region graph, and why a disabled region crashes it. Derived in
+# `docs/living-campaign/ai-disabled-regions.md`.
+
+#: The AI's world model, and the region graph inside it: a `std::map<int, ...>` from region id
+#: (`Region+0x14C`) to that region's neighbour lists.
+AI_WORLD_MODEL = 0x00DE9F60
+AI_REGION_GRAPH = 0x00DE9F9C
+#: `std::map<int, T>::find(const int *key)` - thiscall, `ret 4`. The key is at node `+0x10` and
+#: the value at `+0x14`; a missing key returns the map's head node, whose value is all zeroes.
+STD_MAP_INT_FIND = 0x006B4E57
+#: Builds the graph - only while it is empty, so once per session - from the region store.
+AI_REGION_GRAPH_BUILD = 0x00908010
+#: The builder's `cmp byte [region+0x1C2], 0` / `mov [ebp-0x18], ecx`, and the `je` straight after
+#: it that leaves a disabled region out of the graph.
+AI_REGION_GRAPH_ENABLED_TEST = 0x0090806C
+AI_REGION_GRAPH_ENABLED_TEST_BYTES = bytes.fromhex("80b9c201000000894de8")
+AI_REGION_GRAPH_SKIP_DISABLED = 0x00908076
+AI_REGION_GRAPH_SKIP_DISABLED_BYTES = bytes.fromhex("0f8424010000")
+#: A region's enabled flag, written by `Region::setEnabled` (`0x007F1067`).
+REGION_ENABLED = 0x1C2
+#: The AI planner's two graph lookups that use the result without comparing it with the head node,
+#: and the neighbour-list copy that faults on the zeroed value they hand it.
+AI_PLANNER_UNCHECKED_LOOKUPS = (0x009A47AA, 0x009A5A5E)
+AI_NEIGHBOUR_LIST_COPY = 0x00905643
+AI_NEIGHBOUR_LIST_COPY_FAULT = 0x00905674
 
 #: `LivingWorldLogic::findArmyByScriptingName(AsciiString*)` - thiscall, walks `+0x8C..+0x90`.
 LIVING_WORLD_FIND_ARMY_BY_NAME = 0x006B53A4
@@ -4457,12 +4641,113 @@ HERO_LEDGER_NAME_OFFSET = 0xE4
 KINDOF_ARMY_SUMMARY_BYTE = 0x118
 KINDOF_ARMY_SUMMARY_BIT = 0x01
 
-#: The fourth of `LIVING_WORLD_BATTLE_HARVEST`'s per-object filters (`0x00811EA2`): bit 0 set
-#: disqualifies an object from an army. Still unidentified, but measured across a live 221-object
-#: skirmish it is set only on `FarmTemplate`, `GondorSpellBook` and `EdainTroopSpawnPoint` - map
-#: furniture, never a unit or a horde - so mirroring the engine costs nothing.
+#: The third of `LIVING_WORLD_BATTLE_HARVEST`'s per-object filters (`0x00811EA2`): bit 0 set
+#: disqualifies an object from an army. `Object+0x458` is a bitfield whose bits `0x02`, `0x04`,
+#: `0x08` and `0x10` each have a setter; **bit 0 has none** - the only writes that reach it are the
+#: zeroing stores in the constructors at `0x00699C76` and `0x00679E79`, so on an `Object` this
+#: filter never rejects anything. See `docs/living-campaign/army-id-custody.md`.
 OBJECT_ARMY_EXCLUDED = 0x458
 OBJECT_ARMY_EXCLUDED_BIT = 0x01
+
+# The living-world army id an object carries, and the chain of custody that puts it there.
+# Derived in `docs/living-campaign/army-id-custody.md`. The harvest's fourth filter
+# (`0x00811EAA`) drops any object holding zero here, which is why a summoned or spawned unit
+# never comes home even when its template carries `KindOf = ARMY_SUMMARY`.
+
+#: `Object+0x47C`, zeroed by the constructor at `0x00699CD8`. The harvest files each survivor into
+#: `findArmyById(obj->[0x47C])`, so this names *which* army an object goes home to.
+OBJECT_ARMY_ID = 0x47C
+#: `Object::setArmyId(id)` - thiscall, `ret 4`. Writes `OBJECT_ARMY_ID`, then broadcasts the id to
+#: every behavior module through virtual slot `+0xB8` of the module's `+0xC` interface
+#: (`0x0068C154`). The bare setter at `0x0069A6F8` writes the field without the broadcast and is
+#: reached only through the interface vtables at `Object+0x6C` / `Object+0x70`.
+OBJECT_SET_ARMY_ID = 0x0068C17D
+#: `assignObjectToArmy(obj, armyId)` - resolves the army, sets the object's team
+#: (`0x0068B6CB`) and then its army id. A zero id resolves no army and writes nothing.
+LIVING_WORLD_ASSIGN_OBJECT_TO_ARMY = 0x0080FD9C
+#: The `TheGameLogic` thunk in front of it (`add ecx, 0x184; jmp`), which is how nearly every
+#: caller reaches it - the call site to look for when tracing who hands out army ids.
+LIVING_WORLD_ASSIGN_OBJECT_TO_ARMY_THUNK = 0x00625E0A
+#: `findArmyById(id)->[0x78]` - the roster container the harvest appends to, or NULL for id 0.
+LIVING_WORLD_FIND_ARMY_ROSTER = 0x0080FAD4
+#: Battle-start deployment: walks the living-world player's armies and places each one at its
+#: `Player_%d_Start` waypoint, assigning the army id as it goes.
+LIVING_WORLD_DEPLOY_AT_BATTLE_START = 0x00629F34
+#: `ArmyRecord::spawnInto` - `ArmyRecord::createObject` (`0x00780172`) followed by the assignment.
+LIVING_WORLD_ARMY_RECORD_SPAWN_INTO = 0x0080EDF1
+#: `ProductionUpdate`'s assignment: a recruited unit keeps its own army id if it has one, else it
+#: inherits the producing structure's. This is the whole reason a recruited unit comes home.
+PRODUCTION_INHERIT_ARMY_ID = 0x008A2519
+#: The harvest's army-id test - the six stock bytes are `mov eax, [edi + 0x47c]`, and no branch in
+#: the function targets them, which makes it the hook site for a "carry this anyway" rule.
+LIVING_WORLD_HARVEST_ARMY_ID_TEST = 0x00811EAA
+LIVING_WORLD_HARVEST_ARMY_ID_TEST_BYTES = b"\x8b\x87\x7c\x04\x00\x00"
+
+#: The `KindOf` name table: 222 entries, NULL terminator at `0x00DA11E0`, immediately followed by
+#: another table - so adding a token means relocating it and repointing the 14 `.text` references.
+#: The parse (`0x0065621C`, from the `KindOf` field row at `0x00DA4148`, template offset `0x108`)
+#: sets bit `index & 0x1F` of dword `index >> 5` with no width check, so index 222 lands in dword 6
+#: - `template + 0x123` bit `0x40` - inside space the template already allocates.
+KINDOF_NAME_TABLE = 0x00DA0E68
+KINDOF_NAME_TABLE_COUNT = 222
+KINDOF_NAME_TABLE_REFS = (
+    0x00655B67,
+    0x00655BA7,
+    0x00655C12,
+    0x006AAD0F,
+    0x006AAD20,
+    0x006AAD25,
+    0x007079FF,
+    0x007B3CDB,
+    0x007B67E3,
+    0x007B67F3,
+    0x007B6869,
+    0x007B6885,
+    0x007B6899,
+    0x007B68DD,
+)
+#: Where the `KindOf` mask begins in a `ThingTemplate`, and the parse that fills it.
+KINDOF_MASK_OFFSET = 0x108
+KINDOF_PARSE = 0x0065621C
+
+#: `KindOf SUMMONED` is index 179 - bit `0x08` of KindOf byte `+0x17`, `template + 0x11E`. Edain
+#: sets it on 530 templates, 220 of which also carry `ARMY_SUMMARY`. **Not** a usable carry-over
+#: switch: it is load-bearing for targeting (`ObjectFilter = ANY +HERO -SUMMONED ...`), so a
+#: template cannot be summon-filtered and non-persistent at the same time.
+KINDOF_SUMMONED_BYTE = 0x11E
+KINDOF_SUMMONED_BIT = 0x08
+
+#: The two `KindOf` slots that are dead on both sides - never written anywhere in Edain's ini tree
+#: and never read by the engine, so one can be repointed to a new token for the cost of a single
+#: dword instead of relocating `KINDOF_NAME_TABLE`. Established by decoding every instruction in
+#: the image that touches the mask byte and reading its immediate; `template + 0x109` is busy
+#: (`INFANTRY`, `CAVALRY`, `MONSTER`, `MACHINE`, `AIRCRAFT`, `DOZER`, `SWARM_DOZER` are all
+#: tested) but bit `0x20` appears in none of its 151 references.
+#: Capstone prints small immediates in decimal - a scan keyed on `0x` operands wrongly reports
+#: `MONSTER` and `NO_GARRISON` as dead.
+KINDOF_DEAD_SLOTS = {
+    13: ("HUGE_VEHICLE", 0x109, 0x20),
+    29: ("WAVE_EFFECT", 0x10B, 0x20),
+}
+
+#: The living-world battle bridge is `TheGameLogic + 0x184`. It holds the vector of army ids taking
+#: part in this battle between `+0x14` and `+0x18` - the place to resolve a fallback army from,
+#: since `findArmyRoster(id)` then `LIVING_WORLD_ARMY_ROSTER_TEAM` gives the army's team and so its
+#: player.
+LIVING_WORLD_BATTLE_BRIDGE_OFFSET = 0x184
+LIVING_WORLD_BATTLE_ARMY_IDS_BEGIN = 0x14
+LIVING_WORLD_BATTLE_ARMY_IDS_END = 0x18
+#: Walks that vector and returns `roster->[0x1C]` for the first army whose `roster->[0x14]` is zero.
+LIVING_WORLD_BATTLE_PRIMARY_ARMY_ID = 0x0080FF1B
+#: `roster -> Team`, the lookup `LIVING_WORLD_ASSIGN_OBJECT_TO_ARMY` uses before `Object::setTeam`.
+LIVING_WORLD_ARMY_ROSTER_TEAM = 0x0080F45F
+
+#: Script action 514, live: resolves a team by name through `TheTeamFactory` and assigns every
+#: object on it to the battle's primary army. Distinct from the dead
+#: `*_ASSIMILATE_WITH_ARMY_BY_NAME` trio (ids 540-542) in
+#: `docs/living-campaign/dead-script-actions.md`.
+SCRIPT_ACTION_TEAM_TO_ARMY = 0x007C409F
+SCRIPT_ACTION_TEAM_TO_ARMY_ID = 514
 
 #: `KindOf HERO` is index 90 - bit `0x04` of KindOf byte `+0xB`, which is `template + 0x113`.
 KINDOF_HERO_BYTE = 0x113
@@ -5377,6 +5662,73 @@ MP_SETUP_FACTION_COMBO_SLOT_ARG = 0x00844BFB
 MP_SETUP_FACTION_COMBO_SLOT_ARG_BYTES = bytes.fromhex("8b7d0857")
 MP_SETUP_FACTION_COMBO_SLOT_WINDOW = 0x00844C0F
 MP_SETUP_FACTION_COMBO_SLOT_WINDOW_BYTES = bytes.fromhex("8bbcbe34030000")
+
+# The War of the Ring selection-details tray - the panel `StrategicHUD.apt` loads from
+# `StrategicDetailsTray.swf` into its `selectionDetails` clip - and the `Scenario` field that keeps
+# it shut. Derived in `docs/living-campaign/hide-selection-details.md`. Static only.
+
+#: `Scenario`'s INI field-parse table, and its one reference: the block parser's `push`.
+SCENARIO_FIELD_TABLE = 0x00C7A578
+SCENARIO_FIELD_TABLE_REFS = (0x009028B2,)
+SCENARIO_FIELD_TABLE_REF_OPCODES = (0x68,)  # push imm32
+#: `push sizeof(Scenario)` before the block parser's `operator new`. The last field is
+#: `UseMpRulesVictoryCondition` at `+0xC1`, so `+0xC2..+0xC3` is alignment padding no row names.
+SCENARIO_ALLOC = 0x0090288D
+SCENARIO_ALLOC_BYTES = bytes.fromhex("68c4000000")
+SCENARIO_SIZE = 0xC4
+SCENARIO_HISTORICAL = 0xC0
+SCENARIO_USE_MP_RULES = 0xC1
+SCENARIO_FREE_OFFSET = 0xC2
+#: The constructor's `xor ebx, ebx` - the zero every default is stored from - its
+#: `mov byte [esi+0xC0], bl` (`HistoricalScenario = No`), and the `mov byte [esi+0xC1], 1`
+#: (`UseMpRulesVictoryCondition = Yes`) that follows it.
+SCENARIO_CTOR_ZERO = 0x00901DE5
+SCENARIO_CTOR_ZERO_BYTES = bytes.fromhex("33db")
+SCENARIO_CTOR_HISTORICAL = 0x00901E6A
+SCENARIO_CTOR_HISTORICAL_BYTES = bytes.fromhex("889ec0000000")
+SCENARIO_CTOR_USE_MP_RULES = 0x00901E70
+SCENARIO_CTOR_USE_MP_RULES_BYTES = bytes.fromhex("c686c100000001")
+
+#: The campaign manager's current campaign: an index at `+0x10` into the pointer vector at
+#: `+0x14..+0x18`. Read that way, bounds check included, by the manager method at this address and
+#: by `advanceAct` just above it.
+LIVING_WORLD_CAMPAIGN_MANAGER_CURRENT_READ = 0x007B9743
+LIVING_WORLD_CAMPAIGN_MANAGER_CURRENT_READ_BYTES = bytes.fromhex(
+    "8b411085c07c1a8b51182b5114c1fa023bc2730d8b49148b0481"
+)
+LIVING_WORLD_CAMPAIGN_MANAGER_CURRENT = 0x10
+LIVING_WORLD_CAMPAIGN_MANAGER_CAMPAIGNS_BEGIN = 0x14
+LIVING_WORLD_CAMPAIGN_MANAGER_CAMPAIGNS_END = 0x18
+#: A `LivingWorldCampaign`'s `Scenario`, as the start-up state builder reads it before it walks
+#: `DisableRegions`: `mov esi, [esi+0x1C]` / `test esi, esi` / `je`.
+LIVING_WORLD_CAMPAIGN_SCENARIO_READ = 0x00932B95
+LIVING_WORLD_CAMPAIGN_SCENARIO_READ_BYTES = bytes.fromhex("8b761c85f67437")
+LIVING_WORLD_CAMPAIGN_SCENARIO = 0x1C
+
+#: The tray's class, constructed once, by `StrategicHUD`'s `_OnSelectionDetailsLoaded` handler
+#: (`0x0083A141`). `+0x28` is its state - 0 closed, 1 opening, 2 open, 3 closing - and `+0x2C` says
+#: the selection has something to show.
+SELECTION_DETAILS_TRAY_VTABLE = 0x00C867C0
+SELECTION_DETAILS_TRAY_STATE = 0x28
+SELECTION_DETAILS_TRAY_HAS_CONTENT = 0x2C
+#: vtable `+0x04`, `setHasContent(Bool)`: `ret 4`, and the only writer of `+0x2C`. The `je` at the
+#: resume address takes the flags of the compare the hook replays.
+SELECTION_DETAILS_TRAY_SET_HAS_CONTENT = 0x009859D6
+SELECTION_DETAILS_TRAY_SET_HAS_CONTENT_BYTES = bytes.fromhex("8a4424043a412c")
+SELECTION_DETAILS_TRAY_SET_HAS_CONTENT_RESUME = 0x009859DD
+SELECTION_DETAILS_TRAY_SET_HAS_CONTENT_SLOT = 0x04
+#: `open()`: calls the movie's `Open` and sets the state to 1, plain `ret`. Reached through the
+#: vtable `+0x1C` thunk and from the `_OnToggleButtonClicked` handler at `0x00985CC2`.
+SELECTION_DETAILS_TRAY_OPEN = 0x00985B28
+SELECTION_DETAILS_TRAY_OPEN_BYTES = bytes.fromhex("568bf18b4618")
+SELECTION_DETAILS_TRAY_OPEN_RESUME = 0x00985B2E
+SELECTION_DETAILS_TRAY_OPEN_THUNK = 0x00985CB8
+SELECTION_DETAILS_TRAY_OPEN_THUNK_BYTES = bytes.fromhex("e96bfeffff")
+SELECTION_DETAILS_TRAY_OPEN_SLOT = 0x1C
+#: The per-frame refresh's `cmp byte [esi+0x2C], 0`: with nothing to show it closes an open tray and
+#: sets the toggle button `_disabled`.
+SELECTION_DETAILS_TRAY_REFRESH_TEST = 0x00985C56
+SELECTION_DETAILS_TRAY_REFRESH_TEST_BYTES = bytes.fromhex("807e2c00")
 
 
 # `DeployStyleAIUpdate::aiDoCommand` - the module's whole "deploy before you attack" mechanism.
@@ -7006,3 +7358,223 @@ AUTO_HEAL_ANCHORS: dict[int, bytes] = {
     AUTO_HEAL_UPDATE_VTABLE: AUTO_HEAL_UPDATE.to_bytes(4, "little"),
     AUTO_HEAL_MODULE_NAME_STRING: b"AutoHealBehavior\x00",
 }
+
+# The hotkey layer: where a letter typed in game finds a CommandButton, and where a modified
+# key press is thrown away before it gets there. Derived in `docs/spellbook-hotkeys.md`.
+#
+# `HOT_KEY_TRANSLATOR_MODIFIER_GATE` is the whole of the stock rule. `esi` carries the modifier
+# mask in the same vocabulary the `CommandMap` block's `Modifiers` keyword parses (CTRL `0x4`,
+# SHIFT `0x10`, ALT `0x40`), and `[ebp-0x10]` is the flag handed on to the matched button:
+#
+#     0075b11d  cmp esi, ebx           ; no modifier at all -> take the key
+#     0075b11f  je  0x0075b12a
+#     0075b121  cmp byte [ebp-0x10], bl
+#     0075b124  je  0x0075b1ac         ; Ctrl or Alt held -> discard the key press
+#
+# Thirteen bytes, ending exactly on `..._PROCEED`, with no inbound branch into them other than
+# the `je` being replaced. So Ctrl+letter is dead space in the stock build, which is what makes
+# it claimable without taking a combination away from anything.
+HOT_KEY_TRANSLATOR_MODIFIER_GATE = 0x0075B11D
+HOT_KEY_TRANSLATOR_MODIFIER_GATE_BYTES = bytes.fromhex("3bf37409385df00f8482000000")
+HOT_KEY_TRANSLATOR_REJECT = 0x0075B1AC
+HOT_KEY_TRANSLATOR_PROCEED = 0x0075B12A
+#: The flag slot the gate writes and `HOT_KEY_EXECUTE` receives as its second argument. Stock
+#: stores one byte into it and pushes the whole dword, so the upper three bytes are whatever the
+#: frame held: every reader takes it as a byte, and so must anything that adds a value.
+HOT_KEY_TRANSLATOR_FLAG_EBP = -0x10
+
+#: `HotKeyManager::executeHotKey(AsciiString *key, Bool flag)` - `__thiscall`, `ret 8`, `al` set
+#: when the key was consumed. `..._HOOK` is five bytes *past* its game-state gates (a running
+#: game, `TheInGameUI+0x15`/`+0x16` and its vtable `+0x17c`), which is where an addition wants to
+#: sit: the gates have already run and `ebp` is set up, so the arguments are addressable.
+#:
+#:     0075af43  push esi              ; the three displaced bytes, re-emitted by the cave
+#:     0075af44  push edi
+#:     0075af45  push [ebp+8]
+#:
+#: `ebx` holds the `HotKeyManager` from `0x0075AF06` onwards and both exits below restore it, so
+#: a cave entered here must preserve `esi`/`edi` itself and may leave `ebx` alone.
+HOT_KEY_EXECUTE = 0x0075AEFA
+HOT_KEY_EXECUTE_HOOK = 0x0075AF43
+HOT_KEY_EXECUTE_HOOK_BYTES = bytes.fromhex("5657ff7508")
+HOT_KEY_EXECUTE_RESUME = 0x0075AF48
+HOT_KEY_EXECUTE_KEY_EBP = 0x08
+HOT_KEY_EXECUTE_FLAG_EBP = 0x0C
+#: The two exits, at the stack depth `..._HOOK` sits at - only `ebx` is pushed below `ebp` there,
+#: which is what makes them reachable from a cave that saved `esi`/`edi` itself. `..._MISS` forces
+#: `al` to zero; `..._HIT` is the same epilogue entered one instruction later, so a cave sets its
+#: own `al` and jumps there.
+HOT_KEY_EXECUTE_MISS = 0x0075B057
+HOT_KEY_EXECUTE_HIT = 0x0075B059
+
+#: `HotKeyManager::getHotKeyFromLabel(AsciiString *out, AsciiString label)` - `__thiscall`,
+#: `ret 8`, the `&` scan that is the engine's whole hotkey-authoring story. It fetches the
+#: localized text for `label` through `TheGameText`, finds the first `&` (`cmp ax, 0x26` at
+#: `0x0075A6B8`) and **copy-constructs** the character after it into `out` - so `out` is written
+#: as raw memory rather than assigned, and the caller owns the result and must destroy it.
+HOT_KEY_MANAGER_HOTKEY_FROM_LABEL = 0x0075A7CB
+THE_HOT_KEY_MANAGER = 0x00DE7870
+#: The comparison that is the whole authoring rule, inside that scan: the wide character the
+#: shortcut is read from is the one after the first `&` in the fetched string.
+#:
+#:     0075a6b8  cmp ax, 0x26        ; L'&'
+#:     0075a6bc  je  0x0075a6e1      ; take the next wide character
+AMPERSAND_SCAN = 0x0075A6B0
+
+#: `CommandButton::getTextLabel` - `__thiscall`, the runtime override at `+0x7c` when it is set,
+#: otherwise the `TextLabel` vector at `+0x58` indexed by the button's current command range.
+COMMAND_BUTTON_GET_TEXT_LABEL = 0x0075CE47
+
+#: `CommandSet::getCommandButton(Int slot)` - `__thiscall`, `ret 4`, plain `[this+slot*4+0x14]`
+#: with an override hook in front. It is **not** bounds-checked, so a caller supplies the bound;
+#: the spellbook bar's own update loop uses :data:`SPELLBOOK_UI_SLOT_LIMIT` (`0x00931331`).
+COMMAND_SET_GET_COMMAND_BUTTON = 0x0080C837
+SPELLBOOK_UI_SLOT_LIMIT = 0x18
+
+#: `ControlBar::doCommand(CommandButton *, Bool, Bool)` - `__thiscall` on `THE_COMMAND_SET_STORE`
+#: (the ControlBar and the command-set store are the same singleton), `ret 0xC`. This is where a
+#: click lands once the window it came from has been resolved away, so everything a click does -
+#: the targeting cursor, the sounds, `CommandTrigger` - happens here and not in the caller.
+#:
+#: Command 0x26 `SPELL_BOOK` is one of the three the selection requirement at `0x00940462` exempts,
+#: which is why a spellbook button fires with nothing selected. Both `Bool`s are read as bytes.
+CONTROL_BAR_DO_COMMAND = 0x00940435
+#: That exemption, as an anchor: `cmp eax, 0x26` on the button's `Command` followed by the jump
+#: into the arm that does not ask for a selection.
+DO_COMMAND_SPELL_BOOK_EXEMPTION = 0x00940462
+#: The mode test the APT spellbook bar makes on its way into `doCommand` (`0x00930E07`), and the
+#: only reason the second argument is not simply zero. Reproduced rather than simplified: it is
+#: what a click on that bar passes.
+APT_PLAYER_MODE = 0x318
+
+#: `ControlBar::getCommandAvailability(CommandButton *, Object *, Int, Real *out, Int)` -
+#: `__thiscall` on `THE_COMMAND_SET_STORE`, `ret 0x14`, answering a small enum and filling `out`
+#: with the button's recharge fraction. Derived in `docs/spellbook-hotkeys.md` §7.
+#:
+#: **1 and 2 are the only answers that mean "a click on this does something."** Two independent
+#: sites say so: `doCommand`'s own selection path tests exactly those two
+#: (:data:`CONTROL_BAR_AVAILABILITY_TEST`), and the spellbook bar's update maps them to the only
+#: two movie states it then marks clickable, sending 0, 4, 6 and 7 to a greyed state and skipping
+#: the slot entirely on 3. A no-local-player call returns 3 (`0x0094276B`).
+#:
+#: Nothing on the `SPELL_BOOK` path asks it. The bar's buttons are greyed inside the APT movie,
+#: so a disabled one never reaches the engine and the engine never needed the check.
+CONTROL_BAR_GET_COMMAND_AVAILABILITY = 0x00942733
+CONTROL_BAR_AVAILABILITY_OK_LOW = 1
+CONTROL_BAR_AVAILABILITY_OK_HIGH = 2
+#: `doCommand`'s copy of that rule, kept as an anchor: a build that changed which values pass
+#: fails here rather than having a cave silently disagree with the bar beside it.
+CONTROL_BAR_AVAILABILITY_TEST = 0x009405B3
+
+# An object's `Scale` as the model draw modules read it, and the padding in their shared
+# `ModuleData` a per-module factor fits in. Derived in `docs/draw-module-scale.md`.
+
+#: `Drawable::getScale` - `__thiscall`, no arguments, `fld dword [ecx+0x200]` then `ret`. The
+#: `Drawable` constructor copies `ThingTemplate+0x4F0` there once (`0x00679FE2`) and nothing
+#: rewrites it. It has 22 callers: the 19 model draw calls below and
+#: :data:`DRAWABLE_GET_SCALE_OTHER_CALLS`.
+DRAWABLE_GET_SCALE = 0x00478180
+DRAWABLE_GET_SCALE_BYTES = bytes.fromhex("d98100020000c3")
+#: The three `getScale` calls outside the model draw family: a draw class with vtable
+#: `0x00BDF700`, an unrelated vtable slot at `0x00BE3258`, and a routine handed the drawable
+#: directly. None of them holds a `W3DModelDrawModuleData`.
+DRAWABLE_GET_SCALE_OTHER_CALLS = (0x004B1883, 0x004CE7ED, 0x004D137A)
+
+#: `INI::parsePositiveNonZeroReal` - cdecl `(INI *, void *instance, void *store, const void *)`,
+#: the sibling of :data:`INI_PARSE_REAL` that stores the value and then throws the engine's INI
+#: error when it is not above zero (`0x0042ED3D`). `AlphaCameraFadeOuterRadius` names it.
+INI_PARSE_POSITIVE_REAL = 0x0042ED1C
+INI_PARSE_POSITIVE_REAL_BYTES = bytes.fromhex("558bec51518b4d08")
+
+#: The field table every model draw module parses - `W3DScriptedModelDraw`, `W3DHordeModelDraw`,
+#: `W3DQuadrupedDraw`, `W3DSupplyDraw`, `W3DTruckDraw`, `W3DTankDraw`, `W3DSailModelDraw` - and
+#: its one reference, the `push` in the shared `buildFieldParse` (`0x004C893A`).
+W3D_MODEL_DRAW_FIELD_TABLE = 0x00BE1320
+W3D_MODEL_DRAW_FIELD_TABLE_REF = 0x004C8940
+#: The `push` of each derived module's own field table, which the reader searches alongside the
+#: shared one: Horde, Quadruped, Supply, Truck, Tank, Sail.
+W3D_MODEL_DRAW_DERIVED_TABLE_REFS = (
+    0x00478C7A,
+    0x004C97B1,
+    0x004CA611,
+    0x004CA92B,
+    0x004CD79A,
+    0x004CFF77,
+)
+
+#: `W3DModelDrawModuleData`'s ``sizeof``, where every derived module's own fields start - which is
+#: why it cannot grow. `BirthFadeAdditive` is a one-byte `Bool` and `StaticSortLevelWhileFading`
+#: the next dword, so ``+0x155..+0x157`` is padding no row names.
+W3D_MODEL_DRAW_MODULE_DATA_SIZE = 0x188
+W3D_MODEL_DRAW_BIRTH_FADE_ADDITIVE = 0x154
+W3D_MODEL_DRAW_STATIC_SORT_LEVEL = 0x158
+#: The `BirthFadeAdditive` default in the `ModuleData` constructor (`0x004C85E9`, which all seven
+#: model draw constructors run): `mov byte [esi+0x154], bl`, with `ebx` zero for the whole body.
+W3D_MODEL_DRAW_BIRTH_FADE_DEFAULT = 0x004C8730
+W3D_MODEL_DRAW_BIRTH_FADE_DEFAULT_BYTES = bytes.fromhex("889e54010000")
+
+#: `W3DModelDraw::setModelState` (`0x004C451D`) and `W3DHordeModelDraw`'s own copy of it
+#: (`0x0047A0AD`): the `mov esi, ecx` that keeps the module in `esi` for the whole body, and the
+#: eight `getScale` calls in each.
+W3D_MODEL_DRAW_SET_MODEL_STATE_THIS = 0x004C452E
+W3D_MODEL_DRAW_SET_MODEL_STATE_SCALE_CALLS = (
+    0x004C4661,
+    0x004C482B,
+    0x004C48E2,
+    0x004C4AB7,
+    0x004C4ADB,
+    0x004C4B3D,
+    0x004C4C9E,
+    0x004C4DFF,
+)
+W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_THIS = 0x0047A0C4
+W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_SCALE_CALLS = (
+    0x0047A181,
+    0x0047A30A,
+    0x0047A3CA,
+    0x0047A52A,
+    0x0047A54E,
+    0x0047A5AE,
+    0x0047A68F,
+    0x0047A77E,
+)
+#: `ObjectDrawInterface` slot 6 (`0x004C34A2`), entered on the module's `+0xC` sub-object: the
+#: `mov edi, [esi-8]` that loads the `ModuleData`, and its `getScale` call.
+W3D_MODEL_DRAW_IFACE_SLOT6_MODULE_DATA = 0x004C34DC
+W3D_MODEL_DRAW_IFACE_SLOT6_SCALE_CALL = 0x004C34E4
+#: `ObjectDrawInterface` slot 3 (`0x004C3731`): the `mov edi, ecx` that keeps the sub-object, and
+#: its `getScale` call.
+W3D_MODEL_DRAW_IFACE_SLOT3_THIS = 0x004C3746
+W3D_MODEL_DRAW_IFACE_SLOT3_SCALE_CALL = 0x004C3789
+#: The per-frame bone update (`0x004C6514`, called only from the model draw's slot 11 at
+#: `0x004C7790`): the `mov ebx, ecx` that keeps the module, and its `getScale` call.
+W3D_MODEL_DRAW_BONE_UPDATE_THIS = 0x004C6525
+W3D_MODEL_DRAW_BONE_UPDATE_SCALE_CALL = 0x004C6909
+
+#: The helper every model draw runs on the matrix immediately before handing it to its render
+#: object's `Set_Transform` - `__thiscall(Matrix3D *)`, `ret 4`, which overrides the matrix when
+#: the module is attached to another module's bone and otherwise leaves it as the caller filled
+#: it. Its five call sites are every place a model draw positions what it draws; each is
+#: `mov ecx, <the module>` then a five-byte `call`.
+W3D_MODEL_DRAW_TRANSFORM_HELPER = 0x004B686D
+W3D_MODEL_DRAW_TRANSFORM_HELPER_BYTES = bytes.fromhex("558bec83ec3453")
+W3D_MODEL_DRAW_TRANSFORM_CALLS = (0x004B79AA, 0x004B7CD8, 0x004B8A14, 0x004B988A, 0x004C76D0)
+#: The per-frame one of those five, in the draw the whole family shares (`0x004C72BE`: vtable slot
+#: 11 of five model draw vtables, and called directly by `W3DTruckDraw` (`0x004CC008`) and
+#: `W3DTankDraw` (`0x004CDECE`)).
+W3D_MODEL_DRAW_DO_DRAW = 0x004C72BE
+
+#: `Matrix3D` as the engine lays it out: three rows of four floats, the rotation in the first
+#: three of each row and the translation in the fourth. `0x004B135C` scaling exactly the nine
+#: rotation entries and no translation is what fixes it.
+MATRIX3D_ROW_STRIDE = 0x10
+MATRIX3D_TRANSLATION = 0x0C
+
+#: `INI::parseCoord3D` - cdecl `(INI *, void *instance, void *store, const void *)` like the other
+#: field parsers, reading `X:`/`Y:`/`Z:` (the tokens at `0x00BD43F8`, `0x00BD43F4`, `0x00BD43F0`)
+#: into three floats. 120 recovered fields name it, `AttachModel`'s own `Offset` among them.
+INI_PARSE_COORD3D = 0x0042F247
+INI_PARSE_COORD3D_BYTES = bytes.fromhex("56578b7c240c68f843bd00")
+
+#: :data:`INI_PARSE_REAL`'s opening bytes, for a patch that wraps it to assert it is still there.
+INI_PARSE_REAL_BYTES = bytes.fromhex("8b4c24046a00e894efffff")

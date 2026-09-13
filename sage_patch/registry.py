@@ -41,6 +41,8 @@ from sage_patch.patches.desert_weather import (
 )
 from sage_patch.patches.desync_debug import DesyncDebugPatch
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
+from sage_patch.patches.draw_module_scale import DrawModuleScalePatch
+from sage_patch.patches.experimental.ai_disabled_regions import AiDisabledRegionsPatch
 from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
 from sage_patch.patches.experimental.capture_the_flag import CaptureTheFlagPatch
@@ -49,6 +51,7 @@ from sage_patch.patches.experimental.cooldown_through_death import CooldownThrou
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_army_carryover import HeroArmyCarryoverPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
+from sage_patch.patches.experimental.hide_selection_details import HideSelectionDetailsPatch
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.experimental.map_transition import MapTransitionPatch
@@ -58,6 +61,7 @@ from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_charges import SpecialPowerChargesPatch
 from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
+from sage_patch.patches.experimental.spellbook_hotkeys import SpellbookHotkeysPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
@@ -119,6 +123,7 @@ from sage_patch.patches.spawn_union import SpawnUnionPatch
 from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetRefreshPatch
 from sage_patch.patches.standalone_launcher import StandaloneLauncherPatch
+from sage_patch.patches.summon_carryover import SummonCarryoverPatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
@@ -143,6 +148,7 @@ from sage_patch.patches.wotr_battle_observers import WotrBattleObserversPatch
 _REGISTERED: tuple[type[Patch], ...] = (
     AiCommandNullTargetPatch,
     AiConstructionGatePatch,
+    AiDisabledRegionsPatch,
     AiFlagCaptureGatePatch,
     AiHeroBuildDelayPatch,
     AiReviveGatePatch,
@@ -173,6 +179,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     DesertWeatherWorldbuilderPatch,
     DesyncDebugPatch,
     DetachableRiderHealPatch,
+    DrawModuleScalePatch,
     FireAtAttackerPatch,
     FoundationRebindPatch,
     GiveUpgradeAllPatch,
@@ -185,6 +192,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     HeroBarWorldbuilderPatch,
     HeroManaPatch,
     HeroRecruitParallelPatch,
+    HideSelectionDetailsPatch,
     HordeExitAbsorptionPatch,
     HordeMemberSpeedPatch,
     InfantryLightingPatch,
@@ -235,8 +243,10 @@ _REGISTERED: tuple[type[Patch], ...] = (
     SpecialPowerChargesPatch,
     SpecialPowerMusicPatch,
     SpellbookCommandSetRefreshPatch,
+    SpellbookHotkeysPatch,
     SpellStoreUpgradePatch,
     StandaloneLauncherPatch,
+    SummonCarryoverPatch,
     TerrainResourceExpPatch,
     TriggerRechargeListPatch,
     UniqueProductionIdPatch,

@@ -21,7 +21,7 @@ Act verb tables: RotWK `0x00C84030` (15 verbs), BFME1 `0x010EC9D8` (18 verbs). R
 | verb | BFME1 | RotWK |
 |---|---|---|
 | `EnableRegion` | ✓ | ✓ |
-| `ForceBattle` | ✓ | ✓ |
+| `ForceBattle` | ✓ | parses; battle form is a stub ([`force-battle.md`](force-battle.md)) |
 | `SpawnArmy` | ✓ | ✓ |
 | `MoveArmy` | ✓ | ✓ |
 | `CallActSubroutine` | ✓ | ✓ |

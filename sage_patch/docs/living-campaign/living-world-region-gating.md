@@ -165,8 +165,9 @@ affordance that happens to be the right lever for the complaint.
    are already written into `wotrscenarioangmar.inc` — one commented out, one absent.
 2. **Set `UIPopupPoint` per region** where the centre is a poor spot — `CustomUIPopupPoint = Yes`
    plus a coordinate placing the portrait above the territory. Also INI-only.
-3. **Consider `ForceBattle`**, likewise unused (BFME1: 9 and 7; Edain: 0). It pins where a battle
-   happens rather than leaving it to the player's approach.
+3. ~~**Consider `ForceBattle`**~~ — **it does nothing in RotWK.** It parses and its act pass runs,
+   but the battle form calls an empty stub; only its `Movie` form (a map marker) has a body. See
+   [`force-battle.md`](force-battle.md).
 
 None of these needs a patch, and none depends on the four missing Act verbs
 ([`bfme1-act-verbs.md`](bfme1-act-verbs.md)) or on any of the dead script actions

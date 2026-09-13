@@ -423,6 +423,7 @@ _SCALARS: dict[str, object] = {
     "Opaque": _types.Opaque,
     "ModuleTag": _types.ModuleTag,
     "ObjectFilter": _types.ObjectFilter,
+    "Coords": _types.Coords,
 }
 
 

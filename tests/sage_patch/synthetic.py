@@ -73,6 +73,7 @@ from sage_patch.patches import script_debug_window as sdw
 from sage_patch.patches import skirmish_ai_fallback as saf
 from sage_patch.patches import spellbook_commandset_refresh as sbcsr
 from sage_patch.patches import standalone_launcher as sl
+from sage_patch.patches import summon_carryover as sc
 from sage_patch.patches import trigger_recharge_list as trl
 from sage_patch.patches import upgrade_alias as ua
 from sage_patch.patches import upgrade_description as ud
@@ -87,6 +88,7 @@ from sage_patch.patches.experimental import map_transition as mtr
 from sage_patch.patches.experimental import ranged_stand_off as rso
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import smart_rally as sr
+from sage_patch.patches.experimental import spellbook_hotkeys as sbhk
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
 from sage_patch.patches.utils import model_conditions as mc
@@ -105,6 +107,38 @@ def spellbook_commandset_refresh_image() -> bytearray:
         sbcsr.SPELLBOOK_UI_CACHE + split: sbcsr.CACHE_BYTES[split:],
         **sbcsr.ANCHORS,
     }
+    return _sparse_image(planted)
+
+
+def spellbook_hotkeys_image() -> bytearray:
+    """A sparse image carrying both hotkey sites and every helper the cave's ABI depends on.
+
+    The two edited windows sit 0x1DA bytes apart in one function and the anchors are scattered
+    across five megabytes, so a sparse image maps eight pages rather than the whole `.text`.
+    """
+    planted = {**sbhk.SITES, **sbhk.ANCHORS}
+    return _sparse_image(planted)
+
+
+def spellbook_hotkeys_and_refresh_image() -> bytearray:
+    """Both spellbook patches' regions in one image, for the composition check.
+
+    The two pin two helpers in common - `Player::getSpellBookObject` and
+    `CommandSetStore::findCommandSet` - and the merge below would silently keep one patch's
+    expectation over the other's if they ever disagreed about those bytes, so it asserts they
+    agree first. The longer run wins, which is what makes the merged image satisfy both.
+    """
+    split = 0x1000 - (sbcsr.SPELLBOOK_UI_CACHE & 0xFFF)
+    planted = {
+        sbcsr.SPELLBOOK_UI_CACHE: sbcsr.CACHE_BYTES[:split],
+        sbcsr.SPELLBOOK_UI_CACHE + split: sbcsr.CACHE_BYTES[split:],
+        **sbhk.SITES,
+        **sbhk.ANCHORS,
+    }
+    for va, blob in sbcsr.ANCHORS.items():
+        shared = planted.get(va, b"")
+        assert blob[: len(shared)] == shared, f"the two patches disagree about 0x{va:08x}"
+        planted[va] = max(blob, shared, key=len)
     return _sparse_image(planted)
 
 
@@ -840,17 +874,23 @@ def hero_army_carryover_image() -> bytearray:
 
 
 def campaign_army_verbs_image() -> bytearray:
-    """A stand-in carrying the Act verb table and the two sites `campaign-army-verbs` rewrites.
+    """A stand-in carrying the two field tables and the seven sites `campaign-army-verbs` rewrites.
 
-    Sparse: the table lives in `.rdata` and both hooks are in the campaign parser and the act
-    runner, a bit over a megabyte away and on one page between them. Everything else reads as
-    zero, so a patch that relocated the wrong 256 bytes would copy nothing recognisable.
+    Sparse: the tables live in `.rdata` and the hooks are spread over the `SpawnArmy` parser, the
+    act runner's second and third passes and the runner itself. Everything else reads as zero, so
+    a patch that relocated the wrong bytes would copy nothing recognisable.
     """
     return _sparse_image(
         {
             ad.ACT_VERB_TABLE: ad.ACT_VERB_TABLE_BYTES,
             ad.ACT_VERB_TABLE_PUSH_SITE: ad.ACT_VERB_TABLE_PUSH_SITE_BYTES,
             ad.ACT_RUN_PASS9_CALL: ad.ACT_RUN_PASS9_CALL_BYTES,
+            ad.SPAWN_ARMY_FIELD_TABLE: ad.SPAWN_ARMY_FIELD_TABLE_BYTES,
+            ad.ACT_SPAWN_ARMY_TABLE_PUSH_SITE: ad.ACT_SPAWN_ARMY_TABLE_PUSH_SITE_BYTES,
+            ad.ACT_SPAWN_ARMY_PARSE_FIELDS_CALL: ad.ACT_SPAWN_ARMY_PARSE_FIELDS_CALL_BYTES,
+            ad.ACT_SPAWN_ARMY_AT_POSITION_CALL: ad.ACT_SPAWN_ARMY_AT_POSITION_CALL_BYTES,
+            ad.ACT_FORCE_BATTLE_REGION_CALL: ad.ACT_FORCE_BATTLE_REGION_CALL_BYTES,
+            ad.ACT_FORCE_BATTLE_POSITION_CALL: ad.ACT_FORCE_BATTLE_POSITION_CALL_BYTES,
         }
     )
 
@@ -1588,3 +1628,20 @@ def ranged_stand_off_image() -> bytearray:
     three-byte `sete` would find nothing there.
     """
     return _sparse_image({rso.MAY_STOP_SETE_VA: rso.STOCK_BYTES, **rso.ANCHORS})
+
+
+def summon_carryover_image() -> bytearray:
+    """A stand-in carrying the harvest's army-id load and every site around it the patch asserts.
+
+    Sparse for the usual reason: the filter chain, the lookup that makes the id a destination and
+    the post-battle handler's `push [edi + 0xac]` are two megabytes apart. Everything not planted
+    reads as zero, so a hook aimed one instruction to either side of the six-byte load would find
+    nothing there.
+    """
+    return _sparse_image(
+        {
+            ad.LIVING_WORLD_HARVEST_ARMY_ID_TEST: sc.HOOK_BYTES,
+            ad.LIVING_WORLD_BATTLE_HARVEST: bytes.fromhex("b8cd9fb900"),
+            **sc.ANCHORS,
+        }
+    )

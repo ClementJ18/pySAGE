@@ -25,6 +25,7 @@ from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatc
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
+from sage_patch.patches.experimental.spellbook_hotkeys import SpellbookHotkeysPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
@@ -54,6 +55,7 @@ from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
 from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetRefreshPatch
+from sage_patch.patches.summon_carryover import SummonCarryoverPatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
@@ -112,6 +114,8 @@ __all__ = [
     "SpawnUnionPatch",
     "SpellStoreUpgradePatch",
     "SpellbookCommandSetRefreshPatch",
+    "SpellbookHotkeysPatch",
+    "SummonCarryoverPatch",
     "TerrainResourceExpPatch",
     "TriggerRechargeListPatch",
     "UniqueProductionIdPatch",

@@ -242,7 +242,7 @@ class SpecialPowerMusicPatch(Patch):
     """Expose MusicOnTrigger without growing SpecialPowerTemplate or gameplay state."""
 
     name = "special-power-music"
-    author = "OpenAI Codex; MusicSkriptParameter contributors"
+    author = "Ostkannit"
     experimental = True
     description = (
         "SpecialPower MusicOnTrigger = <MusicEvent> <DurationMilliseconds>: "

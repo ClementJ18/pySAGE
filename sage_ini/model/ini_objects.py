@@ -925,6 +925,7 @@ class Object(IniObject):
     CrushableLevel: Int
     CrusherLevel: Int
     ShroudClearingRange: Int
+    OcclusionDelay: Int
     IsTrainable: Bool
     CrowdResponseKey: t.CrowdResponseRef
     EmotionRange: Int

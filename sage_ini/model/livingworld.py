@@ -62,6 +62,39 @@ class EnableRegion(NestedAttribute):
     DelayFromActStart: t.Float
 
 
+class ForceBattle(NestedAttribute):
+    """A battle in a region (named, or the one holding `Position`) during an `Act`, or - with
+    `Movie` - a movie event placed on the world map. Stock ROTWK runs only the `Movie` form."""
+
+    Region: t.Opaque
+    EventName: t.Opaque
+    Position: t.Coords
+    Movie: t.Opaque
+    PlayNextActAfterMovie: t.Bool
+    RemoveEvent: t.Bool
+    UseArmy: t.Opaque
+    ArmyAttackDirection: t.Coords
+
+
+class ControlPoint(NestedAttribute):
+    """A keyframe of a `SplineCamera` flight: where the camera is, which way it faces, and when."""
+
+    Position: t.Coords
+    Angle: t.Float
+    Time: t.Float
+    EaseIn: t.Float
+    EaseOut: t.Float
+
+
+class SplineCamera(NestedAttribute):
+    """A scripted camera flight through its `ControlPoint`s during an `Act`."""
+
+    DelayFromActStart: t.Float
+    SummaryEvent: t.Bool
+
+    nested_attributes = {"ControlPoint": ["ControlPoint"]}
+
+
 # The scripted actions an `Act` (and a `Scenario`'s historical setup) sequences.
 _ACT_ACTIONS = {
     name: [name]
@@ -73,6 +106,8 @@ _ACT_ACTIONS = {
         "MoveArmy",
         "SetPlayerControlOfArmy",
         "EnableRegion",
+        "ForceBattle",
+        "SplineCamera",
     )
 }
 
@@ -88,6 +123,10 @@ class StartingRestriction(NestedAttribute):
 class Act(NestedAttribute):
     """One `Act <name>` of a `LivingWorldCampaign`: the armies it spawns, the eye-tower camera
     points and the scripted actions (text, camera, army moves) played as a stage of the war."""
+
+    EndAct: t.Bool
+    JumpToAct: t.Opaque
+    CallActSubroutine: t.List[t.Opaque]
 
     nested_attributes = _ACT_ACTIONS
 

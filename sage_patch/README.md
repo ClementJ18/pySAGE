@@ -19,12 +19,15 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Eighteen of the registered patches — **`battle-school`**, **`campaign-select`**,
+> Twenty-one of the registered patches — **`ai-disabled-regions`**, **`battle-school`**,
+> **`campaign-select`**,
 > **`capture-the-flag`**, **`command-line-skirmish`**, **`cooldown-through-death`**,
-> **`headless`**, **`hero-army-carryover`**, **`hero-mana`**, **`live-bridge`**,
+> **`headless`**, **`hero-army-carryover`**, **`hero-mana`**, **`hide-selection-details`**,
+> **`live-bridge`**,
 > **`living-world-override`**, **`map-transition`**, **`ranged-stand-off`**,
 > **`recharge-rescale`**, **`second-resource`**, **`smart-rally`**,
-> **`special-power-charges`**, **`special-power-music`** and **`unit-plate-option`** — are
+> **`special-power-charges`**, **`special-power-music`**, **`spellbook-hotkeys`** and
+> **`unit-plate-option`** — are
 > **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -235,9 +238,20 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   porting BFME1 campaign INI verbatim has to change those two fields. BFME1 could mutate templates
   because a template was its only strategic state; ROTWK gives each live army its own roster at
   `army+0x78` and rewrites it after every battle, so a template edit would touch only armies
-  spawned later and nothing standing on the map. Two five-byte sites: the `push` that names the Act
+  spawned later and nothing standing on the map. The `push` that names the Act
   verb table is repointed at a 17-row copy in the cave, and pass nine of the act runner is
-  displaced into a trampoline that makes the call it replaced and then runs the new pass. The
+  displaced into a trampoline that makes the call it replaced and then runs the new pass. It also
+  makes **`ForceBattle`** work: ROTWK parses it but its battle form calls a bare `ret 0xC`. The
+  two calls are repointed at a queue, and after the act's other passes each request builds the
+  battle the engine's own conflict pass would - every army in the region (`Region` by name, or the
+  one containing `Position`) plus `UseArmy`, moved there if needed, one side per owner, the
+  region's owner as defender - through `RegionStore::createBattle`. The battle is offered in the
+  turn's battle phase; `ArmyAttackDirection` is ignored. And `SpawnArmy` gains
+  **`ExactPosition = Yes`**, which keeps an army that names a hero on its `Position` instead of the
+  region slot the engine snaps it to; opt-in, because Edain's existing positions rely on the
+  snapping. An army with no `HeroTemplateName` spawned in a region its player owns is merged into
+  the army already there and loses its name, which no flag changes.
+  Seven five-byte sites in all, none shared with another patch. The
   records cannot live on the `Act` — it is `0xB8` bytes with three spare — so they live in
   the cave keyed by the act's **name**, which is already how `CallActSubroutine` finds an act.
   Moving a record is a move, not a copy: the roster's own erase hands back a reference and the
@@ -547,6 +561,35 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   call to zero the new dword. Health is simulation state, so **every peer must run the same patched
   binary**, and the keyword is an INI parse error on a stock build. See
   [`docs/detachable-rider-heal.md`](docs/detachable-rider-heal.md).
+
+- **`draw-module-scale`** gives a model draw module its own **`Scale`**,
+  **`Offset`** and **`AngleOffset`**, so one `Draw` block — a banner, a weapon, a unit plate — is
+  drawn bigger, smaller, somewhere else or turned from the object it sits on, while the
+  object's footprint, selection and every other draw module stay put. `Scale = 1.5` multiplies the
+  object's `Scale` for that module alone; `Offset = X:0 Y:0 Z:20` moves what the module draws **in
+  the object's own frame**, so it turns with the unit; and `AngleOffset = 45` turns it about the
+  object's up axis by that many degrees, which is how a model whose animation faces the wrong way is
+  lined up (negative turns the other way). Any of them absent is stock. All three go on
+  `W3DScriptedModelDraw` and every draw built on it (`W3DHordeModelDraw`, `W3DQuadrupedDraw`,
+  `W3DSupplyDraw`, `W3DTruckDraw`, `W3DTankDraw`, `W3DSailModelDraw`), which all parse one field
+  table. **They arrive by different routes, because these modules never scale a transform**:
+  `Drawable::getScale` (`0x00478180`) is handed to the asset manager when the render object is built
+  and to the bone cache, so a scale is baked into the geometry and every bone position — while a
+  position and a facing cannot be, so those go into the matrix. That makes it 19 `call`s to the
+  getter and the **five** to the transform helper (`0x004B686D`, the funnel every model draw passes
+  through before `Set_Transform`), each retargeted five bytes for five at stubs that reproduce the
+  engine routine and then apply the module's own numbers, reached through whichever register the
+  calling function already keeps the module in; the getter's three callers outside the family stay
+  stock. `W3DModelDrawModuleData` cannot grow (every derived module's fields start at its `0x188`)
+  and a scale, an offset and an angle do not fit in the **three padding bytes behind
+  `BirthFadeAdditive`**, so those hold a 24-bit **index into a record table in the cave** that the
+  three keywords share — zeroed by widening the constructor's one-byte default store to a dword, and
+  filled through the engine's own `parsePositiveNonZeroReal`, `parseCoord3D` and `parseReal`, so
+  `Scale = 0` is the stock INI error. **The angle's sine and cosine are computed while the INI is
+  read** — one `fsincos` — so drawing costs four multiplies a row and no trigonometry. Possibly simulation
+  state: if launch bones reach logic here as in Generals, a scaled weapon model moves where
+  projectiles leave from, exactly as the object's `Scale` does — run the same binary on every peer.
+  See [`docs/draw-module-scale.md`](docs/draw-module-scale.md).
 
 - **`fire-at-attacker`** adds a **`FireAtAttacker`** boolean to `FireWeaponWhenDamagedBehavior`, so
   its `ReactionWeapon*` hits **whatever dealt the damage** instead of going off at the damaged
@@ -1419,6 +1462,21 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   IDA difference file `lotrbfme2ep1.dif`; what is added here is the frame around it — the two
   `rel32`s re-derived from the function addresses rather than transcribed, nine anchor sites, and a
   test asserting `apply` reproduces the launcher Edain ships **byte for byte**.
+- **`summon-carryover`** lets a **summoned or spawned unit come home** from a War of the
+  Ring battle, as a recruited one does. `KindOf = ARMY_SUMMARY` reads like "this goes home with the
+  player", but it is only the second of the post-battle harvest's four filters; the fourth wants a
+  living-world **army id on the object**, and only the deployment and production chain ever writes
+  one — the army's own landing seeds it and `CastleBehavior`, `DozerAIUpdate`, `FoundationAIUpdate`,
+  `ProductionUpdate`, `HordeContain` and `OpenContain` pass it down. **No creation path outside
+  production writes it at all**, because they all reach `THING_FACTORY_NEW_OBJECT`, which takes a
+  template and a team and no creator — so a summon is born with zero and discarded however it is
+  flagged. The id is a *destination* rather than a gate (the record is filed into
+  `findArmyById(id)` and a NULL army throws it away), so skipping the test achieves nothing and the
+  patch instead **supplies** an id: the army of the first object in the global object list with the
+  same controlling player and one of its own. **No INI change** — but `ARMY_SUMMARY` stops meaning
+  "comes home when recruited" and starts meaning "comes home", so a template that should not
+  persist has to drop the flag. See
+  [`docs/living-campaign/army-id-custody.md`](docs/living-campaign/army-id-custody.md).
 - **`terrain-resource-exp`** adds a **`GiveNoXP`** boolean to `TerrainResourceBehavior`, so a
   resource spot can pay its owner without levelling its own building. The module hands the integer
   it just deposited to the building's `ExperienceTracker` on every income tick, and no INI field
@@ -1601,6 +1659,14 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   declares. No INI, `.str` or `.apt` change; the
   observer camera and command bar are `observer-switch` and `observer-command-range`.
   **Runtime-verified in game**, in a three-player War of the Ring match on 2026-09-06.
+- **`ai-disabled-regions`** ⚠**(experimental)** stops the War of the Ring AI crashing in any
+  scenario that uses **`DisableRegions`**. The AI's region graph is built once, from enabled
+  regions only, and its planner looks every region up in that graph without checking the lookup
+  found anything - so the first disabled region hands it the map's empty head node and the copy
+  that follows reads address `0x4`. Six bytes: the builder's skip for a disabled region becomes
+  `nop`s, so every region gets a node, including ones an act enables later. Read out of three
+  identical crash dumps; static only, and whether the AI then plans into still-disabled regions is
+  untested. See [`docs/living-campaign/ai-disabled-regions.md`](docs/living-campaign/ai-disabled-regions.md).
 - **`battle-school`** ⚠**(experimental)** restores the **way out of BFME1's Battle School**, the
   parchment book of tutorial videos on the main menu. ROTWK kept almost all of it: the
   `AptMainMenu::BattleSchool` FSCommand and its handler are intact, `BlinkBattleSchoolOff` still
@@ -1696,7 +1762,6 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   inheriting the last one's. **Not in a savegame**: a save and load between the death and the
   revive loses the snapshot and the hero returns ready — stock behaviour, not a corrupt one. See
   [`docs/cooldown-through-death.md`](docs/cooldown-through-death.md).
-
 - **`headless`** ⚠**(experimental)** makes a run cheap enough to automate: it adds **`-headless`**, **`-renderEvery n`**,
   **`-maxfps n`** and **`-uncapped`** to the command line, and suppresses the per-frame
   `Display::draw` when asked to. The command-line table is extensible in **six bytes** — the
@@ -1746,6 +1811,18 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   no savegame change. A `ManaCost` line joins the stock `UnitCost` one in a button's description,
   from the `TOOLTIP:ManaCost` key and carrying **both the price and what the caster currently has**;
   a `ManaPool` line sits under a hero's level on its revive/recruit button. `ManaCost = 0`, the default, leaves a power exactly as it is today.
+
+- **`hide-selection-details`** ⚠**(experimental)** gives a War of the Ring `Scenario` a
+  **`HideSelectionDetails`** boolean that keeps the **selection-details tray** - the panel behind
+  "Toggle Selection Details" - shut for that scenario. No INI reaches it: the tray is
+  `StrategicDetailsTray.apt`, opened and closed by a small engine class the HUD refreshes every
+  frame. The field lives in `Scenario`'s own padding (`+0xC2`, zeroed by widening the constructor's
+  `HistoricalScenario` store), and two hooks read it through the campaign manager's current
+  campaign: the class's `setHasContent` stores zero, so the refresh closes the tray and disables the
+  toggle button as it does for an empty selection, and its `open` returns before calling the movie.
+  Interface only, so peers stay in sync. Static only; whether the movie's own frame-0 open ever
+  runs in game is unconfirmed. See
+  [`docs/living-campaign/hide-selection-details.md`](docs/living-campaign/hide-selection-details.md).
 
 - **`ranged-stand-off`** ⚠**(experimental)** makes a ranged unit given a **direct attack order**
   stop as soon as its target is in weapon range, instead of walking onto the target first and
@@ -1893,6 +1970,21 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   a spellbook is an ordinary object and its spells ordinary `SpecialPowerModule` /
   `OCLSpecialPower` / `PlayerUpgradeSpecialPower` behaviours. See
   [`docs/special-power-charges.md`](docs/special-power-charges.md).
+- **`spellbook-hotkeys`** ⚠**(experimental)** lets a spellbook power be cast with **Ctrl plus the shortcut letter its
+  own label already carries**, with nothing selected. A command button's shortcut is the character
+  after the `&` in its localized `TextLabel`, and the engine registers one only while that button
+  occupies a control-bar window — which is why an ability's key works exactly as long as its unit
+  stays selected, and why the spellbook bar, an APT movie rather than a window grid, never had one.
+  Two edits: the translator's modifier gate stops discarding a press held with Ctrl *alone* and
+  marks it instead, and `HotKeyManager::executeHotKey` gains a branch for that mark which walks the
+  local player's spellbook CommandSet, reads each button's own `&` character, and on a match hands
+  the button to `ControlBar::doCommand` exactly as a click on the bar does — so targeting cursors,
+  sounds and `CommandTrigger` all behave, and the order that reaches the network is the same one.
+  **Which powers get a shortcut, and how many, is whatever the strings already say**: a label with
+  no `&` is never matched, each faction's spellbook carries its own buttons, nothing is bound by
+  slot and no INI keyword is added. Ctrl+letter is dead space in the stock build, so nothing loses
+  a combination. **Experimental: static analysis only, never run.** See
+  [`docs/spellbook-hotkeys.md`](docs/spellbook-hotkeys.md).
 - **`unit-plate-option`** ⚠**(experimental)** turns Edain's **unit plates into a player-side toggle** instead of a
   submod, by adding a **20th row to the shell Options screen**. `unit_plate.inc` puts a
   `W3DScriptedModelDraw` tagged `Module_UnitPlate` on 552 unit objects; the shipped game carries the
@@ -2103,6 +2195,12 @@ sage-patch verify headless game.dat
 sage-patch apply map-transition --in game.dat.backup --out game.dat     # no parameters
 sage-patch verify map-transition game.dat
 
+# a Scenario field that keeps the War of the Ring selection-details tray shut for that scenario;
+# --keyword renames it
+# EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
+sage-patch apply hide-selection-details --in game.dat.backup --out game.dat
+sage-patch verify hide-selection-details game.dat
+
 # a cooldown already running responds to a recharge modifier granted after the cast
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
 sage-patch apply recharge-rescale --in game.dat.backup --out game.dat   # no parameters
@@ -2113,6 +2211,13 @@ sage-patch verify recharge-rescale game.dat
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
 sage-patch apply cooldown-through-death --in game.dat.backup --out game.dat
 sage-patch verify cooldown-through-death game.dat
+
+# a Draw block with its own Scale (multiplied into the object's), Offset (X:/Y:/Z: in the object's
+# own frame) and AngleOffset (one angle in degrees about the object's up axis); --keyword,
+# --offset-keyword and --angle-keyword rename the three fields
+# EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
+sage-patch apply draw-module-scale --in game.dat.backup --out game.dat
+sage-patch verify draw-module-scale game.dat
 
 # a crash .dmp that carries the heap and not the video driver's globals; --dump-type and
 # --deep-dump-type are MINIDUMP_TYPE masks, the second selected by the `fulldump` debug command
