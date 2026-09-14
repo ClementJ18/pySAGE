@@ -824,7 +824,7 @@ def xml_process_actions(entry_elem, ab, data, top_level=True):
 def _emit_branch(ab, opcode, child):
     """Emit a branch. A `target` label is resolved after the block is laid out; a
     branch carrying only the legacy `offset` compiles that raw value verbatim so
-    pre-Phase-4 XML still assembles."""
+    XML written before branch labels still assembles."""
     target = child.get("target")
     if target is not None:
         ab.add_branch_target_action(opcode, target)

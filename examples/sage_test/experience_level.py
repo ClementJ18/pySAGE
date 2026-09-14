@@ -43,6 +43,7 @@ import sage_live  # noqa: E402
 from sage_map import parse_map, write_map  # noqa: E402
 from sage_test import Scenario, Seat  # noqa: E402
 from sage_test.compile import compile_into  # noqa: E402
+from sage_test.game_info import game_info_string  # noqa: E402
 from sage_test.harness import Match, bind_handles  # noqa: E402
 from sage_test.runner import install_map, launch  # noqa: E402
 
@@ -132,7 +133,7 @@ def main() -> int:
     print(f"-file    {file_argument}")
 
     failures: list[str] = []
-    process = launch(file_argument, game_dat)
+    process = launch(file_argument, game_dat, game_info=game_info_string(scenario.seats))
     print(f"launched pid {process.pid}; waiting for frame 1")
     try:
         deadline = time.monotonic() + args.timeout

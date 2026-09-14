@@ -10,15 +10,17 @@ build, not one in particular), so a `CommandSet` INI block may define more than 
 derives its table only from the stock one, which nothing else rewrites. See the composition
 contract on :class:`~..patcher.Patch`.
 
-Three phases make up the patch:
+Three parts make up the patch:
 
-* **Phase 1** grows the `CommandSet` object from ``0xA0`` to ``0x14 + count*4 + 8`` bytes. The
-  ``m_command[]`` array stays at ``+0x14``; the trailing count/flag fields move from ``0x98/0x9c``
-  to just past the enlarged array. Fourteen instruction immediates (the allocation size, the
-  ctor's ``33`` fills, every field offset, and the AI's scan bound below) are rewritten.
-* **Phase 2** builds a fresh ``count``-slot field-parse table plus the new ``"34".."count"`` slot
-  names in an appended ``.cmdext`` PE section, and repoints the two code references to it.
-* **Phase 3** appends a clamp routine to that same section and routes
+* **The object growth** takes the `CommandSet` object from ``0xA0`` to ``0x14 + count*4 + 8``
+  bytes. The ``m_command[]`` array stays at ``+0x14``; the trailing count/flag fields move from
+  ``0x98/0x9c`` to just past the enlarged array. Fourteen instruction immediates (the
+  allocation size, the ctor's ``33`` fills, every field offset, and the AI's scan bound
+  below) are rewritten.
+* **The table rebuild** builds a fresh ``count``-slot field-parse table plus the new
+  ``"34".."count"`` slot names in an appended ``.cmdext`` PE section, and repoints the two code
+  references to it.
+* **The visible-range clamp** appends a routine to that same section and routes
   `ControlBar::populate`'s visible-range fetch through it, so a paging window that reaches past
   the array or past the 33 on-screen widgets is trimmed instead of crashing (below).
 
@@ -42,7 +44,7 @@ Both ways of writing an oversized record are ordinary INI. ``InitialVisible`` ab
 record with ``{0, InitialVisible}`` directly, and a ``PUSH_VISIBLE_COMMAND_RANGE`` button whose
 ``CommandRangeStart + CommandRangeCount`` overshoots writes one on click.
 
-Phase 3 trims the record in place, right where it is read, to ``0 <= start < count`` and
+The clamp trims the record in place, right where it is read, to ``0 <= start < count`` and
 ``0 <= visible <= min(33, count - start)``. Every loop downstream then walks a window that is
 inside both arrays, out-of-range slots simply are not visited, and a page shows the buttons it
 has. Clamping the fetch is also the cheap form: the three loops would otherwise need three hooks,
@@ -57,11 +59,11 @@ would make every button the rest of this patch newly allows - the paged ones - i
 AI, so a mod paging its hero roster past slot 33 would get buildings the player can recruit from
 and the AI cannot. ``getCommandButton`` is an unchecked ``[this + i*4 + 0x14]``, so the bound
 *is* the bound: ``count`` visits indices ``0..count-1`` and stops one short of the count field
-that Phase 1 places at index ``count``.
+that the object growth places at index ``count``.
 
 Why the ceiling is 127
 ----------------------
-Six of the Phase-1 sites encode the limit as a **signed 8-bit immediate** (``6a NN`` ``push``,
+Six of the object-growth sites encode the limit as a **signed 8-bit immediate** (``6a NN`` ``push``,
 ``83 fa NN`` / ``83 fb NN`` / ``83 7d f8 NN`` ``cmp``), so 127 is the largest value that survives
 sign extension: at 128 the byte ``0x80`` decodes as ``-128``, and since one of those pushes
 supplies ``rep stosd``'s counter the constructor would zero ~4 billion dwords. Going beyond 127
@@ -102,15 +104,15 @@ if TYPE_CHECKING:
 _TABLE_VA = 0xC4F3D8  # the original 34-entry CommandSet field-parse table
 _PARSE_COMMAND_BUTTON = 0x0080C9E1  # parseCommandButton (fn of every slot entry)
 _SECTION_NAME = ".cmdext"  # the cave holding the enlarged table + the new slot names
-_PARSER_TABLE_REF = 0x32065C  # `push _TABLE_VA` - parser's table pointer (repointed in Phase 2)
-_GETFIELDPARSE_REF = 0x31C2EE  # `mov eax, _TABLE_VA` - getFieldParse's table pointer (Phase 2)
+_PARSER_TABLE_REF = 0x32065C  # `push _TABLE_VA` - parser's table pointer (repointed)
+_GETFIELDPARSE_REF = 0x31C2EE  # `mov eax, _TABLE_VA` - getFieldParse's table pointer (repointed)
 _ORIGINAL_MAX = 33
 _ORIGINAL_OBJ_SIZE = 0xA0
 _ORIGINAL_COUNT_OFF = 0x98  # count / InitialVisible field in the 0xA0 object
 _ORIGINAL_FLAG_OFF = 0x9C
 _ARRAY_OFF = 0x14  # m_command[] base within the object (unchanged by the patch)
 
-#: File offset of the `push <object size>` the allocator uses. It is the one Phase-1 site that
+#: File offset of the `push <object size>` the allocator uses. It is the one object-growth site that
 #: encodes the limit as a full imm32, which makes it the site `detect` reads the count back from.
 _ALLOC_SIZE_SITE = 0x320298
 
@@ -120,7 +122,7 @@ _ALLOC_SIZE_SITE = 0x320298
 # throughout this build's `.text`, which is what every offset below already assumes.
 _AI_SCAN_BOUND = CAN_MAKE_UNIT_SCAN_BOUND - IMAGE_BASE
 
-#: The visible-range fetch Phase 3 reroutes, and the sites that make the reroute meaningful. The
+#: The visible-range fetch the clamp reroutes, and the sites that make the reroute meaningful. The
 #: two loop heads are read-only anchors: they are what the clamp protects, so a build where they
 #: are not the shape this patch was derived against must not be clamped silently.
 _RANGE_FETCH_SITE = CONTROL_BAR_RANGE_FETCH - IMAGE_BASE
@@ -130,10 +132,10 @@ _RANGE_LOOP_ANCHORS = {
 }
 
 # IMAGE_SCN_CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ. The section carries the
-# field-parse table and the slot names as data and the Phase-3 clamp as code, so it needs both.
+# field-parse table and the slot names as data and the clamp as code, so it needs both.
 _SECTION_CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000
 
-#: Largest limit this patch can install. Bounded by the signed-imm8 encoding of five Phase-1
+#: Largest limit this patch can install. Bounded by the signed-imm8 encoding of five object-growth
 #: sites (see the module docstring), not by the object layout or the new section.
 MAX_COUNT = 127
 
@@ -162,7 +164,7 @@ def _slot_names(n: int) -> bytes:
 
 
 def _clamp_offset(n: int) -> int:
-    """Where the Phase-3 routine starts within the ``.cmdext`` section: past the ``n``-slot table
+    """Where the clamp routine starts within the ``.cmdext`` section: past the ``n``-slot table
     and the slot names it points into."""
     return (n + 2) * 16 + len(_slot_names(n))
 
@@ -256,15 +258,15 @@ class CommandSetLimitPatch(Patch):
             _RANGE_FETCH_SITE,
             CONTROL_BAR_RANGE_FETCH_BYTES,
             self._clamp_jump(new_base_va, n),
-            "P3 visible-range fetch -> .cmdext clamp",
+            "visible-range fetch -> .cmdext clamp",
         )
-        for file_off, old, new, note in self._phase1_edits(n):
+        for file_off, old, new, note in self._object_edits(n):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         """Structural check that ``data`` already carries this patch at ``count`` (an empty list
         == verified). Locates the ``.cmdext`` cave, recomputes its content, the two repointed
-        references, the Phase-3 jump and the Phase-1 site bytes for ``count``, and compares them
+        references, the clamp jump and the object-growth site bytes for ``count``, and compares them
         to what is on disk. Reads only via ``struct`` + the section table, so it needs no
         disassembler."""
         n = self.count
@@ -298,11 +300,11 @@ class CommandSetLimitPatch(Patch):
         got = bytes(data[_RANGE_FETCH_SITE : _RANGE_FETCH_SITE + len(expected)])
         if got != expected:
             problems.append(
-                f"P3 visible-range fetch @0x{_RANGE_FETCH_SITE:x}: expected {expected.hex()}, "
+                f"visible-range fetch @0x{_RANGE_FETCH_SITE:x}: expected {expected.hex()}, "
                 f"got {got.hex()}"
             )
 
-        for file_off, _old, new, note in self._phase1_edits(n):
+        for file_off, _old, new, note in self._object_edits(n):
             got = bytes(data[file_off : file_off + len(new)])
             if got != new:
                 problems.append(f"{note} @0x{file_off:x}: expected {new.hex()}, got {got.hex()}")
@@ -329,7 +331,7 @@ class CommandSetLimitPatch(Patch):
         return None if patch.verify(data) else patch
 
     def ini_surface(self) -> Engine:
-        """The raised ceiling and the Phase-3 clamp, as the engine limits the lint rules read.
+        """The raised ceiling and the visible-range clamp, as the engine limits the lint rules read.
         The ControlBar's separate 33-button *display* ceiling is untouched, so it is not named
         here and stays at its stock value."""
         return Engine(
@@ -355,7 +357,7 @@ class CommandSetLimitPatch(Patch):
 
     def _compute_section(self, data: bytes | bytearray, section_va: int, n: int) -> bytes:
         """Return the ``.cmdext`` content for ``n`` slots placed at ``section_va``: the enlarged
-        field-parse table, the ``"34".."n"`` slot names it points into, and the Phase-3 clamp.
+        field-parse table, the ``"34".."n"`` slot names it points into, and the clamp.
         Reads the original 34-entry table to reuse its slot-name pointers and parse fn; raises on
         an unrecognised build (slot 0's parse fn not where this build keeps it)."""
         tab_foff = _TABLE_VA - image_base(data)
@@ -422,17 +424,17 @@ class CommandSetLimitPatch(Patch):
             _PARSER_TABLE_REF,
             b"\x68" + old_ptr,
             b"\x68" + new_ptr,
-            "P2 parser table push -> .cmdext",
+            "parser table push -> .cmdext",
         )
         apply_byte_patch(
             data,
             _GETFIELDPARSE_REF,
             b"\xb8" + old_ptr,
             b"\xb8" + new_ptr,
-            "P2 getFieldParse mov -> .cmdext",
+            "getFieldParse mov -> .cmdext",
         )
 
-    def _phase1_edits(self, n: int) -> list[tuple[int, bytes, bytes, str]]:
+    def _object_edits(self, n: int) -> list[tuple[int, bytes, bytes, str]]:
         """The 15 ``(file_offset, original bytes, patched bytes, note)`` edits that grow the
         object for ``n`` slots and let the AI walk all of them. Shared by :meth:`apply` (writes
         ``patched`` if ``original`` matches) and :meth:`verify` (asserts ``patched`` is
@@ -449,34 +451,34 @@ class CommandSetLimitPatch(Patch):
                 0x320298,
                 b"\x68" + _u32(_ORIGINAL_OBJ_SIZE),
                 b"\x68" + _u32(obj_size),
-                "P1 alloc size",
+                "alloc size",
             ),
-            (0x40C97E, b"\x6a\x21", b"\x6a" + nb, "P1 ctor count/stosd push"),
-            (0x40C987, b"\x89\x8e" + old_count, b"\x89\x8e" + new_count, "P1 ctor count store"),
-            (0x40C980, b"\x89\x86" + old_flag, b"\x89\x86" + new_flag, "P1 ctor flag store"),
-            (0x40C8FC, b"\x83\xfa\x21", b"\x83\xfa" + nb, "P1 set bound"),
-            (0x40C909, b"\x8d\x81" + old_count, b"\x8d\x81" + new_count, "P1 set &count"),
+            (0x40C97E, b"\x6a\x21", b"\x6a" + nb, "ctor count/stosd push"),
+            (0x40C987, b"\x89\x8e" + old_count, b"\x89\x8e" + new_count, "ctor count store"),
+            (0x40C980, b"\x89\x86" + old_flag, b"\x89\x86" + new_flag, "ctor flag store"),
+            (0x40C8FC, b"\x83\xfa\x21", b"\x83\xfa" + nb, "set bound"),
+            (0x40C909, b"\x8d\x81" + old_count, b"\x8d\x81" + new_count, "set &count"),
             (
                 0x40C8EF,
                 b"\x83\xb9" + old_flag + b"\x01",
                 b"\x83\xb9" + new_flag + b"\x01",
-                "P1 set flag guard",
+                "set flag guard",
             ),
             (
                 0x40C8DB,
                 b"\x83\xa1" + old_count + b"\x00",
                 b"\x83\xa1" + new_count + b"\x00",
-                "P1 reset count",
+                "reset count",
             ),
             (
                 0x40C8D2,
                 b"\x83\xb9" + old_flag + b"\x01",
                 b"\x83\xb9" + new_flag + b"\x01",
-                "P1 reset flag guard",
+                "reset flag guard",
             ),
-            (0x40C8C6, b"\x83\xfb\x21", b"\x83\xfb" + nb, "P1 slot-scan bound"),
-            (0x40C8E3, b"\x6a\x21", b"\x6a" + nb, "P1 clear stosd"),
-            (0x40C91D, b"\x6a\x21", b"\x6a" + nb, "P1 reset stosd"),
+            (0x40C8C6, b"\x83\xfb\x21", b"\x83\xfb" + nb, "slot-scan bound"),
+            (0x40C8E3, b"\x6a\x21", b"\x6a" + nb, "clear stosd"),
+            (0x40C91D, b"\x6a\x21", b"\x6a" + nb, "reset stosd"),
             # The only consumer that reads the count field rather than a literal bound.
             # `[ebp-0x18]` here is the `CommandSet` `TheCommandSetStore` (0x00DE7744 ->
             # 0x0071EFA2) just returned. Do not widen this to every `push [reg+0x98]` the
@@ -484,6 +486,6 @@ class CommandSetLimitPatch(Patch):
             # `SkirmishAIHeuristic`, whose object is only 0x9C bytes - rewriting it reads
             # past the allocation and feeds garbage to `AIScience::setHeuristic`, which
             # eventually frees a shared heuristic singleton and purecalls the skirmish AI.
-            (0x543DF9, b"\xff\xb0" + old_count, b"\xff\xb0" + new_count, "P1 consumer count read"),
-            (_AI_SCAN_BOUND, b"\x83\x7d\xf8\x21", b"\x83\x7d\xf8" + nb, "P1 AI scan bound"),
+            (0x543DF9, b"\xff\xb0" + old_count, b"\xff\xb0" + new_count, "consumer count read"),
+            (_AI_SCAN_BOUND, b"\x83\x7d\xf8\x21", b"\x83\x7d\xf8" + nb, "AI scan bound"),
         ]

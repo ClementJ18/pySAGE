@@ -60,9 +60,9 @@ def test_page_loads_from_asset(served):
     base, _xml_path, _tmp = served
     page = _fetch(base + "/")
     assert "<title>APT Editor</title>" in page
-    # the frame-label state dropdown (Phase 6.3) ships in the page
+    # the frame-label state dropdown ships in the page
     assert 'id="label-select"' in page
-    # the editing controls (Phase 6.5) ship in the page
+    # the editing controls ship in the page
     for control in ("undo-btn", "redo-btn", "add-btn", "dup-btn", "del-btn"):
         assert f'id="{control}"' in page
 

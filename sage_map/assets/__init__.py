@@ -23,7 +23,9 @@ from .player_scripts import PlayerScriptsList
 from .polygon_triggers import PolygonTriggers
 from .post_effects_chunk import PostEffectsChunk
 from .river_areas import RiverAreas
+from .script_apply_height import ScriptApplyHeight
 from .script_import_size import ScriptImportSize
+from .script_passability import ScriptPassability
 from .script_teams import ScriptTeams
 from .scripts_players import ScriptPlayer, ScriptsPlayers
 from .sides_list import BuildLists, SidesList
@@ -72,7 +74,9 @@ __all__ = [
     "MissionObjectives",
     "CastleTemplates",
     "SkyboxSettings",
+    "ScriptApplyHeight",
     "ScriptImportSize",
+    "ScriptPassability",
     "ScriptTeams",
     "ScriptPlayer",
     "ScriptsPlayers",

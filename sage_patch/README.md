@@ -3,10 +3,10 @@
 Reverse-engineering + binary-patch work on the ROTWK SAGE engine (build `2.01.2614.37001`). The
 patches below are all engine-level — they apply to any ROTWK install of that build and benefit
 every mod on it (Edain among them), not one in particular. All of them target `game.dat` except
-twelve, which patch other binaries from the same install. Eleven patch `Worldbuilder.exe` —
+thirteen, which patch other binaries from the same install. Twelve patch `Worldbuilder.exe` —
 `worldbuilder-mod`, `worldbuilder-label-assert`, `worldbuilder-silent-errors` and
-`worldbuilder-object-typeahead`, plus the seven **twins** that carry a game-side patch's INI surface
-across to the editor: `desert-weather-wb`, `healing-received-wb`, `herobar-wb`,
+`worldbuilder-object-typeahead`, plus the eight **twins** that carry a game-side patch's INI surface
+across to the editor: `cah-factions-wb`, `desert-weather-wb`, `healing-received-wb`, `herobar-wb`,
 `object-image-upgrade-wb`, `production-condition-wb`, `production-split-wb` and
 `science-prereqs-wb`. Each twin
 lives in the same module as its game-side half. `standalone-launcher` patches the launcher shim
@@ -226,6 +226,14 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   **Runtime-verified in game.**
 - **`cah-factions`** teaches the nine-name Create-A-Hero faction enum a caller-supplied list of mod
   sides plus an `All` token, so a `SubClass` can name them in `UsableFactions`.
+- **`cah-factions-wb`** is the authoring half of that, and lives in the same module. Worldbuilder
+  parses `CreateAHeroClass` out of its own two copies of the same nine-name table, and calls the
+  enum `BitFlags<9,enum FactionType>` in its assert strings — a `9` baked into ten `cmp`s as well
+  as into the table. Left alone the editor is quiet rather than loud about it:
+  `INI::scanIndexListFromString` answers **0** for a name it cannot find, so `UsableFactions =
+  Rohan` reads as `Men`. The patch rebuilds both copies into one superset table, raises all ten bit
+  counts and moves the terminator address `testNameArray` asserts on. Pass the same `--sides` in
+  the same order as the game half, since a token resolves to an index.
 - **`campaign-army-verbs`** restores the two BFME1 campaign `Act` verbs ROTWK
   dropped: **`MergePlayerArmy`**, which moves roster entries from one living-world army into
   another, and **`DespawnArmy = <name>`**, which takes an army off the world map. A merge either
@@ -2235,8 +2243,11 @@ sage-patch apply desync-debug --focus-frame 3500 --verify-client-crc --in game.d
 
 # make `-file maps\<name>.map` start a playable skirmish instead of an empty one: fills the
 # GameInfo slots the auto-start leaves random, sets the starting resources, and null-guards a
-# loading-screen window a menu-less start never creates. --human-faction / --ai-faction are
-# indices into the loaded mod's PlayerTemplate order (3 and 10 are Men and Mordor in Edain)
+# loading-screen window a menu-less start never creates. `-gameInfo "<lobby string>"` on the
+# game's command line then chooses the match - seats, factions, AI difficulty, teams, start
+# positions, rules, seed - through the engine's own lobby parser (sage_test.game_info builds it).
+# --human-faction / --ai-faction are the default match without it, as indices into the loaded
+# mod's PlayerTemplate order (3 and 10 are Men and Mordor in Edain)
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
 sage-patch apply command-line-skirmish --in game.dat.backup --out game.dat
 sage-patch verify command-line-skirmish game.dat

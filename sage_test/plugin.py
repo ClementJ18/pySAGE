@@ -40,6 +40,7 @@ from pathlib import Path
 
 import pytest
 
+from sage_test.game_info import LobbySettings
 from sage_test.run import (
     DEFAULT_TIMEOUT,
     EngineUnavailable,
@@ -47,7 +48,7 @@ from sage_test.run import (
     run_scenario,
     run_user_map,
 )
-from sage_test.scenario import Scenario
+from sage_test.scenario import Scenario, Seat
 
 __all__ = [
     "MapRunner",
@@ -148,6 +149,7 @@ def scenario_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[S
     def run(
         scenario: Scenario,
         *,
+        settings: LobbySettings | None = None,
         writable: bool = False,
         timeout: float = DEFAULT_TIMEOUT,
         template_name: str | None = None,
@@ -160,6 +162,7 @@ def scenario_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[S
             named,
             install,
             template_name or template,
+            settings=settings,
             writable=writable,
             timeout=timeout,
             keep_map=keep_map,
@@ -191,6 +194,8 @@ def map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[MapRun
     def run(
         argument: str,
         *,
+        seats: tuple[Seat, ...] = (),
+        settings: LobbySettings | None = None,
         writable: bool = False,
         timeout: float = DEFAULT_TIMEOUT,
         windowed: bool = True,
@@ -199,6 +204,8 @@ def map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[MapRun
         return run_map(
             argument,
             install,
+            seats=seats,
+            settings=settings,
             writable=writable,
             timeout=timeout,
             windowed=windowed,
@@ -229,6 +236,8 @@ def user_map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[M
         *,
         name: str | None = None,
         extras: tuple[str | Path, ...] = (),
+        seats: tuple[Seat, ...] = (),
+        settings: LobbySettings | None = None,
         writable: bool = False,
         timeout: float = DEFAULT_TIMEOUT,
         windowed: bool = True,
@@ -239,6 +248,8 @@ def user_map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[M
             install,
             name=name,
             extras=extras,
+            seats=seats,
+            settings=settings,
             keep_map=keep_map,
             writable=writable,
             timeout=timeout,

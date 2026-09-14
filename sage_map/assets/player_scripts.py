@@ -9,6 +9,12 @@ if TYPE_CHECKING:
 
 
 class ScriptArgumentType(IntEnum):
+    """The engine's script parameter types, by the number a map stores.
+
+    Names follow the label WorldBuilder's `Parameter::getUiText` prints for each type and the
+    script templates that use it (`sage_patch/docs/worldbuilder-script-templates.md`). A type with
+    no label anywhere keeps a numbered placeholder, so a map using it still parses."""
+
     INTEGER = 0
     REAL_NUMBER = 1
     SCRIPT_NAME = 2
@@ -38,30 +44,32 @@ class ScriptArgumentType(IntEnum):
     BRIDGE_NAME = 26
     UNIT_OR_STRUCTURE_KIND = 27
     ATTACK_PRIORITY_SET_NAME = 28
-    RADAR_EVENT_TYPE = 29
-    SPECIAL_POWER_NAME = 30
-    SCIENCE_NAME = 31
-    UPGRADE_NAME = 32
-    UNIT_ABILITY_NAME = 33
-    BOUNDARY_NAME = 34
-    BUILDABILITY = 35
-    SURFACE_TYPE = 36
-    CAMERA_SHAKE_INTENSITY = 37
-    COMMAND_BUTTON_NAME = 38
-    FONT_NAME = 39
-    OBJECT_STATUS = 40
-    TEAM_ABILITY_NAME = 41
-    SKIRMISH_APPROACH_PATH = 42
-    COLOR = 43
-    EMOTICON_NAME = 44
-    OBJECT_PANEL_FLAG = 45
-    FACTION_NAME = 46
-    OBJECT_TYPE_LIST_NAME = 47
-    MAP_REVEAL_NAME = 48
-    SCIENCE_AVAILABILITY_NAME = 49
-    EVACUATE_CONTAINER_SIDE = 50
-    PERCENTAGE = 51
-    PERCENTAGE2 = 52
+    # Used only by PALANTIR_EVENT; WorldBuilder has no label for it.
+    UNKNOWN_29 = 29
+    RADAR_EVENT_TYPE = 30
+    SPECIAL_POWER_NAME = 31
+    SCIENCE_NAME = 32
+    UPGRADE_NAME = 33
+    UNIT_ABILITY_NAME = 34
+    BOUNDARY_NAME = 35
+    BUILDABILITY = 36
+    SURFACE_TYPE = 37
+    CAMERA_SHAKE_INTENSITY = 38
+    COMMAND_BUTTON_NAME = 39
+    FONT_NAME = 40
+    OBJECT_STATUS = 41
+    TEAM_ABILITY_NAME = 42
+    SKIRMISH_APPROACH_PATH = 43
+    COLOR = 44
+    EMOTICON_NAME = 45
+    OBJECT_PANEL_FLAG = 46
+    FACTION_NAME = 47
+    OBJECT_TYPE_LIST_NAME = 48
+    MAP_REVEAL_NAME = 49
+    SCIENCE_AVAILABILITY_NAME = 50
+    CAMERA_NAME = 51
+    PERCENTAGE = 52
+    UNKNOWN_53 = 53
     UNIT_REFERENCE = 54
     TEAM_REFERENCE = 55
     NEAR_OR_FAR = 56
@@ -72,7 +80,20 @@ class ScriptArgumentType(IntEnum):
     OBJECT_TYPE = 61
     HERO = 62
     EMOTION = 63
-    UNKNOWN_1 = 64
+    CAMERA_ANIMATION_NAME = 64
+    UNKNOWN_65 = 65
+    UNKNOWN_66 = 66
+    THREAT_FINDER_NAME = 67
+    STANCE = 68
+    # The Living World reference types: armies, regions, players and player templates, going by
+    # the templates' sentences. WorldBuilder has no label for any of them.
+    UNKNOWN_69 = 69
+    UNKNOWN_70 = 70
+    UNKNOWN_71 = 71
+    UNKNOWN_72 = 72
+    UNKNOWN_73 = 73
+    UNKNOWN_74 = 74
+    UNKNOWN_75 = 75
     EVA = 76
     OBJECTIVE_COMPLETE = 77
 

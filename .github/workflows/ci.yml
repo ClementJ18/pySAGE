@@ -155,7 +155,7 @@ jobs:
 
       - name: Desktop scripts explain the missing extra
         run: |
-          for script in sage-ui sage-wiki sage-lint-ui sage-asset-ui sage-cah-ui; do
+          for script in sage-ui sage-wiki sage-lint-ui sage-asset-ui sage-cah-ui sage-worldbuilder; do
             echo "== $script"
             if /tmp/wheelenv/bin/$script > /tmp/out.txt 2>&1; then
               echo "expected a non-zero exit without the extra installed"; exit 1

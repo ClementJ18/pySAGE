@@ -44,7 +44,7 @@ def _team(name, owner="", **props):
 
 def _player(name, **props):
     all_props = {"playerName": name, **props}
-    return Player(properties={k: _prop(k, v) for k, v in all_props.items()}, build_list_items={})
+    return Player(properties={k: _prop(k, v) for k, v in all_props.items()}, build_list_items=[])
 
 
 def _object(type_name, position=(0.0, 0.0, 0.0), angle=0.0, **props):

@@ -15,6 +15,11 @@ a = Analysis(
     datas=[
         (os.path.join(ROOT, 'sage_wiki', 'icon.ico'), '.'),  # bundled beside the code, found via sys._MEIPASS
         (os.path.join(ROOT, 'sage_utils', 'assets', 'background.png'), 'assets'),  # parchment behind portraits
+        (os.path.join(ROOT, 'sage_utils', 'assets', 'check.svg'), 'assets'),  # checkbox check mark
+        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_close_dark.svg'), 'assets'),  # dock title bars
+        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_close_light.svg'), 'assets'),
+        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_float_dark.svg'), 'assets'),
+        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_float_light.svg'), 'assets'),
     ],
     # keyring loads its backend dynamically via entry points; name the Windows
     # Credential Manager backend (and its win32ctypes dependency) explicitly so the

@@ -15,6 +15,11 @@ a = Analysis(
     datas=[
         (os.path.join(ROOT, 'sage_ui', 'icon.ico'), '.'),
         (os.path.join(ROOT, 'sage_utils', 'assets', 'background.png'), 'assets'),  # parchment behind portraits
+        (os.path.join(ROOT, 'sage_utils', 'assets', 'check.svg'), 'assets'),  # checkbox check mark
+        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_close_dark.svg'), 'assets'),  # dock title bars
+        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_close_light.svg'), 'assets'),
+        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_float_dark.svg'), 'assets'),
+        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_float_light.svg'), 'assets'),
     ],
     hiddenimports=[],
     hookspath=[],

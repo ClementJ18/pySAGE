@@ -7,9 +7,10 @@ if TYPE_CHECKING:
 
 @dataclass
 class ScriptImportSize:
-    """A `.scb`-only asset: the WorldBuilder "Export Scripts" dialog's persisted size. Not
-    load-sourced from anything the game reads back - values seen across fixtures range from
-    (1, 1) to (560, 410)."""
+    """A `.scb`-only asset: the exporting map's heightmap width and height, which WorldBuilder's
+    import compares with the map it imports into, offering Reanchor Import when they differ
+    (`Importer::parseImportSizeDataChunk`, `0x0053C2D0`). It also sizes `ScriptPassability`. Values
+    seen across fixtures range from (1, 1) to (560, 410)."""
 
     asset_name = "ScriptImportSize"
 

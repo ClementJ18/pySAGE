@@ -1,4 +1,4 @@
-"""Phase 3: cross-reference the ini-names a save carries against a loaded `sage_ini` `Game`.
+"""Cross-reference the ini-names a save carries against a loaded `sage_ini` `Game`.
 
 A save file is full of names that resolve against ini definitions - deliberately, so that
 ini edits (reordering, insertion) don't invalidate saves. `harvest_references` collects those

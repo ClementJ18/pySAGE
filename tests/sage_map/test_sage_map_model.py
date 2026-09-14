@@ -1,4 +1,4 @@
-"""Phase 2: the game-aware map adapter (symbol harvest + located argument walk).
+"""The game-aware map adapter (symbol harvest + located argument walk).
 
 Built from hand-made sagemap dataclasses so the tests need no `.map` file or corpus.
 """
@@ -37,7 +37,7 @@ def _team(name, owner=""):
 
 
 def _player(name):
-    return Player(properties={"playerName": _prop("playerName", name)}, build_list_items={})
+    return Player(properties={"playerName": _prop("playerName", name)}, build_list_items=[])
 
 
 def _object(type_name, **props):

@@ -1,4 +1,4 @@
-"""Phase 3: flag dangling references in a `.map`, resolved against the assembled game.
+"""Flag dangling references in a `.map`, resolved against the assembled game.
 
 Every script argument that names something - an object template, a science, a map-local team, a
 localization label - is resolved the way the engine would: GAME-scope names against the built

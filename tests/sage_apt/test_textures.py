@@ -1,4 +1,4 @@
-"""APT texture resolver: cropping `image` characters out of an atlas (Phase 6.4).
+"""APT texture resolver: cropping `image` characters out of an atlas.
 
 Needs Pillow and pyBIG (the `[ui]` extra); skipped cleanly when either is absent - the
 resolver imports Pillow directly and pulls in pyBIG through `sage_utils.textures`. Uses a

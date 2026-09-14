@@ -6,7 +6,7 @@ these opcode tests are hand-crafted action buffers. `pushregister`, `pushbyte`,
 alignment, so a buffer is just the opcode byte, its operand, and a trailing
 `ACTION_END` (0x00) to stop the reader.
 
-The definefunction tests cover Phase 3: the compiler recomputes each body's `size`
+The definefunction tests check that the compiler recomputes each body's `size`
 field from the bytes it emits rather than trusting the (advisory) XML attribute.
 """
 
@@ -42,7 +42,7 @@ def _compile(children_xml):
     return ab
 
 
-# Phase 2 - pushregister (0xB9)
+# pushregister (0xB9)
 
 
 def test_pushregister_reads_operand_byte():
@@ -71,7 +71,7 @@ def test_pushregister_round_trip_identity():
     ]
 
 
-# Phase 2 - pushwordconstant (0xA3)
+# pushwordconstant (0xA3)
 
 
 def test_pushwordconstant_reads_single_u16():
@@ -101,7 +101,7 @@ def test_pushwordconstant_round_trip_identity():
     ]
 
 
-# Phase 3 - recomputed definefunction body sizes
+# Recomputed definefunction body sizes
 
 
 def _def_size_field(buf, size_offset):
@@ -146,7 +146,7 @@ def test_nested_definefunction_sizes_enclose_inner():
     assert [c.tag for c in inner.find("body")] == ["pushbyte", "trace"]
 
 
-# Phase 4 - label-based branches
+# Label-based branches
 
 
 def test_forward_and_backward_branches_resolve_to_labels():
@@ -238,8 +238,9 @@ def test_branch_to_gotolabel_keeps_string_operand():
 
 
 def test_offset_only_branch_compiles_verbatim():
-    # A pre-Phase-4 branch with no target: the raw offset is emitted unchanged, and
-    # (pointing outside the block here) it stays offset-only on decompile.
+    # A branch with no target, as XML written before branch labels has: the raw offset is
+    # emitted unchanged, and (pointing outside the block here) it stays offset-only on
+    # decompile.
     ab = _compile('<branchalways offset="12"/><end/>')
     assert struct.unpack_from("<i", bytes(ab.buf), 4)[0] == 12
     tags = _read(ab.buf)

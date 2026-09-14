@@ -1,4 +1,4 @@
-"""Phase 3: dangling-reference linting of a `.map` against an assembled game.
+"""Dangling-reference linting of a `.map` against an assembled game.
 
 Hand-built sagemap maps + a tiny `Game` populated directly, so no corpus or `.map` file is
 needed.

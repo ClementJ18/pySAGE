@@ -17,7 +17,7 @@ it. This patch is the first three - the **grant-and-show** half::
 
 and the palantir reads ``1000 (50)``.
 
-Nothing spends resource 2 and nothing gates on it, which is exactly what makes this phase cheap
+Nothing spends resource 2 and nothing gates on it, which is exactly what makes this half cheap
 and safe: no affordability path changes, so the AI cannot stall on a pool it cannot see and no
 production decision moves. A mod can already use it as a scored or prestige currency, a
 captured-point tally or a faction meter, read back out through `sage_live`.
@@ -91,7 +91,7 @@ Two things follow from the text being *cached*:
   parse functions raise. Deciding it from the pool instead would make the readout change shape
   mid-game, which reads as a bug. `--no-hud` drops the display entirely and leaves the mechanic.
 
-**What this phase does not cover.** `TerrainResourceBehavior` - the *other* income module, and
+**What this half does not cover.** `TerrainResourceBehavior` - the *other* income module, and
 the one Edain uses more for resource spots - gets no `DepositAmount2`. Its `ModuleData` has a
 single spare padding byte, already claimed by `terrain-resource-exp`, so covering it means
 growing the struct rather than reusing a hole, which is a job of its own.

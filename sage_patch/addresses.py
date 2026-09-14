@@ -172,6 +172,7 @@ __all__ = [
     "ASCII_STRING_ASSIGN",
     "ASCII_STRING_CHARS_OFFSET",
     "ASCII_STRING_COPY",
+    "ASCII_STRING_COPY_CTOR",
     "ASCII_STRING_CTOR",
     "ASCII_STRING_DTOR",
     "ASCII_STRING_FORMAT",
@@ -566,6 +567,8 @@ __all__ = [
     "GAME_ENGINE",
     "GAME_ENGINE_ALPHA",
     "GAME_ENGINE_INIT",
+    "GAME_ENGINE_INIT_ARGC",
+    "GAME_ENGINE_INIT_ARGV",
     "GAME_ENGINE_INIT_GLOBAL_DATA_CALL",
     "GAME_ENGINE_INIT_GLOBAL_DATA_CALL_BYTES",
     "GAME_ENGINE_INIT_MOD_CALL",
@@ -574,11 +577,25 @@ __all__ = [
     "GAME_ENGINE_SET_FPS_SLOT",
     "GAME_ENGINE_SUB_FRAME",
     "GAME_ENGINE_SUB_FRAME_RATIO",
+    "GAME_INFO_GAME_TYPE",
     "GAME_INFO_GET_SLOT",
+    "GAME_INFO_GSID",
     "GAME_INFO_MAP",
+    "GAME_INFO_MAP_CONTENTS_MASK",
     "GAME_INFO_MAP_CRC",
     "GAME_INFO_MAP_SIZE",
     "GAME_INFO_OPTIONS",
+    "GAME_INFO_PARSE",
+    "GAME_INFO_PARSE_ENTRY",
+    "GAME_INFO_PARSE_KEYS",
+    "GAME_INFO_PARSE_KEYS_BYTES",
+    "GAME_INFO_RULES",
+    "GAME_INFO_RULES_COUNT",
+    "GAME_INFO_SEED",
+    "GAME_INFO_SET_MAP",
+    "GAME_INFO_SET_MAP_CRC",
+    "GAME_INFO_SET_MAP_SIZE",
+    "GAME_INFO_SI",
     "GAME_INFO_SIZE",
     "GAME_INFO_SLOT_ARRAY",
     "GAME_INFO_SLOT_COUNT",
@@ -615,9 +632,13 @@ __all__ = [
     "GAME_SLOT_START_POS",
     "GAME_SLOT_START_POS_GRANTED",
     "GAME_SLOT_STATE",
+    "GAME_SLOT_STATE_BRUTAL_AI",
     "GAME_SLOT_STATE_CLOSED",
     "GAME_SLOT_STATE_EASY_AI",
+    "GAME_SLOT_STATE_HARD_AI",
     "GAME_SLOT_STATE_LOCAL_HUMAN",
+    "GAME_SLOT_STATE_MEDIUM_AI",
+    "GAME_SLOT_STATE_OPEN",
     "GAME_SLOT_TEAM",
     "GAME_STATE_REGISTER_SNAPSHOT",
     "GAME_TEXT_FORMAT_SLOT",
@@ -1509,6 +1530,9 @@ __all__ = [
     "WINDOW_TRANSITION_REVERSE",
     "WINDOW_TRANSITION_REVERSE_BYTES",
     "WINDOW_TRANSITION_SET_GROUP",
+    "WORLDBUILDER_ASCIISTRING_SET",
+    "WORLDBUILDER_ASCIISTRING_SET_2",
+    "WORLDBUILDER_ASCIISTRING_SET_LENGTH",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_CTOR",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_DTOR",
@@ -1520,6 +1544,11 @@ __all__ = [
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CLEANUP",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_RUNTIME_FACTORY_STOCK",
+    "WORLDBUILDER_PARAMETER_UI_TEXT_SWITCH",
+    "WORLDBUILDER_SCRIPT_ACTION_TEMPLATES_INIT",
+    "WORLDBUILDER_SCRIPT_CONDITION_TEMPLATES_INIT",
+    "WORLDBUILDER_SCRIPT_TEMPLATE_FLAGS_OR",
+    "WORLDBUILDER_STRLEN",
     "WRITE_MINI_DUMP",
     "WRITE_MINI_DUMP_BYTES",
     "WRITE_MINI_DUMP_CALL_FILTER",
@@ -1735,6 +1764,43 @@ GAME_INFO_MAP_SIZE = 0x48
 GAME_INFO_OPTIONS = 0x5C
 GAME_INFO_STARTING_RESOURCES = 0x70
 
+# The header fields `ParseAsciiStringToGameInfo` commits, named by the key each is parsed from
+# (`docs/game-info.md` §7). `GAME_TYPE` (`GT`) is the first dword of what §4 calls the options
+# block - its setter re-seeds the rules from it - and `RULES` (`GR`) is the ten dwords after it,
+# copied in with one `memcpy`, so `GAME_INFO_STARTING_RESOURCES` is rule 4. `MAP_CONTENTS_MASK`
+# is the hex prefix of `M=`, and `SI`'s meaning is unknown: -1 in every replay.
+GAME_INFO_MAP_CONTENTS_MASK = 0x4C
+GAME_INFO_SEED = 0x50
+GAME_INFO_SI = 0x58
+GAME_INFO_GAME_TYPE = 0x5C
+GAME_INFO_RULES = 0x60
+GAME_INFO_RULES_COUNT = 10
+GAME_INFO_GSID = 0x88
+
+# `ParseAsciiStringToGameInfo(GameInfo *, AsciiString, bool keepNames)` - `__cdecl`, the caller
+# pops twelve bytes, and the string arrives **by value** and is destroyed by the callee. It is the
+# inverse of the replay header's `GameInfoToAsciiString` (`0x008023C1`): replay playback
+# (`0x0077F280`) and the skirmish lobby's `Skirmish.ini` load (`0x00821D2E`, into
+# `TheSkirmishGameInfo`) both call it. It parses into eight local slots and commits nothing
+# unless every one of `M MC MS SD GSID GT SI GR S` was seen and every slot token parsed, so a
+# rejected string leaves the target untouched. `keepNames` false lets an `H` slot with no name
+# keep the one the target already holds.
+GAME_INFO_PARSE = 0x00802DBA
+GAME_INFO_PARSE_ENTRY = bytes.fromhex("b8ca90b900")
+#: The parser's key strings, in the order they sit in `.rdata` - which is also how a build whose
+#: parser moved is refused, since nothing else references this run.
+GAME_INFO_PARSE_KEYS = 0x00C4E73C
+GAME_INFO_PARSE_KEYS_BYTES = (
+    b"SI\x00\x00GT\x00\x00GSID\x00\x00\x00\x00GR\x00\x00SD\x00\x00MS\x00\x00%X\x00\x00MC\x00\x00"
+)
+
+# The three map setters, each `__thiscall` with one stack argument and `ret 4`; `setMap`'s is an
+# `AsciiString` by value, which it destroys. `setMapCRC` and `setMapSize` store the value and then
+# consult `TheMapCache`, so a cave restoring them calls the setter rather than writing the field.
+GAME_INFO_SET_MAP = 0x00801C46
+GAME_INFO_SET_MAP_CRC = 0x0080298E
+GAME_INFO_SET_MAP_SIZE = 0x00802A49
+
 # `GameSlot`, `0x1B8` bytes. The three `ORIGINAL_` fields mirror their counterparts - the lobby's
 # requested-versus-granted pair - and every sample taken has them equal. `MAP_PLAYER` is an
 # `AsciiString` reading `Player_<START_POS + 1>`: it binds a seat to the map-side player that owns
@@ -1785,9 +1851,14 @@ GAME_INFO_GET_SLOT = 0x00800B55
 
 # `GameSlot::m_state`. 1, 2 and 6 are the values observed; the display name at `GAME_SLOT_NAME`
 # reads "Closed" and "Easy" against the first two, which is what names them. `GameSlot::isHuman`
-# (`0x008009A7`) is exactly `m_state == 6`.
+# (`0x008009A7`) is exactly `m_state == 6`. The rest are read out of `GAME_INFO_PARSE`, which maps
+# the slot letters straight onto them: `O` 0, `X` 1, `CE`/`CM`/`CH`/`CB` 2-5 and `H` 6.
+GAME_SLOT_STATE_OPEN = 0
 GAME_SLOT_STATE_CLOSED = 1
 GAME_SLOT_STATE_EASY_AI = 2
+GAME_SLOT_STATE_MEDIUM_AI = 3
+GAME_SLOT_STATE_HARD_AI = 4
+GAME_SLOT_STATE_BRUTAL_AI = 5
 GAME_SLOT_STATE_LOCAL_HUMAN = 6
 
 # The tail of the `-file` auto-start's skirmish branch: `push 2` / `mov ecx, edi` /
@@ -5490,6 +5561,11 @@ PREFERENCES_MAP_FIND = 0x00456726
 #: (`jmp dword [0x00BD06B4]`). All three are called from more than one cave.
 ASCII_STRING_CTOR = 0x004374E0
 ASCII_STRING_DTOR = 0x00435D50
+
+#: `AsciiString`'s copy constructor - `__thiscall`, the source `AsciiString *` on the stack,
+#: `ret 4`. It takes a reference rather than copying characters, which is how every by-value
+#: `AsciiString` argument is built: reserve the slot, point `ecx` at it, call this.
+ASCII_STRING_COPY_CTOR = 0x00435F30
 STRICMP = 0x00A3CF40
 
 # The ObjectImageUpgrade module's registration, stock TooltipUpgrade construction/layout twin,
@@ -5532,6 +5608,24 @@ WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_PARSER = 0x006D4C30
 # Use the same jump thunks the stock registration sequence calls, not private local aliases.
 WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_CTOR = 0x00402EE1
 WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_DTOR = 0x0040B0E6
+
+# Worldbuilder.exe's script template tables (`docs/worldbuilder-script-templates.md`). Two
+# debug-build functions fill fixed 0x80-byte records from `this+0x20`: actions at records 0-599,
+# conditions from record 600. Both take the table owner in ecx and end at their only `ret`.
+WORLDBUILDER_SCRIPT_ACTION_TEMPLATES_INIT = 0x00FE0AF0
+WORLDBUILDER_SCRIPT_CONDITION_TEMPLATES_INIT = 0x00FD8100
+# `push b; push a; call` returning `a | b`, the value stored in a record's flags field.
+WORLDBUILDER_SCRIPT_TEMPLATE_FLAGS_OR = 0x00FF3380
+# The AsciiString setters those functions call with the destination in ecx: two `(const char *)`
+# thunks, and the `(const char *, length)` routine behind them that inlined sets call directly.
+WORLDBUILDER_ASCIISTRING_SET = 0x00405191
+WORLDBUILDER_ASCIISTRING_SET_2 = 0x00402513
+WORLDBUILDER_ASCIISTRING_SET_LENGTH = 0x00710DC0
+# The CRT `strlen` the inlined sets measure their literal with.
+WORLDBUILDER_STRLEN = 0x016C368C
+# `Parameter::getUiText`'s jump table over the 78 parameter types (`cmp type, 0x4d`); each case
+# prints one argument, and the enum cases hold their value names.
+WORLDBUILDER_PARAMETER_UI_TEXT_SWITCH = 0x00AAE408
 
 # The persistent left spellbook bar, not the purchase-science / spellstore window.
 # Original game.dat, verified against the cache function and its update caller.
@@ -6232,6 +6326,13 @@ GAME_ENGINE_INIT_GLOBAL_DATA_CALL = 0x0063AFA4
 GAME_ENGINE_INIT_GLOBAL_DATA_CALL_BYTES = bytes.fromhex("e85bb4ffff")
 GAME_ENGINE_INIT_MOD_CALL = 0x0063AFB2
 GAME_ENGINE_INIT_MOD_CALL_BYTES = bytes.fromhex("e88dfa1700")
+
+#: `GameEngine::init(int argc, char **argv)` keeps both where it received them - the mod call
+#: above pushes `[ebp+0xC]` and `[ebp+8]` - and its frame is still live at
+#: `COMMAND_LINE_SKIRMISH_SETUP`, the auto-start at the tail of the same function. They are `ebp`
+#: displacements. The CRT builds `argv` (`__getmainargs`), so a quoted argument arrives whole.
+GAME_ENGINE_INIT_ARGC = 0x08
+GAME_ENGINE_INIT_ARGV = 0x0C
 COMMAND_LINE_PARSE_AND_MOUNT_MODS = 0x007BAA44
 COMMAND_LINE_PARSE = 0x007BA7E1
 COMMAND_LINE_STARTUP_TABLE = 0x00C35DA8

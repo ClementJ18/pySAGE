@@ -1,12 +1,15 @@
-"""Reader and writer for `.scb` files: WorldBuilder's "Export Scripts" script library.
+"""Reader and writer for `.scb` files: WorldBuilder's map data export.
 
 A `.scb` uses the exact same `CkMp` asset-table container as `.map` (see `sage_map.map`), but
-carries only the script-related subset of a map's assets plus three assets that exist nowhere
-in a `.map`: `ScriptImportSize` (a persisted dialog size), `ScriptsPlayers` (which players the
-scripts were exported for) and `ScriptTeams` (the map's teams, re-exported so WorldBuilder can
-remap team references on import). Six of the nine top-level assets - `PlayerScriptsList`,
-`NamedCameras`, `CameraAnimationList`, `ObjectsList`, `TriggerAreas`, `WaypointsList` - are the
-same classes `sage_map.assets` already parses for `.map`.
+carries the parts of a map WorldBuilder's Export Options chose, plus assets that exist nowhere
+in a `.map`: `ScriptImportSize` (the exporting map's heightmap size), `ScriptsPlayers` (which
+players the scripts were exported for), `ScriptTeams` (the map's teams, re-exported so
+WorldBuilder can remap team references on import), `ScriptPassability` (the cells' attributes)
+and `ScriptApplyHeight` (whether an import applies the heights). The others are the classes
+`sage_map.assets` already parses for `.map`: the scripts, cameras, objects, trigger areas and
+waypoints every export carries, and the water, terrain and lighting an export may add. The
+order they are written in is `MapDataImportExport`'s writer's (`0x005350F3`); an export of
+scripts alone carries only the first nine.
 
 `extract_scripts`/`inject_scripts` bridge to `sage_map.map.Map`: extracting builds a library the
 way WorldBuilder's "export all" does, and injecting replaces a map's `player_scripts_list` with a
@@ -25,14 +28,22 @@ from sage_utils import refpack
 from sage_utils.stream import BinaryStream
 
 from .assets import (
+    BlendTileData,
     CameraAnimationList,
+    GlobalLighting,
+    HeightMapData,
     NamedCameras,
     ObjectsList,
     PlayerScriptsList,
+    RiverAreas,
+    ScriptApplyHeight,
     ScriptImportSize,
+    ScriptPassability,
     ScriptPlayer,
     ScriptsPlayers,
     ScriptTeams,
+    StandingWaterAreas,
+    StandingWaveAreas,
     TriggerAreas,
     WaypointsList,
 )
@@ -95,6 +106,14 @@ class ScriptLibrary:
     trigger_areas: TriggerAreas | None
     script_teams: ScriptTeams | None
     waypoints_list: WaypointsList | None
+    script_passability: ScriptPassability | None
+    standing_water_areas: StandingWaterAreas | None
+    river_areas: RiverAreas | None
+    standing_wave_areas: StandingWaveAreas | None
+    height_map_data: HeightMapData | None
+    script_apply_height: ScriptApplyHeight | None
+    blend_tile_data: BlendTileData | None
+    global_lighting: GlobalLighting | None
 
     def __init__(self) -> None:
         self.compression_bytes = None
@@ -110,6 +129,14 @@ class ScriptLibrary:
         self.trigger_areas = None
         self.script_teams = None
         self.waypoints_list = None
+        self.script_passability = None
+        self.standing_water_areas = None
+        self.river_areas = None
+        self.standing_wave_areas = None
+        self.height_map_data = None
+        self.script_apply_height = None
+        self.blend_tile_data = None
+        self.global_lighting = None
 
     def parse(self, context: ParsingContext) -> None:
         context.parse_assets()
@@ -140,6 +167,27 @@ class ScriptLibrary:
             self.script_teams = ScriptTeams.parse(context)
         elif asset_name == WaypointsList.asset_name:
             self.waypoints_list = WaypointsList.parse(context)
+        elif asset_name == ScriptPassability.asset_name:
+            if self.script_import_size is None:
+                raise ValueError("ScriptPassability before the ScriptImportSize that sizes it")
+            size = self.script_import_size
+            self.script_passability = ScriptPassability.parse(context, size.width, size.height)
+        elif asset_name == StandingWaterAreas.asset_name:
+            self.standing_water_areas = StandingWaterAreas.parse(context)
+        elif asset_name == RiverAreas.asset_name:
+            self.river_areas = RiverAreas.parse(context)
+        elif asset_name == StandingWaveAreas.asset_name:
+            self.standing_wave_areas = StandingWaveAreas.parse(context)
+        elif asset_name == HeightMapData.asset_name:
+            self.height_map_data = HeightMapData.parse(context)
+        elif asset_name == ScriptApplyHeight.asset_name:
+            self.script_apply_height = ScriptApplyHeight.parse(context)
+        elif asset_name == BlendTileData.asset_name:
+            if self.height_map_data is None:
+                raise ValueError("BlendTileData before the HeightMapData that sizes it")
+            self.blend_tile_data = BlendTileData.parse(context, self.height_map_data)
+        elif asset_name == GlobalLighting.asset_name:
+            self.global_lighting = GlobalLighting.parse(context)
         else:
             raise ValueError(f"Unknown asset: {asset_name}")
 
@@ -158,10 +206,15 @@ class ScriptLibrary:
             context.assets_by_index = self.assets.copy()
             context.index_by_asset = {name: idx for idx, name in self.assets.items()}
 
-        # Fixed on-disk order, verified byte-level against all 12 real fixtures.
+        # Fixed on-disk order: WorldBuilder's writer's, verified byte-level against all 12 real
+        # fixtures for the chunks they carry.
         if self.script_import_size is not None:
             context.write_asset_name(ScriptImportSize.asset_name)
             self.script_import_size.write(context)
+
+        if self.script_passability is not None:
+            context.write_asset_name(ScriptPassability.asset_name)
+            self.script_passability.write(context)
 
         if self.player_scripts_list is not None:
             context.write_asset_name(PlayerScriptsList.asset_name)
@@ -187,6 +240,11 @@ class ScriptLibrary:
             context.write_asset_name(TriggerAreas.asset_name)
             self.trigger_areas.write(context)
 
+        for chunk in (self.standing_water_areas, self.river_areas, self.standing_wave_areas):
+            if chunk is not None:
+                context.write_asset_name(chunk.asset_name)
+                chunk.write(context)
+
         if self.script_teams is not None:
             context.write_asset_name(ScriptTeams.asset_name)
             self.script_teams.write(context)
@@ -194,6 +252,22 @@ class ScriptLibrary:
         if self.waypoints_list is not None:
             context.write_asset_name(WaypointsList.asset_name)
             self.waypoints_list.write(context)
+
+        if self.height_map_data is not None:
+            context.write_asset_name(HeightMapData.asset_name)
+            self.height_map_data.write(context)
+
+        if self.script_apply_height is not None:
+            context.write_asset_name(ScriptApplyHeight.asset_name)
+            self.script_apply_height.write(context)
+
+        if self.blend_tile_data is not None:
+            context.write_asset_name(BlendTileData.asset_name)
+            self.blend_tile_data.write(context)
+
+        if self.global_lighting is not None:
+            context.write_asset_name(GlobalLighting.asset_name)
+            self.global_lighting.write(context)
 
         asset_data = context.stream.getvalue()
         header_stream = BinaryStream(io.BytesIO())

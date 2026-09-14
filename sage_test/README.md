@@ -117,6 +117,41 @@ by a fixed wait — see `Match.cast_and_confirm`.
 
 `sage_test.run.run_scenario` is the same thing without pytest, for a script or a notebook.
 
+## Choosing the match
+
+**A scenario's seats are the match.** `run_scenario` turns them into a `-gameInfo` argument —
+the skirmish lobby's own string, the one a replay header and `Skirmish.ini` carry — and
+`command-line-skirmish` hands it to the engine's own lobby parser. So everything the lobby sets
+travels that way: factions, AI difficulty, teams, colours, start positions, starting resources
+and the seed.
+
+```python
+from sage_test.game_info import LobbySettings
+
+scenario = Scenario("siege", seats=(
+    Seat.human(faction=3, start_position=0, team=0),
+    Seat.computer(faction=10, difficulty="brutal", start_position=1, team=1),
+    Seat.computer(faction=12, difficulty="hard", start_position=2, team=1),
+))
+settings = LobbySettings(starting_resources=10000, seed=42)
+with run_scenario(scenario, install, template, settings=settings) as match:
+    ...
+```
+
+`run_map` and `run_user_map` take `seats=` and `settings=` as well; leave them out and the patch
+starts its built-in two-seat match. `sage_test.game_info.game_info_string` builds the string for
+anything that launches a game itself.
+
+**The parser is all-or-nothing, and the game survives a refusal** — it starts the default match
+instead, and records the rejection in the patch's section (`CommandLineSkirmishPatch.status_va`).
+So `game_info_string` refuses, naming the seat, everything the parser would refuse and a few things
+nothing has shown a `-file` start handling: other than exactly one human, a shared start position
+or one outside 0..7, a random faction or colour, a team outside -1..3.
+
+**Not yet run in a game.** The parser's contract is read from the disassembly and the cave is
+exercised under an emulator (`sage_patch/docs/game-info.md` §7); the first live launch is what
+confirms both.
+
 ## Starting a map that already exists
 
 A scenario always runs on a *generated* map, and one thing does not travel with it: the map's own

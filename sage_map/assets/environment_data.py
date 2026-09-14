@@ -73,5 +73,6 @@ class EnvironmentData:
             if self.version >= 4:
                 context.stream.writeUInt16PrefixedAsciiString(cast(str, self.unknown_texture))
 
-            if self.version >= 6:
-                context.stream.writeUInt16PrefixedAsciiString(cast(str, self.unknown_texture2))
+            # Optional even at v6+: parse reads it only when the chunk has bytes left.
+            if self.version >= 6 and self.unknown_texture2 is not None:
+                context.stream.writeUInt16PrefixedAsciiString(self.unknown_texture2)

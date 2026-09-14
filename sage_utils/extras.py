@@ -1,11 +1,10 @@
 """Turning a missing optional extra into a clear instruction instead of a traceback.
 
-The desktop entry points (`sage-ui`, `sage-wiki`, `sage-lint-ui`, `sage-asset-ui`, `sage-cah-ui`)
-are declared in `[project.gui-scripts]`, so pip installs them all whatever extras were selected.
-Running one
-without its extra therefore reaches a real, working script that dies on `import PyQt6` - a raw
-`ModuleNotFoundError` that says nothing about what to install. These helpers check first and
-exit with the exact pip command instead.
+The desktop entry points (`sage-ui`, `sage-wiki`, `sage-lint-ui`, `sage-asset-ui`, `sage-cah-ui`,
+`sage-worldbuilder`) are declared in `[project.gui-scripts]`, so pip installs them all whatever
+extras were selected. Running one without its extra therefore reaches a real, working script
+that dies on `import PyQt6` - a raw `ModuleNotFoundError` that says nothing about what to
+install. These helpers check first and exit with the exact pip command instead.
 
 Kept Qt-free and dependency-free, and deliberately using `find_spec` rather than a `try: import`,
 so the check itself never drags Qt into a process that only wants the core library.

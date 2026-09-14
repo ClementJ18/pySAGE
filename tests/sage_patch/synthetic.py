@@ -13,6 +13,10 @@ different binary. Its sites are ~35 MB apart in a 34 MB executable, so rather th
 it maps only the pages the patch touches, as several small sections - which `va_to_offset` handles
 exactly as it handles the real thing.
 
+:func:`cah_factions_worldbuilder_image` is a third: `cah-factions-wb` repoints the editor's two
+copies of the Create-A-Hero side table and raises ten copies of its bit count, spread over eleven
+megabytes.
+
 :func:`instance_guard_image` builds the same way, and builds both stand-ins the `multi-instance`
 pair needs: `game.dat`'s two guards and `lotrbfme2ep1.exe`'s one live in different binaries, so the
 image is chosen by which patch is under test.
@@ -47,6 +51,7 @@ from sage_patch.patches import ai_command_null_target as acnt
 from sage_patch.patches import ai_flag_capture_gate as afc
 from sage_patch.patches import ai_hero_build_delay as ahbd
 from sage_patch.patches import banner_modifier as bm
+from sage_patch.patches import cah_factions as cf
 from sage_patch.patches import commandset_button_upgrade as cbu
 from sage_patch.patches import crash_dump as cd
 from sage_patch.patches import deploy_before_attack as dba
@@ -1645,3 +1650,44 @@ def summon_carryover_image() -> bytearray:
             **sc.ANCHORS,
         }
     )
+
+
+#: Where the Create-A-Hero faction stand-in parks its nine stock name strings: a page nothing else
+#: in that image uses. The patch reaches them through the table's own pointers, never by address.
+WB_SIDE_STRINGS_VA = 0x01E79000
+
+
+def cah_factions_worldbuilder_image() -> bytearray:
+    """A stand-in for `Worldbuilder.exe`, mapping the pages `cah-factions-wb` touches.
+
+    Sparse for the usual reason: the editor's `UsableFactions` parse path, its `getSideIndex` and
+    the five inlined `BitFlags<9,FactionType>::test` readers are spread over eleven megabytes.
+
+    The code copy of the table straddles a page boundary in the real binary - it starts at
+    `0x02231FEC`, twenty bytes short of the end of its page - so it is planted as two blobs. The
+    two pages come out adjacent in the file, which is what lets the table be read as one run.
+    """
+    stock_vas = []
+    strings = bytearray()
+    for name in cf.STOCK_SIDES:
+        stock_vas.append(WB_SIDE_STRINGS_VA + len(strings))
+        strings += name.encode("ascii") + b"\x00"
+    table = struct.pack(f"<{len(stock_vas) + 1}I", *stock_vas, 0)
+
+    split = 0x1000 - (cf.WORLDBUILDER_TABLE_VA & 0xFFF)
+    planted: dict[int, bytes] = {
+        WB_SIDE_STRINGS_VA: bytes(strings),
+        cf.WORLDBUILDER_TABLE_VA: table[:split],
+        cf.WORLDBUILDER_TABLE_VA + split: table[split:],
+        cf.WORLDBUILDER_INI_TABLE_VA: table,
+        cf.WORLDBUILDER_DEFAULT_FACTION_USERDATA_VA: struct.pack(
+            "<I", cf.WORLDBUILDER_INI_TABLE_VA
+        ),
+    }
+    for va, prefix in cf.WORLDBUILDER_TABLE_REF_SITES:
+        planted[va] = prefix + struct.pack("<I", cf.WORLDBUILDER_TABLE_VA)
+    for va, prefix in cf.WORLDBUILDER_BOUND_SITES:
+        planted[va] = prefix + bytes([len(cf.STOCK_SIDES)])
+    terminator_va, terminator_prefix = cf.WORLDBUILDER_TERMINATOR_SITE
+    planted[terminator_va] = terminator_prefix + struct.pack("<I", cf.WORLDBUILDER_TERMINATOR_VA)
+    return _sparse_image(planted)

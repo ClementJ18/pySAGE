@@ -1,4 +1,4 @@
-"""Tests for the second-resource patch (phase 1).
+"""Tests for the second-resource patch.
 
 The patch is hand-encoded x86 in a cave plus five edits to engine bytes, and none of that fails
 loudly when it is wrong: a mis-encoded displacement assembles, applies and verifies, and then the
@@ -644,7 +644,8 @@ class TestComposition:
 
 
 class TestTheCost:
-    """Phase 2: `Object.BuildCost2`, the gate that refuses it and the withdrawal that takes it."""
+    """The spend half: `Object.BuildCost2`, the gate that refuses it and the withdrawal that
+    takes it."""
 
     def test_the_field_is_stored_in_the_cave_not_on_the_template(self, patched):
         """`ThingTemplate` has no hole. The 2-byte gap at +0x5E8 that looks like one is the

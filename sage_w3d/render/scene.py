@@ -145,6 +145,8 @@ class RenderMesh:
     sort_level: int
     skin: MeshSkin | None = None
     rigid_bone: int | None = None
+    # The first shader's alpha test: texels below half opacity are not drawn (foliage).
+    alpha_test: bool = False
 
 
 @dataclass
@@ -156,9 +158,14 @@ class Scene:
     hierarchy: Hierarchy | None = None
 
 
-def build_scene(model: W3DFile, resolver: AssetResolver | None = None) -> Scene:
+def build_scene(
+    model: W3DFile, resolver: AssetResolver | None = None, skeleton: str | None = None
+) -> Scene:
+    """The model's meshes placed on its skeleton: the hierarchy inside the file, else
+    `skeleton` (a game object's condition state names one) through `resolver`, else the one
+    its HLOD names."""
     diagnostics: list[str] = []
-    hierarchy = _resolve_hierarchy(model, resolver)
+    hierarchy = _resolve_hierarchy(model, resolver, skeleton)
     bone_worlds = _pivot_world_matrices(hierarchy) if hierarchy is not None else []
     bones = (
         [(p.name.value, w) for p, w in zip(hierarchy.pivots, bone_worlds, strict=True)]
@@ -196,6 +203,7 @@ def build_scene(model: W3DFile, resolver: AssetResolver | None = None) -> Scene:
                 sort_level=header.sort_level if header else 0,
                 skin=_mesh_skin(mesh, bone_worlds, pairs),
                 rigid_bone=None if is_skin else bone_index,
+                alpha_test=_mesh_alpha_test(mesh),
             )
         )
 
@@ -212,9 +220,15 @@ def _mesh_full_name(mesh: Mesh) -> str:
     return f"{mesh.container_name}.{mesh.name}" if mesh.container_name else mesh.name
 
 
-def _resolve_hierarchy(model: W3DFile, resolver: AssetResolver | None) -> Hierarchy | None:
+def _resolve_hierarchy(
+    model: W3DFile, resolver: AssetResolver | None, skeleton: str | None = None
+) -> Hierarchy | None:
     if model.hierarchy is not None:
         return model.hierarchy
+    if skeleton and resolver is not None:
+        named = resolver.find_hierarchy(skeleton)
+        if named is not None and named.hierarchy is not None:
+            return named.hierarchy
     hlod = model.hlod
     if hlod is None or resolver is None:
         return None
@@ -303,6 +317,13 @@ def _influence_pair(influence: VertexInfluence, num_pivots: int) -> _InfluencePa
     weight scale is not consistently 0-10000 across real files (some exporters wrote 0-100
     directly), so weights are normalized against each other rather than assumed to total any
     fixed constant - "leniently", per the format's own inconsistency."""
+    if influence.bone_weight_raw == 0 and influence.xtra_weight_raw == 0:
+        # Rigid skinning stores no weights at all: the vertex follows its one bone fully.
+        # Each posed mesh then lies inside its header's own bounds, as it does for skins
+        # that store their weights.
+        return (
+            (influence.bone_idx, 1.0, 0, 0.0) if influence.bone_idx < num_pivots else _NO_INFLUENCE
+        )
     weighted: list[tuple[int, float]] = []
     bone_weight = influence.bone_weight_raw / 10000
     if bone_weight > 0 and influence.bone_idx < num_pivots:
@@ -426,14 +447,30 @@ def _flatten_uvs(uvs: list[tuple[float, float]], vertex_count: int) -> list[floa
     return out
 
 
+def _shader_material_properties(mesh: Mesh) -> dict[str, object]:
+    """The first FX shader material's properties by lower-case name. A mesh drawn with an FX
+    shader (`NormalMapped.fx` and the like) names its textures, colours and alpha test there
+    rather than in its material passes."""
+    materials = mesh.shader_materials
+    if materials is None:
+        return {}
+    for material in materials.chunks:
+        properties = getattr(material, "properties", None)
+        if properties is not None:
+            return {prop.name.lower(): prop.value for prop in properties}
+    return {}
+
+
 def _mesh_texture_name(mesh: Mesh) -> str | None:
     passes = mesh.material_passes
-    if not passes:
-        return None
-    stages = passes[0].texture_stages
-    if not stages or not stages[0].texture_ids:
-        return None
-    return _texture_name(mesh, stages[0].texture_ids[0])
+    if passes:
+        stages = passes[0].texture_stages
+        if stages and stages[0].texture_ids:
+            name = _texture_name(mesh, stages[0].texture_ids[0])
+            if name is not None:
+                return name
+    texture = _shader_material_properties(mesh).get("diffusetexture")
+    return texture if isinstance(texture, str) and texture else None
 
 
 def _texture_name(mesh: Mesh, index: int) -> str | None:
@@ -453,12 +490,23 @@ def _mesh_base_color(mesh: Mesh) -> tuple[float, float, float, float]:
                 if info is not None:
                     d = info.diffuse
                     return (d.r / 255, d.g / 255, d.b / 255, d.a / 255)
+    color = _shader_material_properties(mesh).get("diffusecolor")
+    if isinstance(color, tuple) and len(color) == 4:
+        red, green, blue, alpha = (float(channel) for channel in color)
+        return (red, green, blue, alpha)
     return (1.0, 1.0, 1.0, 1.0)
 
 
 def _mesh_translucent(mesh: Mesh) -> bool:
     shaders = mesh.shaders
     return bool(shaders) and shaders[0].dest_blend != 0
+
+
+def _mesh_alpha_test(mesh: Mesh) -> bool:
+    shaders = mesh.shaders
+    if shaders:
+        return shaders[0].alpha_test != 0
+    return bool(_shader_material_properties(mesh).get("alphatestenable"))
 
 
 def _compute_bounds(render_meshes: list[RenderMesh]) -> tuple[Vec3, Vec3]:

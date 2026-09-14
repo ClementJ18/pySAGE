@@ -23,7 +23,10 @@ from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.banner_modifier import BannerModifierPatch
 from sage_patch.patches.binary_attest import BinaryAttestPatch
-from sage_patch.patches.cah_factions import CahFactionsPatch
+from sage_patch.patches.cah_factions import (
+    CahFactionsPatch,
+    CahFactionsWorldbuilderPatch,
+)
 from sage_patch.patches.campaign_army_verbs import CampaignArmyVerbsPatch
 from sage_patch.patches.castle_unpack_clearance import CastleUnpackClearancePatch
 from sage_patch.patches.combo_horde_recruitment import ComboHordeRecruitmentPatch
@@ -160,6 +163,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     BattleSchoolPatch,
     BinaryAttestPatch,
     CahFactionsPatch,
+    CahFactionsWorldbuilderPatch,
     CampaignArmyVerbsPatch,
     CampaignSelectPatch,
     CaptureTheFlagPatch,

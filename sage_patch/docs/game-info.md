@@ -15,6 +15,8 @@ both seats created with the right factions, bases unpacked, income flowing, fram
 `command-line-skirmish` (`patches/experimental/command_line_skirmish.py`) does it in the binary.
 §6 records the procedure the patch implements, which is also how it was worked out: by writing the
 five things into a running process with `ProcessMemory(writable=True)` before any byte was patched.
+§7 is the engine's own lobby-string parser, which the patch hands a `-gameInfo` switch to so the
+command line can choose the match; that part is read statically and has not been run in a game.
 
 **A section-modified `game.dat` only runs under that name.** The same bytes renamed die instantly
 with an access violation inside `msvcr71.dll`, while an *unpatched* copy runs under any name — so a
@@ -143,10 +145,14 @@ Six consecutive dwords that a menu game fills and the auto-start leaves at `-1`:
 
 | offset | menu game | what |
 |---|---|---|
-| `+0x5C`, `+0x60`, `+0x64` | 0 | unidentified |
-| `+0x68` | 1 | unidentified |
-| `+0x6C` | 100 | unidentified |
-| `+0x70` | 1000 | **starting resources** — writing 1000 into an auto-start gave both players exactly 1000 |
+| `+0x5C` | 0 | `GT`, the game type — its setter re-seeds the rules below ([§7](#7-choosing-the-match--gameinfo-and-the-engines-own-lobby-parser)) |
+| `+0x60`, `+0x64` | 0 | `GR` rules 0 and 1, unidentified |
+| `+0x68` | 1 | rule 2, unidentified |
+| `+0x6C` | 100 | rule 3, unidentified |
+| `+0x70` | 1000 | rule 4, **starting resources** — writing 1000 into an auto-start gave both players exactly 1000 |
+
+The block does not end at `+0x70`: the parser copies ten rules, so it runs to `+0x87`, and the
+trailing five are `-1` in every replay.
 
 `+0x70` is the field, and it is literal rather than scaled. Left at `-1` the engine falls back to
 a path that ends at **4999** per player, one short of the 5000 an Edain fortress costs — so the
@@ -200,11 +206,11 @@ from the start position, not from the slot index.
 
 | value | meaning | evidence |
 |---|---|---|
+| 0 | open | the lobby parser's `O` token ([§7](#slot-tokens)); unobserved live |
 | 1 | closed | `+0x30` reads `"Closed"`; the auto-start writes 1 into slots 1–7 |
 | 2 | easy AI | `+0x30` reads `"Easy"` on a seat configured as an easy AI |
+| 3, 4, 5 | medium, hard, brutal AI | the lobby parser's `CM`, `CH`, `CB` tokens ([§7](#slot-tokens)); unobserved live |
 | 6 | local human | the auto-start's `push 6`, and `setSlot`'s special case for slot 0 |
-
-0, 3, 4 and 5 are unobserved; the medium/brutal AI values and "open" are the obvious candidates.
 
 ### What the auto-start leaves unset
 
@@ -302,24 +308,110 @@ with no counterpart under `Player_1` — a human is expected to buy the fortress
 their start position, which is why the starting-resource field is load-bearing rather than
 cosmetic.
 
+## 7. Choosing the match: `-gameInfo` and the engine's own lobby parser
+
+The auto-start takes no settings, but the engine can already read a whole lobby from a string.
+**`ParseAsciiStringToGameInfo`** (`0x00802DBA`) is the inverse of `GameInfoToAsciiString`
+(`0x008023C1`, the replay header's writer — see [`skirmish-replay.md`](skirmish-replay.md)). Its
+seven callers include replay playback (`0x0077F280`) and the skirmish lobby's `Skirmish.ini` load
+(`0x00821D2E`, which parses straight into `TheSkirmishGameInfo`). `command-line-skirmish` hands it
+the value of a `-gameInfo` switch. Read statically on 2026-09-15.
+
+### The call
+
+`bool __cdecl ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options, bool keepNames)`.
+The caller pops twelve bytes (`add esp, 0xc` at `0x0077F285`), the string arrives by value and the
+callee destroys it (`0x00803BAB`). With `keepNames` false it first copies each target slot's
+display name (`+0x30`), which an `H` slot with an empty name then keeps.
+
+### What it accepts
+
+Tokens split on `;` (`0x00BD3408`); the key ends at `=` (`0x00C04C28`) and the value runs to `\n`
+(`0x00BD4444`), so values may hold spaces. Keys are compared against the table at `0x00C4E73C`:
+
+| key | parsed as | committed to |
+|---|---|---|
+| `M` | at least 3 chars; the first 3 through `strtol(…, 16)` | contents mask `+0x4C`; the rest through `0x00802161`, then `setMap` |
+| `MC` | `%X` | `setMapCRC` (`0x0080298E`) |
+| `MS` | `atoi` | `setMapSize` (`0x00802A49`) |
+| `SD` | `atoi` | `+0x50` — the seed |
+| `GSID` | `%X` | `+0x88` |
+| `GT` | `atoi` | `0x00800A5D`: stores `+0x5C` and, when it changed, re-seeds the rules from it |
+| `SI` | `atoi` | `+0x58` |
+| `GR` | `0x009609D9` into a 40-byte local | `memcpy` to `+0x60`, after `GT` |
+| `S` | eight `:`-separated slot tokens | `setSlot(i, slot)` (`0x008016C3`) for all eight |
+
+**An unknown key fails the string** (`0x00803A32`) — `SC`, which `sage_replay` models, included.
+
+**All-or-nothing.** The slots are built in eight local `GameSlot`s (`[ebp-0xEDC]`), and ten flags
+— one per key plus an overall one any bad slot clears — are all tested at
+`0x00803A5B`–`0x00803AAF` before anything is written. A rejected string leaves the target exactly
+as it was.
+
+### Slot tokens
+
+The first character picks the kind; fields split on `,` (`0x00BD5AD0`):
+
+| token | state | fields, with the parser's range checks |
+|---|---|---|
+| `O` | 0 open | — |
+| `X` | 1 closed | — |
+| `H<name>` | 6 | ip `%x`, port `%d`, two `T`/`F` flags (`+0x08`, `+0x09`), colour `-1..colours-1`, faction `-2..templates-1`, start position `>= -1`, team `-1..3`, a handicap `-100..0` (`+0x20`), `0..256` (`+0x40`), one more handed to `0x00801289` |
+| `CE` `CM` `CH` `CB` | 2 3 4 5 | colour, faction, start position, team, handicap, the `0x00801289` field |
+
+That completes §4's `state` enum: open 0, closed 1, easy 2, medium 3, hard 4, brutal 5, human 6. A
+human is eleven comma fields and an AI seven — exactly the shapes a real `Skirmish.ini` holds
+(`HBen,0,0,TT,0,3,51,0,0,1,19` and `CB,1,10,27,1,0,0`). A missing field, a failed range check or an
+unknown kind clears the overall flag. The colour bound is `[0x00DE7D3C]+0x40`; the template bound
+is `ThePlayerTemplateStore`'s span divided by `0x1DC`.
+
+### The rules block, and a correction
+
+`GR`'s ten ints land at `+0x60`, directly after `GT` at `+0x5C`. So §4's options block is `GT`
+followed by the first four rules, and a menu game's `GR=0 0 1 100 1000 -1 -1 -1 -1 -1` puts 1000
+at `+0x70` — the field §4 measured as starting resources. **Rule 4 is starting resources.**
+`sage_replay.ReplayMetadata.starting_resources` and `command_points`, which read rules 3 and 4
+the other way round, are swapped. Rules 0–3 are unidentified.
+
+### What the patch does with it
+
+The cave walks `argv` from `GameEngine::init`'s own frame (`[ebp+8]`, `[ebp+0xC]` — still live at
+the hook, which is the same function's tail) comparing with `_stricmp`, so the command-line table
+is untouched. It saves what the `-file` start owns, constructs the `AsciiString` in its argument
+slot and calls the parser with `keepNames` false. On success it puts back the map path (saved as a
+counted copy), CRC and size through their setters, and the contents mask, `SI` and `GSID` —
+because the map being loaded is `-file`'s, and the string's map keys are only there to satisfy
+the parser. It then binds every slot in states 2–6 with a start position 0–7 to
+`Player_<startPos + 1>`: the parser's slots are freshly constructed, and `GameSlot::operator=`
+(`0x006DCBFF`) copies their empty `+0x34` over the target's. A status word after the section
+header reads 0 (no switch), 1 (applied) or 2 (rejected — the default two seats stand).
+
+`sage_test.game_info.game_info_string` builds the string from `Seat`s.
+
+**Status: static and emulated only.** The contract above is read from the disassembly, and the cave
+runs under Unicorn against a stand-in `GameInfo` (`tests/sage_patch/test_command_line_skirmish_emulated.py`).
+No game has been started with `-gameInfo`.
+
 ## Open
 
 1. **More play.** `command-line-skirmish` has had exactly one session: one map, one mod, two
    factions, 131 frames. It is `experimental` for that reason and not because anything is known to
    be wrong with it. The things most likely to break first are a map whose start positions are not
    0 and 1, a faction index that is not a playable side, and more than two seats — none of which
-   has been tried.
+   has been tried. **`-gameInfo` has not been launched at all**; the first run should read the
+   status word and the slots back with `ProcessMemory`.
 2. **Where does 4999 come from?** With `GameInfo+0x70` at `-1` both players start on 4999.
    Setting the field makes it literal, so the fallback path is unexamined — but it is the sort of
    thing that will resurface as a surprise somewhere else.
-3. **What are `+0x5C`, `+0x60`, `+0x64`, `+0x68`, `+0x6C`?** A menu game holds 0, 0, 0, 1, 100.
-   Only `+0x70` has been identified. Changing one option at a time in the lobby and re-dumping is
-   the same differential method that solved the slot fields.
+3. **What are rules 0–3?** §7 places the options block — `+0x5C` is `GT`, `+0x60` onwards the
+   `GR` rules — but a menu game's 0, 0, 1, 100 are still unnamed. Changing one option at a time in
+   the lobby and re-dumping is the same differential method that solved the slot fields.
 4. **Are `+0x10` and `+0x14` requested vs granted start position?** They hold the same value in
    every sample taken. Separating them needs a case where the two disagree — two seats asking for
    the same start position is the obvious way to force it.
-5. **The rest of the `state` enum.** 1, 2 and 6 are known. The medium and brutal AI values and
-   "open" are unobserved; a lobby with one seat of each would settle all of them in one read.
+5. **Does a `-file` start resolve a random pick?** The lobby writes `-1` for a random faction,
+   colour or start position and something resolves it before the match; whether that runs on
+   this path is unknown, so `sage_test` refuses all three.
 6. **What are `GameInfo+0x38`/`+0x3C`?** Seeded from slot 0 before the slot is configured, so they
    are read from a default-constructed slot. Live values `0` and `0x800000`.
 7. **Is `MapMetaData+0x24` really `isMultiplayer`?** It partitions the 431 cached maps exactly
@@ -327,6 +419,8 @@ cosmetic.
    field has not been traced to whatever writes it during the cache scan.
 8. **What does the menu slot class add in its extra `0x24` bytes?** Unexamined — it is not on the
    auto-start path, so nothing needs it yet.
+9. **What are slot `+0x40` and the field `0x00801289` takes?** Every replay holds 1 and 0 for a
+   human and 0 for an AI there, and `sage_test` writes the same.
 
 ## Method and provenance
 

@@ -1,4 +1,4 @@
-"""Phase 1: the typed script-argument layer over `sagemap`.
+"""The typed script-argument layer over `sagemap`.
 
 These are pure-data tests of `ARG_SPECS` / `typed_value` - no `Game`, no `.map` file needed.
 """
@@ -34,7 +34,7 @@ def test_reference_scopes_read_the_string_slot():
         (ScriptArgumentType.UPGRADE_NAME, Scope.GAME, "upgrades"),
         (ScriptArgumentType.COMMAND_BUTTON_NAME, Scope.GAME, "commandbuttons"),
         (ScriptArgumentType.SPECIAL_POWER_NAME, Scope.GAME, "specialpowers"),
-        (ScriptArgumentType.FACTION_NAME, Scope.GAME, "factions"),
+        (ScriptArgumentType.FACTION_NAME, Scope.LITERAL, None),
         (ScriptArgumentType.TEAM_NAME, Scope.MAP, "teams"),
         (ScriptArgumentType.WAYPOINT_NAME, Scope.MAP, "waypoints"),
         (ScriptArgumentType.SCRIPT_NAME, Scope.MAP, "scripts"),

@@ -11,7 +11,7 @@ current campaign/mission and its persistent-hero carry-over roster), and `CHUNK_
 to its object template table and per-object index - so `iter_objects` names every live object on
 the map. Object bodies and the deeper per-player/script state stay opaque, except that
 `sage_save.players` harvests the fatal upgrade/science names from `CHUNK_Players`.
-`sage_save.xref` (Phase 3) resolves the harvested ini-names against a
+`sage_save.xref` resolves the harvested ini-names against a
 `sage_ini` `Game`, reporting the danglers - "will this save still load under this mod tree".
 `sage_save.export` renders a save to JSON and `sage_save.edit` (`apply_json`) writes edited
 JSON attributes back onto a save (length-preserving edits only - see that module).

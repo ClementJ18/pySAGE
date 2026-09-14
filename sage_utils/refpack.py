@@ -15,6 +15,12 @@ match finding, identical tie-breaks and command encoding), so it reproduces the 
 encoder's output byte-for-byte on real game data. That byte-exact parity - shared by the
 native backend, which is the same algorithm at the same settings - is what lets `sage_map`
 re-save a map identical to the original file on disk, whichever backend runs.
+
+The two backends do diverge on inputs no map produces: the native encoder never copies from
+input position 0 and skips some short matches on tiny inputs, and it writes an invalid stream
+for a 1-byte input. Both outputs stay valid RefPack apart from that 1-byte case, so inputs
+below `NATIVE_MIN_SIZE` always take the pure path, and the self-test probe is shaped like a
+map (a unique header, then repetitive data) so it checks the behaviour that matters.
 """
 
 import sys
@@ -27,6 +33,14 @@ __all__ = ["compress", "decompress", "RefpackError", "RefpackPerformanceWarning"
 MAGIC_SECOND_BYTE = 0xFB
 MAX_WINDOW = 131072  # sliding window: back-references reach at most this far
 MAX_MATCH = 1028  # longest single back-reference the format can encode
+# Below this size the pure compressor is instant, and the native one mishandles 1-byte inputs.
+NATIVE_MIN_SIZE = 64
+# A map-shaped self-test input: a unique header, like a map's `CkMp` table, so no repeat
+# starts at byte 0, followed by text repeats, a zero run and a byte ramp to exercise every
+# command kind.
+_NATIVE_PROBE = (
+    b"CkMp" + bytes(range(1, 29)) + b"RefPack probe " * 8 + bytes(200) + bytes(range(256)) * 2
+)
 
 
 class RefpackError(ValueError):
@@ -154,14 +168,14 @@ def compress(data: bytes) -> bytes:
     """Encode raw bytes into a full RefPack stream (header + command body).
 
     Uses the native accelerator when it is available (see the module docstring),
-    otherwise the pure-Python compressor, warning once. Both produce byte-identical
-    output, so the choice never changes the bytes on disk - only the speed.
+    otherwise the pure-Python compressor, warning once. On map data both produce the
+    bytes EA's tools wrote, so the choice changes only the speed.
     """
     # Checked here, ahead of the native DLL, because the DLL writes a 3-byte size
     # field and would silently truncate an oversized input instead of rejecting it.
     if len(data) > 0xFFFFFF:
         raise RefpackError(f"input too large for a 3-byte RefPack size field: {len(data)} bytes")
-    if data:
+    if len(data) >= NATIVE_MIN_SIZE:
         native = _native_compressor()
         if native is not None:
             return native(data)
@@ -208,9 +222,8 @@ def _native_compressor() -> Callable[[bytes], bytes] | None:
         _warn_fallback("the native accelerator is not installed")
         return None
     handler = RefpackHandler()
-    probe = b"RefPack native backend self-test probe " * 4
     try:
-        ok = handler.compress_data(probe) == _compress_pure(probe)
+        ok = handler.compress_data(_NATIVE_PROBE) == _compress_pure(_NATIVE_PROBE)
     except Exception as exc:  # noqa: BLE001 - any native failure must fall back safely
         _warn_fallback(f"the native accelerator is not usable ({exc})")
         return None

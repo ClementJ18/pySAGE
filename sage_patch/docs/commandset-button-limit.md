@@ -8,7 +8,7 @@ surface that has to change to raise it to an arbitrary **N** — engine **and** 
 The applied patch that implements this — generalised to any N in 34..127 — is
 [`patches/commandset.py`](../patches/commandset.py) (`CommandSetLimitPatch(count=N)`); this doc
 is the reverse-engineering behind it. Paging past the on-screen 33 once a set holds more, and the
-visible-window clamp the same patch installs as Phase 3, are covered in
+visible-window clamp the same patch installs, are covered in
 [`push-visible-command-range.md`](push-visible-command-range.md).
 
 > Scope: static analysis of a game the author owns, for modding. Addresses are for
@@ -173,7 +173,7 @@ still points there calls slot 0 - `_purecall` at `0x0043B160` - and the skirmish
 game down with "Pure virtual function called."
 
 This was shipped and observed: the `N=64` build crashed mid-match on 2026-08-18, with
-`[0x00DEBE3C] = 0x00C880D8` in the dump. The site is gone from `_phase1_edits`.
+`[0x00DEBE3C] = 0x00C880D8` in the dump. The site is gone from `_object_edits`.
 
 ### The 42 literal-33 consumer functions (Ghidra `FUN_` entry, call count)
 
@@ -311,7 +311,7 @@ more buttons at once rather than merely to stop the crash.
 | `setCommandButton` | `0x0080c8ef` |
 | `clearCommandButtons` | `0x0080c8e2` |
 | CommandSet vtable | `0x00c4f688` |
-| Visible-range fetch (Phase 3 clamp) | `0x00943e11` |
+| Visible-range fetch (the clamp) | `0x00943e11` |
 | Apt command-bar handler | `0x0092f4c0` |
 | Error: unknown field | string `0x007d3e98` |
 | Error: unknown command in set | string `0x00c4f68c` |

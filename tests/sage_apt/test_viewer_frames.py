@@ -1,4 +1,4 @@
-"""Frame / label selection in the static viewer (Phase 6.3).
+"""Frame / label selection in the static viewer.
 
 `render_viewer_html(xml, frame=, label=)` picks which root frame is drawn and biases each
 sprite's display state; the SpellStore fixture declares `_on`/`_off` sprite labels and
@@ -181,7 +181,7 @@ def test_sprite_falls_back_to_first_labelled_frame_with_content():
 
 
 class _StubResolver:
-    """Resolves every image to the same 1x1 data-URI at a fixed rect (Phase 6.4 wiring)."""
+    """Resolves every image to the same 1x1 data-URI at a fixed rect."""
 
     URI = "data:image/png;base64,STUB"
 
@@ -248,7 +248,7 @@ class _StubImageMap2:
 
 
 class _StubShapeResolver:
-    """Provides one textured + one solid fill for geometry id 5 (Phase 6.4 shapes)."""
+    """Provides one textured + one solid fill for geometry id 5."""
 
     image_map = _StubImageMap2()
 

@@ -1,4 +1,4 @@
-"""Golden byte-freeze for the SpellStore fixture (Phase 7 foundation).
+"""Golden byte-freeze for the SpellStore fixture.
 
 Freezes the exact bytes of (a) the decompiled XML and (b) the `.apt`/`.const` recompiled
 from that XML, so any refactor of the reader/writer (e.g. the typed-model rewrite) is

@@ -6,7 +6,10 @@ from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
 from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
-from sage_patch.patches.cah_factions import CahFactionsPatch
+from sage_patch.patches.cah_factions import (
+    CahFactionsPatch,
+    CahFactionsWorldbuilderPatch,
+)
 from sage_patch.patches.castle_unpack_clearance import CastleUnpackClearancePatch
 from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
@@ -72,6 +75,7 @@ __all__ = [
     "AutoDepositInflationPatch",
     "BannerFilterPatch",
     "CahFactionsPatch",
+    "CahFactionsWorldbuilderPatch",
     "CastleUnpackClearancePatch",
     "CommandPointCostPatch",
     "CommandPointUpkeepPatch",
