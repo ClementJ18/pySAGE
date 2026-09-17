@@ -45,6 +45,10 @@ class ModelPart:
     two_sided: bool
     translucent: bool
     alpha_test: bool
+    # Added to what is already drawn rather than mixed into it, and lit by itself rather than by
+    # the map's lights: a flame, a glow or a sky, which are pictures of light.
+    additive: bool = False
+    unlit: bool = False
 
 
 @dataclass(frozen=True, eq=False)
@@ -87,6 +91,8 @@ def model_geometry(scene: Scene, texture: str | None = None) -> ModelGeometry:
                 two_sided=mesh.two_sided,
                 translucent=mesh.translucent,
                 alpha_test=getattr(mesh, "alpha_test", False),
+                additive=getattr(mesh, "additive", False),
+                unlit=getattr(mesh, "unlit", False),
             )
         )
     return ModelGeometry(tuple(parts))

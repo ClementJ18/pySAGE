@@ -14,7 +14,7 @@ as textured ground (`render.road_surface`) and leaves the overlay only their out
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
@@ -282,8 +282,35 @@ class OverlayPainter:
 
     def _marker_footprint(self, marker: Marker) -> bool:
         """Whether an object's footprint is drawn under its dot; a view that draws the object
-        itself says no. The dot, selection ring and label are drawn either way."""
+        itself says no. The selection ring and label are drawn either way."""
         return True
+
+    def _marker_dot(self, marker: Marker) -> bool:
+        """Whether a marker is drawn as a dot; a view that draws the object itself may say no,
+        since a dot per object on a map of thousands hides the map under them."""
+        return True
+
+    def _dot_size(self, kind: MarkerKind) -> float:
+        """How wide a marker's dot is in pixels: it grows with the zoom, within limits."""
+        return max(3.0, min(9.0, 30 * self.transform.scale))
+
+    def _selection_ring(self, kind: MarkerKind) -> float:
+        """The radius of the ring around a selected marker, just outside its dot."""
+        return self._dot_size(kind) / 2 + 3
+
+    def marker_at(
+        self,
+        screen: QPointF,
+        world: tuple[float, float],
+        pixels: float,
+        accept: Callable[[Marker], bool],
+    ) -> Marker | None:
+        """The marker a click picks: the nearest one within `pixels` of the ground point the
+        click landed on."""
+        scene = self.scene
+        if scene is None:
+            return None
+        return scene.nearest(*world, pixels / self.transform.scale, accept=accept)
 
     def _draw_overlays(self, painter: QPainter) -> None:
         """Everything over the terrain except the tool's own feedback."""
@@ -493,7 +520,7 @@ class OverlayPainter:
         painter.setPen(QPen(_LINK, 1.5))
         painter.setBrush(QBrush(_LINK))
         # Stop the head at the edge of the waypoint's dot rather than under it.
-        gap = max(3.0, min(9.0, 30 * self.transform.scale)) / 2 + 2
+        gap = self._dot_size(MarkerKind.WAYPOINT) / 2 + 2
         for start, end in scene.links:
             if not (self.is_shown(start.source) and self.is_shown(end.source)):
                 continue
@@ -524,31 +551,33 @@ class OverlayPainter:
         for marker, point in zip(markers, self._screen_points(markers), strict=True):
             if point is None:
                 continue
-            batches[marker.kind].append(point)
+            if self._marker_dot(marker):
+                batches[marker.kind].append(point)
             if marker.kind is MarkerKind.OBJECT and self._marker_footprint(marker):
                 self._draw_footprint(painter, marker)
             if marker.source in selection:
                 selected.append((marker, point))
             if marker.label:
-                labels.append((point, marker.label))
+                size = self._dot_size(marker.kind)
+                labels.append((point + QPointF(size, -size / 2), marker.label))
         self._draw_influences(
             painter, [marker for marker in markers if marker.kind is MarkerKind.OBJECT]
         )
-        size = max(3.0, min(9.0, 30 * self.transform.scale))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         for kind, points in batches.items():
             if not points:
                 continue
-            painter.setPen(QPen(_MARKER_COLORS[kind], size, cap=Qt.PenCapStyle.RoundCap))
+            width = self._dot_size(kind)
+            painter.setPen(QPen(_MARKER_COLORS[kind], width, cap=Qt.PenCapStyle.RoundCap))
             painter.drawPoints(QPolygonF(points))
         painter.setPen(QPen(_SELECTED, 1.5))
-        ring = size / 2 + 3
-        for _marker, point in selected:
+        for marker, point in selected:
+            ring = self._selection_ring(marker.kind)
             painter.drawEllipse(point, ring, ring)
-        self._draw_front_handles(painter, selected, ring)
+        self._draw_front_handles(painter, selected, self._selection_ring(MarkerKind.OBJECT))
         if self.options.show_labels and self.transform.scale >= _LABEL_MIN_SCALE:
             for point, text in labels:
-                draw_label(painter, point + QPointF(size, -size / 2), text)
+                draw_label(painter, point, text)
 
     def _draw_front_handles(
         self, painter: QPainter, selected: Sequence[tuple[Marker, QPointF]], ring: float

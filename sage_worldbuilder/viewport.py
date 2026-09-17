@@ -80,6 +80,10 @@ class ViewOptions:
     wireframe: bool = False
     # Objects show their WORLD_BUILDER condition state's model when they have one.
     world_builder_models: bool = True
+    # A dot at the centre of every object. The 3D view draws it smaller, over the model, since
+    # it is what a click picks the object by; turning this off leaves an object with a model to
+    # draw with no dot, and one with none to draw still keeps its dot.
+    show_object_dots: bool = True
     show_entire_map: bool = True
     partial_map_size: int = PARTIAL_MAP_SIZES[0]
     reverse_scroll: bool = False

@@ -382,6 +382,28 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   `PUSH_VISIBLE_COMMAND_RANGE` button that overshoots runs both the widget array and
   `m_command[]` off their ends. The clamp trims the window where it is read, so an oversized page
   draws the buttons it has and nothing faults. The shipped build uses **N = 64**.
+- **`construction-initial-health`** starts a structure's construction at a **percentage of its
+  maximum health** — 10% by default, `--percent N` — instead of at the single hit point the engine
+  gives it. The window the patch exists for is the one between placing a foundation and the builder
+  reaching it: the structure is already on the map, already paid for, and already killable by
+  anything that wanders past, because nothing has begun ramping its health yet. Construction health
+  is one number read in two directions, so three things move together. Four sites set the start
+  (`BuildAssistant`'s placement, the builder's foundation, `GettingBuiltBehavior`'s rebuild and a
+  `DozerAIUpdate` restart — all four found by scanning `.text` for the `fsubr [FLOAT_ONE]` signature
+  rather than by following call graphs, which is what makes four a closed set); both per-frame ramps
+  are scaled by `1 - percent` so the curve still lands on full health exactly at completion rather
+  than reaching it at 90% and sitting there; and the two places the engine recovers the construction
+  percent back **out of** the health ratio are inverted to match, without which a self-building
+  structure would read 10% complete the frame it was placed and finish a tenth early — a build-speed
+  change wearing a durability patch's clothes. `--percent 0` is stock, because all three transforms
+  are the identity at zero. It is a starting health and not a floor: a building under construction
+  can still be shot down, and a builder interrupted early still leaves a cheap kill. Composes with
+  `production-split`, which hooks `calcTimeToBuild` twenty-seven bytes above the ramp step this
+  rewrites; that patch's anchor over `DozerAIUpdate` is split in two around the bytes this one owns,
+  and the ramp reads the frame count it produced at run time, so a `PRODUCTION_CONSTRUCTION`
+  modifier stretches the health curve exactly as it stretches the percent curve. Logic-side, so
+  **every peer needs the same binary**. No INI change. **Not runtime-verified.** See
+  [`docs/construction-initial-health.md`](docs/construction-initial-health.md).
 - **`contained-horde-respawn`** makes **`RespawnNearbyHordeMembers` work alongside
   `AffectsContained`** on `AutoHealBehavior`, so a garrison tower or a transport **replenishes** the
   battalion inside it instead of only healing it. `AutoHealBehavior::update` is an if/else chain over

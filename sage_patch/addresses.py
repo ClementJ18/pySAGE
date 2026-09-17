@@ -270,6 +270,9 @@ __all__ = [
     "BATTLE_SCHOOL_REGISTRATION",
     "BATTLE_SCHOOL_REGISTRATION_BYTES",
     "BATTLE_SCHOOL_TRANSITION_NAME",
+    "BODY_GET_HEALTH_RATIO_SLOT",
+    "BODY_GET_HEALTH_SLOT",
+    "BODY_GET_MAX_HEALTH_SLOT",
     "BUILD",
     "BUILD_ASSISTANT_VTABLE",
     "BUILD_GATE_AFFORD",
@@ -347,6 +350,16 @@ __all__ = [
     "COMMAND_SET_GET_COMMAND_BUTTON",
     "COMMAND_SET_STORE_FIND_COMMAND_SET",
     "COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET",
+    "CONSTRUCTION_INITIAL_HEALTH_ANCHORS",
+    "CONSTRUCTION_INITIAL_HEALTH_CALLS",
+    "CONSTRUCTION_INITIAL_HEALTH_CALL_BYTES",
+    "CONSTRUCTION_PERCENT_FROM_RATIO",
+    "CONSTRUCTION_PERCENT_FROM_RATIO_ANCHORS",
+    "CONSTRUCTION_PERCENT_FROM_RATIO_BYTES",
+    "CONSTRUCTION_RAMP_ANCHOR",
+    "CONSTRUCTION_RAMP_ANCHOR_BYTES",
+    "CONSTRUCTION_RAMP_HEALTH_STEP",
+    "CONSTRUCTION_RAMP_HEALTH_STEP_BYTES",
     "CONTAIN_GET_HORDE_IFACE",
     "CONTAIN_GET_HORDE_IFACE_ENTRY",
     "CONTAIN_GET_HORDE_IFACE_SLOT",
@@ -540,6 +553,7 @@ __all__ = [
     "FILE_SYSTEM_GET_FILE_LIST_IN_DIRECTORY",
     "FILE_SYSTEM_OPEN_FILE",
     "FIRE_WEAPON_WHEN_DAMAGED_ON_DAMAGE",
+    "FLOAT_HUNDRED",
     "FLOAT_ONE",
     "FLOAT_ONE_PERCENT",
     "FLOAT_TWO_PERCENT",
@@ -947,7 +961,9 @@ __all__ = [
     "OBJECT_ARMY_EXCLUDED_BIT",
     "OBJECT_ARMY_ID",
     "OBJECT_ATTEMPT_HEALING",
+    "OBJECT_BODY_MODULE",
     "OBJECT_CAN_ACCEPT_UPGRADE",
+    "OBJECT_CONSTRUCTION_PERCENT",
     "OBJECT_CONTAIN",
     "OBJECT_CONTAINED_BY",
     "OBJECT_EFFECTIVELY_DEAD_FLAG",
@@ -1290,6 +1306,10 @@ __all__ = [
     "SCRIPT_PARAMETER_TYPE",
     "SCRIPT_TIMER_FRAMES_PER_MS",
     "SCRIPT_TIMER_MS_PER_SECOND",
+    "SELF_BUILD_HEAL_ANCHOR",
+    "SELF_BUILD_HEAL_ANCHOR_BYTES",
+    "SELF_BUILD_HEAL_STEP",
+    "SELF_BUILD_HEAL_STEP_BYTES",
     "SET_CHECKBOX_STATE",
     "SHARE_EXPERIENCE",
     "SHARE_EXPERIENCE_CALC",
@@ -7679,3 +7699,89 @@ INI_PARSE_COORD3D_BYTES = bytes.fromhex("56578b7c240c68f843bd00")
 
 #: :data:`INI_PARSE_REAL`'s opening bytes, for a patch that wraps it to assert it is still there.
 INI_PARSE_REAL_BYTES = bytes.fromhex("8b4c24046a00e894efffff")
+
+
+#: `Object+0x25C` - the object's `BodyModule`, and the three getter slots on its vtable that the
+#: construction arithmetic reads. `+0x10` is `getHealth`, `+0x14` `getHealthRatio` (health over
+#: maximum, so `[0, 1]`) and `+0x1C` `getMaxHealth`; all three are `__thiscall`, take no argument
+#: and return in `st(0)`. The fourth slot the same code uses,
+#: :data:`ACTIVE_BODY_INTERNAL_CHANGE_HEALTH_SLOT`, is `+0x84`.
+OBJECT_BODY_MODULE = 0x25C
+BODY_GET_HEALTH_SLOT = 0x10
+BODY_GET_HEALTH_RATIO_SLOT = 0x14
+BODY_GET_MAX_HEALTH_SLOT = 0x1C
+
+#: `Object+0x288` - the construction percent, `0` to `100`, or `-1.0` for "not being built".
+OBJECT_CONSTRUCTION_PERCENT = 0x288
+
+#: The four places the engine drives a structure's health to exactly **one hit point** because it
+#: is about to be built, as `{call VA: the whole sequence's VA}`. All four are byte-for-byte the
+#: same shape - `push 0` (the `DamageInfo`), `call [vtable+0x10]` (`getHealth`),
+#: `fsubr [FLOAT_ONE]`, `push ecx` to reserve the float slot, `fstp [esp]`, then
+#: `call [vtable+0x84]` (`internalChangeHealth`) - so the hooked call always sees `ecx` = the
+#: body, `[esp+4]` = the delta and `[esp+8]` = a NULL `DamageInfo`.
+#:
+#: `0x0079541F` is `BuildAssistant`'s: health, then `Object+0x288 = 0`, then `UNDER_CONSTRUCTION`.
+#: `0x00858975` is `GettingBuiltBehavior`'s rebuild, and `0x008AD88E` the builder placing a
+#: foundation; both set `Object+0x288 = 0` and `AWAITING_CONSTRUCTION` around it. `0x0088D59E` is
+#: the `DozerAIUpdate` helper that restarts a build, which sets `UNDER_CONSTRUCTION` at
+#: `0x0088D616`.
+CONSTRUCTION_INITIAL_HEALTH_CALLS = (0x0079541F, 0x00858975, 0x0088D59E, 0x008AD88E)
+CONSTRUCTION_INITIAL_HEALTH_CALL_BYTES = {
+    0x0079541F: bytes.fromhex("ff9784000000"),
+    0x00858975: bytes.fromhex("ff9784000000"),
+    0x0088D59E: bytes.fromhex("ff9784000000"),
+    0x008AD88E: bytes.fromhex("ff9384000000"),
+}
+#: The sequence around each of those calls, from the `Object+0x25C` load onwards - what makes the
+#: hooked call `internalChangeHealth(1.0 - health, NULL)` rather than some other body call.
+CONSTRUCTION_INITIAL_HEALTH_ANCHORS = {
+    0x00795400: bytes.fromhex(
+        "8b9e5c02000085db741b8b3b6a008bcbff5710d82d0819bd00518bcbd91c24ff9784000000"
+    ),
+    0x0085895A: bytes.fromhex("8b9e5c0200008b3b6a008bcbff5710d82d0819bd00518bcbd91c24ff9784000000"),
+    0x0088D581: bytes.fromhex(
+        "8b8b5c0200008b396a00894df8ff5710d82d0819bd00518b4df8d91c24ff9784000000"
+    ),
+    0x008AD866: bytes.fromhex(
+        "8b8e5c0200000f57c0f30f1186880200008b196a00894d18ff5310d82d0819bd00518b4d18d91c24"
+        "ff9384000000"
+    ),
+}
+
+#: The `DozerAIUpdate` construction ramp's health step: `call [esi+0x1C]` (`getMaxHealth`) then
+#: `fdiv [ebp-0x1C]` (the frame count the hooked `calcTimeToBuild` produced). Six bytes, and the
+#: cave that replaces them keeps the `ebp` the caller set up, because the divisor is its local.
+CONSTRUCTION_RAMP_HEALTH_STEP = 0x0088DEA8
+CONSTRUCTION_RAMP_HEALTH_STEP_BYTES = bytes.fromhex("ff561cd875e4")
+#: The ramp step in context: `ecx` is the body and `[ebp-0x10]` keeps it across the call.
+CONSTRUCTION_RAMP_ANCHOR = 0x0088DEA1
+CONSTRUCTION_RAMP_ANCHOR_BYTES = bytes.fromhex(
+    "8b316a00894df0ff561cd875e4518b4df0d91c24ff9684000000"
+)
+
+#: `GettingBuiltBehavior::update`'s self-build heal, the path taken when no builder is driving the
+#: structure: `call [eax+0x1C]` (`getMaxHealth`) then `fild [esi+0x1C]` (`RebuildTimeSeconds` as a
+#: frame count), divided one into the other at `0x00857FD4` to give the per-frame amount.
+SELF_BUILD_HEAL_STEP = 0x00857FC1
+SELF_BUILD_HEAL_STEP_BYTES = bytes.fromhex("ff501cdb461c")
+SELF_BUILD_HEAL_ANCHOR = 0x00857FAF
+SELF_BUILD_HEAL_ANCHOR_BYTES = bytes.fromhex(
+    "8b9f5c02000085db0f84da0000008b038bcbff501cdb461c8b461c85c07d06d8059886bd00def9"
+    "8b4704f6801f01000020d95df0"
+)
+
+#: The two places the engine derives the construction percent back **out of** the health ratio -
+#: `call [vtable+0x14]`, `fmul [FLOAT_HUNDRED]`, `fstp [Object+0x288]`. `0x00856800` is
+#: `GettingBuiltBehavior`'s resync when neither of its two in-progress flags is set; `0x00858078`
+#: is the self-build update, one instruction after the heal it just applied. Nine bytes each, and
+#: identical.
+CONSTRUCTION_PERCENT_FROM_RATIO = (0x00856800, 0x00858078)
+CONSTRUCTION_PERCENT_FROM_RATIO_BYTES = bytes.fromhex("ff5014d80dd888bd00")
+CONSTRUCTION_PERCENT_FROM_RATIO_ANCHORS = {
+    0x008567F8: bytes.fromhex("8b8f5c0200008b01ff5014d80dd888bd00d99f88020000"),
+    0x00858074: bytes.fromhex("8b038bcbff5014d80dd888bd00d99f88020000"),
+}
+
+#: `100.0f`, the scale both percent derivations and the `DozerAIUpdate` ramp share.
+FLOAT_HUNDRED = 0x00BD88D8

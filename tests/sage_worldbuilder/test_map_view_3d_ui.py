@@ -249,6 +249,7 @@ def test_a_blend_mixes_its_texture_in_from_its_side(view):
 def test_objects_are_drawn_as_their_models(view):
     options = view.options
     options.show_waypoints = options.show_areas = options.show_boundaries = False
+    options.show_object_dots = False
     terrain = view.document.terrain
     marker = next(
         m
@@ -271,16 +272,74 @@ def test_objects_are_drawn_as_their_models(view):
         alpha_test=False,
     )
     view.set_models({name: ModelGeometry((top,))}, {})
-    # Off the marker's dot, but inside the square however the object is turned and scaled.
+    # Off the object's centre, but inside the square however the object is turned and scaled.
     look_down_at(view, marker.x + 5, marker.y, 150.0)
     frame = view.grabFramebuffer()
     color = frame.pixelColor(frame.width() // 2, frame.height() // 2)
     assert color.red() > 150 and color.green() < 60 and color.blue() < 60
-    # The marker's yellow dot stays over the model, to click on.
-    dot = pixel(view, frame, marker.x, marker.y)
-    assert dot.red() > 150 and dot.green() > 150 and dot.blue() < 150
+    # With the dots off, the model alone shows where the object stands.
+    centre = pixel(view, frame, marker.x, marker.y)
+    assert centre.red() > 150 and centre.green() < 60 and centre.blue() < 60
     assert marker.source in view.model_objects(name)
     assert view.failure is None
+
+
+def test_object_dots_are_drawn_over_the_models(window, view):
+    options = view.options
+    options.show_waypoints = options.show_areas = options.show_boundaries = False
+    terrain = view.document.terrain
+    marker = next(
+        m
+        for m in view.scene.markers
+        if m.kind is MarkerKind.OBJECT and terrain.nearest_cell(m.x, m.y) is not None
+    )
+    top = ModelPart(
+        positions=np.array(
+            [(-20, -20, 40), (20, -20, 40), (20, 20, 40), (-20, 20, 40)], dtype=np.float32
+        ),
+        normals=np.tile(np.array((0.0, 0.0, 1.0), dtype=np.float32), (4, 1)),
+        uvs=None,
+        indices=np.array([0, 1, 2, 0, 2, 3], dtype=np.uint32),
+        texture=None,
+        color=(1.0, 0.0, 0.0, 1.0),
+        two_sided=True,
+        translucent=False,
+        alpha_test=False,
+    )
+    view.set_models({marker.source.type_name: ModelGeometry((top,))}, {})
+    look_down_at(view, marker.x + 5, marker.y, 150.0)
+    dot = pixel(view, view.grabFramebuffer(), marker.x, marker.y)
+    assert dot.red() > 150 and dot.green() > 150 and dot.blue() < 150
+    # Show Object Dots takes it off again, leaving the red model.
+    window.view_actions["show_object_dots"].trigger()
+    assert not view.options.show_object_dots
+    centre = pixel(view, view.grabFramebuffer(), marker.x, marker.y)
+    assert centre.red() > 150 and centre.green() < 60 and centre.blue() < 60
+    assert view.failure is None
+
+
+def test_a_click_on_a_dot_picks_its_object_whatever_is_in_front(window):
+    """Picking goes by the dots on screen, which are drawn over everything, so it needs no
+    frame: the camera projection is all it asks for."""
+    window.show_3d_view(True)
+    view = window.map_view_3d
+    view.resize(640, 480)
+    terrain = view.document.terrain
+    marker = next(
+        m
+        for m in view.scene.markers
+        if m.kind is MarkerKind.OBJECT and terrain.nearest_cell(m.x, m.y) is not None
+    )
+    look_down_at(view, marker.x, marker.y, 400.0)
+    screen = QPointF(*view.transform.project(marker.x, marker.y))
+    # The ground point the click landed on is nowhere near the object, as it is when a wall or a
+    # hill stands between the camera and it: the dot under the cursor picks it all the same.
+    picked = view.marker_at(screen, (marker.x + 500.0, marker.y + 500.0), 8.0, lambda _m: True)
+    assert picked is not None and picked.source is marker.source
+    # A click 200 pixels from its dot does not, wherever the ground under it is.
+    away = QPointF(screen.x() + 200, screen.y())
+    missed = view.marker_at(away, view.world_at(away), 8.0, lambda _m: True)
+    assert missed is None or missed.source is not marker.source
 
 
 def test_tile_feedback_tints_the_terrain(view):

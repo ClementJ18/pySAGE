@@ -176,6 +176,7 @@ from sage_worldbuilder.ui.jump_dialog import JumpSettingsDialog
 from sage_worldbuilder.ui.layers import LayersPanel
 from sage_worldbuilder.ui.map_settings import MapSettingsPanel, MultiplayerPositionsPanel
 from sage_worldbuilder.ui.map_view import MapView
+from sage_worldbuilder.ui.mapcache_dialog import MapCacheDialog
 from sage_worldbuilder.ui.new_map_dialog import NewMapDialog
 from sage_worldbuilder.ui.object_palette import ObjectPalettePanel
 from sage_worldbuilder.ui.object_properties import ObjectPropertiesPanel
@@ -391,6 +392,7 @@ _VIEW_TOGGLES = (
     ("Show Wire&frame 3D View", "wireframe", CMD_WIREFRAME),
     ("Show All of 3d &Map", "show_entire_map", CMD_SHOW_ENTIRE_MAP),
     ("Show World&Builder Models", "world_builder_models", None),
+    ("Show Object &Dots", "show_object_dots", None),
     ("Show Bounding Bo&xes", "show_bounding_boxes", CMD_SHOW_BOUNDING_BOXES),
     ("Show S&ight Ranges", "show_sight_ranges", CMD_SHOW_SIGHT_RANGES),
     ("Show Wea&pon Ranges", "show_weapon_ranges", CMD_SHOW_WEAPON_RANGES),
@@ -806,6 +808,11 @@ class MainWindow(QMainWindow):
             self.jump_to_game,
             tip="Save the map and start the game on it (Game > Jump To Game Settings for the "
             "match, Game > Game Settings for the window and arguments).",
+        )
+        self.mapcache_action = self._action(
+            "&MapCache Entry…",
+            self.show_mapcache_entry,
+            tip="The mapcache.ini entry this map needs before the game will list it.",
         )
         self.jump_settings_action = self._action(
             "Jump To Game Se&ttings…",
@@ -2419,6 +2426,32 @@ class MainWindow(QMainWindow):
         self.validation_dock.raise_()
         self.validation_panel.run()
 
+    def show_mapcache_entry(self) -> None:
+        """The mapcache.ini entry the open map needs, for pasting into a mod's own cache."""
+        document = self.document
+        if document is None or self._busy:
+            return
+        if document.path is None:
+            QMessageBox.information(
+                self,
+                APP_TITLE,
+                "Save the map first: its entry is keyed by the file name the game will find it "
+                "under, and describes the file on disk.",
+            )
+            return
+        if is_base_path(document.path):
+            QMessageBox.information(
+                self, APP_TITLE, "A base is not a map, and the map cache holds no entry for one."
+            )
+            return
+        MapCacheDialog(
+            document.map,
+            document.path,
+            self,
+            game=self.game,
+            modified=document.dirty,
+        ).exec()
+
     def jump_to_game(self) -> None:
         """Start the game on the open map: saved first when its file has unsaved changes, and
         copied into the user Maps folder when the game could not find it where it is."""
@@ -2674,7 +2707,11 @@ class MainWindow(QMainWindow):
 
         options_3d_menu = _menu(view_menu.addMenu("3&D Options"))
         options_3d_menu.addActions(
-            [self.view_actions["wireframe"], self.view_actions["show_entire_map"]]
+            [
+                self.view_actions["wireframe"],
+                self.view_actions["show_object_dots"],
+                self.view_actions["show_entire_map"],
+            ]
         )
         options_3d_menu.addSeparator()
         options_3d_menu.addActions(self.partial_map_actions.actions())
@@ -2731,6 +2768,8 @@ class MainWindow(QMainWindow):
         game_menu.addActions([self.game_settings_action, self.reload_game_action])
         game_menu.addSeparator()
         game_menu.addActions([self.jump_action, self.jump_settings_action])
+        game_menu.addSeparator()
+        game_menu.addAction(self.mapcache_action)
 
         validation_menu = _menu(bar.addMenu("Va&lidation"))
         validation_menu.addAction(self.report_action)
@@ -3617,6 +3656,7 @@ class MainWindow(QMainWindow):
         self.recent_mods_menu.setEnabled(idle and bool(self.settings.recent_mods))
         self.jump_action.setEnabled(idle and document is not None and self.context is not None)
         self.report_action.setEnabled(idle and document is not None)
+        self.mapcache_action.setEnabled(idle and document is not None)
         self.recent_menu.setEnabled(idle and bool(self.settings.recent))
         self.fit_view_action.setEnabled(document is not None)
         has_objects = idle and bool(self.selected_objects())

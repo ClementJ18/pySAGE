@@ -68,7 +68,12 @@ images, and **Open from TGA** builds a map from a grey image.
 and options. With game data loaded the 3D view draws the terrain as the game does - each cell's
 tile, its blend and its 3-way blend through the game's own masks, out of an atlas built from the
 map's texture cells - lit by the map's own global lighting, with models, roads and water over it.
-Without game data both fall back to a height ramp.
+A model shows only its front faces, as the game draws it, so a building seen from above is its
+inside rather than a lid over it; a mesh that is itself a picture of light - a flame, a glow, a
+sky dome - is added to the scene instead of mixed into it, and the map's lights do not dim it. An
+object keeps a dot at its centre over its model, smaller than the top-down view's: it is what a
+click picks the object by, whatever stands in front of it, and 3D Options > Show Object Dots
+turns it off for a clean picture. Without game data both views fall back to a height ramp.
 
 **Panels.** Every panel docks, tabs, or is pulled out into a window of its own; an undocked one
 stays above the main window and comes back up with it whenever the editor is focused. Window >
@@ -162,6 +167,15 @@ game: it copies the map where the engine will find it, passes each loaded mod, a
 patches a command-line skirmish needs for the session (and takes them off again afterwards), and
 sets up the lobby - who sits where, factions, colours, teams, difficulty, starting resources and
 seed.
+
+**MapCache Entry.** A map the mod's `maps\mapcache.ini` does not name cannot be listed in the
+lobby or started at all, and the engine never rewrites that file for a map inside a `.big` - so
+Game > MapCache Entry derives the block a finished map needs, ready to paste. The key, the file's
+size, the engine's own CRC and its timestamp, the playable extents, the player starts, the initial
+camera and the supply markers all come from the map; the two labels, `isOfficial`, `isMultiplayer`,
+`isScenarioMP` and the map-list-symbols patch's `mapSymbol` are the mod's to set. Where a new
+entry belongs in a hand-ordered cache is the mapper's call, so the dialog copies the block rather
+than writing the file.
 
 ## The model layer
 

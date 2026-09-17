@@ -11,7 +11,10 @@ over an atlas of the map's texture cells (`atlas_provider`, `set_atlas`); until 
 top-down view's colour picture, or a height ramp without game data. The shader finds each cell's
 tiles and blend masks in a data texture and mixes them per pixel. Objects are drawn as the models
 the window loads for their templates (`model_provider`, `set_models`), one instanced draw per mesh
-of each model; an object without a model keeps only its marker.
+of each model, front faces only as the game draws them, and a mesh that is itself a picture of
+light - a flame, a glow, a sky - added in rather than mixed in, undimmed by the map's lights. An
+object drawn as its model needs no marker; one with no model to draw keeps its dot, and Show
+Object Dots puts a dot back on every object.
 
 Middle-drag or Space-drag pans; with Ctrl, or a right-drag when the tool does not take the right
 button, it orbits instead. The wheel zooms about the ground under the cursor.
@@ -400,6 +403,7 @@ uniform sampler2D texture_image;
 uniform bool textured;
 uniform bool alpha_test;
 uniform bool translucent;
+uniform bool unlit;
 uniform vec4 base_color;
 uniform vec3 light;
 uniform bool map_lights;
@@ -415,7 +419,10 @@ void main() {
     if (alpha_test && surface.a < 0.5) {
         discard;
     }
-    color = vec4(surface.rgb * lit_by(normalize(v_normal)), translucent ? surface.a : 1.0);
+    // A mesh that is a picture of light - a flame, a glow, a sky - shows its own brightness;
+    // dimming it by the map's lights would put a dark map's night into a fire.
+    vec3 level = unlit ? vec3(1.0) : lit_by(normalize(v_normal));
+    color = vec4(surface.rgb * level, translucent ? surface.a : 1.0);
 }
 """
 )
@@ -445,6 +452,7 @@ _MODEL_UNIFORMS = (
     "textured",
     "alpha_test",
     "translucent",
+    "unlit",
     "base_color",
     "light",
     "map_lights",
@@ -592,6 +600,9 @@ class _Part:
     color: tuple[float, float, float, float]
     translucent: bool
     alpha_test: bool
+    two_sided: bool = False
+    additive: bool = False
+    unlit: bool = False
 
 
 @dataclass
@@ -1775,6 +1786,9 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                     part.color,
                     part.translucent,
                     part.alpha_test,
+                    part.two_sided,
+                    part.additive,
+                    part.unlit,
                 )
             )
         return _Model(parts, instances)
@@ -1788,10 +1802,15 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         self._send_lights(uniforms, LightTarget.OBJECTS)
         glActiveTexture(GL_TEXTURE0)
         glUniform1i(uniforms["texture_image"], 0)
+        # Models are the one thing here with a back to them, and the game draws only their front:
+        # a building seen from above is its inside, not a lid over it. A mesh marked two-sided
+        # (a leaf card, a flame) has no back to cull.
+        glEnable(GL_CULL_FACE)
+        culling = True
         for translucent in (False, True):
+            destination = 0
             if translucent:
                 glEnable(GL_BLEND)
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
                 glDepthMask(GL_FALSE)
             for model in self._models.values():
                 if model is None or not model.count:
@@ -1799,11 +1818,22 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                 for part in model.parts:
                     if part.translucent is not translucent:
                         continue
+                    if translucent:
+                        # An additive mesh adds its light to the scene, keeping all of what is
+                        # already drawn; every other one mixes into it by its own opacity.
+                        factor = GL_ONE if part.additive else GL_ONE_MINUS_SRC_ALPHA
+                        if factor != destination:
+                            destination = factor
+                            glBlendFunc(GL_SRC_ALPHA, factor)
+                    if culling == part.two_sided:
+                        culling = not part.two_sided
+                        (glEnable if culling else glDisable)(GL_CULL_FACE)
                     texture = self._model_textures.get(part.texture, 0) if part.texture else 0
                     glBindTexture(GL_TEXTURE_2D, texture)
                     glUniform1i(uniforms["textured"], int(bool(texture)))
                     glUniform1i(uniforms["alpha_test"], int(part.alpha_test))
                     glUniform1i(uniforms["translucent"], int(translucent))
+                    glUniform1i(uniforms["unlit"], int(part.unlit))
                     glUniform4f(uniforms["base_color"], *part.color)
                     glBindVertexArray(part.vao)
                     glDrawElementsInstanced(
@@ -1811,6 +1841,8 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                     )
         glBindVertexArray(0)
         glBindTexture(GL_TEXTURE_2D, 0)
+        # The water drawn after this, and the terrain of the next frame, have no back to cull.
+        glDisable(GL_CULL_FACE)
 
     def _water_surface_drawn(self, area: object) -> bool:
         return self.options.show_water and id(area) in self._water_drawn
@@ -2072,11 +2104,53 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         return list(model.objects) if model is not None else []
 
     def _marker_footprint(self, marker: Marker) -> bool:
-        """An object drawn as its model needs no footprint; it keeps its dot to click on."""
+        """An object drawn as its model needs no footprint: the model shows where it stands."""
         if marker.kind is not MarkerKind.OBJECT:
             return True
         model = self._models.get(marker.source.type_name)
         return model is None or not model.parts
+
+    def _marker_dot(self, marker: Marker) -> bool:
+        """An object keeps its dot over its model: it marks where the object stands, and it is
+        what a click picks it by. Show Object Dots turns the object dots off for a clean picture;
+        an object with no model to draw keeps its dot either way, as the only sign it is there."""
+        return self.options.show_object_dots or self._marker_footprint(marker)
+
+    def _dot_size(self, kind: MarkerKind) -> float:
+        """An object's dot is smaller here than in the top-down view: the model already shows the
+        object, so the dot only marks its centre, and a map of thousands would be a spray of
+        them. What has no model of its own keeps the full-sized dot."""
+        size = super()._dot_size(kind)
+        return max(3.0, size * 0.55) if kind is MarkerKind.OBJECT else size
+
+    def marker_at(
+        self,
+        screen: QPointF,
+        world: tuple[float, float],
+        pixels: float,
+        accept: Callable[[Marker], bool],
+    ) -> Marker | None:
+        """The marker a click picks: the nearest dot to the click on screen, whatever stands in
+        front of the object it belongs to. The dots are drawn over everything, so picking by them
+        rather than by the ground point under the cursor is what the picture shows; a marker with
+        no dot is picked by the ground under it, as in the top-down view."""
+        scene = self.scene
+        if scene is None:
+            return None
+        markers = [
+            marker
+            for marker in scene.in_rect(*self.transform.visible_world())
+            if self._marker_dot(marker) and accept(marker)
+        ]
+        best: Marker | None = None
+        best_distance = pixels
+        for marker, point in zip(markers, self._screen_points(markers), strict=True):
+            if point is None:
+                continue
+            distance = math.hypot(point.x() - screen.x(), point.y() - screen.y())
+            if distance <= best_distance:
+                best, best_distance = marker, distance
+        return best if best is not None else super().marker_at(screen, world, pixels, accept)
 
     def _release_model(self, name: str) -> None:
         model = self._models.pop(name, None)

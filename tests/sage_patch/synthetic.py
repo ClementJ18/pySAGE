@@ -38,6 +38,13 @@ the object picker's dialog template lives in `.rsrc`, 5 MB past the class that o
 hooks one instruction in `AutoHealBehavior::update` and reads four routines spread over four
 megabytes below it, plus a vtable and a string in `.rdata` above.
 
+:func:`construction_initial_health_image` is sparse because the eight sites it hooks are the whole
+of the engine's construction arithmetic, spread over 1.4 MB: `BuildAssistant`'s placement, two
+`GettingBuiltBehavior` paths, two `DozerAIUpdate` ones and the builder's own. Each is planted as
+its full stock sequence rather than just the displaced bytes, because what entitles the caves to
+their calling conventions is the instructions *around* the call - that `ecx` is still the body,
+that the delta is already on the stack, that the divisor is the caller's local.
+
 :func:`script_debug_window_image` is the odd one out: it stands in for `DebugWindowLite.dll`, so it
 is the only image here built at a base other than `0x400000`.
 """
@@ -778,6 +785,24 @@ def contained_horde_respawn_image() -> bytearray:
         {
             ad.AUTO_HEAL_CONTAINED_EXIT: ad.AUTO_HEAL_CONTAINED_EXIT_BYTES,
             **ad.AUTO_HEAL_ANCHORS,
+        }
+    )
+
+
+def construction_initial_health_image() -> bytearray:
+    """A stand-in carrying every site `construction-initial-health` hooks, in its stock form.
+
+    Sparse: the eight sites span 1.4 MB. Everything not planted reads as zero, so a hook aimed one
+    instruction to either side of the call it means to displace finds nothing there - which is the
+    check that matters here, because four of the eight are byte-identical sequences and only their
+    address tells them apart.
+    """
+    return _sparse_image(
+        {
+            **ad.CONSTRUCTION_INITIAL_HEALTH_ANCHORS,
+            ad.CONSTRUCTION_RAMP_ANCHOR: ad.CONSTRUCTION_RAMP_ANCHOR_BYTES,
+            ad.SELF_BUILD_HEAL_ANCHOR: ad.SELF_BUILD_HEAL_ANCHOR_BYTES,
+            **ad.CONSTRUCTION_PERCENT_FROM_RATIO_ANCHORS,
         }
     )
 

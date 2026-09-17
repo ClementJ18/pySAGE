@@ -34,6 +34,7 @@ from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
 from sage_patch.patches.commandset_button_upgrade import CommandSetButtonUpgradePatch
+from sage_patch.patches.construction_initial_health import ConstructionInitialHealthPatch
 from sage_patch.patches.contained_horde_respawn import ContainedHordeRespawnPatch
 from sage_patch.patches.crash_dump import CrashDumpPatch
 from sage_patch.patches.deploy_before_attack import DeployBeforeAttackPatch
@@ -174,6 +175,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CommandPointUpkeepPatch,
     CommandSetButtonUpgradePatch,
     CommandSetLimitPatch,
+    ConstructionInitialHealthPatch,
     CooldownThroughDeathPatch,
     ContainedHordeRespawnPatch,
     CrashDumpPatch,

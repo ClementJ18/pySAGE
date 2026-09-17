@@ -14,6 +14,7 @@ from sage_patch.patches.castle_unpack_clearance import CastleUnpackClearancePatc
 from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
+from sage_patch.patches.construction_initial_health import ConstructionInitialHealthPatch
 from sage_patch.patches.desert_weather import (
     DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch,
@@ -80,6 +81,7 @@ __all__ = [
     "CommandPointCostPatch",
     "CommandPointUpkeepPatch",
     "CommandSetLimitPatch",
+    "ConstructionInitialHealthPatch",
     "DesertWeatherPatch",
     "DesertWeatherWorldbuilderPatch",
     "FireAtAttackerPatch",

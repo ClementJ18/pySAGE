@@ -9,7 +9,7 @@ the next drag does not merge into them.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Protocol
@@ -164,6 +164,17 @@ class ToolView(Protocol):
         """Whether a map item is drawn; a hidden one cannot be picked."""
         ...
 
+    def marker_at(
+        self,
+        screen: QPointF,
+        world: tuple[float, float],
+        pixels: float,
+        accept: Callable[[Marker], bool],
+    ) -> Marker | None:
+        """The marker a click picks, within `pixels` of it; how close is measured the way the
+        view draws its markers."""
+        ...
+
     def world_circle(self, painter: QPainter, x: float, y: float, radius: float) -> None:
         """A circle of `radius` world units on the ground about a world position."""
         ...
@@ -281,16 +292,18 @@ class SelectTool(Tool):
         if self._corner is not None:
             self._mode = _Mode.CORNER
             return True
-        self._picked = self._pick(view, scene, gesture.world)
+        self._picked = self._pick(view, gesture, scene)
         self._mode = _Mode.PRESSED
         return True
 
-    def _pick(self, view: ToolView, scene: MapScene, point: tuple[float, float]) -> object | None:
+    def _pick(self, view: ToolView, gesture: Gesture, scene: MapScene) -> object | None:
         rules = self.host.pick_rules()
-        marker = scene.nearest(
-            *point,
-            PICK_PIXELS / view.transform.scale,
-            accept=lambda marker: rules.allows(marker) and _marker_shown(view, marker),
+        point = gesture.world
+        marker = view.marker_at(
+            gesture.screen,
+            point,
+            PICK_PIXELS,
+            lambda marker: rules.allows(marker) and _marker_shown(view, marker),
         )
         if marker is not None:
             return marker.source
