@@ -17,8 +17,9 @@ file itself is required.
 - `diff <a> <b>` - files added, removed or changed (file_time or asset list differs) between
   two asset.dat files.
 - `combine <base> <overlay> [<overlay> ...] -o <out> [--show-overrides]` - concatenate a base
-  asset.dat with one or more overlays (base first, overlays after, in order), write the result,
-  and report the shadowing it produced; `--show-overrides` lists each shadowed name.
+  asset.dat with one or more overlays (overlays first, in order, then the base - the cache is
+  first-wins), write the result, and report the shadowing it produced; `--show-overrides` lists
+  each shadowed name.
 - `build <art_dir> -o <out>` - scan an unpacked art tree (`compiledtextures/`, `Textures/`,
   `w3d/`) and
   write the asset.dat it describes.
@@ -289,7 +290,7 @@ def _run_combine(args: argparse.Namespace) -> int:
     identical = sum(1 for s in shadowed if s.identical)
     print(
         f"{args.out}: {len(combined.files)} files, {len(combined.references)} references, "
-        f"{len(shadowed)} duplicate file names (later entries override earlier ones)"
+        f"{len(shadowed)} duplicate file names (the first entry for a name wins)"
     )
     if shadowed:
         print(

@@ -14,7 +14,11 @@ from sage_map.assets.object_list import Object, ObjectsList
 from sage_map.assets.world_info import WorldInfo
 from sage_map.context import AssetPropertyType
 from sage_map.map import Map, parse_map_from_path
-from sage_worldbuilder.mapcache import (
+from tests.conftest import corpus_roots
+
+pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
+
+from sage_worldbuilder.mapcache import (  # noqa: E402
     FileIdentity,
     MapCacheEntry,
     build_entry,
@@ -23,7 +27,6 @@ from sage_worldbuilder.mapcache import (
     escape_text,
     sage_crc,
 )
-from tests.conftest import corpus_roots
 
 FIXTURES = Path(__file__).parents[1] / "sage_map" / "fixtures" / "maps"
 

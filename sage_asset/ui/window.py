@@ -63,8 +63,9 @@ see the new files.</p>
 <p>The game loads one asset.dat, so a mod's is merged with the base game's. On the
 <b>Combine</b> card, pick the <b>Base .dat</b> (the base game's asset.dat) and the
 <b>Overlay .dat</b> (your mod's), choose an <b>Output .dat</b>, and press <b>Combine</b>. The
-two are concatenated - base first, overlay after - so the mod's entries override the base's for
-any name they share. The status line reports how many names ended up duplicated that way.</p>
+two are concatenated - overlay first, base after - because the engine's asset cache keeps the
+<i>first</i> record it sees for a name, so the mod's entries are the ones that win for any name
+they share. The status line reports how many names ended up duplicated that way.</p>
 
 <h3>Good to know</h3>
 <p>Both actions run in the background, so the window stays responsive; the result and any error

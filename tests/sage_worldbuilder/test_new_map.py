@@ -87,9 +87,11 @@ def test_reanchor_crops_and_pads_about_the_anchor():
 
 
 def test_grey_images_become_heights():
-    from PIL import Image  # noqa: PLC0415
+    image_module = pytest.importorskip(
+        "PIL.Image", reason="the [worldbuilder] extra (pillow) is not installed"
+    )
 
-    image = Image.new("L", (3, 2))
+    image = image_module.new("L", (3, 2))
     image.putpixel((0, 0), 10)  # top-left
     buffer = io.BytesIO()
     image.save(buffer, format="TGA")

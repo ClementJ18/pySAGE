@@ -159,13 +159,22 @@ class AssetDat:
 
 
 def combine_asset_dats(base: AssetDat, *overlays: AssetDat) -> AssetDat:
-    """Concatenate `base` and `overlays`, in order: every file and reference of `base` first,
-    then each overlay's in turn. This is what the community asset-combiner tool produces and
-    the game loads - a later entry for a file name already present is how a mod's assets take
-    effect over the base game's, so duplicate file names and duplicate (file, asset) reference
+    """Concatenate `overlays` and `base` into the file the engine should load, in **engine
+    precedence order**: every file and reference of each overlay in turn, highest-priority
+    overlay first, and `base` last. Duplicate file names and duplicate (file, asset) reference
     pairs are kept rather than deduplicated. The result holds new `files`/`references` lists
     but the same `FileEntry`/`ReferenceRecord` objects as the inputs, so mutating one of them
     also mutates the corresponding input.
+
+    **Overlays come out first because the cache is first-wins.** Every asset name passes a
+    "does the cache already hold this name" gate before it is registered (`0x0052C6F6`, the
+    `jne` at `0x0052C6FF` skipping the type dispatch entirely - see `sage_patch/docs/
+    multi-mod.md` §4b), so the *first* record to name an asset is the one that keeps it and
+    every later record for that name is dead. A base-first combine therefore does not override
+    anything: it pins the stock record, whose `offset`/`size` address the *stock* file, onto
+    the mod's file of that name on disk. The engine then reads the wrong byte range out of a
+    file it can open, and the asset silently fails to load - a model that draws nothing rather
+    than a magenta one or an error.
 
     A `VersionMismatchWarning` is emitted if an overlay's version differs from `base`'s -
     every known asset.dat is version 0x102, so a mismatch suggests the inputs come from
@@ -179,20 +188,22 @@ def combine_asset_dats(base: AssetDat, *overlays: AssetDat) -> AssetDat:
                 stacklevel=2,
             )
 
-    files = list(base.files)
-    references = list(base.references)
+    files: list[FileEntry] = []
+    references: list[ReferenceRecord] = []
     for overlay in overlays:
         files.extend(overlay.files)
         references.extend(overlay.references)
+    files.extend(base.files)
+    references.extend(base.references)
 
     return AssetDat(version=base.version, files=files, references=references)
 
 
 @dataclass
 class ShadowedEntry:
-    """One occurrence of a file name that a later, same-named entry in `AssetDat.files`
-    overrides - `entry` never takes effect at load time because `winner` (the last entry with
-    that name) loads after it."""
+    """One occurrence of a file name that an earlier, same-named entry in `AssetDat.files`
+    overrides - `entry` never takes effect at load time because `winner` (the first entry with
+    that name) registered before it and the cache is first-wins."""
 
     name: str
     entry: FileEntry
@@ -209,10 +220,10 @@ class ShadowedEntry:
 
 
 def shadowed_entries(ad: AssetDat) -> list[ShadowedEntry]:
-    """Every file entry in `ad.files` that a later same-named entry shadows - the situation
+    """Every file entry in `ad.files` that an earlier same-named entry shadows - the situation
     `combine_asset_dats` creates on purpose when an overlay overrides a base file. Grouped by
-    name in order of first appearance; within a name, every occurrence but the last is paired
-    with that last (winning) one, in `ad.files` order. A name appearing N times yields N-1
+    name in order of first appearance; within a name, every occurrence but the first is paired
+    with that first (winning) one, in `ad.files` order. A name appearing N times yields N-1
     entries here."""
     by_name: dict[str, list[FileEntry]] = {}
     for entry in ad.files:
@@ -222,10 +233,8 @@ def shadowed_entries(ad: AssetDat) -> list[ShadowedEntry]:
     for name, entries in by_name.items():
         if len(entries) < 2:
             continue
-        winner = entries[-1]
-        result.extend(
-            ShadowedEntry(name=name, entry=entry, winner=winner) for entry in entries[:-1]
-        )
+        winner = entries[0]
+        result.extend(ShadowedEntry(name=name, entry=entry, winner=winner) for entry in entries[1:])
     return result
 
 

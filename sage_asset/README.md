@@ -78,23 +78,28 @@ exactly zero, so a nonzero count is a genuine corruption or hand-edit, not an ex
 ## Combining a base and mod asset.dat
 
 BFME2 mods that ship their own asset.dat (Edain's `_mod`) are loaded together with the base
-game's by concatenating the two: every section-1 record and every section-2 record of the base
-game's file, followed by every record of the mod's, with the header counts summed and the
+game's by concatenating the two: every section-1 record and every section-2 record of the mod's
+file, followed by every record of the base game's, with the header counts summed and the
 version left unchanged. There is no sorting and no deduplication - a file name present in both
-inputs ends up in the combined file twice, base's copy first and the mod's copy after it, and
-that ordering (not some other resolution rule) is what lets the mod's asset override the base
-game's at load time. The shipping `Edain/complete_asset/asset.dat` has 781 such duplicate file
-names and 69 duplicate `(file, asset)` section-2 pairs; this is expected, not a corruption to
-fix. This concatenation semantics was checked byte-exact: that shipping file's section 1 is
-BFME2's `asset.dat` section 1 verbatim followed by the mod's, and likewise for section 2.
-Exactly *how* the engine picks between two entries for the same name at load time is not
-something this package claims to know - only that base-first/mod-after is the layout that ships
-and works.
+inputs ends up in the combined file twice, the mod's copy first and the base's copy after it.
 
-`combine_asset_dats(base, *overlays)` builds this layout for any number of overlays (combining
-several mods is associative - just concatenate each in turn). The returned `AssetDat` is a new
-top-level object but shares its `FileEntry`/`ReferenceRecord` objects with the inputs, so
-mutating an entry in the result also mutates the corresponding input.
+**The mod's records have to come first, because the cache is first-wins.** Every asset name
+passes a "does the cache already hold this name" gate before it is registered - `0x0052C6F6`,
+with the `jne` at `0x0052C6FF` skipping the type dispatch entirely, derived in
+[`sage_patch/docs/multi-mod.md`](../sage_patch/docs/multi-mod.md) §4b - so the *first* record to
+name an asset keeps it and every later record for that name is dead. A base-first combine
+therefore overrides nothing. Worse, it silently breaks art the mod *replaced*: the stock record
+wins, its `offset`/`size` address the stock file's chunk layout, and the file on disk is the
+mod's, so the engine reads the wrong byte range and the asset fails to load - a model that draws
+nothing, with no error anywhere. In Edain's combined index, 26 of the 789 duplicate file names
+have an asset list that genuinely disagrees between the two halves, `ebfoundationx.w3d` (the
+elven build-plot foundation) among them.
+
+`combine_asset_dats(base, *overlays)` builds this layout for any number of overlays: the
+overlays first, in argument order - so the earlier overlay wins a name contest between two mods
+- and `base` last. The returned `AssetDat` is a new top-level object but shares its
+`FileEntry`/`ReferenceRecord` objects with the inputs, so mutating an entry in the result also
+mutates the corresponding input.
 
 ```python
 from sage_asset import combine_asset_dats, parse_asset_dat_from_path, write_asset_dat_to_path
@@ -105,7 +110,7 @@ write_asset_dat_to_path(combine_asset_dats(base, mod), "combined_asset.dat")
 ```
 
 `shadowed_entries(ad)` reports the shadowing a combine (or any duplicate-carrying asset.dat)
-produced: one `ShadowedEntry` per file-entry occurrence that a later same-named entry
+produced: one `ShadowedEntry` per file-entry occurrence that an earlier same-named entry
 overrides, pairing it with the entry that actually wins. `.identical` is true when the
 shadowed entry has the same `file_time` and asset list as its winner - an unchanged file the
 overlay re-shipped for no reason, pure size bloat rather than a real override. `sage-asset

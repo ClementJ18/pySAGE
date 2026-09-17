@@ -1,9 +1,8 @@
 name: CI
 
-# Runs on every PR and on pushes to the default branch. Four jobs: style/typing once; the
-# dependency-free core across the OS and Python matrix; the peripheral packages with the optional
-# extras installed (so the pyBIG/PyQt6 suites run); and a packaging job that builds and
-# smoke-tests the wheel.
+# Runs on every PR and on pushes to the default branch. Four jobs: style/typing once; the core
+# across the OS and Python matrix; the peripheral packages with the optional extras installed (so
+# the pyBIG/PyQt6 suites run); and a packaging job that builds and smoke-tests the wheel.
 on:
   push:
     branches: [main, master]
@@ -43,8 +42,13 @@ jobs:
       - name: Mypy typing coverage
         run: mypy
 
-  # The dependency-free core, on every supported interpreter and OS: the parser and linter run
-  # with nothing but the stdlib, down to the 3.12 floor.
+  # The core, on every supported interpreter and OS, down to the 3.12 floor. numpy is the one
+  # optional dependency installed here: it is pure computation with a wheel on every cell of the
+  # matrix, and without it the numpy-backed geometry suites (the map editor's terrain, camera and
+  # mapcache code, the w3d maths) skip everywhere but the single-version `full` job. The Qt- and
+  # pyBIG-backed suites still self-skip here and run in `full`. That the packages themselves need
+  # nothing but the stdlib stays covered by the `package` job, which runs every core console
+  # script from a wheel installed with no extras at all.
   core:
     strategy:
       fail-fast: false
@@ -60,11 +64,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install the package (no extras)
+      - name: Install the package (numpy only, no extras)
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install pytest
+          pip install pytest "numpy>=2"  # numpy>=2 matches the [worldbuilder] and [w3d-view] extras
 
       - name: Core test suite
         run: pytest -q
