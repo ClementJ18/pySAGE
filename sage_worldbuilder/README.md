@@ -67,13 +67,18 @@ images, and **Open from TGA** builds a map from a grey image.
 **Two views.** A top-down view and a 3D view (F3) of the same document, sharing tools, selection
 and options. With game data loaded the 3D view draws the terrain as the game does - each cell's
 tile, its blend and its 3-way blend through the game's own masks, out of an atlas built from the
-map's texture cells - lit by the map's own global lighting, with models, roads and water over it.
+map's texture cells, and a cliff-mapped cell through its cliff mapping - lit by the map's own
+global lighting, with models, roads and water over it. An object's model is the condition state
+WorldBuilder picks for it: damaged by its starting health, at night or in snow by its own time and
+weather or the map's, and garrisoned while View > Show Garrisoned is on.
 A model shows only its front faces, as the game draws it, so a building seen from above is its
 inside rather than a lid over it; a mesh that is itself a picture of light - a flame, a glow, a
 sky dome - is added to the scene instead of mixed into it, and the map's lights do not dim it. An
 object keeps a dot at its centre over its model, smaller than the top-down view's: it is what a
 click picks the object by, whatever stands in front of it, and 3D Options > Show Object Dots
-turns it off for a clean picture. Without game data both views fall back to a height ramp.
+turns it off for a clean picture. Show Sound Flags stands a flag on every audio object (cyan for an
+ambient stream), and the 3D view's Letterbox and Safe Frame show what a 16:9 or 4:3 screen would.
+Without game data both views fall back to a height ramp.
 
 **Panels.** Every panel docks, tabs, or is pulled out into a window of its own; an undocked one
 stays above the main window and comes back up with it whenever the editor is focused. Window >
@@ -83,7 +88,9 @@ docking or tabbing itself into it.
 **Objects.** The Object Palette lists the game's objects by side and `EditorSorting`; Place Object
 puts one down, a drag turns it. Click, Shift-click and marquee select; drag moves, Alt-drag
 rotates by the Group Edit Method; Pick Allowances limit what a click may take. Object Properties
-edits position, angle and every stored key of the whole selection as one undo entry. The Item List
+edits position, angle and every stored key of the whole selection as one undo entry, with
+WorldBuilder's starting-health presets and waypoint type names; a waypoint made a spline, or no
+longer one, takes its whole path with it. The Item List
 searches the map's objects, waypoints, areas and teams, and can filter the view down to what it
 matches. The Edit menu selects similar, duplicate, deprecated or missing objects, objects on
 missing teams, and the objects of a base.
@@ -125,9 +132,11 @@ heights, textures, blends and passability - and stamps it elsewhere, flipped and
 
 **Roads and water.** Drag a road or bridge segment with the Road tool, joining onto an existing
 end; Apply To Selection re-types selected segments, and a segment's two ends always travel
-together through cut, copy, paste and delete. Lakes are clicked out as outlines, rivers built from
+together through cut, copy, paste and delete. The 3D view lays roads out as the game does: curves
+and mitres where two meet, tees, Ys and four-ways where three or four do. Lakes are clicked out as outlines, rivers built from
 bank lines, wave areas dragged; Water Options edits an area's height, textures, colours and the
-map-wide alpha depths.
+map-wide alpha depths. The 3D view draws water still, as the game's water shaders compute it at
+the first frame.
 
 **World dressing.** Scorch marks, groves (up to five weighted tree types, kept out of water and off
 cliffs), fences, ramps, borders and mesh molds - each writing ordinary map data, each driven from
@@ -154,8 +163,8 @@ the map.
 **Export and import.** A `.scb` script library exports the chosen players' units, scripts and the
 items those scripts reference, and imports back into another map as one undoable edit - reanchored
 for a different map size, with duplicate names, missing players and clashing script names resolved
-the way WorldBuilder resolves them. Terrain textures are the one thing not imported, and the import
-report says so.
+the way WorldBuilder resolves them. Terrain textures merge into the map's texture table by name;
+one with no room left in it is reported and its cells left as they were.
 
 **Cameras, lighting and sound.** A camera animation's keys stand in the 3D view as objects with
 drag handles - move a key along an axis, or turn it about one - and what the chosen camera sees is
@@ -230,10 +239,15 @@ pytest tests/sage_worldbuilder --full
 The OpenGL tests skip wherever no OpenGL 3.3 context can be made, which includes Qt's offscreen
 platform - they need a real window, so they are not part of an ordinary run.
 
-## Known gaps
+## Not ported, by choice
 
-Parity is close but not complete. Still open: cliff UV mapping in the 3D view (a cliff cell draws
-its flat texture); road tees, Y and four-way joins are drawn as plain strips; water bump maps,
-reflections and animation; skybox drawing; a few view toggles whose meaning was not read (Show
-Garrisoned, Show Sound Flags, Show Letterbox, Safe Frame); and the object health presets and
-waypoint type names in the properties panel. Show EFX is not ported.
+- **Show EFX** and **Enable Music Scripting**: WorldBuilder-only previews that write nothing to
+  the map.
+- **Water in motion**: waves, bump scrolling and live reflections. The view draws water still; a
+  lake's reflection is its environment texture, which is a picture of sky.
+- **The `SkyboxSettings` chunk** is edited but not drawn: the RotWK game never reads it and the
+  model its texture sets are made for does not ship. Skybox objects draw like any other.
+
+Where a reading of WorldBuilder stopped short, the choice made instead is written beside the code:
+a river's second set of texture coordinates, and a cliff mapping onto another texture than its
+cell's (drawn as the cell's own tile).

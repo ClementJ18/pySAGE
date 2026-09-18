@@ -86,6 +86,11 @@ class CameraProjection:
         point = self.focus or (camera.target_x, camera.target_y, camera.target_z)
         return camera.pixels_per_unit_at(point)
 
+    def scale_at(self, x: float, y: float) -> float:
+        """Pixels a world unit spans on the ground at `(x, y)`: what sizes something drawn there,
+        where `scale` follows whatever the cursor last pointed at."""
+        return self.camera.pixels_per_unit_at((x, y, self.ground(x, y)))
+
     def hit(self, sx: float, sy: float) -> tuple[float, float, float]:
         """The ground point under a pixel. A ray that misses the heightmap and never comes down
         to the fallback plane gives the camera's target."""

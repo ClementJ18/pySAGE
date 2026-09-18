@@ -23,6 +23,15 @@ counted from 0:
 and the two tiles mix as `secondary * m + base * (255 - m)` over 256, `m` the weight in 0-255
 (`0x00773150`). A cell with a cliff mapping is drawn without its blends.
 
+A cliff mapping replaces a cell's texture coordinates. WorldBuilder draws cliff cells as a mesh of
+their own (`0x007C3930`) over their texture's whole picture, repeating: the cell's corners from
+(x, y) round to (x, y + 1) take the mapping's four (u, v), in repeats of the picture, `u` across
+and `v` up from its first scanline. It draws them so only where the mapping's tile is of the
+texture the cell's own tile shows (`0x007712D0`); a cell whose mapping names another texture is
+drawn with its own tile here (WorldBuilder fades that mapping over the ground, which is not
+read). `cliff_cells` gives each mapped cell its texture and its corners in texture cells, for the
+3D view's shader to find the pixel under each point.
+
 `build_atlas` lays a map's texture cells out by cell number, so a tile value finds its pixels by
 arithmetic, and `cell_data` packs each cell's tiles and masks for the 3D view's shader, which
 repeats the mask arithmetic per pixel.
@@ -37,17 +46,25 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from sage_map.assets.blend_tile_data import BlendDescription, BlendTileTexture
+from sage_map.assets.blend_tile_data import (
+    BlendDescription,
+    BlendTileTexture,
+    CliffTextureMapping,
+)
+from sage_worldbuilder.terrain.textures import texture_classes
 
 __all__ = [
+    "CLIFF_FLAG",
     "MASK_COUNT",
     "MISSING_TEXTURE",
     "TEXTURE_CELL_PIXELS",
     "TerrainAtlas",
     "atlas_key",
+    "CliffCells",
     "blend_secondaries",
     "build_atlas",
     "cell_data",
+    "cliff_cells",
     "mask_index",
     "mask_indices",
     "mask_weight",
@@ -211,6 +228,62 @@ def blend_secondaries(descriptions: Sequence[BlendDescription]) -> np.ndarray:
     return tiles
 
 
+# The cell data flag of a cell drawn through its cliff mapping.
+CLIFF_FLAG = 0x100
+
+
+@dataclass(frozen=True, eq=False)
+class CliffCells:
+    """The cells drawn through their cliff mapping, `[y, x]`: whether each is, its texture's
+    first cell and size, and its corners `(x, y)` from (x, y) round to (x, y + 1) in texture
+    cells of that texture's picture."""
+
+    drawn: np.ndarray
+    starts: np.ndarray
+    sizes: np.ndarray
+    corners: np.ndarray
+
+
+def cliff_cells(
+    tiles: np.ndarray,
+    cliffs: np.ndarray,
+    mappings: Sequence[CliffTextureMapping],
+    textures: Sequence[BlendTileTexture],
+) -> CliffCells:
+    """Which cells show their cliff mapping, and where their corners fall in its texture."""
+    count = len(mappings)
+    numbers = np.asarray(cliffs, dtype=np.int64)
+    known = (numbers > 0) & (numbers <= count)
+    rows, columns = numbers.shape
+    corners = np.zeros((rows, columns, 8), dtype=np.float32)
+    starts = np.zeros((rows, columns), dtype=np.int64)
+    sizes = np.ones((rows, columns), dtype=np.int64)
+    if not count or not textures:
+        return CliffCells(np.zeros_like(known), starts, sizes, corners)
+    mapping_tiles = np.array([mapping.texture_tile for mapping in mappings], dtype=np.int64)
+    mapping_classes = np.concatenate(([-1], texture_classes(mapping_tiles, textures)))
+    coords = np.zeros((count + 1, 8), dtype=np.float32)
+    coords[1:] = [
+        [
+            *mapping.bottom_left_coords,
+            *mapping.bottom_right_coords,
+            *mapping.top_right_coords,
+            *mapping.top_left_coords,
+        ]
+        for mapping in mappings
+    ]
+    index = np.where(known, numbers, 0)
+    classes = mapping_classes[index]
+    drawn = known & (classes >= 0) & (classes == texture_classes(np.asarray(tiles), textures))
+    table_starts = np.array([texture.cell_start for texture in textures], dtype=np.int64)
+    table_sizes = np.array([max(texture.cell_size, 1) for texture in textures], dtype=np.int64)
+    safe = np.maximum(classes, 0)
+    starts = np.where(drawn, table_starts[safe], 0)
+    sizes = np.where(drawn, table_sizes[safe], 1)
+    corners = np.where(drawn[..., None], coords[index] * sizes[..., None], 0.0).astype(np.float32)
+    return CliffCells(drawn, starts, sizes, corners)
+
+
 def cell_data(
     tiles: np.ndarray,
     blends: np.ndarray,
@@ -218,10 +291,13 @@ def cell_data(
     cliffs: np.ndarray | None,
     indices: np.ndarray,
     secondaries: np.ndarray,
+    cliff: CliffCells | None = None,
 ) -> np.ndarray:
     """Per cell `[y, x]`, four `uint16`: its tile, its blend's tile, its 3-way blend's tile, and
     `(3-way mask + 1) << 4 | (blend mask + 1)`, 0 for none. A blend number past the table counts
-    as none, a cell with a cliff mapping has no blends, and a 3-way blend needs a blend under it."""
+    as none, a cell with a cliff mapping has no blends, and a 3-way blend needs a blend under it.
+    A cell drawn through its cliff mapping (`cliff`) instead carries its texture's first cell and
+    size where the blend tiles go, and `CLIFF_FLAG`."""
     count = len(indices)
     blends = np.asarray(blends, dtype=np.int64)
     three_way = np.asarray(three_way, dtype=np.int64)
@@ -238,4 +314,9 @@ def cell_data(
     data[..., 1] = secondaries[first]
     data[..., 2] = secondaries[second]
     data[..., 3] = codes
+    if cliff is not None:
+        drawn = cliff.drawn
+        data[..., 1] = np.where(drawn, cliff.starts & 0xFFFF, data[..., 1])
+        data[..., 2] = np.where(drawn, cliff.sizes & 0xFFFF, data[..., 2])
+        data[..., 3] = np.where(drawn, CLIFF_FLAG, data[..., 3])
     return data

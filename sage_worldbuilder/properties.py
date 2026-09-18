@@ -23,6 +23,7 @@ __all__ = [
     "TEAM_SPECS",
     "TEAM_UNIT_SLOTS",
     "WAYPOINT_SPECS",
+    "WAYPOINT_TYPE_NAMES",
     "WORLD_INFO_SPECS",
     "Editor",
     "PropertySpec",
@@ -45,6 +46,7 @@ class Editor(Enum):
     REAL = "real"
     BOOLEAN = "boolean"
     CHOICE = "choice"
+    PRESET = "preset"
 
 
 @dataclass(frozen=True)
@@ -58,6 +60,10 @@ class PropertySpec:
     choices: tuple[str, ...] | Callable[[], tuple[str, ...]] | None = None
     # The value the first choice stands for (aggressiveness counts from -3).
     choice_base: int = 0
+    # For an Integer with named common values: each name and its value. Any other value is
+    # "Other", typed in; `other` is what choosing Other from a preset starts at.
+    presets: tuple[tuple[str, int], ...] | None = None
+    other: int = 0
 
     def choice_names(self) -> tuple[str, ...]:
         """The names of this spec's values, resolving a callable list."""
@@ -69,6 +75,8 @@ class PropertySpec:
     def editor(self) -> Editor:
         if self.choices is not None:
             return Editor.CHOICE
+        if self.presets is not None:
+            return Editor.PRESET
         if self.type is AssetPropertyType.Boolean:
             return Editor.BOOLEAN
         if self.type is AssetPropertyType.Integer:
@@ -203,8 +211,21 @@ OBJECT_SPECS: tuple[PropertySpec, ...] = (
     _spec("objectName", "Name", _A, ""),
     _spec("originalOwner", "Team", _A, ""),
     _spec("objectLayer", "Layer", _A, ""),
-    _spec("objectInitialHealth", "Initial health %", _I, 100),
-    _spec("objectMaxHPs", "Maximum HP (-1: the template's)", _I, -1),
+    # WorldBuilder's starting-health drop-down (`MapObjectProps::_DictToHealth`, `0x005563C0`);
+    # choosing Other there starts the value at 99 (`OnSelChangeStartingHealth`, `0x005588C0`).
+    PropertySpec(
+        "objectInitialHealth",
+        "Initial health %",
+        _I,
+        100,
+        presets=(("0%", 0), ("25%", 25), ("50%", 50), ("75%", 75), ("100%", 100)),
+        other=99,
+    ),
+    # -1 is `Default For Unit` (`0x005566F0`); WorldBuilder's box takes any other number typed
+    # in, and the 100 Other starts at is a choice.
+    PropertySpec(
+        "objectMaxHPs", "Maximum HP", _I, -1, presets=(("Default For Unit", -1),), other=100
+    ),
     # WorldBuilder's value names (script parameter type 20); stored -3 to 2.
     PropertySpec(
         "objectAggressiveness",
@@ -257,6 +278,20 @@ OBJECT_SPECS: tuple[PropertySpec, ...] = (
     _spec("objectSoundAmbientMaxRange", "Sound maximum range", _R, 0.0),
 )
 
+# The names of the waypoint types, by stored value (`worldbuilder.exe` `0x01EA15A8`, the list
+# Waypoint Options fills its type drop-down from). WorldBuilder itself marks the last two unused.
+WAYPOINT_TYPE_NAMES = (
+    "Normal",
+    "Portal",
+    "WalkPortal",
+    "ClimbPortal",
+    "PreClimbPortal",
+    "Beacon",
+    "Spline (CatmullRom)",
+    "FakePathfindPortal (don't use)",
+    "MineshaftPortal (don't use)",
+)
+
 # Waypoint Options (dialog 153). `waypointID` is not editable: ids are allocated.
 WAYPOINT_SPECS: tuple[PropertySpec, ...] = (
     _spec("waypointName", "Name", _A, ""),
@@ -264,7 +299,7 @@ WAYPOINT_SPECS: tuple[PropertySpec, ...] = (
     _spec("waypointPathLabel2", "Path label 2", _A, ""),
     _spec("waypointPathLabel3", "Path label 3", _A, ""),
     _spec("waypointPathBiDirectional", "Bi-directional", _B, False),
-    _spec("waypointType", "Waypoint type", _I, 0),
+    PropertySpec("waypointType", "Waypoint type", _I, 0, WAYPOINT_TYPE_NAMES),
     _spec("waypointTypeOption", "Type options", _A, ""),
 )
 

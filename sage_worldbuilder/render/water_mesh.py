@@ -13,13 +13,22 @@ rivers agrees (PHASE5.md, R10).
   which is how its opacity texture fades at both banks (`TWAlphaEdge.tga` is clear at both ends of
   its x); along it, one repeat per river width.
 
-The game draws lakes with the FX shader named by the area (`WaterShader.FX`: bump, environment and
-wave textures over a diffuse colour) and rivers with `RiverWater.fx` (its `RiverTexture`,
-`NoiseTexture`, `OpacityTexture` and `SparklesTexture` slots, an opacity, a UV scroll and additive
-blending). A view gives a still picture of them, `WaterLook`: a lake shows its material's diffuse
-colour with its environment texture added at the material's reflection strength, growing opaque
-with depth up to the map's Max alpha depth but never more transparent than its Deep water alpha;
-a river shows its own texture in its colour, faded by its opacity texture and alpha.
+The game draws lakes with the FX shader named by the area (`WaterShader.FX`) and rivers with
+`RiverWater.fx`; the compiled effects (`shaders\\compiled\\*.fxo`) disassemble with Windows'
+`d3dcompiler_47`, and a view gives the still picture of what their pixel shaders compute, at time
+zero, `WaterLook`:
+
+- a lake's default technique mixes its environment texture, multiplied by the material's diffuse
+  colour, toward a live reflection render at the material's reflection strength, and adds its
+  two wave textures. There is no reflection render here, so the environment texture - a picture
+  of sky - stands in for it, and the waves, which only move, are left out. The water grows opaque
+  with depth up to the map's Max alpha depth but never more transparent than its Deep water
+  alpha;
+- a river is its texture in its colour, plus its opacity texture's colour, plus its sparkle
+  texture times its noise texture, laid over the world at one repeat every 16 units; its alpha
+  is its texture's, its opacity texture's and its own multiplied. The game gives the river and
+  sparkle textures one set of texture coordinates and the opacity texture another, whose filling
+  was not read: both take the strip's here.
 
 Those two map values are the engine's `WaterTransparency` block, which a map overrides: the
 `EnvironmentData` chunk holds the same pair of floats the block seeds (`0x0046c62c` copies
@@ -85,13 +94,17 @@ class WaterLook:
     # Texture repeats per texture coordinate unit.
     uv_scale: float
     additive: bool
-    # A lake's reflection strength: its environment texture is added over the colour at this
-    # strength. None multiplies the colour by the texture instead, as a river's is.
+    # A lake's reflection strength: its environment texture in its colour is mixed toward the
+    # texture alone by this much. None multiplies the colour by the texture instead, as a
+    # river's is.
     reflection: float | None
     # (Max alpha depth in feet, deep water alpha) for a lake, or None for a fixed alpha. The
     # map's two `WaterTransparency` values: the depth at which water is opaque, and the opacity
     # it never falls below, so water shallower than that depth still shows.
     depth_alpha: tuple[float, float] | None
+    # A river's sparkles and the noise that dapples them, or None.
+    sparkle_texture: str | None = None
+    noise_texture: str | None = None
 
 
 def _depths(grid: TerrainGrid | None, xs: np.ndarray, ys: np.ndarray, height: float) -> np.ndarray:
@@ -225,4 +238,6 @@ def river_look(area: RiverArea) -> WaterLook:
         additive=bool(area.use_additive_blending),
         reflection=None,
         depth_alpha=None,
+        sparkle_texture=area.sparkle_texture or None,
+        noise_texture=area.noise_texture or None,
     )

@@ -155,6 +155,9 @@ class TurnedTransform:
 
     scale = 1.0
 
+    def scale_at(self, x, y):
+        return self.scale
+
     def world_to_screen(self, x, y):
         return x - y, -(x + y)
 

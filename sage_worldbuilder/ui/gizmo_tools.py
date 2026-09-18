@@ -63,6 +63,8 @@ _AXIS_COLORS = {
 _HOT = QColor(255, 220, 90)
 _CENTER = QColor(235, 235, 235)
 _KEYS = {Qt.Key.Key_X.value: Axis.X, Qt.Key.Key_Y.value: Axis.Y, Qt.Key.Key_Z.value: Axis.Z}
+# Straight pieces the Rotate ring is picked along.
+_RING_STEPS = 48
 
 
 class GizmoHost(ToolHost, Protocol):
@@ -172,7 +174,7 @@ class _GizmoTool(Tool):
         if center is None:
             return
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        self._draw(view, painter, center, view.transform.scale)
+        self._draw(view, painter, center, view.transform.scale_at(*center))
 
     def _color(self, axis: Axis) -> QColor:
         live = self._axis if self._press is not None else self._hot
@@ -209,7 +211,7 @@ class MoveTool(_GizmoTool):
 
     def _grab(self, view: ToolView, center: tuple[float, float], gesture: Gesture) -> Axis | None:
         point = (gesture.screen.x(), gesture.screen.y())
-        scale = view.transform.scale
+        scale = view.transform.scale_at(*center)
         start = view.transform.world_to_screen(*center)
         if math.dist(point, start) <= PICK_PIXELS:
             return Axis.GROUND
@@ -244,7 +246,7 @@ class MoveTool(_GizmoTool):
         ux, uy = view.transform.height_direction(*self._center_at)
         along = (gesture.screen.x() - press.screen.x()) * ux
         along += (gesture.screen.y() - press.screen.y()) * uy
-        dz = along / view.transform.scale
+        dz = along / view.transform.scale_at(*self._center_at)
         dx, dy, dz = constrained((dx, dy, dz), self._axis)
         dx, dy = self._snapped(view, objects, dx, dy)
         step = (dx - self._moved[0], dy - self._moved[1], dz - self._moved[2])
@@ -317,9 +319,18 @@ class RotateTool(_GizmoTool):
         return math.atan2(point[1] - center[1], point[0] - center[0])
 
     def _grab(self, view: ToolView, center: tuple[float, float], gesture: Gesture) -> Axis | None:
-        start = view.transform.world_to_screen(*center)
-        away = math.dist((gesture.screen.x(), gesture.screen.y()), start)
-        return Axis.Z if abs(away - GIZMO_PIXELS) <= PICK_PIXELS else None
+        """The ring as drawn: a circle on the ground, which the 3D view shows as an ellipse."""
+        out = reach(GIZMO_PIXELS, view.transform.scale_at(*center))
+        ring = [
+            view.transform.world_to_screen(
+                center[0] + out * math.cos(step * math.tau / _RING_STEPS),
+                center[1] + out * math.sin(step * math.tau / _RING_STEPS),
+            )
+            for step in range(_RING_STEPS + 1)
+        ]
+        point = (gesture.screen.x(), gesture.screen.y())
+        near = min(point_to_segment(point, a, b) for a, b in zip(ring, ring[1:], strict=False))
+        return Axis.Z if near <= PICK_PIXELS else None
 
     def _start(self, document: MapDocument, center: tuple[float, float], gesture: Gesture) -> None:
         objects = selected_objects(document)

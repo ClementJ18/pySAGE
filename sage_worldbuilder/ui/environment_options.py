@@ -11,7 +11,10 @@ The skybox is the map's `SkyboxSettings` chunk: a position, scale, rotation and 
 `SkyboxTextureSet`), as the Edit Skybox dialog shows them; Center Skybox On Camera moves it to what
 the view looks at. No corpus map stores the chunk, so "Use a skybox" adds one, at version 1 with a
 scale of 1 and no rotation (choices: WorldBuilder's reader was not found), and removes it again.
-The view does not draw the skybox.
+The view does not draw it, because nothing does: RotWK's `game.dat` has no `SkyboxSettings`
+chunk name and the model the texture sets are made for (`new_skybox.w3d`, environment.ini) does
+not ship. A RotWK map's sky is a placed object (`KindOf SKYBOX`, the `SKYBOXES` browser), which
+the 3D view draws as it draws any object.
 """
 
 from __future__ import annotations

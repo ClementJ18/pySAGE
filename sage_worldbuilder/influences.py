@@ -6,21 +6,38 @@ weapons of the template's default weapon set: the first whose conditions are all
 first set. Sound ranges are the object's own `objectSoundAmbientMinRange` and
 `objectSoundAmbientMaxRange` when it customizes its ambient sound (`objectSoundAmbientCustomized`);
 the ranges of a sound it takes from its template are not read. World units throughout.
+
+Show Sound Flags puts a flag on every object whose template's `EditorSorting` is `AUDIO`
+(`worldbuilder.exe` `0x004B67B0`): cyan when the sound the object plays is an `AmbientStream`
+(the engine's audio kind 3), blue otherwise, including when it plays none.
 """
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import TYPE_CHECKING
+
+from sage_worldbuilder.ambient import attached_sound_name
 
 if TYPE_CHECKING:
     from sage_ini.model.game import Game
     from sage_map.assets.object_list import Object
 
-__all__ = ["Influences", "sound_ranges"]
+__all__ = ["SOUND_FLAG", "Influences", "SoundFlag", "sound_ranges"]
 
 _CUSTOMIZED = "objectSoundAmbientCustomized"
 _MIN_RANGE = "objectSoundAmbientMinRange"
 _MAX_RANGE = "objectSoundAmbientMaxRange"
+
+
+# A sound flag's corners, (along x, up) in world units from the ground under the object: a pole two
+# wide and twenty tall, and a pennant from its top out to ten along and up to thirty.
+SOUND_FLAG = ((0.0, 0.0), (0.0, 20.0), (2.0, 20.0), (2.0, 0.0), (0.0, 30.0), (10.0, 25.0))
+
+
+class SoundFlag(Enum):
+    SOUND = "sound"
+    STREAM = "stream"
 
 
 def _number(value: object) -> float | None:
@@ -39,6 +56,7 @@ class Influences:
         self._names: dict[str, str] | None = None
         self._sight: dict[str, float | None] = {}
         self._weapons: dict[str, float | None] = {}
+        self._audio: dict[str, bool] = {}
 
     def _template(self, type_name: str) -> object:
         objects = self.game.objects
@@ -60,6 +78,21 @@ class Influences:
         if type_name not in self._weapons:
             self._weapons[type_name] = self._read_weapon_range(self._template(type_name))
         return self._weapons[type_name]
+
+    def sound_flag(self, obj: Object) -> SoundFlag | None:
+        """The flag Show Sound Flags puts on `obj`, or None for an object that is not audio."""
+        type_name = obj.type_name
+        if type_name not in self._audio:
+            sortings = getattr(self._template(type_name), "EditorSorting", None) or []
+            self._audio[type_name] = any(
+                getattr(sorting, "name", str(sorting)).upper() == "AUDIO" for sorting in sortings
+            )
+        if not self._audio[type_name]:
+            return None
+        name = attached_sound_name(obj, self.game)
+        if name is not None and self.game.lookup("ambientstreams", name)[0] is not None:
+            return SoundFlag.STREAM
+        return SoundFlag.SOUND
 
     @staticmethod
     def _read_weapon_range(template: object) -> float | None:

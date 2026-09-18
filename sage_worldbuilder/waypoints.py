@@ -4,6 +4,10 @@ A waypoint is a placed object of type `*Waypoints/Waypoint`; `WaypointsList` hol
 `(start waypointID, end waypointID)` pairs. A new waypoint carries the object keys every object
 has, then the waypoint keys in the order most corpus waypoints store them. Its `uniqueID` is its
 name, and it belongs to the neutral team, as every corpus waypoint does.
+
+A waypoint's type is one value per waypoint, except a spline: WorldBuilder gives a whole path
+the type when a waypoint on it becomes a spline or stops being one
+(`worldbuilder.exe` `0x00632F40`, spreading along links in both directions from `0x006331A0`).
 """
 
 from __future__ import annotations
@@ -13,7 +17,7 @@ from sage_map.context import AssetPropertyType
 from sage_map.map import Map
 from sage_worldbuilder.changes import Change, ChangeKind
 from sage_worldbuilder.commands.base import Command, CompositeCommand
-from sage_worldbuilder.commands.edits import InsertItem, RemoveItem
+from sage_worldbuilder.commands.edits import InsertItem, RemoveItem, SetProperty
 from sage_worldbuilder.ids import new_waypoint_name, next_waypoint_id
 from sage_worldbuilder.objects import OBJECTS, new_object
 
@@ -21,7 +25,9 @@ __all__ = [
     "WAYPOINT_TYPE",
     "add_linked_waypoint",
     "find_link",
+    "linked_waypoint_ids",
     "new_waypoint",
+    "set_waypoint_type",
     "toggle_link",
     "waypoint_id",
 ]
@@ -29,6 +35,7 @@ __all__ = [
 WAYPOINT_TYPE = "*Waypoints/Waypoint"
 NEUTRAL_TEAM = "/team"
 WAYPOINTS = Change(ChangeKind.WAYPOINTS)
+SPLINE = 6
 
 
 def waypoint_id(obj: Object) -> int | None:
@@ -96,3 +103,56 @@ def add_linked_waypoint(
         ],
     )
     return command, obj
+
+
+def linked_waypoint_ids(map: Map, start: int) -> set[int]:
+    """The ids of every waypoint reachable from `start` over links, either way along them,
+    `start` included."""
+    neighbours: dict[int, list[int]] = {}
+    for first, second in _paths(map):
+        neighbours.setdefault(first, []).append(second)
+        neighbours.setdefault(second, []).append(first)
+    found, pending = {start}, [start]
+    while pending:
+        for other in neighbours.get(pending.pop(), ()):
+            if other not in found:
+                found.add(other)
+                pending.append(other)
+    return found
+
+
+def _type_of(obj: Object) -> int:
+    stored = obj.properties.get("waypointType")
+    return int(stored["value"]) if stored is not None else 0
+
+
+def set_waypoint_type(map: Map, waypoints: list[Object], value: int) -> Command:
+    """Set the type of `waypoints`; to or from a spline, the type goes to their whole paths."""
+    targets = list(waypoints)
+    if map.objects_list is not None and map.waypoints_list is not None:
+        ids: set[int] = set()
+        for obj in waypoints:
+            number = waypoint_id(obj)
+            if number is not None and SPLINE in (value, _type_of(obj)):
+                ids |= linked_waypoint_ids(map, number)
+        chosen = {id(obj) for obj in targets}
+        targets += [
+            obj
+            for obj in map.objects_list.object_list
+            if id(obj) not in chosen and waypoint_id(obj) in ids
+        ]
+    label = "Set Waypoint type"
+    integer = AssetPropertyType.Integer
+    return CompositeCommand(
+        label,
+        [
+            SetProperty(
+                obj.properties,
+                "waypointType",
+                {"name": "waypointType", "type": integer, "value": value},
+                OBJECTS,
+                label,
+            )
+            for obj in targets
+        ],
+    )

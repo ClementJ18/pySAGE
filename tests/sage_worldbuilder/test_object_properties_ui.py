@@ -171,3 +171,49 @@ def test_panel_edits_every_selected_object(qapp):
     assert tree.position == (10.0, 20.0, 0.0)
     assert rock.properties["objectEnabled"]["value"] is True
     assert "objectAggressiveness" not in rock.properties
+
+
+@pytest.mark.full
+def test_health_presets_and_waypoint_type_names(qapp):
+    from sage_worldbuilder.properties import WAYPOINT_TYPE_NAMES  # noqa: PLC0415
+    from sage_worldbuilder.ui.object_properties import ObjectPropertiesPanel  # noqa: PLC0415
+    from sage_worldbuilder.ui.property_form import PresetField  # noqa: PLC0415
+
+    integer = AssetPropertyType.Integer
+    tree = placed("Tree", 0.0, 0.0, objectInitialHealth=(integer, 40))
+    waypoint = placed("*Waypoints/Waypoint", 5.0, 5.0, waypointID=(integer, 1))
+    map = Map()
+    map.objects_list = ObjectsList(version=3, object_list=[tree, waypoint], start_pos=0, end_pos=0)
+    document = MapDocument(map)
+    panel = ObjectPropertiesPanel(Host(document))
+    document.selection.set([tree, waypoint])
+    panel.refresh()
+
+    health = panel.object_form.fields["objectInitialHealth"]
+    assert isinstance(health, PresetField)
+    assert [health.choice.itemText(i) for i in range(health.choice.count())] == [
+        "0%",
+        "25%",
+        "50%",
+        "75%",
+        "100%",
+        "Other",
+    ]
+    # 40 is no preset: Other, with the number box on.
+    assert health.choice.currentText() == "Other" and health.number.isEnabled()
+    assert health.number.value() == 40
+    health.choice.setCurrentIndex(2)
+    assert tree.properties["objectInitialHealth"]["value"] == 50
+    assert not health.number.isEnabled()
+    health.choice.setCurrentIndex(5)
+    assert tree.properties["objectInitialHealth"]["value"] == 99
+    health.number.setValue(12)
+    assert tree.properties["objectInitialHealth"]["value"] == 12
+
+    max_hp = panel.object_form.fields["objectMaxHPs"]
+    assert max_hp.choice.currentText() == "Default For Unit" and not max_hp.number.isEnabled()
+
+    kind = panel.waypoint_form.fields["waypointType"]
+    assert kind.count() == len(WAYPOINT_TYPE_NAMES) and kind.currentText() == "Normal"
+    kind.setCurrentIndex(5)
+    assert waypoint.properties["waypointType"]["value"] == 5

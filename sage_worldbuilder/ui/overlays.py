@@ -34,7 +34,7 @@ from sage_map.assets.standing_waves_area import StandingWaveArea
 from sage_worldbuilder.build_lists import build_list_entries, side_names
 from sage_worldbuilder.footprints import FootprintShape
 from sage_worldbuilder.gizmos import HANDLE_KNOB_PIXELS, front_tip
-from sage_worldbuilder.influences import sound_ranges
+from sage_worldbuilder.influences import SOUND_FLAG, SoundFlag, sound_ranges
 from sage_worldbuilder.road_mesh import RoadPiece, road_pieces
 from sage_worldbuilder.roads import DEFAULT_ROAD_WIDTH, RoadSegment, RoadStyle
 from sage_worldbuilder.scene import MapScene, Marker, MarkerKind
@@ -84,6 +84,14 @@ _BOUNDING_BOX = QColor(120, 200, 255, 210)
 _SIGHT = QColor(90, 230, 130, 180)
 _WEAPON = QColor(255, 90, 70, 190)
 _SOUND = QColor(200, 150, 255, 180)
+_SOUND_FLAG_COLORS = {
+    SoundFlag.SOUND: QColor(0x25, 0x25, 0xEF),
+    SoundFlag.STREAM: QColor(0x7F, 0xFF, 0xFF),
+}
+# The corners of a sound flag's pole and of its pennant (indices into `SOUND_FLAG`), and how many
+# pixels a flag unit is where the view draws it at a fixed size.
+_FLAG_QUADS = ((0, 3, 2, 1), (1, 2, 5, 4))
+_FLAG_PIXELS = 0.8
 # A road and a bridge with no texture of their own; the 3D view fills them with these too.
 ROAD_FILL = QColor(170, 140, 100, 150)
 BRIDGE_FILL = QColor(205, 205, 215, 170)
@@ -590,7 +598,8 @@ class OverlayPainter:
         for marker, point in selected:
             if marker.kind is not MarkerKind.OBJECT:
                 continue
-            out = front_tip(marker.x, marker.y, marker.angle, self.transform.scale)
+            scale = self.transform.scale_at(marker.x, marker.y)
+            out = front_tip(marker.x, marker.y, marker.angle, scale)
             tip = self._to_screen(*out)
             if tip is None:
                 continue
@@ -630,6 +639,7 @@ class OverlayPainter:
             or options.show_sight_ranges
             or options.show_weapon_ranges
             or options.show_sound_circles
+            or options.show_sound_flags
         ):
             return
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -656,6 +666,32 @@ class OverlayPainter:
                     if minimum > 0:
                         painter.setPen(QPen(_SOUND, 1, Qt.PenStyle.DashLine))
                         self.world_circle(painter, marker.x, marker.y, minimum)
+            if influences is not None and options.show_sound_flags:
+                flag = influences.sound_flag(obj)
+                if flag is not None:
+                    self._draw_sound_flag(painter, marker, _SOUND_FLAG_COLORS[flag])
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+    def _flag_points(self, marker: Marker) -> list[QPointF] | None:
+        """A sound flag's corners in pixels (`SOUND_FLAG`), or None when it cannot be shown. From
+        above, the flag stands up the screen at a fixed size."""
+        point = self._to_screen(marker.x, marker.y)
+        if point is None:
+            return None
+        return [
+            QPointF(point.x() + along * _FLAG_PIXELS, point.y() - up * _FLAG_PIXELS)
+            for along, up in SOUND_FLAG
+        ]
+
+    def _draw_sound_flag(self, painter: QPainter, marker: Marker, color: QColor) -> None:
+        """A pole and its pennant, filled."""
+        points = self._flag_points(marker)
+        if points is None:
+            return
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color)
+        for corners in _FLAG_QUADS:
+            painter.drawPolygon(QPolygonF([points[index] for index in corners]))
 
     def _draw_footprint(
         self,

@@ -176,6 +176,18 @@ def test_the_projection_puts_the_ground_under_the_middle_pixel_at_the_target():
     assert projection.scale == pytest.approx(view.pixels_per_unit_at((50.0, 50.0, 40.0)))
 
 
+def test_scale_at_a_place_does_not_follow_the_cursor():
+    # A tilted camera: the near ground spans more pixels a unit than the far. `scale` follows the
+    # last point under the cursor; `scale_at`, which sizes gizmos, only the place asked about.
+    view = camera(pitch=40, distance=800, target_x=50.0, target_y=50.0, target_z=40.0)
+    projection = CameraProjection(view, flat(size=101))
+    before = projection.scale_at(50.0, 50.0)
+    assert before == pytest.approx(view.pixels_per_unit_at((50.0, 50.0, 40.0)))
+    projection.hit(400, 590)
+    assert projection.scale != pytest.approx(before)
+    assert projection.scale_at(50.0, 50.0) == pytest.approx(before)
+
+
 def test_off_the_heightmap_the_projection_falls_back_to_the_last_ground_height():
     view = camera(pitch=60, distance=3000, target_x=50.0, target_y=50.0, target_z=40.0)
     projection = CameraProjection(view, flat())

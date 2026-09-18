@@ -318,15 +318,81 @@ def test_heights_and_passability_land_at_the_anchor_clipped_to_the_map():
 def test_an_export_of_a_real_map_survives_a_scb_file_and_imports_into_it():
     map = parse_map_from_path(FIXTURE)
     options = ExportOptions(
-        all_waypoints=True, all_areas=True, water=True, lighting=True, terrain_height=True
+        all_waypoints=True,
+        all_areas=True,
+        water=True,
+        lighting=True,
+        terrain_height=True,
+        terrain_texture=True,
     )
     written = write_scb(build_export(map, options))
     library = parse_scb(io.BytesIO(written))
     assert write_scb(library) == written
 
     document = MapDocument(parse_map_from_path(FIXTURE))
+    tiles_before = [list(column) for column in document.map.blend_tile_data.tiles]
     command, report = import_library(document.map, library, ImportChoices())
     if command is not None:
         document.execute(command)
+        # Into itself, every texture is found by name and every tile stays.
+        assert document.map.blend_tile_data.tiles == tiles_before
         document.stack.undo()
     assert report.discarded_players == []
+
+
+def test_terrain_textures_merge_into_the_maps_table_by_name():
+    from sage_map.assets.blend_tile_data import (  # noqa: PLC0415
+        BlendDescription,
+        BlendTileTexture,
+        CliffTextureMapping,
+    )
+    from sage_worldbuilder.terrain.cells import TileLayer  # noqa: PLC0415
+
+    # The library shows Rock (its texture 0) and Sand (texture 1, cells 16-19).
+    source = new_map(NewMapOptions(width=8, height=8, border=1, texture="Rock"))
+    blend = source.blend_tile_data
+    blend.textures.append(BlendTileTexture(16, 4, 2, 0, "Sand"))
+    blend.texture_cell_count += 4
+    sand_tile = 17 << 2
+    blend.tiles[3][2] = sand_tile  # cell x=3, y=2
+    blend.blend_descriptions.append(BlendDescription(sand_tile, b"\x01\x00", 0, False, 0))
+    blend.blends[3][2] = 1
+    blend.cliff_texture_mappings.append(
+        CliffTextureMapping(sand_tile, (0, 0), (1, 0), (1, 1), (0, 1), 0)
+    )
+    blend.cliff_textures[3][2] = 1
+    library = ScriptLibrary()
+    library.script_import_size = ScriptImportSize(1, 8, 8, 0, 0)
+    library.blend_tile_data = blend
+
+    # The map has Grass first, then Sand, and one cliff mapping of its own.
+    target = new_map(NewMapOptions(width=16, height=16, border=2, texture="Grass"))
+    table = target.blend_tile_data
+    grass_cells = table.texture_cell_count
+    table.textures.append(BlendTileTexture(grass_cells, 4, 2, 0, "Sand"))
+    table.texture_cell_count += 4
+    table.cliff_texture_mappings.append(CliffTextureMapping(0, (0, 0), (1, 0), (1, 1), (0, 1), 0))
+    document = MapDocument(target)
+    before = document.cells(TileLayer.TILES).copy()
+    command, report = import_library(target, library, ImportChoices(anchor=Anchor.BOTTOM_LEFT))
+    document.execute(command)
+
+    assert [texture.name for texture in table.textures] == ["Grass", "Sand", "Rock"]
+    rock = table.textures[2]
+    assert rock.cell_start == grass_cells + 4
+    tiles = document.cells(TileLayer.TILES)
+    # Rock's tiles move to its new cells; the Sand cell to the map's Sand.
+    assert tiles[0, 0] >> 2 == rock.cell_start
+    assert tiles[2, 3] == (grass_cells + 1) << 2
+    description = table.blend_descriptions[document.cells(TileLayer.BLENDS)[2, 3] - 1]
+    assert description.secondary_texture_tile == (grass_cells + 1) << 2
+    assert document.cells(TileLayer.CLIFF_TEXTURES)[2, 3] == 2
+    assert table.cliff_texture_mappings[1].texture_tile == (grass_cells + 1) << 2
+    # Outside the library the map keeps its own.
+    assert np.array_equal(tiles[8:, :], before[8:, :])
+    assert report.not_imported == []
+
+    document.stack.undo()
+    assert [texture.name for texture in table.textures] == ["Grass", "Sand"]
+    assert np.array_equal(document.cells(TileLayer.TILES), before)
+    assert len(table.cliff_texture_mappings) == 1

@@ -272,3 +272,62 @@ def test_with_the_world_builder_toggle_off_every_draw_shows_its_default():
         ObjectModels(SimpleNamespace(objects={"Rider": template})).get("Rider").model
         == "Mounted_SKN"
     )
+
+
+def test_the_state_that_best_fits_the_conditions_is_shown():
+    from sage_worldbuilder.models import model_key  # noqa: PLC0415
+
+    template = SimpleNamespace(
+        Draw=[
+            draw(
+                DefaultModelConditionState=[named_state(None, "Pristine")],
+                ModelConditionState=[
+                    named_state("DAMAGED", "Damaged"),
+                    named_state("NIGHT", "Night"),
+                    named_state("DAMAGED NIGHT", "DamagedNight"),
+                    named_state("GARRISONED", "Garrisoned"),
+                    named_state("NIGHT SNOW", "NightSnow"),
+                ],
+            )
+        ]
+    )
+    shown = {
+        flags: object_model(template, conditions=frozenset(flags.split())).model
+        for flags in ("", "DAMAGED", "NIGHT", "DAMAGED NIGHT", "GARRISONED", "SNOW", "RUBBLE")
+    }
+    assert shown == {
+        "": "Pristine",
+        "DAMAGED": "Damaged",
+        "NIGHT": "Night",
+        "DAMAGED NIGHT": "DamagedNight",
+        "GARRISONED": "Garrisoned",
+        # SNOW alone fits NIGHT SNOW by one flag, more than the default's none.
+        "SNOW": "NightSnow",
+        "RUBBLE": "Pristine",
+    }
+    models = ObjectModels(SimpleNamespace(objects={"Tower": template}))
+    assert models.get(model_key("Tower", frozenset({"NIGHT", "DAMAGED"}))).model == "DamagedNight"
+    assert model_key("Tower", frozenset()) == "Tower"
+
+
+def test_an_objects_model_conditions_follow_its_health_time_weather_and_the_map():
+    from sage_worldbuilder.models import MapConditions, model_conditions  # noqa: PLC0415
+
+    def stored(**values):
+        return {key: {"name": key, "type": None, "value": value} for key, value in values.items()}
+
+    plain = MapConditions()
+    assert model_conditions({}, plain) == frozenset()
+    assert model_conditions(stored(objectInitialHealth=50), plain) == {"DAMAGED"}
+    assert model_conditions(stored(objectInitialHealth=51), plain) == frozenset()
+    assert model_conditions(stored(objectInitialHealth=10), plain) == {"REALLYDAMAGED"}
+    assert model_conditions(stored(objectInitialHealth=0), plain) == {"RUBBLE"}
+    assert model_conditions(stored(objectTime=2, objectWeather=2), plain) == {"NIGHT", "SNOW"}
+    # An object's own day does not undo the map's night.
+    night = MapConditions(night=True, garrisoned=True)
+    assert model_conditions(stored(objectTime=1), night) == {"NIGHT", "GARRISONED"}
+    data = SimpleNamespace(UnitDamagedThreshold=0.7, UnitReallyDamagedThreshold=0.3)
+    game = SimpleNamespace(tables={"gamedatas": {"GameData": data}})
+    thresholds = MapConditions.of_game(game)
+    assert (thresholds.damaged, thresholds.really_damaged) == (0.7, 0.3)
+    assert model_conditions(stored(objectInitialHealth=30), thresholds) == {"REALLYDAMAGED"}

@@ -317,14 +317,14 @@ class SelectTool(Tool):
         scene, selection = view.scene, document.selection
         if scene is None or not selection:
             return None
-        scale = view.transform.scale
-        margin = (HANDLE_PIXELS + PICK_PIXELS) / scale
         x, y = gesture.world
+        margin = (HANDLE_PIXELS + PICK_PIXELS) / view.transform.scale_at(x, y)
         for marker in scene.in_rect(x - margin, y - margin, x + margin, y + margin):
             if marker.kind is not MarkerKind.OBJECT or marker.source not in selection:
                 continue
             if not _marker_shown(view, marker):
                 continue
+            scale = view.transform.scale_at(marker.x, marker.y)
             out = front_tip(marker.x, marker.y, marker.angle, scale)
             tip = view.transform.world_to_screen(*out)
             if math.hypot(tip[0] - gesture.screen.x(), tip[1] - gesture.screen.y()) <= PICK_PIXELS:

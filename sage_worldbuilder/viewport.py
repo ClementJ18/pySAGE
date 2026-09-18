@@ -18,6 +18,8 @@ __all__ = [
     "GridSettings",
     "ViewOptions",
     "ViewTransform",
+    "letterbox_band",
+    "safe_frame",
     "snap",
 ]
 
@@ -26,6 +28,9 @@ MAX_SCALE = 20.0
 # Partial Map Size: the cells across the 3D view draws about its target when it does not
 # draw the whole map, the values WorldBuilder's four menu handlers store (0x00662830-0x00662BF0).
 PARTIAL_MAP_SIZES = (97, 129, 161, 192)
+# The frames the 3D view can draw over itself: 16:9 inside the view, and the safe frame's 4:3.
+WIDESCREEN = 0.5625
+SAFE_FRAME_ASPECT = 1.3333
 
 
 @dataclass
@@ -72,6 +77,15 @@ class ViewOptions:
     show_sight_ranges: bool = False
     show_weapon_ranges: bool = False
     show_sound_circles: bool = False
+    # A flag on every audio object, blue, or cyan for an ambient stream.
+    show_sound_flags: bool = False
+    # Objects show their GARRISONED condition state's model.
+    show_garrisoned: bool = False
+    # The 3D view: black bars cutting the picture to 16:9, and the safe frame - a 4:3 outline a
+    # share of the view wide, marked with the 16:9 frame inside it.
+    show_letterbox: bool = False
+    show_safe_frame: bool = False
+    safe_frame_scale: float = 0.6
     # Which view the central area opens in: the 3D view, or the top-down view. The editor
     # remembers the one last shown, so this is the choice for a first run.
     view_3d: bool = True
@@ -173,6 +187,10 @@ class ViewTransform:
             self.height / 2 - (y - self.center_y) * self.scale,
         )
 
+    def scale_at(self, x: float, y: float) -> float:
+        """Pixels a world unit spans at a place on the map: the same everywhere from above."""
+        return self.scale
+
     def screen_to_world(self, sx: float, sy: float) -> tuple[float, float]:
         return (
             self.center_x + (sx - self.width / 2) / self.scale,
@@ -229,3 +247,21 @@ class ViewTransform:
             return [origin + index * spacing for index in range(first, last + 1)]
 
         return lines(x0, x1), lines(y0, y1)
+
+
+def letterbox_band(width: int, height: int) -> int:
+    """How tall each of Show Letterbox's two black bars is: what a 16:9 picture as wide as the
+    view leaves above and below it (`worldbuilder.exe` `0x004E43DF`), none in a wider view."""
+    return max(int((height - width * WIDESCREEN) * 0.5), 0)
+
+
+def safe_frame(width: int, height: int, scale: float) -> tuple[int, int, int, int, int]:
+    """The safe frame (`0x0065E1D0`): a 4:3 rectangle `scale` of the view wide, centred, as
+    (left, top, width, height), and the height of the band at its top and bottom that leaves
+    the 16:9 frame inside it."""
+    frame_width = int(width * scale)
+    frame_height = int(frame_width / SAFE_FRAME_ASPECT)
+    band = int((frame_height - frame_width * WIDESCREEN) * 0.5)
+    left = (width - frame_width) // 2
+    top = (height - frame_height) // 2
+    return left, top, frame_width, frame_height, band

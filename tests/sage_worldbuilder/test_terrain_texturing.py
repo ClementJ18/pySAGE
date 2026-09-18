@@ -154,3 +154,30 @@ def test_cell_data_packs_tiles_and_masks_and_drops_what_the_game_does_not_draw()
     # A blend number past the table, and a cliff-mapped cell, draw their tile alone.
     assert data[0, 2].tolist() == [7, 0, 0, 0]
     assert data[0, 3].tolist() == [8, 0, 0, 0]
+
+
+def test_cliff_cells_place_their_corners_in_their_textures_picture():
+    from sage_map.assets.blend_tile_data import CliffTextureMapping  # noqa: PLC0415
+    from sage_worldbuilder.render.terrain_texturing import (  # noqa: PLC0415
+        CLIFF_FLAG,
+        cliff_cells,
+    )
+
+    textures = [BlendTileTexture(0, 4, 2, 0, "Grass"), BlendTileTexture(4, 16, 4, 0, "Cliff")]
+    cliff_tile = 6 << 2
+    mappings = [
+        CliffTextureMapping(cliff_tile, (0.5, 0.5), (0.6, 3.6), (0.8, 2.0), (0.75, 0.15), 0)
+    ]
+    # A cliff cell, the same mapping under a grass tile, and a cell with none.
+    tiles = np.array([[cliff_tile, 1 << 2, cliff_tile]])
+    cliffs = np.array([[1, 1, 0]])
+    cells = cliff_cells(tiles, cliffs, mappings, textures)
+    assert cells.drawn.tolist() == [[True, False, False]]
+    assert cells.starts[0, 0] == 4 and cells.sizes[0, 0] == 4
+    # The mapping's (u, v) in repeats of the picture, in texture cells of it.
+    assert cells.corners[0, 0] == pytest.approx([2.0, 2.0, 2.4, 14.4, 3.2, 8.0, 3.0, 0.6])
+    indices, secondaries = np.array([-1], dtype=np.int16), np.zeros(1, dtype=np.uint16)
+    zeros = np.zeros_like(tiles)
+    data = cell_data(tiles, zeros, zeros, cliffs, indices, secondaries, cells)
+    assert data[0, 0].tolist() == [cliff_tile, 4, 4, CLIFF_FLAG]
+    assert data[0, 1].tolist() == [1 << 2, 0, 0, 0]

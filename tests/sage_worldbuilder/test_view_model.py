@@ -208,3 +208,13 @@ def test_scene_stands_anchored_objects_around_their_pivot():
     assert scene.nearest(1000.0, 1000.0, 10.0) is None
     unanchored = MapScene.from_map(map)
     assert (unanchored.marker_for(north).x, unanchored.marker_for(north).y) == (1000.0, 1000.0)
+
+
+def test_the_letterbox_and_safe_frame_follow_worldbuilder():
+    from sage_worldbuilder.viewport import letterbox_band, safe_frame  # noqa: PLC0415
+
+    # A 4:3 view keeps a 16:9 strip: 800 * 0.5625 = 450, so 75 above and below.
+    assert letterbox_band(800, 600) == 75
+    assert letterbox_band(1920, 800) == 0
+    # 60% of 1000 wide is 600, 4:3 makes it 450 tall, and 16:9 of 600 is 337.5 inside.
+    assert safe_frame(1000, 700, 0.6) == (200, 125, 600, 450, 56)

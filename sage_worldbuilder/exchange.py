@@ -8,8 +8,9 @@ trigger areas the exported scripts name. Import follows the reader at `0x0053D92
 another size is placed at an anchor (Reanchor Import), a waypoint, named object or trigger area
 whose name the map already has is resolved by a choice (Keep existing / Keep imported), a team
 whose player the map lacks goes to a chosen player, and each exported player's scripts go to the
-map's player of that name, dropping scripts whose names the player already has. Everything is
-one undoable edit. What is WorldBuilder's and what is a choice is in docs/PHASE6.md, 6.1.
+map's player of that name, dropping scripts whose names the player already has. Terrain
+textures are merged into the map's texture table (`terrain.merge`). Everything is one undoable
+edit.
 """
 
 from __future__ import annotations
@@ -53,7 +54,8 @@ from sage_worldbuilder.roads import with_partners
 from sage_worldbuilder.scene import WAYPOINT_PREFIX
 from sage_worldbuilder.scripting import iter_script_items, player_script_lists
 from sage_worldbuilder.terrain.cells import CellLayer, layer_array
-from sage_worldbuilder.terrain.edits import PatchCells, PatchHeights
+from sage_worldbuilder.terrain.edits import PatchCells, PatchHeights, ReplaceTerrainTables
+from sage_worldbuilder.terrain.merge import merge_textures
 from sage_worldbuilder.water import WaterKind, next_water_id, water_areas
 
 if TYPE_CHECKING:
@@ -880,8 +882,22 @@ def _import_terrain(
         if placed is not None:
             x0, y0, block = placed
             commands.append(PatchHeights(x0, y0, block, "Import"))
-    if library.blend_tile_data is not None:
-        report.not_imported.append("terrain textures")
+    if library.blend_tile_data is not None and map.blend_tile_data is not None:
+        merge = merge_textures(map.blend_tile_data, library.blend_tile_data, dx, dy)
+        if merge is not None:
+            commands.append(
+                ReplaceTerrainTables(
+                    merge.patches,
+                    merge.textures,
+                    merge.descriptions,
+                    merge.cliff_mappings,
+                    "Import",
+                )
+            )
+            if merge.left_out:
+                report.not_imported.append(
+                    "terrain textures with no room in the map: " + ", ".join(merge.left_out)
+                )
     return commands
 
 

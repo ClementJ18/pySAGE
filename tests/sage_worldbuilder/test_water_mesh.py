@@ -95,6 +95,8 @@ def test_the_looks_of_a_lake_and_a_river():
     assert look.texture == river.river_texture and look.opacity_texture == river.alpha_edge_texture
     assert look.color == pytest.approx((1.0, 128 / 255, 0.0, river.alpha))
     assert look.additive == river.use_additive_blending and look.reflection is None
+    assert look.sparkle_texture == (river.sparkle_texture or None)
+    assert look.noise_texture == (river.noise_texture or None)
 
 
 def test_the_lake_grid_matches_the_single_point_test_for_a_concave_outline():

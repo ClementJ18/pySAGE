@@ -77,7 +77,7 @@ from sage_worldbuilder.launch_patch import (
 )
 from sage_worldbuilder.libraries import LibraryMaps
 from sage_worldbuilder.lighting import next_time_of_day
-from sage_worldbuilder.models import ArtIndex, ObjectModels
+from sage_worldbuilder.models import ArtIndex, MapConditions, ObjectModels
 from sage_worldbuilder.new_map import DEFAULT_CELL_SIZE, NewMapOptions, new_map
 from sage_worldbuilder.objects import (
     Clipboard,
@@ -269,6 +269,11 @@ CMD_SHOW_BOUNDING_BOXES = 33008
 CMD_SHOW_SIGHT_RANGES = 33009
 CMD_SHOW_WEAPON_RANGES = 33010
 CMD_SHOW_SOUND_CIRCLES = 33349
+CMD_SHOW_GARRISONED = 33326
+CMD_SHOW_SOUND_FLAGS = 33340
+CMD_SHOW_LETTERBOX = 33012
+CMD_SHOW_SAFE_FRAME = 33411
+CMD_SAFE_FRAME_SETTINGS = 33412
 CMD_SHOW_ROADS = 33352
 CMD_SHOW_WATER = 33351
 CMD_GLOBAL_LIGHT_OPTIONS = 32965
@@ -400,6 +405,10 @@ _VIEW_TOGGLES = (
     ("Show S&ight Ranges", "show_sight_ranges", CMD_SHOW_SIGHT_RANGES),
     ("Show Wea&pon Ranges", "show_weapon_ranges", CMD_SHOW_WEAPON_RANGES),
     ("Show Sou&nd Circles", "show_sound_circles", CMD_SHOW_SOUND_CIRCLES),
+    ("Show Sound &Flags", "show_sound_flags", CMD_SHOW_SOUND_FLAGS),
+    ("Show &Garrisoned", "show_garrisoned", CMD_SHOW_GARRISONED),
+    ("Show Letterbo&x", "show_letterbox", CMD_SHOW_LETTERBOX),
+    ("Show Sa&fe Frame Overlay", "show_safe_frame", CMD_SHOW_SAFE_FRAME),
     ("Show &Contours", "show_contours", None),
     ("Show &Impassable Areas", "show_impassable", CMD_SHOW_IMPASSABLE),
     ("Show B&lends", "show_blends", None),
@@ -908,6 +917,11 @@ class MainWindow(QMainWindow):
             self.view_actions[name] = action
         self.grid_settings_action = self._action(
             "Grid Se&ttings…", self.edit_grid_settings, command=CMD_GRID_SETTINGS
+        )
+        self.safe_frame_settings_action = self._action(
+            "Safe Frame Overlay &Settings…",
+            self.edit_safe_frame_settings,
+            command=CMD_SAFE_FRAME_SETTINGS,
         )
         self.fit_view_action = self._action("Show W&hole Map", lambda: self.active_view().fit_map())
         self.view_3d_action = self._action(
@@ -1465,6 +1479,7 @@ class MainWindow(QMainWindow):
             view.atlas_provider = self._build_terrain_atlas
             view.model_provider = self._load_object_models
             view.art_provider = self._art_textures_for_view
+            view.damage_thresholds = MapConditions.of_game(self.game)
             view.cursor_moved.connect(self.show_cursor)
             view.gesture_finished.connect(self._gesture_finished)
             view.camera_host = self
@@ -1869,6 +1884,21 @@ class MainWindow(QMainWindow):
         )
         if accepted:
             view.stretched_threshold = value
+            self.map_view.options_changed()
+
+    def edit_safe_frame_settings(self) -> None:
+        """Safe Frame Overlay Settings: how wide the safe frame is, in percent of the 3D view."""
+        view = self.settings.view
+        value, accepted = QInputDialog.getInt(
+            self,
+            "Safe Frame Overlay Settings",
+            "Scale (% of the view's width):",
+            round(view.safe_frame_scale * 100),
+            0,
+            100,
+        )
+        if accepted:
+            view.safe_frame_scale = value / 100
             self.map_view.options_changed()
 
     def pick_texture(self, name: str) -> None:
@@ -2723,6 +2753,7 @@ class MainWindow(QMainWindow):
             [
                 self.view_actions["show_objects"],
                 self.view_actions["world_builder_models"],
+                self.view_actions["show_garrisoned"],
                 self.view_actions["show_labels"],
             ]
         )
@@ -2742,6 +2773,7 @@ class MainWindow(QMainWindow):
                 self.view_actions["show_sight_ranges"],
                 self.view_actions["show_weapon_ranges"],
                 self.view_actions["show_sound_circles"],
+                self.view_actions["show_sound_flags"],
             ]
         )
 
@@ -2751,6 +2783,14 @@ class MainWindow(QMainWindow):
                 self.view_actions["wireframe"],
                 self.view_actions["show_object_dots"],
                 self.view_actions["show_entire_map"],
+            ]
+        )
+        options_3d_menu.addSeparator()
+        options_3d_menu.addActions(
+            [
+                self.view_actions["show_letterbox"],
+                self.view_actions["show_safe_frame"],
+                self.safe_frame_settings_action,
             ]
         )
         options_3d_menu.addSeparator()
@@ -2914,6 +2954,7 @@ class MainWindow(QMainWindow):
                 self._art_index = None
                 self._art_textures = None
                 if self.map_view_3d is not None:
+                    self.map_view_3d.damage_thresholds = MapConditions.of_game(game)
                     self.map_view_3d.reload_art()
                 self._refresh()
                 self._update_texture_colors()

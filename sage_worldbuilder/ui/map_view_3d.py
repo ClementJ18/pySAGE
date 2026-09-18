@@ -63,6 +63,7 @@ from OpenGL.GL import (
     GL_RGBA,
     GL_RGBA8,
     GL_RGBA16UI,
+    GL_RGBA32F,
     GL_RGBA_INTEGER,
     GL_SCISSOR_TEST,
     GL_SRC_ALPHA,
@@ -71,6 +72,7 @@ from OpenGL.GL import (
     GL_TEXTURE1,
     GL_TEXTURE2,
     GL_TEXTURE3,
+    GL_TEXTURE4,
     GL_TEXTURE_2D,
     GL_TEXTURE_MAG_FILTER,
     GL_TEXTURE_MIN_FILTER,
@@ -169,7 +171,9 @@ from sage_worldbuilder.camera import (
 from sage_worldbuilder.camera_edit import CameraScene
 from sage_worldbuilder.cameras import focal_length, pose_axes
 from sage_worldbuilder.changes import Change, ChangeKind, Region
+from sage_worldbuilder.influences import SOUND_FLAG
 from sage_worldbuilder.lighting import LightTarget, scene_lights
+from sage_worldbuilder.models import MapConditions, model_conditions, model_key
 from sage_worldbuilder.projection import CameraProjection
 from sage_worldbuilder.render.art import ArtTextures
 from sage_worldbuilder.render.model_mesh import ModelGeometry, instance_matrices, object_scale
@@ -187,6 +191,7 @@ from sage_worldbuilder.render.terrain_texturing import (
     atlas_key,
     blend_secondaries,
     cell_data,
+    cliff_cells,
     mask_indices,
 )
 from sage_worldbuilder.render.water_mesh import (
@@ -212,6 +217,7 @@ from sage_worldbuilder.ui.overlays import (
 )
 from sage_worldbuilder.ui.overlays import CAMERA_PATH as _CAMERA_PATH
 from sage_worldbuilder.ui.tools import Gesture, Tool
+from sage_worldbuilder.viewport import letterbox_band, safe_frame
 
 if TYPE_CHECKING:
     from sage_worldbuilder.document import MapDocument
@@ -302,6 +308,7 @@ uniform vec3 light_color[3];
 uniform vec3 light_direction[3];
 uniform sampler2D feedback;
 uniform bool show_feedback;
+uniform sampler2D cliff_corners;
 out vec4 color;
 
 """
@@ -316,6 +323,30 @@ vec3 tile_color(uint tile, vec2 f, float lod) {
     // so the atlas slot next to it never bleeds in.
     float inset = 0.5 * pow(2.0, lod) / atlas_cell_pixels;
     vec2 local = clamp(quarter + f * 0.5, quarter + inset, quarter + 0.5 - inset);
+    return textureLod(atlas, (slot + local) / float(atlas_side), lod).rgb;
+}
+
+// A cliff-mapped cell (`terrain_texturing.cliff_cells`): its corners' places in its texture's
+// picture, in texture cells, across the mesh's two triangles (split from (x, y) to (x + 1, y + 1)).
+vec2 cliff_place(ivec2 cell, vec2 f) {
+    vec4 lower = texelFetch(cliff_corners, ivec2(cell.x * 2, cell.y), 0);
+    vec4 upper = texelFetch(cliff_corners, ivec2(cell.x * 2 + 1, cell.y), 0);
+    vec2 a = lower.xy;
+    vec2 b = lower.zw;
+    vec2 c = upper.xy;
+    vec2 d = upper.zw;
+    return f.x >= f.y ? a + f.x * (b - a) + f.y * (c - b) : a + f.x * (c - d) + f.y * (d - a);
+}
+
+vec3 cliff_color(vec2 place, uint start, uint size, float lod) {
+    float s = float(size);
+    vec2 p = mod(place, s);
+    vec2 whole = min(floor(p), vec2(s - 1.0));
+    uint cell = start + uint(whole.y) * size + uint(whole.x);
+    uint side = uint(atlas_side);
+    vec2 slot = vec2(float(cell % side), float(cell / side));
+    float inset = 0.5 * pow(2.0, lod) / atlas_cell_pixels;
+    vec2 local = clamp(p - whole, inset, 1.0 - inset);
     return textureLod(atlas, (slot + local) / float(atlas_side), lod).rgb;
 }
 
@@ -351,13 +382,21 @@ void main() {
         float rho = max(length(dFdx(position)), length(dFdy(position))) * texels;
         float lod = clamp(log2(max(rho, 1e-6)), 0.0, log2(texels));
         uvec4 data = texelFetch(cell_data, cell, 0);
-        base = tile_color(data.r, f, lod);
-        uint first = data.a & 15u;
-        if (first != 0u) {
-            base = mix(base, tile_color(data.g, f, lod), blend_weight(first - 1u, f));
-            uint second = (data.a >> 4u) & 15u;
-            if (second != 0u) {
-                base = mix(base, tile_color(data.b, f, lod), blend_weight(second - 1u, f));
+        // Taken for every cell, so its screen derivatives are defined wherever it is used.
+        vec2 place = cliff_place(cell, f);
+        float cliff_rho = max(length(dFdx(place)), length(dFdy(place))) * atlas_cell_pixels;
+        if ((data.a & 256u) != 0u) {
+            float cliff_lod = clamp(log2(max(cliff_rho, 1e-6)), 0.0, log2(atlas_cell_pixels));
+            base = cliff_color(place, data.g, max(data.b, 1u), cliff_lod);
+        } else {
+            base = tile_color(data.r, f, lod);
+            uint first = data.a & 15u;
+            if (first != 0u) {
+                base = mix(base, tile_color(data.g, f, lod), blend_weight(first - 1u, f));
+                uint second = (data.a >> 4u) & 15u;
+                if (second != 0u) {
+                    base = mix(base, tile_color(data.b, f, lod), blend_weight(second - 1u, f));
+                }
             }
         }
     } else if (mode == 1) {
@@ -432,6 +471,7 @@ _UNIFORMS = (
     "mode",
     "colors",
     "cell_data",
+    "cliff_corners",
     "atlas",
     "atlas_side",
     "atlas_cell_pixels",
@@ -469,24 +509,32 @@ layout(location = 2) in float depth;
 uniform mat4 mvp;
 out vec2 v_uv;
 out float v_depth;
+out vec2 v_world;
 void main() {
     v_uv = uv;
     v_depth = depth;
+    v_world = position.xy;
     gl_Position = mvp * vec4(position, 1.0);
 }
 """
 
-# Draws a `render.water_mesh.WaterLook`: the tint, with the texture either added at the
-# reflection strength (a lake) or multiplied in (a river), faded by the opacity texture, and for a
-# lake made opaque with depth up to the map's Max alpha depth, never below its Deep water alpha.
+# Draws a `render.water_mesh.WaterLook` as the game's water pixel shaders compute it at time zero:
+# a lake's texture in its tint mixed toward the texture alone at the reflection strength, made
+# opaque with depth up to the map's Max alpha depth, never below its Deep water alpha; a river's
+# texture in its tint plus its opacity texture's colour plus sparkles times noise (one repeat every
+# 16 world units), its alpha the product of its textures' and its own.
 _WATER_FRAGMENT_SHADER = """
 #version 330 core
 in vec2 v_uv;
 in float v_depth;
+in vec2 v_world;
 uniform sampler2D surface;
 uniform bool textured;
 uniform sampler2D opacity;
 uniform bool faded;
+uniform sampler2D sparkles;
+uniform sampler2D noise;
+uniform bool sparkling;
 uniform vec4 tint;
 uniform float uv_scale;
 uniform bool reflects;
@@ -499,19 +547,26 @@ void main() {
     if (textured) {
         vec4 picture = texture(surface, v_uv * uv_scale);
         if (reflects) {
-            result.rgb = min(tint.rgb + picture.rgb * reflection, vec3(1.0));
+            result.rgb = mix(tint.rgb * picture.rgb, picture.rgb, reflection);
         } else {
             result *= picture;
         }
     }
     if (faded) {
-        result.a *= texture(opacity, v_uv).a;
+        vec4 edge = texture(opacity, v_uv);
+        result.a *= edge.a;
+        if (!reflects) {
+            result.rgb += edge.rgb;
+        }
+    }
+    if (sparkling) {
+        result.rgb += texture(sparkles, v_uv).rgb * texture(noise, v_world * 0.0625).rgb;
     }
     if (depth_fade) {
         float reach = depth_alpha.x > 0.0 ? clamp(v_depth / depth_alpha.x, 0.0, 1.0) : 1.0;
         result.a = max(depth_alpha.y, reach);
     }
-    color = result;
+    color = vec4(min(result.rgb, vec3(1.0)), result.a);
 }
 """
 
@@ -578,6 +633,9 @@ _WATER_UNIFORMS = (
     "reflection",
     "depth_fade",
     "depth_alpha",
+    "sparkles",
+    "noise",
+    "sparkling",
 )
 
 
@@ -743,6 +801,8 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         self._requested_key: Hashable | None = None
         self._cells_texture = 0
         self._cells_shape: tuple[int, ...] | None = None
+        # Each cliff-mapped cell's corners in its texture (`cliff_cells`), two texels a cell.
+        self._cliff_texture = 0
         self._recell = True
         # Blend mask and tile per blend number, for the description list they were made from.
         self._blend_tables: tuple[tuple[int, int], np.ndarray, np.ndarray] | None = None
@@ -757,6 +817,10 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         self._model_textures: dict[str, int] = {}
         self._reinstance = True
         self._visibility: object = None
+        # The game's damage thresholds (`MapConditions.of_game`), which the window sets, and the
+        # conditions every object's model was last chosen under.
+        self.damage_thresholds = MapConditions()
+        self._conditions: MapConditions | None = None
         # Where the water and road textures are read from.
         self.art_provider: ArtProvider | None = None
         # Water surfaces: the program, the areas' meshes on the GPU (and the ids of the areas
@@ -1061,6 +1125,17 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         point = self.transform.project(x, y)
         return QPointF(*point) if point is not None else None
 
+    def _flag_points(self, marker: Marker) -> list[QPointF] | None:
+        """A sound flag stands in the world, on the ground under the object, as the game's."""
+        ground = self.transform.ground(marker.x, marker.y)
+        points = []
+        for along, up in SOUND_FLAG:
+            point = self.transform.project(marker.x + along, marker.y, ground + up)
+            if point is None:
+                return None
+            points.append(QPointF(*point))
+        return points
+
     def _screen_points(self, markers: Sequence[Marker]) -> list[QPointF | None]:
         if not markers:
             return []
@@ -1313,10 +1388,30 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                 )
             self._draw_overlays(painter)
             self.tool.paint(self, painter)
+            self._draw_frames(painter)
             if preview is not None:
                 painter.setClipping(False)
                 self._draw_preview_frame(painter, preview)
         painter.end()
+
+    def _draw_frames(self, painter: QPainter) -> None:
+        """Show Letterbox's black bars and the safe frame, over everything else."""
+        width, height = self.width(), self.height()
+        if self.options.show_letterbox:
+            band = letterbox_band(width, height)
+            if band > 0:
+                painter.fillRect(0, 0, width, band, Qt.GlobalColor.black)
+                painter.fillRect(0, height - band, width, band, Qt.GlobalColor.black)
+        if self.options.show_safe_frame:
+            left, top, frame_width, frame_height, band = safe_frame(
+                width, height, self.options.safe_frame_scale
+            )
+            painter.setPen(QPen(Qt.GlobalColor.black, 2))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(left, top, frame_width, frame_height)
+            if band > 0:
+                painter.drawRect(left, top, frame_width, band)
+                painter.drawRect(left, top + frame_height - band, frame_width, band)
 
     def _draw_world(self, document: MapDocument | None) -> None:
         ratio = self.devicePixelRatioF()
@@ -1339,7 +1434,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         # Leave the state as QPainter expects it.
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         glBindVertexArray(0)
-        for unit in (GL_TEXTURE3, GL_TEXTURE2, GL_TEXTURE1, GL_TEXTURE0):
+        for unit in (GL_TEXTURE4, GL_TEXTURE3, GL_TEXTURE2, GL_TEXTURE1, GL_TEXTURE0):
             glActiveTexture(unit)
             glBindTexture(GL_TEXTURE_2D, 0)
         glUseProgram(0)
@@ -1441,9 +1536,10 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                 ("cell_data", self._cells_texture),
                 ("atlas", self._atlas_texture),
                 ("feedback", self._feedback_texture),
+                ("cliff_corners", self._cliff_texture),
             )
         ):
-            glActiveTexture((GL_TEXTURE0, GL_TEXTURE1, GL_TEXTURE2, GL_TEXTURE3)[unit])
+            glActiveTexture((GL_TEXTURE0, GL_TEXTURE1, GL_TEXTURE2, GL_TEXTURE3, GL_TEXTURE4)[unit])
             glBindTexture(GL_TEXTURE_2D, texture)
             glUniform1i(uniforms[name], unit)
         for index in self._drawn_chunks(grid):
@@ -1596,7 +1692,8 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
 
     def _cell_data(
         self, document: MapDocument, box: tuple[int, int, int, int] | None
-    ) -> np.ndarray | None:
+    ) -> tuple[np.ndarray, np.ndarray] | None:
+        """The cell data and the cliff corner texels of the map, or of the box's cells."""
         blend = document.map.blend_tile_data
         layers = {layer: document.cells(layer) for layer in TileLayer}
         tiles = layers[TileLayer.TILES]
@@ -1613,29 +1710,43 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         _, indices, secondaries = self._blend_tables
         cliffs = layers[TileLayer.CLIFF_TEXTURES]
         area = np.s_[:, :] if box is None else np.s_[box[1] : box[3], box[0] : box[2]]
-        return cell_data(
-            tiles[area],
-            blends[area],
-            three_way[area],
-            cliffs[area] if cliffs is not None and cliffs.shape == tiles.shape else None,
-            indices,
-            secondaries,
+        mapped = cliffs[area] if cliffs is not None and cliffs.shape == tiles.shape else None
+        cliff = (
+            cliff_cells(tiles[area], mapped, blend.cliff_texture_mappings, blend.textures)
+            if mapped is not None
+            else None
         )
+        data = cell_data(
+            tiles[area], blends[area], three_way[area], mapped, indices, secondaries, cliff
+        )
+        rows, columns = data.shape[:2]
+        corners = (
+            cliff.corners.reshape(rows, columns * 2, 4)
+            if cliff is not None
+            else np.zeros((rows, columns * 2, 4), dtype=np.float32)
+        )
+        return data, np.ascontiguousarray(corners, dtype=np.float32)
 
     def _upload_cells(self, document: MapDocument) -> None:
-        data = self._cell_data(document, None)
-        if data is None:
-            if self._cells_texture:
-                glDeleteTextures(1, [self._cells_texture])
-                self._cells_texture = 0
+        tables = self._cell_data(document, None)
+        if tables is None:
+            for name in ("_cells_texture", "_cliff_texture"):
+                texture = getattr(self, name)
+                if texture:
+                    glDeleteTextures(1, [texture])
+                    setattr(self, name, 0)
             self._cells_shape = None
             return
+        data, corners = tables
         if not self._cells_texture:
             self._cells_texture = int(glGenTextures(1))
+        if not self._cliff_texture:
+            self._cliff_texture = int(glGenTextures(1))
         data = np.ascontiguousarray(data)
         _send_texture(
             self._cells_texture, data, GL_RGBA16UI, GL_RGBA_INTEGER, GL_UNSIGNED_SHORT, False
         )
+        _send_texture(self._cliff_texture, corners, GL_RGBA32F, GL_RGBA, GL_FLOAT, False)
         self._cells_shape = data.shape
 
     def _patch_cells(self, document: MapDocument, region: Region) -> None:
@@ -1647,10 +1758,11 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         x1, y1 = min(region.x1, columns), min(region.y1, rows)
         if x0 >= x1 or y0 >= y1:
             return
-        data = self._cell_data(document, (x0, y0, x1, y1))
-        if data is None:
+        tables = self._cell_data(document, (x0, y0, x1, y1))
+        if tables is None or not self._cliff_texture:
             self._upload_cells(document)
             return
+        data, corners = tables
         _patch_texture(
             self._cells_texture,
             np.ascontiguousarray(data),
@@ -1660,6 +1772,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
             GL_UNSIGNED_SHORT,
             False,
         )
+        _patch_texture(self._cliff_texture, corners, x0 * 2, y0, GL_RGBA, GL_FLOAT, False)
 
     def _upload_feedback(self) -> None:
         pixels = self.source.tile_feedback()
@@ -1699,15 +1812,18 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                 self._models[name] = self._upload_model(geometry) if geometry is not None else None
             self._reinstance = True
         visibility = self.source.visibility_key
+        conditions = self.damage_thresholds.of_map(document.map, self.options.show_garrisoned)
         if not self._reinstance and visibility == self._visibility:
-            return
+            if conditions == self._conditions:
+                return
         self._reinstance = False
         self._visibility = visibility
+        self._conditions = conditions
         groups: defaultdict[str, list[Object]] = defaultdict(list)
         objects_list = document.map.objects_list
         for obj in objects_list.object_list if objects_list is not None else []:
             if marker_kind(obj) is MarkerKind.OBJECT and self.is_shown(obj):
-                groups[obj.type_name].append(obj)
+                groups[self.model_key(obj)].append(obj)
         wanted = sorted(
             name
             for name in groups
@@ -1951,6 +2067,8 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         glUniformMatrix4fv(uniforms["mvp"], 1, GL_TRUE, matrix)
         glUniform1i(uniforms["surface"], 0)
         glUniform1i(uniforms["opacity"], 1)
+        glUniform1i(uniforms["sparkles"], 2)
+        glUniform1i(uniforms["noise"], 3)
         glEnable(GL_BLEND)
         glDepthMask(GL_FALSE)
         for draw in self._water:
@@ -1961,8 +2079,15 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
             glBindTexture(GL_TEXTURE_2D, surface)
             glActiveTexture(GL_TEXTURE1)
             glBindTexture(GL_TEXTURE_2D, opacity)
+            sparkles = self._water_texture(art, look.sparkle_texture)
+            noise = self._water_texture(art, look.noise_texture)
+            glActiveTexture(GL_TEXTURE2)
+            glBindTexture(GL_TEXTURE_2D, sparkles)
+            glActiveTexture(GL_TEXTURE3)
+            glBindTexture(GL_TEXTURE_2D, noise)
             glUniform1i(uniforms["textured"], int(bool(surface)))
             glUniform1i(uniforms["faded"], int(bool(opacity)))
+            glUniform1i(uniforms["sparkling"], int(bool(sparkles and noise)))
             glUniform4f(uniforms["tint"], *look.color)
             glUniform1f(uniforms["uv_scale"], look.uv_scale)
             glUniform1i(uniforms["reflects"], int(look.reflection is not None))
@@ -2098,6 +2223,11 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                 glDeleteTextures(len(live), live)
             self._road_textures.clear()
 
+    def model_key(self, obj: Object) -> str:
+        """The name `obj`'s model is loaded and drawn under: its type and its model conditions."""
+        conditions = self._conditions or self.damage_thresholds
+        return model_key(obj.type_name, model_conditions(obj.properties, conditions))
+
     def model_objects(self, name: str) -> list[Object]:
         """The objects drawn with the model loaded for `name` in the last frame."""
         model = self._models.get(name)
@@ -2107,7 +2237,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         """An object drawn as its model needs no footprint: the model shows where it stands."""
         if marker.kind is not MarkerKind.OBJECT:
             return True
-        model = self._models.get(marker.source.type_name)
+        model = self._models.get(self.model_key(marker.source))
         return model is None or not model.parts
 
     def _marker_dot(self, marker: Marker) -> bool:
@@ -2178,7 +2308,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         self._release_chunks()
         self._release_water(textures=False)
         self._release_roads(textures=False)
-        for name in ("_colors_texture", "_cells_texture", "_feedback_texture"):
+        for name in ("_colors_texture", "_cells_texture", "_feedback_texture", "_cliff_texture"):
             texture = getattr(self, name)
             if texture:
                 glDeleteTextures(1, [texture])

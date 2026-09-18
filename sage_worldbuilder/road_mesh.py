@@ -14,9 +14,26 @@ type share a point, `insertCurveSegments` (`0x00870FC0`) joins them (`insertCurv
   of pieces of at most 30 degrees; a curve that does not fit, leaving less than half a unit of
   either segment, is mitred instead.
 
-Points where three or more segments meet are the game's tees, Y and four-way joins
-(`insertTeeIntersections`, `insertY`, `insert4Way`); they are not built, so those strips end
-square. A piece keeps the segment it belongs to, so selection outlines follow the segment.
+Where three or four segments of one road type meet, `insertTeeIntersections` (`0x00870D50`) joins
+them first, each with a piece of its own from the atlas's lower rows:
+
+- three: the two closest to straight through are the road, the third its branch. A branch within
+  60 degrees of square is a tee (`insertTee`, `0x00856430`): the road ends half a road width to
+  either side and the branch half a width out, and a piece reaching 0.515 widths ahead and to
+  each side covers the join. Otherwise it is a Y (types 5 and 6): the road end on the side the
+  branch leans to stands back 1.025 widths and the other 0.23, the branch goes 1.05 widths out
+  turned 45 degrees toward its lean, and the Y piece (`0x0083CE00`), mirrored for a branch on the
+  stem's left, covers the fork;
+- four: the straightest pair runs through, the other two cross it square (`insert4Way`,
+  `0x0086C130`), each ending half a width from the point, under a square piece 0.515 widths out
+  on every side.
+
+Before a tee the engine tries a symmetric Y (`insertY`, `0x0085B490`, type 4): three roads none
+of which runs on through, one the stem with the other two behind it either side. The stem stands
+back 0.275 widths, each arm 0.55 out at 135 degrees from the stem, and a piece 1.59 widths across
+the stem covers the fork (`0x0083B6C0`). Five or more ends at one point, or roads of different
+types, stay square. A piece keeps the segment it belongs to, so selection outlines follow the
+segment.
 Sharp mitres are left square when the edges would cross more than four half-widths out (a
 choice: the game's own limit was not read).
 
@@ -66,6 +83,35 @@ _MITRE_LIMIT = 4.0
 # The middle of the road texture's top row, and the road widths one repeat of it runs for.
 STRAIGHT_ROW = 0.166016
 TEXTURE_REPEAT = 4.0
+# Joins of three and four roads (`insertTee`, `insert4Way` and their offsets and loaders): a branch
+# within this cosine of square to the road is a tee, else a Y; the tee and four-way pieces reach
+# this many road widths out; a Y's road ends stand back these many half widths on the near and
+# the far side of its fork, and its branch this many half widths out; the Y piece is this many
+# widths across, lies this share of that off the stem (the other share when flipped), and runs this
+# many widths along the stem. Where each piece's texture sits in the atlas, as (u, v).
+TEE_LIMIT = 0.5
+JOIN_REACH = 0.515
+Y_NEAR = 0.46
+Y_FAR = 2.05
+Y_BRANCH = 2.1
+Y_ACROSS = 1.35
+Y_SHIFT = 0.8
+Y_FLIPPED_SHIFT = 0.2
+Y_LENGTH = 1.2
+TEE_TEXTURE = (0.830078125, 0.498046875)
+FOUR_WAY_TEXTURE = (0.830078125, 0.830078125)
+Y_TEXTURE = (0.39453125, 0.7109375)
+# A symmetric Y: no pair of its roads within this cosine of straight, arms best this cosine from
+# the stem; the stem stands back and each arm reaches out these many half widths; its piece lies
+# this many widths ahead of the point, is this long across the stem and this deep behind.
+SYMMETRIC_Y_STRAIGHT = 0.866
+SYMMETRIC_Y_ARM = 0.707
+SYMMETRIC_Y_STEM = 0.55
+SYMMETRIC_Y_OUT = 1.1
+SYMMETRIC_Y_AHEAD = 0.29
+SYMMETRIC_Y_LENGTH = 1.59
+SYMMETRIC_Y_DEPTH = 1.08
+SYMMETRIC_Y_TEXTURE = (0.498046875, 0.44140625)
 
 Point = tuple[float, float]
 
@@ -279,6 +325,250 @@ def _join(
     return pieces
 
 
+def _end_point(strip: _Strip, at_start: bool) -> Point:
+    return strip.start if at_start else strip.end
+
+
+def _far_point(strip: _Strip, at_start: bool) -> Point:
+    return strip.end if at_start else strip.start
+
+
+def _place_end(strip: _Strip, at_start: bool, point: Point, side: Point) -> None:
+    """Move one end of a strip to `point`, its edge running `side` either way from it (the
+    engine sets a joined end's corners from the join, not square to the strip)."""
+    if at_start:
+        strip.start = point
+    else:
+        strip.end = point
+    left = _left(_unit(_sub(strip.end, strip.start)))
+    if _dot(side, left) < 0:
+        side = _scale(side, -1.0)
+    if at_start:
+        strip.corners[0], strip.corners[3] = _add(point, side), _sub(point, side)
+    else:
+        strip.corners[1], strip.corners[2] = _add(point, side), _sub(point, side)
+
+
+def _junction_piece(
+    strip: _Strip,
+    corners: list[Point],
+    origin: Point,
+    along: Point,
+    left: Point,
+    texture_origin: Point,
+) -> RoadPiece:
+    """A join's own quadrilateral, its texture read from `texture_origin` in the atlas: `u` along
+    `along` and `v` against `left`, one repeat every four road widths, as every road piece."""
+    reach = TEXTURE_REPEAT * strip.road_width
+    along, left = _unit(along), _unit(left)
+    uvs = [
+        (
+            texture_origin[0] + _dot(_sub(corner, origin), along) / reach,
+            texture_origin[1] - _dot(_sub(corner, origin), left) / reach,
+        )
+        for corner in corners
+    ]
+    return RoadPiece(strip.segment, corners, uvs, curve=True)
+
+
+def _square_piece(
+    strip: _Strip,
+    point: Point,
+    direction: Point,
+    back: float,
+    forward: float,
+    across: float,
+    texture_origin: Point,
+) -> RoadPiece:
+    """The tee and four-way piece (`0x00839A30`, laid by `0x0083F470`): from `back` behind `point`
+    to `forward` ahead of it along `direction`, `across` to each side."""
+    axis, left = _unit(direction), _left(_unit(direction))
+    start = _sub(point, _scale(axis, back))
+    end = _add(point, _scale(axis, forward))
+    corners = [
+        _add(start, _scale(left, across)),
+        _add(end, _scale(left, across)),
+        _sub(end, _scale(left, across)),
+        _sub(start, _scale(left, across)),
+    ]
+    return _junction_piece(strip, corners, point, axis, left, texture_origin)
+
+
+def _straightest_pair(directions: Sequence[Point], order: Sequence[tuple[int, int]]) -> int:
+    """The index into `order` of the pair of directions closest to opposite; the first of equals
+    in `order`, as the engine compares them."""
+    best, best_dot = 0, math.inf
+    for index, (a, b) in enumerate(order):
+        dot = _dot(directions[a], directions[b])
+        if dot < best_dot:
+            best, best_dot = index, dot
+    return best
+
+
+def _side(a: Point, b: Point) -> int:
+    """Which side of `a` `b` lies on: 1 anticlockwise, -1 clockwise, 0 along it (`0x0085B430`)."""
+    cross = _cross(a, b)
+    return 1 if cross > 0 else -1 if cross < 0 else 0
+
+
+def _symmetric_y(strip_ends: list[tuple[_Strip, bool]], point: Point) -> list[RoadPiece] | None:
+    """A fork of three roads none of which runs on through (`insertY`, `0x0085B490`), or None
+    when the three are not one: every pair more than 30 degrees off straight, and one road, the
+    stem, with the other two either side of it and behind it. Of several stems the one whose arms
+    come nearest 135 degrees from it is taken."""
+    directions = [_unit(_sub(_far_point(s, at), point)) for s, at in strip_ends]
+    dots = {
+        frozenset(pair): _dot(directions[pair[0]], directions[pair[1]])
+        for pair in ((0, 1), (0, 2), (1, 2))
+    }
+    if min(dots.values()) < -SYMMETRIC_Y_STRAIGHT:
+        return None
+    scores = {}
+    for stem, arms in ((0, (1, 2)), (2, (1, 0)), (1, (2, 0))):
+        axis = directions[stem]
+        first, second = (directions[arm] for arm in arms)
+        sides = _side(axis, first), _side(axis, second)
+        back = _left(axis)
+        if (
+            sides[0] != sides[1]
+            and sum(sides) == 0
+            and _side(back, first) == _side(back, second) == 1
+        ):
+            scores[stem] = sum(abs(dots[frozenset((stem, arm))] + SYMMETRIC_Y_ARM) for arm in arms)
+    if not scores:
+        return None
+    # Of equal fits the engine keeps the first road, then the second.
+    stem = min((0, 1, 2), key=lambda candidate: scores.get(candidate, math.inf))
+    strip = strip_ends[0][0]
+    width, half = strip.road_width, strip.half
+    axis = directions[stem]
+    # `offsetSymY` (`0x00865360`): the stem stands back a little, each arm further, out along
+    # the stem turned 135 degrees to its side; each end keeps its own square edge or turns with
+    # its arm.
+    stem_strip, stem_at = strip_ends[stem]
+    _place_end(
+        stem_strip,
+        stem_at,
+        _add(point, _scale(axis, SYMMETRIC_Y_STEM * width / 2)),
+        _scale(_left(_unit(_sub(stem_strip.end, stem_strip.start))), half),
+    )
+    for arm in {0, 1, 2} - {stem}:
+        turn = 1.0 if _side(axis, directions[arm]) > 0 else -1.0
+        out = _rotate(axis, turn * 3 * math.pi / 4)
+        arm_strip, arm_at = strip_ends[arm]
+        _place_end(
+            arm_strip,
+            arm_at,
+            _add(point, _scale(out, SYMMETRIC_Y_OUT * width / 2)),
+            _scale(_left(out), half),
+        )
+    # The piece (`0x0083B6C0`): across the stem, 1.59 widths long, from 0.29 widths ahead of the
+    # point back to 0.79 behind it.
+    along = _rotate(axis, -math.pi / 2)
+    base = _add(point, _scale(axis, SYMMETRIC_Y_AHEAD * width))
+    start = _sub(base, _scale(along, SYMMETRIC_Y_LENGTH * width / 2))
+    end = _add(start, _scale(along, SYMMETRIC_Y_LENGTH * width))
+    depth = _scale(axis, SYMMETRIC_Y_DEPTH * width)
+    corners = [_sub(start, depth), _sub(end, depth), end, start]
+    return [_junction_piece(strip, corners, base, along, axis, SYMMETRIC_Y_TEXTURE)]
+
+
+def _three_way(strip_ends: list[tuple[_Strip, bool]], point: Point) -> list[RoadPiece]:
+    """A tee or Y where three strips meet (`W3DRoadBuffer::insertTee`, `0x00856430`), once they
+    are no symmetric Y. The two closest to straight through carry on as one road; the third is
+    its branch."""
+    symmetric = _symmetric_y(strip_ends, point)
+    if symmetric is not None:
+        return symmetric
+    directions = [_unit(_sub(_far_point(s, at), point)) for s, at in strip_ends]
+    d01 = _dot(directions[0], directions[1])
+    d02 = _dot(directions[0], directions[2])
+    d21 = _dot(directions[2], directions[1])
+    # The engine's own comparisons, ties included; the road runs from a to b.
+    if d02 <= d01:
+        a, b, c = (2, 1, 0) if d21 <= d02 else (0, 2, 1)
+    else:
+        a, b, c = (2, 1, 0) if d21 <= d01 else (0, 1, 2)
+    strip = strip_ends[0][0]
+    width = strip.road_width
+    along = _unit(_sub(directions[b], directions[a]))
+    branch = directions[c]
+    stem = _left(along) if _cross(along, branch) >= 0 else _scale(_left(along), -1.0)
+    (sa, at_a), (sb, at_b), (sc, at_c) = strip_ends[a], strip_ends[b], strip_ends[c]
+    half = strip.half
+    if abs(_dot(along, branch)) <= TEE_LIMIT:
+        # `offsetTee` (`0x0085E830`): the road ends half a width either side, the branch half a
+        # width out, each edge square to its own way.
+        _place_end(sa, at_a, _sub(point, _scale(along, width / 2)), _scale(stem, half))
+        _place_end(sb, at_b, _add(point, _scale(along, width / 2)), _scale(stem, half))
+        _place_end(sc, at_c, _add(point, _scale(stem, width / 2)), _scale(along, half))
+        return [
+            _square_piece(
+                strip, point, stem, half, JOIN_REACH * width, JOIN_REACH * width, TEE_TEXTURE
+            )
+        ]
+    # A Y (`offsetY`, `0x00861760`): the branch leans to one side of the stem, and the road end
+    # on that side stands back further, under the fork.
+    flip = _cross(stem, branch) > 0
+    clockwise = _cross(along, stem) < 0
+    near, far = (Y_NEAR, Y_FAR) if flip == clockwise else (Y_FAR, Y_NEAR)
+    _place_end(sa, at_a, _sub(point, _scale(along, near * width / 2)), _scale(stem, half))
+    _place_end(sb, at_b, _add(point, _scale(along, far * width / 2)), _scale(stem, half))
+    fork = _rotate(stem, math.pi / 4 if flip else -math.pi / 4)
+    _place_end(sc, at_c, _add(point, _scale(fork, Y_BRANCH * width / 2)), _scale(_left(fork), half))
+    # The Y piece (`0x0083CE00`): along the stem from half a road width behind the point, across
+    # a band 1.35 widths wide that lies mostly on the branch's side; flipped, its texture is
+    # read mirrored.
+    side = _scale(_left(stem), Y_ACROSS * width)
+    base = _sub(point, _scale(side, Y_FLIPPED_SHIFT if flip else Y_SHIFT))
+    start = _sub(base, _scale(stem, half))
+    end = _add(start, _scale(stem, half + Y_LENGTH * width))
+    corners = [start, end, _add(end, side), _add(start, side)]
+    left = _scale(side, -1.0) if flip else side
+    return [_junction_piece(strip, corners, base, stem, left, Y_TEXTURE)]
+
+
+# The pairs `insert4Way` (`0x0086C130`) compares, in its order, each (a, b) with the road running
+# from a to b; the other two directions follow as (c, d), c's far end choosing the cross side.
+_FOUR_WAY_PAIRS = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))
+_FOUR_WAY_OTHERS = {
+    (0, 1): (2, 3),
+    (0, 2): (1, 3),
+    (0, 3): (2, 1),
+    (1, 2): (0, 3),
+    (1, 3): (0, 2),
+    (2, 3): (0, 1),
+}
+
+
+def _four_way(strip_ends: list[tuple[_Strip, bool]], point: Point) -> list[RoadPiece]:
+    """A crossroads where four strips meet (`insert4Way`, `offset4Way` at `0x00867EF0`): the
+    straightest pair runs through, the other two cross it square, each ending half a road width
+    from the point."""
+    directions = [_unit(_sub(_far_point(s, at), point)) for s, at in strip_ends]
+    a, b = _FOUR_WAY_PAIRS[_straightest_pair(directions, _FOUR_WAY_PAIRS)]
+    c, d = _FOUR_WAY_OTHERS[(a, b)]
+    strip = strip_ends[0][0]
+    width, half = strip.road_width, strip.half
+    along = _unit(_sub(directions[b], directions[a]))
+    cross = _left(along)
+    if _cross(along, _sub(_far_point(*strip_ends[c]), point)) < 0:
+        cross = _scale(cross, -1.0)
+    reach = width / 2
+    for index, way, side in (
+        (a, _scale(along, -reach), _left(along)),
+        (b, _scale(along, reach), _left(along)),
+        (c, _scale(cross, reach), along),
+        (d, _scale(cross, -reach), along),
+    ):
+        end_strip, at = strip_ends[index]
+        _place_end(end_strip, at, _add(point, way), _scale(side, half))
+    if along[0] < 0:
+        along = _scale(along, -1.0)
+    size = JOIN_REACH * width
+    return [_square_piece(strip, point, along, size, size, size, FOUR_WAY_TEXTURE)]
+
+
 def road_pieces(
     segments: Sequence[RoadSegment], style: Callable[[str], RoadStyle]
 ) -> list[RoadPiece]:
@@ -288,6 +578,20 @@ def road_pieces(
     for index, strip in enumerate(strips):
         ends.setdefault(_key(strip.start), []).append((index, True))
         ends.setdefault(_key(strip.end), []).append((index, False))
+    joins: list[RoadPiece] = []
+    # The engine builds tees and four-ways first (`insertTeeIntersections`, `0x00870D50`), then
+    # the curves: a point's roads must all be of one type and join for either.
+    for shared in ends.values():
+        if len(shared) not in (3, 4) or len({index for index, _ in shared}) != len(shared):
+            continue
+        meeting = [(strips[index], at_start) for index, at_start in shared]
+        if not all(strip.joins for strip, _ in meeting):
+            continue
+        if len({strip.segment.type_name.lower() for strip, _ in meeting}) != 1:
+            continue
+        point = _end_point(*meeting[0])
+        build = _three_way if len(meeting) == 3 else _four_way
+        joins.extend(build(meeting, point))
     curves: list[RoadPiece] = []
     for shared in ends.values():
         if len(shared) != 2:
@@ -314,4 +618,4 @@ def road_pieces(
         RoadPiece(strip.segment, strip.corners, [strip.uv(corner) for corner in strip.corners])
         for strip in strips
     ]
-    return strip_pieces + curves
+    return strip_pieces + joins + curves

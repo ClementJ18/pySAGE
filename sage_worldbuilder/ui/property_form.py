@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QGridLayout,
+    QHBoxLayout,
     QLineEdit,
     QSpinBox,
     QWidget,
@@ -24,13 +25,72 @@ from sage_worldbuilder.changes import Change
 from sage_worldbuilder.commands import Command
 from sage_worldbuilder.properties import Editor, PropertySpec, set_value, value_of
 
-__all__ = ["PropertyForm"]
+__all__ = ["PresetField", "PropertyForm"]
 
 _INT_MIN, _INT_MAX = -(2**31), 2**31 - 1
 _REAL_LIMIT = 1e9
 _CHECK_BOX_COLUMNS = 2
 
 Suggestions = Callable[[], Sequence[str]]
+OTHER = "Other"
+
+
+class PresetField(QWidget):
+    """A drop-down of a spec's named values and Other, with a number box beside it that is
+    enabled only for Other, as WorldBuilder's starting-health field is. `commit` is called
+    with each value chosen or typed."""
+
+    def __init__(self, spec: PropertySpec, commit: Callable[[int], None]) -> None:
+        super().__init__()
+        self.spec = spec
+        self.presets = spec.presets or ()
+        self._commit = commit
+        self._updating = False
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        self.choice = QComboBox()
+        self.choice.addItems([name for name, _value in self.presets] + [OTHER])
+        self.number = QSpinBox()
+        self.number.setRange(_INT_MIN, _INT_MAX)
+        self.number.setKeyboardTracking(False)
+        row.addWidget(self.choice, 1)
+        row.addWidget(self.number, 1)
+        self.choice.currentIndexChanged.connect(self._chosen)
+        self.number.valueChanged.connect(self._typed)
+
+    def show_value(self, value: int) -> None:
+        self._updating = True
+        try:
+            values = [preset for _name, preset in self.presets]
+            index = values.index(value) if value in values else len(values)
+            self.choice.setCurrentIndex(index)
+            self.number.setValue(value)
+            self.number.setEnabled(index == len(values))
+        finally:
+            self._updating = False
+
+    def _chosen(self, index: int) -> None:
+        if self._updating:
+            return
+        if index == len(self.presets):
+            value = self.spec.other
+            self._show_other(value)
+        else:
+            value = self.presets[index][1]
+            self.show_value(value)
+        self._commit(value)
+
+    def _show_other(self, value: int) -> None:
+        self._updating = True
+        try:
+            self.number.setValue(value)
+            self.number.setEnabled(True)
+        finally:
+            self._updating = False
+
+    def _typed(self, value: int) -> None:
+        if not self._updating:
+            self._commit(value)
 
 
 class PropertyForm(QWidget):
@@ -101,6 +161,8 @@ class PropertyForm(QWidget):
                 lambda index, spec=spec: self._commit(spec, index + spec.choice_base)
             )
             return choice
+        if editor is Editor.PRESET:
+            return PresetField(spec, lambda value, spec=spec: self._commit(spec, value))
         if editor is Editor.INTEGER:
             spin = QSpinBox()
             spin.setRange(_INT_MIN, _INT_MAX)
@@ -142,7 +204,9 @@ class PropertyForm(QWidget):
 
     def _show(self, spec: PropertySpec, value: Any) -> None:
         field = self.fields[spec.name]
-        if isinstance(field, QCheckBox):
+        if isinstance(field, PresetField):
+            field.show_value(int(value))
+        elif isinstance(field, QCheckBox):
             field.setChecked(bool(value))
         elif isinstance(field, QSpinBox):
             field.setValue(int(value))

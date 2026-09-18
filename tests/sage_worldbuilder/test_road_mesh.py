@@ -1,11 +1,20 @@
 """Roads laid out as the game's road mesh does: strip widths, mitred and curved corners, curves
-that do not fit, and the joins that are not built."""
+that do not fit, tees, Ys and four-ways, and the joins that are not built."""
 
 import math
 
 import pytest
 
-from sage_worldbuilder.road_mesh import BROAD_RADIUS, STRAIGHT_ROW, TEXTURE_REPEAT, road_pieces
+from sage_worldbuilder.road_mesh import (
+    BROAD_RADIUS,
+    FOUR_WAY_TEXTURE,
+    STRAIGHT_ROW,
+    SYMMETRIC_Y_TEXTURE,
+    TEE_TEXTURE,
+    TEXTURE_REPEAT,
+    Y_TEXTURE,
+    road_pieces,
+)
 from sage_worldbuilder.roads import (
     BRIDGE_END,
     BRIDGE_START,
@@ -112,15 +121,93 @@ def test_the_curve_follows_a_segment_stored_backwards():
     assert len(curves(pieces_of(objects))) == 3
 
 
-def test_different_road_types_and_three_way_points_are_not_joined():
+def test_different_road_types_are_not_joined():
     mixed = road((0.0, 0.0), (100.0, 0.0)) + road((100.0, 0.0), (100.0, 300.0), type_name="Stone")
     pieces = pieces_of(mixed)
     assert curves(pieces) == []
     assert close(strips(pieces)[0].corners[1], (100, HALF))
+    three_types = (
+        road((-200.0, 0.0), (100.0, 0.0))
+        + road((100.0, 0.0), (100.0, 300.0))
+        + road((100.0, 0.0), (100.0, -300.0), type_name="Stone")
+    )
+    assert curves(pieces_of(three_types)) == []
+
+
+def _ends(pieces):
+    """Each strip's two ends: the middle of its start edge and of its end edge."""
+    return [
+        (
+            ((c[0][0] + c[3][0]) / 2, (c[0][1] + c[3][1]) / 2),
+            ((c[1][0] + c[2][0]) / 2, (c[1][1] + c[2][1]) / 2),
+        )
+        for c in (piece.corners for piece in strips(pieces))
+    ]
+
+
+def test_a_square_branch_makes_a_tee():
+    # A road from (100, -300) up to (100, 300) through (100, 0), and a branch off it to the west.
     tee = road((-200.0, 0.0), (100.0, 0.0), (100.0, 300.0)) + road((100.0, 0.0), (100.0, -300.0))
     pieces = pieces_of(tee)
-    assert curves(pieces) == []
-    assert close(strips(pieces)[0].corners[1], (100, HALF))
+    (piece,) = curves(pieces)
+    reach = 0.515 * WIDTH
+    # From the road's far edge out over the branch, and as far along the road either way.
+    xs = sorted(x for x, _ in piece.corners)
+    ys = sorted(y for _, y in piece.corners)
+    assert close([xs[0], xs[-1]], [100 - reach, 100 + HALF])
+    assert close([ys[0], ys[-1]], [-reach, reach])
+    # The road ends half a width either side of the join, the branch half a width out, each end
+    # square to its own way.
+    ends = _ends(pieces)
+    assert close(ends[0][1], (100 - WIDTH / 2, 0))
+    assert close(ends[1][0], (100, WIDTH / 2))
+    assert close(ends[2][0], (100, -WIDTH / 2))
+    # The piece reads the atlas about the tee's place in it.
+    us = [u for u, _ in piece.uvs]
+    vs = [v for _, v in piece.uvs]
+    span = reach / (TEXTURE_REPEAT * WIDTH)
+    assert close([min(vs), max(vs)], [TEE_TEXTURE[1] - span, TEE_TEXTURE[1] + span])
+    assert close(max(us), TEE_TEXTURE[0] + span)
+
+
+def test_a_leaning_branch_makes_a_y_standing_the_road_back_on_its_side():
+    # A road along x through the origin, and a branch leaning 45 degrees to the east.
+    fork = road((-300.0, 0.0), (0.0, 0.0), (300.0, 0.0)) + road((0.0, 0.0), (300.0, 300.0))
+    pieces = pieces_of(fork)
+    (piece,) = curves(pieces)
+    ends = _ends(pieces)
+    # The west end stands back 0.23 widths, the east (under the fork) 1.025.
+    assert close(ends[0][1], (-0.23 * WIDTH, 0))
+    assert close(ends[1][0], (1.025 * WIDTH, 0))
+    # The branch starts 1.05 widths out at 45 degrees.
+    branch = 1.05 * WIDTH / math.sqrt(2)
+    assert close(ends[2][0], (branch, branch))
+    # The Y piece lies mostly toward the lean, from half a strip behind the road's middle.
+    xs = sorted(x for x, _ in piece.corners)
+    ys = sorted(y for _, y in piece.corners)
+    assert close([xs[0], xs[-1]], [-0.27 * WIDTH, 1.08 * WIDTH])
+    assert close([ys[0], ys[-1]], [-HALF, 1.2 * WIDTH])
+    assert close(max(v for _, v in piece.uvs), Y_TEXTURE[1])
+
+
+def test_four_roads_make_a_four_way_with_the_straightest_pair_through():
+    cross = (
+        road((-300.0, 0.0), (0.0, 0.0), (300.0, 0.0))
+        + road((0.0, 0.0), (0.0, 300.0))
+        + road((0.0, 0.0), (20.0, -300.0))
+    )
+    pieces = pieces_of(cross)
+    (piece,) = curves(pieces)
+    reach = 0.515 * WIDTH
+    assert close(sorted(x for x, _ in piece.corners)[::3], [-reach, reach])
+    assert close(sorted(y for _, y in piece.corners)[::3], [-reach, reach])
+    ends = _ends(pieces)
+    # The cross roads end square to the through road, even the one that does not quite cross it.
+    assert close(ends[2][0], (0, WIDTH / 2))
+    assert close(ends[3][0], (0, -WIDTH / 2))
+    span = reach / (TEXTURE_REPEAT * WIDTH)
+    assert close(min(u for u, _ in piece.uvs), FOUR_WAY_TEXTURE[0] - span)
+    assert close(min(v for _, v in piece.uvs), FOUR_WAY_TEXTURE[1] - span)
 
 
 def test_bridges_are_full_width_and_never_joined():
@@ -203,3 +290,24 @@ def test_a_curve_off_a_segment_start_carries_its_texture_backwards():
     entry = {(round(u, 9), round(v, 9)) for u, v in bend[0].uvs[:2]}
     assert entry == {(round(u, 9), round(v, 9)) for u, v in (arriving.uvs[0], arriving.uvs[3])}
     assert bend[-1].uvs[3][0] < bend[0].uvs[0][0]
+
+
+def test_a_fork_with_no_road_through_makes_a_symmetric_y():
+    # A stem north, and two arms 135 degrees either side of it.
+    fork = (
+        road((0.0, 0.0), (0.0, 300.0))
+        + road((0.0, 0.0), (-300.0, -300.0))
+        + road((0.0, 0.0), (300.0, -300.0))
+    )
+    pieces = pieces_of(fork)
+    (piece,) = curves(pieces)
+    ends = _ends(pieces)
+    assert close(ends[0][0], (0, 0.275 * WIDTH))
+    arm = 0.55 * WIDTH / math.sqrt(2)
+    assert close(ends[1][0], (-arm, -arm))
+    assert close(ends[2][0], (arm, -arm))
+    xs = sorted(x for x, _ in piece.corners)
+    ys = sorted(y for _, y in piece.corners)
+    assert close([xs[0], xs[-1]], [-0.795 * WIDTH, 0.795 * WIDTH])
+    assert close([ys[0], ys[-1]], [-0.79 * WIDTH, 0.29 * WIDTH])
+    assert close(min(v for _, v in piece.uvs), SYMMETRIC_Y_TEXTURE[1])

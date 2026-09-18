@@ -22,7 +22,9 @@ from sage_worldbuilder.scene import MapScene
 from sage_worldbuilder.waypoints import (
     add_linked_waypoint,
     find_link,
+    linked_waypoint_ids,
     new_waypoint,
+    set_waypoint_type,
     toggle_link,
     waypoint_id,
 )
@@ -81,6 +83,39 @@ def test_links_toggle_and_a_linked_waypoint_is_one_edit():
     document.stack.undo()
     assert map.objects_list.object_list == [start]
     assert map.waypoints_list.waypoint_paths == []
+
+
+def path_of_three_and_a_stray():
+    """Waypoints 1-2-3 linked (2->1 and 2->3, so both directions count) and 4 on its own."""
+    map = empty_map()
+    document = MapDocument(map)
+    waypoints = []
+    for x in range(4):
+        waypoint = new_waypoint(map, (x * 10.0, 0.0, 0.0))
+        document.execute(place_objects(map, [waypoint]))
+        waypoints.append(waypoint)
+    map.waypoints_list.waypoint_paths.extend([(2, 1), (2, 3)])
+    return map, document, waypoints
+
+
+def test_a_spline_type_spreads_over_the_whole_path():
+    map, document, (first, second, third, stray) = path_of_three_and_a_stray()
+    assert linked_waypoint_ids(map, 1) == {1, 2, 3}
+    assert linked_waypoint_ids(map, 4) == {4}
+
+    document.execute(set_waypoint_type(map, [first], 1))
+    assert value(first, "waypointType") == 1
+    assert "waypointType" not in second.properties
+
+    document.execute(set_waypoint_type(map, [third], 6))
+    assert [value(w, "waypointType") for w in (first, second, third)] == [6, 6, 6]
+    assert "waypointType" not in stray.properties
+    # Leaving a spline takes the path with it too.
+    document.execute(set_waypoint_type(map, [second], 0))
+    assert [value(w, "waypointType") for w in (first, second, third)] == [0, 0, 0]
+    document.stack.undo()
+    document.stack.undo()
+    assert value(first, "waypointType") == 1 and "waypointType" not in third.properties
 
 
 def test_new_areas_take_free_names_and_the_next_id():

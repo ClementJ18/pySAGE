@@ -51,3 +51,35 @@ def test_sound_ranges_come_from_a_customized_ambient_sound_only():
     assert sound_ranges(placed(objectSoundAmbientCustomized=False)) is None
     assert sound_ranges(placed(objectSoundAmbientCustomized=True)) is None
     assert sound_ranges(placed()) is None
+
+
+def test_sound_flags_mark_audio_objects_and_tell_streams_apart():
+    from sage_map.context import AssetPropertyType  # noqa: PLC0415
+    from sage_worldbuilder.influences import SoundFlag  # noqa: PLC0415
+
+    audio = [SimpleNamespace(name="AUDIO")]
+    objects = {
+        "Brook": SimpleNamespace(EditorSorting=audio, SoundAmbient="RiverStream"),
+        "Forest": SimpleNamespace(EditorSorting=audio, SoundAmbient="Birds"),
+        "Rock": SimpleNamespace(EditorSorting=[SimpleNamespace(name="MISC_NATURAL")]),
+    }
+    tables = {"objects": objects, "ambientstreams": {"RiverStream": object()}}
+
+    def lookup(table, name):
+        return tables.get(table, {}).get(name), None
+
+    influences = Influences(SimpleNamespace(objects=objects, lookup=lookup))
+
+    def placed(type_name, **properties):
+        stored = {
+            key: {"name": key, "type": AssetPropertyType.AsciiString, "value": value}
+            for key, value in properties.items()
+        }
+        return SimpleNamespace(type_name=type_name, properties=stored)
+
+    assert influences.sound_flag(placed("Brook")) is SoundFlag.STREAM
+    assert influences.sound_flag(placed("Forest")) is SoundFlag.SOUND
+    # The object's own sound replaces its template's.
+    streaming = placed("Forest", objectSoundAmbient="RiverStream")
+    assert influences.sound_flag(streaming) is SoundFlag.STREAM
+    assert influences.sound_flag(placed("Rock")) is None

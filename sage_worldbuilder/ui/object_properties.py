@@ -4,7 +4,7 @@ selection and only those.
 - **Object** (ordinary placed objects): the first one's properties; an edit is set on every
   selected object.
 - **Waypoint** (waypoints): the first one's name, path labels, bi-directional flag and type; an
-  edit is set on every selected waypoint.
+  edit is set on every selected waypoint, and a type to or from a spline on their whole paths.
 - **Area** (trigger areas): the first one's name, and the layer of every selected area.
 - **Other keys** (objects or waypoints): the keys the first one stores that its tab does not
   cover, read-only, so nothing stored is hidden.
@@ -45,6 +45,7 @@ from sage_worldbuilder.scene import WAYPOINT_PREFIX
 from sage_worldbuilder.teams import qualified_team_name, team_list
 from sage_worldbuilder.ui.host import PanelHost
 from sage_worldbuilder.ui.property_form import PropertyForm
+from sage_worldbuilder.waypoints import set_waypoint_type
 
 __all__ = ["ObjectPropertiesPanel"]
 
@@ -106,7 +107,10 @@ class ObjectPropertiesPanel(QWidget):
             OBJECT_SPECS, self._executor(lambda: self.objects), OBJECTS, suggestions
         )
         self.waypoint_form = PropertyForm(
-            WAYPOINT_SPECS, self._executor(lambda: self.waypoints), OBJECTS
+            WAYPOINT_SPECS,
+            self._executor(lambda: self.waypoints),
+            OBJECTS,
+            commands={"waypointType": self._set_waypoint_type},
         )
         # The Listen button plays the first object's ambient sound (`MapObjectProps::OnListen`);
         # the window sets what it calls.
@@ -278,6 +282,11 @@ class ObjectPropertiesPanel(QWidget):
             self.host.execute(command)
 
         return execute
+
+    def _set_waypoint_type(self, value: int) -> Command:
+        document = self.host.document
+        assert document is not None
+        return set_waypoint_type(document.map, self.waypoints, value)
 
     def _listen(self) -> None:
         if self.listen is not None and self.objects:
