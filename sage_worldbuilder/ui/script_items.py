@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QSpinBox,
     QSplitter,
     QTreeWidget,
@@ -30,6 +31,7 @@ from PyQt6.QtWidgets import (
 from sage_map.assets.player_scripts import ScriptArgument, ScriptDerived
 from sage_map.scripts import arg_spec
 from sage_utils.widgets import make_completer
+from sage_worldbuilder.script_targets import ScriptTarget, navigable
 from sage_worldbuilder.scripting import (
     argument_choices,
     item_template,
@@ -47,10 +49,16 @@ from sage_worldbuilder.ui.sentences import argument_at, link_color, sentence_htm
 if TYPE_CHECKING:
     from sage_ini.model.game import Game
 
-__all__ = ["ScriptItemDialog"]
+__all__ = ["FindTarget", "GoTo", "ScriptItemDialog"]
 
 _INT_MIN, _INT_MAX = -(2**31), 2**31 - 1
 _REAL_LIMIT = 1e9
+_GO_TO = "Go To"
+
+#: What an argument points at in the open map, or `None` when it points at nothing there.
+FindTarget = Callable[[ScriptArgument], ScriptTarget | None]
+#: Shows a target in the window behind the dialog.
+GoTo = Callable[[ScriptTarget], None]
 
 
 class ScriptItemDialog(QDialog):
@@ -64,6 +72,8 @@ class ScriptItemDialog(QDialog):
         game: Game | None,
         parent: QWidget | None = None,
         focus_argument: int | None = None,
+        find_target: FindTarget | None = None,
+        go_to: GoTo | None = None,
     ) -> None:
         super().__init__(parent)
         self.kind = kind
@@ -71,6 +81,12 @@ class ScriptItemDialog(QDialog):
         self.focused_argument: int | None = None
         self.symbols = symbols
         self.game = game
+        # Given both, every argument naming something in the map gets a Go To button beside it.
+        self.find_target = find_target
+        self.go_to = go_to
+        # The field editing each argument, and the Go To button beside the ones that have one.
+        self._editors: list[QWidget] = []
+        self._go_buttons: dict[int, QPushButton] = {}
         self.item: ScriptDerived | None = copy.deepcopy(item) if item is not None else None
         noun = "Condition" if kind is TemplateKind.CONDITION else "Action"
         self.setWindowTitle(f"Edit {noun}" if item is not None else f"New {noun}")
@@ -152,11 +168,15 @@ class ScriptItemDialog(QDialog):
             QTimer.singleShot(0, lambda: self.focus_argument(focus_argument))
 
     def argument_editor(self, index: int) -> QWidget | None:
-        """The field editing argument `index`."""
-        if not 0 <= index < self.form.rowCount():
+        """The field editing argument `index`, not the row holding it and its Go To button."""
+        if not 0 <= index < len(self._editors):
             return None
-        entry = self.form.itemAt(index, QFormLayout.ItemRole.FieldRole)
-        return entry.widget() if entry is not None else None
+        return self._editors[index]
+
+    def go_to_button(self, index: int) -> QPushButton | None:
+        """The Go To button beside argument `index`, for the arguments that name something the
+        map can be taken to."""
+        return self._go_buttons.get(index)
 
     def focus_argument(self, index: int) -> None:
         editor = self.argument_editor(index)
@@ -235,6 +255,8 @@ class ScriptItemDialog(QDialog):
     def _show_item(self) -> None:
         while self.form.rowCount():
             self.form.removeRow(0)
+        self._editors.clear()
+        self._go_buttons.clear()
         item = self.item
         has_item = item is not None
         for widget in (self.enabled_box, self.inverted_box):
@@ -252,8 +274,51 @@ class ScriptItemDialog(QDialog):
             label = ""
             if entry is not None and index < len(entry.ui_strings):
                 label = (entry.ui_strings[index] or "").strip()
-            self.form.addRow(label or f"Parameter {index + 1}", self._editor(argument))
+            editor = self._editor(argument)
+            self._editors.append(editor)
+            self.form.addRow(label or f"Parameter {index + 1}", self._with_go_to(index, editor))
         self._update_preview()
+
+    def _with_go_to(self, index: int, editor: QWidget) -> QWidget:
+        """`editor`, followed by a Go To button when argument `index` names something the window
+        can show. The button is built whatever the argument holds now and enabled only while the
+        value names something the map has, so the field says so as it is typed."""
+        argument = self.item.arguments[index] if self.item is not None else None
+        if argument is None or not navigable(argument.type):
+            return editor
+        if self.find_target is None or self.go_to is None:
+            return editor
+        button = QPushButton(_GO_TO)
+        button.setAutoDefault(False)
+        button.clicked.connect(lambda _checked=False, index=index: self._go_to_argument(index))
+        self._go_buttons[index] = button
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(editor, 1)
+        layout.addWidget(button)
+        return row
+
+    def _go_to_argument(self, index: int) -> None:
+        """Show what argument `index` names in the window behind the dialog, which stays open so
+        no half-made edit is written and nothing typed is lost."""
+        target = self._target(index)
+        if target is not None and self.go_to is not None:
+            self.go_to(target)
+
+    def _target(self, index: int) -> ScriptTarget | None:
+        item = self.item
+        if self.find_target is None or item is None or not 0 <= index < len(item.arguments):
+            return None
+        return self.find_target(item.arguments[index])
+
+    def _refresh_go_buttons(self) -> None:
+        for index, button in self._go_buttons.items():
+            target = self._target(index)
+            button.setEnabled(target is not None)
+            button.setToolTip(
+                target.label if target is not None else "Nothing in this map goes by that name."
+            )
 
     def _update_preview(self) -> None:
         if self.item is None:
@@ -262,6 +327,7 @@ class ScriptItemDialog(QDialog):
         if self.kind is TemplateKind.CONDITION:
             self.item.is_inverted = self.inverted_box.isChecked()
         self.preview.setText(sentence_html(self.item, self.kind))
+        self._refresh_go_buttons()
 
     def _setter(self, argument: ScriptArgument, field: str) -> Callable[[Any], None]:
         def apply(value: Any) -> None:

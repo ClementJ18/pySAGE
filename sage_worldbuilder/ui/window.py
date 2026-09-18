@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
 
 from sage_map.assets.object_list import Object
 from sage_map.assets.trigger_areas import TriggerArea
+from sage_map.map import Map
 from sage_utils.config import user_config_dir
 from sage_utils.widgets import Worker, add_help_menu, resource_path, run_worker
 from sage_worldbuilder.ambient import (
@@ -74,6 +75,7 @@ from sage_worldbuilder.launch_patch import (
     restore_pending,
     sagepatch_patches,
 )
+from sage_worldbuilder.libraries import LibraryMaps
 from sage_worldbuilder.lighting import next_time_of_day
 from sage_worldbuilder.models import ArtIndex, ObjectModels
 from sage_worldbuilder.new_map import DEFAULT_CELL_SIZE, NewMapOptions, new_map
@@ -100,6 +102,7 @@ from sage_worldbuilder.roads import (
     with_partners,
 )
 from sage_worldbuilder.safeio import atomic_write
+from sage_worldbuilder.script_targets import ScriptTarget, TargetKind
 from sage_worldbuilder.selection_helpers import (
     TemplateIndex,
     base_parents,
@@ -595,6 +598,8 @@ class MainWindow(QMainWindow):
         self.extra_checks = extra_checks
         self.document: MapDocument | None = None
         self.context: GameContext | None = None
+        # The library maps the Scripts panel reads, kept so an item it shows keeps its identity.
+        self._library_maps = LibraryMaps(self._read_library_map)
         self.autosaver: Autosaver | None = None
         self.available_commands: set[int] = set()
         self._busy = False
@@ -1257,7 +1262,7 @@ class MainWindow(QMainWindow):
         self.map_form = QFormLayout(map_panel)
         self.map_dock = self._dock("Map", "mapDock", map_panel)
 
-        self.scripts_panel = ScriptsPanel(self)
+        self.scripts_panel = ScriptsPanel(self, self._library_maps, self.go_to_target)
         self.scripts_dock = self._dock(
             "Scripts", "scriptsDock", self.scripts_panel, Qt.DockWidgetArea.LeftDockWidgetArea
         )
@@ -1381,14 +1386,47 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self.map_dock, self.camera_dock)
         self.map_dock.raise_()
 
+    def _read_library_map(self, game_path: str) -> Map | None:
+        """A library map the open map's players draw scripts from, read from the loaded game."""
+        return self.context.read_map(game_path) if self.context is not None else None
+
     def _library_names(self) -> list[str]:
         if self.context is None:
             return []
         return [entry.name for entry in self.context.maps(MapCategory.LIBRARIES)]
 
-    def _select_team(self, qualified: str) -> None:
-        if self.teams_panel.select_team(qualified):
-            self._show_dock(self.teams_dock)
+    def _select_team(self, qualified: str) -> bool:
+        if not self.teams_panel.select_team(qualified):
+            return False
+        self._show_dock(self.teams_dock)
+        return True
+
+    def _select_player(self, name: str) -> bool:
+        if not self.players_panel.select_player(name):
+            return False
+        self._show_dock(self.players_dock)
+        return True
+
+    def go_to_target(self, target: ScriptTarget) -> bool:
+        """Show what a script argument names. A team, a player or a script lives in a panel, so
+        that panel comes up with it selected; everything else is on the map, so it is selected
+        there and the view centres on it."""
+        if target.kind is TargetKind.SCRIPT:
+            return self._select_script(target.name)
+        if target.kind is TargetKind.TEAM:
+            return self._select_team(target.name)
+        if target.kind is TargetKind.PLAYER:
+            return self._select_player(target.name)
+        document = self.document
+        if document is None:
+            return False
+        if document.selection.locked:
+            _status(self).showMessage("The selection is locked.", 3000)
+        elif target.sources:
+            document.selection.set(list(target.sources))
+        if target.position is not None:
+            self._zoom_to(*target.position)
+        return True
 
     def _select_item(self, source: object) -> None:
         """Select a map item chosen in the Item List, so the properties panel shows it."""
@@ -2417,9 +2455,11 @@ class MainWindow(QMainWindow):
         if window is not None:
             window.raise_()
 
-    def _select_script(self, name: str) -> None:
-        if self.scripts_panel.select_script(name):
-            self.show_scripts()
+    def _select_script(self, name: str) -> bool:
+        if not self.scripts_panel.select_script(name):
+            return False
+        self.show_scripts()
+        return True
 
     def generate_report(self) -> None:
         self.validation_dock.show()
@@ -2811,6 +2851,7 @@ class MainWindow(QMainWindow):
         """Mount the configured install and mod folders, then (optionally) load their data."""
         self._load_generation += 1
         self.context = None
+        self._library_maps.clear()
         self.map_view.footprints = None
         self.map_view.influences = None
         self.map_view.road_styles = None
@@ -3531,7 +3572,8 @@ class MainWindow(QMainWindow):
 
     def _refresh_panels_for(self, change: Change) -> None:
         whole = change.kind is ChangeKind.WHOLE
-        if whole or change.kind is ChangeKind.SCRIPTS:
+        # A player's library maps are side data, and they decide what the scripts tree imports.
+        if whole or change.kind in (ChangeKind.SCRIPTS, ChangeKind.SIDES):
             self.scripts_panel.refresh()
         if whole or change.kind in (ChangeKind.SIDES, ChangeKind.SCRIPTS):
             self.players_panel.refresh()

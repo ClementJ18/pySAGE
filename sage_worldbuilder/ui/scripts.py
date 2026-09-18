@@ -9,7 +9,7 @@ import struct
 from collections.abc import Callable, MutableSequence
 from typing import TYPE_CHECKING, Any, Protocol
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QPoint, Qt, QTimer
 from PyQt6.QtGui import QDropEvent, QIcon
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -37,7 +38,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from sage_map.assets.player_scripts import Script, ScriptDerived, ScriptGroup
+from sage_map.assets.player_scripts import Script, ScriptArgument, ScriptDerived, ScriptGroup
 from sage_map.linter import lint_map
 from sage_map.map import Map
 from sage_map.model import MapModel
@@ -54,6 +55,15 @@ from sage_worldbuilder.exchange import (
     import_library,
     plan_import,
 )
+from sage_worldbuilder.libraries import (
+    ImportedItem,
+    ImportedScripts,
+    MapLoader,
+    imported_scripts,
+    library_name,
+    override,
+)
+from sage_worldbuilder.script_targets import ScriptTarget, argument_target
 from sage_worldbuilder.scripting import (
     ActiveFlags,
     active_flags,
@@ -81,7 +91,7 @@ from sage_worldbuilder.ui.sentences import HTML_ROLE, SentenceDelegate, sentence
 if TYPE_CHECKING:
     from sage_ini.model.game import Game
 
-__all__ = ["ScriptsHost", "ScriptsPanel"]
+__all__ = ["GoTo", "ScriptsHost", "ScriptsPanel"]
 
 SCRIPTS = Change(ChangeKind.SCRIPTS)
 _ROLE = Qt.ItemDataRole.UserRole
@@ -93,6 +103,9 @@ _INDENT = "&nbsp;" * 6
 _Row = tuple[str, Any, str]
 # What reading a malformed `.scb` raises: the container and chunk parsers are not defensive.
 _READ_ERRORS = (OSError, ValueError, KeyError, IndexError, struct.error)
+
+#: Shows what a script argument names: an object on the map, a script in this panel, a team.
+GoTo = Callable[[ScriptTarget], None]
 
 
 class ScriptsHost(Protocol):
@@ -153,6 +166,15 @@ def _show_import_report(parent: QWidget, report: ImportReport) -> None:
         QMessageBox.information(parent, "Import Scripts", "\n\n".join(lines))
 
 
+def _import_tip(imported: ImportedItem) -> str:
+    """What an imported row says about where it comes from, and what took its name."""
+    tip = f"Imported from the library map {imported.library}."
+    if imported.overridden_by is not None:
+        held = f"the library map {imported.overridden_by}" if imported.overridden_by else "the map"
+        tip += f"\nOverridden: {held} defines this name first and keeps it."
+    return tip
+
+
 def _holds(group: ScriptGroup, items: MutableSequence[Script | ScriptGroup]) -> bool:
     """Whether `items` is `group`'s own list or the list of a group somewhere inside it."""
     if group.items is items:
@@ -210,13 +232,25 @@ class _ItemList(QWidget):
 
 
 class ScriptsPanel(QWidget):
-    def __init__(self, host: ScriptsHost, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        host: ScriptsHost,
+        load_library: MapLoader | None = None,
+        go_to: GoTo | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.host = host
+        # Reads a player's library maps; without one the tree shows the map's own scripts alone.
+        self.load_library = load_library
+        # Shows what an argument names; without one no Go To button or menu entry is offered.
+        self.go_to = go_to
         self.item_dialog: Callable[..., Any] = ScriptItemDialog
         self.selected: Script | ScriptGroup | None = None
         self._updating = False
         self._expanded: set[int] = set()
+        # Every imported item in the tree, by identity: what makes a row read-only.
+        self._imported: dict[int, ImportedItem] = {}
         # The Active flags of the open map as it was loaded, for Reset Active.
         self._loaded_document: MapDocument | None = None
         self._loaded_active: ActiveFlags = []
@@ -249,6 +283,7 @@ class ScriptsPanel(QWidget):
             ("New Script", self.new_script),
             ("New Group", self.new_group),
             ("Copy", self.copy_selected),
+            ("Override", self.override_selected),
             ("Delete", self.delete_selected),
             ("Up", lambda: self.move_selected(-1)),
             ("Down", lambda: self.move_selected(1)),
@@ -257,6 +292,12 @@ class ScriptsPanel(QWidget):
             button.clicked.connect(lambda _checked=False, slot=slot: slot())
             tree_buttons.addWidget(button)
             self.tree_buttons[text] = button
+        self.tree_buttons["Override"].setToolTip(
+            "Give the map its own copy of the selected imported item, at the same path, so it can"
+            " be edited. The copy keeps its name, which is what takes that name off the library;"
+            " a group of the path the map does not have is recreated to hold it, and that group's"
+            " name comes off the library too."
+        )
         tree_layout.addLayout(tree_buttons)
         library_buttons = QHBoxLayout()
         library_actions: tuple[tuple[str, Callable[[], object]], ...] = (
@@ -401,6 +442,10 @@ class ScriptsPanel(QWidget):
             items.delegate.argument_clicked.connect(
                 lambda row, argument, items=items: self.edit_argument(items, row, argument)
             )
+            items.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            items.list.customContextMenuRequested.connect(
+                lambda point, items=items: self.show_item_menu(items, point)
+            )
             layout.addWidget(items, 1)
         return page
 
@@ -449,6 +494,7 @@ class ScriptsPanel(QWidget):
     def _rebuild_tree(self) -> None:
         self.tree.blockSignals(True)
         self.tree.clear()
+        self._imported.clear()
         document = self.host.document
         current: QTreeWidgetItem | None = None
         if document is not None:
@@ -458,6 +504,8 @@ class ScriptsPanel(QWidget):
                 top.setFlags(top.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
                 self.tree.addTopLevelItem(top)
                 found = self._add_children(top, script_list.items)
+                inherited = self._inherited(document.map, index)
+                found = self._add_imported(top, inherited) or found
                 current = current or found
                 expanded = id(script_list) in self._expanded or bool(found) or self._searching()
                 top.setExpanded(expanded)
@@ -467,14 +515,46 @@ class ScriptsPanel(QWidget):
             self.tree.setCurrentItem(current)
         self.tree.blockSignals(False)
 
+    def _inherited(self, map: Map, index: int) -> ImportedScripts:
+        """What player `index` inherits from its library maps, empty when no loader was given."""
+        if self.load_library is None:
+            return ImportedScripts()
+        return imported_scripts(map, index, self.load_library)
+
+    def _add_imported(
+        self, parent: QTreeWidgetItem, inherited: ImportedScripts
+    ) -> QTreeWidgetItem | None:
+        """The player's library maps under its own scripts: their items, read-only, and a row for
+        each library the game does not have."""
+        current = None
+        for imported in inherited.items:
+            found = self._add_children(parent, [imported.item], inherited)
+            current = current or found
+        for path in inherited.missing:
+            node = QTreeWidgetItem([f"{library_name(path)}  (library map not found)"])
+            node.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            node.setIcon(0, self._standard_icon(QStyle.StandardPixmap.SP_MessageBoxWarning))
+            node.setToolTip(0, f"{path} is not in the loaded game.")
+            node.setForeground(0, Qt.GlobalColor.gray)
+            node.setHidden(self._searching())
+            parent.addChild(node)
+        return current
+
     def _add_children(
-        self, parent: QTreeWidgetItem, items: list[Script | ScriptGroup]
+        self,
+        parent: QTreeWidgetItem,
+        items: list[Script | ScriptGroup],
+        inherited: ImportedScripts | None = None,
     ) -> QTreeWidgetItem | None:
         current = None
         for child in items:
-            node = QTreeWidgetItem([self._label(child)])
+            imported = inherited.of(child) if inherited is not None else None
+            node = QTreeWidgetItem([self._label(child, imported)])
             node.setData(0, _ROLE, child)
-            self._decorate(node, child)
+            self._decorate(node, child, imported)
+            if imported is not None:
+                self._imported[id(child)] = imported
+                node.setFlags(node.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
             if not child.is_active:
                 node.setForeground(0, Qt.GlobalColor.gray)
             parent.addChild(node)
@@ -482,30 +562,47 @@ class ScriptsPanel(QWidget):
             if child is self.selected:
                 current = node
             if isinstance(child, ScriptGroup):
-                found = self._add_children(node, child.items)
+                found = self._add_children(node, child.items, inherited)
                 current = current or found
                 node.setExpanded(id(child) in self._expanded or bool(found) or self._searching())
         return current
 
-    def _icon(self, item: Script | ScriptGroup) -> QIcon:
-        """A folder for a group, a file for a script, as Windows Explorer draws them."""
+    def _icon(self, item: Script | ScriptGroup, imported: bool = False) -> QIcon:
+        """A folder for a group, a file for a script, as Windows Explorer draws them; an item a
+        library map lends the player is drawn as a shortcut to one."""
         if isinstance(item, ScriptGroup):
-            return self._standard_icon(QStyle.StandardPixmap.SP_DirIcon)
-        return self._standard_icon(QStyle.StandardPixmap.SP_FileIcon)
+            pixmap = (
+                QStyle.StandardPixmap.SP_DirLinkIcon
+                if imported
+                else QStyle.StandardPixmap.SP_DirIcon
+            )
+        else:
+            pixmap = (
+                QStyle.StandardPixmap.SP_FileLinkIcon
+                if imported
+                else QStyle.StandardPixmap.SP_FileIcon
+            )
+        return self._standard_icon(pixmap)
 
     def _standard_icon(self, pixmap: QStyle.StandardPixmap) -> QIcon:
         style = self.style()
         return style.standardIcon(pixmap) if style is not None else QIcon()
 
-    def _decorate(self, node: QTreeWidgetItem, item: Script | ScriptGroup) -> None:
-        """The item's icon, or a warning sign with the problems as its tooltip."""
+    def _decorate(
+        self,
+        node: QTreeWidgetItem,
+        item: Script | ScriptGroup,
+        imported: ImportedItem | None = None,
+    ) -> None:
+        """The item's icon, or a warning sign with the problems as its tooltip. An imported item
+        says which library map it comes from instead."""
         problems = self.warnings.get(item.name.lower()) if isinstance(item, Script) else None
-        if problems:
+        if problems and imported is None:
             node.setIcon(0, self._standard_icon(QStyle.StandardPixmap.SP_MessageBoxWarning))
             node.setToolTip(0, "\n".join(problems))
         else:
-            node.setIcon(0, self._icon(item))
-            node.setToolTip(0, "")
+            node.setIcon(0, self._icon(item, imported is not None))
+            node.setToolTip(0, _import_tip(imported) if imported is not None else "")
 
     def update_warnings(self) -> None:
         """Recheck the scripts against the game and mark the ones with problems."""
@@ -518,7 +615,7 @@ class ScriptsPanel(QWidget):
         while (node := iterator.value()) is not None:
             item = node.data(0, _ROLE)
             if isinstance(item, (Script, ScriptGroup)):
-                self._decorate(node, item)
+                self._decorate(node, item, self._imported.get(id(item)))
             iterator += 1
 
     def _searching(self) -> bool:
@@ -532,12 +629,14 @@ class ScriptsPanel(QWidget):
         return isinstance(item, ScriptGroup) and any(self._matches(child) for child in item.items)
 
     @staticmethod
-    def _label(item: Script | ScriptGroup) -> str:
+    def _label(item: Script | ScriptGroup, imported: ImportedItem | None = None) -> str:
         notes = []
         if not item.is_active:
             notes.append("inactive")
         if item.is_subroutine:
             notes.append("subroutine")
+        if imported is not None:
+            notes.append("overridden" if imported.overridden else "imported")
         suffix = f"  ({', '.join(notes)})" if notes else ""
         return f"{item.name}{suffix}"
 
@@ -585,6 +684,26 @@ class ScriptsPanel(QWidget):
             self._fill_lists(selected)
         else:
             self.pages.setCurrentIndex(0)
+        self._apply_lock()
+
+    def _apply_lock(self) -> None:
+        """An imported item is shown, not edited: its fields are read-only, the way WorldBuilder
+        refuses to take a script inherited from a library map."""
+        editable = not self.locked()
+        for widget in (
+            self.group_name,
+            self.group_active,
+            self.group_subroutine,
+            self.script_name,
+            self.script_comment,
+            self.script_interval,
+            self.sequential_box,
+            self.loop_box,
+            self.loop_count,
+            self.sequential_target,
+            *self.script_flags.values(),
+        ):
+            widget.setEnabled(editable)
 
     def _fill_lists(self, script: Script) -> None:
         rows: list[_Row] = []
@@ -626,13 +745,22 @@ class ScriptsPanel(QWidget):
         widget.setCurrentRow(min(row, widget.count() - 1))
         widget.blockSignals(False)
 
+    def locked(self) -> bool:
+        """Whether the selected item belongs to a library map: it is read here, edited there."""
+        return self.selected is not None and id(self.selected) in self._imported
+
     def _sync_buttons(self) -> None:
         has_document = self.host.document is not None
-        has_selection = self.selected is not None
+        locked = self.locked()
+        has_selection = self.selected is not None and not locked
         self.tree_buttons["New Script"].setEnabled(has_document)
         self.tree_buttons["New Group"].setEnabled(has_document)
         for text in ("Copy", "Delete", "Up", "Down"):
             self.tree_buttons[text].setEnabled(has_selection)
+        self.tree_buttons["Override"].setEnabled(locked)
+        for items in (self.conditions, self.actions_true, self.actions_false):
+            for button in items.buttons.values():
+                button.setEnabled(not locked)
         document = self.host.document
         self.tree_buttons["Reset Active"].setEnabled(
             document is not None and reset_active(document.map, self._loaded_active) is not None
@@ -651,7 +779,9 @@ class ScriptsPanel(QWidget):
 
     def _set_selected(self, attribute: str, value: Any, label: str | None = None) -> None:
         selected = self.selected
-        if self._updating or selected is None or getattr(selected, attribute) == value:
+        if self._updating or selected is None or self.locked():
+            return
+        if getattr(selected, attribute) == value:
             return
         self._execute(SetAttribute(selected, attribute, value, SCRIPTS, label))
 
@@ -686,6 +816,10 @@ class ScriptsPanel(QWidget):
         selected group or player, or at the end of the first player's list."""
         node = self.tree.currentItem()
         data = node.data(0, _ROLE) if node is not None else None
+        if isinstance(data, Script | ScriptGroup) and id(data) in self._imported:
+            # Nothing is added to a library map from here: the new item goes to the player whose
+            # tree the imported one is shown in.
+            return self._player_items(node)
         if isinstance(data, Script):
             found = self._parent_of(data)
             return (found[0], found[1] + 1) if found is not None else None
@@ -693,6 +827,16 @@ class ScriptsPanel(QWidget):
             return data.items, len(data.items)
         lists = self._script_lists()
         return (lists[0], len(lists[0])) if lists else None
+
+    def _player_items(
+        self, node: QTreeWidgetItem | None
+    ) -> tuple[MutableSequence[Script | ScriptGroup], int] | None:
+        """The end of the script list of the player `node` sits under."""
+        while node is not None and node.parent() is not None:
+            node = node.parent()
+        data = node.data(0, _ROLE) if node is not None else None
+        items = getattr(data, "items", None)
+        return (items, len(items)) if items is not None else None
 
     def _insert(self, item: Script | ScriptGroup, label: str) -> None:
         point = self._insertion_point()
@@ -740,6 +884,8 @@ class ScriptsPanel(QWidget):
         self, item: object, target: object, position: QAbstractItemView.DropIndicatorPosition
     ) -> None:
         if not isinstance(item, Script | ScriptGroup) or target is None:
+            return
+        if id(item) in self._imported or id(target) in self._imported:
             return
         on_item = position is QAbstractItemView.DropIndicatorPosition.OnItem
         if isinstance(target, Script | ScriptGroup) and not (
@@ -882,6 +1028,35 @@ class ScriptsPanel(QWidget):
         self.selected = duplicate
         self._execute(InsertItem(items, index + 1, duplicate, SCRIPTS, "Copy"))
 
+    def override_selected(self) -> None:
+        """Copy the selected imported item into the player's own scripts, at the same path, and
+        select the copy - which is the map's, so it can be edited."""
+        document, selected = self.host.document, self.selected
+        imported = self._imported.get(id(selected)) if selected is not None else None
+        index = self._player_of(self.tree.currentItem())
+        if document is None or imported is None or index is None:
+            return
+        result = override(document.map, index, imported)
+        if result.command is None or result.copy is None:
+            QMessageBox.information(
+                self,
+                "Override",
+                f"{imported.item.name} cannot be overridden: {result.blocked}."
+                "\n\nA name the map itself defines already wins over the library's.",
+            )
+            return
+        self.selected = result.copy
+        self._execute(result.command)
+
+    def _player_of(self, node: QTreeWidgetItem | None) -> int | None:
+        """Which player's tree `node` sits in."""
+        while node is not None and node.parent() is not None:
+            node = node.parent()
+        if node is None:
+            return None
+        found = self.tree.indexOfTopLevelItem(node)
+        return found if found >= 0 else None
+
     def delete_selected(self) -> None:
         selected = self.selected
         if selected is None or (point := self._parent_of(selected)) is None:
@@ -912,6 +1087,8 @@ class ScriptsPanel(QWidget):
             self.host.game,
             self,
             focus_argument=focus_argument,
+            find_target=self.find_target,
+            go_to=self.go_to,
         )
         if dialog.exec() != QDialog.DialogCode.Accepted or dialog.item is None:
             return None
@@ -939,13 +1116,15 @@ class ScriptsPanel(QWidget):
         return actions, index
 
     def _target(self, items: _ItemList) -> tuple[MutableSequence[ScriptDerived], int] | None:
+        if self.locked():
+            return None
         if items is self.conditions:
             return self._condition_target(self._current(items))
         return self._action_target(items)
 
     def new_condition(self) -> None:
         script = self.selected
-        if not isinstance(script, Script):
+        if not isinstance(script, Script) or self.locked():
             return
         item = self._open_item_dialog(TemplateKind.CONDITION, None)
         if item is None:
@@ -970,7 +1149,7 @@ class ScriptsPanel(QWidget):
 
     def new_or_clause(self) -> None:
         script = self.selected
-        if not isinstance(script, Script):
+        if not isinstance(script, Script) or self.locked():
             return
         position = self._current(self.conditions)
         index = position[0] + 1 if position is not None else len(script.or_conditions)
@@ -980,7 +1159,7 @@ class ScriptsPanel(QWidget):
 
     def new_action(self, attribute: str) -> None:
         script = self.selected
-        if not isinstance(script, Script):
+        if not isinstance(script, Script) or self.locked():
             return
         item = self._open_item_dialog(TemplateKind.ACTION, None)
         if item is None:
@@ -995,6 +1174,73 @@ class ScriptsPanel(QWidget):
         """Edit the condition or action on `row`, starting at the argument that was clicked."""
         items.list.setCurrentRow(row)
         self.edit_item(items, focus_argument=argument)
+
+    def find_target(self, argument: ScriptArgument) -> ScriptTarget | None:
+        """What `argument` names in the open map, or `None` when it names nothing there."""
+        document = self.host.document
+        return argument_target(argument, document.map) if document is not None else None
+
+    def item_at(self, items: _ItemList, row: int) -> ScriptDerived | None:
+        """The condition or action a list row stands for; `None` for an IF/OR header."""
+        script = self.selected
+        entry = items.list.item(row) if 0 <= row < items.list.count() else None
+        data = entry.data(_ROLE) if entry is not None else None
+        if not isinstance(script, Script) or data is None:
+            return None
+        if items is self.conditions:
+            if not isinstance(data, tuple) or data[1] is None:
+                return None
+            clause, index = data
+            if not 0 <= clause < len(script.or_conditions):
+                return None
+            conditions = script.or_conditions[clause].conditions
+            return conditions[index] if 0 <= index < len(conditions) else None
+        actions = script.actions_if_true if items is self.actions_true else script.actions_if_false
+        return actions[data] if isinstance(data, int) and 0 <= data < len(actions) else None
+
+    def item_targets(self, item: ScriptDerived) -> list[ScriptTarget]:
+        """Everything the item's arguments name in the map, in argument order, each listed once:
+        an action naming the same team twice offers one entry for it."""
+        found: list[ScriptTarget] = []
+        seen: set[tuple[str, str]] = set()
+        for argument in item.arguments:
+            target = self.find_target(argument)
+            if target is None or (target.kind, target.name) in seen:
+                continue
+            seen.add((target.kind, target.name))
+            found.append(target)
+        return found
+
+    def show_item_menu(self, items: _ItemList, point: QPoint) -> None:
+        """The right-click handler of a condition or action list: open the menu of the row under
+        the cursor, at the cursor."""
+        entry = items.list.itemAt(point)
+        if entry is None:
+            return
+        viewport = items.list.viewport()
+        at = viewport.mapToGlobal(point) if viewport is not None else point
+        self.open_item_menu(items, items.list.row(entry), at)
+
+    def open_item_menu(self, items: _ItemList, row: int, at: QPoint) -> None:
+        """The menu of a condition or action row: edit it, or go to anything its arguments name.
+        An imported item is read-only, so only its Go To entries do anything."""
+        items.list.setCurrentRow(row)
+        item = self.item_at(items, row)
+        menu = QMenu(self)
+        edit = menu.addAction("Edit…")
+        if edit is not None:
+            edit.setEnabled(item is not None and not self.locked())
+        targets = self.item_targets(item) if item is not None and self.go_to is not None else []
+        if targets:
+            menu.addSeparator()
+        entries = {menu.addAction(target.label): target for target in targets}
+        chosen = menu.exec(at)
+        if chosen is None:
+            return
+        if chosen is edit:
+            self.edit_item(items)
+        elif chosen in entries and self.go_to is not None:
+            self.go_to(entries[chosen])
 
     def edit_item(self, items: _ItemList, focus_argument: int | None = None) -> None:
         target = self._target(items)

@@ -219,6 +219,15 @@ class PlayersPanel(QWidget):
         self.add_button.setEnabled(has_players)
         self.skirmish_button.setEnabled(has_players)
 
+    def select_player(self, name: str) -> bool:
+        """Select the player called `name` (ignoring case), as a script argument names one."""
+        folded = name.casefold()
+        for row, player in enumerate(self._players()):
+            if player_name(player).casefold() == folded:
+                self.list.setCurrentRow(row)
+                return True
+        return False
+
     def _show_selected(self) -> None:
         players = self._players()
         row = self.list.currentRow()

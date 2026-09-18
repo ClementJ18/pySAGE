@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ActiveFlags",
+    "ScriptItem",
     "ScriptLocation",
     "SentencePart",
     "active_flags",

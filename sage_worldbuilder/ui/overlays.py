@@ -291,8 +291,9 @@ class OverlayPainter:
         return True
 
     def _dot_size(self, kind: MarkerKind) -> float:
-        """How wide a marker's dot is in pixels: it grows with the zoom, within limits."""
-        return max(3.0, min(9.0, 30 * self.transform.scale))
+        """How wide a marker's dot is in pixels: it grows and shrinks with the zoom, within
+        limits."""
+        return max(1.5, min(9.0, 30 * self.transform.scale))
 
     def _selection_ring(self, kind: MarkerKind) -> float:
         """The radius of the ring around a selected marker, just outside its dot."""

@@ -135,10 +135,21 @@ the Dressing Options panel.
 
 **Scripts, teams and players.** The Scripts panel is a tree of every player's groups and scripts
 with an editor for the selected one - properties, IF/OR conditions and both action lists - built
-from the action and condition templates extracted from WorldBuilder. The Player List adds and
-removes players (or every player a skirmish map needs at once) and edits faction, AI type,
-relations, colour and library maps; teams are created, copied and repaired; the Build List panel
-edits a player's skirmish AI build list, and the Build List tool places its entries on the map.
+from the action and condition templates extracted from WorldBuilder. Under a player's own scripts
+stand the ones it inherits from its library maps, read-only and marked *imported*, the chains those
+libraries open followed to the end and a name two libraries both define marked *overridden* on the
+one that loses it - what an AI map actually runs, without opening each library by hand. **Override**
+gives the map its own copy of an imported script or group at the path it has in its library, which
+is what takes that name off the library and makes it editable. An argument
+that names something the map declares - a unit, a waypoint or its path, a trigger area, a team, a
+player, another script - can be gone to rather than only read: a Go To button beside the field in
+the condition or action dialog, and the same entries on a row's right-click menu. Going to
+something on the map selects it and centres the view on it, and going to a team, a player or a
+script raises the panel holding it with that one selected. The Player List adds and removes
+players (or every player a skirmish map needs at once) and edits faction, AI type, relations,
+colour and library maps; teams are created, copied and repaired; the Build
+List panel edits a player's skirmish AI build list, and the Build List tool places its entries on
+the map.
 
 **Export and import.** A `.scb` script library exports the chosen players' units, scripts and the
 items those scripts reference, and imports back into another map as one undoable edit - reanchored

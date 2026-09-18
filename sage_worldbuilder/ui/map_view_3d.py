@@ -2117,11 +2117,15 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         return self.options.show_object_dots or self._marker_footprint(marker)
 
     def _dot_size(self, kind: MarkerKind) -> float:
-        """An object's dot is smaller here than in the top-down view: the model already shows the
-        object, so the dot only marks its centre, and a map of thousands would be a spray of
-        them. What has no model of its own keeps the full-sized dot."""
-        size = super()._dot_size(kind)
-        return max(3.0, size * 0.55) if kind is MarkerKind.OBJECT else size
+        """A dot follows the camera's distance, taken at the target rather than under the cursor
+        so the dots hold still while it moves: the default camera draws them full-sized, and
+        backing away shrinks them as it shrinks the map. An object's dot is smaller than the rest:
+        the model already shows the object, so the dot only marks its centre, and a map of
+        thousands would be a spray of them."""
+        camera = self.camera
+        scale = camera.pixels_per_unit_at(camera.target)
+        size = max(1.5, min(9.0, 12 * scale))
+        return max(1.5, size * 0.55) if kind is MarkerKind.OBJECT else size
 
     def marker_at(
         self,

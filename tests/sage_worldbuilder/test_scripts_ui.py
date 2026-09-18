@@ -18,10 +18,14 @@ from PyQt6.QtWidgets import (  # noqa: E402
     QApplication,
     QComboBox,
     QDialog,
+    QMenu,
     QStyle,
     QStyleOptionViewItem,
 )
 
+from sage_map.assets.library_map_lists import LibraryMapLists  # noqa: E402
+from sage_map.assets.library_map_lists import LibraryMaps as LibraryMapValues  # noqa: E402
+from sage_map.assets.object_list import ObjectsList  # noqa: E402
 from sage_map.assets.player_scripts import (  # noqa: E402
     PlayerScriptsList,
     Script,
@@ -30,6 +34,9 @@ from sage_map.assets.player_scripts import (  # noqa: E402
 )
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
+from sage_worldbuilder.objects import new_object  # noqa: E402
+from sage_worldbuilder.players import library_map_path  # noqa: E402
+from sage_worldbuilder.script_targets import argument_target  # noqa: E402
 from sage_worldbuilder.scripting import new_group, new_item, new_script  # noqa: E402
 from sage_worldbuilder.templates import TemplateKind, template_named  # noqa: E402
 from sage_worldbuilder.ui.script_items import ScriptItemDialog  # noqa: E402
@@ -184,8 +191,9 @@ class StubDialog:
         self.item = item
         self.focus_argument = None
 
-    def __call__(self, kind, item, symbols, game, parent, focus_argument=None):
+    def __call__(self, kind, item, symbols, game, parent, focus_argument=None, **passed):
         self.focus_argument = focus_argument
+        self.passed = passed
         return self
 
     def exec(self):
@@ -370,3 +378,241 @@ def test_links_lighten_on_a_dark_background():
     already_light = QPalette()
     already_light.setColor(QPalette.ColorRole.Link, QColor("#8ab4ff"))
     assert link_color(already_light, QColor("#1e1e1e")).name() == "#8ab4ff"
+
+
+def library_document():
+    """A map whose one player draws scripts from two library maps, one of which the game does not
+    have, and a loader that reads them."""
+    map = Map()
+    map.player_scripts_list = PlayerScriptsList(
+        version=1,
+        script_lists=[ScriptList(version=1, items=[new_group("Own")], start_pos=0, end_pos=0)],
+        start_pos=0,
+        end_pos=0,
+    )
+    map.library_map_lists = LibraryMapLists(
+        version=1,
+        lists=[
+            LibraryMapValues(
+                version=1,
+                values=[library_map_path("Core"), library_map_path("Gone")],
+                start_pos=0,
+                end_pos=0,
+            )
+        ],
+        start_pos=0,
+        end_pos=0,
+    )
+    group = new_group("Build")
+    group.items.append(new_script("Farm"))
+    core = Map()
+    core.player_scripts_list = PlayerScriptsList(
+        version=1,
+        script_lists=[
+            ScriptList(version=1, items=[], start_pos=0, end_pos=0),
+            ScriptList(version=1, items=[group], start_pos=0, end_pos=0),
+        ],
+        start_pos=0,
+        end_pos=0,
+    )
+
+    def load(path: str):
+        return core if path.casefold() == library_map_path("Core").casefold() else None
+
+    return MapDocument(map), load
+
+
+def test_imported_library_scripts_are_shown_read_only(qapp):
+    document, load = library_document()
+    host = Host(document)
+    panel = ScriptsPanel(host, load)
+    host.panel = panel
+    panel.refresh()
+
+    assert tree_labels(panel) == [
+        "Player 1",
+        "  Own",
+        "  Build  (imported)",
+        "    Farm  (imported)",
+        "  Gone  (library map not found)",
+    ]
+    imported = panel.tree.topLevelItem(0).child(1)
+    assert "Core" in imported.toolTip(0)
+
+    select(panel, imported.data(0, 256))
+    assert panel.locked()
+    assert not panel.group_name.isEnabled()
+    for text in ("Copy", "Delete", "Up", "Down"):
+        assert not panel.tree_buttons[text].isEnabled()
+
+    # Nothing an imported row is asked to change reaches the library map.
+    panel.group_name.setText("Renamed")
+    panel._set_selected("name", "Renamed", "Rename Group")
+    panel.delete_selected()
+    assert document.map.player_scripts_list.script_lists[0].items[0].name == "Own"
+    assert imported.data(0, 256).name == "Build"
+    assert not document.stack.can_undo
+
+
+def test_a_new_script_beside_an_imported_one_goes_to_the_player(qapp):
+    document, load = library_document()
+    host = Host(document)
+    panel = ScriptsPanel(host, load)
+    host.panel = panel
+    panel.refresh()
+    select(panel, panel.tree.topLevelItem(0).child(1).data(0, 256))
+
+    panel.new_script()
+
+    items = document.map.player_scripts_list.script_lists[0].items
+    assert [item.name for item in items] == ["Own", "New Script"]
+
+
+def navigable_document() -> MapDocument:
+    """A map whose one action names an object that is on it, so the argument can be gone to."""
+    document = scripted_document()
+    map = document.map
+    map.objects_list = ObjectsList(version=3, object_list=[], start_pos=0, end_pos=0)
+    gandalf = new_object(map, "GondorGandalf", (30.0, 40.0, 0.0), 0.0, "/team")
+    gandalf.properties["objectName"] = {
+        "name": "objectName",
+        "type": gandalf.properties["originalOwner"]["type"],
+        "value": "Gandalf",
+    }
+    map.objects_list.object_list.append(gandalf)
+    script = map.player_scripts_list.script_lists[0].items[0].items[0]
+    action = new_item(entry(TemplateKind.ACTION, "NAMED_SET_HELD"))
+    action.arguments[0].string_value = "Gandalf"
+    script.actions_if_true[:] = [action]
+    return document
+
+
+def navigable_panel(load_library=None):
+    document = navigable_document()
+    host = Host(document)
+    gone_to = []
+    panel = ScriptsPanel(host, load_library, gone_to.append)
+    host.panel = panel
+    panel.refresh()
+    return panel, gone_to
+
+
+def test_item_dialog_go_to_button_follows_the_value(qapp):
+    """Only the arguments naming something in the map get a button, and it is live: it enables
+    as the value comes to name something the map has, and disables again when it does not."""
+    document = navigable_document()
+    map = document.map
+    item = new_item(entry(TemplateKind.ACTION, "MOVE_NAMED_UNIT_TO"))
+    item.arguments[0].string_value = "Gandalf"
+    gone_to = []
+    dialog = ScriptItemDialog(
+        TemplateKind.ACTION,
+        item,
+        {"units": ["Gandalf"]},
+        None,
+        find_target=lambda argument: argument_target(argument, map),
+        go_to=gone_to.append,
+    )
+
+    unit_button = dialog.go_to_button(0)
+    assert unit_button is not None and unit_button.isEnabled()
+    assert unit_button.toolTip() == "Go to object 'Gandalf'"
+    # The field still edits the argument: the row around it is not what focusing hands back.
+    assert isinstance(dialog.argument_editor(0), QComboBox)
+    # The third parameter is a coordinate, which names nothing to go to.
+    assert dialog.go_to_button(2) is None
+
+    unit_button.click()
+    assert [target.name for target in gone_to] == ["Gandalf"]
+
+    dialog.argument_editor(0).setCurrentText("Saruman")
+    assert not unit_button.isEnabled() and "Nothing in this map" in unit_button.toolTip()
+    unit_button.click()
+    assert len(gone_to) == 1
+
+
+def test_item_dialog_has_no_go_to_buttons_without_a_window(qapp):
+    item = new_item(entry(TemplateKind.ACTION, "MOVE_NAMED_UNIT_TO"))
+    dialog = ScriptItemDialog(TemplateKind.ACTION, item, {}, None)
+    assert dialog.go_to_button(0) is None
+    assert isinstance(dialog.argument_editor(0), QComboBox)
+
+
+def test_panel_hands_the_dialog_the_navigator(qapp):
+    panel, gone_to = navigable_panel()
+    stub = StubDialog(None)
+    panel.item_dialog = stub
+    select(panel, panel.host.document.map.player_scripts_list.script_lists[0].items[0].items[0])
+    panel.actions_true.list.setCurrentRow(0)
+
+    panel.edit_item(panel.actions_true)
+
+    assert stub.passed["go_to"] is not None
+    argument = panel.host.document.map.objects_list.object_list[0]
+    found = stub.passed["find_target"](panel.selected.actions_if_true[0].arguments[0])
+    assert found is not None and found.sources == (argument,)
+
+
+def test_right_click_a_row_offers_what_its_arguments_name(qapp, monkeypatch):
+    panel, gone_to = navigable_panel()
+    select(panel, panel.host.document.map.player_scripts_list.script_lists[0].items[0].items[0])
+    listed: list[str] = []
+
+    def choose(menu, _at):
+        listed[:] = [action.text() for action in menu.actions() if action.text()]
+        return next(action for action in menu.actions() if action.text().startswith("Go to"))
+
+    monkeypatch.setattr(QMenu, "exec", choose)
+    panel.open_item_menu(panel.actions_true, 0, QPoint())
+
+    assert listed == ["Edit…", "Go to object 'Gandalf'"]
+    assert [target.name for target in gone_to] == ["Gandalf"]
+
+    # An IF/OR header stands for no item, so only the (disabled) Edit entry is offered.
+    listed.clear()
+    monkeypatch.setattr(QMenu, "exec", lambda menu, _at: choose_nothing(menu, listed))
+    panel.open_item_menu(panel.conditions, 0, QPoint())
+    assert listed == ["Edit…"]
+
+
+def choose_nothing(menu, listed: list[str]):
+    listed[:] = [action.text() for action in menu.actions() if action.text()]
+    return None
+
+
+def test_override_button_gives_the_map_its_own_copy(qapp):
+    document, load = library_document()
+    host = Host(document)
+    panel = ScriptsPanel(host, load)
+    host.panel = panel
+    panel.refresh()
+    imported = panel.tree.topLevelItem(0).child(1).child(0)
+    assert imported.text(0) == "Farm  (imported)"
+    select(panel, imported.data(0, 256))
+    assert panel.tree_buttons["Override"].isEnabled()
+
+    panel.override_selected()
+    panel.refresh()  # the window refreshes the panel on the document's change signal
+
+    assert tree_labels(panel) == [
+        "Player 1",
+        "  Own",
+        "  Build",
+        "    Farm",
+        "  Build  (overridden)",
+        "    Farm  (overridden)",
+        "  Gone  (library map not found)",
+    ]
+    items = document.map.player_scripts_list.script_lists[0].items
+    assert [item.name for item in items] == ["Own", "Build"]
+    assert [item.name for item in items[1].items] == ["Farm"]
+    # The copy is what is selected, and it is the map's, so it can be edited.
+    assert panel.selected is items[1].items[0]
+    assert not panel.locked()
+    assert panel.script_name.isEnabled()
+    assert not panel.tree_buttons["Override"].isEnabled()
+
+    document.stack.undo()
+    panel.refresh()
+    assert document.map.player_scripts_list.script_lists[0].items[0].name == "Own"
+    assert len(document.map.player_scripts_list.script_lists[0].items) == 1

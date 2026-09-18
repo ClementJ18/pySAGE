@@ -17,6 +17,8 @@ before the data loads, so a patched field reads as the field it is.
 from __future__ import annotations
 
 import hashlib
+import io
+import struct
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -25,6 +27,7 @@ from pathlib import Path
 from sage_ini.engine import STOCK, Engine, load_engine
 from sage_ini.loader import load_game
 from sage_ini.model.game import Game
+from sage_map.map import Map, parse_map
 from sage_utils.installs import find_install, user_data_dir
 from sage_utils.vfs import VirtualFileSystem, mount_order
 from sage_worldbuilder.categories import MapCategory, MapEntry, list_maps
@@ -40,6 +43,9 @@ __all__ = [
 ]
 
 Progress = Callable[[str], None]
+
+# What reading a map that is not one raises: the chunk parsers are not defensive.
+_MAP_ERRORS = (OSError, ValueError, KeyError, IndexError, struct.error)
 
 # An expansion -> the game whose install it reads art from.
 _BASE_GAMES = {"rotwk": "bfme2"}
@@ -212,6 +218,17 @@ class GameContext:
             return MapDocument.open(entry.entry.file)
         data = self.filesystem.read_bytes(entry.entry)
         return MapDocument.from_bytes(data, read_only=True, name=entry.name)
+
+    def read_map(self, game_path: str) -> Map | None:
+        """The map at a game path, parsed and not opened for editing - what reading a library map
+        needs. `None` when the game has no such map, or when its bytes do not parse."""
+        entry = self.find_map(game_path)
+        if entry is None:
+            return None
+        try:
+            return parse_map(io.BytesIO(self.filesystem.read_bytes(entry.entry)))
+        except _MAP_ERRORS:
+            return None
 
     def save_root(self, category: MapCategory) -> Path | None:
         """The folder a category saves into: User Maps into the user-data folder, the others into
