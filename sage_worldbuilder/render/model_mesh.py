@@ -14,9 +14,11 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from sage_w3d.render.scene import Scene, build_scene
+from sage_w3d.render.textures import decode_texture
+
 if TYPE_CHECKING:
     from sage_map.assets.object_list import Object
-    from sage_w3d.render.scene import Scene
     from sage_worldbuilder.models import ArtIndex, ObjectModels
 
 __all__ = [
@@ -104,9 +106,6 @@ def load_object_models(
     """The geometry of each object name's model (None for an object with no model, or one whose
     files are missing or cannot be read), and the RGBA pixels of every texture those models use
     by lower-case name, bottom row first as OpenGL takes them (None where unreadable)."""
-    from sage_w3d.render.scene import build_scene  # noqa: PLC0415 - lazy: parsing is on demand
-    from sage_w3d.render.textures import decode_texture  # noqa: PLC0415
-
     geometry: dict[str, ModelGeometry | None] = {}
     textures: dict[str, np.ndarray | None] = {}
     for name in names:

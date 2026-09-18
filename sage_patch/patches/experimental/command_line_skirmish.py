@@ -27,13 +27,14 @@ before it asks for the game mode:
 3. **Applies `-gameInfo <string>` when the command line carries one.** The string is the lobby's
    own format - the one a replay header and `Skirmish.ini` hold - and the engine already parses
    it, in `ParseAsciiStringToGameInfo` (`GAME_INFO_PARSE`). The cave finds the switch by walking
-   `GameEngine::init`'s own `argv`, which is still in the frame the hook runs in, so the
-   command-line table is left alone and `headless`, which rewrites that table, composes. Seats, AI
-   difficulty, teams, colours, start positions, the ten `GR` rules and the seed come from the
-   string. The map identity does not: the parser will not commit without `M`, `MC` and `MS`, but
-   the map the engine is loading is the one `-file` named, so the cave saves what the auto-start
-   set and puts it back afterwards - and `GSID`, `SI` and the contents mask with it. The parser's
-   freshly built slots carry no map player, so every seated slot is then bound to
+   the `argv` `GameMain` received, whose argument slots sit just above `GameEngine::init`'s frame
+   and are still live when the hook runs - `init`'s own copies are not, it reuses them as scratch.
+   The command-line table is left alone, so `headless`, which rewrites that table, composes.
+   Seats, AI difficulty, teams, colours, start positions, the ten `GR` rules and the seed come
+   from the string. The map identity does not: the parser will not commit without `M`, `MC` and
+   `MS`, but the map the engine is loading is the one `-file` named, so the cave saves what the
+   auto-start set and puts it back afterwards - and `GSID`, `SI` and the contents mask with it.
+   The parser's freshly built slots carry no map player, so every seated slot is then bound to
    `Player_<startPos + 1>` again. The parser is all-or-nothing: a string it rejects commits
    nothing, and the default match from (1) stands. Which of those happened is written to the
    section at `STATUS_OFFSET`.
@@ -86,8 +87,6 @@ from ...addresses import (
     COMMAND_LINE_SKIRMISH_SETUP,
     COMMAND_LINE_SKIRMISH_SETUP_BYTES,
     COMMAND_LINE_SKIRMISH_SETUP_RESUME,
-    GAME_ENGINE_INIT_ARGC,
-    GAME_ENGINE_INIT_ARGV,
     GAME_INFO_GSID,
     GAME_INFO_MAP,
     GAME_INFO_MAP_CONTENTS_MASK,
@@ -105,6 +104,10 @@ from ...addresses import (
     GAME_INFO_SLOT_ARRAY,
     GAME_INFO_SLOT_COUNT,
     GAME_INFO_STARTING_RESOURCES,
+    GAME_MAIN,
+    GAME_MAIN_ARGC,
+    GAME_MAIN_ARGV,
+    GAME_MAIN_BYTES,
     GAME_MESSAGE_APPEND_INTEGER,
     GAME_SLOT_ACCEPTED,
     GAME_SLOT_COLOR,
@@ -156,9 +159,10 @@ SECTION_NAME = ".clskir"  # 7 chars: the PE name field is 8 bytes and truncates 
 _CHARACTERISTICS = 0x20 | 0x20000000 | 0x40000000 | 0x80000000
 
 #: A header at the section base, so `detect` can recover the parameters a build was made with
-#: rather than reporting this version's defaults. Magic, then the three values. The magic changed
-#: when `-gameInfo` was added, so a build without it is not reported as carrying this patch.
-MAGIC = b"CLS2"
+#: rather than reporting this version's defaults. Magic, then the three values. The magic changes
+#: whenever the cave's behaviour does - `CLS2` added `-gameInfo`, `CLS3` reads `argv` from the
+#: frame that still holds it - so an older build is not reported as carrying this patch.
+MAGIC = b"CLS3"
 _HEADER = struct.Struct("<4siii")
 
 #: The switch the cave looks for, compared case-insensitively as the engine's own table is.
@@ -191,6 +195,8 @@ ANCHORS = {
     GAME_INFO_SET_MAP: bytes.fromhex("b8a98eb900"),
     GAME_INFO_SET_MAP_CRC: bytes.fromhex("b80490b900"),
     GAME_INFO_SET_MAP_SIZE: bytes.fromhex("b80490b900"),
+    # The frame the argv scan relies on: two pushes of its own arguments, then init's vtable call.
+    GAME_MAIN: GAME_MAIN_BYTES,
 }
 
 # Each default seat: (slot index, state, start position, colour, team).  Colours are indices
@@ -327,11 +333,12 @@ class CommandLineSkirmishPatch(Patch):
                 a.emit(0xC7, 0x40, GAME_SLOT_MAP_PLAYER, _u32(a.label_va(f"name{start_pos}")))
                 a.label(f"seat{index}_done")
 
-            # Find `-gameInfo <value>` in `GameEngine::init`'s argv. `ebp` is still that frame:
-            # the hook is its own tail, and `pushad` leaves `ebp` where it was. Argument 0 is the
-            # program, and the switch needs one argument after it.
-            a.emit(0x8B, 0x4D, GAME_ENGINE_INIT_ARGC)  # mov ecx, [ebp+argc]
-            a.emit(0x8B, 0x5D, GAME_ENGINE_INIT_ARGV)  # mov ebx, [ebp+argv]
+            # Find `-gameInfo <value>` in `GameMain`'s argv. `ebp` is still `GameEngine::init`'s
+            # frame - the hook is its own tail, and `pushad` leaves `ebp` where it was - and
+            # `GameMain`'s arguments sit just above it. Argument 0 is the program, and the switch
+            # needs one argument after it.
+            a.emit(0x8B, 0x4D, GAME_MAIN_ARGC)  # mov ecx, [ebp+argc]
+            a.emit(0x8B, 0x5D, GAME_MAIN_ARGV)  # mov ebx, [ebp+argv]
             a.emit(0xBF, _u32(1))  # mov edi, 1
             a.label("scan")
             a.emit(0x8D, 0x47, 0x01)  # lea eax, [edi+1]

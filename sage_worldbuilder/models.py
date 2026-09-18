@@ -31,12 +31,12 @@ from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING, Protocol
 
 from sage_map.assets.global_lighting import TimeOfTheDay
+from sage_w3d.w3d import W3DFile, parse_w3d
 
 if TYPE_CHECKING:
     from sage_ini.model.game import Game
     from sage_map.map import Map
     from sage_utils.vfs import VfsEntry
-    from sage_w3d.w3d import W3DFile
 
 __all__ = [
     "ArtIndex",
@@ -344,8 +344,6 @@ class ArtIndex:
     def find_model(self, name: str) -> W3DFile | None:
         key = _stem(name)
         if key not in self._models:
-            from sage_w3d.w3d import parse_w3d  # noqa: PLC0415 - lazy: parsing is on demand
-
             path = self.model_path(name)
             self._models[key] = parse_w3d(self.filesystem.read_bytes(path)) if path else None
         return self._models[key]

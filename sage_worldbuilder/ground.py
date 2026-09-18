@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from sage_w3d.render.scene import build_scene
 from sage_worldbuilder.dressing import highest_hits
 from sage_worldbuilder.render.model_mesh import object_scale
 from sage_worldbuilder.scene import WAYPOINT_PREFIX
@@ -64,8 +65,6 @@ def load_ground_triangles(
 ) -> dict[str, np.ndarray]:
     """Each object name's `.GROUND` triangles; a name whose model has none, or cannot be read, is
     left out."""
-    from sage_w3d.render.scene import build_scene  # noqa: PLC0415 - lazy: parsing is on demand
-
     found: dict[str, np.ndarray] = {}
     for name in names:
         if name in found:

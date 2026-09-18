@@ -112,6 +112,22 @@ def test_jump_options_round_trip():
     )
 
 
+def test_the_window_size_round_trips_and_reaches_the_options():
+    Settings(jump_resolution=(1920, 1080)).save()
+
+    loaded = Settings.load()
+    assert loaded.jump_resolution == (1920, 1080)
+    assert loaded.jump_options().resolution == (1920, 1080)
+    assert Settings().jump_options().resolution == (1024, 768)
+
+
+@pytest.mark.parametrize(
+    "stored", [[1920], [1920, "1080"], [100, 100], [1920, True], "1920x1080", None]
+)
+def test_an_unusable_window_size_falls_back_to_the_default(stored):
+    assert Settings.from_dict({"jump_resolution": stored}).jump_resolution == (1024, 768)
+
+
 def test_the_jump_match_round_trips_and_reaches_the_options():
     match = JumpMatch(
         enabled=True, seats=(JumpSeat("hard", "FactionMen", 2, "ColorRed", 1),), seed=5

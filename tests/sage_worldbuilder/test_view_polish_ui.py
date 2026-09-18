@@ -14,7 +14,8 @@ pytestmark = pytest.mark.full
 pytest.importorskip("PyQt6", reason="the [worldbuilder] extra (PyQt6) is not installed")
 pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 
-from PyQt6.QtCore import QPoint, QSize, Qt  # noqa: E402
+from PyQt6.QtCore import QEvent, QPoint, QPointF, QSize, Qt  # noqa: E402
+from PyQt6.QtGui import QMouseEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import (  # noqa: E402
     QApplication,
@@ -248,6 +249,53 @@ def test_lock_layout_takes_every_drop_target_away(qapp, tmp_path, monkeypatch):
         assert window.dockOptions() & options.GroupedDragging
         assert window.dockOptions() & options.AllowTabbedDocks
     finally:
+        window.close()
+
+
+class QDockWidgetGroupWindow(QWidget):
+    """Stands in for the window Qt makes when floating panels are dropped together: PyQt names
+    the class after this one, which is how the editor recognises Qt's."""
+
+    def __init__(self, parent):
+        super().__init__(parent, Qt.WindowType.Tool)
+        self.presses = 0
+
+    def event(self, event):
+        if event.type() == QEvent.Type.NonClientAreaMouseButtonPress:
+            self.presses += 1
+        return super().event(event)
+
+
+def test_a_locked_group_window_cannot_start_a_dock_drag(qapp, tmp_path, monkeypatch):
+    """Qt lets a window of several panels dock anywhere, whatever their allowed areas; the lock
+    keeps its title bar from starting that drag."""
+    window = editor(tmp_path, monkeypatch)
+    group = QDockWidgetGroupWindow(window)
+    try:
+        group.show()
+        qapp.processEvents()
+
+        def press():
+            event = QMouseEvent(
+                QEvent.Type.NonClientAreaMouseButtonPress,
+                QPointF(10, -10),
+                QPointF(group.mapToGlobal(QPoint(10, -10))),
+                Qt.MouseButton.LeftButton,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+            )
+            QApplication.sendEvent(group, event)
+
+        press()
+        assert group.presses == 1
+        window.lock_layout_action.setChecked(True)
+        press()
+        assert group.presses == 1
+        window.lock_layout_action.setChecked(False)
+        press()
+        assert group.presses == 2
+    finally:
+        group.close()
         window.close()
 
 

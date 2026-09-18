@@ -24,8 +24,6 @@ from sage_patch.addresses import (
     ASCII_STRING_DTOR,
     COMMAND_LINE_SKIRMISH_SETUP,
     COMMAND_LINE_SKIRMISH_SETUP_RESUME,
-    GAME_ENGINE_INIT_ARGC,
-    GAME_ENGINE_INIT_ARGV,
     GAME_INFO_GSID,
     GAME_INFO_MAP,
     GAME_INFO_MAP_CONTENTS_MASK,
@@ -39,6 +37,8 @@ from sage_patch.addresses import (
     GAME_INFO_SLOT_ARRAY,
     GAME_INFO_SLOT_DATA,
     GAME_INFO_STARTING_RESOURCES,
+    GAME_MAIN_ARGC,
+    GAME_MAIN_ARGV,
     GAME_MESSAGE_APPEND_INTEGER,
     GAME_SLOT_MAP_PLAYER,
     GAME_SLOT_SIZE,
@@ -198,8 +198,11 @@ class _Launch:
         self._next_string = (cursor + 0x100) & ~0xFF
         table = _HEAP
         uc.mem_write(table, struct.pack(f"<{len(pointers)}I", *pointers))
-        self._put(_FRAME + GAME_ENGINE_INIT_ARGC, len(argv))
-        self._put(_FRAME + GAME_ENGINE_INIT_ARGV, table)
+        # `init`'s own argument slots hold what they hold at the hook: stack addresses.
+        self._put(_FRAME + 0x08, _FRAME - 0x1000)
+        self._put(_FRAME + 0x0C, _FRAME - 0x2000)
+        self._put(_FRAME + GAME_MAIN_ARGC, len(argv))
+        self._put(_FRAME + GAME_MAIN_ARGV, table)
 
         uc.reg_write(UC_X86_REG_ESP, _ESP)
         uc.reg_write(UC_X86_REG_EBP, _FRAME)

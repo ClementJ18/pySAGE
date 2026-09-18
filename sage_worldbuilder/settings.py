@@ -15,7 +15,13 @@ from sage_worldbuilder.arrays import ArrayOptions
 from sage_worldbuilder.autosave import DEFAULT_INTERVAL_SECONDS, AutosaveSettings
 from sage_worldbuilder.brush_options import BrushOptions, CopyTerrainOptions, PaintOptions
 from sage_worldbuilder.gamedata import GameLayers, base_install
-from sage_worldbuilder.jump import JumpMatch, JumpOptions
+from sage_worldbuilder.jump import (
+    DEFAULT_RESOLUTION,
+    MAX_RESOLUTION,
+    MIN_RESOLUTION,
+    JumpMatch,
+    JumpOptions,
+)
 from sage_worldbuilder.objects import GroupEditMethod
 from sage_worldbuilder.pick import ANYTHING, PickCategory
 from sage_worldbuilder.viewport import ViewOptions
@@ -57,6 +63,8 @@ class Settings:
     autosave_enabled: bool = True
     autosave_interval_seconds: int = DEFAULT_INTERVAL_SECONDS
     jump_windowed: bool = True
+    # The game window's width and height, for a windowed launch.
+    jump_resolution: tuple[int, int] = DEFAULT_RESOLUTION
     jump_script_debug: bool = False
     jump_extra_arguments: str = ""
     jump_match: JumpMatch = field(default_factory=JumpMatch)
@@ -104,6 +112,16 @@ class Settings:
         for name in ("autosave_enabled", "jump_windowed", "jump_script_debug", "lock_layout"):
             if isinstance(data.get(name), bool):
                 setattr(settings, name, data[name])
+        resolution = data.get("jump_resolution")
+        if (
+            isinstance(resolution, list)
+            and len(resolution) == 2
+            and all(
+                isinstance(value, int) and not isinstance(value, bool) and low <= value <= high
+                for value, low, high in zip(resolution, MIN_RESOLUTION, MAX_RESOLUTION, strict=True)
+            )
+        ):
+            settings.jump_resolution = (resolution[0], resolution[1])
         interval = data.get("autosave_interval_seconds")
         if isinstance(interval, int) and not isinstance(interval, bool):
             settings.autosave_interval_seconds = interval
@@ -145,6 +163,7 @@ class Settings:
             "autosave_enabled": self.autosave_enabled,
             "autosave_interval_seconds": self.autosave_interval_seconds,
             "jump_windowed": self.jump_windowed,
+            "jump_resolution": list(self.jump_resolution),
             "jump_script_debug": self.jump_script_debug,
             "jump_extra_arguments": self.jump_extra_arguments,
             "jump_match": self.jump_match.to_dict(),
@@ -219,6 +238,13 @@ class Settings:
     def autosave_settings(self) -> AutosaveSettings:
         return AutosaveSettings(self.autosave_enabled, self.autosave_interval_seconds)
 
+    def set_jump_options(self, options: JumpOptions) -> None:
+        """Keep `options`' launch settings; the match is `jump_match`, not its `game_info`."""
+        self.jump_windowed = options.windowed
+        self.jump_resolution = options.resolution
+        self.jump_script_debug = options.script_debug
+        self.jump_extra_arguments = options.extra_arguments
+
     def jump_options(self, game_info: str | None = None) -> JumpOptions:
         """The launch options, with `game_info` the match (`JumpMatch.game_info`) when one is
         chosen."""
@@ -226,6 +252,7 @@ class Settings:
             self.jump_windowed,
             self.jump_script_debug,
             self.jump_extra_arguments,
+            resolution=self.jump_resolution,
             game_info=game_info,
         )
 

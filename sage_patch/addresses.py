@@ -557,6 +557,9 @@ __all__ = [
     "FLOAT_ONE",
     "FLOAT_ONE_PERCENT",
     "FLOAT_TWO_PERCENT",
+    "FRAME_DISPATCHER",
+    "FRAME_DISPATCHER_PAUSE_CALL",
+    "FRAME_DISPATCHER_PAUSE_CALL_BYTES",
     "FWWD_FIELD_TABLE",
     "FWWD_FIELD_TABLE_REFS",
     "FWWD_FIELD_TABLE_REF_OPCODES",
@@ -581,12 +584,11 @@ __all__ = [
     "GAME_ENGINE",
     "GAME_ENGINE_ALPHA",
     "GAME_ENGINE_INIT",
-    "GAME_ENGINE_INIT_ARGC",
-    "GAME_ENGINE_INIT_ARGV",
     "GAME_ENGINE_INIT_GLOBAL_DATA_CALL",
     "GAME_ENGINE_INIT_GLOBAL_DATA_CALL_BYTES",
     "GAME_ENGINE_INIT_MOD_CALL",
     "GAME_ENGINE_INIT_MOD_CALL_BYTES",
+    "GAME_ENGINE_MAX_FPS",
     "GAME_ENGINE_QUITTING",
     "GAME_ENGINE_SET_FPS_SLOT",
     "GAME_ENGINE_SUB_FRAME",
@@ -620,6 +622,7 @@ __all__ = [
     "GAME_LOGIC_FIND_OBJECT_BY_ID",
     "GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY",
     "GAME_LOGIC_FRAME",
+    "GAME_LOGIC_GAME_MODE",
     "GAME_LOGIC_IS_IN_GAME",
     "GAME_LOGIC_LIVING_WORLD_TYPE",
     "GAME_LOGIC_LIVING_WORLD_TYPE_MP_BATTLE",
@@ -628,6 +631,10 @@ __all__ = [
     "GAME_LOGIC_UPDATE",
     "GAME_LOGIC_UPDATE_ENTRY",
     "GAME_LOGIC_UPDATE_VTABLE_SLOT",
+    "GAME_MAIN",
+    "GAME_MAIN_ARGC",
+    "GAME_MAIN_ARGV",
+    "GAME_MAIN_BYTES",
     "GAME_MESSAGE_APPEND_INTEGER",
     "GAME_MODE_SKIRMISH",
     "GAME_SLOT_ACCEPTED",
@@ -943,6 +950,8 @@ __all__ = [
     "MSG_NEW_GAME",
     "NAME_KEY_FROM_CSTR",
     "NAME_KEY_FROM_STRING",
+    "NAME_KEY_TO_NAME",
+    "NETWORK_GAME_MODES",
     "NET_CRC_INTERVAL",
     "NET_CRC_INTERVAL_GAME_INFO_CTOR",
     "NET_CRC_INTERVAL_GAME_INFO_OFFSET",
@@ -1109,6 +1118,7 @@ __all__ = [
     "PLAYER_LIST_PLAYER_FROM_INDEX",
     "PLAYER_LIVING_WORLD_ID_OFFSET",
     "PLAYER_MONEY",
+    "PLAYER_NAME_KEY",
     "PLAYER_PLAYER_TEMPLATE",
     "PLAYER_RELATIONSHIP_ALLIES",
     "PLAYER_SCIENCES",
@@ -1275,37 +1285,89 @@ __all__ = [
     "SCRIPT_ACTION_TEAM_TO_ARMY",
     "SCRIPT_ACTION_TEAM_TO_ARMY_ID",
     "SCRIPT_ACTION_TYPE",
+    "SCRIPT_ACTIVE",
+    "SCRIPT_AUTHORED_ACTIVE",
+    "SCRIPT_CONDITIONS",
     "SCRIPT_COUNTER_IS_SECONDS",
     "SCRIPT_COUNTER_IS_TIMER",
     "SCRIPT_COUNTER_VALUE",
     "SCRIPT_DEBUG_ADJUST_VARIABLE",
     "SCRIPT_DEBUG_APPEND_MESSAGE",
+    "SCRIPT_DEBUG_CAN_CONTINUE",
     "SCRIPT_DEBUG_FLAG_HANDLER",
+    "SCRIPT_DEBUG_IS_PAUSED",
     "SCRIPT_DEBUG_LITE_FLAG_HANDLER",
     "SCRIPT_DEBUG_MODULE",
+    "SCRIPT_DEBUG_PAUSED",
+    "SCRIPT_DEBUG_POLL_CONTINUE",
+    "SCRIPT_DEBUG_RUN_FAST",
+    "SCRIPT_DEBUG_RUN_SCRIPT_LOG",
     "SCRIPT_DEBUG_SUPPRESS",
     "SCRIPT_DEBUG_USE_LITE_DLL",
+    "SCRIPT_DELAY_SECONDS",
+    "SCRIPT_EASY",
     "SCRIPT_ENGINE_BIND_OBJECT_NAME",
+    "SCRIPT_ENGINE_CALL_SUBROUTINE",
     "SCRIPT_ENGINE_COUNTER_MAP",
+    "SCRIPT_ENGINE_CURRENT_OBJECT",
+    "SCRIPT_ENGINE_CURRENT_PLAYER",
+    "SCRIPT_ENGINE_DIFFICULTY",
+    "SCRIPT_ENGINE_EVALUATE",
+    "SCRIPT_ENGINE_EXECUTE_SCRIPT",
+    "SCRIPT_ENGINE_EXECUTE_SEQUENTIAL",
     "SCRIPT_ENGINE_FIND_FLAG",
     "SCRIPT_ENGINE_FIND_OR_CREATE_COUNTER",
     "SCRIPT_ENGINE_FIND_OR_CREATE_FLAG",
     "SCRIPT_ENGINE_FLAG_MAP",
     "SCRIPT_ENGINE_NAMED_OBJECT_MAP",
     "SCRIPT_ENGINE_PLAYER_NAME_TO_INDEX",
+    "SCRIPT_ENGINE_RUN_ACTIONS",
+    "SCRIPT_ENGINE_RUN_GROUP_NODES",
+    "SCRIPT_ENGINE_RUN_SCRIPT",
+    "SCRIPT_ENGINE_RUN_SCRIPT_NODES",
     "SCRIPT_ENGINE_SCOPE",
     "SCRIPT_ENGINE_SCOPED_KEY",
     "SCRIPT_ENGINE_SET_COUNTER",
     "SCRIPT_ENGINE_SET_FLAG",
     "SCRIPT_ENGINE_SET_TIMER",
     "SCRIPT_ENGINE_TIMER_TICK_SITE",
+    "SCRIPT_EXECUTE_LOG_CALLS",
+    "SCRIPT_FALSE_ACTIONS",
+    "SCRIPT_GROUP_ACTIVE",
+    "SCRIPT_GROUP_GROUPS",
+    "SCRIPT_GROUP_SCRIPTS",
+    "SCRIPT_GROUP_SUBROUTINE",
+    "SCRIPT_HARD",
+    "SCRIPT_IS_DUE",
     "SCRIPT_KEY_COMPOSE",
+    "SCRIPT_LIST_ENTRY_GENERATION",
+    "SCRIPT_LIST_ENTRY_NAME",
+    "SCRIPT_LIST_ENTRY_OBJECTS",
+    "SCRIPT_LIST_ENTRY_SIZE",
+    "SCRIPT_LIST_GROUPS",
+    "SCRIPT_LIST_GROUP_ENTRIES",
+    "SCRIPT_LIST_SCRIPTS",
+    "SCRIPT_LIST_SCRIPT_ENTRIES",
+    "SCRIPT_NEXT_FRAME",
+    "SCRIPT_NODE_GENERATION",
+    "SCRIPT_NODE_INDEX",
+    "SCRIPT_NODE_NEXT",
+    "SCRIPT_NORMAL",
+    "SCRIPT_ONE_SHOT",
     "SCRIPT_PARAMETER_INT",
     "SCRIPT_PARAMETER_NUMBER",
     "SCRIPT_PARAMETER_STRING",
     "SCRIPT_PARAMETER_TYPE",
+    "SCRIPT_SCOPE_ENTER",
+    "SCRIPT_SCOPE_GUARD_SIZE",
+    "SCRIPT_SCOPE_LEAVE",
+    "SCRIPT_SEQUENTIAL",
+    "SCRIPT_SEQUENTIAL_EVALUATE_CALL",
+    "SCRIPT_SEQUENTIAL_EVALUATE_CALL_BYTES",
+    "SCRIPT_SUBROUTINE",
     "SCRIPT_TIMER_FRAMES_PER_MS",
     "SCRIPT_TIMER_MS_PER_SECOND",
+    "SCRIPT_TRUE_ACTIONS",
     "SELF_BUILD_HEAL_ANCHOR",
     "SELF_BUILD_HEAL_ANCHOR_BYTES",
     "SELF_BUILD_HEAL_STEP",
@@ -1351,10 +1413,14 @@ __all__ = [
     "SHROUD_RECORD_BASE",
     "SHROUD_RECORD_STRIDE",
     "SIDES_INFO_DICT",
+    "SIDES_INFO_SCRIPT_LIST",
+    "SIDES_INFO_STRIDE",
     "SIDES_LIST_GET_SIDE_INFO",
     "SIDES_LIST_GET_SIDE_INFO_BYTES",
     "SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE",
     "SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE_BYTES",
+    "SIDES_LIST_SIDES",
+    "SIDES_LIST_SIDE_COUNT",
     "SLEEPY_UPDATE_DISPATCH",
     "SPECIAL_POWER_FIELD_TABLE",
     "SPECIAL_POWER_FIELD_TABLE_REFS",
@@ -1407,6 +1473,7 @@ __all__ = [
     "SUBSYSTEM_LOAD_LEGEND_FILES",
     "SUBSYSTEM_REGISTER",
     "TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT",
+    "TERRAIN_LOGIC_MAP_PATH",
     "TERRAIN_RESOURCE_BUILD_FIELD_PARSE",
     "TERRAIN_RESOURCE_DEFAULT_STORES",
     "TERRAIN_RESOURCE_DEFAULT_STORES_BYTES",
@@ -1927,6 +1994,12 @@ MAX_PLAYER_COUNT = 20
 # `Object::getHeightAboveTerrain` (`0x0070BC6E`), which is that call and one `fsubr`.
 THE_TERRAIN_LOGIC = 0x00DE4690
 TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT = 0x18
+
+# The loaded map's path, an `AsciiString` (`maps\<name>\<name>.map`). Found live in a `-file`
+# match, where both `GameInfo` globals are still null: `TheGameState`, `TheRecorder` and the
+# hot-key manager hold the same string, but this is the object the map was loaded into. Its
+# writer is not traced statically.
+TERRAIN_LOGIC_MAP_PATH = 0x4C
 
 THE_THING_FACTORY = 0x00DE4A40
 THE_UPGRADE_CENTER = 0x00DE45A0
@@ -5198,6 +5271,12 @@ GAME_ENGINE = 0x00DE4324
 #: `m_quitting`'s offset on the `GameEngine`: a byte, nonzero once the process is on its way out.
 GAME_ENGINE_QUITTING = 0x10
 
+#: `m_maxFPS`, the frame cap the main loop paces itself to: `0x0063A19C` loads it (`fild dword
+#: [esi+0xc]`) and spins each iteration out to `1000 / cap` ms, and nothing else sets the pace.
+#: Its source is `GLOBAL_DATA + GLOBAL_DATA_FPS_LIMIT`, pushed in through `GAME_ENGINE_SET_FPS_SLOT`
+#: at `0x00779DCF`. `docs/render-rate.md` §2 derives it.
+GAME_ENGINE_MAX_FPS = 0x0C
+
 #: The `call writeMiniDump` **inside the unhandled-exception filter** `0x0043D610` (the
 #: `SetUnhandledExceptionFilter` target, installed at `0x00437EB3` via the `push 0x43D610` at
 #: `0x00437EA6`). `esi` holds the `EXCEPTION_POINTERS` and `dl` the `fulldump` flag, both already
@@ -6347,12 +6426,19 @@ GAME_ENGINE_INIT_GLOBAL_DATA_CALL_BYTES = bytes.fromhex("e85bb4ffff")
 GAME_ENGINE_INIT_MOD_CALL = 0x0063AFB2
 GAME_ENGINE_INIT_MOD_CALL_BYTES = bytes.fromhex("e88dfa1700")
 
-#: `GameEngine::init(int argc, char **argv)` keeps both where it received them - the mod call
-#: above pushes `[ebp+0xC]` and `[ebp+8]` - and its frame is still live at
-#: `COMMAND_LINE_SKIRMISH_SETUP`, the auto-start at the tail of the same function. They are `ebp`
-#: displacements. The CRT builds `argv` (`__getmainargs`), so a quoted argument arrives whole.
-GAME_ENGINE_INIT_ARGC = 0x08
-GAME_ENGINE_INIT_ARGV = 0x0C
+#: `GameMain(int argc, char **argv)` - `WinMain` calls it at `0x00402CB9` with its own argument
+#: count and the array it built - pushes both again, calls `GameEngine::init` through vtable slot
+#: `+0x38` and tail-jumps into `execute`. It has no frame of its own, so from inside `init` its
+#: return address sits at `[ebp+0x10]` and its arguments at `[ebp+0x14]` and `[ebp+0x18]`, and
+#: nothing between `WinMain` and the end of `init` writes them. `init`'s own `[ebp+8]` and
+#: `[ebp+0xC]` are no substitute past `GAME_ENGINE_INIT_MOD_CALL`: the function reuses both as
+#: scratch (`[ebp+0xC]` from `0x0063AFD3`, `[ebp+8]` from `0x0063BA88`, last at `0x0063CB66`), so
+#: at `COMMAND_LINE_SKIRMISH_SETUP` they hold stack addresses. The `ebp` displacements below are
+#: from `init`'s frame. The CRT builds `argv` (`__getmainargs`), so a quoted argument arrives whole.
+GAME_MAIN = 0x006443B0
+GAME_MAIN_BYTES = bytes.fromhex("e83ed9dbffff742408a32443de00ff7424088b108bc8ff5238")
+GAME_MAIN_ARGC = 0x14
+GAME_MAIN_ARGV = 0x18
 COMMAND_LINE_PARSE_AND_MOUNT_MODS = 0x007BAA44
 COMMAND_LINE_PARSE = 0x007BA7E1
 COMMAND_LINE_STARTUP_TABLE = 0x00C35DA8
@@ -6630,6 +6716,132 @@ SCRIPT_KEY_COMPOSE = 0x0072C43C
 #: The integer slot of a script `Parameter`, beside `SCRIPT_PARAMETER_NUMBER` (real) and
 #: `SCRIPT_PARAMETER_STRING`. `CREATE_UNIT_REVIVAL_ENTRY_AT_LEVEL` reads its level from here.
 SCRIPT_PARAMETER_INT = 0x8
+
+#: The live script tree, derived in `docs/script-debugger.md` §2. `SidesList` holds
+#: `SIDES_LIST_SIDE_COUNT` sides from `SIDES_LIST_SIDES` on, `SIDES_INFO_STRIDE` apart, and each
+#: `SidesInfo` **embeds** its `ScriptList` at `SIDES_INFO_SCRIPT_LIST`. Side `i` is player `i`: the
+#: per-frame driver walks both lists with one index.
+SIDES_LIST_SIDE_COUNT = 0x3C
+SIDES_LIST_SIDES = 0x40
+SIDES_INFO_STRIDE = 0x60
+SIDES_INFO_SCRIPT_LIST = 0x08
+
+#: A `ScriptList` is two node chains (top-level groups, top-level scripts) over two name-keyed
+#: pools. A node is `{next, entry index, generation}`; the entry, `SCRIPT_LIST_ENTRY_SIZE` bytes in
+#: the pool's array, holds the **name** and a chain of objects whose first one, plus 4, is the
+#: current `ScriptGroup *` / `Script *` (`0x007B5379`, `0x007B53D8`). A node whose generation no
+#: longer matches its entry's is stale, and the engine's walk skips it (`0x007B53EF`).
+SCRIPT_LIST_GROUPS = 0x04
+SCRIPT_LIST_SCRIPTS = 0x08
+SCRIPT_LIST_GROUP_ENTRIES = 0x18
+SCRIPT_LIST_SCRIPT_ENTRIES = 0x38
+SCRIPT_LIST_ENTRY_SIZE = 0x14
+SCRIPT_LIST_ENTRY_NAME = 0x08
+SCRIPT_LIST_ENTRY_GENERATION = 0x0E
+SCRIPT_LIST_ENTRY_OBJECTS = 0x10
+SCRIPT_NODE_NEXT = 0x00
+SCRIPT_NODE_INDEX = 0x04
+SCRIPT_NODE_GENERATION = 0x08
+
+#: `ScriptGroup`: its own child-group and script node chains (groups nest), then two flags. An
+#: inactive group skips its scripts **and** its child groups; a subroutine group only runs when
+#: called.
+SCRIPT_GROUP_GROUPS = 0x04
+SCRIPT_GROUP_SCRIPTS = 0x08
+SCRIPT_GROUP_ACTIVE = 0x0C
+SCRIPT_GROUP_SUBROUTINE = 0x0D
+
+#: `Script`, from the chunk reader `0x007B83CC` and writer `0x007B63E8`. `SCRIPT_AUTHORED_ACTIVE`
+#: is the flag as the map wrote it; `SCRIPT_ACTIVE` is the live copy the due check reads and a
+#: one-shot clears. `SCRIPT_SEQUENTIAL` is the first byte of the fire-actions-sequentially block,
+#: and selects `SCRIPT_ENGINE_EXECUTE_SEQUENTIAL` over `SCRIPT_ENGINE_EXECUTE_SCRIPT`.
+#: `SCRIPT_DELAY_SECONDS` becomes `SCRIPT_NEXT_FRAME = frame + seconds * LOGIC_RATE` each run.
+SCRIPT_SEQUENTIAL = 0x10
+SCRIPT_DELAY_SECONDS = 0x20
+SCRIPT_AUTHORED_ACTIVE = 0x28
+SCRIPT_ONE_SHOT = 0x29
+SCRIPT_SUBROUTINE = 0x2A
+SCRIPT_EASY = 0x2B
+SCRIPT_NORMAL = 0x2C
+SCRIPT_HARD = 0x2D
+SCRIPT_CONDITIONS = 0x30
+SCRIPT_TRUE_ACTIONS = 0x34
+SCRIPT_FALSE_ACTIONS = 0x38
+SCRIPT_NEXT_FRAME = 0x3C
+SCRIPT_ACTIVE = 0x40
+
+#: How a script runs. Every execution - the per-frame walk and both call-subroutine paths - reaches
+#: `SCRIPT_ENGINE_RUN_SCRIPT(Script *, AsciiString *name)` (`__thiscall`, `ret 8`), which checks
+#: `SCRIPT_IS_DUE`, reschedules, and dispatches. `SCRIPT_ENGINE_RUN_SCRIPT_NODES(list, node,
+#: validate)` walks one script chain, skipping subroutines; `SCRIPT_ENGINE_RUN_GROUP_NODES(list,
+#: node)` recurses through groups. `SCRIPT_ENGINE_CALL_SUBROUTINE` is the by-name entry the
+#: call-subroutine actions use. `SCRIPT_ENGINE_CURRENT_PLAYER` is the `Player *` being evaluated,
+#: whose AI difficulty wins over `SCRIPT_ENGINE_DIFFICULTY` in the due check.
+SCRIPT_ENGINE_RUN_SCRIPT = 0x0060A15C
+SCRIPT_ENGINE_RUN_SCRIPT_NODES = 0x0060A377
+SCRIPT_ENGINE_RUN_GROUP_NODES = 0x0060BCE5
+SCRIPT_ENGINE_CALL_SUBROUTINE = 0x0060BD42
+SCRIPT_ENGINE_EXECUTE_SCRIPT = 0x006099DC
+SCRIPT_ENGINE_EXECUTE_SEQUENTIAL = 0x00609C3A
+SCRIPT_IS_DUE = 0x00603878
+SCRIPT_ENGINE_CURRENT_PLAYER = 0x1A230
+SCRIPT_ENGINE_DIFFICULTY = 0x1A5C4
+
+#: The script debugger's pause, derived in `docs/script-debugger.md` §1. The frame dispatcher
+#: runs the client phase (render, camera, input), then asks `SCRIPT_DEBUG_PAUSED` - `thiscall` on
+#: `TheScriptEngine`, plain `ret`, returning `al` - and on true skips the sub-frame advance and the
+#: logic phase. So a pause freezes the simulation and nothing else. The predicate is true only
+#: while `DebugWindowLite.dll` is loaded and its `CanAppContinue` (polled into
+#: `SCRIPT_DEBUG_CAN_CONTINUE` by `SCRIPT_DEBUG_POLL_CONTINUE` just before) said no, so a debugger
+#: without the DLL redirects `FRAME_DISPATCHER_PAUSE_CALL` instead. `SCRIPT_DEBUG_RUN_FAST` is the
+#: `RunAppFast` query the main loop uses to skip rendering - not a pause. `SCRIPT_DEBUG_IS_PAUSED`
+#: is the engine's own "either predicate" query for the rest of the game.
+FRAME_DISPATCHER = 0x006325A0
+FRAME_DISPATCHER_PAUSE_CALL = 0x006325C4
+FRAME_DISPATCHER_PAUSE_CALL_BYTES = bytes.fromhex("e8890efdff")
+SCRIPT_DEBUG_PAUSED = 0x00603452
+SCRIPT_DEBUG_POLL_CONTINUE = 0x00604189
+SCRIPT_DEBUG_CAN_CONTINUE = 0x00DE3B9C
+SCRIPT_DEBUG_RUN_FAST = 0x00603491
+SCRIPT_DEBUG_IS_PAUSED = 0x00441E23
+
+#: What a script trace hooks, derived in `docs/script-debugger.md` §2.1. `executeScript` calls the
+#: run-script logger - `cdecl (AsciiString *key, Bool isTrue, Bool pause)` - at the four sites of
+#: `SCRIPT_EXECUTE_LOG_CALLS`, each just before it runs a **non-empty** action list, with the
+#: `Script *` in `esi` and `TheScriptEngine` in `edi` at every one. The sequential path never logs;
+#: it evaluates at `SCRIPT_SEQUENTIAL_EVALUATE_CALL` (`edi` the `Script *`) and queues the true
+#: actions when that says yes. `SCRIPT_ENGINE_EVALUATE` is `thiscall (Script *, 0, 0)`, `ret 0xC`,
+#: answering in `al`; `SCRIPT_ENGINE_RUN_ACTIONS` is `thiscall (ScriptAction *list, Script *,
+#: AsciiString *)`. `SCRIPT_ENGINE_CURRENT_OBJECT` is the team member a team script is running for.
+SCRIPT_DEBUG_RUN_SCRIPT_LOG = 0x00604F1C
+SCRIPT_EXECUTE_LOG_CALLS = {
+    0x00609AE7: bytes.fromhex("e830b4ffff"),  # true actions, per team member
+    0x00609B37: bytes.fromhex("e8e0b3ffff"),  # false actions, per team member
+    0x00609BB5: bytes.fromhex("e862b3ffff"),  # true actions
+    0x00609BF4: bytes.fromhex("e823b3ffff"),  # false actions
+}
+SCRIPT_SEQUENTIAL_EVALUATE_CALL = 0x00609C55
+SCRIPT_SEQUENTIAL_EVALUATE_CALL_BYTES = bytes.fromhex("e8b5f6ffff")
+SCRIPT_ENGINE_EVALUATE = 0x0060930F
+SCRIPT_ENGINE_RUN_ACTIONS = 0x0060C1C9
+SCRIPT_ENGINE_CURRENT_OBJECT = 0x1A218
+
+#: How the per-frame driver (`0x0060CDAA`..) puts a player's scripts in scope, which is what a
+#: script run from outside it has to repeat. `SCRIPT_SCOPE_ENTER` is the constructor of a 12-byte
+#: guard - `thiscall (AsciiString *target, AsciiString *value)`, `ret 8` - that saves `target`
+#: and copies `value` in; `SCRIPT_SCOPE_LEAVE` (`thiscall`, `ret`) copies it back. The value is the
+#: player's name: `NAME_KEY_TO_NAME` (`thiscall` on `THE_NAME_KEY_GENERATOR`, `ret 4`) of the
+#: player's name key at `PLAYER_NAME_KEY`, returning an `AsciiString *`.
+SCRIPT_SCOPE_ENTER = 0x00604243
+SCRIPT_SCOPE_LEAVE = 0x0060428D
+SCRIPT_SCOPE_GUARD_SIZE = 0x0C
+NAME_KEY_TO_NAME = 0x00548700
+PLAYER_NAME_KEY = 0x50
+
+#: `GameLogic::m_gameMode`. `GameLogic::isInMultiplayerGame` (`0x00441B7C`) is membership of
+#: `NETWORK_GAME_MODES`; 3 is replay playback. Derived in `docs/observer-switch.md`.
+GAME_LOGIC_GAME_MODE = 0x110
+NETWORK_GAME_MODES = (1, 5)
 
 
 #: `Object::toArmyRecord(record)` - thiscall on the **Object**, `ret 4`, no living-world state

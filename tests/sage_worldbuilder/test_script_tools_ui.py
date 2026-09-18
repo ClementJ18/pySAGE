@@ -13,13 +13,18 @@ pytestmark = pytest.mark.full
 
 pytest.importorskip("PyQt6", reason="the [worldbuilder] extra (PyQt6) is not installed")
 
-from PyQt6.QtWidgets import QApplication, QMessageBox, QTreeWidgetItemIterator  # noqa: E402
+from PyQt6.QtWidgets import (  # noqa: E402
+    QApplication,
+    QDialog,
+    QMessageBox,
+    QTreeWidgetItemIterator,
+)
 
 from sage_map.assets.player_scripts import PlayerScriptsList, ScriptList  # noqa: E402
 from sage_map.context import AssetPropertyType  # noqa: E402
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
-from sage_worldbuilder.jump import JumpMatch, JumpSeat  # noqa: E402
+from sage_worldbuilder.jump import JumpMatch, JumpOptions, JumpSeat  # noqa: E402
 from sage_worldbuilder.launch_patch import LaunchPatchError  # noqa: E402
 from sage_worldbuilder.scripting import new_group, new_item, new_script  # noqa: E402
 from sage_worldbuilder.settings import Settings  # noqa: E402
@@ -210,6 +215,8 @@ def test_jump_to_game_launches_on_a_user_map(window, tmp_path):
     ((arguments, cwd),) = launched
     assert arguments[1:3] == ["-file", str(user / "Maps" / "Fords.map").lower()]
     assert cwd == tmp_path / "install"
+    # The Script Debugger waits for the game it just started, to attach to it.
+    assert window.script_debugger_panel.waiting
 
 
 def test_jump_to_game_copies_a_map_without_a_file(window, tmp_path):
@@ -380,6 +387,37 @@ def test_the_settings_dialog_edits_the_match(qapp):
     assert (match.seats[2].kind, match.seats[2].team) == ("brutal", 2)
     assert (match.starting_resources, match.seed) == (9000, 17)
     assert dialog.problem() is None
+
+
+def test_the_settings_dialog_edits_the_launch(qapp):
+    saved = JumpOptions(windowed=True, script_debug=False, extra_arguments="-quick")
+    dialog = JumpSettingsDialog(JumpMatch(), jump_game(), 4, options=saved)
+    assert dialog.options == saved
+
+    dialog.width_spin.setValue(1920)
+    dialog.height_spin.setValue(1080)
+    dialog.script_debug_box.setChecked(True)
+    dialog.extra_edit.setText(" -noshellmap ")
+    assert dialog.options == JumpOptions(True, True, "-noshellmap", (1920, 1080))
+
+    dialog.windowed_box.setChecked(False)
+    assert not dialog.width_spin.isEnabled() and not dialog.options.windowed
+
+
+def test_the_settings_dialog_saves_the_launch_to_the_settings(qapp, monkeypatch, window):
+    def choose(dialog):
+        dialog.width_spin.setValue(1600)
+        dialog.height_spin.setValue(900)
+        dialog.script_debug_box.setChecked(True)
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(JumpSettingsDialog, "exec", choose)
+
+    window.edit_jump_settings()
+
+    assert window.settings.jump_resolution == (1600, 900)
+    assert window.settings.jump_script_debug
+    assert window.settings.jump_options().resolution == (1600, 900)
 
 
 def test_the_settings_dialog_explains_a_match_the_game_would_refuse(qapp):

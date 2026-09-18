@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from sage_w3d.render.textures import decode_texture
+
 __all__ = ["ArtTextures", "fx_material"]
 
 
@@ -51,8 +53,6 @@ class ArtTextures:
         return self._materials[key]
 
     def _read_texture(self, name: str) -> np.ndarray | None:
-        from sage_w3d.render.textures import decode_texture  # noqa: PLC0415 - lazy: Pillow
-
         data = self.art.find_texture(name)  # type: ignore[attr-defined]
         if data is None:
             return None

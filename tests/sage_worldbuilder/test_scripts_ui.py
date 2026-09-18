@@ -2,6 +2,7 @@
 'offscreen' platform; marked `full` like the other desktop suites."""
 
 import os
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")  # headless; must precede the Qt import
 
@@ -35,7 +36,7 @@ from sage_map.assets.player_scripts import (  # noqa: E402
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
 from sage_worldbuilder.objects import new_object  # noqa: E402
-from sage_worldbuilder.players import library_map_path  # noqa: E402
+from sage_worldbuilder.players import library_map_path, new_player  # noqa: E402
 from sage_worldbuilder.script_targets import argument_target  # noqa: E402
 from sage_worldbuilder.scripting import new_group, new_item, new_script  # noqa: E402
 from sage_worldbuilder.templates import TemplateKind, template_named  # noqa: E402
@@ -124,6 +125,15 @@ def select(panel: ScriptsPanel, target) -> None:
             panel.tree.setCurrentItem(found)
             return
     raise AssertionError("not in the tree")
+
+
+def test_the_unnamed_side_is_the_neutral_player(qapp):
+    document = scripted_document()
+    document.map.sides_list = SimpleNamespace(
+        players=[new_player("", "Neutral"), new_player("Player_1", "Gondor")]
+    )
+    panel = ScriptsPanel(Host(document))
+    assert tree_labels(panel) == ["(neutral)", "  Act One", "    Intro", "Player_1"]
 
 
 def test_tree_shows_players_groups_and_scripts(panel):

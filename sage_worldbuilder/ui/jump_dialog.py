@@ -1,10 +1,14 @@
-"""Jump To Game Settings: the match Jump To Game starts - the seats, and the lobby's other options.
+"""Jump To Game Settings: how the game is launched, and the match Jump To Game starts - the seats,
+and the lobby's other options.
 
 One row per seat: who plays it (the human, or an AI and its difficulty), the faction, the start
 position, the colour and the team. Below them the starting resources and the seed. The choices are
 the loaded game's own playable factions and multiplayer colours, and the start positions are the
 open map's; the row is kept as it was saved when the game has not loaded, so opening the dialog
 early never loses a setup.
+
+The launch settings - a window and its size, script debugging, extra arguments - apply whether or
+not a match is chosen.
 
 The note under the table is the same check a launch makes, so a match the engine would refuse is
 explained here rather than when the game fails to start the one the mapper asked for.
@@ -22,9 +26,11 @@ from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSpinBox,
     QTableWidget,
@@ -34,10 +40,13 @@ from PyQt6.QtWidgets import (
 
 from sage_test.game_info import SLOT_COUNT
 from sage_worldbuilder.jump import (
+    MAX_RESOLUTION,
+    MIN_RESOLUTION,
     SEAT_KINDS,
     TEAM_COUNT,
     JumpMatch,
     JumpMatchError,
+    JumpOptions,
     JumpSeat,
     colour_names,
     default_seats,
@@ -78,10 +87,12 @@ def _combo(
 
 
 class JumpSettingsDialog(QDialog):
-    """Edit a `JumpMatch`. `positions` is the open map's start position count, 0 when unknown.
+    """Edit a `JumpMatch` and the launch `options`. `positions` is the open map's start position
+    count, 0 when unknown.
 
-    After `exec`, `match` is the edited match and `jump_requested` says whether Save and Jump was
-    the button pressed."""
+    After `exec`, `match` is the edited match, `options` the launch settings (without a
+    `game_info`, which comes from the match at launch) and `jump_requested` says whether Save and
+    Jump was the button pressed."""
 
     def __init__(
         self,
@@ -89,16 +100,19 @@ class JumpSettingsDialog(QDialog):
         game: Game | None,
         positions: int,
         parent: QWidget | None = None,
+        *,
+        options: JumpOptions | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Jump To Game Settings")
-        self.resize(760, 460)
+        self.resize(760, 600)
         self.game = game
         self.factions = playable_factions(game)
         self.colours = colour_names(game)
         self.positions = positions if 0 < positions <= SLOT_COUNT else SLOT_COUNT
         self.jump_requested = False
         layout = QVBoxLayout(self)
+        layout.addWidget(self._launch_group(options or JumpOptions()))
 
         self.enabled_box = QCheckBox("Choose the match Jump To Game starts")
         self.enabled_box.setChecked(match.enabled)
@@ -183,6 +197,49 @@ class JumpSettingsDialog(QDialog):
         for seat in match.seats or default_seats(game):
             self._append_row(seat)
         self._changed()
+
+    def _launch_group(self, options: JumpOptions) -> QGroupBox:
+        group = QGroupBox("Launch")
+        form = QFormLayout(group)
+        self.windowed_box = QCheckBox("Run the game in a window (-win)")
+        self.windowed_box.setChecked(options.windowed)
+        form.addRow("", self.windowed_box)
+        self.width_spin, self.height_spin = QSpinBox(), QSpinBox()
+        for spin, value, low, high in zip(
+            (self.width_spin, self.height_spin),
+            options.resolution,
+            MIN_RESOLUTION,
+            MAX_RESOLUTION,
+            strict=True,
+        ):
+            spin.setRange(low, high)
+            spin.setValue(value)
+        size = QWidget()
+        box = QHBoxLayout(size)
+        box.setContentsMargins(0, 0, 0, 0)
+        box.addWidget(self.width_spin)
+        box.addWidget(QLabel("×"))
+        box.addWidget(self.height_spin)
+        box.addStretch(1)
+        size.setEnabled(options.windowed)
+        self.windowed_box.toggled.connect(size.setEnabled)
+        form.addRow("Window size (-xres × -yres)", size)
+        self.script_debug_box = QCheckBox("Script debugging (-scriptDebug2)")
+        self.script_debug_box.setChecked(options.script_debug)
+        form.addRow("", self.script_debug_box)
+        self.extra_edit = QLineEdit(options.extra_arguments)
+        self.extra_edit.setPlaceholderText("Extra game arguments, e.g. -noshellmap")
+        form.addRow("Extra arguments", self.extra_edit)
+        return group
+
+    @property
+    def options(self) -> JumpOptions:
+        return JumpOptions(
+            windowed=self.windowed_box.isChecked(),
+            script_debug=self.script_debug_box.isChecked(),
+            extra_arguments=self.extra_edit.text().strip(),
+            resolution=(self.width_spin.value(), self.height_spin.value()),
+        )
 
     def _append_row(self, seat: JumpSeat) -> None:
         row = self.table.rowCount()

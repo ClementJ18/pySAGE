@@ -375,9 +375,14 @@ the other way round, are swapped. Rules 0–3 are unidentified.
 
 ### What the patch does with it
 
-The cave walks `argv` from `GameEngine::init`'s own frame (`[ebp+8]`, `[ebp+0xC]` — still live at
-the hook, which is the same function's tail) comparing with `_stricmp`, so the command-line table
-is untouched. It saves what the `-file` start owns, constructs the `AsciiString` in its argument
+The cave walks the `argv` `GameMain` (`0x006443B0`) received, comparing with `_stricmp`, so the
+command-line table is untouched. `GameMain` has no frame: it pushes its two arguments, calls
+`GameEngine::init` through vtable slot `+0x38` and tail-jumps, so from `init`'s `ebp` — still live
+at the hook, which is `init`'s tail — they are `[ebp+0x14]` and `[ebp+0x18]`. `init`'s own
+`[ebp+8]` and `[ebp+0xC]` are **not** usable there: the function reuses both as scratch after the
+mod call (`[ebp+0xC]` from `0x0063AFD3`, `[ebp+8]` from `0x0063BA88`, last at `0x0063CB66`), and a
+cave that read them took a stack address for `argc` and faulted in `_stricmp` walking past the end
+of `argv`. It saves what the `-file` start owns, constructs the `AsciiString` in its argument
 slot and calls the parser with `keepNames` false. On success it puts back the map path (saved as a
 counted copy), CRC and size through their setters, and the contents mask, `SI` and `GSID` —
 because the map being loaded is `-file`'s, and the string's map keys are only there to satisfy

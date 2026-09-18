@@ -9,8 +9,8 @@ import struct
 from collections.abc import Callable, MutableSequence
 from typing import TYPE_CHECKING, Any, Protocol
 
-from PyQt6.QtCore import QPoint, Qt, QTimer
-from PyQt6.QtGui import QDropEvent, QIcon
+from PyQt6.QtCore import QEvent, QPoint, Qt, QTimer
+from PyQt6.QtGui import QBrush, QColor, QDropEvent, QIcon
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -63,6 +63,7 @@ from sage_worldbuilder.libraries import (
     library_name,
     override,
 )
+from sage_worldbuilder.live import LiveIndex, LiveState, LiveStatus
 from sage_worldbuilder.script_targets import ScriptTarget, argument_target
 from sage_worldbuilder.scripting import (
     ActiveFlags,
@@ -91,10 +92,15 @@ from sage_worldbuilder.ui.sentences import HTML_ROLE, SentenceDelegate, sentence
 if TYPE_CHECKING:
     from sage_ini.model.game import Game
 
-__all__ = ["GoTo", "ScriptsHost", "ScriptsPanel"]
+__all__ = ["GoTo", "ScriptDebugger", "ScriptsHost", "ScriptsPanel"]
 
 SCRIPTS = Change(ChangeKind.SCRIPTS)
 _ROLE = Qt.ItemDataRole.UserRole
+# A player row's name, which is what live state is looked up under.
+_PLAYER_ROLE = Qt.ItemDataRole.UserRole + 1
+# A one-shot the running game has fired.
+_FIRED = QBrush(QColor(190, 100, 0))
+_INACTIVE = QBrush(Qt.GlobalColor.gray)
 _LINT_DELAY_MS = 400
 _COMMENT_DELAY_MS = 400
 _SCB_FILTER = "Map export data files (*.scb);;All files (*)"
@@ -106,6 +112,25 @@ _READ_ERRORS = (OSError, ValueError, KeyError, IndexError, struct.error)
 
 #: Shows what a script argument names: an object on the map, a script in this panel, a team.
 GoTo = Callable[[ScriptTarget], None]
+
+
+class ScriptDebugger(Protocol):
+    """The script debugger, as the tree's right-click menu uses it: breakpoints by name, and
+    triggers on what the running game holds for a row."""
+
+    def has_breakpoint(self, name: str) -> bool: ...
+
+    def toggle_breakpoint(self, name: str) -> None: ...
+
+    def run_until(self, name: str) -> None: ...
+
+    def set_active(self, state: LiveState, active: bool) -> None: ...
+
+    def rearm(self, state: LiveState) -> None: ...
+
+    def evaluate(self, state: LiveState) -> None: ...
+
+    def run_actions(self, state: LiveState, false_actions: bool) -> None: ...
 
 
 class ScriptsHost(Protocol):
@@ -173,6 +198,13 @@ def _import_tip(imported: ImportedItem) -> str:
         held = f"the library map {imported.overridden_by}" if imported.overridden_by else "the map"
         tip += f"\nOverridden: {held} defines this name first and keeps it."
     return tip
+
+
+def _set_data(node: QTreeWidgetItem, role: Qt.ItemDataRole, value: object) -> None:
+    """Set a row's data only when it changes: every set repaints and re-lays out the row, and
+    each live read repaints the whole tree."""
+    if node.data(0, role) != value:
+        node.setData(0, role, value)
 
 
 def _holds(group: ScriptGroup, items: MutableSequence[Script | ScriptGroup]) -> bool:
@@ -254,6 +286,14 @@ class ScriptsPanel(QWidget):
         # The Active flags of the open map as it was loaded, for Reset Active.
         self._loaded_document: MapDocument | None = None
         self._loaded_active: ActiveFlags = []
+        # The running game's scripts, when the Script Debugger is attached to the open map.
+        self.live: LiveIndex | None = None
+        # The script debugger, which offers breakpoints on the tree's right-click menu, and the
+        # case-folded names it breaks on.
+        self.debugger: ScriptDebugger | None = None
+        self._breakpoints: set[str] = set()
+        # The style's icons by kind: asking the style for one on every row makes a repaint slow.
+        self._icons: dict[QStyle.StandardPixmap, QIcon] = {}
 
         layout = QHBoxLayout(self)
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -276,6 +316,8 @@ class ScriptsPanel(QWidget):
         self.tree.currentItemChanged.connect(lambda current, _previous: self._select(current))
         self.tree.itemExpanded.connect(lambda item: self._remember_expanded(item, True))
         self.tree.itemCollapsed.connect(lambda item: self._remember_expanded(item, False))
+        self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self.show_tree_menu)
         tree_layout.addWidget(self.tree, 1)
         tree_buttons = QHBoxLayout()
         self.tree_buttons: dict[str, QPushButton] = {}
@@ -365,6 +407,12 @@ class ScriptsPanel(QWidget):
             lambda: self._set_selected("name", self.script_name.text(), "Rename Script")
         )
         form.addRow("Name", self.script_name)
+        self.script_live = QLabel()
+        self.script_live.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        form.addRow("Live", self.script_live)
+        self._live_row = form.rowCount() - 1
+        self._script_form = form
+        form.setRowVisible(self._live_row, False)
         self.script_comment = QPlainTextEdit()
         self.script_comment.setFixedHeight(60)
         self.script_comment.textChanged.connect(
@@ -498,9 +546,13 @@ class ScriptsPanel(QWidget):
         document = self.host.document
         current: QTreeWidgetItem | None = None
         if document is not None:
+            players = document.map.sides_list.players if document.map.sides_list else []
             for index, (name, script_list) in enumerate(player_script_lists(document.map)):
-                top = QTreeWidgetItem([name or f"Player {index + 1}"])
+                # A side with no name is the neutral player; a list past the sides has no player.
+                label = name or ("(neutral)" if index < len(players) else f"Player {index + 1}")
+                top = QTreeWidgetItem([label])
                 top.setData(0, _ROLE, script_list)
+                top.setData(0, _PLAYER_ROLE, name)
                 top.setFlags(top.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
                 self.tree.addTopLevelItem(top)
                 found = self._add_children(top, script_list.items)
@@ -549,15 +601,13 @@ class ScriptsPanel(QWidget):
         current = None
         for child in items:
             imported = inherited.of(child) if inherited is not None else None
-            node = QTreeWidgetItem([self._label(child, imported)])
+            node = QTreeWidgetItem()
             node.setData(0, _ROLE, child)
-            self._decorate(node, child, imported)
             if imported is not None:
                 self._imported[id(child)] = imported
                 node.setFlags(node.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
-            if not child.is_active:
-                node.setForeground(0, Qt.GlobalColor.gray)
             parent.addChild(node)
+            self._paint(node, child)
             node.setHidden(not self._matches(child))
             if child is self.selected:
                 current = node
@@ -585,24 +635,103 @@ class ScriptsPanel(QWidget):
         return self._standard_icon(pixmap)
 
     def _standard_icon(self, pixmap: QStyle.StandardPixmap) -> QIcon:
-        style = self.style()
-        return style.standardIcon(pixmap) if style is not None else QIcon()
+        if pixmap not in self._icons:
+            style = self.style()
+            self._icons[pixmap] = style.standardIcon(pixmap) if style is not None else QIcon()
+        return self._icons[pixmap]
+
+    def changeEvent(self, event: QEvent | None) -> None:  # noqa: N802 - Qt override
+        if event is not None and event.type() == QEvent.Type.StyleChange:
+            self._icons.clear()
+        super().changeEvent(event)
 
     def _decorate(
         self,
         node: QTreeWidgetItem,
         item: Script | ScriptGroup,
         imported: ImportedItem | None = None,
+        live: LiveState | None = None,
     ) -> None:
         """The item's icon, or a warning sign with the problems as its tooltip. An imported item
-        says which library map it comes from instead."""
+        says which library map it comes from instead. Live state, when attached, is a last line."""
         problems = self.warnings.get(item.name.lower()) if isinstance(item, Script) else None
         if problems and imported is None:
-            node.setIcon(0, self._standard_icon(QStyle.StandardPixmap.SP_MessageBoxWarning))
-            node.setToolTip(0, "\n".join(problems))
+            icon = self._standard_icon(QStyle.StandardPixmap.SP_MessageBoxWarning)
+            tip = "\n".join(problems)
         else:
-            node.setIcon(0, self._icon(item, imported is not None))
-            node.setToolTip(0, _import_tip(imported) if imported is not None else "")
+            icon = self._icon(item, imported is not None)
+            tip = _import_tip(imported) if imported is not None else ""
+        if self.live is not None:
+            line = f"In the game: {self._describe(live)}"
+            tip = f"{tip}\n{line}" if tip else line
+        if node.icon(0).cacheKey() != icon.cacheKey():
+            node.setIcon(0, icon)
+        _set_data(node, Qt.ItemDataRole.ToolTipRole, tip)
+
+    def _paint(self, node: QTreeWidgetItem, item: Script | ScriptGroup) -> None:
+        """A row's text, colour, icon and tooltip, from the item and the running game."""
+        imported = self._imported.get(id(item))
+        live = self._live_state(node, item)
+        label = self._label(item, imported)
+        if isinstance(item, Script) and item.name.casefold() in self._breakpoints:
+            label = f"● {label}"
+        if live is not None:
+            if live.status is LiveStatus.FIRED:
+                label += "  [fired]"
+            elif live.changed:
+                label += f"  [{live.status.value} in game]"
+        _set_data(node, Qt.ItemDataRole.DisplayRole, label)
+        active = item.is_active if live is None else live.status is LiveStatus.ACTIVE
+        if live is not None and live.status is LiveStatus.FIRED:
+            foreground = _FIRED
+        else:
+            foreground = None if active else _INACTIVE
+        _set_data(node, Qt.ItemDataRole.ForegroundRole, foreground)
+        self._decorate(node, item, imported, live)
+
+    def _live_state(self, node: QTreeWidgetItem, item: Script | ScriptGroup) -> LiveState | None:
+        """What the running game holds for the item on `node`, looked up under its player."""
+        if self.live is None:
+            return None
+        top = node
+        while (parent := top.parent()) is not None:
+            top = parent
+        player = top.data(0, _PLAYER_ROLE) or ""
+        if isinstance(item, ScriptGroup):
+            return self.live.group(player, item.name, item.is_active)
+        return self.live.script(player, item.name, item.is_active)
+
+    def _describe(self, live: LiveState | None) -> str:
+        if self.live is None:
+            return ""
+        if live is None:
+            return "not loaded (a side the game did not keep, or a difficulty it skipped)"
+        snapshot = self.live.snapshot
+        return live.describe(snapshot.frame, snapshot.logic_rate)
+
+    def set_live(self, live: LiveIndex | None) -> None:
+        """Show the running game's state on every row, or stop showing it."""
+        if live is None and self.live is None:
+            return
+        self.live = live
+        iterator = QTreeWidgetItemIterator(self.tree)
+        while (node := iterator.value()) is not None:
+            item = node.data(0, _ROLE)
+            if isinstance(item, (Script, ScriptGroup)):
+                self._paint(node, item)
+            iterator += 1
+        self._show_live()
+
+    def _show_live(self) -> None:
+        """The script page's Live row, for the selected script."""
+        selected = self.selected
+        shown = self.live is not None and isinstance(selected, Script)
+        self._script_form.setRowVisible(self._live_row, shown)
+        if not shown or not isinstance(selected, Script):
+            return
+        node = self.tree.currentItem()
+        live = self._live_state(node, selected) if node is not None else None
+        self.script_live.setText(self._describe(live))
 
     def update_warnings(self) -> None:
         """Recheck the scripts against the game and mark the ones with problems."""
@@ -615,7 +744,9 @@ class ScriptsPanel(QWidget):
         while (node := iterator.value()) is not None:
             item = node.data(0, _ROLE)
             if isinstance(item, (Script, ScriptGroup)):
-                self._decorate(node, item, self._imported.get(id(item)))
+                self._decorate(
+                    node, item, self._imported.get(id(item)), self._live_state(node, item)
+                )
             iterator += 1
 
     def _searching(self) -> bool:
@@ -684,6 +815,7 @@ class ScriptsPanel(QWidget):
             self._fill_lists(selected)
         else:
             self.pages.setCurrentIndex(0)
+        self._show_live()
         self._apply_lock()
 
     def _apply_lock(self) -> None:
@@ -1210,6 +1342,83 @@ class ScriptsPanel(QWidget):
             seen.add((target.kind, target.name))
             found.append(target)
         return found
+
+    def set_breakpoints(self, names: set[str]) -> None:
+        """Mark the scripts the debugger breaks on, by case-folded name."""
+        if names == self._breakpoints:
+            return
+        self._breakpoints = set(names)
+        iterator = QTreeWidgetItemIterator(self.tree)
+        while (node := iterator.value()) is not None:
+            item = node.data(0, _ROLE)
+            if isinstance(item, Script):
+                self._paint(node, item)
+            iterator += 1
+
+    def show_tree_menu(self, point: QPoint) -> None:
+        """The tree's right-click menu: breakpoints and triggers on the row under the cursor."""
+        node = self.tree.itemAt(point)
+        item = node.data(0, _ROLE) if node is not None else None
+        if not isinstance(item, (Script, ScriptGroup)) or node is None or self.debugger is None:
+            return
+        viewport = self.tree.viewport()
+        at = viewport.mapToGlobal(point) if viewport is not None else point
+        self.open_tree_menu(item, at, self._live_state(node, item))
+
+    def open_tree_menu(
+        self, item: Script | ScriptGroup, at: QPoint | None, live: LiveState | None = None
+    ) -> None:
+        """The menu itself. Triggers are offered only for a row the running game holds; a
+        breakpoint can be set on any script, since it resolves by name when the game has it."""
+        debugger = self.debugger
+        if debugger is None:
+            return
+        menu = QMenu(self)
+        actions: dict[object, Callable[[], None]] = {}
+
+        def add(text: str, run: Callable[[], None], enabled: bool = True) -> None:
+            action = menu.addAction(text)
+            if action is not None:
+                action.setEnabled(enabled)
+                actions[action] = run
+
+        if isinstance(item, Script):
+            add("Break When It Fires", lambda: debugger.toggle_breakpoint(item.name))
+            toggle = menu.actions()[-1]
+            toggle.setCheckable(True)
+            toggle.setChecked(debugger.has_breakpoint(item.name))
+            add("Run Until It Fires", lambda: debugger.run_until(item.name))
+        if live is not None:
+            menu.addSeparator()
+            on = live.status is LiveStatus.ACTIVE
+            add(
+                "Disable in Game" if on else "Enable in Game",
+                lambda: debugger.set_active(live, not on),
+            )
+            script = live.script
+            if script is not None:
+                add(
+                    "Re-arm",
+                    lambda: debugger.rearm(live),
+                    enabled=live.status is LiveStatus.FIRED,
+                )
+                add("Evaluate Conditions Now", lambda: debugger.evaluate(live))
+                add(
+                    "Run Actions Now",
+                    lambda: debugger.run_actions(live, False),
+                    enabled=script.has_true_actions,
+                )
+                add(
+                    "Run False Actions Now",
+                    lambda: debugger.run_actions(live, True),
+                    enabled=script.has_false_actions,
+                )
+        if not actions:
+            return
+        chosen = menu.exec(at) if at is not None else None
+        run = actions.get(chosen)
+        if run is not None:
+            run()
 
     def show_item_menu(self, items: _ItemList, point: QPoint) -> None:
         """The right-click handler of a condition or action list: open the menu of the row under

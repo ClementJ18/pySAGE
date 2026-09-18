@@ -37,6 +37,15 @@ def test_user_map_launches_in_place(tmp_path):
     assert plan.working_directory == install
 
 
+def test_the_window_takes_the_chosen_size(tmp_path):
+    install, user = tmp_path / "Game", tmp_path / "User"
+    path = user / "Maps" / "Fords" / "Fords.map"
+    options = JumpOptions(resolution=(1920, 1080))
+    plan = plan_jump(path, "Fords", GameLayers(install), user, options)
+
+    assert plan.arguments[3:] == ["-win", "-xres", "1920", "-yres", "1080"]
+
+
 def test_mod_map_uses_the_game_path(tmp_path):
     install, user, mod = tmp_path / "Game", tmp_path / "User", tmp_path / "Mod"
     path = mod / "maps" / "map mp fords" / "map mp fords.map"

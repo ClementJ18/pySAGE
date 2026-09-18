@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from PyQt6.QtCore import QByteArray, QEvent, QSize, Qt, QTimer
+from PyQt6.QtCore import QByteArray, QChildEvent, QEvent, QObject, QSize, Qt, QTimer
 from PyQt6.QtGui import QAction, QActionGroup, QCloseEvent, QIcon, QImage, QKeySequence, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
@@ -187,6 +187,7 @@ from sage_worldbuilder.ui.players import PlayersPanel
 from sage_worldbuilder.ui.remap_textures_dialog import RemapTexturesDialog
 from sage_worldbuilder.ui.road_options import RoadOptionsPanel
 from sage_worldbuilder.ui.road_tool import RoadTool
+from sage_worldbuilder.ui.script_debugger import ScriptDebuggerPanel
 from sage_worldbuilder.ui.scripts import ScriptsPanel
 from sage_worldbuilder.ui.teams import TeamsPanel
 from sage_worldbuilder.ui.terrain_copy_tool import TerrainCopyTool
@@ -823,6 +824,11 @@ class MainWindow(QMainWindow):
             tip="Save the map and start the game on it (Game > Jump To Game Settings for the "
             "match, Game > Game Settings for the window and arguments).",
         )
+        self.script_debugger_action = self._action(
+            "Script &Debugger",
+            lambda: self._show_dock(self.script_debugger_dock),
+            tip="Attach to the running game and follow its scripts, counters, timers and flags.",
+        )
         self.mapcache_action = self._action(
             "&MapCache Entry…",
             self.show_mapcache_entry,
@@ -1289,6 +1295,19 @@ class MainWindow(QMainWindow):
             self.validation_panel,
             Qt.DockWidgetArea.BottomDockWidgetArea,
         )
+        self.script_debugger_panel = ScriptDebuggerPanel(self)
+        self.script_debugger_panel.live_changed.connect(self.scripts_panel.set_live)
+        self.script_debugger_panel.script_activated.connect(self._select_script)
+        self.script_debugger_panel.breakpoints_changed.connect(self.scripts_panel.set_breakpoints)
+        self.scripts_panel.debugger = self.script_debugger_panel
+        self.script_debugger_dock = self._dock(
+            "Script Debugger",
+            "scriptDebuggerDock",
+            self.script_debugger_panel,
+            Qt.DockWidgetArea.BottomDockWidgetArea,
+        )
+        self.tabifyDockWidget(self.validation_dock, self.script_debugger_dock)
+        self.validation_dock.raise_()
 
         left = Qt.DockWidgetArea.LeftDockWidgetArea
         self.players_panel = PlayersPanel(self, self._library_names)
@@ -2573,6 +2592,8 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, APP_TITLE, f"Could not start the game:\n{exc}")
             return
         _status(self).showMessage(f"Started the game on {document.title}", 5000)
+        # The Script Debugger follows the game it just started, once there is a game to read.
+        self.script_debugger_panel.attach_when_ready()
 
     def launch_game(self, arguments: list[str], working_directory: Path) -> None:
         subprocess.Popen(arguments, cwd=str(working_directory))
@@ -2622,10 +2643,17 @@ class MainWindow(QMainWindow):
             return
         game = self.context.game if self.context is not None else None
         positions = start_position_count(self.document.map) if self.document is not None else 0
-        dialog = JumpSettingsDialog(self.settings.jump_match, game, positions, self)
+        dialog = JumpSettingsDialog(
+            self.settings.jump_match,
+            game,
+            positions,
+            self,
+            options=self.settings.jump_options(),
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         self.settings.jump_match = dialog.match
+        self.settings.set_jump_options(dialog.options)
         self.settings.save()
         if dialog.jump_requested:
             self.jump_to_game()
@@ -2847,7 +2875,9 @@ class MainWindow(QMainWindow):
         game_menu.addSeparator()
         game_menu.addActions([self.game_settings_action, self.reload_game_action])
         game_menu.addSeparator()
-        game_menu.addActions([self.jump_action, self.jump_settings_action])
+        game_menu.addActions(
+            [self.jump_action, self.jump_settings_action, self.script_debugger_action]
+        )
         game_menu.addSeparator()
         game_menu.addAction(self.mapcache_action)
 
@@ -3027,9 +3057,6 @@ class MainWindow(QMainWindow):
         self._rebuild_recent_mods_menu()
         self.settings.autosave_enabled = dialog.autosave_enabled
         self.settings.autosave_interval_seconds = dialog.autosave_interval
-        self.settings.jump_windowed = dialog.jump_windowed
-        self.settings.jump_script_debug = dialog.jump_script_debug
-        self.settings.jump_extra_arguments = dialog.jump_extra_arguments
         self.settings.save()
         if layers_changed:
             self.apply_game_layers()
@@ -3453,6 +3480,7 @@ class MainWindow(QMainWindow):
             self.brush_dock,
             self.terrain_material_dock,
             self.copy_terrain_dock,
+            self.array_dock,
             self.road_dock,
             self.water_dock,
             self.lighting_dock,
@@ -3461,6 +3489,7 @@ class MainWindow(QMainWindow):
             self.generic_ai_dock,
             self.camera_dock,
             self.validation_dock,
+            self.script_debugger_dock,
         )
 
     def set_layout_locked(self, locked: bool) -> None:
@@ -3492,6 +3521,34 @@ class MainWindow(QMainWindow):
         options = QMainWindow.DockOption
         held = options.GroupedDragging | options.AllowTabbedDocks
         self.setDockOptions(self._dock_options & ~held if locked else self._dock_options)
+
+    def childEvent(self, event: QChildEvent | None) -> None:  # noqa: N802 - Qt override
+        super().childEvent(event)
+        # Polished, not added: a child is announced while it is still being constructed, before
+        # its class name is its own.
+        if event is not None and event.type() == QEvent.Type.ChildPolished:
+            child = event.child()
+            if child is not None and is_group_window(child):
+                child.installEventFilter(self)
+
+    def eventFilter(self, watched: QObject | None, event: QEvent | None) -> bool:  # noqa: N802
+        """Keep a locked layout's floating group windows from docking.
+
+        Qt ignores the panels' allowed areas for a window holding more than one of them - such a
+        window may dock anywhere - and the panels inside are not floating by its reckoning, so
+        taking `DockWidgetMovable` away does not turn the drag into a plain window move either.
+        Swallowing the title-bar press stops Qt's drag from starting at all; the window manager
+        still moves the window, as it does a lone locked panel.
+        """
+        if (
+            self.settings.lock_layout
+            and event is not None
+            and event.type() == QEvent.Type.NonClientAreaMouseButtonPress
+            and watched is not None
+            and is_group_window(watched)
+        ):
+            return True
+        return super().eventFilter(watched, event)
 
     def raise_floating_docks(self) -> None:
         """Bring the undocked panels above the main window, so focusing the editor never leaves
@@ -3575,6 +3632,7 @@ class MainWindow(QMainWindow):
         self._refresh()
         self.scripts_panel.selected = None
         self.scripts_panel.refresh()
+        self.script_debugger_panel.document_changed()
         self.validation_panel.clear()
         for panel in (
             self.players_panel,
@@ -3824,6 +3882,7 @@ class MainWindow(QMainWindow):
             return
         self.autosave_timer.stop()
         self.ambient_player.stop()
+        self.script_debugger_panel.shutdown()
         self._store_layout()
         self.settings.save()
         event.accept()
@@ -3840,6 +3899,12 @@ def _settle_floating_dock(dock: QDockWidget) -> None:
     window = floating_window(dock)
     if window is not None:
         window.raise_()
+
+
+def is_group_window(widget: QObject) -> bool:
+    """Whether `widget` is the window Qt makes when floating panels are dropped together."""
+    meta = widget.metaObject()
+    return meta is not None and meta.className() == "QDockWidgetGroupWindow"
 
 
 def floating_window(dock: QDockWidget) -> QWidget | None:

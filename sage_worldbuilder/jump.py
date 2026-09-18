@@ -38,7 +38,10 @@ if TYPE_CHECKING:
     from sage_ini.model.game import Game
 
 __all__ = [
+    "DEFAULT_RESOLUTION",
     "DEFAULT_STARTING_RESOURCES",
+    "MAX_RESOLUTION",
+    "MIN_RESOLUTION",
     "SEAT_KINDS",
     "TEAM_COUNT",
     "JumpMatch",
@@ -48,12 +51,20 @@ __all__ = [
     "JumpSeat",
     "colour_names",
     "default_seats",
+    "launch_name",
     "plan_jump",
     "playable_factions",
     "start_position_count",
 ]
 
 _UNSAFE_NAME = re.compile(r'[<>:"/\\|?*]+')
+
+
+def launch_name(name: str) -> str:
+    """The name a map with no file of its own is copied to the user maps folder under, which is
+    also the name the running game then reports for it."""
+    return _UNSAFE_NAME.sub("_", name).strip() or "map"
+
 
 #: Who takes a seat: the local human, or an AI of one of the lobby's difficulties.
 SEAT_KINDS = ("human", *DIFFICULTIES)
@@ -62,6 +73,11 @@ SEAT_KINDS = ("human", *DIFFICULTIES)
 TEAM_COUNT = 4
 
 DEFAULT_STARTING_RESOURCES = LobbySettings().starting_resources
+
+#: The game window's size, `-xres` by `-yres`; it applies only to a windowed launch.
+DEFAULT_RESOLUTION = (1024, 768)
+MIN_RESOLUTION = (640, 480)
+MAX_RESOLUTION = (7680, 4320)
 
 
 class JumpMatchError(ValueError):
@@ -246,7 +262,7 @@ class JumpOptions:
     windowed: bool = True
     script_debug: bool = False
     extra_arguments: str = ""
-    resolution: tuple[int, int] = (1024, 768)
+    resolution: tuple[int, int] = DEFAULT_RESOLUTION
     # The `-gameInfo` value choosing the match, or `None` for the patch's default one.
     game_info: str | None = None
 
@@ -294,7 +310,7 @@ def plan_jump(
         relative = map_path.resolve().relative_to(holder.resolve())
         argument = file_argument(str(relative).replace("/", "\\"))
     else:
-        safe_name = _UNSAFE_NAME.sub("_", name).strip() or "map"
+        safe_name = launch_name(name)
         install_to = user_maps / safe_name / f"{safe_name}.map"
         argument = str(user_maps / f"{safe_name}.map").lower()
     game_dat = layers.install / "game.dat"

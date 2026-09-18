@@ -287,15 +287,6 @@ class GameSettingsDialog(QDialog):
         self.interval.setValue(settings.autosave_interval_seconds)
         form.addRow("Autosave every", self.interval)
 
-        self.jump_windowed_box = QCheckBox("Run the game in a window")
-        self.jump_windowed_box.setChecked(settings.jump_windowed)
-        form.addRow("Jump To Game", self.jump_windowed_box)
-        self.jump_debug_box = QCheckBox("Script debugging (-scriptDebug2)")
-        self.jump_debug_box.setChecked(settings.jump_script_debug)
-        form.addRow("", self.jump_debug_box)
-        self.jump_extra_edit = QLineEdit(settings.jump_extra_arguments)
-        self.jump_extra_edit.setPlaceholderText("Extra game arguments, e.g. -noshellmap")
-        form.addRow("Extra arguments", self.jump_extra_edit)
         layout.addLayout(form)
 
         self.message = QLabel()
@@ -408,18 +399,6 @@ class GameSettingsDialog(QDialog):
     @property
     def autosave_interval(self) -> int:
         return self.interval.value()
-
-    @property
-    def jump_windowed(self) -> bool:
-        return self.jump_windowed_box.isChecked()
-
-    @property
-    def jump_script_debug(self) -> bool:
-        return self.jump_debug_box.isChecked()
-
-    @property
-    def jump_extra_arguments(self) -> str:
-        return self.jump_extra_edit.text().strip()
 
 
 class ShortcutsDialog(QDialog):

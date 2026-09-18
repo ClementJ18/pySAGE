@@ -33,13 +33,14 @@ from sage_patch.addresses import (
     COMMAND_LINE_SKIRMISH_SETUP,
     COMMAND_LINE_SKIRMISH_SETUP_BYTES,
     COMMAND_LINE_SKIRMISH_SETUP_RESUME,
-    GAME_ENGINE_INIT_MOD_CALL,
     GAME_INFO_PARSE,
     GAME_INFO_PARSE_KEYS,
     GAME_INFO_PARSE_KEYS_BYTES,
     GAME_INFO_SET_MAP,
     GAME_INFO_SET_MAP_CRC,
     GAME_INFO_SET_MAP_SIZE,
+    GAME_MAIN,
+    GAME_MAIN_BYTES,
     GAME_MESSAGE_APPEND_INTEGER,
     LOADING_SCREEN_PROGRESS,
     LOADING_SCREEN_PROGRESS_BYTES,
@@ -134,11 +135,13 @@ class TestStockBytes:
 
     @pytest.mark.skipif(not _GAME_DAT.exists(), reason="needs the real game.dat")
     def test_argv_is_where_the_cave_reads_it(self):
-        """`GameEngine::init` pushes `[ebp+0xC]` then `[ebp+8]` into the command-line parser -
-        argv and argc, in the frame the hook still runs in."""
+        """`GameMain` pushes its own two arguments and calls `init` through its vtable, so they
+        sit above `init`'s frame; `init`'s own copies are overwritten before the hook."""
         data = _GAME_DAT.read_bytes()
-        offset = va_to_offset(data, GAME_ENGINE_INIT_MOD_CALL - 6)
-        assert data[offset : offset + 6] == bytes.fromhex("ff750cff7508")
+        offset = va_to_offset(data, GAME_MAIN)
+        assert data[offset : offset + len(GAME_MAIN_BYTES)] == GAME_MAIN_BYTES
+        clobber = va_to_offset(data, 0x0063CB66)
+        assert data[clobber : clobber + 3] == bytes.fromhex("896508")  # mov [ebp+8], esp
 
     @pytest.mark.skipif(not _GAME_DAT.exists(), reason="needs the real game.dat")
     def test_it_applies_to_the_real_binary(self):
@@ -292,8 +295,8 @@ class TestTheGameInfoSwitch:
 
     def test_it_walks_argv_from_the_init_frame(self):
         text = _setup_text(_patched()[0])
-        assert "mov ecx, dword ptr [ebp + 8]" in text
-        assert "mov ebx, dword ptr [ebp + 0xc]" in text
+        assert "mov ecx, dword ptr [ebp + 0x14]" in text
+        assert "mov ebx, dword ptr [ebp + 0x18]" in text
         assert f"call 0x{STRICMP:x}" in text
 
     def test_it_calls_the_parser_with_three_arguments_and_pops_them(self):
