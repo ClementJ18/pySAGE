@@ -516,6 +516,32 @@ def test_attach_when_ready_stops_on_a_denied_read(qapp, tmp_path):
     assert not debugger.waiting and "administrator" in debugger.status.text()
 
 
+def test_a_denied_read_offers_to_restart_elevated(qapp, tmp_path, monkeypatch):
+    monkeypatch.setattr("sage_worldbuilder.ui.script_debugger.is_elevated", lambda: False)
+    session = FakeSession("maps/my map")
+    denied = [LiveAccessDenied("The game runs as administrator, so the editor must be run as")]
+    debugger = ScriptDebuggerPanel(
+        Host(scripted_document(tmp_path)), starting_game(session, denied)
+    )
+    requested = []
+    debugger.elevation_requested.connect(lambda: requested.append(True))
+    assert not debugger.attach()
+    assert not debugger.elevate_button.isHidden()
+    debugger.elevate_button.click()
+    assert requested == [True]
+    assert debugger.attach()
+    assert debugger.elevate_button.isHidden()
+    debugger.shutdown()
+
+
+def test_an_elevated_editor_is_not_offered_a_restart(qapp, tmp_path, monkeypatch):
+    monkeypatch.setattr("sage_worldbuilder.ui.script_debugger.is_elevated", lambda: True)
+    denied = [LiveAccessDenied("The game runs as administrator, so the editor must be run as")]
+    debugger = ScriptDebuggerPanel(Host(scripted_document(tmp_path)), starting_game(None, denied))
+    assert not debugger.attach()
+    assert debugger.elevate_button.isHidden()
+
+
 def test_attach_when_ready_gives_up_at_the_deadline(qapp, tmp_path):
     never = [LiveAttachError("No running game was found.")] * 5
     debugger = ScriptDebuggerPanel(Host(scripted_document(tmp_path)), starting_game(None, never))

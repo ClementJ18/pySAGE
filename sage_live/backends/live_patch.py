@@ -286,9 +286,15 @@ class WindowsProcess:
             self._handle, None, size, self._MEM_COMMIT_RESERVE, self._PAGE_EXECUTE_READWRITE
         )
         if not address:
-            assert sys.platform == "win32"  # `__init__` refused anything else; narrows for mypy
-            raise LivePatchError(f"VirtualAllocEx failed with error {ctypes.get_last_error()}")
+            raise LivePatchError(f"VirtualAllocEx failed with error {self._last_error()}")
         return int(address)
+
+    @staticmethod
+    def _last_error() -> int:
+        # Only a platform check opening the function narrows for mypy, not an `assert` mid-block.
+        if sys.platform != "win32":
+            return 0
+        return ctypes.get_last_error()
 
     def free(self, address: int) -> None:
         self._k32.VirtualFreeEx(self._handle, ctypes.c_void_p(address), 0, self._MEM_RELEASE)

@@ -36,6 +36,7 @@ from sage_map.assets.object_list import Object
 from sage_map.assets.trigger_areas import TriggerArea
 from sage_map.map import Map
 from sage_utils.config import user_config_dir
+from sage_utils.elevation import relaunch_elevated
 from sage_utils.widgets import Worker, add_help_menu, resource_path, run_worker
 from sage_worldbuilder.ambient import (
     ListenMode,
@@ -641,6 +642,9 @@ class MainWindow(QMainWindow):
         self._pick_rules: PickRules | None = None
         # The game.dat files Jump To Game patched, put back when the window closes.
         self._patched_game_dats: set[Path] = set()
+        # Set once an elevated copy of the editor was started to take over: closing then neither
+        # asks about changes nor restores game.dat, which the new editor does on start.
+        self._handed_over = False
 
         self.setWindowTitle(APP_TITLE)
         self.setWindowIcon(app_icon())
@@ -1299,6 +1303,7 @@ class MainWindow(QMainWindow):
         self.script_debugger_panel.live_changed.connect(self.scripts_panel.set_live)
         self.script_debugger_panel.script_activated.connect(self._select_script)
         self.script_debugger_panel.breakpoints_changed.connect(self.scripts_panel.set_breakpoints)
+        self.script_debugger_panel.elevation_requested.connect(self.restart_elevated)
         self.scripts_panel.debugger = self.script_debugger_panel
         self.script_debugger_dock = self._dock(
             "Script Debugger",
@@ -2612,6 +2617,25 @@ class MainWindow(QMainWindow):
         elif problem is not None:
             _status(self).showMessage(problem, 10000)
 
+    def restart_elevated(self) -> None:
+        """Start the editor again as administrator on the open map and close this one, once its
+        changes are saved or discarded: the game runs elevated, and only an elevated editor can
+        read it."""
+        if not self._busy:
+            self._when_changes_handled(self._hand_over_elevated)
+
+    def _hand_over_elevated(self) -> None:
+        document = self.document
+        arguments = [str(document.path)] if document is not None and document.path else []
+        # Saved first, so the new editor starts with this one's mods, install and layout.
+        self._store_layout()
+        self.settings.save()
+        if not relaunch_elevated(arguments):
+            _status(self).showMessage("The editor was not restarted as administrator.", 5000)
+            return
+        self._handed_over = True
+        self.close()
+
     def restore_game_dats(self) -> bool:
         """Put back every game.dat Jump To Game patched. False when the mapper chose to keep the
         window open instead of leaving one patched."""
@@ -3868,7 +3892,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         document = self.document
-        if document is not None and document.dirty:
+        if document is not None and document.dirty and not self._handed_over:
             choice = self.ask_save_changes(document)
             if choice == "cancel":
                 event.ignore()
@@ -3877,7 +3901,7 @@ class MainWindow(QMainWindow):
                 event.ignore()
                 self.save(then=self.close)
                 return
-        if not self.restore_game_dats():
+        if not self._handed_over and not self.restore_game_dats():
             event.ignore()
             return
         self.autosave_timer.stop()

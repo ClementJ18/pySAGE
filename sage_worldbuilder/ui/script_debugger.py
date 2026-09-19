@@ -53,6 +53,7 @@ from PyQt6.QtWidgets import (
 from sage_live.backends.game_speed import FAST_FORWARD
 from sage_live.backends.script_trace import BREAKPOINT_LIMIT, EventKind, kind_mask
 from sage_live.backends.scripts import ScriptVariable
+from sage_utils.elevation import is_elevated
 from sage_worldbuilder.document import MapDocument
 from sage_worldbuilder.live import (
     LiveAccessDenied,
@@ -148,6 +149,9 @@ class ScriptDebuggerPanel(QWidget):
     script_activated = pyqtSignal(str)
     #: The breakpoints changed: the set of script names, in case-folded form.
     breakpoints_changed = pyqtSignal(object)
+    #: The game could not be read for want of elevation, and the mapper asked to restart the
+    #: editor as administrator.
+    elevation_requested = pyqtSignal()
 
     def __init__(
         self,
@@ -184,6 +188,13 @@ class ScriptDebuggerPanel(QWidget):
         )
         self.attach_button.clicked.connect(self.toggle)
         row.addWidget(self.attach_button)
+        self.elevate_button = QPushButton("Restart as Administrator")
+        self.elevate_button.setToolTip(
+            "Start the editor again as administrator on the open map, so it can read the game."
+        )
+        self.elevate_button.clicked.connect(lambda _checked=False: self.elevation_requested.emit())
+        self.elevate_button.hide()
+        row.addWidget(self.elevate_button)
         self.status = QLabel("Not attached.")
         self.status.setWordWrap(True)
         row.addWidget(self.status, 1)
@@ -349,7 +360,7 @@ class ScriptDebuggerPanel(QWidget):
             session = self._attach()
         except LiveAccessDenied as exc:
             self._wait_timer.stop()
-            self.status.setText(str(exc))
+            self._denied(exc)
             return
         except LiveAttachError as exc:
             # A game still starting cannot be read yet; that fixes itself, up to the deadline.
@@ -364,14 +375,23 @@ class ScriptDebuggerPanel(QWidget):
         self._wait_timer.stop()
         try:
             session = self._attach()
+        except LiveAccessDenied as exc:
+            self._denied(exc)
+            return False
         except LiveAttachError as exc:
             self.status.setText(str(exc))
             return False
         self._start(session)
         return True
 
+    def _denied(self, exc: LiveAccessDenied) -> None:
+        self.status.setText(str(exc))
+        # Already elevated, a restart would be refused the same way.
+        self.elevate_button.setVisible(not is_elevated())
+
     def _start(self, session: LiveSession) -> None:
         self.session = session
+        self.elevate_button.hide()
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="script-debugger")
         self.attach_button.setText("Detach")
         self.status.setText(f"Attached to the game (process {self.session.pid}). Reading…")
