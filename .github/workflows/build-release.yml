@@ -1,9 +1,9 @@
 name: Build release binaries
 
 # Manual only: PyInstaller builds are slow and their artifacts are large, so they are cut on
-# demand rather than on every push. Runs on Windows because PyInstaller binaries are not
-# cross-platform - this workflow produces the .exe set. Add a matching job on another runner
-# if you start shipping Linux or macOS builds.
+# demand rather than on every push. PyInstaller binaries are not cross-platform, so every spec is
+# built once per OS: Windows for the .exe set modders run, Linux for CI - the Linux sage_lint is
+# what a mod repo's lint workflow runs on an ubuntu runner, which costs half a Windows minute.
 on:
   workflow_dispatch:
     inputs:
@@ -19,7 +19,21 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      # One OS failing (a Qt spec that will not freeze on Linux, say) must not cancel the other's
+      # upload - filter the specs down to the CLIs and dispatch again if it does.
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            exe: .exe
+          # The oldest glibc a frozen binary can run on is the one it was built against, so the
+          # Linux set runs on this Ubuntu release and anything newer - ubuntu-latest included.
+          - os: ubuntu-latest
+            platform: linux
+            exe: ''
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +42,15 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+
+      # PyQt6's wheel bundles Qt but still links the system's EGL/GL and xkb libraries, which the
+      # runner image does not carry - and PyInstaller imports Qt while analysing the UI specs.
+      - name: Install Qt runtime libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libxkbcommon0 libdbus-1-3
 
       # The Qt- and pyBIG-backed specs import their dependencies during PyInstaller's analysis,
       # so the full extras are needed even for a filtered build. PyInstaller itself is in the
@@ -52,10 +75,12 @@ jobs:
       # Skips cleanly when a filtered build left the CLI out.
       - name: Smoke-test the CLI binary
         shell: bash
+        env:
+          EXE: ${{ matrix.exe }}
         run: |
-          cli="build/release-dist/sage_lint.exe"
+          cli="build/release-dist/sage_lint$EXE"
           if [ ! -f "$cli" ]; then
-            echo "sage_lint.exe not built (filtered out) - skipping smoke test"
+            echo "sage_lint$EXE not built (filtered out) - skipping smoke test"
             exit 0
           fi
           "$cli" --help > /dev/null
@@ -67,7 +92,7 @@ jobs:
       - name: Upload the binaries
         uses: actions/upload-artifact@v4
         with:
-          name: pySAGE-windows-${{ github.run_number }}
+          name: pySAGE-${{ matrix.platform }}-${{ github.run_number }}
           path: build/release-dist/
           if-no-files-found: error
           retention-days: 14

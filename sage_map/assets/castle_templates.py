@@ -84,43 +84,34 @@ class PerimeterPoint:
 
 @dataclass
 class CastlePerimeter:
-    has_perimeter: bool
+    """One of a base's trigger areas: its name (version 5 on) and its points, relative to the
+    castle's centre. WorldBuilder writes one per trigger area of the base."""
+
     name: str | None
-    perimeter_points: list[PerimeterPoint]
+    points: list[PerimeterPoint]
 
     @classmethod
     def parse(cls, context: "ParsingContext", version: int) -> Self:
-        has_perimeter = context.stream.readBoolUInt32Checked()
-
         name = None
-        perimeter_points = []
+        if version >= 5:
+            name = context.stream.readUInt16PrefixedAsciiString()
 
-        if has_perimeter:
-            # the version is a tentative guess as this field does not exist in the OpenSAGE parser
-            if version >= 5:
-                name = context.stream.readUInt16PrefixedAsciiString()
-
-            perimeter_point_count = context.stream.readUInt32()
-
-            for _ in range(perimeter_point_count):
-                perimeter_points.append(PerimeterPoint.parse(context, version))
+        points = []
+        for _ in range(context.stream.readUInt32()):
+            points.append(PerimeterPoint.parse(context, version))
 
         return cls(
-            has_perimeter=has_perimeter,
             name=name,
-            perimeter_points=perimeter_points,
+            points=points,
         )
 
     def write(self, context: "WritingContext", version: int) -> None:
-        context.stream.writeBoolUInt32Checked(self.has_perimeter)
-        if self.has_perimeter:
-            # the version is a tentative guess as this field does not exist in the OpenSAGE parser
-            if version >= 5:
-                context.stream.writeUInt16PrefixedAsciiString(cast(str, self.name))
+        if version >= 5:
+            context.stream.writeUInt16PrefixedAsciiString(cast(str, self.name))
 
-            context.stream.writeUInt32(len(self.perimeter_points))
-            for point in self.perimeter_points:
-                point.write(context, version)
+        context.stream.writeUInt32(len(self.points))
+        for point in self.points:
+            point.write(context, version)
 
 
 @dataclass
@@ -130,7 +121,8 @@ class CastleTemplates:
     version: int
     property_key: tuple[AssetPropertyType, int, str | None]
     templates: list[CastleTemplate]
-    perimeter: CastlePerimeter | None
+    # A count of perimeters and each one, from version 2 on; `None` before.
+    perimeters: list[CastlePerimeter] | None
     start_pos: int
     end_pos: int
 
@@ -144,15 +136,17 @@ class CastleTemplates:
             for _ in range(template_count):
                 templates.append(CastleTemplate.parse(context, asset_ctx.version))
 
-            perimeter = None
+            perimeters = None
             if asset_ctx.version >= 2:
-                perimeter = CastlePerimeter.parse(context, asset_ctx.version)
+                perimeters = []
+                for _ in range(context.stream.readUInt32()):
+                    perimeters.append(CastlePerimeter.parse(context, asset_ctx.version))
 
         return cls(
             version=asset_ctx.version,
             property_key=property_key,
             templates=templates,
-            perimeter=perimeter,
+            perimeters=perimeters,
             start_pos=asset_ctx.start_pos,
             end_pos=asset_ctx.end_pos,
         )
@@ -168,4 +162,7 @@ class CastleTemplates:
                 template.write(context, self.version)
 
             if self.version >= 2:
-                cast(CastlePerimeter, self.perimeter).write(context, self.version)
+                perimeters = cast(list[CastlePerimeter], self.perimeters)
+                context.stream.writeUInt32(len(perimeters))
+                for perimeter in perimeters:
+                    perimeter.write(context, self.version)

@@ -1,4 +1,4 @@
-"""Typed decoders for the save chunks Phase 2 understands, built on `sage_save.xfer`.
+"""Typed decoders for the save chunks understood so far, built on `sage_save.xfer`.
 
 Decoded so far: `CHUNK_GameState` (the browser header), `CHUNK_GameStateMap` (map paths +
 the embedded `.map`), `CHUNK_Campaign` (empty in a skirmish save; in a campaign save the
@@ -1437,7 +1437,7 @@ def extract_map(save: SaveFile) -> bytes:
 
 def iter_objects(save: SaveFile) -> list[SaveObject]:
     """Every live object in the save's `CHUNK_GameLogic`, each carrying its resolved ini
-    template name - the raw material for the Phase 3 cross-reference against a `Game`."""
+    template name - the raw material for the `sage_save.xref` cross-reference against a `Game`."""
     chunk = save.chunk("CHUNK_GameLogic")
     if chunk is None:
         raise ValueError("save has no CHUNK_GameLogic")

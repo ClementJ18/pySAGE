@@ -23,7 +23,10 @@ from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.banner_modifier import BannerModifierPatch
 from sage_patch.patches.binary_attest import BinaryAttestPatch
-from sage_patch.patches.cah_factions import CahFactionsPatch
+from sage_patch.patches.cah_factions import (
+    CahFactionsPatch,
+    CahFactionsWorldbuilderPatch,
+)
 from sage_patch.patches.campaign_army_verbs import CampaignArmyVerbsPatch
 from sage_patch.patches.castle_unpack_clearance import CastleUnpackClearancePatch
 from sage_patch.patches.combo_horde_recruitment import ComboHordeRecruitmentPatch
@@ -31,6 +34,7 @@ from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
 from sage_patch.patches.commandset_button_upgrade import CommandSetButtonUpgradePatch
+from sage_patch.patches.construction_initial_health import ConstructionInitialHealthPatch
 from sage_patch.patches.contained_horde_respawn import ContainedHordeRespawnPatch
 from sage_patch.patches.crash_dump import CrashDumpPatch
 from sage_patch.patches.deploy_before_attack import DeployBeforeAttackPatch
@@ -160,6 +164,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     BattleSchoolPatch,
     BinaryAttestPatch,
     CahFactionsPatch,
+    CahFactionsWorldbuilderPatch,
     CampaignArmyVerbsPatch,
     CampaignSelectPatch,
     CaptureTheFlagPatch,
@@ -170,6 +175,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CommandPointUpkeepPatch,
     CommandSetButtonUpgradePatch,
     CommandSetLimitPatch,
+    ConstructionInitialHealthPatch,
     CooldownThroughDeathPatch,
     ContainedHordeRespawnPatch,
     CrashDumpPatch,

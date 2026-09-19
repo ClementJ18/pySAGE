@@ -23,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 __all__ = [
+    "DIFFICULTIES",
     "Handle",
     "Placement",
     "Scenario",
@@ -30,6 +31,9 @@ __all__ = [
 ]
 
 Vec3 = tuple[float, float, float]
+
+#: The AI levels the lobby offers, which the engine's slot parser turns into slot states 2-5.
+DIFFICULTIES = ("easy", "medium", "hard", "brutal")
 
 
 @dataclass(frozen=True)
@@ -48,9 +52,17 @@ class Seat:
     faction: int
     start_position: int = 0
     colour: int = 0
-    team: int = 0
-    #: False means the local human - the seat a test drives. True means an easy AI.
+    #: 0-based, or -1 for the lobby's "no team". The default is -1 so that seats which declare
+    #: nothing play against each other: a shared default team would make them allies.
+    team: int = -1
+    #: False means the local human - the seat a test drives. True means an AI of `difficulty`.
     ai: bool = False
+    #: One of :data:`DIFFICULTIES`. Ignored for the human seat.
+    difficulty: str = "easy"
+
+    def __post_init__(self) -> None:
+        if self.difficulty not in DIFFICULTIES:
+            raise ValueError(f"difficulty {self.difficulty!r} is not one of {DIFFICULTIES}")
 
     @classmethod
     def human(cls, faction: int, start_position: int = 0, **kwargs) -> Seat:
@@ -59,6 +71,18 @@ class Seat:
     @classmethod
     def easy_ai(cls, faction: int, start_position: int = 1, **kwargs) -> Seat:
         return cls(faction=faction, start_position=start_position, ai=True, **kwargs)
+
+    @classmethod
+    def computer(
+        cls, faction: int, difficulty: str = "medium", start_position: int = 1, **kwargs
+    ) -> Seat:
+        return cls(
+            faction=faction,
+            start_position=start_position,
+            ai=True,
+            difficulty=difficulty,
+            **kwargs,
+        )
 
     @property
     def map_player(self) -> str:

@@ -172,6 +172,7 @@ __all__ = [
     "ASCII_STRING_ASSIGN",
     "ASCII_STRING_CHARS_OFFSET",
     "ASCII_STRING_COPY",
+    "ASCII_STRING_COPY_CTOR",
     "ASCII_STRING_CTOR",
     "ASCII_STRING_DTOR",
     "ASCII_STRING_FORMAT",
@@ -269,6 +270,9 @@ __all__ = [
     "BATTLE_SCHOOL_REGISTRATION",
     "BATTLE_SCHOOL_REGISTRATION_BYTES",
     "BATTLE_SCHOOL_TRANSITION_NAME",
+    "BODY_GET_HEALTH_RATIO_SLOT",
+    "BODY_GET_HEALTH_SLOT",
+    "BODY_GET_MAX_HEALTH_SLOT",
     "BUILD",
     "BUILD_ASSISTANT_VTABLE",
     "BUILD_GATE_AFFORD",
@@ -346,6 +350,16 @@ __all__ = [
     "COMMAND_SET_GET_COMMAND_BUTTON",
     "COMMAND_SET_STORE_FIND_COMMAND_SET",
     "COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET",
+    "CONSTRUCTION_INITIAL_HEALTH_ANCHORS",
+    "CONSTRUCTION_INITIAL_HEALTH_CALLS",
+    "CONSTRUCTION_INITIAL_HEALTH_CALL_BYTES",
+    "CONSTRUCTION_PERCENT_FROM_RATIO",
+    "CONSTRUCTION_PERCENT_FROM_RATIO_ANCHORS",
+    "CONSTRUCTION_PERCENT_FROM_RATIO_BYTES",
+    "CONSTRUCTION_RAMP_ANCHOR",
+    "CONSTRUCTION_RAMP_ANCHOR_BYTES",
+    "CONSTRUCTION_RAMP_HEALTH_STEP",
+    "CONSTRUCTION_RAMP_HEALTH_STEP_BYTES",
     "CONTAIN_GET_HORDE_IFACE",
     "CONTAIN_GET_HORDE_IFACE_ENTRY",
     "CONTAIN_GET_HORDE_IFACE_SLOT",
@@ -539,9 +553,13 @@ __all__ = [
     "FILE_SYSTEM_GET_FILE_LIST_IN_DIRECTORY",
     "FILE_SYSTEM_OPEN_FILE",
     "FIRE_WEAPON_WHEN_DAMAGED_ON_DAMAGE",
+    "FLOAT_HUNDRED",
     "FLOAT_ONE",
     "FLOAT_ONE_PERCENT",
     "FLOAT_TWO_PERCENT",
+    "FRAME_DISPATCHER",
+    "FRAME_DISPATCHER_PAUSE_CALL",
+    "FRAME_DISPATCHER_PAUSE_CALL_BYTES",
     "FWWD_FIELD_TABLE",
     "FWWD_FIELD_TABLE_REFS",
     "FWWD_FIELD_TABLE_REF_OPCODES",
@@ -570,15 +588,30 @@ __all__ = [
     "GAME_ENGINE_INIT_GLOBAL_DATA_CALL_BYTES",
     "GAME_ENGINE_INIT_MOD_CALL",
     "GAME_ENGINE_INIT_MOD_CALL_BYTES",
+    "GAME_ENGINE_MAX_FPS",
     "GAME_ENGINE_QUITTING",
     "GAME_ENGINE_SET_FPS_SLOT",
     "GAME_ENGINE_SUB_FRAME",
     "GAME_ENGINE_SUB_FRAME_RATIO",
+    "GAME_INFO_GAME_TYPE",
     "GAME_INFO_GET_SLOT",
+    "GAME_INFO_GSID",
     "GAME_INFO_MAP",
+    "GAME_INFO_MAP_CONTENTS_MASK",
     "GAME_INFO_MAP_CRC",
     "GAME_INFO_MAP_SIZE",
     "GAME_INFO_OPTIONS",
+    "GAME_INFO_PARSE",
+    "GAME_INFO_PARSE_ENTRY",
+    "GAME_INFO_PARSE_KEYS",
+    "GAME_INFO_PARSE_KEYS_BYTES",
+    "GAME_INFO_RULES",
+    "GAME_INFO_RULES_COUNT",
+    "GAME_INFO_SEED",
+    "GAME_INFO_SET_MAP",
+    "GAME_INFO_SET_MAP_CRC",
+    "GAME_INFO_SET_MAP_SIZE",
+    "GAME_INFO_SI",
     "GAME_INFO_SIZE",
     "GAME_INFO_SLOT_ARRAY",
     "GAME_INFO_SLOT_COUNT",
@@ -589,6 +622,7 @@ __all__ = [
     "GAME_LOGIC_FIND_OBJECT_BY_ID",
     "GAME_LOGIC_FIND_OBJECT_BY_ID_ENTRY",
     "GAME_LOGIC_FRAME",
+    "GAME_LOGIC_GAME_MODE",
     "GAME_LOGIC_IS_IN_GAME",
     "GAME_LOGIC_LIVING_WORLD_TYPE",
     "GAME_LOGIC_LIVING_WORLD_TYPE_MP_BATTLE",
@@ -597,6 +631,10 @@ __all__ = [
     "GAME_LOGIC_UPDATE",
     "GAME_LOGIC_UPDATE_ENTRY",
     "GAME_LOGIC_UPDATE_VTABLE_SLOT",
+    "GAME_MAIN",
+    "GAME_MAIN_ARGC",
+    "GAME_MAIN_ARGV",
+    "GAME_MAIN_BYTES",
     "GAME_MESSAGE_APPEND_INTEGER",
     "GAME_MODE_SKIRMISH",
     "GAME_SLOT_ACCEPTED",
@@ -615,9 +653,13 @@ __all__ = [
     "GAME_SLOT_START_POS",
     "GAME_SLOT_START_POS_GRANTED",
     "GAME_SLOT_STATE",
+    "GAME_SLOT_STATE_BRUTAL_AI",
     "GAME_SLOT_STATE_CLOSED",
     "GAME_SLOT_STATE_EASY_AI",
+    "GAME_SLOT_STATE_HARD_AI",
     "GAME_SLOT_STATE_LOCAL_HUMAN",
+    "GAME_SLOT_STATE_MEDIUM_AI",
+    "GAME_SLOT_STATE_OPEN",
     "GAME_SLOT_TEAM",
     "GAME_STATE_REGISTER_SNAPSHOT",
     "GAME_TEXT_FORMAT_SLOT",
@@ -908,6 +950,8 @@ __all__ = [
     "MSG_NEW_GAME",
     "NAME_KEY_FROM_CSTR",
     "NAME_KEY_FROM_STRING",
+    "NAME_KEY_TO_NAME",
+    "NETWORK_GAME_MODES",
     "NET_CRC_INTERVAL",
     "NET_CRC_INTERVAL_GAME_INFO_CTOR",
     "NET_CRC_INTERVAL_GAME_INFO_OFFSET",
@@ -926,7 +970,9 @@ __all__ = [
     "OBJECT_ARMY_EXCLUDED_BIT",
     "OBJECT_ARMY_ID",
     "OBJECT_ATTEMPT_HEALING",
+    "OBJECT_BODY_MODULE",
     "OBJECT_CAN_ACCEPT_UPGRADE",
+    "OBJECT_CONSTRUCTION_PERCENT",
     "OBJECT_CONTAIN",
     "OBJECT_CONTAINED_BY",
     "OBJECT_EFFECTIVELY_DEAD_FLAG",
@@ -1072,6 +1118,7 @@ __all__ = [
     "PLAYER_LIST_PLAYER_FROM_INDEX",
     "PLAYER_LIVING_WORLD_ID_OFFSET",
     "PLAYER_MONEY",
+    "PLAYER_NAME_KEY",
     "PLAYER_PLAYER_TEMPLATE",
     "PLAYER_RELATIONSHIP_ALLIES",
     "PLAYER_SCIENCES",
@@ -1238,37 +1285,93 @@ __all__ = [
     "SCRIPT_ACTION_TEAM_TO_ARMY",
     "SCRIPT_ACTION_TEAM_TO_ARMY_ID",
     "SCRIPT_ACTION_TYPE",
+    "SCRIPT_ACTIVE",
+    "SCRIPT_AUTHORED_ACTIVE",
+    "SCRIPT_CONDITIONS",
     "SCRIPT_COUNTER_IS_SECONDS",
     "SCRIPT_COUNTER_IS_TIMER",
     "SCRIPT_COUNTER_VALUE",
     "SCRIPT_DEBUG_ADJUST_VARIABLE",
     "SCRIPT_DEBUG_APPEND_MESSAGE",
+    "SCRIPT_DEBUG_CAN_CONTINUE",
     "SCRIPT_DEBUG_FLAG_HANDLER",
+    "SCRIPT_DEBUG_IS_PAUSED",
     "SCRIPT_DEBUG_LITE_FLAG_HANDLER",
     "SCRIPT_DEBUG_MODULE",
+    "SCRIPT_DEBUG_PAUSED",
+    "SCRIPT_DEBUG_POLL_CONTINUE",
+    "SCRIPT_DEBUG_RUN_FAST",
+    "SCRIPT_DEBUG_RUN_SCRIPT_LOG",
     "SCRIPT_DEBUG_SUPPRESS",
     "SCRIPT_DEBUG_USE_LITE_DLL",
+    "SCRIPT_DELAY_SECONDS",
+    "SCRIPT_EASY",
     "SCRIPT_ENGINE_BIND_OBJECT_NAME",
+    "SCRIPT_ENGINE_CALL_SUBROUTINE",
     "SCRIPT_ENGINE_COUNTER_MAP",
+    "SCRIPT_ENGINE_CURRENT_OBJECT",
+    "SCRIPT_ENGINE_CURRENT_PLAYER",
+    "SCRIPT_ENGINE_DIFFICULTY",
+    "SCRIPT_ENGINE_EVALUATE",
+    "SCRIPT_ENGINE_EXECUTE_SCRIPT",
+    "SCRIPT_ENGINE_EXECUTE_SEQUENTIAL",
     "SCRIPT_ENGINE_FIND_FLAG",
     "SCRIPT_ENGINE_FIND_OR_CREATE_COUNTER",
     "SCRIPT_ENGINE_FIND_OR_CREATE_FLAG",
     "SCRIPT_ENGINE_FLAG_MAP",
     "SCRIPT_ENGINE_NAMED_OBJECT_MAP",
     "SCRIPT_ENGINE_PLAYER_NAME_TO_INDEX",
+    "SCRIPT_ENGINE_RUN_ACTIONS",
+    "SCRIPT_ENGINE_RUN_GROUP_NODES",
+    "SCRIPT_ENGINE_RUN_SCRIPT",
+    "SCRIPT_ENGINE_RUN_SCRIPT_NODES",
     "SCRIPT_ENGINE_SCOPE",
     "SCRIPT_ENGINE_SCOPED_KEY",
     "SCRIPT_ENGINE_SET_COUNTER",
     "SCRIPT_ENGINE_SET_FLAG",
     "SCRIPT_ENGINE_SET_TIMER",
     "SCRIPT_ENGINE_TIMER_TICK_SITE",
+    "SCRIPT_EXECUTE_LOG_CALLS",
+    "SCRIPT_FALSE_ACTIONS",
+    "SCRIPT_GROUP_ACTIVE",
+    "SCRIPT_GROUP_GROUPS",
+    "SCRIPT_GROUP_SCRIPTS",
+    "SCRIPT_GROUP_SUBROUTINE",
+    "SCRIPT_HARD",
+    "SCRIPT_IS_DUE",
     "SCRIPT_KEY_COMPOSE",
+    "SCRIPT_LIST_ENTRY_GENERATION",
+    "SCRIPT_LIST_ENTRY_NAME",
+    "SCRIPT_LIST_ENTRY_OBJECTS",
+    "SCRIPT_LIST_ENTRY_SIZE",
+    "SCRIPT_LIST_GROUPS",
+    "SCRIPT_LIST_GROUP_ENTRIES",
+    "SCRIPT_LIST_SCRIPTS",
+    "SCRIPT_LIST_SCRIPT_ENTRIES",
+    "SCRIPT_NEXT_FRAME",
+    "SCRIPT_NODE_GENERATION",
+    "SCRIPT_NODE_INDEX",
+    "SCRIPT_NODE_NEXT",
+    "SCRIPT_NORMAL",
+    "SCRIPT_ONE_SHOT",
     "SCRIPT_PARAMETER_INT",
     "SCRIPT_PARAMETER_NUMBER",
     "SCRIPT_PARAMETER_STRING",
     "SCRIPT_PARAMETER_TYPE",
+    "SCRIPT_SCOPE_ENTER",
+    "SCRIPT_SCOPE_GUARD_SIZE",
+    "SCRIPT_SCOPE_LEAVE",
+    "SCRIPT_SEQUENTIAL",
+    "SCRIPT_SEQUENTIAL_EVALUATE_CALL",
+    "SCRIPT_SEQUENTIAL_EVALUATE_CALL_BYTES",
+    "SCRIPT_SUBROUTINE",
     "SCRIPT_TIMER_FRAMES_PER_MS",
     "SCRIPT_TIMER_MS_PER_SECOND",
+    "SCRIPT_TRUE_ACTIONS",
+    "SELF_BUILD_HEAL_ANCHOR",
+    "SELF_BUILD_HEAL_ANCHOR_BYTES",
+    "SELF_BUILD_HEAL_STEP",
+    "SELF_BUILD_HEAL_STEP_BYTES",
     "SET_CHECKBOX_STATE",
     "SHARE_EXPERIENCE",
     "SHARE_EXPERIENCE_CALC",
@@ -1310,10 +1413,14 @@ __all__ = [
     "SHROUD_RECORD_BASE",
     "SHROUD_RECORD_STRIDE",
     "SIDES_INFO_DICT",
+    "SIDES_INFO_SCRIPT_LIST",
+    "SIDES_INFO_STRIDE",
     "SIDES_LIST_GET_SIDE_INFO",
     "SIDES_LIST_GET_SIDE_INFO_BYTES",
     "SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE",
     "SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE_BYTES",
+    "SIDES_LIST_SIDES",
+    "SIDES_LIST_SIDE_COUNT",
     "SLEEPY_UPDATE_DISPATCH",
     "SPECIAL_POWER_FIELD_TABLE",
     "SPECIAL_POWER_FIELD_TABLE_REFS",
@@ -1366,6 +1473,7 @@ __all__ = [
     "SUBSYSTEM_LOAD_LEGEND_FILES",
     "SUBSYSTEM_REGISTER",
     "TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT",
+    "TERRAIN_LOGIC_MAP_PATH",
     "TERRAIN_RESOURCE_BUILD_FIELD_PARSE",
     "TERRAIN_RESOURCE_DEFAULT_STORES",
     "TERRAIN_RESOURCE_DEFAULT_STORES_BYTES",
@@ -1509,6 +1617,9 @@ __all__ = [
     "WINDOW_TRANSITION_REVERSE",
     "WINDOW_TRANSITION_REVERSE_BYTES",
     "WINDOW_TRANSITION_SET_GROUP",
+    "WORLDBUILDER_ASCIISTRING_SET",
+    "WORLDBUILDER_ASCIISTRING_SET_2",
+    "WORLDBUILDER_ASCIISTRING_SET_LENGTH",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_CTOR",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_DTOR",
@@ -1520,6 +1631,11 @@ __all__ = [
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CLEANUP",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_RUNTIME_FACTORY_STOCK",
+    "WORLDBUILDER_PARAMETER_UI_TEXT_SWITCH",
+    "WORLDBUILDER_SCRIPT_ACTION_TEMPLATES_INIT",
+    "WORLDBUILDER_SCRIPT_CONDITION_TEMPLATES_INIT",
+    "WORLDBUILDER_SCRIPT_TEMPLATE_FLAGS_OR",
+    "WORLDBUILDER_STRLEN",
     "WRITE_MINI_DUMP",
     "WRITE_MINI_DUMP_BYTES",
     "WRITE_MINI_DUMP_CALL_FILTER",
@@ -1735,6 +1851,43 @@ GAME_INFO_MAP_SIZE = 0x48
 GAME_INFO_OPTIONS = 0x5C
 GAME_INFO_STARTING_RESOURCES = 0x70
 
+# The header fields `ParseAsciiStringToGameInfo` commits, named by the key each is parsed from
+# (`docs/game-info.md` §7). `GAME_TYPE` (`GT`) is the first dword of what §4 calls the options
+# block - its setter re-seeds the rules from it - and `RULES` (`GR`) is the ten dwords after it,
+# copied in with one `memcpy`, so `GAME_INFO_STARTING_RESOURCES` is rule 4. `MAP_CONTENTS_MASK`
+# is the hex prefix of `M=`, and `SI`'s meaning is unknown: -1 in every replay.
+GAME_INFO_MAP_CONTENTS_MASK = 0x4C
+GAME_INFO_SEED = 0x50
+GAME_INFO_SI = 0x58
+GAME_INFO_GAME_TYPE = 0x5C
+GAME_INFO_RULES = 0x60
+GAME_INFO_RULES_COUNT = 10
+GAME_INFO_GSID = 0x88
+
+# `ParseAsciiStringToGameInfo(GameInfo *, AsciiString, bool keepNames)` - `__cdecl`, the caller
+# pops twelve bytes, and the string arrives **by value** and is destroyed by the callee. It is the
+# inverse of the replay header's `GameInfoToAsciiString` (`0x008023C1`): replay playback
+# (`0x0077F280`) and the skirmish lobby's `Skirmish.ini` load (`0x00821D2E`, into
+# `TheSkirmishGameInfo`) both call it. It parses into eight local slots and commits nothing
+# unless every one of `M MC MS SD GSID GT SI GR S` was seen and every slot token parsed, so a
+# rejected string leaves the target untouched. `keepNames` false lets an `H` slot with no name
+# keep the one the target already holds.
+GAME_INFO_PARSE = 0x00802DBA
+GAME_INFO_PARSE_ENTRY = bytes.fromhex("b8ca90b900")
+#: The parser's key strings, in the order they sit in `.rdata` - which is also how a build whose
+#: parser moved is refused, since nothing else references this run.
+GAME_INFO_PARSE_KEYS = 0x00C4E73C
+GAME_INFO_PARSE_KEYS_BYTES = (
+    b"SI\x00\x00GT\x00\x00GSID\x00\x00\x00\x00GR\x00\x00SD\x00\x00MS\x00\x00%X\x00\x00MC\x00\x00"
+)
+
+# The three map setters, each `__thiscall` with one stack argument and `ret 4`; `setMap`'s is an
+# `AsciiString` by value, which it destroys. `setMapCRC` and `setMapSize` store the value and then
+# consult `TheMapCache`, so a cave restoring them calls the setter rather than writing the field.
+GAME_INFO_SET_MAP = 0x00801C46
+GAME_INFO_SET_MAP_CRC = 0x0080298E
+GAME_INFO_SET_MAP_SIZE = 0x00802A49
+
 # `GameSlot`, `0x1B8` bytes. The three `ORIGINAL_` fields mirror their counterparts - the lobby's
 # requested-versus-granted pair - and every sample taken has them equal. `MAP_PLAYER` is an
 # `AsciiString` reading `Player_<START_POS + 1>`: it binds a seat to the map-side player that owns
@@ -1785,9 +1938,14 @@ GAME_INFO_GET_SLOT = 0x00800B55
 
 # `GameSlot::m_state`. 1, 2 and 6 are the values observed; the display name at `GAME_SLOT_NAME`
 # reads "Closed" and "Easy" against the first two, which is what names them. `GameSlot::isHuman`
-# (`0x008009A7`) is exactly `m_state == 6`.
+# (`0x008009A7`) is exactly `m_state == 6`. The rest are read out of `GAME_INFO_PARSE`, which maps
+# the slot letters straight onto them: `O` 0, `X` 1, `CE`/`CM`/`CH`/`CB` 2-5 and `H` 6.
+GAME_SLOT_STATE_OPEN = 0
 GAME_SLOT_STATE_CLOSED = 1
 GAME_SLOT_STATE_EASY_AI = 2
+GAME_SLOT_STATE_MEDIUM_AI = 3
+GAME_SLOT_STATE_HARD_AI = 4
+GAME_SLOT_STATE_BRUTAL_AI = 5
 GAME_SLOT_STATE_LOCAL_HUMAN = 6
 
 # The tail of the `-file` auto-start's skirmish branch: `push 2` / `mov ecx, edi` /
@@ -1836,6 +1994,12 @@ MAX_PLAYER_COUNT = 20
 # `Object::getHeightAboveTerrain` (`0x0070BC6E`), which is that call and one `fsubr`.
 THE_TERRAIN_LOGIC = 0x00DE4690
 TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT = 0x18
+
+# The loaded map's path, an `AsciiString` (`maps\<name>\<name>.map`). Found live in a `-file`
+# match, where both `GameInfo` globals are still null: `TheGameState`, `TheRecorder` and the
+# hot-key manager hold the same string, but this is the object the map was loaded into. Its
+# writer is not traced statically.
+TERRAIN_LOGIC_MAP_PATH = 0x4C
 
 THE_THING_FACTORY = 0x00DE4A40
 THE_UPGRADE_CENTER = 0x00DE45A0
@@ -5107,6 +5271,12 @@ GAME_ENGINE = 0x00DE4324
 #: `m_quitting`'s offset on the `GameEngine`: a byte, nonzero once the process is on its way out.
 GAME_ENGINE_QUITTING = 0x10
 
+#: `m_maxFPS`, the frame cap the main loop paces itself to: `0x0063A19C` loads it (`fild dword
+#: [esi+0xc]`) and spins each iteration out to `1000 / cap` ms, and nothing else sets the pace.
+#: Its source is `GLOBAL_DATA + GLOBAL_DATA_FPS_LIMIT`, pushed in through `GAME_ENGINE_SET_FPS_SLOT`
+#: at `0x00779DCF`. `docs/render-rate.md` §2 derives it.
+GAME_ENGINE_MAX_FPS = 0x0C
+
 #: The `call writeMiniDump` **inside the unhandled-exception filter** `0x0043D610` (the
 #: `SetUnhandledExceptionFilter` target, installed at `0x00437EB3` via the `push 0x43D610` at
 #: `0x00437EA6`). `esi` holds the `EXCEPTION_POINTERS` and `dl` the `fulldump` flag, both already
@@ -5490,6 +5660,11 @@ PREFERENCES_MAP_FIND = 0x00456726
 #: (`jmp dword [0x00BD06B4]`). All three are called from more than one cave.
 ASCII_STRING_CTOR = 0x004374E0
 ASCII_STRING_DTOR = 0x00435D50
+
+#: `AsciiString`'s copy constructor - `__thiscall`, the source `AsciiString *` on the stack,
+#: `ret 4`. It takes a reference rather than copying characters, which is how every by-value
+#: `AsciiString` argument is built: reserve the slot, point `ecx` at it, call this.
+ASCII_STRING_COPY_CTOR = 0x00435F30
 STRICMP = 0x00A3CF40
 
 # The ObjectImageUpgrade module's registration, stock TooltipUpgrade construction/layout twin,
@@ -5532,6 +5707,24 @@ WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_PARSER = 0x006D4C30
 # Use the same jump thunks the stock registration sequence calls, not private local aliases.
 WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_CTOR = 0x00402EE1
 WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_DTOR = 0x0040B0E6
+
+# Worldbuilder.exe's script template tables (`docs/worldbuilder-script-templates.md`). Two
+# debug-build functions fill fixed 0x80-byte records from `this+0x20`: actions at records 0-599,
+# conditions from record 600. Both take the table owner in ecx and end at their only `ret`.
+WORLDBUILDER_SCRIPT_ACTION_TEMPLATES_INIT = 0x00FE0AF0
+WORLDBUILDER_SCRIPT_CONDITION_TEMPLATES_INIT = 0x00FD8100
+# `push b; push a; call` returning `a | b`, the value stored in a record's flags field.
+WORLDBUILDER_SCRIPT_TEMPLATE_FLAGS_OR = 0x00FF3380
+# The AsciiString setters those functions call with the destination in ecx: two `(const char *)`
+# thunks, and the `(const char *, length)` routine behind them that inlined sets call directly.
+WORLDBUILDER_ASCIISTRING_SET = 0x00405191
+WORLDBUILDER_ASCIISTRING_SET_2 = 0x00402513
+WORLDBUILDER_ASCIISTRING_SET_LENGTH = 0x00710DC0
+# The CRT `strlen` the inlined sets measure their literal with.
+WORLDBUILDER_STRLEN = 0x016C368C
+# `Parameter::getUiText`'s jump table over the 78 parameter types (`cmp type, 0x4d`); each case
+# prints one argument, and the enum cases hold their value names.
+WORLDBUILDER_PARAMETER_UI_TEXT_SWITCH = 0x00AAE408
 
 # The persistent left spellbook bar, not the purchase-science / spellstore window.
 # Original game.dat, verified against the cache function and its update caller.
@@ -6232,6 +6425,20 @@ GAME_ENGINE_INIT_GLOBAL_DATA_CALL = 0x0063AFA4
 GAME_ENGINE_INIT_GLOBAL_DATA_CALL_BYTES = bytes.fromhex("e85bb4ffff")
 GAME_ENGINE_INIT_MOD_CALL = 0x0063AFB2
 GAME_ENGINE_INIT_MOD_CALL_BYTES = bytes.fromhex("e88dfa1700")
+
+#: `GameMain(int argc, char **argv)` - `WinMain` calls it at `0x00402CB9` with its own argument
+#: count and the array it built - pushes both again, calls `GameEngine::init` through vtable slot
+#: `+0x38` and tail-jumps into `execute`. It has no frame of its own, so from inside `init` its
+#: return address sits at `[ebp+0x10]` and its arguments at `[ebp+0x14]` and `[ebp+0x18]`, and
+#: nothing between `WinMain` and the end of `init` writes them. `init`'s own `[ebp+8]` and
+#: `[ebp+0xC]` are no substitute past `GAME_ENGINE_INIT_MOD_CALL`: the function reuses both as
+#: scratch (`[ebp+0xC]` from `0x0063AFD3`, `[ebp+8]` from `0x0063BA88`, last at `0x0063CB66`), so
+#: at `COMMAND_LINE_SKIRMISH_SETUP` they hold stack addresses. The `ebp` displacements below are
+#: from `init`'s frame. The CRT builds `argv` (`__getmainargs`), so a quoted argument arrives whole.
+GAME_MAIN = 0x006443B0
+GAME_MAIN_BYTES = bytes.fromhex("e83ed9dbffff742408a32443de00ff7424088b108bc8ff5238")
+GAME_MAIN_ARGC = 0x14
+GAME_MAIN_ARGV = 0x18
 COMMAND_LINE_PARSE_AND_MOUNT_MODS = 0x007BAA44
 COMMAND_LINE_PARSE = 0x007BA7E1
 COMMAND_LINE_STARTUP_TABLE = 0x00C35DA8
@@ -6509,6 +6716,132 @@ SCRIPT_KEY_COMPOSE = 0x0072C43C
 #: The integer slot of a script `Parameter`, beside `SCRIPT_PARAMETER_NUMBER` (real) and
 #: `SCRIPT_PARAMETER_STRING`. `CREATE_UNIT_REVIVAL_ENTRY_AT_LEVEL` reads its level from here.
 SCRIPT_PARAMETER_INT = 0x8
+
+#: The live script tree, derived in `docs/script-debugger.md` §2. `SidesList` holds
+#: `SIDES_LIST_SIDE_COUNT` sides from `SIDES_LIST_SIDES` on, `SIDES_INFO_STRIDE` apart, and each
+#: `SidesInfo` **embeds** its `ScriptList` at `SIDES_INFO_SCRIPT_LIST`. Side `i` is player `i`: the
+#: per-frame driver walks both lists with one index.
+SIDES_LIST_SIDE_COUNT = 0x3C
+SIDES_LIST_SIDES = 0x40
+SIDES_INFO_STRIDE = 0x60
+SIDES_INFO_SCRIPT_LIST = 0x08
+
+#: A `ScriptList` is two node chains (top-level groups, top-level scripts) over two name-keyed
+#: pools. A node is `{next, entry index, generation}`; the entry, `SCRIPT_LIST_ENTRY_SIZE` bytes in
+#: the pool's array, holds the **name** and a chain of objects whose first one, plus 4, is the
+#: current `ScriptGroup *` / `Script *` (`0x007B5379`, `0x007B53D8`). A node whose generation no
+#: longer matches its entry's is stale, and the engine's walk skips it (`0x007B53EF`).
+SCRIPT_LIST_GROUPS = 0x04
+SCRIPT_LIST_SCRIPTS = 0x08
+SCRIPT_LIST_GROUP_ENTRIES = 0x18
+SCRIPT_LIST_SCRIPT_ENTRIES = 0x38
+SCRIPT_LIST_ENTRY_SIZE = 0x14
+SCRIPT_LIST_ENTRY_NAME = 0x08
+SCRIPT_LIST_ENTRY_GENERATION = 0x0E
+SCRIPT_LIST_ENTRY_OBJECTS = 0x10
+SCRIPT_NODE_NEXT = 0x00
+SCRIPT_NODE_INDEX = 0x04
+SCRIPT_NODE_GENERATION = 0x08
+
+#: `ScriptGroup`: its own child-group and script node chains (groups nest), then two flags. An
+#: inactive group skips its scripts **and** its child groups; a subroutine group only runs when
+#: called.
+SCRIPT_GROUP_GROUPS = 0x04
+SCRIPT_GROUP_SCRIPTS = 0x08
+SCRIPT_GROUP_ACTIVE = 0x0C
+SCRIPT_GROUP_SUBROUTINE = 0x0D
+
+#: `Script`, from the chunk reader `0x007B83CC` and writer `0x007B63E8`. `SCRIPT_AUTHORED_ACTIVE`
+#: is the flag as the map wrote it; `SCRIPT_ACTIVE` is the live copy the due check reads and a
+#: one-shot clears. `SCRIPT_SEQUENTIAL` is the first byte of the fire-actions-sequentially block,
+#: and selects `SCRIPT_ENGINE_EXECUTE_SEQUENTIAL` over `SCRIPT_ENGINE_EXECUTE_SCRIPT`.
+#: `SCRIPT_DELAY_SECONDS` becomes `SCRIPT_NEXT_FRAME = frame + seconds * LOGIC_RATE` each run.
+SCRIPT_SEQUENTIAL = 0x10
+SCRIPT_DELAY_SECONDS = 0x20
+SCRIPT_AUTHORED_ACTIVE = 0x28
+SCRIPT_ONE_SHOT = 0x29
+SCRIPT_SUBROUTINE = 0x2A
+SCRIPT_EASY = 0x2B
+SCRIPT_NORMAL = 0x2C
+SCRIPT_HARD = 0x2D
+SCRIPT_CONDITIONS = 0x30
+SCRIPT_TRUE_ACTIONS = 0x34
+SCRIPT_FALSE_ACTIONS = 0x38
+SCRIPT_NEXT_FRAME = 0x3C
+SCRIPT_ACTIVE = 0x40
+
+#: How a script runs. Every execution - the per-frame walk and both call-subroutine paths - reaches
+#: `SCRIPT_ENGINE_RUN_SCRIPT(Script *, AsciiString *name)` (`__thiscall`, `ret 8`), which checks
+#: `SCRIPT_IS_DUE`, reschedules, and dispatches. `SCRIPT_ENGINE_RUN_SCRIPT_NODES(list, node,
+#: validate)` walks one script chain, skipping subroutines; `SCRIPT_ENGINE_RUN_GROUP_NODES(list,
+#: node)` recurses through groups. `SCRIPT_ENGINE_CALL_SUBROUTINE` is the by-name entry the
+#: call-subroutine actions use. `SCRIPT_ENGINE_CURRENT_PLAYER` is the `Player *` being evaluated,
+#: whose AI difficulty wins over `SCRIPT_ENGINE_DIFFICULTY` in the due check.
+SCRIPT_ENGINE_RUN_SCRIPT = 0x0060A15C
+SCRIPT_ENGINE_RUN_SCRIPT_NODES = 0x0060A377
+SCRIPT_ENGINE_RUN_GROUP_NODES = 0x0060BCE5
+SCRIPT_ENGINE_CALL_SUBROUTINE = 0x0060BD42
+SCRIPT_ENGINE_EXECUTE_SCRIPT = 0x006099DC
+SCRIPT_ENGINE_EXECUTE_SEQUENTIAL = 0x00609C3A
+SCRIPT_IS_DUE = 0x00603878
+SCRIPT_ENGINE_CURRENT_PLAYER = 0x1A230
+SCRIPT_ENGINE_DIFFICULTY = 0x1A5C4
+
+#: The script debugger's pause, derived in `docs/script-debugger.md` §1. The frame dispatcher
+#: runs the client phase (render, camera, input), then asks `SCRIPT_DEBUG_PAUSED` - `thiscall` on
+#: `TheScriptEngine`, plain `ret`, returning `al` - and on true skips the sub-frame advance and the
+#: logic phase. So a pause freezes the simulation and nothing else. The predicate is true only
+#: while `DebugWindowLite.dll` is loaded and its `CanAppContinue` (polled into
+#: `SCRIPT_DEBUG_CAN_CONTINUE` by `SCRIPT_DEBUG_POLL_CONTINUE` just before) said no, so a debugger
+#: without the DLL redirects `FRAME_DISPATCHER_PAUSE_CALL` instead. `SCRIPT_DEBUG_RUN_FAST` is the
+#: `RunAppFast` query the main loop uses to skip rendering - not a pause. `SCRIPT_DEBUG_IS_PAUSED`
+#: is the engine's own "either predicate" query for the rest of the game.
+FRAME_DISPATCHER = 0x006325A0
+FRAME_DISPATCHER_PAUSE_CALL = 0x006325C4
+FRAME_DISPATCHER_PAUSE_CALL_BYTES = bytes.fromhex("e8890efdff")
+SCRIPT_DEBUG_PAUSED = 0x00603452
+SCRIPT_DEBUG_POLL_CONTINUE = 0x00604189
+SCRIPT_DEBUG_CAN_CONTINUE = 0x00DE3B9C
+SCRIPT_DEBUG_RUN_FAST = 0x00603491
+SCRIPT_DEBUG_IS_PAUSED = 0x00441E23
+
+#: What a script trace hooks, derived in `docs/script-debugger.md` §2.1. `executeScript` calls the
+#: run-script logger - `cdecl (AsciiString *key, Bool isTrue, Bool pause)` - at the four sites of
+#: `SCRIPT_EXECUTE_LOG_CALLS`, each just before it runs a **non-empty** action list, with the
+#: `Script *` in `esi` and `TheScriptEngine` in `edi` at every one. The sequential path never logs;
+#: it evaluates at `SCRIPT_SEQUENTIAL_EVALUATE_CALL` (`edi` the `Script *`) and queues the true
+#: actions when that says yes. `SCRIPT_ENGINE_EVALUATE` is `thiscall (Script *, 0, 0)`, `ret 0xC`,
+#: answering in `al`; `SCRIPT_ENGINE_RUN_ACTIONS` is `thiscall (ScriptAction *list, Script *,
+#: AsciiString *)`. `SCRIPT_ENGINE_CURRENT_OBJECT` is the team member a team script is running for.
+SCRIPT_DEBUG_RUN_SCRIPT_LOG = 0x00604F1C
+SCRIPT_EXECUTE_LOG_CALLS = {
+    0x00609AE7: bytes.fromhex("e830b4ffff"),  # true actions, per team member
+    0x00609B37: bytes.fromhex("e8e0b3ffff"),  # false actions, per team member
+    0x00609BB5: bytes.fromhex("e862b3ffff"),  # true actions
+    0x00609BF4: bytes.fromhex("e823b3ffff"),  # false actions
+}
+SCRIPT_SEQUENTIAL_EVALUATE_CALL = 0x00609C55
+SCRIPT_SEQUENTIAL_EVALUATE_CALL_BYTES = bytes.fromhex("e8b5f6ffff")
+SCRIPT_ENGINE_EVALUATE = 0x0060930F
+SCRIPT_ENGINE_RUN_ACTIONS = 0x0060C1C9
+SCRIPT_ENGINE_CURRENT_OBJECT = 0x1A218
+
+#: How the per-frame driver (`0x0060CDAA`..) puts a player's scripts in scope, which is what a
+#: script run from outside it has to repeat. `SCRIPT_SCOPE_ENTER` is the constructor of a 12-byte
+#: guard - `thiscall (AsciiString *target, AsciiString *value)`, `ret 8` - that saves `target`
+#: and copies `value` in; `SCRIPT_SCOPE_LEAVE` (`thiscall`, `ret`) copies it back. The value is the
+#: player's name: `NAME_KEY_TO_NAME` (`thiscall` on `THE_NAME_KEY_GENERATOR`, `ret 4`) of the
+#: player's name key at `PLAYER_NAME_KEY`, returning an `AsciiString *`.
+SCRIPT_SCOPE_ENTER = 0x00604243
+SCRIPT_SCOPE_LEAVE = 0x0060428D
+SCRIPT_SCOPE_GUARD_SIZE = 0x0C
+NAME_KEY_TO_NAME = 0x00548700
+PLAYER_NAME_KEY = 0x50
+
+#: `GameLogic::m_gameMode`. `GameLogic::isInMultiplayerGame` (`0x00441B7C`) is membership of
+#: `NETWORK_GAME_MODES`; 3 is replay playback. Derived in `docs/observer-switch.md`.
+GAME_LOGIC_GAME_MODE = 0x110
+NETWORK_GAME_MODES = (1, 5)
 
 
 #: `Object::toArmyRecord(record)` - thiscall on the **Object**, `ret 4`, no living-world state
@@ -7578,3 +7911,89 @@ INI_PARSE_COORD3D_BYTES = bytes.fromhex("56578b7c240c68f843bd00")
 
 #: :data:`INI_PARSE_REAL`'s opening bytes, for a patch that wraps it to assert it is still there.
 INI_PARSE_REAL_BYTES = bytes.fromhex("8b4c24046a00e894efffff")
+
+
+#: `Object+0x25C` - the object's `BodyModule`, and the three getter slots on its vtable that the
+#: construction arithmetic reads. `+0x10` is `getHealth`, `+0x14` `getHealthRatio` (health over
+#: maximum, so `[0, 1]`) and `+0x1C` `getMaxHealth`; all three are `__thiscall`, take no argument
+#: and return in `st(0)`. The fourth slot the same code uses,
+#: :data:`ACTIVE_BODY_INTERNAL_CHANGE_HEALTH_SLOT`, is `+0x84`.
+OBJECT_BODY_MODULE = 0x25C
+BODY_GET_HEALTH_SLOT = 0x10
+BODY_GET_HEALTH_RATIO_SLOT = 0x14
+BODY_GET_MAX_HEALTH_SLOT = 0x1C
+
+#: `Object+0x288` - the construction percent, `0` to `100`, or `-1.0` for "not being built".
+OBJECT_CONSTRUCTION_PERCENT = 0x288
+
+#: The four places the engine drives a structure's health to exactly **one hit point** because it
+#: is about to be built, as `{call VA: the whole sequence's VA}`. All four are byte-for-byte the
+#: same shape - `push 0` (the `DamageInfo`), `call [vtable+0x10]` (`getHealth`),
+#: `fsubr [FLOAT_ONE]`, `push ecx` to reserve the float slot, `fstp [esp]`, then
+#: `call [vtable+0x84]` (`internalChangeHealth`) - so the hooked call always sees `ecx` = the
+#: body, `[esp+4]` = the delta and `[esp+8]` = a NULL `DamageInfo`.
+#:
+#: `0x0079541F` is `BuildAssistant`'s: health, then `Object+0x288 = 0`, then `UNDER_CONSTRUCTION`.
+#: `0x00858975` is `GettingBuiltBehavior`'s rebuild, and `0x008AD88E` the builder placing a
+#: foundation; both set `Object+0x288 = 0` and `AWAITING_CONSTRUCTION` around it. `0x0088D59E` is
+#: the `DozerAIUpdate` helper that restarts a build, which sets `UNDER_CONSTRUCTION` at
+#: `0x0088D616`.
+CONSTRUCTION_INITIAL_HEALTH_CALLS = (0x0079541F, 0x00858975, 0x0088D59E, 0x008AD88E)
+CONSTRUCTION_INITIAL_HEALTH_CALL_BYTES = {
+    0x0079541F: bytes.fromhex("ff9784000000"),
+    0x00858975: bytes.fromhex("ff9784000000"),
+    0x0088D59E: bytes.fromhex("ff9784000000"),
+    0x008AD88E: bytes.fromhex("ff9384000000"),
+}
+#: The sequence around each of those calls, from the `Object+0x25C` load onwards - what makes the
+#: hooked call `internalChangeHealth(1.0 - health, NULL)` rather than some other body call.
+CONSTRUCTION_INITIAL_HEALTH_ANCHORS = {
+    0x00795400: bytes.fromhex(
+        "8b9e5c02000085db741b8b3b6a008bcbff5710d82d0819bd00518bcbd91c24ff9784000000"
+    ),
+    0x0085895A: bytes.fromhex("8b9e5c0200008b3b6a008bcbff5710d82d0819bd00518bcbd91c24ff9784000000"),
+    0x0088D581: bytes.fromhex(
+        "8b8b5c0200008b396a00894df8ff5710d82d0819bd00518b4df8d91c24ff9784000000"
+    ),
+    0x008AD866: bytes.fromhex(
+        "8b8e5c0200000f57c0f30f1186880200008b196a00894d18ff5310d82d0819bd00518b4d18d91c24"
+        "ff9384000000"
+    ),
+}
+
+#: The `DozerAIUpdate` construction ramp's health step: `call [esi+0x1C]` (`getMaxHealth`) then
+#: `fdiv [ebp-0x1C]` (the frame count the hooked `calcTimeToBuild` produced). Six bytes, and the
+#: cave that replaces them keeps the `ebp` the caller set up, because the divisor is its local.
+CONSTRUCTION_RAMP_HEALTH_STEP = 0x0088DEA8
+CONSTRUCTION_RAMP_HEALTH_STEP_BYTES = bytes.fromhex("ff561cd875e4")
+#: The ramp step in context: `ecx` is the body and `[ebp-0x10]` keeps it across the call.
+CONSTRUCTION_RAMP_ANCHOR = 0x0088DEA1
+CONSTRUCTION_RAMP_ANCHOR_BYTES = bytes.fromhex(
+    "8b316a00894df0ff561cd875e4518b4df0d91c24ff9684000000"
+)
+
+#: `GettingBuiltBehavior::update`'s self-build heal, the path taken when no builder is driving the
+#: structure: `call [eax+0x1C]` (`getMaxHealth`) then `fild [esi+0x1C]` (`RebuildTimeSeconds` as a
+#: frame count), divided one into the other at `0x00857FD4` to give the per-frame amount.
+SELF_BUILD_HEAL_STEP = 0x00857FC1
+SELF_BUILD_HEAL_STEP_BYTES = bytes.fromhex("ff501cdb461c")
+SELF_BUILD_HEAL_ANCHOR = 0x00857FAF
+SELF_BUILD_HEAL_ANCHOR_BYTES = bytes.fromhex(
+    "8b9f5c02000085db0f84da0000008b038bcbff501cdb461c8b461c85c07d06d8059886bd00def9"
+    "8b4704f6801f01000020d95df0"
+)
+
+#: The two places the engine derives the construction percent back **out of** the health ratio -
+#: `call [vtable+0x14]`, `fmul [FLOAT_HUNDRED]`, `fstp [Object+0x288]`. `0x00856800` is
+#: `GettingBuiltBehavior`'s resync when neither of its two in-progress flags is set; `0x00858078`
+#: is the self-build update, one instruction after the heal it just applied. Nine bytes each, and
+#: identical.
+CONSTRUCTION_PERCENT_FROM_RATIO = (0x00856800, 0x00858078)
+CONSTRUCTION_PERCENT_FROM_RATIO_BYTES = bytes.fromhex("ff5014d80dd888bd00")
+CONSTRUCTION_PERCENT_FROM_RATIO_ANCHORS = {
+    0x008567F8: bytes.fromhex("8b8f5c0200008b01ff5014d80dd888bd00d99f88020000"),
+    0x00858074: bytes.fromhex("8b038bcbff5014d80dd888bd00d99f88020000"),
+}
+
+#: `100.0f`, the scale both percent derivations and the `DozerAIUpdate` ramp share.
+FLOAT_HUNDRED = 0x00BD88D8

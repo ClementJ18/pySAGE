@@ -34,6 +34,12 @@ class TestLaunchArguments:
         assert given.is_absolute()
         assert given == tree.resolve()
 
+    def test_several_mod_trees_pass_one_mod_each_in_order(self, tmp_path: Path):
+        first, second = tmp_path / "a", tmp_path / "b"
+        arguments = launch_arguments("m.map", "g.dat", mod=[first, second], windowed=False)
+        assert arguments[3:] == ["-mod", str(first.resolve()), "-mod", str(second.resolve())]
+        assert "-mod" not in launch_arguments("m.map", "g.dat", mod=())
+
     def test_windowed_carries_the_resolution(self):
         arguments = launch_arguments("m.map", "g.dat", windowed=True, resolution=(800, 600))
         assert "-win" in arguments
@@ -47,6 +53,17 @@ class TestLaunchArguments:
     def test_extra_arguments_come_last(self):
         arguments = launch_arguments("m.map", "g.dat", extra=("-noaudio",))
         assert arguments[-1] == "-noaudio"
+
+    def test_no_game_info_unless_asked_for(self):
+        """Without it the patch starts its own default match, which is the old behaviour."""
+        assert "-gameInfo" not in launch_arguments("m.map", "g.dat")
+
+    def test_game_info_is_one_argument_even_with_spaces(self):
+        """The rules list and a map name both hold spaces; split into several arguments, the
+        cave would hand the parser only the first piece and it would reject it."""
+        text = "M=000maps/a b;GR=0 0 1 100 1000 -1 -1 -1 -1 -1;"
+        arguments = launch_arguments("m.map", "g.dat", game_info=text)
+        assert arguments[3:5] == ["-gameInfo", text]
 
 
 class TestInstallMap:

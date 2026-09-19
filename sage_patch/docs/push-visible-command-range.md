@@ -7,7 +7,7 @@ vanilla mechanism to show a different window of the set is a command button whos
 `m_command[start .. start+count)`.
 
 Overshooting that window is a **stock engine crash**, and one the raised limit inherits.
-`CommandSetLimitPatch`'s Phase 3 clamps it; §4 is what changes.
+`CommandSetLimitPatch`'s visible-range clamp trims it; §4 is what changes.
 
 ## The rule
 
@@ -78,7 +78,7 @@ fatal on its own, even when `start + count` stays inside `m_command[]`.
 
 ```asm
 00943df6  mov  eax, [ebp-0x18]        ; the CommandSet
-00943df9  push dword [eax+0x98]       ; InitialVisible   (relocated to the array end by Phase 1)
+00943df9  push dword [eax+0x98]       ; InitialVisible   (relocated to the array end by the patch)
 00943dff  lea  ecx, [ebp-0x40]
 00943e02  push 0                      ; start = 0
 00943e04  call 0x007f8c91             ; Range(&r, 0, InitialVisible)
@@ -109,7 +109,7 @@ of page-2 buttons — here `49 − 33 = 16`:
 
 If a per-map variant of the same button targets the set, apply the identical ceiling there.
 
-## 4. The clamp (`CommandSetLimitPatch` Phase 3)
+## 4. The clamp (`CommandSetLimitPatch`)
 
 The fix is one hook, at the fetch rather than at the loops: the three passes read the record
 after it has been trimmed, so all three become safe from a single edit. The two later loop heads

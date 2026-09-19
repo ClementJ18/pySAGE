@@ -255,7 +255,7 @@ On top of §4.2, when the first answer is `8` (objects), sweep the footprint thr
 that leaves a clean camp rather than an overlapping one.
 
 - **Cost:** materially more cave, a partition query and a `destroyObject` loop, and a policy
-  decision about enemy units standing on a camp being unpacked. This is a second phase, not part
+  decision about enemy units standing on a camp being unpacked. This is a follow-up, not part
   of a first cut.
 - An INI surface is affordable if wanted: `CastleBehavior`'s module data is `0x78` bytes with the
   last named field at `+0x75`, so **`+0x76` and `+0x77` are free** and a new `Bool` keyword needs

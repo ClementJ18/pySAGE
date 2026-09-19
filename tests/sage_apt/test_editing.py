@@ -1,4 +1,4 @@
-"""Phase 6.5 editing depth - add / delete a placeobject and prove it survives the writer.
+"""Editing depth - add / delete a placeobject and prove it survives the writer.
 
 The add/duplicate/delete/drag/undo operations live in the editor's JavaScript (manual
 checklist); what an automated test can pin is that the *shape of XML the JS produces*

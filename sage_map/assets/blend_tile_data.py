@@ -7,6 +7,13 @@ if TYPE_CHECKING:
     from .height_map import HeightMapData
 
 
+def _stored_count(length: int, raw: int) -> int:
+    """The on-disk N+1 count for a list of `length`, keeping a parsed raw 0 while still empty."""
+    if length == 0 and raw == 0:
+        return 0
+    return length + 1
+
+
 class BlendDirection(IntEnum):
     """Direction of a texture blend transition."""
 
@@ -197,6 +204,9 @@ class BlendTileData:
     tiberium_growability: list[list[bool]] | None
     dynamic_shrubbery_density: list[list[int]] | None
     texture_cell_count: int
+    # Both counts are stored as N+1, but some maps store a raw 0 for an empty list; keeping the
+    # raw value lets write reproduce that 0 instead of normalizing it to 1.
+    blends_count_raw: int
     parsed_cliff_texture_mappings_count: int
     textures: list[BlendTileTexture]
     magic_value1: int
@@ -352,6 +362,7 @@ class BlendTileData:
             tiberium_growability=tiberium_growability,
             dynamic_shrubbery_density=dynamic_shrubbery_density,
             texture_cell_count=texture_cell_count,
+            blends_count_raw=blends_count_raw,
             parsed_cliff_texture_mappings_count=parsed_cliff_texture_mappings_count,
             textures=textures,
             magic_value1=magic_value1,
@@ -425,8 +436,14 @@ class BlendTileData:
                 )
 
             context.stream.writeUInt32(self.texture_cell_count)
-            context.stream.writeUInt32(len(self.blend_descriptions) + 1)
-            context.stream.writeUInt32(len(self.cliff_texture_mappings) + 1)
+            context.stream.writeUInt32(
+                _stored_count(len(self.blend_descriptions), self.blends_count_raw)
+            )
+            context.stream.writeUInt32(
+                _stored_count(
+                    len(self.cliff_texture_mappings), self.parsed_cliff_texture_mappings_count
+                )
+            )
             context.stream.writeUInt32(len(self.textures))
             for texture in self.textures:
                 texture.write(context)

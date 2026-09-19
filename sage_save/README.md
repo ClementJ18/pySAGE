@@ -29,7 +29,7 @@ reporting the danglers - "will this save still load under this mod tree". Two cl
 harvested: object templates (`CHUNK_GameLogic`), which are *non-fatal* - the engine drops the
 object at load - and the upgrade/science names (`CHUNK_Players`, via `sage_save.players`),
 which are *fatal* - a dangling one aborts the load. The remaining classes (kind-of flags,
-command buttons) await a fuller chunk decode; see "Phase 3 - work still to do" in
+command buttons) await a fuller chunk decode; see the work still to do in
 [sav_format.md](sav_format.md).
 
 The framing follows the GPL Generals/Zero Hour `XferSave` source
@@ -69,7 +69,7 @@ open("save.json", "w").write(save_to_json(save))
 edited = apply_json(save, {"game_state": {"saved_at": "2030-12-25T09:00:00"}})
 write_save_to_path(edited, "edited.sav")
 
-# Cross-reference against a loaded game (Phase 3)
+# Cross-reference against a loaded game
 from sage_ini.loader import load_game
 game = load_game("path/to/data/ini").game
 for finding in check_save(save, game):

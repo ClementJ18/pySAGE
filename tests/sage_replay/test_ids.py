@@ -1,4 +1,4 @@
-"""Id extraction, run-collapsing, label parsing and alignment (Phase 2 tooling)."""
+"""Id extraction, run-collapsing, label parsing and alignment."""
 
 from pathlib import Path
 

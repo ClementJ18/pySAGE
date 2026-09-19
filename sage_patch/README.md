@@ -3,10 +3,10 @@
 Reverse-engineering + binary-patch work on the ROTWK SAGE engine (build `2.01.2614.37001`). The
 patches below are all engine-level — they apply to any ROTWK install of that build and benefit
 every mod on it (Edain among them), not one in particular. All of them target `game.dat` except
-twelve, which patch other binaries from the same install. Eleven patch `Worldbuilder.exe` —
+thirteen, which patch other binaries from the same install. Twelve patch `Worldbuilder.exe` —
 `worldbuilder-mod`, `worldbuilder-label-assert`, `worldbuilder-silent-errors` and
-`worldbuilder-object-typeahead`, plus the seven **twins** that carry a game-side patch's INI surface
-across to the editor: `desert-weather-wb`, `healing-received-wb`, `herobar-wb`,
+`worldbuilder-object-typeahead`, plus the eight **twins** that carry a game-side patch's INI surface
+across to the editor: `cah-factions-wb`, `desert-weather-wb`, `healing-received-wb`, `herobar-wb`,
 `object-image-upgrade-wb`, `production-condition-wb`, `production-split-wb` and
 `science-prereqs-wb`. Each twin
 lives in the same module as its game-side half. `standalone-launcher` patches the launcher shim
@@ -226,6 +226,14 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   **Runtime-verified in game.**
 - **`cah-factions`** teaches the nine-name Create-A-Hero faction enum a caller-supplied list of mod
   sides plus an `All` token, so a `SubClass` can name them in `UsableFactions`.
+- **`cah-factions-wb`** is the authoring half of that, and lives in the same module. Worldbuilder
+  parses `CreateAHeroClass` out of its own two copies of the same nine-name table, and calls the
+  enum `BitFlags<9,enum FactionType>` in its assert strings — a `9` baked into ten `cmp`s as well
+  as into the table. Left alone the editor is quiet rather than loud about it:
+  `INI::scanIndexListFromString` answers **0** for a name it cannot find, so `UsableFactions =
+  Rohan` reads as `Men`. The patch rebuilds both copies into one superset table, raises all ten bit
+  counts and moves the terminator address `testNameArray` asserts on. Pass the same `--sides` in
+  the same order as the game half, since a token resolves to an index.
 - **`campaign-army-verbs`** restores the two BFME1 campaign `Act` verbs ROTWK
   dropped: **`MergePlayerArmy`**, which moves roster entries from one living-world army into
   another, and **`DespawnArmy = <name>`**, which takes an army off the world map. A merge either
@@ -374,6 +382,28 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   `PUSH_VISIBLE_COMMAND_RANGE` button that overshoots runs both the widget array and
   `m_command[]` off their ends. The clamp trims the window where it is read, so an oversized page
   draws the buttons it has and nothing faults. The shipped build uses **N = 64**.
+- **`construction-initial-health`** starts a structure's construction at a **percentage of its
+  maximum health** — 10% by default, `--percent N` — instead of at the single hit point the engine
+  gives it. The window the patch exists for is the one between placing a foundation and the builder
+  reaching it: the structure is already on the map, already paid for, and already killable by
+  anything that wanders past, because nothing has begun ramping its health yet. Construction health
+  is one number read in two directions, so three things move together. Four sites set the start
+  (`BuildAssistant`'s placement, the builder's foundation, `GettingBuiltBehavior`'s rebuild and a
+  `DozerAIUpdate` restart — all four found by scanning `.text` for the `fsubr [FLOAT_ONE]` signature
+  rather than by following call graphs, which is what makes four a closed set); both per-frame ramps
+  are scaled by `1 - percent` so the curve still lands on full health exactly at completion rather
+  than reaching it at 90% and sitting there; and the two places the engine recovers the construction
+  percent back **out of** the health ratio are inverted to match, without which a self-building
+  structure would read 10% complete the frame it was placed and finish a tenth early — a build-speed
+  change wearing a durability patch's clothes. `--percent 0` is stock, because all three transforms
+  are the identity at zero. It is a starting health and not a floor: a building under construction
+  can still be shot down, and a builder interrupted early still leaves a cheap kill. Composes with
+  `production-split`, which hooks `calcTimeToBuild` twenty-seven bytes above the ramp step this
+  rewrites; that patch's anchor over `DozerAIUpdate` is split in two around the bytes this one owns,
+  and the ramp reads the frame count it produced at run time, so a `PRODUCTION_CONSTRUCTION`
+  modifier stretches the health curve exactly as it stretches the percent curve. Logic-side, so
+  **every peer needs the same binary**. No INI change. **Not runtime-verified.** See
+  [`docs/construction-initial-health.md`](docs/construction-initial-health.md).
 - **`contained-horde-respawn`** makes **`RespawnNearbyHordeMembers` work alongside
   `AffectsContained`** on `AutoHealBehavior`, so a garrison tower or a transport **replenishes** the
   battalion inside it instead of only healing it. `AutoHealBehavior::update` is an if/else chain over
@@ -2235,8 +2265,11 @@ sage-patch apply desync-debug --focus-frame 3500 --verify-client-crc --in game.d
 
 # make `-file maps\<name>.map` start a playable skirmish instead of an empty one: fills the
 # GameInfo slots the auto-start leaves random, sets the starting resources, and null-guards a
-# loading-screen window a menu-less start never creates. --human-faction / --ai-faction are
-# indices into the loaded mod's PlayerTemplate order (3 and 10 are Men and Mordor in Edain)
+# loading-screen window a menu-less start never creates. `-gameInfo "<lobby string>"` on the
+# game's command line then chooses the match - seats, factions, AI difficulty, teams, start
+# positions, rules, seed - through the engine's own lobby parser (sage_test.game_info builds it).
+# --human-faction / --ai-faction are the default match without it, as indices into the loaded
+# mod's PlayerTemplate order (3 and 10 are Men and Mordor in Edain)
 # EXPERIMENTAL - `apply` prints the warning before it writes; see the note at the top
 sage-patch apply command-line-skirmish --in game.dat.backup --out game.dat
 sage-patch verify command-line-skirmish game.dat

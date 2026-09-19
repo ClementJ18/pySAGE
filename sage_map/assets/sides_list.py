@@ -163,17 +163,17 @@ class BuildLists:
 @dataclass
 class Player:
     properties: dict[str, Property]
-    build_list_items: dict[str, BuildListInfo]
+    # In file order: the order is the build order, and two entries may share a name.
+    build_list_items: list[BuildListInfo]
 
     @classmethod
     def parse(cls, context: "ParsingContext", version: int, has_asset_list: bool) -> Self:
         properties = context.properties_to_dict(context.parse_properties())
 
         build_list_count = context.stream.readUInt32()
-        build_lists = {}
-        for _ in range(build_list_count):
-            item = BuildListInfo.parse(context, version, has_asset_list)
-            build_lists[item.build_name] = item
+        build_lists = [
+            BuildListInfo.parse(context, version, has_asset_list) for _ in range(build_list_count)
+        ]
 
         context.logger.debug(f"Parsed Side with {len(build_lists)} build list items")
 
@@ -185,7 +185,7 @@ class Player:
     def write(self, context: "WritingContext", has_asset_list: bool) -> None:
         context.write_properties(context.dict_to_properties(self.properties))
         context.stream.writeUInt32(len(self.build_list_items))
-        for item in self.build_list_items.values():
+        for item in self.build_list_items:
             item.write(context, has_asset_list)
 
 

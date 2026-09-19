@@ -1,13 +1,46 @@
 """Qt stylesheet themes shared by the SAGE front ends: one template filled from a
 dark and a light colour palette."""
 
+import sys
+from pathlib import Path
 from string import Template
+
+# Resolves under `sys._MEIPASS` in a PyInstaller build, like the other bundled assets.
+_ASSETS = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "assets"
 
 _THEME = Template("""
 QWidget { background: $bg; color: $text; font-size: 14px; }
 /* Labels/checkboxes are transparent so they show the card behind them, not the
    window background painted by the QWidget rule above. */
-QLabel, QCheckBox { background: transparent; }
+QLabel, QCheckBox, QRadioButton { background: transparent; }
+/* The indicators are drawn here rather than by the platform style: under a stylesheet the native
+   checked box or radio button loses its outline and is hard to tell from an unchecked one. */
+QCheckBox::indicator {
+    width: 14px; height: 14px; border: 1px solid $muted; border-radius: 4px;
+    background: $surface;
+}
+QCheckBox::indicator:hover { border-color: $accent; }
+QCheckBox::indicator:checked { background: $accent; border-color: $accent; image: url("$check"); }
+QCheckBox::indicator:disabled { background: $control; border-color: $border; }
+QCheckBox::indicator:checked:disabled { background: $primaryDisabled; border-color: $border; }
+/* A radio button is a ring; checked, it gets the accent ring and an accent dot inside it. */
+QRadioButton::indicator {
+    width: 14px; height: 14px; border: 1px solid $muted; border-radius: 8px;
+    background: $surface;
+}
+QRadioButton::indicator:hover { border-color: $accent; }
+QRadioButton::indicator:checked {
+    border: 2px solid $accent; width: 12px; height: 12px;
+    background: qradialgradient(cx: 0.5, cy: 0.5, radius: 0.5, fx: 0.5, fy: 0.5,
+        stop: 0 $accent, stop: 0.55 $accent, stop: 0.6 $surface, stop: 1 $surface);
+}
+QRadioButton::indicator:disabled { background: $control; border-color: $border; }
+QRadioButton::indicator:checked:disabled {
+    border-color: $border;
+    background: qradialgradient(cx: 0.5, cy: 0.5, radius: 0.5, fx: 0.5, fy: 0.5,
+        stop: 0 $primaryDisabled, stop: 0.55 $primaryDisabled,
+        stop: 0.6 $control, stop: 1 $control);
+}
 /* The selection colours are set explicitly: without them Qt falls back to the desktop
    palette for highlighted text, which on a light theme renders white on white and makes a
    selected value unreadable. An editable QComboBox draws through this same rule. */
@@ -97,6 +130,46 @@ QTabBar::tab {
 }
 QTabBar::tab:selected { background: $surface; color: $text; }
 QTabBar::tab:hover { color: $accent; }
+/* Dock title bars: without these the float and close buttons keep the platform's black glyphs,
+   which vanish on the dark theme. */
+QDockWidget {
+    titlebar-close-icon: url("$dockClose");
+    titlebar-normal-icon: url("$dockFloat");
+}
+QDockWidget::title {
+    background: $control; color: $text;
+    padding: 5px 6px; border-bottom: 1px solid $border; text-align: left;
+}
+QDockWidget::close-button, QDockWidget::float-button {
+    background: transparent; border: none; border-radius: 4px; padding: 1px;
+}
+QDockWidget::close-button:hover, QDockWidget::float-button:hover { background: $border; }
+QDockWidget::close-button:pressed, QDockWidget::float-button:pressed { background: $muted; }
+/* Tool buttons: a checked one (the active tool, a lock) is marked here, because the platform
+   style's sunken look does not show under a stylesheet on the dark theme. */
+QToolBar { background: $bg; border: none; spacing: 2px; padding: 2px; }
+QToolButton {
+    background: transparent; border: 1px solid transparent; border-radius: 5px;
+    padding: 3px 7px;
+}
+QToolButton:hover { background: $control; border-color: $border; }
+QToolButton:checked { background: $selection; border-color: $accent; color: $text; }
+QToolButton:pressed { background: $border; }
+QToolButton:disabled { color: $disabledText; }
+/* Menus are drawn by the stylesheet so a checkable item (a View toggle, an exclusive choice) gets
+   a full-size box like QCheckBox's: left to the platform style it is squeezed into a sliver.
+   Styling the items also takes over their hover colour, so that is set here too. */
+QMenu { background: $surface; border: 1px solid $border; padding: 4px; }
+QMenu::item { padding: 5px 28px 5px 32px; border-radius: 4px; background: transparent; }
+QMenu::item:selected { background: $selection; color: $text; }
+QMenu::item:disabled { color: $disabledText; }
+QMenu::separator { height: 1px; background: $border; margin: 4px 8px; }
+QMenu::indicator {
+    width: 14px; height: 14px; left: 9px;
+    border: 1px solid $muted; border-radius: 4px; background: $surface;
+}
+QMenu::indicator:checked { background: $accent; border-color: $accent; image: url("$check"); }
+QMenu::indicator:disabled { border-color: $border; background: $control; }
 """)
 
 DARK = {
@@ -134,5 +207,17 @@ LIGHT = {
     "selection": "rgba(192, 138, 46, 0.25)",
 }
 
-DARK_STYLE = _THEME.substitute(DARK)
-LIGHT_STYLE = _THEME.substitute(LIGHT)
+# The check mark is dark ink, which reads on the accent fill of both themes.
+_CHECK = (_ASSETS / "check.svg").as_posix()
+
+
+def _dock_icons(theme: str) -> dict[str, str]:
+    """The dock title bar glyphs drawn in the theme's text colour."""
+    return {
+        "dockClose": (_ASSETS / f"dock_close_{theme}.svg").as_posix(),
+        "dockFloat": (_ASSETS / f"dock_float_{theme}.svg").as_posix(),
+    }
+
+
+DARK_STYLE = _THEME.substitute(DARK, check=_CHECK, **_dock_icons("dark"))
+LIGHT_STYLE = _THEME.substitute(LIGHT, check=_CHECK, **_dock_icons("light"))

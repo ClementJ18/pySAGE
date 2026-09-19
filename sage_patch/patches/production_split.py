@@ -210,12 +210,18 @@ ANCHORS: dict[int, bytes] = {
         "e86006eeffeb1dff76088b490c50e888ecdcffeb0f8b76088b49086aff5650"
     ),
     # the construction advance: edi is the structure, the hooked call returns frames, and both
-    # `100 / frames` and `maxHealth / frames` are computed from it
+    # `100 / frames` and `maxHealth / frames` are computed from it. Split in two around the six
+    # bytes at 0x0088DEA8 - the `call getMaxHealth` + `fdiv` of the health step - because
+    # `construction-initial-health` rewrites exactly those to re-map the health curve. Everything
+    # this patch depends on is still pinned: the percent accumulate and the hooked call below,
+    # the frame count landing in `[ebp-0x1C]`, and above, that the health step's own divisor is
+    # that same local.
     0x0088DE43: bytes.fromhex(
         "f30f1087880200000f2e05dc19bd009ff6c4440f8bfa0200008b4dec8b77046aff51e80ed8dfff50"
         "8bcee82ce5eafff30f100dd888bd008b8f5c020000f30f2ac0f30f1145e4f30f5ec8"
-        "f30f108788020000f30f58c1f30f1187880200008b316a00894df0ff561cd875e4518b4df0d91c24ff9684"
+        "f30f108788020000f30f58c1f30f1187880200008b316a00894df0"
     ),
+    0x0088DEAE: bytes.fromhex("518b4df0d91c24ff96"),
     # `calcTimeToBuild`'s head: `__thiscall`, three args, BuildTime read from template+0x4EC
     0x0073C39E: bytes.fromhex(
         "558bec837d10ff5356578bf1750fe88ffcfffff30f1080ec040000eb05f30f2a4510"

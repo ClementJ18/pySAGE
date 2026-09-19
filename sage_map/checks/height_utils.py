@@ -1,4 +1,9 @@
-"""Utility functions for working with height maps and object positions."""
+"""Utility functions for working with height maps and object positions.
+
+Every function here takes **cell coordinates**: an object's world position divided by 10 (the
+world units per heightmap cell), with (0, 0) at the inner corner of the border. A radius is in
+cells too. So an object at world (1200, 800) is at cells (120, 80).
+"""
 
 from typing import TYPE_CHECKING
 
@@ -6,31 +11,31 @@ if TYPE_CHECKING:
     from ..map import Map
 
 
-def is_flat_at_position(map_obj: "Map", obj_x: float, obj_y: float, radius: float) -> bool:
+def is_flat_at_position(map_obj: "Map", cell_x: float, cell_y: float, radius: float) -> bool:
     """
-    Check if all height data within a radius of an object's position is at the same level.
+    Check if all height data within a radius of a position is at the same level.
 
     Args:
         map_obj: The Map object containing height map data
-        obj_x: Object's x position in world coordinates (bottom-left origin)
-        obj_y: Object's y position in world coordinates (bottom-left origin)
-        radius: Radius in world units to check around the position
+        cell_x: x in cells from the border's bottom-left corner
+        cell_y: y in cells from the border's bottom-left corner
+        radius: Radius in cells to check around the position
 
     Returns:
         True if all heights within radius are the same, False otherwise
 
     Note:
-        - Object position (0,0) is at the world border's bottom-left corner
+        - Position (0,0) is at the world border's bottom-left corner
         - This corresponds to heightmap position (border_width, border_width)
-        - Heightmap uses top-left origin, object positions use bottom-left origin
+        - Heightmap rows start at the top, positions count up from the bottom
     """
     height_map = map_obj.height_map_data
     assert height_map is not None
     border = height_map.border_width
     world_height = height_map.height - 2 * border
 
-    hm_x = obj_x + border
-    hm_y = border + (world_height - obj_y - 1)
+    hm_x = cell_x + border
+    hm_y = border + (world_height - cell_y - 1)
 
     center_x_int = int(round(hm_x))
     center_y_int = int(round(hm_y))
@@ -60,14 +65,15 @@ def is_flat_at_position(map_obj: "Map", obj_x: float, obj_y: float, radius: floa
     return True
 
 
-def flatten_position_in_radius(map_obj: "Map", obj_x: float, obj_y: float, radius: float) -> None:
+def flatten_position_in_radius(map_obj: "Map", cell_x: float, cell_y: float, radius: float) -> None:
+    """Set every height within `radius` cells of the position to the height at its centre."""
     height_map = map_obj.height_map_data
     assert height_map is not None
     border = height_map.border_width
     world_height = height_map.height - 2 * border
 
-    hm_x = obj_x + border
-    hm_y = border + (world_height - obj_y - 1)
+    hm_x = cell_x + border
+    hm_y = border + (world_height - cell_y - 1)
 
     center_x_int = int(round(hm_x))
     center_y_int = int(round(hm_y))
@@ -95,14 +101,14 @@ def flatten_position_in_radius(map_obj: "Map", obj_x: float, obj_y: float, radiu
                 height_map.elevations[sample_y][sample_x] = center_height
 
 
-def get_height_at_position(map_obj: "Map", obj_x: float, obj_y: float) -> int | None:
+def get_height_at_position(map_obj: "Map", cell_x: float, cell_y: float) -> int | None:
     """
-    Get the height value at a specific object position.
+    Get the height value at a position.
 
     Args:
         map_obj: The Map object containing height map data
-        obj_x: Object's x position in world coordinates
-        obj_y: Object's y position in world coordinates
+        cell_x: x in cells from the border's bottom-left corner
+        cell_y: y in cells from the border's bottom-left corner
 
     Returns:
         The height value at that position, or None if out of bounds
@@ -112,8 +118,8 @@ def get_height_at_position(map_obj: "Map", obj_x: float, obj_y: float) -> int | 
     border = height_map.border_width
     world_height = height_map.height - 2 * border
 
-    hm_x = int(round(obj_x + border))
-    hm_y = int(round(border + (world_height - obj_y - 1)))
+    hm_x = int(round(cell_x + border))
+    hm_y = int(round(border + (world_height - cell_y - 1)))
 
     if not (0 <= hm_x < height_map.width and 0 <= hm_y < height_map.height):
         return None
@@ -121,14 +127,14 @@ def get_height_at_position(map_obj: "Map", obj_x: float, obj_y: float) -> int | 
     return height_map.elevations[hm_y][hm_x]
 
 
-def world_to_heightmap_coords(map_obj: "Map", obj_x: float, obj_y: float) -> tuple[int, int]:
+def world_to_heightmap_coords(map_obj: "Map", cell_x: float, cell_y: float) -> tuple[int, int]:
     """
-    Convert world coordinates (bottom-left origin) to heightmap coordinates (top-left origin).
+    Convert a position (bottom-left origin) to indices into `elevations` (top-left origin).
 
     Args:
         map_obj: The Map object containing height map data
-        obj_x: Object's x position in world coordinates
-        obj_y: Object's y position in world coordinates
+        cell_x: x in cells from the border's bottom-left corner
+        cell_y: y in cells from the border's bottom-left corner
 
     Returns:
         Tuple of (heightmap_x, heightmap_y) coordinates
@@ -138,21 +144,21 @@ def world_to_heightmap_coords(map_obj: "Map", obj_x: float, obj_y: float) -> tup
     border = height_map.border_width
     world_height = height_map.height - 2 * border
 
-    hm_x = int(round(obj_x + border))
-    hm_y = int(round(border + (world_height - obj_y - 1)))
+    hm_x = int(round(cell_x + border))
+    hm_y = int(round(border + (world_height - cell_y - 1)))
 
     return (hm_x, hm_y)
 
 
-def get_flatness_percentage(map_obj: "Map", obj_x: float, obj_y: float, radius: float) -> float:
+def get_flatness_percentage(map_obj: "Map", cell_x: float, cell_y: float, radius: float) -> float:
     """
     Calculate the percentage of terrain within a radius that is at the same height as the center.
 
     Args:
         map_obj: The Map object containing height map data
-        obj_x: Object's x position in world coordinates (bottom-left origin)
-        obj_y: Object's y position in world coordinates (bottom-left origin)
-        radius: Radius in world units to check around the position
+        cell_x: x in cells from the border's bottom-left corner
+        cell_y: y in cells from the border's bottom-left corner
+        radius: Radius in cells to check around the position
 
     Returns:
         Percentage (0.0 to 1.0) of points within radius that match the center height
@@ -162,8 +168,8 @@ def get_flatness_percentage(map_obj: "Map", obj_x: float, obj_y: float, radius: 
     border = height_map.border_width
     world_height = height_map.height - 2 * border
 
-    hm_x = obj_x + border
-    hm_y = border + (world_height - obj_y - 1)
+    hm_x = cell_x + border
+    hm_y = border + (world_height - cell_y - 1)
 
     center_x_int = int(round(hm_x))
     center_y_int = int(round(hm_y))

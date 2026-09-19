@@ -21,7 +21,7 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Callable, Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 if sys.platform == "win32":
@@ -38,6 +38,7 @@ __all__ = [
     "find_install",
     "find_installs",
     "registry_reader",
+    "user_data_dir",
 ]
 
 
@@ -218,6 +219,38 @@ def find_install(
     """The first install of ``game``, or `None`. The common case behind :func:`find_installs`."""
     installs = find_installs([game], reader, roots)
     return installs[0] if installs else None
+
+
+def user_data_dir(
+    game: str = "rotwk",
+    reader: Reader = registry_reader,
+    appdata: Path | None = None,
+) -> Path | None:
+    """The per-user folder the game keeps user maps, replays, saves and autosaves in.
+
+    The installer records its leaf name (``UserDataLeafName``) next to ``InstallPath``, and the
+    game joins it onto ``%APPDATA%``. The name varies between releases of the same game, which is
+    why several ``My ... Files`` folders can sit side by side and only the recorded one is live.
+    Returns `None` when the game or the value is unknown; the folder itself may not exist yet."""
+    spec = next((candidate for candidate in GAMES if candidate.key == game), None)
+    if spec is None:
+        return None
+    leaf = next(
+        (
+            value
+            for key in spec.registry
+            if (value := reader(replace(key, value="UserDataLeafName")))
+        ),
+        None,
+    )
+    if leaf is None:
+        return None
+    if appdata is None:
+        raw = os.environ.get("APPDATA")
+        if not raw:
+            return None
+        appdata = Path(raw)
+    return appdata / leaf
 
 
 def describe(installs: Iterable[Install]) -> str:

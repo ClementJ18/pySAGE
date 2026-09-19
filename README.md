@@ -3,7 +3,7 @@
 A collection of Python tools for reading, editing, linting and visualising the data
 formats of the **SAGE engine** - the engine behind *Command & Conquer: Generals* and
 *The Battle for Middle-earth*. It grew out of an ini parser and now spans ini game data,
-binary maps, replays, and UI, with a domain overlay for the Edain mod.
+binary maps, replays, UI and a map editor, with a domain overlay for the Edain mod.
 
 Everything installs as one package with optional extras (see [Install](#install)). Each
 subproject has its own README with the details; this page is the map.
@@ -37,6 +37,7 @@ Can be downloaded pre-packaged from here: https://www.moddb.com/games/battle-for
 
 | Project | What it is |
 | --- | --- |
+| [`sage_worldbuilder`](sage_worldbuilder/README.md) | A replacement for WorldBuilder, the BFME map editor: opens, edits and saves `.map` and `.bse` files against the installed game and its mods, with a top-down and a 3D view, terrain, texture, road, water, script, team and camera editing, and Jump To Game to launch what you are looking at. |
 | [`sage_wiki`](sage_wiki/README.md) | Desktop tool that updates Edain wiki infoboxes from parsed game data through the MediaWiki API. |
 | [`sage_ui`](sage_ui/README.md) | PyQt6 desktop browser for SAGE game data: load sources, search an object, see its resolved stats. |
 | [`sage_verify`](sage_verify/README.md) | Maphack detection: follows a replay playing back in a live client and checks every targeted order against the engine's own shroud grid - you cannot click what you cannot see. Also compares a running client's `binary-attest` hash against the `game.dat` it should be running. |
@@ -57,14 +58,15 @@ Requires Python ≥ 3.12. The project is **pySAGE**; on PyPI it is published as 
 > *not* get you this project - install `pysage-tools`.
 
 ```sh
-pip install pysage-tools             # core library + linter
-pip install "pysage-tools[ui]"       # + the PyQt6 desktop apps (sage-ui)
-pip install "pysage-tools[wiki]"     # + the wiki updater
-pip install "pysage-tools[apt]"      # + reading .const/.apt out of .big archives
-pip install "pysage-tools[asset-ui]" # + the SAGE Asset desktop app (build/combine asset.dat)
-pip install "pysage-tools[w3d-view]" # + the OpenGL model viewer (sage-w3d view)
-pip install "pysage-tools[patch]"    # + the game.dat disassembly/RE tools
-pip install "pysage-tools[all]"      # + everything above at once
+pip install pysage-tools                 # core library + linter
+pip install "pysage-tools[ui]"           # + the PyQt6 desktop apps (sage-ui)
+pip install "pysage-tools[wiki]"         # + the wiki updater
+pip install "pysage-tools[apt]"          # + reading .const/.apt out of .big archives
+pip install "pysage-tools[asset-ui]"     # + the SAGE Asset desktop app (build/combine asset.dat)
+pip install "pysage-tools[w3d-view]"     # + the OpenGL model viewer (sage-w3d view)
+pip install "pysage-tools[worldbuilder]" # + the map editor (sage-worldbuilder)
+pip install "pysage-tools[patch]"        # + the game.dat disassembly/RE tools
+pip install "pysage-tools[all]"          # + everything above at once
 ```
 
 From a clone, for development, swap the name for an editable install of the checkout:
@@ -73,28 +75,29 @@ From a clone, for development, swap the name for an editable install of the chec
 pip install -e ".[ui]"
 ```
 
-The extras (`ui`, `lint-ui`, `wiki`, `apt`, `asset-ui`, `cah-ui`, `w3d-view`, `patch`, and
-`all` for the lot) pull in the optional dependencies each peripheral tool needs. The ini, map,
-replay, asset, w3d, cah and patch layers are stdlib-only and always ship, so no extra is needed
-to parse, lint or diff a map, to build and combine an asset.dat from the command line, or to
-apply and verify a game.dat patch. The one non-optional dependency is `reversebox` on
-Windows, the native RefPack compressor that makes saving large maps fast (its DLL is Windows-only,
-so other platforms use the byte-identical pure-Python compressor).
+The extras (`ui`, `lint-ui`, `wiki`, `apt`, `asset-ui`, `cah-ui`, `w3d-view`, `patch`,
+`worldbuilder`, and `all` for the lot) pull in the optional dependencies each peripheral tool
+needs. The ini, map, replay, asset, w3d, cah and patch layers are stdlib-only and always ship,
+so no extra is needed to parse, lint or diff a map, to build and combine an asset.dat from the
+command line, or to apply and verify a game.dat patch. The one non-optional dependency is
+`reversebox` on Windows, the native RefPack compressor that makes saving large maps fast (its
+DLL is Windows-only, so other platforms use the byte-identical pure-Python compressor).
 
 Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-live`,
 `sage-replay`, `sage-apt`, `sage-map`, `sage-save`, `sage-asset`, `sage-w3d`, `sage-cah`,
 `sage-patch`, `sage-verify` (and the GUI scripts `sage-ui`, `sage-wiki`, `sage-lint-ui`,
-`sage-asset-ui`, the SAGE Asset builder/combiner window, and `sage-cah-ui`, the SAGE Custom
-Hero editor).
+`sage-asset-ui`, the SAGE Asset builder/combiner window, `sage-cah-ui`, the SAGE Custom
+Hero editor, and `sage-worldbuilder`, the map editor).
 
 ### Mod overlays
 
 pySAGE stays engine-generic. Knowledge of one mod's data - which faction owns which structure,
 which powers field permanent units, which map conventions a mod expects - lives in its own
 overlay package, wired in through the hooks this repo exposes (`sage_utils.factiongraph`,
-`sage_replay`'s aggregate hooks, `sage_map.checks`, `sage_lint`'s rule interface). The Edain
-overlay is [pySAGE-edain](https://github.com/ClementJ18/pySAGE-edain) (`sage_edain`): faction
-graphs, map checks, patch notes, horde formations, a Worldbuilder launcher and a skirmish bot.
+`sage_replay`'s aggregate hooks, `sage_map.checks`, `sage_lint`'s rule interface, the map rules
+`sage-worldbuilder` takes as `extra_checks`). The Edain overlay is
+[pySAGE-edain](https://github.com/ClementJ18/pySAGE-edain) (`sage_edain`): faction graphs, map
+checks, patch notes, horde formations, a Worldbuilder launcher and a skirmish bot.
 
 ## Tests
 

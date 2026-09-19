@@ -62,6 +62,27 @@ class TestSeat:
         assert scenario.human is scenario.seats[0]
         assert Scenario("t", seats=(Seat.easy_ai(faction=1),)).human is None
 
+    def test_an_easy_ai_is_still_easy(self):
+        seat = Seat.easy_ai(faction=10)
+        assert seat.ai
+        assert seat.difficulty == "easy"
+
+    def test_a_computer_seat_carries_its_difficulty(self):
+        seat = Seat.computer(faction=10, difficulty="brutal", start_position=3)
+        assert seat.ai
+        assert seat.difficulty == "brutal"
+        assert seat.map_player == "Player_4"
+
+    def test_seats_that_declare_no_team_are_not_allies(self):
+        """The seats travel to the game as lobby data now, so a shared default team would put
+        the human and the AI on one side."""
+        assert Seat.human(faction=3).team == -1
+        assert Seat.easy_ai(faction=10).team == -1
+
+    def test_an_unknown_difficulty_is_refused(self):
+        with pytest.raises(ValueError, match="difficulty"):
+            Seat.computer(faction=10, difficulty="insane")
+
 
 class TestPlacing:
     def test_place_returns_a_handle_naming_what_was_placed(self):

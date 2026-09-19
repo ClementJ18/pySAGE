@@ -8,14 +8,14 @@ two that decide whether the feature is reachable, because neither has ever been 
   1. **Does a higher client rate actually buy distinct interpolated positions?**
      The interpolated transform is cached per drawable and stamped with the client frame, so
      more client frames only mean smoother motion if it is genuinely recomputed between them.
-     §8 asserts it is. Phase 3 counts recomputes and distinct outputs per logic frame across
-     many drawables, which is the whole value of the feature. Mind the offsets below: the
-     function §8 reads is **not** the one this build runs.
+     §8 asserts it is. `measure_interpolation` counts recomputes and distinct outputs per
+     logic frame across many drawables, which is the whole value of the feature. Mind the
+     offsets below: the function §8 reads is **not** the one this build runs.
 
   2. **Does frame-counted content really advance one unit per client frame?**
      The list at `[0x00DC78D4]`, walked by `0x004655F8`, is handed a hardcoded `1/30` second
      (`[0x00BDFC6C]`) once per client frame and expires an entry when its accumulator at
-     `+0x20` passes its lifetime at `+0x18`. Phase 4 measures the accumulator against the
+     `+0x20` passes its lifetime at `+0x18`. `measure_fx` measures the accumulator against the
      client frame: an increment of 0.0333 per client frame is "FX at double speed" proved
      mechanically rather than argued.
 
@@ -363,9 +363,9 @@ def measure_network(probe: Probe, seconds: float) -> dict:
         `0x006323A6` when `[0x00DE4468]` is null, so it cannot run in single-player or in a
         replay - **only on a networked client**, and only while it is waiting on a peer.
 
-    So the two questions this phase answers are "is `+0x38` the ratio the wrap uses" and "is it
-    moving", and the second one can only ever be yes off-host. Run this on both machines during
-    the same match and diff the two JSON files.
+    So the two questions this measurement answers are "is `+0x38` the ratio the wrap uses" and
+    "is it moving", and the second one can only ever be yes off-host. Run this on both machines
+    during the same match and diff the two JSON files.
     """
     engine = probe.pointer(THE_GAME_ENGINE)
     if engine is None:
@@ -632,7 +632,9 @@ def measure_fx(probe: Probe, seconds: float) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--seconds", type=float, default=3.0, help="sampling window per phase")
+    parser.add_argument(
+        "--seconds", type=float, default=3.0, help="sampling window per measurement"
+    )
     parser.add_argument("--json", type=Path, help="write the readings here for cross-run diffing")
     args = parser.parse_args()
 

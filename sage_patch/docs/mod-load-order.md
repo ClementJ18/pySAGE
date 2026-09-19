@@ -173,7 +173,7 @@ one had been applied first.
 `0x0063AF40` / `0x0063AF60`, before `GlobalData` is even allocated, so a mod still cannot replace
 the legend from loose files. Covering that needs the allocation and constructor at
 `0x0063AF65`-`0x0063AF82` moved ahead of the legend registration - a bigger rewrite of the
-function's opening, and a separate phase if it turns out a mod wants it.
+function's opening, and a separate change if it turns out a mod wants it.
 
 ### Testing
 

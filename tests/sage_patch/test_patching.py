@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from sage_ini.engine import STOCK
+from sage_ini.model.enums import CreateAHeroFaction
 from sage_patch import CahFactionsPatch, CommandSetLimitPatch, Patch, apply_patches
 from sage_patch.addresses import (
     CONTROL_BAR_MAX_VISIBLE,
@@ -654,7 +655,7 @@ def _synthetic_game_dat(base: int = 0x400000) -> bytearray:
     probe = CommandSetLimitPatch(count=64)
     tab_foff = cs._TABLE_VA - base
     highest = tab_foff + 34 * 16
-    for off, old, _new, _note in probe._phase1_edits(64):
+    for off, old, _new, _note in probe._object_edits(64):
         highest = max(highest, off + len(old))
     highest = max(highest, cs._PARSER_TABLE_REF + 5, cs._GETFIELDPARSE_REF + 5)
     highest = max(highest, cs._RANGE_FETCH_SITE + len(CONTROL_BAR_RANGE_FETCH_BYTES))
@@ -693,7 +694,7 @@ def _plant_commandset_sites(data: bytearray, base: int = 0x400000) -> None:
     applied to ``data``. Kept separate so a test can host both patches in one image."""
     probe = CommandSetLimitPatch(count=64)
     # The `old` half of each edit is N-independent, so any probe count will do.
-    for off, old, _new, _note in probe._phase1_edits(64):
+    for off, old, _new, _note in probe._object_edits(64):
         data[off : off + len(old)] = old
     data[cs._PARSER_TABLE_REF : cs._PARSER_TABLE_REF + 5] = b"\x68" + struct.pack(
         "<I", cs._TABLE_VA
@@ -702,7 +703,7 @@ def _plant_commandset_sites(data: bytearray, base: int = 0x400000) -> None:
         "<I", cs._TABLE_VA
     )
 
-    # Phase 3: the visible-range fetch the clamp replaces, and the two uncapped loop heads it
+    # The visible-range fetch the clamp replaces, and the two uncapped loop heads it
     # protects - which `apply` refuses to clamp unless it recognises them.
     fetch = cs._RANGE_FETCH_SITE
     data[fetch : fetch + len(CONTROL_BAR_RANGE_FETCH_BYTES)] = CONTROL_BAR_RANGE_FETCH_BYTES
@@ -749,7 +750,8 @@ class TestApplyProducesVerifiablePatch:
 
     def test_the_ai_scan_bound_stops_one_short_of_the_count_field(self):
         """The bound is unchecked (`getCommandButton` is a bare `[this + i*4 + 0x14]`), so `N`
-        must visit indices 0..N-1 and never index N, where Phase 1 puts the count field."""
+        must visit indices 0..N-1 and never index N, where the object growth puts the count
+        field."""
         count = 64
         data = _synthetic_game_dat()
         CommandSetLimitPatch(count=count).apply(data)
@@ -759,7 +761,7 @@ class TestApplyProducesVerifiablePatch:
 
     @pytest.mark.parametrize("count", [MIN_COUNT, 64, MAX_COUNT])
     def test_the_range_fetch_jumps_to_the_clamp(self, count):
-        """Phase 3 replaces the whole eleven-byte fetch with a jump into the cave, padded with
+        """The clamp replaces the whole eleven-byte fetch with a jump into the cave, padded with
         `nop` so the site keeps its length. The clamp sits past the table and the slot names."""
         data = _synthetic_game_dat()
         CommandSetLimitPatch(count=count).apply(data)
@@ -1120,6 +1122,31 @@ class TestCahFactionsValidation:
 
     def test_no_sides_is_valid_and_still_adds_all(self):
         assert CahFactionsPatch().entry_count == len(cf.STOCK_SIDES) + 1
+
+
+class TestCahFactionsIniSurface:
+    """What the patch tells a tool that only ever reads the `.sagepatch`."""
+
+    def test_it_names_all_and_every_side_at_the_index_the_binary_gives_it(self):
+        surface = CahFactionsPatch(sides=["Rohan", "Imladris"]).ini_surface()
+        assert [(d.enum, d.name, d.value) for d in surface.enum_members] == [
+            ("CreateAHeroFaction", "All", cf.ALL_INDEX),
+            ("CreateAHeroFaction", "Rohan", cf.ALL_INDEX + 1),
+            ("CreateAHeroFaction", "Imladris", cf.ALL_INDEX + 2),
+        ]
+
+    def test_a_patch_with_no_sides_still_names_all(self):
+        surface = CahFactionsPatch().ini_surface()
+        assert [d.name for d in surface.enum_members] == [cf.ALL_NAME]
+
+    def test_the_surface_applies_and_types_default_faction(self):
+        """The point of declaring it: `DefaultFaction = Rohan` stops being an unknown token."""
+        assert "Rohan" not in CreateAHeroFaction.__members__
+        with CahFactionsPatch(sides=["Rohan"]).ini_surface().activate() as problems:
+            assert problems == []
+            assert CreateAHeroFaction["Rohan"].name == "Rohan"
+            assert CreateAHeroFaction[cf.ALL_NAME].name == cf.ALL_NAME
+        assert "Rohan" not in CreateAHeroFaction.__members__
 
 
 class TestCahFactionsApply:

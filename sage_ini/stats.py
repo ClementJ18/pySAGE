@@ -24,7 +24,7 @@ __all__ = [
 ]
 
 # Metrics planned but not yet implemented; printed as pending so the scoreboard
-# shape stays stable across phases.
+# shape stays stable as metrics are added.
 PENDING_METRICS: tuple[str, ...] = ()
 
 

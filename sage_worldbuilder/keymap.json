@@ -1,0 +1,463 @@
+{
+  "source": {
+    "file": "worldbuilder.exe",
+    "sha1": "5baab1c3757ea5de800139f173f3ce0315663932"
+  },
+  "accelerators": [
+    {
+      "keys": "H",
+      "command": 32771,
+      "label": "Height Brush",
+      "menu": null,
+      "description": "Draw the height on the height map."
+    },
+    {
+      "keys": "S",
+      "command": 32791,
+      "label": "Smooth Height",
+      "menu": null,
+      "description": "Smooths the height levels in the height map."
+    },
+    {
+      "keys": "Y",
+      "command": 32792,
+      "label": "Large Tile",
+      "menu": null,
+      "description": "Draws a Brush Options Size block of the current texture tile."
+    },
+    {
+      "keys": "Shift+H",
+      "command": 32900,
+      "label": "Mound",
+      "menu": null,
+      "description": "Adds height to (raises) the height map."
+    },
+    {
+      "keys": "Ctrl+H",
+      "command": 32901,
+      "label": "Dig",
+      "menu": null,
+      "description": "Removes height from (lowers) the height map."
+    },
+    {
+      "keys": "T",
+      "command": 32902,
+      "label": "Single Tile",
+      "menu": null,
+      "description": "Draws the current texture tile."
+    },
+    {
+      "keys": "F",
+      "command": 32903,
+      "label": "Flood Fill",
+      "menu": null,
+      "description": "Fills an area with the current texture.  Hold SHIFT key to replace all occurrences of the texture under the tool."
+    },
+    {
+      "keys": "Shift+E",
+      "command": 32905,
+      "label": "Auto Edge Out",
+      "menu": null,
+      "description": "Auto edges the current texture area outward."
+    },
+    {
+      "keys": "Alt+E",
+      "command": 32906,
+      "label": "Auto Edge In",
+      "menu": null,
+      "description": "Auto edges the current texture area inward."
+    },
+    {
+      "keys": "P",
+      "command": 32918,
+      "label": "Place Object",
+      "menu": null,
+      "description": "Places the current object in Object Selection panel. Drag to orient."
+    },
+    {
+      "keys": "E",
+      "command": 32922,
+      "label": "Blend Single Edge",
+      "menu": null,
+      "description": "Blends a single tile edge.  Right mouse uses foreground texture."
+    },
+    {
+      "keys": "Ctrl+L",
+      "command": 32925,
+      "label": null,
+      "menu": null,
+      "description": null
+    },
+    {
+      "keys": "Ctrl+B",
+      "command": 32926,
+      "label": "Show Object Icons",
+      "menu": "View/Show Object Icons",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+T",
+      "command": 32927,
+      "label": "Show Texture",
+      "menu": "View/Show Texture",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+R",
+      "command": 32930,
+      "label": null,
+      "menu": null,
+      "description": null
+    },
+    {
+      "keys": "Del",
+      "command": 32931,
+      "label": "Delete",
+      "menu": "Edit/Delete",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+W",
+      "command": 32934,
+      "label": "Show Wireframe 3D View",
+      "menu": "View/Show Wireframe 3D View",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+E",
+      "command": 32935,
+      "label": null,
+      "menu": null,
+      "description": null
+    },
+    {
+      "keys": "R",
+      "command": 32937,
+      "label": "Road",
+      "menu": null,
+      "description": "Click and Drag to make Roads."
+    },
+    {
+      "keys": "Ctrl+Shift+G",
+      "command": 32939,
+      "label": null,
+      "menu": null,
+      "description": null
+    },
+    {
+      "keys": "Ctrl+D",
+      "command": 32942,
+      "label": "Change Time Of Day",
+      "menu": "View/Change Time Of Day",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+A",
+      "command": 32943,
+      "label": "Show All of 3d Map",
+      "menu": "View/Show All of 3d Map",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+F",
+      "command": 32944,
+      "label": "Show From Top Down View",
+      "menu": "View/Show From Top Down View",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+U",
+      "command": 32945,
+      "label": "Show Clouds",
+      "menu": "View/Show Clouds",
+      "description": null
+    },
+    {
+      "keys": "W",
+      "command": 32964,
+      "label": "Waypoint Tool",
+      "menu": null,
+      "description": "Add and connect waypoints."
+    },
+    {
+      "keys": "Ctrl+Alt+P",
+      "command": 32970,
+      "label": "Edit Player List",
+      "menu": "Edit/Edit Player List",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+Alt+R",
+      "command": 32977,
+      "label": "Scripts",
+      "menu": "Edit/Scripts",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+Alt+T",
+      "command": 32978,
+      "label": "Edit Teams",
+      "menu": "Edit/Edit Teams",
+      "description": null
+    },
+    {
+      "keys": "C",
+      "command": 32979,
+      "label": "Fence",
+      "menu": null,
+      "description": "Places a row of objects.  Drag then use shift to stretch."
+    },
+    {
+      "keys": "Ctrl+I",
+      "command": 32981,
+      "label": "Show Impassable Areas",
+      "menu": "View/Tile Feedback/Show Impassable Areas",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+M",
+      "command": 32988,
+      "label": "Select Similar",
+      "menu": "Edit/Select Similar",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+J",
+      "command": 32993,
+      "label": null,
+      "menu": null,
+      "description": null
+    },
+    {
+      "keys": "Ctrl+1",
+      "command": 32994,
+      "label": "Buildings",
+      "menu": "Edit/Pick Allowances/Buildings",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+2",
+      "command": 32995,
+      "label": "Units",
+      "menu": "Edit/Pick Allowances/Units",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+3",
+      "command": 32997,
+      "label": "Shrubbery",
+      "menu": "Edit/Pick Allowances/Shrubbery",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+4",
+      "command": 32998,
+      "label": "Props",
+      "menu": "Edit/Pick Allowances/Props",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+5",
+      "command": 32999,
+      "label": "Natural",
+      "menu": "Edit/Pick Allowances/Natural",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+6",
+      "command": 33000,
+      "label": "Debris",
+      "menu": "Edit/Pick Allowances/Debris",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+0",
+      "command": 33001,
+      "label": "Anything",
+      "menu": "Edit/Pick Allowances/Anything",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+7",
+      "command": 33002,
+      "label": "Waypoints & Areas",
+      "menu": "Edit/Pick Allowances/Waypoints & Areas",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+8",
+      "command": 33327,
+      "label": "Roads",
+      "menu": "Edit/Pick Allowances/Roads",
+      "description": "Pick only roads"
+    },
+    {
+      "keys": "Home",
+      "command": 33334,
+      "label": null,
+      "menu": null,
+      "description": null
+    },
+    {
+      "keys": "Ctrl+9",
+      "command": 33341,
+      "label": "Sounds",
+      "menu": "Edit/Pick Allowances/Sounds",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+Shift+J",
+      "command": 33350,
+      "label": null,
+      "menu": null,
+      "description": null
+    },
+    {
+      "keys": "Ctrl+Alt+I",
+      "command": 33353,
+      "label": "Open item selection list",
+      "menu": null,
+      "description": "Open item selection list"
+    },
+    {
+      "keys": "Ctrl+Shift+E",
+      "command": 33354,
+      "label": "Show EFX (Particles)",
+      "menu": "View/Show EFX (Particles)",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+Shift+I",
+      "command": 33355,
+      "label": "Item List",
+      "menu": "Edit/Item List",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+E",
+      "command": 33373,
+      "label": "Grid Settings",
+      "menu": "View/Grid Settings",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+`",
+      "command": 33382,
+      "label": "Nothing",
+      "menu": "Edit/Pick Allowances/Nothing",
+      "description": null
+    },
+    {
+      "keys": "Ctrl+N",
+      "command": 57600,
+      "label": "New",
+      "menu": "File/New",
+      "description": "Create a new document"
+    },
+    {
+      "keys": "Ctrl+O",
+      "command": 57601,
+      "label": "Open",
+      "menu": "File/Open",
+      "description": "Open an existing document"
+    },
+    {
+      "keys": "Ctrl+S",
+      "command": 57603,
+      "label": "Save",
+      "menu": "File/Save",
+      "description": "Save the active document"
+    },
+    {
+      "keys": "Ctrl+P",
+      "command": 57607,
+      "label": "Print",
+      "menu": "File/Print",
+      "description": "Print the active document"
+    },
+    {
+      "keys": "Ctrl+C",
+      "command": 57634,
+      "label": "Copy",
+      "menu": "Edit/Copy",
+      "description": "Copy the selection and put it on the Clipboard"
+    },
+    {
+      "keys": "Ctrl+Ins",
+      "command": 57634,
+      "label": "Copy",
+      "menu": "Edit/Copy",
+      "description": "Copy the selection and put it on the Clipboard"
+    },
+    {
+      "keys": "Ctrl+X",
+      "command": 57635,
+      "label": "Cut",
+      "menu": "Edit/Cut",
+      "description": "Cut the selection and put it on the Clipboard"
+    },
+    {
+      "keys": "Shift+Del",
+      "command": 57635,
+      "label": "Cut",
+      "menu": "Edit/Cut",
+      "description": "Cut the selection and put it on the Clipboard"
+    },
+    {
+      "keys": "Ctrl+V",
+      "command": 57637,
+      "label": "Paste",
+      "menu": "Edit/Paste",
+      "description": "Insert Clipboard contents"
+    },
+    {
+      "keys": "Shift+Ins",
+      "command": 57637,
+      "label": "Paste",
+      "menu": "Edit/Paste",
+      "description": "Insert Clipboard contents"
+    },
+    {
+      "keys": "Alt+Backspace",
+      "command": 57643,
+      "label": "Undo",
+      "menu": "Edit/Undo",
+      "description": "Undo the last action"
+    },
+    {
+      "keys": "Ctrl+Z",
+      "command": 57643,
+      "label": "Undo",
+      "menu": "Edit/Undo",
+      "description": "Undo the last action"
+    },
+    {
+      "keys": "Ctrl+Shift+Z",
+      "command": 57644,
+      "label": "Redo",
+      "menu": "Edit/Redo",
+      "description": "Redo the previously undone action"
+    },
+    {
+      "keys": "Ctrl+Y",
+      "command": 57644,
+      "label": "Redo",
+      "menu": "Edit/Redo",
+      "description": "Redo the previously undone action"
+    },
+    {
+      "keys": "F6",
+      "command": 57680,
+      "label": "Next Pane",
+      "menu": null,
+      "description": "Switch to the next window pane"
+    },
+    {
+      "keys": "Shift+F6",
+      "command": 57681,
+      "label": "Previous Pane",
+      "menu": null,
+      "description": "Switch back to the previous window pane"
+    }
+  ]
+}

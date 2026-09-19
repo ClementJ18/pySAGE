@@ -286,6 +286,82 @@ since `0x0073bda3` compares by string.
   string requirements.
 - `Goblins` remains hard-coded at `0x0073bda7` as an alias for `Wild` (5) and is checked before the
   table scan, so `Goblins` cannot be reused as a `--sides` name.
+- Adding a side does not extend the **editor's** table on its own — see
+  [the Worldbuilder half](#the-worldbuilder-half) below, which is a separate patch and has to be
+  applied with the same `--sides` list in the same order.
+
+<a name="the-worldbuilder-half"></a>
+## The Worldbuilder half
+
+`Worldbuilder.exe` parses `CreateAHeroClass` the way the game does, out of its **own** two copies
+of the same nine-name table — the same code / INI-`userData` pair `game.dat` has at
+`0x00da3ac0` / `0x00d9edd0`:
+
+| VA | used by |
+|---|---|
+| `0x02231fec` | code — 20 sites index or scan it |
+| `0x0222f470` | INI — `userData` at `0x0222f7f0`, row 13 of the `SubClass` field table `0x0222f718` |
+
+```
+table@0x0222f7e8  DefaultFaction   offset=0x64  parse 0x006d3b30  userData=0x0222f470
+table@0x0222f7f8  UsableFactions   offset=0x68  parse 0x00b884c0
+table@0x0222f808  ViewInfo         offset=0x6c  parse 0x00b82ae0
+```
+
+The editor names the enum itself in its assert strings — `BitFlags<9,enum FactionType>`,
+`Source\Common/BitFlags.h` — and that `9` is baked into **ten** `cmp`s as well as into the table:
+
+```
+00b8a6d7  call 0x006cd120           ; INI::scanIndexListFromString -> index
+00b8a6e2  cmp  dword [ebp-8], 9     ; BitFlags<9,FactionType>::SetBit's `bit < NUMBITS`
+00b8a6e6  jb   0x00b8a743           ; >= 9 falls into the assert path
+```
+
+| # | site | which method |
+|---|---|---|
+| 1 | `0x00b8a6e2` | `SetBit`, the `+Name` branch |
+| 2 | `0x00b8a7ca` | `ClearBit`, the `-Name` branch |
+| 3 | `0x00b8a8bb` | `SetBit`, the bare-name branch |
+| 4 | `0x00b8aa1b` | `testNameArray`'s walk |
+| 5 | `0x00bf30a5` | `getSideIndex`'s scan bound — the twin of `0x0073bdd1` |
+| 6-10 | `0x00b820e9`, `0x00d10c37`, `0x01356eab`, `0x014cae69`, `0x014ce9eb` | `test`, the mask's readers |
+
+Two things make the editor's failure different from the game's. First it is **quiet**:
+`INI::scanIndexListFromString` (`0x006cd120`) reports through `TheDebug` and then answers **0**, so
+`UsableFactions = Rohan` reads as `Men` and the load continues. Second, `testNameArray`
+(`0x00b8aa00`) asserts the list holds exactly nine non-NULL names followed by a NULL — and it
+reads that terminator through a **baked absolute address**, `cmp dword [0x02232010], 0` at
+`0x00b8aa9c`, so the address has to move with the table.
+
+The recipe is otherwise the `game.dat` one with the wrapper dropped — the editor has no gate that
+reads the mask, so an `All` bit needs no expansion there:
+
+| # | write | what |
+|---|---|---|
+| 1 | new section | the superset pointer table + the new name strings, and no code |
+| 2 | 20 × dword | every reference to `0x02231fec` |
+| 3 | 1 × dword @ `0x0222f7f0` | `DefaultFaction` `userData` → the same new table |
+| 4 | 10 × byte | the bit counts above, `9` → `<entry count>` (an `imm8` at every one) |
+| 5 | 1 × dword @ `0x00b8aa9e` | `testNameArray`'s terminator → `NEWBASE + count*4` |
+
+Six of the twenty references are stats loops bounded by a hard-coded **8** and go on listing the
+same eight sides; the rest read `table[i]` for a caller-supplied `i`. All of them see the same
+first nine entries after the move, which is why only the parse path needs step 4. `getSideIndex`'s
+not-found answer (`mov eax, 9` at `0x00bf30f0`) is left alone for the same reason the game's
+`push 9` is.
+
+Built as `cah-factions-wb`, in the same module — see
+[`patches/cah_factions.py`](../patches/cah_factions.py):
+
+```sh
+sage-patch apply cah-factions-wb --sides Rohan,Lothlorien \
+    --in worldbuilder.exe.backup --out worldbuilder.exe
+```
+
+It applies cleanly to a shipped `Worldbuilder.exe`: all 32 sites match their expected original
+bytes, the rebuilt table reads back as the stock nine plus `All` plus the caller's sides, the
+`DefaultFaction` descriptor points at it, every bit count becomes the entry count and the
+terminator check lands on the new NULL. **Static only — the patched editor has not been run.**
 
 ## Status
 

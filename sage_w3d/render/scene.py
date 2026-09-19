@@ -18,6 +18,8 @@ from sage_w3d.chunks import W3D_CHUNK_STAGE_TEXCOORDS
 from sage_w3d.hierarchy import Hierarchy
 from sage_w3d.hlod import HLOD, HLODSubObjectArray
 from sage_w3d.mesh import (
+    GEOMETRY_TYPE_CAMERA_ALIGNED,
+    GEOMETRY_TYPE_CAMERA_ORIENTED,
     GEOMETRY_TYPE_HIDDEN,
     GEOMETRY_TYPE_TWO_SIDED,
     Mesh,
@@ -48,6 +50,10 @@ __all__ = [
 ]
 
 _TEXTURE_EXTENSIONS = (".dds", ".tga")
+# Shader blend factors, as the fixed-pipeline `Shader` record numbers them: the destination
+# factor ONE, and the source factors ONE and SRC_ALPHA that go with it to add a mesh in.
+_DEST_BLEND_ONE = 1
+_ADDITIVE_SRC_BLENDS = (1, 2)
 
 
 class AssetResolver(Protocol):
@@ -145,6 +151,12 @@ class RenderMesh:
     sort_level: int
     skin: MeshSkin | None = None
     rigid_bone: int | None = None
+    # The first shader's alpha test: texels below half opacity are not drawn (foliage).
+    alpha_test: bool = False
+    # Added to what is already drawn instead of mixed into it (fire, glows, lens flares).
+    additive: bool = False
+    # Carries its own light, so a scene's lights must not dim it (fire again, and a sky dome).
+    unlit: bool = False
 
 
 @dataclass
@@ -156,9 +168,14 @@ class Scene:
     hierarchy: Hierarchy | None = None
 
 
-def build_scene(model: W3DFile, resolver: AssetResolver | None = None) -> Scene:
+def build_scene(
+    model: W3DFile, resolver: AssetResolver | None = None, skeleton: str | None = None
+) -> Scene:
+    """The model's meshes placed on its skeleton: the hierarchy inside the file, else
+    `skeleton` (a game object's condition state names one) through `resolver`, else the one
+    its HLOD names."""
     diagnostics: list[str] = []
-    hierarchy = _resolve_hierarchy(model, resolver)
+    hierarchy = _resolve_hierarchy(model, resolver, skeleton)
     bone_worlds = _pivot_world_matrices(hierarchy) if hierarchy is not None else []
     bones = (
         [(p.name.value, w) for p, w in zip(hierarchy.pivots, bone_worlds, strict=True)]
@@ -191,11 +208,14 @@ def build_scene(model: W3DFile, resolver: AssetResolver | None = None) -> Scene:
                 indices=[i for t in mesh.triangles for i in t.vert_ids],
                 texture=_mesh_texture_name(mesh),
                 color=_mesh_base_color(mesh),
-                two_sided=bool(header.attrs & GEOMETRY_TYPE_TWO_SIDED) if header else False,
+                two_sided=_mesh_two_sided(header),
                 translucent=_mesh_translucent(mesh),
                 sort_level=header.sort_level if header else 0,
                 skin=_mesh_skin(mesh, bone_worlds, pairs),
                 rigid_bone=None if is_skin else bone_index,
+                alpha_test=_mesh_alpha_test(mesh),
+                additive=_mesh_additive(mesh),
+                unlit=_mesh_unlit(mesh),
             )
         )
 
@@ -212,9 +232,15 @@ def _mesh_full_name(mesh: Mesh) -> str:
     return f"{mesh.container_name}.{mesh.name}" if mesh.container_name else mesh.name
 
 
-def _resolve_hierarchy(model: W3DFile, resolver: AssetResolver | None) -> Hierarchy | None:
+def _resolve_hierarchy(
+    model: W3DFile, resolver: AssetResolver | None, skeleton: str | None = None
+) -> Hierarchy | None:
     if model.hierarchy is not None:
         return model.hierarchy
+    if skeleton and resolver is not None:
+        named = resolver.find_hierarchy(skeleton)
+        if named is not None and named.hierarchy is not None:
+            return named.hierarchy
     hlod = model.hlod
     if hlod is None or resolver is None:
         return None
@@ -303,6 +329,13 @@ def _influence_pair(influence: VertexInfluence, num_pivots: int) -> _InfluencePa
     weight scale is not consistently 0-10000 across real files (some exporters wrote 0-100
     directly), so weights are normalized against each other rather than assumed to total any
     fixed constant - "leniently", per the format's own inconsistency."""
+    if influence.bone_weight_raw == 0 and influence.xtra_weight_raw == 0:
+        # Rigid skinning stores no weights at all: the vertex follows its one bone fully.
+        # Each posed mesh then lies inside its header's own bounds, as it does for skins
+        # that store their weights.
+        return (
+            (influence.bone_idx, 1.0, 0, 0.0) if influence.bone_idx < num_pivots else _NO_INFLUENCE
+        )
     weighted: list[tuple[int, float]] = []
     bone_weight = influence.bone_weight_raw / 10000
     if bone_weight > 0 and influence.bone_idx < num_pivots:
@@ -426,14 +459,36 @@ def _flatten_uvs(uvs: list[tuple[float, float]], vertex_count: int) -> list[floa
     return out
 
 
+def _shader_material_properties(mesh: Mesh) -> dict[str, object]:
+    """The first FX shader material's properties by lower-case name. A mesh drawn with an FX
+    shader (`NormalMapped.fx` and the like) names its textures, colours and alpha test there
+    rather than in its material passes."""
+    materials = mesh.shader_materials
+    if materials is None:
+        return {}
+    for material in materials.chunks:
+        properties = getattr(material, "properties", None)
+        if properties is not None:
+            return {prop.name.lower(): prop.value for prop in properties}
+    return {}
+
+
 def _mesh_texture_name(mesh: Mesh) -> str | None:
     passes = mesh.material_passes
-    if not passes:
-        return None
-    stages = passes[0].texture_stages
-    if not stages or not stages[0].texture_ids:
-        return None
-    return _texture_name(mesh, stages[0].texture_ids[0])
+    if passes:
+        stages = passes[0].texture_stages
+        if stages and stages[0].texture_ids:
+            name = _texture_name(mesh, stages[0].texture_ids[0])
+            if name is not None:
+                return name
+    properties = _shader_material_properties(mesh)
+    # `DiffuseTexture` is what the lit shaders (`NormalMapped.fx` and the like) call the picture;
+    # the plainer ones number their slots instead, and `Texture_0` is the first (a sky dome).
+    for key in ("diffusetexture", "texture_0"):
+        texture = properties.get(key)
+        if isinstance(texture, str) and texture:
+            return texture
+    return None
 
 
 def _texture_name(mesh: Mesh, index: int) -> str | None:
@@ -453,12 +508,65 @@ def _mesh_base_color(mesh: Mesh) -> tuple[float, float, float, float]:
                 if info is not None:
                     d = info.diffuse
                     return (d.r / 255, d.g / 255, d.b / 255, d.a / 255)
+    color = _shader_material_properties(mesh).get("diffusecolor")
+    if isinstance(color, tuple) and len(color) == 4:
+        red, green, blue, alpha = (float(channel) for channel in color)
+        return (red, green, blue, alpha)
     return (1.0, 1.0, 1.0, 1.0)
 
 
 def _mesh_translucent(mesh: Mesh) -> bool:
     shaders = mesh.shaders
     return bool(shaders) and shaders[0].dest_blend != 0
+
+
+def _mesh_two_sided(header: object) -> bool:
+    """Whether the mesh has no back to cull: one marked two-sided, and a billboard - the game
+    turns a camera-aligned or camera-oriented mesh to face the viewer, so it is never seen from
+    behind there, and a renderer that leaves it where it was authored must not cull it away
+    instead. The geometry type is a field within `attrs`, not a bit, so it is matched whole:
+    a skin mesh's value shares bits with a camera-oriented one's."""
+    attrs = getattr(header, "attrs", 0) if header is not None else 0
+    if attrs & GEOMETRY_TYPE_TWO_SIDED:
+        return True
+    return any(
+        attrs & geometry == geometry
+        for geometry in (GEOMETRY_TYPE_CAMERA_ALIGNED, GEOMETRY_TYPE_CAMERA_ORIENTED)
+    )
+
+
+def _mesh_additive(mesh: Mesh) -> bool:
+    """Whether the mesh is added to what is already drawn rather than mixed into it: the shader
+    keeps all of the destination (`dest_blend` ONE) and adds the mesh over it, which is how fire,
+    glows and lens flares are drawn (their pictures are bright on black, and opaque)."""
+    shaders = mesh.shaders
+    if not shaders:
+        return False
+    first = shaders[0]
+    return first.dest_blend == _DEST_BLEND_ONE and first.src_blend in _ADDITIVE_SRC_BLENDS
+
+
+def _mesh_unlit(mesh: Mesh) -> bool:
+    """Whether the mesh carries its own light, so a scene's lights must not dim it: one drawn
+    additively (a flame is not lit, it lights), or an FX material that is all emissive and names
+    no diffuse colour of its own (a sky dome, which is a picture of a lit sky already)."""
+    if _mesh_additive(mesh):
+        return True
+    properties = _shader_material_properties(mesh)
+    emissive = properties.get("coloremissive")
+    if "diffusecolor" in properties or not isinstance(emissive, (tuple, list)):
+        return False
+    try:
+        return any(float(channel) > 0 for channel in tuple(emissive)[:3])
+    except (TypeError, ValueError):
+        return False
+
+
+def _mesh_alpha_test(mesh: Mesh) -> bool:
+    shaders = mesh.shaders
+    if shaders:
+        return shaders[0].alpha_test != 0
+    return bool(_shader_material_properties(mesh).get("alphatestenable"))
 
 
 def _compute_bounds(render_meshes: list[RenderMesh]) -> tuple[Vec3, Vec3]:

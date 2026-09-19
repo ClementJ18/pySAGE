@@ -313,3 +313,41 @@ def test_native_backend_accepted_on_byte_parity(monkeypatch) -> None:
     assert not any(issubclass(w.category, RefpackPerformanceWarning) for w in warning_list)
     assert stream == _compress_pure(payload)
     assert rp._native_compress_fn is not None
+
+
+def test_small_inputs_never_reach_the_native_backend(monkeypatch) -> None:
+    """Inputs below NATIVE_MIN_SIZE take the pure path even with a working native backend."""
+    monkeypatch.setattr(rp, "_native_probed", False)
+    monkeypatch.setattr(rp, "_native_compress_fn", None)
+    sizes: list[int] = []
+    fake_module = types.ModuleType("compression_refpack")
+
+    class FakeRefpackHandler:
+        @staticmethod
+        def compress_data(data: bytes) -> bytes:
+            sizes.append(len(data))
+            return _compress_pure(data)
+
+    fake_module.RefpackHandler = FakeRefpackHandler
+    monkeypatch.setitem(sys.modules, "reversebox.compression.compression_refpack", fake_module)
+
+    for size in (1, 2, rp.NATIVE_MIN_SIZE - 1):
+        payload = bytes(size)
+        assert decompress(compress(payload)) == payload
+    assert rp.NATIVE_MIN_SIZE not in sizes and all(size >= rp.NATIVE_MIN_SIZE for size in sizes)
+
+    compress(bytes(rp.NATIVE_MIN_SIZE))
+    assert sizes[-1] == rp.NATIVE_MIN_SIZE
+
+
+def test_installed_native_backend_passes_the_self_test(monkeypatch) -> None:
+    """Where reversebox's DLL loads, the map-shaped probe accepts it."""
+    if sys.platform != "win32":
+        pytest.skip("the native accelerator is Windows-only")
+    pytest.importorskip("reversebox.compression.compression_refpack")
+    monkeypatch.setattr(rp, "_native_probed", False)
+    monkeypatch.setattr(rp, "_native_compress_fn", None)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RefpackPerformanceWarning)
+        assert rp._native_compressor() is not None

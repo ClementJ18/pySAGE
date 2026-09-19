@@ -1012,7 +1012,7 @@ matter what the alpha evaluates to. Eleven recomputes with a wrong alpha and ele
 one are the same number.
 
 **Measured 2026-08-24**, live, in a networked match on the 60 fps build, with the `measure_network`
-phase of `examples/sage_live/render_rate_probe.py`. This first capture turned out to be the *host* -
+measurement of `examples/sage_live/render_rate_probe.py`. This first capture turned out to be the *host* -
 the milder half; the off-host reading is in the two-machine table below and is four times worse:
 
 ```

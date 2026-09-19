@@ -262,14 +262,14 @@ def test_references_for_returns_every_matching_record():
     assert ad.references_for("A.W3D", "a") == [["x.tga"], ["y.tga"]]
 
 
-def test_combine_concatenates_base_then_overlay():
+def test_combine_concatenates_overlay_then_base():
     base = AssetDat(
         version=0x102,
         files=[FileEntry(name="a.w3d", file_time=1, assets=[])],
         references=[ReferenceRecord(file_name="a.w3d", asset_name="A", references=["x"])],
     )
-    # Overlay collides with base on the same file name - the combined list keeps both,
-    # base's copy first, rather than deduplicating.
+    # Overlay collides with base on the same file name - the combined list keeps both, the
+    # overlay's copy first (the cache is first-wins), rather than deduplicating.
     overlay = AssetDat(
         version=0x102,
         files=[FileEntry(name="a.w3d", file_time=2, assets=[])],
@@ -279,18 +279,18 @@ def test_combine_concatenates_base_then_overlay():
     combined = combine_asset_dats(base, overlay)
 
     assert combined.version == 0x102
-    assert combined.files == [base.files[0], overlay.files[0]]
-    assert combined.references == [base.references[0], overlay.references[0]]
+    assert combined.files == [overlay.files[0], base.files[0]]
+    assert combined.references == [overlay.references[0], base.references[0]]
 
 
-def test_combine_three_way_keeps_left_to_right_order():
+def test_combine_three_way_keeps_overlay_order_then_base():
     base = AssetDat(version=0x102, files=[FileEntry(name="base.w3d", file_time=0, assets=[])])
     overlay1 = AssetDat(version=0x102, files=[FileEntry(name="o1.w3d", file_time=0, assets=[])])
     overlay2 = AssetDat(version=0x102, files=[FileEntry(name="o2.w3d", file_time=0, assets=[])])
 
     combined = combine_asset_dats(base, overlay1, overlay2)
 
-    assert [f.name for f in combined.files] == ["base.w3d", "o1.w3d", "o2.w3d"]
+    assert [f.name for f in combined.files] == ["o1.w3d", "o2.w3d", "base.w3d"]
 
 
 def test_combine_version_mismatch_warns_and_proceeds():
@@ -301,7 +301,7 @@ def test_combine_version_mismatch_warns_and_proceeds():
         combined = combine_asset_dats(base, overlay)
 
     assert combined.version == 0x102
-    assert [f.name for f in combined.files] == ["a.w3d", "b.w3d"]
+    assert [f.name for f in combined.files] == ["b.w3d", "a.w3d"]
 
 
 def test_combine_zero_overlays_returns_equal_content():
@@ -346,8 +346,8 @@ def test_combine_write_round_trips():
 
     expected = AssetDat(
         version=0x102,
-        files=base.files + overlay.files,
-        references=base.references + overlay.references,
+        files=overlay.files + base.files,
+        references=overlay.references + base.references,
     )
     assert round_tripped == expected
 
@@ -371,11 +371,11 @@ def test_shadowed_entries_tags_identical_and_changed_duplicates():
 
     assert len(shadowed) == 2
     by_name = {s.name: s for s in shadowed}
-    assert by_name["same.tga"].entry is same_first
-    assert by_name["same.tga"].winner is same_second
+    assert by_name["same.tga"].entry is same_second
+    assert by_name["same.tga"].winner is same_first
     assert by_name["same.tga"].identical is True
-    assert by_name["changed.tga"].entry is changed_first
-    assert by_name["changed.tga"].winner is changed_second
+    assert by_name["changed.tga"].entry is changed_second
+    assert by_name["changed.tga"].winner is changed_first
     assert by_name["changed.tga"].identical is False
 
 

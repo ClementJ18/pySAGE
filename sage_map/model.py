@@ -1,9 +1,10 @@
-"""Phase 2: a game-aware view over a parsed `.map`.
+"""A game-aware view over a parsed `.map`.
 
 Harvests the symbols a map declares for itself - teams, players, waypoints and their paths,
 trigger areas, scripts, named units - keyed by the same `target` names the MAP-scope entries in
-`ARG_SPECS` use. The Phase 3 rules ask `MapSymbols.resolve(target, name)` to tell a dangling
-map-local reference (a script targeting a team the map never defines) from a valid one.
+`ARG_SPECS` use. The reference rules in `sage_map.linter` ask `MapSymbols.resolve(target, name)`
+to tell a dangling map-local reference (a script targeting a team the map never defines) from a
+valid one.
 
 Counters, flags and boundaries are referenced by scripts but never *declared* - the engine creates
 them on first use - so they are deliberately untracked: a reference to one cannot be dangling, and
@@ -193,7 +194,7 @@ def iter_script_arguments(map_obj: Map) -> Iterator[ScriptArgRef]:
 
 @dataclass
 class MapModel:
-    """A parsed `.map` plus the symbols it declares - the unit the Phase 3 rules lint."""
+    """A parsed `.map` plus the symbols it declares - the unit the reference rules lint."""
 
     raw: Map
     symbols: MapSymbols
@@ -212,7 +213,7 @@ class MapModel:
 
     def references(self) -> Iterator[ScriptArgRef]:
         """Only the arguments that name something resolvable - GAME, MAP or STRINGS scope - which
-        is the subset the Phase 3 reference rules act on."""
+        is the subset the reference rules act on."""
         for ref in self.script_arguments():
             if ref.resolved.spec.scope in (Scope.GAME, Scope.MAP, Scope.STRINGS):
                 if isinstance(ref.resolved.value, str) and ref.resolved.value.strip():

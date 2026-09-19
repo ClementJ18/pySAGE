@@ -2,7 +2,7 @@
 //  (1) find EVERY function that calls a CommandSet method (get/set/clear/ctor/parse) and
 //      report any +0x98 / +0x9c access in them -> catches a stray count/flag getter.
 //  (2) for each getCommandButton caller, print the exact `CMP r32, 0x21` instruction
-//      addresses (Phase-3 flip sites).
+//      addresses (the loop-bound flip sites).
 //@category Analysis
 import ghidra.app.script.GhidraScript;
 import ghidra.program.model.address.*;
@@ -50,7 +50,7 @@ public class CommandSetMVP extends GhidraScript {
         println("(known-good set is 8 sites: 0x80c8d2/8db/8ef/909/980/987 + 0x943df9 + 0x9a025e)");
 
         // (2) exact CMP r32,0x21 sites in getCommandButton callers
-        println("\n==== CMP r32,0x21 sites in getCommandButton callers (Phase-3 flips) ====");
+        println("\n==== CMP r32,0x21 sites in getCommandButton callers (loop-bound flips) ====");
         TreeSet<String> cmps = new TreeSet<>();
         for (Function f : callersOf(0x0080c837L)) {
             InstructionIterator it = currentProgram.getListing().getInstructions(f.getBody(), true);

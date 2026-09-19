@@ -1,9 +1,8 @@
 """Corpus-wide acceptance gates.
 
-Each phase strengthens the assertions here:
-- Phase 0: every file reads with a supported encoding.
-- Phase 1: every file tokenizes / block-parses / round-trips.
-- Phase 2: typed layer converts without unhandled errors.
+- every file reads with a supported encoding.
+- every file tokenizes / block-parses / round-trips.
+- the typed layer converts without unhandled errors.
 
 Block structure is a property of fully include-expanded root files (a block
 may open in one file and close in an included one), so the balance gate runs
@@ -26,7 +25,7 @@ from sage_ini.parser.printer import print_document
 # not the inner-loop core suite.
 pytestmark = pytest.mark.full
 
-# Block types whose typed construction the Phase 2.1 gate exercises.
+# Block types whose typed construction the typed-layer gate exercises.
 GATE_TYPES = ("Object", "ChildObject", "Weapon")
 
 # Diagnostics that mean the parser mis-structured the file - its own

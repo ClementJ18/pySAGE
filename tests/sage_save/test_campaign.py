@@ -166,7 +166,7 @@ def test_game_state_map_stub_encoder_is_exact_inverse(any_mission):
     assert encode_game_state_map(decode_game_state_map(chunk)) == chunk.payload
 
 
-# --- Phase 3: the roster is a fatal ini cross-reference surface ---
+# The roster is a fatal ini cross-reference surface.
 
 
 def test_campaign_references_are_fatal(any_campaign):

@@ -124,7 +124,7 @@ The non-obvious lever. A `.sav` is a serialized engine snapshot written by `Xfer
 serializes struct members in declaration order. So **every field decoded in `sage_save` is a
 candidate runtime struct offset**, and the existing decode already reaches `CHUNK_GameLogic`'s
 object template table and per-object index (`iter_objects` names every live object on the map).
-Continuing that decode - the "Phase 3" work already on the `sage_save` roadmap - is not just
+Continuing that decode - work already on the `sage_save` roadmap - is not just
 save-file work; it doubles as reconnaissance for the observation API, cross-checkable against
 the offsets already verified in `runtime-re-workflow.md`.
 

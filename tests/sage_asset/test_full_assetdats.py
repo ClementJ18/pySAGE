@@ -45,10 +45,11 @@ def _section1_and_section2(ad: AssetDat, data: bytes) -> tuple[bytes, bytes]:
 
 def test_combine_bfme2_and_edain_mod_matches_byte_level_splice():
     """`edain_complete.dat` cannot be reproduced byte-for-byte here (it was built from an older
-    `_mod/asset.dat` than the one in the corpus), so this proves the splice at the byte level
-    instead: combining BFME2's asset.dat with the mod's must write out to exactly the two
-    inputs' section-1 payloads back to back, followed by their section-2 payloads back to back,
-    under one summed header - the same layout the shipping combined file was verified against."""
+    `_mod/asset.dat` than the one in the corpus, and it ships in the base-first order the cache
+    reads backwards), so this proves the splice at the byte level instead: combining BFME2's
+    asset.dat with the mod's must write out to exactly the two inputs' section-1 payloads back
+    to back - the mod's first, because the cache is first-wins - followed by their section-2
+    payloads in the same order, under one summed header."""
     fixtures_dir = Path(__file__).parent / "fixtures" / "assetdats"
     a_path = fixtures_dir / "bfme2.dat"
     b_path = fixtures_dir / "edain_mod.dat"
@@ -72,4 +73,4 @@ def test_combine_bfme2_and_edain_mod_matches_byte_level_splice():
         len(a.references) + len(b.references),
     )
 
-    assert write_asset_dat(combined) == header + s1a + s1b + s2a + s2b
+    assert write_asset_dat(combined) == header + s1b + s1a + s2b + s2a

@@ -11,7 +11,7 @@ Resolution scopes:
 * `GAME` - a definition in the assembled `Game` (an ini object); `target` is the table key passed
   to `Game.lookup` (e.g. ``"objects"``, ``"sciences"``).
 * `MAP` - a symbol the map itself declares (a team, waypoint, script, player, ...); `target` names
-  the map-local table the Phase 2 adapter builds.
+  the map-local table the `sage_map.model` adapter builds.
 * `STRINGS` - a localization label, resolved against `Game.strings`.
 * `ENUM` - a closed value set the engine defines. Recorded now; value validation is deferred.
 * `LITERAL` - a plain scalar (or a name we do not yet resolve); nothing to check.
@@ -83,7 +83,6 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.REAL_NUMBER: _REAL,
     T.ANGLE: _REAL,
     T.PERCENTAGE: _REAL,
-    T.PERCENTAGE2: _REAL,
     T.TEXT: _TEXT,
     T.POSITION_COORDINATE: _POSITION,
     T.BOOLEAN: ArgSpec("int_value", Scope.ENUM, "Boolean"),
@@ -93,12 +92,14 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.UPGRADE_NAME: _game("upgrades"),
     T.COMMAND_BUTTON_NAME: _game("commandbuttons"),
     T.SPECIAL_POWER_NAME: _game("specialpowers"),
-    T.FACTION_NAME: _game("factions"),  # FACTION_NAME -> PlayerTemplate (key "factions")
+    # FACTION_NAME holds a side name (`Rohan`), not a PlayerTemplate name (`FactionRohan`), so
+    # it is left LITERAL until a table of side names exists.
+    T.FACTION_NAME: _TEXT,
     # Attack priority sets are *created by script actions*, not defined in ini, so they resolve
     # map-locally - and we do not harvest the creating actions yet, so the target is untracked
     # (resolve -> None) rather than checked against the game's ini AttackPriority table.
     T.ATTACK_PRIORITY_SET_NAME: _map("attack_priority_sets"),
-    # Symbols the map itself declares (built by the Phase 2 adapter).
+    # Symbols the map itself declares (built by the `sage_map.model` adapter).
     T.SCRIPT_NAME: _map("scripts"),
     T.SUBROUTINE_NAME: _map("scripts"),
     T.TEAM_NAME: _map("teams"),
@@ -143,8 +144,9 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.EMOTICON_NAME: _TEXT,
     # deferred: no game table registered yet (OBJECT_TYPE_LIST_NAME), or scope still ambiguous
     # (HERO/BRIDGE/COLOR/OBJECT_PANEL_FLAG/MAP_REVEAL_NAME/SCIENCE_AVAILABILITY_NAME/
-    # EVACUATE_CONTAINER_SIDE/SKIRMISH_APPROACH_PATH/UNIT_ABILITY_NAME/TEAM_ABILITY_NAME/
-    # SPEECH/UNKNOWN_1) - left LITERAL until confirmed.
+    # SKIRMISH_APPROACH_PATH/UNIT_ABILITY_NAME/TEAM_ABILITY_NAME/CAMERA_NAME/
+    # CAMERA_ANIMATION_NAME/THREAT_FINDER_NAME/STANCE/SPEECH and the UNKNOWN_* types) - left
+    # LITERAL until confirmed.
 }
 
 

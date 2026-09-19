@@ -23,6 +23,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -170,7 +171,8 @@ def launch(
     file_argument: str,
     game_dat: str | os.PathLike[str],
     *,
-    mod: str | os.PathLike[str] | None = None,
+    game_info: str | None = None,
+    mod: str | os.PathLike[str] | Sequence[str | os.PathLike[str]] | None = None,
     windowed: bool = True,
     resolution: tuple[int, int] = (1024, 768),
     script_debug: bool = False,
@@ -183,17 +185,24 @@ def launch(
     copied aside and tried out. It also has to carry `command-line-skirmish`, or the game starts
     with a random faction and no opponent - `-file` alone does not configure a match.
 
+    **`game_info` chooses the match** - seats, factions, AI difficulty, rules, seed - as the
+    lobby string `sage_test.game_info.game_info_string` builds. Without it the patch's built-in
+    two-seat default is what starts.
+
     **`mod` is what makes this useful during development.** `-mod <tree>` loads a mod's files
     from a folder instead of its built `.big` archives, and sets `preferLocalFiles` with it, so a
     test runs against the ini you just edited rather than against the last release. Point it at
     the tree holding `data/ini` - Edain's is `_mod`. Resolved to an absolute path because the
     game runs with its own directory as the working directory, where a relative one would mean
-    something else entirely.
+    something else entirely. A sequence of trees passes one `-mod` each, in its order, where a
+    later tree wins over an earlier one; a stock binary honours only the last, and the
+    `multi-mod` patch makes it honour them all.
     """
     game = Path(game_dat)
     arguments = launch_arguments(
         file_argument,
         game,
+        game_info=game_info,
         mod=mod,
         windowed=windowed,
         resolution=resolution,
@@ -207,7 +216,8 @@ def launch_arguments(
     file_argument: str,
     game_dat: str | os.PathLike[str],
     *,
-    mod: str | os.PathLike[str] | None = None,
+    game_info: str | None = None,
+    mod: str | os.PathLike[str] | Sequence[str | os.PathLike[str]] | None = None,
     windowed: bool = True,
     resolution: tuple[int, int] = (1024, 768),
     script_debug: bool = False,
@@ -218,13 +228,29 @@ def launch_arguments(
     Split out because the command line is the part with rules in it - the mod path has to be
     absolute, the map argument has to be the form the engine's path builder expects - and none of
     that is worth a game launch to check.
+
+    `game_info` goes in as one argument. It holds spaces (the rules list, a map name), which is
+    fine: the engine's argv comes from the CRT's `__getmainargs`, which honours the quoting
+    `subprocess` applies.
     """
     arguments = [str(Path(game_dat)), "-file", file_argument]
-    if mod is not None:
-        arguments += ["-mod", str(Path(mod).resolve())]
+    if game_info is not None:
+        arguments += ["-gameInfo", game_info]
+    for tree in _mod_trees(mod):
+        arguments += ["-mod", str(Path(tree).resolve())]
     if windowed:
         arguments += ["-win", "-xres", str(resolution[0]), "-yres", str(resolution[1])]
     if script_debug:
         arguments.append("-scriptDebug2")
     arguments += list(extra)
     return arguments
+
+
+def _mod_trees(
+    mod: str | os.PathLike[str] | Sequence[str | os.PathLike[str]] | None,
+) -> list[str | os.PathLike[str]]:
+    if mod is None:
+        return []
+    if isinstance(mod, (str, os.PathLike)):
+        return [mod]
+    return list(mod)

@@ -48,6 +48,8 @@ class Map:
     asset_count: int | None
     assets: dict[int, str]
     ea_compression_header: bytes | None
+    # Whether the source file was refpack-compressed, so a save can match it.
+    compressed: bool
 
     global_version: GlobalVersion | None
     height_map_data: HeightMapData | None
@@ -78,12 +80,15 @@ class Map:
     mission_objectives: MissionObjectives | None
     castle_templates: CastleTemplates | None
     skybox_settings: SkyboxSettings | None
+    # Class chunk name -> the spelling the file stored, for chunks named in another case.
+    chunk_names: dict[str, str]
 
     def __init__(self):
         self.compression_bytes = None
         self.asset_count = None
         self.assets = {}
         self.ea_compression_header = None
+        self.compressed = False
 
         # assets
         self.global_version = None
@@ -115,6 +120,7 @@ class Map:
         self.mission_objectives = None
         self.castle_templates = None
         self.skybox_settings = None
+        self.chunk_names = {}
 
     def parse(self, context: ParsingContext):
         context.parse_assets()
@@ -122,8 +128,11 @@ class Map:
         self.compression_bytes = context.compression_bytes
 
         while context.stream.tell() < len(context.stream.getvalue()):
-            asset_name = context.parse_asset_name()
-            context.logger.info(f"Processing asset: {asset_name}")
+            stored_name = context.parse_asset_name()
+            context.logger.info(f"Processing asset: {stored_name}")
+            asset_name = _CHUNK_NAMES.get(stored_name.lower(), stored_name)
+            if asset_name != stored_name:
+                self.chunk_names[asset_name] = stored_name
             self.parse_asset(asset_name, context)
 
     def parse_asset(self, asset_name: str, context: ParsingContext):
@@ -220,125 +229,128 @@ class Map:
         else:
             return obj
 
+    def _write_asset_name(self, context: WritingContext, asset_name: str) -> None:
+        context.write_asset_name(self.chunk_names.get(asset_name, asset_name))
+
     def write(self, context: WritingContext) -> bytes:
         if self.assets:
             context.assets_by_index = self.assets.copy()
             context.index_by_asset = {name: idx for idx, name in self.assets.items()}
 
         if self.asset_list is not None:
-            context.write_asset_name(AssetList.asset_name)
+            self._write_asset_name(context, AssetList.asset_name)
             self.asset_list.write(context)
 
         if self.global_version is not None:
-            context.write_asset_name(GlobalVersion.asset_name)
+            self._write_asset_name(context, GlobalVersion.asset_name)
             self.global_version.write(context)
 
         if self.height_map_data is not None:
-            context.write_asset_name(HeightMapData.asset_name)
+            self._write_asset_name(context, HeightMapData.asset_name)
             self.height_map_data.write(context)
 
         if self.blend_tile_data is not None:
-            context.write_asset_name(BlendTileData.asset_name)
+            self._write_asset_name(context, BlendTileData.asset_name)
             self.blend_tile_data.write(context)
 
         if self.world_info is not None:
-            context.write_asset_name(WorldInfo.asset_name)
+            self._write_asset_name(context, WorldInfo.asset_name)
             self.world_info.write(context)
 
         if self.mp_positions_list is not None:
-            context.write_asset_name(MPPositionList.asset_name)
+            self._write_asset_name(context, MPPositionList.asset_name)
             self.mp_positions_list.write(context)
 
         if self.sides_list is not None:
-            context.write_asset_name(SidesList.asset_name)
+            self._write_asset_name(context, SidesList.asset_name)
             self.sides_list.write(context, self.asset_list is not None)
 
         if self.library_map_lists is not None:
-            context.write_asset_name(LibraryMapLists.asset_name)
+            self._write_asset_name(context, LibraryMapLists.asset_name)
             self.library_map_lists.write(context)
 
         if self.teams is not None:
-            context.write_asset_name(Teams.asset_name)
+            self._write_asset_name(context, Teams.asset_name)
             self.teams.write(context)
 
         if self.player_scripts_list is not None:
-            context.write_asset_name(PlayerScriptsList.asset_name)
+            self._write_asset_name(context, PlayerScriptsList.asset_name)
             self.player_scripts_list.write(context)
 
         if self.build_lists is not None:
-            context.write_asset_name(BuildLists.asset_name)
+            self._write_asset_name(context, BuildLists.asset_name)
             self.build_lists.write(context, self.asset_list is not None)
 
         if self.objects_list is not None:
-            context.write_asset_name(ObjectsList.asset_name)
+            self._write_asset_name(context, ObjectsList.asset_name)
             self.objects_list.write(context)
 
         if self.polygon_triggers is not None:
-            context.write_asset_name(PolygonTriggers.asset_name)
+            self._write_asset_name(context, PolygonTriggers.asset_name)
             self.polygon_triggers.write(context)
 
         if self.trigger_areas is not None:
-            context.write_asset_name(TriggerAreas.asset_name)
+            self._write_asset_name(context, TriggerAreas.asset_name)
             self.trigger_areas.write(context)
 
         if self.water_settings is not None:
-            context.write_asset_name(WaterSettings.asset_name)
+            self._write_asset_name(context, WaterSettings.asset_name)
             self.water_settings.write(context)
 
         if self.fog_settings is not None:
-            context.write_asset_name(FogSettings.asset_name)
+            self._write_asset_name(context, FogSettings.asset_name)
             self.fog_settings.write(context)
 
         if self.mission_hotspots is not None:
-            context.write_asset_name(MissionHotSpots.asset_name)
+            self._write_asset_name(context, MissionHotSpots.asset_name)
             self.mission_hotspots.write(context)
 
         if self.mission_objectives is not None:
-            context.write_asset_name(MissionObjectives.asset_name)
+            self._write_asset_name(context, MissionObjectives.asset_name)
             self.mission_objectives.write(context)
 
         if self.standing_water_areas is not None:
-            context.write_asset_name(StandingWaterAreas.asset_name)
+            self._write_asset_name(context, StandingWaterAreas.asset_name)
             self.standing_water_areas.write(context)
 
         if self.river_areas is not None:
-            context.write_asset_name(RiverAreas.asset_name)
+            self._write_asset_name(context, RiverAreas.asset_name)
             self.river_areas.write(context)
 
         if self.standing_wave_areas is not None:
-            context.write_asset_name(StandingWaveAreas.asset_name)
+            self._write_asset_name(context, StandingWaveAreas.asset_name)
             self.standing_wave_areas.write(context)
 
         if self.global_lighting is not None:
-            context.write_asset_name(GlobalLighting.asset_name)
+            self._write_asset_name(context, GlobalLighting.asset_name)
             self.global_lighting.write(context)
 
         if self.post_effects_chunk is not None:
-            context.write_asset_name(PostEffectsChunk.asset_name)
+            self._write_asset_name(context, PostEffectsChunk.asset_name)
             self.post_effects_chunk.write(context)
 
         if self.environment_data is not None:
-            context.write_asset_name(EnvironmentData.asset_name)
+            self._write_asset_name(context, EnvironmentData.asset_name)
             self.environment_data.write(context)
 
         if self.named_cameras is not None:
-            context.write_asset_name(NamedCameras.asset_name)
+            self._write_asset_name(context, NamedCameras.asset_name)
             self.named_cameras.write(context)
 
         if self.camera_animation_list is not None:
-            context.write_asset_name(CameraAnimationList.asset_name)
+            self._write_asset_name(context, CameraAnimationList.asset_name)
             self.camera_animation_list.write(context)
 
         if self.castle_templates is not None:
-            context.write_asset_name(CastleTemplates.asset_name)
+            self._write_asset_name(context, CastleTemplates.asset_name)
             self.castle_templates.write(context)
 
         if self.waypoints_list is not None:
-            context.write_asset_name(WaypointsList.asset_name)
+            self._write_asset_name(context, WaypointsList.asset_name)
             self.waypoints_list.write(context)
 
         if self.skybox_settings is not None:
-            context.write_asset_name(SkyboxSettings.asset_name)
+            self._write_asset_name(context, SkyboxSettings.asset_name)
             self.skybox_settings.write(context)
 
         asset_data = context.stream.getvalue()
@@ -358,6 +370,44 @@ class Map:
         return header_stream.getvalue() + asset_data
 
 
+# The game matches chunk names ignoring case: four stock bases name their environment chunk
+# `EnvironMentData`. A chunk is read by its class's name and written back under the stored one.
+_CHUNK_NAMES = {
+    chunk.asset_name.lower(): chunk.asset_name
+    for chunk in (
+        AssetList,
+        HeightMapData,
+        WorldInfo,
+        Teams,
+        PlayerScriptsList,
+        ObjectsList,
+        GlobalVersion,
+        BlendTileData,
+        MPPositionList,
+        SidesList,
+        TriggerAreas,
+        PolygonTriggers,
+        WaypointsList,
+        WaterSettings,
+        BuildLists,
+        StandingWaterAreas,
+        StandingWaveAreas,
+        RiverAreas,
+        GlobalLighting,
+        EnvironmentData,
+        PostEffectsChunk,
+        NamedCameras,
+        CameraAnimationList,
+        LibraryMapLists,
+        FogSettings,
+        MissionHotSpots,
+        MissionObjectives,
+        CastleTemplates,
+        SkyboxSettings,
+    )
+}
+
+
 def parse_map(file: BinaryIO) -> Map:
     header = file.read(8)
     ea_compression: bytes | None = header
@@ -367,10 +417,12 @@ def parse_map(file: BinaryIO) -> Map:
 
     compressed_data = file.read()
 
+    compressed = True
     try:
         decompressed_data = refpack.decompress(compressed_data)
     except refpack.RefpackError:  # not refpack-compressed; treat the bytes as raw
         decompressed_data = compressed_data
+        compressed = False
 
     logger = logging.getLogger("sage_map")
 
@@ -380,6 +432,7 @@ def parse_map(file: BinaryIO) -> Map:
 
     map = Map()
     map.ea_compression_header = ea_compression
+    map.compressed = compressed
     map.parse(context)
 
     return map

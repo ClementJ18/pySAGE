@@ -18,7 +18,7 @@ from __future__ import annotations
 import io
 import shutil
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -26,10 +26,11 @@ import sage_live
 from sage_live.api.session import Session
 from sage_map import parse_map, write_map
 from sage_test.compile import compile_into
+from sage_test.game_info import LobbySettings, game_info_string
 from sage_test.harness import DEFAULT_TOLERANCE, Match, bind_handles
 from sage_test.maps import read_archive_file
 from sage_test.runner import GameProcess, install_map, install_map_folder, launch
-from sage_test.scenario import Scenario
+from sage_test.scenario import Scenario, Seat
 
 __all__ = [
     "DEFAULT_TIMEOUT",
@@ -61,6 +62,20 @@ def read_template(install: Path, name: str) -> bytes:
         raise EngineUnavailable(f"{exc}; install the package's archive extra") from exc
     except FileNotFoundError as exc:
         raise EngineUnavailable(str(exc)) from exc
+
+
+def _game_info(seats: Sequence[Seat], settings: LobbySettings | None) -> str | None:
+    """The `-gameInfo` value for `seats`, or None to let the patch start its default match.
+
+    Settings without seats are refused rather than dropped: the lobby string carries both or
+    neither, and silently starting the default match would run a test against rules it did not
+    ask for.
+    """
+    if not seats:
+        if settings is not None:
+            raise ValueError("lobby settings need seats to travel with - declare the seats too")
+        return None
+    return game_info_string(seats, settings)
 
 
 def _await_session(process: GameProcess, timeout: float, writable: bool) -> Session:
@@ -96,6 +111,8 @@ def run_map(
     argument: str,
     install: str | Path,
     *,
+    seats: Sequence[Seat] = (),
+    settings: LobbySettings | None = None,
     writable: bool = False,
     timeout: float = DEFAULT_TIMEOUT,
     windowed: bool = True,
@@ -112,6 +129,9 @@ def run_map(
     `argument` is the `-file` form, not a path: `sage_test.maps.MapEntry.argument` produces it,
     and the rules it follows are in that module.
 
+    `seats` and `settings` choose the match through `-gameInfo`; leave both out for the patch's
+    default two-seat game.
+
     Reaching frame 1 is the whole result. A caller wanting more - that the match is a real one,
     that it keeps running - asserts it on the yielded `Session`.
     """
@@ -120,7 +140,8 @@ def run_map(
     if not game_dat.is_file():
         raise EngineUnavailable(f"no game.dat in {install}")
 
-    process = launch(argument, game_dat, mod=mod, windowed=windowed)
+    game_info = _game_info(seats, settings)
+    process = launch(argument, game_dat, game_info=game_info, mod=mod, windowed=windowed)
     session = None
     try:
         session = _await_session(process, timeout, writable)
@@ -138,6 +159,8 @@ def run_user_map(
     *,
     name: str | None = None,
     extras: tuple[str | Path, ...] = (),
+    seats: Sequence[Seat] = (),
+    settings: LobbySettings | None = None,
     keep_map: bool = False,
     writable: bool = False,
     timeout: float = DEFAULT_TIMEOUT,
@@ -163,8 +186,9 @@ def run_user_map(
     if not game_dat.is_file():
         raise EngineUnavailable(f"no game.dat in {install}")
 
+    game_info = _game_info(seats, settings)
     installed = install_map_folder(source, name=name, extras=extras)
-    process = launch(installed.argument, game_dat, mod=mod, windowed=windowed)
+    process = launch(installed.argument, game_dat, game_info=game_info, mod=mod, windowed=windowed)
     session = None
     try:
         session = _await_session(process, timeout, writable)
@@ -184,6 +208,7 @@ def run_scenario(
     install: str | Path,
     template: str,
     *,
+    settings: LobbySettings | None = None,
     writable: bool = False,
     timeout: float = DEFAULT_TIMEOUT,
     keep_map: bool = False,
@@ -195,6 +220,10 @@ def run_scenario(
 
     `writable` asks for an ordering session, which needs the `live-bridge` patch; leave it False
     for a scenario that only observes.
+
+    **The scenario's seats are the match.** They travel as `-gameInfo`, so a scenario that places
+    objects for `Player_3` also seats someone at start position 2. `settings` carries the rest of
+    the lobby - starting resources, the rules list, the seed.
 
     `mod` runs the game against an uncompiled mod tree (`-mod`), so a test exercises the ini as
     it is on disk rather than as it was last built into `.big` archives. That is the difference
@@ -209,13 +238,16 @@ def run_scenario(
     if not game_dat.is_file():
         raise EngineUnavailable(f"no game.dat in {install}")
 
+    # Before anything is written, so a scenario the lobby parser would reject fails here with the
+    # seat named, rather than leaving a generated map behind.
+    game_info = _game_info(scenario.seats, settings)
     parsed = parse_map(io.BytesIO(read_template(install, template)))
     compile_into(scenario, parsed)
     # Uncompressed: the engine reads either, and compressing a five-megabyte map in pure Python
     # costs far more than the launch it would be shortening.
     map_path, file_argument = install_map(scenario.name, write_map(parsed, compress=False))
 
-    process = launch(file_argument, game_dat, mod=mod, windowed=windowed)
+    process = launch(file_argument, game_dat, game_info=game_info, mod=mod, windowed=windowed)
     session = None
     try:
         session = _await_session(process, timeout, writable)
