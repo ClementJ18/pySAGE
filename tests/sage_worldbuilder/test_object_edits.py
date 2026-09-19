@@ -15,6 +15,8 @@ from sage_worldbuilder.objects import (
     GroupEditMethod,
     MoveObjects,
     RotateObjects,
+    clipboard_from_json,
+    clipboard_to_json,
     copy_objects,
     paste_objects,
 )
@@ -190,3 +192,29 @@ def test_paste_gives_copies_fresh_ids_names_and_links():
     document.stack.undo()
     assert len(document.map.objects_list.object_list) == 3
     assert document.map.waypoints_list.waypoint_paths == [(1, 2)]
+
+
+def test_a_clipboard_goes_through_text_whole_for_another_editor():
+    guard = placed("GondorFighter", 4.0, 6.0, uniqueID="GondorFighter 0", objectName="Guard")
+    guard.properties["objectEnabled"] = {
+        "name": "objectEnabled",
+        "type": AssetPropertyType.Boolean,
+        "value": True,
+    }
+    guard.angle, guard.road_type = 1.25, 2
+    start = placed("*Waypoints/Waypoint", 10.0, 0.0, waypointID=1, waypointName="Start")
+    end = placed("*Waypoints/Waypoint", 20.0, 0.0, waypointID=2, waypointName="End")
+    document = document_with(guard, start, end, links=[(1, 2)])
+    clipboard = copy_objects(document.map, [guard, start, end])
+
+    back = clipboard_from_json(clipboard_to_json(clipboard))
+    assert back is not None
+    assert back.center == clipboard.center and back.links == clipboard.links
+    assert back.objects == clipboard.objects
+    assert back.objects[0].properties["objectEnabled"]["type"] is AssetPropertyType.Boolean
+    assert list(back.objects[0].properties) == list(guard.properties)
+
+
+def test_text_that_is_not_a_clipboard_reads_as_none():
+    for text in ("", "hello", "[]", '{"format": 99}', '{"format": 1, "objects": [{}]}'):
+        assert clipboard_from_json(text) is None

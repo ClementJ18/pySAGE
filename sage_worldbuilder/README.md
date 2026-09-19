@@ -36,7 +36,7 @@ stores reaches the editor the same way: `desert-weather` names a third weather, 
 offers Desert once that `.sagepatch` is loaded.
 
 A mapper without Python runs the standalone bundle instead: `pyinstaller
-sage_worldbuilder/sage-worldbuilder.spec` builds `dist/Worldbuilder.exe`.
+sage_worldbuilder/sage-worldbuilder.spec` builds `dist/WorldbuilderV2.exe`.
 
 ## How it is put together
 

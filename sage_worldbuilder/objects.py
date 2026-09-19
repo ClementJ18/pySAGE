@@ -8,6 +8,7 @@ however many drag steps were merged.
 from __future__ import annotations
 
 import copy
+import json
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -28,11 +29,14 @@ if TYPE_CHECKING:
     from sage_worldbuilder.document import MapDocument
 
 __all__ = [
+    "CLIPBOARD_MIME",
     "Clipboard",
     "DeleteObjects",
     "GroupEditMethod",
     "MoveObjects",
     "RotateObjects",
+    "clipboard_from_json",
+    "clipboard_to_json",
     "copy_objects",
     "new_object",
     "place_objects",
@@ -238,6 +242,70 @@ def copy_objects(map: Map, objects: Sequence[Object]) -> Clipboard:
     else:
         cx = cy = 0.0
     return Clipboard(copies, links, (cx, cy))
+
+
+# The clipboard format copied objects travel in between editors.
+CLIPBOARD_MIME = "application/x-sage-worldbuilder-objects"
+_CLIPBOARD_FORMAT = 1
+
+
+def clipboard_to_json(clipboard: Clipboard) -> str:
+    """The clipboard as text another editor can paste from: the objects' records in full."""
+    return json.dumps(
+        {
+            "format": _CLIPBOARD_FORMAT,
+            "center": list(clipboard.center),
+            "links": [list(link) for link in clipboard.links],
+            "objects": [
+                {
+                    "version": obj.version,
+                    "position": list(obj.position),
+                    "angle": obj.angle,
+                    "road_type": obj.road_type,
+                    "type_name": obj.type_name,
+                    "properties": [
+                        [stored["name"], int(stored["type"]), stored["value"]]
+                        for stored in obj.properties.values()
+                    ],
+                }
+                for obj in clipboard.objects
+            ],
+        }
+    )
+
+
+def clipboard_from_json(text: str) -> Clipboard | None:
+    """The clipboard `clipboard_to_json` wrote, or None for text that is not one."""
+    try:
+        data = json.loads(text)
+        if data.get("format") != _CLIPBOARD_FORMAT:
+            return None
+        objects = tuple(
+            Object(
+                int(item["version"]),
+                _vector(item["position"]),
+                float(item["angle"]),
+                int(item["road_type"]),
+                str(item["type_name"]),
+                {
+                    str(name): {"name": str(name), "type": AssetPropertyType(kind), "value": value}
+                    for name, kind, value in item["properties"]
+                },
+                0,
+                0,
+            )
+            for item in data["objects"]
+        )
+        links = tuple((int(start), int(end)) for start, end in data["links"])
+        cx, cy = data["center"]
+        return Clipboard(objects, links, (float(cx), float(cy)))
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _vector(values: Sequence[float]) -> tuple[float, float, float]:
+    x, y, z = values
+    return float(x), float(y), float(z)
 
 
 def _set_text(obj: Object, key: str, value: str) -> None:

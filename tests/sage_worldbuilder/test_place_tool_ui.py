@@ -142,6 +142,26 @@ def test_drag_orients_and_snap_applies(window):
     assert window.document.stack.undo_label == "Place Object"
 
 
+def test_the_chosen_object_follows_the_cursor_until_a_click_places_it(window):
+    window.palette_panel.choose("GondorFighter")
+    window.use_tool("place")
+    window.palette_panel.height_offset.setValue(5.0)
+    tool, view = window.place_tool, window.map_view
+    assert tool.ghosts() == ()
+    tool.hover(view, gesture(window, 120.0, 80.0))
+    (ghost,) = tool.ghosts()
+    assert ghost.type_name == "GondorFighter" and ghost.position == (120.0, 80.0, 5.0)
+    assert placed(window) == []
+    # Turning it by a drag turns the one shown too.
+    tool.press(view, gesture(window, 120.0, 80.0))
+    tool.move(view, gesture(window, 120.0, 180.0))
+    assert tool.ghosts()[0].angle == pytest.approx(math.pi / 2)
+    tool.release(view, gesture(window, 120.0, 180.0))
+    assert len(placed(window)) == 1
+    tool.leave(view)
+    assert tool.ghosts() == ()
+
+
 def test_place_without_a_chosen_object_does_nothing_and_select_comes_back(window):
     window.use_tool("place")
     assert not window.place_tool.press(window.map_view, gesture(window, 10.0, 10.0))

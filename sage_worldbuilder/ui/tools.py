@@ -30,13 +30,16 @@ from sage_worldbuilder.build_lists import (
 )
 from sage_worldbuilder.commands import Command
 from sage_worldbuilder.document import MapDocument
+from sage_worldbuilder.footprints import FootprintShape
 from sage_worldbuilder.generic_ai import PICK_DISTANCES, GenericAIType, new_generic_ai_object
 from sage_worldbuilder.gizmos import HANDLE_PIXELS, front_tip
 from sage_worldbuilder.objects import (
+    Clipboard,
     GroupEditMethod,
     MoveObjects,
     RotateObjects,
     new_object,
+    paste_objects,
     place_objects,
 )
 from sage_worldbuilder.pick import PickRules
@@ -61,6 +64,8 @@ __all__ = [
     "GenericAIHost",
     "GenericAIObjectTool",
     "Gesture",
+    "PasteHost",
+    "PasteTool",
     "PlaceHost",
     "PlaceTool",
     "PolygonTool",
@@ -79,6 +84,8 @@ PICK_PIXELS = 8.0
 # How far, in pixels, the mouse must travel before a press becomes a drag.
 DRAG_PIXELS = 3.0
 _MARQUEE = QColor(255, 255, 255, 200)
+# Objects shown where they would go before they are put down.
+_GHOST = QColor(120, 220, 255, 220)
 _EIGHTH = math.pi / 4
 _WAYPOINTS = frozenset({MarkerKind.WAYPOINT})
 _GENERIC_AI = frozenset({MarkerKind.GENERIC_AI})
@@ -89,6 +96,12 @@ class EditHost(Protocol):
 
     def active_layer(self) -> str:
         """The layer new objects, waypoints and trigger areas go on."""
+        ...
+
+
+class PasteHost(EditHost, Protocol):
+    def paste_done(self) -> None:
+        """The paste was put down or given up: the tool chosen before it comes back."""
         ...
 
 
@@ -214,6 +227,15 @@ class Tool:
         """Drop anything half-made, as when another tool is chosen."""
         return None
 
+    def leave(self, view: ToolView) -> None:
+        """The mouse left the view."""
+        return None
+
+    def ghosts(self) -> Sequence[Object]:
+        """Objects shown where the tool would put them, not on the map yet; the 3D view draws
+        their models."""
+        return ()
+
     def paint(self, view: ToolView, painter: QPainter) -> None:
         return None
 
@@ -226,6 +248,40 @@ def _travelled(press: Gesture, gesture: Gesture) -> float:
 def _marker_shown(view: ToolView, marker: Marker) -> bool:
     """Whether a marker is drawn: its kind is on in the View menu and the item itself is shown."""
     return view.options.shows(marker.kind) and view.is_shown(marker.source)
+
+
+def _ghost(obj: Object, x: float, y: float, z: float, angle: float) -> Object:
+    """A stand-in for `obj` at another place, sharing its properties: drawn, never put down."""
+    return Object(obj.version, (x, y, z), angle, obj.road_type, obj.type_name, obj.properties, 0, 0)
+
+
+def _paint_ghosts(view: ToolView, painter: QPainter, ghosts: Sequence[Object]) -> None:
+    """Objects not on the map yet: the ground each would cover and a dot where it stands."""
+    footprints = view.footprints
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setPen(QPen(_GHOST, 1.5, Qt.PenStyle.DashLine))
+    for obj in ghosts:
+        x, y, _z = obj.position
+        footprint = footprints.get(obj.type_name) if footprints is not None else None
+        if footprint is None:
+            continue
+        if footprint.shape is FootprintShape.CIRCLE:
+            view.world_circle(painter, x, y, footprint.major)
+            continue
+        cos, sin = math.cos(obj.angle), math.sin(obj.angle)
+        view.world_polygon(
+            painter,
+            [
+                (
+                    x + along * footprint.major * cos - across * footprint.minor * sin,
+                    y + along * footprint.major * sin + across * footprint.minor * cos,
+                )
+                for along, across in ((1, 1), (1, -1), (-1, -1), (-1, 1))
+            ],
+        )
+    painter.setPen(QPen(_GHOST, 7.0, cap=Qt.PenCapStyle.RoundCap))
+    for obj in ghosts:
+        painter.drawPoint(QPointF(*view.transform.world_to_screen(*obj.position[:2])))
 
 
 def _snapped(view: ToolView, point: tuple[float, float]) -> tuple[float, float]:
@@ -496,14 +552,40 @@ class SelectTool(Tool):
 
 
 class PlaceTool(Tool):
-    """Place Object: click to place the palette's object, or drag from where it goes to turn it
-    towards the cursor. The new object is selected."""
+    """Place Object: the palette's object follows the cursor where it would go; click to place
+    it, or drag from where it goes to turn it towards the cursor. The new object is selected."""
 
     def __init__(self, host: PlaceHost) -> None:
         self.host = host
         self._press: Gesture | None = None
         self._current: Gesture | None = None
         self._dragging = False
+        # Where the object goes: the snapped press, or the snapped cursor with no button down
+        # (None off the view).
+        self._at: tuple[float, float] | None = None
+
+    def hover(self, view: ToolView, gesture: Gesture) -> None:
+        self._at = _snapped(view, gesture.world)
+        view.update()
+
+    def leave(self, view: ToolView) -> None:
+        if self._press is None:
+            self._at = None
+            view.update()
+
+    def cancel(self) -> None:
+        self._press = self._current = None
+        self._dragging = False
+        self._at = None
+
+    def ghosts(self) -> Sequence[Object]:
+        template, at = self.host.place_template(), self._at
+        if template is None or at is None:
+            return ()
+        angle = 0.0
+        if self._dragging and self._current is not None:
+            angle = _bearing(at, self._current.world)
+        return [Object(0, (*at, self.host.place_height()), angle, 0, template, {}, 0, 0)]
 
     def press(self, view: ToolView, gesture: Gesture) -> bool:
         document = view.document
@@ -512,6 +594,7 @@ class PlaceTool(Tool):
         if self.host.place_template() is None:
             return False
         self._press = self._current = gesture
+        self._at = _snapped(view, gesture.world)
         self._dragging = False
         return True
 
@@ -533,6 +616,7 @@ class PlaceTool(Tool):
             return False
         x, y = _snapped(view, press.world)
         angle = _bearing((x, y), gesture.world) if dragging else 0.0
+        self._at = _snapped(view, gesture.world)
         obj = new_object(
             document.map,
             template,
@@ -547,11 +631,78 @@ class PlaceTool(Tool):
         return True
 
     def paint(self, view: ToolView, painter: QPainter) -> None:
+        _paint_ghosts(view, painter, self.ghosts())
         if not self._dragging or self._press is None or self._current is None:
             return
         painter.setPen(QPen(_MARQUEE, 1.5))
         painter.drawLine(self._press.screen, self._current.screen)
         painter.drawEllipse(self._press.screen, 4.0, 4.0)
+
+
+class PasteTool(Tool):
+    """Paste: the copied objects follow the cursor as they would land, until a click puts them
+    down there (the clipboard's centre on the cursor, snapped when Snap To Grid is on) and selects
+    them; Escape gives the paste up. Either way the tool chosen before comes back."""
+
+    def __init__(self, host: PasteHost) -> None:
+        self.host = host
+        self.clipboard: Clipboard | None = None
+        self._at: tuple[float, float] | None = None
+
+    def start(self, clipboard: Clipboard, at: tuple[float, float]) -> None:
+        """Hold `clipboard` to put down, shown about `at` until the mouse moves."""
+        self.clipboard, self._at = clipboard, at
+
+    def ghosts(self) -> Sequence[Object]:
+        clipboard, at = self.clipboard, self._at
+        if clipboard is None or at is None:
+            return ()
+        dx, dy = at[0] - clipboard.center[0], at[1] - clipboard.center[1]
+        return [
+            _ghost(obj, obj.position[0] + dx, obj.position[1] + dy, obj.position[2], obj.angle)
+            for obj in clipboard.objects
+        ]
+
+    def hover(self, view: ToolView, gesture: Gesture) -> None:
+        if self.clipboard is not None:
+            self._at = _snapped(view, gesture.world)
+            view.update()
+
+    def press(self, view: ToolView, gesture: Gesture) -> bool:
+        if self.clipboard is None or view.document is None:
+            return False
+        self.hover(view, gesture)
+        return True
+
+    def move(self, view: ToolView, gesture: Gesture) -> bool:
+        self.hover(view, gesture)
+        return self.clipboard is not None
+
+    def release(self, view: ToolView, gesture: Gesture) -> bool:
+        document, clipboard = view.document, self.clipboard
+        if document is None or clipboard is None:
+            return False
+        command, pasted = paste_objects(document.map, clipboard, _snapped(view, gesture.world))
+        self.cancel()
+        self.host.execute(command)
+        document.selection.set(pasted)
+        self.host.paste_done()
+        view.update()
+        return True
+
+    def key(self, view: ToolView, key: int) -> bool:
+        if key != Qt.Key.Key_Escape or self.clipboard is None:
+            return False
+        self.cancel()
+        self.host.paste_done()
+        view.update()
+        return True
+
+    def cancel(self) -> None:
+        self.clipboard = self._at = None
+
+    def paint(self, view: ToolView, painter: QPainter) -> None:
+        _paint_ghosts(view, painter, self.ghosts())
 
 
 class WaypointTool(Tool):

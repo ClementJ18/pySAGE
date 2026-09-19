@@ -62,6 +62,8 @@ def main(argv: list[str] | None = None, extra_checks: "MapChecks | None" = None)
     for mod in mods:
         if not mod.is_dir():
             sys.exit(f"sage-worldbuilder: no mod folder at {mod}")
+    # Resolved here so Recent Files keeps a path that works from any later working directory.
+    initial_path = args.map.resolve() if args.map is not None else None
     sagepatch = args.sagepatch.resolve() if args.sagepatch is not None else None
     if sagepatch is not None and not sagepatch.is_file():
         sys.exit(f"sage-worldbuilder: no .sagepatch at {sagepatch}")
@@ -70,7 +72,7 @@ def main(argv: list[str] | None = None, extra_checks: "MapChecks | None" = None)
     sys.excepthook = report_unhandled
     run_app(
         lambda: MainWindow(
-            initial_path=args.map, mods=mods, sagepatch=sagepatch, extra_checks=extra_checks
+            initial_path=initial_path, mods=mods, sagepatch=sagepatch, extra_checks=extra_checks
         ),
         icon_file=ICON_FILE,
         anchor=ICON_ANCHOR,

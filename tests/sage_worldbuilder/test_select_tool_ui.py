@@ -15,7 +15,7 @@ pytestmark = pytest.mark.full
 pytest.importorskip("PyQt6", reason="the [worldbuilder] extra (PyQt6) is not installed")
 pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 
-from PyQt6.QtCore import QPointF  # noqa: E402
+from PyQt6.QtCore import QByteArray, QMimeData, QPointF, Qt  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from sage_map.assets.height_map import HeightMapBorder, HeightMapData  # noqa: E402
@@ -25,7 +25,12 @@ from sage_map.context import AssetPropertyType  # noqa: E402
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
 from sage_worldbuilder.gizmos import HANDLE_PIXELS, front_tip  # noqa: E402
-from sage_worldbuilder.objects import GroupEditMethod  # noqa: E402
+from sage_worldbuilder.objects import (  # noqa: E402
+    CLIPBOARD_MIME,
+    Clipboard,
+    GroupEditMethod,
+    clipboard_to_json,
+)
 from sage_worldbuilder.pick import PickCategory  # noqa: E402
 from sage_worldbuilder.settings import Settings  # noqa: E402
 from sage_worldbuilder.ui.tools import Gesture  # noqa: E402
@@ -257,22 +262,35 @@ def test_lock_selection_keeps_the_selection(window):
 
 
 def test_copy_paste_cut_and_delete(window):
+    QApplication.clipboard().clear()
     tree, rock, _waypoint = objects(window)
     window.document.selection.set([tree])
     window._refresh()
     assert window.copy_action.isEnabled() and not window.paste_action.isEnabled()
     window.copy_action.trigger()
+    assert window.paste_action.isEnabled()
     window.map_view.cursor_world = (400.0, 400.0)
     window.paste_action.trigger()
+    # The copy follows the cursor, not on the map until a click puts it down.
+    assert window.map_view.tool is window.paste_tool
+    count = len(objects(window))
+    (ghost,) = window.paste_tool.ghosts()
+    assert ghost.position == (400.0, 400.0, 0.0) and ghost not in objects(window)
+    window.paste_tool.hover(window.map_view, gesture(window, 450.0, 420.0))
+    assert window.paste_tool.ghosts()[0].position == (450.0, 420.0, 0.0)
+    drag(window, [(450.0, 420.0)])
     pasted = objects(window)[-1]
-    assert pasted.position == (400.0, 400.0, 0.0)
+    assert len(objects(window)) == count + 1
+    assert pasted.position == (450.0, 420.0, 0.0)
     assert pasted.properties["uniqueID"]["value"] == "Tree 2"
     assert window.document.selection.items == (pasted,)
+    assert window.map_view.tool is window.select_tool
 
     window.document.selection.set([rock])
     window.cut_action.trigger()
     assert rock not in objects(window)
     window.paste_action.trigger()
+    drag(window, [(300.0, 100.0)])
     assert objects(window)[-1].type_name == "Rock"
 
     window.document.selection.set([tree])
@@ -281,6 +299,34 @@ def test_copy_paste_cut_and_delete(window):
     assert not window.document.selection
     window.document.stack.undo()
     assert tree in objects(window)
+
+
+def test_escape_gives_a_paste_up_and_the_tool_before_it_comes_back(window):
+    tree, _rock, _waypoint = objects(window)
+    window.document.selection.set([tree])
+    window.copy()
+    window.use_tool("waypoint")
+    window.paste()
+    assert window.map_view.tool is window.paste_tool
+    count = len(objects(window))
+    assert window.paste_tool.key(window.map_view, Qt.Key.Key_Escape)
+    assert len(objects(window)) == count
+    assert window.map_view.tool is window.waypoint_tool
+    assert window.paste_tool.ghosts() == ()
+
+
+def test_objects_copied_in_another_editor_paste_here(window):
+    board = QApplication.clipboard()
+    data = QMimeData()
+    other = Clipboard((placed("Castle", 10.0, 20.0, uniqueID="Castle 7"),), (), (10.0, 20.0))
+    data.setData(CLIPBOARD_MIME, QByteArray(clipboard_to_json(other).encode("utf-8")))
+    board.setMimeData(data)
+    window.map_view.cursor_world = (200.0, 250.0)
+    window.paste()
+    drag(window, [(200.0, 250.0)])
+    castle = objects(window)[-1]
+    assert castle.type_name == "Castle" and castle.position == (200.0, 250.0, 0.0)
+    assert castle.properties["uniqueID"]["value"] == "Castle 2"
 
 
 def test_group_edit_and_allowances_are_saved(window):

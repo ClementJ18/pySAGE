@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import cached_property
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -28,6 +29,7 @@ __all__ = [
     "load_object_models",
     "model_geometry",
     "object_scale",
+    "ray_hit_instances",
 ]
 
 _SCALE_KEY = "objectPrototypeScale"
@@ -59,6 +61,19 @@ class ModelGeometry:
 
     def textures(self) -> set[str]:
         return {part.texture for part in self.parts if part.texture is not None}
+
+    @cached_property
+    def solid_triangles(self) -> np.ndarray:
+        """`(T, 3, 3)` corners of the triangles a click can land on: every mesh but the additive
+        ones, which are pictures of light (a flame's glow) rather than of the object."""
+        corners = [
+            part.positions[part.indices[: part.indices.size // 3 * 3].reshape(-1, 3)]
+            for part in self.parts
+            if not part.additive
+        ]
+        if not corners:
+            return np.zeros((0, 3, 3), dtype=np.float64)
+        return np.concatenate(corners).astype(np.float64)
 
 
 def model_geometry(scene: Scene, texture: str | None = None) -> ModelGeometry:
@@ -163,3 +178,60 @@ def instance_matrices(
     matrices[:, 2, 3] = zs
     matrices[:, 3, 3] = 1.0
     return matrices
+
+
+def ray_hit_instances(
+    geometry: ModelGeometry,
+    matrices: np.ndarray,
+    origin: np.ndarray,
+    direction: np.ndarray,
+) -> tuple[int, float] | None:
+    """The copy of a model a ray meets first, among copies standing at `(N, 4, 4)` world
+    `matrices`: its index, and how far along the ray the hit is in units of `direction`; None
+    when the ray meets none of them. Both faces of a triangle count."""
+    triangles = geometry.solid_triangles
+    if not len(triangles) or not len(matrices):
+        return None
+    inverse = np.linalg.inv(np.asarray(matrices, dtype=np.float64))
+    # A world matrix is affine, so the ray carried into a copy's own space keeps its parameter:
+    # a distance found there is the same distance along the world ray.
+    origins = (inverse @ np.append(np.asarray(origin, dtype=np.float64), 1.0))[:, :3]
+    directions = (inverse @ np.append(np.asarray(direction, dtype=np.float64), 0.0))[:, :3]
+    corners = triangles.reshape(-1, 3)
+    low, high = corners.min(axis=0), corners.max(axis=0)
+    # The model's box first, to leave out the copies the ray passes nowhere near.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ta = (low - origins) / directions
+        tb = (high - origins) / directions
+    near = np.maximum(np.nanmax(np.minimum(ta, tb), axis=1), 0.0)
+    far = np.nanmin(np.maximum(ta, tb), axis=1)
+    candidates = np.flatnonzero(near <= far)
+    best: tuple[int, float] | None = None
+    for index in candidates[np.argsort(near[candidates])].tolist():
+        if best is not None and near[index] > best[1]:
+            break
+        t = _triangles_hit(triangles, origins[index], directions[index])
+        if t is not None and (best is None or t < best[1]):
+            best = (index, t)
+    return best
+
+
+def _triangles_hit(
+    triangles: np.ndarray, origin: np.ndarray, direction: np.ndarray
+) -> float | None:
+    """How far along the ray it first meets one of the `(T, 3, 3)` triangles, in front of its
+    origin (Möller-Trumbore, over all the triangles at once)."""
+    v0 = triangles[:, 0]
+    e1 = triangles[:, 1] - v0
+    e2 = triangles[:, 2] - v0
+    p = np.cross(direction, e2)
+    det = np.einsum("ij,ij->i", e1, p)
+    usable = np.abs(det) > 1e-12
+    inverse = 1.0 / np.where(usable, det, 1.0)
+    s = origin - v0
+    u = np.einsum("ij,ij->i", s, p) * inverse
+    q = np.cross(s, e1)
+    v = (q @ direction) * inverse
+    t = np.einsum("ij,ij->i", e2, q) * inverse
+    hit = usable & (u >= 0) & (v >= 0) & (u + v <= 1) & (t > 0)
+    return float(t[hit].min()) if hit.any() else None

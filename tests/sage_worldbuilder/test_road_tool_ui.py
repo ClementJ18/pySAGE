@@ -158,8 +158,8 @@ def test_delete_cut_and_copy_take_whole_segments(window):
     start, end = objects(window)
     window.document.selection.set([end])
     window.copy()
-    window.map_view.cursor_world = (300.0, 400.0)
     window.paste()
+    drag(window, [(300.0, 400.0)])
     assert len(road_segments(objects(window))) == 2
     window.document.selection.set([end])
     window.delete_selection()

@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Build the map editor into a single windowed exe:
 #   pyinstaller sage_worldbuilder/sage-worldbuilder.spec
-# The result is dist/Worldbuilder.exe, which a mapper runs without Python. Building needs
+# The result is dist/WorldbuilderV2.exe, which a mapper runs without Python. Building needs
 # the [worldbuilder] extra installed (PyQt6, pyBIG, numpy, PyOpenGL, pillow), since the bundle
 # is only as complete as the environment it is analysed in.
 # Build once per OS you support; PyInstaller binaries are not cross-platform.
@@ -64,7 +64,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Worldbuilder',
+    name='WorldbuilderV2',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

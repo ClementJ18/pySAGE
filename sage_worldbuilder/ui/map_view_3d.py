@@ -176,7 +176,12 @@ from sage_worldbuilder.lighting import LightTarget, scene_lights
 from sage_worldbuilder.models import MapConditions, model_conditions, model_key
 from sage_worldbuilder.projection import CameraProjection
 from sage_worldbuilder.render.art import ArtTextures
-from sage_worldbuilder.render.model_mesh import ModelGeometry, instance_matrices, object_scale
+from sage_worldbuilder.render.model_mesh import (
+    ModelGeometry,
+    instance_matrices,
+    object_scale,
+    ray_hit_instances,
+)
 from sage_worldbuilder.render.road_surface import RoadSurface, road_surfaces
 from sage_worldbuilder.render.terrain_mesh import (
     Box,
@@ -206,7 +211,7 @@ from sage_worldbuilder.scene import Marker, MarkerKind, marker_kind
 from sage_worldbuilder.terrain import FEET_PER_HEIGHT_UNIT, WORLD_UNITS_PER_CELL
 from sage_worldbuilder.terrain.cells import TileLayer
 from sage_worldbuilder.terrain.grid import TerrainGrid
-from sage_worldbuilder.terrain.surface import ground_heights
+from sage_worldbuilder.terrain.surface import ground_heights, ray_hit
 from sage_worldbuilder.ui.overlays import (
     BRIDGE_FILL,
     GRID_COLOR,
@@ -247,6 +252,9 @@ _MAX_GRID_LINES = 300
 _LIGHT = np.array([-1.0, 1.0, 1.4]) / np.linalg.norm([-1.0, 1.0, 1.4])
 # The first vertex attribute of an instance's world matrix (four columns).
 _INSTANCE_LOCATION = 3
+# How far past the terrain under a click a model can be hit and still be picked: a model stands
+# on the ground, and a click at its foot can meet the ground a little before it.
+_GROUND_SLACK = 5.0
 
 # How a surface is lit: by the map's ambient colour and its three lights for its time of day (a
 # light's direction points away from the light), or, without a lighting chunk, by the fixed light.
@@ -686,12 +694,15 @@ class _WaterDraw:
 
 @dataclass
 class _Model:
-    """A model's meshes on the GPU, and the world matrices of the objects showing it."""
+    """A model's meshes on the GPU, and the world matrices of the objects showing it; the
+    geometry and the matrices are kept here as well, for a click to pick an object by its model."""
 
     parts: list[_Part]
     instances: int
+    geometry: ModelGeometry
     count: int = 0
     objects: list[Object] = field(default_factory=list)
+    matrices: np.ndarray = field(default_factory=lambda: np.zeros((0, 4, 4), dtype=np.float32))
 
 
 def _compile_program(vertex: str, fragment: str) -> int:
@@ -817,6 +828,11 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         self._model_textures: dict[str, int] = {}
         self._reinstance = True
         self._visibility: object = None
+        # The map's objects by the model they show, as last worked out, and the tool's ghosts
+        # drawn with them: what they were, and the models they were drawn with.
+        self._groups: dict[str, list[Object]] = {}
+        self._ghosts: object = ()
+        self._ghost_names: set[str] = set()
         # The game's damage thresholds (`MapConditions.of_game`), which the window sets, and the
         # conditions every object's model was last chosen under.
         self.damage_thresholds = MapConditions()
@@ -1813,33 +1829,47 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
             self._reinstance = True
         visibility = self.source.visibility_key
         conditions = self.damage_thresholds.of_map(document.map, self.options.show_garrisoned)
-        if not self._reinstance and visibility == self._visibility:
-            if conditions == self._conditions:
-                return
-        self._reinstance = False
-        self._visibility = visibility
-        self._conditions = conditions
-        groups: defaultdict[str, list[Object]] = defaultdict(list)
-        objects_list = document.map.objects_list
-        for obj in objects_list.object_list if objects_list is not None else []:
-            if marker_kind(obj) is MarkerKind.OBJECT and self.is_shown(obj):
-                groups[self.model_key(obj)].append(obj)
+        ghosts = list(self.tool.ghosts())
+        ghost_state = tuple((obj.type_name, obj.position, obj.angle) for obj in ghosts)
+        full = self._reinstance or visibility != self._visibility or conditions != self._conditions
+        if not full and ghost_state == self._ghosts:
+            return
+        self._ghosts = ghost_state
+        if full:
+            self._reinstance = False
+            self._visibility = visibility
+            self._conditions = conditions
+            groups: defaultdict[str, list[Object]] = defaultdict(list)
+            objects_list = document.map.objects_list
+            for obj in objects_list.object_list if objects_list is not None else []:
+                if marker_kind(obj) is MarkerKind.OBJECT and self.is_shown(obj):
+                    groups[self.model_key(obj)].append(obj)
+            self._groups = groups
+        ghost_groups: defaultdict[str, list[Object]] = defaultdict(list)
+        for obj in ghosts:
+            ghost_groups[self.model_key(obj)].append(obj)
         wanted = sorted(
             name
-            for name in groups
+            for name in {*self._groups, *ghost_groups}
             if name not in self._models and name not in self._requested_models
         )
         if wanted and self.model_provider is not None:
             self._requested_models.update(wanted)
             self.model_provider(wanted)
-        for name, model in self._models.items():
+        # Only the models the ghosts leave or come to need placing again when nothing else moved.
+        names = list(self._models) if full else self._ghost_names | set(ghost_groups)
+        self._ghost_names = set(ghost_groups)
+        for name in names:
+            model = self._models.get(name)
             if model is not None:
-                self._place_instances(model, groups.get(name, []), grid)
+                shown = self._groups.get(name, []) + ghost_groups.get(name, [])
+                self._place_instances(model, shown, grid)
 
     def _place_instances(self, model: _Model, objects: list[Object], grid: TerrainGrid) -> None:
         model.objects = objects
         model.count = len(objects)
         if not objects:
+            model.matrices = np.zeros((0, 4, 4), dtype=np.float32)
             return
         # Where each object stands, which for a template with a rotation anchor is not its pivot.
         placed = [shown_position(obj, self.source.anchors) for obj in objects]
@@ -1853,6 +1883,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
             (object_scale(obj) for obj in objects), dtype=np.float64, count=len(objects)
         )
         matrices = instance_matrices(xs, ys, ground_heights(grid, xs, ys) + heights, angles, scales)
+        model.matrices = matrices
         # A GLSL mat4 attribute reads its four columns in turn.
         columns = np.ascontiguousarray(matrices.transpose(0, 2, 1), dtype=np.float32)
         glBindBuffer(GL_ARRAY_BUFFER, model.instances)
@@ -1907,7 +1938,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                     part.unlit,
                 )
             )
-        return _Model(parts, instances)
+        return _Model(parts, instances, geometry)
 
     def _draw_models(self, matrix: np.ndarray) -> None:
         if not self._model_program or not any(self._models.values()):
@@ -2242,8 +2273,9 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
 
     def _marker_dot(self, marker: Marker) -> bool:
         """An object keeps its dot over its model: it marks where the object stands, and it is
-        what a click picks it by. Show Object Dots turns the object dots off for a clean picture;
-        an object with no model to draw keeps its dot either way, as the only sign it is there."""
+        what a click picks it by first. Show Object Dots turns the object dots off for a clean
+        picture; an object with no model to draw keeps its dot either way, as the only sign it is
+        there."""
         return self.options.show_object_dots or self._marker_footprint(marker)
 
     def _dot_size(self, kind: MarkerKind) -> float:
@@ -2265,9 +2297,9 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         accept: Callable[[Marker], bool],
     ) -> Marker | None:
         """The marker a click picks: the nearest dot to the click on screen, whatever stands in
-        front of the object it belongs to. The dots are drawn over everything, so picking by them
-        rather than by the ground point under the cursor is what the picture shows; a marker with
-        no dot is picked by the ground under it, as in the top-down view."""
+        front of the object it belongs to, else the object whose model is under the click, else a
+        marker with no dot by the ground under it, as in the top-down view. The dots are drawn over
+        everything, so picking by them first is what the picture shows."""
         scene = self.scene
         if scene is None:
             return None
@@ -2284,7 +2316,45 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
             distance = math.hypot(point.x() - screen.x(), point.y() - screen.y())
             if distance <= best_distance:
                 best, best_distance = marker, distance
+        if best is None:
+            best = self._model_marker_at(screen, accept)
         return best if best is not None else super().marker_at(screen, world, pixels, accept)
+
+    def _model_marker_at(self, screen: QPointF, accept: Callable[[Marker], bool]) -> Marker | None:
+        """The object whose model the ray through the click meets first, unless the terrain
+        stands in front of it."""
+        scene = self.scene
+        if scene is None:
+            return None
+        origin, direction = self.camera.ray(screen.x(), screen.y())
+        by_source = {id(marker.source): marker for marker in scene.markers}
+        best: Marker | None = None
+        best_distance = math.inf
+        for model in self._models.values():
+            if model is None or not model.count:
+                continue
+            # Leave out the copies a click may not pick before testing, so an unpickable model in
+            # front does not hide a pickable one behind it.
+            markers = [by_source.get(id(obj)) for obj in model.objects]
+            keep = [
+                index
+                for index, marker in enumerate(markers)
+                if marker is not None and accept(marker)
+            ]
+            if not keep:
+                continue
+            hit = ray_hit_instances(model.geometry, model.matrices[keep], origin, direction)
+            if hit is not None and hit[1] < best_distance:
+                best, best_distance = markers[keep[hit[0]]], hit[1]
+        grid = self.transform.grid
+        if best is None or grid is None:
+            return best
+        ground = ray_hit(grid, origin, direction)
+        if ground is not None:
+            reach = float(np.linalg.norm(np.asarray(ground) - origin))
+            if reach + _GROUND_SLACK < best_distance:
+                return None
+        return best
 
     def _release_model(self, name: str) -> None:
         model = self._models.pop(name, None)
@@ -2522,6 +2592,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
     def leaveEvent(self, event: object) -> None:  # noqa: N802 - Qt override
         self.cursor_world = None
         self.cursor_moved.emit(None, None)
+        self.tool.leave(self)
 
     def _report_cursor(self) -> None:
         grid = self.transform.grid

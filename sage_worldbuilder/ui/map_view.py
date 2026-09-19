@@ -633,6 +633,7 @@ class MapView(QWidget, OverlayPainter):
     def leaveEvent(self, event: object) -> None:  # noqa: N802 - Qt override
         self.cursor_world = None
         self.cursor_moved.emit(None, None)
+        self.tool.leave(self)
 
     def _report_cursor(self, position: QPointF) -> None:
         grid = self.document.terrain if self.document is not None else None

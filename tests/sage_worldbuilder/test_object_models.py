@@ -11,9 +11,12 @@ np = pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is no
 from sage_w3d.render.scene import RenderMesh, Scene  # noqa: E402
 from sage_worldbuilder.models import ArtIndex, ObjectModel, ObjectModels, object_model  # noqa: E402
 from sage_worldbuilder.render.model_mesh import (  # noqa: E402
+    ModelGeometry,
+    ModelPart,
     instance_matrices,
     model_geometry,
     object_scale,
+    ray_hit_instances,
 )
 
 
@@ -219,6 +222,74 @@ def test_instance_matrices_scale_turn_and_move_a_model():
     tip = matrices[0] @ np.array([1.0, 0.0, 1.0, 1.0])
     # +x turned a quarter anticlockwise is +y; scale 2, then moved.
     assert tip == pytest.approx([100.0, 52.0, 14.0, 1.0], abs=1e-5)
+
+
+def box_geometry(additive=False):
+    """A unit cube centred on the origin, as twelve triangles."""
+    corners = np.array(
+        [(x, y, z) for x in (-0.5, 0.5) for y in (-0.5, 0.5) for z in (-0.5, 0.5)],
+        dtype=np.float32,
+    )
+    faces = [
+        (0, 1, 3), (0, 3, 2), (4, 6, 7), (4, 7, 5),
+        (0, 4, 5), (0, 5, 1), (2, 3, 7), (2, 7, 6),
+        (0, 2, 6), (0, 6, 4), (1, 5, 7), (1, 7, 3),
+    ]  # fmt: skip
+    part = ModelPart(
+        positions=corners,
+        normals=np.zeros_like(corners),
+        uvs=None,
+        indices=np.array(faces, dtype=np.uint32).ravel(),
+        texture=None,
+        color=(1.0, 1.0, 1.0, 1.0),
+        two_sided=False,
+        translucent=False,
+        alpha_test=False,
+        additive=additive,
+    )
+    return ModelGeometry((part,))
+
+
+def cubes(*placements):
+    xs, ys, zs, scales = (
+        np.array(values, dtype=np.float64) for values in zip(*placements, strict=True)
+    )
+    return instance_matrices(xs, ys, zs, np.zeros_like(xs), scales)
+
+
+def test_a_ray_picks_the_nearest_copy_of_a_model_it_passes_through():
+    matrices = cubes((0, 0, 0, 1), (10, 0, 0, 1), (5, 0, 0, 1))
+    down = np.array([0.0, 0.0, -1.0])
+    assert ray_hit_instances(box_geometry(), matrices, np.array([10.0, 0.2, 20.0]), down) == (
+        1,
+        pytest.approx(19.5),
+    )
+    # Along the row from the -x side, the cube at x=0 stands first.
+    along = np.array([1.0, 0.0, 0.0])
+    assert ray_hit_instances(box_geometry(), matrices, np.array([-20.0, 0.0, 0.1]), along) == (
+        0,
+        pytest.approx(19.5),
+    )
+    assert ray_hit_instances(box_geometry(), matrices, np.array([2.5, 0.0, 20.0]), down) is None
+
+
+def test_a_ray_meets_a_copy_as_it_is_scaled_and_placed():
+    matrices = cubes((0, 0, 3, 4))
+    hit = ray_hit_instances(
+        box_geometry(), matrices, np.array([1.8, 0.0, 20.0]), np.array([0.0, 0.0, -1.0])
+    )
+    # The cube is four units wide about z=3, so its top is at z=5.
+    assert hit == (0, pytest.approx(15.0))
+    behind = ray_hit_instances(
+        box_geometry(), matrices, np.array([0.0, 0.0, 20.0]), np.array([0.0, 0.0, 1.0])
+    )
+    assert behind is None
+
+
+def test_a_glow_is_not_something_a_click_lands_on():
+    matrices = cubes((0, 0, 0, 1))
+    origin, down = np.array([0.0, 0.0, 5.0]), np.array([0.0, 0.0, -1.0])
+    assert ray_hit_instances(box_geometry(additive=True), matrices, origin, down) is None
 
 
 def named_state(flags, *models, skeleton=None):

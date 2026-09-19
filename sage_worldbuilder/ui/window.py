@@ -14,8 +14,17 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from PyQt6.QtCore import QByteArray, QChildEvent, QEvent, QObject, QSize, Qt, QTimer
-from PyQt6.QtGui import QAction, QActionGroup, QCloseEvent, QIcon, QImage, QKeySequence, QPixmap
+from PyQt6.QtCore import QByteArray, QChildEvent, QEvent, QMimeData, QObject, QSize, Qt, QTimer
+from PyQt6.QtGui import (
+    QAction,
+    QActionGroup,
+    QCloseEvent,
+    QGuiApplication,
+    QIcon,
+    QImage,
+    QKeySequence,
+    QPixmap,
+)
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -81,11 +90,13 @@ from sage_worldbuilder.lighting import next_time_of_day
 from sage_worldbuilder.models import ArtIndex, MapConditions, ObjectModels
 from sage_worldbuilder.new_map import DEFAULT_CELL_SIZE, NewMapOptions, new_map
 from sage_worldbuilder.objects import (
+    CLIPBOARD_MIME,
     Clipboard,
     DeleteObjects,
     GroupEditMethod,
+    clipboard_from_json,
+    clipboard_to_json,
     copy_objects,
-    paste_objects,
 )
 from sage_worldbuilder.palette import names_under, object_palette
 from sage_worldbuilder.pick import ANYTHING, NOTHING, PickCategory, PickRules
@@ -204,10 +215,12 @@ from sage_worldbuilder.ui.terrain_tools import (
 from sage_worldbuilder.ui.tools import (
     BuildListTool,
     GenericAIObjectTool,
+    PasteTool,
     PlaceTool,
     PolygonTool,
     RulerTool,
     SelectTool,
+    Tool,
     WaypointTool,
 )
 from sage_worldbuilder.ui.validation import MapChecks, ValidationPanel
@@ -636,7 +649,6 @@ class MainWindow(QMainWindow):
         self._catalogue_textures = -1
         self._texture_game: Game | None = None
         self._texture_generation = 0
-        self.clipboard: Clipboard | None = None
         # Kinds of change made during a drag in the map view, for the panels to catch up on.
         self._held_changes: set[ChangeKind] = set()
         self._pick_rules: PickRules | None = None
@@ -667,6 +679,9 @@ class MainWindow(QMainWindow):
         self._map_view_actions: list[QAction] = []
         self.select_tool = SelectTool(self)
         self.place_tool = PlaceTool(self)
+        self.paste_tool = PasteTool(self)
+        # The tool Paste took over from, given back once the paste is put down or given up.
+        self._before_paste: Tool | None = None
         self.array_tool = RadialArrayTool(self)
         self.move_tool = MoveTool(self)
         self.rotate_tool = RotateTool(self)
@@ -707,6 +722,10 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.view_stack)
         self.map_view.cursor_moved.connect(self.show_cursor)
         self.map_view.gesture_finished.connect(self._gesture_finished)
+        board = QGuiApplication.clipboard()
+        if board is not None:
+            # Another editor copying objects makes Paste available here.
+            board.dataChanged.connect(self._refresh)
         self._default_state = self.saveState()
         self._restore_layout()
         self._apply_layout_lock()
@@ -2006,7 +2025,18 @@ class MainWindow(QMainWindow):
     def use_tool(self, name: str) -> None:
         """Switch the map view to a tool by name: `select`, `place`, `waypoint`, `polygon`,
         `ruler`, `build list`, or a height tool's name (`Height Brush`, `Mound`, ...)."""
-        tools = {
+        tools = self._tools()
+        tool, action = tools.get(name, tools["select"])
+        self._before_paste = None
+        if tool is not self.map_view.tool:
+            self.map_view.tool.cancel()
+        self.map_view.tool = tool
+        action.setChecked(True)
+        self._tool_chosen(tool)
+
+    def _tools(self) -> dict[str, tuple[Tool, QAction]]:
+        """The tools chosen from the toolbar, by name, and their actions."""
+        tools: dict[str, tuple[Tool, QAction]] = {
             "select": (self.select_tool, self.select_tool_action),
             "move": (self.move_tool, self.move_tool_action),
             "rotate": (self.rotate_tool, self.rotate_tool_action),
@@ -2033,11 +2063,10 @@ class MainWindow(QMainWindow):
         tools["auto edge out"] = (self.auto_edge_out_tool, self.auto_edge_out_action)
         tools["auto edge in"] = (self.auto_edge_in_tool, self.auto_edge_in_action)
         tools["terrain copy"] = (self.terrain_copy_tool, self.terrain_copy_action)
-        tool, action = tools.get(name, tools["select"])
-        if tool is not self.map_view.tool:
-            self.map_view.tool.cancel()
-        self.map_view.tool = tool
-        action.setChecked(True)
+        return tools
+
+    def _tool_chosen(self, tool: Tool) -> None:
+        """Show what goes with the tool just chosen: its overlay and its panel."""
         self._update_overlay()
         if isinstance(tool, HeightBrushTool):
             self._show_dock(self.brush_dock)
@@ -2112,12 +2141,31 @@ class MainWindow(QMainWindow):
         return [item for item in document.selection if isinstance(item, Object)]
 
     def copy(self) -> None:
+        """Copy the selected objects to the system clipboard, where this editor or another one
+        can paste them from."""
         objects = self.selected_objects()
-        if self.document is None or not objects:
+        board = QGuiApplication.clipboard()
+        if self.document is None or not objects or board is None:
             return
-        self.clipboard = copy_objects(self.document.map, with_partners(self.document.map, objects))
+        clipboard = copy_objects(self.document.map, with_partners(self.document.map, objects))
+        data = QMimeData()
+        data.setData(CLIPBOARD_MIME, QByteArray(clipboard_to_json(clipboard).encode("utf-8")))
+        board.setMimeData(data)
         _status(self).showMessage(f"Copied {len(objects)} object(s)", 3000)
         self._refresh()
+
+    def clipboard_objects(self) -> Clipboard | None:
+        """The objects on the system clipboard, copied here or in another editor, or None."""
+        board = QGuiApplication.clipboard()
+        data = board.mimeData() if board is not None else None
+        if data is None or not data.hasFormat(CLIPBOARD_MIME):
+            return None
+        return clipboard_from_json(bytes(data.data(CLIPBOARD_MIME)).decode("utf-8", "replace"))
+
+    def _clipboard_has_objects(self) -> bool:
+        board = QGuiApplication.clipboard()
+        data = board.mimeData() if board is not None else None
+        return data is not None and data.hasFormat(CLIPBOARD_MIME)
 
     def cut(self) -> None:
         objects = self.selected_objects()
@@ -2417,18 +2465,31 @@ class MainWindow(QMainWindow):
             self.execute(CompositeCommand("Delete", commands))
 
     def paste(self) -> None:
-        document, clipboard = self.document, self.clipboard
-        if document is None or clipboard is None or self._busy:
+        """Hand the clipboard's objects to the paste tool, which shows them following the cursor
+        until a click puts them down."""
+        document, clipboard = self.document, self.clipboard_objects()
+        if document is None or clipboard is None or not clipboard.objects or self._busy:
             return
-        try:
-            command, pasted = paste_objects(
-                document.map, clipboard, self.active_view().paste_position()
-            )
-        except ValueError as exc:
-            _status(self).showMessage(f"Cannot paste: {exc}", 5000)
+        if document.map.objects_list is None:
+            _status(self).showMessage("Cannot paste: the map has no object list", 5000)
             return
-        self.execute(command)
-        document.selection.set(pasted)
+        view = self.active_view()
+        if self.map_view.tool is not self.paste_tool:
+            self._before_paste = self.map_view.tool
+            self.map_view.tool.cancel()
+        self.paste_tool.start(clipboard, view.paste_position())
+        self.map_view.tool = self.paste_tool
+        _status(self).showMessage("Click to paste; Esc to cancel", 5000)
+        view.setFocus(Qt.FocusReason.OtherFocusReason)
+        view.update()
+
+    def paste_done(self) -> None:
+        previous = self._before_paste or self.select_tool
+        name = next(
+            (key for key, (tool, _action) in self._tools().items() if tool is previous), "select"
+        )
+        self.use_tool(name)
+        self.active_view().update()
 
     def _selection_changed(self) -> None:
         document = self.document
@@ -3835,7 +3896,9 @@ class MainWindow(QMainWindow):
         ):
             action.setEnabled(has_objects)
         self.delete_action.setEnabled(idle and document is not None and bool(document.selection))
-        self.paste_action.setEnabled(idle and document is not None and self.clipboard is not None)
+        self.paste_action.setEnabled(
+            idle and document is not None and self._clipboard_has_objects()
+        )
 
         if document is None:
             self.setWindowTitle(APP_TITLE)
