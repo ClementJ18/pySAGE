@@ -4,9 +4,19 @@ from pathlib import Path
 
 import pytest
 
+from sage_ini.model.enums import LodLevel
 from sage_utils.config import user_file
 from sage_worldbuilder.jump import JumpMatch, JumpSeat
-from sage_worldbuilder.settings import APP, MAX_RECENT, SETTINGS_FILE, RecentMap, Settings
+from sage_worldbuilder.settings import (
+    APP,
+    MAX_RECENT,
+    SETTINGS_FILE,
+    RecentMap,
+    SavedLayout,
+    Settings,
+)
+from sage_worldbuilder.toolbar import DEFAULT_ITEMS
+from sage_worldbuilder.viewport import ViewOptions
 
 
 @pytest.fixture(autouse=True)
@@ -27,6 +37,19 @@ def test_round_trip():
     assert settings.save()
 
     assert Settings.load().to_dict() == settings.to_dict()
+
+
+def test_the_view_lod_level_round_trips_and_bad_values_fall_back_to_ultra_high():
+    settings = Settings(view=ViewOptions(lod_level=LodLevel.Low))
+    assert settings.save()
+    assert Settings.load().view.lod_level is LodLevel.Low
+
+    assert ViewOptions.from_dict({"lod_level": "Low"}).lod_level is LodLevel.Low
+    # Off is a real LodLevel member (shadow/decal buckets take it) but never a static level.
+    assert ViewOptions.from_dict({"lod_level": "Off"}).lod_level is LodLevel.UltraHigh
+    assert ViewOptions.from_dict({"lod_level": "not a level"}).lod_level is LodLevel.UltraHigh
+    assert ViewOptions.from_dict({"lod_level": 3}).lod_level is LodLevel.UltraHigh
+    assert ViewOptions().lod_level is LodLevel.UltraHigh
 
 
 def test_recent_is_newest_first_deduplicated_and_capped():
@@ -143,3 +166,46 @@ def test_the_jump_match_round_trips_and_reaches_the_options():
 def test_recent_labels():
     assert RecentMap("game", "maps\\fords\\fords.map").label() == "fords (game)"
     assert RecentMap("file", "C:/maps/a.map").label() == "C:/maps/a.map"
+
+
+def test_toolbar_layout_defaults_to_the_default_items_until_customised():
+    settings = Settings()
+    assert settings.toolbar_items is None
+    assert settings.toolbar_layout() == tuple(DEFAULT_ITEMS)
+
+
+def test_toolbar_items_round_trip_none_and_an_empty_list_distinctly():
+    Settings().save()
+    assert Settings.load().toolbar_items is None
+
+    Settings(toolbar_items=[]).save()
+    loaded = Settings.load()
+    assert loaded.toolbar_items == []
+    assert loaded.toolbar_layout() == ()
+
+    custom = ["save", "open", "undo"]
+    Settings(toolbar_items=custom).save()
+    assert Settings.load().toolbar_items == custom
+    assert Settings.load().toolbar_layout() == tuple(custom)
+
+
+def test_toolbar_items_from_dict_is_forgiving():
+    assert Settings.from_dict({"toolbar_items": "open,save"}).toolbar_items is None
+    assert Settings.from_dict({"toolbar_items": None}).toolbar_items is None
+
+    loaded = Settings.from_dict({"toolbar_items": ["open", "not-a-real-id", "save", 3, "open"]})
+    assert loaded.toolbar_items == ["open", "save"]
+
+
+def test_named_layouts_round_trip_and_skip_bad_rows():
+    settings = Settings(
+        layouts={"Scripting": SavedLayout("Z2Vv", "c3Rh"), "Terrain": SavedLayout("", "")}
+    )
+    assert settings.save()
+    assert Settings.load().layouts == settings.layouts
+
+    loaded = Settings.from_dict(
+        {"layouts": {"ok": {"geometry": "a", "state": "b"}, "bad": {"geometry": 1}, "": {}}}
+    )
+    assert loaded.layouts == {"ok": SavedLayout("a", "b")}
+    assert Settings.from_dict({"layouts": []}).layouts == {}

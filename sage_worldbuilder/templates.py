@@ -18,14 +18,23 @@ from importlib.resources import files
 from sage_map.assets.player_scripts import ScriptArgumentType
 
 __all__ = [
+    "LIVING_WORLD_ONLY",
     "ParameterType",
     "ScriptTemplate",
     "TemplateKind",
+    "offered_templates",
     "parameter_values",
     "script_templates",
     "template",
     "template_named",
 ]
+
+# A template's `flags` say which maps offer it: bit 0 ordinary maps, bit 1 Living World script
+# maps. `EditAction::OnInitDialog` and its condition twin walk all 600 records and keep the ones
+# whose flags meet a mask the dialog is given (`0x004EC95B`), so the tree a mapper sees is not the
+# whole catalogue. The six templates the builders write `2` for are the Living World ones - the
+# `_Army`, `_Region` and `_Player` folders - and they are what an ordinary map leaves out.
+LIVING_WORLD_ONLY = 2
 
 # A parameter type `sage_map` names, or the bare number for one it does not (the Living World
 # reference types WorldBuilder itself cannot display), or `None` for a slot never filled.
@@ -99,6 +108,21 @@ def script_templates() -> tuple[ScriptTemplate, ...]:
             parameters=tuple(_parameter_type(value) for value in row["parameters"]),
         )
         for row in _catalogue()["templates"]
+    )
+
+
+def offered_templates(kind: TemplateKind, living_world: bool = False) -> tuple[ScriptTemplate, ...]:
+    """The templates of `kind` the New action / New condition tree offers a map, in table order.
+
+    A Living World script map is offered them all; an ordinary one is not offered the Living World
+    templates (`LIVING_WORLD_ONLY`), whose `_Army`, `_Region` and `_Player` folders mean nothing to
+    it. The other direction - whether a Living World map is offered only its own and the core
+    scripting set, which is what a mask of 2 would give - rests on the flags the record builders
+    never write, so nothing is hidden on it."""
+    return tuple(
+        entry
+        for entry in script_templates()
+        if entry.kind is kind and (living_world or entry.flags != LIVING_WORLD_ONLY)
     )
 
 

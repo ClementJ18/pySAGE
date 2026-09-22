@@ -1,9 +1,11 @@
 """The top-down map view: the terrain picture with the objects, waypoints, trigger areas, grid and
 map boundaries drawn over it.
 
-Space-drag or middle-drag pans, the wheel zooms about the cursor, and moving the mouse reports the
-heightmap sample under it. Everything it draws comes from the document through `MapScene` and
-`TerrainGrid`, rebuilt only when the kind of data they show changes. It also keeps the state the
+Right-drag, middle-drag or Space-drag pans - looking straight down there is nothing to orbit, so
+the button the 3D view turns the camera with pans here too - the wheel zooms about the cursor, and
+moving the mouse reports the heightmap sample under it. Everything it draws comes from the
+document through `MapScene` and `TerrainGrid`, rebuilt only when the kind of data they show
+changes. It also keeps the state the
 3D view shows (the document, the tool, the texture colours, the filters, the tile feedback) and
 forwards each change to it when one is open.
 """
@@ -542,8 +544,10 @@ class MapView(QWidget, OverlayPainter):
         if event is None:
             return
         button = event.button()
-        if button == Qt.MouseButton.MiddleButton or (
-            button == Qt.MouseButton.LeftButton and self._space_down
+        if (
+            button == Qt.MouseButton.MiddleButton
+            or (button == Qt.MouseButton.RightButton and not self.tool.right_button)
+            or (button == Qt.MouseButton.LeftButton and self._space_down)
         ):
             self._panning = True
             self._last_mouse = event.position()

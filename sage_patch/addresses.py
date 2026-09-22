@@ -112,6 +112,30 @@ __all__ = [
     "AI_PRODUCER_ACCEPT",
     "AI_PRODUCER_ANY_BRANCH",
     "AI_PRODUCER_ANY_BRANCH_ENTRY",
+    "OBJECT_SET_LAYER",
+    "OBJECT_SET_LAYER_ENTRY",
+    "THING_TEMPLATE_KINDOF",
+    "KINDOF_MACHINE_BYTE",
+    "KINDOF_MACHINE_MASK",
+    "WALL_LAYER_FIRST",
+    "WALL_LAYER_LAST",
+    "WALL_LAYER_PROMOTION",
+    "WALL_LAYER_PROMOTION_ENTRY",
+    "FLOAT_TEN",
+    "OBJECT_POSITION_Z",
+    "PATHFINDER_IN_AI",
+    "PATHFINDER_WALL_HEIGHTS",
+    "TERRAIN_GET_LAYER_FOR_DESTINATION",
+    "THE_AI",
+    "LAYER_AFTER_MOVE_SET_CALL",
+    "LAYER_AFTER_MOVE_SET_CALL_ENTRY",
+    "PHYSICS_LAYER_SET_CALL",
+    "PHYSICS_LAYER_SET_CALL_ENTRY",
+    "LAYER_SET_ARGS_ENTRY",
+    "WALL_LAYER_PROMOTION_SET_ARGS",
+    "WALL_LAYER_PROMOTION_SET_ARGS_ENTRY",
+    "WALL_LAYER_PROMOTION_SET_CALL",
+    "WALL_LAYER_PROMOTION_SET_CALL_ENTRY",
     "AI_PRODUCER_NEXT_CANDIDATE",
     "AI_PRODUCER_PICKER",
     "AI_PRODUCER_PICKER_CALL",
@@ -371,6 +395,8 @@ __all__ = [
     "CONTROL_BAR_AVAILABILITY_OK_HIGH",
     "CONTROL_BAR_AVAILABILITY_OK_LOW",
     "CONTROL_BAR_AVAILABILITY_TEST",
+    "CONTROL_BAR_CLICK_ARGUMENT_BUILD",
+    "CONTROL_BAR_CLICK_ARGUMENT_BUILD_BYTES",
     "CONTROL_BAR_CLICK_BUTTON_LOAD",
     "CONTROL_BAR_CLICK_BUTTON_LOAD_BYTES",
     "CONTROL_BAR_CLICK_GATE_CALL",
@@ -430,6 +456,13 @@ __all__ = [
     "CREDITS_EXIT_AUDIO_TAIL_BYTES",
     "CREDITS_EXIT_HANDLER",
     "CRT_ATOI",
+    "D3DPERF_MODULE_HANDLE",
+    "D3DPERF_RESOLVE_ANCHOR",
+    "D3DPERF_RESOLVE_ANCHOR_BYTES",
+    "D3DPERF_SETOPTIONS_STORE",
+    "D3DPERF_SETOPTIONS_STORE_ENTRY",
+    "D3DPERF_SETOPTIONS_STORE_RESUME",
+    "D3DPERF_SET_OPTIONS_PTR",
     "DAMAGE_INFO_DAMAGE_TYPE",
     "DAMAGE_INFO_SOURCE_ID",
     "DAMAGE_NUGGET_DEALS_DAMAGE_BODY",
@@ -666,6 +699,7 @@ __all__ = [
     "GETTING_BUILT_STILL_BUILDING_SLOT",
     "GET_CHECKBOX_STATE",
     "GET_FINAL_OVERRIDE",
+    "GET_PROC_ADDRESS_IAT",
     "GIVE_UPGRADE_CAN_GIVE",
     "GIVE_UPGRADE_CAN_GIVE_BODY",
     "GIVE_UPGRADE_CAN_GIVE_BODY_BYTES",
@@ -1089,6 +1123,29 @@ __all__ = [
     "PASSIVE_AREA_EFFECT_PING_SLOT_OFFSET",
     "PASSIVE_AREA_EFFECT_UPDATE",
     "PASSIVE_AREA_EFFECT_UPDATE_VTABLE",
+    "PERF_BEGIN_EVENT",
+    "PERF_BEGIN_EVENT_BYTES",
+    "PERF_D3D_BEGIN_EVENT_PTR",
+    "PERF_D3D_END_EVENT_PTR",
+    "PERF_END_EVENT",
+    "PERF_END_EVENT_BYTES",
+    "PERF_SCOPE_CTOR",
+    "PERF_SCOPE_CTOR_BYTES",
+    "PERF_SCOPE_CTOR_ENTRY",
+    "PERF_SCOPE_CTOR_OBJECT_SETUP",
+    "PERF_SCOPE_CTOR_OBJECT_SETUP_BYTES",
+    "PERF_SCOPE_CTOR_RESUME",
+    "PERF_SCOPE_DTOR",
+    "PERF_SCOPE_DTOR_ENTRY",
+    "PERF_SCOPE_NULL_EXIT",
+    "PERF_SCOPE_NULL_EXIT_BYTES",
+    "PERF_SCOPE_NULL_GATE",
+    "PERF_SCOPE_NULL_GATE_ENTRY",
+    "PERF_SCOPE_NULL_GATE_RESUME",
+    "PERF_SCOPE_NULL_GATE_RESUME_BYTES",
+    "PERF_SCOPE_STAGE_SITE",
+    "PERF_SCOPE_STAGE_SITE_BYTES",
+    "PERF_SCOPE_STRNCPY_IAT",
     "PLAYBACK_INSTALLS_OBSERVER",
     "PLAYER_COMMAND_POINTS_USED",
     "PLAYER_COMPLETED_UPGRADE_MASK",
@@ -1189,6 +1246,7 @@ __all__ = [
     "PRODUCTION_WITHDRAW_PLAYER_EBP",
     "PRODUCTION_WITHDRAW_RESUME",
     "PRODUCTION_WITHDRAW_TEMPLATE_EBP",
+    "QUERY_PERFORMANCE_COUNTER_IAT",
     "QUEUE_EXIT_BIND_BLOCK",
     "QUEUE_EXIT_BIND_BLOCK_BYTES",
     "QUEUE_EXIT_FINISH",
@@ -2691,6 +2749,24 @@ CONTROL_BAR_CLICK_GATE_CALL_BYTES = bytes.fromhex("e81e6cd6ff")  # call 0x006A87
 CONTROL_BAR_CLICK_GATE_SUFFIX = 0x00941BD7
 CONTROL_BAR_CLICK_GATE_SUFFIX_BYTES = bytes.fromhex("84c075e9817c24140b400000")
 
+# The rest of the dispatch, from the discard test to the executor call. It is the reason a patch
+# that answers the gate itself has to zero the *whole* of `eax` rather than just `al`: the two
+# `Bool` arguments are built with `sete al` / `setne al` and pushed as dwords, and the stock
+# predicate leaves `eax` at a clean 0 or 1 (`neg al; sbb eax, eax; inc eax`). A replacement that
+# writes only `al` would push whatever the window virtual at `0x00941BBD` left in the top three
+# bytes.
+#
+#     mov   ecx, ebx                   ; 0x00941BE3  TheControlBar
+#     sete  al                         ; 0x00941BE5  message == 0x400B
+#     cmp   [esp+0x14], 0x4009         ; 0x00941BE8
+#     mov   [esi+0xC4], edi            ; 0x00941BF0  the button remembers its window
+#     push  eax / setne al / push eax  ; 0x00941BF6  the two bools, as dwords
+#     push  esi / call 0x00940435      ; 0x00941BFB  the button, into the click executor
+CONTROL_BAR_CLICK_ARGUMENT_BUILD = 0x00941BE3
+CONTROL_BAR_CLICK_ARGUMENT_BUILD_BYTES = bytes.fromhex(
+    "8bcb0f94c0817c24140940000089bec4000000500f95c05056e834e8ffff"
+)
+
 # The click executor's dispatch on `CommandButton+0x14`, and the two tables it dispatches
 # through - an MSVC two-level switch, so the handler for command `T` is
 # `jump_table[index_table[T - 1]]`:
@@ -3062,6 +3138,86 @@ AI_PRODUCER_PICKER_CALL_BYTES = bytes.fromhex("e82cf70a00")  # call 0x009A0705
 # "could anything ever make this" and skips straight to accept. Six bytes, and a scan of every
 # branch displacement and imm32 in `.text` finds **no** inbound edge into them - the only way in
 # is fallthrough from the `je` at 0x009A0782 - which is what makes them hookable.
+
+#: `TheAI`, registered at `0x0063BE74`..`0x0063BE87`; `TheAI + PATHFINDER_IN_AI` is the
+#: `Pathfinder`, and `Pathfinder + PATHFINDER_WALL_HEIGHTS + layer*4` is a wall-height layer's
+#: flat surface height.
+THE_AI = 0x00DE4B40
+PATHFINDER_IN_AI = 0x10
+PATHFINDER_WALL_HEIGHTS = 0x1BE78
+
+#: `Object`'s world z. The transform's translation row; `+0x38`/`+0x3C`/`+0x40` is the
+#: `Coord3D` the pathfinder reads at `0x006F0762`.
+OBJECT_POSITION_Z = 0x40
+
+#: The `10.0f` the engine itself uses as "near enough to the same level", in both arms of
+#: `WALL_LAYER_PROMOTION` (`0x006F07A4`, `0x006F084C`).
+FLOAT_TEN = 0x00BD83D8
+
+# `push ebp; mov ebp,esp; push ecx; push ecx` - `TerrainLogic::getLayerForDestination(Object *,
+# Coord3D *)`. Returns ground, or `16` when the position is on a ramp record
+# (`0x006E89EE` at `0x00680B1A`), or the layer the cell names via `0x006EE600` - which over a
+# wall's bounds cells is a wall-height layer. Its two `setLayer` callers below apply the result
+# with **no height test at all**, which is the second road onto a wall.
+TERRAIN_GET_LAYER_FOR_DESTINATION = 0x00680A75
+
+#: `push eax; mov ecx, esi` - the three bytes before each `setLayer` call this patch gates. All
+#: three sites share them: the resolved layer in `eax`, the object in `esi`.
+LAYER_SET_ARGS_ENTRY = bytes.fromhex("508bce")
+
+#: `setLayer` after a move, in the object-moved path: `setPosition`, `setOrientation`,
+#: `getLayerForDestination`, then this. Unconditional.
+LAYER_AFTER_MOVE_SET_CALL = 0x0062E15F
+LAYER_AFTER_MOVE_SET_CALL_ENTRY = bytes.fromhex("e839da0500")
+
+#: The same shape in the `PhysicsBehavior` translation unit, guarded only by `IMMOBILE`
+#: (`test byte [tmpl+0x108], 4` at `0x00797916`) - so it runs for every mobile object that moves.
+PHYSICS_LAYER_SET_CALL = 0x0079792F
+PHYSICS_LAYER_SET_CALL_ENTRY = bytes.fromhex("e86942efff")
+
+
+# `Object::setLayer(PathfindLayerEnum)` - `__thiscall`, one stack argument, `ret 4`. Writes the
+# layer to `Object+0x428` (`0x0068BBCE`) and unregisters from the old layer through
+# `TheTerrainLogic` vtable `+0xAC` first. `Object::getLayer` (`0x0068BBE0`) reads the same field
+# back, forcing `1` while `Object+0x4AC` is set. Derived in `docs/wall-layer-promotion.md`.
+OBJECT_SET_LAYER = 0x0068BB9D
+OBJECT_SET_LAYER_ENTRY = bytes.fromhex("568bf18b8628040000")  # push esi; mov esi,ecx; mov eax,...
+
+#: Base of the `ThingTemplate`'s `KindOf` bitmask. `0x00936BCE` reads bits 32..63 at `+0x10C`,
+#: which fixes the base at `+0x108`; a flag's index gives its byte and bit from there.
+THING_TEMPLATE_KINDOF = 0x108
+
+#: `MACHINE` is `KindOf` index 11 - bit `0x08` of the byte at `THING_TEMPLATE_KINDOF + 1`. Every
+#: siege engine in the shipped data carries it and no infantry does.
+KINDOF_MACHINE_BYTE = 0x109
+KINDOF_MACHINE_MASK = 0x08
+
+#: The wall-height layer numbers, straight out of `isWallLayer` (`0x006E82B3`:
+#: `cmp [esp+4],0x11 / jl -> 0`, `cmp [esp+4],0x40 / jg -> 0`). A wall stamps one of these into
+#: the ground cells its `WallBoundsMesh` covers, and the layer's surface is the flat constant at
+#: `Pathfinder+0x1BE78 + layer*4`. Layer `16` is the *ramp* layer and is deliberately outside
+#: this range - see `docs/wall-layer-promotion.md` §6b.
+WALL_LAYER_FIRST = 0x11
+WALL_LAYER_LAST = 0x40
+
+# `push ebp; mov ebp,esp; sub esp,0x10` - `Pathfinder::updateObjectLayer(Object *)`, `__thiscall`
+# on the `Pathfinder`, `ret 4`. Reads the cell under the object's centre and, if that cell names a
+# layer whose surface is more than 10 units above the object, moves the object to it.
+WALL_LAYER_PROMOTION = 0x006F0741
+WALL_LAYER_PROMOTION_ENTRY = bytes.fromhex("558bec83ec10")
+
+#: `push eax; mov ecx, esi` - the argument (the cell's stamped layer) and the object, set up
+#: immediately before the call below. Asserted so the cave's reading of `ecx` and `[esp+4]` is
+#: pinned to this build rather than assumed.
+WALL_LAYER_PROMOTION_SET_ARGS = 0x006F07DA
+WALL_LAYER_PROMOTION_SET_ARGS_ENTRY = bytes.fromhex("508bce")
+
+#: The `setLayer` call in the `h > z + 10` arm - the teleport itself, and the only engine bytes
+#: `wall-layer-promotion` edits. Its rel32 is re-aimed at the gate cave, which tail-calls
+#: `OBJECT_SET_LAYER` or returns without it.
+WALL_LAYER_PROMOTION_SET_CALL = 0x006F07DD
+WALL_LAYER_PROMOTION_SET_CALL_ENTRY = bytes.fromhex("e8bbb3f9ff")
+
 AI_PRODUCER_ANY_BRANCH = 0x009A0784
 AI_PRODUCER_ANY_BRANCH_ENTRY = bytes.fromhex("807d10007516")
 # `mov eax, [esi]` - the head of the usable-producer tests: `ProductionUpdate` vtable `+0x64`
@@ -7997,3 +8153,106 @@ CONSTRUCTION_PERCENT_FROM_RATIO_ANCHORS = {
 
 #: `100.0f`, the scale both percent derivations and the `DozerAIUpdate` ramp share.
 FLOAT_HUNDRED = 0x00BD88D8
+
+
+#: The engine's **named render-scope class**, and the whole of `perf-stage-readout`'s surface.
+#: Thirty `PerfScope` objects are constructed and destroyed per drawn frame, each naming a stage -
+#: `UpdateShadowMap`, `RenderTerrain`, `MeshDX8Render` and twenty-five more - and each opening a
+#: PIX event around it. Derived in `docs/perf-stage-readout.md`.
+#:
+#: `PERF_SCOPE_CTOR` is `PerfScope::PerfScope(const char *name, const char *category, int colour)`,
+#: `__thiscall` with `ecx` the object. **The name arrives as a `.rdata` pointer here and nowhere
+#: after**: the constructor's first act is to `strncpy` it into the object, so by the time
+#: `PERF_BEGIN_EVENT` sees it the pointer is a stack address shared by every scope in the same
+#: function. That is why the hook is on the constructor rather than on the D3DPERF wrapper.
+PERF_SCOPE_CTOR = 0x00517690
+#: `mov eax, [esp+4]` / `test eax, eax` - the six displaced bytes. The `test` sets the flags the
+#: `je` at `0x00517699` reads, so a cave must re-run both and jump back with them fresh.
+PERF_SCOPE_CTOR_ENTRY = bytes.fromhex("8b44240485c0")
+PERF_SCOPE_CTOR_RESUME = 0x00517696
+#: The constructor's identity: `eax` is the name, `esi` becomes the object. **It stops one
+#: instruction short of the `je` at `PERF_SCOPE_NULL_GATE` on purpose** - that is
+#: `perf-scope-skip`'s hook site, and an anchor reaching into it would make the two patches
+#: refuse each other depending on which was applied first.
+PERF_SCOPE_CTOR_BYTES = bytes.fromhex("8b44240485c0568bf1")
+
+#: `push esi` / `mov esi, ecx` - the constructor establishing the object, and the first bytes of
+#: it that `perf-stage-readout`'s six-byte hook does **not** overwrite. `perf-scope-skip` anchors
+#: here rather than at `PERF_SCOPE_CTOR` for exactly that reason: it has to hold whichever of the
+#: two patches was applied first. It is also the instruction the skip path depends on - the exit it
+#: jumps to ends `pop esi`, which only balances because the entry pushed it.
+PERF_SCOPE_CTOR_OBJECT_SETUP = 0x00517696
+PERF_SCOPE_CTOR_OBJECT_SETUP_BYTES = bytes.fromhex("568bf1")
+
+#: `je PERF_SCOPE_NULL_EXIT` - the constructor's "this scope has no name, do nothing" branch, and
+#: `perf-scope-skip`'s hook. Six bytes of near `jcc`, reached with the flags from the `test` at
+#: `0x00517694` still live, `eax` the name and `esi` the object.
+PERF_SCOPE_NULL_GATE = 0x00517699
+PERF_SCOPE_NULL_GATE_ENTRY = bytes.fromhex("0f8492000000")
+#: Where the stock body begins, i.e. where a cave jumps when it decides to let the scope run.
+PERF_SCOPE_NULL_GATE_RESUME = 0x0051769F
+PERF_SCOPE_NULL_GATE_RESUME_BYTES = bytes.fromhex("55578b3d2406")
+
+#: The constructor's own do-nothing exit: `mov eax, esi` / `pop esi` / `ret 0xC`. It returns the
+#: object and unwinds the one `push esi` the entry made, which is exactly the ABI a skipped scope
+#: needs - so `perf-scope-skip` jumps here rather than assembling its own return.
+PERF_SCOPE_NULL_EXIT = 0x00517731
+PERF_SCOPE_NULL_EXIT_BYTES = bytes.fromhex("8bc65ec20c00")
+
+#: `msvcr71!strncpy` in the IAT, which the scope constructor calls twice per scope. The first call
+#: passes `n = 0x100` and `strncpy` **pads to `n`**, so it writes 256 bytes whatever the name's
+#: length; the second passes `0x40 - len`. That is the cost `perf-scope-skip` removes.
+PERF_SCOPE_STRNCPY_IAT = 0x00BD0624
+
+#: Where the engine stores `D3DPERF_SetOptions`, the last of the four D3DPERF resolves, and
+#: `perf-scope-skip`'s second hook: the first point at which `d3d9.dll` is loaded, its handle is in
+#: `D3DPERF_MODULE_HANDLE` and nothing else is half-initialised. The patch re-runs the displaced
+#: store and then asks `D3DPERF_GetStatus` whether anyone is actually listening.
+D3DPERF_SETOPTIONS_STORE = 0x00525202
+D3DPERF_SETOPTIONS_STORE_ENTRY = bytes.fromhex("a32836dd00")
+D3DPERF_SETOPTIONS_STORE_RESUME = 0x00525207
+#: The whole resolve tail, from the module-handle load to the call past the hook.
+D3DPERF_RESOLVE_ANCHOR = 0x005251F5
+D3DPERF_RESOLVE_ANCHOR_BYTES = bytes.fromhex("a11036dd00689071be0050ffd6a32836dd006a20ff151436dd00")
+
+#: The `d3d9.dll` module handle the four D3DPERF resolves are taken from, and the slot the last of
+#: them lands in.
+D3DPERF_MODULE_HANDLE = 0x00DD3610
+D3DPERF_SET_OPTIONS_PTR = 0x00DD3628
+
+#: `kernel32!GetProcAddress` in the IAT - how the probe reaches `D3DPERF_GetStatus`, which the
+#: engine itself never resolves.
+GET_PROC_ADDRESS_IAT = 0x00BD018C
+
+#: `PerfScope::~PerfScope`, which is nothing but a five-byte tail jump to `PERF_END_EVENT`. Thirty
+#: callers, pairing one-for-one with the constructor's thirty. Being exactly one jump makes it the
+#: cleanest hook in the pair: there are no displaced instructions to re-run.
+PERF_SCOPE_DTOR = 0x00517740
+PERF_SCOPE_DTOR_ENTRY = bytes.fromhex("e91b760000")
+
+#: The two D3DPERF wrappers the scope class drives. `PERF_BEGIN_EVENT` widens the ASCII name into
+#: a `0x200`-byte stack buffer and calls through `PERF_D3D_BEGIN_EVENT_PTR`; `PERF_END_EVENT` is a
+#: null test and a tail jump through `PERF_D3D_END_EVENT_PTR`. Both do nothing when the pointer is
+#: null, which is what makes the stage events free to the engine and invisible without a consumer.
+PERF_BEGIN_EVENT = 0x0051ECE0
+PERF_BEGIN_EVENT_BYTES = bytes.fromhex("81ec00020000568b351c36dd00")
+PERF_END_EVENT = 0x0051ED60
+PERF_END_EVENT_BYTES = bytes.fromhex("a12036dd0085c07501c3ffe0")
+
+#: `D3DPERF_BeginEvent` / `D3DPERF_EndEvent`, resolved out of `d3d9.dll` at `0x005251D7` and
+#: `0x005251EA` and cleared again at `0x00525844` / `0x0052584A`. Zero in the file; non-null in a
+#: running game, because `d3d9.dll` always exports them. `perf-stage-readout` does not touch
+#: either - it measures the scope, not the event - but they are what the scope exists to drive.
+PERF_D3D_BEGIN_EVENT_PTR = 0x00DD361C
+PERF_D3D_END_EVENT_PTR = 0x00DD3620
+
+#: `UpdateShadowMap`'s scope, planted whole as the proof of the calling convention: `push colour`
+#: / `push "Frame"` / `push "UpdateShadowMap"` / `lea ecx, [ebp-0x158]` / `call PERF_SCOPE_CTOR`.
+#: What entitles the cave to read the name off `[esp+4]` is this sequence, not the constructor's
+#: own first instruction.
+PERF_SCOPE_STAGE_SITE = 0x00449DCF
+PERF_SCOPE_STAGE_SITE_BYTES = bytes.fromhex("5368fc9dbd0068ec9dbd008d8da8feffffe8abd80c00")
+
+#: `kernel32!QueryPerformanceCounter` in the IAT. Already called from seventeen engine sites, so
+#: the indirect-call form a cave needs is a pattern the image already carries.
+QUERY_PERFORMANCE_COUNTER_IAT = 0x00BD02E8

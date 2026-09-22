@@ -19,15 +19,16 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
 
 > ### ⚠ Experimental patches
 >
-> Twenty-one of the registered patches — **`ai-disabled-regions`**, **`battle-school`**,
+> Twenty-three of the registered patches — **`ai-disabled-regions`**, **`battle-school`**,
 > **`campaign-select`**,
 > **`capture-the-flag`**, **`command-line-skirmish`**, **`cooldown-through-death`**,
 > **`headless`**, **`hero-army-carryover`**, **`hero-mana`**, **`hide-selection-details`**,
 > **`live-bridge`**,
-> **`living-world-override`**, **`map-transition`**, **`ranged-stand-off`**,
+> **`living-world-override`**, **`map-transition`**, **`observer-all-commands`**,
+> **`ranged-stand-off`**,
 > **`recharge-rescale`**, **`second-resource`**, **`smart-rally`**,
-> **`special-power-charges`**, **`special-power-music`**, **`spellbook-hotkeys`** and
-> **`unit-plate-option`** — are
+> **`special-power-charges`**, **`special-power-music`**, **`spellbook-hotkeys`**,
+> **`unit-plate-option`** and **`wall-layer-promotion`** — are
 > **experimental: unstable and largely untested.** They live in
 > [`patches/experimental/`](patches/experimental/), they are marked `exp`
 > by `sage-patch list`, and `sage-patch apply` prints a warning before it touches a byte.
@@ -1160,7 +1161,8 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   case as enabled. So the patch retargets that one `call` into a cave that answers "active" for
   those two commands and tail-calls the stock predicate for everything else — five bytes at the
   call site. Every other command stays refused, because the rest of them post `GameMessage`s.
-  Client-local, and it needs nothing from the INI.
+  Client-local, and it needs nothing from the INI. To open the same gate for *every* command
+  instead, see `observer-all-commands` below — experimental, and mutually exclusive with this.
 - **`observer-switch`** makes a **skirmish replay let you change seat** — next/prior player, and
   with it that player's vision, palantir and unlocked spellbook — which a network replay already
   does. The palantir shows the observer bar on two conditions, and the failing one whitelists the
@@ -1202,6 +1204,56 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   first match. **Static-verified**: it applies, verifies and disassembles as intended, and both
   sites are confirmed against the real binary; the resumption itself has not been watched in a
   running game. See [`docs/passive-aura-revive.md`](docs/passive-aura-revive.md).
+- **`perf-scope-skip`** stops the render paying **megabytes a frame to label events nobody
+  reads.** Each of the thirty `PerfScope` objects a drawn frame opens spends two `strncpy` calls, a
+  13-byte inline copy and a `strlen` building its PIX event name — and `strncpy` **pads to `n`**, so
+  the first call writes **256 bytes whether the name is `RenderUI` or `RenderTerrainParticles`**.
+  About 313 bytes per scope, into a `0x140`-byte buffer on the caller's stack, for a
+  `D3DPERF_BeginEvent` that returns without dereferencing it when no profiler is attached. Two of
+  the thirty scopes are **per mesh**, so a frame drawing three thousand meshes does it six thousand
+  times. The patch asks **`D3DPERF_GetStatus`** — the one D3DPERF export the engine never resolves,
+  and the only test that works, because `D3DPERF_BeginEvent` is exported whether or not anyone is
+  listening so the engine's own null check can never fire — once at the tail of its own D3DPERF
+  resolve, and records the answer in a byte. When it is no, a four-instruction gate on the
+  constructor's own null-name branch sends the scope down **the engine's own do-nothing exit**,
+  which already returns the object and unwinds the one `push` the entry made, so the patch needs no
+  return sequence of its own. **A PIX capture still works and still comes out labelled.** Two
+  questions had to be answered before this was writable and both are in the doc: **nothing reads
+  the buffer** (all 64 references to a scope object's stack slot, across the eight functions that
+  build one, are `lea ecx` feeding the constructor or the destructor) and **the unwind state is the
+  caller's** — the constructor uses `ebp` as a saved scratch register, not a frame pointer, so
+  neither it nor the five-byte destructor can reach the `[ebp-4]` the sites set. Order-independent
+  with `perf-stage-readout`, which is the pairing worth running: that one still times every scope
+  because it hooks the constructor *before* this gate, so you get the render profile without the
+  measurement paying for a string. Client-local, no INI change. **Both routines are unit-tested by
+  executing them** under Unicorn with `GetProcAddress` and `D3DPERF_GetStatus` driven from the
+  test; **not yet played**, and the size of the win is arithmetic until `perf-stage-readout` is run
+  in a game. See [`docs/perf-scope-skip.md`](docs/perf-scope-skip.md).
+- **`perf-stage-readout`** turns on **the render profile the engine already produces and nothing
+  consumes.** SAGE instruments its own draw in **thirty named scopes** — `PerfScope`, a stack RAII
+  object at `0x00517690`/`0x00517740` with thirty constructor callers and thirty matching destructor
+  callers — covering `UpdateShadowMap`, `RenderViews`, `RenderTerrain`, `MeshDX8Render` and
+  twenty-four more. Each one opens a PIX event through `D3DPERF_BeginEvent`, resolved out of
+  `d3d9.dll` into `0x00DD361C` at device init. With no profiler attached those calls return
+  immediately, so the instrumentation is complete and its output is thrown away — which makes
+  [`docs/multicore.md`](docs/multicore.md) §6's "this engine gives you almost nothing for free"
+  wrong, and its measurement gate nearly free. The patch hooks the scope class's constructor and
+  destructor into a `.perfstg` section that stamps `QueryPerformanceCounter` onto a nesting stack
+  and accumulates **inclusive and exclusive** ticks per stage name, so `RenderViews` exclusive is
+  what the view pass cost *outside* the terrain and mesh scopes under it. The hook is on the
+  constructor rather than on the D3DPERF wrapper for a specific reason: the name arrives as a
+  `.rdata` literal and is `strncpy`'d into the object four instructions later, so by the wrapper it
+  is `[ebp-0x158]` — one address shared by the four scopes of the frame's draw. The destructor hook
+  displaces nothing at all, because the destructor is five bytes and all five are the `jmp` the cave
+  ends with. **A diagnostic, not a speed-up**: it costs two `QueryPerformanceCounter` calls per
+  scope, and two of the thirty run per *mesh*. Client-local — peers need not agree on it and
+  replays cross it — and no INI change. **Unit-tested by executing the cave** under Unicorn against
+  a stubbed clock, including the nesting arithmetic and the three ways a scope declines to be
+  measured; **not yet played.** It also found something it deliberately does not fix: the scope
+  constructor spends two `strncpy`s and a `strlen` per scope building a name nothing reads, which on
+  a heavy frame is megabytes of string traffic in the render path — scoped in
+  [`docs/perf-stage-readout.md`](docs/perf-stage-readout.md) §6. See
+  [`docs/perf-stage-readout.md`](docs/perf-stage-readout.md).
 - **`production-condition`** adds a **model condition** that is active while a structure's
   production queue is non-empty — training a unit *or* researching an upgrade. The stock engine
   has no such state: the `DOOR_n_*` conditions run *after* a unit completes, as the buffer during
@@ -1854,6 +1906,26 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   runs in game is unconfirmed. See
   [`docs/living-campaign/hide-selection-details.md`](docs/living-campaign/hide-selection-details.md).
 
+- **`observer-all-commands`** ⚠**(experimental)** opens the same gate **all the way**: an
+  observer's clicks reach *every* button on the command bar, not just the paging ones. Where
+  `observer-command-range` retargets `ControlBar::processCommandUI`'s call into a cave that
+  whitelists two commands, this overwrites the five bytes with `xor eax, eax` and three `nop`s,
+  so the gate answers "the local player is active" for everybody, always — no cave, no INI
+  surface. The zero is thirty-two bits wide on purpose: four instructions below the gate the
+  caller builds `ControlBar::doCommand`'s two `Bool` arguments with `sete al` / `push eax`, and
+  the stock predicate returns a clean 0 or 1 in the whole register. **This one is not
+  client-local.** The engine has no "inspect" and "order" categories for command types — this
+  gate *was* the distinction — so the order-posting commands are dispatched too, and clicking one
+  posts a real `GameMessage`. **Measured in a live game, and it is not enough on its own**: the
+  buttons render lit, the clicks dispatch, and nothing happens, because the engine attributes each
+  order to `ThePlayerList->m_local` — the observer seat, which owns no objects and no production —
+  rather than to the `getLocalPlayer` redirect everything cosmetic uses. So the order is issued,
+  accepted and executed for a player who cannot act on it. The same asymmetry as the gate, one
+  layer down; where attribution is stamped is not yet found, so no patch redirects it yet.
+  Mutually exclusive with `observer-command-range`, which owns the same five bytes; prefer that
+  one unless the whole bar is the point. See
+  [`docs/observer-all-commands.md`](docs/observer-all-commands.md).
+
 - **`ranged-stand-off`** ⚠**(experimental)** makes a ranged unit given a **direct attack order**
   stop as soon as its target is in weapon range, instead of walking onto the target first and
   shooting from arm's length. `AIAttackApproachTargetState` has an exit for exactly that
@@ -2032,6 +2104,26 @@ or lookup parse throws, which ends the editor's startup with exit code 0 and no 
   make it work for any model/preference/row triple. **Needs a matching gadget in `Options.apt`**
   (`docs/options-menu-rows.md` §4) — without it the patch is inert, not harmful. Client-local.
   **Static only — not yet run in game.**
+- **`wall-layer-promotion`** ⚠**(experimental)** stops a siege engine being **teleported onto a
+  wall it walked past**. Every wall stamps a layer number into the ground pathfind cells its
+  `WallBoundsMesh` covers — one cell is 10 world units, and a corner inside the polygon is
+  enough — and once per movement re-evaluation `Pathfinder::updateObjectLayer` (`0x006F0741`)
+  reads the cell under an object's **centre** and moves it to that layer when the layer's surface
+  is more than 10 units above it. Siege engines are wide and are driven deliberately into walls,
+  so collision resolution pushes the centre into the first stamped cell and the unit is lifted a
+  storey. The routine reads neither the `ThingTemplate` nor the `Locomotor` — no `KindOf`, no
+  `Surfaces`, and `ScalesWalls` is a path-routing query with no say here — so **no INI field can
+  prevent it**; live, it promoted a piece of immobile map scenery. The gate is **not** on the
+  destination layer, because a catapult that climbs a castle ramp legitimately ends up on the very
+  same wall-height layer: measured in a running game, a ramp-to-walkway step arrives already level
+  (`+0.0`, three of three) and so fails the routine's own `h > z + 10` test and never reaches this
+  call, while the bug arrives `+53.4` below. So the cave lets the call through unless the
+  destination is a wall-height layer **and** the object is a `MACHINE`, which every siege engine
+  carries and no infantry does — ramps keep working for everything, and infantry are untouched.
+  One hooked `call`, kept a `call` so the cave can tail-jump to `Object::setLayer` or issue its
+  own `ret 4`. See
+  [`docs/wall-layer-promotion.md`](docs/wall-layer-promotion.md).
+  **Live-confirmed defect; the patch itself is statically verified — not yet observed in game.**
 
 Uses [pyBIG](..)/capstone/pefile and Ghidra headless.
 

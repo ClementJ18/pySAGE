@@ -1,5 +1,5 @@
-"""Placed objects' models as the 3D view draws them: each mesh of a model as flat arrays ready for
-the GPU, and where each copy of a model stands.
+"""Placed objects' models as the 3D view draws them: each mesh of every model an object shows as
+flat arrays ready for the GPU, and where each copy of a model stands.
 
 A model is drawn once for every object that shows it, turned about the vertical by the object's
 angle (radians, counter-clockwise from +x), scaled by its `objectPrototypeScale`, and stood on
@@ -25,14 +25,17 @@ if TYPE_CHECKING:
 __all__ = [
     "ModelGeometry",
     "ModelPart",
+    "aligned_to_terrain",
     "instance_matrices",
     "load_object_models",
     "model_geometry",
     "object_scale",
     "ray_hit_instances",
+    "upright_rotations",
 ]
 
 _SCALE_KEY = "objectPrototypeScale"
+_ALIGN_KEY = "alignToTerrain"
 
 
 @dataclass(frozen=True, eq=False)
@@ -118,22 +121,28 @@ def model_geometry(scene: Scene, texture: str | None = None) -> ModelGeometry:
 def load_object_models(
     names: Iterable[str], models: ObjectModels, art: ArtIndex
 ) -> tuple[dict[str, ModelGeometry | None], dict[str, np.ndarray | None]]:
-    """The geometry of each object name's model (None for an object with no model, or one whose
-    files are missing or cannot be read), and the RGBA pixels of every texture those models use
-    by lower-case name, bottom row first as OpenGL takes them (None where unreadable)."""
+    """The geometry of each object name (None for an object with no model, or one whose files are
+    all missing or unreadable), and the RGBA pixels of every texture those models use by
+    lower-case name, bottom row first as OpenGL takes them (None where unreadable).
+
+    An object draws every model its draws show, so the parts of all of them make up its geometry:
+    a building and the floor under it are one mesh list, at the object's own place. A draw whose
+    model cannot be read is left out and the rest still draw."""
     geometry: dict[str, ModelGeometry | None] = {}
     textures: dict[str, np.ndarray | None] = {}
     for name in names:
-        chosen = models.get(name)
-        try:
-            model = art.find_model(chosen.model) if chosen is not None else None
-            built = (
-                model_geometry(build_scene(model, art, chosen.skeleton), chosen.texture)
-                if model is not None and chosen is not None
-                else None
-            )
-        except Exception:  # noqa: BLE001 - one unreadable model must not lose the rest
-            built = None
+        parts: list[ModelPart] = []
+        for chosen in models.get(name):
+            try:
+                model = art.find_model(chosen.model)
+                if model is None:
+                    continue
+                parts += model_geometry(
+                    build_scene(model, art, chosen.skeleton), chosen.texture
+                ).parts
+            except Exception:  # noqa: BLE001 - one unreadable model must not lose the rest
+                continue
+        built = ModelGeometry(tuple(parts)) if parts else None
         geometry[name] = built
         for texture in built.textures() if built is not None else ():
             key = texture.lower()
@@ -162,17 +171,60 @@ def object_scale(obj: Object) -> float:
     return scale if scale > 0 else 1.0
 
 
+def aligned_to_terrain(obj: Object) -> bool:
+    """An object's `alignToTerrain`: whether it lies along the slope it stands on instead of
+    standing upright."""
+    stored = obj.properties.get(_ALIGN_KEY)
+    return bool(stored["value"]) if stored is not None else False
+
+
+def upright_rotations(normals: np.ndarray) -> np.ndarray:
+    """`(N, 3, 3)` rotations that take the world's up onto each unit normal by the shortest turn:
+    what stands a model out of a slope rather than out of the level ground.
+
+    Rodrigues about `up x normal`, whose length and dot give the turn; a normal pointing straight
+    down (never terrain) would have no shortest turn, and is left upright."""
+    normals = np.asarray(normals, dtype=np.float64).reshape(-1, 3)
+    nx, ny, nz = normals[:, 0], normals[:, 1], normals[:, 2]
+    # 1 + nz is 0 only for a normal pointing straight down; there the rotation stays the identity.
+    share = np.where(1.0 + nz > 1e-9, 1.0 / np.maximum(1.0 + nz, 1e-9), 0.0)
+    rotations = np.zeros((len(normals), 3, 3), dtype=np.float64)
+    rotations[:, 0, 0] = 1.0 - nx * nx * share
+    rotations[:, 0, 1] = -nx * ny * share
+    rotations[:, 0, 2] = nx
+    rotations[:, 1, 0] = -nx * ny * share
+    rotations[:, 1, 1] = 1.0 - ny * ny * share
+    rotations[:, 1, 2] = ny
+    rotations[:, 2, 0] = -nx
+    rotations[:, 2, 1] = -ny
+    rotations[:, 2, 2] = 1.0 - (nx * nx + ny * ny) * share
+    return rotations
+
+
 def instance_matrices(
-    xs: np.ndarray, ys: np.ndarray, zs: np.ndarray, angles: np.ndarray, scales: np.ndarray
+    xs: np.ndarray,
+    ys: np.ndarray,
+    zs: np.ndarray,
+    angles: np.ndarray,
+    scales: np.ndarray,
+    normals: np.ndarray | None = None,
 ) -> np.ndarray:
-    """`(N, 4, 4)` row-major world matrices: scale, turn about z by the angle, then move."""
+    """`(N, 4, 4)` row-major world matrices: scale, turn about z by the angle, then move.
+
+    With `normals`, a `(N, 3)` unit vector per copy, the turned model is laid along that normal
+    first, which is how an object with `alignToTerrain` sits on a slope; the vertical normal every
+    other object takes leaves the matrix as it would have been."""
     cos, sin = np.cos(angles), np.sin(angles)
+    heading = np.zeros((len(xs), 3, 3), dtype=np.float64)
+    heading[:, 0, 0] = cos
+    heading[:, 0, 1] = -sin
+    heading[:, 1, 0] = sin
+    heading[:, 1, 1] = cos
+    heading[:, 2, 2] = 1.0
+    if normals is not None:
+        heading = upright_rotations(normals) @ heading
     matrices = np.zeros((len(xs), 4, 4), dtype=np.float32)
-    matrices[:, 0, 0] = cos * scales
-    matrices[:, 0, 1] = -sin * scales
-    matrices[:, 1, 0] = sin * scales
-    matrices[:, 1, 1] = cos * scales
-    matrices[:, 2, 2] = scales
+    matrices[:, :3, :3] = heading * np.asarray(scales, dtype=np.float64)[:, None, None]
     matrices[:, 0, 3] = xs
     matrices[:, 1, 3] = ys
     matrices[:, 2, 3] = zs

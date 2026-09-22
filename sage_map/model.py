@@ -1,10 +1,10 @@
 """A game-aware view over a parsed `.map`.
 
 Harvests the symbols a map declares for itself - teams, players, waypoints and their paths,
-trigger areas, scripts, named units - keyed by the same `target` names the MAP-scope entries in
-`ARG_SPECS` use. The reference rules in `sage_map.linter` ask `MapSymbols.resolve(target, name)`
-to tell a dangling map-local reference (a script targeting a team the map never defines) from a
-valid one.
+trigger areas, scripts, named units, named cameras and camera animations - keyed by the same
+`target` names the MAP-scope entries in `ARG_SPECS` use. The reference rules in `sage_map.linter`
+ask `MapSymbols.resolve(target, name)` to tell a dangling map-local reference (a script targeting
+a team the map never defines) from a valid one.
 
 Counters, flags and boundaries are referenced by scripts but never *declared* - the engine creates
 them on first use - so they are deliberately untracked: a reference to one cannot be dangling, and
@@ -54,6 +54,8 @@ class MapSymbols:
     trigger_areas: set[str] = field(default_factory=set)
     scripts: set[str] = field(default_factory=set)
     units: set[str] = field(default_factory=set)
+    cameras: set[str] = field(default_factory=set)
+    camera_animations: set[str] = field(default_factory=set)
 
     def _table(self, target: str) -> set[str] | None:
         # `units` and `scripts` are harvested but intentionally *not* resolvable. Units are also
@@ -67,6 +69,8 @@ class MapSymbols:
             "waypoints": self.waypoints,
             "waypoint_paths": self.waypoint_paths,
             "trigger_areas": self.trigger_areas,
+            "cameras": self.cameras,
+            "camera_animations": self.camera_animations,
         }.get(target)
 
     def resolve(self, target: str, name: str) -> bool | None:
@@ -129,6 +133,15 @@ def build_symbols(map_obj: Map) -> MapSymbols:
         symbols.trigger_areas |= {a.name.lower() for a in map_obj.trigger_areas.trigger_areas}
     if map_obj.polygon_triggers is not None:
         symbols.trigger_areas |= {t.name.lower() for t in map_obj.polygon_triggers.polygon_triggers}
+
+    # A camera and a camera animation are declared by the map and by nothing else - unlike a
+    # script, none is merged in from a library map at runtime - so a name absent here is dangling.
+    if map_obj.named_cameras is not None:
+        symbols.cameras = {c.name.lower() for c in map_obj.named_cameras.cameras if c.name}
+    if map_obj.camera_animation_list is not None:
+        symbols.camera_animations = {
+            a.name.lower() for a in map_obj.camera_animation_list.animations if a.name
+        }
 
     symbols.scripts = script_names(map_obj)
 

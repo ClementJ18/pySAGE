@@ -92,8 +92,31 @@ The editor's own source has slips, kept in the catalogue as written:
   `SET_COUNTER`, `NO_OP`, `ENABLE_SCRIPT`, `CALL_SUBROUTINE`, the counter maths, the debug strings,
   and the `COUNTER`, `FLAG`, `CONDITION_TRUE`, `CONDITION_FALSE`, `COUNTER_COUNTER` conditions).
   Value 2: the six `LIVING_WORLD_*` templates. That reads as "offered in regular maps" (bit 0) and
-  "offered in Living World script maps" (bit 1), with 0 meaning regular maps only, but where the
-  editor tests the bits has not been traced.
+  "offered in Living World script maps" (bit 1), with 0 meaning regular maps only.
+
+  **Where the bits are tested** is now known. `EditAction::OnInitDialog` (`0x004EC780`) and its
+  condition twin walk ids `0` to `0x258`, fetch each record through the getter at `0x00B40960`
+  (`base + 0x24 + id*0x80`) and keep the ones that pass
+
+  ```asm
+  004ec95b  mov edx, [eax + 0x190]   ; the mask the dialog was constructed with ([ebp+0x1c])
+  004ec961  and edx, [ecx]           ; & record->flags
+  004ec963  jne  keep                ; zero: this template is not offered
+  ```
+
+  then split the kept record's `ui_name` on `/`, adding each folder with `findOrAddChild`
+  (`0x004ED090`, `TVM_INSERTITEM` with `hInsertAfter = TVI_SORT`) and the trailing text as the
+  leaf. So the tree a mapper sees is a subset of the table, sorted, with the folder names exactly
+  as the `ui_name` spells them (`Team_` and `Team` are two folders, as the data has them).
+
+  What is **still open** is the mask's value and the default the record constructor writes into
+  `+0x00` before the two builders run: the builders write it for 27 records only, and a default of
+  0 would leave every other template failing the test above, so the constructor must write
+  something. Reading it as 1 makes the whole table consistent - an ordinary map (mask 1) is
+  offered everything but the six Living World templates, a Living World script map (mask 2) only
+  those six and the core scripting set. `sage_worldbuilder.templates.offered_templates` acts on
+  the half that is certain: it leaves the `flags == 2` templates out of an ordinary map and hides
+  nothing on a Living World one.
 - **Unlabelled parameter types.** `Parameter::getUiText` (switch at `0x00AAE408`, types 0-77)
   sends 29, 65 and 69-75 to its "Unknown parameter type." default, and prints 53 as `???`. They
   keep numbered placeholders in `sage_map`'s `ScriptArgumentType`. 29 is used only by

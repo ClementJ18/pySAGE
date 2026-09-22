@@ -66,14 +66,17 @@ from sage_worldbuilder.libraries import (
 from sage_worldbuilder.live import LiveIndex, LiveState, LiveStatus
 from sage_worldbuilder.script_targets import ScriptTarget, argument_target
 from sage_worldbuilder.scripting import (
+    NEW_GROUP_NAME,
     ActiveFlags,
     active_flags,
+    is_living_world_script_map,
     item_text,
     iter_script_items,
     map_symbols,
     new_group,
     new_or_condition,
     new_script,
+    new_script_name,
     player_script_lists,
     reset_active,
     script_matches,
@@ -1143,12 +1146,13 @@ class ScriptsPanel(QWidget):
     def new_script(self) -> None:
         document = self.host.document
         if document is not None:
-            self._insert(new_script(unique_script_name(document.map, "New Script")), "New Script")
+            self._insert(new_script(new_script_name(document.map)), "New Script")
 
     def new_group(self) -> None:
         document = self.host.document
         if document is not None:
-            self._insert(new_group(unique_script_name(document.map, "New Group")), "New Group")
+            name = unique_script_name(document.map, NEW_GROUP_NAME)
+            self._insert(new_group(name), "New Group")
 
     def copy_selected(self) -> None:
         document, selected = self.host.document, self.selected
@@ -1221,6 +1225,7 @@ class ScriptsPanel(QWidget):
             focus_argument=focus_argument,
             find_target=self.find_target,
             go_to=self.go_to,
+            living_world=is_living_world_script_map(document.map),
         )
         if dialog.exec() != QDialog.DialogCode.Accepted or dialog.item is None:
             return None

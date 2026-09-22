@@ -65,12 +65,16 @@ chosen anchor and moves everything on the map with it; heightmaps import and exp
 images, and **Open from TGA** builds a map from a grey image.
 
 **Two views.** A top-down view and a 3D view (F3) of the same document, sharing tools, selection
-and options. With game data loaded the 3D view draws the terrain as the game does - each cell's
+and options. A right-drag or a Space-drag moves the camera and a middle-drag turns it (Ctrl on a
+move turns as well); the wheel zooms about the ground under the cursor. Where a tool takes the
+right button for itself, the middle and Space drags still move the camera. With game data loaded the 3D view draws the terrain as the game does - each cell's
 tile, its blend and its 3-way blend through the game's own masks, out of an atlas built from the
 map's texture cells, and a cliff-mapped cell through its cliff mapping - lit by the map's own
-global lighting, with models, roads and water over it. An object's model is the condition state
-WorldBuilder picks for it: damaged by its starting health, at night or in snow by its own time and
-weather or the map's, and garrisoned while View > Show Garrisoned is on.
+global lighting, with models, roads and water over it. An object draws every one of its `Draw`
+modules, as the engine does - a building and the floor under it, not one of the two - each in the
+condition state WorldBuilder picks for it: damaged by its starting health, at night or in snow by
+its own time and weather or the map's, garrisoned while View > Show Garrisoned is on, and the
+`WORLD_BUILDER` state where a draw has one.
 A model shows only its front faces, as the game draws it, so a building seen from above is its
 inside rather than a lid over it; a mesh that is itself a picture of light - a flame, a glow, a
 sky dome - is added to the scene instead of mixed into it, and the map's lights do not dim it. An
@@ -90,7 +94,13 @@ puts one down, a drag turns it. Click, Shift-click and marquee select; drag move
 rotates by the Group Edit Method; Pick Allowances limit what a click may take. Object Properties
 edits position, angle and every stored key of the whole selection as one undo entry, with
 WorldBuilder's starting-health presets and waypoint type names; a waypoint made a spline, or no
-longer one, takes its whole path with it. The Item List
+longer one, takes its whole path with it. An object's keys are split across the same three pages
+WorldBuilder's sheet carries - **General**, **Logical** and **Sound** - each holding the keys its
+own dialog shows. Under Logical's fields stands WorldBuilder's **Available Upgrades** check list -
+the upgrades the selected objects' own modules are triggered by, ticked to give one at the start
+of the game - with a search box over it that the stock list has not, room for five rows however
+short the panel is, and an upgrade the map already stores but the template no longer offers still
+listed, ticked, so ticking another never drops it. The Item List
 searches the map's objects, waypoints, areas and teams, and can filter the view down to what it
 matches. The Edit menu selects similar, duplicate, deprecated or missing objects, objects on
 missing teams, and the objects of a base.
@@ -102,6 +112,9 @@ whole selection - an arrow per axis, X and Y along the ground and a height arrow
 them, with a knob at the centre for a free drag; X, Y and Z switch the axis in the middle of a
 drag, and the axis in use frees it again. Rotate draws the one ring the format allows: an object
 stores a heading, not a pitch or a roll, so there is no second or third ring to give it. Both
+gizmos stand on a level plane through the ground at their centre rather than draped over the
+terrain, so an arrow stays straight and the ring stays an ellipse over a ridge - and that plane is
+what a click picks against, so a handle is grabbed where it is drawn. Both
 tools are Select and Move underneath, so a press that misses the gizmo still selects, marquees and
 drags; Snap To Grid and Lock Angle apply as they do everywhere else.
 
@@ -133,9 +146,11 @@ heights, textures, blends and passability - and stamps it elsewhere, flipped and
 **Roads and water.** Drag a road or bridge segment with the Road tool, joining onto an existing
 end; Apply To Selection re-types selected segments, and a segment's two ends always travel
 together through cut, copy, paste and delete. The 3D view lays roads out as the game does: curves
-and mitres where two meet, tees, Ys and four-ways where three or four do. Lakes are clicked out as outlines, rivers built from
-bank lines, wave areas dragged; Water Options edits an area's height, textures, colours and the
-map-wide alpha depths. The 3D view draws water still, as the game's water shaders compute it at
+and mitres where two meet, tees, Ys and four-ways where three or four do. Lakes are clicked out as
+outlines, rivers built from bank lines, wave areas dragged; Water Options edits an area's height,
+textures, colours and the map-wide alpha depths. Each tool makes only its own kind of water, as
+WorldBuilder's do, but any of the three selects, moves and reshapes water of every kind, so a
+river does not have to be handed back to the River tool to be picked up. The 3D view draws water still, as the game's water shaders compute it at
 the first frame.
 
 **World dressing.** Scorch marks, groves (up to five weighted tree types, kept out of water and off
@@ -144,7 +159,15 @@ the Dressing Options panel.
 
 **Scripts, teams and players.** The Scripts panel is a tree of every player's groups and scripts
 with an editor for the selected one - properties, IF/OR conditions and both action lists - built
-from the action and condition templates extracted from WorldBuilder. Under a player's own scripts
+from the action and condition templates extracted from WorldBuilder. The tree of templates a New
+action or New condition offers is the one the open map is offered: the Living World templates
+(`_Army`, `_Region`, `_Player`) stand there only for a Living World script map, as WorldBuilder's
+own mask leaves them out of an ordinary one. An argument that names a player, a team, an object or
+a trigger area is offered the run-time names WorldBuilder offers beside the map's own -
+`<This Player>` and its allies and enemies, `<This Team>`, `<This Object>`, the skirmish
+perimeters and Water Grid. New scripts are named `Script 1`, `Script 2`, ... from a counter that
+only goes up, a new group `New Folder`, and a copy takes its original's name with the lowest free
+number after it (`Opening 1`), which is how WorldBuilder names all three. Under a player's own scripts
 stand the ones it inherits from its library maps, read-only and marked *imported*, the chains those
 libraries open followed to the end and a name two libraries both define marked *overridden* on the
 one that loses it - what an AI map actually runs, without opening each library by hand. **Override**
@@ -171,7 +194,12 @@ drag handles - move a key along an axis, or turn it about one - and what the cho
 drawn in a preview pane, so scrubbing an animation never moves the view being worked in. Named
 cameras are saved from the view and gone to. Global Light Options edits the lights of the map's
 time of day, overbright and bloom; Environment Options the macro and cloud textures and the post
-effect. **Listen To Map** plays the ambient sounds of the objects the view is looking at.
+effect. **Listen To Map** plays the ambient sounds of the objects the view is looking at. **Set
+LOD** picks one of the game's five static detail levels; the 3D view rebuilds its models to match,
+leaving out a `Draw` module whose `MinLODRequired` outranks the level's `ModelLOD` - the same test
+the game runs before it builds a draw module, so the detail the game drops at a setting is the
+detail the view drops. A Minas Tirith wall building loses its houses below Medium, as it does in
+the game.
 
 **Bases.** Saving a `.bse` rebuilds its castle-template chunk from its own objects and trigger
 areas when they changed, so a base edited here builds in the game as edited. The generator was
@@ -247,6 +275,10 @@ platform - they need a real window, so they are not part of an ordinary run.
   lake's reflection is its environment texture, which is a picture of sky.
 - **The `SkyboxSettings` chunk** is edited but not drawn: the RotWK game never reads it and the
   model its texture sets are made for does not ship. Skybox objects draw like any other.
+- **The rest of a `StaticGameLOD` bucket**: Set LOD only reads `ModelLOD`, the field that decides
+  which `Draw` modules exist. Its shadow, particle, texture-reduction and shader-quality fields are
+  not honoured; the view draws no shadows or particles of its own to turn down, and its textures
+  stay at full resolution whatever the level.
 
 Where a reading of WorldBuilder stopped short, the choice made instead is written beside the code:
 a river's second set of texture coordinates, and a cliff mapping onto another texture than its

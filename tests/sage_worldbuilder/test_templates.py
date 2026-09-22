@@ -8,7 +8,9 @@ import pytest
 from sage_map import parse_map_from_path
 from sage_map.assets.player_scripts import Script, ScriptArgumentType, ScriptDerived
 from sage_worldbuilder.templates import (
+    LIVING_WORLD_ONLY,
     TemplateKind,
+    offered_templates,
     parameter_values,
     script_templates,
     template,
@@ -31,6 +33,19 @@ def test_catalogue_size_and_unique_keys():
         names = [entry.internal_name for entry in entries]
         duplicates = {name for name in names if names.count(name) > 1}
         assert duplicates == ({"MAP_REVEAL_IN_TRIGGER"} if kind is TemplateKind.ACTION else set())
+
+
+def test_the_living_world_templates_are_offered_only_to_a_living_world_map():
+    """WorldBuilder's tree keeps the templates whose flags meet the dialog's mask, so an ordinary
+    map is never offered the `_Army`, `_Region` and `_Player` folders."""
+    for kind in TemplateKind:
+        ordinary = offered_templates(kind)
+        living_world = offered_templates(kind, living_world=True)
+        assert set(living_world) == {entry for entry in script_templates() if entry.kind is kind}
+        hidden = set(living_world) - set(ordinary)
+        assert hidden and all(entry.flags == LIVING_WORLD_ONLY for entry in hidden)
+        assert all(entry.internal_name.startswith("LIVING_WORLD_") for entry in hidden)
+        assert not {entry.path[0] for entry in ordinary} & {"_Army", "_Region", "_Player"}
 
 
 def test_a_shared_name_selects_the_lowest_id():

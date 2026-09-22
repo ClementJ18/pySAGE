@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from sage_ini.model.game import Game
 
 __all__ = [
+    "SPECIAL_NAMES",
     "ActiveFlags",
     "ScriptItem",
     "ScriptLocation",
@@ -50,12 +51,15 @@ __all__ = [
     "item_template",
     "item_text",
     "iter_script_items",
+    "NEW_GROUP_NAME",
+    "NEW_SCRIPT_BASE",
     "map_symbols",
     "new_argument",
     "new_group",
     "new_item",
     "new_or_condition",
     "new_script",
+    "new_script_name",
     "player_script_lists",
     "reset_active",
     "retarget",
@@ -76,6 +80,11 @@ _LAYOUT = {TemplateKind.CONDITION: (4, 5, True), TemplateKind.ACTION: (2, 3, Fal
 # The evaluation-interval type every version-4 script stores.
 _EVALUATION_INTERVAL_TYPE = 6
 _SCRIPT_UNKNOWN = "ALL"
+# What New Script and New Group start from (`0x01E0C574` and `0x01E0C564`).
+NEW_SCRIPT_BASE = "Script"
+NEW_GROUP_NAME = "New Folder"
+# The number the next new script takes; see `new_script_name`.
+_script_number = 0
 
 ScriptItem = Script | ScriptGroup
 
@@ -227,6 +236,14 @@ def item_text(item: ScriptDerived, kind: TemplateKind) -> str:
     return "".join(text for text, _ in sentence_parts(item, kind))
 
 
+def is_living_world_script_map(map: Map) -> bool:
+    """Whether the map's `isLivingWorldScriptHolder` flag is set - the maps whose scripts drive
+    the Living World map, and the only ones WorldBuilder offers the Living World templates."""
+    info = map.world_info.properties if map.world_info is not None else {}
+    stored = info.get("isLivingWorldScriptHolder")
+    return bool(stored["value"]) if stored is not None else False
+
+
 def player_script_lists(map: Map) -> list[tuple[str, ScriptList]]:
     """Each player's name with its script list; the lists are stored in player order."""
     if map.player_scripts_list is None:
@@ -350,19 +367,63 @@ def map_symbols(map: Map) -> dict[str, list[str]]:
     return {key: sorted(names, key=str.casefold) for key, names in found.items()}
 
 
+# The names WorldBuilder offers for a map symbol on top of the ones the map declares, by the
+# `ARG_SPECS` map target that lists them, in the order its enumerators add them - before the
+# map's own names (`ScriptParameterEnumerators.cpp`: `enumerateSides` `0x005DC630`,
+# `enumerateTeams` `0x005DA4A0`, `enumerateUnits` `0x005DB860`, trigger areas `0x005DCC60`).
+#
+# They are not declarations, so nothing in the map ever matches one: `<This Player>` is the player
+# whose scripts are running, `[Skirmish]MyInnerPerimeter` an area the skirmish AI makes at run
+# time. A script that names one is right even though the map has no such thing, which is why they
+# are offered here rather than reported as missing.
+SPECIAL_NAMES: dict[str, tuple[str, ...]] = {
+    "players": (
+        "<Local Player>",
+        "<Local Player's Enemy>",
+        "<Local Player's Enemies>",
+        "<Local Player's Allies>",
+        "<Local Player's Allies incl Self>",
+        "<This Player>",
+        "<This Player's Enemy>",
+        "<This Player's Enemies>",
+        "<This Player's Allies>",
+        "<This Player's Allies incl Self>",
+        "<All Players>",
+    ),
+    "teams": ("<This Team>",),
+    "units": ("<This Object>",),
+    "trigger_areas": (
+        "[Skirmish]MyInnerPerimeter",
+        "[Skirmish]MyOuterPerimeter",
+        "[Skirmish]EnemyOuterPerimeter",
+        "[Skirmish]EnemyInnerPerimeter",
+        "Water Grid",
+    ),
+}
+
+
 def argument_choices(
     argument_type: int, symbols: Mapping[str, Sequence[str]], game: Game | None
 ) -> list[str]:
     """The names an argument of `argument_type` can pick: the map's own symbols, the game's
     definitions, or its string labels, as `ARG_SPECS` resolves the type. Empty for a free value,
-    or for game names when no game data is loaded."""
+    or for game names when no game data is loaded.
+
+    A map symbol is offered with the run-time names WorldBuilder offers beside it (`SPECIAL_NAMES`)
+    - `<This Player>`, `<This Team>`, the skirmish perimeters - ahead of the map's own."""
     try:
         kind = ScriptArgumentType(argument_type)
     except ValueError:
         return []
     spec = arg_spec(kind)
     if spec.scope is Scope.MAP and spec.target is not None:
-        return list(symbols.get(spec.target, ()))
+        declared = list(symbols.get(spec.target, ()))
+        special = [
+            name
+            for name in SPECIAL_NAMES.get(spec.target, ())
+            if name.casefold() not in {other.casefold() for other in declared}
+        ]
+        return special + declared
     if game is None:
         return []
     if spec.scope is Scope.GAME and spec.target is not None:
@@ -381,17 +442,35 @@ def _taken_names(map: Map) -> set[str]:
 
 
 def _free_name(base: str, taken: set[str]) -> str:
+    """WorldBuilder's `makeUnique` (`0x005C0F60` for groups, `0x005C08E0` for scripts): the name
+    itself when it is free, else the name, a space and the lowest free number from 1 (`"%s %d"`)."""
     if base.lower() not in taken:
         return base
-    suffix = 2
-    while f"{base} ({suffix})".lower() in taken:
+    suffix = 1
+    while f"{base} {suffix}".lower() in taken:
         suffix += 1
-    return f"{base} ({suffix})"
+    return f"{base} {suffix}"
 
 
 def unique_script_name(map: Map, base: str) -> str:
-    """`base`, or `base` with the lowest free ` (n)` suffix, unused by any script or group."""
+    """`base`, or `base` with the lowest free ` n` suffix, unused by any script or group."""
     return _free_name(base, _taken_names(map))
+
+
+def new_script_name(map: Map) -> str:
+    """The name New Script gives: `Script <n>`, counting up until the map has no script or group
+    by that name (`ScriptDialog::Impl::TreeItem::insertNew`, `0x005CFF8F`).
+
+    The counter is the editor's, not the map's: WorldBuilder keeps it in a global that only ever
+    goes up, so a number is never offered twice in one session even after the script that took it
+    is deleted."""
+    global _script_number  # noqa: PLW0603 - WorldBuilder's own session-wide counter
+    taken = _taken_names(map)
+    while True:
+        _script_number += 1
+        name = f"{NEW_SCRIPT_BASE} {_script_number}"
+        if name.lower() not in taken:
+            return name
 
 
 def item_matches(item: ScriptDerived, kind: TemplateKind, needle: str, whole: bool = False) -> bool:

@@ -13,6 +13,11 @@ does, so nothing is lost by working in one of them.
   turns the selection by the Group Edit Method, and Lock Angle holds the turned object to the
   eight 45-degree headings.
 
+Both are drawn on a level plane through the ground at the gizmo's centre, never draped over the
+terrain: an arrow that followed the ground would bend over every ridge it crossed, and the ring
+would buckle, which says nothing about a move or a turn - the ground has no say in either. The
+plane is what a click picks against too, so a handle is grabbed exactly where it is drawn.
+
 Each drag is one undo entry, and the status bar reads out how far it has gone.
 """
 
@@ -87,6 +92,27 @@ def _center(document: MapDocument) -> tuple[float, float] | None:
         sum(x for x, _y in points) / len(points),
         sum(y for _x, y in points) / len(points),
     )
+
+
+def _ring(view: ToolView, center: tuple[float, float], scale: float) -> list[tuple[float, float]]:
+    """The Rotate ring in pixels: a circle on the level plane through the gizmo's centre, which
+    the 3D view shows as an ellipse whatever the ground under it does."""
+    out = reach(GIZMO_PIXELS, scale)
+    plane = _plane(view, center)
+    return [
+        view.transform.plane_to_screen(
+            center[0] + out * math.cos(step * math.tau / _RING_STEPS),
+            center[1] + out * math.sin(step * math.tau / _RING_STEPS),
+            plane,
+        )
+        for step in range(_RING_STEPS + 1)
+    ]
+
+
+def _plane(view: ToolView, center: tuple[float, float]) -> float:
+    """The height a gizmo is drawn at: the ground under its centre, held level across the whole
+    gizmo."""
+    return view.transform.ground(*center)
 
 
 class _GizmoTool(Tool):
@@ -203,16 +229,17 @@ class MoveTool(_GizmoTool):
     ) -> tuple[tuple[float, float], tuple[float, float]]:
         """An arrow's shaft in pixels. Z has no direction on the ground, so it follows the view's
         own answer for which way height goes on screen."""
-        start = view.transform.world_to_screen(*center)
+        plane = _plane(view, center)
+        start = view.transform.plane_to_screen(*center, plane)
         if axis is Axis.Z:
             ux, uy = view.transform.height_direction(*center)
             return start, (start[0] + ux * GIZMO_PIXELS, start[1] + uy * GIZMO_PIXELS)
-        return start, view.transform.world_to_screen(*axis_tip(center, axis, scale))
+        return start, view.transform.plane_to_screen(*axis_tip(center, axis, scale), plane)
 
     def _grab(self, view: ToolView, center: tuple[float, float], gesture: Gesture) -> Axis | None:
         point = (gesture.screen.x(), gesture.screen.y())
         scale = view.transform.scale_at(*center)
-        start = view.transform.world_to_screen(*center)
+        start = view.transform.plane_to_screen(*center, _plane(view, center))
         if math.dist(point, start) <= PICK_PIXELS:
             return Axis.GROUND
         for axis in MOVE_AXES:
@@ -297,7 +324,8 @@ class MoveTool(_GizmoTool):
         knob = self._color(Axis.GROUND)
         painter.setPen(QPen(knob, 1.5))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawEllipse(QPointF(*view.transform.world_to_screen(*center)), 5.0, 5.0)
+        knob_at = view.transform.plane_to_screen(*center, _plane(view, center))
+        painter.drawEllipse(QPointF(*knob_at), 5.0, 5.0)
 
 
 class RotateTool(_GizmoTool):
@@ -319,15 +347,8 @@ class RotateTool(_GizmoTool):
         return math.atan2(point[1] - center[1], point[0] - center[0])
 
     def _grab(self, view: ToolView, center: tuple[float, float], gesture: Gesture) -> Axis | None:
-        """The ring as drawn: a circle on the ground, which the 3D view shows as an ellipse."""
-        out = reach(GIZMO_PIXELS, view.transform.scale_at(*center))
-        ring = [
-            view.transform.world_to_screen(
-                center[0] + out * math.cos(step * math.tau / _RING_STEPS),
-                center[1] + out * math.sin(step * math.tau / _RING_STEPS),
-            )
-            for step in range(_RING_STEPS + 1)
-        ]
+        """The ring exactly as drawn, so a click grabs it where it is seen."""
+        ring = _ring(view, center, view.transform.scale_at(*center))
         point = (gesture.screen.x(), gesture.screen.y())
         near = min(point_to_segment(point, a, b) for a, b in zip(ring, ring[1:], strict=False))
         return Axis.Z if near <= PICK_PIXELS else None
@@ -363,7 +384,7 @@ class RotateTool(_GizmoTool):
         color = self._color(Axis.Z)
         painter.setPen(QPen(color, 2.0))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        view.world_circle(painter, center[0], center[1], reach(GIZMO_PIXELS, scale))
+        painter.drawPolyline(QPolygonF([QPointF(x, y) for x, y in _ring(view, center, scale)]))
         document = view.document
         objects = selected_objects(document) if document is not None else []
         if not objects:
@@ -371,8 +392,10 @@ class RotateTool(_GizmoTool):
         # The knob sits where the first selected object faces, so the ring reads as its handle.
         angle = objects[0].angle
         out = reach(GIZMO_PIXELS, scale)
-        knob = view.transform.world_to_screen(
-            center[0] + out * math.cos(angle), center[1] + out * math.sin(angle)
+        knob = view.transform.plane_to_screen(
+            center[0] + out * math.cos(angle),
+            center[1] + out * math.sin(angle),
+            _plane(view, center),
         )
         painter.setBrush(QBrush(color))
         painter.drawEllipse(QPointF(*knob), 4.0, 4.0)

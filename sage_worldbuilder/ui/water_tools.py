@@ -1,11 +1,13 @@
 """The water tools: WorldBuilder's Lake/Ocean Tool (32986), River Tool (33441) and Waves Tool
 (33489).
 
-Each tool edits only its own kind of area, as WorldBuilder's do, and the area it selects is the
-one Water Options shows.
+Each tool makes only its own kind of area, as WorldBuilder's do, but any of the three selects,
+moves and reshapes water of every kind, so a river does not have to be handed back to the River
+tool to be picked up. The area a tool selects is the one Water Options shows, switched to that
+area's kind.
 
 - Every tool: click inside an area (on a wave area's line) to select it, drag it to move it, and
-  drag one of the selected area's points to move that point.
+  drag one of the selected area's points to move that point - whichever kind of water it is.
 - Lake/Ocean: click on open ground to start an outline, click to add corners, and click the first
   corner again (with three or more) to close the new lake.
 - River: drag across the river, from its left bank to its right, to add a bank line to the
@@ -84,12 +86,14 @@ class WaterTool(Tool):
         self._moved = (0.0, 0.0)
 
     def _selected(self, document: MapDocument) -> WaterArea | None:
-        found = [item for item in document.selection if water_kind(item) is self.kind]
+        """The one selected water area, of any of the three kinds; None when the selection holds
+        no water, or more than one."""
+        found = [item for item in document.selection if water_kind(item) is not None]
         return found[0] if len(found) == 1 else None  # type: ignore[return-value]
 
     def _accept(self, view: ToolView) -> object:
         def accept(outline: AreaOutline) -> bool:
-            return water_kind(outline.source) is self.kind and view.is_shown(outline.source)
+            return water_kind(outline.source) is not None and view.is_shown(outline.source)
 
         return accept
 
@@ -108,7 +112,7 @@ class WaterTool(Tool):
 
     def press(self, view: ToolView, gesture: Gesture) -> bool:
         document, scene = view.document, view.scene
-        if document is None or scene is None or water_areas(document.map, self.kind) is None:
+        if document is None or scene is None:
             return False
         self._press = self._current = gesture
         self._dragging = False
@@ -180,7 +184,12 @@ class WaterTool(Tool):
         if mode is _Mode.AREA and not dragging and not selection.locked:
             selection.set([area])
         elif mode is _Mode.EMPTY:
-            if self.kind is WaterKind.LAKE:
+            if water_areas(document.map, self.kind) is None:
+                # The map has no chunk for this tool's kind of water, so there is nothing to make;
+                # the click still clears the selection, as it does on open ground.
+                if not selection.locked:
+                    selection.clear()
+            elif self.kind is WaterKind.LAKE:
                 self._lake_click(view, document, gesture)
             elif self.kind is WaterKind.RIVER:
                 self._river_gesture(view, document, press, gesture, dragging)

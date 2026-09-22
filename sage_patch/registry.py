@@ -59,6 +59,7 @@ from sage_patch.patches.experimental.hide_selection_details import HideSelection
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.experimental.map_transition import MapTransitionPatch
+from sage_patch.patches.experimental.observer_all_commands import ObserverAllCommandsPatch
 from sage_patch.patches.experimental.ranged_stand_off import RangedStandOffPatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
@@ -67,6 +68,7 @@ from sage_patch.patches.experimental.special_power_charges import SpecialPowerCh
 from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
 from sage_patch.patches.experimental.spellbook_hotkeys import SpellbookHotkeysPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
+from sage_patch.patches.experimental.wall_layer_promotion import WallLayerPromotionPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
@@ -99,6 +101,8 @@ from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.observer_command_range import ObserverCommandRangePatch
 from sage_patch.patches.observer_switch import ObserverSwitchPatch
 from sage_patch.patches.passive_aura_revive import PassiveAuraRevivePatch
+from sage_patch.patches.perf_scope_skip import PerfScopeSkipPatch
+from sage_patch.patches.perf_stage_readout import PerfStageReadoutPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.production_condition import (
     ProductionConditionPatch,
@@ -220,9 +224,12 @@ _REGISTERED: tuple[type[Patch], ...] = (
     ObjectImageUpgradePatch,
     ObjectImageUpgradeWorldbuilderPatch,
     ObjectivesScreenPatch,
+    ObserverAllCommandsPatch,
     ObserverCommandRangePatch,
     ObserverSwitchPatch,
     PassiveAuraRevivePatch,
+    PerfScopeSkipPatch,
+    PerfStageReadoutPatch,
     PlayerHealFilterPatch,
     ProductionConditionPatch,
     ProductionConditionWorldbuilderPatch,
@@ -260,6 +267,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     UpgradeDescriptionPatch,
     UpgradeAliasPatch,
     UpgradeGrantListsPatch,
+    WallLayerPromotionPatch,
     WallMeshReleasePatch,
     WorldbuilderLabelAssertPatch,
     WorldbuilderModPatch,

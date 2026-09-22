@@ -16,8 +16,13 @@ from sage_worldbuilder.render.terrain_mesh import (  # noqa: E402
     chunks_touching,
     grid_indices,
 )
-from sage_worldbuilder.terrain.grid import TerrainGrid  # noqa: E402
-from sage_worldbuilder.terrain.surface import ground_height, ground_heights, ray_hit  # noqa: E402
+from sage_worldbuilder.terrain.grid import WORLD_UNITS_PER_CELL, TerrainGrid  # noqa: E402
+from sage_worldbuilder.terrain.surface import (  # noqa: E402
+    ground_height,
+    ground_heights,
+    ground_normals,
+    ray_hit,
+)
 
 
 def camera(**settings):
@@ -136,6 +141,24 @@ def test_ground_height_is_bilinear_and_carries_the_edge_on():
     )
 
 
+def test_the_ground_normal_leans_away_from_the_rising_ground():
+    # The ramp rises 10 world units every 10-unit cell east and 20 every cell north: a normal
+    # leaning back down both slopes, and steeper about the northward one.
+    grid = ramp()
+    x, y = grid.cell_to_world(2, 2)
+    (normal,) = ground_normals(grid, np.array([x]), np.array([y]))
+    assert np.linalg.norm(normal) == pytest.approx(1.0)
+    assert normal[0] < 0 and normal[1] < normal[0] and normal[2] > 0
+    # It stands square on the slope: along either way the ground rises, it leans by just as much.
+    east = np.array([WORLD_UNITS_PER_CELL, 0.0, 10.0])
+    north = np.array([0.0, WORLD_UNITS_PER_CELL, 20.0])
+    assert normal @ east == pytest.approx(0.0, abs=1e-6)
+    assert normal @ north == pytest.approx(0.0, abs=1e-6)
+    # Level ground stands straight up.
+    level = ground_normals(flat(), np.array([50.0]), np.array([50.0]))
+    assert level[0] == pytest.approx([0.0, 0.0, 1.0])
+
+
 def test_a_ray_straight_down_hits_the_ground_below():
     grid = ramp()
     x, y = grid.cell_to_world(2, 3)
@@ -186,6 +209,22 @@ def test_scale_at_a_place_does_not_follow_the_cursor():
     projection.hit(400, 590)
     assert projection.scale != pytest.approx(before)
     assert projection.scale_at(50.0, 50.0) == pytest.approx(before)
+
+
+def test_a_plane_point_ignores_the_ground_under_it():
+    # What a gizmo is drawn through: over a ramp, `world_to_screen` follows the slope from point
+    # to point, while `plane_to_screen` holds every point at the one height it is given.
+    view = camera(pitch=45, distance=600, target_x=50.0, target_y=50.0, target_z=40.0)
+    projection = CameraProjection(view, ramp(columns=21, rows=21, border=0))
+    plane = projection.ground(50.0, 50.0)
+    for x, y in ((20.0, 50.0), (80.0, 50.0), (50.0, 20.0), (50.0, 80.0)):
+        assert projection.plane_to_screen(x, y, plane) == pytest.approx(
+            view.world_to_screen(x, y, plane)
+        )
+        assert projection.ground(x, y) != pytest.approx(plane)
+        assert projection.plane_to_screen(x, y, plane) != pytest.approx(
+            projection.world_to_screen(x, y)
+        )
 
 
 def test_off_the_heightmap_the_projection_falls_back_to_the_last_ground_height():

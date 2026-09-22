@@ -13,7 +13,7 @@ import numpy as np
 
 from sage_worldbuilder.terrain.grid import FEET_PER_HEIGHT_UNIT, WORLD_UNITS_PER_CELL, TerrainGrid
 
-__all__ = ["ground_height", "ground_heights", "ray_hit"]
+__all__ = ["ground_height", "ground_heights", "ground_normals", "ray_hit"]
 
 # World units between the samples a ray is tested at: half a cell.
 _RAY_STEP = WORLD_UNITS_PER_CELL / 2
@@ -58,6 +58,25 @@ def ground_heights(grid: TerrainGrid, xs: np.ndarray, ys: np.ndarray) -> np.ndar
         + heights[y1, x1] * fx * fy
     )
     return value * FEET_PER_HEIGHT_UNIT
+
+
+def ground_normals(grid: TerrainGrid, xs: np.ndarray, ys: np.ndarray) -> np.ndarray:
+    """`(N, 3)` unit vectors standing out of the terrain at world positions: which way is up for
+    something that lies on the ground there.
+
+    The slope is read across one cell either side rather than from the bilinear patch a position
+    falls in, so a position right on a cell corner - where the patch's own gradient jumps - still
+    answers the slope of the ground around it, and an object does not flick as it crosses a
+    corner."""
+    x = np.asarray(xs, dtype=np.float64)
+    y = np.asarray(ys, dtype=np.float64)
+    step = WORLD_UNITS_PER_CELL
+    east = ground_heights(grid, x + step, y) - ground_heights(grid, x - step, y)
+    north = ground_heights(grid, x, y + step) - ground_heights(grid, x, y - step)
+    # The surface's tangents are (2*step, 0, east) and (0, 2*step, north); their cross product,
+    # divided through by 2*step, is this.
+    normals = np.stack((-east, -north, np.full(x.shape, 2 * step)), axis=-1)
+    return normals / np.linalg.norm(normals, axis=-1, keepdims=True)
 
 
 def ray_hit(

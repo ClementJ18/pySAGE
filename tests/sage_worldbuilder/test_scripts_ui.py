@@ -165,7 +165,8 @@ def test_new_script_goes_after_the_selection_and_undoes(panel):
 
     panel.new_script()
 
-    assert [item.name for item in group.items] == ["Intro", "New Script"]
+    assert [item.name for item in group.items][0] == "Intro"
+    assert group.items[1].name.startswith("Script ")
     assert panel.selected is group.items[1]
     document.stack.undo()
     assert [item.name for item in group.items] == ["Intro"]
@@ -183,9 +184,9 @@ def test_rename_flags_copy_move_delete(panel):
     assert (script.name, script.is_subroutine) == ("Opening", True)
 
     panel.copy_selected()
-    assert [item.name for item in group.items] == ["Opening", "Opening (2)"]
+    assert [item.name for item in group.items] == ["Opening", "Opening 1"]
     panel.move_selected(-1)
-    assert [item.name for item in group.items] == ["Opening (2)", "Opening"]
+    assert [item.name for item in group.items] == ["Opening 1", "Opening"]
     panel.delete_selected()
     assert [item.name for item in group.items] == ["Opening"]
 
@@ -307,13 +308,20 @@ def test_item_dialog_builds_an_item_from_a_template(qapp):
     dialog.select_template(entry(TemplateKind.ACTION, "MOVE_NAMED_UNIT_TO"))
     unit_box = dialog.form.itemAt(0, dialog.form.ItemRole.FieldRole).widget()
     assert isinstance(unit_box, QComboBox)
-    assert [unit_box.itemText(i) for i in range(unit_box.count())] == ["Gandalf", "Frodo"]
+    # WorldBuilder's own `<This Object>` stands ahead of the map's named units.
+    assert [unit_box.itemText(i) for i in range(unit_box.count())] == [
+        "<This Object>",
+        "Gandalf",
+        "Frodo",
+    ]
     unit_box.setCurrentText("Frodo")
     dialog.accept()
 
     assert dialog.item is not None
     assert dialog.item.arguments[0].string_value == "Frodo"
-    assert dialog.preview.text().startswith('Move <a href="argument:0">Frodo</a> to')
+    # The preview carries the link colour the script list's rows use, so both read the same.
+    assert dialog.preview.text().startswith('Move <a href="argument:0" style="color: ')
+    assert ">Frodo</a> to" in dialog.preview.text()
 
 
 def test_item_dialog_edits_a_copy_and_keeps_fitting_arguments(qapp):
@@ -475,7 +483,8 @@ def test_a_new_script_beside_an_imported_one_goes_to_the_player(qapp):
     panel.new_script()
 
     items = document.map.player_scripts_list.script_lists[0].items
-    assert [item.name for item in items] == ["Own", "New Script"]
+    assert [item.name for item in items][0] == "Own"
+    assert items[1].name.startswith("Script ")
 
 
 def navigable_document() -> MapDocument:

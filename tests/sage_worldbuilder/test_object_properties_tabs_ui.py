@@ -109,14 +109,16 @@ def test_a_mixed_selection_shows_each_kind_and_edits_stay_in_their_kind(scene):
     panel, document, tree, waypoint, area = scene
     select(panel, document, tree, waypoint, area)
     assert panel.visible_tabs() == [
-        panel.object_tab,
+        *panel.object_tabs.values(),
         panel.waypoint_tab,
         panel.area_tab,
         panel.other_keys,
     ]
+    # WorldBuilder's three object pages, in its order.
+    assert list(panel.object_tabs) == ["General", "Logical", "Sound"]
     assert panel.heading.text() == "Tree (Tree 0); 1 object, 1 waypoint, 1 trigger area selected"
 
-    panel.object_form.fields["objectEnabled"].setChecked(False)
+    panel.object_field("objectEnabled").setChecked(False)
     assert tree.properties["objectEnabled"]["value"] is False
     assert "objectEnabled" not in waypoint.properties
 
@@ -127,4 +129,4 @@ def test_a_mixed_selection_shows_each_kind_and_edits_stay_in_their_kind(scene):
     select(panel, document, area)
     assert panel.tabs.currentWidget() is panel.area_tab
     select(panel, document, tree)
-    assert panel.tabs.currentWidget() is panel.object_tab
+    assert panel.tabs.currentWidget() is panel.object_tabs["General"]

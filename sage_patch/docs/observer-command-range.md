@@ -262,6 +262,10 @@ composable with the other section-adding patches.
   [`push-visible-command-range.md`](push-visible-command-range.md).
 - **A page does not survive re-selection.** `switchToContext` clears `ControlBar+0x2B0` on any
   context or drawable change, which is stock behaviour.
+- **The whitelist is the patch.** Opening the same gate for every command instead is
+  [`observer-all-commands`](observer-all-commands.md), which owns these same five bytes and so
+  cannot be combined with this one. It is experimental for the reason this section's first line
+  gives: past the two paging commands, a dispatched click posts a `GameMessage`.
 - **The executor's other two callers are untouched.** They are the spellbook APT handler
   `OnAptInGameSpellBookButtonPressed` (`0x00930DE5`) and the deferred button-queue flush at
   `0x00823413` — neither consults this predicate, and neither is on the command-bar click path.

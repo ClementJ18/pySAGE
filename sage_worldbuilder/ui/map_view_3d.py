@@ -16,8 +16,9 @@ light - a flame, a glow, a sky - added in rather than mixed in, undimmed by the 
 object drawn as its model needs no marker; one with no model to draw keeps its dot, and Show
 Object Dots puts a dot back on every object.
 
-Middle-drag or Space-drag pans; with Ctrl, or a right-drag when the tool does not take the right
-button, it orbits instead. The wheel zooms about the ground under the cursor.
+Right-drag or Space-drag pans and middle-drag orbits; Ctrl on a pan orbits instead. A tool that
+takes the right button keeps it, and then only middle-drag and Space-drag move the camera. The
+wheel zooms about the ground under the cursor.
 
 Needs PyOpenGL (the `worldbuilder` extra) and an OpenGL 3.3 core context; the window imports this
 module only when the 3D view is first opened.
@@ -178,6 +179,7 @@ from sage_worldbuilder.projection import CameraProjection
 from sage_worldbuilder.render.art import ArtTextures
 from sage_worldbuilder.render.model_mesh import (
     ModelGeometry,
+    aligned_to_terrain,
     instance_matrices,
     object_scale,
     ray_hit_instances,
@@ -211,7 +213,7 @@ from sage_worldbuilder.scene import Marker, MarkerKind, marker_kind
 from sage_worldbuilder.terrain import FEET_PER_HEIGHT_UNIT, WORLD_UNITS_PER_CELL
 from sage_worldbuilder.terrain.cells import TileLayer
 from sage_worldbuilder.terrain.grid import TerrainGrid
-from sage_worldbuilder.terrain.surface import ground_heights, ray_hit
+from sage_worldbuilder.terrain.surface import ground_heights, ground_normals, ray_hit
 from sage_worldbuilder.ui.overlays import (
     BRIDGE_FILL,
     GRID_COLOR,
@@ -1882,7 +1884,18 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         scales = np.fromiter(
             (object_scale(obj) for obj in objects), dtype=np.float64, count=len(objects)
         )
-        matrices = instance_matrices(xs, ys, ground_heights(grid, xs, ys) + heights, angles, scales)
+        # Align To Terrain lays an object along the slope it stands on; every other object stands
+        # upright, which the vertical normal gives it.
+        aligned = np.fromiter(
+            (aligned_to_terrain(obj) for obj in objects), dtype=bool, count=len(objects)
+        )
+        normals = None
+        if aligned.any():
+            normals = np.tile(np.array((0.0, 0.0, 1.0)), (len(objects), 1))
+            normals[aligned] = ground_normals(grid, xs[aligned], ys[aligned])
+        matrices = instance_matrices(
+            xs, ys, ground_heights(grid, xs, ys) + heights, angles, scales, normals
+        )
         model.matrices = matrices
         # A GLSL mat4 attribute reads its four columns in turn.
         columns = np.ascontiguousarray(matrices.transpose(0, 2, 1), dtype=np.float32)
@@ -2471,12 +2484,14 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
             return
         button = event.button()
         control = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
-        drag = button == Qt.MouseButton.MiddleButton or (
-            button == Qt.MouseButton.LeftButton and self._space_down
+        turn = button == Qt.MouseButton.MiddleButton
+        drag = (
+            turn
+            or (button == Qt.MouseButton.LeftButton and self._space_down)
+            or (button == Qt.MouseButton.RightButton and not self.tool.right_button)
         )
-        orbit_right = button == Qt.MouseButton.RightButton and not self.tool.right_button
-        if drag or orbit_right:
-            self._orbiting = orbit_right or control
+        if drag:
+            self._orbiting = turn or control
             self._panning = not self._orbiting
             self._last_mouse = event.position()
             self.setCursor(

@@ -7,8 +7,14 @@ from sage_map import (  # noqa: E402
     Map,  # noqa: E402
     MapModel,
     Scope,
+    arg_spec,
     build_symbols,
 )
+from sage_map.assets.camera_animation_list import (  # noqa: E402
+    CameraAnimation,
+    CameraAnimationList,
+)
+from sage_map.assets.named_cameras import NamedCamera, NamedCameras  # noqa: E402
 from sage_map.assets.object_list import Object, ObjectsList  # noqa: E402
 from sage_map.assets.player_scripts import (  # noqa: E402
     PlayerScriptsList,
@@ -87,7 +93,33 @@ def _script(name, *, actions_if_true=()):
     return script
 
 
-def _map(*, teams=(), players=(), objects=(), trigger_areas=(), scripts=()):
+def _camera(name):
+    return NamedCamera(
+        look_at_point=(0.0, 0.0, 0.0),
+        name=name,
+        pitch=0.0,
+        roll=0.0,
+        yaw=0.0,
+        zoom=1.0,
+        fov=0.0,
+        unknown=0,
+    )
+
+
+def _animation(name):
+    return CameraAnimation(animation_type=0, name=name, num_frames=1, start_offset=0, frame_data=[])
+
+
+def _map(
+    *,
+    teams=(),
+    players=(),
+    objects=(),
+    trigger_areas=(),
+    scripts=(),
+    cameras=(),
+    animations=(),
+):
     m = Map()
     m.teams = Teams(version=5, teams=list(teams), start_pos=0, end_pos=0) if teams else None
     m.sides_list = SidesList(
@@ -104,6 +136,14 @@ def _map(*, teams=(), players=(), objects=(), trigger_areas=(), scripts=()):
         script_lists=[ScriptList(version=1, items=list(scripts), start_pos=0, end_pos=0)],
         start_pos=0,
         end_pos=0,
+    )
+    m.named_cameras = (
+        NamedCameras(version=1, cameras=list(cameras), start_pos=0, end_pos=0) if cameras else None
+    )
+    m.camera_animation_list = (
+        CameraAnimationList(version=1, animations=list(animations), start_pos=0, end_pos=0)
+        if animations
+        else None
     )
     return m
 
@@ -163,3 +203,52 @@ def test_references_filters_to_resolvable_named_args():
     m = _map(scripts=[_script("S", actions_if_true=[_action(team, number, blank)])])
     refs = list(MapModel.from_map(m).references())
     assert [r.resolved.value for r in refs] == ["Alpha"]  # number (LITERAL) and blank dropped
+
+
+def test_cameras_and_animations_are_harvested_and_resolved():
+    """Unlike a script or a named unit, a camera exists only where the map declares it - nothing
+    merges one in at runtime - so a miss is a real dangling reference rather than a skip."""
+    m = _map(
+        cameras=[_camera("View_start"), _camera("Dragon_hort")],
+        animations=[_animation("Animation_1")],
+    )
+    s = build_symbols(m)
+    assert s.cameras == {"view_start", "dragon_hort"}
+    assert s.camera_animations == {"animation_1"}
+
+    assert s.resolve("cameras", "VIEW_START") is True
+    assert s.resolve("cameras", "Nope") is False
+    assert s.resolve("camera_animations", "Animation_1") is True
+    assert s.resolve("camera_animations", "Animation_2") is False
+
+
+def test_a_map_with_no_cameras_tracks_an_empty_set():
+    """An empty tracked set is not the same as an untracked target: the linter skips resolving
+    against an empty one rather than flagging every reference in the map."""
+    s = build_symbols(_map())
+    assert s.names("cameras") == set()
+    assert s.names("counters") is None
+
+
+def test_camera_arguments_carry_the_map_scope():
+    for arg_type, target in (
+        (AT.CAMERA_NAME, "cameras"),
+        (AT.CAMERA_ANIMATION_NAME, "camera_animations"),
+    ):
+        spec = arg_spec(arg_type)
+        assert spec.scope is Scope.MAP
+        assert spec.target == target
+        assert spec.field == "string_value"
+
+
+def test_named_enums_read_the_string_slot():
+    """`OBJECT_PANEL_FLAG` and `SCIENCE_AVAILABILITY_NAME` are closed engine sets the editor
+    writes by name, where every other ENUM argument carries an index."""
+    for arg_type, target in (
+        (AT.OBJECT_PANEL_FLAG, "ObjectPanelFlag"),
+        (AT.SCIENCE_AVAILABILITY_NAME, "ScienceAvailability"),
+    ):
+        spec = arg_spec(arg_type)
+        assert spec.scope is Scope.ENUM
+        assert spec.target == target
+        assert spec.field == "string_value"

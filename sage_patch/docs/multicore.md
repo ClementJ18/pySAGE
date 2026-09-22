@@ -10,6 +10,22 @@ copies** — the repo-root `game.dat`, the Edain-built `game.dat`, and the insta
 here more than usual, because the repo-root file *does* differ from stock inside the pacing code
 next door (see [`render-rate.md`](render-rate.md) §0).
 
+> ### ⚠ §3.2's conclusion, §4's first row, §3.3's status and §6's premise are superseded.
+>
+> A third-party accelerator (`bfme2_accel.dll`, "BFME2 Accelerator v47") ships a working render
+> thread **against this exact binary** — same build, confirmed four ways. §3.2 is right that the W3D
+> mutex serializes a render thread that *shares* the renderer, and wrong that this is the only
+> design: that DLL **moves** the renderer instead, so the worker is the only thread calling D3D and
+> the lock is uncontended. §6 is also wrong that the engine "gives you almost nothing for free" —
+> it resolves `D3DPERF_BeginEvent`/`EndEvent` into `0x00DD361C`/`0x00DD3620` and already wraps five
+> **named** render stages in them, which is §6.1's measurement, already built, waiting for a
+> consumer.
+>
+> **[`render-thread.md`](render-thread.md) is the revision**, and §4 of it is the itemised list of
+> what here still stands. §3.1, §3.5, §5.3 and §7.2 are untouched; the analysis throughout survives
+> and three of the verdicts do not. This document is left standing so the corrections have
+> something to point at.
+
 ## TL;DR
 
 - **There is no "multicore patch."** The frame is one thread by construction, and the two offloads

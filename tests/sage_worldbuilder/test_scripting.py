@@ -19,6 +19,7 @@ from sage_worldbuilder.commands.edits import (
     SetProperty,
 )
 from sage_worldbuilder.scripting import (
+    SPECIAL_NAMES,
     argument_choices,
     argument_text,
     item_template,
@@ -29,6 +30,7 @@ from sage_worldbuilder.scripting import (
     new_group,
     new_item,
     new_script,
+    new_script_name,
     retarget,
     script_matches,
     sentence_parts,
@@ -156,7 +158,8 @@ def test_tree_walk_and_unique_names():
         ("Act One", 0),
         ("Intro", 1),
     ]
-    assert unique_script_name(map, "Intro") == "Intro (2)"
+    # WorldBuilder's `"%s %d"`, counting from 1.
+    assert unique_script_name(map, "Intro") == "Intro 1"
     assert unique_script_name(map, "Outro") == "Outro"
 
 
@@ -256,3 +259,42 @@ def test_set_property_restores_order_and_merges():
     )
     document.stack.undo()
     assert properties["b"]["value"] == 2
+
+
+def test_new_scripts_are_named_from_a_counter_that_only_goes_up():
+    """WorldBuilder's New Script names `Script <n>` from a session-wide counter, skipping the
+    numbers the map already uses; a number it has handed out is never offered again."""
+    map = map_with_scripts()
+    first = new_script_name(map)
+    second = new_script_name(map)
+    assert first.startswith("Script ") and second.startswith("Script ")
+    assert int(second.rsplit(" ", 1)[1]) > int(first.rsplit(" ", 1)[1])
+
+    # The number the map already uses is skipped rather than handed out again.
+    script = map.player_scripts_list.script_lists[0].items[0].items[0]
+    script.name = f"Script {int(second.rsplit(' ', 1)[1]) + 1}"
+    assert new_script_name(map) != script.name
+
+
+def test_a_map_symbol_is_offered_with_worldbuilders_run_time_names():
+    """`<This Player>`, `<This Team>`, `<This Object>` and the skirmish perimeters are names the
+    engine resolves at run time; WorldBuilder offers them ahead of the map's own."""
+    from sage_map.assets.player_scripts import ScriptArgumentType  # noqa: PLC0415
+
+    players = argument_choices(ScriptArgumentType.PLAYER_NAME, {"players": ["PlyrGondor"]}, None)
+    assert players == [*SPECIAL_NAMES["players"], "PlyrGondor"]
+    assert players[-2] == "<All Players>"
+    assert argument_choices(ScriptArgumentType.TEAM_REFERENCE, {"teams": []}, None) == [
+        "<This Team>"
+    ]
+    assert argument_choices(ScriptArgumentType.UNIT_REFERENCE, {"units": []}, None) == [
+        "<This Object>"
+    ]
+    areas = argument_choices(ScriptArgumentType.TRIGGER_AREA_NAME, {"trigger_areas": []}, None)
+    assert areas[-1] == "Water Grid" and len(areas) == 5
+    # A map that declares one of them by hand is not offered it twice.
+    assert argument_choices(ScriptArgumentType.TEAM_NAME, {"teams": ["<This Team>"]}, None) == [
+        "<This Team>"
+    ]
+    # A type that names nothing the map declares is unchanged.
+    assert argument_choices(ScriptArgumentType.INTEGER, {}, None) == []

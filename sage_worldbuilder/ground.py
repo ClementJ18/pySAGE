@@ -63,24 +63,25 @@ def ground_triangles(scene: Any) -> np.ndarray:
 def load_ground_triangles(
     names: Iterable[str], models: ObjectModels, art: ArtIndex
 ) -> dict[str, np.ndarray]:
-    """Each object name's `.GROUND` triangles; a name whose model has none, or cannot be read, is
-    left out."""
+    """Each object name's `.GROUND` triangles, over every model it shows; a name whose models
+    have none, or cannot be read, is left out."""
     found: dict[str, np.ndarray] = {}
     for name in names:
         if name in found:
             continue
-        chosen = models.get(name)
-        try:
-            model = art.find_model(chosen.model) if chosen is not None else None
-            triangles = (
-                ground_triangles(build_scene(model, art, chosen.skeleton))
-                if model is not None and chosen is not None
-                else np.zeros((0, 3, 3))
-            )
-        except Exception:  # noqa: BLE001 - one unreadable model must not lose the rest
-            continue
-        if len(triangles):
-            found[name] = triangles
+        pieces = []
+        for chosen in models.get(name):
+            try:
+                model = art.find_model(chosen.model)
+                if model is None:
+                    continue
+                triangles = ground_triangles(build_scene(model, art, chosen.skeleton))
+            except Exception:  # noqa: BLE001 - one unreadable model must not lose the rest
+                continue
+            if len(triangles):
+                pieces.append(triangles)
+        if pieces:
+            found[name] = np.concatenate(pieces)
     return found
 
 

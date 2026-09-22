@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from sage_ini.model.enums import LodLevel
 from sage_map.assets.blend_tile_data import BlendTileTexture
 from sage_map.assets.object_list import Object, ObjectsList
 from sage_map.assets.trigger_areas import TriggerArea, TriggerAreas
@@ -62,11 +63,14 @@ def test_grid_lines_and_snapping():
 
 
 def test_view_options_survive_a_dict_and_ignore_bad_values():
-    options = ViewOptions(show_grid=True, grid=GridSettings(spacing=40.0, snap=True))
+    options = ViewOptions(
+        show_grid=True, grid=GridSettings(spacing=40.0, snap=True), lod_level=LodLevel.Medium
+    )
     assert ViewOptions.from_dict(options.to_dict()) == options
     restored = ViewOptions.from_dict({"show_grid": "yes", "grid": {"spacing": -3, "snap": True}})
     assert restored.show_grid is False
     assert restored.grid == GridSettings(snap=True)
+    assert restored.lod_level is LodLevel.UltraHigh
     assert ViewOptions.from_dict(None) == ViewOptions()
 
 

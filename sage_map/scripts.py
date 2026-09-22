@@ -77,6 +77,11 @@ def _enum(target: str) -> ArgSpec:
     return ArgSpec("int_value", Scope.ENUM, target)
 
 
+def _named_enum(target: str) -> ArgSpec:
+    """A closed set the editor writes by *name* rather than by index, unlike `_enum`."""
+    return ArgSpec("string_value", Scope.ENUM, target)
+
+
 ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     # Plain scalars - nothing to resolve.
     T.INTEGER: _INT,
@@ -85,6 +90,8 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.PERCENTAGE: _REAL,
     T.TEXT: _TEXT,
     T.POSITION_COORDINATE: _POSITION,
+    # `NAMED_CUSTOM_COLOR` carries a packed colour integer in the string slot, not a colour name.
+    T.COLOR: _TEXT,
     T.BOOLEAN: ArgSpec("int_value", Scope.ENUM, "Boolean"),
     # Definitions in the assembled game (ini objects). target = Game.lookup table key.
     T.OBJECT_TYPE: _game("objects"),
@@ -92,13 +99,27 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.UPGRADE_NAME: _game("upgrades"),
     T.COMMAND_BUTTON_NAME: _game("commandbuttons"),
     T.SPECIAL_POWER_NAME: _game("specialpowers"),
-    # FACTION_NAME holds a side name (`Rohan`), not a PlayerTemplate name (`FactionRohan`), so
-    # it is left LITERAL until a table of side names exists.
-    T.FACTION_NAME: _TEXT,
-    # Attack priority sets are *created by script actions*, not defined in ini, so they resolve
-    # map-locally - and we do not harvest the creating actions yet, so the target is untracked
-    # (resolve -> None) rather than checked against the game's ini AttackPriority table.
+    # The `*_USE_COMMANDBUTTON_ABILITY*` actions name a CommandButton, whichever of the two types
+    # the editor tagged the argument with: across a 471-map corpus every one of the 190 + 204
+    # distinct values is a `Command_*`, and all but 15 of them resolve as one.
+    T.UNIT_ABILITY_NAME: _game("commandbuttons"),
+    T.TEAM_ABILITY_NAME: _game("commandbuttons"),
+    # `HERO_SELECT_BUTTON_FLASH` names an object template, not a hero definition of its own.
+    T.HERO: _game("objects"),
+    # FACTION_NAME holds a *side* name (`Rohan`, `Angmar`), not a PlayerTemplate name
+    # (`FactionRohan`) - 876 uses across a 471-map corpus, all of them `SKIRMISH_PLAYER_FACTION`,
+    # spanning the twelve sides. There is no table of side names to look one up in (the `factions`
+    # table is keyed by PlayerTemplate name), and the set is data-derived rather than compiled in,
+    # so it is recorded as a named set and not resolved.
+    T.FACTION_NAME: _named_enum("Side"),
+    # Names a script action *creates*, not definitions - an attack priority set, an object-type
+    # list (`OBJECTLIST_ADDOBJECTTYPE`) and a permanent map reveal
+    # (`MAP_REVEAL_PERMANENTLY_*`, whose name a later undo refers back to) are all authored in
+    # the script that first names them. We do not harvest the creating actions, so each target is
+    # untracked (resolve -> None) rather than checked against a game table.
     T.ATTACK_PRIORITY_SET_NAME: _map("attack_priority_sets"),
+    T.OBJECT_TYPE_LIST_NAME: _map("object_type_lists"),
+    T.MAP_REVEAL_NAME: _map("map_reveals"),
     # Symbols the map itself declares (built by the `sage_map.model` adapter).
     T.SCRIPT_NAME: _map("scripts"),
     T.SUBROUTINE_NAME: _map("scripts"),
@@ -114,6 +135,10 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.UNIT_REFERENCE: _map("units"),
     T.OBJECT_NAME: _map("units"),  # a named instance, not a template (that is OBJECT_TYPE)
     T.BOUNDARY_NAME: _map("boundaries"),
+    # A camera and a camera animation are declared only by the map that uses them, so a miss here
+    # is a real dangling reference rather than a name merged in at runtime.
+    T.CAMERA_NAME: _map("cameras"),
+    T.CAMERA_ANIMATION_NAME: _map("camera_animations"),
     # Localization labels.
     T.LOCALIZED_STRING_NAME: ArgSpec("string_value", Scope.STRINGS),
     # Closed engine value sets. Recorded as ENUM; value validation is deferred (v1 does not check).
@@ -133,6 +158,11 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.REVERB_ROOM_TYPE: _enum("ReverbRoomType"),
     T.EMOTION: _enum("Emotion"),
     T.OBJECTIVE_COMPLETE: _enum("ObjectiveComplete"),
+    # Written by name, not by index: the flags `UNIT_AFFECT_OBJECT_PANEL_FLAGS` toggles
+    # (`Selectable`, `Indestructible`, ... - the `object*` properties a placed object carries) and
+    # the availability `PLAYER_SCIENCE_AVAILABILITY` sets (`Available`, ...).
+    T.OBJECT_PANEL_FLAG: _named_enum("ObjectPanelFlag"),
+    T.SCIENCE_AVAILABILITY_NAME: _named_enum("ScienceAvailability"),
     # deferred: audio/font asset names live in archives the loose-file crawl misses (the same
     # reason sage_lint's asset rule skips audio), so resolving them would only churn false misses.
     T.SOUND_NAME: _TEXT,
@@ -142,11 +172,10 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.AUDIO_NAME: _TEXT,
     T.FONT_NAME: _TEXT,
     T.EMOTICON_NAME: _TEXT,
-    # deferred: no game table registered yet (OBJECT_TYPE_LIST_NAME), or scope still ambiguous
-    # (HERO/BRIDGE/COLOR/OBJECT_PANEL_FLAG/MAP_REVEAL_NAME/SCIENCE_AVAILABILITY_NAME/
-    # SKIRMISH_APPROACH_PATH/UNIT_ABILITY_NAME/TEAM_ABILITY_NAME/CAMERA_NAME/
-    # CAMERA_ANIMATION_NAME/THREAT_FINDER_NAME/STANCE/SPEECH and the UNKNOWN_* types) - left
-    # LITERAL until confirmed.
+    # deferred: these never occur in the 471-map corpus the rest of this table was surveyed
+    # against (BRIDGE_NAME/SKIRMISH_APPROACH_PATH/THREAT_FINDER_NAME/STANCE/EVA and the seven
+    # UNKNOWN_* types), so there is no evidence to scope them by. Left LITERAL until one shows up.
+    # Every other type in the enum is mapped above.
 }
 
 

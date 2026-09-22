@@ -1,6 +1,7 @@
 """Qt-level tests for the Move and Rotate tools: the gizmo's hit areas, a drag held to one axis,
-X/Y/Z switching the axis mid-drag, the rotate ring, Lock Angle, and falling through to Select and
-Move when the press misses the gizmo. Headless via 'offscreen'; marked `full`."""
+X/Y/Z switching the axis mid-drag, the rotate ring, Lock Angle, falling through to Select and
+Move when the press misses the gizmo, and the level plane the gizmo stands on in 3D. Headless via
+'offscreen'; marked `full`."""
 
 import math
 import os
@@ -14,6 +15,7 @@ pytestmark = pytest.mark.full
 pytest.importorskip("PyQt6", reason="the [worldbuilder] extra (PyQt6) is not installed")
 pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 
+import numpy as np  # noqa: E402
 from PyQt6.QtCore import QPointF, Qt  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
@@ -21,8 +23,13 @@ from sage_map.assets.object_list import Object, ObjectsList  # noqa: E402
 from sage_map.context import AssetPropertyType  # noqa: E402
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
-from sage_worldbuilder.gizmos import GIZMO_PIXELS, Axis  # noqa: E402
+from sage_worldbuilder.camera import Camera  # noqa: E402
+from sage_worldbuilder.gizmos import GIZMO_PIXELS, Axis, reach  # noqa: E402
+from sage_worldbuilder.projection import CameraProjection  # noqa: E402
 from sage_worldbuilder.settings import Settings  # noqa: E402
+from sage_worldbuilder.terrain.grid import TerrainGrid  # noqa: E402
+from sage_worldbuilder.terrain.surface import ground_height  # noqa: E402
+from sage_worldbuilder.ui import gizmo_tools  # noqa: E402
 from sage_worldbuilder.ui.tools import Gesture  # noqa: E402
 from sage_worldbuilder.ui.window import MainWindow  # noqa: E402
 from sage_worldbuilder.viewport import GridSettings, ViewOptions  # noqa: E402
@@ -240,3 +247,50 @@ def test_the_gizmo_highlights_the_axis_under_the_cursor(window):
     assert tool._hot is Axis.X
     tool.hover(view, gesture(window, 400.0, 400.0))
     assert tool._hot is None
+
+
+class _Sloped:
+    """The least of a `ToolView` a gizmo asks about: a 3D projection over sloping ground."""
+
+    def __init__(self, document):
+        heights = np.arange(41)[None, :] * 256 + np.zeros((41, 1), dtype=np.int64)
+        grid = TerrainGrid(heights.astype(np.uint16), 0)
+        camera = Camera(width=800, height=600, pitch=45, distance=900)
+        camera.target_x = camera.target_y = 200.0
+        camera.target_z = ground_height(grid, 200.0, 200.0)
+        self.transform = CameraProjection(camera, grid)
+        self.document = document
+        self.options = ViewOptions()
+
+    def update(self):
+        return None
+
+
+def test_the_gizmo_stands_on_a_level_plane_over_sloping_ground(window, qapp):
+    tree, _rock = objects(window)
+    tree.position = (200.0, 200.0, 0.0)
+    select(window, tree)
+    view = _Sloped(window.document)
+    center = (200.0, 200.0)
+    plane = view.transform.ground(*center)
+    scale = view.transform.scale_at(*center)
+    out = reach(GIZMO_PIXELS, scale)
+
+    # Every point of the ring as drawn is projected from the one height, not from the ground
+    # under it, which rises steadily to the east.
+    ring = gizmo_tools._ring(view, center, scale)
+    for step, point in enumerate(ring):
+        x = center[0] + out * math.cos(step * math.tau / gizmo_tools._RING_STEPS)
+        y = center[1] + out * math.sin(step * math.tau / gizmo_tools._RING_STEPS)
+        assert point == pytest.approx(view.transform.plane_to_screen(x, y, plane))
+    assert view.transform.ground(center[0] + out, center[1]) != pytest.approx(plane)
+
+    # And a press at the ring where it is drawn grabs it.
+    east = QPointF(*view.transform.plane_to_screen(center[0] + out, center[1], plane))
+    grabbed = window.rotate_tool._grab(view, center, Gesture(center, east))
+    assert grabbed is Axis.Z
+
+    # The X arrow's tip is on the same plane, not up the slope.
+    tail, tip = window.move_tool._segment(view, center, Axis.X, scale)
+    assert tail == pytest.approx(view.transform.plane_to_screen(*center, plane))
+    assert tip == pytest.approx(view.transform.plane_to_screen(center[0] + out, center[1], plane))

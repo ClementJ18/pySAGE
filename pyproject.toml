@@ -49,6 +49,7 @@ sage-asset = "sage_asset.__main__:main"
 sage-w3d = "sage_w3d.__main__:main"
 sage-cah = "sage_cah.__main__:main"
 sage-patch = "sage_patch.cli:main"
+sage-test = "sage_test.__main__:main"
 sage-verify = "sage_verify.__main__:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui / asset-ui / cah-ui).
@@ -117,6 +118,10 @@ patch = [
 # inside its `.big` archives.
 worldbuilder = [
     "PyQt6>=6.6",
+    # Qt 6.11.0 and 6.11.1 fault while taking a floating panel group apart, which closing an
+    # undocked panel does: the teardown replays layout state it has already freed. 6.11.2 clears
+    # that state first, and every earlier Qt this package allows is unaffected.
+    "PyQt6-Qt6!=6.11.0,!=6.11.1",
     "pybig>=0.6",
     "numpy>=2",
     # The 3D view.

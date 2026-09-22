@@ -24,9 +24,10 @@ from sage_worldbuilder.jump import (
 )
 from sage_worldbuilder.objects import GroupEditMethod
 from sage_worldbuilder.pick import ANYTHING, PickCategory
+from sage_worldbuilder.toolbar import DEFAULT_ITEMS, normalise
 from sage_worldbuilder.viewport import ViewOptions
 
-__all__ = ["APP", "MAX_RECENT", "RecentMap", "Settings", "same_folder"]
+__all__ = ["APP", "MAX_RECENT", "RecentMap", "SavedLayout", "Settings", "same_folder"]
 
 APP = "sage_worldbuilder"
 SETTINGS_FILE = "settings.json"
@@ -49,6 +50,14 @@ class RecentMap:
 
     def same_as(self, other: RecentMap) -> bool:
         return self.kind == other.kind and self.path.lower() == other.path.lower()
+
+
+@dataclass(frozen=True)
+class SavedLayout:
+    """A panel layout the user saved under a name: Base64 of Qt's saveGeometry / saveState."""
+
+    geometry: str
+    state: str
 
 
 @dataclass
@@ -81,6 +90,11 @@ class Settings:
     # Base64 of Qt's saveGeometry / saveState, so docks come back where they were left.
     window_geometry: str | None = None
     window_state: str | None = None
+    # Named layouts from Window > Save Layout, in the order they were first saved.
+    layouts: dict[str, SavedLayout] = field(default_factory=dict)
+    # The main toolbar's items, in order. None is the default layout (`toolbar.DEFAULT_ITEMS`); a
+    # list, including an empty one, is a user's own choice and must round-trip as given.
+    toolbar_items: list[str] | None = None
 
     @classmethod
     def load(cls) -> Settings:
@@ -151,6 +165,20 @@ class Settings:
         for folder in mods if isinstance(mods, list) else []:
             if isinstance(folder, str) and folder:
                 settings.add_recent_mod(folder, front=False)
+        layouts = data.get("layouts")
+        for name, row in layouts.items() if isinstance(layouts, dict) else ():
+            if (
+                name
+                and isinstance(row, dict)
+                and isinstance(row.get("geometry"), str)
+                and isinstance(row.get("state"), str)
+            ):
+                settings.layouts[name] = SavedLayout(row["geometry"], row["state"])
+        toolbar_items = data.get("toolbar_items")
+        if isinstance(toolbar_items, list):
+            settings.toolbar_items = list(
+                normalise(item for item in toolbar_items if isinstance(item, str))
+            )
         return settings
 
     def to_dict(self) -> dict[str, Any]:
@@ -179,6 +207,11 @@ class Settings:
             "lock_layout": self.lock_layout,
             "window_geometry": self.window_geometry,
             "window_state": self.window_state,
+            "layouts": {
+                name: {"geometry": layout.geometry, "state": layout.state}
+                for name, layout in self.layouts.items()
+            },
+            "toolbar_items": self.toolbar_items,
         }
 
     def save(self) -> bool:
@@ -237,6 +270,13 @@ class Settings:
 
     def autosave_settings(self) -> AutosaveSettings:
         return AutosaveSettings(self.autosave_enabled, self.autosave_interval_seconds)
+
+    def toolbar_layout(self) -> tuple[str, ...]:
+        """The toolbar's items in order: the default layout when the user has never customised
+        it, otherwise their own choice, normalised against the current catalogue."""
+        if self.toolbar_items is None:
+            return tuple(DEFAULT_ITEMS)
+        return normalise(self.toolbar_items)
 
     def set_jump_options(self, options: JumpOptions) -> None:
         """Keep `options`' launch settings; the match is `jump_match`, not its `game_info`."""

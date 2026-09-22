@@ -19,7 +19,14 @@ from sage_map.assets.player_scripts import ScriptDerived
 from sage_worldbuilder.scripting import sentence_parts
 from sage_worldbuilder.templates import TemplateKind
 
-__all__ = ["HTML_ROLE", "SentenceDelegate", "argument_at", "link_color", "sentence_html"]
+__all__ = [
+    "HTML_ROLE",
+    "SentenceDelegate",
+    "argument_at",
+    "link_color",
+    "sentence_html",
+    "sentence_link_color",
+]
 
 ARGUMENT_LINK = "argument:"
 # The item data role a list row keeps its sentence markup under.
@@ -41,13 +48,24 @@ def link_color(palette: QPalette, background: QColor) -> QColor:
     return lighter
 
 
-def sentence_html(item: ScriptDerived, kind: TemplateKind) -> str:
-    """The sentence as rich text, each argument a link to `argument:<index>`."""
+def sentence_link_color(palette: QPalette) -> QColor:
+    """The colour every sentence draws its argument links in, wherever it is shown.
+
+    One rule for all of them: a sentence in the item dialog's preview and the same sentence in the
+    list of a script's actions have to read as the same thing, so both take the colour the list
+    rows sit on (`Base`) rather than each measuring its own background."""
+    return link_color(palette, palette.color(QPalette.ColorRole.Base))
+
+
+def sentence_html(item: ScriptDerived, kind: TemplateKind, color: QColor | None = None) -> str:
+    """The sentence as rich text, each argument a link to `argument:<index>`. With `color`, each
+    link carries it, for a view that does not draw links through the palette's Link role."""
+    style = f' style="color: {color.name()};"' if color is not None else ""
     pieces = []
     for text, index in sentence_parts(item, kind):
         escaped = html.escape(text)
         pieces.append(
-            escaped if index is None else f'<a href="{ARGUMENT_LINK}{index}">{escaped}</a>'
+            escaped if index is None else f'<a href="{ARGUMENT_LINK}{index}"{style}>{escaped}</a>'
         )
     return "".join(pieces)
 
@@ -74,7 +92,7 @@ class SentenceDelegate(QStyledItemDelegate):
         text = palette.color(
             QPalette.ColorRole.HighlightedText if selected else QPalette.ColorRole.Text
         )
-        link = text if selected else link_color(palette, palette.color(QPalette.ColorRole.Base))
+        link = text if selected else sentence_link_color(palette)
         document = QTextDocument()
         document.setDocumentMargin(2)
         document.setDefaultFont(option.font)

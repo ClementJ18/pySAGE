@@ -75,6 +75,23 @@ def test_specs_store_the_types_the_maps_store():
     assert aggressiveness.choice_base == -3 and len(aggressiveness.choices) == 6
 
 
+def test_the_three_object_pages_cover_every_key_once():
+    """WorldBuilder's General / Logical / Sound pages, between them holding every object key the
+    panel edits; the upgrades are the check list's, not a form field's."""
+    from sage_worldbuilder.ui.object_properties import OBJECT_PAGES, UPGRADES_PAGE  # noqa: PLC0415
+
+    assert [title for title, _ in OBJECT_PAGES] == ["General", "Logical", "Sound"]
+    placed_keys = [key for _, keys in OBJECT_PAGES for key in keys]
+    assert len(placed_keys) == len(set(placed_keys))
+    assert set(placed_keys) == {spec.name for spec in OBJECT_SPECS} - {"objectUpgradesList"}
+    pages = dict(OBJECT_PAGES)
+    assert "objectSoundAmbient" in pages["Sound"]
+    assert "objectInitialHealth" in pages["Logical"]
+    assert "objectName" in pages["General"]
+    # The base keys stand beside the box that decides whether the game reads them.
+    assert {"objectIsABase", "objectBasePriority", "objectBasePhase"} <= set(pages[UPGRADES_PAGE])
+
+
 def placed(type_name, x, y, **properties):
     stored = {
         key: {"name": key, "type": kind, "value": value}
@@ -133,25 +150,25 @@ def test_panel_edits_every_selected_object(qapp):
         "Integer",
         "1",
     ]
-    assert panel.visible_tabs() == [panel.object_tab, panel.other_keys]
+    assert panel.visible_tabs() == [*panel.object_tabs.values(), panel.other_keys]
 
-    enabled = panel.object_form.fields["objectEnabled"]
+    enabled = panel.object_field("objectEnabled")
     assert isinstance(enabled, QCheckBox) and enabled.isChecked()
     # A run of check boxes shares one row in pairs, each labelled by its own text.
-    recruitable = panel.object_form.fields["objectRecruitableAI"]
+    unsellable = panel.object_field("objectUnsellable")
     assert enabled.text() == "Enabled"
     grid = next(
         layout
-        for layout in panel.object_form.findChildren(QGridLayout)
+        for layout in panel.object_forms["Logical"].findChildren(QGridLayout)
         if layout.indexOf(enabled) >= 0
     )
     assert grid.getItemPosition(grid.indexOf(enabled))[:2] == (0, 0)
-    assert grid.getItemPosition(grid.indexOf(recruitable))[:2] == (0, 1)
+    assert grid.getItemPosition(grid.indexOf(unsellable))[:2] == (0, 1)
     enabled.setChecked(False)
     assert tree.properties["objectEnabled"]["value"] is False
     assert rock.properties["objectEnabled"]["value"] is False
 
-    aggressiveness = panel.object_form.fields["objectAggressiveness"]
+    aggressiveness = panel.object_field("objectAggressiveness")
     assert isinstance(aggressiveness, QComboBox)
     assert aggressiveness.currentText() == "Normal"
     aggressiveness.setCurrentIndex(0)
@@ -189,7 +206,7 @@ def test_health_presets_and_waypoint_type_names(qapp):
     document.selection.set([tree, waypoint])
     panel.refresh()
 
-    health = panel.object_form.fields["objectInitialHealth"]
+    health = panel.object_field("objectInitialHealth")
     assert isinstance(health, PresetField)
     assert [health.choice.itemText(i) for i in range(health.choice.count())] == [
         "0%",
@@ -210,7 +227,7 @@ def test_health_presets_and_waypoint_type_names(qapp):
     health.number.setValue(12)
     assert tree.properties["objectInitialHealth"]["value"] == 12
 
-    max_hp = panel.object_form.fields["objectMaxHPs"]
+    max_hp = panel.object_field("objectMaxHPs")
     assert max_hp.choice.currentText() == "Default For Unit" and not max_hp.number.isEnabled()
 
     kind = panel.waypoint_form.fields["waypointType"]

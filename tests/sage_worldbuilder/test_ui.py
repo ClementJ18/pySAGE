@@ -388,6 +388,25 @@ def test_reset_layout_and_cursor_readout(window):
     assert window.height_label.text() == "Height: 12 (0.5 ft)"
 
 
+def test_named_layouts_save_load_and_delete(window):
+    assert not window.load_layout_menu.isEnabled()
+    window.map_dock.hide()
+    window.store_named_layout("No map & more")
+    window.reset_layout()
+    assert not window.map_dock.isHidden()
+
+    [action] = window.load_layout_menu.actions()
+    assert action.text() == "No map && more"
+    action.trigger()
+    assert window.map_dock.isHidden()
+    assert Settings.load().layouts.keys() == {"No map & more"}
+
+    window.delete_named_layout("No map & more")
+    assert not window.load_layout_menu.isEnabled()
+    assert not window.delete_layout_menu.actions()
+    assert not Settings.load().layouts
+
+
 def test_game_data_loads_in_the_background(qapp, folders):
     window = make_window(folders, load=True)
     try:

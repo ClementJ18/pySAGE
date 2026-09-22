@@ -1,8 +1,12 @@
 """The Object Properties panel: what is selected, with a tab for each kind of thing in the
 selection and only those.
 
-- **Object** (ordinary placed objects): the first one's properties; an edit is set on every
-  selected object.
+- **General**, **Logical** and **Sound** (ordinary placed objects): the first one's properties,
+  split across the three pages WorldBuilder's own Object Properties sheet carries and holding the
+  keys each of those pages shows (`OBJECT_PAGES`). Logical carries WorldBuilder's Available
+  Upgrades check list under its fields - the upgrades the selected objects' templates can be
+  given, ticked to grant one at the start of the game - and Sound the Listen button. An edit on
+  any page is set on every selected object.
 - **Waypoint** (waypoints): the first one's name, path labels, bi-directional flag and type; an
   edit is set on every selected waypoint, and a type to or from a spline on their whole paths.
 - **Area** (trigger areas): the first one's name, and the layer of every selected area.
@@ -45,6 +49,12 @@ from sage_worldbuilder.scene import WAYPOINT_PREFIX
 from sage_worldbuilder.teams import qualified_team_name, team_list
 from sage_worldbuilder.ui.host import PanelHost
 from sage_worldbuilder.ui.property_form import PropertyForm
+from sage_worldbuilder.ui.upgrade_list import UpgradeList
+from sage_worldbuilder.upgrades import (
+    set_upgrades,
+    stored_upgrades,
+    upgrade_choices,
+)
 from sage_worldbuilder.waypoints import set_waypoint_type
 
 __all__ = ["ObjectPropertiesPanel"]
@@ -53,6 +63,76 @@ OBJECTS = Change(ChangeKind.OBJECTS)
 AREAS = Change(ChangeKind.AREAS)
 _COORDINATE_LIMIT = 1e6
 _OBJECT_KEYS = {spec.name for spec in OBJECT_SPECS} | {"uniqueID"}
+
+# WorldBuilder's Object Properties sheet is a tab control (`IDD` 168, control 1445) that
+# `MapObjectProps::OnInitDialog` (`0x0055E4F4`) fills with three pages, in this order, each its own
+# dialog: General (`IDD` 263), Logical (`IDD` 264) and Sound (`IDD` 266). Each page here holds the
+# keys its dialog has a control for, in the order the dialog lays them out; the keys WorldBuilder
+# shows nowhere go on the page they belong to. `objectUpgradesList` is left out: the Available
+# Upgrades check list under the Logical form edits it, as it does on `IDD` 264.
+#
+# A fourth page, BaseProps (`IDD` 284, base priority and phase), is inserted and removed as the
+# selection is or is not a base (`0x0055EFDA`); those two keys stand on Logical here instead,
+# beside the Is a base box that decides whether the game reads them.
+OBJECT_PAGES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "General",
+        (
+            "objectName",
+            "originalOwner",
+            "objectEventsList",
+            "objectBaseName",
+            "objectLayer",
+            "objectPrototypeScale",
+            "alignToTerrain",
+            "exportWithScript",
+            "objectTime",
+            "objectWeather",
+            "objectThreatFinderRadius",
+        ),
+    ),
+    (
+        "Logical",
+        (
+            "objectInitialHealth",
+            "objectMaxHPs",
+            "objectAggressiveness",
+            "objectExperienceLevel",
+            "objectVeterancy",
+            "objectInitialStance",
+            "objectStoppingDistance",
+            "objectVisualRange",
+            "objectShroudClearingDistance",
+            "objectEnabled",
+            "objectUnsellable",
+            "objectTargetable",
+            "objectIndestructible",
+            "objectRecruitableAI",
+            "objectPowered",
+            "objectSelectable",
+            "objectIsABase",
+            "objectBasePriority",
+            "objectBasePhase",
+        ),
+    ),
+    (
+        "Sound",
+        (
+            "objectSoundAmbient",
+            "objectSoundAmbientCustomized",
+            "objectSoundAmbientEnabled",
+            "objectSoundAmbientLooping",
+            "objectSoundAmbientPriority",
+            "objectSoundAmbientVolume",
+            "objectSoundAmbientMinVolume",
+            "objectSoundAmbientMinRange",
+            "objectSoundAmbientMaxRange",
+        ),
+    ),
+)
+# The page the upgrades check list and the Listen button stand on, as their controls do.
+UPGRADES_PAGE, LISTEN_PAGE = "Logical", "Sound"
+_SPEC_BY_NAME = {spec.name: spec for spec in OBJECT_SPECS}
 _WAYPOINT_KEYS = {spec.name for spec in WAYPOINT_SPECS} | {"uniqueID", "waypointID"}
 
 
@@ -103,28 +183,44 @@ class ObjectPropertiesPanel(QWidget):
 
         self.tabs = QTabWidget()
         suggestions = {"originalOwner": self._team_names, "objectLayer": self._layer_names}
-        self.object_form = PropertyForm(
-            OBJECT_SPECS, self._executor(lambda: self.objects), OBJECTS, suggestions
-        )
+        # WorldBuilder's Available Upgrades check list, which edits `objectUpgradesList`, and the
+        # Listen button, which plays the first object's ambient sound
+        # (`MapObjectProps::OnListen`); the window sets what Listen calls.
+        self.upgrades = UpgradeList()
+        self.upgrades.ticked.connect(self._set_upgrades)
+        self.listen: Callable[[Object], None] | None = None
+        self.listen_button = QPushButton("&Listen")
+        self.listen_button.setToolTip("Play the ambient sound of the first selected object")
+        self.listen_button.clicked.connect(self._listen)
+        # The three object pages, each its own form over the keys its WorldBuilder dialog shows.
+        self.object_forms: dict[str, PropertyForm] = {}
+        self.object_tabs: dict[str, QScrollArea] = {}
+        for title, keys in OBJECT_PAGES:
+            form = PropertyForm(
+                [_SPEC_BY_NAME[key] for key in keys],
+                self._executor(lambda: self.objects),
+                OBJECTS,
+                suggestions,
+            )
+            self.object_forms[title] = form
+            page = QWidget()
+            column = QVBoxLayout(page)
+            column.setContentsMargins(0, 0, 0, 0)
+            column.addWidget(form)
+            if title == UPGRADES_PAGE:
+                column.addWidget(self.upgrades, 1)
+            if title == LISTEN_PAGE:
+                column.addWidget(self.listen_button)
+            column.addStretch(0)
+            tab = _scrolling(page)
+            self.object_tabs[title] = tab
+            self.tabs.addTab(tab, title)
         self.waypoint_form = PropertyForm(
             WAYPOINT_SPECS,
             self._executor(lambda: self.waypoints),
             OBJECTS,
             commands={"waypointType": self._set_waypoint_type},
         )
-        # The Listen button plays the first object's ambient sound (`MapObjectProps::OnListen`);
-        # the window sets what it calls.
-        self.listen: Callable[[Object], None] | None = None
-        object_page = QWidget()
-        object_column = QVBoxLayout(object_page)
-        object_column.setContentsMargins(0, 0, 0, 0)
-        object_column.addWidget(self.object_form)
-        self.listen_button = QPushButton("&Listen")
-        self.listen_button.setToolTip("Play the ambient sound of the first selected object")
-        self.listen_button.clicked.connect(self._listen)
-        object_column.addWidget(self.listen_button)
-        self.object_tab = _scrolling(object_page)
-        self.tabs.addTab(self.object_tab, "Object")
         self.waypoint_tab = _scrolling(self.waypoint_form)
         self.tabs.addTab(self.waypoint_tab, "Waypoint")
         self.area_tab = QWidget()
@@ -161,6 +257,14 @@ class ObjectPropertiesPanel(QWidget):
             return []
         return [item for item in document.selection if isinstance(item, Object)]
 
+    def object_field(self, name: str) -> QWidget | None:
+        """The field editing object key `name`, whichever of the three pages it stands on."""
+        for form in self.object_forms.values():
+            field = form.fields.get(name)
+            if field is not None:
+                return field
+        return None
+
     def visible_tabs(self) -> list[QWidget]:
         return [
             widget
@@ -180,18 +284,21 @@ class ObjectPropertiesPanel(QWidget):
         try:
             self.heading.setText(self._describe(document is not None, placed))
             self._show_placement(placed)
-            self.object_form.set_properties(self.objects[0].properties if self.objects else None)
+            properties = self.objects[0].properties if self.objects else None
+            for form in self.object_forms.values():
+                form.set_properties(properties)
+            self._show_upgrades()
             self.waypoint_form.set_properties(
                 self.waypoints[0].properties if self.waypoints else None
             )
             self._show_area()
             self._fill_other_keys(placed[0] if placed else None)
-            shown = {
-                self.object_tab: bool(self.objects),
-                self.waypoint_tab: bool(self.waypoints),
-                self.area_tab: bool(self.areas),
-                self.other_keys: bool(placed),
+            shown: dict[QWidget, bool] = {
+                tab: bool(self.objects) for tab in self.object_tabs.values()
             }
+            shown[self.waypoint_tab] = bool(self.waypoints)
+            shown[self.area_tab] = bool(self.areas)
+            shown[self.other_keys] = bool(placed)
             for widget, visible in shown.items():
                 self.tabs.setTabVisible(self.tabs.indexOf(widget), visible)
             self.tabs.setVisible(any(shown.values()))
@@ -282,6 +389,19 @@ class ObjectPropertiesPanel(QWidget):
             self.host.execute(command)
 
         return execute
+
+    def _show_upgrades(self) -> None:
+        """The upgrades the selected objects can be given, with the first one's ticked - which is
+        the object the form's other fields show, and the value an edit writes to them all."""
+        game = self.host.game
+        names = upgrade_choices(game, self.objects)
+        checked = stored_upgrades(self.objects[0].properties) if self.objects else []
+        self.upgrades.show_choices(names, checked, has_game=game is not None)
+
+    def _set_upgrades(self, names: list[str]) -> None:
+        if self._updating or not self.objects:
+            return
+        self.host.execute(set_upgrades(self.objects, names))
 
     def _set_waypoint_type(self, value: int) -> Command:
         document = self.host.document

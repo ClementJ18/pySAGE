@@ -198,6 +198,30 @@ def test_delete_removes_the_chosen_area(window):
     assert window.water_panel.area is None
 
 
+def test_any_water_tool_chooses_water_of_every_kind(window):
+    # A lake and a river on the map; the Lake/Ocean tool picks up either one, and Water Options
+    # follows the kind it picked.
+    draw_lake(window)
+    window.use_tool("river")
+    drag(window, [(400.0, 100.0), (450.0, 100.0)])
+    drag(window, [(400.0, 300.0), (450.0, 300.0)])
+    (lake,) = lakes(window)
+    (river,) = window.document.map.river_areas.areas
+    window.document.selection.clear()
+
+    window.use_tool("lake")
+    drag(window, [(425.0, 200.0)])
+    assert window.document.selection.items == (river,)
+    assert window.water_panel.kind is WaterKind.RIVER and window.water_panel.area is river
+    # And the river's bank point is dragged with the lake tool still in hand.
+    drag(window, [(400.0, 100.0), (380.0, 90.0)])
+    assert river.lines[0][0] == (380.0, 90.0)
+
+    drag(window, [(250.0, 150.0)])
+    assert window.document.selection.items == (lake,)
+    assert window.water_panel.kind is WaterKind.LAKE
+
+
 def test_hidden_water_is_not_chosen(window):
     draw_lake(window)
     window.view_actions["show_water"].trigger()

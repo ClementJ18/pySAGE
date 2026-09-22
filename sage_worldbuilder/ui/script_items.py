@@ -1,5 +1,9 @@
 """The dialog that creates or edits one condition or action: pick its template from
-WorldBuilder's tree, then fill in each parameter."""
+WorldBuilder's tree, then fill in each parameter.
+
+The tree holds the templates the open map is offered, not the whole catalogue: the Living World
+ones stand under `_Army`, `_Region` and `_Player` and are offered only to a Living World script
+map, as WorldBuilder's own tree offers them (`sage_worldbuilder.templates.offered_templates`)."""
 
 from __future__ import annotations
 
@@ -8,7 +12,6 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -41,10 +44,10 @@ from sage_worldbuilder.scripting import (
 from sage_worldbuilder.templates import (
     ScriptTemplate,
     TemplateKind,
+    offered_templates,
     parameter_values,
-    script_templates,
 )
-from sage_worldbuilder.ui.sentences import argument_at, link_color, sentence_html
+from sage_worldbuilder.ui.sentences import argument_at, sentence_html, sentence_link_color
 
 if TYPE_CHECKING:
     from sage_ini.model.game import Game
@@ -74,9 +77,13 @@ class ScriptItemDialog(QDialog):
         focus_argument: int | None = None,
         find_target: FindTarget | None = None,
         go_to: GoTo | None = None,
+        living_world: bool = False,
     ) -> None:
         super().__init__(parent)
         self.kind = kind
+        # The Living World templates are offered only on a Living World script map, as
+        # WorldBuilder's own tree offers them (`offered_templates`).
+        self.living_world = living_world
         # The parameter whose field last took the focus from a link or on opening.
         self.focused_argument: int | None = None
         self.symbols = symbols
@@ -114,12 +121,6 @@ class ScriptItemDialog(QDialog):
         self.preview.setTextFormat(Qt.TextFormat.RichText)
         self.preview.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.preview.setStyleSheet("font-size: 13pt;")
-        preview_palette = self.preview.palette()
-        preview_palette.setColor(
-            QPalette.ColorRole.Link,
-            link_color(preview_palette, preview_palette.color(QPalette.ColorRole.Window)),
-        )
-        self.preview.setPalette(preview_palette)
         self.preview.linkActivated.connect(self._link_activated)
         right_layout.addWidget(self.preview)
         self.details = QLabel()
@@ -195,7 +196,7 @@ class ScriptItemDialog(QDialog):
 
     def _build_tree(self) -> None:
         folders: dict[tuple[str, ...], QTreeWidgetItem] = {}
-        entries = [entry for entry in script_templates() if entry.kind is self.kind]
+        entries = list(offered_templates(self.kind, self.living_world))
         for entry in sorted(entries, key=lambda e: tuple(part.casefold() for part in e.path)):
             parent: QTreeWidgetItem | None = None
             path = entry.path
@@ -326,7 +327,9 @@ class ScriptItemDialog(QDialog):
         self.item.is_enabled = self.enabled_box.isChecked()
         if self.kind is TemplateKind.CONDITION:
             self.item.is_inverted = self.inverted_box.isChecked()
-        self.preview.setText(sentence_html(self.item, self.kind))
+        self.preview.setText(
+            sentence_html(self.item, self.kind, sentence_link_color(self.palette()))
+        )
         self._refresh_go_buttons()
 
     def _setter(self, argument: ScriptArgument, field: str) -> Callable[[Any], None]:

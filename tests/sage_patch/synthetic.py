@@ -25,6 +25,9 @@ image is chosen by which patch is under test.
 `observer-command-range` edits one `call` in the ControlBar and reads a predicate and a pair of
 switch tables spread over 2.7 MB either side of it.
 
+:func:`observer_all_commands_image` is the same neighbourhood with less in it: that patch answers
+the gate with a constant rather than a cave, so only the gate and the three sites around it exist.
+
 :func:`observer_switch_image` is sparse for the same reason: `observer-switch` edits one `call` and
 reads two functions most of a megabyte away from it, so only those two pages need to exist.
 
@@ -77,6 +80,8 @@ from sage_patch.patches import multi_mod as mm
 from sage_patch.patches import object_image_upgrade as oi
 from sage_patch.patches import observer_command_range as ocr
 from sage_patch.patches import observer_switch as obs
+from sage_patch.patches import perf_scope_skip as pss
+from sage_patch.patches import perf_stage_readout as psr
 from sage_patch.patches import production_condition as pc
 from sage_patch.patches import production_split as ps
 from sage_patch.patches import render_rate as rrate
@@ -97,10 +102,12 @@ from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
 from sage_patch.patches.experimental import command_line_skirmish as cls
 from sage_patch.patches.experimental import map_transition as mtr
+from sage_patch.patches.experimental import observer_all_commands as oac
 from sage_patch.patches.experimental import ranged_stand_off as rso
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import spellbook_hotkeys as sbhk
+from sage_patch.patches.experimental import wall_layer_promotion as wlp
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
 from sage_patch.patches.utils import model_conditions as mc
@@ -469,6 +476,21 @@ def _sparse_image(planted: dict[int, bytes], image_base: int = IMAGE_BASE) -> by
     return _pe32(sections, max(pages) - image_base + 0x1000, image_base)
 
 
+def wall_layer_promotion_image() -> bytearray:
+    """A stand-in carrying all three gated `setLayer` calls and the routines around them.
+
+    Sparse: the three call sites span ~0x16B000. Each hooked `call` and the three bytes that set
+    up its arguments are planted adjacently, exactly as the real bodies run them, so a hook aimed
+    one byte early would overwrite `mov ecx, esi` and fail here.
+    """
+    return _sparse_image(
+        {
+            **{va: stock for va, stock, _args in wlp.HOOK_SITES},
+            **wlp.ANCHORS,
+        }
+    )
+
+
 def upgrade_alias_image() -> bytearray:
     """A stand-in carrying `UpgradeCenter::findUpgrade` and the two helpers its cave calls.
 
@@ -523,6 +545,23 @@ def observer_command_range_image() -> bytearray:
         planted[ad.CONTROL_BAR_COMMAND_INDEX_TABLE + command - 1] = bytes([slot])
         planted[ad.CONTROL_BAR_COMMAND_JUMP_TABLE + slot * 4] = struct.pack("<I", handler)
         planted[handler] = head
+    return _sparse_image(planted)
+
+
+def observer_all_commands_image() -> bytearray:
+    """A stand-in carrying the ControlBar's click gate and the three sites around it that the
+    patch reads but does not write.
+
+    Sparse, and smaller than the one above: this patch answers the gate with a constant instead
+    of a cave, so it needs neither the predicate it would have tail-jumped to nor the executor's
+    switch tables. What it does need that the other stand-in has no reason to plant is the
+    argument build below the gate - the ``sete``/``setne`` pair that makes zeroing the whole of
+    ``eax`` load-bearing.
+    """
+    planted: dict[int, bytes] = {
+        ad.CONTROL_BAR_CLICK_GATE_CALL: ad.CONTROL_BAR_CLICK_GATE_CALL_BYTES,
+        **oac.ANCHORS,
+    }
     return _sparse_image(planted)
 
 
@@ -766,6 +805,46 @@ def passive_aura_revive_image() -> bytearray:
             **ad.ATTRIBUTE_MODIFIER_AURA_ANCHORS,
         }
     )
+
+
+def _stage_site_calls() -> dict[int, bytes]:
+    """The `call` at each of the thirty stage sites, which the patch now checks by address.
+
+    The cave keys on the return address, so `STAGE_SITES` is load-bearing data and `apply` refuses
+    a build where one of those addresses is not the byte after a call to the constructor. An image
+    the patch is applied to therefore has to carry them, or it is testing the refusal rather than
+    the patch.
+    """
+    return {
+        site - 5: b"\xe8" + struct.pack("<i", ad.PERF_SCOPE_CTOR - site) for site in psr.STAGE_SITES
+    }
+
+
+def perf_stage_readout_image() -> bytearray:
+    """A stand-in carrying the render-scope class, its two D3DPERF wrappers and every stage site.
+
+    Sparse, and deliberately so: the constructor and destructor share a page, the two wrappers sit
+    a page below them, and `UpdateShadowMap`'s call sequence is most of half a megabyte away in the
+    frame's draw. That last page is the one that matters - it is what says the arguments reach the
+    constructor on the stack, which is the whole reason the hook is on the constructor and not on
+    the wrapper the name has already been copied for.
+
+    The other twenty-nine sites are planted as bare calls, since what the patch checks of them is
+    that they are calls to the constructor.
+    """
+    return _sparse_image({**_stage_site_calls(), **psr.ANCHORS})
+
+
+def perf_scope_skip_image() -> bytearray:
+    """A stand-in carrying **both** render-scope patches' sites, because the pairing is the point.
+
+    `perf-scope-skip` hooks the constructor's null-name `je` and the tail of the D3DPERF resolve
+    half a megabyte away; `perf-stage-readout` hooks the constructor's first six bytes and the
+    destructor. The four sites in the scope class tile contiguously from `0x00517690`, which is
+    what makes an image carrying all of them the only honest test of "neither reads bytes the
+    other writes" - plant them apart and the overlap that would break composition is invisible.
+    """
+    return _sparse_image({**_stage_site_calls(), **pss.ANCHORS, **psr.ANCHORS})
 
 
 def contained_horde_respawn_image() -> bytearray:

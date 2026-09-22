@@ -10,6 +10,8 @@ import math
 from dataclasses import asdict, dataclass, fields
 from typing import Any
 
+from sage_ini.model.enums import LodLevel
+from sage_worldbuilder.lod import DEFAULT_LOD_LEVEL
 from sage_worldbuilder.scene import MarkerKind
 
 __all__ = [
@@ -94,6 +96,9 @@ class ViewOptions:
     wireframe: bool = False
     # Objects show their WORLD_BUILDER condition state's model when they have one.
     world_builder_models: bool = True
+    # View > Set LOD: the static level whose ModelLOD gates which draw modules the 3D view
+    # builds (`sage_worldbuilder.lod`). Ultra High by default, so a first run draws everything.
+    lod_level: LodLevel = DEFAULT_LOD_LEVEL
     # A dot at the centre of every object. The 3D view draws it smaller, over the model, since
     # it is what a click picks the object by; turning this off leaves an object with a model to
     # draw with no dot, and one with none to draw still keeps its dot.
@@ -119,7 +124,10 @@ class ViewOptions:
         return self.show_objects
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        # LodLevel is a plain Enum, not JSON-serialisable on its own; store it by member name.
+        data = asdict(self)
+        data["lod_level"] = self.lod_level.name
+        return data
 
     @classmethod
     def from_dict(cls, data: Any) -> ViewOptions:
@@ -128,10 +136,15 @@ class ViewOptions:
             return options
         for field in fields(cls):
             value = data.get(field.name)
-            if field.name in ("grid", "contours"):
+            if field.name in ("grid", "contours", "lod_level"):
                 continue
             if isinstance(value, bool):
                 setattr(options, field.name, value)
+        level = data.get("lod_level")
+        candidate = LodLevel.__members__.get(level) if isinstance(level, str) else None
+        # Off is a shadow/decal-only member (LodLevel's own docstring), never a static level.
+        if candidate is not None and candidate is not LodLevel.Off:
+            options.lod_level = candidate
         grid = data.get("grid")
         if isinstance(grid, dict):
             assert options.grid is not None
@@ -186,6 +199,16 @@ class ViewTransform:
             self.width / 2 + (x - self.center_x) * self.scale,
             self.height / 2 - (y - self.center_y) * self.scale,
         )
+
+    def ground(self, x: float, y: float) -> float:
+        """The terrain's height under a world position. Looking straight down there is no height
+        to see, so this view puts everything on one level."""
+        return 0.0
+
+    def plane_to_screen(self, x: float, y: float, z: float) -> tuple[float, float]:
+        """Pixels for a world point at a given height, for something drawn on a level plane
+        rather than draped over the ground. Height changes nothing seen from above."""
+        return self.world_to_screen(x, y)
 
     def scale_at(self, x: float, y: float) -> float:
         """Pixels a world unit spans at a place on the map: the same everywhere from above."""

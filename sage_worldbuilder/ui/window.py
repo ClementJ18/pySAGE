@@ -14,7 +14,17 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from PyQt6.QtCore import QByteArray, QChildEvent, QEvent, QMimeData, QObject, QSize, Qt, QTimer
+from PyQt6.QtCore import (
+    QByteArray,
+    QChildEvent,
+    QEvent,
+    QMimeData,
+    QObject,
+    QPoint,
+    QSize,
+    Qt,
+    QTimer,
+)
 from PyQt6.QtGui import (
     QAction,
     QActionGroup,
@@ -31,6 +41,7 @@ from PyQt6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QInputDialog,
     QLabel,
     QMainWindow,
@@ -38,9 +49,11 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QStackedWidget,
     QToolBar,
+    QToolButton,
     QWidget,
 )
 
+from sage_ini.model.enums import LodLevel
 from sage_map.assets.object_list import Object
 from sage_map.assets.trigger_areas import TriggerArea
 from sage_map.map import Map
@@ -126,7 +139,7 @@ from sage_worldbuilder.selection_helpers import (
     replace_objects,
     similar_objects,
 )
-from sage_worldbuilder.settings import APP, RecentMap, Settings, same_folder
+from sage_worldbuilder.settings import APP, RecentMap, SavedLayout, Settings, same_folder
 from sage_worldbuilder.summary import map_summary
 from sage_worldbuilder.terrain import FEET_PER_HEIGHT_UNIT
 from sage_worldbuilder.terrain.apply_texture import ApplyTextureOptions, apply_texture
@@ -156,6 +169,7 @@ from sage_worldbuilder.texture_colors import (
     terrain_textures,
     texture_palette,
 )
+from sage_worldbuilder.toolbar import DEFAULT_ITEMS, ITEMS_BY_ID
 from sage_worldbuilder.ui.ambient_player import AmbientPlayer
 from sage_worldbuilder.ui.apply_texture_dialog import ApplyTextureDialog
 from sage_worldbuilder.ui.array_options import ArrayOptionsPanel
@@ -182,6 +196,7 @@ from sage_worldbuilder.ui.dressing_tools import (
     ScorchTool,
 )
 from sage_worldbuilder.ui.environment_options import EnvironmentOptionsPanel
+from sage_worldbuilder.ui.flow_layout import FlowWidget
 from sage_worldbuilder.ui.generic_ai_options import GenericAIOptionsPanel
 from sage_worldbuilder.ui.gizmo_tools import MoveTool, RotateTool
 from sage_worldbuilder.ui.global_light_options import GlobalLightOptionsPanel
@@ -212,6 +227,7 @@ from sage_worldbuilder.ui.terrain_tools import (
     HeightBrushTool,
     TilePaintTool,
 )
+from sage_worldbuilder.ui.toolbar_dialog import CustomizeToolbarDialog
 from sage_worldbuilder.ui.tools import (
     BuildListTool,
     GenericAIObjectTool,
@@ -306,6 +322,15 @@ _LISTEN_MODES = (
     (ListenMode.PERMANENT, "Play &Permanent Ambient Sounds", 33395),
     (ListenMode.ALL, "Play &All Ambient Sounds", 33396),
     (ListenMode.NONE, "&Don't Play Ambient Sounds", 33397),
+)
+# View > Set LOD: (level, menu text, WorldBuilder command id), in the menu's own order
+# (`worldbuilder.exe` 0x00664B80-0x00664C00; `sage_worldbuilder.lod` has the addresses behind it).
+_LOD_LEVELS = (
+    (LodLevel.UltraHigh, "&Ultra High", 33419),
+    (LodLevel.High, "&High", 33420),
+    (LodLevel.Medium, "&Medium", 33421),
+    (LodLevel.Low, "&Low", 33422),
+    (LodLevel.VeryLow, "&Very Low", 33423),
 )
 # The world dressing tools: (use_tool name, menu text, WorldBuilder command id, its tooltip).
 _DRESSING_TOOLS = (
@@ -443,11 +468,13 @@ _GUIDE_HTML = """
 them from above, and edits their objects, waypoints and trigger areas; the other editing tools
 are still to come.</p>
 <h3>The map view</h3>
-<p>Drag with the middle button, or with Space held, to scroll; the wheel zooms about the cursor.
+<p>Drag with the right button, or with Space held, to scroll; the wheel zooms about the cursor.
 The status bar shows the heightmap sample under the cursor. The <b>View</b> menu shows or hides
 the grid, textures and the rest of the terrain under <b>Show Terrain</b>, and the objects,
 waypoints, trigger areas and labels under <b>Show Objects</b>; <b>View &gt; Panels</b> shows or
-hides the toolbar, the status bar and each panel.</p>
+hides the toolbar, the status bar and each panel. Which tools the toolbar shows, and in what
+order, is <b>View &gt; Panels &gt; Customize Toolbar…</b> (also on the toolbar's own right-click
+menu); it wraps onto more rows as the window gets narrower, rather than hiding anything.</p>
 <h3>Selecting and moving</h3>
 <p>Click an object to select it, Shift-click to add or remove one, or drag across an empty spot
 to select everything inside. Drag a selected object to move the selection, and Alt-drag to rotate
@@ -807,6 +834,10 @@ class MainWindow(QMainWindow):
         self.redo_action = self._action("&Redo", self.redo, command=CMD_REDO)
         self.repeat_action = self._action("Re&peat", self.repeat, command=CMD_REPEAT)
         self.reset_layout_action = self._action("&Reset Window Positions", self.reset_layout)
+        self.save_named_layout_action = self._action("&Save Layout…", self.save_named_layout)
+        self.save_named_layout_action.setStatusTip(
+            "Keep the window and panel positions under a name, to load again from Load Layout."
+        )
         self.lock_layout_action = QAction("&Lock Layout", self)
         self.lock_layout_action.setCheckable(True)
         self.lock_layout_action.setChecked(self.settings.lock_layout)
@@ -892,6 +923,15 @@ class MainWindow(QMainWindow):
             action.setChecked(mode is ListenMode.NONE)
             self.listen_group.addAction(action)
             self.listen_actions[mode] = action
+        self.lod_group = QActionGroup(self)
+        self.lod_group.setExclusive(True)
+        self.lod_actions: dict[LodLevel, QAction] = {}
+        for level, text, command in _LOD_LEVELS:
+            action = self._action(text, partial(self.set_lod_level, level), command=command)
+            action.setCheckable(True)
+            action.setChecked(level is self.settings.view.lod_level)
+            self.lod_group.addAction(action)
+            self.lod_actions[level] = action
         self.camera_options_action = self._action(
             "Camera &Options…", lambda: self._show_cameras(0), command=CMD_CAMERA_OPTIONS
         )
@@ -947,6 +987,11 @@ class MainWindow(QMainWindow):
         self.grid_settings_action = self._action(
             "Grid Se&ttings…", self.edit_grid_settings, command=CMD_GRID_SETTINGS
         )
+        self.customize_toolbar_action = self._action(
+            "&Customize Toolbar…",
+            self.edit_toolbar_layout,
+            tip="Choose which tools the toolbar shows, and in what order.",
+        )
         self.safe_frame_settings_action = self._action(
             "Safe Frame Overlay &Settings…",
             self.edit_safe_frame_settings,
@@ -956,7 +1001,7 @@ class MainWindow(QMainWindow):
         self.view_3d_action = self._action(
             "&3D View",
             lambda: self.show_3d_view(self.view_3d_action.isChecked()),
-            tip="Show the map in 3D. Middle-drag pans, Ctrl+middle-drag or right-drag orbits.",
+            tip="Show the map in 3D. Right-drag pans, middle-drag or Ctrl+right-drag orbits.",
         )
         self.view_3d_action.setCheckable(True)
         self.view_3d_action.setShortcut(QKeySequence("F3"))
@@ -1283,22 +1328,158 @@ class MainWindow(QMainWindow):
         action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         return action
 
+    def _toolbar_actions(self) -> dict[str, QAction]:
+        """Every `sage_worldbuilder.toolbar` catalogue id this window can turn into a QAction, so
+        `_build_toolbar` (and the customisation dialog) have one place to look an id up rather
+        than each re-deriving the mapping. An id the catalogue lists but this dict has no entry
+        for is skipped by `_build_toolbar` rather than raised, so a future catalogue entry never
+        crashes an older window."""
+        return {
+            "new": self.new_action,
+            "open": self.open_action,
+            "save": self.save_action,
+            "save-as": self.save_as_action,
+            "undo": self.undo_action,
+            "redo": self.redo_action,
+            "cut": self.cut_action,
+            "copy": self.copy_action,
+            "paste": self.paste_action,
+            "delete": self.delete_action,
+            "select-tool": self.select_tool_action,
+            "move-tool": self.move_tool_action,
+            "rotate-tool": self.rotate_tool_action,
+            "place-tool": self.place_tool_action,
+            "array-tool": self.array_tool_action,
+            "waypoint-tool": self.waypoint_tool_action,
+            "polygon-tool": self.polygon_tool_action,
+            "build-list-tool": self.build_list_tool_action,
+            "road-tool": self.road_tool_action,
+            "generic-ai-tool": self.generic_ai_tool_action,
+            "ruler-tool": self.ruler_tool_action,
+            "lake-tool": self.water_tool_actions[WaterKind.LAKE],
+            "river-tool": self.water_tool_actions[WaterKind.RIVER],
+            "waves-tool": self.water_tool_actions[WaterKind.WAVE],
+            "scorch-tool": self.dressing_tool_actions["scorch"],
+            "grove-tool": self.dressing_tool_actions["grove"],
+            "fence-tool": self.dressing_tool_actions["fence"],
+            "ramp-tool": self.dressing_tool_actions["ramp"],
+            "border-tool": self.dressing_tool_actions["border"],
+            "mesh-mold-tool": self.dressing_tool_actions["mesh mold"],
+            "height-brush-tool": self.height_tool_actions[BrushKind.SET],
+            "mound-tool": self.height_tool_actions[BrushKind.RAISE],
+            "dig-tool": self.height_tool_actions[BrushKind.LOWER],
+            "smooth-height-tool": self.height_tool_actions[BrushKind.SMOOTH],
+            "single-tile-tool": self.single_tile_action,
+            "large-tile-tool": self.large_tile_action,
+            "flood-fill-tool": self.flood_fill_action,
+            "eyedropper-tool": self.eyedropper_action,
+            "blend-single-edge-tool": self.blend_single_edge_action,
+            "auto-edge-out-tool": self.auto_edge_out_action,
+            "auto-edge-in-tool": self.auto_edge_in_action,
+            "terrain-copy-tool": self.terrain_copy_action,
+            "lock-selection": self.lock_selection_action,
+            "lock-angle": self.lock_angle_action,
+            "lock-vertical": self.lock_vertical_action,
+            "jump": self.jump_action,
+        }
+
+    def _toolbar_separator(self) -> QFrame:
+        line = QFrame(self.toolbar)
+        line.setFrameShape(QFrame.Shape.VLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        return line
+
+    def _sync_toolbar_button_style(self) -> None:
+        """Keeps every button in the toolbar's flow strip matching the toolbar's own button style
+        and icon size, in case either ever changes (a `QToolBar` context menu can offer both)."""
+        style = self.toolbar.toolButtonStyle()
+        icon_size = self.toolbar.iconSize()
+        for index in range(self._toolbar_strip.flow.count()):
+            item = self._toolbar_strip.flow.itemAt(index)
+            widget = item.widget() if item is not None else None
+            if isinstance(widget, QToolButton):
+                widget.setToolButtonStyle(style)
+                widget.setIconSize(icon_size)
+
     def _build_toolbar(self) -> None:
-        self.toolbar = QToolBar("Toolbar", self)
-        self.toolbar.setObjectName("mainToolbar")
-        self.toolbar.addActions([self.open_action, self.save_action])
-        self.toolbar.addSeparator()
-        self.toolbar.addActions([self.undo_action, self.redo_action])
-        self.toolbar.addSeparator()
-        self.toolbar.addActions(self.tool_actions.actions())
-        self.toolbar.addSeparator()
-        self.toolbar.addActions(
-            [self.lock_selection_action, self.lock_angle_action, self.lock_vertical_action]
-        )
-        self.toolbar.addSeparator()
-        self.toolbar.addAction(self.jump_action)
-        self.addToolBar(self.toolbar)
+        """(Re)builds the toolbar's contents from `self.settings.toolbar_layout()`. Re-callable:
+        the customisation dialog changes `settings.toolbar_items` and calls this again, and it
+        must clear and repopulate the same `QToolBar` rather than create a second one, since
+        everything else in this window (`toggleViewAction`, `setEnabled`, `.show()`, `saveState`)
+        holds onto `self.toolbar` for the window's whole life.
+
+        The toolbar's own layout cannot wrap a too-wide row onto a second one - past a certain
+        width it hides the overflow behind a `»` button instead - so the actions do not live in
+        the toolbar's native action list at all. They live as `QToolButton`s inside a single
+        `FlowWidget` (see `sage_worldbuilder.ui.flow_layout`) that the toolbar holds through one
+        `addWidget`; the flow layout is what actually wraps, and growing the `FlowWidget`'s height
+        to match is what makes the toolbar itself grow a second row.
+        """
+        if not hasattr(self, "toolbar"):
+            self.toolbar = QToolBar("Toolbar", self)
+            self.toolbar.setObjectName("mainToolbar")
+            self.addToolBar(self.toolbar)
+            self.toolbar.toolButtonStyleChanged.connect(self._sync_toolbar_button_style)
+            self.toolbar.iconSizeChanged.connect(self._sync_toolbar_button_style)
+        else:
+            self.toolbar.clear()
+            # `clear` only takes the strip's actions out of the toolbar; the `QWidgetAction`
+            # `addWidget` made, and the strip it wraps, stay children of the toolbar until they
+            # are deleted by hand, and would pile up one set per rebuild.
+            stale_action = getattr(self, "_toolbar_strip_action", None)
+            if stale_action is not None:
+                stale_action.deleteLater()
+            old_strip = getattr(self, "_toolbar_strip", None)
+            if old_strip is not None:
+                old_strip.deleteLater()
+
+        strip = FlowWidget(self.toolbar)
+        self._toolbar_strip = strip
+        self._install_toolbar_context_menu(strip)
+        actions = self._toolbar_actions()
+        previous_group: str | None = None
+        for item_id in self.settings.toolbar_layout():
+            action = actions.get(item_id)
+            if action is None:
+                continue
+            group = ITEMS_BY_ID[item_id].group
+            if previous_group is not None and group != previous_group:
+                strip.flow.addWidget(self._toolbar_separator())
+            previous_group = group
+            button = QToolButton(strip)
+            button.setDefaultAction(action)
+            button.setAutoRaise(True)
+            button.setProperty("toolbarItemId", item_id)
+            self._install_toolbar_context_menu(button)
+            strip.flow.addWidget(button)
+        self._toolbar_strip_action = self.toolbar.addWidget(strip)
+        self._sync_toolbar_button_style()
         self.available_commands.update({CMD_TOOLBAR, CMD_STATUS_BAR})
+
+    def _install_toolbar_context_menu(self, widget: QWidget) -> None:
+        """Right-clicking a toolbar button would otherwise just trigger the button under the
+        cursor rather than bubble up to the `QToolBar`'s own context menu, so the flow strip and
+        every button it holds get their own, each showing the same menu."""
+        widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        widget.customContextMenuRequested.connect(
+            lambda pos, widget=widget: self._show_toolbar_context_menu(widget, pos)
+        )
+
+    def _show_toolbar_context_menu(self, widget: QWidget, pos: QPoint) -> None:
+        """Qt's own toolbar/dock visibility menu (`createPopupMenu`), with Customize Toolbar
+        added on: right-clicking the toolbar keeps toggling other panels and also reaches the
+        dialog, without a mapper having to go through the View menu for either."""
+        menu = self.createPopupMenu()
+        if menu is None:
+            menu = QMenu(self)
+        menu.addSeparator()
+        menu.addAction(self.customize_toolbar_action)
+        try:
+            menu.exec(widget.mapToGlobal(pos))
+        finally:
+            # `createPopupMenu` parents its menu to the window, which keeps every menu the user
+            # ever raises alive for the window's whole life unless it is dropped here.
+            menu.deleteLater()
 
     def _build_docks(self) -> None:
         map_panel = QWidget()
@@ -1558,9 +1739,15 @@ class MainWindow(QMainWindow):
         if view is None or context is None or game is None:
             return
         world_builder = self.settings.view.world_builder_models
+        level = self.settings.view.lod_level
         models = self._object_models
-        if models is None or models.game is not game or models.world_builder != world_builder:
-            self._object_models = ObjectModels(game, world_builder)
+        if (
+            models is None
+            or models.game is not game
+            or models.world_builder != world_builder
+            or models.level != level
+        ):
+            self._object_models = ObjectModels(game, world_builder, level)
             self._art_index = ArtIndex(context.art_filesystem())
         models, art = self._object_models, self._art_index
         assert models is not None and art is not None
@@ -1856,7 +2043,9 @@ class MainWindow(QMainWindow):
             return
         listed = document.map.objects_list
         names = sorted({obj.type_name for obj in (listed.object_list if listed else [])})
-        models = ObjectModels(game, self.settings.view.world_builder_models)
+        models = ObjectModels(
+            game, self.settings.view.world_builder_models, self.settings.view.lod_level
+        )
         art = ArtIndex(context.art_filesystem())
         map = document.map
 
@@ -2205,6 +2394,17 @@ class MainWindow(QMainWindow):
         self.listen_actions[mode].setChecked(True)
         self.ambient_player.set_mode(mode)
 
+    def set_lod_level(self, level: LodLevel) -> None:
+        """View > Set LOD: the static level whose `ModelLOD` gates which draw modules the 3D
+        view builds (`sage_worldbuilder.lod`). Changing it needs the 3D view's models rebuilt,
+        the same reload World Builder Models forces (`_load_object_models`)."""
+        self.lod_actions[level].setChecked(True)
+        self.settings.view.lod_level = level
+        self._object_models = None
+        if self.map_view_3d is not None:
+            self.map_view_3d.models_changed()
+        self.map_view.options_changed()
+
     def listener_position(self) -> tuple[float, float] | None:
         """Where the ambient sounds are heard from: what the view looks at."""
         if self.document is None:
@@ -2525,6 +2725,17 @@ class MainWindow(QMainWindow):
         dialog.apply(self.settings.view)
         self.view_actions["show_grid"].setChecked(self.settings.view.show_grid)
         self.map_view.options_changed()
+
+    def edit_toolbar_layout(self) -> None:
+        dialog = CustomizeToolbarDialog(self.settings.toolbar_layout(), self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        chosen = dialog.chosen_ids()
+        # `None` keeps tracking `DEFAULT_ITEMS` as it changes; only a choice that actually
+        # differs from today's default needs to be pinned down as the user's own layout.
+        self.settings.toolbar_items = None if tuple(chosen) == DEFAULT_ITEMS else chosen
+        self.settings.save()
+        self._build_toolbar()
 
     def edit_contour_options(self) -> None:
         dialog = ContourOptionsDialog(self.settings.view, self)
@@ -2914,6 +3125,7 @@ class MainWindow(QMainWindow):
         if toolbar_toggle is not None:
             toolbar_toggle.setText("&Toolbar")
             panels_menu.addAction(toolbar_toggle)
+        panels_menu.addAction(self.customize_toolbar_action)
         self.status_bar_action = QAction("&Status Bar", self)
         self.status_bar_action.setCheckable(True)
         self.status_bar_action.setChecked(True)
@@ -2928,6 +3140,9 @@ class MainWindow(QMainWindow):
         listen_menu = _menu(view_menu.addMenu("&Listen To Map"))
         listen_menu.addActions(self.listen_group.actions())
         listen_menu.setEnabled(self.ambient_player.available)
+        view_menu.addSeparator()
+        lod_menu = _menu(view_menu.addMenu("Set &LOD"))
+        lod_menu.addActions(self.lod_group.actions())
         view_menu.addSeparator()
         view_menu.addActions([self.time_of_day_action, self.view_actions["reverse_scroll"]])
 
@@ -2947,6 +3162,11 @@ class MainWindow(QMainWindow):
 
         window_menu = _menu(bar.addMenu("&Window"))
         window_menu.addAction(self.lock_layout_action)
+        window_menu.addSeparator()
+        window_menu.addAction(self.save_named_layout_action)
+        self.load_layout_menu = _menu(window_menu.addMenu("L&oad Layout"))
+        self.delete_layout_menu = _menu(window_menu.addMenu("&Delete Layout"))
+        self._rebuild_layout_menus()
         window_menu.addAction(self.reset_layout_action)
         window_menu.addSeparator()
         window_menu.addActions([self.next_pane_action, self.previous_pane_action])
@@ -3654,6 +3874,56 @@ class MainWindow(QMainWindow):
         for dock in self._docks():
             dock.show()
         self.status_bar_action.setChecked(True)
+
+    def save_named_layout(self) -> None:
+        """Save the current window and panel positions under a name the user picks; an existing
+        name is replaced once the user agrees."""
+        names = list(self.settings.layouts)
+        name, accepted = QInputDialog.getItem(self, "Save Layout", "Layout name:", names, 0, True)
+        name = name.strip()
+        if not accepted or not name:
+            return
+        if (
+            name in self.settings.layouts
+            and QMessageBox.question(self, "Save Layout", f"Replace the layout '{name}'?")
+            != QMessageBox.StandardButton.Yes
+        ):
+            return
+        self.store_named_layout(name)
+
+    def store_named_layout(self, name: str) -> None:
+        self.settings.layouts[name] = SavedLayout(
+            _base64(self.saveGeometry()), _base64(self.saveState())
+        )
+        self.settings.save()
+        self._rebuild_layout_menus()
+
+    def load_named_layout(self, name: str) -> None:
+        layout = self.settings.layouts.get(name)
+        if layout is None:
+            return
+        self.restoreGeometry(QByteArray.fromBase64(layout.geometry.encode("ascii")))
+        self.restoreState(QByteArray.fromBase64(layout.state.encode("ascii")))
+        self.raise_floating_docks()
+
+    def delete_named_layout(self, name: str) -> None:
+        self.settings.layouts.pop(name, None)
+        self.settings.save()
+        self._rebuild_layout_menus()
+
+    def _rebuild_layout_menus(self) -> None:
+        for menu, handler in (
+            (self.load_layout_menu, self.load_named_layout),
+            (self.delete_layout_menu, self.delete_named_layout),
+        ):
+            menu.clear()
+            for name in self.settings.layouts:
+                action = menu.addAction(name.replace("&", "&&"))
+                if action is not None:
+                    action.triggered.connect(
+                        lambda _checked=False, name=name, handler=handler: handler(name)
+                    )
+            menu.setEnabled(bool(self.settings.layouts))
 
     def show_shortcuts(self) -> None:
         ShortcutsDialog(accelerators(), self.available_commands, self).exec()

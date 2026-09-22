@@ -1,13 +1,17 @@
-"""Which W3D model the game shows for a placed object, and the art files behind it.
+"""Which W3D models the game shows for a placed object, and the art files behind them.
 
-An object shows the model WorldBuilder shows, from its `Draw` modules, a draw with a
-`WORLD_BUILDER` condition state first: the first `Model` of the condition state that best fits the
-object's model conditions, else of the draw's `DefaultModelConditionState` (the first
-`ModelConditionState` naming one when it has no default), or `ModelName` on tree, prop and floor
-draws. The state's `Skeleton` is the hierarchy a skinned model is posed on, before the one its
-HLOD names. A draw whose model is `None` shows nothing (farm templates and plot flags use it), and
-the next draw is tried. A tree draw's `TextureName` replaces its model's textures. No animations
-or levels of detail are shown.
+An object shows what every one of its `Draw` modules shows, as the engine does - the building and
+the floor under it, not one of the two. Each draw contributes the first `Model` of the condition
+state that best fits the object's model conditions, else of the draw's
+`DefaultModelConditionState` (the first `ModelConditionState` naming one when it has no default),
+or `ModelName` on tree, prop and floor draws. The state's `Skeleton` is the hierarchy a skinned
+model is posed on, before the one its HLOD names. A draw whose model is `None` shows nothing (farm
+templates and plot flags use it) and is left out, the others still show. A tree draw's
+`TextureName` replaces its model's textures. No animations or levels of detail are shown - that is,
+none of a model file's own W3D level-of-detail meshes, which is a different thing from the coarser
+cut View > Set LOD makes: `object_models` leaves out a whole draw whose `MinLODRequired` outranks
+the chosen level's `ModelLOD`, the same test the game itself runs before building a draw module
+(`sage_worldbuilder.lod`).
 
 WorldBuilder asks the draw for the model of a set of conditions (`0x0064F530`): `WORLD_BUILDER`;
 `DAMAGED`, `REALLYDAMAGED` or `RUBBLE` as the object's starting health is at or under GameData's
@@ -30,8 +34,10 @@ from dataclasses import dataclass, replace
 from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING, Protocol
 
+from sage_ini.model.enums import LodLevel
 from sage_map.assets.global_lighting import TimeOfTheDay
 from sage_w3d.w3d import W3DFile, parse_w3d
+from sage_worldbuilder.lod import DEFAULT_LOD_LEVEL, current_model_lod, draw_is_visible
 
 if TYPE_CHECKING:
     from sage_ini.model.game import Game
@@ -45,7 +51,7 @@ __all__ = [
     "ObjectModels",
     "model_conditions",
     "model_key",
-    "object_model",
+    "object_models",
 ]
 
 _MODEL_FOLDER = "art\\w3d"
@@ -176,14 +182,6 @@ def _flags(state: object) -> frozenset[str]:
     return frozenset(str(getattr(state, "name", "") or "").upper().split())
 
 
-def _world_builder_state(draw: object) -> object | None:
-    """The draw's condition state with `WORLD_BUILDER` among its flags, if it has one."""
-    for state in _states(draw):
-        if _WORLD_BUILDER in _flags(state):
-            return state
-    return None
-
-
 def _best_state(draw: object, conditions: frozenset[str]) -> object | None:
     """The draw's condition state that best fits `conditions`: the most flags in common, then the
     fewest flags the conditions lack, the first of equals. A default state has no flags."""
@@ -263,18 +261,25 @@ def _draws(template: object) -> list[object]:
     return draws
 
 
-def object_model(
-    template: object, world_builder: bool = True, conditions: frozenset[str] = frozenset()
-) -> ObjectModel | None:
-    """The model an object template shows under `conditions`, or None when it shows none. With
-    `world_builder`, as WorldBuilder shows it: `WORLD_BUILDER` is among the conditions, and a
-    draw with a `WORLD_BUILDER` state is tried first. A `ChildObject` shows the draws it
-    inherits, with its module edits applied (`_draws`)."""
-    draws = _draws(template)
+def object_models(
+    template: object,
+    world_builder: bool = True,
+    conditions: frozenset[str] = frozenset(),
+    model_lod: LodLevel = DEFAULT_LOD_LEVEL,
+) -> tuple[ObjectModel, ...]:
+    """One model per `Draw` module of an object template that shows one under `conditions`, in
+    the order the engine assembles the draws; empty when it shows none. With `world_builder`,
+    as WorldBuilder shows it: `WORLD_BUILDER` is among the conditions, so a draw that has a state
+    for the editor shows that state's model rather than its default one. A `ChildObject` shows
+    the draws it inherits, with its module edits applied (`_draws`). `model_lod` is View > Set
+    LOD's current `ModelLOD` (`sage_worldbuilder.lod.current_model_lod`); a draw whose
+    `MinLODRequired` outranks it is left out, same as the game leaves out the draw module."""
     if world_builder:
         conditions |= {_WORLD_BUILDER}
-        draws.sort(key=lambda draw: _world_builder_state(draw) is None)
-    for draw in draws:
+    shown: list[ObjectModel] = []
+    for draw in _draws(template):
+        if not draw_is_visible(getattr(draw, "MinLODRequired", None), model_lod):
+            continue
         state = _shown_state(draw, conditions)
         name = (
             _state_model(state)
@@ -285,21 +290,29 @@ def object_model(
             continue
         texture = _first_word(getattr(draw, "TextureName", None))
         skeleton = _first_word(getattr(state, "Skeleton", None)) if state is not None else ""
-        return ObjectModel(name, texture or None, skeleton or None)
-    return None
+        shown.append(ObjectModel(name, texture or None, skeleton or None))
+    return tuple(shown)
 
 
 class ObjectModels:
-    """Models by model key (`model_key`), read from the game data on first use and kept; with
-    `world_builder`, the models WorldBuilder shows (`object_model`)."""
+    """The models of each model key (`model_key`), read from the game data on first use and kept;
+    with `world_builder`, the models WorldBuilder shows (`object_models`). `level` is the chosen
+    View > Set LOD level; its `ModelLOD` (`sage_worldbuilder.lod.current_model_lod`) is resolved
+    once here rather than per key, since it does not depend on the object."""
 
-    def __init__(self, game: Game, world_builder: bool = True) -> None:
+    def __init__(
+        self, game: Game, world_builder: bool = True, level: LodLevel = DEFAULT_LOD_LEVEL
+    ) -> None:
         self.game = game
         self.world_builder = world_builder
-        self._cache: dict[str, ObjectModel | None] = {}
+        self.level = level
+        self.model_lod = current_model_lod(game, level)
+        self._cache: dict[str, tuple[ObjectModel, ...]] = {}
         self._names: dict[str, str] | None = None
 
-    def get(self, key: str) -> ObjectModel | None:
+    def get(self, key: str) -> tuple[ObjectModel, ...]:
+        """Every model the key's object shows, one per draw; empty for an object that shows
+        none, and for a name the game does not have."""
         if key not in self._cache:
             type_name, _, flags = key.partition(_KEY_SEPARATOR)
             objects = self.game.objects
@@ -310,9 +323,11 @@ class ObjectModels:
                 name = self._names.get(type_name.lower())
                 template = objects.get(name) if name is not None else None
             self._cache[key] = (
-                object_model(template, self.world_builder, frozenset(flags.split()))
+                object_models(
+                    template, self.world_builder, frozenset(flags.split()), self.model_lod
+                )
                 if template is not None
-                else None
+                else ()
             )
         return self._cache[key]
 

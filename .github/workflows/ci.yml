@@ -152,7 +152,7 @@ jobs:
       # with the pip command to fix it, rather than a bare ModuleNotFoundError traceback.
       - name: Console scripts work without extras
         run: |
-          for script in sage-lint sage-ini sage-live sage-replay sage-apt sage-save sage-map sage-asset sage-w3d sage-cah sage-patch sage-verify; do
+          for script in sage-lint sage-ini sage-live sage-replay sage-apt sage-save sage-map sage-asset sage-w3d sage-cah sage-patch sage-test sage-verify; do
             echo "== $script"
             /tmp/wheelenv/bin/$script --help > /dev/null
           done

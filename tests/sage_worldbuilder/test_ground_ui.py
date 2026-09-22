@@ -48,7 +48,9 @@ def window(qapp, tmp_path, monkeypatch):
     window._set_document(MapDocument(map))
     # The window needs game data for this command; the models themselves are stubbed below.
     window.context = SimpleNamespace(game=object(), art_filesystem=lambda: object())
-    monkeypatch.setattr("sage_worldbuilder.ui.window.ObjectModels", lambda game, world: object())
+    monkeypatch.setattr(
+        "sage_worldbuilder.ui.window.ObjectModels", lambda game, world, level: object()
+    )
     monkeypatch.setattr("sage_worldbuilder.ui.window.ArtIndex", lambda filesystem: object())
     # Run the worker's work here, so the test sees the result without waiting on a thread.
     window._run_busy = lambda message, work, done: done(work())

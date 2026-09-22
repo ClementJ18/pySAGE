@@ -80,6 +80,12 @@ class CameraProjection:
     def world_to_screen(self, x: float, y: float) -> tuple[float, float]:
         return self.project(x, y) or OFF_SCREEN
 
+    def plane_to_screen(self, x: float, y: float, z: float) -> tuple[float, float]:
+        """Pixels for a world point at a given height: what something drawn on a level plane -
+        a gizmo - is projected through, instead of following the ground under each of its
+        points."""
+        return self.project(x, y, z) or OFF_SCREEN
+
     @property
     def scale(self) -> float:
         camera = self.camera
