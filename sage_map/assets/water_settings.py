@@ -18,8 +18,8 @@ class WaterSettings:
     @classmethod
     def parse(cls, context: "ParsingContext"):
         with context.read_asset() as asset_ctx:
-            reflection_on = context.stream.readBool()
-            reflection_plane_z = context.stream.readFloat()
+            reflection_on = context.stream.read_bool()
+            reflection_plane_z = context.stream.read_float()
 
         context.logger.debug(f"Finished parsing {cls.asset_name}")
         return cls(
@@ -32,5 +32,5 @@ class WaterSettings:
 
     def write(self, context: "WritingContext"):
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeBool(self.reflection_on)
-            context.stream.writeFloat(self.reflection_plane_z)
+            context.stream.write_bool(self.reflection_on)
+            context.stream.write_float(self.reflection_plane_z)

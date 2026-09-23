@@ -12,8 +12,8 @@ from sage_map.assets.script_passability import LAYERS
 from sage_map.assets.trigger_areas import TriggerArea
 from sage_map.map import parse_map_from_path
 from sage_map.scb import ScriptLibrary, parse_scb, write_scb
+from sage_worldbuilder.commands.objects import new_object
 from sage_worldbuilder.document import MapDocument
-from sage_worldbuilder.objects import new_object
 from sage_worldbuilder.scripting import new_script
 from sage_worldbuilder.waypoints import new_waypoint
 

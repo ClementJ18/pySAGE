@@ -230,7 +230,7 @@ Specific things a play session would settle:
 
 ## 7. Addresses
 
-All of these are in [`../addresses.py`](../addresses.py).
+All of these are in [`../addresses/`](../addresses/__init__.py).
 
 | name | VA |
 |---|---|
@@ -247,7 +247,7 @@ All of these are in [`../addresses.py`](../addresses.py).
 | `MP_SETUP_FACTION_COMBO_SLOT_ARG` | `0x00844BFB` |
 | `MP_SETUP_FACTION_COMBO_SLOT_WINDOW` | `0x00844C0F` |
 
-Named here and not in `addresses.py`, because only this document uses them:
+Named here and not in `sage_patch.addresses`, because only this document uses them:
 
 | what | VA |
 |---|---|

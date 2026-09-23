@@ -16,8 +16,8 @@ pytest.importorskip("PyQt6", reason="the [worldbuilder] extra (PyQt6) is not ins
 from PyQt6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 
 from sage_worldbuilder import MapDocument  # noqa: E402
+from sage_worldbuilder.commands.objects import new_object  # noqa: E402
 from sage_worldbuilder.new_map import NewMapOptions, new_map  # noqa: E402
-from sage_worldbuilder.objects import new_object  # noqa: E402
 from sage_worldbuilder.settings import Settings  # noqa: E402
 from sage_worldbuilder.terrain.grid import FEET_PER_HEIGHT_UNIT  # noqa: E402
 from sage_worldbuilder.ui.window import MainWindow  # noqa: E402

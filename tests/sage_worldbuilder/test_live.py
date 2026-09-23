@@ -137,3 +137,48 @@ def test_describe_counts_down_to_the_next_evaluation() -> None:
     state = LiveIndex(snapshot()).script("Player_1", "Wave", authored_active=True)
     assert state is not None
     assert state.describe(frame=100, rate=5) == "active - evaluates again in 2.0 s on Player_1"
+
+
+def test_watching_a_script_hooks_its_enabled_conditions_and_unwatching_unhooks() -> None:
+    from sage_patch.addresses import (  # noqa: PLC0415
+        CONDITION_ENABLED,
+        CONDITION_NEXT,
+        GAME_LOGIC_GAME_MODE,
+        OR_CONDITION_CONDITIONS,
+        SCRIPT_CONDITIONS,
+        SCRIPT_ENGINE_EVALUATE,
+        THE_GAME_LOGIC,
+    )
+    from tests.sage_live.test_script_trace import STOCK, WATCH_TABLE  # noqa: PLC0415
+
+    game = FakeProcess()
+    logic = game.alloc(0x100)
+    game.u32(THE_GAME_LOGIC, logic)
+    game.u32(logic + GAME_LOGIC_GAME_MODE, 2)
+    for site, stock in STOCK.items():
+        game.write(site, stock)
+    target = game.alloc(0x100)
+    first, disabled = game.alloc(0x100), game.alloc(0x100)
+    game.write(first + CONDITION_ENABLED, b"\x01")
+    game.u32(first + CONDITION_NEXT, disabled)
+    clause = game.alloc(0x10)
+    game.u32(clause + OR_CONDITION_CONDITIONS, first)
+    game.u32(target + SCRIPT_CONDITIONS, clause)
+
+    session = LiveSession(cast(Any, game), cast(Any, None), 0)
+    session._writer = cast(Any, game)
+    session.set_watched({target})
+    trace = session._trace
+    assert trace is not None and trace.cave is not None
+    assert [c.address for c in session._watched[target][0]] == [first, disabled]
+    # Only the enabled condition is on the table: the engine never judges a disabled one.
+    watched = (game.read(trace.cave + 0x2C, 4) or b"") + (
+        game.read(trace.cave + WATCH_TABLE, 4) or b""
+    )
+    assert struct.unpack("<II", watched) == (1, first)
+    assert game.read(SCRIPT_ENGINE_EVALUATE, 1) == b"\xe9"
+
+    session.set_watched(set())
+    assert session._trace is None
+    for site, stock in STOCK.items():
+        assert game.read(site, 5) == stock

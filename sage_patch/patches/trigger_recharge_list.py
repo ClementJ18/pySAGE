@@ -1,85 +1,10 @@
-"""The trigger-recharge list: `OnTriggerRechargeSpecialPower` takes several powers, not one.
+"""Let `OnTriggerRechargeSpecialPower` name several powers, not one.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/trigger-recharge-list.md``.
+The keyword ("using this also puts that on cooldown") stores one name, and activation arms the one
+matching module. The patch lets the line take any number of names, stored without growing the field,
+and arms each. A single name behaves as before.
 
-**What the engine does today.** `OnTriggerRechargeSpecialPower` - the keyword behind every
-"using this ability also puts that one on cooldown" design - writes one `AsciiString` at
-``ModuleData+0x6c``, and on activation the object's module array is walked and
-``startPowerRecharge(1.0)`` called on the single module whose `SpecialPowerTemplate` carries that
-name. Note the direction: "recharge" is the engine's word for **arming** the cooldown, not
-clearing it, so the named power comes out as if it had just been cast.
-
-Both the keyword and the walk belong to `SpecialAbilityUpdate`, not to one module: the field-parse
-table at ``0x00C64DB0`` and `doSpecialPower` at ``0x00897987`` are shared by all **23**
-special-power modules (`PlayerHealSpecialPower`, `OCLSpecialPower`, ...), so this patch changes
-behaviour for every one of them.
-
-It is already a name-matched special-power selector; what it is not is a *list*. A hero whose
-ability should start two cooldowns needs two `SpecialPowerTimerRefreshSpecialPower` modules, each
-with its own `SpecialPowerTemplate` to hang off - and there is only one power being used, so the
-second module has nothing honest to point at.
-
-**What this does.** Makes the same keyword take **any number of names on the line**:
-
-.. code-block:: none
-
-    OnTriggerRechargeSpecialPower = SpecialAbilityLeadership SpecialAbilityWarChant
-
-Two edits, no cave allocation beyond the code itself, no structure growth, no constructor or
-destructor change:
-
-* **The keyword.** The field-parse table entry's parse function - stock `INI::parseAsciiString`,
-  which stores the *first* token and drops the rest - is repointed at a cave routine that
-  consumes every token on the line and stores them joined by single spaces. One ``imm32`` in
-  ``.rdata``; the entry itself, its name pointer and its ``ModuleData`` offset are untouched.
-* **The test.** The ``call`` to `AsciiString::compare` inside the module-walk loop is repointed at
-  a cave routine that asks whether the candidate's power name is *one of the tokens* in that
-  string, rather than whether it is the whole of it.
-
-**Why the field does not grow.** An `AsciiString` is one pointer to a refcounted buffer, so the
-four bytes at ``+0x6c`` already hold a string of any length; a list of names is a string. That is
-what keeps this off the expensive path the other module-data patches take - no
-``sizeof(ModuleData)`` literal to raise, no relocated field-parse table, no ctor shim to
-default-construct a new member, and nothing for a savegame or a network peer to disagree about
-that was not already there.
-
-**A single name behaves exactly as it does today.** The parse joins one token to itself, so the
-stored string is byte-for-byte what stock stored, and the walk's matcher accepts a one-token list
-on exactly the names `AsciiString::compare` accepted. That also settles the *other* comparison in
-this function, the one at `OWN_POWER_COMPARE_VA` that short-circuits the walk when the field names
-the module's own power: a one-name list still compares equal to that name as a whole string, so
-the early-out survives untouched and is left unpatched. A list of two never equals a single
-template name - names cannot contain a space - so a list that happens to include the module's own
-power reaches the walk and is recharged there, which is what naming it in a list asks for.
-
-**Scope of the parse change.** The table at `FIELD_TABLE_VA` is `SpecialAbilityUpdate`'s, shared
-by all 23 special-power modules, so all of them now parse the keyword as a list. Only
-`SpecialPowerTimerRefreshSpecialPower` ever reads the field, so for the other 22 the change is the
-difference between storing one token and storing all of them into a string nothing looks at.
-
-**Composition.** Order-independent: the cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name.
-The two bytes ranges it rewrites - one parse-function slot, one ``call`` - are touched by no other
-bundled patch, and it reads no structure another patch rebuilds. Note in particular that
-`player-heal-filter` *reads* this same table (to reject a keyword it would shadow) and does not
-write it, so the two compose in either order.
-
-Quoted values
--------------
-`INI::getNextAsciiString` is what both the stock parser and this one pull tokens with, so a
-quoted value still arrives as one token, spaces and all - ``"Foo Bar"`` stores ``Foo Bar``. The
-matcher then splits it back into two names that no template can be called. This is not a
-regression: a `SpecialPower` block's name is a single INI token, so a quoted value never matched
-anything under the stock compare either.
-
-Determinism
------------
-Both routines are pure functions of `ModuleData` written at INI-parse time and of a template
-name, run on the logic thread inside `doSpecialPower`. Nothing new enters the frame or the CRC -
-but the *outcome* does change which powers get recharged, so this is a rule change like any
-other: **every peer must run the same patched binary**, and a mod that writes a two-name value
-needs it or the second name is silently dropped.
+Derivation: `../docs/trigger-recharge-list.md`.
 """
 
 from __future__ import annotations
@@ -90,7 +15,7 @@ from sage_ini.engine import Engine, FieldDelta
 
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, u32, va_to_offset
 from .utils.field_tables import resolve_table
 from .utils.token_lists import (
     ASCII_STRING_CHARS,
@@ -120,7 +45,7 @@ __all__ = [
 #: name and `ModuleData` offset before anything is written, which is a far stronger build check
 #: than the index alone.
 #:
-#: The base is taken from `FIELD_TABLE_REF_VA`, the ``push imm32`` inside `buildFieldParse` that
+#: The base is taken from `FIELD_TABLE_REF_VA`, the `push imm32` inside `buildFieldParse` that
 #: is the table's **only** reference in the image, rather than from the stock constant - so a
 #: patch that relocated the table first would be found rather than silently bypassed. `..._VA` is
 #: what that reference holds on a stock build.
@@ -131,9 +56,9 @@ FIELD_INDEX = 31
 FIELD_NAME = "OnTriggerRechargeSpecialPower"
 FIELD_OFFSET = 0x6C
 
-#: The ``call`` inside `SpecialPowerTimerRefreshSpecialPower::doSpecialPower`'s module walk that
+#: The `call` inside `SpecialPowerTimerRefreshSpecialPower::doSpecialPower`'s module walk that
 #: asks whether a candidate module's power is *the* named one, and the `AsciiString::compare` it
-#: calls: ``__thiscall(ecx = &name, [esp+4] = &field)``, ``ret 4``, ``eax == 0`` means equal.
+#: calls: `__thiscall(ecx = &name, [esp+4] = &field)`, `ret 4`, `eax == 0` means equal.
 MATCH_CALL_VA = 0x00897A21
 ASCII_STRING_COMPARE = 0x004065AA
 
@@ -144,7 +69,7 @@ OWN_POWER_COMPARE_VA = 0x008979E1
 
 #: Sites this patch depends on and does not itself rewrite. Nothing else would catch a mismatch -
 #: the cave would simply read the wrong register or answer for the wrong field - so each is
-#: asserted before anything is written, and again by :meth:`~TriggerRechargeListPatch.verify`.
+#: asserted before anything is written, and again by `verify`.
 ANCHORS = (
     (0x008979C5, b"\x8d\x73\x6c", "lea esi, [ebx+0x6c] (the field, read for its emptiness)"),
     (
@@ -163,29 +88,20 @@ SECTION_NAME = ".trglst"
 SECTION_CHARACTERISTICS = 0x60000060
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
 def build_match(base_va: int) -> bytes:
     """Is the candidate's power name one of the tokens in the field?
 
     Stands in for `AsciiString::compare` at exactly its call site, so it takes that function's
-    arguments and answers in its convention: ``__thiscall`` with ``ecx`` the candidate template's
-    name and ``[esp+4]`` the field, ``ret 4``, and **``eax == 0`` means match** - which is what
-    the caller's existing ``test eax,eax / jne`` reads.
+    arguments and answers in its convention: `__thiscall` with `ecx` the candidate template's
+    name and `[esp+4]` the field, `ret 4`, and **`eax == 0` means match** - which is what
+    the caller's existing `test eax,eax / jne` reads.
 
     The comparison is byte-for-byte and case-sensitive, the same as the `memcmp` the function it
     replaces ends in: a `SpecialPower` name that differs in case did not match before this patch
     either.
 
-    ``ebx``, ``esi`` and ``edi`` are preserved because the loop this sits inside keeps its module
-    cursor, its module and its `ModuleData` in them, exactly as the ``__thiscall`` being replaced
+    `ebx`, `esi` and `edi` are preserved because the loop this sits inside keeps its module
+    cursor, its module and its `ModuleData` in them, exactly as the `__thiscall` being replaced
     did."""
     a = Asm(base_va)
     a.emit(0x56)  # push esi
@@ -284,9 +200,9 @@ class TriggerRechargeListPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified). Locates
+        """Structural check that `data` carries this patch (an empty list == verified). Locates
         the cave, recomputes the two routines its base VA implies, and compares them and both
-        repointed sites to what is on disk. Reads only via ``struct`` and the section table, so
+        repointed sites to what is on disk. Reads only via `struct` and the section table, so
         verification needs no disassembler."""
         located = find_section(data, SECTION_NAME)
         if located is None:
@@ -335,7 +251,7 @@ class TriggerRechargeListPatch(Patch):
         )
 
     def _compute_section(self, section_va: int) -> tuple[bytes, tuple[int, int]]:
-        """Return ``(section content, (parse VA, match VA))`` for a cave based at ``section_va``.
+        """Return `(section content, (parse VA, match VA))` for a cave based at `section_va`.
 
         Layout: the parse routine, then the matcher. Neither refers to the other, so the order is
         arbitrary - but it has to be *fixed*, because `verify` recomputes both from the section's
@@ -346,7 +262,7 @@ class TriggerRechargeListPatch(Patch):
         return parse + match, (section_va, match_va)
 
     def _field_entry(self, data: bytes | bytearray) -> tuple[int, tuple[int, int, int, int]]:
-        """The `OnTriggerRechargeSpecialPower` table entry, as ``(file offset, fields)``.
+        """The `OnTriggerRechargeSpecialPower` table entry, as `(file offset, fields)`.
 
         The table's base is read from the reference that names it rather than from
         `FIELD_TABLE_VA`, so a patch that relocated the table into a cave first is followed
@@ -365,7 +281,7 @@ class TriggerRechargeListPatch(Patch):
 
         The index alone is not evidence: it is the name and the `ModuleData` offset that say the
         four bytes about to be rewritten are the parse function of the field the matcher reads.
-        ``patched`` says which parse function to expect - the stock one before the write, anything
+        `patched` says which parse function to expect - the stock one before the write, anything
         but the stock one after it, since where the cave landed is `verify`'s business."""
         off, (name_va, parse_fn, _userdata, field_off) = self._field_entry(data)
         name_off = va_to_offset(data, name_va)
@@ -406,7 +322,7 @@ class TriggerRechargeListPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, stubs: tuple[int, int]
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)``."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)`."""
         parse_va, match_va = stubs
         entry_off, _fields = self._field_entry(data)
 
@@ -417,14 +333,14 @@ class TriggerRechargeListPatch(Patch):
         return [
             (
                 entry_off + 4,
-                _u32(STOCK_ASCII_STRING_PARSER),
-                _u32(parse_va),
+                u32(STOCK_ASCII_STRING_PARSER),
+                u32(parse_va),
                 f"{FIELD_NAME} parse function -> cave",
             ),
             (
                 call_off,
-                _call_bytes(MATCH_CALL_VA, ASCII_STRING_COMPARE),
-                _call_bytes(MATCH_CALL_VA, match_va),
+                call_rel32(MATCH_CALL_VA, ASCII_STRING_COMPARE),
+                call_rel32(MATCH_CALL_VA, match_va),
                 "the module walk's name compare -> cave",
             ),
         ]

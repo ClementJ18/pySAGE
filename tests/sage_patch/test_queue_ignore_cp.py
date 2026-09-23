@@ -228,7 +228,7 @@ def _table_va(data: bytes | bytearray) -> int:
     return struct.unpack_from("<I", push, 1)[0]
 
 
-# --- the field's home ------------------------------------------------------------------------
+# The field's home
 
 
 def test_new_field_lands_in_alignment_padding() -> None:
@@ -265,7 +265,7 @@ def test_rewritten_ctor_widens_the_store_and_changes_one_byte() -> None:
     assert sum(1 for a, b in zip(new, old, strict=True) if a != b) == 1
 
 
-# --- the rebuilt table -----------------------------------------------------------------------
+# The rebuilt table
 
 
 def _live_entries() -> tuple[tuple[int, int, int, int], ...]:
@@ -290,7 +290,7 @@ def test_table_appends_one_bool_row_and_a_terminator() -> None:
     assert table[-FIELD_PARSE_STRIDE:] == bytes(FIELD_PARSE_STRIDE)
 
 
-# --- the cave's code -------------------------------------------------------------------------
+# The cave's code
 
 
 def _decode_jmp(code: bytes, base: int, at: int) -> int:
@@ -386,7 +386,7 @@ def test_code_is_position_independent() -> None:
     assert len(differing) <= 5 * 4  # the five rel32s out of the cave
 
 
-# --- apply -------------------------------------------------------------------------------------
+# Apply
 
 
 def test_apply_writes_every_site(image: bytearray) -> None:
@@ -463,7 +463,7 @@ def test_ini_surface_names_the_field_it_installed(image: bytearray) -> None:
     ]
 
 
-# --- verify ------------------------------------------------------------------------------------
+# Verify
 
 
 def test_verify_clean_after_apply(image: bytearray) -> None:
@@ -517,7 +517,7 @@ def test_detect_finds_nothing_in_an_unpatched_image(image: bytearray) -> None:
     assert QueueIgnoreCpPatch.detect(image) is None
 
 
-# --- refusals ------------------------------------------------------------------------------------
+# Refusals
 
 
 def test_apply_refuses_a_second_time(image: bytearray) -> None:
@@ -563,7 +563,7 @@ def test_constructor_refuses_an_unparseable_keyword(keyword: str) -> None:
         QueueIgnoreCpPatch(keyword=keyword)
 
 
-# --- composition ---------------------------------------------------------------------------------
+# Composition
 
 
 def test_the_gate_windows_of_the_two_verdicts_are_disjoint() -> None:

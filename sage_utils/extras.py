@@ -11,11 +11,28 @@ so the check itself never drags Qt into a process that only wants the core libra
 """
 
 import importlib.util
+from importlib.metadata import PackageNotFoundError, version
+
+__all__ = [
+    "DISTRIBUTION",
+    "missing_modules",
+    "package_version",
+    "require_extra",
+]
 
 # The PyPI distribution name (not the project name, pySAGE). The bare `pysage` and `py-sage`
 # names are taken by unrelated projects, so the package is published as `pysage-tools`; messages
 # that name it must use this exact spelling or they point users at the wrong package.
 DISTRIBUTION = "pysage-tools"
+
+
+def package_version() -> str:
+    """The installed pySAGE version, or "unknown" where its metadata is not there to read -
+    which is the case in a PyInstaller bundle whose spec did not collect it."""
+    try:
+        return version(DISTRIBUTION)
+    except PackageNotFoundError:
+        return "unknown"
 
 
 def missing_modules(*modules: str) -> list[str]:

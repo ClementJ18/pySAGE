@@ -1,88 +1,12 @@
-"""The AI hero build delay: `HeroBuildOrder` entries may name a time before which the skirmish
-AI will not consider recruiting that hero.
+"""Let a `HeroBuildOrder` entry carry a delay (`Name:Seconds`) before the skirmish AI may recruit
+that hero.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/ai-hero-build-delay.md``.
+The AI's hero picker draws uniformly from the list and then banks gold until it can afford the pick,
+so an expensive hero drawn early stalls the army. Two edits: the list parser learns the `:Seconds`
+suffix (clamped to 0x100000), and a gate before the cost test (`AI_HERO_COST_TEST`) skips a hero
+whose time has not come. A bare `Name` behaves as before.
 
-**The defect.** `HeroBuildOrder` is a bare list of hero names, and the skirmish AI's hero builder
-treats it as one. It copies the list off the faction's `ArmyDefinition` (`+0x8C` into its own
-`+0x4C`), and its picker has three rules: retry an index it already asked for, otherwise
-``GameLogicRandomValue(1, count-1)`` - a **uniform draw over the whole list** - and otherwise the
-Ring hero when the player holds the Ring. There is no cost term in the choice and no clock
-anywhere on the path.
-
-The only thing between the AI and the most expensive hero in the list is the affordability test at
-``AI_HERO_COST_TEST``, and that is not a policy: it asks whether the purse covers the hero *right
-now*, so the AI saves until it does and then spends everything at once. What a player sees is an
-AI that draws Gandalf on minute three, stops producing units while it banks for him, and arrives
-with one hero and no army - or, on a longer game, banks repeatedly for heroes it cannot support.
-The build **order** the keyword is named for is not an order at all.
-
-**What this does.** Teaches the keyword one optional suffix. A token stays a bare ``Name``, or
-becomes ``Name:Seconds`` - the number of seconds from the start of the match before the AI may
-consider recruiting that hero:
-
-    HeroBuildOrder = MordorSauron_RingHero MordorWitchKing:420 MordorFellBeast:600
-
-A hero on the clock is **skipped, not blocked**: the gate hands it to the engine's own rejection
-edge, which forgets the choice so the next tick draws again, and the whole rest of the list stays
-reachable meanwhile. And a hero request that answers null is not a wasted tick either - the AI's
-order pump runs its **unit** builder in the same call, so the money goes into an army instead.
-
-**Two edits, and why they are in those two places.**
-
-1. The `HeroBuildOrder` **row** of the `ArmyDefinition` field table is repointed at a replacement
-   parser. The row, not the parse function it names: `INI_PARSE_STRING_LIST` is shared with
-   `OffensiveBuildings` and `ScavangedResourceBuildings`, and neither of those wants a colon to
-   mean anything. The replacement calls the stock parser and then walks the vector it filled,
-   splitting each ``Name:Seconds`` in place - the name is written back through
-   `AsciiString::set`, and the seconds are recorded in a table the cave owns.
-
-   Splitting at **parse** time rather than at use time is what keeps the change to one gate: the
-   name resolves through `TheThingFactory`, is interned as a `NameKey`, is compared against the
-   AI's already-queued list, is xfered into save games and is folded into the per-frame CRC, and
-   every one of those sees exactly the string a stock build would have seen.
-
-2. `AI_HERO_NAME_RESOLVED`, the six bytes between "the hero's name is resolved" and "its template
-   is looked up", is redirected into the gate. That is the last point in
-   `createHeroBuildRequest` before anything is committed - no queue entry, no cost withdrawal,
-   not even a producer search.
-
-**Why the delay is keyed by name.** The gate holds the hero's `AsciiString` and nothing else; the
-list it came from is a copy. So a recorded delay is keyed by `NameKey`, the same interning the
-builder itself applies to these names. The consequence is a real limit worth stating: a delay is
-global to a hero **name**, not to an `ArmyDefinition`, so a hero listed by two factions with two
-different delays keeps the last one parsed. Keying on the `ArmyDefinition` would be exact, but
-those are re-allocated on every parse of the block and a recycled pointer would hand one faction
-another's delay - silently, and only sometimes. A name cannot be recycled.
-
-**A hero with no suffix behaves exactly as it does today.** The parser records nothing for it, and
-it also *erases* any delay standing against that name, so re-parsing a `HeroBuildOrder` without
-the suffix takes the clock off again rather than leaving a stale one behind. A file that uses no
-colons leaves the table empty and every lookup misses, which is stock behaviour instruction for
-instruction past the gate.
-
-**Seconds, not frames.** RotWK simulates at five logic frames per second, and the gate reads that
-rate from `LOGIC_FRAMES_PER_SECOND` at run time rather than baking it in. Seconds are clamped at
-parse time to 0x100000, which is four hundred times longer than any match and keeps the
-multiplication inside an `int32`.
-
-**Every peer must run the same patched binary, and the same INI.** Which hero the AI asks for
-feeds the per-frame CRC, so a patched and an unpatched client diverge the first time a delay
-refuses one - and the strings a patched build stores differ from the ``Name:Seconds`` an unpatched
-one would keep, so the divergence starts at load. That is the same requirement
-`ai-construction-gate` and `hero-recruit-parallel` carry.
-
-**No Worldbuilder twin.** The editor keeps its own copies of the engine's *name* tables, which is
-what makes an added token throw there; this adds no token. Worldbuilder's stock parser stores
-``Name:Seconds`` as an uninterpreted string and never reads it.
-
-**Composition.** Order-independent. The cave is allocated past every existing section and
-:meth:`verify` finds it by name; the field table is resolved through the two instructions that
-name it, so the row is found in whatever table is live. The only engine bytes edited are the six
-at `AI_HERO_NAME_RESOLVED` and the one row's parse pointer, and no other bundled patch touches
-either - `ai-construction-gate` and `ai-revive-gate` are the two that reach into the same AI, and
-they take `AI_PRODUCER_USABLE_TESTS` and `CAN_MAKE_UNIT_REVIVE_BRANCH`.
+Derivation: `../docs/ai-hero-build-delay.md`.
 """
 
 from __future__ import annotations
@@ -201,9 +125,9 @@ def _ebp(disp: int) -> bytes:
 
 
 def _assemble(section_va: int) -> tuple[bytes, int, int]:
-    """Return ``(code, parser VA, gate VA)`` for a cave based at ``section_va``.
+    """Return `(code, parser VA, gate VA)` for a cave based at `section_va`.
 
-    The delay table occupies the first :data:`TABLE_BYTES` of the section and the code follows it,
+    The delay table occupies the first `TABLE_BYTES` of the section and the code follows it,
     so the table's address is the section's own and the code's is a fixed offset from it. That
     order is what lets `verify` compare the code without having to know what the table currently
     holds - it is written at run time, and a saved game's worth of INI parsing later it will not
@@ -226,7 +150,7 @@ def _emit_parser(a: Asm, table: int, table_end: int) -> None:
 
     Runs the stock list parser first, so token splitting, macro expansion and the vector's own
     housekeeping stay the engine's; then walks what it produced. Every element is either plain -
-    in which case any delay standing against that name is erased - or carries a ``:Seconds``
+    in which case any delay standing against that name is erased - or carries a `:Seconds`
     suffix, in which case the name is written back without it and the seconds are recorded.
     """
     a.emit(0x55)  # push ebp
@@ -356,8 +280,8 @@ def _emit_parser(a: Asm, table: int, table_end: int) -> None:
 def _emit_gate(a: Asm, table: int, table_end: int) -> None:
     """The delay gate. Reached only from the hook, and never returns to it.
 
-    On entry ``edi`` is the chosen hero's `AsciiString`, ``eax`` its index in the build order -
-    live, because the stock code stores it one instruction after the site - and ``esi`` the hero
+    On entry `edi` is the chosen hero's `AsciiString`, `eax` its index in the build order -
+    live, because the stock code stores it one instruction after the site - and `esi` the hero
     builder. Both exits are edges the stock function already had.
     """
     a.emit(0x50)  # push eax                 ; the index survives the lookup
@@ -394,12 +318,12 @@ def _emit_gate(a: Asm, table: int, table_end: int) -> None:
 
 
 def build_code(section_va: int) -> bytes:
-    """The cave's code, for a section based at ``section_va``. The delay table precedes it."""
+    """The cave's code, for a section based at `section_va`. The delay table precedes it."""
     return _assemble(section_va)[0]
 
 
 def layout(section_va: int) -> tuple[int, int]:
-    """``(parser VA, gate VA)`` for a section based at ``section_va``."""
+    """`(parser VA, gate VA)` for a section based at `section_va`."""
     return _assemble(section_va)[1:]
 
 
@@ -513,7 +437,7 @@ class AiHeroBuildDelayPatch(Patch):
 
     def ini_surface(self) -> Engine:
         """`HeroBuildOrder` as a list of raw tokens rather than of object references: an entry is
-        ``Name`` *or* ``Name:Seconds``, and the second form is not a name anything could be looked
+        `Name` *or* `Name:Seconds`, and the second form is not a name anything could be looked
         up by. No default is stated - the keyword's own default is unchanged, and so is what a
         list of bare names means."""
         return Engine(fields=(FieldDelta("ArmyDefinition", KEYWORD, "Opaque[]", None, self.name),))

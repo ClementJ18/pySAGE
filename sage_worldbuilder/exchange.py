@@ -47,14 +47,14 @@ from sage_map.scb import ScriptLibrary
 from sage_worldbuilder.areas import DeleteAreas
 from sage_worldbuilder.changes import Change, ChangeKind
 from sage_worldbuilder.commands.base import Command, CompositeCommand, SetAttribute
+from sage_worldbuilder.commands.objects import DeleteObjects
+from sage_worldbuilder.commands.terrain import PatchCells, PatchHeights, ReplaceTerrainTables
 from sage_worldbuilder.heightmap_io import Anchor
 from sage_worldbuilder.ids import next_trigger_area_id, next_unique_number, next_waypoint_id
-from sage_worldbuilder.objects import DeleteObjects
 from sage_worldbuilder.roads import with_partners
 from sage_worldbuilder.scene import WAYPOINT_PREFIX
 from sage_worldbuilder.scripting import iter_script_items, player_script_lists
 from sage_worldbuilder.terrain.cells import CellLayer, layer_array
-from sage_worldbuilder.terrain.edits import PatchCells, PatchHeights, ReplaceTerrainTables
 from sage_worldbuilder.terrain.merge import merge_textures
 from sage_worldbuilder.water import WaterKind, next_water_id, water_areas
 

@@ -114,7 +114,7 @@ class Asm:
     def call(self, name: str) -> Asm:
         """`call rel32` to a label - a routine inside this same cave.
 
-        The sibling of :meth:`call_absolute`, which reaches engine code at a known address. A
+        The sibling of `call_absolute`, which reaches engine code at a known address. A
         cave with more than one routine cannot use that form for its own internals: the callee's
         address is not known until the body it lives in has been laid out, which is the whole
         reason labels exist here."""

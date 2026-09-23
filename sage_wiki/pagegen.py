@@ -74,7 +74,7 @@ def _join_segments(segments) -> str:
 
 
 def _split_name(text: str) -> tuple[str, str | None]:
-    """A button name split into its display text and its ``(&X)`` shortcut letter."""
+    """A button name split into its display text and its `(&X)` shortcut letter."""
     match = re.search(r"\(&(.)\)", text)
     shortcut = match.group(1) if match else None
     return _HOTKEY.sub("", text).strip(), shortcut
@@ -502,7 +502,7 @@ def _building_infobox(computed: dict[str, str], faction: str, image: str = "") -
     lines += [f"|{param}={top.get(param, '')}" for param in _BUILDING_TOP]
     for level in range(1, _building_level_count(computed) + 1):
         for param, source in _BUILDING_LEVEL_FIELDS.items():
-            value = ""
+            value: str | None = ""
             if source is not None:
                 value = computed.get(f"{source}{level}")
                 if value is None and level == 1:
@@ -539,7 +539,7 @@ _KINDOF_ROLES = (
 
 
 def _alignment(obj) -> str | None:
-    """The object's Good/Evil side from its ``Side`` field, or None when unknown."""
+    """The object's Good/Evil side from its `Side` field, or None when unknown."""
     raw = obj._fields.get("Side")
     side = str(raw[-1] if isinstance(raw, list) else raw) if raw else None
     if side in _GOOD_SIDES:
@@ -550,7 +550,7 @@ def _alignment(obj) -> str | None:
 
 
 def _primary_role(obj) -> str:
-    """A best-effort role from the object's KindOf (e.g. ``Archer``), or "" if none match."""
+    """A best-effort role from the object's KindOf (e.g. `Archer`), or "" if none match."""
     for kindof, role in _KINDOF_ROLES:
         if has_kindof(obj, kindof):
             return role
@@ -581,7 +581,7 @@ def _tier(obj) -> str:
 
 
 def _horde_size(obj) -> int | None:
-    """A horde's battalion size - its ``HordeContain`` ``Slots`` - or None for a lone unit."""
+    """A horde's battalion size - its `HordeContain` `Slots` - or None for a lone unit."""
     for module in getattr(obj, "_modules", ()):
         if isinstance(module, ContainBehavior):
             slots = safe(lambda m=module: m.Slots)

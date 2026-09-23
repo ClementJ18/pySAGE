@@ -6,15 +6,15 @@ Static reading of RotWK 2.01 `game.dat` (ImageBase `0x400000`), 2026-09-18, with
 read-only tree and variable reader (`sage_live/backends/scripts.py`, spike
 `examples/sage_live/script_tree.py`), the in-memory patcher (`sage_live/backends/live_patch.py`)
 and the frame gate on it (`sage_live/backends/script_debugger.py`, spike
-`examples/sage_live/frame_gate.py`). Slice A is done and confirmed on a running game. Slice B is
-built (`sage_worldbuilder/live.py`, the Script Debugger dock in `sage_worldbuilder/ui/script_debugger.py`,
-live rows in the Scripts panel) and confirmed by the user on a live game. Slice C is built
+`examples/sage_live/frame_gate.py`). Slice A is done and confirmed on a running game. Slice B
+(`sage_worldbuilder/live.py`, the Script Debugger dock in
+`sage_worldbuilder/ui/script_debugger.py`, live rows in the Scripts panel) and slice C
 (`sage_live/backends/script_trace.py`, spike `examples/sage_live/script_trace.py`, the dock's Trace
-tab) and executed under unicorn; not yet run against a live game. Slice D is built: breakpoints
-live in the trace cave (layout v2, §2.2), pause and step drive the frame gate, and the dock and the
-Scripts panel's right-click menu drive both; spike `script_trace.py --break NAME`, not yet run live. Slice E is
-built (§4): triggers from the Scripts panel's right-click menu and the Variables tab; not yet run
-live.
+tab) were confirmed by the user on a live game on 2026-09-18. Slice D (breakpoints in the trace
+cave, §2.2; pause and step on the frame gate) and slice E (triggers, §4) were confirmed live on
+2026-09-22. Slice F (the condition watch, §2.3; the dock's Why Not tab, `sage_worldbuilder/why_not.py`)
+is built and its cave executed under unicorn; not yet run against a live game - spike
+`script_trace.py --why NAME`.
 
 Surface agreed with the user:
 
@@ -97,7 +97,7 @@ about 2 s, and the next attach adopted the orphaned cave by its `SDBG` tag and r
 
 Recovered from the chunk writer (`0x007B63E8` for a script, `0x007B7350` for a group,
 `0x007B7DA0` for a list) and the chunk reader (`0x007B83CC`), then cross-checked against the
-per-frame walk below. Every offset is in `sage_patch/addresses.py`.
+per-frame walk below. Every offset is in `sage_patch/addresses/`.
 
 ```
 SidesList   +0x3c numSides   +0x40 SidesInfo[20], stride 0x60
@@ -208,6 +208,53 @@ flags map `+0x191AC`, with lookup-or-create `0x0060817A` / `0x006082CF`
 `+0x04` parent, `+0x08` left, `+0x0C` right, null leaves; header `+0x08` leftmost), keyed
 `(scope, name)` at `+0x10` / `+0x14`.
 
+### 2.3 Why not: the condition watch
+
+`ScriptEngine::evaluate` (`0x0060930F`) is where a script's conditions are judged. Its four callers
+are `executeScript`'s team and no-team paths (`0x00609ABB`, `0x00609B89`), the sequential path
+(`0x00609C55`) and `0x00609DC9`; the debugger's "evaluate now" calls it from the gate cave. Its
+loop, read in full:
+
+```
+00609374  mov edi, [eax+0x30]            ; Script -> first OrCondition
+00609381  mov eax, [edi+8]               ; OrCondition -> first Condition
+00609389  je  0x6093ad                   ; an empty clause: on to the next one
+0060938b  cmp byte [eax+0x4c], 0         ; Condition enabled?
+0060938f  je  0x6093a1                   ;   no: skipped, as if it passed
+00609395  call 0x006092a9                ;   yes: evaluateCondition(Condition *), verdict in al
+0060939c  je  0x6093ad                   ; false: abandon this clause
+006093a1  mov eax, [eax+0x3c]            ; next Condition; none left -> the clause passed
+006093b6  mov byte [ebp+0xf], 1          ; ...and so the script: return true
+006093ad  mov edi, [edi+4]               ; next OrCondition; none left -> return false
+```
+
+So clauses are ORed and tried in order, the first to pass ends the evaluation; the conditions in a
+clause are ANDed, the first to fail ends the clause; a disabled condition counts as passed; an
+empty clause never passes; and a script with **no** clauses is false, not true. The Condition
+layout is confirmed by the chunk writer (`0x007B4DEA`): type `+0x04` (the map's own condition id -
+`0x006092A9` switches 0 false, 1 counter, 2 flag, 3 true, 4 timer expired, and hands the rest to
+`TheScriptConditions`), parameter count `+0x08`, parameters from `+0x0C`, next `+0x3C`, enabled
+`+0x4C`, inverted `+0x4D`. `OrCondition` is next `+0x04`, first condition `+0x08`.
+
+`0x00609395` is the one call that judges a condition (`xref 0x006092A9` finds no other), so the
+trace cave (layout v3) wraps it: it makes the same call on a copy of the argument, then looks the
+`Condition *` up in a watch table of up to 256 and, on a hit, stores the verdict, the frame and the
+**evaluation number**, and counts passes and failures. The evaluation number comes from the
+evaluator's entry: its first instruction is a whole five-byte `mov eax, 0xB80F76` (the SEH
+handler for the `_EH_prolog` call after it), which becomes a `jmp` to a cave stub that counts,
+repeats the `mov` and jumps back to `0x00609314`. Every condition one evaluation reached carries
+that evaluation's number, so a reader tells "passed", "failed" and "never reached" apart exactly -
+no frame arithmetic, and correct for a team script judged several times a frame.
+
+The editor watches only a chosen script's enabled conditions, resolving them from the script tree
+on each read like breakpoints. With nothing watched the cost is one compare per condition judged.
+
+What the watch does not see: the **inversion** flag is not read on the counter, flag and timer
+paths of `0x006092A9`, and where the other conditions apply it was not traced - the verdict is the
+engine's final answer either way, which is what the Why Not tab shows. The due check's difficulty
+test (`0x00603878`) reads the evaluated player's AI difficulty (`0x006AA61B`) first and the game's
+only without one; the tab reports the game's value and says so when the flags differ.
+
 ## 3. `Parameter`, partly
 
 `ScriptAction::getParameter` (`0x00602EFB`) returns `[action + 0xC + i*4]`, bounds-checked
@@ -267,8 +314,8 @@ needs the map both ways:
 2. ~~**The scheduling list**~~ - answered statically: it is the `ScriptList` node chain, and every
    path reaches `runScript` (§2).
 3. ~~**`Script+0x10` and `0x00609C3A`**~~ - the fire-actions-sequentially path (§2).
-4. **Which of the 87 `AppendMessage` sites carry what** - condition results would give a trace
-   of *why* a script did not fire, not only that it did.
+4. ~~**Which of the 87 `AppendMessage` sites carry what**~~ - not needed: every condition is
+   judged through one call, `0x00609395`, which the condition watch wraps (§2.3).
 5. ~~**Where the frame gate sits**~~ - `0x006325C4`, not `0x0044B897` (§1.1). Held, the logic
    frame freezes while the client keeps being called; confirmed live. Still to eyeball: that
    the camera moves and the screen animates while held (the numbers say the client runs; a person
@@ -286,6 +333,6 @@ needs the map both ways:
 | **C. Trace** (built) | event-ring hooks; per-frame trace in the dock, each line linking to its script | A (in-memory patching) |
 | **D. Pause / step / breakpoints** (built) | control block on the frame gate; breakpoints on scripts from the Scripts tree | C |
 | **E. Triggers** (built) | enable/disable/re-arm (B's writes), then set variable, evaluate now, run actions now (bridge commands) | B, D |
-| **F. Why not** | condition-level trace (§6.4): which condition failed | C |
+| **F. Why not** (built) | condition watch (§2.3): which condition failed, which were never reached, and what stops the script being evaluated at all | C |
 
 Each slice after A is usable on its own. B is useful before any code is patched.

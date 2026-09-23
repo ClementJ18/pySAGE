@@ -54,7 +54,7 @@ sequence, at `0x008AD877` (the builder dropping a foundation):
 ```
 
 `internalChangeHealth` is body vtable `+0x84`, `__thiscall`, `ret 8`, already recorded as
-[`ACTIVE_BODY_INTERNAL_CHANGE_HEALTH`](../addresses.py). Adding `1.0 - health` leaves the body at
+[`ACTIVE_BODY_INTERNAL_CHANGE_HEALTH`](../addresses/objects.py). Adding `1.0 - health` leaves the body at
 exactly `1.0` whatever it started at, which is why the constant is `FLOAT_ONE` and not a field.
 
 Three body getters are used by the construction arithmetic, all `__thiscall`, all taking no

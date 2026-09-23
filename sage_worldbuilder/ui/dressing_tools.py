@@ -31,6 +31,8 @@ from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QColor, QPainter, QPen
 
 from sage_map.assets.height_map import HeightMapBorder
+from sage_worldbuilder.commands.objects import place_objects
+from sage_worldbuilder.commands.terrain import PatchHeights
 from sage_worldbuilder.document import MapDocument
 from sage_worldbuilder.dressing import (
     GroveOptions,
@@ -48,8 +50,6 @@ from sage_worldbuilder.dressing import (
     rectangle_points,
     remove_border,
 )
-from sage_worldbuilder.objects import place_objects
-from sage_worldbuilder.terrain.edits import PatchHeights
 from sage_worldbuilder.terrain.grid import WORLD_UNITS_PER_CELL
 from sage_worldbuilder.ui.overlays import road_corners
 from sage_worldbuilder.ui.tools import DRAG_PIXELS, PICK_PIXELS, EditHost, Gesture, Tool, ToolView

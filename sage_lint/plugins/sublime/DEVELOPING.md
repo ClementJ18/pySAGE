@@ -80,7 +80,7 @@ binary a real path). A manual install must use the `dist\SageLint\` folder.
    ```
 
    This produces `dist/sage_lint` (`dist/sage_lint.exe` on Windows), alongside the desktop
-   `SAGE Lint` app the same spec builds (see plugins/ui/README.md). PyInstaller binaries are
+   `SAGE Lint` app the same spec builds (see sage_lint/ui/README.md). PyInstaller binaries are
    **not** cross-platform, so build once on each OS you support.
 
 2. **Drop it into the package.** Put the binary in this folder's `bin/`:

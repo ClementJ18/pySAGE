@@ -27,6 +27,33 @@ from sage_ini.model.types import (
     String,
 )
 
+__all__ = [
+    "AttributeModifierNugget",
+    "ClearNuggets",
+    "DamageContainedNugget",
+    "DamageFieldNugget",
+    "DamageNugget",
+    "DOTNugget",
+    "EmotionWeaponNugget",
+    "FireLogicNugget",
+    "FireWeaponNugget",
+    "GrabNugget",
+    "HordeAttackNugget",
+    "InvisibilityNugget",
+    "LuaEventNugget",
+    "MetaImpactNugget",
+    "OpenGateNugget",
+    "ParalyzeNugget",
+    "ProjectileNugget",
+    "SlaveAttackNugget",
+    "SpawnAndFadeNugget",
+    "SpecialModelConditionNugget",
+    "StealMoneyNugget",
+    "WEAPON_NUGGETS",
+    "WeaponEffectNugget",
+    "WeaponOCLNugget",
+]
+
 if TYPE_CHECKING:
     # Cross-module field types are named as string forward-refs (`List["Upgrade"]`) and
     # resolved at runtime through the class REGISTRY - importing them for real would create

@@ -1,86 +1,12 @@
-"""The command-point-cost patch: a button can cost command points, and greys out without them.
+"""Add `CommandPointCost` to `CommandButton`: the button is greyed out unless the player has that
+many command points free.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/command-point-cost.md``.
+Command points only gate recruiting, so a power or upgrade that summons a battalion bypasses the
+cap. The patch puts the field in the struct's padding, defaults it to 0 (stock), relocates the field
+table and adds the check at the top of the control bar's availability evaluator, using the engine's
+own cap arithmetic. It gates the button, not the power.
 
-**The gap.** Command points gate *recruitment*, and only recruitment. `BuildAssistant`'s production
-gate asks `hasEnoughCommandPoints` about the `ThingTemplate` being queued (``0x0079402B``), and
-that is the whole of the rule: the cost is a property of the unit, and it is read when a unit
-enters a production queue. A special power that drops a battalion on the map, or an upgrade whose
-`DoCommandUpgrade` summons one, reaches none of that. Its button is lit at 1500 of 1500 command
-points, it fires, and the army it makes arrives outside the cap every recruited battalion pays.
-
-**What this does.** Adds one field, `CommandPointCost`, to `CommandButton`. Default `0`, which is
-stock behaviour; any positive value means *this button is unavailable unless the player has that
-many command points free*. Free is the engine's own arithmetic, not a new one:
-``getCommandPointCap() - pointsInUse``, the same two numbers `hasEnoughCommandPoints` subtracts, so
-the field agrees with the palantir readout and with the cap a `CPObject` raises.
-
-The refusal is the engine's own too. The ControlBar's availability evaluator already has a verdict
-for this - **7**, which it produces at ``0x00942F47`` when the production gate answers "not enough
-command points". It greys the button, and a click on it plays `GUI:ErrorNoMoreCommandPoints` over
-the object rather than issuing an order. So a summon button carrying `CommandPointCost` behaves
-like a recruit button at the cap, because it is answered with the same number.
-
-**It gates the button, not the power.** The evaluator is client-side UI, and this patch stops
-there: it charges nothing, reserves nothing, and does not touch the logic side. A power fired by a
-script, by the AI's own special-power evaluation, or by any path that does not go through a command
-button is unaffected - and so is the cost of what the power summons, which is still paid the moment
-the summoned objects exist, by the stock accounting. The field is a *requirement*, in the way
-`RequireLevel` is: it says what the player must have to press the button.
-
-Four edits, one cave
---------------------
-1. **The field, in the struct's own padding.** `CommandButton+0x10E` is inside the alignment gap
-   between `AutoAbility` (a `Bool` at +0x10C) and the `KindOfFlags` at +0x110: no row in the field
-   table names it, the constructor never writes it, and the ``memset(this+0x110, 0, 0x1C)`` that
-   follows starts past it. Two aligned bytes, parsed by the engine's own `INI::parseUnsignedShort`
-   (``0x0042EC11``), which range-checks ``0..65535`` and stores a word - two orders of magnitude
-   past the 1500 hard cap, so the range is not a limit anyone can reach. ``sizeof`` stays 0x2E0 and
-   `ControlBar::newCommandButton`'s ``operator new(0x2E0)`` is untouched.
-
-2. **The default.** `operator new` does not zero the block, so the field needs initialising or
-   every button in the game inherits a random cost. The constructor's ``mov [esi+0x108], ebx`` -
-   `RequireLevel`'s default, six bytes, one whole instruction - is displaced into the cave, which
-   reproduces it and then writes an explicit zero word at +0x10E.
-
-3. **The field table moves, and three references are repointed.** The stock table at ``0x00C2BAC8``
-   is boxed in by its own terminator, so it is rebuilt in the cave: every live row copied verbatim,
-   since their name pointers are absolute, plus one appended `UnsignedShort` row and the
-   terminator. The three references are the static accessor at ``0x005DA706`` and the two `push`
-   immediates in the block parser, one for a fresh button and one for an override. The table is
-   walked to its terminator rather than to a count, so no bound is raised anywhere.
-
-4. **The check, at the top of the one evaluator.** `ControlBar::getCommandAvailability`
-   (``0x00942733``) is the single routine every caller asks whether a button is usable - the two
-   that draw it, the two that execute a click, the radial menu's and the palantir's. Its first act
-   once the local player is resolved is ``mov edi, [ebp+8]`` / ``mov eax, [edi+0x14]``: the button,
-   and the GUI command it dispatches on. Those six bytes are displaced, and the cave asks the new
-   field before it hands them back.
-
-   **The check has to be here rather than at the function's exit**, and that is not a preference.
-   `edi` is reloaded eleven times inside the function and the argument slot `[ebp+8]` is reused as
-   scratch by four of the command cases, so by the time a verdict exists the button is no longer
-   recoverable from either. At the top both are still what the caller passed. Nothing is lost by
-   answering early: every one of the evaluator's own thirty-odd refusals answers 3, and it answers
-   3 whether it is reached or not, so short-circuiting can only turn an *otherwise usable* button
-   unavailable - which is the whole feature.
-
-**Determinism.** Nothing this patch writes is logic-side state, and nothing it reads is state a
-peer can disagree about: the evaluator runs on the client, over the local player's own command bar,
-and its answer decides whether an order is created rather than what an order does. An unpatched
-peer in the same game would simply let its own player press a button this one greys. What *is*
-fatal on a stock build is the keyword - SAGE treats an unknown field in a known block as a parse
-error - so a mod using it ships the patched `game.dat` or does not run at all.
-
-**Composition.** Order-independent: the cave is allocated past every existing section, `verify`
-finds it by name, and the field table is located from its live references rather than from the
-stock constant, so it appends to whatever is there. The nearest neighbour is `queue-ignore-cp`,
-which takes the *byte* at +0x10D and widens the constructor's `AutoAbility` store at ``0x0075D688``
-to clear it - a different byte and a different instruction from the ones here, and the two rebuild
-the same table by reading it live, so either order gives a binary both verify.
-`multi-execute-gate` hooks ``0x00942490``, the model-condition predicate this evaluator calls, and
-shares no bytes with it.
+Derivation: `../docs/command-point-cost.md`.
 """
 
 from __future__ import annotations
@@ -102,7 +28,15 @@ from ..addresses import (
 )
 from ..asm import JE, JG, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    file_offset,
+    find_section,
+    jmp_rel32,
+    read_cstring,
+    u32,
+)
 from .utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 if TYPE_CHECKING:
@@ -131,7 +65,7 @@ DEFAULT_KEYWORD = "CommandPointCost"
 #: written, which is what lets the section stay read-only.
 _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000
 
-# --- the field's home ---------------------------------------------------------------------------
+# The field's home
 
 #: `CommandPointCost`, an `UnsignedShort` in `CommandButton`'s alignment padding. `AutoAbility` is
 #: the `Bool` at +0x10C and `AffectsKindOf` the `KindOfFlags` at +0x110, so +0x10D..+0x10F is a
@@ -139,25 +73,25 @@ _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000
 #: takes - is the one this patch leaves alone.
 COMMAND_POINT_COST_OFFSET = 0x10E
 
-# --- the engine ---------------------------------------------------------------------------------
+# The engine
 
-#: `Player::getCommandPointCap` - ``__thiscall`` on the command-point subobject at `Player+0x60`,
+#: `Player::getCommandPointCap` - `__thiscall` on the command-point subobject at `Player+0x60`,
 #: no arguments, answers in `eax`. It is the cap in full: the base at +0x64 plus the `CPObject`
-#: bonus at +0x6C plus a filtered vector's term, clamped by ``cmovg`` against the hard cap at
+#: bonus at +0x6C plus a filtered vector's term, clamped by `cmovg` against the hard cap at
 #: +0x70. Asking it is the only way to get the number the engine itself gates on, which is why the
 #: cave calls it rather than reading a field.
 #:
-#: It does **not** preserve `ecx`: the ``push ecx`` in its prologue is a local slot, which
-#: ``mov [esp+0xc], eax`` overwrites before the matching ``pop ecx``. The cave therefore carries
+#: It does **not** preserve `ecx`: the `push ecx` in its prologue is a local slot, which
+#: `mov [esp+0xc], eax` overwrites before the matching `pop ecx`. The cave therefore carries
 #: its own value across the call on the stack rather than in a register.
 GET_COMMAND_POINT_CAP = 0x006A7B9F
 
-#: `Player::m_commandPoints`, the subobject every caller reaches as ``lea ecx, [player+0x60]``, and
-#: the points-in-use dword inside it that `hasEnoughCommandPoints` reads as ``[ecx+8]``.
+#: `Player::m_commandPoints`, the subobject every caller reaches as `lea ecx, [player+0x60]`, and
+#: the points-in-use dword inside it that `hasEnoughCommandPoints` reads as `[ecx+8]`.
 PLAYER_COMMAND_POINTS = 0x60
 COMMAND_POINTS_IN_USE = 0x08
 
-#: `ControlBar::getCommandAvailability` - ``stdcall``, ``ret 0x14``, one epilogue. The single
+#: `ControlBar::getCommandAvailability` - `stdcall`, `ret 0x14`, one epilogue. The single
 #: routine that answers "is this button usable", asked by the two draw paths, the two click
 #: executors, the radial menu and the palantir - seven callers, plus one recursive call it makes
 #: about a toggle button's partner.
@@ -165,24 +99,24 @@ AVAILABILITY = 0x00942733
 
 #: Its `CommandButton *` argument, and the frame slot holding the player whose command bar is being
 #: evaluated (`ThePlayerList->getLocalPlayer()`, or the observed player). The slot is filled at
-#: ``0x00942766`` and the function returns 3 immediately when it is NULL, so at the hook it is both
+#: `0x00942766` and the function returns 3 immediately when it is NULL, so at the hook it is both
 #: set and non-NULL; the cave tests it anyway, because a null deref here is a crash and the test is
 #: four bytes.
 AVAILABILITY_BUTTON_EBP = 0x08
 AVAILABILITY_PLAYER_EBP = -0x10
 
 #: The verdict for "not enough command points". The evaluator already produces it, at
-#: ``0x00942F47``, when the production gate answers 7 about a `UNIT_BUILD` button - which is what
-#: makes it the right answer here rather than a new one: ``0x0071CCB0`` greys the button for it and
-#: ``0x009405B3`` answers a click on it with `GUI:ErrorNoMoreCommandPoints` instead of an order.
+#: `0x00942F47`, when the production gate answers 7 about a `UNIT_BUILD` button - which is what
+#: makes it the right answer here rather than a new one: `0x0071CCB0` greys the button for it and
+#: `0x009405B3` answers a click on it with `GUI:ErrorNoMoreCommandPoints` instead of an order.
 NOT_ENOUGH_COMMAND_POINTS = 7
 
-#: The evaluator's shared refusal tail - the ``pop eax`` that takes the pushed code, and the
-#: epilogue behind it. The engine's own verdict sites reach it as ``push <code>`` / ``jmp``, and
+#: The evaluator's shared refusal tail - the `pop eax` that takes the pushed code, and the
+#: epilogue behind it. The engine's own verdict sites reach it as `push <code>` / `jmp`, and
 #: the cave reproduces that shape exactly.
 AVAILABILITY_REFUSE_TAIL = 0x00942C5F
 
-# --- the hooks ----------------------------------------------------------------------------------
+# The hooks
 
 #: The evaluator's first two instructions past the local-player resolution: the button, and the GUI
 #: command it dispatches on. Six bytes, two whole instructions, and `ebx`/`edi` have just been
@@ -202,7 +136,7 @@ CTOR_RESUME_VA = 0x0075D688
 #: hooks sit inside the functions this patch believes they do. A build whose layout moved fails
 #: here rather than on a wild jump or a word written into somebody else's field.
 #:
-#: ``0x0075D688`` is deliberately **not** anchored: it is the instruction `queue-ignore-cp`
+#: `0x0075D688` is deliberately **not** anchored: it is the instruction `queue-ignore-cp`
 #: rewrites, and anchoring it would make the two patches order-dependent for no gain.
 ANCHORS: dict[int, bytes] = {
     AVAILABILITY_HOOK_VA: AVAILABILITY_HOOK_STOCK,
@@ -214,12 +148,12 @@ ANCHORS: dict[int, bytes] = {
     0x00942766: bytes.fromhex("894df0"),  # mov [ebp-0x10], ecx
     # `push ebx` / `push edi`, immediately before the hook: what makes both free to clobber.
     0x00942773: bytes.fromhex("5357"),
-    # ⚠ **`ecx` is live across the hook window.** ``mov ecx, eax`` puts the local player in it, and
+    # ⚠ **`ecx` is live across the hook window.** `mov ecx, eax` puts the local player in it, and
     # the two `__thiscall`s the displaced `Command` load dispatches to - `0x20` and `0x26` - are
     # reached with it untouched, six and thirteen bytes past the resume point. Their prologues
-    # (``mov esi, ecx`` / ``mov [ebp-8], ecx``) are anchored too, because "this argument is passed
+    # (`mov esi, ecx` / `mov [ebp-8], ecx`) are anchored too, because "this argument is passed
     # in `ecx`" is the fact that makes the liveness matter. A cave that clobbers `ecx` faults at
-    # ``0x006AD100`` on a null `this`; this one saves every register instead.
+    # `0x006AD100` on a null `this`; this one saves every register instead.
     0x00942762: bytes.fromhex("8bc8"),  # mov ecx, eax
     0x00942785: bytes.fromhex("e86ea9d6ff"),  # call 0x6ad0f8   (Command == 0x26)
     0x0094278C: bytes.fromhex("e848a9d6ff"),  # call 0x6ad0d9   (Command == 0x20)
@@ -263,7 +197,7 @@ _KEYWORD_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
 
 
 def validate_keyword(keyword: str) -> None:
-    """Raise unless ``keyword`` is a token the engine's INI reader could ever match."""
+    """Raise unless `keyword` is a token the engine's INI reader could ever match."""
     if not _KEYWORD_PATTERN.match(keyword):
         raise ValueError(
             "an INI keyword must be letters, digits and underscores starting with a letter "
@@ -271,17 +205,13 @@ def validate_keyword(keyword: str) -> None:
         )
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 @dataclass(frozen=True)
 class _Layout:
     """Where each piece of the cave sits, given its base address, the keyword and how many rows the
     live field table turned out to have.
 
-    Pure arithmetic on those three, so :meth:`CommandPointCostPatch.apply` and
-    :meth:`CommandPointCostPatch.verify` compute the same addresses from opposite directions."""
+    Pure arithmetic on those three, so `CommandPointCostPatch.apply` and
+    `CommandPointCostPatch.verify` compute the same addresses from opposite directions."""
 
     keyword_va: int
     table_va: int
@@ -289,7 +219,7 @@ class _Layout:
 
 
 #: The keyword string is the first thing in the cave, at a fixed offset - which is what lets
-#: :meth:`CommandPointCostPatch.detect` read it back out of a binary it knows nothing else about.
+#: `CommandPointCostPatch.detect` read it back out of a binary it knows nothing else about.
 _KEYWORD_OFFSET = 0
 
 
@@ -319,20 +249,20 @@ def build_table(entries: tuple[Entry, ...], keyword_va: int) -> bytes:
 def _assemble(code_va: int) -> Asm:
     a = Asm(code_va)
 
-    # --- the constructor's `RequireLevel` default, with the new field zeroed behind it ---
+    # The constructor's `RequireLevel` default, with the new field zeroed behind it
     a.label("ctor")
     a.emit(CTOR_HOOK_STOCK)  # mov dword [esi+0x108], ebx
     # `ebx` is zero here and `mov word [esi+0x10E], bx` would be shorter, but the field's default
     # is the one thing in this patch that nothing downstream can catch, so it is a literal.
-    a.emit(0x66, 0xC7, 0x86, _u32(COMMAND_POINT_COST_OFFSET), 0x00, 0x00)  # mov word [..], 0
+    a.emit(0x66, 0xC7, 0x86, u32(COMMAND_POINT_COST_OFFSET), 0x00, 0x00)  # mov word [..], 0
     a.jmp_absolute(CTOR_RESUME_VA)
 
-    # --- the availability evaluator, asked before it starts deciding ---
+    # The availability evaluator, asked before it starts deciding
     #
-    # ⚠ `ecx` is **live** across this window: it is the `Player *` from ``0x00942762``, and the two
-    # `__thiscall`s at ``0x00942785`` / ``0x0094278C`` are reached with it still in place, because
+    # ⚠ `ecx` is **live** across this window: it is the `Player *` from `0x00942762`, and the two
+    # `__thiscall`s at `0x00942785` / `0x0094278C` are reached with it still in place, because
     # the two instructions displaced here happen not to touch it. Clobbering it crashes at
-    # ``0x006AD100`` (`cmp [esi+0x710], 0` on a null `this`) for any button whose `Command` is
+    # `0x006AD100` (`cmp [esi+0x710], 0` on a null `this`) for any button whose `Command` is
     # `0x20` or `0x26`. So the routine saves **every** register rather than the ones it noticed:
     # `pushad`/`popad` cost one byte each, neither touches EFLAGS - which is what lets the verdict
     # be carried out of the guarded region in the flags - and being wrong about a live register is
@@ -340,7 +270,7 @@ def _assemble(code_va: int) -> Asm:
     a.label("gate")
     a.emit(0x8B, 0x7D, AVAILABILITY_BUTTON_EBP)  # mov edi, [ebp+8]        ; the CommandButton
     a.emit(0x60)  # pushad
-    a.emit(0x0F, 0xB7, 0x87, _u32(COMMAND_POINT_COST_OFFSET))  # movzx eax, word [edi+0x10E]
+    a.emit(0x0F, 0xB7, 0x87, u32(COMMAND_POINT_COST_OFFSET))  # movzx eax, word [edi+0x10E]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc_short(JE, "stock")  # no cost declared: nothing to say
     a.emit(0x8B, 0x55, AVAILABILITY_PLAYER_EBP & 0xFF)  # mov edx, [ebp-0x10]    ; the Player
@@ -378,35 +308,6 @@ def entry_points(code_va: int) -> dict[str, int]:
     return {name: a.label_va(name) for name in ROUTINES}
 
 
-def _hook(site_va: int, window: bytes, target_va: int) -> bytes:
-    """`jmp rel32` to ``target_va``, padded with `nop` to the width of ``window``."""
-    jump = b"\xe9" + struct.pack("<i", target_va - (site_va + 5))
-    if len(window) < len(jump):
-        raise ValueError(f"the window at {site_va:#010x} is too small for a jmp rel32")
-    return jump + b"\x90" * (len(window) - len(jump))
-
-
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA {va:#010x} is not mapped - not the expected build")
-    return off
-
-
-def _cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    """The NUL-terminated ASCII string at ``va``, or None if it is unmapped or not one."""
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data).find(b"\x00", off, off + limit)
-    if end < 0:
-        return None
-    try:
-        return data[off:end].decode("ascii")
-    except UnicodeDecodeError:
-        return None
-
-
 class CommandPointCostPatch(Patch):
     """Add a `CommandPointCost` `UnsignedShort` to `CommandButton`, so a button that summons units
     can be made unavailable while the player has fewer than that many command points free."""
@@ -428,7 +329,7 @@ class CommandPointCostPatch(Patch):
     def __str__(self) -> str:
         return f"{self.name} ({self.keyword})"
 
-    #: The five-byte jump each routine is reached by, as ``{hook va: (stock bytes, routine)}``.
+    #: The five-byte jump each routine is reached by, as `{hook va: (stock bytes, routine)}`.
     #: Both windows are six bytes, so both take a trailing `nop`.
     _HOOKS = {
         CTOR_HOOK_VA: (CTOR_HOOK_STOCK, "ctor"),
@@ -449,16 +350,16 @@ class CommandPointCostPatch(Patch):
         for hook_va, (stock, routine) in self._HOOKS.items():
             apply_byte_patch(
                 data,
-                _offset(data, hook_va),
+                file_offset(data, hook_va),
                 stock,
-                _hook(hook_va, stock, routines[routine]),
+                jmp_rel32(hook_va, routines[routine], len(stock)),
                 f"{hook_va:#010x} -> the {SECTION_NAME} {routine} routine",
             )
-        table_ref = _u32(pieces.table_va)
+        table_ref = u32(pieces.table_va)
         for ref_va, opcode in zip(
             COMMAND_BUTTON_FIELD_TABLE_REFS, COMMAND_BUTTON_FIELD_TABLE_REF_OPCODES, strict=True
         ):
-            off = _offset(data, ref_va)
+            off = file_offset(data, ref_va)
             apply_byte_patch(
                 data,
                 off,
@@ -493,7 +394,7 @@ class CommandPointCostPatch(Patch):
     @classmethod
     def _check_anchors(cls, data: bytes | bytearray) -> None:
         for va, expected in ANCHORS.items():
-            off = _offset(data, va)
+            off = file_offset(data, va)
             got = bytes(data[off : off + len(expected)])
             if got != expected:
                 raise ValueError(
@@ -508,7 +409,7 @@ class CommandPointCostPatch(Patch):
         A duplicate row would parse - the reader takes the first match and the engine would never
         complain - so the field would exist and silently do nothing."""
         entries = read_field_table(data, table_va)
-        by_name = {_cstring(data, name): offset for name, _fn, _ud, offset in entries}
+        by_name = {read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
         for field, want in FINGERPRINT.items():
             got = by_name.get(field)
             if got != want:
@@ -525,7 +426,7 @@ class CommandPointCostPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> CommandPointCostPatch | None:
-        """Recognise this patch **and recover its keyword** from ``data``.
+        """Recognise this patch **and recover its keyword** from `data`.
 
         The default probe would only ever recognise the default keyword. The keyword string is the
         first thing in the cave, so it reads straight back out; `verify` then checks the whole cave
@@ -533,7 +434,7 @@ class CommandPointCostPatch(Patch):
         located = find_section(data, SECTION_NAME)
         if located is None:
             return None
-        keyword = _cstring(data, located[0] + _KEYWORD_OFFSET)
+        keyword = read_cstring(data, located[0] + _KEYWORD_OFFSET)
         if keyword is None:
             return None
         try:
@@ -548,12 +449,12 @@ class CommandPointCostPatch(Patch):
         is what makes the field opt-in.
 
         Declared `Int` because that is what a mod writes: the engine's `UnsignedShort` parser
-        refuses anything outside ``0..65535``, and the hard command-point cap is 1500."""
+        refuses anything outside `0..65535`, and the hard command-point cap is 1500."""
         return Engine(fields=(FieldDelta("CommandButton", self.keyword, "Int", 0, self.name),))
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch for exactly this keyword. Reads only
-        via ``struct`` and the section table, so it needs no disassembler.
+        """Structural check that `data` carries this patch for exactly this keyword. Reads only
+        via `struct` and the section table, so it needs no disassembler.
 
         Every address is recovered from where the cave actually landed rather than from where it
         would land on a clean image, so a build carrying another patch's section too verifies the
@@ -588,19 +489,19 @@ class CommandPointCostPatch(Patch):
         code = build_code(pieces.code_va)
         if pieces.code_va + len(code) > section_va + vsize:
             return [f"{SECTION_NAME} holds {vsize} bytes, too few for the table and the code"]
-        got_keyword = _cstring(data, pieces.keyword_va)
+        got_keyword = read_cstring(data, pieces.keyword_va)
         if got_keyword != self.keyword:
             problems.append(
                 f"the keyword in {SECTION_NAME} is {got_keyword!r}, not {self.keyword!r}"
             )
         want_table = build_table(preceding, pieces.keyword_va)
-        table_off = _offset(data, pieces.table_va)
+        table_off = file_offset(data, pieces.table_va)
         if bytes(data[table_off : table_off + len(want_table)]) != want_table:
             problems.append(
                 f"the field table at {pieces.table_va:#010x} is not the live rows plus an "
                 f"UnsignedShort at CommandButton+{COMMAND_POINT_COST_OFFSET:#05x}"
             )
-        code_off = _offset(data, pieces.code_va)
+        code_off = file_offset(data, pieces.code_va)
         if bytes(data[code_off : code_off + len(code)]) != code:
             problems.append(f"the code at {pieces.code_va:#010x} is not what this patch builds")
         return problems
@@ -620,8 +521,8 @@ class CommandPointCostPatch(Patch):
         routines = entry_points(pieces.code_va)
         problems: list[str] = []
         for hook_va, (stock, routine) in self._HOOKS.items():
-            want = _hook(hook_va, stock, routines[routine])
-            off = _offset(data, hook_va)
+            want = jmp_rel32(hook_va, routines[routine], len(stock))
+            off = file_offset(data, hook_va)
             got = bytes(data[off : off + len(want)])
             if got != want:
                 problems.append(
@@ -635,7 +536,7 @@ class CommandPointCostPatch(Patch):
             0,
             COMMAND_POINT_COST_OFFSET,
         )
-        row = next((e for e in live if _cstring(data, e[0]) == self.keyword), None)
+        row = next((e for e in live if read_cstring(data, e[0]) == self.keyword), None)
         if row != want_row:
             problems.append(
                 f"the live CommandButton table's {self.keyword!r} row is "

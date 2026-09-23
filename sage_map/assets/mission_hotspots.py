@@ -13,9 +13,9 @@ class MissionHotSpot:
 
     @classmethod
     def parse(cls, context: "ParsingContext"):
-        id = context.stream.readUInt16PrefixedAsciiString()
-        title = context.stream.readUInt16PrefixedAsciiString()
-        description = context.stream.readUInt16PrefixedAsciiString()
+        id = context.stream.read_uint16_prefixed_ascii_string()
+        title = context.stream.read_uint16_prefixed_ascii_string()
+        description = context.stream.read_uint16_prefixed_ascii_string()
 
         return cls(
             id=id,
@@ -24,9 +24,9 @@ class MissionHotSpot:
         )
 
     def write(self, context: "WritingContext"):
-        context.stream.writeUInt16PrefixedAsciiString(self.id)
-        context.stream.writeUInt16PrefixedAsciiString(self.title)
-        context.stream.writeUInt16PrefixedAsciiString(self.description)
+        context.stream.write_uint16_prefixed_ascii_string(self.id)
+        context.stream.write_uint16_prefixed_ascii_string(self.title)
+        context.stream.write_uint16_prefixed_ascii_string(self.description)
 
 
 @dataclass
@@ -41,7 +41,7 @@ class MissionHotSpots:
     @classmethod
     def parse(cls, context: "ParsingContext"):
         with context.read_asset() as asset_ctx:
-            mission_hotspots_count = context.stream.readUInt32()
+            mission_hotspots_count = context.stream.read_uint32()
             mission_hotspots = []
             for _ in range(mission_hotspots_count):
                 mission_hotspots.append(MissionHotSpot.parse(context))
@@ -55,6 +55,6 @@ class MissionHotSpots:
 
     def write(self, context: "WritingContext"):
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.mission_hotspots))
+            context.stream.write_uint32(len(self.mission_hotspots))
             for hotspot in self.mission_hotspots:
                 hotspot.write(context)

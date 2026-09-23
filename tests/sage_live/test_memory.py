@@ -157,7 +157,9 @@ class FakeImage:
         return address
 
     def template(self, name: str, side: str) -> int:
-        address = self.alloc(0x100)
+        # 0x200 so the KindOf mask at +0x108 is inside the template: a smaller allocation reads
+        # the next template's bytes as this one's flags.
+        address = self.alloc(0x200)
         self.u32(address + LAY.tmpl_name, self.ascii(name))
         self.u32(address + LAY.tmpl_side, self.ascii(side))
         return address
@@ -312,10 +314,11 @@ class FakeImage:
         contained_by: int | None = None,
         producer: int | None = None,
     ) -> int:
-        # 0x400, not 0x300: the object's upgrade mask runs to +0x308 and the team pointer sits
-        # at +0x31C, so a smaller allocation would have one object's fields read as the next
-        # object's - and the reader would look correct while crossing a boundary.
-        address = self.alloc(0x400)
+        # 0x480: the object's upgrade mask runs to +0x308, the team pointer sits at +0x31C and
+        # the command-set overrides run to +0x443, so a smaller allocation would have one
+        # object's fields read as the next object's - and the reader would look correct while
+        # crossing a boundary.
+        address = self.alloc(0x480)
         self.u32(address + LAY.obj_template, template)
         self.f32(address + LAY.obj_pos_x, position[0])
         self.f32(address + LAY.obj_pos_y, position[1])
@@ -363,7 +366,8 @@ class FakeImage:
         seat's `PlayerTemplate` - as against the internal `name`/`side`, which several factions
         of one side share. They default to the internal pair rather than to nothing, since a
         seat that has one has both."""
-        address = self.alloc(0x400)
+        # 0x500: the match ledger runs to +0x4AB, past the fields every other test reads.
+        address = self.alloc(0x500)
         self.u32(address + LAY.player_name, self.ascii(name))
         self.u32(address + LAY.player_side, self.ascii(side))
         self.u32(address + LAY.player_display_name, self.utf16(display or name))
@@ -1238,3 +1242,323 @@ def test_an_id_the_table_walk_never_saw_reads_as_no_powers():
     reader = backend(img)
     reader.read_objects()
     assert reader.power_cooldowns(4242) == {}
+
+
+def _spectated_game(color: int = 0xFF3366CC) -> tuple[FakeImage, int]:
+    """One seat named in the lobby, coloured, and playing a faction whose side it shares."""
+    img = FakeImage()
+    seat = img.player("Player_1", "Men", 800, display="Ben", faction="Gondor")
+    img.u32(seat + LAY.player_color, color)
+    img.player_list([seat], 0)
+    img.game_logic(100, [])
+    return img, seat
+
+
+def test_a_seat_reads_its_lobby_name_faction_and_colour():
+    img, _ = _spectated_game()
+    (seat,) = backend(img).read_players()
+    assert (seat.name, seat.display_name) == ("Player_1", "Ben")
+    assert (seat.faction, seat.faction_name) == ("Men", "Gondor")
+    assert seat.color == 0x3366CC
+
+
+def test_a_colour_the_engine_was_never_given_is_none_not_black():
+    """The engine ORs in an opaque alpha only when the side dict names a colour, so a zeroed
+    field is "no colour" - reading it as 0x000000 would draw that seat in black."""
+    img, _ = _spectated_game(color=0)
+    (seat,) = backend(img).read_players()
+    assert seat.color is None
+
+
+def _hero_template(img: FakeImage, name: str, hero: bool) -> int:
+    template = img.template(name, "Men")
+    if hero:
+        img.write(template + LAY.tmpl_hero_byte, bytes([LAY.tmpl_hero_bit]))
+    return template
+
+
+def test_a_hero_carries_its_experience_and_a_soldier_does_not():
+    img = FakeImage()
+    hero = img.game_object(_hero_template(img, "GondorBoromir", True), (0.0, 0.0, 0.0))
+    tracker = img.alloc(0x40)
+    img.f32(tracker + LAY.xt_experience, 850.0)
+    img.write(tracker + LAY.xt_level, struct.pack("<i", 4))
+    img.u32(hero + LAY.obj_experience_tracker, tracker)
+    soldier = img.game_object(_hero_template(img, "GondorFighter", False), (0.0, 0.0, 0.0))
+    img.game_logic(100, [img.entry(1, hero), img.entry(2, soldier)])
+
+    objects = {o.object_id: o for o in backend(img).read_objects()}
+    assert objects[1].is_hero
+    assert (objects[1].experience, objects[1].experience_level) == (850.0, 4)
+    assert not objects[2].is_hero
+    assert (objects[2].experience, objects[2].experience_level) == (None, None)
+
+
+def test_a_spellbook_power_names_the_sciences_it_requires():
+    img = FakeImage()
+    book_t = img.template("GondorSpellBook", "Men")
+    img.write(book_t + LAY.tmpl_spellbook_byte, bytes([LAY.tmpl_spellbook_bit]))
+    book = img.game_object(book_t, (0.0, 0.0, 0.0))
+    heal = _spell_module(img, "SpellBookHeal", 4200)
+    data = img.read(heal + LAY.module_data, 4)
+    assert data is not None
+    template = img.read(struct.unpack("<I", data)[0] + LAY.module_data_template, 4)
+    assert template is not None
+    sciences = img.alloc(8)
+    img.write(sciences, struct.pack("<ii", 17, 23))
+    required = struct.unpack("<I", template)[0] + LAY.power_required_sciences
+    img.u32(required, sciences)
+    img.u32(required + 4, sciences + 8)
+    img.modules(book, [heal, _spell_module(img, "HeroAbility", 0)])
+    img.game_logic(100, [img.entry(900, book)])
+
+    reader = backend(img)
+    (obj,) = reader.read_objects()
+    assert obj.is_spellbook
+    powers = {p.name: p for p in reader.special_powers(900)}
+    assert powers["SpellBookHeal"].required_sciences == frozenset({17, 23})
+    assert powers["SpellBookHeal"].ready_frame == 4200
+    assert powers["HeroAbility"].required_sciences == frozenset()
+
+
+def _string_table(img: FakeImage, rows: list[tuple[str, str]]) -> None:
+    entries = img.alloc(len(rows) * LAY.gt_entry_stride)
+    for index, (label, text) in enumerate(rows):
+        record = img.alloc(0x10)
+        img.u32(record + LAY.gt_record_label, img.ascii(label))
+        img.u32(record + LAY.gt_record_text, img.utf16(text))
+        img.u32(entries + index * LAY.gt_entry_stride + LAY.gt_entry_record, record)
+    table = img.alloc(0x10)
+    img.u32(table + LAY.gt_count, len(rows))
+    img.u32(table + LAY.gt_entries, entries)
+    manager = img.alloc(0x40)
+    img.u32(manager + LAY.gt_tables[0], table)
+    img.u32(LAY.the_game_text, manager)
+
+
+def test_a_label_resolves_through_the_games_own_string_table():
+    img, _ = _spectated_game()
+    _string_table(img, [("CONTROLBAR:ForgedBlades", "Forged Blades"), ("OBJECT:Farm", "Farm")])
+    reader = backend(img)
+    assert reader.game_text("controlbar:forgedblades") == "Forged Blades"
+    assert reader.game_text("CONTROLBAR:Missing") == ""
+
+
+def test_a_thing_is_named_by_the_text_the_engine_resolved_for_it():
+    img = FakeImage()
+    template = img.template("GondorFighter", "Men")
+    img.u32(template + LAY.tmpl_display_name, img.utf16("Soldiers of Gondor"))
+    img.game_logic(100, [img.entry(1, img.game_object(template, (0.0, 0.0, 0.0)))])
+    reader = backend(img)
+    # The registry walk is what `thing_display_name` resolves a code name through; the fake has
+    # no `TheThingFactory`, so hand it the one template this test is about.
+    reader._thing_at[template] = "GondorFighter"
+    reader._things = ("GondorFighter",)
+    assert reader.thing_display_name("gondorfighter") == "Soldiers of Gondor"
+    assert reader.thing_display_name("NoSuchThing") == ""
+
+
+def test_a_science_is_named_only_by_the_entry_that_states_its_id():
+    """Filed under the id each entry states, never its position: the second entry claims id 1,
+    so position 2 has no name of its own and an off-by-one reading would have given it one."""
+    img, _ = _spectated_game()
+    entries = []
+    for own_id, text in ((2, "Heal"), (1, "Rebuild"), (99, "Out of range")):
+        entry = img.alloc(0x40)
+        img.write(entry + LAY.science_id, struct.pack("<i", own_id))
+        img.u32(entry + LAY.science_display_name, img.ascii(text))
+        entries.append(entry)
+    vector = img.alloc(len(entries) * 4)
+    for index, entry in enumerate(entries):
+        img.u32(vector + index * 4, entry)
+    store = img.alloc(0x20)
+    img.u32(store + LAY.sc_vector, vector)
+    img.u32(store + LAY.sc_vector + 4, vector + len(entries) * 4)
+    img.u32(LAY.the_science_store, store)
+
+    reader = backend(img)
+    assert reader.science_display_name(1) == "Rebuild"
+    assert reader.science_display_name(2) == "Heal"
+    assert reader.science_display_name(3) == ""
+    assert reader.science_display_name(99) == "", "an id past the store is a bad read"
+
+
+def _side(img: FakeImage, pairs: list[tuple[int, str]]) -> int:
+    """A side's `Dict` data: u16 pair count at +4, then 8-byte `{key << 8 | type, value}` pairs
+    from +6 - the layout `Dict`'s own lookup reads."""
+    data = img.alloc(0x100)
+    img.write(data + LAY.dict_count, struct.pack("<H", len(pairs)))
+    for index, (key, value) in enumerate(sorted(pairs)):
+        pair = data + LAY.dict_pairs + index * LAY.dict_pair_stride
+        img.write(pair, struct.pack("<I", key << 8 | LAY.dict_type_ascii))
+        img.u32(pair + LAY.dict_pair_value, img.ascii(value))
+    return data
+
+
+def test_allies_come_from_the_sides_the_match_was_set_up_from():
+    """Two against one: seats 0 and 1 name each other in `playerAllies`, seat 2 names nobody."""
+    img = FakeImage()
+    seats = [img.player(f"Player_{n}", "Men", 0) for n in (1, 2, 3)]
+    img.player_list(seats, 0)
+    img.game_logic(100, [])
+    name_key, allies_key = 0x1234, 0x2345
+    img.u32(LAY.key_player_name, name_key)
+    img.u32(LAY.key_player_allies, allies_key)
+    sides = img.alloc(LAY.sl_sides + 3 * LAY.sl_side_stride)
+    img.u32(sides + LAY.sl_count, 3)
+    rows = [("Player_1", "Player_2"), ("Player_2", "Player_1"), ("Player_3", "")]
+    for index, (name, allies) in enumerate(rows):
+        dict_data = _side(img, [(name_key, name), (allies_key, allies)])
+        img.u32(sides + LAY.sl_sides + index * LAY.sl_side_stride + LAY.side_dict, dict_data)
+    img.u32(LAY.the_sides_list, sides)
+
+    allies = {p.name: p.allies for p in backend(img).read_players()}
+    assert allies == {
+        "Player_1": frozenset({1}),
+        "Player_2": frozenset({0}),
+        "Player_3": frozenset(),
+    }
+
+
+def test_an_unreadable_sides_list_means_no_allies_rather_than_a_guess():
+    img, _ = _spectated_game()
+    (seat,) = backend(img).read_players()
+    assert seat.allies == frozenset()
+
+
+def _button(img: FakeImage, power_template: int, labels: list[str], override: str = "") -> int:
+    button = img.alloc(0x200)
+    img.u32(button + LAY.button_special_power, power_template)
+    if override:
+        img.u32(button + LAY.button_label_override, img.ascii(override))
+    vector = img.alloc(max(1, len(labels)) * 4)
+    for index, label in enumerate(labels):
+        img.u32(vector + index * 4, img.ascii(label))
+    img.u32(button + LAY.button_labels, vector)
+    img.u32(button + LAY.button_labels + 4, vector + len(labels) * 4)
+    return button
+
+
+def _power_template(img: FakeImage, name: str) -> int:
+    template = img.alloc(0x40)
+    img.u32(template + LAY.power_name, img.ascii(name))
+    return template
+
+
+def test_a_spellbook_names_its_powers_by_the_buttons_it_offers():
+    """A power has no display name; the button that fires it does, through the string table.
+    The command set is found by the name the object reports, in the control bar's hash map."""
+    img = FakeImage()
+    book_t = img.template("GondorSpellBook", "Men")
+    img.u32(book_t + LAY.tmpl_command_set, img.ascii("GondorSpellBookCommandSet"))
+    book = img.game_object(book_t, (0.0, 0.0, 0.0))
+    img.game_logic(100, [img.entry(900, book)])
+    _string_table(img, [("CONTROLBAR:Heal", "&Heal"), ("CONTROLBAR:Eagles", "Summon Eagles")])
+
+    heal = _power_template(img, "SpellBookHeal")
+    eagles = _power_template(img, "SpellBookEagles")
+    hidden = _power_template(img, "SpellBookGeneralView")
+    command_set = img.alloc(0x100)
+    buttons = [
+        _button(img, heal, ["CONTROLBAR:Heal"]),
+        _button(img, eagles, ["CONTROLBAR:Unused"], override="CONTROLBAR:Eagles"),
+        0,
+    ]
+    for slot, button in enumerate(buttons):
+        img.u32(command_set + LAY.cs_buttons + slot * 4, button)
+
+    # The control bar's hash map: two buckets, the second holding a two-node chain.
+    other = img.alloc(0x10)
+    img.u32(other + LAY.hash_node_key, img.ascii("SomeOtherCommandSet"))
+    img.u32(other + LAY.hash_node_value, img.alloc(0x100))
+    node = img.alloc(0x10)
+    img.u32(node + LAY.hash_node_next, other)
+    img.u32(node + LAY.hash_node_key, img.ascii("GondorSpellBookCommandSet"))
+    img.u32(node + LAY.hash_node_value, command_set)
+    bucket_vector = img.alloc(8)
+    img.u32(bucket_vector + 4, node)
+    bar = img.alloc(0x100)
+    img.u32(bar + LAY.cb_command_sets + LAY.hash_buckets, bucket_vector)
+    img.u32(bar + LAY.cb_command_sets + LAY.hash_buckets + 4, bucket_vector + 8)
+    img.u32(LAY.the_control_bar, bar)
+
+    reader = backend(img)
+    reader.read_objects()
+    names = reader.power_button_names(900)
+    assert names == {"SpellBookHeal": "Heal", "SpellBookEagles": "Summon Eagles"}
+    assert "SpellBookGeneralView" not in names, "a power with no button is not offered"
+    assert hidden
+
+
+def test_an_object_override_outranks_the_templates_command_set():
+    img = FakeImage()
+    template = img.template("GondorSpellBook", "Men")
+    img.u32(template + LAY.tmpl_command_set, img.ascii("Stock"))
+    obj = img.game_object(template, (0.0, 0.0, 0.0))
+    img.u32(obj + LAY.obj_command_set_overrides[2], img.ascii("Upgraded"))
+    img.game_logic(100, [img.entry(1, obj)])
+    reader = backend(img)
+    reader.read_objects()
+    assert reader._command_set_name(reader._object_at[1]) == "Upgraded"
+
+
+def test_no_control_bar_means_no_button_names_rather_than_a_guess():
+    img = _spellbook(FakeImage(), [("SpellBookHeal", 0)])
+    reader = backend(img)
+    reader.read_objects()
+    assert reader.power_button_names(900) == {}
+
+
+def test_the_match_ledger_reads_off_the_player():
+    img, seat = _spectated_game()
+    for field, value in (
+        ("spent_on_units", 4200),
+        ("spent_on_structures", 1800),
+        ("spent_on_heroes", 1500),
+        ("units_created", 12),
+        ("units_lost", 5),
+        ("structures_created", 7),
+        ("structures_lost", 1),
+    ):
+        img.write(seat + getattr(LAY, f"player_{field}"), struct.pack("<i", value))
+    (player,) = backend(img).read_players()
+    assert (player.spent_on_units, player.spent_on_structures, player.spent_on_heroes) == (
+        4200,
+        1800,
+        1500,
+    )
+    assert (player.units_created, player.units_lost) == (12, 5)
+    assert (player.structures_created, player.structures_lost) == (7, 1)
+
+
+def test_an_object_carries_its_templates_cost_and_structure_flag():
+    img = FakeImage()
+    barracks_t = img.template("GondorBarracks", "Men")
+    img.write(barracks_t + LAY.tmpl_structure_byte, bytes([LAY.tmpl_structure_bit]))
+    img.write(barracks_t + LAY.tmpl_build_cost, struct.pack("<H", 400))
+    horde_t = img.template("GondorFighterHorde", "Men")
+    img.write(horde_t + LAY.tmpl_build_cost, struct.pack("<H", 300))
+    barracks = img.game_object(barracks_t, (0.0, 0.0, 0.0))
+    horde = img.game_object(horde_t, (0.0, 0.0, 0.0))
+    img.game_logic(100, [img.entry(1, barracks), img.entry(2, horde)])
+    objects = {o.object_id: o for o in backend(img).read_objects()}
+    assert (objects[1].is_structure, objects[1].build_cost) == (True, 400)
+    assert (objects[2].is_structure, objects[2].build_cost) == (False, 300)
+
+
+def test_a_builder_copy_of_a_worker_is_not_selectable():
+    """Edain's construction builders are `...NoSelect` children of the faction worker: the same
+    `BuildCost`, with `SELECTABLE` dropped - which is the only thing that says it was never
+    bought."""
+    img = FakeImage()
+    worker_t = img.template("AngmarWorker", "Angmar")
+    img.write(worker_t + LAY.tmpl_selectable_byte, bytes([LAY.tmpl_selectable_bit]))
+    builder_t = img.template("AngmarWorkerNoSelect", "Angmar")
+    for template in (worker_t, builder_t):
+        img.write(template + LAY.tmpl_build_cost, struct.pack("<H", 50))
+    worker = img.game_object(worker_t, (0.0, 0.0, 0.0))
+    builder = img.game_object(builder_t, (0.0, 0.0, 0.0))
+    img.game_logic(100, [img.entry(1, worker), img.entry(2, builder)])
+    objects = {o.object_id: o for o in backend(img).read_objects()}
+    assert objects[1].is_selectable and not objects[2].is_selectable
+    assert objects[1].build_cost == objects[2].build_cost == 50

@@ -69,6 +69,7 @@ from sage_live.api.observation import (
     Observation,
     PlayerState,
     ProductionItem,
+    SpecialPowerState,
     Vec3,
     distance,
 )
@@ -160,6 +161,7 @@ __all__ = [
     "PlayerState",
     "ProcessMemory",
     "ProductionItem",
+    "SpecialPowerState",
     "RecordingSource",
     "ReviveLookup",
     "ReviveSlot",

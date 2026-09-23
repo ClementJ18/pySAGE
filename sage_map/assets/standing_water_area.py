@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self
 
+__all__ = [
+    "StandingWaterArea",
+    "StandingWaterAreas",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -23,22 +28,22 @@ class StandingWaterArea:
 
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
-        unique_id = context.stream.readUInt32()
-        name = context.stream.readUInt16PrefixedAsciiString()
-        layer_name = context.stream.readUInt16PrefixedAsciiString()
-        uv_scroll_speed = context.stream.readFloat()
-        use_adaptive_blending = context.stream.readBool()
-        bump_map_texture = context.stream.readUInt16PrefixedAsciiString()
-        sky_texture = context.stream.readUInt16PrefixedAsciiString()
+        unique_id = context.stream.read_uint32()
+        name = context.stream.read_uint16_prefixed_ascii_string()
+        layer_name = context.stream.read_uint16_prefixed_ascii_string()
+        uv_scroll_speed = context.stream.read_float()
+        use_adaptive_blending = context.stream.read_bool()
+        bump_map_texture = context.stream.read_uint16_prefixed_ascii_string()
+        sky_texture = context.stream.read_uint16_prefixed_ascii_string()
 
-        point_count = context.stream.readUInt32()
+        point_count = context.stream.read_uint32()
         points = []
         for _ in range(point_count):
-            points.append(context.stream.readVector2())
+            points.append(context.stream.read_vector2())
 
-        water_height = context.stream.readUInt32()
-        fx_shader = context.stream.readUInt16PrefixedAsciiString()
-        depth_color = context.stream.readUInt16PrefixedAsciiString()
+        water_height = context.stream.read_uint32()
+        fx_shader = context.stream.read_uint16_prefixed_ascii_string()
+        depth_color = context.stream.read_uint16_prefixed_ascii_string()
 
         return cls(
             unique_id=unique_id,
@@ -55,21 +60,21 @@ class StandingWaterArea:
         )
 
     def write(self, context: "WritingContext") -> None:
-        context.stream.writeUInt32(self.unique_id)
-        context.stream.writeUInt16PrefixedAsciiString(self.name)
-        context.stream.writeUInt16PrefixedAsciiString(self.layer_name)
-        context.stream.writeFloat(self.uv_scroll_speed)
-        context.stream.writeBool(self.use_adaptive_blending)
-        context.stream.writeUInt16PrefixedAsciiString(self.bump_map_texture)
-        context.stream.writeUInt16PrefixedAsciiString(self.sky_texture)
+        context.stream.write_uint32(self.unique_id)
+        context.stream.write_uint16_prefixed_ascii_string(self.name)
+        context.stream.write_uint16_prefixed_ascii_string(self.layer_name)
+        context.stream.write_float(self.uv_scroll_speed)
+        context.stream.write_bool(self.use_adaptive_blending)
+        context.stream.write_uint16_prefixed_ascii_string(self.bump_map_texture)
+        context.stream.write_uint16_prefixed_ascii_string(self.sky_texture)
 
-        context.stream.writeUInt32(len(self.points))
+        context.stream.write_uint32(len(self.points))
         for point in self.points:
-            context.stream.writeVector2(point)
+            context.stream.write_vector2(point)
 
-        context.stream.writeUInt32(self.water_height)
-        context.stream.writeUInt16PrefixedAsciiString(self.fx_shader)
-        context.stream.writeUInt16PrefixedAsciiString(self.depth_color)
+        context.stream.write_uint32(self.water_height)
+        context.stream.write_uint16_prefixed_ascii_string(self.fx_shader)
+        context.stream.write_uint16_prefixed_ascii_string(self.depth_color)
 
 
 @dataclass
@@ -84,7 +89,7 @@ class StandingWaterAreas:
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
-            area_count = context.stream.readUInt32()
+            area_count = context.stream.read_uint32()
             areas = []
 
             for _ in range(area_count):
@@ -100,6 +105,6 @@ class StandingWaterAreas:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.areas))
+            context.stream.write_uint32(len(self.areas))
             for area in self.areas:
                 area.write(context)

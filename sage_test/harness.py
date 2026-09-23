@@ -1,6 +1,6 @@
 """The running half: bind what a scenario declared to what the engine created, and assert on it.
 
-A :class:`~sage_test.scenario.Handle` names an object that did not exist when the test was
+A `Handle` names an object that did not exist when the test was
 written. Once the match is up, every declared object *does* exist - at the position the scenario
 put it, carrying the template it named - so binding is a lookup rather than a guess: the live
 object of that template nearest that position, within a tolerance tight enough that two

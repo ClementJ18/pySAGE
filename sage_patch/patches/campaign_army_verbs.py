@@ -1,104 +1,12 @@
-"""`MergePlayerArmy`, `DespawnArmy` and `ForceBattle`: the BFME1 campaign Act verbs ROTWK dropped or
-compiled out, re-implemented, and `SpawnArmy`'s `ExactPosition`.
+"""Restore the BFME1 campaign `Act` verbs ROTWK dropped: `MergePlayerArmy`, `DespawnArmy` and a
+working `ForceBattle`, plus `SpawnArmy`'s `ExactPosition`.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. The army verbs are derived in
-``../docs/living-campaign/merge-player-army.md``; `ForceBattle` and `ExactPosition` in
-``../docs/living-campaign/force-battle.md``.
+ROTWK's Act verb table lacks the two army verbs, and it parses `ForceBattle` but calls an empty
+function. The patch extends the Act parser to record the new verbs in the cave and runs them as an
+extra pass of the act runner. Untested in game.
 
-**What BFME1 had.** A campaign `Act` could split a named group of units out of one army into
-another (`MergePlayerArmy` with `SplitArmy = Yes` - the Fellowship breaking apart), pour one army
-wholesale into another (`SplitArmy = No`), remove an army from the world map
-(`DespawnArmy = <name>`), and start a battle (`ForceBattle`). ROTWK's Act verb table has neither
-army verb, which is why Edain's `wotrscenarioangmar.inc` carries both of them written out correctly
-and commented out with ``; Doesn't work ;( - Necro``. It still parses `ForceBattle`, but the battle
-half calls a bare `ret 0xC`.
-
-**What this adds**::
-
-    Act SomeAct
-        MergePlayerArmy
-            SourceArmy        = Zaphragor_Army        ; a SpawnArmy ScriptingName
-            DestArmy          = WitchKing_Army        ; a SpawnArmy ScriptingName
-            SplitArmyTemplate = ZaphragorSplitArmy    ; a LivingWorldPlayerArmy, the manifest
-            SplitArmy         = Yes                   ; omit to merge the whole army instead
-            DespawnSource     = Yes                   ; optional; see below
-        End
-        DespawnArmy = Zaphragor_Army
-        ForceBattle
-            Region  = Isengard                        ; or Position = X:203 Y:603
-            UseArmy = Saruman_Army                    ; optional, a SpawnArmy ScriptingName
-        End
-        SpawnArmy
-            ScriptingName = Lurtz_Army
-            Position      = X:355 Y:266
-            ExactPosition = Yes                       ; stand exactly there
-        End
-    End
-
-`SplitArmyTemplate` names a `LivingWorldPlayerArmy` used purely as a **list of names**: every
-roster entry of the source army whose `ThingTemplate` appears in that manifest is moved to the
-destination. With `SplitArmy = No` the manifest is ignored and the whole roster moves.
-
-**Armies are named by `ScriptingName`, not by `PlayerArmy` - a deliberate divergence from BFME1.**
-BFME1 named `LivingWorldPlayerArmy` *templates* in all three fields, because in BFME1 a template is
-the only strategic state there is: every battle re-instantiates an army from its roster and nothing
-writes back. ROTWK inverted that - an army's roster is its own object at ``army+0x78``, seeded from
-the template once and then rewritten after every battle by the harvest at
-:data:`~sage_patch.addresses.LIVING_WORLD_BATTLE_HARVEST` - so mutating a template here would change
-only armies spawned *later* and do nothing to the army standing on the map. A mod porting BFME1
-campaign INI verbatim therefore has to change these two fields; `SplitArmyTemplate` stays a
-template, because it is a manifest rather than a target.
-
-**`DespawnSource` is not a BFME1 field.** BFME1's `absorbInto` left the source army populated and
-relied on the next line's `DespawnArmy` to clear it up. Here the unsplit merge **empties** the
-source, because leaving a duplicate roster behind in ROTWK means those units exist twice and both
-copies deploy. `DespawnSource = Yes` additionally removes the now-empty source army from the map,
-so a single block does what BFME1 needed two lines for; it fires only when the source roster ends
-up empty, so it is safe to leave on a split that does not exhaust the army.
-
-**`ForceBattle` builds the battle the engine's own conflict pass would.** The two calls into the
-stub are repointed at the cave, which queues the request; the queue runs after the stock passes, so
-an army spawned or moved by the same act is already there. A queued battle resolves its region -
-by name, or as the region containing `Position` - and its point on the map, moves `UseArmy` there
-if it stands elsewhere, then takes every army in the region (by the engine's own membership rule),
-seats one side per owner, adds the region's owner as defender when
-:data:`~sage_patch.addresses.REGION_DEFENDS_AGAINST` says the engine would, and hands the lot to
-:data:`~sage_patch.addresses.REGION_STORE_CREATE_BATTLE`. The battle waits in the store like any
-other and is offered when the turn reaches its battle phase. Nothing happens when fewer than two
-players would fight, when the region already has a battle, or when a named `UseArmy` does not
-exist. `ArmyAttackDirection` parses and is ignored: a `LivingWorldBattle` has nowhere to keep it.
-
-**`ExactPosition = Yes` keeps a `SpawnArmy` where its `Position` says.** Stock, an army with a
-`HeroTemplateName` whose `Position` lies inside a region is snapped to one of that region's
-hero-army slots, and one without a hero is merged into the army its player already has there. Only
-the first can be kept in place: a merged record's army no longer exists, so the cave moves the army
-it gets back only when that army carries the record's `ScriptingName`. The Act's
-`SpawnArmy` parser is handed a copy of its field table with the extra row, and its
-`INI::parseFields` call is wrapped so a block that set the flag files its `ScriptingName` in the
-cave. When pass three spawns an army at a position, the cave looks the name up and, on a match,
-moves the army to the record's `Position` after the engine has placed it. Opt-in because every one
-of Edain's 25 `SpawnArmy` positions relies on the snapping today. Honoured only in an Act's
-`SpawnArmy`; the army still reserves the slot it was first placed in.
-
-**Where the records live.** The `Act` struct is `0xB8` bytes with three spare
-(:data:`~sage_patch.addresses.ACT_SIZE`), so a new verb cannot add a per-act list without rewriting
-the constructor, the copy-constructor, the destructor and the campaign's act-vector stride. The
-parsed records live in this patch's own cave instead, keyed by the act's **name** - which is
-already the engine's key for an act, since `CallActSubroutine` resolves acts that way. Names are
-copied out as characters at parse time, so the cave owns no `AsciiString` and no destructor;
-:data:`RECORD_CAPACITY` records fit, and a name longer than 63 characters drops its record rather
-than being truncated into something that would match the wrong act.
-
-**When they run.** As an eleventh pass of the act runner, after the ten the engine makes. That
-ordering is required rather than incidental: BFME1's own usage spawns the destination army in the
-same act and then splits into it, and within an act the engine orders by pass, not by INI line.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. None of the seven engine sites it edits is touched by another
-bundled patch, and neither stock table it copies is rewritten by one.
-
-**Untested in game.** Every address is read out of the disassembly and the tests are written from
-the same reading, so nothing here is confirmed by a scenario having actually been played with it.
+Derivation: `../docs/living-campaign/merge-player-army.md` (the army verbs) and
+`../docs/living-campaign/force-battle.md` (`ForceBattle`, `ExactPosition`).
 """
 
 from __future__ import annotations
@@ -178,7 +86,7 @@ from ..addresses import (
 )
 from ..asm import JAE, JB, JE, JGE, JLE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, i8, u32, va_to_offset
 
 # Where an `AsciiString`'s characters start, kept where the other string-reading patches keep it.
 from .utils.token_lists import ASCII_STRING_CHARS
@@ -327,14 +235,6 @@ SITES: tuple[tuple[int, bytes, str, str], ...] = (
 _DATA_LABELS = ("verb_table", "spawn_field_table")
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _i8(value: int) -> bytes:
-    return struct.pack("<b", value)
-
-
 def cave_layout() -> dict[str, int]:
     """Offsets from the cave's base for everything in it.
 
@@ -385,6 +285,12 @@ def cave_layout() -> dict[str, int]:
     return layout
 
 
+def _record_base(a: Asm, records_va: int) -> None:
+    """`eax = records + eax * RECORD_SIZE` - where the next free record starts."""
+    a.emit(b"\x69\xc0", u32(RECORD_SIZE))  # imul eax, eax, RECORD_SIZE
+    a.emit(0x05, u32(records_va))  # add eax, records
+
+
 def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     """The cave's routines, laid out but not resolved. `data_va` is the cave's base, which is what
     the absolute addresses of the record table and the field table are computed from."""
@@ -403,11 +309,30 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     players_vector_va = data_va + layout["players_vector"]
     battle_point_va = data_va + layout["battle_point"]
 
-    def _record_base() -> None:
-        """`eax = records + eax * RECORD_SIZE` - where the next free record starts."""
-        a.emit(b"\x69\xc0", _u32(RECORD_SIZE))  # imul eax, eax, RECORD_SIZE
-        a.emit(0x05, _u32(records_va))  # add eax, records
+    _emit_str_copy(a)
+    _emit_str_eq(a)
+    _emit_find_army(a)
+    _emit_find_manifest(a)
+    _emit_merge_parse(a, count_va, field_table_va, records_va)
+    _emit_despawn_parse(a, count_va, records_va)
+    _emit_pass_hook(a)
+    _emit_run_pass(a, count_va, records_va)
+    _emit_run_despawn(a)
+    _emit_run_merge(a)
+    _emit_move_record(a)
+    _emit_roster_count(a)
+    _emit_exact_parse(a, exact_pending_va)
+    _emit_spawn_parse_fields(a, exact_count_va, exact_names_va, exact_pending_va)
+    _emit_spawn_at_position(a, exact_count_va, exact_names_va)
+    _emit_battle_by_region(a, battle_count_va, battles_va)
+    _emit_run_battles(a, battle_count_va, battles_va)
+    _emit_force_battle(
+        a, armies_va, armies_vector_va, battle_point_va, players_va, players_vector_va
+    )
+    return a
 
+
+def _emit_str_copy(a: Asm) -> None:
     # `str_copy`: eax = an AsciiString handle, edi = a NAME_CAPACITY-byte field. al = 1 when the
     # name fitted. A null handle copies as the empty string, which no army is named.
     a.label("str_copy")
@@ -428,7 +353,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x84\xdb")  # test bl, bl
     a.jcc_short(JE, "sc_ok")
     a.emit(0x41)  # inc ecx
-    a.emit(b"\x83\xf9", _i8(NAME_CAPACITY))  # cmp ecx, NAME_CAPACITY
+    a.emit(b"\x83\xf9", i8(NAME_CAPACITY))  # cmp ecx, NAME_CAPACITY
     a.jcc_short(JB, "sc_loop")
     a.emit(b"\xc6\x07\x00")  # mov byte [edi], 0   ; too long: refuse the record
     a.emit(0x5B)  # pop ebx
@@ -440,6 +365,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\xb0\x01")  # mov al, 1
     a.emit(0xC3)  # ret
 
+
+def _emit_str_eq(a: Asm) -> None:
     # `str_eq`: edi and esi are NUL-terminated; al = 1 when they are equal. Both sides of the act
     # comparison are copies of the same INI token, so this is a plain byte compare on purpose.
     a.label("str_eq")
@@ -459,6 +386,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x32\xc0")  # xor al, al
     a.emit(0xC3)  # ret
 
+
+def _emit_find_army(a: Asm) -> None:
     # `find_army`: eax = characters, returns the living-world army of that ScriptingName or 0.
     # The lookup goes through the engine's own matcher, so the patch inherits whatever the engine
     # considers an equal name rather than re-deciding it.
@@ -472,7 +401,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x8d\x4d\xfc")  # lea ecx, [ebp-4]
     a.call_absolute(ASCII_STRING_CTOR)  # ret 4; zeroes the slot itself
     a.emit(b"\x33\xf6")  # xor esi, esi
-    a.emit(b"\x8b\x0d", _u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
+    a.emit(b"\x8b\x0d", u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
     a.emit(b"\x85\xc9")  # test ecx, ecx
     a.jcc_short(JE, "fa_dtor")
     a.emit(b"\x8d\x45\xfc")  # lea eax, [ebp-4]
@@ -487,6 +416,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_find_manifest(a: Asm) -> None:
     # `find_manifest`: eax = characters, returns the LivingWorldPlayerArmy of that Name or 0.
     a.label("find_manifest")
     a.emit(0x55)  # push ebp
@@ -498,7 +429,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x8d\x4d\xfc")  # lea ecx, [ebp-4]
     a.call_absolute(ASCII_STRING_CTOR)
     a.emit(b"\x33\xf6")  # xor esi, esi
-    a.emit(b"\x8b\x0d", _u32(THE_LIVING_WORLD_CAMPAIGN_MANAGER))  # mov ecx, [manager]
+    a.emit(b"\x8b\x0d", u32(THE_LIVING_WORLD_CAMPAIGN_MANAGER))  # mov ecx, [manager]
     a.emit(b"\x85\xc9")  # test ecx, ecx
     a.jcc_short(JE, "fm_dtor")
     a.emit(b"\x8d\x45\xfc")  # lea eax, [ebp-4]
@@ -513,70 +444,74 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_merge_parse(a: Asm, count_va: int, field_table_va: int, records_va: int) -> None:
     # `merge_parse`: __cdecl(ini, act, store, userData), the row's parse function. Modelled on
     # `SetPlayerControlOfArmy`'s own parser - build a scratch record, hand it and the field table
     # to `INI::parseFields`, then take what the block said.
     a.label("merge_parse")
     a.emit(0x55)  # push ebp
     a.emit(b"\x8b\xec")  # mov ebp, esp
-    a.emit(b"\x83\xec", _i8(_SCRATCH_SIZE))  # sub esp, 0x10
+    a.emit(b"\x83\xec", i8(_SCRATCH_SIZE))  # sub esp, 0x10
     a.emit(0x53, 0x56, 0x57)  # push ebx, esi, edi
     a.emit(b"\x33\xc0")  # xor eax, eax
     for slot in (-0x10, -0x0C, -0x08, -0x04):
-        a.emit(b"\x89\x45", _i8(slot))  # mov [ebp+slot], eax
-    a.emit(0x68, _u32(field_table_va))  # push field_table
+        a.emit(b"\x89\x45", i8(slot))  # mov [ebp+slot], eax
+    a.emit(0x68, u32(field_table_va))  # push field_table
     a.emit(b"\x8d\x45\xf0")  # lea eax, [ebp-0x10]
     a.emit(0x50)  # push eax
     a.emit(b"\x8b\x4d\x08")  # mov ecx, [ebp+8]        ; the INI reader
     a.call_absolute(INI_PARSE_FIELDS)  # ret 8
 
-    a.emit(b"\xa1", _u32(count_va))  # mov eax, [count]
-    a.emit(b"\x83\xf8", _i8(RECORD_CAPACITY))  # cmp eax, RECORD_CAPACITY
+    a.emit(b"\xa1", u32(count_va))  # mov eax, [count]
+    a.emit(b"\x83\xf8", i8(RECORD_CAPACITY))  # cmp eax, RECORD_CAPACITY
     a.jcc(JAE, "mp_done")
-    _record_base()
+    _record_base(a, records_va)
     a.emit(b"\x8b\xd8")  # mov ebx, eax             ; the record being filled
     a.emit(b"\x8b\x45\x0c")  # mov eax, [ebp+0xc]      ; the act
-    a.emit(b"\x8b\x40", _i8(ACT_NAME_OFFSET))  # mov eax, [eax+4]
+    a.emit(b"\x8b\x40", i8(ACT_NAME_OFFSET))  # mov eax, [eax+4]
     a.emit(b"\x8b\xfb")  # mov edi, ebx
     a.call("str_copy")
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "mp_done")
     for slot, field in ((-0x10, _REC_SOURCE), (-0x0C, _REC_DEST), (-0x08, _REC_TEMPLATE)):
-        a.emit(b"\x8b\x45", _i8(slot))  # mov eax, [ebp+slot]
+        a.emit(b"\x8b\x45", i8(slot))  # mov eax, [ebp+slot]
         if field < 0x80:
-            a.emit(b"\x8d\x7b", _i8(field))  # lea edi, [ebx+field]
+            a.emit(b"\x8d\x7b", i8(field))  # lea edi, [ebx+field]
         else:
-            a.emit(b"\x8d\xbb", _u32(field))  # lea edi, [ebx+field]
+            a.emit(b"\x8d\xbb", u32(field))  # lea edi, [ebx+field]
         a.call("str_copy")
         a.emit(b"\x84\xc0")  # test al, al
         a.jcc(JE, "mp_done")
-    a.emit(b"\x8a\x45", _i8(-0x04))  # mov al, [ebp-4]         ; SplitArmy
-    a.emit(b"\x88\x83", _u32(_REC_SPLIT))  # mov [ebx+0x101], al
-    a.emit(b"\x8a\x45", _i8(-0x03))  # mov al, [ebp-3]         ; DespawnSource
-    a.emit(b"\x88\x83", _u32(_REC_DESPAWN))  # mov [ebx+0x102], al
-    a.emit(b"\xc6\x83", _u32(_REC_KIND), _KIND_MERGE)  # mov byte [ebx+0x100], 0
+    a.emit(b"\x8a\x45", i8(-0x04))  # mov al, [ebp-4]         ; SplitArmy
+    a.emit(b"\x88\x83", u32(_REC_SPLIT))  # mov [ebx+0x101], al
+    a.emit(b"\x8a\x45", i8(-0x03))  # mov al, [ebp-3]         ; DespawnSource
+    a.emit(b"\x88\x83", u32(_REC_DESPAWN))  # mov [ebx+0x102], al
+    a.emit(b"\xc6\x83", u32(_REC_KIND), _KIND_MERGE)  # mov byte [ebx+0x100], 0
 
     # A block that names neither army does nothing; a split with no manifest would silently move
     # nothing. Both are INI mistakes worth dropping rather than storing.
-    a.emit(b"\x80\x7b", _i8(_REC_SOURCE), 0x00)  # cmp byte [ebx+0x40], 0
+    a.emit(b"\x80\x7b", i8(_REC_SOURCE), 0x00)  # cmp byte [ebx+0x40], 0
     a.jcc(JE, "mp_done")
-    a.emit(b"\x80\xbb", _u32(_REC_DEST), 0x00)  # cmp byte [ebx+0x80], 0
+    a.emit(b"\x80\xbb", u32(_REC_DEST), 0x00)  # cmp byte [ebx+0x80], 0
     a.jcc(JE, "mp_done")
-    a.emit(b"\x80\xbb", _u32(_REC_SPLIT), 0x00)  # cmp byte [ebx+0x101], 0
+    a.emit(b"\x80\xbb", u32(_REC_SPLIT), 0x00)  # cmp byte [ebx+0x101], 0
     a.jcc(JE, "mp_commit")
-    a.emit(b"\x80\xbb", _u32(_REC_TEMPLATE), 0x00)  # cmp byte [ebx+0xc0], 0
+    a.emit(b"\x80\xbb", u32(_REC_TEMPLATE), 0x00)  # cmp byte [ebx+0xc0], 0
     a.jcc(JE, "mp_done")
     a.label("mp_commit")
-    a.emit(b"\xff\x05", _u32(count_va))  # inc dword [count]
+    a.emit(b"\xff\x05", u32(count_va))  # inc dword [count]
 
     a.label("mp_done")
     for slot in (-0x10, -0x0C, -0x08):
-        a.emit(b"\x8d\x4d", _i8(slot))  # lea ecx, [ebp+slot]
+        a.emit(b"\x8d\x4d", i8(slot))  # lea ecx, [ebp+slot]
         a.call_absolute(ASCII_STRING_DTOR)
     a.emit(0x5F, 0x5E, 0x5B)  # pop edi, esi, ebx
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_despawn_parse(a: Asm, count_va: int, records_va: int) -> None:
     # `despawn_parse`: __cdecl(ini, act, store, userData). `DespawnArmy = <name>` is a plain field
     # rather than a block, so the engine's own AsciiString parser reads the value into a scratch
     # slot and the record is built from that.
@@ -594,28 +529,28 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.call_absolute(GAME_DATA_ASCIISTRING_PARSER)  # __cdecl
     a.emit(b"\x83\xc4\x10")  # add esp, 0x10
 
-    a.emit(b"\xa1", _u32(count_va))  # mov eax, [count]
-    a.emit(b"\x83\xf8", _i8(RECORD_CAPACITY))  # cmp eax, RECORD_CAPACITY
+    a.emit(b"\xa1", u32(count_va))  # mov eax, [count]
+    a.emit(b"\x83\xf8", i8(RECORD_CAPACITY))  # cmp eax, RECORD_CAPACITY
     a.jcc(JAE, "dp_done")
-    _record_base()
+    _record_base(a, records_va)
     a.emit(b"\x8b\xd8")  # mov ebx, eax
     a.emit(b"\x8b\x45\x0c")  # mov eax, [ebp+0xc]
-    a.emit(b"\x8b\x40", _i8(ACT_NAME_OFFSET))  # mov eax, [eax+4]
+    a.emit(b"\x8b\x40", i8(ACT_NAME_OFFSET))  # mov eax, [eax+4]
     a.emit(b"\x8b\xfb")  # mov edi, ebx
     a.call("str_copy")
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "dp_done")
     a.emit(b"\x8b\x45\xfc")  # mov eax, [ebp-4]
-    a.emit(b"\x8d\x7b", _i8(_REC_SOURCE))  # lea edi, [ebx+0x40]
+    a.emit(b"\x8d\x7b", i8(_REC_SOURCE))  # lea edi, [ebx+0x40]
     a.call("str_copy")
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "dp_done")
-    a.emit(b"\x80\x7b", _i8(_REC_SOURCE), 0x00)  # cmp byte [ebx+0x40], 0
+    a.emit(b"\x80\x7b", i8(_REC_SOURCE), 0x00)  # cmp byte [ebx+0x40], 0
     a.jcc(JE, "dp_done")
-    a.emit(b"\xc6\x83", _u32(_REC_KIND), _KIND_DESPAWN)  # mov byte [ebx+0x100], 1
-    a.emit(b"\xc6\x83", _u32(_REC_SPLIT), 0x00)  # mov byte [ebx+0x101], 0
-    a.emit(b"\xc6\x83", _u32(_REC_DESPAWN), 0x00)  # mov byte [ebx+0x102], 0
-    a.emit(b"\xff\x05", _u32(count_va))  # inc dword [count]
+    a.emit(b"\xc6\x83", u32(_REC_KIND), _KIND_DESPAWN)  # mov byte [ebx+0x100], 1
+    a.emit(b"\xc6\x83", u32(_REC_SPLIT), 0x00)  # mov byte [ebx+0x101], 0
+    a.emit(b"\xc6\x83", u32(_REC_DESPAWN), 0x00)  # mov byte [ebx+0x102], 0
+    a.emit(b"\xff\x05", u32(count_va))  # inc dword [count]
 
     a.label("dp_done")
     a.emit(b"\x8d\x4d\xfc")  # lea ecx, [ebp-4]
@@ -624,6 +559,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_pass_hook(a: Asm) -> None:
     # `pass_hook`: what pass nine's `call` now reaches. It makes the call it displaced, then runs
     # the act's merges and despawns, then the battles its pass two queued - so the stock ten still
     # happen in the stock order and a battle sees every army the act spawned or moved.
@@ -634,28 +571,30 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.call("run_pass")
     a.jmp("run_battles")
 
+
+def _emit_run_pass(a: Asm, count_va: int, records_va: int) -> None:
     # `run_pass`: ecx = the act. Runs every record written for this act's name.
     a.label("run_pass")
     a.emit(0x55)  # push ebp
     a.emit(b"\x8b\xec")  # mov ebp, esp
     a.emit(b"\x83\xec\x08")  # sub esp, 8
     a.emit(0x53, 0x56, 0x57)  # push ebx, esi, edi
-    a.emit(b"\x8b\x41", _i8(ACT_NAME_OFFSET))  # mov eax, [ecx+4]
+    a.emit(b"\x8b\x41", i8(ACT_NAME_OFFSET))  # mov eax, [ecx+4]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc_short(JE, "rp_empty")
     a.emit(b"\x83\xc0", bytes([ASCII_STRING_CHARS]))  # add eax, 8
     a.jmp_short("rp_have")
     a.label("rp_empty")
-    a.emit(0xB8, _u32(EMPTY_STRING))  # mov eax, EMPTY_STRING
+    a.emit(0xB8, u32(EMPTY_STRING))  # mov eax, EMPTY_STRING
     a.label("rp_have")
     a.emit(b"\x89\x45\xfc")  # mov [ebp-4], eax        ; the act's characters
     a.emit(b"\x33\xdb")  # xor ebx, ebx            ; the record index
 
     a.label("rp_loop")
-    a.emit(b"\x3b\x1d", _u32(count_va))  # cmp ebx, [count]
+    a.emit(b"\x3b\x1d", u32(count_va))  # cmp ebx, [count]
     a.jcc(JAE, "rp_done")
-    a.emit(b"\x69\xc3", _u32(RECORD_SIZE))  # imul eax, ebx, RECORD_SIZE
-    a.emit(0x05, _u32(records_va))  # add eax, records
+    a.emit(b"\x69\xc3", u32(RECORD_SIZE))  # imul eax, ebx, RECORD_SIZE
+    a.emit(0x05, u32(records_va))  # add eax, records
     a.emit(b"\x89\x45\xf8")  # mov [ebp-8], eax
     a.emit(b"\x8b\xf8")  # mov edi, eax            ; rec->act
     a.emit(b"\x8b\x75\xfc")  # mov esi, [ebp-4]
@@ -663,7 +602,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "rp_next")
     a.emit(b"\x8b\x75\xf8")  # mov esi, [ebp-8]        ; the record
-    a.emit(b"\x80\xbe", _u32(_REC_KIND), _KIND_MERGE)  # cmp byte [esi+0x100], 0
+    a.emit(b"\x80\xbe", u32(_REC_KIND), _KIND_MERGE)  # cmp byte [esi+0x100], 0
     a.jcc(JNE, "rp_despawn")
     a.call("run_merge")
     a.jmp("rp_next")
@@ -677,17 +616,19 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_run_despawn(a: Asm) -> None:
     # `run_despawn`: esi = the record. Takes the named army off the map.
     a.label("run_despawn")
     a.emit(0x55)  # push ebp
     a.emit(b"\x8b\xec")  # mov ebp, esp
     a.emit(0x56)  # push esi
-    a.emit(b"\x8d\x46", _i8(_REC_SOURCE))  # lea eax, [esi+0x40]
+    a.emit(b"\x8d\x46", i8(_REC_SOURCE))  # lea eax, [esi+0x40]
     a.call("find_army")
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc_short(JE, "rd_done")
     a.emit(b"\x8b\xf0")  # mov esi, eax
-    a.emit(b"\x8b\x0d", _u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
+    a.emit(b"\x8b\x0d", u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
     a.emit(b"\x85\xc9")  # test ecx, ecx
     a.jcc_short(JE, "rd_done")
     a.emit(0x56)  # push esi
@@ -697,6 +638,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_run_merge(a: Asm) -> None:
     # `run_merge`: esi = the record.
     #   [ebp-0x04] the record   [ebp-0x08] the source army
     #   [ebp-0x0c] its roster   [ebp-0x10] the destination's roster
@@ -707,26 +650,26 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x83\xec\x18")  # sub esp, 0x18
     a.emit(0x53, 0x56, 0x57)  # push ebx, esi, edi
     a.emit(b"\x89\x75\xfc")  # mov [ebp-4], esi
-    a.emit(b"\x8d\x46", _i8(_REC_SOURCE))  # lea eax, [esi+0x40]
+    a.emit(b"\x8d\x46", i8(_REC_SOURCE))  # lea eax, [esi+0x40]
     a.call("find_army")
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rm_done")
     a.emit(b"\x89\x45\xf8")  # mov [ebp-8], eax        ; the source army
-    a.emit(b"\x8b\x40", _i8(LIVING_WORLD_ARMY_ROSTER_OFFSET))  # mov eax, [eax+0x78]
+    a.emit(b"\x8b\x40", i8(LIVING_WORLD_ARMY_ROSTER_OFFSET))  # mov eax, [eax+0x78]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rm_done")
     a.emit(b"\x89\x45\xf4")  # mov [ebp-0xc], eax      ; the source roster
     a.emit(b"\x8b\x75\xfc")  # mov esi, [ebp-4]
-    a.emit(b"\x8d\x86", _u32(_REC_DEST))  # lea eax, [esi+0x80]
+    a.emit(b"\x8d\x86", u32(_REC_DEST))  # lea eax, [esi+0x80]
     a.call("find_army")
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rm_done")
-    a.emit(b"\x8b\x40", _i8(LIVING_WORLD_ARMY_ROSTER_OFFSET))  # mov eax, [eax+0x78]
+    a.emit(b"\x8b\x40", i8(LIVING_WORLD_ARMY_ROSTER_OFFSET))  # mov eax, [eax+0x78]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rm_done")
     a.emit(b"\x89\x45\xf0")  # mov [ebp-0x10], eax     ; the destination roster
     a.emit(b"\x8b\x75\xfc")  # mov esi, [ebp-4]
-    a.emit(b"\x80\xbe", _u32(_REC_SPLIT), 0x00)  # cmp byte [esi+0x101], 0
+    a.emit(b"\x80\xbe", u32(_REC_SPLIT), 0x00)  # cmp byte [esi+0x101], 0
     a.jcc(JNE, "rm_split")
 
     # `SplitArmy = No`: the whole roster moves, bounded by the count taken before the first move.
@@ -743,7 +686,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
 
     # `SplitArmy = Yes`: one pass over the manifest, moving at most one roster entry per name.
     a.label("rm_split")
-    a.emit(b"\x8d\x86", _u32(_REC_TEMPLATE))  # lea eax, [esi+0xc0]
+    a.emit(b"\x8d\x86", u32(_REC_TEMPLATE))  # lea eax, [esi+0xc0]
     a.call("find_manifest")
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rm_done")
@@ -760,7 +703,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.call_absolute(LIVING_WORLD_ARMY_GET_RECORD)  # ret 4
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rm_entry_next")
-    a.emit(b"\x83\xc0", _i8(ARMY_ENTRY_TEMPLATE_OFFSET))  # add eax, 4
+    a.emit(b"\x83\xc0", i8(ARMY_ENTRY_TEMPLATE_OFFSET))  # add eax, 4
     a.emit(b"\x8b\xf8")  # mov edi, eax            ; &manifest entry's name
     a.emit(b"\x33\xf6")  # xor esi, esi            ; the roster index
 
@@ -775,7 +718,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rm_find_next")
     a.emit(0x57)  # push edi
-    a.emit(b"\x8d\x48", _i8(ARMY_ENTRY_TEMPLATE_OFFSET))  # lea ecx, [eax+4]
+    a.emit(b"\x8d\x48", i8(ARMY_ENTRY_TEMPLATE_OFFSET))  # lea ecx, [eax+4]
     a.call_absolute(ASCII_STRING_COMPARE)  # ret 4; zero when equal
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JNE, "rm_find_next")
@@ -792,13 +735,13 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     # `DespawnSource`, and only once the source has actually been emptied.
     a.label("rm_finish")
     a.emit(b"\x8b\x75\xfc")  # mov esi, [ebp-4]
-    a.emit(b"\x80\xbe", _u32(_REC_DESPAWN), 0x00)  # cmp byte [esi+0x102], 0
+    a.emit(b"\x80\xbe", u32(_REC_DESPAWN), 0x00)  # cmp byte [esi+0x102], 0
     a.jcc(JE, "rm_done")
     a.emit(b"\x8b\x4d\xf4")  # mov ecx, [ebp-0xc]
     a.call("roster_count")
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JNE, "rm_done")
-    a.emit(b"\x8b\x0d", _u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
+    a.emit(b"\x8b\x0d", u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
     a.emit(b"\x85\xc9")  # test ecx, ecx
     a.jcc(JE, "rm_done")
     a.emit(b"\xff\x75\xf8")  # push dword [ebp-8]
@@ -809,6 +752,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_move_record(a: Asm) -> None:
     # `move_record`: eax = the index in the source roster. Runs on `run_merge`'s frame, so it
     # reads the two rosters out of that frame's locals rather than taking them in registers.
     # The erase hands back a reference; the append takes its own, so ours is dropped after.
@@ -827,62 +772,72 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x8b\x4d\xf0")  # mov ecx, [ebp-0x10]     ; the destination roster
     a.call_absolute(LIVING_WORLD_ARMY_ADD_RECORD)  # ret 4
     a.emit(b"\x8b\x4d\xec")  # mov ecx, [ebp-0x14]
-    a.emit(b"\x81\xc1", _u32(ARMY_ENTRY_REFCOUNT_OFFSET))  # add ecx, 0xbc
+    a.emit(b"\x81\xc1", u32(ARMY_ENTRY_REFCOUNT_OFFSET))  # add ecx, 0xbc
     a.call_absolute(REF_COUNT_RELEASE)
     a.label("mv_done")
     a.emit(0xC3)  # ret
 
+
+def _emit_roster_count(a: Asm) -> None:
     # `roster_count`: ecx = a roster container, eax = how many records it holds.
     a.label("roster_count")
-    a.emit(b"\x8b\x41", _i8(LIVING_WORLD_ARMY_RECORDS_END))  # mov eax, [ecx+0x44]
-    a.emit(b"\x2b\x41", _i8(LIVING_WORLD_ARMY_RECORDS_BEGIN))  # sub eax, [ecx+0x40]
+    a.emit(b"\x8b\x41", i8(LIVING_WORLD_ARMY_RECORDS_END))  # mov eax, [ecx+0x44]
+    a.emit(b"\x2b\x41", i8(LIVING_WORLD_ARMY_RECORDS_BEGIN))  # sub eax, [ecx+0x40]
     a.emit(b"\xc1\xf8\x03")  # sar eax, 3
     a.emit(0xC3)  # ret
 
+
+def _emit_exact_parse(a: Asm, exact_pending_va: int) -> None:
     # `exact_parse`: __cdecl(ini, instance, store, userData), the `ExactPosition` row. The record
     # has no spare field to hold the flag, so the engine's Bool parser writes it into the cave.
     a.label("exact_parse")
     a.emit(b"\x6a\x00")  # push 0                  ; userData
-    a.emit(0x68, _u32(exact_pending_va))  # push exact_pending      ; store
+    a.emit(0x68, u32(exact_pending_va))  # push exact_pending      ; store
     a.emit(b"\xff\x74\x24\x10")  # push dword [esp+0x10]   ; instance
     a.emit(b"\xff\x74\x24\x10")  # push dword [esp+0x10]   ; ini
     a.call_absolute(GAME_DATA_BOOL_PARSER)  # __cdecl
     a.emit(b"\x83\xc4\x10")  # add esp, 0x10
     a.emit(0xC3)  # ret
 
+
+def _emit_spawn_parse_fields(
+    a: Asm, exact_count_va: int, exact_names_va: int, exact_pending_va: int
+) -> None:
     # `spawn_parse_fields`: what the Act's `SpawnArmy` parser calls instead of `INI::parseFields`,
     # thiscall(ini; record, table), `ret 8`. The flag is cleared before the block is read, so only
     # a block that says `ExactPosition = Yes` files its name - and a parse that throws half-way
     # leaves nothing for the next block to inherit.
     a.label("spawn_parse_fields")
-    a.emit(b"\xc6\x05", _u32(exact_pending_va), 0x00)  # mov byte [exact_pending], 0
+    a.emit(b"\xc6\x05", u32(exact_pending_va), 0x00)  # mov byte [exact_pending], 0
     a.emit(b"\xff\x74\x24\x08")  # push dword [esp+8]      ; the table
     a.emit(b"\xff\x74\x24\x08")  # push dword [esp+8]      ; the record
     a.call_absolute(INI_PARSE_FIELDS)  # ret 8; ecx is still the reader
-    a.emit(b"\x80\x3d", _u32(exact_pending_va), 0x00)  # cmp byte [exact_pending], 0
+    a.emit(b"\x80\x3d", u32(exact_pending_va), 0x00)  # cmp byte [exact_pending], 0
     a.jcc(JE, "spf_done")
     a.emit(b"\x8b\x44\x24\x04")  # mov eax, [esp+4]        ; the record
-    a.emit(b"\x8b\x40", _i8(SPAWN_ARMY_SCRIPTING_NAME_OFFSET))  # mov eax, [eax+0x18]
+    a.emit(b"\x8b\x40", i8(SPAWN_ARMY_SCRIPTING_NAME_OFFSET))  # mov eax, [eax+0x18]
     a.emit(b"\x85\xc0")  # test eax, eax            ; no name, nothing to key on
     a.jcc(JE, "spf_done")
     a.emit(0x56, 0x57)  # push esi, edi
-    a.emit(b"\x8b\x15", _u32(exact_count_va))  # mov edx, [exact_count]
-    a.emit(b"\x83\xfa", _i8(EXACT_CAPACITY))  # cmp edx, EXACT_CAPACITY
+    a.emit(b"\x8b\x15", u32(exact_count_va))  # mov edx, [exact_count]
+    a.emit(b"\x83\xfa", i8(EXACT_CAPACITY))  # cmp edx, EXACT_CAPACITY
     a.jcc(JAE, "spf_restore")
-    a.emit(b"\x69\xfa", _u32(NAME_CAPACITY))  # imul edi, edx, NAME_CAPACITY
-    a.emit(b"\x81\xc7", _u32(exact_names_va))  # add edi, exact_names
+    a.emit(b"\x69\xfa", u32(NAME_CAPACITY))  # imul edi, edx, NAME_CAPACITY
+    a.emit(b"\x81\xc7", u32(exact_names_va))  # add edi, exact_names
     a.call("str_copy")
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "spf_restore")
     a.emit(b"\x80\x3f\x00")  # cmp byte [edi], 0
     a.jcc(JE, "spf_restore")
-    a.emit(b"\xff\x05", _u32(exact_count_va))  # inc dword [exact_count]
+    a.emit(b"\xff\x05", u32(exact_count_va))  # inc dword [exact_count]
     a.label("spf_restore")
     a.emit(0x5F, 0x5E)  # pop edi, esi
     a.label("spf_done")
-    a.emit(b"\xc6\x05", _u32(exact_pending_va), 0x00)  # mov byte [exact_pending], 0
+    a.emit(b"\xc6\x05", u32(exact_pending_va), 0x00)  # mov byte [exact_pending], 0
     a.emit(b"\xc2\x08\x00")  # ret 8
 
+
+def _emit_spawn_at_position(a: Asm, exact_count_va: int, exact_names_va: int) -> None:
     # `spawn_at_position`: what pass three calls for a record with a non-zero `Position`,
     # thiscall(TheLivingWorldLogic; record, player, controllable), `ret 0xC`. The engine spawns and
     # places the army first; a name `ExactPosition` filed is then moved to the record's point.
@@ -900,14 +855,14 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x85\xdb")  # test ebx, ebx
     a.jcc(JE, "sa_done")
     a.emit(b"\x8b\x45\x08")  # mov eax, [ebp+8]
-    a.emit(b"\x8b\x40", _i8(SPAWN_ARMY_SCRIPTING_NAME_OFFSET))  # mov eax, [eax+0x18]
+    a.emit(b"\x8b\x40", i8(SPAWN_ARMY_SCRIPTING_NAME_OFFSET))  # mov eax, [eax+0x18]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "sa_done")
     a.emit(b"\x83\xc0", bytes([ASCII_STRING_CHARS]))  # add eax, 8
     a.emit(b"\x89\x45\xfc")  # mov [ebp-4], eax
     # A record with no hero is merged into the army its player already has in the region, and the
     # engine hands back that army - which is not the one the record describes and must not move.
-    a.emit(b"\x8b\x43", _i8(ARMY_SCRIPTING_NAME_OFFSET))  # mov eax, [ebx+0x1c]
+    a.emit(b"\x8b\x43", i8(ARMY_SCRIPTING_NAME_OFFSET))  # mov eax, [ebx+0x1c]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "sa_done")
     a.emit(b"\x8d\x78", bytes([ASCII_STRING_CHARS]))  # lea edi, [eax+8]
@@ -918,10 +873,10 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x83\x65\xf8\x00")  # and dword [ebp-8], 0
     a.label("sa_loop")
     a.emit(b"\x8b\x45\xf8")  # mov eax, [ebp-8]
-    a.emit(b"\x3b\x05", _u32(exact_count_va))  # cmp eax, [exact_count]
+    a.emit(b"\x3b\x05", u32(exact_count_va))  # cmp eax, [exact_count]
     a.jcc(JAE, "sa_done")
-    a.emit(b"\x69\xf8", _u32(NAME_CAPACITY))  # imul edi, eax, NAME_CAPACITY
-    a.emit(b"\x81\xc7", _u32(exact_names_va))  # add edi, exact_names
+    a.emit(b"\x69\xf8", u32(NAME_CAPACITY))  # imul edi, eax, NAME_CAPACITY
+    a.emit(b"\x81\xc7", u32(exact_names_va))  # add edi, exact_names
     a.emit(b"\x8b\x75\xfc")  # mov esi, [ebp-4]
     a.call("str_eq")
     a.emit(b"\x84\xc0")  # test al, al
@@ -930,7 +885,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.jmp("sa_loop")
     a.label("sa_exact")
     a.emit(b"\x8b\x45\x08")  # mov eax, [ebp+8]
-    a.emit(b"\x83\xc0", _i8(SPAWN_ARMY_POSITION_OFFSET))  # add eax, 0x20   ; &Position
+    a.emit(b"\x83\xc0", i8(SPAWN_ARMY_POSITION_OFFSET))  # add eax, 0x20   ; &Position
     a.emit(0x50)  # push eax
     a.emit(b"\x8b\xcb")  # mov ecx, ebx
     a.call_absolute(ARMY_SET_POSITION)  # ret 4
@@ -942,6 +897,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(0xC9)  # leave
     a.emit(b"\xc2\x0c\x00")  # ret 0xC
 
+
+def _emit_battle_by_region(a: Asm, battle_count_va: int, battles_va: int) -> None:
     # `battle_by_region` / `battle_by_position`: the two calls pass two made into the stub,
     # thiscall(TheLivingWorldLogic; Region name or &Position, UseArmy, &ArmyAttackDirection),
     # `ret 0xC`. The strings are the pass's own temporaries, so the request is copied, not kept.
@@ -949,19 +906,19 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(0x55)  # push ebp
     a.emit(b"\x8b\xec")  # mov ebp, esp
     a.emit(0x53, 0x56, 0x57)  # push ebx, esi, edi
-    a.emit(b"\xa1", _u32(battle_count_va))  # mov eax, [battle_count]
-    a.emit(b"\x83\xf8", _i8(BATTLE_CAPACITY))  # cmp eax, BATTLE_CAPACITY
+    a.emit(b"\xa1", u32(battle_count_va))  # mov eax, [battle_count]
+    a.emit(b"\x83\xf8", i8(BATTLE_CAPACITY))  # cmp eax, BATTLE_CAPACITY
     a.jcc(JAE, "bq_out")
-    a.emit(b"\x69\xd8", _u32(BATTLE_SIZE))  # imul ebx, eax, BATTLE_SIZE
-    a.emit(b"\x81\xc3", _u32(battles_va))  # add ebx, battles
+    a.emit(b"\x69\xd8", u32(BATTLE_SIZE))  # imul ebx, eax, BATTLE_SIZE
+    a.emit(b"\x81\xc3", u32(battles_va))  # add ebx, battles
     a.emit(b"\xc6\x03", _BATTLE_BY_REGION)  # mov byte [ebx], 0
     a.emit(b"\x8b\x45\x08")  # mov eax, [ebp+8]
     a.emit(b"\x8b\x00")  # mov eax, [eax]          ; the Region string's handle
-    a.emit(b"\x8d\x7b", _i8(_BTL_REGION))  # lea edi, [ebx+4]
+    a.emit(b"\x8d\x7b", i8(_BTL_REGION))  # lea edi, [ebx+4]
     a.call("str_copy")
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "bq_out")
-    a.emit(b"\x80\x7b", _i8(_BTL_REGION), 0x00)  # cmp byte [ebx+4], 0
+    a.emit(b"\x80\x7b", i8(_BTL_REGION), 0x00)  # cmp byte [ebx+4], 0
     a.jcc(JE, "bq_out")
     a.jmp("bq_army")
 
@@ -969,48 +926,59 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(0x55)  # push ebp
     a.emit(b"\x8b\xec")  # mov ebp, esp
     a.emit(0x53, 0x56, 0x57)  # push ebx, esi, edi
-    a.emit(b"\xa1", _u32(battle_count_va))  # mov eax, [battle_count]
-    a.emit(b"\x83\xf8", _i8(BATTLE_CAPACITY))  # cmp eax, BATTLE_CAPACITY
+    a.emit(b"\xa1", u32(battle_count_va))  # mov eax, [battle_count]
+    a.emit(b"\x83\xf8", i8(BATTLE_CAPACITY))  # cmp eax, BATTLE_CAPACITY
     a.jcc(JAE, "bq_out")
-    a.emit(b"\x69\xd8", _u32(BATTLE_SIZE))  # imul ebx, eax, BATTLE_SIZE
-    a.emit(b"\x81\xc3", _u32(battles_va))  # add ebx, battles
+    a.emit(b"\x69\xd8", u32(BATTLE_SIZE))  # imul ebx, eax, BATTLE_SIZE
+    a.emit(b"\x81\xc3", u32(battles_va))  # add ebx, battles
     a.emit(b"\xc6\x03", _BATTLE_BY_POSITION)  # mov byte [ebx], 1
     a.emit(b"\x8b\x45\x08")  # mov eax, [ebp+8]        ; &Position
     a.emit(b"\x8b\x10")  # mov edx, [eax]
-    a.emit(b"\x89\x93", _u32(_BTL_X))  # mov [ebx+0x84], edx
+    a.emit(b"\x89\x93", u32(_BTL_X))  # mov [ebx+0x84], edx
     a.emit(b"\x8b\x50\x04")  # mov edx, [eax+4]
-    a.emit(b"\x89\x93", _u32(_BTL_Y))  # mov [ebx+0x88], edx
+    a.emit(b"\x89\x93", u32(_BTL_Y))  # mov [ebx+0x88], edx
 
     a.label("bq_army")
     a.emit(b"\x8b\x45\x0c")  # mov eax, [ebp+0xc]
     a.emit(b"\x8b\x00")  # mov eax, [eax]          ; UseArmy's handle, possibly null
-    a.emit(b"\x8d\x7b", _i8(_BTL_ARMY))  # lea edi, [ebx+0x44]
+    a.emit(b"\x8d\x7b", i8(_BTL_ARMY))  # lea edi, [ebx+0x44]
     a.call("str_copy")
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "bq_out")
-    a.emit(b"\xff\x05", _u32(battle_count_va))  # inc dword [battle_count]
+    a.emit(b"\xff\x05", u32(battle_count_va))  # inc dword [battle_count]
     a.label("bq_out")
     a.emit(0x5F, 0x5E, 0x5B)  # pop edi, esi, ebx
     a.emit(0xC9)  # leave
     a.emit(b"\xc2\x0c\x00")  # ret 0xC
 
+
+def _emit_run_battles(a: Asm, battle_count_va: int, battles_va: int) -> None:
     # `run_battles`: builds every queued battle, then empties the queue.
     a.label("run_battles")
     a.emit(0x53, 0x56)  # push ebx, esi
     a.emit(b"\x33\xdb")  # xor ebx, ebx
     a.label("rb_loop")
-    a.emit(b"\x3b\x1d", _u32(battle_count_va))  # cmp ebx, [battle_count]
+    a.emit(b"\x3b\x1d", u32(battle_count_va))  # cmp ebx, [battle_count]
     a.jcc(JAE, "rb_done")
-    a.emit(b"\x69\xf3", _u32(BATTLE_SIZE))  # imul esi, ebx, BATTLE_SIZE
-    a.emit(b"\x81\xc6", _u32(battles_va))  # add esi, battles
+    a.emit(b"\x69\xf3", u32(BATTLE_SIZE))  # imul esi, ebx, BATTLE_SIZE
+    a.emit(b"\x81\xc6", u32(battles_va))  # add esi, battles
     a.call("force_battle")
     a.emit(0x43)  # inc ebx
     a.jmp("rb_loop")
     a.label("rb_done")
-    a.emit(b"\x83\x25", _u32(battle_count_va), 0x00)  # and dword [battle_count], 0
+    a.emit(b"\x83\x25", u32(battle_count_va), 0x00)  # and dword [battle_count], 0
     a.emit(0x5E, 0x5B)  # pop esi, ebx
     a.emit(0xC3)  # ret
 
+
+def _emit_force_battle(
+    a: Asm,
+    armies_va: int,
+    armies_vector_va: int,
+    battle_point_va: int,
+    players_va: int,
+    players_vector_va: int,
+) -> None:
     # `force_battle`: esi = a queued request. Does what `RegionStore::detectConflicts` does for one
     # region, without its "is there a conflict" gate.
     #   [ebp-0x04] the region store   [ebp-0x08] the region    [ebp-0x0c] UseArmy, or 0
@@ -1023,10 +991,10 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x83\xec\x30")  # sub esp, 0x30
     a.emit(0x53, 0x56, 0x57)  # push ebx, esi, edi
     a.emit(b"\x89\x75\xdc")  # mov [ebp-0x24], esi
-    a.emit(b"\x8b\x0d", _u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
+    a.emit(b"\x8b\x0d", u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
     a.emit(b"\x85\xc9")  # test ecx, ecx
     a.jcc(JE, "fb_ret")
-    a.emit(b"\x8b\x81", _u32(LIVING_WORLD_LOGIC_BATTLE_STORE))  # mov eax, [ecx+0xb0]
+    a.emit(b"\x8b\x81", u32(LIVING_WORLD_LOGIC_BATTLE_STORE))  # mov eax, [ecx+0xb0]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "fb_ret")
     a.emit(b"\x89\x45\xfc")  # mov [ebp-4], eax
@@ -1034,9 +1002,9 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     # A named UseArmy that does not exist is an INI mistake: no battle rather than a different one.
     a.emit(b"\x33\xc0")  # xor eax, eax
     a.emit(b"\x89\x45\xf4")  # mov [ebp-0xc], eax
-    a.emit(b"\x80\x7e", _i8(_BTL_ARMY), 0x00)  # cmp byte [esi+0x44], 0
+    a.emit(b"\x80\x7e", i8(_BTL_ARMY), 0x00)  # cmp byte [esi+0x44], 0
     a.jcc(JE, "fb_region")
-    a.emit(b"\x8d\x46", _i8(_BTL_ARMY))  # lea eax, [esi+0x44]
+    a.emit(b"\x8d\x46", i8(_BTL_ARMY))  # lea eax, [esi+0x44]
     a.call("find_army")
     a.emit(b"\x89\x45\xf4")  # mov [ebp-0xc], eax
     a.emit(b"\x85\xc0")  # test eax, eax
@@ -1046,7 +1014,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x8b\x75\xdc")  # mov esi, [ebp-0x24]
     a.emit(b"\x80\x3e", _BATTLE_BY_REGION)  # cmp byte [esi], 0
     a.jcc(JNE, "fb_by_position")
-    a.emit(b"\x8d\x46", _i8(_BTL_REGION))  # lea eax, [esi+4]
+    a.emit(b"\x8d\x46", i8(_BTL_REGION))  # lea eax, [esi+4]
     a.emit(0x50)  # push eax
     a.emit(b"\x8d\x4d\xd4")  # lea ecx, [ebp-0x2c]
     a.call_absolute(ASCII_STRING_CTOR)  # ret 4
@@ -1061,7 +1029,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "fb_ret")
     a.emit(b"\x8b\x4d\xfc")  # mov ecx, [ebp-4]
-    a.emit(0x68, _u32(battle_point_va))  # push battle_point
+    a.emit(0x68, u32(battle_point_va))  # push battle_point
     a.emit(0x50)  # push eax
     a.call_absolute(REGION_STORE_BATTLE_POINT)  # ret 8
     a.emit(b"\x84\xc0")  # test al, al
@@ -1069,13 +1037,13 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.jmp("fb_have_region")
 
     a.label("fb_by_position")
-    a.emit(b"\x8b\x86", _u32(_BTL_X))  # mov eax, [esi+0x84]
-    a.emit(b"\xa3", _u32(battle_point_va))  # mov [battle_point], eax
-    a.emit(b"\x8b\x86", _u32(_BTL_Y))  # mov eax, [esi+0x88]
-    a.emit(b"\xa3", _u32(battle_point_va + 4))  # mov [battle_point+4], eax
+    a.emit(b"\x8b\x86", u32(_BTL_X))  # mov eax, [esi+0x84]
+    a.emit(b"\xa3", u32(battle_point_va))  # mov [battle_point], eax
+    a.emit(b"\x8b\x86", u32(_BTL_Y))  # mov eax, [esi+0x88]
+    a.emit(b"\xa3", u32(battle_point_va + 4))  # mov [battle_point+4], eax
     a.emit(b"\x8b\x4d\xfc")  # mov ecx, [ebp-4]
     a.emit(b"\x6a\x00")  # push 0                  ; no hint
-    a.emit(0x68, _u32(battle_point_va))  # push battle_point
+    a.emit(0x68, u32(battle_point_va))  # push battle_point
     a.call_absolute(REGION_STORE_REGION_AT)  # ret 8
     a.emit(b"\x89\x45\xf8")  # mov [ebp-8], eax
     a.emit(b"\x85\xc0")  # test eax, eax
@@ -1096,7 +1064,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.call_absolute(ARMY_UPDATE_REGION)
     a.emit(b"\x3b\x45\xf8")  # cmp eax, [ebp-8]
     a.jcc(JE, "fb_collect")
-    a.emit(0x68, _u32(battle_point_va))  # push battle_point
+    a.emit(0x68, u32(battle_point_va))  # push battle_point
     a.emit(b"\x8b\x4d\xf4")  # mov ecx, [ebp-0xc]
     a.call_absolute(ARMY_SET_POSITION)  # ret 4
     a.emit(b"\x8b\x4d\xf4")  # mov ecx, [ebp-0xc]
@@ -1109,23 +1077,23 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x89\x45\xe8")  # mov [ebp-0x18], eax
     a.emit(b"\x89\x45\xe4")  # mov [ebp-0x1c], eax
     a.label("fb_player_loop")
-    a.emit(b"\x8b\x0d", _u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
-    a.emit(b"\x8b\x81", _u32(LIVING_WORLD_PLAYERS_END))  # mov eax, [ecx+0x90]
-    a.emit(b"\x2b\x81", _u32(LIVING_WORLD_PLAYERS_BEGIN))  # sub eax, [ecx+0x8c]
+    a.emit(b"\x8b\x0d", u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
+    a.emit(b"\x8b\x81", u32(LIVING_WORLD_PLAYERS_END))  # mov eax, [ecx+0x90]
+    a.emit(b"\x2b\x81", u32(LIVING_WORLD_PLAYERS_BEGIN))  # sub eax, [ecx+0x8c]
     a.emit(b"\xc1\xf8\x02")  # sar eax, 2
     a.emit(b"\x39\x45\xe4")  # cmp [ebp-0x1c], eax
     a.jcc(JAE, "fb_players_done")
-    a.emit(b"\x8b\x81", _u32(LIVING_WORLD_PLAYERS_BEGIN))  # mov eax, [ecx+0x8c]
+    a.emit(b"\x8b\x81", u32(LIVING_WORLD_PLAYERS_BEGIN))  # mov eax, [ecx+0x8c]
     a.emit(b"\x8b\x55\xe4")  # mov edx, [ebp-0x1c]
     a.emit(b"\x8b\x3c\x90")  # mov edi, [eax+edx*4]    ; the player
     a.emit(b"\x83\x65\xe0\x00")  # and dword [ebp-0x20], 0
     a.label("fb_army_loop")
-    a.emit(b"\x8b\x87", _u32(LIVING_WORLD_PLAYER_ARMIES_END))  # mov eax, [edi+0x1e8]
-    a.emit(b"\x2b\x87", _u32(LIVING_WORLD_PLAYER_ARMIES_BEGIN))  # sub eax, [edi+0x1e4]
+    a.emit(b"\x8b\x87", u32(LIVING_WORLD_PLAYER_ARMIES_END))  # mov eax, [edi+0x1e8]
+    a.emit(b"\x2b\x87", u32(LIVING_WORLD_PLAYER_ARMIES_BEGIN))  # sub eax, [edi+0x1e4]
     a.emit(b"\xc1\xf8\x02")  # sar eax, 2
     a.emit(b"\x39\x45\xe0")  # cmp [ebp-0x20], eax
     a.jcc(JAE, "fb_next_player")
-    a.emit(b"\x8b\x87", _u32(LIVING_WORLD_PLAYER_ARMIES_BEGIN))  # mov eax, [edi+0x1e4]
+    a.emit(b"\x8b\x87", u32(LIVING_WORLD_PLAYER_ARMIES_BEGIN))  # mov eax, [edi+0x1e4]
     a.emit(b"\x8b\x55\xe0")  # mov edx, [ebp-0x20]
     a.emit(b"\x8b\x1c\x90")  # mov ebx, [eax+edx*4]    ; the army
     a.emit(b"\x85\xdb")  # test ebx, ebx
@@ -1139,8 +1107,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "fb_take_army")
     a.emit(b"\x8b\x45\xf8")  # mov eax, [ebp-8]
-    a.emit(b"\x8b\x80", _u32(LIVING_WORLD_REGION_OWNER))  # mov eax, [eax+0x15c]
-    a.emit(b"\x3b\x43", _i8(LIVING_WORLD_ARMY_OWNER_ID))  # cmp eax, [ebx+0x54]
+    a.emit(b"\x8b\x80", u32(LIVING_WORLD_REGION_OWNER))  # mov eax, [eax+0x15c]
+    a.emit(b"\x3b\x43", i8(LIVING_WORLD_ARMY_OWNER_ID))  # cmp eax, [ebx+0x54]
     a.jcc(JNE, "fb_next_army")
     a.emit(b"\x8b\x4d\xf8")  # mov ecx, [ebp-8]
     a.call_absolute(REGION_IS_DEFENDED)
@@ -1170,15 +1138,15 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x8b\x45\xe0")  # mov eax, [ebp-0x20]
     a.emit(b"\x3b\x45\xec")  # cmp eax, [ebp-0x14]
     a.jcc(JAE, "fb_sides_done")
-    a.emit(b"\x8b\x1c\x85", _u32(armies_va))  # mov ebx, [armies+eax*4]
-    a.emit(b"\x8b\x43", _i8(LIVING_WORLD_ARMY_ROSTER_OFFSET))  # mov eax, [ebx+0x78]
+    a.emit(b"\x8b\x1c\x85", u32(armies_va))  # mov ebx, [armies+eax*4]
+    a.emit(b"\x8b\x43", i8(LIVING_WORLD_ARMY_ROSTER_OFFSET))  # mov eax, [ebx+0x78]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "fb_owner")
-    a.emit(b"\xc7\x40", _i8(LIVING_WORLD_ROSTER_IN_BATTLE), _u32(1))  # mov dword [eax+0x2c], 1
+    a.emit(b"\xc7\x40", i8(LIVING_WORLD_ROSTER_IN_BATTLE), u32(1))  # mov dword [eax+0x2c], 1
     a.label("fb_owner")
-    a.emit(b"\x8b\x0d", _u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
+    a.emit(b"\x8b\x0d", u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
     a.emit(b"\x6a\x00")  # push 0
-    a.emit(b"\xff\x73", _i8(LIVING_WORLD_ARMY_OWNER_ID))  # push dword [ebx+0x54]
+    a.emit(b"\xff\x73", i8(LIVING_WORLD_ARMY_OWNER_ID))  # push dword [ebx+0x54]
     a.call_absolute(LIVING_WORLD_FIND_PLAYER_BY_ID)  # ret 8
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "fb_side_next")
@@ -1192,16 +1160,16 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x8b\x45\xf4")  # mov eax, [ebp-0xc]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "fb_first")
-    a.emit(b"\x8b\x0d", _u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
+    a.emit(b"\x8b\x0d", u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
     a.emit(b"\x6a\x00")  # push 0
-    a.emit(b"\xff\x70", _i8(LIVING_WORLD_ARMY_OWNER_ID))  # push dword [eax+0x54]
+    a.emit(b"\xff\x70", i8(LIVING_WORLD_ARMY_OWNER_ID))  # push dword [eax+0x54]
     a.call_absolute(LIVING_WORLD_FIND_PLAYER_BY_ID)  # ret 8
     a.jmp("fb_attacker")
     a.label("fb_first")
     a.emit(b"\x33\xc0")  # xor eax, eax
     a.emit(b"\x39\x45\xe8")  # cmp [ebp-0x18], eax
     a.jcc(JE, "fb_attacker")
-    a.emit(b"\xa1", _u32(players_va))  # mov eax, [players]
+    a.emit(b"\xa1", u32(players_va))  # mov eax, [players]
     a.label("fb_attacker")
     a.emit(b"\x89\x45\xf0")  # mov [ebp-0x10], eax
 
@@ -1209,10 +1177,10 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "fb_count")
     a.emit(b"\x8b\x45\xf8")  # mov eax, [ebp-8]
-    a.emit(b"\x8b\x80", _u32(LIVING_WORLD_REGION_OWNER))  # mov eax, [eax+0x15c]
+    a.emit(b"\x8b\x80", u32(LIVING_WORLD_REGION_OWNER))  # mov eax, [eax+0x15c]
     a.emit(b"\x83\xf8\xff")  # cmp eax, -1
     a.jcc(JE, "fb_count")
-    a.emit(b"\x8b\x0d", _u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
+    a.emit(b"\x8b\x0d", u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
     a.emit(b"\x6a\x00")  # push 0
     a.emit(0x50)  # push eax
     a.call_absolute(LIVING_WORLD_FIND_PLAYER_BY_ID)  # ret 8
@@ -1233,15 +1201,15 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     a.emit(b"\x83\x7d\xe8\x02")  # cmp dword [ebp-0x18], 2
     a.jcc(JB, "fb_ret")
     a.emit(b"\x8b\x45\xec")  # mov eax, [ebp-0x14]
-    a.emit(b"\x8d\x04\x85", _u32(armies_va))  # lea eax, [armies+eax*4]
-    a.emit(b"\xa3", _u32(armies_vector_va + 4))  # mov [armies_vector+4], eax
+    a.emit(b"\x8d\x04\x85", u32(armies_va))  # lea eax, [armies+eax*4]
+    a.emit(b"\xa3", u32(armies_vector_va + 4))  # mov [armies_vector+4], eax
     a.emit(b"\x8b\x45\xe8")  # mov eax, [ebp-0x18]
-    a.emit(b"\x8d\x04\x85", _u32(players_va))  # lea eax, [players+eax*4]
-    a.emit(b"\xa3", _u32(players_vector_va + 4))  # mov [players_vector+4], eax
+    a.emit(b"\x8d\x04\x85", u32(players_va))  # lea eax, [players+eax*4]
+    a.emit(b"\xa3", u32(players_vector_va + 4))  # mov [players_vector+4], eax
     a.emit(b"\x8b\x4d\xfc")  # mov ecx, [ebp-4]
-    a.emit(0x68, _u32(battle_point_va))  # push battle_point
-    a.emit(0x68, _u32(players_vector_va))  # push players_vector
-    a.emit(0x68, _u32(armies_vector_va))  # push armies_vector
+    a.emit(0x68, u32(battle_point_va))  # push battle_point
+    a.emit(0x68, u32(players_vector_va))  # push players_vector
+    a.emit(0x68, u32(armies_vector_va))  # push armies_vector
     a.emit(b"\xff\x75\xf8")  # push dword [ebp-8]
     a.call_absolute(REGION_STORE_CREATE_BATTLE)  # ret 0x10
 
@@ -1257,24 +1225,22 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
         ("take_player", -0x18, players_va, PLAYER_SLOTS),
     ):
         a.label(label)
-        a.emit(b"\x8b\x55", _i8(count_slot))  # mov edx, [ebp+count]
+        a.emit(b"\x8b\x55", i8(count_slot))  # mov edx, [ebp+count]
         a.emit(b"\x33\xc9")  # xor ecx, ecx
         a.label(f"{label}_loop")
         a.emit(b"\x3b\xca")  # cmp ecx, edx
         a.jcc_short(JAE, f"{label}_append")
-        a.emit(b"\x39\x04\x8d", _u32(buffer_va))  # cmp [buffer+ecx*4], eax
+        a.emit(b"\x39\x04\x8d", u32(buffer_va))  # cmp [buffer+ecx*4], eax
         a.jcc_short(JE, f"{label}_done")
         a.emit(0x41)  # inc ecx
         a.jmp_short(f"{label}_loop")
         a.label(f"{label}_append")
-        a.emit(b"\x83\xfa", _i8(slots))  # cmp edx, slots
+        a.emit(b"\x83\xfa", i8(slots))  # cmp edx, slots
         a.jcc_short(JAE, f"{label}_done")
-        a.emit(b"\x89\x04\x95", _u32(buffer_va))  # mov [buffer+edx*4], eax
-        a.emit(b"\xff\x45", _i8(count_slot))  # inc dword [ebp+count]
+        a.emit(b"\x89\x04\x95", u32(buffer_va))  # mov [buffer+edx*4], eax
+        a.emit(b"\xff\x45", i8(count_slot))  # inc dword [ebp+count]
         a.label(f"{label}_done")
         a.emit(0xC3)  # ret
-
-    return a
 
 
 def _verb_table(stock: bytes, merge_parse: int, despawn_parse: int, strings_va: dict) -> bytes:
@@ -1285,7 +1251,7 @@ def _verb_table(stock: bytes, merge_parse: int, despawn_parse: int, strings_va: 
     on the Act, so there is no field for the driver to compute an address into."""
     rows = stock[: ACT_VERB_ROW_COUNT * ACT_VERB_ROW_SIZE]
     added = b"".join(
-        _u32(strings_va[name]) + _u32(parse) + _u32(0) + _u32(0)
+        u32(strings_va[name]) + u32(parse) + u32(0) + u32(0)
         for name, parse in ((_MERGE_VERB, merge_parse), (_DESPAWN_VERB, despawn_parse))
     )
     return rows + added + bytes(ACT_VERB_ROW_SIZE)
@@ -1294,7 +1260,7 @@ def _verb_table(stock: bytes, merge_parse: int, despawn_parse: int, strings_va: 
 def _field_table(strings_va: dict) -> bytes:
     """The `MergePlayerArmy` block's field table, in the engine's own row format."""
     rows = b"".join(
-        _u32(strings_va[name]) + _u32(parse) + _u32(0) + _u32(offset)
+        u32(strings_va[name]) + u32(parse) + u32(0) + u32(offset)
         for name, parse, offset in FIELD_ROWS
     )
     return rows + bytes(ACT_VERB_ROW_SIZE)
@@ -1304,7 +1270,7 @@ def _spawn_field_table(stock: bytes, exact_parse: int, strings_va: dict) -> byte
     """The Act `SpawnArmy` field table: the stock rows, `ExactPosition`, and the terminator. The
     new row's offset is 0 because its parser ignores the store it is handed."""
     rows = stock[: SPAWN_ARMY_FIELD_ROW_COUNT * ACT_VERB_ROW_SIZE]
-    added = _u32(strings_va[_EXACT_FIELD]) + _u32(exact_parse) + _u32(0) + _u32(0)
+    added = u32(strings_va[_EXACT_FIELD]) + u32(exact_parse) + u32(0) + u32(0)
     return rows + added + bytes(ACT_VERB_ROW_SIZE)
 
 
@@ -1313,13 +1279,13 @@ def build_cave(
     stock_table: bytes = ACT_VERB_TABLE_BYTES,
     stock_spawn_table: bytes = SPAWN_ARMY_FIELD_TABLE_BYTES,
 ) -> bytes:
-    """The cave's bytes, for a section based at ``base_va``."""
+    """The cave's bytes, for a section based at `base_va`."""
     layout = cave_layout()
     code = _emit_code(base_va + layout["code"], base_va, layout)
     strings_va = {text: base_va + layout[f"str:{text}"] for text in _STRINGS}
 
     blob = bytearray(layout["code"])
-    blob[layout["count"] : layout["count"] + 4] = _u32(0)
+    blob[layout["count"] : layout["count"] + 4] = u32(0)
     # Both battle vectors start empty: `begin == end`, with the capacity their buffers really have.
     for vector, buffer, slots in (
         ("armies_vector", "armies", ARMY_SLOTS),
@@ -1327,7 +1293,7 @@ def build_cave(
     ):
         start = base_va + layout[buffer]
         blob[layout[vector] : layout[vector] + 12] = (
-            _u32(start) + _u32(start) + _u32(start + slots * 4)
+            u32(start) + u32(start) + u32(start + slots * 4)
         )
     table = _verb_table(
         stock_table, code.label_va("merge_parse"), code.label_va("despawn_parse"), strings_va
@@ -1357,7 +1323,7 @@ def _hook_targets(section_va: int) -> dict[str, int]:
 def _site_bytes(va: int, stock: bytes, target: int) -> bytes:
     """The five bytes a site becomes: the same instruction, aimed at the cave."""
     if stock[0] == 0x68:
-        return b"\x68" + _u32(target)
+        return b"\x68" + u32(target)
     return b"\xe8" + struct.pack("<i", target - (va + 5))
 
 

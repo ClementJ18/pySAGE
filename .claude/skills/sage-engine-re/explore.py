@@ -124,7 +124,7 @@ def _known_names(va: int) -> list[str]:
     )
 
 
-# --- commands ---------------------------------------------------------------------------------
+# Commands
 
 
 def cmd_sections(image: Image, args: argparse.Namespace) -> int:
@@ -417,7 +417,7 @@ def cmd_hex(image: Image, args: argparse.Namespace) -> int:
     return 0
 
 
-# --- the recovered INI surface ------------------------------------------------------------------
+# The recovered INI surface
 #
 # `scripts/module_defaults.py` already read the engine's own tables out of a `game.dat` and wrote
 # them down; these commands read that JSON back rather than re-deriving it. Regenerate after a

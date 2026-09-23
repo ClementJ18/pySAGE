@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from sage_lint.cli import main
+from sage_lint.__main__ import main
 from sage_lint.commands.common import project_engine
 from sage_lint.config import load_config
 

@@ -1,72 +1,12 @@
-"""The perf-scope-skip patch: stop building PIX event names nobody is listening for.
+"""Stop the render-scope class building PIX event names when no profiler is listening.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/perf-scope-skip.md``; the render-scope class itself is derived in
-``../docs/perf-stage-readout.md``, whose §6 is this patch's scoping note.
+The thirty named `PerfScope` objects a frame opens each build a name string for a
+`D3DPERF_BeginEvent` that ignores it. A `.pscope` section adds two hooks: a probe at the end of the
+engine's D3DPERF setup (`D3DPERF_SETOPTIONS_STORE`) asks `D3DPERF_GetStatus` once whether a profiler
+is attached, and a gate at the constructor's own no-name exit (`PERF_SCOPE_NULL_GATE`) takes that
+exit when none is. Client-local.
 
-**The defect.** The engine wraps its render in thirty named `PerfScope` objects, each of which
-opens a PIX event. Building the name is not free:
-
-```
-strncpy(this, name, 0x100);          ; strncpy PADS to n - 256 bytes, always
-memcpy(this + 0x100, "SceneAnalyst", 13);
-len = strlen(this + 0x100);
-strncpy(this + 0x100 + len, category, 0x40 - len);
-```
-
-- roughly **333 bytes written per scope**, and then a widening loop copies the result into a second
-  buffer as UTF-16 before `D3DPERF_BeginEvent` is called with it.
-
-Two of the thirty scopes - `MeshDX8Render` and `MeshFXShader` - are **per mesh**, so a frame
-drawing three thousand meshes does this about six thousand times: on the order of a megabyte of
-string traffic, inside the render path, every frame. And with no profiler attached
-`D3DPERF_BeginEvent` returns immediately without reading a byte of it. **The whole thing is built
-for a reader that is not there.**
-
-**What this does.** Appends a ``.pscope`` PE section and hooks two places.
-
-- At `PERF_SCOPE_NULL_GATE` - the constructor's own `je` to its "this scope has no name, do
-  nothing" exit - a four-instruction gate sends the scope down that same exit when nothing is
-  listening. The engine's exit, not a new one: it already returns the object in `eax` and unwinds
-  the one `push esi` the entry made, which is exactly the ABI a skipped scope needs.
-- At `D3DPERF_SETOPTIONS_STORE` - the tail of the engine's own D3DPERF resolve, where `d3d9.dll` is
-  loaded and its handle is in hand - a probe asks **`D3DPERF_GetStatus`**, which the engine never
-  resolves, whether a profiler is attached, and records the answer in one byte.
-
-So a PIX capture still works and still comes out labelled; every other run stops building the
-labels. The byte defaults to **skip**, which is also what a run with no device gets.
-
-**Why `D3DPERF_GetStatus` and not the pointer the engine already has.** The obvious test is whether
-`0x00DD361C` is null, and it never is: `d3d9.dll` exports `D3DPERF_BeginEvent` whether or not
-anyone is listening, so the engine's own null test can never fire. `GetStatus` is the documented
-question and the only one that distinguishes the two cases. If it cannot be resolved - a d3d9
-replacement that omits it, DXVK - the probe records "not listening", which is the fast path and the
-correct answer for a runtime with no PIX in it.
-
-**What is left behind.** The destructor still calls `D3DPERF_EndEvent` on a scope whose
-`BeginEvent` never happened. An unbalanced `End` matters only to a profiler's nesting counter, and
-**when a profiler is attached this gate does not fire** - so the only runs that produce the
-imbalance are the ones with nothing there to mind it, where `D3DPERF_EndEvent` returns immediately
-without touching anything. (The constructor is *written* to tolerate a null name and the destructor
-is unconditional, so the engine's own code anticipates this shape - but no call site passes null,
-so that arm is dead in a stock build and is not evidence of anything.) What is
-left is one predictable indirect call against the ~313 bytes and two CRT calls this removes, and
-gating it too would mean editing bytes :mod:`~sage_patch.patches.perf_stage_readout` owns.
-
-**Nothing reads the buffer.** Every reference to a scope object's stack slot, in all eight
-functions that construct one, is a `lea ecx` feeding the constructor or the destructor - 64 of
-them, no reads. And the constructor uses `ebp` as a saved scratch register rather than as a frame
-pointer, so neither it nor the five-byte destructor can touch the caller's `[ebp-4]` unwind state.
-Skipping the body is invisible to everything but the profiler that is not attached.
-
-**Composition.** Order-independent with :mod:`~sage_patch.patches.perf_stage_readout`, which is the
-pairing that matters: that patch hooks the constructor's **first six bytes** and the destructor,
-this one hooks the `je` nine bytes in and a site in the D3D init, and neither reads bytes the other
-writes. Applied together, the readout still times every scope and the scope no longer builds a
-name - which is the combination worth running, because it measures what the render costs without
-the measurement paying for a string.
-
-**Client-local.** No simulation state, no INI surface, no replay or network effect.
+Derivation: `../docs/perf-scope-skip.md`, scoped in `../docs/perf-stage-readout.md` section 6.
 """
 
 from __future__ import annotations
@@ -115,7 +55,7 @@ SECTION_NAME = ".pscope"
 # one byte the probe writes and the gate reads.
 _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000 | 0x80000000
 
-#: ``'PSSK'``, so the block is recognisable in a process without being told where it landed.
+#: `'PSSK'`, so the block is recognisable in a process without being told where it landed.
 BLOCK_MAGIC = 0x4B535350
 
 #: The export the engine never resolves. Carried as a literal here because there is no copy of this
@@ -171,7 +111,7 @@ def _emit(base_va: int) -> Asm:
 
     a = Asm(base_va + CODE_OFFSET)
 
-    # --- the gate: reached from the constructor's own `je`, with its flags intact ----------
+    # The gate: reached from the constructor's own `je`, with its flags intact
     #
     # Nothing here may disturb `eax` (the name) or `esi` (the object): the body reaches the hook
     # with both live and pushes them at `0x005176AC`/`0x005176AD`. A `cmp` against memory and two
@@ -186,7 +126,7 @@ def _emit(base_va: int) -> Asm:
     a.label("run_body")
     a.jmp_absolute(PERF_SCOPE_NULL_GATE_RESUME)
 
-    # --- the probe: one question, once, at the tail of the engine's D3DPERF resolve --------
+    # The probe: one question, once, at the tail of the engine's D3DPERF resolve
     a.label("probe")
     a.emit(0xA3, struct.pack("<I", D3DPERF_SET_OPTIONS_PTR))  # the displaced store
     a.emit(0x60)  # pushad

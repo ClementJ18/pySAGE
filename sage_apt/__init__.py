@@ -7,13 +7,15 @@ HTML/SVG page; `sage_apt.editor` serves a browser editor over it. The `sage-apt`
 fronts all three.
 """
 
-from sage_apt.aptfile import AptError, apt_to_xml, xml_to_apt
+from sage_apt.aptfile import AptError, apt_bytes_to_xml, apt_to_xml, xml_bytes_to_apt, xml_to_apt
 from sage_apt.viewer import render_viewer_html, write_viewer_html
 
 __all__ = [
     "AptError",
+    "apt_bytes_to_xml",
     "apt_to_xml",
     "render_viewer_html",
     "write_viewer_html",
+    "xml_bytes_to_apt",
     "xml_to_apt",
 ]

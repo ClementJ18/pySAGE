@@ -19,6 +19,17 @@ from pyBIG import InDiskArchive
 from sage_utils.sources import norm_key  # source-relative path → lowercase forward-slash key
 from sage_utils.views import portrait_mapped_images, safe
 
+__all__ = [
+    "ability_overlay",
+    "composite_on_background",
+    "crop_mapped_image",
+    "default_background",
+    "frame_icon",
+    "render_portrait",
+    "TEXTURE_SUFFIXES",
+    "TextureSource",
+]
+
 # A `Texture` names the source `.tga`, but the shipped file is the compiled `.dds`;
 # the authored extension is ignored on lookup, `.dds` preferred over a `.tga` fallback.
 TEXTURE_SUFFIXES = (".dds", ".tga")

@@ -1,91 +1,15 @@
-"""The give-upgrade-all patch: a porter delivers every upgrade it carries, not the first one.
+"""Let a porter deliver every upgrade it carries, not only the first one the registry lists.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/give-upgrade-all.md``.
+`GiveUpgradeUpdate` asks `UpgradeCenter::firstSetIn` for "the" upgrade at three sites: the cursor
+test, the auto-deliver search and the hand-over. An `.upgall` section makes all three plural.
 
-.. warning::
+**Known crash, not yet fixed**: the auto-deliver edit (`0x0089FF17`) parks the porter in the search
+functor's `+4` slot, which is the partition-filter list's `next` pointer, so
+`PartitionFilter::append` walks into the object graph. `large-group-bonus` had the same bug
+(`../docs/large-group-bonus.md` section 8.1); this patch has no `ModuleData` to park the porter in
+instead, so the fix needs another carrier.
 
-   **Known crash, not yet fixed: the porter must not live in the functor's ``+4``.** The edit at
-   ``0x0089FF17`` below parks the owning porter in the `DeliverUpgrade` search functor's ``+4``
-   slot, on the reasoning that the stock store there is a zero and nothing reads it. That slot is
-   the `next` pointer of the intrusive partition-filter list, and the zero is the terminator:
-   ``0x0089FF66``-``0x0089FF74`` chain this functor into a four-node list through it, and
-   `PartitionFilter::append` (``0x00A394C0``) walks ``+4`` to find the tail. With an `Object`
-   parked there, `append` walks out of the list and into the object graph, stores a stack address
-   into the first thing it finds whose ``+4`` is null, and the scan then calls vslot ``+8`` on
-   something that is not a filter.
-
-   `large-group-bonus` made the same mistake and crashed on the first poll of any module that used
-   the feature; see ``../docs/large-group-bonus.md`` §8.1 for the dump. That patch now parks the
-   owner in its own `ModuleData`, which this one has no equivalent of - the carrier has to be
-   chosen before the edit at :data:`GIVE_UPGRADE_SEARCH_FILTER_OWNER` can be made safe. Until then
-   a `DeliverUpgrade = Yes` porter is a crash, and the rest of the patch (the cursor and the
-   trigger, which do not go through the search) is unaffected.
-
-**The limit.** `GiveUpgradeUpdate` treats "the upgrade this porter carries" as a singular. Three
-sites ask `UpgradeCenter::firstSetIn` (``0x0066F468``) for *the* upgrade set in the porter's own
-object-upgrade mask (`Object+0x28C`, which is what `GrantUpgradeCreate` writes), and everything
-downstream is decided by that one answer: whether the cursor accepts a target
-(`GiveUpgradeUpdate::canGiveTo`, ``0x0089FE64``), whom a `DeliverUpgrade = Yes` porter walks to
-(the filter predicate ``0x00660E04``), and what the recipient is handed
-(`GiveUpgradeUpdate::trigger`, the pick at ``0x008A021B``). The registry list is newest-first, so
-"the" upgrade is whichever of them the ini declared **last** - a fact nobody writing
-`GrantUpgradeCreate` rows is tracking.
-
-So a porter carrying `A B C` delivers exactly one of them, and is refused - invalid cursor, no
-diagnostic - by every unit that can take `B` or `C` but not `A`. Acceptance is
-`Object::canAcceptUpgrade` (``0x00694914``): a module `TriggeredBy` that exact upgrade, plus the
-player satisfying the upgrade's `RequiredObjectFilter`. For a battalion the question is asked of
-the horde through `HordeContain::anyMemberCanAccept` (``0x0086ECAB``), so the whole battalion
-turns invalid on one upgrade nobody in it uses.
-
-**What this does.** Appends an ``.upgall`` PE section holding four routines and rewrites four
-windows, so that all three sites become plural:
-
-- ``0x0089FE64`` `canGiveTo` -> `can_give_any`: the same predicate, over every upgrade in the mask
-  rather than the first, with the recipient resolved exactly as stock resolves it.
-- ``0x008A021B`` the trigger's pick -> `grant_rest`: returns what the picker returned so the
-  twenty instructions after it are untouched, except that it returns the first **acceptable**
-  upgrade rather than the first present one, and grants every other acceptable one itself first.
-- ``0x0089FF17`` `mov [ebp-0x24], ebx` -> `mov [ebp-0x24], esi`: parks the owning porter in the
-  search filter's `+4` slot, which is dead in stock (both constructions of that functor zero it,
-  nothing reads it).
-- ``0x00660E04`` the filter predicate -> `filter_any`: a candidate that can take *any* carried
-  upgrade is a match, so the auto-deliver walks to it. Falls back to the exact stock predicate
-  when `+4` is null, so a functor built by a path this patch did not edit is unaffected.
-
-**What the recipient sees.** The extra upgrades go through the engine's own entry points -
-`HordeContain::giveUpgradeToMembers(u, force=0)` for a horde, `Object::giveUpgrade` for a lone
-object - each gated by the same acceptance test first, so nothing is granted that stock would have
-refused. The flash FX, the delivery sound and `GiveUpgradeEffect` fire once for the upgrade the
-engine itself hands over, not once per upgrade.
-
-**Registers.** `grant_rest` replaces a `call`, not a function entry, so it reads three of the
-caller's registers: `ebx` the owning porter, `edi` the target, `esi` the module. Each is pinned by
-an anchor asserted before anything is written - `GIVE_UPGRADE_TRIGGER_OWNER`,
-`GIVE_UPGRADE_TRIGGER_TARGET_ARM` and `GIVE_UPGRADE_TRIGGER_MEMBER_ARM` are the instructions that
-put them there and use them. The cave saves and restores all four callee-saved registers and
-cleans the one argument the picker's `ret 4` cleaned.
-
-**Nothing acceptable.** `grant_rest` returns 0, which is the picker's own "this porter carries
-nothing" answer: the trigger takes its `je 0x008A02BB` edge to ``0x0089FE01``, plays `SpawnOutFX`
-and fades the porter out. That path is stock and reachable today.
-
-**Determinism.** Every edited site is logic-side, inside a special power's own execution, which
-each peer evaluates on the same frame from the same object state. The cave reads two bitsets and
-the upgrade registry - no timing, no local player, no rendering - and produces upgrade masks
-through the engine's own grant functions. Replay- and network-safe by the same argument as the
-stock delivery it extends.
-
-**Blast radius.** `GiveUpgradeUpdate` only. `canGiveTo` has two callers, both on this module's own
-paths; the redirected picker call is one of thirteen and the other twelve are untouched; the
-filter predicate is unreachable except through a vtable this class builds. An object with no
-`GiveUpgradeUpdate` module reaches none of it. For a porter carrying exactly one upgrade - every
-vanilla porter, which is handed its upgrade at spawn rather than by `GrantUpgradeCreate` - the
-patched path computes stock's answers.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The four windows it edits are touched by no other bundled patch.
+Derivation: `../docs/give-upgrade-all.md`.
 """
 
 from __future__ import annotations
@@ -139,7 +63,14 @@ from ..addresses import (
 )
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    call_rel32,
+    find_section,
+    jmp_rel32,
+    va_to_offset,
+)
 
 __all__ = [
     "ANCHORS",
@@ -176,7 +107,7 @@ def build_code(base_va: int) -> Asm:
     """The four routines the hooks reach, plus the two the cave calls itself.
 
     Emitted in one buffer so the internal calls resolve as labels; the entry points are read back
-    out with :meth:`Asm.label_va` rather than by counting bytes twice.
+    out with `Asm.label_va` rather than by counting bytes twice.
     """
     a = Asm(base_va)
     _emit_can_give_any(a)
@@ -188,7 +119,7 @@ def build_code(base_va: int) -> Asm:
 
 
 def _emit_can_give_any(a: Asm) -> None:
-    """`bool canGiveTo(Object *target)` — thiscall, `ret 4`, replacing the whole stock function.
+    """`bool canGiveTo(Object *target)` - thiscall, `ret 4`, replacing the whole stock function.
 
     Stock asks whether the recipient accepts the one carried upgrade; this asks whether it accepts
     any of them. The recipient is resolved as stock resolves it: a target with a container
@@ -248,7 +179,7 @@ def _emit_can_give_any(a: Asm) -> None:
 
 
 def _emit_grant_rest(a: Asm) -> None:
-    """Stands in for the trigger's `call UpgradeCenter::firstSetIn` — same contract, `ret 4`.
+    """Stands in for the trigger's `call UpgradeCenter::firstSetIn` - same contract, `ret 4`.
 
     Returns the first upgrade the recipient **accepts** instead of the first one present, and
     grants every other acceptable one on the way, so the engine's own two arms below the call
@@ -334,7 +265,7 @@ def _emit_grant_rest(a: Asm) -> None:
 
 
 def _emit_filter_any(a: Asm) -> None:
-    """`bool UpgradeFilter::operator()(Object *candidate)` — thiscall, `ret 4`.
+    """`bool UpgradeFilter::operator()(Object *candidate)` - thiscall, `ret 4`.
 
     The auto-deliver's search predicate. With a porter parked in the functor's `+4` slot it
     accepts a candidate that can take any carried upgrade; with `+4` null - a functor built by a
@@ -461,7 +392,7 @@ class GiveUpgradeAllPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified).
+        """Structural check that `data` carries this patch (an empty list == verified).
 
         Locates the cave, rebuilds the code its base VA implies, and compares that and all four
         rewritten windows against what is on disk. Needs no disassembler.
@@ -493,9 +424,9 @@ class GiveUpgradeAllPatch(Patch):
         return problems
 
     def _edits(self, data: bytes | bytearray, code: Asm) -> Iterator[tuple[int, bytes, bytes, str]]:
-        """The four windows, as ``(file offset, stock bytes, patched bytes, note)``.
+        """The four windows, as `(file offset, stock bytes, patched bytes, note)`.
 
-        One list, used by both :meth:`apply` and :meth:`verify`, so the two cannot disagree about
+        One list, used by both `apply` and `verify`, so the two cannot disagree about
         what this patch writes.
         """
         can_give = code.label_va("can_give_any")
@@ -507,13 +438,13 @@ class GiveUpgradeAllPatch(Patch):
         yield (
             self._offset(data, GIVE_UPGRADE_CAN_GIVE),
             GIVE_UPGRADE_CAN_GIVE_ENTRY,
-            _jmp(GIVE_UPGRADE_CAN_GIVE, can_give) + b"\x90",
+            jmp_rel32(GIVE_UPGRADE_CAN_GIVE, can_give, 6),
             "GiveUpgradeUpdate::canGiveTo -> can_give_any",
         )
         yield (
             self._offset(data, GIVE_UPGRADE_TRIGGER_PICK),
             GIVE_UPGRADE_TRIGGER_PICK_BYTES,
-            _call(GIVE_UPGRADE_TRIGGER_PICK, grant_rest),
+            call_rel32(GIVE_UPGRADE_TRIGGER_PICK, grant_rest),
             "the trigger's UpgradeCenter::firstSetIn -> grant_rest",
         )
         # `mov [ebp-0x24], esi` for `mov [ebp-0x24], ebx`: the filter's `+4` slot gains the owning
@@ -529,7 +460,7 @@ class GiveUpgradeAllPatch(Patch):
         yield (
             self._offset(data, UPGRADE_FILTER_PREDICATE),
             UPGRADE_FILTER_PREDICATE_ENTRY,
-            _jmp(UPGRADE_FILTER_PREDICATE, filter_any),
+            jmp_rel32(UPGRADE_FILTER_PREDICATE, filter_any),
             "UpgradeFilter::operator() -> filter_any",
         )
 
@@ -553,11 +484,3 @@ class GiveUpgradeAllPatch(Patch):
                     "upgrade delivery is not laid out as this patch reads it, so the cave would "
                     "call the wrong function or read the wrong register"
                 )
-
-
-def _jmp(site_va: int, target_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", target_va - (site_va + 5))
-
-
-def _call(site_va: int, target_va: int) -> bytes:
-    return b"\xe8" + struct.pack("<i", target_va - (site_va + 5))

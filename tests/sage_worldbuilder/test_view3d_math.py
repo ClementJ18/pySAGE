@@ -7,9 +7,9 @@ import pytest
 
 np = pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 
-from sage_worldbuilder.camera import MAX_PITCH, MIN_PITCH, Camera  # noqa: E402
+from sage_worldbuilder.camera.projection import OFF_SCREEN, CameraProjection  # noqa: E402
+from sage_worldbuilder.camera.view import MAX_PITCH, MIN_PITCH, Camera  # noqa: E402
 from sage_worldbuilder.changes import Region  # noqa: E402
-from sage_worldbuilder.projection import OFF_SCREEN, CameraProjection  # noqa: E402
 from sage_worldbuilder.render.terrain_mesh import (  # noqa: E402
     chunk_boxes,
     chunk_vertices,

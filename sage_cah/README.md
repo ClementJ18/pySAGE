@@ -1,87 +1,70 @@
 # sage_cah
 
-A lossless reader/writer for `.cah`, the BFME2/RotWK Create-a-Hero file - one custom hero's
-identity, class, colors, the ten purchasable powers, the twelve "bling" customization/attribute
+A lossless reader and writer for `.cah`, the BFME2/RotWK Create-a-Hero file: one custom hero's
+identity, class, colours, ten purchasable powers, twelve "bling" customization and attribute
 entries, a GUID, and a CRC-32 checksum the game validates before loading.
 
-Credit for the field layout, enums, and checksum goes to withmorten's reversed `cah_file`
-(MIT-licensed C++, `cah_file.h`/`cah_file.cpp`) - the tables below were checked byte-exact
-(parse, round-trip, and CRC-32 recomputation) against all 15 shipped example heroes from both
-games' `Data1.big` (7 BFME2, 8 RotWK).
+The field layout, enums and checksum come from withmorten's reversed `cah_file` (MIT-licensed C++,
+`cah_file.h`/`cah_file.cpp`), and were checked byte-exact (parse, round trip, checksum) against all
+15 example heroes shipped in both games' `Data1.big`.
 
 ## Binary format
 
-All integers little-endian. A `pstr` is a uint8 length prefix followed by that many latin-1
-bytes - no NUL terminator; this lets arbitrary bytes round-trip even though every known fixture
-is plain ASCII. The hero name is the one field that isn't a `pstr`: its length prefix counts
-UTF-16 code units, not bytes.
+All integers little-endian. A `pstr` is a uint8 length followed by that many latin-1 bytes, no NUL.
+The hero name is the exception: its length counts UTF-16 code units.
 
 ```
 8   bytes  magic "ALAE2STR"
 i32        header_unk1        # 1 in every fixture; meaning unknown
 i32        header_unk2        # 0 in every fixture; meaning unknown
-u8         version             # 8 in every fixture; 1-8 seen historically
-i32        obj_id              # 19 / 55 / 57 in fixtures; semantics unclear
-u8         name_len            # count of UTF-16 code units, not bytes
+u8         version            # 8 in every fixture; 1-8 seen historically
+i32        obj_id             # 19 / 55 / 57 in fixtures; semantics unclear
+u8         name_len           # count of UTF-16 code units, not bytes
 2*name_len bytes  name, UTF-16LE, no terminator
-i32        class_index         # see display maps below
+i32        class_index        # see the display names below
 i32        sub_class_index
-i32        reserved1           # 0 in fixtures
-i32        reserved2           # 0 in fixtures
+i32        reserved1          # 0 in fixtures
+i32        reserved2          # 0 in fixtures
 u32 x3     color1, color2, color3   # primary / secondary / tertiary palette indices
 
-15 x power slot (slots 0-9 are the real, buyable powers; 10-14 are always empty):
-    pstr       command_button      # the ini CommandButton name this slot triggers
-    i32        exp_level           # in-game level minus 1
-    i32        button_index        # 1-5, or 8 for the "no power" dummy
+15 x power slot (slots 0-9 are the buyable powers; 10-14 are always empty):
+    pstr       command_button     # the ini CommandButton this slot triggers
+    i32        exp_level          # in-game level minus 1
+    i32        button_index       # 1-5, or 8 for the "no power" dummy
 
-i32        bling_count         # 12 in every fixture
+i32        bling_count        # 12 in every fixture
 bling_count x:
-    pstr       group_name          # e.g. "CreateAHero_Weapon", "CreateAHero_ArmorAttribute"
-    i32        bling_index         # in-game value minus 1, for the 5 *Attribute stat groups
+    pstr       group_name         # e.g. "CreateAHero_Weapon", "CreateAHero_ArmorAttribute"
+    i32        bling_index        # in-game value minus 1, for the 5 *Attribute groups
 
-pstr       guid_str            # see GUID format below
-u8         is_system_hero      # 1 on every shipped hero
-u32        checksum            # CRC-32, coverage below
+pstr       guid_str           # see GUID format below
+u8         is_system_hero     # 1 on every shipped hero
+u32        checksum           # CRC-32, coverage below
 ```
 
-No fixture has trailing bytes after the checksum - a `.cah` is exactly this one fixed-size
-(modulo strings) struct, with no chunk-skip story the way `sage_w3d` needs for unknown chunks.
+Nothing follows the checksum.
 
 ## Checksum
 
-A standard CRC-32 (the reference's table is the stock zlib polynomial table), chained with
-`zlib.crc32(chunk, crc)` starting from 0, over exactly, in order:
+A standard zlib CRC-32, chained from 0 over, in order: `obj_id`; the name encoded as **UTF-8**;
+`class_index`, `sub_class_index`, `reserved1`, `reserved2`; the three colours; for each of the
+**15** power slots, its command-button bytes, `exp_level` and `button_index`; `bling_count`; for
+each bling, its group-name bytes and `bling_index`; and the `is_system_hero` byte. The magic, the
+header ints, `version`, the length prefixes and the GUID are not covered.
 
-1. `obj_id` (4 bytes)
-2. the name, encoded **UTF-8** (not the on-disk UTF-16), no terminator
-3. `class_index`, `sub_class_index`, `reserved1`, `reserved2` (4 bytes each)
-4. `color1`, `color2`, `color3` (4 bytes each)
-5. for each of the **15** power slots: the command-button bytes, then `exp_level`, then
-   `button_index`
-6. `bling_count`
-7. for each bling: the group-name bytes, then `bling_index`
-8. the single `is_system_hero` byte
-
-Not covered: the magic, the two header ints, `version`, every length prefix, and `guid_str`.
-`write_cah` preserves the stored checksum verbatim by default (a byte-exact round trip even for
-a hand-edited file whose checksum has gone stale); pass `refresh_checksum=True` to write
-`compute_checksum(hero)` instead, matching what the game's own `write()` always does.
+`write_cah` keeps the stored checksum by default, for a byte-exact round trip; pass
+`refresh_checksum=True` to write `compute_checksum(hero)`, as the game itself does.
 
 ## GUID format
 
-`update_guid()` in the C++ reference formats a Windows `GUID` (`Data1` u32, `Data2` u16, `Data3`
-u16, `Data4` byte[8]) as 7 concatenated **unpadded** uppercase `%X` fields: `Data1`, `Data2`,
-`Data3`, then the first 4 bytes of `Data4` - which is why the shipped filenames
-(`myhero_<hex>.cah`) have varying hex lengths. `new_guid()` reproduces this from a fresh v4
-UUID.
+A Windows `GUID` written as seven concatenated, unpadded uppercase hex fields: `Data1`, `Data2`,
+`Data3`, then the first four bytes of `Data4` - hence the varying lengths of shipped file names
+(`myhero_<hex>.cah`). `new_guid()` makes one from a fresh UUID.
 
-## Class / sub-class display names
+## Class and sub-class display names
 
-From `cah_file.h` (RotWK-era). The same hero carries a *different* index in BFME2 vs RotWK
-(Thrugg is class 4 / sub-class 2 in bfme2, 4 / 1 in rotwk) - these maps are display labels for
-a UI, not an invariant of the format, and an index outside a map should just print the bare
-number rather than raising.
+From `cah_file.h` (RotWK). These are UI labels, not part of the format: the same hero has different
+indices in BFME2 and RotWK, and mods rename and reorder freely. An unknown index prints as a number.
 
 | index | class | sub-classes (index: name) |
 | --- | --- | --- |
@@ -93,7 +76,7 @@ number rather than raising.
 | 5 | Corrupted Man | 0: Easterling, 1: Haradrim |
 | 6 | Olog-hai | 0: Great Troll, 1: Snow Troll, 2: Hill Troll |
 
-## Model
+## Model and example
 
 ```python
 from sage_cah import CahBling, CahPower, CustomHero
@@ -109,19 +92,14 @@ CustomHero(
 )
 ```
 
-`CustomHero` adds a few read-only conveniences: `active_powers` (the non-empty power slots),
-`bling(group_name)` (case-insensitive lookup), and `checksum_valid` (compares `checksum` against
-`compute_checksum(self)`).
-
-## Example
+`CustomHero` also offers `active_powers`, `bling(group_name)` (case-insensitive) and
+`checksum_valid`.
 
 ```python
-from sage_cah import compute_checksum, new_guid, parse_cah_from_path, write_cah_to_path
+from sage_cah import new_guid, parse_cah_from_path, write_cah_to_path
 
 hero = parse_cah_from_path("myhero_47c6206b5c124324a54a2da3.cah")
-print(hero.name, hero.class_index, hero.sub_class_index)
-print([p.command_button for p in hero.active_powers])
-print(hero.checksum_valid)
+print(hero.name, hero.class_index, [p.command_button for p in hero.active_powers])
 
 hero.guid = new_guid()
 write_cah_to_path(hero, "myhero_edited.cah", refresh_checksum=True)
@@ -132,7 +110,7 @@ write_cah_to_path(hero, "myhero_edited.cah", refresh_checksum=True)
 ```
 sage-cah info <cah>                        # identity / class / powers / bling / checksum
 sage-cah json <cah> [--out] [--compact]    # the parsed structure as JSON
-sage-cah check <path>                      # file or directory: round-trip + checksum check
+sage-cah check <path>                      # file or directory: round trip + checksum
 sage-cah fix <cah> -o OUT [--new-guid]     # rewrite with a refreshed checksum
 ```
 
@@ -143,47 +121,27 @@ pip install "pysage-tools[cah-ui]"   # from a checkout: pip install -e ".[cah-ui
 sage-cah-ui                          # or: python -m sage_cah.ui
 ```
 
-`sage-cah-ui` opens one `.cah` and edits it: name, class and sub-class, object id, the three
-colours, the GUID (with a **New GUID** button - a copied hero needs one), the fifteen power
-slots and every bling entry. Saving always writes a freshly computed checksum, so a hand-edited
-hero still loads in game. The fields the editor does not show - the two header ints, `version`,
-the reserved words - are written back exactly as they were read, so opening a hero and saving it
-untouched reproduces the file byte for byte.
-
-Everything above works with no game data at all. Loading a game (the **GAME DATA** card, or
-**Find installed game** for an install on this PC) adds completion, which is what makes the raw
-names readable:
-
-- the class and sub-class lists come from the data itself, in the order the file's indices count
-  them - a mod reorders and renames them freely, so a hero the built-in labels call a *Dwarf
-  Taskmaster* is a *Diener der Dunkelheit / Heerführer Carn Dûms* under Edain;
-- the power field completes over the `CommandButton`s that class can actually buy, and names
-  each one with the level it unlocks at;
-- each bling row names the choice its index picks.
+Edits one `.cah`: name, class, object id, colours, GUID (**New GUID** for a copied hero), powers and
+bling. Saving writes a fresh checksum; fields the editor does not show are written back unchanged,
+so an untouched hero saves byte for byte. Loading a game (the **GAME DATA** card, or **Find
+installed game**) adds completion from the game's own data: class names in the file's index order,
+the powers each class can buy with their unlock levels, and what each bling index picks.
 
 ## Reading a game's Create-a-Hero data
 
-`sage_cah.gamedata` is the Qt-free half of that, usable on its own:
+`sage_cah.gamedata` is the Qt-free half of that:
 
 ```python
 from sage_cah.gamedata import scan_ini_root
 
-data = scan_ini_root("C:/Games/rotwk")             # a folder holding data/ini, or an ini root
-otwk")           # a folder holding data/ini, or an ini root
+data = scan_ini_root("C:/Games/rotwk")           # a folder holding data/ini, or an ini root
 data.classes[3].name                             # "Diener der Dunkelheit"
 [p.command_button for p in data.powers_for(3)]   # what class 3 may buy
 data.bling_choices("CreateAHero_Helmet", 3, 0)   # what a helmet index counts into
 ```
 
-`load_cah_game_data([("big", "…/ini.big"), …])` is the same thing over an ordered source list
-(folders and `.big` archives, later overriding earlier), which is what the editor drives.
-
-Only the files declaring a `CommandButton` or the `CreateAHeroSystem` block are parsed - they
-are found by a text scan first - so a scan of a full Edain install takes a couple of seconds
-where a whole-game `sage_ini` load takes a minute. The two indexing rules worth knowing, both
-implemented by `bling_choices`:
-
-| stored value | counts into |
-| --- | --- |
-| an **attribute** group's `bling_index` (the five `*Attribute` groups) | that group's own options, so index 0 is in-game value 1 - the same for every class |
-| an **appearance** group's `bling_index` | the *sub-class's* `BlingUpgrades` for that group, so helmet 1 is a different helmet per sub-class |
+`load_cah_game_data([("big", ".../ini.big"), ...])` does the same over ordered folders and `.big`
+archives. Only files declaring a `CommandButton` or `CreateAHeroSystem` are parsed, so a full Edain
+install scans in seconds. `bling_choices` applies the two indexing rules: an attribute group's index
+counts into that group's options (the same for every class), and an appearance group's counts into
+the sub-class's `BlingUpgrades` for that group.

@@ -180,7 +180,7 @@ New fields must start at zero on data that never names them, and must survive
 | `copyFrom` | `0x007B1F53` | `8b c3 5e 5d 5b c2 04 00` (its whole epilogue) | three dwords from `ebp+0x88..` to `ebx+0x88..`, **then** the epilogue |
 
 The `copyFrom` half takes the epilogue rather than the `+0x84` store one instruction earlier -
-`addresses.py` already names it as `SPECIAL_POWER_TEMPLATE_COPY_TAIL` for `hero-mana`, which grows
+`sage_patch.addresses` already names it as `SPECIAL_POWER_TEMPLATE_COPY_TAIL` for `hero-mana`, which grows
 the same struct - and the copies go **before** the displaced bytes there, because those bytes end
 in `ret 4`. In both windows the register holding the object (`esi` in the ctor, `ebx` the
 destination and `ebp` the *source* in `copyFrom`) is live. Note that unlike

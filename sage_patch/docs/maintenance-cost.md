@@ -102,7 +102,7 @@ Beware the naming: this function is `TERRAIN_RESOURCE_UPDATE` and also the **onl
 `PlayerTemplate.ResourceModifierValues` in the image — the thing
 [`command-point-upkeep`](command-point-upkeep.md) and [`inflation-readout`](inflation-readout.md)
 call "the deposit". `AutoDepositUpdate::update` is a different function at `0x0089DC00`-ish.
-`addresses.py` says so at `AUTO_DEPOSIT_MODULE_DATA_CTOR`; the discriminator is the `ModuleData`,
+`sage_patch.addresses` says so at `AUTO_DEPOSIT_MODULE_DATA_CTOR`; the discriminator is the `ModuleData`,
 `[ebp-0x18]` here and `[esi-0x0C]` there.
 
 The income, from `MaxIncome` to the purse:
@@ -229,7 +229,7 @@ declined to draw anything for it. So only the deposit itself needs an edit.
 ### The hook site is forced
 
 [`second-resource`](second-resource.md) hooks the `call` at `0x0089DD08` — it is
-`AUTO_DEPOSIT_DEPOSIT` in `addresses.py`. Taking it would make the two patches mutually exclusive
+`AUTO_DEPOSIT_DEPOSIT` in `sage_patch.addresses`. Taking it would make the two patches mutually exclusive
 for no reason, so this patch hooks the `lea` at `0x0089DCFF` instead (six bytes) and rejoins at
 `0x0089DD05`, one instruction **above** the call. A positive amount therefore runs whatever
 occupies that call; a negative jumps past it to `0x0089DD0D`, which is also the right answer for
@@ -303,7 +303,7 @@ looks like something the game already does because it is.
 
 Two details it inherits rather than invents: the destination `UnicodeString` is zeroed before the
 format, because `0x00ADF7E0` *replaces* rather than appends and releases what the slot held (the
-warning at `UNICODE_STRING_CONCAT` in `addresses.py`); and the amount passed is `withdraw`'s return
+warning at `UNICODE_STRING_CONCAT` in `sage_patch.addresses`); and the amount passed is `withdraw`'s return
 value, not the requested one, so a player with 3 gold facing a 5 gold charge sees `3`.
 
 ## 7. What it does not do

@@ -2,10 +2,10 @@
 
 Every tool that has to reach a *live* install - `sage_patch` deploying a patched binary,
 `sage_live` attaching to a running game, the Worldbuilder launcher - otherwise hardcodes
-``C:\\Program Files (x86)\\Games\\bfme\\rotwk`` and breaks on anyone else's machine. This is the
+`C:\\Program Files (x86)\\Games\\bfme\\rotwk` and breaks on anyone else's machine. This is the
 one place that guesses, so a wrong guess is fixed once.
 
-:func:`find_installs` is deliberately separate from :mod:`sage_utils.gameroot`, which resolves a
+`find_installs` is deliberately separate from `sage_utils.gameroot`, which resolves a
 path the *user already gave*. This module answers the earlier question - what is on this machine -
 and its results are meant to become the default that `gameroot` then resolves.
 
@@ -46,7 +46,7 @@ __all__ = [
 class RegistryKey:
     """One place an installer records an install path.
 
-    ``wow64_32`` asks for the 32-bit view explicitly rather than spelling `Wow6432Node` into the
+    `wow64_32` asks for the 32-bit view explicitly rather than spelling `Wow6432Node` into the
     subkey: these are 32-bit games, so on a 64-bit Windows their keys live under the redirected
     hive, and naming the view lets the same subkey string work on both."""
 
@@ -71,18 +71,18 @@ class Game:
 
 @dataclass(frozen=True)
 class Install:
-    """A directory that really does hold ``game``'s files."""
+    """A directory that really does hold `game`'s files."""
 
     game: str
     title: str
     path: Path
-    #: ``"registry"`` or ``"known-path"`` - which half of the search produced it.
+    #: `"registry"` or `"known-path"` - which half of the search produced it.
     source: str
 
 
 _EA = r"SOFTWARE\Electronic Arts\Electronic Arts"
 
-#: The games, in the order :func:`find_installs` reports them.
+#: The games, in the order `find_installs` reports them.
 GAMES: tuple[Game, ...] = (
     Game(
         key="rotwk",
@@ -122,7 +122,7 @@ GAMES: tuple[Game, ...] = (
     ),
 )
 
-#: A registry reader: takes a :class:`RegistryKey`, returns the string it holds or `None`.
+#: A registry reader: takes a `RegistryKey`, returns the string it holds or `None`.
 Reader = Callable[[RegistryKey], str | None]
 
 
@@ -148,7 +148,7 @@ def registry_reader(key: RegistryKey) -> str | None:
 
 
 def _program_files_roots() -> Iterator[Path]:
-    """The Program Files directories to hang :attr:`Game.known_paths` off, plus bare drives.
+    """The Program Files directories to hang `Game.known_paths` off, plus bare drives.
 
     A lot of BFME installs are not under Program Files at all - the games predate the convention
     and people move them - so the drive roots are tried too."""
@@ -178,9 +178,9 @@ def find_installs(
 ) -> tuple[Install, ...]:
     """Every install found on this machine, registry hits first, de-duplicated by path.
 
-    ``games`` filters by :attr:`Game.key` (default: all of :data:`GAMES`). ``reader`` and
-    ``roots`` are both injectable so the two halves of the search can be exercised in isolation -
-    passing ``roots=()`` turns off the known-path guessing and leaves only the registry, which is
+    `games` filters by `Game.key` (default: all of `GAMES`). `reader` and
+    `roots` are both injectable so the two halves of the search can be exercised in isolation -
+    passing `roots=()` turns off the known-path guessing and leaves only the registry, which is
     what makes a test independent of what happens to be installed on the machine running it.
     """
     wanted = set(games) if games is not None else None
@@ -216,7 +216,7 @@ def find_install(
     reader: Reader = registry_reader,
     roots: Iterable[Path] | None = None,
 ) -> Install | None:
-    """The first install of ``game``, or `None`. The common case behind :func:`find_installs`."""
+    """The first install of `game`, or `None`. The common case behind `find_installs`."""
     installs = find_installs([game], reader, roots)
     return installs[0] if installs else None
 
@@ -228,9 +228,9 @@ def user_data_dir(
 ) -> Path | None:
     """The per-user folder the game keeps user maps, replays, saves and autosaves in.
 
-    The installer records its leaf name (``UserDataLeafName``) next to ``InstallPath``, and the
-    game joins it onto ``%APPDATA%``. The name varies between releases of the same game, which is
-    why several ``My ... Files`` folders can sit side by side and only the recorded one is live.
+    The installer records its leaf name (`UserDataLeafName`) next to `InstallPath`, and the
+    game joins it onto `%APPDATA%`. The name varies between releases of the same game, which is
+    why several `My ... Files` folders can sit side by side and only the recorded one is live.
     Returns `None` when the game or the value is unknown; the folder itself may not exist yet."""
     spec = next((candidate for candidate in GAMES if candidate.key == game), None)
     if spec is None:

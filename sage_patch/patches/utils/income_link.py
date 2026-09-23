@@ -7,7 +7,7 @@ treasury disagree.
 
 **Why this is a module and not a direct import.** The obvious implementation - have the readout
 look for `.upkeep` and bake its address in - breaks
-:class:`~sage_patch.patcher.Patch`'s composition contract in the one way the framework cannot
+`Patch`'s composition contract in the one way the framework cannot
 catch. Rule 3 is *do not derive your output from bytes another patch rewrites*: applied
 readout-then-upkeep the lookup finds nothing and the readout silently drops the upkeep factor,
 applied upkeep-then-readout it finds it. **Both orders succeed and disagree**, and no assertion
@@ -27,7 +27,7 @@ Neither patch's *code layout* depends on the other. Only these four bytes of dat
 what makes the pair order-independent rather than merely documented-as-ordered.
 
 **The exported contract**, which `command-point-upkeep` may not now change without breaking a
-linked readout::
+linked readout:
 
     percent(ecx: Player*) -> eax: int    ; the percentage of income that player keeps, 0..100
 
@@ -87,7 +87,7 @@ def read_import(data: bytes | bytearray) -> int | None:
     """What `inflation-readout` currently calls for the upkeep factor: a VA, or 0 for "nothing".
 
     None distinguishes "the file has no readout" from "the readout is unlinked", which
-    :meth:`verify` on both sides needs to tell apart.
+    `verify` on both sides needs to tell apart.
     """
     off = import_slot_offset(data)
     if off is None:

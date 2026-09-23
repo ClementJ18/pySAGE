@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from sage_ini.loader import load_game
-from sage_ini.stats import ini_root
+from sage_ini.paths import ini_root
 from sage_lint.commands.serve import _defs_changed
 from sage_lint.linter import lint_file, lint_file_cached, lint_file_cached_game
 

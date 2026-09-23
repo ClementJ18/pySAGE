@@ -40,12 +40,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root on path
 
 import sage_live  # noqa: E402
+from sage_live.launch.game_info import game_info_string  # noqa: E402
+from sage_live.launch.runner import install_map, launch  # noqa: E402
 from sage_map import parse_map, write_map  # noqa: E402
 from sage_test import Scenario, Seat  # noqa: E402
 from sage_test.compile import compile_into  # noqa: E402
-from sage_test.game_info import game_info_string  # noqa: E402
 from sage_test.harness import Match, bind_handles  # noqa: E402
-from sage_test.runner import install_map, launch  # noqa: E402
 
 #: A shipped multiplayer map, used as the template a scenario is compiled onto. It brings the
 #: terrain, the start positions and the castle plots; the scenario only adds objects.

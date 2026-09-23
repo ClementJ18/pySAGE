@@ -97,6 +97,7 @@ from sage_patch.patches import upgrade_description as ud
 from sage_patch.patches import upgrade_grant_lists as ugl
 from sage_patch.patches import worldbuilder_mod as wbm
 from sage_patch.patches import worldbuilder_object_typeahead as wbt
+from sage_patch.patches.experimental import accel_module as accel
 from sage_patch.patches.experimental import battle_school as bs
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
@@ -845,6 +846,15 @@ def perf_scope_skip_image() -> bytearray:
     other writes" - plant them apart and the overlap that would break composition is invisible.
     """
     return _sparse_image({**_stage_site_calls(), **pss.ANCHORS, **psr.ANCHORS})
+
+
+def accel_module_image() -> bytearray:
+    """A stand-in carrying the `Direct3DCreate9` resolve **and** both render-scope patches' sites.
+
+    `accel-module` hooks the resolve ninety bytes before `perf-scope-skip`'s D3DPERF hook, in the
+    same function, so the image carries both to make composition checkable rather than assumed.
+    """
+    return _sparse_image({**_stage_site_calls(), **pss.ANCHORS, **psr.ANCHORS, **accel.ANCHORS})
 
 
 def contained_horde_respawn_image() -> bytearray:

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from sage_replay import parse_replay, parse_replay_from_path, serialize_replay
+from sage_replay import parse_replay, parse_replay_from_path, write_replay
 from sage_replay.annotations import (
     MAX_PLAYER_COUNT,
     SCHEMA_VERSION,
@@ -95,7 +95,7 @@ def with_annotations(scores: dict[int, list[int]], *, declared: bool = True):
         for slot, values in sorted(scores.items())
     )
     replay.chunks.extend(appended)
-    return parse_replay(serialize_replay(replay))
+    return parse_replay(write_replay(replay))
 
 
 @pytest.fixture(scope="module")
@@ -185,7 +185,7 @@ def test_a_record_short_of_the_schema_is_skipped_not_guessed():
     """Short of the *v1 prefix*, which every schema shares - that is malformed, not old."""
     replay = with_annotations({0: score_values(schema=1)})
     del replay.chunks[-1].order.arguments[-1]
-    assert player_scores(parse_replay(serialize_replay(replay))) == {}
+    assert player_scores(parse_replay(write_replay(replay))) == {}
 
 
 def test_a_longer_record_still_reads_for_the_part_the_schema_knows():
@@ -193,7 +193,7 @@ def test_a_longer_record_still_reads_for_the_part_the_schema_knows():
     on the prefix it understands."""
     replay = with_annotations({0: score_values(units_built=41)})
     replay.chunks[-1].order.arguments.append(OrderArgument(OrderArgumentType.Integer, 999))
-    score = player_scores(parse_replay(serialize_replay(replay)))[0]
+    score = player_scores(parse_replay(write_replay(replay)))[0]
     assert score.units_built == 41
     assert score.schema_version == SCHEMA_VERSION
 
@@ -202,7 +202,7 @@ def test_a_v1_record_reads_with_the_later_fields_absent():
     """Backward compatibility, and the reason the v2 fields are `| None`: the corpus recorded
     before this schema must keep reading, and must not report a zero it never carried."""
     replay = with_annotations({0: score_values(schema=1, units_built=41, money_earned=900)})
-    score = player_scores(parse_replay(serialize_replay(replay)))[0]
+    score = player_scores(parse_replay(write_replay(replay)))[0]
     assert (score.schema_version, score.units_built, score.money_earned) == (1, 41, 900)
     assert score.resources is None
     assert score.faction_name_key is None
@@ -225,7 +225,7 @@ def test_the_v2_tail_lands_where_the_schema_says():
             )
         }
     )
-    score = player_scores(parse_replay(serialize_replay(replay)))[0]
+    score = player_scores(parse_replay(write_replay(replay)))[0]
     assert score.faction_name_key == 1690
     assert score.resources == 5840
     assert (score.power_points, score.power_points_total) == (3, 7)
@@ -245,4 +245,4 @@ def test_the_command_point_ceiling_is_clamped_by_the_hard_cap():
             )
         }
     )
-    assert player_scores(parse_replay(serialize_replay(replay)))[0].command_point_ceiling == 1500
+    assert player_scores(parse_replay(write_replay(replay)))[0].command_point_ceiling == 1500

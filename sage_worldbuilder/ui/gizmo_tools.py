@@ -31,6 +31,7 @@ from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
 
 from sage_map.assets.object_list import Object
+from sage_worldbuilder.commands.objects import MoveObjects, RotateObjects
 from sage_worldbuilder.document import MapDocument
 from sage_worldbuilder.gizmos import (
     GIZMO_PIXELS,
@@ -43,7 +44,6 @@ from sage_worldbuilder.gizmos import (
     reach,
     snapped_angle,
 )
-from sage_worldbuilder.objects import MoveObjects, RotateObjects
 from sage_worldbuilder.ui.overlays import arrow_head
 from sage_worldbuilder.ui.tools import (
     PICK_PIXELS,

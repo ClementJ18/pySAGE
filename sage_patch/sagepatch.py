@@ -1,5 +1,5 @@
 """Read a patched `game.dat` and write down the INI surface it accepts - the `.sagepatch` that
-`sage_ini` and `sage_lint` load (see :mod:`sage_ini.engine`).
+`sage_ini` and `sage_lint` load (see `sage_ini.engine`).
 
 The file is derived from **the binary**, not from a list of patch names someone types, and that
 is the point: a mod's `game.dat` is whatever its author actually built, and the questions that
@@ -9,8 +9,8 @@ bits - are all answerable from the image itself.
 Two passes produce it, and they cover for each other:
 
 * **Detection.** Every registered patch is offered the image through
-  :meth:`~sage_patch.patcher.Patch.detect`, which recovers its parameters where it has any. A
-  detected patch contributes :meth:`~sage_patch.patcher.Patch.ini_surface` - the fields it adds,
+  `detect`, which recovers its parameters where it has any. A
+  detected patch contributes `ini_surface` - the fields it adds,
   the ceilings it raises, the tokens it names - and its name as the provenance on each delta.
 
 * **Name tables.** The engine's three name tables plus the weather list are read live and
@@ -30,9 +30,9 @@ import struct
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
-from importlib.metadata import PackageNotFoundError, version
 
 from sage_ini.engine import AppliedPatch, Engine, EnumDelta, Source
+from sage_utils.extras import package_version
 
 from .addresses import BUILD
 from .patcher import Patch
@@ -64,12 +64,8 @@ _NAME_TABLES: tuple[tuple[str, int, object], ...] = (
 )
 
 # What to write as the `[source] generator`: the distribution version, since the packages here
-# are versioned together. Running from a checkout that was never installed has no version to
-# report, which is a fine thing for a provenance line to say.
-try:
-    _GENERATOR = f"sage_patch {version('pysage-tools')}"
-except PackageNotFoundError:  # pragma: no cover - only on an uninstalled checkout
-    _GENERATOR = "sage_patch"
+# are versioned together (`unknown` from a checkout that was never installed).
+_GENERATOR = f"sage_patch {package_version()}"
 
 #: The build every address in this package was derived against. A file that is not this build is
 #: still read - the tables are found through their references, not their stock addresses - but
@@ -205,7 +201,7 @@ def manifest(patches: Iterable[Patch]) -> tuple[tuple[AppliedPatch, ...], list[s
 
 def _source(data: bytes | bytearray) -> Source:
     """Provenance for the generated file. Deliberately **not** the path it was read from: see
-    :class:`~sage_ini.engine.Source`."""
+    `Source`."""
     return Source(
         build=BUILD,
         sha256=hashlib.sha256(bytes(data)).hexdigest(),
@@ -285,7 +281,7 @@ def rebuild(engine: Engine) -> tuple[list[Patch], list[str]]:
     the file describes, at the counts and keywords it was built with rather than at this version's
     defaults. Order is the file's, which is the registration order `generate` writes; since the
     bundled patches are order-independent (see the composition contract on
-    :class:`~sage_patch.patcher.Patch`), any order that lists them all yields the same *engine* -
+    `Patch`), any order that lists them all yields the same *engine* -
     the same patches at the same parameters, verifiable with `sagepatch --check`. It does not
     promise the same *bytes* as some other build of the same list: each cave is appended past the
     sections already present, so a different application order lands them at different addresses.

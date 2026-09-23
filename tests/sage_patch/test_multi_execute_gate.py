@@ -114,7 +114,7 @@ def _cave(data: bytes | bytearray) -> tuple[int, int]:
     return section_va, section_off
 
 
-# --- round trip ------------------------------------------------------------------------------
+# Round trip
 
 
 def test_apply_then_verify(image: bytearray) -> None:
@@ -171,7 +171,7 @@ def test_apply_patches_writes_a_file(image: bytearray, tmp_path: object) -> None
     assert src.read_bytes() == bytes(image)  # the input is never modified
 
 
-# --- the two hooks ---------------------------------------------------------------------------
+# The two hooks
 
 
 @pytest.mark.parametrize(
@@ -205,7 +205,7 @@ def test_the_two_hooks_land_on_different_shims(image: bytearray) -> None:
     assert targets[0] != targets[1]
 
 
-# --- the cave's code -------------------------------------------------------------------------
+# The cave's code
 
 
 def _disassemble(data: bytes | bytearray, va: int, off: int, count: int) -> list[str]:
@@ -308,7 +308,7 @@ def test_gate_is_position_independent(image: bytearray) -> None:
     assert len(build_gate(0x00ED3000)) == len(build_gate(0x00EE4000))
 
 
-# --- the build fingerprint --------------------------------------------------------------------
+# The build fingerprint
 
 
 @pytest.mark.parametrize(

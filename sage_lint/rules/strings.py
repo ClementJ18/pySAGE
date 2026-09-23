@@ -37,7 +37,7 @@ def _is_label(obj, key: str) -> bool:
 
 def _is_map_file(path: str) -> bool:
     """Whether `path` is map-scoped - under a `maps/` directory (mirrors
-    `sage_ini.stats.is_map_path`, but from the file alone)."""
+    `sage_ini.paths.is_map_path`, but from the file alone)."""
     return any(part.lower() == "maps" for part in Path(path).parts[:-1])
 
 

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from sage_test.maps import (
+from sage_live.launch.maps import (
     MapEntry,
     decode_cache_key,
     file_argument,

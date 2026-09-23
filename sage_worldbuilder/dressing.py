@@ -1,5 +1,5 @@
 """World dressing that writes ordinary map data: scorch marks, groves, fences, ramps, borders and
-mesh molds (PLAN.md 5.4 and 5.7).
+mesh molds.
 
 - **Scorch marks** are objects of template `Scorch` with an integer `scorchType` (Scorch Options
   lists Scorch 1-4, stored 0-3) and a real `objectRadius` (its Scorch Size, 20 by default,
@@ -45,7 +45,7 @@ from sage_worldbuilder.areas import area_contains
 from sage_worldbuilder.changes import Change, ChangeKind
 from sage_worldbuilder.commands.base import Command
 from sage_worldbuilder.commands.edits import InsertItem, RemoveItem
-from sage_worldbuilder.objects import new_object, renumber_unique_ids
+from sage_worldbuilder.commands.objects import new_object, renumber_unique_ids
 from sage_worldbuilder.terrain.grid import FEET_PER_HEIGHT_UNIT, MAX_HEIGHT, WORLD_UNITS_PER_CELL
 
 if TYPE_CHECKING:

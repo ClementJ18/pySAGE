@@ -1,73 +1,10 @@
-"""The AI flag-capture gate: stop the skirmish AI sending capture squads at build plots it
-cannot capture.
+"""Stop the skirmish AI sending flag-capture squads at build plots that are already claimed.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/ai-flag-capture-gate.md``.
+The squad tactic's picker (`AI_FLAG_CAPTURE_PICKER`) takes the nearest non-allied `CAPTUREFLAG`. A
+claimed build plot cannot be captured until its structure falls, so the squad stands on it forever.
+A cave makes the picker skip claimed `BASE_SITE` plots; plain capture flags are unchanged.
 
-**The defect.** `AIFlagCaptureSquad` is one of the skirmish AI's *targetless* tactics - the
-family that acts on the map rather than on an enemy force. Every 100-450 frames it may build a
-squad of one to three units, name the team ``TARGETLESS_FlagCaptureSquad_<n>_0``, pick a capture
-flag and send the squad to stand on it.
-
-Its picker (``AI_FLAG_CAPTURE_PICKER``) applies exactly two filters to the global list of every
-`CAPTUREFLAG` object on the map: skip anything whose `Player::getRelationship` is ``ALLIES``,
-require ``KindOf CAPTUREFLAG``, and keep the nearest survivor. It never asks whether the flag can
-actually be captured.
-
-That is fine for a plain capture flag, which is recaptured by walking a squad onto it. It is
-wrong for a **build plot** - a settlement, camp, fortress or economy plot - because a plot that
-somebody has claimed carries a structure, and the flag underneath it cannot be taken until that
-structure is destroyed. Both kinds are `CAPTURABLE CAPTUREFLAG UNATTACKABLE STRUCTURE`, so the
-picker cannot tell them apart, and a plot is usually the *nearest* flag to a squad forming up.
-
-The squad then deadlocks, because the tactic's update only releases a target when the flag is
-destroyed or turns ``ALLIES``. There is no timeout. The units are given a plain move onto the
-flag's position, which is the centre of the structure standing on it and therefore inside an
-impassable footprint, so they never arrive - and the move state they are parked in holds
-``NO_AUTO_ACQUIRE``, which overrides the ``AutoAcquireEnemiesWhenIdle`` their own
-`HordeAIUpdate` declares. The visible result is a battalion or two circling an enemy building
-forever without attacking it, for the rest of the match.
-
-**What this does.** Appends an ``.aiflag`` PE section holding a replacement ownership test, and
-redirects the picker's five-byte test into it. The replacement keeps the stock ``ALLIES`` skip
-and adds one more rejection: a candidate that is both ``KindOf BASE_SITE`` **and**
-``ObjectStatus UNSELECTABLE`` is dropped.
-
-**Why those two conditions and not "is it an enemy's".** ``BASE_SITE`` is what separates the two
-kinds of flag, and it has to be tested first: without it an enemy-held plain capture flag would
-be excluded too, and recapturing exactly those is the tactic's whole purpose. Every plot flag in
-the data carries it (`FestungPlotFlag_Real`, `LagerPlotFlag_Real`, `WirtschaftPlotFlag_Real`,
-`DefensivePlotFlag`, `ExpansionPlotFlag`, `HalfCastlePlotFlag_Real`) and no plain capture flag
-does.
-
-``UNSELECTABLE`` is then the engine's own record that the plot has been claimed - an unclaimed
-plot is selectable, because clicking it is how a player builds on it. Testing that rather than
-ownership keeps two cases right that an ownership test gets wrong: a free plot stays a target
-however far away it is, and a claimed-but-not-yet-allied plot is dropped without the gate having
-to reason about what ``NEUTRAL`` means for the civilian player who owns unclaimed plots.
-
-**What the AI still does.** Everything except the impossible case. Free plots remain targets, so
-the tactic keeps grabbing economy and expansion plots, which is the behaviour it exists for;
-plain capture flags are untouched by the new test entirely; and an enemy plot that is a real
-target is already handled by a different tactic - `AIFarmKillSquad` carries the structures on
-those plots in its own candidate list and sends squads to destroy them.
-
-**Scope: the AI only, and for free.** The picker lives inside the `SkirmishAI` subsystem and has
-exactly one caller, ``AIFlagCaptureSquad::update``. Nothing a human does reaches it, so unlike
-`ai-revive-gate` this needs no return-address discrimination.
-
-**Determinism.** The gate reads a `KindOf` off the `ThingTemplate` and one bit of the object's
-own status mask - both logic state, identical on every peer - so the added edge is network- and
-replay-safe. It is still a logic-side change: **every peer needs the same binary.**
-
-**Null candidates.** The cave dereferences ``[esi+4]`` on the path the stock code reaches
-``mov eax, [esi+4]`` on, and no other. A null candidate faults in exactly the place and for
-exactly the reason it already did.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the five at the picker's
-ownership test, which no other bundled patch touches, and it reads nothing another patch
-rewrites.
+Derivation: `../docs/ai-flag-capture-gate.md`.
 """
 
 from __future__ import annotations
@@ -142,8 +79,8 @@ ANCHORS = {
 def build_code(base_va: int) -> bytes:
     """The replacement ownership test. Reached only from the hook, and never returns to it.
 
-    On entry ``eax`` holds what `Player::getRelationship` just answered for the candidate and
-    ``esi`` is the candidate `Object`. Both of the cave's exits are edges the stock picker
+    On entry `eax` holds what `Player::getRelationship` just answered for the candidate and
+    `esi` is the candidate `Object`. Both of the cave's exits are edges the stock picker
     already had, so nothing downstream can tell the difference except in the case this exists to
     change.
     """

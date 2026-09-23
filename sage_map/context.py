@@ -7,6 +7,15 @@ from typing import TypedDict
 
 from sage_utils.stream import BinaryStream
 
+__all__ = [
+    "AssetContext",
+    "AssetPropertyType",
+    "ParsingContext",
+    "Property",
+    "PropertyValue",
+    "WritingContext",
+]
+
 
 class AssetPropertyType(IntEnum):
     Boolean = 0
@@ -50,16 +59,16 @@ class ParsingContext:
 
     def parse_properties(self) -> list[tuple[str | None, AssetPropertyType, PropertyValue]]:
         properties = []
-        property_count = self.stream.readUInt16()
+        property_count = self.stream.read_uint16()
         for _ in range(property_count):
             properties.append(self.parse_asset_property())
 
         return properties
 
     def parse_asset_property_key(self) -> tuple[AssetPropertyType, int, str | None]:
-        property_key_byte = self.stream.readUChar()
+        property_key_byte = self.stream.read_uchar()
         property_key_type = AssetPropertyType(property_key_byte)
-        property_key_name_index = self.stream.readUInt24()
+        property_key_name_index = self.stream.read_uint24()
         property_key_name = self.assets.get(property_key_name_index)
 
         return property_key_type, property_key_name_index, property_key_name
@@ -84,15 +93,15 @@ class ParsingContext:
         )
         value: PropertyValue
         if property_key_type == AssetPropertyType.Boolean:
-            value = self.stream.readBool()
+            value = self.stream.read_bool()
         elif property_key_type == AssetPropertyType.Integer:
-            value = self.stream.readInt32()
+            value = self.stream.read_int32()
         elif property_key_type == AssetPropertyType.RealNumber:
-            value = self.stream.readFloat()
+            value = self.stream.read_float()
         elif property_key_type in (AssetPropertyType.AsciiString, AssetPropertyType.Unknown):
-            value = self.stream.readUInt16PrefixedAsciiString()
+            value = self.stream.read_uint16_prefixed_ascii_string()
         elif property_key_type == AssetPropertyType.UnicodeString:
-            value = self.stream.readUInt16PrefixedUnicodeString()
+            value = self.stream.read_uint16_prefixed_unicode_string()
         else:
             raise ValueError(f"Unexpected property type: {property_key_type}")
 
@@ -103,13 +112,13 @@ class ParsingContext:
         return (property_key_name, property_key_type, value)
 
     def parse_assets(self) -> dict[int, str]:
-        self.compression_bytes = self.stream.readFourCc()
-        self.asset_count = self.stream.readUInt32()
+        self.compression_bytes = self.stream.read_fourcc()
+        self.asset_count = self.stream.read_uint32()
 
         self.assets = {}
         for i in range(self.asset_count, 0, -1):
-            asset_name = self.stream.readString()
-            asset_index = self.stream.readUInt32()
+            asset_name = self.stream.read_string()
+            asset_index = self.stream.read_uint32()
             if asset_index != i:
                 raise ValueError(f"Invalid asset index: expected {i}, got {asset_index}")
 
@@ -118,14 +127,14 @@ class ParsingContext:
         return self.assets
 
     def parse_asset_name(self) -> str:
-        asset_index = self.stream.readUInt32()
+        asset_index = self.stream.read_uint32()
         asset_name = self.assets[asset_index]
         self.logger.debug(f"Parsing asset: {asset_name} (Index: {asset_index})")
         return asset_name
 
     def parse_asset_header(self) -> tuple[int, int]:
-        asset_version = self.stream.readUInt16()
-        datasize = self.stream.readUInt32()
+        asset_version = self.stream.read_uint16()
+        datasize = self.stream.read_uint32()
         return asset_version, datasize
 
     @contextmanager
@@ -184,49 +193,49 @@ class WritingContext:
     def write_properties(
         self, properties: list[tuple[str, AssetPropertyType, PropertyValue]]
     ) -> None:
-        self.stream.writeUInt16(len(properties))
+        self.stream.write_uint16(len(properties))
         for name, ptype, value in properties:
             asset_name_index = self.add_asset(name)
-            self.stream.writeUChar(ptype.value)
-            self.stream.writeUInt24(asset_name_index)
+            self.stream.write_uchar(ptype.value)
+            self.stream.write_uint24(asset_name_index)
 
             # The property type discriminates which value member is live; narrow to it so the
             # typed stream writers accept the value.
             if ptype == AssetPropertyType.Boolean:
                 assert isinstance(value, bool)
-                self.stream.writeBool(value)
+                self.stream.write_bool(value)
             elif ptype == AssetPropertyType.Integer:
                 assert isinstance(value, int)
-                self.stream.writeInt32(value)
+                self.stream.write_int32(value)
             elif ptype == AssetPropertyType.RealNumber:
                 assert isinstance(value, float)
-                self.stream.writeFloat(value)
+                self.stream.write_float(value)
             elif ptype in (AssetPropertyType.AsciiString, AssetPropertyType.Unknown):
                 assert isinstance(value, str)
-                self.stream.writeUInt16PrefixedAsciiString(value)
+                self.stream.write_uint16_prefixed_ascii_string(value)
             elif ptype == AssetPropertyType.UnicodeString:
                 assert isinstance(value, str)
-                self.stream.writeUInt16PrefixedUnicodeString(value)
+                self.stream.write_uint16_prefixed_unicode_string(value)
             else:
                 raise ValueError(f"Unexpected property type: {ptype}")
 
     def write_asset_name(self, asset_name: str) -> None:
         asset_index = self.add_asset(asset_name)
-        self.stream.writeUInt32(asset_index)
+        self.stream.write_uint32(asset_index)
 
     def write_asset_property_key(self, property_key: tuple[AssetPropertyType, int, str]) -> None:
         property_key_type, _, property_key_name = property_key
-        self.stream.writeUChar(property_key_type.value)
+        self.stream.write_uchar(property_key_type.value)
 
         property_key_name_index = self.add_asset(property_key_name)
-        self.stream.writeUInt24(property_key_name_index)
+        self.stream.write_uint24(property_key_name_index)
 
     @contextmanager
     def write_asset(self, asset_name: str, version: int):
         self.logger.debug(f"Writing asset: {asset_name}, Version: {version}")
-        self.stream.writeUInt16(version)
+        self.stream.write_uint16(version)
         data_size_position = self.stream.tell()
-        self.stream.writeUInt32(0)
+        self.stream.write_uint32(0)
         data_position = self.stream.tell()
 
         yield
@@ -234,5 +243,5 @@ class WritingContext:
         end_position = self.stream.tell()
         data_size = end_position - data_position
         self.stream.seek(data_size_position)
-        self.stream.writeUInt32(data_size)
+        self.stream.write_uint32(data_size)
         self.stream.seek(end_position)

@@ -1,8 +1,8 @@
-"""Test harness for the sage_ini suite.
+"""Test harness for the whole repository.
 
 Two tiers of tests:
-- **core**: the fast, data-free unit suite for `sage_ini` + `sage_lint`. A bare
-  `pytest` runs only this - the inner loop while implementing a feature.
+- **core**: the fast, data-free suite. A bare `pytest` runs only this - the inner loop
+  while implementing a feature.
 - **full**: core plus the `full`-marked tests (the corpus acceptance gates and
   the peripheral-package suites). These run only with `--full`; without the flag
   they are deselected, so a default run needs no game data on disk.
@@ -24,7 +24,7 @@ import pytest
 
 from sage_ini.engine import revert
 from sage_ini.parser.io import iter_ini_files
-from sage_ini.stats import ini_root, root_files
+from sage_ini.paths import ini_root, root_files
 
 
 @pytest.fixture(autouse=True)

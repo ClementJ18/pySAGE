@@ -22,8 +22,14 @@ from PyQt6.QtWidgets import (  # noqa: E402
     QTreeWidgetItemIterator,
 )
 
-from sage_live.backends.script_trace import BreakpointHit, EventKind, TraceEvent  # noqa: E402
+from sage_live.backends.script_trace import (  # noqa: E402
+    BreakpointHit,
+    ConditionResult,
+    EventKind,
+    TraceEvent,
+)
 from sage_live.backends.scripts import (  # noqa: E402
+    LiveCondition,
     LiveScript,
     ScriptTree,
     ScriptVariable,
@@ -88,6 +94,10 @@ class FakeSession:
         self.steps: list[int] = []
         self.calls: list[tuple] = []
         self.speed = 1
+        self.watched: set[int] = set()
+        # Each script's live conditions, and what the engine made of them.
+        self.conditions: dict[int, tuple] = {}
+        self.results: dict[int, ConditionResult] = {}
 
     def set_recording(self, on: bool) -> list[str]:
         if on and self.refuse_trace:
@@ -97,6 +107,10 @@ class FakeSession:
 
     def set_breakpoints(self, table: dict[int, int]) -> list[str]:
         self.table = dict(table)
+        return []
+
+    def set_watched(self, scripts: set[int]) -> list[str]:
+        self.watched = set(scripts)
         return []
 
     def pause(self) -> None:
@@ -143,6 +157,7 @@ class FakeSession:
         self.table = {}
         self.paused = False
         self.speed = 1
+        self.watched = set()
         return []
 
     def poll(self) -> LiveSnapshot | None:
@@ -169,6 +184,8 @@ class FakeSession:
             paused=self.paused,
             hit=self.hit,
             speed=self.speed,
+            conditions={a: self.conditions.get(a, ()) for a in self.watched},
+            condition_results={a: r for a, r in self.results.items() if self.watched},
         )
 
     def _take(self) -> list[TraceEvent]:
@@ -477,7 +494,7 @@ def test_the_tree_menu_offers_breakpoints(panels, monkeypatch):
 
     monkeypatch.setattr(QMenu, "exec", choose_first)
     scripts.open_tree_menu(intro, QPoint(0, 0))
-    assert offered == [["Break When It Fires", "Run Until It Fires"]]
+    assert offered == [["Break When It Fires", "Run Until It Fires", "Why Doesn't It Fire?"]]
     assert debugger.has_breakpoint("Intro")
 
 
@@ -579,7 +596,9 @@ def menu_for(scripts: ScriptsPanel, name: str, monkeypatch, pick: str | None = N
         return next((a for a in menu.actions() if a.text() == pick), None)
 
     monkeypatch.setattr(QMenu, "exec", choose)
-    scripts.open_tree_menu(item, QPoint(0, 0), scripts._live_state(node, item))
+    scripts.open_tree_menu(
+        item, QPoint(0, 0), scripts._live_state(node, item), scripts._player_name(node)
+    )
     return shown[0]
 
 
@@ -596,6 +615,7 @@ def test_the_menu_offers_triggers_for_what_the_game_holds(attached, monkeypatch)
     assert menu_for(scripts, "Intro", monkeypatch) == [
         ("Break When It Fires", True),
         ("Run Until It Fires", True),
+        ("Why Doesn't It Fire?", True),
         ("Enable in Game", True),
         ("Re-arm", True),  # a fired one-shot
         ("Evaluate Conditions Now", True),
@@ -607,6 +627,7 @@ def test_the_menu_offers_triggers_for_what_the_game_holds(attached, monkeypatch)
     assert [text for text, _ in menu_for(scripts, "Editor Only", monkeypatch)] == [
         "Break When It Fires",
         "Run Until It Fires",
+        "Why Doesn't It Fire?",
     ]
 
 
@@ -647,3 +668,68 @@ def test_a_refused_trigger_is_reported_not_raised(attached, monkeypatch):
     menu_for(scripts, "Intro", monkeypatch, pick="Enable in Game")
     assert session.calls == []
     assert "network game" in debugger.status.text()
+
+
+def why_rows(debugger: ScriptDebuggerPanel) -> list[tuple[str, ...]]:
+    rows = []
+    iterator = QTreeWidgetItemIterator(debugger.why_tree)
+    while (node := iterator.value()) is not None:
+        rows.append(tuple(node.text(column) for column in range(4)))
+        iterator += 1
+    return rows
+
+
+def test_why_not_watches_the_script_and_names_the_failing_condition(attached, monkeypatch):
+    scripts, debugger, session = attached
+    idle = ADDRESSES["Idle"]
+    session.conditions[idle] = (
+        (LiveCondition(0xA0, 3, True, False), LiveCondition(0xB0, 4, True, False)),
+    )
+    session.results = {
+        0xA0: ConditionResult(12, 300, True, 4, 0),
+        0xB0: ConditionResult(12, 300, False, 0, 4),
+    }
+    menu_for(scripts, "Idle", monkeypatch, pick="Why Doesn't It Fire?")
+    assert session.watched == {idle}
+    assert debugger.tabs.currentWidget() is debugger.why_page
+    # "Idle" is off in the game, which is the first answer; the conditions still show.
+    assert debugger.why_summary.text() == "Not evaluated: it has been disabled in the game."
+    rows = why_rows(debugger)
+    assert rows[0][0] == "Not evaluated: it has been disabled in the game"
+    assert ("True", "passed", "frame 300", "4 / 0") in rows
+    assert ("Timer expired", "failed", "frame 300", "0 / 4") in rows
+
+
+def test_why_not_explains_a_script_the_game_evaluates(attached, monkeypatch):
+    scripts, debugger, session = attached
+    intro = ADDRESSES["Intro"]
+    session.conditions[intro] = ((LiveCondition(0xA0, 3, True, False),),)
+    session.results = {0xA0: ConditionResult(12, 300, False, 0, 9)}
+    debugger.watch("Player_1", "Intro")
+    # "Intro" is a fired one-shot in the fake game; re-arm it there and read again.
+    monkeypatch.setattr(
+        session,
+        "poll",
+        lambda original=session.poll: replace_script(original(), "Intro", active=True),
+    )
+    debugger.poll_now()
+    assert debugger.explanation is not None and debugger.explanation.passed is False
+    assert debugger.why_summary.text() == "False at frame 300: “True” failed."
+
+
+def test_clearing_the_watches_unhooks_them(attached):
+    _, debugger, session = attached
+    debugger.watch("Player_1", "Intro")
+    assert session.watched == {ADDRESSES["Intro"]}
+    debugger.clear_watches()
+    assert session.watched == set()
+    assert debugger.watch_list.count() == 0
+
+
+def replace_script(snapshot, name: str, **changes):
+    from dataclasses import replace  # noqa: PLC0415
+
+    side = snapshot.tree.sides[0]
+    scripts = tuple(replace(s, **changes) if s.name == name else s for s in side.scripts)
+    tree = replace(snapshot.tree, sides=(replace(side, scripts=scripts),))
+    return replace(snapshot, tree=tree)

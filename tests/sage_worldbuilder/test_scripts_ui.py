@@ -35,7 +35,7 @@ from sage_map.assets.player_scripts import (  # noqa: E402
 )
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
-from sage_worldbuilder.objects import new_object  # noqa: E402
+from sage_worldbuilder.commands.objects import new_object  # noqa: E402
 from sage_worldbuilder.players import library_map_path, new_player  # noqa: E402
 from sage_worldbuilder.script_targets import argument_target  # noqa: E402
 from sage_worldbuilder.scripting import new_group, new_item, new_script  # noqa: E402

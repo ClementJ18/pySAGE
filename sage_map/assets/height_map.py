@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self
 
+__all__ = [
+    "HeightMapBorder",
+    "HeightMapData",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -13,24 +18,24 @@ class HeightMapBorder:
     @classmethod
     def parse(cls, context: "ParsingContext", version: int) -> Self:
         if version >= 6:
-            corner1X = context.stream.readUInt32()
-            corner1Y = context.stream.readUInt32()
+            corner1X = context.stream.read_uint32()
+            corner1Y = context.stream.read_uint32()
         else:
             corner1X = 0
             corner1Y = 0
 
-        x = context.stream.readUInt32()
-        y = context.stream.readUInt32()
+        x = context.stream.read_uint32()
+        y = context.stream.read_uint32()
 
         return cls(corner1=(corner1X, corner1Y), position=(x, y))
 
     def write(self, context: "WritingContext", version: int) -> None:
         if version >= 6:
-            context.stream.writeUInt32(self.corner1[0])
-            context.stream.writeUInt32(self.corner1[1])
+            context.stream.write_uint32(self.corner1[0])
+            context.stream.write_uint32(self.corner1[1])
 
-        context.stream.writeUInt32(self.position[0])
-        context.stream.writeUInt32(self.position[1])
+        context.stream.write_uint32(self.position[0])
+        context.stream.write_uint32(self.position[1])
 
 
 @dataclass
@@ -52,16 +57,16 @@ class HeightMapData:
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
-            width = context.stream.readUInt32()
-            height = context.stream.readUInt32()
-            border_width = context.stream.readUInt32()
+            width = context.stream.read_uint32()
+            height = context.stream.read_uint32()
+            border_width = context.stream.read_uint32()
 
-            border_count = context.stream.readUInt32()
+            border_count = context.stream.read_uint32()
             borders = []
             for _ in range(border_count):
                 borders.append(HeightMapBorder.parse(context, asset_ctx.version))
 
-            area = context.stream.readUInt32()
+            area = context.stream.read_uint32()
             if area != width * height:
                 raise ValueError(f"Invalid area: {area}, expected: {width * height}")
 
@@ -71,9 +76,9 @@ class HeightMapData:
             for y in range(height):
                 for x in range(width):
                     if asset_ctx.version >= 5:
-                        elevation = context.stream.readUInt16()
+                        elevation = context.stream.read_uint16()
                     else:
-                        elevation = context.stream.readUChar()
+                        elevation = context.stream.read_uchar()
                     flipped_y = height - 1 - y
                     elevations[flipped_y][x] = elevation
                     if min_height is None or elevation < min_height:
@@ -98,21 +103,21 @@ class HeightMapData:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(self.width)
-            context.stream.writeUInt32(self.height)
-            context.stream.writeUInt32(self.border_width)
+            context.stream.write_uint32(self.width)
+            context.stream.write_uint32(self.height)
+            context.stream.write_uint32(self.border_width)
 
-            context.stream.writeUInt32(len(self.borders))
+            context.stream.write_uint32(len(self.borders))
             for border in self.borders:
                 border.write(context, self.version)
 
-            context.stream.writeUInt32(self.area)
+            context.stream.write_uint32(self.area)
 
             for y in range(self.height):
                 for x in range(self.width):
                     flipped_y = self.height - 1 - y
                     elevation = self.elevations[flipped_y][x]
                     if self.version >= 5:
-                        context.stream.writeUInt16(elevation)
+                        context.stream.write_uint16(elevation)
                     else:
-                        context.stream.writeUChar(elevation)
+                        context.stream.write_uchar(elevation)

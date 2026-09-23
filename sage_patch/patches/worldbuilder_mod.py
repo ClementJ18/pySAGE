@@ -1,69 +1,12 @@
-r"""`-mod` support for Worldbuilder's own startup.
+"""Make Worldbuilder honour `-mod <dir>` during its own startup, so loose files override the `.big`
+archives.
 
-**This patch targets `Worldbuilder.exe`, not `game.dat`.** See ``../docs/worldbuilder-mod.md``
-for the derivation; the short version is that Worldbuilder already carries the whole `-mod`
-pipeline and never reaches any of it.
+Targets `Worldbuilder.exe`. The mod directory must be armed after the file systems exist and before
+the first INI read in `CWorldBuilderApp::InitInstance` (`0x0069017A`); the hook sits where both
+startup branches converge just before it. Pass a map before `-mod`, or MFC takes the path as a
+document to open.
 
-`Worldbuilder.exe` links the same `Common/CommandLine.cpp` the game does, so it has the `-mod`
-table entry (``0x01EA2688``), a full `parseMod` (``0x00C59880``), and
-`ArchiveFileSystem::loadMods` (``0x00C5AC10``). All three hang off `GameEngine::init`
-(``0x00C9B6D0``) - and Worldbuilder never constructs a `GameEngine`. Its engine vtable
-``0x01EAF4E8`` appears at exactly two addresses in a live process, both of them the static vptr
-stores in the constructor and destructor, so nothing enters that call graph. `CWorldBuilderApp`
-brings up `GlobalData` and the file systems itself, from `WorldBuilder.cpp`, and never parses a
-command line for the engine's benefit. The switch is linked but unreachable.
-
-**What actually has to happen.** The directory half of `-mod` is one self-contained function,
-``0x01682780``, which takes a path and does three things: copies it into the mod-directory buffer
-at ``0x022D4820``, sets the mod-active flag at ``0x022D4818``, and enumerates ``*.BIG`` under it
-recursively so each archive is mounted. The flag and buffer are what arm the loose-file lookup at
-``0x01683704``, which prefixes ``<modDir>\`` to every file the engine opens and falls back to the
-normal search on a miss:
-
-```
-01683704  mov al, [0x022D4818]     ; set by 0x01682780
-01683716  je  ...                  ; clear -> no mod lookup at all
-01683732  mov al, [0x022D4820]     ; the mod directory
-01683745  push 0x01E745DC          ; "%s\%s"
-01683763  call [edx+0xc]           ; LocalFileSystem::openFile
-```
-
-So calling ``0x01682780`` once, early enough, is the entire fix - loose uncompiled `data\ini\...`
-overriding a shipped `.big` is behaviour the editor already has and simply never switches on.
-
-**Where the hook goes.** Two constraints bracket it. ``0x01682780`` dereferences the archive file
-system at ``0x022D507C`` and calls a virtual on it, so the file systems must already exist; and
-the mod directory has to be armed before any INI is read, or the override comes too late to
-matter. `CWorldBuilderApp::InitInstance` loads its first INI at ``0x0069017A``:
-
-```
-00690155  mov ecx, [ebp-0x1758]    ; <- the hook window, both branches converge here
-0069015b  mov [ebp-0x1014], ecx
-00690161  mov byte [ebp-4], 7
-00690165  push 0
-00690167  push 0
-00690169  push 0x01E20A28          ; "Data\INI\Default\SubSystemLegendExpansion1.ini"
-0069016e  mov edx, [ebp-0x1014]
-00690174  push edx
-00690175  push 0x022C9028
-0069017a  call 0x004097BE          ; the first INI read
-```
-
-``0x00690155`` is the last six-byte instruction before it and there is **no call between the two**,
-so whatever state holds at the INI read holds at the hook: the archive file system is necessarily
-up. It is also the target of the ``jmp`` at ``0x00690149``, and the `je` at ``0x006900E1`` reaches
-it through ``0x0069014B``, so both paths run the hook exactly once.
-
-**Reading the argument.** Worldbuilder imports no `__argv`, so the cave takes `GetCommandLineA`
-(IAT ``0x022F4304``) and scans it for a `-mod` token delimited by whitespace on both sides, then
-copies the token after it, stripping one level of quoting. The both-sides delimiter check is not
-optional: a mod living under `D:\Edain-Mod\...` puts the literal text `-Mod` inside another
-argument, and only the trailing check rejects it. Paths of 128 characters or more are dropped -
-see `MAX_MOD_PATH_CHARS` for the buffer that bound comes from.
-
-**This does not fix the MFC collision.** Worldbuilder is an MFC app, and
-`CCommandLineInfo::ParseParam` still claims the bare mod path as `m_strFileName` and tries to open
-it as a document. Pass a map before `-mod` so the path has nowhere to land; see the doc's §4.
+Derivation: `../docs/worldbuilder-mod.md`.
 """
 
 from __future__ import annotations
@@ -73,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from ..asm import JB, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, u32, va_to_offset
 
 if TYPE_CHECKING:
     import argparse
@@ -97,7 +40,7 @@ _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000 | 0x80000000
 HOOK_VA = 0x00690155
 _HOOK_BYTES = bytes.fromhex("8b8da8e8ffff")  # mov ecx, [ebp-0x1758]
 
-#: ``setModDir(const char *)``: arms the mod directory and mounts every `.BIG` under it. `cdecl`,
+#: `setModDir(const char *)`: arms the mod directory and mounts every `.BIG` under it. `cdecl`,
 #: one argument, caller cleans - it reads `[esp+4]` and returns with a bare `ret`.
 SET_MOD_DIR = 0x01682780
 
@@ -108,9 +51,9 @@ ARCHIVE_FS_PTR = 0x022D507C
 #: `GetCommandLineA`'s import slot.
 GET_COMMAND_LINE_A = 0x022F4304
 
-#: The cave refuses a mod path this long or longer rather than copying it. ``0x01682780`` copies
-#: into its fixed buffer at ``0x022D4820`` with an unbounded byte loop, and the next global
-#: anything references is ``0x022D48B8`` - only ``0x98`` bytes later - so that buffer holds at
+#: The cave refuses a mod path this long or longer rather than copying it. `0x01682780` copies
+#: into its fixed buffer at `0x022D4820` with an unbounded byte loop, and the next global
+#: anything references is `0x022D48B8` - only `0x98` bytes later - so that buffer holds at
 #: most 152 bytes. 128 stays clear of it with room to spare. Over-long paths are dropped rather
 #: than truncated: a truncated path names a *different* directory, which is a worse failure than
 #: not arming the mod at all.
@@ -138,12 +81,8 @@ ANCHORS = {
 _DYNAMIC_BASE = 0x0040
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def _assemble(base_va: int) -> Asm:
-    """The cave's one routine, laid out at ``base_va + _CODE_OFF``.
+    """The cave's one routine, laid out at `base_va + _CODE_OFF`.
 
     Entered by `call`, so it returns with `ret` after re-running the instruction the hook
     displaced. `pushad`/`pushfd` bracket the whole body: this sits in the middle of
@@ -155,11 +94,11 @@ def _assemble(base_va: int) -> Asm:
     a.emit(0x9C)  # pushfd
 
     # Nothing to arm if the file systems are not up - the callee would fault on a null vtable.
-    a.emit(0xA1, _u32(ARCHIVE_FS_PTR))  # mov eax, [ARCHIVE_FS_PTR]
+    a.emit(0xA1, u32(ARCHIVE_FS_PTR))  # mov eax, [ARCHIVE_FS_PTR]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "done")
 
-    a.emit(0xFF, 0x15, _u32(GET_COMMAND_LINE_A))  # call [GetCommandLineA]
+    a.emit(0xFF, 0x15, u32(GET_COMMAND_LINE_A))  # call [GetCommandLineA]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "done")
     a.emit(0x8B, 0xF0)  # mov esi, eax
@@ -229,7 +168,7 @@ def _assemble(base_va: int) -> Asm:
     a.emit(0xB2, 0x22)  # mov dl, '"'
 
     a.label("copy_init")
-    a.emit(0xBF, _u32(buf))  # mov edi, buf
+    a.emit(0xBF, u32(buf))  # mov edi, buf
     a.emit(0x31, 0xC9)  # xor ecx, ecx
 
     a.label("copy")
@@ -253,16 +192,16 @@ def _assemble(base_va: int) -> Asm:
     a.emit(0x47)  # inc edi
     a.emit(0x46)  # inc esi
     a.emit(0x41)  # inc ecx
-    a.emit(0x81, 0xF9, _u32(MAX_MOD_PATH_CHARS))  # cmp ecx, MAX_MOD_PATH_CHARS
+    a.emit(0x81, 0xF9, u32(MAX_MOD_PATH_CHARS))  # cmp ecx, MAX_MOD_PATH_CHARS
     a.jcc(JB, "copy")
 
     a.label("copy_done")
     a.emit(0xC6, 0x07, 0x00)  # mov byte [edi], 0
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "done")
-    a.emit(0x81, 0xF9, _u32(MAX_MOD_PATH_CHARS))  # cmp ecx, MAX_MOD_PATH_CHARS
+    a.emit(0x81, 0xF9, u32(MAX_MOD_PATH_CHARS))  # cmp ecx, MAX_MOD_PATH_CHARS
     a.jcc(JE, "done")  # hit the bound: refuse rather than hand over a truncated path
-    a.emit(0x68, _u32(buf))  # push buf
+    a.emit(0x68, u32(buf))  # push buf
     a.call_absolute(SET_MOD_DIR)
     a.emit(0x83, 0xC4, 0x04)  # add esp, 4
 

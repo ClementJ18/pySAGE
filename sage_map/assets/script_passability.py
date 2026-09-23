@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self
 
+__all__ = [
+    "LAYERS",
+    "ScriptPassability",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -43,7 +48,7 @@ class ScriptPassability:
                 columns: dict[str, list[int]] = {name: [] for name in names}
                 for _ in range(height):
                     for name in names:
-                        columns[name].append(context.stream.readInt32())
+                        columns[name].append(context.stream.read_int32())
                 for name in names:
                     cells[name].append(columns[name])
 
@@ -62,4 +67,4 @@ class ScriptPassability:
             for x in range(width):
                 for y in range(height):
                     for name in names:
-                        context.stream.writeInt32(self.cells[name][x][y])
+                        context.stream.write_int32(self.cells[name][x][y])

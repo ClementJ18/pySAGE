@@ -211,3 +211,11 @@ they name; and the script counts of those libraries (`ki rohan` 133, `ki angmar`
 238, `spieler` 203).
 
 Not confirmed: the map-cache byte at `0x006280a9`, and anything about the patch in a running game.
+
+## Implementation notes
+
+From the `skirmish_ai_fallback.py` module docstring.
+
+**Scope: skirmish only.** The scan the first hook sits at runs only when the player's dict carries
+`playerIsSkirmish`, which the lobby-side builder sets at `0x006280C7` only for a skirmish game.
+An online multiplayer player never reaches either decision.

@@ -1,7 +1,7 @@
 """Primitives shared by every patch that appends a name to one of the engine's global tables.
 
-The SAGE INI parser resolves a token to a number by walking a NULL-terminated ``const char*[]``
-with `stricmp` (`INI::scanIndexList`, ``0x0042B914``). Three of those tables are interesting to a
+The SAGE INI parser resolves a token to a number by walking a NULL-terminated `const char*[]`
+with `stricmp` (`INI::scanIndexList`, `0x0042B914`). Three of those tables are interesting to a
 mod - `ModelConditionFlags`, `WeaponSetFlags`, `LocomotorSetType` - and adding a name to any of
 them is the same three moves:
 
@@ -14,8 +14,8 @@ them is the same three moves:
 
 Doing it from the live image rather than from stock constants is what makes two such patches
 compose in either order: applied second, a patch appends to whatever the first one left behind
-instead of dropping its name. :mod:`.model_conditions`, :mod:`.weapon_set_flags` and
-:mod:`.locomotor_sets` are the three tables' owners; everything generic to all three is here.
+instead of dropping its name. `model_conditions`, `weapon_set_flags` and
+`locomotor_sets` are the three tables' owners; everything generic to all three is here.
 
 What is *not* here is the per-table question of whether a **count** has to move with the table.
 `ModelConditionFlags` bakes its count into ten loop bounds and needs all ten; the other two are
@@ -30,7 +30,7 @@ import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from ...utils import va_to_offset
+from ...utils import u32, va_to_offset
 
 __all__ = [
     "SECTION_CHARACTERISTICS",
@@ -55,10 +55,6 @@ SECTION_CHARACTERISTICS = 0x60000060
 _NAME_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 #: PE `DllCharacteristics` bit that lets the loader move the image.
 _DYNAMIC_BASE = 0x0040
 
@@ -66,7 +62,7 @@ _DYNAMIC_BASE = 0x0040
 def check_not_rebased(data: bytes | bytearray) -> None:
     """Raise if the loader could move the image out from under a rebuilt name table.
 
-    A cave built by :func:`layout` holds **absolute** string pointers and nothing adds
+    A cave built by `layout` holds **absolute** string pointers and nothing adds
     base-relocation entries covering them, so a rebased image would index strings that are no
     longer there. `game.dat` ships `RELOCS_STRIPPED` and cannot be moved at all; `Worldbuilder.exe`
     does carry a relocation directory, so its patches have to ask rather than assume.
@@ -97,7 +93,7 @@ def read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | Non
 
 
 def validate_name(name: str, what: str = "condition name") -> None:
-    """Raise unless ``name`` is a token the engine's INI parser could ever match."""
+    """Raise unless `name` is a token the engine's INI parser could ever match."""
     if not _NAME_PATTERN.match(name):
         raise ValueError(
             f"{what} must be uppercase letters, digits and underscores starting with "
@@ -118,7 +114,7 @@ class NameTable:
         return len(self.pointers)
 
     def index_of(self, data: bytes | bytearray, name: str) -> int | None:
-        """The index ``name`` is, or None if the table does not name it."""
+        """The index `name` is, or None if the table does not name it."""
         for index, pointer in enumerate(self.pointers):
             if read_cstring(data, pointer) == name:
                 return index
@@ -126,7 +122,7 @@ class NameTable:
 
 
 def resolve_base(data: bytes | bytearray, ref_vas: Sequence[int], what: str) -> int:
-    """The base VA every reference in ``ref_vas`` holds, or raise if they disagree.
+    """The base VA every reference in `ref_vas` holds, or raise if they disagree.
 
     Disagreement means either a build these addresses were not derived against or a half-applied
     patch, and both should stop a patch rather than let it write."""
@@ -140,7 +136,7 @@ def resolve_base(data: bytes | bytearray, ref_vas: Sequence[int], what: str) -> 
 def read_terminated(
     data: bytes | bytearray, base_va: int, what: str, limit: int = 1024
 ) -> tuple[int, ...]:
-    """The name pointers of the NULL-terminated table at ``base_va``, terminator excluded."""
+    """The name pointers of the NULL-terminated table at `base_va`, terminator excluded."""
     off = offset(data, base_va)
     pointers: list[int] = []
     for index in range(limit):
@@ -170,7 +166,7 @@ def check_fingerprint(
 def layout(
     pointers: Sequence[int], new_names: Sequence[str], base_va: int
 ) -> tuple[bytes, tuple[int, ...], int]:
-    """A rebuilt table at ``base_va``: ``(bytes, the new names' VAs, the VA just past it)``.
+    """A rebuilt table at `base_va`: `(bytes, the new names' VAs, the VA just past it)`.
 
     Order is the pointer array (existing, then new, then the terminator), then the new name
     strings, padded so that whatever a caller places after them stays dword-aligned."""
@@ -183,7 +179,7 @@ def layout(
         strings += name.encode("ascii") + b"\x00"
     strings += b"\x00" * (-len(strings) % 4)
 
-    array = b"".join(_u32(p) for p in (*pointers, *name_vas)) + _u32(0)
+    array = b"".join(u32(p) for p in (*pointers, *name_vas)) + u32(0)
     assert len(array) == table_size
     return array + bytes(strings), tuple(name_vas), base_va + table_size + len(strings)
 
@@ -195,9 +191,9 @@ def ref_edits(
     new_base_va: int,
     what: str,
 ) -> list[tuple[int, bytes, bytes, str]]:
-    """The ``(file offset, original bytes, patched bytes, note)`` edits repointing every
-    reference from ``old_base_va`` to the rebuilt table at ``new_base_va``."""
+    """The `(file offset, original bytes, patched bytes, note)` edits repointing every
+    reference from `old_base_va` to the rebuilt table at `new_base_va`."""
     return [
-        (offset(data, va), _u32(old_base_va), _u32(new_base_va), f"{what} ref @0x{va:08x}")
+        (offset(data, va), u32(old_base_va), u32(new_base_va), f"{what} ref @0x{va:08x}")
         for va in ref_vas
     ]

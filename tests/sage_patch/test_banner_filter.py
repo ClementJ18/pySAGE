@@ -131,7 +131,7 @@ def _cave(data: bytes | bytearray) -> tuple[int, int]:
     return section_va, section_off
 
 
-# --- round trip ------------------------------------------------------------------------------
+# Round trip
 
 
 def test_apply_then_verify(image: bytearray) -> None:
@@ -163,7 +163,7 @@ def test_apply_is_idempotent_only_once(image: bytearray) -> None:
         BannerFilterPatch().apply(data)
 
 
-# --- the relocated field-parse table ---------------------------------------------------------
+# The relocated field-parse table
 
 
 def test_table_keeps_the_stock_entries_verbatim(image: bytearray) -> None:
@@ -232,7 +232,7 @@ def test_only_when_all_is_not_part_of_the_ini_surface() -> None:
     assert BannerFilterPatch(only_when_all=True).ini_surface() == BannerFilterPatch().ini_surface()
 
 
-# --- the build fingerprint -------------------------------------------------------------------
+# The build fingerprint
 
 
 def test_a_renamed_field_is_rejected(image: bytearray) -> None:
@@ -283,7 +283,7 @@ def test_verify_reports_a_moved_source_player_slot(image: bytearray) -> None:
     assert any("source-player store" in problem for problem in problems)
 
 
-# --- keyword validation ----------------------------------------------------------------------
+# Keyword validation
 
 
 @pytest.mark.parametrize("keyword", ["", " ", "Has Space", "Trailing ", "nonasciié"])
@@ -299,7 +299,7 @@ def test_rejects_a_keyword_that_already_exists(keyword: str) -> None:
         BannerFilterPatch(keyword=keyword)
 
 
-# --- the cave's code -------------------------------------------------------------------------
+# The cave's code
 
 
 def _disassemble(data: bytes | bytearray, va: int, off: int, count: int) -> list[str]:
@@ -411,7 +411,7 @@ def test_only_when_all_jumps_past_the_saved_candidate(image: bytearray) -> None:
     assert gate_target == section_va + len(code) - 5
 
 
-# --- composition -----------------------------------------------------------------------------
+# Composition
 
 
 def test_cave_lands_past_every_existing_section(image: bytearray) -> None:

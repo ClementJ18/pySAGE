@@ -1,56 +1,11 @@
-"""The hero-recruit-parallel patch: a hero being recruited stops freezing the production queued
-behind it.
+"""Stop a hero being recruited from freezing the production queued behind it.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/hero-recruit-parallel.md``.
+`ProductionUpdate` advances one queue entry per frame, and when nothing else qualifies its picker
+takes the head - a revive still counting down blocks everything after it. A `.hqueue` section
+replaces that fallback: it takes the first entry that is not a revive, and the head only when the
+queue is all revives. Revive timing is unchanged. Every peer needs the same binary.
 
-**The defect.** A `ProductionUpdate` keeps units, upgrades and hero revives in one list, appended
-at the tail, and `ProductionUpdate::update` advances **exactly one entry per frame** - whichever
-`PRODUCTION_UPDATE_PICK_ENTRY` returns. The picker has four rules: an entry whose batch is already
-part-produced, a `DOZER`, a revive whose clock has reached 1.0, and - failing all three - **the
-head, whatever it is**.
-
-A revive's clock is not the queue's. `queueCreateUnit` calls `REVIVE_MGR_START`, which stamps the
-current logic frame into the hero's roster record at `Player+0x758`, and the entry finishes when
-``(now - start) / totalFrames >= 1.0``. That runs on the game frame no matter where the entry sits.
-
-Those two facts produce the report exactly. A hero queued **behind** other entries finishes on
-time anyway, because the third rule scans the whole list and returns a ready revive out of order -
-the parallelism players see. A hero at the **head** of the queue is returned by the fourth rule
-every frame, fails the completion test, and `update` returns - so everything queued after it is
-frozen for the rest of the revive.
-
-**What this does.** Appends a `.hqueue` PE section holding a rewritten fallback, and redirects the
-fallback's seven-byte entry into it. The rewrite returns the first entry that is **not** a revive,
-and falls back to the head only when the queue holds nothing but revives.
-
-**Why skipping a revive there loses nothing.** `update`'s three effects on a selected revive are
-the command-point stall, the progress accrual into `entry+0x1C`, and the completion test. The
-accrual and the test are dead for a revive, because completion reads the player's clock instead;
-and the stall is separately done for *every* revive in the queue, wherever it sits, by
-`PRODUCTION_UPDATE_REVIVE_COMMAND_POINT_DELAY` at the top of the same tick. A revive that really is
-ready is still returned by the third rule, which runs first and reaches the whole list - so no
-hero completes later than it does today.
-
-**Why the fallback and not the rule that picks a ready revive.** The two rules answer different
-questions and only one of them is wrong. "A ready hero may jump the queue" is the behaviour the
-report calls parallel and wants kept; "a waiting hero owns the frame" is the behaviour it calls
-blocking. Editing the fallback changes the second and leaves the first byte-for-byte.
-
-**Revive timing is untouched.** The clock is armed at `queueCreateUnit` and read from
-`TheGameLogic`'s frame; this patch reads neither and writes neither. A hero recruited into an empty
-queue completes on exactly the frame it does today.
-
-**Every peer must run the same patched binary.** Which entry advances is logic state feeding the
-per-frame CRC, so a patched and an unpatched client diverge the first frame a hero sits at the head
-of a non-empty queue, and replays do not cross. That is the same requirement `production-condition`
-and `rebuild-hole-repair` carry.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the seven at
-`PRODUCTION_UPDATE_PICK_FALLBACK`, which no other bundled patch touches - `queue-ignore-cp` and
-`unique-production-id` are the two that reach into this module and they take `0x008A1E27`,
-`0x008A12A2` and the interface vtable, none of them inside the picker.
+Derivation: `../docs/hero-recruit-parallel.md`.
 """
 
 from __future__ import annotations
@@ -112,7 +67,7 @@ REVIVE_READY_TARGET = (
 )
 
 #: The first bytes at each address the cave jumps to, plus the ones that pin what the picker is
-#: and how it is reached, as a ``{va: bytes}`` map. The fallback's own seven are asserted by
+#: and how it is reached, as a `{va: bytes}` map. The fallback's own seven are asserted by
 #: `apply_byte_patch`. A build whose layout moved fails here instead of on a wild jump.
 ANCHORS = {
     # the picker's prologue, and `update`'s once-per-tick call to it

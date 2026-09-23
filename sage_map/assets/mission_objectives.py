@@ -25,11 +25,11 @@ class MissionObjective:
 
     @classmethod
     def parse(cls, context: "ParsingContext"):
-        id = context.stream.readUInt16PrefixedAsciiString()
-        text = context.stream.readUInt16PrefixedAsciiString()
-        description = context.stream.readUInt16PrefixedAsciiString()
-        is_bonus_objective = context.stream.readBool()
-        objective_type = MissionObjectiveType(context.stream.readUInt32())
+        id = context.stream.read_uint16_prefixed_ascii_string()
+        text = context.stream.read_uint16_prefixed_ascii_string()
+        description = context.stream.read_uint16_prefixed_ascii_string()
+        is_bonus_objective = context.stream.read_bool()
+        objective_type = MissionObjectiveType(context.stream.read_uint32())
 
         return cls(
             id=id,
@@ -40,11 +40,11 @@ class MissionObjective:
         )
 
     def write(self, context: "WritingContext"):
-        context.stream.writeUInt16PrefixedAsciiString(self.id)
-        context.stream.writeUInt16PrefixedAsciiString(self.text)
-        context.stream.writeUInt16PrefixedAsciiString(self.description)
-        context.stream.writeBool(self.is_bonus_objective)
-        context.stream.writeUInt32(self.objective_type.value)
+        context.stream.write_uint16_prefixed_ascii_string(self.id)
+        context.stream.write_uint16_prefixed_ascii_string(self.text)
+        context.stream.write_uint16_prefixed_ascii_string(self.description)
+        context.stream.write_bool(self.is_bonus_objective)
+        context.stream.write_uint32(self.objective_type.value)
 
 
 @dataclass
@@ -59,7 +59,7 @@ class MissionObjectives:
     @classmethod
     def parse(cls, context: "ParsingContext"):
         with context.read_asset() as asset_ctx:
-            objective_count = context.stream.readUInt32()
+            objective_count = context.stream.read_uint32()
             objectives = []
             for _ in range(objective_count):
                 objectives.append(MissionObjective.parse(context))
@@ -73,6 +73,6 @@ class MissionObjectives:
 
     def write(self, context: "WritingContext"):
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.objectives))
+            context.stream.write_uint32(len(self.objectives))
             for objective in self.objectives:
                 objective.write(context)

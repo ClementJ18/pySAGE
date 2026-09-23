@@ -1,9 +1,7 @@
 name: Build release binaries
 
-# Manual only: PyInstaller builds are slow and their artifacts are large, so they are cut on
-# demand rather than on every push. PyInstaller binaries are not cross-platform, so every spec is
-# built once per OS: Windows for the .exe set modders run, Linux for CI - the Linux sage_lint is
-# what a mod repo's lint workflow runs on an ubuntu runner, which costs half a Windows minute.
+# Manual only: PyInstaller builds are slow and large. Each spec is built per OS - Windows for the
+# .exe set modders run, Linux for mod repos' lint workflows.
 on:
   workflow_dispatch:
     inputs:
@@ -20,16 +18,14 @@ permissions:
 jobs:
   build:
     strategy:
-      # One OS failing (a Qt spec that will not freeze on Linux, say) must not cancel the other's
-      # upload - filter the specs down to the CLIs and dispatch again if it does.
+      # One OS failing must not cancel the other's upload.
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
             platform: windows
             exe: .exe
-          # The oldest glibc a frozen binary can run on is the one it was built against, so the
-          # Linux set runs on this Ubuntu release and anything newer - ubuntu-latest included.
+          # A frozen binary needs at least the glibc it was built against; older is more portable.
           - os: ubuntu-latest
             platform: linux
             exe: ''
@@ -43,8 +39,7 @@ jobs:
           python-version: "3.13"
           cache: pip
 
-      # PyQt6's wheel bundles Qt but still links the system's EGL/GL and xkb libraries, which the
-      # runner image does not carry - and PyInstaller imports Qt while analysing the UI specs.
+      # System libraries PyQt6 links against; PyInstaller imports Qt while analysing the UI specs.
       - name: Install Qt runtime libraries (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -52,27 +47,21 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libegl1 libgl1 libxkbcommon0 libdbus-1-3
 
-      # The Qt- and pyBIG-backed specs import their dependencies during PyInstaller's analysis,
-      # so the full extras are needed even for a filtered build. PyInstaller itself is in the
-      # `dev` dependency group rather than an extra, so it is installed by name.
+      # PyInstaller imports each spec's dependencies, so every extra is needed.
       - name: Install the package with extras
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[all]"
           pip install "pyinstaller>=6"
 
-      # `specs` arrives as an env var rather than a `${{ }}` expansion inside the script, so a
-      # dispatch value cannot inject shell. Left unquoted so several filters split into separate
-      # arguments, which is what build_release.py's `nargs="*"` expects.
+      # An env var rather than `${{ }}`, so the input cannot inject shell; unquoted so filters split.
       - name: Build every spec
         shell: bash
         env:
           SPECS: ${{ inputs.specs }}
         run: python tools/build_release.py $SPECS
 
-      # A frozen build that silently ships stale or broken code is the failure this guards: the
-      # binary must run, and must write the current baseline format (entries carrying `id`).
-      # Skips cleanly when a filtered build left the CLI out.
+      # The frozen binary must run and write the current baseline format; skipped if not built.
       - name: Smoke-test the CLI binary
         shell: bash
         env:

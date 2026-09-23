@@ -1,74 +1,11 @@
-r"""A type-ahead box above Worldbuilder's object tree.
+"""Add a type-ahead box above Worldbuilder's object tree, in the dialog a script action's object
+argument opens.
 
-**This patch targets `Worldbuilder.exe`, not `game.dat`.** See
-``../docs/worldbuilder-object-typeahead.md`` for the derivation.
+Targets `Worldbuilder.exe`. Each keystroke selects the first tree item whose label matches (exact,
+then prefix, then substring, case-insensitively, leaves before folders) and clears the selection
+when nothing matches. The control is added without subclassing anything.
 
-Every script action and condition that names an object type opens one dialog: `IDD` 190, driven by
-`EditObjectParameter` from
-``E:\Builds\BFME2X\Code\production\Code\Tools\WorldBuilder\src\EditObjectParameter.cpp``. It is a
-tree of every `ThingTemplate` in the game, filed under its side and then its editor-sorting
-category, and it opens with every folder collapsed. Finding `GondorArcherHorde` in it is a hunt
-through three levels of folder, once per argument.
-
-`OnInitDialog` (``0x004F2980``) walks `TheThingFactory`'s template list and calls `addObject`
-(``0x004F2B20``) for each, which inserts the template's name as the item text and **lParam 0** -
-no back-pointer to anything. `OnOK` (``0x004F34C0``) then reads only ``TVM_GETNEXTITEM``/
-``TVGN_CARET`` followed by ``TVM_GETITEM``, and stores the selected item's *label text* into the
-`Parameter` at ``this+0x78``. It never consults lParam, never asks `TheThingFactory` whether the
-name exists, and never checks the item is a leaf - a side folder called `Gondor` is accepted as
-readily as a real object name.
-
-That is what makes this patch small: **anything that moves the tree's caret already implements
-"type the name"**. The accept path is not touched, so the patched dialog cannot produce a value the
-stock dialog could not, and text matching nothing clears the selection so OK falls into the stock
-"nothing is selected" beep rather than accepting a stale highlight.
-
-**The control.** One `EDIT`, id ``0x7000`` - the highest id in any of the 109 dialogs is 1538 - as
-the second item of the template, so it is the first tabstop and takes focus when the dialog opens.
-The template stays **exactly 292 bytes**: the caption shrinks from ``"Edit object parameter."`` to
-``"Object"``, which frees the 32 bytes a fifth `DLGITEMTEMPLATEEX` costs, so nothing about the
-resource directory moves. The tree drops from y=20 to y=35 and loses 15 dlu of height; every other
-control keeps its rect, which matters because the `DialogLayoutManager` at ``this+0xD4`` anchors by
-control id.
-
-**The behaviour, without subclassing anything.** `GetMessageMap` returns ``0x01DF2050`` from two
-``mov eax, imm32`` sites (``0x004F2953``, ``0x004F2967``). Both are repointed at an `AFX_MSGMAP` in
-the cave holding the stock two entries - `WM_DESTROY` and `WM_SIZE` - plus one more:
-
-    msg = WM_COMMAND (0x0111)   code = EN_CHANGE (0x0300)   id = 0x7000   sig = 0x35
-
-`pfnGetBaseMap` stays ``0x016C2030``, so the base-class chain is unchanged. The encoding is read,
-not guessed: the neighbouring class's message map, 0x3C4 bytes further into `.rdata`, carries a
-literal `ON_EN_CHANGE` in exactly this shape. Signature ``0x35`` is `AfxSig_vv`, so the handler is a
-plain ``void (CWnd::*)()`` - `this` in `ECX`, no arguments, no return.
-
-So there is no window subclassing, no `SetWindowLongA`/`CallWindowProcA`, no vtable rewrite, and
-**no new imports**: the cave needs only `SendMessageA` (``0x022F54D0``) and `SendDlgItemMessageA`
-(``0x022F55BC``), both already imported. That matters, because `CreateWindowExA`, `SetWindowLongA`,
-`CallWindowProcA` and `GetWindowTextA` are all absent from Worldbuilder's user32 imports.
-
-**What the handler does.** Reads the box, lower-cases it, walks the tree in pre-order (`TVGN_ROOT`,
-then `TVGN_CHILD`/`TVGN_NEXT`/`TVGN_PARENT` - no stack needed), and scores every item as
-``rank * 2 + is_leaf``, where rank is 3 for an exact match, 2 for a prefix, 1 for a substring and 0
-for none, case-insensitively. The first item with the highest score wins, an exact leaf match stops
-the walk, and the result is selected with ``TVM_SELECTITEM``/``TVGN_CARET``, which expands its
-ancestors on the way. An empty box leaves the selection alone; a box that matches nothing clears it.
-
-Enter needs no code at all. The edit has no `ES_WANTRETURN`, so `IsDialogMessage` routes Enter to
-the default button, which is IDOK, which reads the caret the handler just set.
-
-**Cost.** Two `SendMessageA` per tree item per keystroke, same thread, no marshalling - about 8,000
-in-process messages for a 4,000-template mod tree.
-
-**Scope.** The two `EditParameter::edit` sites that open this dialog (``0x004F4238`` for parameter
-type ``0x0F``, ``0x004F429B`` for ``0x3D``) are the whole of it. Sibling pickers - teams, waypoints,
-script names - are separate classes in separate files and keep their stock behaviour.
-
-**Not done.** The edit is not registered with the `DialogLayoutManager`, so it keeps its width when
-the dialog is resized while the tree stretches. The anchor table passed at ``0x004F29FD`` lives in
-`.data`'s zero-fill tail, past the raw data, so it is built at run time and cannot be extended by a
-static byte patch; doing it properly means copying the four anchors into the cave during
-`OnInitDialog`, which is a second hook for a cosmetic gain.
+Derivation: `../docs/worldbuilder-object-typeahead.md`.
 """
 
 from __future__ import annotations
@@ -78,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from ..asm import JA, JB, JE, JGE, JLE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, u32, va_to_offset
 
 if TYPE_CHECKING:
     import argparse
@@ -103,26 +40,26 @@ _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000 | 0x80000000
 #: above 1538 outside the AFX range, and this is clear of both.
 EDIT_ID = 0x7000
 
-#: `RT_DIALOG` 190's template, at RVA ``0x01F51E60``. Rewritten in place and to the same length, so
+#: `RT_DIALOG` 190's template, at RVA `0x01F51E60`. Rewritten in place and to the same length, so
 #: the resource directory entry that points here is left alone.
 TEMPLATE_VA = 0x02351E60
 
-#: The two ``mov eax, <AFX_MSGMAP>`` sites - `EditObjectParameter::GetThisMessageMap` and its
+#: The two `mov eax, <AFX_MSGMAP>` sites - `EditObjectParameter::GetThisMessageMap` and its
 #: virtual `GetMessageMap` - that decide which message map the dialog dispatches through.
 MESSAGE_MAP_SITES = (0x004F2953, 0x004F2967)
 _STOCK_MESSAGE_MAP = 0x01DF2050
 _GET_BASE_MAP = 0x016C2030
 
 #: The stock map's entries, copied verbatim into the cave's array ahead of the new one: `WM_DESTROY`
-#: -> ``0x0040AE57`` and `WM_SIZE` -> ``0x0040C086``, both as the thunks the linker emitted.
+#: -> `0x0040AE57` and `WM_SIZE` -> `0x0040C086`, both as the thunks the linker emitted.
 _STOCK_ENTRIES = bytes.fromhex(
     "020000000000000000000000000000001000000057ae4000"
     "050000000000000000000000000000001600000086c04000"
 )
 _TERMINATOR = bytes(24)
 
-#: `CWnd::m_hWnd`, and the tree control's copy of it. ``this+0x7C`` is the `CTreeCtrl` member
-#: `DoDataExchange` binds to control ``0x497``; ``0x7C + 0x20`` is where its handle lands, which is
+#: `CWnd::m_hWnd`, and the tree control's copy of it. `this+0x7C` is the `CTreeCtrl` member
+#: `DoDataExchange` binds to control `0x497`; `0x7C + 0x20` is where its handle lands, which is
 #: what every `SendMessageA` in the class pushes.
 _M_HWND = 0x20
 _TREE_HWND = 0x9C
@@ -154,7 +91,7 @@ _ENTRIES_OFF = 0x240
 _CODE_OFF = 0x2A0
 
 #: `IDD` 190 as shipped: `DLGTEMPLATEEX`, 146x178 dlu, `WS_THICKFRAME`, four controls - the
-#: ``"Object:"`` group box (1133), the tree (1175), OK (1) and Cancel (2).
+#: `"Object:"` group box (1133), the tree (1175), OK (1) and Cancel (2).
 STOCK_TEMPLATE = bytes.fromhex(
     "0100ffff00000000000000004800c4800400000000009200b2000000000045006400"
     "6900740020006f0062006a00650063007400200070006100720061006d0065007400"
@@ -167,7 +104,7 @@ STOCK_TEMPLATE = bytes.fromhex(
     "ffff8000430061006e00630065006c0000000000"
 )
 
-#: The same template with the caption shortened to ``"Object"``, the edit control inserted as item
+#: The same template with the caption shortened to `"Object"`, the edit control inserted as item
 #: 1, and the tree moved from (15, 20, 114, 126) to (15, 35, 114, 111). Same 292 bytes.
 PATCHED_TEMPLATE = bytes.fromhex(
     "0100ffff00000000000000004800c4800500000000009200b200000000004f006200"
@@ -182,7 +119,7 @@ PATCHED_TEMPLATE = bytes.fromhex(
 )
 
 #: Everything outside the sites this patch writes that it assumes about the build: the constructor's
-#: binding of the class to `IDD` 190, `DoDataExchange`'s bind of the tree to control ``0x497``, and
+#: binding of the class to `IDD` 190, `DoDataExchange`'s bind of the tree to control `0x497`, and
 #: `OnOK`'s read of the caret - the accept path the handler steers rather than replaces.
 ANCHORS = {
     0x004F279E: bytes.fromhex("6a0068be000000"),  # push 0; push 190 -> CDialog::CDialog
@@ -195,10 +132,6 @@ ANCHORS = {
 #: PE `DllCharacteristics` bit that would let the loader move the image out from under the absolute
 #: addresses the cave reads, calls and hands to MFC.
 _DYNAMIC_BASE = 0x0040
-
-
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
 
 
 def _assemble(base_va: int) -> Asm:
@@ -217,23 +150,23 @@ def _assemble(base_va: int) -> Asm:
     a.label("handler")
     a.emit(0x60)  # pushad
     a.emit(0x8B, 0xD1)  # mov edx, ecx                ; this
-    a.emit(0x8B, 0xBA, _u32(_TREE_HWND))  # mov edi, [edx+0x9c]         ; the tree's HWND
+    a.emit(0x8B, 0xBA, u32(_TREE_HWND))  # mov edi, [edx+0x9c]         ; the tree's HWND
     a.emit(0x85, 0xFF)  # test edi, edi
     a.jcc(JE, "done")  #                              ; EN_CHANGE before DDX ran: nothing to steer
 
     # SendDlgItemMessageA(dialog, EDIT_ID, WM_GETTEXT, _TEXT_MAX, needle). A missing control and an
     # empty box both return zero, and both mean the same thing here: leave the selection alone.
-    a.emit(0x68, _u32(needle))  # push needle
-    a.emit(0x68, _u32(_TEXT_MAX))  # push _TEXT_MAX
+    a.emit(0x68, u32(needle))  # push needle
+    a.emit(0x68, u32(_TEXT_MAX))  # push _TEXT_MAX
     a.emit(0x6A, _WM_GETTEXT)  # push WM_GETTEXT
-    a.emit(0x68, _u32(EDIT_ID))  # push EDIT_ID
+    a.emit(0x68, u32(EDIT_ID))  # push EDIT_ID
     a.emit(0xFF, 0x72, _M_HWND)  # push [edx+0x20]             ; the dialog's HWND
-    a.emit(0xFF, 0x15, _u32(_SEND_DLG_ITEM_MESSAGE_A))
+    a.emit(0xFF, 0x15, u32(_SEND_DLG_ITEM_MESSAGE_A))
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "done")
 
     # Fold the needle once, so the per-item compare only has to fold the item text.
-    a.emit(0xBE, _u32(needle))  # mov esi, needle
+    a.emit(0xBE, u32(needle))  # mov esi, needle
     a.label("lower")
     a.emit(0x8A, 0x06)  # mov al, [esi]
     a.emit(0x84, 0xC0)  # test al, al
@@ -254,9 +187,9 @@ def _assemble(base_va: int) -> Asm:
 
     a.emit(0x6A, 0x00)  # push 0
     a.emit(0x6A, _TVGN_ROOT)  # push TVGN_ROOT
-    a.emit(0x68, _u32(_TVM_GETNEXTITEM))
+    a.emit(0x68, u32(_TVM_GETNEXTITEM))
     a.emit(0x57)  # push edi
-    a.emit(0xFF, 0x15, _u32(_SEND_MESSAGE_A))
+    a.emit(0xFF, 0x15, u32(_SEND_MESSAGE_A))
     a.emit(0x8B, 0xF0)  # mov esi, eax                ; node
 
     # Pre-order without a stack: descend to the first child, and when there is none, climb to the
@@ -266,14 +199,14 @@ def _assemble(base_va: int) -> Asm:
     a.jcc(JE, "select")
     a.emit(0x56)  # push esi
     a.emit(0x6A, _TVGN_CHILD)  # push TVGN_CHILD
-    a.emit(0x68, _u32(_TVM_GETNEXTITEM))
+    a.emit(0x68, u32(_TVM_GETNEXTITEM))
     a.emit(0x57)  # push edi
-    a.emit(0xFF, 0x15, _u32(_SEND_MESSAGE_A))
+    a.emit(0xFF, 0x15, u32(_SEND_MESSAGE_A))
     a.emit(0x50)  # push eax                    ; the child, across the visit
     a.emit(0x31, 0xD2)  # xor edx, edx
     a.emit(0x85, 0xC0)  # test eax, eax
     a.emit(0x0F, 0x94, 0xC2)  # setz dl                     ; no child == a leaf
-    a.emit(0x89, 0x15, _u32(leaf))  # mov [leaf], edx
+    a.emit(0x89, 0x15, u32(leaf))  # mov [leaf], edx
     a.call("visit")
     a.emit(0x58)  # pop eax
     a.emit(0x83, 0xFD, 0x07)  # cmp ebp, 7                  ; an exact leaf match cannot be beaten
@@ -286,9 +219,9 @@ def _assemble(base_va: int) -> Asm:
     a.label("sibling")
     a.emit(0x56)  # push esi
     a.emit(0x6A, _TVGN_NEXT)  # push TVGN_NEXT
-    a.emit(0x68, _u32(_TVM_GETNEXTITEM))
+    a.emit(0x68, u32(_TVM_GETNEXTITEM))
     a.emit(0x57)  # push edi
-    a.emit(0xFF, 0x15, _u32(_SEND_MESSAGE_A))
+    a.emit(0xFF, 0x15, u32(_SEND_MESSAGE_A))
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "parent")
     a.emit(0x8B, 0xF0)  # mov esi, eax
@@ -297,9 +230,9 @@ def _assemble(base_va: int) -> Asm:
     a.label("parent")
     a.emit(0x56)  # push esi
     a.emit(0x6A, _TVGN_PARENT)  # push TVGN_PARENT
-    a.emit(0x68, _u32(_TVM_GETNEXTITEM))
+    a.emit(0x68, u32(_TVM_GETNEXTITEM))
     a.emit(0x57)  # push edi
-    a.emit(0xFF, 0x15, _u32(_SEND_MESSAGE_A))
+    a.emit(0xFF, 0x15, u32(_SEND_MESSAGE_A))
     a.emit(0x8B, 0xF0)  # mov esi, eax
     a.emit(0x85, 0xF6)  # test esi, esi
     a.jcc(JE, "select")
@@ -310,16 +243,16 @@ def _assemble(base_va: int) -> Asm:
     a.label("select")
     a.emit(0x53)  # push ebx
     a.emit(0x6A, _TVGN_CARET)  # push TVGN_CARET
-    a.emit(0x68, _u32(_TVM_SELECTITEM))
+    a.emit(0x68, u32(_TVM_SELECTITEM))
     a.emit(0x57)  # push edi
-    a.emit(0xFF, 0x15, _u32(_SEND_MESSAGE_A))
+    a.emit(0xFF, 0x15, u32(_SEND_MESSAGE_A))
     a.emit(0x85, 0xDB)  # test ebx, ebx
     a.jcc(JE, "done")
     a.emit(0x53)  # push ebx
     a.emit(0x6A, 0x00)  # push 0
-    a.emit(0x68, _u32(_TVM_ENSUREVISIBLE))
+    a.emit(0x68, u32(_TVM_ENSUREVISIBLE))
     a.emit(0x57)  # push edi
-    a.emit(0xFF, 0x15, _u32(_SEND_MESSAGE_A))
+    a.emit(0xFF, 0x15, u32(_SEND_MESSAGE_A))
 
     a.label("done")
     a.emit(0x61)  # popad
@@ -328,23 +261,23 @@ def _assemble(base_va: int) -> Asm:
     # visit: score the item in esi and keep it if it beats ebx/ebp. Reads [leaf], set by the caller
     # from the same TVGN_CHILD query the walk needs anyway.
     a.label("visit")
-    a.emit(0xC7, 0x05, _u32(tvitem + 0x00), _u32(_TVIF_TEXT_HANDLE))  # mask
-    a.emit(0x89, 0x35, _u32(tvitem + 0x04))  # hItem = esi
-    a.emit(0xC7, 0x05, _u32(tvitem + 0x10), _u32(item))  # pszText
-    a.emit(0xC7, 0x05, _u32(tvitem + 0x14), _u32(_TEXT_MAX))  # cchTextMax
-    a.emit(0xC6, 0x05, _u32(item), 0x00)  # mov byte [item], 0
-    a.emit(0x68, _u32(tvitem))  # push &tvitem
+    a.emit(0xC7, 0x05, u32(tvitem + 0x00), u32(_TVIF_TEXT_HANDLE))  # mask
+    a.emit(0x89, 0x35, u32(tvitem + 0x04))  # hItem = esi
+    a.emit(0xC7, 0x05, u32(tvitem + 0x10), u32(item))  # pszText
+    a.emit(0xC7, 0x05, u32(tvitem + 0x14), u32(_TEXT_MAX))  # cchTextMax
+    a.emit(0xC6, 0x05, u32(item), 0x00)  # mov byte [item], 0
+    a.emit(0x68, u32(tvitem))  # push &tvitem
     a.emit(0x6A, 0x00)  # push 0
-    a.emit(0x68, _u32(_TVM_GETITEM))
+    a.emit(0x68, u32(_TVM_GETITEM))
     a.emit(0x57)  # push edi
-    a.emit(0xFF, 0x15, _u32(_SEND_MESSAGE_A))
+    a.emit(0xFF, 0x15, u32(_SEND_MESSAGE_A))
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "visit_ret")
     a.call("rank")
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "visit_ret")
     a.emit(0x03, 0xC0)  # add eax, eax                ; rank * 2
-    a.emit(0x03, 0x05, _u32(leaf))  # add eax, [leaf]             ; + the leaf bit
+    a.emit(0x03, 0x05, u32(leaf))  # add eax, [leaf]             ; + the leaf bit
     a.emit(0x3B, 0xC5)  # cmp eax, ebp
     a.jcc(JLE, "visit_ret")  #                              ; ties keep the item found first
     a.emit(0x8B, 0xE8)  # mov ebp, eax
@@ -355,14 +288,14 @@ def _assemble(base_va: int) -> Asm:
     # rank: 3 exact, 2 prefix, 1 substring, 0 none. Only eax/ecx/edx are touched, so the walk's
     # node, tree handle and running best survive the call.
     a.label("rank")
-    a.emit(0xBA, _u32(item))  # mov edx, item
+    a.emit(0xBA, u32(item))  # mov edx, item
     a.call("prefix_at")
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "rank_substring")
     a.emit(0x40)  # inc eax                     ; 1 -> prefix, 2 -> exact
     a.emit(0xC3)  # ret
     a.label("rank_substring")
-    a.emit(0xBA, _u32(item))  # mov edx, item
+    a.emit(0xBA, u32(item))  # mov edx, item
     a.label("rank_step")
     a.emit(0x42)  # inc edx
     a.emit(0x80, 0x3A, 0x00)  # cmp byte [edx], 0
@@ -370,7 +303,7 @@ def _assemble(base_va: int) -> Asm:
     a.call("prefix_at")
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "rank_step")
-    a.emit(0xB8, _u32(1))  # mov eax, 1
+    a.emit(0xB8, u32(1))  # mov eax, 1
     a.emit(0xC3)  # ret
     a.label("rank_none")
     a.emit(0x31, 0xC0)  # xor eax, eax
@@ -381,7 +314,7 @@ def _assemble(base_va: int) -> Asm:
     # substring scan can walk it one character at a time.
     a.label("prefix_at")
     a.emit(0x52)  # push edx
-    a.emit(0xB9, _u32(needle))  # mov ecx, needle
+    a.emit(0xB9, u32(needle))  # mov ecx, needle
     a.label("prefix_loop")
     a.emit(0x8A, 0x01)  # mov al, [ecx]
     a.emit(0x84, 0xC0)  # test al, al
@@ -404,11 +337,11 @@ def _assemble(base_va: int) -> Asm:
     a.emit(0x8A, 0x02)  # mov al, [edx]
     a.emit(0x84, 0xC0)  # test al, al
     a.jcc(JE, "prefix_exact")
-    a.emit(0xB8, _u32(1))  # mov eax, 1
+    a.emit(0xB8, u32(1))  # mov eax, 1
     a.emit(0x5A)  # pop edx
     a.emit(0xC3)  # ret
     a.label("prefix_exact")
-    a.emit(0xB8, _u32(2))  # mov eax, 2
+    a.emit(0xB8, u32(2))  # mov eax, 2
     a.emit(0x5A)  # pop edx
     a.emit(0xC3)  # ret
     a.label("prefix_no")
@@ -528,8 +461,8 @@ class WorldbuilderObjectTypeaheadPatch(Patch):
 
     @staticmethod
     def _load_map(map_va: int) -> bytes:
-        """``mov eax, <AFX_MSGMAP>`` - the whole of what both `GetMessageMap` bodies do."""
-        return b"\xb8" + _u32(map_va)
+        """`mov eax, <AFX_MSGMAP>` - the whole of what both `GetMessageMap` bodies do."""
+        return b"\xb8" + u32(map_va)
 
     @staticmethod
     def _offset(data: bytes | bytearray, va: int) -> int:

@@ -1,62 +1,11 @@
-"""The detachable-rider-heal patch: a mount is healed by a flat amount when its rider comes off.
+"""Add `HealOnDetach` to `DetachableRiderBody`: a flat heal for the mount when its rider comes off.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/detachable-rider-heal.md``.
+The body's `attemptDamage` override already rewrites a killing hit so the object survives at
+`HealthPercentageWhenRiderDies` and detaches the rider. The patch grows the `ModuleData` for the
+field and heals by that many hit points after the rewritten damage lands, capped at maximum health.
+Default 0 is stock. Logic-side: every peer needs the same binary.
 
-**What the engine does today.** `DetachableRiderBody` overrides `attemptDamage`
-(``0x008C5EF3``). When a hit would kill the object and the module is active, the override does
-not let the death happen: it *rewrites the pending damage* so what lands leaves the object at
-`HealthPercentageWhenRiderDies` of its maximum, clears the instant-kill flag, finds the object's
-`DetachableRiderUpdate` by name and calls it (``0x008B2A46``) to take the rider off - then falls
-into `ActiveBody::attemptDamage` (``0x008C3FA3``) to apply the amount it just wrote.
-
-So the only lever a mod has over what the riderless object is worth is a **percentage of its own
-maximum health**, spent out of the health it happened to have. There is no way to say "and give
-it 200 hit points back", which is the natural way to price a mount that survives its rider:
-`HealthPercentageWhenRiderDies` scales with the unit, a flat grant does not.
-
-**What this does.** Adds one `Real` field, `HealOnDetach`, to the module. Default `0`, which is
-stock behaviour; a positive value is added to the object's health, in hit points, at the moment
-the rider is detached - after the rewritten damage has landed, so the two compose exactly as
-written: the object comes out at `HealthPercentageWhenRiderDies` of maximum **plus**
-`HealOnDetach`, capped by the engine's own clamp at maximum health.
-
-**Why it heals rather than paying for itself out of the damage.** The obvious cheap edit is to
-subtract the amount from the damage the override writes, and it would be wrong twice.
-`ActiveBody::attemptDamage` runs the written amount through the armor of the object it lands
-on, so a "raw" amount spent that way is scaled by whatever the mount's armor does to that damage
-type - the grant would be worth a different number of hit points per damage source. And the
-damage is applied *after* the rewrite, so a heal folded into it is bounded by the health the
-object had when the killing blow arrived rather than by its maximum. Calling the engine's own
-`ActiveBody::internalChangeHealth` (body vtable ``+0x84``, the routine `attemptHealing` and
-`attemptDamage` both end at) sidesteps both: it takes hit points, not damage, and it carries the
-clamp to maximum health and the damage-state bookkeeping with it.
-
-**It heals when the rider actually comes off.** The hook sits on the detach call itself, so the
-one path that does not detach - the object has a `DetachableRiderBody` but no
-`DetachableRiderUpdate` to find, and the module walk comes back NULL - keeps the stock bytes and
-grants nothing. And the heal is skipped when the object came out of the damage at zero health,
-so `HealthPercentageWhenRiderDies = 0%` still kills: the field can top a survivor up, never
-resurrect a corpse.
-
-**The `ModuleData` grows.** Its three own fields sit at ``+0x194``, ``+0x198`` and ``+0x19C``,
-and ``sizeof`` is ``0x1A0`` - the last field ends exactly at the end of the struct, so unlike
-`terrain-resource-exp` there is no padding to move into. The class has **one** allocation, the
-`push 0x1A0` in its `ModuleData` factory (``0x006514EA``), and **one** constructor call
-(``0x00651502``); the patch widens the first to ``0x1A4`` and routes the second through a stub
-that zeroes the new dword, because `operator new` does not. `operator delete` here takes only a
-pointer, so nothing else has to learn the new size.
-
-**Determinism.** Health is logic-side `Object` state and the engine CRCs it, so **every peer must
-run the same patched binary**. And the keyword is fatal on a stock one: SAGE treats an unknown
-field in a known block as a parse error, so a mod that writes `HealOnDetach` cannot load without
-the patched `game.dat`. Savegames are unaffected - `ModuleData` is load-time configuration read
-from `.ini` and never `Xfer`'d.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. No other bundled patch touches the module's factory, its field
-table or ``0x008C60``..; the nearest neighbour, `terrain-resource-exp`, adds its field to a
-different module by the same three-step recipe and the two share no byte.
+Derivation: `../docs/detachable-rider-heal.md`.
 """
 
 from __future__ import annotations
@@ -71,7 +20,13 @@ from sage_ini.engine import Engine, FieldDelta
 from ..addresses import FIELD_PARSE_STRIDE, INI_PARSE_REAL
 from ..asm import JAE, JBE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    file_offset,
+    find_section,
+    read_cstring,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -105,16 +60,16 @@ MODULE_DATA_SIZE_VA = 0x006514EA
 MODULE_DATA_SIZE_STOCK = b"\x68" + struct.pack("<I", STOCK_MODULE_DATA_SIZE)
 MODULE_DATA_SIZE_PATCHED = b"\x68" + struct.pack("<I", PATCHED_MODULE_DATA_SIZE)
 
-#: `DetachableRiderBodyModuleData::DetachableRiderBodyModuleData` - ``__thiscall``, no arguments,
+#: `DetachableRiderBodyModuleData::DetachableRiderBodyModuleData` - `__thiscall`, no arguments,
 #: returns `this` in `eax`. It runs the `ActiveBody` base constructor, the `UpgradeMux` one at
-#: ``+0x64``, and writes its own three defaults; it never touches the new dword, so the stub the
+#: `+0x64`, and writes its own three defaults; it never touches the new dword, so the stub the
 #: call is routed through has to.
 MODULE_DATA_CTOR = 0x008C6035
 MODULE_DATA_CTOR_CALL_VA = 0x00651502
 MODULE_DATA_CTOR_CALL_STOCK = bytes.fromhex("e82e4b2700")  # call 0x008c6035
 
 #: The module's own field table and the `push` that hands it to the reader, inside
-#: `buildFieldParse` (``0x008C5D2B``). That `push` is the table's **only** reference in the image,
+#: `buildFieldParse` (`0x008C5D2B`). That `push` is the table's **only** reference in the image,
 #: so relocating the table is a single 4-byte repoint - and the table is walked to its NULL
 #: terminator rather than to a count, so no bound needs raising.
 FIELD_TABLE = 0x00C72A0C
@@ -178,19 +133,19 @@ DETACH_RIDER = 0x008B2A46
 #: `ActiveBody::attemptDamage`, which the cave reproduces itself.
 DETACH_TAIL_RESUME = 0x008C6024
 
-#: `ActiveBody::attemptDamage` - ``__thiscall``, ``ret 4`` (the `DamageInfo *`). The base call
+#: `ActiveBody::attemptDamage` - `__thiscall`, `ret 4` (the `DamageInfo *`). The base call
 #: every arm of the override ends at, and the one the cave displaces for the detach arm only.
 BASE_ATTEMPT_DAMAGE = 0x008C3FA3
 
 #: `ActiveBody::internalChangeHealth(Real delta, DamageInfo *info)` - body-interface vtable slot
-#: ``+0x84``, ``ret 8``. Adds `delta` to the health at interface ``+0x08``, clamps it to the
-#: maximum at ``+0x10`` and to zero, and runs the damage-state and subdual bookkeeping. `info` is
+#: `+0x84`, `ret 8`. Adds `delta` to the health at interface `+0x08`, clamps it to the
+#: maximum at `+0x10` and to zero, and runs the damage-state and subdual bookkeeping. `info` is
 #: unread by this implementation; it is passed anyway because both engine call sites pass theirs.
 INTERNAL_CHANGE_HEALTH_SLOT = 0x84
 
 #: Where the override keeps its two live pointers across the whole detach branch: `esi` is the
 #: body interface (`this`), `edi` the `DamageInfo *` the function was called with. The
-#: `ModuleData` is at interface ``-0x0C`` and the current health at interface ``+0x08``, both read
+#: `ModuleData` is at interface `-0x0C` and the current health at interface `+0x08`, both read
 #: by the stock code either side of the hook.
 MODULE_DATA_INTERFACE_OFFSET = -0x0C
 HEALTH_INTERFACE_OFFSET = 0x08
@@ -198,7 +153,7 @@ HEALTH_INTERFACE_OFFSET = 0x08
 #: Rows in the stock table, excluding the NULL name pointer that terminates it.
 STOCK_FIELD_COUNT = (len(FIELD_TABLE_STOCK) - 4) // FIELD_PARSE_STRIDE
 
-#: The sites the patch asserts before it writes anything, as ``VA -> stock bytes``.
+#: The sites the patch asserts before it writes anything, as `VA -> stock bytes`.
 ANCHORS = {
     MODULE_DATA_SIZE_VA: MODULE_DATA_SIZE_STOCK,
     MODULE_DATA_CTOR_CALL_VA: MODULE_DATA_CTOR_CALL_STOCK,
@@ -220,7 +175,7 @@ ROUTINES = ("ctor", "detach")
 
 
 def validate_keyword(keyword: str) -> None:
-    """Raise unless ``keyword`` is a token the engine's INI reader could ever match."""
+    """Raise unless `keyword` is a token the engine's INI reader could ever match."""
     if not _KEYWORD_PATTERN.match(keyword):
         raise ValueError(
             "an INI keyword must be letters, digits and underscores starting with a letter "
@@ -237,8 +192,8 @@ def validate_keyword(keyword: str) -> None:
 class _Layout:
     """Where each piece of the cave sits, given its base address and the keyword.
 
-    Pure arithmetic on the keyword's length, so :meth:`DetachableRiderHealPatch.apply` and
-    :meth:`DetachableRiderHealPatch.verify` compute the same addresses from opposite
+    Pure arithmetic on the keyword's length, so `DetachableRiderHealPatch.apply` and
+    `DetachableRiderHealPatch.verify` compute the same addresses from opposite
     directions."""
 
     keyword_va: int
@@ -303,7 +258,7 @@ def _assemble(base_va: int) -> Asm:
 
 
 def build_code(base_va: int) -> bytes:
-    """The cave's code, laid out at ``base_va``."""
+    """The cave's code, laid out at `base_va`."""
     return _assemble(base_va).finish()
 
 
@@ -318,27 +273,6 @@ def _hook_bytes(code_va: int) -> bytes:
     """`jmp rel32` to the detach routine, padded to the 7 bytes of the two it displaces."""
     jump = b"\xe9" + struct.pack("<i", code_va - (DETACH_TAIL_VA + 5))
     return jump + b"\x90" * (len(DETACH_TAIL_STOCK) - len(jump))
-
-
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA 0x{va:08x} is not mapped - not the expected build")
-    return off
-
-
-def _cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    """The NUL-terminated ASCII string at ``va``, or None if it is unmapped or not one."""
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data).find(b"\x00", off, off + limit)
-    if end < 0:
-        return None
-    try:
-        return data[off:end].decode("ascii")
-    except UnicodeDecodeError:
-        return None
 
 
 class DetachableRiderHealPatch(Patch):
@@ -396,7 +330,7 @@ class DetachableRiderHealPatch(Patch):
                 f"the detach call -> the {self.keyword} grant",
             ),
         ):
-            apply_byte_patch(data, _offset(data, va), old, new, note)
+            apply_byte_patch(data, file_offset(data, va), old, new, note)
 
     def _build(self, base_va: int) -> bytes:
         """The cave: the keyword string, the rebuilt table, the two routines."""
@@ -415,7 +349,7 @@ class DetachableRiderHealPatch(Patch):
         read row by row and the two struct sites have to agree with each other: a build whose
         factory allocates a different size would be grown wrong and silently."""
         for va, stock in ANCHORS.items():
-            off = _offset(data, va)
+            off = file_offset(data, va)
             got = bytes(data[off : off + len(stock)])
             if got != stock:
                 raise ValueError(
@@ -429,10 +363,10 @@ class DetachableRiderHealPatch(Patch):
 
         A duplicate row would parse - the reader takes the first match and the engine would never
         complain - so the field would exist and silently do nothing. The inherited names are
-        refused by :func:`validate_keyword`, which needs no image to know them."""
+        refused by `validate_keyword`, which needs no image to know them."""
         for index in range(STOCK_FIELD_COUNT):
             name_va = struct.unpack_from("<I", FIELD_TABLE_STOCK, index * FIELD_PARSE_STRIDE)[0]
-            if _cstring(data, name_va) == self.keyword:
+            if read_cstring(data, name_va) == self.keyword:
                 raise ValueError(
                     f"DetachableRiderBody already has a {self.keyword!r} field - pick "
                     "another keyword"
@@ -440,7 +374,7 @@ class DetachableRiderHealPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> DetachableRiderHealPatch | None:
-        """Recognise this patch **and recover its keyword** from ``data``.
+        """Recognise this patch **and recover its keyword** from `data`.
 
         The default probe would only ever recognise the default keyword. The keyword string is
         the first thing in the cave (`_layout` puts it at the section base), so it reads straight
@@ -448,7 +382,7 @@ class DetachableRiderHealPatch(Patch):
         located = find_section(data, SECTION_NAME)
         if located is None:
             return None
-        keyword = _cstring(data, located[0])
+        keyword = read_cstring(data, located[0])
         if keyword is None:
             return None
         try:
@@ -466,8 +400,8 @@ class DetachableRiderHealPatch(Patch):
         )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Return the structural problems that mean ``data`` does not carry this patch for
-        exactly this keyword. Reads only via ``struct`` and the section table, so it needs no
+        """Return the structural problems that mean `data` does not carry this patch for
+        exactly this keyword. Reads only via `struct` and the section table, so it needs no
         disassembler.
 
         Every address is recovered from where the cave actually landed rather than from where it
@@ -497,19 +431,19 @@ class DetachableRiderHealPatch(Patch):
                 f"{SECTION_NAME} holds {vsize} bytes, too few for the table and the routines"
             )
             return problems
-        got_keyword = _cstring(data, pieces.keyword_va)
+        got_keyword = read_cstring(data, pieces.keyword_va)
         if got_keyword != self.keyword:
             problems.append(
                 f"the keyword in {SECTION_NAME} is {got_keyword!r}, not {self.keyword!r}"
             )
         want_table = build_table(pieces.keyword_va)
-        table_off = _offset(data, pieces.table_va)
+        table_off = file_offset(data, pieces.table_va)
         if bytes(data[table_off : table_off + len(want_table)]) != want_table:
             problems.append(
                 f"the field table at 0x{pieces.table_va:08x} is not the stock "
                 f"{STOCK_FIELD_COUNT} rows plus a Real at ModuleData+0x{FIELD_OFFSET:x}"
             )
-        code_off = _offset(data, pieces.code_va)
+        code_off = file_offset(data, pieces.code_va)
         if bytes(data[code_off : code_off + len(code)]) != code:
             problems.append(
                 f"the routines at 0x{pieces.code_va:08x} are not the ones this patch builds"
@@ -542,7 +476,7 @@ class DetachableRiderHealPatch(Patch):
         )
         problems: list[str] = []
         for va, want, complaint in checks:
-            off = _offset(data, va)
+            off = file_offset(data, va)
             got = bytes(data[off : off + len(want)])
             if got != want:
                 problems.append(f"@0x{va:08x}: {complaint} (holds {got.hex()})")

@@ -108,7 +108,7 @@ CALL_HOOKS = (
 )
 
 
-# --- round trip ---------------------------------------------------------------------------------
+# Round trip
 
 
 def test_apply_then_verify(image: bytearray) -> None:
@@ -151,7 +151,7 @@ def test_the_patch_adds_no_ini_surface() -> None:
     assert WallMeshReleasePatch().ini_surface() is STOCK
 
 
-# --- the hooks ----------------------------------------------------------------------------------
+# The hooks
 
 
 @pytest.mark.parametrize(("call_va", "stock_va"), CALL_HOOKS)
@@ -218,7 +218,7 @@ def test_nothing_outside_the_hooks_and_the_cave_is_rewritten(image: bytearray) -
     assert changed <= allowed
 
 
-# --- the ledger ---------------------------------------------------------------------------------
+# The ledger
 
 
 def test_the_ledger_leads_the_cave_and_starts_empty(image: bytearray) -> None:
@@ -253,7 +253,7 @@ def test_the_scratch_dwords_sit_behind_the_table(image: bytearray) -> None:
     assert struct.pack("<I", pathfinder_va) in code
 
 
-# --- what the cave actually reads and writes -----------------------------------------------------
+# What the cave actually reads and writes
 
 
 def _disassembled(data: bytes | bytearray) -> list:
@@ -339,7 +339,7 @@ def test_the_cave_reads_the_frame_at_the_documented_displacements(image: bytearr
     assert {"ebp + 8", "ebp + 0xc"} <= frame
 
 
-# --- the build fingerprint ------------------------------------------------------------------------
+# The build fingerprint
 
 
 @pytest.mark.parametrize("va", sorted(ANCHORS))

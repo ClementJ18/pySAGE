@@ -1,63 +1,11 @@
-"""The upgrade-alias patch: let an upgrade *reference* carry a descriptive suffix the engine
-ignores, so a reused generic upgrade says what each use of it means.
+"""Let an upgrade reference carry a descriptive suffix after `@` that the engine ignores:
+`Upgrade_TestBuilding@SmithyLevel2` is `Upgrade_TestBuilding`.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/upgrade-alias.md``.
+A mod near the upgrade-bit ceiling reuses generic upgrades as object-local flags, and the names say
+nothing about intent. `UpgradeCenter::findUpgrade` is hooked to resolve a name only up to an
+interior `@`; unaliased names cost nothing. On a stock binary such data does not load.
 
-**The problem.** Upgrades are a fixed global bit space - 1152 bits, and nothing bounds-checks the
-allocator (see `upgrade-mask-limit.md`). A mod near the ceiling reuses a handful of generic
-upgrades as object-local flags, so `Upgrade_TestBuilding` gates a tent's banner on one object and
-something wholly unrelated on the next. The names carry no intent, two uses of one bit on a single
-object silently drive each other, and the collision is invisible in the text.
-
-**What this does.** Hooks `UpgradeCenter::findUpgrade` and resolves a name only up to an interior
-``@``, so `Upgrade_TestBuilding@SmithyLevel2` and `Upgrade_TestBuilding@GateOpen` are the same
-upgrade to the engine and two different intents to a reader and to `sage_lint`.
-
-**Why this function and not the INI parser.** `findUpgrade` is the one place a *name* becomes an
-`UpgradeTemplate`, with 84 direct callers. Hooking it covers the INI mask parser
-(`parseUpgradeMask`), the scalar `Upgrade =` fields, the Lua bindings - `ObjectGrantUpgrade`'s
-handler reaches it at ``0x00736E6C`` through the shared grant/remove helper, and `ObjectHasUpgrade`
-shares that helper - and the map-script actions at ``0x0073AFBE`` and ``0x0073B04B``. One hook,
-every name source, with no per-parser work and nothing to keep in step as new sources appear.
-
-**Why the separator must be interior.** A *leading* ``@`` is already meaningful: create-a-hero
-bling lists mark their default option with one (`BlingUpgrades = @Upgrade_NoHelmet Upgrade_...`).
-Truncating those at position zero would hash the empty string and break every create-a-hero
-default, so the scan starts at the second character and a bare ``@Name`` is left exactly as the
-stock code would see it. Every other ``@`` in the base game data sits inside a comment.
-
-**The unaliased path costs nothing.** A name with no interior ``@`` falls through to a reproduced
-prologue and a jump back into the stock body, so the 5368 upgrade reference tokens the base game
-already has take a string scan and nothing else - no allocation, no extra call.
-
-**Writing into the string is safe.** The aliased path writes a NUL over the ``@``, hashes, and
-puts the byte back before it returns. The buffer is the `AsciiString`'s heap allocation (chars at
-``+8``), so it is writable; `nameToKey` neither yields nor calls back into game code, so nothing
-observes the gap; and when the key is new, the intern path copies the name through
-`ASCII_STRING_SET` at ``0x00548888`` rather than keeping the pointer, so the entry it creates is
-unaffected by the restore.
-
-**Determinism.** The truncation is a pure function of the name, applied identically on every peer
-before any logic reads the result, so an aliased reference is network- and replay-safe. Upgrade
-mask *indices* are assigned in INI load order and are unchanged by this patch: an alias creates no
-new upgrade and consumes no bit, which is the entire point.
-
-**On a stock binary the data does not run.** An aliased name is an unknown upgrade. In INI that is
-a fatal load error (`"An upgrade mask references %s, which is not an Upgrade"` at ``0x00C10C90``);
-from Lua or a map script the handler returns zero and silently does nothing. The silent form is
-the dangerous one, so a mod that adopts aliases in scripts ships this patch or does not run.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the five at
-`UPGRADE_CENTER_FIND_UPGRADE`, which no bundled patch touches - `spell-store-upgrade` and
-`upgrade-grant-lists` both *call* that address from their own caves and edit neither it nor
-anything it reads, so both inherit alias resolution for free rather than conflicting with it.
-
-**No INI surface change.** This adds no keyword and moves no ceiling; it widens what an existing
-field's *value* may spell. `sage_ini` implements the same split in
-:mod:`sage_ini.model.aliases` and applies it unconditionally, so the linter agrees with a patched
-engine without being told which binary the data is destined for.
+Derivation: `../docs/upgrade-alias.md`.
 """
 
 from __future__ import annotations
@@ -75,7 +23,7 @@ from ..addresses import (
 )
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, u32, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -113,10 +61,6 @@ ANCHORS = {
 }
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def build_code(base_va: int) -> bytes:
     """The alias-aware `findUpgrade`. Entered by the hook with `ecx` holding the `UpgradeCenter`,
     the return address at `[esp]` and the `const AsciiString *` at `[esp+4]`, exactly as the stock
@@ -152,7 +96,7 @@ def build_code(base_va: int) -> bytes:
     a.emit(0x8B, 0xDA)  # mov ebx, edx         ; where the separator sits
     a.emit(0xC6, 0x03, 0x00)  # mov byte [ebx], 0    ; truncate in place
     a.emit(0x50)  # push eax             ; the truncated chars
-    a.emit(0x8B, 0x0D, _u32(THE_NAME_KEY_GENERATOR))  # mov ecx, [TheNameKeyGenerator]
+    a.emit(0x8B, 0x0D, u32(THE_NAME_KEY_GENERATOR))  # mov ecx, [TheNameKeyGenerator]
     a.call_absolute(NAME_KEY_FROM_CSTR)  # nameToKey(const char *)   ; ret 4
     a.emit(0xC6, 0x03, SEPARATOR)  # mov byte [ebx], '@'  ; put the name back
     a.emit(0x50)  # push eax             ; the key

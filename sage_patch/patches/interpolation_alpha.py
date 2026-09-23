@@ -1,65 +1,11 @@
-"""The interpolation-alpha patch: take the alpha over the sub-frames the client can actually see.
+"""Stop interpolated transforms taking a doubled step at every logic-frame boundary.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001`` **as Edain and AotR ship it**.
-Every address below is derived in ``../docs/interpolation-alpha.md``.
+The render path interpolates with an alpha over the nominal sub-frame ratio, but on a binary whose
+catch-up loop always runs, the first sub-frame is never observed, so the last visible step is
+doubled. An `.alpha` section replaces `ALPHA_RECOMPUTE` to take the alpha over the sub-frames the
+client can actually see. This build only.
 
-**The defect.** ``GameEngine::update`` counts rendered frames in ``TheGameEngine+0x34`` and ends a
-logic frame when the count passes the wrap at ``0x0063264A``. The render path bridges the gap with
-an alpha, ``+0x3C = +0x34 / +0x38``, recomputed on every sub-frame and read by seven sites - the
-live drawable interpolation at ``0x006765C4``, three W3D animation lerps, and the counter readout
-at ``0x008A037D``.
-
-On a stock binary the counter takes every value from 1 to the wrap, so the alpha sweeps
-``1/N .. N/N`` in N even steps and the step across the logic-frame boundary is the same size as
-every other. On this build it does not. The catch-up loop's escape at
-`CATCHUP_ESCAPE` is replaced with ``mov eax, 2`` / ``jmp``, so the loop runs one iteration every
-logic frame and its ``inc dword [ebp+0x34]`` steps the counter from 1 to 2 *inside the same logic
-step* - before ``GameClient::update`` runs again. Measured live over 373 client frames
-(``render-rate.md`` §9.2): the counter took 2..6 at rate 30 and 2..12 at rate 60, **never 1**.
-
-The denominator did not move with it. ``+0x38`` is still ``clientRate / logicRate``, so the alpha
-sweeps ``2/N .. N/N`` - N-1 steps of ``1/N`` and then a boundary step of ``2/N``. **Every
-interpolated thing on screen moves a normal step N-1 times and then a double step, once per logic
-frame**: five times a second at 30 fps. That is the jitter in offset animations and in the resource
-readout.
-
-**What this does.** Appends an ``.alpha`` PE section holding a replacement for
-`ALPHA_RECOMPUTE` and redirects its five-byte head into it. The replacement computes
-
-    alpha = (subFrame - 1) / (ratio - 1)
-
-which maps the range the client actually observes, ``2..N``, onto ``1/(N-1) .. 1`` in N-1 even
-steps - so the boundary step is the same size as every other one and the sweep still ends at
-exactly 1.0, which is the phase stock has and the seven readers are written against.
-
-**Why the denominator and not the loop.** Reverting `CATCHUP_ESCAPE` to its stock bytes would also
-remove the jitter, and would be a smaller patch - but the stolen sub-frame *is* the delay fix. A
-logic frame completing in N-1 rendered frames instead of N is what raises the logic clock from
-5 Hz to 6 Hz on a 30 fps client, and a network run-ahead counted in logic frames but felt in
-seconds shortens by the same sixth. Reverting the loop gives the jitter fix back by giving the
-latency fix up. Correcting the denominator keeps both.
-
-**Why not clamp-and-hope.** The alpha is already clamped into ``[0, 1]`` by the routine this
-replaces, and the clamp never fires on the values in question - ``2/N`` is a perfectly legal alpha.
-Nothing downstream can tell a doubled step from a real one, which is why this is visible on screen
-and invisible to every check in the engine.
-
-**The degenerate case is real, not defensive.** ``+0x38`` is 1 from the constructor (``0x0063A4DE``)
-until the first recompute fires, so ``ratio - 1`` is genuinely zero for the opening window of a
-match. The cave tests for it and writes 1.0 - show the current transform, interpolate nothing -
-rather than dividing.
-
-**This build only.** :meth:`~InterpolationAlphaPatch._check_anchors` refuses a binary whose
-catch-up loop still carries its stock escape. There sub-frame 1 *is* observable, the stock alpha is
-already even, and subtracting one from the numerator would put a zero-length step at the boundary
-instead of a doubled one - the same defect with the sign flipped.
-
-**Composition.** Order-independent, and specifically with
-:mod:`~sage_patch.patches.render_rate`, the other patch that edits this loop. That
-one rewrites the wrap and the recompute gate; this one reads neither, and reads ``+0x38`` at run
-time rather than deriving anything from the bytes that set it - so whatever ratio `render-rate`
-establishes, the alpha is taken over it. The only engine bytes this edits are the five at
-`ALPHA_RECOMPUTE`, which no other bundled patch touches.
+Derivation: `../docs/interpolation-alpha.md`.
 """
 
 from __future__ import annotations

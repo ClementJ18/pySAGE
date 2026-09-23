@@ -17,7 +17,7 @@ from sage_worldbuilder import MapDocument
 
 np = pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 
-from sage_worldbuilder.cameras import (  # noqa: E402
+from sage_worldbuilder.camera.named import (  # noqa: E402
     CAMERA_FORWARD,
     FREE,
     LINEAR,

@@ -28,18 +28,18 @@ verdict whenever somebody conceded:
 The inference is a concession heuristic, not a simulation - it assumes leaving mid-game
 concedes. Its honest outcomes:
 
-- ``decided`` - exactly one side still present at the end and every opposing human
+- `decided` - exactly one side still present at the end and every opposing human
   observably gone (left or dropped).
-- ``recorder_left`` - the recording player quit first. They conceded, but everyone
+- `recorder_left` - the recording player quit first. They conceded, but everyone
   else's fate lies beyond the end of the recording (an incomplete point of view).
-- ``undetermined`` - nobody left before the recording ended (an elimination ending,
+- `undetermined` - nobody left before the recording ended (an elimination ending,
   which the input stream does not record), or the surviving opposition includes AI
   players, whose fate is invisible.
 
 `assume_pov_won` (the CLI's `--winner-pov`) layers an external assumption over the
 heuristic: the recording player's team won - for corpora where the replay's owner is known
 to be the winner (a ladder upload, a personal win archive). It only fills in verdicts the
-stream leaves ``undetermined``; explicit evidence still wins (a `decided` verdict stands
+stream leaves `undetermined`; explicit evidence still wins (a `decided` verdict stands
 even against the point of view, and `recorder_left` - the recorder's own concession -
 directly contradicts the assumption and is kept).
 

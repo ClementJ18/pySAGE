@@ -18,8 +18,8 @@ from sage_map.map import Map
 from sage_worldbuilder.changes import Change, ChangeKind
 from sage_worldbuilder.commands.base import Command, CompositeCommand
 from sage_worldbuilder.commands.edits import InsertItem, RemoveItem, SetProperty
+from sage_worldbuilder.commands.objects import OBJECTS, new_object
 from sage_worldbuilder.ids import new_waypoint_name, next_waypoint_id
-from sage_worldbuilder.objects import OBJECTS, new_object
 
 __all__ = [
     "WAYPOINT_TYPE",

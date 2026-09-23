@@ -1,5 +1,5 @@
 """The Terrain Copy Tool (WorldBuilder's `TerrainCopyTool`, command 33436): select cells, then
-copy them onto the map at the cursor (PHASE3.md, 3.6).
+copy them onto the map at the cursor.
 
 Copy Terrain Options chooses the mode. In Selection mode a drag adds or removes the rectangle
 between the press and the release (`TerrainDragSelector`), or the brush adds or removes a square
@@ -17,6 +17,7 @@ from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QImage, QPainter, QPen
 
 from sage_worldbuilder.brush_options import CopyTerrainOptions, SelectMethod
+from sage_worldbuilder.commands.terrain import CopyTerrain
 from sage_worldbuilder.terrain.cells import CellLayer, TileLayer
 from sage_worldbuilder.terrain.copy import (
     CopyParts,
@@ -24,7 +25,6 @@ from sage_worldbuilder.terrain.copy import (
     paste_terrain,
     selection_bounds,
 )
-from sage_worldbuilder.terrain.edits import CopyTerrain
 from sage_worldbuilder.terrain.grid import TerrainGrid
 from sage_worldbuilder.ui.tools import EditHost, Gesture, Tool, ToolView
 

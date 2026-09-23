@@ -1,5 +1,5 @@
 """Whole-map texture edits: Optimize tiles and blend tiles, Remove Cliff Tex Mapping and Remove all
-texture blends, and the test behind Show Stretched Tiles (PHASE3.md, 3.9).
+texture blends, and the test behind Show Stretched Tiles.
 
 - *Optimize tiles and blend tiles* (`optimizeTiles`, `0x00675C10`) rebuilds the texture table and
   the blend descriptions from what the map uses. Walking the cells a column at a time, each

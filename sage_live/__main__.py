@@ -50,6 +50,7 @@ from sage_live.backends.memory import (
     find_game_processes,
 )
 from sage_patch.patches.experimental.live_bridge import SECTION_NAME
+from sage_utils.cli import existing_file, utf8_stdout
 
 __all__ = ["main"]
 
@@ -343,7 +344,7 @@ def cmd_desync_diff(args: argparse.Namespace) -> int:
     return 1
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sage-live", description="Inspect a running BFME2 / RotWK game (read-only)."
     )
@@ -353,7 +354,11 @@ def main(argv: list[str] | None = None) -> int:
         sub = subparsers.add_parser(name, help=help_text)
         sub.set_defaults(handler=handler)
         sub.add_argument("--pid", type=int, help="target process (default: first game.dat)")
-        sub.add_argument("--layout-json", help="EngineLayout field overrides for another build")
+        sub.add_argument(
+            "--layout-json",
+            type=existing_file,
+            help="EngineLayout field overrides for another build",
+        )
         return sub
 
     add("processes", cmd_processes, "list running game.dat pids")
@@ -418,7 +423,12 @@ def main(argv: list[str] | None = None) -> int:
     dd = add("desync-diff", cmd_desync_diff, "first frame two machines' logs disagree")
     dd.add_argument("here")
     dd.add_argument("there")
+    return parser
 
+
+def main(argv: list[str] | None = None) -> int:
+    utf8_stdout()
+    parser = build_parser()
     args = parser.parse_args(argv)
     return int(args.handler(args))
 

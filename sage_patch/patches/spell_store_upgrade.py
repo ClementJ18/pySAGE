@@ -1,31 +1,13 @@
-"""Select the spell-store CommandSet from a player's completed upgrades.
+"""Select the spell-store `CommandSet` from the player's completed upgrades:
+`PurchaseScienceCommandSetUpgrade = <Upgrade> <CommandSet>` on a `PlayerTemplate`, repeatable.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. The hook and layouts are
-derived in ``../docs/spell-store-upgrade.md``.
+Only the five-byte call at `0x00822ACF` in `AptSpellStore::initializeSpellSlots` is redirected,
+since the shared selector (`0x0071F933`) has other callers. Mappings are kept by name in a fixed
+cave table (`MAPPINGS` rows; extra lines are dropped) and resolved after all INI has loaded; the
+first completed upgrade in declaration order wins, a repeated upgrade replaces its entry, and stock
+selection is the fallback.
 
-The stock engine picks one `PurchaseScienceCommandSet` through the shared routine at
-``0x0071F933``. Retargeting that routine would change every caller, so this patch redirects only
-the five-byte call at ``0x00822ACF`` inside `AptSpellStore::initializeSpellSlots`.
-
-Mappings are declared on any `PlayerTemplate`; upgrade names are global, so the table itself does
-not need the transient `PlayerTemplate *` seen by an INI field callback::
-
-    PurchaseScienceCommandSetUpgrade = Upgrade_SubFactionA SpellStore_SubFactionA
-
-The keyword may repeat. A later declaration of the same upgrade replaces its CommandSet in place;
-otherwise declaration order is priority when several mapped upgrades are complete. Names, not
-numeric upgrade ids, are retained in the cave. The selector resolves each name after all INI files
-have loaded, validates `UpgradeTemplate::upgradeIndex`, and tests exactly that bit in the current
-player's completed-upgrade mask.
-
-The fixed table has :data:`MAPPINGS` rows. A full table consumes later lines but drops them, so a
-large mod degrades to the mappings that fit rather than writing past the section. Unknown upgrades
-and CommandSets are skipped at use time and stock selection remains the final fallback.
-
-Composition is order-independent for section allocation and for the `PlayerTemplate` field table:
-the live table is resolved through its instruction reference, copied with every field another
-patch already appended, and repointed once. The spell-store call site is not edited by another
-bundled patch.
+Derivation: `../docs/spell-store-upgrade.md`.
 """
 
 from __future__ import annotations
@@ -51,7 +33,7 @@ from ..addresses import (
 )
 from ..asm import JAE, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, u32, va_to_offset
 from .utils.field_tables import ROW_SIZE, Entry, entries_before, read_field_table, resolve_table
 from .utils.name_tables import read_cstring
 from .utils.token_lists import (
@@ -103,14 +85,6 @@ _FIND_UPGRADE = 0x0066F5E5
 _ASCII_STRING_COMPARE = 0x004065AA
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _call(at_va: int, target_va: int) -> bytes:
-    return b"\xe8" + struct.pack("<i", target_va - (at_va + 5))
-
-
 def _table_span(entries: tuple[Entry, ...]) -> int:
     table_size = (len(entries) + 2) * ROW_SIZE
     string_size = len(FIELD_NAME) + 1
@@ -134,9 +108,9 @@ def _table_bytes(table_va: int, entries: tuple[Entry, ...], parse_va: int) -> by
 
 
 def _emit_parse(a: Asm, count_va: int, mappings_va: int) -> None:
-    """Parse one ``Upgrade CommandSet`` pair into the external mapping table.
+    """Parse one `Upgrade CommandSet` pair into the external mapping table.
 
-    Field callbacks are cdecl ``(INI *, void *instance, void *store, const void *userData)``.
+    Field callbacks are cdecl `(INI *, void *instance, void *store, const void *userData)`.
     `instance` is a transient `PlayerTemplate` during two of the three parse paths, so this routine
     deliberately ignores both template arguments. Upgrade names are global and sufficient keys.
     """
@@ -168,12 +142,12 @@ def _emit_parse(a: Asm, count_va: int, mappings_va: int) -> None:
 
     # Find an existing row with the same upgrade name. Re-declaration changes the CommandSet but
     # keeps priority, which gives map.ini a deterministic last-value-wins override.
-    a.emit(b"\x8b\x35", _u32(count_va))  # mov esi, [count]
+    a.emit(b"\x8b\x35", u32(count_va))  # mov esi, [count]
     a.emit(b"\x31\xdb")  # xor ebx, ebx           ; row index
     a.label("parse_find")
     a.emit(b"\x3b\xde")  # cmp ebx, esi
     a.jcc(JAE, "parse_add")
-    a.emit(b"\x8d\x3c\xdd", _u32(mappings_va))  # lea edi, [mappings+ebx*8]
+    a.emit(b"\x8d\x3c\xdd", u32(mappings_va))  # lea edi, [mappings+ebx*8]
     a.emit(b"\x8d\x45\xfc")  # lea eax, [ebp-4]
     a.emit(0x50)  # push eax
     a.emit(b"\x8b\xcf")  # mov ecx, edi
@@ -184,10 +158,10 @@ def _emit_parse(a: Asm, count_va: int, mappings_va: int) -> None:
     a.jmp("parse_find")
 
     a.label("parse_add")
-    a.emit(b"\x81\xfe", _u32(MAPPINGS))  # cmp esi, MAPPINGS
+    a.emit(b"\x81\xfe", u32(MAPPINGS))  # cmp esi, MAPPINGS
     a.jcc(JAE, "parse_done")
     a.emit(b"\x8b\xde")  # mov ebx, esi
-    a.emit(b"\x8d\x3c\xdd", _u32(mappings_va))  # lea edi, [mappings+ebx*8]
+    a.emit(b"\x8d\x3c\xdd", u32(mappings_va))  # lea edi, [mappings+ebx*8]
 
     a.label("parse_store")
     a.emit(b"\x8d\x45\xfc")  # lea eax, [ebp-4]
@@ -201,7 +175,7 @@ def _emit_parse(a: Asm, count_va: int, mappings_va: int) -> None:
     a.emit(b"\x3b\xde")  # cmp ebx, esi
     a.jcc(JNE, "parse_done")  # an existing row does not grow the table
     a.emit(0x46)  # inc esi
-    a.emit(b"\x89\x35", _u32(count_va))  # mov [count], esi
+    a.emit(b"\x89\x35", u32(count_va))  # mov [count], esi
 
     a.label("parse_done")
     a.emit(b"\x8d\x4d\xf8")  # lea ecx, [ebp-8]
@@ -234,27 +208,27 @@ def _emit_selector(a: Asm, count_va: int, mappings_va: int) -> None:
     a.emit(b"\x31\xff")  # xor edi, edi           ; mapping index
 
     a.label("selector_next")
-    a.emit(b"\x3b\x3d", _u32(count_va))  # cmp edi, [count]
+    a.emit(b"\x3b\x3d", u32(count_va))  # cmp edi, [count]
     a.jcc(JAE, "selector_fallback")
-    a.emit(b"\x8b\x0d", _u32(THE_UPGRADE_CENTER))  # mov ecx, [TheUpgradeCenter]
+    a.emit(b"\x8b\x0d", u32(THE_UPGRADE_CENTER))  # mov ecx, [TheUpgradeCenter]
     a.emit(b"\x85\xc9")  # test ecx, ecx
     a.jcc(JE, "selector_fallback")
-    a.emit(b"\x8d\x04\xfd", _u32(mappings_va))  # lea eax, [mappings+edi*8]
+    a.emit(b"\x8d\x04\xfd", u32(mappings_va))  # lea eax, [mappings+edi*8]
     a.emit(0x50)  # push eax                 ; &row->upgrade
     a.call_absolute(_FIND_UPGRADE)
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "selector_advance")
     a.emit(b"\x8b\x40", bytes([UPGRADE_TEMPLATE_INDEX]))  # mov eax, [eax+0x38]
-    a.emit(b"\x3d", _u32(_UPGRADE_MASK_BITS))  # cmp eax, 36*32
+    a.emit(b"\x3d", u32(_UPGRADE_MASK_BITS))  # cmp eax, 36*32
     a.jcc(JAE, "selector_advance")
     a.emit(b"\x8b\xd0")  # mov edx, eax
     a.emit(b"\xc1\xe8\x05")  # shr eax, 5             ; mask word
     a.emit(b"\x83\xe2\x1f")  # and edx, 31            ; bit in word
     a.emit(
-        b"\x0f\xa3\x94\x86", _u32(PLAYER_COMPLETED_UPGRADE_MASK)
+        b"\x0f\xa3\x94\x86", u32(PLAYER_COMPLETED_UPGRADE_MASK)
     )  # bt dword [esi+eax*4+0x14c], edx
     a.jcc(JAE, "selector_advance")  # jnc
-    a.emit(b"\x8d\x04\xfd", _u32(mappings_va + 4))  # lea eax, [row->commandSet]
+    a.emit(b"\x8d\x04\xfd", u32(mappings_va + 4))  # lea eax, [row->commandSet]
     a.emit(0x50)  # push eax
     a.emit(b"\x8b\xcb")  # mov ecx, ebx
     a.call_absolute(COMMAND_SET_STORE_FIND_COMMAND_SET)
@@ -370,8 +344,8 @@ class SpellStoreUpgradePatch(Patch):
                 out.append(
                     (
                         at(ref_va),
-                        bytes([opcode]) + _u32(old_table),
-                        bytes([opcode]) + _u32(section_va + _TABLE_OFF),
+                        bytes([opcode]) + u32(old_table),
+                        bytes([opcode]) + u32(section_va + _TABLE_OFF),
                         f"PlayerTemplate field table ref @0x{ref_va:08x}",
                     )
                 )
@@ -379,7 +353,7 @@ class SpellStoreUpgradePatch(Patch):
             (
                 at(SPELL_STORE_COMMAND_SET_CALL),
                 SPELL_STORE_COMMAND_SET_CALL_BYTES,
-                _call(SPELL_STORE_COMMAND_SET_CALL, labels("selector")),
+                call_rel32(SPELL_STORE_COMMAND_SET_CALL, labels("selector")),
                 "AptSpellStore purchase CommandSet call -> upgrade selector",
             )
         )

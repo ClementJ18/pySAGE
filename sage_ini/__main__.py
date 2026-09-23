@@ -27,10 +27,13 @@ import codecs
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
-from sage_ini import primer as primer_module
-from sage_ini.brief import brief_to_dict, build_brief, format_brief
+from sage_ini.agent import primer as primer_module
+from sage_ini.agent.brief import brief_to_dict, build_brief, format_brief
+from sage_ini.agent.modindex import ModIndex
+from sage_ini.agent.skill import install_skill
 from sage_ini.diff import diff_folders, diff_refs, format_game_diff
 from sage_ini.engine import load_engine
 from sage_ini.loader import load_game
@@ -38,12 +41,10 @@ from sage_ini.macro_merge import format_macro_report, resolve_macro_conflicts
 from sage_ini.merge import ConflictLabels, merge_documents, resolve_markers
 from sage_ini.model.game import Game
 from sage_ini.model.xref import Xref
-from sage_ini.modindex import ModIndex
 from sage_ini.parser.blockparser import parse, parse_file
 from sage_ini.parser.diagnostics import Diagnostics, Severity
 from sage_ini.parser.io import ENCODINGS
 from sage_ini.parser.location import Span
-from sage_ini.skill_install import install_skill
 from sage_ini.stats import compute_scoreboard, format_scoreboard
 from sage_ini.suggest import closest_names, did_you_mean
 from sage_utils.cli import (
@@ -424,9 +425,9 @@ def _run_merge(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     utf8_stdout()
-    parser = argparse.ArgumentParser(prog="sage_ini")
+    parser = argparse.ArgumentParser(prog="sage-ini")
     parser.add_argument(
         "--engine",
         type=existing_file,
@@ -560,68 +561,96 @@ def main(argv: list[str] | None = None) -> int:
         "(default: the lean index)",
     )
     primer.add_argument("name", nargs="?", help="kind name (expand) or enum name (enum)")
+    return parser
 
+
+def _cmd_stats(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    print(format_scoreboard(compute_scoreboard(args.root, overlays=tuple(args.overlay))))
+    return 0
+
+
+def _cmd_lint(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    missing = [p for p in args.paths if not p.exists()]
+    if missing:
+        parser.error(f"no such file or directory: {missing[0]}")
+    return _run_lint(args.paths, args.json)
+
+
+def _cmd_xref(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    return _run_xref(args.root, args.name, args.json)
+
+
+def _cmd_resolve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    return _run_resolve(args.root, args.name, args.json)
+
+
+def _cmd_includes(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    return _run_includes(args.root, args.file)
+
+
+def _cmd_brief(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    return _run_brief(args.root, args.file, args.name, args.json)
+
+
+def _cmd_diff(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    return _run_diff(args)
+
+
+def _cmd_install_skill(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    return run_install_skill(install_skill, args.dest, args.force)
+
+
+def _cmd_macro_merge(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    return _run_macro_merge(args)
+
+
+def _cmd_merge(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    if not args.install and args.resolve is None:
+        missing = [n for n in ("base", "ours", "theirs") if getattr(args, n) is None]
+        if missing:
+            parser.error("merge needs base, ours, and theirs (or --resolve / --install)")
+    return _run_merge(args)
+
+
+def _cmd_primer(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    if args.action in ("expand", "enum") and not args.name:
+        parser.error(f"{args.action} needs a name")
+    if args.action == "expand":
+        print(primer_module.expand_kind(args.name))
+    elif args.action == "enum":
+        print(primer_module.dump_enum(args.name))
+    elif args.action == "full":
+        print(primer_module.build_digest(), end="")
+    else:
+        print(primer_module.build_index(), end="")
+    return 0
+
+
+_COMMANDS: dict[str, Callable[[argparse.Namespace, argparse.ArgumentParser], int]] = {
+    "stats": _cmd_stats,
+    "lint": _cmd_lint,
+    "xref": _cmd_xref,
+    "resolve": _cmd_resolve,
+    "includes": _cmd_includes,
+    "brief": _cmd_brief,
+    "diff": _cmd_diff,
+    "install-skill": _cmd_install_skill,
+    "macro-merge": _cmd_macro_merge,
+    "merge": _cmd_merge,
+    "primer": _cmd_primer,
+}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
-
     if args.engine is not None:
         # Applied once, up front: every command below reads the schema off the model, so the
         # patched fields and tokens are simply there for all of them.
         engine = load_engine(args.engine)
         for message in (*engine.warnings, *engine.apply()):
             print(f"{args.engine}: {message}", file=sys.stderr)
-
-    if args.command == "stats":
-        print(format_scoreboard(compute_scoreboard(args.root, overlays=tuple(args.overlay))))
-        return 0
-
-    if args.command == "lint":
-        missing = [p for p in args.paths if not p.exists()]
-        if missing:
-            parser.error(f"no such file or directory: {missing[0]}")
-        return _run_lint(args.paths, args.json)
-
-    if args.command == "xref":
-        return _run_xref(args.root, args.name, args.json)
-
-    if args.command == "resolve":
-        return _run_resolve(args.root, args.name, args.json)
-
-    if args.command == "includes":
-        return _run_includes(args.root, args.file)
-
-    if args.command == "brief":
-        return _run_brief(args.root, args.file, args.name, args.json)
-
-    if args.command == "diff":
-        return _run_diff(args)
-
-    if args.command == "install-skill":
-        return run_install_skill(install_skill, args.dest, args.force)
-
-    if args.command == "macro-merge":
-        return _run_macro_merge(args)
-
-    if args.command == "merge":
-        if not args.install and args.resolve is None:
-            missing = [n for n in ("base", "ours", "theirs") if getattr(args, n) is None]
-            if missing:
-                parser.error("merge needs base, ours, and theirs (or --resolve / --install)")
-        return _run_merge(args)
-
-    if args.command == "primer":
-        if args.action in ("expand", "enum") and not args.name:
-            parser.error(f"{args.action} needs a name")
-        if args.action == "expand":
-            print(primer_module.expand_kind(args.name))
-        elif args.action == "enum":
-            print(primer_module.dump_enum(args.name))
-        elif args.action == "full":
-            print(primer_module.build_digest(), end="")
-        else:
-            print(primer_module.build_index(), end="")
-        return 0
-
-    return 0
+    return _COMMANDS[args.command](args, parser)
 
 
 if __name__ == "__main__":

@@ -1,70 +1,13 @@
-"""The horde-exit-absorption patch: a hero recruited in parallel stops joining the battalion
-that is walking out of the same building.
+"""Stop a hero recruited in parallel joining the battalion walking out of the same building.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/horde-exit-absorption.md``.
+A building's exit remembers one pending horde (`QUEUE_EXIT_PENDING_HORDE`) while a battalion's
+members come out, and binds every object leaving meanwhile to it, the hero included. The call that
+fetches that horde goes to a cave that returns it only if it still has a free formation slot for
+this object's template, by the horde's own slot rule; otherwise the object leaves as a lone unit.
+The battalion's ranks may still close early; the write-up explains why that half is left alone.
+Every peer needs the same binary.
 
-**The defect.** `QueueProductionExitUpdate` - the door every production building pushes finished
-objects out of - remembers **one** horde, in a single `ObjectID` at module ``+0x40``
-(`QUEUE_EXIT_PENDING_HORDE`). `exitObjectViaDoor` writes it whenever the object leaving is
-`KINDOF HORDE` (`QUEUE_EXIT_REMEMBER_HORDE`), and the only thing that clears it is
-`QUEUE_EXIT_FINISH`, which `ProductionUpdate::update` calls when a whole queue entry has been
-emitted. A battalion's entry is `Slots + 1` objects long (`PRODUCTION_HORDE_ENTRY_REWRITE`), so
-the field names that battalion for the fourteen-odd logic frames its members take to come out.
-
-For every one of those frames, the *head* of the same `exitObjectViaDoor`
-(`QUEUE_EXIT_HORDE_LOOKUP`) resolves the remembered id and, if it is still alive,
-**unconditionally** binds whatever is leaving to it (`QUEUE_EXIT_BIND_BLOCK`):
-`setProducer(horde)`, the horde interface's slot assignment, `setTeam(horde->m_team)`. Nothing
-tests what the object is. Further down, `QUEUE_EXIT_LONE_UNIT_FLAG` reads the same resolved
-pointer to decide whether this is a lone unit, and only a lone unit gets the structure's rally
-point appended to its own exit path.
-
-Hero revives queue in **parallel** with unit entries on the same `ProductionUpdate`, so a hero
-finishing inside that window is bound to a battalion it has nothing to do with: its producer link
-points at the horde - which is what the engine's own target resolver reads to decide "this unit is
-part of that horde" - it is put on the horde's team, and it is denied its own rally-point
-waypoint, so it walks out of the door and is then dragged along by the battalion's move order.
-
-**What this does.** Redirects the five bytes of that one `findObjectByID` call into a cave that
-answers the question the stock code never asks: *does this object belong in that horde?* It does
-if the horde still has an unfilled formation slot whose declared payload template is equivalent to
-the object's - which is exactly the rule `HORDE_IFACE_ASSIGN_SLOT` applies a few instructions
-later, walked here with the same offsets, the same three helpers and the same registers. An object
-that fails it makes the cave hand back NULL, and NULL is the answer the stock code already has a
-path for: the whole bind block is skipped, `QUEUE_EXIT_LONE_UNIT_FLAG` reads "lone unit", and the
-object leaves exactly as it would from a building with no battalion in the door.
-
-**Why the horde's own rule and not a `KINDOF HERO` test.** A hero pair is itself a horde -
-`LothlorienRumil` fields Rumil and Orophin as a two-slot battalion - so the member walking out of
-that door *is* `KINDOF HERO` and *does* belong. The template test keeps that case working and
-still refuses a separately-recruited hero, because the discriminator is the battalion's payload
-list, not the kind of thing being produced.
-
-**What it does not do.** The hero's own queue entry still completes while the battalion is
-mid-exit, and `ProductionUpdate::update` still calls `QUEUE_EXIT_FINISH` on entry completion
-whatever that entry produced - so the battalion's ranks are still closed early. That is a second
-consequence of the same shared field and it needs a discriminator that is not available at that
-site; ``../docs/horde-exit-absorption.md`` says what it would take and why the obvious gate is
-worse than the bug. This patch narrows the binding and nothing else.
-
-**The lazy slot list is built a few instructions early.** `HORDE_IFACE_ASSIGN_SLOT` fills the
-free-slot list on first use, so the cave has to do the same before it can walk it. That call is
-the one the stock code would make at the next site it reaches, with the same argument, on the same
-horde, on the same frame - so nothing observes the difference except an object the cave rejects,
-whose horde has its list built a little sooner than it otherwise would and needs it built anyway.
-
-**Every peer must run the same patched binary.** Which objects a horde contains is logic state
-feeding the per-frame CRC, so a patched and an unpatched client diverge the first time a hero is
-recruited during a battalion's exit, and replays do not cross. Same requirement as
-`production-condition`, `hero-recruit-parallel` and `rebuild-hole-repair`.
-
-**Composition.** Order-independent: the cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name.
-The only engine bytes it edits are the five at `QUEUE_EXIT_HORDE_LOOKUP`. `smart-rally` is the
-other patch that reaches into this module - it grows the module to ``0x48`` for a field at
-``+0x44`` and hooks ``0x008A39AC``, ``0x008A3BF0`` and ``0x008A3D14`` - and none of those is this
-site, nor does either patch read what the other writes.
+Derivation: `../docs/horde-exit-absorption.md`.
 """
 
 from __future__ import annotations
@@ -110,7 +53,7 @@ from ..addresses import (
 )
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -247,11 +190,6 @@ def build_code(base_va: int) -> bytes:
     return a.finish()
 
 
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
 class HordeExitAbsorptionPatch(Patch):
     name = "horde-exit-absorption"
     author = "officialNecro"
@@ -271,8 +209,8 @@ class HordeExitAbsorptionPatch(Patch):
         apply_byte_patch(
             data,
             hook_off,
-            _call_bytes(HOOK_VA, GAME_LOGIC_FIND_OBJECT_BY_ID),
-            _call_bytes(HOOK_VA, section_va),
+            call_rel32(HOOK_VA, GAME_LOGIC_FIND_OBJECT_BY_ID),
+            call_rel32(HOOK_VA, section_va),
             "exitObjectViaDoor pending-horde lookup -> horde-exit-absorption cave",
         )
 
@@ -300,7 +238,7 @@ class HordeExitAbsorptionPatch(Patch):
         off = va_to_offset(data, HOOK_VA)
         if off is None:
             return [f"{HOOK_VA:#010x} is not mapped by any section"]
-        expected = _call_bytes(HOOK_VA, section_va)
+        expected = call_rel32(HOOK_VA, section_va)
         got = bytes(data[off : off + len(expected)])
         if got != expected:
             problems.append(

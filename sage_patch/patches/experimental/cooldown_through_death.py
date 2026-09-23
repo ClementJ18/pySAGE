@@ -1,101 +1,12 @@
-"""The cooldown-through-death patch: a hero's special-power cooldown survives being revived.
+"""Keep a revived hero's special-power cooldowns (`PersistCooldownOnDeath`), optionally letting them
+run down while the hero is dead (`CooldownTicksWhileDead`).
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../../docs/cooldown-through-death.md``.
+Nothing resets a cooldown on death; the revived hero is a new object. Where `RespawnUpdate`'s die
+handler adds the hero to the revive list (`0x008B3879`), each flagged power on cooldown banks its
+timing; where `reviveHero` restores the upgrade mask (`0x00781592`), it is read back. Not saved in a
+savegame.
 
-**The premise, corrected.** A hero has two ways back from death and they disagree about object
-identity. `RespawnUpdate` respawning in place (``0x008B3B08``) teleports **the object that died**
-to the keep and restores its health, so every module - and every cooldown - comes back untouched;
-that path already does what this patch is for, in the ticking flavour. The citadel revive does not:
-`ReviveMgr::reviveHero` (``0x0078142F``) builds a **brand-new** `Object` through
-`TheThingFactory` (``0x007814C2``) and re-applies a snapshot taken at death, so a freshly
-constructed `SpecialPowerModule` comes back with `readyFrame` zero and the power ready. That is the
-path every `Command = REVIVE` hero takes, and the one this patch changes.
-
-**Nothing resets a cooldown on death, so there is no gate to flip.** `setReadyFrame` - interface
-slot ``+0x20``, the folded ``mov [ecx+8], eax; ret 4`` at ``0x0099344A`` - has exactly four callers
-that reach it through `Object::getSpecialPowerModule`: three script-engine actions and
-`HeroDie::onDie` (``0x008C64FE``), which clears the **one** power named on that module. The cooldown
-is not cleared by dying; it is discarded with the object.
-
-**What this does.** Extends the snapshot the engine already takes. Where `RespawnUpdate`'s die
-handler adds the hero to the player's revive list (``0x008B3879``), each special power that is on
-cooldown and flagged banks ``(readyFrame, duration, deathFrame)``; where `reviveHero` restores the
-upgrade mask onto the new object (``0x00781592``), each flagged power reads it back. Two `call
-rel32` sites, both already doing exactly this job for experience and upgrades.
-
-Two `SpecialPower` booleans, and the second one is the absence of arithmetic
--------------------------------------------------------------------------------
-``PersistCooldownOnDeath``   carry the cooldown across the revive at all. Default `No` - stock.
-
-``CooldownTicksWhileDead``   whether the cooldown keeps *elapsing* while the hero is dead.
-
-With ``now`` the frame of the revive::
-
-    No   (frozen)   readyFrame = now + (stored readyFrame - stored deathFrame)
-    Yes  (ticking)  readyFrame = stored readyFrame, and if that frame has already passed there
-                    is nothing to write - the freshly built module is already ready
-
-so "dead long enough clears it" costs no timer and no expiry sweep: it is the branch that writes
-nothing. Both fields are restored, never just the ready frame, because `getPercentReady`
-(``0x00896CF2``) is ``1 - (readyFrame - now) / duration`` and moving one without the other snaps the
-button clock - the artefact [`recharge-rescale.md`](../../docs/recharge-rescale.md) §3.3 works
-through.
-
-Where the two booleans live
----------------------------
-`SpecialPowerTemplate` is `0x88` bytes and puts two `Bool`s at ``+0x58`` (`PublicTimer`) and
-``+0x59`` (`SharedSyncedTimer`) ahead of an `AsciiString` at ``+0x5C`` - so ``+0x5A`` and ``+0x5B``
-are interior padding. Nothing names them in the field table, the constructor never writes them and
-the copy constructor never copies them, which is exactly why they need three single-bit edits
-rather than none:
-
-* the constructor's ``mov byte [esi+0x58], bl`` becomes ``mov dword [esi+0x58], ebx`` - ``88`` to
-  ``89``, three bytes for three - so both new fields read `No` when a mod never names them. `ebx` is
-  the zero the surrounding stores already use. Without this they would start as heap garbage and
-  the patch would change behaviour on data that never asked for it;
-* the copy constructor's ``mov al, [ebp+0x58]`` / ``mov [ebx+0x58], al`` widen the same way
-  (``8a``/``88`` to ``8b``/``89``), so a block naming a `DefaultSpecialPower` inherits them. `eax`
-  is already the scratch register the copies either side use.
-
-The field table is rebuilt in the cave with two appended `Bool` rows and its two `imm32` references
-repointed - the smallest table repoint in this package.
-
-The store
----------
-A brand-new object cannot carry anything, so the cooldowns wait in a table in the cave: a fixed
-1024 slots of ``(owner, hero template, power template, readyFrame, duration, deathFrame)``, scanned
-linearly, an entry free when its power pointer is NULL. Keyed on the **hero's `ThingTemplate`**
-rather than on the revive record, deliberately: a hero template is unique per player in this engine
-and both ends hold it (``Object+0x04`` at death, the new object's own at revive), where the record's
-identity is the one thing the RE left open - ``0x00781792`` appends unconditionally, so a hero
-already listed from the player template may end up with two records.
-
-An entry is consumed by the restore that reads it, so the table holds only heroes who are dead
-right now, and a hero revived twice without dying in between gets stock behaviour. **Both ends fail
-open**: a full table, an unrecognised module flavour, a `SharedSyncedTimer` power, a power not on
-cooldown - every one of them writes nothing and leaves the engine exactly as it was.
-
-**Not in a savegame.** The table is the patch's own memory and nothing `Xfer`s it, so a save and
-load between the death and the revive loses the snapshot and the hero returns ready - stock
-behaviour, not a corrupt one, and the table is rebuilt on every death. Putting it in the
-``0xE8``-byte revive record instead would survive a load, at the cost of every stride constant, the
-copy path, the constructor and the xfer; the doc's §4.2 is that trade.
-
-**Determinism.** Both hooks run on the logic thread, over the object's module list in its own
-order, from state every peer holds identically - so the table's contents are the same on every
-machine. What that does *not* survive is a mixed lobby: `readyFrame` gates whether an ability can
-fire, so an unpatched peer disagrees on the frame a revived hero's power comes back, and the keyword
-is fatal on a stock build anyway - SAGE treats an unknown field in a known block as a parse error.
-
-**Composition.** Order-independent. The cave is allocated past every existing section and `verify`
-finds it by name; the field table is located from its live references, so it appends to whatever is
-there. `hero-mana` rebuilds the *same* table and grows the same struct to `0x8C` - the two compose,
-because this patch reads the live table rather than the stock one and never touches an allocation
-site, the copy constructor's epilogue (`hero-mana`'s hook, ``0x007B1F53``, is 0x53 bytes past the
-copy edits here) or the tail `hero-mana` adds. `recharge-rescale` rewrites the same two fields on a
-*living* object from a per-frame sweep; the pair this patch restores is self-consistent, so its
-comparison finds nothing to do on the frame after a revive.
+Derivation: `../docs/cooldown-through-death.md` and `../docs/recharge-rescale.md`.
 """
 
 from __future__ import annotations
@@ -119,7 +30,16 @@ from ...addresses import (
 )
 from ...asm import JAE, JB, JBE, JE, JLE, JNE, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import (
+    allocate_section,
+    apply_byte_patch,
+    file_offset,
+    find_section,
+    jmp_rel32,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 from ..utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 if TYPE_CHECKING:
@@ -149,7 +69,7 @@ DEFAULT_TICKS_KEYWORD = "CooldownTicksWhileDead"
 #: table and the routines, and - unlike every other patch in this package - a table it **writes**.
 SECTION_CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000 | 0x80000000
 
-# --- SpecialPowerTemplate ------------------------------------------------------------------
+# SpecialPowerTemplate
 
 #: The two padding bytes between `SharedSyncedTimer` and the `AsciiString` at `+0x5C`.
 TEMPLATE_PERSIST = 0x5A
@@ -165,7 +85,7 @@ TEMPLATE_COPY_LOAD_BYTES = bytes.fromhex("8a4558")  # mov al, [ebp+0x58]
 TEMPLATE_COPY_STORE = 0x007B1F03
 TEMPLATE_COPY_STORE_BYTES = bytes.fromhex("884358")  # mov [ebx+0x58], al
 
-# --- the special-power module --------------------------------------------------------------
+# The special-power module
 
 SPI_DURATION = 0x04
 SPI_READY_FRAME = 0x08
@@ -174,7 +94,7 @@ SPI_VTABLE_RECHARGE_SLOT = 0x3C  # startPowerRecharge - the flavour discriminato
 SPI_VTABLE = 0x00C64FF0
 
 #: `SpecialAbilityUpdate::startPowerRecharge`, flavour 1: the implementation whose ready frame is at
-#: interface `+0x08` and whose duration is at `+0x04`. The other one (``0x00991500``, three vtables)
+#: interface `+0x08` and whose duration is at `+0x04`. The other one (`0x00991500`, three vtables)
 #: keeps no duration at all, so there is nothing coherent to snapshot - the flavour test fails
 #: closed on it and on anything else.
 START_POWER_RECHARGE = 0x00896E31
@@ -185,7 +105,7 @@ OBJECT_MODULES = 0x24C  # NULL-terminated BehaviorModule *[]
 
 GET_CONTROLLING_PLAYER = 0x0068B678  # __thiscall, no args -> Player * or NULL
 
-# --- the two hook sites --------------------------------------------------------------------
+# The two hook sites
 
 #: `RespawnUpdate`'s die handler, at the call that adds the hero to the player's revive list. Taken
 #: rather than the experience store six instructions later because `ebx` is the dying `Object` here
@@ -203,7 +123,7 @@ UPGRADE_MASK_CALL_BYTES = bytes.fromhex("e8d5b6f0ff")  # call 0x68cc6c
 UPGRADE_MASK_RESTORE = 0x0068CC6C
 UPGRADE_MASK_RESUME = 0x00781597
 
-# --- the cave's own table ------------------------------------------------------------------
+# The cave's own table
 
 #: One banked cooldown. `power` NULL means the slot is free, which is also how a restore releases
 #: one - so the table holds only heroes who are dead right now.
@@ -232,7 +152,7 @@ FINGERPRINT = {
     "PalantirMovie": 0x5C,
 }
 
-#: Byte windows the patch depends on and does not rewrite, as ``{va: expected bytes}``. Every one of
+#: Byte windows the patch depends on and does not rewrite, as `{va: expected bytes}`. Every one of
 #: them is silent when wrong. The first two pin the hooks in their context - which register holds
 #: the object, and that the call being displaced is the one named. The next pin the layout the caves
 #: read and write: the ready frame at `+0x08` and the duration at `+0x04` from the site that writes
@@ -277,7 +197,7 @@ _KEYWORD_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
 
 
 def validate_keyword(keyword: str) -> None:
-    """Raise unless ``keyword`` is a token the engine's INI reader could ever match."""
+    """Raise unless `keyword` is a token the engine's INI reader could ever match."""
     if not _KEYWORD_PATTERN.match(keyword):
         raise ValueError(
             "an INI keyword must be letters, digits and underscores starting with a letter "
@@ -285,17 +205,13 @@ def validate_keyword(keyword: str) -> None:
         )
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 @dataclass(frozen=True)
 class _Layout:
     """Where each piece of the cave sits, given its base address, the two keywords and how many
     rows the live field table turned out to have.
 
-    Pure arithmetic on those, so :meth:`CooldownThroughDeathPatch.apply` and
-    :meth:`CooldownThroughDeathPatch.verify` compute the same addresses from opposite directions.
+    Pure arithmetic on those, so `CooldownThroughDeathPatch.apply` and
+    `CooldownThroughDeathPatch.verify` compute the same addresses from opposite directions.
     The slot table is laid out **before** the code and not after it, so that every address the code
     needs is known without first knowing how long the code is."""
 
@@ -308,7 +224,7 @@ class _Layout:
 
 
 #: The epoch opens the cave and the two keyword strings follow it, back to back, which is what lets
-#: :meth:`CooldownThroughDeathPatch.detect` read them out of a binary it knows nothing else about.
+#: `CooldownThroughDeathPatch.detect` read them out of a binary it knows nothing else about.
 _EPOCH_OFFSET = 0
 _PERSIST_OFFSET = 4
 
@@ -332,7 +248,7 @@ def _layout(base_va: int, persist: str, ticks: str, rows: int) -> _Layout:
 def rewritten_ctor() -> bytes:
     """The constructor's `PublicTimer` store, widened to zero the two new fields as well.
 
-    ``mov byte [esi+0x58], bl`` becomes ``mov dword [esi+0x58], ebx``: one opcode bit, three bytes
+    `mov byte [esi+0x58], bl` becomes `mov dword [esi+0x58], ebx`: one opcode bit, three bytes
     for three, so there is no hook and no displaced instruction. `ebx` is zero throughout the
     constructor - it is what `SharedSyncedTimer` is defaulted with three bytes later, and that
     store stays exactly where it is, redundant and harmless."""
@@ -340,13 +256,13 @@ def rewritten_ctor() -> bytes:
 
 
 def rewritten_copy_load() -> bytes:
-    """The copy constructor's ``mov al, [ebp+0x58]``, widened to a dword load. `ebp` is the
+    """The copy constructor's `mov al, [ebp+0x58]`, widened to a dword load. `ebp` is the
     *source* template in this routine, not a frame pointer."""
     return bytes([0x8B]) + TEMPLATE_COPY_LOAD_BYTES[1:]
 
 
 def rewritten_copy_store() -> bytes:
-    """Its matching ``mov [ebx+0x58], al``, widened to a dword store. `eax` is already the scratch
+    """Its matching `mov [ebx+0x58], al`, widened to a dword store. `eax` is already the scratch
     register the copies either side of it use, so nothing else has to move."""
     return bytes([0x89]) + TEMPLATE_COPY_STORE_BYTES[1:]
 
@@ -365,7 +281,7 @@ def build_table(entries: tuple[Entry, ...], persist_va: int, ticks_va: int) -> b
 
 
 def _emit_find(a: Asm, slots_va: int) -> None:
-    """``find(eax = power template, esi = Object, edi = Player, dl = allocate) -> eax = slot|NULL``.
+    """`find(eax = power template, esi = Object, edi = Player, dl = allocate) -> eax = slot|NULL`.
 
     A linear scan, because it runs on a hero's death and on a hero's revive and nowhere else -
     twice a minute in a busy match, against a table three orders of magnitude smaller than the
@@ -377,11 +293,11 @@ def _emit_find(a: Asm, slots_va: int) -> None:
     a.emit(0x53)  # push ebx
     a.emit(0x56)  # push esi
     a.emit(b"\x8b\x5e", OBJECT_THING_TEMPLATE)  # mov ebx, [esi+4]   ; the hero's ThingTemplate
-    a.emit(0xBE, _u32(slots_va))  # mov esi, <slots>              ; the cursor
+    a.emit(0xBE, u32(slots_va))  # mov esi, <slots>              ; the cursor
     a.emit(b"\x33\xc9")  # xor ecx, ecx                           ; the first free slot seen
 
     a.label("find_loop")
-    a.emit(0x81, 0xFE, _u32(slots_va + SLOTS * SLOT_STRIDE))  # cmp esi, <end>
+    a.emit(0x81, 0xFE, u32(slots_va + SLOTS * SLOT_STRIDE))  # cmp esi, <end>
     a.jcc(JAE, "find_miss")
     a.emit(b"\x83\x7e", SLOT_POWER, 0x00)  # cmp dword [esi+8], 0
     a.jcc_short(JE, "find_free")
@@ -424,7 +340,7 @@ def _emit_find(a: Asm, slots_va: int) -> None:
 
 
 def _emit_sync(a: Asm, epoch_va: int, slots_va: int) -> None:
-    """``sync()`` - drop everything banked if the logic clock is not the one that banked it.
+    """`sync()` - drop everything banked if the logic clock is not the one that banked it.
 
     The table is the patch's own memory and the engine never clears it, so without this it outlives
     the match that filled it. That matters because two of its three key components survive a match
@@ -440,38 +356,38 @@ def _emit_sync(a: Asm, epoch_va: int, slots_va: int) -> None:
 
     Clobbers eax, ecx and edx; called from inside `pushad`."""
     a.label("sync")
-    a.emit(0xA1, _u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
+    a.emit(0xA1, u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "sync_out")
     a.emit(b"\x8b\x40", GAME_LOGIC_FRAME)  # mov eax, [eax+0x40]   ; now
-    a.emit(0x3B, 0x05, _u32(epoch_va))  # cmp eax, [epoch]
+    a.emit(0x3B, 0x05, u32(epoch_va))  # cmp eax, [epoch]
     a.jcc(JAE, "sync_keep")  # the clock moved forward, as it does on every other call
 
-    a.emit(0xB9, _u32(slots_va))  # mov ecx, <slots>
+    a.emit(0xB9, u32(slots_va))  # mov ecx, <slots>
     a.label("sync_wipe")
     a.emit(b"\x83\x61", SLOT_POWER, 0x00)  # and dword [ecx+8], 0  ; free, without clearing a key
     a.emit(b"\x83\xc1", SLOT_STRIDE)  # add ecx, 0x18
-    a.emit(0x81, 0xF9, _u32(slots_va + SLOTS * SLOT_STRIDE))  # cmp ecx, <end>
+    a.emit(0x81, 0xF9, u32(slots_va + SLOTS * SLOT_STRIDE))  # cmp ecx, <end>
     a.jcc(JB, "sync_wipe")
 
     a.label("sync_keep")
-    a.emit(0xA3, _u32(epoch_va))  # mov [epoch], eax
+    a.emit(0xA3, u32(epoch_va))  # mov [epoch], eax
     a.label("sync_out")
     a.emit(0xC3)  # ret
 
 
 def _emit_flavour(a: Asm, out: str) -> None:
     """The flavour test, shared by both per-power routines: is this the implementation whose ready
-    frame is at ``+0x08``? Anything else - flavour 2, or a module type this reading has never heard
-    of - leaves with the interface untouched. ``ebx`` is the interface."""
+    frame is at `+0x08`? Anything else - flavour 2, or a module type this reading has never heard
+    of - leaves with the interface untouched. `ebx` is the interface."""
     a.emit(b"\x8b\x03")  # mov eax, [ebx]                         ; its vtable
     a.emit(b"\x8b\x40", SPI_VTABLE_RECHARGE_SLOT)  # mov eax, [eax+0x3c]
-    a.emit(0x3D, _u32(START_POWER_RECHARGE))  # cmp eax, <startPowerRecharge>
+    a.emit(0x3D, u32(START_POWER_RECHARGE))  # cmp eax, <startPowerRecharge>
     a.jcc(JNE, out)
 
 
 def _emit_template(a: Asm, out: str) -> None:
-    """``eax = getFinalOverride(getSpecialPowerTemplate(ebx))``, or leave via ``out``.
+    """`eax = getFinalOverride(getSpecialPowerTemplate(ebx))`, or leave via `out`.
 
     Through the override chain on both ends, so the pointer the snapshot keys on is the same one
     the restore looks up, and so the two flag bytes are read off whatever override is current."""
@@ -487,14 +403,14 @@ def _emit_template(a: Asm, out: str) -> None:
 
 
 def _emit_snapshot_power(a: Asm) -> None:
-    """``snap(eax = SpecialPowerModuleInterface *, esi = Object *, edi = Player *)``.
+    """`snap(eax = SpecialPowerModuleInterface *, esi = Object *, edi = Player *)`.
 
-    Banks one cooldown, if there is one worth banking. The frame, as displacements from ``ebp``:
-    ``-0x04`` the current frame, ``-0x08`` the ready frame, ``-0x0C`` the duration.
+    Banks one cooldown, if there is one worth banking. The frame, as displacements from `ebp`:
+    `-0x04` the current frame, `-0x08` the ready frame, `-0x0C` the duration.
 
     Every exit is a case where the patch has nothing to carry: the other flavour, no logic, not on
     cooldown, never recharged, a `SharedSyncedTimer` power whose timer lives on the `Player` and
-    which death never touched, the keyword absent, or a full table. ``ebx`` comes back from its slot
+    which death never touched, the keyword absent, or a full table. `ebx` comes back from its slot
     rather than by `pop` and the frame from `leave`, so the epilogue is correct for any esp - the
     one failure mode of a routine with this many early exits."""
     a.label("snap")
@@ -506,7 +422,7 @@ def _emit_snapshot_power(a: Asm) -> None:
 
     _emit_flavour(a, "snap_out")
 
-    a.emit(0xA1, _u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
+    a.emit(0xA1, u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "snap_out")
     a.emit(b"\x8b\x40", GAME_LOGIC_FRAME)  # mov eax, [eax+0x40]  ; now
@@ -546,10 +462,10 @@ def _emit_snapshot_power(a: Asm) -> None:
 
 
 def _emit_restore_power(a: Asm) -> None:
-    """``rest(eax = SpecialPowerModuleInterface *, esi = Object *, edi = Player *)``.
+    """`rest(eax = SpecialPowerModuleInterface *, esi = Object *, edi = Player *)`.
 
-    Reads one cooldown back onto a module that has just been built. The frame: ``-0x04`` the
-    template, ``-0x08`` the slot.
+    Reads one cooldown back onto a module that has just been built. The frame: `-0x04` the
+    template, `-0x08` the slot.
 
     The two modes are the two branches, and the ticking one writes nothing when its stored frame
     has already passed - which is the whole of "dead long enough clears the cooldown". Both fields
@@ -574,7 +490,7 @@ def _emit_restore_power(a: Asm) -> None:
     a.jcc(JE, "rest_out")  # this hero did not die with this power on cooldown
     a.emit(b"\x89\x45\xf8")  # mov [ebp-8], eax
 
-    a.emit(0xA1, _u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
+    a.emit(0xA1, u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rest_out")
     a.emit(b"\x8b\x40", GAME_LOGIC_FRAME)  # mov eax, [eax+0x40]  ; now
@@ -612,16 +528,16 @@ def _emit_restore_power(a: Asm) -> None:
 
 
 def _emit_walk(a: Asm, prefix: str, power: str) -> None:
-    """``<prefix>(esi = Object *, edi = Player *)`` - offer every module's special power to
-    ``power``.
+    """`<prefix>(esi = Object *, edi = Player *)` - offer every module's special power to
+    `power`.
 
-    The cursor is the NULL-terminated array of `BehaviorModule *` at ``Object+0x24C``, walked
-    exactly as ``0x0068BDD0`` walks it, and the interface comes out of the module's own vtable
+    The cursor is the NULL-terminated array of `BehaviorModule *` at `Object+0x24C`, walked
+    exactly as `0x0068BDD0` walks it, and the interface comes out of the module's own vtable
     rather than an assumed offset - so a module with no special power costs one indirect call and
     nothing else."""
     a.label(prefix)
     a.emit(0x53)  # push ebx
-    a.emit(b"\x8b\x9e", _u32(OBJECT_MODULES))  # mov ebx, [esi+0x24c]
+    a.emit(b"\x8b\x9e", u32(OBJECT_MODULES))  # mov ebx, [esi+0x24c]
     a.emit(b"\x85\xdb")  # test ebx, ebx
     a.jcc(JE, f"{prefix}_out")
 
@@ -649,7 +565,7 @@ def _emit_snapshot_hook(a: Asm) -> None:
 
     The displaced call runs first, so a hero is on the list before anything here can fail, and
     `pushad`/`popad` carries its return value - the record's index, which the caller pushes four
-    instructions later - back untouched. ``ebx`` is the dying `Object` across the call."""
+    instructions later - back untouched. `ebx` is the dying `Object` across the call."""
     a.label("snap_hook")
     a.call_absolute(ADD_HERO)  # the displaced call; ret 8, so esp comes back by itself
     a.emit(0x60)  # pushad
@@ -694,7 +610,7 @@ def _emit_restore_hook(a: Asm) -> None:
 def build_code(code_va: int, epoch_va: int, slots_va: int) -> Asm:
     """The cave's eight routines, laid out at the address they will occupy.
 
-    Returned as the :class:`~sage_patch.asm.Asm` rather than as bytes so the caller can take each
+    Returned as the `Asm` rather than as bytes so the caller can take each
     hook's address from the same layout that produced them."""
     a = Asm(code_va)
     _emit_sync(a, epoch_va, slots_va)
@@ -706,35 +622,6 @@ def build_code(code_va: int, epoch_va: int, slots_va: int) -> Asm:
     _emit_snapshot_hook(a)
     _emit_restore_hook(a)
     return a
-
-
-def _hook(site_va: int, window: bytes, target_va: int) -> bytes:
-    """`jmp rel32` to ``target_va``, padded with `nop` to the width of ``window``."""
-    jump = b"\xe9" + struct.pack("<i", target_va - (site_va + 5))
-    if len(window) < len(jump):
-        raise ValueError(f"the window at 0x{site_va:08x} is too small for a jmp rel32")
-    return jump + b"\x90" * (len(window) - len(jump))
-
-
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA 0x{va:08x} is not mapped - not the expected build")
-    return off
-
-
-def _cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    """The NUL-terminated ASCII string at ``va``, or None if it is unmapped or not one."""
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data).find(b"\x00", off, off + limit)
-    if end < 0:
-        return None
-    try:
-        return data[off:end].decode("ascii")
-    except UnicodeDecodeError:
-        return None
 
 
 class CooldownThroughDeathPatch(Patch):
@@ -818,44 +705,46 @@ class CooldownThroughDeathPatch(Patch):
         self, data: bytes | bytearray, pieces: _Layout, code: Asm
     ) -> list[tuple[int, bytes, bytes, str]]:
         """Every byte this patch writes outside its own cave, as
-        ``(file offset, expected, replacement, note)``."""
+        `(file offset, expected, replacement, note)`."""
         edits: list[tuple[int, bytes, bytes, str]] = [
             (
-                _offset(data, TEMPLATE_CTOR_BOOLS),
+                file_offset(data, TEMPLATE_CTOR_BOOLS),
                 TEMPLATE_CTOR_BOOLS_BYTES,
                 rewritten_ctor(),
                 f"SpecialPowerTemplate ctor -> {self.persist_keyword} defaults to No",
             ),
             (
-                _offset(data, TEMPLATE_COPY_LOAD),
+                file_offset(data, TEMPLATE_COPY_LOAD),
                 TEMPLATE_COPY_LOAD_BYTES,
                 rewritten_copy_load(),
                 "SpecialPowerTemplate copy ctor -> load the padding too",
             ),
             (
-                _offset(data, TEMPLATE_COPY_STORE),
+                file_offset(data, TEMPLATE_COPY_STORE),
                 TEMPLATE_COPY_STORE_BYTES,
                 rewritten_copy_store(),
                 "SpecialPowerTemplate copy ctor -> store the padding too",
             ),
             (
-                _offset(data, ADD_HERO_CALL),
+                file_offset(data, ADD_HERO_CALL),
                 ADD_HERO_CALL_BYTES,
-                _hook(ADD_HERO_CALL, ADD_HERO_CALL_BYTES, code.label_va("snap_hook")),
+                jmp_rel32(ADD_HERO_CALL, code.label_va("snap_hook"), len(ADD_HERO_CALL_BYTES)),
                 f"the revive-list add -> the {SECTION_NAME} snapshot",
             ),
             (
-                _offset(data, UPGRADE_MASK_CALL),
+                file_offset(data, UPGRADE_MASK_CALL),
                 UPGRADE_MASK_CALL_BYTES,
-                _hook(UPGRADE_MASK_CALL, UPGRADE_MASK_CALL_BYTES, code.label_va("rest_hook")),
+                jmp_rel32(
+                    UPGRADE_MASK_CALL, code.label_va("rest_hook"), len(UPGRADE_MASK_CALL_BYTES)
+                ),
                 f"the upgrade-mask restore -> the {SECTION_NAME} restore",
             ),
         ]
-        table_ref = _u32(pieces.table_va)
+        table_ref = u32(pieces.table_va)
         for ref_va, opcode in zip(
             SPECIAL_POWER_FIELD_TABLE_REFS, SPECIAL_POWER_FIELD_TABLE_REF_OPCODES, strict=True
         ):
-            off = _offset(data, ref_va)
+            off = file_offset(data, ref_va)
             edits.append(
                 (
                     off,
@@ -882,7 +771,7 @@ class CooldownThroughDeathPatch(Patch):
 
     @staticmethod
     def _check_anchors(data: bytes | bytearray) -> None:
-        """Raise unless every window in :data:`ANCHORS` still holds its stock bytes.
+        """Raise unless every window in `ANCHORS` still holds its stock bytes.
 
         These are the reads the caves are built on and never rewrite. A build where one has moved
         would still take the patch and still verify - and then bank a cooldown off the wrong field,
@@ -902,7 +791,7 @@ class CooldownThroughDeathPatch(Patch):
         the caves test. The test is the only thing keeping this patch off a layout where the ready
         frame is somewhere else, so a moved slot has to be a refusal rather than a guess."""
         slot_va = SPI_VTABLE + SPI_VTABLE_RECHARGE_SLOT
-        target = struct.unpack_from("<I", data, _offset(data, slot_va))[0]
+        target = struct.unpack_from("<I", data, file_offset(data, slot_va))[0]
         if target != START_POWER_RECHARGE:
             raise ValueError(
                 f"vtable slot 0x{slot_va:08x} dispatches to 0x{target:08x}, not "
@@ -915,7 +804,7 @@ class CooldownThroughDeathPatch(Patch):
         A duplicate row would parse - the reader takes the first match - so the field would exist
         and silently do nothing."""
         entries = read_field_table(data, table_va)
-        by_name = {_cstring(data, name): offset for name, _fn, _ud, offset in entries}
+        by_name = {read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
         for field, want in FINGERPRINT.items():
             got = by_name.get(field)
             if got != want:
@@ -940,7 +829,7 @@ class CooldownThroughDeathPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> CooldownThroughDeathPatch | None:
-        """Recognise this patch **and recover both keywords** from ``data``.
+        """Recognise this patch **and recover both keywords** from `data`.
 
         The default probe would only ever recognise the default names. The two strings open the
         cave, back to back, so they read straight back out; `verify` then checks the whole cave
@@ -948,10 +837,10 @@ class CooldownThroughDeathPatch(Patch):
         located = find_section(data, SECTION_NAME)
         if located is None:
             return None
-        persist = _cstring(data, located[0] + _PERSIST_OFFSET)
+        persist = read_cstring(data, located[0] + _PERSIST_OFFSET)
         if persist is None:
             return None
-        ticks = _cstring(data, located[0] + _PERSIST_OFFSET + len(persist) + 1)
+        ticks = read_cstring(data, located[0] + _PERSIST_OFFSET + len(persist) + 1)
         if ticks is None:
             return None
         try:
@@ -972,8 +861,8 @@ class CooldownThroughDeathPatch(Patch):
         )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch for exactly these two keywords. Reads
-        only via ``struct`` and the section table, so it needs no disassembler.
+        """Structural check that `data` carries this patch for exactly these two keywords. Reads
+        only via `struct` and the section table, so it needs no disassembler.
 
         Every address is recovered from where the cave actually landed rather than from where it
         would land on a clean image, so a build carrying another patch's section too verifies the
@@ -1015,17 +904,17 @@ class CooldownThroughDeathPatch(Patch):
             (self.persist_keyword, pieces.persist_va),
             (self.ticks_keyword, pieces.ticks_va),
         ):
-            got = _cstring(data, va)
+            got = read_cstring(data, va)
             if got != keyword:
                 problems.append(f"the keyword at 0x{va:08x} is {got!r}, not {keyword!r}")
         want_table = build_table(preceding, pieces.persist_va, pieces.ticks_va)
-        table_off = _offset(data, pieces.table_va)
+        table_off = file_offset(data, pieces.table_va)
         if bytes(data[table_off : table_off + len(want_table)]) != want_table:
             problems.append(
                 f"the field table at 0x{pieces.table_va:08x} is not the live rows plus Bools at "
                 f"SpecialPower+0x{TEMPLATE_PERSIST:02x} and +0x{TEMPLATE_TICKS:02x}"
             )
-        code_off = _offset(data, pieces.code_va)
+        code_off = file_offset(data, pieces.code_va)
         if bytes(data[code_off : code_off + len(code)]) != code:
             problems.append(f"the code at 0x{pieces.code_va:08x} is not what this patch builds")
         return problems
@@ -1048,7 +937,7 @@ class CooldownThroughDeathPatch(Patch):
             (self.persist_keyword, pieces.persist_va, TEMPLATE_PERSIST),
             (self.ticks_keyword, pieces.ticks_va, TEMPLATE_TICKS),
         ):
-            row = next((entry for entry in live if _cstring(data, entry[0]) == keyword), None)
+            row = next((entry for entry in live if read_cstring(data, entry[0]) == keyword), None)
             if row is None:
                 problems.append(f"the live SpecialPower table no longer parses {keyword!r}")
             elif (row[0], row[1], row[3]) != (keyword_va, INI_PARSE_BOOL, offset):
@@ -1079,18 +968,20 @@ class CooldownThroughDeathPatch(Patch):
             ),
             (
                 ADD_HERO_CALL,
-                _hook(ADD_HERO_CALL, ADD_HERO_CALL_BYTES, code.label_va("snap_hook")),
+                jmp_rel32(ADD_HERO_CALL, code.label_va("snap_hook"), len(ADD_HERO_CALL_BYTES)),
                 f"the revive-list add is not hooked to the {SECTION_NAME} snapshot",
             ),
             (
                 UPGRADE_MASK_CALL,
-                _hook(UPGRADE_MASK_CALL, UPGRADE_MASK_CALL_BYTES, code.label_va("rest_hook")),
+                jmp_rel32(
+                    UPGRADE_MASK_CALL, code.label_va("rest_hook"), len(UPGRADE_MASK_CALL_BYTES)
+                ),
                 f"the upgrade-mask restore is not hooked to the {SECTION_NAME} restore",
             ),
         ]
         problems: list[str] = []
         for va, want, complaint in checks:
-            off = _offset(data, va)
+            off = file_offset(data, va)
             got = bytes(data[off : off + len(want)])
             if got != want:
                 problems.append(f"@0x{va:08x}: {complaint} (holds {got.hex()})")

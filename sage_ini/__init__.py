@@ -30,8 +30,9 @@ from sage_ini.parser.diagnostics import Diagnostic, Diagnostics, Severity
 from sage_ini.parser.location import Span
 from sage_ini.parser.printer import print_document
 from sage_ini.walk import walk_blocks, walk_nodes, walk_objects
+from sage_utils.extras import package_version
 
-__version__ = "0.1.0"
+__version__ = package_version()
 
 __all__ = [
     "__version__",

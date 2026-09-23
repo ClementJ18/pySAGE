@@ -1,78 +1,12 @@
-"""`OK_FOR_MULTI_EXECUTE` honours each unit's own `EnableOnModelCondition` /
+"""Make `OK_FOR_MULTI_EXECUTE` respect each unit's own `EnableOnModelCondition` /
 `DisableOnModelCondition`.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/multi-execute-gate.md``.
+With several units selected, the control bar lights the button if any member qualifies, and the
+group loops then fire it for every member. The patch adds the per-member model-condition check
+(`MODEL_CONDITION_GATE_VA`) to the two group loops, so a member whose own button is disabled is
+skipped. Apply it after `commandset-limit`, or pin `slots`. Every peer needs the same binary.
 
-**What the engine does today.** A `CommandButton`'s `EnableOnModelCondition` /
-`DisableOnModelCondition` are evaluated by exactly one routine, `MODEL_CONDITION_GATE_VA`, which
-takes *one* button and *one* `Object` and answers 2 (fine) or 3 (disabled). The ControlBar calls it
-per object; with several units selected it walks the selection and lights the button if **any**
-member comes back available - which is the right answer for whether to draw the button.
-
-The click is where it goes wrong. A `Command = SPECIAL_POWER` button emits `MSG_DO_SPECIAL_POWER`
-carrying the special power's id, the button's `Options` word and an object id of **zero**, and the
-logic-side handler turns a zero into *the issuing player's whole selection* as an `AIGroup`. If bit
-20 of that options word - `OK_FOR_MULTI_EXECUTE` - is set, `AIGroup::doSpecialPower` skips its
-"pick the best member" pass and runs the power on every member in turn. The only per-member gate on
-that loop is `GATE_A_VA`, which checks the power's own preconditions: required sciences, `UnitCost`
-against the horde's size, the module's recharge. **It never sees the `CommandButton`** - it is
-handed a `SpecialPowerTemplate` - so the model conditions that greyed the button on some of those
-units are not consulted, and the power fires on all of them.
-
-That is why Edain's *Ambush of the Wood-elves* is gated by a command-set swap rather than by the
-`EnableOnModelCondition = INVISIBLE_CAMOUFLAGE` its button already declares: with a mixed group,
-one stealthed battalion is enough to fire the ambush on every battalion selected. The swap is the
-workaround, and it costs the player the mass trigger - battalions have to be clicked one at a time.
-
-**What this patch does.** It adds the missing per-member check to the two group loops, and nothing
-else. The button stays `OK_FOR_MULTI_EXECUTE`, the ControlBar still lights it when any member
-qualifies, and the loop still visits every member - a member whose *own* command button is disabled
-by a model condition is simply skipped, exactly as if it had failed the recharge check.
-
-Recovering the button is what makes this possible without touching the message. The logic side
-already knows how: `GET_COMMAND_SET_STRING_VA` resolves an `Object`'s effective command-set name
-(honouring the three per-object overrides a command-set swap writes, so a swapped set is the set
-this reads), `FIND_COMMAND_SET_VA` looks it up, and `GET_COMMAND_BUTTON_VA` indexes it. The engine
-performs that exact walk in two places already; this cave is a third, matching on
-``Command == SPECIAL_POWER`` and on the button's `SpecialPower` resolving to the same template id
-the group was told to run. A member with no such button is left alone.
-
-Coverage
---------
-Two hooks, one per group loop:
-
-* `GATE_A_CALL_VA`, inside `AIGroup::doSpecialPower` - the targetless form, behind
-  `MSG_DO_SPECIAL_POWER`. This is the one *Ambush of the Wood-elves* takes.
-* `GATE_B_CALL_VA`, inside `AIGroup::doSpecialPowerAt*` - the targeted forms, behind
-  `MSG_DO_SPECIAL_POWER_AT_LOCATION` / `..._AT_OBJECT`.
-
-Both are the ``call <precondition gate>`` that opens the loop body, and both loops already treat a
-false answer as "skip this member and continue" - so the shim needs no new control flow, only a
-reason to answer false.
-
-The **single-member** paths in the same two functions (the "best member" the engine picks when
-`OK_FOR_MULTI_EXECUTE` is *absent*) are deliberately left stock. Gating them could turn a click
-that works today into one that silently does nothing, because the scoring pass that chose the
-member does not know about model conditions and would not fall through to another candidate. That
-is a real second gap, but it is not this patch's, and fixing it means replacing the scoring pass
-rather than filtering it.
-
-**Every peer must run the same patched binary.** This changes which objects a logic-side order
-reaches, so a patched and an unpatched client diverge on the first multi-execute activation of a
-model-conditioned button, and replays do not cross. That is stricter than the client-local patches
-in this package (`replay-outcome`, `skirmish-replay`) and the same requirement
-`production-condition` carries.
-
-**Composition.** The cave is allocated with :func:`~..utils.allocate_section` past every existing
-section and :meth:`verify` finds it by name; the four bytes rewritten (two ``call rel32``
-displacements) are shared with no other bundled patch. One ordered dependency, per rule 3 of the
-composition contract on :class:`~..patcher.Patch`: the cave walks a `CommandSet`'s slot array to a
-literal bound, and `commandset-limit` is what decides how many slots there are. ``slots=None`` (the
-default) reads that bound out of the image at apply time, so **apply `commandset-limit` first** and
-this patch follows it automatically; pass ``--slots N`` to pin it instead. Get it wrong and nothing
-corrupts - a button sitting past the bound is simply not found, and that member takes the stock
-path - but `verify` will report the disagreement.
+Derivation: `../docs/multi-execute-gate.md`.
 """
 
 from __future__ import annotations
@@ -83,7 +17,7 @@ from typing import TYPE_CHECKING
 from ..addresses import GET_FINAL_OVERRIDE, GUI_COMMAND_SPECIAL_POWER
 from ..asm import JE, JL, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, va_to_offset
 from .commandset import CommandSetLimitPatch
 
 if TYPE_CHECKING:
@@ -114,15 +48,15 @@ __all__ = [
     "build_thunk",
 ]
 
-# --- the two group loops (VA, ImageBase 0x400000) ---------------------------------------------
+# The two group loops (VA, ImageBase 0x400000)
 
-#: `AIGroup::doSpecialPower`'s per-member precondition gate, and the ``call`` to it that opens the
-#: multi-execute loop body. The gate is ``__thiscall`` with five stack arguments (`Object*`,
+#: `AIGroup::doSpecialPower`'s per-member precondition gate, and the `call` to it that opens the
+#: multi-execute loop body. The gate is `__thiscall` with five stack arguments (`Object*`,
 #: `SpecialPowerTemplate*`, 0, the button options, a "check recharge" bool) and cleans them itself.
 GATE_A_VA = 0x0082D5DA
 GATE_A_CALL_VA = 0x0076F6DA
 GATE_A_ARG_BYTES = 0x14
-#: Where the `Object*` and the `SpecialPowerTemplate*` sit relative to ``esp`` at the call.
+#: Where the `Object*` and the `SpecialPowerTemplate*` sit relative to `esp` at the call.
 GATE_A_OBJECT_ESP = 0x04
 GATE_A_TEMPLATE_ESP = 0x08
 
@@ -135,8 +69,8 @@ GATE_B_OBJECT_ESP = 0x04
 GATE_B_TEMPLATE_ESP = 0x10
 
 #: The 30- and 29-byte runs the two hooks sit inside: the singleton load, every pushed argument,
-#: the ``call`` itself and the ``test al,al`` / ``je <loop tail>`` that turns a false answer into a
-#: skip. A bare ``call rel32`` says nothing about which call it is; this pins the whole shape, so a
+#: the `call` itself and the `test al,al` / `je <loop tail>` that turns a false answer into a
+#: skip. A bare `call rel32` says nothing about which call it is; this pins the whole shape, so a
 #: build whose layout moved fails before anything is written.
 GATE_A_WINDOW = (
     0x0076F6C9,
@@ -147,11 +81,11 @@ GATE_B_WINDOW = (
     bytes.fromhex("ff75e48b0da88bde00ff7510536a00ff750c56e8b9cd0b0084c074196a"),
 )
 
-#: ``OK_FOR_MULTI_EXECUTE`` is index 20 of the `CommandButton` `Options` name table at
-#: ``0x00DA4C88``, which the shared bit-string parser turns into ``1 << 20``.
+#: `OK_FOR_MULTI_EXECUTE` is index 20 of the `CommandButton` `Options` name table at
+#: `0x00DA4C88`, which the shared bit-string parser turns into `1 << 20`.
 MULTI_EXECUTE_BIT = 1 << 20
 
-#: The two ``and eax, 0x100000`` sites that read that bit off the message's options word - one per
+#: The two `and eax, 0x100000` sites that read that bit off the message's options word - one per
 #: group function, and the whole of the engine's use of the flag. They are asserted rather than
 #: rewritten: they are what make the loops this patch hooks the *multi-execute* loops, and nothing
 #: else in the image tests bit 20 of anything.
@@ -160,12 +94,12 @@ MULTI_EXECUTE_WINDOWS = (
     (0x007709BA, bytes.fromhex("8b451025000010008945e0")),
 )
 
-# --- what the cave calls -----------------------------------------------------------------------
+# What the cave calls
 
 #: The one routine that evaluates a `CommandButton`'s `DisableOnModelCondition` and then its
-#: `EnableOnModelCondition` against an `Object`'s model-condition mask. ``stdcall(button, object)``,
-#: ``ret 8``, answering :data:`DISABLED` or :data:`AVAILABLE`. It pushes and pops ``ebx``/``esi``/
-#: ``edi``, so the cave can hold its loop state across the call.
+#: `EnableOnModelCondition` against an `Object`'s model-condition mask. `stdcall(button, object)`,
+#: `ret 8`, answering `DISABLED` or `AVAILABLE`. It pushes and pops `ebx`/`esi`/
+#: `edi`, so the cave can hold its loop state across the call.
 MODEL_CONDITION_GATE_VA = 0x00942490
 MODEL_CONDITION_GATE_WINDOW = (
     MODEL_CONDITION_GATE_VA,
@@ -174,23 +108,23 @@ MODEL_CONDITION_GATE_WINDOW = (
 DISABLED = 3
 AVAILABLE = 2
 
-#: `Object::getCommandSetString` - ``__thiscall``, no arguments, returning the `AsciiString*` of the
+#: `Object::getCommandSetString` - `__thiscall`, no arguments, returning the `AsciiString*` of the
 #: object's *effective* command set: the first non-empty of the three per-object override strings at
-#: ``+0x438`` / ``+0x440`` / ``+0x43C``, else its `ThingTemplate`'s own ``CommandSet`` at ``+0x70``.
+#: `+0x438` / `+0x440` / `+0x43C`, else its `ThingTemplate`'s own `CommandSet` at `+0x70`.
 #: A command-set swap writes those overrides, so this is the set the player is actually looking at.
 GET_COMMAND_SET_STRING_VA = 0x0069156B
 
-#: `ControlBar::findCommandSet(AsciiString*)` - ``__thiscall``, ``ret 4``, 0 when the name is
+#: `ControlBar::findCommandSet(AsciiString*)` - `__thiscall`, `ret 4`, 0 when the name is
 #: unknown. `TheControlBar` is the singleton the ControlBar registers itself in.
 FIND_COMMAND_SET_VA = 0x0071EFA2
 THE_CONTROL_BAR_VA = 0x00DE7744
 
-#: `CommandSet::getCommandButton(i)` - ``__thiscall``, ``ret 4``, a bare unchecked
-#: ``[this + i*4 + 0x14]``. The caller owns the bound; see :data:`STOCK_SLOTS`.
+#: `CommandSet::getCommandButton(i)` - `__thiscall`, `ret 4`, a bare unchecked
+#: `[this + i*4 + 0x14]`. The caller owns the bound; see `STOCK_SLOTS`.
 GET_COMMAND_BUTTON_VA = 0x0080C837
 
 #: `CommandButton` members the cave reads: the GUI command it dispatches on (compared against
-#: :data:`~..addresses.GUI_COMMAND_SPECIAL_POWER`) and the `SpecialPowerTemplate*` it names.
+#: `GUI_COMMAND_SPECIAL_POWER`) and the `SpecialPowerTemplate*` it names.
 COMMAND_BUTTON_GUI_COMMAND_OFFSET = 0x14
 COMMAND_BUTTON_SPECIAL_POWER_OFFSET = 0x44
 #: `SpecialPowerTemplate::m_id` - what the message carries and what the store resolves back, so
@@ -205,27 +139,22 @@ SECTION_NAME = ".mxgate"
 SECTION_CHARACTERISTICS = 0x60000060
 
 
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
-# --- the cave ----------------------------------------------------------------------------------
+# The cave
 
 
 def build_gate(base_va: int, slots: int = STOCK_SLOTS) -> bytes:
-    """``bool gate(Object *obj, SpecialPowerTemplate *tmpl)`` - cdecl, caller cleans.
+    """`bool gate(Object *obj, SpecialPowerTemplate *tmpl)` - cdecl, caller cleans.
 
-    False iff ``obj``'s own command set carries a `SPECIAL_POWER` button for ``tmpl`` **and** that
+    False iff `obj`'s own command set carries a `SPECIAL_POWER` button for `tmpl` **and** that
     button's model conditions disable it. Everything else - no command set, no matching button, an
     empty pair of masks - answers true, which is the stock behaviour.
 
     The match is on the special power's **id** rather than on the template pointer, because the two
     sides reach it differently: the loop's template came from the store by id, while the button
     names one that may be an INI override copy. Resolving the button's through
-    :data:`~..addresses.GET_FINAL_OVERRIDE` and comparing ids is what the ControlBar itself does.
+    `GET_FINAL_OVERRIDE` and comparing ids is what the ControlBar itself does.
 
-    All four callees are ``__thiscall`` or ``stdcall`` and preserve ``ebx``/``esi``/``edi``, so the
+    All four callees are `__thiscall` or `stdcall` and preserve `ebx`/`esi`/`edi`, so the
     slot index, the `CommandSet` and the candidate button live in registers for the whole walk."""
     a = Asm(base_va)
     a.emit(0x55)  # push ebp
@@ -293,14 +222,14 @@ def build_thunk(
     object_esp: int,
     template_esp: int,
 ) -> bytes:
-    """The shim a hooked ``call <precondition gate>`` lands in.
+    """The shim a hooked `call <precondition gate>` lands in.
 
-    On entry the stock gate's arguments are already pushed and ``ecx`` holds its ``this``, so the
-    shim borrows the two it needs off the stack, asks :func:`build_gate`, and either refuses - which
+    On entry the stock gate's arguments are already pushed and `ecx` holds its `this`, so the
+    shim borrows the two it needs off the stack, asks `build_gate`, and either refuses - which
     means cleaning the arguments itself, since the stock gate is the one that would have - or
-    tail-jumps to the stock gate so its own ``ret <arg_bytes>`` returns straight to the loop.
+    tail-jumps to the stock gate so its own `ret <arg_bytes>` returns straight to the loop.
 
-    ``object_esp`` and ``template_esp`` are the arguments' displacements from ``esp`` at the call,
+    `object_esp` and `template_esp` are the arguments' displacements from `esp` at the call,
     which differ between the two loops: the targetless gate takes the template second and the
     targeted one takes it fourth."""
     a = Asm(base_va)
@@ -320,7 +249,7 @@ def build_thunk(
     return a.finish()
 
 
-# --- the patch ---------------------------------------------------------------------------------
+# The patch
 
 
 class MultiExecuteGatePatch(Patch):
@@ -329,6 +258,7 @@ class MultiExecuteGatePatch(Patch):
 
     name = "multi-execute-gate"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "OK_FOR_MULTI_EXECUTE respects each unit's Enable/DisableOnModelCondition. No INI "
         "change: the per-member gate is the mask already on the CommandButton, so a unit whose "
@@ -344,7 +274,7 @@ class MultiExecuteGatePatch(Patch):
         pinned = "auto" if self.slots is None else str(self.slots)
         return f"{self.name} (slots={pinned})"
 
-    # --- apply / verify ----------------------------------------------------------------------
+    # Apply / verify
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)
@@ -360,10 +290,10 @@ class MultiExecuteGatePatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch at this slot bound (an empty list ==
-        verified). Recomputes the cave and both repointed ``call``s from the same inputs `apply`
+        """Structural check that `data` carries this patch at this slot bound (an empty list ==
+        verified). Recomputes the cave and both repointed `call`s from the same inputs `apply`
         used and compares them to what is on disk, plus the four windows the patch reads but does
-        not rewrite. Reads only via ``struct`` and the section table - no disassembler."""
+        not rewrite. Reads only via `struct` and the section table - no disassembler."""
         located = find_section(data, SECTION_NAME)
         if located is None:
             return [f"no {SECTION_NAME} section: the file does not carry this patch"]
@@ -409,7 +339,7 @@ class MultiExecuteGatePatch(Patch):
             return None
         return None if problems else patch
 
-    # --- CLI integration ---------------------------------------------------------------------
+    # CLI integration
 
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
@@ -429,7 +359,7 @@ class MultiExecuteGatePatch(Patch):
     def from_cli_args(cls, args: argparse.Namespace) -> MultiExecuteGatePatch:
         return cls(slots=args.slots)
 
-    # --- layout ------------------------------------------------------------------------------
+    # Layout
 
     def _resolve_slots(self, data: bytes | bytearray) -> int:
         """The `CommandSet` slot bound the cave walks to: pinned, or read back out of the image."""
@@ -439,8 +369,8 @@ class MultiExecuteGatePatch(Patch):
         return STOCK_SLOTS if raised is None else raised.count
 
     def _compute_section(self, section_va: int, slots: int) -> tuple[bytes, tuple[int, int]]:
-        """Return ``(section content, (thunk A VA, thunk B VA))`` for a cave based at
-        ``section_va``. The gate goes first so both shims can reach it by a resolved address."""
+        """Return `(section content, (thunk A VA, thunk B VA))` for a cave based at
+        `section_va`. The gate goes first so both shims can reach it by a resolved address."""
         gate = build_gate(section_va, slots)
 
         thunk_a_va = section_va + len(gate)
@@ -466,8 +396,8 @@ class MultiExecuteGatePatch(Patch):
     def _edits(
         self, data: bytes | bytearray, thunks: tuple[int, int]
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)`` - two
-        ``call rel32`` displacements, and nothing else."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)` - two
+        `call rel32` displacements, and nothing else."""
         thunk_a_va, thunk_b_va = thunks
         edits: list[tuple[int, bytes, bytes, str]] = []
         for call_va, stock_va, thunk_va, note in (
@@ -480,24 +410,24 @@ class MultiExecuteGatePatch(Patch):
             edits.append(
                 (
                     off,
-                    _call_bytes(call_va, stock_va),
-                    _call_bytes(call_va, thunk_va),
+                    call_rel32(call_va, stock_va),
+                    call_rel32(call_va, thunk_va),
                     note,
                 )
             )
         return edits
 
-    # --- the build fingerprint ----------------------------------------------------------------
+    # The build fingerprint
 
     def _anchor_problems(self, data: bytes | bytearray, skip_call_bytes: bool = False) -> list[str]:
         """Everything the patch depends on and does not rewrite.
 
         Four kinds, and all four are silent when wrong: the two loop windows say the hooks really
-        are the per-member gate of a group loop, the two ``and eax, 0x100000`` sites say those loops
+        are the per-member gate of a group loop, the two `and eax, 0x100000` sites say those loops
         really are the multi-execute ones, and the model-condition gate's own prologue says the
         routine the cave calls is still the one that reads the two masks.
 
-        ``skip_call_bytes`` blanks the five bytes of the hooked ``call`` inside each loop window,
+        `skip_call_bytes` blanks the five bytes of the hooked `call` inside each loop window,
         which is what lets the same check run against an already-patched image."""
         problems: list[str] = []
 

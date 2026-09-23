@@ -219,7 +219,7 @@ the same iteration.
 `.mapsym` cave, eight rewritten sites - nine with either sort option - no `.wnd` and no `.apt`
 change.
 
-Every address below is named in [`../addresses.py`](../addresses.py) under `MAP_CACHE_*`,
+Every address below is named in [`../addresses/`](../addresses/__init__.py) under `MAP_CACHE_*`,
 `MAP_META_DATA_*` and `MAP_LIST_*`, which is where facts about this build live; the patch module
 holds only what is its own choice - the keyword, the section, the packing and the image names.
 

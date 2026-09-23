@@ -1,8 +1,7 @@
 name: CI
 
-# Runs on every PR and on pushes to the default branch. Four jobs: style/typing once; the core
-# across the OS and Python matrix; the peripheral packages with the optional extras installed (so
-# the pyBIG/PyQt6 suites run); and a packaging job that builds and smoke-tests the wheel.
+# Jobs: lint + typing, the core suite on every OS/Python, the full suite with all extras, and a
+# wheel smoke test.
 on:
   push:
     branches: [main, master]
@@ -13,7 +12,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Style and typing are platform- and version-independent: run them once, and fail fast.
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -29,8 +27,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           pip install ruff==0.15.22 mypy==2.3.0  # pinned ruff matches .pre-commit-config.yaml
-          # `sage_test.plugin` is a pytest plugin: pytest ships type hints, so mypy checks its
-          # fixtures and hooks properly rather than reporting the import as missing.
+          # pytest's own type hints, for mypy's check of the `sage_test.plugin` pytest plugin.
           pip install pytest
 
       - name: Ruff lint
@@ -42,13 +39,7 @@ jobs:
       - name: Mypy typing coverage
         run: mypy
 
-  # The core, on every supported interpreter and OS, down to the 3.12 floor. numpy is the one
-  # optional dependency installed here: it is pure computation with a wheel on every cell of the
-  # matrix, and without it the numpy-backed geometry suites (the map editor's terrain, camera and
-  # mapcache code, the w3d maths) skip everywhere but the single-version `full` job. The Qt- and
-  # pyBIG-backed suites still self-skip here and run in `full`. That the packages themselves need
-  # nothing but the stdlib stays covered by the `package` job, which runs every core console
-  # script from a wheel installed with no extras at all.
+  # numpy is the one extra installed here, so the geometry suites run across the matrix too.
   core:
     strategy:
       fail-fast: false
@@ -73,9 +64,7 @@ jobs:
       - name: Core test suite
         run: pytest -q
 
-  # The peripheral packages, with the optional extras installed so the pyBIG- and Qt-backed
-  # suites run. `--full` also enables the corpus acceptance gates; those self-skip when the
-  # (gitignored) game-data corpus is absent, which it always is here.
+  # Everything, with all extras; the corpus gates skip because CI has no game data.
   full:
     strategy:
       fail-fast: false
@@ -90,9 +79,7 @@ jobs:
           python-version: "3.13"
           cache: pip
 
-      # PyQt6's wheel bundles Qt but still links the system's EGL/GL and xkb libraries, which
-      # the GitHub runner image does not carry. The suites themselves force the `offscreen`
-      # platform plugin, so no display server (or xvfb) is needed beyond these.
+      # System libraries PyQt6 links against; the suites run Qt offscreen, so no display needed.
       - name: Install Qt runtime libraries (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -106,24 +93,18 @@ jobs:
           pip install -e ".[all]"
           pip install pytest
 
-      # `shell: bash` runs on every runner (Windows included) with `-eo pipefail`, so a
-      # pytest failure propagates through the `tee` pipe below.
+      # bash's pipefail lets a pytest failure through the `tee` below.
       - name: Full test suite
         shell: bash
         run: |
           pytest -q --full -rs | tee pytest-full.log
-          # Every optional-dependency guard (`importorskip`) names an extra in its skip
-          # reason; the game-data corpus skips never contain the word "extra". With all
-          # extras installed above, a skip that names one means a dependency is missing
-          # from this job - fail loudly rather than silently not running its suite. (grep
-          # inside the `if` condition is exempt from `-e`, so no-match is not an error.)
+          # Every extra is installed, so a skip naming one means a dependency is missing here.
           if grep -E "^SKIPPED.*extra" pytest-full.log; then
             echo "::error::A test skipped for a missing optional dependency (see above); add it to the extras installed in this job."
             exit 1
           fi
 
-  # A wheel is not the source tree: package data must be declared to ship, and the console
-  # scripts have to work from an installed distribution rather than from the checkout.
+  # Package data and console scripts must work from an installed wheel, not just the checkout.
   package:
     runs-on: ubuntu-latest
     steps:
@@ -148,11 +129,10 @@ jobs:
           python -m venv /tmp/wheelenv
           /tmp/wheelenv/bin/pip install dist/*.whl
 
-      # The core CLIs must run with no extras installed at all; the desktop apps must refuse
-      # with the pip command to fix it, rather than a bare ModuleNotFoundError traceback.
+      # Core CLIs run with no extras; desktop apps refuse with the pip command to fix it.
       - name: Console scripts work without extras
         run: |
-          for script in sage-lint sage-ini sage-live sage-replay sage-apt sage-save sage-map sage-asset sage-w3d sage-cah sage-patch sage-test sage-verify; do
+          for script in sage-lint sage-ini sage-live sage-replay sage-apt sage-save sage-map sage-asset sage-w3d sage-cah sage-patch sage-test sage-verify sage-accel; do
             echo "== $script"
             /tmp/wheelenv/bin/$script --help > /dev/null
           done
@@ -166,3 +146,29 @@ jobs:
             fi
             grep -q "pip install" /tmp/out.txt || { echo "no install hint:"; cat /tmp/out.txt; exit 1; }
           done
+
+  # The native module the `accel-module` patch loads. Built here and shipped as this artifact, so
+  # players never need the toolchain. zig cross-compiles, so Linux builds the 32-bit Windows DLL.
+  accel-module:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install the package with the accel extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[accel]"
+
+      - name: Build sage_accel.dll
+        run: sage-accel build --out build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sage_accel
+          path: build/sage_accel.dll
+          if-no-files-found: error

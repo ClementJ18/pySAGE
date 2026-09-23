@@ -1,68 +1,15 @@
-"""Forward references in `PrerequisiteSciences`: let a science name one that is defined later.
+"""Allow forward references in `PrerequisiteSciences`, so two sciences can require each other in one
+file.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/science-forward-references.md``.
+The field's parser resolves each name through `ScienceStore::getScienceFromInternalName`, which
+throws for a science not defined yet. But it computes the name's key before checking, and a later
+definition gets the same key, so skipping the check stores the right value. The shared thunk
+(`THUNK_VA`) is redirected to do that, and the "not known" report is deferred until every science
+file is read (`initSubsystem` gets no INI path, `0x0063B1FD`, so there is nowhere earlier).
+`--no-report-missing` drops the report. `SciencePrereqWorldbuilderPatch` relaxes the editor's check
+the same way.
 
-**What the engine does today.** `PrerequisiteSciences` has its own parse function,
-`0x0073BCBF` - the only one that understands the `OR` token, and the only field in the game that
-uses it. It resolves each token through a shared four-instruction thunk at `THUNK_VA`, which calls
-`ScienceStore::getScienceFromInternalName`. That function computes the token's name key, *then*
-checks the key names a science that already exists, and throws
-``"Science name %s not known! (Did you define it in Science.ini?)"`` if it does not. So a mutual
-pair - `C` requiring `A or D` while `D` requires `B or C` - cannot be written in one file, and the
-second half has to be injected from `map.ini`.
-
-**Why this is cheap.** `ScienceType` **is** a `NameKeyType`, and the check contributes nothing to
-the value: `getScienceFromInternalName` returns the key it computed *before* validating.
-`NameKeyGenerator::nameToKey` interns and mints on a miss, so naming `D` early creates `D`'s key
-and `Science D`'s own block header later resolves to the same integer. A forward reference and a
-backward reference therefore store the identical dword - the permissive build produces exactly the
-value the working case produces, not a degraded one something must repair.
-
-A key that never gets a definition stays benign too. `ScienceStore::playerHasPrereqsForScience`
-evaluates a group by asking whether the player *holds* each key; a key no science defines is one no
-player can hold, so the group is simply unsatisfiable. Nothing resolves a prerequisite key back to
-a `ScienceInfo`.
-
-**Composition.** Order-independent: the cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name,
-no edited byte is shared with another bundled patch, and the only structure read - the stock
-`Science` field-parse table - is one nothing else rewrites. See the composition contract on
-:class:`~..patcher.Patch`. Note that `cah-factions` edits `0x0073BD9E`, `0x0073BDBF` and
-`0x0073BDD1`, inside `getSideIndex` - the function immediately after the prerequisite parser, which
-ends at `0x0073BD9C`. Adjacent compiland, disjoint bytes.
-
-The patch has two parts, the second optional.
-
-* **The permissive lookup** (always). One `rel32`: the `call` at `PREREQ_CALL_VA` is redirected at
-  a cave shim that calls `nameToKey` directly and skips the validation. Sixteen bytes, no frame -
-  `nameToKey` is `__thiscall` with one stack argument and cleans it, so the shim's `ret` lands back
-  at the caller's own `pop ecx`.
-* **The deferred report** (``report_missing``, on by default). The shim additionally asks
-  `ScienceStore::isValidScience` and records the key of every name that did not resolve. A detour
-  at `INIT_DETOUR_VA` - immediately after the `initSubsystem` call that creates and loads
-  `TheScienceStore` - walks that list, re-checks each key, and throws the engine's own exception,
-  with the engine's own message, for the first one still missing.
-
-Why the report has to be deferred rather than moved
----------------------------------------------------
-There is nowhere earlier to put it. `initSubsystem` is passed no INI path
-(`0x0063B1FD` pushes three NULLs); the files are read by the subsystem's own vtable `+8` override,
-which walks the global per-subsystem path lists keyed by the name ``"TheScienceStore"``. Whatever
-files a mod routes there, all of them are read by the time `0x0063B21E` returns, and none of them
-before it is called.
-
-The report is thrown from `GameEngine::init` rather than from inside `INI`'s field loop, which
-costs less than it looks: the four ``"Error parsing field/block … in file '%s', line %i."`` format
-strings at `0x00BD3EBB`, `0x00BD3F00`, `0x00BD3F4C` and `0x00BD3FA5` have **no imm32 reference
-anywhere in the image**, so this build's INI handler never adds file and line to begin with. The
-text a modder sees is the exception's own string, which is byte-identical either way.
-
-Two limits worth stating rather than glossing. A `map.ini` that defines a `Science` block runs long
-after startup and is never re-checked - a strict improvement on today, where it cannot be checked
-at all, but not a complete net. And the name comparison behind `nameToKey` is a `strcmp`, so
-`SCIENCE_D` and `Science_D` are different keys: with ``report_missing`` off, a case-mismatched
-prerequisite becomes a silently dead one where today it is a load error.
+Derivation: `../docs/science-forward-references.md`.
 """
 
 from __future__ import annotations
@@ -72,7 +19,16 @@ from typing import TYPE_CHECKING
 
 from ..asm import JAE, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    call_rel32,
+    find_section,
+    jmp_rel32,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -97,18 +53,18 @@ __all__ = [
 FIELD_TABLE_VA = 0x00BF8788
 #: The OR-group parser `PrerequisiteSciences` alone uses.
 PREREQ_PARSE_VA = 0x0073BCBF
-#: The ``call`` inside it that turns a token into a `ScienceType`. The one byte range part 1 edits.
+#: The `call` inside it that turns a token into a `ScienceType`. The one byte range part 1 edits.
 PREREQ_CALL_VA = 0x0073BD45
 
-#: The shared name-to-science thunk: ``push [esp+4] / mov ecx, [TheScienceStore] / call / ret``.
+#: The shared name-to-science thunk: `push [esp+4] / mov ecx, [TheScienceStore] / call / ret`.
 #: Four callers - both science-vector parsers, the single-science parser and `0x00740483`.
 THUNK_VA = 0x0073A386
 GET_SCIENCE_FROM_INTERNAL_NAME = 0x005FEEC7  # __thiscall(name), ret 4 -> key, or throws
 IS_VALID_SCIENCE = 0x005FED95  # __thiscall(key), ret 4 -> bool
 
-#: The stock table, in table order, as ``(name, ScienceInfo offset)``. Used as a fingerprint: all
+#: The stock table, in table order, as `(name, ScienceInfo offset)`. Used as a fingerprint: all
 #: six names *and* offsets must match, and the `PrerequisiteSciences` entry must still name
-#: :data:`PREREQ_PARSE_VA`, before anything is written.
+#: `PREREQ_PARSE_VA`, before anything is written.
 STOCK_FIELDS = (
     ("PrerequisiteSciences", 0x1C),
     ("SciencePurchasePointCost", 0x28),
@@ -131,21 +87,21 @@ EMPTY_STRING = 0x00BD0C3F
 
 # The deferred report.
 
-#: ``initSubsystem(&TheScienceStore, …)``, and the ``add esp, 0x1c / push 0x24`` pair after it that
+#: `initSubsystem(&TheScienceStore, …)`, and the `add esp, 0x1c / push 0x24` pair after it that
 #: part 2 replaces with its detour. Both instructions are re-emitted in the cave.
 INIT_CALL_VA = 0x0063B21E
 INIT_DETOUR_VA = 0x0063B223
 INIT_RESUME_VA = 0x0063B228
 STOCK_DETOUR_BYTES = b"\x83\xc4\x1c\x6a\x24"
 
-#: `AsciiString`-free exception builder: ``cdecl(Exception *out, int code, const char *fmt, …)``
-#: where `Exception` is ``{char *message; int code;}``. `3` is the code both stock INI throw sites
+#: `AsciiString`-free exception builder: `cdecl(Exception *out, int code, const char *fmt, …)`
+#: where `Exception` is `{char *message; int code;}`. `3` is the code both stock INI throw sites
 #: pass.
 EXCEPTION_FORMAT = 0x0042F3C1
 EXCEPTION_CODE = 3
 CXX_THROW_EXCEPTION = 0x00A3CE04
 THROW_INFO = 0x00D17000
-#: ``"Science name %s not known! (Did you define it in Science.ini?)"`` - the stock message, reused
+#: `"Science name %s not known! (Did you define it in Science.ini?)"` - the stock message, reused
 #: verbatim so a deferred report is indistinguishable from the parse-time one it replaces.
 UNKNOWN_SCIENCE_FORMAT = 0x00BF86AC
 
@@ -160,46 +116,25 @@ _BASE_CHARACTERISTICS = 0x60000060
 _MEM_WRITE = 0x80000000
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
-def _jmp_bytes(from_va: int, to_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", to_va - (from_va + 5))
-
-
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    return None if end < 0 else bytes(data[off : off + end]).decode("latin1")
-
-
 def stock_thunk() -> bytes:
     """The sixteen bytes of the unpatched name-to-science thunk.
 
-    The shim reproduces this thunk's ABI exactly - `cdecl`, the token at ``[esp+4]``, the key in
-    ``eax``, the caller pops - so a build whose thunk is shaped differently must not be patched."""
+    The shim reproduces this thunk's ABI exactly - `cdecl`, the token at `[esp+4]`, the key in
+    `eax`, the caller pops - so a build whose thunk is shaped differently must not be patched."""
     return (
         b"\xff\x74\x24\x04"  # push dword [esp+4]
         + b"\x8b\x0d"
-        + _u32(THE_SCIENCE_STORE)  # mov ecx, [TheScienceStore]
-        + _call_bytes(THUNK_VA + 10, GET_SCIENCE_FROM_INTERNAL_NAME)
+        + u32(THE_SCIENCE_STORE)  # mov ecx, [TheScienceStore]
+        + call_rel32(THUNK_VA + 10, GET_SCIENCE_FROM_INTERNAL_NAME)
         + b"\xc3"  # ret
     )
 
 
 def build_section(base_va: int, report_missing: bool) -> tuple[bytes, dict[str, int]]:
-    """Return ``(section content, {label: VA})`` for a cave based at ``base_va``.
+    """Return `(section content, {label: VA})` for a cave based at `base_va`.
 
     Layout: the pending list (when there is one) first, so the code that follows can address it as
-    a link-time constant, then `science_key`, then - only with ``report_missing`` - `validate` and
+    a link-time constant, then `science_key`, then - only with `report_missing` - `validate` and
     the `after_load` detour body."""
     a = Asm(base_va)
     count_va = pending_va = 0
@@ -218,11 +153,11 @@ def build_section(base_va: int, report_missing: bool) -> tuple[bytes, dict[str, 
     # `ebx`, `esi` and `edi` are live in the caller across this call; every callee here is
     # `__thiscall` and preserves them, and the body itself touches only eax/ecx/edx.
     a.label("science_key")
-    a.emit(b"\x8b\x0d", _u32(THE_NAME_KEY_GENERATOR))  # mov ecx, [TheNameKeyGenerator]
+    a.emit(b"\x8b\x0d", u32(THE_NAME_KEY_GENERATOR))  # mov ecx, [TheNameKeyGenerator]
     a.emit(b"\xff\x74\x24\x04")  # push dword [esp+4]
     a.call_absolute(NAME_TO_KEY)  # call <nameToKey>    ; eax = key, arg popped
     if report_missing:
-        a.emit(b"\x8b\x0d", _u32(THE_SCIENCE_STORE))  # mov ecx, [TheScienceStore]
+        a.emit(b"\x8b\x0d", u32(THE_SCIENCE_STORE))  # mov ecx, [TheScienceStore]
         a.emit(b"\x85\xc9")  # test ecx, ecx
         a.jcc(JE, "key_done")  # je .done            ; no store yet, nothing to ask
         a.emit(0x50)  # push eax            ; save the key across the call
@@ -231,12 +166,12 @@ def build_section(base_va: int, report_missing: bool) -> tuple[bytes, dict[str, 
         a.emit(b"\x84\xc0")  # test al, al
         a.emit(0x58)  # pop eax             ; (does not touch flags)
         a.jcc(JNE, "key_done")  # jne .done           ; already defined
-        a.emit(b"\x8b\x15", _u32(count_va))  # mov edx, [count]
-        a.emit(b"\x81\xfa", _u32(PENDING_CAPACITY))  # cmp edx, PENDING_CAPACITY
+        a.emit(b"\x8b\x15", u32(count_va))  # mov edx, [count]
+        a.emit(b"\x81\xfa", u32(PENDING_CAPACITY))  # cmp edx, PENDING_CAPACITY
         a.jcc(JAE, "key_done")  # jae .done           ; full: drop, the report says so
-        a.emit(b"\x89\x04\x95", _u32(pending_va))  # mov [pending + edx*4], eax
+        a.emit(b"\x89\x04\x95", u32(pending_va))  # mov [pending + edx*4], eax
         a.emit(0x42)  # inc edx
-        a.emit(b"\x89\x15", _u32(count_va))  # mov [count], edx
+        a.emit(b"\x89\x15", u32(count_va))  # mov [count], edx
         a.label("key_done")
     a.emit(0xC3)  # ret
 
@@ -246,10 +181,10 @@ def build_section(base_va: int, report_missing: bool) -> tuple[bytes, dict[str, 
         a.label("validate")
         a.emit(b"\x33\xf6")  # xor esi, esi
         a.label("scan")
-        a.emit(b"\x3b\x35", _u32(count_va))  # cmp esi, [count]
+        a.emit(b"\x3b\x35", u32(count_va))  # cmp esi, [count]
         a.jcc(JAE, "scan_done")  # jae .done
-        a.emit(b"\x8b\x1c\xb5", _u32(pending_va))  # mov ebx, [pending + esi*4]
-        a.emit(b"\x8b\x0d", _u32(THE_SCIENCE_STORE))  # mov ecx, [TheScienceStore]
+        a.emit(b"\x8b\x1c\xb5", u32(pending_va))  # mov ebx, [pending + esi*4]
+        a.emit(b"\x8b\x0d", u32(THE_SCIENCE_STORE))  # mov ecx, [TheScienceStore]
         a.emit(0x53)  # push ebx
         a.call_absolute(IS_VALID_SCIENCE)  # call <isValidScience>
         a.emit(b"\x84\xc0")  # test al, al
@@ -263,7 +198,7 @@ def build_section(base_va: int, report_missing: bool) -> tuple[bytes, dict[str, 
         # reuses its buffer - so the name comes back from the key->node map.
         a.label("missing")
         a.emit(0x53)  # push ebx
-        a.emit(b"\x8b\x0d", _u32(THE_NAME_KEY_GENERATOR))  # mov ecx, [TheNameKeyGenerator]
+        a.emit(b"\x8b\x0d", u32(THE_NAME_KEY_GENERATOR))  # mov ecx, [TheNameKeyGenerator]
         a.call_absolute(KEY_TO_NAME)  # call <keyToName>    ; -> AsciiString*
         a.emit(b"\x8b\x00")  # mov eax, [eax]      ; its buffer
         a.emit(b"\x85\xc0")  # test eax, eax
@@ -271,20 +206,20 @@ def build_section(base_va: int, report_missing: bool) -> tuple[bytes, dict[str, 
         a.emit(b"\x83\xc0\x08")  # add eax, 8          ; -> the chars
         a.jmp("throw")
         a.label("no_name")
-        a.emit(0xB8, _u32(EMPTY_STRING))  # mov eax, <"">
+        a.emit(0xB8, u32(EMPTY_STRING))  # mov eax, <"">
 
         # The stock throw, byte for byte: build `{char *message; int code;}` on the stack from the
         # stock format string, then hand it to the runtime. Does not return.
         a.label("throw")
         a.emit(b"\x83\xec\x08")  # sub esp, 8          ; the exception object
         a.emit(0x50)  # push eax            ; the %s
-        a.emit(0x68, _u32(UNKNOWN_SCIENCE_FORMAT))  # push <format>
+        a.emit(0x68, u32(UNKNOWN_SCIENCE_FORMAT))  # push <format>
         a.emit(0x6A, EXCEPTION_CODE)  # push 3
         a.emit(b"\x8d\x44\x24\x0c")  # lea eax, [esp+0xc]  ; &exception
         a.emit(0x50)  # push eax
         a.call_absolute(EXCEPTION_FORMAT)  # call <format>
         a.emit(b"\x83\xc4\x10")  # add esp, 0x10
-        a.emit(0x68, _u32(THROW_INFO))  # push <throwinfo>
+        a.emit(0x68, u32(THROW_INFO))  # push <throwinfo>
         a.emit(b"\x8d\x44\x24\x04")  # lea eax, [esp+4]    ; &exception
         a.emit(0x50)  # push eax
         a.call_absolute(CXX_THROW_EXCEPTION)  # call <_CxxThrowException>
@@ -312,6 +247,7 @@ class SciencePrereqPatch(Patch):
 
     name = "science-prereqs"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Allow forward references (and so mutual prerequisites) in PrerequisiteSciences, so a "
         "dependent pair no longer has to be closed from map.ini. No INI change; by default a "
@@ -355,9 +291,9 @@ class SciencePrereqPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch with exactly these settings (an empty
+        """Structural check that `data` carries this patch with exactly these settings (an empty
         list == verified). Locates the cave, recomputes the stubs the settings imply, and compares
-        them and every repointed site to what is on disk. Reads only via ``struct`` + the section
+        them and every repointed site to what is on disk. Reads only via `struct` + the section
         table, so verification needs no disassembler."""
         located = find_section(data, SECTION_NAME)
         if located is None:
@@ -449,7 +385,7 @@ class SciencePrereqPatch(Patch):
             name_va, parse, _userdata, field_off = struct.unpack_from(
                 "<4I", entries, index * FIELD_ENTRY_SIZE
             )
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != name:
                 raise ValueError(f"Science field entry {index}: expected {name!r}, found {got!r}")
             if field_off != offset:
@@ -490,7 +426,7 @@ class SciencePrereqPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, labels: dict[str, int]
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)``."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)`."""
         edits: list[tuple[int, bytes, bytes, str]] = []
 
         def at(va: int, old: bytes, new: bytes, note: str) -> None:
@@ -505,14 +441,14 @@ class SciencePrereqPatch(Patch):
             at(
                 THUNK_VA,
                 stock_thunk()[:5],
-                _jmp_bytes(THUNK_VA, labels["science_key"]),
+                jmp_rel32(THUNK_VA, labels["science_key"]),
                 "science-name thunk -> cave",
             )
         else:
             at(
                 PREREQ_CALL_VA,
-                _call_bytes(PREREQ_CALL_VA, THUNK_VA),
-                _call_bytes(PREREQ_CALL_VA, labels["science_key"]),
+                call_rel32(PREREQ_CALL_VA, THUNK_VA),
+                call_rel32(PREREQ_CALL_VA, labels["science_key"]),
                 "PrerequisiteSciences name lookup -> cave",
             )
 
@@ -520,7 +456,7 @@ class SciencePrereqPatch(Patch):
             at(
                 INIT_DETOUR_VA,
                 STOCK_DETOUR_BYTES,
-                _jmp_bytes(INIT_DETOUR_VA, labels["after_load"]),
+                jmp_rel32(INIT_DETOUR_VA, labels["after_load"]),
                 "after the science store loads -> cave",
             )
         return edits
@@ -568,13 +504,13 @@ class SciencePrereqPatch(Patch):
 # benign for the same reason it does in the game - nothing resolves a prerequisite key back to a
 # `ScienceInfo`, and the editor does not evaluate prerequisites at all.
 
-#: The validation early-out inside Worldbuilder's `getScienceFromInternalName`, ``jne`` as a
+#: The validation early-out inside Worldbuilder's `getScienceFromInternalName`, `jne` as a
 #: 2-byte short jump.
 WORLDBUILDER_VALIDATE_JUMP_VA = 0x00B27432
 _WORLDBUILDER_ORIGINAL = bytes.fromhex("7525")
 _WORLDBUILDER_PATCHED = bytes.fromhex("eb25")  # jmp short, same displacement
 
-#: Sites that identify the function beyond the jump's own two bytes, as ``(VA, bytes)``: its
+#: Sites that identify the function beyond the jump's own two bytes, as `(VA, bytes)`: its
 #: prologue, and the push of the very message this patch stops being reachable.
 _WORLDBUILDER_FINGERPRINT = {
     0x00B27400: bytes.fromhex("558bec83ec14"),  # push ebp ; mov ebp, esp ; sub esp, 0x14

@@ -177,3 +177,4 @@ applymypatches.py
 *.backup
 sage_lint/.sagepatch
 game_original.dat
+bfme2_accel.dll

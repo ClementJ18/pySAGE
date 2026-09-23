@@ -69,7 +69,7 @@ def any_mission(request):
     return _require(request.param)
 
 
-# --- CHUNK_Campaign: the persistent-hero carry-over roster ---
+# CHUNK_Campaign: the persistent-hero carry-over roster
 
 
 def test_campaign_active_and_roster(any_campaign):
@@ -115,7 +115,7 @@ def test_mission_save_roster_has_earned_upgrades(any_mission):
     assert heroes["MordorMouthOfSauron"].rank >= 1
 
 
-# --- mission (between-missions) saves: the stub variants ---
+# Mission (between-missions) saves: the stub variants
 
 
 def test_mission_save_chunk_set(any_mission):
@@ -199,7 +199,7 @@ def test_references_merge_shared_hero_names():
     assert black_rider[0].fatal
 
 
-# --- corpus-wide coverage over the full campaign fixture set (both campaigns, all missions) ---
+# Corpus-wide coverage over the full campaign fixture set (both campaigns, all missions)
 
 
 @pytest.mark.parametrize("path", ALL_CAMPAIGN, ids=fixture_id)

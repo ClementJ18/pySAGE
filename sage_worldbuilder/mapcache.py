@@ -8,7 +8,7 @@ which is what this module is for: it derives the block a finished map needs, to 
 mod's `mapcache.ini`.
 
 What the fields mean, and the field table the engine parses them with, is written up in
-``sage_patch/docs/map-list-symbols.md`` §1. Two of them are worth repeating here:
+`sage_patch/docs/map-list-symbols.md` §1. Two of them are worth repeating here:
 
 - **Unknown keywords are fatal.** `mapSymbol` is a field the map-list-symbols engine patch adds;
   a `mapcache.ini` carrying it will not load on an unpatched `game.dat`, so it is left out unless
@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sage_worldbuilder.dressing import playable_size
-from sage_worldbuilder.selection_helpers import TemplateIndex
+from sage_worldbuilder.selection.helpers import TemplateIndex
 from sage_worldbuilder.terrain.grid import WORLD_UNITS_PER_CELL
 
 if TYPE_CHECKING:

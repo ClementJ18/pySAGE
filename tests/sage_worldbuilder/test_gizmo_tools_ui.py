@@ -23,9 +23,9 @@ from sage_map.assets.object_list import Object, ObjectsList  # noqa: E402
 from sage_map.context import AssetPropertyType  # noqa: E402
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
-from sage_worldbuilder.camera import Camera  # noqa: E402
+from sage_worldbuilder.camera.projection import CameraProjection  # noqa: E402
+from sage_worldbuilder.camera.view import Camera  # noqa: E402
 from sage_worldbuilder.gizmos import GIZMO_PIXELS, Axis, reach  # noqa: E402
-from sage_worldbuilder.projection import CameraProjection  # noqa: E402
 from sage_worldbuilder.settings import Settings  # noqa: E402
 from sage_worldbuilder.terrain.grid import TerrainGrid  # noqa: E402
 from sage_worldbuilder.terrain.surface import ground_height  # noqa: E402

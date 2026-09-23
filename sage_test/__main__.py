@@ -20,8 +20,8 @@ import shutil
 import sys
 from pathlib import Path
 
-from sage_test.maps import load_map_cache
-from sage_test.runner import install_map_folder, user_files_dir
+from sage_live.launch.maps import load_map_cache
+from sage_live.launch.runner import install_map_folder, user_files_dir
 from sage_utils.cli import existing_dir, utf8_stdout
 
 

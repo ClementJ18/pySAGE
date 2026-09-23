@@ -1,28 +1,16 @@
-"""Give spellbook powers a keyboard shortcut, under Ctrl, with no selection required.
+"""Give spellbook powers a keyboard shortcut under Ctrl, with no selection required.
 
-Original RotWK game.dat 2.01.2614.37001; see ``../../docs/spellbook-hotkeys.md``.
+A button's shortcut is the character after `&` in its label, and the engine only registers it while
+the button sits in a control-bar window; the spellbook is an APT movie, so its buttons never get
+one. Two edits: Ctrl-alone key presses pass the translator's modifier gate, marked, and
+`HotKeyManager::executeHotKey` matches a marked key against the local player's spellbook buttons and
+hands the match to `ControlBar::doCommand`. Buttons whose label has no `&` get no shortcut. Static
+analysis only.
 
-A command button's shortcut is the character after the `&` in its localized ``TextLabel``, and
-the engine registers one only while that button occupies a control-bar window - so a shortcut
-works exactly as long as the unit owning it stays selected. The spellbook bar is an APT movie
-rather than a window grid, so its buttons never get one at all.
-
-Two edits. The first lets a key press held with Ctrl alone through the translator's modifier
-gate, which stock discards, marking it so nothing else mistakes it for an unmodified press. The
-second gives ``HotKeyManager::executeHotKey`` a branch for that mark: resolve the local player's
-spellbook CommandSet, read each button's own `&` character, and on a match hand the button to
-``ControlBar::doCommand`` exactly as a click on the bar does.
-
-Which powers get a shortcut, and how many, is therefore whatever the strings already say: a
-button whose label carries no `&` is never matched, and each faction's spellbook carries its own
-buttons. Nothing is bound by slot, and no INI keyword is added.
-
-Static analysis only - no part of this has been confirmed in a running game.
+Derivation: `../../docs/spellbook-hotkeys.md`.
 """
 
 from __future__ import annotations
-
-import struct
 
 from ...addresses import (
     AMPERSAND_SCAN,
@@ -61,7 +49,7 @@ from ...addresses import (
 )
 from ...asm import JA, JB, JE, JGE, JNE, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import allocate_section, apply_byte_patch, find_section, jmp_rel32, u32, va_to_offset
 
 __all__ = [
     "ALT_MASK",
@@ -125,10 +113,6 @@ ANCHORS = {
 }
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def _fold_to_lower(a: Asm, done: str) -> None:
     """AL, case-folded in place. The hotkey the `&` scan yields carries whatever case the string
     table used; the key name the translator built carries whatever the keyboard map used, so one
@@ -144,7 +128,7 @@ def _fold_to_lower(a: Asm, done: str) -> None:
 def _emit_gate(a: Asm) -> None:
     """The translator's modifier gate, with Ctrl alone routed on instead of discarded.
 
-    Replaces the thirteen bytes at :data:`HOT_KEY_TRANSLATOR_MODIFIER_GATE`. `esi` is the
+    Replaces the thirteen bytes at `HOT_KEY_TRANSLATOR_MODIFIER_GATE`. `esi` is the
     modifier mask, `ebx` is zero and `[ebp-0x10]` the flag, all exactly as stock left them.
     """
     a.label("gate")
@@ -152,9 +136,9 @@ def _emit_gate(a: Asm) -> None:
     a.jcc(JE, "gate_proceed")  # unmodified: stock's own answer
     a.emit(0x38, 0x5D, HOT_KEY_TRANSLATOR_FLAG_EBP & 0xFF)  # cmp byte [ebp-0x10], bl
     a.jcc(JNE, "gate_proceed")  # shift-only: stock's own answer, flag already set
-    a.emit(0xF7, 0xC6, _u32(ALT_MASK))  # test esi, 0x40
+    a.emit(0xF7, 0xC6, u32(ALT_MASK))  # test esi, 0x40
     a.jcc(JNE, "gate_reject")  # Alt in any combination stays stock's answer
-    a.emit(0xF7, 0xC6, _u32(CTRL_MASK))  # test esi, 4
+    a.emit(0xF7, 0xC6, u32(CTRL_MASK))  # test esi, 4
     a.jcc(JE, "gate_reject")
     a.emit(0xC6, 0x45, HOT_KEY_TRANSLATOR_FLAG_EBP & 0xFF, MARK)  # mov byte [ebp-0x10], 2
     a.jmp("gate_proceed")
@@ -197,7 +181,7 @@ def _emit_dispatch(a: Asm) -> None:
     a.emit(0x89, 0x44, 0x24, 0x08)  # mov [esp+8], eax
 
     # The spellbook bar's own chain: local player, its spellbook Object, that Object's CommandSet.
-    a.emit(0x8B, 0x0D, _u32(THE_PLAYER_LIST))
+    a.emit(0x8B, 0x0D, u32(THE_PLAYER_LIST))
     a.call_absolute(PLAYER_LIST_GET_LOCAL_PLAYER)
     a.emit(0x85, 0xC0)
     a.jcc(JE, "miss")
@@ -207,7 +191,7 @@ def _emit_dispatch(a: Asm) -> None:
     a.jcc(JE, "miss")
     a.emit(0x8B, 0xC8)
     a.call_absolute(OBJECT_GET_COMMAND_SET_STRING)
-    a.emit(0x8B, 0x0D, _u32(THE_COMMAND_SET_STORE))
+    a.emit(0x8B, 0x0D, u32(THE_COMMAND_SET_STORE))
     a.emit(0x50)  # push eax
     a.call_absolute(COMMAND_SET_STORE_FIND_COMMAND_SET)
     a.emit(0x85, 0xC0)
@@ -228,7 +212,7 @@ def _emit_dispatch(a: Asm) -> None:
     a.call_absolute(COMMAND_BUTTON_GET_TEXT_LABEL)
     a.emit(0x85, 0xC0)
     a.jcc(JE, "step")
-    a.emit(0x8B, 0x0D, _u32(THE_HOT_KEY_MANAGER))
+    a.emit(0x8B, 0x0D, u32(THE_HOT_KEY_MANAGER))
     a.emit(0x50)  # push eax -- the label
     a.emit(0x8D, 0x44, 0x24, 0x04)  # lea eax, [esp+4] -- the out slot, one push down
     a.emit(0x50)
@@ -260,18 +244,18 @@ def _emit_dispatch(a: Asm) -> None:
     a.emit(0x6A, 0x00)
     a.emit(0x6A, 0x00)
     a.emit(0x50)  # push eax -- the button
-    a.emit(0x8B, 0x0D, _u32(THE_COMMAND_SET_STORE))
+    a.emit(0x8B, 0x0D, u32(THE_COMMAND_SET_STORE))
     a.call_absolute(CONTROL_BAR_GET_COMMAND_AVAILABILITY)
     a.emit(0x48)  # dec eax
     a.emit(0x83, 0xF8, CONTROL_BAR_AVAILABILITY_OK_HIGH - CONTROL_BAR_AVAILABILITY_OK_LOW)
     a.jcc(JA, "step")  # greyed, hidden or spent: the same nothing a click on it would do
     a.emit(0x8B, 0x44, 0x24, 0x04)  # mov eax, [esp+4] -- the button again
-    a.emit(0x8B, 0x0D, _u32(THE_APT_PLAYER))
-    a.emit(0x83, 0xB9, _u32(APT_PLAYER_MODE), 0x02)  # cmp dword [ecx+0x318], 2
+    a.emit(0x8B, 0x0D, u32(THE_APT_PLAYER))
+    a.emit(0x83, 0xB9, u32(APT_PLAYER_MODE), 0x02)  # cmp dword [ecx+0x318], 2
     a.emit(0x6A, 0x00)  # push 0
     a.emit(0x0F, 0x95, 0xC1)  # setne cl
     a.emit(0x51)  # push ecx -- read as a byte, exactly as the APT bar leaves it
-    a.emit(0x8B, 0x0D, _u32(THE_COMMAND_SET_STORE))
+    a.emit(0x8B, 0x0D, u32(THE_COMMAND_SET_STORE))
     a.emit(0x50)  # push eax
     a.call_absolute(CONTROL_BAR_DO_COMMAND)
     a.emit(0x83, 0xC4, 0x10)  # add esp, 0x10
@@ -310,11 +294,6 @@ def cave_entries(base_va: int) -> tuple[int, int]:
     """The gate's and the dispatch's virtual addresses, read off the layout that was emitted."""
     a = _assemble(base_va)
     return a.label_va("gate"), a.label_va("dispatch")
-
-
-def _detour(target_va: int, site_va: int, width: int) -> bytes:
-    jump = b"\xe9" + struct.pack("<i", target_va - (site_va + 5))
-    return jump + b"\x90" * (width - 5)
 
 
 #: The two windows this patch rewrites, each with the stock bytes it expects to find there.
@@ -357,7 +336,7 @@ class SpellbookHotkeysPatch(Patch):
             off = va_to_offset(data, va)
             assert off is not None  # checked before allocation
             stock = SITES[va]
-            apply_byte_patch(data, off, stock, _detour(target, va, len(stock)), site)
+            apply_byte_patch(data, off, stock, jmp_rel32(va, target, len(stock)), site)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         located = find_section(data, SECTION_NAME)
@@ -367,7 +346,7 @@ class SpellbookHotkeysPatch(Patch):
         expected = build_cave(section_va)
         gate_va, dispatch_va = cave_entries(section_va)
         patched = {
-            va: _detour(target, va, len(SITES[va]))
+            va: jmp_rel32(va, target, len(SITES[va]))
             for va, target in (
                 (HOT_KEY_TRANSLATOR_MODIFIER_GATE, gate_va),
                 (HOT_KEY_EXECUTE_HOOK, dispatch_va),

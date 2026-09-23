@@ -313,11 +313,11 @@ identically for every owner, and reuses primitives the engine already exposes.
 | CommandSet lookup | `0x0071EFA2` | name → `CommandSet *` |
 | `getCommandButton(i)` | `0x0080C837` | `m_command[33]` at `+0x14`, **no bound check** — see [`commandset-button-limit.md`](commandset-button-limit.md) |
 | button's target template | `CommandButton+0x20` (`Object`) | `+0x14` is `Command` |
-| the affordability / prereq gate | `TheBuildAssistant` vtable `+0x64` = `0x00793ECB` | already named `CAN_MAKE_UNIT_PRODUCTION_GATE` in [`addresses.py`](../addresses.py) |
+| the affordability / prereq gate | `TheBuildAssistant` vtable `+0x64` = `0x00793ECB` | already named `CAN_MAKE_UNIT_PRODUCTION_GATE` in [`sage_patch.addresses`](../addresses/ai.py) |
 | **the build primitive** | `TheBuildAssistant` (`0x00DE8200`) vtable `+0x38` = **`0x00797796`** | `buildObjectNow(builder, template, pos, angle, player)` |
 
 The vtable base is `0x00C307D8`, confirmed rather than assumed: slot `+0x64` is `0x00793ECB` and
-slot `+0x68` is `0x00794F38`, both already named in `addresses.py`.
+slot `+0x68` is `0x00794F38`, both already named in `sage_patch.addresses`.
 
 `buildObjectNow` matters because **it already knows about plots**. At `0x0079784F` it branches on
 the builder's `BASE_FOUNDATION` (index 104) and, when set, fetches the plot's foundation interface

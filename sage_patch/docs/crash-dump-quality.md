@@ -257,7 +257,7 @@ locks, a static state word for the `MemoryCallback` cursor.
 
 **Open RE item, and the one thing blocking the best version of this:** the callback wants the SAGE
 allocator's arena list — `TheMemoryPoolFactory` / `TheDynamicMemoryAllocator` — and neither is in
-[`addresses.py`](../addresses.py) yet. Without it, the fallback is to enumerate the four known
+[`sage_patch.addresses`](../addresses/__init__.py) yet. Without it, the fallback is to enumerate the four known
 singleton pointers (`TheGameLogic` `0x00DE412C`, `ThePlayerList` `0x00DE4928`,
 `TheWritableGlobalData` `0x00DE4364`, `TheScienceStore` `0x00DE3B20`), `VirtualQuery` each, and
 hand back the containing region — which already turns four dead pointers into four live objects and

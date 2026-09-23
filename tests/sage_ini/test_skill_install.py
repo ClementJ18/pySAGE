@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from sage_ini.__main__ import main
-from sage_ini.skill_install import SKILL_NAME, install_skill
+from sage_ini.agent.skill import SKILL_NAME, install_skill
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGED = REPO_ROOT / "sage_ini" / "skill_assets" / SKILL_NAME / "SKILL.md"

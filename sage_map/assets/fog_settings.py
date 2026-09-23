@@ -17,7 +17,7 @@ class FogSettings:
     @classmethod
     def parse(cls, context: "ParsingContext"):
         with context.read_asset() as asset_ctx:
-            unknown = context.stream.readUInt32()
+            unknown = context.stream.read_uint32()
 
         return cls(
             version=asset_ctx.version,
@@ -28,4 +28,4 @@ class FogSettings:
 
     def write(self, context: "WritingContext"):
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(self.unknown)
+            context.stream.write_uint32(self.unknown)

@@ -14,6 +14,11 @@ from dataclasses import dataclass
 
 from sage_map.scripts import Scope
 
+__all__ = [
+    "OBJECT_PROPERTY_SPECS",
+    "PropertySpec",
+]
+
 
 @dataclass(frozen=True)
 class PropertySpec:

@@ -247,6 +247,66 @@ correctness argument attached, and the reason it exists is that an agent whose m
 watching has to point the camera at what it is doing. See
 [`camera-control.md`](../sage_patch/docs/camera-control.md).
 
+### Verified orders
+
+A malformed order is accepted by `appendMessage`, recorded in the replay, and then discarded by
+logic with no charge and no diagnostic. Matching the corpus's argument shapes is therefore
+necessary but not sufficient, and each constructor in `sage_live.api.orders` counts as working
+only once it has made the engine *do* something. All of these were measured on RotWK 2.01 + Edain.
+
+| constructor | verified by |
+|---|---|
+| `select` | the replay records the order; the selection then obeyed a move |
+| `move` | the unit walked to the commanded point |
+| `stop` | the unit halted mid-path |
+| `deselect` | a following `move` did nothing |
+| `attack_object` | the unit advanced 380 units, closing on the target |
+| `attack_move` | two battalions closed on the target steadily for eight seconds |
+| `recruit` | gold charged, unit appeared |
+| `recruit_hero` | gold charged, the named roster entry's hero appeared (two factions) |
+| `build_at` | gold charged, structure built on a castle plot |
+| `research` | gold charged, upgrade applied |
+| `castle_unpack` | a lumber mill on a claimed settlement; a Gondor castle on a claimed castle |
+| `unpack` | gold fell 200 and a `GondorFarm_Extern` rose on a claimed settlement |
+| `purchase_power` | a spellbook point was spent and the power appeared |
+| `cast_self` | a targetless grant raised the player's spellbook points |
+| `cast_at_location` | a summon, a nuke, Rebuild, and three spellbook summons (see below) |
+| `cast_at_object` | Faramir's Wound Arrow fired on a lair and went to cooldown |
+| `set_stance` | the hero visibly changed stance |
+
+`toggle_formation`, `sell` and `start_self_repair` are not verified yet. For `toggle_formation`,
+the oracle is the `ALTERNATE_FORMATION` model condition on the battalion's members.
+
+Lessons from getting there:
+
+- **Every wrong constructor failed by doing nothing.** Seven of the first thirteen were wrong.
+  Corpus shape agreement caught four; only running the game caught the rest.
+- **Recording a human is the cheapest oracle.** A match played by hand shows what the interface
+  itself sends. That is how `unpack`'s shape was settled: four `0x43F` orders, each a single
+  `Integer` naming the created template.
+- **When a whole family of shapes fails identically, suspect a precondition.** Four argument
+  shapes for `castle_unpack` all failed against an *unclaimed* plot. The order was right; the
+  plot has to be owned first.
+- **A spellbook cast is cast by the spellbook.** Powers whose module is an `OCLSpecialPower`
+  (Eagles, Army of the Dead, the Lone Tower) do nothing with `source_id=0` and work when it names
+  the player's spellbook object, which is what the corpus records (0, 550, 551, 552). Other powers
+  work either way, so always pass the spellbook. Varying `options` made no difference.
+- **`cast_at_object` is the opposite.** Its fourth argument must stay 0: naming the caster there
+  stops the order working, because the engine takes the caster from the selection.
+- **Pick the cast form from the power's definition.** A power sent through the wrong cast
+  constructor is silently discarded. Gondor's Rebuild targets a building but carries a radius
+  cursor, so it is `cast_at_location`, not `cast_at_object`.
+
+Two things the constructors deliberately do not do:
+
+- **Check legitimacy.** An order reaches the engine the same way a click does, so an agent can
+  send orders the interface would never offer. The authority is the selected object's
+  `CommandSet` (read through `sage_live.utils.statics`); the check belongs in the policy, which
+  can tell an agent from a scripted convenience a human asked for.
+- **Choose who acts.** The `player` argument fills `Order.player_index`, which the bridge does not
+  transmit; the engine attributes an injected order to the local player. It matters when an
+  order is written to a replay, and for `purchase_power`, whose first argument the engine reads.
+
 ## 7. Frame model: async now, stepped later, decided now
 
 | mode | game waits for the agent? | needs | for |

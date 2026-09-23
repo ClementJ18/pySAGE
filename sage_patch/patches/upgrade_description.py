@@ -1,63 +1,11 @@
-"""The upgrade-description patch: keep a researched upgrade's description under its status line.
+"""Keep a researched upgrade's description in its tooltip, with the "already researched" message
+added under it rather than replacing it.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below comes from
-:mod:`sage_patch.addresses` and is derived in ``../docs/upgrade-description.md``.
+Nine bytes where the builder assigns the status message become a `jmp` to a cave that appends it
+instead, using the engine's own separator. The same applies to the conflicting-upgrade and
+missing-prerequisite messages. No new string key.
 
-**What the engine does today.** Hover a `CommandButton` whose `Upgrade` the player already holds
-and the tooltip's description is not the upgrade's - it is *"this upgrade has already been
-researched"*, and the description that was there a moment ago is gone. So the one moment a player
-most wants to re-read what an upgrade did - after buying it - is the one moment the game refuses to
-say. The same is true of the two sibling messages: *a conflicting upgrade* and *a prerequisite you
-do not have* replace the description rather than annotating it.
-
-**Why the text vanishes rather than moving aside.** The ControlBar's description builder keeps the
-description it is assembling in one `UnicodeString` at `ebp-0x18`
-(:data:`~..addresses.DESCRIPTION_TEXT_EBP_OFFSET`) and fills it from the button's `DescriptLabel`
-early, at `0x00807DCF`. The already-upgraded case runs much later, at
-:data:`~..addresses.DESCRIPTION_PURCHASED_RUN`: it fetches the button's own `PurchasedLabel`
-(`CommandButton+0x70`), falls back to `TOOLTIP:AlreadyUpgradedDefault` when that field is empty,
-and hands the result to the **wrong one of two adjacent engine methods** -
-:data:`~..addresses.UNICODE_STRING_ASSIGN` (`operator=`, which releases the buffer it is holding)
-where every other status line in the same function uses
-:data:`~..addresses.UNICODE_STRING_APPEND` (`concat`). Nothing else about the case discards
-anything::
-
-    00808371  8d 4d e8        lea  ecx, [ebp-0x18]     ; the description
-    00808374  50              push eax                 ; the fetched message
-    00808375  e8 16e7c2ff     call 0x00436a90          ; operator= - the whole of the loss
-
-**What this patch does.** Replaces those nine bytes with a `jmp` into a cave that concatenates
-instead of assigning, with the engine's own separator in between, and returns to the destructor
-that followed. The description survives and the message lands under it. **Runtime-verified in
-game.**
-
-**The separator is guarded, and the guard is the engine's own.** Two sites in this same function -
-the `CONTROLBAR:Requirements` fold at `0x008080AE` and the `TOOLTIP:BuildDisabled` one at
-`0x008080FB` - append a status line to the description behind exactly this test: is the
-description's buffer pointer non-null *and* is its length word non-zero. The cave reproduces it
-rather than inventing one, which is what makes a button carrying **no** `DescriptLabel` come out
-byte-identical to a stock build instead of gaining a leading blank line.
-
-**Scope.** The already-upgraded message only, by default. ``--also-blocked`` extends the same
-treatment to the conflicting / lacks-prerequisite pair at
-:data:`~..addresses.DESCRIPTION_BLOCKED_RUN`, which is the identical nine-byte shape one field
-along; the two share the cave and differ only in where they resume.
-
-**What is deliberately not touched.** The case still `jmp`s to the function's exit at `0x008086A8`
-when the upgrade is held, so a researched upgrade's tooltip still shows no cost line and no
-requirements block. That is correct - there is nothing left to buy - and widening it would be a
-different patch with a much larger blast radius.
-
-> **Client-local and cosmetic.** This runs inside the ControlBar's tooltip builder. Nothing enters
-> the simulation, nothing is sent, no INI keyword changes and no `.csf` or `.apt` edit is needed -
-> the strings it joins are the ones the engine already fetched. A patched and an unpatched client
-> can play each other and replays cross, the same rule as `replay-outcome` and `observer-switch`.
-
-**Composition.** Order-independent. The cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name;
-the nine (or eighteen) bytes it rewrites are touched by no other bundled patch; and it reads
-nothing another patch rewrites. `hero-mana` also edits this function, at `0x00808675` and
-`0x008085C4` - both past the sites here, and disjoint from them.
+Derivation: `../docs/upgrade-description.md`.
 """
 
 from __future__ import annotations
@@ -90,7 +38,16 @@ from ..addresses import (
 )
 from ..asm import JE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    find_section,
+    i8,
+    jmp_rel32,
+    read_bytes,
+    u32,
+    va_to_offset,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -108,7 +65,7 @@ _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000
 class Site:
     """One `operator=` window this patch turns into a `concat`.
 
-    ``run``/``run_bytes`` is the whole engine case the window sits inside, kept so the check can
+    `run`/`run_bytes` is the whole engine case the window sits inside, kept so the check can
     establish *which* case it is - the nine edited bytes are the same at both sites bar one
     `rel32`, and are not on their own evidence of anything.
     """
@@ -128,7 +85,7 @@ class Site:
         self.assign = assign
         self.assign_bytes = assign_bytes
         self.resume = resume
-        #: Where the edited window starts inside ``run_bytes``, derived rather than written down.
+        #: Where the edited window starts inside `run_bytes`, derived rather than written down.
         self.offset = assign - run
         if run_bytes[self.offset : self.offset + len(assign_bytes)] != assign_bytes:
             raise ValueError(f"{label}: the assign window is not where the run says it is")
@@ -167,19 +124,10 @@ ANCHORS: dict[int, bytes] = {
     WIDE_BLANK_LINE: WIDE_BLANK_LINE_BYTES,
 }
 
-#: The separator, by ``--separator`` token. `L"\n"` puts the message on the next line, `L"\n\n"`
+#: The separator, by `--separator` token. `L"\n"` puts the message on the next line, `L"\n\n"`
 #: leaves a blank line between. Both are literals the builder already uses elsewhere, so neither
 #: needs a byte of new data.
 SEPARATORS: dict[str, int] = {"newline": WIDE_NEWLINE, "blank-line": WIDE_BLANK_LINE}
-
-
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _i8(value: int) -> int:
-    """A signed byte displacement as the unsigned byte that encodes it."""
-    return value & 0xFF
 
 
 # Everything below is hand-encoded (the house style: only address arithmetic is automated, by
@@ -203,7 +151,7 @@ def _emit(a: Asm, separator_va: int, sites: list[Site]) -> None:
     # already the stack argument the concat below wants. `concat`'s `ret 4` is what removes it,
     # so the routine is stack-neutral without a frame of its own.
     a.emit(0x50)  # push eax
-    a.emit(0x8B, 0x45, _i8(DESCRIPTION_TEXT_EBP_OFFSET))  # mov eax, [ebp-0x18]
+    a.emit(0x8B, 0x45, i8(DESCRIPTION_TEXT_EBP_OFFSET))  # mov eax, [ebp-0x18]
 
     # The engine's own "is there anything to separate from" test, from the two folds at
     # `0x008080AE` and `0x008080FB`: a null buffer pointer, or a zero length word inside it.
@@ -213,12 +161,12 @@ def _emit(a: Asm, separator_va: int, sites: list[Site]) -> None:
     a.jcc(JE, "ap_message")
     a.emit(0x66, 0x83, 0x78, 0x04, 0x00)  # cmp word ptr [eax+4], 0
     a.jcc(JE, "ap_message")
-    a.emit(0x68, _u32(separator_va))  # push <L"\n">
-    a.emit(0x8D, 0x4D, _i8(DESCRIPTION_TEXT_EBP_OFFSET))  # lea ecx, [ebp-0x18]
+    a.emit(0x68, u32(separator_va))  # push <L"\n">
+    a.emit(0x8D, 0x4D, i8(DESCRIPTION_TEXT_EBP_OFFSET))  # lea ecx, [ebp-0x18]
     a.call_absolute(UNICODE_STRING_CONCAT_WIDE)  # thiscall, ret 4
 
     a.label("ap_message")
-    a.emit(0x8D, 0x4D, _i8(DESCRIPTION_TEXT_EBP_OFFSET))  # lea ecx, [ebp-0x18]
+    a.emit(0x8D, 0x4D, i8(DESCRIPTION_TEXT_EBP_OFFSET))  # lea ecx, [ebp-0x18]
     a.call_absolute(UNICODE_STRING_APPEND)  # thiscall, ret 4 - drops the pushed message
     a.emit(0xC3)  # ret
 
@@ -228,6 +176,7 @@ class UpgradeDescriptionPatch(Patch):
 
     name = "upgrade-description"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Keep a CommandButton's DescriptLabel visible once its upgrade is researched, with "
         "PurchasedLabel / TOOLTIP:AlreadyUpgradedDefault appended under it rather than over it. "
@@ -273,7 +222,7 @@ class UpgradeDescriptionPatch(Patch):
         for site in self.sites:
             self._check_run(data, site)
         for va, expected in ANCHORS.items():
-            got = _at(data, va, len(expected))
+            got = read_bytes(data, va, len(expected))
             if got != expected:
                 raise ValueError(
                     f"{va:#010x} holds {got.hex()}, expected {expected.hex()} - the UnicodeString "
@@ -282,10 +231,10 @@ class UpgradeDescriptionPatch(Patch):
 
     @staticmethod
     def _check_run(data: bytes | bytearray, site: Site, skip_window: bool = False) -> None:
-        """Raise unless ``site``'s whole engine case is intact.
+        """Raise unless `site`'s whole engine case is intact.
 
-        ``skip_window`` leaves out the nine bytes the patch rewrites, which is what lets
-        :meth:`verify` reuse this on an already-patched file: everything around the window is
+        `skip_window` leaves out the nine bytes the patch rewrites, which is what lets
+        `verify` reuse this on an already-patched file: everything around the window is
         untouched by the patch, so one check serves both directions.
         """
         end = site.offset + len(site.assign_bytes)
@@ -293,7 +242,7 @@ class UpgradeDescriptionPatch(Patch):
         if not skip_window:
             spans.append((site.offset, site.assign_bytes))
         for at, expected in spans:
-            got = _at(data, site.run + at, len(expected))
+            got = read_bytes(data, site.run + at, len(expected))
             if got != expected:
                 raise ValueError(
                     f"{site.run + at:#010x} is {got.hex()}, expected {expected.hex()} - this is "
@@ -309,15 +258,15 @@ class UpgradeDescriptionPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, section_va: int
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """``(file offset, original bytes, patched bytes, note)`` for every engine byte this patch
-        rewrites - one list, so :meth:`apply` writes exactly what :meth:`verify` asserts."""
+        """`(file offset, original bytes, patched bytes, note)` for every engine byte this patch
+        rewrites - one list, so `apply` writes exactly what `verify` asserts."""
         assembled = self._assemble(section_va)
         edits = []
         for site in self.sites:
             off = va_to_offset(data, site.assign)
             if off is None:
                 raise ValueError(f"{site.assign:#010x} is not mapped - not the expected build")
-            patched = _jmp(site.assign, assembled.label_va(site.label))
+            patched = jmp_rel32(site.assign, assembled.label_va(site.label))
             patched += b"\x90" * (len(site.assign_bytes) - len(patched))
             edits.append(
                 (off, site.assign_bytes, patched, f"description {site.label!r}: assign -> append")
@@ -354,7 +303,7 @@ class UpgradeDescriptionPatch(Patch):
             except ValueError as exc:
                 problems.append(str(exc))
         for va, expected in ANCHORS.items():
-            got = _at(data, va, len(expected))
+            got = read_bytes(data, va, len(expected))
             if got != expected:
                 problems.append(f"{va:#010x} holds {got.hex()}, expected {expected.hex()}")
         return problems
@@ -363,7 +312,7 @@ class UpgradeDescriptionPatch(Patch):
     def detect(cls, data: bytes | bytearray) -> UpgradeDescriptionPatch | None:
         """Recover the configuration from the image.
 
-        Both parameters are readable off the file: ``also_blocked`` from whether the second window
+        Both parameters are readable off the file: `also_blocked` from whether the second window
         is still a `call`, and the separator from the `push imm32` the cave holds. Probing every
         combination and keeping the one that verifies is four `verify` runs and needs no second
         description of the cave's layout.
@@ -402,14 +351,3 @@ class UpgradeDescriptionPatch(Patch):
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> UpgradeDescriptionPatch:
         return cls(separator=args.separator, also_blocked=args.also_blocked)
-
-
-def _at(data: bytes | bytearray, va: int, count: int) -> bytes:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"{va:#010x} is not mapped - not the expected build")
-    return bytes(data[off : off + count])
-
-
-def _jmp(at_va: int, target_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", target_va - (at_va + 5))

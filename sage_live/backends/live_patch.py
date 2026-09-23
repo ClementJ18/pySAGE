@@ -35,11 +35,14 @@ __all__ = [
     "ProcessGone",
     "WindowsProcess",
     "allocation_base",
+    "branch_target",
     "call_bytes",
     "call_target",
+    "jump_bytes",
 ]
 
 _CALL = 0xE8
+_JMP = 0xE9
 
 
 class LivePatchError(RuntimeError):
@@ -86,9 +89,22 @@ def call_bytes(site: int, target: int) -> bytes:
     return bytes([_CALL]) + struct.pack("<i", _rel32(target - (site + 5)))
 
 
+def jump_bytes(site: int, target: int) -> bytes:
+    """A 5-byte `jmp rel32` at `site` reaching `target`."""
+    return bytes([_JMP]) + struct.pack("<i", _rel32(target - (site + 5)))
+
+
 def call_target(site: int, code: bytes) -> int | None:
     """Where the `call rel32` in `code` (read from `site`) goes, or None if it is not one."""
     if len(code) != 5 or code[0] != _CALL:
+        return None
+    return branch_target(site, code)
+
+
+def branch_target(site: int, code: bytes) -> int | None:
+    """Where the `call rel32` or `jmp rel32` in `code` (read from `site`) goes, or None if it is
+    neither."""
+    if len(code) != 5 or code[0] not in (_CALL, _JMP):
         return None
     (rel,) = struct.unpack("<i", code[1:])
     return (site + 5 + rel) & 0xFFFFFFFF

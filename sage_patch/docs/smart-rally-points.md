@@ -495,3 +495,18 @@ target walks is still open.
   and it is what the dead slaughterhouse path uses - but what it does on arriving at something it
   cannot enter is unknown. State `0x1A` takes a lone `Object *` in the same slot and is reached
   from the `MSG_GET_REPAIRED` case body, so it is another chase-an-object candidate.
+
+## Implementation notes
+
+From the `smart_rally.py` module docstring.
+
+`--guard` issues `aiGuardObject` instead, meaning to have the units follow and defend. **It has not
+worked in play yet.** Observed twice: the unit walks to the spawn-time position and then moves off
+to an unrelated one.
+
+Reading `AIUpdate::privateGuardObject` (`0x00664B19`) says why that is probably not guard
+misbehaving but guard being **refused**: it opens with three gates and returns `-1` on any of them
+*having touched nothing*. A unit whose guard order is dropped still carries the door-exit order from
+`0x008A3D1D`, which was handed the stored rally point - "walks to the spawn-time position" - and
+then has nothing, so it idles - "and then somewhere else". It also explains why the move form is
+unaffected: it never goes through that function.

@@ -1,92 +1,12 @@
-"""The hero-mana patch: give special powers a spendable, regenerating per-object cost.
+"""Give special powers a regenerating per-object mana cost: `SpecialPower` `ManaCost`, and `Object`
+`ManaPool`/`ManaRegen`.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below comes
-from :mod:`sage_patch.addresses` and is derived in ``../docs/hero-mana.md``.
+`ThingTemplate` has no room, so `ManaPool`/`ManaRegen` parse into a cave table keyed by template
+(carried across INI override copies). The pool itself is a cave table keyed by object id and is
+computed on read from the frame counter, so it needs no init, destroy or savegame hook. `ManaCost =
+0` is stock. Logic state: every peer needs the same binary.
 
-**Why the engine cannot already do this.** `SpecialPower` has a `UnitCost` field, and on a hero
-it is not a weak mechanic - it is a **no-op**. All three sites that read it (the ControlBar's
-availability test, the shared can-do gate, and the routine that kills the members) share one
-shape: read the cost, and if it is non-zero ask ``Object+0x258`` for the horde interface. When
-that interface is absent - which is every lone hero - they branch to *the same label as
-"cost is zero"*. So ``UnitCost = 5`` on a hero costs nothing at all::
-
-    00943440  cmp  dword ptr [eax+0x80], 0     ; unitCost == 0 ?
-    00943447  je   0x943486                    ;   yes -> skip the check
-    00943449  mov  ecx, dword ptr [ebx+0x258]  ; obj->m_contain
-    00943460  je   0x943486                    ; no horde -> SKIP, same label
-
-**What this does.** Three new `Int` fields, on the two blocks the quantities actually belong to:
-
-=========================  ==================================================================
-`SpecialPower.ManaCost`    what **one activation** costs, in whole points. **0 (the default)
-                           leaves the power exactly as it is today**, so an unmodified mod is
-                           unaffected.
-`Object.ManaPool`          the **caster's** maximum, in whole points. 0 = the patch default.
-`Object.ManaRegen`         the caster's refill, in **hundredths of a point per logic frame** -
-                           30 is one point per second at 30fps. 0 = the patch default.
-=========================  ==================================================================
-
-A hero has one pool and many abilities, so the pool and the regen are per *object* and only the
-cost is per *power*. Putting all three on `SpecialPower` instead would make the cap depend on
-which ability happened to be evaluated, and let two of a hero's powers disagree about it.
-
-They are enforced in three places: the affordability predicate every caller *including the AI*
-goes through, the three activation entry points, and the ControlBar so the button greys out.
-
-**Where the caster's numbers live.** `ThingTemplate` is `0x650` bytes with no safe hole - the one
-apparent gap, ``+0x5E8``, is written as a word by the constructor at ``0x73FF8D``, so it is a live
-non-INI member - and it is allocated 11,143 times. Rather than grow it, `ManaPool`/`ManaRegen`
-parse into a **side table in the cave keyed by the `ThingTemplate*`**, through a parse function
-that borrows the engine's own `Int` tokenizer for the value. An INI **override block** is a
-*copy* of the template, so the table would lose the entry - and that is why the patch also rides
-``ThingTemplate::copyFrom``, propagating the row from source to copy. Missing the table entirely
-is a fallback to the patch defaults, never a wrong number.
-
-**Where the pool itself lives, and why it needs no init, destroy or savegame hook.** A second
-cave table of ``{id, stamp, value}`` rows indexed by ``Object+0x74 & (POOL_ROWS-1)``, and the pool
-is **not ticked** - it is *computed* on read from the frame counter::
-
-    value = min(cap, stored + (now - stamp) * regen)
-
-Only a spend writes a row, and three consequences follow:
-
-* **No per-frame hook.** Nothing has to walk the table every frame, and in particular nothing
-  has to hook ``GameLogic::update`` - which matters, because :mod:`.live_bridge` already owns
-  those five bytes and the two would collide.
-* **No init hook.** A row whose ``id`` does not match reads as *full*, so a hero that has never
-  cast is full by construction, at frame 0 or frame 40,000.
-* **No destroy hook, and no savegame format change.** An id reused by a new object finds a row
-  that still names the old one and reads full. A save reloads with the table zeroed, so every
-  hero comes back full - a defined, benign state rather than "everyone drained".
-
-**Determinism.** Every input is simulation state that is identical on every peer: the object id,
-the logic frame, and the template fields. Nothing here reads a pointer *value*, a wall clock or
-anything client-local - the template side table is keyed by a pointer, but only ever probed with
-a pointer both peers derived the same way, and a probe is a read. The only writes at play time
-happen on the logic-side activation path, which runs on all peers. The ControlBar path is a
-**pure read** - it must be, since it runs only on the local client.
-
-**Collisions.** Pool rows are indexed by ``id & (POOL_ROWS-1)``, because the id space is *not*
-bounded by the object table: four engine-reserved objects carry ids near 100,000,000. Two live
-objects whose ids differ by a multiple of ``POOL_ROWS`` share a row; the one that does not own it
-reads *full*, so the failure mode is "a power was occasionally free", never a crash, never a
-refusal, and never a desync (every peer folds the same ids the same way).
-
-**What is not covered.** `MSG_DO_SPELLBOOK_SPECIAL_POWER` (player-scoped spellbook powers) does
-not run through ``Object::doSpecialPower*`` and is deliberately out of scope. The shared can-do
-gate at ``0x0082D925`` is not hooked either: everything it guards reaches
-``Object::doSpecialPower*`` afterwards, so an unaffordable power is refused there instead - one
-step later and with no "cannot do that" feedback, but refused.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. It shares no edited byte with any other bundled patch, and both
-field-parse tables are read **live** rather than assumed, so a patch that extended either one
-first still composes.
-
-> **Every peer must run the same patched binary.** Affordability decides whether a power fires,
-> so the effect is inside the simulation: a patched and an unpatched client desync the first
-> time a mana-costing power is cast, and replays do not cross. Same rule as
-> `production-condition`, stricter than `replay-outcome`.
+Derivation: `../docs/hero-mana.md`.
 """
 
 from __future__ import annotations
@@ -150,7 +70,16 @@ from ...addresses import (
 )
 from ...asm import JB, JBE, JE, JLE, JNE, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import (
+    allocate_section,
+    apply_byte_patch,
+    call_rel32,
+    find_section,
+    jmp_rel32,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 from ..utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 if TYPE_CHECKING:
@@ -251,10 +180,6 @@ _DEFAULT_POOL = 100  # points
 _DEFAULT_REGEN = 30  # hundredths per frame == one point per second at 30fps
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 # Everything below is hand-encoded (the house style: only address arithmetic is automated, by
 # `..asm`). The forms that take a 32-bit displacement are the error-prone ones - `0x88` does not
 # fit the signed imm8 a disassembler would print - so they get helpers rather than being spelled
@@ -264,32 +189,32 @@ _ESI, _EBX, _EBP = 6, 3, 5
 
 
 def _mov_eax_field(base_reg: int, disp: int) -> bytes:
-    """``mov eax, [<base>+disp32]`` - base 6 = esi, 3 = ebx, 5 = ebp."""
-    return bytes([0x8B, 0x80 | base_reg]) + _u32(disp)
+    """`mov eax, [<base>+disp32]` - base 6 = esi, 3 = ebx, 5 = ebp."""
+    return bytes([0x8B, 0x80 | base_reg]) + u32(disp)
 
 
 def _mov_field_eax(base_reg: int, disp: int) -> bytes:
-    """``mov [<base>+disp32], eax``."""
-    return bytes([0x89, 0x80 | base_reg]) + _u32(disp)
+    """`mov [<base>+disp32], eax`."""
+    return bytes([0x89, 0x80 | base_reg]) + u32(disp)
 
 
 def _mov_edx_field(base_reg: int, disp: int) -> bytes:
-    """``mov edx, [<base>+disp32]`` - base 0 = eax."""
-    return bytes([0x8B, 0x90 | base_reg]) + _u32(disp)
+    """`mov edx, [<base>+disp32]` - base 0 = eax."""
+    return bytes([0x8B, 0x90 | base_reg]) + u32(disp)
 
 
 def _push_field(base_reg: int, disp: int) -> bytes:
-    """``push dword ptr [<base>+disp32]``."""
-    return bytes([0xFF, 0xB0 | base_reg]) + _u32(disp)
+    """`push dword ptr [<base>+disp32]`."""
+    return bytes([0xFF, 0xB0 | base_reg]) + u32(disp)
 
 
 def _zero_field(disp: int) -> bytes:
-    """``and dword ptr [eax+disp32], 0`` - shorter than a `mov` of an immediate zero."""
-    return bytes([0x83, 0xA0]) + _u32(disp) + b"\x00"
+    """`and dword ptr [eax+disp32], 0` - shorter than a `mov` of an immediate zero."""
+    return bytes([0x83, 0xA0]) + u32(disp) + b"\x00"
 
 
 def _emit_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
-    """An open-addressed probe of the template side table, keyed by ``ecx``.
+    """An open-addressed probe of the template side table, keyed by `ecx`.
 
     Hash the pointer, walk forward over occupied slots, stop at the key or at an empty one.
     Entries are never removed, so a run of occupied slots is never broken and the walk is exact.
@@ -301,18 +226,18 @@ def _emit_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
     a.emit(0x57)  # push edi
     a.emit(0x8B, 0xC1)  # mov eax, ecx
     a.emit(0xC1, 0xE8, 0x04)  # shr eax, 4     ; templates are 0x650 apart; drop the dead bits
-    a.emit(0x25, _u32(_TEMPLATE_MASK))  # and eax, mask
-    a.emit(0xBF, _u32(TEMPLATE_ROWS))  # mov edi, TEMPLATE_ROWS   ; probe budget
+    a.emit(0x25, u32(_TEMPLATE_MASK))  # and eax, mask
+    a.emit(0xBF, u32(TEMPLATE_ROWS))  # mov edi, TEMPLATE_ROWS   ; probe budget
     a.label(f"{tag}_probe")
     a.emit(0x8B, 0xD0)  # mov edx, eax
     a.emit(0x6B, 0xD2, ROW_STRIDE)  # imul edx, edx, 12
-    a.emit(0x81, 0xC2, _u32(rows_va))  # add edx, rows
+    a.emit(0x81, 0xC2, u32(rows_va))  # add edx, rows
     a.emit(0x83, 0x3A, 0x00)  # cmp dword ptr [edx], 0
     a.jcc(JE, f"{tag}_empty")
     a.emit(0x39, 0x0A)  # cmp dword ptr [edx], ecx
     a.jcc(JE, f"{tag}_hit")
     a.emit(0x40)  # inc eax
-    a.emit(0x25, _u32(_TEMPLATE_MASK))  # and eax, mask
+    a.emit(0x25, u32(_TEMPLATE_MASK))  # and eax, mask
     a.emit(0x4F)  # dec edi
     a.jcc(JNE, f"{tag}_probe")
     a.emit(0x31, 0xC0)  # xor eax, eax   ; budget exhausted - the table is full
@@ -331,7 +256,7 @@ def _emit_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
 
 
 def _emit_trace(a: Asm, index_va: int, entries_va: int) -> None:
-    """``trace(tag, a, b, c)`` - append one record to the diagnostic ring. cdecl.
+    """`trace(tag, a, b, c)` - append one record to the diagnostic ring. cdecl.
 
     Saves and restores everything, flags included, so a call can be dropped anywhere without
     thinking about what is live. Always emitted; only the *calls* are conditional, which keeps the
@@ -340,15 +265,15 @@ def _emit_trace(a: Asm, index_va: int, entries_va: int) -> None:
     a.label("trace")
     a.emit(0x60)  # pushad
     a.emit(0x9C)  # pushfd
-    a.emit(0xA1, _u32(index_va))  # mov eax, [index]
+    a.emit(0xA1, u32(index_va))  # mov eax, [index]
     a.emit(0x8B, 0xD0)  # mov edx, eax
-    a.emit(0x81, 0xE2, _u32(TRACE_RING - 1))  # and edx, RING-1
+    a.emit(0x81, 0xE2, u32(TRACE_RING - 1))  # and edx, RING-1
     a.emit(0x6B, 0xD2, TRACE_STRIDE)  # imul edx, edx, 20
-    a.emit(0x81, 0xC2, _u32(entries_va))  # add edx, entries
+    a.emit(0x81, 0xC2, u32(entries_va))  # add edx, entries
     a.emit(0x40)  # inc eax
-    a.emit(0xA3, _u32(index_va))  # mov [index], eax
+    a.emit(0xA3, u32(index_va))  # mov [index], eax
     # the logic frame, so a record can be placed in time against the others
-    a.emit(0xA1, _u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
+    a.emit(0xA1, u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "t_noframe")
     a.emit(0x8B, 0x40, GAME_LOGIC_FRAME)  # mov eax, [eax+0x40]
@@ -366,24 +291,24 @@ def _emit_trace(a: Asm, index_va: int, entries_va: int) -> None:
 
 
 def _emit_trace_call(a: Asm, tag: int, push_c: bytes, push_b: bytes, push_a: bytes) -> None:
-    """``trace(tag, a, b, c)`` at a call site - arguments pushed last-first, then cleaned."""
+    """`trace(tag, a, b, c)` at a call site - arguments pushed last-first, then cleaned."""
     a.emit(push_c)
     a.emit(push_b)
     a.emit(push_a)
-    a.emit(0x68, _u32(tag))
+    a.emit(0x68, u32(tag))
     a.call("trace")
     a.emit(0x83, 0xC4, 0x10)  # add esp, 16
 
 
 def _emit_lookup(a: Asm, rows_va: int) -> None:
-    """``tlookup``: `ecx` = a `ThingTemplate*`, `eax` = its row or 0. Pure - the read path calls
+    """`tlookup`: `ecx` = a `ThingTemplate*`, `eax` = its row or 0. Pure - the read path calls
     it from the ControlBar, on the local client only."""
     a.label("tlookup")
     _emit_probe(a, "tl", rows_va, claim=False)
 
 
 def _emit_insert(a: Asm, rows_va: int) -> None:
-    """``tinsert``: as ``tlookup``, but claims an empty slot. Only ever runs at INI load."""
+    """`tinsert`: as `tlookup`, but claims an empty slot. Only ever runs at INI load."""
     a.label("tinsert")
     _emit_probe(a, "ti", rows_va, claim=True)
 
@@ -403,7 +328,7 @@ def _emit_parse(a: Asm, scratch_va: int) -> None:
     a.emit(0x55)  # push ebp
     a.emit(0x89, 0xE5)  # mov ebp, esp
     a.emit(0xFF, 0x75, 0x14)  # push dword ptr [ebp+0x14]   ; userData
-    a.emit(0x68, _u32(scratch_va))  # push scratch                ; store
+    a.emit(0x68, u32(scratch_va))  # push scratch                ; store
     a.emit(0xFF, 0x75, 0x0C)  # push dword ptr [ebp+0xc]    ; instance
     a.emit(0xFF, 0x75, 0x08)  # push dword ptr [ebp+8]      ; ini
     a.call_absolute(INI_PARSE_INT)
@@ -414,7 +339,7 @@ def _emit_parse(a: Asm, scratch_va: int) -> None:
     a.call("tinsert")
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "p_out")  # table full -> this hero keeps the defaults
-    a.emit(0x8B, 0x15, _u32(scratch_va))  # mov edx, [scratch]
+    a.emit(0x8B, 0x15, u32(scratch_va))  # mov edx, [scratch]
     a.emit(0x83, 0x7D, 0x14, 0x00)  # cmp dword ptr [ebp+0x14], 0
     a.jcc(JNE, "p_regen")
     a.emit(0x89, 0x50, 0x04)  # mov [eax+4], edx            ; ManaPool
@@ -427,7 +352,7 @@ def _emit_parse(a: Asm, scratch_va: int) -> None:
 
 
 def _emit_propagate(a: Asm) -> None:
-    """``ThingTemplate::copyFrom``, plus the side-table row.
+    """`ThingTemplate::copyFrom`, plus the side-table row.
 
     An INI override block is a *copy* of the template it overrides, made here and nowhere else.
     Without this a `map.ini` that re-declares a hero would silently drop its pool. `__thiscall`
@@ -462,7 +387,7 @@ def _emit_propagate(a: Asm) -> None:
 
 
 def _emit_value(a: Asm, cfg_pool: int, cfg_regen: int, pool_rows: int) -> None:
-    """``value``: the current pool of `ebx` (an `Object*`), in hundredths, in `eax`.
+    """`value`: the current pool of `ebx` (an `Object*`), in hundredths, in `eax`.
 
     The cap and the regen come from the object's **own** `ThingTemplate`, so every ability a hero
     has draws on one pool. **Pure** - it never writes a row, because the ControlBar calls it on
@@ -485,25 +410,25 @@ def _emit_value(a: Asm, cfg_pool: int, cfg_regen: int, pool_rows: int) -> None:
     a.emit(0x8B, 0x50, 0x08)  # mov edx, [eax+8]     ; ManaRegen
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JNE, "v_have_pool")
-    a.emit(0x8B, 0x0D, _u32(cfg_pool))  # mov ecx, [cfg_pool]
+    a.emit(0x8B, 0x0D, u32(cfg_pool))  # mov ecx, [cfg_pool]
     a.label("v_have_pool")
     a.emit(0x85, 0xD2)  # test edx, edx
     a.jcc(JNE, "v_clamp")
-    a.emit(0x8B, 0x15, _u32(cfg_regen))  # mov edx, [cfg_regen]
+    a.emit(0x8B, 0x15, u32(cfg_regen))  # mov edx, [cfg_regen]
     a.jmp("v_clamp")
 
     a.label("v_defaults")
-    a.emit(0x8B, 0x0D, _u32(cfg_pool))  # mov ecx, [cfg_pool]
-    a.emit(0x8B, 0x15, _u32(cfg_regen))  # mov edx, [cfg_regen]
+    a.emit(0x8B, 0x0D, u32(cfg_pool))  # mov ecx, [cfg_pool]
+    a.emit(0x8B, 0x15, u32(cfg_regen))  # mov edx, [cfg_regen]
 
     a.label("v_clamp")
-    a.emit(0x81, 0xF9, _u32(_CLAMP))  # cmp ecx, 0xFFFF
+    a.emit(0x81, 0xF9, u32(_CLAMP))  # cmp ecx, 0xFFFF
     a.jcc(JBE, "v_pool_ok")
-    a.emit(0xB9, _u32(_CLAMP))  # mov ecx, 0xFFFF
+    a.emit(0xB9, u32(_CLAMP))  # mov ecx, 0xFFFF
     a.label("v_pool_ok")
-    a.emit(0x81, 0xFA, _u32(_CLAMP))  # cmp edx, 0xFFFF
+    a.emit(0x81, 0xFA, u32(_CLAMP))  # cmp edx, 0xFFFF
     a.jcc(JBE, "v_regen_ok")
-    a.emit(0xBA, _u32(_CLAMP))  # mov edx, 0xFFFF
+    a.emit(0xBA, u32(_CLAMP))  # mov edx, 0xFFFF
     a.label("v_regen_ok")
     a.emit(0x89, 0x55, 0xF4)  # mov [ebp-12], edx
     a.emit(0x6B, 0xC9, HUNDREDTHS)  # imul ecx, ecx, 100
@@ -513,22 +438,22 @@ def _emit_value(a: Asm, cfg_pool: int, cfg_regen: int, pool_rows: int) -> None:
     # has never cast - and a reloaded save - start full with no init hook anywhere.
     a.emit(0x8B, 0x53, OBJECT_ID)  # mov edx, [ebx+0x74]   ; the object id
     a.emit(0x8B, 0xCA)  # mov ecx, edx
-    a.emit(0x81, 0xE1, _u32(_POOL_MASK))  # and ecx, POOL_MASK
+    a.emit(0x81, 0xE1, u32(_POOL_MASK))  # and ecx, POOL_MASK
     a.emit(0x6B, 0xC9, ROW_STRIDE)  # imul ecx, ecx, 12
-    a.emit(0x81, 0xC1, _u32(pool_rows))  # add ecx, pool_rows
+    a.emit(0x81, 0xC1, u32(pool_rows))  # add ecx, pool_rows
     a.emit(0x89, 0x4D, 0xF8)  # mov [ebp-8], ecx
     a.emit(0x39, 0x11)  # cmp [ecx], edx
     a.jcc(JNE, "v_full")
 
-    a.emit(0xA1, _u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
+    a.emit(0xA1, u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "v_full")
     a.emit(0x8B, 0x40, GAME_LOGIC_FRAME)  # mov eax, [eax+0x40]
     a.emit(0x2B, 0x41, 0x04)  # sub eax, [ecx+4]      ; elapsed
     a.jcc(JLE, "v_stored")
-    a.emit(0x3D, _u32(_CLAMP))  # cmp eax, 0xFFFF
+    a.emit(0x3D, u32(_CLAMP))  # cmp eax, 0xFFFF
     a.jcc(JBE, "v_elapsed")
-    a.emit(0xB8, _u32(_CLAMP))  # mov eax, 0xFFFF
+    a.emit(0xB8, u32(_CLAMP))  # mov eax, 0xFFFF
     a.label("v_elapsed")
 
     # gain = elapsed * regen, clamped to the cap *before* the add so the sum cannot wrap
@@ -557,14 +482,14 @@ def _emit_value(a: Asm, cfg_pool: int, cfg_regen: int, pool_rows: int) -> None:
 
 def _emit_cost_prologue(a: Asm, prefix: str) -> None:
     """Shared tail of `check`/`spend`: `esi` is a final-override power template, and this leaves
-    `eax` = the cost in hundredths and `ebx` = the object, or jumps to ``<prefix>_allow`` when
+    `eax` = the cost in hundredths and `ebx` = the object, or jumps to `<prefix>_allow` when
     the power is not mana-gated at all."""
     a.emit(_mov_eax_field(_ESI, MANA_COST_OFF))
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, f"{prefix}_allow")  # ManaCost 0 -> stock behaviour, untouched
-    a.emit(0x3D, _u32(_CLAMP))  # cmp eax, 0xFFFF
+    a.emit(0x3D, u32(_CLAMP))  # cmp eax, 0xFFFF
     a.jcc(JBE, f"{prefix}_cost")
-    a.emit(0xB8, _u32(_CLAMP))  # mov eax, 0xFFFF
+    a.emit(0xB8, u32(_CLAMP))  # mov eax, 0xFFFF
     a.label(f"{prefix}_cost")
     a.emit(0x6B, 0xC0, HUNDREDTHS)  # imul eax, eax, 100
     a.emit(0x8B, 0x5D, 0x08)  # mov ebx, [ebp+8]        ; the Object
@@ -573,7 +498,7 @@ def _emit_cost_prologue(a: Asm, prefix: str) -> None:
 
 
 def _emit_check(a: Asm) -> None:
-    """``check(Object*, SpecialPowerTemplate* final)`` -> `eax` 0 allow / 1 refuse. cdecl.
+    """`check(Object*, SpecialPowerTemplate* final)` -> `eax` 0 allow / 1 refuse. cdecl.
 
     Read-only. This is what the affordability predicate and the ControlBar both call.
     """
@@ -595,14 +520,14 @@ def _emit_check(a: Asm) -> None:
     a.emit(0x31, 0xC0)  # xor eax, eax
     a.jmp("c_out")
     a.label("c_refuse")
-    a.emit(0xB8, _u32(1))  # mov eax, 1
+    a.emit(0xB8, u32(1))  # mov eax, 1
     a.label("c_out")
     a.emit(0x5E, 0x5B, 0x5D)  # pop esi / pop ebx / pop ebp
     a.emit(0xC3)  # ret
 
 
 def _emit_spend(a: Asm, pool_rows: int, *, trace: bool) -> None:
-    """``spend(Object*, SpecialPowerTemplate* raw)`` -> `eax` 0 allowed (and charged) / 1 refuse.
+    """`spend(Object*, SpecialPowerTemplate* raw)` -> `eax` 0 allowed (and charged) / 1 refuse.
 
     cdecl. Logic-side only: this is the one routine that writes a pool row at play time. It
     resolves the override itself, because its callers hand it the template straight out of their
@@ -649,12 +574,12 @@ def _emit_spend(a: Asm, pool_rows: int, *, trace: bool) -> None:
     # Take the row for this object and stamp it with the current frame.
     a.emit(0x8B, 0x53, OBJECT_ID)  # mov edx, [ebx+0x74]
     a.emit(0x8B, 0xCA)  # mov ecx, edx
-    a.emit(0x81, 0xE1, _u32(_POOL_MASK))  # and ecx, POOL_MASK
+    a.emit(0x81, 0xE1, u32(_POOL_MASK))  # and ecx, POOL_MASK
     a.emit(0x6B, 0xC9, ROW_STRIDE)  # imul ecx, ecx, 12
-    a.emit(0x81, 0xC1, _u32(pool_rows))  # add ecx, pool_rows
+    a.emit(0x81, 0xC1, u32(pool_rows))  # add ecx, pool_rows
     a.emit(0x89, 0x11)  # mov [ecx], edx          ; id
     a.emit(0x89, 0x41, 0x08)  # mov [ecx+8], eax        ; value
-    a.emit(0x8B, 0x15, _u32(THE_GAME_LOGIC))  # mov edx, [TheGameLogic]
+    a.emit(0x8B, 0x15, u32(THE_GAME_LOGIC))  # mov edx, [TheGameLogic]
     a.emit(0x85, 0xD2)  # test edx, edx
     a.jcc(JE, "s_allow")
     a.emit(0x8B, 0x52, GAME_LOGIC_FRAME)  # mov edx, [edx+0x40]
@@ -664,14 +589,14 @@ def _emit_spend(a: Asm, pool_rows: int, *, trace: bool) -> None:
     a.emit(0x31, 0xC0)  # xor eax, eax
     a.jmp("s_out")
     a.label("s_refuse")
-    a.emit(0xB8, _u32(1))  # mov eax, 1
+    a.emit(0xB8, u32(1))  # mov eax, 1
     a.label("s_out")
     a.emit(0x5E, 0x5B, 0x5D)  # pop esi / pop ebx / pop ebp
     a.emit(0xC3)  # ret
 
 
 def _emit_new(a: Asm) -> None:
-    """``new(size)``: `operator new`, then zero the new field.
+    """`new(size)`: `operator new`, then zero the new field.
 
     The engine's `SpecialPowerTemplate` constructor has no room for another store and no
     five-byte site that is safe to take, so the grown tail is zeroed where the memory is handed
@@ -692,7 +617,7 @@ def _emit_new(a: Asm) -> None:
 def _emit_copy_tail(a: Asm) -> None:
     """The `SpecialPowerTemplate` copy constructor's epilogue, with the new field copied first.
 
-    Same reasoning as ``tprop`` one level down: an INI override block is a copy, and this
+    Same reasoning as `tprop` one level down: an INI override block is a copy, and this
     constructor moves fields one at a time. `ebp` is the source pointer here, not a frame
     pointer.
     """
@@ -764,14 +689,14 @@ def _emit_ability_trigger(a: Asm, *, trace: bool) -> None:
 
     **This is where a hero ability's cost really belongs**, and the click is not. A BFME ability is
     a `SpecialPowerModule` "starter" plus an update that takes the timing; with
-    ``UpdateModuleStartsAttack = Yes`` the starter never performs the power, so
+    `UpdateModuleStartsAttack = Yes` the starter never performs the power, so
     `Object::doSpecialPower*` is not even reached. Measured live: casting Gandalf's Word of Power
     produced **zero** records at those three sites, which is why it was never charged - and why a
     ranged cast charged at the click, before the hero had walked anywhere.
 
     The hook sits where the engine pays `UnitCost`, one instruction after an unpack countdown hits
-    zero. `ebp` is the update's interface `this` (the tick does ``mov ebp, ecx``), so the module
-    data is at ``ebp-0x0c`` and the owning `Object` at ``ebp-0x08``.
+    zero. `ebp` is the update's interface `this` (the tick does `mov ebp, ecx`), so the module
+    data is at `ebp-0x0c` and the owning `Object` at `ebp-0x08`.
 
     A refusal here cannot stop the ability - the engine is already mid-trigger - so it simply does
     not charge. The click-time gate in `canUseSpecialPower` is what prevents an unaffordable cast
@@ -850,7 +775,7 @@ def _emit_description(a: Asm, label_va: int) -> None:
     a.jcc(JE, "e_nocaster")
     a.call("value")
     a.emit(0x31, 0xD2)  # xor edx, edx
-    a.emit(0xB9, _u32(HUNDREDTHS))  # mov ecx, 100
+    a.emit(0xB9, u32(HUNDREDTHS))  # mov ecx, 100
     a.emit(0xF7, 0xF1)  # div ecx                     ; hundredths -> whole points
     a.jmp("e_havecaster")
     a.label("e_nocaster")
@@ -862,8 +787,8 @@ def _emit_description(a: Asm, label_va: int) -> None:
     a.emit(0x50)  # push eax                    ; vararg 2 - what the caster has
     a.emit(0x52)  # push edx                    ; vararg 1 - what it costs
     a.emit(0x57)  # push edi                    ; exists = NULL
-    a.emit(0x68, _u32(label_va))  # push "TOOLTIP:ManaCost"
-    a.emit(0x8B, 0x0D, _u32(THE_GAME_TEXT))  # mov ecx, [TheGameText]
+    a.emit(0x68, u32(label_va))  # push "TOOLTIP:ManaCost"
+    a.emit(0x8B, 0x0D, u32(THE_GAME_TEXT))  # mov ecx, [TheGameText]
     a.emit(0x8B, 0x01)  # mov eax, [ecx]
     a.emit(0xFF, 0x50, GAME_TEXT_FORMAT_SLOT)  # call [eax+0x44]   ; fetch(label, exists)
     a.emit(0x50)  # push eax
@@ -883,8 +808,8 @@ def _emit_description(a: Asm, label_va: int) -> None:
 def _emit_revive_line(a: Asm, label_va: int) -> None:
     """A `ManaPool` line on a hero's revive / recruit description, right under its level.
 
-    The engine's own rank line is built into the buffer at ``ebp-0x2c`` and then folded into the
-    description at ``ebp-0x18``; this hooks that fold, adds a second line to the same buffer
+    The engine's own rank line is built into the buffer at `ebp-0x2c` and then folded into the
+    description at `ebp-0x18`; this hooks that fold, adds a second line to the same buffer
     first, and then performs the fold. So the pool reads as one more descriptive property of the
     hero, in the place the level already occupies.
 
@@ -909,8 +834,8 @@ def _emit_revive_line(a: Asm, label_va: int) -> None:
 
     a.emit(0x52)  # push edx                    ; the value
     a.emit(0x57)  # push edi                    ; zero
-    a.emit(0x68, _u32(label_va))  # push "TOOLTIP:ManaPool"
-    a.emit(0x8B, 0x0D, _u32(THE_GAME_TEXT))  # mov ecx, [TheGameText]
+    a.emit(0x68, u32(label_va))  # push "TOOLTIP:ManaPool"
+    a.emit(0x8B, 0x0D, u32(THE_GAME_TEXT))  # mov ecx, [TheGameText]
     a.emit(0x8B, 0x01)  # mov eax, [ecx]
     a.emit(0xFF, 0x50, GAME_TEXT_FORMAT_SLOT)  # call [eax+0x44]
     a.emit(0x50)  # push eax
@@ -930,10 +855,8 @@ def _emit_dispatch_hook(a: Asm, index: int, window: bytes, resume_va: int, *, tr
     """An observation point on one `Object::doSpecialPower*` variant's dispatch. **Not a charge.**
 
     Charging here is wrong twice over. A cast that a `...SpecialAbilityUpdate` handles runs
-    *both* this and the trigger that :func:`_emit_ability_trigger` hooks, so the price is taken
+    *both* this and the trigger that `_emit_ability_trigger` hooks, so the price is taken
     twice. Measured live on `SpecialAbilityLightningSword`:
-
-    .. code-block:: none
 
         frame 1696  DISPATCH v1   cost=50 available=145    -> CHARGED   (the click)
         frame 1713  ABILITY-FIRE  cost=50 available=96.02  -> CHARGED   (the fire)
@@ -961,21 +884,13 @@ def _emit_dispatch_hook(a: Asm, index: int, window: bytes, resume_va: int, *, tr
     a.jmp_absolute(resume_va)
 
 
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    return None if end < 0 else bytes(data[off : off + end]).decode("latin1")
-
-
 def _table_bytes(
     table_va: int, entries: tuple[Entry, ...], new_rows: tuple[tuple[str, int, int, int], ...]
 ) -> tuple[bytes, bytes]:
     """A rebuilt field-parse table and its new name strings, as a pair.
 
     The stock entries pass through unchanged - by pointer, so every field already there keeps its
-    own name string - then ``new_rows`` as ``(name, parse fn, userData, offset)``, then the
+    own name string - then `new_rows` as `(name, parse fn, userData, offset)`, then the
     all-zero terminator the parser scans for. Strings are padded so whatever follows stays
     dword-aligned.
     """
@@ -1011,7 +926,7 @@ _OBJECT_NAMES = tuple(name for name, _user_data in OBJECT_FIELDS)
 class HeroManaPatch(Patch):
     """Add `SpecialPower.ManaCost` plus `Object.ManaPool` / `Object.ManaRegen`, and enforce them.
 
-    ``pool`` and ``regen`` are the fallbacks an object that declares neither gets: the maximum in
+    `pool` and `regen` are the fallbacks an object that declares neither gets: the maximum in
     whole points, and the refill in hundredths of a point per logic frame (30 == one point per
     second at 30fps).
     """
@@ -1076,7 +991,7 @@ class HeroManaPatch(Patch):
 
     @staticmethod
     def _resolve(data: bytes | bytearray) -> tuple[int, int]:
-        """``(SpecialPower table VA, Object table VA)`` as the image currently holds them."""
+        """`(SpecialPower table VA, Object table VA)` as the image currently holds them."""
         return (
             resolve_table(
                 data,
@@ -1103,7 +1018,7 @@ class HeroManaPatch(Patch):
             (object_va, _OBJECT_FINGERPRINT, _OBJECT_NAMES, "Object"),
         ):
             entries = read_field_table(data, base_va)
-            by_name = {_read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
+            by_name = {read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
             for field, want in fingerprint.items():
                 got = by_name.get(field)
                 if got != want:
@@ -1187,7 +1102,7 @@ class HeroManaPatch(Patch):
     ) -> Asm:
         """The cave's code, laid out at the address it will occupy.
 
-        :meth:`_build_section` takes the bytes and both field tables, and :meth:`_edits` takes
+        `_build_section` takes the bytes and both field tables, and `_edits` takes
         label addresses, from one layout - so nothing can be pointed at a routine that moved.
         """
         a = Asm(base_va + cls._code_offset(power, objects))
@@ -1226,10 +1141,10 @@ class HeroManaPatch(Patch):
         *,
         table_refs: bool = True,
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """``(file offset, original bytes, patched bytes, note)`` for every engine byte this
-        patch rewrites. One list so :meth:`apply` writes exactly what :meth:`verify` asserts.
+        """`(file offset, original bytes, patched bytes, note)` for every engine byte this
+        patch rewrites. One list so `apply` writes exactly what `verify` asserts.
 
-        ``table_refs=False`` drops the field-table repoints. :meth:`verify` asks for that, because
+        `table_refs=False` drops the field-table repoints. `verify` asks for that, because
         a repoint is the one edit here a *later* patch is entitled to overwrite: a second patch
         extending the same table rebuilds it including these rows - by pointer, so they stay the
         same rows with the same parse function - and points the reference at its own copy. What
@@ -1269,8 +1184,8 @@ class HeroManaPatch(Patch):
                 out.append(
                     (
                         at(ref_va),
-                        bytes([opcode]) + _u32(old_va),
-                        bytes([opcode]) + _u32(new_va),
+                        bytes([opcode]) + u32(old_va),
+                        bytes([opcode]) + u32(new_va),
                         f"{what} field table ref @0x{ref_va:08x}",
                     )
                 )
@@ -1280,16 +1195,16 @@ class HeroManaPatch(Patch):
             out.append(
                 (
                     at(push_va),
-                    b"\x68" + _u32(SPECIAL_POWER_TEMPLATE_SIZE),
-                    b"\x68" + _u32(NEW_TEMPLATE_SIZE),
+                    b"\x68" + u32(SPECIAL_POWER_TEMPLATE_SIZE),
+                    b"\x68" + u32(NEW_TEMPLATE_SIZE),
                     f"SpecialPowerTemplate size @0x{push_va:08x}",
                 )
             )
             out.append(
                 (
                     at(call_va),
-                    _call(call_va, OPERATOR_NEW),
-                    _call(call_va, labels("new")),
+                    call_rel32(call_va, OPERATOR_NEW),
+                    call_rel32(call_va, labels("new")),
                     f"operator new -> zeroing wrapper @0x{call_va:08x}",
                 )
             )
@@ -1299,7 +1214,7 @@ class HeroManaPatch(Patch):
             (
                 at(SPECIAL_POWER_TEMPLATE_COPY_TAIL),
                 SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES,
-                _jmp(SPECIAL_POWER_TEMPLATE_COPY_TAIL, labels("copy"))
+                jmp_rel32(SPECIAL_POWER_TEMPLATE_COPY_TAIL, labels("copy"))
                 + b"\x90" * (len(SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES) - 5),
                 "SpecialPowerTemplate copy ctor tail",
             )
@@ -1311,7 +1226,7 @@ class HeroManaPatch(Patch):
             (
                 at(THING_TEMPLATE_COPY_CALL),
                 THING_TEMPLATE_COPY_CALL_BYTES,
-                _call(THING_TEMPLATE_COPY_CALL, labels("tprop")),
+                call_rel32(THING_TEMPLATE_COPY_CALL, labels("tprop")),
                 "ThingTemplate::copyFrom -> side-table propagation",
             )
         )
@@ -1322,7 +1237,7 @@ class HeroManaPatch(Patch):
             (
                 at(ABILITY_TRIGGER_PAY),
                 ABILITY_TRIGGER_PAY_BYTES,
-                _jmp(ABILITY_TRIGGER_PAY, labels("atrig"))
+                jmp_rel32(ABILITY_TRIGGER_PAY, labels("atrig"))
                 + b"\x90" * (len(ABILITY_TRIGGER_PAY_BYTES) - 5),
                 "ability trigger -> mana charge",
             )
@@ -1333,7 +1248,7 @@ class HeroManaPatch(Patch):
             (
                 at(CAN_USE_SPECIAL_POWER),
                 CAN_USE_SPECIAL_POWER_ENTRY,
-                _jmp(CAN_USE_SPECIAL_POWER, labels("canuse")),
+                jmp_rel32(CAN_USE_SPECIAL_POWER, labels("canuse")),
                 "canUseSpecialPower -> mana gate",
             )
         )
@@ -1346,7 +1261,7 @@ class HeroManaPatch(Patch):
                     (
                         at(va),
                         window,
-                        _jmp(va, labels(f"d{index}")) + b"\x90" * (len(window) - 5),
+                        jmp_rel32(va, labels(f"d{index}"), len(window)),
                         f"doSpecialPower variant {index} -> trace",
                     )
                 )
@@ -1356,7 +1271,7 @@ class HeroManaPatch(Patch):
             (
                 at(DESCRIPTION_SPECIAL_POWER_CASE),
                 DESCRIPTION_SPECIAL_POWER_CASE_BYTES,
-                _jmp(DESCRIPTION_SPECIAL_POWER_CASE, labels("desc")),
+                jmp_rel32(DESCRIPTION_SPECIAL_POWER_CASE, labels("desc")),
                 "button description -> ManaCost line",
             )
         )
@@ -1366,7 +1281,7 @@ class HeroManaPatch(Patch):
             (
                 at(DESCRIPTION_RANK_APPEND),
                 DESCRIPTION_RANK_APPEND_BYTES,
-                _jmp(DESCRIPTION_RANK_APPEND, labels("rline"))
+                jmp_rel32(DESCRIPTION_RANK_APPEND, labels("rline"))
                 + b"\x90" * (len(DESCRIPTION_RANK_APPEND_BYTES) - 5),
                 "hero revive description -> ManaPool line",
             )
@@ -1377,7 +1292,7 @@ class HeroManaPatch(Patch):
             (
                 at(CONTROL_BAR_UNIT_COST_CALL),
                 CONTROL_BAR_UNIT_COST_CALL_BYTES,
-                _call(CONTROL_BAR_UNIT_COST_CALL, labels("cbar")),
+                call_rel32(CONTROL_BAR_UNIT_COST_CALL, labels("cbar")),
                 "ControlBar availability -> mana test",
             )
         )
@@ -1390,7 +1305,7 @@ class HeroManaPatch(Patch):
         The default probe only ever recognises the default tuning, so a binary built with any
         other pool or regen reads as unpatched. The cave opens with both as plain dwords - the
         emitted code reads them from there rather than as immediates - so they come straight back
-        out. ``trace`` changes only which call sites the body emits and is recorded nowhere, so it
+        out. `trace` changes only which call sites the body emits and is recorded nowhere, so it
         is probed: untraced first, since that is the cheaper build and the common one."""
         located = find_section(data, SECTION_NAME)
         if located is None:
@@ -1476,7 +1391,7 @@ class HeroManaPatch(Patch):
         by_name = {}
         for table in (power_all, object_all):
             for entry in table:
-                by_name[_read_cstring(data, entry[0])] = entry
+                by_name[read_cstring(data, entry[0])] = entry
 
         for field, offset in POWER_FIELDS:
             row = by_name.get(field)
@@ -1519,11 +1434,3 @@ class HeroManaPatch(Patch):
                     f"{note} @0x{file_off:x}: expected {new.hex()}, got {got_bytes.hex()}"
                 )
         return problems
-
-
-def _call(at_va: int, target_va: int) -> bytes:
-    return b"\xe8" + struct.pack("<i", target_va - (at_va + 5))
-
-
-def _jmp(at_va: int, target_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", target_va - (at_va + 5))

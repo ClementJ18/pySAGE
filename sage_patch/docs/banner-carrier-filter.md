@@ -251,7 +251,7 @@ rel = sourcePlayer->getRelationship(candidatePlayer->m_defaultTeam)   ; 0x006adb
 ```
 
 `m_playerIndex` is `Player+0x54` — already carried in this repo as
-[`addresses.PLAYER_INDEX`](../addresses.py). So **the engine already separates "my own units" from
+[`addresses.PLAYER_INDEX`](../addresses/player.py). So **the engine already separates "my own units" from
 "my ally's units", and has done all along.** `SAME_PLAYER` is a true same-player test, not a
 same-faction or same-team approximation.
 

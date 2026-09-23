@@ -1,79 +1,14 @@
-"""The draw-module-scale patch: `Scale`, `Offset` and `AngleOffset` on a model draw module, so one
-`Draw` block is drawn bigger, smaller, somewhere else or turned from the object it belongs to.
+"""Add `Scale`, `Offset` and `AngleOffset` to every model draw module, so one `Draw` block can be
+drawn bigger, moved or turned relative to its object.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address is derived in
-``../../docs/draw-module-scale.md``.
+The object's scale reaches a draw module only through `Drawable::getScale` (`DRAWABLE_GET_SCALE`),
+which builds the render object and bone cache; every module is drawn at the object's own transform.
+The three keywords share a record in the cave, indexed from padding in `W3DModelDrawModuleData`. The
+scale is applied at the family's 19 `getScale` calls, and the offset and turn at the 5 calls to the
+transform helper before `Set_Transform`. The angle's sine and cosine are computed once at parse
+time. Treat it as simulation state: every peer needs the same binary.
 
-**What the engine does today.** An object's `Scale` is copied into its drawable once and read back
-through one getter, `Drawable::getScale` (`DRAWABLE_GET_SCALE`). The model draw modules never scale
-a transform with it: they hand it to the asset manager when a render object is created, which
-builds a scaled copy of the model, and to the bone cache, which records bone positions at that
-scale. And every draw module on an object is drawn at the object's own transform - there is no
-per-module displacement or turn anywhere in the family. So one scale, one position and one facing
-govern every model an object draws.
-
-**What this does.** Adds three keywords - `Scale`, `Offset` and `AngleOffset` unless named
-otherwise - to the field table every model draw module parses: `W3DScriptedModelDraw`,
-`W3DHordeModelDraw`, `W3DQuadrupedDraw`, `W3DSupplyDraw`, `W3DTruckDraw`, `W3DTankDraw` and
-`W3DSailModelDraw` all build their `ModuleData` on `W3DModelDrawModuleData` and read its table.
-
-- `Scale = 1.5` builds *that module's* model at the object's scale times 1.5, bones included,
-  because the factor goes in where the object's scale is read.
-- `Offset = X:0 Y:0 Z:20` moves what that module draws, in the object's own frame - so it turns
-  with the unit - by adding the rotated offset to the matrix the module hands its render object.
-- `AngleOffset = 45` turns what that module draws about the object's up axis by that many degrees,
-  which is how a model whose animation faces the wrong way is lined up. One value, positive one
-  way and negative the other; the object itself does not turn.
-
-A module that declares none of them is untouched, and the object's footprint, selection and other
-draw modules never move, resize or turn either way. The three are independent: the offset is
-measured in the object's frame whatever the angle says, so changing one does not move the other.
-
-**Why they arrive by different routes.** A scale can be baked into a model at creation; a position
-and a facing cannot, because nothing in the creation path takes either. So the scale is multiplied
-in at the **19** `getScale` calls the family makes (`SITES`), and the offset and the turn are
-applied at the **five** calls to `W3D_MODEL_DRAW_TRANSFORM_HELPER` (`TRANSFORM_SITES`) - the helper
-every model draw runs on the matrix immediately before `Set_Transform`, which is therefore every
-place the family positions what it draws. All 24 are five-byte ``call rel32`` sites retargeted,
-five bytes for five, at stubs that do what the engine did and then apply the module's own numbers.
-`getScale`'s three callers outside the family (`DRAWABLE_GET_SCALE_OTHER_CALLS`) keep the stock
-call.
-
-**Where the numbers live.** `W3DModelDrawModuleData` cannot grow - every derived module's fields
-start at its ``sizeof`` - and has no free dword, only three bytes of padding between
-`BirthFadeAdditive` (a one-byte `Bool` at ``+0x154``) and `StaticSortLevelWhileFading` at
-``+0x158``. A scale, an offset and an angle do not fit in three bytes, so the padding holds a
-**24-bit index** into a table of records in the cave, and the three keywords share one record:
-whichever parses first allocates it, the others find it. Index zero means "declared none of them",
-which is what the constructor leaves behind - its one-byte `BirthFadeAdditive` default is widened
-to a dword store from the same zero register (``0x88`` -> ``0x89``), clearing the padding
-`operator new` leaves as heap garbage, for all seven modules at once. A fresh record starts at
-scale one, offset zero and no turn, so declaring one keyword does not disturb the others.
-
-**The angle costs no trigonometry per frame.** `AngleOffset`'s parser turns the degrees into
-radians and runs `fsincos` **once**, leaving the sine and the cosine in the record. The per-frame
-stub spends four multiplies a row turning the matrix's first two columns, which is all a turn about
-the up axis touches.
-
-**The rows.** The shared table has one reference and is rebuilt in the cave from whatever that
-reference names **now**, so a patch that extended it first keeps its rows. All three keywords are
-refused if the shared table or any of the six derived modules' own tables - which the reader
-searches too - already parses them. `Scale` is read by the engine's own
-`INI::parsePositiveNonZeroReal`, so ``Scale = 0`` or a negative value is the engine's own INI
-error; `Offset` by `INI::parseCoord3D`; and `AngleOffset` by the plain `INI::parseReal`, because a
-negative angle turns the other way and zero is a legitimate "no turn".
-
-**Determinism.** Unestablished for `Scale`: in the Generals lineage the bone cache it scales is
-where weapon launch offsets are read from, and if RotWK does the same then a scaled module's
-projectiles leave from a scaled bone, exactly as under the object's `Scale`. `Offset` and
-`AngleOffset` are applied to a client-side transform only and the bone cache never sees them. Treat
-the three as simulation state anyway - every peer runs the same binary. The keywords are an INI
-parse error on a stock build either way, and `ModuleData` is never `Xfer`'d, so savegames are
-unaffected.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`DrawModuleScalePatch.verify` finds it by name. No other bundled patch touches the model draw
-field table, its constructor, `Drawable::getScale`, the transform helper or any of their callers.
+Derivation: `../docs/draw-module-scale.md`.
 """
 
 from __future__ import annotations
@@ -119,7 +54,15 @@ from ..addresses import (
 )
 from ..asm import JAE, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    call_rel32,
+    file_offset,
+    find_section,
+    u32,
+    va_to_offset,
+)
 from .utils.field_tables import ROW_SIZE, Entry, entries_before, read_field_table, resolve_table
 from .utils.name_tables import read_cstring
 
@@ -182,7 +125,7 @@ RECORD_ANGLE_FLAG = 0x10
 RECORD_COS = 0x14
 RECORD_SIN = 0x18
 RECORD_SIZE = 0x20
-#: ``log2(RECORD_SIZE)``: an index becomes an address with a shift, which needs the size to be a
+#: `log2(RECORD_SIZE)`: an index becomes an address with a shift, which needs the size to be a
 #: power of two - the x86 `lea` scale factors stop at eight.
 RECORD_SHIFT = 5
 #: How many modules may declare a keyword. The index has room for sixteen million; this is what the
@@ -200,7 +143,7 @@ FAMILY_BLOCKS = (
     "W3DSailModelDraw",
 )
 
-#: How each scale stub loads the calling module's `ModuleData` into ``eax``, keyed by the register
+#: How each scale stub loads the calling module's `ModuleData` into `eax`, keyed by the register
 #: the calling function keeps it behind.
 LOCATORS: dict[str, bytes] = {
     "esi": bytes.fromhex("8b4604"),  # mov eax, [esi+4]   ; esi is the module
@@ -219,7 +162,7 @@ SITES: dict[int, str] = {
 }
 
 #: Every call to the transform helper: one stub for all five, because each is reached with the
-#: module in ``ecx`` and the matrix already pushed.
+#: module in `ecx` and the matrix already pushed.
 TRANSFORM_SITES = W3D_MODEL_DRAW_TRANSFORM_CALLS
 
 #: What the patch relies on and never rewrites: the getter and the helper the stubs reproduce, the
@@ -239,24 +182,12 @@ CONTEXT_ANCHORS: dict[int, bytes] = {
 }
 
 
-def _call(site: int, target: int) -> bytes:
-    """``call rel32`` from ``site`` to ``target``."""
-    return b"\xe8" + struct.pack("<i", target - (site + 5))
-
-
-def _u32(value: int) -> bytes:
-    """A 32-bit immediate. Masked rather than range-checked, because the layout measures the code's
-    length with placeholder addresses before it knows the real ones, and an immediate that comes
-    out negative there is still four bytes wide."""
-    return struct.pack("<I", value & 0xFFFFFFFF)
-
-
-#: Every site the patch asserts before it writes anything, as ``VA -> stock bytes``.
+#: Every site the patch asserts before it writes anything, as `VA -> stock bytes`.
 ANCHORS: dict[int, bytes] = {
     **CONTEXT_ANCHORS,
     W3D_MODEL_DRAW_BIRTH_FADE_DEFAULT: W3D_MODEL_DRAW_BIRTH_FADE_DEFAULT_BYTES,
-    **{site: _call(site, DRAWABLE_GET_SCALE) for site in SITES},
-    **{site: _call(site, W3D_MODEL_DRAW_TRANSFORM_HELPER) for site in TRANSFORM_SITES},
+    **{site: call_rel32(site, DRAWABLE_GET_SCALE) for site in SITES},
+    **{site: call_rel32(site, W3D_MODEL_DRAW_TRANSFORM_HELPER) for site in TRANSFORM_SITES},
 }
 
 #: The routines the cave holds, in the order it lays them out.
@@ -291,9 +222,9 @@ def validate_keywords(keyword: str, offset_keyword: str, angle_keyword: str) -> 
 
 
 def widened_default() -> bytes:
-    """The constructor's ``mov byte [esi+0x154], bl`` as a dword store from ``ebx``.
+    """The constructor's `mov byte [esi+0x154], bl` as a dword store from `ebx`.
 
-    Six bytes for six, one of them changed. ``ebx`` is zero for the whole constructor, so the store
+    Six bytes for six, one of them changed. `ebx` is zero for the whole constructor, so the store
     clears `BirthFadeAdditive` exactly as before and the record index behind it as well."""
     return bytes((0x89,)) + W3D_MODEL_DRAW_BIRTH_FADE_DEFAULT_BYTES[1:]
 
@@ -303,9 +234,9 @@ class _Layout:
     """Where each piece of the cave sits, given its base address, the keywords and how many rows
     the table held before this patch's three.
 
-    Pure arithmetic, so :meth:`DrawModuleScalePatch.apply` and :meth:`DrawModuleScalePatch.verify`
+    Pure arithmetic, so `DrawModuleScalePatch.apply` and `DrawModuleScalePatch.verify`
     compute the same addresses from opposite directions. The keywords come first, in declaration
-    order, so :meth:`DrawModuleScalePatch.detect` reads them off the section base without knowing
+    order, so `DrawModuleScalePatch.detect` reads them off the section base without knowing
     how long anything after them is."""
 
     keyword_va: int
@@ -361,16 +292,16 @@ def build_table(
 
 
 def _emit_record_lookup(a: Asm, records_va: int) -> None:
-    """``eax`` holds an index; leave it holding that record's address."""
+    """`eax` holds an index; leave it holding that record's address."""
     a.emit(b"\xc1\xe0", RECORD_SHIFT)  # shl eax, 5
-    a.emit(0x05, _u32(records_va - RECORD_SIZE))  # add eax, <records - one record>
+    a.emit(0x05, u32(records_va - RECORD_SIZE))  # add eax, <records - one record>
 
 
 def _emit_parse_head(a: Asm, slot: int, parser: int) -> None:
     """The head every row parser shares: a stack slot for the value, the engine's own parser
     called on it, and the row's store pushed for the record lookup behind it.
 
-    Each ``push [esp+N]`` names the next of the caller's arguments once the slot and the pushes
+    Each `push [esp+N]` names the next of the caller's arguments once the slot and the pushes
     before it are counted, which is what makes one offset serve all three."""
     outer = slot + 0x10
     a.emit(b"\x83\xec", slot)  # sub  esp, <the slot>
@@ -385,7 +316,7 @@ def _emit_parse_head(a: Asm, slot: int, parser: int) -> None:
 
 
 def _emit_offset_row(a: Asm, row: int) -> None:
-    """One row of ``translation += rotation . offset``, with ``esi`` the matrix and ``eax`` the
+    """One row of `translation += rotation . offset`, with `esi` the matrix and `eax` the
     record. The offset is read in the object's own frame, which is what makes it turn with the unit
     instead of pointing north - and what keeps it independent of the module's own turn."""
     base = row * MATRIX3D_ROW_STRIDE
@@ -404,10 +335,10 @@ def _emit_offset_row(a: Asm, row: int) -> None:
 
 def _emit_turn_row(a: Asm, row: int) -> None:
     """One row of the turn about the up axis: the row's first two entries become
-    ``(x*cos + y*sin, y*cos - x*sin)`` and its third is left alone, which is the whole of what
+    `(x*cos + y*sin, y*cos - x*sin)` and its third is left alone, which is the whole of what
     multiplying a matrix by a rotation about Z does.
 
-    ``esi`` is the matrix, ``eax`` the record and ``[esp]``/``[esp+4]`` two scratch dwords the stub
+    `esi` is the matrix, `eax` the record and `[esp]`/`[esp+4]` two scratch dwords the stub
     reserved - the row is copied there first because both answers read both of its originals."""
     base = row * MATRIX3D_ROW_STRIDE
     a.emit(b"\xd9\x46", base)  # fld   dword [esi+row]
@@ -440,11 +371,11 @@ def _assemble(base_va: int, count_va: int, records_va: int) -> Asm:
     a.emit(b"\x8b\x42\xff")  # mov  eax, [edx-1]      ; the dword at BirthFadeAdditive
     a.emit(b"\xc1\xe8\x08")  # shr  eax, 8
     a.jcc_short(JNE, "known")  # already has one
-    a.emit(0xA1, _u32(count_va))  # mov  eax, [count]
-    a.emit(0x3D, _u32(RECORD_CAPACITY))  # cmp  eax, <capacity>
+    a.emit(0xA1, u32(count_va))  # mov  eax, [count]
+    a.emit(0x3D, u32(RECORD_CAPACITY))  # cmp  eax, <capacity>
     a.jcc_short(JAE, "full")
     a.emit(0x40)  # inc  eax               ; index 0 means "declared nothing"
-    a.emit(0xA3, _u32(count_va))  # mov  [count], eax
+    a.emit(0xA3, u32(count_va))  # mov  [count], eax
     a.emit(b"\x66\x89\x02")  # mov  [edx], ax
     a.emit(b"\x8b\xc8")  # mov  ecx, eax
     a.emit(b"\xc1\xe9\x10")  # shr  ecx, 16
@@ -453,7 +384,7 @@ def _assemble(base_va: int, count_va: int, records_va: int) -> Asm:
     # The section is zero-filled, so the offset starts at nothing and the turn's flag clear; the
     # scale has to be told that nothing means one, or declaring another keyword alone would
     # collapse the model.
-    a.emit(b"\xc7\x00", _u32(0x3F800000))  # mov  dword [eax], 1.0f
+    a.emit(b"\xc7\x00", u32(0x3F800000))  # mov  dword [eax], 1.0f
     a.emit(b"\xc2\x04\x00")  # ret  4
     a.label("known")
     _emit_record_lookup(a, records_va)
@@ -500,13 +431,13 @@ def _assemble(base_va: int, count_va: int, records_va: int) -> Asm:
     a.emit(b"\xd9\x04\x24")  # fld   dword [esp]      ; the angle, in degrees
     a.emit(b"\xd9\xeb")  # fldpi
     a.emit(b"\xde\xc9")  # fmulp st(1), st
-    a.emit(0x68, _u32(180))  # push  180
+    a.emit(0x68, u32(180))  # push  180
     a.emit(b"\xda\x34\x24")  # fidiv dword [esp]      ; ... and now in radians
     a.emit(0x59)  # pop   ecx
     a.emit(b"\xd9\xfb")  # fsincos                ; st0 = cos, st1 = sin
     a.emit(b"\xd9\x58", RECORD_COS)  # fstp  dword [eax+0x14]
     a.emit(b"\xd9\x58", RECORD_SIN)  # fstp  dword [eax+0x18]
-    a.emit(b"\xc7\x40", RECORD_ANGLE_FLAG, _u32(1))  # mov dword [eax+0x10], 1
+    a.emit(b"\xc7\x40", RECORD_ANGLE_FLAG, u32(1))  # mov dword [eax+0x10], 1
     a.label("angle_done")
     a.emit(b"\x83\xc4\x04")  # add  esp, 4
     a.emit(0xC3)  # ret
@@ -524,7 +455,7 @@ def _assemble(base_va: int, count_va: int, records_va: int) -> Asm:
     a.emit(0x56)  # push esi               ; the helper's own argument
     a.call_absolute(W3D_MODEL_DRAW_TRANSFORM_HELPER)  # ret 4: it pops that
     a.emit(b"\x8b\x47\x04")  # mov  eax, [edi+4]      ; the ModuleData
-    a.emit(b"\x8b\x80", _u32(W3D_MODEL_DRAW_BIRTH_FADE_ADDITIVE))  # mov eax, [eax+0x154]
+    a.emit(b"\x8b\x80", u32(W3D_MODEL_DRAW_BIRTH_FADE_ADDITIVE))  # mov eax, [eax+0x154]
     a.emit(b"\xc1\xe8\x08")  # shr  eax, 8            ; the record index
     # Near, not short: the offset and the turn between here and the label are well past a rel8.
     a.jcc(JE, "transform_done")  # nothing declared -> the matrix as the engine left it
@@ -552,11 +483,11 @@ def _assemble(base_va: int, count_va: int, records_va: int) -> Asm:
         a.emit(DRAWABLE_GET_SCALE_BYTES[:-1])  # fld  dword [ecx+0x200]  ; getScale
         a.emit(0x50)  # push eax
         a.emit(load)  # mov  eax, <the ModuleData>
-        a.emit(b"\x8b\x80", _u32(W3D_MODEL_DRAW_BIRTH_FADE_ADDITIVE))  # mov eax, [eax+0x154]
+        a.emit(b"\x8b\x80", u32(W3D_MODEL_DRAW_BIRTH_FADE_ADDITIVE))  # mov eax, [eax+0x154]
         a.emit(b"\xc1\xe8\x08")  # shr  eax, 8            ; the record index
         a.jcc_short(JE, f"{name}_unset")  # nothing declared -> the object's scale alone
         a.emit(b"\xc1\xe0", RECORD_SHIFT)  # shl  eax, 5
-        a.emit(b"\xd8\x88", _u32(records_va - RECORD_SIZE + RECORD_SCALE))  # fmul dword [eax+..]
+        a.emit(b"\xd8\x88", u32(records_va - RECORD_SIZE + RECORD_SCALE))  # fmul dword [eax+..]
         a.label(f"{name}_unset")
         a.emit(0x58)  # pop  eax
         a.emit(0xC3)  # ret
@@ -564,7 +495,7 @@ def _assemble(base_va: int, count_va: int, records_va: int) -> Asm:
 
 
 def build_code(base_va: int, count_va: int, records_va: int) -> bytes:
-    """The cave's code, laid out at ``base_va`` and reaching the counter and records given."""
+    """The cave's code, laid out at `base_va` and reaching the counter and records given."""
     return _assemble(base_va, count_va, records_va).finish()
 
 
@@ -575,15 +506,8 @@ def entry_points(base_va: int, count_va: int, records_va: int) -> dict[str, int]
     return {name: code.label_va(name) for name in ROUTINES}
 
 
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA 0x{va:08x} is not mapped - not the expected build")
-    return off
-
-
 def _push(table_va: int) -> bytes:
-    return b"\x68" + _u32(table_va)
+    return b"\x68" + u32(table_va)
 
 
 def _live_table(data: bytes | bytearray, ref_va: int) -> int:
@@ -666,20 +590,25 @@ class DrawModuleScalePatch(Patch):
             ),
         ]
         edits += [
-            (site, ANCHORS[site], _call(site, routines[locator]), f"getScale -> the {locator} stub")
+            (
+                site,
+                ANCHORS[site],
+                call_rel32(site, routines[locator]),
+                f"getScale -> the {locator} stub",
+            )
             for site, locator in SITES.items()
         ]
         edits += [
             (
                 site,
                 ANCHORS[site],
-                _call(site, routines["transform"]),
+                call_rel32(site, routines["transform"]),
                 f"the transform helper -> the {self.offset_keyword}/{self.angle_keyword} stub",
             )
             for site in TRANSFORM_SITES
         ]
         for va, old, new, note in edits:
-            apply_byte_patch(data, _offset(data, va), old, new, note)
+            apply_byte_patch(data, file_offset(data, va), old, new, note)
 
     def _pieces(self, base_va: int, row_count: int) -> _Layout:
         return _layout(base_va, self._keywords, row_count)
@@ -774,7 +703,7 @@ class DrawModuleScalePatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> DrawModuleScalePatch | None:
-        """Recognise this patch **and recover its keywords** from ``data``.
+        """Recognise this patch **and recover its keywords** from `data`.
 
         All three strings are the first thing in the cave, in declaration order, so they read
         straight back out; `verify` then checks the whole cave against them."""
@@ -803,8 +732,8 @@ class DrawModuleScalePatch(Patch):
         return Engine(fields=tuple(fields))
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Return the structural problems that mean ``data`` does not carry this patch for exactly
-        these keywords. Reads only via ``struct`` and the section table.
+        """Return the structural problems that mean `data` does not carry this patch for exactly
+        these keywords. Reads only via `struct` and the section table.
 
         The table's rows are read back out of the cave's own copy, located by this patch's own row
         rather than counted from the end, so the cave verifies against whatever the table held when
@@ -856,10 +785,10 @@ class DrawModuleScalePatch(Patch):
                 )
 
         expected = {W3D_MODEL_DRAW_BIRTH_FADE_DEFAULT: widened_default()}
-        expected.update({site: _call(site, routines[loc]) for site, loc in SITES.items()})
-        expected.update({site: _call(site, routines["transform"]) for site in TRANSFORM_SITES})
+        expected.update({site: call_rel32(site, routines[loc]) for site, loc in SITES.items()})
+        expected.update({site: call_rel32(site, routines["transform"]) for site in TRANSFORM_SITES})
         for site_va, want in expected.items():
-            off = _offset(data, site_va)
+            off = file_offset(data, site_va)
             got = bytes(data[off : off + len(want)])
             if got != want:
                 problems.append(f"@0x{site_va:08x}: expected {want.hex()}, got {got.hex()}")

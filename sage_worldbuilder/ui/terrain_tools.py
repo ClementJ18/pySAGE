@@ -28,6 +28,13 @@ from PyQt6.QtGui import QColor, QPainter, QPen
 
 from sage_map.assets.blend_tile_data import BlendTileData, BlendTileTexture
 from sage_worldbuilder.brush_options import BrushOptions, PaintMode, PaintOptions
+from sage_worldbuilder.commands.terrain import (
+    PaintBlends,
+    PaintTiles,
+    PatchCells,
+    PatchHeights,
+    RenameTexture,
+)
 from sage_worldbuilder.terrain import WORLD_UNITS_PER_CELL
 from sage_worldbuilder.terrain.blending import (
     BlendEdit,
@@ -38,13 +45,6 @@ from sage_worldbuilder.terrain.blending import (
 )
 from sage_worldbuilder.terrain.brushes import BrushKind, apply_brush, brush_center
 from sage_worldbuilder.terrain.cells import TileLayer, paint_cells, paint_values, square_block
-from sage_worldbuilder.terrain.edits import (
-    PaintBlends,
-    PaintTiles,
-    PatchCells,
-    PatchHeights,
-    RenameTexture,
-)
 from sage_worldbuilder.terrain.textures import (
     TextureCapacityError,
     paint_texture_block,

@@ -42,6 +42,14 @@ from .assets import (
 )
 from .context import ParsingContext, WritingContext
 
+__all__ = [
+    "Map",
+    "parse_map",
+    "parse_map_from_path",
+    "write_map",
+    "write_map_to_path",
+]
+
 
 class Map:
     compression_bytes: str | None
@@ -357,15 +365,15 @@ class Map:
         header_stream = BinaryStream(io.BytesIO())
 
         compression_bytes = self.compression_bytes if self.compression_bytes else "    "
-        header_stream.writeFourCc(compression_bytes)
+        header_stream.write_fourcc(compression_bytes)
 
         asset_count = len(context.assets_by_index)
-        header_stream.writeUInt32(asset_count)
+        header_stream.write_uint32(asset_count)
 
         for i in range(asset_count, 0, -1):
             asset_name = context.assets_by_index[i]
-            header_stream.writeString(asset_name)
-            header_stream.writeUInt32(i)
+            header_stream.write_string(asset_name)
+            header_stream.write_uint32(i)
 
         return header_stream.getvalue() + asset_data
 
@@ -447,8 +455,8 @@ def write_map(map: Map, compress: bool) -> bytes:
         compressed_data = refpack.compress(uncompressed_data)
         if map.ea_compression_header:
             header_stream = BinaryStream(io.BytesIO())
-            header_stream.writeFourCc("EAR\0")
-            header_stream.writeUInt32(len(uncompressed_data))
+            header_stream.write_fourcc("EAR\0")
+            header_stream.write_uint32(len(uncompressed_data))
             data = header_stream.getvalue() + compressed_data
         else:
             data = compressed_data

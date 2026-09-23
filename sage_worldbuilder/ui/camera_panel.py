@@ -48,8 +48,8 @@ from PyQt6.QtWidgets import (
 
 from sage_map.assets.camera_animation_list import CameraAnimation
 from sage_map.assets.named_cameras import NamedCamera
-from sage_worldbuilder import camera_edit
-from sage_worldbuilder.camera_edit import (
+from sage_worldbuilder.camera import keys as camera_edit
+from sage_worldbuilder.camera.keys import (
     CAMERA_KEY,
     LOCAL,
     LOOK_KEY,
@@ -60,7 +60,7 @@ from sage_worldbuilder.camera_edit import (
     CameraScene,
     Vec3,
 )
-from sage_worldbuilder.cameras import (
+from sage_worldbuilder.camera.named import (
     CAMERAS,
     FREE,
     LINEAR,

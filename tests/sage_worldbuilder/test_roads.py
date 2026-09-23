@@ -10,8 +10,7 @@ from sage_map.assets.waypoint_list import WaypointsList
 from sage_map.context import AssetPropertyType
 from sage_map.map import Map
 from sage_worldbuilder import MapDocument
-from sage_worldbuilder.objects import DeleteObjects, copy_objects, paste_objects
-from sage_worldbuilder.pick import PickCategory, PickRules
+from sage_worldbuilder.commands.objects import DeleteObjects, copy_objects, paste_objects
 from sage_worldbuilder.roads import (
     BRIDGE_END,
     BRIDGE_START,
@@ -33,6 +32,7 @@ from sage_worldbuilder.roads import (
     with_partners,
 )
 from sage_worldbuilder.scene import MapScene, MarkerKind, marker_kind
+from sage_worldbuilder.selection.pick import PickCategory, PickRules
 
 
 def placed(type_name, x=0.0, y=0.0, flags=0, unique=None):

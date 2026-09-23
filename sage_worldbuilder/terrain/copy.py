@@ -1,5 +1,5 @@
 """Terrain Copy: selected cells copied onto the map at the cursor, flipped and turned, as
-WorldBuilder's Terrain Copy Tool does (PHASE3.md, 3.6 Terrain copy).
+WorldBuilder's Terrain Copy Tool does.
 
 A selection is a set of cells, `[cell_y, cell_x]` like the terrain layers, with a bounding box
 whose right and top edges are exclusive (`MapCellSelection`, `0x00530CC0`). A paste moves the

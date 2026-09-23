@@ -9,8 +9,8 @@ import pytest
 from sage_map.assets.trigger_areas import TriggerArea, TriggerAreas
 from sage_map.map import parse_map, write_map
 from sage_worldbuilder.anchors import RotationAnchors
+from sage_worldbuilder.commands.objects import new_object, place_objects
 from sage_worldbuilder.document import MapDocument
-from sage_worldbuilder.objects import new_object, place_objects
 
 np = pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 

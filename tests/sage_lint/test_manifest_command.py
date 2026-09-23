@@ -10,7 +10,7 @@ import pytest
 
 from sage_ini.loader import load_game
 from sage_ini.manifest import build_manifest, read_manifest, write_manifest
-from sage_lint.cli import main
+from sage_lint.__main__ import main
 from sage_lint.linter import lint_folder
 
 

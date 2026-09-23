@@ -13,6 +13,7 @@ from sage_worldbuilder import MapDocument
 
 np = pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 
+from sage_worldbuilder.commands.terrain import PaintBlends, PaintTiles  # noqa: E402
 from sage_worldbuilder.new_map import blank_blend_tile_data, blank_height_map  # noqa: E402
 from sage_worldbuilder.terrain.blending import (  # noqa: E402
     DEFAULT_EDGE,
@@ -23,7 +24,6 @@ from sage_worldbuilder.terrain.blending import (  # noqa: E402
     single_edge,
 )
 from sage_worldbuilder.terrain.cells import TileLayer, layer_array  # noqa: E402
-from sage_worldbuilder.terrain.edits import PaintBlends, PaintTiles  # noqa: E402
 from sage_worldbuilder.terrain.textures import (  # noqa: E402
     paint_texture_block,
     planned_texture,

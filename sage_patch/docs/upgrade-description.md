@@ -55,7 +55,7 @@ the record's constructor at `0x008086E5`:
 008086f3  e8 78c91600        call 0x00975070
 ```
 
-`ebp-0x18` is `DESCRIPTION_TEXT_EBP_OFFSET` in [`addresses.py`](../addresses.py), and was already
+`ebp-0x18` is `DESCRIPTION_TEXT_EBP_OFFSET` in [`sage_patch.addresses`](../addresses/ui.py), and was already
 recorded there by `hero-mana`, which appends its `ManaCost` line to the same slot.
 
 ### Where the description comes from

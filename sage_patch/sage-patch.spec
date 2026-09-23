@@ -21,7 +21,7 @@ ROOT = os.path.dirname(SPECPATH)
 CLI_ICON = os.path.join(ROOT, 'tools', 'icon.ico')
 
 a = Analysis(
-    [os.path.join(ROOT, 'sage_patch', 'cli.py')],
+    [os.path.join(ROOT, 'sage_patch', '__main__.py')],
     pathex=[ROOT],
     binaries=[],
     datas=[],

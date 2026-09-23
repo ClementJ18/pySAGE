@@ -18,6 +18,7 @@ _PUBLIC_MODULES = [
     "sage_ini.suggest",
     "sage_ini.strings",
     "sage_ini.stats",
+    "sage_ini.paths",
     "sage_ini.model",
     "sage_ini.model.game",
     "sage_ini.model.objects",

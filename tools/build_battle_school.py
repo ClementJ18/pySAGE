@@ -390,7 +390,7 @@ def build(bfme1: Path, main_menu: Path, out: Path, movie: str = "MainMenu") -> d
         if not needed.exists():
             raise SystemExit(f"{needed} is missing - is {bfme1} a BFME1 install?")
 
-    # --- the source movie, and everything its shapes reach ---
+    # The source movie, and everything its shapes reach
     source_dir = out / ".bfme1"
     source_dir.mkdir(exist_ok=True)
     for entry, blob in _archive_files(
@@ -403,7 +403,7 @@ def build(bfme1: Path, main_menu: Path, out: Path, movie: str = "MainMenu") -> d
     textures = _textures(apt_archive, "MainMenu")
     source_rects = _rects((source_dir / "MainMenu.dat").read_text(encoding="latin-1"))
 
-    # --- the destination ---
+    # The destination
     work = out / ".work"
     work.mkdir(exist_ok=True)
     for suffix in (".apt", ".const"):
@@ -418,7 +418,7 @@ def build(bfme1: Path, main_menu: Path, out: Path, movie: str = "MainMenu") -> d
     destination = tree.getroot()
     before = len(character_index(destination))
 
-    # --- merge the book, then wire it ---
+    # Merge the book, then wire it
     plan = merge_character(destination, source, BOOK_CHARACTER, meshes)
     action = _root_action(destination)
     copied = copy_functions(action, _root_action(source), BOOK_CALLBACKS)
@@ -431,7 +431,7 @@ def build(bfme1: Path, main_menu: Path, out: Path, movie: str = "MainMenu") -> d
     for produced in (apt, const):
         shutil.move(str(produced), out / produced.name)
 
-    # --- the assets those new characters name ---
+    # The assets those new characters name
     geometry_dir = out / f"{movie}_geometry"
     geometry_dir.mkdir(exist_ok=True)
     for old, new in sorted(plan.geometry.items()):
@@ -456,7 +456,7 @@ def build(bfme1: Path, main_menu: Path, out: Path, movie: str = "MainMenu") -> d
             rows.append(f"{new}={source_rects[old]}")
     (out / f"{movie}.dat").write_text("\n".join(rows).lstrip("\n") + "\n", encoding="latin-1")
 
-    # --- videos, sounds, narration ---
+    # Videos, sounds, narration
     movies_out = out / "data" / "movies"
     movies_out.mkdir(parents=True, exist_ok=True)
     found_videos = []
@@ -484,7 +484,7 @@ def build(bfme1: Path, main_menu: Path, out: Path, movie: str = "MainMenu") -> d
     for entry, blob in narration.items():
         (speech_out / Path(entry).name).write_bytes(blob)
 
-    # --- ini and strings ---
+    # Ini and strings
     ini_out = out / "data" / "ini"
     ini_out.mkdir(parents=True, exist_ok=True)
     (ini_out / "battleschool.inc").write_text(VIDEO_INI + "\n" + SPEECH_INI, encoding="latin-1")

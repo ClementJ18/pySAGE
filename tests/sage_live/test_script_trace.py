@@ -1,8 +1,10 @@
 """The script trace: the cave executed under unicorn, and the ring read back through a fake process.
 
-The cave is run for both entry points - the logger replacement, which must record and then reach
-the logger with the stack untouched, and the sequential wrapper, which must make the engine's own
-condition call, record only a "yes", and return with the stack balanced for `ret 0xc`.
+The cave is run for every entry point - the logger replacement, which must record and then reach
+the logger with the stack untouched; the sequential wrapper, which must make the engine's own
+condition call, record only a "yes", and return with the stack balanced for `ret 0xc`; the
+condition wrapper, which must pass the engine's verdict through and note it for a watched
+condition; and the evaluator's entry, which must count and carry on as the stock instruction would.
 """
 
 from __future__ import annotations
@@ -12,11 +14,14 @@ import struct
 
 import pytest
 
-from sage_live.backends.live_patch import call_target
+from sage_live.backends.live_patch import branch_target, call_target
 from sage_live.backends.script_trace import (
     CAPACITY,
+    CAVE_SIZE,
     TRACE_MAGIC,
+    WATCH_LIMIT,
     BreakpointHit,
+    ConditionResult,
     EventKind,
     ScriptTrace,
     TraceEvent,
@@ -30,6 +35,11 @@ from sage_patch.addresses import (
     SCRIPT_DEBUG_RUN_SCRIPT_LOG,
     SCRIPT_ENGINE_CURRENT_OBJECT,
     SCRIPT_ENGINE_EVALUATE,
+    SCRIPT_ENGINE_EVALUATE_CONDITION,
+    SCRIPT_ENGINE_EVALUATE_ENTRY_BYTES,
+    SCRIPT_ENGINE_EVALUATE_RESUME,
+    SCRIPT_EVALUATE_CONDITION_CALL,
+    SCRIPT_EVALUATE_CONDITION_CALL_BYTES,
     SCRIPT_EXECUTE_LOG_CALLS,
     SCRIPT_SEQUENTIAL_EVALUATE_CALL,
     SCRIPT_SEQUENTIAL_EVALUATE_CALL_BYTES,
@@ -44,6 +54,8 @@ OBJECT = 0x12000000
 SCRIPT = 0x13000000
 RING = 0x400
 GATE_MODE = 0x14000000
+WATCH_TABLE = RING + CAPACITY * 16
+CONDITION = 0x15000000
 
 
 def ring_entry(read, base: int, index: int) -> tuple[int, int, int, int]:
@@ -53,17 +65,18 @@ def ring_entry(read, base: int, index: int) -> tuple[int, int, int, int]:
 class TestCave:
     unicorn = pytest.importorskip("unicorn", reason="executing the cave needs unicorn")
 
-    def emulator(self, evaluate_answer: int = 1):
+    def emulator(self, evaluate_answer: int = 1, condition_answer: int = 1):
         from unicorn import UC_ARCH_X86, UC_MODE_32, Uc  # noqa: PLC0415
 
         uc = Uc(UC_ARCH_X86, UC_MODE_32)
-        image, log, sequential = build_trace_cave(CAVE)
+        cave = build_trace_cave(CAVE)
+        image = cave.image
         # `mem_map` raises and catches an SEH access violation inside Unicorn 2.1.4 on Windows;
         # every map succeeds, but the fault handler would print a stack for each one.
         was_enabled = faulthandler.is_enabled()
         faulthandler.disable()
         try:
-            uc.mem_map(CAVE, (len(image) + 0xFFF) & ~0xFFF)
+            uc.mem_map(CAVE, (CAVE_SIZE + 0xFFF) & ~0xFFF)
             for page in (THE_GAME_LOGIC, LOGIC, OBJECT, SCRIPT, GATE_MODE, 0x00200000, 0x00300000):
                 uc.mem_map(page & ~0xFFF, 0x1000)
             uc.mem_map(ENGINE, 0x20000)
@@ -79,7 +92,10 @@ class TestCave:
         uc.mem_write(OBJECT + OBJECT_ID, struct.pack("<I", 4242))
         # The engine's evaluator, stubbed: answer in al, pop the three arguments.
         uc.mem_write(SCRIPT_ENGINE_EVALUATE, bytes([0xB0, evaluate_answer, 0xC2, 0x0C, 0x00]))
-        return uc, log, sequential
+        # The one-condition judge, stubbed the same way: answer in al, pop the condition.
+        judge = bytes([0xB0, condition_answer, 0xC2, 0x04, 0x00])
+        uc.mem_write(SCRIPT_ENGINE_EVALUATE_CONDITION, judge)
+        return uc, cave.log, cave.sequential, cave
 
     def break_on(self, uc, script: int, mask: int) -> None:
         uc.mem_write(CAVE + 0x14, struct.pack("<II", GATE_MODE, 1))  # gate, one breakpoint
@@ -93,7 +109,7 @@ class TestCave:
         self.run(uc, log, [0x00300000, 0xAAAA, is_true, 0], SCRIPT_DEBUG_RUN_SCRIPT_LOG)
 
     def test_a_breakpoint_holds_the_gate_and_says_what_hit(self) -> None:
-        uc, log, _ = self.emulator()
+        uc, log, _, _ = self.emulator()
         self.break_on(uc, SCRIPT, kind_mask([EventKind.TRUE_ACTIONS]))
         self.fire_logger(uc, log, is_true=1)
         assert struct.unpack("<I", bytes(uc.mem_read(GATE_MODE, 4)))[0] == 1
@@ -101,14 +117,14 @@ class TestCave:
         assert (hits, script, frame, kind) == (1, SCRIPT, 777, EventKind.TRUE_ACTIONS)
 
     def test_a_breakpoint_ignores_kinds_outside_its_mask(self) -> None:
-        uc, log, _ = self.emulator()
+        uc, log, _, _ = self.emulator()
         self.break_on(uc, SCRIPT, kind_mask([EventKind.TRUE_ACTIONS]))
         self.fire_logger(uc, log, is_true=0)
         assert struct.unpack("<I", bytes(uc.mem_read(GATE_MODE, 4)))[0] == 0
         assert struct.unpack("<I", bytes(uc.mem_read(CAVE + 0x1C, 4)))[0] == 0
 
     def test_a_breakpoint_hits_with_recording_off(self) -> None:
-        uc, log, _ = self.emulator()
+        uc, log, _, _ = self.emulator()
         uc.mem_write(CAVE + 0x10, struct.pack("<I", 0))
         self.break_on(uc, SCRIPT, kind_mask(EventKind))
         self.fire_logger(uc, log, is_true=1)
@@ -128,7 +144,7 @@ class TestCave:
     def test_the_logger_hook_records_then_reaches_the_logger(self) -> None:
         from unicorn.x86_const import UC_X86_REG_EDI, UC_X86_REG_ESI  # noqa: PLC0415
 
-        uc, log, _ = self.emulator()
+        uc, log, _, _ = self.emulator()
         uc.reg_write(UC_X86_REG_ESI, SCRIPT)
         uc.reg_write(UC_X86_REG_EDI, ENGINE)
         uc.mem_write(ENGINE + SCRIPT_ENGINE_CURRENT_OBJECT, struct.pack("<I", OBJECT))
@@ -141,7 +157,7 @@ class TestCave:
     def test_the_sequential_hook_records_a_yes_and_balances_the_stack(self) -> None:
         from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EDI  # noqa: PLC0415
 
-        uc, _, sequential = self.emulator(evaluate_answer=1)
+        uc, _, sequential, _ = self.emulator(evaluate_answer=1)
         uc.reg_write(UC_X86_REG_EDI, SCRIPT)
         moved = self.run(uc, sequential, [0x00300000, SCRIPT, 0, 0], stop=0x00300000)
         assert moved == 16  # the return address and `ret 0xc`'s three arguments
@@ -152,11 +168,74 @@ class TestCave:
     def test_the_sequential_hook_records_nothing_on_a_no(self) -> None:
         from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EDI  # noqa: PLC0415
 
-        uc, _, sequential = self.emulator(evaluate_answer=0)
+        uc, _, sequential, _ = self.emulator(evaluate_answer=0)
         uc.reg_write(UC_X86_REG_EDI, SCRIPT)
         self.run(uc, sequential, [0x00300000, SCRIPT, 0, 0], stop=0x00300000)
         assert uc.reg_read(UC_X86_REG_EAX) & 0xFF == 0
         assert struct.unpack("<I", bytes(uc.mem_read(CAVE + 8, 4)))[0] == 0
+
+    def watch(self, uc, *conditions: int) -> None:
+        uc.mem_write(CAVE + 0x2C, struct.pack("<I", len(conditions)))
+        for i, condition in enumerate(conditions):
+            uc.mem_write(CAVE + WATCH_TABLE + i * 32, struct.pack("<I", condition))
+
+    def judge(self, uc, cave, condition: int) -> int:
+        """Run the condition hook as the evaluator's call would; returns the verdict in `al`."""
+        from unicorn.x86_const import (  # noqa: PLC0415
+            UC_X86_REG_EAX,
+            UC_X86_REG_EBX,
+            UC_X86_REG_ECX,
+            UC_X86_REG_ESI,
+        )
+
+        uc.reg_write(UC_X86_REG_ECX, ENGINE)
+        uc.reg_write(UC_X86_REG_EBX, 0xB0B0)
+        uc.reg_write(UC_X86_REG_ESI, 0x5151)
+        moved = self.run(uc, cave.condition, [0x00300000, condition], stop=0x00300000)
+        assert moved == 8  # the return address and `ret 4`'s argument
+        assert uc.reg_read(UC_X86_REG_EBX) == 0xB0B0 and uc.reg_read(UC_X86_REG_ESI) == 0x5151
+        return uc.reg_read(UC_X86_REG_EAX) & 0xFF
+
+    def entry(self, uc, cave, index: int) -> tuple[int, int, int, int, int, int]:
+        raw = bytes(uc.mem_read(CAVE + WATCH_TABLE + index * 32, 24))
+        return struct.unpack("<6I", raw)
+
+    def test_the_condition_hook_notes_a_watched_verdict(self) -> None:
+        uc, _, _, cave = self.emulator(condition_answer=1)
+        self.watch(uc, 0x15000100, CONDITION)
+        uc.mem_write(CAVE + 0x30, struct.pack("<I", 41))  # the evaluation under way
+        assert self.judge(uc, cave, CONDITION) == 1
+        assert self.entry(uc, cave, 1) == (CONDITION, 41, 777, 1, 1, 0)
+        assert self.entry(uc, cave, 0) == (0x15000100, 0, 0, 0, 0, 0)
+
+    def test_a_failure_is_counted_apart_from_the_passes(self) -> None:
+        uc, _, _, cave = self.emulator(condition_answer=0)
+        self.watch(uc, CONDITION)
+        uc.mem_write(CAVE + WATCH_TABLE + 16, struct.pack("<II", 5, 2))  # earlier passes, failures
+        assert self.judge(uc, cave, CONDITION) == 0
+        assert self.entry(uc, cave, 0)[3:] == (0, 5, 3)
+
+    def test_an_unwatched_condition_passes_straight_through(self) -> None:
+        uc, _, _, cave = self.emulator(condition_answer=1)
+        self.watch(uc, 0x15000100)
+        assert self.judge(uc, cave, CONDITION) == 1
+        assert self.entry(uc, cave, 0) == (0x15000100, 0, 0, 0, 0, 0)
+        self.watch(uc)  # nothing watched at all
+        assert self.judge(uc, cave, CONDITION) == 1
+
+    def test_the_evaluator_entry_counts_and_carries_on(self) -> None:
+        from unicorn.x86_const import UC_X86_REG_EAX  # noqa: PLC0415
+
+        uc, _, _, cave = self.emulator()
+        uc.mem_write(CAVE + 0x30, struct.pack("<I", 9))
+        moved = self.run(uc, cave.evaluate, [0x00300000], stop=SCRIPT_ENGINE_EVALUATE_RESUME)
+        assert moved == 0
+        assert struct.unpack("<I", bytes(uc.mem_read(CAVE + 0x30, 4)))[0] == 10
+        # What the displaced `mov eax, imm32` would have left.
+        assert (
+            uc.reg_read(UC_X86_REG_EAX)
+            == struct.unpack("<I", SCRIPT_ENGINE_EVALUATE_ENTRY_BYTES[1:])[0]
+        )
 
 
 def running_game() -> FakeProcess:
@@ -166,7 +245,17 @@ def running_game() -> FakeProcess:
     for site, stock in SCRIPT_EXECUTE_LOG_CALLS.items():
         process.write(site, stock)
     process.write(SCRIPT_SEQUENTIAL_EVALUATE_CALL, SCRIPT_SEQUENTIAL_EVALUATE_CALL_BYTES)
+    process.write(SCRIPT_EVALUATE_CONDITION_CALL, SCRIPT_EVALUATE_CONDITION_CALL_BYTES)
+    process.write(SCRIPT_ENGINE_EVALUATE, SCRIPT_ENGINE_EVALUATE_ENTRY_BYTES)
     return process
+
+
+STOCK = {
+    **SCRIPT_EXECUTE_LOG_CALLS,
+    SCRIPT_SEQUENTIAL_EVALUATE_CALL: SCRIPT_SEQUENTIAL_EVALUATE_CALL_BYTES,
+    SCRIPT_EVALUATE_CONDITION_CALL: SCRIPT_EVALUATE_CONDITION_CALL_BYTES,
+    SCRIPT_ENGINE_EVALUATE: SCRIPT_ENGINE_EVALUATE_ENTRY_BYTES,
+}
 
 
 def emit(process: FakeProcess, cave: int, events: list[tuple[int, int, int, int]]) -> None:
@@ -184,13 +273,18 @@ def test_attach_hooks_every_site_and_close_restores_them() -> None:
     trace = ScriptTrace(process)
     trace.attach()
     assert trace.cave is not None and process.read(trace.cave, 4) == TRACE_MAGIC
-    _, log, sequential = build_trace_cave(trace.cave)
+    cave = build_trace_cave(trace.cave)
     for site in SCRIPT_EXECUTE_LOG_CALLS:
-        assert call_target(site, process.read(site, 5) or b"") == log
+        assert call_target(site, process.read(site, 5) or b"") == cave.log
     seq = process.read(SCRIPT_SEQUENTIAL_EVALUATE_CALL, 5) or b""
-    assert call_target(SCRIPT_SEQUENTIAL_EVALUATE_CALL, seq) == sequential
+    assert call_target(SCRIPT_SEQUENTIAL_EVALUATE_CALL, seq) == cave.sequential
+    judge = process.read(SCRIPT_EVALUATE_CONDITION_CALL, 5) or b""
+    assert call_target(SCRIPT_EVALUATE_CONDITION_CALL, judge) == cave.condition
+    entry = process.read(SCRIPT_ENGINE_EVALUATE, 5) or b""
+    assert entry[0] == 0xE9  # a jump: the evaluator's frame must stay the caller's
+    assert branch_target(SCRIPT_ENGINE_EVALUATE, entry) == cave.evaluate
     assert trace.close() == []
-    for site, stock in SCRIPT_EXECUTE_LOG_CALLS.items():
+    for site, stock in STOCK.items():
         assert process.read(site, 5) == stock
     assert process.code_writes_while_running == 0
 
@@ -232,7 +326,7 @@ def test_a_second_trace_adopts_the_cave_left_behind() -> None:
     second.attach()
     assert second.adopted and second.cave == first.cave
     second.close()
-    for site, stock in SCRIPT_EXECUTE_LOG_CALLS.items():
+    for site, stock in STOCK.items():
         assert process.read(site, 5) == stock
 
 
@@ -279,5 +373,25 @@ def test_an_older_cave_is_replaced() -> None:
     assert not second.adopted and second.cave != first.cave
     assert first.cave in process.freed
     second.close()
-    for site, stock in SCRIPT_EXECUTE_LOG_CALLS.items():
+    for site, stock in STOCK.items():
         assert process.read(site, 5) == stock
+
+
+def test_watches_are_written_and_their_verdicts_read_back() -> None:
+    process = running_game()
+    trace = ScriptTrace(process)
+    trace.attach()
+    assert trace.cave is not None
+    trace.set_watches([0x300, 0x100])
+    table = trace.cave + WATCH_TABLE
+    assert struct.unpack("<I", process.read(trace.cave + 0x2C, 4) or b"")[0] == 2
+    assert struct.unpack("<I", process.read(table, 4) or b"")[0] == 0x100
+    assert trace.condition_results() == {}  # neither judged yet
+    process.write(table + 4, struct.pack("<5I", 7, 90, 0, 2, 1))  # what the cave would write
+    assert trace.condition_results() == {0x100: ConditionResult(7, 90, False, 2, 1)}
+    # Rewriting the table keeps what a condition still watched has recorded.
+    trace.set_watches([0x100, 0x200])
+    assert trace.condition_results() == {0x100: ConditionResult(7, 90, False, 2, 1)}
+    with pytest.raises(Exception, match="at most"):
+        trace.set_watches(range(1, WATCH_LIMIT + 2))
+    trace.close()

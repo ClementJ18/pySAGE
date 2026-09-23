@@ -48,7 +48,7 @@ from sage_replay.replay import (
     parse_replay,
     parse_replay_from_path,
 )
-from sage_replay.serialize import serialize_replay, write_replay
+from sage_replay.serialize import serialize_replay, write_replay, write_replay_to_path
 from sage_replay.winner import (
     PlayerOutcome,
     PlayerSession,
@@ -98,4 +98,5 @@ __all__ = [
     "recorded_outcomes",
     "serialize_replay",
     "write_replay",
+    "write_replay_to_path",
 ]

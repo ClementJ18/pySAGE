@@ -51,8 +51,8 @@ class VersionMismatchWarning(UserWarning):
 
 
 def _read_pstr(stream: BinaryStream) -> str:
-    length = stream.readUChar()
-    raw = stream.readBytes(length)
+    length = stream.read_uchar()
+    raw = stream.read_bytes(length)
     if len(raw) != length:
         raise struct.error(f"pstr wants {length} bytes, got {len(raw)}")
     return raw.decode("latin-1")
@@ -62,8 +62,8 @@ def _write_pstr(stream: BinaryStream, value: str) -> None:
     raw = value.encode("latin-1")
     if len(raw) > 0xFF:
         raise AssetDatError(f"string {value!r} is {len(raw)} bytes, over the 255-byte pstr limit")
-    stream.writeUChar(len(raw))
-    stream.writeBytes(raw)
+    stream.write_uchar(len(raw))
+    stream.write_bytes(raw)
 
 
 def _decode_type(raw: bytes) -> str:
@@ -240,24 +240,24 @@ def shadowed_entries(ad: AssetDat) -> list[ShadowedEntry]:
 
 def _parse_asset(stream: BinaryStream) -> Asset:
     name = _read_pstr(stream)
-    raw_type = stream.readBytes(4)
+    raw_type = stream.read_bytes(4)
     if len(raw_type) != 4:
         raise struct.error(f"type tag wants 4 bytes, got {len(raw_type)}")
     type_ = _decode_type(raw_type)
-    offset = stream.readUInt32()
-    size = stream.readUInt32()
+    offset = stream.read_uint32()
+    size = stream.read_uint32()
     return Asset(name=name, type=type_, offset=offset, size=size)
 
 
 def _parse(stream: BinaryStream) -> AssetDat:
-    magic = stream.readBytes(4)
+    magic = stream.read_bytes(4)
     if magic != _MAGIC:
         raise AssetDatError(f"bad magic {magic!r} at offset 0, expected {_MAGIC!r}")
 
     try:
-        version = stream.readUInt32()
-        file_count = stream.readUInt32()
-        ref_count = stream.readUInt32()
+        version = stream.read_uint32()
+        file_count = stream.read_uint32()
+        ref_count = stream.read_uint32()
     except struct.error as exc:
         raise AssetDatError(f"truncated header at offset {stream.tell()}: {exc}") from exc
 
@@ -266,8 +266,8 @@ def _parse(stream: BinaryStream) -> AssetDat:
         offset = stream.tell()
         try:
             name = _read_pstr(stream)
-            file_time = stream.readUInt64()
-            asset_count = stream.readUInt16()
+            file_time = stream.read_uint64()
+            asset_count = stream.read_uint16()
             assets = [_parse_asset(stream) for _ in range(asset_count)]
         except struct.error as exc:
             raise AssetDatError(f"truncated section 1 entry {i} at offset {offset}: {exc}") from exc
@@ -279,7 +279,7 @@ def _parse(stream: BinaryStream) -> AssetDat:
         try:
             file_name = _read_pstr(stream)
             asset_name = _read_pstr(stream)
-            n = stream.readUInt16()
+            n = stream.read_uint16()
             refs = [_read_pstr(stream) for _ in range(n)]
         except struct.error as exc:
             raise AssetDatError(
@@ -314,24 +314,24 @@ def parse_asset_dat_from_path(path: str | Path) -> AssetDat:
 def write_asset_dat(ad: AssetDat) -> bytes:
     """Serialize `ad` back to asset.dat bytes."""
     stream = BinaryStream(io.BytesIO())
-    stream.writeBytes(_MAGIC)
-    stream.writeUInt32(ad.version)
-    stream.writeUInt32(len(ad.files))
-    stream.writeUInt32(len(ad.references))
+    stream.write_bytes(_MAGIC)
+    stream.write_uint32(ad.version)
+    stream.write_uint32(len(ad.files))
+    stream.write_uint32(len(ad.references))
 
     for entry in ad.files:
         _write_pstr(stream, entry.name)
-        stream.writeUInt64(entry.file_time)
+        stream.write_uint64(entry.file_time)
         if len(entry.assets) > 0xFFFF:
             raise AssetDatError(
                 f"file {entry.name!r} has {len(entry.assets)} assets, over the uint16 field limit"
             )
-        stream.writeUInt16(len(entry.assets))
+        stream.write_uint16(len(entry.assets))
         for asset in entry.assets:
             _write_pstr(stream, asset.name)
-            stream.writeBytes(_encode_type(asset.type))
-            stream.writeUInt32(asset.offset)
-            stream.writeUInt32(asset.size)
+            stream.write_bytes(_encode_type(asset.type))
+            stream.write_uint32(asset.offset)
+            stream.write_uint32(asset.size)
 
     for record in ad.references:
         _write_pstr(stream, record.file_name)
@@ -341,7 +341,7 @@ def write_asset_dat(ad: AssetDat) -> bytes:
                 f"{record.file_name!r}/{record.asset_name!r} has {len(record.references)} "
                 "references, over the uint16 field limit"
             )
-        stream.writeUInt16(len(record.references))
+        stream.write_uint16(len(record.references))
         for ref in record.references:
             _write_pstr(stream, ref)
 

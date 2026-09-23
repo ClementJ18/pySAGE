@@ -59,6 +59,7 @@ from sage_map.assets.trigger_areas import TriggerArea
 from sage_map.map import Map
 from sage_utils.config import user_config_dir
 from sage_utils.elevation import relaunch_elevated
+from sage_utils.extras import package_version
 from sage_utils.widgets import Worker, add_help_menu, resource_path, run_worker
 from sage_worldbuilder.ambient import (
     ListenMode,
@@ -70,11 +71,26 @@ from sage_worldbuilder.areas import DeleteAreas
 from sage_worldbuilder.arrays import ArrayOptions, stamp_objects
 from sage_worldbuilder.autosave import Autosaver
 from sage_worldbuilder.brush_options import BrushOptions, CopyTerrainOptions, PaintOptions
-from sage_worldbuilder.cameras import CameraView
+from sage_worldbuilder.camera.named import CameraView
 from sage_worldbuilder.castles import is_base_path, refresh_castle_templates
 from sage_worldbuilder.categories import MapCategory, MapEntry
 from sage_worldbuilder.changes import Change, ChangeKind, Region
 from sage_worldbuilder.commands import Command, CompositeCommand
+from sage_worldbuilder.commands.objects import (
+    CLIPBOARD_MIME,
+    Clipboard,
+    DeleteObjects,
+    GroupEditMethod,
+    clipboard_from_json,
+    clipboard_to_json,
+    copy_objects,
+)
+from sage_worldbuilder.commands.terrain import (
+    PaintTiles,
+    PatchHeights,
+    RenameTexture,
+    ReplaceTerrainTables,
+)
 from sage_worldbuilder.document import MapDocument, ReadOnlyMapError
 from sage_worldbuilder.dressing import (
     MOLD_FOLDER,
@@ -102,17 +118,7 @@ from sage_worldbuilder.libraries import LibraryMaps
 from sage_worldbuilder.lighting import next_time_of_day
 from sage_worldbuilder.models import ArtIndex, MapConditions, ObjectModels
 from sage_worldbuilder.new_map import DEFAULT_CELL_SIZE, NewMapOptions, new_map
-from sage_worldbuilder.objects import (
-    CLIPBOARD_MIME,
-    Clipboard,
-    DeleteObjects,
-    GroupEditMethod,
-    clipboard_from_json,
-    clipboard_to_json,
-    copy_objects,
-)
 from sage_worldbuilder.palette import names_under, object_palette
-from sage_worldbuilder.pick import ANYTHING, NOTHING, PickCategory, PickRules
 from sage_worldbuilder.render.art import ArtTextures
 from sage_worldbuilder.render.model_mesh import load_object_models
 from sage_worldbuilder.render.terrain_texturing import TerrainAtlas, build_atlas
@@ -128,7 +134,7 @@ from sage_worldbuilder.roads import (
 )
 from sage_worldbuilder.safeio import atomic_write
 from sage_worldbuilder.script_targets import ScriptTarget, TargetKind
-from sage_worldbuilder.selection_helpers import (
+from sage_worldbuilder.selection.helpers import (
     TemplateIndex,
     base_parents,
     base_siblings,
@@ -139,18 +145,13 @@ from sage_worldbuilder.selection_helpers import (
     replace_objects,
     similar_objects,
 )
+from sage_worldbuilder.selection.pick import ANYTHING, NOTHING, PickCategory, PickRules
 from sage_worldbuilder.settings import APP, RecentMap, SavedLayout, Settings, same_folder
 from sage_worldbuilder.summary import map_summary
 from sage_worldbuilder.terrain import FEET_PER_HEIGHT_UNIT
 from sage_worldbuilder.terrain.apply_texture import ApplyTextureOptions, apply_texture
 from sage_worldbuilder.terrain.brushes import BrushKind
 from sage_worldbuilder.terrain.cells import TileLayer, paint_values
-from sage_worldbuilder.terrain.edits import (
-    PaintTiles,
-    PatchHeights,
-    RenameTexture,
-    ReplaceTerrainTables,
-)
 from sage_worldbuilder.terrain.sizing import (
     TableEdit,
     blends_removed,
@@ -464,27 +465,66 @@ _FLOATING_SCREEN_SHARE = 0.8
 
 _GUIDE_HTML = """
 <h2>Getting started</h2>
-<p>This is the start of a replacement for WorldBuilder. It opens, saves and autosaves maps, shows
-them from above, and edits their objects, waypoints and trigger areas; the other editing tools
-are still to come.</p>
-<h3>The map view</h3>
+<p>This is a replacement for WorldBuilder. It opens, edits and saves the same <code>.map</code>
+and <code>.bse</code> files, carries WorldBuilder's own menus, tools and keyboard shortcuts, and
+reads the installed game - and any mods mounted over it - for the objects, textures, roads, water,
+scripts and factions a map refers to. What follows is a tour of the window: the keys are listed
+under <b>Help &gt; Keyboard Shortcuts</b>, and anything that misbehaves belongs under
+<b>Help &gt; Report a bug</b>.</p>
+<h3>The two views</h3>
 <p>Drag with the right button, or with Space held, to scroll; the wheel zooms about the cursor.
-The status bar shows the heightmap sample under the cursor. The <b>View</b> menu shows or hides
-the grid, textures and the rest of the terrain under <b>Show Terrain</b>, and the objects,
-waypoints, trigger areas and labels under <b>Show Objects</b>; <b>View &gt; Panels</b> shows or
-hides the toolbar, the status bar and each panel. Which tools the toolbar shows, and in what
-order, is <b>View &gt; Panels &gt; Customize Toolbar…</b> (also on the toolbar's own right-click
-menu); it wraps onto more rows as the window gets narrower, rather than hiding anything.</p>
+The status bar shows the heightmap sample under the cursor. <b>View &gt; 3D View</b> (F3) swaps
+the map for a 3D view of the same document, sharing its tools, selection and options: a
+middle-drag turns the camera there (Ctrl while moving turns as well), and with the game data
+loaded it draws terrain, models, roads and water as the game does, lit by the map's own lighting.
+Where a tool takes the right button for itself, the middle and Space drags still move the
+camera.</p>
+<p>The <b>View</b> menu shows or hides the grid, textures and the rest of the terrain under
+<b>Show Terrain</b>, and the objects, waypoints, trigger areas, labels, sound flags and range
+rings under <b>Show Objects</b>. <b>3D Options</b> holds what only the 3D view can show:
+wireframe, the object dots a click picks by, how much of the map is drawn at once, and the
+Letterbox and Safe Frame that show what a 16:9 or 4:3 screen would. <b>Set LOD</b> draws the map
+at one of the game's five detail levels, leaving out the models the game itself drops there.</p>
+<p><b>View &gt; Panels</b> shows or hides the toolbar, the status bar and each panel; which tools
+the toolbar carries, and in what order, is <b>Customize Toolbar…</b> there (also on the toolbar's
+own right-click menu), and it wraps onto more rows as the window gets narrower rather than hiding
+anything. Every panel docks, tabs, or is pulled out into a window of its own.
+<b>Window &gt; Lock Layout</b> holds them where they are, and <b>Save Layout</b> keeps an
+arrangement by name.</p>
 <h3>Selecting and moving</h3>
 <p>Click an object to select it, Shift-click to add or remove one, or drag across an empty spot
 to select everything inside. Drag a selected object to move the selection, and Alt-drag to rotate
-it (<b>Edit &gt; Group Edit Method</b> decides how several objects turn). <b>Edit &gt; Pick
-Allowances</b> limits what a click can select. Cut, Copy, Paste and Delete work on the selection
-while the map view has focus; Paste puts the copies under the cursor.</p>
+it (<b>Edit &gt; Group Edit Method</b> decides how several objects turn). A selected object also
+carries a short handle out of its ring along its facing: it shows which way its front points, and
+dragging it turns the object. <b>Edit &gt; Pick Allowances</b> limits what a click can select,
+and <b>Lock Selection</b>, <b>Lock Angle</b> and <b>Lock Vertical</b> hold the selection, the
+angle or the height while you drag. Cut, Copy, Paste and Delete work on the selection while the
+map view has focus; Paste puts the copies under the cursor.</p>
+<h3>Move, Rotate and Radial Array</h3>
+<p>These three are beyond what WorldBuilder had. <b>Move Tool</b> and <b>Rotate Tool</b> put a
+gizmo on the whole selection - an arrow per axis with a knob at the centre for a free drag, and a
+ring for Rotate. X, Y and Z switch the axis in the middle of a drag, and the axis in use frees it
+again. Rotate draws one ring only: the map stores a heading per object, not a pitch or a roll, so
+there is no second or third ring to give it. Both tools are Select and Move underneath, so a
+press that misses the gizmo still selects, marquees and drags.</p>
+<p>With <b>Radial Array</b>, press where a ring's centre goes and drag outwards: the object
+chosen in the palette is repeated evenly around that ring, every copy the same distance apart.
+<b>Array Options</b> sets how many copies, which way each one faces (at the centre, away from it,
+along the ring, or left as it lies) and an angle offset. With objects selected it repeats those
+instead, keeping the group's arrangement, and a press with no drag rings the selection where it
+already stands. The finished ring is left selected, ready for a group edit.</p>
 <h3>Placing objects</h3>
 <p>Choose an object in the <b>Object Palette</b> (search it by name) and click the map to place
 it; drag from the spot to turn it. The palette sets the team it belongs to and its height above
 the terrain. <b>Tools &gt; Select and Move</b> goes back to selecting.</p>
+<p><b>Object Properties</b> edits the whole selection as one undo entry: its position, angle and
+layer, and its stored keys over the same three pages WorldBuilder's sheet carries - <b>General</b>,
+<b>Logical</b> and <b>Sound</b>. Under Logical stands <b>Available Upgrades</b>, the upgrades the
+selected objects' own modules respond to, ticked to give one at the start of the game. The
+<b>Item List</b> searches the map's objects, waypoints, areas and teams, zooms to what you pick,
+and can filter the view down to what it matches. The <b>Edit</b> menu selects similar, duplicate,
+deprecated or missing objects, objects on missing teams, and the objects of a base;
+<b>Replace Selected</b> swaps the selection for the object chosen in the palette.</p>
 <h3>Waypoints and trigger areas</h3>
 <p>With the <b>Waypoint Tool</b> (W), click to add a waypoint, drag from one waypoint to another to
 link them (drag again to remove the link), or drag from a waypoint to an empty spot to add a
@@ -493,22 +533,16 @@ corner again to close it. Select and Move selects an area by clicking inside it;
 it, or drag one of its corners to reshape it.</p>
 <h3>Layers, helpers and the ruler</h3>
 <p>The <b>Layers List</b> shows each layer with what is on it: untick a layer to hide it, and
-<b>Set Active</b> to put new objects, waypoints and areas on it. The <b>Edit</b> menu selects
-similar, duplicate, deprecated or missing objects and objects on missing teams, and Replace
-Selected swaps the selection for the object chosen in the palette. The <b>Ruler Tool</b> measures
+<b>Set Active</b> to put new objects, waypoints and areas on it. The <b>Ruler Tool</b> measures
 distances in feet and cells.</p>
-<h3>Build lists</h3>
-<p>The <b>Build List</b> panel shows a player's skirmish AI build list: reorder, delete, export or
-import its entries, and edit the chosen one. With the <b>Build List Tool</b>, click the map to add
-the object chosen in the palette to that player's list, click an entry to choose it, or drag it to
-move it.</p>
 <h3>Terrain height</h3>
 <p><b>Height Brush</b> (H) paints a height, <b>Mound</b> (Shift+H) raises and <b>Dig</b> (Ctrl+H)
 lowers the ground, and <b>Smooth Height</b> (S) evens it out as you scrub over it. The <b>Brush
 Options</b> panel sets the brush width and the feather ring where its effect fades, the height to
 paint and the step to raise or lower by, in feet, and how strongly smoothing works. Each stroke is
 one undo entry. <b>View &gt; Show Terrain &gt; Show Contours</b> draws contour lines;
-<b>Contour Options</b> sets how many.</p>
+<b>Contour Options</b> sets how many. <b>Edit &gt; Special &gt; Adjust Terrain to GROUND
+Objects</b> lifts the ground to meet the models that carry a ground mesh.</p>
 <h3>New maps</h3>
 <p><b>File &gt; New</b> makes an empty map: its size and border in cells of 10 feet, its starting
 height, the texture covering it, and whether it is a Living World script holder. <b>Resize</b>
@@ -543,9 +577,10 @@ a click copies its heights, texture and blends, and passability there. Undo take
 <p>The <b>Texture Sizing</b> menu has <b>Remap Textures</b> (put another Terrain.ini texture behind
 one the map uses, if it is the same size), <b>Remove Cliff Texture Mapping</b> and <b>Optimize
 Tiles and Blend Tiles</b> (rebuild the texture and blend tables from what the map still uses).
-<b>Edit &gt; Remove All Texture Blends</b> clears every blend. Two views help you check the work:
-<b>Show Unblended Tiles</b> marks cells that meet another texture with no blend, and <b>Show
-Stretched Tiles</b> marks cells steeper than the angle in <b>Stretched Tiles Options</b>.</p>
+<b>Edit &gt; Special &gt; Remove All Texture Blends</b> clears every blend. Two views help you
+check the work: <b>Show Unblended Tiles</b> marks cells that meet another texture with no blend,
+and <b>Show Stretched Tiles</b> marks cells steeper than the angle in <b>Stretched Tiles
+Options</b>.</p>
 <h3>Passability and other cell attributes</h3>
 <p><b>Single Tile</b> (T) paints one cell and <b>Large Tile</b> (Y) a square the brush width
 across, with what the <b>Terrain Material</b> panel's painting mode says: passable, impassable,
@@ -558,8 +593,9 @@ time.</p>
 where a segment starts to where it ends. An end dropped on an existing road end joins onto it.
 Click a segment to select it: <b>Apply To Selection</b> gives the selected segments the panel's
 road type, corner type and join setting. Deleting, cutting or copying one end of a segment takes
-the whole segment. <b>View &gt; Show Objects &gt; Show Roads</b> shows or hides them; roads are
-drawn as plain strips, without the game's curves and joins.</p>
+the whole segment. The top-down view draws roads as plain strips; the 3D view lays them out as the
+game does, with the curves and mitres where two meet and the tees, Ys and four-ways where three or
+four do. <b>View &gt; Show Objects &gt; Show Roads</b> shows or hides them.</p>
 <h3>Water</h3>
 <p>The <b>Lake/Ocean Tool</b>: click the corners of a lake, then click the first corner again.
 The <b>River Tool</b>: drag across the river from one bank to the other to add a bank line to the
@@ -567,7 +603,8 @@ chosen river, or to start a new one; click open ground to finish. The <b>Waves T
 where a wave area runs. With any of them, click inside an area to choose it, drag it to move it,
 or drag one of its points. <b>Water Options</b> edits the chosen area's name, height, textures and
 the rest, and a lake's map-wide alpha depth. A new area stands at the height of the lowest ground
-under it. <b>View &gt; Show Objects &gt; Show Water</b> shows or hides the areas.</p>
+under it. The 3D view draws water as the game's own water shaders compute it, though still rather
+than in motion. <b>View &gt; Show Objects &gt; Show Water</b> shows or hides the areas.</p>
 <h3>Scorch marks, groves, fences, ramps, borders and molds</h3>
 <p>The <b>Dressing Options</b> panel follows the tool in use. <b>Add Scorchmarks</b>: click to add
 one of the chosen type and size, or drag to size it. <b>Grove</b>: choose up to five tree types
@@ -589,7 +626,8 @@ sound. <b>Edit &gt; Edit Skybox Settings</b> adds, edits or removes the map's sk
 a marker. Click one to choose it, then drag an arrow to move it along that axis, or turn it about
 that axis with <b>Rotation</b> chosen under Drag handles; the arrows point along the map's axes, or
 along the camera's own with <b>Local</b>. What the camera sees is drawn in the preview pane in the
-corner of the 3D view, so scrubbing and playing an animation never moves the view being worked in.
+corner of the 3D view, so scrubbing and playing an animation never moves the view being worked
+in.</p>
 <p><b>Edit &gt; Camera Options</b> opens the <b>Cameras</b> panel on the map's named cameras: New
 saves the view shown, Update replaces the chosen camera with the view, Go To shows it (in the 3D
 view; the top-down view centres on what it looks at). <b>Edit Camera Animations</b> opens its
@@ -604,6 +642,42 @@ turns 2X overbright lighting and bloom on or off, and sets the bloom colours, th
 and the shadow colour and intensity. The 3D view is lit by these lights. <b>Edit &gt; Edit Post
 Effects</b> and <b>Select Macrotexture</b> / <b>Select Cloudtexture</b> open Environment Options:
 the macro and cloud textures, and the post effect's blend factor and lookup image.</p>
+<h3>Scripts</h3>
+<p><b>Edit &gt; Scripts…</b> opens a tree of every player's script groups and scripts, with an
+editor for the selected one: its properties, its IF/OR conditions and both action lists.
+<b>New Script</b>, <b>New Group</b>, <b>Copy</b>, <b>Delete</b> and <b>Up</b>/<b>Down</b> build
+the tree; <b>New Condition</b> and <b>New Action</b> choose from the templates the game itself
+offers, and an argument that names a player, a team, an object or a trigger area is offered the
+map's own names beside the run-time ones (<code>&lt;This Player&gt;</code>,
+<code>&lt;This Team&gt;</code> and the rest).</p>
+<p>Under a player's own scripts stand the ones it inherits from its library maps, read-only and
+marked <i>imported</i>, so what an AI map actually runs is visible without opening each library
+by hand. <b>Override</b> gives the map its own copy of an imported script or group at the path it
+has in its library, which is what takes that name off the library and makes it editable. An
+argument that names something the map declares - a unit, a waypoint, a trigger area, a team, a
+player, another script - has a <b>GoTo</b> beside it (and on the row's right-click menu) that
+selects it on the map, or raises the panel holding it.</p>
+<h3>Players, teams and build lists</h3>
+<p>The <b>Player List</b> (<b>Edit &gt; Edit Player List…</b>) adds and removes players -
+<b>Add Skirmish Players</b> puts down every player a skirmish map needs at once - and edits each
+one's faction, AI type, relations, colour and library maps. <b>Edit &gt; Edit Teams…</b> adds,
+copies and deletes teams and edits their identity, units and behaviour. The <b>Build List</b>
+panel shows a player's skirmish AI build list: reorder, delete, export or import its entries, and
+edit the chosen one. With the <b>Build List Tool</b>, click the map to add the object chosen in
+the palette to that player's list, click an entry to choose it, or drag it to move it.</p>
+<h3>Import and export</h3>
+<p><b>Export Scripts…</b> in the Scripts panel writes a <code>.scb</code> script library: the
+chosen players' scripts, the units and teams those scripts reference, and - as WorldBuilder's own
+export does - terrain, passability, water and lighting if you ask for them. <b>Import Scripts…</b>
+reads one back into the open map as a single undoable edit, reanchored for a different map size,
+with duplicate names, missing players and clashing script names resolved the way WorldBuilder
+resolves them.</p>
+<h3>Validation and bases</h3>
+<p><b>Validation &gt; Generate Report</b> checks the open map against the loaded game - the same
+rules <code>sage-lint</code> runs over maps - and lists what it finds; <b>Fix Teams</b> repairs
+the teams it reports. Saving a <code>.bse</code> base rebuilds its castle-template chunk from its
+own objects and areas when they have changed, so a base edited here builds in the game as
+edited.</p>
 <h3>Game data</h3>
 <p>The editor reads the installed game (found automatically) and, optionally, unpacked mod
 folders mounted above it, the way the game's <code>-mod</code> switch does: their loose files and
@@ -619,17 +693,57 @@ game data rather than as mistakes, and <b>Jump To Game</b> applies its patches t
 <code>game.dat</code> for the session, putting the original back when WorldBuilder closes. Maps
 shipped inside the game's
 <code>.big</code> archives are listed and open read-only; use <b>Save As</b> to keep a copy.</p>
+<h3>Jump To Game and the script debugger</h3>
+<p><b>Game &gt; Jump To Game</b> saves the map and starts the real game on it, passing each
+loaded mod and setting up the lobby; <b>Jump To Game Settings…</b> is the match it starts - who
+sits where, factions, colours, teams, difficulty, starting resources and seed.</p>
+<p><b>Game &gt; Script Debugger</b> attaches to a running game - the one Jump To Game started, or
+any other - and follows its scripts. The Scripts panel then marks each script with whether it has
+fired and how often; the debugger's <b>Variables</b> tab lists the game's counters, flags and
+timers as they change, <b>Trace</b> records the scripts that fire, and <b>Breakpoints</b> holds
+the game on the frame a script fires (<b>Break When It Fires</b> and <b>Run until</b> on a
+script's right-click menu). <b>Pause</b>, <b>Step</b> and <b>Step 1 s</b> walk the game forward a
+frame or a second at a time, and a script's right-click menu can enable, disable or re-arm it,
+set a counter, flag or timer, evaluate its conditions or run its actions on the spot.
+<b>Why Doesn't It Fire?</b> on that menu opens the <b>Why Not</b> tab: what stops the game
+evaluating the script at all (a group or the script switched off, a fired one-shot, a subroutine,
+the difficulty), and, for its latest evaluation, which conditions passed, which one failed and
+which were never reached. Reading another process may need the editor restarted as administrator,
+which the panel offers; the triggers are refused in a network game.</p>
+<h3>MapCache Entry</h3>
+<p>The game will not list a map its mod's <code>maps\\mapcache.ini</code> does not name.
+<b>Game &gt; MapCache Entry…</b> derives the block a finished map needs - its key, size, CRC and
+timestamp, the playable extents, the player starts, the initial camera and the supply markers -
+ready to paste into that file. Where the entry belongs in a hand-ordered cache, and what the two
+labels say, is yours to decide, so the dialog copies the block rather than writing the file.</p>
 <h3>Opening and saving</h3>
 <p><b>File &gt; Open</b> lists maps by WorldBuilder's categories. <b>Save As</b> saves into
 User Maps (your user-data folder) or, with mods loaded, into the last one loaded. A map saves back
-byte-identical when nothing changed, compressed exactly when it was compressed before.</p>
+byte-identical when nothing changed, compressed exactly when it was compressed before. The editor
+autosaves as WorldBuilder does, to the same three rotating files in your user-data folder.</p>
 <h3>Shortcuts</h3>
 <p>The keys are WorldBuilder's own: <b>Help &gt; Keyboard Shortcuts</b> lists them all.</p>
+<h3>When something goes wrong</h3>
+<p><b>Help &gt; Report a bug…</b> writes a report that already names the build you are running,
+the game data behind it and the map you have open: say what you were doing, then copy it into a
+new issue. An error the editor did not expect opens the same report with the details filled in -
+it keeps running, but save your work when you see one.</p>
 """
 
 _ABOUT_HTML = (
     "<p><b>SAGE WorldBuilder</b> is a map editor for the SAGE engine games, part of pySAGE.</p>"
+    # The version belongs where a reporter can read it out: every bug report needs it, and a
+    # frozen exe has nothing else to ask.
+    f"<p>Version {package_version()}. Something wrong? <b>Help &gt; Report a bug…</b>.</p>"
 )
+
+
+def _game_data_state(context: GameContext | None) -> str:
+    """How far the game data got, for a bug report: nothing mounted, mounted but not read, or
+    read and in hand."""
+    if context is None:
+        return "not mounted"
+    return "loaded" if context.game is not None else "mounted, not loaded"
 
 
 class MainWindow(QMainWindow):
@@ -3197,12 +3311,40 @@ class MainWindow(QMainWindow):
             about_title=f"About {APP_TITLE}",
             about_html=_ABOUT_HTML,
             icon=app_icon(),
+            report_app=APP_TITLE,
+            report_state=self.bug_report_state,
         )
         help_action = bar.actions()[-1]
         help_menu = help_action.menu()
         if help_menu is not None:
             help_menu.addSeparator()
             help_menu.addAction(self.shortcuts_action)
+
+    def bug_report_state(self) -> dict[str, str]:
+        """What the editor was doing, for Help > Report a bug. A bug in a map editor is nearly
+        always a bug about a particular map under a particular mod, and a traceback names
+        neither - so the report carries the game data behind the window and the open map."""
+        tool = self.tool_actions.checkedAction()
+        state = {
+            "Install": self.settings.install or "found automatically",
+            "Mods": ", ".join(self.settings.mods) or "none",
+            "Patch file": self.settings.sagepatch or "none",
+            # Mounted and loaded are different states, and half the reports worth filing - an
+            # object with no model, a texture that will not paint - are about the difference.
+            "Game data": _game_data_state(self.context),
+            "View": "3D" if self.view_3d_action.isChecked() else "top down",
+            "Tool": tool.text().replace("&", "") if tool is not None else "none",
+        }
+        document = self.document
+        if document is None:
+            state["Map"] = "none open"
+            return state
+        state["Map"] = str(document.path) if document.path is not None else "never saved"
+        if document.read_only:
+            state["Map"] += " (read-only)"
+        state["Unsaved changes"] = "yes" if document.dirty else "no"
+        state.update(map_summary(document.map))
+        return state
 
     def _build_status_bar(self) -> None:
         status = _status(self)

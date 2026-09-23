@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "WorldInfo",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, Property, WritingContext
 

@@ -1,11 +1,11 @@
 """The engine's `ModelConditionFlags` name table, and how a patch appends a name to it.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. The addresses here were
-derived in ``../docs/production-model-condition.md``; this module is the shared owner of them,
+Targets the ROTWK SAGE-engine `game.dat` build `2.01.2614.37001`. The addresses here were
+derived in `../docs/production-model-condition.md`; this module is the shared owner of them,
 because **more than one patch wants to add a model condition** and the table is a single global
 resource. Adding one is not a local edit:
 
-* the table itself is a NULL-terminated ``const char*[]`` reached from **16** bare imm32/disp32
+* the table itself is a NULL-terminated `const char*[]` reached from **16** bare imm32/disp32
   references, so growing it means relocating it and repointing all sixteen;
 * the count is a **separate** immediate baked into **10** loop bounds, two of which index the
   table with no bound check - raise one without the other and the engine hands a NULL string
@@ -16,26 +16,26 @@ alone and break the moment a second such patch existed, in both orders: applied 
 drop the first patch's name, and applied first it would leave the second patch asserting stock
 bytes that are no longer there.
 
-So nothing here reads the stock constants at patch time. :func:`read` recovers the **live** table
+So nothing here reads the stock constants at patch time. `read` recovers the **live** table
 - wherever the sixteen references currently point, however many entries the ten counts currently
-claim - and :func:`extend` rebuilds it into a fresh cave, repointing from what is actually in the
-image. Two patches that both call :func:`extend` compose in either order and land on adjacent
+claim - and `extend` rebuilds it into a fresh cave, repointing from what is actually in the
+image. Two patches that both call `extend` compose in either order and land on adjacent
 bits; the stock values below are only used to recognise the build.
 
 Bit budget
 ----------
-`ModelConditionFlags` is 19 dwords (``0x4C`` bytes) = 608 bits, of which the stock build names
+`ModelConditionFlags` is 19 dwords (`0x4C` bytes) = 608 bits, of which the stock build names
 **591**, so 17 slots are already allocated and unnamed. Past 608 the mask itself must grow, and
-``Object+0x10C`` is immediately followed by ``+0x158`` - an `Object` layout change, not a byte
-patch. :func:`extend` refuses to cross that line.
+`Object+0x10C` is immediately followed by `+0x158` - an `Object` layout change, not a byte
+patch. `extend` refuses to cross that line.
 
-One constant sits between 591 and 608: ``ModelConditionFlags::xfer``'s packed-blob path
-(``0x004B8D87``) transmits **74 bytes = 592 bits exactly**, so bit 591 is the last one it covers.
-That path is the one taken when the `Xfer`'s ``+0x10`` virtual returns true - not save/load, which
+One constant sits between 591 and 608: `ModelConditionFlags::xfer`'s packed-blob path
+(`0x004B8D87`) transmits **74 bytes = 592 bits exactly**, so bit 591 is the last one it covers.
+That path is the one taken when the `Xfer`'s `+0x10` virtual returns true - not save/load, which
 serialises **names** and so carries no bit layout at all. A single added condition therefore
-changes no blob at all; the second one onwards widens the two ``push 0x4a`` length constants,
-which the packer's ``sub esp, 0x4c`` buffer already has room for. See
-``../docs/production-model-condition.md`` for the full derivation of both paths.
+changes no blob at all; the second one onwards widens the two `push 0x4a` length constants,
+which the packer's `sub esp, 0x4c` buffer already has room for. See
+`../docs/production-model-condition.md` for the full derivation of both paths.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ import struct
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from ...utils import allocate_section, apply_byte_patch
+from ...utils import allocate_section, apply_byte_patch, u32
 from .name_tables import (
     SECTION_CHARACTERISTICS,
     NameTable,
@@ -76,14 +76,14 @@ __all__ = [
 
 
 #: The stock NULL-terminated `ModelConditionFlags` name table. `getBitNames()` at 0x00444D95
-#: returns it. Only used to recognise an unpatched image - :func:`read` follows the references.
+#: returns it. Only used to recognise an unpatched image - `read` follows the references.
 NAME_TABLE_VA = 0x00D9FAD8
 
 #: Named bits in the stock table. Also `getBitCount()`'s answer, and every loop bound below.
 STOCK_BIT_COUNT = 591
 
 #: `Object`'s `ModelConditionFlags`, and its length in dwords. 0x10C + 19*4 == 0x158, which is
-#: exactly where the second `Matrix3D` copy documented in ``../docs/live-object-model.md`` begins.
+#: exactly where the second `Matrix3D` copy documented in `../docs/live-object-model.md` begins.
 MASK_OFFSET = 0x10C
 MASK_DWORDS = 19
 
@@ -109,7 +109,7 @@ TABLE_REF_VAS = (
     0x00881739,
 )
 
-#: Every site encoding the bit count, as ``(instruction VA, the bytes before its imm32)``. The
+#: Every site encoding the bit count, as `(instruction VA, the bytes before its imm32)`. The
 #: prefix is asserted as well as the immediate, so a coincidental count elsewhere in a different
 #: build cannot be mistaken for one of these. Classified individually in the doc; all ten either
 #: index the name table directly or call the single-bit-name helper at 0x00444DFB.
@@ -127,7 +127,7 @@ COUNT_SITES = (
 )
 
 #: Names at these indices fingerprint the build far more tightly than the count alone. Every index
-#: is below :data:`STOCK_BIT_COUNT`, so the check keeps working once the table has grown.
+#: is below `STOCK_BIT_COUNT`, so the check keeps working once the table has grown.
 TABLE_FINGERPRINT = {
     0: "TOPPLED",
     218: "JUST_BUILT",
@@ -135,20 +135,16 @@ TABLE_FINGERPRINT = {
     STOCK_BIT_COUNT - 1: "SPECIAL_WEAPON_SIX",
 }
 
-#: ``ModelConditionFlags::xfer``'s packed-blob path: the two ``push imm8`` that give its length in
+#: `ModelConditionFlags::xfer`'s packed-blob path: the two `push imm8` that give its length in
 #: bytes, and the stack buffer that bounds how far they can be raised.
 XFER_LENGTH_VAS = (0x004B8D90, 0x004B8DDB)
 XFER_STOCK_LENGTH = 0x4A  # 74 bytes = 592 bits
 XFER_BUFFER_BYTES = 0x4C  # `sub esp, 0x4c` - 608 bits, the same as the mask itself
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 @dataclass(frozen=True)
 class Extension:
-    """What :func:`extend` installed."""
+    """What `extend` installed."""
 
     #: Base VA of the appended section, which is also the base of the new name table.
     section_va: int
@@ -156,7 +152,7 @@ class Extension:
     bits: tuple[int, ...]
     #: VA of the added name strings, in the same order.
     name_vas: tuple[int, ...]
-    #: VA just past the names, where ``tail`` (if any) was placed.
+    #: VA just past the names, where `tail` (if any) was placed.
     tail_va: int
 
 
@@ -203,9 +199,9 @@ def layout(
     base_va: int,
     tail: Callable[[int, tuple[int, ...]], bytes] | None = None,
 ) -> tuple[bytes, tuple[int, ...], int]:
-    """Lay a cave out at ``base_va``, returning ``(content, name VAs, tail VA)``.
+    """Lay a cave out at `base_va`, returning `(content, name VAs, tail VA)`.
 
-    Order is table, then the new name strings, then whatever ``tail`` returns. The existing
+    Order is table, then the new name strings, then whatever `tail` returns. The existing
     entries are copied through **by pointer**, so every condition already named keeps both its
     index and its original string - which is what makes raising the ten counts safe, since each
     one only extends a loop by the genuinely new entries."""
@@ -219,8 +215,8 @@ def layout(
 def relocation_edits(
     data: bytes | bytearray, table: NameTable, new_base_va: int, added: int
 ) -> list[tuple[int, bytes, bytes, str]]:
-    """The ``(file offset, original bytes, patched bytes, note)`` edits that move the table to
-    ``new_base_va`` and raise the count by ``added``: 16 references, 10 count immediates, and the
+    """The `(file offset, original bytes, patched bytes, note)` edits that move the table to
+    `new_base_va` and raise the count by `added`: 16 references, 10 count immediates, and the
     `xfer` blob length if - and only if - the new count outgrows it."""
     edits = _ref_edits(
         data, TABLE_REF_VAS, table.base_va, new_base_va, "model-condition name table"
@@ -230,8 +226,8 @@ def relocation_edits(
         edits.append(
             (
                 _offset(data, va),
-                prefix + _u32(table.count),
-                prefix + _u32(new_count),
+                prefix + u32(table.count),
+                prefix + u32(new_count),
                 f"model-condition count bound @0x{va:08x}",
             )
         )
@@ -240,7 +236,7 @@ def relocation_edits(
 
 
 def _xfer_edits(data: bytes | bytearray, new_count: int) -> list[tuple[int, bytes, bytes, str]]:
-    """Widen ``ModelConditionFlags::xfer``'s packed blob, once the count no longer fits it.
+    """Widen `ModelConditionFlags::xfer`'s packed blob, once the count no longer fits it.
 
     The stock 74 bytes cover bits 0..591 exactly, so the **first** added condition needs no edit
     at all and the blob stays byte-identical - which is why a single-condition patch changes
@@ -279,9 +275,9 @@ def extend(
     new_names: Sequence[str],
     tail: Callable[[int, tuple[int, ...]], bytes] | None = None,
 ) -> Extension:
-    """Append ``new_names`` to the model-condition name table, in a cave called ``section_name``.
+    """Append `new_names` to the model-condition name table, in a cave called `section_name`.
 
-    ``tail`` is called with ``(its own VA, the new bit indices)`` and its bytes are placed after
+    `tail` is called with `(its own VA, the new bit indices)` and its bytes are placed after
     the names in the same cave, so a patch that also needs hook code gets it laid out with an
     address it can branch from. It is called twice with the same arguments and must be
     deterministic.

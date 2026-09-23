@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import pytest
 
+from sage_live.launch.game_info import DEFAULT_RULES, LobbySettings, game_info_string
 from sage_replay.replay import (
     ReplayGameType,
     ReplayMetadata,
     ReplaySlotDifficulty,
     ReplaySlotType,
 )
-from sage_test.game_info import DEFAULT_RULES, LobbySettings, game_info_string
 from sage_test.scenario import Seat
 
 _REQUIRED_KEYS = ("M", "MC", "MS", "SD", "GSID", "GT", "SI", "GR", "S")

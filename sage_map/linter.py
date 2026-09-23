@@ -29,6 +29,16 @@ from sage_map.model import MapModel, ScriptArgRef
 from sage_map.properties import OBJECT_PROPERTY_SPECS
 from sage_map.scripts import Scope
 
+__all__ = [
+    "CODE",
+    "lint_map",
+    "lint_map_file",
+    "lint_maps",
+    "OBJECT_CODE",
+    "PARSE_ERROR_CODE",
+    "PROPERTY_CODE",
+]
+
 # Distinct codes per check, so each is separately `--select`/`--ignore`-able - the object checks
 # are the GAME-scope ones that flood without the base archives loaded, so a user can silence them
 # alone while keeping the reliable map-local script-argument checks.

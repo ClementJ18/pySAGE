@@ -6,7 +6,7 @@ does not merely waste memory - the engine refuses to start a second copy of itse
 process turns every later scenario into a failure with an unrelated-looking cause.
 
 Deliberately free of `pytest`, so a scenario can be run from a script, a notebook or a `__main__`
-exactly as a test runs it; :mod:`sage_test.plugin` is the thin fixture wrapper over this.
+exactly as a test runs it; `sage_test.plugin` is the thin fixture wrapper over this.
 
 Not re-exported from `sage_test`, for the reason `sage_live` keeps `resolve` and `statics` out of
 its root: importing this pulls in `sage_map` and `sage_live`, and the declaration layer is worth
@@ -24,12 +24,12 @@ from pathlib import Path
 
 import sage_live
 from sage_live.api.session import Session
+from sage_live.launch.game_info import LobbySettings, game_info_string
+from sage_live.launch.maps import read_archive_file
+from sage_live.launch.runner import GameProcess, install_map, install_map_folder, launch
 from sage_map import parse_map, write_map
 from sage_test.compile import compile_into
-from sage_test.game_info import LobbySettings, game_info_string
 from sage_test.harness import DEFAULT_TOLERANCE, Match, bind_handles
-from sage_test.maps import read_archive_file
-from sage_test.runner import GameProcess, install_map, install_map_folder, launch
 from sage_test.scenario import Scenario, Seat
 
 __all__ = [
@@ -120,14 +120,14 @@ def run_map(
 ) -> Iterator[Session]:
     """Start a map that already exists, and yield the running game.
 
-    The counterpart to :func:`run_scenario`: nothing is compiled and nothing is written, because
+    The counterpart to `run_scenario`: nothing is compiled and nothing is written, because
     the map under test is the one the mod ships - **including its `map.ini`**, which is loaded
     from the map's own folder and so cannot come along with a copy of the map installed
     elsewhere. That makes this the only way to put a shipped map's per-map data in front of the
     real ini parser.
 
-    `argument` is the `-file` form, not a path: `sage_test.maps.MapEntry.argument` produces it,
-    and the rules it follows are in that module.
+    `argument` is the `-file` form, not a path: `sage_live.launch.maps.MapEntry.argument` produces
+    it, and the rules it follows are in that module.
 
     `seats` and `settings` choose the match through `-gameInfo`; leave both out for the patch's
     default two-seat game.
@@ -173,7 +173,7 @@ def run_user_map(
     `-file` gate reads that flag out of the map cache, and for a mod's own maps the cache is the
     mod's hand-written `maps\\mapcache.ini` - where every War of the Ring map says `no`. The
     engine caches maps in the user folder itself, deriving the flag from the map, and for those
-    same maps it derives yes. `sage_test.runner.install_map_folder` has the rest, `extras`
+    same maps it derives yes. `sage_live.launch.runner.install_map_folder` has the rest, `extras`
     included - a `map.ini`'s relative includes have to be copied along with it or the load stops
     on an error box that reads exactly like a broken ini.
 

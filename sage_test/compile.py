@@ -1,4 +1,4 @@
-"""Turning a :class:`~sage_test.scenario.Scenario` into map data.
+"""Turning a `Scenario` into map data.
 
 A scenario is compiled **onto a template map**, never generated from nothing. A `.map` is not
 only objects: it carries terrain, blend tiles, lighting, water, a sides list and the multiplayer

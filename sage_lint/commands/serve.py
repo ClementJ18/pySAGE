@@ -25,7 +25,7 @@ from sage_ini.model.objects import (
 from sage_ini.model.types import Reference
 from sage_ini.parser.diagnostics import Diagnostics
 from sage_ini.parser.location import Span
-from sage_ini.stats import ini_root
+from sage_ini.paths import ini_root
 from sage_ini.suggest import set_enabled as set_suggestions_enabled
 from sage_lint.commands.common import (
     base_paths,

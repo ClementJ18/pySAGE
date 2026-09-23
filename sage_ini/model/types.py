@@ -36,6 +36,105 @@ from sage_ini.model.enums import (
 )
 from sage_ini.model.objects import Multivalued, is_multivalued, resolve_annotation
 
+__all__ = [
+    "AnimAndDuration",
+    "Animation",
+    "ArmyIcon",
+    "AttackPriorityTarget",
+    "AttributeModelCondition",
+    "AudioFile",
+    "AudioLoopCondition",
+    "AutoResolveBodyRef",
+    "AutoResolveCombatChainRef",
+    "AutoResolveLeadershipRef",
+    "BannerCarrierPosition",
+    "BannerTypeRef",
+    "Bone",
+    "Bool",
+    "BuildingIconRef",
+    "ComboHorde",
+    "CommandButtonRef",
+    "ContactPoint",
+    "ContainCondition",
+    "Coords",
+    "CoordsList",
+    "CrowdResponseRef",
+    "Cursor",
+    "DamageFXRef",
+    "DamageTypeFilter",
+    "DeathEntry",
+    "DeathTypeFilter",
+    "Degrees",
+    "Emotion",
+    "EvaEvent",
+    "eval_number",
+    "FactionRef",
+    "FCurveKey",
+    "FilterList",
+    "Float",
+    "FloatRange",
+    "FontName",
+    "FontSpec",
+    "FontSpecValue",
+    "FontSubstitutions",
+    "FontSubstitutionValue",
+    "FXList",
+    "Image",
+    "IniFile",
+    "Int",
+    "IntRange",
+    "KeyedRecord",
+    "KeyedRecordList",
+    "Label",
+    "LivingWorldAnimObjectRef",
+    "LivingWorldBuildingRef",
+    "MapFile",
+    "ModelFile",
+    "ModifierEntry",
+    "ModifierRef",
+    "ModuleTag",
+    "MusicTrackRef",
+    "ObjectCreationListRef",
+    "ObjectFilter",
+    "ObjectRef",
+    "Opaque",
+    "OPERATIONS",
+    "ParticleSystem",
+    "PerPlayerCountMultiplier",
+    "PlayerArmyRef",
+    "PlayerTemplateRef",
+    "RandomVariable",
+    "RandomVariableValue",
+    "Ranged",
+    "RangeDuration",
+    "RankInfo",
+    "RawList",
+    "Reference",
+    "RegionCampaignRef",
+    "RespawnRules",
+    "RGB",
+    "RGBA",
+    "ScaledObjectFilter",
+    "scan_keyed",
+    "ScienceRef",
+    "ScienceRequirements",
+    "Sound",
+    "SoundFile",
+    "SpawnArmyRef",
+    "String",
+    "string_comparator",
+    "SubObject",
+    "TextureFile",
+    "TimedPosition",
+    "to_number",
+    "Untyped",
+    "UpgradeRef",
+    "UpgradeWithDelay",
+    "VideoRef",
+    "VolumeSliderMultiplier",
+    "WeaponRef",
+]
+
 if TYPE_CHECKING:
     from sage_ini.model.data_blocks import (
         AudioEvent,
@@ -57,7 +156,7 @@ OPERATIONS = {
 
 
 def to_number(value: str) -> float:
-    """Parse a numeric literal: trailing ``%`` -> fraction, trailing ``f`` dropped."""
+    """Parse a numeric literal: trailing `%` -> fraction, trailing `f` dropped."""
     text = value.strip()
     is_percent = text.endswith("%")
     text = text.rstrip("%").strip()
@@ -91,7 +190,7 @@ def _split_operands(inner: str) -> list[str]:
 
 
 def eval_number(game, value) -> float:
-    """Evaluate a numeric value: literal, macro, or ``#OP( a b ... )`` expression."""
+    """Evaluate a numeric value: literal, macro, or `#OP( a b ... )` expression."""
     if isinstance(value, (int, float)):
         return value
 
@@ -1005,7 +1104,7 @@ class KeyedRecord:
         # attributes; keep them as each key's fallback (mirrors IniObject.__init_subclass__).
         own_defaults = {}
         # Python 3.14 stores annotations lazily, so they may not exist in
-        # ``cls.__dict__`` until the descriptor is accessed.
+        # `cls.__dict__` until the descriptor is accessed.
         for field in list(getattr(cls, "__annotations__", {})):
             if field in cls.__dict__:
                 own_defaults[field] = cls.__dict__[field]
@@ -1061,7 +1160,7 @@ class KeyedRecordList(KeyedRecord, Multivalued):
 
 
 def _apply_axis(coord: list[float], token: str) -> None:
-    """Set one axis of a 3-vector in place from an ``AXIS:number`` token (`X:40`)."""
+    """Set one axis of a 3-vector in place from an `AXIS:number` token (`X:40`)."""
     axis, _, number = token.partition(":")
     number = number.strip()
     if number:

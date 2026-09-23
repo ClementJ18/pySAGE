@@ -1,29 +1,29 @@
 """The engine's `ModifierType` name table, and how a patch appends a name to it.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. The addresses here are derived
-in ``../docs/production-split.md`` §1.2 and ``../docs/healing-received-modifier.md`` §4.
+Targets the ROTWK SAGE-engine `game.dat` build `2.01.2614.37001`. The addresses here are derived
+in `../docs/construction-speed-modifiers.md` §1.2 and `../docs/healing-received-modifier.md` §4.
 
-A modifier type is the first token of a `ModifierList`'s ``Modifier = <TYPE> <value>`` line. The
-parser resolves it through the name→index walk at ``0x00804CAD``, over a NULL-terminated
-``const char *[]``:
+A modifier type is the first token of a `ModifierList`'s `Modifier = <TYPE> <value>` line. The
+parser resolves it through the name→index walk at `0x00804CAD`, over a NULL-terminated
+`const char *[]`:
 
     00804cb1  cmp  [0xda6d28], edi          ; edi = 0: an empty table means "not found"
     00804cb9  mov  esi, 0xda6d28            ; else walk it with stricmp
 
 Index 0 is the `ATTRIBUTE_NONE` sentinel and doubles as "not found", so an unrecognised token
-raises ``"Attribute '%s' not found"`` (``0x00C4EA38``) and ends the INI load.
+raises `"Attribute '%s' not found"` (`0x00C4EA38`) and ends the INI load.
 
-**Nothing is sized by the number of types.** `ModifierList::getValue` (``0x00805268``) is a linear
+**Nothing is sized by the number of types.** `ModifierList::getValue` (`0x00805268`) is a linear
 scan comparing a stored dword, the holder walk above it is type-agnostic, and there is no array
 indexed by type anywhere in the image. So an appended type costs a table relocation and nothing
 else - no count, no bitmask, no switch arm.
 
 The table has **no slack**: it ends at its terminator and the next enum's list begins four bytes
 later, so it cannot grow in place. Both references are bare imm32 operands inside the one walk,
-which is what :func:`relocation_edits` rewrites.
+which is what `relocation_edits` rewrites.
 
 `.data` holds some 135 identical copies of the array for the linker's own reasons; only
-``0x00DA6D28`` is reachable from code, which is why :func:`read` follows the references rather
+`0x00DA6D28` is reachable from code, which is why `read` follows the references rather
 than trusting the stock address.
 
 Composing two appenders
@@ -77,14 +77,14 @@ __all__ = [
 
 
 #: The stock NULL-terminated `ModifierType` name table. Only used to recognise an unpatched
-#: image - :func:`read` follows the references.
+#: image - `read` follows the references.
 NAME_TABLE_VA = 0x00DA6D28
 
 #: Named types in the stock table, `ATTRIBUTE_NONE` included.
 STOCK_TYPE_COUNT = 28
 
 #: Both references, the imm32 operands of the two instructions that open the name walk: the
-#: empty-table guard (``cmp [table], edi``) and the walk itself (``mov esi, table``).
+#: empty-table guard (`cmp [table], edi`) and the walk itself (`mov esi, table`).
 TABLE_REF_VAS = (0x00804CB3, 0x00804CBA)
 
 #: Names at these indices fingerprint the build far more tightly than the count alone: the
@@ -99,8 +99,8 @@ TABLE_FINGERPRINT = {
 #: `PRODUCTION`, the one stock type a patch here currently reads by index.
 PRODUCTION_TYPE = 13
 
-#: The largest index a ``push imm8`` can carry. Every emitted query pushes its type as a byte, so
-#: a table that ever grew past this would need `push imm32` instead - :func:`push_type` says so
+#: The largest index a `push imm8` can carry. Every emitted query pushes its type as a byte, so
+#: a table that ever grew past this would need `push imm32` instead - `push_type` says so
 #: rather than silently emitting a sign-extended negative.
 _MAX_PUSH_IMM8 = 0x7F
 
@@ -110,10 +110,10 @@ _MAX_PUSH_IMM8 = 0x7F
 #:
 #: * the **name walk**: a NULL-terminated scan, and the "index 0 == not found" contract a new name
 #:   relies on;
-#: * **`ModifierList::getValue`**: a linear scan over ``0x14``-byte entries comparing the type
+#: * **`ModifierList::getValue`**: a linear scan over `0x14`-byte entries comparing the type
 #:   dword, which is what makes a new index cost no array, bitmask or switch arm;
 #: * **`Object::hasModifier` / `Object::getModifierMultiplier`**: the two thunks a query goes
-#:   through, with the ``ret 0xC`` / ``ret 0x10`` an emitted call has to match.
+#:   through, with the `ret 0xC` / `ret 0x10` an emitted call has to match.
 ANCHORS: dict[int, bytes] = {
     0x00804CAD: bytes.fromhex(
         "565733ff393d286dda007423be286dda008bc6ff74240cff30e87582230085c05959"
@@ -127,10 +127,10 @@ ANCHORS: dict[int, bytes] = {
     ),
 }
 
-#: The ``(VA, width)`` spans inside :data:`ANCHORS` that **any** type-appending patch may have
+#: The `(VA, width)` spans inside `ANCHORS` that **any** type-appending patch may have
 #: rewritten - the two table operands. A patch checking these windows blanks them unconditionally,
 #: in both directions: whichever appender ran last owns them, so their value says nothing about
-#: any particular patch, and :func:`read` checks what they point at far more tightly than a byte
+#: any particular patch, and `read` checks what they point at far more tightly than a byte
 #: compare would.
 VOLATILE_SPANS: tuple[tuple[int, int], ...] = tuple((va, 4) for va in TABLE_REF_VAS)
 
@@ -160,7 +160,7 @@ def relocation_edits(
 
 
 def check_free(table: NameTable, data: bytes | bytearray, new_names: Sequence[str]) -> None:
-    """Raise unless every name in ``new_names`` is free to add, and they are distinct."""
+    """Raise unless every name in `new_names` is free to add, and they are distinct."""
     if len(set(new_names)) != len(new_names):
         raise ValueError(f"duplicate names in {list(new_names)}")
     for name in new_names:
@@ -170,12 +170,12 @@ def check_free(table: NameTable, data: bytes | bytearray, new_names: Sequence[st
 
 
 def index_of(data: bytes | bytearray, name: str) -> int | None:
-    """The index the **live** table gives ``name``, or None if it does not name it."""
+    """The index the **live** table gives `name`, or None if it does not name it."""
     return read(data).index_of(data, name)
 
 
 def push_type(index: int) -> bytes:
-    """``push <index>`` as the engine's own query sites encode it: a sign-extended imm8."""
+    """`push <index>` as the engine's own query sites encode it: a sign-extended imm8."""
     if not 0 <= index <= _MAX_PUSH_IMM8:
         raise ValueError(
             f"modifier type {index} does not fit the `push imm8` every query site uses "
@@ -202,7 +202,7 @@ def push_type(index: int) -> bytes:
 #: Worldbuilder's own copy of the table.
 WORLDBUILDER_NAME_TABLE_VA = 0x022343E0
 
-#: Both references, as ``(operand VA, the bytes immediately before it)``. Both sit in the single
+#: Both references, as `(operand VA, the bytes immediately before it)`. Both sit in the single
 #: lookup loop - the terminator test and the name fetch - so asserting the encoding pins them to
 #: that loop rather than to any dword that happens to hold the same address.
 WORLDBUILDER_TABLE_REF_SITES = (
@@ -220,7 +220,7 @@ WORLDBUILDER_TABLE_FINGERPRINT = {
 
 
 def worldbuilder_ref_vas() -> tuple[int, ...]:
-    """Just the operand VAs of :data:`WORLDBUILDER_TABLE_REF_SITES`."""
+    """Just the operand VAs of `WORLDBUILDER_TABLE_REF_SITES`."""
     return tuple(va for va, _prefix in WORLDBUILDER_TABLE_REF_SITES)
 
 
@@ -268,7 +268,7 @@ def worldbuilder_relocation_edits(
 def appended_names(
     data: bytes | bytearray, section_va: int, vsize: int, limit: int = 256
 ) -> list[str]:
-    """The names a cave based at ``section_va`` appended to the table it copied.
+    """The names a cave based at `section_va` appended to the table it copied.
 
     A cave lays its rebuilt table out at its own base and copies the entries it was handed
     **through by pointer**, so the names it added are exactly the trailing entries whose string
@@ -289,7 +289,7 @@ def appended_names(
 
 
 def names(data: bytes | bytearray, table: NameTable) -> list[str]:
-    """Every name in ``table``, in index order. Raises if an entry points at unmapped memory."""
+    """Every name in `table`, in index order. Raises if an entry points at unmapped memory."""
     read_back = [read_cstring(data, pointer) for pointer in table.pointers]
     if any(entry is None for entry in read_back):
         raise ValueError("a modifier-type entry points at unmapped memory")

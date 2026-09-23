@@ -1,109 +1,11 @@
-"""The foundation-rebind patch: a structure replaced in place keeps the plot it stands on.
+"""Let a structure replaced in place by `ReplaceSelfUpgrade` keep the settlement plot it stands on.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/foundation-rebind.md``.
+The plot (a `FoundationAIUpdate` or `CastleBehavior` flag) tracks its occupant by one id, and
+destroying the old building frees the plot before the replacement exists. Two `call` hooks: before
+the destroy, the link is detached (only if the dying object really occupies this plot); after the
+replacement is created, the plot is pointed at it. Destroying without creating degrades to stock.
 
-**The defect.** A settlement flag *is* the plot: `FoundationAIUpdate` - and `CastleBehavior`,
-which derives from it and shares its interface vtable - keeps the occupant as one `ObjectID` at
-``module+0x28``, and `setBuiltOnObject` (``0x008582DE``) is the whole of the visual mechanic
-around it. Non-zero hides the flag (status `UNSELECTABLE`, then a 10-frame fade-out); zero
-brings it back (a 30-frame fade-in).
-
-`ReplaceSelfUpgrade` destroys first and builds second, and the destroy frees the plot before the
-replacement exists. `GameLogic::destroyObject` broadcasts `onDelete` to every module **inside the
-same call**, and `GettingBuiltBehavior::onDelete` (``0x0085757F``) follows the dying object's
-``Object+0x78`` to its plot and calls the interface's ``clearBuiltOn``. A slower mechanism agrees
-with it: `FoundationAIUpdate::update` polls ``findObjectByID(m_builtOnID)`` every frame and clears
-the link when the id stops resolving. **The engine's notion of "my building" is an id, and a
-replacement gets a new id.**
-
-Nothing re-adopts, either. The plot's "look around and see what is standing on me" scan
-(``0x008583E3``) is fired once, on the module's first update, for structures the map places on
-plots at load; a plot freed mid-match never looks again. So a mod that swaps a building for
-another one on a settlement gets the flag back, and has to hide it by hand and stand a dummy
-building on the plot to make it read as occupied again.
-
-**What this does.** Two `call rel32` at the two moments that matter, and one cave:
-
-- Before the destroy (``0x008BB6CC``), read the dying object's ``Object+0x78``, and *only* if
-  that object really is a plot holding **this** object - it has a foundation interface and its
-  ``m_builtOnID`` is our id - remember the pair and zero the link, so `onDelete` finds nothing
-  and the flag never transitions.
-- After the replacement is created (``0x008BB964``, the `call` that starts the wall walk), write
-  the new object's id into the plot's ``m_builtOnID``, point the new object's ``Object+0x78`` at
-  the plot, and refresh the plot's own ``Object+0x7C`` back-link.
-
-**The field is written directly, not through the setter.** The plot goes occupied → occupied, so
-there is nothing to transition: the status bit and the drawable are already in the state the patch
-wants, because hook 1 stopped anything from changing them. Going through `setBuiltOnObject` would
-reset the drawable's opacity to 1.0 before starting its fade-out (``0x00670A50``), which on an
-already-hidden flag is a visible blink.
-
-**Both mechanisms are covered.** Hook 2 commits when the plot is free (the usual case, `onDelete`
-having run) **or** still names the object that was just destroyed (what a structure with no
-`GettingBuiltBehavior` leaves behind, where the frame poll would have cleared it later). Anything
-else - a plot that has meanwhile been claimed by someone else - is left alone.
-
-**Why zeroing ``Object+0x78`` is safe.** That field is `m_producerID` generally, not a plot link:
-on a unit it is the building that made it. Hook 1 clears it only after resolving it to an object
-that has a foundation interface *and* is holding the dying object, which no barracks is and no
-producer of anything but a plot-built structure can be.
-
-**A castle plot needs more than the one dword.** `FoundationAIUpdate` and `CastleBehavior` write
-the same vtable ``0x00C30DE8`` into ``module+0x20`` and share ``module+0x28``, but a
-`CastleBehavior` - which is what Edain's settlement flag carries - keeps two more fields that the
-rest of the engine reads *instead of* `m_builtOnID`:
-
-- ``module+0x38``, the keep, polled against `findObjectByID` every update (``0x00799B13``);
-- ``module+0x34``, the occupancy state, and **the field that decides whether the plot can be
-  captured**: the capture tick at ``0x007983E3`` refuses to run only when that dword and the byte
-  at ``module+0x3c`` are both zero.
-
-Read live out of a running match, a settlement flag holding an ordinary mine shaft has
-``m_builtOnID`` and the keep both naming it, ``+0x34`` = 4 and `UNSELECTABLE` set; rebinding
-`m_builtOnID` alone left the flag under a replacement identical to an *empty* plot in every one of
-those, which is why the AI walked onto it, captured it, and took the replacement with it.
-
-So when the plot is a castle - ``module+0x00`` is `CastleBehavior`'s own vtable
-:data:`CASTLE_BEHAVIOR_VTABLE`, which `FoundationAIUpdate` never writes - and the replacement is a
-`CASTLE_KEEP`, hook 2 hands it to the engine's own
-`CastleBehavior::onStructureBuilt` (:data:`CASTLE_ON_STRUCTURE_BUILT`) instead of writing fields:
-that registers the object with its `CastleMemberBehavior`, adopts it as the keep, and ends by
-calling `setBuiltOnObject` itself, which is what sets `UNSELECTABLE` and fades the flag out. The
-caller-side ``module+0x34`` write is mirrored from the stock adoption at ``0x0079B734``.
-
-**The stale keep is cut first.** `onStructureBuilt` destroys its argument when the castle already
-holds a keep (``0x0079ACAD`` → ``0x0079AD06``), and at hook 2 time the keep still names the object
-just destroyed - the poll that would clear it does not run until the next frame. Hook 2 zeroes it
-only when it names *that* object, and otherwise takes the plain path rather than the castle one.
-
-Anything that is not a castle, or a replacement that is not a `CASTLE_KEEP`, takes the original
-three stores.
-
-**Scope.** `ReplaceSelfUpgrade` only. Objects destroyed any other way free their plot exactly as
-today, including the replacement itself when it dies. When `ReplaceWith` names several objects the
-**first** created takes the plot - a plot holds one occupant - and the rest are ordinary buildings.
-
-**Destroying without creating degrades to stock rather than to a stuck plot.** The one path that
-reaches the destroy and then bails - a `ReplaceWith` naming a template the `ThingFactory` does not
-know (``0x008BB6F1``) - leaves the plot holding an id that no longer resolves and nothing to hand
-it to. That is precisely the state `FoundationAIUpdate::update`'s poll exists for, so the flag
-comes back a frame or two later, exactly as it does today.
-
-**Re-entrancy.** The pair is parked in a four-slot ring in the cave and keyed on the **dying
-object's id**, which hook 2 reads out of the stock frame slot the wall walk just filled
-(``[ebp-0x3C]``). Keying rather than stacking is what makes the failure mode safe: a nested
-`ReplaceSelfUpgrade` (a replacement whose creation triggers another one) takes its own slot, a
-creation that fails leaves a slot behind that no later object can match, and a fifth level of
-nesting loses a rebind rather than binding the wrong plot.
-
-**Determinism.** Everything written is simulation state on the logic thread - the plot's occupant,
-two id back-links - so **every peer needs the patched binary** and replays recorded on it will not
-play back on a stock one.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The two `call` displacements it rewrites are touched by no other
-bundled patch, and it reads nothing another patch rewrites.
+Derivation: `../docs/foundation-rebind.md`.
 """
 
 from __future__ import annotations
@@ -112,7 +14,7 @@ import struct
 
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, va_to_offset
 
 __all__ = [
     "FOUNDATION_BUILT_ON_OFFSET",
@@ -122,109 +24,109 @@ __all__ = [
     "build_section",
 ]
 
-# --- the engine ---------------------------------------------------------------------------------
+# The engine
 
 #: `TheGameLogic`, the singleton both hooks reload rather than trusting a register across a call.
 THE_GAME_LOGIC = 0x00DE412C
 
-#: `GameLogic::findObjectByID(ObjectID)` - ``__thiscall``, ``ret 4``, 0 for id 0 and for an id
+#: `GameLogic::findObjectByID(ObjectID)` - `__thiscall`, `ret 4`, 0 for id 0 and for an id
 #: that no longer resolves. The same address `herobar` and `horde-orphan-target` call.
 FIND_OBJECT_BY_ID = 0x00449681
 
-#: `Object::getFoundationInterface()` - ``__thiscall``, no arguments, no stack cleanup. Walks the
-#: ``Object+0x24C`` module list asking each module's ``+0xC`` vtable slot ``+0x98``, and returns
-#: the first non-NULL: the ``module+0x20`` subobject of `FoundationAIUpdate` or `CastleBehavior`.
+#: `Object::getFoundationInterface()` - `__thiscall`, no arguments, no stack cleanup. Walks the
+#: `Object+0x24C` module list asking each module's `+0xC` vtable slot `+0x98`, and returns
+#: the first non-NULL: the `module+0x20` subobject of `FoundationAIUpdate` or `CastleBehavior`.
 GET_FOUNDATION_INTERFACE = 0x0068C3C3
 
-#: `GameLogic::destroyObject(Object*)` - ``__thiscall``, ``ret 4``. Hook 1 tail-jumps to it, so
-#: its own ``ret 4`` returns straight to the instruction after the hooked `call`.
+#: `GameLogic::destroyObject(Object*)` - `__thiscall`, `ret 4`. Hook 1 tail-jumps to it, so
+#: its own `ret 4` returns straight to the instruction after the hooked `call`.
 DESTROY_OBJECT = 0x0062BBAB
 
-#: `GameLogic::getFirstObject()` - ``__thiscall``, no arguments, ``mov eax, [ecx+0xAC]; ret``.
+#: `GameLogic::getFirstObject()` - `__thiscall`, no arguments, `mov eax, [ecx+0xAC]; ret`.
 #: Hook 2's tail-jump, for the same reason.
 GET_FIRST_OBJECT = 0x0097338F
 
-#: `Object::m_id`. Also :data:`~..addresses.OBJECT_ID`; restated here so this patch's assembly
+#: `Object::m_id`. Also `OBJECT_ID`; restated here so this patch's assembly
 #: reads without a second file open.
 OBJECT_ID_OFFSET = 0x74
 
 #: `Object::m_producerID` - on a plot-built structure, the plot. Set by the build path at
-#: ``0x00857AEA`` and by the foundation's own first-update scan at ``0x008584C7``; read by
+#: `0x00857AEA` and by the foundation's own first-update scan at `0x008584C7`; read by
 #: `GettingBuiltBehavior::onDelete` to decide which plot to free.
 OBJECT_PRODUCER_ID_OFFSET = 0x78
 
 #: The plot's own back-link to what stands on it, written beside the producer link at
-#: ``0x00857AF2``. Not what any teardown path consults - they all go through ``m_builtOnID`` -
+#: `0x00857AF2`. Not what any teardown path consults - they all go through `m_builtOnID` -
 #: but leaving it naming a destroyed object would be a lie this patch is in a position to avoid.
 #: Rewritten only when it still names the object being replaced, because that is the only case in
 #: which this patch can prove whose field it is.
 OBJECT_BUILT_BACK_LINK_OFFSET = 0x7C
 
-#: ``m_builtOnID`` from the interface pointer: the interface is ``module+0x20`` and the field is
-#: ``module+0x28``. This is the offset `isOccupied` (``0x0097031D``) itself reads, as
-#: ``cmp [ecx+8], eax``.
+#: `m_builtOnID` from the interface pointer: the interface is `module+0x20` and the field is
+#: `module+0x28`. This is the offset `isOccupied` (`0x0097031D`) itself reads, as
+#: `cmp [ecx+8], eax`.
 FOUNDATION_BUILT_ON_OFFSET = 0x08
 
-#: The interface subobject sits at ``module+0x20``, so this is what turns the pointer
+#: The interface subobject sits at `module+0x20`, so this is what turns the pointer
 #: `getFoundationInterface` hands back into the module the castle routines want in ecx.
 MODULE_FROM_INTERFACE = 0x20
 
-#: `CastleBehavior`'s main vtable, written into ``module+0x00`` by its constructor
-#: (``0x0079A947``). `FoundationAIUpdate` writes a different one there and shares only the
-#: interface vtable at ``module+0x20``, so this is the test for "this plot is a castle" - and
+#: `CastleBehavior`'s main vtable, written into `module+0x00` by its constructor
+#: (`0x0079A947`). `FoundationAIUpdate` writes a different one there and shares only the
+#: interface vtable at `module+0x20`, so this is the test for "this plot is a castle" - and
 #: therefore for whether the three fields below exist at all.
 CASTLE_BEHAVIOR_VTABLE = 0x00C30ED8
 
-#: `CastleBehavior::onStructureBuilt(Object *)` - ``__thiscall``, ``ret 4``. The engine's own
+#: `CastleBehavior::onStructureBuilt(Object *)` - `__thiscall`, `ret 4`. The engine's own
 #: "this structure now stands on me": it registers the object with its `CastleMemberBehavior`,
 #: adopts it as the keep when the template is `CASTLE_KEEP`, and finishes by calling
 #: `setBuiltOnObject(keep)` - which is what sets `UNSELECTABLE` and fades the flag out.
 CASTLE_ON_STRUCTURE_BUILT = 0x0079AC19
 
-#: `CastleBehavior::m_keepID`. Zeroed by the ctor (``0x0079A935``), written by
-#: `onStructureBuilt` (``0x0079ACB9``) and polled every update against `findObjectByID`
-#: (``0x00799B13``). **A non-zero keep makes `onStructureBuilt` destroy its argument**
-#: (``0x0079ACAD`` → ``0x0079AD06``), so a stale keep has to be cut before the call.
+#: `CastleBehavior::m_keepID`. Zeroed by the ctor (`0x0079A935`), written by
+#: `onStructureBuilt` (`0x0079ACB9`) and polled every update against `findObjectByID`
+#: (`0x00799B13`). **A non-zero keep makes `onStructureBuilt` destroy its argument**
+#: (`0x0079ACAD` → `0x0079AD06`), so a stale keep has to be cut before the call.
 CASTLE_KEEP_OFFSET = 0x38
 
 #: `CastleBehavior`'s occupancy state, and **the field that decides whether the plot can be
-#: captured**: the capture tick refuses to run unless ``[module+0x34]`` is zero and the byte at
-#: ``module+0x3c`` is zero (``0x00798468``). Zero from the ctor, set to
-#: :data:`CASTLE_STATE_OCCUPIED` beside an `onStructureBuilt` at ``0x0079B734``.
+#: captured**: the capture tick refuses to run unless `[module+0x34]` is zero and the byte at
+#: `module+0x3c` is zero (`0x00798468`). Zero from the ctor, set to
+#: `CASTLE_STATE_OCCUPIED` beside an `onStructureBuilt` at `0x0079B734`.
 CASTLE_STATE_OFFSET = 0x34
 
 #: The value that site writes, and the value a live claimed settlement flag reads back. A second
-#: site (``0x0079CB64``) writes 5; what distinguishes the two states is not established, so this
+#: site (`0x0079CB64`) writes 5; what distinguishes the two states is not established, so this
 #: mirrors the one that accompanies an adoption.
 CASTLE_STATE_OCCUPIED = 4
 
-#: `Object::m_template`, and `KindOf` `CASTLE_KEEP` within it - index 28, so bit ``0x10`` of
-#: ``template+0x108 + 3``. The test `onStructureBuilt` itself makes at ``0x0079ACA4`` to decide
+#: `Object::m_template`, and `KindOf` `CASTLE_KEEP` within it - index 28, so bit `0x10` of
+#: `template+0x108 + 3`. The test `onStructureBuilt` itself makes at `0x0079ACA4` to decide
 #: between adopting a keep and filing a plain member, made here first so the patch only takes the
 #: castle path when the engine would reach the branch that sets `m_builtOnID`.
 OBJECT_TEMPLATE_OFFSET = 0x04
 TEMPLATE_CASTLE_KEEP_BYTE = 0x10B
 TEMPLATE_CASTLE_KEEP_BIT = 0x10
 
-# --- the hooks ----------------------------------------------------------------------------------
+# The hooks
 
 #: The `call GameLogic::destroyObject` inside `ReplaceSelfUpgrade::upgradeImplementation`
-#: (``0x008BB5FA``), with the dying object already pushed and `TheGameLogic` already in ecx.
+#: (`0x008BB5FA`), with the dying object already pushed and `TheGameLogic` already in ecx.
 HOOK_DESTROY_CALL_VA = 0x008BB6CC
 
 #: The `call GameLogic::getFirstObject` that starts the stock wall-rebind walk, one instruction
 #: after the frame slot holding the dying object's id is filled. The replacement exists by then.
 HOOK_WALK_CALL_VA = 0x008BB964
 
-#: `upgradeImplementation`'s own frame slots, as displacements from its ``ebp`` (which it sets to
-#: ``esp-0x78`` on entry and never moves). ``[ebp-0x20]`` is the object just created - written at
-#: ``0x008BB8E0`` and read by the stock wall walk at ``0x008BB9A6`` - and ``[ebp-0x3C]`` is the
+#: `upgradeImplementation`'s own frame slots, as displacements from its `ebp` (which it sets to
+#: `esp-0x78` on entry and never moves). `[ebp-0x20]` is the object just created - written at
+#: `0x008BB8E0` and read by the stock wall walk at `0x008BB9A6` - and `[ebp-0x3C]` is the
 #: dying object's id, written by the instruction immediately before hook 2.
 FRAME_NEW_OBJECT = -0x20
 FRAME_OLD_ID = -0x3C
 
-#: Byte windows the patch depends on and does not rewrite, as ``{va: expected bytes}``. The two
-#: hook windows carry the `call` being repointed, which :meth:`~FoundationRebindPatch.verify`
+#: Byte windows the patch depends on and does not rewrite, as `{va: expected bytes}`. The two
+#: hook windows carry the `call` being repointed, which `verify`
 #: blanks before comparing so the same table checks a patched image.
 ANCHORS: dict[int, bytes] = {
     # the two hook sites, in context: `push [esi-8]; mov ecx, [TheGameLogic]; call destroyObject`
@@ -276,34 +178,29 @@ ANCHORS: dict[int, bytes] = {
     0x00799B13: bytes.fromhex("ff76388b6e048bcfe861fbcaff8bf83bfb750b38"),
 }
 
-# --- the cave -----------------------------------------------------------------------------------
+# The cave
 
 SECTION_NAME = ".fndrbd"  # 7 chars: the PE name field is 8 bytes and truncates silently
 # CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE. Writable because the ring
 # lives in the same section as the code that reads it.
 SECTION_CHARACTERISTICS = 0xE0000060
 
-#: How many ``(dying object id, plot id)`` pairs the cave can hold at once. One is enough for the
+#: How many `(dying object id, plot id)` pairs the cave can hold at once. One is enough for the
 #: flat case; four covers a replacement whose creation triggers another `ReplaceSelfUpgrade`.
 RING_SLOTS = 4
 RING_SLOT_SIZE = 8
 RING_SIZE = RING_SLOTS * RING_SLOT_SIZE
 
 
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
 def _build_stash(base_va: int, ring_va: int) -> bytes:
     """Hook 1: remember the plot the dying object stands on, and cut the object's link to it.
 
-    Entered by the repointed `call`, so ``[esp+4]`` is the `Object*` `destroyObject` is about to
-    be given and ecx is `TheGameLogic`. Ends by tail-jumping to `destroyObject`, whose ``ret 4``
+    Entered by the repointed `call`, so `[esp+4]` is the `Object*` `destroyObject` is about to
+    be given and ecx is `TheGameLogic`. Ends by tail-jumping to `destroyObject`, whose `ret 4`
     returns to the instruction after the hooked `call`.
 
     The guard is the whole point: the producer link is only followed when it resolves to an object
-    that has a foundation interface *and* whose ``m_builtOnID`` is the dying object's own id. A
+    that has a foundation interface *and* whose `m_builtOnID` is the dying object's own id. A
     unit's producer is a barracks, which answers no foundation interface, so nothing here fires on
     anything but a structure standing on a plot."""
     a = Asm(base_va)
@@ -360,7 +257,7 @@ def _build_rebind(base_va: int, ring_va: int) -> bytes:
     """Hook 2: hand the remembered plot to the object that replaced its occupant.
 
     Entered by the repointed `call` that starts the stock wall walk, so ecx is `TheGameLogic`,
-    ``[ebp-0x3C]`` is the dying object's id and ``[ebp-0x20]`` is the replacement. Ends by
+    `[ebp-0x3C]` is the dying object's id and `[ebp-0x20]` is the replacement. Ends by
     tail-jumping to `getFirstObject`, which is what the `call` was for.
 
     Commits when the plot is free - the usual case, `onDelete` having already run - or when it
@@ -471,10 +368,10 @@ def _build_rebind(base_va: int, ring_va: int) -> bytes:
 
 
 def build_section(base_va: int) -> tuple[bytes, int, int]:
-    """``(section content, stash thunk VA, rebind thunk VA)`` for a cave based at ``base_va``.
+    """`(section content, stash thunk VA, rebind thunk VA)` for a cave based at `base_va`.
 
     The ring goes first, at the section's own base, so both thunks reach it by a resolved address
-    and :meth:`~FoundationRebindPatch.verify` can check it is zero-initialised without knowing how
+    and `verify` can check it is zero-initialised without knowing how
     long the code is."""
     ring_va = base_va
     stash_va = base_va + RING_SIZE
@@ -484,7 +381,7 @@ def build_section(base_va: int) -> tuple[bytes, int, int]:
     return bytes(RING_SIZE) + stash + rebind, stash_va, rebind_va
 
 
-# --- the patch ----------------------------------------------------------------------------------
+# The patch
 
 
 class FoundationRebindPatch(Patch):
@@ -493,13 +390,14 @@ class FoundationRebindPatch(Patch):
 
     name = "foundation-rebind"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "A ReplaceSelfUpgrade keeps the settlement plot instead of freeing its flag. No INI "
         "change - the existing ReplaceSelfUpgrade is what triggers it, and the plot no longer "
         "needs a dummy building standing on it to read as occupied"
     )
 
-    # --- apply / verify ----------------------------------------------------------------------
+    # Apply / verify
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)
@@ -514,11 +412,11 @@ class FoundationRebindPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified).
+        """Structural check that `data` carries this patch (an empty list == verified).
 
-        Recomputes the cave and both repointed ``call``s from the section base found on disk and
+        Recomputes the cave and both repointed `call`s from the section base found on disk and
         compares them byte for byte, then re-checks every window the patch reads but does not
-        rewrite. Reads only via ``struct`` and the section table - no disassembler."""
+        rewrite. Reads only via `struct` and the section table - no disassembler."""
         located = find_section(data, SECTION_NAME)
         if located is None:
             return [f"no {SECTION_NAME} section: the file does not carry this patch"]
@@ -545,13 +443,13 @@ class FoundationRebindPatch(Patch):
         problems += self._anchor_problems(data, skip_call_bytes=True)
         return problems
 
-    # --- layout ------------------------------------------------------------------------------
+    # Layout
 
     def _edits(
         self, data: bytes | bytearray, stash_va: int, rebind_va: int
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)`` - two
-        ``call rel32`` displacements, and nothing else."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)` - two
+        `call rel32` displacements, and nothing else."""
         edits: list[tuple[int, bytes, bytes, str]] = []
         for call_va, stock_va, thunk_va, note in (
             (
@@ -570,23 +468,21 @@ class FoundationRebindPatch(Patch):
             off = va_to_offset(data, call_va)
             if off is None:
                 raise ValueError(f"{note}: VA 0x{call_va:08x} is not mapped")
-            edits.append(
-                (off, _call_bytes(call_va, stock_va), _call_bytes(call_va, thunk_va), note)
-            )
+            edits.append((off, call_rel32(call_va, stock_va), call_rel32(call_va, thunk_va), note))
         return edits
 
-    # --- the build fingerprint ----------------------------------------------------------------
+    # The build fingerprint
 
     def _anchor_problems(self, data: bytes | bytearray, skip_call_bytes: bool = False) -> list[str]:
         """Everything the patch depends on and does not rewrite.
 
         Three kinds, all silent when wrong: the two hook windows say the `call`s being repointed
         are the ones inside `upgradeImplementation` and that the frame slots hook 2 reads are still
-        filled where it thinks; the foundation windows say ``m_builtOnID`` is still
-        ``module+0x28`` and still reached through the ``+0x98`` interface query; and the two
+        filled where it thinks; the foundation windows say `m_builtOnID` is still
+        `module+0x28` and still reached through the `+0x98` interface query; and the two
         teardown windows say the paths this patch pre-empts are still the ones that free a plot.
 
-        ``skip_call_bytes`` blanks the five bytes of each hooked `call`, which is what lets the
+        `skip_call_bytes` blanks the five bytes of each hooked `call`, which is what lets the
         same table check an already-patched image."""
         problems: list[str] = []
         hooked = {HOOK_DESTROY_CALL_VA, HOOK_WALK_CALL_VA}

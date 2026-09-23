@@ -43,7 +43,7 @@ from sage_map.assets.trigger_areas import TriggerArea
 from sage_worldbuilder.changes import Change, ChangeKind
 from sage_worldbuilder.commands import Command, CompositeCommand, SetAttribute
 from sage_worldbuilder.commands.edits import SetProperty
-from sage_worldbuilder.objects import MoveObjects
+from sage_worldbuilder.commands.objects import MoveObjects
 from sage_worldbuilder.properties import OBJECT_SPECS, WAYPOINT_SPECS
 from sage_worldbuilder.scene import WAYPOINT_PREFIX
 from sage_worldbuilder.teams import qualified_team_name, team_list

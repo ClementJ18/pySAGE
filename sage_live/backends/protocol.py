@@ -62,23 +62,13 @@ PROTOCOL_VERSION = 1
 
 # Bumped independently of PROTOCOL_VERSION whenever the observation payload layout changes,
 # so a reader can refuse a struct it does not know without rejecting the whole connection.
-#
-# 5 (2026-08-04) added the player's held sciences, which is the only observable answer to "have
-# I already bought that spellbook power" - a science lands in no upgrade mask.
-#
-# 4 (2026-08-01) added per-object `ModelConditionFlags`, which is how the engine itself knows a
-# structure is still going up - health cannot say, since it ramps while building.
-#
-# 3 (2026-08-01) added `godsight`, so a snapshot records whether it still carries knowledge a
-# real player could not have - an opponent's economy, or what their buildings are making.
-#
-# 2 (2026-07-31) added per-object production queues, and carried two fields the model had all
-# along that version 1 silently dropped: `GameObject.upgrades` and
-# `PlayerState.upgrades_in_progress`. Dropping them was not cosmetic - `LoopbackBackend` round
-# -trips every observation through this codec, so a policy tested against it saw battalions
-# whose object-scoped upgrades had vanished, which is the one field distinguishing an upgraded
-# battalion from a fresh one.
-OBSERVATION_STRUCT_VERSION = 5
+#   6: production and construction percents, rank ladder, lobby name/colour/allies, the
+#      match ledger, hero/spellbook/structure flags, build cost, hero experience
+#   5: held sciences
+#   4: per-object `ModelConditionFlags`
+#   3: `godsight`
+#   2: per-object production queues, `GameObject.upgrades`, `PlayerState.upgrades_in_progress`
+OBSERVATION_STRUCT_VERSION = 6
 
 # "SG" - the sync marker every frame opens with, so a confused reader can find its footing.
 FRAME_MAGIC = 0x4753
@@ -87,6 +77,16 @@ FRAME_HEADER = struct.Struct("<HHI")
 # A payload larger than this is treated as a desynchronised stream rather than a real message.
 _MAX_FRAME = 64 << 20
 _NO_INDEX = -1
+# The ledger fields, in wire order.
+_LEDGER = (
+    "spent_on_units",
+    "spent_on_structures",
+    "spent_on_heroes",
+    "units_created",
+    "units_lost",
+    "structures_created",
+    "structures_lost",
+)
 
 
 class MessageType(IntEnum):
@@ -346,6 +346,22 @@ def encode_observation(obs: Observation) -> bytes:
         w.i32(p.power_points)
         w.i32(p.command_points[0])
         w.i32(p.command_points[1])
+        w.i32(p.skill_points)
+        w.i32(p.rank_floor)
+        w.i32(p.rank_next)
+        w.text(p.display_name)
+        w.text(p.faction_name)
+        w.i32(_NO_INDEX if p.color is None else p.color)
+        w.u16(len(p.allies))
+        for ally in sorted(p.allies):
+            w.u16(ally)
+        w.i32(p.spent_on_units)
+        w.i32(p.spent_on_structures)
+        w.i32(p.spent_on_heroes)
+        w.i32(p.units_created)
+        w.i32(p.units_lost)
+        w.i32(p.structures_created)
+        w.i32(p.structures_lost)
         w.u16(len(p.upgrades))
         for up in sorted(p.upgrades):
             w.text(up)
@@ -381,6 +397,18 @@ def encode_observation(obs: Observation) -> bytes:
         for item in o.production:
             w.text(item.kind)
             w.text(item.name)
+            w.f32(item.percent)
+        # -1 for None, the engine's own spelling of "not being built".
+        w.f32(-1.0 if o.construction_percent is None else o.construction_percent)
+        w.u8(
+            int(o.is_hero)
+            | int(o.is_spellbook) << 1
+            | int(o.is_structure) << 2
+            | int(o.is_selectable) << 3
+        )
+        w.u16(o.build_cost)
+        w.f32(-1.0 if o.experience is None else o.experience)
+        w.i32(_NO_INDEX if o.experience_level is None else o.experience_level)
     return bytes(w.buf)
 
 
@@ -408,6 +436,14 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
         power = r.i32()
         cp_used = r.i32()
         cp_cap = r.i32()
+        skill_points = r.i32()
+        rank_floor = r.i32()
+        rank_next = r.i32()
+        display_name = r.text()
+        faction_name = r.text()
+        color = r.i32()
+        allies = frozenset(r.u16() for _ in range(r.u16()))
+        ledger = {field: r.i32() for field in _LEDGER}
         upgrades = frozenset(r.text() for _ in range(r.u16()))
         in_progress = frozenset(r.text() for _ in range(r.u16()))
         sciences = frozenset(r.i32() for _ in range(r.u16()))
@@ -422,6 +458,14 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
                 resources_collected=collected,
                 power_points=power,
                 command_points=(cp_used, cp_cap),
+                skill_points=skill_points,
+                rank_floor=rank_floor,
+                rank_next=rank_next,
+                display_name=display_name,
+                faction_name=faction_name,
+                color=None if color == _NO_INDEX else color,
+                allies=allies,
+                **ledger,
                 sciences=sciences,
                 upgrades=upgrades,
                 upgrades_in_progress=in_progress,
@@ -441,7 +485,12 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
         parent = r.i32()
         obj_upgrades = frozenset(r.text() for _ in range(r.u16()))
         conditions = frozenset(r.text() for _ in range(r.u16()))
-        production = tuple(ProductionItem(r.text(), r.text()) for _ in range(r.u16()))
+        production = tuple(ProductionItem(r.text(), r.text(), r.f32()) for _ in range(r.u16()))
+        built = r.f32()
+        kinds = r.u8()
+        build_cost = r.u16()
+        experience = r.f32()
+        experience_level = r.i32()
         if r.failed:
             return None, [Diagnostic("truncated object block", r.pos)]
         objects.append(
@@ -458,6 +507,14 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
                 upgrades=obj_upgrades,
                 conditions=conditions,
                 production=production,
+                construction_percent=None if built < 0.0 else built,
+                is_hero=bool(kinds & 1),
+                is_spellbook=bool(kinds & 2),
+                is_structure=bool(kinds & 4),
+                is_selectable=bool(kinds & 8),
+                build_cost=build_cost,
+                experience=None if experience < 0.0 else experience,
+                experience_level=(None if experience_level == _NO_INDEX else experience_level),
             )
         )
 

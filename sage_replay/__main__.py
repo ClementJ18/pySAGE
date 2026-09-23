@@ -114,7 +114,7 @@ from sage_replay.replay import (
     parse_replay_from_path,
 )
 from sage_replay.retarget import RetargetError, retarget
-from sage_replay.serialize import serialize_replay, write_replay
+from sage_replay.serialize import write_replay, write_replay_to_path
 from sage_replay.stats import compute_stats, render_stats
 from sage_replay.translated import TranslatedReplay
 from sage_replay.winner import PlayerSession, infer_winner
@@ -540,14 +540,14 @@ def _run_convert(args: argparse.Namespace) -> int:
         for failure in error.failures:
             print(f"  {failure}", file=sys.stderr)
         return 1
-    write_replay(converted, args.out)
+    write_replay_to_path(converted, args.out)
     print(f"wrote {args.out}", file=sys.stderr)
     return 0
 
 
 def _run_roundtrip(args: argparse.Namespace) -> int:
     data = Path(args.replay).read_bytes()
-    output = serialize_replay(parse_replay(data))
+    output = write_replay(parse_replay(data))
     if output == data:
         print(f"OK: {args.replay} round-trips byte-exactly ({len(data)} bytes)")
         return 0
@@ -1024,7 +1024,7 @@ def _add_id_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     utf8_stdout()
     parser = argparse.ArgumentParser(prog="sage-replay", description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1222,7 +1222,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     coverage_parser.add_argument("--json", action="store_true")
     coverage_parser.set_defaults(func=_run_coverage)
+    return parser
 
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)
 

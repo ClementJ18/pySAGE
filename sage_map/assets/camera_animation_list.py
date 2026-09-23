@@ -1,6 +1,16 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self
 
+__all__ = [
+    "CameraAnimation",
+    "CameraAnimationList",
+    "FreeCameraAnimationCameraFrame",
+    "FreeCameraAnimationFrameData",
+    "LookAtCameraAnimationCameraFrame",
+    "LookAtCameraAnimationFrameData",
+    "LookAtCameraAnimationLookAtFrame",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -15,14 +25,14 @@ class FreeCameraAnimationCameraFrame:
 
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
-        frame_index = context.stream.readUInt32()
-        interpolation_type = context.stream.readFourCc()[::-1]  # Big endian, so reverse
+        frame_index = context.stream.read_uint32()
+        interpolation_type = context.stream.read_fourcc()[::-1]  # Big endian, so reverse
         if interpolation_type not in ["catm", "line"]:
             raise ValueError(f"Invalid interpolation type: {interpolation_type}")
 
-        position = context.stream.readVector3()
-        rotation = context.stream.readVector4()
-        fov = context.stream.readFloat()
+        position = context.stream.read_vector3()
+        rotation = context.stream.read_vector4()
+        fov = context.stream.read_float()
 
         return cls(
             frame_index=frame_index,
@@ -33,11 +43,11 @@ class FreeCameraAnimationCameraFrame:
         )
 
     def write(self, context: "WritingContext") -> None:
-        context.stream.writeUInt32(self.frame_index)
-        context.stream.writeFourCc(self.interpolation_type[::-1])  # Reverse back to big endian
-        context.stream.writeVector3(self.position)
-        context.stream.writeVector4(self.rotation)
-        context.stream.writeFloat(self.fov)
+        context.stream.write_uint32(self.frame_index)
+        context.stream.write_fourcc(self.interpolation_type[::-1])  # Reverse back to big endian
+        context.stream.write_vector3(self.position)
+        context.stream.write_vector4(self.rotation)
+        context.stream.write_float(self.fov)
 
 
 @dataclass
@@ -46,7 +56,7 @@ class FreeCameraAnimationFrameData:
 
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
-        camera_frames_count = context.stream.readUInt32()
+        camera_frames_count = context.stream.read_uint32()
         camera_frames = []
         for _ in range(camera_frames_count):
             camera_frames.append(FreeCameraAnimationCameraFrame.parse(context))
@@ -56,7 +66,7 @@ class FreeCameraAnimationFrameData:
         )
 
     def write(self, context: "WritingContext") -> None:
-        context.stream.writeUInt32(len(self.frames))
+        context.stream.write_uint32(len(self.frames))
         for frame in self.frames:
             frame.write(context)
 
@@ -69,12 +79,12 @@ class LookAtCameraAnimationLookAtFrame:
 
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
-        frame_index = context.stream.readUInt32()
-        interpolation_type = context.stream.readFourCc()[::-1]
+        frame_index = context.stream.read_uint32()
+        interpolation_type = context.stream.read_fourcc()[::-1]
         if interpolation_type not in ["catm", "line"]:
             raise ValueError(f"Invalid interpolation type: {interpolation_type}")
 
-        look_at = context.stream.readVector3()
+        look_at = context.stream.read_vector3()
 
         return cls(
             frame_index=frame_index,
@@ -83,9 +93,9 @@ class LookAtCameraAnimationLookAtFrame:
         )
 
     def write(self, context: "WritingContext") -> None:
-        context.stream.writeUInt32(self.frame_index)
-        context.stream.writeFourCc(self.interpolation_type[::-1])
-        context.stream.writeVector3(self.look_at_point)
+        context.stream.write_uint32(self.frame_index)
+        context.stream.write_fourcc(self.interpolation_type[::-1])
+        context.stream.write_vector3(self.look_at_point)
 
 
 @dataclass
@@ -98,14 +108,14 @@ class LookAtCameraAnimationCameraFrame:
 
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
-        frame_index = context.stream.readUInt32()
-        interpolation_type = context.stream.readFourCc()[::-1]
+        frame_index = context.stream.read_uint32()
+        interpolation_type = context.stream.read_fourcc()[::-1]
         if interpolation_type not in ["catm", "line"]:
             raise ValueError(f"Invalid interpolation type: {interpolation_type}")
 
-        position = context.stream.readVector3()
-        roll = context.stream.readFloat()
-        fov = context.stream.readFloat()
+        position = context.stream.read_vector3()
+        roll = context.stream.read_float()
+        fov = context.stream.read_float()
 
         return cls(
             frame_index=frame_index,
@@ -116,11 +126,11 @@ class LookAtCameraAnimationCameraFrame:
         )
 
     def write(self, context: "WritingContext") -> None:
-        context.stream.writeUInt32(self.frame_index)
-        context.stream.writeFourCc(self.interpolation_type[::-1])
-        context.stream.writeVector3(self.position)
-        context.stream.writeFloat(self.roll)
-        context.stream.writeFloat(self.fov)
+        context.stream.write_uint32(self.frame_index)
+        context.stream.write_fourcc(self.interpolation_type[::-1])
+        context.stream.write_vector3(self.position)
+        context.stream.write_float(self.roll)
+        context.stream.write_float(self.fov)
 
 
 @dataclass
@@ -130,12 +140,12 @@ class LookAtCameraAnimationFrameData:
 
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
-        camera_frames_count = context.stream.readUInt32()
+        camera_frames_count = context.stream.read_uint32()
         camera_frames = []
         for _ in range(camera_frames_count):
             camera_frames.append(LookAtCameraAnimationCameraFrame.parse(context))
 
-        look_at_frames_count = context.stream.readUInt32()
+        look_at_frames_count = context.stream.read_uint32()
         look_at_frames = []
         for _ in range(look_at_frames_count):
             look_at_frames.append(LookAtCameraAnimationLookAtFrame.parse(context))
@@ -146,11 +156,11 @@ class LookAtCameraAnimationFrameData:
         )
 
     def write(self, context: "WritingContext") -> None:
-        context.stream.writeUInt32(len(self.camera_frames))
+        context.stream.write_uint32(len(self.camera_frames))
         for frame in self.camera_frames:
             frame.write(context)
 
-        context.stream.writeUInt32(len(self.look_at_frames))
+        context.stream.write_uint32(len(self.look_at_frames))
         for look_at_frame in self.look_at_frames:
             look_at_frame.write(context)
 
@@ -165,13 +175,13 @@ class CameraAnimation:
 
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
-        animation_type = context.stream.readFourCc()[::-1]
+        animation_type = context.stream.read_fourcc()[::-1]
         if animation_type not in ["free", "look"]:
             raise ValueError(f"Unknown camera animation type: {animation_type}")
 
-        name = context.stream.readUInt16PrefixedAsciiString()
-        num_frames = context.stream.readUInt32()
-        start_offset = context.stream.readUInt32()
+        name = context.stream.read_uint16_prefixed_ascii_string()
+        num_frames = context.stream.read_uint32()
+        start_offset = context.stream.read_uint32()
 
         frame_data: FreeCameraAnimationFrameData | LookAtCameraAnimationFrameData
         if animation_type == "free":
@@ -194,10 +204,10 @@ class CameraAnimation:
         )
 
     def write(self, context: "WritingContext") -> None:
-        context.stream.writeFourCc(self.animation_type[::-1])
-        context.stream.writeUInt16PrefixedAsciiString(self.name)
-        context.stream.writeUInt32(self.num_frames)
-        context.stream.writeUInt32(self.start_offset)
+        context.stream.write_fourcc(self.animation_type[::-1])
+        context.stream.write_uint16_prefixed_ascii_string(self.name)
+        context.stream.write_uint32(self.num_frames)
+        context.stream.write_uint32(self.start_offset)
 
         self.frame_data.write(context)
 
@@ -215,7 +225,7 @@ class CameraAnimationList:
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
             animations = []
-            animation_count = context.stream.readUInt32()
+            animation_count = context.stream.read_uint32()
             for _ in range(animation_count):
                 animations.append(CameraAnimation.parse(context))
 
@@ -229,6 +239,6 @@ class CameraAnimationList:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.animations))
+            context.stream.write_uint32(len(self.animations))
             for animation in self.animations:
                 animation.write(context)

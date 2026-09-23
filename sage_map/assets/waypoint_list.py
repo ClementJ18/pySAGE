@@ -3,6 +3,10 @@ from typing import Self
 
 from ..context import ParsingContext, WritingContext
 
+__all__ = [
+    "WaypointsList",
+]
+
 
 @dataclass
 class WaypointsList:
@@ -17,10 +21,10 @@ class WaypointsList:
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
             waypoint_paths = []
-            waypoint_count = context.stream.readUInt32()
+            waypoint_count = context.stream.read_uint32()
             for _ in range(waypoint_count):
-                start_waypoint_id = context.stream.readUInt32()
-                end_waypoint_id = context.stream.readUInt32()
+                start_waypoint_id = context.stream.read_uint32()
+                end_waypoint_id = context.stream.read_uint32()
 
                 waypoint_paths.append((start_waypoint_id, end_waypoint_id))
 
@@ -34,7 +38,7 @@ class WaypointsList:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.waypoint_paths))
+            context.stream.write_uint32(len(self.waypoint_paths))
             for start_id, end_id in self.waypoint_paths:
-                context.stream.writeUInt32(start_id)
-                context.stream.writeUInt32(end_id)
+                context.stream.write_uint32(start_id)
+                context.stream.write_uint32(end_id)

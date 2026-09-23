@@ -19,7 +19,7 @@ from sage_worldbuilder.layers import (
     rename_layer,
     set_layer,
 )
-from sage_worldbuilder.selection_helpers import (
+from sage_worldbuilder.selection.helpers import (
     TemplateIndex,
     base_parents,
     base_siblings,

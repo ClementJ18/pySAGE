@@ -1,71 +1,12 @@
-"""The infantry-lighting patch: choose which kindofs get the map's *infantry* light environment.
+"""Choose which kindofs get a map's infantry light environment.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/infantry-lighting.md``.
+A map carries separate light sets for terrain, objects and infantry, and the render loop picks the
+infantry environment for render objects flagged with a stock pair of kindofs. The patch rewrites
+that kindof immediate at both draw sites; the default adds `CAVALRY`, and `every_drawable` gives
+every model the infantry lights. The light sets and terrain are unchanged, and on the many maps
+whose infantry and object sets are identical it is invisible.
 
-**The gap.** A `.map`'s `GlobalLighting` chunk carries **three** light sets per time of day - one
-for terrain, one for objects, one for infantry, three lights each - and the map reader stores them
-at three bases in `TheGlobalData` (``+0x1AC``, ``+0x434``, ``+0x6BC``). The scene builds the last
-two into two ready-made light environments, and the render loop at ``0x0046FD42`` picks between
-them per render object: a flag bit set means the infantry environment at ``scene+0x5B4``, clear
-means the object environment at ``scene+0x164``.
-
-That flag is set in the model-draw path, and the only thing that sets it is this test::
-
-    test byte ptr [tmpl + 0x109], 5     ; KindOf bits 8 and 10 - INFANTRY, MONSTER
-
-So a unit whose `KindOf` says `CAVALRY` and nothing else is lit as an *object*, alongside walls,
-rocks and siege engines. On the shipped maps the two sets differ in one term - the sun's ambient -
-and the object set is the darker one (stock `map mp amon sul fortress`: ``0.090, 0.071, 0.043``
-against the infantry set's ``0.290, 0.306, 0.290``, with diffuse colour and direction identical),
-which is why the symptom reads as "cavalry is too dark" rather than "cavalry is lit from
-elsewhere". Giving a mounted unit `KINDOF_INFANTRY` fixes the look because it buys a pass on this
-test - and drags in crush rules, `PATH_THROUGH_INFANTRY`, KindOf filters on weapons, armor and
-powers, and AI target selection along with it.
-
-**What this does.** Rewrites that immediate at both draw sites, so the infantry environment is
-chosen for whichever kindofs are named instead of the stock two. The default adds `CAVALRY`, which
-is the whole bug; ``every_drawable`` instead defuses the branch, so every drawable that reaches the
-model-draw path takes the infantry environment.
-
-**Only the bits that byte holds.** The immediate is a byte-lane mask over `KindOfMaskType` bits
-8..15 - `INFANTRY`, `CAVALRY`, `MONSTER`, `MACHINE`, `AIRCRAFT`, `HUGE_VEHICLE`, `DOZER`,
-`SWARM_DOZER` in the stock table - because that is the byte the stock instruction reads and there
-is no room at the site to read another one. Names are resolved against the image's **live** kindof
-table rather than a hardcoded list, so a binary carrying an added kindof reports its real bit and
-is refused by index, not by name; anything outside the lane raises and points at ``every_drawable``.
-
-Two sites, nine bytes each
---------------------------
-The test and the `je` that skips the setter call sit adjacent, and both are rewritten together:
-
-* ``0x0047A7A0`` - ``test byte [edi+0x109], 5`` / ``je +0x0A``, in the draw virtual at
-  ``0x0047A0AD``.
-* ``0x004C4E2B`` - ``test byte [ebx+0x109], 5`` / ``je +0x0A``, in the draw virtual at
-  ``0x004C451D``, which six more draw-module vtables hold at the same slot.
-
-Both then run ``mov eax,[ecx] / push 1 / call [eax+0x1C4]``, the `RenderObjClass` flag setter whose
-getter at ``+0x1C0`` is what the render loop reads. Naming a wider mask therefore costs nothing at
-runtime: the same instruction tests more bits.
-
-``every_drawable`` writes ``0xFF`` into the immediate and replaces the two-byte ``je`` with two
-``nop``s, so the call is unconditional. The two null checks ahead of it - the template pointer and
-the render object - are left standing, so a drawable with neither still takes neither branch.
-
-**What it does not do.** Nothing here changes the light sets themselves. On a map whose infantry
-set equals its object set the patch is invisible, correctly: 80 of the 103 stock maps and 205 of
-Edain's 510 ship them identical. Nor does it touch terrain, which is lit from the third set and
-never consults this flag.
-
-**Determinism.** Client-side render state only. The flag lives on a `RenderObjClass`, is read once
-per draw, and reaches nothing the logic frame or the CRC can see - so a peer running a stock binary
-disagrees about pixels and about nothing else, and replays cross freely in both directions.
-
-**Composition.** No cave, no table growth, and no byte here is touched by anything else in this
-package, so it is order-independent with everything bundled. It *reads* the kindof name table
-through `patches.utils.kind_of`, which `desert-weather` and any other kindof-adding patch rebuild
-in a cave - reading it live rather than at its stock address is what keeps that pair order-free in
-both directions. See the composition contract on :class:`~..patcher.Patch`.
+Derivation: `../docs/infantry-lighting.md`.
 """
 
 from __future__ import annotations
@@ -115,12 +56,12 @@ EVERY_MASK = 0xFF
 
 @dataclass(frozen=True)
 class Site:
-    """One ``test byte [reg + 0x109], imm8`` and the ``je`` that skips the setter call.
+    """One `test byte [reg + 0x109], imm8` and the `je` that skips the setter call.
 
-    ``test_prefix`` is the whole instruction bar its immediate, so asserting it covers the opcode,
-    the ModRM and the displacement: a two-byte ``74 0a`` somewhere else in a different build cannot
-    be mistaken for this site. ``branch`` keeps its displacement in both the stock and the patched
-    encoding - only the opcode pair is ever replaced, and only by ``nop``s of the same length.
+    `test_prefix` is the whole instruction bar its immediate, so asserting it covers the opcode,
+    the ModRM and the displacement: a two-byte `74 0a` somewhere else in a different build cannot
+    be mistaken for this site. `branch` keeps its displacement in both the stock and the patched
+    encoding - only the opcode pair is ever replaced, and only by `nop`s of the same length.
     """
 
     va: int
@@ -153,7 +94,7 @@ SITES = (
     ),
 )
 
-#: Sites that pin :data:`SITES` to the code that really is the lighting gate, asserted before
+#: Sites that pin `SITES` to the code that really is the lighting gate, asserted before
 #: anything is written. The mask byte alone is not distinctive - what makes these unmistakable is
 #: the setter call the test guards, and the render-loop branch that gives the flag its meaning.
 FINGERPRINT = {
@@ -170,7 +111,7 @@ FINGERPRINT = {
 
 
 class InfantryLightingPatch(Patch):
-    """Give the map's infantry light environment to ``kinds`` instead of the stock
+    """Give the map's infantry light environment to `kinds` instead of the stock
     `INFANTRY`/`MONSTER`, or to every drawable."""
 
     name = "infantry-lighting"
@@ -203,7 +144,7 @@ class InfantryLightingPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries *this* configuration (an empty list == verified).
+        """Structural check that `data` carries *this* configuration (an empty list == verified).
         Recomputes both sites from the kindofs this instance names and compares. Reads the kindof
         table and the section table only, so it needs no disassembler."""
         try:
@@ -219,14 +160,14 @@ class InfantryLightingPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> InfantryLightingPatch | None:
-        """Recognise this patch **and recover what it was applied with** from ``data``.
+        """Recognise this patch **and recover what it was applied with** from `data`.
 
         The default probe cannot: it would ask `verify` about the default kindofs and report every
         other selection as absent. The mask is read straight back out of the first site's immediate
         and turned into names through the image's own kindof table, and `verify` then checks both
         sites against it.
 
-        A stock binary carries :data:`STOCK_MASK` and an intact branch, and is reported - correctly
+        A stock binary carries `STOCK_MASK` and an intact branch, and is reported - correctly
         - as not carrying this patch, even though "INFANTRY + MONSTER" is a selection this patch
         could have been asked for."""
         site = SITES[0]
@@ -281,7 +222,7 @@ class InfantryLightingPatch(Patch):
         return cls(tuple(part.strip() for part in args.kinds.split(",") if part.strip()))
 
     def mask(self, data: bytes | bytearray) -> int:
-        """The immediate :attr:`kinds` encodes, resolved against the image's live kindof table.
+        """The immediate `kinds` encodes, resolved against the image's live kindof table.
 
         Raises if a name is not a kindof in this binary, or is one whose bit that byte does not
         hold - which is the whole of what the site can express, so the error names the alternative
@@ -303,7 +244,7 @@ class InfantryLightingPatch(Patch):
 
     @classmethod
     def _names_for(cls, data: bytes | bytearray, mask: int) -> tuple[str, ...]:
-        """The kindof names ``mask`` selects, in bit order, read out of the image's own table."""
+        """The kindof names `mask` selects, in bit order, read out of the image's own table."""
         table = kind_of.read(data)
         names: list[str] = []
         for bit in LANE_BITS:

@@ -1,7 +1,7 @@
-"""Tests for the per-mod resolution index (`sage_ini.modindex`) and its CLI commands."""
+"""Tests for the per-mod resolution index (`sage_ini.agent.modindex`) and its CLI commands."""
 
 from sage_ini.__main__ import main
-from sage_ini.modindex import ModIndex
+from sage_ini.agent.modindex import ModIndex
 
 
 def _mod(tmp_path):

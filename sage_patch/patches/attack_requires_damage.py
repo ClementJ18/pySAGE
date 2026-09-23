@@ -1,53 +1,12 @@
-"""The attack-requires-damage patch: a unit only auto-acquires / right-click-attacks a target one
-of its weapon's nuggets can actually damage.
+"""Only let a unit auto-acquire or attack a target that one of its weapon's damaging nuggets
+accepts.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/attack-requires-damage.md``.
+The eligibility check asks whether any nugget accepts the victim, including knockback and
+attribute-modifier nuggets that deal no damage. The call at `ATTACK_ELIGIBILITY_NUGGET_CALL` goes to
+a cave that repeats the walk but counts only the eight damaging nugget kinds
+(`ATTACK_NUGGET_VTABLES`). Firing is unchanged. Every peer needs the same binary.
 
-**The defect.** Whether object A can attack object B ends, for auto-acquire and for a right-click /
-attack order, in ``WEAPON_ANY_NUGGET_VALID_VICTIM`` (`0x006CB779`): it walks the weapon's nugget
-vector and answers yes if **any** nugget's per-victim test (`NUGGET_VTBL_VALID_VICTIM`) accepts the
-target - with no regard for whether that nugget deals damage. So a weapon whose only matching nugget
-is a knockback (`MetaImpactNugget`) or an `AttributeModifierNugget` reports itself able to attack a
-target it cannot hurt, and the unit walks up and "attacks" for no damage. Players report this as a
-bug.
-
-**What this does.** Redirects the one ``call WEAPON_ANY_NUGGET_VALID_VICTIM`` at
-``ATTACK_ELIGIBILITY_NUGGET_CALL`` (`0x006CDCD1`) - the final answer of the attack-eligibility
-predicate `0x006CDBF3`, which every acquire / attack-move / right-click path reaches - into an
-appended cave that repeats the same nugget walk but counts a nugget only when it both accepts the
-victim **and** is one of the eight nugget kinds that are a reason to attack at all
-(``ATTACK_NUGGET_VTABLES``): `DamageNugget`, `ProjectileNugget`, `DOTNugget`,
-`DamageContainedNugget`, `DamageFieldNugget`, `GrabNugget`, `HordeAttackNugget` and
-`SlaveAttackNugget`. The kind test is a vtable compare, not a call.
-
-**Why an allowlist and not the engine's own damage getters.** The obvious implementation asks
-``NUGGET_VTBL_DEALS_DAMAGE`` (`+0x1c`) or ``NUGGET_VTBL_SUBWEAPON`` (`+0x2c`), and it gets the
-answer wrong in both directions. `AttributeModifierNugget`, `ParalyzeNugget`, `FireLogicNugget`
-and `EmotionWeaponNugget` all return `mov al,1` from `+0x1c` while being no reason to walk up to
-anything - so the very nugget this patch is named for was never actually excluded by it. And
-`HordeAttackNugget`, `SlaveAttackNugget`, `DamageFieldNugget` and `GrabNugget` answer false to
-`+0x1c` *and* NULL to `+0x2c` while being exactly how their weapon hurts the target. The worst
-of those is `HordeAttackNugget`: a horde acquires with a rangefinder weapon that carries it as
-its only nugget, so on the getters alone every horde in the game reports itself unable to attack
-anything at all. Nothing in the vtable separates the two groups, so they are named.
-
-**Firing is untouched.** The two other callers of `0x006CB779` (`0x0090F527`, `0x0090F97E`) are
-sub-weapon nuggets' own valid-victim methods, used while the weapon is firing; they keep the stock
-answer. So a knockback still knocks back once the weapon is engaged on a legitimately damageable
-enemy - it just no longer causes the engagement on its own.
-
-**Every peer must run the same patched binary.** This changes which targets a logic-side order
-reaches, so a patched and an unpatched client diverge on the first acquire of a
-damage-less-weapon's target, and replays do not cross - the same requirement `multi-execute-gate`
-and `spawn-union` carry. There is **no INI change**: the filter is global and reads only data every
-weapon already has.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the five at
-``ATTACK_ELIGIBILITY_NUGGET_CALL``, which no other bundled patch touches.
-
-**Statically verified, not runtime-verified.**
+Derivation: `../docs/attack-requires-damage.md`.
 """
 
 from __future__ import annotations
@@ -67,7 +26,7 @@ from ..addresses import (
 )
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -85,7 +44,7 @@ _CHARACTERISTICS = 0x20 | 0x20000000 | 0x40000000
 
 CALL_VA = ATTACK_ELIGIBILITY_NUGGET_CALL
 
-#: Where inside the hook window the five ``call rel32`` bytes sit - masked out when the window is
+#: Where inside the hook window the five `call rel32` bytes sit - masked out when the window is
 #: checked against an already-patched image, since those are the bytes this patch rewrites.
 _CALL_IN_WINDOW = CALL_VA - ATTACK_ELIGIBILITY_NUGGET_CALL_WINDOW
 
@@ -101,22 +60,17 @@ ANCHORS = {
 ATTACK_VTABLES = tuple(ATTACK_NUGGET_VTABLES.values())
 
 
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
 def build_cave(base_va: int) -> bytes:
-    """``bool cave(WeaponTemplate *this, Object *victim, Weapon *weapon)`` - ``__thiscall``,
-    ``ret 8``, an allowlist-filtered replica of ``WEAPON_ANY_NUGGET_VALID_VICTIM``.
+    """`bool cave(WeaponTemplate *this, Object *victim, Weapon *weapon)` - `__thiscall`,
+    `ret 8`, an allowlist-filtered replica of `WEAPON_ANY_NUGGET_VALID_VICTIM`.
 
     Walks the nugget vector exactly as the stock routine does and returns TRUE on the first nugget
-    that is one of ``ATTACK_VTABLES`` **and** accepts the victim (`NUGGET_VTBL_VALID_VICTIM`). The
+    that is one of `ATTACK_VTABLES` **and** accepts the victim (`NUGGET_VTBL_VALID_VICTIM`). The
     kind test is a vtable compare rather than a call, so the only engine code the cave reaches is
     the one valid-victim method the stock routine already called - and it is reached for a strict
     subset of the nuggets, so nothing is asked a question it was not already asked. That method is
-    a ``__thiscall`` getter preserving ``ebx``/``esi``/``edi``/``ebp``, so the `WeaponTemplate`
-    (``edi``) and the current list node (``esi``) live in registers across the walk; the victim and
+    a `__thiscall` getter preserving `ebx`/`esi`/`edi`/`ebp`, so the `WeaponTemplate`
+    (`edi`) and the current list node (`esi`) live in registers across the walk; the victim and
     weapon are read from the frame.
     """
     disp = struct.pack("<I", WEAPONTEMPLATE_NUGGET_VECTOR_OFFSET)
@@ -191,8 +145,8 @@ class AttackRequiresDamagePatch(Patch):
         apply_byte_patch(
             data,
             call_off,
-            _call_bytes(CALL_VA, WEAPON_ANY_NUGGET_VALID_VICTIM),
-            _call_bytes(CALL_VA, section_va),
+            call_rel32(CALL_VA, WEAPON_ANY_NUGGET_VALID_VICTIM),
+            call_rel32(CALL_VA, section_va),
             "attack-eligibility nugget check -> attack-requires-damage cave",
         )
 
@@ -221,7 +175,7 @@ class AttackRequiresDamagePatch(Patch):
         problems += self._anchor_problems(data)
         return problems
 
-    # --- anchors -----------------------------------------------------------------------------
+    # Anchors
 
     def _anchor_problems(self, data: bytes | bytearray) -> list[str]:
         """Everything checked identically stock and patched: the framing of the hooked call (its

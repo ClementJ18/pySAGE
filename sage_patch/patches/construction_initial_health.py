@@ -1,65 +1,11 @@
-"""The construction-initial-health patch: a building starts its construction with health.
+"""Start a structure's construction at a percentage of its health instead of one hit point.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/construction-initial-health.md``.
+Four engine sites drive a new foundation to 1 HP, and it stays there until a builder arrives, so
+anything can remove it for free. The patch starts it at `--percent` (default 10) and re-maps the
+build ramp so health still reaches its maximum exactly as construction completes. Logic-side: every
+peer needs the same binary. No INI change.
 
-**What the engine does today.** A structure that is about to be built has its health driven to
-exactly **one hit point**. Four sites do it and all four are the same six instructions, ending at
-`internalChangeHealth(1.0 - health, NULL)`: `BuildAssistant`'s placement (``0x0079541F``), the
-builder dropping a foundation (``0x008AD88E``), `GettingBuiltBehavior`'s rebuild (``0x00858975``)
-and the `DozerAIUpdate` helper that restarts a build (``0x0088D59E``). Health only starts climbing
-once something is actually building: the `DozerAIUpdate` ramp adds ``maxHealth / frames`` per
-frame (``0x0088DEA8``), and a structure with no builder heals ``maxHealth / RebuildTimeSeconds``
-per frame instead (``0x00857FC1``).
-
-So between the moment a foundation is placed and the moment the builder reaches it, the structure
-stands at 1 hit point. Anything that can reach it removes it for free, and the player who paid for
-it has no counterplay - the building is not yet a building, it is a 1-HP object with a footprint.
-
-**What this does.** Starts that structure at a **percentage of its maximum health** instead of at
-one point - ``--percent 10`` by default - and re-maps the ramp so the curve still ends where it
-did. Health runs ``percent`` to ``100`` across the build, reaching maximum exactly as construction
-completes, rather than reaching it early and sitting there.
-
-Three things move together, because moving one without the others changes something nobody asked
-to change:
-
-- **The start.** The four sites above set ``max(1.0, percent * maxHealth)`` rather than ``1.0``.
-  The floor is what keeps a structure whose maximum health is under ten points from starting below
-  one, which is the guarantee the stock constant carries.
-- **The two ramps.** Both per-frame amounts are scaled by ``1 - percent``, so the remaining span
-  is covered in the same number of frames. Without this a structure reaches full health at 90% and
-  is quietly tougher than the progress bar says for the last tenth of every build.
-- **The two derivations.** The engine also runs the relation backwards: at ``0x00856800`` and
-  ``0x00858078`` it recovers the construction percent *from* the health ratio. Those become
-  ``(ratio - percent) / (1 - percent)``, clamped at zero, which is the inverse of the new mapping.
-  Without this a self-building structure would read 10% complete the frame it was placed and
-  finish a tenth early - a build-speed change wearing a durability patch's clothes.
-
-**`--percent 0` is stock, instruction for instruction in effect.** The start becomes
-``max(1.0, 0)``, the ramps scale by 1 and the derivations by 1/1; the cave is still installed, but
-every number it produces is the one the stock bytes produced. That is what makes the parameter
-honest rather than a second behaviour smuggled in behind a default.
-
-**What it deliberately does not do.** This is a starting health, not a floor: a structure under
-construction can still be shot down to nothing, and a builder interrupted early still leaves a
-cheap kill. Denying a building remains possible; what stops being possible is denying one that
-nobody has had a chance to defend yet.
-
-**Logic-side, so every peer needs the same binary.** Health is world state, it is xfer'd into
-saves and replays, and it feeds the frame CRC - a mixed lobby desyncs on the first foundation.
-No INI change: nothing here adds a keyword or reads one.
-
-**Composition.** The seven engine sites this edits are touched by no other bundled patch. It does
-share `DozerAIUpdate`'s construction advance with
-:mod:`~sage_patch.patches.production_split`, which hooks the `calcTimeToBuild` call at
-``0x0088DE6D`` twenty-seven bytes above the ramp step this rewrites. The two do not overlap and
-neither derives its output from bytes the other writes - but this patch's ramp reads
-``[ebp-0x1C]``, the frame count that call produced, at run time, which is the point: a
-`PRODUCTION_CONSTRUCTION` modifier stretches or shortens the health curve exactly as it stretches
-or shortens the percent curve. `production-split`'s anchor over that function is split in two so
-that it pins everything it depends on **except** the six bytes this patch owns; the two apply in
-either order.
+Derivation: `../docs/construction-initial-health.md`.
 """
 
 from __future__ import annotations
@@ -88,7 +34,7 @@ from ..addresses import (
 )
 from ..asm import Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, f32, find_section, va_to_offset
 
 if TYPE_CHECKING:
     import argparse
@@ -110,13 +56,13 @@ _CHARACTERISTICS = 0x40 | 0x20 | 0x20000000 | 0x40000000
 
 DEFAULT_PERCENT = 10.0
 
-#: The ceiling, and it is arithmetic rather than taste: the derivations divide by ``1 - percent``,
+#: The ceiling, and it is arithmetic rather than taste: the derivations divide by `1 - percent`,
 #: which at 100 is a division by zero and near it magnifies a rounding difference in the health
 #: ratio into a visible jump in the progress bar. 90 leaves a tenth of the bar to work with.
 MAX_PERCENT = 90.0
 
-#: Byte windows :meth:`ConstructionInitialHealthPatch.apply` requires before it writes anything,
-#: as ``{va: expected bytes}``. Each one **contains** the call the patch then repoints, so this
+#: Byte windows `ConstructionInitialHealthPatch.apply` requires before it writes anything,
+#: as `{va: expected bytes}`. Each one **contains** the call the patch then repoints, so this
 #: table describes a stock image only; `verify` checks the installed hooks instead.
 #:
 #: They are what entitles the caves to their calling conventions. The four initial-health windows
@@ -135,7 +81,7 @@ ANCHORS: dict[int, bytes] = {
 #: The four routines the cave holds, in the order it lays them out.
 _ROUTINES = ("initial", "ramp", "selfbuild", "percent")
 
-#: Every five-byte `call` this patch writes, as ``{call VA: (stock bytes, cave entry label)}``.
+#: Every five-byte `call` this patch writes, as `{call VA: (stock bytes, cave entry label)}`.
 #: The displaced instructions are longer than five bytes at every site, so each hook is a call
 #: followed by `nop` to the end of what it replaced.
 _HOOKS: dict[int, tuple[bytes, str]] = {
@@ -152,12 +98,8 @@ _HOOKS: dict[int, tuple[bytes, str]] = {
 }
 
 
-def _f32(value: float) -> bytes:
-    return struct.pack("<f", value)
-
-
 def build_code(base_va: int, percent: float) -> bytes:
-    """The cave's bytes, for a cave that will sit at ``base_va``."""
+    """The cave's bytes, for a cave that will sit at `base_va`."""
     return _assemble(base_va, percent).finish()
 
 
@@ -165,7 +107,7 @@ def _routine_addresses(base_va: int, percent: float) -> dict[str, int]:
     """Where each of the four routines starts, read off the layout that is actually emitted.
 
     The labels are the only honest source for this: counting the bytes a second time by hand is
-    exactly the arithmetic :mod:`sage_patch.asm` exists to remove.
+    exactly the arithmetic `sage_patch.asm` exists to remove.
     """
     a = _assemble(base_va, percent)
     return {name: a.label_va(name) for name in _ROUTINES}
@@ -182,15 +124,15 @@ def _assemble(base_va: int, percent: float) -> Asm:
 
     a = Asm(base_va)
     frac_va = a.va
-    a.emit(_f32(fraction))
+    a.emit(f32(fraction))
     one_va = a.va
-    a.emit(_f32(1.0))
+    a.emit(f32(1.0))
     span_va = a.va
-    a.emit(_f32(span))
+    a.emit(f32(span))
     inv_span_va = a.va
-    a.emit(_f32(1.0 / span))
+    a.emit(f32(1.0 / span))
     hundred_va = a.va
-    a.emit(_f32(100.0))
+    a.emit(f32(100.0))
 
     frac = struct.pack("<I", frac_va)
     one = struct.pack("<I", one_va)

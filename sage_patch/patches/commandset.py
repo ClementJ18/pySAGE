@@ -1,74 +1,10 @@
-"""The `CommandSet` button-limit patch, as a :class:`~..patcher.Patch`.
+"""Raise the `CommandSet` button limit from 33 to any count in 34..127.
 
-Raises `MAX_COMMANDS_PER_COMMAND_SET` from its stock 33 to any ``count`` in 34..127 on the ROTWK
-SAGE-engine `game.dat` build ``2.01.2614.37001`` (engine-level: it benefits every mod on that
-build, not one in particular), so a `CommandSet` INI block may define more than 33 buttons. See
-``../docs/commandset-button-limit.md`` for the derivation of every site.
+Three parts: the `CommandSet` object grows (fourteen immediates move with it), a clamp keeps the
+control bar's visible range within its 33 widgets, and the AI's scan bound is widened so the AI sees
+buttons past slot 33. The ceiling is 127 because six sites encode the limit as a signed byte.
 
-**Composition.** Order-independent: it allocates its cave past every existing section and
-:meth:`verify` finds it by name, it shares no edited byte with any other bundled patch, and it
-derives its table only from the stock one, which nothing else rewrites. See the composition
-contract on :class:`~..patcher.Patch`.
-
-Three parts make up the patch:
-
-* **The object growth** takes the `CommandSet` object from ``0xA0`` to ``0x14 + count*4 + 8``
-  bytes. The ``m_command[]`` array stays at ``+0x14``; the trailing count/flag fields move from
-  ``0x98/0x9c`` to just past the enlarged array. Fourteen instruction immediates (the
-  allocation size, the ctor's ``33`` fills, every field offset, and the AI's scan bound
-  below) are rewritten.
-* **The table rebuild** builds a fresh ``count``-slot field-parse table plus the new
-  ``"34".."count"`` slot names in an appended ``.cmdext`` PE section, and repoints the two code
-  references to it.
-* **The visible-range clamp** appends a routine to that same section and routes
-  `ControlBar::populate`'s visible-range fetch through it, so a paging window that reaches past
-  the array or past the 33 on-screen widgets is trimmed instead of crashing (below).
-
-Together these let a `CommandSet` *define* and *store* up to ``count`` buttons. The ControlBar
-still *draws* only 33 at a time; reach the rest by paging with ``PUSH_VISIBLE_COMMAND_RANGE``.
-Widening the drawing loops instead is a dead end — those ``getCommandButton``-caller loops
-populate the ControlBar's fixed 33-slot UI arrays, so raising their bounds overruns those arrays
-and crashes. See ``../docs/push-visible-command-range.md``.
-
-The visible-range clamp
------------------------
-`ControlBar::populate` reads the top ``{start, count}`` record of the paging stack once, at
-`CONTROL_BAR_RANGE_FETCH`, then walks it in **three** loops. Only the first stops at the
-ControlBar's 33 button widgets. The other two — the revive pass and the production pass — run
-``count`` iterations whatever ``count`` is, and each steps through the 33-entry widget array at
-``ControlBar+0xDC`` alongside the slot index. So an oversized record runs *two* arrays off their
-ends: the widget array past 33, and ``m_command[]`` past ``count`` slots, where the object's own
-count field gets dereferenced as a `CommandButton` and the game faults.
-
-Both ways of writing an oversized record are ordinary INI. ``InitialVisible`` above 33 seeds the
-record with ``{0, InitialVisible}`` directly, and a ``PUSH_VISIBLE_COMMAND_RANGE`` button whose
-``CommandRangeStart + CommandRangeCount`` overshoots writes one on click.
-
-The clamp trims the record in place, right where it is read, to ``0 <= start < count`` and
-``0 <= visible <= min(33, count - start)``. Every loop downstream then walks a window that is
-inside both arrays, out-of-range slots simply are not visited, and a page shows the buttons it
-has. Clamping the fetch is also the cheap form: the three loops would otherwise need three hooks,
-and two of them have no spare bytes.
-
-The AI's scan bound
--------------------
-One ``getCommandButton``-caller loop *is* widened, because it populates nothing:
-``BuildAssistant::canMakeUnit`` walks a producer's set to decide whether the AI may build or
-revive something, and reads each button rather than writing it into a fixed array. Left at 33 it
-would make every button the rest of this patch newly allows - the paged ones - invisible to the
-AI, so a mod paging its hero roster past slot 33 would get buildings the player can recruit from
-and the AI cannot. ``getCommandButton`` is an unchecked ``[this + i*4 + 0x14]``, so the bound
-*is* the bound: ``count`` visits indices ``0..count-1`` and stops one short of the count field
-that the object growth places at index ``count``.
-
-Why the ceiling is 127
-----------------------
-Six of the object-growth sites encode the limit as a **signed 8-bit immediate** (``6a NN`` ``push``,
-``83 fa NN`` / ``83 fb NN`` / ``83 7d f8 NN`` ``cmp``), so 127 is the largest value that survives
-sign extension: at 128 the byte ``0x80`` decodes as ``-128``, and since one of those pushes
-supplies ``rep stosd``'s counter the constructor would zero ~4 billion dwords. Going beyond 127
-means re-encoding those instructions as imm32, which is 3 bytes longer apiece and therefore needs
-relocated code (a trampoline into a cave), not an in-place byte patch.
+Derivation: `../docs/commandset-button-limit.md` and `../docs/push-visible-command-range.md`.
 """
 
 from __future__ import annotations
@@ -95,12 +31,12 @@ from ..addresses import (
 )
 from ..asm import JAE, JG, JLE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, image_base
+from ..utils import allocate_section, apply_byte_patch, find_section, image_base, u32
 
 if TYPE_CHECKING:
     import argparse
 
-# --- fixed facts about the target build (VA, ImageBase 0x400000) ---
+# Fixed facts about the target build (VA, ImageBase 0x400000)
 _TABLE_VA = 0xC4F3D8  # the original 34-entry CommandSet field-parse table
 _PARSE_COMMAND_BUTTON = 0x0080C9E1  # parseCommandButton (fn of every slot entry)
 _SECTION_NAME = ".cmdext"  # the cave holding the enlarged table + the new slot names
@@ -143,10 +79,6 @@ MAX_COUNT = 127
 MIN_COUNT = _ORIGINAL_MAX + 1
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def _imm8(value: int) -> bytes:
     """The limit as a signed 8-bit immediate, refusing values that would sign-extend negative."""
     if not 0 <= value <= 127:
@@ -158,13 +90,13 @@ def _imm8(value: int) -> bytes:
 
 
 def _slot_names(n: int) -> bytes:
-    """The NUL-terminated ``"34".."n"`` field names the enlarged table points at. Slots 1..33
+    """The NUL-terminated `"34".."n"` field names the enlarged table points at. Slots 1..33
     reuse the original table's pointers, so only the new ones need storing."""
     return b"".join(str(k).encode("ascii") + b"\x00" for k in range(_ORIGINAL_MAX + 1, n + 1))
 
 
 def _clamp_offset(n: int) -> int:
-    """Where the clamp routine starts within the ``.cmdext`` section: past the ``n``-slot table
+    """Where the clamp routine starts within the `.cmdext` section: past the `n`-slot table
     and the slot names it points into."""
     return (n + 2) * 16 + len(_slot_names(n))
 
@@ -173,17 +105,17 @@ def build_clamp(base_va: int, n: int) -> bytes:
     """`ControlBar::populate`'s visible-range fetch, plus the clamp that makes it safe.
 
     Replaces `CONTROL_BAR_RANGE_FETCH` whole, so it begins by doing exactly what those eleven
-    bytes did - ``getVisibleRange(&range)`` on the ControlBar in ``ebx`` - and returns to
+    bytes did - `getVisibleRange(&range)` on the ControlBar in `ebx` - and returns to
     `CONTROL_BAR_RANGE_FETCH_RESUME` with the record trimmed:
 
-    * ``start`` outside ``0 .. n-1`` leaves nothing to draw, so the count goes to zero. The
-      test is unsigned, which folds a negative ``CommandRangeStart`` into the same arm.
-    * the count is capped at the ControlBar's 33 widgets and at ``n - start``, whichever binds
+    * `start` outside `0 .. n-1` leaves nothing to draw, so the count goes to zero. The
+      test is unsigned, which folds a negative `CommandRangeStart` into the same arm.
+    * the count is capped at the ControlBar's 33 widgets and at `n - start`, whichever binds
       first, and a negative one becomes zero.
 
-    ``start`` itself is left alone: with a zero count no loop reads it. Only ``eax``, ``ecx``,
-    ``edx`` and the flags are touched, all of which the stock ``call`` already clobbered, and
-    ``ebx`` - the ControlBar the caller keeps using - is only read."""
+    `start` itself is left alone: with a zero count no loop reads it. Only `eax`, `ecx`,
+    `edx` and the flags are touched, all of which the stock `call` already clobbered, and
+    `ebx` - the ControlBar the caller keeps using - is only read."""
     start, count = CONTROL_BAR_RANGE_START_EBP & 0xFF, CONTROL_BAR_RANGE_COUNT_EBP & 0xFF
     a = Asm(base_va)
     a.emit(0x8D, 0x45, start)  # lea  eax, [ebp+start]   ; the displaced fetch, verbatim
@@ -198,10 +130,10 @@ def build_clamp(base_va: int, n: int) -> bytes:
 
     a.emit(0x83, 0xF9, _imm8(CONTROL_BAR_MAX_VISIBLE))  # cmp  ecx, 33
     a.jcc(JLE, "fits_screen")
-    a.emit(0xB9, _u32(CONTROL_BAR_MAX_VISIBLE))  # mov  ecx, 33
+    a.emit(0xB9, u32(CONTROL_BAR_MAX_VISIBLE))  # mov  ecx, 33
     a.label("fits_screen")
 
-    a.emit(0xBA, _u32(n))  # mov  edx, n
+    a.emit(0xBA, u32(n))  # mov  edx, n
     a.emit(0x2B, 0xD0)  # sub  edx, eax           ; slots left after start
     a.emit(0x3B, 0xCA)  # cmp  ecx, edx
     a.jcc(JLE, "fits_array")
@@ -219,7 +151,7 @@ def build_clamp(base_va: int, n: int) -> bytes:
 
 
 class CommandSetLimitPatch(Patch):
-    """Raise the `CommandSet` button limit from the stock 33 to ``count`` (34..127)."""
+    """Raise the `CommandSet` button limit from the stock 33 to `count` (34..127)."""
 
     name = "commandset-limit"
     author = "officialNecro"
@@ -264,10 +196,10 @@ class CommandSetLimitPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` already carries this patch at ``count`` (an empty list
-        == verified). Locates the ``.cmdext`` cave, recomputes its content, the two repointed
-        references, the clamp jump and the object-growth site bytes for ``count``, and compares them
-        to what is on disk. Reads only via ``struct`` + the section table, so it needs no
+        """Structural check that `data` already carries this patch at `count` (an empty list
+        == verified). Locates the `.cmdext` cave, recomputes its content, the two repointed
+        references, the clamp jump and the object-growth site bytes for `count`, and compares them
+        to what is on disk. Reads only via `struct` + the section table, so it needs no
         disassembler."""
         n = self.count
         problems: list[str] = []
@@ -312,11 +244,11 @@ class CommandSetLimitPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> CommandSetLimitPatch | None:
-        """Recognise this patch **and recover its N** from ``data``.
+        """Recognise this patch **and recover its N** from `data`.
 
         The default probe cannot: it would ask `verify` about N=64 and call every other limit
-        absent. The allocator's ``push <object size>`` is an imm32 holding
-        ``0x14 + N*4 + 8``, so N reads straight back out of it, and `verify` then checks all
+        absent. The allocator's `push <object size>` is an imm32 holding
+        `0x14 + N*4 + 8`, so N reads straight back out of it, and `verify` then checks all
         fourteen sites against that N."""
         if find_section(data, _SECTION_NAME) is None:
             return None
@@ -356,8 +288,8 @@ class CommandSetLimitPatch(Patch):
         return cls(count=args.count)
 
     def _compute_section(self, data: bytes | bytearray, section_va: int, n: int) -> bytes:
-        """Return the ``.cmdext`` content for ``n`` slots placed at ``section_va``: the enlarged
-        field-parse table, the ``"34".."n"`` slot names it points into, and the clamp.
+        """Return the `.cmdext` content for `n` slots placed at `section_va`: the enlarged
+        field-parse table, the `"34".."n"` slot names it points into, and the clamp.
         Reads the original 34-entry table to reuse its slot-name pointers and parse fn; raises on
         an unrecognised build (slot 0's parse fn not where this build keeps it)."""
         tab_foff = _TABLE_VA - image_base(data)
@@ -395,8 +327,8 @@ class CommandSetLimitPatch(Patch):
 
     @staticmethod
     def _clamp_jump(section_va: int, n: int) -> bytes:
-        """The eleven bytes that replace the stock visible-range fetch: a ``jmp`` to the clamp,
-        then ``nop`` out to the end of the displaced span. The span is a whole number of
+        """The eleven bytes that replace the stock visible-range fetch: a `jmp` to the clamp,
+        then `nop` out to the end of the displaced span. The span is a whole number of
         instructions with no inbound branch past its first byte, so the padding is never
         executed and only keeps the site the length `verify` expects."""
         clamp_va = section_va + _clamp_offset(n)
@@ -417,8 +349,8 @@ class CommandSetLimitPatch(Patch):
                 )
 
     def _link_table(self, data: bytearray, new_base_va: int) -> None:
-        """Repoint the two code references from the old table VA to the new ``.cmdext`` table."""
-        new_ptr, old_ptr = _u32(new_base_va), _u32(_TABLE_VA)
+        """Repoint the two code references from the old table VA to the new `.cmdext` table."""
+        new_ptr, old_ptr = u32(new_base_va), u32(_TABLE_VA)
         apply_byte_patch(
             data,
             _PARSER_TABLE_REF,
@@ -435,22 +367,22 @@ class CommandSetLimitPatch(Patch):
         )
 
     def _object_edits(self, n: int) -> list[tuple[int, bytes, bytes, str]]:
-        """The 15 ``(file_offset, original bytes, patched bytes, note)`` edits that grow the
-        object for ``n`` slots and let the AI walk all of them. Shared by :meth:`apply` (writes
-        ``patched`` if ``original`` matches) and :meth:`verify` (asserts ``patched`` is
+        """The 15 `(file_offset, original bytes, patched bytes, note)` edits that grow the
+        object for `n` slots and let the AI walk all of them. Shared by `apply` (writes
+        `patched` if `original` matches) and `verify` (asserts `patched` is
         present)."""
         count_off = _ARRAY_OFF + n * 4  # trailing count field, just past the array
         flag_off = count_off + 4
         obj_size = count_off + 8
         nb = _imm8(n)  # the five sites below encode the limit as a signed byte
-        old_count, new_count = _u32(_ORIGINAL_COUNT_OFF), _u32(count_off)
-        old_flag, new_flag = _u32(_ORIGINAL_FLAG_OFF), _u32(flag_off)
+        old_count, new_count = u32(_ORIGINAL_COUNT_OFF), u32(count_off)
+        old_flag, new_flag = u32(_ORIGINAL_FLAG_OFF), u32(flag_off)
 
         return [
             (
                 0x320298,
-                b"\x68" + _u32(_ORIGINAL_OBJ_SIZE),
-                b"\x68" + _u32(obj_size),
+                b"\x68" + u32(_ORIGINAL_OBJ_SIZE),
+                b"\x68" + u32(obj_size),
                 "alloc size",
             ),
             (0x40C97E, b"\x6a\x21", b"\x6a" + nb, "ctor count/stosd push"),

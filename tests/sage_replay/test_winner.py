@@ -22,7 +22,7 @@ from sage_replay import (
     parse_replay,
     parse_replay_from_path,
     recorded_outcomes,
-    serialize_replay,
+    write_replay,
 )
 from sage_replay.replay import Bfme2OrderType, Order, OrderArgument, OrderArgumentType, ReplayChunk
 
@@ -66,7 +66,7 @@ def with_recorded_outcomes(name: str, states: dict[int, tuple[PlayerOutcome, int
         for slot, (outcome, defeated_at) in sorted(states.items())
     ]
     replay.chunks[-1:] = [*injected, replay.chunks[-1]]
-    return parse_replay(serialize_replay(replay))
+    return parse_replay(write_replay(replay))
 
 
 @pytest.fixture(scope="module")
@@ -212,4 +212,4 @@ def test_outcome_chunks_survive_a_serialize_round_trip():
         DECIDED_FIXTURE,
         {0: (PlayerOutcome.Victorious, 0), 1: (PlayerOutcome.Defeated, 8691)},
     )
-    assert parse_replay(serialize_replay(replay)).chunks[-3:] == replay.chunks[-3:]
+    assert parse_replay(write_replay(replay)).chunks[-3:] == replay.chunks[-3:]

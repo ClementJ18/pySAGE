@@ -1,53 +1,13 @@
-"""Let an object's `SPAWNS_ARE_THE_WEAPONS` spawns come from **every** `SpawnBehavior` it has.
+"""Let an object's `SPAWNS_ARE_THE_WEAPONS` spawns come from every `SpawnBehavior` it has, not just
+the first.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/spawn-behavior-union.md``.
+`Object::getSpawnBehaviorInterface` (`GETTER_VA`) returns the first module that answers, so a second
+`SpawnBehavior`'s slaves are never ordered, and die without being removed or respawned. The getter
+is replaced: none or one module gives the stock answer, and two or more return a proxy in the cave
+whose vtable walks every module and aggregates. A simulation change: every peer needs the same
+binary.
 
-**What the engine does today.** `Object::getSpawnBehaviorInterface` (:data:`GETTER_VA`) walks the
-NULL-terminated `BehaviorModule *` array at `Object+0x24C` and **returns on the first module that
-answers**, so an object with two `SpawnBehavior`s uses the first one for everything the interface
-reaches: ordering slaves to attack, asking whether any slave can attack, finding the closest slave,
-and - the part that is a plain bug rather than a missing feature - being told that a slave died.
-`onSpawnDeath` (`0x00862DAB`) opens with a `find` over its *own* slave list and returns having done
-nothing when the id is not in it, so the second behavior's slaves die without a list removal, a
-live-count decrement, or a respawn timer. The second behavior still *spawns*; that is its own
-update, and nothing routes it through this getter.
-
-**What this does.** Replaces the getter with one that counts the modules answering. Nothing (return
-NULL) and exactly one (return it) are the stock answers, byte for byte, which is every object in
-the game bar a handful. Two or more returns a **proxy**: `{void *vtbl; Object *obj;}` living in the
-cave, whose sixteen-slot vtable re-walks the module list and aggregates. That works because every
-caller uses the pointer the way the disassembly shows - ``mov edx,[eax] / mov ecx,eax /
-call [edx+N]`` - and none of the thirteen stores it past its own basic block.
-
-Aggregation is per slot, in :data:`IFACE_SLOTS`: `void` methods **broadcast** to every behavior,
-predicates are **OR**ed, and `getClosestSlave` re-runs the distance comparison the stock
-implementation does internally (`0x0086292C` keeps a running minimum of :data:`DISTANCE_SQUARED_2D`)
-because "the first behavior's closest slave" is the original bug with extra steps.
-
-Nothing short-circuits. Every predicate here is pure - each only reads its own slave list - but
-calling all of them regardless costs two indirect calls on an object that has two behaviors and
-removes the assumption entirely.
-
-Three slots (`+0x34`, `+0x38`, `+0x3C`) are snapshot and update machinery reached through the
-*module*, never through this getter: no caller of :data:`GETTER_VA` touches them. Their proxy
-entries are an `int3`, so an assumption that turns out to be wrong stops at the instruction that
-was wrong instead of silently returning a plausible value into a savegame.
-
-**Reentrancy.** Ordering slaves runs slave AI that can re-enter the getter, so a single static
-proxy would be clobbered mid-call. The cave holds a ring of :data:`RING_SIZE`; the proxy carries no
-state but the `Object *`, so a nested call simply gets the next slot.
-
-**This is a simulation change.** Unlike `replay-outcome` and `skirmish-replay` it changes what
-units do, so it has to be on **every peer**, and a replay recorded against it will not play back on
-a stock build. It is deterministic: the module list is in INI order, which is identical everywhere.
-
-**Composition.** Order-independent: the cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name,
-the only edited bytes are the five at the head of :data:`GETTER_VA`, and the three structures read
-and not written - the getter's own body, `SpawnBehavior`'s interface vtable, and its second-vtable
-answer - are ones nothing else rewrites. See the composition contract on
-:class:`~..patcher.Patch`.
+Derivation: `../docs/spawn-behavior-union.md`.
 """
 
 from __future__ import annotations
@@ -57,7 +17,7 @@ from typing import TYPE_CHECKING
 
 from ..asm import JBE, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, jmp_rel32, u32, va_to_offset
 
 if TYPE_CHECKING:
     import argparse
@@ -112,8 +72,8 @@ SECOND_VTABLE = 0x0C
 SPAWN_IFACE_SLOT = 0x78
 
 #: `SpawnBehavior`'s second vtable, and what it answers with: the folded thunk
-#: ``lea eax,[ecx-0xc] / add ecx,0x14 / neg / sbb / and`` - "`this` ? `this+0x14` : NULL", and
-#: `(module+0x0C)+0x14` is `module+0x20`, whose vtable is :data:`IFACE_VTABLE_VA`.
+#: `lea eax,[ecx-0xc] / add ecx,0x14 / neg / sbb / and` - "`this` ? `this+0x14` : NULL", and
+#: `(module+0x0C)+0x14` is `module+0x20`, whose vtable is `IFACE_VTABLE_VA`.
 SPAWN_SECOND_VTABLE_VA = 0x00C58DD8
 SPAWN_ANSWER_THUNK = 0x008A18E0
 
@@ -156,7 +116,7 @@ CLOSEST = "closest"
 ANY = "any"
 UNREACHABLE = "unreachable"
 
-#: The interface, slot by slot: ``(slot, stack argument count, aggregation, what it is)``. Argument
+#: The interface, slot by slot: `(slot, stack argument count, aggregation, what it is)`. Argument
 #: counts are read off the call sites rather than guessed, and match each implementation's `ret n`.
 IFACE_SLOTS = (
     (0x00, 1, ANY, "maySpawnSelfTaskAI(Real)"),
@@ -186,25 +146,17 @@ SECTION_NAME = ".spwnun"
 _CHARACTERISTICS = 0xE0000060
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _jmp_bytes(from_va: int, to_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", to_va - (from_va + 5))
-
-
 def _walk_head(a: Asm, tag: str, zero_edi: bool) -> None:
     """Emit a stub's prologue and the head of the module walk, up to the interface in `eax`.
 
     Every stub saves `esi` and `edi` whether or not it uses both, so one displacement rule covers
     all of them: with the return address and two saved registers below it, argument *i* sits at
-    ``[esp + 0x0c + 4i]``, and the reverse pushes that forward it all use the single displacement
-    :func:`_arg_displacement` returns."""
+    `[esp + 0x0c + 4i]`, and the reverse pushes that forward it all use the single displacement
+    `_arg_displacement` returns."""
     a.emit(0x56)  # push esi
     a.emit(0x57)  # push edi
     a.emit(b"\x8b\x71\x04")  # mov esi, [ecx+4]        ; the proxy's Object *
-    a.emit(b"\x8b\xb6", _u32(MODULE_LIST))  # mov esi, [esi+0x24c]
+    a.emit(b"\x8b\xb6", u32(MODULE_LIST))  # mov esi, [esi+0x24c]
     if zero_edi:
         a.emit(b"\x33\xff")  # xor edi, edi        ; the OR accumulator
     a.label(f"{tag}_next")
@@ -220,14 +172,14 @@ def _walk_head(a: Asm, tag: str, zero_edi: bool) -> None:
 def _arg_displacement(nargs: int, saved: int) -> int:
     """Where a stub's arguments sit while it is pushing them back out.
 
-    ``saved`` counts the dwords the stub pushed below them. Pushing argument *j* as the *k*-th push
-    puts it at ``base + 4j + 4k`` and the reverse order makes ``j + k`` the constant ``nargs - 1``,
+    `saved` counts the dwords the stub pushed below them. Pushing argument *j* as the *k*-th push
+    puts it at `base + 4j + 4k` and the reverse order makes `j + k` the constant `nargs - 1`,
     which is why the engine's own forwarding loops repeat one displacement."""
     return 4 + 4 * saved + 4 * (nargs - 1)
 
 
 def _forward(a: Asm, slot: int, nargs: int, saved: int) -> None:
-    """Call slot ``slot`` on the interface in `eax`, with this stub's own arguments."""
+    """Call slot `slot` on the interface in `eax`, with this stub's own arguments."""
     displacement = _arg_displacement(nargs, saved)
     for _ in range(nargs):
         a.emit(b"\xff\x74\x24", displacement)  # push dword [esp+d]
@@ -262,7 +214,7 @@ def _any_stub(a: Asm, slot: int, nargs: int) -> None:
     """OR this predicate across every `SpawnBehavior`, asking all of them.
 
     `edi` carries the accumulator, which is why it is a saved register rather than the padding it
-    is in :func:`_broadcast_stub`. The whole of `eax` is set on the way out: the stock
+    is in `_broadcast_stub`. The whole of `eax` is set on the way out: the stock
     implementations disagree about whether they write `al` or `eax`, and a caller that compares the
     full register (`0x006C8A1D` does) must not read the high bytes of a leftover pointer."""
     tag = f"s{slot:02x}"
@@ -271,7 +223,7 @@ def _any_stub(a: Asm, slot: int, nargs: int) -> None:
     _forward(a, slot, nargs, saved=2)
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, f"{tag}_skip")
-    a.emit(0xBF, _u32(1))  # mov edi, 1
+    a.emit(0xBF, u32(1))  # mov edi, 1
     a.label(f"{tag}_skip")
     a.emit(b"\x83\xc6\x04")  # add esi, 4
     a.jmp(f"{tag}_next")
@@ -298,7 +250,7 @@ def _closest_stub(a: Asm, slot: int) -> None:
     a.emit(b"\x6a\x00")  # push 0             ; best distance
     a.emit(b"\x6a\x00")  # push 0             ; this candidate's distance
     a.emit(b"\x8b\x71\x04")  # mov esi, [ecx+4]
-    a.emit(b"\x8b\xb6", _u32(MODULE_LIST))  # mov esi, [esi+0x24c]
+    a.emit(b"\x8b\xb6", u32(MODULE_LIST))  # mov esi, [esi+0x24c]
     a.emit(b"\x33\xff")  # xor edi, edi       ; no candidate yet
     displacement = _arg_displacement(1, saved=5)  # 3 saved registers + 2 locals
 
@@ -356,7 +308,7 @@ def _entry(a: Asm, ring_index_va: int, ring_va: int, vtable_va: int) -> None:
     a.emit(0x56)  # push esi
     a.emit(0x57)  # push edi
     a.emit(b"\x8b\xd9")  # mov  ebx, ecx
-    a.emit(b"\x8b\xb3", _u32(MODULE_LIST))  # mov  esi, [ebx+0x24c]
+    a.emit(b"\x8b\xb3", u32(MODULE_LIST))  # mov  esi, [ebx+0x24c]
     a.emit(b"\x33\xff")  # xor  edi, edi
     a.label("entry_next")
     a.emit(b"\x8b\x06")  # mov  eax, [esi]
@@ -383,19 +335,19 @@ def _entry(a: Asm, ring_index_va: int, ring_va: int, vtable_va: int) -> None:
     a.emit(0xC3)  # ret
 
     a.label("entry_proxy")
-    a.emit(0xA1, _u32(ring_index_va))  # mov  eax, [ring_index]
+    a.emit(0xA1, u32(ring_index_va))  # mov  eax, [ring_index]
     a.emit(0x40)  # inc  eax
     a.emit(b"\x83\xe0", RING_SIZE - 1)  # and  eax, RING_SIZE-1
-    a.emit(0xA3, _u32(ring_index_va))  # mov  [ring_index], eax
+    a.emit(0xA3, u32(ring_index_va))  # mov  [ring_index], eax
     a.emit(b"\xc1\xe0\x03")  # shl  eax, 3          ; 8 bytes per proxy
-    a.emit(0x05, _u32(ring_va))  # add  eax, <ring>
-    a.emit(b"\xc7\x00", _u32(vtable_va))  # mov  dword [eax], <vtable>
+    a.emit(0x05, u32(ring_va))  # add  eax, <ring>
+    a.emit(b"\xc7\x00", u32(vtable_va))  # mov  dword [eax], <vtable>
     a.emit(b"\x89\x58\x04")  # mov  [eax+4], ebx    ; the object
     a.jmp("entry_return")
 
 
 def build_section(base_va: int) -> tuple[bytes, dict[str, int]]:
-    """Return ``(section content, {label: VA})`` for a cave based at ``base_va``.
+    """Return `(section content, {label: VA})` for a cave based at `base_va`.
 
     Laid out so nothing refers forward: the ring first (addressed as link-time constants), then the
     per-slot stubs, then the vtable that names them, then the entry point that names the vtable."""
@@ -426,7 +378,7 @@ def build_section(base_va: int) -> tuple[bytes, dict[str, int]]:
     a.label("vtable")
     for slot, _nargs, mode, _note in IFACE_SLOTS:
         label = "dead" if mode == UNREACHABLE else f"slot_{slot:02x}"
-        a.emit(_u32(a.label_va(label)))
+        a.emit(u32(a.label_va(label)))
 
     a.label("entry")
     _entry(a, a.label_va("ring_index"), a.label_va("ring"), a.label_va("vtable"))
@@ -450,6 +402,7 @@ class SpawnUnionPatch(Patch):
 
     name = "spawn-union"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "SPAWNS_ARE_THE_WEAPONS uses every SpawnBehavior's spawns, not just the first. No INI "
         "change - declaring a second SpawnBehavior is all it takes"
@@ -469,9 +422,9 @@ class SpawnUnionPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified). Locates
+        """Structural check that `data` carries this patch (an empty list == verified). Locates
         the cave, recomputes what it should hold, and compares it and the repointed getter to what
-        is on disk. Reads only via ``struct`` + the section table, so verification needs no
+        is on disk. Reads only via `struct` + the section table, so verification needs no
         disassembler."""
         located = find_section(data, SECTION_NAME)
         if located is None:
@@ -566,7 +519,7 @@ class SpawnUnionPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, labels: dict[str, int]
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)``.
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)`.
 
         One: five bytes at the head of the getter. Its remaining 27 go dead - nothing branches into
         the middle of it, and the thirteen `call` sites all name its first byte."""
@@ -577,7 +530,7 @@ class SpawnUnionPatch(Patch):
             (
                 off,
                 STOCK_GETTER[:5],
-                _jmp_bytes(GETTER_VA, labels["entry"]),
+                jmp_rel32(GETTER_VA, labels["entry"]),
                 "getSpawnBehaviorInterface -> cave",
             )
         ]

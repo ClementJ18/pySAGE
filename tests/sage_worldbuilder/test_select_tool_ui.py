@@ -24,14 +24,14 @@ from sage_map.assets.waypoint_list import WaypointsList  # noqa: E402
 from sage_map.context import AssetPropertyType  # noqa: E402
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
-from sage_worldbuilder.gizmos import HANDLE_PIXELS, front_tip  # noqa: E402
-from sage_worldbuilder.objects import (  # noqa: E402
+from sage_worldbuilder.commands.objects import (  # noqa: E402
     CLIPBOARD_MIME,
     Clipboard,
     GroupEditMethod,
     clipboard_to_json,
 )
-from sage_worldbuilder.pick import PickCategory  # noqa: E402
+from sage_worldbuilder.gizmos import HANDLE_PIXELS, front_tip  # noqa: E402
+from sage_worldbuilder.selection.pick import PickCategory  # noqa: E402
 from sage_worldbuilder.settings import Settings  # noqa: E402
 from sage_worldbuilder.ui.tools import Gesture  # noqa: E402
 from sage_worldbuilder.ui.window import MainWindow  # noqa: E402

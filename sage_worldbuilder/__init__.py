@@ -1,7 +1,7 @@
 """A map editor for SAGE `.map` files, built to replace WorldBuilder.
 
 The model layer here is Qt-free: `MapDocument` holds the map and its undo stack, every edit is a
-`Command`, and `categories` lists the maps the Open dialog offers. See PLAN.md for the roadmap.
+`Command`, and `categories` lists the maps the Open dialog offers.
 """
 
 from sage_worldbuilder.autosave import Autosaver, AutosaveSettings

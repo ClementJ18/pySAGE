@@ -12,7 +12,7 @@ repos:
   - repo: local
     hooks:
       - id: mypy
-        name: mypy (sage_ini typing coverage)
+        name: mypy
         entry: python -m mypy
         language: system
         types: [python]

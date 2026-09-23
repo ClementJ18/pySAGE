@@ -1,17 +1,17 @@
 """Automated, opt-in fixes for a subset of lint diagnostics (`lint --fix`). Every fix below
 is behaviour-preserving against the engine - it changes only what the engine already ignores:
 
-- ``enum-case``: rewrite a miscased enum token to its canonical name (the engine
+- `enum-case`: rewrite a miscased enum token to its canonical name (the engine
   matches enums case-insensitively, so only spelling changes).
-- ``reference-case``: rewrite a cross-reference token to the definition's casing (the
+- `reference-case`: rewrite a cross-reference token to the definition's casing (the
   engine resolves names case-insensitively, so only spelling changes). When the token
   reached the field through a macro (`Field = MACRO`), the use site does not hold it, so
   the rewrite follows it back to the `#define` body in the same file.
-- ``macro-case``: rewrite a macro reference to the `#define`'s casing (macros are matched
+- `macro-case`: rewrite a macro reference to the `#define`'s casing (macros are matched
   case-insensitively too) - the same token rewrite as the two above.
-- ``repeated-field`` / ``repeated-flag-field``: a scalar (or whole-set flag) field set more
+- `repeated-field` / `repeated-flag-field`: a scalar (or whole-set flag) field set more
   than once keeps only its last value, so the earlier occurrences are deleted.
-- ``spurious-block-label``: a block header written `Block = Tag` where the engine wants
+- `spurious-block-label`: a block header written `Block = Tag` where the engine wants
   `Block Tag` - the `=` does nothing, so it is removed.
 
 Fixes are line-level edits on the original text (never an AST reprint), computed

@@ -19,7 +19,7 @@ JSON attributes back onto a save (length-preserving edits only - see that module
 counterpart to that summary: a JSON document that reconstructs the original `.sav` byte-for-byte.
 
 The layouts here were reversed against the GPL Generals/Zero Hour `XferSave` source and
-confirmed against a real BFME2 skirmish save; see sav_format.md for the full format notes.
+confirmed against a real BFME2 skirmish save.
 """
 
 from sage_save.chunks import (

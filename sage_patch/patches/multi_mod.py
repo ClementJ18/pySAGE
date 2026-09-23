@@ -1,92 +1,11 @@
-r"""The multi-mod patch: honour every `-mod` on the command line, not just the last one.
+"""Honour every `-mod` on the command line, not only the last one.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/multi-mod.md``.
+The `-mod` handler assigns its path into one `GlobalData` field, so a later `-mod` overwrites an
+earlier one. A `.modmul` cave keeps a table of up to sixteen mod paths: one edit fills it from the
+handler, and five read it where mods are mounted. The last `-mod` still takes precedence. The stock
+mount runs unchanged. No INI change.
 
-**The defect.** `-mod` is a startup switch like any other: its handler
-(`COMMAND_LINE_MOD_HANDLER`) resolves the argument to an absolute path, asks `_stat` whether it is
-a directory or a file, and **assigns** it - `AsciiString::operator=`, at
-:data:`MOD_HANDLER_STORE` - into one of two `GlobalData` fields, `GLOBAL_DATA_MOD_DIR` or
-`GLOBAL_DATA_MOD_BIG`. A second `-mod` overwrites the first. `COMMAND_LINE_PARSE_AND_MOUNT_MODS`
-then mounts whatever survived, so ``-mod A -mod B`` runs B alone and A is silently ignored.
-
-The loose-file half is single-valued a second time over. `MOD_MOUNT_DIRECTORY` copies the
-directory into the one global `MOD_DIRECTORY`, and the four file-system entry points that consult
-it - :data:`OPEN_FILE_BLOCK`, :data:`DOES_FILE_EXIST_BLOCK`, :data:`GET_FILE_INFO_BLOCK` and
-:data:`GET_FILE_LIST_BLOCK` - each format `<MOD_DIRECTORY>\<name>` once and try it once. Archives
-are the exception: `TheArchiveFileSystem`'s file map is shared, entries are inserted with the
-overwrite flag set (`ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE` takes it as its second argument, and
-`0x00A18384` is where an existing entry is kept or replaced on it), so several mounted ``.big``\ s
-already stack - **last mounted wins**.
-
-The **asset cache** is single-valued a third time, and not through the file system at all.
-`ASSET_CACHE_LOAD` opens `asset.dat` with `fopen` - once under `GLOBAL_DATA_MOD_BIG`, once under
-`GLOBAL_DATA_MOD_DIR`, once in the working directory - so the four blocks above never see it and
-only the last `-mod`'s copy is read. A mod whose art the cache does not list draws in the missing
--texture magenta, which is what ``-mod A -mod B`` does to every model and texture A adds.
-
-**What this does.** Adds a ``.modmul`` cave holding a sixteen-entry table of mod paths, and makes
-six edits: one that fills the table, and five that read it.
-
-* :data:`MOD_HANDLER_STORE`, the `AsciiString::operator=` that ends the `-mod` handler, is
-  repointed to a stand-in that performs that assignment unchanged and then records the path it
-  just stored - tagged as an archive when the destination field was `GLOBAL_DATA_MOD_BIG` - and
-  mounts it on the spot, the way the stock site would have. Recording the *destination* rather
-  than the source is deliberate: it is the finished absolute path, trailing separator and all.
-* The four file-system blocks are replaced by cave routines that loop the same formatting and the
-  same `TheLocalFileSystem` call over every recorded directory instead of running it once.
-* :data:`ASSET_CACHE_BLOCK` - the first two instructions of the asset loader's own body - is
-  replaced by a routine that reads ``<dir>\asset.dat`` out of every recorded directory before the
-  loader's three stock attempts run, then ends on the same two instructions so the branch after
-  it reads the flags it expects.
-
-**Precedence: the last `-mod` wins.** That is not a choice so much as the rule the archive file
-system already follows, extended to loose files: mounting happens in command-line order, so a
-later mod's ``.big``\ s overwrite an earlier one's map entries, and the loose search therefore runs
-the table backwards - last recorded first - so both halves agree. With one `-mod` the order is a
-single element either way and nothing changes.
-
-The asset cache reaches the same answer from the other side. Registration there is **first-wins** -
-`ASSET_CACHE_REGISTER_GATE` skips any asset whose name `ASSET_CACHE_HAS_ASSET` already knows - so
-the cave reads the recorded directories in the same backwards order the loose search walks, and
-the first `asset.dat` to name an asset is the one that keeps it. Running before the loader's own
-three attempts is what puts every `-mod` ahead of the working directory's base-game copy, which is
-where the stock code already put the last one.
-
-**Mounting from the handler.** The stock mount runs a few instructions after the parse returns,
-inside the same function; this one runs during it. Both sit after `FILE_SYSTEM_CREATE_CALL`, which
-is where `GameEngine::init` builds `TheLocalFileSystem` and `TheArchiveFileSystem` - eight hundred
-bytes before the parse is even reached - so the singletons the mount needs exist at both moments.
-That call is anchored for exactly that reason.
-
-**The stock mount still runs, and is left alone.** It re-mounts the last archive and the last
-directory - the two values that survive in the `GlobalData` fields - on top of a table that has
-already mounted them. Both operations are idempotent (`MOD_MOUNT_DIRECTORY` re-copies the same
-path and re-inserts the same file entries; `loadArchive` overwrites entries with the same offsets)
-and both re-mount in the stock relative order, archive then directory. So the stock rule that a
-`-mod` **directory** outranks a `-mod` **archive** survives unchanged, and every other entry
-stacks underneath in command-line order. Not rewriting that block is what lets this patch and
-`mod-load-order` - which replaces it wholesale - compose in either order: neither reads or writes
-a byte the other touches.
-
-**Recording is idempotent.** A path already in the table is not appended and not re-mounted,
-compared with `STRCMPI` so that two spellings of one directory count once. That matters because
-`mod-load-order` makes the whole startup table parse **twice**, which runs the `-mod` handler -
-and so this stand-in - twice per switch.
-
-**The stock guard is kept.** Each file-system block is still entered through the engine's own
-``cmp byte [MOD_DIRECTORY], 0``, so a run with no mod at all takes exactly the path it always did.
-And when the table holds no directory the loop falls back to `MOD_DIRECTORY` itself, so a path
-this patch declined to record - one longer than :data:`PATH_SIZE`, or a seventeenth `-mod` - still
-gets searched the stock way rather than disappearing.
-
-**Determinism.** Which files the engine reads now depends on the whole command line rather than
-its last `-mod`, so this is simulation state: **every peer needs the same binary and the same set
-of mods, in the same order**, the way a `.big` change already had to match. The patch adds no new
-source of divergence of its own.
-
-**No INI change.** Nothing new is spelled anywhere; the patch only changes how many trees the
-engine reads.
+Derivation: `../docs/multi-mod.md`.
 """
 
 from __future__ import annotations
@@ -144,7 +63,7 @@ from ..addresses import (
 )
 from ..asm import JAE, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, u32, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -198,7 +117,7 @@ EMPTY_STRING = 0x00BD0C3F
 MAX_MODS = 16
 PATH_SIZE = 0x104
 
-#: The table's shape: a count, then `MAX_MODS` entries of ``{UnsignedInt kind; char path[]}``.
+#: The table's shape: a count, then `MAX_MODS` entries of `{UnsignedInt kind; char path[]}`.
 COUNT_OFFSET = 0x00
 ENTRIES_OFFSET = 0x04
 ENTRY_STRIDE = 4 + PATH_SIZE
@@ -215,19 +134,19 @@ KIND_ARCHIVE = 1
 MOD_HANDLER_STORE = COMMAND_LINE_MOD_HANDLER_STORE
 MOD_HANDLER_STORE_ORIGINAL = COMMAND_LINE_MOD_HANDLER_STORE_BYTES
 
-#: Where :data:`MOD_HANDLER_STORE_ORIGINAL` actually goes, decoded from its own displacement so
+#: Where `MOD_HANDLER_STORE_ORIGINAL` actually goes, decoded from its own displacement so
 #: that "the call this patch stands in front of is the assignment" is derived and can be asserted.
 MOD_HANDLER_STORE_TARGET = (
     MOD_HANDLER_STORE + 5 + struct.unpack("<i", MOD_HANDLER_STORE_ORIGINAL[1:5])[0]
 )
 
-#: The `-mod` handler's tail, ending exactly at :data:`MOD_HANDLER_STORE`: the two field addresses
+#: The `-mod` handler's tail, ending exactly at `MOD_HANDLER_STORE`: the two field addresses
 #: it picks between and the push of the path. Anchored, not edited - it is what fixes `ecx` as the
 #: destination field and `[esp+4]` as the source string.
 MOD_HANDLER_TARGET = COMMAND_LINE_MOD_HANDLER_TARGET
 MOD_HANDLER_TARGET_BYTES = COMMAND_LINE_MOD_HANDLER_TARGET_BYTES
 
-#: `FileSystem::openFile`'s mod branch: format ``<MOD_DIRECTORY>\<name>`` into the caller's
+#: `FileSystem::openFile`'s mod branch: format `<MOD_DIRECTORY>\<name>` into the caller's
 #: 0x200-byte buffer, ask `TheLocalFileSystem` for it, and on a hit reset the `File`'s name to the
 #: logical one. Replaced by a loop over the table; `esi` carries the result out, `ebx` holds the
 #: access flags and `edi` the `sprintf` the block after this one still calls.
@@ -265,7 +184,7 @@ GET_FILE_LIST_BLOCK_ORIGINAL = bytes.fromhex(
 #: The asset loader's first two instructions, which open its first `asset.dat` attempt: `eax`
 #: takes `m_modBIG` and `test` sets the flags the `je` five bytes later reads. Five bytes for
 #: five, so nothing pads - and a stand-in in front of them has to end on the same pair, since
-#: :data:`ASSET_CACHE_MOD_BIG_BRANCH` is left standing and still branches on those flags.
+#: `ASSET_CACHE_MOD_BIG_BRANCH` is left standing and still branches on those flags.
 #:
 #: Standing here rather than in front of the loader's `call` puts the loop *after* the loader's
 #: own one-time resets, which would otherwise throw away everything it had just registered.
@@ -273,10 +192,10 @@ ASSET_CACHE_BLOCK = ASSET_CACHE_MOD_BIG_TEST
 ASSET_CACHE_BLOCK_ORIGINAL = ASSET_CACHE_MOD_BIG_TEST_BYTES
 
 #: How much stack the asset routine takes for the path it builds: the longest path the table can
-#: hold, plus ``\asset.dat`` and its terminator, rounded up to keep `esp` aligned.
+#: hold, plus `\asset.dat` and its terminator, rounded up to keep `esp` aligned.
 ASSET_PATH_SIZE = PATH_SIZE + 0x10
 
-#: The guard each file-system block is entered through - ``cmp byte [MOD_DIRECTORY], 0``, the
+#: The guard each file-system block is entered through - `cmp byte [MOD_DIRECTORY], 0`, the
 #: `sprintf` load beside it and the branch past the block. Anchored, not edited: keeping the stock
 #: guard is what makes a run with no mod at all take the stock path, and anchoring it is what
 #: establishes that the block being replaced is the mod branch rather than a neighbour.
@@ -317,7 +236,7 @@ MOD_PATH_FORMAT_BYTES = b"%s\\%s\x00"
 #: the class's own vtable pointing at the function whose opening is anchored beside it.
 ARCHIVE_LOAD_ARCHIVE_SLOT_VA = ARCHIVE_FILE_SYSTEM_VTABLE + ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE_SLOT
 
-#: Every window the patch reads but does not rewrite, as a ``{va: bytes}`` map.
+#: Every window the patch reads but does not rewrite, as a `{va: bytes}` map.
 ANCHORS = {
     MOD_HANDLER_TARGET: MOD_HANDLER_TARGET_BYTES,
     FILE_SYSTEM_CREATE_CALL: FILE_SYSTEM_CREATE_CALL_BYTES,
@@ -381,29 +300,25 @@ def _code_va(base_va: int) -> int:
     return base_va + TABLE_SIZE
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def _entry(a: Asm, index_register: int, table: int) -> None:
-    """Emit ``edi = &entries[<index_register>]``, the index being a register number."""
-    a.emit(0x69, 0xC0 | (7 << 3) | index_register, _u32(ENTRY_STRIDE))  # imul edi, <reg>, stride
-    a.emit(0x81, 0xC7, _u32(table + ENTRIES_OFFSET))  # add  edi, <entries>
+    """Emit `edi = &entries[<index_register>]`, the index being a register number."""
+    a.emit(0x69, 0xC0 | (7 << 3) | index_register, u32(ENTRY_STRIDE))  # imul edi, <reg>, stride
+    a.emit(0x81, 0xC7, u32(table + ENTRIES_OFFSET))  # add  edi, <entries>
 
 
 def _format_path(a: Asm, buffer_displacement: bytes, name_push: bytes) -> None:
-    """Emit ``sprintf(buffer, "%s\\%s", <eax>, <name>)`` and clean up after it.
+    """Emit `sprintf(buffer, "%s\\%s", <eax>, <name>)` and clean up after it.
 
-    The directory arrives in `eax` from :func:`_mod_directory`; the buffer is one of the caller's
+    The directory arrives in `eax` from `_mod_directory`; the buffer is one of the caller's
     frame locals, which is reachable because every one of these routines is entered by a `call`
     and leaves `ebp` alone.
     """
     a.emit(name_push)  # push <the logical name>
     a.emit(0x50)  # push eax        ; the mod directory
-    a.emit(0x68, _u32(MOD_PATH_FORMAT))  # push "%s\%s"
+    a.emit(0x68, u32(MOD_PATH_FORMAT))  # push "%s\%s"
     a.emit(0x8D, 0x85, buffer_displacement)  # lea  eax, [ebp-<buffer>]
     a.emit(0x50)  # push eax
-    a.emit(0xFF, 0x15, _u32(SPRINTF_SLOT))  # call [sprintf]
+    a.emit(0xFF, 0x15, u32(SPRINTF_SLOT))  # call [sprintf]
     a.emit(0x83, 0xC4, 0x10)  # add  esp, 0x10
 
 
@@ -428,8 +343,8 @@ def _record(a: Asm) -> None:
     a.jcc(JE, "record_done")
 
     # Which field was written is what says whether this -mod named an archive or a directory.
-    a.emit(0x8B, 0x0D, _u32(GLOBAL_DATA))  # mov  ecx, [GLOBAL_DATA]
-    a.emit(0x81, 0xC1, _u32(GLOBAL_DATA_MOD_BIG))  # add  ecx, 0xd3c
+    a.emit(0x8B, 0x0D, u32(GLOBAL_DATA))  # mov  ecx, [GLOBAL_DATA]
+    a.emit(0x81, 0xC1, u32(GLOBAL_DATA_MOD_BIG))  # add  ecx, 0xd3c
     a.emit(0x33, 0xD2)  # xor  edx, edx
     a.emit(0x3B, 0xD9)  # cmp  ebx, ecx
     a.emit(0x0F, 0x94, 0xC2)  # sete dl
@@ -445,7 +360,7 @@ def _record(a: Asm) -> None:
 
 
 def _add_mod(a: Asm, table: int) -> None:
-    """``add_mod(const char *path, UnsignedInt kind)`` - record a mod, then mount it.
+    """`add_mod(const char *path, UnsignedInt kind)` - record a mod, then mount it.
 
     Nothing happens twice: a path already in the table is neither appended nor re-mounted, which
     is what makes the stand-in safe to run through more than once. A path that does not fit the
@@ -461,10 +376,10 @@ def _add_mod(a: Asm, table: int) -> None:
     a.emit(0x56)  # push esi
     a.call_absolute(STRLEN)
     a.emit(0x59)  # pop  ecx
-    a.emit(0x3D, _u32(PATH_SIZE))  # cmp  eax, <path size>
+    a.emit(0x3D, u32(PATH_SIZE))  # cmp  eax, <path size>
     a.jcc(JAE, "add_mod_out")  # no room for it and its terminator
 
-    a.emit(0x8B, 0x0D, _u32(table + COUNT_OFFSET))  # mov  ecx, [count]
+    a.emit(0x8B, 0x0D, u32(table + COUNT_OFFSET))  # mov  ecx, [count]
     a.emit(0x33, 0xDB)  # xor  ebx, ebx
 
     a.label("add_mod_scan")
@@ -479,7 +394,7 @@ def _add_mod(a: Asm, table: int) -> None:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "add_mod_out")  # already recorded, and so already mounted
     a.emit(0x43)  # inc  ebx
-    a.emit(0x8B, 0x0D, _u32(table + COUNT_OFFSET))  # mov  ecx, [count]
+    a.emit(0x8B, 0x0D, u32(table + COUNT_OFFSET))  # mov  ecx, [count]
     a.jmp("add_mod_scan")
 
     a.label("add_mod_append")
@@ -493,7 +408,7 @@ def _add_mod(a: Asm, table: int) -> None:
     a.emit(0x50)  # push eax
     a.call_absolute(STRCPY)
     a.emit(0x83, 0xC4, 0x08)  # add  esp, 8
-    a.emit(0xFF, 0x05, _u32(table + COUNT_OFFSET))  # inc  dword [count]
+    a.emit(0xFF, 0x05, u32(table + COUNT_OFFSET))  # inc  dword [count]
 
     # Mount it here, in command-line order, so that a later mod's archives overwrite an earlier
     # one's entries in the shared file map.
@@ -506,7 +421,7 @@ def _add_mod(a: Asm, table: int) -> None:
     a.jmp("add_mod_out")
 
     a.label("add_mod_archive")
-    a.emit(0x8B, 0x0D, _u32(ARCHIVE_FILE_SYSTEM))  # mov  ecx, [TheArchiveFileSystem]
+    a.emit(0x8B, 0x0D, u32(ARCHIVE_FILE_SYSTEM))  # mov  ecx, [TheArchiveFileSystem]
     a.emit(0x8B, 0x01)  # mov  eax, [ecx]
     a.emit(0x6A, 0x01)  # push 1              ; overwrite existing entries
     a.emit(0x56)  # push esi
@@ -519,7 +434,7 @@ def _add_mod(a: Asm, table: int) -> None:
 
 
 def _mod_directory(a: Asm, table: int) -> None:
-    """``mod_directory(eax = index) -> eax``: the index'th mod directory, or NULL past the end.
+    """`mod_directory(eax = index) -> eax`: the index'th mod directory, or NULL past the end.
 
     Index 0 is the **last** `-mod` directory recorded, so the loose search runs in the same
     precedence order the archive file system already imposes. Archive entries are skipped; they
@@ -532,15 +447,15 @@ def _mod_directory(a: Asm, table: int) -> None:
     a.label("mod_directory")
     a.emit(0x53, 0x56)  # push ebx / esi
     a.emit(0x8B, 0xF0)  # mov  esi, eax    ; the index wanted
-    a.emit(0x8B, 0x0D, _u32(table + COUNT_OFFSET))  # mov  ecx, [count]
+    a.emit(0x8B, 0x0D, u32(table + COUNT_OFFSET))  # mov  ecx, [count]
     a.emit(0x33, 0xDB)  # xor  ebx, ebx    ; directories passed so far
 
     a.label("mod_directory_scan")
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "mod_directory_none")
     a.emit(0x49)  # dec  ecx         ; walk backwards, newest first
-    a.emit(0x69, 0xC1, _u32(ENTRY_STRIDE))  # imul eax, ecx, stride
-    a.emit(0x05, _u32(table + ENTRIES_OFFSET))  # add  eax, <entries>
+    a.emit(0x69, 0xC1, u32(ENTRY_STRIDE))  # imul eax, ecx, stride
+    a.emit(0x05, u32(table + ENTRIES_OFFSET))  # add  eax, <entries>
     a.emit(0x83, 0x38, KIND_DIRECTORY)  # cmp  dword [eax], 0
     a.jcc(JNE, "mod_directory_scan")  # an archive - not searchable loosely
     a.emit(0x3B, 0xDE)  # cmp  ebx, esi
@@ -558,7 +473,7 @@ def _mod_directory(a: Asm, table: int) -> None:
     a.jcc(JNE, "mod_directory_out")  # past the end of the table
     a.emit(0x85, 0xDB)  # test ebx, ebx
     a.jcc(JNE, "mod_directory_out")  # there were directories, just not this many
-    a.emit(0xB8, _u32(MOD_DIRECTORY))  # mov  eax, MOD_DIRECTORY
+    a.emit(0xB8, u32(MOD_DIRECTORY))  # mov  eax, MOD_DIRECTORY
 
     a.label("mod_directory_out")
     a.emit(0x5E, 0x5B)  # pop  esi / ebx
@@ -570,7 +485,7 @@ def _asset_cache(a: Asm, table: int) -> None:
 
     Stands in for the two instructions that open the loader's own first attempt, and so runs
     inside its frame, after its one-time resets and before any of its three `fopen`s. Each
-    directory's ``asset.dat`` is opened and handed to `ASSET_CACHE_READ_FILE` exactly the way the
+    directory's `asset.dat` is opened and handed to `ASSET_CACHE_READ_FILE` exactly the way the
     loader hands it its own - the same `__cdecl` pair, the loader's own third argument forwarded
     from `[ebp+0x10]` so that whether textures are registered is decided the same way.
 
@@ -584,9 +499,9 @@ def _asset_cache(a: Asm, table: int) -> None:
     """
     a.label("asset_cache")
     a.emit(0x53, 0x56, 0x57)  # push ebx / esi / edi
-    a.emit(0x81, 0xEC, _u32(ASSET_PATH_SIZE))  # sub  esp, <path size>
+    a.emit(0x81, 0xEC, u32(ASSET_PATH_SIZE))  # sub  esp, <path size>
     a.emit(0x8B, 0xDC)  # mov  ebx, esp     ; the path being built
-    a.emit(0x83, 0x3D, _u32(table + COUNT_OFFSET), 0x00)  # cmp  dword [count], 0
+    a.emit(0x83, 0x3D, u32(table + COUNT_OFFSET), 0x00)  # cmp  dword [count], 0
     a.jcc(JE, "asset_cache_done")
     a.emit(0x33, 0xFF)  # xor  edi, edi     ; the search index
 
@@ -595,16 +510,16 @@ def _asset_cache(a: Asm, table: int) -> None:
     a.call("mod_directory")
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "asset_cache_done")
-    a.emit(0x68, _u32(ASSET_DAT_NAME))  # push "asset.dat"
+    a.emit(0x68, u32(ASSET_DAT_NAME))  # push "asset.dat"
     a.emit(0x50)  # push eax          ; the mod directory
-    a.emit(0x68, _u32(MOD_PATH_FORMAT))  # push "%s\%s"
+    a.emit(0x68, u32(MOD_PATH_FORMAT))  # push "%s\%s"
     a.emit(0x53)  # push ebx
-    a.emit(0xFF, 0x15, _u32(SPRINTF_SLOT))  # call [sprintf]
+    a.emit(0xFF, 0x15, u32(SPRINTF_SLOT))  # call [sprintf]
     a.emit(0x83, 0xC4, 0x10)  # add  esp, 0x10
 
-    a.emit(0x68, _u32(READ_BINARY_MODE))  # push "rb"
+    a.emit(0x68, u32(READ_BINARY_MODE))  # push "rb"
     a.emit(0x53)  # push ebx
-    a.emit(0xFF, 0x15, _u32(IMPORT_FOPEN))  # call [fopen]
+    a.emit(0xFF, 0x15, u32(IMPORT_FOPEN))  # call [fopen]
     a.emit(0x83, 0xC4, 0x08)  # add  esp, 8
     a.emit(0x8B, 0xF0)  # mov  esi, eax
     a.emit(0x85, 0xF6)  # test esi, esi
@@ -615,7 +530,7 @@ def _asset_cache(a: Asm, table: int) -> None:
     a.call_absolute(ASSET_CACHE_READ_FILE)
     a.emit(0x83, 0xC4, 0x08)  # add  esp, 8
     a.emit(0x56)  # push esi
-    a.emit(0xFF, 0x15, _u32(IMPORT_FCLOSE))  # call [fclose]
+    a.emit(0xFF, 0x15, u32(IMPORT_FCLOSE))  # call [fclose]
     a.emit(0x59)  # pop  ecx
 
     a.label("asset_cache_step")
@@ -623,7 +538,7 @@ def _asset_cache(a: Asm, table: int) -> None:
     a.jmp("asset_cache_next")
 
     a.label("asset_cache_done")
-    a.emit(0x81, 0xC4, _u32(ASSET_PATH_SIZE))  # add  esp, <path size>
+    a.emit(0x81, 0xC4, u32(ASSET_PATH_SIZE))  # add  esp, <path size>
     a.emit(0x5F, 0x5E, 0x5B)  # pop  edi / esi / ebx
     a.emit(0x8B, 0x45, 0x0C)  # mov  eax, [ebp+0x0c]  ; the two instructions this
     a.emit(0x85, 0xC0)  # test eax, eax         ; site replaced, run last
@@ -649,7 +564,7 @@ def _open_file(a: Asm) -> None:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "open_file_done")
     _format_path(a, b"\x00\xfe\xff\xff", b"\xff\x75\x08")  # buffer [ebp-0x200], name [ebp+8]
-    a.emit(0x8B, 0x0D, _u32(LOCAL_FILE_SYSTEM))  # mov  ecx, [TheLocalFileSystem]
+    a.emit(0x8B, 0x0D, u32(LOCAL_FILE_SYSTEM))  # mov  ecx, [TheLocalFileSystem]
     a.emit(0x8B, 0x01)  # mov  eax, [ecx]
     a.emit(0xFF, 0x75, 0x10)  # push [ebp+0x10]
     a.emit(0x53)  # push ebx           ; the access flags
@@ -685,7 +600,7 @@ def _does_file_exist(a: Asm) -> None:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "does_file_exist_miss")
     _format_path(a, b"\x00\xfe\xff\xff", b"\x53")  # buffer [ebp-0x200], name in ebx
-    a.emit(0x8B, 0x0D, _u32(LOCAL_FILE_SYSTEM))  # mov  ecx, [TheLocalFileSystem]
+    a.emit(0x8B, 0x0D, u32(LOCAL_FILE_SYSTEM))  # mov  ecx, [TheLocalFileSystem]
     a.emit(0x8B, 0x01)  # mov  eax, [ecx]
     a.emit(0x8D, 0x95, b"\x00\xfe\xff\xff")  # lea  edx, [ebp-0x200]
     a.emit(0x52)  # push edx
@@ -719,7 +634,7 @@ def _get_file_info(a: Asm) -> None:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "get_file_info_miss")
     _format_path(a, b"\xfc\xfe\xff\xff", b"\x53")  # buffer [ebp-0x104], name in ebx
-    a.emit(0x8B, 0x0D, _u32(LOCAL_FILE_SYSTEM))  # mov  ecx, [TheLocalFileSystem]
+    a.emit(0x8B, 0x0D, u32(LOCAL_FILE_SYSTEM))  # mov  ecx, [TheLocalFileSystem]
     a.emit(0x8B, 0x01)  # mov  eax, [ecx]
     a.emit(0x56)  # push esi           ; the FileInfo
     a.emit(0x8D, 0x95, b"\xfc\xfe\xff\xff")  # lea  edx, [ebp-0x104]
@@ -762,10 +677,10 @@ def _get_file_list(a: Asm) -> None:
     a.call("list_directory_chars")
     a.emit(0x50)  # push eax         ; the logical directory
     a.emit(0x53)  # push ebx
-    a.emit(0x68, _u32(MOD_PATH_FORMAT))  # push "%s\%s"
+    a.emit(0x68, u32(MOD_PATH_FORMAT))  # push "%s\%s"
     a.emit(0x8D, 0x85, b"\xdc\xfe\xff\xff")  # lea  eax, [ebp-0x124]
     a.emit(0x50)  # push eax
-    a.emit(0xFF, 0x15, _u32(SPRINTF_SLOT))  # call [sprintf]
+    a.emit(0xFF, 0x15, u32(SPRINTF_SLOT))  # call [sprintf]
     a.emit(0x83, 0xC4, 0x10)  # add  esp, 0x10
 
     a.emit(0x8B, 0x45, 0x0C)  # mov  eax, [ebp+0x0c]  ; the pattern
@@ -775,19 +690,19 @@ def _get_file_list(a: Asm) -> None:
     a.emit(0x83, 0xC0, ASCII_STRING_CHARS_OFFSET)  # add  eax, 8
     a.jmp("get_file_list_pattern")
     a.label("get_file_list_no_pattern")
-    a.emit(0xB8, _u32(EMPTY_STRING))  # mov  eax, <"">
+    a.emit(0xB8, u32(EMPTY_STRING))  # mov  eax, <"">
     a.label("get_file_list_pattern")
     a.emit(0x8B, 0xD8)  # mov  ebx, eax    ; the pattern's chars
 
     a.call("list_directory_chars")
     a.emit(0xFF, 0x75, 0x14)  # push [ebp+0x14]
-    a.emit(0x8B, 0x0D, _u32(LOCAL_FILE_SYSTEM))  # mov  ecx, [TheLocalFileSystem]
+    a.emit(0x8B, 0x0D, u32(LOCAL_FILE_SYSTEM))  # mov  ecx, [TheLocalFileSystem]
     a.emit(0xFF, 0x75, 0x10)  # push [ebp+0x10]
     a.emit(0x8B, 0x11)  # mov  edx, [ecx]
     a.emit(0x53)  # push ebx           ; the pattern
     a.emit(0x8D, 0x9D, b"\xdc\xfe\xff\xff")  # lea  ebx, [ebp-0x124]
     a.emit(0x53)  # push ebx           ; the directory to scan
-    a.emit(0x68, _u32(EMPTY_STRING))  # push <"">
+    a.emit(0x68, u32(EMPTY_STRING))  # push <"">
     a.emit(0x50)  # push eax           ; the logical directory
     a.emit(0xFF, 0x52, LOCAL_FILE_SYSTEM_GET_FILE_LIST_SLOT)  # call [edx+0x18]
     a.emit(0x47)  # inc  edi
@@ -807,7 +722,7 @@ def _get_file_list(a: Asm) -> None:
     a.emit(0x83, 0xC0, ASCII_STRING_CHARS_OFFSET)  # add  eax, 8
     a.emit(0xC3)  # ret
     a.label("list_directory_chars_empty")
-    a.emit(0xB8, _u32(EMPTY_STRING))  # mov  eax, <"">
+    a.emit(0xB8, u32(EMPTY_STRING))  # mov  eax, <"">
     a.emit(0xC3)  # ret
 
 
@@ -828,13 +743,13 @@ def _layout(base_va: int) -> Asm:
 
 
 def build_code(base_va: int) -> bytes:
-    """The ``.modmul`` section: the zeroed mod table, then the routines that fill and read it."""
+    """The `.modmul` section: the zeroed mod table, then the routines that fill and read it."""
     return bytes(TABLE_SIZE) + bytes(_layout(base_va).buf)
 
 
 def entry_points(base_va: int) -> dict[str, int]:
     """Each cave routine's virtual address, read off the layout that was actually emitted rather
-    than counted by hand - which is the reason :mod:`sage_patch.asm` carries labels at all."""
+    than counted by hand - which is the reason `sage_patch.asm` carries labels at all."""
     a = _layout(base_va)
     names = ["record", *(routine for routine, _ in BLOCKS.values())]
     return {name: a.label_va(name) for name in names}
@@ -843,6 +758,7 @@ def entry_points(base_va: int) -> dict[str, int]:
 class MultiModPatch(Patch):
     name = "multi-mod"
     author = "officialNecro"
+    runtime_verified = "partly"
     description = (
         "Honour every -mod on the command line instead of only the last: all of them mount, and "
         "loose-file lookups, listings and the asset cache's asset.dat search all of them, the "
@@ -858,7 +774,7 @@ class MultiModPatch(Patch):
             data,
             self._offset(data, MOD_HANDLER_STORE),
             MOD_HANDLER_STORE_ORIGINAL,
-            _call(MOD_HANDLER_STORE, routines["record"]),
+            call_rel32(MOD_HANDLER_STORE, routines["record"]),
             "the -mod handler's store -> multi-mod's recording stand-in",
         )
         for block_va, (routine, original) in BLOCKS.items():
@@ -866,7 +782,7 @@ class MultiModPatch(Patch):
                 data,
                 self._offset(data, block_va),
                 original,
-                _call(block_va, routines[routine]) + b"\x90" * (len(original) - 5),
+                call_rel32(block_va, routines[routine]) + b"\x90" * (len(original) - 5),
                 f"the single-valued block at {block_va:#010x} -> multi-mod's {routine} loop",
             )
 
@@ -923,8 +839,3 @@ class MultiModPatch(Patch):
         if bytes(data[section_off + TABLE_SIZE : section_off + len(code)]) != code[TABLE_SIZE:]:
             problems.append(f"the {SECTION_NAME} cave does not hold the expected routines")
         return problems
-
-
-def _call(from_va: int, to_va: int) -> bytes:
-    """``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))

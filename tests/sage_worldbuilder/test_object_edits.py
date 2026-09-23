@@ -10,7 +10,7 @@ from sage_map.assets.waypoint_list import WaypointsList
 from sage_map.context import AssetPropertyType
 from sage_map.map import Map
 from sage_worldbuilder import MapDocument
-from sage_worldbuilder.objects import (
+from sage_worldbuilder.commands.objects import (
     DeleteObjects,
     GroupEditMethod,
     MoveObjects,
@@ -20,9 +20,9 @@ from sage_worldbuilder.objects import (
     copy_objects,
     paste_objects,
 )
-from sage_worldbuilder.pick import ANYTHING, NOTHING, PickCategory, PickRules
 from sage_worldbuilder.scene import MapScene
 from sage_worldbuilder.selection import Selection
+from sage_worldbuilder.selection.pick import ANYTHING, NOTHING, PickCategory, PickRules
 
 
 def placed(type_name, x=0.0, y=0.0, **properties):

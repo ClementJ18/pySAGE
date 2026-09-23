@@ -1,8 +1,7 @@
 # Replay order-space map - WIP (Phase 4)
 
 Single source of truth for **what every BFME2 replay order type means and how its ids resolve
-to game definitions.** Supersedes the scattered per-replay findings of the retired
-`object_id_mapping_plan.md` (the narrative of how each id space was found lives in git history).
+to game definitions.**
 
 Scope note: most section A order *meanings* were validated on **vanilla BFME2 1.06**; `0x419`
 was solved on the **RotWK 2.01 + Edain fixture corpus** (12 replays, 113k chunks) - the same
@@ -248,7 +247,7 @@ Falsification (needs recordings): a controlled fortress-kill game should show `0
 the dying fortress's runtime id, then the `0x469` waves; a concession-only game should show
 the waves but no `0x474`.
 
-**Header-level end facts** (see `format_coverage_plan.md` for the full header decode): the
+**Header-level end facts**: the
 tail's first field is the **local player index as an ASCII string** = the replay's PoV
 (matches the `0x1D` attribution 10/10, and supplies the PoV for crashed replays that lack
 `0x1D`); `unknown1`'s second uint32 is an **abnormal-end frame** (0xFFFFFFFF when the
@@ -294,8 +293,7 @@ EA's released Generals/ZH source (github.com/electronicarts/CnC_Generals_Zero_Ho
 format documentation only, per the OpenSAGE policy) pins the enum BFME2's order ids descend
 from: `GameMessage::Type` in `GameEngine/Include/Common/MessageStream.h`, deliberately
 ifdef-free between `MSG_BEGIN_NETWORK_MESSAGES = 1000` and `MSG_END_NETWORK_MESSAGES` so
-replay values stay stable across builds. The full value list and the per-id BFME2 comparison
-live in the session findings (`findings_ea_source.md`); the shift picture:
+replay values stay stable across builds. The shift picture:
 
 - **identical raw ids through ~1049** (selection block 1001-1035, content block 1040-1049:
   powers, sciences, upgrades, unit-queue, dozer-construct - all the section A/B "same raw id"

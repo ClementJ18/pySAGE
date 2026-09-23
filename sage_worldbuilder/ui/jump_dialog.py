@@ -38,7 +38,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from sage_test.game_info import SLOT_COUNT
+from sage_live.launch.game_info import SLOT_COUNT
 from sage_worldbuilder.jump import (
     MAX_RESOLUTION,
     MIN_RESOLUTION,

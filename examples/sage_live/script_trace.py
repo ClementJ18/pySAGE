@@ -1,16 +1,23 @@
-"""Trace which scripts a running game fires, frame by frame - or break when one of them does.
+"""Trace which scripts a running game fires, frame by frame - or break when one of them does, or
+say why one does not.
 
-**This writes code into a running game** - five redirected `call`s and a 256 KB cave, plus the
-frame gate for `--break` - and takes it out again on exit. The game behaves exactly as before
+**This writes code into a running game** - six redirected `call`s, a `jmp` over the condition
+evaluator's first instruction and a 264 KB cave, plus the frame gate for `--break` - and takes it
+out again on exit. The game behaves exactly as before
 while only recording. Nothing touches `game.dat` on disk, and a network game is refused. Needs an
 elevated shell.
 
     python examples/sage_live/script_trace.py              # ten seconds, every event
     python examples/sage_live/script_trace.py --seconds 30 --summary
     python examples/sage_live/script_trace.py --break "Win Condition"
+    python examples/sage_live/script_trace.py --why "Win Condition" --seconds 30
 
 `--break` is the breakpoint spike (`sage_patch/docs/script-debugger.md` slice D): it waits for the
 named script to fire, checks the game then holds on that frame for three seconds, and resumes.
+
+`--why` is the condition-watch spike (slice F): it watches every live copy of the named script and
+prints each new evaluation as the Why Not tab would explain it, then checks that evaluations were
+counted, that every verdict is from a frame the game has reached, and that the game kept running.
 
 Each line names the script through the live script tree, so it reads the same as the Scripts
 panel; a script the tree does not know (one created after the trace started) prints its address.
@@ -107,11 +114,93 @@ def break_on(process: WindowsProcess, names: dict[int, str], target: str, second
             print(f"! {note}")
 
 
+def why_not(process: WindowsProcess, target: str, seconds: float) -> bool:
+    from sage_live.backends.scripts import read_script_conditions  # noqa: PLC0415
+    from sage_worldbuilder.why_not import condition_texts, explain  # noqa: PLC0415
+
+    tree = read_script_tree(process.read)
+    if tree is None:
+        raise SystemExit("no map is loaded")
+    copies = [
+        (side.index, script)
+        for side in tree.sides
+        for script in side.all_scripts()
+        if script.name.casefold() == target.casefold()
+    ]
+    if not copies:
+        raise SystemExit(f"no live script is called {target!r}")
+    clauses = {
+        script.address: read_script_conditions(process.read, script.address) for _, script in copies
+    }
+    watched = [c.address for cs in clauses.values() for clause in cs for c in clause if c.enabled]
+    plural = "y" if len(copies) == 1 else "ies"
+    print(f"watching {len(watched)} conditions on {len(copies)} live cop{plural}")
+    recorder, gate = ScriptTrace(process), FrameGate(process)
+    frames: list[int] = []
+    seen: dict[int, int | None] = {}
+    bad_frames = 0
+    try:
+        recorder.attach(recording=False)
+        recorder.set_watches(watched)
+        first = recorder.evaluations() or 0
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            time.sleep(0.5)
+            frame = gate.frame()
+            if frame is not None:
+                frames.append(frame)
+            results = recorder.condition_results()
+            now = read_script_tree(process.read)
+            live = {s.address: s for side in now.sides for s in side.all_scripts()} if now else {}
+            for side, script in copies:
+                current = live.get(script.address, script)
+                texts = condition_texts(None, clauses[script.address])
+                explanation = explain(
+                    current,
+                    (),
+                    clauses[script.address],
+                    results,
+                    texts,
+                    frame or 0,
+                    5,
+                    now.difficulty if now else None,
+                )
+                if (
+                    explanation.frame is not None
+                    and frame is not None
+                    and explanation.frame > frame
+                ):
+                    bad_frames += 1
+                if seen.get(script.address) == explanation.frame:
+                    continue
+                seen[script.address] = explanation.frame
+                print(f"f{frame} side {side}: {explanation.summary}")
+                for index, clause in enumerate(explanation.clauses):
+                    words = ", ".join(f"{line.text} [{line.verdict.value}]" for line in clause)
+                    print(f"    {'IF' if index == 0 else 'OR'} {words}")
+        counted = (recorder.evaluations() or 0) - first
+    except LivePatchError as exc:
+        raise SystemExit(f"cannot attach: {exc}") from exc
+    finally:
+        for note in recorder.close():
+            print(f"! {note}")
+    running = len(frames) >= 2 and frames[-1] > frames[0]
+    checks = [
+        (counted > 0, f"{counted} script evaluations counted"),
+        (bad_frames == 0, "every verdict is from a frame the game has reached"),
+        (running, f"the game kept running (frames {frames[:1]} to {frames[-1:]})"),
+    ]
+    for ok, text in checks:
+        print(f"  [{'ok' if ok else 'FAIL'}] {text}")
+    return all(ok for ok, _ in checks)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--seconds", type=float, default=10.0)
     parser.add_argument("--summary", action="store_true", help="counts per script, not lines")
     parser.add_argument("--break", dest="target", metavar="SCRIPT", help="break when it fires")
+    parser.add_argument("--why", metavar="SCRIPT", help="watch its conditions and say why not")
     args = parser.parse_args()
 
     pids = find_game_processes()
@@ -119,6 +208,9 @@ def main() -> None:
         raise SystemExit("no game.dat process is running")
     process = WindowsProcess(pids[0])
     try:
+        if args.why:
+            seconds = args.seconds if args.seconds != 10.0 else 30.0
+            sys.exit(0 if why_not(process, args.why, seconds) else 1)
         tree = read_script_tree(process.read)
         if tree is None:
             raise SystemExit("no map is loaded")

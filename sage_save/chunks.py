@@ -33,7 +33,7 @@ from sage_utils.stream import BinaryStream
 
 
 def _read_systemtime(reader: XferReader) -> datetime | None:
-    """The Win32 ``SYSTEMTIME`` the engine writes: year, month, day, dayOfWeek, hour,
+    """The Win32 `SYSTEMTIME` the engine writes: year, month, day, dayOfWeek, hour,
     minute, second, milliseconds - eight uint16s. Returns None if the fields are not a
     valid date (defensive; the raw values are otherwise lost)."""
     year, month, day, _weekday, hour, minute, second, millis = (reader.uint16() for _ in range(8))
@@ -57,13 +57,13 @@ def _write_systemtime(stream: BinaryStream, when: datetime) -> None:
         when.microsecond // 1000,
     )
     for value in fields:
-        stream.writeUInt16(value)
+        stream.write_uint16(value)
 
 
 def _write_unicode(stream: BinaryStream, text: str) -> None:
     """A save `xferUnicodeString`: uint8 character count then that many UTF-16LE units."""
-    stream.writeUChar(len(text))
-    stream.writeBytes(text.encode("utf-16-le"))
+    stream.write_uchar(len(text))
+    stream.write_bytes(text.encode("utf-16-le"))
 
 
 @dataclass
@@ -114,15 +114,15 @@ def encode_game_state(header: GameStateHeader) -> bytes:
     if header.saved_at is None:
         raise ValueError("cannot encode a GameState whose saved_at failed to decode")
     stream = BinaryStream(io.BytesIO())
-    stream.writeUChar(header.version)
-    stream.writeBytes(header.leading)
+    stream.write_uchar(header.version)
+    stream.write_bytes(header.leading)
     _write_systemtime(stream, header.saved_at)
     _write_unicode(stream, header.description)
-    stream.writeString(header.map_name)
-    stream.writeBytes(header.post_map)
+    stream.write_string(header.map_name)
+    stream.write_bytes(header.post_map)
     _write_unicode(stream, header.hero_name)
     _write_unicode(stream, header.user_name)
-    stream.writeBytes(header.trailing)
+    stream.write_bytes(header.trailing)
     return stream.getvalue()
 
 
@@ -195,20 +195,20 @@ def encode_game_state_map(gsm: GameStateMap) -> bytes:
     valid. An edit that changes the prefix length would invalidate it, which the caller
     (`apply_json`) guards against by requiring the payload length to be unchanged."""
     stream = BinaryStream(io.BytesIO())
-    stream.writeUChar(gsm.version)
+    stream.write_uchar(gsm.version)
     if gsm.map_block_end < 0 or not gsm.map_data:
-        stream.writeBytes(gsm.trailing)  # mission stub: nothing else was decoded
+        stream.write_bytes(gsm.trailing)  # mission stub: nothing else was decoded
         return stream.getvalue()
-    stream.writeString(gsm.save_map_name)
-    stream.writeString(gsm.pristine_map_name)
-    stream.writeInt32(gsm.game_mode)
-    stream.writeInt32(gsm.block_tag)
-    stream.writeBytes(BLOCK_MARKER)
-    stream.writeUInt32(gsm.map_block_end)
-    stream.writeUInt32(len(gsm.map_data))
-    stream.writeUInt32(len(gsm.map_data))
-    stream.writeBytes(gsm.map_data)
-    stream.writeBytes(gsm.trailing)
+    stream.write_string(gsm.save_map_name)
+    stream.write_string(gsm.pristine_map_name)
+    stream.write_int32(gsm.game_mode)
+    stream.write_int32(gsm.block_tag)
+    stream.write_bytes(BLOCK_MARKER)
+    stream.write_uint32(gsm.map_block_end)
+    stream.write_uint32(len(gsm.map_data))
+    stream.write_uint32(len(gsm.map_data))
+    stream.write_bytes(gsm.map_data)
+    stream.write_bytes(gsm.trailing)
     return stream.getvalue()
 
 
@@ -242,11 +242,11 @@ def encode_tactical_view(view: TacticalView) -> bytes:
     """Inverse of `decode_tactical_view`; `encode_tactical_view(decode_tactical_view(c)) ==
     c.payload`. The opaque BFME2 camera tail is written back verbatim."""
     stream = BinaryStream(io.BytesIO())
-    stream.writeUChar(view.version)
-    stream.writeFloat(view.angle)
+    stream.write_uchar(view.version)
+    stream.write_float(view.angle)
     for coordinate in view.position:
-        stream.writeFloat(coordinate)
-    stream.writeBytes(view.trailing)
+        stream.write_float(coordinate)
+    stream.write_bytes(view.trailing)
     return stream.getvalue()
 
 
@@ -280,10 +280,10 @@ def decode_team_factory(chunk: Chunk) -> TeamFactory:
 def encode_team_factory(factory: TeamFactory) -> bytes:
     """Inverse of `decode_team_factory`; the opaque prototype block is written back verbatim."""
     stream = BinaryStream(io.BytesIO())
-    stream.writeUChar(factory.version)
-    stream.writeUInt32(factory.unique_team_id)
-    stream.writeUInt16(factory.prototype_count)
-    stream.writeBytes(factory.body)
+    stream.write_uchar(factory.version)
+    stream.write_uint32(factory.unique_team_id)
+    stream.write_uint16(factory.prototype_count)
+    stream.write_bytes(factory.body)
     return stream.getvalue()
 
 
@@ -433,12 +433,12 @@ def encode_campaign(campaign: Campaign) -> bytes:
     rebuilt), so only the campaign name / flag can be edited, and only length-preservingly.
     `mission_number` lives inside the opaque roster and is not re-encoded from the field."""
     stream = BinaryStream(io.BytesIO())
-    stream.writeUChar(campaign.version)
-    stream.writeUChar(1 if campaign.active else 0)
+    stream.write_uchar(campaign.version)
+    stream.write_uchar(1 if campaign.active else 0)
     if campaign.active:
-        stream.writeString(campaign.current_campaign)
-        stream.writeInt32(campaign.campaign_flag)
-        stream.writeBytes(campaign.roster)
+        stream.write_string(campaign.current_campaign)
+        stream.write_int32(campaign.campaign_flag)
+        stream.write_bytes(campaign.roster)
     return stream.getvalue()
 
 
@@ -707,10 +707,10 @@ def decode_game_logic(chunk: Chunk) -> GameLogicState:
 def _write_template_table(stream: BinaryStream, templates: dict[int, str]) -> None:
     """Write the object/drawable template TOC: `u32 count + count × (ascii name + u16 id)`, in
     the dict's insertion order (which is file order - the decode inserts by id 1..count)."""
-    stream.writeUInt32(len(templates))
+    stream.write_uint32(len(templates))
     for template_id, name in templates.items():
-        stream.writeString(name)
-        stream.writeUInt16(template_id)
+        stream.write_string(name)
+        stream.write_uint16(template_id)
 
 
 def encode_game_logic(state: GameLogicState) -> bytes:
@@ -720,19 +720,19 @@ def encode_game_logic(state: GameLogicState) -> bytes:
     (`body_offset + len(body)`), so no separately-stored offset is needed. The objectless
     mission-save case (empty templates + objects) writes just version + frame + trailing."""
     stream = BinaryStream(io.BytesIO())
-    stream.writeUChar(state.version)
-    stream.writeUInt32(state.frame)
-    stream.writeBytes(state.preamble)
+    stream.write_uchar(state.version)
+    stream.write_uint32(state.frame)
+    stream.write_bytes(state.preamble)
     if state.templates or state.objects:
         _write_template_table(stream, state.templates)
-        stream.writeUInt32(len(state.objects))
+        stream.write_uint32(len(state.objects))
         for obj in state.objects:
-            stream.writeUInt16(obj.template_id)
-            stream.writeUInt32(obj.object_id)
-            stream.writeBytes(BLOCK_MARKER)
-            stream.writeUInt32(obj.body_offset + len(obj.body))
-            stream.writeBytes(obj.body)
-    stream.writeBytes(state.trailing)
+            stream.write_uint16(obj.template_id)
+            stream.write_uint32(obj.object_id)
+            stream.write_bytes(BLOCK_MARKER)
+            stream.write_uint32(obj.body_offset + len(obj.body))
+            stream.write_bytes(obj.body)
+    stream.write_bytes(state.trailing)
     return stream.getvalue()
 
 
@@ -807,18 +807,18 @@ def encode_game_client(state: GameClientState) -> bytes:
     whose GameClient has no drawable table) writes just version + frame + trailing, mirroring
     `encode_game_logic`."""
     stream = BinaryStream(io.BytesIO())
-    stream.writeUChar(state.version)
-    stream.writeUInt32(state.frame)
-    stream.writeBytes(state.preamble)
+    stream.write_uchar(state.version)
+    stream.write_uint32(state.frame)
+    stream.write_bytes(state.preamble)
     if state.templates or state.drawables:
         _write_template_table(stream, state.templates)
-        stream.writeUInt16(len(state.drawables))
+        stream.write_uint16(len(state.drawables))
         for drawable in state.drawables:
-            stream.writeUInt16(drawable.template_id)
-            stream.writeBytes(BLOCK_MARKER)
-            stream.writeUInt32(drawable.body_offset + len(drawable.body))
-            stream.writeBytes(drawable.body)
-    stream.writeBytes(state.trailing)
+            stream.write_uint16(drawable.template_id)
+            stream.write_bytes(BLOCK_MARKER)
+            stream.write_uint32(drawable.body_offset + len(drawable.body))
+            stream.write_bytes(drawable.body)
+    stream.write_bytes(state.trailing)
     return stream.getvalue()
 
 
@@ -997,42 +997,42 @@ def encode_players(state: PlayersState) -> bytes:
     """Inverse of `decode_players`; `encode_players(decode_players(c)) == c.payload`. `money`
     is a plain u32, so a money edit is length-preserving and qualifies for `apply_json`."""
     stream = BinaryStream(io.BytesIO())
-    stream.writeUChar(state.version)
-    stream.writeUInt32(len(state.players))
+    stream.write_uchar(state.version)
+    stream.write_uint32(len(state.players))
     for player in state.players:
-        stream.writeBytes(_PLAYER_RECORD_MAGIC)
-        stream.writeUInt32(player.head_a)
-        stream.writeUInt32(player.head_b)
-        stream.writeUInt32(player.index)
-        stream.writeBytes(player.prefix)
-        stream.writeUInt32(player.cap)
-        stream.writeUChar(player.flag)
-        stream.writeUChar(1)
-        stream.writeUInt32(player.money)
+        stream.write_bytes(_PLAYER_RECORD_MAGIC)
+        stream.write_uint32(player.head_a)
+        stream.write_uint32(player.head_b)
+        stream.write_uint32(player.index)
+        stream.write_bytes(player.prefix)
+        stream.write_uint32(player.cap)
+        stream.write_uchar(player.flag)
+        stream.write_uchar(1)
+        stream.write_uint32(player.money)
 
-        stream.writeUInt16(len(player.upgrades))
-        stream.writeUChar(player.is_preorder)
+        stream.write_uint16(len(player.upgrades))
+        stream.write_uchar(player.is_preorder)
         for sciences in (player.sciences_disabled, player.sciences_hidden):
-            stream.writeUChar(1)
-            stream.writeUInt32(len(sciences))
+            stream.write_uchar(1)
+            stream.write_uint32(len(sciences))
             for science in sciences:
-                stream.writeString(science)
+                stream.write_string(science)
         for upgrade in player.upgrades:
-            stream.writeString(upgrade.name)
-            stream.writeUChar(1)
-            stream.writeUInt32(upgrade.status)
+            stream.write_string(upgrade.name)
+            stream.write_uchar(1)
+            stream.write_uint32(upgrade.status)
 
-        stream.writeBytes(player.radar)
+        stream.write_bytes(player.radar)
         for mask in (player.upgrades_in_progress, player.upgrades_completed):
-            stream.writeUChar(1)
-            stream.writeUInt16(len(mask))
+            stream.write_uchar(1)
+            stream.write_uint16(len(mask))
             for name in mask:
-                stream.writeString(name)
-        stream.writeBytes(player.energy)
-        stream.writeUInt16(len(player.team_ids))
+                stream.write_string(name)
+        stream.write_bytes(player.energy)
+        stream.write_uint16(len(player.team_ids))
         for team_id in player.team_ids:
-            stream.writeUInt32(team_id)
-        stream.writeBytes(player.tail)
+            stream.write_uint32(team_id)
+        stream.write_bytes(player.tail)
     return stream.getvalue()
 
 
@@ -1116,7 +1116,7 @@ class ScriptEngineState:
     widened from u16 to u32 inside versioned lists, and every name-keyed special-power/upgrade
     list became `{u32 key-hash, u32 value}` pairs instead of ascii names. Regions whose field
     split is not pinned down stay raw bytes (`unknown_*`, `fade_state`, `reveal_unknown`) -
-    all observed constant or near-constant; see sav_format.md."""
+    all observed constant or near-constant."""
 
     version: int
     unknown_head: bytes  # 4 bytes after the version, observed all-zero corpus-wide
@@ -1162,11 +1162,11 @@ def _read_pair_list(reader: XferReader, context: str) -> list[tuple[int, int]]:
 
 
 def _write_pair_list(stream: BinaryStream, pairs: list[tuple[int, int]]) -> None:
-    stream.writeUChar(1)
-    stream.writeUInt32(len(pairs))
+    stream.write_uchar(1)
+    stream.write_uint32(len(pairs))
     for first, second in pairs:
-        stream.writeUInt32(first)
-        stream.writeUInt32(second)
+        stream.write_uint32(first)
+        stream.write_uint32(second)
 
 
 def decode_script_engine(chunk: Chunk) -> ScriptEngineState:
@@ -1322,105 +1322,105 @@ def decode_script_engine(chunk: Chunk) -> ScriptEngineState:
 def encode_script_engine(state: ScriptEngineState) -> bytes:
     """Inverse of `decode_script_engine`; `encode(decode(c)) == c.payload` on every fixture."""
     stream = BinaryStream(io.BytesIO())
-    stream.writeUChar(state.version)
-    stream.writeBytes(state.unknown_head)
+    stream.write_uchar(state.version)
+    stream.write_bytes(state.unknown_head)
 
-    stream.writeUInt16(len(state.counters))
+    stream.write_uint16(len(state.counters))
     for counter in state.counters:
-        stream.writeString(counter.scope)
-        stream.writeString(counter.name)
-        stream.writeInt32(counter.value)
-        stream.writeUChar(1 if counter.is_countdown_timer else 0)
+        stream.write_string(counter.scope)
+        stream.write_string(counter.name)
+        stream.write_int32(counter.value)
+        stream.write_uchar(1 if counter.is_countdown_timer else 0)
 
-    stream.writeUInt16(len(state.flags))
+    stream.write_uint16(len(state.flags))
     for flag in state.flags:
-        stream.writeString(flag.scope)
-        stream.writeString(flag.name)
-        stream.writeUChar(1 if flag.value else 0)
+        stream.write_string(flag.scope)
+        stream.write_string(flag.name)
+        stream.write_uchar(1 if flag.value else 0)
 
-    stream.writeBytes(state.unknown_mid)
+    stream.write_bytes(state.unknown_mid)
 
-    stream.writeUInt16(len(state.attack_priorities))
+    stream.write_uint16(len(state.attack_priorities))
     for priority in state.attack_priorities:
-        stream.writeUChar(1)
-        stream.writeString(priority.name)
-        stream.writeInt32(priority.default_priority)
-        stream.writeUInt16(len(priority.overrides))
+        stream.write_uchar(1)
+        stream.write_string(priority.name)
+        stream.write_int32(priority.default_priority)
+        stream.write_uint16(len(priority.overrides))
         for template, value in priority.overrides:
-            stream.writeString(template)
-            stream.writeInt32(value)
-    stream.writeInt32(len(state.attack_priorities))
+            stream.write_string(template)
+            stream.write_int32(value)
+    stream.write_int32(len(state.attack_priorities))
 
-    stream.writeInt32(state.end_game_timer)
-    stream.writeInt32(state.close_window_timer)
+    stream.write_int32(state.end_game_timer)
+    stream.write_int32(state.close_window_timer)
 
-    stream.writeUInt16(len(state.named_objects))
+    stream.write_uint16(len(state.named_objects))
     for name, object_id in state.named_objects:
-        stream.writeString(name)
-        stream.writeUInt32(object_id)
+        stream.write_string(name)
+        stream.write_uint32(object_id)
 
-    stream.writeUChar(1 if state.first_update else 0)
-    stream.writeUInt32(state.fade)
-    stream.writeFloat(state.fade_min)
-    stream.writeFloat(state.fade_max)
-    stream.writeFloat(state.fade_cur)
-    stream.writeBytes(state.fade_state)
+    stream.write_uchar(1 if state.first_update else 0)
+    stream.write_uint32(state.fade)
+    stream.write_float(state.fade_min)
+    stream.write_float(state.fade_max)
+    stream.write_float(state.fade_cur)
+    stream.write_bytes(state.fade_state)
 
     for pairs in state.head_pair_lists:
         _write_pair_list(stream, pairs)
 
     for section in state.special_power_maps:
-        stream.writeUInt32(len(section))
+        stream.write_uint32(len(section))
         for pairs in section:
             _write_pair_list(stream, pairs)
 
-    stream.writeUInt32(len(state.player_sciences))
+    stream.write_uint32(len(state.player_sciences))
     for sciences in state.player_sciences:
-        stream.writeUChar(1)
-        stream.writeUInt32(len(sciences))
+        stream.write_uchar(1)
+        stream.write_uint32(len(sciences))
         for science in sciences:
-            stream.writeString(science)
+            stream.write_string(science)
 
-    stream.writeUChar(1)  # topple-direction list version
-    stream.writeUInt32(len(state.topple_directions))
+    stream.write_uchar(1)  # topple-direction list version
+    stream.write_uint32(len(state.topple_directions))
     for topple in state.topple_directions:
-        stream.writeUInt32(topple.key)
+        stream.write_uint32(topple.key)
         for coordinate in topple.position:
-            stream.writeFloat(coordinate)
+            stream.write_float(coordinate)
 
     for component in state.breeze:
-        stream.writeFloat(component)
-    stream.writeUInt16(state.breeze_period)
-    stream.writeUInt16(state.breeze_version)
-    stream.writeUInt32(state.difficulty)
-    stream.writeUChar(1 if state.freeze_by_script else 0)
+        stream.write_float(component)
+    stream.write_uint16(state.breeze_period)
+    stream.write_uint16(state.breeze_version)
+    stream.write_uint32(state.difficulty)
+    stream.write_uchar(1 if state.freeze_by_script else 0)
 
-    stream.writeUInt16(len(state.reveals))
-    stream.writeBytes(state.reveal_unknown)
+    stream.write_uint16(len(state.reveals))
+    stream.write_bytes(state.reveal_unknown)
     for reveal in state.reveals:
-        stream.writeUInt32(reveal.key)
-        stream.writeString(reveal.name)
-        stream.writeFloat(reveal.radius)
-        stream.writeString(reveal.player)
+        stream.write_uint32(reveal.key)
+        stream.write_string(reveal.name)
+        stream.write_float(reveal.radius)
+        stream.write_string(reveal.player)
 
-    stream.writeUInt16(len(state.object_type_lists))
+    stream.write_uint16(len(state.object_type_lists))
     for type_list in state.object_type_lists:
-        stream.writeUChar(1)
-        stream.writeString(type_list.name)
-        stream.writeUInt16(len(type_list.templates))
+        stream.write_uchar(1)
+        stream.write_string(type_list.name)
+        stream.write_uint16(len(type_list.templates))
         for template in type_list.templates:
-            stream.writeString(template)
+            stream.write_string(template)
 
-    stream.writeUChar(1 if state.difficulty_bonus else 0)
-    stream.writeString(state.current_track)
+    stream.write_uchar(1 if state.difficulty_bonus else 0)
+    stream.write_string(state.current_track)
 
-    stream.writeUInt32(len(state.scoped_named_objects))
+    stream.write_uint32(len(state.scoped_named_objects))
     for scope, name, object_id in state.scoped_named_objects:
-        stream.writeString(scope)
-        stream.writeString(name)
-        stream.writeUInt32(object_id)
+        stream.write_string(scope)
+        stream.write_string(name)
+        stream.write_uint32(object_id)
 
-    stream.writeBytes(state.unknown_tail)
+    stream.write_bytes(state.unknown_tail)
     return stream.getvalue()
 
 

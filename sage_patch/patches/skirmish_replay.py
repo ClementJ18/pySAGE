@@ -1,81 +1,12 @@
-"""The skirmish-replay patch: record single-player skirmish games, under a unique name.
+"""Record single-player skirmish games, under a unique name.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/skirmish-replay.md``.
+The recorder only starts for the two network game modes, so a skirmish (mode 2) is never recorded,
+though every later step already handles it. A `.rpskir` section holds a mode table and a name
+buffer: the whitelist tail (`0x0077F910`) jumps to a routine that also accepts the table's modes,
+and a second edit names each recording by timestamp and map instead of overwriting `Last Replay`. By
+default network recordings are renamed too, which costs the replay menu's Save Replay button.
 
-**The gap it closes.** The stock engine only records network games. `RecorderClass::startRecording`
-has exactly one caller - the ``MSG_NEW_GAME`` branch of `RecorderClass::updateRecord` - and that
-branch whitelists the message's game mode against ``{1, 5}``, the two network flavours. A skirmish
-started from the menu emits mode **2**, so it falls off the end of the whitelist and nothing is
-ever written. Everything downstream of that decision already works: `startRecording` has a
-complete non-network path that builds the header's metadata string from `TheSkirmishGameInfo`,
-and the engine's own playback predicates (`0x00625456`) already accept a *recorded* mode of 2.
-The only thing missing is the entry in the list.
-
-**What it does.** Appends a ``.rpskir`` PE section holding a mode table, a name buffer and two
-small routines, and makes two five-to-nine byte edits:
-
-``0x0077F910`` - the whitelist tail (``cmp eax, 5`` / ``jne <skip>``) becomes a jump into the
-first routine, which tests the same mode 5, then every mode in the table, and jumps back to the
-recorder's own accept (``0x0077F919``) or reject (``0x0077F9DD``). Nothing else in the branch is
-touched: the ``cmp eax, ebx`` that accepts mode 1 stays where it is, ``ebx`` is still 1 on entry
-to `startRecording`, and the ``TheGameLogic+0x114`` test above is left alone.
-
-``0x0077EA45`` - the ``call`` that asks for the file's base name is retargeted to the second
-routine. Stock, that name is the localized ``GUI:LastReplay`` for *every* recording, so each game
-overwrites ``Last Replay.BfME2Replay``. The routine writes ``YYYY-MM-DD HH-MM-SS <map>`` instead,
-so a skirmish keeps its recording - and so does everything else.
-
-**By default every recording is renamed** (``rename="all"``). A fixed name means each game
-destroys the last one, and it means every player's replay of the same match is called the same
-thing, which is what makes them awkward to collect. The cost is the replay menu's **Save Replay**
-button (command 7, ``0x00817D0E``): it copies ``Last Replay.BfME2Replay`` to a name typed by the
-user, so with nothing at that path it reports ``APT:ReplaySaveErrorMessageBox``. That button
-exists only to rescue a file before it is overwritten, which is the problem this removes.
-
-``rename="added"`` is the conservative alternative: only the modes this patch enables get the new
-name, and a game the stock engine would have recorded anyway keeps the stock one byte for byte,
-Save Replay included. It costs one extra decision at the top of the routine, which reads
-`startRecording`'s own second argument - the game mode, and the value written into the header -
-and tail-jumps to the original helper when it is not one of ours.
-
-.. warning::
-
-   That decision must **not** read `RecorderClass::m_gameMode`. `updateRecord` caches the mode
-   there before calling `startRecording`, but `startRecording`'s first act is ``reset()``
-   (vtable ``+0x24``), which tail-jumps to ``0x0077D7C1`` and writes the sentinel **9** over it
-   forty bytes before the file is named. Reading that field falls back to the stock name on
-   every single skirmish, silently.
-
-**Why the call site and not the helper.** ``0x0077DEFD`` has that second caller. Patching the
-helper would rename the file *and* change what the menu looks for; patching the call site inside
-`startRecording` changes only what is written.
-
-**The map comes from the `GameInfo`, not from `TheWritableGlobalData`.** `startNewGame` moves the
-staged map name out of ``GlobalData+0xAC0`` and clears it, so whether that field still holds the
-map at this moment depends on whether the logic dispatcher ran before the recorder. The `GameInfo`
-is set by the menu, before the message, and is the same object the metadata string's ``M=`` field
-comes from - so the name always agrees with the header.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The engine bytes it edits - nine at ``0x0077F910`` and five at
-``0x0077EA45`` - are touched by no other bundled patch. It stacks with ``replay-outcome``, which
-hooks ``0x0077F98B`` at the *other* end of the same function; a skirmish then records **and**
-carries the verdict, which is the one combination that lets `sage_replay` resolve a game against
-an AI at all (the concession heuristic cannot, because an AI issues no orders).
-
-Section layout, at the base::
-
-    +0x00  systemtime   16 bytes, the SYSTEMTIME `GetLocalTime` fills
-    +0x10  rename_all   dword, 1 when every recording is renamed (what `verify` reads back)
-    +0x14  mode_count   dword
-    +0x18  mode_table   MAX_MODES dwords - the added `MSG_NEW_GAME` game modes
-    +0x38  empty        one NUL: the narrow empty string used when there is no map
-    +0x3c  format       the wide `swprintf` format
-    ...    map          MAP_MAX wide chars - the sanitised map basename
-    ...    name         NAME_MAX wide chars - the assembled base name
-    ...    gate code    the whitelist routine
-    ...    name code    the base-name routine
+Derivation: `../docs/skirmish-replay.md`.
 """
 
 from __future__ import annotations
@@ -106,7 +37,7 @@ from ..addresses import (
 )
 from ..asm import JA, JB, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, u32, va_to_offset
 
 __all__ = [
     "DEFAULT_MODES",
@@ -141,9 +72,9 @@ DEFAULT_MODES = (GAME_MODE_SKIRMISH,)
 #: recorder already takes two and two more are the shell and playback, so eight is generous.
 MAX_MODES = 8
 
-#: Which recordings get a timestamp+map name. ``all`` is the default: the fixed `Last Replay`
+#: Which recordings get a timestamp+map name. `all` is the default: the fixed `Last Replay`
 #: name means every game overwrites the last one, and a file every player has under the same
-#: name is exactly what makes replays hard to collect. ``added`` renames only the modes this
+#: name is exactly what makes replays hard to collect. `added` renames only the modes this
 #: patch enables, leaving network recordings byte-identical to stock - the conservative choice
 #: if the replay menu's Save Replay button matters more than shareable names.
 RENAME_ALL = "all"
@@ -185,7 +116,7 @@ NAME_OFF = MAP_OFF + MAP_MAX * 2
 GATE_CODE_OFF = NAME_OFF + NAME_MAX * 2
 
 #: The window the whitelist routine gets, so both entry points are constants a caller (and
-#: :meth:`SkirmishReplayPatch.verify`) can name without re-deriving one from the other's length.
+#: `SkirmishReplayPatch.verify`) can name without re-deriving one from the other's length.
 GATE_CODE_MAX = 0x80
 NAME_CODE_OFF = GATE_CODE_OFF + GATE_CODE_MAX
 
@@ -194,12 +125,8 @@ NAME_CODE_OFF = GATE_CODE_OFF + GATE_CODE_MAX
 _STOCK_TAIL_MODE = RECORDER_MODE_GATE_BYTES[2]
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def _build_gate_code(base_va: int, count_va: int, table_va: int) -> bytes:
-    """The whitelist routine. Entered by a `jmp` that replaced ``cmp eax, 5`` / ``jne``, with
+    """The whitelist routine. Entered by a `jmp` that replaced `cmp eax, 5` / `jne`, with
     `eax` holding the game mode and the recorder's loop state live in `ebx`/`esi`/`edi`/`ebp` -
     so only `ecx` and `edx` are borrowed, and both are given back on every path."""
     a = Asm(base_va + GATE_CODE_OFF)
@@ -211,8 +138,8 @@ def _build_gate_code(base_va: int, count_va: int, table_va: int) -> bytes:
 
     a.emit(0x51)  # push ecx
     a.emit(0x52)  # push edx
-    a.emit(0x8B, 0x0D, _u32(count_va))  # mov ecx, [mode_count]
-    a.emit(0xBA, _u32(table_va))  # mov edx, mode_table
+    a.emit(0x8B, 0x0D, u32(count_va))  # mov ecx, [mode_count]
+    a.emit(0xBA, u32(table_va))  # mov edx, mode_table
 
     a.label("scan")
     a.emit(0x85, 0xC9)  # test ecx, ecx
@@ -244,7 +171,7 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     borrows `ebx`/`esi`/`edi` and restores them, because the stock helper is a normal function
     and its caller assumes the same.
 
-    When ``rename_all`` is false the routine first decides whether this recording is one of the
+    When `rename_all` is false the routine first decides whether this recording is one of the
     modes the patch enabled, and tail-jumps to the stock helper if not. When it is true - the
     default - every recording is named, there is nothing to decide, and the routine never reads
     the caller's frame at all.
@@ -269,8 +196,8 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
         a.emit(0x8B, 0x45, START_RECORDING_MODE_ARG)  # mov eax, [ebp+0x0c]
         a.emit(0x51)  # push ecx
         a.emit(0x52)  # push edx
-        a.emit(0x8B, 0x0D, _u32(count_va))  # mov ecx, [mode_count]
-        a.emit(0xBA, _u32(table_va))  # mov edx, mode_table
+        a.emit(0x8B, 0x0D, u32(count_va))  # mov ecx, [mode_count]
+        a.emit(0xBA, u32(table_va))  # mov edx, mode_table
 
         a.label("scan")
         a.emit(0x85, 0xC9)  # test ecx, ecx
@@ -297,25 +224,25 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     a.emit(0x57)  # push edi
     # From here the argument is at [esp+0x10]: three saves, then the return address.
 
-    a.emit(0x68, _u32(systemtime))  # push &systemtime
-    a.emit(0xFF, 0x15, _u32(IMPORT_GET_LOCAL_TIME))  # call [GetLocalTime]  (stdcall)
+    a.emit(0x68, u32(systemtime))  # push &systemtime
+    a.emit(0xFF, 0x15, u32(IMPORT_GET_LOCAL_TIME))  # call [GetLocalTime]  (stdcall)
 
-    a.emit(0x8B, 0x0D, _u32(THE_GAME_INFO))  # mov ecx, [TheGameInfo]
+    a.emit(0x8B, 0x0D, u32(THE_GAME_INFO))  # mov ecx, [TheGameInfo]
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JNE, "have_info")
-    a.emit(0x8B, 0x0D, _u32(THE_SKIRMISH_GAME_INFO))  # mov ecx, [TheSkirmishGameInfo]
+    a.emit(0x8B, 0x0D, u32(THE_SKIRMISH_GAME_INFO))  # mov ecx, [TheSkirmishGameInfo]
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "no_map")
 
     a.label("have_info")
-    a.emit(0x8B, 0xB1, _u32(GAME_INFO_MAP))  # mov esi, [ecx+0x40]   ; AsciiString m_map
+    a.emit(0x8B, 0xB1, u32(GAME_INFO_MAP))  # mov esi, [ecx+0x40]   ; AsciiString m_map
     a.emit(0x85, 0xF6)  # test esi, esi
     a.jcc(JE, "no_map")
     a.emit(0x83, 0xC6, 0x08)  # add esi, 8            ; the characters
     a.jmp("basename")
 
     a.label("no_map")
-    a.emit(0xBE, _u32(empty))  # mov esi, empty
+    a.emit(0xBE, u32(empty))  # mov esi, empty
 
     # `M=` carries `maps/map mp westfold`, and a separator is not a legal file-name character,
     # so the name is taken from after the last one rather than sanitised into `maps_map...`.
@@ -338,8 +265,8 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
 
     a.label("copy_init")
     a.emit(0x8B, 0xF3)  # mov esi, ebx          ; source = the basename
-    a.emit(0xBF, _u32(map_buffer))  # mov edi, map
-    a.emit(0xB9, _u32(MAP_MAX - 1))  # mov ecx, MAP_MAX-1    ; room for the terminator
+    a.emit(0xBF, u32(map_buffer))  # mov edi, map
+    a.emit(0xB9, u32(MAP_MAX - 1))  # mov ecx, MAP_MAX-1    ; room for the terminator
     a.emit(0x33, 0xDB)  # xor ebx, ebx          ; where the last '.' landed, 0 = none
 
     a.label("copy")
@@ -369,7 +296,7 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     a.jmp("store")
 
     a.label("substitute")
-    a.emit(0xB8, _u32(ord(_SUBSTITUTE)))  # mov eax, '_'
+    a.emit(0xB8, u32(ord(_SUBSTITUTE)))  # mov eax, '_'
 
     a.label("store")
     a.emit(0x66, 0x89, 0x07)  # mov word [edi], ax
@@ -382,7 +309,7 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     # that is nothing but an extension is not improved by becoming empty).
     a.emit(0x85, 0xDB)  # test ebx, ebx
     a.jcc(JE, "terminate")
-    a.emit(0x81, 0xFB, _u32(map_buffer))  # cmp ebx, map
+    a.emit(0x81, 0xFB, u32(map_buffer))  # cmp ebx, map
     a.jcc(JE, "terminate")
     a.emit(0x8B, 0xFB)  # mov edi, ebx
 
@@ -392,17 +319,17 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
 
     # cdecl and variadic, so the caller cleans all nine dwords. The `SYSTEMTIME` fields are
     # 16-bit; they are zero-extended here because a variadic `%d` reads a full dword.
-    a.emit(0x68, _u32(map_buffer))  # push map
+    a.emit(0x68, u32(map_buffer))  # push map
     for offset in (_ST_SECOND, _ST_MINUTE, _ST_HOUR, _ST_DAY, _ST_MONTH, _ST_YEAR):
-        a.emit(0x0F, 0xB7, 0x05, _u32(systemtime + offset))  # movzx eax, word [systemtime+n]
+        a.emit(0x0F, 0xB7, 0x05, u32(systemtime + offset))  # movzx eax, word [systemtime+n]
         a.emit(0x50)  # push eax
-    a.emit(0x68, _u32(fmt))  # push format
-    a.emit(0x68, _u32(name_buffer))  # push name
-    a.emit(0xFF, 0x15, _u32(IMPORT_SWPRINTF))  # call [swprintf]
+    a.emit(0x68, u32(fmt))  # push format
+    a.emit(0x68, u32(name_buffer))  # push name
+    a.emit(0xFF, 0x15, u32(IMPORT_SWPRINTF))  # call [swprintf]
     a.emit(0x83, 0xC4, 0x24)  # add esp, 0x24         ; 9 dwords
 
     a.emit(0x8B, 0x4C, 0x24, 0x10)  # mov ecx, [esp+0x10]   ; the storage
-    a.emit(0x68, _u32(name_buffer))  # push name
+    a.emit(0x68, u32(name_buffer))  # push name
     a.call_absolute(UNICODE_STRING_FROM_WIDE)  # ret 4: it cleans its own argument
 
     a.emit(0x5F)  # pop edi
@@ -416,7 +343,7 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
 def build_section(
     base_va: int, modes: tuple[int, ...] = DEFAULT_MODES, rename_all: bool = True
 ) -> bytes:
-    """The whole ``.rpskir`` payload: the mode table, the buffers, then the two routines."""
+    """The whole `.rpskir` payload: the mode table, the buffers, then the two routines."""
     body = bytearray(GATE_CODE_OFF)
     struct.pack_into("<I", body, RENAME_ALL_OFF, int(rename_all))
     struct.pack_into("<I", body, MODE_COUNT_OFF, len(modes))
@@ -433,6 +360,7 @@ def build_section(
 class SkirmishReplayPatch(Patch):
     name = "skirmish-replay"
     author = "officialNecro"
+    runtime_verified = "partly"
     description = (
         "Record single-player skirmish games, which the stock engine does not, and name each "
         "recording by timestamp and map instead of overwriting Last Replay. No INI change; the "
@@ -533,7 +461,7 @@ class SkirmishReplayPatch(Patch):
         into `m_fileName` after.
 
         The call's own five bytes are deliberately **not** compared: this runs from
-        :meth:`verify` too, where they are the hook. Everything around them is untouched by the
+        `verify` too, where they are the hook. Everything around them is untouched by the
         patch, which is what lets one check serve both."""
         split = RECORDER_NAME_CALL_FINGERPRINT.index(RECORDER_NAME_CALL_BYTES)
         start = RECORDER_NAME_CALL - split
@@ -611,7 +539,7 @@ class SkirmishReplayPatch(Patch):
         The default probe only ever recognises the default configuration, so a binary recording a
         different mode set reads as unpatched. Both settings are plain dwords the cave carries for
         its own gate to read - the mode count and table, and the rename flag - so they read
-        straight back out, and :meth:`verify` then re-checks the cave and both hooks against
+        straight back out, and `verify` then re-checks the cave and both hooks against
         them."""
         located = find_section(data, SECTION_NAME)
         if located is None:

@@ -146,7 +146,7 @@ no_span:
 ```
 
 `0x00BD1908` is the engine's own `1.0f`, already read by the routine being replaced for its high
-clamp, and already named `FLOAT_ONE` in `addresses.py`.
+clamp, and already named `FLOAT_ONE` in `sage_patch.addresses`.
 
 **The degenerate arm is load-bearing.** `+0x38` is 1 from the constructor (`0x0063A4DE`) until the
 first recompute fires, so `ratio - 1` is genuinely zero for the opening window of a match.

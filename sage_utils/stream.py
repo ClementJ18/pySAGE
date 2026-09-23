@@ -5,41 +5,45 @@ BinaryReader/BinaryWriter helper surface of OpenSAGE's C# implementation."""
 import io
 import struct
 
+__all__ = [
+    "BinaryStream",
+]
+
 
 class BinaryStream:
     def __init__(self, base_stream: io.BytesIO, encoding: str = "latin-1"):
         self.base_stream = base_stream
         self.encoding = encoding
 
-    def readByte(self) -> bytes:
+    def read_byte(self) -> bytes:
         return self.base_stream.read(1)
 
-    def writeByte(self, value: int):
+    def write_byte(self, value: int):
         self.base_stream.write(bytes([value]))
 
-    def readBytes(self, length: int) -> bytes:
+    def read_bytes(self, length: int) -> bytes:
         return self.base_stream.read(length)
 
-    def writeBytes(self, value: bytes):
+    def write_bytes(self, value: bytes):
         self.base_stream.write(value)
 
-    def readChar(self) -> int:
+    def read_char(self) -> int:
         return self.unpack("b")
 
-    def writeChar(self, value: bytes):
+    def write_char(self, value: bytes):
         self.pack("c", value)
 
-    def readUChar(self) -> int:
+    def read_uchar(self) -> int:
         return self.unpack("B")
 
-    def writeUChar(self, value: int):
+    def write_uchar(self, value: int):
         self.pack("B", value)
 
-    def readBool(self) -> bool:
+    def read_bool(self) -> bool:
         return self.unpack("?")
 
-    def readBoolChecked(self) -> bool:
-        value = self.readUChar()
+    def read_bool_checked(self) -> bool:
+        value = self.read_uchar()
         if value == 0:
             return False
         elif value == 1:
@@ -47,198 +51,198 @@ class BinaryStream:
         else:
             raise ValueError(f"Invalid boolean value: {value}, expected 0 or 1")
 
-    def writeBool(self, value: bool):
+    def write_bool(self, value: bool):
         self.pack("?", value)
 
-    def writeBoolChecked(self, value: bool):
+    def write_bool_checked(self, value: bool):
         if not isinstance(value, bool):
             raise ValueError(f"Expected boolean value, got: {type(value)}")
-        self.writeUChar(1 if value else 0)
+        self.write_uchar(1 if value else 0)
 
-    def readBoolUInt32(self) -> bool:
-        result = self.readBool()
-        unused = self.readUInt24()  # padding
+    def read_bool_uint32(self) -> bool:
+        result = self.read_bool()
+        unused = self.read_uint24()  # padding
 
         if unused != 0:
             raise ValueError("Expected padding bytes to be zero")
 
         return result
 
-    def readBoolUInt32Checked(self) -> bool:
-        result = self.readBoolChecked()
-        unused = self.readUInt24()  # padding
+    def read_bool_uint32_checked(self) -> bool:
+        result = self.read_bool_checked()
+        unused = self.read_uint24()  # padding
 
         if unused != 0:
             raise ValueError(f"Expected padding bytes to be zero, got: {unused:06x}")
 
         return result
 
-    def writeBoolUInt32(self, value: bool):
-        self.writeBool(value)
-        self.writeUInt24(0)
+    def write_bool_uint32(self, value: bool):
+        self.write_bool(value)
+        self.write_uint24(0)
 
-    def writeBoolUInt32Checked(self, value: bool):
-        self.writeBoolChecked(value)
-        self.writeUInt24(0)
+    def write_bool_uint32_checked(self, value: bool):
+        self.write_bool_checked(value)
+        self.write_uint24(0)
 
-    def readInt16(self) -> int:
+    def read_int16(self) -> int:
         return self.unpack("<h", 2)
 
-    def writeInt16(self, value: int):
+    def write_int16(self, value: int):
         self.pack("<h", value)
 
-    def readUInt16(self) -> int:
+    def read_uint16(self) -> int:
         return self.unpack("<H", 2)
 
-    def writeUInt16(self, value: int):
+    def write_uint16(self, value: int):
         self.pack("<H", value)
 
-    def readInt32(self) -> int:
+    def read_int32(self) -> int:
         return self.unpack("<i", 4)
 
-    def writeInt32(self, value: int):
+    def write_int32(self, value: int):
         self.pack("<i", value)
 
-    def readUInt32(self) -> int:
+    def read_uint32(self) -> int:
         return self.unpack("<I", 4)
 
-    def writeUInt32(self, value: int):
+    def write_uint32(self, value: int):
         self.pack("<I", value)
 
-    def readInt64(self) -> int:
+    def read_int64(self) -> int:
         return self.unpack("<q", 8)
 
-    def writeInt64(self, value: int):
+    def write_int64(self, value: int):
         self.pack("<q", value)
 
-    def readUInt64(self) -> int:
+    def read_uint64(self) -> int:
         return self.unpack("<Q", 8)
 
-    def writeUInt64(self, value: int):
+    def write_uint64(self, value: int):
         self.pack("<Q", value)
 
     # In the C# code this is readSingle()
-    def readFloat(self) -> float:
+    def read_float(self) -> float:
         return self.unpack("<f", 4)
 
-    def writeFloat(self, value: float):
+    def write_float(self, value: float):
         self.pack("<f", value)
 
-    def readDouble(self) -> float:
+    def read_double(self) -> float:
         return self.unpack("<d", 8)
 
-    def writeDouble(self, value: float):
+    def write_double(self, value: float):
         self.pack("<d", value)
 
-    def readVector2(self) -> tuple[float, float]:
-        return (self.readFloat(), self.readFloat())
+    def read_vector2(self) -> tuple[float, float]:
+        return (self.read_float(), self.read_float())
 
-    def writeVector2(self, value: tuple[float, float]):
-        self.writeFloat(value[0])
-        self.writeFloat(value[1])
+    def write_vector2(self, value: tuple[float, float]):
+        self.write_float(value[0])
+        self.write_float(value[1])
 
-    def readVector3(self) -> tuple[float, float, float]:
-        return (self.readFloat(), self.readFloat(), self.readFloat())
+    def read_vector3(self) -> tuple[float, float, float]:
+        return (self.read_float(), self.read_float(), self.read_float())
 
-    def writeVector3(self, value: tuple[float, float, float]):
-        self.writeFloat(value[0])
-        self.writeFloat(value[1])
-        self.writeFloat(value[2])
+    def write_vector3(self, value: tuple[float, float, float]):
+        self.write_float(value[0])
+        self.write_float(value[1])
+        self.write_float(value[2])
 
-    def readVector4(self) -> tuple[float, float, float, float]:
-        return (self.readFloat(), self.readFloat(), self.readFloat(), self.readFloat())
+    def read_vector4(self) -> tuple[float, float, float, float]:
+        return (self.read_float(), self.read_float(), self.read_float(), self.read_float())
 
-    def writeVector4(self, value: tuple[float, float, float, float]):
-        self.writeFloat(value[0])
-        self.writeFloat(value[1])
-        self.writeFloat(value[2])
-        self.writeFloat(value[3])
+    def write_vector4(self, value: tuple[float, float, float, float]):
+        self.write_float(value[0])
+        self.write_float(value[1])
+        self.write_float(value[2])
+        self.write_float(value[3])
 
-    def readString(self) -> str:
-        length = self.readUChar()
+    def read_string(self) -> str:
+        length = self.read_uchar()
         return self.unpack(str(length) + "s", length).decode(self.encoding)
 
-    def writeString(self, value: str):
+    def write_string(self, value: str):
         length = len(value)
-        self.writeUChar(length)
+        self.write_uchar(length)
         self.pack(str(length) + "s", value.encode(self.encoding))
 
-    def readUInt16PrefixedAsciiString(self) -> str:
-        lenght = self.readUInt16()
-        return self.readBytes(lenght).decode(self.encoding)
+    def read_uint16_prefixed_ascii_string(self) -> str:
+        lenght = self.read_uint16()
+        return self.read_bytes(lenght).decode(self.encoding)
 
-    def writeUInt16PrefixedAsciiString(self, value: str):
+    def write_uint16_prefixed_ascii_string(self, value: str):
         lenght = len(value)
-        self.writeUInt16(lenght)
-        self.writeBytes(value.encode(self.encoding))
+        self.write_uint16(lenght)
+        self.write_bytes(value.encode(self.encoding))
 
-    def readFourCc(self) -> str:
-        return self.readBytes(4).decode(self.encoding)
+    def read_fourcc(self) -> str:
+        return self.read_bytes(4).decode(self.encoding)
 
-    def writeFourCc(self, value: str):
+    def write_fourcc(self, value: str):
         if len(value) != 4:
             raise ValueError("FourCC must be exactly 4 characters")
-        self.writeBytes(value.encode(self.encoding))
+        self.write_bytes(value.encode(self.encoding))
 
-    def readUInt24(self) -> int:
-        b = self.readBytes(3)
+    def read_uint24(self) -> int:
+        b = self.read_bytes(3)
         return int.from_bytes(b, "little", signed=False)
 
-    def writeUInt24(self, value: int):
+    def write_uint24(self, value: int):
         if not (0 <= value <= 0xFFFFFF):
             raise ValueError("Value out of range for UInt24 (0..16777215)")
         b = value.to_bytes(3, "little")
-        self.writeBytes(b)
+        self.write_bytes(b)
 
-    def readNullTerminatedAsciiString(self) -> str:
+    def read_null_terminated_ascii_string(self) -> str:
         buf = bytearray()
         while True:
-            char = self.readBytes(1)
+            char = self.read_bytes(1)
             if not char or char == b"\x00":
                 break
             buf.extend(char)
         return buf.decode("ascii", errors="replace")
 
-    def writeNullTerminatedAsciiString(self, value: str):
-        self.writeBytes(value.encode("ascii") + b"\x00")
+    def write_null_terminated_ascii_string(self, value: str):
+        self.write_bytes(value.encode("ascii") + b"\x00")
 
-    def readNullTerminatedUnicodeString(self) -> str:
+    def read_null_terminated_unicode_string(self) -> str:
         """Read UTF-16LE characters (2 bytes each) until a NUL character."""
         buf = bytearray()
         while True:
-            char = self.readBytes(2)
+            char = self.read_bytes(2)
             if len(char) < 2 or char == b"\x00\x00":
                 break
             buf.extend(char)
         return buf.decode("utf-16-le", errors="replace")
 
-    def writeNullTerminatedUnicodeString(self, value: str):
-        self.writeBytes(value.encode("utf-16-le") + b"\x00\x00")
+    def write_null_terminated_unicode_string(self, value: str):
+        self.write_bytes(value.encode("utf-16-le") + b"\x00\x00")
 
-    def readUInt16PrefixedUnicodeString(self) -> str:
-        length = self.readUInt16()
-        return self.readBytes(length * 2).decode("utf-16-le")
+    def read_uint16_prefixed_unicode_string(self) -> str:
+        length = self.read_uint16()
+        return self.read_bytes(length * 2).decode("utf-16-le")
 
-    def writeUInt16PrefixedUnicodeString(self, value: str):
+    def write_uint16_prefixed_unicode_string(self, value: str):
         encoded = value.encode("utf-16-le")
-        self.writeUInt16(len(value))
-        self.writeBytes(encoded)
+        self.write_uint16(len(value))
+        self.write_bytes(encoded)
 
-    def readUInt16Array2D(self, width: int, height: int) -> list[list[int]]:
+    def read_uint16_array2d(self, width: int, height: int) -> list[list[int]]:
         result = [[0] * height for _ in range(width)]
         for y in range(height):
             for x in range(width):
-                result[x][y] = self.readUInt16()
+                result[x][y] = self.read_uint16()
         return result
 
-    def writeUInt16Array2D(self, array2d: list[list[int]]):
+    def write_uint16_array2d(self, array2d: list[list[int]]):
         width = len(array2d)
         height = len(array2d[0]) if width > 0 else 0
         for y in range(height):
             for x in range(width):
-                self.writeUInt16(array2d[x][y])
+                self.write_uint16(array2d[x][y])
 
-    def readUIntArray2D(self, width: int, height: int, bit_size: int) -> list[list[int]]:
+    def read_uint_array2d(self, width: int, height: int, bit_size: int) -> list[list[int]]:
         """Read a 2D array of unsigned integers.
 
         Args:
@@ -251,9 +255,9 @@ class BinaryStream:
         for y in range(height):
             for x in range(width):
                 if bit_size == 16:
-                    value = self.readUInt16()
+                    value = self.read_uint16()
                 elif bit_size == 32:
-                    value = self.readUInt32()
+                    value = self.read_uint32()
                 else:
                     raise ValueError(f"Unsupported bit_size: {bit_size}. Expected 16 or 32.")
 
@@ -261,7 +265,7 @@ class BinaryStream:
 
         return result
 
-    def readSingleBitBooleanArray2D(
+    def read_single_bit_boolean_array2d(
         self, width: int, height: int, row_byte_aligned: bool = True
     ) -> list[list[bool]]:
         """Read a 2D array of single-bit boolean values.
@@ -281,7 +285,7 @@ class BinaryStream:
                 temp = 0
                 for x in range(width):
                     if x % 8 == 0:
-                        temp = self.readUChar()
+                        temp = self.read_uchar()
 
                     result[x][y] = (temp & (1 << (x % 8))) != 0
         else:
@@ -291,7 +295,7 @@ class BinaryStream:
             for y in range(height):
                 for x in range(width):
                     if bit_index % 8 == 0:
-                        temp = self.readUChar()
+                        temp = self.read_uchar()
 
                     result[x][y] = (temp & (1 << (bit_index % 8))) != 0
                     bit_index += 1
@@ -301,21 +305,21 @@ class BinaryStream:
 
         return result
 
-    def readByteArray2D(self, width: int, height: int) -> list[list[int]]:
+    def read_byte_array2d(self, width: int, height: int) -> list[list[int]]:
         result = [[0] * height for _ in range(width)]
         for y in range(height):
             for x in range(width):
-                result[x][y] = self.readUChar()
+                result[x][y] = self.read_uchar()
         return result
 
-    def readByteArray2DAsEnum(self, width: int, height: int, enum_class):
+    def read_byte_array2d_as_enum(self, width: int, height: int, enum_class):
         result = [[None] * height for _ in range(width)]
         for y in range(height):
             for x in range(width):
-                result[x][y] = enum_class(self.readUChar())
+                result[x][y] = enum_class(self.read_uchar())
         return result
 
-    def writeUIntArray2D(self, array2d: list[list[int]], bit_size: int):
+    def write_uint_array2d(self, array2d: list[list[int]], bit_size: int):
         """Write a 2D array of unsigned integers.
 
         Args:
@@ -329,13 +333,13 @@ class BinaryStream:
             for x in range(width):
                 value = array2d[x][y]
                 if bit_size == 16:
-                    self.writeUInt16(value)
+                    self.write_uint16(value)
                 elif bit_size == 32:
-                    self.writeUInt32(value)
+                    self.write_uint32(value)
                 else:
                     raise ValueError(f"Unsupported bit_size: {bit_size}. Expected 16 or 32.")
 
-    def writeSingleBitBooleanArray2D(
+    def write_single_bit_boolean_array2d(
         self, array2d: list[list[bool]], width: int | None = None, pad_value: int = 0x0
     ):
         """Write a 2D array of single-bit boolean values.
@@ -355,7 +359,7 @@ class BinaryStream:
             value = pad_value if width < 8 else 0
             for x in range(width):
                 if x > 0 and x % 8 == 0:
-                    self.writeUChar(value)
+                    self.write_uchar(value)
                     value = pad_value if x > width - 8 else 0
 
                 bool_value = array2d[x][y] if x < actual_width else False
@@ -366,9 +370,9 @@ class BinaryStream:
                     value &= ~(1 << (x % 8))
 
             # Write last value
-            self.writeUChar(value)
+            self.write_uchar(value)
 
-    def writeByteArray2DAsEnum(self, array2d: list[list]):
+    def write_byte_array2d_as_enum(self, array2d: list[list]):
         """Write a 2D array of enum values as bytes.
 
         Args:
@@ -379,9 +383,9 @@ class BinaryStream:
 
         for y in range(height):
             for x in range(width):
-                self.writeUChar(int(array2d[x][y]))
+                self.write_uchar(int(array2d[x][y]))
 
-    def writeByteArray2D(self, array2d: list[list[int]]):
+    def write_byte_array2d(self, array2d: list[list[int]]):
         """Write a 2D array of bytes.
 
         Args:
@@ -392,13 +396,13 @@ class BinaryStream:
 
         for y in range(height):
             for x in range(width):
-                self.writeUChar(array2d[x][y])
+                self.write_uchar(array2d[x][y])
 
     def pack(self, fmt, data):
-        return self.writeBytes(struct.pack(fmt, data))
+        return self.write_bytes(struct.pack(fmt, data))
 
     def unpack(self, fmt, length=1):
-        return struct.unpack(fmt, self.readBytes(length))[0]
+        return struct.unpack(fmt, self.read_bytes(length))[0]
 
     def seek(self, offset, whence=io.SEEK_SET):
         self.base_stream.seek(offset, whence)

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from sage_test.runner import install_map, install_map_folder, launch_arguments
+from sage_live.launch.runner import install_map, install_map_folder, launch_arguments
 
 
 class TestLaunchArguments:

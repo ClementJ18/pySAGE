@@ -29,11 +29,7 @@ from sage_worldbuilder.build_lists import (
     side_names,
 )
 from sage_worldbuilder.commands import Command
-from sage_worldbuilder.document import MapDocument
-from sage_worldbuilder.footprints import FootprintShape
-from sage_worldbuilder.generic_ai import PICK_DISTANCES, GenericAIType, new_generic_ai_object
-from sage_worldbuilder.gizmos import HANDLE_PIXELS, front_tip
-from sage_worldbuilder.objects import (
+from sage_worldbuilder.commands.objects import (
     Clipboard,
     GroupEditMethod,
     MoveObjects,
@@ -42,8 +38,12 @@ from sage_worldbuilder.objects import (
     paste_objects,
     place_objects,
 )
-from sage_worldbuilder.pick import PickRules
+from sage_worldbuilder.document import MapDocument
+from sage_worldbuilder.footprints import FootprintShape
+from sage_worldbuilder.generic_ai import PICK_DISTANCES, GenericAIType, new_generic_ai_object
+from sage_worldbuilder.gizmos import HANDLE_PIXELS, front_tip
 from sage_worldbuilder.scene import MapScene, Marker, MarkerKind
+from sage_worldbuilder.selection.pick import PickRules
 from sage_worldbuilder.terrain.grid import WORLD_UNITS_PER_CELL
 from sage_worldbuilder.ui.overlays import draw_label
 from sage_worldbuilder.viewport import ViewOptions, ViewTransform, snap

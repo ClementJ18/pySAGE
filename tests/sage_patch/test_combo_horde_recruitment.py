@@ -97,7 +97,7 @@ class TestTheSiteIsTheProducerRead:
         assert sum(i.size for i in insns) == len(HORDE_CONTAIN_PRODUCED_GATE_BYTES)
 
     def test_they_load_the_owning_object_then_its_producer_id(self):
-        """Both offsets come from `addresses.py`, so the cave and this test cannot drift apart
+        """Both offsets come from `addresses`, so the cave and this test cannot drift apart
         without one of them failing."""
         insns = disassemble(HORDE_CONTAIN_PRODUCED_GATE_BYTES, HORDE_CONTAIN_PRODUCED_GATE)
         assert insns[0].op_str == f"eax, dword ptr [esi + {MODULE_OWNING_OBJECT}]"

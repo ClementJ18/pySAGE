@@ -9,7 +9,7 @@ table that turns the tag into (which slot holds the payload, what it must resolv
 Resolution scopes:
 
 * `GAME` - a definition in the assembled `Game` (an ini object); `target` is the table key passed
-  to `Game.lookup` (e.g. ``"objects"``, ``"sciences"``).
+  to `Game.lookup` (e.g. `"objects"`, `"sciences"`).
 * `MAP` - a symbol the map itself declares (a team, waypoint, script, player, ...); `target` names
   the map-local table the `sage_map.model` adapter builds.
 * `STRINGS` - a localization label, resolved against `Game.strings`.
@@ -26,6 +26,16 @@ from dataclasses import dataclass
 from enum import Enum
 
 from sage_map.assets.player_scripts import ScriptArgument, ScriptArgumentType
+
+__all__ = [
+    "arg_spec",
+    "ARG_SPECS",
+    "ArgSpec",
+    "ResolvedArg",
+    "Scope",
+    "T",
+    "typed_value",
+]
 
 T = ScriptArgumentType  # local shorthand for the dense table below
 

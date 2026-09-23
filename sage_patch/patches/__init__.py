@@ -1,4 +1,4 @@
-"""Concrete :class:`~sage_patch.patcher.Patch` implementations."""
+"""Concrete `Patch` implementations."""
 
 from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch

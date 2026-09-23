@@ -1,61 +1,12 @@
-"""The skirmish AI fallback: give a faction a working AI on a map that carries no
-`Skirmish<Faction>` side for it.
+"""Give a faction a working AI on a skirmish map that has no `Skirmish<Faction>` side for it.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/skirmish-ai-fallback.md``.
+A map holds at most twenty sides, many lack one per faction, and a faction without one becomes a
+human player nobody drives. A `.skfall` section redirects two windows in `Player::initFromDict`:
+when no side matches, the player falls back to its faction's `DefaultPlayerAIType` and runs that
+type's library scripts. Skirmish only (the scan runs only for `playerIsSkirmish` players); never
+overrides a side the map has.
 
-**The defect.** A map declares one `Skirmish<Faction>` side per faction its AI can play, and
-`SidesList` holds twenty sides, full stop - `SidesList::addSide` (``0x0072EA27``) opens
-``cmp edi, 0x14`` and refuses the twenty-first. 63 of the 617 shipped maps are already at that cap,
-106 carry no skirmish side at all, and a faction added to a mod later reaches none of them. What
-happens to a faction with no side is not a crash and not corruption: `Player::initFromDict` scans
-the skirmish sides for one whose faction declares the same `Side` string, finds nothing, and falls
-into the arm that calls `Player::setPlayerType` with ``push edi`` - and ``edi`` is zero through the
-whole function. **Type 0 is `PLAYER_HUMAN`**, so the slot is set up as a human nobody is driving.
-No `AIPlayer`, no `AISkirmishPlayer`, no orders.
-
-**What the side actually supplies.** Two things, and neither of them needs to come from a map.
-The first is the `isSkirmish` argument that makes `setPlayerType` allocate an `AISkirmishPlayer`
-(``0xa4``, ctor ``0x008F3DF3``) rather than the legacy `AIPlayer` or nothing. The second is the
-faction's **AI script library**: `SidesList::prepareForMP` stamps each skirmish side's dict with
-*that side's* faction's `DefaultPlayerAIType`, then `0x007318A1` resolves it through
-`TheAIPlayerTypeStore` and merges the named `LibraryMap` into the side, and `initFromDict` copies
-the matched side's script list onto the player. That is why a *borrowed* side is not good enough -
-it brings the lender's library, so a Rohan AI on Angmar's side would run ``ki angmar``.
-
-**What this does.** Appends a ``.skfall`` PE section holding two small routines and redirects two
-five-byte windows in `Player::initFromDict` into them.
-
-* At `PLAYER_SKIRMISH_ROUTE`, when the scan reported no matching side, the cave clears that flag
-  and writes ``2`` into the found flag, so the stock fall-through runs `setPlayerType(1, 2)` -
-  `PLAYER_COMPUTER`, `isSkirmish` non-zero, hence an `AISkirmishPlayer`. Only the low byte of the
-  found flag is ever read (`setPlayerType` tests it ``cmp byte``), so ``2`` is both a working truth
-  value and a marker the second hook recognises.
-* At `PLAYER_SKIRMISH_IMPORT`, a found flag of ``2`` means "synthesised": the cave writes the
-  player's **own** `PlayerTemplate::DefaultPlayerAIType` into the player's **own** side dict and
-  calls `SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE` on its side index, then jumps to the same
-  continuation the stock "nothing to import" edge uses. ``0`` and ``1`` keep their stock edges
-  exactly.
-
-`SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE` is the engine's own single-side loader, which builds the
-temporaries the merge needs and has **zero callers in the stock image** - the whole-list sibling is
-what `prepareForMP` uses. Its install step (``0x0072FE23``) appends to the side's script list rather
-than replacing it, which is what makes driving it against a live player side safe.
-
-**Fallback, never override.** Where a `Skirmish<Faction>` side does exist it matches first and both
-hooks return without changing anything, so a map that already works keeps working byte for byte.
-
-**Scope: skirmish only.** The scan the first hook sits at runs only when the player's dict carries
-`playerIsSkirmish`, which the lobby-side builder sets at ``0x006280C7`` only for a skirmish game.
-An online multiplayer player never reaches either decision.
-
-**Determinism.** The fallback changes which AI class a player gets and which scripts it runs, from
-frame 0 - it is logic state, so every peer of a game that does reach it must run the same binary.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the five at
-`PLAYER_SKIRMISH_ROUTE` and the ten at `PLAYER_SKIRMISH_IMPORT`, which no other bundled patch
-touches, and it reads no structure another patch rewrites.
+Derivation: `../docs/skirmish-ai-fallback.md`.
 """
 
 from __future__ import annotations
@@ -143,7 +94,7 @@ _MISSING = PLAYER_SKIRMISH_MISSING_EBP & 0xFF
 
 
 def _assemble(base_va: int) -> Asm:
-    """Both routines, laid out in one cave. `route` is first, so it starts at ``base_va``."""
+    """Both routines, laid out in one cave. `route` is first, so it starts at `base_va`."""
     a = Asm(base_va)
 
     # Called in place of `cmp byte [ebp-0x25], al` / `jne 0x006B0A20`, and returns into the stock
@@ -213,12 +164,12 @@ def _assemble(base_va: int) -> Asm:
 
 
 def build_code(base_va: int) -> bytes:
-    """The cave, laid out at ``base_va``."""
+    """The cave, laid out at `base_va`."""
     return _assemble(base_va).finish()
 
 
 def entry_points(base_va: int) -> tuple[int, int]:
-    """``(route, import)`` - the virtual address each hook calls, read off the emitted layout
+    """`(route, import)` - the virtual address each hook calls, read off the emitted layout
     rather than counted by hand."""
     a = _assemble(base_va)
     a.finish()

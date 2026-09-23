@@ -1,57 +1,12 @@
-"""The unit-plate-option patch: a real Options-screen row, and a model that obeys it.
+"""Add a 20th row to the shell Options screen and make one model name obey it, so Edain's unit
+plates become a player setting instead of a submod.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. The options-screen half is
-derived in ``../docs/options-menu-rows.md``; the parse-time gate is derived below.
+Three hooks and one cave: the options screen shows the row, `AptOptions::Save` writes its key
+alongside the six stock ones (spliced in before `UserPreferences::write` at `0x009204DC`), and the
+`Model =` parser substitutes `None` for `unit_plate` unless the option is on. Needs a matching
+gadget in `Options.apt`; takes effect at the next launch.
 
-**The gap.** Edain's `unit_plate.inc` puts a `W3DScriptedModelDraw` tagged `Module_UnitPlate` on
-552 unit objects, drawing the model ``unit_plate`` under every unit as a house-coloured
-identification disc. The shipped game carries the draw module but **not** the model, so the plate
-is invisible; a submod that ships nothing but ``art\\w3d\\un\\unit_plate.w3d`` turns it on for
-everybody, permanently, with no way back. Players want the disc, and players want it off - it is
-one extra render object per unit, which a late-game battle multiplies by four figures.
-
-**What it does.** Adds a 20th option to the shell Options screen and makes one model name obey it.
-Three hooks, one cave:
-
-1. **The row** - `AptOptions::InitGadgets` is an inlined ladder of `stricmp`s with no table to
-   extend, so the cave takes over the ladder's entry branch (`0x00920602`), answers for its own
-   gadget name, and hands every other name back to the stock ladder. Matching means remembering
-   the gadget and seeding the checkbox from the preference.
-2. **The save** - `AptOptions::Save` writes only six hardcoded keys, so the cave splices itself in
-   front of the `UserPreferences::write` at `0x009204DC`, adds its own key to the map the stock
-   code is about to flush, and then flushes it.
-3. **The model** - the `ModelConditionState` ``Model =`` field parser substitutes ``None`` for one
-   named model unless the preference reads ``yes``.
-
-**Why the "off" state is safe.** It is not new engine behaviour. A draw module whose model is
-``None`` is still constructed, still tagged and still house-colourable; it just has no geometry -
-which is exactly the state the shipped game is in today, and exactly what `unit_plate_remover.inc`
-already produces on 78 shipped child objects.
-
-**Why the model name and not the module tag.** Both are uniform across the 552 objects, but the
-model name is what the renderer consumes, and ``unit_plate.inc`` is a single file - so the INI side
-is one line under the mod's control, not a convention 552 files have to keep.
-
-**When it takes effect.** The model substitution happens once per ``Model =`` line at INI parse
-time, so a change of preference is visible at the next launch, not mid-match, and costs nothing per
-frame. The checkbox itself always shows the *saved* value: the row reads the preference fresh,
-while the model gate reads it once per launch and caches it, because constructing an
-`OptionPreferences` parses the whole of `Options.ini`.
-
-**The movie is a separate, required half.** Hooks 1 and 2 do nothing until `Options.apt` declares a
-gadget with the matching instance name - a `placeobject` plus a label character, described in
-``../docs/options-menu-rows.md`` §4. Applying this patch without that movie edit is inert rather
-than harmful: the ladder arm never matches, and `Save` finds no gadget and writes nothing.
-
-**Determinism.** Nothing here enters the simulation. The model name lives on client-side draw
-module data and the preference is a per-machine file; no logic module, model-condition bit or
-`GameMessage` is involved, and two peers disagreeing about the preference disagree about nothing
-that is sent, checksummed or saved. Like `observer-switch` and unlike `production-condition`, it
-does not have to be on every peer.
-
-**Composition.** Order-independent. It allocates its cave with `allocate_section` and edits twenty
-bytes at three sites (`0x004C2266`, `0x00920602`, `0x009204D9`) that no other bundled patch
-touches, and reads nothing another patch rewrites.
+Derivation: `../../docs/options-menu-rows.md`.
 """
 
 from __future__ import annotations
@@ -97,7 +52,7 @@ from ...addresses import (
 )
 from ...asm import JE, JNE, JNZ, JZ, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import allocate_section, apply_byte_patch, find_section, jmp_rel32, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -158,7 +113,7 @@ ANCHORS = {
     APT_OPTIONS_SAVE: APT_OPTIONS_SAVE_BYTES,
 }
 
-#: ``(address, stock bytes)`` for each of the three hooks, so `apply` writes exactly what `verify`
+#: `(address, stock bytes)` for each of the three hooks, so `apply` writes exactly what `verify`
 #: asserts and neither can drift from the other.
 _HOOKS = (
     (MODEL_FIELD_STORE, MODEL_FIELD_STORE_BYTES, "model"),
@@ -210,9 +165,9 @@ def build_cave(
 def _emit_model_hook(a: Asm, model_va: int, none_va: int) -> None:
     """The six bytes lifted out of `MODEL_FIELD_STORE`, with the substitution in front of them.
 
-    Entered with the parser's own frame still live, so ``[ebp-0x10]`` is the model-name token the
+    Entered with the parser's own frame still live, so `[ebp-0x10]` is the model-name token the
     stock code is about to copy into an `AsciiString`. `pushad`/`popad` spans the decision because
-    the parser holds the target object in ``ebx`` and its own state in ``esi``/``edi`` across this
+    the parser holds the target object in `ebx` and its own state in `esi`/`edi` across this
     point; the substitution is written to memory, which `popad` does not undo.
     """
     a.label("model")
@@ -239,8 +194,8 @@ def _emit_arm(a: Asm, base_va: int, gadget_va: int) -> None:
     """The 20th ladder arm, spliced into the ladder's entry branch.
 
     Entered by an unconditional `jmp` that replaces `jne 0x920791`, so the flags from the
-    `Options::Resolution` comparison are still live and the branch is re-taken here. ``edi`` is the
-    `AptOptions`, ``esi`` the gadget and ``[ebp+8]`` the gadget's instance name, exactly as every
+    `Options::Resolution` comparison are still live and the branch is re-taken here. `edi` is the
+    `AptOptions`, `esi` the gadget and `[ebp+8]` the gadget's instance name, exactly as every
     stock arm sees them. Both exits are stock instruction boundaries.
     """
     a.label("arm")
@@ -275,8 +230,8 @@ def _emit_save(a: Asm, base_va: int, key_va: int, yes_va: int, no_va: int) -> No
 
     Spliced in front of `UserPreferences::write` rather than after it, so the new key rides the
     same flush the six stock keys do. `Save`'s frame is still live: the `OptionPreferences` sits at
-    ``[ebp-0x34]`` and its map at ``[ebp-0x30]``, and ``edi`` is the `AptOptions` whose gadget this
-    has to be. `pushad`/`popad` spans the insertion because the stock code after it reads ``edi``.
+    `[ebp-0x34]` and its map at `[ebp-0x30]`, and `edi` is the `AptOptions` whose gadget this
+    has to be. `pushad`/`popad` spans the insertion because the stock code after it reads `edi`.
     """
     a.label("save")
     a.emit(0x60)  # pushad
@@ -323,7 +278,7 @@ def _emit_save(a: Asm, base_va: int, key_va: int, yes_va: int, no_va: int) -> No
 
 
 def _emit_enabled(a: Asm, state_va: int) -> None:
-    """``bool enabled()`` - the preference, resolved once per launch and cached.
+    """`bool enabled()` - the preference, resolved once per launch and cached.
 
     The `Model =` parser runs thousands of times per launch and reading a preference parses the
     whole of `Options.ini`, so it is asked exactly once. The Options row deliberately does *not*
@@ -345,7 +300,7 @@ def _emit_enabled(a: Asm, state_va: int) -> None:
 
 
 def _emit_read_fresh(a: Asm) -> None:
-    """``bool read_fresh()`` - construct an `OptionPreferences`, read the key, destroy it.
+    """`bool read_fresh()` - construct an `OptionPreferences`, read the key, destroy it.
 
     0x80 bytes of stack is comfortably more than the object needs and costs nothing to
     over-reserve. `ebx`/`esi`/`edi` are preserved because both callers hold live values in them.
@@ -369,11 +324,11 @@ def _emit_read_fresh(a: Asm) -> None:
 
 
 def _emit_read(a: Asm, key_va: int) -> None:
-    """``bool read(OptionPreferences *this)`` - `OPTION_PREFERENCES_GET_BOOL` with our key.
+    """`bool read(OptionPreferences *this)` - `OPTION_PREFERENCES_GET_BOOL` with our key.
 
     Instruction for instruction the engine's own accessor: look the key up in the map at
-    ``this+4``, and answer true only if the stored value is ``yes``. A key that is not in the file
-    lands on the same ``xor al, al`` the stock routine uses, so an untouched `Options.ini` reads as
+    `this+4`, and answer true only if the stored value is `yes`. A key that is not in the file
+    lands on the same `xor al, al` the stock routine uses, so an untouched `Options.ini` reads as
     off - which is the shipped behaviour.
     """
     a.label("read")
@@ -421,15 +376,6 @@ def _emit_read(a: Asm, key_va: int) -> None:
     a.emit(0xC3)  # ret
 
 
-def _jmp_bytes(at: int, target: int, width: int) -> bytes:
-    """A `jmp rel32` sited at ``at``, padded with `nop` to ``width``.
-
-    Padding rather than splitting: every hook here displaces whole instructions, and a `jmp` that
-    left a fragment of one behind would be entered part-way through on the return path.
-    """
-    return b"\xe9" + struct.pack("<i", target - (at + 5)) + b"\x90" * (width - 5)
-
-
 class UnitPlateOptionPatch(Patch):
     name = "unit-plate-option"
     author = "officialNecro"
@@ -460,14 +406,14 @@ class UnitPlateOptionPatch(Patch):
         return build_cave(base_va, self.model, self.key, self.gadget)
 
     def _edits(self, section_va: int) -> list[tuple[int, bytes, bytes, str]]:
-        """``(virtual address, original bytes, patched bytes, note)`` for all three hooks, from one
+        """`(virtual address, original bytes, patched bytes, note)` for all three hooks, from one
         layout - so nothing can be pointed at a routine that moved."""
         labels = self._cave(section_va).label_va
         return [
             (
                 va,
                 stock,
-                _jmp_bytes(va, labels(label), len(stock)),
+                jmp_rel32(va, labels(label), len(stock)),
                 f"{label} hook -> {SECTION_NAME}",
             )
             for va, stock, label in _HOOKS

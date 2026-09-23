@@ -240,7 +240,7 @@ class ReplayTimestamp:
 
     @staticmethod
     def parse(stream: BinaryStream) -> ReplayTimestamp:
-        return ReplayTimestamp(*(stream.readUInt16() for _ in range(8)))
+        return ReplayTimestamp(*(stream.read_uint16() for _ in range(8)))
 
     def __str__(self) -> str:
         return (
@@ -318,7 +318,7 @@ class ReplaySlot:
         the result. `raw` is still the answer for an Empty slot, whose single character carries
         no fields to rebuild from.
 
-        `ReplayMetadata` came out of parsing replays, where nothing is ever written back — but
+        `ReplayMetadata` came out of parsing replays, where nothing is ever written back - but
         the engine's *lobby* file holds the same string, so this is what makes a match
         configurable. `tools/skirmish_config.py` is the caller.
         """
@@ -420,7 +420,7 @@ class ReplayMetadata:
 
     @staticmethod
     def parse(stream: BinaryStream, game_type: ReplayGameType) -> ReplayMetadata:
-        return ReplayMetadata.from_string(stream.readNullTerminatedAsciiString(), game_type)
+        return ReplayMetadata.from_string(stream.read_null_terminated_ascii_string(), game_type)
 
     @staticmethod
     def from_string(raw: str, game_type: ReplayGameType) -> ReplayMetadata:
@@ -601,8 +601,8 @@ class ReplayHeader:
     def parse(stream: BinaryStream) -> ReplayHeader:
         game_type = ReplayHeader._parse_game_type(stream)
 
-        start_time = datetime.fromtimestamp(stream.readUInt32(), tz=UTC)
-        end_time = datetime.fromtimestamp(stream.readUInt32(), tz=UTC)
+        start_time = datetime.fromtimestamp(stream.read_uint32(), tz=UTC)
+        end_time = datetime.fromtimestamp(stream.read_uint32(), tz=UTC)
 
         crc_interval = 0
         abnormal_end_frame: int | None = None
@@ -618,21 +618,21 @@ class ReplayHeader:
             # truncates frame counts past 65535 - the EA layout is authoritative. They
             # consume the same 14 bytes the corpus-validated BFME2 branch spends on its
             # 17-byte block's first 14, so the reads stay aligned regardless.
-            num_timecodes = stream.readUInt32()
-            desync = stream.readUChar() != 0
-            quit_early = stream.readUChar() != 0
-            player_disconnects = tuple(stream.readUChar() != 0 for _ in range(8))
+            num_timecodes = stream.read_uint32()
+            desync = stream.read_uchar() != 0
+            quit_early = stream.read_uchar() != 0
+            player_disconnects = tuple(stream.read_uchar() != 0 for _ in range(8))
         else:
-            num_timecodes = stream.readUInt32()
-            crc_interval = stream.readUInt32()
-            raw_abnormal = stream.readUInt32()
+            num_timecodes = stream.read_uint32()
+            crc_interval = stream.read_uint32()
+            raw_abnormal = stream.read_uint32()
             abnormal_end_frame = None if raw_abnormal == 0xFFFFFFFF else raw_abnormal
-            reserved1 = stream.readBytes(9)
+            reserved1 = stream.read_bytes(9)
 
-        filename = stream.readNullTerminatedUnicodeString()
+        filename = stream.read_null_terminated_unicode_string()
         timestamp = ReplayTimestamp.parse(stream)
-        version = stream.readNullTerminatedUnicodeString()
-        build_date = stream.readNullTerminatedUnicodeString()
+        version = stream.read_null_terminated_unicode_string()
+        build_date = stream.read_null_terminated_unicode_string()
 
         version_minor: int | None = None
         version_major: int | None = None
@@ -641,17 +641,17 @@ class ReplayHeader:
         data_checksum = 0
         reserved2 = b""
         if game_type is ReplayGameType.Generals:
-            version_minor = stream.readUInt16()
-            version_major = stream.readUInt16()
-            exe_crc = stream.readUInt32()
-            ini_crc = stream.readUInt32()
+            version_minor = stream.read_uint16()
+            version_major = stream.read_uint16()
+            exe_crc = stream.read_uint32()
+            ini_crc = stream.read_uint32()
         else:
-            data_checksum = stream.readUInt32()
-            reserved2 = stream.readBytes(5)
+            data_checksum = stream.read_uint32()
+            reserved2 = stream.read_bytes(5)
 
         metadata = ReplayMetadata.parse(stream, game_type)
 
-        local_player_raw = stream.readNullTerminatedAsciiString()
+        local_player_raw = stream.read_null_terminated_ascii_string()
         local_player_index = _to_int(local_player_raw, -1)
 
         custom_heroes: list[bytes] = []
@@ -666,11 +666,11 @@ class ReplayHeader:
             # The per-player flag list consumed one byte per player from the trailing header
             # block; the remainder (validated at 24 - len(players) across the corpus) carries
             # the same (…, 0, 1, 1, 0, 0) closing words as unknown_tail. Keep it raw.
-            custom_hero_tail = stream.readBytes(24 - len(metadata.players))
+            custom_hero_tail = stream.read_bytes(24 - len(metadata.players))
             tail: tuple[int, ...] = ()
         else:
             tail_words = 4 if game_type is ReplayGameType.Generals else 6
-            tail = tuple(stream.readUInt32() for _ in range(tail_words))
+            tail = tuple(stream.read_uint32() for _ in range(tail_words))
 
         difficulty: int | None = None
         original_game_mode: int | None = None
@@ -725,9 +725,9 @@ class ReplayHeader:
         left untouched when it does not match. Returns the per-player flag vector and the raw
         blobs (see `custom_hero_flags` / `custom_heroes`)."""
         start = stream.tell()
-        flag = stream.readUChar()
-        stream.readUInt32()  # length
-        magic = stream.readBytes(8)
+        flag = stream.read_uchar()
+        stream.read_uint32()  # length
+        magic = stream.read_bytes(8)
         stream.seek(start)
         if flag != 1 or magic != _CUSTOM_HERO_MAGIC:
             return (), []
@@ -735,15 +735,15 @@ class ReplayHeader:
         flags: list[int] = []
         heroes: list[bytes] = []
         for _ in range(num_players):
-            flags.append(stream.readUChar())
+            flags.append(stream.read_uchar())
             if flags[-1] == 1:
-                length = stream.readUInt32()
-                heroes.append(stream.readBytes(length))
+                length = stream.read_uint32()
+                heroes.append(stream.read_bytes(length))
         return tuple(flags), heroes
 
     @staticmethod
     def _parse_game_type(stream: BinaryStream) -> ReplayGameType:
-        magic = stream.readBytes(8)
+        magic = stream.read_bytes(8)
         if magic.startswith(b"GENREP"):
             stream.seek(6)  # GENREP magic is only six bytes
             return ReplayGameType.Generals
@@ -806,13 +806,13 @@ class ReplayChunk:
 
     @staticmethod
     def parse(stream: BinaryStream) -> ReplayChunk:
-        timecode = stream.readUInt32()
-        order_type = stream.readUInt32()
-        number = stream.readUInt32()
+        timecode = stream.read_uint32()
+        order_type = stream.read_uint32()
+        number = stream.read_uint32()
 
-        num_unique_argument_types = stream.readUChar()
+        num_unique_argument_types = stream.read_uchar()
         argument_counts = [
-            (stream.readUChar(), stream.readUChar()) for _ in range(num_unique_argument_types)
+            (stream.read_uchar(), stream.read_uchar()) for _ in range(num_unique_argument_types)
         ]
 
         order = Order(player_index=number - 1, order_type=order_type)
@@ -840,28 +840,28 @@ class ReplayChunk:
 def _read_argument(stream: BinaryStream, argument_type: OrderArgumentType) -> object:
     match argument_type:
         case OrderArgumentType.Integer:
-            return stream.readInt32()
+            return stream.read_int32()
         case OrderArgumentType.Float:
-            return stream.readFloat()
+            return stream.read_float()
         case OrderArgumentType.Boolean:
-            return stream.readBoolChecked()
+            return stream.read_bool_checked()
         case OrderArgumentType.ObjectId:
-            return stream.readUInt32()
+            return stream.read_uint32()
         case OrderArgumentType.Position:
-            return stream.readVector3()
+            return stream.read_vector3()
         case OrderArgumentType.ScreenPosition:
-            return (stream.readInt32(), stream.readInt32())
+            return (stream.read_int32(), stream.read_int32())
         case OrderArgumentType.ScreenRectangle:
-            return tuple(stream.readInt32() for _ in range(4))
+            return tuple(stream.read_int32() for _ in range(4))
         case OrderArgumentType.DrawableId | OrderArgumentType.TeamId:
-            return stream.readUInt32()
+            return stream.read_uint32()
         case OrderArgumentType.Timestamp:
             # Rides only the `0x44A` heartbeat in BFME2; the stream lands exactly on EOF.
-            return stream.readUInt32()
+            return stream.read_uint32()
         case OrderArgumentType.WideChar:
             # A single UTF-16 code unit - two bytes on disk, not four (unattested in the
             # BFME2 corpus, so this shape is structural rather than corpus-validated).
-            return stream.readBytes(2)
+            return stream.read_bytes(2)
 
 
 def integer_arguments(chunk: ReplayChunk) -> list[int | str]:

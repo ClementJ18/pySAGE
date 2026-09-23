@@ -15,6 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from sage_utils.cli import existing_file, utf8_stdout
 from sage_verify.report import Report
 
 __all__ = ["main"]
@@ -127,12 +128,12 @@ def _attest(args: argparse.Namespace) -> int:
     return 1
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sage-verify", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
     watch = sub.add_parser("watch", help="judge a replay's orders against live visibility")
-    watch.add_argument("replay", help="the .BfME2Replay file being played back")
+    watch.add_argument("replay", type=existing_file, help="the .BfME2Replay file being played back")
     watch.add_argument("--pid", type=int, default=None, help="game.dat pid (default: find it)")
     watch.add_argument(
         "--max-lag",
@@ -152,10 +153,17 @@ def main(argv: list[str] | None = None) -> int:
     watch.set_defaults(func=_watch)
 
     attest = sub.add_parser("attest", help="compare a running client against a patched game.dat")
-    attest.add_argument("game_dat", help="the patched game.dat the client should be running")
+    attest.add_argument(
+        "game_dat", type=existing_file, help="the patched game.dat the client should be running"
+    )
     attest.add_argument("--pid", type=int, default=None, help="game.dat pid (default: find it)")
     attest.set_defaults(func=_attest)
+    return parser
 
+
+def main(argv: list[str] | None = None) -> int:
+    utf8_stdout()
+    parser = build_parser()
     args = parser.parse_args(argv)
     return int(args.func(args))
 

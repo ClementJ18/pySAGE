@@ -1,47 +1,12 @@
-"""The script debug window's log, appended instead of rebuilt.
+"""Make the script debug window append each log line instead of rebuilding its whole text.
 
-**Targets `DebugWindowLite.dll`, not `game.dat`** - the 172,032-byte MFC 7.1 dialog that ships
-beside the game and that both `-scriptDebug2` and `-scriptDebugLite` load. Every address below is
-derived in ``../docs/script-debug-window.md``.
+Targets `DebugWindowLite.dll`, not `game.dat`. The dialog rebuilds the window text from every
+message logged so far on each new line, so logging cost grows quadratically and stalls the game on
+script-heavy maps. The `call updateDisplay` in its append method (`0x100034C5`) goes to a `.dbgwnd`
+cave that appends the line with `EM_REPLACESEL`; both exports (`AppendMessage`,
+`AppendMessageAndPause`) funnel through it. Reloc-free.
 
-**The defect.** The dialog keeps every message of the session in a `std::vector<std::string>` at
-`+0xEC` and rebuilds the whole window text from it on **every** appended line: `0x10002680` walks
-the vector from the first message ever logged, concatenates each entry plus ``"\\r\\n"`` into one
-string, hands the result to `SetWindowTextA`, and drives the caret to the end. So the cost of
-message *N* is proportional to *N*, and a session's total is quadratic - the game thread blocking
-in USER32 for all of it, inside the logic frame that produced the message. With a script-heavy map
-the window's own redraw is what makes the game stutter.
-
-Nothing trims the vector either. Its only clear (`0x10003440`) is referenced from one dword in the
-dialog's MFC message map, so the log is emptied by a human clicking Clear and by nothing else.
-
-**What this does.** Appends a `.dbgwnd` PE section and redirects the five bytes at `0x100034C5` -
-the ``call updateDisplay`` inside the dialog's append method - into it. The cave appends the new
-line to the edit control with `EM_REPLACESEL` and never rebuilds anything, so the per-line cost
-stops depending on how much has already been logged. Both exports funnel through the hooked
-method (`AppendMessage` at `0x1000165E`, `AppendMessageAndPause` at `0x100016CE`), so one hook
-covers both.
-
-**The pane next door already does it right**, which is why this reads as an oversight rather than
-a design: `AdjustVariable` sets a dirty byte at `+0xDA` and lets `SetFrameNumber` rebuild the
-variables list at most once a frame. The message pane has no such flag.
-
-**The `push_back` is left standing**, so the vector still records every line and the Clear button
-still works - it empties the vector and calls the stock rebuild, which now writes an empty buffer
-over the control. The log's *memory* therefore still grows without bound. That is a second defect
-and it is not fixed here.
-
-**No INI change, and no `game.dat` change.** This patch is applied to the DLL:
-``sage-patch apply script-debug-window --in DebugWindowLite.dll.backup --out DebugWindowLite.dll``.
-
-**Reloc-free.** The DLL carries a `.reloc` section and can therefore be rebased, and this patch
-writes no relocation entries, so the cave contains no absolute operand. The two imports it needs
-are reached by recovering the load address from a ``call``/``pop`` pair, and the ``"\\r\\n"`` it
-appends is built on the stack rather than pointed at in `.rdata`.
-
-**Composition.** Nothing else in this package touches this binary, so the question is close to
-moot - but the cave is allocated with :func:`~..utils.allocate_section` and located by name in
-:meth:`verify` all the same, so a second DLL patch would compose with it.
+Derivation: `../docs/script-debug-window.md`.
 """
 
 from __future__ import annotations
@@ -71,7 +36,7 @@ DIALOG_APPEND_MESSAGE = 0x100034B0
 #: moved fails here rather than redirecting some other five bytes.
 UPDATE_DISPLAY = 0x10002680
 
-#: The ``call updateDisplay`` at the end of `DIALOG_APPEND_MESSAGE`, and its stock encoding.
+#: The `call updateDisplay` at the end of `DIALOG_APPEND_MESSAGE`, and its stock encoding.
 HOOK_VA = 0x100034C5
 HOOK_ORIGINAL = bytes.fromhex("e8b6f1ffff")
 
@@ -100,7 +65,7 @@ EM_SETSEL = 0x00B1
 EM_SCROLLCARET = 0x00B7
 EM_REPLACESEL = 0x00C2
 
-#: ``"\r\n"`` with its terminator, as the immediate of a ``push`` - the cave builds the separator
+#: `"\r\n"` with its terminator, as the immediate of a `push` - the cave builds the separator
 #: on the stack so that it needs no address, and therefore no relocation entry.
 CRLF_IMMEDIATE = 0x00000A0D
 
@@ -120,14 +85,14 @@ ANCHORS = {
     0x1000272C: bytes.fromhex("8b3d40930110"),  # mov edi,[SendMessageA], inside the rebuild
 }
 
-#: ``push 0`` / ``push eax`` / ``push ebx``, as the argument forms `_send_message` takes.
+#: `push 0` / `push eax` / `push ebx`, as the argument forms `_send_message` takes.
 _PUSH_ZERO = bytes((0x6A, 0x00))
 _PUSH_EAX = bytes((0x50,))
 _PUSH_EBX = bytes((0x53,))
 
 
 def _send_message(a: Asm, message: int, wparam: bytes, lparam: bytes) -> None:
-    """``SendMessageA(esi, message, wparam, lparam)``, through the IAT slot `edi` points at.
+    """`SendMessageA(esi, message, wparam, lparam)`, through the IAT slot `edi` points at.
 
     Arguments go on in reverse, so `lparam` is emitted first. `esi` holds the edit control's
     `HWND` throughout the cave and the callee cleans the stack, so nothing here disturbs it."""
@@ -141,7 +106,7 @@ def build_code(base_va: int) -> bytes:
     """The replacement for the rebuild: append this one line to the edit control.
 
     Entered by `call` from `HOOK_VA` with `ecx` still holding the dialog (the stock
-    ``mov ecx, esi`` one instruction earlier) and the `std::string *` argument of the append
+    `mov ecx, esi` one instruction earlier) and the `std::string *` argument of the append
     method five slots up the stack. Returns to `HOOK_VA + 5`, where the stock epilogue pops `esi`
     and returns, so the cave preserves `ebx`, `esi` and `edi` and clobbers only `eax`."""
     a = Asm(base_va)
@@ -198,6 +163,7 @@ def build_code(base_va: int) -> bytes:
 class ScriptDebugWindowPatch(Patch):
     name = "script-debug-window"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop the script debug window rebuilding its whole log on every line, which makes the "
         "game stutter worse the longer it runs. Applied to DebugWindowLite.dll, not game.dat. No "

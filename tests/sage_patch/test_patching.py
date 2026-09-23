@@ -2,9 +2,7 @@
 
 import argparse
 import inspect
-import itertools
 import logging
-import re
 import struct
 from pathlib import Path
 
@@ -13,17 +11,18 @@ import pytest
 from sage_ini.engine import STOCK
 from sage_ini.model.enums import CreateAHeroFaction
 from sage_patch import CahFactionsPatch, CommandSetLimitPatch, Patch, apply_patches
+from sage_patch.__main__ import build_parser, main
 from sage_patch.addresses import (
     CONTROL_BAR_MAX_VISIBLE,
     CONTROL_BAR_RANGE_FETCH,
     CONTROL_BAR_RANGE_FETCH_BYTES,
     CONTROL_BAR_RANGE_FETCH_RESUME,
 )
-from sage_patch.cli import build_parser, main
 from sage_patch.patcher import EXPERIMENTAL_WARNING
 from sage_patch.patches import cah_factions as cf
 from sage_patch.patches import commandset as cs
 from sage_patch.patches.commandset import MAX_COUNT, MIN_COUNT
+from sage_patch.readme import sync
 from sage_patch.registry import PATCHES
 from sage_patch.utils import (
     align_up,
@@ -34,39 +33,11 @@ from sage_patch.utils import (
     hexbytes,
     image_base,
     next_section_rva,
+    read_cstring,
     va_to_offset,
 )
 
 _ENGINE = Path(__file__).resolve().parents[2] / "sage_patch" / "engine"
-_PATCH_README = Path(__file__).resolve().parents[2] / "sage_patch" / "README.md"
-#: How the README's experimental warning counts them - in words, as prose does.
-_NUMBER_WORDS = {
-    1: "one",
-    2: "two",
-    3: "three",
-    4: "four",
-    5: "five",
-    6: "six",
-    7: "seven",
-    8: "eight",
-    9: "nine",
-    10: "ten",
-    11: "eleven",
-    12: "twelve",
-    13: "thirteen",
-    14: "fourteen",
-    15: "fifteen",
-    16: "sixteen",
-    17: "seventeen",
-    18: "eighteen",
-    19: "nineteen",
-    20: "twenty",
-    21: "twenty-one",
-    22: "twenty-two",
-    23: "twenty-three",
-    24: "twenty-four",
-    25: "twenty-five",
-}
 
 
 def _tiny_pe() -> bytearray:
@@ -346,29 +317,6 @@ class TestExperimentalPatchesAreDeclared:
             marked = "exp" in line.removeprefix(name).split()[:1]
             assert marked == cls.experimental, f"{name}'s row disagrees with its flag: {line!r}"
 
-    def test_the_readme_names_exactly_the_experimental_patches(self):
-        """The third place the same fact is written down, and the only one not executable: the
-        warning at the top of `sage_patch/README.md` names them one by one, for a reader deciding
-        what to apply before they ever run `list`. Moving a patch in or out of the package is a
-        move plus the attribute; this is what stops the prose being left behind - it had gone
-        stale at "Six" when two more patches were moved in."""
-        lines = _PATCH_README.read_text(encoding="utf-8").splitlines()
-        start = next(i for i, line in enumerate(lines) if "Experimental patches" in line)
-        quote = "\n".join(itertools.takewhile(lambda row: row.startswith(">"), lines[start + 1 :]))
-        # Only the opening sentence lists them; the paragraphs after it explain what it means.
-        named = set(re.findall(r"\*\*`([a-z0-9-]+)`\*\*", quote.split("are **experimental")[0]))
-        actual = {name for name, cls in PATCHES.items() if cls.experimental}
-
-        assert named == actual, (
-            f"the README's experimental warning is out of step with the registry - "
-            f"missing {sorted(actual - named)}, wrongly named {sorted(named - actual)}. Update the "
-            f"list (and the count that opens it) at the top of sage_patch/README.md."
-        )
-        # The sentence opens by counting them, in words, so the count drifts as silently as the list
-        assert _NUMBER_WORDS[len(actual)] in quote.split("**")[0].lower(), (
-            f"the README's warning does not open by counting {len(actual)} patches"
-        )
-
     def test_apply_warns_before_it_writes(self, tmp_path, caplog):
         """A `WARNING` rather than a print, so it reaches a caller who never configured logging -
         Python's last-resort handler puts warnings on stderr with no setup at all, which `log.info`
@@ -456,20 +404,9 @@ class TestPatchesAreListedInOneOrder:
     def test_the_subcommand_lists_are_in_it(self, verb):
         assert self._subcommands(verb) == self._expected()
 
-    def test_the_readme_walks_them_in_it_too(self):
-        """The one list nothing generates: the entry per patch in `sage_patch/README.md`, which is
-        where somebody browsing for a patch actually reads them. It covers most of the registry
-        rather than all of it, so what is checked is the relative order of the entries it does
-        carry - and, with it, that the experimental ones sit together at the end."""
-        found = re.findall(r"^- \*\*`([a-z0-9-]+)`\*\*", _PATCH_README.read_text("utf-8"), re.M)
-        named = [name for name in found if name in PATCHES]
-        assert len(named) > len(PATCHES) // 2, (
-            "the README's per-patch entries moved or changed shape"
-        )
-        assert named == [name for name in self._expected() if name in set(named)], (
-            "sage_patch/README.md lists its patch entries in a different order from `sage-patch "
-            "list` - settled first, then experimental, each block alphabetical by name"
-        )
+
+def test_the_readme_patch_table_is_current():
+    assert sync(check=True), "sage_patch/README.md is out of date: run python -m sage_patch.readme"
 
 
 class TestNameTableTokensHaveAWorldbuilderTwin:
@@ -544,34 +481,6 @@ class TestNameTableTokensHaveAWorldbuilderTwin:
                     f"{name} patches Worldbuilder.exe but reports an INI surface. The surface "
                     "belongs on the game-side half, which is what `.sagepatch` describes."
                 )
-
-    def test_the_readme_names_every_worldbuilder_patch(self):
-        """The one place this is written down that nothing executes: the opening paragraph of
-        `sage_patch/README.md` counts the Worldbuilder patches and names them, for a reader
-        working out which binaries a build touches before they run anything. A twin added without
-        it leaves the prose saying a build needs one file fewer than it does."""
-        blocks = _PATCH_README.read_text(encoding="utf-8").split("\n\n")
-        paragraph = next(block for block in blocks if "**twins**" in block)
-        # Backticked names without a dot: the patch names, as against `game.dat`, the build string
-        # and `lotrbfme2ep1.exe`, which the same paragraph also mentions.
-        named = {n for n in re.findall(r"`([A-Za-z0-9_.-]+)`", paragraph) if "." not in n}
-        worldbuilder = {n for n, cls in PATCHES.items() if _targets_worldbuilder(cls)}
-
-        assert named <= set(PATCHES), (
-            f"the README's opening paragraph names {sorted(named - set(PATCHES))}, which is not a "
-            "registered patch"
-        )
-        assert worldbuilder <= named, (
-            f"the README's opening paragraph does not name {sorted(worldbuilder - named)}. Add it "
-            "there (and update the counts, which are spelled out in words)."
-        )
-        twins = {n for n in worldbuilder if n.endswith("-wb")}
-        assert f"{_NUMBER_WORDS[len(worldbuilder)].capitalize()} patch `Worldbuilder.exe`" in (
-            paragraph
-        ), f"the README does not open by counting {len(worldbuilder)} Worldbuilder patches"
-        assert f"the {_NUMBER_WORDS[len(twins)]} **twins**" in paragraph, (
-            f"the README does not count {len(twins)} twins"
-        )
 
 
 class TestParameterizedPatchesRecoverTheirParameters:
@@ -1084,7 +993,7 @@ def _cave(data, patch):
     base_va, off, _vsize = find_section(data, cf._SECTION_NAME)
     count = patch.entry_count
     ptrs = struct.unpack_from(f"<{count + 1}I", data, off)
-    names = [cf._read_cstring(data, p) for p in ptrs[:-1]]
+    names = [read_cstring(data, p) for p in ptrs[:-1]]
     return base_va, off, names, ptrs[-1]
 
 

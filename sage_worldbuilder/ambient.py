@@ -1,4 +1,4 @@
-"""Ambient sounds placed on the map (PLAN.md 5.9): what View > Listen To Map plays, and Validation >
+"""Ambient sounds placed on the map: what View > Listen To Map plays, and Validation >
 Remove MinVolume Customization.
 
 An object's ambient sound is its own `objectSoundAmbient` when that names one, else its template's

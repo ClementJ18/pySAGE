@@ -1,108 +1,14 @@
-"""The render-rate patch: draw at more than 30 fps without the game running faster.
+"""Draw at more than 30 fps without the game running faster.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001`` **as Edain ships it**. Every
-address below is derived in ``../docs/render-rate.md``; §-references are to that document.
+SAGE simulates at 5 logic frames and draws at 30, but the wrap ending a logic frame (`0x0063264A`)
+compares against a literal 6 instead of the rate ratio, so raising the frame limit speeds up the
+simulation. The patch moves the client rate and that literal together, rederives four constants
+folded from the client rate, and fixes what that breaks: the once-per-logic-frame latch, the
+interpolation alpha's denominator, the CPU and GPU particle rates, and the spell store.
+`FramesPerSecondLimit` in the mod's `GameData` must match. Edain's binary only. Played in network
+matches with no desync.
 
-**What the engine does today.** SAGE simulates at 5 logic frames per second and draws at 30, and
-the two are already decoupled: `TheGameEngine` keeps a sub-frame counter at ``+0x34``, a ratio at
-``+0x38`` and an interpolation alpha at ``+0x3C`` that the render path lerps transforms with. What
-welds them back together is one comparison — the wrap that ends a logic frame (``0x0063264A``) is
-written against a **literal 6** rather than against the ratio the engine derives from the two
-rates. So raising `FramesPerSecondLimit` alone does not buy frames; it makes the simulation run
-faster, which is the complaint this patch exists to answer.
-
-**What this does.** Moves the client rate and that literal together, rederives the four constants
-the compiler folded from the client rate, and fixes the four things doing that breaks:
-
-- the once-per-logic-frame latch (§9.2). Its predicate answers ``subFrame == 6 / (clientRate /
-  [0x00ECA400])``, and at 60 that names sub-frame 1 — which is **never observable**, because the
-  wrap sets the counter to 1 and Edain's always-running catch-up loop bumps it to 2 inside the
-  same logic step. Every `previous = current` latch behind it stops firing and animations freeze.
-  Holding the quotient at 3 keeps the answer on sub-frame 2 at any rate. One dword.
-- the interpolation alpha's denominator (§9.10). The wrap's new value has to be written to the
-  recompute gate at ``0x00632604`` as well, because the alpha is ``subFrame / [TheGameEngine+0x38]``
-  and that field is what the recompute sets. Gated on sub-frame 1 - which the catch-up loop steps
-  past inside the same logic step, exactly as in §9.2 - the recompute never fires, and `+0x38` is
-  left to `0x006323D2`'s one-way `inc`. That site is unreachable without a network object, so the
-  defect is invisible in single-player and in replays and compounds all match online: measured at
-  ratio 14 on the host and **31 on the off-host** against a wrap of 12, which is a **20x** velocity
-  spike at the logic-frame boundary where a correct build at any rate is 2x. One imm8, and the same
-  mistake §9.2 already caught once.
-- the particle rate (§9.4). `ParticleSystemManager::update` runs once per client frame from the
-  draw path, and particle lifetimes are counted in *updates*, so at 60 every effect in the game
-  runs at double speed. The cave stamps the manager with ``clientFrame * 30 / clientRate`` instead
-  of the raw frame — a tick that advances 30 times a second whatever the client rate is — and lets
-  the engine's own compare and store do the rest. Measured live at 0.500 steps per client frame.
-- the **GPU** particle rate (§9.11), which is a second clock and needed a second fix. A
-  `Type = GPU_PARTICLE` system is never aged by the walk above, so that cave never reached it:
-  `GPUParticleSystemStorageModule` reads the W3D millisecond clock and converts it to frames with
-  ``ms * clientRate * 0.001`` at four sites, recovering the *client* frame count at any rate. Each
-  becomes ``imul eax, eax, 30`` — the authored rate — which is three bytes for seven and no cave at
-  all. Measured live at rate 60 before the fix: **1.920** GPU ticks per §9.4 tick, and a
-  `BarrageExplosion` particle stamped with a birth *client* frame against the authored lifetime of
-  30 beside it, giving it 0.50 s of life where the author wrote 1.00 s. Confirmed correct in play
-  on 2026-08-27.
-- the spell store (§9.6). `AptSpellStore::update` sends a button's state to the movie only when it
-  differs from the value it cached at ``this+0x2AC``, and writes that cache whether or not the
-  movie accepted the message — while the movie is entitled to drop one silently, both before the
-  button clip exists and before its `open` flag is set at frame 19 of `_fade_in`. The losing side
-  of that race is measured in *movie* frames, which advance with the client rate, so raising the
-  rate leaves the spellbook showing nothing purchasable however many points the player has. The
-  fix is two hooks: `AptSpellStore::OnInitialized` stamps all twenty slots with ``-1`` and records
-  the millisecond, and `update`'s button loop then does nothing for :data:`DEFER_MS` before
-  running for the first time — so the twenty sends go out once each, late enough for the movie to
-  accept them. Diagnosed and proved by intervention in a live 60 fps match: writing that sentinel
-  by hand, seconds after the panel opened, lit the book immediately and the next click bought the
-  power.
-
-  **The deferral is the half that does the work.** Invalidating on `OnInitialized` alone is a
-  no-op, and was tried: that callback is what sets ``+0x2A0``, the flag `update` checks before it
-  does anything, so the first update after it is the same pass the original send was already
-  happening on. Nothing moves unless the loop is also held off.
-
-**This is the Edain binary's patch, not stock SAGE's.** ``0x00ECA400`` does not exist on a stock
-`game.dat`: there the same predicate divides by the logic rate and the catch-up loop is dormant, so
-sub-frame 1 *is* observable and the latch needs no help — and a different edit besides. §0 of the
-doc has the full diff. :meth:`_anchor_problems` refuses anything that is not the Edain shape rather
-than writing a dword into whatever happens to live at that address.
-
-**`FramesPerSecondLimit` in the mod's `GameData` must be set to the same number.** The patch owns
-the client rate; the INI owns the pace, through `TheGameEngine+0x0C`, and it lives inside the
-`.big` archives where no patch reaches it. Left at 30 against a 60 fps binary, **the whole game
-runs at half speed** — measured 2.67 Hz logic against the 5.67 Hz it should have (§9.3). Nothing
-warns, nothing crashes; it is just slow. This is the one thing a mod has to write.
-
-**What is still wrong**, and is a defect rather than a gap in testing. The simulation
-runs **7–11% slow** at 60 (§9.5): Edain's always-running catch-up loop spends an extra sub-frame
-per logic frame, and the frame limiter truncates ``1000/60`` to 16 ms. That shifts replay timing
-and every peer's, so a match between a patched and an unpatched binary is not a match. A handful of
-client-frame constants outside the §1 block are also unrescaled (§9.7), the visible one being an
-animation blend weight that completes transitions in half the intended wall-clock time.
-
-**Determinism, and where multiplayer actually stands.** Both things that blocked network play have
-been answered. The *stutter* was §9.10's recompute gate - a bug in this patch rather than a
-property of the approach - and it is fixed. The *divergence* is the one that follows from the
-design: the wrap counts *client* frames and the limiter is a ceiling, so the logic rate is the
-frame rate the machine actually achieves divided by the ratio, not the rate the binary names. At
-stock that is invisible because every machine renders 30; at 60 it means each peer simulates at a
-speed set by its graphics performance (§9.9). That arithmetic still holds. What does **not** hold
-is the conclusion once drawn from it. Played on 2026-08-26 between peers at *different* achieved
-frame rates - the condition it predicts should diverge - the match ran clean, no desync and none
-of the 2026-08-23 stutter that §9.10 has since explained. Lockstep absorbs the difference the way
-it absorbs ordinary jitter. So this is **no longer single-player and replays only**; the
-wall-clock wrap §6 scopes would remove the term outright and is still the better design, but it is
-not a prerequisite for a match. That result is a field observation rather than an instrumented
-one - per-peer rates were not logged and `desync-watch` was not run on both sides - so treat a
-*bound* on how far peers may drift as still unmeasured.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. No other bundled patch touches the pacing block, the wrap, the
-timecode strides, `ParticleSystemManager::update`, the GPU particle module's clock or
-`AptSpellStore::OnInitialized`.
-
-**The spell store fix is not rate-specific**, and ships here because this is where the bug is
-seen: the same race can tip on a stock 30 fps build, where nothing installs this. If it wants to
-reach those installs it has to become a patch of its own.
+Derivation: `../docs/render-rate.md`.
 """
 
 from __future__ import annotations
@@ -112,7 +18,7 @@ from typing import TYPE_CHECKING
 
 from ..asm import JB, JE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, jmp_rel32, va_to_offset
 
 if TYPE_CHECKING:
     import argparse
@@ -205,7 +111,7 @@ GET_FRAME_SLOT = 0x7C
 
 #: The GPU particle module's own clock (§9.11), and the four sites that convert it.
 #:
-#: A `Type = GPU_PARTICLE` system is never aged by the walk :data:`PARTICLE_GATE` sits in front of,
+#: A `Type = GPU_PARTICLE` system is never aged by the walk `PARTICLE_GATE` sits in front of,
 #: so §9.4's cave does not reach it. `GPUParticleSystemStorageModule` reads the W3D millisecond
 #: clock at `0x00DD1E0C` and turns it into frames itself - `mov eax, [millis]` / `imul eax,
 #: [clientRate]` / `fild` / `fmul 0.001` - which recovers the *client* frame count at any rate.
@@ -322,7 +228,7 @@ def derived_floats(fps: int) -> dict[int, bytes]:
     }
 
 
-#: The four §1 floats belong in :data:`ANCHORS` too, and are folded in here rather than written
+#: The four §1 floats belong in `ANCHORS` too, and are folded in here rather than written
 #: out: `derived_floats` is the one definition of what the compiler emitted, and a literal copy
 #: beside it is a second one to keep in step.
 ANCHORS.update(derived_floats(STOCK_CLIENT_RATE))
@@ -351,7 +257,7 @@ def gpu_clock_bytes() -> bytes:
 def latch_divisor(fps: int) -> int:
     """`[0x00ECA400]`, chosen so the once-per-logic-frame latch keeps firing (§9.2).
 
-    `0x0063252F` answers ``subFrame == 6 / (clientRate / [0x00ECA400])``, or ``subFrame == 1``
+    `0x0063252F` answers `subFrame == 6 / (clientRate / [0x00ECA400])`, or `subFrame == 1`
     once that quotient reaches 6 - and sub-frame 1 is never observable by client code on this
     build. Measured live over 373 client frames: the counter took 2..6 at rate 30 and 2..12 at
     rate 60, never 1. Keeping the quotient at 3 keeps the answer on sub-frame 2 at any rate, and
@@ -365,7 +271,7 @@ def particle_gate_code(base_va: int) -> bytes:
 
     The manager stamps `this+0x74` with a tick and skips its update when the tick has not moved.
     Stock puts the raw client frame there, so at 60 it steps twice as often as the content was
-    authored for. This puts ``clientFrame * 30 / clientRate`` there instead and lets the engine's
+    authored for. This puts `clientFrame * 30 / clientRate` there instead and lets the engine's
     own compare and store do the rest.
 
     The divisor is read from `.data` rather than folded in, so the cave and the constant this
@@ -398,7 +304,7 @@ def state_reset_code(base_va: int, tick_va: int) -> bytes:
     **The stamp is the point.** Invalidating the cache here is on its own a no-op: this callback
     is what sets `+0x2A0`, the flag `update` checks before it does anything, so the first update
     after it is the same pass the original send was already happening on. What makes the
-    invalidation matter is :func:`defer_code` holding the loop off for :data:`DEFER_MS` after this
+    invalidation matter is `defer_code` holding the loop off for `DEFER_MS` after this
     stamp, so that when the twenty sends finally go out the movie is built and can accept them.
 
     `ecx` is saved across the call because it is `this` and the loop below needs it; `eax` is the
@@ -425,9 +331,9 @@ def state_reset_code(base_va: int, tick_va: int) -> bytes:
 def defer_code(base_va: int, tick_va: int) -> bytes:
     """The second half: hold `update`'s button loop off until the movie can accept a state.
 
-    Runs in place of the loop's head. Until :data:`DEFER_MS` has passed since the stamp, it takes
+    Runs in place of the loop's head. Until `DEFER_MS` has passed since the stamp, it takes
     the loop's own "all twenty done" exit, so `update` finishes the pass having sent nothing and
-    the cache stays at the `-1` :func:`state_reset_code` wrote. On the first pass after that it
+    the cache stays at the `-1` `state_reset_code` wrote. On the first pass after that it
     performs the two displaced instructions and drops into the loop, which finds a mismatch on
     every slot and sends the lot - once each, so every button's state animation plays normally.
 
@@ -474,12 +380,12 @@ def cave_code(base_va: int) -> bytes:
 
 
 def state_reset_entry(cave_va: int) -> int:
-    """Where :func:`state_reset_code` starts, given the section base."""
+    """Where `state_reset_code` starts, given the section base."""
     return _layout(cave_va)[1]
 
 
 def defer_entry(cave_va: int) -> int:
-    """Where :func:`defer_code` starts, given the section base."""
+    """Where `defer_code` starts, given the section base."""
     return _layout(cave_va)[2]
 
 
@@ -488,19 +394,12 @@ def tick_stamp(cave_va: int) -> int:
     return _layout(cave_va)[3]
 
 
-def _hook(site_va: int, cave_va: int, width: int) -> bytes:
-    """`jmp rel32` to the cave, `nop`-padded to the width of the window it replaces."""
-    jump = b"\xe9" + struct.pack("<i", cave_va - (site_va + 5))
-    if width < len(jump):
-        raise ValueError(f"the window at 0x{site_va:08X} is too narrow for a near jump")
-    return jump + b"\x90" * (width - len(jump))
-
-
 class RenderRatePatch(Patch):
-    """Draw at ``fps`` client frames per second while the simulation stays at its own rate."""
+    """Draw at `fps` client frames per second while the simulation stays at its own rate."""
 
     name = "render-rate"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Draw at N frames per second instead of 30 without the simulation speeding up, "
         "interpolating drawables between logic frames. One INI change and it is required: set "
@@ -532,9 +431,9 @@ class RenderRatePatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch at ``fps`` (an empty list ==
-        verified). Locates the ``.fxrate`` cave, recomputes it and every edit from ``fps``, and
-        re-checks the anchors the patch reads but does not rewrite. Reads only via ``struct`` and
+        """Structural check that `data` carries this patch at `fps` (an empty list ==
+        verified). Locates the `.fxrate` cave, recomputes it and every edit from `fps`, and
+        re-checks the anchors the patch reads but does not rewrite. Reads only via `struct` and
         the section table - no disassembler."""
         located = find_section(data, SECTION_NAME)
         if located is None:
@@ -562,7 +461,7 @@ class RenderRatePatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> RenderRatePatch | None:
-        """Recognise this patch **and recover its N** from ``data``.
+        """Recognise this patch **and recover its N** from `data`.
 
         The default probe cannot: it would ask `verify` about 60 and call every other rate absent.
         The client rate is a plain dword in `.data`, so N reads straight back out of it, and
@@ -630,9 +529,9 @@ class RenderRatePatch(Patch):
         return problems
 
     def _edits(self, data: bytes | bytearray, cave_va: int) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, stock, patched, note)``.
-        Shared by :meth:`apply`, which writes ``patched`` where ``stock`` matches, and
-        :meth:`verify`, which asserts ``patched`` is there."""
+        """Every byte range this patch rewrites, as `(file offset, stock, patched, note)`.
+        Shared by `apply`, which writes `patched` where `stock` matches, and
+        `verify`, which asserts `patched` is there."""
         fps, ratio = self.fps, self.ratio
         stride = max(10, ratio)
         stock = derived_floats(STOCK_CLIENT_RATE)
@@ -679,10 +578,10 @@ class RenderRatePatch(Patch):
             if offset is None:
                 raise ValueError(f"{note}: VA 0x{va:08X} is not mapped")
             if va == PARTICLE_GATE:
-                new = _hook(PARTICLE_GATE, cave_va, len(PARTICLE_GATE_STOCK))
+                new = jmp_rel32(PARTICLE_GATE, cave_va, len(PARTICLE_GATE_STOCK))
             elif va == STATE_RESET:
-                new = _hook(STATE_RESET, state_reset_entry(cave_va), len(STATE_RESET_STOCK))
+                new = jmp_rel32(STATE_RESET, state_reset_entry(cave_va), len(STATE_RESET_STOCK))
             elif va == UPDATE_LOOP:
-                new = _hook(UPDATE_LOOP, defer_entry(cave_va), len(UPDATE_LOOP_STOCK))
+                new = jmp_rel32(UPDATE_LOOP, defer_entry(cave_va), len(UPDATE_LOOP_STOCK))
             out.append((offset, old, new, note))
         return out

@@ -1,7 +1,7 @@
 """Jump To Game: the command line that starts the game on the open map, and the match it starts.
 
 The engine finds a user map by the absolute, lowercased path of its folder's parent plus the map's
-file name (`sage_test.runner.install_map`), and a map inside the game's own file system by
+file name (`sage_live.launch.runner.install_map`), and a map inside the game's own file system by
 `maps\\<name>.map`. A map that lives in neither place is copied into the user Maps folder first.
 
 Each loaded mod travels as a `-mod` of its own, in load order. `-file` alone does not set up a match
@@ -12,9 +12,9 @@ only the last one;
 **The match.** Without further arguments the patch starts its own two-seat game. `JumpMatch` is
 the lobby the mapper sets instead - who sits where, their factions, AI difficulty, colours and
 teams, the starting resources and the seed - and it travels as the patch's `-gameInfo` argument
-(`sage_test.game_info`, and §7 of the same document). Seats name their faction and colour rather
-than storing the engine's indices, because the indices are the loaded game's `PlayerTemplate` and
-`MultiplayerColor` order: they are looked up at launch, so a mod that reorders its factions does
+(`sage_live.launch.game_info`, and §7 of the same document). Seats name their faction and colour
+rather than storing the engine's indices, because the indices are the loaded game's `PlayerTemplate`
+and `MultiplayerColor` order: they are looked up at launch, so a mod that reorders its factions does
 not quietly change who the mapper is playing.
 """
 
@@ -27,10 +27,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeGuard
 
-from sage_test.game_info import SLOT_COUNT, LobbySettings, game_info_string
-from sage_test.maps import file_argument
-from sage_test.runner import launch_arguments
-from sage_test.scenario import DIFFICULTIES, Seat
+from sage_live.launch.game_info import SLOT_COUNT, LobbySettings, game_info_string
+from sage_live.launch.maps import file_argument
+from sage_live.launch.runner import launch_arguments
+from sage_live.launch.seats import DIFFICULTIES, Seat
 from sage_utils.views.base import safe
 from sage_worldbuilder.gamedata import GameLayers
 

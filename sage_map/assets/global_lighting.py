@@ -19,6 +19,15 @@ import enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self, cast
 
+__all__ = [
+    "GlobalLight",
+    "GlobalLighting",
+    "GlobalLightingConfiguration",
+    "MapColorArgb",
+    "TimeOfTheDay",
+    "Vector3",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -54,7 +63,7 @@ class MapColorArgb:
 
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
-        value = context.stream.readUInt32()
+        value = context.stream.read_uint32()
         a = (value >> 24) & 0xFF
         r = (value >> 16) & 0xFF
         g = (value >> 8) & 0xFF
@@ -69,7 +78,7 @@ class MapColorArgb:
 
     def write(self, context: "WritingContext") -> None:
         value = (self.a << 24) | (self.r << 16) | (self.g << 8) | self.b
-        context.stream.writeUInt32(value)
+        context.stream.write_uint32(value)
 
 
 @dataclass
@@ -80,9 +89,9 @@ class GlobalLight:
 
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
-        ambient = context.stream.readVector3()
-        color = context.stream.readVector3()
-        direction = context.stream.readVector3()
+        ambient = context.stream.read_vector3()
+        color = context.stream.read_vector3()
+        direction = context.stream.read_vector3()
 
         return cls(
             ambient=ambient,
@@ -91,9 +100,9 @@ class GlobalLight:
         )
 
     def write(self, context: "WritingContext") -> None:
-        context.stream.writeVector3(self.ambient)
-        context.stream.writeVector3(self.color)
-        context.stream.writeVector3(self.direction)
+        context.stream.write_vector3(self.ambient)
+        context.stream.write_vector3(self.color)
+        context.stream.write_vector3(self.direction)
 
 
 # The order of each version's lights, as attribute names.
@@ -177,7 +186,7 @@ class GlobalLighting:
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
             version = asset_ctx.version
-            time = TimeOfTheDay(context.stream.readUInt32())
+            time = TimeOfTheDay(context.stream.read_uint32())
             lighting_configurations = {}
 
             for member in TimeOfTheDay:
@@ -194,26 +203,26 @@ class GlobalLighting:
             unknown3 = None
             if version <= _BFME2_LAST_VERSION:
                 if version >= 5:
-                    overbright = context.stream.readFloat()
+                    overbright = context.stream.read_float()
                 if version >= 6:
-                    bloom_enabled = context.stream.readUInt32()
-                    bloom_infantry = context.stream.readVector3()
+                    bloom_enabled = context.stream.read_uint32()
+                    bloom_infantry = context.stream.read_vector3()
                 if version >= 7:
-                    bloom_terrain = context.stream.readVector3()
-                    bloom_objects = context.stream.readVector3()
+                    bloom_terrain = context.stream.read_vector3()
+                    bloom_objects = context.stream.read_vector3()
                 if context.stream.tell() < asset_ctx.end_pos:
                     shadow_color = MapColorArgb.parse(context)
             else:
                 shadow_color = MapColorArgb.parse(context)
                 if version < 11:
-                    unknown = context.stream.readBytes(4)
+                    unknown = context.stream.read_bytes(4)
                 if version >= 12:
-                    unknown2 = context.stream.readVector3()
+                    unknown2 = context.stream.read_vector3()
                     unknown3 = MapColorArgb.parse(context)
 
             no_cloud_factor = None
             if version >= 8:
-                no_cloud_factor = context.stream.readVector3()
+                no_cloud_factor = context.stream.read_vector3()
 
         context.logger.debug(f"Finished parsing {cls.asset_name}")
         return cls(
@@ -236,7 +245,7 @@ class GlobalLighting:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(self.time_of_the_day.value)
+            context.stream.write_uint32(self.time_of_the_day.value)
 
             for member in TimeOfTheDay:
                 config = self.lighting_configurations[member]
@@ -244,23 +253,23 @@ class GlobalLighting:
 
             if self.version <= _BFME2_LAST_VERSION:
                 if self.version >= 5:
-                    context.stream.writeFloat(cast(float, self.overbright))
+                    context.stream.write_float(cast(float, self.overbright))
                 if self.version >= 6:
-                    context.stream.writeUInt32(cast(int, self.bloom_enabled))
-                    context.stream.writeVector3(cast(Vector3, self.bloom_infantry))
+                    context.stream.write_uint32(cast(int, self.bloom_enabled))
+                    context.stream.write_vector3(cast(Vector3, self.bloom_infantry))
                 if self.version >= 7:
-                    context.stream.writeVector3(cast(Vector3, self.bloom_terrain))
-                    context.stream.writeVector3(cast(Vector3, self.bloom_objects))
+                    context.stream.write_vector3(cast(Vector3, self.bloom_terrain))
+                    context.stream.write_vector3(cast(Vector3, self.bloom_objects))
                 # Optional: parse reads it only when the chunk has bytes left.
                 if self.shadow_color is not None:
                     self.shadow_color.write(context)
             else:
                 cast(MapColorArgb, self.shadow_color).write(context)
                 if self.version < 11:
-                    context.stream.writeBytes(cast(bytes, self.unknown))
+                    context.stream.write_bytes(cast(bytes, self.unknown))
                 if self.version >= 12:
-                    context.stream.writeVector3(cast(Vector3, self.unknown2))
+                    context.stream.write_vector3(cast(Vector3, self.unknown2))
                     cast(MapColorArgb, self.unknown3).write(context)
 
             if self.version >= 8:
-                context.stream.writeVector3(cast(Vector3, self.no_cloud_factor))
+                context.stream.write_vector3(cast(Vector3, self.no_cloud_factor))

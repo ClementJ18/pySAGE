@@ -1,96 +1,12 @@
-"""The player-heal filter: an `ObjectFilter` on `PlayerHealSpecialPower`.
+"""Add an `ObjectFilter` (`HealFilter`) to `PlayerHealSpecialPower`'s heal scan.
 
-Adds one INI keyword - `HealFilter` by default - to `PlayerHealSpecialPower`, narrowing which
-objects the heal actually touches. Targets the ROTWK SAGE-engine `game.dat` build
-``2.01.2614.37001``. Every address below is derived in ``../docs/player-heal-filter.md``.
+`PlayerHealSpecialPower::doSpecialPower` screens each candidate by a template flag, the
+`HealAffects` kindof mask and a hardcoded "own player or ally" test, so a mod cannot exclude allies
+or name a unit. The patch grows the `ModuleData` by the filter's four bytes, adds the keyword to the
+field table, and tests the filter in the per-object routine (`HEAL_ONE_VA`). An undeclared filter
+leaves it stock.
 
-**What the engine does today.** `PlayerHealSpecialPower::doSpecialPower` asks
-`ThePartitionManager` for everything within `HealRadius` and hands each candidate to the
-per-object routine at `HEAL_ONE_VA`. That routine screens the candidate three ways: a template
-flag, `HealAffects` (a `KindOfFlags` bitmask, tested at `HEAL_KINDOF_CALL_VA`), and a
-relationship test that accepts the caster's own player outright and otherwise requires
-relationship ``2``. So the only thing a modder can say about *who* gets healed is a `KINDOF`
-mask, and the relationship half is hardcoded: a heal that reaches allied hordes cannot be told
-not to, and one that should only touch a named unit has no way to say so.
-
-**Why this is cheap.** An `ObjectFilter` field in a `ModuleData` is **four bytes** - an index into
-one global interned store (stride ``0x94``, refcounted at ``+0x8C``, "was specified" flag at
-``+0x88``). The `ModuleData` this patch grows already carries three of them, inherited from
-`SpecialAbilityUpdateModuleData`: `AttributeModifierAffects` at ``+0x24``, and
-`RequirementsFilterMPSkirmish`/`RequirementsFilterStrategic` four bytes apart at ``+0x38`` and
-``+0x3C``. So the whole feature is four bytes of allocation size, two repointed branches, one
-relocated field-parse table and a small cave.
-
-**Composition.** Order-independent: the cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name,
-no edited byte is shared with another bundled patch, and the only structures read - the stock
-`PlayerHealSpecialPower` field-parse table and the inherited `SpecialAbilityUpdate` one - are
-tables nothing else rewrites. See the composition contract on :class:`~..patcher.Patch`.
-
-The patch has four parts:
-
-* **The allocation.** ``push 0xAC`` at `MODULEDATA_SIZE_VA` becomes ``push 0xB0``. The field lands
-  at ``0xAC`` in a structure that was otherwise fully packed with no slack, and nothing
-  ``memcpy``s it.
-* **The constructor.** The ``call`` to the stock ctor is redirected through a cave shim that runs
-  it and then default-constructs the new handle. Skipping this would leave the field holding
-  whatever ``operator new`` returned, and the parse function treats any value other than ``-1`` as
-  a live store index to release.
-* **The keyword.** The field-parse table cannot grow in place: it ends at ``0x00C74F30`` where a
-  vtable begins. It is loaded by a single instruction, so the patch copies it into the cave with
-  one appended entry and repoints that one imm32. Lookup is a linear name scan, so appending needs
-  no re-sort.
-* **The test.** The ``call`` that applies `HealAffects` is redirected into a cave that evaluates
-  the filter first. On a reject it returns ``al = 0``, reusing the caller's existing
-  ``test al,al / je`` to skip the candidate before it is healed, before the `HealFX` plays and
-  before the OCL fires.
-
-The two tests are an **AND**: a candidate has to satisfy `HealAffects` *and* the filter, because
-the accepting path tail-calls the `KindOfFlags` test the stub replaced. A `ModuleData` that never
-writes the keyword takes the stock path bit-for-bit.
-
-Why the evaluator and not the wrapper
--------------------------------------
-`0x007640C1` is a convenience wrapper around the real evaluator `OBJECT_FILTER_TEST_VA`, which
-takes **three** arguments: the candidate's `ThingTemplate`, the candidate's `Player`, and the
-**source** `Player` the filter is written from. The wrapper passes its own second parameter
-through as that source, and every stock call site passes ``0``. With a null source the evaluator
-rejects unconditionally at `0x007635F6` whenever the relationship mask is non-zero - so
-relationship tokens routed through the wrapper do not fall back to permissive, they *always*
-return false.
-
-Calling the evaluator directly, with the caster's own controlling player as the third argument,
-makes the mask work: ``ALLIES`` (bit ``0x1``, accepted outright for relationship 2, so it means
-*self and allies*), ``ENEMIES`` (``0x2``), ``NEUTRAL`` (``0x4``) and ``SAME_PLAYER`` (``0x8``,
-relationship 2 *and* matching ``Player+0x54`` - see :data:`~..addresses.PLAYER_INDEX`).
-``SAME_PLAYER`` is the distinction the stock relationship test cannot make, and the one this
-keyword mainly exists for.
-
-The source player is not read out of a frame slot: the per-object routine keeps the module in
-``ebx``, so the cave recomputes it with ``getControllingPlayer([ebx+8])``. That costs five bytes
-more than reading a stack slot and removes the patch's only dependency on a stack frame. What it
-does depend on is the routine's register allocation, so :data:`REGISTER_ANCHORS` pins every
-instruction that establishes it and is asserted before anything is written.
-
-Note that ``ENEMIES`` and ``NEUTRAL`` can only ever narrow to nothing here: the stock relationship
-test runs after this one and rejects everything that is neither the caster's own nor an ally.
-Rejecting them at INI-parse time would mean patching the shared `ObjectFilter` parser, which every
-other filter keyword in the game routes through - so they are documented as useless rather than
-blocked.
-
-``ALLIES`` and ``SAME_PLAYER`` also nest rather than partition: bit ``0x1`` accepts relationship 2
-outright, *before* the player-index comparison. So ``ALLIES`` means "self and allies" and
-``SAME_PLAYER`` means "self only"; "allies but not me" is not expressible with these tokens.
-
-No destructor
--------------
-Unlike the banner-carrier filter, this patch does not release the handle's store refcount when the
-`ModuleData` dies. `PlayerHealSpecialPowerModuleData`'s vtable at ``0x00C75268`` is shared - the
-linker folded it with seven other identical ones - so hooking its destructor would mean giving the
-class a private vtable copy, and the cost is out of proportion to what is leaked: `ModuleData`
-objects are built once per INI object definition, and re-parsing the same field releases the
-previous value inside the parse function, so what stays interned is one store entry (148 bytes)
-per definition that writes the keyword, for the life of the process.
+Derivation: `../docs/player-heal-filter.md`.
 """
 
 from __future__ import annotations
@@ -102,7 +18,15 @@ from sage_ini.engine import Engine, FieldDelta
 
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    call_rel32,
+    find_section,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -119,14 +43,14 @@ __all__ = [
     "PlayerHealFilterPatch",
 ]
 
-#: `newModuleData`'s ``push 0xAC`` - the sole `sizeof(ModuleData)` literal for this class.
+#: `newModuleData`'s `push 0xAC` - the sole `sizeof(ModuleData)` literal for this class.
 MODULEDATA_SIZE_VA = 0x00652370
-#: The ``call`` to the ModuleData constructor, inside `newModuleData`.
+#: The `call` to the ModuleData constructor, inside `newModuleData`.
 MODULEDATA_CTOR_CALL_VA = 0x00652388
 MODULEDATA_CTOR_VA = 0x008CC459
 
 #: The 16-byte-stride field-parse table, and the single imm32 that loads it (inside
-#: ``push 0xc74ec0`` at ``0x008CC292``, so the operand starts one byte later).
+#: `push 0xc74ec0` at `0x008CC292`, so the operand starts one byte later).
 FIELD_TABLE_VA = 0x00C74EC0
 FIELD_TABLE_REF_VA = 0x008CC293
 
@@ -136,14 +60,14 @@ FIELD_TABLE_REF_VA = 0x008CC293
 INHERITED_FIELD_TABLE_VA = 0x00C64DB0
 INHERITED_FIELD_COUNT = 35
 
-#: The per-candidate heal routine, and the ``call`` inside it that applies `HealAffects`.
+#: The per-candidate heal routine, and the `call` inside it that applies `HealAffects`.
 HEAL_ONE_VA = 0x008CC37B
 HEAL_KINDOF_CALL_VA = 0x008CC3A2
-#: __thiscall(ecx=Object*, KindOfFlags*) -> bool, ``ret 4``.
+#: __thiscall(ecx=Object*, KindOfFlags*) -> bool, `ret 4`.
 KIND_OF_MATCHES_VA = 0x0070C548
 
 #: The instructions in `HEAL_ONE_VA`'s preamble that give the cave its registers: the candidate in
-#: ``esi``/``ecx``, the module in ``ebx`` and the `ModuleData` in ``edi``. The cave reads all three,
+#: `esi`/`ecx`, the module in `ebx` and the `ModuleData` in `edi`. The cave reads all three,
 #: and nothing it writes would catch a build that allocated them differently - it would simply
 #: dereference the wrong pointers - so each is asserted before anything is written.
 REGISTER_ANCHORS = (
@@ -167,7 +91,7 @@ PATCHED_MODULEDATA_SIZE = STOCK_MODULEDATA_SIZE + 4
 
 FIELD_ENTRY_SIZE = 16
 
-#: The stock table, in table order, as ``(name, ModuleData offset)``. Used as a fingerprint: all
+#: The stock table, in table order, as `(name, ModuleData offset)`. Used as a fingerprint: all
 #: six names *and* offsets must match before anything is written, which is a far stronger build
 #: check than the size literal alone. Note the order is declaration order, not offset order.
 STOCK_FIELDS = (
@@ -192,34 +116,17 @@ SECTION_NAME = ".hlflt"
 SECTION_CHARACTERISTICS = 0x60000060
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    return None if end < 0 else bytes(data[off : off + end]).decode("latin1")
-
-
 def build_ctor(base_va: int) -> bytes:
     """Run the stock ModuleData constructor, then default-construct the new handle.
 
-    The stock ctor is ``__thiscall`` with no arguments and returns ``this`` in ``eax``, so the
+    The stock ctor is `__thiscall` with no arguments and returns `this` in `eax`, so the
     shim needs no frame of its own - which also keeps it transparent to the unwinder, since the
-    call site it replaces sits inside `newModuleData`'s protected region. ``eax`` is saved across
+    call site it replaces sits inside `newModuleData`'s protected region. `eax` is saved across
     the handle ctor because that one is a full SEH frame and does not preserve it."""
     a = Asm(base_va)
     a.call_absolute(MODULEDATA_CTOR_VA)  # call <stock ctor>    ; eax = this
     a.emit(0x50)  # push eax
-    a.emit(b"\x8d\x88", _u32(FILTER_OFFSET))  # lea ecx, [eax+0xac]
+    a.emit(b"\x8d\x88", u32(FILTER_OFFSET))  # lea ecx, [eax+0xac]
     a.call_absolute(OBJECT_FILTER_CTOR_VA)  # call <handle ctor>
     a.emit(0x58)  # pop eax
     a.emit(0xC3)  # ret
@@ -227,24 +134,24 @@ def build_ctor(base_va: int) -> bytes:
 
 
 def build_filter(base_va: int) -> bytes:
-    """Test the filter against the candidate, then fall through to the ``HealAffects`` test this
+    """Test the filter against the candidate, then fall through to the `HealAffects` test this
     stub replaced.
 
-    On entry ``[esp]`` is the return address into the per-object routine, ``[esp+4]`` is the
-    ``&HealAffects`` argument the caller already pushed, ``ecx`` and ``esi`` are the candidate
-    `Object*`, ``ebx`` is the module and ``edi`` is the `ModuleData`.
+    On entry `[esp]` is the return address into the per-object routine, `[esp+4]` is the
+    `&HealAffects` argument the caller already pushed, `ecx` and `esi` are the candidate
+    `Object*`, `ebx` is the module and `edi` is the `ModuleData`.
 
-    A rejected candidate returns ``al = 0`` and ``ret 4`` - reproducing the callee cleanup of the
+    A rejected candidate returns `al = 0` and `ret 4` - reproducing the callee cleanup of the
     routine it stands in for while telling the caller "does not match", which its existing
-    ``test al,al / je`` turns into a skip. Everything else tail-calls the stock test so its
-    ``ret 4`` lands at the original return address.
+    `test al,al / je` turns into a skip. Everything else tail-calls the stock test so its
+    `ret 4` lands at the original return address.
 
-    ``ecx`` cannot be held across the calls (`isDefined` opens with ``mov ecx, [ecx]``), so the
-    candidate lives on the stack; ``ebx`` and ``edi`` are safe, since every callee is
-    ``__thiscall`` and preserves them."""
+    `ecx` cannot be held across the calls (`isDefined` opens with `mov ecx, [ecx]`), so the
+    candidate lives on the stack; `ebx` and `edi` are safe, since every callee is
+    `__thiscall` and preserves them."""
     a = Asm(base_va)
     a.emit(0x51)  # push ecx            ; save the candidate
-    a.emit(b"\x8d\x8f", _u32(FILTER_OFFSET))  # lea ecx, [edi+0xac]
+    a.emit(b"\x8d\x8f", u32(FILTER_OFFSET))  # lea ecx, [edi+0xac]
     a.call_absolute(OBJECT_FILTER_IS_DEFINED_VA)  # call <isDefined>
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "stock_pop")  # je .stock_pop      ; unwritten -> stock
@@ -257,7 +164,7 @@ def build_filter(base_va: int) -> bytes:
     a.emit(0x50)  # push eax            ; arg2 = candidate's player
     a.emit(b"\x8b\x4c\x24\x08")  # mov ecx, [esp+8]    ; the candidate
     a.emit(b"\xff\x71\x04")  # push dword [ecx+4]  ; arg1 = ThingTemplate*
-    a.emit(b"\x8d\x8f", _u32(FILTER_OFFSET))  # lea ecx, [edi+0xac]
+    a.emit(b"\x8d\x8f", u32(FILTER_OFFSET))  # lea ecx, [edi+0xac]
     a.call_absolute(OBJECT_FILTER_TEST_VA)  # call <evaluator>    ; ret 0xc
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JNE, "stock_pop")  # jne .stock_pop     ; passes -> stock
@@ -315,10 +222,10 @@ class PlayerHealFilterPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch with exactly this keyword (an empty
+        """Structural check that `data` carries this patch with exactly this keyword (an empty
         list == verified). Locates the cave, recomputes the table, string and stubs the keyword
         implies, and compares them and every repointed site to what is on disk. Reads only via
-        ``struct`` + the section table, so verification needs no disassembler."""
+        `struct` + the section table, so verification needs no disassembler."""
         located = find_section(data, SECTION_NAME)
         if located is None:
             return [f"no {SECTION_NAME} section: the file does not carry this patch"]
@@ -360,7 +267,7 @@ class PlayerHealFilterPatch(Patch):
         located = find_section(data, SECTION_NAME)
         if located is None:
             return None
-        keyword = _read_cstring(data, located[0] + KEYWORD_OFFSET)
+        keyword = read_cstring(data, located[0] + KEYWORD_OFFSET)
         if keyword is None:
             return None
         try:
@@ -392,11 +299,11 @@ class PlayerHealFilterPatch(Patch):
     def _compute_section(
         self, data: bytes | bytearray, section_va: int
     ) -> tuple[bytes, tuple[int, int]]:
-        """Return ``(section content, (ctor VA, filter VA))`` for a cave based at ``section_va``.
+        """Return `(section content, (ctor VA, filter VA))` for a cave based at `section_va`.
 
         Layout: the relocated field-parse table, the keyword string it points at, then the two
         stubs. The six stock entries are copied verbatim - including their name pointers, which
-        keep pointing into ``.rdata`` - so their order and their strings are untouched."""
+        keep pointing into `.rdata` - so their order and their strings are untouched."""
         stock = self._read_stock_table(data)
 
         table_size = (len(STOCK_FIELDS) + 2) * FIELD_ENTRY_SIZE  # + the new entry + terminator
@@ -406,7 +313,7 @@ class PlayerHealFilterPatch(Patch):
         while len(blob) % 4:  # keep the stubs dword-aligned
             blob += b"\x00"
 
-        new_entry = _u32(keyword_va) + _u32(OBJECT_FILTER_PARSE_VA) + _u32(0) + _u32(FILTER_OFFSET)
+        new_entry = u32(keyword_va) + u32(OBJECT_FILTER_PARSE_VA) + u32(0) + u32(FILTER_OFFSET)
         table = stock + new_entry + bytes(FIELD_ENTRY_SIZE)  # NULL-terminate
         assert len(table) == table_size
 
@@ -428,7 +335,7 @@ class PlayerHealFilterPatch(Patch):
             name_va, _parse, _userdata, field_off = struct.unpack_from(
                 "<4I", entries, index * FIELD_ENTRY_SIZE
             )
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != name:
                 raise ValueError(f"field table entry {index}: expected {name!r}, found {got!r}")
             if field_off != offset:
@@ -439,7 +346,7 @@ class PlayerHealFilterPatch(Patch):
         return entries
 
     def _read_table(self, data: bytes | bytearray, table_va: int, count: int) -> bytes:
-        """``count`` entries at ``table_va``, checked to be NULL-terminated straight after."""
+        """`count` entries at `table_va`, checked to be NULL-terminated straight after."""
         off = va_to_offset(data, table_va)
         if off is None:
             raise ValueError(f"the field table VA 0x{table_va:08x} is not mapped")
@@ -467,7 +374,7 @@ class PlayerHealFilterPatch(Patch):
         entries = self._read_table(data, INHERITED_FIELD_TABLE_VA, INHERITED_FIELD_COUNT)
         for index in range(INHERITED_FIELD_COUNT):
             name_va = struct.unpack_from("<I", entries, index * FIELD_ENTRY_SIZE)[0]
-            name = _read_cstring(data, name_va)
+            name = read_cstring(data, name_va)
             if name is not None and name.lower() == self.keyword.lower():
                 raise ValueError(
                     f"{self.keyword!r} is already a SpecialAbilityUpdate field, which "
@@ -498,7 +405,7 @@ class PlayerHealFilterPatch(Patch):
         section_va: int,
         stubs: tuple[int, int],
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)``."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)`."""
         ctor_va, filter_va = stubs
         edits: list[tuple[int, bytes, bytes, str]] = []
 
@@ -510,26 +417,26 @@ class PlayerHealFilterPatch(Patch):
 
         at(
             MODULEDATA_SIZE_VA,
-            b"\x68" + _u32(STOCK_MODULEDATA_SIZE),
-            b"\x68" + _u32(PATCHED_MODULEDATA_SIZE),
+            b"\x68" + u32(STOCK_MODULEDATA_SIZE),
+            b"\x68" + u32(PATCHED_MODULEDATA_SIZE),
             "sizeof(PlayerHealSpecialPowerModuleData)",
         )
         at(
             MODULEDATA_CTOR_CALL_VA,
-            _call_bytes(MODULEDATA_CTOR_CALL_VA, MODULEDATA_CTOR_VA),
-            _call_bytes(MODULEDATA_CTOR_CALL_VA, ctor_va),
+            call_rel32(MODULEDATA_CTOR_CALL_VA, MODULEDATA_CTOR_VA),
+            call_rel32(MODULEDATA_CTOR_CALL_VA, ctor_va),
             "ModuleData ctor -> cave",
         )
         at(
             FIELD_TABLE_REF_VA,
-            _u32(FIELD_TABLE_VA),
-            _u32(section_va),
+            u32(FIELD_TABLE_VA),
+            u32(section_va),
             "field-parse table -> cave",
         )
         at(
             HEAL_KINDOF_CALL_VA,
-            _call_bytes(HEAL_KINDOF_CALL_VA, KIND_OF_MATCHES_VA),
-            _call_bytes(HEAL_KINDOF_CALL_VA, filter_va),
+            call_rel32(HEAL_KINDOF_CALL_VA, KIND_OF_MATCHES_VA),
+            call_rel32(HEAL_KINDOF_CALL_VA, filter_va),
             "HealAffects test -> cave",
         )
         return edits

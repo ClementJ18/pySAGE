@@ -1,53 +1,12 @@
-"""The horde member-speed patch: a battalion respects the `SPEED` modifiers on its members.
+"""Make a battalion respect the `SPEED` modifiers on its members.
 
-The reverse engineering behind this is [`../docs/horde-member-speed.md`](
-../docs/horde-member-speed.md). Targets the ROTWK SAGE-engine `game.dat` build
-``2.01.2614.37001``.
+The horde container sets the pace, and `Locomotor::getMaxSpeed` only folds in the modifier of the
+object it was asked about, so a member's `SPEED` changes nothing. The `SPEED` query
+(`LOCOMOTOR_SPEED_MODIFIER_CALL`) goes to a cave that, for a horde, also folds in its members'
+multiplier: the slowest by default, or the fastest with `--aggregate max`. Every peer needs the same
+binary.
 
-**The defect.** A `ModifierList` carrying ``Modifier = SPEED n%``, applied to the *member* of a
-battalion, changes nothing a player can see. A battalion is two kinds of object and only one of
-them is moving: the horde container declares its own `LocomotorSet`, pathfinds, and sets the pace;
-the members are formation slots being dragged along behind it. `SPEED` is folded in per object by
-`Locomotor::getMaxSpeed`, from the speed of *the object it was asked about* - so a member's
-modifier scales the member, which already had headroom it was not using.
-
-Stock RotWK says so in its own tuning. `NORMAL_FOOT_MED_HORDE_SPEED` is 50 and
-`NORMAL_FOOT_MED_MEMBER_SPEED` is 55, the member's deliberately the larger "so when the formation
-wheels the unit can catch up". Raising the 55 buys more catch-up headroom; the 50 is the pace.
-
-**What this does.** Replaces the five bytes of `getMaxSpeed`'s `SPEED` query
-(`LOCOMOTOR_SPEED_MODIFIER_CALL`) with a ``call`` into a cave that forwards to the same
-`Object::getModifierMultiplier` for the object itself and then, **only** for a `KINDOF HORDE`
-object with a contain module, walks the contained-items list and folds in the members' answer to
-the same question. The result the caller sees is ``own x aggregate``.
-
-Members are filtered on `ObjectStatus HORDE_MEMBER`, which `HordeContain::addToContain` clears for
-a `MACHINE`, `HERO` or `SIEGE_TOWER` joining the battalion - so a hero who has joined, carrying
-none of the battalion's upgrades, cannot drag a minimum back down to 1.0.
-
-**The aggregate.** ``min`` by default: a formation moves at the pace of its slowest rank, and
-``SPEED 0%`` is how RotWK's own `attributemodifier.ini` writes "cannot move", where a battalion
-that keeps marching because eleven of twelve members are unrooted is the worse failure.
-``--aggregate max`` is the mirror-image reading, and the safer choice for a mod whose speed buffs
-reach members through something that can miss one.
-
-**It changes nothing where it finds nothing.** With no contributing member the cave takes the
-stock ``al = 0`` arm and the caller skips the multiply byte for byte; a horde whose own modifier
-is the only active one gets ``own x 1.0f``, which is exact. Only a horde with a modifier-carrying
-member sees a different number, which is the whole point.
-
-What it deliberately does not reach: `MinSpeed`, `MinTurnSpeed` and `BackingUpSpeed`, which scale
-the same cached speed and apply no modifier at all in stock either; any modifier type but the one
-the site pushes; and a horde inside a horde, since the walk goes one level.
-
-**Every peer must run the same patched binary.** Movement is simulation state, so a patched and an
-unpatched client diverge the first frame a modified battalion moves, and replays do not cross.
-
-**Composition.** One cave, allocated with :func:`~..utils.allocate_section`; five bytes rewritten
-at an address no other bundled patch touches. It reads the modifier system through the same public
-entry point every other patch does and rewrites none of it, so it is order-independent with
-`healing-received`, `production-split` and anything else that appends a modifier type - the cave
-forwards whatever type the site pushes rather than naming one.
+Derivation: `../docs/horde-member-speed.md`.
 """
 
 from __future__ import annotations
@@ -80,7 +39,7 @@ from ..addresses import (
 )
 from ..asm import JAE, JBE, JE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, u32, va_to_offset
 
 __all__ = [
     "AGGREGATES",
@@ -96,8 +55,8 @@ SECTION_NAME = ".hrdspd"  # 7 chars: the PE name field is 8 bytes and truncates 
 SECTION_CHARACTERISTICS = 0x60000060
 
 #: How a member's multiplier is combined with the running aggregate, as the condition that
-#: **skips** the store. ``min`` keeps the smaller, so it skips when the member's is already the
-#: larger or equal; ``max`` is its mirror.
+#: **skips** the store. `min` keeps the smaller, so it skips when the member's is already the
+#: larger or equal; `max` is its mirror.
 AGGREGATES: dict[str, int] = {"min": JAE, "max": JBE}
 DEFAULT_AGGREGATE = "min"
 
@@ -138,17 +97,8 @@ ANCHORS: dict[int, bytes] = {
 }
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
 def _query(a: Asm) -> Asm:
-    """Emit one `Object::getModifierMultiplier` call on whatever is already in ``ecx``.
+    """Emit one `Object::getModifierMultiplier` call on whatever is already in `ecx`.
 
     The type, the ctx and the flag are the caller's own arguments, forwarded rather than named, so
     the cave is a widening of the query the site already makes and not a differently-shaped second
@@ -164,16 +114,16 @@ def _query(a: Asm) -> Asm:
 
 
 def build_section(base_va: int, aggregate: str = DEFAULT_AGGREGATE) -> bytes:
-    """Return the cave's bytes for a section based at ``base_va``.
+    """Return the cave's bytes for a section based at `base_va`.
 
-    One stub, entered at ``base_va`` by the ``call`` that replaced the stock query, and returning
-    the way the stock callee does - ``al`` for "something contributed", the product through the
-    caller's out pointer, ``ret 0x10``.
+    One stub, entered at `base_va` by the `call` that replaced the stock query, and returning
+    the way the stock callee does - `al` for "something contributed", the product through the
+    caller's out pointer, `ret 0x10`.
 
-    The caller reads ``al``, ``[ebp-8]`` and ``[ebp-4]`` and keeps ``ebx``, ``esi``, ``edi`` and
-    ``ebp`` live across the call, so the stub saves the three it uses and restores ``esp`` from
-    ``ebp``. The accumulators live on the stack rather than in XMM registers because every XMM
-    register is volatile across the two calls the stub makes, and ``ecx`` is re-established from
+    The caller reads `al`, `[ebp-8]` and `[ebp-4]` and keeps `ebx`, `esi`, `edi` and
+    `ebp` live across the call, so the stub saves the three it uses and restores `esp` from
+    `ebp`. The accumulators live on the stack rather than in XMM registers because every XMM
+    register is volatile across the two calls the stub makes, and `ecx` is re-established from
     the list node on every iteration because `getModifierMultiplier` does not preserve it."""
     skip = AGGREGATES[aggregate]
     a = Asm(base_va)
@@ -192,16 +142,16 @@ def build_section(base_va: int, aggregate: str = DEFAULT_AGGREGATE) -> bytes:
     _query(a)
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc_short(JE, "horde")
-    a.emit(b"\xbb", _u32(1))  # mov ebx, 1
+    a.emit(b"\xbb", u32(1))  # mov ebx, 1
     a.emit(b"\xf3\x0f\x10\x45", _OUT)  # movss xmm0, [ebp-8]
     a.emit(b"\xf3\x0f\x11\x45", _OWN)  # movss [ebp-4], xmm0
 
     # Only a horde has members to ask, and only a horde that contains something has a list.
     a.label("horde")
     a.emit(b"\x8b\x47", OBJECT_THING_TEMPLATE)  # mov eax, [edi+4]
-    a.emit(b"\xf6\x80", _u32(KINDOF_HORDE_BYTE), KINDOF_HORDE_BIT)  # test byte [eax+0x115], 0x20
+    a.emit(b"\xf6\x80", u32(KINDOF_HORDE_BYTE), KINDOF_HORDE_BIT)  # test byte [eax+0x115], 0x20
     a.jcc(JE, "done")
-    a.emit(b"\x8b\xbf", _u32(OBJECT_CONTAIN))  # mov edi, [edi+0x258]  ; ContainModuleInterface*
+    a.emit(b"\x8b\xbf", u32(OBJECT_CONTAIN))  # mov edi, [edi+0x258]  ; ContainModuleInterface*
     a.emit(b"\x85\xff")  # test edi, edi
     a.jcc(JE, "done")
     a.emit(b"\x8b\x77", CONTAIN_ITEM_LIST)  # mov esi, [edi+0x34]     ; the sentinel node
@@ -217,13 +167,13 @@ def build_section(base_va: int, aggregate: str = DEFAULT_AGGREGATE) -> bytes:
     a.jcc_short(JE, "next")
     # HORDE_MEMBER: cleared for a MACHINE, HERO or SIEGE_TOWER that joined the battalion, so this
     # is the engine's own answer to "is this one of the rank and file".
-    a.emit(b"\xf6\x80", _u32(_HORDE_MEMBER_BYTE), _HORDE_MEMBER_MASK)
+    a.emit(b"\xf6\x80", u32(_HORDE_MEMBER_BYTE), _HORDE_MEMBER_MASK)
     a.jcc_short(JE, "next")
     a.emit(b"\x8b\xc8")  # mov  ecx, eax
     _query(a)
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc_short(JE, "next")
-    a.emit(b"\xbb", _u32(1))  # mov ebx, 1
+    a.emit(b"\xbb", u32(1))  # mov ebx, 1
     a.emit(b"\xf3\x0f\x10\x45", _OUT)  # movss  xmm0, [ebp-8]
     a.emit(b"\x0f\x2f\x45", _AGG)  # comiss xmm0, [ebp-0xC]
     a.jcc_short(skip, "next")  # min: keep the aggregate when the member's is not smaller
@@ -295,7 +245,7 @@ class HordeMemberSpeedPatch(Patch):
             data,
             off,
             LOCOMOTOR_SPEED_MODIFIER_CALL_BYTES,
-            _call_bytes(LOCOMOTOR_SPEED_MODIFIER_CALL, section_va),
+            call_rel32(LOCOMOTOR_SPEED_MODIFIER_CALL, section_va),
             "Locomotor::getMaxSpeed SPEED query -> horde member-speed cave",
         )
 
@@ -314,7 +264,7 @@ class HordeMemberSpeedPatch(Patch):
                 )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified). Finds
+        """Structural check that `data` carries this patch (an empty list == verified). Finds
         the cave by name, recomputes what it should hold from its own base VA, and compares it and
         the hook to what is on disk."""
         located = find_section(data, SECTION_NAME)
@@ -337,7 +287,7 @@ class HordeMemberSpeedPatch(Patch):
                 *problems,
                 f"{LOCOMOTOR_SPEED_MODIFIER_CALL:#010x} is not mapped by any section",
             ]
-        expected = _call_bytes(LOCOMOTOR_SPEED_MODIFIER_CALL, section_va)
+        expected = call_rel32(LOCOMOTOR_SPEED_MODIFIER_CALL, section_va)
         found = bytes(data[off : off + len(expected)])
         if found == LOCOMOTOR_SPEED_MODIFIER_CALL_BYTES:
             problems.append(

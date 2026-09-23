@@ -158,9 +158,12 @@ from PyQt6.QtWidgets import QWidget
 
 from sage_map.assets.object_list import Object
 from sage_map.assets.river_areas import RiverArea
-from sage_worldbuilder import camera_edit
 from sage_worldbuilder.anchors import shown_position
-from sage_worldbuilder.camera import (
+from sage_worldbuilder.camera import keys as camera_edit
+from sage_worldbuilder.camera.keys import CameraScene
+from sage_worldbuilder.camera.named import focal_length, pose_axes
+from sage_worldbuilder.camera.projection import CameraProjection
+from sage_worldbuilder.camera.view import (
     FIELD_OF_VIEW,
     MAX_DISTANCE,
     MAX_PITCH,
@@ -169,13 +172,10 @@ from sage_worldbuilder.camera import (
     Camera,
     pose_matrix,
 )
-from sage_worldbuilder.camera_edit import CameraScene
-from sage_worldbuilder.cameras import focal_length, pose_axes
 from sage_worldbuilder.changes import Change, ChangeKind, Region
 from sage_worldbuilder.influences import SOUND_FLAG
 from sage_worldbuilder.lighting import LightTarget, scene_lights
 from sage_worldbuilder.models import MapConditions, model_conditions, model_key
-from sage_worldbuilder.projection import CameraProjection
 from sage_worldbuilder.render.art import ArtTextures
 from sage_worldbuilder.render.model_mesh import (
     ModelGeometry,

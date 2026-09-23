@@ -18,7 +18,7 @@ file offset when a byte edit needs one.
 
 **The repo's `game.dat` is not stock.** It carries `cah-factions` (its `.cahfac` section).
 Everything below reads fine against it, but never quote it as evidence of *stock* bytes at a site a
-patch rewrote - check with `python -m sage_patch.cli sagepatch game.dat`, and read a clean
+patch rewrote - check with `python -m sage_patch sagepatch game.dat`, and read a clean
 `game.dat.backup` from an install with `--game` when the distinction matters.
 
 ## 1. Ask the repo before you ask the binary
@@ -28,7 +28,7 @@ in the order to try them:
 
 | where | what it holds | how to ask |
 |---|---|---|
-| `sage_patch/addresses.py` | 400+ named addresses of this build - globals, hooked functions, the labels inside them | `explore.py known 0x9cdf23` (by VA) or `explore.py known PRODUCTION` (by name) |
+| `sage_patch/addresses/` | 400+ named addresses of this build - globals, hooked functions, the labels inside them | `explore.py known 0x9cdf23` (by VA) or `explore.py known PRODUCTION` (by name) |
 | `sage_patch/docs/*.md` | 78 write-ups, each one a finding with its evidence | `grep -rin '9cdf23\|CommandSet' sage_patch/docs` |
 | `sage_patch/patches/*.py` | the patches themselves - every hook site, with the stock bytes asserted in code | `grep -rn '0x5ef716' sage_patch/patches` |
 | `sage_patch/docs/*.json` | the engine's own INI surface, already recovered: name tables, enums, block/module field tables with offsets and defaults | `explore.py enum KindOf`, `explore.py block AutoDepositUpdate` |
@@ -153,7 +153,7 @@ The house shape for a new piece of RE, in order:
 1. **A doc**, `sage_patch/docs/<topic>.md`: what the engine does today, the addresses, the
    disassembly that proves it, and what is still unknown. Every claim carries its evidence - a
    site, an instruction, a live diff - because the next reader cannot re-derive prose.
-2. **The addresses**, into `sage_patch/addresses.py` with the docstring saying where they came from.
+2. **The addresses**, into `sage_patch/addresses/` with the docstring saying where they came from.
    That module is the single home for facts about this build; `sage_live` and the patches both read
    it.
 3. **Only if it becomes a patch**: a `Patch` subclass in `sage_patch/patches/`, registered in

@@ -23,8 +23,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from sage_patch.addresses import (
+    CONDITION_ENABLED,
+    CONDITION_INVERTED,
+    CONDITION_NEXT,
+    CONDITION_TYPE,
+    OR_CONDITION_CONDITIONS,
+    OR_CONDITION_NEXT,
     SCRIPT_ACTIVE,
     SCRIPT_AUTHORED_ACTIVE,
+    SCRIPT_CONDITIONS,
     SCRIPT_COUNTER_IS_SECONDS,
     SCRIPT_COUNTER_IS_TIMER,
     SCRIPT_COUNTER_VALUE,
@@ -66,11 +73,13 @@ from sage_patch.addresses import (
 )
 
 __all__ = [
+    "LiveCondition",
     "LiveScript",
     "LiveScriptGroup",
     "ScriptTree",
     "ScriptVariable",
     "SideScripts",
+    "read_script_conditions",
     "read_script_tree",
     "read_script_variables",
 ]
@@ -82,6 +91,8 @@ _MAX_SIDES = 20
 # Far above any shipped or modded map, and small enough that a cycle ends quickly.
 _MAX_NODES = 50_000
 _MAX_DEPTH = 64
+# Per script: far more clauses and conditions than any editor would let a mapper write.
+_MAX_CONDITIONS = 1024
 _MIN_PTR = 0x10000
 _MAX_PTR = 0x7FFFFFFF
 # An `AsciiString` is one pointer to `{refcount, u16 length, u16 capacity, chars...}`.
@@ -172,6 +183,17 @@ class ScriptTree:
             for script in side.all_scripts()
             if script.name == name
         ]
+
+
+@dataclass(frozen=True)
+class LiveCondition:
+    """One condition as the engine holds it. `type` is the map's own condition id; a disabled
+    condition is skipped by the evaluation, and so counts as passed."""
+
+    address: int
+    type: int
+    enabled: bool
+    inverted: bool
 
 
 @dataclass(frozen=True)
@@ -377,6 +399,39 @@ def read_script_tree(read: Read) -> ScriptTree | None:
     engine = r.pointer(THE_SCRIPT_ENGINE)
     difficulty = r.i32(engine + SCRIPT_ENGINE_DIFFICULTY) if engine is not None else None
     return ScriptTree(sides=sides, difficulty=difficulty)
+
+
+def read_script_conditions(read: Read, script: int) -> tuple[tuple[LiveCondition, ...], ...]:
+    """A script's conditions, clause by clause, in the order the engine evaluates them: the
+    clauses are ORed, the conditions in a clause ANDed."""
+    r = _Reader(read)
+    clauses: list[tuple[LiveCondition, ...]] = []
+    seen: set[int] = set()
+    budget = _MAX_CONDITIONS
+    clause = r.pointer(script + SCRIPT_CONDITIONS)
+    while clause is not None and clause not in seen and budget > 0:
+        seen.add(clause)
+        conditions: list[LiveCondition] = []
+        condition = r.pointer(clause + OR_CONDITION_CONDITIONS)
+        while condition is not None and condition not in seen and budget > 0:
+            seen.add(condition)
+            budget -= 1
+            raw = r.read(condition, CONDITION_INVERTED + 1)
+            if raw is None:
+                break
+            (kind,) = struct.unpack_from("<i", raw, CONDITION_TYPE)
+            conditions.append(
+                LiveCondition(
+                    address=condition,
+                    type=kind,
+                    enabled=bool(raw[CONDITION_ENABLED]),
+                    inverted=bool(raw[CONDITION_INVERTED]),
+                )
+            )
+            condition = r.pointer(condition + CONDITION_NEXT)
+        clauses.append(tuple(conditions))
+        clause = r.pointer(clause + OR_CONDITION_NEXT)
+    return tuple(clauses)
 
 
 def read_script_variables(read: Read) -> list[ScriptVariable]:

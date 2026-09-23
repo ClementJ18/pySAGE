@@ -1,8 +1,8 @@
-"""Tests for the single-file briefing (`sage_ini.brief`) and its `brief` CLI command."""
+"""Tests for the single-file briefing (`sage_ini.agent.brief`) and its `brief` CLI command."""
 
 from sage_ini.__main__ import main
-from sage_ini.brief import build_brief
-from sage_ini.modindex import ModIndex
+from sage_ini.agent.brief import build_brief
+from sage_ini.agent.modindex import ModIndex
 
 
 def _mod(tmp_path):

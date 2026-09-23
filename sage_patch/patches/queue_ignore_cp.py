@@ -1,96 +1,12 @@
-"""The queue-ignore-cp patch: let a button queue production the command-point cap would refuse.
+"""Add `QueueIgnoreCP` to `CommandButton`: an engine press of the button may queue its unit even at
+the command-point cap.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/queue-ignore-cp.md``.
+`DoCommandUpgrade` presses a recruitment button on an object's behalf through the same production
+gate as a click, and the cap is that gate's last refusal. With the field set, that refusal is
+skipped; gold, producer, queue slot and prerequisites are still required. The control bar's own
+availability test is unchanged, so a visible button still refuses a player's click at the cap.
 
-**The gap.** A `CommandButton` can be pressed by the engine as well as by a player:
-`DoCommandUpgrade` looks its `GetUpgradeCommandButtonName` up in `TheControlBar` and calls
-`Object::doCommandButton` with it, which is how a power or a research "clicks" a recruitment
-button on the object's behalf. That press goes through the same gate a human click does -
-`BuildAssistant`'s vtable `+0x64` (`0x00793ECB`) - and that gate's **last** refusal is the
-command-point cap: `hasEnoughCommandPoints` says no, the gate answers 7, and
-`ProductionUpdate::queueCreateUnit` returns FALSE before anything is queued or charged.
-
-For a player that is a click that does nothing and can be repeated. For an upgrade-driven press
-it is the whole feature lost: the upgrade has already been granted, the power has already been
-spent, and nothing will press the button again.
-
-**What this does.** Adds one boolean field, `QueueIgnoreCP`, to `CommandButton`. Default `No`,
-which is stock behaviour; `Yes` means a press of *this* button may queue its unit even when the
-player is at the command-point cap. Nothing else about the gate moves - the button still needs
-the gold, the producer, the queue slot and every prerequisite, and a unit queued this way is
-still charged the moment it is queued.
-
-**The other half is already in the engine.** The queue does not run away with the cap once the
-unit is in it, because the stock `ProductionUpdate::update` refuses to advance a head entry the
-player cannot afford in command points (`0x008A1E27`): it asks the *same* predicate about the
-entry's own template and, when the answer is no, plays EVA message 0x0B for the local player and
-returns before the block that adds this frame's progress. Revives get the same treatment from a
-different direction - `0x008A0669`, called from the top of `update`, pushes the revive's start
-frame out by one frame per tick while the cap holds. So a unit queued through this field sits at
-the head of the queue, charged and waiting, and starts building the moment command points free
-up. That is the behaviour this field is for, and it needed no patching.
-
-Four edits, one cave
---------------------
-1. **The field, in the struct's own padding.** `CommandButton+0x10D` is the alignment gap between
-   `AutoAbility` (a `Bool` at +0x10C) and the `KindOfFlags` at +0x110: no row in the field table
-   names it, the constructor never writes it, and the `memset(this+0x110, 0, 0x1C)` that follows
-   starts past it. ``sizeof`` stays 0x2E0 and `ControlBar::newCommandButton`'s
-   ``operator new(0x2E0)`` is untouched.
-
-2. **The default, for one byte.** `operator new` does not zero the block, so the field still needs
-   initialising. The constructor's ``mov byte [esi+0x10C], bl`` becomes
-   ``mov dword [esi+0x10C], ebx`` - **0x88 to 0x89, six bytes for six** - which leaves
-   `AutoAbility` at `No` and clears +0x10D..+0x10F on the way past. `ebx` is the zero the whole
-   constructor stores from, six bytes earlier included.
-
-3. **The field table moves, and three references are repointed.** The stock table at
-   ``0x00C2BAC8`` is boxed in by its own terminator, so it is rebuilt in the cave - every live
-   row copied verbatim, since their name pointers are absolute, plus one appended `Bool` row and
-   the terminator. The three references are the static accessor at ``0x005DA706`` and the two
-   `push` immediates in the block parser, one for a fresh button and one for an override. The
-   table is walked to its terminator rather than to a count, so no bound is raised anywhere.
-
-4. **Three hooks, and a flag that lives for one call.** The gate takes
-   ``(producer, what, reviveIndex)`` and never sees the button, so the button's answer has to
-   reach it some other way. The two calls to `ProductionUpdate::queueCreateUnit` in
-   `Object::doCommandButton` - the `UNIT_BUILD` case and the `REVIVE` case, five and six bytes,
-   whole instructions both - are wrapped: read `[ebp+8]->QueueIgnoreCP` into a dword in the cave,
-   run the displaced call, clear it. The gate's command-point verdict (eight bytes at
-   ``0x0079402B``) then reads that dword and, when it is set, takes the accept edge instead of
-   pushing 7.
-
-   The flag is therefore only ever non-zero *inside* one `queueCreateUnit` call on the logic
-   thread, which is what makes it safe: no other caller of the gate can observe it, and it cannot
-   survive a frame. It is set and cleared in the same wrapper, so it is re-entrancy-proof by
-   construction rather than by argument.
-
-**What it does not do.** The ControlBar's own availability query is left stock. A *visible*
-button carrying this field is still drawn unavailable while the player is at the cap and still
-answers "not enough command points" when clicked, because that verdict is reached from
-`ControlBar` frames this patch does not hook. The field is for buttons the engine presses -
-`DoCommandUpgrade`, and anything else that reaches `Object::doCommandButton` without going
-through the control bar's own refusal first.
-
-Nor does it touch what the cap *means*: a unit queued past it still costs its command points once
-it exists, `Player+0x68` still counts it, and every other consumer of the cap - the AI's own
-production choices, the palantir readout, `IgnoreCommandPointLimit` on a template - is unchanged.
-
-**Determinism.** The flag is written and read on the logic thread inside one order's execution
-and is zero at every frame boundary, so it is not state a peer can disagree about and nothing the
-engine CRCs changes. What *does* need every peer on the same binary is the consequence: a client
-without the patch refuses the production a patched client accepts, and the two diverge on the
-next frame. And the keyword is fatal on a stock build - SAGE treats an unknown field in a known
-block as a parse error - so a mod using it ships the patched `game.dat` or does not run at all.
-
-**Composition.** Order-independent: the cave is allocated past every existing section, `verify`
-finds it by name, and the field table is located from its live references rather than from the
-stock constant, so it appends to whatever is there. The nearest neighbour is `second-resource`,
-which takes the gate's *money* verdict at ``0x00794013`` - 24 bytes below the command-point one,
-no overlap - and rebuilds three other field tables, not this one. `unique-production-id` rewrites
-`requestUniqueUnitID`, which the two hooked cases call one instruction before the window this
-patch takes.
+Derivation: `../docs/queue-ignore-cp.md`.
 """
 
 from __future__ import annotations
@@ -130,7 +46,15 @@ from ..addresses import (
 )
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    file_offset,
+    find_section,
+    jmp_rel32,
+    read_cstring,
+    u32,
+)
 from .utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 if TYPE_CHECKING:
@@ -173,7 +97,7 @@ _KEYWORD_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
 
 
 def validate_keyword(keyword: str) -> None:
-    """Raise unless ``keyword`` is a token the engine's INI reader could ever match."""
+    """Raise unless `keyword` is a token the engine's INI reader could ever match."""
     if not _KEYWORD_PATTERN.match(keyword):
         raise ValueError(
             "an INI keyword must be letters, digits and underscores starting with a letter "
@@ -181,17 +105,13 @@ def validate_keyword(keyword: str) -> None:
         )
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 @dataclass(frozen=True)
 class _Layout:
     """Where each piece of the cave sits, given its base address, the keyword and how many rows
     the live field table turned out to have.
 
-    Pure arithmetic on those three, so :meth:`QueueIgnoreCpPatch.apply` and
-    :meth:`QueueIgnoreCpPatch.verify` compute the same addresses from opposite directions."""
+    Pure arithmetic on those three, so `QueueIgnoreCpPatch.apply` and
+    `QueueIgnoreCpPatch.verify` compute the same addresses from opposite directions."""
 
     flag_va: int
     keyword_va: int
@@ -200,7 +120,7 @@ class _Layout:
 
 
 #: The flag is the first dword of the cave and the keyword string follows it, both at fixed
-#: offsets - which is what lets :meth:`QueueIgnoreCpPatch.detect` read the keyword back out of a
+#: offsets - which is what lets `QueueIgnoreCpPatch.detect` read the keyword back out of a
 #: binary it knows nothing else about.
 _FLAG_OFFSET = 0
 _KEYWORD_OFFSET = 4
@@ -217,7 +137,7 @@ def _layout(base_va: int, keyword: str, rows: int) -> _Layout:
 def rewritten_default() -> bytes:
     """The constructor's `AutoAbility` store, widened to zero the new field as well.
 
-    ``mov byte [esi+0x10C], bl`` becomes ``mov dword [esi+0x10C], ebx``: one byte changed, six
+    `mov byte [esi+0x10C], bl` becomes `mov dword [esi+0x10C], ebx`: one byte changed, six
     for six, so there is no hook and no displaced instruction. `ebx` is zero throughout the
     constructor - it is what `RequireLevel` is defaulted with six bytes earlier - so `AutoAbility`
     keeps its `No` default and +0x10D..+0x10F are cleared on the way past."""
@@ -245,14 +165,14 @@ def _emit_arm(a: Asm, flag_va: int) -> None:
     holds the button at both call sites. `eax` is the only register touched, and at both sites it
     is dead - it holds the production id, which has already been pushed."""
     a.emit(0x8B, 0x45, DO_COMMAND_BUTTON_BUTTON_EBP)  # mov eax, [ebp+8]      ; the CommandButton
-    a.emit(0x0F, 0xB6, 0x80, _u32(COMMAND_BUTTON_FREE_OFFSET))  # movzx eax, byte [eax+0x10D]
-    a.emit(0xA3, _u32(flag_va))  # mov [flag], eax
+    a.emit(0x0F, 0xB6, 0x80, u32(COMMAND_BUTTON_FREE_OFFSET))  # movzx eax, byte [eax+0x10D]
+    a.emit(0xA3, u32(flag_va))  # mov [flag], eax
 
 
 def _emit_disarm(a: Asm, flag_va: int) -> None:
     """Clear the flag. Touches no register; the flags it sets are dead at both resume addresses,
     which are unconditional jumps to the function's common exit."""
-    a.emit(0x83, 0x25, _u32(flag_va), 0x00)  # and dword [flag], 0
+    a.emit(0x83, 0x25, u32(flag_va), 0x00)  # and dword [flag], 0
 
 
 def build_code(code_va: int, flag_va: int) -> Asm:
@@ -260,7 +180,7 @@ def build_code(code_va: int, flag_va: int) -> Asm:
 
     Two wrappers around `queueCreateUnit`, which raise the flag for exactly the length of the
     call, and the gate's replacement verdict, which is the only thing that reads it. Returned as
-    the :class:`~sage_patch.asm.Asm` rather than as bytes so the caller can take each routine's
+    the `Asm` rather than as bytes so the caller can take each routine's
     address from the same layout that produced them."""
     a = Asm(code_va)
 
@@ -279,7 +199,7 @@ def build_code(code_va: int, flag_va: int) -> Asm:
     a.label("gate")  # in place of 0x0079402B
     a.emit(0x84, 0xC0)  # test al, al                  ; the stock verdict
     a.jcc_short(JNE, "allow")
-    a.emit(0x83, 0x3D, _u32(flag_va), 0x00)  # cmp dword [flag], 0
+    a.emit(0x83, 0x3D, u32(flag_va), 0x00)  # cmp dword [flag], 0
     a.jcc_short(JE, "refuse")
     a.label("allow")
     a.jmp_absolute(BUILD_GATE_COMMAND_POINTS_OK)
@@ -289,41 +209,13 @@ def build_code(code_va: int, flag_va: int) -> Asm:
     return a
 
 
-def _hook(site_va: int, window: bytes, target_va: int) -> bytes:
-    """`jmp rel32` to ``target_va``, padded with `nop` to the width of ``window``."""
-    jump = b"\xe9" + struct.pack("<i", target_va - (site_va + 5))
-    if len(window) < len(jump):
-        raise ValueError(f"the window at 0x{site_va:08x} is too small for a jmp rel32")
-    return jump + b"\x90" * (len(window) - len(jump))
-
-
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA 0x{va:08x} is not mapped - not the expected build")
-    return off
-
-
-def _cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    """The NUL-terminated ASCII string at ``va``, or None if it is unmapped or not one."""
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data).find(b"\x00", off, off + limit)
-    if end < 0:
-        return None
-    try:
-        return data[off:end].decode("ascii")
-    except UnicodeDecodeError:
-        return None
-
-
 class QueueIgnoreCpPatch(Patch):
     """Add a `QueueIgnoreCP` boolean to `CommandButton`, letting a press of that button queue
     production the command-point cap would otherwise refuse."""
 
     name = "queue-ignore-cp"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a QueueIgnoreCP boolean to CommandButton, so a button the engine presses (a "
         "DoCommandUpgrade, say) can queue its unit at the command-point cap - the stock queue "
@@ -366,50 +258,50 @@ class QueueIgnoreCpPatch(Patch):
         self, data: bytes | bytearray, pieces: _Layout, code: Asm
     ) -> list[tuple[int, bytes, bytes, str]]:
         """Every byte this patch writes outside its own cave, as
-        ``(file offset, expected, replacement, note)``."""
+        `(file offset, expected, replacement, note)`."""
         edits: list[tuple[int, bytes, bytes, str]] = [
             (
-                _offset(data, COMMAND_BUTTON_CTOR_AUTO_ABILITY),
+                file_offset(data, COMMAND_BUTTON_CTOR_AUTO_ABILITY),
                 COMMAND_BUTTON_CTOR_AUTO_ABILITY_BYTES,
                 rewritten_default(),
                 f"CommandButton ctor -> {self.keyword} defaults to No",
             ),
             (
-                _offset(data, DO_COMMAND_BUTTON_UNIT_QUEUE),
+                file_offset(data, DO_COMMAND_BUTTON_UNIT_QUEUE),
                 DO_COMMAND_BUTTON_UNIT_QUEUE_BYTES,
-                _hook(
+                jmp_rel32(
                     DO_COMMAND_BUTTON_UNIT_QUEUE,
-                    DO_COMMAND_BUTTON_UNIT_QUEUE_BYTES,
                     code.label_va("unit_build"),
+                    len(DO_COMMAND_BUTTON_UNIT_QUEUE_BYTES),
                 ),
                 f"doCommandButton UNIT_BUILD -> the {SECTION_NAME} queue wrapper",
             ),
             (
-                _offset(data, DO_COMMAND_BUTTON_REVIVE_QUEUE),
+                file_offset(data, DO_COMMAND_BUTTON_REVIVE_QUEUE),
                 DO_COMMAND_BUTTON_REVIVE_QUEUE_BYTES,
-                _hook(
+                jmp_rel32(
                     DO_COMMAND_BUTTON_REVIVE_QUEUE,
-                    DO_COMMAND_BUTTON_REVIVE_QUEUE_BYTES,
                     code.label_va("revive"),
+                    len(DO_COMMAND_BUTTON_REVIVE_QUEUE_BYTES),
                 ),
                 f"doCommandButton REVIVE -> the {SECTION_NAME} queue wrapper",
             ),
             (
-                _offset(data, BUILD_GATE_COMMAND_POINTS),
+                file_offset(data, BUILD_GATE_COMMAND_POINTS),
                 BUILD_GATE_COMMAND_POINTS_BYTES,
-                _hook(
+                jmp_rel32(
                     BUILD_GATE_COMMAND_POINTS,
-                    BUILD_GATE_COMMAND_POINTS_BYTES,
                     code.label_va("gate"),
+                    len(BUILD_GATE_COMMAND_POINTS_BYTES),
                 ),
                 f"the command-point verdict -> the {SECTION_NAME} gate",
             ),
         ]
-        table_ref = _u32(pieces.table_va)
+        table_ref = u32(pieces.table_va)
         for ref_va, opcode in zip(
             COMMAND_BUTTON_FIELD_TABLE_REFS, COMMAND_BUTTON_FIELD_TABLE_REF_OPCODES, strict=True
         ):
-            off = _offset(data, ref_va)
+            off = file_offset(data, ref_va)
             edits.append(
                 (
                     off,
@@ -440,7 +332,7 @@ class QueueIgnoreCpPatch(Patch):
 
         A hook installed inside some other function assembles perfectly and never runs."""
         slot_va = BUILD_ASSISTANT_VTABLE + CAN_MAKE_UNIT_PRODUCTION_GATE_SLOT
-        target = struct.unpack_from("<I", data, _offset(data, slot_va))[0]
+        target = struct.unpack_from("<I", data, file_offset(data, slot_va))[0]
         if target != CAN_MAKE_UNIT_PRODUCTION_GATE:
             raise ValueError(
                 f"vtable slot 0x{slot_va:08x} dispatches to 0x{target:08x}, not "
@@ -453,7 +345,7 @@ class QueueIgnoreCpPatch(Patch):
         A duplicate row would parse - the reader takes the first match and the engine would never
         complain - so the field would exist and silently do nothing."""
         entries = read_field_table(data, table_va)
-        by_name = {_cstring(data, name): offset for name, _fn, _ud, offset in entries}
+        by_name = {read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
         for field, want in FINGERPRINT.items():
             got = by_name.get(field)
             if got != want:
@@ -470,7 +362,7 @@ class QueueIgnoreCpPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> QueueIgnoreCpPatch | None:
-        """Recognise this patch **and recover its keyword** from ``data``.
+        """Recognise this patch **and recover its keyword** from `data`.
 
         The default probe would only ever recognise the default keyword. The keyword string sits
         at a fixed offset in the cave, right behind the flag, so it reads straight back out;
@@ -478,7 +370,7 @@ class QueueIgnoreCpPatch(Patch):
         located = find_section(data, SECTION_NAME)
         if located is None:
             return None
-        keyword = _cstring(data, located[0] + _KEYWORD_OFFSET)
+        keyword = read_cstring(data, located[0] + _KEYWORD_OFFSET)
         if keyword is None:
             return None
         try:
@@ -494,8 +386,8 @@ class QueueIgnoreCpPatch(Patch):
         return Engine(fields=(FieldDelta("CommandButton", self.keyword, "Bool", False, self.name),))
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch for exactly this keyword. Reads only
-        via ``struct`` and the section table, so it needs no disassembler.
+        """Structural check that `data` carries this patch for exactly this keyword. Reads only
+        via `struct` and the section table, so it needs no disassembler.
 
         Every address is recovered from where the cave actually landed rather than from where it
         would land on a clean image, so a build carrying another patch's section too verifies the
@@ -530,19 +422,19 @@ class QueueIgnoreCpPatch(Patch):
         code = build_code(pieces.code_va, pieces.flag_va).finish()
         if pieces.code_va + len(code) > section_va + vsize:
             return [f"{SECTION_NAME} holds {vsize} bytes, too few for the table and the code"]
-        got_keyword = _cstring(data, pieces.keyword_va)
+        got_keyword = read_cstring(data, pieces.keyword_va)
         if got_keyword != self.keyword:
             problems.append(
                 f"the keyword in {SECTION_NAME} is {got_keyword!r}, not {self.keyword!r}"
             )
         want_table = build_table(preceding, pieces.keyword_va)
-        table_off = _offset(data, pieces.table_va)
+        table_off = file_offset(data, pieces.table_va)
         if bytes(data[table_off : table_off + len(want_table)]) != want_table:
             problems.append(
                 f"the field table at 0x{pieces.table_va:08x} is not the live rows plus a Bool at "
                 f"CommandButton+0x{COMMAND_BUTTON_FREE_OFFSET:02x}"
             )
-        code_off = _offset(data, pieces.code_va)
+        code_off = file_offset(data, pieces.code_va)
         if bytes(data[code_off : code_off + len(code)]) != code:
             problems.append(f"the code at 0x{pieces.code_va:08x} is not what this patch builds")
         return problems
@@ -569,41 +461,41 @@ class QueueIgnoreCpPatch(Patch):
             ),
             (
                 DO_COMMAND_BUTTON_UNIT_QUEUE,
-                _hook(
+                jmp_rel32(
                     DO_COMMAND_BUTTON_UNIT_QUEUE,
-                    DO_COMMAND_BUTTON_UNIT_QUEUE_BYTES,
                     code.label_va("unit_build"),
+                    len(DO_COMMAND_BUTTON_UNIT_QUEUE_BYTES),
                 ),
                 f"the UNIT_BUILD queue call is not wrapped by the {SECTION_NAME} cave",
             ),
             (
                 DO_COMMAND_BUTTON_REVIVE_QUEUE,
-                _hook(
+                jmp_rel32(
                     DO_COMMAND_BUTTON_REVIVE_QUEUE,
-                    DO_COMMAND_BUTTON_REVIVE_QUEUE_BYTES,
                     code.label_va("revive"),
+                    len(DO_COMMAND_BUTTON_REVIVE_QUEUE_BYTES),
                 ),
                 f"the REVIVE queue call is not wrapped by the {SECTION_NAME} cave",
             ),
             (
                 BUILD_GATE_COMMAND_POINTS,
-                _hook(
+                jmp_rel32(
                     BUILD_GATE_COMMAND_POINTS,
-                    BUILD_GATE_COMMAND_POINTS_BYTES,
                     code.label_va("gate"),
+                    len(BUILD_GATE_COMMAND_POINTS_BYTES),
                 ),
                 f"the command-point verdict is not hooked to the {SECTION_NAME} gate",
             ),
         ]
         problems: list[str] = []
         for va, want, complaint in checks:
-            off = _offset(data, va)
+            off = file_offset(data, va)
             got = bytes(data[off : off + len(want)])
             if got != want:
                 problems.append(f"@0x{va:08x}: {complaint} (holds {got.hex()})")
 
         want_row = (pieces.keyword_va, INI_PARSE_BOOL, 0, COMMAND_BUTTON_FREE_OFFSET)
-        row = next((e for e in live if _cstring(data, e[0]) == self.keyword), None)
+        row = next((e for e in live if read_cstring(data, e[0]) == self.keyword), None)
         if row != want_row:
             problems.append(
                 f"the live CommandButton table's {self.keyword!r} row is "

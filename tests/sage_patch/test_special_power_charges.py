@@ -267,7 +267,7 @@ def _labels(data: bytes | bytearray) -> dict[str, int]:
     return {name: asm.label_va(name) for name in asm._labels}
 
 
-# --- where the three template fields live -----------------------------------------------------
+# Where the three template fields live
 
 
 def test_the_new_fields_land_past_every_stock_field() -> None:
@@ -302,7 +302,7 @@ def test_growing_the_allocation_is_the_same_length(patched: bytearray) -> None:
         assert _read(patched, push_va, 1) == b"\x68"
 
 
-# --- where the two module fields live ---------------------------------------------------------
+# Where the two module fields live
 
 
 def test_the_module_fields_are_in_padding_the_base_leaves(patched: bytearray) -> None:
@@ -331,7 +331,7 @@ def test_the_ctor_widenings_are_written(patched: bytearray) -> None:
     assert _read(patched, MODULE_CTOR_HELD, 3) == rewritten_module_ctor_held()
 
 
-# --- the rebuilt field table --------------------------------------------------------------------
+# The rebuilt field table
 
 
 def test_apply_repoints_both_table_references(patched: bytearray) -> None:
@@ -394,7 +394,7 @@ def test_build_table_is_terminated() -> None:
     assert blob[-FIELD_PARSE_STRIDE:] == bytes(FIELD_PARSE_STRIDE)
 
 
-# --- the hooks ----------------------------------------------------------------------------------
+# The hooks
 
 
 def test_every_window_is_hooked(patched: bytearray) -> None:
@@ -505,7 +505,7 @@ def test_the_description_hook_preserves_the_case_it_displaced(patched: bytearray
     assert _read(patched, labels["description"], 3) == DESCRIPTION_SPECIAL_POWER_CASE_BYTES[:3]
 
 
-# --- the cave ------------------------------------------------------------------------------------
+# The cave
 
 
 def test_the_cave_opens_with_both_localization_keys(patched: bytearray) -> None:
@@ -548,7 +548,7 @@ def test_the_fold_routine_is_shared_by_both_callers(patched: bytearray) -> None:
     assert labels["description"] < callers[1] < labels["interval"]
 
 
-# --- verify / detect ------------------------------------------------------------------------------
+# Verify / detect
 
 
 def test_verify_clean_after_apply(patched: bytearray) -> None:
@@ -577,7 +577,7 @@ def test_detect_finds_nothing_in_a_clean_image(image: bytearray) -> None:
     assert SpecialPowerChargesPatch.detect(image) is None
 
 
-# --- what applying refuses --------------------------------------------------------------------
+# What applying refuses
 
 
 def test_applying_twice_raises(patched: bytearray) -> None:
@@ -631,7 +631,7 @@ def test_apply_refuses_an_allocation_that_is_already_grown(image: bytearray) -> 
         SpecialPowerChargesPatch().apply(image)
 
 
-# --- the INI surface ------------------------------------------------------------------------------
+# The INI surface
 
 
 def test_ini_surface_names_all_three_fields() -> None:
@@ -658,7 +658,7 @@ def test_declared_experimental() -> None:
     assert SpecialPowerChargesPatch.experimental is True
 
 
-# --- against the real binaries ------------------------------------------------------------------
+# Against the real binaries
 
 #: The repo-root `game.dat` carries eleven modifications and `sage_patch/engine/game.dat.backup`
 #: is the clean reference, so a site is only safe to describe as stock when both agree - and none

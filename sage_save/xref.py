@@ -70,8 +70,8 @@ class Reference:
 
 @dataclass(frozen=True)
 class Finding:
-    """A reference that does not cleanly resolve: `status` is ``"missing"`` (no definition,
-    the load-affecting case) or ``"case-mismatch"`` (resolves only by ignoring case, which the
+    """A reference that does not cleanly resolve: `status` is `"missing"` (no definition,
+    the load-affecting case) or `"case-mismatch"` (resolves only by ignoring case, which the
     engine tolerates but is worth surfacing). `canonical` is the definition's real spelling on
     a case mismatch."""
 

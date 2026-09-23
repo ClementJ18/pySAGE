@@ -14,6 +14,7 @@ from sage_worldbuilder.settings import Settings
 
 np = pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 
+from sage_worldbuilder.commands.terrain import PatchCells  # noqa: E402
 from sage_worldbuilder.terrain.cells import (  # noqa: E402
     CellLayer,
     layer_array,
@@ -22,7 +23,6 @@ from sage_worldbuilder.terrain.cells import (  # noqa: E402
     square_block,
     write_layer,
 )
-from sage_worldbuilder.terrain.edits import PatchCells  # noqa: E402
 
 FIXTURE = (
     Path(__file__).parents[1] / "sage_map" / "fixtures" / "maps" / "map edain ford of bruinen.map"

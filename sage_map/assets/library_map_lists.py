@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "LibraryMapLists",
+    "LibraryMaps",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -17,11 +22,11 @@ class LibraryMaps:
     @classmethod
     def parse(cls, context: "ParsingContext"):
         with context.read_asset() as asset_ctx:
-            values_count = context.stream.readUInt32()
+            values_count = context.stream.read_uint32()
             values = []
 
             for _ in range(values_count):
-                values.append(context.stream.readUInt16PrefixedAsciiString())
+                values.append(context.stream.read_uint16_prefixed_ascii_string())
 
         context.logger.debug(f"Finished parsing {cls.asset_name}")
         return cls(
@@ -33,9 +38,9 @@ class LibraryMaps:
 
     def write(self, context: "WritingContext"):
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.values))
+            context.stream.write_uint32(len(self.values))
             for value in self.values:
-                context.stream.writeUInt16PrefixedAsciiString(value)
+                context.stream.write_uint16_prefixed_ascii_string(value)
 
 
 @dataclass

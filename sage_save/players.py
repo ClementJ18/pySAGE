@@ -14,7 +14,7 @@ versa): a divergence between the two is a test failure, not a silent drift.
 Names in these lists are **fatal** cross-references: unlike the skip-tolerated object templates,
 a dangling upgrade or science is `XFER_UNKNOWN_STRING` and aborts the load. Limitation: a list
 whose entries all lack the conventional prefix is not recognised - walking the record tail
-(the remaining Task 5 slice) would retire the heuristic entirely. See sav_format.md.
+would retire the heuristic entirely.
 """
 
 import struct

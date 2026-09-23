@@ -3,8 +3,8 @@
 
     OUT=game.dat python patch.py     # raise the CommandSet limit to 64 -> ./game.dat
 
-Always patches from ``game.dat.backup`` (never edits it). ``OUT`` sets the output name
-(default ``patched.dat``); ``COUNT`` sets the new limit (default 64, range 34..127).
+Always patches from `game.dat.backup` (never edits it). `OUT` sets the output name
+(default `patched.dat`); `COUNT` sets the new limit (default 64, range 34..127).
 """
 
 import logging

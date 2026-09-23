@@ -1,93 +1,13 @@
-"""A model condition that is set while a building's production queue is non-empty.
+"""Add a model condition (`PRODUCING` by default) that is set while a building's production queue is
+non-empty.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/production-model-condition.md``.
+The engine has none: the `DOOR_n_*` conditions only cover a finished unit walking out. The patch
+appends the name to the `ModelConditionFlags` table, so it parses wherever a model condition does,
+and hooks `ProductionUpdate::update` to keep the bit equal to "queue non-empty". Optionally the same
+state drives a weapon-set flag and a locomotor set. `ProductionConditionWorldbuilderPatch` teaches
+the editor the token. A save taken while anything is producing will not load on a stock binary.
 
-**The gap.** The engine has no model condition meaning "this structure is currently making
-something". `ProductionUpdate` drives the `DOOR_n_*` conditions, but those run *after* a unit
-finishes, as the buffer during which it walks out - so they say "a unit just completed", not
-"a unit is being trained". `ModelConditionUpgrade` likewise fires on an upgrade's *completion*.
-Neither expresses the state a mod actually wants to draw: queue non-empty, from the frame the
-order lands to the frame the queue drains.
-
-**What this does.** Adds one entry to the engine's `ModelConditionFlags` name table (so the new
-token parses anywhere a model condition is accepted - `ModelConditionState`,
-`DisableOnModelCondition`, `HideSubObject`, ...) and hooks `ProductionUpdate::update` to keep its
-bit equal to "this module's production queue is non-empty".
-
-Both halves of the requirement land on one bit, because units and upgrades share one queue:
-`ProductionUpdate` holds a single linked list whose entries carry their kind at ``+0x04``, and
-both `queueCreateUnit` and `queueUpgrade` prepend to it. The condition is therefore true while
-the building is training a unit **or** researching an upgrade, or both.
-
-Two optional extras, off the same trigger
------------------------------------------
-``--weapon-set-flag`` and ``--locomotor-set`` add a `WeaponSetFlags` name and a `LocomotorSetType`
-name driven by the same "queue non-empty" test, so a mod can give a producer a different weapon
-loadout and a different locomotor while it is busy. Both are opt-in and independent: neither is
-installed unless named, and the patch without them is byte-for-byte what it always was.
-
-They are cheaper than the model condition rather than more expensive, because both tables are read
-through their terminator and never through a count - see :mod:`.weapon_set_flags` and
-:mod:`.locomotor_sets`, which own the two tables the way :mod:`.model_conditions` owns this one.
-What each costs at the *object* is one engine call on the frame the state changes:
-`Object::setWeaponSetFlags` already calls `WeaponSet::updateWeaponSet`, and `chooseLocomotorSet`
-already refuses when the template declares no locomotor for the set.
-
-**All three blocks are level-triggered**, each guarding on its own state rather than on the model
-condition's edge. That is not symmetry for its own sake: the model-condition bit *is* saved (by
-name, through `xfer`) and the weapon-set bit is *not*, so a hook that acted only on the transition
-would come back from a savegame with the condition set and the weapon set flag lost, and never
-correct itself. Reading each piece of state per frame is what makes the three agree again on the
-first frame after a load - and, for the locomotor, what lets "producing" outrank a set the engine
-chose meanwhile, instead of silently losing to it.
-
-Why one condition, and what a second would cost
------------------------------------------------
-`ModelConditionFlags` is 19 dwords (``0x4C`` bytes) holding **591** named bits, so 17 bit slots
-are already allocated and unnamed - no structure grows to hold a 592nd.
-
-Serialisation does not bound it either, contrary to what this docstring said before the `xfer`
-branches were followed. ``ModelConditionFlags::xfer`` (``0x004BAEE4``) has three paths: a
-**74-byte packed blob** (``0x004B8D87``, taken when ``[Xfer+0x10]``, and not the save/load path),
-**save as a list of names**, and **load by resolving names** through the same parser this patch's
-table feeds. Savegames therefore carry no bit layout and no length constant, and are unaffected by
-the count.
-
-What is left is the blob, whose 74 bytes are 592 bits *exactly* - so bit 591 is the last one it
-covers. Bits 592-607 would parse, set, draw and save/load correctly but fall outside it unless the
-two ``push 0x4a`` are widened (the packer's buffer is already ``sub esp, 0x4c`` = 608 bits, so
-nothing grows). Past 608 the mask itself must grow, and ``Object+0x10C`` is immediately followed
-by ``+0x158`` - an `Object` layout change, not a byte patch.
-
-One condition is what this patch installs because one trigger is what it implements, not because
-a second bit is expensive. See ``../docs/production-model-condition.md`` §2a.
-
-Why the count and the table must move together
-----------------------------------------------
-Two of the ten count-bounded loops (``0x00446103``, ``0x004BAF80``) walk ``0..count`` calling the
-single-bit-name helper at ``0x00444DFB``, which indexes the table with **no bound check**. Raising
-the count without extending the table would hand a NULL string pointer to `AsciiString`
-concatenation. :meth:`apply` writes both or raises, and :meth:`verify` checks both.
-
-**Loading a save on a stock binary.** The load path aborts on a name it cannot resolve
-(``0x004BAFDC`` falls into ``int3`` at ``0x004BB022``), and a save only names bits that are *set*.
-So a save taken while some object is producing fails **fatally** on an unpatched `game.dat`; one
-taken with nothing producing loads fine.
-
-**Determinism.** The mask patched is on the logic-side `Object` (``+0x10C``), not the `Drawable`,
-and it is part of what the engine CRCs - so every peer must run the same patched binary. That is
-stricter than the other bundled patches, which are data-shape changes: a patched and an unpatched
-client desync the moment a building starts producing, and a replay recorded on one will not play
-back on the other. Nothing in the order stream changes.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The 5-byte entry of `ProductionUpdate::update` is touched by no
-other bundled patch. The name table and the ten counts **are** shared - `desert-weather` adds a
-condition too - so both go through :mod:`sage_patch.patches.utils.model_conditions`, which reads the
-live table out of the image instead of assuming the stock one. Applied after another such patch
-this one lands on the next free bit rather than 591, which is why :meth:`verify` reads the bit
-back out of the table instead of hardcoding it.
+Derivation: `../docs/production-model-condition.md`.
 """
 
 from __future__ import annotations
@@ -100,7 +20,7 @@ from sage_ini.engine import Engine, EnumDelta
 
 from ..asm import JE, JNE, JNZ, JZ, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, file_offset, find_section, u32, va_to_offset
 from .utils import locomotor_sets, model_conditions, name_tables, weapon_set_flags
 
 if TYPE_CHECKING:
@@ -127,11 +47,11 @@ STOCK_BIT_COUNT = model_conditions.STOCK_BIT_COUNT
 
 #: The bit this patch names on a stock binary: the first unnamed slot, and the last one `xfer`
 #: already transmits. Applied on top of another condition-adding patch it is one higher, so this
-#: is the default for :func:`build_hook_code`, not an invariant of the installed patch.
+#: is the default for `build_hook_code`, not an invariant of the installed patch.
 NEW_BIT = STOCK_BIT_COUNT
 
 #: `Object`'s `ModelConditionFlags`. 19 dwords, so 0x10C..0x158 - it ends exactly where the second
-#: `Matrix3D` copy documented in ``../docs/live-object-model.md`` begins.
+#: `Matrix3D` copy documented in `../docs/live-object-model.md` begins.
 MASK_OFFSET = model_conditions.MASK_OFFSET
 
 #: `Object::onModelConditionFlagsChanged` - pushes the mask to the `Drawable` and notifies the
@@ -161,8 +81,8 @@ DEFAULT_NAME = "PRODUCING"
 class _TailLayout:
     """Where each optional piece of the cave sits, past the model-condition table and its name.
 
-    Every field but :attr:`code_va` is None when its option was not asked for, and the sizes are
-    fixed by the names alone - so the same arithmetic recovers them in :meth:`verify`."""
+    Every field but `code_va` is None when its option was not asked for, and the sizes are
+    fixed by the names alone - so the same arithmetic recovers them in `verify`."""
 
     weapon_table_va: int | None
     locomotor_table_va: int | None
@@ -175,17 +95,6 @@ def _table_block_size(entries: int, name: str) -> int:
     terminator, then the string, padded to keep whatever follows dword-aligned."""
     string = len(name) + 1
     return (entries + 1) * 4 + string + (-string % 4)
-
-
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA 0x{va:08x} is not mapped")
-    return off
 
 
 def build_hook_code(
@@ -209,7 +118,7 @@ def build_hook_code(
     building would push its mask to the `Drawable` on every logic frame. The engine's own two
     condition writes inside `update` test first for the same reason.
 
-    ``weapon`` is ``(bit, VA of its 4-dword mask constant)`` and ``locomotor`` a set index; each is
+    `weapon` is `(bit, VA of its 4-dword mask constant)` and `locomotor` a set index; each is
     None when not installed, and with both None this emits exactly the bytes it emitted before
     either existed. Each optional block sits *before* the model-condition block on its path and
     guards on its own state, so the three are independent - see the module docstring for why that
@@ -229,9 +138,9 @@ def build_hook_code(
     _emit_weapon_block(a, weapon, producing=True)
     _emit_locomotor_block(a, locomotor, producing=True)
     # Set the bit, unless it is already set.
-    a.emit(0xF7, 0x80, _u32(word_offset), _u32(mask))  # test dword [eax+off], mask
+    a.emit(0xF7, 0x80, u32(word_offset), u32(mask))  # test dword [eax+off], mask
     a.jcc(JNZ, "done")
-    a.emit(0x81, 0x88, _u32(word_offset), _u32(mask))  # or   dword [eax+off], mask
+    a.emit(0x81, 0x88, u32(word_offset), u32(mask))  # or   dword [eax+off], mask
     a.jmp("propagate")
 
     # Idle.
@@ -239,9 +148,9 @@ def build_hook_code(
     _emit_weapon_block(a, weapon, producing=False)
     _emit_locomotor_block(a, locomotor, producing=False)
     # Clear the bit, unless it is already clear.
-    a.emit(0xF7, 0x80, _u32(word_offset), _u32(mask))  # test dword [eax+off], mask
+    a.emit(0xF7, 0x80, u32(word_offset), u32(mask))  # test dword [eax+off], mask
     a.jcc(JZ, "done")
-    a.emit(0x81, 0xA0, _u32(word_offset), _u32(~mask & 0xFFFFFFFF))  # and dword [eax+off], ~mask
+    a.emit(0x81, 0xA0, u32(word_offset), u32(~mask & 0xFFFFFFFF))  # and dword [eax+off], ~mask
 
     a.label("propagate")
     a.emit(0x8B, 0xC8)  # mov ecx, eax
@@ -255,13 +164,13 @@ def build_hook_code(
 
 
 def _emit_weapon_block(a: Asm, weapon: tuple[int, int] | None, producing: bool) -> None:
-    """Bring `Object+0x38C`'s copy of the flag into line with ``producing``, if one is installed.
+    """Bring `Object+0x38C`'s copy of the flag into line with `producing`, if one is installed.
 
     The guard is the flag's *own* bit rather than the model condition's, so the block is a no-op
     on every frame but the one that changes it - which matters, because the call it guards is
     `Object::setWeaponSetFlags`, and that re-runs `WeaponSet::updateWeaponSet` and rebuilds the
     object's `Weapon`s. Both helpers are `thiscall` taking a whole mask and cleaning their own
-    argument (``ret 4``)."""
+    argument (`ret 4`)."""
     if weapon is None:
         return
     flag_bit, mask_va = weapon
@@ -269,10 +178,10 @@ def _emit_weapon_block(a: Asm, weapon: tuple[int, int] | None, producing: bool) 
     mask = 1 << (flag_bit % 32)
     label = f"weapon_{'set' if producing else 'clear'}_done"
 
-    a.emit(0xF7, 0x80, _u32(word_offset), _u32(mask))  # test dword [eax+off], mask
+    a.emit(0xF7, 0x80, u32(word_offset), u32(mask))  # test dword [eax+off], mask
     a.jcc(JNZ if producing else JZ, label)  # already agrees: nothing to do
     a.emit(0x50)  # push eax                    ; the call clobbers it
-    a.emit(0x68, _u32(mask_va))  # push <mask>  ; the 4-dword constant in this cave
+    a.emit(0x68, u32(mask_va))  # push <mask>  ; the 4-dword constant in this cave
     a.emit(0x8B, 0xC8)  # mov ecx, eax          ; the Object
     a.call_absolute(weapon_set_flags.SET_FLAGS_VA if producing else weapon_set_flags.CLEAR_FLAGS_VA)
     a.emit(0x58)  # pop eax
@@ -292,15 +201,15 @@ def _emit_locomotor_block(a: Asm, locomotor: int | None, producing: bool) -> Non
     want = locomotor if producing else locomotor_sets.NORMAL_SET
     label = f"locomotor_{'set' if producing else 'clear'}_done"
 
-    a.emit(0x8B, 0x88, _u32(locomotor_sets.AI_MODULE_OFFSET))  # mov ecx, [eax+0x260]
+    a.emit(0x8B, 0x88, u32(locomotor_sets.AI_MODULE_OFFSET))  # mov ecx, [eax+0x260]
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JZ, label)  # no AI: no locomotor to choose
-    a.emit(0x81, 0xB9, _u32(locomotor_sets.CURRENT_SET_OFFSET), _u32(locomotor))  # cmp [ecx+..], n
+    a.emit(0x81, 0xB9, u32(locomotor_sets.CURRENT_SET_OFFSET), u32(locomotor))  # cmp [ecx+..], n
     a.jcc(JE if producing else JNE, label)
     a.emit(0x50)  # push eax
-    a.emit(0x68, _u32(want))  # push <set>
+    a.emit(0x68, u32(want))  # push <set>
     a.emit(0x8B, 0x11)  # mov edx, [ecx]        ; the AI module's vtable
-    a.emit(0xFF, 0x92, _u32(locomotor_sets.CHOOSE_SET_SLOT))  # call [edx+0x238]
+    a.emit(0xFF, 0x92, u32(locomotor_sets.CHOOSE_SET_SLOT))  # call [edx+0x238]
     a.emit(0x58)  # pop eax
     a.label(label)
 
@@ -351,7 +260,7 @@ class ProductionConditionPatch(Patch):
     def apply(self, data: bytearray) -> None:
         """Install the cave and repoint every table it rebuilt.
 
-        The two optional tables are read and cleared *before* :func:`model_conditions.extend`
+        The two optional tables are read and cleared *before* `model_conditions.extend`
         writes anything, so a name that is already taken stops the patch with the image
         untouched rather than half-applied."""
         self._check_dispatch(data)
@@ -386,7 +295,7 @@ class ProductionConditionPatch(Patch):
             )
         edits.append(
             (
-                _offset(data, _UPDATE_VA),
+                file_offset(data, _UPDATE_VA),
                 _UPDATE_ENTRY,
                 b"\xe9" + struct.pack("<i", pieces.code_va - (_UPDATE_VA + 5)),
                 "ProductionUpdate::update -> production-condition cave",
@@ -404,8 +313,8 @@ class ProductionConditionPatch(Patch):
     ) -> bytes:
         """Everything this patch puts in the cave after the model-condition table and its name:
         the two optional tables with their new names, the weapon-set mask constant, and the hook
-        code. The layout is a pure function of ``tail_va`` and the two entry counts, which is what
-        lets :meth:`verify` recover every address from the cave itself."""
+        code. The layout is a pure function of `tail_va` and the two entry counts, which is what
+        lets `verify` recover every address from the cave itself."""
         pieces = self._tail_pieces(
             tail_va,
             None if weapon_table is None else weapon_table.count + 1,
@@ -438,8 +347,8 @@ class ProductionConditionPatch(Patch):
         self, tail_va: int, weapon_entries: int | None, locomotor_entries: int | None
     ) -> _TailLayout:
         """Where each piece of the tail sits, given how many entries each rebuilt table holds
-        (the stock count plus this patch's own name). Pure arithmetic, so :meth:`apply` and
-        :meth:`verify` compute the same addresses from opposite directions."""
+        (the stock count plus this patch's own name). Pure arithmetic, so `apply` and
+        `verify` compute the same addresses from opposite directions."""
         va = tail_va
         weapon_table_va = locomotor_table_va = mask_va = None
         if weapon_entries is not None:
@@ -476,8 +385,8 @@ class ProductionConditionPatch(Patch):
         )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch for exactly this condition name.
-        Reads only via ``struct`` and the section table, so it needs no disassembler.
+        """Structural check that `data` carries this patch for exactly this condition name.
+        Reads only via `struct` and the section table, so it needs no disassembler.
 
         The bit is read back out of the live name table rather than assumed to be 591, because a
         second condition-adding patch shifts it - and the hook body encodes the bit it was built
@@ -508,7 +417,7 @@ class ProductionConditionPatch(Patch):
         except (ValueError, struct.error) as exc:
             return [*problems, f"cannot read back the {_SECTION_NAME} cave: {exc}"]
 
-        off = _offset(data, _UPDATE_VA)
+        off = file_offset(data, _UPDATE_VA)
         if data[off] != 0xE9:
             problems.append(
                 f"ProductionUpdate::update @0x{_UPDATE_VA:08x} does not start with a jmp: "
@@ -527,7 +436,7 @@ class ProductionConditionPatch(Patch):
             )
         elif bit is not None:
             want = build_hook_code(code_va, bit, weapon, locomotor)
-            code_off = _offset(data, code_va)
+            code_off = file_offset(data, code_va)
             got = bytes(data[code_off : code_off + len(want)])
             if got != want:
                 problems.append(
@@ -544,7 +453,7 @@ class ProductionConditionPatch(Patch):
         The section starts with the model-condition table this patch wrote, so its terminator says
         where the tail begins; each optional table then follows in turn, and its own terminator
         says how many entries it holds. Every check that can fail without stopping the read
-        appends to ``problems`` rather than raising."""
+        appends to `problems` rather than raising."""
         pointers = name_tables.read_terminated(
             data, section_va, f"the model-condition table in {_SECTION_NAME}"
         )
@@ -568,7 +477,7 @@ class ProductionConditionPatch(Patch):
             flag_bit = weapon_entries - 1
             weapon = (flag_bit, pieces.mask_va)
             want_mask = weapon_set_flags.mask_bytes(flag_bit)
-            mask_off = _offset(data, pieces.mask_va)
+            mask_off = file_offset(data, pieces.mask_va)
             if bytes(data[mask_off : mask_off + len(want_mask)]) != want_mask:
                 problems.append(
                     f"the weapon-set mask constant at 0x{pieces.mask_va:08x} is not the "
@@ -583,7 +492,7 @@ class ProductionConditionPatch(Patch):
             if table_va is None:
                 continue
             for ref_va in ref_vas:
-                got = struct.unpack_from("<I", data, _offset(data, ref_va))[0]
+                got = struct.unpack_from("<I", data, file_offset(data, ref_va))[0]
                 if got != table_va:
                     problems.append(
                         f"{what} name table ref @0x{ref_va:08x} points at 0x{got:08x}, not the "
@@ -595,7 +504,7 @@ class ProductionConditionPatch(Patch):
     def _read_table(
         data: bytes | bytearray, base_va: int, name: str, what: str, problems: list[str]
     ) -> tuple[int, ...]:
-        """The pointers of one rebuilt table in the cave, checking its last entry is ``name``."""
+        """The pointers of one rebuilt table in the cave, checking its last entry is `name`."""
         pointers = name_tables.read_terminated(
             data, base_va, f"the {what} table in {_SECTION_NAME}"
         )
@@ -610,7 +519,7 @@ class ProductionConditionPatch(Patch):
     def detect(cls, data: bytes | bytearray) -> ProductionConditionPatch | None:
         """Recognise this patch **and recover all three of its settings**.
 
-        The default probe only ever recognises ``PRODUCING`` with neither optional table, so a
+        The default probe only ever recognises `PRODUCING` with neither optional table, so a
         binary carrying any other condition name - or either extra name at all - reads as
         unpatched. Each setting is recoverable from the image's own evidence rather than guessed:
         the cave opens with the model-condition table this patch wrote, whose last entry is the
@@ -631,7 +540,7 @@ class ProductionConditionPatch(Patch):
 
             extras: list[str | None] = []
             for ref_vas in (weapon_set_flags.TABLE_REF_VAS, locomotor_sets.TABLE_REF_VAS):
-                table_va = struct.unpack_from("<I", data, _offset(data, ref_vas[0]))[0]
+                table_va = struct.unpack_from("<I", data, file_offset(data, ref_vas[0]))[0]
                 if not section_va <= table_va < section_va + vsize:
                     extras.append(None)  # still the stock table: this patch did not rebuild it
                     continue
@@ -721,7 +630,7 @@ class ProductionConditionPatch(Patch):
 #
 #   The other six are enumeration loops that index the table immediately after the compare.
 # * `WeaponSetFlags` and `LocomotorSetType` are read **only through their terminator** and bake no
-#   count at all - the same finding :mod:`.weapon_set_flags` and :mod:`.locomotor_sets` record for
+#   count at all - the same finding `weapon_set_flags` and `locomotor_sets` record for
 #   the game binary - so those two need their references repointed and nothing else.
 #
 # All three rebuilt tables share one cave, laid out end to end, because they are added or not added
@@ -871,7 +780,7 @@ class ProductionConditionWorldbuilderPatch(Patch):
         return f"{self.name} ({self.condition}{extras})"
 
     def _plan(self) -> list[tuple[str, tuple[int, ...], str]]:
-        """``(what, reference VAs, the single name to append)`` for each table in play."""
+        """`(what, reference VAs, the single name to append)` for each table in play."""
         plan: list[tuple[str, tuple[int, ...], str]] = [
             ("model condition", WORLDBUILDER_CONDITION_REF_VAS, self.condition)
         ]
@@ -983,7 +892,7 @@ class ProductionConditionWorldbuilderPatch(Patch):
 
     @staticmethod
     def _table_end(base_va: int, count: int, new_name: str) -> int:
-        """Where the table that starts at ``base_va`` and holds ``count`` names ends."""
+        """Where the table that starts at `base_va` and holds `count` names ends."""
         size = (count + 1) * 4
         strings = len(new_name.encode("ascii")) + 1
         return base_va + size + strings + (-strings % 4)
@@ -1034,7 +943,7 @@ class ProductionConditionWorldbuilderPatch(Patch):
     def _appended_name(
         cls, data: bytes | bytearray, refs: tuple[int, ...], section_va: int
     ) -> str | None:
-        """The name this patch appended to the table ``refs`` names, or None if it did not touch
+        """The name this patch appended to the table `refs` names, or None if it did not touch
         it - which is what an optional table not given a name looks like."""
         base = struct.unpack_from("<I", data, _wbc_offset(data, refs[0]))[0]
         located = find_section(data, WORLDBUILDER_SECTION_NAME)

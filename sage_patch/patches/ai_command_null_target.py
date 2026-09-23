@@ -1,70 +1,12 @@
-"""The AI command null-target patch: stop a hero transform crashing on an order whose target
-has been removed.
+"""Stop a hero's mount transform crashing on an AI order whose target has been removed.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/ai-command-null-target.md``.
+When `ToggleMountedSpecialAbilityUpdate` swaps an object for its `MountedTemplate`, it carries the
+pending AI order across (fetched through `0x0066D7C9`). If that order names an object that is gone,
+the stored target is NULL and the transfer check reads through it. A cave adds the missing null test
+and answers "not worth transferring". The skirmish AI hits this when a hero picks up the One Ring
+and then transforms.
 
-**The defect.** When `ToggleMountedSpecialAbilityUpdate` swaps an object for its
-`MountedTemplate` (``0x008B140D``), the tail of the swap carries the old object's pending AI
-order onto the new one. It fetches that order with ``0x0066D7C9``, which reconstitutes it out of
-`AICommandParmsStorage` - and `reconstitute` (``0x0075315B``) turns the stored `ObjectID` back
-into a pointer through `GameLogic::findObjectByID`, storing the result **unchecked**::
-
-    00753179  push dword [ebx+0x14]      ; the stored ObjectID
-    00753182  call 0x00449681            ; findObjectByID -> NULL if the object is gone
-    00753187  mov  [ebp+0x14], eax       ; AICommandParms::m_obj, no null test
-
-The swap then asks `AI_COMMAND_TRANSFER_CHECK` whether the order is still worth re-issuing. For
-the arms that name an object - command types 1 (`AICMD_MOVE_TO_OBJECT`), 0x48 and 0x49 - that
-question is answered by measuring the distance to the target, and the target is read with no
-guard either::
-
-    0066c3fb  mov   eax, [ecx+8]              ; the owning Object
-    0066c3fe  movss xmm0, [eax+0x38]          ; its position
-    0066c40d  mov   eax, [ebp+0x1c]           ; AICommandParms::m_obj  -> NULL
-    0066c410  subss xmm0, [eax+0x38]          ; *** EXCEPTION_ACCESS_VIOLATION reading 0x38
-
-**How it is reached in practice.** `PickupStuffUpdate` orders the skirmish AI's heroes to walk to
-the One Ring with `aiMoveToObject(ring, CMD_FROM_AI)` - command type 1, stored at `AIUpdate+0x3E4`.
-The hero arrives, the Ring object is destroyed by the pickup, and the module's "am I there yet"
-branch (``0x00895572``) clears only its own flag: it issues no replacement order, so the stored
-one keeps naming a dead id. Becoming a Ring hero then fires the toggle, and the swap trips over
-it. In the Edain tree 120 templates carry both halves - every Ring-capable hero and every mounted
-horde - so this is not a data mistake that can be edited out.
-
-**What this does.** Appends an ``.ainull`` PE section holding a null guard, and redirects the five
-bytes of the faulting instruction into it. A non-null target runs the instruction that was
-displaced and returns; a null one sets the answer to "not worth transferring" and jumps into the
-function's own tail, which restores the SEH state, frees the parms' waypoint vector and returns
-`bl` in `al`.
-
-**Why "not worth transferring" is the right answer.** The call sites read it as
-``test al, al`` / ``jne`` **past** the re-issue, so a non-zero answer means *do not hand this
-order to the replacement*. That is what a move-to-object with no object should mean - and the
-alternative is worse than the crash it replaces: answering zero re-issues the same NULL-carrying
-`AICommandParms` on the new object's state machine, moving the fault rather than removing it.
-
-**The guard sets `bl` rather than trusting it.** `bl` is seeded to 1 at
-`AI_COMMAND_TRANSFER_BOOL_INIT` and no arm on the path to the hook clears it, so jumping straight
-to the tail would already answer 1. Writing it anyway costs two bytes and makes the cave's answer
-independent of a fact about the path, which is the kind of fact a future edit breaks silently.
-
-**Flags.** ``test eax, eax`` clobbers EFLAGS. Nothing downstream reads them: the resume point runs
-two `subss` and a `jmp`, and the first flag consumer after it is the ``ja`` at ``0x0066C46C``,
-whose flags come from the ``fcompi`` two instructions earlier. The tail edge reaches
-``or dword [ebp-4], -1``, which sets flags before anything tests them.
-
-**Determinism.** The guard reads a pointer the logic already computed and changes only whether an
-order is re-issued - logic state, identical on every peer, evaluated inside a swap that every
-peer runs on the same frame. Nothing here is client-local, and nothing depends on timing.
-
-**Blast radius.** `AI_COMMAND_TRANSFER_CHECK` has exactly two callers, both inside
-`ToggleMountedSpecialAbilityUpdate`, so the changed edge is reachable only from a mount/dismount
-swap. On a non-null target the patched path executes the same instruction stream as stock.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the five at
-`AI_COMMAND_TRANSFER_TARGET_USE`, which no other bundled patch touches.
+Derivation: `../docs/ai-command-null-target.md`.
 """
 
 from __future__ import annotations

@@ -161,7 +161,7 @@ for the archive side.
 
 ```python
 from sage_test import Seat
-from sage_test.game_info import LobbySettings
+from sage_live.launch.game_info import LobbySettings
 from sage_test.run import run_user_map
 
 MAP = r"C:\...\_mod\maps\<mission>"
@@ -220,9 +220,11 @@ second while fast-forwarded needs a poll in the loop, not one read at the end.
 **A moving `Script+0x3C` means *evaluated*, not *fired*.** If you are tempted to infer firing from
 the script tree instead of the trace, don't: `next_frame` is set before the conditions run. The
 trace's `EventKind` is the thing that distinguishes a condition that passed from one that was
-merely asked. What the trace cannot yet tell you is **why** a script did not fire — condition-level
-tracing is the unbuilt slice F in
-[`sage_patch/docs/script-debugger.md`](../sage_patch/docs/script-debugger.md).
+merely asked. **Why** a script did not fire is one level down: the condition watch (slice F in
+[`sage_patch/docs/script-debugger.md`](../sage_patch/docs/script-debugger.md) §2.3) records the
+engine's verdict on each condition of a watched script, and `sage_worldbuilder.why_not.explain`
+turns that into "which condition failed, which were never reached". `ScriptTrace.set_watches`
+and `condition_results` work without the editor.
 
 ## 6. Stage 4 — drive the mission
 

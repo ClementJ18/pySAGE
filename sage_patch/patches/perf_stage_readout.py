@@ -1,67 +1,12 @@
-"""The perf-stage-readout patch: accumulate the render profile the engine already produces.
+"""Accumulate the render profile the engine's `PerfScope` objects already mark out.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/perf-stage-readout.md``.
+A `.perfstg` section holds a counter block and two routines hooked into the scope class's
+constructor and destructor. Each scope entry pushes a `QueryPerformanceCounter` stamp; each exit
+adds the elapsed time to a per-call-site row as inclusive time, and inclusive minus children as
+exclusive time. The block is read out of the running process. A diagnostic: two
+`QueryPerformanceCounter` calls per scope. Client-local.
 
-**What the engine already does.** Thirty times per drawn frame it constructs a `PerfScope` - a
-stack object naming one stage of the render, `UpdateShadowMap` through `MeshFXShader` - and
-destroys it when the stage ends. The constructor calls `D3DPERF_BeginEvent` through
-`PERF_D3D_BEGIN_EVENT_PTR` and the destructor calls `D3DPERF_EndEvent`, so a PIX capture of this
-game comes out labelled. Nothing else consumes those events: with no profiler attached the two
-`d3d9.dll` entry points return immediately and the thirty scopes measure nothing.
-
-**What this does.** Appends a ``.perfstg`` PE section holding a counter block and two short
-routines, and hooks the scope class's constructor and destructor into them. Every scope entry
-stamps `QueryPerformanceCounter` onto a nesting stack; every scope exit folds the elapsed ticks
-into a per-site slot as **inclusive** time, subtracts what its children took to get **exclusive**
-time, and adds its own total to its parent's child accumulator. The result is a live
-inclusive/exclusive profile of the render, one row per call site, readable out of the running
-process at the section's base address.
-
-**Why the constructor and not the D3DPERF wrapper.** The name is `strncpy`'d into the object on
-the constructor's fourth instruction, so by the time `PERF_BEGIN_EVENT` sees it the pointer is a
-stack address - `[ebp-0x158]`, shared by every scope in the same function. Hooking the wrapper
-would key four different stages to one slot.
-
-**Why the call site and not the name.** The obvious key at the constructor is the name pointer,
-and for twenty-six of the thirty sites it is an `.rdata` literal: stable, unique, one `cmp`. **The
-other four build the name on the caller's stack.** The two `MeshDX8Render` sites and the two
-`MeshFXShader` ones concatenate a per-mesh string into a stack buffer, push *that* as the name,
-and pass the stage's literal as the **category** instead. Keyed on the name, those four claim a
-slot per distinct stack address: measured live, they filled all sixty-four slots within seconds,
-counted four million table-full misses, and the two per-mesh stages - the interesting ones - never
-got a row at all.
-
-So the key is the **return address** at ``[esp]``: the call site, which is in `.text`, is fixed for
-the life of the process, is unique per site, and costs exactly what the name pointer cost. Thirty
-sites means at most thirty keys. The name a site *prints* comes back from :data:`STAGE_SITES`,
-which the reader owns and `apply` checks against the binary.
-
-**Nothing is displaced on the exit side.** `PERF_SCOPE_DTOR` is five bytes and all five are a
-`jmp` to `PERF_END_EVENT`, so the hook replaces a jump with a jump and the cave ends with the
-jump that was there. The entry side displaces six bytes, `mov eax, [esp+4]` / `test eax, eax`, and
-re-runs them at the end of its routine rather than the start - the `test` sets the flags the `je`
-at `0x00517699` reads, and anything between would have to preserve them.
-
-**It measures the scope, not the event.** The two D3DPERF pointers are untouched, so a PIX capture
-still works and still says the same thing. What is added is an accumulator the engine never had.
-
-**Cost.** Two `QueryPerformanceCounter` calls and about forty instructions per scope. Twenty-six of
-the thirty scopes run once per frame; `MeshDX8Render` and `MeshFXShader` run per mesh, which on a
-heavy frame is thousands. That is the honest cost of this patch and it is why it is a diagnostic
-rather than something to ship - though note the engine is *already* paying two `strncpy`s and a
-`strlen` per scope on that same path to build a name nothing reads, which is a larger per-mesh cost
-than this adds and is scoped separately in the document.
-
-**Client-local.** It reads no simulation state and writes none: the counters live in the new
-section and nothing in the engine can see them. Peers need not agree on it, replays cross it, and
-one player may profile a match everyone else plays on stock binaries. No INI change.
-
-**Robustness.** The nesting stack is bounds-checked at both ends and the slot table is a
-fixed-capacity open-addressed map, so an unbalanced scope or an unexpected thirty-first call site
-costs a counter and never a write outside the section. The load screen draws on its own thread
-(`multicore.md` §1.1) and can enter these scopes concurrently; the counters are not interlocked, so
-numbers gathered while a map is loading may be mixed. That is a wrong number, not a wrong write.
+Derivation: `../docs/perf-stage-readout.md`.
 """
 
 from __future__ import annotations
@@ -85,7 +30,7 @@ from ..addresses import (
 )
 from ..asm import JAE, JBE, JE, JNZ, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, i8, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -118,7 +63,7 @@ SECTION_NAME = ".perfstg"  # 8 chars exactly: the PE name field is 8 bytes and t
 # the counters it writes, so unlike a pure-gate cave this section has to be writable.
 _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000 | 0x80000000
 
-#: ``'PSTG'`` little-endian, so a reader scanning the process for the block recognises it without
+#: `'PSTG'` little-endian, so a reader scanning the process for the block recognises it without
 #: being told where the section landed.
 BLOCK_MAGIC = 0x47545350
 BLOCK_VERSION = 1
@@ -134,7 +79,7 @@ SLOT_SIZE = 24  # call site, calls, inclusive (u64), exclusive (u64)
 STACK_CAPACITY = 32
 _FRAME_SIZE = 24  # slot pointer, pad, start tick (u64), child ticks (u64)
 
-# --- the counter block, at the section's base VA -------------------------------------------
+# The counter block, at the section's base VA
 OFF_MAGIC = 0x00
 OFF_VERSION = 0x04
 OFF_SLOT_CAPACITY = 0x08
@@ -153,7 +98,7 @@ OFF_STACK = OFF_SLOTS + SLOT_CAPACITY * SLOT_SIZE
 #: address their own counters with absolute operands while they are still being emitted.
 CODE_OFFSET = OFF_STACK + STACK_CAPACITY * _FRAME_SIZE
 
-# --- offsets within one slot and one stack frame --------------------------------------------
+# Offsets within one slot and one stack frame
 _SLOT_SITE = 0
 _SLOT_CALLS = 4
 _SLOT_INCLUSIVE = 8
@@ -163,12 +108,12 @@ _FRAME_START = 8
 _FRAME_CHILD = 16
 
 #: **The table the reader labels its rows with**: the address each of the thirty call sites
-#: returns to (its `call` VA plus five, which is what the cave sees at ``[esp]``), and the stage
+#: returns to (its `call` VA plus five, which is what the cave sees at `[esp]`), and the stage
 #: that site stands for.
 #:
 #: Twenty-six sites push an `.rdata` literal as the scope's *name* and that literal is the label.
-#: **Four do not.** The two `MeshDX8Render` sites (``0x005431E2``, ``0x00543321``) and the two
-#: `MeshFXShader` ones (``0x00573D95``, ``0x00573E18``) build a per-mesh string on the caller's
+#: **Four do not.** The two `MeshDX8Render` sites (`0x005431E2`, `0x00543321`) and the two
+#: `MeshFXShader` ones (`0x00573D95`, `0x00573E18`) build a per-mesh string on the caller's
 #: stack, push *that* as the name, and pass the stage literal as the **category** instead - so
 #: their label here is the category, which is the thing a profile wants on the row. It is also
 #: the whole reason the cave keys on the call site: those four sites' name pointer is a stack
@@ -261,11 +206,6 @@ ANCHORS = {
 }
 
 
-def _disp8(value: int) -> int:
-    """A negative byte displacement as the byte an opcode carries."""
-    return value & 0xFF
-
-
 def _block() -> bytes:
     """The counter block's initial contents: the self-describing header, then zeroes."""
     block = bytearray(CODE_OFFSET)
@@ -278,11 +218,11 @@ def _block() -> bytes:
 def _emit(base_va: int) -> Asm:
     """The whole section: the counter block, then the two routines that fill it.
 
-    ``base_va`` is where the section will be mapped, which is what lets the routines address their
+    `base_va` is where the section will be mapped, which is what lets the routines address their
     own counters with absolute operands. Laying the block out *first*, at a fixed size, is what
     makes those operands computable before the code has been emitted.
 
-    Returns the un-finished :class:`~sage_patch.asm.Asm` rather than bytes, so that the one caller
+    Returns the un-finished `Asm` rather than bytes, so that the one caller
     that needs to know *where* a routine landed can ask the layout instead of counting.
     """
     depth = base_va + OFF_DEPTH
@@ -292,7 +232,7 @@ def _emit(base_va: int) -> Asm:
 
     a = Asm(base_va + CODE_OFFSET)
 
-    # --- scope entry: reached from PERF_SCOPE_CTOR's first six bytes ------------------------
+    # Scope entry: reached from PERF_SCOPE_CTOR's first six bytes
     #
     # esp is exactly the constructor's entry esp, so [esp] is still the return address - which is
     # the key, for the reason in the module docstring. Everything is saved and restored, because
@@ -342,7 +282,7 @@ def _emit(base_va: int) -> Asm:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jmp_absolute(PERF_SCOPE_CTOR_RESUME)
 
-    # --- the slot for a call site: open addressing on the return address ---------------------
+    # The slot for a call site: open addressing on the return address
     #
     # Thirty sites, so thirty keys at most, into sixty-four slots. Comparing the key is one
     # instruction where comparing a string would be a loop. Clobbers eax/ecx/edx/ebx and returns
@@ -374,7 +314,7 @@ def _emit(base_va: int) -> Asm:
     a.emit(0x8B, 0xDA)  # mov ebx, edx
     a.emit(0xC3)  # ret
 
-    # --- scope exit: reached from PERF_SCOPE_DTOR, which was one jump and stays one jump ----
+    # Scope exit: reached from PERF_SCOPE_DTOR, which was one jump and stays one jump
     a.label("leave")
     a.emit(0x9C)  # pushfd
     a.emit(0x60)  # pushad
@@ -403,9 +343,9 @@ def _emit(base_va: int) -> Asm:
     # bottom of the stack there is none, and nothing is charged.
     a.emit(0x81, 0xFF, struct.pack("<I", stack))  # cmp edi, stack
     a.jcc(JBE, "no_parent")
-    parent_child = _disp8(_FRAME_CHILD - _FRAME_SIZE)  # the frame below's child accumulator
+    parent_child = i8(_FRAME_CHILD - _FRAME_SIZE)  # the frame below's child accumulator
     a.emit(0x01, 0x47, parent_child)  # add [edi-8], eax
-    a.emit(0x11, 0x57, _disp8(_FRAME_CHILD + 4 - _FRAME_SIZE))  # adc [edi-4], edx
+    a.emit(0x11, 0x57, i8(_FRAME_CHILD + 4 - _FRAME_SIZE))  # adc [edi-4], edx
     a.label("no_parent")
 
     a.emit(0x8B, 0x1F)  # mov ebx, [edi]                    ; frame.slot
@@ -434,7 +374,7 @@ def _emit(base_va: int) -> Asm:
 
 
 def _check_sites(data: bytes | bytearray) -> None:
-    """Every address in :data:`STAGE_SITES` is the byte after a `call` to the constructor.
+    """Every address in `STAGE_SITES` is the byte after a `call` to the constructor.
 
     The cave keys on a return address, and the reader turns that key back into a stage name
     through a table written against this build. A site that moved would still be *measured* - it
@@ -471,7 +411,7 @@ def enter_va(section_va: int) -> int:
 
 def leave_va(section_va: int) -> int:
     """Where the exit routine sits. Read off the emitted layout rather than counted by hand,
-    which is the whole reason :class:`~sage_patch.asm.Asm` carries labels."""
+    which is the whole reason `Asm` carries labels."""
     return _emit(section_va).label_va("leave")
 
 

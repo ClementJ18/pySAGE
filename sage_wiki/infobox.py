@@ -49,7 +49,7 @@ class Infobox:
 
     @property
     def name(self) -> str:
-        """The template name, e.g. ``"Infobox unit"`` (trimmed)."""
+        """The template name, e.g. `"Infobox unit"` (trimmed)."""
         return str(self._template.name).strip()
 
     def has(self, param: str) -> bool:
@@ -62,7 +62,7 @@ class Infobox:
         return str(self._template.get(param).value).strip()
 
     def fields(self) -> dict[str, str]:
-        """Every parameter as ``name -> trimmed value``, in document order."""
+        """Every parameter as `name -> trimmed value`, in document order."""
         return {str(p.name).strip(): str(p.value).strip() for p in self._template.params}
 
     def set(self, param: str, value: str) -> None:

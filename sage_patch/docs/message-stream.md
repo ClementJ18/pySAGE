@@ -347,7 +347,7 @@ OPEN 8 — see [`live-object-model.md`](live-object-model.md) section 1.
 **The player index is not transmitted, and the two spaces disagree.** `encode_order` sends
 `order_type`, `arg_count` and the arguments — nothing else. The engine attributes the order to
 the local player itself, so the `player` argument on every `sage_live.api.orders` constructor is
-**inert for injection** and matters only when round-tripping through `serialize_replay`. In
+**inert for injection** and matters only when round-tripping through `write_replay`. In
 this game the in-memory `PlayerList` index was **3** and the replay recorded **player 2**. One
 data point: it may be a constant −1, or the replay may simply not number a leading slot. Do
 not assume one index works in both spaces until a game with a different slot says which.

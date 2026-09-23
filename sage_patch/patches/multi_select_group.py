@@ -1,126 +1,12 @@
-"""The multi-select-group patch: two buttons a mod declares interchangeable share a slot.
+"""Add `MultiSelectGroup` to `CommandButton`: buttons with the same non-zero value share a slot in a
+mixed selection instead of blanking it.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/multi-select-group.md``.
+`ControlBar::populateMultiSelect` merges a mixed selection's command bar by pointer identity, so a
+unit at another upgrade stage clears the slot. With the patch, grouped buttons count as the same;
+the slot keeps the one the data prefers, not whichever was selected first, and a click reaches every
+member with the button of its own stage. Default 0 is stock.
 
-**The gap.** `ControlBar::populateMultiSelect` builds a mixed selection's command bar as a strict
-intersection. The first selected unit's `CommandSet` fills the 33 slots, and every later unit is
-merged in by the loop at ``0x009446CA``, which compares its button for each slot against the one
-already installed **by pointer identity**. A difference clears the slot and hides the window, so a
-mod that gives a unit a second-stage button by swapping its `CommandSet` - the only stock way to
-change one at runtime - loses that slot the moment a player selects units at two different stages.
-The palantir draws six buttons for a unit, so the slot cannot simply be moved: what the player sees
-is an empty black socket where the upgrade icon was.
-
-**What this does.** Adds one field, `MultiSelectGroup`, to `CommandButton`. Default `0`, which is
-stock behaviour; two buttons carrying the *same* non-zero value are treated as the same button when
-the slots are merged, so the slot survives. A slot whose buttons disagree and are not grouped is
-still cleared and hidden.
-
-**A slot only one of the sets fills is filled from the one that has it**, rather than blanked, and
-that half is **not** gated on the field: a set that says nothing about a slot is not in conflict
-with one that does, so there is nothing to arbitrate. Select `OrkstadTunnelOrksCommandSet` and
-`GundabadLancerCommandSet` together and the lancers' forged-blades and basic-training buttons stay
-on screen instead of going dark, because the tunnel orcs simply have nothing at those slots. The
-adopted button is re-tested for `OK_FOR_MULTI_SELECT` first, which is the gate the first-object
-pass applies and this path would otherwise bypass.
-
-The click then lands only where it can: `AIGroup::doObjectUpgrade` asks `Object::canAcceptUpgrade`
-(``0x00694914``) per member, and that answers true **only** if some module on the object consumes
-the upgrade. A unit that has no button for an upgrade almost never has a module for it either - the
-Edain tunnel orcs consume `Upgrade_WildForgedBladesOrc` where the lancers' button grants
-`Upgrade_WildForgedBlades` - so it is skipped, uncharged. The residual case is a unit that *does*
-carry a module for the upgrade and was deliberately denied the button; a mixed selection can now
-buy it that upgrade. Gating on "the member's own set offers this" would close it, at the cost of
-newly refusing orders on a path every object-upgrade click in the game goes through.
-
-**Which of the two the slot keeps is decided by the data, not by selection order.** A button that
-no selected unit can use is never shown while a grouped one that some unit can use is available -
-the merge asks `ControlBar::getCommandAvailability` (``0x00942733``) about each candidate and
-remembers, per slot, whether anything in the selection has found the installed button usable.
-When both are usable, or neither is, the tie goes to the **earlier stage**, found by asking whether
-the unit being merged already owns the installed button's upgrade (`Object::hasUpgrade`,
-``0x00691421``): if it does, that unit is ahead and the installed button is the earlier one. That
-converges on the least advanced usable button in any merge order.
-
-**A click on a grouped button reaches every stage in the group.** `MSG(0x415)` carries an object id
-of zero, meaning the issuing player's whole selection, and `AIGroup::doObjectUpgrade`
-(``0x0076FBFB``) walks it granting the *one* upgrade the message named. This patch rewrites that
-per member: before the loop's gate runs, the member's own effective `CommandSet` is searched for a
-button in the same `MultiSelectGroup`, and **that** button's upgrade is what the member is offered.
-So one click on the shared slot starts `Upgrade_BruchtalFireArrows` on the battalions at stage one
-and `Upgrade_BruchtalFireArrowsEregions` on the battalions at stage two, each paying its own price,
-with no change to the message and nothing extra emitted.
-
-**That per-member rewrite is also what makes the field safe.** The stock gate is
-`canAffordAndLegal` / `Object::hasUpgrade` / `Object::canAcceptUpgrade`, and none of them ask which
-`CommandSet` the clicked button came from - so without it, showing a mixed selection the later
-stage would let a unit still at stage one take stage two directly, skipping the first purchase and
-its price. Resolving per member from the member's own set makes that unreachable whichever button
-the slot happens to display.
-
-**Buttons with no `Upgrade` are display-only.** Two grouped `SPECIAL_POWER` buttons - the
-stealth-set swap `multi-execute-gate` is written about, for one - share their slot and prefer a
-usable candidate, but there is no upgrade to resolve, so a click does exactly what it does today
-and `multi-execute-gate` is what gates the members.
-
-Four hooks, one cave
---------------------
-1. **The field, in the struct's own padding.** `CommandButton+0x12E` is inside the alignment gap
-   between `TriggerWhenReady` (a `Bool` at +0x12C) and `PresetRange` (a `Real` at +0x130): no row
-   in the field table names it, and the ``memset(this+0x110, 0, 0x1C)`` in the constructor stops at
-   +0x12B. Two aligned bytes, parsed by the engine's own `INI::parseUnsignedShort`
-   (``0x0042EC11``). ``sizeof`` stays 0x2E0 and `ControlBar::newCommandButton`'s
-   ``operator new(0x2E0)`` is untouched.
-
-2. **The default, without a hook.** `operator new` does not zero the block, so the field needs
-   initialising or every button inherits a random group - and buttons that collided would then
-   merge. The constructor's ``mov byte [esi+0x12C], bl`` becomes ``mov dword [esi+0x12C], ebx``:
-   one byte changed, six for six, and `ebx` is the zero the whole constructor stores from, so
-   `TriggerWhenReady` stays `No` and the padding is cleared on the way past.
-
-3. **The field table moves, and three references are repointed.** The stock table at ``0x00C2BAC8``
-   is boxed in by its own terminator, so it is rebuilt in the cave: every live row copied verbatim,
-   since their name pointers are absolute, plus one appended `UnsignedShort` row and the
-   terminator. The three references are the static accessor at ``0x005DA706`` and the two `push`
-   immediates in the block parser.
-
-4. **The merge's verdict** (``0x0094472E``), eight bytes and four whole instructions - the identity
-   compare, the `ATTACK_MOVE` exemption, and the fall-through into the clear-and-hide. The cave
-   reproduces both stock tests, asks the new field when they fail, and dispatches to one of the
-   three continuations the loop already has: `KEEP` (``0x0094474A``), the loop's own step; `HIDE`
-   (``0x00944736``), the stock refusal; or `INSTALL` (``0x00944704``), the arm the empty-slot case
-   takes, entered with `eax` zeroed because that arm passes `eax` to `winHide`.
-
-5. **The first object's install** (``0x009445E8``) and **the populate's reset** (``0x00944853``),
-   which together maintain the 33-byte per-slot record of "has anything in this selection been able
-   to use the button now in this slot". The reset is the `call` to the clear-all-slots helper,
-   which has exactly one caller, so it is the one place per populate a scratch area can be zeroed.
-
-6. **The upgrade order's member loop** (``0x0076FC15``), where `ebx` - the upgrade every member is
-   about to be offered - is replaced by the one that member's own command set names.
-
-**Determinism.** The merge and the display rule are client-side, over the local player's own
-command bar. The member-loop rewrite is **not**: it changes which upgrade a logic-side order
-delivers to which object, so **every peer must run the same patched binary and replays do not
-cross** - the same caveat `multi-execute-gate` carries, and for the same reason. Nothing extra is
-emitted and the message's wire format is unchanged, so a mixed lobby desyncs rather than
-mis-parsing. What is fatal on a stock build is the keyword - SAGE treats an unknown field in a
-known block as a parse error - so a mod using it ships the patched `game.dat` or does not run at
-all.
-
-**Composition.** Order-independent: the cave is allocated past every existing section, `verify`
-finds it by name, and the field table is located from its live references rather than from the
-stock constant, so it appends to whatever is there. `command-point-cost` and `queue-ignore-cp`
-rebuild the same table the same way and take the *other* padding hole, +0x10D and +0x10E; this one
-takes +0x12E and rewrites a constructor store fourteen bytes past the one they share the window of,
-so no two of the three touch a byte in common. Nothing else hooks
-`ControlBar::populateMultiSelect` or `AIGroup::doObjectUpgrade`.
-
-`command-point-cost` hooks `getCommandAvailability`'s *entry* (``0x00942775``), which this cave
-**calls**; that composes, because a call to ``0x00942733`` runs whatever the entry now does and
-comes back the same way. This patch deliberately does not anchor that window, for the same reason
-`command-point-cost` does not anchor the byte `queue-ignore-cp` rewrites.
+Derivation: `../docs/multi-select-group.md`.
 """
 
 from __future__ import annotations
@@ -167,7 +53,14 @@ from ..addresses import (
 )
 from ..asm import JE, JL, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    file_offset,
+    find_section,
+    read_cstring,
+    u32,
+)
 from .utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 if TYPE_CHECKING:
@@ -312,7 +205,7 @@ _KEYWORD_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
 
 
 def validate_keyword(keyword: str) -> None:
-    """Raise unless ``keyword`` is a token the engine's INI reader could ever match."""
+    """Raise unless `keyword` is a token the engine's INI reader could ever match."""
     if not _KEYWORD_PATTERN.match(keyword):
         raise ValueError(
             "an INI keyword must be letters, digits and underscores starting with a letter "
@@ -328,17 +221,13 @@ def rewritten_default() -> bytes:
     return bytes([0x89]) + COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY_BYTES[1:]
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 @dataclass(frozen=True)
 class _Layout:
     """Where each piece of the cave sits, given its base address, the keyword and how many rows the
     live field table turned out to have.
 
-    Pure arithmetic on those three, so :meth:`MultiSelectGroupPatch.apply` and
-    :meth:`MultiSelectGroupPatch.verify` compute the same addresses from opposite directions."""
+    Pure arithmetic on those three, so `MultiSelectGroupPatch.apply` and
+    `MultiSelectGroupPatch.verify` compute the same addresses from opposite directions."""
 
     keyword_va: int
     flags_va: int
@@ -347,7 +236,7 @@ class _Layout:
 
 
 #: The keyword string is the first thing in the cave, at a fixed offset - which is what lets
-#: :meth:`MultiSelectGroupPatch.detect` read it back out of a binary it knows nothing else about.
+#: `MultiSelectGroupPatch.detect` read it back out of a binary it knows nothing else about.
 _KEYWORD_OFFSET = 0
 
 #: The per-slot usability record, rounded up so the reset can clear it a dword at a time.
@@ -400,7 +289,7 @@ def _emit_reset(a: Asm, flags_va: int) -> None:
     the flags are dead, the helper's own prologue being `push esi` / `push edi`."""
     a.label("reset")
     for offset in range(0, _FLAGS_SIZE, 4):
-        a.emit(0xC7, 0x05, _u32(flags_va + offset), _u32(0))  # mov dword [flags+n], 0
+        a.emit(0xC7, 0x05, u32(flags_va + offset), u32(0))  # mov dword [flags+n], 0
     a.jmp_absolute(CONTROL_BAR_MERGE_CLEAR_SLOTS)
 
 
@@ -422,7 +311,7 @@ def _emit_seed(a: Asm, flags_va: int) -> None:
     a.call("avail")
     a.emit(0x83, 0xC4, 0x08)  # add esp, 8
     a.emit(0x8B, 0x4D, CONTROL_BAR_MERGE_SLOT_EBP)  # mov ecx, [ebp+8]   ; the slot index
-    a.emit(0x88, 0x81, _u32(flags_va))  # mov [ecx+flags], al
+    a.emit(0x88, 0x81, u32(flags_va))  # mov [ecx+flags], al
     a.emit(0x61)  # popad
     a.emit(0x3B, 0xCE)  # cmp ecx, esi   ; put back the flags the resume point branches on
     a.jmp_absolute(CONTROL_BAR_MERGE_INSTALL_FIRST_RESUME)
@@ -458,10 +347,10 @@ def _emit_merge(a: Asm, flags_va: int) -> None:
 
     # The field, on both buttons. Zero is the default and means "not grouped", so it can never
     # match - two ungrouped buttons take the stock path they always did.
-    a.emit(0x0F, 0xB7, 0x97, _u32(MULTI_SELECT_GROUP_OFFSET))  # movzx edx, word [edi+0x12E]
+    a.emit(0x0F, 0xB7, 0x97, u32(MULTI_SELECT_GROUP_OFFSET))  # movzx edx, word [edi+0x12E]
     a.emit(0x85, 0xD2)  # test edx, edx
     a.jcc(JE, "hide")
-    a.emit(0x66, 0x3B, 0x90, _u32(MULTI_SELECT_GROUP_OFFSET))  # cmp dx, word [eax+0x12E]
+    a.emit(0x66, 0x3B, 0x90, u32(MULTI_SELECT_GROUP_OFFSET))  # cmp dx, word [eax+0x12E]
     a.jcc(JNE, "hide")
 
     # Same non-zero group, so the two are interchangeable. Take the frame and ask the ControlBar
@@ -478,7 +367,7 @@ def _emit_merge(a: Asm, flags_va: int) -> None:
     # The installed button's verdict is a union over every object merged so far: the one that
     # installed it recorded its own answer in `seed`, and each later object adds to it. Once
     # something has been able to use it there is nothing left to ask.
-    a.emit(0x8A, 0x83, _u32(flags_va))  # mov al, [ebx+flags]
+    a.emit(0x8A, 0x83, u32(flags_va))  # mov al, [ebx+flags]
     a.emit(0x84, 0xC0)  # test al, al
     a.jcc(JNE, "known")
     a.emit(0xFF, 0x75, CONTROL_BAR_MERGE_OBJECT_EBP & 0xFF)  # push [ebp-0x14]
@@ -486,7 +375,7 @@ def _emit_merge(a: Asm, flags_va: int) -> None:
     a.call("avail")
     a.emit(0x83, 0xC4, 0x08)  # add esp, 8
     a.label("known")
-    a.emit(0x88, 0x83, _u32(flags_va))  # mov [ebx+flags], al
+    a.emit(0x88, 0x83, u32(flags_va))  # mov [ebx+flags], al
     a.emit(0x8A, 0x14, 0x24)  # mov dl, [esp]                ; the new button's verdict
 
     # A button nothing in the selection can use never wins against one something can.
@@ -525,7 +414,7 @@ def _emit_merge(a: Asm, flags_va: int) -> None:
 
     a.label("install")
     a.emit(0x8A, 0x04, 0x24)  # mov al, [esp]     ; the new button's verdict travels with it
-    a.emit(0x88, 0x83, _u32(flags_va))  # mov [ebx+flags], al
+    a.emit(0x88, 0x83, u32(flags_va))  # mov [ebx+flags], al
     a.emit(0x83, 0xC4, 0x08)  # add esp, 8
     a.emit(0x33, 0xC0)  # xor eax, eax     ; the install arm passes eax to winHide
     a.jmp_absolute(CONTROL_BAR_MERGE_INSTALL)
@@ -545,7 +434,7 @@ def _emit_merge(a: Asm, flags_va: int) -> None:
     a.emit(0x57)  # push edi
     a.call("avail")
     a.emit(0x83, 0xC4, 0x08)  # add esp, 8
-    a.emit(0x88, 0x83, _u32(flags_va))  # mov [ebx+flags], al
+    a.emit(0x88, 0x83, u32(flags_va))  # mov [ebx+flags], al
     a.emit(0x33, 0xC0)  # xor eax, eax
     a.jmp_absolute(CONTROL_BAR_MERGE_INSTALL)
 
@@ -582,7 +471,7 @@ def _emit_member(a: Asm) -> None:
 
 
 def _emit_avail(a: Asm) -> None:
-    """``int avail(CommandButton *btn, Object *obj)`` - cdecl, 1 when the ControlBar would let this
+    """`int avail(CommandButton *btn, Object *obj)` - cdecl, 1 when the ControlBar would let this
     object use this button.
 
     The window argument is passed NULL, which the click executor at `0x009405B0` also does, so no
@@ -592,7 +481,7 @@ def _emit_avail(a: Asm) -> None:
     a.emit(0x55)  # push ebp
     a.emit(0x8B, 0xEC)  # mov ebp, esp
     a.emit(0x6A, 0x00)  # push 0                  ; [ebp-4]: the float out-param
-    a.emit(0x8B, 0x0D, _u32(THE_CONTROL_BAR))  # mov ecx, [TheControlBar]
+    a.emit(0x8B, 0x0D, u32(THE_CONTROL_BAR))  # mov ecx, [TheControlBar]
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "avail_no")
     a.emit(0x6A, 0x00)  # push 0                  ; arg5: not a recursive call
@@ -615,7 +504,7 @@ def _emit_avail(a: Asm) -> None:
 
 
 def _emit_setof(a: Asm) -> None:
-    """``CommandSet *setof(Object *obj)`` - cdecl, 0 when the object names no known set.
+    """`CommandSet *setof(Object *obj)` - cdecl, 0 when the object names no known set.
 
     `getCommandSetString` returns the object's *effective* set - the three per-object overrides
     ahead of the template's - so a `CommandSetUpgrade` swap is what this sees, which is the whole
@@ -625,7 +514,7 @@ def _emit_setof(a: Asm) -> None:
     a.emit(0x8B, 0xEC)  # mov ebp, esp
     a.emit(0x8B, 0x4D, 0x08)  # mov ecx, [ebp+8]
     a.call_absolute(GET_COMMAND_SET_STRING)  # thiscall, no arguments -> AsciiString *
-    a.emit(0x8B, 0x0D, _u32(THE_CONTROL_BAR))  # mov ecx, [TheControlBar]
+    a.emit(0x8B, 0x0D, u32(THE_CONTROL_BAR))  # mov ecx, [TheControlBar]
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "setof_no")
     a.emit(0x50)  # push eax
@@ -640,10 +529,10 @@ def _emit_setof(a: Asm) -> None:
 
 def _emit_search(a: Asm, name: str, accept: Callable[[Asm], None]) -> None:
     """The shape both button searches share: walk the object's own set and return the first button
-    ``accept`` takes, or 0.
+    `accept` takes, or 0.
 
-    ``accept`` is emitted with the candidate in `eax` and the second argument at `[ebp+0xc]`, and
-    must branch to ``<name>_step`` to reject and to ``<name>_out`` to take it. All three callees
+    `accept` is emitted with the candidate in `eax` and the second argument at `[ebp+0xc]`, and
+    must branch to `<name>_step` to reject and to `<name>_out` to take it. All three callees
     preserve `ebx`/`esi`/`edi`, so the slot, the `CommandSet` and the candidate live in registers
     for the whole walk."""
     a.label(name)
@@ -677,8 +566,8 @@ def _emit_search(a: Asm, name: str, accept: Callable[[Asm], None]) -> None:
 
 
 def _emit_bybtn(a: Asm) -> None:
-    """``CommandButton *bybtn(Object *obj, UpgradeTemplate *u)`` - the button in the object's own
-    set that buys ``u``, or 0. What says whether a member is already at the right stage."""
+    """`CommandButton *bybtn(Object *obj, UpgradeTemplate *u)` - the button in the object's own
+    set that buys `u`, or 0. What says whether a member is already at the right stage."""
 
     def accept(asm: Asm) -> None:
         asm.emit(0x8B, 0x48, COMMAND_BUTTON_UPGRADE)  # mov ecx, [eax+0x24]
@@ -691,12 +580,12 @@ def _emit_bybtn(a: Asm) -> None:
 
 
 def _emit_bygroup(a: Asm) -> None:
-    """``CommandButton *bygroup(Object *obj, unsigned group)`` - the first button in the object's
-    own set carrying ``group``, or 0. ``group`` is never zero at the one call site, so a button
+    """`CommandButton *bygroup(Object *obj, unsigned group)` - the first button in the object's
+    own set carrying `group`, or 0. `group` is never zero at the one call site, so a button
     that declares none can never match."""
 
     def accept(asm: Asm) -> None:
-        asm.emit(0x0F, 0xB7, 0x88, _u32(MULTI_SELECT_GROUP_OFFSET))  # movzx ecx, word [eax+0x12E]
+        asm.emit(0x0F, 0xB7, 0x88, u32(MULTI_SELECT_GROUP_OFFSET))  # movzx ecx, word [eax+0x12E]
         asm.emit(0x3B, 0x4D, 0x0C)  # cmp ecx, [ebp+0xc]
         asm.jcc(JE, "bygroup_out")
 
@@ -704,14 +593,14 @@ def _emit_bygroup(a: Asm) -> None:
 
 
 def _emit_resolve(a: Asm) -> None:
-    """``UpgradeTemplate *resolve(Object *member, UpgradeTemplate *u, AIGroup *group)`` - the
+    """`UpgradeTemplate *resolve(Object *member, UpgradeTemplate *u, AIGroup *group)` - the
     upgrade this member should actually be offered.
 
-    ``u`` unchanged is the stock answer, and every ungrouped case returns it. Otherwise: the
-    member's own set already offering ``u`` means it is at the right stage; if it is not, ``u``'s
+    `u` unchanged is the stock answer, and every ungrouped case returns it. Otherwise: the
+    member's own set already offering `u` means it is at the right stage; if it is not, `u`'s
     group is found from whichever member of the selection *does* name it - the click came from one
     of them - and the member's own button in that group supplies the upgrade instead. A member with
-    no button in that group is not part of the mechanic and takes ``u``."""
+    no button in that group is not part of the mechanic and takes `u`."""
     a.label("resolve")
     a.emit(0x55)  # push ebp
     a.emit(0x8B, 0xEC)  # mov ebp, esp
@@ -740,7 +629,7 @@ def _emit_resolve(a: Asm) -> None:
     a.emit(0x83, 0xC4, 0x08)  # add esp, 8
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "resolve_step")
-    a.emit(0x0F, 0xB7, 0x80, _u32(MULTI_SELECT_GROUP_OFFSET))  # movzx eax, word [eax+0x12E]
+    a.emit(0x0F, 0xB7, 0x80, u32(MULTI_SELECT_GROUP_OFFSET))  # movzx eax, word [eax+0x12E]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JNE, "resolve_found")
     a.label("resolve_step")
@@ -787,32 +676,11 @@ HOOK_JMP, HOOK_CALL = 0xE9, 0xE8
 
 
 def _hook(site_va: int, window: bytes, target_va: int, opcode: int = HOOK_JMP) -> bytes:
-    """`jmp`/`call rel32` to ``target_va``, padded with `nop` to the width of ``window``."""
+    """`jmp`/`call rel32` to `target_va`, padded with `nop` to the width of `window`."""
     branch = bytes([opcode]) + struct.pack("<i", target_va - (site_va + 5))
     if len(window) < len(branch):
         raise ValueError(f"the window at {site_va:#010x} is too small for a rel32 branch")
     return branch + b"\x90" * (len(window) - len(branch))
-
-
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA {va:#010x} is not mapped - not the expected build")
-    return off
-
-
-def _cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    """The NUL-terminated ASCII string at ``va``, or None if it is unmapped or not one."""
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data).find(b"\x00", off, off + limit)
-    if end < 0:
-        return None
-    try:
-        return data[off:end].decode("ascii")
-    except UnicodeDecodeError:
-        return None
 
 
 class MultiSelectGroupPatch(Patch):
@@ -838,7 +706,7 @@ class MultiSelectGroupPatch(Patch):
         return f"{self.name} ({self.keyword})"
 
     #: The five-byte branch each routine is reached by, as
-    #: ``{hook va: (stock bytes, routine, opcode)}``.
+    #: `{hook va: (stock bytes, routine, opcode)}`.
     #:
     #: **The reset site is a `call`, and that is not a detail.** Its routine ends by tail-calling
     #: the clear-all-slots helper the stock instruction named, so the helper's own `ret` is what
@@ -866,23 +734,23 @@ class MultiSelectGroupPatch(Patch):
         for hook_va, (stock, routine, opcode) in self._HOOKS.items():
             apply_byte_patch(
                 data,
-                _offset(data, hook_va),
+                file_offset(data, hook_va),
                 stock,
                 _hook(hook_va, stock, routines[routine], opcode),
                 f"{hook_va:#010x} -> the {SECTION_NAME} {routine} routine",
             )
         apply_byte_patch(
             data,
-            _offset(data, COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY),
+            file_offset(data, COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY),
             COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY_BYTES,
             rewritten_default(),
             f"CommandButton::CommandButton defaults +{MULTI_SELECT_GROUP_OFFSET:#05x} to 0",
         )
-        table_ref = _u32(pieces.table_va)
+        table_ref = u32(pieces.table_va)
         for ref_va, opcode in zip(
             COMMAND_BUTTON_FIELD_TABLE_REFS, COMMAND_BUTTON_FIELD_TABLE_REF_OPCODES, strict=True
         ):
-            off = _offset(data, ref_va)
+            off = file_offset(data, ref_va)
             apply_byte_patch(
                 data,
                 off,
@@ -917,7 +785,7 @@ class MultiSelectGroupPatch(Patch):
     @classmethod
     def _check_anchors(cls, data: bytes | bytearray) -> None:
         for va, expected in ANCHORS.items():
-            off = _offset(data, va)
+            off = file_offset(data, va)
             got = bytes(data[off : off + len(expected)])
             if got != expected:
                 raise ValueError(
@@ -932,7 +800,7 @@ class MultiSelectGroupPatch(Patch):
         A duplicate row would parse - the reader takes the first match and the engine would never
         complain - so the field would exist and silently do nothing."""
         entries = read_field_table(data, table_va)
-        by_name = {_cstring(data, name): offset for name, _fn, _ud, offset in entries}
+        by_name = {read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
         for field, want in FINGERPRINT.items():
             got = by_name.get(field)
             if got != want:
@@ -949,7 +817,7 @@ class MultiSelectGroupPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> MultiSelectGroupPatch | None:
-        """Recognise this patch **and recover its keyword** from ``data``.
+        """Recognise this patch **and recover its keyword** from `data`.
 
         The default probe would only ever recognise the default keyword. The keyword string is the
         first thing in the cave, so it reads straight back out; `verify` then checks the whole cave
@@ -957,7 +825,7 @@ class MultiSelectGroupPatch(Patch):
         located = find_section(data, SECTION_NAME)
         if located is None:
             return None
-        keyword = _cstring(data, located[0] + _KEYWORD_OFFSET)
+        keyword = read_cstring(data, located[0] + _KEYWORD_OFFSET)
         if keyword is None:
             return None
         try:
@@ -972,12 +840,12 @@ class MultiSelectGroupPatch(Patch):
         behaviour, which is what makes the field opt-in.
 
         Declared `Int` because that is what a mod writes: the engine's `UnsignedShort` parser
-        refuses anything outside ``0..65535``, and the value is an identity, not a quantity."""
+        refuses anything outside `0..65535`, and the value is an identity, not a quantity."""
         return Engine(fields=(FieldDelta("CommandButton", self.keyword, "Int", 0, self.name),))
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch for exactly this keyword. Reads only
-        via ``struct`` and the section table, so it needs no disassembler.
+        """Structural check that `data` carries this patch for exactly this keyword. Reads only
+        via `struct` and the section table, so it needs no disassembler.
 
         Every address is recovered from where the cave actually landed rather than from where it
         would land on a clean image, so a build carrying another patch's section too verifies the
@@ -1012,19 +880,19 @@ class MultiSelectGroupPatch(Patch):
         code = build_code(pieces.code_va, pieces.flags_va)
         if pieces.code_va + len(code) > section_va + vsize:
             return [f"{SECTION_NAME} holds {vsize} bytes, too few for the table and the code"]
-        got_keyword = _cstring(data, pieces.keyword_va)
+        got_keyword = read_cstring(data, pieces.keyword_va)
         if got_keyword != self.keyword:
             problems.append(
                 f"the keyword in {SECTION_NAME} is {got_keyword!r}, not {self.keyword!r}"
             )
         want_table = build_table(preceding, pieces.keyword_va)
-        table_off = _offset(data, pieces.table_va)
+        table_off = file_offset(data, pieces.table_va)
         if bytes(data[table_off : table_off + len(want_table)]) != want_table:
             problems.append(
                 f"the field table at {pieces.table_va:#010x} is not the live rows plus an "
                 f"UnsignedShort at CommandButton+{MULTI_SELECT_GROUP_OFFSET:#05x}"
             )
-        code_off = _offset(data, pieces.code_va)
+        code_off = file_offset(data, pieces.code_va)
         if bytes(data[code_off : code_off + len(code)]) != code:
             problems.append(f"the code at {pieces.code_va:#010x} is not what this patch builds")
         return problems
@@ -1046,14 +914,14 @@ class MultiSelectGroupPatch(Patch):
         problems: list[str] = []
         for hook_va, (stock, routine, opcode) in self._HOOKS.items():
             want = _hook(hook_va, stock, routines[routine], opcode)
-            off = _offset(data, hook_va)
+            off = file_offset(data, hook_va)
             got = bytes(data[off : off + len(want)])
             if got != want:
                 problems.append(
                     f"@{hook_va:#010x}: this site does not reach the {SECTION_NAME} {routine} "
                     f"routine (holds {got.hex()})"
                 )
-        off = _offset(data, COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY)
+        off = file_offset(data, COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY)
         want_default = rewritten_default()
         got_default = bytes(data[off : off + len(want_default)])
         if got_default != want_default:
@@ -1068,7 +936,7 @@ class MultiSelectGroupPatch(Patch):
             0,
             MULTI_SELECT_GROUP_OFFSET,
         )
-        row = next((e for e in live if _cstring(data, e[0]) == self.keyword), None)
+        row = next((e for e in live if read_cstring(data, e[0]) == self.keyword), None)
         if row != want_row:
             problems.append(
                 f"the live CommandButton table's {self.keyword!r} row is "

@@ -1,66 +1,11 @@
-"""The campaign-select patch: let the main menu start **any** `LinearCampaign`, by name.
+"""Let the main menu start any `LinearCampaign` by name.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below comes
-from :mod:`sage_patch.addresses` and is derived in ``../docs/campaign-select.md``.
+The engine hardcodes two campaign names. The first five bytes of `AptMainMenu::Expansion1Campaign`
+(`MAIN_MENU_CAMPAIGN_HANDLER`) jump to a cave that does what the stock callback did and then reads a
+campaign name after a `:` in the params string, which the stock callback discards. A params string
+with no `:` behaves exactly as before.
 
-**The gap.** A ROTWK shell can start exactly the campaigns EA compiled into it. `Campaign.ini`
-says so out loud - *"campaign names are basically hard-coded into the game engine. It would be
-nice to pull them from the flash file or something but... we don't. They must be named
-ANGMAR_CAMPAIGN"* - and the binary agrees: the menu's two campaign buttons reach two callbacks
-that differ only in a screen id, and each id reaches a thunk holding one string literal. A mod
-that ships three campaigns has two buttons for them.
-
-**Only the name is hardcoded, though.** Everything under it is generic. The start itself
-(`0x0091B1D2`) takes an `AsciiString *`, resolves it through `TheCampaignManager` and returns
-without doing anything if the name is unknown - so any `LinearCampaign` block in INI is already
-reachable, if you can say its name. Saying it is the whole patch.
-
-**Where the name is said.** Case 13's thunk builds its `AsciiString` once, into a function-local
-static, behind an MSVC magic-static guard::
-
-    0091BE96  test byte ptr [CAMPAIGN_NAME_STATIC_GUARD], 1
-    0091BE9D  push esi
-    0091BE9E  mov  esi, CAMPAIGN_NAME_STATIC     ; loaded whether or not the branch is taken
-    0091BEA3  jne  0091BECA                      ; already initialised -> on to the start
-    ...                                          ; the only path the literal takes
-    0091BED4  push esi                           ; -> startLinearCampaign
-
-Set that static and its guard bit and the literal never runs. The thunk, the 14-entry jump table
-it hangs off, and the callback registry are all untouched - which is why this is one detour and
-not a table relocation plus a new FSCommand registration.
-
-**What it does.** Replaces the first five bytes of `AptMainMenu::Expansion1Campaign`
-(`MAIN_MENU_CAMPAIGN_HANDLER`) with a `jmp` into a cave that does everything the stock callback
-did - phase, screen id, and the difficulty byte it takes from `params[0]` - and then reads the
-*rest* of the params string, which the stock callback discards:
-
-    ``GameCode("Expansion1Campaign", "Hard:DWARVEN_CAMPAIGN")``
-
-Byte 0 is still the difficulty, exactly as before. Everything after the first ``:`` is the
-campaign name, copied into the cave (63 chars max) and installed in the static.
-
-**A params string with no ``:`` is left completely alone** - no copy, no static, no guard - so a
-stock `.apt` sending ``"Easy"`` / ``"Medium"`` / ``"Hard"`` gets stock `ANGMAR_CAMPAIGN`
-behaviour, including the `_DEMO` variant the thunk picks. The patch adds a channel; it does not
-take one away.
-
-**Consequence worth knowing.** Once a name has been installed, the guard stays set for the life of
-the process, so the between-missions screen's own route into case 13 (`0x009C506F`) continues
-whichever campaign was started rather than reverting to `ANGMAR_CAMPAIGN`. That is what you want,
-and it is why the `.apt` should send a name on *every* campaign button rather than mixing the two
-forms - a stock-form press after a named one runs the previously named campaign.
-
-> **Shell-only and client-local.** Nothing here is in the simulation: the patch runs on a main-menu
-> button press, before a game exists, and writes one string. It is not CRC'd, it does not cross the
-> network and replays cross unpatched builds. Same rule as `replay-outcome` and `observer-switch`.
-
-**Composition.** Order-independent. It appends its own section with
-:func:`~sage_patch.utils.allocate_section`, the five bytes it edits are touched by no other
-bundled patch, and it reads nothing another patch rewrites.
-
-**The one leak.** Filling the static ourselves skips the `atexit` registration the stock
-initialiser does at `0x0091BEC0`, so the last campaign name allocated is never freed. It is one
-`AsciiString` buffer, released by the OS at process exit.
+Derivation: `../docs/campaign-select.md`.
 """
 
 from __future__ import annotations
@@ -86,7 +31,7 @@ from ...addresses import (
 )
 from ...asm import JB, JE, JNE, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import allocate_section, apply_byte_patch, find_section, u32, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -123,15 +68,11 @@ CODE_OFF = NAME_OFF + NAME_CAPACITY
 SEPARATOR = ":"
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def params(difficulty: str, campaign: str = "") -> str:
-    """The params string the `.apt` passes to ``GameCode("Expansion1Campaign", …)``.
+    """The params string the `.apt` passes to `GameCode("Expansion1Campaign", …)`.
 
-    ``difficulty`` is the stock word (``"Easy"`` / ``"Medium"`` / ``"Hard"``) - the engine reads
-    only its first character, before and after this patch. Passing no ``campaign`` returns exactly
+    `difficulty` is the stock word (`"Easy"` / `"Medium"` / `"Hard"`) - the engine reads
+    only its first character, before and after this patch. Passing no `campaign` returns exactly
     what a stock movie sends, which the patched callback leaves alone.
     """
     if SEPARATOR in difficulty:
@@ -140,7 +81,7 @@ def params(difficulty: str, campaign: str = "") -> str:
 
 
 def campaign_of(text: str) -> str:
-    """The campaign name the cave would take out of ``text``, or ``""`` for "leave the static
+    """The campaign name the cave would take out of `text`, or `""` for "leave the static
     alone" - the parse rule in Python, so the tests can state it once and assert the emitted code
     against the same one.
 
@@ -155,7 +96,7 @@ def campaign_of(text: str) -> str:
 
 
 def build_code(code_va: int, name_va: int) -> bytes:
-    """The replacement callback, assembled to run at ``code_va`` with its buffer at ``name_va``.
+    """The replacement callback, assembled to run at `code_va` with its buffer at `name_va`.
 
     Entered by the `jmp` that replaced the callback's first five bytes, so on entry `ecx` is the
     `AptMainMenu`, `[esp]` is the caller's return address and `[esp+4]` is the params string - and
@@ -166,14 +107,14 @@ def build_code(code_va: int, name_va: int) -> bytes:
     """
     a = Asm(code_va)
 
-    # --- the stock callback, instruction for instruction ---
+    # The stock callback, instruction for instruction
     a.emit(0x8B, 0x44, 0x24, 0x04)  # mov eax, [esp+4]         ; params
     # mov dword ptr [ecx+MAIN_MENU_SCREEN_PHASE], MAIN_MENU_PHASE_LEAVING
-    a.emit(0xC7, 0x81, _u32(MAIN_MENU_SCREEN_PHASE), _u32(MAIN_MENU_PHASE_LEAVING))
+    a.emit(0xC7, 0x81, u32(MAIN_MENU_SCREEN_PHASE), u32(MAIN_MENU_PHASE_LEAVING))
     # mov dword ptr [ecx+MAIN_MENU_SCREEN_SELECTION], MAIN_MENU_CAMPAIGN_SELECTION_ID
-    a.emit(0xC7, 0x81, _u32(MAIN_MENU_SCREEN_SELECTION), _u32(MAIN_MENU_CAMPAIGN_SELECTION_ID))
+    a.emit(0xC7, 0x81, u32(MAIN_MENU_SCREEN_SELECTION), u32(MAIN_MENU_CAMPAIGN_SELECTION_ID))
     a.emit(0x8A, 0x10)  # mov dl, [eax]            ; the difficulty letter
-    a.emit(0x88, 0x91, _u32(MAIN_MENU_SCREEN_DIFFICULTY))  # mov [ecx+0x2A8], dl
+    a.emit(0x88, 0x91, u32(MAIN_MENU_SCREEN_DIFFICULTY))  # mov [ecx+0x2A8], dl
 
     # `dl` is still the first character, so an empty params string is one test rather than a
     # second load. The stock callback dereferences `eax` unconditionally too, so a NULL params
@@ -181,7 +122,7 @@ def build_code(code_va: int, name_va: int) -> bytes:
     a.emit(0x84, 0xD2)  # test dl, dl
     a.jcc(JE, "done")
 
-    # --- find the separator ---
+    # Find the separator
     a.emit(0x8B, 0xD0)  # mov edx, eax             ; scan cursor
     a.label("scan")
     a.emit(0x8A, 0x0A)  # mov cl, [edx]
@@ -193,8 +134,8 @@ def build_code(code_va: int, name_va: int) -> bytes:
     a.emit(0x80, 0x3A, 0x00)  # cmp byte ptr [edx], 0
     a.jcc(JE, "done")  # "Hard:" names nothing -> stock behaviour
 
-    # --- copy the name, bounded by the destination rather than by a counter ---
-    a.emit(0xB8, _u32(name_va))  # mov eax, <buffer>
+    # Copy the name, bounded by the destination rather than by a counter
+    a.emit(0xB8, u32(name_va))  # mov eax, <buffer>
     a.label("copy")
     a.emit(0x8A, 0x0A)  # mov cl, [edx]
     a.emit(0x88, 0x08)  # mov [eax], cl            ; the terminator is copied too
@@ -202,16 +143,16 @@ def build_code(code_va: int, name_va: int) -> bytes:
     a.jcc(JE, "installed")
     a.emit(0x42)  # inc edx
     a.emit(0x40)  # inc eax
-    a.emit(0x3D, _u32(name_va + NAME_CAPACITY - 1))  # cmp eax, <last byte of the buffer>
+    a.emit(0x3D, u32(name_va + NAME_CAPACITY - 1))  # cmp eax, <last byte of the buffer>
     a.jcc(JB, "copy")
     a.emit(0xC6, 0x00, 0x00)  # mov byte ptr [eax], 0    ; truncate, still terminated
 
-    # --- install it as the campaign the start thunk will read ---
+    # Install it as the campaign the start thunk will read
     a.label("installed")
-    a.emit(0xB9, _u32(CAMPAIGN_NAME_STATIC))  # mov ecx, <the static AsciiString>
-    a.emit(0x68, _u32(name_va))  # push <buffer>
+    a.emit(0xB9, u32(CAMPAIGN_NAME_STATIC))  # mov ecx, <the static AsciiString>
+    a.emit(0x68, u32(name_va))  # push <buffer>
     a.call_absolute(ASCII_STRING_SET)  # `ret 4`: cleans its own argument
-    a.emit(0x83, 0x0D, _u32(CAMPAIGN_NAME_STATIC_GUARD), 0x01)  # or dword ptr [guard], 1
+    a.emit(0x83, 0x0D, u32(CAMPAIGN_NAME_STATIC_GUARD), 0x01)  # or dword ptr [guard], 1
 
     a.label("done")
     a.emit(0xC2, 0x04, 0x00)  # ret 4
@@ -240,6 +181,7 @@ _DETOUR_LEN = 5
 class CampaignSelectPatch(Patch):
     name = "campaign-select"
     author = "officialNecro"
+    runtime_verified = "yes"
     experimental = True
     description = (
         "Let the main menu start any LinearCampaign by name - the campaign button's FSCommand "
@@ -286,7 +228,7 @@ class CampaignSelectPatch(Patch):
         """Raise unless the callback's **tail** - everything the `jmp` does not cover - is still
         stock. That is where the screen id and the difficulty store are written down, which is what
         the cave reproduces; the first five bytes are deliberately excluded so this one check can
-        serve :meth:`apply` and :meth:`verify` alike."""
+        serve `apply` and `verify` alike."""
         off = va_to_offset(data, MAIN_MENU_CAMPAIGN_HANDLER)
         if off is None:
             raise ValueError(

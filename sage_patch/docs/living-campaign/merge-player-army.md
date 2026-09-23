@@ -125,7 +125,7 @@ INI template**: `0x007B98EC` strides its store by `0x68`, `0x0071BC70` allocates
 | `appendExisting(record**)` | `0x00811951` | takes a reference, bumps `record+0xC0` |
 | `eraseAt(&out, index)` | `0x00810840` | |
 | record fields | | `+0x04` `ThingTemplate` AsciiString, `+0xA0` `Quantity`, `+0xC0` refcount, `+0xD5` `Default` |
-| `AsciiString` ctor / dtor / compare | `0x004374E0` / `0x00435D50` / `0x004065AA` | already named in `addresses.py` |
+| `AsciiString` ctor / dtor / compare | `0x004374E0` / `0x00435D50` / `0x004065AA` | already named in `sage_patch.addresses` |
 | destroy an army | `0x006B9679` | for the optional `DespawnSource`, below |
 
 ## 4. The blocker, and why it does not stop the patch

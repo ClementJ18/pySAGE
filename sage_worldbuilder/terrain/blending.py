@@ -1,5 +1,5 @@
 """Blending textures: Blend Single Edge, Auto Edge Out and Auto Edge In, as WorldBuilder's
-`WorldHeightMapEdit` does them (PHASE3.md, 3.3 Blending).
+`WorldHeightMapEdit` does them.
 
 A blend draws another texture onto a cell, fading in from one side. A cell holds up to two, one
 in `BlendTileData.blends` and a 3-way blend in `three_way_blends`, each an index (from 1) into

@@ -1,9 +1,10 @@
-"""Client-local, wall-clock SpecialPower music for RotWK 2.01.
+"""Client-local, wall-clock music for a `SpecialPower`.
 
-The field parser uses the stock tokenizer and a separate table keyed by the template's
-stable numeric ID. +0x14 is an ID, not a NameKey: generating NameKeys at trigger time
-would mutate the engine's shared name registry for unconfigured powers. No template,
-snapshot, script flag or gameplay state is extended. See README for override limitations.
+The field parser uses the stock tokenizer and a separate table keyed by the template's stable
+numeric id (`+0x14`), not a `NameKey`: generating name keys at trigger time would change the
+engine's shared name registry. No template, snapshot, script flag or gameplay state is extended.
+
+Derivation: `../../docs/special-power-music.md`.
 """
 
 from __future__ import annotations
@@ -35,7 +36,13 @@ from ...addresses import (
 )
 from ...asm import JA, JAE, JE, JNE, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import (
+    allocate_section,
+    apply_byte_patch,
+    file_offset,
+    find_section,
+    u32,
+)
 from ..utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 from ..utils.name_tables import read_cstring
 
@@ -50,10 +57,6 @@ _TABLE_OFF = _STATE_SIZE + _ROWS * _STRIDE
 _RWX = 0xE0000060
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def _branch(site: int, target: int, opcode: int = 0xE9) -> bytes:
     return bytes([opcode]) + struct.pack("<i", target - site - 5)
 
@@ -65,13 +68,6 @@ def _resolve(data: bytes | bytearray) -> int:
         SPECIAL_POWER_FIELD_TABLE_REF_OPCODES,
         "SpecialPower",
     )
-
-
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"unmapped address {va:#x}: not RotWK 2.01")
-    return off
 
 
 def _save(a: Asm) -> None:
@@ -94,13 +90,13 @@ def _assemble(base: int, entries: tuple[Entry, ...]) -> Asm:
     a.label("lookup")
     a.emit(b"\x85\xd2")
     a.jcc(JE, "missing")
-    a.emit(0xB8, _u32(rows), 0xB9, _u32(_ROWS))
+    a.emit(0xB8, u32(rows), 0xB9, u32(_ROWS))
     a.label("probe")
     a.emit(b"\x39\x10")
     a.jcc(JE, "found")
     a.emit(b"\x83\x38\x00")
     a.jcc(JE, "found")
-    a.emit(b"\x05", _u32(_STRIDE), 0x49)
+    a.emit(b"\x05", u32(_STRIDE), 0x49)
     a.jcc(JNE, "probe")
     a.label("missing")
     a.emit(b"\x31\xc0")
@@ -137,9 +133,9 @@ def _assemble(base: int, entries: tuple[Entry, ...]) -> Asm:
     a.jcc(JE, "duration_done")
     a.emit(b"\x83\xea\x30\x83\xfa\x09")
     a.jcc(JA, "invalid")
-    a.emit(b"\x81\xfb", _u32(214748364))
+    a.emit(b"\x81\xfb", u32(214748364))
     a.jcc(JA, "invalid")
-    a.emit(b"\x6b\xdb\x0a\x01\xd3\x81\xfb", _u32(0x7FFFFFFF))
+    a.emit(b"\x6b\xdb\x0a\x01\xd3\x81\xfb", u32(0x7FFFFFFF))
     a.jcc(JA, "invalid")
     a.emit(0x41)
     a.jmp("digits")
@@ -155,10 +151,10 @@ def _assemble(base: int, entries: tuple[Entry, ...]) -> Asm:
     a.emit(b"\x85\xc0")
     a.jcc(JE, "invalid")
     a.emit(b"\x89\x10\x89\x58\x04\x8d\x78\x08\x89\xe6")
-    a.emit(0xB9, _u32(256), b"\xfc\xf3\xa4")
+    a.emit(0xB9, u32(256), b"\xfc\xf3\xa4")
     a.jmp("parse_done")
     a.label("invalid")
-    a.emit(b"\xff\x05", _u32(base + 12))
+    a.emit(b"\xff\x05", u32(base + 12))
     a.label("parse_done")
     a.emit(b"\x81\xc4\x04\x01\x00\x00\x5f\x5e\x5b\x5d\xc3")
 
@@ -177,16 +173,16 @@ def _assemble(base: int, entries: tuple[Entry, ...]) -> Asm:
     a.jcc(JNE, "trigger_done")
     a.emit(b"\x83\x78\x04\x00")
     a.jcc(JE, "trigger_done")
-    a.emit(b"\x89\xc6\x8b\x1d", _u32(SPM_THE_AUDIO), b"\x85\xdb")
+    a.emit(b"\x89\xc6\x8b\x1d", u32(SPM_THE_AUDIO), b"\x85\xdb")
     a.jcc(JE, "trigger_done")
     # The stock music-action helper tags events with the local player's index.
-    a.emit(0xA1, _u32(THE_PLAYER_LIST), b"\x85\xc0")
+    a.emit(0xA1, u32(THE_PLAYER_LIST), b"\x85\xc0")
     a.jcc(JE, "trigger_done")
     a.emit(b"\x83\x78\x10\x00")
     a.jcc(JE, "trigger_done")
-    a.emit(b"\x83\x3d", _u32(base), 0)
+    a.emit(b"\x83\x3d", u32(base), 0)
     a.jcc(JE, "push")
-    a.emit(b"\x39\x1d", _u32(base + 8))
+    a.emit(b"\x39\x1d", u32(base + 8))
     a.jcc(JNE, "push")
     a.emit(b"\x6a\x01\x6a\x01\x6a\x01\x6a\x00\x89\xd9")
     a.call_absolute(SPM_MUSIC_POP)  # (0, 1, immediate-out, immediate-in), ret 16
@@ -202,28 +198,28 @@ def _assemble(base: int, entries: tuple[Entry, ...]) -> Asm:
     a.call_absolute(SPM_SCRIPT_MUSIC_PUSH)  # name, fade-out, no-fade-in, once, empty flag, level 1
     a.emit(b"\x89\xf9")
     a.call_absolute(ASCII_STRING_DTOR)
-    a.emit(b"\x83\xc4\x08\xff\x15", _u32(SPM_TIME_GET_TIME_IAT))
-    a.emit(b"\x03\x46\x04\xa3", _u32(base + 4))
-    a.emit(b"\x89\x1d", _u32(base + 8), b"\xc7\x05", _u32(base), _u32(1))
+    a.emit(b"\x83\xc4\x08\xff\x15", u32(SPM_TIME_GET_TIME_IAT))
+    a.emit(b"\x03\x46\x04\xa3", u32(base + 4))
+    a.emit(b"\x89\x1d", u32(base + 8), b"\xc7\x05", u32(base), u32(1))
     a.label("trigger_done")
     _restore(a)
     a.emit(0xC3)
 
     a.label("frame")
     _save(a)
-    a.emit(b"\x83\x3d", _u32(base), 0)
+    a.emit(b"\x83\x3d", u32(base), 0)
     a.jcc(JE, "frame_done")
-    a.emit(b"\x8b\x1d", _u32(SPM_THE_AUDIO), b"\x85\xdb")
+    a.emit(b"\x8b\x1d", u32(SPM_THE_AUDIO), b"\x85\xdb")
     a.jcc(JE, "clear")
-    a.emit(b"\x39\x1d", _u32(base + 8))
+    a.emit(b"\x39\x1d", u32(base + 8))
     a.jcc(JNE, "clear")
-    a.emit(b"\xff\x15", _u32(SPM_TIME_GET_TIME_IAT))
-    a.emit(b"\x2b\x05", _u32(base + 4))
+    a.emit(b"\xff\x15", u32(SPM_TIME_GET_TIME_IAT))
+    a.emit(b"\x2b\x05", u32(base + 4))
     a.jcc(0x8, "frame_done")  # JS: signed modular difference, not signed JL after subtraction
     a.emit(b"\x6a\x00\x6a\x00\x6a\x01\x6a\x00\x89\xd9")
     a.call_absolute(SPM_MUSIC_RESUME)  # fade out/in, ret 16; no scripting reset
     a.label("clear")
-    a.emit(b"\xc7\x05", _u32(base), _u32(0))
+    a.emit(b"\xc7\x05", u32(base), u32(0))
     a.label("frame_done")
     _restore(a)
     a.jmp_absolute(SPM_FRAME_RESUME)
@@ -277,7 +273,7 @@ class SpecialPowerMusicPatch(Patch):
             (SPM_FRAME_HOOK, SPM_FRAME_HOOK_BYTES),
             *SPM_STOCK_ANCHORS.items(),
         ):
-            off = _offset(data, site)
+            off = file_offset(data, site)
             if bytes(data[off : off + len(old)]) != old:
                 raise ValueError(f"conflicting hook or wrong build at {site:#x}")
         # Work on a copy so even a failed allocation leaves the caller's buffer intact.
@@ -289,14 +285,18 @@ class SpecialPowerMusicPatch(Patch):
             (SPM_FRAME_HOOK, SPM_FRAME_HOOK_BYTES, "frame", 0xE9),
         ):
             apply_byte_patch(
-                out, _offset(out, site), old, _branch(site, code.label_va(target), opcode), target
+                out,
+                file_offset(out, site),
+                old,
+                _branch(site, code.label_va(target), opcode),
+                target,
             )
         for ref in SPECIAL_POWER_FIELD_TABLE_REFS:
             apply_byte_patch(
                 out,
-                _offset(out, ref) + 1,
-                _u32(table_va),
-                _u32(base + _TABLE_OFF),
+                file_offset(out, ref) + 1,
+                u32(table_va),
+                u32(base + _TABLE_OFF),
                 "MusicOnTrigger table",
             )
         data[:] = out
@@ -315,7 +315,7 @@ class SpecialPowerMusicPatch(Patch):
             expected = _build(base, preceding)
             problems = []
             for site, original in SPM_STOCK_ANCHORS.items():
-                start = _offset(data, site)
+                start = file_offset(data, site)
                 if bytes(data[start : start + len(original)]) != original:
                     problems.append(f"stock audio dependency differs at {site:#x}")
             if bytes(data[off : off + len(expected)]) != expected:
@@ -327,7 +327,7 @@ class SpecialPowerMusicPatch(Patch):
                 (SPM_TRIGGER_HOOK, "trigger", 0xE8),
                 (SPM_FRAME_HOOK, "frame", 0xE9),
             ):
-                start = _offset(data, site)
+                start = file_offset(data, site)
                 if bytes(data[start : start + 5]) != _branch(site, code.label_va(label), opcode):
                     problems.append(f"{label} hook differs")
             return problems

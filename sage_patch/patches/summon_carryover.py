@@ -1,70 +1,12 @@
-"""Let a summoned or spawned unit come home from a War of the Ring battle, like a recruited one.
+"""Let a summoned or spawned `ARMY_SUMMARY` unit come home from a War of the Ring battle, like a
+recruited one.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../../docs/living-campaign/army-id-custody.md``.
+The post-battle harvest needs a living-world army id, which only deployment and production write,
+so a summon is always dropped. The six-byte load at `0x00811EAA` goes to a cave that, for an object
+with no army id, adopts the army of the first object with the same controlling player that has one
+- the army the battle is being fought with. The harvest then records it normally.
 
-**The premise.** `KindOf = ARMY_SUMMARY` reads like "this goes home with the player", but it is
-only the second of four filters the post-battle harvest applies (``0x00811E1F``). The fourth is a
-non-zero living-world army id on the object itself::
-
-    00811e96  test byte [eax + 0x118], bl   ; KindOf = ARMY_SUMMARY
-    00811ea2  test byte [edi + 0x458], bl   ; an object flag nothing ever sets
-    00811eaa  mov  eax, [edi + 0x47c]       ; the army id
-    00811eb0  test eax, eax
-    00811eb5  je   skip
-
-`Object+0x47C` is zeroed by the constructor and only ever written down a chain of custody: the
-army's own deployment seeds it, and `CastleBehavior`, `DozerAIUpdate`, `FoundationAIUpdate`,
-`ProductionUpdate`, `HordeContain` and `OpenContain` pass it on. A recruited unit inherits it from
-the structure that built it. **No object-creation path outside production writes it at all** -
-`OCLUpdate`, `CreateObjectDie`, `SpawnBehavior`, `SpawnUnitBehavior`,
-`SummonReplacementSpecialAbilityUpdate`, `ObjectCreationUpgrade` and the rest all reach
-`THING_FACTORY_NEW_OBJECT`, which takes a template and a team and no creator. So a summon is born
-with zero and is dropped no matter what `KindOf` it carries.
-
-**The id is a destination, not a gate.** Twelve instructions later the record that was just built
-is filed into `findArmyById(id)`, and a NULL army throws it away::
-
-    00811ef2  push dword [ebp + 8]
-    00811f04  call 0x80fad4                 ; findArmyRoster(id)
-    00811f0b  je   0x811f18                 ; NULL -> the record is discarded
-    00811f13  call 0x811951                 ; else append
-
-Simply skipping the test therefore achieves nothing; the patch has to **supply** an id.
-
-**What this does.** Replaces the six-byte load at ``0x00811EAA`` with a call into a cave that
-returns the same value when the object has one, and otherwise adopts the army of a sibling: the
-first object in the global object list with the same controlling player and a non-zero army id.
-That is the army the player is fighting the battle with, so the summon joins the force it fought
-alongside. Everything downstream is untouched - the harvest's own `Object::toArmyRecord` records
-the summon's upgrades and veterancy exactly as it does for a recruited unit.
-
-The rule the patch implements is therefore **`ARMY_SUMMARY` means always comes home**, with no new
-INI surface: no `KindOf` token, no field, nothing for a mod to migrate. The flag a mod already sets
-becomes the whole answer.
-
-**What a mod has to know.** `ARMY_SUMMARY` stops meaning "comes home when recruited" and starts
-meaning "comes home". Measured against Edain, 383 of the 1716 templates carrying the flag are
-reachable from a non-production creation path and become eligible; 156 of those are `KindOf
-SUMMONED` - the intended summons - and 227 are ordinary recruitable hordes that some
-`ObjectCreationList` also references, including campaign reinforcements, `_Kampagne` hero variants
-and story units. Their `ARMY_SUMMARY` is not evidence anybody wanted them kept, because on the
-summon path the flag has never done anything. Dropping the flag from a template that should not
-persist is the fix, and it is a data change rather than a patch option.
-
-**Determinism.** The fallback walks the same global object list the harvest is already walking, in
-list order, so every client resolves the same army from the same state. It runs once per battle,
-and only for objects that would otherwise be discarded.
-
-**Limits.** A player fielding more than one army in a single battle gets an arbitrary one of them -
-the first sibling in list order - because the object carries no other evidence of which it belongs
-to. A player whose entire roster died and whose only survivors are summons has no sibling to adopt
-from, so nothing is carried, which is the behaviour without the patch.
-
-**Not covered.** `ReplaceObjectUpdate` and the mount/dismount toggles are absent from the chain of
-custody too, so a unit that transforms mid-battle loses the army id it had; this patch does not
-restore it, it only supplies one where there was never any. Filter 3 (``0x00811EA2``) is left
-alone: `Object+0x458` bit 0 has no setter anywhere in the image, so it never rejects anything.
+Derivation: `../docs/living-campaign/army-id-custody.md`.
 """
 
 from __future__ import annotations
@@ -81,7 +23,7 @@ from ..addresses import (
 )
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, file_offset, find_section, u32
 
 __all__ = [
     "ANCHORS",
@@ -125,17 +67,6 @@ ANCHORS = {
 }
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"unmapped address {va:#x}: not RotWK 2.01")
-    return off
-
-
 def build_code(base: int) -> bytes:
     """The cave: `edi` is the object, the army id comes back in `eax`.
 
@@ -145,7 +76,7 @@ def build_code(base: int) -> bytes:
     """
     a = Asm(base)
 
-    a.emit(0x8B, 0x87, _u32(OBJECT_ARMY_ID))  # mov eax, [edi + 0x47C]
+    a.emit(0x8B, 0x87, u32(OBJECT_ARMY_ID))  # mov eax, [edi + 0x47C]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JNE, "done")  # already filed with an army
 
@@ -157,15 +88,15 @@ def build_code(base: int) -> bytes:
     a.jcc(JE, "fail")
     a.emit(0x8B, 0xD0)  # mov edx, eax        ; the owning player
 
-    a.emit(0xA1, _u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
+    a.emit(0xA1, u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
     a.emit(0x85, 0xC0)
     a.jcc(JE, "fail")
-    a.emit(0x8B, 0xB0, _u32(GAME_LOGIC_OBJECT_LIST_HEAD))  # mov esi, [eax + 0xAC]
+    a.emit(0x8B, 0xB0, u32(GAME_LOGIC_OBJECT_LIST_HEAD))  # mov esi, [eax + 0xAC]
 
     a.label("scan")
     a.emit(0x85, 0xF6)  # test esi, esi
     a.jcc(JE, "fail")
-    a.emit(0x83, 0xBE, _u32(OBJECT_ARMY_ID), 0x00)  # cmp dword [esi + 0x47C], 0
+    a.emit(0x83, 0xBE, u32(OBJECT_ARMY_ID), 0x00)  # cmp dword [esi + 0x47C], 0
     a.jcc(JE, "next")
 
     # A sibling that carries an army id. Adopt it only if the owner matches.
@@ -177,11 +108,11 @@ def build_code(base: int) -> bytes:
     a.jcc(JE, "hit")
 
     a.label("next")
-    a.emit(0x8B, 0xB6, _u32(OBJECT_LIST_NEXT))  # mov esi, [esi + 0x8C]
+    a.emit(0x8B, 0xB6, u32(OBJECT_LIST_NEXT))  # mov esi, [esi + 0x8C]
     a.jmp("scan")
 
     a.label("hit")
-    a.emit(0x8B, 0x86, _u32(OBJECT_ARMY_ID))  # mov eax, [esi + 0x47C]
+    a.emit(0x8B, 0x86, u32(OBJECT_ARMY_ID))  # mov eax, [esi + 0x47C]
     a.jmp("out")
 
     a.label("fail")
@@ -222,7 +153,7 @@ class SummonCarryoverPatch(Patch):
         cave = allocate_section(data, SECTION, build_code, _RX)
         apply_byte_patch(
             data,
-            _offset(data, LIVING_WORLD_HARVEST_ARMY_ID_TEST),
+            file_offset(data, LIVING_WORLD_HARVEST_ARMY_ID_TEST),
             HOOK_BYTES,
             _patched(cave),
             f"harvest army-id load @0x{LIVING_WORLD_HARVEST_ARMY_ID_TEST:08x}",
@@ -234,7 +165,7 @@ class SummonCarryoverPatch(Patch):
             return [f"the {SECTION} cave is missing"]
         cave, _off, _size = located
         try:
-            off = _offset(data, LIVING_WORLD_HARVEST_ARMY_ID_TEST)
+            off = file_offset(data, LIVING_WORLD_HARVEST_ARMY_ID_TEST)
         except ValueError as exc:
             return [str(exc)]
         got = bytes(data[off : off + len(HOOK_BYTES)])
@@ -255,7 +186,7 @@ class SummonCarryoverPatch(Patch):
         sites[LIVING_WORLD_HARVEST_ARMY_ID_TEST] = HOOK_BYTES
         sites[LIVING_WORLD_BATTLE_HARVEST] = bytes.fromhex("b8cd9fb900")
         for va, expected in sites.items():
-            off = _offset(data, va)
+            off = file_offset(data, va)
             got = bytes(data[off : off + len(expected)])
             if got != expected:
                 raise ValueError(

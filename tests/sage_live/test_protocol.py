@@ -323,7 +323,7 @@ def test_a_production_queue_survives_the_round_trip():
                 health=1.0,
                 max_health=3000.0,
                 production=(
-                    ProductionItem("unit", "GondorFighterHorde"),
+                    ProductionItem("unit", "GondorFighterHorde", 37.5),
                     ProductionItem("upgrade", "Upgrade_GondorHeavyArmor"),
                 ),
             ),
@@ -333,3 +333,93 @@ def test_a_production_queue_survives_the_round_trip():
     assert got is not None
     assert got.objects[0].producing
     assert got.objects[0].production == obs.objects[0].production
+
+
+def test_the_rank_ladder_survives_the_round_trip():
+    player = PlayerState(
+        index=0,
+        name="Player_1",
+        faction="Men",
+        resources=0,
+        skill_points=150,
+        rank_floor=100,
+        rank_next=200,
+    )
+    got, _ = decode_observation(encode_observation(Observation(1, 0, players=(player,))))
+    assert got is not None
+    assert got.players[0].power_point_progress == pytest.approx(0.5)
+
+
+def test_a_construction_percent_survives_the_round_trip_and_none_stays_none():
+    def structure(object_id: int, built: float | None) -> GameObject:
+        return GameObject(
+            object_id=object_id,
+            template_name="GondorFarm",
+            template_side="Men",
+            position=(0.0, 0.0, 0.0),
+            angle=0.0,
+            health=1.0,
+            max_health=1000.0,
+            construction_percent=built,
+        )
+
+    obs = Observation(frame=1, local_player=0, objects=(structure(1, 62.5), structure(2, None)))
+    got, _ = decode_observation(encode_observation(obs))
+    assert got is not None
+    assert [o.construction_percent for o in got.objects] == [62.5, None]
+    assert got.objects[0].construction_progress == pytest.approx(0.625)
+
+
+def test_the_spectator_fields_survive_the_round_trip():
+    player = PlayerState(
+        index=0,
+        name="Player_1",
+        faction="Men",
+        resources=0,
+        display_name="Ben",
+        faction_name="Gondor",
+        color=0x3366CC,
+        allies=frozenset({2, 3}),
+        spent_on_units=4200,
+        units_lost=5,
+        structures_lost=1,
+    )
+    hero = GameObject(
+        object_id=5,
+        template_name="GondorBoromir",
+        template_side="Men",
+        position=(0.0, 0.0, 0.0),
+        angle=0.0,
+        health=0.5,
+        max_health=3000.0,
+        is_hero=True,
+        experience=850.0,
+        experience_level=4,
+    )
+    book = GameObject(
+        object_id=6,
+        template_name="GondorSpellBook",
+        template_side="Men",
+        position=(0.0, 0.0, 0.0),
+        angle=0.0,
+        health=1.0,
+        max_health=0.0,
+        is_spellbook=True,
+    )
+    barracks = GameObject(
+        object_id=7,
+        template_name="GondorBarracks",
+        template_side="Men",
+        position=(0.0, 0.0, 0.0),
+        angle=0.0,
+        health=1.0,
+        max_health=2000.0,
+        is_structure=True,
+        is_selectable=True,
+        build_cost=400,
+    )
+    obs = Observation(frame=1, local_player=0, players=(player,), objects=(hero, book, barracks))
+    got, _ = decode_observation(encode_observation(obs))
+    assert got is not None
+    assert got.players == obs.players
+    assert got.objects == obs.objects

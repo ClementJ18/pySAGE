@@ -391,7 +391,7 @@ the parser. It then binds every slot in states 2–6 with a start position 0–7
 (`0x006DCBFF`) copies their empty `+0x34` over the target's. A status word after the section
 header reads 0 (no switch), 1 (applied) or 2 (rejected — the default two seats stand).
 
-`sage_test.game_info.game_info_string` builds the string from `Seat`s.
+`sage_live.launch.game_info.game_info_string` builds the string from `Seat`s.
 
 **Status: static and emulated only.** The contract above is read from the disassembly, and the cave
 runs under Unicorn against a stand-in `GameInfo` (`tests/sage_patch/test_command_line_skirmish_emulated.py`).

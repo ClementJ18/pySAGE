@@ -1,149 +1,13 @@
-"""`LargeGroupBonusUpdate`: count loose objects, and gate the whole module on upgrades.
+"""Extend `LargeGroupBonusUpdate`: count loose (non-horde) objects, and gate the module on upgrades.
 
-Two features over one module, in one patch because they are one structure. Targets the ROTWK
-SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived in
-``../docs/large-group-bonus.md``.
+`CountLooseObjects` widens both places the bonus scan rejects an object with no contain module (the
+partition filter and the accumulator; they must move together). `TriggeredBy`, `ConflictsWith` and
+the two `RequiresAll*` flags add an upgrade gate re-checked on every poll. Five edits and one cave:
+`ModuleData` grows from `0x30` to `0x158`, the field table is relocated with five rows appended, and
+all paths are inert unless the INI writes a new keyword. `AlliesOnly` is still ignored: the scan's
+ownership rule is hardcoded (`0x00660AFE`).
 
-**`CountLooseObjects`.** `HordeMemberFilter` is an ordinary `ObjectFilter` - the same four-byte
-interned handle `banner-filter` and `player-heal-filter` add, parsed by the same
-`OBJECT_FILTER_PARSE_VA`, released by this module's own destructor at ``0x00893B75``. Nothing about
-its grammar is horde-specific. It is horde-only because **it is never evaluated against the object
-the partition scan returned**. It is only ever passed one level down, as an argument, to that
-object's *contain* interface (vslot ``+0x180``), which counts its own contained members against it.
-`Object::getContain` returns NULL for anything with no contain module, and both places that ask
-treat NULL as contributing zero:
-
-* `PARTITION_ALLOW_VA` - the `allow` of the filter wrapper `update` builds on its stack. A
-  container-less object is rejected here, so the scan never even returns it.
-* `COUNT_WINDOW_VA` - the accumulator loop, which repeats the same test.
-
-So a lone hero, a unit outside a horde or a structure cannot be counted, whatever the filter says.
-With the flag set, both gates additionally accept an object with no contain interface whose
-`ThingTemplate` `HordeMemberFilter` itself matches, counting it as one.
-
-**Both gates move together or neither does.** Widening only the accumulator achieves nothing,
-because the partition filter has already removed loose objects from the iteration; widening only the
-partition filter achieves nothing either, because the accumulator would then skip what the scan
-handed it.
-
-**`TriggeredBy` / `ConflictsWith`.** The module registers with interface mask ``1`` (`Update`) - no
-`UpgradeMux` subobject, no `getUpgrade` vslot - so the upgrade keywords every `*Upgrade` module
-takes were never wired to it. The gate this adds is the `UpgradeMux` *condition*, not its execute:
-it is re-evaluated on every poll rather than latched, so there is no `StartsActive`, no `Permanent`
-and no "already upgraded" bit. An upgrade arriving or being stripped takes effect on the next poll,
-and this module never sleeps forever while its object is alive, so - unlike
-`lifetime-extend-upgrade` - seeing the change costs no extra wake-ups.
-
-An inactive module drops the bonus through the engine's own removal call and returns before the
-partition scan, so switching it off is *cheaper* than leaving it on, and the falling edge is the
-same one the stock count-came-up-short path takes.
-
-**Why one patch and not two.** The two features are independent to a modder and inseparable in the
-binary: they share the field-parse table (relocated once), the `ModuleData` (whose layout only one
-owner can decide), and `update`'s register discipline. Split in two, each would have to tolerate
-the other's edits to the same three sites; merged, the structure has one owner. This is the
-`large-group-bonus-filter` patch of earlier versions with the upgrade gate folded in - a binary
-carrying that older patch is not recognised by this one and has to be rebuilt from a clean image.
-
-Five edits, one cave
---------------------
-1. **The allocation.** `ModuleData` grows ``0x30`` -> ``0x158`` to hold two 36-dword upgrade masks,
-   three bools and gate 1's scratch dword. The nine bytes at `ALLOC_WINDOW_VA` -
-   `newModuleData`'s ``push ecx`` / ``push esi`` / ``push 0x30`` / ``call operator new`` - become
-   a jump into a cave stub that does the same with the larger size and zeroes everything past
-   ``0x30``, then rejoins at the caller's ``pop ecx`` with the size argument still on the stack.
-   `operator new` does not zero, so that loop **is** the defaults: no upgrade required, none
-   conflicting, `CountLooseObjects = No`. Nothing else in the image reads this ``sizeof``, and the
-   destructor's ``operator delete`` is the unsized form, so the growth ends here.
-2. **The keywords.** The field-parse table at `FIELD_TABLE_VA` cannot grow in place - it ends at
-   ``0x00C63A68`` where an unrelated ``.rdata`` path string begins. It is named by **exactly one**
-   instruction, so the patch copies the eight stock rows verbatim - their name pointers are
-   absolute and keep pointing into ``.rdata`` - appends five rows and the terminator, and repoints
-   that imm32. Lookup is a linear name scan over a table in declaration order, so appending needs
-   no re-sort, and this module inherits no second table, so there is no duplicate-keyword hazard of
-   the kind `player-heal-filter` has to guard against.
-3. **The upgrade gate.** The five bytes at `GATE_WINDOW_VA` (``mov eax,[TheGameLogic]``) become a
-   jump into the gate stub, which tests the two masks and either resumes the stock body or drops
-   the bonus and jumps to `update`'s tail. The window is one whole instruction with the owning
-   `Object`, the `ModuleData` and the module all live, and it is the last one before the flags set
-   at ``0x00893901`` are consumed - hence the ``pushfd``/``popfd`` around the stub.
-4. **Gate 1 of the loose-object count.** The ten bytes at `SETUP_WINDOW_VA` (``lea eax,[edi+0xc]``
-   plus the store of the wrapper vtable) become a ``call`` into a shim that does the same two
-   things and then, only when the flag is set *and* `HordeMemberFilter` was actually written, swaps
-   in a cave-built copy of the vtable whose `allow` is the widened one, parking the owning `Object`
-   in the `ModuleData`'s own scratch dword. Choosing the vtable rather than editing
-   `PARTITION_ALLOW_VA` in place is what keeps the unwidened path byte-identical.
-5. **Gate 2.** The 28 bytes at `COUNT_WINDOW_VA` - the whole "getContain, bail on null, else count"
-   block plus its accumulate - become ``mov ecx,eax`` / ``call`` / ``add [ebp-0x18],eax`` and
-   padding. The window is self-contained: its only inbound branch is the loop's own back edge at
-   ``0x00893A01``, which lands on the first byte.
-
-The cave holds the five keyword strings, the copied vtable, the rebuilt table and five stubs, in
-that order - the renameable keyword first so :meth:`LargeGroupBonusPatch.detect` can read it
-straight off the section base.
-
-The four upgrade keywords are **not** renameable. They are the engine's own spellings, taken row
-for row from the `UpgradeMuxData` base table at ``0x00C76AD8``, and a mod that writes them expects
-them to mean there what they mean everywhere else.
-
-Why the evaluator and not the wrapper
--------------------------------------
-`0x007640C1` is a convenience wrapper around the real evaluator `OBJECT_FILTER_TEST_VA`, which takes
-three arguments: the candidate's `ThingTemplate`, the candidate's `Player`, and the **source**
-`Player` the filter is written from. The wrapper passes its own second parameter through as that
-source and every stock call site passes ``0``; with a null source the evaluator rejects
-unconditionally whenever the relationship mask is non-zero, so relationship tokens routed through it
-do not degrade to permissive, they *always* return false. Both filter stubs here call the evaluator
-directly with the module owner's own player, exactly as `banner-filter` and `player-heal-filter` do.
-
-The source player is not read out of a frame slot. Gate 2 has the owning `Object` in ``ebx``, live
-since ``0x008938EA`` and unclobbered for the whole function; gate 1's `allow` runs inside the
-partition scan with no such register, so the shim stashes the same pointer in a spare dword of the
-grown `ModuleData` at :data:`OWNER_SCRATCH_OFFSET`, and `allow` reaches it back through the only
-pointer the wrapper hands it - the `ObjectFilter` at ``+8``, which *is* the `ModuleData` biased by
-:data:`FILTER_OFFSET`.
-
-**Not the wrapper's ``+4``.** That dword looks free - the update zeroes it at ``0x0089393F`` and
-the stock `allow` reads only ``+8`` and ``+0xc`` - and it is not. Every partition filter is an
-intrusive list node whose `next` lives at ``+4``: the three `FILTER_APPEND_VA` calls at
-``0x00893994``-``0x008939A6`` chain the four stack filters through it, and both of the scan's walks
-follow it. A pointer parked there is walked as a filter. Earlier versions of this patch did park
-the `Object` there, and the result was `append` writing a stack address into whatever object it
-reached first and the scan calling vslot ``+8`` on a `ThingTemplate` - an immediate crash on the
-first poll of any `LargeGroupBonusUpdate` that wrote the keyword.
-
-The `ModuleData` is shared by every instance of the template, so the scratch dword is too. That is
-safe because it is written and read inside one `update`: the scan is synchronous, and no other
-module's `update` can interleave between the store and the last `allow` that reads it.
-
-`isDefined` gates the widened path as well as the flag
-------------------------------------------------------
-A `LargeGroupBonusUpdate` that never wrote `HordeMemberFilter` still hands the default handle to the
-contain interface today, and what that means for a *container* is the contain module's business. On
-the loose-object side there is no such precedent, and "count every nearby object" is not a default
-worth inferring from silence - so both stubs ask `OBJECT_FILTER_IS_DEFINED_VA` first and contribute
-nothing when the keyword was never written. `CountLooseObjects` without `HordeMemberFilter` is
-therefore inert rather than sweeping. The upgrade gate needs no such companion test: an undeclared
-mask reads as all-zero, and `MASK_ANY_VA` answering false is what makes it "no requirement".
-
-**What this does not fix.** `AlliesOnly` is parsed by this module and read by nothing: the scan's
-ownership rule is hardcoded in a second partition filter (``0x00660AFE``), a strict
-``getControllingPlayer(candidate) == getControllingPlayer(owner)`` test. So a widened filter still
-only ever sees the module owner's own objects, and `ENEMIES` / `NEUTRAL` / `ALLIES` can only narrow
-to nothing. Honouring `AlliesOnly` means repointing the vtable store at ``0x0089396A``, whose vtable
-is shared with twelve other sites - a separate patch, deliberately not this one.
-
-**Determinism.** The bonus is applied through `AttributeModifier` on the logic-side `Object`, so
-**every peer must run the same patched binary** and replays do not cross. And, as with
-`terrain-resource-exp` and `queue-ignore-cp`, the new keywords are an INI **parse error** on a
-stock build rather than a warning.
-
-**Composition.** Order-independent: the cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name,
-no edited byte is shared with another bundled patch, and the structures read - the stock
-`LargeGroupBonusUpdate` field-parse table, its `newModuleData` thunk and the wrapper vtable - are
-ones nothing else rewrites. The nearest neighbour, `banner-filter`, lives in
-``0x0089A7xx``-``0x0089AExx``.
+Derivation: `../docs/large-group-bonus.md`.
 """
 
 from __future__ import annotations
@@ -158,7 +22,16 @@ from sage_ini.engine import Engine, FieldDelta
 from ..addresses import FIELD_PARSE_STRIDE, INI_PARSE_BOOL, OPERATOR_NEW
 from ..asm import JA, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    call_rel32,
+    find_section,
+    i8,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -218,16 +91,16 @@ __all__ = [
     "validate_keyword",
 ]
 
-# --- LargeGroupBonusUpdate, as this build lays it out (VA, ImageBase 0x400000) ---
+# LargeGroupBonusUpdate, as this build lays it out (VA, ImageBase 0x400000)
 
-#: `newModuleData`'s ``push ecx`` / ``push esi`` / ``push 0x30`` / ``call operator new``, and the
-#: ``pop ecx`` that cleans the argument, which is where the cave rejoins. Nine bytes for a
-#: ``jmp rel32`` and four of padding. The ``push 0x30`` is the sole `sizeof(ModuleData)` literal.
+#: `newModuleData`'s `push ecx` / `push esi` / `push 0x30` / `call operator new`, and the
+#: `pop ecx` that cleans the argument, which is where the cave rejoins. Nine bytes for a
+#: `jmp rel32` and four of padding. The `push 0x30` is the sole `sizeof(ModuleData)` literal.
 ALLOC_WINDOW_VA = 0x0064D122
 ALLOC_WINDOW_BYTES = bytes.fromhex("51566a30e8b525deff")
 ALLOC_RESUME_VA = 0x0064D12B
 
-#: The ``call`` to the ModuleData constructor, inside `newModuleData`, and the ctor itself. The
+#: The `call` to the ModuleData constructor, inside `newModuleData`, and the ctor itself. The
 #: ctor has exactly one caller, which is this site. **Not patched** - the grown tail is zeroed by
 #: the allocation stub instead, which is what lets this patch hook one site fewer than the
 #: `large-group-bonus-filter` it replaces. Anchored, so a binary carrying that older patch (which
@@ -236,21 +109,21 @@ MODULEDATA_CTOR_CALL_VA = 0x0064D139
 MODULEDATA_CTOR_VA = 0x00893871
 
 STOCK_MODULEDATA_SIZE = 0x30
-#: What the structure grows to: the stock ``0x30``, two `UpgradeMaskType`s, three bools and the
-#: dword at :data:`OWNER_SCRATCH_OFFSET`, which is exactly the padding the bools leave behind.
-#: `UpgradeMaskType` is 36 dwords - see ``../docs/upgrade-mask-limit.md``.
+#: What the structure grows to: the stock `0x30`, two `UpgradeMaskType`s, three bools and the
+#: dword at `OWNER_SCRATCH_OFFSET`, which is exactly the padding the bools leave behind.
+#: `UpgradeMaskType` is 36 dwords - see `../docs/upgrade-mask-limit.md`.
 PATCHED_MODULEDATA_SIZE = 0x158
 MASK_DWORDS = 0x24
 #: What the allocation stub zeroes: everything past the stock structure.
 ZERO_DWORDS = (PATCHED_MODULEDATA_SIZE - STOCK_MODULEDATA_SIZE) // 4
 
-#: ``mov byte [esi+0x18], 1`` - `AlliesOnly`'s default. Anchored as a build fingerprint: it is the
+#: `mov byte [esi+0x18], 1` - `AlliesOnly`'s default. Anchored as a build fingerprint: it is the
 #: last field the stock constructor writes before `FlagSubObjectNames`, and it says the structure
 #: this patch grows is the one it thinks it is.
 ALLIES_ONLY_DEFAULT = (0x008938B8, bytes.fromhex("c6461801"))
 
 #: The 16-byte-stride field-parse table, and the single imm32 that loads it (inside
-#: ``push 0xc639d8`` at ``0x0089375A``, so the operand starts one byte later).
+#: `push 0xc639d8` at `0x0089375A`, so the operand starts one byte later).
 FIELD_TABLE_VA = 0x00C639D8
 FIELD_TABLE_REF_VA = 0x0089375B
 
@@ -261,75 +134,75 @@ FIELD_TABLE_REF_VA = 0x0089375B
 WRAPPER_VTABLE_VA = 0x00C63870
 WRAPPER_VTABLE_SLOTS = 3
 PARTITION_ALLOW_VA = 0x00660C72
-#: The wrapper's own layout: ``+4`` the **next filter in the chain**, ``+8`` the `ObjectFilter *`,
-#: ``+0xc`` the polarity byte. Every partition filter in this engine is an intrusive list node:
-#: `FILTER_APPEND_VA` walks ``+4`` to find the tail and links the next one on, and both of
-#: `iterateObjectsInRange`'s walks follow ``+4`` from node to node. ``+4`` is therefore **not**
-#: scratch space, whatever the stock ``and dword [ebp-0x4c], 0`` that initialises it looks like.
+#: The wrapper's own layout: `+4` the **next filter in the chain**, `+8` the `ObjectFilter *`,
+#: `+0xc` the polarity byte. Every partition filter in this engine is an intrusive list node:
+#: `FILTER_APPEND_VA` walks `+4` to find the tail and links the next one on, and both of
+#: `iterateObjectsInRange`'s walks follow `+4` from node to node. `+4` is therefore **not**
+#: scratch space, whatever the stock `and dword [ebp-0x4c], 0` that initialises it looks like.
 WRAPPER_FILTER_SLOT = 0x08
 WRAPPER_POLARITY_SLOT = 0x0C
-#: ``[ebp-0x50]`` - where `update` builds the wrapper in its own frame.
+#: `[ebp-0x50]` - where `update` builds the wrapper in its own frame.
 WRAPPER_VTABLE_DISP8 = -0x50
 
-#: ``PartitionFilter::append(next)`` - ``__thiscall``, ``ret 4``, walks ``this->+4`` to the tail
-#: and stores ``next`` there. `update` calls it three times at ``0x00893994``-``0x008939a6`` to
-#: chain its four stack filters, which is what makes ``+4`` load-bearing.
+#: `PartitionFilter::append(next)` - `__thiscall`, `ret 4`, walks `this->+4` to the tail
+#: and stores `next` there. `update` calls it three times at `0x00893994`-`0x008939a6` to
+#: chain its four stack filters, which is what makes `+4` load-bearing.
 FILTER_APPEND_VA = 0x00A394C0
 
-#: The upgrade gate's window: ``mov eax, [TheGameLogic]``, one whole instruction, five bytes, the
-#: last before the KindOf branch at `GATE_RESUME_VA` consumes the flags set at ``0x00893901``.
+#: The upgrade gate's window: `mov eax, [TheGameLogic]`, one whole instruction, five bytes, the
+#: last before the KindOf branch at `GATE_RESUME_VA` consumes the flags set at `0x00893901`.
 GATE_WINDOW_VA = 0x0089390F
 GATE_WINDOW_BYTES = bytes.fromhex("a12c41de00")
 GATE_RESUME_VA = 0x00893914
 THE_GAME_LOGIC = 0x00DE412C
 #: `update`'s tail, past the iterator destructor and the four stack-filter vtable resets - so a
-#: path that built neither may enter here. The stock ``ebx == NULL`` early-out at ``0x008938F1``
+#: path that built neither may enter here. The stock `ebx == NULL` early-out at `0x008938F1`
 #: leaves the same frame state one step further on, which is what says this is legal.
 GATE_TAIL_VA = 0x00893AF2
-#: ``[ebp-0xd]``, the tail's "return `UpdateRate` or 1" selector; the stock body clears it at
-#: ``0x00893932``, which the inactive path has jumped past.
+#: `[ebp-0xd]`, the tail's "return `UpdateRate` or 1" selector; the stock body clears it at
+#: `0x00893932`, which the inactive path has jumped past.
 SLEEP_SELECTOR_DISP8 = -0x0D
-#: ``module+0x28`` / ``+0x29`` (``esi`` is biased ``+0x10``): "this object has the bonus", the pair
+#: `module+0x28` / `+0x29` (`esi` is biased `+0x10`): "this object has the bonus", the pair
 #: `0x008936BB` answers the `LargeGroupBonus` interface from.
 BONUS_HELD_OFFSET = 0x18
 BONUS_FLAG_OFFSET = 0x19
 
-#: Gate 1: ``lea eax,[edi+0xc]`` + ``mov dword [ebp-0x50], 0xc63870``. Ten bytes, replaced by a
-#: ``call`` and padding. The ``lea``'s result is consumed by the ``mov [ebp-0x48], eax`` that
+#: Gate 1: `lea eax,[edi+0xc]` + `mov dword [ebp-0x50], 0xc63870`. Ten bytes, replaced by a
+#: `call` and padding. The `lea`'s result is consumed by the `mov [ebp-0x48], eax` that
 #: follows the window, so the shim has to reproduce it.
 SETUP_WINDOW_VA = 0x00893946
 SETUP_WINDOW_BYTES = bytes.fromhex("8d470cc745b07038c600")
 
-#: Gate 2: the accumulator's whole ``getContain`` / bail / count / accumulate block. Its only
-#: inbound branch is the loop back edge at ``0x00893A01``, which lands on the first byte.
+#: Gate 2: the accumulator's whole `getContain` / bail / count / accumulate block. Its only
+#: inbound branch is the loop back edge at `0x00893A01`, which lands on the first byte.
 COUNT_WINDOW_VA = 0x008939DB
 COUNT_WINDOW_BYTES = bytes.fromhex("8bc8e8848edfff85c074118b108d4f0c518bc8ff92800100000145e8")
-#: ``[ebp-0x18]`` - the accumulator the window adds into, reproduced by the replacement.
+#: `[ebp-0x18]` - the accumulator the window adds into, reproduced by the replacement.
 COUNT_ACCUMULATOR_DISP8 = -0x18
 
-#: `Object::getContain` - ``__thiscall(ecx=Object*) -> ContainModuleInterface*``, NULL when the
+#: `Object::getContain` - `__thiscall(ecx=Object*) -> ContainModuleInterface*`, NULL when the
 #: object has no contain module. This one test is the whole of why the stock filter is horde-only.
 GET_CONTAIN_VA = 0x0068C866
 #: The contain interface's member-count slot:
-#: ``__thiscall(ecx=iface, const ObjectFilter *) -> Int``, ``ret 4``. A NULL filter counts
+#: `__thiscall(ecx=iface, const ObjectFilter *) -> Int`, `ret 4`. A NULL filter counts
 #: everything; this module always passes one.
 CONTAIN_COUNT_SLOT = 0x180
 
 GET_CONTROLLING_PLAYER_VA = 0x0068B678  # __thiscall(ecx=Object*) -> Player*, NULL when unowned
-#: ``Object::removeAttributeModifier`` - ``__thiscall(ecx=Object*, const AsciiString *)``,
-#: ``ret 4``. The falling edge the stock body takes at ``0x00893ACB``, and the one the gate takes
+#: `Object::removeAttributeModifier` - `__thiscall(ecx=Object*, const AsciiString *)`,
+#: `ret 4`. The falling edge the stock body takes at `0x00893ACB`, and the one the gate takes
 #: when it switches a module off.
 ATTRIB_REMOVE_VA = 0x0068F259
-#: ``ModuleData+0x2c``, the `AttributeModifier` name both removal paths pass.
+#: `ModuleData+0x2c`, the `AttributeModifier` name both removal paths pass.
 MODIFIER_OFFSET = 0x2C
 
-# --- the ObjectFilter handle ABI (see docs/banner-carrier-filter.md) ---
+# The ObjectFilter handle ABI (see docs/banner-carrier-filter.md)
 
 OBJECT_FILTER_PARSE_VA = 0x0076392F  # the INI parse fn that goes in the field table
 OBJECT_FILTER_IS_DEFINED_VA = 0x00762977  # __thiscall(ecx=&field) -> bool, reads the +0x88 flag
 OBJECT_FILTER_TEST_VA = 0x00763543  # __thiscall(ecx=&field, template, player, source), ret 0xc
 
-# --- the upgrade-mask ABI (see docs/upgrade-mask-limit.md, docs/lifetime-extend-upgrade.md) ---
+# The upgrade-mask ABI (see docs/upgrade-mask-limit.md, docs/lifetime-extend-upgrade.md)
 
 PARSE_UPGRADE_MASK_VA = 0x0066F603  # the INI parse fn the two mask rows name
 MASK_ANY_VA = 0x00444DCE  # __thiscall(ecx=&mask) -> al: is any bit set at all?
@@ -337,16 +210,16 @@ MASK_TEST_ANY_VA = 0x008097D6  # __thiscall(ecx=&held, &mask) -> al, ret 4
 MASK_TEST_ALL_VA = 0x006AACB3  # ... and its all-of counterpart, same signature
 #: The completed-upgrade masks an upgrade can be held in: the object's own, and its controlling
 #: player's. `UpgradeMux` tests them one after the other rather than building a union, and so does
-#: :func:`build_held`.
+#: `build_held`.
 OBJECT_UPGRADES_COMPLETED = 0x28C
 PLAYER_UPGRADES_COMPLETED = 0x14C
 
-# --- layout ---
+# Layout
 
 #: `HordeMemberFilter`, the `ObjectFilter` handle this patch reuses rather than adding another.
 FILTER_OFFSET = 0x0C
 #: The four `UpgradeMuxData` fields, and the loose-object flag behind them. All five land past the
-#: stock structure, in the region :func:`build_alloc` zeroes - which is why none of them needs a
+#: stock structure, in the region `build_alloc` zeroes - which is why none of them needs a
 #: constructor shim to default it.
 TRIGGERED_BY_OFFSET = 0x30
 CONFLICTS_WITH_OFFSET = TRIGGERED_BY_OFFSET + MASK_DWORDS * 4
@@ -354,15 +227,15 @@ REQUIRES_ALL_TRIGGERS_OFFSET = CONFLICTS_WITH_OFFSET + MASK_DWORDS * 4
 REQUIRES_ALL_CONFLICTING_OFFSET = REQUIRES_ALL_TRIGGERS_OFFSET + 1
 FLAG_OFFSET = REQUIRES_ALL_CONFLICTING_OFFSET + 1
 #: A dword of scratch in the grown `ModuleData`'s own tail, where gate 1 parks the owning `Object`
-#: for the widened `allow` to read back - see :func:`build_setup`. It lands in the padding the
-#: five fields above leave behind, so it costs no extra bytes and :func:`build_alloc` zeroes it
-#: along with everything else past ``0x30``.
+#: for the widened `allow` to read back - see `build_setup`. It lands in the padding the
+#: five fields above leave behind, so it costs no extra bytes and `build_alloc` zeroes it
+#: along with everything else past `0x30`.
 OWNER_SCRATCH_OFFSET = 0x154
-#: The same slot reached from the `ObjectFilter` handle the wrapper carries at ``+8``, which is
-#: ``ModuleData + FILTER_OFFSET`` - the only route `allow` has back to the `ModuleData`.
+#: The same slot reached from the `ObjectFilter` handle the wrapper carries at `+8`, which is
+#: `ModuleData + FILTER_OFFSET` - the only route `allow` has back to the `ModuleData`.
 OWNER_FROM_FILTER = OWNER_SCRATCH_OFFSET - FILTER_OFFSET
 
-#: The stock table, in table order, as ``(name, ModuleData offset)``. Used as a fingerprint: all
+#: The stock table, in table order, as `(name, ModuleData offset)`. Used as a fingerprint: all
 #: eight names *and* offsets must match before anything is written, which is a far stronger build
 #: check than any single literal.
 STOCK_FIELDS = (
@@ -376,8 +249,8 @@ STOCK_FIELDS = (
     ("AttributeModifier", 0x2C),
 )
 
-#: The four rows appended for the upgrade gate, as ``(name, parse fn, ModuleData offset)``. Copied
-#: name for name and parser for parser from the `UpgradeMuxData` base table at ``0x00C76AD8``, at
+#: The four rows appended for the upgrade gate, as `(name, parse fn, ModuleData offset)`. Copied
+#: name for name and parser for parser from the `UpgradeMuxData` base table at `0x00C76AD8`, at
 #: this module's own offsets - the parse functions take the offset from the row, so the rows are
 #: portable between blocks and these parse exactly as they do for `AllowBannerSpawnUpgrade`.
 UPGRADE_FIELDS = (
@@ -476,7 +349,7 @@ _KEYWORD_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
 
 
 def validate_keyword(keyword: str) -> None:
-    """Raise unless ``keyword`` is a token the engine's INI reader could ever match, and one this
+    """Raise unless `keyword` is a token the engine's INI reader could ever match, and one this
     module does not already parse - the eight stock fields, or the four this patch appends beside
     it. A duplicate row would parse: the reader takes the first match and never complains, so the
     field would exist and silently write the wrong offset."""
@@ -490,39 +363,13 @@ def validate_keyword(keyword: str) -> None:
         raise ValueError(f"{keyword!r} is already a LargeGroupBonusUpdate field")
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _disp8(value: int) -> int:
-    return value & 0xFF
-
-
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    if end < 0:
-        return None
-    try:
-        return bytes(data[off : off + end]).decode("ascii")
-    except UnicodeDecodeError:
-        return None
-
-
 @dataclass(frozen=True)
 class _Layout:
     """Where each piece of the cave sits, given its base address and the keyword.
 
-    Pure arithmetic on the keyword's length, so :meth:`LargeGroupBonusPatch.apply` and
-    :meth:`LargeGroupBonusPatch.verify` compute the same addresses from opposite directions.
-    The renameable keyword is first so :meth:`LargeGroupBonusPatch.detect` can read it straight off
+    Pure arithmetic on the keyword's length, so `LargeGroupBonusPatch.apply` and
+    `LargeGroupBonusPatch.verify` compute the same addresses from opposite directions.
+    The renameable keyword is first so `LargeGroupBonusPatch.detect` can read it straight off
     the section base without knowing how long anything after it is."""
 
     keyword_va: int
@@ -564,14 +411,14 @@ def _layout(base_va: int, keyword: str) -> _Layout:
     )
 
 
-# --- the cave's five stubs ---------------------------------------------------------------------
+# The cave's five stubs
 
 
 def build_table(keyword_va: int, upgrade_vas: tuple[int, ...], stock_rows: bytes) -> bytes:
     """The rebuilt field-parse table: the stock rows verbatim, the five new rows, the terminator.
 
     The stock rows are copied rather than rewritten because every pointer in them is absolute -
-    their keyword strings stay where they are, in ``.rdata``, and only the new rows point into the
+    their keyword strings stay where they are, in `.rdata`, and only the new rows point into the
     cave."""
     rows = struct.pack("<IIII", keyword_va, INI_PARSE_BOOL, 0, FLAG_OFFSET)
     for (_name, parse, offset), name_va in zip(UPGRADE_FIELDS, upgrade_vas, strict=True):
@@ -582,26 +429,26 @@ def build_table(keyword_va: int, upgrade_vas: tuple[int, ...], stock_rows: bytes
 def build_alloc(base_va: int) -> bytes:
     """Allocate the grown `ModuleData` and zero everything the stock constructor will not write.
 
-    Entered in place of `newModuleData`'s ``push ecx`` / ``push esi`` / ``push 0x30`` /
-    ``call operator new``, and owes the caller all four effects: both displaced pushes, the block
-    in ``eax``, and the size argument still on the stack for the ``pop ecx`` the cave rejoins at.
+    Entered in place of `newModuleData`'s `push ecx` / `push esi` / `push 0x30` /
+    `call operator new`, and owes the caller all four effects: both displaced pushes, the block
+    in `eax`, and the size argument still on the stack for the `pop ecx` the cave rejoins at.
 
     The zeroing **is** the defaults. `parseUpgradeMask` memsets the mask it is given, so a block
     that declares a mask keyword would be fine either way; a block that declares none never reaches
-    a parser at all, and `operator new` hands back whatever was in the heap. ``ecx`` and ``edx`` are
-    dead across the window - the caller reloads ``ecx`` from ``[ebp+8]`` at ``0x0064D144`` - and
-    ``esi`` is the value just pushed, so the loop borrows only what the stock code already
+    a parser at all, and `operator new` hands back whatever was in the heap. `ecx` and `edx` are
+    dead across the window - the caller reloads `ecx` from `[ebp+8]` at `0x0064D144` - and
+    `esi` is the value just pushed, so the loop borrows only what the stock code already
     clobbers."""
     a = Asm(base_va)
     a.emit(0x51)  # push ecx               ; the displaced slot reservation
     a.emit(0x56)  # push esi               ; the displaced save
-    a.emit(0x68, _u32(PATCHED_MODULEDATA_SIZE))  # push 0x158
+    a.emit(0x68, u32(PATCHED_MODULEDATA_SIZE))  # push 0x158
     a.call_absolute(OPERATOR_NEW)  # call <operator new>   ; cdecl: the arg stays
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc_short(JE, "done")  # je .done              ; the caller tests for null too
     a.emit(0x50)  # push eax
     a.emit(b"\x8d\x50", STOCK_MODULEDATA_SIZE)  # lea  edx, [eax+0x30]  ; past the stock fields
-    a.emit(0xB9, _u32(ZERO_DWORDS))  # mov  ecx, 74
+    a.emit(0xB9, u32(ZERO_DWORDS))  # mov  ecx, 74
     a.emit(b"\x33\xc0")  # xor  eax, eax
     a.label("zero")
     a.emit(b"\x89\x02")  # mov  [edx], eax
@@ -615,15 +462,15 @@ def build_alloc(base_va: int) -> bytes:
 
 
 def _emit_held(a: Asm) -> None:
-    """Append the ``held`` subroutine to ``a``: is the mask at ``eax`` satisfied?
+    """Append the `held` subroutine to `a`: is the mask at `eax` satisfied?
 
-    ``dl`` picks any-of or all-of, ``ebx`` is the `Object`, the answer comes back in ``al``. It is
-    emitted into the gate stub rather than built on its own so that :class:`~..asm.Asm` resolves
-    the two ``call``s to it the same way it resolves every other branch - one routine, one set of
+    `dl` picks any-of or all-of, `ebx` is the `Object`, the answer comes back in `al`. It is
+    emitted into the gate stub rather than built on its own so that `Asm` resolves
+    the two `call`s to it the same way it resolves every other branch - one routine, one set of
     labels, no address arithmetic done by hand.
 
     The engine's own idiom, in the engine's own order (`UpgradeMux`'s conflict test at
-    ``0x008B901A``): the object's completed mask first, then its controlling player's, as two calls
+    `0x008B901A`): the object's completed mask first, then its controlling player's, as two calls
     rather than one union. An unowned object answers on its own mask alone, since
     `getControllingPlayer` returns NULL rather than faulting.
 
@@ -632,18 +479,18 @@ def _emit_held(a: Asm) -> None:
     what the stock mux does, and copying it is the point.
 
     The chosen test function and the mask are parked on the stack because both have to survive two
-    ``__thiscall`` calls and every callee-saved register is spoken for: ``ebx``/``esi``/``edi`` are
-    `update`'s and ``ebp`` is its frame."""
+    `__thiscall` calls and every callee-saved register is spoken for: `ebx`/`esi`/`edi` are
+    `update`'s and `ebp` is its frame."""
     a.label("held")
-    a.emit(0xB9, _u32(MASK_TEST_ANY_VA))  # mov  ecx, <testForAny>
+    a.emit(0xB9, u32(MASK_TEST_ANY_VA))  # mov  ecx, <testForAny>
     a.emit(b"\x84\xd2")  # test dl, dl
     a.jcc_short(JE, "held_picked")
-    a.emit(0xB9, _u32(MASK_TEST_ALL_VA))  # mov  ecx, <testForAll>
+    a.emit(0xB9, u32(MASK_TEST_ALL_VA))  # mov  ecx, <testForAll>
     a.label("held_picked")
     a.emit(0x51)  # push ecx               ; the test to run
     a.emit(0x50)  # push eax               ; the mask, kept for the second call
     a.emit(0x50)  # push eax               ; ... and as this call's argument
-    a.emit(b"\x8d\x8b", _u32(OBJECT_UPGRADES_COMPLETED))  # lea ecx, [ebx+0x28c]
+    a.emit(b"\x8d\x8b", u32(OBJECT_UPGRADES_COMPLETED))  # lea ecx, [ebx+0x28c]
     a.emit(b"\xffT$")  # call dword [esp+8]    ; ret 4
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc_short(JNE, "held_yes")  # jne .yes              ; object-scoped
@@ -652,7 +499,7 @@ def _emit_held(a: Asm) -> None:
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc_short(JE, "held_no")  # je .no                ; unowned -> its own mask alone
     a.emit(b"\xff4$")  # push dword [esp]      ; the mask again
-    a.emit(b"\x8d\x88", _u32(PLAYER_UPGRADES_COMPLETED))  # lea ecx, [eax+0x14c]
+    a.emit(b"\x8d\x88", u32(PLAYER_UPGRADES_COMPLETED))  # lea ecx, [eax+0x14c]
     a.emit(b"\xffT$")  # call dword [esp+8]    ; ret 4
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc_short(JNE, "held_yes")
@@ -669,11 +516,11 @@ def _emit_held(a: Asm) -> None:
 def build_gate(base_va: int) -> bytes:
     """The upgrade gate: resume the stock body, or drop the bonus and sleep.
 
-    Entered in place of `update`'s ``mov eax, [TheGameLogic]``, with ``esi`` the module, ``ebx``
-    the owning `Object`, ``edi`` the `ModuleData` and ``ebp`` the frame - and with the flags of the
-    KindOf test at ``0x00893901`` live, which the branch at `GATE_RESUME_VA` consumes. Hence the
-    ``pushfd``/``popfd``: the stub restores whatever the flags were rather than assuming which test
-    set them. ``ecx`` is the `ThingTemplate` and is read again just past the resume point, so it is
+    Entered in place of `update`'s `mov eax, [TheGameLogic]`, with `esi` the module, `ebx`
+    the owning `Object`, `edi` the `ModuleData` and `ebp` the frame - and with the flags of the
+    KindOf test at `0x00893901` live, which the branch at `GATE_RESUME_VA` consumes. Hence the
+    `pushfd`/`popfd`: the stub restores whatever the flags were rather than assuming which test
+    set them. `ecx` is the `ThingTemplate` and is read again just past the resume point, so it is
     parked too.
 
     An undeclared mask is all-zero, so `any()` answering false is what makes each half optional: no
@@ -685,11 +532,11 @@ def build_gate(base_va: int) -> bytes:
     edge does, through `ATTRIB_REMOVE_VA`, and only when the module actually holds it; then it
     clears the sleep selector and enters the tail, which never built the iterator or the four stack
     filters this path skipped. Gating here rather than at the count comparison is deliberate: the
-    rub-off pass at ``0x00893A5D`` is not gated by the count and would hand the bonus straight back
+    rub-off pass at `0x00893A5D` is not gated by the count and would hand the bonus straight back
     from a neighbour, and the partition scan would still run every `UpdateRate` frames for a module
     that is switched off.
 
-    ``held`` is emitted behind the two exits, both of which are ``jmp``s, so nothing falls into
+    `held` is emitted behind the two exits, both of which are `jmp`s, so nothing falls into
     it."""
     a = Asm(base_va)
     a.emit(0x9C)  # pushfd
@@ -700,18 +547,18 @@ def build_gate(base_va: int) -> bytes:
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "conflicts")  # je .conflicts         ; nothing required
     a.emit(b"\x8dG", TRIGGERED_BY_OFFSET)  # lea  eax, [edi+0x30]
-    a.emit(b"\xb6\x97", _u32(REQUIRES_ALL_TRIGGERS_OFFSET))  # movzx edx, byte [edi+0x150]
+    a.emit(b"\xb6\x97", u32(REQUIRES_ALL_TRIGGERS_OFFSET))  # movzx edx, byte [edi+0x150]
     a.call("held")  # call <held>
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "inactive")  # je .inactive          ; required and not held
 
     a.label("conflicts")
-    a.emit(b"\x8d\x8f", _u32(CONFLICTS_WITH_OFFSET))  # lea  ecx, [edi+0xc0]
+    a.emit(b"\x8d\x8f", u32(CONFLICTS_WITH_OFFSET))  # lea  ecx, [edi+0xc0]
     a.call_absolute(MASK_ANY_VA)  # call <any()>
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "active")  # je .active            ; nothing conflicts
-    a.emit(b"\x8d\x87", _u32(CONFLICTS_WITH_OFFSET))  # lea  eax, [edi+0xc0]
-    a.emit(b"\xb6\x97", _u32(REQUIRES_ALL_CONFLICTING_OFFSET))  # movzx edx, [edi+0x151]
+    a.emit(b"\x8d\x87", u32(CONFLICTS_WITH_OFFSET))  # lea  eax, [edi+0xc0]
+    a.emit(b"\xb6\x97", u32(REQUIRES_ALL_CONFLICTING_OFFSET))  # movzx edx, [edi+0x151]
     a.call("held")  # call <held>
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JNE, "inactive")  # jne .inactive         ; a conflict is held
@@ -719,7 +566,7 @@ def build_gate(base_va: int) -> bytes:
     a.label("active")
     a.emit(0x59)  # pop  ecx
     a.emit(0x9D)  # popfd
-    a.emit(0xA1, _u32(THE_GAME_LOGIC))  # mov  eax, [0xde412c]  ; the displaced instruction
+    a.emit(0xA1, u32(THE_GAME_LOGIC))  # mov  eax, [0xde412c]  ; the displaced instruction
     a.jmp_absolute(GATE_RESUME_VA)
 
     a.label("inactive")
@@ -734,7 +581,7 @@ def build_gate(base_va: int) -> bytes:
     a.emit(b"\x8b\xcb")  # mov  ecx, ebx
     a.call_absolute(ATTRIB_REMOVE_VA)  # call <removeAttributeModifier> ; ret 4
     a.label("quiet")
-    a.emit(b"\xc6E", _disp8(SLEEP_SELECTOR_DISP8), 0x00)  # mov byte [ebp-0xd], 0
+    a.emit(b"\xc6E", i8(SLEEP_SELECTOR_DISP8), 0x00)  # mov byte [ebp-0xd], 0
     a.jmp_absolute(GATE_TAIL_VA)
 
     _emit_held(a)
@@ -746,32 +593,32 @@ def build_setup(base_va: int, vtable_va: int, stock_vtable_va: int) -> bytes:
     it will dispatch to.
 
     Entered in place of the two instructions at `SETUP_WINDOW_VA`, so it owes the caller both of
-    their effects: the wrapper's vtable slot written, and ``eax`` left holding
-    ``&ModuleData.HordeMemberFilter`` for the ``mov [ebp-0x48], eax`` that follows the window.
+    their effects: the wrapper's vtable slot written, and `eax` left holding
+    `&ModuleData.HordeMemberFilter` for the `mov [ebp-0x48], eax` that follows the window.
 
-    ``ebp`` is `update`'s own frame, ``edi`` the `ModuleData` and ``ebx`` the owning `Object`, all
-    established before the window and asserted by :data:`ANCHORS`. ``eax``, ``ecx`` and ``edx`` are
-    dead here on every path into the window, and `isDefined` is ``__thiscall`` and preserves
+    `ebp` is `update`'s own frame, `edi` the `ModuleData` and `ebx` the owning `Object`, all
+    established before the window and asserted by `ANCHORS`. `eax`, `ecx` and `edx` are
+    dead here on every path into the window, and `isDefined` is `__thiscall` and preserves
     everything else, so nothing has to be saved.
 
     The widened vtable is installed only when the flag is set **and** the filter was written; see
     the module docstring on why an unwritten filter is not taken to mean "count everything".
 
     The owning `Object` goes into the `ModuleData`'s own scratch dword, not into the wrapper - the
-    wrapper's ``+4`` is the filter chain's `next` pointer, and parking anything there sends
+    wrapper's `+4` is the filter chain's `next` pointer, and parking anything there sends
     `FILTER_APPEND_VA` and the scan walking off into the object graph."""
     a = Asm(base_va)
-    a.emit(b"\xc7\x45", _disp8(WRAPPER_VTABLE_DISP8), _u32(stock_vtable_va))
+    a.emit(b"\xc7\x45", i8(WRAPPER_VTABLE_DISP8), u32(stock_vtable_va))
     #                       mov dword [ebp-0x50], <stock vtable>
-    a.emit(b"\x80\xbf", _u32(FLAG_OFFSET), 0x00)  # cmp byte [edi+0x152], 0
+    a.emit(b"\x80\xbf", u32(FLAG_OFFSET), 0x00)  # cmp byte [edi+0x152], 0
     a.jcc(JE, "done")  # je .done                ; flag clear -> stock
     a.emit(b"\x8d\x4f", FILTER_OFFSET)  # lea ecx, [edi+0xc]
     a.call_absolute(OBJECT_FILTER_IS_DEFINED_VA)  # call <isDefined>
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "done")  # je .done                ; no filter written -> stock
-    a.emit(b"\xc7\x45", _disp8(WRAPPER_VTABLE_DISP8), _u32(vtable_va))
+    a.emit(b"\xc7\x45", i8(WRAPPER_VTABLE_DISP8), u32(vtable_va))
     #                       mov dword [ebp-0x50], <cave vtable>
-    a.emit(b"\x89\x9f", _u32(OWNER_SCRATCH_OFFSET))  # mov [edi+0x154], ebx ; the owning Object
+    a.emit(b"\x89\x9f", u32(OWNER_SCRATCH_OFFSET))  # mov [edi+0x154], ebx ; the owning Object
     a.label("done")
     a.emit(b"\x8d\x47", FILTER_OFFSET)  # lea eax, [edi+0xc]      ; what the window left in eax
     a.emit(0xC3)  # ret
@@ -781,17 +628,17 @@ def build_setup(base_va: int, vtable_va: int, stock_vtable_va: int) -> bytes:
 def build_new_allow(base_va: int) -> bytes:
     """The widened `allow`, dispatched through the cave's copy of the wrapper vtable.
 
-    ``__thiscall(ecx = wrapper, Object *candidate) -> bool``, ``ret 4`` - the stock signature. The
+    `__thiscall(ecx = wrapper, Object *candidate) -> bool`, `ret 4` - the stock signature. The
     contain-carrying path is the stock one instruction for instruction; a candidate with no contain
     interface, which the stock version rejects outright, is instead put to the `ObjectFilter`
     directly.
 
-    The source player comes from the `ModuleData`'s scratch dword, which :func:`build_setup`
+    The source player comes from the `ModuleData`'s scratch dword, which `build_setup`
     filled - the partition scan runs with no register holding the module's own object, and the
-    only pointer the wrapper carries is the `ObjectFilter` handle at ``+8``, which is the
-    `ModuleData` biased by :data:`FILTER_OFFSET`.
+    only pointer the wrapper carries is the `ObjectFilter` handle at `+8`, which is the
+    `ModuleData` biased by `FILTER_OFFSET`.
 
-    Both exits reproduce the stock polarity contract exactly: a match returns the wrapper's ``+0xc``
+    Both exits reproduce the stock polarity contract exactly: a match returns the wrapper's `+0xc`
     byte, a non-match returns whether that byte is zero."""
     a = Asm(base_va)
     a.emit(0x53)  # push ebx
@@ -806,7 +653,7 @@ def build_new_allow(base_va: int) -> bytes:
     a.emit(b"\xff\x76", WRAPPER_FILTER_SLOT)  # push dword [esi+8]   ; &HordeMemberFilter
     a.emit(b"\x8b\x10")  # mov  edx, [eax]
     a.emit(b"\x8b\xc8")  # mov  ecx, eax
-    a.emit(b"\xff\x92", _u32(CONTAIN_COUNT_SLOT))  # call dword [edx+0x180]  ; ret 4
+    a.emit(b"\xff\x92", u32(CONTAIN_COUNT_SLOT))  # call dword [edx+0x180]  ; ret 4
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JA, "match")  # ja .match
     a.jmp("nomatch")
@@ -817,7 +664,7 @@ def build_new_allow(base_va: int) -> bytes:
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "nomatch")  # je .nomatch            ; unwritten -> contributes nothing
     a.emit(b"\x8b\x46", WRAPPER_FILTER_SLOT)  # mov eax, [esi+8]    ; &HordeMemberFilter
-    a.emit(b"\x8b\x88", _u32(OWNER_FROM_FILTER))  # mov ecx, [eax+0x148] ; the owning Object
+    a.emit(b"\x8b\x88", u32(OWNER_FROM_FILTER))  # mov ecx, [eax+0x148] ; the owning Object
     a.call_absolute(GET_CONTROLLING_PLAYER_VA)
     a.emit(0x50)  # push eax                ; arg3 = the source player
     a.emit(b"\x8b\xcb")  # mov  ecx, ebx
@@ -848,14 +695,14 @@ def build_new_allow(base_va: int) -> bytes:
 def build_count(base_va: int) -> bytes:
     """Gate 2 of the loose-object count: what one candidate contributes.
 
-    ``__thiscall``-shaped: ``ecx`` is the candidate, the answer comes back in ``eax``, and the
-    caller adds it into ``[ebp-0x18]`` exactly as the stock window did. ``edi`` is the `ModuleData`
-    and ``ebx`` the owning `Object`, both live across the whole loop; the stub clobbers only
-    ``eax``/``ecx``/``edx``, which the stock window clobbers too.
+    `__thiscall`-shaped: `ecx` is the candidate, the answer comes back in `eax`, and the
+    caller adds it into `[ebp-0x18]` exactly as the stock window did. `edi` is the `ModuleData`
+    and `ebx` the owning `Object`, both live across the whole loop; the stub clobbers only
+    `eax`/`ecx`/`edx`, which the stock window clobbers too.
 
     A container contributes its matching member count, a loose object contributes one, and anything
     else contributes zero. The candidate lives on the stack rather than in a register because every
-    callee here is ``__thiscall`` and only the callee-saved set survives, and those are all spoken
+    callee here is `__thiscall` and only the callee-saved set survives, and those are all spoken
     for."""
     a = Asm(base_va)
     a.emit(0x51)  # push ecx                ; save the candidate
@@ -867,12 +714,12 @@ def build_count(base_va: int) -> bytes:
     a.emit(0x51)  # push ecx                ; &HordeMemberFilter
     a.emit(b"\x8b\x10")  # mov  edx, [eax]
     a.emit(b"\x8b\xc8")  # mov  ecx, eax
-    a.emit(b"\xff\x92", _u32(CONTAIN_COUNT_SLOT))  # call dword [edx+0x180]  ; ret 4
+    a.emit(b"\xff\x92", u32(CONTAIN_COUNT_SLOT))  # call dword [edx+0x180]  ; ret 4
     a.emit(0x59)  # pop  ecx                ; drop the candidate
     a.emit(0xC3)  # ret
 
     a.label("loose")
-    a.emit(b"\x80\xbf", _u32(FLAG_OFFSET), 0x00)  # cmp byte [edi+0x152], 0
+    a.emit(b"\x80\xbf", u32(FLAG_OFFSET), 0x00)  # cmp byte [edi+0x152], 0
     a.jcc(JE, "zero")
     a.emit(b"\x8d\x4f", FILTER_OFFSET)  # lea  ecx, [edi+0xc]
     a.call_absolute(OBJECT_FILTER_IS_DEFINED_VA)  # call <isDefined>
@@ -912,20 +759,20 @@ def gate_hook_bytes(gate_va: int) -> bytes:
 
 def setup_hook_bytes(setup_va: int) -> bytes:
     """`call rel32` to the gate-1 shim, padded to the ten bytes it displaces."""
-    call = _call_bytes(SETUP_WINDOW_VA, setup_va)
+    call = call_rel32(SETUP_WINDOW_VA, setup_va)
     return call + b"\x90" * (len(SETUP_WINDOW_BYTES) - len(call))
 
 
 def count_hook_bytes(count_va: int) -> bytes:
     """The gate-2 replacement, padded to the 28 bytes it displaces.
 
-    ``mov ecx, eax`` is the stock window's own first instruction, and the ``add`` its last; only
+    `mov ecx, eax` is the stock window's own first instruction, and the `add` its last; only
     the middle - getContain, the null bail and the contain-interface call - is replaced."""
     body = (
         b"\x8b\xc8"  # mov ecx, eax
-        + _call_bytes(COUNT_WINDOW_VA + 2, count_va)  # call <cave_count>
+        + call_rel32(COUNT_WINDOW_VA + 2, count_va)  # call <cave_count>
         + b"\x01\x45"
-        + bytes((_disp8(COUNT_ACCUMULATOR_DISP8),))  # add [ebp-0x18], eax
+        + i8(COUNT_ACCUMULATOR_DISP8)  # add [ebp-0x18], eax
     )
     return body + b"\x90" * (len(COUNT_WINDOW_BYTES) - len(body))
 
@@ -935,6 +782,7 @@ class LargeGroupBonusPatch(Patch):
 
     name = "large-group-bonus"
     author = "officialNecro"
+    runtime_verified = "partly"
     description = (
         "Extend LargeGroupBonusUpdate: TriggeredBy / ConflictsWith / RequiresAllTriggers / "
         "RequiresAllConflictingTriggers gate the whole module on upgrades, and a "
@@ -949,7 +797,7 @@ class LargeGroupBonusPatch(Patch):
     def __str__(self) -> str:
         return f"{self.name} ({self.keyword})"
 
-    # --- apply / verify ----------------------------------------------------------------------
+    # Apply / verify
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)
@@ -966,9 +814,9 @@ class LargeGroupBonusPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch with exactly this keyword (an empty
+        """Structural check that `data` carries this patch with exactly this keyword (an empty
         list == verified). Locates the cave, recomputes everything the keyword implies, and compares
-        it and every rewritten site to what is on disk. Reads only via ``struct`` and the section
+        it and every rewritten site to what is on disk. Reads only via `struct` and the section
         table, so verification needs no disassembler.
 
         The stock rows and the stock vtable slots are read back **out of the cave's own copies**
@@ -1010,12 +858,12 @@ class LargeGroupBonusPatch(Patch):
         """Recognise this patch **and recover its keyword**.
 
         The default probe would only ever recognise the default keyword. The renameable keyword is
-        the first thing in the cave (:func:`_layout` puts it at the section base), so it reads
+        the first thing in the cave (`_layout` puts it at the section base), so it reads
         straight back out; `verify` then checks the whole cave against it."""
         located = find_section(data, SECTION_NAME)
         if located is None:
             return None
-        keyword = _read_cstring(data, located[0])
+        keyword = read_cstring(data, located[0])
         if keyword is None:
             return None
         try:
@@ -1046,7 +894,7 @@ class LargeGroupBonusPatch(Patch):
         ]
         return Engine(fields=tuple(fields))
 
-    # --- CLI integration ---------------------------------------------------------------------
+    # CLI integration
 
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
@@ -1066,11 +914,11 @@ class LargeGroupBonusPatch(Patch):
     def from_cli_args(cls, args: argparse.Namespace) -> LargeGroupBonusPatch:
         return cls(keyword=args.keyword)
 
-    # --- the cave ------------------------------------------------------------------------------
+    # The cave
 
     def _build(self, base_va: int, stock_rows: bytes, stock_vtable: tuple[int, ...]) -> bytes:
         """The cave: the five keyword strings, the copied wrapper vtable, the rebuilt field table,
-        and the five stubs - in that order, so :meth:`detect` finds the renameable keyword at the
+        and the five stubs - in that order, so `detect` finds the renameable keyword at the
         section base."""
         pieces = _layout(base_va, self.keyword)
 
@@ -1082,7 +930,7 @@ class LargeGroupBonusPatch(Patch):
         # The copy differs from the stock vtable in exactly one slot: `allow`.
         slots = list(stock_vtable)
         slots[1] = pieces.allow_va
-        blob += b"".join(_u32(slot) for slot in slots)
+        blob += b"".join(u32(slot) for slot in slots)
 
         blob += build_table(pieces.keyword_va, pieces.upgrade_vas, stock_rows)
         assert base_va + len(blob) == pieces.alloc_va, "the cave layout and its addresses disagree"
@@ -1117,7 +965,7 @@ class LargeGroupBonusPatch(Patch):
             name_va, _parse, _userdata, field_off = struct.unpack_from(
                 "<4I", entries, index * FIELD_PARSE_STRIDE
             )
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != name:
                 raise ValueError(f"field table entry {index}: expected {name!r}, found {got!r}")
             if field_off != offset:
@@ -1175,7 +1023,7 @@ class LargeGroupBonusPatch(Patch):
             name_va, _parse, _ud, field_off = struct.unpack_from(
                 "<4I", data, off + index * FIELD_PARSE_STRIDE
             )
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != name or field_off != offset:
                 problems.append(
                     f"rebuilt table entry {index}: expected {name!r} at 0x{offset:x}, "
@@ -1187,7 +1035,7 @@ class LargeGroupBonusPatch(Patch):
             name_va, parse_fn, _ud, field_off = struct.unpack_from(
                 "<4I", data, off + index * FIELD_PARSE_STRIDE
             )
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != name:
                 problems.append(f"appended row {index} is {got!r}, not {name!r}")
             if parse_fn != parse:
@@ -1223,12 +1071,12 @@ class LargeGroupBonusPatch(Patch):
         if problems:
             raise ValueError(f"{self.name}: this is not the expected build: {'; '.join(problems)}")
 
-    # --- the edits -----------------------------------------------------------------------------
+    # The edits
 
     def _edits(
         self, data: bytes | bytearray, pieces: _Layout
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)``."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)`."""
         edits: list[tuple[int, bytes, bytes, str]] = []
 
         def at(va: int, old: bytes, new: bytes, note: str) -> None:
@@ -1246,8 +1094,8 @@ class LargeGroupBonusPatch(Patch):
         )
         at(
             FIELD_TABLE_REF_VA,
-            _u32(FIELD_TABLE_VA),
-            _u32(pieces.table_va),
+            u32(FIELD_TABLE_VA),
+            u32(pieces.table_va),
             f"buildFieldParse -> the {SECTION_NAME} field table",
         )
         at(

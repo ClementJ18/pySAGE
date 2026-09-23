@@ -1,7 +1,7 @@
 """Water areas as the 3D view draws them: a surface at the area's own height, and how it looks.
 
 A water height is the world height, in feet, of the surface: the terrain around corpus lakes and
-rivers agrees (PHASE5.md, R10).
+rivers agrees.
 
 - A lake or ocean is built as the game builds it (`RenderableStandingWaterArea::
   AllocateAndFillBuffers`, `0x0073FBA0` in `worldbuilder.exe`): a grid of 20 world-unit cells over

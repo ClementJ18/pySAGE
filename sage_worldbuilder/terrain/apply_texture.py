@@ -1,6 +1,6 @@
 """Apply texture to tiles: Terrain Material's Apply To Tiles... (dialog 250) paints the chosen
 texture on the playable cells whose corners lie between two slopes and two heights, each at a
-chance set by the saturation (PHASE3.md, 3.8).
+chance set by the saturation.
 
 From `TerrainMaterial::OnBnClickedTextureApply` (`0x0061C470`), the corner check it calls
 (`BaseHeightMapRenderObjClass::CheckCorners`, `0x00758C00`) and the terrain's height and normal

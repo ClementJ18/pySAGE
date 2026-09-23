@@ -1,141 +1,11 @@
-"""The passive-aura-revive patch: let an aura come back after the object carrying it does.
+"""Let an aura come back when the structure carrying it is rebuilt from rubble.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/passive-aura-revive.md``.
+`PassiveAreaEffectBehavior` and `AttributeModifierAuraUpdate` return `UPDATE_SLEEP_FOREVER` the
+first time they tick on a dead object, and nothing wakes a module on revival, so a keep's aura is
+lost for the rest of the game. The patch makes both return their ordinary sleep instead: five bytes
+in the first, a 24-byte window and a cave in the second. No INI change.
 
-**The bug.** An update module tells the scheduler when to look at it again by returning a frame
-delta, and ``0x3FFFFFFF`` - `UPDATE_SLEEP_FOREVER` - means never. Both of the engine's aura modules
-return it the first time they tick on a **dead** object, and **nothing wakes an update module when
-an object is revived**: `Object::setEffectivelyDead(FALSE)` (`0x0068D950`) clears the flag and pokes
-the drawable, and never walks the module array. An aura that gives up its place in the schedule that
-way has no other way back.
-
-That is invisible for a building the engine deletes when it dies, because the module dies with it.
-It is permanent for one that **survives death**: `KeepObjectDie` plus `RubbleRiseUpdate` is how
-every castle keep, wall, gate and camp citadel in a BFME mod becomes rubble instead of a hole, and
-the object that repairs itself out of rubble is the same object. So the aura stops when the
-structure falls - which is what a mod wants, and happens on its own because each ping re-applies the
-modifier with an expiry one delay ahead - and then never restarts for the rest of the game.
-
-**`PassiveAreaEffectBehavior`, five bytes.** `update` (`0x00887DF7`) ends in three gates. The
-`UpgradeRequired` and under-construction gates both return the module's ordinary `PingDelay` sleep,
-so the condition gets another look. The dead gate does not::
-
-    00887e5b  test byte [ebx+0x458], 1   ; my own object effectively dead?
-    00887e62  je   0x00887e76            ;   no  -> scan and re-apply
-    00887e64  mov  eax, 0x3fffffff       ;   yes -> UPDATE_SLEEP_FOREVER
-    00887e69  jmp  0x00887ec2            ;          return it
-
-The patch returns the `PingDelay` sleep there instead, at the one instruction above::
-
-    00887e64  mov  eax, [esp+0x10]       ; the sleep every other path returns
-    00887e68  nop
-    00887e69  jmp  0x00887ec2            ; unchanged
-
-`[esp+0x10]` is the scratch dword the update writes at `0x00887E09` from `ModuleData+0x10`
-(`PingDelay`, floored at 1) and reads back at `0x00887EBE` to return. The prologue's five pushes
-are still on the stack at the rewritten instruction and every call between the two is
-callee-balanced, so the displacement names the same slot in both places.
-
-**`AttributeModifierAuraUpdate`, twenty-four bytes and a cave.** The same defect, and two reasons it
-cannot be the same five bytes.
-
-*The sentinel is shared.* It is also where an aura still waiting on its `TriggeredBy` upgrade
-parks, and that is correct - `giveSelfUpgrade` (`0x00855388`) wakes it through this module's
-`upgradeImplementation` (`0x008554D6`), a bare `setWakeFrame`. Rewriting `0x0089F474` would put
-every un-triggered aura in a mod back on a `RefreshDelay` poll for no benefit::
-
-    0089f441  test byte [esi+0x458], 1   ; effectively dead?
-    0089f44f  je   0x0089f459            ;   no -> on to the next gate
-    0089f451  cmp  byte [edi+0x16a], bl  ; RunWhileDead
-    0089f457  je   0x0089f474            ;   dead and No  -> sleep forever    <- the defect
-    ...
-    0089f46e  call [eax]                 ; UpgradeMux::isAlreadyUpgraded
-    0089f470  test al, al
-    0089f472  jne  0x0089f47e
-    0089f474  mov  eax, 0x3fffffff       ;   not triggered -> sleep forever   <- correct
-
-*It has no construction gate.* `PassiveAreaEffectBehavior` has one at `0x00887E45`, above its dead
-test, and that is what makes it resume when a rebuild **finishes**: the effectively-dead flag is
-rewritten by `ActiveBody::internalChangeHealth` from `health <= 0`, so it clears on the first frame
-a rubble structure repairs above zero, and only `GettingBuiltBehavior::isStillBuilding` stays true
-for the rest of the rebuild. `AttributeModifierAuraUpdate` tests neither, so on the dead arm alone
-it would come back the moment the rubble started rising.
-
-So the whole gate block becomes a jump into an ``.aurevi`` cave that re-emits the displaced
-instructions, adds the sibling module's gate, and splits the dead arm off the sentinel::
-
-    push edi                   ; the three displaced instructions, unchanged
-    mov  edi, [ecx-0xc]
-    mov  [ebp-0x14], ecx
-    mov  ecx, esi              ; transcribed from PassiveAreaEffectBehavior @0x00887E45
-    call 0x0068c3e6            ; Object::getGettingBuiltBehavior
-    test eax, eax
-    je   no_module
-    mov  edx, [eax]
-    mov  ecx, eax
-    call [edx+0x2c]            ; isStillBuilding()
-    jmp  answer
-  no_module:
-    push 2                     ; OBJECT_STATUS_UNDER_CONSTRUCTION
-    mov  ecx, esi
-    call 0x0044ddec            ; Object::testStatus
-  answer:
-    test al, al
-    jne  ordinary_sleep        ; still going up -> wait
-    test byte [esi+0x458], 1   ; stock: effectively dead?
-    je   scan
-    cmp  byte [edi+0x16a], 0   ; stock: RunWhileDead
-    jne  scan                  ; Yes -> keep applying through the death, unchanged
-  ordinary_sleep:
-    jmp  0x0089f6bd            ; RefreshDelay + id % 5, the sleep every other path returns
-  scan:
-    mov  ecx, [ebp-0x14]       ; `this` again - the calls above left their own in it
-    jmp  0x0089f459
-
-There is no scratch slot to read back for the *sleep*: this update computes it at the exit, from
-`RefreshDelay` (`ModuleData+0x18`) and the object's id modulo five. `esi` (the `Object`) and `edi`
-(the `ModuleData`) survive both calls, all three pushes the epilogue pops happen above the gate, and
-`[ebp-4]` still holds the SEH scope index the sentinel arm returns under - so the jump unwinds
-exactly as `0x0089F474` does.
-
-**`ecx` does not survive, and the scan resume point needs it.** A `__thiscall` callee leaves its own
-`this` in `ecx`, and ten instructions past `0x0089F459` the update does `add ecx, 0x10` /
-`mov eax, [ecx]` / `call [eax]` - the `UpgradeMux::isAlreadyUpgraded` test - off the `ecx` the
-prologue left, because stock nothing in between touches it. So the scan arm reloads it from
-`[ebp-0x14]`, the slot the displaced `mov` above just wrote. Without that reload the update calls
-through `[GettingBuiltBehavior+0x10]`, which is zero, and the game dies on the first finished
-structure carrying an aura - which is to say on the first frame of a match.
-
-Both dead arms still return **before** the scan, so no aura is applied while the object is dead and
-nothing about the rubble behaviour changes. What changes is that each module keeps its place in the
-schedule, so the first tick after the structure is finished sees a live object and resumes.
-
-**What the construction gate costs elsewhere.** It is not limited to a rebuild, because nothing on
-the object says which kind of build this is: an `AttributeModifierAuraUpdate` on a structure now
-also stays quiet while that structure is put up for the **first** time. That is what
-`PassiveAreaEffectBehavior` already does, so the change makes the two modules agree rather than
-inventing a third behaviour. Units are untouched - they have no `GettingBuiltBehavior` and never
-carry `UNDER_CONSTRUCTION`, so the gate answers no and costs them one module-array walk per tick.
-
-**Cost.** A dead or half-built object runs a handful of compares and one module-array walk every
-delay instead of nothing. Only objects carrying one of these two modules are affected; one that is
-deleted takes its modules with it as before.
-
-**No INI change.** No keyword, no token, no `.str` key - a mod uses this by writing exactly what it
-already writes. The INI-level alternatives both fail on their own terms, which is why this is a
-binary patch: an aura whose `UpgradeRequired` is *satisfied* still reaches the dead arm, so no
-upgrade gating avoids it, and `AttributeModifierAuraUpdate`'s `RunWhileDead = Yes` trades a
-permanent loss for an aura that stays on through the rubble.
-
-**Scope.** `AttributeModifierUpgrade`, the third module a reader might expect here, is not affected
-and is not touched: it is not an update module at all, and the modifier it applies is permanent and
-outlives its object's death on its own. ``docs/passive-aura-revive.md`` §8.1 records why.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`~PassiveAuraRevivePatch.verify` finds it by name. The engine bytes it edits are five at
-`0x00887E64` and twenty-four at `0x0089F441`, which no other bundled patch touches, and it reads
-nothing another patch rewrites.
+Derivation: `../docs/passive-aura-revive.md`.
 """
 
 from __future__ import annotations
@@ -162,7 +32,7 @@ from ..addresses import (
 )
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, file_offset, find_section
 
 __all__ = [
     "GATE_JUMP_PADDING",
@@ -178,7 +48,7 @@ SECTION_NAME = ".aurevi"  # 7 chars: the PE name field is 8 bytes and truncates 
 _CHARACTERISTICS = 0x20 | 0x20000000 | 0x40000000
 
 #: What the twenty-four byte gate block is padded out with behind the five-byte jump. Named because
-#: :meth:`~PassiveAuraRevivePatch.verify` checks it: the `nop` run is how the rewrite says it
+#: `verify` checks it: the `nop` run is how the rewrite says it
 #: covered the whole block rather than leaving the tail of an instruction behind.
 GATE_JUMP_PADDING = b"\x90" * (len(ATTRIBUTE_MODIFIER_AURA_GATES_BYTES) - 5)
 
@@ -188,14 +58,14 @@ _EBP_THIS = ATTRIBUTE_MODIFIER_AURA_THIS_EBP_OFFSET & 0xFF
 
 
 def _sleep_the_ping_delay(offset: int) -> bytes:
-    """``mov eax, [esp+offset]`` then a `nop`, so the rewrite is the same five bytes the sentinel
+    """`mov eax, [esp+offset]` then a `nop`, so the rewrite is the same five bytes the sentinel
     occupied and the `jmp` behind it keeps its address."""
     if not 0 <= offset <= 0x7F:
         raise ValueError(f"[esp+0x{offset:x}] does not encode as a byte displacement")
     return bytes((0x8B, 0x44, 0x24, offset, 0x90))
 
 
-#: What replaces :data:`~sage_patch.addresses.PASSIVE_AREA_EFFECT_DEAD_SLEEP_BYTES`.
+#: What replaces `PASSIVE_AREA_EFFECT_DEAD_SLEEP_BYTES`.
 PATCHED_BYTES = _sleep_the_ping_delay(PASSIVE_AREA_EFFECT_PING_SLOT_OFFSET)
 
 
@@ -203,7 +73,7 @@ def build_code(base_va: int) -> bytes:
     """`AttributeModifierAuraUpdate`'s gate block, with a construction gate in front of it and the
     dead arm split off the shared sentinel.
 
-    Entered from :data:`~sage_patch.addresses.ATTRIBUTE_MODIFIER_AURA_GATES` with `esi` holding the
+    Entered from `ATTRIBUTE_MODIFIER_AURA_GATES` with `esi` holding the
     `Object`, `ecx` still holding the update's `this` and `ebx` zeroed. It never returns to the
     hook: every arm jumps back into the update. Both calls are `__thiscall` and preserve
     `esi`/`edi`/`ebx`, which is what lets the stock tests below them run unchanged - but **not**
@@ -255,13 +125,6 @@ def build_code(base_va: int) -> bytes:
     return a.finish()
 
 
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA 0x{va:08x} is not mapped - not the expected build")
-    return off
-
-
 class PassiveAuraRevivePatch(Patch):
     """Stop the two aura modules sleeping forever when their own object dies."""
 
@@ -282,8 +145,8 @@ class PassiveAuraRevivePatch(Patch):
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)
-        gate_off = _offset(data, ATTRIBUTE_MODIFIER_AURA_GATES)
-        passive_off = _offset(data, PASSIVE_AREA_EFFECT_DEAD_SLEEP)
+        gate_off = file_offset(data, ATTRIBUTE_MODIFIER_AURA_GATES)
+        passive_off = file_offset(data, PASSIVE_AREA_EFFECT_DEAD_SLEEP)
 
         section_va = allocate_section(data, SECTION_NAME, build_code, _CHARACTERISTICS)
         jump = b"\xe9" + struct.pack("<i", section_va - (ATTRIBUTE_MODIFIER_AURA_GATES + 5))
@@ -306,8 +169,8 @@ class PassiveAuraRevivePatch(Patch):
     def verify(self, data: bytes | bytearray) -> list[str]:
         problems: list[str] = []
         try:
-            passive_off = _offset(data, PASSIVE_AREA_EFFECT_DEAD_SLEEP)
-            gate_off = _offset(data, ATTRIBUTE_MODIFIER_AURA_GATES)
+            passive_off = file_offset(data, PASSIVE_AREA_EFFECT_DEAD_SLEEP)
+            gate_off = file_offset(data, ATTRIBUTE_MODIFIER_AURA_GATES)
         except ValueError as exc:
             return [str(exc)]
 
@@ -363,7 +226,7 @@ class PassiveAuraRevivePatch(Patch):
             **PASSIVE_AREA_EFFECT_ANCHORS,
             **ATTRIBUTE_MODIFIER_AURA_ANCHORS,
         }.items():
-            got = bytes(data[_offset(data, va) :][: len(expected)])
+            got = bytes(data[file_offset(data, va) :][: len(expected)])
             if got != expected:
                 raise ValueError(
                     f"unexpected build: 0x{va:08x} is {got.hex()}, expected {expected.hex()} - "

@@ -16,7 +16,7 @@ import sage_ini.model.definitions  # noqa: E402,F401  (registers the typed class
 from sage_ini.model.game import Game
 from sage_ini.model.nuggets import DamageNugget
 from sage_ini.parser.blockparser import parse_file
-from sage_ini.stats import ini_root, root_files
+from sage_ini.paths import ini_root, root_files
 
 
 def load_game(root: Path) -> Game:

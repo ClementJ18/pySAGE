@@ -6,6 +6,13 @@ import json
 import os
 from pathlib import Path
 
+__all__ = [
+    "read_json",
+    "user_config_dir",
+    "user_file",
+    "write_json",
+]
+
 
 def user_config_dir(app: str) -> Path:
     """The per-user config directory for `app` (one subfolder per app): under `%APPDATA%`

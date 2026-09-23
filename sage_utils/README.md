@@ -22,6 +22,11 @@ Two layers:
     `textures.TextureSource` to index image archives for portraits / button icons.
   - `findings.FindingsView` - the searchable, sortable, severity-coloured diagnostics table
     (with CSV export and double-click-to-open) both linters report into.
+  - `widgets.add_help_menu` - the Help menu every app carries: a getting-started walkthrough,
+    About, and (where the app names itself with `report_app`) a bug report built by
+    `bugreport`. The report names the build, the interpreter and whatever state the app
+    supplies, ready to copy or to carry to the issue tracker; `bugreport` itself is Qt-free,
+    so a crash handler can still build one when the UI is what failed.
 
 The data layer stays engine-generic; mod-specific names and paths live in the mod's own
 overlay repository (e.g. `sage_edain`) and wire in through hooks. The Qt half needs the `ui` extra

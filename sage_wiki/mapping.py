@@ -14,6 +14,7 @@ are mapped; the infobox's manual fields are never written.
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from sage_ini import IniObject
 from sage_ini.model.behaviors import (
     GiantBirdAIUpdate,
     LifetimeUpdate,
@@ -50,8 +51,8 @@ class FieldContext:
     combat stats come from (the contained member for a horde, else `obj`). `unit_state`
     resolves combat stats on `unit`, `source_state` cost/movement on `obj`."""
 
-    obj: object
-    unit: object
+    obj: IniObject
+    unit: IniObject
     unit_state: UnitState
     source_state: UnitState
 
@@ -117,7 +118,7 @@ def _primary_weapon(state: UnitState):
 
 
 def _named_weapon(unit, field: str):
-    """Resolve an untyped weapon-name field (e.g. ``CrushWeapon``) to a Weapon."""
+    """Resolve an untyped weapon-name field (e.g. `CrushWeapon`) to a Weapon."""
     raw = unit._fields.get(field)
     name = raw[-1] if isinstance(raw, list) else raw
     game = getattr(unit, "_game", None)
@@ -146,7 +147,7 @@ def _damage(c: FieldContext) -> str | None:
 
 
 def _damage_type(c: FieldContext) -> str | None:
-    """The damage type of the unit's basic attack (e.g. ``PIERCE``)."""
+    """The damage type of the unit's basic attack (e.g. `PIERCE`)."""
     weapon = _primary_weapon(c.unit_state)
     if weapon is None:
         return None

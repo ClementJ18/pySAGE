@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from sage_lint.cli import main
+from sage_lint.__main__ import main
 from sage_lint.config import init_project, load_config
 
 # A file with a repeated field (warning), a miscased enum (warning) and an unknown

@@ -7,11 +7,11 @@ mesh's textured fills name `image` characters back in the array. So a character 
 between movies by copying its XML: every index in it means something different on the other side,
 and one whole class of edge is not in the XML at all.
 
-:func:`merge_character` does the renumbering. Give it the source's geometry and it walks the
+`merge_character` does the renumbering. Give it the source's geometry and it walks the
 transitive closure of one character *through* the meshes, appends the whole subtree to the
 destination's array, and rewrites every index in the copied elements - characters, geometry ids and
 texture ids alike - returning the maps so the caller can move the `.ru` and `.tga` files those last
-two name. :func:`rewrite_geometry` renumbers a copied mesh to match.
+two name. `rewrite_geometry` renumbers a copied mesh to match.
 
 Characters the subtree only *imports* are not copied. They are matched against the destination's
 own imports by (movie, name), and only the ones it does not already have are added - which is why
@@ -66,7 +66,7 @@ POOL_INDEXED = frozenset(
 
 #: How far those opcodes can reach. Their operand is one byte, and only `pushconstant` has a word
 #: form (`pushwordconstant`) to fall back on - so a pool that grows past this cannot be addressed
-#: by `getnamedmember` or the call opcodes at all, and :func:`copy_functions` refuses rather than
+#: by `getnamedmember` or the call opcodes at all, and `copy_functions` refuses rather than
 #: emitting an index that silently wraps.
 POOL_LIMIT = 256
 
@@ -100,7 +100,7 @@ _FILL = re.compile(r"^(\s*s\s+tc:(?:[^:\s]+:){4})(\d+)(:)", re.MULTILINE)
 
 @dataclass
 class MergePlan:
-    """What :func:`merge_character` did, as the renumberings it performed.
+    """What `merge_character` did, as the renumberings it performed.
 
     `character` is the copied subtree's root in its new home - the id a `placeobject` has to name
     to put it on a frame. The maps are `source id -> destination id`; `geometry` says which `.ru`
@@ -169,9 +169,9 @@ def _refs(element: ET.Element, geometry: Mapping[int, str] | None) -> set[int]:
 
 
 def closure(root: ET.Element, start: int, geometry: Mapping[int, str] | None = None) -> set[int]:
-    """Every character index reachable from ``start``, including itself.
+    """Every character index reachable from `start`, including itself.
 
-    Breadth-first over the reference attributes, and - when ``geometry`` maps geometry ids to their
+    Breadth-first over the reference attributes, and - when `geometry` maps geometry ids to their
     `.ru` text - over each shape's textured fills as well. Without it the `image` characters the
     meshes sample are invisible, and a merge built on that closure would carry shapes that sample
     textures their new movie does not have.
@@ -193,7 +193,7 @@ def closure(root: ET.Element, start: int, geometry: Mapping[int, str] | None = N
 
 
 def _highest(root: ET.Element, tag: str, attribute: str) -> int:
-    """The largest value of ``attribute`` across every ``tag`` element, or -1 for none."""
+    """The largest value of `attribute` across every `tag` element, or -1 for none."""
     return max((int(el.get(attribute, "-1")) for el in root.iter(tag)), default=-1)
 
 
@@ -203,14 +203,14 @@ def merge_character(
     start: int,
     geometry: Mapping[int, str] | None = None,
 ) -> MergePlan:
-    """Copy character ``start`` and everything it draws from ``source`` into ``destination``.
+    """Copy character `start` and everything it draws from `source` into `destination`.
 
-    Both arguments are `<aptdata>` roots, as :func:`sage_apt.apt_to_xml` writes them.
-    ``destination`` is modified in place; ``source`` is not touched. ``geometry`` maps the source's
+    Both arguments are `<aptdata>` roots, as `sage_apt.apt_to_xml` writes them.
+    `destination` is modified in place; `source` is not touched. `geometry` maps the source's
     geometry ids to their `.ru` text - pass it whenever the subtree contains shapes, or the images
     they sample will be left behind.
 
-    Raises `ValueError` if ``start`` names no character, if the subtree reaches a slot the source
+    Raises `ValueError` if `start` names no character, if the subtree reaches a slot the source
     neither defines nor imports, or if an `image` character's texture id differs from its own
     character id. That last one holds across every movie ROTWK and BFME1 ship, and the renumbering
     preserves it rather than tracking two numbers that are always equal; a movie that broke it
@@ -316,7 +316,7 @@ def merge_character(
 
 
 def constant_index(action: ET.Element, value: str) -> int:
-    """The index of the string ``value`` in ``action``'s constant pool, appending it if absent.
+    """The index of the string `value` in `action`'s constant pool, appending it if absent.
 
     The pool is positional - `sage_apt` re-indexes it on compile from the order of the
     `<constant>` elements, ignoring their `id` attribute - so appending is safe and the new index

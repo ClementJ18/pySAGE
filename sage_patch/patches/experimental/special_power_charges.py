@@ -1,131 +1,13 @@
-"""Charges on a special power: several casts banked behind a short cooldown, then a long one.
+"""Give a special power charges: `ChargeNumber` casts banked behind a short
+`ReloadTimeBetweenCharge`, with `ReloadTime` restoring one charge at a time.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../../docs/special-power-charges.md``.
+A charge is spent where the cast arms its cooldown, including the path where the engine's guard at
+`0x008979B1` hands the recharge to an update module. The settings grow `SpecialPowerTemplate`, and
+each module's refill deadline and spent count live in its unused padding. The partial-recharge arm
+(`0x00896F16`, the script engine's "advance by a fraction") moves only the ready frame. The
+description gains a charge readout once the mod declares its string keys.
 
-**What a mod writes.** Three new keys on the `SpecialPower` block, all inert unless `ChargeNumber`
-is set:
-
-.. code-block:: none
-
-    SpecialPower SpecialAbilityWarChant
-      ReloadTime                      = 120000   ; unchanged keyword: time to regain ONE charge
-      ChargeNumber                    = 3        ; how many casts are banked
-      ReloadTimeBetweenCharge         = 15000    ; the short cooldown between two banked casts
-      ReplenishAllChargesOnReloadTime = No       ; Yes: one ReloadTime refills the whole bank
-    End
-
-`ReloadTime` keeps its name and its units and changes meaning only for a power that declares
-`ChargeNumber`: it becomes the refill period, and **the refill clock starts the moment the first
-charge goes missing**, not when the bank empties.
-
-**Why this is cheap.** The engine's cooldown is an *absolute frame*, not a countdown - nothing ticks
-a special power while it recharges, and nothing has to. A charge bank does not need a per-frame
-driver either: the refill deadline is a second absolute frame, and the charge count is recovered
-from it by integer division at the only two moments anyone asks. So there is **no sweep**, unlike
-`recharge-rescale`, and `isReady` is not patched:
-
-* with charges left, `readyFrame` holds the short cooldown;
-* with the bank empty, `readyFrame` is set **to the refill deadline**.
-
-One field expresses both rules, so `ControlBar::getCommandAvailability`, both click arms, the AI and
-the button's pie clock all keep working untouched. `getPercentReady` is
-`1 - (readyFrame - now) / duration` and the hook writes both fields together, the way
-`startPowerRecharge` does, so the clock fills over whichever wait is actually in force.
-
-**Where the hook goes, and the two wrong answers before it.** `startPowerRecharge` is where a
-cooldown is armed, and the engine arms cooldowns from **fourteen** sites. Hooking the function
-spends a charge at all fourteen - including the module constructor, so every charge power began the
-match one short, and the `OnTriggerRechargeSpecialPower` walk, which arms a *different* power.
-Hooking instead the one call that looks like *the* cast, `doSpecialPower`'s call on its own
-interface at `0x008979C2`, misses every ability written the way most targeted hero abilities in
-Edain are: a `SpecialPowerModule` with `UpdateModuleStartsAttack = Yes` beside a
-`WeaponFireSpecialAbilityUpdate`, where the engine's own guard at `0x008979B1` hands the recharge
-to the update module and that call never runs.
-
-So the discrimination is **on the caller, not on the call**: the hook is at
-:data:`RECHARGE_HOOK`, the five bytes that open the full-recharge arm, and it reads the return
-address at `[ebp+4]` to exclude the two arms that are provably not a use
-(:data:`MODULE_CTOR_RETURN`, :data:`TRIGGER_WALK_RETURN`). Everything else is a use, whichever
-module flavour drove it. That works because of what the function is: it **never clears** a
-cooldown, only arms one, so "went on cooldown" is the same event the player watches the pie start
-for.
-
-`edi` already holds `max(1, ftol(ReloadTime * m))` - the refill interval, computed by the engine
-with whatever modifiers are in force - so the short cooldown is that same ratio applied to
-`ReloadTimeBetweenCharge` in integers. This patch runs no float arithmetic of its own on the
-simulation path and cannot disagree with the engine about how long a refill takes.
-
-**Where the state lives.** Nine bytes of `SpecialPowerTemplate`, which has two - so the struct grows
-from `0x88` to `0x94` across its three `push 0x88` allocations, all `push imm32` and therefore
-same-length edits. Per module, six bytes of padding that is neither read nor `Xfer`'d: a **24-bit**
-absolute refill deadline at interface `+0x19..+0x1B` and a spent-charge count at `+0x21`. Two
-`mov byte` -> `mov dword` widenings in the base constructor zero both.
-
-**The readout.** One line on a special-power button's description saying how many charges are left
-and, while a refill is pending, how long until it lands. Silent unless the mod declares the key -
-`TOOLTIP:SpecialPowerCharges` (`%d`, `%d`) when the bank is full of pending nothing, and
-`TOOLTIP:SpecialPowerChargesRecharging` (`%d`, `%d`, `%.1f`) while a refill is running. The tooltip
-is composed once per hover and never refreshed
-(:mod:`~sage_patch.patches.description_timers` §2), so the seconds are a snapshot taken when the
-tooltip appeared, not a countdown.
-
-Determinism
------------
-The charge count gates whether a power fires, so this is **simulation state**: every peer must run
-the same patched binary and replays do not cross. The only writer is the cast, on the logic thread
-inside `doSpecialPower`; the tooltip runs the same fold routine read-only, and that fold is a
-pure function of `(spent, deadline, interval, now)` which is idempotent under intermediate
-evaluation, so a client that hovers a button cannot drag its state away from a peer that never did.
-
-Savegames
----------
-Neither new module field is in the module's `Xfer` (`0x0089679D` transfers `+0x14`..`+0x30` and
-none of the padding), so **a loaded game brings every charge power back at a full bank** with no
-refill cycle running. `duration`/`readyFrame` reload correctly and keep whatever cooldown was in
-flight. Adding the two would need a version bump on a function whose version byte is already
-compared twice, which breaks savegame interchange with unpatched clients in both directions.
-
-Composition
------------
-* **`recharge-rescale` conflicts.** Its per-frame sweep tests `ftol(ReloadTime * m) == duration` and
-  rescales when they differ; a charged power's `duration` is the *short* cooldown, so the sweep
-  would rewrite it every frame. Teaching that sweep to skip `ChargeNumber != 0` is one compare, but
-  it is a change to that patch.
-* **`hero-mana` conflicts twice** - it grows `SpecialPowerTemplate` to `0x8C` for its own field, and
-  it takes the same description case at `0x00808675`.
-* **`cooldown-through-death` composes**: it spends the interior padding at `+0x5A`/`+0x5B`, which
-  this patch does not touch, and both read the field table live through
-  :func:`~.utils.field_tables.resolve_table`. Its state table snapshots `(readyFrame, duration,
-  deathFrame)` and not the bank, so a revived hero returns with a restored cooldown and a full bank.
-* **`description-timers` composes**, on disjoint bytes - it owns the builder's tail
-  (`0x008086AE`), this owns the special-power case (`0x00808675`).
-* **`trigger-recharge-list` composes**, and cleanly: `OnTriggerRechargeSpecialPower` reaches
-  `startPowerRecharge(1.0)` through `0x00897A35`, which this patch does not hook, so arming another
-  power's cooldown does **not** spend a charge from its bank. That is the right reading - a forced
-  recharge is not a cast - and it falls out of hooking the cast rather than the recharge.
-
-What is not covered
--------------------
-* **`SharedSyncedTimer` templates** keep their cooldown on the `Player` (`0x006AD1B0`), so
-  `startPowerRecharge` returns before the hook. That is three templates in the whole game
-  (`SuperweaponSpawnOrcs`, `SpecialPowerRevealArea`, `SuperweaponPartTheHeavens`) and **not** the
-  spellbook: a spellbook is an ordinary `Object` whose spells are ordinary `SpecialPowerModule` /
-  `OCLSpecialPower` / `PlayerUpgradeSpecialPower` behaviours, all three of which run the base
-  constructor this patch widens and carry the vtable it hooks.
-* **The `SpecialPowerUpdateModule` family** - `DeflectSpecialPower`, `SiegeDeployHordeSpecialPower`
-  and the base - dispatch to the other `startPowerRecharge` (`0x00991500`), which keeps no
-  duration. They ignore `ChargeNumber`: the keys parse, nothing reads them.
-* **The partial-recharge arm** (`0x00896F16`, reached with an argument below `1.0` - the script
-  engine's "advance this cooldown by a fraction") moves `readyFrame` and leaves the bank alone. A
-  fraction of a charged cooldown is not a defined idea and this patch does not invent one.
-* **Nothing that clears a cooldown is hooked** - `setReadyFrame` (the script actions and
-  `HeroDie::onDie`) and the thirteen other `startPowerRecharge` sites all keep stock behaviour.
-  They do not have to be: `fold` notices after the fact. A power whose bank is empty holds
-  `readyFrame` *at* its refill deadline, so a `readyFrame` in the past while the deadline is still
-  ahead can only mean something restored the cooldown, and `fold` treats that as a refill landing
-  early. So "this ability resets that cooldown" hands back a charge as well as the cast, which is
-  what it has to mean for a charged power.
+Derivation: `../../docs/special-power-charges.md`.
 """
 
 from __future__ import annotations
@@ -164,7 +46,17 @@ from ...addresses import (
 )
 from ...asm import JAE, JB, JE, JG, JGE, JLE, JNE, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import (
+    allocate_section,
+    apply_byte_patch,
+    file_offset,
+    find_section,
+    i8,
+    jmp_rel32,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 from ..utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 __all__ = [
@@ -191,7 +83,7 @@ SECTION_NAME = ".spchrg"
 #: engine's own image is, and a read-only cave buys nothing here.
 _CHARACTERISTICS = 0xE0000060
 
-# --- the INI surface -------------------------------------------------------------------------
+# The INI surface
 
 KEYWORD_CHARGE_NUMBER = "ChargeNumber"
 KEYWORD_RELOAD_BETWEEN = "ReloadTimeBetweenCharge"
@@ -209,7 +101,7 @@ KEY_CHARGES_RECHARGING = "TOOLTIP:SpecialPowerChargesRecharging"
 #: cave's arithmetic a copy of `startPowerRecharge`'s rather than a unit conversion.
 INI_PARSE_DURATION = 0x0073A429
 
-# --- SpecialPowerTemplate --------------------------------------------------------------------
+# SpecialPowerTemplate
 
 #: The three new fields, appended past `UnitCostDeathType` at `+0x84`. The struct is packed solid -
 #: its only interior padding is the two bytes at `+0x5A`/`+0x5B`, which `cooldown-through-death`
@@ -239,7 +131,7 @@ TEMPLATE_CTOR_TAIL = 0x007B200D
 TEMPLATE_CTOR_TAIL_BYTES = bytes.fromhex("899e84000000")
 TEMPLATE_CTOR_TAIL_RESUME = 0x007B2013
 
-# --- SpecialPowerModuleInterface -------------------------------------------------------------
+# SpecialPowerModuleInterface
 
 #: The subobject at module `+0x10`. `+0x04` and `+0x08` are the pair `startPowerRecharge` writes
 #: and `getPercentReady` divides; `+0x18` is the byte it clears at the end of every recharge, and
@@ -329,7 +221,7 @@ RECHARGE_DONE = 0x00896F8E
 #: `0x00897A38` returns into `doSpecialPower`'s `OnTriggerRechargeSpecialPower` walk
 #: (`call [eax+0x3c]` at `0x00897A35`), which arms a **different** power's cooldown because this
 #: one was used - "using this ability also puts that one on cooldown". Charging it would spend from
-#: a bank whose power never fired. See ``../../docs/trigger-recharge-list.md``.
+#: a bank whose power never fired. See `../../docs/trigger-recharge-list.md`.
 MODULE_CTOR_RETURN = 0x00897476
 TRIGGER_WALK_RETURN = 0x00897A38
 
@@ -348,7 +240,7 @@ TRIGGER_WALK_CALL_BYTES = bytes.fromhex("ff503c")  # call [eax+0x3c]
 #: want this patch re-read rather than re-applied.
 DO_SPECIAL_POWER_GUARD = 0x008979AE
 
-# --- the engine routines the cave calls ------------------------------------------------------
+# The engine routines the cave calls
 
 #: `Object::getSpecialPowerModule(SpecialPowerTemplate *)` - `__thiscall`, `ret 4`, returns the
 #: module's **special-power interface** (its `[eax]` is the interface vtable) or NULL.
@@ -376,7 +268,7 @@ UNICODE_STRING_DESTRUCT = 0x004367B0
 
 #: **The logic frame rate**, as an `Int` - it is **5**, not the 30 four bytes above it. Picking the
 #: wrong one is a silent factor-of-six error in every second this patch prints;
-#: :mod:`~sage_patch.patches.description_timers` derives it in full.
+#: `description_timers` derives it in full.
 LOGIC_FRAMES_PER_SECOND = 0x00D9F608
 
 #: `CommandButton::m_specialPower`.
@@ -387,7 +279,7 @@ DESCRIPTION_CASE_NOT_TAKEN = 0x008086AA
 
 #: Everything the cave calls or compares against, by address and by first bytes. A patch whose job
 #: is calling engine functions with the right arguments has no way to notice that one of them
-#: moved - it would simply call whatever now lives there. :data:`START_POWER_RECHARGE` is here for
+#: moved - it would simply call whatever now lives there. `START_POWER_RECHARGE` is here for
 #: a second reason: the readout *compares a vtable slot against it*, and if that function moved the
 #: comparison would answer "not this flavour" for every power in the game.
 ANCHORS: dict[int, bytes] = {
@@ -426,28 +318,8 @@ FINGERPRINT: dict[str, int] = {
 }
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _i8(value: int) -> int:
-    """A signed byte displacement as the unsigned byte that encodes it."""
-    return value & 0xFF
-
-
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"0x{va:08x} is not mapped - not the expected build")
-    return off
-
-
-def _jmp(at_va: int, target_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", target_va - (at_va + 5))
-
-
 def rewritten_module_ctor_flag() -> bytes:
-    """``mov byte [esi+0x28], bl`` widened to ``mov dword [esi+0x28], ebx``.
+    """`mov byte [esi+0x28], bl` widened to `mov dword [esi+0x28], ebx`.
 
     One opcode bit, three bytes for three, so there is no hook and no displaced instruction. It
     zeroes the recharge flag exactly as before and the deadline behind it as well - which it has to,
@@ -457,7 +329,7 @@ def rewritten_module_ctor_flag() -> bytes:
 
 
 def rewritten_module_ctor_held() -> bytes:
-    """``mov byte [esi+0x30], bl`` widened the same way, zeroing the spent count behind the held
+    """`mov byte [esi+0x30], bl` widened the same way, zeroing the spent count behind the held
     latch. `sizeof` is `0x34`, so the dword store stays inside the base subobject."""
     return bytes([0x89]) + MODULE_CTOR_HELD_BYTES[1:]
 
@@ -482,18 +354,16 @@ def build_table(
 # Everything below is hand-encoded (the house style: only address arithmetic is automated, by
 # `..asm`), with a comment saying what each instruction is.
 
-_EBP_TEXT = _i8(DESCRIPTION_TEXT_EBP_OFFSET)
-_EBP_OBJECT = _i8(DESCRIPTION_OBJECT_EBP_OFFSET)
-_EBP_PLAYER = _i8(DESCRIPTION_PLAYER_EBP_OFFSET)
+_EBP_TEXT = i8(DESCRIPTION_TEXT_EBP_OFFSET)
+_EBP_OBJECT = i8(DESCRIPTION_OBJECT_EBP_OFFSET)
+_EBP_PLAYER = i8(DESCRIPTION_PLAYER_EBP_OFFSET)
 
 
 def _emit_fold(a: Asm) -> None:
-    """``fold(iface, tmpl, interval, now) -> eax = spent', edx = deadline'``. Stdcall, `ret 0x10`.
+    """`fold(iface, tmpl, interval, now) -> eax = spent', edx = deadline'`. Stdcall, `ret 0x10`.
 
     **The one routine both callers share, and it writes nothing.** Given the two stored frames it
     answers what the bank would be at `now`:
-
-    .. code-block:: none
 
         if deadline == 0 or spent == 0:       nothing pending
         elif now >= deadline:                 granted = 1 + (now - deadline) / interval
@@ -544,11 +414,11 @@ def _emit_fold(a: Asm) -> None:
 
     # Not due - unless something outside this patch cleared the cooldown while the bank was empty.
     a.emit(0x8B, 0x54, 0x24, 0x14)  # mov edx, [esp+0x14]        the template
-    a.emit(0x3B, 0x82, _u32(TEMPLATE_CHARGE_NUMBER))  # cmp eax, [edx+0x88]
+    a.emit(0x3B, 0x82, u32(TEMPLATE_CHARGE_NUMBER))  # cmp eax, [edx+0x88]
     a.jcc(JB, "f_out")  # charges remain: an ordinary short cooldown, nothing happened
     a.emit(0x3B, 0x4E, SPI_READY_FRAME)  # cmp ecx, [esi+8]
     a.jcc(JB, "f_out")  # still on the refill's own clock: nothing happened
-    a.emit(0x80, 0xBA, _u32(TEMPLATE_REPLENISH_ALL), 0x00)  # cmp byte [edx+0x90], 0
+    a.emit(0x80, 0xBA, u32(TEMPLATE_REPLENISH_ALL), 0x00)  # cmp byte [edx+0x90], 0
     a.jcc(JNE, "f_clear")
     a.emit(0x48)  # dec eax                                      one charge back
     a.jcc(JE, "f_clear")
@@ -558,7 +428,7 @@ def _emit_fold(a: Asm) -> None:
 
     a.label("f_due")
     a.emit(0x8B, 0x54, 0x24, 0x14)  # mov edx, [esp+0x14]        the template
-    a.emit(0x80, 0xBA, _u32(TEMPLATE_REPLENISH_ALL), 0x00)  # cmp byte [edx+0x90], 0
+    a.emit(0x80, 0xBA, u32(TEMPLATE_REPLENISH_ALL), 0x00)  # cmp byte [edx+0x90], 0
     a.jcc(JNE, "f_clear")  # ReplenishAllChargesOnReloadTime: the whole bank comes back
 
     # granted = 1 + (now - deadline) / interval, in integers. `ecx` is `now` and `ebx` the
@@ -602,9 +472,9 @@ def _emit_cast(a: Asm) -> None:
     a.label("cast")
     # Which caller armed this cooldown decides whether anybody used the power. Two did not.
     a.emit(0x8B, 0x45, 0x04)  # mov eax, [ebp+4]                 the return address
-    a.emit(0x3D, _u32(MODULE_CTOR_RETURN))  # cmp eax, <the constructor>
+    a.emit(0x3D, u32(MODULE_CTOR_RETURN))  # cmp eax, <the constructor>
     a.jcc(JE, "c_stock")
-    a.emit(0x3D, _u32(TRIGGER_WALK_RETURN))  # cmp eax, <the OnTriggerRecharge walk>
+    a.emit(0x3D, u32(TRIGGER_WALK_RETURN))  # cmp eax, <the OnTriggerRecharge walk>
     a.jcc(JE, "c_stock")
 
     # The template, exactly as `startPowerRecharge` itself resolves it twice over.
@@ -617,7 +487,7 @@ def _emit_cast(a: Asm) -> None:
     a.call_absolute(GET_FINAL_OVERRIDE)
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "c_stock")
-    a.emit(0x8B, 0x88, _u32(TEMPLATE_CHARGE_NUMBER))  # mov ecx, [eax+0x88]     ChargeNumber
+    a.emit(0x8B, 0x88, u32(TEMPLATE_CHARGE_NUMBER))  # mov ecx, [eax+0x88]     ChargeNumber
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JLE, "c_stock")  # not a charge power: the stock five bytes, verbatim
 
@@ -632,7 +502,7 @@ def _emit_cast(a: Asm) -> None:
     # pre-division overflow guard because a `div` whose quotient does not fit raises #DE. Doing it
     # this way rather than with a second `fild`/`fmul`/`ftol` keeps every number this patch writes
     # derived from one the engine computed, so the two cannot disagree by a ULP.
-    a.emit(0x8B, 0x80, _u32(TEMPLATE_RELOAD_BETWEEN))  # mov eax, [eax+0x8c]
+    a.emit(0x8B, 0x80, u32(TEMPLATE_RELOAD_BETWEEN))  # mov eax, [eax+0x8c]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JLE, "c_short_min")
     a.emit(0x8B, 0x0C, 0x24)  # mov ecx, [esp]
@@ -647,17 +517,17 @@ def _emit_cast(a: Asm) -> None:
 
     a.label("c_short_raw")
     a.emit(0x8B, 0x04, 0x24)  # mov eax, [esp]
-    a.emit(0x8B, 0x80, _u32(TEMPLATE_RELOAD_BETWEEN))  # mov eax, [eax+0x8c]
+    a.emit(0x8B, 0x80, u32(TEMPLATE_RELOAD_BETWEEN))  # mov eax, [eax+0x8c]
 
     a.label("c_short_have")
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JG, "c_short_ok")
     a.label("c_short_min")
-    a.emit(0xB8, _u32(1))  # mov eax, 1                          the engine's own >= 1 clamp
+    a.emit(0xB8, u32(1))  # mov eax, 1                          the engine's own >= 1 clamp
     a.label("c_short_ok")
     a.emit(0x89, 0x44, 0x24, 0x08)  # mov [esp+8], eax
 
-    a.emit(0xA1, _u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
+    a.emit(0xA1, u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
     a.emit(0x8B, 0x40, GAME_LOGIC_FRAME)  # mov eax, [eax+0x40]
     a.emit(0x89, 0x44, 0x24, 0x0C)  # mov [esp+0xc], eax         now
 
@@ -712,7 +582,7 @@ def _emit_cast(a: Asm) -> None:
 
 
 def _emit_interval(a: Asm) -> None:
-    """``interval(tmpl)``: `max(1, ftol(ReloadTime * m))` in `eax`, recomputed at hover time.
+    """`interval(tmpl)`: `max(1, ftol(ReloadTime * m))` in `eax`, recomputed at hover time.
 
     `ebx` is the final-override template and the description builder's frame is still `ebp`, which
     is where the `Object` and the `Player` come from. Transcribed from `startPowerRecharge`
@@ -721,8 +591,8 @@ def _emit_interval(a: Asm) -> None:
     """
     a.label("interval")
     a.emit(0x83, 0xEC, 0x08)  # sub esp, 8
-    a.emit(0xC7, 0x04, 0x24, _u32(0x3F800000))  # mov dword [esp], 1.0f      the multiplier
-    a.emit(0xC7, 0x44, 0x24, 0x04, _u32(0x3F800000))  # mov dword [esp+4], 1.0f   the discount
+    a.emit(0xC7, 0x04, 0x24, u32(0x3F800000))  # mov dword [esp], 1.0f      the multiplier
+    a.emit(0xC7, 0x44, 0x24, 0x04, u32(0x3F800000))  # mov dword [esp+4], 1.0f   the discount
 
     a.emit(0x8B, 0x4D, _EBP_OBJECT)  # mov ecx, [ebp-0x1c]
     a.emit(0x85, 0xC9)  # test ecx, ecx
@@ -743,7 +613,7 @@ def _emit_interval(a: Asm) -> None:
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "i_no_discount")
     a.call_absolute(PLAYER_RECHARGE_MODIFIER)  # fld [Player+0x718]
-    a.emit(0xD8, 0x05, _u32(FLOAT_ONE))  # fadd dword [1.0f]
+    a.emit(0xD8, 0x05, u32(FLOAT_ONE))  # fadd dword [1.0f]
     a.emit(0xD9, 0x5C, 0x24, 0x04)  # fstp dword [esp+4]
 
     a.label("i_no_discount")
@@ -753,7 +623,7 @@ def _emit_interval(a: Asm) -> None:
     a.emit(0x83, 0xC4, 0x04)  # add esp, 4
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JGE, "i_positive")
-    a.emit(0xD8, 0x05, _u32(FLOAT_U32_FIXUP))  # fadd dword [2^32]
+    a.emit(0xD8, 0x05, u32(FLOAT_U32_FIXUP))  # fadd dword [2^32]
     a.label("i_positive")
     a.emit(0xD8, 0x4C, 0x24, 0x04)  # fmul dword [esp+4]         the player discount
     a.emit(0xD8, 0x0C, 0x24)  # fmul dword [esp]                 the attribute multiplier
@@ -761,13 +631,13 @@ def _emit_interval(a: Asm) -> None:
     a.emit(0x83, 0xC4, 0x08)  # add esp, 8
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JG, "i_out")
-    a.emit(0xB8, _u32(1))  # mov eax, 1
+    a.emit(0xB8, u32(1))  # mov eax, 1
     a.label("i_out")
     a.emit(0xC3)  # ret
 
 
 def _emit_line(a: Asm) -> None:
-    """``line(key, charges, total, frames, want_seconds)``. Stdcall, `ret 0x14`. Appends one line
+    """`line(key, charges, total, frames, want_seconds)`. Stdcall, `ret 0x14`. Appends one line
     to the description the builder keeps at `ebp-0x18`, or nothing at all.
 
     `ebp` is the description builder's frame throughout the cave - nothing here touches it - so the
@@ -787,7 +657,7 @@ def _emit_line(a: Asm) -> None:
     a.emit(0x8B, 0xCC)  # mov ecx, esp
     a.emit(0x51)  # push ecx                                     -> &exists
     a.emit(0xFF, 0x74, 0x24, 0x14)  # push dword [esp+0x14]      the key
-    a.emit(0x8B, 0x0D, _u32(THE_GAME_TEXT))  # mov ecx, [TheGameText]
+    a.emit(0x8B, 0x0D, u32(THE_GAME_TEXT))  # mov ecx, [TheGameText]
     a.emit(0x8B, 0x01)  # mov eax, [ecx]
     a.emit(0xFF, 0x50, GAME_TEXT_FORMAT_SLOT)  # call [eax+0x44]
     a.emit(0x89, 0x44, 0x24, 0x04)  # mov [esp+4], eax
@@ -803,7 +673,7 @@ def _emit_line(a: Asm) -> None:
     a.jcc(JE, "n_no_separator")
     a.emit(0x66, 0x83, 0x79, 0x04, 0x00)  # cmp word [ecx+4], 0
     a.jcc(JE, "n_no_separator")
-    a.emit(0x68, _u32(WIDE_NEWLINE))  # push <L"\n">
+    a.emit(0x68, u32(WIDE_NEWLINE))  # push <L"\n">
     a.emit(0x8D, 0x4D, _EBP_TEXT)  # lea ecx, [ebp-0x18]
     a.call_absolute(UNICODE_STRING_CONCAT_WIDE)  # thiscall, ret 4
 
@@ -819,7 +689,7 @@ def _emit_line(a: Asm) -> None:
 
     # A `double` vararg, the way `CONTROLBAR:UnderConstructionDesc` passes one at `0x00677E62`.
     a.emit(0xDB, 0x44, 0x24, 0x1C)  # fild dword [esp+0x1c]      the frame count
-    a.emit(0xDA, 0x35, _u32(LOGIC_FRAMES_PER_SECOND))  # fidiv dword [logic fps]  -> seconds
+    a.emit(0xDA, 0x35, u32(LOGIC_FRAMES_PER_SECOND))  # fidiv dword [logic fps]  -> seconds
     a.emit(0x83, 0xEC, 0x08)  # sub esp, 8
     a.emit(0xDD, 0x1C, 0x24)  # fstp qword [esp]                 the last argument, pushed first
     a.emit(0x52)  # push edx                                     total
@@ -885,7 +755,7 @@ def _emit_description(a: Asm) -> None:
     # Fail closed on the other implementation of `startPowerRecharge`: its ready frame is at +0x04
     # and it has none of the state below.
     a.emit(0x8B, 0x10)  # mov edx, [eax]
-    a.emit(0x81, 0x7A, SPI_VTABLE_RECHARGE_SLOT, _u32(START_POWER_RECHARGE))  # cmp [edx+0x3c], ..
+    a.emit(0x81, 0x7A, SPI_VTABLE_RECHARGE_SLOT, u32(START_POWER_RECHARGE))  # cmp [edx+0x3c], ..
     a.jcc(JNE, "d_out")
     a.emit(0x89, 0x44, 0x24, 0x08)  # mov [esp+8], eax           the interface
 
@@ -894,14 +764,14 @@ def _emit_description(a: Asm) -> None:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "d_out")
     a.emit(0x8B, 0xD8)  # mov ebx, eax                           the final-override template
-    a.emit(0x8B, 0x88, _u32(TEMPLATE_CHARGE_NUMBER))  # mov ecx, [eax+0x88]
+    a.emit(0x8B, 0x88, u32(TEMPLATE_CHARGE_NUMBER))  # mov ecx, [eax+0x88]
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JLE, "d_out")  # not a charge power: no line
     a.emit(0x89, 0x4C, 0x24, 0x04)  # mov [esp+4], ecx           N
 
     a.call("interval")  # -> eax
     a.emit(0x8B, 0xF8)  # mov edi, eax                           the interval
-    a.emit(0xA1, _u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
+    a.emit(0xA1, u32(THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
     a.emit(0x8B, 0x40, GAME_LOGIC_FRAME)  # mov eax, [eax+0x40]
     a.emit(0x89, 0x04, 0x24)  # mov [esp], eax                   now
 
@@ -921,7 +791,7 @@ def _emit_description(a: Asm) -> None:
     a.emit(0x52)  # push edx
     a.emit(0xFF, 0x74, 0x24, 0x0C)  # push dword [esp+0xc]       N
     a.emit(0x51)  # push ecx
-    a.emit(0x68, _u32(a.label_va("key_recharging")))  # push <TOOLTIP:...Recharging>
+    a.emit(0x68, u32(a.label_va("key_recharging")))  # push <TOOLTIP:...Recharging>
     a.call("line")
     a.jmp("d_out")
 
@@ -930,7 +800,7 @@ def _emit_description(a: Asm) -> None:
     a.emit(0x6A, 0x00)  # push 0                                 no frames to report
     a.emit(0xFF, 0x74, 0x24, 0x0C)  # push dword [esp+0xc]       N
     a.emit(0x51)  # push ecx
-    a.emit(0x68, _u32(a.label_va("key_charges")))  # push <TOOLTIP:SpecialPowerCharges>
+    a.emit(0x68, u32(a.label_va("key_charges")))  # push <TOOLTIP:SpecialPowerCharges>
     a.call("line")
 
     a.label("d_out")
@@ -968,15 +838,15 @@ def _emit(a: Asm, entries: tuple[Entry, ...]) -> None:
     a.label("ctor")
     a.emit(TEMPLATE_CTOR_TAIL_BYTES)  # the displaced store, first
     for offset in (TEMPLATE_CHARGE_NUMBER, TEMPLATE_RELOAD_BETWEEN, TEMPLATE_REPLENISH_ALL):
-        a.emit(0x89, 0x9E, _u32(offset))  # mov dword [esi+off], ebx    ebx is the ctor's zero
+        a.emit(0x89, 0x9E, u32(offset))  # mov dword [esi+off], ebx    ebx is the ctor's zero
     a.jmp_absolute(TEMPLATE_CTOR_TAIL_RESUME)
 
     a.label("copy")
     # `ebp` is the *source* template in the copy constructor, not a frame pointer, and `eax` is the
     # scratch register the copies either side of this use.
     for offset in (TEMPLATE_CHARGE_NUMBER, TEMPLATE_RELOAD_BETWEEN, TEMPLATE_REPLENISH_ALL):
-        a.emit(0x8B, 0x85, _u32(offset))  # mov eax, [ebp+off]
-        a.emit(0x89, 0x83, _u32(offset))  # mov [ebx+off], eax
+        a.emit(0x8B, 0x85, u32(offset))  # mov eax, [ebp+off]
+        a.emit(0x89, 0x83, u32(offset))  # mov [ebx+off], eax
     a.emit(SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES)  # the displaced epilogue
 
     _emit_cast(a)
@@ -1002,7 +872,7 @@ class SpecialPowerChargesPatch(Patch):
         "%d, and TOOLTIP:SpecialPowerChargesRecharging taking two %d and a %.1f of seconds"
     )
 
-    # --- applying ---------------------------------------------------------------------------
+    # Applying
 
     def apply(self, data: bytearray) -> None:
         # Before the anchors, because applying rewrites bytes several of them cover: a second run
@@ -1037,63 +907,63 @@ class SpecialPowerChargesPatch(Patch):
         self, data: bytes | bytearray, base_va: int, entries: tuple[Entry, ...]
     ) -> list[tuple[int, bytes, bytes, str]]:
         """Every byte this patch writes outside its own cave, as
-        ``(file offset, expected, replacement, note)`` - one list, so :meth:`apply` writes exactly
-        what :meth:`verify` asserts."""
+        `(file offset, expected, replacement, note)` - one list, so `apply` writes exactly
+        what `verify` asserts."""
         a = self._assemble(base_va, entries)
         edits: list[tuple[int, bytes, bytes, str]] = [
             (
-                _offset(data, MODULE_CTOR_FLAG),
+                file_offset(data, MODULE_CTOR_FLAG),
                 MODULE_CTOR_FLAG_BYTES,
                 rewritten_module_ctor_flag(),
                 "SpecialPowerModule ctor -> the refill deadline starts at zero",
             ),
             (
-                _offset(data, MODULE_CTOR_HELD),
+                file_offset(data, MODULE_CTOR_HELD),
                 MODULE_CTOR_HELD_BYTES,
                 rewritten_module_ctor_held(),
                 "SpecialPowerModule ctor -> the spent count starts at zero",
             ),
             (
-                _offset(data, TEMPLATE_CTOR_TAIL),
+                file_offset(data, TEMPLATE_CTOR_TAIL),
                 TEMPLATE_CTOR_TAIL_BYTES,
-                _jmp(TEMPLATE_CTOR_TAIL, a.label_va("ctor"))
+                jmp_rel32(TEMPLATE_CTOR_TAIL, a.label_va("ctor"))
                 + b"\x90" * (len(TEMPLATE_CTOR_TAIL_BYTES) - 5),
                 f"SpecialPowerTemplate ctor -> the {SECTION_NAME} field defaults",
             ),
             (
-                _offset(data, SPECIAL_POWER_TEMPLATE_COPY_TAIL),
+                file_offset(data, SPECIAL_POWER_TEMPLATE_COPY_TAIL),
                 SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES,
-                _jmp(SPECIAL_POWER_TEMPLATE_COPY_TAIL, a.label_va("copy"))
+                jmp_rel32(SPECIAL_POWER_TEMPLATE_COPY_TAIL, a.label_va("copy"))
                 + b"\x90" * (len(SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES) - 5),
                 f"SpecialPowerTemplate copy ctor -> the {SECTION_NAME} field copies",
             ),
             (
-                _offset(data, RECHARGE_HOOK),
+                file_offset(data, RECHARGE_HOOK),
                 RECHARGE_HOOK_BYTES,
-                _jmp(RECHARGE_HOOK, a.label_va("cast")),
+                jmp_rel32(RECHARGE_HOOK, a.label_va("cast")),
                 f"startPowerRecharge's full arm -> the {SECTION_NAME} charge machine",
             ),
             (
-                _offset(data, DESCRIPTION_SPECIAL_POWER_CASE),
+                file_offset(data, DESCRIPTION_SPECIAL_POWER_CASE),
                 DESCRIPTION_SPECIAL_POWER_CASE_BYTES,
-                _jmp(DESCRIPTION_SPECIAL_POWER_CASE, a.label_va("description")),
+                jmp_rel32(DESCRIPTION_SPECIAL_POWER_CASE, a.label_va("description")),
                 f"the description's special-power case -> the {SECTION_NAME} readout",
             ),
         ]
         for push_va, _call_va in SPECIAL_POWER_TEMPLATE_NEW_SITES:
             edits.append(
                 (
-                    _offset(data, push_va),
-                    b"\x68" + _u32(SPECIAL_POWER_TEMPLATE_SIZE),
-                    b"\x68" + _u32(NEW_TEMPLATE_SIZE),
+                    file_offset(data, push_va),
+                    b"\x68" + u32(SPECIAL_POWER_TEMPLATE_SIZE),
+                    b"\x68" + u32(NEW_TEMPLATE_SIZE),
                     f"SpecialPowerTemplate allocation 0x{push_va:08x} -> 0x{NEW_TEMPLATE_SIZE:x}",
                 )
             )
-        table_ref = _u32(a.label_va("table"))
+        table_ref = u32(a.label_va("table"))
         for ref_va, opcode in zip(
             SPECIAL_POWER_FIELD_TABLE_REFS, SPECIAL_POWER_FIELD_TABLE_REF_OPCODES, strict=True
         ):
-            off = _offset(data, ref_va)
+            off = file_offset(data, ref_va)
             edits.append(
                 (
                     off,
@@ -1104,7 +974,7 @@ class SpecialPowerChargesPatch(Patch):
             )
         return edits
 
-    # --- the checks applying refuses on ------------------------------------------------------
+    # The checks applying refuses on
 
     @staticmethod
     def _resolve(data: bytes | bytearray) -> int:
@@ -1142,7 +1012,7 @@ class SpecialPowerChargesPatch(Patch):
         readout tests. That test is the only thing keeping the readout off a layout whose ready
         frame is somewhere else, so a moved slot has to be a refusal rather than a guess."""
         slot_va = SPI_VTABLE + SPI_VTABLE_RECHARGE_SLOT
-        target = struct.unpack_from("<I", data, _offset(data, slot_va))[0]
+        target = struct.unpack_from("<I", data, file_offset(data, slot_va))[0]
         if target != START_POWER_RECHARGE:
             raise ValueError(
                 f"vtable slot 0x{slot_va:08x} dispatches to 0x{target:08x}, not "
@@ -1156,7 +1026,7 @@ class SpecialPowerChargesPatch(Patch):
         A duplicate row would parse - the reader takes the first match - so the field would exist
         and silently do nothing."""
         entries = read_field_table(data, table_va)
-        by_name = {_cstring(data, name): offset for name, _fn, _ud, offset in entries}
+        by_name = {read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
         for field, want in FINGERPRINT.items():
             got = by_name.get(field)
             if got != want:
@@ -1178,9 +1048,9 @@ class SpecialPowerChargesPatch(Patch):
                 "SpecialPowerTemplate (hero-mana does), and the two would share a field"
             )
         for push_va, _call_va in SPECIAL_POWER_TEMPLATE_NEW_SITES:
-            off = _offset(data, push_va)
+            off = file_offset(data, push_va)
             allocation = bytes(data[off : off + 5])
-            if allocation != b"\x68" + _u32(SPECIAL_POWER_TEMPLATE_SIZE):
+            if allocation != b"\x68" + u32(SPECIAL_POWER_TEMPLATE_SIZE):
                 raise ValueError(
                     f"the SpecialPowerTemplate allocation at 0x{push_va:08x} holds "
                     f"{allocation.hex()}, not a push of {SPECIAL_POWER_TEMPLATE_SIZE:#x} - the "
@@ -1188,7 +1058,7 @@ class SpecialPowerChargesPatch(Patch):
                 )
         return entries
 
-    # --- reading it back ----------------------------------------------------------------------
+    # Reading it back
 
     def ini_surface(self) -> Engine:
         """The three fields this patch adds to `SpecialPower`. The constructor zeroes all three, so
@@ -1206,7 +1076,7 @@ class SpecialPowerChargesPatch(Patch):
         )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch. Reads only via ``struct`` and the
+        """Structural check that `data` carries this patch. Reads only via `struct` and the
         section table, so it needs no disassembler.
 
         Every address is recovered from where the cave actually landed rather than from where it
@@ -1234,7 +1104,7 @@ class SpecialPowerChargesPatch(Patch):
         code = a.finish()
         if len(code) > vsize:
             return [f"{SECTION_NAME} holds {vsize} bytes, too few for the table and the routines"]
-        off = _offset(data, section_va)
+        off = file_offset(data, section_va)
         if bytes(data[off : off + len(code)]) != code:
             return [f"the {SECTION_NAME} cave is not what this patch builds"]
         return []
@@ -1254,7 +1124,7 @@ class SpecialPowerChargesPatch(Patch):
             (KEYWORD_REPLENISH_ALL, INI_PARSE_BOOL, TEMPLATE_REPLENISH_ALL),
         )
         for keyword, parse_fn, offset in wanted:
-            row = next((entry for entry in live if _cstring(data, entry[0]) == keyword), None)
+            row = next((entry for entry in live if read_cstring(data, entry[0]) == keyword), None)
             if row is None:
                 problems.append(f"the live SpecialPower table no longer parses {keyword!r}")
             elif (row[0], row[1], row[3]) != (a.label_va(f"kw_{keyword}"), parse_fn, offset):
@@ -1280,23 +1150,23 @@ class SpecialPowerChargesPatch(Patch):
             ),
             (
                 TEMPLATE_CTOR_TAIL,
-                _jmp(TEMPLATE_CTOR_TAIL, a.label_va("ctor"))
+                jmp_rel32(TEMPLATE_CTOR_TAIL, a.label_va("ctor"))
                 + b"\x90" * (len(TEMPLATE_CTOR_TAIL_BYTES) - 5),
                 "the template ctor is not hooked to the field defaults",
             ),
             (
                 SPECIAL_POWER_TEMPLATE_COPY_TAIL,
-                _jmp(SPECIAL_POWER_TEMPLATE_COPY_TAIL, a.label_va("copy")),
+                jmp_rel32(SPECIAL_POWER_TEMPLATE_COPY_TAIL, a.label_va("copy")),
                 "the template copy ctor is not hooked to the field copies",
             ),
             (
                 RECHARGE_HOOK,
-                _jmp(RECHARGE_HOOK, a.label_va("cast")),
+                jmp_rel32(RECHARGE_HOOK, a.label_va("cast")),
                 "startPowerRecharge's full arm is not hooked to the charge machine",
             ),
             (
                 DESCRIPTION_SPECIAL_POWER_CASE,
-                _jmp(DESCRIPTION_SPECIAL_POWER_CASE, a.label_va("description")),
+                jmp_rel32(DESCRIPTION_SPECIAL_POWER_CASE, a.label_va("description")),
                 "the description's special-power case is not hooked to the readout",
             ),
         ]
@@ -1304,27 +1174,13 @@ class SpecialPowerChargesPatch(Patch):
             checks.append(
                 (
                     push_va,
-                    b"\x68" + _u32(NEW_TEMPLATE_SIZE),
+                    b"\x68" + u32(NEW_TEMPLATE_SIZE),
                     f"the allocation at 0x{push_va:08x} still asks for the ungrown struct",
                 )
             )
         for va, want, complaint in checks:
-            off = _offset(data, va)
+            off = file_offset(data, va)
             got = bytes(data[off : off + len(want)])
             if got != want:
                 problems.append(f"@0x{va:08x}: {complaint} (holds {got.hex()})")
         return problems
-
-
-def _cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    """The NUL-terminated ASCII string at ``va``, or None if it is unmapped or not one."""
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    if end < 0:
-        return None
-    try:
-        return bytes(data[off : off + end]).decode("ascii")
-    except UnicodeDecodeError:
-        return None

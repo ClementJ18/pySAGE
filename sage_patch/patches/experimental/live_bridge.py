@@ -1,85 +1,14 @@
-"""The live-bridge patch: let an external process inject orders into the message stream.
+"""Let an external process (`sage_live`) inject orders into the message stream and place the camera,
+through a command buffer in an appended `.livebrg` section.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/message-stream.md``; this module implements what section 4a designs.
+The entry of `GameLogic::update` jumps to a hook that runs once per logic frame: when an order is
+pending it calls `TheMessageStream`'s `appendMessage` and the engine's own `append*Argument`
+helpers, then clears the flag. So injected orders travel the normal path, network-ordered and
+checksummed. The entry is hooked rather than the frame increment at `0x0062E577`, which is too short
+and is a branch target. The camera is a second command in the same buffer; a third, opt-in command
+calls engine functions.
 
-**What it does.** Appends a ``.livebrg`` PE section holding a small command buffer plus a
-hook routine, and redirects the entry of ``GameLogic::update`` into it. Once per logic frame
-the hook checks the buffer; when an order is pending it calls ``TheMessageStream``'s
-``appendMessage``, appends each argument through the engine's own ``append*Argument``
-helpers, and clears the pending flag.
-
-**The camera is the second, separate command.** It is not an order and does not go through
-the message stream: the camera is client state that the simulation never reads, so there is
-nothing to network-order and nothing to desync. The hook calls ``TheTacticalView``'s
-``setLocation`` (or ``getLocation``, to read the live camera back out) exactly as the game's
-own camera-bookmark hotkeys do. Both directions matter - reading first is what lets a caller
-change where the camera looks while keeping the zoom and facing it already had.
-
-**Why a patch and not a DLL.** Order injection needs only a per-frame callback on the logic
-thread and a place to read bytes from. With no ASLR the buffer's address is a constant, so
-the writer just uses ``WriteProcessMemory`` - no loader, no injector, no proxy library. Real
-per-frame *observation* is the thing that wants C++, and that is a later milestone.
-
-**Why the entry and not the tick.** The frame counter increment at ``0x0062E577`` is
-``inc dword ptr [esi+0x40]`` - three bytes, and the instruction after it is the target of a
-nearby ``je``, so five bytes cannot be taken there. ``GameLogic::update``'s entry instruction
-is ``mov eax, 0xB841B0``, exactly five bytes, at a function entry: one inbound target by
-construction, and a plain constant load that re-emits trivially in the cave.
-
-**Injection is ordered through the normal path.** Orders entering via ``appendMessage`` are
-network-ordered and check-summed like any human input. Calling logic functions directly
-would bypass that and desync, which is the rule ``../../docs/ml-agent.md`` section 4 states.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name, and the only engine byte it edits is the five-byte entry of
-``GameLogic::update``, which no other bundled patch touches.
-
-Buffer layout, at the section base::
-
-    +0x00  ready        dword   1 = an order is pending, cleared by the hook
-    +0x04  order_type   dword   GameMessage::Type
-    +0x08  arg_count    dword   number of arguments that follow
-    +0x0C  (reserved)   dword
-    +0x10  args         MAX_ARGS x 20 bytes: {type, v0, v1, v2, v3}
-           appenders    one address per OrderArgumentType
-           tag          dword   BUFFER_TAG - the layout this cave was built to
-           camera       dword   CAMERA_APPLY / CAMERA_CAPTURE, cleared by the hook
-           location     32 bytes ViewLocation, written by whichever direction ran
-
-**The call command is the third, and it is opt-in.** ``--cheats`` appends a further block and
-tags the buffer ``BUFFER_TAG_CHEATS``; without the flag neither the block nor the code that
-serves it is emitted, and the section is byte-for-byte what it always was. It exists because a
-whole class of things this engine does are *code*, not data: an object dies inside its damage
-path, an upgrade's effects are applied by the module that grants it, and no amount of writing to
-memory reaches either - a body poked to zero health simply stands there. The block a caller
-drives is::
-
-           ready        dword   1 = a call is pending, cleared by the hook
-           mode         dword   CALL_DIRECT | CALL_VTABLE
-           this         dword   ecx for the call; the object whose vtable CALL_VTABLE reads
-           target       dword   a function VA, or a vtable byte offset when mode is CALL_VTABLE
-           argc         dword   how many of args to push (0..CALL_MAX_ARGS)
-           cleanup      dword   bytes to add to esp after the call: 0 for __thiscall/__stdcall
-           result       dword   eax, written before ready is cleared
-           args         CALL_MAX_ARGS dwords, pushed right-to-left
-           scratch      CALL_SCRATCH_SIZE bytes at a known VA, for structures an argument points at
-
-``scratch`` is the part that makes the command usable at all. The calls worth making take a
-structure - ``BodyModule::attemptDamage`` wants a ``DamageInfo`` - and a writer outside the
-process has nowhere in the game's heap it may safely build one. With no ASLR the scratch VA is a
-constant, so the writer fills it with ``WriteProcessMemory`` and passes its address as an
-argument, exactly as it already writes the order buffer.
-
-An argument's four value slots carry either one value (the by-value types) or the bytes of a
-structure the engine reads through a pointer (`Position` is three floats, `ScreenRectangle`
-four, `ScreenPosition` two, `WideChar` one 16-bit unit).
-
-``tag`` exists because the writer computes these offsets from *this module* while the cave
-they address was assembled by whichever version of it patched the binary. Importing the
-offsets keeps one process consistent; it says nothing about a `game.dat` patched last month.
-A tag the writer does not recognise means the two disagree, and reading it is the difference
-between a clear "re-apply the patch" and a camera write landing in the appender table.
+Derivation: `../../docs/message-stream.md` and `../../docs/ml-agent.md`.
 """
 
 from __future__ import annotations
@@ -184,7 +113,7 @@ CALL_SCRATCH_SIZE = 256
 
 
 def cheat_offsets(base: int = 0) -> dict[str, int]:
-    """The cheat block's fields, as ``base + CHEAT_OFF + field``.
+    """The cheat block's fields, as `base + CHEAT_OFF + field`.
 
     Pass the section's VA for addresses the cave can encode, or nothing for offsets into the
     section's bytes. `CHEAT_OFF` is added here rather than by each caller because forgetting it
@@ -409,7 +338,7 @@ def _build_code(base_va: int, cheats: bool = False) -> bytes:
 
 
 def build_section(base_va: int, cheats: bool = False) -> bytes:
-    """The whole ``.livebrg`` payload: command buffer, appender table, tag, then code."""
+    """The whole `.livebrg` payload: command buffer, appender table, tag, then code."""
     body = bytearray(code_offset(cheats))
     struct.pack_into(f"<{len(ARG_APPENDERS)}I", body, TABLE_OFF, *ARG_APPENDERS)
     struct.pack_into("<I", body, TAG_OFF, BUFFER_TAG_CHEATS if cheats else BUFFER_TAG)
@@ -498,7 +427,7 @@ class LiveBridgePatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> LiveBridgePatch | None:
-        """Recover whether the cave in ``data`` carries the cheat block, from its own tag.
+        """Recover whether the cave in `data` carries the cheat block, from its own tag.
 
         The default probe would build with `cheats=False` and report a cheat-enabled binary as
         carrying no live-bridge at all, which is the specific failure `Patch.detect` warns a

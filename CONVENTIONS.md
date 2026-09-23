@@ -9,8 +9,10 @@ rule 4"), so don't renumber; append instead.
 
 ## 1. Public API & `__all__`
 
-Every public module declares an `__all__`. What a package re-exports at its top level (and
-lists in `__all__`) is its supported surface; everything else - and every `_`-prefixed
+A module declares an `__all__` when another package imports names from it, and so does every
+package `__init__` that exports anything (`tests/test_public_surface.py` enforces both). Modules
+used only inside their own package don't need one. What a package re-exports at its top level
+(and lists in `__all__`) is its supported surface; everything else - and every `_`-prefixed
 name - is internal and may change without notice. When you add something meant to be used
 from outside the module, export it deliberately; don't let the surface grow by accident.
 Semantic versioning applies to the exported surface only.
@@ -45,6 +47,14 @@ marker). Model fields take their converted type through the `Annotated` aliases 
 schema rather than ad-hoc casts at the call site. Prefer precise types over `Any`; if a type
 is genuinely dynamic, make that explicit.
 
+Two known exceptions, both listed in `pyproject.toml`: Qt window and widget modules written
+before annotations are `ignore_errors` (the Qt-free code beside them is checked), and
+`sage_apt/aptfile.py` is typed only at its public API, because its structs are still dicts.
+New code in either place is annotated.
+
+For a new dataclass that holds a value, default to `@dataclass(frozen=True, slots=True)`; use a
+mutable one only when it really is mutated. Existing dataclasses aren't churned to match.
+
 ## 6. Generic core, mod overlays
 
 The core (`sage_ini`, `sage_map`, `sage_utils`, `sage_ui`, `sage_lint`) stays engine-generic:
@@ -63,7 +73,7 @@ never fails - when no corpus root is present.
 
 ## 8. Formatting & the green-build gate
 
-Ruff owns formatting and lint (line length 100, target `py313`); `ruff format` is the
+Ruff owns formatting and lint (line length 100, target `py312`); `ruff format` is the
 arbiter of style, so don't hand-format against it. `pre-commit` runs Ruff lint, Ruff format,
 mypy, and the core test suite - the same four gates as CI. A change is done when all four are
 green.

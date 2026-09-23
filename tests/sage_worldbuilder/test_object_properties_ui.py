@@ -78,6 +78,7 @@ def test_specs_store_the_types_the_maps_store():
 def test_the_three_object_pages_cover_every_key_once():
     """WorldBuilder's General / Logical / Sound pages, between them holding every object key the
     panel edits; the upgrades are the check list's, not a form field's."""
+    pytest.importorskip("PyQt6", reason="the [worldbuilder] extra (PyQt6) is not installed")
     from sage_worldbuilder.ui.object_properties import OBJECT_PAGES, UPGRADES_PAGE  # noqa: PLC0415
 
     assert [title for title, _ in OBJECT_PAGES] == ["General", "Logical", "Sound"]

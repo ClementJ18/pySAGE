@@ -6,7 +6,7 @@ import json
 import subprocess
 
 import sage_map.diff as map_diff  # noqa: E402
-from sage_lint.cli import main  # noqa: E402
+from sage_lint.__main__ import main  # noqa: E402
 from sage_map import Map  # noqa: E402
 from sage_map.assets.height_map import HeightMapData  # noqa: E402
 from sage_map.assets.object_list import Object, ObjectsList  # noqa: E402

@@ -1,70 +1,10 @@
-"""The observer-command-range patch: let an observer page a command bar.
+"""Let an observer page a command bar with its `PUSH_VISIBLE_COMMAND_RANGE` button.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/observer-command-range.md``.
+The click gate refuses every click from an observer. The call at `CONTROL_BAR_CLICK_GATE_CALL` goes
+to a 28-byte cave that allows the push and pop range commands and defers to the stock predicate for
+everything else. No UI or INI change. Mutually exclusive with `observer-all-commands`.
 
-**The gap.** Observing a seat - a replay, or a live game after being defeated - the palantir
-populates for the observed player, portraits and production and upgrade states included. Select a
-structure whose `CommandSet` pages itself with a `PUSH_VISIBLE_COMMAND_RANGE` button and the
-button is there, drawn enabled, and does nothing. Whatever is being bought or researched on page
-two stays unreadable for the whole match.
-
-**One predicate eats the click**, and it eats every command-bar click an observer makes:
-`ControlBar::processCommandUI` asks `PlayerList::localPlayerIsNotActive`
-(`PLAYER_LIST_LOCAL_IS_NOT_ACTIVE`) and returns without dispatching when the answer is yes. That
-predicate is ``m_isObserver || m_isDefeated`` on `ThePlayerList->m_local`, so it is yes for the
-length of any observed game.
-
-**Everything else is already right**, which is what makes the fix this small:
-
-* `PlayerList::getLocalPlayer` (`PLAYER_LIST_GET_LOCAL_PLAYER`) is not a plain getter: when
-  `m_local` is inactive it returns `ControlBar+0x218`, the observed player. So
-  `ControlBar::getCommandAvailability` evaluates every button - every science, upgrade and
-  affordability test - against the seat being watched, and the page a `PUSH` would reveal is that
-  player's real state rather than the observer's empty one.
-* Both paging commands land in that evaluator's **default** case, verdict ``1`` (enabled), and
-  the per-frame status update deliberately leaves an observer's verdicts alone where it forces an
-  active player's foreign-object verdicts to zero. That is exactly why the button looks live.
-* The context evaluator gives an observer the full command set, because `Player::getRelationship`
-  answers `NEUTRAL` by default and an observer seat declares no relationships - the same branch a
-  neutral capturable structure takes.
-
-**What it does.** Retargets the single ``call`` at `CONTROL_BAR_CLICK_GATE_CALL` into a 28-byte
-cave that answers "the local player is active" for `GUICOMMAND_PUSH_VISIBLE_COMMAND_RANGE` and
-`GUICOMMAND_POP_VISIBLE_COMMAND_RANGE`, and tail-calls the stock predicate for every other
-command. Five bytes at the call site; nothing else in the click path changes.
-
-**Why a whitelist and not the gate.** This gate is the only thing between an observer and *every*
-command button. Removing it would let an observer issue real orders - `UNIT_BUILD` and its
-neighbours post `GameMessage`s - so the two commands are named rather than the gate deleted. They
-are the two the engine has that change nothing but which slice of a `CommandSet` is on screen:
-`PUSH` appends the button's range pair to the stack at ``ControlBar+0x2B0``, `POP` drops the top
-one, and both then re-run `switchToContext` to redraw.
-
-**Why the call site and not the predicate.** `PLAYER_LIST_LOCAL_IS_NOT_ACTIVE` has twelve
-callers, the observer bar's own visibility gate among them, so widening it in place would leak
-into all of them. Retargeting one ``call`` changes exactly one question.
-
-**Determinism.** Client-side UI: neither handler posts a `GameMessage` and neither touches an
-object, so nothing enters the simulation. Like `observer-switch` and `replay-outcome`, and unlike
-`production-condition`, it does not have to be on every peer, and a replay it is applied to stays
-faithful.
-
-**Spillover.** The predicate is ``m_isObserver || m_isDefeated``, so a player who has lost a live
-game can page the bar too. That is the same read-only affordance, and splitting the two cases
-would mean reading the observer flag separately for no behavioural difference.
-
-**What it does not add.** No UI and no INI surface: the paging buttons it makes clickable are the
-ones a mod's `CommandSet` already defines, under the ceiling
-``CommandRangeStart + CommandRangeCount <= N`` that `docs/push-visible-command-range.md` sets. A
-`CommandSet` with no paging button gains nothing.
-
-**Composition.** Order-independent. The cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by
-name; the five bytes it edits are touched by no other bundled patch, and the structures it reads
-- the click gate and the executor's two switch tables - are ones nothing else rewrites. It is the
-natural companion to `observer-switch`, which is what gets an observer onto a skirmish replay's
-seat in the first place, but the two are independent: either applies without the other.
+Derivation: `../docs/observer-command-range.md` and `../docs/push-visible-command-range.md`.
 """
 
 from __future__ import annotations
@@ -96,7 +36,7 @@ from ..addresses import (
 )
 from ..asm import JE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -107,18 +47,13 @@ __all__ = [
 ]
 
 
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
 SECTION_NAME = ".obscmd"  # 7 chars: the PE name field is 8 bytes and truncates silently
 
 # IMAGE_SCN_CNT_CODE | MEM_EXECUTE | MEM_READ - the cave is pure code and is never written.
 _CHARACTERISTICS = 0x20 | 0x20000000 | 0x40000000
 
-#: The commands the cave waves through, as ``(GUICOMMAND, handler VA, handler bytes)``. The
-#: handler is carried alongside the number so :meth:`~ObserverCommandRangePatch.verify` can walk
+#: The commands the cave waves through, as `(GUICOMMAND, handler VA, handler bytes)`. The
+#: handler is carried alongside the number so `verify` can walk
 #: the executor's own switch tables and prove the number reaches the paging code in *this* binary,
 #: rather than trusting the ordering of the name table it was read from.
 PAGING_COMMANDS = (
@@ -134,11 +69,11 @@ PAGING_COMMANDS = (
     ),
 )
 
-#: The sites the patch depends on but does not rewrite, as a ``{va: bytes}`` map. The gate is
-#: anchored either side of the ``call`` and never across it, so both halves stay valid once the
-#: call is retargeted; `..._BUTTON_LOAD` pins where ``esi`` comes from, and the predicate's own
+#: The sites the patch depends on but does not rewrite, as a `{va: bytes}` map. The gate is
+#: anchored either side of the `call` and never across it, so both halves stay valid once the
+#: call is retargeted; `..._BUTTON_LOAD` pins where `esi` comes from, and the predicate's own
 #: first bytes prove the tail jump lands on it. None of these would be caught by anything else -
-#: a cave reading ``[esi+0x14]`` off some other pointer just reads whatever is there.
+#: a cave reading `[esi+0x14]` off some other pointer just reads whatever is there.
 ANCHORS = {
     CONTROL_BAR_CLICK_BUTTON_LOAD: CONTROL_BAR_CLICK_BUTTON_LOAD_BYTES,
     CONTROL_BAR_CLICK_GATE_PREFIX: CONTROL_BAR_CLICK_GATE_PREFIX_BYTES,
@@ -152,11 +87,11 @@ def build_code(base_va: int) -> bytes:
     """The replacement predicate: "is the local player sitting out", except for the two paging
     commands.
 
-    Entry is the stock call's, unchanged: ``ecx`` already holds `ThePlayerList` and ``esi`` the
-    `CommandButton` the click arrived on. The answer goes back in ``al`` for the caller's
-    ``test al, al / jne`` - zero means active, which is the edge that dispatches.
+    Entry is the stock call's, unchanged: `ecx` already holds `ThePlayerList` and `esi` the
+    `CommandButton` the click arrived on. The answer goes back in `al` for the caller's
+    `test al, al / jne` - zero means active, which is the edge that dispatches.
 
-    Only ``eax`` and the flags are touched, which the stock predicate clobbers anyway, and the
+    Only `eax` and the flags are touched, which the stock predicate clobbers anyway, and the
     refusing path tail-jumps rather than calling, so the thiscall shape and the return address
     the caller sees are identical to the stock ones."""
     a = Asm(base_va)
@@ -196,7 +131,7 @@ class ObserverCommandRangePatch(Patch):
             data,
             gate_off,
             CONTROL_BAR_CLICK_GATE_CALL_BYTES,
-            _call_bytes(CONTROL_BAR_CLICK_GATE_CALL, section_va),
+            call_rel32(CONTROL_BAR_CLICK_GATE_CALL, section_va),
             "processCommandUI observer gate -> observer-command-range cave",
         )
 
@@ -210,7 +145,7 @@ class ObserverCommandRangePatch(Patch):
         gate_off = va_to_offset(data, CONTROL_BAR_CLICK_GATE_CALL)
         if gate_off is None:
             return [f"{CONTROL_BAR_CLICK_GATE_CALL:#010x} is not mapped by any section"]
-        expected = _call_bytes(CONTROL_BAR_CLICK_GATE_CALL, section_va)
+        expected = call_rel32(CONTROL_BAR_CLICK_GATE_CALL, section_va)
         got = bytes(data[gate_off : gate_off + len(expected)])
         if got != expected:
             problems.append(

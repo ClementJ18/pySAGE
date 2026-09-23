@@ -16,7 +16,7 @@ _HEADER = re.compile(r"^=== (?P<slug>.+?) ===[ \t]*$", re.MULTILINE)
 
 
 def _page_letter(name: str) -> str:
-    """The subpage letter an armor belongs on: its upper-cased initial (else ``#``)."""
+    """The subpage letter an armor belongs on: its upper-cased initial (else `#`)."""
     first = name[0].upper()
     return first if first.isalpha() else "#"
 
@@ -64,7 +64,7 @@ def armor_sections_by_page(game) -> dict[str, tuple[dict[str, str], list[str]]]:
 
 
 def _split_sections(text: str) -> tuple[str, list[tuple[str, str]]]:
-    """A page's preamble and its ``=== slug ===`` sections (each body keeps its header)."""
+    """A page's preamble and its `=== slug ===` sections (each body keeps its header)."""
     headers = list(_HEADER.finditer(text))
     if not headers:
         return text, []

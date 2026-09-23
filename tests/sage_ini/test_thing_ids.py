@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from sage_ini.stats import ini_root
+from sage_ini.paths import ini_root
 from sage_ini.subsystems import thing_template_order
 from tests.conftest import corpus_roots
 

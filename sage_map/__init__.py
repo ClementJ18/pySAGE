@@ -9,7 +9,7 @@ the map itself defines, or a closed enum) - so a map can be linted the way `sage
 files.
 
 The overlay's v1 covers script-argument and object references only; object-property typing and
-the `content_type` action table are deferred. See docs/sage_map_plan.md.
+the `content_type` action table are not covered yet.
 
 `sage_map.diff` adds a human-readable content diff of two maps (or of the map files a git commit
 touches), reporting moved objects, script edits and terrain summaries where git can only say

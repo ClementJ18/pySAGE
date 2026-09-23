@@ -93,7 +93,7 @@ rather than its remaining one (§4). Everything else scoped here is built.
 `ControlBar::getTooltipForCommandButton` runs `0x00807A81`..`0x00808788` and is entered through the
 functor vtable at `0x00C4EE08` slot `+0x0C`. It keeps six `UnicodeString`s and hands five of them
 to the tooltip record's constructor at `0x008086E5`; `ebp-0x18` is the description
-(`DESCRIPTION_TEXT_EBP_OFFSET`, already in [`addresses.py`](../addresses.py)).
+(`DESCRIPTION_TEXT_EBP_OFFSET`, already in [`sage_patch.addresses`](../addresses/ui.py)).
 
 What matters here is that its prologue resolves, once, everything three different timers need:
 

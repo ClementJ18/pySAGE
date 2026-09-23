@@ -8,7 +8,7 @@ np = pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is no
 from sage_map.assets.object_list import Object  # noqa: E402
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
-from sage_worldbuilder.objects import MoveObjects  # noqa: E402
+from sage_worldbuilder.commands.objects import MoveObjects  # noqa: E402
 from sage_worldbuilder.render.terrain_mesh import chunk_boxes, chunks_near  # noqa: E402
 from sage_worldbuilder.viewport import PARTIAL_MAP_SIZES, ViewOptions  # noqa: E402
 

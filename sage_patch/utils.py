@@ -1,8 +1,8 @@
 """Low-level helpers for binary-patching a PE32 `game.dat`.
 
-Everything here operates on an in-memory ``bytearray`` and pure ``struct`` reads - no pefile
-dependency, so the patch pipeline stays light. Offsets are file offsets unless a name says ``va``
-(virtual address) or ``rva`` (relative virtual address = va - ImageBase)."""
+Everything here operates on an in-memory `bytearray` and pure `struct` reads - no pefile
+dependency, so the patch pipeline stays light. Offsets are file offsets unless a name says `va`
+(virtual address) or `rva` (relative virtual address = va - ImageBase)."""
 
 from __future__ import annotations
 
@@ -13,9 +13,31 @@ from collections.abc import Callable
 from sage_patch.pe import find as pe_find
 from sage_patch.pe import image_sections
 
+__all__ = [
+    "align_up",
+    "allocate_section",
+    "append_section",
+    "apply_byte_patch",
+    "call_rel32",
+    "f32",
+    "file_offset",
+    "find_section",
+    "hexbytes",
+    "i32",
+    "i8",
+    "image_base",
+    "jmp_rel32",
+    "log",
+    "next_section_rva",
+    "read_bytes",
+    "read_cstring",
+    "u32",
+    "va_to_offset",
+]
+
 log = logging.getLogger("sage_patch")
 
-# --- PE optional-header field offsets (relative to the optional header start) ---
+# PE optional-header field offsets, relative to the optional header's start.
 _OPT_IMAGE_BASE = 28
 _OPT_SECTION_ALIGNMENT = 32
 _OPT_FILE_ALIGNMENT = 36
@@ -31,6 +53,36 @@ def align_up(value: int, alignment: int) -> int:
 def hexbytes(text: str) -> bytes:
     """`"68 d8 f3 c4 00"` -> the 5 raw bytes (spaces optional)."""
     return bytes.fromhex(text.replace(" ", ""))
+
+
+def u32(value: int) -> bytes:
+    """A dword. A negative value is written as its two's complement."""
+    return struct.pack("<I" if value >= 0 else "<i", value)
+
+
+def i32(value: int) -> bytes:
+    return struct.pack("<i", value)
+
+
+def f32(value: float) -> bytes:
+    return struct.pack("<f", value)
+
+
+def i8(value: int) -> bytes:
+    """A signed byte: an 8-bit displacement or immediate. Raises outside -128..127."""
+    return struct.pack("<b", value)
+
+
+def call_rel32(at_va: int, target_va: int) -> bytes:
+    """`call target` assembled at `at_va`."""
+    return b"\xe8" + i32(target_va - (at_va + 5))
+
+
+def jmp_rel32(at_va: int, target_va: int, width: int = 5) -> bytes:
+    """`jmp target` assembled at `at_va`, padded with `nop`s to fill a `width`-byte window."""
+    if width < 5:
+        raise ValueError(f"the window at {at_va:#010x} is too small for a jmp rel32")
+    return b"\xe9" + i32(target_va - (at_va + 5)) + b"\x90" * (width - 5)
 
 
 def _coerce(value: bytes | bytearray | str) -> bytes:
@@ -57,6 +109,35 @@ def va_to_offset(data: bytes | bytearray, va: int) -> int | None:
     return None
 
 
+def file_offset(data: bytes | bytearray, va: int, what: str = "VA") -> int:
+    """`va_to_offset`, raising for an unmapped address (the file is not the expected build)."""
+    off = va_to_offset(data, va)
+    if off is None:
+        raise ValueError(f"{what} {va:#010x} is not mapped - not the expected build")
+    return off
+
+
+def read_bytes(data: bytes | bytearray, va: int, count: int) -> bytes:
+    off = file_offset(data, va)
+    return bytes(data[off : off + count])
+
+
+def read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
+    """The NUL-terminated ASCII string at `va`, or None if it is unmapped, unterminated within
+    `limit` bytes, or not ASCII."""
+    off = va_to_offset(data, va)
+    if off is None:
+        return None
+    blob = bytes(data[off : off + limit])
+    end = blob.find(b"\x00")
+    if end < 0:
+        return None
+    try:
+        return blob[:end].decode("ascii")
+    except UnicodeDecodeError:
+        return None
+
+
 def apply_byte_patch(
     data: bytearray,
     file_off: int,
@@ -64,9 +145,9 @@ def apply_byte_patch(
     new: bytes | bytearray | str,
     note: str = "",
 ) -> None:
-    """Overwrite ``old`` with ``new`` at ``file_off``, first asserting the bytes there match
-    ``old`` (so a patch aimed at the wrong build fails loudly instead of corrupting it). ``old``
-    and ``new`` may be hex strings or raw bytes, and must be the same length."""
+    """Overwrite `old` with `new` at `file_off`, first asserting the bytes there match
+    `old` (so a patch aimed at the wrong build fails loudly instead of corrupting it). `old`
+    and `new` may be hex strings or raw bytes, and must be the same length."""
     old_b, new_b = _coerce(old), _coerce(new)
     if len(old_b) != len(new_b):
         raise ValueError(f"{note}: length mismatch {len(old_b)} != {len(new_b)}")
@@ -78,8 +159,8 @@ def apply_byte_patch(
 
 
 def find_section(data: bytes | bytearray, name: str) -> tuple[int, int, int] | None:
-    """Locate an appended section by name, returning ``(base_va, file_offset, virtual_size)`` or
-    None if it is absent. Lets a patch's :meth:`~.patcher.Patch.verify` find the cave it created
+    """Locate an appended section by name, returning `(base_va, file_offset, virtual_size)` or
+    None if it is absent. Lets a patch's `verify` find the cave it created
     without having to re-derive the RVA it happened to land on."""
     section = pe_find(image_sections(data), name)
     if section is None:
@@ -89,8 +170,8 @@ def find_section(data: bytes | bytearray, name: str) -> tuple[int, int, int] | N
 
 def next_section_rva(data: bytes | bytearray) -> int:
     """The RVA at which the next appended section would start: the highest section end
-    (``VirtualAddress + VirtualSize``), rounded up to SectionAlignment. Pass this to
-    :func:`append_section` so a cave lands past every existing section regardless of what else
+    (`VirtualAddress + VirtualSize`), rounded up to SectionAlignment. Pass this to
+    `append_section` so a cave lands past every existing section regardless of what else
     (e.g. another patch's section) has already been appended."""
     e = _e_lfanew(data)
     opt = _optional_header_offset(data)
@@ -114,9 +195,9 @@ def allocate_section(
 ) -> int:
     """Append a cave past every existing section and return its base virtual address.
 
-    ``build`` receives the base VA the section will occupy and returns its bytes, so content that
-    refers to itself — a table of pointers into its own string area, code that needs its own
-    address to compute a relative branch — can be laid out before the section exists.
+    `build` receives the base VA the section will occupy and returns its bytes, so content that
+    refers to itself - a table of pointers into its own string area, code that needs its own
+    address to compute a relative branch - can be laid out before the section exists.
 
     **Always allocate a cave this way rather than at a fixed RVA.** Appending past the current
     highest section keeps the section table sorted by RVA whatever else has already been added,
@@ -136,7 +217,7 @@ def append_section(
     content: bytes,
     characteristics: int,
 ) -> int:
-    """Add a new section carrying ``content`` at ``rva``: write its 40-byte header into the free
+    """Add a new section carrying `content` at `rva`: write its 40-byte header into the free
     space after the last header, append the (file-aligned) raw data, and bump NumberOfSections
     and SizeOfImage. Returns the section's base virtual address. Raises if the header block has no
     room for another entry."""

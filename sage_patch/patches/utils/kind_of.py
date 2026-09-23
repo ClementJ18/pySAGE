@@ -7,7 +7,7 @@ apart. The stock name table holds **222** names, so **two bits are free** and a 
 no data growth at all: not in `ThingTemplate`, not in `Object`, and not in the savegame, because
 `KindOfMaskType::xfer` packs bit-by-bit into a fixed `0x1C`-byte blob that already covers 224.
 
-That makes adding a kindof the same three moves :mod:`.name_tables` describes - read the live
+That makes adding a kindof the same three moves `name_tables` describes - read the live
 table, rebuild it into a cave, repoint every reference - plus the per-table question that module
 leaves to its owners: **this table does bake its count**, in six places, so the count moves with
 it. The INI *parse* path is not one of them (`INI::scanIndexList` walks to the terminator), so a
@@ -16,7 +16,7 @@ enumerate or bounds-check by index.
 
 Only 222 and 223 exist. A third added kindof has nowhere to go, and widening the mask is an
 `Object` and `ThingTemplate` layout change rather than a byte patch - see
-``../docs/upgrade-mask-limit.md`` for what that looks like on the mask that already ran out.
+`../docs/upgrade-mask-limit.md` for what that looks like on the mask that already ran out.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import struct
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from ...utils import allocate_section, apply_byte_patch
+from ...utils import allocate_section, apply_byte_patch, u32
 from .name_tables import (
     SECTION_CHARACTERISTICS,
     NameTable,
@@ -60,7 +60,7 @@ __all__ = [
 ]
 
 #: The stock NULL-terminated `KindOf` name table. Only used to recognise an unpatched image -
-#: :func:`read` follows the references instead of trusting this.
+#: `read` follows the references instead of trusting this.
 NAME_TABLE_VA = 0x00DA0E68
 
 #: Named kindofs in the stock table, and the answer every count site below holds.
@@ -71,14 +71,14 @@ MASK_DWORDS = 7
 MASK_BYTES = MASK_DWORDS * 4
 
 #: Where a `ThingTemplate` keeps its `KindOf` mask - field-parse table entry 57 at `0x00DA4148`.
-#: Engine code tests a single kindof inline as ``test byte [tmpl + 0x108 + bit/8], 1 << (bit%8)``,
-#: which is the form :func:`bit_test` emits.
+#: Engine code tests a single kindof inline as `test byte [tmpl + 0x108 + bit/8], 1 << (bit%8)`,
+#: which is the form `bit_test` emits.
 THING_TEMPLATE_MASK_OFFSET = 0x108
 
 #: Every reference to the name table: 14 bare imm32/disp32 operands, all in `.text`.
 #: `0x007B3CDB` is the one that looks like a false positive and is not - it sits after a byte
-#: table, but `0x007B3CDA` really is a six-byte ``mov eax, <table>; ret`` accessor. Nothing calls
-#: it, exactly like the dead `getCount` behind :data:`COUNT_SITES`' first entry; it is repointed
+#: table, but `0x007B3CDA` really is a six-byte `mov eax, <table>; ret` accessor. Nothing calls
+#: it, exactly like the dead `getCount` behind `COUNT_SITES`' first entry; it is repointed
 #: anyway, because "unreferenced today" is not a reason to leave a stale pointer behind.
 TABLE_REF_VAS = (
     0x00655B67,  # INI mask parser, `+NAME`
@@ -97,7 +97,7 @@ TABLE_REF_VAS = (
     0x007B68DD,
 )
 
-#: Every site encoding the kindof count, as ``(instruction VA, the bytes before its imm32)``.
+#: Every site encoding the kindof count, as `(instruction VA, the bytes before its imm32)`.
 #: The prefix is asserted as well as the immediate, so a coincidental 222 elsewhere in a
 #: different build cannot be mistaken for one of these.
 #:
@@ -113,7 +113,7 @@ COUNT_SITES = (
 )
 
 #: Names at these indices fingerprint the build far more tightly than the count alone. Every
-#: index is below :data:`STOCK_KIND_COUNT`, so the check keeps working once the table has grown.
+#: index is below `STOCK_KIND_COUNT`, so the check keeps working once the table has grown.
 TABLE_FINGERPRINT = {
     0: "OBSTACLE",
     90: "HERO",
@@ -122,26 +122,22 @@ TABLE_FINGERPRINT = {
 }
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def bit_test(bit: int, base_register: int, displacement_base: int) -> bytes:
-    """``test byte [reg + base + bit/8], 1 << (bit%8)`` - how engine code asks one kindof.
+    """`test byte [reg + base + bit/8], 1 << (bit%8)` - how engine code asks one kindof.
 
-    ``base_register`` is the ModRM r/m encoding (0 eax, 1 ecx, 2 edx, 3 ebx, 6 esi, 7 edi); ``esp``
-    and ``ebp`` are excluded because they need a SIB byte or a different mod, and no caller here
+    `base_register` is the ModRM r/m encoding (0 eax, 1 ecx, 2 edx, 3 ebx, 6 esi, 7 edi); `esp`
+    and `ebp` are excluded because they need a SIB byte or a different mod, and no caller here
     wants them. The disp32 form is always emitted: `ThingTemplate`'s mask starts past `0x7F`, so
     the short form could never encode it anyway."""
     if base_register in (4, 5):
         raise ValueError("esp/ebp need a different encoding - use another register")
     modrm = 0x80 | base_register  # mod=10 (disp32), reg=/0 (test r/m8, imm8)
-    return bytes([0xF6, modrm]) + _u32(displacement_base + bit // 8) + bytes([1 << (bit % 8)])
+    return bytes([0xF6, modrm]) + u32(displacement_base + bit // 8) + bytes([1 << (bit % 8)])
 
 
 @dataclass(frozen=True)
 class Extension:
-    """What :func:`extend` installed."""
+    """What `extend` installed."""
 
     #: Base VA of the appended section, which is also the base of the new name table.
     section_va: int
@@ -149,7 +145,7 @@ class Extension:
     bits: tuple[int, ...]
     #: VA of the added name strings, in the same order.
     name_vas: tuple[int, ...]
-    #: VA just past the names, where ``tail`` (if any) was placed.
+    #: VA just past the names, where `tail` (if any) was placed.
     tail_va: int
 
 
@@ -196,9 +192,9 @@ def layout(
     base_va: int,
     tail: Callable[[int, tuple[int, ...]], bytes] | None = None,
 ) -> tuple[bytes, tuple[int, ...], int]:
-    """Lay a cave out at ``base_va``, returning ``(content, name VAs, tail VA)``.
+    """Lay a cave out at `base_va`, returning `(content, name VAs, tail VA)`.
 
-    Order is table, then the new name strings, then whatever ``tail`` returns. Existing entries
+    Order is table, then the new name strings, then whatever `tail` returns. Existing entries
     are copied through **by pointer**, so every kindof already named keeps both its index and its
     original string - which is what makes raising the six counts safe, since each one only
     extends a loop by the genuinely new entries."""
@@ -212,8 +208,8 @@ def layout(
 def relocation_edits(
     data: bytes | bytearray, table: NameTable, new_base_va: int, added: int
 ) -> list[tuple[int, bytes, bytes, str]]:
-    """The ``(file offset, original bytes, patched bytes, note)`` edits that move the table to
-    ``new_base_va`` and raise the count by ``added``: 14 references and 6 count immediates.
+    """The `(file offset, original bytes, patched bytes, note)` edits that move the table to
+    `new_base_va` and raise the count by `added`: 14 references and 6 count immediates.
 
     There is deliberately no `xfer` length edit here, unlike the model-condition table's. The
     packed blob is `0x1C` bytes = 224 bits and the mask is the same 224 bits, so every count this
@@ -224,8 +220,8 @@ def relocation_edits(
         edits.append(
             (
                 _offset(data, va),
-                prefix + _u32(table.count),
-                prefix + _u32(new_count),
+                prefix + u32(table.count),
+                prefix + u32(new_count),
                 f"kindof count bound @0x{va:08x}",
             )
         )
@@ -239,15 +235,15 @@ def extend(
     tail: Callable[[int, tuple[int, ...]], bytes] | None = None,
     characteristics: int = SECTION_CHARACTERISTICS,
 ) -> Extension:
-    """Append ``new_names`` to the kindof name table, in a cave called ``section_name``.
+    """Append `new_names` to the kindof name table, in a cave called `section_name`.
 
-    ``tail`` is called with ``(its own VA, the new bit indices)`` and its bytes are placed after
+    `tail` is called with `(its own VA, the new bit indices)` and its bytes are placed after
     the names in the same cave, so a patch that also needs hook code gets it laid out with an
     address it can branch from. It is called twice with the same arguments and must be
     deterministic.
 
-    ``characteristics`` defaults to the read-execute cave every table-growing patch wants. A
-    ``tail`` that keeps mutable state - a scratch variable its hook writes at runtime - has to
+    `characteristics` defaults to the read-execute cave every table-growing patch wants. A
+    `tail` that keeps mutable state - a scratch variable its hook writes at runtime - has to
     ask for a writable section instead, since the whole cave is one section.
 
     Raises before writing anything if the image is not the expected build, if a name is not a

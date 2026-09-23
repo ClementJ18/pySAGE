@@ -1,12 +1,12 @@
 """Container-level reader/writer for SAGE `.sav` save games (BFME-era).
 
 A save file is a serialized engine snapshot: a 16-byte file header followed by a flat
-sequence of named, self-delimiting chunks, terminated by the ASCII token ``SG_EOF``.
-Each chunk is ``ascii-name + "KOLB" marker + uint32 end-offset + payload``, where the
+sequence of named, self-delimiting chunks, terminated by the ASCII token `SG_EOF`.
+Each chunk is `ascii-name + "KOLB" marker + uint32 end-offset + payload`, where the
 end-offset is the *absolute* file position at which the chunk ends (so the payload runs
 from just after the offset field up to that position). This mirrors the Generals
-``XferSave`` block framing, with the BFME addition of a per-block ``BLOK`` fourCC (stored
-little-endian, so it reads ``KOLB``) and an absolute end-offset instead of a relative size.
+`XferSave` block framing, with the BFME addition of a per-block `BLOK` fourCC (stored
+little-endian, so it reads `KOLB`) and an absolute end-offset instead of a relative size.
 
 Walking the top level never descends into a payload, so a save round-trips as bytes even
 though the deep per-object state is not understood. The typed decoders for individual
@@ -43,7 +43,7 @@ class SaveHeader:
 
     @property
     def container_id(self) -> str:
-        """The human-readable fourCCs, e.g. ``"EALA RTS2"``."""
+        """The human-readable fourCCs, e.g. `"EALA RTS2"`."""
         return f"{self.magic_eala[::-1].decode('latin-1')} {self.magic_rts[::-1].decode('latin-1')}"
 
 
@@ -93,14 +93,14 @@ def parse_save(data: bytes) -> SaveFile:
         raise ValueError("file too short to hold a save header")
 
     stream = BinaryStream(io.BytesIO(data))
-    magic_eala = stream.readBytes(4)
-    magic_rts = stream.readBytes(4)
+    magic_eala = stream.read_bytes(4)
+    magic_rts = stream.read_bytes(4)
     if magic_eala != MAGIC_EALA or magic_rts != MAGIC_RTS:
         raise ValueError(
             f"not a BFME save: header magic is {magic_eala!r} {magic_rts!r}, "
             f"expected {MAGIC_EALA!r} {MAGIC_RTS!r}"
         )
-    header = SaveHeader(magic_eala, magic_rts, stream.readInt32(), stream.readInt32())
+    header = SaveHeader(magic_eala, magic_rts, stream.read_int32(), stream.read_int32())
 
     chunks: list[Chunk] = []
     size = len(data)
@@ -108,22 +108,22 @@ def parse_save(data: bytes) -> SaveFile:
         offset = stream.tell()
         if offset >= size:
             raise ValueError("chunk stream ended before the SG_EOF token")
-        name = stream.readString()
+        name = stream.read_string()
         if name == EOF_TOKEN:
             break
-        marker = stream.readBytes(4)
+        marker = stream.read_bytes(4)
         if marker != BLOCK_MARKER:
             raise ValueError(
                 f"chunk {name!r} at {offset:#x} is missing the {BLOCK_MARKER!r} marker "
                 f"(got {marker!r}); this reader handles BFME-era saves only"
             )
-        end = stream.readUInt32()
+        end = stream.read_uint32()
         payload_start = stream.tell()
         if end < payload_start or end > size:
             raise ValueError(
                 f"chunk {name!r} at {offset:#x} has an out-of-range end offset {end:#x}"
             )
-        payload = stream.readBytes(end - payload_start)
+        payload = stream.read_bytes(end - payload_start)
         chunks.append(Chunk(name, payload, offset))
 
     return SaveFile(header, chunks)
@@ -136,23 +136,23 @@ def parse_save_from_path(path: str | Path) -> SaveFile:
 def write_save(save: SaveFile) -> bytes:
     """Serialize a `SaveFile` back to bytes, re-computing the absolute end-offsets."""
     stream = BinaryStream(io.BytesIO())
-    stream.writeBytes(save.header.magic_eala)
-    stream.writeBytes(save.header.magic_rts)
-    stream.writeInt32(save.header.value1)
-    stream.writeInt32(save.header.value2)
+    stream.write_bytes(save.header.magic_eala)
+    stream.write_bytes(save.header.magic_rts)
+    stream.write_int32(save.header.value1)
+    stream.write_int32(save.header.value2)
 
     for chunk in save.chunks:
-        stream.writeString(chunk.name)
-        stream.writeBytes(BLOCK_MARKER)
+        stream.write_string(chunk.name)
+        stream.write_bytes(BLOCK_MARKER)
         offset_field = stream.tell()
-        stream.writeUInt32(0)  # placeholder, backpatched below
-        stream.writeBytes(chunk.payload)
+        stream.write_uint32(0)  # placeholder, backpatched below
+        stream.write_bytes(chunk.payload)
         end = stream.tell()
         stream.seek(offset_field)
-        stream.writeUInt32(end)
+        stream.write_uint32(end)
         stream.seek(end)
 
-    stream.writeString(EOF_TOKEN)
+    stream.write_string(EOF_TOKEN)
     return stream.getvalue()
 
 

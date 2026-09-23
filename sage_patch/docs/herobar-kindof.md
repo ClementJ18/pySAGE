@@ -234,7 +234,7 @@ argument.
 Status 92 in the table at `0x00D8AFF0` is **`NO_HERO_PROPERTIES`**. So the eligibility rule is
 "locally controlled and not `NO_HERO_PROPERTIES`", and a `HEROBAR` object inherits it for free.
 
-(Note for `addresses.py`: `0x0044DDEC` is `Object::testStatus`, reading a bitmask at `Object+0x94`;
+(Note for `sage_patch.addresses`: `0x0044DDEC` is `Object::testStatus`, reading a bitmask at `Object+0x94`;
 its sibling `0x00444D39` is the single-bit `KindOfMaskType` constructor — `memset(this, 0, 0x1C)`
 then set the bit. The `0x1C` there is the first of the two independent confirmations of the mask
 width in [§6](#6-the-kindof-itself-is-the-cheap-part).)

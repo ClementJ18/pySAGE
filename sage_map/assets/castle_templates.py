@@ -3,6 +3,13 @@ from typing import TYPE_CHECKING, Self, cast
 
 from ..context import AssetPropertyType
 
+__all__ = [
+    "CastlePerimeter",
+    "CastleTemplate",
+    "CastleTemplates",
+    "PerimeterPoint",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -18,16 +25,16 @@ class CastleTemplate:
 
     @classmethod
     def parse(cls, context: "ParsingContext", version: int) -> Self:
-        name = context.stream.readUInt16PrefixedAsciiString()
-        template_name = context.stream.readUInt16PrefixedAsciiString()
-        offset = context.stream.readVector3()
-        angle = context.stream.readFloat()
+        name = context.stream.read_uint16_prefixed_ascii_string()
+        template_name = context.stream.read_uint16_prefixed_ascii_string()
+        offset = context.stream.read_vector3()
+        angle = context.stream.read_float()
 
         priority = None
         phase = None
         if version >= 4:
-            priority = context.stream.readUInt32()
-            phase = context.stream.readUInt32()
+            priority = context.stream.read_uint32()
+            phase = context.stream.read_uint32()
 
         return cls(
             name=name,
@@ -39,14 +46,14 @@ class CastleTemplate:
         )
 
     def write(self, context: "WritingContext", version: int) -> None:
-        context.stream.writeUInt16PrefixedAsciiString(self.name)
-        context.stream.writeUInt16PrefixedAsciiString(self.template_name)
-        context.stream.writeVector3(self.offset)
-        context.stream.writeFloat(self.angle)
+        context.stream.write_uint16_prefixed_ascii_string(self.name)
+        context.stream.write_uint16_prefixed_ascii_string(self.template_name)
+        context.stream.write_vector3(self.offset)
+        context.stream.write_float(self.angle)
 
         if version >= 4:
-            context.stream.writeUInt32(cast(int, self.priority))
-            context.stream.writeUInt32(cast(int, self.phase))
+            context.stream.write_uint32(cast(int, self.priority))
+            context.stream.write_uint32(cast(int, self.phase))
 
 
 @dataclass
@@ -58,13 +65,13 @@ class PerimeterPoint:
     @classmethod
     def parse(cls, context: "ParsingContext", version: int) -> Self:
         if version >= 3:
-            x = context.stream.readFloat()
-            y = context.stream.readFloat()
+            x = context.stream.read_float()
+            y = context.stream.read_float()
             z = 0.0
         else:
-            x = context.stream.readInt32()
-            y = context.stream.readInt32()
-            z = context.stream.readInt32()
+            x = context.stream.read_int32()
+            y = context.stream.read_int32()
+            z = context.stream.read_int32()
 
         return cls(
             x=x,
@@ -74,12 +81,12 @@ class PerimeterPoint:
 
     def write(self, context: "WritingContext", version: int) -> None:
         if version >= 3:
-            context.stream.writeFloat(self.x)
-            context.stream.writeFloat(self.y)
+            context.stream.write_float(self.x)
+            context.stream.write_float(self.y)
         else:
-            context.stream.writeInt32(int(self.x))
-            context.stream.writeInt32(int(self.y))
-            context.stream.writeInt32(int(self.z))
+            context.stream.write_int32(int(self.x))
+            context.stream.write_int32(int(self.y))
+            context.stream.write_int32(int(self.z))
 
 
 @dataclass
@@ -94,10 +101,10 @@ class CastlePerimeter:
     def parse(cls, context: "ParsingContext", version: int) -> Self:
         name = None
         if version >= 5:
-            name = context.stream.readUInt16PrefixedAsciiString()
+            name = context.stream.read_uint16_prefixed_ascii_string()
 
         points = []
-        for _ in range(context.stream.readUInt32()):
+        for _ in range(context.stream.read_uint32()):
             points.append(PerimeterPoint.parse(context, version))
 
         return cls(
@@ -107,9 +114,9 @@ class CastlePerimeter:
 
     def write(self, context: "WritingContext", version: int) -> None:
         if version >= 5:
-            context.stream.writeUInt16PrefixedAsciiString(cast(str, self.name))
+            context.stream.write_uint16_prefixed_ascii_string(cast(str, self.name))
 
-        context.stream.writeUInt32(len(self.points))
+        context.stream.write_uint32(len(self.points))
         for point in self.points:
             point.write(context, version)
 
@@ -130,7 +137,7 @@ class CastleTemplates:
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
             property_key = context.parse_asset_property_key()
-            template_count = context.stream.readUInt32()
+            template_count = context.stream.read_uint32()
 
             templates = []
             for _ in range(template_count):
@@ -139,7 +146,7 @@ class CastleTemplates:
             perimeters = None
             if asset_ctx.version >= 2:
                 perimeters = []
-                for _ in range(context.stream.readUInt32()):
+                for _ in range(context.stream.read_uint32()):
                     perimeters.append(CastlePerimeter.parse(context, asset_ctx.version))
 
         return cls(
@@ -157,12 +164,12 @@ class CastleTemplates:
             if key_name is None:
                 raise ValueError("property_key name must be set to write CastleTemplates")
             context.write_asset_property_key((key_type, key_index, key_name))
-            context.stream.writeUInt32(len(self.templates))
+            context.stream.write_uint32(len(self.templates))
             for template in self.templates:
                 template.write(context, self.version)
 
             if self.version >= 2:
                 perimeters = cast(list[CastlePerimeter], self.perimeters)
-                context.stream.writeUInt32(len(perimeters))
+                context.stream.write_uint32(len(perimeters))
                 for perimeter in perimeters:
                     perimeter.write(context, self.version)

@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "NamedCamera",
+    "NamedCameras",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -18,14 +23,14 @@ class NamedCamera:
 
     @classmethod
     def parse(cls, context: "ParsingContext"):
-        look_at_point = context.stream.readVector3()
-        name = context.stream.readUInt16PrefixedAsciiString()
-        pitch = context.stream.readFloat()
-        roll = context.stream.readFloat()
-        yaw = context.stream.readFloat()
-        zoom = context.stream.readFloat()
-        fov = context.stream.readFloat()
-        unknown = context.stream.readFloat()
+        look_at_point = context.stream.read_vector3()
+        name = context.stream.read_uint16_prefixed_ascii_string()
+        pitch = context.stream.read_float()
+        roll = context.stream.read_float()
+        yaw = context.stream.read_float()
+        zoom = context.stream.read_float()
+        fov = context.stream.read_float()
+        unknown = context.stream.read_float()
 
         context.logger.debug(
             f"NamedCamera: {name}, LookAt: {look_at_point}, Pitch: {pitch}, "
@@ -43,14 +48,14 @@ class NamedCamera:
         )
 
     def write(self, context: "WritingContext"):
-        context.stream.writeVector3(self.look_at_point)
-        context.stream.writeUInt16PrefixedAsciiString(self.name)
-        context.stream.writeFloat(self.pitch)
-        context.stream.writeFloat(self.roll)
-        context.stream.writeFloat(self.yaw)
-        context.stream.writeFloat(self.zoom)
-        context.stream.writeFloat(self.fov)
-        context.stream.writeFloat(self.unknown)
+        context.stream.write_vector3(self.look_at_point)
+        context.stream.write_uint16_prefixed_ascii_string(self.name)
+        context.stream.write_float(self.pitch)
+        context.stream.write_float(self.roll)
+        context.stream.write_float(self.yaw)
+        context.stream.write_float(self.zoom)
+        context.stream.write_float(self.fov)
+        context.stream.write_float(self.unknown)
 
 
 @dataclass
@@ -66,7 +71,7 @@ class NamedCameras:
     def parse(cls, context: "ParsingContext"):
         with context.read_asset() as asset_ctx:
             cameras = []
-            camera_count = context.stream.readUInt32()
+            camera_count = context.stream.read_uint32()
             for _ in range(camera_count):
                 cameras.append(NamedCamera.parse(context))
 
@@ -80,6 +85,6 @@ class NamedCameras:
 
     def write(self, context: "WritingContext"):
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.cameras))
+            context.stream.write_uint32(len(self.cameras))
             for camera in self.cameras:
                 camera.write(context)

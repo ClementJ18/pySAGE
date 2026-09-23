@@ -10,9 +10,9 @@ np = pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is no
 from sage_map.assets.camera_animation_list import CameraAnimationList  # noqa: E402
 from sage_map.assets.named_cameras import NamedCamera, NamedCameras  # noqa: E402
 from sage_map.map import Map  # noqa: E402
-from sage_worldbuilder import MapDocument, camera_edit  # noqa: E402
-from sage_worldbuilder.camera import Camera  # noqa: E402
-from sage_worldbuilder.camera_edit import (  # noqa: E402
+from sage_worldbuilder import MapDocument  # noqa: E402
+from sage_worldbuilder.camera import keys as camera_edit  # noqa: E402
+from sage_worldbuilder.camera.keys import (  # noqa: E402
     CAMERA_KEY,
     DRAGGING,
     LOCAL,
@@ -26,7 +26,7 @@ from sage_worldbuilder.camera_edit import (  # noqa: E402
     Editor,
     ViewState,
 )
-from sage_worldbuilder.cameras import (  # noqa: E402
+from sage_worldbuilder.camera.named import (  # noqa: E402
     FREE,
     LOOK,
     Pose,
@@ -40,6 +40,7 @@ from sage_worldbuilder.cameras import (  # noqa: E402
     set_camera_key,
     set_look_at_key,
 )
+from sage_worldbuilder.camera.view import Camera  # noqa: E402
 
 FOV = math.radians(50.0)
 

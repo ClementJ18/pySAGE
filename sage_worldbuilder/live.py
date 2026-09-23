@@ -2,10 +2,11 @@
 script in the open map what the game is doing with it.
 
 Attaching is read-only: it writes nothing and needs no patch, so it can attach to any game on the
-machine - one Jump To Game started or one started by hand. Recording, breakpoints, pause and step
-hook the game on top of that, only once asked for (`LiveSession`). What the session cannot do is
-tell two different maps apart by content, so it compares the running map's path with the open
-document's and the panels only overlay live state when the two are the same map.
+machine - one Jump To Game started or one started by hand. Recording, breakpoints, condition
+watches, pause and step hook the game on top of that, only once asked for (`LiveSession`). What
+the session cannot do is tell two different maps apart by content, so it compares the running
+map's path with the open document's and the panels only overlay live state when the two are the
+same map.
 
 The game does not run a map's scripts as the map lays them out. A skirmish rebuilds the sides - one
 per occupied slot, plus the civilian and creep sides - and merges each AI's library scripts into
@@ -26,12 +27,20 @@ from sage_live.backends.base import ConnectionRefused
 from sage_live.backends.live_patch import LivePatchError, WindowsProcess
 from sage_live.backends.memory import MemoryBackend, ProcessMemory, find_game_processes
 from sage_live.backends.script_debugger import Command, FrameGate
-from sage_live.backends.script_trace import BreakpointHit, ScriptTrace, TraceEvent
+from sage_live.backends.script_trace import (
+    WATCH_LIMIT,
+    BreakpointHit,
+    ConditionResult,
+    ScriptTrace,
+    TraceEvent,
+)
 from sage_live.backends.scripts import (
+    LiveCondition,
     LiveScript,
     LiveScriptGroup,
     ScriptTree,
     ScriptVariable,
+    read_script_conditions,
     read_script_tree,
     read_script_variables,
 )
@@ -53,6 +62,7 @@ from sage_worldbuilder.document import MapDocument
 from sage_worldbuilder.jump import launch_name
 
 __all__ = [
+    "Clauses",
     "LiveAccessDenied",
     "LiveAttachError",
     "LiveIndex",
@@ -67,6 +77,9 @@ __all__ = [
 
 # The engine's own rate when the read fails; a timer counts down this many ticks a second.
 _DEFAULT_LOGIC_RATE = 5
+
+# A script's live conditions, clause by clause.
+Clauses = tuple[tuple[LiveCondition, ...], ...]
 
 
 class LiveAttachError(RuntimeError):
@@ -144,6 +157,10 @@ class LiveSnapshot:
     hit: BreakpointHit | None = None
     # How many times faster than normal the game is paced; 1 at normal speed.
     speed: int = 1
+    # The watched scripts' conditions by `Script *`, and what the engine last decided about each
+    # watched condition, by `Condition *`.
+    conditions: dict[int, Clauses] = field(default_factory=dict)
+    condition_results: dict[int, ConditionResult] = field(default_factory=dict)
 
     @property
     def script_count(self) -> int:
@@ -168,10 +185,14 @@ def document_keys(document: MapDocument) -> set[str]:
     return keys
 
 
-def _walk_groups(groups: tuple[LiveScriptGroup, ...]) -> Iterator[LiveScriptGroup]:
+def _walk_groups(
+    groups: tuple[LiveScriptGroup, ...], outer: tuple[LiveScriptGroup, ...] = ()
+) -> Iterator[tuple[LiveScriptGroup, tuple[LiveScriptGroup, ...]]]:
+    """Every group, depth first, with the groups around it and itself, outermost first."""
     for group in groups:
-        yield group
-        yield from _walk_groups(group.groups)
+        chain = (*outer, group)
+        yield group, chain
+        yield from _walk_groups(group.groups, chain)
 
 
 class LiveIndex:
@@ -182,12 +203,15 @@ class LiveIndex:
         self._scripts: dict[str, list[tuple[int, LiveScript]]] = {}
         self._groups: dict[str, list[tuple[int, LiveScriptGroup]]] = {}
         self._at: dict[int, tuple[int, LiveScript]] = {}
+        self._enclosing: dict[int, tuple[LiveScriptGroup, ...]] = {}
         for side in snapshot.tree.sides:
             for script in side.all_scripts():
                 self._scripts.setdefault(script.name.lower(), []).append((side.index, script))
                 self._at[script.address] = (side.index, script)
-            for group in _walk_groups(side.groups):
+            for group, chain in _walk_groups(side.groups):
                 self._groups.setdefault(group.name.lower(), []).append((side.index, group))
+                for script in group.scripts:
+                    self._enclosing[script.address] = chain
 
     def _player(self, side: int) -> str:
         return self.snapshot.players.get(side, "")
@@ -195,6 +219,10 @@ class LiveIndex:
     def addresses(self, name: str) -> list[int]:
         """The `Script *` of every live copy of the script `name`, on every side."""
         return [script.address for _, script in self._scripts.get(name.casefold(), [])]
+
+    def enclosing(self, script: LiveScript) -> tuple[LiveScriptGroup, ...]:
+        """The groups around `script`, outermost first; empty for a top-level script."""
+        return self._enclosing.get(script.address, ())
 
     def at(self, address: int) -> tuple[str, LiveScript] | None:
         """The player and script a trace event's `Script *` names, or None for one the tree
@@ -267,6 +295,7 @@ class LiveSession:
         self._gate: FrameGate | None = None
         self._recording = False
         self._breakpoints: dict[int, int] = {}
+        self._watched: dict[int, Clauses] = {}
         self._speed = 1
 
     @property
@@ -331,6 +360,39 @@ class LiveSession:
             self._write(lambda trace: trace.set_breakpoints({}))
         return self._drop_trace_if_idle()
 
+    def set_watched(self, scripts: set[int]) -> list[str]:
+        """Record the engine's verdict on every enabled condition of these `Script *`s - the
+        whole set, replacing the last one. A script the game has not loaded yet has no
+        conditions to watch; the caller asks again once it has."""
+        if scripts == set(self._watched):
+            return []
+        if scripts:
+            watched = {
+                script: read_script_conditions(self.memory.read, script) for script in scripts
+            }
+            conditions = [
+                condition.address
+                for clauses in watched.values()
+                for clause in clauses
+                for condition in clause
+                if condition.enabled
+            ]
+            if len(conditions) > WATCH_LIMIT:
+                raise LiveAttachError(
+                    f"The watched scripts have {len(conditions)} conditions; at most "
+                    f"{WATCH_LIMIT} can be watched at once."
+                )
+            try:
+                self._ensure_trace().set_watches(conditions)
+            except LivePatchError as exc:
+                raise LiveAttachError(f"The conditions could not be watched: {exc}") from exc
+            self._watched = watched
+            return []
+        self._watched = {}
+        if self._trace is not None:
+            self._write(lambda trace: trace.set_watches(()))
+        return self._drop_trace_if_idle()
+
     def _write(self, action: Callable[[ScriptTrace], None]) -> None:
         trace = self._trace
         if trace is None:
@@ -342,7 +404,7 @@ class LiveSession:
             pass
 
     def _drop_trace_if_idle(self) -> list[str]:
-        if self._trace is None or self._recording or self._breakpoints:
+        if self._trace is None or self._recording or self._breakpoints or self._watched:
             return []
         trace, self._trace = self._trace, None
         try:
@@ -442,6 +504,7 @@ class LiveSession:
         and when the game has just been closed - a game that is gone took the hooks with it."""
         self._recording = False
         self._breakpoints = {}
+        self._watched = {}
         notes: list[str] = []
         if self._speed != 1 and self._writer is not None:
             try:
@@ -537,6 +600,8 @@ class LiveSession:
             paused=self._paused(),
             hit=self._trace.hit() if self._trace is not None else None,
             speed=game_speed.speed(self.memory.read),
+            conditions=dict(self._watched),
+            condition_results=self._read_condition_results(),
         )
 
     def _paused(self) -> bool:
@@ -546,6 +611,14 @@ class LiveSession:
             return self._gate.state().paused
         except LivePatchError:
             return False
+
+    def _read_condition_results(self) -> dict[int, ConditionResult]:
+        if self._trace is None or not self._watched:
+            return {}
+        try:
+            return self._trace.condition_results()
+        except LivePatchError:
+            return {}
 
     def _read_trace(self) -> list[TraceEvent]:
         if self._trace is None or not self._recording:

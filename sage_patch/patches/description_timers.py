@@ -1,109 +1,13 @@
-"""The description-timers patch: how long a button's thing takes, at the bottom of its description.
+"""Append a button's cooldown, build time or research time to the bottom of its description.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/description-timers.md``.
+Two hooks on the description builder: one captures the button at the prologue
+(`DESCRIPTION_BUTTON_CAPTURE`), since the builder later reuses the register that held it, and one
+appends the line at `DESCRIPTION_TAIL`, after every case of its switch has run. Numbers are the
+engine's own, read from both `SpecialAbilityUpdate::startPowerRecharge` flavours and the production
+modifiers. A line whose string key the mod has not declared is not printed. The tooltip is built
+once per hover, so a remaining cooldown does not count down while shown.
 
-**What the engine does today.** A `CommandButton`'s tooltip says what a thing costs and never says
-how long it takes. An ability's cooldown, a unit's build time and an upgrade's research time are
-all computed by the engine, all visible to it at the moment the tooltip is built, and none of them
-is written down anywhere the player can read.
-
-**What this patch adds.** One line at the end of the description:
-
-- a **special-power** button gets its cooldown - the full length while the power is ready, the
-  **time left** while it is recharging;
-- a button carrying a **`ThingTemplate`** gets its build time;
-- an **upgrade** button whose upgrade is not already researched gets its research time - asked of
-  the *player* for a `Type = PLAYER` upgrade and of the *selected object* for a `Type = OBJECT`
-  one, because those are the two places the engine records a completed upgrade.
-
-**A line whose number would be zero is not printed.** A `SpecialPower` with no `ReloadTime` has no
-cooldown - which is what a passive ability's button is, 204 of the 835 powers in Edain - and a
-build time under a second rounds down to `0` and says nothing either. Both drop the whole line
-rather than stating a zero.
-
-**Which object a cooldown is asked of.** The builder's own object slot holds *the selection*, which
-for a palantir spell button is usually nothing and sometimes an unrelated unit. So the ability arm
-resolves the owner itself: the selected object when it has a module for the button's template - the
-hero-ability case, and the cheap one - and otherwise **the player's spellbook**, found with the
-engine's own `KINDOF SPELL_BOOK` predicate (:data:`SPELL_BOOK_FINDER`) over
-:data:`~..addresses.PLAYER_FOR_EACH_TEAM_OBJECT`. A spellbook is an ordinary `Object` carrying
-ordinary `SpecialPowerModule` behaviours, so once it is in hand the rest of the arm is unchanged,
-and a power neither of them has simply finds no module and falls back to the full duration.
-
-**Everything is in logic frames until the last step, and the logic frame rate is 5.** The three
-fields these numbers come from are *not* in the same units in INI - `SpecialPower.ReloadTime` is
-**milliseconds**, while `Object.BuildTime` and `Upgrade.BuildTime` are **seconds** - but all three
-are converted to frames before they are stored, so this patch never sees the difference: the
-`ReloadTime` parser (`0x0073A429`) multiplies by `logic/1000`, and both `calcTimeToBuild` functions
-multiply by the rate on the way out. Only the final divide has to know the rate, and it reads it
-live from :data:`LOGIC_FRAMES_PER_SECOND` - which is **`0x00D9F608`, holding 5**, not the 30 four
-bytes above it. Getting that one wrong is a silent factor of six on every line the patch prints.
-
-**Every number is the engine's own.** Nothing here re-derives a duration from INI. The cooldown is
-`SpecialAbilityUpdate::startPowerRecharge`'s arithmetic transcribed instruction for instruction
-(:data:`GET_MODIFIER_MULTIPLIER` for the `RECHARGE_TIME` attribute modifier, `Player+0x718` for the
-`SpellRechargeModifierUpgrade` discount, both live), and the two build times are
-:data:`THING_TEMPLATE_CALC_TIME_TO_BUILD` and :data:`UPGRADE_TEMPLATE_CALC_TIME_TO_BUILD` - the
-same two functions `ProductionUpdate` asks for a queue entry's total, so the tooltip cannot
-disagree with what the game then does. **That is also what makes "with the reduction taken into
-account" free**: the producer's `ProductionModifier` time multiplier is applied inside
-`calcTimeToBuild`, and a leadership aura that is up right now is inside the modifier query.
-
-**Two hooks, and why the first one exists.** The line is appended at
-:data:`~..addresses.DESCRIPTION_TAIL`, the one instruction past the point where every case of the
-builder's switch has converged - which is what makes it genuinely *last*, where a per-case site
-cannot be (the `CONTROLBAR:Requirements` and `TOOLTIP:BuildDisabled` folds run after several of
-them). The cost of being that late is that `esi` no longer holds the builder's `this`: three cases
-reassign it, so `[esi+0xc]` is not the button any more. So a second, 6-byte window in the prologue
-at :data:`~..addresses.DESCRIPTION_BUTTON_CAPTURE` - on the function's unconditional path, at the
-instruction that loads the button - takes a copy into the cave. The builder is not reentrant (it
-runs on hover, on one client, from a single call site at `0x00807676`), and the copy is refreshed
-on every build, so the stash cannot go stale.
-
-**Silent unless the mod declares the string.** `TheGameText`'s fetch takes an `exists`
-out-parameter that all twelve stock callers pass `0` for. This passes a real one and drops the
-whole line - separator included - when the key is missing, so on a string table that has not added
-these four keys the tooltip is **byte-identical to a stock build**. A modder opts in one line at a
-time by adding `TOOLTIP:Cooldown`, `TOOLTIP:CooldownRemaining`, `TOOLTIP:BuildTime` or
-`TOOLTIP:ResearchTime`, each taking **one `%d`** - whole seconds, which is the only format this
-patch emits.
-
-**The honest limit: the tooltip is built once per hover.** `0x00DE8998` latches at `0x00807971`
-and the same-request path returns early on every frame after, so nothing rebuilds the text while
-the pointer sits still. The three full durations are unaffected - they do not change while you look
-at them - but **the remaining cooldown is a snapshot** taken when the tooltip appeared, not a
-countdown. Moving off the button and back re-reads it. Making it tick means forcing a repaint,
-which is a second patch to a second function and a question about the movie that only a live test
-answers; ``docs/description-timers.md`` §2 is the write-up.
-
-**Both `startPowerRecharge` flavours are read.** There are two implementations and they keep the
-recharge at different offsets - flavour 1 (`0x00896E31`, 23 vtables) at interface `+0x08` with its
-pause count at `+0x0C`, flavour 2 (`0x00991500`, the `SpecialPowerUpdateModule` family) at `+0x04`
-with the pause count at `+0x08` - so the vtable slot is compared before either is read, and a
-vtable holding neither still falls back to the full duration. Flavour 2 is not the curiosity its
-three-vtable count suggests: those three are *shared* vtables, and one of the classes behind them
-is `WeaponModeSpecialPowerUpdate`, 340 behaviours in Edain. A module whose recharge is **paused**
-also falls back, because its ready frame is not moved until it resumes.
-
-**What is deliberately not covered.** Hero revive and recruit buttons, whose time comes off the
-player's hero ledger rather than the `ThingTemplate` (`0x00780687`), are skipped rather than given
-the base number - the test is the engine's own, :data:`THING_TEMPLATE_HERO_FLAG`. A
-`SharedSyncedTimer = Yes` power keeps its cooldown on the `Player` rather than on any module
-(`tmpl+0x59`, three templates in the shipped INI), so its remaining time falls back to the full
-duration too. All of these fail towards saying less, never towards saying something wrong.
-
-> **Client-local and read-only.** This runs inside the ControlBar's tooltip builder on hover.
-> Nothing enters the simulation, nothing is sent, no INI keyword changes and no `.apt` edit is
-> needed. A patched and an unpatched client can play each other and replays cross, the same rule as
-> `upgrade-description`, `replay-outcome` and `observer-switch`.
-
-**Composition.** Order-independent. The cave is allocated with
-:func:`~..utils.allocate_section` and :meth:`verify` finds it by name; the twelve bytes it rewrites
-are touched by no other bundled patch. Three other patches edit this same function and all of them
-are disjoint: `upgrade-description` at `0x00808371`/`0x0080830C`, and `hero-mana` at `0x008085C4`
-and `0x00808675`. `hero-mana` appends to the same description slot, which composes by construction
-- its `ManaCost` line simply lands above this one.
+Derivation: `../docs/description-timers.md`.
 """
 
 from __future__ import annotations
@@ -137,7 +41,16 @@ from ..addresses import (
 )
 from ..asm import JE, JGE, JL, JLE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    find_section,
+    i8,
+    jmp_rel32,
+    read_bytes,
+    u32,
+    va_to_offset,
+)
 
 __all__ = [
     "ANCHORS",
@@ -195,7 +108,7 @@ PLAYER_RECHARGE_MODIFIER_BYTES = bytes.fromhex("d98118070000c3")
 #: caches the answer in, because that byte is only meaningful on the upgrade path.
 #:
 #: **The anchor is the whole function, `rel32` included.** These twenty-three bytes are identical
-#: to :data:`OBJECT_HAS_UPGRADE`'s but for the call operand, so a prefix would not tell the two
+#: to `OBJECT_HAS_UPGRADE`'s but for the call operand, so a prefix would not tell the two
 #: apart - and asking the wrong one of them is exactly the failure this arm was fixed for.
 PLAYER_HAS_UPGRADE_COMPLETE = 0x006AC2AF
 PLAYER_HAS_UPGRADE_COMPLETE_BYTES = bytes.fromhex("8b44240485c0750432c0eb08ff7038e8eeefffffc20400")
@@ -265,7 +178,7 @@ SPECIAL_POWER_INTERFACE_READY_FRAME_ALT = 0x04
 SPECIAL_POWER_INTERFACE_PAUSE_COUNT_ALT = 0x08
 
 #: The engine's own "is this the player's spellbook" predicate, a `cdecl (Object *, void *ctx)`
-#: callback for :data:`~..addresses.PLAYER_FOR_EACH_TEAM_OBJECT`. It takes the first object whose
+#: callback for `PLAYER_FOR_EACH_TEAM_OBJECT`. It takes the first object whose
 #: `ThingTemplate` is `KINDOF SPELL_BOOK` (`+0x117` bit 3) and whose controlling player is
 #: `ctx[0]`, writes it to `ctx[1]` and stops the walk.
 #:
@@ -283,7 +196,7 @@ PLAYER_FOR_EACH_TEAM_OBJECT_BYTES = bytes.fromhex("56578bf98b874c0300008b30")
 #: builder itself destroys on the way out.
 #:
 #: **The name imported for `0x00ADF7E0` is a warning, not a preference.**
-#: :data:`~..addresses.UNICODE_STRING_CONCAT` **replaces** its destination - it ends in a
+#: `UNICODE_STRING_CONCAT` **replaces** its destination - it ends in a
 #: `vswprintf` into a scratch buffer followed by a `set` - and is imported here as
 #: `UNICODE_STRING_FORMAT` so that no reader of this file can make the mistake that produced the
 #: first version of it, which formatted straight into `ebp-0x18` and deleted every description it
@@ -301,7 +214,7 @@ FLOAT_U32_FIXUP = 0x00BD8698
 #: two is a silent factor-of-six error in every number this patch prints, so the derivation is
 #: worth stating.
 #:
-#: Both are written at runtime by :data:`FRAME_RATE_SETUP`, which takes the two rates as arguments
+#: Both are written at runtime by `FRAME_RATE_SETUP`, which takes the two rates as arguments
 #: and derives a block of ratios from them: `[0x00D9F610] = logic/1000` (the millisecond-to-frame
 #: factor the `ReloadTime` parser at `0x0073A429` multiplies by, and it holds **0.005**),
 #: `[0x00D9F614] = 1000/logic` (**200** ms per logic frame) and `[0x00D9F61C] = 1/logic`
@@ -359,7 +272,7 @@ ANCHORS: dict[int, bytes] = {
 #: The cast-time arithmetic this patch transcribes, at the two instructions that carry its whole
 #: meaning: the `RESPECT_RECHARGE_TIME_DISCOUNT` test (`mov eax, [eax+0x18]` / `shr eax, 5` /
 #: `test al, 1`) and the `ReloadTime` read. If a build encodes either differently, the transcription
-#: in :func:`_emit_ability` is describing a formula that build does not use.
+#: in `_emit_ability` is describing a formula that build does not use.
 RECHARGE_FORMULA_ANCHORS: dict[int, bytes] = {
     0x00896EBA: bytes.fromhex("8b4018c1e805a801"),
     0x00896EE3: bytes.fromhex("8b4020"),
@@ -387,21 +300,12 @@ _ENGINE_ANCHORS: dict[int, bytes] = {
 }
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _i8(value: int) -> int:
-    """A signed byte displacement as the unsigned byte that encodes it."""
-    return value & 0xFF
-
-
 # Everything below is hand-encoded (the house style: only address arithmetic is automated, by
 # `..asm`), with a comment saying what each instruction is.
 
-_EBP_TEXT = _i8(DESCRIPTION_TEXT_EBP_OFFSET)
-_EBP_OBJECT = _i8(DESCRIPTION_OBJECT_EBP_OFFSET)
-_EBP_PLAYER = _i8(DESCRIPTION_PLAYER_EBP_OFFSET)
+_EBP_TEXT = i8(DESCRIPTION_TEXT_EBP_OFFSET)
+_EBP_OBJECT = i8(DESCRIPTION_OBJECT_EBP_OFFSET)
+_EBP_PLAYER = i8(DESCRIPTION_PLAYER_EBP_OFFSET)
 
 
 def _emit_line(a: Asm) -> None:
@@ -422,7 +326,7 @@ def _emit_line(a: Asm) -> None:
     #
     # It sits ahead of everything, separator included: `el_drop` is reachable only before the line
     # is built, and dropping any later would leave the newline behind on the description.
-    a.emit(0x3B, 0x05, _u32(LOGIC_FRAMES_PER_SECOND))  # cmp eax, [logic fps]
+    a.emit(0x3B, 0x05, u32(LOGIC_FRAMES_PER_SECOND))  # cmp eax, [logic fps]
     a.jcc(JL, "el_silent")
 
     # [esp]=frames  [esp+4]=exists  [esp+8]=fmt  [esp+0xc]=the line being built
@@ -437,7 +341,7 @@ def _emit_line(a: Asm) -> None:
     a.emit(0x8D, 0x4C, 0x24, 0x04)  # lea ecx, [esp+4]          -> &exists
     a.emit(0x51)  # push ecx
     a.emit(0x52)  # push edx                                    -> the key
-    a.emit(0x8B, 0x0D, _u32(THE_GAME_TEXT))  # mov ecx, [TheGameText]
+    a.emit(0x8B, 0x0D, u32(THE_GAME_TEXT))  # mov ecx, [TheGameText]
     a.emit(0x8B, 0x01)  # mov eax, [ecx]
     a.emit(0xFF, 0x50, GAME_TEXT_FORMAT_SLOT)  # call [eax+0x44]
     a.emit(0x89, 0x44, 0x24, 0x08)  # mov [esp+8], eax
@@ -455,7 +359,7 @@ def _emit_line(a: Asm) -> None:
     a.jcc(JE, "el_no_separator")
     a.emit(0x66, 0x83, 0x79, 0x04, 0x00)  # cmp word [ecx+4], 0
     a.jcc(JE, "el_no_separator")
-    a.emit(0x68, _u32(WIDE_NEWLINE))  # push <L"\n">
+    a.emit(0x68, u32(WIDE_NEWLINE))  # push <L"\n">
     a.emit(0x8D, 0x4D, _EBP_TEXT)  # lea ecx, [ebp-0x18]
     a.call_absolute(UNICODE_STRING_CONCAT_WIDE)  # thiscall, ret 4
 
@@ -467,7 +371,7 @@ def _emit_line(a: Asm) -> None:
     # `0x008085C4`. Formatting straight into `ebp-0x18` would delete the description.
     a.emit(0x8B, 0x04, 0x24)  # mov eax, [esp]
     a.emit(0x99)  # cdq
-    a.emit(0xF7, 0x3D, _u32(LOGIC_FRAMES_PER_SECOND))  # idiv dword [logic fps]  -> whole seconds
+    a.emit(0xF7, 0x3D, u32(LOGIC_FRAMES_PER_SECOND))  # idiv dword [logic fps]  -> whole seconds
     a.emit(0x50)  # push eax                                 the one dword vararg
     a.emit(0xFF, 0x74, 0x24, 0x0C)  # push dword [esp+0xc]   the format string
     a.emit(0x8D, 0x4C, 0x24, 0x14)  # lea ecx, [esp+0x14]    -> the line local
@@ -537,7 +441,7 @@ def _emit_ability(a: Asm) -> None:
     a.emit(0x83, 0x64, 0x24, 0x04, 0x00)  # and dword [esp+4], 0
     a.emit(0x8D, 0x04, 0x24)  # lea eax, [esp]
     a.emit(0x50)  # push eax                                    -> the context
-    a.emit(0x68, _u32(SPELL_BOOK_FINDER))  # push <the KINDOF SPELL_BOOK predicate>
+    a.emit(0x68, u32(SPELL_BOOK_FINDER))  # push <the KINDOF SPELL_BOOK predicate>
     a.call_absolute(PLAYER_FOR_EACH_TEAM_OBJECT)  # thiscall, ret 8, and it writes nothing
     a.emit(0x8B, 0x44, 0x24, 0x04)  # mov eax, [esp+4]
     a.emit(0x83, 0xC4, 0x08)  # add esp, 8
@@ -557,8 +461,8 @@ def _emit_ability(a: Asm) -> None:
     # Two locals: the RECHARGE_TIME attribute multiplier and the player discount, both seeded at
     # 1.0 exactly as `startPowerRecharge` seeds them.
     a.emit(0x83, 0xEC, 0x08)  # sub esp, 8
-    a.emit(0xC7, 0x04, 0x24, _u32(0x3F800000))  # mov dword [esp], 1.0f
-    a.emit(0xC7, 0x44, 0x24, 0x04, _u32(0x3F800000))  # mov dword [esp+4], 1.0f
+    a.emit(0xC7, 0x04, 0x24, u32(0x3F800000))  # mov dword [esp], 1.0f
+    a.emit(0xC7, 0x44, 0x24, 0x04, u32(0x3F800000))  # mov dword [esp+4], 1.0f
 
     a.emit(0x8B, 0xCE)  # mov ecx, esi                          the owning object
     a.emit(0x85, 0xC9)  # test ecx, ecx
@@ -581,7 +485,7 @@ def _emit_ability(a: Asm) -> None:
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "ab_no_discount")
     a.call_absolute(PLAYER_RECHARGE_MODIFIER)  # fld [Player+0x718]
-    a.emit(0xD8, 0x05, _u32(FLOAT_ONE))  # fadd dword [1.0f]
+    a.emit(0xD8, 0x05, u32(FLOAT_ONE))  # fadd dword [1.0f]
     a.emit(0xD9, 0x5C, 0x24, 0x04)  # fstp dword [esp+4]
 
     a.label("ab_no_discount")
@@ -593,7 +497,7 @@ def _emit_ability(a: Asm) -> None:
     a.emit(0x83, 0xC4, 0x04)  # add esp, 4
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JGE, "ab_reload_positive")
-    a.emit(0xD8, 0x05, _u32(FLOAT_U32_FIXUP))  # fadd dword [2^32]   the engine's own fixup
+    a.emit(0xD8, 0x05, u32(FLOAT_U32_FIXUP))  # fadd dword [2^32]   the engine's own fixup
 
     a.label("ab_reload_positive")
     a.emit(0xD8, 0x4C, 0x24, 0x04)  # fmul dword [esp+4]      the player discount
@@ -611,11 +515,9 @@ def _emit_ability(a: Asm) -> None:
     a.emit(0x85, 0xFF)  # test edi, edi
     a.jcc(JE, "ab_full")
     a.emit(0x8B, 0x17)  # mov edx, [edi]                      the interface vtable
-    a.emit(0x81, 0x7A, SPECIAL_POWER_INTERFACE_RECHARGE_SLOT, _u32(SPECIAL_POWER_START_RECHARGE))
+    a.emit(0x81, 0x7A, SPECIAL_POWER_INTERFACE_RECHARGE_SLOT, u32(SPECIAL_POWER_START_RECHARGE))
     a.jcc(JE, "ab_flavour_one")
-    a.emit(
-        0x81, 0x7A, SPECIAL_POWER_INTERFACE_RECHARGE_SLOT, _u32(SPECIAL_POWER_START_RECHARGE_ALT)
-    )
+    a.emit(0x81, 0x7A, SPECIAL_POWER_INTERFACE_RECHARGE_SLOT, u32(SPECIAL_POWER_START_RECHARGE_ALT))
     a.jcc(JNE, "ab_full")  # neither flavour: no field here is known to be the ready frame
     a.emit(0x83, 0x7F, SPECIAL_POWER_INTERFACE_PAUSE_COUNT_ALT, 0x00)  # cmp dword [edi+8], 0
     a.jcc(JNE, "ab_full")  # paused: the ready frame is stale until it resumes
@@ -628,17 +530,17 @@ def _emit_ability(a: Asm) -> None:
     a.emit(0x8B, 0x47, SPECIAL_POWER_INTERFACE_READY_FRAME)  # mov eax, [edi+8]
 
     a.label("ab_ready_frame")
-    a.emit(0x8B, 0x0D, _u32(THE_GAME_LOGIC))  # mov ecx, [TheGameLogic]
+    a.emit(0x8B, 0x0D, u32(THE_GAME_LOGIC))  # mov ecx, [TheGameLogic]
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "ab_full")
     a.emit(0x2B, 0x41, GAME_LOGIC_FRAME)  # sub eax, [ecx+0x40]
     a.jcc(JLE, "ab_full")  # ready, or a timer this module never started
-    a.emit(0xBA, _u32(a.label_va("key_cooldown_remaining")))  # mov edx, <key>
+    a.emit(0xBA, u32(a.label_va("key_cooldown_remaining")))  # mov edx, <key>
     a.jmp("emit_line")
 
     a.label("ab_full")
     a.emit(0x8B, 0xC3)  # mov eax, ebx
-    a.emit(0xBA, _u32(a.label_va("key_cooldown")))  # mov edx, <key>
+    a.emit(0xBA, u32(a.label_va("key_cooldown")))  # mov edx, <key>
     a.jmp("emit_line")
 
     a.label("ab_out")
@@ -682,7 +584,7 @@ def _emit_upgrade(a: Asm) -> None:
     a.call_absolute(UPGRADE_TEMPLATE_CALC_TIME_TO_BUILD)  # ret 8, -> frames
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JLE, "up_out")
-    a.emit(0xBA, _u32(a.label_va("key_research_time")))  # mov edx, <key>
+    a.emit(0xBA, u32(a.label_va("key_research_time")))  # mov edx, <key>
     a.jmp("emit_line")
 
     a.label("up_out")
@@ -701,7 +603,7 @@ def _emit_unit(a: Asm) -> None:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "un_out")
     # A hero's time is the ledger's, not this template's - see THING_TEMPLATE_HERO_FLAG.
-    a.emit(0xF6, 0x80, _u32(THING_TEMPLATE_HERO_FLAG), THING_TEMPLATE_HERO_FLAG_MASK)
+    a.emit(0xF6, 0x80, u32(THING_TEMPLATE_HERO_FLAG), THING_TEMPLATE_HERO_FLAG_MASK)
     a.jcc(JNE, "un_out")
     a.emit(0x8B, 0xC8)  # mov ecx, eax
     a.emit(0x6A, 0xFF)  # push -1                         use the template's own BuildTime
@@ -710,7 +612,7 @@ def _emit_unit(a: Asm) -> None:
     a.call_absolute(THING_TEMPLATE_CALC_TIME_TO_BUILD)  # ret 0xc, -> frames
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JLE, "un_out")
-    a.emit(0xBA, _u32(a.label_va("key_build_time")))  # mov edx, <key>
+    a.emit(0xBA, u32(a.label_va("key_build_time")))  # mov edx, <key>
     a.jmp("emit_line")
 
     a.label("un_out")
@@ -724,7 +626,7 @@ def _emit(a: Asm) -> None:
     `Asm.label_va` can only answer for a label that has already been placed.
     """
     a.label("button_stash")
-    a.emit(_u32(0))
+    a.emit(u32(0))
     for key, text in KEYS.items():
         a.label(f"key_{key}")
         a.emit(text.encode("ascii") + b"\x00")
@@ -735,7 +637,7 @@ def _emit(a: Asm) -> None:
     # instructions are reproduced verbatim; the resume point is the `cmp ecx, edi` that tests it.
     a.label("capture")
     a.emit(DESCRIPTION_BUTTON_CAPTURE_BYTES)
-    a.emit(0x89, 0x0D, _u32(a.label_va("button_stash")))  # mov [button_stash], ecx
+    a.emit(0x89, 0x0D, u32(a.label_va("button_stash")))  # mov [button_stash], ecx
     a.jmp_absolute(DESCRIPTION_BUTTON_CAPTURE_RESUME)
 
     # Hook 2: the tail. `pushad` because this is the join of every case and the register state
@@ -753,7 +655,7 @@ def _emit(a: Asm) -> None:
     # is what lets the ability arm cover every flavour of special-power button without this patch
     # having to know their enum values.
     a.label("lines")
-    a.emit(0x8B, 0x35, _u32(a.label_va("button_stash")))  # mov esi, [button_stash]
+    a.emit(0x8B, 0x35, u32(a.label_va("button_stash")))  # mov esi, [button_stash]
     a.emit(0x85, 0xF6)  # test esi, esi
     a.jcc(JE, "no_button")
     a.emit(0x8B, 0x5E, COMMAND_BUTTON_SPECIAL_POWER)  # mov ebx, [esi+0x44]
@@ -778,6 +680,7 @@ class DescriptionTimersPatch(Patch):
 
     name = "description-timers"
     author = "officialNecro"
+    runtime_verified = "partly"
     description = (
         "Put a button's timer at the bottom of its description: an ability's cooldown (full "
         "when ready, remaining while recharging), a unit's build time and an upgrade's research "
@@ -807,14 +710,14 @@ class DescriptionTimersPatch(Patch):
         if find_section(data, SECTION_NAME) is not None:
             raise ValueError(f"the file already carries a {SECTION_NAME} section")
         for va, expected in self._windows():
-            got = _at(data, va, len(expected))
+            got = read_bytes(data, va, len(expected))
             if got != expected:
                 raise ValueError(
                     f"{va:#010x} holds {got.hex()}, expected {expected.hex()} - this is not the "
                     "ControlBar description builder this patch was written against"
                 )
         for va, expected in _ENGINE_ANCHORS.items():
-            got = _at(data, va, len(expected))
+            got = read_bytes(data, va, len(expected))
             if got != expected:
                 raise ValueError(
                     f"{va:#010x} holds {got.hex()}, expected {expected.hex()} - the engine "
@@ -823,7 +726,7 @@ class DescriptionTimersPatch(Patch):
 
     @staticmethod
     def _windows() -> list[tuple[int, bytes]]:
-        """The engine bytes this patch replaces, as ``(va, original)``."""
+        """The engine bytes this patch replaces, as `(va, original)`."""
         return [
             (DESCRIPTION_BUTTON_CAPTURE, DESCRIPTION_BUTTON_CAPTURE_BYTES),
             (DESCRIPTION_TAIL, DESCRIPTION_TAIL_BYTES),
@@ -838,8 +741,8 @@ class DescriptionTimersPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, section_va: int
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """``(file offset, original bytes, patched bytes, note)`` for every engine byte this patch
-        rewrites - one list, so :meth:`apply` writes exactly what :meth:`verify` asserts."""
+        """`(file offset, original bytes, patched bytes, note)` for every engine byte this patch
+        rewrites - one list, so `apply` writes exactly what `verify` asserts."""
         assembled = self._assemble(section_va)
         edits = []
         for (va, original), label, note in zip(
@@ -851,7 +754,7 @@ class DescriptionTimersPatch(Patch):
             off = va_to_offset(data, va)
             if off is None:
                 raise ValueError(f"{va:#010x} is not mapped - not the expected build")
-            patched = _jmp(va, assembled.label_va(label))
+            patched = jmp_rel32(va, assembled.label_va(label))
             patched += b"\x90" * (len(original) - len(patched))
             edits.append((off, original, patched, note))
         return edits
@@ -878,7 +781,7 @@ class DescriptionTimersPatch(Patch):
                 problems.append(f"{note} @0x{file_off:x}: expected {new.hex()}, got {got.hex()}")
 
         for va, expected in _ENGINE_ANCHORS.items():
-            got = _at(data, va, len(expected))
+            got = read_bytes(data, va, len(expected))
             if got != expected:
                 problems.append(f"{va:#010x} holds {got.hex()}, expected {expected.hex()}")
         return problems
@@ -892,14 +795,3 @@ class DescriptionTimersPatch(Patch):
         except (ValueError, KeyError, IndexError, TypeError, struct.error):
             return None
         return cls() if not problems else None
-
-
-def _at(data: bytes | bytearray, va: int, count: int) -> bytes:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"{va:#010x} is not mapped - not the expected build")
-    return bytes(data[off : off + count])
-
-
-def _jmp(at_va: int, target_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", target_va - (at_va + 5))

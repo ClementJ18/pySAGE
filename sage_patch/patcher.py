@@ -1,11 +1,9 @@
-"""The patch framework: a :class:`Patch` mutates an in-memory `game.dat` image, and
-:func:`apply_patches` runs a sequence of them over a copy and writes the result.
+"""The patch framework: a `Patch` mutates an in-memory `game.dat` image, and `apply_patches` runs a
+sequence of them over a copy and writes the result.
 
-A concrete patch subclasses :class:`Patch` and implements :meth:`Patch.apply`, mutating the
-``bytearray`` in place and raising on any verification failure (e.g. unexpected original bytes).
-Because every patch verifies before it writes, an ordered list either applies cleanly in full or
-raises without leaving a half-patched file on disk (the buffer is only written out once all
-patches succeed)."""
+Every patch checks the original bytes before it writes, so a list either applies in full or raises
+before anything reaches disk.
+"""
 
 from __future__ import annotations
 
@@ -18,12 +16,19 @@ from typing import TYPE_CHECKING
 
 from sage_ini.engine import STOCK, Engine
 
+__all__ = [
+    "apply_patches",
+    "EXPERIMENTAL_WARNING",
+    "log",
+    "Patch",
+]
+
 if TYPE_CHECKING:
     import argparse
 
 log = logging.getLogger("sage_patch")
 
-#: What :attr:`Patch.experimental` means, in one sentence, shared by everything that says it so the
+#: What `Patch.experimental` means, in one sentence, shared by everything that says it so the
 #: CLI and the log cannot drift into two different promises.
 EXPERIMENTAL_WARNING = (
     "unstable and largely untested - it applies and verifies, but it has not been established in "
@@ -34,103 +39,64 @@ EXPERIMENTAL_WARNING = (
 class Patch:
     """One binary modification of a `game.dat` image.
 
-    Subclasses set :attr:`name`/:attr:`description` and implement :meth:`apply`. To be reachable
-    from the ``sage-patch`` CLI, a patch is registered in :mod:`sage_patch.registry`; it may
-    override :meth:`add_cli_arguments`/:meth:`from_cli_args` to accept parameters,
-    :meth:`verify` to make its result independently checkable, :meth:`detect` to be recognised
-    (with its parameters) in a binary someone else patched, and :meth:`ini_surface` to say what
-    it changes about the INI the engine accepts.
+    Subclasses set `name`, `description` and `author` and implement `apply`. Register the patch in
+    `sage_patch.registry` to reach it from the CLI. Optional overrides: `add_cli_arguments` /
+    `from_cli_args` for parameters, `verify` to make the result checkable, `detect` to recognise it
+    (with its parameters) in someone else's binary, and `ini_surface` to declare the INI it adds.
 
-    Composing patches
-    -----------------
-    The bundled patches are order-independent: any subset applies in any order. A new patch keeps
-    that property by observing three rules, in decreasing order of how mechanically they hold.
+    Patches compose in any order and subset as long as each new one keeps three rules:
 
-    1. **Allocate caves with** :func:`~sage_patch.utils.allocate_section`, never at a fixed RVA,
-       and have :meth:`verify` locate the cave with :func:`~sage_patch.utils.find_section` rather
-       than recomputing where it "should" be. Appending past the highest existing section keeps
-       the section table sorted by RVA no matter what else has been added; a hardcoded RVA
-       composes only when its patch happens to be applied first. Appending never moves an existing
-       section, so file offsets stay stable for everyone.
-    2. **Do not edit bytes another patch edits.** This is not enforced, but it does fail loudly:
-       :func:`~sage_patch.utils.apply_byte_patch` asserts the original bytes before writing, so
-       the second patch to reach a shared site raises instead of silently corrupting it.
-    3. **Do not derive your output from bytes another patch rewrites.** This is the one the
-       framework cannot catch — both orders would "succeed" and disagree. If a patch must read a
-       structure another patch rebuilds, say so in its docstring and treat the pair as ordered."""
+    1. **Allocate caves with `sage_patch.utils.allocate_section`**, never at a fixed RVA, and have
+       `verify` find the cave with `find_section`. Appending never moves an existing section.
+    2. **Do not edit bytes another patch edits.** Not enforced, but `apply_byte_patch` checks the
+       original bytes, so the second patch to reach a site raises.
+    3. **Do not derive output from bytes another patch rewrites.** The framework cannot catch this;
+       if a patch must, say so in its docstring and treat the pair as ordered.
+    """
 
     name: str = ""
 
-    #: What the patch does and **what a mod has to write to use it**, as one unbroken line -
-    #: `sage-patch list` prints it in a table and `apply <name> --help` puts it at the top, and
-    #: both are read by somebody deciding whether to apply this. So the description names the
-    #: concrete surface: the INI keywords and enum tokens it adds, the `.str`/`.csf` keys a new
-    #: tooltip line stays silent without, the `.apt` clips a widened UI needs, the map data that
-    #: opts in - and, where a patch needs none of that, says so, because "is there something I
-    #: am supposed to declare" is the same question either way.
-    #:
-    #: No trailing full stop: `apply <name> --help` appends one for an experimental patch.
+    #: One line: what the patch does and what a mod has to write to use it (INI keywords, tokens,
+    #: string keys, `.apt` clips - or that it needs none). Shown by `list`, `apply --help` and the
+    #: README table. No trailing full stop.
     description: str = ""
-    #: Who worked out this patch, for the credit line :func:`apply_patches` prints. A patch is
-    #: somebody's reverse engineering before it is anybody's code - the addresses, the call
-    #: convention and the reason the original bytes are what they are - and that work is invisible
-    #: in the diff once the assembly is written down. Naming the author here is how a mod that
-    #: ships the patched binary can say whose it was; see the README's "Credit" section.
-    #:
-    #: **Empty by default, deliberately.** A default naming a person attributes every future
-    #: patch to them silently, which is exactly the failure this attribute exists to prevent, so
-    #: an unattributed patch says so and a new one has to state its own.
+    #: Who did the reverse engineering, for the credit line `apply_patches` prints. Empty by
+    #: default so a new patch must state its own rather than inherit someone's name.
     author: str = ""
 
-    #: Whether this patch is **experimental**, in the sense of :data:`EXPERIMENTAL_WARNING`: the
-    #: assembly is written and the binary comes out verifying, but the result has not been
-    #: established in a real game - so what the patch does past "the file still loads" is a claim
-    #: rather than an observation.
-    #:
-    #: This is not a quality grade and it is not about the RE being shakier. It marks the patches
-    #: that live in :mod:`sage_patch.patches.experimental`, and the two must agree: the module a
-    #: patch lives in is how a reader finds out, and this attribute is how ``apply`` says it out
-    #: loud to somebody who never opens the source. ``TestExperimentalPatchesAreDeclared`` fails
-    #: when they disagree in either direction.
-    #:
-    #: **False by default**, deliberately, for the mirror of the reason :attr:`author` is empty by
-    #: default: defaulting to True would put a warning in front of settled patches until each one
-    #: opted out, and a warning everything prints is a warning nobody reads.
+    #: Whether the patch is experimental (see `EXPERIMENTAL_WARNING`). Must agree with living in
+    #: `sage_patch.patches.experimental`; a test checks both directions.
     experimental: bool = False
+    #: Whether the patch has been observed working in a running game: `"yes"`, `"partly"` (some of
+    #: it has), or `""` (not yet). The patch's write-up has the details.
+    runtime_verified: str = ""
 
     @property
     def credit(self) -> str:
-        """This patch and who to credit for it, as one line - `name (by author)`.
-
-        Kept apart from :meth:`__str__`, which several callers use as an identifier: `verify`
-        prints it into an OK/FAIL line and `sagepatch` lists it as what was found in a binary,
-        and neither is asking who wrote it.
+        """This patch and who to credit for it, as one line: `name (by author)`. Separate from
+        `__str__`, which callers use as an identifier.
         """
         return f"{self} (by {self.author})" if self.author else f"{self} (author unrecorded)"
 
     def apply(self, data: bytearray) -> None:
-        """Mutate ``data`` in place. Raise (typically ``ValueError``) if the image is not the
+        """Mutate `data` in place. Raise (typically `ValueError`) if the image is not the
         expected build or a patch site does not match."""
         raise NotImplementedError
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Return the structural problems that mean ``data`` does not carry this patch (an empty
+        """Return the structural problems that mean `data` does not carry this patch (an empty
         list == verified). Default: nothing checkable. Overrides should not disassemble, so that
         verification stays dependency-light."""
         return []
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> Patch | None:
-        """The instance of this patch that ``data`` carries, or None if it does not carry one.
+        """The instance of this patch that `data` carries, or None.
 
-        The default probes with the patch's own defaults and asks :meth:`verify`. **A patch with
-        parameters must override this** and recover them from the image: `verify` only answers
-        "does this file carry *this* configuration", so a default-built probe reports a patch
-        applied with any other parameters as absent.
-
-        Never raises. A `verify` (or a constructor) that trips over an unrecognised build is
-        answering "not this patch", which is exactly what a detection sweep over an arbitrary
-        `game.dat` needs."""
+        The default probes with the patch's defaults through `verify`, so **a patch with parameters
+        must override this** and recover them from the image. Never raises: failing on an unfamiliar
+        build means "not this patch".
+        """
         try:
             patch = cls()
             problems = patch.verify(data)
@@ -139,19 +105,12 @@ class Patch:
         return None if problems else patch
 
     def options(self) -> dict[str, object]:
-        """The parameters this instance was built with, as the keyword arguments that rebuild it
-        - `{"count": 64}` for a `commandset-limit` at 64, `{}` for a patch that takes none.
+        """The parameters this instance was built with, as constructor keyword arguments: `{"count":
+        64}` for `commandset-limit` at 64, `{}` for a patch with none.
 
-        This is what makes a detected patch writable down and replayable: `sagepatch` records it
-        in the `.sagepatch` manifest and `rebuild` passes it straight back to the constructor, so
-        a build reproduces at the counts and keywords it was actually made with rather than at
-        this version's defaults.
-
-        The default reads the constructor's own named parameters off the instance, which is the
-        convention every bundled patch already follows (`__init__(self, count=64)` storing
-        `self.count`). A patch that keeps its parameters under other names overrides this; a
-        parameter with no matching attribute is skipped, and so is one that is None, which is how
-        an optional parameter says "left at the default" in a format that has no null.
+        `sagepatch` records these in the `.sagepatch` manifest and `rebuild` passes them back. The
+        default reads each constructor parameter off the attribute of the same name, skipping None;
+        a patch that stores its parameters differently overrides this.
         """
         found: dict[str, object] = {}
         for name, parameter in inspect.signature(type(self).__init__).parameters.items():
@@ -165,23 +124,21 @@ class Patch:
         return found
 
     def ini_surface(self) -> Engine:
-        """What this patch changes about the **INI** the engine accepts, as an
-        :class:`~sage_ini.engine.Engine`: fields it adds to a block, tokens it adds to a name
-        table, ceilings it raises, fields it retires. Default: nothing.
+        """What this patch changes about the INI the engine accepts, as a `sage_ini.engine.Engine`
+        (fields, name-table tokens, raised limits, retired fields). Default: nothing.
 
-        Declared here, beside the assembly that implements it, so the two cannot drift - and read
-        by ``sage-patch sagepatch`` to write the `.sagepatch` that teaches `sage_ini` and
-        `sage_lint` about this engine. It describes *this instance*, so a parameterized patch
-        reports the names and counts it was actually built with."""
+        Read by `sage-patch sagepatch` to write the `.sagepatch` that teaches `sage_ini` and
+        `sage_lint` about the patched engine. Describes this instance, so parameters are reflected.
+        """
         return STOCK
 
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
-        """Register this patch's parameters as CLI options on ``parser``. Default: none."""
+        """Register this patch's parameters as CLI options on `parser`. Default: none."""
 
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> Patch:
-        """Build an instance from parsed CLI ``args``. Default: the no-argument constructor."""
+        """Build an instance from parsed CLI `args`. Default: the no-argument constructor."""
         return cls()
 
     def __str__(self) -> str:
@@ -193,19 +150,10 @@ def apply_patches(
     patches: Iterable[Patch],
     output: str | Path | None = None,
 ) -> Path:
-    """Apply ``patches`` (in order) to a copy of ``game_dat`` and write the result.
+    """Apply `patches`, in order, to a copy of `game_dat` and write the result.
 
-    Parameters
-    ----------
-    game_dat:
-        Path to the input binary. It is read but never modified.
-    patches:
-        The :class:`Patch` instances to apply, in order.
-    output:
-        Where to write the patched binary. Defaults to ``game_dat`` (in-place overwrite);
-        pass an explicit path to keep the original.
-
-    Returns the path written. Raises before writing anything if any patch fails to verify.
+    `output` defaults to `game_dat` itself (overwriting it); pass a path to keep the original.
+    Returns the path written. Raises before writing anything if any patch fails.
     """
     src = Path(game_dat)
     data = bytearray(src.read_bytes())

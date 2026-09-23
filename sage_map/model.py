@@ -23,7 +23,16 @@ from sage_map.assets.player_scripts import Script, ScriptGroup
 from sage_map.map import Map, parse_map_from_path
 from sage_map.scripts import ResolvedArg, Scope, typed_value
 
-# Object-property keys the harvest reads (see the probe in docs/sage_map_plan.md history).
+__all__ = [
+    "build_symbols",
+    "iter_script_arguments",
+    "MapModel",
+    "MapSymbols",
+    "script_names",
+    "ScriptArgRef",
+]
+
+# Object-property keys the harvest reads.
 _TEAM_NAME = "teamName"
 _TEAM_OWNER = "teamOwner"
 _PLAYER_NAME = "playerName"

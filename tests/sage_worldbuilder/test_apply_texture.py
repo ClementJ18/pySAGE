@@ -32,7 +32,7 @@ def grass_map(heights=None):
     map.blend_tile_data = blank_blend_tile_data(20, 16, "Grass")
     document = MapDocument(map)
     if heights is not None:
-        from sage_worldbuilder.terrain.edits import PatchHeights  # noqa: PLC0415
+        from sage_worldbuilder.commands.terrain import PatchHeights  # noqa: PLC0415
 
         document.execute(PatchHeights(0, 0, heights))
     return document

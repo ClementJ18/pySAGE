@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import QApplication  # noqa: E402
 from sage_map.assets.global_lighting import TimeOfTheDay  # noqa: E402
 from sage_map.map import parse_map, write_map  # noqa: E402
 from sage_worldbuilder import MapDocument, map_defaults  # noqa: E402
-from sage_worldbuilder.cameras import CameraView  # noqa: E402
+from sage_worldbuilder.camera.named import CameraView  # noqa: E402
 from sage_worldbuilder.lighting import (  # noqa: E402
     LightSlot,
     LightTarget,

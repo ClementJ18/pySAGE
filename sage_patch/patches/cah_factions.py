@@ -1,44 +1,12 @@
-"""The Create-A-Hero faction patch, as a :class:`~..patcher.Patch`.
+"""Add mod sides and an `All` token to the Create-A-Hero faction enum, so a `CreateAHeroClass`
+`SubClass` can name them in `UsableFactions` and `DefaultFaction`.
 
-Teaches the engine's nine-name side enum a caller-supplied list of mod sides plus an ``All``
-token, so a `CreateAHeroClass` `SubClass` can name them in `UsableFactions` and `DefaultFaction`.
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. See
-``../docs/cah-faction-limit.md`` for the derivation of every site.
+Stock, the enum is the nine-name side table and an unknown side resolves to index 9, which no mask
+bit can name, so a mod side gets no Create-A-Hero subclasses. The patch builds a longer table in a
+cave and repoints the references to it. Sides are bit positions in two 32-bit masks, which caps the
+list at 22 sides. `CahFactionsWorldbuilderPatch` teaches the editor the same tokens.
 
-Stock, `UsableFactions` is a 32-bit mask on each `SubClass` with one bit per entry of a
-NULL-terminated name table (``Men Elves Dwarves Isengard Mordor Wild Angmar Arnor Neutral``). A
-side reaches that mask through `PlayerTemplate::getSideIndex`, which resolves its `Side` string
-against the same table by exact compare and answers ``9`` — one past the end — for anything it
-does not recognise. Since the INI parser rejects any token outside the table, bit 9 can never be
-set, so a mod side is silently offered no CAH subclasses at all.
-
-**Composition.** Order-independent: it allocates its cave past every existing section and
-:meth:`verify` finds it by name, it shares no edited byte with any other bundled patch, and the
-only structure it reads — the stock side table — is one nothing else rewrites (it is repointed
-away from, never modified). See the composition contract on :class:`~..patcher.Patch`.
-
-The patch has three parts:
-
-* **The table.** A superset table — the nine stock entries in their original order, then ``All``,
-  then the caller's sides — is built in an appended ``.cahfac`` PE section, and all 28 references
-  are repointed to it. Consumers that scan to the NULL terminator pick up the longer list;
-  consumers bounded by a hard-coded count or end address keep their present behaviour exactly,
-  which is why the stock nine must not move.
-* **The resolver.** `getSideIndex`'s scan bound ``cmp esi, 9`` becomes the new entry count. Its
-  not-found answer is deliberately *left* at ``9``, which the new table makes mean ``All`` — so an
-  unrecognised side gets the subclasses that opted into ``All``, and nothing else.
-* **The ``All`` token.** Rather than teach three separate gates about a magic bit, the
-  `UsableFactions` field parser is wrapped: the stock parser still runs (and still rejects typos),
-  then the wrapper expands a set ``All`` bit to a mask of all ones. Every existing test of the
-  mask — the `isFactionUsable` leaf at ``0x00619477`` and the two inlined copies at ``0x00842E96``
-  and ``0x00843C0F`` — passes without being touched, and so would any the engine adds elsewhere.
-
-Why the ceiling is 22 sides
----------------------------
-A side index is used as a **bit position in two independent 32-bit masks** — `UsableFactions` at
-``SubClass+0x68``, and a stack-local at ``0x00932745``. Both are a single dword, so an index of 32
-would make ``shr …, 5`` yield 1 and read the dword *past* the mask (`ViewInfo`, in the first case).
-With indices 0..8 stock and 9 reserved for ``All``, the highest usable index is 31: 22 sides.
+Derivation: `../docs/cah-faction-limit.md`.
 """
 
 from __future__ import annotations
@@ -54,6 +22,8 @@ from ..utils import (
     allocate_section,
     apply_byte_patch,
     find_section,
+    read_cstring,
+    u32,
     va_to_offset,
 )
 from .utils.name_tables import check_not_rebased, layout, read_terminated
@@ -61,7 +31,7 @@ from .utils.name_tables import check_not_rebased, layout, read_terminated
 if TYPE_CHECKING:
     import argparse
 
-# --- fixed facts about the target build (VA, ImageBase 0x400000) ---
+# Fixed facts about the target build (VA, ImageBase 0x400000)
 _SIDE_TABLE_VA = 0x00DA3AC0  # the stock 9-entry side name table (code copy)
 _INI_TABLE_VA = 0x00D9EDD0  # the identical copy used as DefaultFaction's userData
 _STOCK_PARSER_VA = 0x0061C0A5  # the stock UsableFactions field parser (cdecl thunk)
@@ -143,20 +113,8 @@ _SECTION_NAME = ".cahfac"
 _SECTION_CHARACTERISTICS = 0x60000060
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    return None if end < 0 else bytes(data[off : off + end]).decode("latin1")
-
-
 def validate_sides(sides: tuple[str, ...]) -> None:
-    """Raise unless ``sides`` is a list both halves of this patch can install.
+    """Raise unless `sides` is a list both halves of this patch can install.
 
     Shared by the two halves, so a list the game accepts cannot be one the editor rejects - which
     would be a build with the table grown in only one of the two binaries."""
@@ -186,15 +144,15 @@ def validate_sides(sides: tuple[str, ...]) -> None:
 def _wrapper_code(wrapper_va: int) -> bytes:
     """The 43-byte `UsableFactions` parser wrapper that lives in the cave.
 
-    A cdecl ``(ini, instance, store, userData)`` shim: forward all four arguments to the stock
-    parser, then expand a set `All` bit in the mask it wrote to all ones. ``store`` is the address
+    A cdecl `(ini, instance, store, userData)` shim: forward all four arguments to the stock
+    parser, then expand a set `All` bit in the mask it wrote to all ones. `store` is the address
     of the mask itself, which is what the stock thunk uses it as."""
     a = Asm(wrapper_va)
     a.emit(b"\xff\x74\x24\x10" * 4)  # push [esp+0x10] x4 -> ini, instance, store, userData
     a.call_absolute(_STOCK_PARSER_VA)  # call <stock parser>
     a.emit(b"\x83\xc4\x10")  # add esp, 0x10
     a.emit(b"\x8b\x44\x24\x0c")  # mov eax, [esp+0xc]      ; store = &mask
-    a.emit(b"\xf7\x00", _u32(1 << ALL_INDEX))  # test dword [eax], <All bit>
+    a.emit(b"\xf7\x00", u32(1 << ALL_INDEX))  # test dword [eax], <All bit>
     a.jcc_short(JZ, "done")  # jz .done
     a.emit(b"\xc7\x00\xff\xff\xff\xff")  # mov dword [eax], 0xffffffff
     a.label("done")
@@ -203,7 +161,7 @@ def _wrapper_code(wrapper_va: int) -> bytes:
 
 
 class CahFactionsPatch(Patch):
-    """Add mod sides and an ``All`` token to the Create-A-Hero faction enum."""
+    """Add mod sides and an `All` token to the Create-A-Hero faction enum."""
 
     name = "cah-factions"
     author = "officialNecro"
@@ -242,7 +200,7 @@ class CahFactionsPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def ini_surface(self) -> Engine:
-        """The tokens this patch adds to the Create-A-Hero side table: ``All``, then the caller's
+        """The tokens this patch adds to the Create-A-Hero side table: `All`, then the caller's
         sides in the order they were installed.
 
         `CreateAHeroClass`'s `DefaultFaction` is typed as that enum in the model, so a subclass
@@ -254,7 +212,7 @@ class CahFactionsPatch(Patch):
 
         Declaring them here is also what obliges the editor half to exist: Worldbuilder holds its
         own copies of this table and parses `CreateAHeroClass`, so apply
-        :class:`CahFactionsWorldbuilderPatch` to `Worldbuilder.exe` with the same sides in the
+        `CahFactionsWorldbuilderPatch` to `Worldbuilder.exe` with the same sides in the
         same order."""
         return Engine(
             enum_members=tuple(
@@ -264,10 +222,10 @@ class CahFactionsPatch(Patch):
         )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` already carries this patch for exactly these sides (an
-        empty list == verified). Locates the ``.cahfac`` cave, recomputes the table, strings and
+        """Structural check that `data` already carries this patch for exactly these sides (an
+        empty list == verified). Locates the `.cahfac` cave, recomputes the table, strings and
         wrapper that these sides imply, and compares them and every repointed site to what is on
-        disk. Reads only via ``struct`` + the section table, so it needs no disassembler."""
+        disk. Reads only via `struct` + the section table, so it needs no disassembler."""
         located = find_section(data, _SECTION_NAME)
         if located is None:
             return [f"no {_SECTION_NAME} section: the file does not carry this patch"]
@@ -295,14 +253,14 @@ class CahFactionsPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> CahFactionsPatch | None:
-        """Recognise this patch **and recover its sides** from ``data``.
+        """Recognise this patch **and recover its sides** from `data`.
 
-        The default probe cannot: it builds the patch with no sides and asks :meth:`verify`, which
+        The default probe cannot: it builds the patch with no sides and asks `verify`, which
         answers "does this file carry *this* side list" - so a binary patched with any sides at all
         reports the patch as absent, which is the one case worth detecting. `getSideIndex`'s
         rewritten scan bound holds the entry count, and the cave opens with one name pointer per
-        entry, so the names read straight back out: everything past the stock nine and ``All``,
-        which the constructor re-adds. :meth:`verify` then re-checks all 30 sites against them."""
+        entry, so the names read straight back out: everything past the stock nine and `All`,
+        which the constructor re-adds. `verify` then re-checks all 30 sites against them."""
         located = find_section(data, _SECTION_NAME)
         if located is None:
             return None
@@ -320,7 +278,7 @@ class CahFactionsPatch(Patch):
             pointers = struct.unpack_from(f"<{entry_count}I", data, section_off)
             sides: list[str] = []
             for pointer in pointers[ALL_INDEX + 1 :]:
-                name = _read_cstring(data, pointer)
+                name = read_cstring(data, pointer)
                 if name is None:
                     return None
                 sides.append(name)
@@ -347,7 +305,7 @@ class CahFactionsPatch(Patch):
         return cls(sides=sides)
 
     def _compute_section(self, data: bytes | bytearray, section_va: int) -> tuple[bytes, int]:
-        """Return ``(section content, wrapper VA)`` for a cave based at ``section_va``.
+        """Return `(section content, wrapper VA)` for a cave based at `section_va`.
 
         Layout: the superset pointer table, then the `All` and side name strings it points at,
         then the parser wrapper. The stock nine entries are copied through by pointer so they keep
@@ -365,7 +323,7 @@ class CahFactionsPatch(Patch):
         while len(blob) % 4:  # keep the wrapper dword-aligned
             blob += b"\x00"
 
-        table = b"".join(_u32(p) for p in (*stock, *new_ptrs)) + _u32(0)
+        table = b"".join(u32(p) for p in (*stock, *new_ptrs)) + u32(0)
         assert len(table) == table_size
 
         wrapper_va = strings_va + len(blob)
@@ -384,7 +342,7 @@ class CahFactionsPatch(Patch):
                 f"(found 0x{ptrs[-1]:08x})"
             )
         for ptr, expected in zip(ptrs, STOCK_SIDES, strict=False):
-            got = _read_cstring(data, ptr)
+            got = read_cstring(data, ptr)
             if got != expected:
                 raise ValueError(f"unexpected build: side table has {got!r}, expected {expected!r}")
         return ptrs[:-1]
@@ -392,9 +350,9 @@ class CahFactionsPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, section_va: int, wrapper_va: int
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """The 30 ``(file_offset, original bytes, patched bytes, note)`` edits that point the
-        engine at the new table and wrapper. Shared by :meth:`apply` (writes ``patched`` if
-        ``original`` matches) and :meth:`verify` (asserts ``patched`` is present); both derive
+        """The 30 `(file_offset, original bytes, patched bytes, note)` edits that point the
+        engine at the new table and wrapper. Shared by `apply` (writes `patched` if
+        `original` matches) and `verify` (asserts `patched` is present); both derive
         every value from the constants above, so neither needs to read the sites first."""
 
         def offset(va: int) -> int:
@@ -406,30 +364,30 @@ class CahFactionsPatch(Patch):
         edits: list[tuple[int, bytes, bytes, str]] = []
         for va in _TABLE_REF_VAS:
             edits.append(
-                (offset(va), _u32(_SIDE_TABLE_VA), _u32(section_va), f"table ref @0x{va:08x}")
+                (offset(va), u32(_SIDE_TABLE_VA), u32(section_va), f"table ref @0x{va:08x}")
             )
         for va in _TABLE_END_REF_VAS:
             edits.append(
                 (
                     offset(va),
-                    _u32(_SIDE_TABLE_VA + _TABLE_END_DELTA),
-                    _u32(section_va + _TABLE_END_DELTA),
+                    u32(_SIDE_TABLE_VA + _TABLE_END_DELTA),
+                    u32(section_va + _TABLE_END_DELTA),
                     f"stock-eight loop bound @0x{va:08x}",
                 )
             )
         edits.append(
             (
                 offset(_DEFAULT_FACTION_USERDATA_VA),
-                _u32(_INI_TABLE_VA),
-                _u32(section_va),
+                u32(_INI_TABLE_VA),
+                u32(section_va),
                 "DefaultFaction userData",
             )
         )
         edits.append(
             (
                 offset(_USABLE_FACTIONS_PARSER_VA),
-                _u32(_STOCK_PARSER_VA),
-                _u32(wrapper_va),
+                u32(_STOCK_PARSER_VA),
+                u32(wrapper_va),
                 "UsableFactions parser -> wrapper",
             )
         )
@@ -497,7 +455,7 @@ WORLDBUILDER_TERMINATOR_VA = WORLDBUILDER_TABLE_VA + len(STOCK_SIDES) * 4
 WORLDBUILDER_INI_TABLE_VA = 0x0222F470
 WORLDBUILDER_DEFAULT_FACTION_USERDATA_VA = 0x0222F7F0
 
-#: Every reference to the code copy, as ``(instruction VA, the bytes before its imm32/disp32)``.
+#: Every reference to the code copy, as `(instruction VA, the bytes before its imm32/disp32)`.
 #: Asserting the encoding as well as the address means a coincidental copy of the value elsewhere
 #: cannot be mistaken for one of these.
 #:
@@ -601,7 +559,7 @@ class CahFactionsWorldbuilderPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` already carries this patch for exactly these sides (an
+        """Structural check that `data` already carries this patch for exactly these sides (an
         empty list == verified). Recomputes the cave these sides imply and compares it, and every
         repointed or rewritten site, against what is on disk."""
         located = find_section(data, WORLDBUILDER_SECTION_NAME)
@@ -630,12 +588,12 @@ class CahFactionsWorldbuilderPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> CahFactionsWorldbuilderPatch | None:
-        """Recognise this patch **and recover its sides** from ``data``.
+        """Recognise this patch **and recover its sides** from `data`.
 
-        The default probe builds the patch with no sides and asks :meth:`verify`, so an editor
+        The default probe builds the patch with no sides and asks `verify`, so an editor
         patched with any sides at all would read as unpatched - the one case worth detecting. The
-        cave *is* the rebuilt table, so its entries past the stock nine and ``All`` are the names
-        this patch added, and the constructor re-adds ``All``."""
+        cave *is* the rebuilt table, so its entries past the stock nine and `All` are the names
+        this patch added, and the constructor re-adds `All`."""
         located = find_section(data, WORLDBUILDER_SECTION_NAME)
         if located is None:
             return None
@@ -648,7 +606,7 @@ class CahFactionsWorldbuilderPatch(Patch):
                 return None
             sides: list[str] = []
             for pointer in pointers[ALL_INDEX + 1 :]:
-                name = _read_cstring(data, pointer)
+                name = read_cstring(data, pointer)
                 if name is None:
                     return None
                 sides.append(name)
@@ -692,7 +650,7 @@ class CahFactionsWorldbuilderPatch(Patch):
                     f"{len(pointers)} names, expected the stock {len(STOCK_SIDES)}"
                 )
             for index, expected in enumerate(STOCK_SIDES):
-                got = _read_cstring(data, pointers[index])
+                got = read_cstring(data, pointers[index])
                 if got != expected:
                     raise ValueError(
                         f"unexpected build: the Worldbuilder side table ({what}) has {got!r} at "
@@ -712,10 +670,10 @@ class CahFactionsWorldbuilderPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, section_va: int
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """The 32 ``(file offset, original bytes, patched bytes, note)`` edits: twenty-one
+        """The 32 `(file offset, original bytes, patched bytes, note)` edits: twenty-one
         references to the two stock tables, ten bit-count bounds, and `testNameArray`'s terminator
-        address. Shared by :meth:`apply` (writes ``patched`` when ``original`` matches) and
-        :meth:`verify` (asserts ``patched`` is present); both derive every value from the
+        address. Shared by `apply` (writes `patched` when `original` matches) and
+        `verify` (asserts `patched` is present); both derive every value from the
         constants above, so neither has to read the sites first."""
 
         def offset(va: int) -> int:
@@ -729,16 +687,16 @@ class CahFactionsWorldbuilderPatch(Patch):
             edits.append(
                 (
                     offset(va),
-                    prefix + _u32(WORLDBUILDER_TABLE_VA),
-                    prefix + _u32(section_va),
+                    prefix + u32(WORLDBUILDER_TABLE_VA),
+                    prefix + u32(section_va),
                     f"Worldbuilder side table ref @0x{va:08x}",
                 )
             )
         edits.append(
             (
                 offset(WORLDBUILDER_DEFAULT_FACTION_USERDATA_VA),
-                _u32(WORLDBUILDER_INI_TABLE_VA),
-                _u32(section_va),
+                u32(WORLDBUILDER_INI_TABLE_VA),
+                u32(section_va),
                 "Worldbuilder DefaultFaction userData",
             )
         )
@@ -755,8 +713,8 @@ class CahFactionsWorldbuilderPatch(Patch):
         edits.append(
             (
                 offset(terminator_va),
-                terminator_prefix + _u32(WORLDBUILDER_TERMINATOR_VA),
-                terminator_prefix + _u32(section_va + self.entry_count * 4),
+                terminator_prefix + u32(WORLDBUILDER_TERMINATOR_VA),
+                terminator_prefix + u32(section_va + self.entry_count * 4),
                 "Worldbuilder testNameArray terminator",
             )
         )

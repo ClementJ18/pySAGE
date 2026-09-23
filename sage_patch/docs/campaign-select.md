@@ -296,7 +296,7 @@ Two things the run establishes beyond the patch itself:
 - `startLinearCampaign` really does accept an arbitrary name through the static — the substitution
   survives the deferred, post-fade call path, not just the callback.
 - A `sage_apt` round-trip of a **shell** movie loads in the real game. Only `Palantir.apt` had been
-  validated before (`sage_apt/TODO.md`, M1), and `MainMenu.apt` is the file carrying the corpus's
+  validated before, and `MainMenu.apt` is the file carrying the corpus's
   one unresolvable branch — which is in `SoloPlayNav`, not the block edited here, and came through
   untouched. Recompiling changed three lines of decompiled XML: the two inserted instructions and
   the `branchiftrue` displacement the compiler recomputed (24 → 32), still resolving onto the same

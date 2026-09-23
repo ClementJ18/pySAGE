@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from sage_ini.parser.blockparser import parse
-from sage_lint.cli import main
+from sage_lint.__main__ import main
 from sage_lint.duplicates import canonical_text, find_duplicates
 
 # A 4-normalized-line block (header + 2 attributes + End) reused across cases.

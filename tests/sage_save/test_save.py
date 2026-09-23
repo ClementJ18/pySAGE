@@ -253,7 +253,7 @@ def test_check_references_missing_and_case():
     ]
 
 
-# --- invariants that must hold for every authored save, whatever the factions ---
+# Invariants that must hold for every authored save, whatever the factions
 
 
 def test_any_save_round_trips(any_save_path):
@@ -319,7 +319,7 @@ def test_any_save_player_refs_are_fatal_names(any_save_path):
 # every fixture in test_infra.py::test_registered_codec_round_trips.
 
 
-# --- save-2-specific values (Mordor vs Men) ---
+# Save-2-specific values (Mordor vs Men)
 
 
 @pytest.fixture(scope="module")
@@ -349,7 +349,7 @@ def test_save2_faction_names(save2):
     assert "Upgrade_GondorBarracksLevel3" in names
 
 
-# --- save-3-specific values (Elves + a 3-enemy team of Mordor/Men/Isengard, a different map) ---
+# Save-3-specific values (Elves + a 3-enemy team of Mordor/Men/Isengard, a different map)
 
 
 @pytest.fixture(scope="module")

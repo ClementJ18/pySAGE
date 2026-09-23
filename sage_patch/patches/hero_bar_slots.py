@@ -1,101 +1,12 @@
-"""`hero-bar-slots` - raise the in-game hero bar from its stock **16** slots to ``count``.
+"""Raise the in-game hero bar from 16 slots to `count`.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/hero-bar-slots.md``; the class layout it builds on was recovered in
-``../docs/herobar-kindof.md`` §1.
+Sixteen is hardcoded: the constructor registers clicks for `Hero1`..`Hero16` only and the draw loop
+stops at slot 17. The patch grows the bar's slot-cache array in place and raises the ten counts that
+walk it. The movie must define the matching `Hero<n>` and `FlashEffect<n>` clips on the `_fadein`
+and `_show` frames of both the `apt/` and `apt_widescreen/` `FactionFrame.apt`, or the extra slots
+stay inert; `../docs/hero-bar-slots.md` section 7 is the procedure.
 
-**The gap.** The hero bar is 16 slots and nothing about that is data-driven. Adding `Hero17`+
-clips to the movie therefore changes nothing at all: the constructor registers
-`_OnBttnHeroSelect` on `Hero1`..`Hero16` only, so the new clips get no click callback, and the
-draw loop `break`s at slot 17, so nothing ever calls `SetButtonState` on them. The failure is
-silent - the extra buttons simply stay in whatever state the movie parks them in.
-
-**Which movie.** On Edain the bar is drawn by **`FactionFrame.apt`**, not by the
-`InGameHeroSelect.apt` that ships beside it and is never loaded. The engine names slots through
-`%s/Hero%d/` against a path prefix held on the bar object, so no file name appears in the code
-and the right one has to be identified from a running game. ``../docs/hero-bar-slots.md`` §7 has
-the method and the rest of the `.apt` half.
-
-**What it does.** Grows the bar's slot-cache array and raises the ten hardcoded counts that walk
-it. The bar is one class, constructed exactly once (`AptPalantir::OnHeroSelectLoaded`), holding
-
-===========  ===================================================================
-`+0x08`      APT movie / level handle
-`+0x0C`      `AsciiString` path prefix - the `%s` in `%s/Hero%d/`
-`+0x10`      the shared model that owns the hero and porter lists
-`+0x44`      "the bar has been shown" latch
-`+0x48`      **the slot cache**: `0x18` bytes x 16, built by the vector-ctor helper
-`+0x1C8`     the `0x18`-byte iteration/selection state block
-`0x1E0`      `sizeof`
-===========  ===================================================================
-
-`0x48 + 16*0x18 == 0x1C8` exactly, so the array runs to the byte before that state block and the
-class has no slack - which is the whole reason this is not a one-byte patch.
-
-**Why the array grows in place rather than moving to a cave.** Every reference to the state block
-past the array is already a **disp32** (`[esi+0x1c8]`, `[esi+0x1dc]`, ...), so pushing the block
-up by ``(count-16)*0x18`` rewrites four bytes inside instructions that keep their exact length and
-encoding. Moving the *array* instead would mean re-basing `[eax+esi+0x4c]`-style disp8 addressing,
-which cannot grow to disp32 in place and would need a detour at each of the four addressing sites.
-So the array stays at `+0x48`, the state block slides up, and the class gets bigger - and the
-patch needs **no cave and no assembly at all**, only immediates.
-
-That makes the whole thing 38 sites of pure immediate rewriting: ten counts, one `sizeof`, and
-27 displacement re-bases. All of them are asserted against their stock bytes before anything is
-written.
-
-**The ten counts**, and why there are ten rather than the one the ceiling looks like:
-
-=============  ===========  =============================================================
-`0x0092C013`   0-based      slot search: "which slot is showing this node"
-`0x0092C2DA`   count        vtable[2]: reset every slot to the list head + ungrouped
-`0x0092C307`   0-based      vtable[3]: find a slot by node, then index it
-`0x0092C955`   0-based      the expanded-hero scan
-`0x0092D3E5`   **1-based**  the draw ceiling - the one the bar visibly stops at
-`0x0092D78D`   0-based      cleanup entry guard: are there leftover slots to blank
-`0x0092D8B6`   **1-based**  the cleanup loop's own back edge
-`0x0092DBC8`   0-based      click dispatch: reject a slot index past the end
-`0x0092DE51`   count        the vector-ctor's element count - the array itself
-`0x0092E02E`   0-based      the ctor's `Hero%d` callback registration loop
-=============  ===========  =============================================================
-
-Missing any one of them is a different bug, and only the first is cosmetic: leaving `0x0092DE51`
-alone would run every other loop off the end of a 16-element array and into the state block.
-
-**The `.apt` is not optional.** The engine drives slot *i* through `%s/Hero%d/`,
-`_level%d.%s_Hero%dImage` and `APT:_level%d.%s_Hero%dRank`, so the movie must define `Hero17`..
-`Hero<count>` clips (and their `FlashEffect<n>` siblings) on both frames the stock sixteen appear
-on - `_fadein` (frame 9) places them, `_show` (frame 19) reveals them - in **both** the `apt/` and
-`apt_widescreen/` variants, whose grids differ. A movie without them leaves the extra slots inert
-exactly as before: this patch removes the engine's ceiling, it does not draw anything. `sage_apt`
-is the tooling for that half, and ``../docs/hero-bar-slots.md`` §7 is the procedure.
-
-**Determinism.** The bar is client-local UI: it is built from the local player's own object
-lists, nothing here enters the simulation, and the click path raises the same
-`MSG_CREATE_SELECTED_GROUP` it always did. Like `replay-outcome`, it does **not** have to be on
-every peer, and replays cross between patched and stock builds.
-
-**Composition.** Order-independent; it allocates no section and reads nothing another patch
-writes. It shares a function with `herobar` but not a byte: that patch's detours sit at
-`0x0092D36F`/`0x0092D3EE` (the draw loop) and `0x0092DBD6` (the click), while the nearest sites
-here are `0x0092D3E5` and `0x0092DBC8`, three and eight bytes clear respectively.
-
-What a patch **cannot** do beside this one is hard-code an offset past the array. Every field from
-`+0x1C8` up moves by ``(count-16)*0x18``, and on a widened bar the stock addresses land *inside*
-the array instead - `bar+0x1DC` at 25 slots is byte `0x14` of slot 16. `herobar` used to
-take its repeat-click window by calling `0x0092BA91` and reading `bar+0x1DC` back, which on this
-combination read a slot for a deadline and left the porter's real field stomped; it now does that
-arithmetic in its own cave and reads nothing here. Only the first ten sites above are counts - the
-other 27 exist precisely because these offsets are not stable.
-
-The remaining interaction is behavioural rather than structural, and only for `herobar`'s
-`HEROBAR_GROUP`: its per-pass "already drawn" set is 16 dwords in its own cave, and it *clamps*
-rather than overflows (`cmp eax,16 ; jae`), so on a bar wider than 16 the 17th and later distinct
-`HEROBAR_GROUP` templates stop being de-duplicated - each instance takes its own slot. Its
-per-slot click cursor is 16 dwords too and clamps the same way, so a group in slot 17 or beyond
-selects its first member on every click instead of stepping to the next. Nothing corrupts;
-grouping degrades past 16 kinds and stepping past 16 slots. A plain `HEROBAR` object reads none of
-that state and is indifferent to the width.
+Derivation: `../docs/hero-bar-slots.md` and `../docs/herobar-kindof.md`.
 """
 
 from __future__ import annotations
@@ -120,7 +31,7 @@ __all__ = [
     "class_size",
 ]
 
-# --- the class, as this build has it ---------------------------------------------------------
+# The class, as this build has it
 
 #: The slot cache array, and one slot's stride, both as offsets into the bar object.
 SLOT_ARRAY = 0x48
@@ -141,7 +52,7 @@ CLASS_SIZE_OPCODE = b"\x68"
 
 #: 17 because this patch *raises* a ceiling: at 16 every site computes its stock bytes, and a
 #: `verify` that passed on an unpatched binary would make `detect` claim every stock `game.dat`
-#: carries this patch. 126 because the draw ceiling and the cleanup back edge encode ``count+1``
+#: carries this patch. 126 because the draw ceiling and the cleanup back edge encode `count+1`
 #: as a **signed imm8** - at 127 slots that byte is `0x80`, which decodes as -128 and turns both
 #: loops into "never run".
 MIN_COUNT = 17
@@ -149,20 +60,20 @@ MAX_COUNT = 126
 
 
 def class_size(count: int) -> int:
-    """`sizeof` the bar class with a ``count``-slot array: the array's own offset, the array, and
-    the state block that follows it. Reproduces the stock ``0x1E0`` at ``count == 16``."""
+    """`sizeof` the bar class with a `count`-slot array: the array's own offset, the array, and
+    the state block that follows it. Reproduces the stock `0x1E0` at `count == 16`."""
     return SLOT_ARRAY + count * SLOT_STRIDE + STATE_BLOCK_SIZE
 
 
-# --- the ten hardcoded slot counts -----------------------------------------------------------
+# The ten hardcoded slot counts
 
 
 @dataclass(frozen=True)
 class _Count:
     """One site holding the slot count as a trailing 8-bit immediate.
 
-    ``prefix`` is everything before that byte, so the stock bytes are
-    ``prefix + (STOCK_SLOTS + bias)`` and the patched ones ``prefix + (count + bias)``. ``bias``
+    `prefix` is everything before that byte, so the stock bytes are
+    `prefix + (STOCK_SLOTS + bias)` and the patched ones `prefix + (count + bias)`. `bias`
     is 1 where the loop counts from one and compares against the count *plus* one, which is the
     difference that makes two of these encode `0x11` rather than `0x10`."""
 
@@ -195,7 +106,7 @@ COUNT_SITES = (
 )
 
 
-# --- the 27 references to the state block past the array --------------------------------------
+# The 27 references to the state block past the array
 
 
 @dataclass(frozen=True)
@@ -251,10 +162,11 @@ FIELD_SITES = (
 
 
 class HeroBarSlotsPatch(Patch):
-    """Raise the in-game hero bar from the stock 16 slots to ``count`` (17..126)."""
+    """Raise the in-game hero bar from the stock 16 slots to `count` (17..126)."""
 
     name = "hero-bar-slots"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Raise the in-game hero bar from 16 slots to N. The movie must define the matching "
         "Hero<n> clips (and their FlashEffect<n> siblings) on the _fadein and _show frames of "
@@ -280,8 +192,8 @@ class HeroBarSlotsPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch at ``count`` (an empty list ==
-        verified). Recomputes all 38 sites from ``count`` and compares. Reads only via the section
+        """Structural check that `data` carries this patch at `count` (an empty list ==
+        verified). Recomputes all 38 sites from `count` and compares. Reads only via the section
         table, so it needs no disassembler."""
         problems: list[str] = []
         try:
@@ -296,12 +208,12 @@ class HeroBarSlotsPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> HeroBarSlotsPatch | None:
-        """Recognise this patch **and recover its N** from ``data``.
+        """Recognise this patch **and recover its N** from `data`.
 
         The default probe cannot: it would ask `verify` about the default N and call every other
-        width absent. The ctor wrapper's ``push <sizeof>`` is an imm32 holding
-        ``0x48 + N*0x18 + 0x18``, so N reads straight back out of it, and `verify` then checks all
-        38 sites against that N. A stock binary yields ``N == 16``, which is outside this patch's
+        width absent. The ctor wrapper's `push <sizeof>` is an imm32 holding
+        `0x48 + N*0x18 + 0x18`, so N reads straight back out of it, and `verify` then checks all
+        38 sites against that N. A stock binary yields `N == 16`, which is outside this patch's
         range and so is reported - correctly - as not carrying it."""
         off = va_to_offset(data, CLASS_SIZE_SITE)
         if off is None or bytes(data[off : off + 1]) != CLASS_SIZE_OPCODE:

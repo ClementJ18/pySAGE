@@ -8,7 +8,7 @@ with `tools`/by hand only when an intended output change is reviewed."""
 import shutil
 from pathlib import Path
 
-from sage_apt import apt_to_xml, xml_to_apt
+from sage_apt import apt_bytes_to_xml, apt_to_xml, xml_bytes_to_apt, xml_to_apt
 
 FIXTURES = Path(__file__).parent / "fixtures"
 GOLDEN = FIXTURES / "golden"
@@ -27,3 +27,14 @@ def test_recompile_matches_golden_binary(tmp_path):
     apt_path, const_path = xml_to_apt(xml)
     assert apt_path.read_bytes() == (GOLDEN / "recompiled.apt").read_bytes()
     assert const_path.read_bytes() == (GOLDEN / "recompiled.const").read_bytes()
+
+
+def test_bytes_forms_match_golden():
+    apt = (FIXTURES / "SpellStore.apt").read_bytes()
+    const = (FIXTURES / "SpellStore.const").read_bytes()
+    xml = apt_bytes_to_xml(apt, const)
+    assert xml == (GOLDEN / "decompiled.xml").read_bytes()
+    assert xml_bytes_to_apt(xml) == (
+        (GOLDEN / "recompiled.apt").read_bytes(),
+        (GOLDEN / "recompiled.const").read_bytes(),
+    )

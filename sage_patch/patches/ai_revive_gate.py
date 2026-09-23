@@ -1,77 +1,10 @@
-"""The AI revive-gate patch: make the AI honour a REVIVE button's ``NeededUpgrade``.
+"""Make the AI respect a REVIVE button's `NeededUpgrade`, as the player's control bar does.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/ai-revive-gate.md``.
+`BuildAssistant::canMakeUnit` checks `NeededUpgrade` for unit buttons but not in its revive branch,
+so the AI recruits heroes from slots a mod disabled. A cave adds the upgrade test to the revive
+branch, applied only when the caller is the AI (it checks the return address).
 
-**The defect.** ``BuildAssistant::canMakeUnit(producer, what, reviveIndex)`` is the one gate the
-AI consults before deciding a producer may make something. It walks the producer's `CommandSet`
-and branches on whether a revive index was passed:
-
-* the **template** branch (`UNIT_BUILD` / `FOUNDATION_CONSTRUCT` / `DOZER_CONSTRUCT`) matches the
-  thing template *and* evaluates the button's ``NEED_UPGRADE`` / ``NeededUpgrade`` requirement;
-* the **revive** branch tests only ``Command == REVIVE`` and a positional count of the REVIVE
-  buttons seen so far, accepting when that count reaches ``reviveIndex``. It never reads
-  ``Options`` or ``NeededUpgrade``.
-
-So a REVIVE button gated by an upgrade its building can never hold is refused to the player -
-whose control bar evaluates the requirement - and honoured for the AI. Mods reach hero
-recruitment through the revive system precisely because heroes attach to REVIVE slots by
-position, which forces every building that recruits *any* hero to carry the whole slot block;
-the surplus slots are then disabled by an unobtainable ``NeededUpgrade``. The AI ignores that
-and recruits any hero from any such building.
-
-**What this does.** Appends an ``.aigate`` PE section holding a rewritten revive branch, and
-redirects the branch's six-byte entry into it. The rewrite counts the matched slot *before*
-handing control to the engine's own upgrade gate at ``CAN_MAKE_UNIT_UPGRADE_GATE``, whose
-success edge already falls into the accept path and whose failure edge already continues the
-walk.
-
-**Why route into the engine's gate instead of re-implementing it.** The gate handles
-``NeededUpgradeAny``, the object-vs-player distinction between upgrade types, and the
-empty-``NeededUpgrade`` case. Re-deriving those in a cave would be a second implementation of
-semantics the binary already states, free to drift from the template branch. This patch adds no
-engine calls of its own; it only adds an edge.
-
-**Why the slot is counted before the gate runs.** On a gate failure the engine's own edge
-continues to the next `CommandSet` slot. Had the count not advanced, the *next* REVIVE button
-would match the same ``reviveIndex`` and be tested in turn - so the AI would slide past a
-disabled slot onto the following enabled one, and answer for a different hero than the one the
-index names. Counting first makes a failure final for that index: no later slot can match, the
-walk runs out, and ``canMakeUnit`` returns false. That keeps the AI's slot-to-hero mapping the
-same one the player sees, rather than merely a stricter one.
-
-**Scope: the AI only, and it takes work.** ``canMakeUnit`` has **five** call sites. Four are AI
-(the factory search behind unit and hero production, and the tactic that enumerates revivable
-heroes) and reach it directly through `TheBuildAssistant`'s vtable. The fifth is
-``BuildAssistant``'s own ``+0x64`` gate at ``CAN_MAKE_UNIT_PRODUCTION_GATE``, which reaches it by
-a **virtual self-call** on its own ``this`` - and *that* is what the ControlBar asks for button
-availability and what ``ProductionUpdate::queueCreateUnit`` asks before queueing. So the revive
-branch is squarely on the player's path, and a gate applied unconditionally there stops a human
-recruiting heroes.
-
-The cave therefore tests **who asked**: ``[ebp+4]`` is `canMakeUnit`'s return address, and the
-one value that means "not the AI" is the instruction after that self-call. Anything arriving that
-way takes the stock edge, so this patch cannot change what is shown, clickable or queueable - for
-the player *or* for the AI. It changes only which producer the AI *chooses*, which is the whole
-of the defect.
-
-**Why the walk cannot be trusted to name the button.** The stock revive branch uses the matched
-slot only as a count: reach `reviveIndex` REVIVE buttons and the answer is
-``ReviveMgr::canRevive(reviveIndex)``, whatever button that was. The ControlBar builds its own
-button-to-hero mapping in a separate walk (``0x00943F81``) with its own skip rules, over the
-*visible* command range. Where the two disagree the stock engine cannot tell, because it never
-reads the matched button - but a gate does. Restricting the gate to the AI's own queries keeps
-that disagreement as harmless as it has always been on every path a human touches.
-
-**Determinism.** The gate reads upgrade masks off the `Object` and its `Player` - logic state,
-identical on every peer - so the added edge is network- and replay-safe. Gating on a button's
-``DisableOnModelCondition`` would not be: model-condition state is client-side.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the six at the revive
-branch's entry, which no other bundled patch touches, and it reads nothing another patch
-rewrites - the three addresses its cave jumps to are all below
-``CAN_MAKE_UNIT_SCAN_BOUND``, the one nearby site ``commandset-limit`` edits.
+Derivation: `../docs/ai-revive-gate.md`.
 """
 
 from __future__ import annotations

@@ -1,108 +1,16 @@
-"""The maintenance-cost patch: a negative income is a per-tick charge, not a discarded number.
+"""Make a negative income (`MaxIncome` or `DepositAmount`) charge the owner per tick instead of
+being discarded.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below comes
-from :mod:`sage_patch.addresses` and is derived in ``../docs/maintenance-cost.md``.
+`Money::deposit` has no clamp and the balance is unsigned, so a negative deposit would wrap to about
+four billion gold. Every charge therefore goes through `Money::withdraw`, which clamps to the
+balance and counts as money spent, and is drawn as the engine's red `GUI:LoseCash` text. A charge
+scales like its module's income (see `auto-deposit-inflation`). No new INI field.
 
-**No new INI field, and none needed.** `MaxIncome` and `DepositAmount` are parsed by
-`INI::parseInt`, which is `INI::getNextToken` plus `INI::scanInt` - an `sscanf("%d")` whose error
-message is literally ``"Expected signed integer"``. So ``MaxIncome = -5`` parses on a stock binary
-today. What it does not do is charge anybody: the engine throws the number away at run time, in
-three different places, and this patch is those three places::
-
-    Behavior = TerrainResourceBehavior ModuleTag_Upkeep
-      MaxIncome      = -5           ; gold taken per tick, not paid
-      IncomeInterval = 30
-    End
-
-    Behavior = AutoDepositUpdate ModuleTag_Upkeep
-      DepositAmount  = -5
-      DepositTiming  = 30000
-    End
-
-**Why a negative cannot simply be deposited.** `Money::deposit` is ``add [this+4], amount`` with
-no clamp, and the balance is **unsigned** - `Money::withdraw` compares it with `cmova`. A negative
-deposit does not charge a player, it rolls their balance through zero to about four billion gold.
-Every charge here therefore goes through `Money::withdraw`, which clamps to what is actually there,
-returns what it took, and credits `ScoreKeeper.MoneySpent` rather than `MoneyEarned`.
-
-Inflation
----------
-**This patch computes no multiplier of its own.** A charge is whatever the module's own income
-arithmetic produced, with the sign kept - so each module's charge is affected by inflation exactly
-when that module's *income* is, and never otherwise.
-
-`TerrainResourceBehavior` reads `PlayerTemplate.ResourceModifierValues` in the stock build: the
-multiply at `0x00885685` is already there, already gated on `filter.allow(thisObject, player)` at
-`0x008855CE`, and a negative reaches it the moment the gate below stops discarding it. So a
-resource spot's upkeep falls with its income - ten farms that each earn 60% of their income each
-cost 60% of their upkeep - and none of that is code this patch wrote.
-
-`AutoDepositUpdate` reads no such table, in stock or here. Its charge is the flat
-`DepositAmount`, matching its flat income, unless
-:mod:`~sage_patch.patches.auto_deposit_inflation` is also applied - that patch scales the amount
-at `0x0089DCDD`, upstream of anything here, and scales an income and a charge with the same
-instruction. Applying it changes what this module *pays* as well as what it takes, which is why it
-is a separate patch and not a branch in this one.
-
-The three sites, and the fourth that is a consequence
------------------------------------------------------
-1. **`TerrainResourceBehavior`'s non-positive gate**, `jle 0x0088573C`. This is the whole of why a
-   negative does nothing today. The condition wants to be `== 0` rather than `<= 0`, which is one
-   byte in place - `0F 8E` -> `0F 84` - keeping the length, the target and the zero case exactly
-   as they were.
-
-2. **Its floor at one gold**, `test ebx, ebx / jg / xor ebx, ebx / inc ebx`, applied *after* the
-   inflation multiply. In the stock build this only ever raises an exact zero, because the gate
-   has already established the value was positive. Left alone it would turn a charge into a
-   **payment of one gold**, so the cave mirrors it: a charge floors at -1 the way an income floors
-   at 1. Which of the two applies is read from the **float** the amount was rounded from, still in
-   `[ebp-0x20]`, and not from `ebx` - a multiplier of zero rounds a charge to an integer zero and
-   erases its sign, where the float keeps it, `-5.0f * 0.0f` being `-0.0f`.
-
-3. **The deposit**, hooked at the `lea ecx, [player+0x90]` *before* the call rather than at the
-   call - which leaves `AUTO_DEPOSIT_DEPOSIT` free for `second-resource`, whose cave owns it. A
-   positive amount rejoins the stock path and nothing downstream can tell; a negative is negated
-   into `Money::withdraw`, draws the engine's own red `GUI:LoseCash` text, and rejoins past the
-   green `GUI:AddCash` block that would otherwise render a minus sign after a plus.
-
-4. **The experience grant**, which is a consequence rather than a goal. Both modules hand the
-   amount to `ExperienceTracker::addExperiencePoints`, so a charge would drain a building's
-   veterancy - a second mechanic nobody asked for, down a path no sane stock data reaches. A
-   charge tick therefore grants **zero** experience, which is precisely the stock "no income this
-   tick" case: `TerrainResourceBehavior`'s cave zeroes the amount before rejoining the block, and
-   `AutoDepositUpdate`'s stock `GiveNoXP` test gains a second reason to skip.
-
-What this does not do
----------------------
-* **It does not make a charge affordable.** `Money::withdraw` clamps, so a player with 3 gold and
-  a 5 gold charge pays 3 and the floating text says 3. Nothing is destroyed, nothing goes into
-  debt and nothing is disabled for want of upkeep - if a mod wants a building to shut down when
-  its owner cannot pay, that is a different mechanic on a different module.
-* **It does not touch a positive amount anywhere.** Every edit is behind a sign test, and the two
-  in-place condition changes preserve the stock outcome for every value the stock build could
-  produce. A mod that declares no negative income is byte-for-byte unaffected at run time.
-* **It adds no INI keyword**, so - unlike `terrain-resource-exp` - a mod written for this patch
-  still **loads** on an unpatched binary. It silently does not charge there, which is the failure
-  worth knowing about: the number parses either way, and only the patched build acts on it.
-
-**Determinism.** Money is logic-side `Player` state and the engine CRCs it, so **every peer must
-run the same patched binary**. Same rule as `command-point-upkeep`, and stricter than the
-client-local `inflation-readout`.
-
-**Composition.** Order-independent, and it shares no byte with any bundled patch.
-`terrain-resource-exp` hooks `0x0088573C`, which this patch *jumps to* rather than rewrites, so
-the two compose - and its `GiveNoXP` still governs the income ticks, which are the only ticks left
-that grant experience. `second-resource` hooks the `AutoDepositUpdate` deposit call this patch
-stops one instruction short of; a charge never reaches it, which is the right answer for a pool a
-charge does not credit. `command-point-upkeep` scales `TerrainResourceBehavior`'s multiplier slot
-and is therefore applied to a charge as well, by the stock arithmetic rather than by anything
-here. `auto-deposit-inflation` hooks `0x0089DCDD`, three instructions above this patch's own
-`AutoDepositUpdate` hook, and the two are related only through the number that flows between them.
+Derivation: `../docs/maintenance-cost.md`.
 """
 
 from __future__ import annotations
 
-import struct
 from typing import TYPE_CHECKING
 
 from ..addresses import (
@@ -142,7 +50,15 @@ from ..addresses import (
 )
 from ..asm import JE, JG, JL, JLE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    find_section,
+    i8,
+    jmp_rel32,
+    u32,
+    va_to_offset,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -162,14 +78,14 @@ _JS = JL
 
 
 def charge(amount: int, multiplier: float, floor: bool) -> int:
-    """What a negative ``amount`` actually takes, before the purse is consulted - the rule the
+    """What a negative `amount` actually takes, before the purse is consulted - the rule the
     emitted code implements, in Python, so the tests can state it once and assert the bytes
     against the same one.
 
-    ``multiplier`` is whatever scaled the amount **upstream of this patch** - the owner's
+    `multiplier` is whatever scaled the amount **upstream of this patch** - the owner's
     inflation factor for `TerrainResourceBehavior`, where the engine applies it; `1.0` for
     `AutoDepositUpdate` unless `auto-deposit-inflation` is installed, and its factor when it is.
-    ``floor`` is `TerrainResourceBehavior`'s never-round-below-one rule, mirrored: it has one and
+    `floor` is `TerrainResourceBehavior`'s never-round-below-one rule, mirrored: it has one and
     `AutoDepositUpdate` does not.
 
     Rounding is **toward zero** in both modules - `ceil` on the one that already rounds with it,
@@ -182,15 +98,6 @@ def charge(amount: int, multiplier: float, floor: bool) -> int:
     if floor:
         scaled = min(scaled, -1)
     return -scaled
-
-
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _i8(value: int) -> int:
-    """A signed byte displacement as the unsigned byte that encodes it."""
-    return value & 0xFF
 
 
 # Everything below is hand-encoded (the house style: only address arithmetic is automated, by
@@ -209,7 +116,7 @@ _TEXT_AMOUNT_ARG = 0x0C
 
 
 def _emit_lose_text(a: Asm) -> None:
-    """``lose_text(Object* obj, Int amount)`` - cdecl, caller-cleaned.
+    """`lose_text(Object* obj, Int amount)` - cdecl, caller-cleaned.
 
     The engine's own "you lost gold" floating text, copied from the money-transfer site at
     `0x008C6980`: `GUI:LoseCash` formatted with the amount, drawn in red above the object. The
@@ -221,19 +128,19 @@ def _emit_lose_text(a: Asm) -> None:
     a.emit(0x89, 0xE5)  # mov ebp, esp
     a.emit(0x83, 0xEC, _TEXT_FRAME)  # sub esp, 0x10
     a.emit(0x56)  # push esi
-    a.emit(0x83, 0x65, _i8(_TEXT_STRING_EBP), 0x00)  # and dword [ebp-4], 0   ; an empty string
+    a.emit(0x83, 0x65, i8(_TEXT_STRING_EBP), 0x00)  # and dword [ebp-4], 0   ; an empty string
     a.emit(0x8B, 0x75, _TEXT_OBJECT_ARG)  # mov esi, [ebp+8]       ; the Object
 
     # `TheGameText->fetch(key, 0)`, then `format(&str, fetched, amount)` - the engine's idiom,
     # with the vararg pushed before the fetch exactly as the twelve stock sites push it.
-    a.emit(0x8B, 0x0D, _u32(THE_GAME_TEXT))  # mov ecx, [TheGameText]
+    a.emit(0x8B, 0x0D, u32(THE_GAME_TEXT))  # mov ecx, [TheGameText]
     a.emit(0x8B, 0x11)  # mov edx, [ecx]         ; its vtable
     a.emit(0xFF, 0x75, _TEXT_AMOUNT_ARG)  # push [ebp+0xc]         ; the amount
     a.emit(0x6A, 0x00)  # push 0
-    a.emit(0x68, _u32(GUI_LOSE_CASH))  # push "GUI:LoseCash"
+    a.emit(0x68, u32(GUI_LOSE_CASH))  # push "GUI:LoseCash"
     a.emit(0xFF, 0x52, GAME_TEXT_FORMAT_SLOT)  # call [edx+0x44]        ; ret 8
     a.emit(0x50)  # push eax               ; the fetched format
-    a.emit(0x8D, 0x45, _i8(_TEXT_STRING_EBP))  # lea eax, [ebp-4]
+    a.emit(0x8D, 0x45, i8(_TEXT_STRING_EBP))  # lea eax, [ebp-4]
     a.emit(0x50)  # push eax
     a.call_absolute(UNICODE_STRING_CONCAT)  # cdecl (dest, fmt, amount)
     a.emit(0x83, 0xC4, 0x0C)  # add esp, 0xc
@@ -241,23 +148,23 @@ def _emit_lose_text(a: Asm) -> None:
     # The position, lifted the way the stock `LoseCash` site lifts it - a constant rather than the
     # geometry query the `AddCash` site makes, because that is what the site being copied does.
     a.emit(0xF3, 0x0F, 0x10, 0x46, OBJECT_POSITION)  # movss xmm0, [esi+0x38]
-    a.emit(0xF3, 0x0F, 0x11, 0x45, _i8(_TEXT_X_EBP))  # movss [ebp-0x10], xmm0
+    a.emit(0xF3, 0x0F, 0x11, 0x45, i8(_TEXT_X_EBP))  # movss [ebp-0x10], xmm0
     a.emit(0xF3, 0x0F, 0x10, 0x46, OBJECT_POSITION + 4)  # movss xmm0, [esi+0x3c]
-    a.emit(0xF3, 0x0F, 0x11, 0x45, _i8(_TEXT_Y_EBP))  # movss [ebp-0xc], xmm0
+    a.emit(0xF3, 0x0F, 0x11, 0x45, i8(_TEXT_Y_EBP))  # movss [ebp-0xc], xmm0
     a.emit(0xF3, 0x0F, 0x10, 0x46, OBJECT_POSITION + 8)  # movss xmm0, [esi+0x40]
-    a.emit(0xF3, 0x0F, 0x58, 0x05, _u32(LOSE_CASH_RISE))  # addss xmm0, [30.0f]
-    a.emit(0xF3, 0x0F, 0x11, 0x45, _i8(_TEXT_Z_EBP))  # movss [ebp-8], xmm0
+    a.emit(0xF3, 0x0F, 0x58, 0x05, u32(LOSE_CASH_RISE))  # addss xmm0, [30.0f]
+    a.emit(0xF3, 0x0F, 0x11, 0x45, i8(_TEXT_Z_EBP))  # movss [ebp-8], xmm0
 
-    a.emit(0x8B, 0x0D, _u32(THE_IN_GAME_UI))  # mov ecx, [TheInGameUI]
+    a.emit(0x8B, 0x0D, u32(THE_IN_GAME_UI))  # mov ecx, [TheInGameUI]
     a.emit(0x8B, 0x01)  # mov eax, [ecx]
-    a.emit(0x68, _u32(LOSE_CASH_COLOR))  # push 0xffff0000        ; red, ARGB
-    a.emit(0x8D, 0x55, _i8(_TEXT_X_EBP))  # lea edx, [ebp-0x10]
+    a.emit(0x68, u32(LOSE_CASH_COLOR))  # push 0xffff0000        ; red, ARGB
+    a.emit(0x8D, 0x55, i8(_TEXT_X_EBP))  # lea edx, [ebp-0x10]
     a.emit(0x52)  # push edx               ; &the Coord3D
-    a.emit(0x8D, 0x55, _i8(_TEXT_STRING_EBP))  # lea edx, [ebp-4]
+    a.emit(0x8D, 0x55, i8(_TEXT_STRING_EBP))  # lea edx, [ebp-4]
     a.emit(0x52)  # push edx               ; &the UnicodeString
-    a.emit(0xFF, 0x90, _u32(IN_GAME_UI_ADD_FLOATING_TEXT))  # call [eax+0x1a0]  ; ret 0xc
+    a.emit(0xFF, 0x90, u32(IN_GAME_UI_ADD_FLOATING_TEXT))  # call [eax+0x1a0]  ; ret 0xc
 
-    a.emit(0x8D, 0x4D, _i8(_TEXT_STRING_EBP))  # lea ecx, [ebp-4]
+    a.emit(0x8D, 0x4D, i8(_TEXT_STRING_EBP))  # lea ecx, [ebp-4]
     a.call_absolute(UNICODE_STRING_DTOR)  # the string owns a real allocation
     a.emit(0x5E)  # pop esi
     a.emit(0xC9)  # leave
@@ -276,18 +183,18 @@ def _emit_terrain_floor(a: Asm) -> None:
     The positive branch is the stock instruction sequence, condition included.
     """
     a.label("trb_floor")
-    a.emit(0x8B, 0x45, _i8(TERRAIN_RESOURCE_INCOME_FLOAT_EBP))  # mov eax, [ebp-0x20]
+    a.emit(0x8B, 0x45, i8(TERRAIN_RESOURCE_INCOME_FLOAT_EBP))  # mov eax, [ebp-0x20]
     a.emit(0x85, 0xC0)  # test eax, eax          ; the float's sign bit
     a.jcc(_JS, "tf_charge")
     a.emit(0x85, 0xDB)  # test ebx, ebx          ; the stock floor, verbatim
     a.jcc(JG, "tf_out")
-    a.emit(0xBB, _u32(1))  # mov ebx, 1
+    a.emit(0xBB, u32(1))  # mov ebx, 1
     a.jmp("tf_out")
 
     a.label("tf_charge")
     a.emit(0x83, 0xFB, 0xFF)  # cmp ebx, -1
     a.jcc(JLE, "tf_out")  # already at or past the floor
-    a.emit(0xBB, _u32(0xFFFFFFFF))  # mov ebx, -1            ; a charge floors at -1
+    a.emit(0xBB, u32(0xFFFFFFFF))  # mov ebx, -1            ; a charge floors at -1
 
     a.label("tf_out")
     a.jmp_absolute(TERRAIN_RESOURCE_FLOOR_RESUME)
@@ -306,7 +213,7 @@ def _emit_terrain_pay(a: Asm) -> None:
     so a charge tick grants zero experience rather than negative experience.
     """
     a.label("trb_pay")
-    a.emit(0x8D, 0x8E, _u32(PLAYER_MONEY))  # lea ecx, [esi+0x90]   ; the displaced instruction
+    a.emit(0x8D, 0x8E, u32(PLAYER_MONEY))  # lea ecx, [esi+0x90]   ; the displaced instruction
     a.emit(0x85, 0xDB)  # test ebx, ebx
     a.jcc(_JS, "tp_charge")
     a.jmp_absolute(TERRAIN_RESOURCE_PAY_RESUME)  # the stock deposit and its "+N" text
@@ -335,12 +242,12 @@ def _emit_auto_deposit_pay(a: Asm) -> None:
 
     **No arithmetic of its own.** Whatever the amount arrived as is what is charged - which is why
     this module's charge is affected by inflation exactly when
-    :mod:`~sage_patch.patches.auto_deposit_inflation` is also applied and not otherwise. That
+    `auto_deposit_inflation` is also applied and not otherwise. That
     patch scales the amount at `0x0089DCDD`, upstream of here, and scales an income and a charge
     with the same instruction.
     """
     a.label("adu_pay")
-    a.emit(0x8D, 0x8F, _u32(PLAYER_MONEY))  # lea ecx, [edi+0x90]  ; the displaced instruction
+    a.emit(0x8D, 0x8F, u32(PLAYER_MONEY))  # lea ecx, [edi+0x90]  ; the displaced instruction
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(_JS, "ap_charge")
     a.jmp_absolute(AUTO_DEPOSIT_PAY_RESUME)
@@ -351,7 +258,7 @@ def _emit_auto_deposit_pay(a: Asm) -> None:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "ap_silent")  # took nothing: say nothing
     a.emit(0x50)  # push eax
-    a.emit(0xFF, 0x76, _i8(AUTO_DEPOSIT_OBJECT_ESI))  # push [esi-8]         ; the Object
+    a.emit(0xFF, 0x76, i8(AUTO_DEPOSIT_OBJECT_ESI))  # push [esi-8]         ; the Object
     a.call("lose_text")
     a.emit(0x83, 0xC4, 0x08)  # add esp, 8
 
@@ -391,15 +298,6 @@ def _assemble(base_va: int) -> Asm:
     return a
 
 
-def _jmp(at_va: int, target_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", target_va - (at_va + 5))
-
-
-def _detour(at_va: int, target_va: int, window: bytes) -> bytes:
-    """A `jmp rel32` to the cave, padded with `nop` to the length of what it displaces."""
-    return _jmp(at_va, target_va) + b"\x90" * (len(window) - 5)
-
-
 class MaintenanceCostPatch(Patch):
     """Let `TerrainResourceBehavior` and `AutoDepositUpdate` take gold as well as pay it, by
     honouring a negative `MaxIncome` / `DepositAmount` as a per-tick maintenance charge."""
@@ -426,7 +324,7 @@ class MaintenanceCostPatch(Patch):
 
     @staticmethod
     def _windows() -> tuple[tuple[int, bytes, str], ...]:
-        """``(VA, the stock bytes, what it is)`` for every engine site this patch rewrites."""
+        """`(VA, the stock bytes, what it is)` for every engine site this patch rewrites."""
         return (
             (
                 TERRAIN_RESOURCE_INCOME_GATE,
@@ -470,8 +368,8 @@ class MaintenanceCostPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, section_va: int
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """``(file offset, original bytes, patched bytes, note)`` for every engine byte this patch
-        rewrites - one list, so :meth:`apply` writes exactly what :meth:`verify` asserts."""
+        """`(file offset, original bytes, patched bytes, note)` for every engine byte this patch
+        rewrites - one list, so `apply` writes exactly what `verify` asserts."""
         code = _assemble(section_va)
         return list(self._describe(data, code))
 
@@ -486,23 +384,27 @@ class MaintenanceCostPatch(Patch):
                 "the income gate rejects only an exact zero",
             ),
             TERRAIN_RESOURCE_FLOOR: (
-                _detour(
+                jmp_rel32(
                     TERRAIN_RESOURCE_FLOOR,
                     code.label_va("trb_floor"),
-                    TERRAIN_RESOURCE_FLOOR_BYTES,
+                    len(TERRAIN_RESOURCE_FLOOR_BYTES),
                 ),
                 "the floor at one gold -> the sign-preserving floor",
             ),
             TERRAIN_RESOURCE_PAY: (
-                _detour(TERRAIN_RESOURCE_PAY, code.label_va("trb_pay"), TERRAIN_RESOURCE_PAY_BYTES),
+                jmp_rel32(
+                    TERRAIN_RESOURCE_PAY, code.label_va("trb_pay"), len(TERRAIN_RESOURCE_PAY_BYTES)
+                ),
                 "TerrainResourceBehavior's deposit -> deposit or charge",
             ),
             AUTO_DEPOSIT_PAY: (
-                _detour(AUTO_DEPOSIT_PAY, code.label_va("adu_pay"), AUTO_DEPOSIT_PAY_BYTES),
+                jmp_rel32(AUTO_DEPOSIT_PAY, code.label_va("adu_pay"), len(AUTO_DEPOSIT_PAY_BYTES)),
                 "AutoDepositUpdate's deposit -> deposit or charge",
             ),
             AUTO_DEPOSIT_XP_GATE: (
-                _detour(AUTO_DEPOSIT_XP_GATE, code.label_va("adu_xp"), AUTO_DEPOSIT_XP_GATE_BYTES),
+                jmp_rel32(
+                    AUTO_DEPOSIT_XP_GATE, code.label_va("adu_xp"), len(AUTO_DEPOSIT_XP_GATE_BYTES)
+                ),
                 "the GiveNoXP gate also skips a charge tick",
             ),
         }

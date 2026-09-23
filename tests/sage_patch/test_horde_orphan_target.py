@@ -106,7 +106,7 @@ def _disasm(data: bytes | bytearray, va: int, length: int) -> list[tuple[str, st
     return [(i.mnemonic, i.op_str) for i in md.disasm(bytes(data[off : off + length]), va)]
 
 
-# --- round trip ------------------------------------------------------------------------------
+# Round trip
 
 
 def test_apply_then_verify(image):
@@ -137,7 +137,7 @@ def test_it_writes_a_file(tmp_path, image):
     assert HordeOrphanTargetPatch().verify(out.read_bytes()) == []
 
 
-# --- what the detour and the cave actually say -------------------------------------------------
+# What the detour and the cave actually say
 
 
 def test_the_resolver_fallback_jumps_to_the_cave_and_the_rest_is_a_trap(image):
@@ -265,7 +265,7 @@ def test_the_cave_preserves_what_the_caller_still_needs(image):
     assert not written & {"esi", "ebx", "edi"}
 
 
-# --- build fingerprint --------------------------------------------------------------------------
+# Build fingerprint
 
 
 def test_a_different_entry_branch_refuses(image):

@@ -1,127 +1,14 @@
-"""The lifetime-fields patch: three INI keywords that make `LifetimeUpdate` do more than kill.
+"""Add three fields to `LifetimeUpdate`: `ExtendedByUpgrades` and `UpgradeLifetimeBonus` push an
+object's death back when one of those upgrades arrives, and `ExpirationTemplate` turns the object
+into another instead of killing it.
 
-Adds `ExtendedByUpgrades` (an upgrade mask) and `UpgradeLifetimeBonus` (a duration in
-milliseconds), so gaining one of those upgrades pushes the death frame back; and
-`ExpirationTemplate` (an object name), so the module **transforms the object into that template
-instead of killing it** when the time runs out. Targets the ROTWK SAGE-engine `game.dat` build
-``2.01.2614.37001``. The first two are derived in ``../docs/lifetime-extend-upgrade.md``, the
-third in ``../docs/lifetime-transform.md``.
+There is no countdown: the module stores an absolute death frame and sleeps until it, so an
+extension adds to that frame. It fires when the object's matching-upgrade mask goes from empty to
+non-empty, checked each frame while the keyword is declared. The bonus is written in milliseconds
+and stored in frames. The transform calls the engine's own mount swap directly. A block declaring
+none of the keywords pays one check and is otherwise stock; savegames need no version bump.
 
-The three are independent: each is armed by its own keyword and a block declaring none of them
-runs stock bytes. They share a module because they share `LifetimeUpdate`'s `ModuleData` and its
-field-parse table, and those have one owner each.
-
-**There is no timer to extend.** `LifetimeUpdate` does not count down. `setLifetimeRange`
-(`LIFETIME_ARM`) rolls one duration, stores an absolute death frame at ``module+0x20`` and
-*returns the duration as the module's sleep*; `update` (`LIFETIME_UPDATE`) is then called once,
-on that frame, and
-kills the object without ever reading the clock. So an extension is one add to that frame - and
-the whole cost of the patch is **noticing when to do it**, because nothing tells a module that an
-upgrade arrived.
-
-**The trigger is the mask going empty -> non-empty**, checked once per frame while the keyword is
-declared. That is what "the upgrade fired" can mean at this level: an upgrade already held cannot
-be granted again, since granting sets a bit that is already set. So a permanent player-scoped
-upgrade fires **once per object** - including on the first poll of an object created while it is
-already held, which is what makes "this upgrade makes every summon last 5s longer" work - and an
-object-scoped one re-arms whenever something removes it.
-
-**The bonus is authored in milliseconds and stored in frames**, because the row names the engine's
-own `INI_PARSE_DURATION` - the same parse function `MinLifetime` and `MaxLifetime` use, which
-multiplies by the live logic rate set at `0x00644F11`. So the stored value is already on the clock
-`m_dieFrame` counts and the patch converts nothing.
-
-**The in-world timer follows for free.** The bar over a summoned object is
-`(die - now) / (die - start)`, recomputed every frame from the *live* module at
-`LIFETIME_UI_FRACTION` - so pushing `m_dieFrame` out grows the remaining time and the total span
-together, and the bar jumps up and then drains over the new total. Nothing client-side has to be
-patched, and nothing reads the template's `MaxLifetime` to draw it. (This is also why *pausing*
-the clock is the mechanic the stock UI cannot represent: the numerator would freeze while the
-denominator kept growing, so the bar would drain to nothing over a live object. Freezing it would
-mean pushing ``module+0x24`` along with the death frame.)
-
-**The transform is the engine's own mount swap, called directly.**
-`ToggleMountedSpecialAbilityUpdate`'s swap (`TOGGLE_MOUNTED_SWAP`) reads three things off the
-module it is
-called on - the `ModuleData` at ``+0x04``, the `Object` at ``+0x08``, and a success flag it writes
-at ``+0x8c`` - makes **no virtual call on it**, and of that `ModuleData` reads only the template
-name at `TOGGLE_MOUNTED_TEMPLATE` and the timer-sync vector behind it. `LifetimeUpdate`'s module
-has the
-same first two offsets, and its `ModuleData` grows to `TOGGLE_MOUNTED_MODULE_DATA_SIZE` - which is
-`ToggleMountedSpecialAbilityUpdate`'s own ``sizeof`` - with the new keyword's row landing exactly
-where `MountedTemplate` lands. So the cave builds a module-shaped scratch on the stack, hands it
-the real `ModuleData` and `Object`, and calls the stock swap and the stock retire
-(`TOGGLE_MOUNTED_RETIRE`,
-which hides the drawable, drops it out of the UI and calls `GameLogic::destroyObject`). Health,
-experience, team, position, facing, selection and contained passengers move exactly as they do
-when a hero mounts, because it is the same code.
-
-Six edits, one cave
--------------------
-1. **The mask needs room, and `ModuleData` has none.** ``sizeof`` is ``0x18`` with two bytes of
-   padding, against the ``0x90`` an `UpgradeMaskType` needs plus four for the bonus, and the
-   transform needs its string at a fixed ``0xd8``, so the structure grows to
-   `TOGGLE_MOUNTED_MODULE_DATA_SIZE`. That is one hook, because `newModuleData`
-   (`LIFETIME_ALLOC`) is **LifetimeUpdate's own thunk**: it calls the ModuleData constructor
-   directly and
-   nothing else in the image reaches either. The cave replaces the size and **zeroes everything it
-   added**, which is required rather than tidy - for every `LifetimeUpdate` that does not declare
-   the keywords the parsers never run, and `operator new` does not zero. Zeroing in the allocator
-   rather than the constructor is what leaves the constructor's own five stores untouched.
-2. **The keywords.** The field-parse table at `LIFETIME_FIELD_TABLE` is boxed in by its own keyword
-   strings and its terminator, so it is rebuilt in the cave - five stock rows copied verbatim,
-   since their name pointers are absolute, plus three rows and the terminator. It has **exactly
-   one reference** in the image, the ``push`` immediate at `LIFETIME_FIELD_TABLE_REF`, and the
-   reader
-   walks to the terminator rather than to a count. All three new rows name **engine parse
-   functions**, so the patch adds no parse code.
-3. **The edge latch's default, for one byte.** The rising edge needs to know what last frame
-   answered, and the module instance has three bytes of tail padding after the `WaitForWakeUp`
-   latch at ``+0x28`` (``sizeof`` is ``0x2c``). The constructor zeroes ``+0x28`` with a *byte*
-   store while `eax` is already zero, so widening that one store to a dword (`0x88` -> `0x89`)
-   clears the new latch too. `sizeof` does not change, the savegame does not change, and the
-   constructor is otherwise untouched.
-4. **Arming, at the tail of `setLifetimeRange`.** When the mask is non-empty the returned sleep
-   becomes 1, so the module wakes every frame instead of sleeping to its death frame - which is
-   the only way to see an edge at all. Hooking here rather than at either call site covers both
-   arming paths, the constructor and `startLifetime` (what `WaitForWakeUp` resumes through),
-   because this function is the single funnel they share.
-5. **The extension, at `update`'s first instruction.** Held now and not last frame -> add the
-   bonus to the death frame. Then: not yet due -> sleep one frame, which is the poll the arming
-   hook set up; due -> the stock update, byte for byte, including the kill. The hook is at the
-   entry rather than at the kill because the module pointer is only live in ``ecx`` there:
-   `update` never spills it.
-6. **The transform, ahead of the scoring arm.** `LIFETIME_EXPIRE` is `update`'s ``cmp`` of
-   `ScoreKill`
-   and the ``push esi`` after it - five bytes of two whole instructions, reached with ``ebx`` and
-   ``edi`` already the `ModuleData` and the `Object` and with the `THROWN_PROJECTILE` reprieve
-   already taken. Hooking *here* rather than at the kill is what keeps the score straight: the
-   ``ScoreKill = No`` arm calls `ScoreKeeper::addObjectBuilt(obj, -1)` and so does the swap, so a
-   hook below it would decrement twice for one transform. Returning takes the epilogue at
-   `LIFETIME_KILL_RETURN`, which is the one the `THROWN_PROJECTILE` arm already returns through -
-   *before* the ``push esi`` this hook displaced.
-
-**An object that does not declare the keyword pays one `any()`** - 36 dword compares - and one
-`AsciiString::isEmpty` - two - once, on the frame it dies, and nothing else about it changes. An
-object that declares the mask wakes every frame for its whole lifetime; that is the cost, and it
-is the reason the field is opt-in. `ExpirationTemplate` costs nothing until the object expires.
-
-**Determinism.** This changes *when objects die* and *which objects exist*, which is logic-side
-`Object` state and is CRC'd, so **every peer must run the same patched binary** and replays do not
-cross. And, as with `terrain-resource-exp` and `queue-ignore-cp`, the keywords are an INI **parse
-error** on a stock build rather than a warning.
-
-**Savegames need no version bump**, and the one thing that is not carried across a load is the
-edge latch: a still-held upgrade reads as freshly gained on the first poll after loading and pays
-its bonus a second time. Bounded to one extension per load, and the alternative is a module xfer
-version bump that would make patched saves unreadable by anything else.
-
-**Composition.** Order-independent: the cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name.
-No bundled patch touches `LifetimeUpdate`, its field table or its module-factory thunk, and none
-reads what this one writes. The engine routines the cave calls - the two mask predicates,
-`getControllingPlayer`, `AsciiString::isEmpty`, and the mount swap and retire - are read, never
-rewritten, here or anywhere else in the package.
+Derivation: `../docs/lifetime-extend-upgrade.md` and `../docs/lifetime-transform.md`.
 """
 
 from __future__ import annotations
@@ -183,7 +70,16 @@ from ..addresses import (
 )
 from ..asm import JAE, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    find_section,
+    i8,
+    jmp_rel32,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -208,7 +104,7 @@ __all__ = [
 
 #: Where this patch's three fields land in the grown `ModuleData`, and how much of it the
 #: allocator zeroes. The mask starts at the stock structure's end, the bonus behind its 36 dwords
-#: (see ``../docs/upgrade-mask-limit.md``), and the template at `TOGGLE_MOUNTED_TEMPLATE` - which
+#: (see `../docs/upgrade-mask-limit.md`), and the template at `TOGGLE_MOUNTED_TEMPLATE` - which
 #: is the
 #: one that is not a free choice, because the mount swap reads it there.
 MASK_OFFSET = LIFETIME_MODULE_DATA_SIZE
@@ -216,7 +112,7 @@ BONUS_OFFSET = MASK_OFFSET + PLAYER_COMPLETED_UPGRADE_MASK_WORDS * 4
 ZERO_DWORDS = (TOGGLE_MOUNTED_MODULE_DATA_SIZE - LIFETIME_MODULE_DATA_SIZE) // 4
 
 #: The edge latch: was an upgrade in the mask held at the previous poll? Tail padding after the
-#: `WaitForWakeUp` byte at ``+0x28``, inside the stock ``sizeof`` of ``0x2c``, which is what makes
+#: `WaitForWakeUp` byte at `+0x28`, inside the stock `sizeof` of `0x2c`, which is what makes
 #: widening one store in the constructor enough to default it.
 LATCH_OFFSET = 0x29
 
@@ -254,35 +150,14 @@ def validate_keywords(keyword: str, bonus_keyword: str, template_keyword: str) -
         raise ValueError(f"the three keywords must differ, got {names!r}")
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _disp8(value: int) -> int:
-    return value & 0xFF
-
-
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    if end < 0:
-        return None
-    try:
-        return bytes(data[off : off + end]).decode("ascii")
-    except UnicodeDecodeError:
-        return None
-
-
 @dataclass(frozen=True)
 class _Layout:
     """Where each piece of the cave sits, given its base address and the keywords.
 
-    Pure arithmetic on the keywords' lengths, so :meth:`LifetimeFieldsPatch.apply` and
-    :meth:`LifetimeFieldsPatch.verify` compute the same addresses from opposite directions.
+    Pure arithmetic on the keywords' lengths, so `LifetimeFieldsPatch.apply` and
+    `LifetimeFieldsPatch.verify` compute the same addresses from opposite directions.
     The three strings come first, in declaration order, so
-    :meth:`LifetimeFieldsPatch.detect` can read them straight off the section base without
+    `LifetimeFieldsPatch.detect` can read them straight off the section base without
     knowing how long anything after them is."""
 
     keyword_va: int
@@ -326,7 +201,7 @@ def build_table(
     """The rebuilt field-parse table: the stock rows verbatim, the three new ones, the terminator.
 
     The stock rows are copied rather than rewritten because every pointer in them is absolute -
-    their keyword strings stay where they are, in ``.rdata``, and only the new rows point into the
+    their keyword strings stay where they are, in `.rdata`, and only the new rows point into the
     cave."""
     mask_row = struct.pack("<IIII", keyword_va, INI_PARSE_UPGRADE_MASK, 0, MASK_OFFSET)
     bonus_row = struct.pack("<IIII", bonus_keyword_va, INI_PARSE_DURATION, 0, BONUS_OFFSET)
@@ -339,24 +214,24 @@ def build_table(
 def build_alloc(base_va: int) -> bytes:
     """Allocate the grown `ModuleData` and zero the fields it added.
 
-    Entered in place of `newModuleData`'s ``push esi`` / ``push 0x18`` / ``call operator new``, and
-    owes the caller all three effects: ``esi`` saved, the block in ``eax``, and the size argument
-    still on the stack for the ``pop ecx`` the cave rejoins at.
+    Entered in place of `newModuleData`'s `push esi` / `push 0x18` / `call operator new`, and
+    owes the caller all three effects: `esi` saved, the block in `eax`, and the size argument
+    still on the stack for the `pop ecx` the cave rejoins at.
 
     The zeroing is what makes the fields' defaults "no upgrade extends this, by nothing".
     `parseUpgradeMask` memsets the mask it is given, so a block declaring the keyword would be fine
     either way; a block that does not declare it never reaches either parser, and `operator new`
-    hands back whatever was in the heap. ``esi`` is not touched, because the value just pushed is
+    hands back whatever was in the heap. `esi` is not touched, because the value just pushed is
     the caller's and the register is still live."""
     a = Asm(base_va)
     a.emit(0x56)  # push esi
-    a.emit(0x68, _u32(TOGGLE_MOUNTED_MODULE_DATA_SIZE))  # push 0xac
+    a.emit(0x68, u32(TOGGLE_MOUNTED_MODULE_DATA_SIZE))  # push 0xac
     a.call_absolute(OPERATOR_NEW)  # call <operator new>
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc_short(JE, "done")  # je .done              ; the caller tests for null too
     a.emit(0x50)  # push eax
     a.emit(b"\x8d\x50", LIFETIME_MODULE_DATA_SIZE)  # lea  edx, [eax+0x18]  ; past the stock fields
-    a.emit(0xB9, _u32(ZERO_DWORDS))  # mov  ecx, 37
+    a.emit(0xB9, u32(ZERO_DWORDS))  # mov  ecx, 37
     a.emit(b"\x33\xc0")  # xor  eax, eax
     a.label("zero")
     a.emit(b"\x89\x02")  # mov  [edx], eax
@@ -372,13 +247,13 @@ def build_alloc(base_va: int) -> bytes:
 def build_arm(base_va: int) -> bytes:
     """The tail of `setLifetimeRange`: store the death frame, then choose the sleep.
 
-    ``esi`` is the module, ``ecx`` the death frame and ``eax`` the duration both call sites push as
+    `esi` is the module, `ecx` the death frame and `eax` the duration both call sites push as
     the module's sleep. With a mask declared that becomes 1, so the module wakes every frame - the
-    only way :func:`build_update` can see an upgrade arrive. The death frame is stored either way
+    only way `build_update` can see an upgrade arrive. The death frame is stored either way
     and stays the only thing that decides when the object dies.
 
-    `any()` returns in ``al`` and touches nothing else the caller needs, so the duration is simply
-    parked across it - and ``pop`` does not disturb the flags the ``test`` set."""
+    `any()` returns in `al` and touches nothing else the caller needs, so the duration is simply
+    parked across it - and `pop` does not disturb the flags the `test` set."""
     a = Asm(base_va)
     a.emit(b"\x89\x4e", LIFETIME_DIE_FRAME)  # mov  [esi+0x20], ecx  ; the displaced store
     a.emit(0x50)  # push eax               ; the stock sleep
@@ -388,7 +263,7 @@ def build_arm(base_va: int) -> bytes:
     a.emit(b"\x84\xc0")  # test al, al
     a.emit(0x58)  # pop  eax
     a.jcc_short(JE, "out")  # je .out               ; no keyword -> the stock sleep
-    a.emit(0xB8, _u32(1))  # mov  eax, 1           ; UPDATE_SLEEP(1): poll
+    a.emit(0xB8, u32(1))  # mov  eax, 1           ; UPDATE_SLEEP(1): poll
     a.label("out")
     a.emit(0x5E)  # pop  esi
     a.emit(b"\xc2\x08\x00")  # ret  8
@@ -396,20 +271,20 @@ def build_arm(base_va: int) -> bytes:
 
 
 def build_held(base_va: int) -> bytes:
-    """Is any upgrade in the mask held? ``esi`` = the `Object`, ``edi`` = the mask, answer in
-    ``al``.
+    """Is any upgrade in the mask held? `esi` = the `Object`, `edi` = the mask, answer in
+    `al`.
 
     The engine's own two-mask idiom, in the engine's own order: the object's completed mask first,
     then its controlling player's. Two `testForAny` calls rather than a union, which is what
     `UpgradeMux` does and costs no scratch space. An unowned object answers on its own mask alone,
     since `getControllingPlayer` returns NULL rather than faulting.
 
-    The mask is carried in ``edi`` because it has to survive both callees, and every scratch
-    register is spoken for: `testForAny` takes its argument on the stack and returns in ``al``,
-    and `getControllingPlayer` answers in ``eax``."""
+    The mask is carried in `edi` because it has to survive both callees, and every scratch
+    register is spoken for: `testForAny` takes its argument on the stack and returns in `al`,
+    and `getControllingPlayer` answers in `eax`."""
     a = Asm(base_va)
     a.emit(0x57)  # push edi               ; the mask, as testForAny's argument
-    a.emit(b"\x8d\x8e", _u32(OBJECT_UPGRADE_MASK))  # lea ecx, [esi+0x28c]
+    a.emit(b"\x8d\x8e", u32(OBJECT_UPGRADE_MASK))  # lea ecx, [esi+0x28c]
     a.call_absolute(UPGRADE_MASK_TEST_ANY)  # call <testForAny>     ; ret 4
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc_short(JNE, "yes")  # jne .yes              ; object-scoped
@@ -417,7 +292,7 @@ def build_held(base_va: int) -> bytes:
     a.call_absolute(OBJECT_GET_CONTROLLING_PLAYER)  # call <getControllingPlayer>
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc_short(JE, "no")  # je .no                ; unowned -> not held
-    a.emit(b"\x8d\x88", _u32(PLAYER_COMPLETED_UPGRADE_MASK))  # lea ecx, [eax+0x14c]
+    a.emit(b"\x8d\x88", u32(PLAYER_COMPLETED_UPGRADE_MASK))  # lea ecx, [eax+0x14c]
     a.emit(0x57)  # push edi
     a.call_absolute(UPGRADE_MASK_TEST_ANY)  # call <testForAny>     ; its al is ours
     a.emit(0xC3)  # ret
@@ -433,21 +308,21 @@ def build_held(base_va: int) -> bytes:
 def build_update(base_va: int, held_va: int) -> bytes:
     """`update`'s new first instruction: pay the extension, poll, or the stock update.
 
-    Entered with ``ecx`` = the `UpdateModule` subobject (``module+0x10``) and the stack exactly as
-    the caller left it, so ``mov eax, 1 / ret`` is a legal early return - `update` takes no
-    arguments and ends in a bare ``ret``.
+    Entered with `ecx` = the `UpdateModule` subobject (`module+0x10`) and the stack exactly as
+    the caller left it, so `mov eax, 1 / ret` is a legal early return - `update` takes no
+    arguments and ends in a bare `ret`.
 
     The latch is written on **every** polled frame, held or not, which is what makes the trigger an
     edge rather than a level: it fires when the answer changes from no to yes, and re-arms as soon
-    as the upgrade goes away. ``edi`` is saved because the stock function pushes it *after* this
+    as the upgrade goes away. `edi` is saved because the stock function pushes it *after* this
     hook returns and pops it on the way out, so leaving it dirty would hand the caller the wrong
     value back rather than merely clobbering it."""
     a = Asm(base_va)
     a.emit(0x53)  # push ebx
     a.emit(0x56)  # push esi
     a.emit(0x57)  # push edi
-    data_disp = _disp8(-UPDATE_MODULE_THIS_DELTA + UPDATE_MODULE_DATA)
-    object_disp = _disp8(-UPDATE_MODULE_THIS_DELTA + UPDATE_MODULE_OBJECT)
+    data_disp = i8(-UPDATE_MODULE_THIS_DELTA + UPDATE_MODULE_DATA)
+    object_disp = i8(-UPDATE_MODULE_THIS_DELTA + UPDATE_MODULE_OBJECT)
     a.emit(b"\x8b\x59", data_disp)  # mov  ebx, [ecx-0xc]
     a.emit(b"\x8b\x71", object_disp)  # mov  esi, [ecx-8]
     a.emit(b"\x8d\x7b", MASK_OFFSET)  # lea  edi, [ebx+0x18]  ; &the mask
@@ -461,26 +336,26 @@ def build_update(base_va: int, held_va: int) -> bytes:
     a.emit(0x51)  # push ecx
     a.call_absolute(held_va)  # call <held>           ; al = held now
     a.emit(0x59)  # pop  ecx
-    a.emit(b"\x8a\x51", _disp8(LATCH_OFFSET - UPDATE_MODULE_THIS_DELTA))  # mov dl, [ecx+0x19]
-    a.emit(b"\x88\x41", _disp8(LATCH_OFFSET - UPDATE_MODULE_THIS_DELTA))  # mov [ecx+0x19], al
+    a.emit(b"\x8a\x51", i8(LATCH_OFFSET - UPDATE_MODULE_THIS_DELTA))  # mov dl, [ecx+0x19]
+    a.emit(b"\x88\x41", i8(LATCH_OFFSET - UPDATE_MODULE_THIS_DELTA))  # mov [ecx+0x19], al
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "due")  # je .due               ; not held -> latch cleared, nothing paid
     a.emit(b"\x84\xd2")  # test dl, dl
     a.jcc(JNE, "due")  # jne .due              ; held last frame too -> not an edge
-    a.emit(b"\x8b\x93", _u32(BONUS_OFFSET))  # mov edx, [ebx+0xa8]   ; the bonus, in frames
-    die_disp = _disp8(LIFETIME_DIE_FRAME - UPDATE_MODULE_THIS_DELTA)
+    a.emit(b"\x8b\x93", u32(BONUS_OFFSET))  # mov edx, [ebx+0xa8]   ; the bonus, in frames
+    die_disp = i8(LIFETIME_DIE_FRAME - UPDATE_MODULE_THIS_DELTA)
     a.emit(b"\x01\x51", die_disp)  # add  [ecx+0x10], edx
 
     a.label("due")
-    a.emit(0xA1, _u32(THE_GAME_LOGIC))  # mov  eax, [TheGameLogic]
+    a.emit(0xA1, u32(THE_GAME_LOGIC))  # mov  eax, [TheGameLogic]
     a.emit(b"\x8b\x40", GAME_LOGIC_FRAME)  # mov  eax, [eax+0x40]  ; now
-    die_disp = _disp8(LIFETIME_DIE_FRAME - UPDATE_MODULE_THIS_DELTA)
+    die_disp = i8(LIFETIME_DIE_FRAME - UPDATE_MODULE_THIS_DELTA)
     a.emit(b"\x3b\x41", die_disp)  # cmp  eax, [ecx+0x10]
     a.jcc(JAE, "stock")  # jae .stock            ; due -> the stock kill
     a.emit(0x5F)  # pop  edi
     a.emit(0x5E)  # pop  esi
     a.emit(0x5B)  # pop  ebx
-    a.emit(0xB8, _u32(1))  # mov  eax, 1           ; UPDATE_SLEEP(1)
+    a.emit(0xB8, u32(1))  # mov  eax, 1           ; UPDATE_SLEEP(1)
     a.emit(0xC3)  # ret
 
     a.label("stock")
@@ -496,10 +371,10 @@ def build_expire(base_va: int) -> bytes:
     """`update`'s expiry, one branch earlier: become the template, or fall through to the stock
     death.
 
-    Entered with ``ebx`` = the `ModuleData`, ``edi`` = the `Object` and ``esi`` **not yet pushed**,
+    Entered with `ebx` = the `ModuleData`, `edi` = the `Object` and `esi` **not yet pushed**,
     in place of the `ScoreKill` test and the push behind it. With no template declared the two
-    displaced instructions are re-executed and the function carries on, byte for byte - ``push``
-    sets no flags, so the ``cmp`` can go second and land its answer directly in the ``je`` the cave
+    displaced instructions are re-executed and the function carries on, byte for byte - `push`
+    sets no flags, so the `cmp` can go second and land its answer directly in the `je` the cave
     returns to.
 
     The transform hands `TOGGLE_MOUNTED_SWAP` a stack frame where a
@@ -507,7 +382,7 @@ def build_expire(base_va: int) -> bytes:
     instance would be. Three slots is all it reads: the `ModuleData`, whose grown tail holds the
     template name exactly where `MountedTemplate` lives, the `Object`, and the flag - cleared
     first, because it is the only way to tell a swap that happened from one the template store
-    refused. The swap preserves ``ebx`` and ``edi``, so the abort arm still has what the stock path
+    refused. The swap preserves `ebx` and `edi`, so the abort arm still has what the stock path
     needs.
 
     `TOGGLE_MOUNTED_RETIRE` is called immediately rather than a step later the way the mount
@@ -515,27 +390,27 @@ def build_expire(base_va: int) -> bytes:
     because there is no pack animation to wait through: the replacement already carries everything
     and `destroyObject` is deferred to the end of the frame either way."""
     a = Asm(base_va)
-    a.emit(b"\x8d\x8b", _u32(TOGGLE_MOUNTED_TEMPLATE))  # lea  ecx, [ebx+0xd8]  ; &the template
+    a.emit(b"\x8d\x8b", u32(TOGGLE_MOUNTED_TEMPLATE))  # lea  ecx, [ebx+0xd8]  ; &the template
     a.call_absolute(ASCII_STRING_IS_EMPTY)  # call <isEmpty>
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JNE, "stock")  # jne .stock            ; no keyword -> stock, bit for bit
 
-    a.emit(b"\x81\xec", _u32(TOGGLE_MOUNTED_INSTANCE_SIZE))  # sub esp, 0x90 ; module-shaped
+    a.emit(b"\x81\xec", u32(TOGGLE_MOUNTED_INSTANCE_SIZE))  # sub esp, 0x90 ; module-shaped
     a.emit(b"\x89\x5c\x24", UPDATE_MODULE_DATA)  # mov [esp+4], ebx
     a.emit(b"\x89\x7c\x24", UPDATE_MODULE_OBJECT)  # mov [esp+8], edi
-    a.emit(b"\xc6\x84\x24", _u32(TOGGLE_MOUNTED_SWAP_FLAG), 0x00)  # mov byte [esp+0x8c], 0
+    a.emit(b"\xc6\x84\x24", u32(TOGGLE_MOUNTED_SWAP_FLAG), 0x00)  # mov byte [esp+0x8c], 0
     a.emit(b"\x8b\xcc")  # mov  ecx, esp
     a.call_absolute(TOGGLE_MOUNTED_SWAP)  # call <the mount swap>
-    a.emit(b"\x80\xbc\x24", _u32(TOGGLE_MOUNTED_SWAP_FLAG), 0x00)  # cmp byte [esp+0x8c], 0
+    a.emit(b"\x80\xbc\x24", u32(TOGGLE_MOUNTED_SWAP_FLAG), 0x00)  # cmp byte [esp+0x8c], 0
     a.jcc(JE, "abort")  # je .abort             ; no such template -> die as stock
     a.emit(b"\x8b\xcc")  # mov  ecx, esp
     a.call_absolute(TOGGLE_MOUNTED_RETIRE)  # call <hide, deselect, destroy>
-    a.emit(b"\x81\xc4", _u32(TOGGLE_MOUNTED_INSTANCE_SIZE))  # add  esp, 0x90
-    a.emit(0xB8, _u32(UPDATE_MODULE_SLEEP_FOREVER))  # mov  eax, 0x3fffffff
+    a.emit(b"\x81\xc4", u32(TOGGLE_MOUNTED_INSTANCE_SIZE))  # add  esp, 0x90
+    a.emit(0xB8, u32(UPDATE_MODULE_SLEEP_FOREVER))  # mov  eax, 0x3fffffff
     a.jmp_absolute(LIFETIME_KILL_RETURN)  # the epilogue above the `pop esi`
 
     a.label("abort")
-    a.emit(b"\x81\xc4", _u32(TOGGLE_MOUNTED_INSTANCE_SIZE))  # add  esp, 0x90
+    a.emit(b"\x81\xc4", u32(TOGGLE_MOUNTED_INSTANCE_SIZE))  # add  esp, 0x90
     a.label("stock")
     a.emit(0x56)  # push esi              ; the displaced pair, flags last
     a.emit(LIFETIME_EXPIRE_BYTES[:-1])  # cmp  byte [ebx+0x11], 0
@@ -543,17 +418,11 @@ def build_expire(base_va: int) -> bytes:
     return a.finish()
 
 
-def _jmp_bytes(from_va: int, to_va: int, width: int) -> bytes:
-    """``jmp rel32`` to ``to_va``, padded with ``nop`` to the ``width`` bytes it displaces."""
-    jump = b"\xe9" + struct.pack("<i", to_va - (from_va + 5))
-    return jump + b"\x90" * (width - len(jump))
-
-
 def widened_latch_default() -> bytes:
-    """The constructor's ``mov byte [esi+0x28], al`` as a dword store.
+    """The constructor's `mov byte [esi+0x28], al` as a dword store.
 
-    Three bytes for three, one of them changed: ``eax`` is already zero at that point and the
-    instance is ``0x2c`` bytes, so the store clears the `WaitForWakeUp` byte exactly as before and
+    Three bytes for three, one of them changed: `eax` is already zero at that point and the
+    instance is `0x2c` bytes, so the store clears the `WaitForWakeUp` byte exactly as before and
     the edge latch behind it as well."""
     widened = bytes((0x89,)) + LIFETIME_LATCH_DEFAULT_BYTES[1:]
     assert len(widened) == len(LIFETIME_LATCH_DEFAULT_BYTES)
@@ -565,6 +434,7 @@ class LifetimeFieldsPatch(Patch):
 
     name = "lifetime-fields"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add three fields to LifetimeUpdate. ExtendedByUpgrades and UpgradeLifetimeBonus push an "
         "object's death back by that many milliseconds when one of those upgrades arrives; "
@@ -606,9 +476,9 @@ class LifetimeFieldsPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch with exactly these keywords (an empty
+        """Structural check that `data` carries this patch with exactly these keywords (an empty
         list == verified). Locates the cave, recomputes everything the keywords imply and compares
-        it and every rewritten site to what is on disk. Reads only via ``struct`` and the section
+        it and every rewritten site to what is on disk. Reads only via `struct` and the section
         table, so verification needs no disassembler.
 
         The stock rows are read back **out of the cave's own copy** rather than from the address
@@ -623,9 +493,9 @@ class LifetimeFieldsPatch(Patch):
         # Checked first because everything after them is laid out *from* the keywords: a cave built
         # for others is a different length, and would otherwise report as a size problem.
         installed = (
-            _read_cstring(data, pieces.keyword_va),
-            _read_cstring(data, pieces.bonus_keyword_va),
-            _read_cstring(data, pieces.template_keyword_va),
+            read_cstring(data, pieces.keyword_va),
+            read_cstring(data, pieces.bonus_keyword_va),
+            read_cstring(data, pieces.template_keyword_va),
         )
         if installed != self._keywords:
             return [f"the keywords in {SECTION_NAME} are {installed!r}, not {self._keywords!r}"]
@@ -658,7 +528,7 @@ class LifetimeFieldsPatch(Patch):
         """Recognise this patch **and recover its keywords**.
 
         The default probe would only ever recognise the default names. All three strings are the
-        first thing in the cave (:func:`_layout` puts them at the section base, in declaration
+        first thing in the cave (`_layout` puts them at the section base, in declaration
         order), so they read straight back out; `verify` then checks the whole cave against them."""
         located = find_section(data, SECTION_NAME)
         if located is None:
@@ -666,7 +536,7 @@ class LifetimeFieldsPatch(Patch):
         keywords: list[str] = []
         va = located[0]
         for _ in range(3):
-            name = _read_cstring(data, va)
+            name = read_cstring(data, va)
             if name is None:
                 return None
             keywords.append(name)
@@ -734,7 +604,7 @@ class LifetimeFieldsPatch(Patch):
 
     def _build(self, base_va: int, stock_rows: bytes) -> bytes:
         """The cave: the three keyword strings, the rebuilt field table, then the five stubs - in
-        that order, so :meth:`detect` finds the names at the section base."""
+        that order, so `detect` finds the names at the section base."""
         pieces = _layout(base_va, *self._keywords)
 
         blob = bytearray()
@@ -770,7 +640,7 @@ class LifetimeFieldsPatch(Patch):
             name_va, _parse, _userdata, field_off = struct.unpack_from(
                 "<4I", entries, index * FIELD_PARSE_STRIDE
             )
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != name:
                 raise ValueError(f"field table entry {index}: expected {name!r}, found {got!r}")
             if field_off != offset:
@@ -807,7 +677,7 @@ class LifetimeFieldsPatch(Patch):
             name_va, _parse, _ud, field_off = struct.unpack_from(
                 "<4I", data, off + index * FIELD_PARSE_STRIDE
             )
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != name or field_off != offset:
                 problems.append(
                     f"rebuilt table entry {index}: expected {name!r} at 0x{offset:x}, "
@@ -827,7 +697,7 @@ class LifetimeFieldsPatch(Patch):
         for index, (keyword, parser, offset, what) in enumerate(appended):
             row = off + (len(LIFETIME_STOCK_FIELDS) + index) * FIELD_PARSE_STRIDE
             name_va, parse_fn, _ud, field_off = struct.unpack_from("<4I", data, row)
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != keyword:
                 problems.append(f"{what} is called {got!r}, not {keyword!r}")
             if parse_fn != parser:
@@ -861,7 +731,7 @@ class LifetimeFieldsPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, pieces: _Layout
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)``."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)`."""
         edits: list[tuple[int, bytes, bytes, str]] = []
 
         def at(va: int, old: bytes, new: bytes, note: str) -> None:
@@ -873,14 +743,14 @@ class LifetimeFieldsPatch(Patch):
         at(
             LIFETIME_ALLOC,
             LIFETIME_ALLOC_BYTES,
-            _jmp_bytes(LIFETIME_ALLOC, pieces.alloc_va, len(LIFETIME_ALLOC_BYTES)),
+            jmp_rel32(LIFETIME_ALLOC, pieces.alloc_va, len(LIFETIME_ALLOC_BYTES)),
             f"newModuleData -> a 0x{TOGGLE_MOUNTED_MODULE_DATA_SIZE:x}-byte ModuleData, "
             "zeroed past 0x18",
         )
         at(
             LIFETIME_FIELD_TABLE_REF,
-            _u32(LIFETIME_FIELD_TABLE),
-            _u32(pieces.table_va),
+            u32(LIFETIME_FIELD_TABLE),
+            u32(pieces.table_va),
             f"buildFieldParse -> the {SECTION_NAME} field table",
         )
         at(
@@ -892,19 +762,19 @@ class LifetimeFieldsPatch(Patch):
         at(
             LIFETIME_ARM,
             LIFETIME_ARM_BYTES,
-            _jmp_bytes(LIFETIME_ARM, pieces.arm_va, len(LIFETIME_ARM_BYTES)),
+            jmp_rel32(LIFETIME_ARM, pieces.arm_va, len(LIFETIME_ARM_BYTES)),
             f"setLifetimeRange -> poll every frame while {self.keyword} is declared",
         )
         at(
             LIFETIME_UPDATE,
             LIFETIME_UPDATE_BYTES,
-            _jmp_bytes(LIFETIME_UPDATE, pieces.update_va, len(LIFETIME_UPDATE_BYTES)),
+            jmp_rel32(LIFETIME_UPDATE, pieces.update_va, len(LIFETIME_UPDATE_BYTES)),
             f"update -> pay {self.bonus_keyword} when {self.keyword} is gained",
         )
         at(
             LIFETIME_EXPIRE,
             LIFETIME_EXPIRE_BYTES,
-            _jmp_bytes(LIFETIME_EXPIRE, pieces.expire_va, len(LIFETIME_EXPIRE_BYTES)),
+            jmp_rel32(LIFETIME_EXPIRE, pieces.expire_va, len(LIFETIME_EXPIRE_BYTES)),
             f"update -> become {self.template_keyword} instead of dying",
         )
         return edits

@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "SkyboxSettings",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -20,10 +24,10 @@ class SkyboxSettings:
     @classmethod
     def parse(cls, context: "ParsingContext"):
         with context.read_asset() as asset_ctx:
-            position = context.stream.readVector3()
-            scale = context.stream.readFloat()
-            rotation = context.stream.readFloat()
-            texture_scheme = context.stream.readUInt16PrefixedAsciiString()
+            position = context.stream.read_vector3()
+            scale = context.stream.read_float()
+            rotation = context.stream.read_float()
+            texture_scheme = context.stream.read_uint16_prefixed_ascii_string()
 
         return cls(
             version=asset_ctx.version,
@@ -37,7 +41,7 @@ class SkyboxSettings:
 
     def write(self, context: "WritingContext"):
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeVector3(self.position)
-            context.stream.writeFloat(self.scale)
-            context.stream.writeFloat(self.rotation)
-            context.stream.writeUInt16PrefixedAsciiString(self.texture_scheme)
+            context.stream.write_vector3(self.position)
+            context.stream.write_float(self.scale)
+            context.stream.write_float(self.rotation)
+            context.stream.write_uint16_prefixed_ascii_string(self.texture_scheme)

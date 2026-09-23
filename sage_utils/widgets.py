@@ -1,13 +1,15 @@
 """PyQt6 UI building blocks shared by the SAGE front ends, so the desktop apps don't
 duplicate them: a card frame, a background worker thread, bundled-resource lookup, a
-name completer, and the collapsible data-sources panel."""
+name completer, the collapsible data-sources panel, and the Help menu with its getting-started
+walkthrough and bug report."""
 
 import sys
 import traceback
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QStringListModel, Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QIcon, QImage, QPixmap
+from PyQt6.QtCore import QObject, QStringListModel, Qt, QThread, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices, QIcon, QImage, QPixmap
 from PyQt6.QtWidgets import (
     QWIDGETSIZE_MAX,
     QApplication,
@@ -22,15 +24,38 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
+from sage_utils.bugreport import ISSUES_URL, new_issue_url, report_text
 from sage_utils.config import read_json, write_json
 from sage_utils.sources import load_saved_sources, save_sources
 from sage_utils.styles import DARK_STYLE, LIGHT_STYLE
+
+__all__ = [
+    "add_help_menu",
+    "apply_theme",
+    "card",
+    "clear_layout",
+    "CopyableLabel",
+    "getting_started_dialog",
+    "make_completer",
+    "pil_to_pixmap",
+    "report_bug_dialog",
+    "resource_path",
+    "run_app",
+    "run_worker",
+    "saved_dark_theme",
+    "SourceLoader",
+    "SourcesPanel",
+    "theme_notifier",
+    "ThemeToggle",
+    "Worker",
+]
 
 # The theme preference is shared across every SAGE front end, so it lives under one key
 # rather than per app - toggle dark/light in one and the others open the same way.
@@ -136,6 +161,70 @@ def getting_started_dialog(
     return dialog
 
 
+def report_bug_dialog(
+    parent: QWidget | None,
+    *,
+    app: str,
+    text: str,
+    headline: str | None = None,
+    issues_url: str = ISSUES_URL,
+    icon: QIcon | None = None,
+) -> QDialog:
+    """A dialog holding a bug report ready to file: which build is running and what it was
+    doing, with room to write what happened. `headline` leads with what just happened, which is
+    what the crash handler has to say and a menu entry does not. The report is shown, never
+    sent - it goes nowhere unless the reporter copies it or opens the tracker themselves."""
+    dialog = QDialog(parent)
+    dialog.setWindowTitle(f"Report a bug in {app}")
+    if icon is not None:
+        dialog.setWindowIcon(icon)
+    dialog.resize(620, 540)
+    layout = QVBoxLayout(dialog)
+    layout.setContentsMargins(16, 16, 16, 16)
+    if headline is not None:
+        title = QLabel(headline)
+        title.setStyleSheet("font-weight: 600;")  # the one line that must read before the rest
+        title.setWordWrap(True)
+        layout.addWidget(title)
+    intro = QLabel(
+        "Say what you were doing and what went wrong, then copy this report into a new issue. "
+        "The rest describes the build you are running, which is what makes a report reproducible."
+    )
+    intro.setWordWrap(True)
+    layout.addWidget(intro)
+    editor = QPlainTextEdit(text)
+    layout.addWidget(editor, 1)
+    note = QLabel()
+    note.setObjectName("muted")
+    note.setWordWrap(True)
+    layout.addWidget(note)
+
+    def copy() -> None:
+        clipboard = QApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText(editor.toPlainText())
+        note.setText("Copied to the clipboard.")
+
+    def open_tracker() -> None:
+        # The form can only carry a short report in its URL, so the whole of it goes to the
+        # clipboard as well - a long one (a traceback) is then one paste away rather than lost.
+        copy()
+        url = new_issue_url(app, editor.toPlainText(), issues_url=issues_url)
+        QDesktopServices.openUrl(QUrl(url))
+        note.setText("The issue form is open in your browser, and the report is on the clipboard.")
+
+    buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+    copy_button = QPushButton("&Copy report")
+    copy_button.clicked.connect(copy)
+    buttons.addButton(copy_button, QDialogButtonBox.ButtonRole.ActionRole)
+    open_button = QPushButton("&Open the issue tracker")
+    open_button.clicked.connect(open_tracker)
+    buttons.addButton(open_button, QDialogButtonBox.ButtonRole.ActionRole)
+    buttons.rejected.connect(dialog.close)
+    layout.addWidget(buttons)
+    return dialog
+
+
 def add_help_menu(
     window: QMainWindow,
     *,
@@ -144,12 +233,17 @@ def add_help_menu(
     about_title: str,
     about_html: str,
     icon: QIcon | None = None,
+    report_app: str | None = None,
+    report_state: Callable[[], Mapping[str, str]] | None = None,
+    issues_url: str = ISSUES_URL,
 ) -> None:
-    """Add a `&Help` menu to `window`: a "Getting started…" walkthrough of the basics and an
-    About entry - the standard help affordance every SAGE desktop app carries, so a newcomer
-    can always find out what the window does and how to drive it. The walkthrough dialog is
-    created on first use and cached on the window, so it keeps its scroll position across
-    openings."""
+    """Add a `&Help` menu to `window`: a "Getting started…" walkthrough of the basics, an
+    About entry, and - where `report_app` names the app to file under - a "Report a bug…"
+    entry that opens a report already carrying the build and, through `report_state`, whatever
+    the app was doing. The standard help affordance every SAGE desktop app carries, so a
+    newcomer can always find out what the window does, and anyone can say when it misbehaves.
+    The walkthrough dialog is created on first use and cached on the window, so it keeps its
+    scroll position across openings."""
     menu = window.menuBar().addMenu("&Help")
 
     def show_guide() -> None:
@@ -165,6 +259,30 @@ def add_help_menu(
         QMessageBox.about(window, about_title, about_html)
 
     menu.addAction("&Getting started…", show_guide)
+    if report_app is not None:
+        app = report_app
+
+        def show_report() -> None:
+            extra: Mapping[str, str] | None = None
+            if report_state is not None:
+                try:
+                    extra = report_state()
+                except Exception as error:  # noqa: BLE001 - reporting must never be what fails
+                    extra = {"State": f"could not be read: {error!r}"}
+            previous = getattr(window, "_bug_report_dialog", None)
+            if previous is not None:
+                previous.close()  # the state it described is a report ago
+            dialog = report_bug_dialog(
+                window, app=app, text=report_text(app, extra=extra), issues_url=issues_url
+            )
+            # Shown rather than exec'd, like the guide: a reporter can go back to the window to
+            # check what they did while the report stands open beside it.
+            window._bug_report_dialog = dialog
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+
+        menu.addAction("&Report a bug…", show_report)
     menu.addSeparator()
     menu.addAction(f"&{about_title}", show_about)
 

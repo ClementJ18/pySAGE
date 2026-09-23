@@ -14,6 +14,7 @@ from sage_utils.config import read_json, write_json
 from sage_worldbuilder.arrays import ArrayOptions
 from sage_worldbuilder.autosave import DEFAULT_INTERVAL_SECONDS, AutosaveSettings
 from sage_worldbuilder.brush_options import BrushOptions, CopyTerrainOptions, PaintOptions
+from sage_worldbuilder.commands.objects import GroupEditMethod
 from sage_worldbuilder.gamedata import GameLayers, base_install
 from sage_worldbuilder.jump import (
     DEFAULT_RESOLUTION,
@@ -22,8 +23,7 @@ from sage_worldbuilder.jump import (
     JumpMatch,
     JumpOptions,
 )
-from sage_worldbuilder.objects import GroupEditMethod
-from sage_worldbuilder.pick import ANYTHING, PickCategory
+from sage_worldbuilder.selection.pick import ANYTHING, PickCategory
 from sage_worldbuilder.toolbar import DEFAULT_ITEMS, normalise
 from sage_worldbuilder.viewport import ViewOptions
 

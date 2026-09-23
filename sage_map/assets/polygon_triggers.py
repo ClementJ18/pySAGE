@@ -30,23 +30,23 @@ class PolygonTrigger:
 
     @classmethod
     def parse(cls, context: "ParsingContext", version: int) -> Self:
-        name = context.stream.readUInt16PrefixedAsciiString()
+        name = context.stream.read_uint16_prefixed_ascii_string()
 
         layer_name = None
         if version >= 4:
-            layer_name = context.stream.readUInt16PrefixedAsciiString()
+            layer_name = context.stream.read_uint16_prefixed_ascii_string()
 
-        trigger_id = context.stream.readUInt32()
+        trigger_id = context.stream.read_uint32()
 
         is_water = False
         if version >= 2:
-            is_water = context.stream.readBool()
+            is_water = context.stream.read_bool()
 
         is_river = False
         river_start = None
         if version >= 3:
-            is_river = context.stream.readBool()
-            river_start = context.stream.readBoolUInt32()
+            is_river = context.stream.read_bool()
+            river_start = context.stream.read_bool_uint32()
 
         river_texture = None
         noise_texture = None
@@ -60,30 +60,30 @@ class PolygonTrigger:
         uv_scroll_speed = None
         river_alpha = None
         if version >= 5:
-            river_texture = context.stream.readUInt16PrefixedAsciiString()
-            noise_texture = context.stream.readUInt16PrefixedAsciiString()
-            alpha_edge_texture = context.stream.readUInt16PrefixedAsciiString()
-            sparkle_texture = context.stream.readUInt16PrefixedAsciiString()
-            bump_map_texture = context.stream.readUInt16PrefixedAsciiString()
-            sky_texture = context.stream.readUInt16PrefixedAsciiString()
-            use_additive_blending = context.stream.readBool()
+            river_texture = context.stream.read_uint16_prefixed_ascii_string()
+            noise_texture = context.stream.read_uint16_prefixed_ascii_string()
+            alpha_edge_texture = context.stream.read_uint16_prefixed_ascii_string()
+            sparkle_texture = context.stream.read_uint16_prefixed_ascii_string()
+            bump_map_texture = context.stream.read_uint16_prefixed_ascii_string()
+            sky_texture = context.stream.read_uint16_prefixed_ascii_string()
+            use_additive_blending = context.stream.read_bool()
             river_color = (
-                context.stream.readUChar(),
-                context.stream.readUChar(),
-                context.stream.readUChar(),
+                context.stream.read_uchar(),
+                context.stream.read_uchar(),
+                context.stream.read_uchar(),
             )
-            unknown = context.stream.readUChar()
-            uv_scroll_speed = context.stream.readVector2()
-            river_alpha = context.stream.readFloat()
+            unknown = context.stream.read_uchar()
+            uv_scroll_speed = context.stream.read_vector2()
+            river_alpha = context.stream.read_float()
 
-        point_count = context.stream.readUInt32()
+        point_count = context.stream.read_uint32()
         points = []
         for _ in range(point_count):
             points.append(
                 (
-                    context.stream.readInt32(),
-                    context.stream.readInt32(),
-                    context.stream.readInt32(),
+                    context.stream.read_int32(),
+                    context.stream.read_int32(),
+                    context.stream.read_int32(),
                 )
             )
 
@@ -109,22 +109,22 @@ class PolygonTrigger:
         )
 
     def write(self, context: "WritingContext", version: int) -> None:
-        context.stream.writeUInt16PrefixedAsciiString(self.name)
+        context.stream.write_uint16_prefixed_ascii_string(self.name)
 
         if version >= 4:
             # version >= 4 always reads layer_name, so parse leaves it non-None.
             assert self.layer_name is not None
-            context.stream.writeUInt16PrefixedAsciiString(self.layer_name)
+            context.stream.write_uint16_prefixed_ascii_string(self.layer_name)
 
-        context.stream.writeUInt32(self.trigger_id)
+        context.stream.write_uint32(self.trigger_id)
 
         if version >= 2:
-            context.stream.writeBool(self.is_water)
+            context.stream.write_bool(self.is_water)
 
         if version >= 3:
             assert self.river_start is not None
-            context.stream.writeBool(self.is_river)
-            context.stream.writeBoolUInt32(self.river_start)
+            context.stream.write_bool(self.is_river)
+            context.stream.write_bool_uint32(self.river_start)
 
         if version >= 5:
             # version >= 5 reads every field below, so parse leaves none of them None.
@@ -139,27 +139,27 @@ class PolygonTrigger:
             assert self.uv_scroll_speed is not None
             assert self.river_alpha is not None
 
-            context.stream.writeUInt16PrefixedAsciiString(self.river_texture)
-            context.stream.writeUInt16PrefixedAsciiString(self.noise_texture)
-            context.stream.writeUInt16PrefixedAsciiString(self.alpha_edge_texture)
-            context.stream.writeUInt16PrefixedAsciiString(self.sparkle_texture)
-            context.stream.writeUInt16PrefixedAsciiString(self.bump_map_texture)
-            context.stream.writeUInt16PrefixedAsciiString(self.sky_texture)
-            context.stream.writeBool(self.use_additive_blending)
+            context.stream.write_uint16_prefixed_ascii_string(self.river_texture)
+            context.stream.write_uint16_prefixed_ascii_string(self.noise_texture)
+            context.stream.write_uint16_prefixed_ascii_string(self.alpha_edge_texture)
+            context.stream.write_uint16_prefixed_ascii_string(self.sparkle_texture)
+            context.stream.write_uint16_prefixed_ascii_string(self.bump_map_texture)
+            context.stream.write_uint16_prefixed_ascii_string(self.sky_texture)
+            context.stream.write_bool(self.use_additive_blending)
 
-            context.stream.writeUChar(self.river_color[0])
-            context.stream.writeUChar(self.river_color[1])
-            context.stream.writeUChar(self.river_color[2])
+            context.stream.write_uchar(self.river_color[0])
+            context.stream.write_uchar(self.river_color[1])
+            context.stream.write_uchar(self.river_color[2])
 
-            context.stream.writeUChar(self.unknown)
-            context.stream.writeVector2(self.uv_scroll_speed)
-            context.stream.writeFloat(self.river_alpha)
+            context.stream.write_uchar(self.unknown)
+            context.stream.write_vector2(self.uv_scroll_speed)
+            context.stream.write_float(self.river_alpha)
 
-        context.stream.writeUInt32(len(self.points))
+        context.stream.write_uint32(len(self.points))
         for point in self.points:
-            context.stream.writeInt32(point[0])
-            context.stream.writeInt32(point[1])
-            context.stream.writeInt32(point[2])
+            context.stream.write_int32(point[0])
+            context.stream.write_int32(point[1])
+            context.stream.write_int32(point[2])
 
 
 @dataclass
@@ -176,7 +176,7 @@ class PolygonTriggers:
         with context.read_asset() as asset_ctx:
             polygon_triggers = []
 
-            trigger_count = context.stream.readUInt32()
+            trigger_count = context.stream.read_uint32()
             max_trigger_id = 0
             for _ in range(trigger_count):
                 trigger = PolygonTrigger.parse(context, asset_ctx.version)
@@ -195,6 +195,6 @@ class PolygonTriggers:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.polygon_triggers))
+            context.stream.write_uint32(len(self.polygon_triggers))
             for trigger in self.polygon_triggers:
                 trigger.write(context, self.version)

@@ -432,3 +432,20 @@ name defined in a file it does not also serve.
   `Worldbuilder.exe` sitting there looks exactly like a failed patch.
 - `mfc71.dll` ships beside `Worldbuilder.exe` in the install. It is a shared runtime and is not
   a patch target: the fix belongs on Worldbuilder's side of the call.
+
+## Implementation notes
+
+From the `worldbuilder_mod.py` module docstring.
+
+``
+00690155  mov ecx, [ebp-0x1758]    ; <- the hook window, both branches converge here
+0069015b  mov [ebp-0x1014], ecx
+00690161  mov byte [ebp-4], 7
+00690165  push 0
+00690167  push 0
+00690169  push 0x01E20A28          ; "Data\INI\Default\SubSystemLegendExpansion1.ini"
+0069016e  mov edx, [ebp-0x1014]
+00690174  push edx
+00690175  push 0x022C9028
+0069017a  call 0x004097BE          ; the first INI read
+``

@@ -1,68 +1,10 @@
-"""The upgrade grant/remove lists: `ObjectCreationUpgrade` swaps **sets** of upgrades, not one each.
+"""Let `ObjectCreationUpgrade`'s `GrantUpgrade` and `RemoveUpgrade` take any number of upgrades.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/upgrade-grant-lists.md``.
+Both fields stored one name, looked up when the module fires. The patch lets each line take a list,
+stored without growing the fields, granting and removing every entry. A single name behaves as
+before.
 
-**What the engine does today.** `ObjectCreationUpgrade` is the module that fires when an object
-gains an upgrade: it spawns its `UpgradeObject`, and then - once, at the end of the same function
-- grants the single upgrade named by `GrantUpgrade` and removes the single one named by
-`RemoveUpgrade`. Both are `AsciiString`s (`ModuleData+0x144` and `+0x140`), both are looked up in
-`TheUpgradeCenter` by name at the moment they are used, and both name exactly one upgrade.
-
-One is not enough for the thing this module is normally used for. An upgrade that supersedes a
-tier wants the tiers below it gone, and a "the tech is now this" swap wants a set granted; today
-that means either a chain of `ObjectCreationUpgrade`s, each with its own `TriggeredBy` bookkeeping
-to make it fire, or an `Upgrade` object per combination.
-
-**What this does.** Makes both keywords take **any number of names on the line**:
-
-.. code-block:: none
-
-    RemoveUpgrade = Upgrade_TierOne Upgrade_TierTwo
-    GrantUpgrade  = Upgrade_TierThree Upgrade_Banner
-
-Four edits, no structure growth, no constructor or destructor change:
-
-* **The keywords.** The two entries' parse function - stock `INI::parseAsciiString`, which stores
-  the *first* token and drops the rest - is repointed at the shared list parser in
-  :mod:`.utils.token_lists`, which consumes every token on the line and stores them joined by
-  single spaces. Two ``imm32``s; the entries' name pointers and `ModuleData` offsets are untouched,
-  and the third `AsciiString` in the same table (`ThingToSpawn`) is deliberately left alone.
-* **The two uses.** Each `UpgradeCenter::findUpgrade` call is repointed at a cave routine that
-  walks the tokens, looks each one up and applies it, then returns **NULL** - which the caller's
-  own ``test eax,eax / je`` reads as "no upgrade found" and skips its single-upgrade call. The
-  stock give/remove path is therefore not deleted, it is simply never taken, and the bytes that
-  make that true are asserted rather than assumed.
-
-**Why the fields do not grow.** An `AsciiString` is one pointer to a refcounted buffer, so a list
-of names is just a longer string - the same reason `trigger-recharge-list` is cheap, spelled out
-in :mod:`.utils.token_lists`. `ObjectCreationUpgrade`'s `ModuleData` stays `0x174` bytes.
-
-**A single name behaves exactly as it does today.** The parser stores one token byte-for-byte as
-stock stored it, and the cave then looks up that one name and applies it to the same object
-through the same two engine calls. An empty field skips the whole loop, exactly as the stock
-NULL from `findUpgrade` skipped the call.
-
-**Order.** Grants happen before removals, which is the stock order and is worth stating because
-the two lists can now overlap: naming the same upgrade in both leaves the object without it.
-Within a list, names are applied left to right.
-
-Where the object comes from
----------------------------
-The cave needs the `Object` to apply an upgrade to, and takes it the way the code it replaces
-does: ``[edi-8]``, the `Object` behind the module interface `edi` holds. Three paths reach this
-block - the fallthrough, which sets ``edi`` to the interface returned by `0x0068C327`, and two
-jumps that arrive with the module's own ``edi`` untouched - and all three agree, because
-`0x0068C327` walks ``Object+0x24C``, the module array of *that same object*, so both interfaces
-sit on it. `ANCHORS` pins every instruction that argument depends on.
-
-Composition
------------
-Order-independent. The cave is allocated with :func:`~..utils.allocate_section` past every
-existing section and :meth:`verify` finds it by name; the four byte ranges it rewrites are touched
-by no other bundled patch; and the field table is located through the reference that names it
-(:func:`~.utils.field_tables.resolve_table`) rather than by its stock address, so a patch that
-relocated it first would be followed rather than bypassed.
+Derivation: `../docs/upgrade-grant-lists.md`.
 """
 
 from __future__ import annotations
@@ -74,7 +16,15 @@ from sage_ini.engine import Engine, FieldDelta
 from ..addresses import THE_UPGRADE_CENTER
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    call_rel32,
+    find_section,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 from .utils.field_tables import ROW_SIZE, read_field_table, resolve_table
 from .utils.token_lists import (
     ASCII_STRING_CHARS,
@@ -103,14 +53,14 @@ __all__ = [
     "build_apply",
 ]
 
-#: `ObjectCreationUpgrade`'s own 11-entry field-parse table, and the ``push imm32`` inside its
+#: `ObjectCreationUpgrade`'s own 11-entry field-parse table, and the `push imm32` inside its
 #: `buildFieldParse` that is the table's **only** reference in the image. The base is taken from
 #: the reference rather than from the constant, so a patch that relocated the table first is
 #: followed instead of bypassed; `..._VA` is what that reference holds on a stock build.
 FIELD_TABLE_VA = 0x00C6E2F8
 FIELD_TABLE_REF_VA = 0x008B8205
 
-#: The two keywords this patch re-types, as ``(name, ModuleData offset)``. Located in the table
+#: The two keywords this patch re-types, as `(name, ModuleData offset)`. Located in the table
 #: **by name**, with the offset checked against this - which is what says the entry being
 #: repointed is the one the code at `GRANT_CALL_VA` / `REMOVE_CALL_VA` reads.
 #:
@@ -121,13 +71,13 @@ FIELDS = (
     ("GrantUpgrade", 0x144),
 )
 
-#: `UpgradeCenter::findUpgrade(const AsciiString &)` - ``__thiscall`` on the center, ``ret 4``,
+#: `UpgradeCenter::findUpgrade(const AsciiString &)` - `__thiscall` on the center, `ret 4`,
 #: NULL when no upgrade has that name. It keys through `TheNameKeyGenerator`, so the lookup cost
 #: is a name-key hash and a list walk, not a string compare per upgrade.
 FIND_UPGRADE = 0x0066F5E5
 
 #: `Object::giveUpgrade(UpgradeTemplate *)` and `Object::removeUpgrade(UpgradeTemplate *)` - both
-#: ``__thiscall``, ``ret 4``. These are the calls the stock code makes with the one template it
+#: `__thiscall`, `ret 4`. These are the calls the stock code makes with the one template it
 #: found, and the cave makes them per name rather than replacing them.
 OBJECT_GIVE_UPGRADE = 0x0069388B
 OBJECT_REMOVE_UPGRADE = 0x00691438
@@ -138,7 +88,7 @@ GRANT_CALL_VA = 0x008B871A
 REMOVE_CALL_VA = 0x008B8739
 
 #: The two calls the stock code makes with the one template it found. They are **not** rewritten:
-#: the cave's NULL return steers the ``je`` just before each of them, so they stay in the binary
+#: the cave's NULL return steers the `je` just before each of them, so they stay in the binary
 #: and stop being reached. Asserted all the same, because "the caller skips its own call" is only
 #: true if these are the calls - a build that had them the other way round would grant what it
 #: was told to remove.
@@ -151,20 +101,11 @@ STOCK_REMOVE_CALL_VA = 0x008B8746
 MAX_NAME = 0xFF
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
 #: Sites this patch depends on and does not itself rewrite: the registers the cave reads, the
-#: ``test eax,eax / je`` that its NULL return steers, and the two calls it stands in front of.
-#: Nothing else would catch a mismatch - the cave would apply upgrades to whatever ``[edi-8]``
+#: `test eax,eax / je` that its NULL return steers, and the two calls it stands in front of.
+#: Nothing else would catch a mismatch - the cave would apply upgrades to whatever `[edi-8]`
 #: happened to hold - so each is asserted before anything is written, and again by
-#: :meth:`~UpgradeGrantListsPatch.verify`.
+#: `verify`.
 ANCHORS = (
     (
         0x0068C328,
@@ -193,7 +134,7 @@ ANCHORS = (
     ),
     (
         0x008B871F,
-        b"\x85\xc0\x74\x09\x8b\x4f\xf8\x50" + _call_bytes(STOCK_GRANT_CALL_VA, OBJECT_GIVE_UPGRADE),
+        b"\x85\xc0\x74\x09\x8b\x4f\xf8\x50" + call_rel32(STOCK_GRANT_CALL_VA, OBJECT_GIVE_UPGRADE),
         "test eax,eax / je / mov ecx, [edi-8] / push / call giveUpgrade (the stock single grant)",
     ),
     (
@@ -204,7 +145,7 @@ ANCHORS = (
     (
         0x008B873E,
         b"\x85\xc0\x74\x09\x8b\x4f\xf8\x50"
-        + _call_bytes(STOCK_REMOVE_CALL_VA, OBJECT_REMOVE_UPGRADE),
+        + call_rel32(STOCK_REMOVE_CALL_VA, OBJECT_REMOVE_UPGRADE),
         "test eax,eax / je / mov ecx, [edi-8] / push / call removeUpgrade (the stock removal)",
     ),
 )
@@ -215,30 +156,22 @@ SECTION_NAME = ".upglst"
 SECTION_CHARACTERISTICS = 0x60000060
 
 
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    return None if end < 0 else bytes(data[off : off + end]).decode("latin1")
-
-
 def build_apply(base_va: int, action_va: int) -> bytes:
-    """Apply ``action_va`` to every upgrade named in the list, then answer "nothing found".
+    """Apply `action_va` to every upgrade named in the list, then answer "nothing found".
 
     Stands in for `UpgradeCenter::findUpgrade` at its call site, so it takes that function's
-    arguments and answers in its convention: ``[esp+4]`` the `AsciiString` field, ``ret 4``, and
-    ``eax`` the `UpgradeTemplate` the caller would then apply. It always returns **NULL**, so the
-    caller's existing ``test eax,eax / je`` skips its own single-upgrade call - the work has
+    arguments and answers in its convention: `[esp+4]` the `AsciiString` field, `ret 4`, and
+    `eax` the `UpgradeTemplate` the caller would then apply. It always returns **NULL**, so the
+    caller's existing `test eax,eax / je` skips its own single-upgrade call - the work has
     already been done here, once per name.
 
-    ``ecx`` is ignored on entry and `TheUpgradeCenter` re-read from its global instead, which
+    `ecx` is ignored on entry and `TheUpgradeCenter` re-read from its global instead, which
     costs six bytes and removes a dependency on what the caller happened to leave in a register.
-    The `Object` is taken from ``[edi-8]`` **before** anything else, because the copy loop below
-    uses ``edi``; see the module docstring for why that is the object on all three paths in.
+    The `Object` is taken from `[edi-8]` **before** anything else, because the copy loop below
+    uses `edi`; see the module docstring for why that is the object on all three paths in.
 
-    The frame is one `AsciiString` at ``[ebp-4]``, the `Object` at ``[ebp-8]``, and a
-    :data:`MAX_NAME`-plus-one byte buffer below them. Tokens are copied into that buffer because
+    The frame is one `AsciiString` at `[ebp-4]`, the `Object` at `[ebp-8]`, and a
+    `MAX_NAME`-plus-one byte buffer below them. Tokens are copied into that buffer because
     `findUpgrade` wants a NUL-terminated string and the list's own separator is not one - which is
     also why this cannot simply hand it a pointer into the field.
     """
@@ -246,7 +179,7 @@ def build_apply(base_va: int, action_va: int) -> bytes:
     a = Asm(base_va)
     a.emit(0x55)  # push ebp
     a.emit(b"\x8b\xec")  # mov ebp, esp
-    a.emit(b"\x81\xec", _u32(buffer))  # sub esp, <frame>
+    a.emit(b"\x81\xec", u32(buffer))  # sub esp, <frame>
     a.emit(0x56)  # push esi
     a.emit(0x57)  # push edi
     a.emit(b"\x83\x65\xfc\x00")  # and dword [ebp-4], 0   ; the name, empty
@@ -268,8 +201,8 @@ def build_apply(base_va: int, action_va: int) -> bytes:
     a.label("copy_start")
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "done")  # je .done               ; end of the list
-    a.emit(b"\x8d\xbd", _u32((-(MAX_NAME + 1 + 8)) & 0xFFFFFFFF))  # lea edi, [ebp-<buffer>]
-    a.emit(b"\xb9", _u32(MAX_NAME))  # mov ecx, MAX_NAME      ; the copy bound
+    a.emit(b"\x8d\xbd", u32((-(MAX_NAME + 1 + 8)) & 0xFFFFFFFF))  # lea edi, [ebp-<buffer>]
+    a.emit(b"\xb9", u32(MAX_NAME))  # mov ecx, MAX_NAME      ; the copy bound
 
     a.label("copy")
     a.emit(b"\x8a\x06")  # mov al, [esi]
@@ -285,13 +218,13 @@ def build_apply(base_va: int, action_va: int) -> bytes:
 
     a.label("lookup")
     a.emit(b"\xc6\x07\x00")  # mov byte [edi], 0
-    a.emit(b"\x8d\x85", _u32((-(MAX_NAME + 1 + 8)) & 0xFFFFFFFF))  # lea eax, [ebp-<buffer>]
+    a.emit(b"\x8d\x85", u32((-(MAX_NAME + 1 + 8)) & 0xFFFFFFFF))  # lea eax, [ebp-<buffer>]
     a.emit(0x50)  # push eax
     a.emit(b"\x8d\x4d\xfc")  # lea ecx, [ebp-4]
     a.call_absolute(ASCII_STRING_SET)  # call <AsciiString::set> ; ret 4
     a.emit(b"\x8d\x45\xfc")  # lea eax, [ebp-4]
     a.emit(0x50)  # push eax
-    a.emit(b"\x8b\x0d", _u32(THE_UPGRADE_CENTER))  # mov ecx, [TheUpgradeCenter]
+    a.emit(b"\x8b\x0d", u32(THE_UPGRADE_CENTER))  # mov ecx, [TheUpgradeCenter]
     a.call_absolute(FIND_UPGRADE)  # call <findUpgrade>      ; ret 4
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "advance")  # je .advance            ; no such upgrade: skip it
@@ -347,9 +280,9 @@ class UpgradeGrantListsPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified). Locates
+        """Structural check that `data` carries this patch (an empty list == verified). Locates
         the cave, recomputes the three routines its base VA implies, and compares them and all
-        four repointed sites to what is on disk. Reads only via ``struct`` and the section table,
+        four repointed sites to what is on disk. Reads only via `struct` and the section table,
         so verification needs no disassembler."""
         located = find_section(data, SECTION_NAME)
         if located is None:
@@ -390,8 +323,8 @@ class UpgradeGrantListsPatch(Patch):
         )
 
     def _compute_section(self, section_va: int) -> tuple[bytes, tuple[int, int, int]]:
-        """Return ``(section content, (parse VA, grant VA, remove VA))`` for a cave based at
-        ``section_va``.
+        """Return `(section content, (parse VA, grant VA, remove VA))` for a cave based at
+        `section_va`.
 
         Layout: the shared list parser (both keywords point at the one copy), then the granting
         applier, then the removing one. The order is arbitrary but fixed, because `verify`
@@ -404,14 +337,14 @@ class UpgradeGrantListsPatch(Patch):
         return parse + grant + remove, (section_va, grant_va, remove_va)
 
     def _field_entries(self, data: bytes | bytearray) -> list[tuple[int, str, int]]:
-        """``(file offset of the entry, keyword, parse function)`` for each of :data:`FIELDS`.
+        """`(file offset of the entry, keyword, parse function)` for each of `FIELDS`.
 
         Located by name in the live table, and cross-checked against the `ModuleData` offset the
         module's code reads - the pair is what says the entry about to be repointed is the field
         the cave walks."""
         base_va = resolve_table(data, (FIELD_TABLE_REF_VA,), (0x68,), "ObjectCreationUpgrade")
         entries = read_field_table(data, base_va)
-        names = [_read_cstring(data, entry[0]) for entry in entries]
+        names = [read_cstring(data, entry[0]) for entry in entries]
 
         found: list[tuple[int, str, int]] = []
         for name, offset in FIELDS:
@@ -435,7 +368,7 @@ class UpgradeGrantListsPatch(Patch):
         return found
 
     def _check_field_entries(self, data: bytes | bytearray, patched: bool = False) -> None:
-        """Assert both entries are the keywords', in this build's table. ``patched`` says which
+        """Assert both entries are the keywords', in this build's table. `patched` says which
         parse function to expect - the stock one before the write, anything but it afterwards,
         since where the cave landed is `verify`'s business."""
         for _entry_off, name, parse_fn in self._field_entries(data):
@@ -461,13 +394,13 @@ class UpgradeGrantListsPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, stubs: tuple[int, int, int]
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)``."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)`."""
         parse_va, grant_va, remove_va = stubs
         edits: list[tuple[int, bytes, bytes, str]] = [
             (
                 entry_off + 4,
-                _u32(STOCK_ASCII_STRING_PARSER),
-                _u32(parse_va),
+                u32(STOCK_ASCII_STRING_PARSER),
+                u32(parse_va),
                 f"{name} parse function -> cave",
             )
             for entry_off, name, _parse_fn in self._field_entries(data)
@@ -483,8 +416,8 @@ class UpgradeGrantListsPatch(Patch):
             edits.append(
                 (
                     call_off,
-                    _call_bytes(call_va, FIND_UPGRADE),
-                    _call_bytes(call_va, cave_va),
+                    call_rel32(call_va, FIND_UPGRADE),
+                    call_rel32(call_va, cave_va),
                     note,
                 )
             )

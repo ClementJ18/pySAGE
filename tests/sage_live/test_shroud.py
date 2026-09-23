@@ -97,7 +97,7 @@ def test_visible_cells_ignores_the_sentinel():
     assert grid.visible_cells(7) == 0
 
 
-# --- the filter -----------------------------------------------------------------------
+# The filter
 
 
 def unit(object_id: int, owner: int, position: tuple[float, float, float]) -> GameObject:
@@ -177,7 +177,7 @@ def test_under_fog_keeps_the_grid_so_scouting_can_still_be_reasoned_about():
     assert got.shroud is grid
 
 
-# --- reading it out of bytes ----------------------------------------------------------
+# Reading it out of bytes
 
 
 def build_process(levels: dict[int, dict[tuple[int, int], int]]) -> tuple[dict, dict]:

@@ -13,7 +13,7 @@ from sage_worldbuilder.arrays import (
     array_placements,
     stamp_objects,
 )
-from sage_worldbuilder.objects import new_object
+from sage_worldbuilder.commands.objects import new_object
 from sage_worldbuilder.waypoints import new_waypoint
 
 CENTER = (0.0, 0.0)

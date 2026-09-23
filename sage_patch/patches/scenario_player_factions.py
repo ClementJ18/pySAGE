@@ -1,75 +1,11 @@
-"""Per-player `DisabledFactions`: let a War of the Ring scenario say which faction each lobby
-slot may take, instead of only which factions the scenario as a whole allows.
+"""Let a War of the Ring scenario's `DisabledFactions` bar a faction for one lobby slot:
+`Faction<X>:N` applies to player N only.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/scenario-player-factions.md``.
+The patch extends the value syntax with an optional `:N` and teaches every reader of the list to
+honour it (the faction combo box among them), passing the slot to readers that have no parameter for
+it. Entries without `:N` keep their scenario-wide meaning. Malformed qualifiers are ignored.
 
-**The limitation.** A `LivingWorldCampaign`'s `Scenario` block can disable factions, and with
-``HistoricalScenario = Yes`` the engine additionally requires every player to take a *different*
-one. What it cannot say is **who** takes which. `Scenario::isFactionEnabled` answers a question
-about the scenario - "is this faction allowed here" - and takes no player, so a scripted scenario
-that needs player 1 to be Angmar and player 2 to be Men can only narrow the pool to those two and
-hope. With three players and five allowed factions it cannot even do that.
-
-`StartingRestriction` looks like the missing piece and is not: its `Factions` list *is* consulted
-as a per-start-region filter, but only when `HistoricalScenario` is **off** - the fill of the
-faction combo box skips that filter outright for a historical scenario, which is the only kind of
-scenario that pins factions to regions in the first place.
-
-**What this does.** Extends the *value* syntax of the existing `DisabledFactions` keyword with an
-optional ``:N`` player qualifier, and teaches every reader of the list to honour it:
-
-    DisabledFactions = FactionArnor FactionElves FactionMen:1 FactionAngmar:2
-
-An entry with no qualifier stays scenario-wide and behaves exactly as it does today. An entry
-written ``Faction...:N`` disables that faction **for lobby slot N only**, counting from 1, and is
-invisible to every other slot. So the line above bars Arnor and the Elves from everyone, leaves
-slot 1 unable to take Men and slot 2 unable to take Angmar, and - in an otherwise two-faction
-scenario - pins slot 1 to Angmar and slot 2 to Men.
-
-No new keyword and no new storage: the qualifier rides in the `AsciiString` vector the stock
-parser already builds, which is why this patch touches no INI field table and nothing about a
-scenario written before it changes meaning.
-
-**Where it takes effect.** `Scenario::isFactionEnabled` has exactly four callers, all inside the
-multiplayer game-setup screen, and the patch redirects all four:
-
-* the **combo box fill**, which is what a player sees - a faction refused for their slot is greyed
-  and made unselectable, exactly as a scenario-wide disabled one already is;
-* the **start-game gate**, which raises ``GUI:DisabledFaction`` and refuses to start;
-* the **historical-scenario validation pass**, which rejects a slot's pick; and
-* the **Random resolution pass**, which picks a faction for a slot left on Random - so Random in a
-  pinned slot resolves to something that slot is allowed to have.
-
-Redirecting all four is what makes the rule a rule rather than a UI hint: the host cannot start a
-game that violates it however the slot came to hold that faction.
-
-**How the slot reaches a function that has no parameter for it.** Each of the four call sites
-already holds the lobby slot index it is asking about, in an `ebp`-relative local that is live and
-unwritten at the call. So each site's five-byte `call` is redirected to its own two-instruction
-trampoline in the cave, which loads that local into `edx` and tail-jumps into the shared
-replacement. Nothing on the stack moves: the replacement keeps the stock `__thiscall` signature and
-its `ret 4`, and - like the function it replaces - destroys the by-value `AsciiString` argument it
-is handed.
-
-**Case sensitivity is preserved.** The stock comparison bottoms out in `memcmp`, not `_memicmp`, so
-`DisabledFactions` has always been case-*sensitive* and the replacement is too. A patch that
-quietly made it case-insensitive would start disabling factions in scenarios that were relying on
-the stock behaviour, which is the sort of change that looks like a fix until it is a bug report.
-
-**Malformed qualifiers are ignored, not guessed at.** A bare trailing ``:``, a non-numeric
-qualifier and ``:0`` all leave the entry applying to nobody rather than falling back to
-scenario-wide - the alternative is an INI typo silently disabling a faction for everyone.
-
-**Scope.** Lobby-side only: the four sites all live in the game-setup screen and none of them runs
-after the game starts, so this changes nothing about simulation, saves or replays. It is still a
-different binary, and the host's answer to "may this game start" is the one that counts, so **every
-peer wants the same binary** to avoid one player's screen disagreeing with the host's gate.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the four five-byte `call`
-instructions listed in :data:`~sage_patch.addresses.SCENARIO_FACTION_CALL_SITES`, which no other
-bundled patch touches, and it reads nothing another patch rewrites.
+Derivation: `../docs/scenario-player-factions.md`.
 """
 
 from __future__ import annotations
@@ -103,7 +39,7 @@ from ..addresses import (
 )
 from ..asm import JA, JBE, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, i8, u32, va_to_offset
 
 # The one fact about an `AsciiString`'s buffer this cave needs - where the characters start - kept
 # where the token-list patches already keep it rather than restated here.
@@ -135,7 +71,7 @@ _SIDE = -0x08  # the argument's characters, or the engine's empty string
 #: instructions being replaced are asserted by `apply_byte_patch`; these are what nothing else
 #: would catch. Each entry is either the function the slot local belongs to or the instruction that
 #: establishes that local, because the whole patch rests on the claim that the local named in
-#: :data:`~sage_patch.addresses.SCENARIO_FACTION_CALL_SITES` is a lobby slot index - a build whose
+#: `SCENARIO_FACTION_CALL_SITES` is a lobby slot index - a build whose
 #: layout moved has to fail here rather than by reading a slot number out of an unrelated variable.
 ANCHORS = {
     SCENARIO_IS_FACTION_ENABLED: SCENARIO_IS_FACTION_ENABLED_ENTRY,
@@ -150,14 +86,6 @@ ANCHORS = {
 }
 
 
-def _disp8(value: int) -> bytes:
-    return struct.pack("<b", value)
-
-
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def _trampoline_label(index: int) -> str:
     return f"site{index}"
 
@@ -166,19 +94,19 @@ def _emit(base_va: int) -> Asm:
     """The four entry trampolines and the replacement they share, laid out but not resolved.
 
     A trampoline is entered by the `call` that used to reach `Scenario::isFactionEnabled`, so at
-    its first instruction ``ebp`` is still the *caller's* frame pointer and the by-value
-    `AsciiString` argument is at ``[esp+4]``. It reads the caller's slot local into ``edx`` and
+    its first instruction `ebp` is still the *caller's* frame pointer and the by-value
+    `AsciiString` argument is at `[esp+4]`. It reads the caller's slot local into `edx` and
     jumps; the replacement pushes its own frame after that, and its `ret 4` returns to the caller
     with the argument cleaned exactly as the stock function's did.
 
-    Returned as the emitter rather than as bytes so that :func:`_trampolines` can read each
+    Returned as the emitter rather than as bytes so that `_trampolines` can read each
     trampoline's address off the layout that was actually emitted.
     """
     a = Asm(base_va)
 
     for index, (_, _, slot_ebp) in enumerate(SCENARIO_FACTION_CALL_SITES):
         a.label(_trampoline_label(index))
-        a.emit(b"\x8b\x55", _disp8(slot_ebp))  # mov edx, [ebp+<the caller's slot local>]
+        a.emit(b"\x8b\x55", i8(slot_ebp))  # mov edx, [ebp+<the caller's slot local>]
         a.jmp("match")
 
     # __thiscall: ecx the Scenario, [esp+4] the side name by value; edx the 0-based lobby slot.
@@ -197,16 +125,16 @@ def _emit(base_va: int) -> Asm:
     a.emit(b"\x8b\x45\x08")  # mov eax, [ebp+8]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JNE, "side_chars")
-    a.emit(0xB8, _u32(EMPTY_STRING))  # mov eax, EMPTY_STRING
+    a.emit(0xB8, u32(EMPTY_STRING))  # mov eax, EMPTY_STRING
     a.jmp("side_ready")
 
     a.label("side_chars")
-    a.emit(b"\x83\xc0", _disp8(ASCII_STRING_CHARS))  # add eax, 8
+    a.emit(b"\x83\xc0", i8(ASCII_STRING_CHARS))  # add eax, 8
 
     a.label("side_ready")
-    a.emit(b"\x89\x45", _disp8(_SIDE))  # mov [ebp-8], eax
-    a.emit(b"\x8b\x59", _disp8(SCENARIO_DISABLED_FACTIONS_BEGIN))  # mov ebx, [ecx+0x40]
-    a.emit(b"\x8b\x79", _disp8(SCENARIO_DISABLED_FACTIONS_END))  # mov edi, [ecx+0x44]
+    a.emit(b"\x89\x45", i8(_SIDE))  # mov [ebp-8], eax
+    a.emit(b"\x8b\x59", i8(SCENARIO_DISABLED_FACTIONS_BEGIN))  # mov ebx, [ecx+0x40]
+    a.emit(b"\x8b\x79", i8(SCENARIO_DISABLED_FACTIONS_END))  # mov edi, [ecx+0x44]
 
     a.label("entry")
     a.emit(b"\x3b\xdf")  # cmp ebx, edi
@@ -214,8 +142,8 @@ def _emit(base_va: int) -> Asm:
     a.emit(b"\x8b\x03")  # mov eax, [ebx]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "next")
-    a.emit(b"\x83\xc0", _disp8(ASCII_STRING_CHARS))  # add eax, 8    ; the entry's characters
-    a.emit(b"\x8b\x75", _disp8(_SIDE))  # mov esi, [ebp-8]
+    a.emit(b"\x83\xc0", i8(ASCII_STRING_CHARS))  # add eax, 8    ; the entry's characters
+    a.emit(b"\x8b\x75", i8(_SIDE))  # mov esi, [ebp-8]
 
     # The name part of the entry against the whole of the side name, byte for byte. `memcmp` is
     # what the stock comparison ends in, so this is case-sensitive on purpose.
@@ -258,7 +186,7 @@ def _emit(base_va: int) -> Asm:
 
     a.emit(b"\x85\xc9")  # test ecx, ecx
     a.jcc(JE, "next")  # ':0' is not a player either
-    a.emit(b"\x8b\x55", _disp8(_SLOT))  # mov edx, [ebp-4]
+    a.emit(b"\x8b\x55", i8(_SLOT))  # mov edx, [ebp-4]
     a.emit(0x42)  # inc edx                 ; the slot, as the INI counts it
     a.emit(b"\x3b\xca")  # cmp ecx, edx
     a.jcc(JNE, "next")  # written for somebody else
@@ -293,13 +221,13 @@ def _emit(base_va: int) -> Asm:
 
 
 def build_code(base_va: int) -> bytes:
-    """The cave's bytes, for a section based at ``base_va``."""
+    """The cave's bytes, for a section based at `base_va`."""
     return _emit(base_va).finish()
 
 
 def _trampolines(section_va: int) -> list[int]:
     """Where each call site's trampoline starts, in the order of
-    :data:`~sage_patch.addresses.SCENARIO_FACTION_CALL_SITES`.
+    `SCENARIO_FACTION_CALL_SITES`.
 
     Read off the layout rather than counted: the trampolines are all the same size today, but a
     redirected `call` landing one byte into the wrong one is not a failure any test would describe.

@@ -1,42 +1,12 @@
-"""Running more than one copy of the game at once.
+"""Run more than one copy of the game at once.
 
-Two patches, because the limit is enforced in **two binaries**: :class:`MultiInstancePatch`
-targets `game.dat` (build ``2.01.2614.37001``) and :class:`MultiInstanceLauncherPatch` targets
-`lotrbfme2ep1.exe`, the launcher shim every shortcut actually starts. Both are needed — patching
-either one alone leaves the other refusing. See ``../docs/multi-instance.md`` for the derivation.
+Three single-instance gates (WinMain's silent abort, the loop asking the running copy to quit, and
+the LAN host's same-serial refusal) each test `CreateMutex` for `ERROR_ALREADY_EXISTS`. Each
+conditional branch becomes a `jmp`, leaving the mutex calls themselves in place. The third removes a
+licence check, so this belongs in a development build. `MultiInstanceLauncherPatch` removes the
+launcher's own refusal and is needed as well.
 
-**Three gates, all built the same way.** Each names a mutex, calls `CreateMutex`, and reads
-`GetLastError` for ``ERROR_ALREADY_EXISTS`` (``0xB7``). The result is consumed by a conditional
-branch whose *fall-through* is the normal startup path, so flipping that one opcode byte to
-``jmp`` makes the "already exists" arm unreachable and leaves everything else — including the
-`CreateMutex` call itself and the `CloseHandle` that balances it — exactly as it was.
-
-1. **The launcher's message.** `lotrbfme2ep1.exe` at ``0x004092E3`` creates a mutex named by the
-   ``G1`` GUID it parses out of `gi.dat`, and on ``0xB7`` puts up the CSF string
-   ``Launcher:GameRunning`` — "The game is already running" — then closes the handle and exits.
-   This is the only one of the three that says anything.
-
-2. **`game.dat`'s silent abort.** `WinMain` at ``0x00402AED`` creates
-   ``L"E99E8455-CC9B-488a-BA22-0E8A8F74F9FA"``, and on ``0xB7`` passes that same GUID to
-   `FindWindowW` as a *window class* name, raises the window it finds, and returns 0 from `WinMain`
-   with no diagnostic at all. A launcher-only patch gets you as far as this and no further.
-
-3. **`game.dat`'s wait loop, which shuts the first instance down.** ``0x0063F68D`` is a bool
-   probe — create the mutex, `sete` on ``0xB7``, close it again — called once, at ``0x00402C6E``.
-   A true answer runs ``0x0063F6BF``, which spins for 60 seconds (``0xEA60`` ms) polling
-   `OpenEventA` for a named event and, the moment it finds one, calls `SetEvent` on it. That event
-   is how a copy of the game asks the copy already running to quit. So this gate is not merely a
-   stall: left in place it makes starting a second instance terminate the first. The probe call and
-   its `test al, al` are left standing (the probe closes its own handle and has no other effect);
-   only the branch that acts on the answer is neutralised.
-
-**What the patches do not do.** Both processes still share one user-data directory, so
-`Options.ini` and `Last Replay.BfME2Replay` are written by both and kept by whichever exits last.
-Nothing here separates them.
-
-**Composition.** Neither patch allocates a cave, and no byte either one edits is touched by
-anything else in this package, so both are order-independent with everything bundled. See the
-composition contract on :class:`~..patcher.Patch`.
+Derivation: `../docs/multi-instance.md`.
 """
 
 from __future__ import annotations
@@ -44,7 +14,7 @@ from __future__ import annotations
 from typing import NamedTuple
 
 from ..patcher import Patch
-from ..utils import apply_byte_patch, va_to_offset
+from ..utils import apply_byte_patch, file_offset, va_to_offset
 
 __all__ = [
     "GAME_FINGERPRINT",
@@ -56,7 +26,7 @@ __all__ = [
     "MultiInstancePatch",
 ]
 
-#: The one-byte encoding of ``jmp rel8``, which an always-taken guard's conditional jump becomes.
+#: The one-byte encoding of `jmp rel8`, which an always-taken guard's conditional jump becomes.
 JMP_SHORT = 0xEB
 #: What a never-taken guard's conditional jump becomes instead, both bytes of it.
 NOP = 0x90
@@ -65,15 +35,15 @@ NOP = 0x90
 class Guard(NamedTuple):
     """One conditional branch to defuse.
 
-    ``va`` addresses ``run_up``, not the jump: asserting the instructions that compute the
-    condition alongside the jump is what stops a two-byte ``75 xx`` somewhere else in a different
-    build from being mistaken for this site. ``opcode`` and ``displacement`` are the stock ``jcc
+    `va` addresses `run_up`, not the jump: asserting the instructions that compute the
+    condition alongside the jump is what stops a two-byte `75 xx` somewhere else in a different
+    build from being mistaken for this site. `opcode` and `displacement` are the stock ``jcc
     rel8``.
 
     Two shapes, because the gates are not all the same shape. Where the branch **skips** a refusal,
-    ``always_taken`` leaves the displacement alone and rewrites only the opcode, so the branch keeps
+    `always_taken` leaves the displacement alone and rewrites only the opcode, so the branch keeps
     its target and its length and the patched path is one the stock binary already takes. Where the
-    branch **is** the refusal, there is no such path to force: the jump is replaced by two ``nop``
+    branch **is** the refusal, there is no such path to force: the jump is replaced by two `nop`
     and control falls into the instruction after it, which is where the non-refusing case already
     went.
     """
@@ -96,7 +66,7 @@ class Guard(NamedTuple):
         return self.run_up + bytes((NOP, NOP))
 
 
-#: ``cmp eax, 0xB7`` — the ``GetLastError`` test all three gates share, and the run-up asserted
+#: `cmp eax, 0xB7` - the `GetLastError` test all three gates share, and the run-up asserted
 #: ahead of the two guards that follow it directly.
 _CMP_ALREADY_EXISTS = bytes.fromhex("3db7000000")
 
@@ -129,7 +99,7 @@ GAME_GUARDS = (
     ),
 )
 
-#: Calls that pin :data:`GAME_GUARDS` to the code that really is the instance check, asserted
+#: Calls that pin `GAME_GUARDS` to the code that really is the instance check, asserted
 #: before anything is written. The first guard is two `cmp`-able bytes and the second is a `rel32`
 #: call, neither of which is distinctive on its own.
 GAME_FINGERPRINT = {
@@ -164,20 +134,13 @@ LAUNCHER_FINGERPRINT = {
 }
 
 
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA 0x{va:08x} is not mapped")
-    return off
-
-
 class _MutexGuardPatch(Patch):
-    """Turn each of :attr:`guards`' conditional jumps into ``jmp``, once :attr:`fingerprint`
+    """Turn each of `guards`' conditional jumps into `jmp`, once `fingerprint`
     confirms the image is the build those addresses were derived from.
 
-    Subclasses supply the two tables and the usual :attr:`~..patcher.Patch.name` /
-    :attr:`~..patcher.Patch.description`. There is nothing to parameterise, so the inherited
-    :meth:`~..patcher.Patch.detect` — probe with the default constructor, ask :meth:`verify` —
+    Subclasses supply the two tables and the usual `name` /
+    `description`. There is nothing to parameterise, so the inherited
+    `detect` - probe with the default constructor, ask `verify` -
     is already correct for both.
     """
 
@@ -188,11 +151,13 @@ class _MutexGuardPatch(Patch):
     def apply(self, data: bytearray) -> None:
         self._check_fingerprint(data)
         for guard in self.guards:
-            apply_byte_patch(data, _offset(data, guard.va), guard.stock, guard.patched, guard.note)
+            apply_byte_patch(
+                data, file_offset(data, guard.va), guard.stock, guard.patched, guard.note
+            )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified): every
-        fingerprint site still reads what it should, and every guard now reads ``jmp``."""
+        """Structural check that `data` carries this patch (an empty list == verified): every
+        fingerprint site still reads what it should, and every guard now reads `jmp`."""
         problems: list[str] = []
         for va, expected in self.fingerprint.items():
             off = va_to_offset(data, va)
@@ -207,7 +172,7 @@ class _MutexGuardPatch(Patch):
             return problems
 
         for guard in self.guards:
-            off = _offset(data, guard.va)
+            off = file_offset(data, guard.va)
             got = bytes(data[off : off + len(guard.patched)])
             if got != guard.patched:
                 problems.append(

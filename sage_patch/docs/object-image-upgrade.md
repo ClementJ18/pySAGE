@@ -223,7 +223,7 @@ from `[ebp+8]`, as in stock `TooltipUpgrade`, rather than from a transient ESP-r
 
 There is intentionally no Worldbuilder copy of Apply/Unapply, sidecar storage, image lookup or
 ControlBar interception. Those operations are meaningful only in the running game. All editor
-addresses used by the twin live centrally in `sage_patch/addresses.py`; the patch module keeps
+addresses used by the twin live centrally in `sage_patch/addresses/`; the patch module keeps
 only instruction fingerprints, layout sizes and the `0x84` interface value locally.
 
 The Apply and UI paths have been exercised in game with heroes and normal units, both image fields,

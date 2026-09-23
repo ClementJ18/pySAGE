@@ -1,84 +1,11 @@
-"""The banner-carrier replenish filter: an `ObjectFilter` on `BannerCarrierUpdate`.
+"""Add an `ObjectFilter` (`ReplenishFilter`) to `BannerCarrierUpdate`'s nearby-horde replenish.
 
-Adds one INI keyword — `ReplenishFilter` by default — to `BannerCarrierUpdate`, limiting which
-nearby hordes a banner carrier will top up. Targets the ROTWK SAGE-engine `game.dat` build
-``2.01.2614.37001``. Every address below is derived in ``../docs/banner-carrier-filter.md``.
+With `ReplenishNearbyHorde` the stock scan tops up any allied horde, an ally's included, with no way
+to narrow it. The patch grows the `ModuleData` by the filter's four bytes, relocates the field-parse
+table to add the keyword, and passes each scanned horde through the filter evaluator with the
+banner's own player as the source. An undeclared filter leaves the module stock.
 
-**What the engine does today.** `ReplenishNearbyHorde` is the master gate: when it is set,
-`BannerCarrierUpdate::update` calls the nearby-horde scan at `SCAN_VA` *instead of* the normal
-own-horde spawn path. The scan asks `ThePartitionManager` for objects within `ScanHordeDistance`,
-filtered by a stack-built `PartitionFilterRelationship` whose mask is ``2`` — **allies only, with
-no same-player narrowing**. `ReplenishAllNearbyHordes` is not a mode switch on that scan; it is a
-loop-break checked at `0x0089AC98` *after* an object has already been replenished.
-
-Two consequences follow, and they are why this patch exists. There is no way to say "replenish
-pikemen but not archers", and no way to say "replenish my own hordes but not my ally's" — in a
-2v2 a banner carrier tops up its ally's hordes and nothing in INI can stop it.
-
-**Why this is cheap.** An `ObjectFilter` field in a `ModuleData` is **four bytes**: an index into
-one global interned store (stride ``0x94``, refcounted at ``+0x8C``, "was specified" flag at
-``+0x88``). 56 of the 59 such fields in the engine occupy exactly four bytes. So the whole feature
-is one byte of allocation size, three repointed branches, one relocated field-parse table and a
-small cave.
-
-**Composition.** Order-independent: the cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name,
-no edited byte is shared with another bundled patch, and the only structure read — the stock
-`BannerCarrierUpdate` field-parse table — is one nothing else rewrites. See the composition
-contract on :class:`~..patcher.Patch`.
-
-The patch has five parts:
-
-* **The allocation.** ``push 0x44`` at `MODULEDATA_SIZE_VA` becomes ``push 0x48``. This literal
-  appears exactly once and nothing ``memcpy``s the structure, so the field lands at ``0x44`` in a
-  structure that was otherwise fully packed with no slack.
-* **The constructor.** The ``call`` to the stock ctor is redirected through a cave shim that runs
-  it and then default-constructs the new handle. Skipping this would leave the field holding
-  whatever ``operator new`` returned, and the parse function treats any value other than ``-1`` as
-  a live store index to release.
-* **The destructor.** Likewise redirected, to release the handle's store refcount. Strictly
-  optional — `ModuleData` objects are built once per INI object definition — but fifteen bytes.
-* **The keyword.** The field-parse table cannot grow in place: it ends at ``0x00C66160`` where
-  unrelated ``.rdata`` begins. It is loaded by a single instruction, so the patch copies it into
-  the cave with one appended entry and repoints that one imm32. Lookup is a linear name scan (the
-  stock table is ordered by declaration, not alphabetically), so appending needs no re-sort.
-* **The test.** The ``call Object::isKindOf`` that opens the scan's loop body is redirected into a
-  cave that evaluates the filter first. On a reject it returns ``al = 1``, reusing the caller's
-  existing ``test al,al / jne`` to skip the object — which also means a rejected candidate never
-  reaches the `ReplenishAllNearbyHordes` break, so in single-horde mode the scan keeps looking
-  instead of burning its one replenish.
-
-Why the evaluator and not the wrapper
--------------------------------------
-`0x007640C1` is a convenience wrapper around the real evaluator `OBJECT_FILTER_TEST_VA`, which
-takes **three** arguments: the candidate's `ThingTemplate`, the candidate's `Player`, and the
-**source** `Player` the filter is written from. The wrapper passes its own second parameter
-through as that source, and every stock call site passes ``0``. With a null source the evaluator
-rejects unconditionally at `0x007635F6` whenever the relationship mask is non-zero — so
-relationship tokens routed through the wrapper do not fall back to permissive, they *always*
-return false.
-
-Calling the evaluator directly, with the banner's own controlling player as the third argument,
-costs sixteen bytes and makes the mask work: ``ALLIES`` (bit ``0x1``, accepted outright for
-relationship 2, so it means *self and allies*), ``ENEMIES`` (``0x2``), ``NEUTRAL`` (``0x4``) and
-``SAME_PLAYER`` (``0x8``, relationship 2 *and* matching ``Player+0x54`` — see
-:data:`~..addresses.PLAYER_INDEX`). ``SAME_PLAYER`` is precisely the distinction the partition
-scan cannot make.
-
-The source player is already in the scan's frame: `0x0089ABA3` computes it and stores it at
-``[ebp-0x20]``, and no other instruction in the function writes that slot. This is the one part of
-the patch coupled to a stack frame rather than a symbol, so :data:`SOURCE_PLAYER_ANCHOR` is
-asserted before anything is written — a reordered frame fails loudly instead of reading a stale
-slot.
-
-Note that ``ENEMIES`` and ``NEUTRAL`` can only ever narrow to nothing here: the partition scan has
-already rejected everything that is not an ally before the filter runs. Rejecting them at INI-parse
-time would mean patching the shared `ObjectFilter` parser, which every other filter keyword in the
-game routes through — so they are documented as useless rather than blocked.
-
-``ALLIES`` and ``SAME_PLAYER`` also nest rather than partition: bit ``0x1`` accepts relationship 2
-outright, *before* the player-index comparison. So ``ALLIES`` means "self and allies" and
-``SAME_PLAYER`` means "self only"; "allies but not me" is not expressible with these tokens.
+Derivation: `../docs/banner-carrier-filter.md`.
 """
 
 from __future__ import annotations
@@ -90,7 +17,15 @@ from sage_ini.engine import Engine, FieldDelta
 
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    call_rel32,
+    find_section,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -107,34 +42,34 @@ __all__ = [
     "BannerFilterPatch",
 ]
 
-# --- BannerCarrierUpdate, as this build lays it out (VA, ImageBase 0x400000) ---
+# BannerCarrierUpdate, as this build lays it out (VA, ImageBase 0x400000)
 
-#: `newModuleData`'s ``push 0x44`` — the sole `sizeof(ModuleData)` literal.
+#: `newModuleData`'s `push 0x44` - the sole `sizeof(ModuleData)` literal.
 MODULEDATA_SIZE_VA = 0x0064DE90
-#: The ``call`` to the ModuleData constructor, inside `newModuleData`.
+#: The `call` to the ModuleData constructor, inside `newModuleData`.
 MODULEDATA_CTOR_CALL_VA = 0x0064DEA5
 MODULEDATA_CTOR_VA = 0x0089A765
-#: The ``call`` to the ModuleData destructor, inside the vector-deleting destructor.
+#: The `call` to the ModuleData destructor, inside the vector-deleting destructor.
 MODULEDATA_DTOR_CALL_VA = 0x0089AE71
 MODULEDATA_DTOR_VA = 0x0089A816
 
 #: The 16-byte-stride field-parse table, and the single imm32 that loads it (inside
-#: ``push 0xc66090`` at ``0x0089AE90``, so the operand starts one byte later).
+#: `push 0xc66090` at `0x0089AE90`, so the operand starts one byte later).
 FIELD_TABLE_VA = 0x00C66090
 FIELD_TABLE_REF_VA = 0x0089AE91
 
-#: The nearby-horde replenish scan, and the ``call Object::isKindOf`` opening its loop body.
+#: The nearby-horde replenish scan, and the `call Object::isKindOf` opening its loop body.
 SCAN_VA = 0x0089AB8F
 SCAN_KINDOF_CALL_VA = 0x0089AC38
 IS_KIND_OF_VA = 0x0044DDEC
 
-#: ``mov [ebp-0x20], eax`` — the scan storing the banner's controlling player. The cave reads that
+#: `mov [ebp-0x20], eax` - the scan storing the banner's controlling player. The cave reads that
 #: slot, so this exact encoding at this exact address is a precondition of the patch.
 SOURCE_PLAYER_ANCHOR = (0x0089ABC0, b"\x89\x45\xe0")
-#: The frame displacement the anchor establishes, as it appears in ``push dword [ebp-0x20]``.
+#: The frame displacement the anchor establishes, as it appears in `push dword [ebp-0x20]`.
 SOURCE_PLAYER_DISP8 = -0x20
 
-# --- the ObjectFilter handle ABI ---
+# The ObjectFilter handle ABI
 
 OBJECT_FILTER_PARSE_VA = 0x0076392F  # the INI parse fn that goes in the field table
 OBJECT_FILTER_CTOR_VA = 0x0076406F  # __thiscall(ecx=&field) -> writes -1, interns the default
@@ -144,7 +79,7 @@ OBJECT_FILTER_TEST_VA = 0x00763543  # __thiscall(ecx=&field, template, player, s
 
 GET_CONTROLLING_PLAYER_VA = 0x0068B678  # __thiscall(ecx=Object*) -> Player*
 
-# --- layout ---
+# Layout
 
 STOCK_MODULEDATA_SIZE = 0x44
 #: Where the new four-byte handle lands: the end of the stock structure, which is fully packed.
@@ -153,7 +88,7 @@ PATCHED_MODULEDATA_SIZE = STOCK_MODULEDATA_SIZE + 4
 
 FIELD_ENTRY_SIZE = 16
 
-#: The stock table, in table order, as ``(name, ModuleData offset)``. Used as a fingerprint: all
+#: The stock table, in table order, as `(name, ModuleData offset)`. Used as a fingerprint: all
 #: twelve names *and* offsets must match before anything is written, which is a far stronger
 #: build check than the size literal alone.
 STOCK_FIELDS = (
@@ -173,46 +108,29 @@ STOCK_FIELDS = (
 
 #: Where the keyword string lands in the cave: immediately past the relocated table, whose entry
 #: count is fixed by the build (the twelve stock fields, the new one, and the NULL terminator).
-#: :meth:`BannerFilterPatch.detect` reads the keyword back from here, so this is the one place the
-#: offset is written down and :meth:`BannerFilterPatch._compute_section` lays the cave out by it.
+#: `BannerFilterPatch.detect` reads the keyword back from here, so this is the one place the
+#: offset is written down and `BannerFilterPatch._compute_section` lays the cave out by it.
 KEYWORD_OFFSET = (len(STOCK_FIELDS) + 2) * FIELD_ENTRY_SIZE
 
-#: `ReplenishAllNearbyHordes`, for the ``--only-when-all`` gate.
+#: `ReplenishAllNearbyHordes`, for the `--only-when-all` gate.
 REPLENISH_ALL_OFFSET = 0x39
 
 DEFAULT_KEYWORD = "ReplenishFilter"
 
 SECTION_NAME = ".bnrflt"
-# CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ — the cave holds the relocated table,
+# CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ - the cave holds the relocated table,
 # the keyword string and three code stubs, so it must be executable as well as readable.
 SECTION_CHARACTERISTICS = 0x60000060
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    return None if end < 0 else bytes(data[off : off + end]).decode("latin1")
-
-
-# --- the cave's three stubs ------------------------------------------------------------------
+# The cave's three stubs
 
 
 def build_ctor(base_va: int) -> bytes:
     """Run the stock ModuleData constructor, then default-construct the new handle.
 
-    The stock ctor is ``__thiscall`` with no arguments and returns ``this`` in ``eax``, so the
-    shim needs no frame of its own — which also keeps it transparent to the unwinder, since the
+    The stock ctor is `__thiscall` with no arguments and returns `this` in `eax`, so the
+    shim needs no frame of its own - which also keeps it transparent to the unwinder, since the
     call site it replaces sits inside `newModuleData`'s protected region."""
     a = Asm(base_va)
     a.call_absolute(MODULEDATA_CTOR_VA)  # call <stock ctor>      ; eax = this
@@ -227,7 +145,7 @@ def build_ctor(base_va: int) -> bytes:
 def build_dtor(base_va: int) -> bytes:
     """Run the stock ModuleData destructor, then release the handle's store refcount.
 
-    The handle dtor is tail-called, so its ``ret`` returns straight to the vector-deleting
+    The handle dtor is tail-called, so its `ret` returns straight to the vector-deleting
     destructor that called this shim."""
     a = Asm(base_va)
     a.emit(0x51)  # push ecx
@@ -240,19 +158,19 @@ def build_dtor(base_va: int) -> bytes:
 
 def build_filter(base_va: int, only_when_all: bool = False) -> bytes:
     """Test the filter against the scan's current candidate, then fall through to the stock
-    ``Object::isKindOf`` call this stub replaced.
+    `Object::isKindOf` call this stub replaced.
 
-    On entry ``[esp]`` is the return address into the loop body, ``[esp+4]`` is the ``KINDOF_``
-    argument the caller already pushed, ``ecx`` is the candidate `Object*`, ``edi`` is the
-    `ModuleData` and ``ebp`` is the scan's own frame.
+    On entry `[esp]` is the return address into the loop body, `[esp+4]` is the `KINDOF_`
+    argument the caller already pushed, `ecx` is the candidate `Object*`, `edi` is the
+    `ModuleData` and `ebp` is the scan's own frame.
 
-    A rejected candidate returns ``al = 1`` and ``ret 4`` — reproducing `isKindOf`'s callee
-    cleanup while telling the caller "immobile", which its existing ``test al,al / jne`` turns
-    into a skip. Everything else tail-calls the stock `isKindOf` so its ``ret 4`` lands at the
+    A rejected candidate returns `al = 1` and `ret 4` - reproducing `isKindOf`'s callee
+    cleanup while telling the caller "immobile", which its existing `test al,al / jne` turns
+    into a skip. Everything else tail-calls the stock `isKindOf` so its `ret 4` lands at the
     original return address.
 
-    ``ecx`` cannot be held across the calls (`isDefined` opens with ``mov ecx, [ecx]``), so the
-    candidate lives on the stack; ``edi`` is safe, since all three callees are ``__thiscall`` and
+    `ecx` cannot be held across the calls (`isDefined` opens with `mov ecx, [ecx]`), so the
+    candidate lives on the stack; `edi` is safe, since all three callees are `__thiscall` and
     preserve it."""
     a = Asm(base_va)
     if only_when_all:
@@ -317,7 +235,7 @@ class BannerFilterPatch(Patch):
         if any(keyword.lower() == name.lower() for name, _off in STOCK_FIELDS):
             raise ValueError(f"{keyword!r} is already a BannerCarrierUpdate field")
 
-    # --- apply / verify ----------------------------------------------------------------------
+    # Apply / verify
 
     def apply(self, data: bytearray) -> None:
         self._check_anchor(data)
@@ -334,10 +252,10 @@ class BannerFilterPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch with exactly this keyword and scope
+        """Structural check that `data` carries this patch with exactly this keyword and scope
         (an empty list == verified). Locates the cave, recomputes the table, string and stubs the
         settings imply, and compares them and every repointed site to what is on disk. Reads only
-        via ``struct`` + the section table, so verification needs no disassembler."""
+        via `struct` + the section table, so verification needs no disassembler."""
         located = find_section(data, SECTION_NAME)
         if located is None:
             return [f"no {SECTION_NAME} section: the file does not carry this patch"]
@@ -378,12 +296,12 @@ class BannerFilterPatch(Patch):
         The default probe only ever recognises the default settings, so a binary patched under any
         other keyword reads as unpatched. The keyword sits at a fixed offset into the cave - past
         the relocated table, whose entry count is fixed by the build - so it can be read back
-        rather than guessed. ``only_when_all`` changes only the filter stub's opening test and is
+        rather than guessed. `only_when_all` changes only the filter stub's opening test and is
         recorded nowhere else, so it is probed: off first, since that is the default."""
         located = find_section(data, SECTION_NAME)
         if located is None:
             return None
-        keyword = _read_cstring(data, located[0] + KEYWORD_OFFSET)
+        keyword = read_cstring(data, located[0] + KEYWORD_OFFSET)
         if keyword is None:
             return None
         for only_when_all in (False, True):
@@ -405,7 +323,7 @@ class BannerFilterPatch(Patch):
         field = FieldDelta("BannerCarrierUpdate", self.keyword, "ObjectFilter", None, self.name)
         return Engine(fields=(field,))
 
-    # --- CLI integration ---------------------------------------------------------------------
+    # CLI integration
 
     @classmethod
     def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
@@ -429,17 +347,17 @@ class BannerFilterPatch(Patch):
     def from_cli_args(cls, args: argparse.Namespace) -> BannerFilterPatch:
         return cls(keyword=args.keyword, only_when_all=args.only_when_all)
 
-    # --- the cave ------------------------------------------------------------------------------
+    # The cave
 
     def _compute_section(
         self, data: bytes | bytearray, section_va: int
     ) -> tuple[bytes, tuple[int, int, int]]:
-        """Return ``(section content, (ctor VA, dtor VA, filter VA))`` for a cave based at
-        ``section_va``.
+        """Return `(section content, (ctor VA, dtor VA, filter VA))` for a cave based at
+        `section_va`.
 
         Layout: the relocated field-parse table, the keyword string it points at, then the three
-        stubs. The twelve stock entries are copied verbatim — including their name pointers, which
-        keep pointing into ``.rdata`` — so their order and their strings are untouched."""
+        stubs. The twelve stock entries are copied verbatim - including their name pointers, which
+        keep pointing into `.rdata` - so their order and their strings are untouched."""
         stock = self._read_stock_table(data)
 
         table_size = KEYWORD_OFFSET  # the stock entries + the new one + the NULL terminator
@@ -449,7 +367,7 @@ class BannerFilterPatch(Patch):
         while len(blob) % 4:  # keep the stubs dword-aligned
             blob += b"\x00"
 
-        new_entry = _u32(keyword_va) + _u32(OBJECT_FILTER_PARSE_VA) + _u32(0) + _u32(FILTER_OFFSET)
+        new_entry = u32(keyword_va) + u32(OBJECT_FILTER_PARSE_VA) + u32(0) + u32(FILTER_OFFSET)
         table = stock + new_entry + bytes(FIELD_ENTRY_SIZE)  # NULL-terminate
         assert len(table) == table_size
 
@@ -480,7 +398,7 @@ class BannerFilterPatch(Patch):
             name_va, _parse, _userdata, field_off = struct.unpack_from(
                 "<4I", entries, index * FIELD_ENTRY_SIZE
             )
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != name:
                 raise ValueError(f"field table entry {index}: expected {name!r}, found {got!r}")
             if field_off != offset:
@@ -514,7 +432,7 @@ class BannerFilterPatch(Patch):
                 f"got {got.hex()} — this is not the expected build"
             )
 
-    # --- the edits -----------------------------------------------------------------------------
+    # The edits
 
     def _edits(
         self,
@@ -522,7 +440,7 @@ class BannerFilterPatch(Patch):
         section_va: int,
         stubs: tuple[int, int, int],
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)``."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)`."""
         ctor_va, dtor_va, filter_va = stubs
         edits: list[tuple[int, bytes, bytes, str]] = []
 
@@ -540,26 +458,26 @@ class BannerFilterPatch(Patch):
         )
         at(
             MODULEDATA_CTOR_CALL_VA,
-            _call_bytes(MODULEDATA_CTOR_CALL_VA, MODULEDATA_CTOR_VA),
-            _call_bytes(MODULEDATA_CTOR_CALL_VA, ctor_va),
+            call_rel32(MODULEDATA_CTOR_CALL_VA, MODULEDATA_CTOR_VA),
+            call_rel32(MODULEDATA_CTOR_CALL_VA, ctor_va),
             "ModuleData ctor -> cave",
         )
         at(
             MODULEDATA_DTOR_CALL_VA,
-            _call_bytes(MODULEDATA_DTOR_CALL_VA, MODULEDATA_DTOR_VA),
-            _call_bytes(MODULEDATA_DTOR_CALL_VA, dtor_va),
+            call_rel32(MODULEDATA_DTOR_CALL_VA, MODULEDATA_DTOR_VA),
+            call_rel32(MODULEDATA_DTOR_CALL_VA, dtor_va),
             "ModuleData dtor -> cave",
         )
         at(
             FIELD_TABLE_REF_VA,
-            _u32(FIELD_TABLE_VA),
-            _u32(section_va),
+            u32(FIELD_TABLE_VA),
+            u32(section_va),
             "field-parse table -> cave",
         )
         at(
             SCAN_KINDOF_CALL_VA,
-            _call_bytes(SCAN_KINDOF_CALL_VA, IS_KIND_OF_VA),
-            _call_bytes(SCAN_KINDOF_CALL_VA, filter_va),
+            call_rel32(SCAN_KINDOF_CALL_VA, IS_KIND_OF_VA),
+            call_rel32(SCAN_KINDOF_CALL_VA, filter_va),
             "replenish scan isKindOf -> cave",
         )
         return edits

@@ -28,7 +28,7 @@ from typing import Any
 
 from sage_map.assets.object_list import Object
 from sage_map.map import Map
-from sage_worldbuilder.objects import renumber_unique_ids
+from sage_worldbuilder.commands.objects import renumber_unique_ids
 from sage_worldbuilder.scene import WAYPOINT_PREFIX
 
 __all__ = [

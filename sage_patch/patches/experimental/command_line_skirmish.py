@@ -1,78 +1,12 @@
-"""The command-line-skirmish patch: make `-file <map>.map` start a game worth playing, and let
-`-gameInfo` say which game.
+"""Make `-file maps\\<name>.map` start a playable skirmish, and let `-gameInfo` choose the match.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../../docs/game-info.md``; this module implements the recipe §6 records and the launch
-settings §7 reads out of the engine's own lobby parser.
+Stock `-file` skips the menus but leaves the game unconfigured (one random seat, no options, and
+`TheGameInfo` never set), so it loads nothing and faults. At the point the engine has built its
+`GameInfo`, a cave fills the seats and options - from `-gameInfo` through the engine's lobby parser
+when given, else a default two-seat match - and points `TheGameInfo` at it. One run played. The
+binary must be named `game.dat` to test it.
 
-**The gap.** `-file <map>.map` is a stock command line and it already skips every menu: the engine
-appends `MSG_NEW_GAME`, builds a `SkirmishGameInfo` and asks for game mode 2. What it does *not* do
-is configure the game. Slot 0 gets state 6 and the name "Test" with a **random** faction
-(`-2`), no colour, no team and no start position; slots 1-7 are closed; the options block is left
-at `-1` throughout; and `TheGameInfo` - which `GameLogic::update` reads every frame - is never
-pointed at the object the auto-start filled. The result loads nothing, plays nothing and faults.
-
-**What this does.** Four things, at the point the engine has finished building the `GameInfo` and
-before it asks for the game mode:
-
-1. **Fills the slots with a default match.** Slot 0 becomes a local human of a chosen faction and
-   slot 1 an easy AI of another, each with a colour, a team and a start position - and each with
-   the `AsciiString` at `GAME_SLOT_MAP_PLAYER` naming `Player_<startPos + 1>`, which is what binds
-   a seat to the map-side player owning the pre-placed objects at that start position. The strings
-   live in this patch's own section with a saturated refcount, so nothing the engine does can free
-   them.
-2. **Sets the options block**, starting resources included. Left unset every player begins on
-   4999 - one short of a fortress - so the human can never unpack a base and the match ends in
-   defeat inside thirty frames.
-3. **Applies `-gameInfo <string>` when the command line carries one.** The string is the lobby's
-   own format - the one a replay header and `Skirmish.ini` hold - and the engine already parses
-   it, in `ParseAsciiStringToGameInfo` (`GAME_INFO_PARSE`). The cave finds the switch by walking
-   the `argv` `GameMain` received, whose argument slots sit just above `GameEngine::init`'s frame
-   and are still live when the hook runs - `init`'s own copies are not, it reuses them as scratch.
-   The command-line table is left alone, so `headless`, which rewrites that table, composes.
-   Seats, AI difficulty, teams, colours, start positions, the ten `GR` rules and the seed come
-   from the string. The map identity does not: the parser will not commit without `M`, `MC` and
-   `MS`, but the map the engine is loading is the one `-file` named, so the cave saves what the
-   auto-start set and puts it back afterwards - and `GSID`, `SI` and the contents mask with it.
-   The parser's freshly built slots carry no map player, so every seated slot is then bound to
-   `Player_<startPos + 1>` again. The parser is all-or-nothing: a string it rejects commits
-   nothing, and the default match from (1) stands. Which of those happened is written to the
-   section at `STATUS_OFFSET`.
-4. **Points `TheGameInfo` at `TheSkirmishGameInfo`**, exactly as the skirmish setup screen does at
-   `0x006309BF`. Without it `GameLogic::update` dereferences null on frame 1.
-
-A fifth edit is elsewhere: the loading screen's progress update at `LOADING_SCREEN_PROGRESS`
-dereferences a window only the shell creates. This patch relocates those twenty-four bytes into
-the cave behind a null check, reproducing them exactly when the window exists. The engine already
-treats that member as nullable - `0x0081C5C4` is a method whose entire body clears it - so the
-guard restores an invariant the unguarded path assumes rather than inventing one.
-
-**The map argument must be spelled `maps\\<name>.map`.** The engine's own path builder inserts the
-file's stem as a directory, so that is what produces the `maps\\<name>\\<name>.map` key the map
-cache is keyed by; passing the full path makes the builder insert the folder a second time and the
-lookup misses, which sends the auto-start down a branch this patch never reaches. See §1 of the
-document.
-
-**Faction numbers are indices into the loaded mod's `playertemplate.ini` order**, not a fixed
-enum: the defaults here (3 and 10) are Men and Mordor against Edain's table, and a different mod
-orders its templates differently. `sage_test.game_info` builds a `-gameInfo` string from seats.
-
-**Status - one run, and it played.** Installed as `game.dat` on an Edain install and started with
-`-file maps\\map mp harlindon.map`, nothing else: both seats were created (`Player_1` as Men,
-`Player_2` as Mordor, 10000 each), the bases unpacked - the object count went 369 -> 593 -> 721 -
-frames advanced past 130, and income was flowing. That is one session against one map on one mod,
-which is why this is still `experimental`. **`-gameInfo` has not been run in a game at all**: the
-parser's contract is read from the disassembly and the cave is exercised under an emulator, and
-that is all.
-
-**Testing this needs the binary named `game.dat`.** A section-modified image only runs under that
-name on a retail install - the same bytes renamed die at once with an access violation inside
-`msvcr71.dll`, while an *unpatched* copy runs under any name. Copying a patched build somewhere
-else to try it out therefore proves nothing.
-
-**Composition.** The cave is allocated past every existing section and `verify` finds it by name.
-The engine bytes it edits - nine at the auto-start's tail and twenty-four in the loading screen -
-are touched by no other bundled patch.
+Derivation: `../docs/game-info.md`.
 """
 
 from __future__ import annotations
@@ -134,7 +68,7 @@ from ...addresses import (
 )
 from ...asm import JAE, JE, JGE, JL, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import allocate_section, apply_byte_patch, find_section, u32, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -218,15 +152,11 @@ _RESTORED = (
 )
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value & 0xFFFFFFFF)
-
-
 def _eax_at_esi(opcode: int, displacement: int) -> bytes:
     """`mov eax, [esi+d]` (0x8B) or `mov [esi+d], eax` (0x89), in the shortest form."""
     if displacement < 0x80:
         return bytes((opcode, 0x46, displacement))
-    return bytes((opcode, 0x86)) + _u32(displacement)
+    return bytes((opcode, 0x86)) + u32(displacement)
 
 
 def _ascii_string_block(text: str) -> bytes:
@@ -278,12 +208,12 @@ class CommandLineSkirmishPatch(Patch):
             a = Asm(base_va)
             a.emit(_HEADER.pack(MAGIC, self.human_faction, self.ai_faction, self.resources))
             a.label("status")
-            a.emit(_u32(STATUS_NOT_GIVEN))
+            a.emit(u32(STATUS_NOT_GIVEN))
             a.label("saved_map")  # an `AsciiString`: one pointer, NULL until the copy is made
-            a.emit(_u32(0))
+            a.emit(u32(0))
             for field, _offset in _RESTORED:
                 a.label(f"saved_{field}")
-                a.emit(_u32(0))
+                a.emit(u32(0))
             a.label("option")
             a.emit(OPTION + b"\x00")
 
@@ -297,11 +227,11 @@ class CommandLineSkirmishPatch(Patch):
             _align(a)
             a.label("names")
             for position in range(GAME_INFO_SLOT_COUNT):
-                a.emit(_u32(a.label_va(f"name{position}")))
+                a.emit(u32(a.label_va(f"name{position}")))
 
             a.label("setup")
             a.emit(0x60, 0x9C)  # pushad; pushfd
-            a.emit(0x8B, 0x35, _u32(THE_SKIRMISH_GAME_INFO))  # mov esi, [gi]
+            a.emit(0x8B, 0x35, u32(THE_SKIRMISH_GAME_INFO))  # mov esi, [gi]
             a.emit(0x85, 0xF6)  # test esi, esi
             a.jcc(JE, "setup_done")
 
@@ -330,7 +260,7 @@ class CommandLineSkirmishPatch(Patch):
                 # The two bytes `setSlot` forces for a local human; an AI seat wants them too.
                 a.emit(0xC6, 0x40, GAME_SLOT_ACCEPTED, 0x01)
                 a.emit(0xC6, 0x40, GAME_SLOT_ACCEPTED + 1, 0x01)
-                a.emit(0xC7, 0x40, GAME_SLOT_MAP_PLAYER, _u32(a.label_va(f"name{start_pos}")))
+                a.emit(0xC7, 0x40, GAME_SLOT_MAP_PLAYER, u32(a.label_va(f"name{start_pos}")))
                 a.label(f"seat{index}_done")
 
             # Find `-gameInfo <value>` in `GameMain`'s argv. `ebp` is still `GameEngine::init`'s
@@ -339,13 +269,13 @@ class CommandLineSkirmishPatch(Patch):
             # needs one argument after it.
             a.emit(0x8B, 0x4D, GAME_MAIN_ARGC)  # mov ecx, [ebp+argc]
             a.emit(0x8B, 0x5D, GAME_MAIN_ARGV)  # mov ebx, [ebp+argv]
-            a.emit(0xBF, _u32(1))  # mov edi, 1
+            a.emit(0xBF, u32(1))  # mov edi, 1
             a.label("scan")
             a.emit(0x8D, 0x47, 0x01)  # lea eax, [edi+1]
             a.emit(0x3B, 0xC1)  # cmp eax, ecx
             a.jcc(JGE, "publish")
             a.emit(0x51)  # push ecx               ; _stricmp may clobber it
-            a.emit(0x68, _u32(a.label_va("option")))  # push "-gameInfo"
+            a.emit(0x68, u32(a.label_va("option")))  # push "-gameInfo"
             a.emit(0xFF, 0x34, 0xBB)  # push [ebx+edi*4]
             a.call_absolute(STRICMP)
             a.emit(0x83, 0xC4, 0x08)  # add esp, 8
@@ -360,11 +290,11 @@ class CommandLineSkirmishPatch(Patch):
             # Save what the -file start owns: a counted copy of the map path, and the dwords.
             a.emit(0x8D, 0x46, GAME_INFO_MAP)  # lea eax, [esi+map]
             a.emit(0x50)  # push eax
-            a.emit(0xB9, _u32(a.label_va("saved_map")))  # mov ecx, &saved_map
+            a.emit(0xB9, u32(a.label_va("saved_map")))  # mov ecx, &saved_map
             a.call_absolute(ASCII_STRING_COPY_CTOR)
             for field, offset in _RESTORED:
                 a.emit(_eax_at_esi(0x8B, offset))
-                a.emit(0xA3, _u32(a.label_va(f"saved_{field}")))  # mov [saved], eax
+                a.emit(0xA3, u32(a.label_va(f"saved_{field}")))  # mov [saved], eax
 
             # ParseAsciiStringToGameInfo(gi, AsciiString(value), keepNames=false). The string is
             # constructed in its own argument slot, as the engine's callers do, and destroyed by
@@ -383,16 +313,16 @@ class CommandLineSkirmishPatch(Patch):
             # Put the map identity back, through the setters the auto-start itself called.
             a.emit(0x51)  # push ecx               ; setMap's by-value argument
             a.emit(0x8B, 0xCC)  # mov ecx, esp
-            a.emit(0x68, _u32(a.label_va("saved_map")))  # push &saved_map
+            a.emit(0x68, u32(a.label_va("saved_map")))  # push &saved_map
             a.call_absolute(ASCII_STRING_COPY_CTOR)
             a.emit(0x8B, 0xCE)  # mov ecx, esi
             a.call_absolute(GAME_INFO_SET_MAP)
             for field, setter in (("crc", GAME_INFO_SET_MAP_CRC), ("size", GAME_INFO_SET_MAP_SIZE)):
-                a.emit(0xFF, 0x35, _u32(a.label_va(f"saved_{field}")))  # push [saved]
+                a.emit(0xFF, 0x35, u32(a.label_va(f"saved_{field}")))  # push [saved]
                 a.emit(0x8B, 0xCE)  # mov ecx, esi
                 a.call_absolute(setter)
             for field, offset in _RESTORED[2:]:
-                a.emit(0xA1, _u32(a.label_va(f"saved_{field}")))  # mov eax, [saved]
+                a.emit(0xA1, u32(a.label_va(f"saved_{field}")))  # mov eax, [saved]
                 a.emit(_eax_at_esi(0x89, offset))
 
             # Bind every seated slot (states 2-6, the range `GameSlot::isOccupied` accepts) to
@@ -407,23 +337,23 @@ class CommandLineSkirmishPatch(Patch):
             a.emit(0x8B, 0x50, GAME_SLOT_START_POS)  # mov edx, [eax+startPos]
             a.emit(0x83, 0xFA, GAME_INFO_SLOT_COUNT)  # cmp edx, 8
             a.jcc(JAE, "bind_next")  # unsigned, so -1 is out of range too
-            a.emit(0x8B, 0x14, 0x95, _u32(a.label_va("names")))  # mov edx, [names+edx*4]
+            a.emit(0x8B, 0x14, 0x95, u32(a.label_va("names")))  # mov edx, [names+edx*4]
             a.emit(0x89, 0x50, GAME_SLOT_MAP_PLAYER)  # mov [eax+mapPlayer], edx
             a.label("bind_next")
             a.emit(0x47)  # inc edi
             a.emit(0x83, 0xFF, GAME_INFO_SLOT_COUNT)  # cmp edi, 8
             a.jcc(JL, "bind")
-            a.emit(0xC7, 0x05, _u32(a.label_va("status")), _u32(STATUS_APPLIED))
+            a.emit(0xC7, 0x05, u32(a.label_va("status")), u32(STATUS_APPLIED))
             a.jmp("release")
 
             a.label("rejected")
-            a.emit(0xC7, 0x05, _u32(a.label_va("status")), _u32(STATUS_REJECTED))
+            a.emit(0xC7, 0x05, u32(a.label_va("status")), u32(STATUS_REJECTED))
             a.label("release")
-            a.emit(0xB9, _u32(a.label_va("saved_map")))  # mov ecx, &saved_map
+            a.emit(0xB9, u32(a.label_va("saved_map")))  # mov ecx, &saved_map
             a.call_absolute(ASCII_STRING_DTOR)
 
             a.label("publish")
-            a.emit(0x89, 0x35, _u32(THE_GAME_INFO))  # mov [TheGameInfo], esi
+            a.emit(0x89, 0x35, u32(THE_GAME_INFO))  # mov [TheGameInfo], esi
             a.label("setup_done")
             a.emit(0x9D, 0x61)  # popfd; popad
             # The displaced tail, re-emitted: push 2; mov ecx, edi; appendIntegerArgument.
@@ -432,11 +362,11 @@ class CommandLineSkirmishPatch(Patch):
             a.jmp_absolute(COMMAND_LINE_SKIRMISH_SETUP_RESUME)
 
             a.label("guard")
-            a.emit(0x8B, 0x8E, _u32(LOADING_SCREEN_PROGRESS_WINDOW))
+            a.emit(0x8B, 0x8E, u32(LOADING_SCREEN_PROGRESS_WINDOW))
             a.emit(0x85, 0xC9)  # test ecx, ecx
             a.jcc(JE, "guard_done")
             a.emit(0x8B, 0x01, 0x57, 0xFF, 0x50, 0x34)  # mov eax,[ecx]; push edi; call [eax+0x34]
-            a.emit(0x8B, 0x0D, _u32(LOADING_SCREEN_PROGRESS_SINK))
+            a.emit(0x8B, 0x0D, u32(LOADING_SCREEN_PROGRESS_SINK))
             a.emit(0x50)  # push eax
             a.call_absolute(LOADING_SCREEN_PROGRESS_REPORT)
             a.label("guard_done")

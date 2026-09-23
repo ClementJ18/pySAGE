@@ -271,7 +271,7 @@ jmp  -> 0x009A078A             ; the engine's own disabled + idle tests
 
 Three exits, all into stock code: accept (`0x009A07A0`), next candidate (`0x009A07C7`), and the
 resume (`0x009A078A`). One engine call, `Object::testStatus`, which
-[`addresses.py`](../addresses.py) already names.
+[`sage_patch.addresses`](../addresses/__init__.py) already names.
 
 **Register safety.** `edi` is the candidate `Object`, resolved by `findObjectByID` at
 `0x009A0761` and live across the whole loop body; `esi` is its `ProductionUpdate`, which is why

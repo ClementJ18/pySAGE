@@ -17,7 +17,7 @@ pytestmark = pytest.mark.full
 pytest.importorskip("PyQt6", reason="the [worldbuilder] extra (PyQt6) is not installed")
 
 from PyQt6.QtGui import QKeySequence  # noqa: E402
-from PyQt6.QtWidgets import QApplication, QDialog  # noqa: E402
+from PyQt6.QtWidgets import QApplication, QDialog, QMenu  # noqa: E402
 
 from sage_ini.engine import STOCK, active, revert  # noqa: E402
 from sage_ini.model.objects import REGISTRY  # noqa: E402
@@ -31,8 +31,9 @@ from sage_worldbuilder import (  # noqa: E402
 )
 from sage_worldbuilder.keymap import accelerators  # noqa: E402
 from sage_worldbuilder.settings import RecentMap, Settings  # noqa: E402
+from sage_worldbuilder.ui.app import report_unhandled  # noqa: E402
 from sage_worldbuilder.ui.dialogs import OpenMapDialog, SaveMapDialog  # noqa: E402
-from sage_worldbuilder.ui.window import APP_TITLE, MainWindow  # noqa: E402
+from sage_worldbuilder.ui.window import _GUIDE_HTML, APP_TITLE, MainWindow  # noqa: E402
 
 
 @dataclass
@@ -415,3 +416,69 @@ def test_game_data_loads_in_the_background(qapp, folders):
         assert "Loaded" in window.game_label.text()
     finally:
         window.close()
+
+
+def test_the_bug_report_state_names_the_game_data_and_the_open_map(window, folders, qapp):
+    state = window.bug_report_state()
+    assert state["Map"] == "none open"
+    assert state["Mods"] == "none"
+    assert state["Game data"] == "mounted, not loaded"
+
+    _, user = folders
+    path = saved_map(user / "Maps" / "Reported" / "Reported.map")
+    window.open_path(path)
+    wait_until(qapp, lambda: not window.busy and window.document is not None)
+    state = window.bug_report_state()
+
+    assert state["Map"] == str(path)
+    assert state["Unsaved changes"] == "no"
+    # The map's own shape comes along: a report about an editor is a report about a map.
+    assert state["Waypoints"] == "0" and state["Scripts"] == "0"
+
+
+def test_help_offers_a_bug_report(window):
+    menu = next(m for m in window.menuBar().findChildren(QMenu) if m.title() == "&Help")
+    labels = [action.text() for action in menu.actions() if action.text()]
+
+    assert "&Report a bug…" in labels
+
+
+def test_an_unhandled_error_is_shown_as_a_filled_in_report(window, monkeypatch):
+    shown: dict[str, object] = {}
+
+    class Stub:
+        def exec(self) -> None:
+            shown["exec"] = True
+
+    def capture(parent, *, app, text, headline=None, **rest):
+        shown.update(parent=parent, app=app, text=text, headline=headline)
+        return Stub()
+
+    monkeypatch.setattr("sage_utils.widgets.report_bug_dialog", capture)
+    try:
+        raise ValueError("a panel fell over")
+    except ValueError as error:
+        report_unhandled(type(error), error, error.__traceback__)
+
+    assert shown["exec"]
+    assert shown["app"] == APP_TITLE
+    assert "save your work" in shown["headline"]
+    # The traceback and the editor's state, so the report is worth reading on its own.
+    assert "a panel fell over" in shown["text"]
+    assert "- **Map:**" in shown["text"]
+
+
+def test_the_guide_describes_the_editor_as_it_is_now():
+    # The guide is the first thing a new mapper reads; it went stale once already, describing
+    # an editor whose tools were "still to come".
+    for heading in (
+        "The two views",
+        "Move, Rotate and Radial Array",
+        "Scripts",
+        "Players, teams and build lists",
+        "Jump To Game and the script debugger",
+        "MapCache Entry",
+        "When something goes wrong",
+    ):
+        assert f"<h3>{heading}</h3>" in _GUIDE_HTML
+    assert "still to come" not in _GUIDE_HTML

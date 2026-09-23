@@ -11,7 +11,14 @@ import json
 
 import pytest
 
-from sage_live.api.observation import GameObject, Observation, PlayerState, ProductionItem, distance
+from sage_live.api.observation import (
+    GameObject,
+    Observation,
+    PlayerState,
+    ProductionItem,
+    SpecialPowerState,
+    distance,
+)
 
 
 def obj(
@@ -385,3 +392,58 @@ def test_a_viewer_can_be_named_explicitly():
     assert censored.obj(20).production != ()
     assert censored.obj(10).production == ()
     assert censored.player(3).resources == 0
+
+
+def _ranked(skill: int, floor: int, upcoming: int) -> PlayerState:
+    return PlayerState(
+        index=0,
+        name="p",
+        faction="Men",
+        resources=0,
+        skill_points=skill,
+        rank_floor=floor,
+        rank_next=upcoming,
+    )
+
+
+def test_power_point_progress_is_the_share_of_the_current_rank():
+    assert _ranked(125, 100, 200).power_point_progress == pytest.approx(0.25)
+    assert _ranked(100, 100, 200).power_point_progress == 0.0
+
+
+@pytest.mark.parametrize(
+    ("skill", "floor", "upcoming"),
+    [(0, 0, 0), (250, 100, 200), (50, 100, 200), (100, 200, 100)],
+    ids=["unread", "past the next rank", "below the floor", "inverted thresholds"],
+)
+def test_power_point_progress_is_unknown_rather_than_invented(skill, floor, upcoming):
+    assert _ranked(skill, floor, upcoming).power_point_progress is None
+
+
+def test_a_power_is_unlocked_once_every_science_it_asks_for_is_held():
+    player = PlayerState(index=0, name="p", faction="Men", resources=0, sciences=frozenset({1, 2}))
+    assert SpecialPowerState("Heal", 0, frozenset({1, 2})).unlocked_for(player)
+    assert not SpecialPowerState("Eagles", 0, frozenset({1, 3})).unlocked_for(player)
+    # Asking for nothing is not a spellbook purchase - a hero ability, or scenery's power.
+    assert not SpecialPowerState("Ability", 0).unlocked_for(player)
+
+
+def test_seconds_left_counts_down_to_zero():
+    # RotWK's logic runs five frames a second, so 50 frames is ten seconds.
+    power = SpecialPowerState("Heal", ready_frame=650)
+    assert power.seconds_left(600) == pytest.approx(10.0)
+    assert power.seconds_left(1200) == 0.0
+
+
+def test_an_opponent_keeps_everything_on_screen():
+    seen = PlayerState(
+        index=1,
+        name="Player_2",
+        faction="Mordor",
+        resources=900,
+        display_name="Ben",
+        faction_name="Mordor",
+        color=0x3366CC,
+    ).as_opponent()
+    assert (seen.display_name, seen.faction_name, seen.color) == ("Ben", "Mordor", 0x3366CC)
+    assert seen.resources == 0

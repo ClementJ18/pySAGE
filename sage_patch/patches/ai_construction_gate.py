@@ -1,68 +1,11 @@
-"""The AI construction-gate patch: stop the skirmish AI producing from a building that is still
-going up.
+"""Stop the skirmish AI producing from a building that is still under construction.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/ai-construction-gate.md``.
+The engine enforces this rule in the control bar, the legacy `AIPlayer::findFactory` and
+`ProductionUpdate`, but not in the `SkirmishAI` producer picker (`AI_PRODUCER_PICKER`) RotWK
+skirmish actually uses. A cave adds the `UNDER_CONSTRUCTION` test to the picker's "use it now" arm.
+AI-only for free: every caller of the picker is AI.
 
-**The defect.** "A structure that is still under construction may not produce" is a real rule,
-and the engine states it in three places - none of them on the path a skirmish AI takes.
-
-* The **ControlBar** (``0x0094307A``) refuses the button. That is client-side UI; the AI never
-  runs a line of it.
-* The legacy ``AIPlayer::findFactory`` (``0x008F5347``) tests the bit before it asks anything
-  else. That is the Generals/BFME1 lineage - correct, and **not what RotWK skirmish runs**.
-* ``ProductionUpdate::update`` (``0x008A1CB5``) refuses to let the finished unit *leave*. By then
-  the order has been placed and paid for.
-
-RotWK ships the BFME2-era ``SkirmishAI`` subsystem, which has its own producer index and its own
-picker. A structure enters that index the frame it is placed - ``AIPlayer``'s structure-created
-hook hands the brand-new object to the index builder at ``0x009A0838``, which walks its buildable
-list *and* its revive slots while it is still scaffolding. The picker
-(`AI_PRODUCER_PICKER`) then filters candidates on dead / has-a-``ProductionUpdate`` /
-not-disabled / idle and stops there. A construction site passes all four - emphatically including
-idle.
-
-**What this does.** Appends an ``.aicons`` PE section holding a rewritten copy of the picker's
-"which arm am I in" branch, and redirects the branch's six-byte entry into it. The rewrite adds
-one ``Object::testStatus(UNDER_CONSTRUCTION)`` ahead of the engine's own usable-producer tests,
-on the rejection edge those tests already use.
-
-**Why the gate goes in the "use it now" arm only.** The picker's third argument
-(``[ebp+0x10]``) selects between two questions. Zero means *pick a producer to use now* - and it
-is that arm which runs the disabled and idle tests, and that arm the order pump at
-``0x008F0FD4`` calls before stamping the winner's id into a pending build order. Non-zero means
-*could anything here ever make this*, and three of the six callers ask it that way: a tactic
-deciding whether a plan is possible at all, a cost/time estimator, and - the decisive one - a
-sweep that **cancels** an order whose answer comes back null. Gating construction there would
-cancel orders because their producer had not finished yet, which is a worse behaviour than the
-one being fixed. So the cave reproduces the branch and leaves the hypothetical arm on the
-byte-for-byte stock edge.
-
-**Scope: the AI only, and it comes for free.** `AI_PRODUCER_PICKER` is inside ``SkirmishAI`` and
-has six direct callers, every one of them AI. Unlike :mod:`~sage_patch.patches.ai_revive_gate` -
-whose target sits on the player's path through ``BuildAssistant``'s ``+0x64`` gate and therefore
-has to test its own return address - AI-only here falls out of *where the function is*. This
-patch cannot change what is shown, clickable or queueable for a human, because no human-facing
-code reaches it.
-
-**This makes the AI less bad, not less cheaty.** Worth being clear, because it is the opposite
-direction from `ai-revive-gate`. The production queue keeps ticking while a building goes up
-(``0x008A1D5B`` is downstream of the exit-step bail), but the finished unit is held at the door
-until the structure completes - and ``queueCreateUnit`` took the money at queue time. So the AI
-pays, occupies the producer's one queue slot, and gets nothing early, while a finished barracks
-next door looked equally attractive to the picker. The defect is a handicap; removing it is a
-competence fix.
-
-**Determinism.** The gate reads ``Object::m_status`` - logic state, identical on every peer - so
-the added edge is network- and replay-safe. The ``SkirmishAI`` runs on the logic thread on every
-peer, so a *non*-deterministic gate here would desync rather than merely misbehave, which is why
-the model-condition ``ACTIVELY_BEING_CONSTRUCTED`` is not what is tested even though it names the
-same state more precisely.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the six at
-`AI_PRODUCER_ANY_BRANCH`, which no other bundled patch touches - they all sit at ``0x0079``,
-``0x008A``, ``0x0094`` and ``0x00DA`` - and it reads nothing another patch rewrites.
+Derivation: `../docs/ai-construction-gate.md`.
 """
 
 from __future__ import annotations
@@ -155,6 +98,7 @@ def build_code(base_va: int) -> bytes:
 class AiConstructionGatePatch(Patch):
     name = "ai-construction-gate"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop the skirmish AI producing from a building that is still under construction. No "
         "INI change"

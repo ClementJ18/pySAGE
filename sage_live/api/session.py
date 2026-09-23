@@ -1,25 +1,14 @@
-"""`Session` - selection state, the APM cap, and the loop a policy actually drives.
+"""`Session` - selection state, the APM cap, and the loop a policy drives.
 
-Three things here are not conveniences.
+- **Selection is tracked**, because several orders only mean something against it (the same
+  button-slot order recruits a hero or unpacks an outpost depending on what is selected); a
+  selection-dependent order with nothing selected is refused.
+- **The APM cap is on by default**, so an agent cannot order faster than a human could.
+- **Orders take names or ids.** Names resolve through the session's `NameLookup`, a protocol, so
+  this module imports nothing from `sage_ini`.
 
-**Selection is mandatory state.** Several orders are meaningless without it: the engine's
-"press command-button slot N" order is byte-identical whether it recruits a fortress hero or
-unpacks an outpost, and only the current selection disambiguates. A session that does not
-track selection cannot issue those orders correctly, so it tracks selection and refuses a
-selection-dependent order when nothing is selected.
-
-**The APM cap is on by default.** An unthrottled agent emits orders at a rate no human could
-and that the engine was never tested against. `sage_replay`'s own statistics give a realistic
-distribution to calibrate against.
-
-**Orders take names or ids.** A name is resolved through the session's `NameLookup`, which is
-a protocol rather than a concrete class precisely so this module keeps importing nothing from
-`sage_ini` - `sage_live.attach` fits the engine's own live registry, and
-`sage_live.utils.resolve.Resolver` fits an ini load, and neither is a dependency here.
-
-The waiting helpers matter more than they look. The main menu is a *running game* - the shell
-map ticks the same `GameLogic` - so "a game is running" is not the same question as "a match
-has started", and every consumer was answering it by hand.
+The waiting helpers distinguish "a game is running" from "a match has started": the main menu runs a
+shell map on the same `GameLogic`.
 """
 
 from __future__ import annotations
@@ -30,7 +19,13 @@ from dataclasses import dataclass, field
 
 from sage_live.api import orders as _orders
 from sage_live.api.camera import ViewLocation
-from sage_live.api.observation import GameObject, Observation, PlayerState, Vec3
+from sage_live.api.observation import (
+    GameObject,
+    Observation,
+    PlayerState,
+    SpecialPowerState,
+    Vec3,
+)
 from sage_live.api.orders import CAST_LOCATION, CAST_OBJECT, CAST_SELF
 from sage_live.backends.base import Backend
 from sage_live.backends.protocol import DiagnosticLog, Handshake
@@ -61,15 +56,9 @@ DEFAULT_APM_CAP = 300
 # load the engine, the mod's ini tree and the map, and on a slow disk that is most of a minute.
 DEFAULT_WAIT = 120.0
 
-# How many objects fit in one selection order. The bridge's command buffer holds `MAX_ARGS`
-# arguments and `orders.select` spends one of them on the replace/extend flag, so the ids get
-# what is left. Derived rather than written out, so widening the buffer widens this with it.
-#
-# **Past this the order does not go, and nothing downstream can tell.** The encoder raises,
-# the backend logs a warning, and the send comes back empty - but the engine's *previous*
-# selection is still in place, so the next order acts on whatever was selected last. A push
-# with 24 battalions therefore attacked with whichever building had been selected to recruit
-# at. Measured live: 8 dropped selections in one match, army 24-34 against this limit of 23.
+# How many objects fit in one selection order: the bridge buffer's `MAX_ARGS`, less the
+# replace/extend flag. An order over it is refused whole and the previous selection stays, which is
+# why `select` splits large selections.
 MAX_SELECTION = MAX_ARGS - 1
 
 # How long to give the engine to act on an order before deciding it did nothing. Comfortably
@@ -87,39 +76,26 @@ class NoSelection(Exception):
 
 
 class NoReviveLookup(RuntimeError):
-    """A hero order was issued, but this session has nothing to resolve the revive system with.
-
-    Deliberately not optional. A revive index means nothing without the roster it indexes, and
-    an unchecked one is the single easiest way to buy the wrong hero at full price - which is
-    exactly what happened before the index space was identified. Attach a lookup with
-    `session.revives = Statics.from_root(...)`.
+    """A hero order was issued, but this session has no revive lookup to check it against. Attach
+    one with `session.revives = Statics.from_root(...)`.
     """
 
 
 class IllegitimateOrder(Exception):
     """An order the game's own interface would never have offered.
 
-    The engine does not ask where an order came from, so it will act on plenty of things a
-    human could not have clicked. Refusing those is what separates automation from cheating,
-    and hero recruitment is where it matters most: the engine's own revive gate matches a slot
-    by counting and never reads the button, so a well-formed order can recruit a hero the
-    control bar hides. See `sage_live.utils.heroes` and `sage_patch/patches/ai_revive_gate.py`.
+    The engine acts on orders a human could not have clicked - notably a hero from a slot the
+    control bar hides (see `sage_live.utils.heroes`). Refusing them separates automation from
+    cheating.
     """
 
 
 class Sent(int):
     """How many orders the backend took, and why the rest did not go.
 
-    An `int`, because that is what every caller already does with the answer - `if not sent`,
-    a count in a log - and widening it would break them for no gain. What it adds is the
-    distinction between the two ways an order fails to leave: **throttled** means the APM cap
-    held it back and it was never offered to the game, **refused** means the backend was
-    offered it and would not take it. Only the second one means something is wrong, and a
-    caller guessing between them from `session.throttled` gets it wrong the moment a cap has
-    ever fired.
-
-    Note that neither says the game *acted* on the order. Nothing here does; that is what
-    `Session.confirm` is for.
+    An `int`, so `if not sent` works. It also says whether a missing order was **throttled** (held
+    back by the APM cap) or **refused** (offered and not taken, which means something is wrong).
+    Neither says the game acted on it; that is `Session.confirm`.
     """
 
     throttled: int
@@ -190,14 +166,9 @@ class Session:
         # session hands out, so a policy cannot read privileged state by forgetting to filter.
         # **This is not fog**: it removes knowledge, not visibility.
         self.godsight = godsight
-        # Whether observations are cut down to what this session's player can actually see.
-        # The other half of the pair: `godsight` strips fields, this drops whole objects.
-        #
-        # **Off by default, which is the compatible setting rather than the honest one.** A
-        # session that has always seen the whole map keeps doing so until it asks not to;
-        # `attach(fog=True)` is the deliberate act, and `Observation.fogged` on any snapshot
-        # says which way it was resolved. Turning it on with no readable grid, or in a match
-        # with fog switched off, leaves observations untouched rather than blanking the map.
+        # Whether observations are cut down to what this session's player can see (`godsight` strips
+        # fields; this drops objects). Off by default for compatibility; `attach(fog=True)` turns it
+        # on.
         self.fog = fog
         self.clock = clock
         self.limiter = APMLimiter(apm_cap, clock)
@@ -209,16 +180,9 @@ class Session:
         self.revives = revives
         self.handshake: Handshake | None = None
         self.latest: Observation | None = None
-        # The same snapshot as `latest`, but before the fog filter ran - so under `fog=True` it
-        # is the whole map and under `fog=False` it is the identical object.
-        #
-        # **Reading this is taking privileged information, and that has to be a decision.** The
-        # filter exists because a policy trained on what a human could never see is training on
-        # a lie; a caller reaching past it is opting out of that for one specific question and
-        # owes a reason. The reason that holds today is deciding the *match is over*, which is
-        # not a tactical read: an opponent's last buildings leaving a fogged view is
-        # indistinguishable from their being destroyed, so victory is not decidable from the
-        # filtered snapshot at all, while a human is simply told who won.
+        # The same snapshot as `latest` before the fog filter. Reading it is using privileged
+        # information and needs a reason; the one today is deciding the match is over, which a
+        # fogged view cannot show.
         self.latest_unfogged: Observation | None = None
         self._selection: tuple[int, ...] = ()
         self._throttled = 0
@@ -245,12 +209,8 @@ class Session:
 
     @property
     def alive(self) -> bool:
-        """Whether the game is still running.
-
-        The loop condition to prefer over anything derived from an observation. A crashed
-        game and a finished match produce the *same* empty observation - no objects, no local
-        player - so a policy that infers the end from what it can see reports a crash as a
-        result. This asks the process instead.
+        """Whether the game is still running. Prefer this as the loop condition: a crash and a
+        finished match look the same in an observation.
         """
         return self.backend.alive
 
@@ -279,12 +239,7 @@ class Session:
         self.handshake = None
 
     def _received(self, obs: Observation | None) -> Observation | None:
-        """The one place every observation passes through, so the filter cannot be skipped.
-
-        `observe`, `poll`, `step`, every `confirm_*` helper and `wait_until` all read through
-        here. A filter applied at some call sites and not others is worse than none: it makes
-        privileged data look absent right up until the one path that leaks it.
-        """
+        """Every observation passes through here, so the fog filter cannot be skipped."""
         if obs is None:
             return None
         # Kept before either filter runs, so the one question fog makes undecidable - whether
@@ -309,11 +264,8 @@ class Session:
         return self._received(self.backend.step(timeout))
 
     def observe(self) -> Observation:
-        """The current snapshot, raising rather than answering None.
-
-        `poll` returns None before the first observation arrives, which is the honest answer
-        for a loop but a nuisance for the far more common "read the game and act on it". This
-        is the same call with that one case turned into an error.
+        """The current snapshot, raising where `poll` would return None before the first
+        observation.
         """
         obs = self.poll()
         if obs is None:
@@ -344,11 +296,8 @@ class Session:
         timeout: float = DEFAULT_WAIT,
         poll: float = 0.25,
     ) -> Observation:
-        """Poll until `predicate` holds, and return that observation.
-
-        Raises `TimeoutError` rather than returning None: a caller that waited for a state and
-        did not get it has nothing useful to do with a null, and a silent skip here shows up
-        much later as an order issued into the menu.
+        """Poll until `predicate` holds and return that observation; raises `TimeoutError` rather
+        than returning None.
         """
         deadline = self.clock() + timeout
         while True:
@@ -360,32 +309,17 @@ class Session:
             time.sleep(poll)
 
     def wait_for_match(self, timeout: float = DEFAULT_WAIT, poll: float = 0.25) -> Observation:
-        """Block until a real match is under way, and adopt its local player.
-
-        **The menu is a running game.** BFME2 draws its main menu over a shell map simulated by
-        the same `GameLogic`, so the frame counter advances and objects exist while the player
-        is still choosing a faction. `Observation.in_match` is the test that means something -
-        whether the local player is a faction rather than the observer seat.
-
-        The seat is re-read on arrival: at the menu the local player *is* the observer, so a
-        session that fixed its index before the match started fixed it on the wrong player.
+        """Block until a real match is under way (`Observation.in_match`), then re-read the local
+        player, which at the menu is the observer seat.
         """
         obs = self.wait_until(lambda o: o.in_match, timeout=timeout, poll=poll)
         self.player_index = obs.local_player
         return obs
 
-    #
-    # **A consumed order is not an accepted order.** Game logic discards a malformed or
-    # unaffordable order *after* the message stream has taken it, and reports nothing at all:
-    # no error, no diagnostic, and the order still reaches the replay. So `send` returning 1
-    # means the game received it, not that the game did it.
-    #
-    # The only honest confirmations are the side effects, and there are three. They live here
-    # rather than in each consumer because every consumer needs them and the obvious version of
-    # each is wrong: gold is not the oracle for a build (the balance moves for other reasons in
-    # the same window), a plot vanishing is not the oracle either (building on a plot does not
-    # consume it), and a horde member moving is not the oracle for a move order (the members
-    # are dragged by the container's AI whatever you ordered).
+    # A consumed order is not an accepted order: game logic silently discards malformed or
+    # unaffordable orders after the stream takes them. The confirmations below watch the right side
+    # effect for each kind of order (gold, plots vanishing and horde members moving are all
+    # misleading).
 
     def confirm(
         self,
@@ -393,14 +327,9 @@ class Session:
         timeout: float = DEFAULT_CONFIRM,
         poll: float = _CONFIRM_POLL,
     ) -> bool:
-        """Whether `changed` becomes true of a fresh observation within `timeout`.
-
-        The non-raising sibling of `wait_until`: waiting for a state you expect is an error
-        when it does not arrive, but confirming an order is a *question*, and "it did nothing"
-        is a real answer that a policy acts on rather than crashes over.
-
-        Reads after sleeping rather than before: nothing can have changed until a logic frame
-        has run, so an immediate first read only ever measures the previous state.
+        """Whether `changed` becomes true of a fresh observation within `timeout` - the non-raising
+        sibling of `wait_until`, since "it did nothing" is a real answer. Reads after sleeping,
+        since nothing changes before a logic frame runs.
         """
         deadline = self.clock() + timeout
         while True:
@@ -417,16 +346,10 @@ class Session:
         building_id: int,
         timeout: float = DEFAULT_CONFIRM,
     ) -> bool:
-        """Issue a production order, and confirm the building's queue actually grew.
+        """Issue a production order and confirm the building's queue grew.
 
-        **Prefer this to `confirm_spend` for anything that enters a queue** - a recruit, a
-        research, a hero revive. It watches the thing the order was supposed to do rather than
-        a side effect, so nothing else in the match can forge the answer.
-
-        The queue is the honest signal precisely where money is not: gold moves for reasons
-        that have nothing to do with this order, in both directions (see `confirm_spend`).
-        Needs a backend reading production state; with `read_production=False` no queue is
-        visible and this can only ever answer False.
+        Prefer this to `confirm_spend` for recruits, research and revives: it watches what the order
+        was meant to do, which nothing else can forge. Needs a backend reading production state.
         """
         building = self.observe().obj(building_id)
         before = 0 if building is None else len(building.production)
@@ -440,18 +363,9 @@ class Session:
     def confirm_spend(self, act: Callable[[], Sent], timeout: float = DEFAULT_CONFIRM) -> bool:
         """Issue an order that must cost resources, and confirm the balance fell.
 
-        **This oracle is unsound in both directions, and it is the fallback rather than the
-        first choice.** Gold is a shared, contested number:
-
-        - an enemy ability can *steal* it, so a fall can appear with no spend of yours - a
-          false positive;
-        - an ability can *grant* 500-1000 at once, so a real spend can hide under a net rise -
-          a false negative.
-
-        Neither is rare enough to ignore in a real match. Use `confirm_queued` for anything
-        that enters a production queue, which is most of what costs money; keep this for
-        spends with no other visible effect, and read a single result as evidence rather than
-        proof.
+        The fallback oracle, unsound both ways: gold can be stolen (false positive) or granted in
+        bulk (false negative). Use it only for spends with no other visible effect, and treat one
+        result as evidence, not proof.
         """
         player = self.observe().player(self.player_index)
         before = 0 if player is None else player.resources
@@ -468,17 +382,10 @@ class Session:
         science: int | str,
         timeout: float = DEFAULT_CONFIRM,
     ) -> bool:
-        """Buy a spellbook power, and confirm the player is actually holding it afterwards.
+        """Buy a spellbook power and confirm the player now holds its science.
 
-        The direct signal, and the reason `PlayerState.sciences` is read at all: a science is
-        not an upgrade and lands in neither upgrade mask, so before this there was nothing to
-        watch except the points - and the points are the `confirm_spend` trap in a second
-        currency. They **rise on their own clock** while a match runs, so a real spend can hide
-        under a net rise; and a fall of the right size still cannot say *which* power was
-        bought, since a row of the book is priced the same. Holding the science says both.
-
-        Granted for free rather than bought is the same answer here, deliberately: the question
-        a policy asks is "can I cast it now", and both roads end there.
+        Points are no oracle: they accrue on their own and a row of the book costs the same. A power
+        granted for free confirms too, since the question is whether it can be cast.
         """
         wanted = self.resolve("science", science)
         if not act():
@@ -495,11 +402,8 @@ class Session:
         distance: float = 5.0,
         timeout: float = DEFAULT_CONFIRM,
     ) -> bool:
-        """Issue a movement order, and confirm at least one of `object_ids` moved.
-
-        A move costs nothing, so the resource oracle says nothing about it and positions are
-        all there is. `distance` is a floor rather than a target: units jostle and settle by a
-        unit or two while standing still, and this must not read that as obedience.
+        """Issue a movement order and confirm at least one of `object_ids` moved at least `distance`
+        (a floor, since standing units jostle).
         """
         origin = {o.object_id: o.position for o in self.observe().objects}
         watched = {i: origin[i] for i in object_ids if i in origin}
@@ -521,12 +425,8 @@ class Session:
         within: float = 60.0,
         timeout: float = BUILD_CONFIRM,
     ) -> bool:
-        """Issue a build order, and confirm something new is standing where it was aimed.
-
-        The only direct evidence a structure went up, and the only one immune to
-        `BuildVariations` - ordering a `GondorWohnhaus` places a `GondorWohnhaus01`, so nothing
-        that matches on the ordered name will ever see it. This asks what *appeared*, not what
-        it is called.
+        """Issue a build order and confirm something new stands where it was aimed - by position,
+        since a `BuildVariations` stand-in never carries the ordered name.
         """
         before = {o.object_id for o in self.observe().objects}
         if not act():
@@ -543,11 +443,8 @@ class Session:
         return self.confirm(appeared, timeout)
 
     def _prune_selection(self, obs: Observation) -> None:
-        """Drop selected ids that no longer exist, so selection cannot go stale.
-
-        Only prunes against an unfogged observation: under fog, an object's absence means
-        "not visible", not "dead", and pruning on that would silently discard a live
-        selection the moment it left vision.
+        """Drop selected ids that no longer exist. Only against an unfogged observation, where
+        absence means dead rather than out of sight.
         """
         if obs.fogged or not self._selection:
             return
@@ -555,12 +452,8 @@ class Session:
         self._selection = tuple(i for i in self._selection if i in alive)
 
     def send(self, *order: Order) -> Sent:
-        """Submit orders, subject to the APM cap.
-
-        The count of orders the backend took, carrying why the rest did not go - see `Sent`.
-        Being taken is not being obeyed: game logic discards a malformed or unaffordable order
-        *after* the stream has accepted it, and reports nothing. `confirm` is the only honest
-        test of what an order did.
+        """Submit orders, subject to the APM cap. Returns a `Sent`; being taken is not being obeyed,
+        so use `confirm` to test what an order did.
         """
         batch = list(order)
         granted = self.limiter.allow(len(batch))
@@ -574,18 +467,9 @@ class Session:
     def select(self, object_ids: Sequence[int], additive: bool = False) -> Sent:
         """Select objects, in as many orders as the command buffer needs.
 
-        **A selection larger than `MAX_SELECTION` is split rather than dropped.** One order
-        cannot carry more ids than the buffer has argument slots, and the encoder refuses the
-        whole order rather than truncating it - so an army that outgrew the buffer was not
-        selected at all, silently, and every order that followed acted on the stale selection.
-        The first chunk replaces the selection (or extends it, when the caller asked to), and
-        the rest extend it, which is the same shift-click the interface offers.
-
-        **Stops at the first chunk that does not go.** Continuing would leave a selection that
-        is neither the old one nor the requested one, and the caller cannot tell the difference
-        from the count alone. `Sent` is falsy if nothing went at all, so `if not session.select(
-        ...)` is the check; a short count means a partial selection, and `selection` says which
-        ids actually landed.
+        A selection over `MAX_SELECTION` is split: the first chunk replaces (or extends) the
+        selection and the rest extend it, like shift-click. It stops at the first chunk that fails,
+        so a short count means a partial selection; `selection` says which ids landed.
         """
         ids = list(dict.fromkeys(object_ids))
         if not ids:
@@ -623,11 +507,8 @@ class Session:
             raise NoSelection("this order acts on the current selection, which is empty")
 
     def resolve(self, space: str, value: int | str) -> int:
-        """An id for `value`, which may already be one.
-
-        Raises `NoNameLookup` when a name is given and this session has no lookup - explicitly
-        distinct from `UnknownDefinition`, so a caller is not sent hunting for a typo in a name
-        that was never going to be looked up.
+        """An id for `value`, which may already be one. Raises `NoNameLookup` (not
+        `UnknownDefinition`) when given a name with no lookup attached.
         """
         if isinstance(value, int):
             return value
@@ -654,16 +535,11 @@ class Session:
         return self.send(_orders.stop(self.player_index))
 
     def toggle_formation(self, horde_id: int) -> Sent:
-        """Flip one battalion between its two formations - see `orders.toggle_formation`.
+        """Flip one battalion between its two formations (see `orders.toggle_formation`).
 
-        The horde is an argument *and* the selection is required, which is belt and braces on
-        purpose: the corpus records an `ObjectId` on this message, and every other button-driven
-        order in this engine also acts on what is selected. Sending both is what a click does.
-
-        **There is no way to ask for a named formation**, so a caller that wants a particular
-        one has to know which the battalion is in already. `Statics.alternate_formation` reads
-        what the other one would be; the engine's `ALTERNATE_FORMATION` model condition on the
-        battalion's members reads which one it is standing in now.
+        Sends the horde and requires it selected, as a click does. There is no way to ask for a
+        named formation; read the current one first (`Statics.alternate_formation`, or the members'
+        `ALTERNATE_FORMATION` model condition).
         """
         self._require_selection()
         return self.send(_orders.toggle_formation(self.player_index, horde_id))
@@ -685,15 +561,8 @@ class Session:
     # is the part a single observation cannot answer - the list mutates as heroes field and die.
 
     def _track_heroes(self, obs: Observation) -> None:
-        """Follow the revive list's two mutations across frames.
-
-        A hero standing on the map has left the list; one that was standing there and is gone
-        has rejoined it at the tail. Only the second needs history, and only this sees enough
-        frames to have any.
-
-        Skipped under fog, for the same reason `_prune_selection` is: an object's absence means
-        "not visible" there, and reading that as a death would send the next recruit to a
-        position that has not actually moved.
+        """Follow the revive list across frames: a hero seen alive and now gone has rejoined at the
+        tail. Skipped under fog, where gone may mean unseen.
         """
         if self.revives is None or obs.fogged:
             return
@@ -724,16 +593,9 @@ class Session:
         return self._roster
 
     def revive_index(self, hero: str) -> int | None:
-        """`hero`'s current position in the revive list - the number an order carries.
-
-        None when the hero is not in the list, which is a real state rather than an error: a
-        hero already on the map has left it, and ordering the position it used to hold would
-        recruit whoever slid into that place.
-
-        **Accurate for a hero that has never been fielded, which is the ordinary case.** The
-        one part that needs history is a hero killed after fielding: it rejoins at the tail, in
-        death order, and this can only know that from frames it has seen. A session that
-        started mid-match has not seen them.
+        """`hero`'s current position in the revive list - the number an order carries - or None when
+        it is not in the list (for example, on the map). Exact unless a hero died after being
+        fielded before this session started watching.
         """
         return _heroes.revive_index(
             self.hero_roster(), hero, self._hero_alive, tuple(self._hero_dead)
@@ -742,31 +604,18 @@ class Session:
     def recruit_hero(self, hero: int | str, building_id: int | None = None) -> Sent:
         """Recruit a hero at the selected building.
 
-        `hero` is a template name resolved against the current revive list, or an index into
-        that list if you have already worked it out. `building_id` defaults to the first
-        selected object, which is the building the order will act on anyway.
+        `hero` is a template name or a revive-list index; `building_id` defaults to the first
+        selected object. The engine's revive gate never checks the button it matched, so it will
+        recruit heroes the control bar hides:
 
-        **What this refuses, and why it depends on `godsight`.** The engine's own revive gate
-        matches a slot by counting REVIVE buttons and never reads the button it matched, so it
-        will happily recruit a hero whose slot the control bar hides - that is how a
-        `GondorBarracks` was made to produce Imrahil, a hero it does not offer. Nothing in the
-        game reports that as an error.
+        - `godsight=True` allows any hero the building's revive block reaches - the engine's real
+          behaviour.
+        - `godsight=False` allows only a slot that exists here and is enabled - what a human could
+          click.
 
-        - `godsight=True`: any hero from any building carrying a revive block, which is the
-          engine's real behaviour and the useful one for exploration and for measuring what the
-          gate actually allows.
-        - `godsight=False`: only a hero whose slot at *this* building exists and is **enabled**
-          - its `NeededUpgrade` satisfied by the player's or the building's own upgrades. That
-          is the set a human's control bar would have shown, so a policy under it is playing
-          the game rather than exploiting a known-broken gate.
-
-        Either way an index the producer's slot block cannot reach is refused outright: the
-        engine consumes that order and discards it in silence, which is indistinguishable from
-        a malformed one.
-
-        Raises `IllegitimateOrder` rather than returning a falsy `Sent`, because an order the
-        interface would never have offered is a bug in the policy, not a game outcome the way
-        "the queue was full" is.
+        An index beyond the building's slots is always refused, since the engine would silently
+        discard it. Raises `IllegitimateOrder` rather than returning a falsy `Sent`: it is a policy
+        bug, not a game outcome.
         """
         self._require_selection()
         if building_id is None:
@@ -785,12 +634,8 @@ class Session:
         return self.send(_orders.recruit_hero(self.player_index, index))
 
     def _check_revive(self, index: int, building_id: int) -> None:
-        """Refuse a hero order the producer cannot serve, or that a human could not have given.
-
-        The two bounds differ by one on purpose. The engine's gate counts every REVIVE button
-        from zero and accepts when the count reaches the index, so it needs `index + 1` slots.
-        The control bar's mapping is offset - position 0 is the Ring-hero slot - so the slot a
-        human would have clicked for `index` is at position `index + 1`, and needs one more.
+        """Refuse a hero order the producer cannot serve or a human could not give. The two bounds
+        differ by one: the engine counts slots from 0, the control bar's slot 0 is the Ring hero.
         """
         if self.revives is None:
             raise NoReviveLookup(
@@ -866,85 +711,77 @@ class Session:
         return self.send(_orders.start_self_repair(self.player_index))
 
     def castle_unpack(self) -> Sent:
-        """Claim the selected outpost, castle or camp, letting the engine choose.
+        """Claim the selected outpost, castle or camp, letting the engine choose what rises (see
+        `orders.castle_unpack`).
 
-        Takes no template: the engine reads that off the target's own `CastleBehavior`, for the
-        issuing player's faction - see `orders.castle_unpack`.
-
-        **This is the narrower of the two unpacks, and usually not the one you want.** A plot
-        standing in a base you own generally offers explicit per-building buttons instead, and
-        those send `unpack(template)`. Ask the plot rather than guessing:
-        `Statics.unpack_buttons(template, upgrades)` returns what its control bar really shows,
-        each entry saying which of the two orders it sends.
-
-        **The plot must already be yours.** An order against a plot you do not own is consumed
-        and discarded in silence, which is indistinguishable from a malformed one.
-        `Observation.obj(id).owner_index` is the check - the engine's own answer.
-
-        Ownership is taken by standing your units by the flag with no enemy near it. The
-        distances (about 10 to claim, about 50 for an enemy to deny) are aims to move toward
-        rather than thresholds to test: treat them as approximate and let ownership itself be
-        the signal.
-
-        **Only send this to a target whose live `CommandSet` actually offers a `CASTLE_UNPACK`
-        button.** The engine will act on an order the interface would never have presented, so
-        an agent that skips that check is not playing the game a human plays - it is cheating.
-        And this order in particular keeps working after the interface stops offering it: an
-        settlement owned by an Isengard player still unpacks its `CastleToUnpackForFaction`
-        row on `0x43D`, while the control bar has moved on to explicit buttons.
-
-        The check is static, but **not** `Statics.field(template, "CommandSet")` - that field
-        is the unowned plot's palette. Use `Statics.unpack_buttons(template, upgrades)`, which
-        resolves the `CommandSetUpgrade` swap the owner's upgrades trigger. See the note at the
-        top of `orders`.
+        Usually not the one you want: a plot in your own base offers explicit buttons, which send
+        `unpack`. Ask the plot with `Statics.unpack_buttons(template, upgrades)` rather than its
+        static `CommandSet` field, and only send this where it offers a `CASTLE_UNPACK` button - the
+        engine accepts the order even where the interface no longer offers it. The plot must already
+        be yours (`Observation.obj(id).owner_index`); ownership comes from standing units by the
+        flag with no enemy near.
         """
         self._require_selection()
         return self.send(_orders.castle_unpack(self.player_index))
 
     def unpack(self, template: int | str) -> Sent:
-        """Build at the currently selected plot, naming what to build - the common unpack.
-
-        Selection-dependent in the strong sense: the plot *is* the location, so this carries no
-        position and an empty selection has nothing to build on.
-
-        This is the order a player's own plot buttons send, `template` being the button's
-        `Object`; `Statics.unpack_buttons` reads those, and `orders.unpack` records the
-        hand-played match that confirmed it.
+        """Build at the currently selected plot, naming what to build - the common unpack, and what
+        a player's own plot buttons send. Needs a selection, which is the location.
         """
         self._require_selection()
         return self.send(_orders.unpack(self.player_index, self.resolve("thing", template)))
 
     def purchase_power(self, science: int | str) -> Sent:
-        """Spend spellbook points on a power from the faction's spell store.
+        """Spend spellbook points on a power from the faction's spell store. Needs no selection.
 
-        **Nothing is selected and nothing needs to be.** The spellbook hangs off the player
-        rather than off an object - the order carries the player twice and no target at all -
-        so unlike a research or an unpack there is no selection for this to depend on.
-
-        **Order only what the store sells**, which is `Statics.spell_store(faction)` filtered by
-        `PowerButton.enabled_for(held)`. The engine takes a purchase for a power whose
-        prerequisites are unmet and discards it in silence, exactly like a malformed one; and a
-        power reached any other way is a power the spell store would never have offered, which
-        is the line between playing and cheating.
-
-        `confirm_power` is the oracle. Points are **not**: they rise on their own clock, so a
-        balance that fell is evidence and a balance that did not is not proof of anything.
+        Order only what the store sells (`Statics.spell_store(faction)` filtered by
+        `PowerButton.enabled_for(held)`); anything else is silently discarded or is cheating.
+        Confirm with `confirm_power`, not the points.
         """
         return self.send(
             _orders.purchase_power(self.player_index, self.resolve("science", science))
         )
 
+    def special_powers(self, object_id: int) -> tuple[SpecialPowerState, ...]:
+        """Every special power on one object with its recharge and required sciences, or empty where
+        the backend cannot say. On a spellbook object, `SpecialPowerState.unlocked_for` says which
+        the player has bought.
+        """
+        reader = getattr(self.backend, "special_powers", None)
+        return reader(object_id) if callable(reader) else ()
+
+    def power_button_names(self, object_id: int) -> dict[str, str]:
+        """`{special power name -> in-game button text}` for the buttons one object offers, or
+        empty where the backend cannot read them. On a spellbook, these are the names its bar
+        shows - a power has no display name of its own, only the button that fires it does."""
+        reader = getattr(self.backend, "power_button_names", None)
+        return reader(object_id) if callable(reader) else {}
+
+    def thing_display_name(self, name: str) -> str:
+        """The in-game name of a template, or "" where the backend cannot read one.
+
+        What the game itself shows, localised, for whatever mod and language it runs. Only a
+        backend reading the process can answer, so a caller keeps its code name on "".
+        """
+        reader = getattr(self.backend, "thing_display_name", None)
+        return reader(name) if callable(reader) else ""
+
+    def upgrade_display_name(self, name: str) -> str:
+        """The in-game name of an upgrade, or "" where the backend cannot resolve one."""
+        reader = getattr(self.backend, "upgrade_display_name", None)
+        return reader(name) if callable(reader) else ""
+
+    def science_display_name(self, science: int) -> str:
+        """The in-game name of a science by id - the name a spellbook power is sold under - or
+        "" where the backend cannot prove which entry it is."""
+        reader = getattr(self.backend, "science_display_name", None)
+        return reader(science) if callable(reader) else ""
+
     def power_cooldowns(self, object_id: int) -> dict[str, int]:
         """`{power name -> the frame it is next usable on}`, or empty where the backend cannot say.
 
-        **Empty means "unknown", never "everything is ready".** Only a backend reading the
-        process can answer this - the loopback codec carries no module state and a recorded
-        snapshot holds only the bytes its capture touched - so a caller must treat the empty
-        answer as "fall back to whatever you were doing before" rather than as permission.
-
-        Compare against `Observation.frame`: a power is ready when its frame is not in the
-        future. See `MemoryBackend.power_cooldowns` for where the number comes from and why it
-        beats computing one from `SpecialPower.ReloadTime`.
+        Empty means unknown, never "all ready": only a backend reading the process can answer. A
+        power is ready when its frame is not after `Observation.frame`.
         """
         reader = getattr(self.backend, "power_cooldowns", None)
         return reader(object_id) if callable(reader) else {}
@@ -980,19 +817,12 @@ class Session:
         angle: float | None = None,
         pitch: float | None = None,
     ) -> bool:
-        """Point the camera at `position`, keeping whatever else the view was holding.
+        """Point the camera at `position`, keeping the rest of the view.
 
-        **Keeping the zoom means not writing it**, not writing it back. Where the backend can
-        move the aim on its own, that is the path taken: `View::setLocation` writes all four
-        scalars every time and cannot reproduce the zoom it reports, so echoing a captured
-        location still kicks the live zoom and the client visibly hauls it back - see
-        `BridgeBackend.move_camera` for the measurements. Overriding `zoom`, `angle` or `pitch`
-        asks for exactly that write, so those go the long way round deliberately.
-
-        False when the camera could not be moved, or - on the read-modify-write path - could
-        not be read first, since placing a camera with invented scalars is worse than not
-        moving it. The move itself is a jump; for footage, walk `position` toward the target
-        over many calls, because the engine does no interpolation here.
+        Moves only the aim where the backend can, since `setLocation` always rewrites the zoom (see
+        `BridgeBackend.move_camera`); passing `zoom`, `angle` or `pitch` takes that path
+        deliberately. False when the camera could not be moved or read. The move is a jump;
+        interpolate by calling repeatedly.
         """
         if zoom is None and angle is None and pitch is None:
             mover = getattr(self.backend, "move_camera", None)
@@ -1020,30 +850,12 @@ class Session:
         target_id: int = 0,
         source_id: int = 0,
     ) -> Sent:
-        """Fire a special power through whichever of the three constructors it takes.
+        """Fire a special power through whichever of the three cast orders it takes.
 
-        **`form` is the button's decision, not this one's.** A power sent through the wrong
-        constructor is accepted, charged nothing and does nothing - the same silent discard as a
-        malformed order - so the caller passes what the firing `CommandButton`'s `Options` said,
-        which is `CastablePower.form` from `Statics.spell_book`. Guessing from the power's name
-        is what `orders.cast_self` records as the cautionary case.
-
-        `CAST_PASSIVE` raises rather than sending. A passive power's whole effect landed when it
-        was bought and the engine has nothing to do with an order for it; sending one anyway
-        would be indistinguishable from a cast that failed, which is exactly the confusion the
-        form exists to prevent.
-
-        **`source_id` is not optional for a spellbook power - it is the whole order.** A power
-        cast from the book is cast *by* the player's `SpellBookMp` object, and an order that
-        leaves the slot at 0 is taken by the stream and discarded by logic in silence. Measured
-        in a controlled match on 2026-08-05: Gondor's Eagles at `source_id=0` did nothing across
-        three different `options` values, and the identical order naming the `GondorSpellBook`
-        object summoned all three eagles immediately. That is also what the corpus was saying all
-        along - `cast_at_location`'s source slot records 0, 550, 551 and 552, and the non-zero
-        ones are spellbook objects.
-
-        The object is found by owner and template - `Statics.spell_book_object(faction)` names
-        it, and the observation carries exactly one owned by each seat.
+        `form` comes from the firing button (`CastablePower.form` from `Statics.spell_book`); the
+        wrong one is silently discarded, and `CAST_PASSIVE` raises, since a passive power has
+        nothing to cast. `source_id` must be the player's `SpellBookMp` object for a spellbook power
+        (`Statics.spell_book_object(faction)`); with 0, powers that place something do nothing.
         """
         power_id = self.resolve("power", power)
         if form == CAST_SELF:

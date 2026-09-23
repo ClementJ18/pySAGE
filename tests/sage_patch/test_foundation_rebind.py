@@ -88,7 +88,7 @@ def _hook_target(data: bytes | bytearray, call_va: int) -> int:
     return call_va + 5 + struct.unpack_from("<i", data, off + 1)[0]
 
 
-# --- round trip ---------------------------------------------------------------------------------
+# Round trip
 
 
 def test_apply_then_verify(image: bytearray) -> None:
@@ -125,7 +125,7 @@ def test_the_patch_is_attributed() -> None:
     assert FoundationRebindPatch.author
 
 
-# --- the two hooks ------------------------------------------------------------------------------
+# The two hooks
 
 
 @pytest.mark.parametrize(
@@ -170,7 +170,7 @@ def test_nothing_outside_the_two_calls_and_the_cave_is_rewritten(image: bytearra
     assert changed <= allowed
 
 
-# --- the ring -----------------------------------------------------------------------------------
+# The ring
 
 
 def test_the_ring_leads_the_cave_and_starts_empty(image: bytearray) -> None:
@@ -200,7 +200,7 @@ def test_a_full_ring_wraps_rather_than_walking_off_the_end(image: bytearray) -> 
     assert code.count(b"\xb9" + struct.pack("<I", RING_SLOTS)) == 2  # one bound per thunk
 
 
-# --- what the cave actually reads and writes ------------------------------------------------------
+# What the cave actually reads and writes
 
 
 def _disassembled(data: bytes | bytearray) -> list:
@@ -346,7 +346,7 @@ def test_the_occupant_offset_is_the_one_is_occupied_reads(image: bytearray) -> N
     assert ANCHORS[0x0097031D][:5] == bytes([0x33, 0xC0, 0x39, 0x41, FOUNDATION_BUILT_ON_OFFSET])
 
 
-# --- the build fingerprint ------------------------------------------------------------------------
+# The build fingerprint
 
 
 @pytest.mark.parametrize("va", sorted(ANCHORS))

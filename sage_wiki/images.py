@@ -31,7 +31,7 @@ IMAGE_PARAM = "image"
 
 
 def portrait_filename(obj) -> str:
-    """The wiki filename for the object's portrait - its internal id plus ``.png``."""
+    """The wiki filename for the object's portrait - its internal id plus `.png`."""
     return f"{obj.name}.png"
 
 
@@ -68,7 +68,7 @@ def render_icon_png(
 
 
 def icon_filename(name: str) -> str:
-    """The wiki filename for a button icon - the command button's name plus ``.png``."""
+    """The wiki filename for a button icon - the command button's name plus `.png`."""
     return f"{name}.png"
 
 

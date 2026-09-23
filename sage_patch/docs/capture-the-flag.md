@@ -257,7 +257,7 @@ binary for this document.
 | `0x00697C09` | **`Object::setTeam`** (`ret 8`, second argument 1) | §4.1 |
 | `0x0068BC01` | `Object::setID` - **not** `setTeam`, and the trap §4.1 is about | §4.1 |
 | `Object+0x31C` | `m_team`; `Object+0x74` is `m_id` | `getControllingPlayer`'s first instruction |
-| `MAX_PLAYER_COUNT` = 20 | width of every per-player array | [`addresses.py`](../addresses.py) |
+| `MAX_PLAYER_COUNT` = 20 | width of every per-player array | [`sage_patch.addresses`](../addresses/logic.py) |
 
 ### 4.0 Three things the disassembly settled that the scope had guessed at
 
@@ -300,7 +300,7 @@ Every feature of that reading survives contact with the code: a field, a same-va
 deregister, a store, a register. What kills it is one fact from outside the disassembly —
 `Object+0x74` is `m_id`, **measured live against 386 objects** in
 [`live-object-model.md`](live-object-model.md) §2 and recorded as
-[`addresses.OBJECT_ID`](../addresses.py). The two "notifications" then resolve as what they are:
+[`addresses.OBJECT_ID`](../addresses/objects.py). The two "notifications" then resolve as what they are:
 `0x0062902E` reads `[obj+0x74]` and erases that key from the map at `TheGameLogic+0xB4`;
 `0x0062BA64` reads it and inserts the object under it. It is an id-table re-key.
 

@@ -19,7 +19,7 @@ from sage_map.map import Map
 from sage_worldbuilder.changes import Change, ChangeKind
 from sage_worldbuilder.commands.base import Command, CompositeCommand
 from sage_worldbuilder.commands.edits import SetProperty
-from sage_worldbuilder.objects import new_object
+from sage_worldbuilder.commands.objects import new_object
 from sage_worldbuilder.scene import GENERIC_AI_PREFIX
 
 __all__ = [

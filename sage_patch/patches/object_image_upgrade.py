@@ -1,7 +1,5 @@
-"""Per-object select-portrait and button-image overrides driven by an upgrade.
-
-Targets ROTWK ``game.dat`` build ``2.01.2614.37001``.  The patch registers a new
-``ObjectImageUpgrade`` behaviour by cloning TooltipUpgrade's layout, not its registration::
+"""Add an `ObjectImageUpgrade` behaviour: per-object select-portrait and button-image overrides
+driven by an upgrade.
 
     Behavior = ObjectImageUpgrade ModuleTag_Level5Image
       TriggeredBy    = Upgrade_Level_5
@@ -9,17 +7,13 @@ Targets ROTWK ``game.dat`` build ``2.01.2614.37001``.  The patch registers a new
       ButtonImage    = HI_Hero_Level5
     End
 
-Only the two instance-aware UI image resolvers are intercepted. Recruitment buttons use the
-separate CommandButton path and remain stock. Applied modules live in a fixed sidecar keyed by
-``Object *``, ObjectID and source module. UI resolution scans matching rows for a non-null image.
-Image names are resolved once on every successful apply. The result is deliberately sticky: later
-upgrade loss or a newly conflicting upgrade does not roll it back, while another successful apply
-can overwrite it.
+It is registered by cloning `TooltipUpgrade`'s layout. Only the two instance-aware UI image
+resolvers are intercepted; recruitment buttons stay stock. Applied overrides live in a sidecar keyed
+by object, and are sticky: losing the upgrade does not roll them back, though another apply can
+overwrite them. Presentation only, so it cannot desync. `ObjectImageUpgradeWorldbuilderPatch`
+teaches the editor the block.
 
-The sidecar contains presentation pointers only.  It is neither transferred nor CRC'd and uses
-no clock, RNG or simulation mutation, so identical binaries/data cannot introduce a simulation
-desync. The Apply/UI path, multiple behaviors, repeated triggers and the sticky semantics are
-live-tested.
+Derivation: `../docs/object-image-upgrade.md`.
 """
 
 from __future__ import annotations
@@ -64,7 +58,16 @@ from ..addresses import (
 )
 from ..asm import JB, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    call_rel32,
+    find_section,
+    jmp_rel32,
+    read_bytes,
+    u32,
+    va_to_offset,
+)
 from .utils import name_tables
 
 __all__ = [
@@ -93,30 +96,12 @@ _RUNTIME_SIZE = 0x1C
 _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000 | 0x80000000
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _at(data: bytes | bytearray, va: int, count: int) -> bytes:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"{va:#010x} is not mapped - not the expected build")
-    return bytes(data[off : off + count])
-
-
-def _jmp(at_va: int, target_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", target_va - at_va - 5)
-
-
-def _call(at_va: int, target_va: int) -> bytes:
-    return b"\xe8" + struct.pack("<i", target_va - at_va - 5)
-
-
 class ObjectImageUpgradePatch(Patch):
     """Install the ObjectImageUpgrade parser, module and presentation-only sidecar."""
 
     name = "object-image-upgrade"
     author = "Ostkannit"
+    runtime_verified = "yes"
     description = (
         "Adds a new Behavior ObjectImageUpgrade, which allows for per-object "
         "select-portrait and button-image overrides driven by an upgrade. "
@@ -163,7 +148,7 @@ class ObjectImageUpgradePatch(Patch):
         a.emit(b"\x8b\xce")
         a.call_absolute(OBJECT_IMAGE_UPGRADE_REGISTER)
         a.emit(b"\x83\xec\x04", b"\x83\x24\x24\x00", b"\x8b\xcc")
-        a.emit(b"\x68", _u32(layout["block_name"]))
+        a.emit(b"\x68", u32(layout["block_name"]))
         a.call_absolute(OBJECT_IMAGE_UPGRADE_SET_ASCII_CSTR)
         a.emit(b"\x68\x84\x00\x00\x00", 0x50, b"\x6a\x00\x6a\x00")
         a.emit(0x68)
@@ -184,12 +169,12 @@ class ObjectImageUpgradePatch(Patch):
         a.emit(b"\x83\xc4\x08", b"\x8b\xf0", b"\x85\xf6")
         a.jcc(JE, "runtime_factory_done")
         # Preserve the constructor-set primary/behavior/aux vtables. Only UpgradeMux differs.
-        a.emit(b"\xc7\x46\x10", _u32(layout["upgrade"]))
+        a.emit(b"\xc7\x46\x10", u32(layout["upgrade"]))
         a.label("runtime_factory_done")
         a.emit(b"\x8b\xc6", 0x5E, 0x5D, 0xC3)
 
         a.label("moduledata_factory")
-        a.emit(0x55, b"\x8b\xec", 0x56, b"\x68", _u32(_MODULEDATA_SIZE))
+        a.emit(0x55, b"\x8b\xec", 0x56, b"\x68", u32(_MODULEDATA_SIZE))
         a.call_absolute(OPERATOR_NEW)
         a.emit(0x59, b"\x8b\xf0", b"\x85\xf6")
         a.jcc(JE, "moduledata_factory_done")
@@ -197,7 +182,7 @@ class ObjectImageUpgradePatch(Patch):
         a.emit(b"\x8b\xce")
         a.call_absolute(OBJECT_IMAGE_UPGRADE_MODULEDATA_CTOR)
 
-        a.emit(b"\xc7\x06", _u32(layout["moduledata"]))
+        a.emit(b"\xc7\x06", u32(layout["moduledata"]))
 
         a.emit(b"\x8b\x4d\x08", b"\x85\xc9")
         a.jcc(JE, "moduledata_factory_done")
@@ -222,7 +207,7 @@ class ObjectImageUpgradePatch(Patch):
             b"\x8b\x4c\x24\x04",
             b"\x6a\x00",
             b"\x68",
-            _u32(layout["table"]),
+            u32(layout["table"]),
         )
         a.call_absolute(OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE)
 
@@ -248,7 +233,7 @@ class ObjectImageUpgradePatch(Patch):
             b"\x8d\x6e\xf0",  # lea ebp,[esi-10] ; source runtime
             b"\x6a\x00",  # existing-row local
             b"\xbb",
-            _u32(layout["sidecar"]),
+            u32(layout["sidecar"]),
             b"\x31\xc0",
             b"\x8b\x57\x74",  # mov edx,[edi+74] ; ObjectID
         )
@@ -268,7 +253,7 @@ class ObjectImageUpgradePatch(Patch):
         a.jcc(JNE, "apply_next")
         a.emit(b"\x89\x1c\x24")  # exact match supersedes stale candidate
         a.label("apply_next")
-        a.emit(b"\x83\xc3", bytes([_ROW_SIZE]), 0x40, b"\x3d", _u32(_ROWS))
+        a.emit(b"\x83\xc3", bytes([_ROW_SIZE]), 0x40, b"\x3d", u32(_ROWS))
         a.jcc(JB, "apply_scan")
 
         a.label("apply_scan_done")
@@ -300,7 +285,7 @@ class ObjectImageUpgradePatch(Patch):
         a.jmp("apply_slot")
 
         a.label("apply_new_slot")
-        a.emit(b"\x3d", _u32(_ROWS))
+        a.emit(b"\x3d", u32(_ROWS))
         a.jcc(JE, "apply_done_local")  # full and no reusable row
 
         a.label("apply_slot")
@@ -317,7 +302,7 @@ class ObjectImageUpgradePatch(Patch):
         # SelectPortrait
         a.emit(
             b"\x8b\x0d",
-            _u32(OBJECT_IMAGE_UPGRADE_THE_IMAGES),
+            u32(OBJECT_IMAGE_UPGRADE_THE_IMAGES),
             b"\x85\xc9",
         )
         a.jcc(JE, "apply_button_image")
@@ -336,7 +321,7 @@ class ObjectImageUpgradePatch(Patch):
         a.label("apply_button_image")
         a.emit(
             b"\x8b\x0d",
-            _u32(OBJECT_IMAGE_UPGRADE_THE_IMAGES),
+            u32(OBJECT_IMAGE_UPGRADE_THE_IMAGES),
             b"\x85\xc9",
         )
         a.jcc(JE, "apply_dirty")
@@ -354,7 +339,7 @@ class ObjectImageUpgradePatch(Patch):
         a.label("apply_dirty")
         a.emit(
             b"\xa1",
-            _u32(OBJECT_IMAGE_UPGRADE_THE_CONTROL_BAR),
+            u32(OBJECT_IMAGE_UPGRADE_THE_CONTROL_BAR),
             b"\x85\xc0",
         )
         a.jcc(JE, "apply_done_local")
@@ -382,7 +367,7 @@ class ObjectImageUpgradePatch(Patch):
             b"\x8b\x77\x74",  # mov esi,[edi+74]  ; ObjectID
             b"\x31\xed",  # xor ebp,ebp       ; result = nullptr
             b"\xb9",
-            _u32(layout["sidecar"]),
+            u32(layout["sidecar"]),
             b"\x31\xc0",  # xor eax,eax       ; row index
         )
 
@@ -407,7 +392,7 @@ class ObjectImageUpgradePatch(Patch):
             bytes([_ROW_SIZE]),
             0x40,
             b"\x3d",
-            _u32(_ROWS),
+            u32(_ROWS),
         )
         a.jcc(JB, "select_scan")
 
@@ -459,7 +444,7 @@ class ObjectImageUpgradePatch(Patch):
             b"\x8b\x77\x74",  # mov esi,[edi+74] ; ObjectID
             b"\x31\xed",  # xor ebp,ebp
             b"\xb9",
-            _u32(layout["sidecar"]),
+            u32(layout["sidecar"]),
             b"\x31\xc0",
         )
 
@@ -483,7 +468,7 @@ class ObjectImageUpgradePatch(Patch):
             bytes([_ROW_SIZE]),
             0x40,
             b"\x3d",
-            _u32(_ROWS),
+            u32(_ROWS),
         )
         a.jcc(JB, "button_scan")
 
@@ -533,7 +518,9 @@ class ObjectImageUpgradePatch(Patch):
     def _build(self, data: bytes | bytearray, base: int) -> bytes:
         layout = self._layout(base)
 
-        upgrade = bytearray(_at(data, OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE, _UPGRADE_VTABLE_SIZE))
+        upgrade = bytearray(
+            read_bytes(data, OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE, _UPGRADE_VTABLE_SIZE)
+        )
 
         code = self._assemble(base)
 
@@ -571,7 +558,7 @@ class ObjectImageUpgradePatch(Patch):
         # These correspond 1:1 to the entries reserved by _layout(). Runtime construction keeps
         # TooltipUpgrade's primary/behavior/aux vtables and replaces only UpgradeMux at +0x10.
         out += upgrade
-        out += _at(
+        out += read_bytes(
             data,
             OBJECT_IMAGE_UPGRADE_MODULEDATA_VTABLE,
             _MODULEDATA_VTABLE_SIZE,
@@ -598,7 +585,7 @@ class ObjectImageUpgradePatch(Patch):
             (OBJECT_IMAGE_UPGRADE_SELECT_HOOK, _SELECT_BYTES),
             (OBJECT_IMAGE_UPGRADE_BUTTON_HOOK, _BUTTON_BYTES),
         ):
-            if _at(data, va, len(expected)) != expected:
+            if read_bytes(data, va, len(expected)) != expected:
                 raise ValueError(f"unexpected build or overlapping patch at {va:#010x}")
         base = allocate_section(
             data, SECTION_NAME, lambda va: self._build(data, va), _CHARACTERISTICS
@@ -609,19 +596,20 @@ class ObjectImageUpgradePatch(Patch):
             (
                 OBJECT_IMAGE_UPGRADE_REGISTER_CALL,
                 _REGISTER_BYTES,
-                _call(OBJECT_IMAGE_UPGRADE_REGISTER_CALL, code.label_va("register")),
+                call_rel32(OBJECT_IMAGE_UPGRADE_REGISTER_CALL, code.label_va("register")),
                 "register ObjectImageUpgrade",
             ),
             (
                 OBJECT_IMAGE_UPGRADE_SELECT_HOOK,
                 _SELECT_BYTES,
-                _jmp(OBJECT_IMAGE_UPGRADE_SELECT_HOOK, code.label_va("select_hook")) + b"\x90" * 3,
+                jmp_rel32(OBJECT_IMAGE_UPGRADE_SELECT_HOOK, code.label_va("select_hook"))
+                + b"\x90" * 3,
                 "instance select portrait",
             ),
             (
                 OBJECT_IMAGE_UPGRADE_BUTTON_HOOK,
                 _BUTTON_BYTES,
-                _jmp(OBJECT_IMAGE_UPGRADE_BUTTON_HOOK, code.label_va("button_hook")),
+                jmp_rel32(OBJECT_IMAGE_UPGRADE_BUTTON_HOOK, code.label_va("button_hook")),
                 "instance button image",
             ),
         )
@@ -642,18 +630,19 @@ class ObjectImageUpgradePatch(Patch):
         for va, want in (
             (
                 OBJECT_IMAGE_UPGRADE_REGISTER_CALL,
-                _call(OBJECT_IMAGE_UPGRADE_REGISTER_CALL, code.label_va("register")),
+                call_rel32(OBJECT_IMAGE_UPGRADE_REGISTER_CALL, code.label_va("register")),
             ),
             (
                 OBJECT_IMAGE_UPGRADE_SELECT_HOOK,
-                _jmp(OBJECT_IMAGE_UPGRADE_SELECT_HOOK, code.label_va("select_hook")) + b"\x90" * 3,
+                jmp_rel32(OBJECT_IMAGE_UPGRADE_SELECT_HOOK, code.label_va("select_hook"))
+                + b"\x90" * 3,
             ),
             (
                 OBJECT_IMAGE_UPGRADE_BUTTON_HOOK,
-                _jmp(OBJECT_IMAGE_UPGRADE_BUTTON_HOOK, code.label_va("button_hook")),
+                jmp_rel32(OBJECT_IMAGE_UPGRADE_BUTTON_HOOK, code.label_va("button_hook")),
             ),
         ):
-            if _at(data, va, len(want)) != want:
+            if read_bytes(data, va, len(want)) != want:
                 problems.append(f"hook at {va:#010x} does not point into {SECTION_NAME}")
         return problems
 
@@ -690,7 +679,7 @@ class ObjectImageUpgradeWorldbuilderPatch(Patch):
     """Teach **Worldbuilder** to parse the ObjectImageUpgrade behavior.
 
     **This patch targets `Worldbuilder.exe`, not `game.dat`.** It is the authoring half of
-    :class:`ObjectImageUpgradePatch`: the editor gains the block name and its two image fields,
+    `ObjectImageUpgradePatch`: the editor gains the block name and its two image fields,
     while all live image resolution remains in the game-side patch.
     """
 
@@ -739,12 +728,12 @@ class ObjectImageUpgradeWorldbuilderPatch(Patch):
         # string value during the call, and the stock initializer destroys every temporary after
         # registration. Use the same constructor/destructor thunks as that initializer.
         a.emit(b"\x83\xec\x04", b"\xc7\x04\x24\x00\x00\x00\x00", b"\x8b\xfc")
-        a.emit(0x68, _u32(layout["block_name"]), b"\x8b\xcf")
+        a.emit(0x68, u32(layout["block_name"]), b"\x8b\xcf")
         a.call_absolute(WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_CTOR)
 
-        a.emit(b"\x68", _u32(_WORLDBUILDER_INTERFACE_MASK), 0x57, b"\x6a\x00\x6a\x00", 0x68)
+        a.emit(b"\x68", u32(_WORLDBUILDER_INTERFACE_MASK), 0x57, b"\x6a\x00\x6a\x00", 0x68)
         a.label("moduledata_factory_imm")
-        a.emit(bytes(4), 0x68, _u32(WORLDBUILDER_OBJECT_IMAGE_UPGRADE_RUNTIME_FACTORY_STOCK))
+        a.emit(bytes(4), 0x68, u32(WORLDBUILDER_OBJECT_IMAGE_UPGRADE_RUNTIME_FACTORY_STOCK))
         a.emit(b"\x8b\xce")
         a.call_absolute(WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER)
 
@@ -755,7 +744,7 @@ class ObjectImageUpgradeWorldbuilderPatch(Patch):
         # TooltipUpgrade is the confirmed Worldbuilder layout twin too: its ModuleData factory
         # allocates 0x140 and calls this constructor. Only the parse-table callback differs.
         a.label("moduledata_factory")
-        a.emit(0x55, b"\x8b\xec", 0x56, b"\x68", _u32(_MODULEDATA_SIZE))
+        a.emit(0x55, b"\x8b\xec", 0x56, b"\x68", u32(_MODULEDATA_SIZE))
         a.call_absolute(WORLDBUILDER_OBJECT_IMAGE_UPGRADE_OPERATOR_NEW)
         a.emit(b"\x83\xc4\x04", b"\x8b\xf0", b"\x85\xf6")
         a.jcc(JE, "moduledata_factory_done")
@@ -780,7 +769,7 @@ class ObjectImageUpgradeWorldbuilderPatch(Patch):
         a.call_absolute(WORLDBUILDER_OBJECT_IMAGE_UPGRADE_BUILD_UPGRADE_FIELDS)
         a.emit(0x50, b"\x8b\x4d\x08")
         a.call_absolute(WORLDBUILDER_OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE)
-        a.emit(b"\x6a\x00", b"\x68", _u32(layout["table"]), b"\x8b\x4d\x08")
+        a.emit(b"\x6a\x00", b"\x68", u32(layout["table"]), b"\x8b\x4d\x08")
         a.call_absolute(WORLDBUILDER_OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE)
         a.emit(0x5D, 0xC3)
 
@@ -825,12 +814,12 @@ class ObjectImageUpgradeWorldbuilderPatch(Patch):
         prefix_va = WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL - len(
             _WORLDBUILDER_REGISTER_PREFIX
         )
-        got_prefix = _at(data, prefix_va, len(_WORLDBUILDER_REGISTER_PREFIX))
+        got_prefix = read_bytes(data, prefix_va, len(_WORLDBUILDER_REGISTER_PREFIX))
         if got_prefix != _WORLDBUILDER_REGISTER_PREFIX:
             raise ValueError(
                 "unexpected Worldbuilder build: TooltipUpgrade factory arguments do not match"
             )
-        got_call = _at(
+        got_call = read_bytes(
             data,
             WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL,
             len(_WORLDBUILDER_REGISTER_BYTES),
@@ -855,7 +844,7 @@ class ObjectImageUpgradeWorldbuilderPatch(Patch):
             data,
             va_to_offset(data, WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL) or 0,
             _WORLDBUILDER_REGISTER_BYTES,
-            _call(
+            call_rel32(
                 WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL,
                 code.label_va("register"),
             ),
@@ -874,11 +863,11 @@ class ObjectImageUpgradeWorldbuilderPatch(Patch):
             problems.append(
                 f"{WORLDBUILDER_SECTION_NAME} does not hold the expected field table and code"
             )
-        want = _call(
+        want = call_rel32(
             WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL,
             code.label_va("register"),
         )
-        if _at(data, WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL, len(want)) != want:
+        if read_bytes(data, WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL, len(want)) != want:
             problems.append(
                 "Worldbuilder TooltipUpgrade registration does not point into "
                 f"{WORLDBUILDER_SECTION_NAME}"

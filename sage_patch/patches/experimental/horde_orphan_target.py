@@ -1,61 +1,13 @@
-"""Stranded battalion members: make them attackable again. **DOES NOT WORK - see below.**
+"""Make stranded battalion members attackable again. **It does not work** and is deliberately not
+registered.
 
-.. warning::
+A battalion sometimes fails to finish leaving its building: the container survives empty and its
+units stand free, belonging to nothing, and nothing can target them. The patch gates the attack
+redirect it believed was refusing the order, but tested against a save with the fault it changed
+nothing: the order is never refused inside `aiAttackObject`. Kept because the reverse engineering
+(the discriminator in particular) is sound.
 
-   Applied and tested against a save carrying the fault, in both a one-site and a two-site
-   form, and it changed nothing: the hero still would not engage and his AI goal stayed 0.
-   A behaviour-neutral probe then showed the order is never refused inside
-   `aiAttackObject` at all - neither of its two `or eax,-1` paths ever runs - so the
-   redirect this gates is not what drops it. Kept because the reverse-engineering is sound
-   and reusable (the discriminator in particular is measured on both states), but it is
-   **not a fix** and is deliberately left out of `registry.PATCHES`.
-   See ``../docs/horde-formation-orphans.md`` section 6c.
-
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address here is
-derived in ``../docs/horde-formation-orphans.md``, which also carries the live readings this
-patch's condition was chosen from.
-
-**The fault.** A battalion sometimes fails to finish coming out of the building that made it.
-The container survives with **zero** members, still flagged `IS_LEAVING_FACTORY`, while its
-units end up in the world as free-standing objects - alive, fighting, and belonging to nothing.
-Read out of a save that carried it: a `GoblinFighterHorde` with no members and no body, standing
-1068 units from three of its own goblins, which were beating on a hero who never hit back.
-
-**Why they cannot be attacked.** Every attack order resolves its victim through one function
-(`RESOLVE_ENTRY_VA`), which rewrites a horde member into the horde it belongs to. For an
-attacker that is not itself a horde member - any hero, and the container object through which a
-whole battalion attacks - it takes `Object::m_containedBy`, and *when that is empty it falls
-back to the object's producer id*. A stranded unit is not contained by anything but still names
-the dead battalion as its producer, so the fallback resolves it, the attack is aimed at a
-bodiless container far away, and the unit standing in front of you is never touched. Trampling
-and area damage do not go through this function, which is why they are the only things that
-still work - the symptom the fault is usually reported as.
-
-**Why the fallback exists, and why it cannot simply be removed.** Measured live: a healthy
-battalion's members are created one per logic frame and are each un-contained for up to fourteen
-frames before they all join the container at once. For that whole window the producer id is the
-only thing making them a battalion. Deleting the fallback would make every freshly trained unit
-individually targetable for half a second, every time one is trained.
-
-**The condition this patch uses.** The same save held both states at once, which is what makes
-the discriminator measured rather than argued. A stranded battalion and one still forming both
-have a container with **zero** members and several units naming it - and they differ on one bit:
-all six units of the forming one still had `IS_LEAVING_FACTORY`, and none of the fifteen
-stranded ones did.
-
-Emptiness is what the two have in common; the status bit is what separates them. So the fallback
-is followed **only while the victim is still leaving a factory**, which leaves normal forming
-exactly as it was and refuses the redirect once a unit has been stranded - and a stranded unit,
-resolving to itself, can be attacked like any other.
-
-**What this does not do** is stop battalions breaking. It stops a broken one from producing
-units nothing can hit.
-
-**Composition.** Order-independent. The cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by
-name; the only bytes rewritten are the fallback block itself, which no other bundled patch
-touches; and nothing here is derived from bytes another patch rewrites. See the composition
-contract on :class:`~..patcher.Patch`.
+Derivation: `../../docs/horde-formation-orphans.md`, section 6c.
 """
 
 from __future__ import annotations
@@ -89,11 +41,11 @@ __all__ = [
 ]
 
 #: `resolveAttackTarget(eax = victim, arg1 = attacker, arg2 = Bool *outIsHordeTarget)`. Called
-#: only from `AIUpdateInterface::aiAttackObject` (vtable ``+0x88``) and its force-attack sibling
-#: (``+0x98``), both of which treat a NULL result as "cannot attack".
+#: only from `AIUpdateInterface::aiAttackObject` (vtable `+0x88`) and its force-attack sibling
+#: (`+0x98`), both of which treat a NULL result as "cannot attack".
 RESOLVE_ENTRY_VA = 0x00668167
 
-#: The ancestry fallback: reached from the two ``je``s below when `m_containedBy` is null or is
+#: The ancestry fallback: reached from the two `je`s below when `m_containedBy` is null or is
 #: not a horde. Nothing else branches here and no imm32 in the image points into its interior,
 #: so the whole block relocates.
 FALLBACK_VA = 0x006681D0
@@ -109,8 +61,8 @@ FALLBACK_BYTES = bytes.fromhex(
     "eba8"  # jmp  0x00668197               ; -> target the container
 )
 
-#: Where the block's two exits land. ``TARGET_VICTIM_VA`` is the shared tail that writes the
-#: out-flag and returns whatever is in ``esi``; ``TARGET_CONTAINER_VA`` is the ``mov esi, eax``
+#: Where the block's two exits land. `TARGET_VICTIM_VA` is the shared tail that writes the
+#: out-flag and returns whatever is in `esi`; `TARGET_CONTAINER_VA` is the `mov esi, eax`
 #: one instruction above it.
 TARGET_CONTAINER_VA = 0x00668197
 TARGET_VICTIM_VA = 0x00668199
@@ -142,16 +94,16 @@ HELPER_FALLBACK_BYTES = bytes.fromhex(
     "85b114010000"  # test [ecx+0x114], esi        ; KINDOF HORDE?
     "7502"  # jne  0x00693A6A               ; -> that is the horde
 )
-#: Its two exits: ``xor eax,eax`` (no horde) and the shared ``pop esi; ret 4``.
+#: Its two exits: `xor eax,eax` (no horde) and the shared `pop esi; ret 4`.
 HELPER_NONE_VA = 0x00693A68
 HELPER_RETURN_VA = 0x00693A6A
 
-#: The two ``je 0x6681D0`` that enter the block. Not rewritten - asserted, because a build whose
+#: The two `je 0x6681D0` that enter the block. Not rewritten - asserted, because a build whose
 #: branch A is shaped differently would send control somewhere this cave cannot stand in for.
 ENTRY_BRANCHES = ((0x0066818A, b"\x74\x44"), (0x00668195, b"\x74\x39"))
 
-#: `Object::testStatus(bit)` - ``__thiscall``, one stack argument, ``ret 4``. It clobbers only
-#: ``eax``/``ecx``/``edx`` and preserves ``ebx``/``esi``/``edi``, which is exactly what the
+#: `Object::testStatus(bit)` - `__thiscall`, one stack argument, `ret 4`. It clobbers only
+#: `eax`/`ecx`/`edx` and preserves `ebx`/`esi`/`edi`, which is exactly what the
 #: relocated block still needs (the victim, zero, and the `KINDOF HORDE` mask), so the gate needs
 #: to save nothing around the call. The prologue is asserted because the cave calls it.
 TEST_STATUS_VA = OBJECT_TEST_STATUS
@@ -160,14 +112,14 @@ TEST_STATUS_PROLOGUE = bytes.fromhex("8b54240433c0568bf1408bca83e11f")
 #: `OBJECT_STATUS_IS_LEAVING_FACTORY`, bit 90 of `Object::m_status`.
 STATUS_IS_LEAVING_FACTORY = 0x5A
 
-#: The displacement of the `KindOf` dword holding `HORDE`, as the relocated ``test`` encodes it.
+#: The displacement of the `KindOf` dword holding `HORDE`, as the relocated `test` encodes it.
 KINDOF_MASK_DISP = 0x114
 
 SECTION_NAME = ".hordefx"
 # CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ - the cave holds one code stub.
 SECTION_CHARACTERISTICS = 0x60000060
 
-#: What the detour leaves behind: five bytes of ``jmp rel32`` and ``int3`` to the block's end, so
+#: What the detour leaves behind: five bytes of `jmp rel32` and `int3` to the block's end, so
 #: a stray entry faults rather than running half an instruction.
 _DETOUR_FILL = 0xCC
 
@@ -175,7 +127,7 @@ _DETOUR_FILL = 0xCC
 def build_gate(base_va: int, status_bit: int = STATUS_IS_LEAVING_FACTORY) -> bytes:
     """The relocated fallback, with the status test in front of it.
 
-    On entry ``esi`` is the victim, ``ebx`` is zero and ``edi`` holds the `KINDOF HORDE` mask -
+    On entry `esi` is the victim, `ebx` is zero and `edi` holds the `KINDOF HORDE` mask -
     the three registers branch A is carrying when it reaches the fallback. The gate returns to
     the function through the same two exits the original block used, so nothing downstream can
     tell the difference except in the case it is here to change.
@@ -204,7 +156,7 @@ def build_gate(base_va: int, status_bit: int = STATUS_IS_LEAVING_FACTORY) -> byt
 
 
 def detour_bytes(from_va: int, to_va: int, width: int) -> bytes:
-    """``jmp rel32`` to the cave, then ``int3`` out to ``width``."""
+    """`jmp rel32` to the cave, then `int3` out to `width`."""
     jump = b"\xe9" + struct.pack("<i", to_va - (from_va + 5))
     return jump + bytes([_DETOUR_FILL]) * (width - len(jump))
 
@@ -212,13 +164,13 @@ def detour_bytes(from_va: int, to_va: int, width: int) -> bytes:
 def build_helper_gate(base_va: int, status_bit: int = STATUS_IS_LEAVING_FACTORY) -> bytes:
     """`Object::getHorde`'s producer fallback, behind the same status test.
 
-    On entry ``ecx`` is the object, ``esi`` holds the `KINDOF HORDE` mask, and ``[esp+8]`` is the
+    On entry `ecx` is the object, `esi` holds the `KINDOF HORDE` mask, and `[esp+8]` is the
     caller's `useProducer` flag - the frame the relocated block reads. The gate is reached by a
-    ``jmp``, so that frame is untouched and the flag stays where the block expects it.
+    `jmp`, so that frame is untouched and the flag stays where the block expects it.
 
-    ``this`` has to be saved across the call: `Object::testStatus` takes it in ``ecx`` and leaves
-    it clobbered, and the relocated block still needs it for ``[ecx+0x78]``. It does preserve
-    ``esi``, so the mask needs no saving.
+    `this` has to be saved across the call: `Object::testStatus` takes it in `ecx` and leaves
+    it clobbered, and the relocated block still needs it for `[ecx+0x78]`. It does preserve
+    `esi`, so the mask needs no saving.
     """
     a = Asm(base_va)
     a.emit(0x51)  # push ecx               ; save `this`
@@ -273,7 +225,7 @@ class HordeOrphanTargetPatch(Patch):
         return gate + build_helper_gate(base_va + len(gate))
 
     def _edits(self, section_va: int) -> list[tuple[int, bytes, int, str]]:
-        """``(site, stock bytes, where its gate lives, note)`` for both relocated blocks."""
+        """`(site, stock bytes, where its gate lives, note)` for both relocated blocks."""
         helper_va = section_va + len(build_gate(section_va))
         return [
             (
@@ -291,10 +243,10 @@ class HordeOrphanTargetPatch(Patch):
         ]
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified).
+        """Structural check that `data` carries this patch (an empty list == verified).
 
         Locates the cave, recomputes the gate its base VA implies, and compares that and the
-        detour to what is on disk. Reads only via ``struct`` + the section table, so verification
+        detour to what is on disk. Reads only via `struct` + the section table, so verification
         needs no disassembler.
         """
         located = find_section(data, SECTION_NAME)
@@ -324,7 +276,7 @@ class HordeOrphanTargetPatch(Patch):
         problems.extend(self._site_problems(data))
         return problems
 
-    # --- build fingerprint ---------------------------------------------------------------------
+    # Build fingerprint
 
     def _check_sites(self, data: bytes | bytearray) -> None:
         problems = self._site_problems(data)

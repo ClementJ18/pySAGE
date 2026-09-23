@@ -30,7 +30,7 @@ from pathlib import Path
 from sage_ini.model.objects import REGISTRY
 from sage_ini.parser.ast import Block
 from sage_ini.parser.blockparser import parse_file
-from sage_ini.stats import as_root_list, ini_root
+from sage_ini.paths import as_root_list, ini_root
 
 __all__ = ["Subsystem", "parse_subsystem_legend", "thing_template_order"]
 

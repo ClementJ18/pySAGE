@@ -47,8 +47,7 @@ from sage_ini.model.xref import Xref
 from sage_ini.parser.ast import Block
 from sage_ini.parser.io import MAP_SUFFIXES
 from sage_ini.parser.location import Span
-from sage_ini.stats import as_root_list, ini_root
-from sage_utils.sources import LOAD_SUFFIXES, loadable_files
+from sage_ini.paths import LOAD_SUFFIXES, as_root_list, ini_root, loadable_files
 
 __all__ = [
     "FORMAT_VERSION",
@@ -70,8 +69,7 @@ FORMAT_VERSION = 1
 RAW_FIELD_TABLES = frozenset({"levels", "commandbuttons", "particlesystems", "fxlists"})
 
 # Suffixes the freshness digest walks: the loadable ini/str plus the `.map`/`.bse` layouts, the
-# same set `sage_lint.linter`'s base merge uses - sourced here from sage_utils so sage_ini never
-# imports sage_lint.
+# same set `sage_lint.linter`'s base merge uses.
 _DIGEST_SUFFIXES = LOAD_SUFFIXES | MAP_SUFFIXES
 
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from sage_ini.loader import load_game
 from sage_ini.parser.io import iter_ini_files
-from sage_lint.cli import main
+from sage_lint.__main__ import main
 from sage_lint.commands.rename import build_plan
 from sage_lint.config import Config
 from sage_lint.rename import (

@@ -17,7 +17,7 @@ class ScriptPlayer:
 
     @classmethod
     def parse(cls, context: "ParsingContext", has_properties: bool) -> Self:
-        name = context.stream.readUInt16PrefixedAsciiString()
+        name = context.stream.read_uint16_prefixed_ascii_string()
         properties = None
         if has_properties:
             properties = context.properties_to_dict(context.parse_properties())
@@ -25,7 +25,7 @@ class ScriptPlayer:
         return cls(name=name, properties=properties)
 
     def write(self, context: "WritingContext", has_properties: bool) -> None:
-        context.stream.writeUInt16PrefixedAsciiString(self.name)
+        context.stream.write_uint16_prefixed_ascii_string(self.name)
         if has_properties:
             if self.properties is None:
                 raise ValueError("player properties must be set when has_properties is set")
@@ -51,8 +51,8 @@ class ScriptsPlayers:
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
-            has_properties = context.stream.readUInt32()
-            player_count = context.stream.readUInt32()
+            has_properties = context.stream.read_uint32()
+            player_count = context.stream.read_uint32()
             players = []
             for _ in range(player_count):
                 players.append(ScriptPlayer.parse(context, has_properties != 0))
@@ -68,7 +68,7 @@ class ScriptsPlayers:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(self.has_properties)
-            context.stream.writeUInt32(len(self.players))
+            context.stream.write_uint32(self.has_properties)
+            context.stream.write_uint32(len(self.players))
             for player in self.players:
                 player.write(context, self.has_properties != 0)

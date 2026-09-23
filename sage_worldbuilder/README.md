@@ -1,19 +1,16 @@
 # sage_worldbuilder
 
-A map editor for the SAGE engine games, written to replace WorldBuilder - the editor EA shipped
-with *The Battle for Middle-earth*. It opens, edits and saves `.map` and `.bse` files, and reads
-the installed game (and any mods mounted over it) for the object, texture, road, water, script and
-faction tables a map refers to.
+A map editor for the SAGE engine games, written to replace WorldBuilder, the editor EA shipped with
+*The Battle for Middle-earth*. It opens, edits and saves `.map` and `.bse` files, reading the
+installed game (and any mods over it) for the objects, textures, roads, water, scripts and factions
+a map refers to.
 
-It is the front end of the rest of pySAGE: [`sage_map`](../sage_map) reads and writes the binary
-map, [`sage_ini`](../sage_ini) assembles the game data, [`sage_w3d`](../sage_w3d) supplies the
-models the 3D view draws, and [`sage_utils`](../sage_utils) the virtual file system that mounts an
-install, its `.big` archives and a mod folder in the order the game does.
-
-Everything is checked against the real thing: WorldBuilder's own behaviour was read out of
-`worldbuilder.exe` where it mattered, its command ids, keyboard accelerators, script templates and
-icons are extracted from the binary by the scripts in [tools/](../tools), and the parsing rules are
-verified against a corpus of about 1,100 shipped and mod maps.
+It builds on the rest of pySAGE: [`sage_map`](../sage_map) reads and writes the map,
+[`sage_ini`](../sage_ini) assembles the game data, [`sage_w3d`](../sage_w3d) supplies the 3D view's
+models, and [`sage_utils`](../sage_utils) mounts an install, its `.big` archives and a mod folder in
+the game's order. WorldBuilder's command ids, keyboard shortcuts, script templates and icons are
+extracted from `worldbuilder.exe` by the scripts in [tools/](../tools), and the parsing is checked
+against about 1,100 shipped and mod maps.
 
 ## Running
 
@@ -21,213 +18,116 @@ Needs the `worldbuilder` extra (PyQt6, pyBIG, numpy, PyOpenGL, Pillow):
 
 ```sh
 pip install "pysage-tools[worldbuilder]"   # from a checkout: pip install -e ".[worldbuilder]"
-sage-worldbuilder                          # or: python -m sage_worldbuilder.ui
+sage-worldbuilder [map] [-mod FOLDER]... [-sagepatch FILE]   # or: python -m sage_worldbuilder.ui
 ```
 
-```
-sage-worldbuilder [map] [-mod FOLDER]... [-sagepatch FILE]
-```
+- `-mod` mounts an unpacked mod over the install, as the game's own switch does; repeated, a later
+  mod wins.
+- `-sagepatch` reads a patched `game.dat`'s `.sagepatch`, so the fields and tokens its patches add
+  are game data rather than errors (with `desert-weather`, Map Settings offers Desert).
 
-`-mod` mounts an unpacked mod above the install before anything opens, as the game's own switch
-does; repeat it and the mods load in that order, a later one winning. `-sagepatch` points at the
-`.sagepatch` of a patched `game.dat`, so the INI fields, block types and tokens its patches add are
-read as game data rather than reported as mistakes. A token a patch adds to a list the map itself
-stores reaches the editor the same way: `desert-weather` names a third weather, and Map Settings
-offers Desert once that `.sagepatch` is loaded.
+For mappers without Python, `pyinstaller sage_worldbuilder/sage-worldbuilder.spec` builds
+`dist/WorldbuilderV2.exe`.
 
-A mapper without Python runs the standalone bundle instead: `pyinstaller
-sage_worldbuilder/sage-worldbuilder.spec` builds `dist/WorldbuilderV2.exe`.
+**Help > Getting started** tours the window; **Keyboard Shortcuts** lists WorldBuilder's 65 keys.
+**Help > Report a bug** opens a report naming the build, install, mods and open map. An unexpected
+error opens the same report with the traceback, and the editor keeps running: save first.
 
 ## How it is put together
 
-- **The model layer is Qt-free.** `MapDocument` holds the `sage_map.Map`, its undo stack and its
-  change notifications; `categories`, `objects`, `terrain/`, `roads`, `water`, `dressing`,
-  `cameras`, `scripting`, `exchange` and the rest are plain Python over it. `ui/` is the shell.
-- **Every edit is a `Command`.** It goes through `MapDocument.execute`, so it is undoable, and it
-  declares what it changed (`Change(kind, region)`) so each view refreshes only what it shows -
-  a brush stroke repaints its cells, not the map.
-- **A map saves back byte-identical when nothing changed** - including a map whose edits were all
-  undone, and including the chunks the editor does not show. This is the rule the corpus gate
-  enforces (`tests/sage_map/test_corpus_maps.py --full`), and the reason edits patch the stored
-  arrays in place rather than rebuilding them.
-- **Parity is by the numbers, not by eye.** Menu items carry WorldBuilder's command ids, the 65
-  keyboard accelerators come from `keymap.json` as extracted from the binary, and where its
-  behaviour could not be read the choice made instead is written down next to the code.
+- **The model layer is Qt-free.** `MapDocument` holds the `sage_map.Map`, its undo stack and change
+  notifications; `terrain/`, `roads`, `water`, `scripting` and the rest are plain Python over it.
+  `ui/` is the shell.
+- **Every edit is a `Command`** run through `MapDocument.execute`, so it is undoable, and it declares
+  what it changed so each view refreshes only that.
+- **A map saves back byte-identical when nothing changed**, including unshown chunks and edits that
+  were all undone. The corpus test (`tests/sage_map/test_corpus_maps.py --full`) enforces it.
+- **Parity is by the numbers**: menu items carry WorldBuilder's command ids and the shortcuts come
+  from `keymap.json`. Where WorldBuilder's behaviour could not be read, the choice made is noted in
+  the code.
 
 ## What it does
 
-**Opening and saving.** The Open and Save As dialogs list maps by WorldBuilder's six categories,
-resolved through the game's file system, so maps shipped inside `.big` archives are listed too and
-open read-only. Recent maps, unsaved-change prompts, and autosave to the same rotating three files
-WorldBuilder uses, in the same user-data folder. **New** makes an empty map (size and border in
-cells, starting height, covering texture, Living World flag); **Resize** changes the size around a
-chosen anchor and moves everything on the map with it; heightmaps import and export as raw 16-bit
-images, and **Open from TGA** builds a map from a grey image.
+**Opening and saving.** Maps are listed by WorldBuilder's six categories, including those inside
+`.big` archives (opened read-only). Recent maps, unsaved-change prompts, and autosave to
+WorldBuilder's three rotating files. **New** makes an empty map; **Resize** changes size around an
+anchor, moving everything with it; heightmaps import and export as 16-bit images, and **Open from
+TGA** builds a map from a grey image.
 
-**Two views.** A top-down view and a 3D view (F3) of the same document, sharing tools, selection
-and options. A right-drag or a Space-drag moves the camera and a middle-drag turns it (Ctrl on a
-move turns as well); the wheel zooms about the ground under the cursor. Where a tool takes the
-right button for itself, the middle and Space drags still move the camera. With game data loaded the 3D view draws the terrain as the game does - each cell's
-tile, its blend and its 3-way blend through the game's own masks, out of an atlas built from the
-map's texture cells, and a cliff-mapped cell through its cliff mapping - lit by the map's own
-global lighting, with models, roads and water over it. An object draws every one of its `Draw`
-modules, as the engine does - a building and the floor under it, not one of the two - each in the
-condition state WorldBuilder picks for it: damaged by its starting health, at night or in snow by
-its own time and weather or the map's, garrisoned while View > Show Garrisoned is on, and the
-`WORLD_BUILDER` state where a draw has one.
-A model shows only its front faces, as the game draws it, so a building seen from above is its
-inside rather than a lid over it; a mesh that is itself a picture of light - a flame, a glow, a
-sky dome - is added to the scene instead of mixed into it, and the map's lights do not dim it. An
-object keeps a dot at its centre over its model, smaller than the top-down view's: it is what a
-click picks the object by, whatever stands in front of it, and 3D Options > Show Object Dots
-turns it off for a clean picture. Show Sound Flags stands a flag on every audio object (cyan for an
-ambient stream), and the 3D view's Letterbox and Safe Frame show what a 16:9 or 4:3 screen would.
-Without game data both views fall back to a height ramp.
+**Two views.** A top-down view and a 3D view (F3) sharing tools and selection. Right- or Space-drag
+moves the camera, middle-drag turns it, the wheel zooms. With game data loaded the 3D view draws
+terrain, blends and cliffs as the game does, under the map's lighting, with models, roads and water.
+Each object draws all its `Draw` modules, in the condition state WorldBuilder picks (damage, night,
+snow, garrisoned). A dot at each object's centre is what a click picks by (3D Options > Show Object
+Dots hides them). Show Sound Flags marks audio objects; Letterbox and Safe Frame show 16:9 and 4:3.
+Without game data both views show a height ramp.
 
-**Panels.** Every panel docks, tabs, or is pulled out into a window of its own; an undocked one
-stays above the main window and comes back up with it whenever the editor is focused. Window >
-Lock Layout holds them where they are: a panel dragged over another then only moves, instead of
-docking or tabbing itself into it.
+**Panels.** Every panel docks, tabs or floats; Window > Lock Layout stops them re-docking.
 
-**Objects.** The Object Palette lists the game's objects by side and `EditorSorting`; Place Object
-puts one down, a drag turns it. Click, Shift-click and marquee select; drag moves, Alt-drag
-rotates by the Group Edit Method; Pick Allowances limit what a click may take. Object Properties
-edits position, angle and every stored key of the whole selection as one undo entry, with
-WorldBuilder's starting-health presets and waypoint type names; a waypoint made a spline, or no
-longer one, takes its whole path with it. An object's keys are split across the same three pages
-WorldBuilder's sheet carries - **General**, **Logical** and **Sound** - each holding the keys its
-own dialog shows. Under Logical's fields stands WorldBuilder's **Available Upgrades** check list -
-the upgrades the selected objects' own modules are triggered by, ticked to give one at the start
-of the game - with a search box over it that the stock list has not, room for five rows however
-short the panel is, and an upgrade the map already stores but the template no longer offers still
-listed, ticked, so ticking another never drops it. The Item List
-searches the map's objects, waypoints, areas and teams, and can filter the view down to what it
-matches. The Edit menu selects similar, duplicate, deprecated or missing objects, objects on
-missing teams, and the objects of a base.
+**Objects.** Place from the Object Palette (by side and `EditorSorting`); select by click,
+Shift-click or marquee; drag to move, Alt-drag to rotate. Object Properties edits the whole
+selection as one undo entry, on WorldBuilder's General, Logical and Sound pages, with its
+**Available Upgrades** list (plus a search box). The Item List searches objects, waypoints, areas
+and teams; the Edit menu selects similar, duplicate, deprecated or missing objects.
 
-**Move, Rotate and the front handle.** Also beyond WorldBuilder. A selected object carries a
-short handle out of its ring along its facing: it shows which way the object's front points, and
-dragging it turns the object. The **Move** and **Rotate** tools put a Blender-style gizmo on the
-whole selection - an arrow per axis, X and Y along the ground and a height arrow leaning clear of
-them, with a knob at the centre for a free drag; X, Y and Z switch the axis in the middle of a
-drag, and the axis in use frees it again. Rotate draws the one ring the format allows: an object
-stores a heading, not a pitch or a roll, so there is no second or third ring to give it. Both
-gizmos stand on a level plane through the ground at their centre rather than draped over the
-terrain, so an arrow stays straight and the ring stays an ellipse over a ridge - and that plane is
-what a click picks against, so a handle is grabbed where it is drawn. Both
-tools are Select and Move underneath, so a press that misses the gizmo still selects, marquees and
-drags; Snap To Grid and Lock Angle apply as they do everywhere else.
+**Move, Rotate and the front handle** (beyond WorldBuilder). A selected object shows a handle along
+its facing that can be dragged to turn it. The Move and Rotate tools put a Blender-style gizmo on the
+selection; X, Y and Z switch axis mid-drag. Rotate has one ring, since an object stores only a
+heading. Snap To Grid and Lock Angle apply.
 
-**Radial Array.** Beyond WorldBuilder: press where a base's centre goes and drag outwards, and
-the palette's object is repeated evenly around that ring - the same distance, the same spacing,
-every copy aimed at the centre (or away, along the ring, or left as it lies, plus an angle offset).
-With objects selected it repeats those instead, keeping the group's arrangement, and a press with
-no drag builds the ring through the selection where it already stands, so one marketplace placed
-by hand becomes four the same way round. The ring is drawn as it is dragged, each copy's footprint
-with a tick for its facing, and the finished ring is left selected for a group edit.
+**Radial Array** (beyond WorldBuilder). Drag out a ring and the palette's object, or the selection,
+is repeated evenly around it, facing the centre, outward, along the ring or unchanged.
 
-**Waypoints, trigger areas and layers.** The Waypoint tool adds and links waypoints; the Polygon
-tool clicks out a trigger area. The Layers List shows what is on each layer, hides layers and sets
-the one new items go on. The Ruler measures in feet and cells.
+**Waypoints, trigger areas and layers.** Waypoint and Polygon tools; the Layers List shows, hides and
+targets layers; the Ruler measures in feet and cells.
 
-**Terrain.** Height Brush, Mound, Dig and Smooth Height, with a brush width and feather ring in
-cells and steps in feet; contour lines; per-cell attributes (the three passability layers, passage
-width, taintability, flammability, visibility) painted with Single Tile and Large Tile, and tinted
-while you paint them.
+**Terrain.** Height Brush, Mound, Dig and Smooth; contour lines; per-cell attributes (passability,
+passage width, taintability, flammability, visibility) painted with a tint.
 
-**Textures and blending.** Paint a texture with Single Tile, Large Tile or Flood Fill, pick one up
-with the eyedropper, and blend edges by hand (Blend Single Edge) or a whole area at once (Auto Edge
-In / Out). **Apply To Tiles** paints between two slopes, between two heights, or at a random
-saturation. The Texture Sizing menu remaps a texture to another of the same size, removes cliff
-mapping, and rebuilds the texture and blend tables from what the map still uses; Show Unblended and
-Show Stretched Tiles mark the cells worth looking at. **Terrain Copy** lifts a selection of cells -
-heights, textures, blends and passability - and stamps it elsewhere, flipped and turned.
+**Textures and blending.** Paint with Single Tile, Large Tile or Flood Fill, pick with the eyedropper,
+blend by hand or by area. **Apply To Tiles** paints by slope, height or random saturation. Texture
+Sizing remaps textures, removes cliff mapping and rebuilds the tables. **Terrain Copy** stamps a
+selection of cells elsewhere, flipped and turned.
 
-**Roads and water.** Drag a road or bridge segment with the Road tool, joining onto an existing
-end; Apply To Selection re-types selected segments, and a segment's two ends always travel
-together through cut, copy, paste and delete. The 3D view lays roads out as the game does: curves
-and mitres where two meet, tees, Ys and four-ways where three or four do. Lakes are clicked out as
-outlines, rivers built from bank lines, wave areas dragged; Water Options edits an area's height,
-textures, colours and the map-wide alpha depths. Each tool makes only its own kind of water, as
-WorldBuilder's do, but any of the three selects, moves and reshapes water of every kind, so a
-river does not have to be handed back to the River tool to be picked up. The 3D view draws water still, as the game's water shaders compute it at
-the first frame.
+**Roads and water.** The Road tool drags road and bridge segments; the 3D view draws curves, mitres
+and junctions as the game does. Lakes, rivers and wave areas each have a tool, and any of them can
+select and reshape water of every kind. Water is drawn still.
 
-**World dressing.** Scorch marks, groves (up to five weighted tree types, kept out of water and off
-cliffs), fences, ramps, borders and mesh molds - each writing ordinary map data, each driven from
-the Dressing Options panel.
+**World dressing.** Scorch marks, groves, fences, ramps, borders and mesh molds, from the Dressing
+Options panel; each writes ordinary map data.
 
-**Scripts, teams and players.** The Scripts panel is a tree of every player's groups and scripts
-with an editor for the selected one - properties, IF/OR conditions and both action lists - built
-from the action and condition templates extracted from WorldBuilder. The tree of templates a New
-action or New condition offers is the one the open map is offered: the Living World templates
-(`_Army`, `_Region`, `_Player`) stand there only for a Living World script map, as WorldBuilder's
-own mask leaves them out of an ordinary one. An argument that names a player, a team, an object or
-a trigger area is offered the run-time names WorldBuilder offers beside the map's own -
-`<This Player>` and its allies and enemies, `<This Team>`, `<This Object>`, the skirmish
-perimeters and Water Grid. New scripts are named `Script 1`, `Script 2`, ... from a counter that
-only goes up, a new group `New Folder`, and a copy takes its original's name with the lowest free
-number after it (`Opening 1`), which is how WorldBuilder names all three. Under a player's own scripts
-stand the ones it inherits from its library maps, read-only and marked *imported*, the chains those
-libraries open followed to the end and a name two libraries both define marked *overridden* on the
-one that loses it - what an AI map actually runs, without opening each library by hand. **Override**
-gives the map its own copy of an imported script or group at the path it has in its library, which
-is what takes that name off the library and makes it editable. An argument
-that names something the map declares - a unit, a waypoint or its path, a trigger area, a team, a
-player, another script - can be gone to rather than only read: a Go To button beside the field in
-the condition or action dialog, and the same entries on a row's right-click menu. Going to
-something on the map selects it and centres the view on it, and going to a team, a player or a
-script raises the panel holding it with that one selected. The Player List adds and removes
-players (or every player a skirmish map needs at once) and edits faction, AI type, relations,
-colour and library maps; teams are created, copied and repaired; the Build
-List panel edits a player's skirmish AI build list, and the Build List tool places its entries on
-the map.
+**Scripts, teams and players.** The Scripts panel edits every player's groups and scripts with
+WorldBuilder's extracted templates (Living World templates only on Living World maps). Arguments are
+offered the map's names plus WorldBuilder's run-time ones (`<This Player>`, `<This Team>`, ...).
+Scripts inherited from library maps are shown read-only; **Override** copies one into the map. A Go
+To button jumps to the unit, waypoint, area, team, player or script an argument names. The Player
+List edits players, factions, AI, relations and library maps; teams are created, copied and
+repaired; the Build List panel and tool edit a skirmish AI's build list.
 
-**Export and import.** A `.scb` script library exports the chosen players' units, scripts and the
-items those scripts reference, and imports back into another map as one undoable edit - reanchored
-for a different map size, with duplicate names, missing players and clashing script names resolved
-the way WorldBuilder resolves them. Terrain textures merge into the map's texture table by name;
-one with no room left in it is reported and its cells left as they were.
+**Export and import.** A `.scb` library exports chosen players' units and scripts, and imports into
+another map as one undoable edit, resolving size, name and player clashes as WorldBuilder does.
 
-**Cameras, lighting and sound.** A camera animation's keys stand in the 3D view as objects with
-drag handles - move a key along an axis, or turn it about one - and what the chosen camera sees is
-drawn in a preview pane, so scrubbing an animation never moves the view being worked in. Named
-cameras are saved from the view and gone to. Global Light Options edits the lights of the map's
-time of day, overbright and bloom; Environment Options the macro and cloud textures and the post
-effect. **Listen To Map** plays the ambient sounds of the objects the view is looking at. **Set
-LOD** picks one of the game's five static detail levels; the 3D view rebuilds its models to match,
-leaving out a `Draw` module whose `MinLODRequired` outranks the level's `ModelLOD` - the same test
-the game runs before it builds a draw module, so the detail the game drops at a setting is the
-detail the view drops. A Minas Tirith wall building loses its houses below Medium, as it does in
-the game.
+**Cameras, lighting and sound.** Camera-animation keys stand in the 3D view with drag handles, with a
+preview pane. Named cameras are saved and gone to. Global Light and Environment Options edit
+lighting, bloom and textures. **Listen To Map** plays nearby ambient sounds. **Set LOD** picks a
+static detail level and drops `Draw` modules the game would drop at it.
 
-**Bases.** Saving a `.bse` rebuilds its castle-template chunk from its own objects and trigger
-areas when they changed, so a base edited here builds in the game as edited. The generator was
-proven against all 1,035 bases in the corpus before it was trusted.
+**Bases.** Saving a `.bse` rebuilds its castle template from its objects and areas (proven against
+all 1,035 corpus bases).
 
-**Validation.** Generate Report checks the open map against the loaded game - the same rules
-`sage-lint` runs over maps - lists what is wrong, and repairs teams. A mod overlay adds its own
-rule set (see below).
+**Validation.** Generate Report checks the map against the loaded game with `sage-lint`'s map rules
+and repairs teams. A mod overlay can add rules (below).
 
-**Game data and Jump To Game.** The install is found automatically; mods are loaded, reordered and
-unloaded from the Game menu without restarting. **Jump To Game** launches the open map in the real
-game: it copies the map where the engine will find it, passes each loaded mod, applies the engine
-patches a command-line skirmish needs for the session (and takes them off again afterwards), and
-sets up the lobby - who sits where, factions, colours, teams, difficulty, starting resources and
-seed.
+**Game data and Jump To Game.** The install is found automatically; mods load and reorder from the
+Game menu. **Jump To Game** launches the open map in the real game, with its mods, the engine
+patches a command-line skirmish needs (removed afterwards) and a configured lobby.
 
-**MapCache Entry.** A map the mod's `maps\mapcache.ini` does not name cannot be listed in the
-lobby or started at all, and the engine never rewrites that file for a map inside a `.big` - so
-Game > MapCache Entry derives the block a finished map needs, ready to paste. The key, the file's
-size, the engine's own CRC and its timestamp, the playable extents, the player starts, the initial
-camera and the supply markers all come from the map; the two labels, `isOfficial`, `isMultiplayer`,
-`isScenarioMP` and the map-list-symbols patch's `mapSymbol` are the mod's to set. Where a new
-entry belongs in a hand-ordered cache is the mapper's call, so the dialog copies the block rather
-than writing the file.
+**MapCache Entry.** Game > MapCache Entry builds the `maps\mapcache.ini` block a finished map needs
+(the engine will not add one for a map inside a `.big`), ready to paste.
 
 ## The model layer
 
-Everything above the UI is importable on its own, with no Qt and no game data:
+Everything above the UI imports on its own, with no Qt and no game data:
 
 ```python
 from sage_worldbuilder import Change, ChangeKind, MapDocument, SetAttribute
@@ -239,47 +139,30 @@ first = document.map.objects_list.object_list[0]
 document.execute(SetAttribute(first, "angle", 1.57, Change(ChangeKind.OBJECTS)))
 
 document.stack.undo()   # every edit is undoable
-document.save()         # byte-identical again, and compressed exactly as it was
+document.save()         # byte-identical again, compressed as it was
 ```
 
-`MapDocument` also caches the decoded terrain (`terrain`, `cells`) and patches it in place through
-`write_heights` / `write_cells`, which is what keeps a brush stroke cheap. `CompositeCommand` and
-`UndoStack.group` fold a gesture into one undo entry.
+`MapDocument` caches the decoded terrain and patches it in place (`write_heights`, `write_cells`).
+`CompositeCommand` and `UndoStack.group` fold a gesture into one undo entry.
 
 ## Mod overlays
 
-pySAGE stays engine-generic, so a mod's own conventions live in its overlay package and are wired
-in at startup: `sage_worldbuilder.ui.app.main(extra_checks=...)` takes a rule set with the
-signature `sage-lint`'s map lint takes, and Generate Report adds its findings to its own. The Edain
-overlay is [pySAGE-edain](https://github.com/ClementJ18/pySAGE-edain), which launches the editor
-this way.
+A mod's conventions live in its overlay: `sage_worldbuilder.ui.app.main(extra_checks=...)` takes a
+rule set with the signature of `sage-lint`'s map lint, and Generate Report adds its findings.
+[pySAGE-edain](https://github.com/ClementJ18/pySAGE-edain) launches the editor this way.
 
 ## Tests
 
-The model layer is covered by a data-free suite; the shell by offscreen Qt tests, which run under
-`--full`:
-
 ```sh
-pytest tests/sage_worldbuilder
-pytest tests/sage_worldbuilder --full
+pytest tests/sage_worldbuilder          # the model layer, data-free
+pytest tests/sage_worldbuilder --full   # plus the offscreen Qt tests
 ```
 
-The OpenGL tests skip wherever no OpenGL 3.3 context can be made, which includes Qt's offscreen
-platform - they need a real window, so they are not part of an ordinary run.
+The OpenGL tests need a real window and skip where no OpenGL 3.3 context can be made.
 
 ## Not ported, by choice
 
-- **Show EFX** and **Enable Music Scripting**: WorldBuilder-only previews that write nothing to
-  the map.
-- **Water in motion**: waves, bump scrolling and live reflections. The view draws water still; a
-  lake's reflection is its environment texture, which is a picture of sky.
-- **The `SkyboxSettings` chunk** is edited but not drawn: the RotWK game never reads it and the
-  model its texture sets are made for does not ship. Skybox objects draw like any other.
-- **The rest of a `StaticGameLOD` bucket**: Set LOD only reads `ModelLOD`, the field that decides
-  which `Draw` modules exist. Its shadow, particle, texture-reduction and shader-quality fields are
-  not honoured; the view draws no shadows or particles of its own to turn down, and its textures
-  stay at full resolution whatever the level.
-
-Where a reading of WorldBuilder stopped short, the choice made instead is written beside the code:
-a river's second set of texture coordinates, and a cliff mapping onto another texture than its
-cell's (drawn as the cell's own tile).
+- **Show EFX** and **Enable Music Scripting**: WorldBuilder-only previews that write nothing.
+- **Water in motion**: water is drawn still.
+- **Drawing the `SkyboxSettings` chunk**: it is edited, but RotWK never reads it.
+- **The rest of a `StaticGameLOD` bucket**: Set LOD only applies `ModelLOD`.

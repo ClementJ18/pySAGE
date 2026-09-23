@@ -1,80 +1,11 @@
-"""The command-point-upkeep patch: make a large army cost a player income.
+"""Make a large army cost income: scale a faction's deposits by the command points it has in use.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below comes
-from :mod:`sage_patch.addresses` and is derived in ``../docs/command-point-upkeep.md``.
+`PlayerTemplate.ResourceModifierValues` already scales deposits by an object count; upkeep reuses
+that computation with command points in use as the count. Two opt-in `PlayerTemplate` fields hold
+the table, stored in the cave keyed by template name. The on-screen readout is
+`inflation-readout`'s.
 
-**Why this is small.** `PlayerTemplate.ResourceModifierValues` is not an analogue of what this
-patch wants - it is *literally the same computation*. `AutoDepositUpdate::update` already loads
-a per-faction `Int` table out of the `PlayerTemplate`, turns a **count** into a percentage, and
-scales the deposit by it::
-
-    008855a3  mov  eax, [esi+0x34]      ; the controlling Player's PlayerTemplate
-    008855ae  lea  ecx, [eax+0x1c8]     ; &ResourceModifierObjectFilter
-    008855ec  call 0x6ababd             ; count the player's objects the filter accepts
-    008855f7  add  eax, 0x1cc           ; &ResourceModifierValues
-    0088560a  mulss xmm0, [0xBE5600]    ; mult = values[count] * 0.01     -> [ebp-0x1c]
-    ...
-    00885685  fmul [ebp-0x1c]           ; the deposit, scaled
-
-Upkeep swaps the count for **command points in use** and reuses everything else. It multiplies
-`[ebp-0x1c]` by a second factor before that `fmul`, so the two stack cleanly and the engine's own
-"never round income below 1 gold" floor still applies.
-
-**The INI.** Two new `PlayerTemplate` fields, both **opt-in**::
-
-    UpkeepCommandPointStep = 500              ; Int. 0 (the default) == no upkeep at all.
-    UpkeepValues           = 100 90 80 70 60  ; percent of income kept, indexed by tier
-
-`tier = commandPointsInUse / step`, clamped to the last entry, and the deposit keeps
-`UpkeepValues[tier]` percent. So the example above is "-10% per 500 command points, floored at
--40%". A faction declaring neither field is byte-for-byte unaffected, which is the same rule
-`hero-mana` follows with `ManaCost = 0`.
-
-**Which income is taxed.** Only what the faction's own `ResourceModifierObjectFilter` accepts -
-the cave re-runs the exact pair of calls the inflation block made three instructions earlier
-(`ObjectFilter::isValid`, then `ObjectFilter::allow(object, player)`). `AutoDepositUpdate` is
-*all* tick income, not only resource buildings, and without the gate upkeep would silently tax
-captured neutral structures and creep lairs too. A faction with no filter set therefore gets no
-upkeep, exactly as it gets no inflation.
-
-**Where the per-faction numbers live, and why not on the template.** They cannot go on the
-`PlayerTemplate`. It is `0x1DC` bytes with no hole (the apparent gap at `+0x152` is a subobject
-with its own field table, added at `PlayerTemplate::parse` with extra offset `0x154`), and
-growing it means correcting **24** separate `0x1DC` literals in the store's compiland alone.
-Worse, a pointer key would not survive: templates live in a `std::vector<PlayerTemplate>` and a
-new block is parsed into a *stack temporary* before being copied in, so the `this` a field
-callback sees is transient and is reused by the next block.
-
-So the rows live in the cave, keyed by the template's `NameKeyType` at `+0x10` - the one stable
-identity a template has, and the one `PlayerTemplateStore::findPlayerTemplate` itself matches on.
-The key is computed once per block, before any of the three parse paths branch, and a hook there
-records it for the field callbacks to file against.
-
-**Consequences of keying by name rather than by pointer**, all of them wanted:
-
-* **No savegame change and no init hook.** The rows are INI-derived and rebuilt on every load;
-  the command-point count is an existing `Xfer`'d field. Nothing new is per-game state.
-* **An override block merges rather than replaces.** A `map.ini` re-declaring a faction shares
-  its key, so it overwrites only the fields it names - where the engine's own copy semantics
-  would have dropped the rest.
-* **A missing row is "no upkeep", never a wrong number.** A full table, an absent key and a zero
-  step all take the same untaxed path.
-
-**Determinism.** Every input is simulation state identical on every peer: the player's command
-points, its template's name key, and the INI. No pointer *value* is read, and the only writes
-happen at INI load.
-
-**The display lives in `inflation-readout`.** This patch draws nothing. It *exports* `percent`
-through :mod:`~sage_patch.patches.utils.income_link`, and when
-[`inflation-readout`](../docs/inflation-readout.md) is also installed the palantir's
-resource-multiplier slot shows the **product** of both factors - which is what the deposit
-actually computes, since the two multiply the same `[ebp-0x1c]`. The upkeep penalty on its own
-is a strict subset of what that slot shows, so it is not drawn a second time on the
-command-point readout.
-
-> **Every peer must run the same patched binary.** Income decides what gets built, so the effect
-> is inside the simulation: a patched and an unpatched client desync and replays do not cross.
-> Same rule as `production-condition`, stricter than `replay-outcome`.
+Derivation: `../docs/command-point-upkeep.md` and `../docs/inflation-readout.md`.
 """
 
 from __future__ import annotations
@@ -107,7 +38,16 @@ from ..addresses import (
 )
 from ..asm import JAE, JBE, JE, JG, JLE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    find_section,
+    i8,
+    jmp_rel32,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 from .utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 from .utils.income_link import (
     READOUT_SECTION,
@@ -128,7 +68,7 @@ __all__ = [
 ]
 
 #: 8 chars max: the PE name field truncates silently past 8. Owned by
-#: :mod:`~sage_patch.patches.utils.income_link`, which also owns the offset in it that
+#: `income_link`, which also owns the offset in it that
 #: exports `percent`.
 SECTION_NAME = UPKEEP_SECTION
 
@@ -150,10 +90,10 @@ ROWS = 128
 #: points and everything beyond it.
 VALUES = 16
 
-#: ``{ UnsignedInt key; Int step; UnsignedInt count; Int values[VALUES]; }``
+#: `{ UnsignedInt key; Int step; UnsignedInt count; Int values[VALUES]; }`
 ROW_STRIDE = 12 + VALUES * 4
 
-#: Percentages are clamped into ``0..100`` before use. Above 100 would be a *bonus*, which the
+#: Percentages are clamped into `0..100` before use. Above 100 would be a *bonus*, which the
 #: `(-N%)` the HUD prints could not describe honestly; below 0 would invert the deposit.
 MAX_PERCENT = 100
 
@@ -177,15 +117,6 @@ _FINGERPRINT = {
 _NAMES = tuple(name for name, _user_data in FIELDS)
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _i8(value: int) -> int:
-    """A signed byte displacement as the unsigned byte that encodes it."""
-    return value & 0xFF
-
-
 def kept_percent(command_points: int, step: int, values: tuple[int, ...]) -> int:
     """The percentage of income a player keeps - the cave's arithmetic, in Python.
 
@@ -203,7 +134,7 @@ def kept_percent(command_points: int, step: int, values: tuple[int, ...]) -> int
 
 
 def _emit_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
-    """An open-addressed probe of the faction table, keyed by the name key in ``eax``.
+    """An open-addressed probe of the faction table, keyed by the name key in `eax`.
 
     Hash the key, walk forward over occupied slots, stop at the key or at an empty one. Entries
     are never removed, so a run of occupied slots is never broken and the walk is exact. Returns
@@ -217,18 +148,18 @@ def _emit_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, f"{tag}_none")  # key 0 is the empty marker, never a row
     a.emit(0x8B, 0xD8)  # mov ebx, eax               ; the key
-    a.emit(0x25, _u32(_ROWS_MASK))  # and eax, ROWS-1
-    a.emit(0xB9, _u32(ROWS))  # mov ecx, ROWS              ; probe budget
+    a.emit(0x25, u32(_ROWS_MASK))  # and eax, ROWS-1
+    a.emit(0xB9, u32(ROWS))  # mov ecx, ROWS              ; probe budget
     a.label(f"{tag}_probe")
     a.emit(0x8B, 0xD0)  # mov edx, eax
     a.emit(0x6B, 0xD2, ROW_STRIDE)  # imul edx, edx, ROW_STRIDE
-    a.emit(0x81, 0xC2, _u32(rows_va))  # add edx, rows
+    a.emit(0x81, 0xC2, u32(rows_va))  # add edx, rows
     a.emit(0x83, 0x3A, 0x00)  # cmp dword ptr [edx], 0
     a.jcc(JE, f"{tag}_empty")
     a.emit(0x39, 0x1A)  # cmp dword ptr [edx], ebx
     a.jcc(JE, f"{tag}_hit")
     a.emit(0x40)  # inc eax
-    a.emit(0x25, _u32(_ROWS_MASK))  # and eax, ROWS-1
+    a.emit(0x25, u32(_ROWS_MASK))  # and eax, ROWS-1
     a.emit(0x49)  # dec ecx
     a.jcc(JNE, f"{tag}_probe")
     a.label(f"{tag}_none")  # budget exhausted, or key 0
@@ -250,13 +181,13 @@ def _emit_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
 
 
 def _emit_lookup(a: Asm, rows_va: int) -> None:
-    """``lookup``: `eax` = a name key, `eax` = its row or 0. Pure; the read path calls it."""
+    """`lookup`: `eax` = a name key, `eax` = its row or 0. Pure; the read path calls it."""
     a.label("lookup")
     _emit_probe(a, "lu", rows_va, claim=False)
 
 
 def _emit_insert(a: Asm, rows_va: int) -> None:
-    """``insert``: as ``lookup``, but claims an empty slot. Only ever runs at INI load."""
+    """`insert`: as `lookup`, but claims an empty slot. Only ever runs at INI load."""
     a.label("insert")
     _emit_probe(a, "in", rows_va, claim=True)
 
@@ -273,7 +204,7 @@ def _emit_block(a: Asm, key_va: int) -> None:
     """
     a.label("block")
     a.emit(0x8B, 0xF8)  # mov edi, eax                 ; the displaced pair
-    a.emit(0xA3, _u32(key_va))  # mov [g_key], eax
+    a.emit(0xA3, u32(key_va))  # mov [g_key], eax
     a.emit(0x57)  # push edi
     a.call_absolute(PLAYER_TEMPLATE_FIND_BY_KEY)
     a.jmp_absolute(PLAYER_TEMPLATE_BLOCK_KEY_RESUME)
@@ -295,7 +226,7 @@ def _emit_parse(a: Asm, key_va: int) -> None:
     a.emit(0x89, 0xE5)  # mov ebp, esp
     a.emit(0x53, 0x57)  # push ebx / push edi
     a.emit(0x31, 0xDB)  # xor ebx, ebx                 ; the row, 0 until claimed
-    a.emit(0xA1, _u32(key_va))  # mov eax, [g_key]
+    a.emit(0xA1, u32(key_va))  # mov eax, [g_key]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "q_dispatch")
     a.call("insert")
@@ -349,7 +280,7 @@ def _emit_parse(a: Asm, key_va: int) -> None:
 
 
 def _emit_percent(a: Asm) -> None:
-    """``percent``: `ecx` = a `Player*`, `eax` = the percentage of income it keeps.
+    """`percent`: `ecx` = a `Player*`, `eax` = the percentage of income it keeps.
 
     100 means "untouched", and it is what every degenerate case returns: no player, no template,
     no row, a zero or negative step, an empty value list. Preserves every register but `eax`,
@@ -357,7 +288,7 @@ def _emit_percent(a: Asm) -> None:
     """
     a.label("percent")
     a.emit(0x53, 0x56, 0x57, 0x52)  # push ebx / push esi / push edi / push edx
-    a.emit(0xB8, _u32(MAX_PERCENT))  # mov eax, 100
+    a.emit(0xB8, u32(MAX_PERCENT))  # mov eax, 100
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "pc_out")
     a.emit(0x8B, 0x51, PLAYER_PLAYER_TEMPLATE)  # mov edx, [ecx+0x34]  ; the PlayerTemplate
@@ -393,7 +324,7 @@ def _emit_percent(a: Asm) -> None:
     a.emit(0x83, 0xF8, MAX_PERCENT)  # cmp eax, 100
     a.jcc(JBE, "pc_out")
     a.label("pc_none")
-    a.emit(0xB8, _u32(MAX_PERCENT))  # mov eax, 100
+    a.emit(0xB8, u32(MAX_PERCENT))  # mov eax, 100
     a.jmp("pc_out")
     a.label("pc_zero")
     a.emit(0x31, 0xC0)  # xor eax, eax
@@ -416,11 +347,11 @@ def _emit_deposit(a: Asm, const_va: int) -> None:
     """
     a.label("deposit")
     a.emit(0x50, 0x51, 0x52)  # push eax / push ecx / push edx
-    a.emit(0x8B, 0x4D, _i8(AUTO_DEPOSIT_FILTER_EBP))  # mov ecx, [ebp-0x20]
+    a.emit(0x8B, 0x4D, i8(AUTO_DEPOSIT_FILTER_EBP))  # mov ecx, [ebp-0x20]
     a.call_absolute(OBJECT_FILTER_IS_VALID)  # thiscall, no arguments
     a.emit(0x84, 0xC0)  # test al, al
     a.jcc(JE, "dp_done")  # no filter -> no inflation, so no upkeep
-    a.emit(0x8B, 0x4D, _i8(AUTO_DEPOSIT_FILTER_EBP))  # mov ecx, [ebp-0x20]
+    a.emit(0x8B, 0x4D, i8(AUTO_DEPOSIT_FILTER_EBP))  # mov ecx, [ebp-0x20]
     a.emit(0x56)  # push esi                     ; the Player
     a.emit(0x57)  # push edi                     ; the Object
     a.call_absolute(OBJECT_FILTER_ALLOW)  # ret 8
@@ -433,21 +364,13 @@ def _emit_deposit(a: Asm, const_va: int) -> None:
     a.emit(0x50)  # push eax
     a.emit(0xDB, 0x04, 0x24)  # fild dword ptr [esp]   (DB /0 - DF /0 would be a 16-bit load)
     a.emit(0x83, 0xC4, 0x04)  # add esp, 4
-    a.emit(0xD8, 0x0D, _u32(const_va))  # fmul dword ptr [0.01f]
-    a.emit(0xD8, 0x4D, _i8(AUTO_DEPOSIT_MULTIPLIER_EBP))  # fmul dword ptr [ebp-0x1c]
-    a.emit(0xD9, 0x5D, _i8(AUTO_DEPOSIT_MULTIPLIER_EBP))  # fstp dword ptr [ebp-0x1c]
+    a.emit(0xD8, 0x0D, u32(const_va))  # fmul dword ptr [0.01f]
+    a.emit(0xD8, 0x4D, i8(AUTO_DEPOSIT_MULTIPLIER_EBP))  # fmul dword ptr [ebp-0x1c]
+    a.emit(0xD9, 0x5D, i8(AUTO_DEPOSIT_MULTIPLIER_EBP))  # fstp dword ptr [ebp-0x1c]
     a.label("dp_done")
     a.emit(0x5A, 0x59, 0x58)  # pop edx / pop ecx / pop eax
     a.emit(AUTO_DEPOSIT_SCALE_BYTES)  # the displaced pair
     a.jmp_absolute(AUTO_DEPOSIT_SCALE_RESUME)
-
-
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    return None if end < 0 else bytes(data[off : off + end]).decode("latin1")
 
 
 def _table_bytes(table_va: int, entries: tuple[Entry, ...], parse_fn: int) -> tuple[bytes, bytes]:
@@ -487,7 +410,7 @@ class CommandPointUpkeepPatch(Patch):
     """Scale a faction's tick income down as its command-point usage crosses INI thresholds.
 
     Draws nothing itself. It publishes `percent` through
-    :mod:`~sage_patch.patches.utils.income_link`, and a file that also carries
+    `income_link`, and a file that also carries
     `inflation-readout` shows the resulting factor - multiplied by the stock inflation, exactly
     as the deposit computes it - in the palantir's resource-multiplier slot.
     """
@@ -531,7 +454,7 @@ class CommandPointUpkeepPatch(Patch):
         """Raise unless the table still names the fields these offsets came from, and does not
         already name a field this patch adds."""
         entries = read_field_table(data, table_va)
-        by_name = {_read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
+        by_name = {read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
         for field, want in _FINGERPRINT.items():
             got = by_name.get(field)
             if got != want:
@@ -567,7 +490,7 @@ class CommandPointUpkeepPatch(Patch):
     def _assemble(self, base_va: int, entries: tuple[Entry, ...]) -> Asm:
         """The cave's code, laid out at the address it will occupy.
 
-        :meth:`_build_section` takes the bytes and the field table, and :meth:`_edits` takes
+        `_build_section` takes the bytes and the field table, and `_edits` takes
         label addresses, from one layout - so nothing can be pointed at a routine that moved.
         """
         a = Asm(base_va + self._code_offset(entries))
@@ -589,10 +512,10 @@ class CommandPointUpkeepPatch(Patch):
         *,
         table_ref: bool = True,
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """``(file offset, original bytes, patched bytes, note)`` for every engine byte this
-        patch rewrites. One list so :meth:`apply` writes exactly what :meth:`verify` asserts.
+        """`(file offset, original bytes, patched bytes, note)` for every engine byte this
+        patch rewrites. One list so `apply` writes exactly what `verify` asserts.
 
-        ``table_ref=False`` drops the field-table repoint. :meth:`verify` asks for that, because
+        `table_ref=False` drops the field-table repoint. `verify` asks for that, because
         the repoint is the one edit here a *later* patch is entitled to overwrite: a second patch
         extending the same table rebuilds it including these rows - by pointer, so they stay the
         same rows with the same parse function - and points the reference at its own copy. What
@@ -618,8 +541,8 @@ class CommandPointUpkeepPatch(Patch):
                 out.append(
                     (
                         at(ref_va),
-                        bytes([opcode]) + _u32(old_table),
-                        bytes([opcode]) + _u32(section_va + _TABLE_OFF),
+                        bytes([opcode]) + u32(old_table),
+                        bytes([opcode]) + u32(section_va + _TABLE_OFF),
                         f"PlayerTemplate field table ref @0x{ref_va:08x}",
                     )
                 )
@@ -629,7 +552,7 @@ class CommandPointUpkeepPatch(Patch):
             (
                 at(PLAYER_TEMPLATE_BLOCK_KEY),
                 PLAYER_TEMPLATE_BLOCK_KEY_BYTES,
-                _jmp(PLAYER_TEMPLATE_BLOCK_KEY, labels("block"))
+                jmp_rel32(PLAYER_TEMPLATE_BLOCK_KEY, labels("block"))
                 + b"\x90" * (len(PLAYER_TEMPLATE_BLOCK_KEY_BYTES) - 5),
                 "PlayerTemplate block key -> upkeep row key",
             )
@@ -640,7 +563,7 @@ class CommandPointUpkeepPatch(Patch):
             (
                 at(AUTO_DEPOSIT_SCALE),
                 AUTO_DEPOSIT_SCALE_BYTES,
-                _jmp(AUTO_DEPOSIT_SCALE, labels("deposit"))
+                jmp_rel32(AUTO_DEPOSIT_SCALE, labels("deposit"))
                 + b"\x90" * (len(AUTO_DEPOSIT_SCALE_BYTES) - 5),
                 "AutoDepositUpdate income -> upkeep multiplier",
             )
@@ -655,7 +578,7 @@ class CommandPointUpkeepPatch(Patch):
                 (
                     slot,
                     bytes(4),
-                    _u32(labels("percent")),
+                    u32(labels("percent")),
                     f"{READOUT_SECTION} upkeep import -> percent",
                 )
             )
@@ -693,7 +616,7 @@ class CommandPointUpkeepPatch(Patch):
         if entries is None:
             return [f"the PlayerTemplate table does not name {_NAMES[0]}"]
 
-        by_name = {_read_cstring(data, e[0]): e for e in all_entries}
+        by_name = {read_cstring(data, e[0]): e for e in all_entries}
         parse_fn = self._assemble(section_va, entries).label_va("parse")
         for field, user_data in FIELDS:
             entry = by_name.get(field)
@@ -729,7 +652,3 @@ class CommandPointUpkeepPatch(Patch):
             if got != new:
                 problems.append(f"{note} @0x{file_off:x}: expected {new.hex()}, got {got.hex()}")
         return problems
-
-
-def _jmp(at_va: int, target_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", target_va - (at_va + 5))

@@ -1,74 +1,12 @@
-"""The map-list-symbols patch: `mapSymbol`, a `MapCache` field that gives a map its own icon in
-the lobby map list - and, because that icon column *is* the list's sort key, its own place in the
-sort order.
+"""Add `mapSymbol` to a `MapCache` entry: the map's own icon in the lobby map list, and so its own
+group when the list is sorted by that column.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Derived in
-``../docs/map-list-symbols.md``.
+The icon column is drawn from a per-map key that is also the sort key, so the symbol is packed into
+bits 16 and up of that key; sorting then groups maps by symbol with no extra column. Symbol `NN`
+draws the `AptMapSymbolNN<state>` images, resolved once per list fill. No `.wnd` change. A
+`mapcache.ini` carrying `mapSymbol` will not load on a stock binary.
 
-**What the stock engine draws.** The icon beside a map name is not a star-or-hammer boolean. The
-lobby fills its list in two passes over a ``std::vector<MapMetaData*>``: the first writes a 32-bit
-key into ``MapMetaData+0xF4`` - ``1..6`` for the highest difficulty the map has been beaten on,
-with bit 15 set when `isOfficial` is No - and the second reads that key back through a ladder that
-picks one of twelve mapped images, `AptDifficulty*Conquered` for an official map and
-`AptUserMap*Conquered` for a user one. Between the two passes the vector is sorted, by a
-comparator that understands three fields: the display name, `numPlayers`, and that key. So the
-star and the hammer are two values of one sort key, and the difficulty medal is the same key's low
-nibble.
-
-**What this adds.** ``mapSymbol = <n>``, a small integer on a `MapCache` entry, packed into bits
-16 and up of that same key. Everything follows from where it is packed:
-
-* **The icon.** A row whose symbol is non-zero draws `AptMapSymbolNN<state>` instead of the stock
-  medal - `NN` being the symbol, two digits, and `<state>` the same six the engine already
-  spells: `NotConquered`, `EasyConquered`, `MedConquered`, `HardConquered`, `BrutalConquered`,
-  `MaxConquered`. **The conquered state is kept**, because the symbol replaces the *family* of
-  twelve images rather than the key that chooses between them.
-* **The fallback.** A symbol that defines only the bare `AptMapSymbolNN` gets that one image at
-  every difficulty, so a mod that does not care about the medal writes one `MappedImage` instead
-  of six. A symbol whose images are all missing draws the stock medal, which is also what
-  ``mapSymbol = 0`` (the default) means.
-* **The sorting.** Free. The icon column header already sorts on the whole key, so packing the
-  symbol above bit 15 makes it the primary grouping, official-versus-user the tiebreak inside a
-  symbol, and difficulty the tiebreak inside that. Two options rewrite the seventeen bytes that
-  subtract the key if that order is not the wanted one: ``--sort-by-symbol`` masks everything
-  below the symbol away, so maps sharing one tie and fall through to the name; ``--sort-by-icon``
-  lifts the difficulty above the star/hammer bit, so a symbol's maps beaten on one difficulty are
-  contiguous rather than split in two.
-
-**Why the symbol lives in the key rather than in a table beside it.** `MapMetaData` is full - it
-ends at ``+0xFC`` with two `UnicodeString`s - and it sits inline in a `std::map` node, so it cannot
-be widened without patching the node allocator. A side table would then need a key that outlives a
-cache rebuild, which rules out the entry pointer and leaves copying every map's file name into the
-cave. Bits 16-31 of ``+0xF4`` are free, are carried by the structure's own copy constructor and
-assignment operator, and are read by the comparator as part of the sort key - which is the
-behaviour wanted anyway. The one thing they are not is durable across a fill: pass 1 rewrites
-``+0xF4`` from scratch for every entry it looks at. So the patch saves the symbol bits as pass 1
-picks the entry up and ORs them back in the same pass, thirteen bytes later.
-
-**The images are resolved once per fill**, not once per row and not cached across fills - which is
-what the stock code does with its own twelve, and it means a reloaded `MappedImage` set is picked
-up the next time the screen opens.
-
-**No `.wnd` change, and no new column.** The symbol is drawn in column 0 where the medal was.
-
-**Determinism.** Nothing here is logic-side: the key exists only to order a menu list and choose a
-picture, `MapMetaData` is not CRC'd and no message carries it. Patched and unpatched peers can
-play together, and replays cross.
-
-**The one thing that does not round-trip.** `MapCache::writeCacheINI` is not patched, so it does
-not emit `mapSymbol`. That costs nothing for maps a mod ships in its archives - the engine cannot
-write into a `.big` and never rewrites that file - but a `mapSymbol` hand-written into the
-**user** maps folder's own cache is dropped the next time the engine regenerates it.
-
-**A `mapcache.ini` carrying `mapSymbol` will not load on a stock binary.** An unknown keyword is an
-INI parse error, not a warning, so the field and this patch ship together or not at all.
-
-**Composition.** Order-independent: the cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name.
-No bundled patch touches the `MapCache` field table, `parseMapCacheDefinition` or the lobby's map
-list, and none reads what this one writes. The engine routines the cave calls - `INI_PARSE_INT`,
-`INI_PARSE_FIELDS`, `MapMetaData::operator=`, the `AsciiString` constructor and destructor and the
-mapped-image lookup - are read, never rewritten, here or anywhere else in the package.
+Derivation: `../docs/map-list-symbols.md`.
 """
 
 from __future__ import annotations
@@ -121,7 +59,15 @@ from ..addresses import (
 )
 from ..asm import JA, JB, JBE, JE, JNE, JNZ, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import (
+    allocate_section,
+    apply_byte_patch,
+    find_section,
+    jmp_rel32,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -165,13 +111,13 @@ SYMBOL_SHIFT = 16
 SYMBOL_MASK = 0xFFFFFFFF << SYMBOL_SHIFT & 0xFFFFFFFF
 
 #: The rest of the key, as `--sort-by-icon` reads it: pass 1 writes the conquered difficulty into
-#: the low nibble (``1``..``6``, ``0`` for a map that is not multiplayer) and `isOfficial` being No
+#: the low nibble (`1`..`6`, `0` for a map that is not multiplayer) and `isOfficial` being No
 #: into bit 15. Those are the two fields that choose *which* stock image a row draws, and the
 #: option's whole job is to reorder them - the medal above the star/hammer instead of below it.
 DIFFICULTY_MASK = 0xF
 OFFICIAL_SHIFT = 15
 
-#: The cave's flag word, which is how :meth:`MapListSymbolsPatch.detect` recovers a parameter that
+#: The cave's flag word, which is how `MapListSymbolsPatch.detect` recovers a parameter that
 #: would otherwise only be visible as the presence of one more rewritten site. The two sort flags
 #: are mutually exclusive: both name the same seventeen bytes of the comparator.
 FLAG_SORT_BY_SYMBOL = 1
@@ -180,11 +126,11 @@ FLAG_SORT_BY_ICON = 2
 #: How the icon column orders the list, and the name each mode carries in `options` and in the
 #: `.sagepatch` manifest.
 #:
-#: * ``"key"`` - stock. The comparator subtracts whole keys, so the order is symbol, then
+#: * `"key"` - stock. The comparator subtracts whole keys, so the order is symbol, then
 #:   official-before-user, then difficulty.
-#: * ``"symbol"`` - the symbol alone. Maps sharing one tie and fall through to the secondary
+#: * `"symbol"` - the symbol alone. Maps sharing one tie and fall through to the secondary
 #:   column, which is the display name unless another header has been clicked.
-#: * ``"icon"`` - symbol, then difficulty, then official-before-user. Every map carrying one
+#: * `"icon"` - symbol, then difficulty, then official-before-user. Every map carrying one
 #:   symbol and beaten on one difficulty is contiguous, which is what makes the column group by
 #:   the picture it is drawing.
 SORT_MODES = ("key", "symbol", "icon")
@@ -222,7 +168,7 @@ _KEYWORD_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def validate_keyword(keyword: str) -> None:
-    """Raise unless ``keyword`` is a name this patch could install.
+    """Raise unless `keyword` is a name this patch could install.
 
     An INI keyword is matched with `stricmp` against the table's other rows, so a name that
     collides with one of the 24 would shadow it - silently, because the walk stops at the first
@@ -237,8 +183,8 @@ def validate_keyword(keyword: str) -> None:
 def image_names(count: int) -> tuple[str, ...]:
     """Every mapped-image name the cave looks up, symbol-major then state.
 
-    ``count * 7`` names, so the array the fill resolves into is indexed by
-    ``(symbol - 1) * 7 + state`` with ``state`` the key's low nibble - 0 for the bare name, 1..6
+    `count * 7` names, so the array the fill resolves into is indexed by
+    `(symbol - 1) * 7 + state` with `state` the key's low nibble - 0 for the bare name, 1..6
     for the conquered states."""
     return tuple(
         f"AptMapSymbol{symbol:02d}{state}"
@@ -247,34 +193,17 @@ def image_names(count: int) -> tuple[str, ...]:
     )
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    if end < 0:
-        return None
-    try:
-        return bytes(data[off : off + end]).decode("ascii")
-    except UnicodeDecodeError:
-        return None
-
-
 @dataclass(frozen=True)
 class _Layout:
     """Where each piece of the cave sits, given its base address and the patch's parameters.
 
-    Pure arithmetic on the parameters, so :meth:`MapListSymbolsPatch.apply` and
-    :meth:`MapListSymbolsPatch.verify` compute the same addresses from opposite directions. The
+    Pure arithmetic on the parameters, so `MapListSymbolsPatch.apply` and
+    `MapListSymbolsPatch.verify` compute the same addresses from opposite directions. The
     count comes first, the flags second and the keyword third, so
-    :meth:`MapListSymbolsPatch.detect` can read all three straight off the section base without
+    `MapListSymbolsPatch.detect` can read all three straight off the section base without
     knowing how long anything after them is.
 
-    ``compare_va`` is None unless a sort mode other than ``"key"`` is installed, because that is
+    `compare_va` is None unless a sort mode other than `"key"` is installed, because that is
     the one stub a default build has no use for. Both modes that do want it hook the same
     seventeen bytes and put their stub in the same place, so only its body differs."""
 
@@ -345,8 +274,8 @@ def build_table(keyword_va: int, parse_va: int, stock_rows: bytes) -> bytes:
     """The rebuilt field-parse table: the 24 stock rows verbatim, this patch's row, the terminator.
 
     The stock rows are copied rather than rewritten because every pointer in them is absolute -
-    their keyword strings stay where they are in ``.rdata``, and only the new row points into the
-    cave. Its ``offset`` is 0 and unused: the parse function ignores the ``store`` it is handed
+    their keyword strings stay where they are in `.rdata`, and only the new row points into the
+    cave. Its `offset` is 0 and unused: the parse function ignores the `store` it is handed
     and writes the cave's own global, which is what spares the patch from having to prove anything
     about the parse temporary's layout."""
     row = struct.pack("<IIII", keyword_va, parse_va, 0, 0)
@@ -356,10 +285,10 @@ def build_table(keyword_va: int, parse_va: int, stock_rows: bytes) -> bytes:
 def build_parse_symbol(base_va: int, pending_va: int, count: int) -> bytes:
     """The field's parse function: read an `Int` the way `numPlayers` is read, clamp it, stash it.
 
-    ``__cdecl(INI *, void *instance, void *store, const void *userData)``, which is the signature
+    `__cdecl(INI *, void *instance, void *store, const void *userData)`, which is the signature
     `INI_PARSE_FIELDS` calls a row with. The parsed value goes to a stack slot rather than to
-    ``store``, because ``store`` points into the parse temporary and the temporary is not where
-    this value has to end up - :func:`build_store_symbol` moves it onto the stored entry once that
+    `store`, because `store` points into the parse temporary and the temporary is not where
+    this value has to end up - `build_store_symbol` moves it onto the stored entry once that
     exists.
 
     An out-of-range or negative symbol becomes 0 rather than an error, which is the same answer
@@ -375,12 +304,12 @@ def build_parse_symbol(base_va: int, pending_va: int, count: int) -> bytes:
     a.call_absolute(INI_PARSE_INT)
     a.emit(b"\x83\xc4\x10")  # add  esp, 0x10
     a.emit(0x58)  # pop  eax               ; the parsed symbol
-    a.emit(0x3D, _u32(count))  # cmp  eax, count
+    a.emit(0x3D, u32(count))  # cmp  eax, count
     a.jcc_short(JBE, "store")  # jbe  .store
     a.emit(b"\x33\xc0")  # xor  eax, eax          ; out of range reads as 'no symbol'
     a.label("store")
     a.emit(b"\xc1\xe0", SYMBOL_SHIFT)  # shl  eax, 16
-    a.emit(0xA3, _u32(pending_va))  # mov  [pending], eax
+    a.emit(0xA3, u32(pending_va))  # mov  [pending], eax
     a.emit(0xC3)  # ret
     return a.finish()
 
@@ -388,13 +317,13 @@ def build_parse_symbol(base_va: int, pending_va: int, count: int) -> bytes:
 def build_pre_fields(base_va: int, pending_va: int) -> bytes:
     """Clear the pending symbol, then run `INI_PARSE_FIELDS` unchanged.
 
-    Entered in place of the ``call`` that reads a block's fields, so it runs once per `MapCache`
+    Entered in place of the `call` that reads a block's fields, so it runs once per `MapCache`
     block, after the block's name and before any of its keywords. That is what makes a block's
-    symbol its own: `INI_PARSE_FIELDS` is ``__thiscall`` with two stack arguments and cleans them
+    symbol its own: `INI_PARSE_FIELDS` is `__thiscall` with two stack arguments and cleans them
     itself, so tail-jumping into it returns straight to the original caller with everything -
-    ``ecx``, both arguments, the return address - exactly as the stock call left it."""
+    `ecx`, both arguments, the return address - exactly as the stock call left it."""
     a = Asm(base_va)
-    a.emit(b"\x83\x25", _u32(pending_va), 0x00)  # and dword [pending], 0
+    a.emit(b"\x83\x25", u32(pending_va), 0x00)  # and dword [pending], 0
     a.jmp_absolute(INI_PARSE_FIELDS)
     return a.finish()
 
@@ -402,9 +331,9 @@ def build_pre_fields(base_va: int, pending_va: int) -> bytes:
 def build_store_symbol(base_va: int, pending_va: int) -> bytes:
     """Copy the parsed block onto the stored entry, then write the symbol into its key.
 
-    Entered by ``call`` in place of ``call MapMetaData::operator=``, with ``ecx`` the stored entry
+    Entered by `call` in place of `call MapMetaData::operator=`, with `ecx` the stored entry
     and the source still on the stack as that call's argument. The stock copy has to run **first**
-    and has to run at all: it is what fills the entry, and it copies ``+0xF4`` from a
+    and has to run at all: it is what fills the entry, and it copies `+0xF4` from a
     freshly-constructed source, so anything written before it would be overwritten.
 
     The pending symbol is cleared on the way out as well as on the way in, so a block that is
@@ -414,9 +343,9 @@ def build_store_symbol(base_va: int, pending_va: int) -> bytes:
     a.emit(b"\xff\x74\x24\x08")  # push [esp+8]           ; the source, re-pushed
     a.call_absolute(MAP_META_DATA_ASSIGN)  # call operator=      ; ret 4
     a.emit(0x59)  # pop  ecx
-    a.emit(0xA1, _u32(pending_va))  # mov  eax, [pending]
-    a.emit(b"\x89\x81", _u32(MAP_META_DATA_SORT_KEY))  # mov [ecx+0xF4], eax
-    a.emit(b"\x83\x25", _u32(pending_va), 0x00)  # and dword [pending], 0
+    a.emit(0xA1, u32(pending_va))  # mov  eax, [pending]
+    a.emit(b"\x89\x81", u32(MAP_META_DATA_SORT_KEY))  # mov [ecx+0xF4], eax
+    a.emit(b"\x83\x25", u32(pending_va), 0x00)  # and dword [pending], 0
     a.emit(b"\x8b\xc1")  # mov  eax, ecx          ; operator= returns the destination
     a.emit(b"\xc2\x04\x00")  # ret  4
     return a.finish()
@@ -428,7 +357,7 @@ def build_resolve(base_va: int, names_va: int, images_va: int, total: int) -> by
     Entered in place of the fill's first mapped-image lookup, so this patch's images are resolved
     on exactly the schedule the stock twelve are: every time the screen fills its list, and never
     cached across fills. A name the mod did not define resolves to NULL, which is what
-    :func:`build_pick_image` reads as "fall back".
+    `build_pick_image` reads as "fall back".
 
     The `AsciiString` the lookup wants is built and destroyed with the engine's own constructor
     and destructor, the way the stock lookups beside it do, rather than by handing the engine a
@@ -439,31 +368,31 @@ def build_resolve(base_va: int, names_va: int, images_va: int, total: int) -> by
     a.emit(b"\x83\xec\x04")  # sub  esp, 4            ; the AsciiString
     a.emit(b"\x33\xdb")  # xor  ebx, ebx          ; the index
     a.label("loop")
-    a.emit(b"\x8b\x04\x9d", _u32(names_va))  # mov  eax, [names + ebx*4]
+    a.emit(b"\x8b\x04\x9d", u32(names_va))  # mov  eax, [names + ebx*4]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc_short(JE, "miss")  # je   .miss
     a.emit(0x50)  # push eax
     a.emit(b"\x8d\x4c\x24\x04")  # lea  ecx, [esp+4]      ; &the AsciiString
     a.call_absolute(ASCII_STRING_CTOR)  # call AsciiString(const char *)  ; ret 4
-    a.emit(b"\x8b\x0d", _u32(OBJECT_IMAGE_UPGRADE_THE_IMAGES))  # mov ecx, [TheMappedImages]
+    a.emit(b"\x8b\x0d", u32(OBJECT_IMAGE_UPGRADE_THE_IMAGES))  # mov ecx, [TheMappedImages]
     a.emit(b"\x8d\x04\x24")  # lea  eax, [esp]
     a.emit(0x50)  # push eax
     a.call_absolute(OBJECT_IMAGE_UPGRADE_FIND_IMAGE)  # call findImageByName    ; ret 4
     a.emit(b"\x8b\xf0")  # mov  esi, eax
     a.emit(b"\x8d\x0c\x24")  # lea  ecx, [esp]
     a.call_absolute(ASCII_STRING_DTOR)  # call ~AsciiString
-    a.emit(b"\x89\x34\x9d", _u32(images_va))  # mov  [images + ebx*4], esi
+    a.emit(b"\x89\x34\x9d", u32(images_va))  # mov  [images + ebx*4], esi
     a.jmp_short("next")  # jmp  .next
     a.label("miss")
-    a.emit(b"\x83\x24\x9d", _u32(images_va), 0x00)  # and dword [images + ebx*4], 0
+    a.emit(b"\x83\x24\x9d", u32(images_va), 0x00)  # and dword [images + ebx*4], 0
     a.label("next")
     a.emit(0x43)  # inc  ebx
-    a.emit(0x81, 0xFB, _u32(total))  # cmp  ebx, total
+    a.emit(0x81, 0xFB, u32(total))  # cmp  ebx, total
     a.jcc(JB, "loop")  # jb   .loop
     a.emit(b"\x83\xc4\x04")  # add  esp, 4
     for reg in (0x5F, 0x5E, 0x5B, 0x5A, 0x59, 0x58):  # pop edi, esi, ebx, edx, ecx, eax
         a.emit(reg)
-    a.emit(0x68, _u32(0x00C54590))  # push <"AptDifficultyNotConquered">
+    a.emit(0x68, u32(0x00C54590))  # push <"AptDifficultyNotConquered">
     a.jmp_absolute(MAP_LIST_RESOLVE_RESUME)
     return a.finish()
 
@@ -472,17 +401,17 @@ def build_save_key(base_va: int, carry_va: int) -> bytes:
     """Save the entry's symbol bits before pass 1 overwrites its key.
 
     Entered in place of the two instructions that pick the next entry up, which is the last point
-    at which ``+0xF4`` still holds what `parseMapCacheDefinition` put there. Both displaced
-    instructions are reproduced, and the flags are preserved across the rest: the ``ZF`` the
+    at which `+0xF4` still holds what `parseMapCacheDefinition` put there. Both displaced
+    instructions are reproduced, and the flags are preserved across the rest: the `ZF` the
     resume point branches on was set three bytes before the hook, by the test for a null stats
-    object, and neither ``mov`` disturbs it."""
+    object, and neither `mov` disturbs it."""
     a = Asm(base_va)
     a.emit(b"\x8b\x45\x08")  # mov  eax, [ebp+8]      ; the displaced pair
     a.emit(b"\x8b\x30")  # mov  esi, [eax]
     a.emit(0x9C)  # pushfd
-    a.emit(b"\x8b\x86", _u32(MAP_META_DATA_SORT_KEY))  # mov eax, [esi+0xF4]
-    a.emit(0x25, _u32(0xFFFF0000))  # and  eax, 0xFFFF0000
-    a.emit(0xA3, _u32(carry_va))  # mov  [carry], eax
+    a.emit(b"\x8b\x86", u32(MAP_META_DATA_SORT_KEY))  # mov eax, [esi+0xF4]
+    a.emit(0x25, u32(0xFFFF0000))  # and  eax, 0xFFFF0000
+    a.emit(0xA3, u32(carry_va))  # mov  [carry], eax
     a.emit(0x9D)  # popfd
     a.jmp_absolute(MAP_LIST_SAVE_KEY_RESUME)
     return a.finish()
@@ -492,16 +421,16 @@ def build_apply_key(base_va: int, carry_va: int) -> bytes:
     """Pass 1's tail: the stock `isOfficial` bit, then the symbol back on top of it.
 
     The displaced bytes are reproduced exactly, so a map with no symbol comes out of this hook
-    holding the key the stock engine would have given it. ``eax`` is free here - the stock code
+    holding the key the stock engine would have given it. `eax` is free here - the stock code
     reloads it two instructions past the resume point - and no branch downstream reads the flags
     this leaves."""
     a = Asm(base_va)
     a.emit(b"\x80\x7e", MAP_META_DATA_IS_OFFICIAL, 0x00)  # cmp byte [esi+0x26], 0
     a.jcc_short(JNE, "official")  # jne  .official
-    a.emit(b"\x80\x8e", _u32(MAP_META_DATA_SORT_KEY + 1), 0x80)  # or byte [esi+0xF5], 0x80
+    a.emit(b"\x80\x8e", u32(MAP_META_DATA_SORT_KEY + 1), 0x80)  # or byte [esi+0xF5], 0x80
     a.label("official")
-    a.emit(0xA1, _u32(carry_va))  # mov  eax, [carry]
-    a.emit(b"\x09\x86", _u32(MAP_META_DATA_SORT_KEY))  # or  [esi+0xF4], eax
+    a.emit(0xA1, u32(carry_va))  # mov  eax, [carry]
+    a.emit(b"\x09\x86", u32(MAP_META_DATA_SORT_KEY))  # or  [esi+0xF4], eax
     a.jmp_absolute(MAP_LIST_OFFICIAL_BIT_RESUME)
     return a.finish()
 
@@ -510,20 +439,20 @@ def build_pick_image(base_va: int, images_va: int, count: int) -> bytes:
     """Pass 2: draw this row's symbol, or hand the row back to the stock ladder.
 
     Three ways out, and the two that decline have to leave the stock ladder exactly what it
-    expects: ``eax`` holding the key, and the flags of ``cmp eax, 0x8001``, which the ladder
+    expects: `eax` holding the key, and the flags of `cmp eax, 0x8001`, which the ladder
     branches on five bytes past the resume point.
 
-    The symbol's own way out skips the ladder entirely, writing the image into ``[ebp+8]`` - the
+    The symbol's own way out skips the ladder entirely, writing the image into `[ebp+8]` - the
     same local the ladder's arms write - and jumping to where they converge. A symbol whose image
     for this difficulty is missing falls back to its bare name; a symbol with no image at all
     falls back to the stock medal, so a half-installed image set degrades a row at a time rather
     than blanking the column."""
     a = Asm(base_va)
-    a.emit(b"\x8b\x86", _u32(MAP_META_DATA_SORT_KEY))  # mov eax, [esi+0xF4]
+    a.emit(b"\x8b\x86", u32(MAP_META_DATA_SORT_KEY))  # mov eax, [esi+0xF4]
     a.emit(0x50)  # push eax               ; the key
     a.emit(b"\xc1\xe8", SYMBOL_SHIFT)  # shr  eax, 16
     a.jcc_short(JE, "stock")  # je   .stock           ; no symbol
-    a.emit(0x3D, _u32(count))  # cmp  eax, count
+    a.emit(0x3D, u32(count))  # cmp  eax, count
     a.jcc_short(JA, "stock")  # ja   .stock           ; a symbol this build has no room for
     a.emit(0x48)  # dec  eax
     a.emit(b"\x6b\xc0", len(IMAGE_STATES))  # imul eax, eax, 7
@@ -535,11 +464,11 @@ def build_pick_image(base_va: int, images_va: int, count: int) -> bytes:
     a.label("state")
     a.emit(0x50)  # push eax               ; this symbol's base index
     a.emit(b"\x03\xc1")  # add  eax, ecx
-    a.emit(b"\x8b\x04\x85", _u32(images_va))  # mov  eax, [images + eax*4]
+    a.emit(b"\x8b\x04\x85", u32(images_va))  # mov  eax, [images + eax*4]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc_short(JNZ, "done")  # jnz  .done
     a.emit(b"\x8b\x04\x24")  # mov  eax, [esp]        ; the base index
-    a.emit(b"\x8b\x04\x85", _u32(images_va))  # mov  eax, [images + eax*4]
+    a.emit(b"\x8b\x04\x85", u32(images_va))  # mov  eax, [images + eax*4]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc_short(JE, "unset")  # je   .unset
     a.label("done")
@@ -551,7 +480,7 @@ def build_pick_image(base_va: int, images_va: int, count: int) -> bytes:
     a.emit(0x59)  # pop  ecx               ; drop the base index
     a.label("stock")
     a.emit(0x58)  # pop  eax               ; the key
-    a.emit(0x3D, _u32(0x8001))  # cmp  eax, 0x8001       ; the displaced compare
+    a.emit(0x3D, u32(0x8001))  # cmp  eax, 0x8001       ; the displaced compare
     a.jmp_absolute(MAP_LIST_ICON_LADDER_RESUME)
     return a.finish()
 
@@ -559,21 +488,21 @@ def build_pick_image(base_va: int, images_va: int, count: int) -> bytes:
 def build_compare_symbols(base_va: int) -> bytes:
     """The comparator's key delta, with everything below the symbol masked off both operands.
 
-    Installed only by ``--sort-by-symbol``. The stock arm subtracts the **whole** key, so two maps
+    Installed only by `--sort-by-symbol`. The stock arm subtracts the **whole** key, so two maps
     carrying the same symbol but a different conquered state never tie and the sort orders them by
     that state - which is the thing the option exists to stop. Masking makes them tie, and a tie
     falls through to the comparator's next key, which is the secondary sort column (the display
     name unless the header has been clicked).
 
-    All four displaced instructions are reproduced. ``ebx`` and ``edi`` are the two entries and
-    ``[ebp-0x10]`` the sort functor, all three of which the stock arm reads and none of which this
-    touches; ``edx`` is scratch because the stock code zeroes it four bytes past the resume point.
+    All four displaced instructions are reproduced. `ebx` and `edi` are the two entries and
+    `[ebp-0x10]` the sort functor, all three of which the stock arm reads and none of which this
+    touches; `edx` is scratch because the stock code zeroes it four bytes past the resume point.
     Nothing downstream reads the flags this leaves."""
     a = Asm(base_va)
-    a.emit(b"\x8b\x83", _u32(MAP_META_DATA_SORT_KEY))  # mov  eax, [ebx+0xF4]
-    a.emit(0x25, _u32(SYMBOL_MASK))  # and  eax, 0xFFFF0000
-    a.emit(b"\x8b\x97", _u32(MAP_META_DATA_SORT_KEY))  # mov  edx, [edi+0xF4]
-    a.emit(0x81, 0xE2, _u32(SYMBOL_MASK))  # and  edx, 0xFFFF0000
+    a.emit(b"\x8b\x83", u32(MAP_META_DATA_SORT_KEY))  # mov  eax, [ebx+0xF4]
+    a.emit(0x25, u32(SYMBOL_MASK))  # and  eax, 0xFFFF0000
+    a.emit(b"\x8b\x97", u32(MAP_META_DATA_SORT_KEY))  # mov  edx, [edi+0xF4]
+    a.emit(0x81, 0xE2, u32(SYMBOL_MASK))  # and  edx, 0xFFFF0000
     a.emit(b"\x2b\xc2")  # sub  eax, edx
     a.emit(b"\x8b\x4d\xf0")  # mov  ecx, [ebp-0x10]   ; the displaced load
     a.emit(b"\x8b\x09")  # mov  ecx, [ecx]        ; ... and its deref
@@ -584,27 +513,27 @@ def build_compare_symbols(base_va: int) -> bytes:
 def build_compare_icons(base_va: int) -> bytes:
     """The comparator's key delta, with the difficulty lifted above the `isOfficial` bit.
 
-    Installed only by ``--sort-by-icon``. The stock key packs the symbol at bit 16, `isOfficial`
+    Installed only by `--sort-by-icon`. The stock key packs the symbol at bit 16, `isOfficial`
     being No at bit 15 and the conquered difficulty in the low nibble, so subtracting whole keys
     orders the column symbol, then star-before-hammer, then medal - and a symbol's maps beaten on
     one difficulty are split in two by that middle field. This ranks each operand as
-    ``symbol | difficulty << 1 | official`` instead, which is the same three fields with the last
+    `symbol | difficulty << 1 | official` instead, which is the same three fields with the last
     two swapped, and subtracts the ranks.
 
-    The rank cannot carry into the symbol: the difficulty is ``0``..``6``, so the two low fields
-    together reach ``13`` and bit 15 is left clear. Nothing is masked away, so untagged maps keep
+    The rank cannot carry into the symbol: the difficulty is `0`..`6`, so the two low fields
+    together reach `13` and bit 15 is left clear. Nothing is masked away, so untagged maps keep
     ordering against each other exactly as the difficulty and the star/hammer say - the option
     reorders the column, it does not coarsen it.
 
     All four displaced instructions are reproduced. The ranking is a local subroutine because it
-    runs on both operands; it reads ``eax`` and writes ``eax``, ``ecx`` and ``edx``, all three of
-    which this arm is free to spend - ``ecx`` because the displaced load rewrites it on the way
-    out, ``edx`` because the stock code zeroes it four bytes past the resume point."""
+    runs on both operands; it reads `eax` and writes `eax`, `ecx` and `edx`, all three of
+    which this arm is free to spend - `ecx` because the displaced load rewrites it on the way
+    out, `edx` because the stock code zeroes it four bytes past the resume point."""
     a = Asm(base_va)
-    a.emit(b"\x8b\x83", _u32(MAP_META_DATA_SORT_KEY))  # mov  eax, [ebx+0xF4]
+    a.emit(b"\x8b\x83", u32(MAP_META_DATA_SORT_KEY))  # mov  eax, [ebx+0xF4]
     a.call("rank")
     a.emit(0x50)  # push eax               ; the left rank
-    a.emit(b"\x8b\x87", _u32(MAP_META_DATA_SORT_KEY))  # mov  eax, [edi+0xF4]
+    a.emit(b"\x8b\x87", u32(MAP_META_DATA_SORT_KEY))  # mov  eax, [edi+0xF4]
     a.call("rank")
     a.emit(b"\x8b\xd0")  # mov  edx, eax          ; the right rank
     a.emit(0x58)  # pop  eax               ; ... and the left one back
@@ -615,7 +544,7 @@ def build_compare_icons(base_va: int) -> bytes:
 
     a.label("rank")
     a.emit(b"\x8b\xc8")  # mov  ecx, eax
-    a.emit(0x81, 0xE1, _u32(SYMBOL_MASK))  # and  ecx, 0xFFFF0000   ; the symbol, kept in place
+    a.emit(0x81, 0xE1, u32(SYMBOL_MASK))  # and  ecx, 0xFFFF0000   ; the symbol, kept in place
     a.emit(b"\x8b\xd0")  # mov  edx, eax
     a.emit(0x83, 0xE2, DIFFICULTY_MASK)  # and  edx, 0xF          ; the conquered difficulty
     a.emit(0xC1, 0xE8, OFFICIAL_SHIFT)  # shr  eax, 15
@@ -624,11 +553,6 @@ def build_compare_icons(base_va: int) -> bytes:
     a.emit(b"\x0b\xc1")  # or   eax, ecx
     a.emit(0xC3)  # ret
     return a.finish()
-
-
-def _jmp_bytes(from_va: int, to_va: int, width: int) -> bytes:
-    """A ``jmp rel32`` to ``to_va``, padded with ``nop`` out to ``width``."""
-    return b"\xe9" + struct.pack("<i", to_va - (from_va + 5)) + b"\x90" * (width - 5)
 
 
 class MapListSymbolsPatch(Patch):
@@ -688,10 +612,10 @@ class MapListSymbolsPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch with exactly this keyword and count.
+        """Structural check that `data` carries this patch with exactly this keyword and count.
 
         Locates the cave, recomputes everything the two parameters imply and compares it and every
-        rewritten site to what is on disk. Reads only via ``struct`` and the section table, so
+        rewritten site to what is on disk. Reads only via `struct` and the section table, so
         verification needs no disassembler.
 
         The stock rows are read back **out of the cave's own copy** rather than from the address
@@ -815,7 +739,7 @@ class MapListSymbolsPatch(Patch):
         if off is None:
             raise ValueError(f"the {SECTION_NAME} base 0x{section_va:08x} is not mapped")
         count, flags = struct.unpack_from("<2I", data, off)
-        keyword = _read_cstring(data, section_va + 8)
+        keyword = read_cstring(data, section_va + 8)
         if keyword is None:
             raise ValueError(f"no keyword string at the {SECTION_NAME} base")
         sort = {0: "key", FLAG_SORT_BY_SYMBOL: "symbol", FLAG_SORT_BY_ICON: "icon"}.get(flags)
@@ -825,12 +749,12 @@ class MapListSymbolsPatch(Patch):
 
     def _build(self, base_va: int, stock_rows: bytes) -> bytes:
         """The cave: the count, the keyword, the two globals, the image array and its names, the
-        rebuilt field table, then the seven stubs - in that order, so :meth:`detect` finds both
+        rebuilt field table, then the seven stubs - in that order, so `detect` finds both
         parameters at the section base."""
         pieces = _layout(base_va, self.keyword, self.symbols, self.sort)
         names = image_names(self.symbols)
 
-        blob = bytearray(_u32(self.symbols) + _u32(self._flags))
+        blob = bytearray(u32(self.symbols) + u32(self._flags))
         blob += self.keyword.encode("ascii") + b"\x00"
         blob += bytes(pieces.pending_va - (base_va + len(blob)))
         blob += bytes(8)  # the pending symbol and the per-entry carry, both zero at rest
@@ -839,7 +763,7 @@ class MapListSymbolsPatch(Patch):
         offsets = bytearray()
         strings = bytearray()
         for name in names:
-            offsets += _u32(pieces.strings_va + len(strings))
+            offsets += u32(pieces.strings_va + len(strings))
             strings += name.encode("ascii") + b"\x00"
         blob += offsets + strings
         blob += bytes(pieces.table_va - (base_va + len(blob)))
@@ -876,7 +800,7 @@ class MapListSymbolsPatch(Patch):
             name_va, _parse, _userdata, field_off = struct.unpack_from(
                 "<4I", entries, index * FIELD_PARSE_STRIDE
             )
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != name:
                 raise ValueError(f"field table entry {index}: expected {name!r}, found {got!r}")
             if field_off != offset:
@@ -912,7 +836,7 @@ class MapListSymbolsPatch(Patch):
             name_va, _parse, _ud, field_off = struct.unpack_from(
                 "<4I", data, off + index * FIELD_PARSE_STRIDE
             )
-            got = _read_cstring(data, name_va)
+            got = read_cstring(data, name_va)
             if got != name or field_off != offset:
                 problems.append(
                     f"rebuilt table entry {index}: expected {name!r} at 0x{offset:x}, "
@@ -921,7 +845,7 @@ class MapListSymbolsPatch(Patch):
 
         row = off + len(MAP_CACHE_STOCK_FIELDS) * FIELD_PARSE_STRIDE
         name_va, parse_fn, _ud, _field_off = struct.unpack_from("<4I", data, row)
-        got = _read_cstring(data, name_va)
+        got = read_cstring(data, name_va)
         if got != self.keyword:
             problems.append(f"the added field is called {got!r}, not {self.keyword!r}")
         if parse_fn != pieces.parse_va:
@@ -935,12 +859,12 @@ class MapListSymbolsPatch(Patch):
 
     def _anchor_problems(self, data: bytes | bytearray) -> list[str]:
         """Everything the patch depends on and does not rewrite: the assignment operator its store
-        hook wraps, the insert whose ``ret 4`` leaves that call's argument behind, and the
+        hook wraps, the insert whose `ret 4` leaves that call's argument behind, and the
         mapped-image lookup's convention.
 
         The comparator's key delta joins them only in the stock sort mode, because the other two
         rewrite it - and then the edit's own stock-byte assertion is the check instead. It is the
-        same evidence either way: this arm is what makes ``+0xF4`` order the list."""
+        same evidence either way: this arm is what makes `+0xF4` order the list."""
         anchors = dict(MAP_LIST_ANCHORS)
         if self.sort == "key":
             anchors[MAP_LIST_COMPARE_KEY] = MAP_LIST_COMPARE_KEY_BYTES
@@ -963,7 +887,7 @@ class MapListSymbolsPatch(Patch):
     def _edits(
         self, data: bytes | bytearray, pieces: _Layout
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)``."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)`."""
         edits: list[tuple[int, bytes, bytes, str]] = []
 
         def at(va: int, old: bytes, new: bytes, note: str) -> None:
@@ -974,14 +898,14 @@ class MapListSymbolsPatch(Patch):
 
         at(
             MAP_CACHE_FIELD_TABLE_GETTER_REF,
-            _u32(MAP_CACHE_FIELD_TABLE),
-            _u32(pieces.table_va),
+            u32(MAP_CACHE_FIELD_TABLE),
+            u32(pieces.table_va),
             f"the MapCache field-table getter -> the {SECTION_NAME} table",
         )
         at(
             MAP_CACHE_FIELD_TABLE_PARSE_REF,
-            _u32(MAP_CACHE_FIELD_TABLE),
-            _u32(pieces.table_va),
+            u32(MAP_CACHE_FIELD_TABLE),
+            u32(pieces.table_va),
             f"parseMapCacheDefinition -> the {SECTION_NAME} table",
         )
         at(
@@ -999,34 +923,32 @@ class MapListSymbolsPatch(Patch):
         at(
             MAP_LIST_RESOLVE,
             MAP_LIST_RESOLVE_BYTES,
-            _jmp_bytes(MAP_LIST_RESOLVE, pieces.resolve_va, len(MAP_LIST_RESOLVE_BYTES)),
+            jmp_rel32(MAP_LIST_RESOLVE, pieces.resolve_va, len(MAP_LIST_RESOLVE_BYTES)),
             f"the map-list fill resolves {self.symbols * len(IMAGE_STATES)} symbol images",
         )
         at(
             MAP_LIST_SAVE_KEY,
             MAP_LIST_SAVE_KEY_BYTES,
-            _jmp_bytes(MAP_LIST_SAVE_KEY, pieces.save_va, len(MAP_LIST_SAVE_KEY_BYTES)),
+            jmp_rel32(MAP_LIST_SAVE_KEY, pieces.save_va, len(MAP_LIST_SAVE_KEY_BYTES)),
             "pass 1 remembers each entry's symbol before it rewrites the key",
         )
         at(
             MAP_LIST_OFFICIAL_BIT,
             MAP_LIST_OFFICIAL_BIT_BYTES,
-            _jmp_bytes(MAP_LIST_OFFICIAL_BIT, pieces.key_va, len(MAP_LIST_OFFICIAL_BIT_BYTES)),
+            jmp_rel32(MAP_LIST_OFFICIAL_BIT, pieces.key_va, len(MAP_LIST_OFFICIAL_BIT_BYTES)),
             "pass 1 puts the symbol back on top of the isOfficial bit",
         )
         at(
             MAP_LIST_ICON_LADDER,
             MAP_LIST_ICON_LADDER_BYTES,
-            _jmp_bytes(MAP_LIST_ICON_LADDER, pieces.pick_va, len(MAP_LIST_ICON_LADDER_BYTES)),
+            jmp_rel32(MAP_LIST_ICON_LADDER, pieces.pick_va, len(MAP_LIST_ICON_LADDER_BYTES)),
             "pass 2 draws a symbol's image where the stock medal would go",
         )
         if pieces.compare_va is not None:
             at(
                 MAP_LIST_COMPARE_KEY,
                 MAP_LIST_COMPARE_KEY_BYTES,
-                _jmp_bytes(
-                    MAP_LIST_COMPARE_KEY, pieces.compare_va, len(MAP_LIST_COMPARE_KEY_BYTES)
-                ),
+                jmp_rel32(MAP_LIST_COMPARE_KEY, pieces.compare_va, len(MAP_LIST_COMPARE_KEY_BYTES)),
                 (
                     f"the icon column sorts on {self.keyword} alone"
                     if self.sort == "symbol"

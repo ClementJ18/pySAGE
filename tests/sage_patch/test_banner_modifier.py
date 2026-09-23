@@ -143,7 +143,7 @@ def _call_target(data: bytes | bytearray, va: int) -> int:
     return va + 5 + struct.unpack("<i", _read(data, va, 5)[1:])[0]
 
 
-# --- round trip ---------------------------------------------------------------------------------
+# Round trip
 
 
 def test_apply_then_verify(image: bytearray) -> None:
@@ -195,7 +195,7 @@ def test_the_patch_is_attributed() -> None:
     assert BannerModifierPatch.author
 
 
-# --- the field offset, which is the whole reason this patch is not a one-liner -------------------
+# The field offset, which is the whole reason this patch is not a one-liner
 
 
 def test_the_field_lands_past_every_class_in_the_family() -> None:
@@ -223,7 +223,7 @@ def test_the_three_allocations_are_distinct_sites() -> None:
     assert len({va for va, _size, _owner in SIZE_SITES}) == len(SIZE_SITES)
 
 
-# --- the relocated field-parse table -------------------------------------------------------------
+# The relocated field-parse table
 
 
 def test_table_keeps_the_stock_entries_verbatim(image: bytearray) -> None:
@@ -296,7 +296,7 @@ def test_apply_refuses_a_table_that_does_not_terminate(image: bytearray) -> None
         BannerModifierPatch().apply(data)
 
 
-# --- the hooks -----------------------------------------------------------------------------------
+# The hooks
 
 
 @pytest.mark.parametrize(
@@ -361,7 +361,7 @@ def test_no_restore_omits_the_stub_rather_than_stranding_it(image: bytearray) ->
     assert without < with_restore
 
 
-# --- what the cave actually does -----------------------------------------------------------------
+# What the cave actually does
 
 
 def _disassembled(data: bytes | bytearray) -> list:
@@ -452,7 +452,7 @@ def test_the_cave_touches_no_stock_field_it_has_no_business_with(image: bytearra
     assert touched == expected
 
 
-# --- the INI surface -----------------------------------------------------------------------------
+# The INI surface
 
 
 def test_ini_surface_adds_one_reference_field() -> None:
@@ -479,7 +479,7 @@ def test_ini_surface_reaches_the_derived_contains() -> None:
         assert DEFAULT_KEYWORD in cls._fieldspec, cls.__name__
 
 
-# --- the keyword ---------------------------------------------------------------------------------
+# The keyword
 
 
 @pytest.mark.parametrize(
@@ -493,7 +493,7 @@ def test_bad_keywords_are_refused(keyword: str) -> None:
         BannerModifierPatch(keyword)
 
 
-# --- composition ---------------------------------------------------------------------------------
+# Composition
 
 
 def test_the_locomotor_set_reference_travels_with_the_table(image: bytearray) -> None:

@@ -1,6 +1,6 @@
 """Refresh the persistent spellbook bar when its Object's resolved CommandSet changes.
 
-Original RotWK game.dat 2.01.2614.37001; see ``../docs/spellbook-commandset-refresh.md``.
+Original RotWK game.dat 2.01.2614.37001; see `../docs/spellbook-commandset-refresh.md`.
 The stock function's game-state and player-validity gates remain in front of the hook. A player
 change takes the original path. With the same non-null player, resolve the Object's current set
 and compare pointers: only a difference re-enters the stock cache store / button-marking path.
@@ -30,7 +30,7 @@ from ..addresses import (
 )
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, jmp_rel32, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -106,10 +106,6 @@ def build_guard(base_va: int) -> bytes:
     return a.finish()
 
 
-def _detour(section_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", section_va - (SPELLBOOK_UI_CACHE_HOOK + 5))
-
-
 def _site_problems(data: bytes | bytearray, hook: bytes) -> list[str]:
     expected_cache = bytearray(CACHE_BYTES)
     at = SPELLBOOK_UI_CACHE_HOOK - SPELLBOOK_UI_CACHE
@@ -127,6 +123,7 @@ class SpellbookCommandSetRefreshPatch(Patch):
 
     name = "spellbook-commandset-refresh"
     author = "Ostkannit"
+    runtime_verified = "yes"
     description = (
         "Makes the CommandSetUpgrade work for the Spellbook-Object "
         "by letting the game refresh its cache afterwards"
@@ -139,7 +136,13 @@ class SpellbookCommandSetRefreshPatch(Patch):
         section_va = allocate_section(data, SECTION_NAME, build_guard, _CHARACTERISTICS)
         off = va_to_offset(data, SPELLBOOK_UI_CACHE_HOOK)
         assert off is not None  # checked before allocation
-        apply_byte_patch(data, off, HOOK_BYTES, _detour(section_va), "spellbook cache -> set check")
+        apply_byte_patch(
+            data,
+            off,
+            HOOK_BYTES,
+            jmp_rel32(SPELLBOOK_UI_CACHE_HOOK, section_va),
+            "spellbook cache -> set check",
+        )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         located = find_section(data, SECTION_NAME)
@@ -147,7 +150,7 @@ class SpellbookCommandSetRefreshPatch(Patch):
             return [f"no {SECTION_NAME} section: the file does not carry this patch"]
         section_va, section_off, vsize = located
         expected = build_guard(section_va)
-        problems = _site_problems(data, _detour(section_va))
+        problems = _site_problems(data, jmp_rel32(SPELLBOOK_UI_CACHE_HOOK, section_va))
         if vsize != len(expected) or bytes(data[section_off : section_off + vsize]) != expected:
             problems.append(f"{SECTION_NAME} does not hold the expected spellbook cache guard")
         return problems

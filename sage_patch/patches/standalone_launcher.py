@@ -1,67 +1,13 @@
-"""Cut the launcher's install-lock, so a relocated copy still hands the game a usable token.
+"""Remove the launcher's install-location lock, so a relocated copy still hands the game a usable
+token.
 
-Targets the launcher shim shipped beside ROTWK's `game.dat` (`lotrbfme2ep1.exe`, 499,712 bytes,
-ImageBase ``0x400000``, no ASLR). Derived in ``../docs/standalone-launcher.md``; this is the
-launcher half of the standalone scope in ``../docs/standalone-game.md``.
+Targets `lotrbfme2ep1.exe`, not `game.dat`. The launcher derives the token it hands `game.dat` by
+decrypting with a key built from the install drive's volume serial (read at `0x0040B2BB`,
+`0x0040B320`, `0x0040B332`). `gi.dat` already carries the plaintext in its `G4` field, whose
+accessor the stock launcher never calls, so the 38 bytes that build the key and decrypt become a
+copy of `G4`. `gi.dat` must sit beside the launcher.
 
-**Not the half that scope expected.** The shim's *path* resolution turned out to need no patch at
-all - it chdirs into its own image directory and spawns `game.dat` from there, with the registry
-nowhere on that route (``standalone-launcher.md`` §2). What is registry-bound is what happens
-**after** the spawn.
-
-**The install lock.** Having started `game.dat`, the launcher hands it a token through the shared
-mapping named by `gi.dat`'s ``G2`` - and it does not have that token, it *derives* it:
-
-1. read ``HKLM\\<GameRegPath>\\InstallPath`` (`0x0040B2BB`), falling back to `HKCU`;
-2. `_splitpath` the drive out of it and ask `GetVolumeInformationA` for that volume's serial
-   (`0x0040B320`);
-3. print the serial with ``"%lx-"`` (`0x0040B332`) and use the result - clamped to **56** bytes,
-   which is Blowfish's maximum key length - as the key (`0x00405E20`, whose schedule copies the
-   18-dword P-array from `0x0045F5C0`);
-4. Blowfish-decrypt the payload into the mapped view (`0x004061C0`).
-
-So the plaintext the game receives is correct only where the registry still names this install and
-that install still sits on the volume it was installed to. Copy the folder to a stick, drop it in a
-container, or hand it to a mod launcher on a machine that never ran the EA installer, and every
-input to that key is wrong.
-
-**The patch replaces steps 3-4 with the plaintext.** `gi.dat` already carries the answer in its
-``G4`` field, and the accessor for it (`0x004167B0`, returning `0x0046F5B8`) has **zero callers**
-in the shipped binary - a parsed, reachable field the stock launcher never reads. So the 38 bytes
-that set the key and decrypt become:
-
-    call 0x004167B0        ; -> gi.dat's G4
-    push eax
-    push edi               ; the game2.dat view the decrypt would have written
-    call 0x0044A170        ; strcpy
-    add  esp, 8
-    <23 * nop>
-
-No cave, no section, no relocation: 15 bytes of code and padding, in place. Everything before the
-site is left standing - the mapping is still opened, the registry is still read, the volume serial
-is still printed - because none of it is load-bearing once the answer does not come from it, and
-leaving it is what lets `verify` fingerprint the derivation this patch is switching off.
-
-**Provenance.** This edit is the Edain mod's, shipped in its install as the IDA difference file
-`lotrbfme2ep1.dif` beside a hand-written `lotrbfme2ep1_manual.diff`. What is new here is the
-framework around it: the same bytes as a named, attributed, `verify`/`detect`-able patch rather
-than an offset in a text file, and the derivation of *why* those bytes (`../docs/`) rather than
-only *which*. :func:`build_code` re-derives the replacement from the two function addresses, and
-``tests/sage_patch/test_standalone_launcher.py`` asserts it reproduces the shipped diff exactly.
-
-**What it is not.** It is not a way to run a copy of the game you do not have: the `.big` archives
-and `game.dat` itself are still required, unchanged. Nor is the token a gate on playing - the
-engine is perfectly startable without the shim (``-file <map>.map`` is a stock command line, see
-`headless`), which is what most tooling here already does. It removes an *install-location* lock
-from the launcher path, on an install that is already yours.
-
-> **Client-local.** This runs in a 500 KB shim before the game's first frame. Nothing enters the
-> simulation, nothing crosses the network, replays cross unpatched builds and peers do not have to
-> agree - same rule as `campaign-select` and `replay-outcome`.
-
-**Composition.** Order-independent with everything bundled. It allocates no cave, and the only
-other patch aimed at this binary - `multi-instance-launcher` - flips one opcode at `0x004092FA`,
-in a different function 0x2000 bytes away.
+Derivation: `../docs/standalone-launcher.md` and `../docs/standalone-game.md`.
 """
 
 from __future__ import annotations
@@ -106,7 +52,7 @@ TOKEN_SITE_STOCK = bytes.fromhex(
 )
 TOKEN_SITE_LENGTH = len(TOKEN_SITE_STOCK)
 
-#: ``gi.dat``'s ``G4`` accessor - `parse gi.dat if needed; return [0x0046F5B8]`. The tenth and last
+#: `gi.dat`'s `G4` accessor - `parse gi.dat if needed; return [0x0046F5B8]`. The tenth and last
 #: field, and the only one with no caller in the stock binary.
 GI_DAT_G4_ACCESSOR = 0x004167B0
 
@@ -136,7 +82,7 @@ ANCHORS = {
 
 
 def build_code(site_va: int = TOKEN_SITE, length: int = TOKEN_SITE_LENGTH) -> bytes:
-    """The replacement, assembled to run at ``site_va`` and padded with `nop` to ``length``.
+    """The replacement, assembled to run at `site_va` and padded with `nop` to `length`.
 
     Entered in the middle of a function with `edi` holding the mapped view and the stack as the
     stock code left it, so there is no prologue and nothing to preserve: `eax` and the two pushes
@@ -183,7 +129,7 @@ class StandaloneLauncherPatch(Patch):
         )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified): every
+        """Structural check that `data` carries this patch (an empty list == verified): every
         anchor still reads what it should, and the site now holds the replacement."""
         problems: list[str] = []
         try:

@@ -241,9 +241,7 @@ class TestTheBlockIsSelfDescribing:
         assert enter_va(BASE) == BASE + CODE_OFFSET
 
 
-# --------------------------------------------------------------------------------------------
 # Executing the cave
-# --------------------------------------------------------------------------------------------
 
 _STUB = 0x00E00000  # where the QueryPerformanceCounter stand-in is mapped
 _STACK = 0x00200000

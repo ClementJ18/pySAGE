@@ -11,13 +11,13 @@ import pytest
 from sage_asset import AssetDat, FileEntry, write_asset_dat_to_path
 from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_ini.parser.location import Span
-from sage_lint.cli import main
+from sage_lint.__main__ import main
 from sage_lint.commands.common import base_paths, resolve_rule_set
 from sage_lint.config import Config
 from sage_lint.fixer import fix_diagnostics
 from sage_lint.formatter import format_file, format_text
-from sage_lint.plugins.ui.runner import merge_baselines
 from sage_lint.rules.base import RULES
+from sage_lint.ui.runner import merge_baselines
 
 
 class TestFormatText:

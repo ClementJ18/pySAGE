@@ -28,8 +28,8 @@ class ChunkCoverage:
 
     @property
     def status(self) -> str:
-        """``"opaque"`` (no decoder), ``"partial"`` (decoded but with opaque regions left) or
-        ``"decoded"`` (fully understood - nothing kept as raw bytes)."""
+        """`"opaque"` (no decoder), `"partial"` (decoded but with opaque regions left) or
+        `"decoded"` (fully understood - nothing kept as raw bytes)."""
         if self.decoded_bytes == 0:
             return "opaque"
         return "decoded" if self.opaque_bytes == 0 else "partial"

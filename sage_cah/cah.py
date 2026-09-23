@@ -210,8 +210,8 @@ def new_guid() -> str:
 
 
 def _read_pstr(stream: BinaryStream) -> str:
-    length = stream.readUChar()
-    raw = stream.readBytes(length)
+    length = stream.read_uchar()
+    raw = stream.read_bytes(length)
     if len(raw) != length:
         raise struct.error(f"pstr wants {length} bytes, got {len(raw)}")
     return raw.decode("latin-1")
@@ -221,13 +221,13 @@ def _write_pstr(stream: BinaryStream, value: str) -> None:
     raw = value.encode("latin-1")
     if len(raw) > 0xFF:
         raise CahError(f"string {value!r} is {len(raw)} bytes, over the 255-byte pstr limit")
-    stream.writeUChar(len(raw))
-    stream.writeBytes(raw)
+    stream.write_uchar(len(raw))
+    stream.write_bytes(raw)
 
 
 def _read_name(stream: BinaryStream) -> str:
-    length = stream.readUChar()
-    raw = stream.readBytes(length * 2)
+    length = stream.read_uchar()
+    raw = stream.read_bytes(length * 2)
     if len(raw) != length * 2:
         raise struct.error(f"name wants {length * 2} bytes, got {len(raw)}")
     return raw.decode("utf-16-le", errors="surrogatepass")
@@ -240,20 +240,20 @@ def _write_name(stream: BinaryStream, value: str) -> None:
         raise CahError(
             f"name {value!r} is {length} UTF-16 code units, over the 255-unit name_len limit"
         )
-    stream.writeUChar(length)
-    stream.writeBytes(raw)
+    stream.write_uchar(length)
+    stream.write_bytes(raw)
 
 
 def _parse(stream: BinaryStream) -> CustomHero:
-    magic = stream.readBytes(8)
+    magic = stream.read_bytes(8)
     if magic != _MAGIC:
         raise CahError(f"bad magic {magic!r} at offset 0, expected {_MAGIC!r}")
 
     try:
-        header_unk1 = stream.readInt32()
-        header_unk2 = stream.readInt32()
-        version = stream.readUChar()
-        obj_id = stream.readInt32()
+        header_unk1 = stream.read_int32()
+        header_unk2 = stream.read_int32()
+        version = stream.read_uchar()
+        obj_id = stream.read_int32()
     except struct.error as exc:
         raise CahError(f"truncated header at offset {stream.tell()}: {exc}") from exc
 
@@ -263,13 +263,13 @@ def _parse(stream: BinaryStream) -> CustomHero:
         raise CahError(f"truncated name at offset {stream.tell()}: {exc}") from exc
 
     try:
-        class_index = stream.readInt32()
-        sub_class_index = stream.readInt32()
-        reserved1 = stream.readInt32()
-        reserved2 = stream.readInt32()
-        color1 = stream.readUInt32()
-        color2 = stream.readUInt32()
-        color3 = stream.readUInt32()
+        class_index = stream.read_int32()
+        sub_class_index = stream.read_int32()
+        reserved1 = stream.read_int32()
+        reserved2 = stream.read_int32()
+        color1 = stream.read_uint32()
+        color2 = stream.read_uint32()
+        color3 = stream.read_uint32()
     except struct.error as exc:
         raise CahError(f"truncated class/color fields at offset {stream.tell()}: {exc}") from exc
 
@@ -278,8 +278,8 @@ def _parse(stream: BinaryStream) -> CustomHero:
         offset = stream.tell()
         try:
             command_button = _read_pstr(stream)
-            exp_level = stream.readInt32()
-            button_index = stream.readInt32()
+            exp_level = stream.read_int32()
+            button_index = stream.read_int32()
         except struct.error as exc:
             raise CahError(f"truncated power slot {i} at offset {offset}: {exc}") from exc
         powers.append(
@@ -287,7 +287,7 @@ def _parse(stream: BinaryStream) -> CustomHero:
         )
 
     try:
-        bling_count = stream.readInt32()
+        bling_count = stream.read_int32()
     except struct.error as exc:
         raise CahError(f"truncated bling count at offset {stream.tell()}: {exc}") from exc
     if bling_count < 0:
@@ -298,15 +298,15 @@ def _parse(stream: BinaryStream) -> CustomHero:
         offset = stream.tell()
         try:
             group_name = _read_pstr(stream)
-            bling_index = stream.readInt32()
+            bling_index = stream.read_int32()
         except struct.error as exc:
             raise CahError(f"truncated bling {i} at offset {offset}: {exc}") from exc
         blings.append(CahBling(group_name=group_name, bling_index=bling_index))
 
     try:
         guid = _read_pstr(stream)
-        is_system_hero = stream.readUChar()
-        checksum = stream.readUInt32()
+        is_system_hero = stream.read_uchar()
+        checksum = stream.read_uint32()
     except struct.error as exc:
         raise CahError(f"truncated footer at offset {stream.tell()}: {exc}") from exc
 
@@ -358,33 +358,33 @@ def write_cah(hero: CustomHero, *, refresh_checksum: bool = False) -> bytes:
         raise CahError(f"expected exactly {POWER_SLOT_COUNT} power slots, got {len(hero.powers)}")
 
     stream = BinaryStream(io.BytesIO())
-    stream.writeBytes(_MAGIC)
-    stream.writeInt32(hero.header_unk1)
-    stream.writeInt32(hero.header_unk2)
-    stream.writeUChar(hero.version)
-    stream.writeInt32(hero.obj_id)
+    stream.write_bytes(_MAGIC)
+    stream.write_int32(hero.header_unk1)
+    stream.write_int32(hero.header_unk2)
+    stream.write_uchar(hero.version)
+    stream.write_int32(hero.obj_id)
     _write_name(stream, hero.name)
-    stream.writeInt32(hero.class_index)
-    stream.writeInt32(hero.sub_class_index)
-    stream.writeInt32(hero.reserved1)
-    stream.writeInt32(hero.reserved2)
-    stream.writeUInt32(hero.color1)
-    stream.writeUInt32(hero.color2)
-    stream.writeUInt32(hero.color3)
+    stream.write_int32(hero.class_index)
+    stream.write_int32(hero.sub_class_index)
+    stream.write_int32(hero.reserved1)
+    stream.write_int32(hero.reserved2)
+    stream.write_uint32(hero.color1)
+    stream.write_uint32(hero.color2)
+    stream.write_uint32(hero.color3)
 
     for power in hero.powers:
         _write_pstr(stream, power.command_button)
-        stream.writeInt32(power.exp_level)
-        stream.writeInt32(power.button_index)
+        stream.write_int32(power.exp_level)
+        stream.write_int32(power.button_index)
 
-    stream.writeInt32(len(hero.blings))
+    stream.write_int32(len(hero.blings))
     for bling in hero.blings:
         _write_pstr(stream, bling.group_name)
-        stream.writeInt32(bling.bling_index)
+        stream.write_int32(bling.bling_index)
 
     _write_pstr(stream, hero.guid)
-    stream.writeUChar(hero.is_system_hero)
-    stream.writeUInt32(compute_checksum(hero) if refresh_checksum else hero.checksum)
+    stream.write_uchar(hero.is_system_hero)
+    stream.write_uint32(compute_checksum(hero) if refresh_checksum else hero.checksum)
 
     return stream.getvalue()
 

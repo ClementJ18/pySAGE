@@ -13,7 +13,7 @@ from sage_map.assets.trigger_areas import TriggerAreas
 from sage_map.assets.waypoint_list import WaypointsList
 from sage_map.map import Map
 from sage_worldbuilder.areas import new_area
-from sage_worldbuilder.objects import new_object
+from sage_worldbuilder.commands.objects import new_object
 from sage_worldbuilder.players import new_player
 from sage_worldbuilder.script_targets import (
     TargetKind,

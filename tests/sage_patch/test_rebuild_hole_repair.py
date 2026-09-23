@@ -114,7 +114,7 @@ class TestTheGateSite:
 
     def test_what_it_tests_is_under_construction_on_the_dying_object(self):
         """The three instructions immediately before it isolate one bit of one bitset. Both
-        numbers have to be right, and both come from `addresses.py` rather than from here."""
+        numbers have to be right, and both come from `addresses` rather than from here."""
         run = ANCHORS[REBUILD_HOLE_CONSTRUCTION_TEST]
         insns = disassemble(run, REBUILD_HOLE_CONSTRUCTION_TEST)
         assert [i.mnemonic for i in insns] == ["mov", "shr", "test"]

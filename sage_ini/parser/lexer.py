@@ -11,6 +11,16 @@ from pathlib import Path
 from sage_ini.parser.io import read_text
 from sage_ini.parser.location import Span
 
+__all__ = [
+    "COMMENT_MARKERS",
+    "forget_path",
+    "Line",
+    "split_comment",
+    "tokenize",
+    "tokenize_file",
+    "tokenize_path",
+]
+
 COMMENT_MARKERS = (";", "//", "--")
 
 

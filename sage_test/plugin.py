@@ -40,7 +40,7 @@ from pathlib import Path
 
 import pytest
 
-from sage_test.game_info import LobbySettings
+from sage_live.launch.game_info import LobbySettings
 from sage_test.run import (
     DEFAULT_TIMEOUT,
     EngineUnavailable,
@@ -185,9 +185,9 @@ def map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[MapRun
         with map_runner(entry.argument) as session:
             assert session.observe().in_match
 
-    Takes the `-file` argument, which is not a path; `sage_test.maps.MapEntry.argument` is what
-    produces it. `--mod` applies here exactly as it does to scenarios, and is what makes the run
-    exercise the map.ini in the working tree rather than the last release's.
+    Takes the `-file` argument, which is not a path; `sage_live.launch.maps.MapEntry.argument` is
+    what produces it. `--mod` applies here exactly as it does to scenarios, and is what makes the
+    run exercise the map.ini in the working tree rather than the last release's.
     """
     mod_tree = request.config.getoption("--mod")
 

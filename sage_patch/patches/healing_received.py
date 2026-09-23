@@ -1,62 +1,12 @@
-"""`HEALING_RECEIVED` - an `AttributeModifier` that scales the healing a target takes.
+"""Add a `HEALING_RECEIVED` `ModifierType`: a `ModifierList` naming it scales every heal its target
+takes, from any source (25% is a quarter, 0% is immune).
 
-The reverse engineering behind this is [`../docs/healing-received-modifier.md`](
-../docs/healing-received-modifier.md). Targets the ROTWK SAGE-engine `game.dat` build
-``2.01.2614.37001``.
+Every heal in the engine passes once through `ActiveBody::attemptHealing` (`0x008C2FC1`); one
+five-byte hook there multiplies the amount by the target's modifier, so every source is covered and
+0% drops the heal entirely. Unlike `AUTO_HEAL` (additive, read on the healer) it is multiplicative
+and read on the target. `HealingReceivedWorldbuilderPatch` teaches the editor the same token.
 
-Every heal in the engine becomes a `DamageInfo` with ``m_damageType == 7`` and lands in
-`ActiveBody::attemptHealing` (``0x008C2FC1``), which is shared by nine body vtables. Inside it the
-amount exists exactly once, in the dword `Armor::adjustDamage` returns:
-
-    008c3061  call 0x5d893c               ; Armor::adjustDamage - returns type 7 unscaled
-    008c3066  fstp dword [ebp-4]          ; <- THE AMOUNT, and this patch's hook
-    008c3069  fldz
-    008c306b  fld  dword [ebp-4]
-    008c306e  fcompi st(1)
-    008c3070  fstp st(0)
-    008c3072  jbe  0x8c3195               ; <= 0: nothing happens at all
-    008c308a  call [eax+0x84]             ; internalChangeHealth(amount, info)
-    008c3095  movss [ebx+0x70], xmm0      ; info.out.m_actualDamageDealt
-
-So one five-byte swap covers every source - `AutoHealBehavior`, `OpenContain`'s
-`HealthRegen%PerSec`, bridge repair, `PlayerHealSpecialPower`, a `DamageType = HEALING` weapon
-nugget and the rest - because they all reach this dword rather than each other.
-
-Three things make the site cheap rather than merely convenient:
-
-* **The healed object is already in `edi`** (``0x008C2FDD``, still live at ``0x008C30C2``), which
-  is what `getModifierMultiplier` wants for `this`. No reload, no walk back to the owner.
-* **The `<= 0` test is downstream.** A multiplier of zero makes the whole tail of the function
-  disappear - no health change, no `out.m_actualDamageDealt`, no healing observers - so immunity
-  to healing falls out of the arithmetic instead of needing an arm of its own. A NaN takes the
-  same exit, since `fcompi` leaves an unordered compare and `jbe` is taken.
-* **`Armor::adjustDamage` passes type 7 through unscaled** (``0x005D8963``), so the hooked dword
-  is the raw amount the source asked for and this is the first thing that ever scales it.
-
-The value is a plain multiplier: `getModifierMultiplier` seeds its out parameter to 1.0 and
-multiplies each active list's value into it, and the `ModifierList` parser divides a detached
-``%`` token by 100. So ``HEALING_RECEIVED 25%`` is a quarter of the healing and ``200%`` is
-double, and several active lists multiply together.
-
-**Complementary to `AUTO_HEAL`, not a duplicate of it.** `AUTO_HEAL` is additive, read once, by
-`AutoHealBehavior` at ``0x008557B4``, and read on the *healer*. This is multiplicative, read on
-every *target*, for every source.
-
-What it does not reach - correctly - is anything that is not a heal: construction and repair
-health go through `internalChangeHealth` directly (``0x0088DEB5``), as do respawn, level-up and
-`HEALTH`/`HEALTH_MULT` max-health changes (``0x008C1C3D``, ``0x008C1D23``, ``0x008C1D49``), and so
-does `detachable-rider-heal`'s `HealOnDetach`. `InactiveBody` has its own slot ``+0x04``
-(``0x008C191D``) that discards healing before any of this.
-
-Composing
----------
-The keyword is a name in the modifier-type table, which `production-split` also appends to. Both
-read the **live** table and copy it through by pointer, so they compose in either order and the
-indices simply follow whatever was already there - see :mod:`.utils.modifier_types`.
-
-This is **simulation state**: every peer needs the same patched binary, and a replay recorded on
-it will not play back on a stock one. INI naming the keyword also fails to load on an unpatched
-`game.dat`, since index 0 of the name walk doubles as "not found".
+Derivation: `../docs/healing-received-modifier.md`.
 """
 
 from __future__ import annotations
@@ -68,7 +18,7 @@ from sage_ini.engine import Engine, EnumDelta
 
 from ..asm import Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, va_to_offset
 from .utils import modifier_types, name_tables
 
 __all__ = [
@@ -94,9 +44,9 @@ HOOK_STOCK_BYTES = bytes.fromhex("d95dfcd9ee")
 _DISPLACED_FSTP = bytes.fromhex("d95dfc")  # fstp dword [ebp-4]
 _DISPLACED_FLDZ = bytes.fromhex("d9ee")  # fldz
 
-#: `Object::getModifierMultiplier(Int type, Real *out, void *ctx, Int flag)` - ``__thiscall``,
-#: ``ret 0x10``. Seeds ``*out`` to 1.0 and multiplies each active list's value into it, but
-#: returns at its own holder guard without writing through ``out`` at all when the object has
+#: `Object::getModifierMultiplier(Int type, Real *out, void *ctx, Int flag)` - `__thiscall`,
+#: `ret 0x10`. Seeds `*out` to 1.0 and multiplies each active list's value into it, but
+#: returns at its own holder guard without writing through `out` at all when the object has
 #: never been modified - which is why the stub seeds the slot itself, exactly as every engine
 #: call site does.
 GET_MODIFIER_MULTIPLIER = 0x0068C82D
@@ -135,23 +85,18 @@ SECTION_CHARACTERISTICS = name_tables.SECTION_CHARACTERISTICS
 _ONE_F = struct.pack("<f", 1.0)
 
 
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
 def build_stub(base_va: int, type_index: int) -> bytes:
-    """The hook body: scale ``[ebp-4]`` by the healed object's `HEALING_RECEIVED`.
+    """The hook body: scale `[ebp-4]` by the healed object's `HEALING_RECEIVED`.
 
     Entered by a `call` that replaced the `fstp`/`fldz` pair, so both are re-emitted around the
     query and the caller resumes on a stack and an x87 state it cannot tell from stock. The x87
     stack is empty from the displaced `fstp` until the displaced `fldz`, so the call sits in an
     x87-neutral window.
 
-    ``eax``, ``ecx``, ``edx`` and ``xmm0`` are all dead across the window - ``eax`` is reloaded at
-    ``0x008C3078``, the `push ecx` at ``0x008C307F`` reserves a stack slot rather than passing a
-    value, ``xmm0`` is reloaded at ``0x008C3090`` - and ``ebx``/``esi``/``edi`` are callee-saved
-    by the stdcall callee, which is what lets the stub keep the healed object in ``edi``.
+    `eax`, `ecx`, `edx` and `xmm0` are all dead across the window - `eax` is reloaded at
+    `0x008C3078`, the `push ecx` at `0x008C307F` reserves a stack slot rather than passing a
+    value, `xmm0` is reloaded at `0x008C3090` - and `ebx`/`esi`/`edi` are callee-saved
+    by the stdcall callee, which is what lets the stub keep the healed object in `edi`.
     """
     a = Asm(base_va)
     a.emit(_DISPLACED_FSTP)  # fstp dword [ebp-4]      ; displaced
@@ -176,9 +121,9 @@ def build_stub(base_va: int, type_index: int) -> bytes:
 def build_section(
     base_va: int, existing_pointers: list[int], keyword: str
 ) -> tuple[bytes, int, int]:
-    """``(section content, rebuilt table VA, stub VA)`` for a cave based at ``base_va``.
+    """`(section content, rebuilt table VA, stub VA)` for a cave based at `base_va`.
 
-    Table first, so :meth:`HealingReceivedPatch.verify` finds it at the section base without
+    Table first, so `HealingReceivedPatch.verify` finds it at the section base without
     knowing how long the stub is, then the keyword string it points at, then the stub."""
     table, _name_vas, stub_va = name_tables.layout(existing_pointers, [keyword], base_va)
     return table + build_stub(stub_va, len(existing_pointers)), base_va, stub_va
@@ -223,7 +168,7 @@ class HealingReceivedPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified).
+        """Structural check that `data` carries this patch (an empty list == verified).
 
         The index the stub pushes is recovered from the cave's own table rather than assumed,
         because another type-appending patch shifts it - and then cross-checked against the
@@ -308,7 +253,7 @@ class HealingReceivedPatch(Patch):
         return (
             off,
             HOOK_STOCK_BYTES,
-            _call_bytes(HOOK_VA, stub_va),
+            call_rel32(HOOK_VA, stub_va),
             "ActiveBody::attemptHealing amount -> healing-received stub",
         )
 
@@ -342,9 +287,9 @@ class HealingReceivedPatch(Patch):
     def _anchor_problems(self, data: bytes | bytearray, patched: bool = False) -> list[str]:
         """Everything the patch depends on and does not rewrite.
 
-        ``patched`` blanks the five bytes this patch rewrites. The two modifier-table operands are
+        `patched` blanks the five bytes this patch rewrites. The two modifier-table operands are
         blanked unconditionally: any type-appending patch owns them, so their value says nothing
-        about this one either way, and :func:`.modifier_types.read` checks what they point at far
+        about this one either way, and `modifier_types.read` checks what they point at far
         more tightly than a byte compare would."""
         blank = list(modifier_types.VOLATILE_SPANS)
         if patched:

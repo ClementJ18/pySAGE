@@ -10,10 +10,22 @@ from __future__ import annotations
 
 import struct
 
-from sage_live.backends.scripts import read_script_tree, read_script_variables
+from sage_live.backends.scripts import (
+    LiveCondition,
+    read_script_conditions,
+    read_script_tree,
+    read_script_variables,
+)
 from sage_patch.addresses import (
+    CONDITION_ENABLED,
+    CONDITION_INVERTED,
+    CONDITION_NEXT,
+    CONDITION_TYPE,
+    OR_CONDITION_CONDITIONS,
+    OR_CONDITION_NEXT,
     SCRIPT_ACTIVE,
     SCRIPT_AUTHORED_ACTIVE,
+    SCRIPT_CONDITIONS,
     SCRIPT_DELAY_SECONDS,
     SCRIPT_EASY,
     SCRIPT_ENGINE_COUNTER_MAP,
@@ -289,3 +301,47 @@ def test_a_script_knows_its_name_record_and_which_action_lists_it_has() -> None:
     # The name record is the pool entry's AsciiString: its characters read back as the name.
     block = struct.unpack("<I", image.read(wave.name_address, 4) or b"")[0]
     assert image.read(block + 8, 4) == b"Wave"
+
+
+def test_conditions_come_back_clause_by_clause_in_evaluation_order() -> None:
+    image = Image()
+    script = image.alloc(0x50)
+
+    def condition(kind: int, enabled: bool = True, inverted: bool = False) -> int:
+        address = image.alloc(0x50)
+        image.u32(address + CONDITION_TYPE, kind)
+        image.write(address + CONDITION_ENABLED, bytes([enabled]))
+        image.write(address + CONDITION_INVERTED, bytes([inverted]))
+        return address
+
+    def clause(*conditions: int) -> int:
+        address = image.alloc(0x10)
+        head = conditions[0] if conditions else 0
+        image.u32(address + OR_CONDITION_CONDITIONS, head)
+        for this, after in zip(conditions, conditions[1:], strict=False):
+            image.u32(this + CONDITION_NEXT, after)
+        return address
+
+    counter, flag, timer = condition(1), condition(2, enabled=False), condition(4, inverted=True)
+    first, second, empty = clause(counter, flag), clause(timer), clause()
+    image.u32(script + SCRIPT_CONDITIONS, first)
+    image.u32(first + OR_CONDITION_NEXT, second)
+    image.u32(second + OR_CONDITION_NEXT, empty)
+    assert read_script_conditions(image.read, script) == (
+        (LiveCondition(counter, 1, True, False), LiveCondition(flag, 2, False, False)),
+        (LiveCondition(timer, 4, True, True),),
+        (),
+    )
+
+
+def test_a_condition_chain_that_loops_ends_the_walk() -> None:
+    image = Image()
+    script = image.alloc(0x50)
+    looped = image.alloc(0x50)
+    image.u32(looped + CONDITION_NEXT, looped)
+    first = image.alloc(0x10)
+    image.u32(first + OR_CONDITION_CONDITIONS, looped)
+    image.u32(first + OR_CONDITION_NEXT, first)
+    image.u32(script + SCRIPT_CONDITIONS, first)
+    clauses = read_script_conditions(image.read, script)
+    assert len(clauses) == 1 and len(clauses[0]) == 1

@@ -188,7 +188,7 @@ AutoDepositUpdate ModuleData      size 0x24, ctor 0x00653EBA
 > [`command-point-upkeep`](command-point-upkeep.md)'s hook, sit inside
 > `TerrainResourceBehavior::update` (`0x008854D3`) — the *other* income module, and the only
 > reader of `PlayerTemplate.ResourceModifierValues`. The two read alike and the name in
-> `addresses.py` is misleading; the discriminator is the `ModuleData`, reached as `[ebp-0x18]`
+> `sage_patch.addresses` is misleading; the discriminator is the `ModuleData`, reached as `[ebp-0x18]`
 > there and as `[esi-0x0C]` in `AutoDepositUpdate::update`.
 
 ### 3.2 The padding, and the default that costs three bytes

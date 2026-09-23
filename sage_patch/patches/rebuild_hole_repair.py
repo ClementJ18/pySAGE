@@ -1,86 +1,12 @@
-"""The rebuild-hole repair patch: a structure destroyed while it is being rebuilt leaves its
-rebuild hole behind again, and the hole lands on the ground.
+"""Make a structure destroyed while being rebuilt leave its rebuild hole again, on the ground.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/rebuild-hole-repair.md``.
+A creep lair's loop runs through its hole: the hole pays treasure when broken and rebuilds the lair
+when left alone. A lair destroyed mid-rebuild left no hole (a six-byte gate refused it), or a hole
+buried at the wrong height. The gate is erased, and a `.rhrep` section rebuilds the placement so the
+hole lands at the dying object's x and y on the terrain's ground height. The gate's rule moves into
+the INI. Every peer needs the same binary.
 
-**The defect.** A creep lair's whole loop hangs off its hole. `RebuildHoleExposeDie` puts a hole
-where the lair stood; the hole's `CreateObjectDie` is what pays out treasure when a player breaks
-it; and if nobody breaks it, `RebuildHoleBehavior` puts the lair back and the hole retires with
-DeathType `FADED` (`REBUILD_HOLE_SELF_KILL`) so that retiring pays nothing. Break the lair, get a
-hole. Break the hole, get treasure. Leave it alone, get the lair back.
-
-The loop breaks in two places, and this patch closes both because closing only the first is what
-exposes the second.
-
-**One: no hole at all.** `RebuildHoleExposeDie::onDie` refuses to create anything when the dying
-object is `UNDER_CONSTRUCTION` (`REBUILD_HOLE_CONSTRUCTION_GATE`) — and the object a hole rebuilds
-is `UNDER_CONSTRUCTION` for the whole time it is rising, which is precisely the state
-`RebuildHoleBehavior::update` keys its own babysitting on. So a lair killed between "the hole
-started rebuilding it" and "the rebuild finished" leaves nothing: the old hole was already
-destroyed the frame the rebuild began, and no new one is made. The lair is gone permanently, and
-with it every future payout, because the treasure was never on the lair to begin with.
-
-**Two: the hole is buried.** `onDie` then stamps the new hole with the *dying* object's live
-position (`REBUILD_HOLE_SET_POSITION`). For a structure still standing on the terrain that is the
-right answer, which is why a stock hole appears where its building was. For one whose height has
-already left the terrain it is not: watched live, a lair killed mid-rebuild left its hole ~116
-units underground, where it cannot be seen, clicked or looted, though it still rebuilt the lair
-over itself. From the player's chair that reads as "I killed it, no hole appeared, the lair just
-grew back" — the same bug the first fix was meant to end.
-
-**What this does.** Erases the six-byte gate, and appends a ``.rhrep`` PE section holding the
-placement step rewritten to build the hole's `Coord3D` itself: the dying object's x and y, and for
-z the ground height under that point from `TheTerrainLogic` (`THE_TERRAIN_LOGIC`, vtable
-`TERRAIN_LOGIC_GET_GROUND_HEIGHT_SLOT`). The eleven bytes of the stock placement are redirected
-into it.
-
-**Why the placement hook goes before the engine's `setPosition` rather than correcting after it.**
-The hole is then positioned exactly once, so the partition, layer and drawable bookkeeping inside
-`Object::setPosition` sees the final height rather than a buried one it has to be moved out of.
-
-**Why the snap is unconditional.** A structure that dies on the terrain already carries the height
-the terrain lookup returns, so for the healthy case the write is a no-op and nothing changes. Only
-a corpse whose height has drifted moves, which is exactly the set this is for. The cost is that
-layers are ignored: `getGroundHeight` answers for the terrain, not for a bridge or a walkable wall
-top, so a rebuild hole on a raised surface would be pulled down to the ground under it. No stock
-RotWK or Edain data puts a `RebuildHoleExposeDie` on a layer; the layer-aware variant is
-`getLayerHeight` and is written up in the doc.
-
-**The gate's rule moves into the INI rather than disappearing.** Every die module opens with
-`DIE_MODULE_IS_APPLICABLE`, whose shared filter already evaluates the module's `ExemptStatus`
-against the dying object's live `ObjectStatus` bits — `UNDER_CONSTRUCTION` among them. So an
-object that wants the stock behaviour back writes it::
-
-    Behavior = RebuildHoleExposeDie ModuleTag_ExposeDie
-        ExemptStatus = SOLD UNDER_CONSTRUCTION
-        HoleName     = WargLairHole
-        ...
-    End
-
-That is the opt-out, and it is worth knowing about, because the patch is global: it reaches every
-object with a `RebuildHoleExposeDie`, including the Goblin faction's own lairs, whose *initial*
-construction becomes hole-leaving too. Whether that is wanted is a data decision, and this is
-where a mod makes it. The ground snap has no opt-out and needs none — a hole belongs on the ground
-whatever killed the thing above it.
-
-**Why the gate is deleted rather than narrowed.** "Rebuilt, not placed" has no discriminator to
-test. `RECONSTRUCTING` (status 21) is the flag that would name it exactly — the engine reads it as
-"this one was never paid for" when suppressing sell refunds — but no call to `Object::setStatus`
-in the image ever *sets* it; it is cleared in three places and set in none. The rebuilt
-structure's producer is the hole (`0x00886B27`), but that is stored as an `ObjectID` and the hole
-is dead by the time the structure dies, so it no longer resolves.
-
-**Every peer must run the same patched binary.** Creating an object and deciding where it lands are
-both logic state, so a patched and an unpatched client diverge the first time anybody kills a
-rebuilding structure, and replays do not cross. That is the same requirement `production-condition`
-and `multi-execute-gate` carry. `getGroundHeight` reads the loaded terrain, which is identical on
-every peer, so the added call brings no divergence of its own.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes edited are the six at
-`REBUILD_HOLE_CONSTRUCTION_GATE` and the eleven at `REBUILD_HOLE_SET_POSITION`, which no other
-bundled patch touches — they all sit at ``0x0079``, ``0x008A``, ``0x0094`` and ``0x00DA``.
+Derivation: `../docs/rebuild-hole-repair.md`.
 """
 
 from __future__ import annotations
@@ -138,7 +64,7 @@ _CHARACTERISTICS = 0x20 | 0x20000000 | 0x40000000
 GATE_VA = REBUILD_HOLE_CONSTRUCTION_GATE
 GATE_ORIGINAL = REBUILD_HOLE_CONSTRUCTION_GATE_BYTES
 
-#: A single six-byte ``nop word ptr [eax+eax]`` rather than six ``0x90``s. Both fall through
+#: A single six-byte `nop word ptr [eax+eax]` rather than six `0x90`s. Both fall through
 #: identically, but one instruction is what the site now *is* - a disassembler, and `verify`,
 #: read one erased branch instead of six pad bytes that could equally be leftovers.
 GATE_REPLACEMENT = bytes.fromhex("660f1f440000")
@@ -162,7 +88,7 @@ _POS_Y = 0x3C
 _POS_Z = 0x40
 
 #: The first bytes at each address that has to still mean what the patch assumes, as a
-#: ``{va: bytes}`` map. Nothing here is written; they are asserted before either edit, so a build
+#: `{va: bytes}` map. Nothing here is written; they are asserted before either edit, so a build
 #: whose layout moved fails loudly rather than erasing whatever branch now sits at `GATE_VA` or
 #: returning a cave into the middle of an instruction.
 #:

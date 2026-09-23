@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "MPPosition",
+    "MPPositionList",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -21,18 +26,18 @@ class MPPosition:
     @classmethod
     def parse(cls, context: "ParsingContext"):
         with context.read_asset() as asset_ctx:
-            is_human = context.stream.readBool()
-            is_computer = context.stream.readBool()
+            is_human = context.stream.read_bool()
+            is_computer = context.stream.read_bool()
             load_ai_script = False
             if asset_ctx.version > 0:
-                load_ai_script = context.stream.readBool()
+                load_ai_script = context.stream.read_bool()
 
-            team = context.stream.readUInt32()
+            team = context.stream.read_uint32()
             side_restrictions = []
             if asset_ctx.version > 0:
-                side_restriction_count = context.stream.readUInt32()
+                side_restriction_count = context.stream.read_uint32()
                 for _ in range(side_restriction_count):
-                    side_restrictions.append(context.stream.readUInt16PrefixedAsciiString())
+                    side_restrictions.append(context.stream.read_uint16_prefixed_ascii_string())
 
         context.logger.debug(f"Finished parsing {cls.asset_name}")
         return cls(
@@ -48,16 +53,16 @@ class MPPosition:
 
     def write(self, context: "WritingContext"):
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeBool(self.is_human)
-            context.stream.writeBool(self.is_computer)
+            context.stream.write_bool(self.is_human)
+            context.stream.write_bool(self.is_computer)
             if self.version > 0:
-                context.stream.writeBool(self.load_ai_script)
+                context.stream.write_bool(self.load_ai_script)
 
-            context.stream.writeUInt32(self.team)
+            context.stream.write_uint32(self.team)
             if self.version > 0:
-                context.stream.writeUInt32(len(self.side_restrictions))
+                context.stream.write_uint32(len(self.side_restrictions))
                 for restriction in self.side_restrictions:
-                    context.stream.writeUInt16PrefixedAsciiString(restriction)
+                    context.stream.write_uint16_prefixed_ascii_string(restriction)
 
 
 @dataclass

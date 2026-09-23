@@ -1,94 +1,12 @@
-"""The wall-layer-promotion patch: stop siege engines being teleported onto walls they walked past.
+"""Stop siege engines being lifted onto walls they are pushed against.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../../docs/wall-layer-promotion.md``, whose §6 and §6b are live readings of a running
-game rather than static recovery.
+A wall stamps its layer into every pathfind cell its polygon touches, and the pathfinder moves an
+object onto a layer when the cell under its centre names one more than 10 units above it. A wide
+siege engine pushed into a wall gets its centre into a stamped cell and is lifted a storey. All
+three `setLayer` calls are re-aimed at a gate in a `.wallyr` section, which refuses to lift a
+`MACHINE` onto a wall-height layer more than 10 units above it. Ramps are unaffected.
 
-**The defect.** A wall stamps a *layer number* into every ground pathfind cell its
-``WallBoundsMesh`` polygon covers - one cell is 10 world units, and any cell with a corner inside
-the polygon is stamped. Once per movement re-evaluation ``Pathfinder::updateObjectLayer``
-(`WALL_LAYER_PROMOTION`) reads the cell under an object's **centre** and, if that cell names a
-layer whose surface is more than 10 units above the object, calls ``Object::setLayer`` - which
-resolves the object's ground height to the wall top. A siege engine is wide and is driven
-deliberately into walls, so collision resolution pushes its centre into the first stamped cell and
-it is lifted a storey into the air.
-
-**Nothing on the promoted object is consulted.** The routine never dereferences the
-``ThingTemplate`` and never reaches the ``Locomotor``: no ``KindOf`` test, no ``Surfaces`` test,
-no status bit. ``ScalesWalls`` is not on this path either - ``Object::canScaleWalls``
-(``0x0068B331``) has nine callers and every one is a *path-routing* query, so it decides whether a
-path may cross wall cells, not where an object already standing on one ends up. Measured: the
-promotion moved a piece of immobile map scenery onto a wall. **So there is no INI fix**, which is
-what makes this a patch.
-
-**Why the gate is not on the layer.** The obvious fix - refuse the promotion when the destination
-is a wall-height layer - is wrong, and the live reading in §6b is what rules it out. A catapult
-driven up a castle ramp climbs on layer ``16`` (the *ramp* layer, whose height is
-position-dependent) and then steps onto the wall top as layer ``17`` - the very same wall-height
-layer the bug promotes to. Gating on the layer would strand siege that climbed a ramp properly,
-which is worse than the bug.
-
-**What separates them is measured, not assumed.** Sampling every layer change in a running game:
-
-============================================ ==========================
-transition                                   ``surface - z`` beforehand
-============================================ ==========================
-catapult, ramp onto the wall top (3 of 3)    ``+0.0``
-infantry, ramp onto the wall top             ``+0.0`` .. ``+3.4``
-**trebuchet, ground onto a wall (the bug)**  **``+53.4``**
-============================================ ==========================
-
-Every legitimate arrival is already level with the surface it moves to, so it **fails the
-routine's own ``h > z + 10`` test and never reaches this call at all**. The promotion in this arm
-is, in every sample taken, the bug. That is why gating it is safe for the ramp route: a climbing
-catapult is not in this code path to begin with.
-
-**There are three roads onto a wall, not one.** Gating only the promotion above does not stop the
-bug - measured in game, with that hook installed and verified in the running process, a trebuchet
-still popped up. ``Object::setLayer`` has 30 callers, and two more of them matter:
-``0x0062E15F`` and ``0x0079792F`` (the latter in the ``PhysicsBehavior`` translation unit, guarded
-only by ``IMMOBILE``) are both the object-moved path - ``setPosition``, ``setOrientation``,
-``TerrainLogic::getLayerForDestination``, then ``setLayer`` of whatever came back. That resolver
-returns ground, or ``16`` on a ramp, or **the layer the cell names**, which over a wall's bounds is
-a wall-height layer - and those two sites apply it with **no height test at all**. A wide siege
-engine whose centre is pushed into a stamped cell is put on the wall by the move itself.
-
-**What this does.** Appends a ``.wallyr`` PE section holding one gate and re-aims all three
-``setLayer`` calls into it. The gate refuses only when all three of these hold: the destination is
-a wall-height layer, the object is a ``MACHINE``, and the layer's surface is **more than 10 units
-above the object** - the engine's own constant for "near enough to the same level", the one both
-arms of the promotion use. Refused, it returns without moving the object, leaving it where it was.
-
-**Why ``MACHINE`` and not something wider.** The measured jump table above shows infantry being
-promoted from the ground too (``+14.7`` in one sample), so a wider gate would catch more of the
-bug - but the arm also plausibly carries arrivals this session never observed: a wall-scaling
-unit (``ScaleWallSpecialAbilityUpdate``), a siege ladder, a siege tower. Each of those moves a
-unit from the ground to a wall top by design and would show the same large jump. ``MACHINE``
-(``KindOf`` index 11) is carried by every siege engine in the shipped data and by no infantry, so
-the gate covers the reported symptom without touching a mechanism that was never measured.
-Widening it is a data question, and `../../docs/wall-layer-promotion.md` §7 records what would
-settle it.
-
-**The ramp route is untouched, three times over.** A unit entering a ramp gets layer ``16``, which
-is outside `WALL_LAYER_FIRST`..`WALL_LAYER_LAST`, so the gate passes it through whatever the object
-is. A catapult that has climbed to the walkway is already level with it, so the height test passes
-it too - that is the ``+0.0`` row above, and it is why the gate can sit on the object-moved path
-without stranding siege on top of a wall. And the ramp-to-walkway step does not reach the promotion
-arm at all. All three are asserted by the tests rather than left to the prose.
-
-**A call hook, not a jump hook.** The hooked bytes *are* a ``call``, so the cave is entered with a
-return address on the stack and has to be call-shaped: it either tail-jumps to
-`OBJECT_SET_LAYER` - whose ``ret 4`` pops the argument and returns to the engine - or pops the
-argument itself with its own ``ret 4``. A cave that jumped away instead would unbalance the stack.
-
-**Determinism.** The gate reads the destination layer, the object's ``ThingTemplate`` and its
-world z against a pathfinder-owned height - all logic state, identical on every peer - so the
-added edge is network- and replay-safe. Worth stating because the pathfinder runs on the logic
-thread: a non-deterministic gate here would desync rather than merely misbehave.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the five of each call in
-`HOOK_SITES`, which no other bundled patch touches, and it reads nothing another patch rewrites.
+Derivation: `../../docs/wall-layer-promotion.md`.
 """
 
 from __future__ import annotations
@@ -140,7 +58,7 @@ _OBJECT_TEMPLATE = 0x04
 _CHARACTERISTICS = 0x20 | 0x20000000 | 0x40000000
 
 #: Every `setLayer` call that can put a moving object on a wall, as
-#: ``(call va, its stock five bytes, the va of the three bytes that set its arguments)``. All
+#: `(call va, its stock five bytes, the va of the three bytes that set its arguments)`. All
 #: three share the `push eax; mov ecx, esi` prologue, so one cave serves them all.
 HOOK_SITES = (
     (

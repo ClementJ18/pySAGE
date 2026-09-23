@@ -1,24 +1,18 @@
 # sage_asset
 
-A lossless reader/writer for `asset.dat`, the BFME2/RotWK asset cache index. No public
-documentation of this format exists; the tables below are the reference, reverse-engineered
-and checked byte-exact against EA's own `asset.dat` (BFME2, RotWK) and two community-built
-ones (Edain's `_mod/asset.dat` and `complete_asset/asset.dat`).
+A lossless reader and writer for `asset.dat`, the BFME2/RotWK asset cache index, plus a builder,
+a combiner and a checker. `asset.dat` lists every source art file the engine's asset cache knows
+(`.w3d` models, `.tga` textures, ...), the assets each provides with their byte range inside it,
+and which assets reference which.
 
-`asset.dat` lists every source art file the engine's asset cache knows about (`.w3d` models,
-`.tga` textures, ...), the individual assets each one provides with their byte range inside
-it, and a dependency table of which assets reference which other assets.
-
-Credit for the asset.dat parsing this package is built on goes to Brechstange, whose
-Edain-Toolbar ships a native Python `asset.dat` builder
-(`Edain_Toolbar/core/utils/asset_builder.py`); `sage_asset.builder` is a port of it (see
-"Building an asset.dat" below). The format tables here were additionally verified byte-exact
-against EA's own `asset.dat` files and the real `AssetCacheBuilder.exe`'s output.
+No public documentation of the format exists; the tables below are the reference, checked
+byte-exact against EA's own files (BFME2, RotWK), two Edain-built ones, and the output of EA's
+`AssetCacheBuilder.exe`. The builder is a port of Brechstange's Edain-Toolbar builder
+(`Edain_Toolbar/core/utils/asset_builder.py`), credited here.
 
 ## Binary format
 
-All integers little-endian. Every string (`pstr` below) is a uint8 length prefix followed by
-that many latin-1 bytes - no NUL terminator.
+All integers little-endian. A `pstr` is a uint8 length followed by that many latin-1 bytes, no NUL.
 
 ```
 Header (16 bytes):
@@ -29,77 +23,44 @@ Header (16 bytes):
 
 Section 1 - one record per source art file (file_count records):
   pstr      name           # e.g. "acolyte_soul.w3d", "263_rt_r1.tga" (lowercase)
-  uint64    file_time      # Windows FILETIME (100ns ticks since 1601-01-01 UTC), file's mtime
-  uint16    asset_count    # number of assets this file provides
+  uint64    file_time      # Windows FILETIME of the file's mtime
+  uint16    asset_count
   per asset:
     pstr    name           # e.g. "ACOLYTE_SOUL.KUACOLYTE_SKIN0", "H*ACOLYTE_SOUL"
     bytes[4] type          # FourCC stored byte-reversed, NUL-padded to 4
-    uint32  offset         # asset chunk's byte offset inside the source file (0 for TEX)
+    uint32  offset         # chunk byte offset in the source file (0 for TEX)
     uint32  size           # chunk byte size (0 for TEX); consecutive assets tile the file
 
 Section 2 - dependency table (ref_count records, runs to EOF):
   pstr      file_name      # section-1 file, e.g. "acolyte_soul.w3d"
   pstr      asset_name     # asset within it, e.g. "ACOLYTE_SOUL"
   uint16    n
-  pstr[n]   references     # lowercase referenced asset names, e.g. "acolyte_soul.tga",
-                           # "h*acolyte_soul", "normalmapped.fx"
+  pstr[n]   references     # lowercase asset names, e.g. "acolyte_soul.tga", "normalmapped.fx"
 ```
 
-Known type tags (raw on-disk bytes, decoded name):
+| raw type bytes | `XET\0` | `HSEM` | `REIH` | `DOLH` | `MINA` | `XOB\0` | `HSXF` | `TRAP` |
+|---|---|---|---|---|---|---|---|---|
+| decoded | `TEX` | `MESH` | `HIER` | `HLOD` | `ANIM` | `BOX` | `FXSH` | `PART` |
 
-| raw bytes  | decoded |
-|------------|---------|
-| `XET\0`    | `TEX`   |
-| `HSEM`     | `MESH`  |
-| `REIH`     | `HIER`  |
-| `DOLH`     | `HLOD`  |
-| `MINA`     | `ANIM`  |
-| `XOB\0`    | `BOX`   |
-| `HSXF`     | `FXSH`  |
-| `TRAP`     | `PART`  |
+Decoding strips trailing NULs and reverses the bytes; any well-formed tag round-trips, known or not.
 
-Decoding strips trailing NULs and reverses the remaining bytes; encoding reverses the tag and
-NUL-pads it back to 4 bytes. This is a lossless transform for any well-formed 4-byte tag, so an
-unrecognized tag still parses and round-trips - it is not validated against this table.
-
-Only assets with at least one reference get a section-2 record, so `ref_count` is not the
-total asset count. In EA's own files section 2 is exactly section 1's assets, in order,
-filtered to those with references - but a community-built `asset.dat` (Edain's
-`complete_asset/asset.dat`) has been observed with duplicate `(file, asset)` section-2 records
-and a different record order. `AssetDat` therefore keeps `references` as its own ordered list
-rather than deriving it from `files`; do the same in any code built on top of it, or a
-round-trip through that file will not be byte-exact.
-
-A reference can also simply be wrong - naming a file or asset that doesn't exist anywhere in
-the same asset.dat (dangling). `sage-asset check` reports these; all six real fixtures this
-package has been checked against (EA's two, both Edain files, and both builder outputs) have
-exactly zero, so a nonzero count is a genuine corruption or hand-edit, not an expected pattern.
+Only assets with references get a section-2 record. EA's files list them in section-1 order, but
+Edain's `complete_asset/asset.dat` has duplicates and another order, so `AssetDat.references` is kept
+as its own ordered list; code built on it should do the same to stay byte-exact. A reference naming
+something the file does not contain is reported by `sage-asset check`; every real file checked has
+none, so one means corruption or a hand edit.
 
 ## Combining a base and mod asset.dat
 
-BFME2 mods that ship their own asset.dat (Edain's `_mod`) are loaded together with the base
-game's by concatenating the two: every section-1 record and every section-2 record of the mod's
-file, followed by every record of the base game's, with the header counts summed and the
-version left unchanged. There is no sorting and no deduplication - a file name present in both
-inputs ends up in the combined file twice, the mod's copy first and the base's copy after it.
+A mod that ships its own asset.dat is loaded by concatenating it with the base game's: all the mod's
+records, then all the base's, counts summed, no sorting or deduplication. **The mod must come first,
+because the cache is first-wins**: the first record naming an asset keeps it (the gate at
+`0x0052C6F6`, see [`sage_patch/docs/multi-mod.md`](../sage_patch/docs/multi-mod.md) section 4b). A
+base-first combine overrides nothing and breaks art the mod replaced, since the stock byte ranges are
+then read from the mod's file (26 files in Edain, `ebfoundationx.w3d` among them).
 
-**The mod's records have to come first, because the cache is first-wins.** Every asset name
-passes a "does the cache already hold this name" gate before it is registered - `0x0052C6F6`,
-with the `jne` at `0x0052C6FF` skipping the type dispatch entirely, derived in
-[`sage_patch/docs/multi-mod.md`](../sage_patch/docs/multi-mod.md) §4b - so the *first* record to
-name an asset keeps it and every later record for that name is dead. A base-first combine
-therefore overrides nothing. Worse, it silently breaks art the mod *replaced*: the stock record
-wins, its `offset`/`size` address the stock file's chunk layout, and the file on disk is the
-mod's, so the engine reads the wrong byte range and the asset fails to load - a model that draws
-nothing, with no error anywhere. In Edain's combined index, 26 of the 789 duplicate file names
-have an asset list that genuinely disagrees between the two halves, `ebfoundationx.w3d` (the
-elven build-plot foundation) among them.
-
-`combine_asset_dats(base, *overlays)` builds this layout for any number of overlays: the
-overlays first, in argument order - so the earlier overlay wins a name contest between two mods
-- and `base` last. The returned `AssetDat` is a new top-level object but shares its
-`FileEntry`/`ReferenceRecord` objects with the inputs, so mutating an entry in the result also
-mutates the corresponding input.
+`combine_asset_dats(base, *overlays)` puts the overlays first, in argument order, then `base`. The
+result shares its entry objects with the inputs.
 
 ```python
 from sage_asset import combine_asset_dats, parse_asset_dat_from_path, write_asset_dat_to_path
@@ -109,64 +70,38 @@ mod = parse_asset_dat_from_path("Edain/_mod/asset.dat")
 write_asset_dat_to_path(combine_asset_dats(base, mod), "combined_asset.dat")
 ```
 
-`shadowed_entries(ad)` reports the shadowing a combine (or any duplicate-carrying asset.dat)
-produced: one `ShadowedEntry` per file-entry occurrence that an earlier same-named entry
-overrides, pairing it with the entry that actually wins. `.identical` is true when the
-shadowed entry has the same `file_time` and asset list as its winner - an unchanged file the
-overlay re-shipped for no reason, pure size bloat rather than a real override. `sage-asset
-combine` prints the identical/changed counts automatically; `--show-overrides` lists every
-shadowed name with its tag.
+`shadowed_entries(ad)` lists each entry an earlier same-named one overrides; `.identical` marks an
+unchanged file an overlay re-shipped for nothing. `sage-asset combine` prints the counts, and
+`--show-overrides` the names.
 
 ## Building an asset.dat
 
-`sage_asset.builder` scans an unpacked art tree - `compiledtextures/` and `Textures/` for
-textures, `w3d/` for models - and builds the `AssetDat` it describes: every texture becomes a
-TEX entry (the lowest-priority extension wins when a stem has more than one - dds < tga < jpg < jpeg < png -
-and the entry is always named `<stem>.tga`; an extension tie between the two texture folders
-goes to the one the engine reads that name from, `Textures/` for `apt_*` and
-`compiledtextures/` for everything else), and every `.w3d` file is walked chunk by chunk to
-list its mesh/hierarchy/animation/HLOD/box sub-assets with their byte range, and to record
-which known textures each mesh references and which sub-objects each HLOD covers. This is a
-faithful port of Brechstange's Edain-Toolbar builder - see the credit above - checked
-byte-for-byte identical to it on the same art tree.
+`build_asset_dat(art_dir)` scans `compiledtextures/`, `Textures/` and `w3d/`: each texture becomes a
+TEX entry named `<stem>.tga` (for several extensions, dds < tga < jpg < jpeg < png), and each `.w3d`
+is walked chunk by chunk for its sub-assets, byte ranges, texture references and HLOD members. Its
+output is byte-identical to the Edain-Toolbar builder's on the same tree.
 
-### Where a texture has to live on disk
-
-The engine derives a texture's path from its file name alone, so an entry in the asset.dat is
-only half the job - the file also has to sit where that derivation points. A name starting
-with `apt_` (the APT user-interface atlases) is read from `art/Textures/`; every other image
-name is read from `art/CompiledTextures/XX/`, where `XX` is the name's first two letters.
-`apt_MainMenu_1.tga` therefore belongs in `art/Textures/` and is invisible from
-`art/CompiledTextures/ap/`, while `aptcomponents_001.tga` - which lacks the underscore - is a
-normal texture and belongs in `art/CompiledTextures/ap/`. Both folders are scanned so either
-kind gets its cache entry from the one place the engine will actually load it.
+The engine derives a texture's location from its name, so the file must sit there: names starting
+`apt_` are read from `art/Textures/`, everything else from `art/CompiledTextures/XX/` (`XX` the
+name's first two letters). `aptcomponents_001.tga` has no underscore, so it is an ordinary texture.
 
 ```python
 from pathlib import Path
 from sage_asset import build_asset_dat, write_asset_dat_to_path
 
-ad = build_asset_dat(Path("art"))  # compiledtextures/, Textures/ and w3d/ under here
-write_asset_dat_to_path(ad, "asset.dat")
-
-# report progress (e.g. from a UI) with a callback: percent (0-100), status message
 ad = build_asset_dat(Path("art"), progress=lambda percent, message: print(percent, message))
+write_asset_dat_to_path(ad, "asset.dat")
 ```
 
 ## Checking an asset.dat against its art tree
 
-`sage-asset check --art <art_dir>` catches the classic failure: the art changed but the
-asset.dat wasn't rebuilt. It compares the asset.dat's entries against `art_dir`'s current state
-- the same collection rules `build` uses (texture extension priority, `.tga`/`.w3d` naming),
-but without the expensive W3D chunk parse (`collect_art_index`) - and reports:
+`sage-asset check --art <art_dir>` catches an asset.dat that was not rebuilt after the art changed,
+using the builder's collection rules without its W3D parse:
 
-- **missing** - files the tree has that the asset.dat doesn't list at all
-- **stale** - entries whose recorded `file_time` no longer matches the source file's current one
-- **orphaned** - entries whose source file is no longer in the tree
-
-`missing` or `stale` findings fail the check (exit 1); `orphaned` alone does not. `--art` is
-meant for a mod's own asset.dat checked against its own art tree - a *combined* asset.dat
-legitimately carries base-game entries that mod's art tree never had, and those show up as
-orphaned rather than as a problem.
+- **missing**: files in the tree the asset.dat does not list (fails the check);
+- **stale**: entries whose `file_time` no longer matches the file (fails the check);
+- **orphaned**: entries whose file is gone. Expected for a combined asset.dat, whose base-game
+  entries are not in the mod's tree.
 
 ## Model
 
@@ -179,56 +114,37 @@ ReferenceRecord(file_name: str, asset_name: str, references: list[str])
 AssetDat(version: int, files: list[FileEntry], references: list[ReferenceRecord])
 ```
 
-`AssetDat` adds a few read-only conveniences: `file(name)` (case-insensitive lookup),
-`references_for(file_name, asset_name)` (a list of reference lists - duplicates exist in the
-wild), and `asset_counts()` (asset tally by type).
-
-`w3d_references(data: bytes) -> W3dRefs` reads a single `.w3d` file's outward references
-without a texture or `w3d/` tree or an asset.dat: `W3dRefs.textures` is the texture
-names its meshes carry, `W3dRefs.hierarchies` the external skeleton stem(s) its HLOD(s) pull
-in (empty when the file carries its own hierarchy-def).
-
-## Example
+`AssetDat.file(name)` looks up case-insensitively, `references_for(file_name, asset_name)` returns
+every matching reference list, and `asset_counts()` tallies by type. `w3d_references(data)` reads
+one `.w3d`'s texture names and external skeletons without any tree or asset.dat.
 
 ```python
 from sage_asset import parse_asset_dat_from_path, write_asset_dat_to_path
 
 ad = parse_asset_dat_from_path("asset.dat")
-print(ad.version, len(ad.files), len(ad.references))
-
 entry = ad.file("acolyte_soul.w3d")
 print(entry.modified, [a.name for a in entry.assets])
-
-for refs in ad.references_for("acolyte_soul.w3d", "ACOLYTE_SOUL"):
-    print(refs)
-
 write_asset_dat_to_path(ad, "asset.rewritten.dat")  # byte-identical to the input
 ```
 
 ## Command-line tool
 
 ```
-sage-asset info <dat>                  # version, counts, per-type tallies, file_time range
+sage-asset info <dat>                      # version, counts, per-type tallies, file_time range
 sage-asset ls <dat> [--type TEX] [--files-only]
 sage-asset deps <dat> <name> [--reverse]   # reference lists; --reverse: who references <name>
 sage-asset json <dat> [--out] [--compact]
-sage-asset check <dat> [--art <art_dir>]   # round-trip + consistency + dangling-ref warnings;
-                                            # --art also compares against the art tree's state
-sage-asset diff <a> <b>                # files added / removed / changed
-sage-asset combine <base> <overlay> [<overlay> ...] -o <out> [--show-overrides]
-                                        # concatenate base + overlay(s); reports shadowing
-sage-asset build <art_dir> -o <out>    # scan the art tree and write asset.dat
+sage-asset check <dat> [--art <art_dir>]   # round-trip, consistency, dangling references
+sage-asset diff <a> <b>                    # files added / removed / changed
+sage-asset combine <base> <overlay>... -o <out> [--show-overrides]
+sage-asset build <art_dir> -o <out>        # scan the art tree and write asset.dat
 ```
 
 ## Desktop UI
 
-A small PyQt6 window for the two operations most useful outside a terminal - building an
-asset.dat from an art tree and combining a base with a mod overlay - with a progress bar on the
-build and both operations reporting their result counts, in the style of the other SAGE front
-ends (`sage-lint-ui`, `sage-ui`). Install the `asset-ui` extra and launch it:
+A small window for building and combining, with a progress bar:
 
 ```
 pip install "pysage-tools[asset-ui]"
-sage-asset-ui
-# or: python -m sage_asset.ui
+sage-asset-ui        # or: python -m sage_asset.ui
 ```

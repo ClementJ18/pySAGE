@@ -2,22 +2,18 @@
 construct/validate counts, formatted as a single comparable table."""
 
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from sage_ini.model.game import Game
-from sage_ini.parser.blockparser import include_target, parse, parse_file, resolve_include
+from sage_ini.parser.blockparser import parse, parse_file
 from sage_ini.parser.io import iter_ini_files, read_text, read_text_with_encoding
-from sage_ini.parser.lexer import COMMENT_MARKERS, tokenize, tokenize_path
+from sage_ini.parser.lexer import COMMENT_MARKERS, tokenize
 from sage_ini.parser.printer import print_document
+from sage_ini.paths import ini_root, root_files
 
 __all__ = [
-    "ini_root",
-    "as_root_list",
-    "is_map_path",
-    "root_files",
-    "included_files",
     "compute_scoreboard",
     "format_scoreboard",
     "Scoreboard",
@@ -52,56 +48,6 @@ METRICS: dict[str, Callable[[Path], bool]] = {
     "tokenizes": _tokenizes,
     "round-trips": _round_trips,
 }
-
-
-def ini_root(root: str | Path) -> Path:
-    """The directory root-relative includes resolve against: the scan root, or its nested
-    `data/ini` when the corpus dump keeps the full game layout."""
-    root = Path(root)
-    nested = root / "data" / "ini"
-    return nested if nested.is_dir() else root
-
-
-def as_root_list(root: str | Path | Sequence[str | Path]) -> list[Path]:
-    """Normalize a game-root argument - a single root, or an ascending-priority sequence of them
-    (a later root shadows an earlier one) - to a list of `Path`s. The shared spelling the loader
-    and the ThingTemplate walk use so multiple `--game` roots layer the same way in both."""
-    if isinstance(root, (str, Path)):
-        return [Path(root)]
-    return [Path(part) for part in root]
-
-
-def is_map_path(path: str | Path, root: str | Path) -> bool:
-    """Whether `path` is map-scoped - beneath a `maps/` directory under `root`. A map.ini
-    is per-map (its definitions never leak to the global game), so whole-game assembly
-    excludes these files."""
-    root = Path(root)
-    try:
-        parts = Path(path).relative_to(root).parts
-    except ValueError:
-        parts = Path(path).parts
-    return any(part.lower() == "maps" for part in parts[:-1])
-
-
-def included_files(root: str | Path) -> set[str]:
-    """Lowercased resolved paths of every file `#include`d by another."""
-    layers = (ini_root(root),)
-    included: set[str] = set()
-    for path in iter_ini_files(root):
-        source = path.resolve()
-        for line in tokenize_path(source):
-            target = include_target(line.content)
-            if target is not None:
-                resolved = resolve_include(target, source, layers)
-                if resolved is not None:
-                    included.add(str(resolved).lower())
-    return included
-
-
-def root_files(root: str | Path) -> list[Path]:
-    """Files that are not included by any other file - the parse units."""
-    included = included_files(root)
-    return [path for path in iter_ini_files(root) if str(path.resolve()).lower() not in included]
 
 
 STRUCTURAL_CODES = frozenset({"stray-end", "unclosed-block", "unclosed-script"})

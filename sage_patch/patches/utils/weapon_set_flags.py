@@ -1,35 +1,35 @@
 """The engine's `WeaponSetFlags` name table, and how a patch appends a name to it.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address here is derived
-in ``../docs/production-model-condition.md`` §10.
+Targets the ROTWK SAGE-engine `game.dat` build `2.01.2614.37001`. Every address here is derived
+in `../docs/production-model-condition.md` §10.
 
 A `WeaponSetFlag` is what an object's `WeaponSet` blocks select on: `WeaponSet::updateWeaponSet`
-(``0x006C99E2``) scores every `WeaponTemplateSet` the `ThingTemplate` declares against the flags
+(`0x006C99E2`) scores every `WeaponTemplateSet` the `ThingTemplate` declares against the flags
 the object is currently carrying, and installs the winner. Adding a name to this table therefore
-buys a mod a new ``Conditions =`` token - a whole extra weapon loadout switchable from the engine
+buys a mod a new `Conditions =` token - a whole extra weapon loadout switchable from the engine
 side.
 
 Why this is cheaper than a model condition
 ------------------------------------------
 The table is read through its **terminator**, never through a count:
 
-* the INI token resolves through `INI::scanIndexList` (``0x0042B914``), which walks to the NULL;
-* `getBitFromName` (``0x0068CE19``) walks to the NULL;
-* selection is pure mask arithmetic - the two scoring helpers (``0x0073C77B`` matched-bit
-  popcount, ``0x0073C7D2`` mismatched-bit popcount) loop over **4 dwords** flat, as do the
-  whole-mask set (``0x0068CC53``) and clear (``0x0068CC38``) helpers.
+* the INI token resolves through `INI::scanIndexList` (`0x0042B914`), which walks to the NULL;
+* `getBitFromName` (`0x0068CE19`) walks to the NULL;
+* selection is pure mask arithmetic - the two scoring helpers (`0x0073C77B` matched-bit
+  popcount, `0x0073C7D2` mismatched-bit popcount) loop over **4 dwords** flat, as do the
+  whole-mask set (`0x0068CC53`) and clear (`0x0068CC38`) helpers.
 
 So there is no count to raise anywhere on the path that makes a new flag *work*, and none of the
 ten-count-sites problem `ModelConditionFlags` has. Relocating the table and repointing its eight
 references is the entire data-side patch.
 
-Why :data:`BIT_COUNT_VA` is asserted and never written
+Why `BIT_COUNT_VA` is asserted and never written
 ------------------------------------------------------
-`getBitCount` (``0x0068CC34``: ``push 0x68; pop eax; ret``) answers **104**, and exactly two
+`getBitCount` (`0x0068CC34`: `push 0x68; pop eax; ret`) answers **104**, and exactly two
 things consume it, neither of which a new flag wants to be part of:
 
-* ``0x00690F40`` and ``0x0069120E`` walk bits ``0..103`` against the weaponset-to-model-condition
-  map at ``0x00C16958``, which has **104 entries**. Raising the count without extending that map
+* `0x00690F40` and `0x0069120E` walk bits `0..103` against the weaponset-to-model-condition
+  map at `0x00C16958`, which has **104 entries**. Raising the count without extending that map
   would read past it; leaving it alone keeps bit 104 out of a mapping it has no entry in anyway,
   which is what a patch that already installs its own model condition wants.
 * `xfer` bounds the saved bit list by it, so bit 104 is not written to a savegame. That is a
@@ -37,7 +37,7 @@ things consume it, neither of which a new flag wants to be part of:
   the driver of such a flag must be **level-triggered**, testing the bit each frame rather than
   acting on a transition, so a loaded game re-asserts it.
 
-:func:`read` therefore asserts those four bytes verbatim: the count staying at 104 is an
+`read` therefore asserts those four bytes verbatim: the count staying at 104 is an
 invariant this patch relies on, not an incidental fact.
 """
 
@@ -73,14 +73,14 @@ __all__ = [
 
 
 #: The stock NULL-terminated `WeaponSetFlags` name table. Only used to recognise an unpatched
-#: image - :func:`read` follows the references.
+#: image - `read` follows the references.
 NAME_TABLE_VA = 0x00DA1328
 
 #: Named flags in the stock table, and `getBitCount`'s answer.
 STOCK_FLAG_COUNT = 104
 
 #: Every reference to the table. All eight are a bare imm32 holding the base, all in `.text`:
-#: the two name<->bit helpers, the three `Conditions =` parse arms (``+FLAG``, ``-FLAG``, bare),
+#: the two name<->bit helpers, the three `Conditions =` parse arms (`+FLAG`, `-FLAG`, bare),
 #: `getBitNames`, and the debug mask dumper.
 TABLE_REF_VAS = (
     0x0068CD7A,  # nameFromBit  -> mov eax, [eax*4 + <table>]
@@ -93,7 +93,7 @@ TABLE_REF_VAS = (
     0x008816B5,  # the debug mask dumper
 )
 
-#: Names at these indices fingerprint the build. Every index is below :data:`STOCK_FLAG_COUNT`,
+#: Names at these indices fingerprint the build. Every index is below `STOCK_FLAG_COUNT`,
 #: so the check keeps working once the table has grown.
 TABLE_FINGERPRINT = {
     0: "VETERAN",
@@ -103,25 +103,25 @@ TABLE_FINGERPRINT = {
 }
 
 #: `Object`'s `WeaponSetFlags`, and its length in dwords. `Object::getWeaponSetFlags`
-#: (``0x0068BE7D``) is literally ``lea eax, [ecx+0x38c]; ret``, and every whole-mask helper loops
+#: (`0x0068BE7D`) is literally `lea eax, [ecx+0x38c]; ret`, and every whole-mask helper loops
 #: 4 dwords - so 104 named flags leave bits 104..127 allocated and unnamed.
 MASK_OFFSET = 0x38C
 MASK_DWORDS = 4
 
-#: `getBitCount` - ``push 0x68; pop eax; ret``. Asserted, never written; see the module docstring.
+#: `getBitCount` - `push 0x68; pop eax; ret`. Asserted, never written; see the module docstring.
 BIT_COUNT_VA = 0x0068CC34
 BIT_COUNT_BYTES = bytes.fromhex("6a6858c3")
 
 #: `Object::setWeaponSetFlags(const WeaponSetFlags&)` / `clearWeaponSetFlags`. Both are `thiscall`
-#: with one stack argument (``ret 4``) taking a **whole mask**, not a bit index: they OR / AND-NOT
-#: it into ``Object+0x38C`` and then call `WeaponSet::updateWeaponSet`, which is what actually
-#: re-selects the weapon. Pass :func:`mask_bytes` for the argument.
+#: with one stack argument (`ret 4`) taking a **whole mask**, not a bit index: they OR / AND-NOT
+#: it into `Object+0x38C` and then call `WeaponSet::updateWeaponSet`, which is what actually
+#: re-selects the weapon. Pass `mask_bytes` for the argument.
 SET_FLAGS_VA = 0x0068DECA
 CLEAR_FLAGS_VA = 0x006911B7
 
 
 def mask_bytes(bit: int) -> bytes:
-    """The 4-dword `WeaponSetFlags` constant with only ``bit`` set - the argument the two helpers
+    """The 4-dword `WeaponSetFlags` constant with only `bit` set - the argument the two helpers
     above take. A patch parks one of these in its own cave and pushes its address."""
     if not 0 <= bit < MASK_DWORDS * 32:
         raise ValueError(f"weapon set flag {bit} is outside the {MASK_DWORDS * 32}-bit mask")
@@ -163,7 +163,7 @@ def relocation_edits(
 
 
 def check_free(table: NameTable, data: bytes | bytearray, new_names: Sequence[str]) -> None:
-    """Raise unless every name in ``new_names`` can be added: not already present, and still
+    """Raise unless every name in `new_names` can be added: not already present, and still
     inside the 128-bit mask once appended."""
     for name in new_names:
         index = table.index_of(data, name)

@@ -1,60 +1,12 @@
-"""The replay-annotations patch: write the engine's own score-keeping into the replay.
+"""Write each player's score-screen counters into the replay: built, lost and destroyed per
+opponent, money earned and spent.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/replay-annotations.md``.
+A replay records inputs only, but every `Player`'s `ScoreKeeper` holds the counters. A `.rpann`
+section hooks the `stopRecording` call at the end of recording (`0x0077F992`), after the end marker
+and before the file closes, and writes the counters as `0x7D1`/`0x7D3` chunks straight to the
+recorder's file. Read them back with `sage_replay.annotations`.
 
-**The gap it closes.** A replay records *inputs*. Kills, losses, buildings traded and money
-earned are computed by the simulation, so no chunk carries them and no amount of order-stream
-analysis recovers them - which is why :mod:`sage_replay` can report what a player *did* and
-never what it *cost* them. The engine has the numbers the whole time: every `Player` embeds a
-`ScoreKeeper` at ``+0x3DC`` holding the score-screen counters, including two `Int[20]` arrays
-indexed by the **victim's** `m_playerIndex` - a per-opponent kill matrix, not just a total.
-
-**What it does.** Appends a ``.rpann`` PE section holding two chunk templates plus a routine,
-and retargets the ``stopRecording`` call in ``RecorderClass::updateRecord``'s
-``MSG_CLEAR_GAME_DATA`` branch (``0x0077F992``). That branch is where every ending converges,
-and this is its second and last hook site: the ``0x1D`` end marker has been written, the file
-is still open, and ``stopRecording`` - which closes it - has not run yet. The routine writes:
-
-``ANNOTATION_MANIFEST`` (``0x7D1``), once
-    schema version, a bitmask of the record kinds this build writes, and a writer id, so a
-    consumer can tell "this build does not record scores" from "this game scored nothing".
-
-``PLAYER_SCORE`` (``0x7D3``), one per player
-    the keeper's counters, laid out in :data:`SCORE_FIELDS` order.
-
-**Why the *second* call and not the first.** ``replay-outcome`` owns ``0x0077F98B``, and two
-patches must not edit one site (:class:`~sage_patch.patcher.Patch`, composing rule 2). Hooking
-the sibling call keeps both patches applicable in either order, at the cost of landing these
-chunks *after* the ``0x1D`` marker rather than before it. They carry the same timecode either
-way - ``writeToFile`` and this cave both read ``TheGameLogic->m_frame`` - so the header's
-``num_timecodes`` still equals the last chunk's timecode and ``parse_replay``'s consistency
-check passes unchanged.
-
-**Why write the file directly rather than append a message.** The recorder only copies types
-1001..1998 off the command list - the *network* range, relayed to every peer and executed by
-all of them. Injecting an order to carry statistics would put a new message type on the wire
-and make the patch a desync risk every peer had to share. Writing the bytes ourselves keeps it
-client-local: nothing enters the simulation, nothing crosses the network, and an unpatched peer
-is unaffected.
-
-**Why these order types.** ``RecorderClass::updateRecord`` records ``0x1D`` plus the open range
-``0x3E8 < type < 0x7CF``, and the ``GameMessage::Type`` enum stops at ``0x47B`` (see
-``../docs/message-stream.md``), so everything from ``0x7D0`` up is unreachable for the engine.
-``0x7D0`` is ``replay-outcome``'s; these take the next two of the reserved
-``0x7D0``-``0x7EF`` annotation block.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name, and the only engine bytes it edits are the five of the ``call``
-at ``0x0077F992``, which no other bundled patch touches. Its guards deliberately read no byte
-``replay-outcome`` rewrites, so the two verify cleanly in either order.
-
-Section layout, at the base::
-
-    +0x00   manifest     MANIFEST_LEN bytes, written once
-    +0x20   score        SCORE_LEN bytes, rewritten per player
-    +0xF8   file         dword  the recorder's FILE*, held across the loop
-    +0x100  code
+Derivation: `../docs/replay-annotations.md` and `../docs/message-stream.md`.
 """
 
 from __future__ import annotations
@@ -147,7 +99,7 @@ SCORE_TYPE = 0x7D3
 #: Integer argument 0 of every annotation chunk. Records grow by *appending* arguments and
 #: bumping this; an argument position, once shipped, never changes meaning.
 #:
-#: v2 appends the eight `Player`-level fields in :data:`SCORE_FIELDS` marked `since=2` - the
+#: v2 appends the eight `Player`-level fields in `SCORE_FIELDS` marked `since=2` - the
 #: seat's resolved faction, its resource balance, its spellbook points and its command-point
 #: block. A v1 reader stops after `structures_lost` and is unaffected; this package's reader
 #: takes whichever prefix a record carries.
@@ -178,7 +130,7 @@ MANIFEST_VALUES = ("schema_version", "kinds", "writer_id")
 #: `units_built`, `units_lost`, `structures_destroyed[20]`, `structures_built`,
 #: `structures_lost` are contiguous in the keeper, so the cave copies all six counters with a
 #: single `rep movsd` - one instruction to get right instead of forty-four.
-#: Each entry is ``(name, width, since)`` - `since` being the schema version that introduced
+#: Each entry is `(name, width, since)` - `since` being the schema version that introduced
 #: it, so a reader can tell a field a record predates from one it is missing.
 #:
 #: The `since=2` tail is read off the `Player` rather than its keeper, which is why it sits
@@ -273,7 +225,7 @@ def score_template() -> bytes:
 
 
 def _value_va(base: int, chunk_off: int, index: int) -> int:
-    """The address of Integer ``index`` of the chunk template at ``chunk_off``."""
+    """The address of Integer `index` of the chunk template at `chunk_off`."""
     return base + chunk_off + CHUNK_VALUES_OFF + 4 * index
 
 
@@ -427,7 +379,7 @@ def _build_code(base_va: int) -> bytes:
 
 
 def build_section(base_va: int) -> bytes:
-    """The whole ``.rpann`` payload: the two chunk templates, the `FILE*` slot, then code."""
+    """The whole `.rpann` payload: the two chunk templates, the `FILE*` slot, then code."""
     body = bytearray(CODE_OFF)
     body[MANIFEST_OFF : MANIFEST_OFF + MANIFEST_LEN] = manifest_template()
     body[SCORE_OFF : SCORE_OFF + SCORE_LEN] = score_template()

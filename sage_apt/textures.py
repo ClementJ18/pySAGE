@@ -88,7 +88,7 @@ class AptTextureResolver:
         """The image's on-screen (x, y, w, h) - passthrough to the image map."""
         return self.image_map.rect_of(image_id)
 
-    # --- shape geometry ---
+    # Shape geometry
 
     def shape_fills(self, geometry_id: int) -> list[Fill]:
         """The parsed fills for a shape's geometry id (empty when none/unloaded)."""

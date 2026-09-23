@@ -23,8 +23,8 @@ class ScriptImportSize:
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
-            width = context.stream.readUInt32()
-            height = context.stream.readUInt32()
+            width = context.stream.read_uint32()
+            height = context.stream.read_uint32()
 
         context.logger.debug(f"Finished parsing {cls.asset_name}")
         return cls(
@@ -37,5 +37,5 @@ class ScriptImportSize:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(self.width)
-            context.stream.writeUInt32(self.height)
+            context.stream.write_uint32(self.width)
+            context.stream.write_uint32(self.height)

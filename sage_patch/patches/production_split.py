@@ -1,62 +1,13 @@
-"""The production-split patch: four `ModifierList` keywords that separate the things
-`PRODUCTION` currently means, plus the one it never meant.
+"""Add `PRODUCTION_MONEY`, `PRODUCTION_UNIT`, `PRODUCTION_UPGRADE` and `PRODUCTION_CONSTRUCTION`
+modifiers, each affecting only its share of what `PRODUCTION` means.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/construction-speed-modifiers.md``.
+The four names are appended to the modifier-type table and six `call` sites are repointed so each
+consults its own keyword; `PRODUCTION` itself is untouched and still stacks. There is no hero
+keyword: a hero's completion is wall-clock and never reads accrued progress (`0x008A1EF3` routes it
+elsewhere). Construction reads the structure being built. `ProductionSplitWorldbuilderPatch` teaches
+the editor the tokens.
 
-**What `PRODUCTION` is today.** Type index 13 is read at eight sites and means four different
-things at once: per-tick resource income (`AutoDepositUpdate`, `TerrainResourceBehavior`, the
-`SlaughterHordeContain` cash-back path, `SupplyCenterDockUpdate`), per-frame progress on
-*everything* in a production queue (`ProductionUpdate::update`), and - through three more sites -
-what the AI thinks a building is worth. A mod that wants a unit to train faster has to write a
-modifier that also multiplies farm output.
-
-Structure construction is the fifth thing, and `PRODUCTION` does not reach it at all: a building
-under construction advances in exactly one place, the `DozerAIUpdate` build state machine, which
-divides `100` and `maxHealth` by the frame count `ThingTemplate::calcTimeToBuild` returns.
-
-**What this adds.** Four names on the end of the modifier-type table - `PRODUCTION_MONEY`,
-`PRODUCTION_UNIT`, `PRODUCTION_UPGRADE`, `PRODUCTION_CONSTRUCTION` (indices 28..31 on a binary
-this patch reached first, higher behind another patch that appends a type) - and six `call rel32`
-repointed so each site consults the keyword that belongs to it.
-
-**`PRODUCTION` is deliberately left alone.** Each new keyword multiplies *in addition to*
-whatever type 13 already contributes at that site, and an absent modifier is 1.0, so applying
-this patch to an install changes nothing until INI starts using the new names. That is what makes
-it cheap to test and cheap to back out; repointing the sites' existing ``push 0x0D`` immediates
-instead would be one byte smaller per site and would silently change every mod already shipping
-`PRODUCTION`.
-
-**The queue is one hook for two keywords.** `ProductionUpdate::update` accrues progress for
-every queue entry at one call, and the entry's kind is a dword at ``entry+0x04``: 1 = unit,
-2 = upgrade, 3 = hero. The hook reads that dword and picks `PRODUCTION_UNIT` or
-`PRODUCTION_UPGRADE`.
-
-**There is no hero keyword, and kind 3 is handed straight back to the stock callee.** Scaling the
-accrual cannot speed a hero up. At ``0x008A1EF3`` the engine tests the kind and routes kind 3 to a
-completely different completion test: it asks the player's hero ledger at ``Player+0x758`` for a
-readiness fraction (``0x00780C9F``), which is pure wall clock -
-``(currentFrame - startFrame) / totalFrames`` - and never reads the accrued ``entry+0x1c``. Only
-kinds 1 and 2 reach the ``comiss`` at ``0x008A1F6B`` where accrued progress becomes completion.
-Measured live on 2026-08-13: a hero keyword of 5.0 drove the queue entry's percentage to 480%
-while the hero still arrived on its unscaled 150-frame schedule. A hero keyword that worked would
-have to divide the frame count instead, at the `calcTimeToBuild` inside ``0x00780687``
-(``0x007806DF``, which feeds both the ledger's denominator and the bar's) - a different hook with
-a different shape, deliberately not in this patch. So kind 3 skips the widening entirely and
-tail-jumps to `getModifierMultiplier`, leaving the site behaving exactly as if it were never
-hooked, rather than offering a keyword that only moves a progress bar.
-
-**Construction reads the structure being built**, not its builder. `edi` at the hooked call is
-the object going up and survives the call; the builder is only reachable through a slot in the
-caller's frame, which is a fragile dependency for a factor that reads just as naturally as "an
-aura over the build site makes it go up faster".
-
-**Nothing else has to grow.** There is no array indexed by modifier type anywhere in the engine:
-`ModifierList::getValue` (``0x00805268``) is a linear scan comparing a stored dword, and the
-holder walk above it is type-agnostic. The one structural cost is the name table itself, which has
-no slack, so it is rebuilt in the cave and its two references are repointed -
-:mod:`.utils.modifier_types` owns that table and the rules for sharing it with `healing-received`,
-which appends to it too.
+Derivation: `../docs/construction-speed-modifiers.md`.
 """
 
 from __future__ import annotations
@@ -70,7 +21,7 @@ from sage_ini.engine import Engine, EnumDelta
 
 from ..asm import JBE, JE, JGE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, va_to_offset
 from .utils import modifier_types, name_tables
 
 __all__ = [
@@ -89,17 +40,17 @@ __all__ = [
 ]
 
 
-#: `Object::getModifierMultiplier(type, Real *out, ctx, flag)` - ``__thiscall``, ``ret 0x10``,
-#: returns "any modifier contributed" in ``al`` and writes the **product** through ``out``, which
-#: it seeds to 1.0 on entry (``0x00805007``). That seeding is why a cave that calls it twice has
-#: to keep the first result somewhere other than ``*out``.
+#: `Object::getModifierMultiplier(type, Real *out, ctx, flag)` - `__thiscall`, `ret 0x10`,
+#: returns "any modifier contributed" in `al` and writes the **product** through `out`, which
+#: it seeds to 1.0 on entry (`0x00805007`). That seeding is why a cave that calls it twice has
+#: to keep the first result somewhere other than `*out`.
 GET_MODIFIER_MULTIPLIER = 0x0068C82D
 
 #: `ThingTemplate::calcTimeToBuild(Player*, Object *producer, Int overrideSeconds)` -
-#: ``__thiscall``, ``ret 0xC``, returns the build time in frames.
+#: `__thiscall`, `ret 0xC`, returns the build time in frames.
 CALC_TIME_TO_BUILD = 0x0073C39E
 
-#: The modifier-type name table, as :mod:`.utils.modifier_types` describes it. The stock address
+#: The modifier-type name table, as `utils.modifier_types` describes it. The stock address
 #: and count are here to recognise an unpatched image; the patch itself reads the **live** table
 #: through the references, so it composes with any other patch that appends a type.
 TYPE_TABLE_VA = modifier_types.NAME_TABLE_VA
@@ -135,12 +86,12 @@ class TypeIndices:
 
 
 def type_indices(first_index: int) -> TypeIndices:
-    """The four indices for a table whose first free slot is ``first_index``."""
+    """The four indices for a table whose first free slot is `first_index`."""
     return TypeIndices(*(first_index + position for position in range(len(NEW_TYPES))))
 
 
-#: `ProductionUpdate`'s queue-entry kind, at ``entry+0x04``, and the values the engine's own two
-#: dispatches (``0x008A04F5`` for the total time, ``0x008A1F74`` at completion) branch on.
+#: `ProductionUpdate`'s queue-entry kind, at `entry+0x04`, and the values the engine's own two
+#: dispatches (`0x008A04F5` for the total time, `0x008A1F74` at completion) branch on.
 QUEUE_KIND_OFFSET = 0x04
 QUEUE_KIND_UNIT = 1
 QUEUE_KIND_UPGRADE = 2
@@ -152,7 +103,7 @@ QUEUE_KIND_HERO = 3
 OBJECT_CONSTRUCTION_PERCENT = 0x288
 
 
-#: Every hooked `call`, as ``(call VA, stock target, thunk, note)``. ``thunk`` names the cave
+#: Every hooked `call`, as `(call VA, stock target, thunk, note)`. `thunk` names the cave
 #: entry point, resolved once the section is laid out.
 HOOKS: tuple[tuple[int, int, str, str], ...] = (
     (0x0089DC44, GET_MODIFIER_MULTIPLIER, "money", "AutoDepositUpdate income"),
@@ -164,7 +115,7 @@ HOOKS: tuple[tuple[int, int, str, str], ...] = (
 )
 
 #: The AI's own reading of how productive a building is: two valuation sites and one that picks
-#: the object with the highest multiplier. Opt-in (``--ai-sites``) because the third **compares**
+#: the object with the highest multiplier. Opt-in (`--ai-sites`) because the third **compares**
 #: multipliers rather than accumulating one, so what a product means there is a balance question
 #: rather than a mechanical one - and because leaving them stock only costs an AI that
 #: under-values a `PRODUCTION_MONEY` building.
@@ -175,8 +126,8 @@ AI_HOOKS: tuple[tuple[int, int, str, str], ...] = (
 )
 
 
-#: Byte windows the patch depends on and does not rewrite, as ``{va: expected bytes}``. Each hook
-#: window carries the `call` being repointed - :meth:`ProductionSplitPatch.verify` blanks those
+#: Byte windows the patch depends on and does not rewrite, as `{va: expected bytes}`. Each hook
+#: window carries the `call` being repointed - `ProductionSplitPatch.verify` blanks those
 #: five bytes, and the two table operands, before comparing, so the same table checks a patched
 #: image.
 ANCHORS: dict[int, bytes] = {
@@ -256,11 +207,6 @@ _ZERO_F = struct.pack("<f", 0.0)
 _ONE_F = struct.pack("<f", 1.0)
 
 
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
-
-
 def _read_c_string(data: bytes | bytearray, va: int, limit: int = 64) -> str:
     off = va_to_offset(data, va)
     if off is None:
@@ -272,10 +218,10 @@ def _read_c_string(data: bytes | bytearray, va: int, limit: int = 64) -> str:
 def read_table(data: bytes | bytearray) -> name_tables.NameTable:
     """The live modifier-type table, wherever the image's two references now point.
 
-    Delegates to :func:`.modifier_types.read`, which checks that the references agree, that the
+    Delegates to `modifier_types.read`, which checks that the references agree, that the
     table is NULL-terminated and that the fingerprint names sit at their known indices. Reading
     the *names* rather than only the pointers is what makes the check meaningful - the pointers
-    themselves are just plausible addresses, and ``.data`` holds some 135 identical copies of the
+    themselves are just plausible addresses, and `.data` holds some 135 identical copies of the
     stock array for the linker's own reasons."""
     return modifier_types.read(data)
 
@@ -285,10 +231,10 @@ def _emit_widen(a: Asm, push_type: bytes) -> None:
     hand the caller the product of the two.
 
     Entered by a repointed `call` to `getModifierMultiplier`, so the four arguments are still on
-    the stack exactly as the site pushed them and ``ecx`` is the `Object`. Leaves through the same
-    ``ret 0x10`` the stock callee would have, with ``al`` set if **either** query contributed.
+    the stack exactly as the site pushed them and `ecx` is the `Object`. Leaves through the same
+    `ret 0x10` the stock callee would have, with `al` set if **either** query contributed.
 
-    ``push_type`` is the one instruction that differs: an immediate for the money sites, a frame
+    `push_type` is the one instruction that differs: an immediate for the money sites, a frame
     slot for the queue site, which resolves its type from the entry kind first."""
     a.emit(0x55)  # push ebp
     a.emit(b"\x8b\xec")  # mov  ebp, esp        ; +8 type, +0xc out, +0x10 ctx, +0x14 flag
@@ -341,7 +287,7 @@ def _build_money(base_va: int, types: TypeIndices) -> bytes:
 def _build_queue(base_va: int, types: TypeIndices) -> bytes:
     """The queue thunk: the same widening, with the second type chosen from the entry kind.
 
-    ``ebx`` is `ProductionUpdate::update`'s queue entry and is callee-saved, so it still holds the
+    `ebx` is `ProductionUpdate::update`'s queue entry and is callee-saved, so it still holds the
     entry here - the kind is read before anything is clobbered and parked in the frame slot the
     shared body pushes. A kind the engine does not currently produce falls to `PRODUCTION_UNIT`,
     which is the queue's own default shape.
@@ -349,8 +295,8 @@ def _build_queue(base_va: int, types: TypeIndices) -> bytes:
     **Kind 3 leaves before the prologue.** A hero's completion is decided by the player's hero
     ledger rather than by this accrual (see the module docstring), so there is no keyword that
     could honestly apply here. The test is the first thing the thunk does, while the arguments and
-    ``ecx`` are still exactly as the site pushed them, and the exit is a ``jmp`` rather than a
-    ``call`` so the stock callee returns straight to the site - byte for byte the behaviour of an
+    `ecx` are still exactly as the site pushed them, and the exit is a `jmp` rather than a
+    `call` so the stock callee returns straight to the site - byte for byte the behaviour of an
     unhooked engine."""
     a = Asm(base_va)
     a.emit(b"\x83\x7b", QUEUE_KIND_OFFSET, QUEUE_KIND_HERO)  # cmp dword [ebx+4], 3
@@ -385,8 +331,8 @@ def _build_queue(base_va: int, types: TypeIndices) -> bytes:
 
 
 def _widen_prologue_length() -> int:
-    """How many bytes of :func:`_emit_widen` are the prologue the queue thunk emits itself
-    (through the ``sub esp, 8``). Derived rather than counted, so it cannot drift from the body."""
+    """How many bytes of `_emit_widen` are the prologue the queue thunk emits itself
+    (through the `sub esp, 8`). Derived rather than counted, so it cannot drift from the body."""
     probe = Asm(0)
     _emit_widen(probe, b"\x6a\x00")
     return probe.finish().index(b"\x83\xec\x08") + 3
@@ -399,7 +345,7 @@ def _build_construction(base_va: int, zero_va: int, types: TypeIndices) -> bytes
     """The construction thunk: divide the build time by `PRODUCTION_CONSTRUCTION`.
 
     Entered by the repointed `call` to `calcTimeToBuild`, so the three arguments are on the stack
-    and ``ecx`` is the `ThingTemplate`; leaves through the same ``ret 0xC``. ``edi`` is the
+    and `ecx` is the `ThingTemplate`; leaves through the same `ret 0xC`. `edi` is the
     structure going up - the caller loaded it before the call and it is callee-saved.
 
     The frame count is what the caller divides both `100` and `maxHealth` by, so scaling it here
@@ -453,13 +399,13 @@ def _build_construction(base_va: int, zero_va: int, types: TypeIndices) -> bytes
 def build_section(
     base_va: int, existing_pointers: Sequence[int]
 ) -> tuple[bytes, dict[str, int], int]:
-    """``(section content, {thunk name: VA}, rebuilt table VA)`` for a cave based at ``base_va``.
+    """`(section content, {thunk name: VA}, rebuilt table VA)` for a cave based at `base_va`.
 
-    ``existing_pointers`` is the live table copied through by pointer, so every type already named
+    `existing_pointers` is the live table copied through by pointer, so every type already named
     keeps its index and its original string, and the four new names take the slots after it.
 
     The layout is data first, code second, so the table and the constants sit at addresses the
-    code can name and :meth:`ProductionSplitPatch.verify` can find without knowing how long the
+    code can name and `ProductionSplitPatch.verify` can find without knowing how long the
     code is: two floats, then the rebuilt pointer table and its terminator, then the new name
     strings the tail of that table points at, then the thunks.
     """
@@ -497,6 +443,7 @@ class ProductionSplitPatch(Patch):
 
     name = "production-split"
     author = "officialNecro"
+    runtime_verified = "partly"
     description = (
         "PRODUCTION_MONEY / _UNIT / _UPGRADE / _CONSTRUCTION modifiers, each affecting only its "
         "own share of what PRODUCTION means today. Name them on a ModifierList's Modifier line; "
@@ -517,9 +464,9 @@ class ProductionSplitPatch(Patch):
     @property
     def anchors(self) -> dict[int, bytes]:
         """Both tables, always. The AI windows carry the three `call`s this patch repoints only
-        when asked, and :meth:`_anchor_problems` blanks a hooked `call` before comparing - so
+        when asked, and `_anchor_problems` blanks a hooked `call` before comparing - so
         checking them unconditionally is what makes the two configurations tell each other apart:
-        with ``ai_sites`` off, those windows assert the sites are **still stock**, which is
+        with `ai_sites` off, those windows assert the sites are **still stock**, which is
         otherwise unverifiable and would let `detect` report the wrong configuration."""
         return {**ANCHORS, **AI_ANCHORS}
 
@@ -540,7 +487,7 @@ class ProductionSplitPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified).
+        """Structural check that `data` carries this patch (an empty list == verified).
 
         The rebuilt table is read back out of the cave rather than recomputed from the stock
         table, because the table the patch copies is exactly what it was handed - recomputing
@@ -550,7 +497,7 @@ class ProductionSplitPatch(Patch):
 
         **What is deliberately not checked is that the engine's name walk points here.** Another
         patch appending a type owns those two operands once it is applied, and this patch is still
-        correctly installed. :meth:`_table_problems` checks the invariant that survives either
+        correctly installed. `_table_problems` checks the invariant that survives either
         order instead: the live table gives the four names the indices this cave's thunks push."""
         located = find_section(data, SECTION_NAME)
         if located is None:
@@ -624,7 +571,7 @@ class ProductionSplitPatch(Patch):
         """The name pointers this cave copied through, as its own rebuilt table records them.
 
         The count is recovered rather than assumed: the cave's table runs to a terminator, and
-        everything before its last :data:`NEW_TYPES` entries is what was copied - which is the
+        everything before its last `NEW_TYPES` entries is what was copied - which is the
         stock table on a binary this patch reached first, and a longer one otherwise."""
         table_va = section_va + len(_ZERO_F) + len(_ONE_F)
         pointers = name_tables.read_terminated(
@@ -692,8 +639,8 @@ class ProductionSplitPatch(Patch):
             edits.append(
                 (
                     off,
-                    _call_bytes(call_va, stock_va),
-                    _call_bytes(call_va, thunks[thunk]),
+                    call_rel32(call_va, stock_va),
+                    call_rel32(call_va, thunks[thunk]),
                     f"{note} -> {thunk} thunk",
                 )
             )
@@ -708,7 +655,7 @@ class ProductionSplitPatch(Patch):
     ) -> list[tuple[int, bytes, bytes, str]]:
         """Every byte range this patch rewrites: the hooks, and the two operands naming the table.
 
-        The reference edits are computed against ``table.base_va`` - where the walk points *now* -
+        The reference edits are computed against `table.base_va` - where the walk points *now* -
         rather than the stock address, so appending after another type-adding patch repoints the
         walk from its cave instead of failing the original-bytes assert."""
         return self._hook_edits(data, thunks) + modifier_types.relocation_edits(
@@ -720,12 +667,12 @@ class ProductionSplitPatch(Patch):
 
         The hook windows say each repointed `call` is the one inside the function this patch
         thinks it is, and carry the surrounding arithmetic that gives its result meaning - the
-        queue window pins ``ebx`` as the entry and its kind field, the construction window pins
+        queue window pins `ebx` as the entry and its kind field, the construction window pins
         both divisions by the frame count. The rest say the modifier system still works the way
         a new type index depends on: names resolved by a NULL-terminated walk, values found by a
         linear scan rather than an indexed table.
 
-        ``patched`` blanks the bytes this patch rewrites, which is what lets the same table check
+        `patched` blanks the bytes this patch rewrites, which is what lets the same table check
         an already-patched image. The two table operands are blanked **unconditionally**: any
         patch that appends a modifier type owns them, so their value says nothing about this one
         either way, and `modifier_types.read` checks what they point at far more tightly than a
@@ -764,7 +711,7 @@ class ProductionSplitPatch(Patch):
 # its first token through Worldbuilder's own copy of the type name table. A name that copy does not
 # hold is an unknown token in a lookup, which throws, and a throw during INI load ends the editor.
 # That copy, its two references and the walk that reads them are described in
-# :mod:`.utils.modifier_types`; there is **no count to raise**, so relocating the table and
+# `utils.modifier_types`; there is **no count to raise**, so relocating the table and
 # repointing them is the whole patch - the smallest of the Worldbuilder twins.
 #
 # Scope: parsing only. The editor gains no production behaviour and needs none; this exists so the

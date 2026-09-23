@@ -22,7 +22,7 @@ from pathlib import Path
 from sage_ini.parser.ast import Attribute, Block, Node
 from sage_ini.parser.blockparser import parse_file
 from sage_ini.parser.io import read_text
-from sage_ini.stats import ini_root
+from sage_ini.paths import ini_root
 from sage_ini.strings import parse_str
 from sage_utils.sources import LOAD_SUFFIXES, build_merged
 

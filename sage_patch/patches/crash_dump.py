@@ -1,82 +1,11 @@
-"""The crash-dump patch: make the minidump the engine already writes worth opening.
+"""Make the minidump the engine writes on a crash worth opening.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/crash-dump-quality.md`` (the scoping notes) and ``../docs/crash-dump.md`` (this
-patch).
+The stock dump captures every module's data segment (mostly graphics-driver globals) but no heap,
+and drops the message of the engine's own crash exception. The patch sets a better dump profile
+(heap and thread data; default `0x1B65`) and records the crash message in the exception record,
+which the heap capture makes readable. Client-local.
 
-**The defect.** The engine writes a minidump on every unhandled exception, from EA's `Debug`
-library: `writeMiniDump` at `WRITE_MINI_DUMP` builds a file name, opens it, takes
-`SeDebugPrivilege` and calls `MiniDumpWriteDump`. It asks for `MiniDumpWithDataSegs` alone and
-passes `NULL` for both the callback and the user-stream parameter, and those choices cost
-everything a dump is opened for:
-
-* `WithDataSegs` captures **every loaded module's data segment**, so a measured 27.4 MB dump is
-  20 MB of `nvd3dum.dll` and `igd9dxva32.dll` globals - and **no heap at all**. Every engine
-  singleton pointer is in the dump and nothing any of them points at is: `TheGameLogic`
-  (`0x00DE412C`) reads a heap address that falls in no captured range. A null-pointer fault in a
-  live object is therefore unreadable - the dump names the pointer and not the object.
-* `Debug::crash` raises the engine's own `DEBUG_CRASH_EXCEPTION_CODE` with
-  ``lpArguments = NULL`` and ``nNumberOfArguments = 0``, so the exception record that reaches the
-  dump carries **no parameters**. The expression, file and line are formatted into a heap buffer,
-  shown in a message box, written to a `Debug` I/O sink that no shipping config registers, and
-  then dropped. Four of six observed dumps are this code, i.e. four dumps that record that an
-  assert fired and not which one.
-
-**What this does.** Appends a ``.crshdp`` PE section holding a small data header and three
-routines, and redirects two windows into it.
-
-* At `MINI_DUMP_ARGS`, the eighteen bytes that push `MiniDumpWriteDump`'s last four arguments are
-  replaced by a jump into the cave, which pushes the same four - but with a **patch-owned dump
-  type** taken from a two-entry table indexed by the engine's own `fulldump` flag
-  (`MINI_DUMP_FULL_DUMP_EBP`), and with the null `CallbackParam` replaced by a pointer to a
-  `MINIDUMP_CALLBACK_INFORMATION` in the cave. The `UserStreamParam` stays `NULL`.
-* The callback drops the foreign data segments. It answers only `ModuleCallback`, clears
-  `ModuleWriteDataSeg` for every module whose `BaseOfImage` is not `IMAGE_BASE`, and returns
-  `TRUE` for everything else. That is the 20 MB, and it is what pays for the heap.
-* At `DEBUG_CRASH_RAISE`, the four `RaiseException` arguments are replaced by a jump into the cave,
-  which spills three `ULONG_PTR`s into a static slot and passes them as the exception parameters:
-  the formatted crash text (`DEBUG_CRASH_MESSAGE_EBP`), the `.rdata` literal that tags it as an
-  assertion or an error (`DEBUG_CRASH_TAG_EBP`), and the mode (`DEBUG_CRASH_MODE_EBP`). Minidumps
-  store `ExceptionInformation[]` in full, so all three survive.
-
-**The two halves need each other.** The message pointer is a heap pointer - `Debug::crash`
-allocates the buffer at `0x0043A91E` - so putting it in the exception record only helps in a dump
-that carries the heap, which is the profile's job. The tag literal is in `.rdata` and readable
-either way.
-
-**The profile.** The default is ``0x1B65``: `WithDataSegs | HandleData | WithUnloadedModules |
-WithIndirectlyReferencedMemory | WithProcessThreadData | WithPrivateReadWriteMemory |
-WithFullMemoryInfo | WithThreadInfo`. `WithPrivateReadWriteMemory` (``0x0200``) is the bit that
-answers the motivating crash: it captures committed private read/write memory - the SAGE heap and
-the CRT heap, without the mapped images - so an arbitrary object reached through a singleton
-pointer is readable. The deep profile the `fulldump` debug command selects adds `WithFullMemory`
-(``0x0002``) on top. Both are parameters, so a mod that wants smaller files can dial the bits back
-without a code change, and `detect` reads them straight back out of the cave.
-
-**The shipped `dbghelp.dll` supports all of it.** It is `6.3.0005.1`, loaded by explicit full path
-out of the game folder, and every value up to `WithCodeSegs` (``0x2000``) is documented as
-unsupported only on *DbgHelp 6.1 and earlier*. So none of the bits above needs the folder's copy
-renamed out of the way, which the scoping notes assumed for two of them. An unrecognised type bit
-is masked off rather than failing the write, so a build that did load an older `dbghelp` degrades
-to a smaller dump rather than to none.
-
-**Crash-time safety.** Both routines run in a process that is already broken, so both are leaf
-code: no allocation, no CRT, no locks, no loop. The callback reads two fields and writes one, with
-an explicit null test on each pointer it is handed. Each hook pushes exactly as many dwords as the
-window it replaced, and clobbers only registers the replaced bytes already clobbered - the args
-hook `eax`/`ecx` where the stock code used `eax`/`ecx`/`edx`, the raise hook `eax`, which is dead
-there. The unhandled-exception filter's second-chance guard at `0x00DC6E50` sits outside both, so
-a fault inside either costs the dump and nothing else.
-
-**Blast radius: client-local.** Nothing here touches the simulation, the frame checksum, the order
-stream or the replay format. It is reached only from the unhandled-exception filter and from
-`Debug::crash`, neither of which runs in a game that is not already over. Peers need not match and
-replays cross both ways.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the eighteen at
-`MINI_DUMP_ARGS` and the eight at `DEBUG_CRASH_RAISE`, which no other bundled patch touches, and it
-reads no structure another patch rewrites. It has no INI surface.
+Derivation: `../docs/crash-dump-quality.md` (scoping) and `../docs/crash-dump.md` (this patch).
 """
 
 from __future__ import annotations
@@ -111,7 +40,7 @@ from ..addresses import (
 )
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, find_section, u32, va_to_offset
 
 if TYPE_CHECKING:
     import argparse
@@ -209,12 +138,8 @@ ANCHORS = {
 }
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def _assemble(base_va: int) -> Asm:
-    """The three routines, laid out at ``base_va + _CODE_OFF``. ``base_va`` is the section base,
+    """The three routines, laid out at `base_va + _CODE_OFF`. `base_va` is the section base,
     because all three address the data header that sits in front of them."""
     a = Asm(base_va + _CODE_OFF)
     profiles = base_va + _PROFILES_OFF
@@ -226,7 +151,7 @@ def _assemble(base_va: int) -> Asm:
     # still `writeMiniDump`'s frame, so both the exception-information block it filled and the
     # `fullDump` argument are addressable here. Four pushes in, four pushes out.
     a.label("args")
-    a.emit(0x68, _u32(callback_info))  # push &MINIDUMP_CALLBACK_INFORMATION
+    a.emit(0x68, u32(callback_info))  # push &MINIDUMP_CALLBACK_INFORMATION
     a.emit(0x6A, 0x00)  # push 0                ; UserStreamParam, still NULL
     a.emit(0x8D, 0x45, MINI_DUMP_EXCEPTION_INFO_EBP & 0xFF)  # lea eax, [ebp-0x10]
     a.emit(0x50)  # push eax                    ; ExceptionParam
@@ -235,7 +160,7 @@ def _assemble(base_va: int) -> Asm:
     a.jcc_short(JE, "args_type")
     a.emit(0x41)  # inc ecx                     ; fulldump on: take the deep profile
     a.label("args_type")
-    a.emit(0xFF, 0x34, 0x8D, _u32(profiles))  # push dword [profiles + ecx*4]
+    a.emit(0xFF, 0x34, 0x8D, u32(profiles))  # push dword [profiles + ecx*4]
     a.jmp_absolute(MINI_DUMP_ARGS_RESUME)
 
     # Jumped to in place of `RaiseException`'s four arguments, and jumps back to the call itself.
@@ -244,15 +169,15 @@ def _assemble(base_va: int) -> Asm:
     # `RaiseException`'s own `ret 16` still balances if a handler resumes execution.
     a.label("raise")
     a.emit(0x8B, 0x45, DEBUG_CRASH_MESSAGE_EBP & 0xFF)  # mov eax, [ebp-4]   ; the crash text
-    a.emit(0xA3, _u32(raise_args))
+    a.emit(0xA3, u32(raise_args))
     a.emit(0x8B, 0x45, DEBUG_CRASH_TAG_EBP & 0xFF)  # mov eax, [ebp-8]      ; assertion or error
-    a.emit(0xA3, _u32(raise_args + 4))
+    a.emit(0xA3, u32(raise_args + 4))
     a.emit(0x8B, 0x45, DEBUG_CRASH_MODE_EBP)  # mov eax, [ebp+8]            ; the mode itself
-    a.emit(0xA3, _u32(raise_args + 8))
-    a.emit(0x68, _u32(raise_args))  # push lpArguments
+    a.emit(0xA3, u32(raise_args + 8))
+    a.emit(0x68, u32(raise_args))  # push lpArguments
     a.emit(0x6A, RAISE_ARGUMENT_COUNT)  # push 3        ; nNumberOfArguments
     a.emit(0x6A, 0x00)  # push 0                        ; dwExceptionFlags, continuable as stock
-    a.emit(0x68, _u32(DEBUG_CRASH_EXCEPTION_CODE))  # push 0x04560123
+    a.emit(0x68, u32(DEBUG_CRASH_EXCEPTION_CODE))  # push 0x04560123
     a.jmp_absolute(DEBUG_CRASH_RAISE_RESUME)
 
     # `BOOL __stdcall (PVOID param, PMINIDUMP_CALLBACK_INPUT in, PMINIDUMP_CALLBACK_OUTPUT out)`,
@@ -267,7 +192,7 @@ def _assemble(base_va: int) -> Asm:
     a.jcc_short(JNE, "callback_out")
     a.emit(0x83, 0x78, _MODULE_BASE_OFF + 4, 0x00)  # cmp dword [eax+0x1c], 0  ; BaseOfImage high
     a.jcc_short(JNE, "callback_drop")
-    a.emit(0x81, 0x78, _MODULE_BASE_OFF, _u32(IMAGE_BASE))  # cmp dword [eax+0x18], 0x400000
+    a.emit(0x81, 0x78, _MODULE_BASE_OFF, u32(IMAGE_BASE))  # cmp dword [eax+0x18], 0x400000
     a.jcc_short(JE, "callback_out")
     a.label("callback_drop")
     a.emit(0x8B, 0x4C, 0x24, 0x0C)  # mov ecx, [esp+0xc]         ; CallbackOutput
@@ -275,18 +200,18 @@ def _assemble(base_va: int) -> Asm:
     a.jcc_short(JE, "callback_out")
     a.emit(0x83, 0x21, 0xFF & ~MODULE_WRITE_DATA_SEG)  # and dword [ecx], ~ModuleWriteDataSeg
     a.label("callback_out")
-    a.emit(0xB8, _u32(1))  # mov eax, TRUE
+    a.emit(0xB8, u32(1))  # mov eax, TRUE
     a.emit(0xC2, 0x0C, 0x00)  # ret 12
     return a
 
 
 def build_code(base_va: int) -> bytes:
-    """The cave's code, for a section placed at ``base_va``."""
+    """The cave's code, for a section placed at `base_va`."""
     return _assemble(base_va).finish()
 
 
 def entry_points(base_va: int) -> tuple[int, int, int]:
-    """``(args, raise, callback)`` - the virtual address of each routine, read off the emitted
+    """`(args, raise, callback)` - the virtual address of each routine, read off the emitted
     layout rather than counted by hand."""
     a = _assemble(base_va)
     a.finish()
@@ -294,7 +219,7 @@ def entry_points(base_va: int) -> tuple[int, int, int]:
 
 
 def build_section(base_va: int, normal: int, deep: int) -> bytes:
-    """The whole ``.crshdp`` section for a placement at ``base_va``: the data header, then the
+    """The whole `.crshdp` section for a placement at `base_va`: the data header, then the
     code. The header holds the two dump types, the `MINIDUMP_CALLBACK_INFORMATION` the args hook
     hands `MiniDumpWriteDump`, and the three-slot argument block the raise hook fills."""
     _args, _raise, callback = entry_points(base_va)
@@ -350,14 +275,14 @@ class CrashDumpPatch(Patch):
 
     @staticmethod
     def _jump(hook_va: int, target: int, width: int) -> bytes:
-        """A `jmp rel32` to ``target``, `nop`-padded out to ``width``. The padding matters: a
+        """A `jmp rel32` to `target`, `nop`-padded out to `width`. The padding matters: a
         leftover byte of the window would be decoded as an instruction on the way back in."""
         return b"\xe9" + struct.pack("<i", target - (hook_va + 5)) + b"\x90" * (width - 5)
 
     @staticmethod
     def _hooks(section_va: int) -> list[tuple[int, bytes, int, str]]:
-        """The two ``(hook va, original bytes, cave target, note)`` redirections, shared by
-        :meth:`apply` and :meth:`verify` so the two cannot disagree about either target."""
+        """The two `(hook va, original bytes, cave target, note)` redirections, shared by
+        `apply` and `verify` so the two cannot disagree about either target."""
         args, raise_, _callback = entry_points(section_va)
         return [
             (
@@ -417,7 +342,7 @@ class CrashDumpPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> CrashDumpPatch | None:
-        """Recognise this patch **and recover both dump types** from ``data``.
+        """Recognise this patch **and recover both dump types** from `data`.
 
         The default probe cannot: it would ask `verify` about the default profile and call a
         binary patched with any other one unpatched. The two types are the first two dwords of the

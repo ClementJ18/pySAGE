@@ -6,6 +6,7 @@ also biases which display frame each sprite recurses into (a preferred label suc
 `_on`, else frame 0)."""
 
 import html as html_mod
+import importlib.resources
 from collections import Counter
 from pathlib import Path
 from typing import NamedTuple
@@ -13,6 +14,11 @@ from xml.etree import ElementTree as ET
 
 from sage_apt.flags import _split_flags
 from sage_apt.geometry import invert_matrix
+
+
+def _asset(name: str) -> str:
+    return (importlib.resources.files("sage_apt") / "assets" / name).read_text("utf-8")
+
 
 SCREEN_W = 1024
 SCREEN_H = 768
@@ -471,156 +477,4 @@ def write_viewer_html(xml_path, out_path=None, frame=None, label=None, textures=
     return out
 
 
-HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<title>APT Viewer - {filename}</title>
-<style>
-* {{ box-sizing: border-box; margin: 0; padding: 0; }}
-body {{ background: #111122; color: #cdd; font: 12px/1.4 "Segoe UI", sans-serif; }}
-#app {{ display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px; }}
-header {{ width: {sw}px; display: flex; justify-content: space-between; align-items: baseline; }}
-header h1 {{ font-size: 15px; color: #aaccff; font-weight: 500; }}
-header p  {{ font-size: 11px; color: #667; }}
-#stage-wrap {{ position: relative; }}
-svg#stage {{ display: block; border: 1px solid #334; border-radius: 3px; cursor: crosshair; }}
-svg#stage .apt-elem:hover > rect,
-svg#stage .apt-elem:hover > line {{ filter: brightness(1.8); }}
-svg#stage .apt-elem:hover > text {{ font-weight: 700; }}
-#tip {{ position: absolute; pointer-events: none; display: none;
-        background: #1a1a2e; border: 1px solid #446; padding: 4px 10px;
-        font-size: 11px; color: #dde; border-radius: 4px; z-index: 9;
-        max-width: 280px; white-space: nowrap; box-shadow: 0 2px 8px #0008; }}
-#zoom-btns {{ position: absolute; bottom: 8px; right: 8px; display: flex; gap: 4px; }}
-button {{ background: #22223a; color: #aac; border: 1px solid #446; padding: 3px 9px;
-          border-radius: 3px; cursor: pointer; font-size: 11px; }}
-button:hover {{ background: #33345a; }}
-.panels {{ width: {sw}px; display: flex; gap: 10px; flex-wrap: wrap; }}
-.panel {{ background: #151525; border: 1px solid #2a2a44; border-radius: 4px;
-          padding: 10px 14px; flex: 1; min-width: 220px; }}
-.panel h2 {{ font-size: 11px; color: #99aadd; text-transform: uppercase;
-             letter-spacing: 1px; margin-bottom: 6px; }}
-ul {{ padding-left: 14px; }}
-li {{ margin: 3px 0; font-size: 11px; color: #aab; }}
-li b {{ color: #ccd; }}
-code {{ background: #1e1e30; padding: 0 3px; border-radius: 2px; font-size: 10px; color: #adf; }}
-.legend {{ display: flex; gap: 6px; flex-wrap: wrap; }}
-.leg {{ display: flex; align-items: center; gap: 5px; font-size: 11px; color: #99a; }}
-.swatch {{ width: 13px; height: 13px; border: 1.5px solid; border-radius: 2px; flex-shrink: 0; }}
-#sel-info {{ font-size: 11px; color: #aab; line-height: 1.6; }}
-#sel-info b {{ color: #dde; }}
-</style>
-</head>
-<body>
-<div id="app">
-  <header>
-    <h1>APT Viewer - {filename}</h1>
-    <p>{char_summary}</p>
-  </header>
-
-  <div id="stage-wrap">
-    <svg id="stage" width="{sw}" height="{sh}"
-         viewBox="0 0 {sw} {sh}" xmlns="http://www.w3.org/2000/svg">
-      <defs>{defs}</defs>
-      <rect width="{sw}" height="{sh}" fill="{bg}"/>
-      <g opacity="0.05" stroke="#fff" stroke-width="0.5">{grid}</g>
-      {svg_body}
-    </svg>
-    <div id="tip"></div>
-    <div id="zoom-btns">
-      <button onclick="zv(1.25)">＋</button>
-      <button onclick="zv(0.8)">－</button>
-      <button onclick="rv()">⟳</button>
-    </div>
-  </div>
-
-  <div class="panels">
-    <div class="panel">
-      <h2>Legend</h2>
-      <div class="legend">
-        <div class="leg"><div class="swatch" style="background:#aaddff1e;border-color:#5599cc"></div>shape</div>
-        <div class="leg"><div class="swatch" style="background:#ffddaa80;border-color:#cc8833"></div>image</div>
-        <div class="leg"><div class="swatch" style="background:#aaffcc72;border-color:#44cc66"></div>edittext</div>
-        <div class="leg"><div class="swatch" style="background:#ffccdd72;border-color:#ee4466;border-radius:3px"></div>button</div>
-        <div class="leg"><div class="swatch" style="background:#ccaaee14;border-color:#9966cc"></div>sprite (structure)</div>
-      </div>
-    </div>
-    <div class="panel">
-      <h2>Imports</h2>
-      <ul>{imports_html}</ul>
-    </div>
-    <div class="panel" style="min-width:300px">
-      <h2>Frame States</h2>
-      <ul>{frames_html}</ul>
-    </div>
-    <div class="panel">
-      <h2>Selected</h2>
-      <div id="sel-info">Hover or click an element</div>
-    </div>
-  </div>
-</div>
-
-<script>
-const stage  = document.getElementById('stage');
-const tip    = document.getElementById('tip');
-const selInfo= document.getElementById('sel-info');
-const wrap   = document.getElementById('stage-wrap');
-let vx=0, vy=0, vw={sw}, vh={sh};
-
-function applyView(){{ stage.setAttribute('viewBox', vx+' '+vy+' '+vw+' '+vh); }}
-function zv(f){{
-  const cx=vx+vw/2, cy=vy+vh/2;
-  vw/=f; vh/=f; vx=cx-vw/2; vy=cy-vh/2; applyView();
-}}
-function rv(){{ vx=0; vy=0; vw={sw}; vh={sh}; applyView(); }}
-
-// Wheel zoom
-stage.addEventListener('wheel', e=>{{
-  e.preventDefault();
-  const f = e.deltaY>0 ? 0.88 : 1.14;
-  const r = stage.getBoundingClientRect();
-  const mx=(e.clientX-r.left)/r.width*vw+vx, my=(e.clientY-r.top)/r.height*vh+vy;
-  vw/=f; vh/=f; vx=mx-(mx-vx)/f; vy=my-(my-vy)/f; applyView();
-}}, {{passive:false}});
-
-// Pan
-let drag=null;
-stage.addEventListener('mousedown', e=>{{ drag={{x:e.clientX,y:e.clientY,vx,vy}}; }});
-window.addEventListener('mousemove', e=>{{
-  if(!drag) return;
-  vx=drag.vx-(e.clientX-drag.x)*vw/{sw};
-  vy=drag.vy-(e.clientY-drag.y)*vh/{sh};
-  applyView();
-}});
-window.addEventListener('mouseup', ()=>{{ drag=null; }});
-
-// Tooltips & selection
-stage.querySelectorAll('.apt-elem').forEach(el=>{{
-  el.addEventListener('mouseenter', e=>{{
-    const t=el.querySelector('title');
-    tip.textContent = t ? t.textContent : (el.dataset.type+' id='+el.dataset.id);
-    tip.style.display='block';
-  }});
-  el.addEventListener('mousemove', e=>{{
-    const r=wrap.getBoundingClientRect();
-    tip.style.left=(e.clientX-r.left+14)+'px';
-    tip.style.top=(e.clientY-r.top+14)+'px';
-  }});
-  el.addEventListener('mouseleave', ()=>{{ tip.style.display='none'; }});
-  el.addEventListener('click', ()=>{{
-    const t=el.querySelector('title');
-    selInfo.innerHTML = '<b>'+el.dataset.type+'</b>'
-      +(el.dataset.name ? '  <span style="color:#7af">'+el.dataset.name+'</span>':'')
-      +'<br>id = '+el.dataset.id
-      +(t ? '<br><span style="opacity:0.7">'+t.textContent.replace(/ +/g,' ')+'</span>' : '');
-    stage.querySelectorAll('.apt-elem').forEach(x=>x.style.opacity='');
-    el.style.opacity='1';
-    stage.querySelectorAll('.apt-elem:not([style])').forEach(x=>x.style.opacity='0.4');
-    setTimeout(()=>stage.querySelectorAll('.apt-elem').forEach(x=>x.style.opacity=''), 3000);
-  }});
-}});
-</script>
-</body>
-</html>"""
+HTML = _asset("viewer.html")

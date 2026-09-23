@@ -7,7 +7,7 @@ cross-checked against `game.dat` 2.01.2614.37001 and against real maps. Nothing 
 in the editor; the map data is the runtime evidence.
 
 **This targets `Worldbuilder.exe`.** Its addresses are the `WORLDBUILDER_SCRIPT_*` and
-`WORLDBUILDER_ASCIISTRING_*` constants in `sage_patch/addresses.py`.
+`WORLDBUILDER_ASCIISTRING_*` constants in `sage_patch/addresses/worldbuilder.py`.
 
 ## 1. The table
 

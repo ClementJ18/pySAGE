@@ -64,6 +64,44 @@ from sage_ini.model.types import (
     to_number,
 )
 
+__all__ = [
+    "AddModule",
+    "Armor",
+    "ArmorSet",
+    "AttackPriority",
+    "AutoResolveArmor",
+    "AutoResolveWeapon",
+    "ChildObject",
+    "CommandButton",
+    "CommandSet",
+    "CrateData",
+    "CreateObject",
+    "EmotionNugget",
+    "ExperienceLevel",
+    "FCurve",
+    "FloodMember",
+    "GeometryShape",
+    "InheritableModule",
+    "Locomotor",
+    "LocomotorSet",
+    "ModifierList",
+    "Object",
+    "ObjectCreationList",
+    "ObjectReskin",
+    "PlayerTemplate",
+    "ReplaceModule",
+    "ReplaceObject",
+    "Science",
+    "SelectionDecal",
+    "SpecialPower",
+    "StanceTemplate",
+    "TurretModule",
+    "UnitSpecificSounds",
+    "Upgrade",
+    "Weapon",
+    "WeaponSet",
+]
+
 
 class Upgrade(IniObject):
     key = "upgrades"

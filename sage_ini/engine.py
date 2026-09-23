@@ -155,8 +155,8 @@ class Source:
     repository. `sha256` identifies the binary exactly and `generated` says how stale the file is;
     a **path** identifies nothing either of them does not - two machines with the same layout
     produce the same string for different binaries - while writing a home directory into a tracked
-    file and churning its diff on every rebuild elsewhere. There used to be a `game_dat` key here
-    for that; a file still carrying one loads fine and simply drops it."""
+    file and churning its diff on every rebuild elsewhere. An unknown key such as `game_dat` is
+    ignored on load."""
 
     build: str = ""  # the engine build string, e.g. "2.01.2614.37001"
     sha256: str = ""  # of the game.dat it was generated from
@@ -271,7 +271,7 @@ class Engine:
     one to detect drift."""
 
     #: The patches the binary carries - the build manifest, independent of whether any of them
-    #: changes the INI surface below. Nothing in the model reads it; see :class:`AppliedPatch`.
+    #: changes the INI surface below. Nothing in the model reads it; see `AppliedPatch`.
     patches: tuple[AppliedPatch, ...] = ()
     blocks: tuple[BlockDelta, ...] = ()
     nested: tuple[NestedDelta, ...] = ()

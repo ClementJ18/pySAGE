@@ -1,49 +1,11 @@
-"""The hide-selection-details patch: a War of the Ring scenario that does without the details tray.
+"""Add `HideSelectionDetails` to a `LivingWorldCampaign`'s `Scenario`: `Yes` keeps the War of the
+Ring selection-details tray shut for that scenario.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. The reverse engineering is in
-``../../docs/living-campaign/hide-selection-details.md``.
+A scenario that hides the tray takes away the interface for reading territories and queueing
+construction, so it must offer another. The movie's own frame-0 script may still open the tray when
+`_global.InGame` is unset (the engine registers `InGame` at `0x00815EF3`); not confirmed in game.
 
-**The panel.** On the War of the Ring map `StrategicHUD.apt` loads `StrategicDetailsTray.swf` into
-its `selectionDetails` clip: the tray showing the selected territory's armies, structures and build
-queue, behind the `ToggleSelectionDetailsButton` of `strategichud.ini`. No INI field hides it -
-`StrategicHUD` only names the button's image and tooltip. The movie opens and closes when the
-engine says so: a small class (vtable
-:data:`~sage_patch.addresses.SELECTION_DETAILS_TRAY_VTABLE`) calls the movie's `Open` and `Close`
-and keeps the state.
-
-**What this does.** Adds one boolean field, `HideSelectionDetails`, to a `LivingWorldCampaign`'s
-`Scenario`. Default `No`, which is stock; `Yes` keeps the tray shut for that scenario.
-
-1. **The field, in the struct's own padding.** `Scenario` is ``0xC4`` bytes and its last field is
-   `UseMpRulesVictoryCondition` at ``+0xC1``, so ``+0xC2`` is alignment no row names. The
-   constructor's ``mov byte [esi+0xC0], bl`` becomes ``mov dword [esi+0xC0], ebx`` - ``0x88`` to
-   ``0x89``, six bytes for six - which clears ``+0xC0..+0xC3``; the ``mov byte [esi+0xC1], 1``
-   straight after it puts `UseMpRulesVictoryCondition` back at `Yes`.
-2. **The field table moves.** It is rebuilt in the cave with one `Bool` row appended, and its one
-   reference, the block parser's `push`, is repointed.
-3. **`setHasContent` stores zero.** It is the tray's only writer of "the selection has something to
-   show" (``+0x2C``). With that clear, the HUD's per-frame refresh closes an open tray and sets the
-   toggle button `_disabled` - the stock path for an empty selection.
-4. **`open` returns.** So the toggle button, or anything else that asks, cannot open it regardless.
-
-Both hooks ask one routine, which reads the flag through the campaign manager's current campaign
-(``+0x10`` indexing ``+0x14..+0x18``, bounds-checked as the manager itself does) and that
-campaign's `Scenario` (``+0x1C``). A null anywhere on the way answers `No`, so outside a campaign
-the tray is stock.
-
-**What it does not do.** The tray is where a player reads a territory's armies and structures and
-queues construction; a scenario that hides it takes that interface away and has to give the player
-another. The movie's own frame-0 script also opens the tray whenever `_global.InGame` is unset,
-which no engine hook can reach. The engine registers `InGame` with the movie player
-(``0x00815EF3``), so that branch reads as the movie's standalone preview - not confirmed in game.
-
-**Determinism.** Interface only: nothing here reaches the logic or the CRC, so a peer without the
-patch stays in sync. The keyword itself is fatal on a stock build - an unknown field in a known
-block is a parse error - so a mod that writes it ships the patched `game.dat`.
-
-**Composition.** Order-independent: the cave is allocated past every section and the field table is
-located from its live reference, so it appends to whatever is there. No other bundled patch touches
-`Scenario`'s table, its constructor or the tray class.
+Derivation: `../../docs/living-campaign/hide-selection-details.md`.
 """
 
 from __future__ import annotations
@@ -97,7 +59,15 @@ from ...addresses import (
 )
 from ...asm import JAE, JE, JL, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import (
+    allocate_section,
+    apply_byte_patch,
+    file_offset,
+    find_section,
+    jmp_rel32,
+    read_cstring,
+    u32,
+)
 from ..utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 if TYPE_CHECKING:
@@ -124,10 +94,6 @@ DEFAULT_KEYWORD = "HideSelectionDetails"
 _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 #: Bytes the patch reads rather than writes, each one a fact the cave relies on: the struct is big
 #: enough to hold the field, the constructor zeroes from `ebx` and re-sets `+0xC1` after the widened
 #: store, the manager and the campaign keep the layout the flag is read through, and the vtable,
@@ -138,10 +104,10 @@ ANCHORS: dict[int, bytes] = {
     SCENARIO_CTOR_USE_MP_RULES: SCENARIO_CTOR_USE_MP_RULES_BYTES,
     LIVING_WORLD_CAMPAIGN_MANAGER_CURRENT_READ: LIVING_WORLD_CAMPAIGN_MANAGER_CURRENT_READ_BYTES,
     LIVING_WORLD_CAMPAIGN_SCENARIO_READ: LIVING_WORLD_CAMPAIGN_SCENARIO_READ_BYTES,
-    SELECTION_DETAILS_TRAY_VTABLE + SELECTION_DETAILS_TRAY_SET_HAS_CONTENT_SLOT: _u32(
+    SELECTION_DETAILS_TRAY_VTABLE + SELECTION_DETAILS_TRAY_SET_HAS_CONTENT_SLOT: u32(
         SELECTION_DETAILS_TRAY_SET_HAS_CONTENT
     ),
-    SELECTION_DETAILS_TRAY_VTABLE + SELECTION_DETAILS_TRAY_OPEN_SLOT: _u32(
+    SELECTION_DETAILS_TRAY_VTABLE + SELECTION_DETAILS_TRAY_OPEN_SLOT: u32(
         SELECTION_DETAILS_TRAY_OPEN_THUNK
     ),
     SELECTION_DETAILS_TRAY_OPEN_THUNK: SELECTION_DETAILS_TRAY_OPEN_THUNK_BYTES,
@@ -162,7 +128,7 @@ _KEYWORD_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
 
 
 def validate_keyword(keyword: str) -> None:
-    """Raise unless ``keyword`` is a token the engine's INI reader could ever match."""
+    """Raise unless `keyword` is a token the engine's INI reader could ever match."""
     if not _KEYWORD_PATTERN.match(keyword):
         raise ValueError(
             "an INI keyword must be letters, digits and underscores starting with a letter "
@@ -191,8 +157,8 @@ def _layout(base_va: int, keyword: str, rows: int) -> _Layout:
 def rewritten_default() -> bytes:
     """The constructor's `HistoricalScenario` store, widened to zero the new field as well.
 
-    ``mov byte [esi+0xC0], bl`` becomes ``mov dword [esi+0xC0], ebx``. `ebx` is the constructor's
-    zero throughout, so `HistoricalScenario` keeps its `No`; ``+0xC1`` is cleared on the way past
+    `mov byte [esi+0xC0], bl` becomes `mov dword [esi+0xC0], ebx`. `ebx` is the constructor's
+    zero throughout, so `HistoricalScenario` keeps its `No`; `+0xC1` is cleared on the way past
     and set back to 1 by the very next instruction."""
     new = bytes([0x89]) + SCENARIO_CTOR_HISTORICAL_BYTES[1:]
     assert len(new) == len(SCENARIO_CTOR_HISTORICAL_BYTES)
@@ -239,7 +205,7 @@ def build_code(code_va: int) -> Asm:
     a.label("scenario_flag")  # eax = the current scenario's flag, 0 when there is none
     a.emit(0x51, 0x52)  # push ecx / push edx
     a.emit(0x33, 0xC0)  # xor eax, eax
-    a.emit(0x8B, 0x0D, _u32(THE_LIVING_WORLD_CAMPAIGN_MANAGER))  # mov ecx, [manager]
+    a.emit(0x8B, 0x0D, u32(THE_LIVING_WORLD_CAMPAIGN_MANAGER))  # mov ecx, [manager]
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc_short(JE, "flag_out")
     a.emit(0x8B, 0x51, LIVING_WORLD_CAMPAIGN_MANAGER_CURRENT)  # mov edx, [ecx+0x10]
@@ -257,42 +223,13 @@ def build_code(code_va: int) -> Asm:
     a.emit(0x8B, 0x49, LIVING_WORLD_CAMPAIGN_SCENARIO)  # mov ecx, [ecx+0x1C]  ; its Scenario
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc_short(JE, "flag_none")
-    a.emit(0x0F, 0xB6, 0x81, _u32(SCENARIO_FREE_OFFSET))  # movzx eax, byte [ecx+0xC2]
+    a.emit(0x0F, 0xB6, 0x81, u32(SCENARIO_FREE_OFFSET))  # movzx eax, byte [ecx+0xC2]
     a.jmp_short("flag_out")
     a.label("flag_none")
     a.emit(0x33, 0xC0)  # xor eax, eax
     a.label("flag_out")
     a.emit(0x5A, 0x59, 0xC3)  # pop edx / pop ecx / ret
     return a
-
-
-def _hook(site_va: int, window: bytes, target_va: int) -> bytes:
-    """`jmp rel32` to ``target_va``, padded with `nop` to the width of ``window``."""
-    jump = b"\xe9" + struct.pack("<i", target_va - (site_va + 5))
-    if len(window) < len(jump):
-        raise ValueError(f"the window at 0x{site_va:08x} is too small for a jmp rel32")
-    return jump + b"\x90" * (len(window) - len(jump))
-
-
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA 0x{va:08x} is not mapped - not the expected build")
-    return off
-
-
-def _cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    """The NUL-terminated ASCII string at ``va``, or None if it is unmapped or not one."""
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data).find(b"\x00", off, off + limit)
-    if end < 0:
-        return None
-    try:
-        return data[off:end].decode("ascii")
-    except UnicodeDecodeError:
-        return None
 
 
 class HideSelectionDetailsPatch(Patch):
@@ -338,7 +275,7 @@ class HideSelectionDetailsPatch(Patch):
 
     @staticmethod
     def _hooks(code: Asm) -> list[tuple[int, bytes, bytes, str]]:
-        """``(site, stock bytes, replacement, what)`` for the constructor store and both hooks."""
+        """`(site, stock bytes, replacement, what)` for the constructor store and both hooks."""
         return [
             (
                 SCENARIO_CTOR_HISTORICAL,
@@ -349,20 +286,20 @@ class HideSelectionDetailsPatch(Patch):
             (
                 SELECTION_DETAILS_TRAY_SET_HAS_CONTENT,
                 SELECTION_DETAILS_TRAY_SET_HAS_CONTENT_BYTES,
-                _hook(
+                jmp_rel32(
                     SELECTION_DETAILS_TRAY_SET_HAS_CONTENT,
-                    SELECTION_DETAILS_TRAY_SET_HAS_CONTENT_BYTES,
                     code.label_va("has_content"),
+                    len(SELECTION_DETAILS_TRAY_SET_HAS_CONTENT_BYTES),
                 ),
                 "the tray's setHasContent",
             ),
             (
                 SELECTION_DETAILS_TRAY_OPEN,
                 SELECTION_DETAILS_TRAY_OPEN_BYTES,
-                _hook(
+                jmp_rel32(
                     SELECTION_DETAILS_TRAY_OPEN,
-                    SELECTION_DETAILS_TRAY_OPEN_BYTES,
                     code.label_va("open"),
+                    len(SELECTION_DETAILS_TRAY_OPEN_BYTES),
                 ),
                 "the tray's open",
             ),
@@ -372,20 +309,20 @@ class HideSelectionDetailsPatch(Patch):
         self, data: bytes | bytearray, pieces: _Layout, code: Asm
     ) -> list[tuple[int, bytes, bytes, str]]:
         """Every byte this patch writes outside its own cave, as
-        ``(file offset, expected, replacement, note)``."""
+        `(file offset, expected, replacement, note)`."""
         edits = [
-            (_offset(data, va), old, new, f"{what} -> {SECTION_NAME}")
+            (file_offset(data, va), old, new, f"{what} -> {SECTION_NAME}")
             for va, old, new, what in self._hooks(code)
         ]
         for ref_va, opcode in zip(
             SCENARIO_FIELD_TABLE_REFS, SCENARIO_FIELD_TABLE_REF_OPCODES, strict=True
         ):
-            off = _offset(data, ref_va)
+            off = file_offset(data, ref_va)
             edits.append(
                 (
                     off,
                     bytes(data[off : off + 5]),
-                    bytes([opcode]) + _u32(pieces.table_va),
+                    bytes([opcode]) + u32(pieces.table_va),
                     f"Scenario field table reference 0x{ref_va:08x} -> {SECTION_NAME}",
                 )
             )
@@ -403,7 +340,7 @@ class HideSelectionDetailsPatch(Patch):
     def _anchor_problems(data: bytes | bytearray) -> list[str]:
         problems = []
         for va, want in ANCHORS.items():
-            off = _offset(data, va)
+            off = file_offset(data, va)
             got = bytes(data[off : off + len(want)])
             if got != want:
                 problems.append(
@@ -422,7 +359,7 @@ class HideSelectionDetailsPatch(Patch):
         """The live rows, once the table has been checked for the build, for this keyword and for
         the padding still being free."""
         entries = read_field_table(data, table_va)
-        by_name = {_cstring(data, name): offset for name, _fn, _ud, offset in entries}
+        by_name = {read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
         for field, want in FINGERPRINT.items():
             got = by_name.get(field)
             if got != want:
@@ -449,7 +386,7 @@ class HideSelectionDetailsPatch(Patch):
         located = find_section(data, SECTION_NAME)
         if located is None:
             return None
-        keyword = _cstring(data, located[0])
+        keyword = read_cstring(data, located[0])
         if keyword is None:
             return None
         try:
@@ -464,7 +401,7 @@ class HideSelectionDetailsPatch(Patch):
         return Engine(fields=(FieldDelta("Scenario", self.keyword, "Bool", False, self.name),))
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch for exactly this keyword, with every
+        """Structural check that `data` carries this patch for exactly this keyword, with every
         address recovered from where the cave actually landed."""
         located = find_section(data, SECTION_NAME)
         if located is None:
@@ -496,19 +433,19 @@ class HideSelectionDetailsPatch(Patch):
         if pieces.code_va + len(code) > section_va + vsize:
             return [f"{SECTION_NAME} holds {vsize} bytes, too few for the table and the code"]
         problems: list[str] = []
-        got_keyword = _cstring(data, pieces.keyword_va)
+        got_keyword = read_cstring(data, pieces.keyword_va)
         if got_keyword != self.keyword:
             problems.append(
                 f"the keyword in {SECTION_NAME} is {got_keyword!r}, not {self.keyword!r}"
             )
         want_table = build_table(preceding, pieces.keyword_va)
-        table_off = _offset(data, pieces.table_va)
+        table_off = file_offset(data, pieces.table_va)
         if bytes(data[table_off : table_off + len(want_table)]) != want_table:
             problems.append(
                 f"the field table at 0x{pieces.table_va:08x} is not the live rows plus a Bool at "
                 f"Scenario+0x{SCENARIO_FREE_OFFSET:02x}"
             )
-        code_off = _offset(data, pieces.code_va)
+        code_off = file_offset(data, pieces.code_va)
         if bytes(data[code_off : code_off + len(code)]) != code:
             problems.append(f"the code at 0x{pieces.code_va:08x} is not what this patch builds")
         return problems
@@ -520,13 +457,13 @@ class HideSelectionDetailsPatch(Patch):
         in the live table, since a later patch extending `Scenario` copies the row into its own."""
         problems: list[str] = []
         for va, _old, want, what in self._hooks(build_code(pieces.code_va)):
-            off = _offset(data, va)
+            off = file_offset(data, va)
             got = bytes(data[off : off + len(want)])
             if got != want:
                 problems.append(f"@0x{va:08x}: {what} is not patched (holds {got.hex()})")
 
         want_row = (pieces.keyword_va, INI_PARSE_BOOL, 0, SCENARIO_FREE_OFFSET)
-        row = next((e for e in live if _cstring(data, e[0]) == self.keyword), None)
+        row = next((e for e in live if read_cstring(data, e[0]) == self.keyword), None)
         if row != want_row:
             problems.append(
                 f"the live Scenario table's {self.keyword!r} row is "

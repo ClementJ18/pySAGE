@@ -13,6 +13,10 @@ game keeps drawing (`sage_live.backends.script_debugger`). A breakpoint is a scr
 breaks on every live copy of that script, when its actions run, and stops the game at the end of
 that frame. "Run until" is a breakpoint that removes itself when it hits.
 
+**Why Not** watches chosen scripts' conditions: each read shows what stops the game evaluating the
+script at all, and, for its latest evaluation, which conditions passed, which one failed and which
+were never reached (`sage_worldbuilder.why_not`). Watching hooks the game like Record does.
+
 **Fast** runs the game ten times faster by raising the frame cap the engine paces its main loop to
 (`sage_live.backends.game_speed`); no code is written, and detaching puts normal speed back. The
 game still draws every frame, so the status line says how fast it actually got.
@@ -30,7 +34,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Protocol
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QBrush, QColor, QFont
 from PyQt6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
@@ -53,6 +57,7 @@ from PyQt6.QtWidgets import (
 from sage_live.backends.game_speed import FAST_FORWARD
 from sage_live.backends.script_trace import BREAKPOINT_LIMIT, EventKind, kind_mask
 from sage_live.backends.scripts import ScriptVariable
+from sage_map.assets.player_scripts import Script
 from sage_utils.elevation import is_elevated
 from sage_worldbuilder.document import MapDocument
 from sage_worldbuilder.live import (
@@ -66,8 +71,16 @@ from sage_worldbuilder.live import (
     map_key,
     side_label,
 )
+from sage_worldbuilder.scripting import iter_script_items, player_script_lists
+from sage_worldbuilder.why_not import Explanation, Verdict, condition_texts, explain
 
-__all__ = ["ScriptDebuggerHost", "ScriptDebuggerPanel", "achieved_speed", "variable_value"]
+__all__ = [
+    "ScriptDebuggerHost",
+    "ScriptDebuggerPanel",
+    "achieved_speed",
+    "find_map_script",
+    "variable_value",
+]
 
 _TICK_MS = 200
 _POLL_SECONDS = 1.0
@@ -90,6 +103,11 @@ _WHAT = {
 _Key = tuple[str, str, str]
 # What a breakpoint breaks on: the script firing, whichever way it runs its true actions.
 _BREAK_ON = kind_mask([EventKind.TRUE_ACTIONS, EventKind.SEQUENTIAL])
+_WHY_COLUMNS = ("Condition", "Latest evaluation", "Last judged", "Passed / failed")
+_VERDICT_COLORS = {
+    Verdict.PASSED: QColor(0x2E, 0x8B, 0x3E),
+    Verdict.FAILED: QColor(0xC6, 0x28, 0x28),
+}
 
 
 class ScriptDebuggerHost(Protocol):
@@ -117,6 +135,22 @@ def achieved_speed(samples: Sequence[tuple[float, int]], rate: int) -> float | N
     if end - start < 1.5:
         return None
     return (last - first) / (end - start) / rate
+
+
+def find_map_script(document: MapDocument | None, player: str, name: str) -> Script | None:
+    """The open map's script `name`, under `player` first and then under any player."""
+    if document is None:
+        return None
+    wanted = name.casefold()
+    found: Script | None = None
+    for owner, script_list in player_script_lists(document.map):
+        for location in iter_script_items(script_list.items):
+            item = location.item
+            if isinstance(item, Script) and item.name.casefold() == wanted:
+                if owner.casefold() == player.casefold():
+                    return item
+                found = found or item
+    return found
 
 
 def _with(variable: ScriptVariable, value: int) -> ScriptVariable:
@@ -176,6 +210,10 @@ class ScriptDebuggerPanel(QWidget):
         # until" that removes itself when it hits. They outlive an attach.
         self.breakpoints: dict[str, tuple[str, bool]] = {}
         self._hits: int | None = None
+        # The scripts Why Not watches, by case-folded name: the player the row was under and the
+        # name as given. Like breakpoints, they outlive an attach.
+        self.watches: dict[str, tuple[str, str]] = {}
+        self.explanation: Explanation | None = None
         # Running reads while the game is fast, for the speed it really reaches.
         self._speed_samples: deque[tuple[float, int]] = deque()
 
@@ -232,6 +270,8 @@ class ScriptDebuggerPanel(QWidget):
         self.tabs.addTab(self._build_trace_page(), "Trace")
         self.tabs.addTab(self._build_variables_page(), "Variables")
         self.tabs.addTab(self._build_breakpoints_page(), "Breakpoints")
+        self.why_page = self._build_why_page()
+        self.tabs.addTab(self.why_page, "Why Not")
         layout.addWidget(self.tabs, 1)
 
         self.timer = QTimer(self)
@@ -267,6 +307,48 @@ class ScriptDebuggerPanel(QWidget):
         row.addWidget(clear)
         row.addStretch(1)
         layout.addLayout(row)
+        return page
+
+    def _build_why_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        hint = QLabel(
+            "Right-click a script in the Scripts panel and choose Why Doesn't It Fire? to watch "
+            "its conditions. This hooks the running game while anything is watched."
+        )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        row = QHBoxLayout()
+        self.watch_list = QListWidget()
+        self.watch_list.setMaximumHeight(90)
+        self.watch_list.currentItemChanged.connect(lambda *_: self._refresh_why())
+        self.watch_list.itemDoubleClicked.connect(
+            lambda item: self.script_activated.emit(item.data(_ROLE))
+        )
+        row.addWidget(self.watch_list, 1)
+        buttons = QVBoxLayout()
+        remove = QPushButton("Remove")
+        remove.clicked.connect(lambda _checked=False: self._remove_selected_watch())
+        buttons.addWidget(remove)
+        clear = QPushButton("Clear All")
+        clear.clicked.connect(lambda _checked=False: self.clear_watches())
+        buttons.addWidget(clear)
+        buttons.addStretch(1)
+        row.addLayout(buttons)
+        layout.addLayout(row)
+        self.why_summary = QLabel("Nothing watched.")
+        self.why_summary.setWordWrap(True)
+        font = QFont(self.why_summary.font())
+        font.setBold(True)
+        self.why_summary.setFont(font)
+        layout.addWidget(self.why_summary)
+        self.why_tree = QTreeWidget()
+        self.why_tree.setHeaderLabels(_WHY_COLUMNS)
+        self.why_tree.setUniformRowHeights(True)
+        header = self.why_tree.header()
+        if header is not None:
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.why_tree, 1)
         return page
 
     def _build_trace_page(self) -> QWidget:
@@ -421,6 +503,7 @@ class ScriptDebuggerPanel(QWidget):
         self.table.setRowCount(0)
         self._keys, self._values = [], {}
         self._variables = None
+        self._refresh_why()
         self._publish(None)
 
     def _settle(self) -> None:
@@ -657,6 +740,142 @@ class ScriptDebuggerPanel(QWidget):
             if self.snapshot is not None:
                 self._sync_breakpoints(LiveIndex(self.snapshot))
 
+    def is_watched(self, name: str) -> bool:
+        return name.casefold() in self.watches
+
+    def watch(self, player: str, name: str) -> None:
+        """Explain why `name` does or does not fire: watch its conditions and show the Why Not
+        tab with it selected."""
+        key = name.casefold()
+        self.watches[key] = (player, name)
+        self._watches_changed(select=key)
+        self.tabs.setCurrentWidget(self.why_page)
+        if self.session is not None:
+            self.poll_now()
+
+    def clear_watches(self) -> None:
+        self.watches.clear()
+        self._watches_changed()
+
+    def _remove_selected_watch(self) -> None:
+        item = self.watch_list.currentItem()
+        if item is not None:
+            self.watches.pop(str(item.data(_ROLE)).casefold(), None)
+            self._watches_changed()
+
+    def _watches_changed(self, select: str | None = None) -> None:
+        current = self.watch_list.currentItem()
+        keep = select or (str(current.data(_ROLE)).casefold() if current is not None else None)
+        self.watch_list.blockSignals(True)
+        self.watch_list.clear()
+        items: dict[str, QListWidgetItem] = {}
+        for key, (player, name) in sorted(self.watches.items()):
+            label = f"{name}  ({player})" if player else name
+            item = QListWidgetItem(label)
+            item.setData(_ROLE, name)
+            self.watch_list.addItem(item)
+            items[key] = item
+        # The one asked for, else the one that was selected, else the first.
+        chosen = items.get(keep or "") or next(iter(items.values()), None)
+        if chosen is not None:
+            self.watch_list.setCurrentItem(chosen)
+        self.watch_list.blockSignals(False)
+        if self.snapshot is not None:
+            self._settle()
+            if self.snapshot is not None:
+                self._sync_watches(LiveIndex(self.snapshot))
+        self._refresh_why()
+
+    def _watched_state(self, index: LiveIndex, key: str) -> LiveState | None:
+        player, name = self.watches[key]
+        return index.script(player, name, True)
+
+    def _sync_watches(self, index: LiveIndex) -> None:
+        """Watch the conditions of this read's copy of each watched script. Resolved afresh each
+        read, since a map reload moves every script."""
+        session = self.session
+        if session is None:
+            return
+        scripts = set()
+        for key in self.watches:
+            state = self._watched_state(index, key)
+            if state is not None and state.script is not None:
+                scripts.add(state.script.address)
+        try:
+            session.set_watched(scripts)
+        except LiveAttachError as exc:
+            self.status.setText(str(exc))
+
+    def _refresh_why(self) -> None:
+        """Explain the selected watch from the last read."""
+        self.why_tree.clear()
+        self.explanation = None
+        item = self.watch_list.currentItem()
+        if item is None:
+            self.why_summary.setText("Nothing watched." if not self.watches else "")
+            return
+        key = str(item.data(_ROLE)).casefold()
+        snapshot = self.snapshot
+        if snapshot is None or key not in self.watches:
+            self.why_summary.setText("Attach to a running game to see why.")
+            return
+        index = LiveIndex(snapshot)
+        state = self._watched_state(index, key)
+        if state is None or state.script is None:
+            self.why_summary.setText(
+                "The game has no script of this name (a side it did not keep, or a difficulty it "
+                "skipped)."
+            )
+            return
+        script = state.script
+        clauses = snapshot.conditions.get(script.address)
+        if clauses is None:
+            self.why_summary.setText("Watching; the next read will show its conditions.")
+            return
+        player, name = self.watches[key]
+        texts = condition_texts(find_map_script(self.host.document, player, name), clauses)
+        explanation = explain(
+            script,
+            index.enclosing(script),
+            clauses,
+            snapshot.condition_results,
+            texts,
+            snapshot.frame,
+            snapshot.logic_rate,
+            snapshot.tree.difficulty,
+        )
+        self.explanation = explanation
+        self.why_summary.setText(explanation.summary)
+        self._fill_why(explanation)
+
+    def _fill_why(self, explanation: Explanation) -> None:
+        for blocker in explanation.blockers:
+            row = QTreeWidgetItem([f"Not evaluated: {blocker}", "", "", ""])
+            row.setForeground(0, QBrush(_VERDICT_COLORS[Verdict.FAILED]))
+            self.why_tree.addTopLevelItem(row)
+        for note in explanation.notes:
+            row = QTreeWidgetItem([note, "", "", ""])
+            font = QFont(row.font(0))
+            font.setItalic(True)
+            row.setFont(0, font)
+            self.why_tree.addTopLevelItem(row)
+        for clause_index, clause in enumerate(explanation.clauses):
+            head = QTreeWidgetItem(["IF" if clause_index == 0 else "OR", "", "", ""])
+            font = QFont(head.font(0))
+            font.setBold(True)
+            head.setFont(0, font)
+            for line in clause:
+                result = line.result
+                judged = f"frame {result.frame}" if result is not None else ""
+                counts = f"{result.passes} / {result.failures}" if result is not None else ""
+                row = QTreeWidgetItem([line.text, line.verdict.value, judged, counts])
+                color = _VERDICT_COLORS.get(line.verdict)
+                if color is not None:
+                    row.setForeground(1, QBrush(color))
+                head.addChild(row)
+            self.why_tree.addTopLevelItem(head)
+            head.setExpanded(True)
+
     def _sync_breakpoints(self, index: LiveIndex) -> None:
         """Write the breakpoint table for this read's scripts. Names are resolved afresh each
         read, since a map reload moves every script."""
@@ -761,7 +980,9 @@ class ScriptDebuggerPanel(QWidget):
             self._trace_snapshot(snapshot, index)
             self._check_hit(snapshot, index)
             self._sync_breakpoints(index)
+            self._sync_watches(index)
         self._fill(snapshot)
+        self._refresh_why()
         self._sync_controls()
         self._publish(index if self._matched else None)
 

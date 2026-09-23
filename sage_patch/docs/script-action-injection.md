@@ -147,7 +147,7 @@ than a judgement made per call site.
    for hero recruits, where the engine will happily do something the interface never offered.
 2. **Refuse outright in a network game.** Peer divergence is not a risk to be managed, it is a
    dropped match for everyone in it. `THE_GAME_INFO` (`0x00DE892C`) and `GAME_MODE_SKIRMISH` are
-   already in [`../addresses.py`](../addresses.py), so the check is a read.
+   already in [`../addresses/`](../addresses/__init__.py), so the check is a read.
 3. **Refuse, or at least mark, while recording.** `RecorderClass::m_mode == RECORD`
    (`THE_RECORDER + RECORDER_MODE`) says a replay is being written. An unsafe action injected
    then produces a file that does not replay, and nothing about the file says why.

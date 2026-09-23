@@ -17,7 +17,7 @@ from sage_worldbuilder.areas import (
     new_area,
     new_area_name,
 )
-from sage_worldbuilder.objects import MoveObjects, place_objects
+from sage_worldbuilder.commands.objects import MoveObjects, place_objects
 from sage_worldbuilder.scene import MapScene
 from sage_worldbuilder.waypoints import (
     add_linked_waypoint,

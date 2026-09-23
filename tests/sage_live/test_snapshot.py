@@ -193,3 +193,14 @@ def test_the_fixture_omits_the_registries_on_purpose(observation):
     assert producing, "the captured match had a building working"
     assert all(item.kind for item in producing[0].production)
     assert all(item.name == "" for item in producing[0].production)
+
+
+def test_only_the_structure_going_up_reports_a_construction_percent(observation):
+    """The capture holds exactly one structure mid-build, and `Object+0x288` says how far it is -
+    every other object carries the engine's -1 and reads as not being built."""
+    building = [o for o in observation.objects if o.construction_percent is not None]
+    assert [o.object_id for o in building] == [
+        o.object_id for o in observation.objects if o.under_construction
+    ]
+    assert len(building) == 1
+    assert 0.0 < building[0].construction_percent < 100.0

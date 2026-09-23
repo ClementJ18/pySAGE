@@ -1,21 +1,12 @@
 """Turn code names into a specific build's integer ids, so a policy can talk in names.
 
-`sage_live.api.orders` deliberately takes resolved integers: the package root stays install-free
-and works with no game on disk. This module is the other half, and it is **not** re-exported
-from `sage_live` because it imports `sage_ini` through `narrate.GameData` - import it from
-here explicitly, the same split `sage_replay` uses for its own game-loading modules.
+`sage_live.api.orders` takes resolved integers; this is the other half. It imports `sage_ini`, so it
+is not re-exported from `sage_live` - import it from here.
 
-**Express policies over code names, never raw ids.** Edain renumbers its tables every release,
-so an id baked into a policy silently means something different after an update, while a name
-either resolves or fails loudly. That is why `retarget` exists for replays, and it is the same
-argument live.
-
-The id-space rules themselves live in `sage_replay.idspace`, shared with `narrate` (which
-reads ids) and `retarget` (which writes them for another build). One rule, three callers.
-
-`Resolver` satisfies `sage_live.utils.naming.NameLookup`, so it can be handed straight to a
-`Session` - `session.names = Resolver.from_root(...)` - and the session gains names in all
-four spaces without importing anything from here.
+Write policies in names, never raw ids: Edain renumbers its tables every release, and a name either
+resolves or fails loudly. The id-space rules are `sage_replay.idspace`'s. `Resolver` satisfies
+`sage_live.utils.naming.NameLookup`, so it can be handed to a `Session` (`session.names =
+Resolver.from_root(...)`).
 """
 
 from __future__ import annotations
@@ -44,19 +35,11 @@ __all__ = ["Resolver", "UnknownDefinition"]
 
 
 class Resolver:
-    """Name → id for one loaded build, plus order constructors that take names.
+    """Name to id for one loaded build, plus order constructors that take names.
 
-    **Matching is case-insensitive where that is unambiguous**, because ini identifiers are and
-    because every other name surface in `sage_live` already honours it - `Statics` and
-    `Observation.find` both lowercase. Without this a name accepted by one half of the library
-    is rejected by the other: `GondorMarketplace` classifies fine and resolves to nothing,
-    and the real template is `GondorMarketPlace`.
-
-    Where it is *not* unambiguous the exact spelling is still required. A table may hold two
-    names differing only in case, and RotWK + Edain holds one such pair - `SCIENCE_IMLADRIS`
-    and `SCIENCE_Imladris` are different sciences with different ids. Folding those together
-    would answer with whichever came first, so a colliding name keeps failing with its
-    suggestions instead.
+    Matching is case-insensitive where that is unambiguous, like every other name lookup in
+    `sage_live`. A name the table spells two ways (RotWK + Edain has `SCIENCE_IMLADRIS` and
+    `SCIENCE_Imladris`, different sciences) still needs the exact spelling.
     """
 
     def __init__(self, game: GameData, player_index: int = 0) -> None:
@@ -76,12 +59,8 @@ class Resolver:
     ) -> Resolver:
         """Load a game tree and build a resolver over it.
 
-        A live install must be mounted first - its data lives in `.big` archives; see
-        `tools/mount_game.py`.
-
-        **Loads the tree itself, so a caller that also wants `Statics` should not use this** -
-        both would parse the same eleven thousand definitions independently. Load once and use
-        `from_game` for that; see its note.
+        Mount a live install's `.big` archives first (`tools/mount_game.py`). To use `Statics` as
+        well, load the game once and use `from_game` for both.
         """
         return cls(GameData.from_root(root, bases=bases), player_index)
 
@@ -93,22 +72,16 @@ class Resolver:
         bases: Sequence[str | Path] = (),
         player_index: int = 0,
     ) -> Resolver:
-        """Build over an already-loaded `Game`, without rebuilding the object model.
+        """Build over an already-loaded `Game`, so `Resolver` and `Statics` share one load.
 
-        The pairing this exists for is `Resolver` and `Statics` over one tree: `Statics` has
-        always taken a `Game`, and this is the other half, so a live session can have names and
-        static facts for the price of one load rather than two.
-
-        `root` is still needed for the `ThingTemplate` registration order every id resolves
-        through - see `GameData.from_game`, which explains why a `Game` cannot supply it.
+        `root` is still needed for the `ThingTemplate` registration order (see
+        `GameData.from_game`).
         """
         return cls(GameData.from_game(game, root, bases=bases), player_index)
 
     def _names(self, space: str) -> Sequence[str]:
-        """The registration order behind one id space, or empty for a space that has none.
-
-        One mapping, so `knows` cannot answer a different question from `thing` - which is the
-        same class of split this resolver's case handling exists to close.
+        """The registration order behind one id space, or empty for a space that has none. One
+        mapping, so `knows` and the lookups cannot disagree.
         """
         return {
             "things": self.game.object_order,
@@ -118,11 +91,8 @@ class Resolver:
         }.get(space, ())
 
     def _unambiguous(self, space: str, names: Sequence[str]) -> dict[str, int]:
-        """Lowercased name → id, for names this build spells exactly one way.
-
-        A name with two spellings is left out entirely rather than mapped to either, so an
-        ambiguous lookup fails as it always did. Built once per space and cached: the tables
-        run to five figures and a policy resolves the same handful of names every cycle.
+        """Lowercased name to id, for names this build spells exactly one way; names with two
+        spellings are left out. Cached per space.
         """
         cached = self._folded.get(space)
         if cached is None:
@@ -165,11 +135,8 @@ class Resolver:
         return self._lookup("sciences", self.game.sciences, name)
 
     def knows(self, space: str, name: str) -> bool:
-        """Whether this build defines `name` in `space`, without raising.
-
-        Answers exactly what `thing`/`upgrade`/`power`/`science` would, case handling included:
-        a `knows` that said yes to a name the resolver then refused is how a startup check
-        passes and the first order fails.
+        """Whether this build defines `name` in `space`, without raising - answering exactly what
+        the matching lookup would, case handling included.
         """
         return self._resolve(space, name) is not None
 

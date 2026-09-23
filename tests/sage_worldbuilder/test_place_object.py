@@ -9,8 +9,8 @@ from sage_map.assets.object_list import Object, ObjectsList
 from sage_map.context import AssetPropertyType
 from sage_map.map import Map, parse_map, write_map
 from sage_worldbuilder import MapDocument
+from sage_worldbuilder.commands.objects import new_object, place_objects
 from sage_worldbuilder.footprints import Footprint, Footprints, FootprintShape
-from sage_worldbuilder.objects import new_object, place_objects
 from sage_worldbuilder.palette import (
     CIVILIAN,
     NO_SORTING,

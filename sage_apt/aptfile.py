@@ -4,6 +4,7 @@ Port of the C++ AptConverter by Stephan Vedder; the size constants mirror the ga
 
 import struct
 from pathlib import Path
+from typing import Any
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
 
@@ -22,7 +23,7 @@ class AptError(Exception):
     """Raised when converting an APT pair fails. Carries the offending path and a
     human-readable reason so callers (CLI, editor API) can report the cause."""
 
-    def __init__(self, path, reason):
+    def __init__(self, path: str | Path, reason: str) -> None:
         self.path = Path(path)
         self.reason = reason
         super().__init__(f"{self.path.name}: {reason}")
@@ -156,49 +157,48 @@ def _resolve_source(path, game_dir, reason):
     raise AptError(path, reason)
 
 
-def apt_to_xml(filename, game_dir=None):
+def apt_to_xml(filename: str | Path, game_dir: str | Path | None = None) -> Path:
     """Decompile the `.apt`/`.const` pair at `filename` to XML. Returns the written
     `.xml` path; raises `AptError` if either input file is missing. Each half is resolved
     loose-file-first, then - when `game_dir` is given - out of the `.big` archives beneath
     it, so a `.apt` whose `.const` (or the `.apt` itself) only lives inside a `.big` still
     decompiles."""
     apt_path = Path(filename)
-    const_path = apt_path.with_suffix(".const")
-    xml_path = apt_path.with_suffix(".xml")
-
     aptbuf = _resolve_source(apt_path, game_dir, "file is missing")
-    constbuf = _resolve_source(const_path, game_dir, "companion .const file is missing")
-
-    # Parse .const
-    off = 0x14  # skip header
-    aptdataoffset, off = _ru(constbuf, off)
-    itemcount, off = _ru(constbuf, off)
-    off += 4  # skip items-block pointer
-
-    const_data = {"aptdataoffset": aptdataoffset, "itemcount": itemcount, "items": []}
-    item_base = off
-    for i in range(itemcount):
-        (itype,) = struct.unpack_from("<I", constbuf, item_base + i * 8)
-        (ival,) = struct.unpack_from("<I", constbuf, item_base + i * 8 + 4)
-        if itype == TYPE_STRING:
-            const_data["items"].append({"type": TYPE_STRING, "value": _rcs(constbuf, ival)})
-        else:
-            const_data["items"].append({"type": itype, "value": ival})
-
-    # Parse .apt
-    root = ET.Element("aptdata")
-    _parse_movie(aptbuf, aptdataoffset, root, const_data)
-
-    # Write XML
-    _write_xml(root, xml_path)
+    constbuf = _resolve_source(
+        apt_path.with_suffix(".const"), game_dir, "companion .const file is missing"
+    )
+    xml_path = apt_path.with_suffix(".xml")
+    xml_path.write_bytes(apt_bytes_to_xml(aptbuf, constbuf))
     return xml_path
 
 
-def _write_xml(root, path):
+def apt_bytes_to_xml(apt: bytes, const: bytes) -> bytes:
+    """The XML (UTF-8, pretty-printed) of an `.apt`/`.const` pair given as bytes."""
+    # Parse .const
+    off = 0x14  # skip header
+    aptdataoffset, off = _ru(const, off)
+    itemcount, off = _ru(const, off)
+    off += 4  # skip items-block pointer
+
+    const_data: dict[str, Any] = {
+        "aptdataoffset": aptdataoffset,
+        "itemcount": itemcount,
+        "items": [],
+    }
+    item_base = off
+    for i in range(itemcount):
+        (itype,) = struct.unpack_from("<I", const, item_base + i * 8)
+        (ival,) = struct.unpack_from("<I", const, item_base + i * 8 + 4)
+        if itype == TYPE_STRING:
+            const_data["items"].append({"type": TYPE_STRING, "value": _rcs(const, ival)})
+        else:
+            const_data["items"].append({"type": itype, "value": ival})
+
+    root = ET.Element("aptdata")
+    _parse_movie(apt, aptdataoffset, root, const_data)
     raw = ET.tostring(root, encoding="unicode")
-    pretty = minidom.parseString(raw).toprettyxml(indent="  ", encoding="utf-8")
-    # minidom adds an XML declaration; write as bytes
-    path.write_bytes(pretty)
+    return minidom.parseString(raw).toprettyxml(indent="  ", encoding="utf-8")
 
 
 def _parse_movie(aptbuf, movie_off, root_elem, const_data):
@@ -621,38 +621,38 @@ def _parse_text(aptbuf, char_ptr, ch_id, parent_elem):
 # XML → APT
 
 
-def xml_to_apt(filename):
+def xml_to_apt(filename: str | Path) -> tuple[Path, Path]:
     """Compile the XML at `filename` back into its `.apt`/`.const` pair. Returns the
     written `(apt_path, const_path)` tuple; raises `AptError` on a missing/misnamed
     input or malformed XML. Both output buffers are built in memory before either
     file is written, so a failure never leaves a partial `.apt` beside a stale
     `.const`."""
     xml_path = Path(filename)
-    const_path = xml_path.with_suffix(".const")
-    apt_path = xml_path.with_suffix(".apt")
-
     if xml_path.suffix != ".xml":
         raise AptError(xml_path, "not an .xml file")
     if not xml_path.exists():
         raise AptError(xml_path, "file is missing")
-
     try:
-        tree = ET.parse(str(xml_path))
+        apt_bytes, const_bytes = xml_bytes_to_apt(xml_path.read_bytes())
     except ET.ParseError as exc:
         raise AptError(xml_path, f"malformed XML: {exc}") from exc
 
-    root = tree.getroot()
-    data = {"aptdataoffset": 0, "itemcount": 0, "items": []}
-    m = _build_movie(root, data)
-
-    apt_bytes, apt_offset = _generate_apt_file(m)
-    data["aptdataoffset"] = apt_offset
-    const_bytes = _generate_const_file(data)
-
-    # Write only after both buffers exist, so a build failure leaves no output.
+    apt_path = xml_path.with_suffix(".apt")
+    const_path = xml_path.with_suffix(".const")
     apt_path.write_bytes(apt_bytes)
     const_path.write_bytes(const_bytes)
     return apt_path, const_path
+
+
+def xml_bytes_to_apt(xml: bytes) -> tuple[bytes, bytes]:
+    """The `(apt, const)` bytes compiled from XML. Raises `xml.etree.ElementTree.ParseError`
+    on malformed XML."""
+    root = ET.fromstring(xml)
+    data: dict[str, Any] = {"aptdataoffset": 0, "itemcount": 0, "items": []}
+    m = _build_movie(root, data)
+    apt_bytes, apt_offset = _generate_apt_file(m)
+    data["aptdataoffset"] = apt_offset
+    return apt_bytes, _generate_const_file(data)
 
 
 # Build in-memory Movie from XML

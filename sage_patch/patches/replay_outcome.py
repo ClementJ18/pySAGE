@@ -1,64 +1,11 @@
-"""The replay-outcome patch: write the final state of the game into the replay.
+"""Write the final state of the game into the replay, so a reader knows who won.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/replay-outcome.md``.
+Eliminations are never in the order stream, so a replay reader can only guess the winner. A `.rpout`
+section hooks the `writeToFile` call where every ending converges (`0x0077F98B`), just before the
+end marker, and writes one `0x7D0` chunk per player with the engine's own outcome, stamped with the
+logic frame.
 
-**The gap it closes.** A replay records *inputs*, not state. Eliminations are computed by the
-simulation and never written to the stream, so no stock chunk says who won - which is why
-:mod:`sage_replay.winner` has to infer an outcome from who stopped issuing orders, and why it
-answers ``undetermined`` for every game that ended by elimination rather than by somebody
-conceding.
-
-**What it does.** Appends a ``.rpout`` PE section holding a chunk template plus a routine, and
-retargets the ``writeToFile`` call in ``RecorderClass::updateRecord``'s ``MSG_CLEAR_GAME_DATA``
-branch (``0x0077F98B``). That branch is where *every* ending converges: `0x1D` has **thirteen**
-emitters in the binary - `GameLogic::clearGameData` is only the one a mid-match quit takes, and
-a game that finishes ends through the score-screen code instead - but all of them are consumed
-here, and the branch has already proven ``m_file`` non-NULL. The routine runs immediately before
-the ``0x1D`` chunk is written and immediately before ``stopRecording`` closes the file, so it is
-the last moment anything can be appended to a recording. It writes one chunk per player straight
-to the recorder's own ``FILE*``, in the engine's own chunk format, stamped with the current
-logic frame. Each chunk carries::
-
-    order type  ORDER_TYPE (0x7D0)
-    number      the player's `m_playerIndex`, exactly as a real order carries it
-    Integer 0   outcome:  0 undetermined | 1 victorious | 2 defeated
-    Integer 1   the frame that player was defeated on, or 0 if never
-
-so the state of *every* player is on record at the moment the recording ends, whichever way it
-ended, and :meth:`sage_replay.ReplayFile.slot_index` maps each chunk to its metadata slot with
-no new rule - the number is the same field the engine fills for a human's own orders.
-
-**Why write the file directly rather than append a message.** The recorder writes what it sees
-on ``TheCommandList``, and it only keeps types 1001..1998 - the *network* range, which is
-relayed to every peer and executed by all of them. Injecting an order there to carry a verdict
-would put a new message type on the wire and make the patch a desync risk that every peer had
-to carry. Writing the bytes ourselves keeps the whole thing client-local: nothing enters the
-simulation, nothing crosses the network, and an unpatched peer is unaffected. The cave lands its
-chunks at the file's current position, which is exactly where the recorder's next chunk would
-have gone.
-
-**Why ``0x7D0``.** The engine can never emit it. ``RecorderClass::updateRecord`` records
-``0x1D`` plus the open range ``0x3E8 < type < 0x7CF``, and the ``GameMessage::Type`` enum stops
-at ``0x47B`` (see ``../docs/message-stream.md``), so 2000 is outside both the recorded range and
-the enum. A chunk of this type in a replay came from this patch or from nowhere.
-
-**Why the outcome is the engine's own answer.** ``m_isDefeated[i]`` is a latch
-``VictoryConditions::update`` sets on the frame a player is first found defeated, and the
-``hasAchievedVictory`` predicate resolves teams. Both are already called every frame by the
-stock UI, so the cave calling them once more at teardown introduces no side effect the engine
-does not already have. A player who is neither is reported ``undetermined`` rather than guessed
-at - the honest answer when the recorder quit a match that was still live.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name, and the only engine bytes it edits are the five of the
-``call`` at ``0x0077F98B``, which no other bundled patch touches.
-
-Section layout, at the base::
-
-    +0x00  chunk        CHUNK_LEN bytes, the template rewritten per player
-    +0x18  file         dword  the recorder's FILE*, held across the loop
-    +0x20  code
+Derivation: `../docs/replay-outcome.md` and `../docs/message-stream.md`.
 """
 
 from __future__ import annotations
@@ -261,7 +208,7 @@ def _build_code(base_va: int) -> bytes:
 
 
 def build_section(base_va: int) -> bytes:
-    """The whole ``.rpout`` payload: chunk template, the `FILE*` slot, then code."""
+    """The whole `.rpout` payload: chunk template, the `FILE*` slot, then code."""
     body = bytearray(CODE_OFF)
     body[0:CHUNK_LEN] = chunk_template()
     return bytes(body) + _build_code(base_va)
@@ -270,6 +217,7 @@ def build_section(base_va: int) -> bytes:
 class ReplayOutcomePatch(Patch):
     name = "replay-outcome"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Write each player's final victory/defeat state into the replay, at the frame the "
         "recording ends - whether a player left or the game finished. No INI change; read the "

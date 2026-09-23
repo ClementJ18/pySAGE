@@ -1,80 +1,11 @@
-"""The wall-mesh-release patch: a destroyed wall gives back the pathfinding data it registered.
+"""Make a destroyed walkable wall give back the pathfinding data it registered.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/raised-wall-mesh-removal.md``.
+A `WALK_ON_TOP_OF_WALL` wall registers a wall-layer slot, two ramp records and its walkable cells,
+and its removal re-derives them from a model that has already changed, so they are left behind. A
+ledger in the cave, keyed by object id, records what each wall registered and is consumed on
+removal; with no entry every path is stock. The engine's own reset clears it. No INI change.
 
-**The defect.** A walkable wall registers three separate things with the `Pathfinder`, in
-``0x00935FAA``, and gives back none of them when it dies.
-
-- The **walkable surface** named by `RaisedWallMesh` claims a slot in the sixteen-entry table at
-  ``Pathfinder+0x60`` and pushes a render object onto that slot's list. `claimWallLayer`
-  (``0x00768246``) and the list push beside it (``0x00768276``) have **exactly one caller each,
-  and both are on the add path** - so this leg is not a removal that fails, it is a removal that
-  was never written.
-- The two **ramps** allocate a ``0xCC`` record each onto the list at ``Pathfinder+0x5C``. Their
-  removal re-queries the drawable for `RampMesh1` / `RampMesh2` and matches the answer's geometry
-  against the list (``0x009356DF``).
-- The **bounds cells** named by `WallBoundsMesh` are marked into the pathfind grid. Their removal
-  re-queries the drawable for that mesh too, and a NULL answer **returns from the function**
-  (``0x009362AD``) before a single cell is unmarked.
-
-The last two fail because a dying structure changes model before the teardown at ``0x00692313``
-reaches the pathfinder, and a `RUBBLE` or `POST_RUBBLE` model does not contain the named
-sub-objects. So the removal is not the inverse of the addition: it is the addition run again
-against a model that no longer has anything to find. The symptom is units walking on air over a
-wall that is gone, and fourteen wall-layer slots that are never given back for the rest of the
-match.
-
-**What this does.** The engine is made to *remember what it registered* instead of re-deriving it.
-A ledger in the cave, keyed by `ObjectID`, is filled on the add path and consumed on the remove
-path; where an entry exists it is authoritative, and where none does every path keeps the stock
-answer exactly.
-
-- **The walkable surface** is unlinked from the slot's list by the pointer that was recorded when
-  it was pushed (the link is ``renderObj+0x3C``, the head is ``slot+0x38``), destroyed the way the
-  engine destroys it, and - once the slot's list comes out empty - handed back through the
-  engine's own ``0x00768AA7``. Slots are **shared between walls of equal height**, which is why
-  the release is conditional on the list emptying rather than done once per wall.
-- **The ramps** are unlinked by the recorded record pointer rather than by geometry, which answers
-  the same question without needing a mesh to ask it of.
-- **The bounds cells** need no new loop: the four frame slots holding the cell rectangle are
-  restored from the ledger and control jumps to ``0x0093682F``, the head of the stock unmark loop,
-  which reads exactly those four and dereferences no mesh.
-
-**Why a ledger and not a stamped `ObjectID`.** Stamping the id into the layer slot cannot work:
-the slot is shared, so it cannot say which of its members is dying. And nothing needs stamping -
-``0x004BA693`` returns an object *derived* from the queried sub-object and releases the sub-object
-itself, so what the slot holds is the pathfinder's own allocation, destroyed by ``0x00768AA7``. A
-pointer recorded at add time therefore stays valid for exactly as long as the registration it
-describes, and no engine structure has to grow.
-
-**Both directions reach the bounds query.** ``0x00935FAA`` branches on `adding` at ``0x00935FDD``,
-the two arms rejoin at ``0x0093629C``, and `adding` is read a *second* time at ``0x009365F9`` to
-choose mark or unmark. The remove hook therefore sits on the query itself and tests `adding`
-again, so an addition passes through it untouched.
-
-**The ledger is cleared by the engine's own reset.** `Pathfinder::reset` (``0x006F5B03``) frees
-the ramp list and releases all sixteen slots, so everything the ledger describes stops existing
-between matches; the hook on its tail drops the table at the same moment, and nothing survives to
-be matched against a recycled `ObjectID` in the next game.
-
-**Bounded, and it degrades to stock rather than to a wrong answer.** The table describes
-:data:`LEDGER_SLOTS` walls; a wall that does not fit registers exactly as it does today and is
-removed exactly as it is today. The failure mode of a full table is the unpatched behaviour, not a
-corrupt one - which is also the failure mode of a wall registered by some path this patch does not
-see.
-
-**Determinism.** This decides where units may walk, so **every peer must run the same patched
-binary** and replays recorded on it will not play back on a stock one - the same rule as
-`spawn-union` and `multi-execute-gate`.
-
-**No INI surface.** There is no new keyword and no opt-in: the patch changes what an existing
-`RaisedWallMesh` / `RampMesh1` / `RampMesh2` / `WallBoundsMesh` block does when its object is
-removed. A mod needs no edit to benefit and cannot write anything to decline it.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. No other bundled patch touches ``0x00935FAA``, ``0x006F5B1F`` or
-the slot accessors, and this patch reads nothing another patch rewrites.
+Derivation: `../docs/raised-wall-mesh-removal.md`.
 """
 
 from __future__ import annotations
@@ -83,7 +14,7 @@ import struct
 
 from ..asm import JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, va_to_offset
 
 __all__ = [
     "ENTRY_SIZE",
@@ -93,24 +24,24 @@ __all__ = [
     "build_section",
 ]
 
-# --- the engine ---------------------------------------------------------------------------------
+# The engine
 
-#: `Drawable::getWallBoundsMesh` - iface `+0x98` through the draw-module walk. ``__thiscall``,
-#: ``ret 4``, one out-parameter (the height). NULL when the current model has no such sub-object,
+#: `Drawable::getWallBoundsMesh` - iface `+0x98` through the draw-module walk. `__thiscall`,
+#: `ret 4`, one out-parameter (the height). NULL when the current model has no such sub-object,
 #: which is the early-out this patch hangs the removal on.
 GET_WALL_BOUNDS_MESH = 0x006728D7
 
-#: `Pathfinder::pushWallLayerMesh` - ``__thiscall``, ``ret 4``. Pushes a render object onto the
-#: list headed at ``slot+0x38``, linking through the pushed object's own ``+0x3C``.
+#: `Pathfinder::pushWallLayerMesh` - `__thiscall`, `ret 4`. Pushes a render object onto the
+#: list headed at `slot+0x38`, linking through the pushed object's own `+0x3C`.
 PUSH_WALL_LAYER_MESH = 0x00768276
 
-#: `Pathfinder::claimWallLayer` - ``__thiscall``, ``ret 8`` (render object, layer index). Takes an
-#: unused slot, refusing one whose ``+0x34`` or ``+0x38`` is set, and answers whether it took it.
+#: `Pathfinder::claimWallLayer` - `__thiscall`, `ret 8` (render object, layer index). Takes an
+#: unused slot, refusing one whose `+0x34` or `+0x38` is set, and answers whether it took it.
 CLAIM_WALL_LAYER = 0x00768246
 
-#: `Pathfinder::releaseWallLayer` - ``__thiscall``, no arguments. Clears ``+0x34``, drops the
-#: slot's cell data, destroys the render object at the head of ``+0x38``, and resets ``+0x18``
-#: through ``+0x3C``. Identified by `Pathfinder::reset` looping it over all sixteen slots; it is
+#: `Pathfinder::releaseWallLayer` - `__thiscall`, no arguments. Clears `+0x34`, drops the
+#: slot's cell data, destroys the render object at the head of `+0x38`, and resets `+0x18`
+#: through `+0x3C`. Identified by `Pathfinder::reset` looping it over all sixteen slots; it is
 #: the inverse the RE document had recorded as not yet located.
 RELEASE_WALL_LAYER = 0x00768AA7
 
@@ -119,8 +50,8 @@ RELEASE_WALL_LAYER = 0x00768AA7
 RESET_TAIL_CALL_VA = 0x006F5B1F
 RESET_TAIL_CALLEE = 0x00939F17
 
-#: `operator delete` - ``__cdecl``, caller cleans. The engine pairs it with a scalar deleting
-#: destructor called with a flag of 0, at ``0x00768AC1`` and again at ``0x006F5AF1``; both of this
+#: `operator delete` - `__cdecl`, caller cleans. The engine pairs it with a scalar deleting
+#: destructor called with a flag of 0, at `0x00768AC1` and again at `0x006F5AF1`; both of this
 #: patch's destroy sites reproduce that pair instruction for instruction.
 OPERATOR_DELETE = 0x0042F6A0
 
@@ -135,29 +66,29 @@ RENDER_OBJ_NEXT_OFFSET = 0x3C
 #: only to reproduce that guard, so the add hook records exactly when the claim will succeed.
 SLOT_IN_USE_OFFSET = 0x34
 
-#: The head of the ramp-record list on the `Pathfinder`, and the link field on a ``0xCC`` record.
+#: The head of the ramp-record list on the `Pathfinder`, and the link field on a `0xCC` record.
 PATHFINDER_RAMP_LIST_OFFSET = 0x5C
 RAMP_NEXT_OFFSET = 0x04
 
-# --- the hooks ----------------------------------------------------------------------------------
+# The hooks
 
 #: `call PUSH_WALL_LAYER_MESH` on the add path's *share an existing slot* arm. ecx is the slot and
-#: ``[esp+4]`` the render object.
+#: `[esp+4]` the render object.
 HOOK_SHARE_SLOT_VA = 0x009360A1
 
-#: `call CLAIM_WALL_LAYER` on the add path's *take a new slot* arm. ecx is the slot, ``[esp+4]``
-#: the render object and ``[esp+8]`` the layer index.
+#: `call CLAIM_WALL_LAYER` on the add path's *take a new slot* arm. ecx is the slot, `[esp+4]`
+#: the render object and `[esp+8]` the layer index.
 HOOK_CLAIM_SLOT_VA = 0x009360CA
 
 #: The two seven-byte windows immediately after each ramp record is constructed, where eax holds
 #: the record (or 0 if the allocation failed). Both carry the identical pair
-#: ``mov ecx,[esi+0x5C]; or dword [ebp-4],-1``, which is why one cave routine serves both.
+#: `mov ecx,[esi+0x5C]; or dword [ebp-4],-1`, which is why one cave routine serves both.
 HOOK_RAMP_WINDOWS: tuple[int, ...] = (0x00936138, 0x0093619B)
 RAMP_WINDOW_STOCK = bytes.fromhex("8b4e5c834dfcff")
 
 #: The call on the add path taken once the cell rectangle is final and before the marking loop
-#: consumes it. `Object *` is in **edi** here, not ``[ebp+8]`` - the frame slot has already been
-#: reused as scratch, by ``0x00936521``.
+#: consumes it. `Object *` is in **edi** here, not `[ebp+8]` - the frame slot has already been
+#: reused as scratch, by `0x00936521`.
 HOOK_RECT_VA = 0x00936617
 HOOK_RECT_CALLEE = 0x00472958
 
@@ -171,9 +102,9 @@ HOOK_BOUNDS_VA = 0x009362A3
 #: dereferences the bounds render object.
 UNMARK_LOOP_VA = 0x0093682F
 
-#: ``0x00935FAA``'s own frame slots, as displacements from its ebp. The rectangle is
-#: ``i0``/``i1``/``j0``/``j1``; ``[ebp+8]`` is the `Object *` until ``0x00936521`` reuses it as
-#: scratch, and ``[ebp+0xC]`` is `adding` until ``0x00936698`` does the same. Every hook here is
+#: `0x00935FAA`'s own frame slots, as displacements from its ebp. The rectangle is
+#: `i0`/`i1`/`j0`/`j1`; `[ebp+8]` is the `Object *` until `0x00936521` reuses it as
+#: scratch, and `[ebp+0xC]` is `adding` until `0x00936698` does the same. Every hook here is
 #: sited before its slot is reused, except the rectangle hook, which takes the object from edi.
 FRAME_OBJECT = 0x08
 FRAME_ADDING = 0x0C
@@ -182,8 +113,8 @@ FRAME_RECT_I1 = 0x30
 FRAME_RECT_J0 = 0x3C
 FRAME_RECT_J1 = 0x34
 
-#: Byte windows the patch depends on, as ``{va: expected bytes}``. The five repointed `call`s are
-#: blanked by :meth:`~WallMeshReleasePatch.verify` before comparing, so the same table checks a
+#: Byte windows the patch depends on, as `{va: expected bytes}`. The five repointed `call`s are
+#: blanked by `verify` before comparing, so the same table checks a
 #: patched image; the rest are read-only anchors that pin the offsets above.
 ANCHORS: dict[int, bytes] = {
     # `mov esi, ecx` in the prologue, and the `[ebp+8]` read beside it: esi is the `Pathfinder`
@@ -191,7 +122,7 @@ ANCHORS: dict[int, bytes] = {
     # argument
     0x00935FBA: bytes.fromhex("53568bf18b4d0857e84c80ddff"),
     # the add path's slot scan: `push 2; pop edi` and the `cmp edi,0xF` that bounds it, which is
-    # what pins the table at +0x60 with wall slots 2..15. Cut in two at ``0x00936000`` because the
+    # what pins the table at +0x60 with wall slots 2..15. Cut in two at `0x00936000` because the
     # `push`/`pop` pair straddles a page, which the sparse stand-in the tests build cannot map.
     0x00935FF8: bytes.fromhex("0f84ed0000006a02"),
     0x00936000: bytes.fromhex("5f8d4dc4518bc8e820eddaff"),
@@ -223,7 +154,7 @@ ANCHORS: dict[int, bytes] = {
     0x0093686E: bytes.fromhex("8b45cc3945c40f8fd8000000"),
 }
 
-# --- the cave -----------------------------------------------------------------------------------
+# The cave
 
 SECTION_NAME = ".wallrl"  # 7 chars: the PE name field is 8 bytes and truncates silently
 # CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE. Writable because the
@@ -252,15 +183,10 @@ LEDGER_SIZE = LEDGER_SLOTS * ENTRY_SIZE
 #: Two dwords of cave scratch after the ledger: the entry the removal is working on, and the
 #: `Pathfinder *` it was reached with. Globals rather than registers because the removal calls
 #: engine code that is not documented to preserve esi, and because none of these routines can be
-#: reached reentrantly - every one runs inside a single call of ``0x00935FAA``.
+#: reached reentrantly - every one runs inside a single call of `0x00935FAA`.
 SCRATCH_ENTRY = LEDGER_SIZE
 SCRATCH_PATHFINDER = LEDGER_SIZE + 4
 SCRATCH_SIZE = 8
-
-
-def _call_bytes(from_va: int, to_va: int) -> bytes:
-    """The five bytes of ``call rel32`` sited at ``from_va``."""
-    return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
 
 
 def _disp8(offset: int) -> int:
@@ -271,17 +197,43 @@ def _disp8(offset: int) -> int:
 def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     """The cave's code, and the virtual address of each hook entry point.
 
-    Laid out as one :class:`~..asm.Asm` so the helpers can be reached with `call rel32` to a
+    Laid out as one `Asm` so the helpers can be reached with `call rel32` to a
     label - their addresses are not known until the whole body has been emitted, which is exactly
     what labels exist for. The returned mapping is read with
-    :meth:`~..asm.Asm.label_va`, so the entry addresses come from the layout that was actually
+    `label_va`, so the entry addresses come from the layout that was actually
     emitted rather than from counting the bytes a second time."""
     entry_va = ledger_va + SCRATCH_ENTRY
     pathfinder_va = ledger_va + SCRATCH_PATHFINDER
     a = Asm(base_va)
 
-    # --- helpers -------------------------------------------------------------------------------
+    _emit_find(a, ledger_va)
+    _emit_alloc(a, ledger_va)
+    _emit_object_id(a)
+    _emit_destroy(a)
+    _emit_share_slot(a)
+    _emit_claim_slot(a)
+    _emit_ramp_record(a)
+    _emit_record_rect(a)
+    _emit_release_surface(a, entry_va)
+    _emit_release_ramps(a, entry_va, pathfinder_va)
+    _emit_bounds_query(a, entry_va, pathfinder_va)
+    _emit_drop_ledger(a, entry_va, ledger_va)
+    code = a.finish()
+    entries = {
+        name: a.label_va(name)
+        for name in (
+            "share_slot",
+            "claim_slot",
+            "ramp_record",
+            "record_rect",
+            "bounds_query",
+            "drop_ledger",
+        )
+    }
+    return code, entries
 
+
+def _emit_find(a: Asm, ledger_va: int) -> None:
     # _find: eax = ObjectID -> eax = entry, or 0. Never called with 0, which would match a free
     # slot; every caller tests the id first.
     a.label("_find")
@@ -302,6 +254,8 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(0x59)  # pop ecx
     a.emit(0xC3)  # ret
 
+
+def _emit_alloc(a: Asm, ledger_va: int) -> None:
     # _alloc: eax = ObjectID -> eax = entry, or 0 when the table is full. Returns the existing
     # entry when there is one, so the four add hooks fill one row between them.
     a.label("_alloc")
@@ -337,6 +291,8 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(0x5A)  # pop edx
     a.emit(0xC3)  # ret
 
+
+def _emit_object_id(a: Asm) -> None:
     # _object_id: eax = the current Object's id, or 0. Reads [ebp+8], which every hook but the
     # rectangle one is sited before the reuse of.
     a.label("_object_id")
@@ -347,6 +303,8 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.label("_object_id.out")
     a.emit(0xC3)  # ret
 
+
+def _emit_destroy(a: Asm) -> None:
     # _destroy: ecx = the object to destroy. The engine's own pair, as `releaseWallLayer` writes
     # it: the scalar deleting destructor with a flag of 0 (which destroys but does not free, and
     # returns `this`), then `operator delete` on what it returned.
@@ -359,8 +317,10 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(0x59)  # pop ecx                ; __cdecl: the caller cleans
     a.emit(0xC3)  # ret
 
-    # --- add hooks -----------------------------------------------------------------------------
+    # Add hooks
 
+
+def _emit_share_slot(a: Asm) -> None:
     # H1a: the share-an-existing-slot arm. Entered by the repointed `call`, so [esp+4] is the
     # render object and ecx the slot; ends by tail-jumping to the routine it replaced, whose
     # `ret 4` returns to the instruction after the hooked call.
@@ -384,6 +344,8 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(0x58)  # pop eax
     a.jmp_absolute(PUSH_WALL_LAYER_MESH)
 
+
+def _emit_claim_slot(a: Asm) -> None:
     # H1b: the take-a-new-slot arm. The same record, behind `claimWallLayer`'s own guard - the
     # claim is refused for a slot whose +0x34 or +0x38 is set, and a refused claim registers
     # nothing, so recording it would leave a row describing a slot this wall is not in.
@@ -411,6 +373,8 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(0x58)  # pop eax
     a.jmp_absolute(CLAIM_WALL_LAYER)
 
+
+def _emit_ramp_record(a: Asm) -> None:
     # H2: both ramp records. Entered by a `call` from a seven-byte window, with eax holding the
     # record just constructed (or 0 if the allocation failed), and ends by re-emitting the two
     # displaced instructions. eax has to survive: the caller's next instruction links the record
@@ -445,6 +409,8 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(b"\x83\x4d\xfc\xff")  # or dword [ebp-4], -1
     a.emit(0xC3)  # ret
 
+
+def _emit_record_rect(a: Asm) -> None:
     # H3: the cell rectangle, recorded once it is final and before the marking loop consumes it.
     # The object comes from edi, not [ebp+8] - that slot has been reused as scratch by now.
     a.label("record_rect")
@@ -474,8 +440,10 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(0x58)  # pop eax
     a.jmp_absolute(HOOK_RECT_CALLEE)
 
-    # --- the removal ---------------------------------------------------------------------------
+    # The removal
 
+
+def _emit_release_surface(a: Asm, entry_va: int) -> None:
     # _release_surface: unlink [entry+SURFACE] from [entry+SLOT]'s list and destroy it; if that
     # empties the list, hand the slot back through the engine's own release. Conditional because
     # slots are shared by height - another wall may still be standing on this one.
@@ -523,6 +491,8 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(0x58)  # pop eax
     a.emit(0xC3)  # ret
 
+
+def _emit_release_ramps(a: Asm, entry_va: int, pathfinder_va: int) -> None:
     # _release_ramps: unlink each recorded record from the Pathfinder's list and destroy it. The
     # list is walked to prove the record is still on it, because the stock removal runs earlier in
     # the same function and may already have taken one by geometry.
@@ -567,6 +537,8 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(0x58)  # pop eax
     a.emit(0xC3)  # ret
 
+
+def _emit_bounds_query(a: Asm, entry_va: int, pathfinder_va: int) -> None:
     # H4: the bounds query, and the whole of the removal. Entered by the repointed `call`, so
     # [esp] is the return address, [esp+4] the caller's out-parameter and ecx the drawable.
     a.label("bounds_query")
@@ -627,6 +599,8 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.label("bounds_query.pass")
     a.emit(b"\xc2\x04\x00")  # ret 4
 
+
+def _emit_drop_ledger(a: Asm, entry_va: int, ledger_va: int) -> None:
     # H5: `Pathfinder::reset`'s tail. Everything the ledger describes has just stopped existing,
     # so the table goes with it - which is what stops a recycled ObjectID in the next match
     # matching a row from this one.
@@ -648,26 +622,12 @@ def _build_code(base_va: int, ledger_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(0x58)  # pop eax
     a.jmp_absolute(RESET_TAIL_CALLEE)
 
-    code = a.finish()
-    entries = {
-        name: a.label_va(name)
-        for name in (
-            "share_slot",
-            "claim_slot",
-            "ramp_record",
-            "record_rect",
-            "bounds_query",
-            "drop_ledger",
-        )
-    }
-    return code, entries
-
 
 def build_section(base_va: int) -> tuple[bytes, dict[str, int]]:
-    """``(section content, {hook name: entry VA})`` for a cave based at ``base_va``.
+    """`(section content, {hook name: entry VA})` for a cave based at `base_va`.
 
     The ledger and the two scratch dwords go first, at the section's own base, so the code reaches
-    them by a resolved address and :meth:`~WallMeshReleasePatch.verify` can check they are
+    them by a resolved address and `verify` can check they are
     zero-initialised without knowing how long the code is."""
     ledger_va = base_va
     code_va = base_va + LEDGER_SIZE + SCRATCH_SIZE
@@ -675,7 +635,7 @@ def build_section(base_va: int) -> tuple[bytes, dict[str, int]]:
     return bytes(LEDGER_SIZE + SCRATCH_SIZE) + code, entries
 
 
-# --- the patch ----------------------------------------------------------------------------------
+# The patch
 
 
 class WallMeshReleasePatch(Patch):
@@ -692,8 +652,8 @@ class WallMeshReleasePatch(Patch):
         "WallBoundsMesh block already does"
     )
 
-    #: The five `call rel32` sites this patch repoints, as ``(va, stock callee, cave entry, note)``
-    #: keyed by the entry name :func:`build_section` returns.
+    #: The five `call rel32` sites this patch repoints, as `(va, stock callee, cave entry, note)`
+    #: keyed by the entry name `build_section` returns.
     _CALL_HOOKS: tuple[tuple[int, int, str, str], ...] = (
         (HOOK_SHARE_SLOT_VA, PUSH_WALL_LAYER_MESH, "share_slot", "share a wall-layer slot"),
         (HOOK_CLAIM_SLOT_VA, CLAIM_WALL_LAYER, "claim_slot", "claim a wall-layer slot"),
@@ -707,7 +667,7 @@ class WallMeshReleasePatch(Patch):
         ),
     )
 
-    # --- apply / verify ----------------------------------------------------------------------
+    # Apply / verify
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)
@@ -722,11 +682,11 @@ class WallMeshReleasePatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch (an empty list == verified).
+        """Structural check that `data` carries this patch (an empty list == verified).
 
         Recomputes the cave and every rewritten site from the section base found on disk and
         compares them byte for byte, then re-checks every window the patch reads but does not
-        rewrite. Reads only via ``struct`` and the section table - no disassembler."""
+        rewrite. Reads only via `struct` and the section table - no disassembler."""
         located = find_section(data, SECTION_NAME)
         if located is None:
             return [f"no {SECTION_NAME} section: the file does not carry this patch"]
@@ -753,20 +713,20 @@ class WallMeshReleasePatch(Patch):
         problems += self._anchor_problems(data, patched=True)
         return problems
 
-    # --- layout ------------------------------------------------------------------------------
+    # Layout
 
     def _edits(
         self, data: bytes | bytearray, entries: dict[str, int]
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """Every byte range this patch rewrites, as ``(file offset, old, new, note)``: five
-        ``call rel32`` displacements, and the two seven-byte ramp windows."""
+        """Every byte range this patch rewrites, as `(file offset, old, new, note)`: five
+        `call rel32` displacements, and the two seven-byte ramp windows."""
         edits: list[tuple[int, bytes, bytes, str]] = []
         for call_va, stock_va, entry, note in self._CALL_HOOKS:
             off = va_to_offset(data, call_va)
             if off is None:
                 raise ValueError(f"{note}: VA 0x{call_va:08x} is not mapped")
             edits.append(
-                (off, _call_bytes(call_va, stock_va), _call_bytes(call_va, entries[entry]), note)
+                (off, call_rel32(call_va, stock_va), call_rel32(call_va, entries[entry]), note)
             )
         # Each ramp window is a `call` to the cave plus two `nop`s: the routine re-emits the pair
         # it displaced, so nothing of the original is lost.
@@ -775,23 +735,23 @@ class WallMeshReleasePatch(Patch):
             off = va_to_offset(data, window_va)
             if off is None:
                 raise ValueError(f"ramp window: VA 0x{window_va:08x} is not mapped")
-            new = _call_bytes(window_va, entries["ramp_record"]) + replacement_tail
+            new = call_rel32(window_va, entries["ramp_record"]) + replacement_tail
             edits.append((off, RAMP_WINDOW_STOCK, new, f"record a ramp record @0x{window_va:08x}"))
         return edits
 
-    # --- the build fingerprint ----------------------------------------------------------------
+    # The build fingerprint
 
     def _anchor_problems(self, data: bytes | bytearray, patched: bool = False) -> list[str]:
         """Everything the patch depends on and does not rewrite.
 
         Four kinds, all silent when wrong: the add-path windows say the two slot arms are still
         the ones this patch records from; the slot-accessor windows say the list head is still
-        ``+0x38`` and the link still the pushed object's own ``+0x3C``, which is what the removal
+        `+0x38` and the link still the pushed object's own `+0x3C`, which is what the removal
         walks; `Pathfinder::reset` pins the table's base and count and the call the ledger is
         dropped from; and the removal windows say the bounds query, its early-out and the unmark
         loop's four rectangle reads are all where the cave believes.
 
-        ``patched`` blanks the bytes this patch rewrites, which is what lets the same table check
+        `patched` blanks the bytes this patch rewrites, which is what lets the same table check
         an already-patched image."""
         problems: list[str] = []
         rewritten: list[tuple[int, int]] = [(va, 5) for va, _s, _e, _n in self._CALL_HOOKS]

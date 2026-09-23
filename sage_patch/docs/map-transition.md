@@ -223,8 +223,8 @@ scenario army. A fixed arena also sidesteps the engine allocator entirely, which
 the allocator is one of the subsystems the load path resets.
 
 **The snapshot format is not a research problem.** `CHUNK_ScriptEngine` — counters, flags, timers
-and the named-object table — is already decoded byte for byte in
-[`sage_save/sav_format.md`](../../sage_save/sav_format.md), with an exact-inverse encoder validated
+and the named-object table — is already decoded byte for byte by
+[`sage_save.chunks`](../../sage_save/chunks.py), with an exact-inverse encoder validated
 on 37 fixtures. That decoding names the fields; §6.1 locates them in memory. The save system
 reaches the chunk through `GameState::registerSnapshot` (`0x006DF45B`), which appends a
 `{name, snapshot}` pair to a list at `this + 0x10 + index*4`; `0x006DF904` registers
@@ -327,7 +327,7 @@ write time in `0x00609092`:
 ```
 
 `0.005 × 1000` is **5 ticks per second**, which agrees with `LOGIC_FRAMES_PER_SECOND`
-(`0x00D9F608`, value 5) already recorded in [`../addresses.py`](../addresses.py), and not with the
+(`0x00D9F608`, value 5) already recorded in [`../addresses/`](../addresses/__init__.py), and not with the
 30 four bytes above it at `0x00D9F60C`, which is the client rate. The `+0x05` byte only records
 that the value arrived as seconds rather than as a raw count.
 
@@ -337,7 +337,7 @@ rate. No conversion, no rebase.
 
 ### 6.3 Which player receives the army
 
-Already recorded in [`../addresses.py`](../addresses.py) and needing no new work:
+Already recorded in [`../addresses/`](../addresses/__init__.py) and needing no new work:
 `THE_PLAYER_LIST` `0x00DE4928`, `PLAYER_LIST_GET_LOCAL_PLAYER` `0x006A8839`,
 `PLAYER_LIST_LOCAL_PLAYER` `+0x10`, `PLAYER_LIST_GET_NTH` `0x006A844E`,
 `PLAYER_LIST_COUNT_OFFSET` `+0x14`. `getLocalPlayer` returns `[ThePlayerList+0x10]`, or the
@@ -952,7 +952,7 @@ quit button at `0x00921A67` calls:
 00921a6b  call 0x625e36                 ; GameLogic::clearGameData(Bool)
 ```
 
-**`CLEAR_GAME_DATA` (`0x00625E36`) was already recorded in `addresses.py`** - as the site a
+**`CLEAR_GAME_DATA` (`0x00625E36`) was already recorded in `sage_patch.addresses`** - as the site a
 mid-match quit takes on the way to ending a recording. It was sitting in the module the whole time
 under a name that described a different consumer, which is why six passes over the load path never
 turned it up: the load path is not where it lives.
@@ -1476,7 +1476,7 @@ carrying `readyFrame` unrebased, and what rebasing would take if it is ever want
   names a team, and `createObject` picks the receiving player's default team for you.
 - **Refuse outside single player.** A map load is not in the order stream, so in a network game it
   is a dropped match for everyone. `THE_GAME_INFO` (`0x00DE892C`) and `GAME_MODE_SKIRMISH` are
-  already in [`../addresses.py`](../addresses.py), so the check is a read.
+  already in [`../addresses/`](../addresses/__init__.py), so the check is a read.
 - **Refuse, or mark, while recording.** The direct call pair avoids restarting the replay file,
   which means a replay recorded across a transition will run map 1's orders against map 2's world
   and diverge with nothing in the file to say why. Refusing is the honest default.

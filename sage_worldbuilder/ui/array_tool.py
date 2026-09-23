@@ -26,9 +26,14 @@ from sage_worldbuilder.arrays import (
     stamp_objects,
 )
 from sage_worldbuilder.commands.base import Command, CompositeCommand
+from sage_worldbuilder.commands.objects import (
+    GroupEditMethod,
+    RotateObjects,
+    new_object,
+    place_objects,
+)
 from sage_worldbuilder.document import MapDocument
 from sage_worldbuilder.footprints import FootprintShape
-from sage_worldbuilder.objects import GroupEditMethod, RotateObjects, new_object, place_objects
 from sage_worldbuilder.ui.tools import DRAG_PIXELS, Gesture, PlaceHost, Tool, ToolView
 from sage_worldbuilder.viewport import snap
 

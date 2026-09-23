@@ -13,6 +13,14 @@ and sets the frame gate (`script_debugger.FrameGate`) to held. The gate is only 
 of the next dispatcher call, so the rest of the frame's scripts still run and the game stops on
 the frame boundary - never between two actions.
 
+**Why not** is traced one level down. Every enabled condition the engine judges goes through one
+call, which the cave wraps: for a condition on the watch table it stores the verdict, the frame and
+the evaluation it belonged to, and counts passes and failures. The evaluation itself is numbered by
+a jump over the evaluator's first instruction, so a reader can tell the conditions the latest
+evaluation reached from the ones a failure or an earlier passing clause skipped
+(`sage_patch/docs/script-debugger.md` §2.3). Like breakpoints, this runs whether or not recording
+is on, and costs the game one compare per condition when nothing is watched.
+
 The cave is written by the game and read by the controller:
 
     +0x00  'STRC'       the tag a later attach recognises the cave by
@@ -24,9 +32,13 @@ The cave is written by the game and read by the controller:
     +0x18  breakpoints  entries in use in the table
     +0x1C  hits         breakpoint hits ever
     +0x20  hit script, hit frame, hit kind - the last hit
+    +0x2C  watches      entries in use in the watch table
+    +0x30  evaluations  script evaluations ever started
     +0x40  code
     +0x200 the breakpoint table: `Script *`, kind mask; 64 of them
     +0x400 the ring: 16 bytes an event - frame, kind, Script *, object id
+    then   the watch table: 32 bytes a condition - Condition *, evaluation, frame, verdict,
+           passes, failures; 256 of them
 
 A reader that falls more than a ring behind loses the oldest events, and is told how many.
 
@@ -41,14 +53,16 @@ import struct
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import IntEnum
+from typing import NamedTuple
 
 from sage_live.backends.live_patch import (
     LivePatcher,
     LivePatchError,
     LiveProcess,
     allocation_base,
+    branch_target,
     call_bytes,
-    call_target,
+    jump_bytes,
 )
 from sage_patch.addresses import (
     GAME_LOGIC_FRAME,
@@ -58,6 +72,11 @@ from sage_patch.addresses import (
     SCRIPT_DEBUG_RUN_SCRIPT_LOG,
     SCRIPT_ENGINE_CURRENT_OBJECT,
     SCRIPT_ENGINE_EVALUATE,
+    SCRIPT_ENGINE_EVALUATE_CONDITION,
+    SCRIPT_ENGINE_EVALUATE_ENTRY_BYTES,
+    SCRIPT_ENGINE_EVALUATE_RESUME,
+    SCRIPT_EVALUATE_CONDITION_CALL,
+    SCRIPT_EVALUATE_CONDITION_CALL_BYTES,
     SCRIPT_EXECUTE_LOG_CALLS,
     SCRIPT_SEQUENTIAL_EVALUATE_CALL,
     SCRIPT_SEQUENTIAL_EVALUATE_CALL_BYTES,
@@ -68,20 +87,26 @@ from sage_patch.asm import JE, JNC, JNE, JNZ, JZ, Asm
 __all__ = [
     "BREAKPOINT_LIMIT",
     "CAPACITY",
+    "CAVE_SIZE",
     "TRACE_MAGIC",
+    "WATCH_LIMIT",
     "BreakpointHit",
+    "ConditionResult",
     "EventKind",
     "ScriptTrace",
+    "TraceCave",
     "TraceEvent",
     "build_trace_cave",
     "kind_mask",
 ]
 
 TRACE_MAGIC = b"STRC"
-VERSION = 2
+VERSION = 3
 CAPACITY = 16384
 EVENT_SIZE = 16
 BREAKPOINT_LIMIT = 64
+WATCH_LIMIT = 256
+WATCH_SIZE = 32
 _WRITTEN = 0x08
 _CAPACITY = 0x0C
 _RECORDING = 0x10
@@ -91,10 +116,13 @@ _HITS = 0x1C
 _HIT_SCRIPT = 0x20
 _HIT_FRAME = 0x24
 _HIT_KIND = 0x28
+_WATCHES = 0x2C
+_EVALUATIONS = 0x30
 _CODE = 0x40
 _TABLE = 0x200
 _RING = 0x400
-CAVE_SIZE = _RING + CAPACITY * EVENT_SIZE
+_WATCH_TABLE = _RING + CAPACITY * EVENT_SIZE
+CAVE_SIZE = _WATCH_TABLE + WATCH_LIMIT * WATCH_SIZE
 # The frame gate's "held" mode, written by a breakpoint hit.
 _GATE_HELD = 1
 
@@ -121,6 +149,31 @@ class BreakpointHit:
     kind: EventKind | None
 
 
+@dataclass(frozen=True)
+class ConditionResult:
+    """What the engine last decided about one watched condition.
+
+    `evaluation` numbers the script evaluation it was judged in; every condition one evaluation
+    reached carries the same number, so a condition with an older one was not reached last time.
+    """
+
+    evaluation: int
+    frame: int
+    passed: bool
+    passes: int
+    failures: int
+
+
+class TraceCave(NamedTuple):
+    """The cave's bytes, and the address of each entry point a hook leads to."""
+
+    image: bytes
+    log: int
+    sequential: int
+    condition: int
+    evaluate: int
+
+
 def kind_mask(kinds: Iterable[EventKind]) -> int:
     """A breakpoint's mask: bit `kind` set for each kind it breaks on."""
     mask = 0
@@ -129,12 +182,14 @@ def kind_mask(kinds: Iterable[EventKind]) -> int:
     return mask
 
 
-def build_trace_cave(base: int) -> tuple[bytes, int, int]:
-    """The cave for address `base`, and where its two entry points are: `(bytes, log, sequential)`.
+def build_trace_cave(base: int) -> TraceCave:
+    """The cave for address `base`, and where its entry points are.
 
     `log` replaces the logger calls: it records and then jumps on to the logger, so the stack the
     logger sees is the one `executeScript` built. `sequential` replaces the sequential path's
     condition test: it makes the same call, records a "yes", and returns what the test said.
+    `condition` replaces the call that judges one condition, and `evaluate` is jumped to from the
+    evaluator's first instruction.
     """
     head = TRACE_MAGIC + struct.pack("<IIIIIII", VERSION, 0, CAPACITY, 1, 0, 0, 0)
     head = head.ljust(_CODE, b"\x00")
@@ -249,10 +304,60 @@ def build_trace_cave(base: int) -> tuple[bytes, int, int]:
     a.emit(0x58)  # pop eax
     a.label("sequential_done")
     a.emit(0xC2, 0x0C, 0x00)  # ret 0xc
+
+    # In place of `call evaluateCondition(Condition *)`, `ecx` TheScriptEngine: the same call on a
+    # copy of the argument, then, for a watched condition, its verdict. The caller reloads `ecx`
+    # and reads only `al` afterwards.
+    condition = a.va
+    a.emit(0xFF, 0x74, 0x24, 0x04)  # push dword [esp+4]
+    a.call_absolute(SCRIPT_ENGINE_EVALUATE_CONDITION)  # ret 4 takes the copy
+    a.emit(0x83, 0x3D, at(_WATCHES), 0x00)  # cmp dword [watches], 0
+    a.jcc(JE, "condition_out")
+    a.emit(0x50)  # push eax
+    a.emit(0x53)  # push ebx
+    a.emit(0x56)  # push esi
+    a.emit(0x8B, 0x54, 0x24, 0x10)  # mov edx, [esp+0x10]  ; the Condition *
+    a.emit(0x8B, 0x1D, at(_WATCHES))  # mov ebx, [watches]
+    a.emit(0xBE, at(_WATCH_TABLE))  # mov esi, watch table
+    a.label("condition_loop")
+    a.emit(0x39, 0x16)  # cmp [esi], edx
+    a.jcc(JNE, "condition_next")
+    a.emit(0x84, 0xC0)  # test al, al
+    a.jcc(JZ, "condition_failed")
+    a.emit(0xFF, 0x46, 0x10)  # inc dword [esi+0x10]  ; passes
+    a.jmp("condition_store")
+    a.label("condition_failed")
+    a.emit(0xFF, 0x46, 0x14)  # inc dword [esi+0x14]  ; failures
+    a.label("condition_store")
+    a.emit(0x0F, 0xB6, 0xC8)  # movzx ecx, al
+    a.emit(0x89, 0x4E, 0x0C)  # mov [esi+0xc], ecx    ; verdict
+    a.call("frame")
+    a.emit(0x89, 0x4E, 0x08)  # mov [esi+8], ecx      ; frame
+    # The evaluation number last: a reader that sees it sees the verdict and frame beside it.
+    a.emit(0x8B, 0x0D, at(_EVALUATIONS))  # mov ecx, [evaluations]
+    a.emit(0x89, 0x4E, 0x04)  # mov [esi+4], ecx
+    a.jmp("condition_done")
+    a.label("condition_next")
+    a.emit(0x83, 0xC6, WATCH_SIZE)  # add esi, 32
+    a.emit(0x4B)  # dec ebx
+    a.jcc(JNZ, "condition_loop")
+    a.label("condition_done")
+    a.emit(0x5E)  # pop esi
+    a.emit(0x5B)  # pop ebx
+    a.emit(0x58)  # pop eax
+    a.label("condition_out")
+    a.emit(0xC2, 0x04, 0x00)  # ret 4
+
+    # Jumped to from the evaluator's first instruction: count the evaluation, then run that
+    # instruction here and carry on after it. Only `eax`, which it sets, changes.
+    evaluate = a.va
+    a.emit(0xFF, 0x05, at(_EVALUATIONS))  # inc dword [evaluations]
+    a.emit(SCRIPT_ENGINE_EVALUATE_ENTRY_BYTES)  # mov eax, the SEH handler
+    a.jmp_absolute(SCRIPT_ENGINE_EVALUATE_RESUME)
     code = a.finish()
     if _CODE + len(code) > _TABLE:
         raise AssertionError("the trace code outgrew its space")
-    return head + code, log, sequential
+    return TraceCave(head + code, log, sequential, condition, evaluate)
 
 
 class ScriptTrace:
@@ -282,10 +387,42 @@ class ScriptTrace:
         raw = self.process.read(address, 4)
         return struct.unpack("<I", raw)[0] if raw else None
 
-    def _sites(self) -> list[tuple[int, bytes, bool]]:
-        """`(site, stock bytes, is the sequential site)` for every hook."""
-        sites = [(site, stock, False) for site, stock in SCRIPT_EXECUTE_LOG_CALLS.items()]
-        sites.append((SCRIPT_SEQUENTIAL_EVALUATE_CALL, SCRIPT_SEQUENTIAL_EVALUATE_CALL_BYTES, True))
+    @staticmethod
+    def _sites(cave: TraceCave | None = None) -> list[tuple[int, bytes, bytes]]:
+        """`(site, stock bytes, hook bytes)` for every hook; the hook bytes are empty without a
+        cave to lead to."""
+
+        def to(site: int, target: int | None, jump: bool = False) -> bytes:
+            if target is None:
+                return b""
+            return jump_bytes(site, target) if jump else call_bytes(site, target)
+
+        log = sequential = condition = evaluate = None
+        if cave is not None:
+            log, sequential, condition, evaluate = (
+                cave.log,
+                cave.sequential,
+                cave.condition,
+                cave.evaluate,
+            )
+        sites = [(site, stock, to(site, log)) for site, stock in SCRIPT_EXECUTE_LOG_CALLS.items()]
+        sites += [
+            (
+                SCRIPT_SEQUENTIAL_EVALUATE_CALL,
+                SCRIPT_SEQUENTIAL_EVALUATE_CALL_BYTES,
+                to(SCRIPT_SEQUENTIAL_EVALUATE_CALL, sequential),
+            ),
+            (
+                SCRIPT_EVALUATE_CONDITION_CALL,
+                SCRIPT_EVALUATE_CONDITION_CALL_BYTES,
+                to(SCRIPT_EVALUATE_CONDITION_CALL, condition),
+            ),
+            (
+                SCRIPT_ENGINE_EVALUATE,
+                SCRIPT_ENGINE_EVALUATE_ENTRY_BYTES,
+                to(SCRIPT_ENGINE_EVALUATE, evaluate, jump=True),
+            ),
+        ]
         return sites
 
     def _existing_cave(self) -> int | None:
@@ -294,7 +431,7 @@ class ScriptTrace:
         current = self.process.read(site, 5)
         if current is None or current == stock:
             return None
-        target = call_target(site, current)
+        target = branch_target(site, current)
         if target is None:
             return None
         base = allocation_base(target)
@@ -307,7 +444,7 @@ class ScriptTrace:
         for site, stock, _ in self._sites():
             current = self.process.read(site, 5)
             if current is not None and current != stock:
-                target = call_target(site, current)
+                target = branch_target(site, current)
                 if target is not None and allocation_base(target) == base:
                     old.hook(site, stock, current)
         notes = old.close()
@@ -330,15 +467,12 @@ class ScriptTrace:
             self.patcher.adopt(base)
         else:
             base = self.patcher.allocate(CAVE_SIZE)
-            image, _, _ = build_trace_cave(base)
-            if not self.process.write(base, image):
+            if not self.process.write(base, build_trace_cave(base).image):
                 raise LivePatchError("writing the trace cave failed")
-        _, log, sequential = build_trace_cave(base)
         self.cave = base
         try:
-            for site, stock, is_sequential in self._sites():
-                target = sequential if is_sequential else log
-                self.patcher.hook(site, stock, call_bytes(site, target))
+            for site, stock, ours in self._sites(build_trace_cave(base)):
+                self.patcher.hook(site, stock, ours)
         except LivePatchError:
             self.patcher.close(free_caves=not self.adopted)
             self.cave = None
@@ -377,6 +511,52 @@ class ScriptTrace:
         if table and not self.process.write(self.cave + _TABLE, table):
             raise LivePatchError("writing the breakpoint table failed")
         self._set(_BREAKPOINTS, len(breakpoints))
+
+    def set_watches(self, conditions: Iterable[int]) -> None:
+        """Watch exactly these `Condition *`s. A condition watched before keeps what it recorded;
+        one new to the table starts with nothing.
+
+        The count goes to zero first and up last, as with the breakpoint table.
+        """
+        wanted = sorted(set(conditions))
+        if len(wanted) > WATCH_LIMIT:
+            raise LivePatchError(f"at most {WATCH_LIMIT} watched conditions")
+        if self.cave is None:
+            raise LivePatchError("not attached")
+        kept = self._watch_entries()
+        self._set(_WATCHES, 0)
+        empty = bytes(WATCH_SIZE - 4)
+        table = b"".join(
+            kept.get(address, struct.pack("<I", address) + empty) for address in wanted
+        )
+        if table and not self.process.write(self.cave + _WATCH_TABLE, table):
+            raise LivePatchError("writing the watch table failed")
+        self._set(_WATCHES, len(wanted))
+
+    def _watch_entries(self) -> dict[int, bytes]:
+        """The watch table's entries in use, raw, by `Condition *`."""
+        if self.cave is None:
+            return {}
+        count = min(self._u32(self.cave + _WATCHES) or 0, WATCH_LIMIT)
+        raw = self.process.read(self.cave + _WATCH_TABLE, count * WATCH_SIZE) if count else None
+        if not raw:
+            return {}
+        entries = (raw[i : i + WATCH_SIZE] for i in range(0, len(raw), WATCH_SIZE))
+        return {struct.unpack_from("<I", entry)[0]: entry for entry in entries}
+
+    def evaluations(self) -> int | None:
+        """How many script evaluations the game has started since the cave was laid out."""
+        return self._u32(self.cave + _EVALUATIONS) if self.cave is not None else None
+
+    def condition_results(self) -> dict[int, ConditionResult]:
+        """What each watched condition last came to, by `Condition *`. A condition the engine has
+        not judged since it was watched is left out."""
+        out: dict[int, ConditionResult] = {}
+        for address, entry in self._watch_entries().items():
+            evaluation, frame, verdict, passes, failures = struct.unpack_from("<IIIII", entry, 4)
+            if evaluation:
+                out[address] = ConditionResult(evaluation, frame, bool(verdict), passes, failures)
+        return out
 
     def hit(self) -> BreakpointHit | None:
         """The last breakpoint hit, or None before the first."""
@@ -425,7 +605,7 @@ class ScriptTrace:
     def close(self) -> list[str]:
         """Take the hooks out. The cave stays only if a hook could not be restored."""
         if self.cave is not None:
-            for offset in (_BREAKPOINTS, _GATE, _RECORDING):
+            for offset in (_WATCHES, _BREAKPOINTS, _GATE, _RECORDING):
                 try:
                     self._set(offset, 0)
                 except LivePatchError:

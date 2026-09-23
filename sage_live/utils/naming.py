@@ -176,22 +176,9 @@ class LiveNames:
     def thing(self, name: str) -> int:
         """The order id for a `ThingTemplate` name.
 
-        **Corroborated against the ini table, and the divergence is confined to the tail.**
-        Measured in a live RotWK+Edain match (2026-07-30): this walk reads 11,142 templates
-        against the ini tree's 11,132, and the two are *identical* up to index 11,086 - where
-        the live walk has `FrmPrev_Inf` and the ini tree `SalvageCrate`. All 69 templates
-        present in that match agreed exactly, spanning ids 3 to 10,994, so nothing in play was
-        anywhere near the divergence.
-
-        That matters because the two are independent reconstructions - one walks the engine's
-        own `TheThingFactory`, the other parses ini - and agreement across that range is much
-        stronger evidence than either gives alone. The ini rule is separately corpus-validated
-        (491/491 `FOUNDATION_CONSTRUCT` orders, `order_space_map.md` section A).
-
-        Still not a round trip: no order carrying an id from *this* table has been watched to
-        build the thing it names. `sage_live.utils.resolve.Resolver` remains the path to prefer when
-        a game tree is available, since only its rule has corpus backing - but a template
-        below index 11,086 now resolves to the same number either way.
+        Agrees with the ini-derived table (`sage_live.utils.resolve.Resolver`) up to index
+        11,086 on RotWK 2.01 + Edain, and diverges only in the tail past that. Prefer `Resolver`
+        when a game tree is available: only its rule is validated against recorded orders.
         """
         if not self.things:
             raise self._unwalked("thing", "TheThingFactory")
@@ -213,12 +200,7 @@ class LiveNames:
     def power(self, name: str) -> int:
         """The order id for a `SpecialPower` name.
 
-        **Corroborated exactly**, which is more than `thing` can claim. Measured live
-        (2026-07-31): the engine's own `TheSpecialPowerStore` walks out 1,566 powers and the
-        ini reconstruction reads 1,566, and the two agree position by position on **every one**
-        - no empty name, no duplicate, no divergence anywhere including the tail. Two
-        independent reconstructions agreeing completely is the strongest evidence this package
-        has for any id space.
+        Agrees with the ini-derived table at every position (1,566 powers on RotWK 2.01 + Edain).
         """
         if not self.powers:
             raise self._unwalked("power", "TheSpecialPowerStore")

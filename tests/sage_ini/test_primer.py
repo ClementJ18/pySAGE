@@ -1,8 +1,7 @@
-"""Tests for the compact model digest (`sage_ini.primer`) and its `primer` CLI command."""
+"""Tests for the compact model digest (`sage_ini.agent.primer`) and its `primer` CLI command."""
 
 from sage_ini.__main__ import main
-from sage_ini.model.objects import REGISTRY
-from sage_ini.primer import (
+from sage_ini.agent.primer import (
     _INFRA_FIELDS,
     _Decoder,
     build_digest,
@@ -11,6 +10,7 @@ from sage_ini.primer import (
     expand_kind,
     table_catalog,
 )
+from sage_ini.model.objects import REGISTRY
 
 
 class TestDecoder:

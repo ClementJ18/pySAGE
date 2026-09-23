@@ -113,7 +113,7 @@ class WikiClient:
         return f"{self._scheme}://{self._host}/wiki/{slug}"
 
     def fetch_wikitext(self, title: str) -> str:
-        """The page's current wikitext, or ``""`` when the page does not exist."""
+        """The page's current wikitext, or `""` when the page does not exist."""
         return self.site.pages[title].text()
 
     def fetch_image(self, filename: str) -> bytes | None:

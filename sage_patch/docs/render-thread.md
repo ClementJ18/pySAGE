@@ -195,6 +195,14 @@ The DLL's design does not. **Every** D3D call moves to the worker; the game thre
 command and returns. There is one thread in the renderer, as before — a different one. The lock is
 then uncontended, and §5.2 makes the uncontended path cheap.
 
+**Conditional on the second drawing thread, which this section did not account for.** The load
+screen ([`multicore.md`](multicore.md) §1.1) enters the render layer on its own thread while a map
+loads, so "the worker is the only thread that ever calls D3D" is something the DLL must arrange, not
+something the design gives it. On an unrecognised build it does not arrange it: the run in
+[`accel-port.md`](accel-port.md) §1 crashed with `D3DERR_INVALIDCALL` on the load-screen thread's own
+loop at `0x0065CE76`. How the recognised path handles it is not established and is the first thing
+to read.
+
 What §3.2 does correctly identify is the cost of the *design it imagined*. Strike the row; do not
 strike the analysis.
 
@@ -347,6 +355,23 @@ spin only the remainder. A few bytes. Read `render-rate.md` §8 before touching 
 
 ### 5.5 `present-device-loss` — the alt-tab crash
 
+> **2026-09-22: this section's premise is in serious doubt, and the item should not be ranked first
+> any more.** Read 2 (partial) of [`accel-port.md`](accel-port.md): the DLL's `Present` wrapper
+> (`0x10008790`) does not return the result of the call it was given. It enqueues the Present and
+> returns the global `0x10153DE4` — the result of a *previous* Present, with the game thread
+> throttled to at most one outstanding (`0x10042940` blocks while `0x10153DE0 > 1`), so the engine
+> sees a result at most one frame stale. That is what v47's banner is describing: **a regression its
+> own queue introduced, repaired.** Not an engine defect.
+>
+> And the engine is not naive here. It consumes device loss at five sites — `0x00516C5A`,
+> `0x00517B5C`, `0x005221F7`, `0x00522675`, `0x00522837` — each calling `[ecx+0xC]`
+> (`TestCooperativeLevel`) on the device at `0x00DD3474` and branching on `D3DERR_DEVICELOST`
+> (`0x88760868`) and `D3DERR_DEVICENOTRESET` (`0x88760869`). There is a complete device-lost path in
+> stock.
+>
+> What is *not* established is whether the engine also checks `Present`'s own `HRESULT`; that is the
+> one reading under which a patch here still exists. Cost that question before costing the patch.
+
 v47's headline: *"Present now reports device loss to the engine - the alt-tab crash"*. This is an
 engine defect, it is client-local, and a fix for it is valuable on its own merits with no threading
 anywhere near it. **The site is not established** — the DLL fixes it from inside its own `Present`
@@ -391,6 +416,15 @@ a technical one. What can be said technically:
   to invent from scratch. The alternative worth weighing is **not writing it**: talk to the author.
   The repo's own `author` convention already says a patch is credited to a human who can be asked
   for fixes ([`../README.md`](../README.md)), and that convention points the same way here.
+
+> **2026-09-22. This section's question is answered.** The conversation with the author happened,
+> and he has given full permission to use his work to recreate a pySAGE patch of it. So the
+> "**not** writing it" option below is settled in the other direction: we write it, crediting him.
+> Shipping *his* binary was never the ask and is dropped — [`accel-port.md`](accel-port.md) §1.1
+> would have sunk it anyway, since the DLL's build gate is a checksum over the whole of `.text` and
+> therefore excludes every binary `sage_patch` has touched. What remains open is narrower than this
+> section's framing: caves only, or a companion module of our own
+> ([`accel-port.md`](accel-port.md) §6).
 
 **Recommendation: do not open Tier 2 yet.** Tier 1 §5.1 costs a day, tells us where the frame
 actually goes on *our* corpus, and makes every later argument quantitative. It is also the thing

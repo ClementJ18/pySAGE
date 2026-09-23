@@ -1,105 +1,14 @@
-"""The second-resource patch: a second per-player currency, granted, shown and spent.
+"""A second per-player currency: granted by `AutoDepositUpdate` `DepositAmount2`, seeded by
+`PlayerTemplate` `StartMoney2`, spent through `Object` `BuildCost2`, and shown in brackets on the
+palantir.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below comes
-from :mod:`sage_patch.addresses` and is derived in ``../docs/second-resource.md``.
+The pool is an array in the cave indexed by player (`MAX_PLAYER_COUNT` is 20 and [cannot practically
+be raised](../../docs/max-player-count.md)), seeded in `Player::init`. `DepositAmount2` reuses spare
+module bytes, and `StartMoney2` is kept in the cave keyed by the template's name, since
+`PlayerTemplate` has no free room (its apparent gap at `+0x34` is read by `Player::init` at
+`0x006B0545`). A savegame load resets the pool.
 
-**What this is.** A second spendable currency alongside gold needs four pieces: a counter per
-player, a HUD element, an INI block that grants it, and an INI field that makes something *cost*
-it. This patch is the first three - the **grant-and-show** half::
-
-    AutoDepositUpdate
-      DepositAmount  = 10                 ; stock: gold per tick
-      DepositAmount2 = 2                  ; new:   resource 2 per tick
-
-    PlayerTemplate FactionMen
-      StartMoney   = 1000                 ; stock
-      StartMoney2  = 50                   ; new
-
-and the palantir reads ``1000 (50)``.
-
-Nothing spends resource 2 and nothing gates on it, which is exactly what makes this half cheap
-and safe: no affordability path changes, so the AI cannot stall on a pool it cannot see and no
-production decision moves. A mod can already use it as a scored or prestige currency, a
-captured-point tally or a faction meter, read back out through `sage_live`.
-
-**Where the counter lives.** ``UInt32 pool[MAX_PLAYER_COUNT]`` in the cave, indexed by
-`Player::m_playerIndex`, rather than a grown `Player`. `MAX_PLAYER_COUNT` is 20 and
-[cannot practically be raised](max-player-count.md), so the array is exact, and a side table
-costs no struct growth, no constructor edit and no allocation-size hunt. Same shape as
-`unique-production-id`'s `.prodid` counter.
-
-> **A load resets the pool.** A cave-resident counter is not `Xfer`'d, so a savegame does not
-> carry it. That is a narrow trade for a production id; for a resource *pool* it is a visible
-> limitation, and it is stated here rather than hidden: **savegames are not supported by this
-> patch**. Extending `Player::xfer` is a savegame format change, and is the largest single
-> thing this patch does not do.
-
-**Seeding, and why `Player::init` is the only right place.** The pool has to be zeroed on a new
-game *and* seeded per faction, and `Player::init` does exactly that for gold - one call per slot,
-from `PlayerList`'s own reset. The hook is at the function's **entry**, not at the money block:
-the reset calls `init` on all twenty slots with a **NULL** template, and the money block sits
-inside the `template != NULL` branch, so a hook there would leave an unused slot carrying the
-previous game's number. At the entry, a NULL template means "seed 0", which is the clear.
-
-**Where `DepositAmount2` lives, for no bytes.** `AutoDepositUpdate`'s `ModuleData` is 0x24 bytes
-whose last two fields are `Bool`s at +0x20/+0x21, so **+0x22..+0x23 is alignment padding** and a
-`UInt16` fits with no growth at all - the same argument `terrain-resource-exp` makes for its
-`Bool` in +0x16. `operator new` does not zero the block, so the field still needs initialising,
-and the constructor's two byte stores (`mov [esi+0x20], bl` / `mov [esi+0x21], bl`, six bytes)
-rewrite as the single `mov [esi+0x20], ebx` with `ebx` already zero - three bytes for six, and
-that one dword store clears the padding on the way past. The default therefore costs nothing.
-
-**Where `StartMoney2` lives, and why not on the template.** `PlayerTemplate` is 0x1DC bytes with
-no hole. The apparent gap at +0x34 is not one: it is the `Money` subobject's own
-`m_playerIndex`, read by `Player::init` at `0x006B0545` into `Player+0x98`. So the per-faction
-value goes in the cave, keyed by the template's `NameKeyType` at +0x10 - the one stable identity
-a template has, and the key `PlayerTemplateStore::findPlayerTemplate` itself matches on. The key
-is not readable from the instance a field callback sees: **all three parse paths write +0x10
-after `initFromINI` returns**, and a new block is parsed into a stack temporary besides. So a
-hook records it before the paths branch, and the field callback files against it.
-
-That is `command-point-upkeep`'s mechanism, for `command-point-upkeep`'s reasons, and it carries
-the same three consequences: no savegame change and no init hook for the *rows* (they are
-INI-derived and rebuilt on every load), an override block merges rather than replaces, and a
-missing row is "start at 0" rather than a wrong number.
-
-**Composing with `command-point-upkeep`.** The two patches both need a `PlayerTemplate` block key
-and both rebuild the `PlayerTemplate` field table, so the pair is worth stating explicitly:
-
-* **The block-key hooks are different instructions.** `command-point-upkeep` takes the pair at
-  `0x005FE886`; this takes the `mov ecx, [store]` at `0x005FE880` immediately before it. Both do
-  nothing but copy `eax`, which already holds the key at both addresses, so neither reads what
-  the other writes.
-* **The field table is read live, from its own reference**, so whichever patch is applied second
-  rebuilds the first one's table with its own row appended, in either order.
-
-**The display costs no `.apt` at all.** `APT:PalantirResources` looks like a data binding - the
-HUD constructor really does register `Palantir/ResourceBar/Resources/` against a pointer into its
-own members - but the *text* is separately formatted and pushed by the engine every refresh
-(`0x006D56E1` builds `"%d"` and calls `TheAptPlayer::setValue`). So a mod's `.csf` entry of that
-name is a design-time placeholder the engine overwrites, and a second number is one more vararg
-on a call the engine already makes: no movie edit, no `.csf` edit, and no second binding. That is
-`command-point-upkeep`'s trick on the other readout, and it is why this half shipped with the
-mechanic rather than waiting on `sage_apt`.
-
-Two things follow from the text being *cached*:
-
-* **The refresh filter has to widen.** The palantir only rebuilds the string when the number it
-  last pushed changed, so a second number needs its own comparison or the bracket shows whatever
-  it said the last time gold moved.
-* **The bracket appears only when the mod uses the resource**, decided at INI load by a flag both
-  parse functions raise. Deciding it from the pool instead would make the readout change shape
-  mid-game, which reads as a bug. `--no-hud` drops the display entirely and leaves the mechanic.
-
-**What this half does not cover.** `TerrainResourceBehavior` - the *other* income module, and
-the one Edain uses more for resource spots - gets no `DepositAmount2`. Its `ModuleData` has a
-single spare padding byte, already claimed by `terrain-resource-exp`, so covering it means
-growing the struct rather than reusing a hole, which is a job of its own.
-
-> **Every peer must run the same patched binary** as soon as anything reacts to the pool. Today
-> nothing in the *simulation* does - the counter is written, and read only by the local client's
-> HUD - so a patched and an unpatched client stay in sync on *this* patch alone. Do not rely on
-> that: the moment a mod uses the number for anything, it is simulation state.
+Derivation: `../../docs/second-resource.md`.
 """
 
 from __future__ import annotations
@@ -175,7 +84,16 @@ from ...addresses import (
 )
 from ...asm import JA, JAE, JBE, JE, JGE, JL, JNC, JNE, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import (
+    allocate_section,
+    apply_byte_patch,
+    find_section,
+    i8,
+    jmp_rel32,
+    read_cstring,
+    u32,
+    va_to_offset,
+)
 from ..utils.field_tables import Entry, entries_before, read_field_table, resolve_table
 
 if TYPE_CHECKING:
@@ -219,7 +137,7 @@ COST_FIELD = "BuildCost2"
 #: `PlayerTemplate` blocks; 128 leaves room for a mod that defines many more.
 ROWS = 128
 
-#: ``{ UnsignedInt key; UnsignedInt start; }``
+#: `{ UnsignedInt key; UnsignedInt start; }`
 ROW_STRIDE = 8
 
 #: Rows in the cost table, keyed by `ThingTemplate *`. Only objects that actually name
@@ -228,18 +146,18 @@ ROW_STRIDE = 8
 #: 11,143 templates, and 4096 is 32KB of cave for a failure mode nobody would diagnose.
 COST_ROWS = 4096
 
-#: ``{ ThingTemplate *tmpl; UnsignedInt cost; }``
+#: `{ ThingTemplate *tmpl; UnsignedInt cost; }`
 COST_STRIDE = 8
 
 _ROWS_MASK = ROWS - 1
 _COST_MASK = COST_ROWS - 1
 
-#: ``1000 (50)`` - the palantir's own number, then the second pool. **8-bit**, because the
+#: `1000 (50)` - the palantir's own number, then the second pool. **8-bit**, because the
 #: resource text is built as an `AsciiString` and only widened on the way into the movie.
 FORMAT = "%d (%d)"
 _FMT_BYTES = FORMAT.encode("ascii") + b"\x00"
 
-#: `` (25)`` - what a priced button's cost line gains. **UTF-16**, unlike the palantir's:
+#: ` (25)` - what a priced button's cost line gains. **UTF-16**, unlike the palantir's:
 #: a description is built out of `UnicodeString`s all the way down.
 SUFFIX = " (%d)"
 _SUFFIX_BYTES = SUFFIX.encode("utf-16-le") + b"\x00\x00"
@@ -317,21 +235,12 @@ _TABLES: tuple[_Table, ...] = (
 )
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _i8(value: int) -> int:
-    """A signed byte displacement as the unsigned byte that encodes it."""
-    return value & 0xFF
-
-
 # Everything below is hand-encoded (the house style: only address arithmetic is automated, by
 # `..asm`), with a comment saying what each instruction is.
 
 
 def _emit_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
-    """An open-addressed probe of the faction table, keyed by the name key in ``eax``.
+    """An open-addressed probe of the faction table, keyed by the name key in `eax`.
 
     Hash the key, walk forward over occupied slots, stop at the key or at an empty one. Entries
     are never removed, so a run of occupied slots is never broken and the walk is exact. Returns
@@ -345,18 +254,18 @@ def _emit_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, f"{tag}_none")  # key 0 is the empty marker, never a row
     a.emit(0x8B, 0xD8)  # mov ebx, eax               ; the key
-    a.emit(0x25, _u32(_ROWS_MASK))  # and eax, ROWS-1
-    a.emit(0xB9, _u32(ROWS))  # mov ecx, ROWS              ; probe budget
+    a.emit(0x25, u32(_ROWS_MASK))  # and eax, ROWS-1
+    a.emit(0xB9, u32(ROWS))  # mov ecx, ROWS              ; probe budget
     a.label(f"{tag}_probe")
     a.emit(0x8B, 0xD0)  # mov edx, eax
     a.emit(0x6B, 0xD2, ROW_STRIDE)  # imul edx, edx, ROW_STRIDE
-    a.emit(0x81, 0xC2, _u32(rows_va))  # add edx, rows
+    a.emit(0x81, 0xC2, u32(rows_va))  # add edx, rows
     a.emit(0x83, 0x3A, 0x00)  # cmp dword ptr [edx], 0
     a.jcc(JE, f"{tag}_empty")
     a.emit(0x39, 0x1A)  # cmp dword ptr [edx], ebx
     a.jcc(JE, f"{tag}_hit")
     a.emit(0x40)  # inc eax
-    a.emit(0x25, _u32(_ROWS_MASK))  # and eax, ROWS-1
+    a.emit(0x25, u32(_ROWS_MASK))  # and eax, ROWS-1
     a.emit(0x49)  # dec ecx
     a.jcc(JNE, f"{tag}_probe")
     a.label(f"{tag}_none")  # budget exhausted, or key 0
@@ -377,13 +286,13 @@ def _emit_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
 
 
 def _emit_lookup(a: Asm, rows_va: int) -> None:
-    """``lookup``: `eax` = a name key, `eax` = its row or 0. Pure; the seed path calls it."""
+    """`lookup`: `eax` = a name key, `eax` = its row or 0. Pure; the seed path calls it."""
     a.label("lookup")
     _emit_probe(a, "lu", rows_va, claim=False)
 
 
 def _emit_insert(a: Asm, rows_va: int) -> None:
-    """``insert``: as ``lookup``, but claims an empty slot. Only ever runs at INI load."""
+    """`insert`: as `lookup`, but claims an empty slot. Only ever runs at INI load."""
     a.label("insert")
     _emit_probe(a, "in", rows_va, claim=True)
 
@@ -396,7 +305,7 @@ def _emit_block(a: Asm, key_va: int) -> None:
     is one store and clobbers nothing.
     """
     a.label("block")
-    a.emit(0xA3, _u32(key_va))  # mov [g_key], eax
+    a.emit(0xA3, u32(key_va))  # mov [g_key], eax
     a.emit(PLAYER_TEMPLATE_BLOCK_KEY_EARLY_BYTES)  # the displaced mov ecx, [store]
     a.jmp_absolute(PLAYER_TEMPLATE_BLOCK_KEY_EARLY_RESUME)
 
@@ -418,7 +327,7 @@ def _emit_parse(a: Asm, key_va: int, inuse_va: int) -> None:
     a.emit(0x89, 0xE5)  # mov ebp, esp
     a.emit(0x53)  # push ebx
     a.emit(0x31, 0xDB)  # xor ebx, ebx                 ; the row, 0 until claimed
-    a.emit(0xA1, _u32(key_va))  # mov eax, [g_key]
+    a.emit(0xA1, u32(key_va))  # mov eax, [g_key]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "sm_read")
     a.call("insert")
@@ -438,7 +347,7 @@ def _emit_parse(a: Asm, key_va: int, inuse_va: int) -> None:
     a.jmp("sm_row")
     a.label("sm_positive")
     a.jcc(JE, "sm_row")
-    a.emit(0xC7, 0x05, _u32(inuse_va), _u32(1))  # mov dword [g_inuse], 1
+    a.emit(0xC7, 0x05, u32(inuse_va), u32(1))  # mov dword [g_inuse], 1
     a.label("sm_row")
     a.emit(0x85, 0xDB)  # test ebx, ebx
     a.jcc(JE, "sm_out")  # no row: parsed and dropped
@@ -471,7 +380,7 @@ def _emit_init(a: Asm, pool_va: int) -> None:
     a.emit(0x8B, 0x41, PLAYER_INDEX)  # mov eax, [ecx+0x54]  ; m_playerIndex
     a.emit(0x83, 0xF8, MAX_PLAYER_COUNT)  # cmp eax, 20
     a.jcc(JAE, "pi_done")  # unsigned: -1 is out of range too
-    a.emit(0x89, 0x14, 0x85, _u32(pool_va))  # mov [pool + eax*4], edx
+    a.emit(0x89, 0x14, 0x85, u32(pool_va))  # mov [pool + eax*4], edx
     a.label("pi_done")
     a.emit(0x5A, 0x59, 0x58)  # pop edx / pop ecx / pop eax
     a.emit(PLAYER_INIT_ENTRY_BYTES)  # the displaced frame setup and template load
@@ -493,23 +402,23 @@ def _emit_grant(a: Asm, pool_va: int) -> None:
     a.label("grant")
     a.call_absolute(MONEY_DEPOSIT)  # the displaced call
     a.emit(0x50, 0x51, 0x52)  # push eax / push ecx / push edx
-    a.emit(0x8B, 0x46, _i8(AUTO_DEPOSIT_MODULE_DATA_ESI))  # mov eax, [esi-0xc]
+    a.emit(0x8B, 0x46, i8(AUTO_DEPOSIT_MODULE_DATA_ESI))  # mov eax, [esi-0xc]
     a.emit(0x0F, 0xB7, 0x40, DEPOSIT_OFFSET)  # movzx eax, word ptr [eax+0x22]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "gr_done")  # 0 (the default) == no second income
     a.emit(0x8B, 0x4F, PLAYER_INDEX)  # mov ecx, [edi+0x54]  ; m_playerIndex
     a.emit(0x83, 0xF9, MAX_PLAYER_COUNT)  # cmp ecx, 20
     a.jcc(JAE, "gr_done")
-    a.emit(0x01, 0x04, 0x8D, _u32(pool_va))  # add [pool + ecx*4], eax
+    a.emit(0x01, 0x04, 0x8D, u32(pool_va))  # add [pool + ecx*4], eax
     a.jcc(JNC, "gr_done")
-    a.emit(0xC7, 0x04, 0x8D, _u32(pool_va), _u32(0xFFFFFFFF))  # saturate rather than wrap
+    a.emit(0xC7, 0x04, 0x8D, u32(pool_va), u32(0xFFFFFFFF))  # saturate rather than wrap
     a.label("gr_done")
     a.emit(0x5A, 0x59, 0x58)  # pop edx / pop ecx / pop eax
     a.jmp_absolute(AUTO_DEPOSIT_DEPOSIT_RESUME)
 
 
 def _emit_cost_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
-    """An open-addressed probe of the cost table, keyed by the `ThingTemplate *` in ``ecx``.
+    """An open-addressed probe of the cost table, keyed by the `ThingTemplate *` in `ecx`.
 
     The same walk as the faction probe, with one difference that matters: **the key is a pointer**,
     so its low bits are dead (templates are allocated 0x6B8 apart and 4-byte aligned). Folding the
@@ -525,18 +434,18 @@ def _emit_cost_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
     a.jcc(JE, f"{tag}_none")  # a null template has no cost
     a.emit(0x8B, 0xC1)  # mov eax, ecx
     a.emit(0xC1, 0xE8, 0x04)  # shr eax, 4                 ; drop the dead alignment bits
-    a.emit(0x25, _u32(_COST_MASK))  # and eax, COST_ROWS-1
-    a.emit(0xBF, _u32(COST_ROWS))  # mov edi, COST_ROWS         ; probe budget
+    a.emit(0x25, u32(_COST_MASK))  # and eax, COST_ROWS-1
+    a.emit(0xBF, u32(COST_ROWS))  # mov edi, COST_ROWS         ; probe budget
     a.label(f"{tag}_probe")
     a.emit(0x8B, 0xD0)  # mov edx, eax
     a.emit(0x6B, 0xD2, COST_STRIDE)  # imul edx, edx, COST_STRIDE
-    a.emit(0x81, 0xC2, _u32(rows_va))  # add edx, rows
+    a.emit(0x81, 0xC2, u32(rows_va))  # add edx, rows
     a.emit(0x83, 0x3A, 0x00)  # cmp dword ptr [edx], 0
     a.jcc(JE, f"{tag}_empty")
     a.emit(0x39, 0x0A)  # cmp dword ptr [edx], ecx
     a.jcc(JE, f"{tag}_hit")
     a.emit(0x40)  # inc eax
-    a.emit(0x25, _u32(_COST_MASK))  # and eax, COST_ROWS-1
+    a.emit(0x25, u32(_COST_MASK))  # and eax, COST_ROWS-1
     a.emit(0x4F)  # dec edi
     a.jcc(JNE, f"{tag}_probe")
     a.label(f"{tag}_none")
@@ -557,19 +466,19 @@ def _emit_cost_probe(a: Asm, tag: str, rows_va: int, *, claim: bool) -> None:
 
 
 def _emit_cost_row(a: Asm, rows_va: int) -> None:
-    """``cost_row``: `ecx` = a `ThingTemplate *`, `eax` = its row or 0. Pure."""
+    """`cost_row`: `ecx` = a `ThingTemplate *`, `eax` = its row or 0. Pure."""
     a.label("cost_row")
     _emit_cost_probe(a, "cr", rows_va, claim=False)
 
 
 def _emit_cost_claim(a: Asm, rows_va: int) -> None:
-    """``cost_claim``: as ``cost_row``, but claims an empty slot. INI load and the copy only."""
+    """`cost_claim`: as `cost_row`, but claims an empty slot. INI load and the copy only."""
     a.label("cost_claim")
     _emit_cost_probe(a, "cq", rows_va, claim=True)
 
 
 def _emit_cost_lookup(a: Asm, rows_va: int) -> None:
-    """``cost_of``: `ecx` = a `ThingTemplate *`, `eax` = its `BuildCost2`, 0 when it has none.
+    """`cost_of`: `ecx` = a `ThingTemplate *`, `eax` = its `BuildCost2`, 0 when it has none.
 
     The one reader every enforcement site shares, so "no row" and "a row of 0" are the same
     answer and an object that never names the field is priced exactly as it is today.
@@ -624,7 +533,7 @@ def _emit_cost_parse(a: Asm, rows_va: int, inuse_va: int) -> None:
     a.jmp("bc_row")
     a.label("bc_positive")
     a.jcc(JE, "bc_row")
-    a.emit(0xC7, 0x05, _u32(inuse_va), _u32(1))  # mov dword [g_inuse], 1
+    a.emit(0xC7, 0x05, u32(inuse_va), u32(1))  # mov dword [g_inuse], 1
     a.label("bc_row")
     a.emit(0x85, 0xDB)  # test ebx, ebx
     a.jcc(JE, "bc_out")  # no row: parsed and dropped
@@ -690,7 +599,7 @@ def _emit_gate(a: Asm, pool_va: int) -> None:
     a.emit(0x8B, 0x4E, PLAYER_INDEX)  # mov ecx, [esi+0x54]  ; m_playerIndex
     a.emit(0x83, 0xF9, MAX_PLAYER_COUNT)  # cmp ecx, 20
     a.jcc(JAE, "gt_short")  # no addressable pool: treat as broke, never as free
-    a.emit(0x3B, 0x04, 0x8D, _u32(pool_va))  # cmp eax, [pool + ecx*4]
+    a.emit(0x3B, 0x04, 0x8D, u32(pool_va))  # cmp eax, [pool + ecx*4]
     a.jcc(JBE, "gt_ok")
     a.label("gt_short")
     a.emit(0x5A, 0x59)  # pop edx / pop ecx
@@ -717,30 +626,30 @@ def _emit_spend(a: Asm, pool_va: int) -> None:
     a.label("spend")
     a.call_absolute(MONEY_WITHDRAW)  # the displaced call
     a.emit(0x50, 0x51, 0x52)  # push eax / push ecx / push edx
-    a.emit(0x8B, 0x4D, _i8(PRODUCTION_WITHDRAW_TEMPLATE_EBP))  # mov ecx, [ebp+8]
+    a.emit(0x8B, 0x4D, i8(PRODUCTION_WITHDRAW_TEMPLATE_EBP))  # mov ecx, [ebp+8]
     a.call("cost_of")
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "sp_done")  # costs no resource 2
-    a.emit(0x8B, 0x4D, _i8(PRODUCTION_WITHDRAW_PLAYER_EBP))  # mov ecx, [ebp-0xc]  ; the Player
+    a.emit(0x8B, 0x4D, i8(PRODUCTION_WITHDRAW_PLAYER_EBP))  # mov ecx, [ebp-0xc]  ; the Player
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "sp_done")
     a.emit(0x8B, 0x49, PLAYER_INDEX)  # mov ecx, [ecx+0x54]  ; m_playerIndex
     a.emit(0x83, 0xF9, MAX_PLAYER_COUNT)  # cmp ecx, 20
     a.jcc(JAE, "sp_done")
-    a.emit(0x3B, 0x04, 0x8D, _u32(pool_va))  # cmp eax, [pool + ecx*4]
+    a.emit(0x3B, 0x04, 0x8D, u32(pool_va))  # cmp eax, [pool + ecx*4]
     a.jcc(JBE, "sp_take")
-    a.emit(0x8B, 0x04, 0x8D, _u32(pool_va))  # mov eax, [pool + ecx*4]  ; take what is there
+    a.emit(0x8B, 0x04, 0x8D, u32(pool_va))  # mov eax, [pool + ecx*4]  ; take what is there
     a.label("sp_take")
-    a.emit(0x29, 0x04, 0x8D, _u32(pool_va))  # sub [pool + ecx*4], eax
+    a.emit(0x29, 0x04, 0x8D, u32(pool_va))  # sub [pool + ecx*4], eax
     a.label("sp_done")
     a.emit(0x5A, 0x59, 0x58)  # pop edx / pop ecx / pop eax
     a.jmp_absolute(PRODUCTION_WITHDRAW_RESUME)
 
 
 def _emit_tip(a: Asm, suffix_va: int) -> None:
-    """``tip``: append ``" (N)"`` to the cost line in `eax`, for the template in `ecx`.
+    """`tip`: append `" (N)"` to the cost line in `eax`, for the template in `ecx`.
 
-    The engine has just built the localized ``Cost: 100`` into a `UnicodeString` and is about to
+    The engine has just built the localized `Cost: 100` into a `UnicodeString` and is about to
     concatenate it onto the description. Appending here rather than rebuilding the line is what
     keeps the label localized: the `.csf` string is the mod's, and this only adds to what it
     produced. **No `.csf` edit and no new tooltip key.**
@@ -761,7 +670,7 @@ def _emit_tip(a: Asm, suffix_va: int) -> None:
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "tp_done")  # costs no resource 2: the stock line
     a.emit(0x50)  # push eax                     ; vararg - the cost
-    a.emit(0x68, _u32(suffix_va))  # push L" (%d)"
+    a.emit(0x68, u32(suffix_va))  # push L" (%d)"
     a.emit(0x8D, 0x45, 0xFC)  # lea eax, [ebp-4]
     a.emit(0x50)  # push eax
     a.call_absolute(UNICODE_STRING_FORMAT)
@@ -784,7 +693,7 @@ def _emit_tip_site(a: Asm, label: str, template_reg: int, resume_va: int) -> Non
 
     The two differ only in which register holds the template - `ebx` where a unit or structure is
     being priced, `esi` where a hero is - so each is a three-instruction stub in front of the
-    shared body. ``template_reg`` is the ModRM byte of ``mov ecx, <reg>``.
+    shared body. `template_reg` is the ModRM byte of `mov ecx, <reg>`.
     """
     a.label(label)
     a.emit(0x51)  # push ecx
@@ -816,14 +725,14 @@ def _emit_deposit_parse(a: Asm, inuse_va: int) -> None:
     a.emit(0x8B, 0x45, 0x10)  # mov eax, [ebp+0x10]          ; store == ModuleData + 0x22
     a.emit(0x66, 0x83, 0x38, 0x00)  # cmp word ptr [eax], 0
     a.jcc(JE, "dp_out")
-    a.emit(0xC7, 0x05, _u32(inuse_va), _u32(1))  # mov dword [g_inuse], 1
+    a.emit(0xC7, 0x05, u32(inuse_va), u32(1))  # mov dword [g_inuse], 1
     a.label("dp_out")
     a.emit(0x5D)  # pop ebp
     a.emit(0xC3)  # ret
 
 
 def _emit_local_pool(a: Asm, pool_va: int) -> None:
-    """``local_pool``: `eax` = the local player's second resource, 0 when there is no local
+    """`local_pool`: `eax` = the local player's second resource, 0 when there is no local
     player or its index is out of range.
 
     Read-only, and read-only is required: this runs on the local client only, so a write here
@@ -832,7 +741,7 @@ def _emit_local_pool(a: Asm, pool_va: int) -> None:
     a.label("local_pool")
     a.emit(0x51, 0x52)  # push ecx / push edx
     a.emit(0x31, 0xC0)  # xor eax, eax
-    a.emit(0x8B, 0x0D, _u32(THE_PLAYER_LIST))  # mov ecx, [ThePlayerList]
+    a.emit(0x8B, 0x0D, u32(THE_PLAYER_LIST))  # mov ecx, [ThePlayerList]
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc(JE, "lp_out")
     a.call_absolute(PLAYER_LIST_GET_LOCAL_PLAYER)  # thiscall, no arguments
@@ -842,14 +751,14 @@ def _emit_local_pool(a: Asm, pool_va: int) -> None:
     a.emit(0x31, 0xC0)  # xor eax, eax
     a.emit(0x83, 0xF9, MAX_PLAYER_COUNT)  # cmp ecx, 20
     a.jcc(JAE, "lp_out")  # unsigned: -1 is out of range too
-    a.emit(0x8B, 0x04, 0x8D, _u32(pool_va))  # mov eax, [pool + ecx*4]
+    a.emit(0x8B, 0x04, 0x8D, u32(pool_va))  # mov eax, [pool + ecx*4]
     a.label("lp_out")
     a.emit(0x5A, 0x59)  # pop edx / pop ecx
     a.emit(0xC3)  # ret
 
 
 def _emit_text(a: Asm, fmt_va: int, inuse_va: int) -> None:
-    """A second number in the palantir's resource text: ``1000 (50)``.
+    """A second number in the palantir's resource text: `1000 (50)`.
 
     The engine builds that text with `AsciiString::format(L"%d", amount)` - cdecl, so the varargs
     are pushed last-first and the trailing `add esp` counts them. The hook therefore sits *before*
@@ -863,15 +772,15 @@ def _emit_text(a: Asm, fmt_va: int, inuse_va: int) -> None:
     placeholder, the stock one-number call is emitted byte-identically.
     """
     a.label("text")
-    a.emit(0xC7, 0x45, 0xFC, _u32(1))  # mov dword [ebp-4], 1   ; the displaced SEH state
-    a.emit(0x83, 0x3D, _u32(inuse_va), 0x00)  # cmp dword [g_inuse], 0
+    a.emit(0xC7, 0x45, 0xFC, u32(1))  # mov dword [ebp-4], 1   ; the displaced SEH state
+    a.emit(0x83, 0x3D, u32(inuse_va), 0x00)  # cmp dword [g_inuse], 0
     a.jcc(JE, "tx_plain")
     a.emit(0x83, 0x7D, 0x08, 0x00)  # cmp dword [ebp+8], 0
     a.jcc(JL, "tx_plain")  # a negative amount takes the stock placeholder
     a.call("local_pool")
     a.emit(0x50)  # push eax                     ; vararg 2 - the second resource
     a.emit(0xFF, 0x75, 0x08)  # push dword [ebp+8]           ; vararg 1 - the engine's own number
-    a.emit(0x68, _u32(fmt_va))  # push "%d (%d)"
+    a.emit(0x68, u32(fmt_va))  # push "%d (%d)"
     a.emit(0x8D, 0x45, 0xF0)  # lea eax, [ebp-0x10]          ; the AsciiString
     a.emit(0x50)  # push eax
     a.call_absolute(ASCII_STRING_FORMAT)
@@ -893,12 +802,12 @@ def _emit_refresh(a: Asm, shown_va: int, inuse_va: int) -> None:
     so the comparison needs no register saved.
     """
     a.label("refresh")
-    a.emit(0x83, 0x3D, _u32(inuse_va), 0x00)  # cmp dword [g_inuse], 0
+    a.emit(0x83, 0x3D, u32(inuse_va), 0x00)  # cmp dword [g_inuse], 0
     a.jcc(JE, "rf_stock")  # unused: the stock filter, exactly
     a.call("local_pool")
-    a.emit(0x3B, 0x05, _u32(shown_va))  # cmp eax, [g_shown]
+    a.emit(0x3B, 0x05, u32(shown_va))  # cmp eax, [g_shown]
     a.jcc(JE, "rf_stock")
-    a.emit(0xA3, _u32(shown_va))  # mov [g_shown], eax
+    a.emit(0xA3, u32(shown_va))  # mov [g_shown], eax
     a.jmp_absolute(PALANTIR_RESOURCES_CACHE_PUSH)  # force the text, whatever gold did
     a.label("rf_stock")
     a.emit(0x3B, 0x7E, 0x0C)  # cmp edi, [esi+0xc]           ; the displaced compare
@@ -906,14 +815,6 @@ def _emit_refresh(a: Asm, shown_va: int, inuse_va: int) -> None:
     a.jmp_absolute(PALANTIR_RESOURCES_CACHE_SKIP)
     a.label("rf_push")
     a.jmp_absolute(PALANTIR_RESOURCES_CACHE_PUSH)
-
-
-def _read_cstring(data: bytes | bytearray, va: int, limit: int = 64) -> str | None:
-    off = va_to_offset(data, va)
-    if off is None:
-        return None
-    end = bytes(data[off : off + limit]).find(b"\x00")
-    return None if end < 0 else bytes(data[off : off + end]).decode("latin1")
 
 
 def _table_bytes(
@@ -952,7 +853,7 @@ class SecondResourcePatch(Patch):
     in brackets after the palantir's own number. Nothing *costs* the new resource - this is the
     grant-and-show half of the feature.
 
-    ``hud`` (default on) is the bracket. Turning it off leaves the palantir's resource text
+    `hud` (default on) is the bracket. Turning it off leaves the palantir's resource text
     exactly as the stock engine draws it, and leaves the mechanic untouched.
     """
 
@@ -968,7 +869,7 @@ class SecondResourcePatch(Patch):
     )
 
     def __init__(self, *, hud: bool = True):
-        #: Append the pool to the palantir's resource readout, as ``1000 (50)``. Client-local
+        #: Append the pool to the palantir's resource readout, as `1000 (50)`. Client-local
         #: either way - the text never enters the simulation - but a resource nobody can see is
         #: not much of a resource, so it is on by default.
         self.hud = hud
@@ -1005,7 +906,7 @@ class SecondResourcePatch(Patch):
         out: list[tuple[Entry, ...]] = []
         for spec, table_va in zip(_TABLES, bases, strict=True):
             entries = read_field_table(data, table_va)
-            by_name = {_read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
+            by_name = {read_cstring(data, name): offset for name, _fn, _ud, offset in entries}
             for field, want in spec.fingerprint.items():
                 got = by_name.get(field)
                 if got != want:
@@ -1057,7 +958,7 @@ class SecondResourcePatch(Patch):
     def _assemble(self, base_va: int, tables: tuple[tuple[Entry, ...], ...]) -> Asm:
         """The cave's code, laid out at the address it will occupy.
 
-        :meth:`_build_section` takes the bytes and the field tables, and :meth:`_edits` takes
+        `_build_section` takes the bytes and the field tables, and `_edits` takes
         label addresses, from one layout - so nothing can be pointed at a routine that moved.
         """
         a = Asm(base_va + self._code_offset(tables))
@@ -1096,10 +997,10 @@ class SecondResourcePatch(Patch):
         *,
         table_refs: bool = True,
     ) -> list[tuple[int, bytes, bytes, str]]:
-        """``(file offset, original bytes, patched bytes, note)`` for every engine byte this
-        patch rewrites. One list so :meth:`apply` writes exactly what :meth:`verify` asserts.
+        """`(file offset, original bytes, patched bytes, note)` for every engine byte this
+        patch rewrites. One list so `apply` writes exactly what `verify` asserts.
 
-        ``table_refs=False`` drops the field-table repoints. :meth:`verify` asks for that,
+        `table_refs=False` drops the field-table repoints. `verify` asks for that,
         because a repoint is the one edit here a *later* patch is entitled to overwrite: a second
         patch extending the same table rebuilds it including these rows - by pointer, so they stay
         the same rows with the same parse function - and points the reference at its own copy.
@@ -1116,7 +1017,7 @@ class SecondResourcePatch(Patch):
             return off
 
         def hook(va: int, old: bytes, target: str, note: str) -> None:
-            out.append((at(va), old, _jmp(va, labels(target)) + b"\x90" * (len(old) - 5), note))
+            out.append((at(va), old, jmp_rel32(va, labels(target), len(old)), note))
 
         # 1. repoint every field table at its rebuilt copy
         if table_refs:
@@ -1126,8 +1027,8 @@ class SecondResourcePatch(Patch):
                     out.append(
                         (
                             at(ref_va),
-                            bytes([opcode]) + _u32(old),
-                            bytes([opcode]) + _u32(section_va + offset),
+                            bytes([opcode]) + u32(old),
+                            bytes([opcode]) + u32(section_va + offset),
                             f"{spec.block} field table ref @0x{ref_va:08x}",
                         )
                     )
@@ -1273,7 +1174,7 @@ class SecondResourcePatch(Patch):
         labels = self._assemble(section_va, tables).label_va
         for spec, all_entries in zip(_TABLES, live, strict=True):
             want_fn = labels(spec.parse_label)
-            entry = next(e for e in all_entries if _read_cstring(data, e[0]) == spec.field)
+            entry = next(e for e in all_entries if read_cstring(data, e[0]) == spec.field)
             if entry[1] != want_fn:
                 problems.append(
                     f"{spec.block}.{spec.field} parses with {entry[1]:#x}, expected {want_fn:#x}"
@@ -1332,7 +1233,3 @@ class SecondResourcePatch(Patch):
             if got != new:
                 problems.append(f"{note} @0x{file_off:x}: expected {new.hex()}, got {got.hex()}")
         return problems
-
-
-def _jmp(at_va: int, target_va: int) -> bytes:
-    return b"\xe9" + struct.pack("<i", target_va - (at_va + 5))

@@ -83,17 +83,49 @@ def main(argv: list[str] | None = None, extra_checks: "MapChecks | None" = None)
 def report_unhandled(
     kind: type[BaseException], error: BaseException, trace: TracebackType | None
 ) -> None:
+    """Show an exception that escaped a Qt callback as a bug report ready to file, rather than
+    as a traceback with nowhere to go - a windowed build has no console to read one from."""
     text = "".join(traceback.format_exception(kind, error, trace))
     sys.stderr.write(text)
     # Qt is loaded by the time a Qt callback can fail.
-    from PyQt6.QtWidgets import QApplication, QMessageBox  # noqa: PLC0415
+    from PyQt6.QtWidgets import QApplication  # noqa: PLC0415
 
-    if QApplication.instance() is not None:
-        QMessageBox.critical(
+    from sage_utils.bugreport import report_text  # noqa: PLC0415
+    from sage_utils.widgets import report_bug_dialog  # noqa: PLC0415
+    from sage_worldbuilder.ui.window import APP_TITLE, MainWindow  # noqa: PLC0415
+
+    if QApplication.instance() is None:
+        return
+    # The window the report should describe: the one in front, or the only one there is. A
+    # failure early enough to have no window at all still reports the build it happened on.
+    active = QApplication.activeWindow()
+    window = (
+        active
+        if isinstance(active, MainWindow)
+        else next(
+            (w for w in QApplication.topLevelWidgets() if isinstance(w, MainWindow)),
             None,
-            "SAGE WorldBuilder",
-            f"Something went wrong; the editor keeps running, but save your work.\n\n{text}",
         )
+    )
+    state = None
+    if window is not None:
+        try:
+            state = window.bug_report_state()
+        except Exception:  # noqa: BLE001 - already handling a failure; report what there is
+            state = None
+    report = report_text(
+        APP_TITLE,
+        extra=state,
+        details=text,
+        description="The editor hit an error it did not expect. What were you doing at the time?",
+    )
+    dialog = report_bug_dialog(
+        window,
+        app=APP_TITLE,
+        text=report,
+        headline="Something went wrong. The editor keeps running, but save your work.",
+    )
+    dialog.exec()
 
 
 if __name__ == "__main__":

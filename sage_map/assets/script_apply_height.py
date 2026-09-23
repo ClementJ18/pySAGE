@@ -21,7 +21,7 @@ class ScriptApplyHeight:
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
-            apply_height = context.stream.readBool()
+            apply_height = context.stream.read_bool()
 
         return cls(
             version=asset_ctx.version,
@@ -32,4 +32,4 @@ class ScriptApplyHeight:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeBool(self.apply_height)
+            context.stream.write_bool(self.apply_height)

@@ -421,7 +421,7 @@ Where the pieces live:
 |---|---|
 | `TerrainResourceExpPatch` | [`patches/terrain_resource_exp.py`](../patches/terrain_resource_exp.py) |
 | the `terrain-resource-exp` CLI name | [`registry.py`](../registry.py) |
-| the three sites, the table and its stock bytes | [`addresses.py`](../addresses.py) |
+| the three sites, the table and its stock bytes | [`sage_patch.addresses`](../addresses/__init__.py) |
 | tests | [`tests/sage_patch/test_terrain_resource_exp.py`](../../tests/sage_patch/test_terrain_resource_exp.py) |
 
 ## Address index

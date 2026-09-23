@@ -1,43 +1,14 @@
-"""The map-transition patch: a script action that loads another map without leaving the session.
+"""A script action that loads another map without leaving the session, so one scenario can span
+several map files.
 
-Derived in ``../../docs/map-transition.md``. Two hooks and one cave:
+It reuses the stock `PLAYER_ASSIMILATE_WITH_ARMY_BY_NAME` action, which does nothing unpatched,
+reading the destination map from its army-name slot. Single player only. The local player's army
+carries across with veterancy, upgrades and health, as do script counters, timers and flags, and the
+player's money, command-point ceiling and spellbook currency. Special-power cooldowns do not. It
+edits `GameLogic::update`'s first five bytes, which `live-bridge` also takes, so the two cannot be
+combined.
 
-* the jump-table entry for a **stubbed** script action, repointed at the cave. The action records
-  the destination map name and raises a pending flag; it cannot do the swap itself, because it
-  runs inside the script engine's update and the swap resets the script engine.
-* `GameLogic::update`'s entry, where the flag is serviced with no script frame on the stack. The
-  transition mirrors a player quitting to the menu and picking the next map: end the match with
-  `GameLogic::clearGameData`, then **two** posted `MSG_NEW_GAME` messages with a trip through the
-  shell map between them. One leaves the current match; then, once the shell is actually up, one
-  starts the destination in the mode the session had. The engine has no game-to-game path: it has
-  a game-to-shell path and a shell-to-game path, and this chains them. Skipping the teardown, or
-  calling `startNewGame` and `loadMap` directly the way `LivingWorldLogic::startCampaign` does,
-  builds a world while the previous session is still standing and faults inside construction.
-
-A destination that does not exist is refused before the swap begins, because `loadMap` destroys
-the session and *then* looks for the map.
-
-**The local player's army carries across; nothing else does yet.** What counts as the army is
-War of the Ring's rule, `KindOf = ARMY_SUMMARY`, taken from the engine's own post-battle harvest:
-units and hordes carry, structures do not, and a horde carries once rather than as a horde plus
-every one of its members. Each is snapshotted into an `ArmyEntry` record before the teardown and
-rebuilt on the destination, which brings template, health, purchased upgrades and veterancy - the
-engine marshals all of that itself.
-
-**Script counters, timers and flags carry too**, by name and scope. A timer holds ticks remaining
-rather than an expiry frame, so it resumes on the destination with the time it had. The engine's
-own `___MusicScript_` state is deliberately left behind.
-
-**So does the player's purse, command-point ceiling and spellbook currency**, along with the
-purchased sciences and the completed-upgrade set. The points-in-use counter is not carried, because
-restoring the army re-accrues it; and the upgrades are replayed through the engine's own grant path
-rather than written back as a bitset, so whatever an upgrade does on completion happens.
-
-**Special-power cooldowns are out of scope**, so powers arrive ready. The hero revival ledger is
-the one layer still outstanding.
-
-**It edits `GameLogic::update`'s first five bytes, which `live-bridge` also takes.** The two do not
-compose; `apply_byte_patch` raises for whichever is applied second rather than corrupting the site.
+Derivation: `../../docs/map-transition.md`.
 """
 
 from __future__ import annotations
@@ -296,6 +267,25 @@ def _emit(base_va: int) -> Asm:
 
     a = Asm(base_va + CODE_OFF)
 
+    _emit_record_one(a, count_va, records_va)
+    _emit_snapshot(a, count_va)
+    _emit_restore(a, count_va, records_va)
+    _emit_player_snapshot(a, mask_va, player_state_va, science_count_va, sciences_va)
+    _emit_player_restore(a, mask_va, player_state_va, science_count_va, sciences_va, scratch_va)
+    _emit_script_append(a)
+    _emit_script_record(a, script_count_va, script_records_va)
+    _emit_script_record_flag(a, script_count_va)
+    _emit_script_walk(a, script_count_va)
+    _emit_script_restore(a, name_va, pending_va, script_count_va, script_records_va)
+    _emit_hook(a, pending_va, saved_mode_va)
+    _emit_leaving(a)
+    _emit_at_shell(a, name_va, pending_va, saved_mode_va)
+    _emit_arriving(a, pending_va, saved_mode_va)
+    _emit_post(a)
+    return a
+
+
+def _emit_record_one(a: Asm, count_va: int, records_va: int) -> None:
     # The script action. Entered from the jump table with `esi` = the ScriptAction and `edi` =
     # the ScriptActions object, and it must leave through the shared epilogue like any case body.
     # The per-object callback the engine's object walk drives: `cdecl (Object *, void *ctx)`,
@@ -361,6 +351,8 @@ def _emit(base_va: int) -> Asm:
     a.emit(0x40)  # inc eax               ; keep walking
     a.emit(0xC3)  # ret                   ; cdecl: the caller cleans
 
+
+def _emit_snapshot(a: Asm, count_va: int) -> None:
     # Snapshot the local player's objects. Called from step one **before** the teardown, which is
     # the only moment they still exist.
     a.label("snapshot")
@@ -376,6 +368,8 @@ def _emit(base_va: int) -> Asm:
     a.label("snapshot_done")
     a.emit(0xC3)  # ret
 
+
+def _emit_restore(a: Asm, count_va: int, records_va: int) -> None:
     # Put them back on the destination map. `ArmyRecord::createObject` rebuilds each object onto
     # the receiving player's default team with its health and upgrade mask - veterancy included -
     # and this replays the position and facing the record does not carry.
@@ -424,6 +418,10 @@ def _emit(base_va: int) -> Asm:
     a.label("restore_done")
     a.emit(0xC3)  # ret
 
+
+def _emit_player_snapshot(
+    a: Asm, mask_va: int, player_state_va: int, science_count_va: int, sciences_va: int
+) -> None:
     # The player's own state: the purse, the command-point ceiling and the spellbook currency.
     #
     # Every field is addressed with a **disp32** even where a disp8 would encode. `Player+0x94` and
@@ -490,6 +488,15 @@ def _emit(base_va: int) -> Asm:
     a.label("player_snapshot_done")
     a.emit(0xC3)  # ret
 
+
+def _emit_player_restore(
+    a: Asm,
+    mask_va: int,
+    player_state_va: int,
+    science_count_va: int,
+    sciences_va: int,
+    scratch_va: int,
+) -> None:
     # Put it back before the army does, so the ceiling is in place by the time carried units
     # start adding themselves to the points in use underneath it.
     a.label("player_restore")
@@ -571,6 +578,8 @@ def _emit(base_va: int) -> Asm:
     a.label("player_restore_done")
     a.emit(0xC3)  # ret
 
+
+def _emit_script_append(a: Asm) -> None:
     # The script state: counters, timers and flags, carried by name.
     #
     # Counters and timers are one `std::map` at `SCRIPT_ENGINE_COUNTER_MAP` and flags another at
@@ -595,6 +604,8 @@ def _emit(base_va: int) -> Asm:
     a.label("script_append_done")
     a.emit(0xC3)  # ret
 
+
+def _emit_script_record(a: Asm, script_count_va: int, script_records_va: int) -> None:
     # One node into one slot. `esi` the node, `bl` the kind. `edi` is saved because the caller is
     # holding the map header in it, and this needs it for the slot.
     a.label("script_record")
@@ -647,6 +658,8 @@ def _emit(base_va: int) -> Asm:
     a.emit(0x88, 0x47, SCRIPT_SLOT_IS_SECONDS)  # mov [edi+0x4d], al
     a.jmp("script_record_stored")
 
+
+def _emit_script_record_flag(a: Asm, script_count_va: int) -> None:
     # A flag's value is a **byte**; the three bytes above it in the node are someone else's.
     a.label("script_record_flag")
     a.emit(0x0F, 0xB6, 0x46, STD_MAP_NODE_VALUE)  # movzx eax, byte [esi+0x18]
@@ -660,6 +673,8 @@ def _emit(base_va: int) -> Asm:
     a.emit(0x5F)  # pop edi
     a.emit(0xC3)  # ret
 
+
+def _emit_script_walk(a: Asm, script_count_va: int) -> None:
     # One map, front to back. `edi` the header, `bl` the kind. Iteration walks `[header+8]` to the
     # leftmost node and steps with the engine's own iterator increment until it comes back round.
     a.label("script_walk")
@@ -699,6 +714,10 @@ def _emit(base_va: int) -> Asm:
     a.label("script_snapshot_done")
     a.emit(0xC3)  # ret
 
+
+def _emit_script_restore(
+    a: Asm, name_va: int, pending_va: int, script_count_va: int, script_records_va: int
+) -> None:
     # Put them back. Both lookups are `__thiscall` on `TheScriptEngine`, take an `AsciiString`
     # **by value** and destroy it themselves, and return the record - so the string is built into
     # the stack slot that is already the argument and the callee's `ret 4` disposes of both.
@@ -789,6 +808,8 @@ def _emit(base_va: int) -> Asm:
     a.label("action_done")
     a.jmp_absolute(SCRIPT_ACTION_EPILOGUE)
 
+
+def _emit_hook(a: Asm, pending_va: int, saved_mode_va: int) -> None:
     # The logic-update hook, which runs the transition as **two** posted messages with a trip
     # through the shell map between them.
     #
@@ -839,6 +860,8 @@ def _emit(base_va: int) -> Asm:
     a.call_absolute(CLEAR_GAME_DATA)
     a.jmp("abort")
 
+
+def _emit_leaving(a: Asm) -> None:
     # Step two: wait for the shell to actually be up. The message posted above is handled later in
     # the frame, and the mode only reads 4 once it has been. Until then this is a no-op that costs
     # one compare per frame.
@@ -864,6 +887,8 @@ def _emit(base_va: int) -> Asm:
     a.emit(0x6A, _MODE_SHELL_MAP)  # push 4
     a.jmp("post")
 
+
+def _emit_at_shell(a: Asm, name_va: int, pending_va: int, saved_mode_va: int) -> None:
     # At the shell map: name the destination and start it in the mode the session had. The
     # staged slot is what the engine's own shell return writes, and `startNewGame` promotes it
     # over the active name and clears it.
@@ -923,6 +948,8 @@ def _emit(base_va: int) -> Asm:
     a.emit(0xFF, 0x35, struct.pack("<I", saved_mode_va))  # push dword [saved_mode]
     a.jmp("post")
 
+
+def _emit_arriving(a: Asm, pending_va: int, saved_mode_va: int) -> None:
     # Step three: the destination is running once the mode matches the one the session had. Put
     # the army back, then disarm.
     a.label("arriving")
@@ -936,6 +963,8 @@ def _emit(base_va: int) -> Asm:
     a.call("script_restore")
     a.jmp("abort")
 
+
+def _emit_post(a: Asm) -> None:
     # Shared tail: post MSG_NEW_GAME carrying the mode already on the stack, exactly as the shell
     # return does at 0x0075DEE2. The mode survives the vtable call on the stack rather than in a
     # register the callee may use.
@@ -954,7 +983,6 @@ def _emit(base_va: int) -> Asm:
     a.label("passthrough")
     a.emit(HOOK_ORIGINAL)  # the stolen prologue
     a.jmp_absolute(HOOK_RETURN_VA)
-    return a
 
 
 def build_section(base_va: int) -> bytes:

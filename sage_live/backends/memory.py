@@ -1,54 +1,26 @@
 """`MemoryBackend` - observe a running game read-only, with no injection.
 
-`OpenProcess` + `ReadProcessMemory` and nothing else: no code loaded into the game, no
-patched binary, no anti-tamper surface. That makes this the low-risk observation path, and
-it is worth keeping permanently even once a bridge exists.
+`OpenProcess` + `ReadProcessMemory` and nothing else: no code in the game and no patched binary,
+which makes this the low-risk observation path. Reading goes through a `MemorySource`, so the whole
+decode is tested against a synthetic image, and only `ProcessMemory` needs a real game.
 
-Fetching bytes is separated from interpreting them. Everything below reads through a
-`MemorySource`, so the whole decode - pointer chains, string headers, the object table - is
-exercised against a synthetic image in the data-free suite, and only `ProcessMemory` needs
-a real game. `ctypes` is stdlib, so this module adds no dependency.
+Addresses are build-specific. `LAYOUT_ROTWK_201` is verified against RotWK 2.01; reading the wrong
+build does not fail, it returns nonsense, which is why `sage_live.backends.identity` checks the
+build first. Derivations: `sage_patch/docs/engine-globals.md` and
+`sage_patch/docs/live-object-model.md` (which also holds the notes on each `EngineLayout` field).
 
-**Addresses are build-specific, and `connect` checks the build.** `LAYOUT_ROTWK_201` is
-verified against RotWK 2.01 (PE timestamp `0x460DA09E`); the derivation is in
-`sage_patch/docs/engine-globals.md` and `sage_patch/docs/live-object-model.md`. Pass a
-different `EngineLayout` for another build - and note that reading the *wrong* build with
-these offsets never fails, it reports nonsense, which is why `sage_live.backends.identity` gates it.
+Cost: about three reads per additional object (asserted by `test_an_object_costs_three_reads`),
+since template strings and module walks are cached per template; about 15 on average over a real
+match. Every wide read has a field-by-field fallback that must decode identically, for spans that
+cross into unmapped pages.
 
-**An observation costs three reads per additional object**, and that is asserted rather than
-hoped for - see `test_an_object_costs_three_reads`. Each `MemorySource.read` is a
-`ReadProcessMemory`
-syscall, so the per-object count is what decides whether a policy observes a few times a second
-or a few dozen. Three is the entry, the object header, and the body: everything else on the
-header comes out of the one read, a template's name and Side are cached per template rather
-than per object, and a template already known to carry no `ProductionUpdate` skips the module
-walk entirely. Averaged over a real 386-object match the figure is about **15**, because a
-match holds dozens of distinct templates and each pays once for its strings and its module
-walk.
+Worth knowing:
 
-Every wide read has a **field-by-field fallback**, and the two must decode identically. That is
-not defensive decoration: an object whose header straddles into an unmapped page fails the wide
-read while each field inside it reads perfectly, and a recorded snapshot holds only the ranges
-its capture touched. The fallback is also what the batching is measured against - refusing the
-wide reads on the same image takes the marginal cost from 3 to 16.
-
-Two limits worth knowing before building on this:
-
-- **Observations are whole-map; the fog filter is a separate, deliberate step.** This reads
-  every object, and also reads the engine's own shroud grid into `Observation.shroud`, so
-  `Observation.under_fog` (or `attach(fog=True)`) can cut it down to one seat's view. `fogged`
-  stays False on what this produces, because what this produces is the whole map.
-- **Per-object owner is resolved, but indirectly.** An `Object` names its owner by `Team*`
-  (`+0x31C`), and a `Team` holds no back-pointer to its `Player`, so the map is inverted from
-  each player's own team (`Player+0x30C`). Objects on a *script* team - a player may own several
-  - resolve to None rather than a guess; that was 2 of 523 in a live match. Do not substitute
-  `template_side`: it is the *template's* declared Side and genuinely disagrees with ownership
-  (the creeps own 18 `Neutral`-sided lairs, and the local player owned a `Civilian`-sided
-  object).
-- **Upgrades come in two scopes and they are not interchangeable.** Faction-wide researches are
-  on the `Player`; per-battalion and per-structure ones are on the `Object` and appear in no
-  other field. `upgrade_table` reads the engine's own registry for the names, so this module
-  stays free of game data even while reporting them.
+- Observations are whole-map; `Observation.under_fog` applies a seat's view using the shroud grid
+  read here.
+- Ownership goes through the object's `Team`, inverted from each player's teams. Objects on
+  unresolvable teams read as None; do not substitute `template_side`, which often disagrees.
+- Upgrades come in two scopes: faction-wide on the `Player`, per-object on the `Object`.
 """
 
 from __future__ import annotations
@@ -59,20 +31,31 @@ import struct
 import sys
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
-from sage_live.api.observation import GameObject, Observation, PlayerState, ProductionItem
+from sage_live.api.observation import (
+    GameObject,
+    Observation,
+    PlayerState,
+    ProductionItem,
+    SpecialPowerState,
+)
 from sage_live.backends.base import ConnectionRefused, GameExited
 from sage_live.backends.identity import ROTWK_201_TIMESTAMP, BuildIdentity, read_identity
 from sage_live.backends.protocol import Diagnostic, DiagnosticLog, Handshake
 from sage_live.backends.shroud import ShroudGrid, read_shroud
 from sage_patch.addresses import (
     BUILD,
+    COMMAND_BUTTON_SPECIAL_POWER,
+    DICT_SET_ASCII_STRING_BYTES,
     GLOBAL_DATA,
     GLOBAL_DATA_FPS_LIMIT,
     GLOBAL_DATA_USE_FPS_LIMIT,
     IMAGE_BASE,
+    KINDOF_HERO_BIT,
+    KINDOF_HERO_BYTE,
+    OBJECT_CONSTRUCTION_PERCENT,
     OBJECT_MODULE_LIST,
     OBJECT_PRODUCER_ID,
     OBJECT_STATUS,
@@ -92,15 +75,20 @@ from sage_patch.addresses import (
     SHROUD_ORIGIN_Y,
     SHROUD_RECORD_BASE,
     SHROUD_RECORD_STRIDE,
+    SPELLBOOK_UI_SLOT_LIMIT,
+    THE_COMMAND_SET_STORE,
     THE_GAME_LOGIC,
+    THE_GAME_TEXT,
     THE_IN_GAME_UI,
     THE_MESSAGE_STREAM,
     THE_PLAYER_LIST,
     THE_SCIENCE_STORE,
     THE_SHROUD_MANAGER,
+    THE_SIDES_LIST,
     THE_SPECIAL_POWER_STORE,
     THE_THING_FACTORY,
     THE_UPGRADE_CENTER,
+    THING_TEMPLATE_KINDOF,
 )
 from sage_patch.patches.utils.model_conditions import MASK_DWORDS as MODEL_CONDITION_DWORDS
 from sage_patch.patches.utils.model_conditions import MASK_OFFSET as MODEL_CONDITION_MASK
@@ -172,17 +160,8 @@ class EngineLayout:
     pl_array: int = 0x18
     pl_max_players: int = 20
 
-    # InGameUI's selected-drawable list, which is what "my current selection" means. Read out of
-    # the engine's own accessor rather than searched for: `getAllSelectedDrawables` is virtual
-    # slot `+0x124` (the slot `multi-execute-gate.md` documents the ControlBar calling), and the
-    # function it points at is three bytes - `8d 41 20 c3`, `lea eax, [ecx+0x20]; ret`. So it
-    # returns the address of a member at `+0x20`, and that member is an MSVC `std::list` head:
-    # `*(InGameUI+0x20)` is the sentinel node, each node is `{next, prev, Drawable *}`, and an
-    # empty selection is a sentinel whose `next` is itself.
-    #
-    # This is **client state, not simulation state.** It is what this machine has selected and no
-    # part of the lockstep model, which is why it is safe to read and meaningless to compare
-    # across machines.
+    # InGameUI's selected-drawable list (an MSVC `std::list` at `+0x20`, found through the virtual
+    # `getAllSelectedDrawables`). Client state, not simulation state: this machine's selection.
     the_in_game_ui: int = THE_IN_GAME_UI
     ui_selected_drawables: int = 0x20
     list_node_value: int = 0x08
@@ -193,13 +172,8 @@ class EngineLayout:
     player_display_name: int = 0x38
     player_name: int = 0x4C
     player_side: int = 0x58
-    # The seat's `PlayerTemplate`, which is where the *faction* is - `player_side` is the broad
-    # side and several factions share one. Measured live (2026-08-13) on a two-seat match: both
-    # seats read side `Men` while the template read `Gondor`, and walking the neighbouring
-    # templates gave the matching pairs `Civilian`/`Civilian`, `Dwarves`/`Dwarves` and
-    # `Evil Men`/`Evilmen` - the space in that last one is what says `+0x14` is the *display*
-    # name rather than an internal one. It is a UnicodeString; `+0x18` is the side again, as an
-    # AsciiString, and is what confirmed the two fields belong to the same object.
+    # The seat's `PlayerTemplate`, which holds the faction (`player_side` is the broader side):
+    # `+0x14` the display name (UnicodeString), `+0x18` the side (AsciiString).
     player_template: int = 0x34
     template_faction: int = 0x14
     template_side: int = 0x18
@@ -210,155 +184,71 @@ class EngineLayout:
     # what separates the spendable balance from the lifetime total.
     player_power_points: int = 0x24
     player_power_points_total: int = 0x1C
-    # The sciences the player holds, as a `std::vector<ScienceType>`: `{begin, end, capacity}`,
-    # so the count is `(end - begin) / 4` and there is no count field to check it against. Same
-    # shape as `TheSpecialPowerStore`'s vector, and the same absence of a checksum.
-    #
-    # Found by decoding rather than by shape, which is what makes it more than a plausible
-    # triple: read as ini-order science ids the entries name exactly what each seat should be
-    # holding. Measured live across one match's five seats (2026-08-04): every seat carried the
-    # four view sciences (`SCIENCE_GENERAL_VIEW`, `..._COMMANDER_VIEW`, `..._UNIT_VIEW`,
-    # `..._GROUND_VIEW`), each playing seat carried its own faction science first
-    # (`SCIENCE_MEN` for the Men seat, `SCIENCE_MORDOR` for the Mordor one) and nobody else's,
-    # and the Mordor AI carried five Mordor spellbook powers on top - `SCIENCE_EyeofSauron`,
-    # `SCIENCE_SummonAufseher`, `SCIENCE_SBSummonEasterling`, `SCIENCE_Darkness`,
-    # `SCIENCE_CalltheHorde`. Nothing but the right offset decodes as a coherent per-seat
-    # spellbook, and the vector's own `end` is what says where the meaning stops: reading past
-    # it yields other factions' sciences, which is exactly how a wrong length would look right.
-    #
-    # That decode is also an independent confirmation of the **id space** - the ids the engine
-    # holds are `game.sciences` index + 1, which is what `sage_replay.idspace` derives from the
-    # replay corpus and what `orders.purchase_power` sends.
-    #
-    # **The AI's set does not obey the ini's prerequisites** (it held `SCIENCE_Darkness` with
-    # none of the three sciences that unlock it), so this reports what a player *has* and is
-    # not a witness to how they got it. A skirmish AI is granted spells by script.
-    #
-    # **Not covered by the snapshot fixture**: that capture predates this field and never read
-    # these bytes, so it decodes as an empty set there.
+    # The rank ladder: lifetime skill points and the skill needed for the next and current rank
+    # (Generals' `Player` order). Not yet confirmed live; `power_point_progress` rejects an
+    # implausible triple.
+    player_skill_points: int = 0x20
+    player_rank_next: int = 0x28
+    player_rank_floor: int = 0x2C
+    # The seat colour, `0xFF000000 | rgb`; an opaque alpha proves the colour was set, so an unset
+    # one reads as None. Read statically.
+    player_color: int = 0x2A0
+    # The match ledger, `Player+0x3DC` onward: the stat switch at `0x009CDF23` reads each of
+    # these for the score screen (`sage_patch/docs/runtime-re-workflow.md`), and they read
+    # plausibly live.
+    player_spent_on_units: int = 0x3F0
+    player_spent_on_structures: int = 0x3F4
+    player_spent_on_heroes: int = 0x3F8
+    player_units_created: int = 0x44C
+    player_units_lost: int = 0x450
+    player_structures_created: int = 0x4A4
+    player_structures_lost: int = 0x4A8
+
+    # Alliances: each seat's side dict in `TheSidesList` lists its allies' `playerName`s under
+    # `playerAllies`. Read statically; a list that does not decode yields no allies.
+    the_sides_list: int = THE_SIDES_LIST
+    sl_count: int = 0x3C
+    sl_sides: int = 0x40
+    sl_side_stride: int = 0x60
+    side_dict: int = 0x04
+    dict_count: int = 0x04
+    dict_pairs: int = 0x06
+    dict_pair_stride: int = 0x08
+    dict_pair_value: int = 0x04
+    dict_type_ascii: int = DICT_SET_ASCII_STRING_BYTES[2]
+    key_player_name: int = 0x00DA2F2C
+    key_player_allies: int = 0x00DA2F5C
+    max_dict_pairs: int = 256
+    # The sciences the player holds, a `std::vector<ScienceType>` of ids (`game.sciences` index +
+    # 1). Confirmed live by decoding each seat's spellbook. An AI's set need not obey the ini's
+    # prerequisites.
     player_sciences: int = 0x310
     # A held-science vector longer than this is a bad read rather than a real spellbook. The
     # store carries 263 entries on RotWK 2.01 + Edain and a seat holds a handful of them, so
     # this is loose by two orders of magnitude on purpose - it is a sanity limit, not a count.
     max_sciences: int = 1 << 12
-    # `TheScienceStore`, the fourth id space, and the one that stays **unnamed**. It has the
-    # same `std::vector` shape as the special-power store - `{begin, end, capacity}` at `+0x0C`
-    # - and holds exactly the 263 entries the ini defines, but its elements are separately
-    # allocated at *different sizes*, so no fixed offset reads a name off one. What the vector
-    # does give is the **count**, and a count is what bounds a science id: the ids the engine
-    # holds are `game.sciences` index + 1 (`sage_replay.idspace.SCIENCE_OFFSET`), so a valid id
-    # runs 1..count and anything past that is a typo rather than a science. That is the whole
-    # of what is read here - naming a science still means reconstructing the space from ini
-    # through `sage_live.utils.resolve`.
+    # `TheScienceStore`: its entries cannot be named at a fixed offset, but its count bounds a valid
+    # science id.
     the_science_store: int = THE_SCIENCE_STORE
     sc_vector: int = 0x0C
 
-    # `TheWritableGlobalData`, and the pair of `GameData` fields that pace the main loop. Both
-    # are ordinary ini fields - the field-parse table at `0x00BFF580` maps `UseFPSLimit` to
-    # `+0x26` and `FramesPerSecondLimit` to `+0x28` - and **the engine writes both of them at
-    # runtime itself**: `0x0062C6FF` is `[GlobalData+0x28] = 10000; [GlobalData+0x26] = 0`,
-    # which is the engine's own idiom for taking the cap off.
-    #
-    # `+0x26` is not read where it is paced, though; it is copied into a loop-local flag at
-    # `0x0063A01B` (`mov al, [GlobalData+0x26]; mov [0x00DE4320], al`), and that flag is what
-    # gates the throttle: `0x0063A18E` compares it against zero and jumps clean over the frame
-    # pacing block at `0x0063A196` when it is unset. Several other sites in the same function
-    # force the flag either way on their own conditions, so it is **recomputed every frame** and
-    # a writer that wants it to stay unset has to re-apply every frame rather than write once.
-    # The cached flag is carried here beside the two ini fields for that reason.
+    # `TheWritableGlobalData` and the `UseFPSLimit` / `FramesPerSecondLimit` fields that pace the
+    # main loop, plus the loop's cached copy of the first, which the engine recomputes every frame.
     the_global_data: int = GLOBAL_DATA
     gd_use_fps_limit: int = GLOBAL_DATA_USE_FPS_LIMIT  # one byte
     gd_fps_limit: int = GLOBAL_DATA_FPS_LIMIT
     gd_fps_limit_flag: int = 0x00DE4320  # the loop's own copy, recomputed per frame
 
-    # `Object::m_experienceTracker`, and the tracker's own fields. The pointer is documented in
-    # `sage_patch/docs/terrain-resource-exp.md` (accessor `mov eax,[ecx+0x26c]; ret` at
-    # `0x008D7C63`); the fields below were read out of the tracker's own methods.
-    #
-    # `ExperienceTracker::addExperiencePoints` (`0x0079D68D`, the real body behind the sponsor
-    # walking wrapper at `0x0079D833`) ends:
-    #
-    #     0079d6e6  movss xmm1, [ecx+0x10]      ; the experience points
-    #     0079d6ee  addss xmm1, xmm0
-    #     0079d6f2  movss [ecx+0x10], xmm1
-    #     0079d6f7  call 0x79d141               ; the level-up cascade
-    #
-    # and it opens by refusing to grant at all when the level is capped, which is what names
-    # the other two:
-    #
-    #     0079d69e  mov  eax, [ecx+0x28]        ; max level, 0 when uncapped
-    #     0079d6a1  cmp  eax, edx               ; edx = 0
-    #     0079d6a3  jle  0x79d6aa               ; no cap: skip the test
-    #     0079d6a5  cmp  [ecx+0x24], eax        ; current level
-    #     0079d6a8  jge  0x79d6fc               ; at the cap: grant nothing
-    #
-    # `+0x24` is corroborated by the cascade itself, which returns it when nothing levelled and
-    # otherwise returns the reached `ExperienceLevel`'s own `+0xFC` - so the two are the same
-    # kind of number - and by the setter at `0x0079D72A` (`mov [ecx+0x24], eax`).
-    #
-    # **The cascade is only ever reached from a grant.** `0x0079D141` has three callers
-    # (`0x0079D6F7` here, `0x0079D92F` in the engine's own `set experience and level`, and one
-    # in the campaign block), and nothing polls it. So experience written from outside sits in
-    # `+0x10` until the object next gains any, at which point the engine levels it the whole way
-    # through its own path. That is a property a writer can rely on rather than work around: set
-    # the points and let the next grant run the cascade.
+    # `Object::m_experienceTracker` and its fields (points, level, max level). The level-up cascade
+    # only runs on a grant, so experience written from outside applies at the next grant.
     obj_experience_tracker: int = 0x26C
     xt_experience: int = 0x10  # float
     xt_scalar: int = 0x1C  # float, the multiplier applied to incoming grants
     xt_level: int = 0x24
     xt_max_level: int = 0x28
-    # Command points, as (in use, cap). `+0x068` was confirmed by recruiting a horde: 120 -> 180.
-    #
-    # **`+0x064` is the *base* cap and excludes every bonus.** It reads a flat 500 for every
-    # player, engine-managed sides included, and usage passes it freely: a measured match ran
-    # `+0x068` to 1436 against it. That is not the engine ignoring a ceiling, it is this field
-    # not being the whole ceiling - Edain's `CPObject` carries a `CommandPointBonus`, and the
-    # capacity the engine checks is this plus whatever those grant.
-    #
-    # Isolated live, which is what tells the two readings apart: a match sat pinned at 472/500
-    # with recruits being discarded and the army stuck at 23 battalions, bought a `CPObject`,
-    # and once that **finished building** went 472 -> 484 -> 532 with the army climbing again.
-    # The base number never moved through any of it. Note the lag - a `CPObject` is queued and
-    # built like a unit, so the capacity arrives at the end of its build time, not at purchase.
-    #
-    # So the cap is real and is enforced - at the base value until something raises it.
-    #
-    # **`+0x06C` is where the bonus lands, and base + bonus is the ceiling the engine checks.**
-    # Walked live on 2026-08-04 across every seat in one match: base read a flat 500 for all of
-    # them, and the two playing seats carried a bonus of 800 and 600 while their usage sat at
-    # 1262 and 1077 - each pressed hard against its own `base + bonus` (1300 and 1100) and
-    # neither over it. Watched across six samples the usage climbed 1088 -> 1262 as battalions
-    # finished and never crossed the sum, and the Mordor seat's bonus stepped 600 -> 800 mid
-    # sample, which is a `CPObject` completing.
-    #
-    # **`+0x070` is a hard ceiling over the sum, and it is enforced.** It reads a flat 1500 for
-    # every seat, engine-managed ones included, and never moves - which is why it was first
-    # recorded here as an inferred maximum and deliberately not applied. It is no longer
-    # inferred. `Player::getCommandPointCap` (`0x006A7B9F`, called on `Player+0x60`) ends:
-    #
-    #     006a7ba4  mov   ebx, [esi+0x0c]     ; +0x6C, the bonus
-    #     006a7bad  add   ebx, [esi+0x04]     ; +0x64, the base
-    #     ...                                 ; a filtered vector at +0x80/+0x84 adds more
-    #     006a7bf2  mov   esi, [esi+0x10]     ; +0x70
-    #     006a7bf5  cmp   ebx, esi
-    #     006a7bf7  cmovg ebx, esi            ; cap = min(base + bonus + extras, +0x70)
-    #
-    # and `hasEnoughCommandPoints` (`0x006A7F79`) - the gate that answers verdict 7 in
-    # `queue-ignore-cp.md` - compares `+0x68 + template->CommandPoints` against that return. So a
-    # raised bonus that pushes the sum past `+0x70` buys nothing: measured live on 2026-08-13, a
-    # seat written to base 500 + bonus 6000 recruited as though capped at 1500, and writing
-    # `+0x70` to 9000 moved the readout to the sum. Anything raising the ceiling must write both.
-    #
-    # The vector at `+0x80`/`+0x84` (stride 0xC, value at `+0x0`, an `ObjectFilter` at `+0x8`) is
-    # the third term. Entries whose filter is unset always count; the rest are asked. Evaluating
-    # a filter means calling the engine, so nothing here reads it - a ceiling computed from the
-    # two flat fields is a lower bound on the real one, not the whole of it.
-    #
-    # **Not covered by the snapshot fixture.** That capture predates this field, so `+0x06C`
-    # reads unreadable there and falls back to zero - which happens to be the right answer for
-    # those bytes (an early frame with no `CPObject` built) and so leaves the golden decode
-    # unchanged. The test therefore passes without exercising this at all; re-capturing during a
-    # match with a raised ceiling is what would cover it.
+    # Command points: in use, base cap, bonus, and a hard ceiling. The engine's cap is `min(base +
+    # bonus + filtered extras, hard)`, so raising the ceiling means writing both bonus and hard. The
+    # extras need the engine to evaluate, so the flat fields give a lower bound.
     player_command_points_used: int = 0x68
     player_command_points_cap: int = 0x64
     player_command_points_bonus: int = 0x6C
@@ -419,27 +309,8 @@ class EngineLayout:
     # A vector longer than this is a bad read rather than a real store.
     max_powers: int = 1 << 14
 
-    # A special-power module, and the frame its power is next usable on. This is the engine's
-    # own cooldown - the number `SpecialAbilityUpdate::startPowerRecharge` writes at
-    # `0x00896f7f` as `TheGameLogic.frame + frames`, so a power is ready when `readyFrame` is
-    # not in the future. Derivation in `sage_patch/docs/spell-recharge-filter.md`.
-    #
-    # The offsets come from that function's own register use: it is an adjustor thunk on the
-    # `SpecialPowerModuleInterface` subobject at `module+0x10`, with the `ModuleData` at
-    # `ecx-0xc` and the `Object` at `ecx-8` - so on the module itself the data pointer is at
-    # `+0x04` and the ready frame at `+0x18`. The `ModuleData` names its `SpecialPowerTemplate`
-    # at `+0x08`, and that template carries its name at `power_name`, the same offset the store
-    # walk already uses.
-    #
-    # **Confirmed twice over, live.** Rallying Call read `readyFrame == frame` while ready, and
-    # jumped 902 frames into the future the moment it was cast. And the only two powers on the
-    # whole spellbook whose `readyFrame` is absurd (20.6M and 14.9M against a frame of 3155) are
-    # exactly the two whose ini `ReloadTime` is absurd - the MM variants at 1e23 - which is the
-    # field being derived from the data rather than coinciding with it.
-    #
-    # **Worth reading rather than computing**, because the ini figure is the *undiscounted* one:
-    # that measured jump was 30 seconds against a `ReloadTime` of 180, so a policy pricing the
-    # cooldown from the data alone waits six times too long.
+    # A special-power module and the frame its power is next usable on - the engine's own,
+    # discounted cooldown (confirmed live), which is shorter than the ini's `ReloadTime`.
     module_data: int = 0x04
     module_ready_frame: int = 0x18
     module_data_template: int = 0x08
@@ -449,12 +320,8 @@ class EngineLayout:
     # Object
     obj_template: int = 0x04
     obj_team: int = 0x31C  # Team*, resolved to a player via the prototype below
-    # `Team` -> `TeamPrototype` -> `Player`, which is what resolves the teams a player owns
-    # beyond their default one. Verified live at frame 22952: every one of the six default teams
-    # resolves through this chain to the same index `player_default_team` gives, and it also
-    # resolves all 41 objects that the default-team map alone left ownerless - 39 of them
-    # Isengard's, including the superweapon-summoned crossbow battalion that was shooting a farm
-    # down while reading as nobody's. See `_owner_of_team`.
+    # `Team` -> `TeamPrototype` -> `Player`: resolves the teams a player owns besides its default
+    # one (checked live; see `_owner_of_team`).
     team_proto: int = 0x30
     proto_owner: int = 0x08
     # A pointer to a **NULL-terminated** array of `BehaviorModule*`. This is the hop
@@ -469,38 +336,18 @@ class EngineLayout:
     obj_pos_z: int = 0x34
     obj_cos: int = 0x08
     obj_sin: int = 0x18
-    # The engine's `ModelConditionFlags` - a 19-dword bitset of the states an object is in,
-    # named by a NULL-terminated table of 591 strings in the image. This is how the game itself
-    # knows a structure is still going up (`ACTIVELY_BEING_CONSTRUCTED`), a building is working
-    # its door animation, or a unit is attacking - and it sits inside `obj_span`, so reading it
-    # costs no read of its own. Offsets are `sage_patch.patches.utils.model_conditions`, whose
-    # production-condition patch writes to this same mask.
+    # The engine's `ModelConditionFlags` bitset (19 dwords, 591 names), inside `obj_span` so it
+    # costs no extra read. Offsets from `sage_patch.patches.utils.model_conditions`.
     obj_model_conditions: int = MODEL_CONDITION_MASK
     model_condition_words: int = MODEL_CONDITION_DWORDS
     the_model_condition_names: int = MODEL_CONDITION_NAMES
     model_condition_count: int = MODEL_CONDITION_COUNT
 
-    # **What contains this object** - the horde a battalion member belongs to. `Object*`, or 0
-    # for anything standing on its own, which includes the container itself.
-    #
-    # Found differentially against a live match rather than by disassembly: of every dword in a
-    # member's first `0x400` bytes, this is the one holding its container's address, and it did
-    # so for 22 of 23 members while no other offset managed more than 2. Corroborated across
-    # four factions at once - every one of the 38 objects carrying it pointed at a real object
-    # in the table, none stood more than 200 units from it, and the template pairs are all
-    # `X -> XHorde`, including an `ImladrisBanner` inside a `BruchtalLancerHorde` where the
-    # names differ but the membership is right.
-    #
-    # Almost certainly SAGE's `m_containedBy`, which is the more general "what am I inside" -
-    # so a garrisoned or transported unit should report its holder here too. Only horde
-    # membership has been observed, so only that is claimed.
+    # What contains this object (a battalion member's horde), or 0. Found differentially and checked
+    # across four factions; probably `m_containedBy`, but only horde membership has been observed.
     obj_contained_by: int = 0x27C
-    # The engine's `ObjectStatusMaskType` - what the game itself asks about an object before it
-    # acts on it, and the other half of the containment story. `HORDE_MEMBER` is what marks a
-    # unit as belonging to a battalion at all, and `IS_LEAVING_FACTORY` is what marks one that
-    # has not finished coming out of the building that made it, so a battalion caught mid-form
-    # is readable here and nowhere else. Same 16-byte window as everything above, so it costs
-    # no read of its own. Derivation in `sage_patch.addresses`.
+    # The engine's `ObjectStatusMaskType` (`HORDE_MEMBER`, `IS_LEAVING_FACTORY`, ...), in the same
+    # window as the fields above.
     obj_status: int = OBJECT_STATUS
     status_words: int = OBJECT_STATUS_DWORDS
     the_object_status_names: int = OBJECT_STATUS_NAMES
@@ -509,6 +356,11 @@ class EngineLayout:
     # `obj_contained_by` is null and treats what it names as this object's horde, so a unit that
     # has left its battalion still points at it here - which is the whole reason it is read.
     obj_producer_id: int = OBJECT_PRODUCER_ID
+    # A float, 0-100 while the structure is being built and -1 otherwise. Written to 0 where a
+    # builder drops a foundation (`0x008AD86F`), advanced per frame and re-derived from the
+    # body's health ratio by `GettingBuiltBehavior` (`0x00856809`) - see
+    # `sage_patch/docs/construction-initial-health.md`. Inside `obj_span`, so it is free.
+    obj_construction_percent: int = OBJECT_CONSTRUCTION_PERCENT
     # `next` and `prev` of one **global** doubly-linked list holding every live object, not any
     # kind of parent link. Measured: 317 of 318 objects link, the two are exact inverses for
     # every one of them, there is a single head and a single tail, and walking `next` from the
@@ -537,6 +389,83 @@ class EngineLayout:
     # ThingTemplate
     tmpl_name: int = 0x64
     tmpl_side: int = 0x6C
+    # `DisplayName`, already localised. The field parser (`0x0073D3E0`) stores the label at
+    # `+0x2C`, fetches it through `TheGameText` and assigns the result to the `UnicodeString`
+    # beside it, so the name the game shows reads straight off the template in whatever language
+    # and mod the game is running - no string table on disk.
+    tmpl_display_name: int = 0x30
+    tmpl_hero_byte: int = KINDOF_HERO_BYTE
+    tmpl_hero_bit: int = KINDOF_HERO_BIT
+    # `KindOf SPELL_BOOK` is index 123: bit 0x08 of the KindOf byte at `+0xF`, from the engine's
+    # own name table (`explore.py enum KindOf`).
+    tmpl_spellbook_byte: int = THING_TEMPLATE_KINDOF + 0xF
+    tmpl_spellbook_bit: int = 0x08
+    # `KindOf STRUCTURE` is index 7: bit 0x80 of the first KindOf byte.
+    tmpl_structure_byte: int = THING_TEMPLATE_KINDOF
+    tmpl_structure_bit: int = 0x80
+    # `KindOf SELECTABLE` is index 1: bit 0x02 of the first KindOf byte.
+    tmpl_selectable_byte: int = THING_TEMPLATE_KINDOF
+    tmpl_selectable_bit: int = 0x02
+    # `BuildCost`, row 39 of the ThingTemplate field table (`0x00DA3DB8`). Its parser
+    # (`0x0042EC11`) range-checks 0..0xFFFF and stores a `word`, hence the odd offset.
+    tmpl_build_cost: int = 0x5EA
+
+    # UpgradeTemplate. Unlike a thing's, an upgrade's `DisplayName` is stored as the bare label
+    # (an `AsciiString`, per the `Upgrade` field table), so it is resolved through `TheGameText`.
+    upgrade_display_label: int = 0x28
+
+    # SpecialPowerTemplate. `RequiredSciences` is a `std::vector<ScienceType>`: its parser
+    # (`0x0073B4A0`) empties it with `erase([+0], [+4])` and appends, which is the same
+    # `{begin, end, capacity}` shape as the player's own science vector.
+    power_required_sciences: int = 0x24
+    max_power_sciences: int = 64
+
+    # ScienceInfo. `DisplayName`'s parser (`0x0073B192`) fetches the label through `TheGameText`
+    # and stores the localised text back as an `AsciiString`, so this is the name, not a label.
+    # `science_id` is the entry's own `ScienceType`, read to *prove* an entry is the one asked
+    # for rather than trusting the vector's order - see `science_display_name`.
+    science_id: int = 0x10
+    science_display_name: int = 0x14
+
+    # `TheGameText`, the string table labels resolve through: two tables of 8-byte entries whose
+    # record holds the text at `+4` (the label at `+0` is inferred, so lookups require an exact
+    # match).
+    the_game_text: int = THE_GAME_TEXT
+    gt_tables: tuple[int, ...] = (0x2C, 0x30)
+    gt_count: int = 0x00
+    gt_entries: int = 0x08
+    gt_entry_stride: int = 0x08
+    gt_entry_record: int = 0x04
+    gt_record_label: int = 0x00
+    gt_record_text: int = 0x04
+    max_game_text: int = 1 << 18
+
+    # The buttons an object offers, where a power's in-game name lives: the three runtime
+    # command-set overrides `Object::getCommandSetString` checks, then the template's `CommandSet`.
+    obj_command_set_overrides: tuple[int, ...] = (0x438, 0x440, 0x43C)
+    tmpl_command_set: int = 0x70
+    # `ControlBar::findCommandSet` (`0x0071EFA2`) looks the name up in a hash map at `+0x30`,
+    # whose search (`0x006C033A`) indexes a bucket vector `{begin +4, end +8}` and walks each
+    # bucket's chain of `{next, AsciiString name, CommandSet*}` nodes.
+    the_control_bar: int = THE_COMMAND_SET_STORE
+    cb_command_sets: int = 0x30
+    hash_buckets: int = 0x04
+    hash_node_next: int = 0x00
+    hash_node_key: int = 0x04
+    hash_node_value: int = 0x08
+    max_hash_buckets: int = 1 << 16
+    max_command_sets: int = 1 << 15
+    # `CommandSet::getCommandButton` (`0x0080C837`) is `[this + slot*4 + 0x14]`, unbounded; the
+    # spellbook bar's own loop stops at `SPELLBOOK_UI_SLOT_LIMIT`.
+    cs_buttons: int = 0x14
+    cs_slots: int = SPELLBOOK_UI_SLOT_LIMIT
+    # CommandButton. `getTextLabel` (`0x0075CE47`) returns the runtime override at `+0x7C` when
+    # it is set, and otherwise element `[+0xFC]` of the `TextLabel` vector `{+0x58, +0x5C}`,
+    # clamped to the last one.
+    button_special_power: int = COMMAND_BUTTON_SPECIAL_POWER
+    button_label_override: int = 0x7C
+    button_labels: int = 0x58
+    button_label_range: int = 0xFC
 
     # ProductionUpdate - what a structure is currently making.
     #
@@ -555,69 +484,21 @@ class EngineLayout:
     entry_template: int = 0x08
     entry_upgrade: int = 0x0C
     entry_next: int = 0x48
-    # How far along this entry is, as three floats the engine writes together every logic frame.
-    # `ProductionUpdate::update` (`0x008A1B9F`, and see `production-model-condition.md` §5) ticks
-    # the head entry like this, with `ebx` the entry and `eax` the entry's build time in frames:
-    #
-    # ```
-    # 008a1ebc  movss xmm0, [0xbd1908]      ; 1.0 - one frame's worth
-    # 008a1ed6  call  0x68c82d              ; scaled by the object's own production bonus
-    # 008a1edb  movss xmm0, [ebx+0x1c]
-    # 008a1ee0  addss xmm0, [ebp-0x68]      ; progress += that step
-    # 008a1ee9  movss [ebx+0x1c], xmm0
-    # 008a1eee  call  0x8a04da              ; eax = build time, in frames
-    # 008a1ef7  movss xmm1, [0xbd88d8]      ; 100.0
-    # 008a1eff  movss xmm0, [ebx+0x1c]
-    # 008a1f04  cvtsi2ss xmm2, eax
-    # 008a1f08  divss xmm0, xmm2
-    # 008a1f0f  mulss xmm0, xmm1            ; progress / buildTime * 100
-    # 008a1f13  divss xmm3, xmm2            ; 100 / buildTime
-    # 008a1f17  movss [ebx+0x14], xmm0
-    # 008a1f1c  movss [ebx+0x18], xmm3
-    # 008a1f6b  comiss xmm0, xmm1           ; done at >= 100.0
-    # ```
-    #
-    # So `entry_progress` is the accumulator that actually decides completion, and the other two
-    # are recomputed from it - a reader wanting "how far along" should read `entry_percent`, and
-    # anything wanting to *move* production has to move `entry_progress`.
-    #
-    # **`entry_percent_per_frame` carries the build time with it**: it is `100 / buildTime`, so
-    # the frames an entry still needs is `(100 - percent) / percent_per_frame` with no ini load
-    # and no engine call. It reads 0.0 on an entry the engine has not ticked yet, which is the
-    # one state where all three are meaningless together.
-    #
-    # The step at `+0x1C` is one frame *before* the bonus at `0x68c82d` scales it, which is why
-    # progress is a float rather than the frame count it looks like: a production-speed bonus
-    # makes it advance by fractions.
-    #
-    # Corroborated by the module's own serializer, `ProductionUpdate::xfer` at `0x008A3111`,
-    # which walks the same queue and xfers `+0x14` and `+0x18` through the `Xfer` slot used for
-    # `Real` and treats `+0x1C` as a float it converts (`cvttss2si` / `cvtsi2ss`) around the
-    # save format's integer field.
+    # A production entry's progress: `entry_progress` is the accumulator that decides completion,
+    # `entry_percent` is derived from it for reading, and `entry_percent_per_frame` is `100 /
+    # buildTime`, so remaining frames need no ini load.
     entry_percent: int = 0x14
     entry_percent_per_frame: int = 0x18
     entry_progress: int = 0x1C
     # A queue longer than this means a corrupt read rather than a real structure - refuse rather
     # than spin.
     max_queue: int = 64
-    # How many module slots `_production_module` covers, and deliberately *not* `max_modules`
-    # above even though both bound the same array. That one bounds a pointer-at-a-time walk that
-    # stops at the terminator, so raising it costs nothing; this one **is** the size of a single
-    # all-or-nothing `read`, and a 4KB read off a small heap block fails entirely the moment it
-    # crosses an unmapped page - taking every structure's production read with it. It was also
-    # the value `max_modules` itself had until this field was split out of it: the second
-    # `max_modules = 64` shadowed the 1024 above, so the spellbook walk had been silently
-    # stopping at 64 of its ~140 modules.
+    # The module slots `_production_module` reads in one all-or-nothing read - kept separate from
+    # `max_modules`, because a large read fails whole when it crosses an unmapped page.
     production_scan: int = 64
 
-    # AsciiString / UnicodeString: {u32 refcount; u16 length; u16 allocated; chars[]}, where
-    # both counts are in **characters** - so a UnicodeString's body is `length * 2` bytes.
-    #
-    # The half-word split was measured live (2026-08-13) rather than assumed: read as one u32,
-    # `+0x4` gives 786440 for `Player_1` and 262147 for `Men`, which are `0x000C0008` and
-    # `0x00040003` - the low half is the exact character count every time, and the high half is
-    # the allocation that count fits in. A reader that trusts the whole word sees a length of
-    # three quarters of a million and refuses the string.
+    # AsciiString / UnicodeString: `{u32 refcount; u16 length; u16 allocated; chars[]}`, counts in
+    # characters (measured live).
     string_length: int = 4
     string_chars: int = 8
 
@@ -630,14 +511,34 @@ _MAX_UPGRADES = 1 << 14
 _MAX_THINGS = 1 << 17
 
 
+def _clamp_percent(value: float | None) -> float:
+    """A production entry's percent, held to 0-100. An unread or non-finite float reads as 0,
+    and the engine overshoots 100 by one step on the frame an entry completes."""
+    if value is None or not math.isfinite(value):
+        return 0.0
+    return min(100.0, max(0.0, value))
+
+
+def _opaque_rgb(value: int | None) -> int | None:
+    """A stored `0xAARRGGBB` colour as `0xRRGGBB`, or None unless the alpha is fully opaque -
+    which is what the engine's own `or 0xFF000000` makes of every colour it was actually given."""
+    if value is None or (value >> 24) != 0xFF:
+        return None
+    return value & 0xFFFFFF
+
+
+def _construction_percent(value: float) -> float | None:
+    """`Object+0x288` as the model carries it: None for the engine's -1 "not being built", and
+    for anything else outside 0-100, which is a bad read rather than a building."""
+    if not math.isfinite(value) or value < 0.0 or value > 100.0 + 1e-3:
+        return None
+    return min(100.0, value)
+
+
 @dataclass(frozen=True)
 class UpgradeDefinition:
-    """One row of the engine's own upgrade table.
-
-    `upgrade_id` is the engine's registration index, which is **the same number the replay
-    order stream carries** and the same number that indexes the live bitsets. So one integer
-    serves all three, and reading the table here means a live consumer needs no ini load to
-    name an upgrade.
+    """One row of the engine's upgrade table. `upgrade_id` is the registration index - the same
+    number the replay order stream carries and the live bitsets are indexed by.
     """
 
     upgrade_id: int
@@ -691,14 +592,10 @@ def find_game_processes(name: str = "game.dat") -> list[int]:
 
 
 class ProcessMemory:
-    """Access to another process, via `ReadProcessMemory`.
+    """Access to another process through `ReadProcessMemory`.
 
-    **Read-only unless `writable=True`.** Write access is opt-in so that the ordinary
-    observation path cannot modify the game even by mistake; only the bridge, which has to
-    fill the patched command buffer, asks for it.
-
-    The platform check is here rather than at import, so `sage_live` stays importable on a
-    machine with no game and no Windows.
+    Read-only unless `writable=True` (only the bridge needs writes). The platform check is here
+    rather than at import, so `sage_live` imports anywhere.
     """
 
     # PROCESS_VM_READ | PROCESS_QUERY_INFORMATION
@@ -773,11 +670,8 @@ class ProcessMemory:
 
 
 class MemoryBackend:
-    """Observation-only backend over a live process.
-
-    Cannot issue orders: writing to the message stream means calling into the engine, which
-    needs code running inside it. `send` records a diagnostic and accepts nothing, rather
-    than silently dropping a policy's actions.
+    """Observation-only backend over a live process. It cannot issue orders; `send` records a
+    diagnostic rather than silently dropping them.
     """
 
     def __init__(
@@ -818,6 +712,15 @@ class MemoryBackend:
         # Per-template caches. A template's strings and its module composition are fixed once
         # ini parsing is done, so both are read once per template rather than once per object.
         self._template_at: dict[int, tuple[str, str]] = {}
+        # `{template address -> (is hero, is spellbook)}`, read with the template's KindOf.
+        self._template_kinds: dict[int, tuple[bool, bool, bool, bool, int]] = {}
+        # Display names by lowercased code name, and the string table's `{label -> record}`.
+        self._thing_display: dict[str, str] = {}
+        self._upgrade_display: dict[str, str] = {}
+        self._science_display: dict[int, str] | None = None
+        self._game_text: dict[str, int] | None = None
+        # `{lowercased command set name -> CommandSet*}`, walked once.
+        self._command_sets: dict[str, int] | None = None
         self._template_produces: dict[int, bool] = {}
         # `{object id -> Object*}`, rebuilt by every `read_objects`. Not a per-template cache
         # like the two above: object ids are reused as objects die and are created, so this is
@@ -844,11 +747,8 @@ class MemoryBackend:
         return self._identity
 
     def connect(self) -> Handshake:
-        """Identify the build, agree the handshake, and confirm a game is running.
-
-        In that order, because each failure is more specific than the last and the first
-        message that fits is the useful one: "this is not that build" is a better report than
-        "TheGameLogic is null", which is what a wrong build looks like from the inside.
+        """Identify the build, agree the handshake, and confirm a game is running - in that order,
+        so the most specific failure is reported.
         """
         self._identity = self._identify()
         if self._declared is None:
@@ -932,18 +832,12 @@ class MemoryBackend:
         return text.split("\x00")[0]
 
     def upgrade_table(self) -> dict[int, UpgradeDefinition]:
-        """`{engine upgrade id -> definition}`, read from `TheUpgradeCenter` and cached.
+        """`{engine upgrade id -> definition}`, read from `TheUpgradeCenter` once and cached.
 
-        The table is fixed once the game has parsed its ini, so this is read once per backend.
-        Reading it from the engine rather than from ini keeps this module data-free and makes
-        the ids exact for whatever mod is loaded - `sage_live.utils.resolve` has to reconstruct the
-        same numbering from ini and carries a `+3` offset to do it, which is precisely the
-        three upgrades the engine registers itself (`Upgrade_Veterancy_VETERAN`, `_ELITE`,
-        `_HEROIC`) before any definition is parsed. Those three have no ini definition at all.
-
-        The list is prepended, so walking `upgrade_next` from the head yields reverse
-        registration order; the id comes off each template rather than from the walk position,
-        so the order does not matter here.
+        Read from the engine, so ids are exact for the loaded mod with no ini load.
+        (`sage_live.utils.resolve` needs a `+3` offset to reconstruct them from ini: the three
+        veterancy upgrades the engine registers first.) The list is prepended, but each id comes off
+        its template, so walk order does not matter.
         """
         if self._upgrades is not None:
             return self._upgrades
@@ -980,21 +874,11 @@ class MemoryBackend:
         return table
 
     def thing_order(self) -> tuple[str, ...]:
-        """Every `ThingTemplate` name in **registration order**, read from `TheThingFactory`.
+        """Every `ThingTemplate` name in registration order, from `TheThingFactory` (cached).
 
-        The index into this tuple is the 0-based registration index, so a replay/order id is
-        `index + sage_replay.idspace.THING_OFFSET`. That the offset is 1 is corroborated here
-        rather than assumed: index 0 walks out as `DefaultThingTemplate`, which is exactly what
-        an id space starting at 1 puts first.
-
-        **The list is prepended**, so walking `tmpl_next` from the head yields reverse
-        registration order and this reverses it. That matters for the failure mode: the walk
-        reaches one template fewer than `tf_count` claims, and because the reversal anchors
-        index 0 at the first-registered template, a shortfall at the *tail* (the newest
-        registration) shifts nothing. A gap in the middle would shift every id after it, so
-        this is checked, not assumed - the diagnostic below fires if the count disagrees.
-
-        Cached: the table is fixed once ini parsing is done, and it runs to five figures.
+        An order id is `index + sage_replay.idspace.THING_OFFSET`; index 0 is
+        `DefaultThingTemplate`. The list is prepended, so it is reversed here, which keeps a missing
+        tail entry from shifting any id. The walk is checked against the factory's count.
         """
         if self._things is not None:
             return self._things
@@ -1042,19 +926,9 @@ class MemoryBackend:
     def power_order(self) -> tuple[str, ...]:
         """Every `SpecialPower` name in registration order, from `TheSpecialPowerStore`.
 
-        The index is the 0-based registration index, so an order id is
-        `index + sage_replay.idspace.POWER_OFFSET`. Index 0 walks out as `DefaultSpecialPower`,
-        which is what a 1-based id space puts first - the same corroboration `thing_order` has.
-
-        **Corroborated exactly.** Measured against a live RotWK 2.01 + Edain match
-        (2026-07-31): this walk reads 1,566 powers and the ini reconstruction reads 1,566, and
-        they agree **position by position on all 1,566**, with no empty name and no duplicate.
-        The two are independent - one walks the engine's own vector, the other parses ini - so
-        that is a stronger agreement than either gives alone, and stronger than the thing
-        table's, which diverges in its tail.
-
-        Unlike the other registries this is a vector, not a list, so there is no count field to
-        cross-check the walk against; the bound below is a sanity limit, not a checksum.
+        An order id is `index + sage_replay.idspace.POWER_OFFSET`. Agrees with the ini
+        reconstruction at every position on RotWK 2.01 + Edain. A vector, so there is no count to
+        check against; the bound is a sanity limit.
         """
         if self._powers is not None:
             return self._powers
@@ -1089,16 +963,8 @@ class MemoryBackend:
         return self._powers
 
     def _bit_names(self, table: int, declared: int, label: str) -> tuple[str, ...]:
-        """A bit-order name table: a NULL-terminated `const char*[]` in static data.
-
-        The engine keeps both of the bitsets read here this way, so this is the one kind of
-        registry that needs no heap walk at all - and neither can drift, because the same
-        tables are what the game's own ini parser resolves a name against.
-
-        The count is checked rather than trusted: the table is walked to its terminator and
-        compared against the bit count the engine's own loops use, since a table shorter than
-        the count is exactly what `sage_patch`'s production-condition patch warns about - the
-        single-bit-name helper indexes it with no bound check.
+        """A bit-order name table (a NULL-terminated `const char*[]` in static data), walked to its
+        terminator and checked against the engine's bit count.
         """
         cached = self._bit_name_tables.get(table)
         if cached is not None:
@@ -1136,11 +1002,8 @@ class MemoryBackend:
     def _flags_at(
         self, blob: bytes | None, obj_ptr: int, base: int, words: int, names: tuple[str, ...]
     ) -> frozenset[str]:
-        """Decode one of an object's bitsets into names.
-
-        Costs no read of its own: both masks live inside the object header `obj_span` already
-        covers. Names are only looked up once a bit is actually set, so an object in no
-        interesting state pays for nothing.
+        """Decode one of an object's bitsets into names, from the already-read header (no extra
+        read).
         """
         span = words * 4
         if blob is not None and base + span <= len(blob):
@@ -1162,15 +1025,8 @@ class MemoryBackend:
         return frozenset(found)
 
     def _upgrade_words(self) -> int:
-        """How many dwords of a bitset can hold every upgrade this build defines.
-
-        Derived from the engine's own count rather than assumed. The two player masks sit 0x90
-        apart, which is more than the 0x7C that 976 upgrades need, so the arrays are wider than
-        the ids in use - reading only as far as the count means a stray high bit in unused space
-        can never be decoded as an upgrade.
-
-        Cached with the table: every object in a snapshot asks for it, and the answer cannot
-        change while the game is running.
+        """How many dwords of a bitset cover every upgrade this build defines - from the engine's
+        count, so stray bits past it are never decoded. Cached.
         """
         if self._upgrade_word_count is not None:
             return self._upgrade_word_count
@@ -1188,14 +1044,10 @@ class MemoryBackend:
         player_scope: bool | None = None,
         blob: bytes | None = None,
     ) -> frozenset[str]:
-        """Decode one upgrade bitset into code names.
+        """Decode one upgrade bitset into code names, from the already-read header.
 
-        `player_scope` filters by the definition's scope: the player's in-progress mask records
-        object-scoped upgrades too and never clears them, so reporting those would mean claiming
-        a battalion upgrade is pending for the rest of the match.
-
-        `blob` is the already-read header the mask sits inside, so an object's mask costs no
-        read of its own. The layout's `obj_span` is sized to contain it.
+        `player_scope` filters by definition scope: the player's in-progress mask also records
+        object-scoped upgrades and never clears them.
         """
         words = self._upgrade_words()
         if blob is not None and base + words * 4 <= len(blob):
@@ -1218,14 +1070,8 @@ class MemoryBackend:
         return frozenset(names)
 
     def _sciences_at(self, base_ptr: int) -> frozenset[int]:
-        """The ids in a player's held-science vector - see `player_sciences`.
-
-        Empty is an ordinary answer rather than a failure: a source that never recorded these
-        bytes reads as unreadable, and every seat legitimately holds a handful.
-
-        Bounded by the science id space rather than trusted, because the three pointers are all
-        this has to go on: an implausible length is a bad read, and walking one would spend
-        seconds turning garbage into a set of numbers that looks exactly like data.
+        """The ids in a player's held-science vector (see `player_sciences`). Empty is an ordinary
+        answer; an implausible length is treated as a bad read.
         """
         lay = self.layout
         begin = self._pointer(base_ptr + lay.player_sciences)
@@ -1253,6 +1099,7 @@ class MemoryBackend:
             self._diagnostics.append(Diagnostic(f"implausible player count {count}"))
             count = lay.pl_max_players
         players: list[PlayerState] = []
+        allied = self._alliances()
         for index in range(count):
             ptr = self._pointer(pl + lay.pl_array + index * 4)
             if ptr is None:
@@ -1270,6 +1117,19 @@ class MemoryBackend:
                     resources=self._i32(ptr + lay.player_resources) or 0,
                     resources_collected=self._i32(ptr + lay.player_resources_collected) or 0,
                     power_points=self._i32(ptr + lay.player_power_points) or 0,
+                    skill_points=self._i32(ptr + lay.player_skill_points) or 0,
+                    rank_floor=self._i32(ptr + lay.player_rank_floor) or 0,
+                    rank_next=self._i32(ptr + lay.player_rank_next) or 0,
+                    display_name=self._utf16(ptr + lay.player_display_name),
+                    faction_name=self._faction_name(ptr),
+                    spent_on_units=self._i32(ptr + lay.player_spent_on_units) or 0,
+                    spent_on_structures=self._i32(ptr + lay.player_spent_on_structures) or 0,
+                    spent_on_heroes=self._i32(ptr + lay.player_spent_on_heroes) or 0,
+                    units_created=self._i32(ptr + lay.player_units_created) or 0,
+                    units_lost=self._i32(ptr + lay.player_units_lost) or 0,
+                    structures_created=self._i32(ptr + lay.player_structures_created) or 0,
+                    structures_lost=self._i32(ptr + lay.player_structures_lost) or 0,
+                    color=_opaque_rgb(self._u32(ptr + lay.player_color)),
                     command_points=(
                         self._i32(ptr + lay.player_command_points_used) or 0,
                         # Base plus bonus, because neither alone is the ceiling the engine
@@ -1284,7 +1144,65 @@ class MemoryBackend:
                     ),
                 )
             )
-        return tuple(players)
+        by_name = {player.name.lower(): player.index for player in players}
+        return tuple(
+            replace(
+                player,
+                allies=frozenset(
+                    by_name[ally]
+                    for ally in allied.get(player.name.lower(), ())
+                    if ally in by_name and by_name[ally] != player.index
+                ),
+            )
+            for player in players
+        )
+
+    def _alliances(self) -> dict[str, tuple[str, ...]]:
+        """`{player name -> the player names it is allied with}`, lowercased, from the sides
+        list - see `the_sides_list`. Empty whenever anything on the way does not decode."""
+        lay = self.layout
+        name_key = self._u32(lay.key_player_name)
+        allies_key = self._u32(lay.key_player_allies)
+        sides = self._pointer(lay.the_sides_list)
+        if not name_key or not allies_key or sides is None:
+            return {}
+        count = self._u32(sides + lay.sl_count) or 0
+        found: dict[str, tuple[str, ...]] = {}
+        for index in range(min(count, lay.pl_max_players)):
+            side = sides + lay.sl_sides + index * lay.sl_side_stride
+            values = self._dict_strings(side + lay.side_dict, {name_key, allies_key})
+            name = values.get(name_key, "")
+            if name:
+                found[name.lower()] = tuple(values.get(allies_key, "").lower().split())
+        return found
+
+    def _dict_strings(self, dict_address: int, keys: set[int]) -> dict[int, str]:
+        """The `AsciiString` values a `Dict` holds under `keys`, by key."""
+        lay = self.layout
+        data = self._pointer(dict_address)
+        if data is None:
+            return {}
+        raw_count = self.source.read(data + lay.dict_count, 2)
+        count = struct.unpack("<H", raw_count)[0] if raw_count else 0
+        if not (0 < count <= lay.max_dict_pairs):
+            return {}
+        pairs = self.source.read(data + lay.dict_pairs, count * lay.dict_pair_stride)
+        if pairs is None:
+            return {}
+        found: dict[int, str] = {}
+        for index in range(count):
+            head = struct.unpack_from("<I", pairs, index * lay.dict_pair_stride)[0]
+            key, kind = head >> 8, head & 0xFF
+            if key in keys and kind == lay.dict_type_ascii:
+                pair = data + lay.dict_pairs + index * lay.dict_pair_stride
+                found[key] = self._ascii(pair + lay.dict_pair_value, 256)
+        return found
+
+    def _faction_name(self, player: int) -> str:
+        """The seat's faction as the lobby named it, off its `PlayerTemplate` - see
+        `player_template`."""
+        template = self._pointer(player + self.layout.player_template)
+        return "" if template is None else self._utf16(template + self.layout.template_faction)
 
     def local_player_index(self) -> int:
         lay = self.layout
@@ -1298,21 +1216,274 @@ class MemoryBackend:
                 return index
         return 0
 
+    def _kinds_of(self, template: int) -> tuple[bool, bool, bool, bool, int]:
+        """`(is hero, is spellbook, is structure, is selectable, build cost)` for a
+        `ThingTemplate`, cached by address."""
+        cached = self._template_kinds.get(template)
+        if cached is None:
+            lay = self.layout
+
+            def flag(offset: int, bit: int) -> bool:
+                raw = self.source.read(template + offset, 1)
+                return bool(raw and raw[0] & bit)
+
+            cost = self.source.read(template + lay.tmpl_build_cost, 2)
+            cached = (
+                flag(lay.tmpl_hero_byte, lay.tmpl_hero_bit),
+                flag(lay.tmpl_spellbook_byte, lay.tmpl_spellbook_bit),
+                flag(lay.tmpl_structure_byte, lay.tmpl_structure_bit),
+                flag(lay.tmpl_selectable_byte, lay.tmpl_selectable_bit),
+                struct.unpack("<H", cost)[0] if cost else 0,
+            )
+            self._template_kinds[template] = cached
+        return cached
+
+    @staticmethod
+    def _template_named(registry: dict[int, str], name: str) -> int | None:
+        lowered = name.lower()
+        return next((ptr for ptr, known in registry.items() if known.lower() == lowered), None)
+
+    def thing_display_name(self, name: str) -> str:
+        """The in-game name of a `ThingTemplate`, or "" when it has none or cannot be read.
+
+        Read off the template itself, which the engine localised while parsing - see
+        `tmpl_display_name`.
+        """
+        lowered = name.lower()
+        cached = self._thing_display.get(lowered)
+        if cached is None:
+            self.thing_order()
+            template = self._template_named(self._thing_at, name)
+            cached = (
+                ""
+                if template is None
+                else self._utf16(template + self.layout.tmpl_display_name, 256)
+            )
+            self._thing_display[lowered] = cached
+        return cached
+
+    def upgrade_display_name(self, name: str) -> str:
+        """The in-game name of an upgrade, or "" when its label does not resolve."""
+        lowered = name.lower()
+        cached = self._upgrade_display.get(lowered)
+        if cached is None:
+            self.upgrade_table()
+            template = self._template_named(self._upgrade_at, name)
+            label = (
+                ""
+                if template is None
+                else self._ascii(template + self.layout.upgrade_display_label)
+            )
+            cached = self.game_text(label) if label else ""
+            self._upgrade_display[lowered] = cached
+        return cached
+
+    def game_text(self, label: str) -> str:
+        """The localised text for a string-table label, as the game would show it, or "".
+
+        The table is indexed once - labels only, a few reads per entry - and each text is read
+        when it is first asked for. Labels match case-insensitively, as the engine's do.
+        """
+        if self._game_text is None:
+            self._game_text = self._index_game_text()
+        record = self._game_text.get(label.lower())
+        if record is None:
+            return ""
+        return self._utf16(record + self.layout.gt_record_text, 512)
+
+    def _index_game_text(self) -> dict[str, int]:
+        lay = self.layout
+        found: dict[str, int] = {}
+        manager = self._pointer(lay.the_game_text)
+        if manager is None:
+            self._diagnostics.append(Diagnostic("TheGameText is null; labels unavailable"))
+            return found
+        for offset in lay.gt_tables:
+            table = self._pointer(manager + offset)
+            if table is None:
+                continue
+            count = self._u32(table + lay.gt_count) or 0
+            entries = self._pointer(table + lay.gt_entries)
+            if entries is None or not (0 < count <= lay.max_game_text):
+                continue
+            raw = self.source.read(entries, count * lay.gt_entry_stride)
+            if raw is None:
+                continue
+            for index in range(count):
+                record = struct.unpack_from(
+                    "<I", raw, index * lay.gt_entry_stride + lay.gt_entry_record
+                )[0]
+                if not (_MIN_PTR <= record <= _MAX_PTR):
+                    continue
+                label = self._ascii(record + lay.gt_record_label, 256)
+                # The engine tries the first table before the second, so the first entry wins.
+                if label:
+                    found.setdefault(label.lower(), record)
+        return found
+
+    def science_display_name(self, science: int) -> str:
+        """The in-game name of a science by id, or `""`. Store entries are filed under the id each
+        states, not their position.
+        """
+        if self._science_display is None:
+            self._science_display = self._index_sciences()
+        return self._science_display.get(science, "")
+
+    def _index_sciences(self) -> dict[int, str]:
+        lay = self.layout
+        named: dict[int, str] = {}
+        store = self._pointer(lay.the_science_store)
+        if store is None:
+            return named
+        begin = self._pointer(store + lay.sc_vector)
+        end = self._u32(store + lay.sc_vector + 4)
+        if begin is None or end is None or end <= begin:
+            return named
+        count = (end - begin) // 4
+        if count > lay.max_sciences:
+            return named
+        raw = self.source.read(begin, count * 4)
+        if raw is None:
+            return named
+        for (entry,) in struct.iter_unpack("<I", raw):
+            if not (_MIN_PTR <= entry <= _MAX_PTR):
+                continue
+            own_id = self._i32(entry + lay.science_id)
+            text = self._ascii(entry + lay.science_display_name, 256)
+            if own_id is not None and 0 < own_id <= count and text:
+                named.setdefault(own_id, text)
+        return named
+
+    def power_button_names(self, object_id: int) -> dict[str, str]:
+        """`{special power name -> the in-game text of the button that fires it}` for one object's
+        buttons (on a spellbook, the names its bar shows). Empty when anything fails to decode.
+        """
+        lay = self.layout
+        address = self._object_at.get(object_id)
+        if address is None:
+            return {}
+        command_set = self._command_set(self._command_set_name(address))
+        if command_set is None:
+            return {}
+        raw = self.source.read(command_set + lay.cs_buttons, lay.cs_slots * 4)
+        if raw is None:
+            return {}
+        named: dict[str, str] = {}
+        for (button,) in struct.iter_unpack("<I", raw):
+            if not (_MIN_PTR <= button <= _MAX_PTR):
+                continue
+            power = self._pointer(button + lay.button_special_power)
+            if power is None:
+                continue
+            name = self._ascii(power + lay.power_name)
+            label = self._button_label(button)
+            # `&` marks the hotkey letter in a label's text; the game draws it as an underline.
+            text = self.game_text(label).replace("&", "").strip() if label else ""
+            if name and text:
+                named.setdefault(name, text)
+        return named
+
+    def _command_set_name(self, address: int) -> str:
+        lay = self.layout
+        for offset in lay.obj_command_set_overrides:
+            name = self._ascii(address + offset)
+            if name:
+                return name
+        template = self._pointer(address + lay.obj_template)
+        return "" if template is None else self._ascii(template + lay.tmpl_command_set)
+
+    def _command_set(self, name: str) -> int | None:
+        if not name:
+            return None
+        if self._command_sets is None:
+            self._command_sets = self._index_command_sets()
+        return self._command_sets.get(name.lower())
+
+    def _index_command_sets(self) -> dict[str, int]:
+        lay = self.layout
+        found: dict[str, int] = {}
+        bar = self._pointer(lay.the_control_bar)
+        if bar is None:
+            return found
+        table = bar + lay.cb_command_sets
+        begin = self._pointer(table + lay.hash_buckets)
+        end = self._u32(table + lay.hash_buckets + 4)
+        if begin is None or end is None or end <= begin:
+            return found
+        count = (end - begin) // 4
+        raw = self.source.read(begin, count * 4) if count <= lay.max_hash_buckets else None
+        if raw is None:
+            return found
+        for (node,) in struct.iter_unpack("<I", raw):
+            seen: set[int] = set()
+            while _MIN_PTR <= node <= _MAX_PTR and node not in seen:
+                if len(found) >= lay.max_command_sets:
+                    return found
+                seen.add(node)
+                name = self._ascii(node + lay.hash_node_key)
+                value = self._pointer(node + lay.hash_node_value)
+                if name and value is not None:
+                    found.setdefault(name.lower(), value)
+                node = self._u32(node + lay.hash_node_next) or 0
+        return found
+
+    def _button_label(self, button: int) -> str:
+        lay = self.layout
+        override = self._ascii(button + lay.button_label_override)
+        if override:
+            return override
+        begin = self._pointer(button + lay.button_labels)
+        end = self._u32(button + lay.button_labels + 4)
+        if begin is None or end is None or end <= begin:
+            return ""
+        count = (end - begin) // 4
+        wanted = self._u32(button + lay.button_label_range) or 0
+        return self._ascii(begin + min(wanted, count - 1) * 4)
+
+    def special_powers(self, object_id: int) -> tuple[SpecialPowerState, ...]:
+        """Every special power on one object, with its recharge and the sciences it requires.
+
+        The same module walk as `power_cooldowns`, which keeps its `{name -> frame}` shape for
+        the callers that only want that; see it for why the recharge is read, not computed.
+        """
+        lay = self.layout
+        address = self._object_at.get(object_id)
+        modules = None if address is None else self._pointer(address + lay.obj_modules)
+        if modules is None:
+            return ()
+        found: list[SpecialPowerState] = []
+        for index in range(lay.max_modules):
+            module = self._pointer(modules + index * 4)
+            if module is None:
+                break
+            data = self._pointer(module + lay.module_data)
+            template = None if data is None else self._pointer(data + lay.module_data_template)
+            if template is None:
+                continue
+            name = self._ascii(template + lay.power_name)
+            ready = self._i32(module + lay.module_ready_frame)
+            if name and ready is not None:
+                found.append(SpecialPowerState(name, ready, self._required_sciences(template)))
+        return tuple(found)
+
+    def _required_sciences(self, template: int) -> frozenset[int]:
+        lay = self.layout
+        begin = self._pointer(template + lay.power_required_sciences)
+        end = self._u32(template + lay.power_required_sciences + 4)
+        if begin is None or end is None or end <= begin:
+            return frozenset()
+        count = (end - begin) // 4
+        if count > lay.max_power_sciences:
+            return frozenset()
+        raw = self.source.read(begin, count * 4)
+        return frozenset() if raw is None else frozenset(struct.unpack(f"<{count}i", raw))
+
     def power_cooldowns(self, object_id: int) -> dict[str, int]:
         """`{power name -> the frame it is next usable on}` for one object's special powers.
 
-        **The engine's own cooldown, which is not the ini's.** `SpecialPower.ReloadTime` is the
-        undiscounted figure and Edain scales it per player, so a policy computing readiness from
-        the data waits too long - measured at 30 seconds of real recharge against a declared 180.
-        Reading it also survives the two things a local clock cannot: a consumer that restarted
-        mid-match, and a cast made by anything other than that consumer.
-
-        Called with the player's `SpellBookMp` object to price the spellbook; it works on any
-        object carrying special-power modules, so a hero's abilities answer the same way.
-
-        Empty is an ordinary answer - an object with no such modules, or one whose id is not in
-        the last table walk. **The id must come from that walk**: ids are reused as objects die,
-        so this resolves through the map `read_objects` filled rather than scanning for it.
+        The engine's own cooldown, which is shorter than the ini's `ReloadTime` once a mod's
+        discounts apply, and survives a consumer restarting. Works on a spellbook or a hero. The id
+        must come from the last `read_objects` walk, since ids are reused.
         """
         lay = self.layout
         address = self._object_at.get(object_id)
@@ -1391,16 +1562,8 @@ class MemoryBackend:
         return tuple(objects)
 
     def _team_owners(self) -> dict[int, int]:
-        """`{Team* -> player index}`, inverted from each player's own team pointer.
-
-        An `Object` names its owner by `Team*`, and a `Team` carries no back-pointer to its
-        `Player` (its first 0x400 bytes hold none), so the map has to be built from the player
-        side. Verified against a live match: every player's team matched the objects grouped
-        under it - the creeps' team held exactly the Mordor and Wild objects, the local
-        player's held the Men ones.
-
-        This seeds the map with each player's *default* team; `_owner_of_team` resolves the rest
-        on demand through the team's prototype, and memoises the answer back into this dict.
+        """`{Team* -> player index}`, seeded from each player's default team (a `Team` has no
+        pointer back to its `Player`). `_owner_of_team` adds the rest on demand.
         """
         lay = self.layout
         self._players_by_pointer = {}
@@ -1421,24 +1584,11 @@ class MemoryBackend:
         return owners
 
     def _owner_of_team(self, team: int, owners: dict[int, int]) -> int | None:
-        """The player index owning `team`, following its prototype when it is not a default team.
+        """The player index owning `team`, through its prototype when it is not a default team.
 
-        **A player owns more than one team, and the extra ones are not decoration.** SAGE gives
-        each player a default team and creates others as the match needs them - a superweapon's
-        summons arrive on one - so a map built only from `player_default_team` leaves real units
-        ownerless. Reading that as "nobody" is what let an Isengard crossbow battalion shoot a
-        farm down while every decision that asks whose it is answered "no one's".
-
-        The route is `Team+0x30 -> TeamPrototype`, `TeamPrototype+0x08 -> Player`. Found by
-        scanning a summoned battalion's team for any pointer whose target held a known `Player*`,
-        and **checked the only way that means anything**: run against the six teams the default
-        map already resolves, it returns the same index for every one of them. On the same frame
-        it resolves all 41 objects that read as ownerless without it - 39 Isengard, 2 ours -
-        with none left over.
-
-        Memoised into `owners`, so a team costs two reads once rather than two per object on it.
-        None only when the chain breaks or lands on a `Player*` that is not in the player list,
-        which stays "unresolved" rather than being guessed at.
+        Players own extra teams (a superweapon's summons arrive on one). The route is `Team+0x30 ->
+        TeamPrototype`, `+0x08 -> Player`, checked against every default team. Memoised into
+        `owners`; None when the chain breaks.
         """
         known = owners.get(team)
         if known is not None:
@@ -1459,12 +1609,7 @@ class MemoryBackend:
         return index
 
     def _body_values(self, body: int) -> tuple[float | None, float | None]:
-        """Current and maximum hit points, in one read where the span is readable.
-
-        Falls back to reading each field on its own, for the same reason the object header
-        does: a span crossing into an unmapped page fails as a whole while each field inside it
-        reads perfectly, and a recorded snapshot holds only the ranges its capture touched.
-        """
+        """Current and maximum hit points in one read, falling back to one read per field."""
         lay = self.layout
         span = lay.body_max_health - lay.body_health + 4
         raw = self.source.read(body + lay.body_health, span)
@@ -1476,15 +1621,8 @@ class MemoryBackend:
         return self._f32(body + lay.body_health), self._f32(body + lay.body_max_health)
 
     def _template_info(self, template: int) -> tuple[str, str] | None:
-        """`(name, Side)` for a `ThingTemplate`, cached by address.
-
-        Four reads per object became four reads per *template*: a match holds hundreds of
-        objects across a few dozen templates, and a template's strings never change once ini
-        parsing is done. Keyed by pointer because templates are allocated once and never move.
-
-        None means the pointer did not land on a `ThingTemplate` - a template name is a single
-        ini identifier, so anything with a space or a dot in it says the chain went wrong and
-        the whole reading is unsafe rather than merely odd.
+        """`(name, Side)` for a `ThingTemplate`, cached by address. None when the pointer does not
+        land on a template (the name is not a single identifier).
         """
         cached = self._template_at.get(template)
         if cached is None:
@@ -1541,6 +1679,17 @@ class MemoryBackend:
                 max_health = maximum
 
         upgrades = self._upgrades_at(obj_ptr, lay.obj_upgrades_completed, False, blob=blob)
+        is_hero, is_spellbook, is_structure, is_selectable, build_cost = self._kinds_of(template)
+        experience: float | None = None
+        experience_level: int | None = None
+        tracker = pointer(lay.obj_experience_tracker) if is_hero else None
+        if tracker is not None:
+            points = self._f32(tracker + lay.xt_experience)
+            level = self._i32(tracker + lay.xt_level)
+            if points is not None and math.isfinite(points) and points >= 0.0:
+                experience = points
+            if level is not None and 0 <= level <= 100:
+                experience_level = level
         return GameObject(
             object_id=id_of.get(obj_ptr, 0),
             template_name=name,
@@ -1572,6 +1721,14 @@ class MemoryBackend:
             # cleared when the object leaves what it names. A stale one is the point: it is how
             # the engine still finds a horde for a unit that is no longer in it.
             producer_id=u32(lay.obj_producer_id) or None,
+            construction_percent=_construction_percent(f32(lay.obj_construction_percent)),
+            is_hero=is_hero,
+            is_spellbook=is_spellbook,
+            is_structure=is_structure,
+            is_selectable=is_selectable,
+            build_cost=build_cost,
+            experience=experience,
+            experience_level=experience_level,
             production=(
                 self._read_production(obj_ptr, template, pointer(lay.obj_modules))
                 if self.read_production
@@ -1589,13 +1746,8 @@ class MemoryBackend:
         return self._u32(self.layout.the_game_logic) is not None
 
     def _game_logic(self) -> int | None:
-        """The `GameLogic` pointer, telling a dead process apart from a null global.
-
-        **A vanished process does not read as zeroes - it does not read at all.** Every field
-        then falls back to its default and the observation comes back empty, which is
-        indistinguishable from a match that ended. `ReadProcessMemory` failing at a static
-        address inside the image is the signal, and it is only visible here, before the
-        defaults are applied.
+        """The `GameLogic` pointer, telling a dead process (the read fails) apart from a null global
+        (a match that ended).
         """
         value = self._u32(self.layout.the_game_logic)
         if value is None:
@@ -1607,16 +1759,8 @@ class MemoryBackend:
         return value if _MIN_PTR <= value <= _MAX_PTR else None
 
     def _production_module(self, array: int) -> tuple[int | None, bool]:
-        """The `ProductionUpdate` in a module array, and whether the walk reached a conclusion.
-
-        Walks the NULL-terminated module array at `Object+0x24C` and matches on each module's
-        primary vtable. The engine does this by asking every module's second vtable for its
-        production interface - a call, which a reader outside the process cannot make - but a
-        vtable address is unique to its class, so comparing the pointer answers the same
-        question without executing anything.
-
-        The second half of the answer is what makes the per-template cache safe: "walked the
-        whole list and it is not there" may be remembered, "a read failed halfway" may not.
+        """The `ProductionUpdate` in an object's module array, matched by vtable, and whether the
+        walk was conclusive (only a conclusive "not there" may be cached per template).
         """
         lay = self.layout
         raw = self.source.read(array, lay.production_scan * 4)
@@ -1637,22 +1781,10 @@ class MemoryBackend:
     def _read_production(
         self, obj_ptr: int, template: int, array: int | None
     ) -> tuple[ProductionItem, ...]:
-        """What this object is currently making, in queue order.
+        """What this object is making, in queue order; empty for most objects.
 
-        Empty for the overwhelming majority of objects, which carry no production module at
-        all - so "not producing" and "cannot produce" are deliberately the same answer: both
-        mean an order sent here will do nothing.
-
-        Names are resolved by **pointer identity** against the two registries this backend
-        already walks. An entry pointing at something neither registry knows is reported with
-        an empty name rather than a guessed one, so a layout that drifts degrades to "something
-        is queued" instead of inventing a template.
-
-        **Most objects can skip the walk entirely.** Which behaviour modules an object carries
-        comes from its `ThingTemplate`, so once one `GondorFighter` has been walked and found
-        to have no production module, no other `GondorFighter` needs walking - and in a real
-        match the overwhelming majority of objects are units and scenery. Only a *conclusive*
-        walk is remembered; a read that failed partway teaches nothing.
+        Names resolve by pointer identity against the thing and upgrade registries; an unknown entry
+        has an empty name. Templates known to have no production module skip the walk.
         """
         lay = self.layout
         if array is None or self._template_produces.get(template) is False:
@@ -1680,16 +1812,17 @@ class MemoryBackend:
         while node is not None and node not in seen and len(items) < lay.max_queue:
             seen.add(node)
             kind = self._i32(node + lay.entry_kind)
+            percent = _clamp_percent(self._f32(node + lay.entry_percent))
             if kind == 2:
                 # Both registry walks are cached and are triggered here rather than up front,
                 # so an observation of a game where nothing is producing never pays for them.
                 self.upgrade_table()
                 name = self._upgrade_at.get(self._u32(node + lay.entry_upgrade) or 0, "")
-                items.append(ProductionItem("upgrade", name))
+                items.append(ProductionItem("upgrade", name, percent))
             elif kind in (1, 3):
                 self.thing_order()
                 name = self._thing_at.get(self._u32(node + lay.entry_template) or 0, "")
-                items.append(ProductionItem("unit" if kind == 1 else "revive", name))
+                items.append(ProductionItem("unit" if kind == 1 else "revive", name, percent))
             else:
                 items.append(ProductionItem("unknown"))
             node = self._pointer(node + lay.entry_next)
@@ -1710,11 +1843,8 @@ class MemoryBackend:
         return self._u32(gl + self.layout.gl_frame) or 0
 
     def desync_declared(self) -> bool | None:
-        """Has this client declared itself out of sync?
-
-        None when the byte cannot be read at all - no `TheGameLogic`, or a handle that lost its
-        process - which is a different answer from False and must not be rounded down to it: a
-        watcher that reads None has stopped watching, and should say so rather than report sync.
+        """Has this client declared itself out of sync? None when the byte cannot be read, which a
+        watcher must not treat as "in sync".
         """
         gl = self._game_logic()
         if gl is None:
@@ -1723,13 +1853,7 @@ class MemoryBackend:
         return None if raw is None else raw[0] != 0
 
     def read_shroud(self, players: Sequence[int]) -> ShroudGrid | None:
-        """The visibility grid for `players`, or None when there is no readable one.
-
-        None is the ordinary answer at the menu, where the grid collapses to 1x1. It is not an
-        error, so it records no diagnostic; what would be an error is treating an absent grid as
-        "everything is visible", which is why `Observation.under_fog` refuses to filter without
-        one rather than filtering with an empty one.
-        """
+        """The visibility grid for `players`, or None (the ordinary answer at the menu)."""
         lay = self.layout
         return read_shroud(
             self._u32,
@@ -1776,11 +1900,8 @@ class MemoryBackend:
         return self._latest
 
     def step(self, timeout: float | None = None) -> Observation | None:
-        """Wait for the logic frame to advance, then observe.
-
-        This does **not** hold the engine: it watches the frame counter and returns when it
-        moves. That is enough for a bot, but it is not the deterministic stepping an RL
-        rollout needs - only a backend running inside the process can provide that.
+        """Wait for the logic frame to advance, then observe. It watches the frame counter; it does
+        not hold the engine.
         """
         if not self._connected:
             self._diagnostics.append(Diagnostic("step before connect"))

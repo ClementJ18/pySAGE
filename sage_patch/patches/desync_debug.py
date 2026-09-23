@@ -1,82 +1,12 @@
-"""`desync-debug` - turn on the engine's own out-of-sync instrumentation, which ships unreachable.
+"""Turn on the engine's own out-of-sync instrumentation, which ships unreachable.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/desync-debug.md``; the detection side it builds on is ``../docs/desync-detection.md``.
+The switches exist but only an orphaned command-line block (see `../docs/headless.md` section 5)
+ever wrote them. The patch rewrites three initialisers - the checksum interval, the self-check flag
+and the focus frame - with no cave or hook. The interval is the patch's identity for `detect`, so it
+must be 1..99 (100 is stock; above it, the skirmish re-seed clamps at `0x0077ED63` while the
+constructor does not, and 0 divides by zero). Every peer needs the same binary.
 
-**The defect.** A match desyncs and the engine tells you almost nothing about when. The
-`MSG_LOGIC_CRC` (`0x44A`) heartbeat that peers compare goes out every ``NetCRCInterval`` frames and
-that interval is **100**, so a declaration at frame 102 means "you parted somewhere in frames
-1..100" and the message box is the whole report. The engine was built with better than that - a
-tunable interval, a focus frame, a per-frame self-check that writes a file - and shipped with every
-switch stranded behind the orphaned command-line region ``../docs/headless.md`` section 5
-documents, a block of handlers with no dispatch-table row, no call site and no pointer anywhere in
-the image. So the switches are `.data` with initialisers and no live writer, and nothing on a
-retail build can flip one.
-
-**What this does.** Writes three of them. No cave, no hook, no assembly: three initialisers, one
-dword and one byte and one dword, asserted against their stock values before anything is written.
-
-* ``crc_interval`` (1..99, default **1**) rewrites ``NetCRCInterval`` at ``NET_CRC_INTERVAL``.
-  Three live readers pick it up and between them they cover both halves of an investigation. The
-  `GameInfo` constructor seeds `+0xC` from it unclamped and `GameLogic::update` divides the frame
-  by that field, so the **declaration** narrows from a 100-frame upper bound to an N-frame one; and
-  the recorder copies the same global into the replay header, so **every peer's own recording gains
-  a CRC sample every N frames** and two players' `.rep` files of one match become diffable to the
-  frame - `sage_replay.replay.OrderType.ChecksumHeartbeat`. That second half is the one that
-  actually finds things: the latch says *this client disagrees*, the diff says *from here on*.
-* ``verify_client_crc`` (default off) sets the ``-verifyClientCRC`` gate at
-  ``DESYNC_VERIFY_CLIENT_CRC_FLAG``, which unlocks the per-client-frame self-check at
-  ``DESYNC_FILE_WRITER``: it recomputes this client's CRC, compares it against a caller-supplied
-  value and appends ``"Desync detected on frame %d on %u-%u-%u %u:%u:%u"`` to
-  ``CLIENT_DESYNC_<name>.txt``. The code is complete and reached; ``../docs/desync-detection.md``
-  section 3 records that no retail build can arm it, which is exactly what this flips.
-* ``focus_frame`` (default unset) sets ``DESYNC_FOCUS_FRAME``, which **overrides the interval**:
-  per-frame heartbeats across the window ending on that frame and silence everywhere else. The
-  second pass, once a first has said roughly where. It does not arm
-  ``DESYNC_FOCUS_FRAME_FILTER_FLAG``, so the message box and the latch keep behaving normally.
-
-**Why the interval is the patch's identity.** It is the parameter `detect` recovers, and its range
-stops at 99 on purpose: at 100 every site holds its stock bytes, so a `verify` that passed there
-would make `detect` report every unpatched `game.dat` as carrying this patch. Raising it is not
-offered either way - the skirmish re-seed clamps to ``min(x, 100)`` (``0x0077ED63``) while the
-constructor does not, so above 100 the two paths disagree, and coarser than stock is not what this
-is for. **Zero is refused by the constructor**: the gate's `div ecx` has no guard, and a zero
-interval is an integer divide-by-zero on the logic thread on the first frame of the first match.
-
-**What it costs.** At interval 1 the CRC producer at ``0x00625886`` runs every logic frame instead
-of every hundredth, walking the object list, the partition and collision managers, the shroud, the
-players and the AI, and one extra `0x44A` message per frame per client goes on the wire and into
-every replay. That is a real per-frame cost on a large late-game match and the reason the interval
-is a parameter rather than a constant - 5 or 10 keeps most of the resolution for a tenth of the
-work. Nothing here is free, and a build carrying this is a debugging build.
-
-**Blast radius: every peer must match.** The heartbeat cadence is a network protocol detail, not a
-client-local preference. A client emitting `0x44A` every frame against a peer emitting one every
-hundred is not a configuration this engine was built to survive, so **all players in a match, and
-anyone playing back a recording of it, must run the byte-identical binary**. Replays made on a
-patched build carry the patched cadence in their header and should be played back on the same
-build. That is the opposite of the `crash-dump` / `quiet-exit` rule and the same one
-``binary-attest`` enforces on purpose.
-
-**What is deliberately not exposed.** ``-deepCRC`` (``DESYNC_DEEP_CRC_FLAG``) logs the checksum's
-constituents into a growable heap buffer that no shipping config drains - a per-frame allocation
-and no file - and the nine ``-x<Subsystem>CRC`` exclusion flags are consulted only when
-``CRC_LITE_FLAG`` is clear, which the plain emitter path sets for the duration of every call. So on
-the route a retail build takes they change nothing. ``-debugCRCFromFrame`` and
-``-debugCRCUntilFrame`` have no reader outside the flag-reporting function at all.
-``../docs/desync-debug.md`` sections 4 to 6 have the disassembly for all three findings, so the
-next reader does not spend the afternoon on them.
-
-**Composition.** Order-independent: it allocates no section, edits three `.data` initialisers no
-other bundled patch touches, and reads nothing another patch rewrites. It has no INI surface.
-``binary-attest`` is the one to think about beside it - that patch mixes a `.text` hash into this
-same checksum, and since this patch changes `.text` not at all but does change how often the
-checksum is taken, the two compose, with the usual caveat that both of them require every peer to
-run the identical file.
-
-**Static-verified.** The addresses, the readers and the clamp are read out of the binary and the
-patch applies, verifies and round-trips; what has not been done is play a patched match and watch a
-desync land on a known frame.
+Derivation: `../docs/desync-debug.md` and `../docs/desync-detection.md`.
 """
 
 from __future__ import annotations
@@ -169,12 +99,12 @@ class DesyncDebugPatch(Patch):
             apply_byte_patch(data, file_off, old, new, note)
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch with these options (an empty list ==
+        """Structural check that `data` carries this patch with these options (an empty list ==
         verified). Recomputes all three sites and compares; reads only via the section table, so
         it needs no disassembler.
 
         The two optional sites are checked whether they are on or off: a binary whose
-        ``-verifyClientCRC`` gate is set does not carry a patch built with it left alone."""
+        `-verifyClientCRC` gate is set does not carry a patch built with it left alone."""
         problems: list[str] = []
         try:
             edits = self._edits(data)
@@ -188,7 +118,7 @@ class DesyncDebugPatch(Patch):
 
     @classmethod
     def detect(cls, data: bytes | bytearray) -> DesyncDebugPatch | None:
-        """Recognise this patch **and recover its options** from ``data``.
+        """Recognise this patch **and recover its options** from `data`.
 
         The default probe cannot: it would ask `verify` about interval 1 with both extras off and
         call every other configuration absent. All three parameters are plain initialisers, so

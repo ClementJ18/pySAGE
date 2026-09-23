@@ -212,7 +212,7 @@ def _call_target(data: bytes | bytearray, va: int) -> int:
     return va + 5 + struct.unpack_from("<i", window, 1)[0]
 
 
-# --- where the two fields live ----------------------------------------------------------------
+# Where the two fields live
 
 
 def test_both_fields_land_in_interior_padding() -> None:
@@ -246,7 +246,7 @@ def test_both_fields_are_inside_the_widened_ctor_store() -> None:
     assert TEMPLATE_TICKS in covered
 
 
-# --- the three single-bit edits ---------------------------------------------------------------
+# The three single-bit edits
 
 
 def test_rewritten_ctor_widens_the_store_and_changes_one_byte() -> None:
@@ -276,7 +276,7 @@ def test_the_copy_edits_do_not_touch_hero_manas_hook() -> None:
     assert TEMPLATE_COPY_STORE + len(TEMPLATE_COPY_STORE_BYTES) <= 0x007B1F53
 
 
-# --- applying -----------------------------------------------------------------------------------
+# Applying
 
 
 def test_apply_writes_every_site(image: bytearray) -> None:
@@ -350,7 +350,7 @@ def test_build_table_is_terminated() -> None:
     assert table[-FIELD_PARSE_STRIDE:] == bytes(FIELD_PARSE_STRIDE)
 
 
-# --- the cave ------------------------------------------------------------------------------------
+# The cave
 
 
 def test_snapshot_hook_runs_the_displaced_call_first(image: bytearray) -> None:
@@ -433,7 +433,7 @@ def test_cave_is_writable(image: bytearray) -> None:
     pytest.fail(f"no {SECTION_NAME} section")
 
 
-# --- verify, detect, and refusing ---------------------------------------------------------------
+# Verify, detect, and refusing
 
 
 def test_verify_clean_after_apply(image: bytearray) -> None:
@@ -598,7 +598,7 @@ def test_apply_refuses_a_table_whose_bools_moved(image: bytearray) -> None:
         CooldownThroughDeathPatch().apply(image)
 
 
-# --- the surface it declares --------------------------------------------------------------------
+# The surface it declares
 
 
 def test_ini_surface_names_both_fields() -> None:

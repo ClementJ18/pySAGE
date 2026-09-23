@@ -2,6 +2,16 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import TYPE_CHECKING, Self, cast
 
+__all__ = [
+    "BlendDescription",
+    "BlendDirection",
+    "BlendTileData",
+    "BlendTileTexture",
+    "CliffTextureMapping",
+    "get_blend_bit_size",
+    "TileFlammability",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
     from .height_map import HeightMapData
@@ -45,18 +55,18 @@ class BlendTileTexture:
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
         """Parse inline (no asset header)."""
-        cell_start = context.stream.readUInt32()
-        cell_count = context.stream.readUInt32()
-        cell_size = context.stream.readUInt32()
+        cell_start = context.stream.read_uint32()
+        cell_count = context.stream.read_uint32()
+        cell_size = context.stream.read_uint32()
 
         if cell_size * cell_size != cell_count:
             raise ValueError(f"Invalid cell_size: {cell_size}^2 != {cell_count}")
 
-        magic_value = context.stream.readUInt32()
+        magic_value = context.stream.read_uint32()
         if magic_value != 0:
             raise ValueError(f"Expected magic_value to be 0, got: {magic_value}")
 
-        name = context.stream.readUInt16PrefixedAsciiString()
+        name = context.stream.read_uint16_prefixed_ascii_string()
 
         return cls(
             cell_start=cell_start,
@@ -68,11 +78,11 @@ class BlendTileTexture:
 
     def write(self, context: "WritingContext") -> None:
         """Write inline (no asset header)."""
-        context.stream.writeUInt32(self.cell_start)
-        context.stream.writeUInt32(self.cell_count)
-        context.stream.writeUInt32(self.cell_size)
-        context.stream.writeUInt32(self.magic_value)
-        context.stream.writeUInt16PrefixedAsciiString(self.name)
+        context.stream.write_uint32(self.cell_start)
+        context.stream.write_uint32(self.cell_count)
+        context.stream.write_uint32(self.cell_size)
+        context.stream.write_uint32(self.magic_value)
+        context.stream.write_uint16_prefixed_ascii_string(self.name)
 
 
 @dataclass
@@ -96,15 +106,15 @@ class BlendDescription:
     @classmethod
     def parse(cls, context: "ParsingContext", version: int) -> Self:
         """Parse inline (no asset header)."""
-        secondary_texture_tile = context.stream.readUInt32()
-        raw_blend_direction = context.stream.readBytes(4)
-        flags = context.stream.readUChar()
-        two_sided = context.stream.readBool()
+        secondary_texture_tile = context.stream.read_uint32()
+        raw_blend_direction = context.stream.read_bytes(4)
+        flags = context.stream.read_uchar()
+        two_sided = context.stream.read_bool()
 
-        magic_value1 = context.stream.readUInt32()
+        magic_value1 = context.stream.read_uint32()
         # MagicValue1 can be 0xFFFFFFFF or 24
 
-        magic_value2 = context.stream.readUInt32()
+        magic_value2 = context.stream.read_uint32()
         if magic_value2 != 0x7ADA0000:
             raise ValueError(f"Expected magic_value2 to be 0x7ADA0000, got: {magic_value2:#x}")
 
@@ -118,12 +128,12 @@ class BlendDescription:
 
     def write(self, context: "WritingContext") -> None:
         """Write inline (no asset header)."""
-        context.stream.writeUInt32(self.secondary_texture_tile)
-        context.stream.writeBytes(self.raw_blend_direction)
-        context.stream.writeUChar(self.flags)
-        context.stream.writeBool(self.two_sided)
-        context.stream.writeUInt32(self.magic_value1)
-        context.stream.writeUInt32(0x7ADA0000)
+        context.stream.write_uint32(self.secondary_texture_tile)
+        context.stream.write_bytes(self.raw_blend_direction)
+        context.stream.write_uchar(self.flags)
+        context.stream.write_bool(self.two_sided)
+        context.stream.write_uint32(self.magic_value1)
+        context.stream.write_uint32(0x7ADA0000)
 
 
 @dataclass
@@ -140,15 +150,15 @@ class CliffTextureMapping:
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
         """Parse inline (no asset header)."""
-        texture_tile = context.stream.readUInt32()
+        texture_tile = context.stream.read_uint32()
 
         # Read 4 Vector2s (each is 2 floats)
-        bottom_left_coords = context.stream.readVector2()
-        bottom_right_coords = context.stream.readVector2()
-        top_right_coords = context.stream.readVector2()
-        top_left_coords = context.stream.readVector2()
+        bottom_left_coords = context.stream.read_vector2()
+        bottom_right_coords = context.stream.read_vector2()
+        top_right_coords = context.stream.read_vector2()
+        top_left_coords = context.stream.read_vector2()
 
-        unknown2 = context.stream.readUInt16()
+        unknown2 = context.stream.read_uint16()
 
         return cls(
             texture_tile=texture_tile,
@@ -161,16 +171,16 @@ class CliffTextureMapping:
 
     def write(self, context: "WritingContext") -> None:
         """Write inline (no asset header)."""
-        context.stream.writeUInt32(self.texture_tile)
-        context.stream.writeFloat(self.bottom_left_coords[0])
-        context.stream.writeFloat(self.bottom_left_coords[1])
-        context.stream.writeFloat(self.bottom_right_coords[0])
-        context.stream.writeFloat(self.bottom_right_coords[1])
-        context.stream.writeFloat(self.top_right_coords[0])
-        context.stream.writeFloat(self.top_right_coords[1])
-        context.stream.writeFloat(self.top_left_coords[0])
-        context.stream.writeFloat(self.top_left_coords[1])
-        context.stream.writeUInt16(self.unknown2)
+        context.stream.write_uint32(self.texture_tile)
+        context.stream.write_float(self.bottom_left_coords[0])
+        context.stream.write_float(self.bottom_left_coords[1])
+        context.stream.write_float(self.bottom_right_coords[0])
+        context.stream.write_float(self.bottom_right_coords[1])
+        context.stream.write_float(self.top_right_coords[0])
+        context.stream.write_float(self.top_right_coords[1])
+        context.stream.write_float(self.top_left_coords[0])
+        context.stream.write_float(self.top_left_coords[1])
+        context.stream.write_uint16(self.unknown2)
 
 
 def get_blend_bit_size(version: int) -> int:
@@ -228,16 +238,16 @@ class BlendTileData:
             width = height_map_data.width
             height = height_map_data.height
 
-            tiles_count = context.stream.readUInt32()
+            tiles_count = context.stream.read_uint32()
             if tiles_count != width * height:
                 raise ValueError(f"Invalid tiles_count: {tiles_count}, expected: {width * height}")
 
-            tiles = context.stream.readUInt16Array2D(width, height)
+            tiles = context.stream.read_uint16_array2d(width, height)
 
             blend_bit_size = get_blend_bit_size(asset_ctx.version)
-            blends = context.stream.readUIntArray2D(width, height, blend_bit_size)
-            three_way_blends = context.stream.readUIntArray2D(width, height, blend_bit_size)
-            cliff_textures = context.stream.readUIntArray2D(width, height, blend_bit_size)
+            blends = context.stream.read_uint_array2d(width, height, blend_bit_size)
+            three_way_blends = context.stream.read_uint_array2d(width, height, blend_bit_size)
+            cliff_textures = context.stream.read_uint_array2d(width, height, blend_bit_size)
 
             impassability = None
             if asset_ctx.version > 6:
@@ -247,44 +257,44 @@ class BlendTileData:
                     passability_width = ((passability_width + 1) // 8) * 8
 
                 # If terrain is passable, there's a 0 in the data file.
-                impassability = context.stream.readSingleBitBooleanArray2D(
+                impassability = context.stream.read_single_bit_boolean_array2d(
                     passability_width, height_map_data.height
                 )
 
             impassability_to_players = None
             if asset_ctx.version >= 10:
-                impassability_to_players = context.stream.readSingleBitBooleanArray2D(
+                impassability_to_players = context.stream.read_single_bit_boolean_array2d(
                     height_map_data.width, height_map_data.height
                 )
 
             passage_widths = None
             if asset_ctx.version >= 11:
-                passage_widths = context.stream.readSingleBitBooleanArray2D(
+                passage_widths = context.stream.read_single_bit_boolean_array2d(
                     height_map_data.width, height_map_data.height
                 )
 
             taintability = None
             if asset_ctx.version >= 14 and asset_ctx.version < 25:
-                taintability = context.stream.readSingleBitBooleanArray2D(
+                taintability = context.stream.read_single_bit_boolean_array2d(
                     height_map_data.width, height_map_data.height
                 )
 
             extra_passability = None
             if asset_ctx.version >= 15:
-                extra_passability = context.stream.readSingleBitBooleanArray2D(
+                extra_passability = context.stream.read_single_bit_boolean_array2d(
                     height_map_data.width, height_map_data.height
                 )
 
             flammability = None
             if asset_ctx.version >= 16 and asset_ctx.version < 25:
-                flammability = context.stream.readByteArray2DAsEnum(
+                flammability = context.stream.read_byte_array2d_as_enum(
                     height_map_data.width, height_map_data.height, TileFlammability
                 )
 
             visibility = None
             if asset_ctx.version >= 17:
                 # Note: All ReadSingleBitBooleanArray2D calls in C# use row-byte-alignment
-                visibility = context.stream.readSingleBitBooleanArray2D(
+                visibility = context.stream.read_single_bit_boolean_array2d(
                     height_map_data.width, height_map_data.height
                 )
 
@@ -293,45 +303,45 @@ class BlendTileData:
             tiberium_growability = None
             if asset_ctx.version >= 24:
                 # TODO: Are these in the right order?
-                buildability = context.stream.readSingleBitBooleanArray2D(
+                buildability = context.stream.read_single_bit_boolean_array2d(
                     height_map_data.width, height_map_data.height
                 )
-                impassability_to_air_units = context.stream.readSingleBitBooleanArray2D(
+                impassability_to_air_units = context.stream.read_single_bit_boolean_array2d(
                     height_map_data.width, height_map_data.height
                 )
-                tiberium_growability = context.stream.readSingleBitBooleanArray2D(
+                tiberium_growability = context.stream.read_single_bit_boolean_array2d(
                     height_map_data.width, height_map_data.height
                 )
 
             dynamic_shrubbery_density = None
             if asset_ctx.version >= 25:
-                dynamic_shrubbery_density = context.stream.readByteArray2D(
+                dynamic_shrubbery_density = context.stream.read_byte_array2d(
                     height_map_data.width, height_map_data.height
                 )
 
-            texture_cell_count = context.stream.readUInt32()
+            texture_cell_count = context.stream.read_uint32()
 
-            blends_count_raw = context.stream.readUInt32()
+            blends_count_raw = context.stream.read_uint32()
             blends_count = blends_count_raw
             if blends_count > 0:
                 # Usually the minimum is 1, but some files (Generals, not Zero Hour?) have 0.
                 blends_count -= 1
 
-            parsed_cliff_texture_mappings_count = context.stream.readUInt32()
+            parsed_cliff_texture_mappings_count = context.stream.read_uint32()
             cliff_blends_count = parsed_cliff_texture_mappings_count
             if cliff_blends_count > 0:
                 # Usually the minimum is 1, but some files (Generals, not Zero Hour?) have 0.
                 cliff_blends_count -= 1
 
-            texture_count = context.stream.readUInt32()
+            texture_count = context.stream.read_uint32()
             textures = []
             for _ in range(texture_count):
                 textures.append(BlendTileTexture.parse(context))
 
             # Can be a variety of values, don't know what it means.
-            magic_value1 = context.stream.readUInt32()
+            magic_value1 = context.stream.read_uint32()
 
-            magic_value2 = context.stream.readUInt32()
+            magic_value2 = context.stream.read_uint32()
             if magic_value2 != 0:
                 raise ValueError(f"Expected magic_value2 to be 0, got: {magic_value2}")
 
@@ -375,81 +385,81 @@ class BlendTileData:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.tiles) * len(self.tiles[0]))
-            context.stream.writeUInt16Array2D(self.tiles)
+            context.stream.write_uint32(len(self.tiles) * len(self.tiles[0]))
+            context.stream.write_uint16_array2d(self.tiles)
 
             blend_bit_size = get_blend_bit_size(self.version)
-            context.stream.writeUIntArray2D(self.blends, blend_bit_size)
-            context.stream.writeUIntArray2D(self.three_way_blends, blend_bit_size)
-            context.stream.writeUIntArray2D(self.cliff_textures, blend_bit_size)
+            context.stream.write_uint_array2d(self.blends, blend_bit_size)
+            context.stream.write_uint_array2d(self.three_way_blends, blend_bit_size)
+            context.stream.write_uint_array2d(self.cliff_textures, blend_bit_size)
 
             if self.version > 6:
-                context.stream.writeSingleBitBooleanArray2D(
+                context.stream.write_single_bit_boolean_array2d(
                     cast(list[list[bool]], self.impassability)
                 )
 
             if self.version >= 10:
-                context.stream.writeSingleBitBooleanArray2D(
+                context.stream.write_single_bit_boolean_array2d(
                     cast(list[list[bool]], self.impassability_to_players)
                 )
 
             if self.version >= 11:
-                context.stream.writeSingleBitBooleanArray2D(
+                context.stream.write_single_bit_boolean_array2d(
                     cast(list[list[bool]], self.passage_widths)
                 )
 
             if self.version >= 14 and self.version < 25:
-                context.stream.writeSingleBitBooleanArray2D(
+                context.stream.write_single_bit_boolean_array2d(
                     cast(list[list[bool]], self.taintability)
                 )
 
             if self.version >= 15:
-                context.stream.writeSingleBitBooleanArray2D(
+                context.stream.write_single_bit_boolean_array2d(
                     cast(list[list[bool]], self.extra_passability)
                 )
 
             if self.version >= 16 and self.version < 25:
-                context.stream.writeByteArray2DAsEnum(
+                context.stream.write_byte_array2d_as_enum(
                     cast(list[list[TileFlammability]], self.flammability)
                 )
 
             if self.version >= 17:
-                context.stream.writeSingleBitBooleanArray2D(
+                context.stream.write_single_bit_boolean_array2d(
                     cast(list[list[bool]], self.visibility), pad_value=0xFF
                 )
 
             if self.version >= 24:
                 # TODO: Are these in the right order?
-                context.stream.writeSingleBitBooleanArray2D(
+                context.stream.write_single_bit_boolean_array2d(
                     cast(list[list[bool]], self.buildability)
                 )
-                context.stream.writeSingleBitBooleanArray2D(
+                context.stream.write_single_bit_boolean_array2d(
                     cast(list[list[bool]], self.impassability_to_air_units)
                 )
-                context.stream.writeSingleBitBooleanArray2D(
+                context.stream.write_single_bit_boolean_array2d(
                     cast(list[list[bool]], self.tiberium_growability)
                 )
 
             if self.version >= 25:
-                context.stream.writeByteArray2D(
+                context.stream.write_byte_array2d(
                     cast(list[list[int]], self.dynamic_shrubbery_density)
                 )
 
-            context.stream.writeUInt32(self.texture_cell_count)
-            context.stream.writeUInt32(
+            context.stream.write_uint32(self.texture_cell_count)
+            context.stream.write_uint32(
                 _stored_count(len(self.blend_descriptions), self.blends_count_raw)
             )
-            context.stream.writeUInt32(
+            context.stream.write_uint32(
                 _stored_count(
                     len(self.cliff_texture_mappings), self.parsed_cliff_texture_mappings_count
                 )
             )
-            context.stream.writeUInt32(len(self.textures))
+            context.stream.write_uint32(len(self.textures))
             for texture in self.textures:
                 texture.write(context)
 
-            context.stream.writeUInt32(self.magic_value1)
-            context.stream.writeUInt32(self.magic_value2)
+            context.stream.write_uint32(self.magic_value1)
+            context.stream.write_uint32(self.magic_value2)
 
             for blend_description in self.blend_descriptions:
                 blend_description.write(context)

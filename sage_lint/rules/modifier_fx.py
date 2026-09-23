@@ -35,7 +35,7 @@ _FRAME_MS = 1000 / 30
 _TOLERANCE_MS = 1000
 
 # A modifier or effect lasting longer than an hour is an effectively-permanent placeholder, not
-# a timed effect meant to line up visually — a `Duration` or lifetime past this is left alone.
+# a timed effect meant to line up visually - a `Duration` or lifetime past this is left alone.
 _MAX_MS = 60 * 60 * 1000
 
 

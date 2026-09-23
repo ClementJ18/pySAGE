@@ -5,6 +5,7 @@ import io
 import pytest
 
 from sage_map.map import parse_map, write_map
+from sage_worldbuilder.commands.objects import place_objects
 from sage_worldbuilder.document import MapDocument
 from sage_worldbuilder.generic_ai import (
     GENERIC_AI_OBJECT,
@@ -14,7 +15,6 @@ from sage_worldbuilder.generic_ai import (
     new_generic_ai_object,
     set_generic_ai,
 )
-from sage_worldbuilder.objects import place_objects
 from sage_worldbuilder.scene import MarkerKind, marker_kind
 
 pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")

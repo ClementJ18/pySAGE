@@ -31,13 +31,9 @@ from sage_patch.pe import Reader, Section, mapped_sections, read_headers
 
 __all__ = ["ROTWK_201_TIMESTAMP", "BuildIdentity", "read_identity"]
 
-# The COFF `TimeDateStamp` of RotWK 2.01's `game.dat`, read off the installed file that
-# `LAYOUT_ROTWK_201` was confirmed against (2026-07-31). Every offset in that layout is only
-# meaningful for an image carrying this stamp.
-#
-# Note that this identifies the **engine build**, not the mod: Edain is ini and `.big` data, so
-# a different Edain release runs the same `game.dat` and answers with the same stamp. It is the
-# id spaces, not the layout, that a mod release moves - see `naming.LiveNames`.
+# The COFF `TimeDateStamp` of RotWK 2.01's `game.dat`, the build `LAYOUT_ROTWK_201` describes.
+# It identifies the engine, not the mod: a mod release changes id spaces (see
+# `naming.LiveNames`), not this stamp.
 ROTWK_201_TIMESTAMP = 0x460DA09E
 
 # `TimeDateStamp` is the second field of the COFF header, which itself sits four bytes past

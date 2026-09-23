@@ -28,7 +28,7 @@ def save_username(username: str, app: str = "sage_wiki") -> None:
 
 
 def load_username(app: str = "sage_wiki") -> str:
-    """The remembered username, or ``""`` when none is saved or it is unreadable."""
+    """The remembered username, or `""` when none is saved or it is unreadable."""
     data = read_json(app, USERNAME_FILE, {})
     return data.get("username", "") if isinstance(data, dict) else ""
 
@@ -44,7 +44,7 @@ def save_password(username: str, password: str, app: str = "sage_wiki") -> bool:
 
 
 def load_password(username: str, app: str = "sage_wiki") -> str:
-    """The password stored for ``username``, or ``""`` when none is saved or the
+    """The password stored for `username`, or `""` when none is saved or the
     keyring is unavailable."""
     try:
         return keyring.get_password(app, username) or ""
@@ -53,7 +53,7 @@ def load_password(username: str, app: str = "sage_wiki") -> str:
 
 
 def delete_password(username: str, app: str = "sage_wiki") -> None:
-    """Forget any stored password for ``username`` (best effort; a missing entry or
+    """Forget any stored password for `username` (best effort; a missing entry or
     unavailable keyring is ignored)."""
     try:
         keyring.delete_password(app, username)

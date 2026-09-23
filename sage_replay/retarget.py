@@ -72,7 +72,7 @@ def retarget(
     donor: ReplayFile | None = None,
 ) -> ReplayFile:
     """The document as a `ReplayFile` whose ids are valid for the `target` game, ready for
-    `serialize.serialize_replay`. `donor` is a replay recorded under the target version, the
+    `serialize.write_replay`. `donor` is a replay recorded under the target version, the
     source of the emitted header's patch identity (version/build-date strings, data checksum,
     metadata GSID); without one the source identity is kept. Raises `ValueError` for a v1
     document (no raw header - re-translate the replay to produce a v2 one) or a non-BFME2

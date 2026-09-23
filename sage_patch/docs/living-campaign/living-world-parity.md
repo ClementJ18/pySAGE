@@ -412,7 +412,7 @@ today and `ModifyArmyEntry` only ever substituted one template for another.
 2026-08-14.** The recipe from [`living-world-campaign.md`](living-world-campaign.md) is applied:
 `wotrscenarioangmar.inc` carries `IsScriptedCampaign`, `LocalPlayer` and its `AddPlayer` blocks, and
 `gamedata.ini` sets `LivingWorldCampaignOverrride = WOTRScenarioAngmar`. What still needs checking
-before a run is the **binary** — see [`verify`](../README.md#cli), and note that the mod's INI
+before a run is the **binary** — see [`verify`](../../README.md#cli), and note that the mod's INI
 reaches the game only through a Mod Command repack, since the install has no loose `data/ini/`.
 
 **And the flag is now a switch, not a setting:** with `IsScriptedCampaign = Yes` the battles have no

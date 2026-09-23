@@ -24,7 +24,7 @@ Everything below is **statically recovered**; none of it has been confirmed agai
 ## 1. The ledger
 
 `Player+0x758` is a vector of `0xE8`-byte entries; `REVIVE_MGR_OFFSET` and
-`PLAYER_HERO_LEDGER_OFFSET` in `addresses.py` are the same field. `Player::getHeroLedger` is
+`PLAYER_HERO_LEDGER_OFFSET` in `sage_patch.addresses` are the same field. `Player::getHeroLedger` is
 `0x005EA653`.
 
 | address | what it is |

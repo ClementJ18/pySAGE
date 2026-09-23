@@ -1,30 +1,16 @@
 """`BridgeBackend` - observe *and* act, against a game carrying the live-bridge patch.
 
-Reads exactly as `MemoryBackend` does, and adds the write half: an order is marshalled into
-the command buffer that `sage_patch`'s `live-bridge` patch appends to `game.dat`, and the
-hook inside `GameLogic::update` picks it up on the next logic frame and feeds it to
-`TheMessageStream`.
+Reads like `MemoryBackend`, and writes orders into the command buffer the `live-bridge` patch adds
+to `game.dat`. A hook in `GameLogic::update` feeds each order to `TheMessageStream` on the next
+logic frame, so it is network-ordered and checksummed like human input. The buffer layout is
+imported from the patch, so the two cannot drift.
 
-Orders therefore enter through the engine's own `appendMessage`, so they are network-ordered
-and check-summed like any human input. Nothing here calls a logic function directly.
+The buffer is a single slot: write the payload, then set `ready` last; the hook consumes it and
+clears the flag. So each order must be acknowledged before the next (`send` waits).
 
-**The buffer layout is owned by the patch**, and imported from it rather than restated, so a
-change to the cave cannot silently desynchronise from the writer.
-
-**The handshake protocol is a single slot.** Write the payload, then set `ready` **last**; the
-hook consumes it and clears the flag. One writer and one reader, and x86 store ordering makes
-that safe without locking - but it does mean an order must be acknowledged before the next
-one is written, which `send` waits for.
-
-**The camera is a second slot with the same protocol and none of the order semantics.** It is
-not an order: it never reaches the message stream, costs no APM and cannot desync anything,
-because the simulation does not read the camera. It also runs both ways - `capture_camera`
-asks the hook to fill the buffer from the live view, which is what makes "look over there and
-keep my zoom" a read-modify-write rather than a guess at four numbers.
-
-**Re-aiming does not use that slot at all.** `move_camera` writes the view's position field
-directly, because `setLocation` cannot be asked to leave the zoom alone - see the method. It
-is the form to prefer; `set_camera` remains for placing a whole captured location back.
+The camera uses a second slot with the same protocol but is not an order (it never reaches the
+stream). `capture_camera` reads the live view; re-aiming uses `move_camera`, which writes the view's
+position field directly.
 """
 
 from __future__ import annotations
@@ -87,11 +73,8 @@ class WritableMemorySource(MemorySource, Protocol):
 
 
 def find_section(source: MemorySource, name: str = SECTION_NAME) -> tuple[int, int] | None:
-    """Locate a PE section in the running image by walking the image's own headers.
-
-    Returns `(virtual_address, virtual_size)`, or None when the section is absent - which is
-    how an unpatched game announces itself. The walk itself is `sage_patch.pe`, shared with
-    the file-image side; only the byte source differs.
+    """Locate a PE section in the running image, as `(virtual_address, virtual_size)`, or None when
+    absent - which is how an unpatched game shows. The walk is `sage_patch.pe`'s.
     """
     section = pe_find(mapped_sections(source.read, IMAGE_BASE), name)
     return None if section is None else (section.virtual_address, section.virtual_size)
@@ -117,10 +100,8 @@ def _float_bits(value: float) -> int:
 
 
 def encode_argument(argument_type: int, value: object) -> bytes:
-    """One 20-byte argument record: the type tag then up to four value slots.
-
-    By-value types put the value in the first slot; by-pointer types lay their structure out
-    across the slots and the cave passes the slot address instead.
+    """One 20-byte argument record: the type tag, then up to four value slots. By-value types use
+    the first slot; by-pointer types fill the slots and the cave passes their address.
     """
     slots = [0, 0, 0, 0]
     tag = int(argument_type)
@@ -141,16 +122,12 @@ def encode_argument(argument_type: int, value: object) -> bytes:
 
 
 def encode_order(order: Order) -> bytes:
-    """The command-buffer payload for one order, excluding the `ready` flag.
+    """The command-buffer payload for one order, excluding the `ready` flag, laid out from
+    `ORDER_TYPE_OFF`.
 
-    Laid out from `ORDER_TYPE_OFF`, so the caller writes it at that offset and only then
-    sets `ready`.
-
-    **`order.player_index` is deliberately not transmitted.** The engine attributes an
-    appended message to the local player itself, so the field is inert here and matters only
-    when the same `Order` is written out by `sage_replay.serialize`. It is also *not* the same
-    numbering: a game observed with `PlayerList` index 3 recorded its orders as player 2 in the
-    replay (see `sage_patch/docs/message-stream.md` section 4c).
+    `order.player_index` is not transmitted: the engine attributes the message to the local player.
+    It only matters when the `Order` is written to a replay, where the numbering also differs (see
+    `sage_patch/docs/message-stream.md` section 4c).
     """
     if len(order.arguments) > MAX_ARGS:
         raise ValueError(f"{len(order.arguments)} arguments exceeds the buffer's {MAX_ARGS}")
@@ -177,11 +154,8 @@ def encode_view_location(location: ViewLocation) -> bytes:
 
 
 def decode_view_location(raw: bytes | None) -> ViewLocation | None:
-    """A captured `ViewLocation`, or None when there is nothing usable to read.
-
-    None covers both ways the read comes back empty - a short buffer, and a location the
-    engine marked invalid. Neither raises: a camera that could not be read is a state the
-    caller acts on, exactly like an order the game ignored.
+    """A captured `ViewLocation`, or None when the buffer is short or the engine marked the location
+    invalid.
     """
     if raw is None or len(raw) < VIEW_LOCATION_SIZE:
         return None
@@ -250,20 +224,14 @@ class BridgeBackend(MemoryBackend):
 
     @property
     def pending(self) -> bool:
-        """True while an order sits in the buffer that the hook has not yet consumed.
-
-        The single-slot handshake means this is also the answer to "did my last order get
-        through": it goes false within a logic frame of a healthy hook, and stays true when
-        the game is paused or the hook is not running.
+        """True while an order sits in the buffer unconsumed. Goes false within a logic frame on a
+        healthy hook; stays true while the game is paused or the hook is not running.
         """
         return self._ready_flag() == 1
 
     def wait_until_idle(self, timeout: float = _ACK_TIMEOUT) -> bool:
-        """Block until the hook has consumed the pending order; False on timeout.
-
-        `send` already waits before writing, so this is for callers that want to *confirm*
-        an order was taken - a caller wanting to report per-order acknowledgement, rather
-        than only discovering a stall on the next send.
+        """Block until the hook has consumed the pending order; False on timeout. For callers that
+        want per-order acknowledgement (`send` already waits before writing).
         """
         return self._await_acknowledgement(timeout)
 
@@ -284,10 +252,9 @@ class BridgeBackend(MemoryBackend):
     def _camera_command(self, command: int, payload: bytes | None, timeout: float) -> bool:
         """Publish one camera command and wait for the hook to serve it.
 
-        Waits *before* writing as well as after: the slot holds one command, and a second
-        writer arriving while the first is pending would replace a location the hook is about
-        to read. The cave leaves the flag set when there is no view yet, so a command issued at
-        a loading screen times out rather than being silently dropped.
+        Waits before writing too, since a second command would overwrite a pending one. With no view
+        yet (a loading screen) the cave leaves the flag set, so the command times out rather than
+        vanishing.
         """
         if not self._connected or self._section is None:
             self._diagnostics.append(Diagnostic("camera command before connect"))
@@ -312,14 +279,10 @@ class BridgeBackend(MemoryBackend):
         return True
 
     def set_camera(self, location: ViewLocation, timeout: float = _ACK_TIMEOUT) -> bool:
-        """Place the camera. True once the hook has handed it to `View::setLocation`.
+        """Place the camera; True once the hook has handed it to `View::setLocation`.
 
-        **Not an order**, and deliberately not routed through `send`: the camera is client
-        state that no logic reads, so this neither enters the message stream nor spends the
-        session's APM budget. Being served is also stronger than an order being consumed -
-        `setLocation` is the same call the game's own bookmark keys make - but it is still not
-        proof the camera ended up where it was asked to go: the view clamps a placement to the
-        map's camera limits. `capture_camera` is what says where it actually is.
+        Not an order and not rate-limited. The view clamps placements to the map's camera limits, so
+        `capture_camera` is what says where the camera actually is.
         """
         try:
             payload = encode_view_location(location)
@@ -329,30 +292,14 @@ class BridgeBackend(MemoryBackend):
         return self._camera_command(CAMERA_APPLY, payload, timeout)
 
     def move_camera(self, position: Vec3) -> bool:
-        """Re-aim the camera by writing the view's own position field. **Prefer this to
-        `set_camera`** wherever only the aim is changing, which is nearly always.
+        """Re-aim the camera by writing the view's position field. **Prefer this to `set_camera`**
+        whenever only the aim changes.
 
-        **`setLocation` cannot leave the zoom alone, even when asked to.** It writes all four
-        scalars unconditionally, and the zoom it writes is not the zoom `getLocation` reports -
-        they are separate fields (`+0x128` and `+0x124`). Measured against a running match,
-        handing back a location captured a moment earlier still moved the live zoom from
-        1.281116 to 1.234136, after which the client restored it over about 0.6 seconds; asking
-        for the reported value was refused the same way, twelve other values likewise. A policy
-        re-aiming the camera every cycle therefore produced a permanent zoom-in-and-snap, and no
-        choice of numbers avoided it.
-
-        Writing `m_pos` has none of that, and it is not a hook command at all: no logic frame,
-        no acknowledgement, nothing to wait for. That is what makes a smooth pan possible from
-        outside the process - the caller may write as fast as it likes and the client picks the
-        position up on its own, where `set_camera` costs a bridge round-trip per placement.
-
-        The position is the look-at point **on the terrain**, not the camera's eye: its Z is
-        ground height at that spot, and the camera's own altitude is derived from it and the
-        zoom. Hand it the ground under what should be framed.
-
-        Re-reads `TheTacticalView` per call rather than caching it - the client builds a fresh
-        view per match, and a stale pointer here writes twelve bytes into whatever now owns
-        that memory.
+        `setLocation` always rewrites the zoom as well, visibly disturbing it (see
+        `sage_patch/docs/camera-control.md`). Writing the position needs no hook command and no
+        acknowledgement, so it can run fast enough for a smooth pan. `position` is the look-at point
+        on the terrain, not the camera's eye. `TheTacticalView` is re-read on each call, because
+        each match builds a new one.
         """
         if not self._connected:
             self._diagnostics.append(Diagnostic("camera move before connect"))
@@ -368,11 +315,8 @@ class BridgeBackend(MemoryBackend):
         return True
 
     def capture_camera(self, timeout: float = _ACK_TIMEOUT) -> ViewLocation | None:
-        """Read the live camera back out of the running client, or None if it cannot be read.
-
-        The half that makes the other half usable: a caller that wants to re-aim the camera
-        without disturbing the player's zoom and facing has to start from the four scalars the
-        view is holding, and this is the only thing that knows them.
+        """Read the live camera, or None if it cannot be read - the starting point for any change
+        that should keep the player's zoom and facing.
         """
         section = self._section
         if section is None or not self._camera_command(CAMERA_CAPTURE, None, timeout):

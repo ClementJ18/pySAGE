@@ -1,34 +1,14 @@
 """`ViewLocation` - where the camera is looking, as the engine's own bookmarks record it.
 
-The camera is **client state**. No logic reads it, no order carries it and nothing about it
-enters the message stream, so moving it cannot desync a game or change what a policy is
-allowed to see. That also means it is not an action: a camera move costs no APM, needs no
-selection, and there is nothing for `confirm_*` to watch except the camera itself.
+The camera is client state: no logic reads it and it never enters the message stream, so moving it
+cannot desync a game, costs no APM and needs no selection. `ViewLocation` is the 32-byte structure
+`View::getLocation` fills and `View::setLocation` reads.
 
-This is the exact 32-byte structure `View::getLocation` fills and `View::setLocation` reads -
-the same one the camera-bookmark hotkeys save and restore.
-
-**A captured location does not round-trip, and re-aiming must not go through one.** Every
-scalar is read from one field and written to another - `zoom` from `+0x124` to `+0x128`,
-`angle` from `+0x100` to `+0xFC`, and so on - so they are not the same quantity, and
-`setLocation` writes all four whether or not a caller wanted them touched. Measured against a
-running match: handing back a location captured a moment earlier moved the live zoom from
-1.281116 to 1.234136, after which the client restored it over about 0.6 seconds. Every other
-value asked for was refused the same way, the reported one included. A policy re-aiming the
-camera each cycle therefore zoomed in and was snapped out again, forever, and no choice of
-numbers avoided it. `Session.look_at` writes the view's position field directly instead; this
-structure is for reading the camera, and for putting a whole saved placement back.
-
-**Three of the four scalars are named from evidence, and one is not.** `angle` is the field
-the keyboard rotate keys step by `KeyboardCameraRotateSpeed`; `zoom` is the one a camera reset
-sets to `1.0`; `pitch` is its neighbour, driven by the other axis of the same mouse drag that
-drives `angle`. The fourth has no other reader or writer anywhere in the image, so it is
-carried unnamed and unaltered - see `extra`.
-
-`position` is the look-at point **on the terrain**, not the camera's eye: measured live, a
-camera reporting `z=150.00` sat over 137 objects whose median `z` was `150.00`. The camera's
-own altitude is derived from this point, the zoom and the pitch, and is not in this struct at
-all - so "keep the camera's height" is not a thing a caller can do by preserving this Z.
+A captured location does not round-trip: each scalar is read from one field and written to another,
+and `setLocation` writes all four, visibly disturbing the zoom. So re-aim with `Session.look_at`
+(which writes the view's position directly), and use this for reading the camera or restoring a
+whole saved placement. `position` is the look-at point on the terrain, not the camera's eye.
+Details: `sage_patch/docs/camera-control.md`.
 """
 
 from __future__ import annotations
@@ -48,9 +28,7 @@ __all__ = ["CameraPan", "ViewLocation"]
 class ViewLocation:
     """A camera placement: where it is, which way it faces, and how far out it is zoomed.
 
-    `valid` is the engine's own flag and it is load-bearing in one direction: `setLocation`
-    returns immediately on a location whose flag is clear, so a cleared one is a camera move
-    that is accepted, does nothing, and reports nothing.
+    `setLocation` ignores a location whose `valid` flag is clear, silently.
     """
 
     position: Vec3 = (0.0, 0.0, 0.0)
@@ -76,11 +54,8 @@ class ViewLocation:
         return replace(self, position=position)
 
 
-# How often the pan writes, and how quickly it closes on its target. The rate is not a frame
-# rate to match - the client samples the position field on its own schedule, and a write is
-# twelve bytes with no acknowledgement to wait for, so this only has to be comfortably faster
-# than the client renders. Measured live, a loop asking for 6ms achieved 162 writes a second
-# with a p95 gap of 7ms, and that read as a smooth pan; a quarter-second step did not.
+# How often the pan writes, and how quickly it closes on its target. Only needs to be comfortably
+# faster than the client renders; about 6 ms read as smooth, a quarter second did not.
 PAN_INTERVAL = 0.006
 # Time constant, in seconds: the camera closes 63% of its remaining distance in this long. An
 # exponential approach rather than a fixed fraction per tick, so the pan looks the same however
@@ -101,19 +76,12 @@ class _Aimable(Protocol):
 
 
 class CameraPan:
-    """Eases the camera toward a target on its own clock.
+    """Eases the camera toward a target on its own thread.
 
-    **Why this is a thread and not a call.** A policy decides what is worth watching every
-    couple of seconds; a pan has to move every few milliseconds. Easing one step per decision
-    is a jump every two seconds, which is what a viewer calls snapping. Splitting the two lets
-    the policy say *where* at its own pace and this say *how* at the client's.
-
-    Safe to run alongside everything else because of what it writes: the camera is client
-    state, no logic reads it, and `look_at` reaches the view's position field directly without
-    the bridge's command slot - so this shares no handshake with orders and cannot delay one.
-
-    **It stops writing once it arrives**, which is what leaves the keyboard usable: a settled
-    pan is silent, so a human can take the camera back until the next `aim`.
+    A policy decides where to look every couple of seconds, but a smooth pan moves every few
+    milliseconds, so the two run separately. It writes only the view's position field (no bridge
+    command), so it cannot delay an order. It stops writing once it arrives, leaving the keyboard to
+    the player until the next `aim`.
     """
 
     def __init__(

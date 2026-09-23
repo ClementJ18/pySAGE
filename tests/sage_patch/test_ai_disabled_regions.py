@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches.experimental.ai_disabled_regions import NOPS, AiDisabledRegionsPatch
+from sage_patch.patches.ai_disabled_regions import NOPS, AiDisabledRegionsPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import _sparse_image
@@ -112,9 +112,10 @@ class TestApply:
 
 
 class TestRegistration:
-    def test_it_is_registered_and_experimental(self) -> None:
+    def test_it_is_registered_and_settled(self) -> None:
+        """It lives outside `patches/experimental/`, so it must not carry the warning."""
         assert PATCHES["ai-disabled-regions"] is AiDisabledRegionsPatch
-        assert AiDisabledRegionsPatch().experimental is True
+        assert AiDisabledRegionsPatch().experimental is False
 
     def test_the_description_names_the_trigger(self) -> None:
         assert "DisableRegions" in AiDisabledRegionsPatch.description

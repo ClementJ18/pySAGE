@@ -470,9 +470,9 @@ already passes in CI; everything above it needs the game.
    This one is already covered: the tests apply all three flag combinations, verify each, reject
    each against the other two's settings, and round-trip through `apply_patches`.
 
-## Appendix — a correction to `addresses.py`
+## Appendix — a correction to `sage_patch.addresses`
 
-The note above `THE_SCIENCE_STORE` (`sage_patch/addresses.py:335`) says the store's elements are
+The note above `THE_SCIENCE_STORE` (`sage_patch/addresses/player.py`) says the store's elements are
 "separately allocated at *different sizes*, so no fixed offset names them and it is still
 unwalked". That is not what the binary does. `INI::parseScienceDefinition` allocates `ScienceInfo`
 at three sites (`0x005FF831`, `0x005FF888`, `0x005FF8E0`) and every one is `push 0x34`; the

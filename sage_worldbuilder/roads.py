@@ -6,8 +6,8 @@ second an end flag, and both name the road type (a `Road` or `Bridge` of the gam
 has the end flag (`pMapObj2 && pMapObj2->getFlag(FLAG_ROAD_POINT2)`, WorldBuilder `0x01DEFBA8`).
 Every corpus road pair checked has matching types.
 
-Only `FLAG_ROAD_POINT2` is named in the exe. The other meanings are read off the corpus (see
-PHASE5.md): corner and join flags sit on both ends of a segment, a segment with neither corner
+Only `FLAG_ROAD_POINT2` is named in the exe. The other meanings are read off the corpus:
+corner and join flags sit on both ends of a segment, a segment with neither corner
 flag is a broad curve, and `0x10` / `0x20` start and end a bridge. `0x100` is set on 2,284 corpus
 objects that are not roads at all (ambient sound emitters among them), so it is not a road flag.
 """

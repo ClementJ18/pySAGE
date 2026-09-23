@@ -132,7 +132,7 @@ def _hook_target(data: bytes | bytearray, va: int, opcode: int) -> int:
     return va + 5 + struct.unpack_from("<i", data, off + 1)[0]
 
 
-# --- round trip ---------------------------------------------------------------------------------
+# Round trip
 
 
 @pytest.mark.parametrize("guard", [False, True])
@@ -195,7 +195,7 @@ def test_the_cli_round_trips_the_order_form() -> None:
     assert "guard" not in str(SmartRallyPatch())
 
 
-# --- the size, which every other edit depends on ------------------------------------------------
+# The size, which every other edit depends on
 
 
 class TestTheGrownModule:
@@ -225,7 +225,7 @@ class TestTheGrownModule:
         assert (first.mnemonic, first.op_str) == ("and", "dword ptr [esi + 0x44], 0")
 
 
-# --- the cave ------------------------------------------------------------------------------------
+# The cave
 
 
 class TestTheCave:
@@ -552,7 +552,7 @@ class TestTheMarkerRoutine:
         assert set(ends) == {0}, f"unbalanced exits at depths {sorted(set(ends))}"
 
 
-# --- the build fingerprint -----------------------------------------------------------------------
+# The build fingerprint
 
 
 class TestItRefusesAnotherBuild:
@@ -571,7 +571,7 @@ class TestItRefusesAnotherBuild:
         assert ANCHORS[EXIT_VTABLE + 0x2C] == struct.pack("<I", RELEASE_UNIT)
 
 
-# --- the real binaries ---------------------------------------------------------------------------
+# The real binaries
 
 #: Both copies a checkout can hold. The repo-root `game.dat` carries eleven modifications and is
 #: **not** stock, so a site is only safe to describe as stock when it agrees with the clean

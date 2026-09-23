@@ -100,8 +100,8 @@ resolved it to index 13 of 14, and `begin()` initialised the campaign at act 0 o
 
 - **The override is global.** It forces one campaign for every War of the Ring start until the line
   is removed. Right for authoring and testing; wrong for shipping. The shipping shape is a menu
-  entry that names a campaign, in the manner of [`campaign-select`](campaign-select.md) — see
-  [`living-world-parity.md`](living-campaign/living-world-parity.md) §1.
+  entry that names a campaign, in the manner of [`campaign-select`](../campaign-select.md) — see
+  [`living-world-parity.md`](living-world-parity.md) §1.
 - **This buys progression, not parity.** Acts now advance; the affordances BFME1's campaign was
   built on are a separate question, covered in the parity plan.
 

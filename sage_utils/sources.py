@@ -10,15 +10,32 @@ from pathlib import Path, PurePosixPath
 
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse_file
-from sage_ini.parser.io import read_text
-from sage_ini.stats import ini_root, root_files
+from sage_ini.parser.io import INI_SUFFIXES, read_text
+from sage_ini.paths import LOAD_SUFFIXES, STR_SUFFIX, ini_root, loadable_files, norm_key, root_files
 from sage_ini.strings import parse_str  # re-exported: the canonical .str parser
 from sage_utils.config import read_json, write_json
 from sage_utils.factiongraph.bases import collect_base_layouts
 
-INI_SUFFIXES = frozenset({".ini", ".inc", ".bhav"})
-STR_SUFFIX = ".str"
-LOAD_SUFFIXES = INI_SUFFIXES | {STR_SUFFIX}
+__all__ = [
+    "big_entry_basename",
+    "big_member_basenames",
+    "BSE_SUFFIX",
+    "build_merged",
+    "extract_big",
+    "GAME_SUFFIXES",
+    "INI_SUFFIXES",
+    "load_saved_sources",
+    "load_sources",
+    "LOAD_SUFFIXES",
+    "loadable_files",
+    "merge_shadowed",
+    "norm_key",
+    "save_sources",
+    "source_root",
+    "SOURCES_FILE",
+    "STR_SUFFIX",
+]
+
 # Base layouts (`.bse`) ride along with a full source load so the faction graph can
 # decompose castle/camp plots; the narrower LOAD_SUFFIXES stays for callers (the linter's
 # base layers) that don't want them.
@@ -41,21 +58,6 @@ def load_saved_sources(app: str = "sage_ui") -> list[tuple[str, str]]:
         if isinstance(item, list) and len(item) == 2 and all(isinstance(x, str) for x in item):
             sources.append((item[0], item[1]))
     return sources
-
-
-def norm_key(path) -> str:
-    """A source-relative path normalized to a lowercase forward-slash key."""
-    return str(path).replace("\\", "/").lstrip("/").lower()
-
-
-def loadable_files(folder: Path, suffixes: frozenset[str] = LOAD_SUFFIXES):
-    """Yield (relative-path key, absolute path) for each file in a folder whose suffix is in
-    `suffixes` (the ini/str the engine loads by default; callers that also want `.map`/`.bse`
-    layouts merged pass a wider set)."""
-    base = Path(folder)
-    for path in base.rglob("*"):
-        if path.is_file() and path.suffix.lower() in suffixes:
-            yield norm_key(path.relative_to(base)), path
 
 
 def big_entry_basename(name: str) -> str:

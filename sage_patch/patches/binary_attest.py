@@ -1,69 +1,12 @@
-"""The binary-attest patch: fold a hash of the game's own code into the frame checksum, so that
-a peer running a modified `game.dat` desyncs instead of playing.
+"""Fold a hash of the game's own code into the frame checksum, so a peer running a modified
+`game.dat` desyncs instead of playing.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is
-derived in ``../docs/binary-attest.md``.
+Shroud state is already in the sync hash, but a client that only changes how visibility is drawn
+keeps identical state and goes unnoticed. The patch appends an `.attest` section holding a hash of
+`.text` and of itself, and mixes it into the checksum. Replay playback is exempt. Every peer needs
+the byte-identical binary.
 
-**The gap it closes, stated precisely.** Fog of war is *already* in the sync hash: the CRC
-producer at ``0x00625886`` xfers ``TheShroudManager`` into the frame checksum alongside every
-other logic subsystem, guarded only by the ``-xShroudCRC`` debug flag. So a client whose shroud
-*state* diverges - one that writes revealer counts into the grid, the way a memory-editor
-maphack does - already goes out of sync against honest peers with no help from this patch.
-
-What that does **not** cover is a client whose shroud state agrees perfectly because nothing
-about the simulation was touched. The engine decides visibility with
-``0x00B4FAB0``, which computes "not visible" and then collapses it to "visible" when the fog
-byte at ``ShroudImpl+0x68`` is clear; the draw path consults that answer rather than producing
-it. Flip that byte, or take the branch out of the renderer, and every shroud level in the grid
-is byte-for-byte what an honest client holds. The state hash cannot see it, because the state
-did not change - only the code did.
-
-**What it does.** Appends an ``.attest`` PE section holding a hash slot plus a routine, and takes
-over the six bytes at the ``MSG_LOGIC_CRC`` emitter's join point (``0x0062E7FD``). The routine
-hashes the image's own executable bytes once, caches the result, and XORs it into the CRC value
-in ``edi`` before the engine appends it to the message. Two clients whose code differs by a
-single byte therefore publish different checksums from their first heartbeat, and the engine's
-existing out-of-sync machinery - the ``0x44A`` heartbeat every ``REPLAY_CRC_INTERVAL`` frames,
-the ``GameCRCMismatch`` message, the replay header's desync flag - does the rest. No new message
-type, no new wire format, nothing for a peer to opt into beyond running the same binary.
-
-**What is hashed.** Two ranges: the whole of ``.text``, and this section's own code. The image
-carries no ``.reloc`` and does not set ``DYNAMIC_BASE``, so the loader maps ``.text`` at
-``IMAGE_BASE`` and never rewrites a byte of it - the code in memory is the code in the file,
-which is what makes :func:`expected_hash` able to recompute the runtime value offline from the
-patched file. Including the cave's own code means an attacker who wants the honest value back
-has to edit the routine that computes it rather than nop a branch somewhere in ``.text``.
-
-**Playback is exempt, and cannot be abused to evade.** When ``TheRecorder``'s mode reads
-``PLAYBACK`` the routine leaves ``edi`` alone, so a replay recorded on any build still plays back
-against its own recorded checksums and ``sage_verify`` can follow one on an attested client. A
-cheater cannot use that to suppress the mix in a live game: a client that skipped it would
-publish an unmixed checksum while its peers published mixed ones, which is the same desync by
-the other route.
-
-**Honest limits, because this is anti-tamper and anti-tamper oversells itself.** The hash is
-computed by the client it is attesting. Whoever can patch the fog branch can patch this routine
-to return the value an honest build would produce; it is one more edit, not a wall. What the
-patch buys is that the edit is *necessary* - every code-level cheat, not just fog, now has to be
-paired with a second edit inside a routine that is deliberately awkward to skip - and that a
-casually modified binary fails immediately and visibly rather than playing on undetected. It
-buys nothing at all against an external overlay process that only reads memory, because lockstep
-hands every client the whole object table and nothing in the game's own code has to change for
-someone to draw it on a second monitor. See ``../docs/binary-attest.md`` section 6.
-
-**Composition.** Order-independent in the framework's sense: the cave is allocated past every
-existing section and :meth:`verify` finds it by name, and the only engine bytes it edits are the
-six at ``0x0062E7FD``, which no other bundled patch touches. It is **not** value-independent, and
-that is deliberate: the hash covers ``.text``, so applying any other patch changes it, and
-applying the same set of patches in a different order moves this section and changes it again.
-Peers must run the byte-identical file, which is the property being enforced.
-
-Section layout, at the base::
-
-    +0x00  ready        dword  0 until the hash has been computed
-    +0x04  hash         dword  the cached attestation value
-    +0x08  pad
-    +0x10  code                <- hashed, through to SECTION_LEN
+Derivation: `../docs/binary-attest.md`.
 """
 
 from __future__ import annotations
@@ -126,7 +69,7 @@ _MASK = 0xFFFFFFFF
 
 
 def _fold(digest: int, blob: bytes) -> int:
-    """FNV-1a over ``blob`` read as little-endian 32-bit words, exactly as the cave folds it."""
+    """FNV-1a over `blob` read as little-endian 32-bit words, exactly as the cave folds it."""
     if len(blob) % 4:
         raise ValueError(f"attested ranges are whole dwords; got {len(blob)} bytes")
     for (word,) in struct.iter_unpack("<I", blob):
@@ -135,14 +78,14 @@ def _fold(digest: int, blob: bytes) -> int:
 
 
 def expected_hash(data: bytes | bytearray) -> int:
-    """The value a patched ``game.dat`` will compute at runtime, recomputed from the file.
+    """The value a patched `game.dat` will compute at runtime, recomputed from the file.
 
     This is the whole point of hashing a range the loader does not rewrite: the attestation value
     is not a secret held only by a running process, it is a property of the file, so two people
     can compare binaries without either of them playing a game. `sage-patch attest` prints it,
     and `sage_verify` reads the live one out of a running process to check the two agree.
 
-    Raises ``ValueError`` if ``data`` does not carry the patch, because the honest answer to
+    Raises `ValueError` if `data` does not carry the patch, because the honest answer to
     "what will this file attest to" for an unpatched file is not a number.
     """
     located = find_section(data, SECTION_NAME)
@@ -160,11 +103,11 @@ def expected_hash(data: bytes | bytearray) -> int:
 
 
 def _build_code(base_va: int) -> bytes:
-    """The hook body. Runs on the logic thread, once every ``REPLAY_CRC_INTERVAL`` frames.
+    """The hook body. Runs on the logic thread, once every `REPLAY_CRC_INTERVAL` frames.
 
-    ``edi`` carries the frame checksum on entry and is the one register deliberately modified;
+    `edi` carries the frame checksum on entry and is the one register deliberately modified;
     everything else the emitter is mid-way through using is saved and restored. The displaced
-    ``mov ecx, [TheMessageStream]`` is re-emitted at the tail, so control returns to the
+    `mov ecx, [TheMessageStream]` is re-emitted at the tail, so control returns to the
     instruction after it with exactly the state the engine expected.
     """
     ready = base_va + READY_OFF
@@ -237,8 +180,8 @@ def _build_code(base_va: int) -> bytes:
 
 
 def build_section(base_va: int) -> bytes:
-    """The whole ``.attest`` payload: the ready flag, the hash slot, then code, zero-padded to
-    :data:`SECTION_LEN` so that the range the routine hashes over itself is a fixed constant."""
+    """The whole `.attest` payload: the ready flag, the hash slot, then code, zero-padded to
+    `SECTION_LEN` so that the range the routine hashes over itself is a fixed constant."""
     code = _build_code(base_va)
     room = SECTION_LEN - CODE_OFF
     if len(code) > room:
@@ -249,6 +192,7 @@ def build_section(base_va: int) -> bytes:
 class BinaryAttestPatch(Patch):
     name = "binary-attest"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Mix a hash of the game's own code into the frame checksum, so a peer running a "
         "modified game.dat goes out of sync instead of playing. No INI change; every peer needs "
@@ -278,10 +222,10 @@ class BinaryAttestPatch(Patch):
 
     @staticmethod
     def _check_text_section(data: bytes | bytearray) -> None:
-        """Raise unless ``.text`` is mapped exactly where the cave's immediates say it is.
+        """Raise unless `.text` is mapped exactly where the cave's immediates say it is.
 
         The hashed range is two constants baked into the routine, and there is no runtime check
-        behind them: a build whose ``.text`` started elsewhere, or ran shorter, would have the
+        behind them: a build whose `.text` started elsewhere, or ran shorter, would have the
         cave fold whatever happened to be at those addresses - which on a short section means
         reading off the end of the image and taking the process down mid-match.
         """
@@ -303,7 +247,7 @@ class BinaryAttestPatch(Patch):
 
     @staticmethod
     def _check_shroud_in_crc(data: bytes | bytearray) -> None:
-        """Raise unless the CRC producer still folds ``TheShroudManager`` into the checksum.
+        """Raise unless the CRC producer still folds `TheShroudManager` into the checksum.
 
         Not a site this patch edits - it is the premise the patch is *scoped* by. Attestation
         covers code, and the reason that is worth doing rather than also hashing the shroud grid

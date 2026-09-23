@@ -24,7 +24,7 @@ from sage_replay.replay import (
     parse_replay,
 )
 from sage_replay.retarget import RetargetError, retarget
-from sage_replay.serialize import serialize_replay
+from sage_replay.serialize import write_replay
 from sage_replay.translated import TranslatedReplay
 from sage_utils.stream import BinaryStream
 
@@ -138,7 +138,7 @@ def _source_replay() -> ReplayFile:
 
 def _document(tmp_path) -> tuple[TranslatedReplay, bytes]:
     """The synthetic recording translated under game A, plus its exact binary bytes."""
-    data = serialize_replay(_source_replay())
+    data = write_replay(_source_replay())
     replay_path = tmp_path / "source.BfME2Replay"
     replay_path.write_bytes(data)
     document = TranslatedReplay.from_replay(replay_path, parse_replay(data), _data_a())
@@ -154,7 +154,7 @@ def test_identity_retarget_is_byte_exact(tmp_path):
     # Source game == target game and no donor: the conversion must reproduce the recording
     # exactly - the definition of "nothing was lost on the way through the document".
     document, data = _document(tmp_path)
-    assert serialize_replay(retarget(document, _data_a())) == data
+    assert write_replay(retarget(document, _data_a())) == data
 
 
 def test_retarget_remaps_every_id_space(tmp_path):
@@ -179,7 +179,7 @@ def test_retarget_remaps_every_id_space(tmp_path):
     assert metadata.map_file == "maps/synthetic"
 
     # The emitted file is a real replay: it serializes and parses back.
-    assert parse_replay(serialize_replay(converted)).header.metadata.players[0].faction == 1
+    assert parse_replay(write_replay(converted)).header.metadata.players[0].faction == 1
 
 
 def test_donor_reidentifies_the_header(tmp_path):

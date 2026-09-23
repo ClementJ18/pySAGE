@@ -1,8 +1,10 @@
 # Why a scenario with `DisableRegions` crashes the War of the Ring AI
 
 Engine build `2.01.2614.37001`, ImageBase `0x400000`. **Read out of crash dumps and the
-disassembly, 2026-09-13.** The fix, [`ai-disabled-regions`](../../patches/experimental/ai_disabled_regions.py),
-is static only.
+disassembly, 2026-09-13.** The fix,
+[`ai-disabled-regions`](../../patches/ai_disabled_regions.py), is **runtime-verified in game** as
+of 2026-09-22 — the crash is gone. Whether the AI then plans into regions that are still disabled
+is a separate question and is still unchecked.
 
 ## The crash
 
@@ -69,7 +71,7 @@ and on reset (`0x006BD089`, immediately followed by the build at `0x006BD093`).
 
 ## The fix
 
-[`ai-disabled-regions`](../../patches/experimental/ai_disabled_regions.py) turns the `je` at
+[`ai-disabled-regions`](../../patches/ai_disabled_regions.py) turns the `je` at
 `0x00908076` into six `nop`s. Every region gets a node; the neighbour lists are computed for all of
 them exactly as they are today for enabled ones.
 

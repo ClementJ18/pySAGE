@@ -175,7 +175,7 @@ class TestComposition:
     """
 
     #: Every hook either patch installs, as ``{va: the stock bytes it replaces}``. Taken from
-    #: `addresses.py` rather than from a diff, because a diff under-reports: a replacement byte
+    #: `addresses` rather than from a diff, because a diff under-reports: a replacement byte
     #: that happens to equal the byte it replaced is still a byte the site owns, and the whole
     #: question here is who owns which bytes.
     HOOKS = {
@@ -242,9 +242,7 @@ class TestComposition:
             assert cls().verify(image) == [], f"{cls.name} did not survive {order}"
 
 
-# --------------------------------------------------------------------------------------------
 # Executing the two routines
-# --------------------------------------------------------------------------------------------
 
 
 class Machine:

@@ -546,7 +546,7 @@ def _run_scan(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     utf8_stdout()
     parser = argparse.ArgumentParser(prog="sage-save", description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -645,7 +645,11 @@ def main(argv: list[str] | None = None) -> int:
     diff.add_argument("--chunk", help="restrict to one chunk name")
     diff.add_argument("--all", action="store_true", help="also list chunks that are identical")
     diff.set_defaults(func=_run_diff)
+    return parser
 
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)
 

@@ -29,8 +29,7 @@ reporting the danglers - "will this save still load under this mod tree". Two cl
 harvested: object templates (`CHUNK_GameLogic`), which are *non-fatal* - the engine drops the
 object at load - and the upgrade/science names (`CHUNK_Players`, via `sage_save.players`),
 which are *fatal* - a dangling one aborts the load. The remaining classes (kind-of flags,
-command buttons) await a fuller chunk decode; see the work still to do in
-[sav_format.md](sav_format.md).
+command buttons) await a fuller chunk decode.
 
 The framing follows the GPL Generals/Zero Hour `XferSave` source
 (https://github.com/TheSuperHackers/GeneralsGameCode); the BFME container header, the
@@ -38,8 +37,7 @@ per-block `KOLB`/absolute-offset framing, and the chunk layouts were reverse-eng
 against real BFME2 skirmish saves and cross-validated on three saves across two maps with
 different factions (Dwarves/Wild and Mordor/Men on one map, Elves vs a Mordor/Men/Isengard
 team on another) - all round-trip byte-exact, all maps re-parse under `sage_map`, and the
-object/upgrade/science harvests recognise each save's real content. Full format notes:
-[sav_format.md](sav_format.md).
+object/upgrade/science harvests recognise each save's real content.
 
 ## Example
 

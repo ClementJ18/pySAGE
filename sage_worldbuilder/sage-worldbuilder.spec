@@ -8,6 +8,8 @@
 
 import os
 
+from PyInstaller.utils.hooks import copy_metadata
+
 # This spec lives in sage_worldbuilder/; anchor paths to the repo root so it builds from any cwd.
 ROOT = os.path.dirname(SPECPATH)
 PACKAGE = os.path.join(ROOT, 'sage_worldbuilder')
@@ -29,6 +31,15 @@ try:
 except ImportError:
     REFPACK = []
 
+# The installed version, which `sage_utils.bugreport` reads back out of the distribution's
+# metadata. A bundle does not carry that metadata unless it is asked to, and without it the
+# About box and every bug report filed from the exe say "unknown" - the one fact a report
+# about a frozen build cannot be worked out from anything else.
+try:
+    METADATA = copy_metadata('pysage-tools')
+except Exception:  # not installed (a source-tree build): the version is simply unknown
+    METADATA = []
+
 a = Analysis(
     [os.path.join(PACKAGE, 'ui', 'app.py')],
     pathex=[ROOT],
@@ -47,7 +58,7 @@ a = Analysis(
         (os.path.join(SHARED, 'dock_close_light.svg'), 'assets'),
         (os.path.join(SHARED, 'dock_float_dark.svg'), 'assets'),
         (os.path.join(SHARED, 'dock_float_light.svg'), 'assets'),
-    ] + REFPACK,
+    ] + REFPACK + METADATA,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

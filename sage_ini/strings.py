@@ -12,7 +12,7 @@ from pathlib import Path
 
 from sage_ini.parser.io import read_text
 from sage_ini.parser.location import Span
-from sage_ini.stats import is_map_path
+from sage_ini.paths import is_map_path
 
 __all__ = [
     "load_strings",

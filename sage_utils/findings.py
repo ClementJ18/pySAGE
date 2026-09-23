@@ -28,6 +28,13 @@ from PyQt6.QtWidgets import (
 from sage_utils.widgets import CopyableLabel as QLabel
 from sage_utils.widgets import saved_dark_theme, theme_notifier
 
+__all__ = [
+    "FindingsView",
+    "severity_color",
+    "SEVERITY_COLORS",
+    "SEVERITY_RANK",
+]
+
 # Severity text colour, per theme: the dark reds/ambers wash out on a white surface, so the
 # light theme gets its own darker, more saturated set (matching the palette in styles.py).
 SEVERITY_COLORS = {

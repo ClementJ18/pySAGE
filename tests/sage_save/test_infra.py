@@ -33,7 +33,7 @@ def _require(path: Path) -> Path:
     return path
 
 
-# --- the decoder registry ---
+# The decoder registry
 
 
 def test_registry_membership():
@@ -80,7 +80,7 @@ def test_registered_codec_round_trips(save_path, chunk_name):
     assert codec.encode(codec.decode(chunk)) == chunk.payload
 
 
-# --- coverage report ---
+# Coverage report
 
 
 def test_coverage_rows_partition_each_payload():
@@ -112,7 +112,7 @@ def test_coverage_summary_counts_decoded_chunks():
     assert by_name["CHUNK_GameStateMap"].status == "partial"
 
 
-# --- reversing aids: nested_block_tree ---
+# Reversing aids: nested_block_tree
 
 
 def _kolb(name: bytes | None, end_absolute: int) -> bytes:
@@ -163,7 +163,7 @@ def test_nested_block_tree_on_real_game_logic_has_nested_modules():
     assert lines[-1].startswith("...")
 
 
-# --- reversing aids: first_difference / format_divergence ---
+# Reversing aids: first_difference / format_divergence
 
 
 def test_first_difference():

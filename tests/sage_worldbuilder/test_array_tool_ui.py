@@ -25,7 +25,7 @@ from sage_map.assets.teams import Teams  # noqa: E402
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
 from sage_worldbuilder.arrays import Facing  # noqa: E402
-from sage_worldbuilder.objects import new_object  # noqa: E402
+from sage_worldbuilder.commands.objects import new_object  # noqa: E402
 from sage_worldbuilder.players import new_player  # noqa: E402
 from sage_worldbuilder.settings import Settings  # noqa: E402
 from sage_worldbuilder.teams import new_team  # noqa: E402

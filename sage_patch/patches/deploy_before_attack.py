@@ -1,69 +1,13 @@
-"""The deploy-before-attack patch: `MustDeployToAttack` also gates an attack the AI starts.
+"""Make `MustDeployToAttack` also apply to attacks the engine starts itself, not only to ordered
+ones.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/deploy-before-attack.md``.
+`DeployStyleAIUpdate` deploys only for a recorded command, and auto-acquire and attack-move never
+record one, so a trebuchet fires packed. Nine bytes at `DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH` jump to
+a cave that deploys when the unit is ready to move, has a current victim
+(`AIUpdateInterface::getCurrentVictim`) and that victim is in weapon range. Every peer needs the
+same binary.
 
-**The defect.** `MustDeployToAttack` is read in exactly one place that decides anything:
-`DeployStyleAIUpdate::update`'s `READY_TO_MOVE` arm, and that arm is reached only once the module
-has a **recorded command** to resolve. A command is recorded only by `aiDoCommand`, so only an
-order that travels as an `AICommandParms` makes a unit stand up - and almost nothing the engine
-starts on its own travels that way. A stationary unit sits in `AIGuardState`, whose `AIGuardMachine`
-acquires and attacks from `AIGuardInnerState`; a moving one is in `AIInternalMoveToState`, which
-drives the state machine to `AI_ATTACK_OBJECT` directly. Neither builds an `AICommandParms`, so a
-`MustDeployToAttack = Yes` trebuchet with an enemy in range fires packed.
-
-**What this does.** Stops asking *which command arrived* and asks *what the unit is doing*. Nine
-bytes at the head of `update`'s recorded-command resolution (`DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH`)
-become a jump into an appended cave that, before the stock resolution runs, deploys the unit when
-all of: no *targeted* command is recorded, the state is `READY_TO_MOVE`, `MustDeployToAttack` is
-set, `AIUpdateInterface::getCurrentVictim` returns an object, and the weapon says that object is in
-range. Everything else falls into the two stock arms exactly as before.
-
-**Why `getCurrentVictim`.** It reads `m_currentVictimID` at `AIUpdateInterface+0x40`, which the
-setter at `AI_SET_CURRENT_VICTIM` writes from all 27 of its call sites - the idle, move, guard,
-approach and pursue states alike - and which is cleared both when the AI stops attacking and when
-the victim dies. It is the one field that sees the attack however the engine started it. The
-attack-machine slots at `+0x20C` do not: a unit attacking out of its guard machine leaves them
-null, which is why the first version of this patch missed the common case entirely.
-
-**Nothing is written to the module.** The cave calls `setMyState(DEPLOY)` and jumps to
-`DEPLOY_STYLE_UPDATE_RESOLVED`, the point every arm of the resolution rejoins with nothing
-resolved - so it leaves no flag behind that could go stale when the target dies, and the next
-frame simply asks the same question again. `setMyState(DEPLOY)` opens with `aiIdle(CMD_FROM_AI)`,
-which is what takes the attack off the base state machine while the unit stands up; once
-`READY_TO_ATTACK` is reached the unit re-acquires on its own, deployed. That is the same way a
-player-ordered attack resumes after its deploy, so both routes now end in the same place.
-
-**Why the range test.** Without it a unit would stand up the moment it acquired something across
-the map and then walk to it deployed. The cave asks the same `Weapon::isTargetObjectInRange`
-question, with the same arguments, that `update` asks further down for a recorded target, so
-"close enough to shoot" means one thing in both places.
-
-**Why only the *targeted* flags keep it out of the way.** A player's attack order records
-`+0x595` (attack object) or `+0x596` (attack position), and the `READY_TO_MOVE` arm resolves those
-itself and deploys for them - so the cave stands aside, and that path is untouched. `+0x594` is
-different: it means "attack-ish, no explicit target" - guard, attack-move, hunt - and its arm can
-only find a target through the mood picker and the tracked id, both of which come back empty for a
-unit attacking out of its guard machine. Refusing to act while `+0x594` is set left a stationary
-guarding trebuchet firing packed, which is the case this patch exists for, so `+0x594` is
-deliberately not one of `DEPLOY_STYLE_TARGETED_COMMAND_OFFSETS`.
-
-**Every peer must run the same patched binary.** This changes when a logic-side state machine is
-told to deploy, so a patched and an unpatched client diverge on the first auto-acquire by a
-deploying unit, and replays do not cross - the same requirement `attack-requires-damage`,
-`multi-execute-gate` and `spawn-union` carry. There is **no INI change**: the keyword already
-exists, and `MustDeployToAttack = No` is untouched because the cave reads the same byte the stock
-arm reads and falls through when it is zero.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. The only engine bytes it edits are the nine at
-`DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH`, which no other bundled patch touches, and it reads nothing
-another patch rewrites.
-
-**Runtime-verified.** The predicate was checked twice by reading paused matches - it selects
-exactly the trebuchets that are packed with a victim in range, including the guarding one with
-`+0x594` recorded that an earlier revision refused, and leaves the already-deployed ones alone -
-and the finished patch was then confirmed in a live game: siege deploys before its first shot.
+Derivation: `../docs/deploy-before-attack.md`.
 """
 
 from __future__ import annotations
@@ -147,7 +91,7 @@ ANCHORS = {
 
 
 def update_field(offset: int) -> bytes:
-    """``offset`` - a module field, counted from the module - as `update` addresses it.
+    """`offset` - a module field, counted from the module - as `update` addresses it.
 
     `update` biases `esi` to `this + 0x10` for its whole body, so every field the cave shares with
     `aiDoCommand` is named 0x10 lower here. Doing that subtraction in one place is what keeps the
@@ -222,6 +166,7 @@ def build_cave(base_va: int) -> bytes:
 class DeployBeforeAttackPatch(Patch):
     name = "deploy-before-attack"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Make `MustDeployToAttack` gate an attack the AI starts, not just one the player orders. "
         "A `DeployStyleAIUpdate` unit that acquires a target on its own - idle, on the move or "

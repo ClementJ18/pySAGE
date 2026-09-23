@@ -1,21 +1,23 @@
-"""Registry of installable patches, keyed by :attr:`Patch.name`, that the ``sage-patch`` CLI
+"""Registry of installable patches, keyed by `Patch.name`, that the `sage-patch` CLI
 lists, applies and verifies. Add a patch here to expose it on the command line.
 
-Patches imported from :mod:`sage_patch.patches.experimental` are **unstable and largely untested**
-and set :attr:`Patch.experimental`, which is what makes `list` mark them and `apply` warn. They are
+Patches imported from `sage_patch.patches.experimental` are **unstable and largely untested**
+and set `Patch.experimental`, which is what makes `list` mark them and `apply` warn. They are
 registered rather than hidden on purpose - a patch nobody can run is a patch nobody can find the
 problem in, and the warning is the thing that makes offering it honest.
 
 That attribute is also what orders them: the settled patches come first and the experimental ones
-after, each block alphabetical (see :func:`_order`). Everything that walks the registry inherits
-it, so a patch is added to :data:`_REGISTERED` wherever its import goes and lands in the right
+after, each block alphabetical (see `_order`). Everything that walks the registry inherits
+it, so a patch is added to `_REGISTERED` wherever its import goes and lands in the right
 place in every list on its own."""
 
 from sage_patch.patcher import Patch
 from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
+from sage_patch.patches.ai_disabled_regions import AiDisabledRegionsPatch
 from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_hero_build_delay import AiHeroBuildDelayPatch
+from sage_patch.patches.ai_rebuild_gate import AiRebuildGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
 from sage_patch.patches.asset_load_profile import AssetLoadProfilePatch
 from sage_patch.patches.attack_requires_damage import AttackRequiresDamagePatch
@@ -46,7 +48,7 @@ from sage_patch.patches.desert_weather import (
 from sage_patch.patches.desync_debug import DesyncDebugPatch
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
 from sage_patch.patches.draw_module_scale import DrawModuleScalePatch
-from sage_patch.patches.experimental.ai_disabled_regions import AiDisabledRegionsPatch
+from sage_patch.patches.experimental.accel_module import AccelModulePatch
 from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
 from sage_patch.patches.experimental.capture_the_flag import CaptureTheFlagPatch
@@ -70,6 +72,7 @@ from sage_patch.patches.experimental.spellbook_hotkeys import SpellbookHotkeysPa
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
 from sage_patch.patches.experimental.wall_layer_promotion import WallLayerPromotionPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
+from sage_patch.patches.forbidden_upgrades import ForbiddenUpgradesPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
 from sage_patch.patches.healing_received import (
@@ -150,15 +153,17 @@ from sage_patch.patches.worldbuilder_silent_errors import (
 from sage_patch.patches.wotr_battle_observers import WotrBattleObserversPatch
 
 #: Every registered patch, in class-name order so a new one is added beside its import. This is
-#: **not** the order they are presented in: :data:`PATCHES` is built from this by sorting, and
+#: **not** the order they are presented in: `PATCHES` is built from this by sorting, and
 #: every command that walks the registry - `list`, the `apply` and `verify` sub-command lists,
 #: `sagepatch` - inherits that order rather than an order maintained by hand here.
 _REGISTERED: tuple[type[Patch], ...] = (
+    AccelModulePatch,
     AiCommandNullTargetPatch,
     AiConstructionGatePatch,
     AiDisabledRegionsPatch,
     AiFlagCaptureGatePatch,
     AiHeroBuildDelayPatch,
+    AiRebuildGatePatch,
     AiReviveGatePatch,
     AssetLoadProfilePatch,
     AttackRequiresDamagePatch,
@@ -191,6 +196,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     DetachableRiderHealPatch,
     DrawModuleScalePatch,
     FireAtAttackerPatch,
+    ForbiddenUpgradesPatch,
     FoundationRebindPatch,
     GiveUpgradeAllPatch,
     HeadlessPatch,
@@ -288,7 +294,7 @@ def _order(cls: type[Patch]) -> tuple[bool, str]:
 
 
 #: The name -> patch map the CLI dispatches over, in the order everything lists them: see
-#: :func:`_order`. Dicts keep insertion order, so iterating this is already sorted.
+#: `_order`. Dicts keep insertion order, so iterating this is already sorted.
 PATCHES: dict[str, type[Patch]] = {cls.name: cls for cls in sorted(_REGISTERED, key=_order)}
 
 __all__ = ["PATCHES"]

@@ -152,7 +152,7 @@ with the latch clear throughout, so the configuration is capable of staying in s
 
 - The CRC that is compared is produced at `0x00625886` and emitted as `MSG_LOGIC_CRC` (`0x44A`)
   from `0x0062E7FD` — [`message-stream.md`](message-stream.md) §1, and
-  `LOGIC_CRC_EMIT` in [`../addresses.py`](../addresses.py).
+  `LOGIC_CRC_EMIT` in [`../addresses/`](../addresses/logic.py).
 - That same `0x44A` heartbeat is recorded in every replay, which is what makes two players'
   replays of one match diffable after the fact — `sage_replay.replay.OrderType.ChecksumHeartbeat`.
 - [`binary-attest.md`](binary-attest.md) mixes a hash of `.text` into that CRC on purpose, so a

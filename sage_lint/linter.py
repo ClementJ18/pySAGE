@@ -26,7 +26,7 @@ from sage_ini.parser.blockparser import parse_file
 from sage_ini.parser.diagnostics import Diagnostic, Diagnostics
 from sage_ini.parser.io import ASSET_SUFFIXES, MAP_SUFFIXES, iter_asset_files
 from sage_ini.parser.location import Span
-from sage_ini.stats import ini_root, is_map_path
+from sage_ini.paths import ini_root, is_map_path
 from sage_lint.rules.base import Rule, run_rules
 from sage_lint.suppressions import filter_suppressed
 from sage_utils import progress

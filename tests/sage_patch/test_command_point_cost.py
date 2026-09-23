@@ -142,7 +142,7 @@ def _live_entries() -> tuple[tuple[int, int, int, int], ...]:
     return tuple((vas[name], INI_PARSE_BOOL, 0, offset) for name, offset in STOCK_FIELDS)
 
 
-# --- the field's home ------------------------------------------------------------------------
+# The field's home
 
 
 def test_new_field_lands_in_alignment_padding() -> None:
@@ -189,7 +189,7 @@ def test_the_allocation_size_is_asserted_and_never_written(image: bytearray) -> 
     assert _read(image, alloc_va, 5) == before
 
 
-# --- the rebuilt table -----------------------------------------------------------------------
+# The rebuilt table
 
 
 def test_table_keeps_the_live_rows_verbatim() -> None:
@@ -209,7 +209,7 @@ def test_table_appends_one_unsigned_short_row_and_a_terminator() -> None:
     assert table[-FIELD_PARSE_STRIDE:] == bytes(FIELD_PARSE_STRIDE)
 
 
-# --- the cave's code -------------------------------------------------------------------------
+# The cave's code
 
 
 def _decode_jmp(code: bytes, base: int, at: int) -> int:
@@ -283,7 +283,7 @@ def test_gate_routine_carries_its_total_across_the_call_on_the_stack() -> None:
     assert body.count(bytes([0x50])) == body.count(bytes([0x5A])) == 1
 
 
-# --- the live-register rule --------------------------------------------------------------------
+# The live-register rule
 
 
 def test_ecx_is_live_across_the_hook_window() -> None:
@@ -384,7 +384,7 @@ def test_code_is_position_independent() -> None:
     assert len(differing) <= 4 * 4  # the three rel32 jumps out of the cave and the one call
 
 
-# --- apply -------------------------------------------------------------------------------------
+# Apply
 
 
 def test_apply_writes_both_hooks(image: bytearray) -> None:
@@ -448,7 +448,7 @@ def test_ini_surface_names_the_field_it_installed(image: bytearray) -> None:
     ]
 
 
-# --- verify ------------------------------------------------------------------------------------
+# Verify
 
 
 def test_verify_clean_after_apply(image: bytearray) -> None:
@@ -508,7 +508,7 @@ def test_detect_finds_nothing_in_an_unpatched_image(image: bytearray) -> None:
     assert CommandPointCostPatch.detect(image) is None
 
 
-# --- refusals ----------------------------------------------------------------------------------
+# Refusals
 
 
 def test_apply_refuses_a_second_time(image: bytearray) -> None:
@@ -562,7 +562,7 @@ def test_constructor_refuses_an_unparseable_keyword(keyword: str) -> None:
         CommandPointCostPatch(keyword=keyword)
 
 
-# --- composition -------------------------------------------------------------------------------
+# Composition
 
 
 def _composable_image() -> bytearray:

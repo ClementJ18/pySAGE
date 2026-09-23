@@ -144,9 +144,9 @@ own overlay package (`sage_edain.map_checks`, in [pySAGE-edain](https://github.c
 
 ## Desktop UI
 
-A PyQt6 front end ships under `sage_lint/plugins/ui` (install the `lint-ui` extra):
+A PyQt6 front end ships under `sage_lint/ui` (install the `lint-ui` extra):
 
 ```sh
 pip install "pysage-tools[lint-ui]"   # from a checkout: pip install -e ".[lint-ui]"
-sage-lint-ui                     # or: python -m sage_lint.plugins.ui.app
+sage-lint-ui                     # or: python -m sage_lint.ui.app
 ```

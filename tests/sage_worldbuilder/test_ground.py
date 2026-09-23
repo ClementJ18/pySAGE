@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from sage_worldbuilder.objects import new_object
+from sage_worldbuilder.commands.objects import new_object
 from sage_worldbuilder.waypoints import new_waypoint
 
 # A 40 x 40 pad at 8 feet, as two triangles.

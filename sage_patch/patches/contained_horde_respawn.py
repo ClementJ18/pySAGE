@@ -1,57 +1,12 @@
-"""The contained-horde-respawn patch: let `AffectsContained` replenish the battalion it heals.
+"""Let `AutoHealBehavior`'s `AffectsContained` also replenish the battalions it heals, when
+`RespawnNearbyHordeMembers` is set.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../docs/contained-horde-respawn.md``.
+The two options are separate arms of one if/else, so a garrison can heal its passengers or replenish
+battalions around it, never both, and nothing replenishes a contained battalion. The contained arm's
+closing jump (`AUTO_HEAL_CONTAINED_EXIT`) goes to a cave that runs the stock replenish on each
+battalion passenger. No INI change.
 
-**The gap.** `AutoHealBehavior::update` (``AUTO_HEAL_UPDATE``) is an if/else chain over four
-`ModuleData` flags, and `RespawnNearbyHordeMembers` is read at exactly one site in the whole image,
-inside the fourth arm - the radius scan. `AffectsContained` is the second arm and leaves through
-``AUTO_HEAL_CONTAINED_EXIT`` long before it. So the two fields are mutually exclusive as shipped:
-a garrison tower can heal the battalion inside it, or replenish battalions standing around it, and
-writing both keyword lines silently gets only the first.
-
-That leaves no way at all to replenish a **contained** battalion. The radius arm only ever sees
-what a `ThePartitionManager` range query returns, and so does `ReplenishUnitsBehavior`, the only
-other module in the engine that repopulates a horde.
-
-**What the patch does.** Five bytes and a cave. ``AUTO_HEAL_CONTAINED_EXIT`` is the
-`AffectsContained` arm's closing `jmp` to the shared tail, with nothing else in it, so replacing it
-with a jump into a ``.cnthrd`` cave adds a step to that arm and nothing to any other. The cave
-re-checks the same `RespawnNearbyHordeMembers` and `RespawnMinimumDelay` the radius arm checks,
-walks the container's passengers, and runs the transcribed respawn block on each one before
-returning to ``AUTO_HEAL_UPDATE_TAIL``, which is where the five bytes went anyway. The sleep the
-module asks for is unchanged.
-
-**No INI change.** No keyword, no token, no `.str` key. `RespawnNearbyHordeMembers` is the switch
-it already is, and a module without `AffectsContained` never reaches the new code, so every
-existing object behaves exactly as before. What changes is that the two lines together now mean
-something::
-
-    Behavior = AutoHealBehavior ModuleTag_HearthHeal
-        StartsActive              = Yes
-        AffectsContained          = Yes
-        RespawnNearbyHordeMembers = Yes
-        RespawnFXList             = FX_BannerCarrierSpawnUnit
-        RespawnMinimumDelay       = 1
-        HealingDelay              = 10000
-        HealingAmount             = 35
-    End
-
-**The gates are the stock ones.** Per passenger: `KindOf HORDE` on its template, not
-`UNDER_CONSTRUCTION`, a non-NULL horde interface, and live members below that contain's `Slots`.
-A passenger that is not a battalion costs one `test` and is skipped, so a transport full of
-infantry pays almost nothing. The respawn timestamp is the same module field the radius arm stamps,
-so a module cannot respawn through both arms in one tick - and it could not anyway, because the two
-arms are exclusive.
-
-**Cadence.** The update reschedules itself `HealingDelay` frames out, so that is the ceiling on how
-often the cave runs whatever `RespawnMinimumDelay` says. This patch does not change that, and a mod
-wanting a faster replenish lowers `HealingDelay`.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`~ContainedHordeRespawnPatch.verify` finds it by name. The five engine bytes it edits are at
-``AUTO_HEAL_CONTAINED_EXIT``, which no other bundled patch touches, and it reads nothing another
-patch rewrites.
+Derivation: `../docs/contained-horde-respawn.md`.
 """
 
 from __future__ import annotations
@@ -86,7 +41,7 @@ from ..addresses import (
 )
 from ..asm import JAE, JB, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, file_offset, find_section
 
 __all__ = [
     "SECTION_NAME",
@@ -109,7 +64,7 @@ def _ebp(slot: int) -> int:
 
 
 def _call_slot(slot: int) -> bytes:
-    """``call dword [eax+slot]`` - a vtable call through a vtable already loaded into `eax`."""
+    """`call dword [eax+slot]` - a vtable call through a vtable already loaded into `eax`."""
     return b"\xff\x90" + struct.pack("<I", slot)
 
 
@@ -119,7 +74,7 @@ def _emit_callback(a: Asm) -> None:
 
     The shape is `0x0085584B`'s, the callback the stock `AffectsContained` arm passes the same
     slot: two arguments, no return value, and a plain `ret` because the iterator cleans them. The
-    body is the respawn block at ``AUTO_HEAL_RESPAWN_BLOCK`` with the object it works on coming
+    body is the respawn block at `AUTO_HEAL_RESPAWN_BLOCK` with the object it works on coming
     from the argument rather than from a partition iterator.
 
     `ebx`, `esi` and `edi` are saved and restored, so the engine's iterator gets its callee-saved
@@ -188,14 +143,14 @@ def _emit_callback(a: Asm) -> None:
 
 
 def _emit_entry(a: Asm) -> None:
-    """The hook body, entered from ``AUTO_HEAL_CONTAINED_EXIT`` with the `AffectsContained` arm
+    """The hook body, entered from `AUTO_HEAL_CONTAINED_EXIT` with the `AffectsContained` arm
     finished healing.
 
     `ebx` is the `ModuleData` and `edi` the `ContainModuleInterface` the arm selected - the object's
     own, or for a module on a passenger the one containing it. Both are callee-saved and the only
     two calls since `edi`'s last write are `AutoHealBehavior::healObject` and the arm's list
     destructor, so both still hold what the arm put in them. Every path leaves through
-    ``AUTO_HEAL_UPDATE_TAIL``, which is where the five replaced bytes went.
+    `AUTO_HEAL_UPDATE_TAIL`, which is where the five replaced bytes went.
     """
     a.label("entry")
     # `RespawnNearbyHordeMembers`. Off is the overwhelming majority of `AutoHealBehavior`s in a
@@ -249,13 +204,6 @@ def build_code(base_va: int) -> bytes:
     return a.finish()
 
 
-def _offset(data: bytes | bytearray, va: int) -> int:
-    off = va_to_offset(data, va)
-    if off is None:
-        raise ValueError(f"VA 0x{va:08x} is not mapped - not the expected build")
-    return off
-
-
 class ContainedHordeRespawnPatch(Patch):
     """Run `AutoHealBehavior`'s horde respawn on the passengers `AffectsContained` heals."""
 
@@ -277,7 +225,7 @@ class ContainedHordeRespawnPatch(Patch):
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)
-        exit_off = _offset(data, AUTO_HEAL_CONTAINED_EXIT)
+        exit_off = file_offset(data, AUTO_HEAL_CONTAINED_EXIT)
 
         section_va = allocate_section(data, SECTION_NAME, build_code, _CHARACTERISTICS)
         jump = b"\xe9" + struct.pack("<i", section_va - (AUTO_HEAL_CONTAINED_EXIT + 5))
@@ -293,7 +241,7 @@ class ContainedHordeRespawnPatch(Patch):
     def verify(self, data: bytes | bytearray) -> list[str]:
         problems: list[str] = []
         try:
-            exit_off = _offset(data, AUTO_HEAL_CONTAINED_EXIT)
+            exit_off = file_offset(data, AUTO_HEAL_CONTAINED_EXIT)
         except ValueError as exc:
             return [str(exc)]
 
@@ -331,7 +279,7 @@ class ContainedHordeRespawnPatch(Patch):
         cave transcribes, and the four routine entries are what it calls.
         """
         for va, expected in AUTO_HEAL_ANCHORS.items():
-            got = bytes(data[_offset(data, va) :][: len(expected)])
+            got = bytes(data[file_offset(data, va) :][: len(expected)])
             if got != expected:
                 raise ValueError(
                     f"unexpected build: 0x{va:08x} is {got.hex()}, expected {expected.hex()} - "

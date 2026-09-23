@@ -4,6 +4,17 @@ from typing import TYPE_CHECKING, Self, cast
 
 from ..context import AssetPropertyType
 
+__all__ = [
+    "OrCondition",
+    "PlayerScriptsList",
+    "Script",
+    "ScriptArgument",
+    "ScriptArgumentType",
+    "ScriptDerived",
+    "ScriptGroup",
+    "ScriptList",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -108,7 +119,7 @@ class ScriptArgument:
 
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
-        argument_type = ScriptArgumentType(context.stream.readUInt32())
+        argument_type = ScriptArgumentType(context.stream.read_uint32())
         int_value = None
         float_value = None
         string_value = None
@@ -116,14 +127,14 @@ class ScriptArgument:
 
         if argument_type == ScriptArgumentType.POSITION_COORDINATE:
             position_value = (
-                context.stream.readFloat(),
-                context.stream.readFloat(),
-                context.stream.readFloat(),
+                context.stream.read_float(),
+                context.stream.read_float(),
+                context.stream.read_float(),
             )
         else:
-            int_value = context.stream.readInt32()
-            float_value = context.stream.readFloat()
-            string_value = context.stream.readUInt16PrefixedAsciiString()
+            int_value = context.stream.read_int32()
+            float_value = context.stream.read_float()
+            string_value = context.stream.read_uint16_prefixed_ascii_string()
 
         return cls(
             type=argument_type,
@@ -134,23 +145,23 @@ class ScriptArgument:
         )
 
     def write(self, context: "WritingContext") -> None:
-        context.stream.writeUInt32(self.type.value)
+        context.stream.write_uint32(self.type.value)
 
         if self.type == ScriptArgumentType.POSITION_COORDINATE:
             if self.position_value is None:
                 raise ValueError("position_value must be set for Coordinate arguments")
-            context.stream.writeFloat(self.position_value[0])
-            context.stream.writeFloat(self.position_value[1])
-            context.stream.writeFloat(self.position_value[2])
+            context.stream.write_float(self.position_value[0])
+            context.stream.write_float(self.position_value[1])
+            context.stream.write_float(self.position_value[2])
         else:
             if self.int_value is None or self.float_value is None or self.string_value is None:
                 raise ValueError(
                     "int_value, float_value, and string_value must be set "
                     "for non-Coordinate arguments"
                 )
-            context.stream.writeInt32(self.int_value)
-            context.stream.writeFloat(self.float_value)
-            context.stream.writeUInt16PrefixedAsciiString(self.string_value)
+            context.stream.write_int32(self.int_value)
+            context.stream.write_float(self.float_value)
+            context.stream.write_uint16_prefixed_ascii_string(self.string_value)
 
 
 @dataclass
@@ -177,13 +188,13 @@ class ScriptDerived:
         has_is_inverted: bool,
     ) -> Self:
         with context.read_asset() as asset_ctx:
-            content_type = context.stream.readUInt32()
+            content_type = context.stream.read_uint32()
 
             internal_name = None
             if asset_ctx.version >= has_internal_name_version:
                 internal_name = context.parse_asset_property_key()
 
-            num_arguments = context.stream.readUInt32()
+            num_arguments = context.stream.read_uint32()
             arguments = []
             for _ in range(num_arguments):
                 arguments.append(ScriptArgument.parse(context))
@@ -191,10 +202,10 @@ class ScriptDerived:
             is_enabled = None
             is_inverted = None
             if asset_ctx.version >= has_is_enabled_version:
-                is_enabled = context.stream.readBoolUInt32()
+                is_enabled = context.stream.read_bool_uint32()
 
                 if has_is_inverted:
-                    is_inverted = context.stream.readBoolUInt32()
+                    is_inverted = context.stream.read_bool_uint32()
 
         context.logger.debug("Finished parsing ScriptDerived")
         return cls(
@@ -211,7 +222,7 @@ class ScriptDerived:
 
     def write(self, context: "WritingContext", asset_name: str) -> None:
         with context.write_asset(asset_name, self.version):
-            context.stream.writeUInt32(self.content_type)
+            context.stream.write_uint32(self.content_type)
 
             if self.version >= self.has_internal_name_version:
                 if self.internal_name is None:
@@ -221,15 +232,15 @@ class ScriptDerived:
                     raise ValueError("internal_name property key name must be set")
                 context.write_asset_property_key((key_type, key_index, key_name))
 
-            context.stream.writeUInt32(len(self.arguments))
+            context.stream.write_uint32(len(self.arguments))
             for argument in self.arguments:
                 argument.write(context)
 
             if self.version >= self.has_is_enabled_version:
-                context.stream.writeBoolUInt32(cast(bool, self.is_enabled))
+                context.stream.write_bool_uint32(cast(bool, self.is_enabled))
 
                 if self.has_is_inverted:
-                    context.stream.writeBoolUInt32(cast(bool, self.is_inverted))
+                    context.stream.write_bool_uint32(cast(bool, self.is_inverted))
 
 
 @dataclass
@@ -304,30 +315,30 @@ class Script:
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
-            name = context.stream.readUInt16PrefixedAsciiString()
+            name = context.stream.read_uint16_prefixed_ascii_string()
             context.logger.info(f"Parsing script: {name}")
-            comment = context.stream.readUInt16PrefixedAsciiString()
-            conditions_comment = context.stream.readUInt16PrefixedAsciiString()
-            actions_comment = context.stream.readUInt16PrefixedAsciiString()
+            comment = context.stream.read_uint16_prefixed_ascii_string()
+            conditions_comment = context.stream.read_uint16_prefixed_ascii_string()
+            actions_comment = context.stream.read_uint16_prefixed_ascii_string()
 
-            is_active = context.stream.readBool()
-            deactivate_upon_success = context.stream.readBool()
+            is_active = context.stream.read_bool()
+            deactivate_upon_success = context.stream.read_bool()
 
-            active_in_easy = context.stream.readBool()
-            active_in_medium = context.stream.readBool()
-            active_in_hard = context.stream.readBool()
+            active_in_easy = context.stream.read_bool()
+            active_in_medium = context.stream.read_bool()
+            active_in_hard = context.stream.read_bool()
 
-            is_subroutine = context.stream.readBool()
+            is_subroutine = context.stream.read_bool()
 
             evaluation_interval = None
             uses_evaluation_interval_type = False
             evaluation_interval_type = 6
             if asset_ctx.version >= 2:
-                evaluation_interval = context.stream.readUInt32()
+                evaluation_interval = context.stream.read_uint32()
 
                 if asset_ctx.version == 5:
-                    uses_evaluation_interval_type = context.stream.readBool()
-                    evaluation_interval_type = context.stream.readUInt32()
+                    uses_evaluation_interval_type = context.stream.read_bool()
+                    evaluation_interval_type = context.stream.read_uint32()
 
             actions_fire_sequentially = None
             loop_actions = None
@@ -335,23 +346,23 @@ class Script:
             sequential_target_type = None
             sequential_target_name = None
             if asset_ctx.version >= 3:
-                actions_fire_sequentially = context.stream.readBool()
-                loop_actions = context.stream.readBool()
-                loop_count = context.stream.readInt32()
-                sequential_target_type = context.stream.readBool()
-                sequential_target_name = context.stream.readUInt16PrefixedAsciiString()
+                actions_fire_sequentially = context.stream.read_bool()
+                loop_actions = context.stream.read_bool()
+                loop_count = context.stream.read_int32()
+                sequential_target_type = context.stream.read_bool()
+                sequential_target_name = context.stream.read_uint16_prefixed_ascii_string()
 
             unknown = None
             unknown2 = None
             unknown3 = None
             if asset_ctx.version >= 4:
-                unknown = context.stream.readUInt16PrefixedAsciiString()
+                unknown = context.stream.read_uint16_prefixed_ascii_string()
                 if unknown not in ("ALL", "Planning", "X"):
                     raise ValueError("Invalid data in 'unknown'")
 
             if asset_ctx.version >= 6:
-                unknown2 = context.stream.readInt32()
-                unknown3 = context.stream.readUInt16()
+                unknown2 = context.stream.read_int32()
+                unknown3 = context.stream.read_uint16()
                 if unknown3 != 0:
                     raise ValueError("Invalid data in 'unknown3'")
 
@@ -402,42 +413,42 @@ class Script:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt16PrefixedAsciiString(self.name)
-            context.stream.writeUInt16PrefixedAsciiString(self.comment)
-            context.stream.writeUInt16PrefixedAsciiString(self.conditions_comment)
-            context.stream.writeUInt16PrefixedAsciiString(self.actions_comment)
+            context.stream.write_uint16_prefixed_ascii_string(self.name)
+            context.stream.write_uint16_prefixed_ascii_string(self.comment)
+            context.stream.write_uint16_prefixed_ascii_string(self.conditions_comment)
+            context.stream.write_uint16_prefixed_ascii_string(self.actions_comment)
 
-            context.stream.writeBool(self.is_active)
-            context.stream.writeBool(self.deactivate_upon_success)
+            context.stream.write_bool(self.is_active)
+            context.stream.write_bool(self.deactivate_upon_success)
 
-            context.stream.writeBool(self.active_in_easy)
-            context.stream.writeBool(self.active_in_medium)
-            context.stream.writeBool(self.active_in_hard)
+            context.stream.write_bool(self.active_in_easy)
+            context.stream.write_bool(self.active_in_medium)
+            context.stream.write_bool(self.active_in_hard)
 
-            context.stream.writeBool(self.is_subroutine)
+            context.stream.write_bool(self.is_subroutine)
 
             if self.version >= 2:
-                context.stream.writeUInt32(cast(int, self.evaluation_interval))
+                context.stream.write_uint32(cast(int, self.evaluation_interval))
 
                 if self.version == 5:
-                    context.stream.writeBool(self.uses_evaluation_interval_type)
-                    context.stream.writeUInt32(self.evaluation_interval_type)
+                    context.stream.write_bool(self.uses_evaluation_interval_type)
+                    context.stream.write_uint32(self.evaluation_interval_type)
 
             if self.version >= 3:
-                context.stream.writeBool(cast(bool, self.actions_fire_sequentially))
-                context.stream.writeBool(cast(bool, self.loop_actions))
-                context.stream.writeInt32(cast(int, self.loop_count))
-                context.stream.writeBool(cast(bool, self.sequential_target_type))
-                context.stream.writeUInt16PrefixedAsciiString(
+                context.stream.write_bool(cast(bool, self.actions_fire_sequentially))
+                context.stream.write_bool(cast(bool, self.loop_actions))
+                context.stream.write_int32(cast(int, self.loop_count))
+                context.stream.write_bool(cast(bool, self.sequential_target_type))
+                context.stream.write_uint16_prefixed_ascii_string(
                     cast(str, self.sequential_target_name)
                 )
 
             if self.version >= 4:
-                context.stream.writeUInt16PrefixedAsciiString(cast(str, self.unknown))
+                context.stream.write_uint16_prefixed_ascii_string(cast(str, self.unknown))
 
             if self.version >= 6:
-                context.stream.writeInt32(cast(int, self.unknown2))
-                context.stream.writeUInt16(cast(int, self.unknown3))
+                context.stream.write_int32(cast(int, self.unknown2))
+                context.stream.write_uint16(cast(int, self.unknown3))
 
             for or_condition in self.or_conditions:
                 context.write_asset_name(OrCondition.asset_name)
@@ -467,9 +478,9 @@ class ScriptGroup:
     @classmethod
     def parse(cls, context: "ParsingContext") -> Self:
         with context.read_asset() as asset_ctx:
-            name = context.stream.readUInt16PrefixedAsciiString()
-            is_active = context.stream.readBool()
-            is_subroutine = context.stream.readBool()
+            name = context.stream.read_uint16_prefixed_ascii_string()
+            is_active = context.stream.read_bool()
+            is_subroutine = context.stream.read_bool()
 
             items = []
 
@@ -503,9 +514,9 @@ class ScriptGroup:
 
     def write(self, context: "WritingContext") -> None:
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt16PrefixedAsciiString(self.name)
-            context.stream.writeBool(self.is_active)
-            context.stream.writeBool(self.is_subroutine)
+            context.stream.write_uint16_prefixed_ascii_string(self.name)
+            context.stream.write_bool(self.is_active)
+            context.stream.write_bool(self.is_subroutine)
 
             for item in self.items:
                 if isinstance(item, ScriptGroup):

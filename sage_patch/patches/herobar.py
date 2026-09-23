@@ -1,236 +1,15 @@
-"""`HEROBAR` and `HEROBAR_GROUP` - two kindofs that put an object on the hero bar without making it
-a `HERO`.
+"""Add two kindofs that put an object on the hero bar without making it a `HERO`.
 
-Neither is a `HERO`, so nothing that asks "is this a hero" - armour, targeting, the AI, scripts,
-`ExcludedKindOf` lists - answers differently for either one. They differ only in how many slots the
-instances of a template take.
+- `HEROBAR`: a slot per object, drawn and clicked like a hero's.
+- `HEROBAR_GROUP`: one slot per template, showing how many there are; clicking steps through
+  the members one at a time.
 
-**`HEROBAR`** is a slot per object. It is drawn with the rank, health, highlight and flash every
-other slot has, clicking it selects that object, and nothing else about the object changes.
+Neither is a `HERO`, so armour, targeting, the AI and scripts are unaffected. The patch spends the
+last two free `KindOfMaskType` bits, so no third kindof can be added (see `.kind_of`). A template
+carrying both is grouped. A second click on the same slot soon after the first jumps the camera to
+it. `HeroBarWorldbuilderPatch` teaches the editor the same tokens.
 
-**`HEROBAR_GROUP`** is a slot per *template*: every instance of one `ThingTemplate` shares **one**
-slot, that slot draws **how many members the group has** where a hero's slot draws its rank, and
-clicking it selects the members **one at a time** - click again for the next one, the way `PORTER`
-steps through porters. It is still not what `PORTER` does: `PORTER` collapses every porter into a
-**single** slot whatever template it came from, so its grouping key is nothing at all where this
-one is the template.
-
-One patch adds both, because both bits are spent either way: `KindOfMaskType` has exactly two free
-bits and this takes them, so a binary carrying this patch has no room for a third added kindof (see
-:mod:`.kind_of`). The choice that matters is per template rather than per binary anyway - `HEROBAR`
-on something there is one of, `HEROBAR_GROUP` on something there are many of - and a mod wants both
-answers available at once.
-
-A template carrying **both** kindofs is grouped: membership asks "either kindof" and the draw loop
-asks only `HEROBAR_GROUP`, so the group behaviour is what the pair adds up to.
-
-Why the grouping is small
--------------------------
-The hero bar already has the shape it needs, for porters, and almost all of it is generic:
-
-* the slot cache is `0x18` bytes x 16 at `bar+0x48`, and `slot+0x16` is a **"this slot is a
-  group" byte** that the click handler at `0x0092DBD6` already reads and dispatches on;
-* a group slot is drawn with the *same* ActionScript calls as a hero slot, so nothing about the
-  `.apt` movie changes;
-* `KindOfMaskType` has two free bits, so the kindofs themselves cost no data growth (see
-  :mod:`.kind_of`).
-
-So this patch adds no drawing code at all. Both kindofs put their objects on the **hero list** -
-the one the draw loop already walks, sorted, slot by slot - and grouping then does four small
-things around that loop: reset a per-pass set of templates before it starts, skip a node whose
-template has already been drawn this pass, mark the slot it did draw as a group, and hand the
-engine a member count where it was about to draw a rank. The engine draws the representative; the
-duplicates simply never reach a slot.
-
-The hooks, all five-to-seven-byte detours:
-
-============  ==========================  ===============  =====================================
-site          engine function             reads            what the detour adds
-============  ==========================  ===============  =====================================
-`0x0092CD7F`  `onObjectAdded`             either kindof    the object joins `HERO` on the way to
-                                                           the hero list
-`0x0092C439`  `onObjectRemoved` gate      either kindof    the object is a thing this function
-                                                           accepts
-`0x0092C467`  `onObjectRemoved` list      either kindof    ...and removes from the hero list
-`0x0092C911`  select-all-heroes, count    either kindof    a bar kindof that is not a `HERO` is
-                                                           not what that button selects
-`0x0092C999`  select-all-heroes, select   either kindof    ...and the same test in the pass that
-                                                           builds the selection
-`0x0092D36F`  draw-loop preheader         nothing          clear the per-pass template set
-`0x0092D3EE`  draw loop, per node         `HEROBAR_GROUP`  skip a drawn template; mark, count
-                                                           and poll it
-`0x0092D662`  draw loop, the highlight    the slot byte    a group slot lights up when *any*
-                                                           member is selected
-`0x0092DBD6`  click dispatch              the slot byte    a `2` in `slot+0x16` means "step the
-                                                           group"
-`0x0092BF4E`  hover, the tooltip pick     the slot byte    ...and that its tooltip is the unit's,
-                                                           not the porter's
-`0x008EC119`  the object tooltip builder  the object's id  add the group's own line under that
-                                                           unit's description
-============  ==========================  ===============  =====================================
-
-The removal pair is not optional bookkeeping for either kindof: without it a dead object's node
-stays on the hero list forever, because the stock gate accepts only `HERO` and `PORTER`.
-
-Neither is the select-all pair. `_OnBttnSelectAllHeroes` (`0x0092C8C4`) does not ask `HERO` at
-all - it walks the **slot array**, twice, and selects whatever each slot resolves to. Being on the
-bar is what that button means by "hero", so every object this patch put there came back selected.
-The two hooks apply one test, `HERO` first so that a template carrying `HERO` *and* a bar kindof
-still counts, and send a rejected object to each loop's own "next slot" label. Both passes get it
-because they have to agree: the first sizes the selection and the second fills it.
-
-The count badge
----------------
-A `PORTER` slot shows how many porters there are; a group slot here shows how many members the
-group has, and it costs no drawing code either. The number a hero slot draws is a single local,
-`[ebp-0x18]`, filled by the call at `0x0092D3AF` and then read three times - compared against the
-slot's cached number, formatted with the same wide `"%d"` at `0x00BDF1B0` the porter count uses,
-and cached. **All three of those reads happen after the `per_node` hook**, and the two reads that
-feed the level-up flash happen before it, so writing the count into that local is the entire badge:
-the rank still drives the flash, and the engine's own "has the number changed" test repaints the
-slot exactly when the count does.
-
-The count is not knowable when the representative is drawn, because its duplicates come later in
-the same pass. So the hook walks the rest of the list itself, applying the same two tests the draw
-loop applies to each node - `findObjectByID`, then the eligibility gate at `0x0092BBEF` - and
-counts the matches. Starting at the current node inclusive is exact: any earlier node of this
-template would have become the representative instead of this one.
-
-That walk is the badge's only real cost, and it is per drawn group per pass rather than per node.
-Past the sixteenth distinct template the per-pass set is full, and that path skips the count as
-well as the recording - a slot the engine is drawing ungrouped keeps the rank it was going to
-draw, rather than a count that would not match what the bar shows.
-
-The group highlight
--------------------
-The slot's lit state is `0x0092D662`, and stock it is one object's answer: resolve `[ebp-0x20]` to
-a `Drawable` and read the selected flag at `Drawable+0x43C`. On a group slot `[ebp-0x18]`'s object
-is the *representative*, so the icon stayed dark whenever the selected member was any of the
-others - which is most of the time on a group of more than one, and is not what `PORTER` does.
-
-The fix is a second reader of the walk the badge already does. Each member the count accepts is
-also asked for its drawable's selected flag, and the answer is OR-ed into a byte in the cave; the
-hook at `0x0092D662` then branches on that byte for a group slot and re-issues the displaced pair
-for every other one, landing on the engine's own `mov bl, 1` / `xor bl, bl`. So the slot cache at
-`slot+0x14` and the repaint test around it stay exactly as the engine wrote them.
-
-Two details make the byte safe to read a hundred instructions later. It is written in the same loop
-iteration that draws the slot, because `per_node` runs at `0x0092D3EE` and every path out of it
-that does not skip the node reaches `0x0092D662`. And it is cleared on entry to the group arm
-rather than beside the count, so a group past the sixteenth distinct template - the path that skips
-the count entirely - is drawn dark rather than inheriting the previous group's answer.
-
-The member is carried across the two calls in a cave word rather than a register, because
-`barAcceptsObject` and `Object::getDrawable` are both free to clobber every caller-saved one and
-the walker itself already occupies the stack slot.
-
-The group tooltip
------------------
-The hover handler (`0x0092BF34`) picks its tooltip off the **same** `slot+0x16` byte the click
-dispatches on, and stock it reads that byte as a flag: `cmp ..., 0 ; je` sends every non-zero
-value down the porter arm, which looks up the command button `NonCommand_SelectNearestBuilder`
-and shows its *"select nearest unit"* text. So a `2` inherited the porter's tooltip along with its
-own click behaviour.
-
-The hook makes the test three-way, the way the click dispatch already is. `1` reaches the porter
-arm untouched, and `0` **and** `2` both build the tooltip from the slot's own node - so a group
-slot is titled with its representative's name and carries its description, exactly as a hero slot
-is. What `2` adds is the node's `ObjectID`, left in a cave word for `group_line` to recognise.
-
-`group_line` sits in the object tooltip builder (`0x008EC119`), after the description at
-`[ebp-0x1c]` is finished and before the record is made from it. When the object being described is
-the one a group hover named, it fetches `--group-tooltip` out of `TheGameText` and hands it to the
-builder's own append helper (`0x008EBC3B`), which is what puts the newline in. So the group slot's
-tooltip is the unit's name, the unit's description, and then one line of the mod's own:
-
-    CONTROLBAR:GroupedUnitBar
-    "Click to select the next one. Double click to jump to it."
-
-Three things keep that narrow. The gate is an **`ObjectID`**, not a flag, because this builder
-serves five request sites and only one of them is the hero bar - and the other two hover arms clear
-it, so at most one object at a time carries the line. An **empty** label is a byte test on the
-first character, which is the default and leaves every tooltip in the game exactly as it was. And
-an **empty fetch** is caught with the engine's own `UnicodeString::isEmpty`, the same test the
-builder applies to its own description lines.
-
-The label lives in the state block rather than beside the code so that :meth:`HeroBarPatch.detect`
-can read it back, and the `UnicodeString` the lookup fills is a cave word kept between hovers
-rather than a frame local: there is no spare slot in a frame this hook does not own, and assigning
-over a `UnicodeString` releases what it held.
-
-The residual: hovering the same object somewhere *else* that uses this builder, without touching
-the bar in between, shows the line there too. Closing that would mean gating on the request site
-as well as the object, which is more machinery than the artefact is worth.
-
-Stepping a group
-----------------
-`PORTER`'s cycle keeps its cursor on the bar object - one "a cycle is in progress" byte and one
-frame stamp, for the single group the stock engine can have. There is no room there for one cursor
-per template, so this keeps its own: **16 dwords in the cave, indexed by slot, each holding the
-`ObjectID` this patch last selected out of that slot**. A click walks the hero list once and takes
-the first eligible member *after* that `ObjectID`, falling back to the first member when the
-cursor names nobody still on the list - which is what a fresh slot, a dead unit and a wrap-around
-all look like. Selection is then the engine's own single-object idiom, so a stepped member ends up
-selected exactly as clicking a hero's slot selects a hero.
-
-An `ObjectID` rather than a node pointer, because the cursor outlives the object it names: nothing
-runs when a group member dies, and a stale pointer would be dereferenced where a stale ID is
-simply not found.
-
-**Click again to jump.** A second click on the same slot, soon enough after the first, means "take
-me there" rather than "next one": it centres the camera on the member the previous click selected
-and leaves the cursor alone. "Soon enough" is `--jump-window` milliseconds, :data:`500
-<DEFAULT_JUMP_WINDOW>` by default, scaled to logic frames at runtime with the engine's own `.data`
-float and `_ftol`. `--jump-window 0` turns the gesture off and leaves every click a step.
-
-Why it is a constant of this patch's own, and not the engine's. The obvious value to share is
-`SelectNearestBuilderCycleTimeOut` (`TheInGameUI+0x988`), which is what the porter's own repeat
-test uses, and an earlier version took it by calling the engine routine at `0x0092BA91`. Two
-things were wrong with that:
-
-* **It is the wrong quantity.** 3500 ms on this data - a reasonable length for a porter *round* to
-  stay open, and about seven times too long for "was that a double click". A gesture window and a
-  round timeout are different things that happen to be read by similar-looking comparisons.
-* **It is not at a fixed address.** That routine *stores* its answer in `bar+0x1DC`, past the slot
-  array, which `hero-bar-slots` slides up by `(count-16)*0x18`. On a 25-slot bar the cave was
-  reading byte `0x14` of slot 16 for a deadline - and stomping the porter's real field, at
-  `bar+0x2B4`, on the way past.
-
-So the window is a word in the cave and the scaling is re-emitted. Nothing here reads the bar
-object past the slot array, which is what keeps this patch and `hero-bar-slots` independent in
-either order.
-
-The mouse button is not available here to do this the obvious way. `_OnBttnHeroSelect` is called
-*by the movie*, with the button's path (`"Hero3"`) as its only argument, and the APT runtime's
-event vocabulary is Flash's - `onPress`, `onRelease`, `onReleaseOutside`, `onRollOver`, `onRollOut`,
-`onMouseWheel`, interned at `0x00B20E40`. There is no right-button event anywhere on that path, so
-"left selects, right jumps" cannot be told apart at this hook; a repeat click can.
-
-Known limits, stated rather than discovered
--------------------------------------------
-* **A group shows its member count where a hero shows a rank**, the way a `PORTER` slot does, and
-  a group of one therefore shows `1`. That is not a separate feature: grouping and the badge are
-  the same thing seen twice, so `HEROBAR_GROUP` carries both, and `HEROBAR` is the kindof for a
-  template that wants the rank.
-* **The veteran member's rank is not readable from the bar** once the number is a count. The
-  health bar and the rank progress ring still come from the representative.
-* **A repeat click always centres, where the porter only centres what is off screen.** The porter
-  cycle asks `0x0092BB2A` whether the object is already visible and skips the camera if it is.
-  Here the second click *is* the request, so it moves the camera either way.
-* **The bar is still 16 slots** unless `hero-bar-slots` widens it. Groups consume slots, so enough
-  distinct `HEROBAR_GROUP` templates in play push heroes off the end - the stock
-  `buttonIndex >= 0x11` break at `0x0092D3E5`, which drops them silently rather than crashing.
-  Past slot 16 the per-pass set and the cursor table both clamp: grouping and stepping degrade,
-  nothing corrupts.
-* **`HERO` and either kindof are not exclusive.** The classifier tests `HERO` first, but every arm
-  ends on the same list, and the draw hook asks only whether the template is `HEROBAR_GROUP` - so
-  a template carrying `HERO` and `HEROBAR_GROUP` is a hero *and* groups with its own kind.
-* **A template with no hero-bar button image is dropped** by `addHero`, under either kindof,
-  exactly as a `HERO` without one is.
-* **This patch spends the last two kindof bits.** Nothing else can add a kindof to a binary that
-  carries it, and it cannot be applied to one that already carries an added kindof.
-* **Derived statically, then run in a game** - except the step-through cycle, which replaced a
-  select-the-whole-group click and has not been run. See ``../docs/herobar.md``.
+Derivation: `../docs/herobar.md`.
 """
 
 from __future__ import annotations
@@ -243,7 +22,7 @@ from sage_ini.engine import Engine, EnumDelta
 
 from ..asm import JAE, JE, JNE, JNZ, JZ, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section
+from ..utils import allocate_section, apply_byte_patch, find_section, jmp_rel32, u32
 from .utils import kind_of, name_tables
 from .utils.name_tables import offset as _offset
 
@@ -294,7 +73,7 @@ DEFAULT_JUMP_WINDOW = 500
 MAX_JUMP_WINDOW = 60_000
 
 #: `KindOfMaskType` bit 90. Tested inline as `test byte [tmpl+0x113], 4` wherever the engine asks
-#: "is this a hero", which is the encoding :func:`kind_of.bit_test` reproduces.
+#: "is this a hero", which is the encoding `kind_of.bit_test` reproduces.
 HERO_BIT = 90
 
 #: ModRM r/m encodings, for the register a `bit_test` reads the template through.
@@ -314,7 +93,7 @@ DRAWABLE_SELECTED = 0x043C
 
 #: `TheGameText`'s vtable slot for `fetch(UnicodeString *out, const char *label, Bool *found)`:
 #: the string-table lookup the tooltip builders themselves use, at `0x00807ED6` and `0x0073D412`.
-#: Callee-cleaned, and it returns ``out``.
+#: Callee-cleaned, and it returns `out`.
 GAME_TEXT_FETCH = 0x3C
 #: `UnicodeString::isEmpty()` - true for a null buffer and for a zero-length one, which is the
 #: test the object builder applies to its own description lines before appending them.
@@ -357,7 +136,7 @@ SLOT_STRIDE = 0x18
 #: Within a slot: the list node it is showing, and the "this slot is a group" byte.
 SLOT_NODE = 0x00
 SLOT_GROUPED = 0x16
-#: What this patch writes into :data:`SLOT_GROUPED`. `1` is the stock porter group, and the two
+#: What this patch writes into `SLOT_GROUPED`. `1` is the stock porter group, and the two
 #: have to stay distinguishable because they dispatch to different click behaviour.
 GROUPED_HEROBAR = 2
 
@@ -492,9 +271,9 @@ _CLICK_DONE = 0x0092DDE1  # pop edi ; pop esi ; leave ; ret 4
 #: the values the click routine carries across the calls it makes, the per-slot cursor table, the
 #: words the badge count and the group highlight need, and the hover hook's button name.
 #:
-#: Two of these are the odd ones out: :data:`_OFF_WINDOW_MS` and :data:`_OFF_TOOLTIP_LABEL` are
+#: Two of these are the odd ones out: `_OFF_WINDOW_MS` and `_OFF_TOOLTIP_LABEL` are
 #: written by the patcher and only *read* at runtime. They sit here rather than in the code
-#: because a value at a known offset is what lets :meth:`HeroBarPatch.detect` recover the setting
+#: because a value at a known offset is what lets `HeroBarPatch.detect` recover the setting
 #: from an image instead of guessing it - and, for the window, because `fild` wants a memory
 #: operand anyway.
 _MAX_SLOTS = 16
@@ -523,21 +302,17 @@ _OFF_TOOLTIP_LABEL = 0xCC  # its label: `MAX_GROUP_TOOLTIP` bytes, written by th
 STATE_SIZE = _OFF_TOOLTIP_LABEL + MAX_GROUP_TOOLTIP
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
 def _abs_mem(opcode: bytes, va: int) -> bytes:
     """An instruction whose only operand is `[disp32]` - the cave's own scratch words."""
-    return opcode + _u32(va)
+    return opcode + u32(va)
 
 
 @dataclass(frozen=True)
 class Cave:
-    """What :func:`build_cave` laid out: the bytes, and where each detour has to land.
+    """What `build_cave` laid out: the bytes, and where each detour has to land.
 
     The two travel together because they come from one emission. Recomputing the entry VAs by
-    counting the code a second time is exactly the arithmetic :mod:`..asm` exists to remove."""
+    counting the code a second time is exactly the arithmetic `asm` exists to remove."""
 
     content: bytes
     entries: dict[str, int]
@@ -550,14 +325,14 @@ def build_cave(
     jump_window: int = DEFAULT_JUMP_WINDOW,
     group_tooltip: str = DEFAULT_GROUP_TOOLTIP,
 ) -> Cave:
-    """The hook routines, and the scratch words they use, at ``base_va``.
+    """The hook routines, and the scratch words they use, at `base_va`.
 
-    ``bit`` is the slot-per-object kindof and ``group_bit`` the slot-per-template one. Every hook
+    `bit` is the slot-per-object kindof and `group_bit` the slot-per-template one. Every hook
     is emitted for every application: which of the two an object carries is a runtime question,
     read from its `ThingTemplate`, not a build-time one.
 
-    Deterministic: :meth:`HeroBarPatch.apply` and :meth:`HeroBarPatch.verify` build the same
-    bytes from the same ``(base_va, bit, group_bit, jump_window, group_tooltip)`` and compare
+    Deterministic: `HeroBarPatch.apply` and `HeroBarPatch.verify` build the same
+    bytes from the same `(base_va, bit, group_bit, jump_window, group_tooltip)` and compare
     them, which is what makes verification possible without a disassembler."""
     emitted_n = base_va + _OFF_EMITTED_N
     emitted = base_va + _OFF_EMITTED
@@ -715,7 +490,7 @@ def build_cave(
     a.emit(_abs_mem(bytes.fromhex("8b0d"), count_object))  # mov ecx, [count_object]
     a.call_absolute(OBJECT_GET_DRAWABLE)  # ret 0 -> eax
     a.emit(bytes.fromhex("85c0")).jcc(JZ, "per_node_count_next")
-    a.emit(bytes.fromhex("80b8"), _u32(DRAWABLE_SELECTED), 0x00)  # cmp byte [eax+0x43c], 0
+    a.emit(bytes.fromhex("80b8"), u32(DRAWABLE_SELECTED), 0x00)  # cmp byte [eax+0x43c], 0
     a.jcc(JZ, "per_node_count_next")
     a.emit(_abs_mem(bytes.fromhex("c605"), group_selected), 0x01)
 
@@ -777,7 +552,7 @@ def build_cave(
     a.label("click_group")
     a.emit(_abs_mem(bytes.fromhex("a3"), slot))  # mov [slot], eax
     a.emit(bytes.fromhex("6bc0"), SLOT_STRIDE)  # imul eax, eax, 0x18
-    a.emit(bytes.fromhex("8b8430"), _u32(SLOT_ARRAY + SLOT_NODE))  # mov eax,[eax+esi+0x48]
+    a.emit(bytes.fromhex("8b8430"), u32(SLOT_ARRAY + SLOT_NODE))  # mov eax,[eax+esi+0x48]
     a.emit(bytes.fromhex("85c0")).jcc(JZ, "click_done")  # test eax, eax
     a.emit(_abs_mem(bytes.fromhex("a3"), node))  # mov [node], eax
 
@@ -868,7 +643,7 @@ def build_cave(
     a.label("click_cursor")
     a.emit(bytes.fromhex("8b41"), OBJECT_ID)  # mov eax, [ecx+0x74]
     a.emit(_abs_mem(bytes.fromhex("3b05"), last)).jcc(JNE, "click_next")  # cmp eax, [last]
-    a.emit(_abs_mem(bytes.fromhex("c705"), seen), _u32(1))  # mov dword [seen], 1
+    a.emit(_abs_mem(bytes.fromhex("c705"), seen), u32(1))  # mov dword [seen], 1
 
     a.label("click_next")
     a.emit(bytes.fromhex("8b3f")).jmp("click_loop")  # mov edi, [edi]
@@ -890,18 +665,14 @@ def build_cave(
     a.label("click_message")
     a.emit(bytes.fromhex("51"))  # push ecx              (keep the Object)
 
-    # Remember which slot this click landed on and when a second one stops counting as a repeat.
-    # The window is `jump_window` milliseconds, scaled to logic frames the way the engine scales
-    # its own at `0x0092BAA4` - `fild`, the same `.data` float, the same `_ftol`.
+    # Remember which slot this click landed on and when a second one stops counting as a repeat. The
+    # window is `jump_window` milliseconds, scaled to logic frames the way the engine scales its own
+    # at `0x0092BAA4`.
     #
-    # It is a constant of this patch's own rather than the engine's
-    # `SelectNearestBuilderCycleTimeOut`, which an earlier version read through
-    # `0x0092BA91`. Two things were wrong with that. It is 3500 ms on this data, which is a
-    # sensible length for a porter *round* and far too long for "was that a double click"; and
-    # the routine stores its answer in `bar+0x1DC`, a field past the slot array that
-    # `hero-bar-slots` slides up - so on a widened bar the cave read a slot's cached bytes for a
-    # deadline, and stomped the porter's real field on the way. Reading nothing off the bar keeps
-    # the two patches independent in either order.
+    # It is this patch's own constant, not the engine's `SelectNearestBuilderCycleTimeOut` (read
+    # through `0x0092BA91`): that is 3500 ms, far too long for a double click, and its routine
+    # stores into `bar+0x1DC`, which `hero-bar-slots` moves. Reading nothing off the bar keeps the
+    # two patches independent in either order.
     a.emit(_abs_mem(bytes.fromhex("a1"), slot))  # mov eax, [slot]
     a.emit(bytes.fromhex("40"))  # inc eax
     a.emit(_abs_mem(bytes.fromhex("a3"), click_slot))  # mov [click_slot], eax
@@ -917,11 +688,11 @@ def build_cave(
 
     a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_IN_GAME_UI))
     a.emit(bytes.fromhex("8b01"))  # mov eax, [ecx]
-    a.emit(bytes.fromhex("ff90"), _u32(UI_DESELECT_ALL))  # call [eax+0x110]
+    a.emit(bytes.fromhex("ff90"), u32(UI_DESELECT_ALL))  # call [eax+0x110]
 
     a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_MESSAGE_STREAM))
     a.emit(bytes.fromhex("8b01"))  # mov eax, [ecx]
-    a.emit(bytes.fromhex("68"), _u32(MSG_CREATE_SELECTED_GROUP))
+    a.emit(bytes.fromhex("68"), u32(MSG_CREATE_SELECTED_GROUP))
     a.emit(bytes.fromhex("ff50"), STREAM_APPEND_MESSAGE)  # call [eax+0x48]
     a.emit(_abs_mem(bytes.fromhex("a3"), message))  # mov [message], eax
     a.emit(bytes.fromhex("6a01"))  # push 1                (create a new group)
@@ -939,7 +710,7 @@ def build_cave(
     a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_IN_GAME_UI))
     a.emit(bytes.fromhex("50"))  # push eax              (the Drawable)
     a.emit(bytes.fromhex("8b01"))  # mov eax, [ecx]
-    a.emit(bytes.fromhex("ff90"), _u32(UI_SELECT_DRAWABLE))  # call [eax+0x108]
+    a.emit(bytes.fromhex("ff90"), u32(UI_SELECT_DRAWABLE))  # call [eax+0x108]
 
     a.label("click_done").jmp_absolute(_CLICK_DONE)
 
@@ -997,15 +768,15 @@ def build_cave(
     a.emit(_abs_mem(bytes.fromhex("8b0d"), THE_GAME_TEXT))  # mov ecx, [TheGameText]
     a.emit(bytes.fromhex("8b11"))  # mov edx, [ecx]
     a.emit(bytes.fromhex("6a00"))  # push 0                  (no found-flag)
-    a.emit(bytes.fromhex("68"), _u32(tooltip_label))  # push <the label>
-    a.emit(bytes.fromhex("68"), _u32(line_string))  # push <the out UnicodeString>
+    a.emit(bytes.fromhex("68"), u32(tooltip_label))  # push <the label>
+    a.emit(bytes.fromhex("68"), u32(line_string))  # push <the out UnicodeString>
     a.emit(bytes.fromhex("ff52"), GAME_TEXT_FETCH)  # call [edx+0x3c]   (callee-cleaned)
 
-    a.emit(bytes.fromhex("b9"), _u32(line_string))  # mov ecx, <the UnicodeString>
+    a.emit(bytes.fromhex("b9"), u32(line_string))  # mov ecx, <the UnicodeString>
     a.call_absolute(UNICODE_STRING_IS_EMPTY)
     a.emit(bytes.fromhex("84c0")).jcc(JNZ, "group_line_resume")  # test al, al
 
-    a.emit(bytes.fromhex("68"), _u32(line_string))  # push <the line>
+    a.emit(bytes.fromhex("68"), u32(line_string))  # push <the line>
     a.emit(bytes.fromhex("8d45e4"))  # lea eax, [ebp-0x1c]   -> the description
     a.emit(bytes.fromhex("50"))  # push eax
     a.call_absolute(TOOLTIP_APPEND_LINE)  # cdecl
@@ -1034,6 +805,7 @@ class HeroBarPatch(Patch):
 
     name = "herobar"
     author = "officialNecro"
+    runtime_verified = "partly"
     description = (
         "Add two kindofs that put an object on the hero bar without making it a HERO: HEROBAR "
         "gives every object its own slot, HEROBAR_GROUP shares one slot between every instance "
@@ -1083,7 +855,7 @@ class HeroBarPatch(Patch):
                 data,
                 _offset(data, hook.va),
                 hook.original,
-                _detour(hook, cave.entries[hook.label]),
+                jmp_rel32(hook.va, cave.entries[hook.label], hook.size),
                 f"{hook.note} @0x{hook.va:08x}",
             )
 
@@ -1099,9 +871,9 @@ class HeroBarPatch(Patch):
         )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Structural check that ``data`` carries this patch, for these two kindof names.
+        """Structural check that `data` carries this patch, for these two kindof names.
 
-        Reads only via ``struct`` and the section table. Both bits and the end of the table come
+        Reads only via `struct` and the section table. Both bits and the end of the table come
         from **the cave's own copy**, never from the live one: a second kindof-adding patch
         becomes the live table and shifts nothing about this one, and this patch is still
         correctly installed. The live table is consulted only to confirm it still agrees."""
@@ -1173,7 +945,7 @@ class HeroBarPatch(Patch):
     def detect(cls, data: bytes | bytearray) -> Patch | None:
         """Recover every parameter from the image: the two kindof names are the last two entries
         of the cave's own table, and the window and the group tooltip's button name are what the
-        patcher left at :data:`_OFF_WINDOW_MS` and :data:`_OFF_TOOLTIP_LABEL`.
+        patcher left at `_OFF_WINDOW_MS` and `_OFF_TOOLTIP_LABEL`.
 
         The window is *read* rather than searched for because `verify` compares whole cave bytes:
         a value guessed wrong would fail verification with nothing to say which of the two the
@@ -1253,14 +1025,8 @@ class HeroBarPatch(Patch):
         )
 
 
-def _detour(hook: _Hook, target_va: int) -> bytes:
-    """A `jmp rel32` to ``target_va``, padded with `nop` to exactly cover the site."""
-    jump = b"\xe9" + struct.pack("<i", target_va - (hook.va + 5))
-    return jump + b"\x90" * (hook.size - len(jump))
-
-
 def _padded(size: int) -> int:
-    """``size`` rounded up to a dword, the way :func:`kind_of.layout` pads its name strings.
+    """`size` rounded up to a dword, the way `kind_of.layout` pads its name strings.
 
     The padding goes on once, after the whole run of new strings, so this is called with their
     summed length rather than once per name."""
@@ -1321,7 +1087,7 @@ WORLDBUILDER_SECTION_NAME = ".hbarwb"
 _WORLDBUILDER_CHARACTERISTICS = 0x40000040
 
 #: Worldbuilder's stock kindof name table, and the answer every count site below holds. Only used
-#: to recognise an unpatched image - :meth:`HeroBarWorldbuilderPatch._read` follows the references.
+#: to recognise an unpatched image - `HeroBarWorldbuilderPatch._read` follows the references.
 WORLDBUILDER_NAME_TABLE_VA = 0x02231A30
 WORLDBUILDER_STOCK_KIND_COUNT = 222
 
@@ -1347,11 +1113,11 @@ WORLDBUILDER_TABLE_REF_VAS = (
     0x00EDD376,
 )
 
-#: Every site encoding the count, as ``(instruction VA, the bytes before its imm32)``. The prefix
+#: Every site encoding the count, as `(instruction VA, the bytes before its imm32)`. The prefix
 #: is asserted as well as the immediate, so a coincidental 222 elsewhere cannot be mistaken for
 #: one of these. Six index the table in the instruction that follows the compare; the other seven
 #: are the bounds-check-then-report shape the parse site uses. `0x00AAD4B3` is the only one that
-#: reads through a pointer (``cmp dword [eax+8], 222``) rather than a frame local - it is the
+#: reads through a pointer (`cmp dword [eax+8], 222`) rather than a frame local - it is the
 #: outer guard on the same value `0x00AAD4CB` then re-checks and uses to index the table.
 WORLDBUILDER_COUNT_SITES = (
     (0x004F5197, bytes.fromhex("817de4")),
@@ -1474,7 +1240,7 @@ class HeroBarWorldbuilderPatch(Patch):
         """Recognise this patch **and recover the two names it was applied with**.
 
         The cave *is* the rebuilt table, so its last two entries are the tokens this patch added;
-        :meth:`verify` then re-checks every repointed site and every raised bound against them."""
+        `verify` then re-checks every repointed site and every raised bound against them."""
         located = find_section(data, WORLDBUILDER_SECTION_NAME)
         if located is None:
             return None

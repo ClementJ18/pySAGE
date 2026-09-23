@@ -1,93 +1,12 @@
-"""`Persistent = Yes` on an `ArmyEntry`: that hero stays in his army when he dies in a War of the
-Ring battle, at the level and with the upgrades he died with, the way BFME1's heroes do.
+"""Add `Persistent = Yes` to `ArmyEntry`: that hero stays in his living-world army when he dies in a
+War of the Ring battle, returning at the level and with the upgrades he died with.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address below is derived
-in ``../../docs/living-campaign/hero-permadeath.md``.
+ROTWK moves a dead hero out of his army into the fortress's hero queue; BFME1 kept him. A repointed
+`ArmyEntry` field table adds the keyword, and three hooks record the persistent heroes, note their
+armies at battle start, and put them back from the player's hero ledger (`Player+0x758`) when the
+battle ends. He is still offered at his fortress too, which is intended.
 
-**The one-rule difference, measured on both games.** Saves either side of a hero's death in BFME1
-and in ROTWK say that *both* engines harvest a battle back into the living-world army: the roster an
-army comes out with is what survived, carrying the upgrades earned. They differ in what becomes of a
-hero who did not.
-
-* BFME1 keeps him in the army. `Evil_SarumanPlayerArmy` went into evil mission 1 holding one
-  `ArmyEntry` and came out holding six - five surviving Isengard hordes and `IsengardSaruman`, who
-  had died, now carrying an `Upgrade_SarumanFireBall` the earlier save does not show.
-* ROTWK moves him out of it. `WitchKingKampaArmy` went in with four heroes and came out with three;
-  the fourth turned up on the owning `LivingWorldPlayer` and in the fortress's hero-spawn queue.
-
-**Where a dead hero's state actually lives.** Not on his object: measured on BFME1's in-battle
-saves, `IsengardSaruman` is a live object before he dies and **absent afterwards**, so by the time a
-battle ends there is nothing left to harvest. What survives is his entry in the player's hero
-ledger (`Player+0x758`) - the same ledger the ControlBar offers as revivable during the mission -
-and the engine already copies that ledger's `KindOf HERO` entries onto the living-world player when
-the battle ends (`0x0078100E`), which is why a dead hero reaches the world map with his upgrades at
-all. This patch reads the same ledger and puts him back in his **army** as well, which is the half
-ROTWK does not do.
-
-**The keyword.** A new `ArmyEntry` field, so a scenario says which heroes this applies to rather
-than it applying to every hero in the game::
-
-    LivingWorldPlayerArmy
-        Name = WitchKingKampaArmy
-        ArmyEntry
-            ThingTemplate = AngmarDurmarth
-            Quantity      = 1
-            Persistent    = Yes
-        End
-    End
-
-Absent or `No` is the stock behaviour exactly. `Persistent = Yes` is remembered as the
-*`ThingTemplate` name*, so it applies to that hero in whichever army carries him.
-
-**What the hero comes back as.** The record is built from his ledger entry by the engine's own
-`0x00780FEF` - the exact mirror of the `Object -> record` builder the harvest uses for survivors,
-down to the same `record+0xD0` tail - so his name, `Quantity`, the `0x90`-byte state block and his
-upgrade list are what they were **at the moment he died**, including anything earned in that
-battle. That is BFME1's behaviour rather than an approximation of it.
-
-**Three hooks and one repointed table:**
-
-* `0x0080EF87` - the immediate naming the `ArmyEntry` sub-table, repointed at a copy in the cave
-  with `Persistent` appended beside `Default`;
-* `0x00811D41` - the `ArmyEntry` field-parse call, wrapped so a record that comes out with the flag
-  set adds its `ThingTemplate` name to the cave's persistent set. The flag lives in a record byte
-  the constructor does not initialise, the copy-constructor does not carry and nothing else reads,
-  so it is zeroed on the way in and consumed before the record leaves the parser - it never has to
-  survive anything;
-* `0x0062565A` - the battle-start setup, wrapped to record `(army id, hero name)` for every
-  persistent hero in every living-world army. It runs before any army deploys, which is the only
-  moment a roster still says which army a hero belongs to;
-* `0x0062667C` - the harvest, wrapped so that afterwards each living-world player's hero ledger is
-  walked and every persistent hero missing from his army is put back into it.
-
-Nothing is held by reference across a battle - the tables carry names and ids only - so an
-abandoned battle leaves nothing to clean up.
-
-**Limits.** :data:`PERSISTENT_CAPACITY` distinct hero templates may be marked and
-:data:`HELD_CAPACITY` hero-in-army pairs carried across one battle; past either, the extra heroes
-keep the stock behaviour. A name of :data:`NAME_CAPACITY` characters or more is dropped rather than
-truncated, because a truncated name matches the wrong hero. If one hero template sits in two
-armies, the first captured wins.
-
-**Scope.** Living-world battles only: the battle-start hook's caller already gates on
-`TheLivingWorldManager`, so a skirmish or a linear mission reaches neither battle hook. The parse
-hook runs wherever `ArmyEntry` is parsed, which is INI load, and does nothing without the keyword.
-
-**Composition.** Order-independent: the cave is allocated past every existing section and
-:meth:`verify` finds it by name. It shares no byte with `campaign-army-verbs`, which edits the Act
-verb table and the act runner.
-
-**He is also still offered at his faction's fortress, and that is intended.** The engine's own copy
-of the hero ledger onto the `LivingWorldPlayer` (`0x0078100E`) is left alone, so a hero who died is
-both back with his army and available to recruit again - confirmed in play. This patch adds BFME1's
-army rule; it does not take ROTWK's own away, and `Persistent` is how a scenario chooses which
-heroes get the army half at all. :meth:`~HeroArmyCarryoverPatch.verify` is deliberately silent about
-`0x0078100E` for the same reason - nothing here touches it.
-
-**Runtime-verified 2026-08-28.** A hero marked `Persistent` died in an Angmar War of the Ring
-mission and came back in `WitchKingKampaArmy` afterwards carrying `Upgrade_Level_2` and three more
-upgrades he did not have going in. Still `experimental`: one mission is one mission, and nothing
-here has been through a whole campaign, a save/reload or a second battle.
+Derivation: `../docs/living-campaign/hero-permadeath.md`.
 """
 
 from __future__ import annotations
@@ -149,7 +68,7 @@ from ...addresses import (
 )
 from ...asm import JAE, JB, JE, JLE, JNE, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ...utils import allocate_section, apply_byte_patch, find_section, i8, u32, va_to_offset
 
 __all__ = [
     "HELD_CAPACITY",
@@ -192,14 +111,6 @@ _HELD_SIZE = _HELD_NAME + NAME_CAPACITY
 _ROW_SIZE = 0x10
 
 
-def _u32(value: int) -> bytes:
-    return struct.pack("<I", value)
-
-
-def _i8(value: int) -> bytes:
-    return struct.pack("<b", value)
-
-
 def cave_layout() -> dict[str, int]:
     """Offsets from the cave's base. Both tables come first, at offsets that depend on nothing, so
     the code that follows can address them as `base + constant`."""
@@ -219,7 +130,7 @@ def cave_layout() -> dict[str, int]:
     }
 
 
-def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # noqa: PLR0915
+def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:
     """The cave's routines, laid out but not resolved.
 
     Every loop index lives in a frame slot rather than a register: the walks nest three deep and a
@@ -230,6 +141,22 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     held_count = data_va + layout["held_count"]
     held = data_va + layout["held"]
 
+    _emit_str_copy(a)
+    _emit_str_eq(a)
+    _emit_is_persistent(a, persist_count, persist_names)
+    _emit_roster_count(a)
+    _emit_roster_has(a)
+    _emit_entry_hook(a, persist_count, persist_names)
+    _emit_capture(a, held, held_count)
+    _emit_cap_name(a, held_count)
+    _emit_rejoin(a)
+    _emit_restore(a, held, held_count)
+    _emit_setup_hook(a)
+    _emit_harvest_hook(a)
+    return a
+
+
+def _emit_str_copy(a: Asm) -> None:
     # `str_copy`: eax = an AsciiString handle, edi = a NAME_CAPACITY-byte field. al = 1 when the
     # name fitted and is not empty.
     a.label("str_copy")
@@ -245,7 +172,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(b"\x84\xdb")  # test bl, bl
     a.jcc(JE, "sc_end")
     a.emit(0x41)  # inc ecx
-    a.emit(b"\x83\xf9", _i8(NAME_CAPACITY))  # cmp ecx, NAME_CAPACITY
+    a.emit(b"\x83\xf9", i8(NAME_CAPACITY))  # cmp ecx, NAME_CAPACITY
     a.jcc(JB, "sc_loop")
     a.label("sc_no")  # too long, or no handle
     a.emit(b"\xc6\x07\x00")  # mov byte [edi], 0
@@ -259,6 +186,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(0x5E, 0x5B)  # pop esi, ebx
     a.emit(0xC3)  # ret
 
+
+def _emit_str_eq(a: Asm) -> None:
     # `str_eq`: edi and esi are NUL-terminated; al = 1 when equal. Both sides are always the
     # engine's own template names, so a byte compare is the right comparison.
     a.label("str_eq")
@@ -281,6 +210,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(0x5F, 0x5E)  # pop edi, esi
     a.emit(0xC3)  # ret
 
+
+def _emit_is_persistent(a: Asm, persist_count: int, persist_names: int) -> None:
     # `is_persistent`: esi = characters, al = 1 when the INI marked that template.
     a.label("is_persistent")
     a.emit(0x55)  # push ebp
@@ -291,10 +222,10 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(b"\x83\x65\xf8\x00")  # and dword [ebp-8], 0    ; the index
     a.label("ip_loop")
     a.emit(b"\x8b\x45\xf8")  # mov eax, [ebp-8]
-    a.emit(b"\x3b\x05", _u32(persist_count))  # cmp eax, [persist_count]
+    a.emit(b"\x3b\x05", u32(persist_count))  # cmp eax, [persist_count]
     a.jcc(JAE, "ip_no")
-    a.emit(b"\x6b\xc0", _i8(NAME_CAPACITY))  # imul eax, eax, NAME_CAPACITY
-    a.emit(0x05, _u32(persist_names))  # add eax, persist_names
+    a.emit(b"\x6b\xc0", i8(NAME_CAPACITY))  # imul eax, eax, NAME_CAPACITY
+    a.emit(0x05, u32(persist_names))  # add eax, persist_names
     a.emit(b"\x8b\xf8")  # mov edi, eax
     a.emit(b"\x8b\x75\xfc")  # mov esi, [ebp-4]
     a.call("str_eq")
@@ -312,13 +243,17 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_roster_count(a: Asm) -> None:
     # `roster_count`: ecx = a roster container, eax = how many records it holds.
     a.label("roster_count")
-    a.emit(b"\x8b\x41", _i8(LIVING_WORLD_ARMY_RECORDS_END))  # mov eax, [ecx+0x44]
-    a.emit(b"\x2b\x41", _i8(LIVING_WORLD_ARMY_RECORDS_BEGIN))  # sub eax, [ecx+0x40]
+    a.emit(b"\x8b\x41", i8(LIVING_WORLD_ARMY_RECORDS_END))  # mov eax, [ecx+0x44]
+    a.emit(b"\x2b\x41", i8(LIVING_WORLD_ARMY_RECORDS_BEGIN))  # sub eax, [ecx+0x40]
     a.emit(b"\xc1\xf8\x03")  # sar eax, 3
     a.emit(0xC3)  # ret
 
+
+def _emit_roster_has(a: Asm) -> None:
     # `roster_has`: ecx = container, esi = characters. al = 1 when a record of that name is in it.
     a.label("roster_has")
     a.emit(0x55)  # push ebp
@@ -338,7 +273,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.call_absolute(LIVING_WORLD_ARMY_GET_RECORD)  # ret 4
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rh_next")
-    a.emit(b"\x8b\x40", _i8(ARMY_ENTRY_TEMPLATE_OFFSET))  # mov eax, [eax+4]
+    a.emit(b"\x8b\x40", i8(ARMY_ENTRY_TEMPLATE_OFFSET))  # mov eax, [eax+4]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rh_next")
     a.emit(b"\x83\xc0", bytes([ASCII_STRING_CHARS_OFFSET]))  # add eax, 8
@@ -360,33 +295,37 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_entry_hook(a: Asm, persist_count: int, persist_names: int) -> None:
     # `entry_hook`: the `ArmyEntry` field parse. The flag byte is zeroed on the way in - the record
     # constructor does not initialise it - and consumed on the way out, before the record leaves
     # the parser, so nothing downstream ever has to carry it.
     a.label("entry_hook")  # ecx = the record, [esp+4] = the INI reader
     a.emit(0x53, 0x56, 0x57)  # push ebx, esi, edi
     a.emit(b"\x8b\xf1")  # mov esi, ecx            ; the record
-    a.emit(b"\xc6\x86", _u32(ARMY_ENTRY_SCRATCH_OFFSET), 0x00)  # mov byte [esi+0xd7], 0
+    a.emit(b"\xc6\x86", u32(ARMY_ENTRY_SCRATCH_OFFSET), 0x00)  # mov byte [esi+0xd7], 0
     a.emit(b"\xff\x74\x24\x10")  # push dword [esp+0x10]   ; the INI reader
     a.emit(b"\x8b\xce")  # mov ecx, esi
     a.call_absolute(ARMY_ENTRY_PARSE_FIELDS)  # ret 4
-    a.emit(b"\x80\xbe", _u32(ARMY_ENTRY_SCRATCH_OFFSET), 0x00)  # cmp byte [esi+0xd7], 0
+    a.emit(b"\x80\xbe", u32(ARMY_ENTRY_SCRATCH_OFFSET), 0x00)  # cmp byte [esi+0xd7], 0
     a.jcc(JE, "eh_done")
-    a.emit(b"\xa1", _u32(persist_count))  # mov eax, [persist_count]
-    a.emit(b"\x83\xf8", _i8(PERSISTENT_CAPACITY))  # cmp eax, PERSISTENT_CAPACITY
+    a.emit(b"\xa1", u32(persist_count))  # mov eax, [persist_count]
+    a.emit(b"\x83\xf8", i8(PERSISTENT_CAPACITY))  # cmp eax, PERSISTENT_CAPACITY
     a.jcc(JAE, "eh_done")
-    a.emit(b"\x6b\xc0", _i8(NAME_CAPACITY))  # imul eax, eax, NAME_CAPACITY
-    a.emit(0x05, _u32(persist_names))  # add eax, persist_names
+    a.emit(b"\x6b\xc0", i8(NAME_CAPACITY))  # imul eax, eax, NAME_CAPACITY
+    a.emit(0x05, u32(persist_names))  # add eax, persist_names
     a.emit(b"\x8b\xf8")  # mov edi, eax            ; the slot
-    a.emit(b"\x8b\x46", _i8(ARMY_ENTRY_TEMPLATE_OFFSET))  # mov eax, [esi+4]
+    a.emit(b"\x8b\x46", i8(ARMY_ENTRY_TEMPLATE_OFFSET))  # mov eax, [esi+4]
     a.call("str_copy")
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "eh_done")
-    a.emit(b"\xff\x05", _u32(persist_count))  # inc dword [persist_count]
+    a.emit(b"\xff\x05", u32(persist_count))  # inc dword [persist_count]
     a.label("eh_done")
     a.emit(0x5F, 0x5E, 0x5B)  # pop edi, esi, ebx
     a.emit(b"\xc2\x04\x00")  # ret 4
 
+
+def _emit_capture(a: Asm, held: int, held_count: int) -> None:
     # `capture`: which army each persistent hero is in, read before any of them deploys.
     #   [ebp-0x04] TheLivingWorldLogic  [ebp-0x08] the player      [ebp-0x0c] the container
     #   [ebp-0x10] player index         [ebp-0x14] army index      [ebp-0x18] record index
@@ -395,8 +334,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(b"\x8b\xec")  # mov ebp, esp
     a.emit(b"\x83\xec\x20")  # sub esp, 0x20
     a.emit(0x53, 0x56, 0x57)  # push ebx, esi, edi
-    a.emit(b"\x83\x25", _u32(held_count), 0x00)  # and dword [held_count], 0
-    a.emit(b"\xa1", _u32(THE_LIVING_WORLD_LOGIC))  # mov eax, [TheLivingWorldLogic]
+    a.emit(b"\x83\x25", u32(held_count), 0x00)  # and dword [held_count], 0
+    a.emit(b"\xa1", u32(THE_LIVING_WORLD_LOGIC))  # mov eax, [TheLivingWorldLogic]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "cap_done")
     a.emit(b"\x89\x45\xfc")  # mov [ebp-4], eax
@@ -404,12 +343,12 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
 
     a.label("cap_player")
     a.emit(b"\x8b\x45\xfc")  # mov eax, [ebp-4]
-    a.emit(b"\x8b\x88", _u32(LIVING_WORLD_PLAYERS_END))  # mov ecx, [eax+0x90]
-    a.emit(b"\x2b\x88", _u32(LIVING_WORLD_PLAYERS_BEGIN))  # sub ecx, [eax+0x8c]
+    a.emit(b"\x8b\x88", u32(LIVING_WORLD_PLAYERS_END))  # mov ecx, [eax+0x90]
+    a.emit(b"\x2b\x88", u32(LIVING_WORLD_PLAYERS_BEGIN))  # sub ecx, [eax+0x8c]
     a.emit(b"\xc1\xf9\x02")  # sar ecx, 2
     a.emit(b"\x3b\x4d\xf0")  # cmp ecx, [ebp-0x10]
     a.jcc(JLE, "cap_done")  # jle
-    a.emit(b"\x8b\x80", _u32(LIVING_WORLD_PLAYERS_BEGIN))  # mov eax, [eax+0x8c]
+    a.emit(b"\x8b\x80", u32(LIVING_WORLD_PLAYERS_BEGIN))  # mov eax, [eax+0x8c]
     a.emit(b"\x8b\x4d\xf0")  # mov ecx, [ebp-0x10]
     a.emit(b"\x8b\x04\x88")  # mov eax, [eax+ecx*4]
     a.emit(b"\x85\xc0")  # test eax, eax
@@ -419,17 +358,17 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
 
     a.label("cap_army")
     a.emit(b"\x8b\x45\xf8")  # mov eax, [ebp-8]
-    a.emit(b"\x8b\x88", _u32(LIVING_WORLD_PLAYER_ARMIES_END))  # mov ecx, [eax+0x1e8]
-    a.emit(b"\x2b\x88", _u32(LIVING_WORLD_PLAYER_ARMIES_BEGIN))  # sub ecx, [eax+0x1e4]
+    a.emit(b"\x8b\x88", u32(LIVING_WORLD_PLAYER_ARMIES_END))  # mov ecx, [eax+0x1e8]
+    a.emit(b"\x2b\x88", u32(LIVING_WORLD_PLAYER_ARMIES_BEGIN))  # sub ecx, [eax+0x1e4]
     a.emit(b"\xc1\xf9\x02")  # sar ecx, 2
     a.emit(b"\x3b\x4d\xec")  # cmp ecx, [ebp-0x14]
     a.jcc(JLE, "cap_player_next")  # jle
-    a.emit(b"\x8b\x80", _u32(LIVING_WORLD_PLAYER_ARMIES_BEGIN))  # mov eax, [eax+0x1e4]
+    a.emit(b"\x8b\x80", u32(LIVING_WORLD_PLAYER_ARMIES_BEGIN))  # mov eax, [eax+0x1e4]
     a.emit(b"\x8b\x4d\xec")  # mov ecx, [ebp-0x14]
     a.emit(b"\x8b\x04\x88")  # mov eax, [eax+ecx*4]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "cap_army_next")
-    a.emit(b"\x8b\x40", _i8(LIVING_WORLD_ARMY_ROSTER_OFFSET))  # mov eax, [eax+0x78]
+    a.emit(b"\x8b\x40", i8(LIVING_WORLD_ARMY_ROSTER_OFFSET))  # mov eax, [eax+0x78]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "cap_army_next")
     a.emit(b"\x89\x45\xf4")  # mov [ebp-0xc], eax
@@ -445,7 +384,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.call_absolute(LIVING_WORLD_ARMY_GET_RECORD)  # ret 4
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "cap_record_next")
-    a.emit(b"\x8b\x40", _i8(ARMY_ENTRY_TEMPLATE_OFFSET))  # mov eax, [eax+4]
+    a.emit(b"\x8b\x40", i8(ARMY_ENTRY_TEMPLATE_OFFSET))  # mov eax, [eax+4]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "cap_record_next")
     a.emit(b"\x83\xc0", bytes([ASCII_STRING_CHARS_OFFSET]))  # add eax, 8
@@ -453,16 +392,19 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.call("is_persistent")
     a.emit(b"\x84\xc0")  # test al, al
     a.jcc(JE, "cap_record_next")
-    a.emit(b"\xa1", _u32(held_count))  # mov eax, [held_count]
-    a.emit(b"\x83\xf8", _i8(HELD_CAPACITY))  # cmp eax, HELD_CAPACITY
+    a.emit(b"\xa1", u32(held_count))  # mov eax, [held_count]
+    a.emit(b"\x83\xf8", i8(HELD_CAPACITY))  # cmp eax, HELD_CAPACITY
     a.jcc(JAE, "cap_done")
-    a.emit(b"\x6b\xc0", _i8(_HELD_SIZE))  # imul eax, eax, _HELD_SIZE
-    a.emit(0x05, _u32(held))  # add eax, held
+    a.emit(b"\x6b\xc0", i8(_HELD_SIZE))  # imul eax, eax, _HELD_SIZE
+    a.emit(0x05, u32(held))  # add eax, held
     a.emit(b"\x8b\x4d\xf4")  # mov ecx, [ebp-0xc]
-    a.emit(b"\x8b\x49", _i8(LIVING_WORLD_ARMY_ROSTER_ID))  # mov ecx, [ecx+0x1c]
+    a.emit(b"\x8b\x49", i8(LIVING_WORLD_ARMY_ROSTER_ID))  # mov ecx, [ecx+0x1c]
     a.emit(b"\x89\x08")  # mov [eax], ecx          ; the army id
-    a.emit(b"\x83\xc0", _i8(_HELD_NAME))  # add eax, 4
+    a.emit(b"\x83\xc0", i8(_HELD_NAME))  # add eax, 4
     a.emit(b"\x8b\xf8")  # mov edi, eax            ; the name slot
+
+
+def _emit_cap_name(a: Asm, held_count: int) -> None:
     # `esi` still holds the characters; copy them, terminator included, bounded by construction
     # because `is_persistent` only says yes for a name the parser already fitted.
     a.label("cap_name")
@@ -473,7 +415,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(0x46, 0x47)  # inc esi, inc edi
     a.jmp("cap_name")
     a.label("cap_named")
-    a.emit(b"\xff\x05", _u32(held_count))  # inc dword [held_count]
+    a.emit(b"\xff\x05", u32(held_count))  # inc dword [held_count]
 
     a.label("cap_record_next")
     a.emit(b"\xff\x45\xe8")  # inc dword [ebp-0x18]
@@ -489,6 +431,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_rejoin(a: Asm) -> None:
     # `rejoin`: esi = the ledger entry, [esp+4] = the army's roster container. Builds a roster
     # record from the entry and appends it. The entry carries the hero as he died, so this is what
     # keeps the level and the upgrades.
@@ -497,7 +441,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(b"\x8b\xec")  # mov ebp, esp
     a.emit(b"\x83\xec\x08")  # sub esp, 8
     a.emit(0x57)  # push edi
-    a.emit(b"\x68", _u32(RECORD_SIZE))  # push 0xd8
+    a.emit(b"\x68", u32(RECORD_SIZE))  # push 0xd8
     a.call_absolute(OPERATOR_NEW)
     a.emit(0x59)  # pop ecx                 ; __cdecl
     a.emit(b"\x85\xc0")  # test eax, eax
@@ -507,7 +451,7 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "rj_done")
     a.emit(b"\x8b\xf8")  # mov edi, eax            ; the record
-    a.emit(b"\xff\x87", _u32(ARMY_ENTRY_REFCOUNT_COUNT))  # inc dword [edi+0xc0]
+    a.emit(b"\xff\x87", u32(ARMY_ENTRY_REFCOUNT_COUNT))  # inc dword [edi+0xc0]
     a.emit(0x57)  # push edi
     a.emit(b"\x8b\xce")  # mov ecx, esi            ; the ledger entry
     a.call_absolute(HERO_LEDGER_TO_RECORD)  # ret 4; fills name, state and upgrades
@@ -516,13 +460,15 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(0x50)  # push eax
     a.emit(b"\x8b\x4d\x08")  # mov ecx, [ebp+8]        ; the roster container
     a.call_absolute(LIVING_WORLD_ARMY_ADD_RECORD)  # ret 4; takes its own reference
-    a.emit(b"\x8d\x8f", _u32(ARMY_ENTRY_REFCOUNT_OFFSET))  # lea ecx, [edi+0xbc]
+    a.emit(b"\x8d\x8f", u32(ARMY_ENTRY_REFCOUNT_OFFSET))  # lea ecx, [edi+0xbc]
     a.call_absolute(REF_COUNT_RELEASE)
     a.label("rj_done")
     a.emit(0x5F)  # pop edi
     a.emit(0xC9)  # leave
     a.emit(b"\xc2\x04\x00")  # ret 4
 
+
+def _emit_restore(a: Asm, held: int, held_count: int) -> None:
     # `restore`: every persistent hero the battle took out of his army, put back from the ledger.
     #   [ebp-0x04] player index  [ebp-0x08] the ledger   [ebp-0x0c] entry index
     #   [ebp-0x10] the entry     [ebp-0x14] characters   [ebp-0x18] the container
@@ -534,49 +480,49 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(b"\x83\x65\xfc\x00")  # and dword [ebp-4], 0
 
     a.label("res_player")
-    a.emit(b"\x8b\x0d", _u32(THE_PLAYER_LIST))  # mov ecx, [ThePlayerList]
+    a.emit(b"\x8b\x0d", u32(THE_PLAYER_LIST))  # mov ecx, [ThePlayerList]
     a.emit(b"\x85\xc9")  # test ecx, ecx
     a.jcc(JE, "res_done")
-    a.emit(b"\x8b\x41", _i8(PLAYER_LIST_COUNT_OFFSET))  # mov eax, [ecx+0x14]
+    a.emit(b"\x8b\x41", i8(PLAYER_LIST_COUNT_OFFSET))  # mov eax, [ecx+0x14]
     a.emit(b"\x3b\x45\xfc")  # cmp eax, [ebp-4]
     a.jcc(JLE, "res_done")  # jle
     a.emit(b"\xff\x75\xfc")  # push dword [ebp-4]
     a.call_absolute(PLAYER_LIST_GET_NTH)  # thiscall on the list already in ecx, ret 4
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "res_player_next")
-    a.emit(b"\x83\xb8", _u32(PLAYER_LIVING_WORLD_ID_OFFSET), 0xFF)  # cmp dword [eax+0x3cc], -1
+    a.emit(b"\x83\xb8", u32(PLAYER_LIVING_WORLD_ID_OFFSET), 0xFF)  # cmp dword [eax+0x3cc], -1
     a.jcc(JE, "res_player_next")
-    a.emit(0x05, _u32(PLAYER_HERO_LEDGER_OFFSET))  # add eax, 0x758
+    a.emit(0x05, u32(PLAYER_HERO_LEDGER_OFFSET))  # add eax, 0x758
     a.emit(b"\x89\x45\xf8")  # mov [ebp-8], eax        ; the hero ledger
     a.emit(b"\x83\x65\xf4\x00")  # and dword [ebp-0xc], 0
 
     a.label("res_entry")
     a.emit(b"\x8b\x45\xf8")  # mov eax, [ebp-8]
-    a.emit(b"\x8b\x48", _i8(HERO_LEDGER_ENTRIES_END))  # mov ecx, [eax+8]
-    a.emit(b"\x2b\x48", _i8(HERO_LEDGER_ENTRIES_BEGIN))  # sub ecx, [eax+4]
-    a.emit(b"\xb8", _u32(HERO_LEDGER_ENTRY_STRIDE))  # mov eax, 0xe8
+    a.emit(b"\x8b\x48", i8(HERO_LEDGER_ENTRIES_END))  # mov ecx, [eax+8]
+    a.emit(b"\x2b\x48", i8(HERO_LEDGER_ENTRIES_BEGIN))  # sub ecx, [eax+4]
+    a.emit(b"\xb8", u32(HERO_LEDGER_ENTRY_STRIDE))  # mov eax, 0xe8
     a.emit(b"\x87\xc1")  # xchg eax, ecx
     a.emit(b"\x99")  # cdq
     a.emit(b"\xf7\xf9")  # idiv ecx                ; eax = how many entries
     a.emit(b"\x3b\x45\xf4")  # cmp eax, [ebp-0xc]
     a.jcc(JLE, "res_player_next")  # jle
     a.emit(b"\x8b\x45\xf4")  # mov eax, [ebp-0xc]
-    a.emit(b"\x69\xc0", _u32(HERO_LEDGER_ENTRY_STRIDE))  # imul eax, eax, 0xe8
+    a.emit(b"\x69\xc0", u32(HERO_LEDGER_ENTRY_STRIDE))  # imul eax, eax, 0xe8
     a.emit(b"\x8b\x4d\xf8")  # mov ecx, [ebp-8]
-    a.emit(b"\x03\x41", _i8(HERO_LEDGER_ENTRIES_BEGIN))  # add eax, [ecx+4]
+    a.emit(b"\x03\x41", i8(HERO_LEDGER_ENTRIES_BEGIN))  # add eax, [ecx+4]
     a.emit(b"\x89\x45\xf0")  # mov [ebp-0x10], eax     ; the entry
     a.emit(b"\x8b\xc8")  # mov ecx, eax
     a.call_absolute(HERO_LEDGER_FIND_TEMPLATE)  # entry -> ThingTemplate
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "res_entry_next")
-    a.emit(b"\xf6\x80", _u32(KINDOF_HERO_BYTE), KINDOF_HERO_BIT)  # test byte [eax+0x113], 4
+    a.emit(b"\xf6\x80", u32(KINDOF_HERO_BYTE), KINDOF_HERO_BIT)  # test byte [eax+0x113], 4
     a.jcc(JE, "res_entry_next")
     a.emit(
-        b"\xf6\x80", _u32(KINDOF_ARMY_SUMMARY_BYTE), KINDOF_ARMY_SUMMARY_BIT
+        b"\xf6\x80", u32(KINDOF_ARMY_SUMMARY_BYTE), KINDOF_ARMY_SUMMARY_BIT
     )  # test byte [eax+0x118], 1
     a.jcc(JE, "res_entry_next")
     a.emit(b"\x8b\x45\xf0")  # mov eax, [ebp-0x10]
-    a.emit(b"\x8b\x80", _u32(HERO_LEDGER_NAME_OFFSET))  # mov eax, [eax+0xe4]
+    a.emit(b"\x8b\x80", u32(HERO_LEDGER_NAME_OFFSET))  # mov eax, [eax+0xe4]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "res_entry_next")
     a.emit(b"\x83\xc0", bytes([ASCII_STRING_CHARS_OFFSET]))  # add eax, 8
@@ -585,12 +531,12 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     # Which army was he in? The battle-start capture is the only thing that still knows.
     a.emit(b"\x33\xdb")  # xor ebx, ebx            ; held index
     a.label("res_held")
-    a.emit(b"\x3b\x1d", _u32(held_count))  # cmp ebx, [held_count]
+    a.emit(b"\x3b\x1d", u32(held_count))  # cmp ebx, [held_count]
     a.jcc(JAE, "res_entry_next")
-    a.emit(b"\x6b\xc3", _i8(_HELD_SIZE))  # imul eax, ebx, _HELD_SIZE
-    a.emit(0x05, _u32(held))  # add eax, held
+    a.emit(b"\x6b\xc3", i8(_HELD_SIZE))  # imul eax, ebx, _HELD_SIZE
+    a.emit(0x05, u32(held))  # add eax, held
     a.emit(b"\x8b\xf8")  # mov edi, eax
-    a.emit(b"\x83\xc7", _i8(_HELD_NAME))  # add edi, 4              ; the held name
+    a.emit(b"\x83\xc7", i8(_HELD_NAME))  # add edi, 4              ; the held name
     a.emit(b"\x8b\x75\xec")  # mov esi, [ebp-0x14]
     a.call("str_eq")
     a.emit(b"\x84\xc0")  # test al, al
@@ -599,17 +545,17 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.jmp("res_held")
 
     a.label("res_found")
-    a.emit(b"\x6b\xc3", _i8(_HELD_SIZE))  # imul eax, ebx, _HELD_SIZE
-    a.emit(0x05, _u32(held))  # add eax, held
+    a.emit(b"\x6b\xc3", i8(_HELD_SIZE))  # imul eax, ebx, _HELD_SIZE
+    a.emit(0x05, u32(held))  # add eax, held
     a.emit(b"\x8b\x00")  # mov eax, [eax]          ; the army id
-    a.emit(b"\x8b\x0d", _u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
+    a.emit(b"\x8b\x0d", u32(THE_LIVING_WORLD_LOGIC))  # mov ecx, [TheLivingWorldLogic]
     a.emit(b"\x85\xc9")  # test ecx, ecx
     a.jcc(JE, "res_entry_next")
     a.emit(0x50)  # push eax
     a.call_absolute(LIVING_WORLD_FIND_ARMY_BY_ID)  # ret 4
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "res_entry_next")
-    a.emit(b"\x8b\x40", _i8(LIVING_WORLD_ARMY_ROSTER_OFFSET))  # mov eax, [eax+0x78]
+    a.emit(b"\x8b\x40", i8(LIVING_WORLD_ARMY_ROSTER_OFFSET))  # mov eax, [eax+0x78]
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "res_entry_next")
     a.emit(b"\x89\x45\xe8")  # mov [ebp-0x18], eax     ; the container
@@ -633,6 +579,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
 
+
+def _emit_setup_hook(a: Asm) -> None:
     # `setup_hook`: the battle-start call, then the capture. The displaced function takes no stack
     # argument, so nothing has to be re-pushed.
     a.label("setup_hook")
@@ -640,6 +588,8 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.call("capture")
     a.emit(0xC3)  # ret
 
+
+def _emit_harvest_hook(a: Asm) -> None:
     # `harvest_hook`: the harvest, then the restore. The harvest is `__thiscall` with one stack
     # argument it cleans itself, so it is pushed again for it and this hook cleans the caller's
     # copy in its place.
@@ -649,8 +599,6 @@ def _emit_code(base_va: int, data_va: int, layout: dict[str, int]) -> Asm:  # no
     a.call("restore")
     a.emit(b"\xc2\x04\x00")  # ret 4
 
-    return a
-
 
 def _field_table(keyword_va: int, stock: bytes) -> bytes:
     """The stock `ArmyEntry` sub-table plus a `Persistent` row, terminator last.
@@ -658,14 +606,12 @@ def _field_table(keyword_va: int, stock: bytes) -> bytes:
     A row is `{const char *name, ParseFn parse, void *userData, UnsignedInt offset}`. `Persistent`
     is read by the engine's own `Bool` parser into the scratch byte the parse hook consumes."""
     rows = stock[:_ROW_SIZE]  # the stock `Default` row
-    added = (
-        _u32(keyword_va) + _u32(GAME_DATA_BOOL_PARSER) + _u32(0) + _u32(ARMY_ENTRY_SCRATCH_OFFSET)
-    )
+    added = u32(keyword_va) + u32(GAME_DATA_BOOL_PARSER) + u32(0) + u32(ARMY_ENTRY_SCRATCH_OFFSET)
     return rows + added + bytes(_ROW_SIZE)
 
 
 def build_cave(base_va: int, stock_table: bytes | None = None) -> bytes:
-    """The cave's bytes, for a section based at ``base_va``."""
+    """The cave's bytes, for a section based at `base_va`."""
     stock = ARMY_ENTRY_DEFAULT_TABLE_BYTES if stock_table is None else stock_table
     layout = cave_layout()
     code = _emit_code(base_va + layout["code"], base_va, layout).finish()
@@ -707,6 +653,7 @@ ANCHORS = {
 class HeroArmyCarryoverPatch(Patch):
     name = "hero-army-carryover"
     author = "officialNecro"
+    runtime_verified = "yes"
     experimental = True
     description = (
         "ArmyEntry gains Persistent: a hero marked Persistent = Yes stays in his living-world army "
@@ -732,7 +679,7 @@ class HeroArmyCarryoverPatch(Patch):
             data,
             off,
             ARMY_ENTRY_DEFAULT_TABLE_PUSH_BYTES,
-            b"\x68" + _u32(section_va + layout["field_table"]),
+            b"\x68" + u32(section_va + layout["field_table"]),
             "the ArmyEntry sub-table -> hero-army-carryover cave",
         )
         for site, target in _hook_targets(section_va).items():

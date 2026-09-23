@@ -15,6 +15,7 @@ from sage_worldbuilder.viewport import ViewOptions
 
 np = pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 
+from sage_worldbuilder.commands.terrain import PatchHeights  # noqa: E402
 from sage_worldbuilder.render.topdown import contour_levels, contour_mask  # noqa: E402
 from sage_worldbuilder.terrain import FEET_PER_HEIGHT_UNIT, TerrainGrid  # noqa: E402
 from sage_worldbuilder.terrain.brushes import (  # noqa: E402
@@ -23,7 +24,6 @@ from sage_worldbuilder.terrain.brushes import (  # noqa: E402
     brush_center,
     brush_weights,
 )
-from sage_worldbuilder.terrain.edits import PatchHeights  # noqa: E402
 
 
 def flat_map(width: int = 12, height: int = 10, value: int = 256) -> Map:

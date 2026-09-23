@@ -18,8 +18,7 @@ pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not ins
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from sage_worldbuilder import MapDocument  # noqa: E402
-from sage_worldbuilder.camera import Camera  # noqa: E402
-from sage_worldbuilder.camera_edit import (  # noqa: E402
+from sage_worldbuilder.camera.keys import (  # noqa: E402
     CAMERA_KEY,
     DRAGGING,
     LOCAL,
@@ -32,7 +31,7 @@ from sage_worldbuilder.camera_edit import (  # noqa: E402
     handle_axes,
     handle_tips,
 )
-from sage_worldbuilder.cameras import (  # noqa: E402
+from sage_worldbuilder.camera.named import (  # noqa: E402
     FREE,
     LINEAR,
     LOOK,
@@ -41,6 +40,7 @@ from sage_worldbuilder.cameras import (  # noqa: E402
     focal_length,
     look_at_keys,
 )
+from sage_worldbuilder.camera.view import Camera  # noqa: E402
 from sage_worldbuilder.new_map import NewMapOptions, new_map  # noqa: E402
 from sage_worldbuilder.settings import Settings  # noqa: E402
 from sage_worldbuilder.ui.window import MainWindow  # noqa: E402

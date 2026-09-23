@@ -3,7 +3,7 @@
 The first-match getter stays intact; each recipient uses the original XP independently.
 The code-only section is allocated after existing patches and located by name on
 verification. No INI extension or persistent state is needed. Evidence and ABI are
-documented in ``../docs/share-experience-all.md``.
+documented in `../docs/share-experience-all.md`.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from ..addresses import (
 )
 from ..asm import JBE, JE, JNE, Asm
 from ..patcher import Patch
-from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..utils import allocate_section, apply_byte_patch, file_offset, find_section
 
 __all__ = ["SECTION_NAME", "ShareExperienceAllPatch"]
 
@@ -173,13 +173,6 @@ def _windows(section_va: int) -> tuple[tuple[int, bytes, bytes], ...]:
     )
 
 
-def _offset(data: bytes | bytearray, address: int) -> int:
-    off = va_to_offset(data, address)
-    if off is None:
-        raise ValueError(f"0x{address:08x} is not mapped - not the expected build")
-    return off
-
-
 class ShareExperienceAllPatch(Patch):
     """Evaluate all sharing behaviors, with independent recipient XP and percentage DropOff."""
 
@@ -196,7 +189,7 @@ class ShareExperienceAllPatch(Patch):
         if find_section(data, SECTION_NAME) is not None:
             raise ValueError(f"the file already carries a {SECTION_NAME} section")
         for address, stock, _replacement in _windows(0):
-            off = _offset(data, address)
+            off = file_offset(data, address)
             got = bytes(data[off : off + len(stock)])
             if got != stock:
                 raise ValueError(
@@ -204,7 +197,9 @@ class ShareExperienceAllPatch(Patch):
                 )
         section_va = allocate_section(data, SECTION_NAME, _assemble, _CHARACTERISTICS)
         for address, stock, replacement in _windows(section_va):
-            apply_byte_patch(data, _offset(data, address), stock, replacement, "ShareExperience")
+            apply_byte_patch(
+                data, file_offset(data, address), stock, replacement, "ShareExperience"
+            )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         located = find_section(data, SECTION_NAME)
@@ -219,7 +214,7 @@ class ShareExperienceAllPatch(Patch):
             problems.append(f"the helper in {SECTION_NAME} is not the one this patch builds")
         for address, _stock, replacement in _windows(section_va):
             try:
-                off = _offset(data, address)
+                off = file_offset(data, address)
             except ValueError as exc:
                 problems.append(str(exc))
                 continue

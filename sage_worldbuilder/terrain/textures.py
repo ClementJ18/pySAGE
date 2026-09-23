@@ -2,7 +2,7 @@
 paint writes (Flood Fill, which keeps blends, is in `blending`).
 
 A map lists the textures it uses (`BlendTileData.textures`), each a run of 64-pixel texture cells
-from `cell_start`; a tile value is `(cell << 2) | quadrant` (PHASE3.md, Tile values). Painting a
+from `cell_start`; a tile value is `(cell << 2) | quadrant`. Painting a
 texture the map lacks appends it to the table. WorldBuilder refuses a texture that would take
 the map past 4,096 texture cells (`cmp eax, 0x1000` at `0x0066F664`) and the game's parser
 asserts fewer than 200 textures (`0x0076F920`).
@@ -11,7 +11,7 @@ A texture is tiled over the map's cell coordinates shifted by a tiling offset pe
 (WorldBuilder's `getTileNdxForClass`, `0x00670100`), so neighbouring paints of the same texture
 join without a seam. The map does not store the offsets; WorldBuilder can shift them and re-tile
 an area, so a map's own tiling of a texture may be offset. Here a texture's offset is the one most
-of its cells already follow (93% of corpus cells follow their texture's; PHASE3.md), and (0, 0)
+of its cells already follow (93% of corpus cells follow their texture's), and (0, 0)
 for a texture the map lacks. A paint clears the blends, 3-way blends and cliff mappings of the
 cells it covers, as `setTileNdx` (`0x0066F010`) does.
 """

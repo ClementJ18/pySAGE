@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "Team",
+    "Teams",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, Property, WritingContext
 
@@ -34,7 +39,7 @@ class Teams:
     def parse(cls, context: "ParsingContext"):
         with context.read_asset() as asset_ctx:
             teams = []
-            team_count = context.stream.readUInt32()
+            team_count = context.stream.read_uint32()
             for _ in range(team_count):
                 teams.append(Team.parse(context))
 
@@ -48,6 +53,6 @@ class Teams:
 
     def write(self, context: "WritingContext"):
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.teams))
+            context.stream.write_uint32(len(self.teams))
             for team in self.teams:
                 team.write(context)

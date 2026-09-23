@@ -315,7 +315,7 @@ Two consequences worth acting on:
   reads this registry once and decodes the masks straight from it, which also makes it correct
   for whatever mod is loaded rather than for the one tree that was parsed.
 - The other three id-space stores (`TheThingFactory`, `TheSpecialPowerStore`,
-  `TheScienceStore` — see [`../addresses.py`](../addresses.py)) are the same kind of object and
+  `TheScienceStore` — see [`../addresses/`](../addresses/__init__.py)) are the same kind of object and
   have not been walked. If any of their `+1` offsets ever looks wrong, this is the way to check.
 
 ⚠ **Method note — `x or -1` fabricated two anomalies here.** A first pass through this table
@@ -504,3 +504,358 @@ several *different* expected values, then keep only the location consistent with
   thing for it to do; the filter is a separate deliberate step built on the shroud grid.
   `sage_live.api.shroud` holds the model, `Observation.under_fog` applies it, and
   [`fog-of-war.md`](fog-of-war.md) records the recovery.
+
+## `EngineLayout` field notes
+
+The reasoning behind the fields of `sage_live.backends.memory.EngineLayout`, moved out of the source so its comments stay short. One section per field, in file order.
+
+### `the_in_game_ui`
+
+InGameUI's selected-drawable list, which is what "my current selection" means. Read out of
+the engine's own accessor rather than searched for: `getAllSelectedDrawables` is virtual
+slot `+0x124` (the slot `multi-execute-gate.md` documents the ControlBar calling), and the
+function it points at is three bytes - `8d 41 20 c3`, `lea eax, [ecx+0x20]; ret`. So it
+returns the address of a member at `+0x20`, and that member is an MSVC `std::list` head:
+`*(InGameUI+0x20)` is the sentinel node, each node is `{next, prev, Drawable *}`, and an
+empty selection is a sentinel whose `next` is itself.
+
+This is **client state, not simulation state.** It is what this machine has selected and no
+part of the lockstep model, which is why it is safe to read and meaningless to compare
+across machines.
+
+### `player_template`
+
+The seat's `PlayerTemplate`, which is where the *faction* is - `player_side` is the broad
+side and several factions share one. Measured live (2026-08-13) on a two-seat match: both
+seats read side `Men` while the template read `Gondor`, and walking the neighbouring
+templates gave the matching pairs `Civilian`/`Civilian`, `Dwarves`/`Dwarves` and
+`Evil Men`/`Evilmen` - the space in that last one is what says `+0x14` is the *display*
+name rather than an internal one. It is a UnicodeString; `+0x18` is the side again, as an
+AsciiString, and is what confirmed the two fields belong to the same object.
+
+### `player_skill_points`
+
+The rank ladder behind those points: lifetime skill points, then the skill needed for the
+next rank and for the rank held. **Not yet confirmed against a running game.** They are
+the Generals `Player` order - `m_rankLevel, m_currentSkillPoints, m_sciencePurchasePoints,
+m_levelUp, m_levelDown` - which puts the spendable points at `+0x24`, exactly where they
+were measured, and makes `+0x1C` the rank (it rises on a grant and never falls on a
+purchase, which is what was seen). `PlayerState.power_point_progress` refuses any triple
+that is not a rank in progress, so a wrong offset reads as "unknown" rather than as a bar.
+
+### `player_color`
+
+The seat colour, `0xFF000000 | rgb`. `Player::initFromDict` (`0x006AA504`) reads the side
+dict's `playerColor` key (`StaticNameKey` at `0x00DA2F6C`) and, only when the key is
+present, ORs in the alpha and stores it here and at `+0x2A4`; `playerNightColor` then
+overwrites `+0x2A4` alone. So an opaque alpha is the proof the key was set, and a seat
+nobody coloured reads as None rather than as black. Read statically, not yet confirmed
+against a running game.
+
+### `the_sides_list`
+
+Alliances, from the sides list the match was set up from: each seat's side dict names
+its allies in `playerAllies` as a space-separated list of `playerName`s. Layout of
+`TheSidesList` from `sage_patch/docs/skirmish-ai-fallback.md`; the `Dict` from its own
+lookup (`0x00714A09`), which reads a u16 pair count at `data+4`, binary-searches 8-byte
+pairs from `data+6` on `dword >> 8` and takes the value from the pair's `+4`. The pair's
+low byte is its type, and 3 is an `AsciiString` - `Dict::setAsciiString` pushes exactly
+that (`DICT_SET_ASCII_STRING_BYTES`). The keys are interned at runtime, so the two
+`StaticNameKey`s are read for the numbers to look for. Read statically, not yet confirmed
+against a running game; a side list that does not decode yields no allies.
+
+### `player_sciences`
+
+The sciences the player holds, as a `std::vector<ScienceType>`: `{begin, end, capacity}`,
+so the count is `(end - begin) / 4` and there is no count field to check it against. Same
+shape as `TheSpecialPowerStore`'s vector, and the same absence of a checksum.
+
+Found by decoding rather than by shape, which is what makes it more than a plausible
+triple: read as ini-order science ids the entries name exactly what each seat should be
+holding. Measured live across one match's five seats (2026-08-04): every seat carried the
+four view sciences (`SCIENCE_GENERAL_VIEW`, `..._COMMANDER_VIEW`, `..._UNIT_VIEW`,
+`..._GROUND_VIEW`), each playing seat carried its own faction science first
+(`SCIENCE_MEN` for the Men seat, `SCIENCE_MORDOR` for the Mordor one) and nobody else's,
+and the Mordor AI carried five Mordor spellbook powers on top - `SCIENCE_EyeofSauron`,
+`SCIENCE_SummonAufseher`, `SCIENCE_SBSummonEasterling`, `SCIENCE_Darkness`,
+`SCIENCE_CalltheHorde`. Nothing but the right offset decodes as a coherent per-seat
+spellbook, and the vector's own `end` is what says where the meaning stops: reading past
+it yields other factions' sciences, which is exactly how a wrong length would look right.
+
+That decode is also an independent confirmation of the **id space** - the ids the engine
+holds are `game.sciences` index + 1, which is what `sage_replay.idspace` derives from the
+replay corpus and what `orders.purchase_power` sends.
+
+**The AI's set does not obey the ini's prerequisites** (it held `SCIENCE_Darkness` with
+none of the three sciences that unlock it), so this reports what a player *has* and is
+not a witness to how they got it. A skirmish AI is granted spells by script.
+
+**Not covered by the snapshot fixture**: that capture predates this field and never read
+these bytes, so it decodes as an empty set there.
+
+### `the_science_store`
+
+`TheScienceStore`, the fourth id space, and the one that stays **unnamed**. It has the
+same `std::vector` shape as the special-power store - `{begin, end, capacity}` at `+0x0C`
+- and holds exactly the 263 entries the ini defines, but its elements are separately
+allocated at *different sizes*, so no fixed offset reads a name off one. What the vector
+does give is the **count**, and a count is what bounds a science id: the ids the engine
+holds are `game.sciences` index + 1 (`sage_replay.idspace.SCIENCE_OFFSET`), so a valid id
+runs 1..count and anything past that is a typo rather than a science. That is the whole
+of what is read here - naming a science still means reconstructing the space from ini
+through `sage_live.utils.resolve`.
+
+### `the_global_data`
+
+`TheWritableGlobalData`, and the pair of `GameData` fields that pace the main loop. Both
+are ordinary ini fields - the field-parse table at `0x00BFF580` maps `UseFPSLimit` to
+`+0x26` and `FramesPerSecondLimit` to `+0x28` - and **the engine writes both of them at
+runtime itself**: `0x0062C6FF` is `[GlobalData+0x28] = 10000; [GlobalData+0x26] = 0`,
+which is the engine's own idiom for taking the cap off.
+
+`+0x26` is not read where it is paced, though; it is copied into a loop-local flag at
+`0x0063A01B` (`mov al, [GlobalData+0x26]; mov [0x00DE4320], al`), and that flag is what
+gates the throttle: `0x0063A18E` compares it against zero and jumps clean over the frame
+pacing block at `0x0063A196` when it is unset. Several other sites in the same function
+force the flag either way on their own conditions, so it is **recomputed every frame** and
+a writer that wants it to stay unset has to re-apply every frame rather than write once.
+The cached flag is carried here beside the two ini fields for that reason.
+
+### `obj_experience_tracker`
+
+`Object::m_experienceTracker`, and the tracker's own fields. The pointer is documented in
+`sage_patch/docs/terrain-resource-exp.md` (accessor `mov eax,[ecx+0x26c]; ret` at
+`0x008D7C63`); the fields below were read out of the tracker's own methods.
+
+`ExperienceTracker::addExperiencePoints` (`0x0079D68D`, the real body behind the sponsor
+walking wrapper at `0x0079D833`) ends:
+
+    0079d6e6  movss xmm1, [ecx+0x10]      ; the experience points
+    0079d6ee  addss xmm1, xmm0
+    0079d6f2  movss [ecx+0x10], xmm1
+    0079d6f7  call 0x79d141               ; the level-up cascade
+
+and it opens by refusing to grant at all when the level is capped, which is what names
+the other two:
+
+    0079d69e  mov  eax, [ecx+0x28]        ; max level, 0 when uncapped
+    0079d6a1  cmp  eax, edx               ; edx = 0
+    0079d6a3  jle  0x79d6aa               ; no cap: skip the test
+    0079d6a5  cmp  [ecx+0x24], eax        ; current level
+    0079d6a8  jge  0x79d6fc               ; at the cap: grant nothing
+
+`+0x24` is corroborated by the cascade itself, which returns it when nothing levelled and
+otherwise returns the reached `ExperienceLevel`'s own `+0xFC` - so the two are the same
+kind of number - and by the setter at `0x0079D72A` (`mov [ecx+0x24], eax`).
+
+**The cascade is only ever reached from a grant.** `0x0079D141` has three callers
+(`0x0079D6F7` here, `0x0079D92F` in the engine's own `set experience and level`, and one
+in the campaign block), and nothing polls it. So experience written from outside sits in
+`+0x10` until the object next gains any, at which point the engine levels it the whole way
+through its own path. That is a property a writer can rely on rather than work around: set
+the points and let the next grant run the cascade.
+
+### `player_command_points_used`
+
+Command points, as (in use, cap). `+0x068` was confirmed by recruiting a horde: 120 -> 180.
+
+**`+0x064` is the *base* cap and excludes every bonus.** It reads a flat 500 for every
+player, engine-managed sides included, and usage passes it freely: a measured match ran
+`+0x068` to 1436 against it. That is not the engine ignoring a ceiling, it is this field
+not being the whole ceiling - Edain's `CPObject` carries a `CommandPointBonus`, and the
+capacity the engine checks is this plus whatever those grant.
+
+Isolated live, which is what tells the two readings apart: a match sat pinned at 472/500
+with recruits being discarded and the army stuck at 23 battalions, bought a `CPObject`,
+and once that **finished building** went 472 -> 484 -> 532 with the army climbing again.
+The base number never moved through any of it. Note the lag - a `CPObject` is queued and
+built like a unit, so the capacity arrives at the end of its build time, not at purchase.
+
+So the cap is real and is enforced - at the base value until something raises it.
+
+**`+0x06C` is where the bonus lands, and base + bonus is the ceiling the engine checks.**
+Walked live on 2026-08-04 across every seat in one match: base read a flat 500 for all of
+them, and the two playing seats carried a bonus of 800 and 600 while their usage sat at
+1262 and 1077 - each pressed hard against its own `base + bonus` (1300 and 1100) and
+neither over it. Watched across six samples the usage climbed 1088 -> 1262 as battalions
+finished and never crossed the sum, and the Mordor seat's bonus stepped 600 -> 800 mid
+sample, which is a `CPObject` completing.
+
+**`+0x070` is a hard ceiling over the sum, and it is enforced.** It reads a flat 1500 for
+every seat, engine-managed ones included, and never moves - which is why it was first
+recorded here as an inferred maximum and deliberately not applied. It is no longer
+inferred. `Player::getCommandPointCap` (`0x006A7B9F`, called on `Player+0x60`) ends:
+
+    006a7ba4  mov   ebx, [esi+0x0c]     ; +0x6C, the bonus
+    006a7bad  add   ebx, [esi+0x04]     ; +0x64, the base
+    ...                                 ; a filtered vector at +0x80/+0x84 adds more
+    006a7bf2  mov   esi, [esi+0x10]     ; +0x70
+    006a7bf5  cmp   ebx, esi
+    006a7bf7  cmovg ebx, esi            ; cap = min(base + bonus + extras, +0x70)
+
+and `hasEnoughCommandPoints` (`0x006A7F79`) - the gate that answers verdict 7 in
+`queue-ignore-cp.md` - compares `+0x68 + template->CommandPoints` against that return. So a
+raised bonus that pushes the sum past `+0x70` buys nothing: measured live on 2026-08-13, a
+seat written to base 500 + bonus 6000 recruited as though capped at 1500, and writing
+`+0x70` to 9000 moved the readout to the sum. Anything raising the ceiling must write both.
+
+The vector at `+0x80`/`+0x84` (stride 0xC, value at `+0x0`, an `ObjectFilter` at `+0x8`) is
+the third term. Entries whose filter is unset always count; the rest are asked. Evaluating
+a filter means calling the engine, so nothing here reads it - a ceiling computed from the
+two flat fields is a lower bound on the real one, not the whole of it.
+
+**Not covered by the snapshot fixture.** That capture predates this field, so `+0x06C`
+reads unreadable there and falls back to zero - which happens to be the right answer for
+those bytes (an early frame with no `CPObject` built) and so leaves the golden decode
+unchanged. The test therefore passes without exercising this at all; re-capturing during a
+match with a raised ceiling is what would cover it.
+
+### `module_data`
+
+A special-power module, and the frame its power is next usable on. This is the engine's
+own cooldown - the number `SpecialAbilityUpdate::startPowerRecharge` writes at
+`0x00896f7f` as `TheGameLogic.frame + frames`, so a power is ready when `readyFrame` is
+not in the future. Derivation in `sage_patch/docs/spell-recharge-filter.md`.
+
+The offsets come from that function's own register use: it is an adjustor thunk on the
+`SpecialPowerModuleInterface` subobject at `module+0x10`, with the `ModuleData` at
+`ecx-0xc` and the `Object` at `ecx-8` - so on the module itself the data pointer is at
+`+0x04` and the ready frame at `+0x18`. The `ModuleData` names its `SpecialPowerTemplate`
+at `+0x08`, and that template carries its name at `power_name`, the same offset the store
+walk already uses.
+
+**Confirmed twice over, live.** Rallying Call read `readyFrame == frame` while ready, and
+jumped 902 frames into the future the moment it was cast. And the only two powers on the
+whole spellbook whose `readyFrame` is absurd (20.6M and 14.9M against a frame of 3155) are
+exactly the two whose ini `ReloadTime` is absurd - the MM variants at 1e23 - which is the
+field being derived from the data rather than coinciding with it.
+
+**Worth reading rather than computing**, because the ini figure is the *undiscounted* one:
+that measured jump was 30 seconds against a `ReloadTime` of 180, so a policy pricing the
+cooldown from the data alone waits six times too long.
+
+### `team_proto`
+
+`Team` -> `TeamPrototype` -> `Player`, which is what resolves the teams a player owns
+beyond their default one. Verified live at frame 22952: every one of the six default teams
+resolves through this chain to the same index `player_default_team` gives, and it also
+resolves all 41 objects that the default-team map alone left ownerless - 39 of them
+Isengard's, including the superweapon-summoned crossbow battalion that was shooting a farm
+down while reading as nobody's. See `_owner_of_team`.
+
+### `obj_model_conditions`
+
+The engine's `ModelConditionFlags` - a 19-dword bitset of the states an object is in,
+named by a NULL-terminated table of 591 strings in the image. This is how the game itself
+knows a structure is still going up (`ACTIVELY_BEING_CONSTRUCTED`), a building is working
+its door animation, or a unit is attacking - and it sits inside `obj_span`, so reading it
+costs no read of its own. Offsets are `sage_patch.patches.utils.model_conditions`, whose
+production-condition patch writes to this same mask.
+
+### `obj_contained_by`
+
+**What contains this object** - the horde a battalion member belongs to. `Object*`, or 0
+for anything standing on its own, which includes the container itself.
+
+Found differentially against a live match rather than by disassembly: of every dword in a
+member's first `0x400` bytes, this is the one holding its container's address, and it did
+so for 22 of 23 members while no other offset managed more than 2. Corroborated across
+four factions at once - every one of the 38 objects carrying it pointed at a real object
+in the table, none stood more than 200 units from it, and the template pairs are all
+`X -> XHorde`, including an `ImladrisBanner` inside a `BruchtalLancerHorde` where the
+names differ but the membership is right.
+
+Almost certainly SAGE's `m_containedBy`, which is the more general "what am I inside" -
+so a garrisoned or transported unit should report its holder here too. Only horde
+membership has been observed, so only that is claimed.
+
+### `obj_status`
+
+The engine's `ObjectStatusMaskType` - what the game itself asks about an object before it
+acts on it, and the other half of the containment story. `HORDE_MEMBER` is what marks a
+unit as belonging to a battalion at all, and `IS_LEAVING_FACTORY` is what marks one that
+has not finished coming out of the building that made it, so a battalion caught mid-form
+is readable here and nowhere else. Same 16-byte window as everything above, so it costs
+no read of its own. Derivation in `sage_patch.addresses`.
+
+### `the_game_text`
+
+`TheGameText`, the string table every label resolves through. Its fetch (vtable `+0x44`,
+`0x006E7A63`) tries two tables in turn, `+0x2C` then `+0x30`, each through `0x006E7903`:
+a table is `{count, ?, entries}` and each entry is 8 bytes whose second dword is the
+string's record, with the text at record `+4`. The label at record `+0` is inferred from
+the text sitting beside it; a lookup only trusts an exact match on it, so a wrong guess
+finds nothing rather than the wrong string.
+
+### `obj_command_set_overrides`
+
+The buttons an object offers, which is where a power's in-game name lives: a special
+power has no display name of its own, the button that fires it does.
+
+`Object::getCommandSetString` (`0x0069156B`) returns the first non-empty of three runtime
+overrides - Create-A-Hero, the garrison swap, `CommandSetUpgrade` - and otherwise the
+template's `CommandSet` (`sage_patch/docs/commandset-button-upgrade.md`).
+
+### `entry_percent`
+
+How far along this entry is, as three floats the engine writes together every logic frame.
+`ProductionUpdate::update` (`0x008A1B9F`, and see `production-model-condition.md` §5) ticks
+the head entry like this, with `ebx` the entry and `eax` the entry's build time in frames:
+
+```
+008a1ebc  movss xmm0, [0xbd1908]      ; 1.0 - one frame's worth
+008a1ed6  call  0x68c82d              ; scaled by the object's own production bonus
+008a1edb  movss xmm0, [ebx+0x1c]
+008a1ee0  addss xmm0, [ebp-0x68]      ; progress += that step
+008a1ee9  movss [ebx+0x1c], xmm0
+008a1eee  call  0x8a04da              ; eax = build time, in frames
+008a1ef7  movss xmm1, [0xbd88d8]      ; 100.0
+008a1eff  movss xmm0, [ebx+0x1c]
+008a1f04  cvtsi2ss xmm2, eax
+008a1f08  divss xmm0, xmm2
+008a1f0f  mulss xmm0, xmm1            ; progress / buildTime * 100
+008a1f13  divss xmm3, xmm2            ; 100 / buildTime
+008a1f17  movss [ebx+0x14], xmm0
+008a1f1c  movss [ebx+0x18], xmm3
+008a1f6b  comiss xmm0, xmm1           ; done at >= 100.0
+```
+
+So `entry_progress` is the accumulator that actually decides completion, and the other two
+are recomputed from it - a reader wanting "how far along" should read `entry_percent`, and
+anything wanting to *move* production has to move `entry_progress`.
+
+**`entry_percent_per_frame` carries the build time with it**: it is `100 / buildTime`, so
+the frames an entry still needs is `(100 - percent) / percent_per_frame` with no ini load
+and no engine call. It reads 0.0 on an entry the engine has not ticked yet, which is the
+one state where all three are meaningless together.
+
+The step at `+0x1C` is one frame *before* the bonus at `0x68c82d` scales it, which is why
+progress is a float rather than the frame count it looks like: a production-speed bonus
+makes it advance by fractions.
+
+Corroborated by the module's own serializer, `ProductionUpdate::xfer` at `0x008A3111`,
+which walks the same queue and xfers `+0x14` and `+0x18` through the `Xfer` slot used for
+`Real` and treats `+0x1C` as a float it converts (`cvttss2si` / `cvtsi2ss`) around the
+save format's integer field.
+
+### `production_scan`
+
+How many module slots `_production_module` covers, and deliberately *not* `max_modules`
+above even though both bound the same array. That one bounds a pointer-at-a-time walk that
+stops at the terminator, so raising it costs nothing; this one **is** the size of a single
+all-or-nothing `read`, and a 4KB read off a small heap block fails entirely the moment it
+crosses an unmapped page - taking every structure's production read with it. It was also
+the value `max_modules` itself had until this field was split out of it: the second
+`max_modules = 64` shadowed the 1024 above, so the spellbook walk had been silently
+stopping at 64 of its ~140 modules.
+
+### `string_length`
+
+AsciiString / UnicodeString: {u32 refcount; u16 length; u16 allocated; chars[]}, where
+both counts are in **characters** - so a UnicodeString's body is `length * 2` bytes.
+
+The half-word split was measured live (2026-08-13) rather than assumed: read as one u32,
+`+0x4` gives 786440 for `Player_1` and 262147 for `Men`, which are `0x000C0008` and
+`0x00040003` - the low half is the exact character count every time, and the high half is
+the allocation that count fits in. A reader that trusts the whole word sees a length of
+three quarters of a million and refuses the string.

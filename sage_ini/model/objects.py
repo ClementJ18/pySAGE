@@ -283,7 +283,7 @@ class IniObject:
         # Defaults written in the class body (`Cost: Int = 0`) would shadow __getattr__;
         # move them into _own_defaults and strip them so reads route through lazy conversion.
         # Python 3.14 stores annotations lazily, so they may not exist in
-        # ``cls.__dict__`` until the descriptor is accessed.
+        # `cls.__dict__` until the descriptor is accessed.
         own_annotations = getattr(cls, "__annotations__", {})
         own_defaults = {}
         for field in list(own_annotations):

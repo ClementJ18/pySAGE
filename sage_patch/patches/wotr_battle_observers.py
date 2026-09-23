@@ -1,84 +1,12 @@
-"""War of the Ring co-op: play the battles the engine auto-resolves, with the rest watching.
+"""Stop multiplayer War of the Ring auto-resolving a battle because not every human is in it, and
+seat the others as observers.
 
-Targets the ROTWK SAGE-engine `game.dat` build ``2.01.2614.37001``. Every address here is derived
-in ``../docs/living-campaign/mp-battle-participation.md``.
+The rule that a battle needs at least as many armies as humans is enforced twice: the vote mask
+(`0x006BEBE5`) and the battle prompt's allowed resolutions (`0x007F67DB`, which greys Real Time).
+Both gates are cleared, and the peers they let in are seated as observers; attackers are numbered by
+participation rather than lobby slot. No new network message: every peer computes the same result.
 
-**The gap.** In multiplayer War of the Ring a battle is fought in real time only when the number of
-armies in it is at least the number of humans in the session. With three or more people most
-battles fall short of that and are auto-resolved, and the players who *were* in the battle never
-get the choice. The rule is written down **twice**, from the same two counts - the battle's
-participants and the session's active human living-world players:
-
-- `LivingWorldLogic::onSetConflictResolutionMethod` strips the real-time bit out of the vote mask
-  and forces the auto-resolve one when participants are fewer (`0x006BEBE5`, `>=`);
-- `LivingWorldBattle::getAllowedResolutions` leaves the real-time bit out of the mask the battle
-  prompt shifts into its buttons unless the two are equal (`0x007F67DB`, `==`), which is what
-  greys the Real Time button before the vote is ever cast.
-
-Both have to go, and the client one goes first in play: a greyed button means the logic gate never
-runs at all.
-
-**Why the gate is there.** Not networking - the vote travels through `TheMessageStream`, so every
-peer already runs the same handler and enters the same battle. The problem is seating.
-`GameLogic::buildSidesFromGameInfo` names each lobby slot's side by asking one question, *do you
-own this region*: the owner gets `Player_1` and everybody else `Player_<slot index + 2>`. In a
-three-human game the third player is named `Player_4` or `Player_5`, a side no War of the Ring map
-declares, so nothing marks a side local for that peer and `PlayerList::newGame` falls through to a
-loop that hands the client **the first player that is not `m_players[0]`** - somebody else's army.
-
-**What this does.** Clears both gates, and gives the peers they let in somewhere to sit.
-
-First it has to get the seat looked at. Both of `buildSidesFromGameInfo`'s loops skip a slot whose
-`GameSlot::isOccupied` is false, and the engine leaves `m_isOccupied` clear on a seat that is not
-in this battle - so a pre-pass at the top of the function marks those seats occupied, which is
-what makes every hook below reachable for them.
-
-Then: a human slot whose `LivingWorldPlayer` is not on any side of the battle is named
-**`ReplayObserver`** and
-built with `FactionObserver`, so it merges into the one side every game carries -
-`GameLogic::startNewGame` adds it unconditionally at `0x00626E1F`. The local slot's record is the
-one that carries `multiplayerIsLocal`, so `PlayerList::newGame` seats the client there and
-`Player::initFromSide` copies the observer flag off that template into `Player+0x35A`/`+0x754`,
-which is what `observer-switch` and `observer-command-range` already build on.
-
-**Not `Observer_%d`.** That is the arm the engine's own lobby observers take, and it was the first
-thing this patch tried. Measured live on 2026-09-06 it does not work for a battle: no War of the
-Ring map declares an `Observer_N` side, a slot record only fills a side that already exists, and
-the peer ended up with no side, no `multiplayerIsLocal` anywhere, and `newGame` falling through to
-seat it on `PlyrCivilian` — watching the map through the neutral player's eyes.
-
-A fourth hook numbers the seats that *are* fighting. Stock numbering is by slot index, so an
-attacker sitting in slot 1 is named `Player_3` whether or not anybody else is in the battle; this
-counts participants instead, so the defender keeps `Player_1` and the attackers take `Player_2`
-upward in slot order.
-
-Two more give the seat somewhere to look from. `startNewGame` hands the `ReplayObserver` player the
-whole map, which is right for a replay and wrong for a peer who is in the session and has allies to
-watch through, so that reveal is skipped whenever the pre-pass seated anybody. And the opening
-camera is a `Player_%d_Start` waypoint built from the seat's own start position - which, on a seat
-the engine gave no place on the map, names a waypoint no two-army battle map declares and drops the
-camera in the map's corner. The observer borrows a participant's instead: an ally's where the lobby
-team says which side it is on, otherwise the first participant's in slot order.
-
-**What it does not do.** It does not change the auto-resolve path, the post-battle harvest or hero
-permadeath, and it adds no network message: every peer computes the same vote mask from the same
-replicated state and every peer already transitions to the battle map. It also does not touch the
-lobby's own observer slots, which reach the same path on their own.
-
-**No INI, `.str` or `.apt` change.** The sides, the faction and the observer UI are all engine-side
-and already shipped.
-
-**Unverified in play**, and the doc names the three readings that would change it if wrong: the
-identification of the store the current battle is found in, whether stock numbering really is slot
-ordered, and whether the observer seat survives a full War of the Ring turn. Expect to need
-`desync-detection` on the first co-op battle.
-
-**Composition.** Order-independent. The cave is allocated with
-:func:`~..utils.allocate_section` past every existing section and :meth:`verify` finds it by name;
-the nine sites rewritten are in `LivingWorldLogic::onSetConflictResolutionMethod`,
-`LivingWorldBattle::getAllowedResolutions` and `GameLogic::buildSidesFromGameInfo`, none of which
-any other bundled patch edits or reads. See the composition contract on
-:class:`~..patcher.Patch`.
+Derivation: `../docs/living-campaign/mp-battle-participation.md`.
 """
 
 from __future__ import annotations
@@ -206,11 +134,10 @@ RESOLUTION_EQUAL_BRANCH_BYTES = bytes.fromhex("3bc674e0")
 RESOLUTION_ALLOW_RTS_VA = 0x007F67BD
 RESOLUTION_ALLOW_RTS_BYTES = bytes.fromhex("834df808")
 
-#: What `LIVING_WORLD_LOGIC_CURRENT_REGION_ID` holds when no battle is being entered. Read live on
-#: the strategic map of a three-player session, 2026-09-06, where it is the **only** thing keeping
-#: the seating hooks inert: `GAME_LOGIC_LIVING_WORLD_TYPE` is 1 there too, so it does not by itself
-#: mean "in a battle". Tested explicitly rather than left to the region lookup failing, because
-#: whether the field is reset on the way back out of a battle has not been observed.
+#: What `LIVING_WORLD_LOGIC_CURRENT_REGION_ID` holds when no battle is being entered - on the
+#: strategic map, the only thing keeping the seating hooks inert (`GAME_LOGIC_LIVING_WORLD_TYPE` is
+#: 1 there too). Tested explicitly, because whether the field resets after a battle has not been
+#: observed.
 NO_CURRENT_REGION = -1
 
 
@@ -237,13 +164,10 @@ FACTION_TEST_BYTES = bytes.fromhex("8b461885c0")
 FACTION_BRANCH_VA = 0x00627E25
 FACTION_BRANCH_BYTES = bytes.fromhex("7c0e")
 
-# Where the formatted side name is copied into `GameSlot::m_mapPlayer`: `lea eax, [ebp-0x1c]` /
-# `lea ecx, [esi+0x34]`, the point all three naming arms converge on. The seat's name is replaced
-# with the literal `ReplayObserver` here rather than at the arm that formats it, because
-# `Observer_%d` names a side **no War of the Ring map declares** - measured live 2026-09-06, where
-# it left the peer with no side, no `multiplayerIsLocal` anywhere, and `PlayerList::newGame`
-# falling through to seat it on `PlyrCivilian`. `ReplayObserver` is the one side that always
-# exists: `0x00626E1F` adds it to every game unconditionally.
+# Where the formatted side name is copied into `GameSlot::m_mapPlayer`, the point all three naming
+# arms converge on. The seat is renamed `ReplayObserver` here: `Observer_%d` names a side no War of
+# the Ring map declares, which leaves the peer seated on `PlyrCivilian`, while `ReplayObserver` is
+# added to every game unconditionally (`0x00626E1F`).
 ASSIGN_NAME_VA = 0x00627CEB
 ASSIGN_NAME_BYTES = bytes.fromhex("8d45e48d4e34")
 
@@ -788,13 +712,13 @@ def build_cave(section_va: int) -> tuple[bytes, dict[str, int]]:
 
 
 def _call_detour(from_va: int, to_va: int, width: int) -> bytes:
-    """``call rel32`` to the cave, padded with ``nop`` - the pad is executed on the way back."""
+    """`call rel32` to the cave, padded with `nop` - the pad is executed on the way back."""
     call = b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
     return call + bytes([_NOP]) * (width - len(call))
 
 
 def _jmp_detour(from_va: int, to_va: int, width: int) -> bytes:
-    """``jmp rel32`` to the cave, padded with ``int3`` - the pad is unreachable."""
+    """`jmp rel32` to the cave, padded with `int3` - the pad is unreachable."""
     jump = b"\xe9" + struct.pack("<i", to_va - (from_va + 5))
     return jump + bytes([_INT3]) * (width - len(jump))
 
@@ -804,6 +728,7 @@ class WotrBattleObserversPatch(Patch):
 
     name = "wotr-battle-observers"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop multiplayer War of the Ring auto-resolving a battle just because not everyone is "
         "in it, and seat the players who are not as observers instead of on somebody else's "
@@ -828,7 +753,7 @@ class WotrBattleObserversPatch(Patch):
             apply_byte_patch(data, off, stock, new, note)
 
     def _edits(self, section_va: int) -> list[tuple[int, bytes, bytes, str]]:
-        """``(site, stock bytes, replacement, note)`` for all nine rewritten sites."""
+        """`(site, stock bytes, replacement, note)` for all nine rewritten sites."""
         entries = build_cave(section_va)[1]
         return [
             (
@@ -890,10 +815,10 @@ class WotrBattleObserversPatch(Patch):
         ]
 
     def verify(self, data: bytes | bytearray) -> list[str]:
-        """Return the structural problems that mean ``data`` does not carry this patch.
+        """Return the structural problems that mean `data` does not carry this patch.
 
         Locates the cave, rebuilds it against the base VA it actually landed on, and compares
-        that and all nine edits with what is on disk. Reads only via ``struct`` and the section
+        that and all nine edits with what is on disk. Reads only via `struct` and the section
         table, so verification needs no disassembler.
         """
         located = find_section(data, SECTION_NAME)

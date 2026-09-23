@@ -135,6 +135,10 @@ class ScriptDebugger(Protocol):
 
     def run_actions(self, state: LiveState, false_actions: bool) -> None: ...
 
+    def is_watched(self, name: str) -> bool: ...
+
+    def watch(self, player: str, name: str) -> None: ...
+
 
 class ScriptsHost(Protocol):
     """What the panel needs from the window around it."""
@@ -696,13 +700,18 @@ class ScriptsPanel(QWidget):
         """What the running game holds for the item on `node`, looked up under its player."""
         if self.live is None:
             return None
-        top = node
-        while (parent := top.parent()) is not None:
-            top = parent
-        player = top.data(0, _PLAYER_ROLE) or ""
+        player = self._player_name(node)
         if isinstance(item, ScriptGroup):
             return self.live.group(player, item.name, item.is_active)
         return self.live.script(player, item.name, item.is_active)
+
+    @staticmethod
+    def _player_name(node: QTreeWidgetItem) -> str:
+        """The player whose list holds the row `node`."""
+        top = node
+        while (parent := top.parent()) is not None:
+            top = parent
+        return top.data(0, _PLAYER_ROLE) or ""
 
     def _describe(self, live: LiveState | None) -> str:
         if self.live is None:
@@ -1368,10 +1377,14 @@ class ScriptsPanel(QWidget):
             return
         viewport = self.tree.viewport()
         at = viewport.mapToGlobal(point) if viewport is not None else point
-        self.open_tree_menu(item, at, self._live_state(node, item))
+        self.open_tree_menu(item, at, self._live_state(node, item), self._player_name(node))
 
     def open_tree_menu(
-        self, item: Script | ScriptGroup, at: QPoint | None, live: LiveState | None = None
+        self,
+        item: Script | ScriptGroup,
+        at: QPoint | None,
+        live: LiveState | None = None,
+        player: str = "",
     ) -> None:
         """The menu itself. Triggers are offered only for a row the running game holds; a
         breakpoint can be set on any script, since it resolves by name when the game has it."""
@@ -1393,6 +1406,7 @@ class ScriptsPanel(QWidget):
             toggle.setCheckable(True)
             toggle.setChecked(debugger.has_breakpoint(item.name))
             add("Run Until It Fires", lambda: debugger.run_until(item.name))
+            add("Why Doesn't It Fire?", lambda: debugger.watch(player, item.name))
         if live is not None:
             menu.addSeparator()
             on = live.status is LiveStatus.ACTIVE

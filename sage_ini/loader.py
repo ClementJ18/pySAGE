@@ -16,7 +16,7 @@ from sage_ini.parser.blockparser import parse_file
 from sage_ini.parser.diagnostics import Diagnostics
 from sage_ini.parser.io import iter_asset_files, iter_map_files
 from sage_ini.parser.location import Span
-from sage_ini.stats import as_root_list, ini_root, is_map_path, root_files
+from sage_ini.paths import as_root_list, ini_root, is_map_path, root_files
 from sage_ini.strings import load_string_locations, load_strings
 from sage_utils import progress
 

@@ -58,15 +58,15 @@ cli_exe = EXE(
     icon=[CLI_ICON],
 )
 
-# The model registry is populated by ordinary imports from sage_lint.cli, so PyInstaller's
+# The model registry is populated by ordinary imports from sage_lint.__main__, so PyInstaller's
 # static analysis finds it - no hiddenimports needed beyond tomllib.
 
 ui_a = Analysis(
-    [os.path.join(ROOT, 'sage_lint', 'plugins', 'ui', 'app.py')],
+    [os.path.join(ROOT, 'sage_lint', 'ui', 'app.py')],
     pathex=[ROOT],
     binaries=[],
     datas=[
-        (os.path.join(ROOT, 'sage_lint', 'plugins', 'ui', 'icon.ico'), '.'),  # window/taskbar icon, found via sys._MEIPASS
+        (os.path.join(ROOT, 'sage_lint', 'ui', 'icon.ico'), '.'),  # window/taskbar icon, found via sys._MEIPASS
     ],
     hiddenimports=['tomllib'],  # .sagelint is TOML; ensure the stdlib parser is bundled
     hookspath=[],
@@ -97,5 +97,5 @@ ui_exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=[os.path.join(ROOT, 'sage_lint', 'plugins', 'ui', 'icon.ico')],
+    icon=[os.path.join(ROOT, 'sage_lint', 'ui', 'icon.ico')],
 )

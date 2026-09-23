@@ -19,7 +19,7 @@ from sage_ini.model.behaviors import Body  # noqa: E402
 from sage_ini.model.game import Game  # noqa: E402
 from sage_ini.model.nuggets import DamageNugget  # noqa: E402
 from sage_ini.parser.blockparser import parse_file  # noqa: E402
-from sage_ini.stats import ini_root, root_files  # noqa: E402
+from sage_ini.paths import ini_root, root_files  # noqa: E402
 
 EPS = 1e-6  # blows within this many ms count as the same instant
 

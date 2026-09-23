@@ -451,3 +451,14 @@ the entry is destroyed at `0x008A2EDB` and freed at `0x008A2EDE`, just before th
 | `0x00C682C4` | `QueueProductionExitUpdate`'s `ExitInterface` vtable |
 | `0x00DE412C` | `TheGameLogic` |
 | `0x00DE4A40` | `TheThingFactory` |
+
+## Implementation notes
+
+From the `horde_exit_absorption.py` module docstring.
+
+**Composition.** Order-independent: the cave is allocated with
+`allocate_section` past every existing section and `verify` finds it by name.
+The only engine bytes it edits are the five at `QUEUE_EXIT_HORDE_LOOKUP`. `smart-rally` is the
+other patch that reaches into this module - it grows the module to `0x48` for a field at
+`+0x44` and hooks `0x008A39AC`, `0x008A3BF0` and `0x008A3D14` - and none of those is this
+site, nor does either patch read what the other writes.

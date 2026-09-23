@@ -201,7 +201,7 @@ def _stub(name: str, base: int = 0x00B00000) -> list[str]:
     return _dis(built, base)
 
 
-# --- round trip ------------------------------------------------------------------------------
+# Round trip
 
 
 def test_apply_then_verify(image: bytearray) -> None:
@@ -249,7 +249,7 @@ def test_apply_patches_writes_a_file(image: bytearray, tmp_path) -> None:
     assert src.read_bytes() == bytes(image)  # the input is never modified
 
 
-# --- the grown ModuleData ----------------------------------------------------------------------
+# The grown ModuleData
 
 
 def test_the_new_fields_land_past_the_stock_structure() -> None:
@@ -321,7 +321,7 @@ def test_the_patch_reuses_the_stock_filter_field() -> None:
     assert FILTER_OFFSET == dict(STOCK_FIELDS)["HordeMemberFilter"]
 
 
-# --- the relocated field-parse table -----------------------------------------------------------
+# The relocated field-parse table
 
 
 def test_table_keeps_the_stock_entries_verbatim(image: bytearray) -> None:
@@ -393,7 +393,7 @@ def test_the_keyword_is_at_the_section_base(image: bytearray) -> None:
     assert bytes(data[section_off : section_off + 32]).split(b"\x00")[0] == DEFAULT_KEYWORD.encode()
 
 
-# --- the upgrade gate --------------------------------------------------------------------------
+# The upgrade gate
 
 
 def test_the_gate_window_is_exactly_a_jump(image: bytearray) -> None:
@@ -502,7 +502,7 @@ def test_held_balances_its_stack() -> None:
     assert held.count("ret") == 1
 
 
-# --- the copied wrapper vtable -----------------------------------------------------------------
+# The copied wrapper vtable
 
 
 def test_the_cave_vtable_differs_from_stock_in_exactly_one_slot(image: bytearray) -> None:
@@ -537,7 +537,7 @@ def test_a_relocated_allow_is_rejected(image: bytearray) -> None:
         Patch().apply(image)
 
 
-# --- the two hooked windows of the loose-object count -------------------------------------------
+# The two hooked windows of the loose-object count
 
 
 def test_gate1_keeps_the_lea_the_next_instruction_consumes() -> None:
@@ -600,7 +600,7 @@ def test_gate2_reproduces_the_windows_own_first_and_last_instruction(image: byte
     assert window[7:10] == COUNT_WINDOW_BYTES[-3:]  # the stock `add [ebp-0x18], eax`
 
 
-# --- the widened allow -------------------------------------------------------------------------
+# The widened allow
 
 
 def test_allow_keeps_the_stock_contain_path() -> None:
@@ -652,7 +652,7 @@ def test_allow_balances_its_stack_on_every_path() -> None:
             assert text[index + 1 : index + 3] == ["pop ebx", "ret 4"]
 
 
-# --- the count stub ------------------------------------------------------------------------------
+# The count stub
 
 
 def test_count_returns_the_member_count_for_a_container() -> None:
@@ -697,7 +697,7 @@ def test_count_leaves_the_callee_saved_registers_alone() -> None:
     assert not any(line.startswith(("mov esi,", "mov edi,", "mov ebx,")) for line in text)
 
 
-# --- the build fingerprint -------------------------------------------------------------------
+# The build fingerprint
 
 
 def test_a_renamed_field_is_rejected(image: bytearray) -> None:
@@ -752,7 +752,7 @@ def test_verify_notices_a_corrupted_anchor(image: bytearray) -> None:
     assert any("anchor" in problem for problem in Patch().verify(data))
 
 
-# --- the keyword ------------------------------------------------------------------------------
+# The keyword
 
 
 @pytest.mark.parametrize("keyword", ["", "0Bad", "has space", "with-dash", "x" * 64])
@@ -773,7 +773,7 @@ def test_a_keyword_the_module_already_parses_is_refused(keyword: str) -> None:
         Patch(keyword=keyword)
 
 
-# --- the INI surface --------------------------------------------------------------------------
+# The INI surface
 
 
 def test_ini_surface_declares_all_five_fields() -> None:

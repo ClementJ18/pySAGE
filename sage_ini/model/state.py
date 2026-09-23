@@ -24,6 +24,50 @@ from sage_ini.model.enums import ModifierType
 from sage_ini.model.types import eval_number, to_number
 from sage_ini.parser.ast import Attribute, Block
 
+__all__ = [
+    "active_armor_flags",
+    "active_command_set_name",
+    "active_locomotor_condition",
+    "active_modifier_lists",
+    "active_weapon_flags",
+    "armor_max_bonus",
+    "ARMOR_MAX_BONUS_DEFAULT",
+    "armor_scalar_bonus",
+    "build_variations",
+    "command_set_names",
+    "economy_level_upgrades",
+    "expand_target_names",
+    "find_body",
+    "find_upgrades",
+    "has_kindof",
+    "horde_member_object",
+    "horde_members",
+    "hordes_containing",
+    "LEVEL_MODIFIER_KEYS",
+    "level_modifier_lists",
+    "level_up_rank_floor",
+    "level_up_trigger_upgrades",
+    "level_upgrades",
+    "levels_for",
+    "levels_for_names",
+    "LOCOMOTOR_NORMAL",
+    "LOCOMOTOR_UPGRADED",
+    "MAGIC_DAMAGE",
+    "modifier_entries",
+    "modifier_product",
+    "modifier_sum",
+    "payload_members",
+    "RankSelector",
+    "select_armor_set",
+    "select_command_set",
+    "select_locomotor_set",
+    "select_weapon_set",
+    "set_conditions",
+    "UnitState",
+    "UPGRADE_DEFAULT_FLAG",
+    "UPGRADE_FIELDS",
+]
+
 # An Armor/WeaponSetUpgrade with no explicit flag sets this one (engine default).
 UPGRADE_DEFAULT_FLAG = "PLAYER_UPGRADE"
 LOCOMOTOR_NORMAL = "SET_NORMAL"

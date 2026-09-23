@@ -21,6 +21,11 @@ next door (see [`render-rate.md`](render-rate.md) §0).
 > **named** render stages in them, which is §6.1's measurement, already built, waiting for a
 > consumer.
 >
+> §1.1 below, on the other hand, turned out to be load-bearing: the first run of that DLL against a
+> `sage_patch`-patched `game.dat` crashed on the load-screen thread's own loop
+> ([`accel-port.md`](accel-port.md) §1), which is the second drawing thread this document
+> identified and the render-thread design has to account for.
+>
 > **[`render-thread.md`](render-thread.md) is the revision**, and §4 of it is the itemised list of
 > what here still stands. §3.1, §3.5, §5.3 and §7.2 are untouched; the analysis throughout survives
 > and three of the verdicts do not. This document is left standing so the corrections have

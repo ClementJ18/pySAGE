@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+__all__ = [
+    "TriggerArea",
+    "TriggerAreas",
+]
+
 if TYPE_CHECKING:
     from ..context import ParsingContext, WritingContext
 
@@ -17,16 +22,16 @@ class TriggerArea:
 
     @classmethod
     def parse(cls, context: "ParsingContext"):
-        name = context.stream.readUInt16PrefixedAsciiString()
-        layer_name = context.stream.readUInt16PrefixedAsciiString()
-        area_id = context.stream.readUInt32()
+        name = context.stream.read_uint16_prefixed_ascii_string()
+        layer_name = context.stream.read_uint16_prefixed_ascii_string()
+        area_id = context.stream.read_uint32()
 
-        point_count = context.stream.readUInt32()
+        point_count = context.stream.read_uint32()
         points = []
         for _ in range(point_count):
-            points.append(context.stream.readVector2())
+            points.append(context.stream.read_vector2())
 
-        unknown2 = context.stream.readUInt32()
+        unknown2 = context.stream.read_uint32()
         if unknown2 != 0:
             raise ValueError("Invalid data in 'unknown2'")
 
@@ -39,15 +44,15 @@ class TriggerArea:
         )
 
     def write(self, context: "WritingContext"):
-        context.stream.writeUInt16PrefixedAsciiString(self.name)
-        context.stream.writeUInt16PrefixedAsciiString(self.layer_name)
-        context.stream.writeUInt32(self.area_id)
+        context.stream.write_uint16_prefixed_ascii_string(self.name)
+        context.stream.write_uint16_prefixed_ascii_string(self.layer_name)
+        context.stream.write_uint32(self.area_id)
 
-        context.stream.writeUInt32(len(self.points))
+        context.stream.write_uint32(len(self.points))
         for point in self.points:
-            context.stream.writeVector2(point)
+            context.stream.write_vector2(point)
 
-        context.stream.writeUInt32(self.unknown2)
+        context.stream.write_uint32(self.unknown2)
 
 
 @dataclass
@@ -63,7 +68,7 @@ class TriggerAreas:
     def parse(cls, context: "ParsingContext"):
         with context.read_asset() as asset_ctx:
             trigger_areas = []
-            area_count = context.stream.readUInt32()
+            area_count = context.stream.read_uint32()
             for _ in range(area_count):
                 trigger_areas.append(TriggerArea.parse(context))
 
@@ -77,6 +82,6 @@ class TriggerAreas:
 
     def write(self, context: "WritingContext"):
         with context.write_asset(self.asset_name, self.version):
-            context.stream.writeUInt32(len(self.trigger_areas))
+            context.stream.write_uint32(len(self.trigger_areas))
             for area in self.trigger_areas:
                 area.write(context)
